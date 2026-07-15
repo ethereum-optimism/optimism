@@ -97,7 +97,7 @@ func TestParseL1Fork(t *testing.T) {
 }
 
 func TestDeployerOptionsOverrideDevstackL1Fork(t *testing.T) {
-	t.Setenv(DevstackL1ForkEnvVar, "fusaka")
+	t.Setenv(DevstackL1ForkEnvVar, "glamsterdam")
 	builder := newValidIntentBuilder()
 	builder.WithL1ContractsLocator(artifacts.EmbeddedLocator)
 	builder.WithL2ContractsLocator(artifacts.EmbeddedLocator)
@@ -107,15 +107,20 @@ func TestDeployerOptionsOverrideDevstackL1Fork(t *testing.T) {
 
 	applyConfigCommons(dt, keys, DefaultL1ID, builder)
 	applyConfigDeployerOptions(dt, keys, builder, []DeployerOption{
-		WithForkAtL1Genesis(forks.Prague),
+		WithForkAtL1Genesis(forks.Osaka),
+		WithForkAtL1Offset(forks.BPO1, 1),
 	})
 
 	intent, err := builder.Build()
 	require.NoError(t, err)
 	require.NotNil(t, intent.L1DevGenesisParams.PragueTimeOffset)
 	require.Zero(t, *intent.L1DevGenesisParams.PragueTimeOffset)
-	require.Nil(t, intent.L1DevGenesisParams.OsakaTimeOffset)
-	require.Nil(t, intent.L1DevGenesisParams.BPO1TimeOffset)
+	require.NotNil(t, intent.L1DevGenesisParams.OsakaTimeOffset)
+	require.Zero(t, *intent.L1DevGenesisParams.OsakaTimeOffset)
+	require.NotNil(t, intent.L1DevGenesisParams.BPO1TimeOffset)
+	require.Equal(t, uint64(1), *intent.L1DevGenesisParams.BPO1TimeOffset)
+	require.Nil(t, intent.L1DevGenesisParams.BPO2TimeOffset)
+	require.Nil(t, intent.L1DevGenesisParams.AmsterdamTimeOffset)
 }
 
 func TestDevstackFutureL1ForkAddsBlobSchedule(t *testing.T) {
