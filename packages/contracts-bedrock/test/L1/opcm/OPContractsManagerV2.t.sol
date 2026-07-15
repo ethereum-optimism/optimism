@@ -2551,6 +2551,111 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         );
     }
 
+    /// @notice Tests that setInteropDisputeGames reverts when no chains are supplied.
+    function test_setInteropDisputeGames_noChains_reverts() public {
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+
+        // The NoChains check runs first, ahead of every dev-feature gate, so an empty chain set
+        // reverts regardless of which features are enabled.
+        input.chainSystemConfigs = new ISystemConfig[](0);
+
+        prankDelegateCall(chainContracts1.proxyAdmin.owner());
+        (bool success, bytes memory ret) =
+            address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.setInteropDisputeGames, (input)));
+        assertFalse(success, "expected revert for empty chain set");
+        assertEq(
+            bytes4(ret),
+            IOPContractsManagerMigrator.OPContractsManagerMigrator_NoChains.selector,
+            "wrong revert reason"
+        );
+    }
+
+    /// @notice Tests that setInteropDisputeGames reverts when the OPTIMISM_PORTAL_INTEROP dev
+    ///         feature is not enabled.
+    function test_setInteropDisputeGames_interopNotEnabled_reverts() public {
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+
+        // Chains are non-empty so the NoChains check passes. Force the interop dev feature off so
+        // the InteropNotEnabled gate is the one that fires.
+        vm.mockCall(
+            address(opcmV2.contractsContainer()),
+            abi.encodeCall(IOPContractsManagerContainer.isDevFeatureEnabled, (DevFeatures.OPTIMISM_PORTAL_INTEROP)),
+            abi.encode(false)
+        );
+
+        prankDelegateCall(chainContracts1.proxyAdmin.owner());
+        (bool success, bytes memory ret) =
+            address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.setInteropDisputeGames, (input)));
+        assertFalse(success, "expected revert when interop disabled");
+        assertEq(
+            bytes4(ret),
+            IOPContractsManagerMigrator.OPContractsManagerMigrator_InteropNotEnabled.selector,
+            "wrong revert reason"
+        );
+    }
+
+    /// @notice Tests that setInteropDisputeGames reverts when the ZK_DISPUTE_GAME dev feature is
+    ///         not enabled, even though the interop dev feature is.
+    function test_setInteropDisputeGames_zkDisputeGameNotEnabled_reverts() public {
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+
+        // Chains are non-empty (NoChains passes). Interop enabled so the InteropNotEnabled gate
+        // passes, but ZK disabled so the ZKDisputeGameNotEnabled gate fires next.
+        vm.mockCall(
+            address(opcmV2.contractsContainer()),
+            abi.encodeCall(IOPContractsManagerContainer.isDevFeatureEnabled, (DevFeatures.OPTIMISM_PORTAL_INTEROP)),
+            abi.encode(true)
+        );
+        vm.mockCall(
+            address(opcmV2.contractsContainer()),
+            abi.encodeCall(IOPContractsManagerContainer.isDevFeatureEnabled, (DevFeatures.ZK_DISPUTE_GAME)),
+            abi.encode(false)
+        );
+
+        prankDelegateCall(chainContracts1.proxyAdmin.owner());
+        (bool success, bytes memory ret) =
+            address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.setInteropDisputeGames, (input)));
+        assertFalse(success, "expected revert when ZK dispute game disabled");
+        assertEq(
+            bytes4(ret),
+            IOPContractsManagerMigrator.OPContractsManagerMigrator_ZKDisputeGameNotEnabled.selector,
+            "wrong revert reason"
+        );
+    }
+
+    /// @notice Tests that setInteropDisputeGames reverts when the starting respected game type is
+    ///         not a super game type.
+    function test_setInteropDisputeGames_invalidStartingRespectedGameType_reverts() public {
+        IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
+
+        // A non-super respected game type. CANNON is not a super game type, so isSuperGame() fails.
+        input.startingRespectedGameType = GameTypes.CANNON;
+
+        // Chains are non-empty and both dev features are enabled, so the NoChains,
+        // InteropNotEnabled, and ZKDisputeGameNotEnabled gates all pass. The isSuperGame check
+        // (which runs before chain validation) is then the one that fires.
+        vm.mockCall(
+            address(opcmV2.contractsContainer()),
+            abi.encodeCall(IOPContractsManagerContainer.isDevFeatureEnabled, (DevFeatures.OPTIMISM_PORTAL_INTEROP)),
+            abi.encode(true)
+        );
+        vm.mockCall(
+            address(opcmV2.contractsContainer()),
+            abi.encodeCall(IOPContractsManagerContainer.isDevFeatureEnabled, (DevFeatures.ZK_DISPUTE_GAME)),
+            abi.encode(true)
+        );
+
+        prankDelegateCall(chainContracts1.proxyAdmin.owner());
+        (bool success, bytes memory ret) =
+            address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.setInteropDisputeGames, (input)));
+        assertFalse(success, "expected revert for non-super respected game type");
+        assertEq(
+            bytes4(ret),
+            IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidStartingRespectedGameType.selector,
+            "wrong revert reason"
+        );
+    }
+
     /// @notice Tests that the migration function succeeds and liquidity is migrated.
     function test_migrate_succeeds() public {
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
