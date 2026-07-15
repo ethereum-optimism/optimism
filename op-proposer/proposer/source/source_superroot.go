@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-var ErrNoSuperRootData = errors.New("supernode response has no super root data")
+var ErrNoSuperRootData = errors.New("superroot RPC response has no super root data")
 
 // SuperRootClient is the interface required from a super root RPC client.
 type SuperRootClient interface {
