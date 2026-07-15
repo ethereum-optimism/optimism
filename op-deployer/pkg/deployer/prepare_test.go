@@ -725,7 +725,23 @@ func TestPredictChains_StaleGenesisTime(t *testing.T) {
 	}
 	run := func(in opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
 		t.Fatal("prediction must not run for a stale genesis time")
-		return opcm.DeployOPChainOutput{}, nil
+		return opcm.DeployOPChainOutput{
+			OpChainProxyAdmin:                  common.Address{},
+			AddressManager:                     common.Address{},
+			L1ERC721BridgeProxy:                common.Address{},
+			SystemConfigProxy:                  common.Address{},
+			OptimismMintableERC20FactoryProxy:  common.Address{},
+			L1StandardBridgeProxy:              common.Address{},
+			L1CrossDomainMessengerProxy:        common.Address{},
+			OptimismPortalProxy:                common.Address{},
+			EthLockboxProxy:                    common.Address{},
+			DisputeGameFactoryProxy:            common.Address{},
+			AnchorStateRegistryProxy:           common.Address{},
+			FaultDisputeGame:                   common.Address{},
+			PermissionedDisputeGame:            common.Address{},
+			DelayedWETHPermissionedGameProxy:   common.Address{},
+			DelayedWETHPermissionlessGameProxy: common.Address{},
+		}, nil
 	}
 	pinnedAnchor := &state.L1BlockRefJSON{Hash: common.HexToHash("0xa11c"), Number: 100, Time: 5000}
 	pinnedGenesisTime := hexutil.Uint64(5600)
