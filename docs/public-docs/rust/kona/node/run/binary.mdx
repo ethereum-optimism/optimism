@@ -4,12 +4,10 @@ description: "Run the kona-node binary against an op-reth execution client, from
 diataxis: how-to
 ---
 
-:::note
-
+<Note>
 If you haven't already built the `kona-node` binary, head over to the
 [Installation](/rust/kona/node/install/overview) guide.
-
-:::
+</Note>
 
 `kona-node` is an L2 consensus client (also called a "rollup node").
 This means that the node is a _consensus_-layer client, which needs
@@ -102,15 +100,13 @@ kona-node node \
 That's it! Your node should connect to P2P and start syncing
 quickly.
 
-:::note
-
+<Note>
 By default, `kona-node` trusts its RPC providers and doesn't perform
 additional verification, which is suitable for local nodes. When
 pointing the node at public RPC endpoints, follow
 [configure RPC trust](/rust/kona/node/run/rpc-trust) to enable
 block hash verification.
-
-:::
+</Note>
 
 
 #### What to Expect

@@ -20,11 +20,13 @@ To prove the correctness of the state transition, Kona composes these two compon
 `kona-client` serves as an implementation of this process, capable of deriving and executing a single L2 block in a
 verifiable manner.
 
-> 📖 Why just a single block by default?
->
-> On the OP Stack, we employ an interactive bisection game that narrows in on the disagreed upon block -> block state
-> transition before requiring a fault proof to be ran. Because of this, the default implementation only serves
-> to derive and execute the single block that the participants of the bisection game landed on.
+<Note>
+**Why just a single block by default?**
+
+On the OP Stack, we employ an interactive bisection game that narrows in on the disagreed upon block -> block state
+transition before requiring a fault proof to be ran. Because of this, the default implementation only serves
+to derive and execute the single block that the participants of the bisection game landed on.
+</Note>
 
 ## Where the STF Runs
 

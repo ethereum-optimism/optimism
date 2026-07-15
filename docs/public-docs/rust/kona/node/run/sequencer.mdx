@@ -6,9 +6,9 @@ diataxis: how-to
 
 This guide shows how to run `kona-node` in **sequencer mode** from the command line. For how sequencer mode works internally and how to configure it programmatically through the Node SDK, see the [sequencer mode design](/rust/kona/node/design/sequencer) page.
 
-:::info
+<Info>
 Sequencer mode is an advanced configuration primarily used by rollup operators. Most users will run nodes in the default validator mode.
-:::
+</Info>
 
 ## Basic Sequencer Setup
 
@@ -26,11 +26,11 @@ kona-node node \
 
 ## Required Arguments
 
-:::warning
-Required Configuration
+<Warning>
+**Required Configuration**
 
 Sequencer mode requires all standard node arguments plus the `--mode=Sequencer` flag. Missing any required argument will prevent the node from starting.
-:::
+</Warning>
 
 | Argument | Flag | Environment Variable | Description |
 |----------|------|---------------------|-------------|
@@ -93,12 +93,12 @@ kona-node node \
 
 ## Key Considerations
 
-:::tip
-Sequencer Operation
+<Tip>
+**Sequencer Operation**
 
 - **L1 Confirmations**: The `--sequencer.l1-confs` setting determines how many L1 blocks the sequencer waits before using an L1 block as an origin. Higher values provide more safety but increase latency.
 - **Recovery Mode**: Use `--sequencer.recover=true` when the sequencer needs to catch up after being offline.
 - **Conductor Integration**: For multi-sequencer deployments, configure the conductor service for proper leader election.
-:::
+</Tip>
 
 Running a sequencer in production requires careful consideration of infrastructure, monitoring, and failover procedures. Ensure proper JWT secret management and secure network configuration.
