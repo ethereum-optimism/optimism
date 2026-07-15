@@ -1,6 +1,7 @@
 package proposer
 
 import (
+	"fmt"
 	"testing"
 
 	proposerFlags "github.com/ethereum-optimism/optimism/op-proposer/flags"
@@ -39,12 +40,10 @@ func TestNewConfigReadsSuperNodeRpcs(t *testing.T) {
 	}, cfg.SuperNodeRpcs)
 }
 
-func TestRollupRpc(t *testing.T) {
-	for _, gameType := range preInteropGameTypes {
-		t.Run("RequiredWithPreInteropGame", func(t *testing.T) {
+func TestRootFormatRPCValidation(t *testing.T) {
+	for _, gameType := range []uint32{0, 1, 2, 3, 6, 8, 254, 255, 1337} {
+		t.Run(fmt.Sprintf("OutputRootGameType-%d-RequiresRollupRPC", gameType), func(t *testing.T) {
 			cfg := validConfig()
-			cfg.DGFAddress = common.Address{0xaa}.Hex()
-			cfg.ProposalInterval = 20
 			cfg.RollupRpc = ""
 			cfg.SuperNodeRpcs = []string{"http://localhost:8882/supernode"}
 			cfg.DisputeGameType = gameType
@@ -52,33 +51,17 @@ func TestRollupRpc(t *testing.T) {
 		})
 	}
 
-	t.Run("NotRequiredForOtherGameTypes", func(t *testing.T) {
-		cfg := validConfig()
-		cfg.DGFAddress = common.Address{0xaa}.Hex()
-		cfg.ProposalInterval = 20
-		cfg.RollupRpc = ""
-		cfg.SuperNodeRpcs = []string{"http://localhost:8882/supernode"}
-		cfg.DisputeGameType = 492743
-		require.NoError(t, cfg.Check())
-	})
-}
-
-func TestSuperNodeRpc(t *testing.T) {
-	for _, gameType := range postInteropGameTypes {
-		t.Run("RequiredWithPostInteropGame", func(t *testing.T) {
+	for _, gameType := range []uint32{5, 9} {
+		t.Run(fmt.Sprintf("SuperRootGameType-%d-AcceptsRollupRPC", gameType), func(t *testing.T) {
 			cfg := validConfig()
-			cfg.DGFAddress = common.Address{0xaa}.Hex()
-			cfg.ProposalInterval = 20
 			cfg.RollupRpc = "http://localhost:8882/rollup"
 			cfg.SuperNodeRpcs = nil
 			cfg.DisputeGameType = gameType
-			require.ErrorIs(t, cfg.Check(), ErrMissingSuperNodeRpc)
+			require.NoError(t, cfg.Check())
 		})
 
-		t.Run("AllowedWithPostInteropGame", func(t *testing.T) {
+		t.Run(fmt.Sprintf("SuperRootGameType-%d-AcceptsSuperNodeRPC", gameType), func(t *testing.T) {
 			cfg := validConfig()
-			cfg.DGFAddress = common.Address{0xaa}.Hex()
-			cfg.ProposalInterval = 20
 			cfg.RollupRpc = ""
 			cfg.SuperNodeRpcs = []string{"http://localhost:8882/supernode"}
 			cfg.DisputeGameType = gameType
@@ -86,15 +69,23 @@ func TestSuperNodeRpc(t *testing.T) {
 		})
 	}
 
-	t.Run("AllowedForOtherGameTypes", func(t *testing.T) {
-		cfg := validConfig()
-		cfg.DGFAddress = common.Address{0xaa}.Hex()
-		cfg.ProposalInterval = 20
-		cfg.RollupRpc = ""
-		cfg.SuperNodeRpcs = []string{"http://localhost:8882/supernode"}
-		cfg.DisputeGameType = 492743
-		require.NoError(t, cfg.Check())
-	})
+	for _, gameType := range []uint32{4, 492743} {
+		t.Run(fmt.Sprintf("UnknownGameType-%d-AcceptsRollupRPC", gameType), func(t *testing.T) {
+			cfg := validConfig()
+			cfg.RollupRpc = "http://localhost:8882/rollup"
+			cfg.SuperNodeRpcs = nil
+			cfg.DisputeGameType = gameType
+			require.NoError(t, cfg.Check())
+		})
+
+		t.Run(fmt.Sprintf("UnknownGameType-%d-AcceptsSuperNodeRPC", gameType), func(t *testing.T) {
+			cfg := validConfig()
+			cfg.RollupRpc = ""
+			cfg.SuperNodeRpcs = []string{"http://localhost:8882/supernode"}
+			cfg.DisputeGameType = gameType
+			require.NoError(t, cfg.Check())
+		})
+	}
 }
 
 func TestDisallowRollupAndSuperNodeRPC(t *testing.T) {

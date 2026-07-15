@@ -129,8 +129,37 @@ func (ps *ProposerService) initRPCClients(ctx context.Context, cfg *CLIConfig) e
 	}
 	ps.L1Client = l1Client
 
+	return ps.initProposalSource(ctx, cfg)
+}
+
+func (ps *ProposerService) initProposalSource(ctx context.Context, cfg *CLIConfig) error {
+	rootFormat := proposalRootFormatForGameType(cfg.DisputeGameType)
+	useSuperRootSource := rootFormat == superRootFormat ||
+		(rootFormat == unknownRootFormat && len(cfg.SuperNodeRpcs) != 0)
+
+	if useSuperRootSource {
+		urls := cfg.SuperNodeRpcs
+		if cfg.RollupRpc != "" {
+			urls = strings.Split(cfg.RollupRpc, ",")
+		}
+		clients := make([]source.SuperNodeClient, 0, len(urls))
+		for _, url := range urls {
+			cl, err := dial.DialSuperNodeClientWithTimeout(ctx, ps.Log, url,
+				client.WithRPCRecorder(ps.Metrics.NewRecorder("supernode")))
+			if err != nil {
+				return fmt.Errorf("failed to dial super root RPC client (%v): %w", url, err)
+			}
+			clients = append(clients, cl)
+		}
+		ps.ProposalSource = source.NewSuperNodeProposalSource(ps.Log, clients...)
+		return nil
+	}
+
 	if cfg.RollupRpc != "" {
-		var rollupProvider dial.RollupProvider
+		var (
+			rollupProvider dial.RollupProvider
+			err            error
+		)
 		if strings.Contains(cfg.RollupRpc, ",") {
 			rollupUrls := strings.Split(cfg.RollupRpc, ",")
 			rollupProvider, err = dial.NewActiveL2RollupProvider(ctx, rollupUrls, cfg.ActiveSequencerCheckDuration, dial.DefaultDialTimeout, ps.Log)
@@ -141,23 +170,10 @@ func (ps *ProposerService) initRPCClients(ctx context.Context, cfg *CLIConfig) e
 			return fmt.Errorf("failed to build L2 endpoint provider: %w", err)
 		}
 		ps.ProposalSource = source.NewRollupProposalSource(rollupProvider)
+		return nil
 	}
-	if len(cfg.SuperNodeRpcs) != 0 {
-		var clients []source.SuperNodeClient
-		for _, url := range cfg.SuperNodeRpcs {
-			cl, err := dial.DialSuperNodeClientWithTimeout(ctx, ps.Log, url,
-				client.WithRPCRecorder(ps.Metrics.NewRecorder("supernode")))
-			if err != nil {
-				return fmt.Errorf("failed to dial supernode RPC client (%v): %w", url, err)
-			}
-			clients = append(clients, cl)
-		}
-		ps.ProposalSource = source.NewSuperNodeProposalSource(ps.Log, clients...)
-	}
-	if ps.ProposalSource == nil {
-		return ErrMissingSource
-	}
-	return nil
+
+	return ErrMissingSource
 }
 
 func (ps *ProposerService) initMetrics(cfg *CLIConfig) {

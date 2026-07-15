@@ -15,22 +15,33 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
-var (
-	ErrMissingRollupRpc    = errors.New("missing rollup rpc")
-	ErrMissingSuperNodeRpc = errors.New("missing supernode rpc")
-	ErrMissingSource       = errors.New("missing proposal source rpc (rollup or supernode)")
-	ErrConflictingSource   = errors.New("must specify exactly one of rollup rpc or supernode rpc")
+type proposalRootFormat uint8
 
-	// preInteropGameTypes are game types that enforce having a rollup rpc.
-	// It is ok if this list isn't complete, unknown game types will allow either rollup or supernode.
-	// We just want to reduce foot-guns during the migration period.
-	preInteropGameTypes = []uint32{0, 1, 2, 3, 6, 254, 255, 1337}
-
-	// postInteropGameTypes are game types that enforce having a supernode rpc.
-	// It is ok if this list isn't complete, unknown game types will allow either rollup or supernode.
-	// We just want to reduce foot-guns during the migration period.
-	postInteropGameTypes = []uint32{4, 5}
+const (
+	unknownRootFormat proposalRootFormat = iota
+	outputRootFormat
+	superRootFormat
 )
+
+var (
+	ErrMissingRollupRpc  = errors.New("missing rollup rpc")
+	ErrMissingSource     = errors.New("missing proposal source rpc (rollup or supernode)")
+	ErrConflictingSource = errors.New("must specify exactly one of rollup rpc or supernode rpc")
+
+	outputRootGameTypes = []uint32{0, 1, 2, 3, 6, 8, 254, 255, 1337}
+	superRootGameTypes  = []uint32{5, 9}
+)
+
+func proposalRootFormatForGameType(gameType uint32) proposalRootFormat {
+	switch {
+	case slices.Contains(outputRootGameTypes, gameType):
+		return outputRootFormat
+	case slices.Contains(superRootGameTypes, gameType):
+		return superRootFormat
+	default:
+		return unknownRootFormat
+	}
+}
 
 // CLIConfig is a well typed config that is parsed from the CLI params.
 // This also contains config options for auxiliary services.
@@ -115,15 +126,10 @@ func (c *CLIConfig) Check() error {
 	if sourceCount > 1 {
 		return ErrConflictingSource
 	}
-	// Require rollup RPC for pre interop game types
-	if c.DGFAddress != "" && slices.Contains(preInteropGameTypes, c.DisputeGameType) && c.RollupRpc == "" {
+	if proposalRootFormatForGameType(c.DisputeGameType) == outputRootFormat && c.RollupRpc == "" {
 		return ErrMissingRollupRpc
 	}
-	// Require supernode RPC for post interop game types
-	if c.DGFAddress != "" && slices.Contains(postInteropGameTypes, c.DisputeGameType) && len(c.SuperNodeRpcs) == 0 {
-		return ErrMissingSuperNodeRpc
-	}
-	// For unknown game types, allow any source, but require at least one.
+	// All game types require a proposal source.
 	if sourceCount == 0 {
 		return ErrMissingSource
 	}
