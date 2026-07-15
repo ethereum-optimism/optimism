@@ -216,6 +216,11 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerMigrator_RespectedGameTypeNotRegistered",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerMigrator_SuperchainConfigMismatch",
     "type": "error"
   },

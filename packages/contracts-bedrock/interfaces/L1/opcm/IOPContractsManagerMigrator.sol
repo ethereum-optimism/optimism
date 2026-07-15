@@ -56,6 +56,10 @@ interface IOPContractsManagerMigrator {
     ///         they are not a single already-interop set.
     error OPContractsManagerMigrator_NotSharedInteropSet();
 
+    /// @notice Thrown when the new respected game type does not resolve to a registered
+    ///         implementation on the shared DisputeGameFactory after the dispute games are swapped.
+    error OPContractsManagerMigrator_RespectedGameTypeNotRegistered();
+
     /// @notice Returns the container of blueprint and implementation contract addresses.
     function contractsContainer() external view returns (IOPContractsManagerContainer);
 

@@ -73,6 +73,10 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     ///         they are not a single already-interop set.
     error OPContractsManagerMigrator_NotSharedInteropSet();
 
+    /// @notice Thrown when the new respected game type does not resolve to a registered
+    ///         implementation on the shared DisputeGameFactory after the dispute games are swapped.
+    error OPContractsManagerMigrator_RespectedGameTypeNotRegistered();
+
     /// @param _utils The utility functions for the OPContractsManager.
     constructor(IOPContractsManagerUtils _utils) OPContractsManagerUtilsCaller(_utils) { }
 
@@ -340,6 +344,11 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
             }
             disputeGameFactory.setImplementation(_input.disputeGameConfigs[i].gameType, gameImpl, gameArgs);
             disputeGameFactory.setInitBond(_input.disputeGameConfigs[i].gameType, _input.disputeGameConfigs[i].initBond);
+        }
+
+        // The new respected game type must resolve to a registered implementation after the swap.
+        if (address(disputeGameFactory.gameImpls(_input.startingRespectedGameType)) == address(0)) {
+            revert OPContractsManagerMigrator_RespectedGameTypeNotRegistered();
         }
     }
 

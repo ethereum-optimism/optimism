@@ -2564,9 +2564,7 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.setInteropDisputeGames, (input)));
         assertFalse(success, "expected revert for empty chain set");
         assertEq(
-            bytes4(ret),
-            IOPContractsManagerMigrator.OPContractsManagerMigrator_NoChains.selector,
-            "wrong revert reason"
+            bytes4(ret), IOPContractsManagerMigrator.OPContractsManagerMigrator_NoChains.selector, "wrong revert reason"
         );
     }
 
