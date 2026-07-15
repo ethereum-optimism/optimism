@@ -1103,12 +1103,13 @@ fn ensure_matching_consolidation_chains(
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::{Address, B256, U256, address, b256, hex};
+    use alloy_primitives::{Address, B256, U256, b256, hex};
+
+    use crate::test_utils::valid_aggregation_inputs;
 
     use super::{
-        SuperAggregationInputs, SuperConsolidationInputs, SuperConsolidationOutputs,
-        SuperConsolidationTransition, SuperConsolidationTransitionInput, SuperInteropInputs,
-        SuperOptimisticBlock, SuperOutputRoot, SuperRangeInputs, SuperRangeOutputs,
+        SuperAggregationInputs, SuperConsolidationInputs, SuperConsolidationTransitionInput,
+        SuperInteropInputs, SuperOptimisticBlock, SuperOutputRoot, SuperRangeInputs,
         SuperRangeTransition, SuperRootError, SuperRootProof, TimestampSpan,
         encode_super_root_proof, ensure_strictly_increasing_chains, hash_super_root_proof,
     };
@@ -1138,74 +1139,6 @@ mod tests {
         SuperRangeTransition {
             timestamp,
             optimistic_block: optimistic(chain_id, block_fill, output_fill),
-        }
-    }
-
-    fn consolidation_transition(
-        timestamp: u64,
-        optimistic_blocks: Vec<SuperOptimisticBlock>,
-        super_root_fill: u8,
-    ) -> SuperConsolidationTransition {
-        SuperConsolidationTransition {
-            timestamp,
-            optimistic_blocks,
-            super_root: B256::from([super_root_fill; 32]),
-        }
-    }
-
-    fn range_vkey() -> [u32; 8] {
-        [1, 2, 3, 4, 5, 6, 7, 8]
-    }
-
-    fn valid_aggregation_inputs() -> SuperAggregationInputs {
-        let starting_super_root_proof =
-            SuperRootProof::new(99, vec![output(10, 0x01), output(20, 0x02)]);
-        let starting_root_hash =
-            hash_super_root_proof(&starting_super_root_proof).expect("starting root hashes");
-        let final_super_root = B256::from([0x55; 32]);
-        let timestamp_100 = vec![optimistic(10, 0x11, 0x12), optimistic(20, 0x21, 0x22)];
-        let timestamp_101 = vec![optimistic(10, 0x31, 0x32), optimistic(20, 0x41, 0x42)];
-
-        SuperAggregationInputs {
-            l1_head: B256::from([0x99; 32]),
-            starting_root_hash,
-            starting_super_root_proof,
-            root_claim: final_super_root,
-            l2_sequence_number: 101,
-            prover: address!("0x1234567890123456789012345678901234567890"),
-            range_outputs: vec![
-                SuperRangeOutputs {
-                    span: TimestampSpan::new(100, 100).expect("valid span"),
-                    l1_head: B256::from([0x99; 32]),
-                    previous_super_roots: vec![starting_root_hash],
-                    transitions: vec![
-                        SuperRangeTransition { timestamp: 100, optimistic_block: timestamp_100[0] },
-                        SuperRangeTransition { timestamp: 100, optimistic_block: timestamp_100[1] },
-                    ],
-                },
-                SuperRangeOutputs {
-                    span: TimestampSpan::new(101, 101).expect("valid span"),
-                    l1_head: B256::from([0x99; 32]),
-                    previous_super_roots: vec![B256::from([0x44; 32])],
-                    transitions: vec![
-                        SuperRangeTransition { timestamp: 101, optimistic_block: timestamp_101[0] },
-                        SuperRangeTransition { timestamp: 101, optimistic_block: timestamp_101[1] },
-                    ],
-                },
-            ],
-            consolidation_outputs: vec![
-                SuperConsolidationOutputs {
-                    span: TimestampSpan::new(100, 100).expect("valid span"),
-                    previous_super_root: starting_root_hash,
-                    transitions: vec![consolidation_transition(100, timestamp_100, 0x44)],
-                },
-                SuperConsolidationOutputs {
-                    span: TimestampSpan::new(101, 101).expect("valid span"),
-                    previous_super_root: B256::from([0x44; 32]),
-                    transitions: vec![consolidation_transition(101, timestamp_101, 0x55)],
-                },
-            ],
-            range_vkey: range_vkey(),
         }
     }
 

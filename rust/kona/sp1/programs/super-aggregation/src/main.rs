@@ -54,115 +54,39 @@ fn interop_public_values_digest(output: &SuperInteropOutputs) -> [u8; 32] {
 
 #[cfg(test)]
 mod tests {
-    use kona_sp1_client_utils::super_root::{
-        SuperAggregationInputs, SuperConsolidationOutputs, SuperConsolidationTransition,
-        SuperOptimisticBlock, SuperOutputRoot, SuperRangeOutputs, SuperRangeTransition,
-        SuperRootError, SuperRootProof, TimestampSpan, hash_super_root_proof,
-    };
+    use kona_sp1_client_utils::{super_root::SuperRootError, test_utils::valid_aggregation_inputs};
     use sha2::{Digest, Sha256};
 
     use super::{aggregate, consolidation_public_values_digest, range_public_values_digest};
 
     const RANGE_DIGESTS: [[u8; 32]; 2] = [
         [
-            0xdb, 0x92, 0x1d, 0xe3, 0x9f, 0xe2, 0xd7, 0xf6, 0x70, 0x01, 0xd9, 0x0a, 0x97, 0x67,
-            0xd2, 0xc5, 0x6a, 0xc5, 0xf6, 0xbe, 0x45, 0xaa, 0x38, 0xac, 0x08, 0x84, 0xac, 0xad,
-            0x69, 0x86, 0x72, 0x00,
+            0x4e, 0xe8, 0xd3, 0x48, 0x6c, 0x0f, 0xb2, 0xab, 0xee, 0x27, 0xd3, 0xf3, 0x36, 0x73,
+            0xe9, 0x69, 0x3f, 0x2d, 0x58, 0x80, 0xac, 0x88, 0x46, 0x02, 0xe0, 0xa9, 0x30, 0x95,
+            0xa9, 0xed, 0x06, 0x32,
         ],
         [
-            0x50, 0xc4, 0x29, 0x09, 0x93, 0xcb, 0x22, 0x19, 0xe4, 0x89, 0x18, 0xd0, 0xd1, 0xbe,
-            0x4b, 0x45, 0x69, 0xfc, 0xb6, 0x24, 0xf6, 0x7e, 0x3c, 0x1b, 0x71, 0xce, 0xf7, 0xec,
-            0xfb, 0x7e, 0xe1, 0x74,
+            0xf0, 0x6d, 0x1f, 0x97, 0x3a, 0x76, 0x5b, 0x87, 0xc7, 0x3b, 0xe4, 0x05, 0xce, 0xab,
+            0x0b, 0x40, 0xfa, 0x64, 0x11, 0x12, 0xd3, 0xbd, 0xc5, 0x50, 0x6d, 0xe0, 0x94, 0x22,
+            0xf6, 0x53, 0x18, 0x2b,
         ],
     ];
     const CONSOLIDATION_DIGESTS: [[u8; 32]; 2] = [
         [
-            0xbc, 0xd9, 0x85, 0x0b, 0xff, 0xf7, 0x71, 0x91, 0x9b, 0x65, 0x71, 0x45, 0x15, 0xbf,
-            0x27, 0xc3, 0x51, 0xbe, 0x67, 0xd4, 0xbb, 0x07, 0x41, 0x78, 0x08, 0x2a, 0xf1, 0x58,
-            0x93, 0x50, 0x5d, 0x60,
+            0x28, 0x9f, 0xf7, 0xbc, 0xa7, 0x27, 0xfd, 0xbe, 0x61, 0xd1, 0x77, 0xc8, 0x82, 0x58,
+            0x78, 0x58, 0x91, 0xc8, 0x4b, 0x22, 0xd1, 0xc7, 0x37, 0xa6, 0x94, 0x61, 0x67, 0x66,
+            0xb4, 0xa8, 0x55, 0x25,
         ],
         [
-            0x84, 0x1a, 0x78, 0xe4, 0x79, 0x81, 0x31, 0xc0, 0xc5, 0xec, 0xf8, 0xd2, 0x7a, 0xc1,
-            0xc4, 0x26, 0x64, 0x1c, 0x1e, 0x7c, 0xda, 0x61, 0x21, 0x03, 0x90, 0x64, 0xa9, 0xcf,
-            0x2b, 0x10, 0xca, 0xc4,
+            0x15, 0x25, 0x08, 0xa9, 0xc3, 0xd9, 0x53, 0x97, 0x70, 0xf0, 0x1f, 0x5a, 0x27, 0x9b,
+            0x4e, 0x90, 0xe9, 0x06, 0xae, 0x40, 0xc7, 0x32, 0x8d, 0x73, 0xdb, 0x54, 0xd9, 0xc3,
+            0x97, 0x40, 0x6b, 0x47,
         ],
     ];
 
-    fn valid_inputs() -> SuperAggregationInputs {
-        let l1_head = [0x99; 32].into();
-        let starting_super_root_proof = SuperRootProof::new(
-            99,
-            vec![SuperOutputRoot { chain_id: 0, output_root: [0x01; 32].into() }],
-        );
-        let starting_root_hash =
-            hash_super_root_proof(&starting_super_root_proof).expect("starting root hashes");
-        let first_optimistic_block = SuperOptimisticBlock {
-            chain_id: Default::default(),
-            block_hash: [0x11; 32].into(),
-            output_root: [0x12; 32].into(),
-        };
-        let second_optimistic_block = SuperOptimisticBlock {
-            chain_id: Default::default(),
-            block_hash: [0x21; 32].into(),
-            output_root: [0x22; 32].into(),
-        };
-        let intermediate_root = [0x23; 32].into();
-        let root_claim = [0x33; 32].into();
-
-        SuperAggregationInputs {
-            l1_head,
-            starting_root_hash,
-            starting_super_root_proof,
-            root_claim,
-            l2_sequence_number: 101,
-            prover: [0x12; 20].into(),
-            range_outputs: vec![
-                SuperRangeOutputs {
-                    span: TimestampSpan::new(100, 100).expect("valid span"),
-                    l1_head,
-                    previous_super_roots: vec![starting_root_hash],
-                    transitions: vec![SuperRangeTransition {
-                        timestamp: 100,
-                        optimistic_block: first_optimistic_block,
-                    }],
-                },
-                SuperRangeOutputs {
-                    span: TimestampSpan::new(101, 101).expect("valid span"),
-                    l1_head,
-                    previous_super_roots: vec![intermediate_root],
-                    transitions: vec![SuperRangeTransition {
-                        timestamp: 101,
-                        optimistic_block: second_optimistic_block,
-                    }],
-                },
-            ],
-            consolidation_outputs: vec![
-                SuperConsolidationOutputs {
-                    span: TimestampSpan::new(100, 100).expect("valid span"),
-                    previous_super_root: starting_root_hash,
-                    transitions: vec![SuperConsolidationTransition {
-                        timestamp: 100,
-                        optimistic_blocks: vec![first_optimistic_block],
-                        super_root: intermediate_root,
-                    }],
-                },
-                SuperConsolidationOutputs {
-                    span: TimestampSpan::new(101, 101).expect("valid span"),
-                    previous_super_root: intermediate_root,
-                    transitions: vec![SuperConsolidationTransition {
-                        timestamp: 101,
-                        optimistic_blocks: vec![second_optimistic_block],
-                        super_root: root_claim,
-                    }],
-                },
-            ],
-            range_vkey: [1, 2, 3, 4, 5, 6, 7, 8],
-        }
-    }
-
     #[test]
     fn aggregation_verifies_children_in_proof_stream_order_and_returns_public_values() {
-        let inputs = valid_inputs();
+        let inputs = valid_aggregation_inputs();
         let mut calls = Vec::new();
 
         let public_values = aggregate(&inputs, |vkey, digest| calls.push((*vkey, *digest)))
@@ -182,7 +106,7 @@ mod tests {
 
     #[test]
     fn public_value_digests_bind_mode_discriminant() {
-        let inputs = valid_inputs();
+        let inputs = valid_aggregation_inputs();
         let range_output = &inputs.range_outputs[0];
         let consolidation_output = &inputs.consolidation_outputs[0];
 
@@ -207,7 +131,7 @@ mod tests {
 
     #[test]
     fn aggregation_rejects_invalid_inputs_before_verifying_children() {
-        let mut inputs = valid_inputs();
+        let mut inputs = valid_aggregation_inputs();
         let expected_l1_head = inputs.l1_head;
         let actual_l1_head = [0xee; 32].into();
         inputs.range_outputs[0].l1_head = actual_l1_head;
