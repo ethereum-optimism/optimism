@@ -436,10 +436,20 @@ func (f *DisputeGameFactory) createNewGame(eoa *dsl.EOA, gameType gameTypes.Game
 	receipt := contract.Write(eoa, f.dgf.Create(uint32(gameType), claim, extraData), txplan.WithValue(requiredBonds), txplan.WithGasRatio(2))
 	f.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
 
-	// Extract logs from receipt
-	f.require.Equal(2, len(receipt.Logs))
-	createdLog, err := f.dgf.ParseDisputeGameCreated(receipt.Logs[1])
-	f.require.NoError(err)
+	var createdLog *bindings.DisputeGameCreated
+	for _, eventLog := range receipt.Logs {
+		if len(eventLog.Topics) == 0 {
+			continue
+		}
+		parsed, err := f.dgf.ParseDisputeGameCreated(eventLog)
+		if err == bindings.InvalidLogSignature {
+			continue
+		}
+		f.require.NoError(err)
+		f.require.Nil(createdLog, "Multiple DisputeGameCreated events in receipt")
+		createdLog = parsed
+	}
+	f.require.NotNil(createdLog, "DisputeGameCreated event not found in receipt")
 
 	gameAddr := createdLog.DisputeProxy
 	log.Info("Dispute game created", "address", gameAddr.Hex())
