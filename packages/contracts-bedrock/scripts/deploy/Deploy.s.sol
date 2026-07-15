@@ -315,7 +315,12 @@ contract Deploy is Deployer {
             _mips: IMIPS64(address(dio.mipsSingleton))
         });
         ChainAssertions.checkSystemConfigImpls(impls);
-        ChainAssertions.checkAnchorStateRegistryProxy(IAnchorStateRegistry(impls.AnchorStateRegistry), false);
+        ChainAssertions.checkAnchorStateRegistryProxy(
+            IAnchorStateRegistry(impls.AnchorStateRegistry),
+            false,
+            GameType.wrap(0),
+            Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 })
+        );
     }
 
     /// @notice Deploy all of the OP Chain specific contracts

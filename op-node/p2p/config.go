@@ -145,8 +145,7 @@ func DefaultConnManager(conf *Config) (connmgr.ConnManager, error) {
 		int(conf.PeersLo),
 		int(conf.PeersHi),
 		cmgr.WithGracePeriod(conf.PeersGrace),
-		cmgr.WithSilencePeriod(time.Minute),
-		cmgr.WithEmergencyTrim(true))
+		cmgr.WithSilencePeriod(time.Minute))
 }
 
 func (conf *Config) TargetPeers() uint {

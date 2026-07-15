@@ -289,7 +289,9 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         v2UpgradeInput.disputeGameConfigs.push(
             IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
-                initBond: disputeGameFactory.initBonds(GameTypes.CANNON_KONA),
+                initBond: DisputeGames.permissionlessGameInitBondForUpgrade(
+                    disputeGameFactory, GameTypes.CANNON_KONA, DEFAULT_DISPUTE_GAME_INIT_BOND
+                ),
                 gameType: GameTypes.CANNON_KONA,
                 gameArgs: abi.encode(
                     IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate })
@@ -648,6 +650,24 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         );
     }
 
+    /// @notice Tests that the V2 upgrade function reverts when SUPER_CANNON_KONA is enabled
+    ///         with a zero absolute prestate.
+    function test_upgrade_superCannonKonaZeroPrestate_reverts() public {
+        v2UpgradeInput.disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: true,
+            initBond: DEFAULT_DISPUTE_GAME_INIT_BOND,
+            gameType: GameTypes.SUPER_CANNON_KONA,
+            gameArgs: abi.encode(
+                IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: Claim.wrap(bytes32(0)) })
+            )
+        });
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runCurrentUpgradeV2(
+            chainPAO, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
+
     /// @notice Tests that the V2 upgrade function rejects the ALL sentinel in permitted proxy
     ///         deployments.
     function test_upgrade_allPermittedProxyDeployments_reverts() public {
@@ -745,7 +765,9 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
     /// @notice Tests that repeatedly upgrading can enable a previously disabled game type.
     function test_upgrade_enableGameType_succeeds() public {
-        uint256 originalBond = disputeGameFactory.initBonds(GameTypes.CANNON_KONA);
+        uint256 originalBond = DisputeGames.permissionlessGameInitBondForUpgrade(
+            disputeGameFactory, GameTypes.CANNON_KONA, DEFAULT_DISPUTE_GAME_INIT_BOND
+        );
 
         // First, disable CannonKona and clear its bond so the factory entry is removed.
         // CANNON_KONA is the respected game type, so we must override it to PERMISSIONED_CANNON
@@ -949,11 +971,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
     /// @notice Tests upgrading the respected game type to CANNON_KONA via the override key.
     function test_upgrade_respectedGameTypeCannonToKona_succeeds() public {
-        vm.mockCall(
-            address(opcmV2.contractsContainer()),
-            abi.encodeCall(IOPContractsManagerContainer.isDevFeatureEnabled, (DevFeatures.CANNON_KONA)),
-            abi.encode(true)
-        );
         /// This is a hack because fork live has an outdated superchain registry reference that it
         /// pulls the addresses from
         IAnchorStateRegistry anchorStateRegistry = optimismPortal2.anchorStateRegistry();
@@ -973,11 +990,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
     /// @notice Tests that overriding to CANNON_KONA is a no-op when already CANNON_KONA.
     function test_upgrade_respectedGameTypeAlreadyKona_succeeds() public {
-        vm.mockCall(
-            address(opcmV2.contractsContainer()),
-            abi.encodeCall(IOPContractsManagerContainer.isDevFeatureEnabled, (DevFeatures.CANNON_KONA)),
-            abi.encode(true)
-        );
         vm.mockCall(
             address(anchorStateRegistry),
             abi.encodeCall(IAnchorStateRegistry.respectedGameType, ()),
@@ -1017,12 +1029,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
     /// @notice Tests that overriding to a disabled game type reverts during upgrade.
     function test_upgrade_respectedGameTypeOverrideToDisabled_reverts() public {
-        address opcmV2Container = address(opcmV2.contractsContainer());
-        vm.mockCall(
-            opcmV2Container,
-            abi.encodeCall(IOPContractsManagerContainer.isDevFeatureEnabled, (DevFeatures.CANNON_KONA)),
-            abi.encode(true)
-        );
         v2UpgradeInput.disputeGameConfigs[2].enabled = false;
         v2UpgradeInput.disputeGameConfigs[2].initBond = 0;
         v2UpgradeInput.extraInstructions.push(
@@ -1034,25 +1040,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         // nosemgrep: sol-style-use-abi-encodecall
         runCurrentUpgradeV2(
             chainPAO, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
-        );
-    }
-
-    /// @notice Tests that the respected game type override is rejected when CANNON_KONA dev feature is off.
-    function test_upgrade_respectedGameTypeOverrideWithoutDevFeature_reverts() public {
-        skipIfDevFeatureEnabled(DevFeatures.CANNON_KONA);
-        v2UpgradeInput.extraInstructions.push(
-            IOPContractsManagerUtils.ExtraInstruction({
-                key: "overrides.cfg.startingRespectedGameType",
-                data: abi.encode(GameTypes.CANNON_KONA)
-            })
-        );
-        // nosemgrep: sol-style-use-abi-encodecall
-        runCurrentUpgradeV2(
-            chainPAO,
-            abi.encodeWithSelector(
-                IOPContractsManagerV2.OPContractsManagerV2_InvalidUpgradeInstruction.selector,
-                "overrides.cfg.startingRespectedGameType"
-            )
         );
     }
 
@@ -1805,7 +1792,6 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
             maximumBaseFee: type(uint128).max
         });
 
-        // Set up dispute game configs. All 7 game types are required.
         // In super root mode, SUPER_PERMISSIONED is enabled; otherwise PERMISSIONED_CANNON.
         address initialChallenger = makeAddr("deployChallenger");
         address initialProposer = makeAddr("deployProposer");
@@ -1874,6 +1860,68 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
                 )
             })
         );
+    }
+
+    /// @notice Enables the PERMISSIONED_CANNON game config.
+    function _enablePermissionedCannonGame() internal {
+        deployConfig.disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: true,
+            initBond: DEFAULT_DISPUTE_GAME_INIT_BOND,
+            gameType: GameTypes.PERMISSIONED_CANNON,
+            gameArgs: abi.encode(
+                IOPContractsManagerUtils.PermissionedDisputeGameConfig({
+                    absolutePrestate: cannonPrestate,
+                    proposer: makeAddr("deployProposer"),
+                    challenger: makeAddr("deployChallenger")
+                })
+            )
+        });
+    }
+
+    /// @notice Disables the PERMISSIONED_CANNON game config.
+    function _disablePermissionedCannonGame() internal {
+        deployConfig.disputeGameConfigs[1].enabled = false;
+        deployConfig.disputeGameConfigs[1].initBond = 0;
+        deployConfig.disputeGameConfigs[1].gameArgs = bytes("");
+    }
+
+    /// @notice Enables the CANNON_KONA game config.
+    function _enableCannonKonaGame() internal {
+        deployConfig.disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: true,
+            initBond: DEFAULT_DISPUTE_GAME_INIT_BOND,
+            gameType: GameTypes.CANNON_KONA,
+            gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }))
+        });
+    }
+
+    /// @notice Enables the SUPER_PERMISSIONED game config.
+    function _enableSuperPermissionedGame() internal {
+        deployConfig.disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: true,
+            initBond: 0,
+            gameType: GameTypes.SUPER_PERMISSIONED,
+            gameArgs: abi.encode(
+                IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: makeAddr("deployProposer") })
+            )
+        });
+    }
+
+    /// @notice Disables the SUPER_PERMISSIONED game config.
+    function _disableSuperPermissionedGame() internal {
+        deployConfig.disputeGameConfigs[3].enabled = false;
+        deployConfig.disputeGameConfigs[3].initBond = 0;
+        deployConfig.disputeGameConfigs[3].gameArgs = bytes("");
+    }
+
+    /// @notice Enables the SUPER_CANNON_KONA game config.
+    function _enableSuperCannonKonaGame() internal {
+        deployConfig.disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: true,
+            initBond: DEFAULT_DISPUTE_GAME_INIT_BOND,
+            gameType: GameTypes.SUPER_CANNON_KONA,
+            gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }))
+        });
     }
 
     /// @notice Tests that the deploy function succeeds and passes standard validation.
@@ -1960,9 +2008,11 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
 
     /// @notice Tests that deploy reverts when an enabled game has a zero init bond.
     function test_deploy_enabledGameZeroBond_reverts() public {
-        // Enable Cannon but keep a zero init bond.
-        deployConfig.disputeGameConfigs[0].enabled = true;
-        deployConfig.disputeGameConfigs[0].initBond = 0;
+        // Enable CANNON_KONA but keep a zero init bond.
+        deployConfig.disputeGameConfigs[2].enabled = true;
+        deployConfig.disputeGameConfigs[2].initBond = 0;
+        deployConfig.disputeGameConfigs[2].gameArgs =
+            abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }));
 
         // nosemgrep: sol-style-use-abi-encodecall
         runDeployV2(
@@ -2007,9 +2057,13 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         );
     }
 
+    /// @notice Deploy reverts when legacy CANNON is enabled, even with a valid prestate.
     function test_deploy_cannonGameEnabled_reverts() public {
         deployConfig.disputeGameConfigs[0].enabled = true;
-        deployConfig.disputeGameConfigs[0].initBond = 1 ether;
+        deployConfig.disputeGameConfigs[0].initBond = DEFAULT_DISPUTE_GAME_INIT_BOND;
+        deployConfig.disputeGameConfigs[0].gameArgs =
+            abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate }));
+        deployConfig.startingRespectedGameType = GameTypes.CANNON;
 
         // nosemgrep: sol-style-use-abi-encodecall
         runDeployV2(
@@ -2017,9 +2071,98 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         );
     }
 
-    function test_deploy_cannonKonaGameEnabled_reverts() public {
+    /// @notice Deploy reverts when a normal-root game is enabled in super-root mode.
+    function test_deploy_normalGameInSuperMode_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+
+        _disableSuperPermissionedGame();
+        _enablePermissionedCannonGame();
+        deployConfig.startingRespectedGameType = GameTypes.PERMISSIONED_CANNON;
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
+
+    /// @notice Deploy reverts when a super-root game is enabled in normal-root mode.
+    function test_deploy_superGameInNormalMode_reverts() public {
+        skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+
+        _disablePermissionedCannonGame();
+        _enableSuperPermissionedGame();
+        deployConfig.startingRespectedGameType = GameTypes.SUPER_PERMISSIONED;
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
+
+    /// @notice Deploy rejects CANNON_KONA in super-root mode with an otherwise valid config.
+    function test_deploy_cannonKonaInSuperMode_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+
+        _enableCannonKonaGame();
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
+
+    /// @notice Deploy rejects SUPER_CANNON_KONA in normal-root mode with an otherwise valid config.
+    function test_deploy_superCannonKonaInNormalMode_reverts() public {
+        skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+
+        _enableSuperCannonKonaGame();
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
+
+    /// @notice CANNON_KONA may be enabled at initial deployment now that its prestate is supplied via
+    ///         the deploy config.
+    function test_deploy_cannonKonaGameEnabled_succeeds() public {
+        skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+
+        _disablePermissionedCannonGame();
+        _enableCannonKonaGame();
+        deployConfig.startingRespectedGameType = GameTypes.CANNON_KONA;
+
+        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+        assertEq(
+            address(cts.disputeGameFactory.gameImpls(GameTypes.CANNON_KONA)),
+            opcmV2.implementations().faultDisputeGameImpl,
+            "CANNON_KONA impl mismatch"
+        );
+        assertEq(
+            address(cts.disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON)),
+            address(0),
+            "PERMISSIONED_CANNON should be absent"
+        );
+        assertEq(
+            cts.anchorStateRegistry.respectedGameType().raw(),
+            GameTypes.CANNON_KONA.raw(),
+            "respected game type mismatch"
+        );
+    }
+
+    /// @notice Deploy reverts when legacy CANNON is enabled alongside CANNON_KONA.
+    function test_deploy_multiplePermissionlessGamesEnabled_reverts() public {
+        skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+
+        deployConfig.disputeGameConfigs[0].enabled = true;
+        deployConfig.disputeGameConfigs[0].initBond = DEFAULT_DISPUTE_GAME_INIT_BOND;
+        deployConfig.disputeGameConfigs[0].gameArgs =
+            abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate }));
         deployConfig.disputeGameConfigs[2].enabled = true;
-        deployConfig.disputeGameConfigs[2].initBond = 1 ether;
+        deployConfig.disputeGameConfigs[2].initBond = DEFAULT_DISPUTE_GAME_INIT_BOND;
+        deployConfig.disputeGameConfigs[2].gameArgs =
+            abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }));
+        deployConfig.startingRespectedGameType = GameTypes.CANNON_KONA;
 
         // nosemgrep: sol-style-use-abi-encodecall
         runDeployV2(
@@ -2027,20 +2170,143 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         );
     }
 
-    /// @notice PERMISSIONED_CANNON as respected game type succeeds during deploy.
-    function test_deploy_permissionedCannonRespectedGameType_succeeds() public {
+    /// @notice Deploy reverts when CANNON_KONA is enabled with a zero prestate.
+    function test_deploy_cannonKonaGameEnabledZeroPrestate_reverts() public {
+        skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+
+        _enableCannonKonaGame();
+        deployConfig.disputeGameConfigs[2].gameArgs =
+            abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: Claim.wrap(bytes32(0)) }));
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
+
+    /// @notice Deploy reverts when an initial deployment uses a zero starting anchor root.
+    function test_deploy_zeroStartingAnchorRoot_reverts() public {
+        deployConfig.startingAnchorRoot = Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 });
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
+
+    /// @notice Deploy reverts when an initial anchor cannot have a uint64 successor.
+    function test_deploy_maxStartingAnchorRootSequenceNumber_reverts() public {
+        deployConfig.startingAnchorRoot.l2SequenceNumber = type(uint64).max;
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
+
+    /// @notice Deploy reverts when an initial permissionless deploy uses a zero starting anchor root.
+    function test_deploy_permissionlessZeroStartingAnchorRoot_reverts() public {
+        skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+
+        _enableCannonKonaGame();
+        deployConfig.startingRespectedGameType = GameTypes.CANNON_KONA;
+        deployConfig.startingAnchorRoot = Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 });
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
+
+    /// @notice Deploy reverts when an initial permissionless deploy uses the permissioned placeholder anchor root.
+    function test_deploy_permissionlessPlaceholderStartingAnchorRoot_reverts() public {
+        skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+
+        _enableCannonKonaGame();
+        deployConfig.startingRespectedGameType = GameTypes.CANNON_KONA;
+        deployConfig.startingAnchorRoot =
+            Proposal({ root: Hash.wrap(Constants.PLACEHOLDER_STARTING_ANCHOR_ROOT), l2SequenceNumber: 0 });
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
+
+    /// @notice SUPER_CANNON_KONA may be the only enabled initial game in super-root mode.
+    function test_deploy_superCannonKonaGameEnabled_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+
+        _disableSuperPermissionedGame();
+        _enableSuperCannonKonaGame();
+        deployConfig.startingRespectedGameType = GameTypes.SUPER_CANNON_KONA;
+
+        IOPContractsManagerV2.ChainContracts memory cts = opcmV2.deploy(deployConfig);
+        assertEq(
+            address(cts.disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON_KONA)),
+            opcmV2.implementations().superFaultDisputeGameImpl,
+            "SUPER_CANNON_KONA impl mismatch"
+        );
+        assertEq(
+            cts.anchorStateRegistry.respectedGameType().raw(),
+            GameTypes.SUPER_CANNON_KONA.raw(),
+            "respected game type mismatch"
+        );
+        assertEq(
+            address(cts.disputeGameFactory.gameImpls(GameTypes.SUPER_PERMISSIONED)),
+            address(0),
+            "SUPER_PERMISSIONED should be absent"
+        );
+    }
+
+    /// @notice The 0xdead placeholder anchor remains allowed for initial permissioned deployments.
+    function test_deploy_permissionedPlaceholderStartingAnchorRoot_succeeds() public {
+        deployConfig.startingAnchorRoot =
+            Proposal({ root: Hash.wrap(Constants.PLACEHOLDER_STARTING_ANCHOR_ROOT), l2SequenceNumber: 0 });
         bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        GameType permType = superRoot ? GameTypes.SUPER_PERMISSIONED : GameTypes.PERMISSIONED_CANNON;
-        deployConfig.startingRespectedGameType = permType;
         string memory expectedErrors = superRoot ? "SCKDG-SHAPE,SCKDG-10" : "CKDG-NOSHAPE,CKDG-10";
         IOPContractsManagerV2.ChainContracts memory cts = runDeployV2(deployConfig, bytes(""), expectedErrors);
-        assertEq(cts.anchorStateRegistry.respectedGameType().raw(), permType.raw(), "respected game type mismatch");
+        Proposal memory startingAnchorRoot = cts.anchorStateRegistry.getStartingAnchorRoot();
+        assertEq(
+            startingAnchorRoot.root.raw(), Constants.PLACEHOLDER_STARTING_ANCHOR_ROOT, "starting anchor root mismatch"
+        );
     }
 
     /// @notice CANNON_KONA as respected game type reverts because its dispute game is not enabled
     ///         during initial deployment.
     function test_deploy_cannonKonaRespectedGameType_reverts() public {
+        skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+
         deployConfig.startingRespectedGameType = GameTypes.CANNON_KONA;
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
+
+    /// @notice Deploy reverts when SUPER_CANNON_KONA has a zero prestate.
+    function test_deploy_superCannonKonaZeroPrestate_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+
+        _enableSuperCannonKonaGame();
+        deployConfig.disputeGameConfigs[4].gameArgs =
+            abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: Claim.wrap(bytes32(0)) }));
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runDeployV2(
+            deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
+        );
+    }
+
+    /// @notice Deploy reverts when SUPER_CANNON_KONA uses the permissioned placeholder anchor root.
+    function test_deploy_superCannonKonaPlaceholderStartingAnchorRoot_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+
+        _enableSuperCannonKonaGame();
+        deployConfig.startingRespectedGameType = GameTypes.SUPER_CANNON_KONA;
+        deployConfig.startingAnchorRoot =
+            Proposal({ root: Hash.wrap(Constants.PLACEHOLDER_STARTING_ANCHOR_ROOT), l2SequenceNumber: 0 });
+
         // nosemgrep: sol-style-use-abi-encodecall
         runDeployV2(
             deployConfig, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)

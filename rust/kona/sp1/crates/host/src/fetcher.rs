@@ -165,7 +165,7 @@ fn classify_safe_db_probe_outcome(response: &serde_json::Value) -> Result<bool> 
 #[derive(Clone)]
 /// The `OPSuccinctDataFetcher` struct is used to fetch the L2 output data and L2 claim data for a
 /// given block number. It is used to generate the boot info for the native host program.
-/// TODO(#18430): Add retries for all requests (3 retries).
+/// TODO(#21773): Add retries for all requests (3 retries).
 pub struct OPSuccinctDataFetcher {
     /// The RPC configuration for the data fetcher.
     pub rpc_config: RPCConfig,

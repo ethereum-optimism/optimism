@@ -168,6 +168,28 @@ library DisputeGames {
         }
     }
 
+    /// @notice Returns the live init bond for a registered game, or the default.
+    /// @param _dgf Dispute game factory.
+    /// @param _gameType Game type.
+    /// @param _defaultInitBond Fallback bond.
+    /// @return Init bond for upgrade config.
+    function permissionlessGameInitBondForUpgrade(
+        IDisputeGameFactory _dgf,
+        GameType _gameType,
+        uint256 _defaultInitBond
+    )
+        internal
+        view
+        returns (uint256)
+    {
+        // Forks can retain bonds for game types with no implementation.
+        if (address(_dgf.gameImpls(_gameType)) == address(0)) {
+            return _defaultInitBond;
+        }
+        uint256 initBond = _dgf.initBonds(_gameType);
+        return initBond == 0 ? _defaultInitBond : initBond;
+    }
+
     function mockGameImplPrestate(IDisputeGameFactory _dgf, GameType _gameType, bytes32 _prestate) internal {
         bytes memory value = abi.encodePacked(_prestate);
         _mockGameArg(_dgf, _gameType, GameArg.PRESTATE, value);

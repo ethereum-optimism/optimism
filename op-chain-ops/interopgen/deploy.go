@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/beacondeposit"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/manage"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
@@ -228,22 +229,30 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 	if err != nil {
 		return nil, fmt.Errorf("failed to load DeployOPChain script: %w", err)
 	}
+	selectedAbsolutePrestate, cannonAbsolutePrestate := initialDisputeAbsolutePrestates(cfg)
 
 	output, err := deployOPChainScript.Run(opcm.DeployOPChainInput{
-		OpChainProxyAdminOwner:       superCfg.ProxyAdminOwner,
-		SystemConfigOwner:            cfg.SystemConfigOwner,
-		Batcher:                      cfg.BatchSenderAddress,
-		UnsafeBlockSigner:            cfg.P2PSequencerAddress,
-		Proposer:                     cfg.Proposer,
-		Challenger:                   cfg.Challenger,
-		BasefeeScalar:                cfg.GasPriceOracleBaseFeeScalar,
-		BlobBaseFeeScalar:            cfg.GasPriceOracleBlobBaseFeeScalar,
-		L2ChainId:                    new(big.Int).SetUint64(cfg.L2ChainID),
-		Opcm:                         superDeployment.OpcmV2,
-		SaltMixer:                    cfg.SaltMixer,
-		GasLimit:                     cfg.GasLimit,
-		DisputeGameType:              cfg.DisputeGameType,
-		DisputeAbsolutePrestate:      cfg.DisputeAbsolutePrestate,
+		OpChainProxyAdminOwner:  superCfg.ProxyAdminOwner,
+		SystemConfigOwner:       cfg.SystemConfigOwner,
+		Batcher:                 cfg.BatchSenderAddress,
+		UnsafeBlockSigner:       cfg.P2PSequencerAddress,
+		Proposer:                cfg.Proposer,
+		Challenger:              cfg.Challenger,
+		BasefeeScalar:           cfg.GasPriceOracleBaseFeeScalar,
+		BlobBaseFeeScalar:       cfg.GasPriceOracleBlobBaseFeeScalar,
+		L2ChainId:               new(big.Int).SetUint64(cfg.L2ChainID),
+		Opcm:                    superDeployment.OpcmV2,
+		SaltMixer:               cfg.SaltMixer,
+		GasLimit:                cfg.GasLimit,
+		DisputeGameType:         cfg.DisputeGameType,
+		DisputeAbsolutePrestate: selectedAbsolutePrestate,
+		// TODO(#20912): Replace this placeholder with a real proposal before enabling
+		// permissionless interopgen deployments. The generated recipe currently uses PERMISSIONED_CANNON.
+		StartingAnchorRoot: opcm.Proposal{
+			Root:             opcm.DefaultStartingAnchorRoot.Root,
+			L2SequenceNumber: common.Big0,
+		},
+		CannonAbsolutePrestate:       cannonAbsolutePrestate,
 		DisputeMaxGameDepth:          new(big.Int).SetUint64(cfg.DisputeMaxGameDepth),
 		DisputeSplitDepth:            new(big.Int).SetUint64(cfg.DisputeSplitDepth),
 		DisputeClockExtension:        cfg.DisputeClockExtension,
@@ -262,6 +271,14 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 	return &L2Deployment{
 		L2OpchainDeployment: NewL2OPChainDeploymentFromDeployOPChainOutput(output),
 	}, nil
+}
+
+func initialDisputeAbsolutePrestates(cfg *L2Config) (common.Hash, common.Hash) {
+	selectedAbsolutePrestate := cfg.DisputeAbsolutePrestate
+	if cfg.DisputeGameType == uint32(gameTypes.CannonKonaGameType) {
+		selectedAbsolutePrestate = cfg.DisputeKonaAbsolutePrestate
+	}
+	return selectedAbsolutePrestate, cfg.DisputeAbsolutePrestate
 }
 
 func MigrateInterop(

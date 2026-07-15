@@ -49,6 +49,8 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
     using stdToml for string;
     using LibString for string;
 
+    uint256 internal constant DEFAULT_PERMISSIONLESS_INIT_BOND = 0.08 ether;
+
     bool public useOpsRepo;
 
     /// @notice Returns the base chain name to use for forking
@@ -365,6 +367,10 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
             address proposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
             // Standard upgrade path: CANNON disabled, remaining legacy types enabled, super types disabled.
             // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
+            uint256 cannonKonaInitBond = DisputeGames.permissionlessGameInitBondForUpgrade(
+                disputeGameFactory, GameTypes.CANNON_KONA, DEFAULT_PERMISSIONLESS_INIT_BOND
+            );
+
             disputeGameConfigs = new IOPContractsManagerUtils.DisputeGameConfig[](6);
             disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: false,
@@ -386,7 +392,7 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
             });
             disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
                 enabled: true,
-                initBond: disputeGameFactory.initBonds(GameTypes.CANNON_KONA),
+                initBond: cannonKonaInitBond,
                 gameType: GameTypes.CANNON_KONA,
                 gameArgs: abi.encode(
                     IOPContractsManagerUtils.FaultDisputeGameConfig({

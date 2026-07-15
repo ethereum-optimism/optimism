@@ -211,7 +211,12 @@ func TestCannonRequiredArgs(t *testing.T) {
 			config := validConfig(t, gameType)
 			config.CannonAbsolutePreState = ""
 			config.CannonAbsolutePreStateBaseURL = nil
-			require.ErrorIs(t, config.Check(), ErrMissingCannonAbsolutePreState)
+			if gameType == gameTypes.PermissionedGameType {
+				// The permissioned game never loads the VM prestate.
+				require.NoError(t, config.Check())
+			} else {
+				require.ErrorIs(t, config.Check(), ErrMissingCannonAbsolutePreState)
+			}
 		})
 
 		t.Run(fmt.Sprintf("TestCannonAbsolutePreState-%v", gameType), func(t *testing.T) {
@@ -336,6 +341,16 @@ func TestCannonServerRequiredWhenCannonAndPermissionedBothEnabled(t *testing.T) 
 		config.Cannon.Server = nonExistingFile
 		require.ErrorIs(t, config.Check(), vm.ErrMissingServer)
 	})
+}
+
+// The absolute prestate is still required when both the cannon and permissioned game types
+// are enabled, because the cannon game loads it even though the permissioned game does not.
+func TestCannonAbsolutePreStateRequiredWhenCannonAndPermissionedBothEnabled(t *testing.T) {
+	config := validConfig(t, gameTypes.CannonGameType)
+	config.GameTypes = []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.PermissionedGameType}
+	config.CannonAbsolutePreState = ""
+	config.CannonAbsolutePreStateBaseURL = nil
+	require.ErrorIs(t, config.Check(), ErrMissingCannonAbsolutePreState)
 }
 
 func TestCannonKonaRequiredArgs(t *testing.T) {

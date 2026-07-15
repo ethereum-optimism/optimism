@@ -32,9 +32,6 @@ library DevFeatures {
     bytes32 public constant OPTIMISM_PORTAL_INTEROP =
         bytes32(0x0000000000000000000000000000000000000000000000000000000000000001);
 
-    /// @notice The feature that gates the respected game type override for CANNON_KONA during upgrades.
-    bytes32 public constant CANNON_KONA = bytes32(0x0000000000000000000000000000000000000000000000000000000000000010);
-
     /// @notice The feature that enables deployment of V2 dispute game contracts.
     /// @custom:legacy
     /// This feature is no longer used, but is kept here for legacy reasons.
@@ -62,8 +59,6 @@ library DevFeatures {
     function isDevFeatureEnabled(bytes32 _bitmap, bytes32 _feature) internal pure returns (bool) {
         // L2CM is enabled by default. TODO(#20084): remove with the broader L2CMFlag cleanup.
         if (hasFlag(_feature, L2CM)) return true;
-        // CannonKona is enabled by default. TODO(#20084): remove with the broader CannonKonaFlag cleanup.
-        if (hasFlag(_feature, CANNON_KONA)) return true;
         return _feature != 0 && hasFlag(_bitmap, _feature);
     }
 

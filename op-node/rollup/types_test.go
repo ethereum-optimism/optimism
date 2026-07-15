@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -57,6 +58,11 @@ func randConfig() *Config {
 		BatchInboxAddress:      randAddr(),
 		DepositContractAddress: randAddr(),
 		L1SystemConfigAddress:  randAddr(),
+		ChainOpConfig: &opparams.OptimismConfig{
+			EIP1559Elasticity:        6,
+			EIP1559Denominator:       50,
+			EIP1559DenominatorCanyon: ptr.New(uint64(250)),
+		},
 	}
 }
 
@@ -67,6 +73,35 @@ func TestConfigJSON(t *testing.T) {
 	var roundTripped Config
 	assert.NoError(t, json.Unmarshal(data, &roundTripped))
 	assert.Equal(t, &roundTripped, config)
+}
+
+// TestConfigChainOpConfigJSONWireFormat pins the on-the-wire serialization of the
+// ChainOpConfig field. Its type moved from op-geth's params.OptimismConfig to
+// op-core/params.OptimismConfig; the JSON must remain byte-for-byte identical.
+func TestConfigChainOpConfigJSONWireFormat(t *testing.T) {
+	config := randConfig()
+	config.ChainOpConfig = &opparams.OptimismConfig{
+		EIP1559Elasticity:        6,
+		EIP1559Denominator:       50,
+		EIP1559DenominatorCanyon: ptr.New(uint64(250)),
+	}
+	data, err := json.Marshal(config)
+	require.NoError(t, err)
+	require.Contains(t, string(data),
+		`"chain_op_config":{"eip1559Elasticity":6,"eip1559Denominator":50,"eip1559DenominatorCanyon":250}`)
+
+	// The optional canyon denominator is omitted when unset (omitempty).
+	config.ChainOpConfig.EIP1559DenominatorCanyon = nil
+	data, err = json.Marshal(config)
+	require.NoError(t, err)
+	require.Contains(t, string(data),
+		`"chain_op_config":{"eip1559Elasticity":6,"eip1559Denominator":50}`)
+
+	// The field is dropped entirely when nil (omitempty).
+	config.ChainOpConfig = nil
+	data, err = json.Marshal(config)
+	require.NoError(t, err)
+	require.NotContains(t, string(data), "chain_op_config")
 }
 
 type mockL1Client struct {

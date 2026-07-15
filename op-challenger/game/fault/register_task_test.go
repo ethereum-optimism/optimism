@@ -3,10 +3,18 @@ package fault
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/prestates"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/registry"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
@@ -20,6 +28,40 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
+
+func TestCannonRegisterTask_BottomPrestateProvider(t *testing.T) {
+	// A base URL that never resolves a prestate, matching a challenger configured with --prestates-url
+	// where the (placeholder) prestate for a permissioned game is not published.
+	baseURL, err := url.Parse("file:///nonexistent-prestates/")
+	require.NoError(t, err)
+	newCfg := func(t *testing.T) *config.Config {
+		return &config.Config{
+			Datadir:                       t.TempDir(),
+			Cannon:                        vm.Config{VmType: gameTypes.CannonGameType},
+			CannonAbsolutePreStateBaseURL: baseURL,
+		}
+	}
+	requiredPrestate := common.Hash{0xaa}
+
+	t.Run("permissioned game uses placeholder prestate without loading it", func(t *testing.T) {
+		cfg := newCfg(t)
+		task := NewCannonRegisterTask(gameTypes.PermissionedGameType, cfg, metrics.NoopMetrics, nil, nil, nil, nil)
+		provider, err := task.getBottomPrestateProvider(context.Background(), requiredPrestate)
+		require.NoError(t, err)
+		vmProvider, ok := provider.(*vm.PrestateProvider)
+		require.True(t, ok)
+		require.Empty(t, vmProvider.PrestatePath())
+		// No load is ever attempted, so the prestates dir the downloader would create must not exist
+		require.NoDirExists(t, filepath.Join(cfg.Datadir, "cannon-prestates"))
+	})
+
+	t.Run("cannon game requires prestate", func(t *testing.T) {
+		cfg := newCfg(t)
+		task := NewCannonRegisterTask(gameTypes.CannonGameType, cfg, metrics.NoopMetrics, nil, nil, nil, nil)
+		_, err := task.getBottomPrestateProvider(context.Background(), requiredPrestate)
+		require.ErrorIs(t, err, prestates.ErrPrestateUnavailable)
+	})
+}
 
 func TestRegisterOracle_MissingGameImpl(t *testing.T) {
 	// Test versions with and without game args support
@@ -138,4 +180,55 @@ func TestRegisterOracle_AddsOracle(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewCannonKonaRegisterTask_UsesCannonKonaVMForPrestateConversion(t *testing.T) {
+	cannonHash := common.Hash{0xca}
+	cannonKonaHash := common.Hash{0xcb}
+	prestatePath := filepath.Join(t.TempDir(), "prestate.bin.gz")
+	cfg := &config.Config{
+		Datadir:                    t.TempDir(),
+		Cannon:                     vm.Config{VmBin: buildFakeCannonVM(t, cannonHash)},
+		CannonKona:                 vm.Config{VmType: gameTypes.CannonKonaGameType, VmBin: buildFakeCannonVM(t, cannonKonaHash)},
+		CannonKonaAbsolutePreState: prestatePath,
+	}
+
+	task := NewCannonKonaRegisterTask(gameTypes.CannonKonaGameType, cfg, metrics.NoopMetrics, nil, nil, nil, nil)
+	provider, err := task.getBottomPrestateProvider(context.Background(), cannonKonaHash)
+	require.NoError(t, err)
+
+	actual, err := provider.AbsolutePreStateCommitment(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, cannonKonaHash, actual)
+}
+
+func buildFakeCannonVM(t *testing.T, witnessHash common.Hash) string {
+	t.Helper()
+
+	dir := t.TempDir()
+	sourcePath := filepath.Join(dir, "main.go")
+	binaryPath := filepath.Join(dir, "fake-cannon")
+	if runtime.GOOS == "windows" {
+		binaryPath += ".exe"
+	}
+	payload := fmt.Sprintf(`{"witnessHash":%q,"witness":"0x0102","step":1,"exited":false}`, witnessHash.Hex())
+	source := fmt.Sprintf(`package main
+
+import (
+	"fmt"
+	"os"
+)
+
+func main() {
+	if len(os.Args) != 4 || os.Args[1] != "witness" || os.Args[2] != "--input" || os.Args[3] == "" {
+		fmt.Fprintln(os.Stderr, "expected witness --input <path>")
+		os.Exit(2)
+	}
+	fmt.Print(%q)
+}
+`, payload)
+	require.NoError(t, os.WriteFile(sourcePath, []byte(source), 0o600))
+	output, err := exec.Command("go", "build", "-o", binaryPath, sourcePath).CombinedOutput()
+	require.NoError(t, err, string(output))
+	return binaryPath
 }

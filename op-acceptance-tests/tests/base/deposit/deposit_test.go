@@ -33,7 +33,6 @@ func TestL1ToL2Deposit(gt *testing.T) {
 	alice := sys.FunderL1.NewFundedEOA(fundingAmount)
 	t.Log("Alice L1 address", alice.Address())
 
-	alice.WaitForBalance(fundingAmount)
 	initialBalance := alice.GetBalance()
 	t.Log("Alice L1 balance", initialBalance)
 

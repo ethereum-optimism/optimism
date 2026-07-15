@@ -227,7 +227,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
             );
         } else {
             l2ChainId = deploy.cfg().l2ChainID();
-            cannonPrestate = Claim.wrap(bytes32(deploy.cfg().faultGameAbsolutePrestate()));
+            cannonPrestate = Claim.wrap(keccak256("cannonPrestate"));
             proposer = deploy.cfg().l2OutputOracleProposer();
             challenger = deploy.cfg().l2OutputOracleChallenger();
         }
@@ -2129,7 +2129,7 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
             );
         } else {
             l2ChainId = deploy.cfg().l2ChainID();
-            cannonPrestate = Claim.wrap(bytes32(deploy.cfg().faultGameAbsolutePrestate()));
+            cannonPrestate = Claim.wrap(keccak256("cannonPrestate"));
             proposer = deploy.cfg().l2OutputOracleProposer();
             challenger = deploy.cfg().l2OutputOracleChallenger();
 

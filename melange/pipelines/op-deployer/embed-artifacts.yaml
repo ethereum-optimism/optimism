@@ -1,0 +1,44 @@
+name: Compile contracts-bedrock and pack op-deployer's embedded contract artifacts.
+
+# op-deployer embeds the compiled L1 contract artifacts in its binary via
+# //go:embed (pkg/deployer/artifacts/forge-artifacts/artifacts.tzst). The plain
+# go build ships the embed dir with only its README, so the binary builds but
+# `op-deployer apply` fails at runtime with "artifacts.tzst: file does not
+# exist". This reproduces the upstream op-deployer justfile `build-contracts` +
+# `copy-contract-artifacts` steps so the embed target exists before `go build`.
+#
+# Requires op-deployer/install-forge to run first and git (contracts-bedrock
+# pulls its Solidity deps as submodules, checked out alongside the source).
+
+needs:
+  packages:
+    - go-1.26
+    - git
+
+inputs:
+  contracts-dir:
+    description: "contracts-bedrock directory, relative to the source root"
+    default: "packages/contracts-bedrock"
+  mktar-pkg:
+    description: "Go package path for the mktar artifact-packing tool"
+    default: "./op-deployer/pkg/deployer/artifacts/cmd/mktar"
+  artifacts-out:
+    description: "embed target for artifacts.tzst, relative to the source root"
+    default: "op-deployer/pkg/deployer/artifacts/forge-artifacts/artifacts.tzst"
+
+pipeline:
+  - runs: |
+      set -euo pipefail
+      forge_bin="${{targets.contextdir}}/usr/local/bin/forge"
+      if [ ! -x "$forge_bin" ]; then
+        forge_bin="forge"
+      fi
+      "$forge_bin" --version
+      # Compile contracts-bedrock (mirrors `just build-no-tests`).
+      ( cd "${{inputs.contracts-dir}}" && "$forge_bin" build --skip "/**/test/**" )
+      # Pack the compiled artifacts into the embedded tarball (mirrors
+      # `just copy-contract-artifacts`).
+      go run "${{inputs.mktar-pkg}}" \
+        -base "${{inputs.contracts-dir}}" \
+        -out "${{inputs.artifacts-out}}" \
+        --exclude="*.t.sol"
