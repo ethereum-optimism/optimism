@@ -112,7 +112,7 @@ func TestSuperRootRpc(t *testing.T) {
 		verifyArgsInvalid(t, "flag superroot-rpc is required", addRequiredArgsExcept(gameTypes.SuperCannonKonaGameType, "--superroot-rpc"))
 	})
 
-	for _, gameType := range gameTypes.SupportedGameTypes {
+	for _, gameType := range gameTypes.PlayableGameTypes {
 		gameType := gameType
 		if gameType == gameTypes.SuperCannonKonaGameType {
 			continue
@@ -172,7 +172,7 @@ func TestGameTypes(t *testing.T) {
 		require.Equal(t, expectedDefault, cfg.GameTypes)
 	})
 
-	for _, gameType := range gameTypes.SupportedGameTypes {
+	for _, gameType := range gameTypes.PlayableGameTypes {
 		gameType := gameType
 		t.Run("Valid_"+gameType.String(), func(t *testing.T) {
 			cfg := configForArgs(t, addRequiredArgs(gameType))
@@ -188,7 +188,7 @@ func TestGameTypes(t *testing.T) {
 	})
 
 	// Check we provide an alias for --trace-type to preserve backwards compatibility
-	for _, gameType := range gameTypes.SupportedGameTypes {
+	for _, gameType := range gameTypes.PlayableGameTypes {
 		gameType := gameType
 		t.Run("TraceTypeAlias-"+gameType.String(), func(t *testing.T) {
 			cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--game-types", "--trace-type", gameType.String()))
@@ -829,7 +829,7 @@ func TestCannonKonaRequiredArgs(t *testing.T) {
 }
 
 func TestDepsetConfig(t *testing.T) {
-	for _, gameType := range gameTypes.SupportedGameTypes {
+	for _, gameType := range gameTypes.PlayableGameTypes {
 		if gameType == gameTypes.SuperCannonKonaGameType {
 			t.Run("Required-"+gameType.String(), func(t *testing.T) {
 				verifyArgsInvalid(t,
@@ -846,7 +846,7 @@ func TestDepsetConfig(t *testing.T) {
 }
 
 func TestDataDir(t *testing.T) {
-	for _, gameType := range gameTypes.SupportedGameTypes {
+	for _, gameType := range gameTypes.PlayableGameTypes {
 		gameType := gameType
 
 		t.Run(fmt.Sprintf("RequiredFor-%v", gameType), func(t *testing.T) {
@@ -861,7 +861,7 @@ func TestDataDir(t *testing.T) {
 }
 
 func TestRollupRpc(t *testing.T) {
-	for _, gameType := range gameTypes.SupportedGameTypes {
+	for _, gameType := range gameTypes.PlayableGameTypes {
 		gameType := gameType
 
 		if gameType == gameTypes.SuperCannonKonaGameType {

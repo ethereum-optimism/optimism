@@ -133,7 +133,7 @@ func validConfigWithNoNetworks(t *testing.T, gameType gameTypes.GameType) Config
 
 // TestValidConfigIsValid checks that the config provided by validConfig is actually valid
 func TestValidConfigIsValid(t *testing.T) {
-	for _, gameType := range gameTypes.SupportedGameTypes {
+	for _, gameType := range gameTypes.PlayableGameTypes {
 		gameType := gameType
 		t.Run(gameType.String(), func(t *testing.T) {
 			err := validConfig(t, gameType).Check()
@@ -531,7 +531,7 @@ func TestHttpPollInterval(t *testing.T) {
 }
 
 func TestRollupRpcRequired(t *testing.T) {
-	for _, gameType := range gameTypes.SupportedGameTypes {
+	for _, gameType := range gameTypes.PlayableGameTypes {
 		gameType := gameType
 		if gameType == gameTypes.SuperCannonKonaGameType {
 			continue
@@ -553,7 +553,7 @@ func TestRollupRpcNotRequiredForInterop(t *testing.T) {
 }
 
 func TestSuperRootRpc(t *testing.T) {
-	for _, gameType := range gameTypes.SupportedGameTypes {
+	for _, gameType := range gameTypes.PlayableGameTypes {
 		gameType := gameType
 		if gameType == gameTypes.SuperCannonKonaGameType {
 			t.Run("RequiredFor"+gameType.String(), func(t *testing.T) {

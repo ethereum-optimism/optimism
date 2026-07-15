@@ -93,7 +93,7 @@ var (
 	GameTypesFlag = &cli.StringSliceFlag{
 		Name:    "game-types",
 		Aliases: []string{"trace-type"}, // For backwards compatibility
-		Usage:   "The game types to support. Valid options: " + openum.EnumStringer(gameTypes.SupportedGameTypes),
+		Usage:   "The game types to support. Valid options: " + openum.EnumStringer(gameTypes.PlayableGameTypes),
 		EnvVars: prefixEnvVars("GAME_TYPES", "TRACE_TYPE"),
 		Value:   cli.NewStringSlice(gameTypes.CannonGameType.String(), gameTypes.CannonKonaGameType.String()),
 	}
@@ -453,7 +453,7 @@ func CheckRequired(ctx *cli.Context, types []gameTypes.GameType) error {
 				return err
 			}
 		default:
-			return fmt.Errorf("invalid game type %v. must be one of %v", gameType, gameTypes.SupportedGameTypes)
+			return fmt.Errorf("invalid game type %v. must be one of %v", gameType, gameTypes.PlayableGameTypes)
 		}
 	}
 	return nil
@@ -462,7 +462,7 @@ func CheckRequired(ctx *cli.Context, types []gameTypes.GameType) error {
 func parseGameTypes(ctx *cli.Context) ([]gameTypes.GameType, error) {
 	var result []gameTypes.GameType
 	for _, typeName := range ctx.StringSlice(GameTypesFlag.Name) {
-		gameType, err := gameTypes.SupportedGameTypeFromString(typeName)
+		gameType, err := gameTypes.PlayableGameTypeFromString(typeName)
 		if err != nil {
 			return nil, err
 		}

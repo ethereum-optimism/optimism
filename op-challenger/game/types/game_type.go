@@ -39,9 +39,21 @@ func (g GameType) IsPermissioned() bool {
 // configuration (the --cannon-* flags).
 var CannonFamilyGameTypes = []GameType{CannonGameType, PermissionedGameType}
 
-// SupportedGameTypes is the list of game types that are supported by op-challenger.
-// Game type codes may be reserved that are not supported by op-challenger.
-var SupportedGameTypes = []GameType{
+// SupportedLifecycleGameTypes is the fixed set of game types supported by the
+// op-challenger lifecycle, including games that it cannot play.
+var SupportedLifecycleGameTypes = []GameType{
+	AlphabetGameType,
+	CannonGameType,
+	CannonKonaGameType,
+	PermissionedGameType,
+	SuperPermissionedGameType,
+	FastGameType,
+	SuperCannonKonaGameType,
+	ZKDisputeGameType,
+}
+
+// PlayableGameTypes is the set of game types that may be selected for trace execution.
+var PlayableGameTypes = []GameType{
 	AlphabetGameType,
 	CannonGameType,
 	CannonKonaGameType,
@@ -53,7 +65,7 @@ var SupportedGameTypes = []GameType{
 
 // Set implements the Set method required by the [cli.Generic] interface.
 func (g *GameType) Set(value string) error {
-	gameType, err := SupportedGameTypeFromString(value)
+	gameType, err := PlayableGameTypeFromString(value)
 	if err != nil {
 		return err
 	}
@@ -61,8 +73,8 @@ func (g *GameType) Set(value string) error {
 	return nil
 }
 
-func SupportedGameTypeFromString(s string) (GameType, error) {
-	for _, candidate := range SupportedGameTypes {
+func PlayableGameTypeFromString(s string) (GameType, error) {
+	for _, candidate := range PlayableGameTypes {
 		if candidate.String() == s {
 			return candidate, nil
 		}
