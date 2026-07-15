@@ -376,11 +376,11 @@
     },
     {
       "source": "/identity/optimist-profile",
-      "destination": "/governance/gov-faq"
+      "destination": "/governance/attestation-schemas"
     },
     {
       "source": "/chain/identity/optimist-profile",
-      "destination": "/governance/gov-faq"
+      "destination": "/governance/attestation-schemas"
     },
     {
       "source": "/app-developers/tools/overview",
@@ -2400,6 +2400,9 @@
               "governance/protocol-upgrades",
               "governance/capital-allocation",
               "governance/evolution-and-experimentation",
+              "governance/eas-attestations",
+              "governance/attestation-schemas",
+              "governance/resources",
               "governance/gov-faq"
             ]
           }
