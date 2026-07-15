@@ -12,15 +12,20 @@ use crate::{
 };
 use revm::{
     context::{Context, TxEnv},
-    context_interface::result::{EVMError, ExecutionResult, InvalidHeader, InvalidTransaction},
-    handler::{EthFrame, Handler},
+    context_interface::{
+        ContextTr, JournalTr,
+        result::{EVMError, ExecutionResult, InvalidHeader, InvalidTransaction},
+    },
+    database::InMemoryDB,
+    handler::{EthFrame, EvmTr, Handler},
     interpreter::interpreter::EthInterpreter,
-    primitives::B256,
+    primitives::{Address, B256, U256},
+    state::AccountInfo,
 };
 use rstest::rstest;
 
 /// A non-deposit OP custom transaction type (the SDM post-exec `0x7D` tx). Exercises the
-/// `TransactionType::Custom` arm without hitting the deposit guard.
+/// `OpTxType::PostExec` arm (a non-deposit type) rather than the deposit arm.
 const POST_EXEC_TX_TYPE: u8 = 0x7D;
 
 type TestError = EVMError<core::convert::Infallible, OpTransactionError>;
@@ -81,4 +86,64 @@ fn catch_error_over_tx_types_and_error_kinds(
              (tx_type={tx_type:#x}, is_tx_error={is_tx_error}), got {result:?}"
         );
     }
+}
+
+/// A failed deposit rolls the world state back to just after the initial mint, but still
+/// increments the sender nonce by 1 and persists the mint — see the deposits spec:
+/// <https://specs.optimism.io/protocol/deposits.html#nonce-handling>.
+#[test]
+fn failed_deposit_bumps_sender_nonce_and_persists_mint() {
+    const CALLER: Address = Address::new([0x11; 20]);
+    const START_NONCE: u64 = 7;
+    const START_BALANCE: u64 = 500;
+    const MINT: u128 = 1_000;
+
+    let mut db = InMemoryDB::default();
+    db.insert_account_info(
+        CALLER,
+        AccountInfo {
+            nonce: START_NONCE,
+            balance: U256::from(START_BALANCE),
+            ..Default::default()
+        },
+    );
+
+    // A deposit (non-zero source hash) from `CALLER` carrying a mint, failed via a tx-validity
+    // error so it takes `catch_error`'s failed-deposit path.
+    let tx = OpTransaction::builder()
+        .base(TxEnv::builder().caller(CALLER).gas_limit(21_000))
+        .source_hash(B256::with_last_byte(1))
+        .mint(MINT)
+        .build_fill();
+    let mut evm = Context::op().with_db(db).with_tx(tx).build_op();
+    let handler = OpHandler::<_, TestError, EthFrame<EthInterpreter>>::new();
+
+    let result = handler.catch_error(
+        &mut evm,
+        EVMError::Transaction(OpTransactionError::Base(
+            InvalidTransaction::PriorityFeeGreaterThanMaxFee,
+        )),
+    );
+    assert!(
+        matches!(result, Ok(ExecutionResult::Halt { reason: OpHaltReason::FailedDeposit, .. })),
+        "a failed deposit must return the FailedDeposit halt, got {result:?}"
+    );
+
+    let caller = evm
+        .ctx()
+        .journal_mut()
+        .evm_state()
+        .get(&CALLER)
+        .expect("caller account present after a failed deposit")
+        .clone();
+    assert_eq!(
+        caller.info.nonce,
+        START_NONCE + 1,
+        "a failed deposit must increment the sender nonce by 1"
+    );
+    assert_eq!(
+        caller.info.balance,
+        U256::from(START_BALANCE) + U256::from(MINT),
+        "a failed deposit must persist the minted ETH"
+    );
 }
