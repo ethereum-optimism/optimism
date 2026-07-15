@@ -263,14 +263,23 @@ fn ensure_previous_super_root_matches_optimistic_blocks(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Mutex;
+
     use alloy_consensus::{EMPTY_ROOT_HASH, Header};
     use alloy_primitives::{B256, U256};
     use alloy_rlp::EMPTY_STRING_CODE;
+    use async_trait::async_trait;
     use kona_genesis::RollupConfig;
-    use kona_preimage::PreimageKey;
+    use kona_preimage::{
+        DEPENDENCY_SET_KEY, HintWriterClient, L2_ROLLUP_CONFIG_KEY, PreimageKey,
+        PreimageOracleClient, errors::PreimageOracleResult,
+    };
     use kona_proof::block_on;
     use kona_sp1_client_utils::{
-        super_root::{SuperOptimisticBlock, SuperOutputRoot, SuperRootProof},
+        super_root::{
+            SuperConsolidationTransitionInput, SuperOptimisticBlock, SuperOutputRoot,
+            SuperRootProof, TimestampSpan,
+        },
         witness::preimage_store::PreimageStore,
     };
 
@@ -293,6 +302,57 @@ mod tests {
 
     fn rollup_configs(chain_ids: &[u64]) -> RegistryHashMap<u64, RollupConfig> {
         chain_ids.iter().map(|chain_id| (*chain_id, rollup_config(*chain_id, 1))).collect()
+    }
+
+    fn save_fallback_chain_config(oracle: &mut PreimageStore, chain_id: u64) {
+        oracle
+            .save_preimage(
+                PreimageKey::new_local(DEPENDENCY_SET_KEY.to()),
+                serde_json::to_vec(&dependency_set(&[chain_id], None)).unwrap(),
+            )
+            .unwrap();
+        oracle
+            .save_preimage(
+                PreimageKey::new_local(L2_ROLLUP_CONFIG_KEY.to()),
+                serde_json::to_vec(&rollup_configs(&[chain_id])).unwrap(),
+            )
+            .unwrap();
+    }
+
+    #[derive(Clone, Debug)]
+    struct RecordingOracle {
+        inner: PreimageStore,
+        requests: Arc<Mutex<Vec<PreimageKey>>>,
+    }
+
+    impl RecordingOracle {
+        fn new(inner: PreimageStore) -> Self {
+            Self { inner, requests: Arc::new(Mutex::new(Vec::new())) }
+        }
+
+        fn request_count(&self, key: PreimageKey) -> usize {
+            self.requests.lock().unwrap().iter().filter(|request| **request == key).count()
+        }
+    }
+
+    #[async_trait]
+    impl PreimageOracleClient for RecordingOracle {
+        async fn get(&self, key: PreimageKey) -> PreimageOracleResult<Vec<u8>> {
+            self.requests.lock().unwrap().push(key);
+            self.inner.get(key).await
+        }
+
+        async fn get_exact(&self, key: PreimageKey, buf: &mut [u8]) -> PreimageOracleResult<()> {
+            self.requests.lock().unwrap().push(key);
+            self.inner.get_exact(key, buf).await
+        }
+    }
+
+    #[async_trait]
+    impl HintWriterClient for RecordingOracle {
+        async fn write(&self, _hint: &str) -> PreimageOracleResult<()> {
+            Ok(())
+        }
     }
 
     #[test]
@@ -446,5 +506,131 @@ mod tests {
         assert_eq!(transition.timestamp, 101);
         assert_eq!(transition.optimistic_blocks, optimistic_blocks);
         assert_eq!(transition.super_root, expected_super_root);
+    }
+
+    #[test]
+    fn consolidation_outputs_chain_claimed_root_across_timestamps() {
+        let chain_id = u64::MAX;
+        let previous_head = Header {
+            number: 3,
+            timestamp: 99,
+            receipts_root: EMPTY_ROOT_HASH,
+            transactions_root: EMPTY_ROOT_HASH,
+            ..Default::default()
+        };
+        let mut oracle = PreimageStore::default();
+        save_empty_trie(&mut oracle);
+        save_fallback_chain_config(&mut oracle, chain_id);
+
+        let previous_head_hash = save_header(&mut oracle, &previous_head);
+        let first_head = Header {
+            number: 4,
+            timestamp: 100,
+            parent_hash: previous_head_hash,
+            receipts_root: EMPTY_ROOT_HASH,
+            transactions_root: EMPTY_ROOT_HASH,
+            ..Default::default()
+        };
+        let first_head_hash = save_header(&mut oracle, &first_head);
+        let second_head = Header {
+            number: 5,
+            timestamp: 101,
+            parent_hash: first_head_hash,
+            receipts_root: EMPTY_ROOT_HASH,
+            transactions_root: EMPTY_ROOT_HASH,
+            ..Default::default()
+        };
+        let second_head_hash = save_header(&mut oracle, &second_head);
+
+        let previous_output_root = save_output_root(&mut oracle, previous_head_hash);
+        let first_output_root = save_output_root(&mut oracle, first_head_hash);
+        let second_output_root = save_output_root(&mut oracle, second_head_hash);
+        let previous_super_root = SuperRoot::new(
+            99,
+            vec![SuperOutputRoot { chain_id, output_root: previous_output_root }],
+        );
+        let previous_super_root_hash = save_super_root(&mut oracle, &previous_super_root);
+        let first_claim = SuperRootProof::new(
+            100,
+            vec![SuperOutputRoot { chain_id, output_root: first_output_root }],
+        );
+        let second_claim = SuperRootProof::new(
+            101,
+            vec![SuperOutputRoot { chain_id, output_root: second_output_root }],
+        );
+        let inputs = SuperConsolidationInputs {
+            span: TimestampSpan::new(100, 101).unwrap(),
+            previous_super_root: previous_super_root_hash,
+            transitions: vec![
+                SuperConsolidationTransitionInput {
+                    optimistic_blocks: vec![SuperOptimisticBlock {
+                        chain_id: U256::from(chain_id),
+                        block_hash: first_head_hash,
+                        output_root: first_output_root,
+                    }],
+                    claimed_super_root_proof: first_claim.clone(),
+                },
+                SuperConsolidationTransitionInput {
+                    optimistic_blocks: vec![SuperOptimisticBlock {
+                        chain_id: U256::from(chain_id),
+                        block_hash: second_head_hash,
+                        output_root: second_output_root,
+                    }],
+                    claimed_super_root_proof: second_claim.clone(),
+                },
+            ],
+        };
+        let oracle = RecordingOracle::new(oracle);
+
+        let outputs = block_on(build_consolidation_outputs(inputs, Arc::new(oracle.clone())))
+            .expect("two-timestamp consolidation succeeds");
+
+        assert_eq!(
+            outputs.transitions.iter().map(|transition| transition.super_root).collect::<Vec<_>>(),
+            vec![
+                hash_super_root_proof(&first_claim).unwrap(),
+                hash_super_root_proof(&second_claim).unwrap(),
+            ]
+        );
+        assert_eq!(
+            oracle.request_count(PreimageKey::new_keccak256(*first_output_root)),
+            2,
+            "the intermediate output is read once as the first optimistic output and again as the second transition's pre-state"
+        );
+    }
+
+    #[test]
+    fn consolidation_outputs_reject_starting_root_before_span_predecessor() {
+        let chain_id = u64::MAX;
+        let mut oracle = PreimageStore::default();
+        save_fallback_chain_config(&mut oracle, chain_id);
+        let stale_super_root =
+            SuperRoot::new(98, vec![SuperOutputRoot { chain_id, output_root: b256(0x44) }]);
+        let stale_super_root_hash = save_super_root(&mut oracle, &stale_super_root);
+        let inputs = SuperConsolidationInputs {
+            span: TimestampSpan::new(100, 100).unwrap(),
+            previous_super_root: stale_super_root_hash,
+            transitions: vec![SuperConsolidationTransitionInput {
+                optimistic_blocks: vec![SuperOptimisticBlock {
+                    chain_id: U256::from(chain_id),
+                    block_hash: b256(0x22),
+                    output_root: b256(0x33),
+                }],
+                claimed_super_root_proof: SuperRootProof::new(
+                    100,
+                    vec![SuperOutputRoot { chain_id, output_root: b256(0x55) }],
+                ),
+            }],
+        };
+        inputs.validate().expect("typed consolidation timestamps are valid");
+
+        let err = block_on(build_consolidation_outputs(inputs, Arc::new(oracle))).unwrap_err();
+
+        assert!(
+            err.to_string().contains(
+                "previous super-root timestamp 98 does not precede claimed timestamp 100"
+            ),
+            "unexpected error: {err}"
+        );
     }
 }
