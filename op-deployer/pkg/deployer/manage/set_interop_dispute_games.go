@@ -203,6 +203,9 @@ func SetInteropDisputeGamesCLI(cliCtx *cli.Context) error {
 	if !common.IsHexAddress(verifierFlag) {
 		return fmt.Errorf("flag %s must be a valid address, got %q", ZKVerifierFlag.Name, verifierFlag)
 	}
+	if !cliCtx.IsSet(DisputeAbsolutePrestateFlag.Name) {
+		return fmt.Errorf("flag %s must be explicitly set for the ZK dispute game; its default is the cannon/kona prestate which is invalid for ZK", DisputeAbsolutePrestateFlag.Name)
+	}
 	zkArgs, err := encodeZKGameArgs(zkDisputeGameConfig{
 		AbsolutePrestate:     common.HexToHash(cliCtx.String(DisputeAbsolutePrestateFlag.Name)),
 		Verifier:             common.HexToAddress(verifierFlag),
