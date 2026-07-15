@@ -1977,7 +1977,14 @@
             "pages": [
               "chain-operators/tools/chain-monitoring",
               "chain-operators/tools/explorer",
-              "chain-operators/tools/op-conductor",
+              {
+                "group": "OP Conductor",
+                "pages": [
+                  "chain-operators/tools/op-conductor",
+                  "chain-operators/tools/op-conductor/setup",
+                  "chain-operators/tools/op-conductor/reference"
+                ]
+              },
               {
                 "group": "OP Deployer",
                 "pages": [
