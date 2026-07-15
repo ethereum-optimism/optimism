@@ -58,6 +58,13 @@ func (g *FaultDisputeGame) GameType() gameTypes.GameType {
 	return gameTypes.GameType(contract.Read(g.game.GameType()))
 }
 
+func (g *FaultDisputeGame) VerifyGameType(expected gameTypes.GameType) {
+	actual := g.GameType()
+	g.require.Equalf(expected, actual,
+		"game type mismatch: expected %s (%d), got %s (%d)",
+		expected, uint32(expected), actual, uint32(actual))
+}
+
 func (g *FaultDisputeGame) MaxDepth() challengerTypes.Depth {
 	return challengerTypes.Depth(bigs.Uint64Strict(contract.Read(g.game.MaxGameDepth())))
 }
@@ -135,6 +142,11 @@ func (g *FaultDisputeGame) requiredBond(pos challengerTypes.Position) eth.ETH {
 func (g *FaultDisputeGame) status() gameTypes.GameStatus {
 	status := contract.Read(g.game.Status())
 	return gameTypes.GameStatus(status)
+}
+
+func (g *FaultDisputeGame) VerifyStatus(expected gameTypes.GameStatus) {
+	actual := g.status()
+	g.require.Equalf(expected, actual, "game status mismatch: expected %s, got %s", expected, actual)
 }
 
 func (g *FaultDisputeGame) newClaim(claimIndex uint64, claim bindings.Claim) *Claim {
