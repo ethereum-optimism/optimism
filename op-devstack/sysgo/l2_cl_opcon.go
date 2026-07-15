@@ -304,6 +304,18 @@ func startMixedOpConNode(
 	}
 	args = append(args, "--l1-finalized-guard", finalizedGuard)
 
+	// Periodic Feldera checkpoint interval override, in seconds (the binary
+	// defaults to 60s when --l1-rpc is set). Env-gated like
+	// DEVSTACK_OPCON_L1_FINALIZED_GUARD: crash-restart tests shrink it so a
+	// periodic checkpoint — older than the EL head, the start-cursor-clamp
+	// restore shape — reliably exists when the node is SIGKILLed (no shutdown
+	// checkpoint) partway through a short devnet run. Process-global like the
+	// other DEVSTACK_OPCON_* envs; a shrunk interval is behaviorally harmless
+	// for parallel sibling tests (their nodes just checkpoint more often).
+	if secs := os.Getenv("DEVSTACK_OPCON_CHECKPOINT_INTERVAL_SECS"); secs != "" {
+		args = append(args, "--feldera-checkpoint-interval-secs", secs)
+	}
+
 	// Expected unsafe-block (gossip) signer for admin_verifyUnsafePayload, used by
 	// the op-conp2p P2P sidecar's verdict delegation. When set, op-con-node can
 	// attribute gossiped blocks to the sequencer; otherwise the verdict RPC
