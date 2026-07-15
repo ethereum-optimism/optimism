@@ -11,6 +11,7 @@
 
 mod builder;
 mod chain;
+mod ethcall;
 mod exec;
 pub mod rpc;
 #[cfg(test)]
@@ -86,6 +87,10 @@ pub enum Error {
     /// A raw transaction could not be decoded.
     #[error("failed to decode transaction: {0}")]
     TxDecode(String),
+    /// An `eth_call`/`eth_estimateGas` execution reverted. Carries the revert output so the RPC
+    /// layer can attach it as error data (geth revert errors do the same).
+    #[error("execution reverted")]
+    Revert(Bytes),
     /// An unsupported operation was requested.
     #[error("unsupported: {0}")]
     Unsupported(&'static str),
@@ -261,6 +266,26 @@ impl TestEngine {
     /// if the transaction is unknown.
     pub fn rpc_receipt_by_tx_hash(&self, tx_hash: B256) -> Result<Option<OpTransactionReceipt>> {
         self.chain.rpc_receipt_by_tx_hash(tx_hash)
+    }
+
+    /// Execute a call request read-only at the state of block `block_hash` (`eth_call`),
+    /// returning the call output. A revert surfaces as [`Error::Revert`].
+    pub fn eth_call(
+        &self,
+        block_hash: B256,
+        request: alloy_rpc_types_eth::TransactionRequest,
+    ) -> Result<Bytes> {
+        ethcall::call(&self.chain, block_hash, request)
+    }
+
+    /// Estimate the lowest gas limit that lets `request` succeed at the state of block
+    /// `block_hash` (`eth_estimateGas`), mirroring op-geth's estimator (see `ethcall`).
+    pub fn estimate_gas(
+        &self,
+        block_hash: B256,
+        request: alloy_rpc_types_eth::TransactionRequest,
+    ) -> Result<u64> {
+        ethcall::estimate_gas(&self.chain, block_hash, request)
     }
 
     /// Park a raw transaction in the pending buffer (`eth_sendRawTransaction`), returning its hash.

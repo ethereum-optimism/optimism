@@ -285,6 +285,15 @@ impl EphemeralChain {
         Ok(Some(self.convert_receipts(&sealed, &receipts)?))
     }
 
+    /// Fetch a committed transaction and its inclusion metadata (block hash/number, index,
+    /// base fee, timestamp) by hash, or `None` if unknown.
+    pub fn transaction_by_hash(
+        &self,
+        hash: B256,
+    ) -> crate::Result<Option<(OpTransactionSigned, TransactionMeta)>> {
+        Ok(self.provider.transaction_by_hash_with_meta(hash)?)
+    }
+
     /// Build the single OP-enriched RPC receipt for a transaction hash, or `None` if unknown.
     pub fn rpc_receipt_by_tx_hash(
         &self,

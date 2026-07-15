@@ -42,6 +42,37 @@ fn rpc_err(msg: impl std::fmt::Display) -> ErrorObjectOwned {
     ErrorObjectOwned::owned(ERR_CODE, msg.to_string(), None::<()>)
 }
 
+/// go-ethereum's JSON-RPC error code for reverted `eth_call`/`eth_estimateGas` executions.
+const REVERT_ERR_CODE: i32 = 3;
+
+/// Map an engine error to a JSON-RPC error; a revert becomes geth's shape — code 3, a message
+/// carrying the ABI-decoded reason when there is one, and the raw output as error data (which
+/// go-ethereum clients read via `rpc.DataError`).
+fn call_err(err: crate::Error) -> ErrorObjectOwned {
+    match err {
+        crate::Error::Revert(output) => {
+            let data = format!("0x{}", alloy_primitives::hex::encode(&output));
+            ErrorObjectOwned::owned(REVERT_ERR_CODE, revert_msg(&output), Some(data))
+        }
+        other => rpc_err(other),
+    }
+}
+
+/// Format a revert as geth does: `execution reverted` plus the decoded `Error(string)` reason if
+/// the output carries one.
+fn revert_msg(output: &[u8]) -> String {
+    // Error(string) selector, then ABI-encoded (offset, length, bytes).
+    const ERROR_STRING_SELECTOR: [u8; 4] = [0x08, 0xc3, 0x79, 0xa0];
+    let reason = output.strip_prefix(&ERROR_STRING_SELECTOR[..]).and_then(|abi| {
+        let len = usize::try_from(U256::from_be_slice(abi.get(32..64)?)).ok()?;
+        abi.get(64..64 + len).map(|s| String::from_utf8_lossy(s).into_owned())
+    });
+    reason.map_or_else(
+        || "execution reverted".to_string(),
+        |reason| format!("execution reverted: {reason}"),
+    )
+}
+
 /// Lock the engine, recovering the guard if a previous handler panicked while holding it.
 fn lock(engine: &SharedEngine) -> std::sync::MutexGuard<'_, TestEngine> {
     engine.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -434,6 +465,56 @@ pub fn build_module(engine: SharedEngine) -> RpcModule<SharedEngine> {
             None => Value::Null,
         };
         Ok::<Value, ErrorObjectOwned>(value)
+    })
+    .expect("register method");
+
+    m.register_method("eth_getTransactionByHash", |params, ctx, _| {
+        let tx_hash: B256 = params.one().map_err(rpc_err)?;
+        let engine = lock(ctx);
+        let Some((tx, meta)) = engine.chain.transaction_by_hash(tx_hash).map_err(rpc_err)? else {
+            return Ok(Value::Null);
+        };
+        let signer = tx.recover_signer().map_err(|e| rpc_err(format!("recover signer: {e}")))?;
+        let tx_info = OpTransactionInfo::new(
+            TransactionInfo {
+                hash: Some(tx_hash),
+                index: Some(meta.index),
+                block_hash: Some(meta.block_hash),
+                block_number: Some(meta.block_number),
+                base_fee: meta.base_fee,
+                block_timestamp: Some(meta.timestamp),
+            },
+            OpDepositInfo::default(),
+        );
+        let rpc_tx =
+            OpRpcTransaction::from_transaction(Recovered::new_unchecked(tx, signer), tx_info);
+        serde_json::to_value(rpc_tx).map_err(rpc_err)
+    })
+    .expect("register method");
+
+    // Read-only EVM execution at a block's state. The call-object argument is go-ethereum's
+    // `toCallArg` form; the trailing block tag is optional (defaulting to latest, matching geth).
+    m.register_method("eth_call", |params, ctx, _| {
+        let mut seq = params.sequence();
+        let request: alloy_rpc_types_eth::TransactionRequest = seq.next().map_err(rpc_err)?;
+        let tag: Option<String> = seq.optional_next().map_err(rpc_err)?;
+        let engine = lock(ctx);
+        let hash = resolve_block_hash(&engine, &tag_or_latest(tag))?
+            .ok_or_else(|| rpc_err("block is unknown"))?;
+        let output = engine.eth_call(hash, request).map_err(call_err)?;
+        serde_json::to_value(output).map_err(rpc_err)
+    })
+    .expect("register method");
+
+    m.register_method("eth_estimateGas", |params, ctx, _| {
+        let mut seq = params.sequence();
+        let request: alloy_rpc_types_eth::TransactionRequest = seq.next().map_err(rpc_err)?;
+        let tag: Option<String> = seq.optional_next().map_err(rpc_err)?;
+        let engine = lock(ctx);
+        let hash = resolve_block_hash(&engine, &tag_or_latest(tag))?
+            .ok_or_else(|| rpc_err("block is unknown"))?;
+        let gas = engine.estimate_gas(hash, request).map_err(call_err)?;
+        Ok::<Value, ErrorObjectOwned>(quantity(gas))
     })
     .expect("register method");
 

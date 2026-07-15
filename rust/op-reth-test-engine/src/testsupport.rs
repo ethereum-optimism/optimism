@@ -56,7 +56,16 @@ fn l1_block_storage() -> BTreeMap<B256, B256> {
 /// An engine over an ephemeral OP Mainnet chain with Karst active at genesis, the `L1Block`
 /// predeploy seeded, and `funded` given a spendable balance.
 pub(crate) fn test_engine(funded: Address) -> TestEngine {
-    let alloc = BTreeMap::from([
+    test_engine_with_accounts(funded, [])
+}
+
+/// [`test_engine`] with additional genesis accounts (e.g. pre-deployed contract code for
+/// `eth_call` tests).
+pub(crate) fn test_engine_with_accounts(
+    funded: Address,
+    extra: impl IntoIterator<Item = (Address, GenesisAccount)>,
+) -> TestEngine {
+    let mut alloc = BTreeMap::from([
         (
             L1_BLOCK_CONTRACT,
             GenesisAccount {
@@ -67,6 +76,7 @@ pub(crate) fn test_engine(funded: Address) -> TestEngine {
         ),
         (funded, GenesisAccount { balance: FUNDED_BALANCE, ..Default::default() }),
     ]);
+    alloc.extend(extra);
 
     let genesis = Genesis {
         config: ChainConfig { chain_id: CHAIN_ID, ..Default::default() },

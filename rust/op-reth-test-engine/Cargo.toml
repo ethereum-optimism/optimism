@@ -53,6 +53,8 @@ op-alloy-consensus = { workspace = true, features = ["serde"] }
 op-alloy-rpc-types = { workspace = true, features = ["serde"] }
 op-alloy-rpc-types-engine = { workspace = true, features = ["serde"] }
 alloy-serde = { workspace = true, features = ["std"] }
+alloy-evm = { workspace = true, features = ["std", "rpc"] }
+alloy-op-evm = { workspace = true, features = ["std"] }
 op-revm.workspace = true
 
 # rpc / transport / cli (used by the library RPC module and the binary)
