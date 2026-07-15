@@ -33,6 +33,13 @@ pub struct OperatorSdmOptIn {
 }
 
 impl OperatorSdmOptIn {
+    /// Creates an opt-in flag initialized to `enabled`.
+    pub fn new(enabled: bool) -> Self {
+        let this = Self::default();
+        this.set(enabled);
+        this
+    }
+
     /// Returns the current opt-in state.
     pub fn enabled(&self) -> bool {
         self.inner.load(Ordering::Acquire)
