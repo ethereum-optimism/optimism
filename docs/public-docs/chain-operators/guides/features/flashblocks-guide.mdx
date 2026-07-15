@@ -1,74 +1,26 @@
 ---
-title: "Flashblocks: A Guide for Chain Operators"
-description: "Technical guide for chain operators on Flashblocks, covering components, operation, transaction flow, and leader selection."
+title: "Enable Flashblocks on your chain"
+description: "Configure rollup-boost, op-rbuilder, and flashblocks-websocket-proxy to stream Flashblocks pre-confirmations, in single-sequencer and HA multi-sequencer setups."
+diataxis: how-to
 ---
 
-Flashblocks is a `rollup-boost` module that accelerates confirmation times by dividing block construction into smaller, incremental sections.
-This enables pre-confirmations and improves user experience, while finalization still occurs at standard block intervals.
+This guide shows how to enable Flashblocks on an OP Stack chain: running `rollup-boost` as the block-building coordination layer, streaming flashblocks from `op-rbuilder`, and serving the stream to RPC providers through `flashblocks-websocket-proxy` — in both single-sequencer and high-availability (HA) multi-sequencer setups.
 
-The Flashblocks setup involves three main components:
+For what Flashblocks are, the component architecture, and the lifecycle of a flashblock, see the [Flashblocks explainer](/op-stack/features/flashblocks).
+For full details on design choices, data structures, and invariants, see the [Flashblocks specification](https://specs.optimism.io/protocol/flashblocks.html).
+
+## What you'll run
+
+A Flashblocks-enabled sequencer runs these services side by side:
 
 *   **`rollup-boost`**: Coordination layer with Flashblocks enabled
 *   **`op-rbuilder`**: Execution client and builder with Flashblocks support
 *   **`op-reth`**: Fallback builder, a standard EL node
+*   **`flashblocks-websocket-proxy`**: Relays the flashblocks stream from the active sequencer to RPC providers
+*   **`op-conductor`** *(optional but recommended)*: Manages multiple sequencers, ensuring only one healthy leader streams blocks
 
 Flashblocks are streamed from the `op-rbuilder` to `rollup-boost` over WebSockets, minimizing latency between the sequencer and the pre-confirmed state.
-
-For full details on design choices, data structures, and invariants, see the [Flashblocks specification](https://specs.optimism.io/protocol/flashblocks.html).
-
-## Flashblocks components
-
-Flashblocks relies on several components working together:
-
-*   **`op-node`**: Consensus layer, initiates `engine_forkchoiceUpdated` calls and leads block building.
-*   **`op-reth`**: Fallback block builder, produces standard blocks.
-*   **`op-rbuilder`**: Reth-based execution client that builds both standard blocks and flashblocks.
-    *   Exposes flashblocks on a WebSocket stream (not recommended for public exposure).
-    *   Each event on the stream corresponds to a 250 ms flashblock.
-*   **`rollup-boost`**: Sits between `op-node` and execution layers, coordinating block building in flashblocks mode.
-    *   Validates `op-rbuilder` payloads against `op-reth`
-    *   Falls back to `op-reth` if `op-rbuilder` diverges or lags
-*   **`flashblocks-websocket-proxy`**: Relays the flashblocks stream from the active sequencer to RPC providers.
-*   **`op-node-rbuilder`** *(optional)*: `op-node` pointing only to `op-rbuilder`, used for syncing at startup.
-*   **`op-conductor`** *(optional but recommended)*: Manages multiple sequencers, ensuring only one healthy leader streams blocks.
-
-See the [System architecture section](https://specs.optimism.io/protocol/flashblocks.html#system-architecture) to learn more.
-
-## Flashblocks lifecycle
-
-```mermaid
-flowchart LR
-    subgraph Sequencer
-        ON[OP Node]
-        RB[Rollup Boost]
-        FEL[Fallback EL]
-        BB[Block Builder]
-    end
-    
-    subgraph Network
-        WSP[WebSocket Proxy]
-    end
-    
-    subgraph Clients
-        RPC[RPC Providers]
-        Users[End Users]
-    end
-    
-    ON --> RB
-    RB --> FEL
-    RB <--> BB
-    RB --> WSP
-    WSP --> RPC
-    RPC --> Users
-```
-
-*   Single-sequencer setup.
-*   `op-node` coordinates block production through `rollup-boost`, targeting `op-rbuilder` instead of the fallback `op-reth`.
-*   `op-rbuilder` acts as a full execution client: it builds blocks, exposes Ethereum JSON-RPC, and processes transactions.
-*   In addition, `op-rbuilder` emits flashblocks every 250 ms, streamed over a WebSocket interface (e.g. `wss://`).
-*   These flashblocks give early visibility into transaction inclusion before the final regular block is sealed.
-
-For full details on construction rules, validation, and lifecycle steps, see [Flashblocks lifecycle in the specification](https://specs.optimism.io/protocol/flashblocks.html#flashblock-lifecycle).
+The role each component plays is described in the [architecture section of the Flashblocks explainer](/op-stack/features/flashblocks#architecture).
 
 ## How to set up and run rollup-boost
 
@@ -133,3 +85,9 @@ Optional rate limits for `flashblocks-websocket-proxy`:
 
 *   `PER_IP_CONNECTIONS_LIMIT`: Max connections allowed per client IP.
 *   `INSTANCE_CONNECTION_LIMIT`: Max total connections allowed per proxy instance.
+
+## Next steps
+
+*   Learn how Flashblocks work in the [Flashblocks explainer](/op-stack/features/flashblocks).
+*   Point your app developers to the [Flashblocks integration guide](/app-developers/guides/transactions/integrating-flashblocks).
+*   Review the [technical specs](https://specs.optimism.io/protocol/flashblocks.html) for architecture details.
