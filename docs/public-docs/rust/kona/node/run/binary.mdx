@@ -1,5 +1,7 @@
 ---
 title: "Run Kona Node as a Binary"
+description: "Run the kona-node binary against an op-reth execution client, from starting both clients to watching the node sync."
+diataxis: how-to
 ---
 
 :::note
@@ -23,8 +25,8 @@ Out of the box, the `kona-node` can be used for any `OP Stack` chain
 that is part of the [`superchain-registry`][scr]. In order to use an
 out-of-band `OP Stack` chain, for example a new devnet, you'll need
 to specify the rollup config using the custom `--l2-config-file`
-cli flag. More on that in the
-[More Detailed Node Docs Section](#-More-Detailed-Node-Docs).
+cli flag. See [rollup configuration loading](/rust/kona/node/configuration#rollup-configuration-loading)
+for details.
 
 <Info>
 This tutorial walks through running the `kona-node` as
@@ -100,91 +102,18 @@ kona-node node \
 That's it! Your node should connect to P2P and start syncing
 quickly.
 
-#### RPC Trust Configuration
+:::note
 
-By default, `kona-node` trusts RPC providers and doesn't perform additional verification. 
-This is suitable for local nodes but should be changed when using public RPC endpoints:
+By default, `kona-node` trusts its RPC providers and doesn't perform
+additional verification, which is suitable for local nodes. When
+pointing the node at public RPC endpoints, follow
+[configure RPC trust](/rust/kona/node/run/rpc-trust) to enable
+block hash verification.
 
-```
-kona-node node \
-    --chain 8453 \
-    --l1-eth-rpc https://public-eth-rpc.com \
-    --l1-trust-rpc false \
-    --l1-beacon https://public-beacon-api.com \
-    --l2-engine-rpc http://127.0.0.1:9551 \
-    # L2 trust-rpc defaults to true for local engine
-```
-
-The `--l1-trust-rpc false` flag enables block hash verification for the L1 RPC, 
-protecting against malicious or faulty public RPC providers.
+:::
 
 
-#### Debugging
-
-`kona-node` provides a `-v` (or `--v`) flag as a way to set
-the "verbosity" level for logs. By default, the verbosity level
-is set to `3`, which is the INFO level. The level ranges from `0`
-being no logs to `5` which includes trace logs. Log levels are
-listed below, with each level including the one below it.
-
-- `5`: `TRACE` - very verbose logs that provide a detailed trace
-- `4`: `DEBUG` - logs meant to print debugging information
-- `3`: `INFO` - informational logs
-- `2`: `WARN` - includes warning and error logs
-- `1`: `ERROR` - only error logs are shown
-- `0`: No logs
-
-The default verbosity level is `-vvv` which is the `3` or `INFO`
-level. To set the `kona-node` to print `DEBUG` logs or level `4`,
-run the node like so: `kona-node node -vvvv`.
-
-By default, the `kona-node` initializes its tracing (logging)
-using the default environment variable filter [provided by the
-tracing_subscriber crate][tracing-env]. This uses the value in
-the `RUST_LOG` environment variable to set the tracing level
-for specific targets. Effectively, `RUST_LOG` allows you to
-bypass the default log level for the whole node or specific
-log targets. For example, by prepending `RUST_LOG=engine=debug`
-to the `kona-node` command (or setting that as an environment
-variable), only `INFO` logs will be displayed except for the
-`engine` log target which will also print `DEBUG` logs.
-
-This comes in handy say for when we would like to debug Kona's
-P2P stack, we could prepend `RUST_LOG=discv5=debug,libp2p=debug`
-to view debug logs from only `discv5` and `libp2p` targets.
-
-
-#### More Detailed Node Docs
-
-There are a number of important defaults.
-
-- The node will poll and update the runtime config every 10 minutes.
-  Configurable via the `--l1.runtime-config-reload-interval` flag.
-- The P2P stack is spun up. The libp2p swarm listens on TCP `9222`
-  to receive block gossip. The `discv5` discovery service runs on
-  UDP port `9223`. Peer scoring is enabled.
-- An RPC server is exposed at `0.0.0.0:9545`. Websocket connections
-  are disabled by default.
-- Metrics are enabled, serving prometheus metrics on `0.0.0.0:9090`.
-  This can be configured using the `--metrics.enabled`,
-  `--metrics.port`, and `--metrics.addr` cli flags.
-
-<Info>
-If a file path to a rollup config is _not_ specified via the
-`--l2-config-file` cli flag, the Rollup Config will be loaded
-via the [superchain registry][scr].
-
-A custom rollup config can either be specified through the
-`--l2-config-file` flag, or specific values may be overridden
-using a set of override flags provided by the `kona-node`.
-
-Override flags (for example `--canyon-override`) can be viewed
-in the help menu by running `kona-node node --help`. The only
-overrides currently supported are hardfork timestamps in seconds.
-</Info>
-
-A set of CLI flags relating to the sequencer and supervisor are
-also available to the `kona-node` binary.
+#### What to Expect
 
 Now, when the `kona-node` starts up, it should immediately spin up
 the P2P stack. It will begin discovering valid peers on the network
@@ -212,13 +141,16 @@ blocks from the chain's sequencer, and sending them off to the
 engine actor to insert into the chain.
 
 
-### Configuring a Dockerfile
+#### Next Steps
 
-To learn more about running a `kona-node` using docker, check
-out the [docker guide](/rust/kona/node/run/docker).
+- The node's default ports, default behavior, and every available CLI
+  flag - including the sequencer and supervisor flag sets - are
+  catalogued in the [Kona node CLI reference](/rust/kona/node/configuration).
+- To adjust log verbosity or set up metrics dashboards, see
+  [Monitoring](/rust/kona/node/monitoring).
+- To learn more about running a `kona-node` using docker, check
+  out the [docker guide](/rust/kona/node/run/docker).
 
-
-[tracing-env]: https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#method.from_default_env
 
 [scr]: https://github.com/ethereum-optimism/superchain-registry/tree/main
 

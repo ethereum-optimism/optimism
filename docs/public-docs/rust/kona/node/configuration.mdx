@@ -1,5 +1,7 @@
 ---
 title: "Kona Node CLI Reference"
+description: "Reference for all kona-node CLI flags and environment variables, grouped by category, plus default ports and default runtime behavior."
+diataxis: reference
 ---
 
 This document lists all CLI flags for the `kona-node node` subcommand, grouped by category. All flags can be provided as command-line arguments or via environment variables.
@@ -132,56 +134,36 @@ Supported chain names include all those recognized by `alloy_chains` (e.g., `opt
 | `--supervisor.jwt.secret <HEX>` | `KONA_NODE_SUPERVISOR_JWT_SECRET` | JWT secret for supervisor websocket authentication | - |
 | `--supervisor.jwt.secret.file <PATH>` | `KONA_NODE_SUPERVISOR_JWT_SECRET_FILE` | Path to file containing JWT secret | - |
 
-## RPC Trust Configuration
+## RPC Trust Flags
 
-The `--l1-trust-rpc` and `--l2-trust-rpc` flags control whether Kona performs additional verification on RPC responses to protect against malicious or faulty RPC providers.
+The `--l1-trust-rpc` and `--l2-trust-rpc` flags control whether Kona verifies the block hashes of RPC responses. For guidance on when to disable trust and worked examples for trusted, untrusted, and mixed provider setups, see [configure RPC trust](/rust/kona/node/run/rpc-trust).
 
-### Trust Modes
+## Default Behavior
 
-**Default Behavior (trust enabled, `true`):**
-- No additional block hash verification is performed
-- Optimized for performance
-- Suitable for local nodes and trusted infrastructure
-- Assumes the RPC provider is reliable and honest
+Unless overridden by the flags above, a `kona-node node` run has the following defaults:
 
-**Verification Mode (trust disabled, `false`):**
-- All fetched blocks have their hashes verified against the requested hashes
-- Protects against malicious RPC providers returning incorrect blocks
-- Recommended for public or third-party RPC endpoints
-- Small performance overhead due to hash verification
+- The P2P stack is spun up. The libp2p swarm listens on TCP `9222`
+  to receive block gossip. The `discv5` discovery service runs on
+  UDP port `9223`. Peer scoring is enabled.
+- An RPC server is exposed at `0.0.0.0:9545`. Websocket connections
+  are disabled by default.
+- Prometheus metrics are disabled. Enable them with the
+  `--metrics.enabled` flag; metrics are then served on `0.0.0.0:9090`,
+  configurable via the `--metrics.port` and `--metrics.addr` flags.
 
-### Examples
+## Rollup Configuration Loading
 
-**Using trusted local RPCs (default):**
-```bash
-kona-node node \
-  --l1-eth-rpc http://localhost:8545 \
-  --l2-engine-rpc http://localhost:8551 \
-  # trust-rpc defaults to true, no need to specify
-```
+If a file path to a rollup config is _not_ specified via the
+`--l2-config-file` cli flag, the Rollup Config will be loaded
+via the [superchain registry][scr].
 
-**Using untrusted public RPCs:**
-```bash
-kona-node node \
-  --l1-eth-rpc https://public-eth-rpc.com \
-  --l1-trust-rpc false \
-  --l2-engine-rpc https://public-l2-rpc.com \
-  --l2-trust-rpc false
-```
+A custom rollup config can either be specified through the
+`--l2-config-file` flag, or specific values may be overridden
+using a set of override flags provided by the `kona-node`.
 
-**Mixed trust configuration:**
-```bash
-kona-node node \
-  --l1-eth-rpc https://public-eth-rpc.com \
-  --l1-trust-rpc false \
-  --l2-engine-rpc http://localhost:8551 \
-  # L2 trust-rpc defaults to true for local engine
-```
+Override flags (for example `--canyon-override`) can be viewed
+in the help menu by running `kona-node node --help`. The only
+overrides currently supported are hardfork timestamps in seconds.
 
-### Security Recommendations
-
-1. **Local Infrastructure**: Keep the default `true` setting for RPCs you control
-2. **Public RPCs**: Always set `--trust-rpc false` when using third-party endpoints
-3. **Shared Infrastructure**: Consider setting `--trust-rpc false` as a precaution
-4. **Performance Testing**: The verification overhead is minimal but can be measured in high-throughput scenarios
+[scr]: https://github.com/ethereum-optimism/superchain-registry/tree/main
 

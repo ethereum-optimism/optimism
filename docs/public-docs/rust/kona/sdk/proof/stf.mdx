@@ -1,0 +1,34 @@
+---
+title: "Understanding the OP Stack STF"
+description: "How Kona composes the derivation pipeline and execution engine into a verifiable OP Stack state transition, and why kona-client proves a single block by default."
+diataxis: explanation
+---
+
+The OP Stack state transition is comprised of two primary components:
+
+- **The [derivation pipeline](https://specs.optimism.io/protocol/derivation.html)** (`kona-derive`)
+  - Responsible for deriving L2 chain state from the DA layer.
+- **The [execution engine](https://specs.optimism.io/protocol/exec-engine.html#l2-execution-engine)** (`kona-executor`)
+  - Responsible for the execution of transactions and state commitments.
+  - Ensures correct application of derived L2 state.
+
+To prove the correctness of the state transition, Kona composes these two components:
+
+- It combines the derivation of the L2 chain with its execution in the same process.
+- It pulls in necessary data from sources to complete the STF, verifiably unrolling the input commitments along the way.
+
+`kona-client` serves as an implementation of this process, capable of deriving and executing a single L2 block in a
+verifiable manner.
+
+> 📖 Why just a single block by default?
+>
+> On the OP Stack, we employ an interactive bisection game that narrows in on the disagreed upon block -> block state
+> transition before requiring a fault proof to be ran. Because of this, the default implementation only serves
+> to derive and execute the single block that the participants of the bisection game landed on.
+
+## Where the STF Runs
+
+`kona-client` executes this state transition on top of a verifiable backend. Two paths are documented in this section of the book:
+
+- The [FPVM backend](/rust/kona/sdk/proof/fpvm-backend), which Kona ships out of the box, runs the STF on the OP Stack's Fault Proof VMs and sources its data over the PreimageOracle ABI.
+- [Custom backends](/rust/kona/sdk/proof/custom-backend) run the same STF on other verifiable environments, such as zkVMs or TEEs, by swapping out the data source traits.
