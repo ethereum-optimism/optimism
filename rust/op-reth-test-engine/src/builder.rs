@@ -317,6 +317,70 @@ mod tests {
     }
 
     #[test]
+    fn forkchoice_reorgs_to_alternate_fork_and_back() {
+        use alloy_rpc_types_engine::ForkchoiceState;
+
+        // Drive a block on `parent` without moving safe/finalized, so a reorg can later reset the
+        // head below them freely.
+        fn head_only(head: B256) -> ForkchoiceState {
+            ForkchoiceState {
+                head_block_hash: head,
+                safe_block_hash: B256::ZERO,
+                finalized_block_hash: B256::ZERO,
+            }
+        }
+        fn build(
+            engine: &mut TestEngine,
+            parent: B256,
+            timestamp: u64,
+            user_tx: &reth_optimism_primitives::OpTransactionSigned,
+        ) -> B256 {
+            let updated = engine
+                .forkchoice_updated(
+                    head_only(parent),
+                    Some(payload_attrs(timestamp, vec![], false)),
+                )
+                .expect("fcu with attrs");
+            let id = updated.payload_id.expect("payload id");
+            engine.include_tx(None, &encode(user_tx)).expect("include tx");
+            let data = engine.get_payload(id).expect("get payload");
+            let head = engine.new_payload(data).expect("new payload").latest_valid_hash.unwrap();
+            engine.forkchoice_updated(head_only(head), None).expect("fcu advance");
+            head
+        }
+
+        let mut engine = test_engine(user_sender());
+        let genesis = engine.header_by_number(0).unwrap().unwrap().hash_slow();
+
+        // Canonical chain genesis -> a1 -> a2 -> a3.
+        let a1 = build(&mut engine, genesis, 2, &user_tx(0));
+        let a2 = build(&mut engine, a1, 4, &user_tx(1));
+        let a3 = build(&mut engine, a2, 6, &user_tx(2));
+        assert_eq!(engine.chain.latest_header().hash(), a3);
+
+        // Build a sibling of a2 on a1 (a different timestamp yields a different hash), reorging a2
+        // and a3 out — the shape of op-node's rewind / invalid-payload replacement.
+        let b2 = build(&mut engine, a1, 5, &user_tx(1));
+        assert_ne!(b2, a2);
+        assert_eq!(engine.chain.latest_header().hash(), b2);
+        assert_eq!(engine.chain.latest_header().number, 2);
+        assert_eq!(engine.block_by_number(2).unwrap().unwrap().header.hash_slow(), b2);
+        assert!(engine.block_by_number(3).unwrap().is_none(), "a3 reorged out");
+        // The shared ancestor is untouched.
+        assert_eq!(engine.block_by_number(1).unwrap().unwrap().header.hash_slow(), a1);
+
+        // Flip back to the original tip a3: a full reorg onto the abandoned fork, re-materialized
+        // from the retained known_blocks.
+        let updated = engine.forkchoice_updated(head_only(a3), None).expect("fcu back to a3");
+        assert!(updated.is_valid(), "reorg back to a3: {updated:?}");
+        assert_eq!(engine.chain.latest_header().hash(), a3);
+        assert_eq!(engine.chain.latest_header().number, 3);
+        assert_eq!(engine.block_by_number(3).unwrap().unwrap().header.hash_slow(), a3);
+        assert_eq!(engine.block_by_number(2).unwrap().unwrap().header.hash_slow(), a2);
+        assert_eq!(engine.block_by_number(1).unwrap().unwrap().header.hash_slow(), a1);
+    }
+
+    #[test]
     fn committed_payload_id_is_evicted() {
         // Mirrors TestL2SequencerAPI: once a payload is committed and the head advances past its
         // parent, re-sealing it (get_payload) must report UnknownPayloadId — op-node maps that code

@@ -1,9 +1,9 @@
 //! Ephemeral, genesis-initialized OP chain backed by a temp-dir reth provider.
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use alloy_consensus::{
-    Header, TxReceipt,
+    BlockHeader as _, Header, TxReceipt,
     transaction::{Recovered, SignerRecoverable},
 };
 use alloy_eips::{BlockHashOrNumber, eip2718::Encodable2718};
@@ -201,45 +201,150 @@ impl EphemeralChain {
 
     /// Point the canonical/safe/finalized heads at the given hashes (attrs-less forkchoice).
     ///
-    /// Returns `Ok(false)` without mutating anything if `head` is unknown to the chain, which the
-    /// engine maps to `SYNCING`. A zero `safe`/`finalized` hash is skipped; a non-zero one that is
-    /// unknown is an [`Error::UnknownForkchoiceBlock`]. All
-    /// three are resolved before any pointer is moved.
+    /// Canonicalizes `head`: a linear reset or an alternate-fork head both reorg the in-memory
+    /// canonical chain onto it (via [`reorg_to`](Self::reorg_to)), so provider reads (`latest`,
+    /// block-by-number) reflect exactly the new chain. `side_blocks` supplies executed blocks that
+    /// are not currently canonical — those buffered by `new_payload` and any previously reorged-out
+    /// — so an alternate fork can be materialized.
+    ///
+    /// Returns `Ok(false)` without mutating anything if `head` (or an ancestor needed to reach the
+    /// current chain) is unknown, which the engine maps to `SYNCING`. A zero `safe`/`finalized`
+    /// hash is skipped; a non-zero one that is unknown is an [`Error::UnknownForkchoiceBlock`].
+    /// All three are resolved before any pointer is moved.
     pub(crate) fn advance_forkchoice(
         &self,
         head: B256,
         safe: B256,
         finalized: B256,
+        side_blocks: &HashMap<B256, ExecutedBlock<OpPrimitives>>,
     ) -> crate::Result<bool> {
-        let Some(head_header) = self.provider.header(head)? else {
+        let Some(head_header) = self.resolve_block_header(head, side_blocks)? else {
             return Ok(false);
         };
-        let safe_header = self.resolve_forkchoice_block("safe", safe)?;
-        let finalized_header = self.resolve_forkchoice_block("finalized", finalized)?;
+        // Resolve safe/finalized against the canonical chain or the buffered blocks before mutating
+        // anything, so a bad pointer fails atomically.
+        let safe_header = self.resolve_forkchoice_block("safe", safe, side_blocks)?;
+        let finalized_header =
+            self.resolve_forkchoice_block("finalized", finalized, side_blocks)?;
+
+        if !self.reorg_to(&head_header, side_blocks)? {
+            return Ok(false);
+        }
 
         let state = self.provider.canonical_in_memory_state();
-        state.set_canonical_head(SealedHeader::seal_slow(head_header));
         if let Some(header) = safe_header {
-            state.set_safe(SealedHeader::seal_slow(header));
+            state.set_safe(header);
         }
         if let Some(header) = finalized_header {
-            state.set_finalized(SealedHeader::seal_slow(header));
+            state.set_finalized(header);
         }
         Ok(true)
     }
 
-    /// Look up a non-zero `safe`/`finalized` forkchoice block, erroring if it is unknown. A zero
-    /// hash means "unset" and resolves to `None`.
+    /// Reorg the in-memory canonical chain so `new_head` becomes the tip.
+    ///
+    /// Traces `new_head` back to the first ancestor already on the current canonical chain (the
+    /// fork point), then applies a single [`NewCanonicalChain::Reorg`] that adds the blocks
+    /// from the fork point up to `new_head` and removes the canonical blocks above the fork
+    /// point, followed by a `set_canonical_head` — the exact pair reth's own engine tree uses.
+    /// Genesis lives on disk and always terminates the walk, so a full reset to genesis simply
+    /// drops every in-memory block. Returns `Ok(false)` if a block on the path to the fork
+    /// point can't be resolved from either the canonical chain or `side_blocks` (mapped to
+    /// `SYNCING`).
+    fn reorg_to(
+        &self,
+        new_head: &SealedHeader,
+        side_blocks: &HashMap<B256, ExecutedBlock<OpPrimitives>>,
+    ) -> crate::Result<bool> {
+        let state = self.provider.canonical_in_memory_state();
+        let cur_head = state.get_canonical_head();
+        if new_head.hash() == cur_head.hash() {
+            return Ok(true);
+        }
+
+        // The current canonical chain as hash -> number, tip down to (and including) genesis.
+        let mut canonical: HashMap<B256, u64> = HashMap::new();
+        let mut hash = cur_head.hash();
+        loop {
+            let Some(header) = self.sealed_header(hash)? else {
+                return Ok(false);
+            };
+            canonical.insert(hash, header.number);
+            if header.number == 0 {
+                break;
+            }
+            hash = header.parent_hash;
+        }
+
+        // Walk the new head down to the fork point, collecting the blocks to add (newest first).
+        let mut new_blocks: Vec<ExecutedBlock<OpPrimitives>> = Vec::new();
+        let mut cursor = new_head.hash();
+        let fork_number = loop {
+            if let Some(&number) = canonical.get(&cursor) {
+                break number;
+            }
+            let Some(block) = self.executed_block(cursor, side_blocks) else {
+                return Ok(false);
+            };
+            let parent = block.recovered_block().parent_hash();
+            new_blocks.push(block);
+            cursor = parent;
+        };
+
+        // The canonical blocks strictly above the fork point are removed. They are always in memory
+        // (only genesis is on disk, and it can never be above the fork point).
+        let old_blocks: Vec<ExecutedBlock<OpPrimitives>> = canonical
+            .iter()
+            .filter(|&(_, &number)| number > fork_number)
+            .filter_map(|(&hash, _)| state.state_by_hash(hash).map(|s| s.block_ref().clone()))
+            .collect();
+
+        new_blocks.reverse();
+        state.update_chain(NewCanonicalChain::Reorg { new: new_blocks, old: old_blocks });
+        state.set_canonical_head(new_head.clone());
+        Ok(true)
+    }
+
+    /// Resolve a block header by hash from the canonical chain or the buffered `side_blocks`, or
+    /// `None` if it is unknown to both.
+    fn resolve_block_header(
+        &self,
+        hash: B256,
+        side_blocks: &HashMap<B256, ExecutedBlock<OpPrimitives>>,
+    ) -> crate::Result<Option<SealedHeader>> {
+        if let Some(header) = self.sealed_header(hash)? {
+            return Ok(Some(header));
+        }
+        Ok(side_blocks.get(&hash).map(|block| block.recovered_block().clone_sealed_header()))
+    }
+
+    /// The executed block for `hash`: a buffered/reorged-out `side_blocks` entry if present, else
+    /// the in-memory canonical block state.
+    fn executed_block(
+        &self,
+        hash: B256,
+        side_blocks: &HashMap<B256, ExecutedBlock<OpPrimitives>>,
+    ) -> Option<ExecutedBlock<OpPrimitives>> {
+        side_blocks.get(&hash).cloned().or_else(|| {
+            self.provider
+                .canonical_in_memory_state()
+                .state_by_hash(hash)
+                .map(|s| s.block_ref().clone())
+        })
+    }
+
+    /// Look up a non-zero `safe`/`finalized` forkchoice block from the canonical chain or the
+    /// buffered `side_blocks`, erroring if it is unknown. A zero hash means "unset" (`None`).
     fn resolve_forkchoice_block(
         &self,
         which: &'static str,
         hash: B256,
-    ) -> crate::Result<Option<Header>> {
+        side_blocks: &HashMap<B256, ExecutedBlock<OpPrimitives>>,
+    ) -> crate::Result<Option<SealedHeader>> {
         if hash.is_zero() {
             return Ok(None);
         }
-        self.provider
-            .header(hash)?
+        self.resolve_block_header(hash, side_blocks)?
             .map(Some)
             .ok_or(crate::Error::UnknownForkchoiceBlock { which, hash })
     }

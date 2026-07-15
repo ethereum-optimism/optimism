@@ -22,7 +22,7 @@ pub use chain::EphemeralChain;
 
 use std::collections::{BTreeMap, HashMap};
 
-use alloy_consensus::{Header, Transaction as _, transaction::SignerRecoverable};
+use alloy_consensus::{BlockHeader as _, Header, Transaction as _, transaction::SignerRecoverable};
 use alloy_eips::eip2718::Decodable2718;
 use alloy_genesis::Genesis;
 use alloy_primitives::{Address, B256, Bytes, keccak256};
@@ -31,12 +31,13 @@ use alloy_rpc_types_engine::{
 };
 use op_alloy_rpc_types::OpTransactionReceipt;
 use op_alloy_rpc_types_engine::{OpExecutionData, OpPayloadAttributes};
+use reth_chain_state::ExecutedBlock;
 use reth_db_common::init::InitStorageError;
-use reth_optimism_primitives::{OpBlock, OpReceipt, OpTransactionSigned};
+use reth_optimism_primitives::{OpBlock, OpPrimitives, OpReceipt, OpTransactionSigned};
 use reth_provider::ProviderError;
 use reth_storage_api::StateProvider as _;
 
-use crate::builder::InFlightPayload;
+use crate::{builder::InFlightPayload, exec::ImportOutcome};
 
 /// Errors produced by the test engine.
 #[derive(Debug, thiserror::Error)]
@@ -121,6 +122,13 @@ pub struct TestEngine {
     /// `PendingNonceAt` / `ActL2IncludeTx(from)` sequence keeps working unchanged over the socket
     /// (the concrete `*ethclient.Client` they use cannot be intercepted Go-side).
     pending: HashMap<Address, BTreeMap<u64, Bytes>>,
+    /// Every block that has passed [`new_payload`](Self::new_payload) validation, keyed by hash
+    /// and never evicted. A block that is not a linear extension of the head is only recorded
+    /// here (not committed) until a forkchoice update canonicalizes it; retaining committed
+    /// and reorged-out blocks alike lets a later forkchoice update reorg onto an alternate
+    /// fork or flip back to a previously abandoned one — the reorg support op-node's
+    /// derivation relies on.
+    known_blocks: HashMap<B256, ExecutedBlock<OpPrimitives>>,
 }
 
 impl TestEngine {
@@ -131,6 +139,7 @@ impl TestEngine {
             in_flight: HashMap::new(),
             current: None,
             pending: HashMap::new(),
+            known_blocks: HashMap::new(),
         })
     }
 
@@ -138,44 +147,75 @@ impl TestEngine {
     /// hardforks via the chain-spec builder rather than round-tripping them through genesis JSON.
     #[cfg(test)]
     pub(crate) fn from_chain(chain: EphemeralChain) -> Self {
-        Self { chain, in_flight: HashMap::new(), current: None, pending: HashMap::new() }
+        Self {
+            chain,
+            in_flight: HashMap::new(),
+            current: None,
+            pending: HashMap::new(),
+            known_blocks: HashMap::new(),
+        }
     }
 
     /// Import a complete execution payload (`engine_newPayload`).
     ///
-    /// Validates the payload's layout, executes it against its parent state with OP semantics,
-    /// verifies the post-state root, and—on success—commits it as the new canonical head.
-    /// Returns `VALID` (with the block hash as `latestValidHash`), `INVALID` (with the parent
-    /// hash), or `SYNCING` when the parent block is unknown.
+    /// Validates the payload's layout, executes it against its parent state with OP semantics, and
+    /// verifies the post-state root. A block that extends the current head is committed
+    /// immediately; a valid block on an alternate fork is only recorded (in `known_blocks`), to
+    /// be canonicalized by a later forkchoice update rather than moving the head here. Returns
+    /// `VALID` (with the block hash as `latestValidHash`), `INVALID` (with the parent hash), or
+    /// `SYNCING` when the parent block is unknown.
     pub fn new_payload(&mut self, payload: OpExecutionData) -> Result<PayloadStatus> {
-        let status = exec::import_payload(&self.chain, payload)?;
-        // A committed payload advances the head, stranding any in-flight payload still open on the
-        // now-superseded parent.
-        self.evict_stale_in_flight();
-        Ok(status)
+        match exec::import_payload(&self.chain, payload)? {
+            ImportOutcome::Syncing => Ok(PayloadStatus::from_status(PayloadStatusEnum::Syncing)),
+            ImportOutcome::Invalid(status) => Ok(status),
+            ImportOutcome::Valid(executed) => {
+                let block_hash = executed.recovered_block().hash();
+                let parent_hash = executed.recovered_block().parent_hash();
+                // Retain every validated block so a later forkchoice update can canonicalize it —
+                // even onto an alternate fork, or when flipping back to a reorged-out one.
+                self.known_blocks.insert(block_hash, executed.clone());
+                // Only a linear extension of the current head is committed here; an alternate-fork
+                // block waits for a forkchoice update to reorg onto it.
+                if parent_hash == self.chain.latest_header().hash() {
+                    self.chain.commit_block(executed);
+                    // A committed payload advances the head, stranding any in-flight payload still
+                    // open on the now-superseded parent.
+                    self.evict_stale_in_flight();
+                }
+                Ok(PayloadStatus::new(PayloadStatusEnum::Valid, Some(block_hash)))
+            }
+        }
     }
 
     /// Update the forkchoice (`engine_forkchoiceUpdated`).
     ///
-    /// Advances the canonical/safe/finalized pointers: a known `head` yields `VALID`, an unknown
-    /// `head` yields `SYNCING` (never a silent `VALID`), and an unknown non-zero `safe`/`finalized`
-    /// is an [`Error::UnknownForkchoiceBlock`]. When `attributes` is `Some`, a new payload is
-    /// opened on top of `head` and its [`PayloadId`] is returned; the deposits are applied
-    /// immediately, so invalid attributes error here (mirroring op-geth's `startBlock`).
+    /// Canonicalizes `head`, reorging onto it when it is on an alternate fork (using the retained
+    /// `known_blocks`): a resolvable `head` yields `VALID`, an unknown or unreachable `head` yields
+    /// `SYNCING` (never a silent `VALID`), and an unknown non-zero `safe`/`finalized` is an
+    /// [`Error::UnknownForkchoiceBlock`]. When `attributes` is `Some`, a new payload is opened on
+    /// top of `head` and its [`PayloadId`] is returned; the deposits are applied immediately, so
+    /// invalid attributes error here (mirroring op-geth's `startBlock`).
     pub fn forkchoice_updated(
         &mut self,
         state: ForkchoiceState,
         attributes: Option<OpPayloadAttributes>,
     ) -> Result<ForkchoiceUpdated> {
         let head = state.head_block_hash;
-        // An unknown head reports SYNCING — never a silent VALID.
-        if self.chain.sealed_header(head)?.is_none() {
+        // Canonicalize the chain onto head (reorging if it is on an alternate fork), then move the
+        // safe/finalized pointers. An unknown or unreachable head reports SYNCING — never a silent
+        // VALID — and an unknown non-zero safe/finalized pointer errors.
+        let advanced = self.chain.advance_forkchoice(
+            head,
+            state.safe_block_hash,
+            state.finalized_block_hash,
+            &self.known_blocks,
+        )?;
+        if !advanced {
             return Ok(ForkchoiceUpdated::from_status(PayloadStatusEnum::Syncing));
         }
-        // head is known, so this only fails on an unknown non-zero safe/finalized pointer.
-        self.chain.advance_forkchoice(head, state.safe_block_hash, state.finalized_block_hash)?;
-        // The head may have moved past an earlier in-flight payload's parent; drop it so a later
-        // get_payload for it reports UnknownPayloadId rather than re-sealing a stale block.
+        // The head may have moved past (or away from) an earlier in-flight payload's parent; drop
+        // it so a later get_payload for it reports UnknownPayloadId rather than re-sealing
+        // a stale block.
         self.evict_stale_in_flight();
 
         let valid =
