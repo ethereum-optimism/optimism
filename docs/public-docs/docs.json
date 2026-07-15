@@ -2010,7 +2010,8 @@
                       "chain-operators/tools/op-deployer/usage/init",
                       "chain-operators/tools/op-deployer/usage/apply",
                       "chain-operators/tools/op-deployer/usage/verify",
-                      "chain-operators/tools/op-deployer/usage/custom-deployments"
+                      "chain-operators/tools/op-deployer/usage/custom-deployments",
+                      "chain-operators/tools/op-deployer/usage/release-workflows"
                     ]
                   },
                   "chain-operators/tools/op-deployer/known-limitations",
