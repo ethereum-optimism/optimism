@@ -44,14 +44,13 @@ Supporting libraries for the SP1 fault proof system:
 Compiled ELF binaries for the zkVM programs, used by the prover:
 
 - **`aggregation-elf`**: Compiled aggregation program
-- **`range-elf`**: Compiled range program. SP1 v6.2.4 no longer exposes a
-  separate bump-allocator feature, so this port keeps one range artifact instead
-  of separate bump and embedded variants.
+- **`range-elf`**: Compiled range program. This port keeps one range artifact
+  instead of separate bump and embedded variants.
 - **`super-aggregation-elf`**: Compiled super-root aggregation program
 - **`super-range-elf`**: Compiled unified super-root range/consolidation program
 
 In the optimism monorepo port, these files are generated on demand and ignored
-by git, matching the Cannon prestate artifact workflow. Generate real v6.2.4
+by git, matching the Cannon prestate artifact workflow. Generate real v6.3.1
 ELFs with `just build-elfs`. Host-toolchain workspace builds embed empty
 build-output placeholders when generated ELFs are absent, so proving fails fast
 until the real artifacts are built.
@@ -65,8 +64,8 @@ program entrypoints live in their own workspace for SP1 patch scoping and are
 not covered by those host workspace gates. The following standalone-kona GitHub
 workflow behavior is not yet reproduced:
 
-- ELF build (`sp1/justfile build-elfs`, Dockerized `cargo-prove --tag v6.2.4`).
-  This requires the SP1 v6.2.4 toolchain from `sp1up` and Docker in CI.
+- ELF build (`sp1/justfile build-elfs`, Dockerized `cargo-prove --tag v6.3.1`).
+  This requires the SP1 v6.3.1 toolchain from `sp1up` and Docker in CI.
 - Codecov flag wiring for SP1 coverage.
 - no-std checks for the SP1/zkVM crates. The monorepo `rust-check-no-std` job is
   package-allowlisted and does not include SP1; add SP1 there if no-std coverage
