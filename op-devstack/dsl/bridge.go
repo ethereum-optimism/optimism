@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	nodebindings "github.com/ethereum-optimism/optimism/op-node/bindings"
 	bindingspreview "github.com/ethereum-optimism/optimism/op-node/bindings/preview"
@@ -173,7 +174,7 @@ func (b *StandardBridge) Deposit(amount eth.ETH, from *EOA) Deposit {
 	idx := len(l1DepositReceipt.Logs) - 1
 	l2DepositTx, err := derive.UnmarshalDepositLogEvent(l1DepositReceipt.Logs[idx])
 	b.require.NoError(err, "Could not reconstruct L2 Deposit")
-	l2DepositTxHash := types.NewTx(l2DepositTx).Hash()
+	l2DepositTxHash := l2DepositTx.Hash()
 	// Give time for L2CL to include the L2 deposit tx
 	var l2DepositReceipt *types.Receipt
 	b.require.Eventually(func() bool {
@@ -209,7 +210,7 @@ func (b *StandardBridge) ERC20Deposit(l1TokenAddr common.Address, l2TokenAddr co
 
 	// Wait for the deposit to be processed on the L2
 	// Find the deposit log to get the L2 deposit transaction
-	var l2DepositTx *types.DepositTx
+	var l2DepositTx *optypes.DepositTx
 	for _, log := range depositReceipt.Logs {
 		if l2DepositTx, err = derive.UnmarshalDepositLogEvent(log); err == nil {
 			break
@@ -217,7 +218,7 @@ func (b *StandardBridge) ERC20Deposit(l1TokenAddr common.Address, l2TokenAddr co
 	}
 	b.require.NotNil(l2DepositTx, "Could not find L2 deposit transaction in logs")
 
-	l2DepositTxHash := types.NewTx(l2DepositTx).Hash()
+	l2DepositTxHash := l2DepositTx.Hash()
 
 	// Give time for L2CL to include the L2 deposit tx
 	sequencingWindowDuration := time.Duration(b.rollupCfg.SeqWindowSize) * b.l1Client.EstimateBlockTime()
