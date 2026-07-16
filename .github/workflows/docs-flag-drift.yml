@@ -1,0 +1,80 @@
+# Drift check for the generated flag-reference snippets on docs.optimism.io.
+#
+# The flag tables under docs/public-docs/snippets/generated/ are generated from
+# the services' urfave/cli flag definitions by docs/public-docs/scripts/gen-flags.
+# This job regenerates them and fails if the committed snippets differ, so a
+# change to a component's flags must land together with the regenerated docs,
+# and hand edits to generated files always fail CI.
+#
+# See docs/public-docs/scripts/gen-flags/README.md.
+name: docs-flag-drift
+
+on:
+  push:
+    branches:
+      - 'develop'
+    paths:
+      - 'op-batcher/flags/**'
+      - 'docs/public-docs/scripts/gen-flags/**'
+      - 'docs/public-docs/snippets/generated/**'
+      - 'docs/public-docs/chain-operators/reference/batcher-configuration.mdx'
+      - '.github/workflows/docs-flag-drift.yml'
+  pull_request:
+    paths:
+      - 'op-batcher/flags/**'
+      - 'docs/public-docs/scripts/gen-flags/**'
+      - 'docs/public-docs/snippets/generated/**'
+      - 'docs/public-docs/chain-operators/reference/batcher-configuration.mdx'
+      - '.github/workflows/docs-flag-drift.yml'
+  workflow_dispatch:
+
+jobs:
+  flag-drift:
+    name: generated flag references match source
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2
+        with:
+          egress-policy: audit
+      - name: Checkout
+        uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e # v6
+      - name: Install mise
+        run: |
+          set -euo pipefail
+          curl --fail --show-error --silent --location --retry 3 --retry-delay 5 https://mise.run | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Install pinned tools (go, jq, yq from mise.toml)
+        run: mise install go jq yq
+      - name: Build the superchain config bundle (Go build prerequisite)
+        run: |
+          set -euo pipefail
+          git submodule update --init --force --depth 1 -- superchain-registry
+          mise exec go jq yq -- bash op-core/superchain/sync-superchain.sh
+      - name: Regenerate the flag reference snippets
+        run: mise exec go -- go run ./docs/public-docs/scripts/gen-flags
+      - name: Fail on drift
+        run: |
+          set -euo pipefail
+          status=0
+          git diff --exit-code -- docs/public-docs/snippets/generated/ || status=1
+          untracked=$(git ls-files --others --exclude-standard -- docs/public-docs/snippets/generated/)
+          if [ -n "$untracked" ]; then
+            echo "Uncommitted generated snippets:"
+            echo "$untracked"
+            status=1
+          fi
+          if [ "$status" -ne 0 ]; then
+            echo ""
+            echo "ERROR: the generated flag reference snippets are out of date with the flag"
+            echo "definitions in this tree. Regenerate them and commit the result:"
+            echo ""
+            echo "    go run ./docs/public-docs/scripts/gen-flags"
+            echo ""
+            echo "(run from the monorepo root; on a fresh checkout run 'just build-superchain-go'"
+            echo "first. See docs/public-docs/scripts/gen-flags/README.md.)"
+            exit 1
+          fi
