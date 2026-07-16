@@ -1954,6 +1954,7 @@ dependencies = [
  "kona-proof",
  "kona-sp1-client-utils",
  "kona-sp1-ethereum-client-utils",
+ "revm",
  "rkyv",
  "sp1-zkvm",
 ]

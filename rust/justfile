@@ -118,8 +118,9 @@ fmt-fix: fmt-fix-sp1-guest
 lint-clippy:
   cargo clippy --workspace --all-features --all-targets -- -D warnings
 
-# lock check + fmt-check + clippy for the SP1 guest program workspace (shared by `just lint` and CI)
-lint-sp1-guest: check-sp1-guest-lock fmt-check-sp1-guest lint-clippy-sp1-guest
+# lock + precompile-patch checks, fmt-check, and clippy for the SP1 guest program workspace
+# (shared by `just lint` and CI)
+lint-sp1-guest: check-sp1-guest-lock check-sp1-guest-precompile-patches fmt-check-sp1-guest lint-clippy-sp1-guest
 
 # Runs before the `--locked` clippy so a kona-only dependency change produces a
 # clear fix hint instead of cargo's cryptic "cannot update the lock file because
@@ -134,6 +135,67 @@ check-sp1-guest-lock:
     echo "       Fix: run \`just lock-sp1-guest\` from rust/ and commit the updated lockfile." >&2
     exit 1
   fi
+
+# Cargo only warns when a [patch.crates-io] entry is unused. Assert that every
+# crypto crate used by each guest program resolves exclusively to its SP1 fork.
+[script('bash')]
+check-sp1-guest-precompile-patches:
+  set -euo pipefail
+
+  common_patches=(
+    "sha2 RustCrypto-hashes"
+    "sha3 RustCrypto-hashes"
+    "crypto-bigint RustCrypto-bigint"
+    "k256 elliptic-curves"
+    "p256 elliptic-curves"
+  )
+
+  verify_program_patches() {
+    local program="$1"
+    shift
+
+    local dependency_tree
+    dependency_tree=$(cargo tree \
+      --manifest-path {{SP1_GUEST_MANIFEST}} \
+      --locked \
+      --package "$program" \
+      --edges normal \
+      --prefix none \
+      --format '{p}')
+
+    local patch package repository expected_source dependency found
+    for patch in "$@"; do
+      read -r package repository <<< "$patch"
+      expected_source="https://github.com/sp1-patches/${repository}?"
+      found=false
+
+      while IFS= read -r dependency; do
+        [[ "$dependency" == "$package v"* ]] || continue
+        found=true
+
+        if [[ "$dependency" != *"$expected_source"* ]]; then
+          echo "error: $program resolves an unpatched $package dependency:" >&2
+          echo "       $dependency" >&2
+          echo "       Expected every $package dependency to resolve from $expected_source" >&2
+          exit 1
+        fi
+      done <<< "$dependency_tree"
+
+      if [[ "$found" != true ]]; then
+        echo "error: $program does not resolve the expected $package dependency." >&2
+        exit 1
+      fi
+    done
+  }
+
+  # The range guests execute the L2 EVM, so they must also use the patched
+  # substrate-bn backend selected by revm's `bn` feature.
+  verify_program_patches kona-sp1-range "${common_patches[@]}" "substrate-bn bn"
+  verify_program_patches kona-sp1-super-range "${common_patches[@]}" "substrate-bn bn"
+
+  # Aggregation guests verify proofs but do not execute L2 EVM precompiles.
+  verify_program_patches kona-sp1-aggregation "${common_patches[@]}"
+  verify_program_patches kona-sp1-super-aggregation "${common_patches[@]}"
 
 # Resolves without --locked (minimal change), so it only touches entries that
 # actually moved rather than bumping unrelated guest deps.
