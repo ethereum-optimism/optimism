@@ -129,7 +129,7 @@ func render(c component, tag string) (string, error) {
 		seen[name] = true
 		r := row{
 			name:        name,
-			usage:       df.GetUsage(),
+			usage:       canonicalizeUsage(c.name, name, df.GetUsage()),
 			defaultText: df.GetDefaultText(),
 		}
 		if envVars := df.GetEnvVars(); len(envVars) > 0 {
@@ -186,6 +186,26 @@ flag definitions. %[4]d flags: %[5]d required, %[6]d optional.
 	}
 
 	return b.String(), nil
+}
+
+// canonicalizeUsage makes usage strings that are nondeterministic at the
+// source stable across runs, so the drift check cannot flake. op-batcher
+// builds the --compressor option list from map iteration
+// (op-batcher/compressor.KindKeys via slices.Collect(maps.Keys(...))), so its
+// order changes on every process start — including in `op-batcher --help`
+// itself. Sort that one list here. Remove this once KindKeys is sorted
+// upstream (proposed as a follow-up to the B1 slice).
+func canonicalizeUsage(component, flagName, usage string) string {
+	if component == "op-batcher" && flagName == "compressor" {
+		const marker = "Valid options: "
+		if i := strings.Index(usage, marker); i >= 0 {
+			head, list := usage[:i+len(marker)], usage[i+len(marker):]
+			options := strings.Split(list, ", ")
+			sort.Strings(options)
+			return head + strings.Join(options, ", ")
+		}
+	}
+	return usage
 }
 
 // cell escapes a usage string for use inside an MDX table cell: newlines

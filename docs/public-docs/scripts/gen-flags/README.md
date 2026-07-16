@@ -68,3 +68,9 @@ Known residual gaps (accepted, by design):
 - The required-flag list is mirrored in `main.go` because the components do
   not export it. A rename fails the generator's sanity check; adding a brand
   new required flag without updating the mirror would list it as optional.
+- op-batcher's `--compressor` option list (`compressor.KindKeys`) is built
+  from map iteration, so its order changes on every process start — in
+  `op-batcher --help` itself, not just here. The generator sorts that one
+  list (`canonicalizeUsage` in `main.go`) so output is deterministic; the
+  proper fix is sorting `KindKeys` at the source (one line in
+  `op-batcher/compressor/compressors.go`), proposed as a follow-up.

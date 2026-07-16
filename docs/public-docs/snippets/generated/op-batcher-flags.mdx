@@ -37,7 +37,7 @@ flag definitions. 87 flags: 3 required, 84 optional.
 | `--batch-type` | The batch type. 0 for SingularBatch and 1 for SpanBatch. | `singular` | `OP_BATCHER_BATCH_TYPE` |
 | `--check-recent-txs-depth` | Indicates how many blocks back the batcher should look during startup for a recent batch tx on L1. This can speed up waiting for node sync. It should be set to the verifier confirmation depth of the sequencer (e.g. 4). | `0` | `OP_BATCHER_CHECK_RECENT_TXS_DEPTH` |
 | `--compression-algo` | The compression algorithm to use. Valid options: zlib, brotli, brotli-9, brotli-10, brotli-11 | `zlib` | `OP_BATCHER_COMPRESSION_ALGO` |
-| `--compressor` | The type of compressor. Valid options: ratio, shadow, none | `"shadow"` | `OP_BATCHER_COMPRESSOR` |
+| `--compressor` | The type of compressor. Valid options: none, ratio, shadow | `"shadow"` | `OP_BATCHER_COMPRESSOR` |
 | `--data-availability-type` | The data availability type to use for submitting batches to the L1. Valid options: calldata, blobs, auto | `calldata` | `OP_BATCHER_DATA_AVAILABILITY_TYPE` |
 | `--fee-limit-multiplier` | The multiplier applied to fee suggestions to put a hard limit on fee increases | `5` | `OP_BATCHER_TXMGR_FEE_LIMIT_MULTIPLIER` |
 | `--hd-path` | The HD path used to derive the sequencer wallet from the mnemonic. The mnemonic flag must also be set. | — | `OP_BATCHER_HD_PATH` |
