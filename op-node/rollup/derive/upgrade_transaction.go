@@ -10,9 +10,9 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/nuts"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
 )
 
 // Network Upgrade Transactions (NUTs) are read from a JSON file and
@@ -89,7 +89,7 @@ func (b *nutBundle) toDepositTransactions() ([]hexutil.Bytes, error) {
 		// so both implementations derive the same UpgradeDepositSource hashes.
 		qualifiedIntent := fmt.Sprintf("%s %d: %s", capitalizeForkName(b.ForkName), i, nutTx.Intent)
 		source := UpgradeDepositSource{Intent: qualifiedIntent}
-		depTx := &types.DepositTx{
+		depTx := &optypes.DepositTx{
 			SourceHash:          source.SourceHash(),
 			From:                nutTx.From,
 			To:                  nutTx.To,
@@ -100,7 +100,7 @@ func (b *nutBundle) toDepositTransactions() ([]hexutil.Bytes, error) {
 			Data:                nutTx.Data,
 		}
 
-		encoded, err := types.NewTx(depTx).MarshalBinary()
+		encoded, err := depTx.MarshalBinary()
 		if err != nil {
 			return nil, fmt.Errorf("tx %d: failed to marshal deposit tx: %w", i, err)
 		}
