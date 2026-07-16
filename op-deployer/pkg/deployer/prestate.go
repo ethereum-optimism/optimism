@@ -146,12 +146,29 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 		}
 
 		assignment := prestateAssignment{ChainID: chain.ID, GameType: gameType}
+		selected, err := resolvePrestateRole(chain, intent.GlobalDeployOverrides, selectedPrestateRole, selectedCommand)
+		if err != nil {
+			return err
+		}
+		fallback, err := resolvePrestateRole(chain, intent.GlobalDeployOverrides, cannonFallbackPrestateRole, fallbackCommand)
+		if err != nil {
+			return err
+		}
+		if _, supplied := chain.DeployOverrides[cannonFallbackPrestateRole.intentKey]; supplied && !requirements.CannonFallback {
+			gameName := fmt.Sprintf("%d", gameType)
+			switch gameType {
+			case embedded.GameTypePermissionedCannon:
+				gameName = "PERMISSIONED_CANNON"
+			case embedded.GameTypeSuperPermissioned:
+				gameName = "SUPER_PERMISSIONED"
+			case embedded.GameTypeSuperCannonKona:
+				gameName = "SUPER_CANNON_KONA"
+			}
+			return fmt.Errorf("chain override %s for chain %s (%s) is unused because the active initial dispute game type is %s, not CANNON_KONA", cannonFallbackPrestateRole.intentKey, chain.ID.Hex(), cannonFallbackPrestateRole.name, gameName)
+		}
+
 		if requirements.Selected {
 			hasActiveSelectedConsumer = true
-			selected, err := resolvePrestateRole(chain, intent.GlobalDeployOverrides, selectedPrestateRole, selectedCommand)
-			if err != nil {
-				return err
-			}
 			if !selected.set {
 				gameName := "SUPER_CANNON_KONA"
 				if requirements.CannonFallback {
@@ -163,10 +180,6 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 		}
 		if requirements.CannonFallback {
 			hasActiveCannonKona = true
-			fallback, err := resolvePrestateRole(chain, intent.GlobalDeployOverrides, cannonFallbackPrestateRole, fallbackCommand)
-			if err != nil {
-				return err
-			}
 			if !fallback.set {
 				return fmt.Errorf("chain %s with CANNON_KONA requires %s from --%s or intent key %s", chain.ID.Hex(), cannonFallbackPrestateRole.name, cannonFallbackPrestateRole.flagName, cannonFallbackPrestateRole.intentKey)
 			}
@@ -187,6 +200,9 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 	}
 	if fallbackCommand.set && !hasActiveCannonKona {
 		return fmt.Errorf("--%s was supplied but no undeployed chain resolves to CANNON_KONA; check respectedGameType in the intent", cannonFallbackPrestateRole.flagName)
+	}
+	if _, supplied := intent.GlobalDeployOverrides[cannonFallbackPrestateRole.intentKey]; supplied && !hasActiveCannonKona {
+		return fmt.Errorf("global override %s was supplied but no undeployed chain resolves to CANNON_KONA; check respectedGameType in the intent", cannonFallbackPrestateRole.intentKey)
 	}
 
 	// Avoid partial updates if a chain is missing.
@@ -238,39 +254,58 @@ func parseCommandPrestate(role prestateRole, set bool, raw string) (resolvedPres
 }
 
 func resolvePrestateRole(chain *state.ChainIntent, globalOverrides map[string]any, role prestateRole, command resolvedPrestate) (resolvedPrestate, error) {
-	intentValue, err := resolveIntentPrestate(chain, globalOverrides, role)
-	if err != nil {
-		return resolvedPrestate{}, err
+	global := resolvedPrestate{}
+	if raw, ok := globalOverrides[role.intentKey]; ok {
+		var err error
+		global, err = parseIntentPrestate(chain.ID, "global override", raw, role)
+		if err != nil {
+			return resolvedPrestate{}, err
+		}
 	}
-	if command.set && intentValue.set {
-		if command.hash != intentValue.hash {
+	chainOverride := resolvedPrestate{}
+	if raw, ok := chain.DeployOverrides[role.intentKey]; ok {
+		var err error
+		chainOverride, err = parseIntentPrestate(chain.ID, "chain override", raw, role)
+		if err != nil {
+			return resolvedPrestate{}, err
+		}
+	}
+
+	sources := []resolvedPrestate{command, global, chainOverride}
+	var first resolvedPrestate
+	for _, source := range sources {
+		if !source.set {
+			continue
+		}
+		if first.set && first.hash != source.hash {
 			return resolvedPrestate{}, fmt.Errorf(
-				"conflicting %s sources for chain %s: --%s=%s %s %s=%s",
+				"conflicting %s sources for chain %s: %s conflicts with %s",
 				role.name,
 				chain.ID.Hex(),
-				role.flagName,
-				command.raw,
-				intentValue.source,
-				role.intentKey,
-				intentValue.raw,
+				formatPrestateSource(first, role),
+				formatPrestateSource(source, role),
 			)
 		}
-		return intentValue, nil
+		first = source
 	}
-	if intentValue.set {
-		return intentValue, nil
+
+	// Preserve intent precedence after every source has been validated and shown
+	// to agree. Chain overrides take precedence over global overrides, which take
+	// precedence over the effective CLI/environment command source.
+	if chainOverride.set {
+		return chainOverride, nil
+	}
+	if global.set {
+		return global, nil
 	}
 	return command, nil
 }
 
-func resolveIntentPrestate(chain *state.ChainIntent, globalOverrides map[string]any, role prestateRole) (resolvedPrestate, error) {
-	if raw, ok := chain.DeployOverrides[role.intentKey]; ok {
-		return parseIntentPrestate(chain.ID, "chain override", raw, role)
+func formatPrestateSource(source resolvedPrestate, role prestateRole) string {
+	if source.source == "command/environment" {
+		return fmt.Sprintf("--%s=%s", role.flagName, source.raw)
 	}
-	if raw, ok := globalOverrides[role.intentKey]; ok {
-		return parseIntentPrestate(chain.ID, "global override", raw, role)
-	}
-	return resolvedPrestate{}, nil
+	return fmt.Sprintf("%s %s=%s", source.source, role.intentKey, source.raw)
 }
 
 func parseIntentPrestate(chainID common.Hash, source string, raw any, role prestateRole) (resolvedPrestate, error) {
