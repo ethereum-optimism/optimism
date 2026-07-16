@@ -1918,6 +1918,14 @@
             ]
           },
           {
+            "group": "AI & Agents",
+            "pages": [
+              "ai/docs-for-agents",
+              "ai/mcp-setup",
+              "ai/prompt-library"
+            ]
+          },
+          {
             "group": "Guides",
             "pages": [
               {

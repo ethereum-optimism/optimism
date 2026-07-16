@@ -1,0 +1,68 @@
+---
+title: Docs MCP Setup
+description: Wire the Optimism docs into an MCP-capable AI assistant using the site's machine-readable surfaces.
+diataxis: how-to
+---
+
+The [Model Context Protocol (MCP)](https://modelcontextprotocol.io) is an open standard for connecting AI assistants to external tools and data sources.
+This guide shows you how to give an MCP-capable assistant (Claude Code, Claude Desktop, Cursor, and others) live access to these docs.
+
+There is currently no dedicated hosted MCP endpoint for docs.optimism.io.
+You do not need one: the site's [machine-readable surfaces](/ai/docs-for-agents) - the `llms.txt` index and per-page markdown - work with any assistant that can fetch URLs, with or without MCP.
+
+## Option 1: Direct Fetching (No MCP Server Required)
+
+If your assistant can fetch web pages (most coding assistants can), no setup is needed.
+Give it the index and the URL convention:
+
+```text
+The Optimism docs publish a machine-readable index at
+https://docs.optimism.io/llms.txt. Any page is available as raw
+markdown by appending .md to its URL. Use the index to find relevant
+pages, then fetch their .md versions.
+```
+
+Add that to your assistant's project instructions (for example `CLAUDE.md`, `.cursorrules`, or a system prompt) and it will resolve OP Stack questions against the live docs instead of stale training data.
+
+## Option 2: A Fetch MCP Server
+
+If your tooling only reaches the network through MCP, run the reference fetch server and point it at the docs.
+
+<Steps>
+  <Step title="Add the fetch server to your MCP configuration">
+    The reference [fetch server](https://github.com/modelcontextprotocol/servers/tree/main/src/fetch) retrieves URLs and converts them for the model.
+    Add it to your client's MCP configuration (the `mcpServers` JSON shape below is shared by Claude Code, Claude Desktop, and Cursor):
+
+    ```json
+    {
+      "mcpServers": {
+        "optimism-docs": {
+          "command": "uvx",
+          "args": ["mcp-server-fetch"]
+        }
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="Tell the assistant how to use it">
+    Add the instruction block from Option 1 to your project instructions so the assistant knows to start from `llms.txt` and fetch `.md` pages.
+  </Step>
+
+  <Step title="Verify it works">
+    Ask your assistant:
+
+    ```text
+    Using the Optimism docs index at https://docs.optimism.io/llms.txt,
+    find the page about running a node from source and summarize its
+    hardware requirements.
+    ```
+
+    A correctly wired assistant fetches the index, locates [Building and Running an OP Stack Node From Source](/node-operators/tutorials/run-node-from-source), and answers from the live page.
+  </Step>
+</Steps>
+
+## Next Steps
+
+*   Learn all the machine-readable surfaces these docs expose: [Docs for AI and Agents](/ai/docs-for-agents).
+*   Start from curated prompts for common OP Stack tasks: [OP Stack Prompt Library](/ai/prompt-library).
