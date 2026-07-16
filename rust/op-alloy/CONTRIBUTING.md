@@ -189,15 +189,17 @@ notes about [commit squashing](#commit-squashing)).
 #### Commit message guidelines
 
 Commit messages should follow the
-[Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
-specification.
+[Scoped Commits](https://scopedcommits.com) format: `<scope>: <description>`,
+where the scope names the crate or area the change touches. See the
+[monorepo contributing guide](../../CONTRIBUTING.md#commit-messages) for
+details.
 
-Here's a few examples from the master branch's commit log:
+A few examples:
 
-- feat(abigen): support empty events
-- chore: bump crypto deps
-- test: simplify test cleanup
-- fmt: run rustfmt
+- consensus: support empty events
+- deps: bump crypto crates
+- rpc-types: simplify test cleanup
+- all: run rustfmt
 
 ### Opening the Pull Request
 

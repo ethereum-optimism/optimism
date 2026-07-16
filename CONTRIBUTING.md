@@ -207,13 +207,31 @@ Follow the [Development Quick Start](#development-quick-start) to set up your lo
 
 Read any README files in the packages you are contributing to. Some packages have additional instructions that are not covered in this guide.
 
-We recommend using the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) format on commit messages.
+We recommend using the [Scoped Commits](https://scopedcommits.com) format on commit messages and PR titles — see [Commit messages](#commit-messages) below.
 
 Unless your PR is ready for immediate review and merging, please mark it as 'draft' (or simply do not open a PR yet).
 
 Once ready for review, make sure to include a thorough PR description to help reviewers. You can read more about the guidelines for opening PRs in the [PR Guidelines](docs/handbook/pr-guidelines.md) file.
 
 **Bonus:** Add comments to the diff under the "Files Changed" tab on the PR page to clarify any sections where you think we might have questions about the approach taken.
+
+### Commit messages
+
+We recommend using the [Scoped Commits](https://scopedcommits.com) format on commit messages and PR titles:
+
+```
+<scope>: <description>
+
+[optional body]
+
+[optional trailers]
+```
+
+The scope names the component, subsystem, or area the change touches — for example `op-node`, `contracts-bedrock`, `docs`, or `ci`. For a change spanning a few components, comma-separate the scopes without spaces (`op-node,op-batcher: share event loop metrics`); for tree-wide changes, use `all`.
+
+Prefer this over [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) type prefixes (`feat:`, `fix:`, `chore(scope):`, ...). The part of the codebase a commit touches is what readers of the log — contributors, debuggers, incident responders — actually scan for, and a well-written description already conveys whether a change is a fix or a feature. See [Stop Using Conventional Commits](https://sumnerevans.com/posts/software-engineering/stop-using-conventional-commits/) for the full rationale.
+
+PRs are squash-merged with the PR title as the commit subject, so the PR title matters most — write it in this format too.
 
 ### Response time
 
