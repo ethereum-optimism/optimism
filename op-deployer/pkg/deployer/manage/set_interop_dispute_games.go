@@ -172,9 +172,10 @@ func SetInteropDisputeGamesCLI(cliCtx *cli.Context) error {
 
 	// Source super games to retire (cleared by the swap). By default only SUPER_CANNON_KONA (9) is
 	// cleared — the permissionless super fault game that ZK replaces. SUPER_PERMISSIONED (5)
-	// is deliberately kept as a permissioned liveness backup (in case the prover/ZK path stalls),
-	// mirroring today's SPDG + permissionless shape. A disabled config for a type that is not
-	// registered is a harmless no-op on-chain.
+	// is deliberately kept as a permissioned liveness backup, mirroring today's SPDG + permissionless shape.
+	//
+	// Note: this command never (re)registers SUPER_PERMISSIONED and assumes that the game is
+	// already set up on the shared DisputeGameFactory from the super-roots migration.
 	var disputeGameConfigs []DisputeGameConfig
 	for _, raw := range strings.Split(cliCtx.String(SourceGameTypesFlag.Name), ",") {
 		trimmed := strings.TrimSpace(raw)
