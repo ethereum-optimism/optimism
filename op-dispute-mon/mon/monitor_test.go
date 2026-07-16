@@ -85,6 +85,69 @@ func TestMonitor_StartMonitoring(t *testing.T) {
 		monitor.StopMonitoring()
 		require.Equal(t, 0, forecaster.Calls())
 	})
+
+	t.Run("WaitsForInFlightMonitor", func(t *testing.T) {
+		monitor, _, _, _ := setupMonitorTest(t)
+		entered := make(chan struct{})
+		release := make(chan struct{})
+		monitor.fetchHeadBlock = func(context.Context) (eth.L1BlockRef, error) {
+			close(entered)
+			<-release
+			return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
+		}
+
+		monitor.StartMonitoring()
+		select {
+		case <-entered:
+		case <-time.After(time.Second):
+			t.Fatal("monitor did not start fetching the head block")
+		}
+
+		stopReturned := make(chan struct{})
+		go func() {
+			monitor.StopMonitoring()
+			close(stopReturned)
+		}()
+
+		select {
+		case <-monitor.done:
+		case <-time.After(time.Second):
+			close(release)
+			t.Fatal("monitor stop was not signaled")
+		}
+
+		returnedBeforeRelease := false
+		select {
+		case <-stopReturned:
+			returnedBeforeRelease = true
+		case <-time.After(100 * time.Millisecond):
+		}
+
+		close(release)
+		if !returnedBeforeRelease {
+			select {
+			case <-stopReturned:
+			case <-time.After(time.Second):
+				t.Fatal("monitor stop did not return after the in-flight operation completed")
+			}
+		}
+		require.False(t, returnedBeforeRelease, "monitor stop returned while a monitor operation was still in flight")
+	})
+
+	t.Run("StopsBeforeStart", func(t *testing.T) {
+		monitor, _, _, _ := setupMonitorTest(t)
+		stopReturned := make(chan struct{})
+		go func() {
+			monitor.StopMonitoring()
+			close(stopReturned)
+		}()
+
+		select {
+		case <-stopReturned:
+		case <-time.After(time.Second):
+			t.Fatal("monitor stop blocked before monitoring started")
+		}
+	})
 }
 
 func newEnrichedGameData(proxy common.Address, timestamp uint64) *monTypes.EnrichedGameData {

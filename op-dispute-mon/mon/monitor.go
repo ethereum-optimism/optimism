@@ -3,6 +3,7 @@ package mon
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
@@ -31,6 +32,7 @@ type gameMonitor struct {
 	done   chan struct{}
 	ctx    context.Context
 	cancel context.CancelFunc
+	loopWG sync.WaitGroup
 
 	gameWindow      time.Duration
 	monitorInterval time.Duration
@@ -100,6 +102,7 @@ func (m *gameMonitor) monitorGames() error {
 }
 
 func (m *gameMonitor) loop() {
+	defer m.loopWG.Done()
 	ticker := m.clock.NewTicker(m.monitorInterval)
 	defer ticker.Stop()
 	for {
@@ -125,6 +128,7 @@ func (m *gameMonitor) StartMonitoring() {
 		m.cancel = cancel
 	}
 	m.logger.Info("Starting game monitor")
+	m.loopWG.Add(1)
 	go m.loop()
 }
 
@@ -135,4 +139,5 @@ func (m *gameMonitor) StopMonitoring() {
 		m.cancel = nil
 	}
 	close(m.done)
+	m.loopWG.Wait()
 }
