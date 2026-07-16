@@ -36,7 +36,7 @@ svm-rs = "0.5.19"
 
 # Go dependencies
 "go:github.com/ethereum/go-ethereum/cmd/abigen" = "1.15.10"
-"go:github.com/ethereum/go-ethereum/cmd/geth" = "0c8cefdf344e263b94cd80bcc8a002c63f3b4ed1" # Glamsterdam devnet 6.
+"go:github.com/ethereum/go-ethereum/cmd/geth" = "1.16.4"    # Osaka testnet release.
 
 # Python dependencies
 "pipx:slither-analyzer" = "0.10.2"
