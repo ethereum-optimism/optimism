@@ -209,6 +209,7 @@ func TestBuilder(t *testing.T) {
 
 	require.JSONEq(t, string(expectedJSON), string(actualJSON))
 }
+
 // TestWithForkAtGenesisBedrock is a regression guard: WithForkAtGenesis(Bedrock)
 // is the genesis baseline used by sysgo.WithHardforkSequentialActivation. Bedrock
 // has no schedulable time offset, so it must not panic, and must deactivate every
