@@ -55,7 +55,7 @@ See the [mintlify docs](https://www.mintlify.com/docs/organize/navigation).
 ### Content Guidelines
 We use [mintlify](https://www.mintlify.com/docs) to power our docs.
 
-Please refer to our comprehensive [Style Guide](STYLE_GUIDE.md) for detailed formatting instructions.
+Please refer to our comprehensive [Style Guide](https://docs.optimism.io/op-stack/contribute/style-guide) ([source](op-stack/contribute/style-guide.mdx)) for detailed formatting instructions.
 
 Before adding new content, check the [Content Guide](https://docs.optimism.io/op-stack/contribute/content-guide) ([source](op-stack/contribute/content-guide.mdx)) — it defines what belongs on docs.optimism.io, the canonical home for each content type, and how to mark third-party content.
 
