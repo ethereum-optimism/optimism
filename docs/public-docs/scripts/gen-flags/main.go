@@ -74,7 +74,15 @@ func main() {
 	docsDir := flag.String("docs-dir", "docs/public-docs", "path to the docs root (run from the monorepo root)")
 	flag.Parse()
 
-	manifestPath := filepath.Join(*docsDir, "scripts", "gen-flags", "manifest.json")
+	docsRoot, err := filepath.Abs(filepath.Clean(*docsDir))
+	if err != nil {
+		fatalf("resolving docs dir %s: %v", *docsDir, err)
+	}
+
+	manifestPath, err := pathUnder(docsRoot, "scripts", "gen-flags", "manifest.json")
+	if err != nil {
+		fatalf("%v", err)
+	}
 	raw, err := os.ReadFile(manifestPath)
 	if err != nil {
 		fatalf("reading %s (run from the monorepo root): %v", manifestPath, err)
@@ -84,8 +92,11 @@ func main() {
 		fatalf("parsing %s: %v", manifestPath, err)
 	}
 
-	outDir := filepath.Join(*docsDir, "snippets", "generated")
-	if err := os.MkdirAll(outDir, 0o755); err != nil {
+	outDir, err := pathUnder(docsRoot, "snippets", "generated")
+	if err != nil {
+		fatalf("%v", err)
+	}
+	if err := os.MkdirAll(outDir, 0o750); err != nil {
 		fatalf("creating %s: %v", outDir, err)
 	}
 
@@ -94,12 +105,15 @@ func main() {
 		if !ok || entry.Tag == "" {
 			fatalf("no release tag for %q in %s", c.name, manifestPath)
 		}
-		outPath := filepath.Join(outDir, c.name+"-flags.mdx")
+		outPath, err := pathUnder(docsRoot, "snippets", "generated", c.name+"-flags.mdx")
+		if err != nil {
+			fatalf("%v", err)
+		}
 		content, err := render(c, entry.Tag)
 		if err != nil {
 			fatalf("rendering %s: %v", c.name, err)
 		}
-		if err := os.WriteFile(outPath, []byte(content), 0o644); err != nil {
+		if err := os.WriteFile(outPath, []byte(content), 0o640); err != nil {
 			fatalf("writing %s: %v", outPath, err)
 		}
 		fmt.Printf("wrote %s (%d flags)\n", outPath, len(c.flags))
@@ -234,6 +248,20 @@ func envCell(s string) string {
 		return "—"
 	}
 	return "`" + s + "`"
+}
+
+// pathUnder joins elems onto root, cleans the result, and verifies the
+// resolved path still lies under root. Every path this tool reads or writes
+// is built from in-repo constants (component names from the components table,
+// manifest.json), not user input, but the check keeps a future bad component
+// name or docs-dir value from escaping the docs tree.
+func pathUnder(root string, elems ...string) (string, error) {
+	p := filepath.Clean(filepath.Join(append([]string{root}, elems...)...))
+	rel, err := filepath.Rel(root, p)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("path %s escapes docs dir %s", p, root)
+	}
+	return p, nil
 }
 
 func fatalf(format string, args ...any) {
