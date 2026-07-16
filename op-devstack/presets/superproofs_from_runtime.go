@@ -1,6 +1,7 @@
 package presets
 
 import (
+	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	challengerConfig "github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
@@ -15,6 +16,12 @@ func attachChallenger(t devtest.T, l2Net *dsl.L2Network, name string, chainID et
 	net, ok := l2Net.Escape().(*presetL2Network)
 	t.Require().True(ok, "expected preset L2 network")
 	net.AddL2Challenger(newPresetL2Challenger(t, name, chainID, cfg))
+}
+
+func newL1ProposerEOA(t devtest.T, runtime *sysgo.MultiChainRuntime, l2ChainID eth.ChainID, l1EL *dsl.L1ELNode) *dsl.EOA {
+	privateKey, err := runtime.Keys.Secret(devkeys.ProposerRole.Key(l2ChainID.ToBig()))
+	t.Require().NoError(err, "failed to derive L1 proposer role key")
+	return dsl.NewEOA(dsl.NewKey(t, privateKey), l1EL)
 }
 
 func simpleInteropFromSupernodeProofsRuntime(t devtest.T, runtime *sysgo.MultiChainRuntime) *SimpleInterop {
@@ -58,6 +65,7 @@ func simpleInteropFromSupernodeProofsRuntime(t devtest.T, runtime *sysgo.MultiCh
 		L2CLB:      twoL2.L2BCL,
 		FaucetB:    components.faucetB,
 	}
+	out.L1Proposer = newL1ProposerEOA(t, runtime, chainA.Network.ChainID(), out.L1EL)
 	out.FunderL1 = dsl.NewFunder(out.Wallet, out.FaucetL1, out.L1EL)
 	out.FunderA = dsl.NewFunder(out.Wallet, out.FaucetA, out.L2ELA)
 	out.FunderB = dsl.NewFunder(out.Wallet, out.FaucetB, out.L2ELB)
@@ -146,6 +154,7 @@ func singleChainInteropFromSupernodeProofsRuntime(t devtest.T, runtime *sysgo.Mu
 		FaucetL1:         dsl.NewFaucet(faucetL1Frontend),
 		challengerConfig: challengerCfg,
 	}
+	out.L1Proposer = newL1ProposerEOA(t, runtime, l2ChainID, out.L1EL)
 	l1Network.AddFaucet(faucetL1Frontend)
 	l2Chain.AddFaucet(faucetAFrontend)
 	out.FunderL1 = dsl.NewFunder(out.Wallet, out.FaucetL1, out.L1EL)

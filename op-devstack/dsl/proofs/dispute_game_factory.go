@@ -223,6 +223,12 @@ func (f *DisputeGameFactory) StartSuperCannonKonaGame(eoa *dsl.EOA, opts ...Game
 	return f.startSuperGameOfType(eoa, gameTypes.SuperCannonKonaGameType, opts...)
 }
 
+func (f *DisputeGameFactory) StartSuperPermissionedGame(eoa *dsl.EOA, opts ...GameOpt) *SuperFaultDisputeGame {
+	f.require.NotNil(eoa, "proposer EOA is required to start a super permissioned game")
+	f.require.NotNil(f.superNode, "super node is required to start super games")
+	return f.startSuperGameOfType(eoa, gameTypes.SuperPermissionedGameType, opts...)
+}
+
 func (f *DisputeGameFactory) startSuperGameOfType(eoa *dsl.EOA, gameType gameTypes.GameType, opts ...GameOpt) *SuperFaultDisputeGame {
 	cfg := NewGameCfg(opts...)
 	if len(cfg.superOutputRoots) != 0 && cfg.rootClaimSet {

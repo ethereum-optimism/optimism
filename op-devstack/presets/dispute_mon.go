@@ -10,12 +10,15 @@ import (
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum/go-ethereum/common"
 	clientmodel "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 )
 
 const (
-	disputeMonMetricWaitTimeout = 30 * time.Second
+	disputeMonMetricWaitTimeout  = 30 * time.Second
 	disputeMonMetricPollInterval = 100 * time.Millisecond
 )
 
@@ -141,4 +144,58 @@ func metricHasLabels(metric *clientmodel.Metric, expected map[string]string) boo
 		}
 	}
 	return true
+}
+
+type disputeMonOptions struct {
+	rollupRPCs    []string
+	supernodeRPCs []string
+}
+
+type DisputeMonOption func(*disputeMonOptions)
+
+func WithDisputeMonRollupNodes(nodes ...*dsl.L2CLNode) DisputeMonOption {
+	return func(opts *disputeMonOptions) {
+		for _, node := range nodes {
+			if node != nil {
+				opts.rollupRPCs = append(opts.rollupRPCs, node.Escape().UserRPC())
+			}
+		}
+	}
+}
+
+func WithDisputeMonSupernodes(nodes ...*dsl.Supernode) DisputeMonOption {
+	return func(opts *disputeMonOptions) {
+		for _, node := range nodes {
+			if node != nil {
+				opts.supernodeRPCs = append(opts.supernodeRPCs, node.Escape().UserRPC())
+			}
+		}
+	}
+}
+
+func StartDisputeMon(
+	t devtest.T,
+	l1EL *dsl.L1ELNode,
+	factory common.Address,
+	options ...DisputeMonOption,
+) *DisputeMon {
+	t.Helper()
+	t.Require().NotNil(l1EL, "L1 EL is required to start dispute monitor")
+	opts := &disputeMonOptions{}
+	for _, option := range options {
+		if option != nil {
+			option(opts)
+		}
+	}
+	t.Require().NotEmpty(
+		append(append([]string{}, opts.rollupRPCs...), opts.supernodeRPCs...),
+		"at least one rollup node or supernode is required to start dispute monitor",
+	)
+	runtime := sysgo.StartDisputeMon(t, sysgo.DisputeMonConfig{
+		L1RPC:              l1EL.Escape().UserRPC(),
+		GameFactoryAddress: factory,
+		RollupRPCs:         opts.rollupRPCs,
+		SupernodeRPCs:      opts.supernodeRPCs,
+	})
+	return newDisputeMon(t, runtime.MetricsURL())
 }
