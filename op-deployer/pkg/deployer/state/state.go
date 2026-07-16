@@ -93,8 +93,7 @@ func (s *State) Chain(id common.Hash) (*ChainState, error) {
 	return nil, fmt.Errorf("chain not found: %s", id.Hex())
 }
 
-// SetChainPrestate enriches an existing prepare-created chain entry.
-// It refuses unknown chains so prestate cannot be committed before prepare.
+// SetChainPrestate commits a prestate to an existing chain.
 func (s *State) SetChainPrestate(id common.Hash, prestate common.Hash) error {
 	chain, err := s.Chain(id)
 	if err != nil {
@@ -104,8 +103,7 @@ func (s *State) SetChainPrestate(id common.Hash, prestate common.Hash) error {
 	return nil
 }
 
-// SetChainCannonFallbackPrestate enriches an existing prepare-created chain entry.
-// It refuses unknown chains so the fallback prestate cannot be committed before prepare.
+// SetChainCannonFallbackPrestate commits a fallback prestate to an existing chain.
 func (s *State) SetChainCannonFallbackPrestate(id common.Hash, prestate common.Hash) error {
 	chain, err := s.Chain(id)
 	if err != nil {
@@ -167,12 +165,10 @@ type ChainState struct {
 	// by the prediction step of the prepare command.
 	Deployed *bool `json:"deployed,omitempty"`
 
-	// Prestate is the selected permissionless-game absolute prestate, written by
-	// the prestate command and consumed by the deploy stage, zero when unset.
+	// Prestate is the selected absolute prestate for permissionless games.
 	Prestate common.Hash `json:"prestate,omitzero"`
 
-	// CannonFallbackPrestate is the Cannon/op-program fallback absolute prestate
-	// used by CANNON_KONA deployments, zero when unset.
+	// CannonFallbackPrestate is the permissioned fallback absolute prestate for CANNON_KONA.
 	CannonFallbackPrestate common.Hash `json:"cannonFallbackPrestate,omitzero"`
 
 	AdditionalDisputeGames []AdditionalDisputeGameState `json:"additionalDisputeGames"`

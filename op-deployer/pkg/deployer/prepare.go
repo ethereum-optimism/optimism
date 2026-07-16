@@ -182,8 +182,7 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 	return nil
 }
 
-// prepareChains builds the dependency set consumed by prestate generation before
-// predicting any chain addresses.
+// Validate the dependency set before mutating chain state.
 func prepareChains(lgr log.Logger, intent *state.Intent, st *state.State, run func(opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error)) error {
 	interopDepSet, err := pipeline.BuildInteropDepSet(intent.Chains)
 	if err != nil {

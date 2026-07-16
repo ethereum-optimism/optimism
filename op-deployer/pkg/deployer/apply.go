@@ -380,7 +380,6 @@ func ApplyPipeline(
 		}},
 	}
 
-	// Deploy all OP Chains after the shared dependency set is available.
 	for _, chain := range intent.Chains {
 		chainID := chain.ID
 		pline = append(pline, pipelineStage{

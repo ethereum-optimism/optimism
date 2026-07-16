@@ -131,7 +131,7 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 		assignment := prestateAssignment{ChainID: chain.ID, GameType: gameType}
 		switch gameType {
 		case embedded.GameTypePermissionedCannon:
-			// Permissioned-only chains deliberately clear both PCD commitments.
+			// Clear stale prestate commitments.
 		case embedded.GameTypeCannonKona:
 			hasCannonKona = true
 			selected, err := resolvePrestateRole(chain, intent.GlobalDeployOverrides, selectedPrestateRole, selectedCommand)
@@ -183,7 +183,7 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 		return fmt.Errorf("--%s was supplied but no chain resolves to CANNON_KONA; check respectedGameType in the intent", cannonFallbackPrestateRole.flagName)
 	}
 
-	// Validate every prepare-created chain entry before mutating any of them.
+	// Avoid partial updates if a chain is missing.
 	for _, assignment := range assignments {
 		if _, err := st.Chain(assignment.ChainID); err != nil {
 			return fmt.Errorf("run op-deployer prepare before op-deployer prestate for chain %s: %w", assignment.ChainID.Hex(), err)
