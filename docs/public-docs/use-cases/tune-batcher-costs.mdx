@@ -86,8 +86,8 @@ much safe-head delay your chain's users tolerate — that number, not the
 The batcher posts to Ethereum as calldata or as blobs, controlled by
 `--data-availability-type` (`OP_BATCHER_DATA_AVAILABILITY_TYPE`); valid
 values are `calldata` (the default), `blobs`, and `auto`. A blob must be
-bought whole — just under 130 KB — whether or not you fill it, which is what
-makes the choice throughput-dependent:
+bought whole — about 130 KB of usable capacity — whether or not you fill it,
+which is what makes the choice throughput-dependent:
 
 | If ...                                                                                       | Choose ...  | Because ...                                                                                          |
 | -------------------------------------------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------- |
