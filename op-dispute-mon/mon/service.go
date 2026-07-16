@@ -281,6 +281,9 @@ func (s *Service) Stopped() bool {
 
 func (s *Service) Stop(ctx context.Context) error {
 	s.logger.Info("Stopping dispute mon service")
+	if s.monitor != nil {
+		s.monitor.StopMonitoring()
+	}
 
 	var result error
 	if s.pprofService != nil {

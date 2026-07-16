@@ -635,3 +635,18 @@ type mockDifferentOutputRootMetrics struct {
 func (m *mockDifferentOutputRootMetrics) RecordDifferentRootGames(count int) {
 	m.recordedCount = count
 }
+
+func TestServiceStopStopsMonitoring(t *testing.T) {
+	monitor, _, _, _ := setupMonitorTest(t)
+	service := &Service{logger: monitor.logger, monitor: monitor}
+
+	require.NoError(t, service.Start(context.Background()))
+	require.NoError(t, service.Stop(context.Background()))
+
+	select {
+	case <-monitor.done:
+		// The monitor loop was stopped.
+	default:
+		t.Fatal("service stop did not stop the game monitor")
+	}
+}
