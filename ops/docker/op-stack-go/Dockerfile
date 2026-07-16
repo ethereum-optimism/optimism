@@ -308,7 +308,7 @@ RUN mkdir -p /musl && cp -a /lib/ld-musl-*.so.1 /lib/libc.musl-*.so.1 /musl/
 
 # Also produce an op-challenger loaded with kona
 FROM $CHALLENGER_TARGET_BASE_IMAGE AS op-challenger-target
-RUN n=0; until apk add --no-cache ca-certificates-bundle ca-certificates busybox glibc libgcc libstdc++ openssl; do n=$((n+1)); [ "$n" -ge 15 ] && exit 1; echo "apk add retry $n/15 in 20s" >&2; sleep 20; done
+RUN attempt=1; delay=1; until apk add --no-cache ca-certificates-bundle ca-certificates busybox glibc libgcc libstdc++ openssl; do [ "$attempt" -ge 11 ] && exit 1; echo "apk add attempt $attempt/11 failed; retrying in ${delay}s" >&2; sleep "$delay"; attempt=$((attempt+1)); delay=$((delay*2)); [ "$delay" -le 60 ] || delay=60; done
 COPY --from=musl-libs /musl/ /lib/
 COPY --from=op-challenger-builder /app/op-challenger/bin/op-challenger /usr/local/bin/
 # Copy in cannon

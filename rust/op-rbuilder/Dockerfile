@@ -137,7 +137,7 @@ RUN case "$TARGETPLATFORM" in \
 
 # Runtime container for rbuilder
 FROM chainguard/wolfi-base:latest@sha256:02dab76bd852a70556b5b2002195c8a5fdab77d323c433bf6642aab080489795 AS rbuilder-runtime
-RUN n=0; until apk add --no-cache ca-certificates-bundle ca-certificates busybox glibc libgcc libstdc++ openssl; do n=$((n+1)); [ "$n" -ge 15 ] && exit 1; echo "apk add retry $n/15 in 20s" >&2; sleep 20; done
+RUN attempt=1; delay=1; until apk add --no-cache ca-certificates-bundle ca-certificates busybox glibc libgcc libstdc++ openssl; do [ "$attempt" -ge 11 ] && exit 1; echo "apk add attempt $attempt/11 failed; retrying in ${delay}s" >&2; sleep "$delay"; attempt=$((attempt+1)); delay=$((delay*2)); [ "$delay" -le 60 ] || delay=60; done
 ARG RBUILDER_BIN
 WORKDIR /app
 COPY --from=rbuilder /workspace/op-rbuilder/target/release/${RBUILDER_BIN} /app/rbuilder
@@ -145,7 +145,7 @@ ENTRYPOINT ["/app/rbuilder"]
 
 # Reproducible runtime container for rbuilder
 FROM chainguard/wolfi-base:latest@sha256:02dab76bd852a70556b5b2002195c8a5fdab77d323c433bf6642aab080489795 AS rbuilder-reproducible-runtime
-RUN n=0; until apk add --no-cache ca-certificates-bundle ca-certificates busybox glibc libgcc libstdc++ openssl; do n=$((n+1)); [ "$n" -ge 15 ] && exit 1; echo "apk add retry $n/15 in 20s" >&2; sleep 20; done
+RUN attempt=1; delay=1; until apk add --no-cache ca-certificates-bundle ca-certificates busybox glibc libgcc libstdc++ openssl; do [ "$attempt" -ge 11 ] && exit 1; echo "apk add attempt $attempt/11 failed; retrying in ${delay}s" >&2; sleep "$delay"; attempt=$((attempt+1)); delay=$((delay*2)); [ "$delay" -le 60 ] || delay=60; done
 ARG RBUILDER_BIN
 WORKDIR /app
 COPY --from=rbuilder-reproducible /workspace/op-rbuilder/target/*/release/${RBUILDER_BIN} /app/rbuilder
