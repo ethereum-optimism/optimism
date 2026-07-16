@@ -470,10 +470,6 @@ commands:
         description: "Comma-separated list of features to restore the cache for"
         type: string
         default: ""
-      prefix:
-        description: "Prefix to add to the cache key"
-        type: string
-        default: "rust-build"
     steps:
       # Shared across every Rust job: the downloaded crate set is identical
       # for a given Cargo.lock regardless of job, profile, or features, so a
@@ -513,10 +509,6 @@ commands:
         description: "Comma-separated list of features to save the cache for"
         type: string
         default: ""
-      prefix:
-        description: "Prefix to add to the cache key"
-        type: string
-        default: "rust-build"
       init_superchain_submodule:
         # Unused by this command. Declared so a job can pass one shared YAML anchor
         # to both rust-prepare-and-restore-cache (which acts on it) and this command
@@ -587,10 +579,6 @@ commands:
         description: "Comma-separated list of features to restore the cache for"
         type: string
         default: "default"
-      prefix:
-        description: "Prefix to add to the cache key"
-        type: string
-        default: "rust-build"
       enable_sccache:
         description: "Whether to set up the sccache GCS compile cache (see rust-prepare)."
         type: boolean
@@ -618,7 +606,6 @@ commands:
           directory: << parameters.directory >>
           profile: << parameters.profile >>
           features: << parameters.features >>
-          prefix: << parameters.prefix >>
 
   rust-build:
     description: "Build a Rust workspace with target directory caching"

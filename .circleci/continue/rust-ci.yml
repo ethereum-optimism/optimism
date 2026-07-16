@@ -54,7 +54,6 @@ jobs:
           checkout-method: blobless
       - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
-          prefix: <<parameters.directory>>-fmt
           init_superchain_submodule: false
       - run:
           name: Check formatting
@@ -83,7 +82,6 @@ jobs:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &clippy-cache-args
           directory: <<parameters.directory>>
-          prefix: <<parameters.directory>>-clippy
           features: "all"
       - run:
           name: Run clippy
@@ -112,7 +110,6 @@ jobs:
           checkout-method: blobless
       - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
-          prefix: <<parameters.directory>>-deny
           init_superchain_submodule: false
       - run:
           name: Run cargo deny
@@ -144,7 +141,6 @@ jobs:
           checkout-method: blobless
       - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
-          prefix: <<parameters.directory>>-zepter
           init_superchain_submodule: false
       - run:
           name: Check feature propagation
@@ -168,7 +164,6 @@ jobs:
           checkout-method: blobless
       - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
-          prefix: <<parameters.directory>>-typos
           init_superchain_submodule: false
       - run:
           name: Check for typos
@@ -197,7 +192,6 @@ jobs:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &no-std-cache-args
           directory: <<parameters.directory>>
-          prefix: <<parameters.directory>>-no-std
           init_superchain_submodule: false
       - run:
           name: Check no_std compatibility
@@ -224,7 +218,6 @@ jobs:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &docs-cache-args
           directory: <<parameters.directory>>
-          prefix: <<parameters.directory>>-docs
           features: "all"
       - run:
           name: Build documentation
@@ -251,7 +244,6 @@ jobs:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &doctest-cache-args
           directory: <<parameters.directory>>
-          prefix: <<parameters.directory>>-doctest
       - run:
           name: Run doc tests
           working_directory: <<parameters.directory>>
@@ -285,7 +277,6 @@ jobs:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &tests-cache-args
           directory: <<parameters.directory>>
-          prefix: <<parameters.directory>>-tests
           profile: <<parameters.cache_profile>>
       - run:
           name: Run cargo tests
@@ -305,7 +296,6 @@ jobs:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &interop-diff-cache-args
           directory: rust
-          prefix: rust-interop-deposits-diff
           profile: debug
       # The diff script runs `go run ./op-node/cmd/interop-deposits-dump`, so it
       # builds Go code. Restore the shared Go module cache to avoid a cold
@@ -339,7 +329,6 @@ jobs:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &udeps-cache-args
           directory: <<parameters.directory>>
-          prefix: <<parameters.directory>>-udeps
           profile: "release"
       - run:
           name: Check unused dependencies
@@ -392,7 +381,6 @@ jobs:
                 extra_flags: "--no-install-recommends"
       - rust-prepare-and-restore-cache: &vendored-checks-cache-args
           directory: <<parameters.directory>>
-          prefix: <<parameters.directory>>-checks
       - when:
           condition: <<parameters.pre_command>>
           steps:
@@ -438,7 +426,6 @@ jobs:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &hack-build-cache-args
           directory: <<parameters.directory>>
-          prefix: <<parameters.directory>>-hack-build
       - run:
           name: Build for <<parameters.target>>
           working_directory: <<parameters.directory>>
@@ -462,7 +449,6 @@ jobs:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &hack-cache-args
           directory: rust
-          prefix: rust-hack
           features: "all"
       - run:
           name: Run cargo hack
@@ -491,7 +477,6 @@ jobs:
           checkout-method: blobless
       - rust-prepare-and-restore-cache:
           directory: rust
-          prefix: op-reth-compact
           profile: debug
       - run:
           name: Generate compact vectors from base
@@ -651,7 +636,6 @@ jobs:
           checkout-method: blobless
       - rust-prepare-and-restore-cache:
           directory: rust
-          prefix: rust-kona-registry-snapshot
       - run:
           name: Regenerate kona-registry snapshots
           working_directory: rust/kona
@@ -691,7 +675,6 @@ jobs:
           checkout-method: blobless
       - rust-prepare-and-restore-cache:
           directory: rust
-          prefix: rust-op-reth-superchain-snapshot
       - run:
           name: Regenerate op-reth superchain archive
           working_directory: rust
@@ -797,7 +780,6 @@ jobs:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &sp1-guest-checks-cache-args
           directory: rust/kona/sp1/programs
-          prefix: rust/kona/sp1/programs-checks
       - run:
           name: fmt-check + clippy SP1 guest programs
           working_directory: rust
