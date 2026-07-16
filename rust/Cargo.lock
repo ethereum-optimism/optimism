@@ -9522,6 +9522,7 @@ dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
  "auto_impl",
+ "op-alloy-consensus",
  "revm",
  "rstest",
  "serde",

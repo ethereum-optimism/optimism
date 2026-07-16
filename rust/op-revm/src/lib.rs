@@ -16,6 +16,9 @@ pub mod result;
 pub mod spec;
 pub mod transaction;
 
+#[cfg(test)]
+mod catch_error_tests;
+
 pub use revm;
 
 pub use api::{
