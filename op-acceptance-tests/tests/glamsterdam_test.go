@@ -2,6 +2,8 @@ package tests
 
 import (
 	"context"
+	"os/exec"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -10,6 +12,8 @@ import (
 	"github.com/ethereum/go-ethereum/params/forks"
 
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/loadtest"
+	"github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -21,10 +25,14 @@ import (
 func TestSafeHeadsAdvanceAcrossGlamsterdam(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSingleChainMultiNodeWithoutCheck(t,
+		glamsterdamL1Geth(t),
 		presets.WithDeployerOptions(
 			sysgo.WithForkAtL1Genesis(forks.BPO5),
 			sysgo.WithForkAtL1Offset(forks.Amsterdam, 30),
 		),
+		presets.WithBatcherOption(func(_ sysgo.ComponentTarget, cfg *batcher.CLIConfig) {
+			cfg.DataAvailabilityType = batcherFlags.BlobsType
+		}),
 	)
 	spamGlamsterdamTxs(sys)
 
@@ -60,6 +68,12 @@ func TestSafeHeadsAdvanceAcrossGlamsterdam(gt *testing.T) {
 			return false, nil
 		})
 	}
+}
+
+func glamsterdamL1Geth(t devtest.T) presets.Option {
+	out, err := exec.CommandContext(t.Ctx(), "mise", "which", "geth").Output()
+	t.Require().NoError(err, "resolve mise-installed Glamsterdam geth")
+	return presets.WithL1Geth(strings.TrimSpace(string(out)))
 }
 
 func spamGlamsterdamTxs(sys *presets.SingleChainMultiNode) {

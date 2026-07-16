@@ -133,7 +133,7 @@ func (j *Job) Open(ctx context.Context) error {
 		var err error
 		if isAmsterdam {
 			j.logger.Info("ForkchoiceUpdatedV4", "fcState", fcState)
-			res, err = j.b.engine.ForkchoiceUpdatedV4(ctx, fcState, attrs)
+			res, err = j.b.engine.ForkchoiceUpdatedV4(ctx, fcState, attrs, nil)
 		} else {
 			j.logger.Info("ForkchoiceUpdatedV3", "fcState", fcState)
 			res, err = j.b.engine.ForkchoiceUpdatedV3(ctx, fcState, attrs)

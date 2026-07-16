@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 	gn "github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/rpc"
 	gethrpc "github.com/ethereum/go-ethereum/rpc"
@@ -44,8 +45,12 @@ func (e *engineClient) ForkchoiceUpdatedV3(ctx context.Context, fs engine.Forkch
 	return e.forkchoiceUpdated(ctx, fs, pa, "engine_forkchoiceUpdatedV3")
 }
 
-func (e *engineClient) ForkchoiceUpdatedV4(ctx context.Context, fs engine.ForkchoiceStateV1, pa *engine.PayloadAttributes) (engine.ForkChoiceResponse, error) {
-	return e.forkchoiceUpdated(ctx, fs, pa, "engine_forkchoiceUpdatedV4")
+func (e *engineClient) ForkchoiceUpdatedV4(ctx context.Context, fs engine.ForkchoiceStateV1, pa *engine.PayloadAttributes, custodyColumns *types.CustodyBitmap) (engine.ForkChoiceResponse, error) {
+	var result engine.ForkChoiceResponse
+	if err := e.inner.CallContext(ctx, &result, "engine_forkchoiceUpdatedV4", fs, pa, custodyColumns); err != nil {
+		return engine.ForkChoiceResponse{}, err
+	}
+	return result, nil
 }
 
 func (e *engineClient) getPayload(id engine.PayloadID, method string) (*engine.ExecutionPayloadEnvelope, error) {

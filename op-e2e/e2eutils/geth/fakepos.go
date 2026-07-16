@@ -57,7 +57,7 @@ type Backend interface {
 }
 
 type EngineAPI interface {
-	ForkchoiceUpdatedV4(context.Context, engine.ForkchoiceStateV1, *engine.PayloadAttributes) (engine.ForkChoiceResponse, error)
+	ForkchoiceUpdatedV4(context.Context, engine.ForkchoiceStateV1, *engine.PayloadAttributes, *types.CustodyBitmap) (engine.ForkChoiceResponse, error)
 	ForkchoiceUpdatedV3(context.Context, engine.ForkchoiceStateV1, *engine.PayloadAttributes) (engine.ForkChoiceResponse, error)
 	ForkchoiceUpdatedV2(context.Context, engine.ForkchoiceStateV1, *engine.PayloadAttributes) (engine.ForkChoiceResponse, error)
 
@@ -180,6 +180,8 @@ func (f *FakePoS) Start() error {
 				if isAmsterdam {
 					slotNumber := (newBlockTime - genesisHeader.Time) / f.blockTime
 					attrs.SlotNumber = &slotNumber
+					targetGasLimit := head.GasLimit
+					attrs.TargetGasLimit = &targetGasLimit
 				}
 				fcState := engine.ForkchoiceStateV1{
 					HeadBlockHash:      head.Hash(),
@@ -188,7 +190,7 @@ func (f *FakePoS) Start() error {
 				}
 				var res engine.ForkChoiceResponse
 				if isAmsterdam {
-					res, err = f.engineAPI.ForkchoiceUpdatedV4(ctx, fcState, attrs)
+					res, err = f.engineAPI.ForkchoiceUpdatedV4(ctx, fcState, attrs, nil)
 				} else if isCancun {
 					res, err = f.engineAPI.ForkchoiceUpdatedV3(ctx, fcState, attrs)
 				} else {
@@ -275,7 +277,7 @@ func (f *FakePoS) Start() error {
 					FinalizedBlockHash: finalized.Hash(),
 				}
 				if isAmsterdam {
-					_, err = f.engineAPI.ForkchoiceUpdatedV4(ctx, fcState, nil)
+					_, err = f.engineAPI.ForkchoiceUpdatedV4(ctx, fcState, nil, nil)
 				} else {
 					_, err = f.engineAPI.ForkchoiceUpdatedV3(ctx, fcState, nil)
 				}
