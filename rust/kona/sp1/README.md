@@ -45,7 +45,7 @@ Compiled ELF binaries for the zkVM programs, used by the prover:
 - **`super-range-elf`**: Compiled unified super-root range/consolidation program
 
 In the optimism monorepo port, these files and `elf/vkeys.toml` are generated on demand and
-ignored by git, matching the Cannon prestate artifact workflow. Generate reproducible v6.3.1 ELFs
+ignored by git, matching the Cannon prestate artifact workflow. Generate reproducible ELFs
 on linux/amd64 with `just build-elfs`; it builds the leaf guests first, generates their vkeys, and
 then builds the aggregation guests with those vkeys embedded through `kona-sp1-range-vkeys`. Use
 `just build-elfs-native` for local iteration and the fast per-PR compile check; CI persists the
