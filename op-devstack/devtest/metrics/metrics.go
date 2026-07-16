@@ -49,6 +49,13 @@ func (s *Snapshot) Payload() string {
 }
 
 func (c *MetricsClient) Fetch(ctx context.Context) (*Snapshot, error) {
+	if c.client == nil {
+		return nil, fmt.Errorf("fetch metrics: HTTP client must not be nil")
+	}
+	if c.fetchTimeout <= 0 {
+		return nil, fmt.Errorf("fetch metrics: fetch timeout must be positive")
+	}
+
 	fetchCtx, cancel := context.WithTimeout(ctx, c.fetchTimeout)
 	defer cancel()
 
@@ -137,6 +144,10 @@ type GaugeDefinition struct {
 }
 
 func (c *MetricsClient) WaitForGauge(ctx context.Context, definition GaugeDefinition, pollInterval time.Duration) error {
+	if pollInterval <= 0 {
+		return fmt.Errorf("poll interval must be positive")
+	}
+
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 

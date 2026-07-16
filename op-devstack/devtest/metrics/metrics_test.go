@@ -51,6 +51,52 @@ func TestMetricsClientFetchParsesPrometheusResponse(t *testing.T) {
 	require.Len(t, snapshot.families, 2)
 }
 
+func TestMetricsClientFetchRejectsNilHTTPClient(t *testing.T) {
+	_, err := NewMetricsClient(nil).Fetch(context.Background())
+
+	require.ErrorContains(t, err, "HTTP client")
+}
+
+func TestMetricsClientFetchRejectsNonPositiveTimeout(t *testing.T) {
+	for _, timeout := range []time.Duration{0, -time.Second} {
+		t.Run(timeout.String(), func(t *testing.T) {
+			fetches := 0
+			stub := stubHTTP(func(context.Context, string, url.Values, http.Header) (*http.Response, error) {
+				fetches++
+				return metricsResponse(http.StatusOK, ""), nil
+			})
+
+			_, err := NewMetricsClient(stub, WithFetchTimeout(timeout)).Fetch(context.Background())
+
+			require.ErrorContains(t, err, "fetch timeout")
+			require.ErrorContains(t, err, "must be positive")
+			require.Zero(t, fetches)
+		})
+	}
+}
+
+func TestMetricsClientWaitForGaugeRejectsNonPositivePollInterval(t *testing.T) {
+	for _, pollInterval := range []time.Duration{0, -time.Second} {
+		t.Run(pollInterval.String(), func(t *testing.T) {
+			fetches := 0
+			stub := stubHTTP(func(context.Context, string, url.Values, http.Header) (*http.Response, error) {
+				fetches++
+				return metricsResponse(http.StatusOK, ""), nil
+			})
+
+			err := NewMetricsClient(stub).WaitForGauge(
+				context.Background(),
+				GaugeDefinition{Name: "target_metric", Expected: 1},
+				pollInterval,
+			)
+
+			require.ErrorContains(t, err, "poll interval")
+			require.ErrorContains(t, err, "must be positive")
+			require.Zero(t, fetches)
+		})
+	}
+}
+
 func TestMetricsClientFetchErrors(t *testing.T) {
 	fetchErr := errors.New("boom")
 	readErr := errors.New("read failed")
