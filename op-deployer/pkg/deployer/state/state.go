@@ -104,6 +104,17 @@ func (s *State) SetChainPrestate(id common.Hash, prestate common.Hash) error {
 	return nil
 }
 
+// SetChainCannonFallbackPrestate enriches an existing prepare-created chain entry.
+// It refuses unknown chains so the fallback prestate cannot be committed before prepare.
+func (s *State) SetChainCannonFallbackPrestate(id common.Hash, prestate common.Hash) error {
+	chain, err := s.Chain(id)
+	if err != nil {
+		return err
+	}
+	chain.CannonFallbackPrestate = prestate
+	return nil
+}
+
 // CheckL1PredictInputs verifies that the deployer and OPCM match the values pinned
 // during the prepare dry-run, keeping the predicted L1 addresses valid across the
 // relevant stages of the permissionless pipeline. A nil pinned value means nothing
@@ -156,9 +167,13 @@ type ChainState struct {
 	// by the prediction step of the prepare command.
 	Deployed *bool `json:"deployed,omitempty"`
 
-	// Prestate is the resolved absolute prestate, written by the prestate command,
-	// consumed by the deploy stage for permissionless games, zero when unset.
+	// Prestate is the selected permissionless-game absolute prestate, written by
+	// the prestate command and consumed by the deploy stage, zero when unset.
 	Prestate common.Hash `json:"prestate,omitzero"`
+
+	// CannonFallbackPrestate is the Cannon/op-program fallback absolute prestate
+	// used by CANNON_KONA deployments, zero when unset.
+	CannonFallbackPrestate common.Hash `json:"cannonFallbackPrestate,omitzero"`
 
 	AdditionalDisputeGames []AdditionalDisputeGameState `json:"additionalDisputeGames"`
 

@@ -2,9 +2,11 @@ package state
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
@@ -59,37 +61,137 @@ func TestState_SetChainPrestateUpdatesExistingChain(t *testing.T) {
 	require.Same(t, startBlock, st.Chains[0].StartBlock)
 }
 
-func TestState_PrestateJSONRoundTrip(t *testing.T) {
+func TestState_SetChainCannonFallbackPrestateUnknownChain(t *testing.T) {
 	chainID := common.HexToHash("0x01")
 	prestate := common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111")
+	st := &State{}
+
+	err := st.SetChainCannonFallbackPrestate(chainID, prestate)
+
+	require.ErrorContains(t, err, "chain not found")
+	require.Empty(t, st.Chains)
+}
+
+func TestState_SetChainCannonFallbackPrestateUpdatesExistingChain(t *testing.T) {
+	chainID := common.HexToHash("0x01")
+	selectedPrestate := common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111")
+	oldFallbackPrestate := common.HexToHash("0x2222222222222222222222222222222222222222222222222222222222222222")
+	newFallbackPrestate := common.HexToHash("0x3333333333333333333333333333333333333333333333333333333333333333")
+	contracts := addresses.OpChainContracts{
+		OpChainCoreContracts: addresses.OpChainCoreContracts{
+			SystemConfigProxy: common.HexToAddress("0x100"),
+		},
+	}
+	deployed := ptr.New(true)
+	games := []AdditionalDisputeGameState{{
+		GameType:    1,
+		GameAddress: common.HexToAddress("0x200"),
+	}}
+	allocs := &GzipData[foundry.ForgeAllocs]{}
+	startBlock := &L1BlockRefJSON{
+		Hash:   common.HexToHash("0x04"),
+		Number: 5,
+	}
+	existing := &ChainState{
+		ID:                     chainID,
+		OpChainContracts:       contracts,
+		Deployed:               deployed,
+		Prestate:               selectedPrestate,
+		CannonFallbackPrestate: oldFallbackPrestate,
+		AdditionalDisputeGames: games,
+		Allocs:                 allocs,
+		StartBlock:             startBlock,
+	}
+	st := &State{
+		Chains: []*ChainState{existing},
+	}
+
+	require.NoError(t, st.SetChainCannonFallbackPrestate(chainID, newFallbackPrestate))
+
+	require.Len(t, st.Chains, 1)
+	require.Same(t, existing, st.Chains[0])
+	require.Equal(t, contracts, st.Chains[0].OpChainContracts)
+	require.Same(t, deployed, st.Chains[0].Deployed)
+	require.Equal(t, selectedPrestate, st.Chains[0].Prestate)
+	require.Equal(t, newFallbackPrestate, st.Chains[0].CannonFallbackPrestate)
+	require.Equal(t, games, st.Chains[0].AdditionalDisputeGames)
+	require.Same(t, allocs, st.Chains[0].Allocs)
+	require.Same(t, startBlock, st.Chains[0].StartBlock)
+
+	require.NoError(t, st.SetChainCannonFallbackPrestate(chainID, common.Hash{}))
+	require.Zero(t, st.Chains[0].CannonFallbackPrestate)
+	require.Equal(t, selectedPrestate, st.Chains[0].Prestate)
+}
+
+func TestState_PrestateJSONRoundTrip(t *testing.T) {
+	chainID := common.HexToHash("0x01")
+	selectedPrestate := common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111")
+	fallbackPrestate := common.HexToHash("0x2222222222222222222222222222222222222222222222222222222222222222")
 	st := &State{
 		Chains: []*ChainState{{
-			ID:       chainID,
-			Prestate: prestate,
+			ID:                     chainID,
+			Prestate:               selectedPrestate,
+			CannonFallbackPrestate: fallbackPrestate,
 		}},
 	}
 
 	data, err := json.Marshal(st)
 	require.NoError(t, err)
-	require.Contains(t, string(data), `"prestate":"`+prestate.Hex()+`"`)
+	require.Contains(t, string(data), `"prestate":"`+selectedPrestate.Hex()+`"`)
+	require.Contains(t, string(data), `"cannonFallbackPrestate":"`+fallbackPrestate.Hex()+`"`)
 
 	var roundTripped State
 	require.NoError(t, json.Unmarshal(data, &roundTripped))
 	chain, err := roundTripped.Chain(chainID)
 	require.NoError(t, err)
-	require.Equal(t, prestate, chain.Prestate)
+	require.Equal(t, selectedPrestate, chain.Prestate)
+	require.Equal(t, fallbackPrestate, chain.CannonFallbackPrestate)
 }
 
 func TestState_PrestateJSONOmitsZeroValue(t *testing.T) {
-	st := &State{
-		Chains: []*ChainState{{
-			ID: common.HexToHash("0x01"),
-		}},
+	selectedPrestate := common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111")
+	fallbackPrestate := common.HexToHash("0x2222222222222222222222222222222222222222222222222222222222222222")
+	tests := []struct {
+		name               string
+		selectedPrestate   common.Hash
+		fallbackPrestate   common.Hash
+		wantSelected       bool
+		wantCannonFallback bool
+	}{
+		{name: "both unset"},
+		{name: "selected unset", fallbackPrestate: fallbackPrestate, wantCannonFallback: true},
+		{name: "fallback unset", selectedPrestate: selectedPrestate, wantSelected: true},
 	}
 
-	data, err := json.Marshal(st)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			st := &State{
+				Chains: []*ChainState{{
+					ID:                     common.HexToHash("0x01"),
+					Prestate:               tt.selectedPrestate,
+					CannonFallbackPrestate: tt.fallbackPrestate,
+				}},
+			}
+
+			data, err := json.Marshal(st)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantSelected, strings.Contains(string(data), `"prestate"`))
+			require.Equal(t, tt.wantCannonFallback, strings.Contains(string(data), `"cannonFallbackPrestate"`))
+		})
+	}
+}
+
+func TestState_PrestateLegacyJSONDefaultsFallbackToZero(t *testing.T) {
+	chainID := common.HexToHash("0x01")
+	selectedPrestate := common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111")
+	data := []byte(`{"opChainDeployments":[{"id":"` + chainID.Hex() + `","prestate":"` + selectedPrestate.Hex() + `"}]}`)
+
+	var st State
+	require.NoError(t, json.Unmarshal(data, &st))
+	chain, err := st.Chain(chainID)
 	require.NoError(t, err)
-	require.NotContains(t, string(data), "prestate")
+	require.Equal(t, selectedPrestate, chain.Prestate)
+	require.Zero(t, chain.CannonFallbackPrestate)
 }
 
 func TestState_EnsureCreate2Salt(t *testing.T) {
@@ -229,7 +331,9 @@ func TestState_SetChainContracts(t *testing.T) {
 	// fields set by other stages, and can flip the deployed flag.
 	s.Chains[0].StartBlock = &L1BlockRefJSON{Hash: common.HexToHash("0xdead")}
 	prestate := common.HexToHash("0x1234")
+	fallbackPrestate := common.HexToHash("0x5678")
 	s.Chains[0].Prestate = prestate
+	s.Chains[0].CannonFallbackPrestate = fallbackPrestate
 	s.SetChainContracts(chainA, contractsWith("0xa2"), true)
 	require.Len(t, s.Chains, 2)
 
@@ -241,6 +345,7 @@ func TestState_SetChainContracts(t *testing.T) {
 	require.NotNil(t, got.StartBlock, "other fields must be preserved on update")
 	require.Equal(t, common.HexToHash("0xdead"), got.StartBlock.Hash)
 	require.Equal(t, prestate, got.Prestate, "prestate must be preserved on update")
+	require.Equal(t, fallbackPrestate, got.CannonFallbackPrestate, "Cannon fallback prestate must be preserved on update")
 }
 
 func TestBlockRef_Deserialize(t *testing.T) {
