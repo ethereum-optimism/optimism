@@ -84,6 +84,8 @@ Span batches reduce the overhead of OP Stack chains, introduced in the Delta net
 
 The overhead is reduced by representing a span of consecutive L2 blocks in a more efficient manner, while preserving the same consistency checks as regular batch data.
 
+For step-by-step instructions, including how to confirm Delta is active first, see [Enable span batches](/chain-operators/guides/features/enable-span-batches).
+
 ## Batcher sequencer throttling
 
 This feature is a batcher-driven sequencer-throttling control loop. This is to avoid sudden spikes in L1 DA-usage consuming too much available gas and causing a backlog in batcher transactions. The batcher can throttle the sequencer's data throughput instantly when it sees too much batcher data built up.
