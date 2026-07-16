@@ -34,6 +34,12 @@ const POST_EXEC_TX_TYPE: u8 = OpTxType::PostExec as u8;
 /// than a match arm.
 const EIP4844_TX_TYPE: u8 = 3;
 
+/// An account unrelated to the failing transaction, journal-seeded with [`SEEDED_BALANCE`] before
+/// `catch_error` runs. Its balance afterwards is the discard signal: zero when the failed tx's
+/// journal was discarded, still [`SEEDED_BALANCE`] when it leaked.
+const SEEDED_ADDR: Address = Address::new([0x5E; 20]);
+const SEEDED_BALANCE: u64 = 7;
+
 type TestError = EVMError<core::convert::Infallible, OpTransactionError>;
 
 /// Builds an OP transaction whose `tx_type()` is `tx_type`. Deposits are identified by a non-zero
@@ -62,13 +68,28 @@ fn error(is_tx_error: bool) -> TestError {
     }
 }
 
+/// Runs `catch_error` for the given `(tx type, error kind)` cell and returns its result together
+/// with [`SEEDED_ADDR`]'s post-`catch_error` balance, seeded via a journaled balance change
+/// beforehand to stand in for the failed tx's partial state.
 fn run_catch_error(
     tx_type: u8,
     is_tx_error: bool,
-) -> Result<ExecutionResult<OpHaltReason>, TestError> {
+) -> (Result<ExecutionResult<OpHaltReason>, TestError>, U256) {
     let mut evm = Context::op().with_tx(op_tx(tx_type)).build_op();
+    evm.ctx()
+        .journal_mut()
+        .balance_incr(SEEDED_ADDR, U256::from(SEEDED_BALANCE))
+        .expect("seeding the journal cannot fail on the default in-memory DB");
     let handler = OpHandler::<_, TestError, EthFrame<EthInterpreter>>::new();
-    handler.catch_error(&mut evm, error(is_tx_error))
+    let result = handler.catch_error(&mut evm, error(is_tx_error));
+    let seeded_balance_after = evm
+        .ctx()
+        .journal_mut()
+        .evm_state()
+        .get(&SEEDED_ADDR)
+        .map(|account| account.info.balance)
+        .unwrap_or_default();
+    (result, seeded_balance_after)
 }
 
 #[rstest]
@@ -76,7 +97,7 @@ fn catch_error_over_tx_types_and_error_kinds(
     #[values(0, 1, 2, EIP4844_TX_TYPE, 4, POST_EXEC_TX_TYPE, DEPOSIT_TRANSACTION_TYPE)] tx_type: u8,
     #[values(true, false)] is_tx_error: bool,
 ) {
-    let result = run_catch_error(tx_type, is_tx_error);
+    let (result, seeded_balance_after) = run_catch_error(tx_type, is_tx_error);
 
     // A deposit that fails a tx-validity check is the only combination that yields the dedicated
     // FailedDeposit halt; everything else surfaces the original error.
@@ -92,6 +113,16 @@ fn catch_error_over_tx_types_and_error_kinds(
              (tx_type={tx_type:#x}, is_tx_error={is_tx_error}), got {result:?}"
         );
     }
+
+    // Every cell must also discard the failed tx's journal — the deposit arm via
+    // `checkpoint_revert`, every other arm via `discard_tx`. A surviving seeded balance means the
+    // failed tx's partial state (and its EIP-2929 warm stamps) would leak into the next tx.
+    assert_eq!(
+        seeded_balance_after,
+        U256::ZERO,
+        "catch_error must discard the failed tx's journal changes \
+         (tx_type={tx_type:#x}, is_tx_error={is_tx_error})"
+    );
 }
 
 /// A failed deposit rolls the world state back to just after the initial mint, but still
