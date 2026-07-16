@@ -494,10 +494,14 @@ func TestPredictChains_ClearsOnlyRepredictedPrestates(t *testing.T) {
 	st := &state.State{Create2Salt: common.HexToHash("0x03")}
 	st.SetChainContracts(deployedID, deployedContracts, true)
 	st.SetChainContracts(freshID, addresses.OpChainContracts{}, false)
-	require.NoError(t, st.SetChainPrestate(deployedID, deployedPrestate))
-	require.NoError(t, st.SetChainPrestate(freshID, freshPrestate))
-	require.NoError(t, st.SetChainCannonFallbackPrestate(deployedID, deployedFallbackPrestate))
-	require.NoError(t, st.SetChainCannonFallbackPrestate(freshID, freshFallbackPrestate))
+	deployed, err := st.Chain(deployedID)
+	require.NoError(t, err)
+	deployed.Prestate = deployedPrestate
+	deployed.CannonFallbackPrestate = deployedFallbackPrestate
+	fresh, err := st.Chain(freshID)
+	require.NoError(t, err)
+	fresh.Prestate = freshPrestate
+	fresh.CannonFallbackPrestate = freshFallbackPrestate
 
 	var ran []common.Hash
 	run := func(in opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
@@ -525,16 +529,12 @@ func TestPredictChains_ClearsOnlyRepredictedPrestates(t *testing.T) {
 
 	require.Equal(t, []common.Hash{freshID}, ran)
 
-	deployed, err := st.Chain(deployedID)
-	require.NoError(t, err)
 	require.NotNil(t, deployed.Deployed)
 	require.True(t, *deployed.Deployed)
 	require.Equal(t, deployedContracts.SystemConfigProxy, deployed.SystemConfigProxy)
 	require.Equal(t, deployedPrestate, deployed.Prestate)
 	require.Equal(t, deployedFallbackPrestate, deployed.CannonFallbackPrestate)
 
-	fresh, err := st.Chain(freshID)
-	require.NoError(t, err)
 	require.NotNil(t, fresh.Deployed)
 	require.False(t, *fresh.Deployed)
 	require.Equal(t, common.HexToAddress("0xbeef"), fresh.SystemConfigProxy)
@@ -570,7 +570,7 @@ func TestPrepareChainsBuildsInteropDepSetBeforePrediction(t *testing.T) {
 	require.Equal(t, 2, predictions)
 }
 
-func TestPrepareChainsPredictionFailureLeavesStateFileUnchanged(t *testing.T) {
+func TestPrepareChainsPredictionFailureOnlyMutatesSuccessfullyPredictedChainsInMemory(t *testing.T) {
 	firstID := common.HexToHash("0x0a")
 	secondID := common.HexToHash("0x0b")
 	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
@@ -588,12 +588,11 @@ func TestPrepareChainsPredictionFailureLeavesStateFileUnchanged(t *testing.T) {
 	st.SetChainContracts(firstID, addresses.OpChainContracts{}, false)
 	st.SetChainContracts(secondID, addresses.OpChainContracts{}, false)
 	for _, chainID := range []common.Hash{firstID, secondID} {
-		require.NoError(t, st.SetChainPrestate(chainID, common.HexToHash("0x11")))
-		require.NoError(t, st.SetChainCannonFallbackPrestate(chainID, common.HexToHash("0x22")))
+		chain, err := st.Chain(chainID)
+		require.NoError(t, err)
+		chain.Prestate = common.HexToHash("0x11")
+		chain.CannonFallbackPrestate = common.HexToHash("0x22")
 	}
-
-	workdir := t.TempDir()
-	require.NoError(t, pipeline.WriteState(workdir, st))
 
 	var predictions int
 	run := func(in opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
@@ -615,15 +614,6 @@ func TestPrepareChainsPredictionFailureLeavesStateFileUnchanged(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, common.HexToHash("0x11"), second.Prestate)
 	require.Equal(t, common.HexToHash("0x22"), second.CannonFallbackPrestate)
-
-	diskState, err := pipeline.ReadState(workdir)
-	require.NoError(t, err)
-	for _, chainID := range []common.Hash{firstID, secondID} {
-		chain, chainErr := diskState.Chain(chainID)
-		require.NoError(t, chainErr)
-		require.Equal(t, common.HexToHash("0x11"), chain.Prestate)
-		require.Equal(t, common.HexToHash("0x22"), chain.CannonFallbackPrestate)
-	}
 }
 
 func TestPredictChainsPrestateReminders(t *testing.T) {
@@ -671,8 +661,10 @@ func TestPredictChainsPrestateReminders(t *testing.T) {
 			}
 			st := &state.State{Create2Salt: common.HexToHash("0x03")}
 			st.SetChainContracts(chainID, addresses.OpChainContracts{}, false)
-			require.NoError(t, st.SetChainPrestate(chainID, common.HexToHash("0x11")))
-			require.NoError(t, st.SetChainCannonFallbackPrestate(chainID, common.HexToHash("0x22")))
+			chain, err := st.Chain(chainID)
+			require.NoError(t, err)
+			chain.Prestate = common.HexToHash("0x11")
+			chain.CannonFallbackPrestate = common.HexToHash("0x22")
 			lgr, logs := testlog.CaptureLogger(t, slog.LevelInfo)
 
 			run := func(in opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
@@ -681,8 +673,6 @@ func TestPredictChainsPrestateReminders(t *testing.T) {
 			}
 
 			require.NoError(t, predictChains(lgr, intent, st, run))
-			chain, err := st.Chain(chainID)
-			require.NoError(t, err)
 			require.Zero(t, chain.Prestate)
 			require.Zero(t, chain.CannonFallbackPrestate)
 

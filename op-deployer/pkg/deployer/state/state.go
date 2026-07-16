@@ -93,26 +93,6 @@ func (s *State) Chain(id common.Hash) (*ChainState, error) {
 	return nil, fmt.Errorf("chain not found: %s", id.Hex())
 }
 
-// SetChainPrestate commits a prestate to an existing chain.
-func (s *State) SetChainPrestate(id common.Hash, prestate common.Hash) error {
-	chain, err := s.Chain(id)
-	if err != nil {
-		return err
-	}
-	chain.Prestate = prestate
-	return nil
-}
-
-// SetChainCannonFallbackPrestate commits a fallback prestate to an existing chain.
-func (s *State) SetChainCannonFallbackPrestate(id common.Hash, prestate common.Hash) error {
-	chain, err := s.Chain(id)
-	if err != nil {
-		return err
-	}
-	chain.CannonFallbackPrestate = prestate
-	return nil
-}
-
 // CheckL1PredictInputs verifies that the deployer and OPCM match the values pinned
 // during the prepare dry-run, keeping the predicted L1 addresses valid across the
 // relevant stages of the permissionless pipeline. A nil pinned value means nothing
