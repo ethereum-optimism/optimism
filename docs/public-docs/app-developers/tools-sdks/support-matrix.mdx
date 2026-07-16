@@ -30,7 +30,7 @@ restate. What gets listed here (and what gets removed) is governed by the
 | [`@eth-optimism/viem`](https://github.com/ethereum-optimism/ecosystem/tree/main/packages/viem) | viem extension for OP Stack features that have not yet been upstreamed into viem — Superchain interop actions and utilities; used by this site's bridging and interop tutorials | Optimism Collective ([`ecosystem`](https://github.com/ethereum-optimism/ecosystem) repo) | [Package README & SDK reference](https://github.com/ethereum-optimism/ecosystem/tree/main/packages/viem#readme) | Experimental |
 | [Actions SDK](https://github.com/ethereum-optimism/actions) (`@eth-optimism/actions-sdk`) | High-level abstractions for building onchain apps — wallet, lend, and swap namespaces over Superchain protocols | Optimism Collective ([`actions`](https://github.com/ethereum-optimism/actions) repo) | [Actions quickstart](/app-developers/quickstarts/actions) and [reference](/app-developers/reference/actions/integrating-wallets) on this site | Developer preview |
 | [wagmi](https://wagmi.sh) | React hooks for Ethereum apps; works with OP Stack chains as with any EVM chain | [wevm](https://github.com/wevm/wagmi) (third party) | [wagmi.sh](https://wagmi.sh) | Production |
-| [supersim](https://github.com/ethereum-optimism/supersim) | Local Superchain simulator: one L1 plus multiple OP Stack L2s for testing L1↔L2 and L2↔L2 message passing without deploying to live networks | Optimism Collective ([`supersim`](https://github.com/ethereum-optimism/supersim) repo) | [Supersim docs](https://supersim.pages.dev) | Production (interop features in active development) |
+| [supersim](https://github.com/ethereum-optimism/supersim) | Local Superchain simulator: one L1 plus multiple OP Stack L2s for testing L1↔L2 and L2↔L2 message passing without deploying to live networks | Optimism Collective ([`supersim`](https://github.com/ethereum-optimism/supersim) repo) | [Supersim docs](https://supersim.pages.dev) | Developer preview (all releases are alpha pre-releases; interop features in active development) |
 | [super-cli](https://github.com/ethereum-optimism/super-cli) (`sup`) | Foundry companion CLI for multichain workflows: deploy and verify contracts on multiple chains at once, bridge funds, use connected wallets | Optimism Collective ([`super-cli`](https://github.com/ethereum-optimism/super-cli) repo) | [Repository README](https://github.com/ethereum-optimism/super-cli#readme) | Experimental |
 | [superchain-registry](https://github.com/ethereum-optimism/superchain-registry) tooling | The source-of-truth index of Superchain chains, plus the `just` tasks and validation checks used to add and verify a chain | Optimism Collective ([`superchain-registry`](https://github.com/ethereum-optimism/superchain-registry) repo) | [Registry operations docs](https://github.com/ethereum-optimism/superchain-registry/tree/main/docs) | Production |
 
@@ -48,7 +48,7 @@ The distinction:
     when you need what viem does not have yet.** The package's stated goal is
     to upstream as much as possible into viem itself; until then it is the
     home of Superchain interop actions and other pre-production features. The
-    [interop tutorials](/app-developers/tutorials/interoperability/message-passing)
+    [interop tutorials](/app-developers/tutorials/interoperability/manual-relay)
     and [bridging tutorials](/app-developers/tutorials/bridging/cross-dom-bridge-erc20)
     on this site use it.
 *   **Use the [Actions SDK](/app-developers/quickstarts/actions) for app-level

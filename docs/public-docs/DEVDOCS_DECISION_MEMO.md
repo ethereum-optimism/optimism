@@ -69,8 +69,11 @@ team, including a heads-up to superchain-registry maintainers to re-point the
 ## Verification Notes (for reviewers)
 
 - `releases/op-contracts.mdx` → `devdocs.optimism.io/contracts-bedrock` link:
-  verified in this repo (the only `devdocs.optimism.io` reference in
-  `docs/public-docs/`).
+  verified in this repo. The same URL also appears in
+  `docs/public-docs/scripts/generate-releases.ts`, the generator that emits
+  that page's intro line — retargeting requires updating the generator, not
+  just the page. No other `devdocs.optimism.io` references exist in
+  `docs/public-docs/`.
 - superchain-registry `docs/ops.md` links: verified at registry commit
   `738212ef2932d26f9274e3317699471534d2b3ac`.
 - devdocs.optimism.io itself was **not** reachable from the drafting
