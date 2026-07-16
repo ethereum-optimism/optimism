@@ -189,9 +189,6 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 	if hasCannonKona && hasSuperCannonKona {
 		return fmt.Errorf("an intent cannot mix CANNON_KONA and SUPER_CANNON_KONA initial games")
 	}
-	if hasSuperCannonKona && len(assignments) > 1 {
-		return fmt.Errorf("SUPER_CANNON_KONA is not supported in a multi-chain intent")
-	}
 	// Reject prestate flags that would otherwise be silently ignored.
 	if selectedCommand.set && !hasActiveSelectedConsumer {
 		return fmt.Errorf("--%s was supplied but no undeployed chain resolves to a game type that uses the %s; check respectedGameType in the intent", selectedPrestateRole.flagName, selectedPrestateRole.name)

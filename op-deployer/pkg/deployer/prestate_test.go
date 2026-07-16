@@ -290,13 +290,28 @@ func TestPrestateGameTypeRequirements(t *testing.T) {
 			wantErrParts: []string{"cannot mix CANNON_KONA and SUPER_CANNON_KONA"},
 		},
 		{
-			name: "multi-chain SUPER_CANNON_KONA fails",
+			name: "multiple SUPER_CANNON_KONA chains commit selected and clear stale fallbacks",
 			chains: []prestateTestChain{
-				{id: chainA, prepared: true, overrides: gameOverride(embedded.GameTypeSuperCannonKona)},
-				{id: chainB, prepared: true, overrides: gameOverride(embedded.GameTypeSuperCannonKona)},
+				{id: chainA, prepared: true, overrides: gameOverride(embedded.GameTypeSuperCannonKona), initialFallback: staleFallback},
+				{id: chainB, prepared: true, overrides: gameOverride(embedded.GameTypeSuperCannonKona), initialFallback: staleFallback},
 			},
-			configure:    func(cfg *PrestateConfig) { cfg.Prestate = selected },
-			wantErrParts: []string{"SUPER_CANNON_KONA", "multi-chain"},
+			configure: func(cfg *PrestateConfig) { cfg.Prestate = selected },
+			want: map[common.Hash][2]common.Hash{
+				chainA: {common.HexToHash(selected), common.Hash{}},
+				chainB: {common.HexToHash(selected), common.Hash{}},
+			},
+		},
+		{
+			name: "permissioned plus SUPER_CANNON_KONA succeeds",
+			chains: []prestateTestChain{
+				{id: chainA, prepared: true, initialSelected: staleSelected, initialFallback: staleFallback},
+				{id: chainB, prepared: true, overrides: gameOverride(embedded.GameTypeSuperCannonKona), initialFallback: staleFallback},
+			},
+			configure: func(cfg *PrestateConfig) { cfg.Prestate = selected },
+			want: map[common.Hash][2]common.Hash{
+				chainA: {},
+				chainB: {common.HexToHash(selected), common.Hash{}},
+			},
 		},
 		{
 			name: "deployed CANNON_KONA preserves prestates and ignores conflicting sources",
@@ -369,6 +384,18 @@ func TestPrestateGameTypeRequirements(t *testing.T) {
 			want: map[common.Hash][2]common.Hash{
 				chainA: {staleSelected, staleFallback},
 				chainB: {},
+			},
+		},
+		{
+			name: "deployed SUPER_CANNON_KONA is preserved alongside active SUPER_CANNON_KONA",
+			chains: []prestateTestChain{
+				{id: chainA, prepared: true, deployed: true, overrides: gameOverride(embedded.GameTypeSuperCannonKona), initialSelected: staleSelected, initialFallback: staleFallback},
+				{id: chainB, prepared: true, overrides: gameOverride(embedded.GameTypeSuperCannonKona), initialFallback: staleFallback},
+			},
+			configure: func(cfg *PrestateConfig) { cfg.Prestate = selected },
+			want: map[common.Hash][2]common.Hash{
+				chainA: {staleSelected, staleFallback},
+				chainB: {common.HexToHash(selected), common.Hash{}},
 			},
 		},
 		{
