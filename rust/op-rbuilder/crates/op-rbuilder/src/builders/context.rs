@@ -1050,7 +1050,7 @@ mod tests {
         let with_failing_a = warm_set_leak_loop_evm_gas(
             chain_spec.clone(),
             gas_limit,
-            leak_account.clone(),
+            leak_account,
             leak_code.clone(),
             true,
         );
