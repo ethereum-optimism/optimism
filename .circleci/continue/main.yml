@@ -270,6 +270,14 @@ commands:
                     echo "export RUSTC_WRAPPER=sccache"
                   } >> "$BASH_ENV"
 
+  rust-sccache-stats:
+    description: "Surface sccache hit and write statistics at the end of a Rust job"
+    steps:
+      - run:
+          name: sccache stats
+          command: 'command -v sccache >/dev/null 2>&1 && sccache --show-stats || true'
+          when: always
+
   check-changed:
     description: "Conditionally halts a step if certain modules change"
     parameters:
@@ -520,12 +528,7 @@ commands:
         type: boolean
         default: false
     steps:
-      # Surface sccache hit/write stats at job end. Harmless no-op when sccache
-      # is absent; confirms the GCS cache is hit rather than silently failing.
-      - run:
-          name: sccache stats
-          command: 'command -v sccache >/dev/null 2>&1 && sccache --show-stats || true'
-          when: always
+      - rust-sccache-stats
       # Backstop for the rule above: catches an empty registry (a partial one
       # from a single-package build cannot be detected here).
       - run:

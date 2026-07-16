@@ -45,9 +45,13 @@ Compiled ELF binaries for the zkVM programs, used by the prover:
 - **`super-range-elf`**: Compiled unified super-root range/consolidation program
 
 In the optimism monorepo port, these files and `elf/vkeys.toml` are generated on demand and
-ignored by git, matching the Cannon prestate artifact workflow. `just build-elfs` builds the leaf
-guests first, generates their vkeys, and then builds the aggregation guests with those vkeys
-embedded through `kona-sp1-range-vkeys`. Use `just build-elfs-native` only for local iteration.
+ignored by git, matching the Cannon prestate artifact workflow. Generate reproducible v6.3.1 ELFs
+on linux/amd64 with `just build-elfs`; it builds the leaf guests first, generates their vkeys, and
+then builds the aggregation guests with those vkeys embedded through `kona-sp1-range-vkeys`. Use
+`just build-elfs-native` for local iteration and the fast per-PR compile check; CI persists the
+native manifest with the generated ELFs. Native ELF hashes may differ across build environments
+because paths and other environment details are embedded. A Docker-based, uncached tag/release
+reproducibility CI check is intentionally left to a future follow-up.
 
 Host-toolchain workspace builds need neither ELFs nor `vkeys.toml`. Host binaries load guest
 artifacts at runtime from `KONA_SP1_ELF_DIR`; a missing or empty artifact fails as an
@@ -72,9 +76,9 @@ TODO(#18326): the monorepo's CircleCI runs the
 workspace-wide build, clippy, tests, cargo-hack, udeps, docs, typos, and zepter
 gates over the SP1 host-side crates that are workspace members. The guest program entrypoints and
 `range-vkeys` crate live outside that workspace. The `kona-build-sp1-elfs` rust-e2e job runs
-`just build-elfs`, tests and lints all guests, and checks and tests `range-vkeys`; scheduled vkey
-drift coverage is tracked in #21661. The following standalone-kona GitHub workflow behavior is not
-yet reproduced:
+`just build-elfs-native`, tests and lints all guests, and checks and tests `range-vkeys`; scheduled
+vkey drift coverage is tracked in #21661. The following standalone-kona GitHub workflow behavior
+is not yet reproduced:
 
 - Codecov flag wiring for SP1 coverage.
 - no-std checks for the SP1/zkVM crates. The monorepo `rust-check-no-std` job is
