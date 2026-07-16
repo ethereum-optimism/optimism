@@ -12,8 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/params/forks"
 
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/loadtest"
-	"github.com/ethereum-optimism/optimism/op-batcher/batcher"
-	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -30,9 +28,6 @@ func TestSafeHeadsAdvanceAcrossGlamsterdam(gt *testing.T) {
 			sysgo.WithForkAtL1Genesis(forks.BPO5),
 			sysgo.WithForkAtL1Offset(forks.Amsterdam, 30),
 		),
-		presets.WithBatcherOption(func(_ sysgo.ComponentTarget, cfg *batcher.CLIConfig) {
-			cfg.DataAvailabilityType = batcherFlags.BlobsType
-		}),
 	)
 	spamGlamsterdamTxs(sys)
 
@@ -79,7 +74,7 @@ func glamsterdamL1Geth(t devtest.T) presets.Option {
 
 func spamGlamsterdamTxs(sys *presets.SingleChainMultiNode) {
 	l2BlockTime := time.Duration(sys.L2Chain.Escape().RollupConfig().BlockTime) * time.Second
-	eoas := loadtest.FundEOAs(sys.T, eth.ThousandEther, 100, l2BlockTime, sys.L2EL, sys.Wallet, sys.FaucetL2)
+	eoas := loadtest.FundEOAs(sys.T, eth.ThousandEther, 2, l2BlockTime, sys.L2EL, sys.Wallet, sys.FaucetL2)
 
 	// Deploy a four-byte infinite-loop runtime. Calls consume their gas limit while adding almost
 	// no batch data, so the fixed-size worker pool fills blocks without delaying derivation itself.
@@ -106,7 +101,7 @@ func spamGlamsterdamTxs(sys *presets.SingleChainMultiNode) {
 			for ctx.Err() == nil {
 				_, err := eoa.Include(workerT,
 					txplan.WithTo(&gasBurnerAddr),
-					txplan.WithGasLimit(500_000),
+					txplan.WithGasLimit(16_000_000),
 				)
 				if err != nil && ctx.Err() == nil {
 					workerT.Logger().Warn("Failed to include Glamsterdam load transaction", "err", err)
