@@ -20,7 +20,6 @@ Active flags:
 | `ZKDisputeGame` | ZK dispute game system |
 | `SuperRootGamesMigration` | Super-root games migration path in OPCM upgrade |
 
-Retired bits are marked with comments in the two constant files; do not reuse a retired bit value.
 
 The predicate is a bitwise AND (`(bitmap & flag) == flag && flag != 0`).
 
@@ -117,10 +116,6 @@ It does **not** flow to op-node, op-program, or kona at runtime. They learn abou
 ## F. Hardfork interaction
 
 The bitmap flags (interop, ZK, super-root migration) have no parallel hardfork timestamp — the bitmap is the per-chain "is this feature provisioned" switch and the only gate. Network-wide activation timing is a separate mechanism: the hardfork timestamps mapped by the developer toggles in `op-node/rollup/toggles.go` (see section B), e.g. `IsL2CM(time)` decides **when** L2ContractsManager upgrade transactions execute across the network.
-
-## G. Lifecycle direction
-
-- The remaining flags (interop, ZK, super-root migration) are expected to ship as hardforks or be removed, at which point the DevFeatures scaffolding itself can go away.
 
 ## File index
 
