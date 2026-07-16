@@ -175,6 +175,13 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 	if hasSuperCannonKona && len(assignments) > 1 {
 		return fmt.Errorf("SUPER_CANNON_KONA is not supported in a multi-chain intent")
 	}
+	// Reject prestate flags that would otherwise be silently ignored.
+	if selectedCommand.set && !hasCannonKona && !hasSuperCannonKona {
+		return fmt.Errorf("--%s was supplied but no chain resolves to a game type that uses the %s; check respectedGameType in the intent", selectedPrestateRole.flagName, selectedPrestateRole.name)
+	}
+	if fallbackCommand.set && !hasCannonKona {
+		return fmt.Errorf("--%s was supplied but no chain resolves to CANNON_KONA; check respectedGameType in the intent", cannonFallbackPrestateRole.flagName)
+	}
 
 	// Validate every prepare-created chain entry before mutating any of them.
 	for _, assignment := range assignments {

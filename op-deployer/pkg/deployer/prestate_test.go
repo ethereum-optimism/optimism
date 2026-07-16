@@ -236,8 +236,32 @@ func TestPrestateGameTypeMatrix(t *testing.T) {
 		{
 			name:      "SUPER_CANNON_KONA commits selected and clears stale fallback",
 			chains:    []prestateTestChain{{id: chainA, prepared: true, overrides: gameOverride(embedded.GameTypeSuperCannonKona), initialFallback: staleFallback}},
-			configure: func(cfg *PrestateConfig) { cfg.Prestate = selected; cfg.CannonFallbackPrestate = fallback },
+			configure: func(cfg *PrestateConfig) { cfg.Prestate = selected },
 			want:      map[common.Hash][2]common.Hash{chainA: {common.HexToHash(selected), common.Hash{}}},
+		},
+		{
+			name:         "SUPER_CANNON_KONA rejects unconsumed fallback flag",
+			chains:       []prestateTestChain{{id: chainA, prepared: true, overrides: gameOverride(embedded.GameTypeSuperCannonKona)}},
+			configure:    commandPair(selected, fallback),
+			wantErrParts: []string{"--" + CannonFallbackPrestateFlagName, "no chain resolves to CANNON_KONA"},
+		},
+		{
+			name:         "permissioned only rejects unconsumed selected flag",
+			chains:       []prestateTestChain{{id: chainA, prepared: true}},
+			configure:    func(cfg *PrestateConfig) { cfg.Prestate = selected },
+			wantErrParts: []string{"--" + PrestateFlagName, "no chain resolves", "respectedGameType"},
+		},
+		{
+			name:         "permissioned only rejects unconsumed fallback flag",
+			chains:       []prestateTestChain{{id: chainA, prepared: true}},
+			configure:    func(cfg *PrestateConfig) { cfg.CannonFallbackPrestate = fallback },
+			wantErrParts: []string{"--" + CannonFallbackPrestateFlagName, "no chain resolves", "respectedGameType"},
+		},
+		{
+			name:         "misspelled respectedGameType override rejects supplied pair",
+			chains:       []prestateTestChain{{id: chainA, prepared: true, overrides: map[string]any{"respectedGamType": embedded.GameTypeCannonKona}}},
+			configure:    commandPair(selected, fallback),
+			wantErrParts: []string{"--" + PrestateFlagName, "no chain resolves", "respectedGameType"},
 		},
 		{
 			name:         "unsupported initial type fails",
