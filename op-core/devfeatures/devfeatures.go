@@ -36,6 +36,11 @@ var (
 // It performs a bitwise AND between the bitmap and flag to determine if the feature
 // is set. This follows the same pattern as the Solidity DevFeatures library.
 func IsDevFeatureEnabled(bitmap, flag common.Hash) bool {
+	// SuperRootGamesMigration is enabled by default.
+	// TODO(#21662): remove with the broader SuperRootGamesMigrationFlag cleanup.
+	if hasFlag(flag, SuperRootGamesMigrationFlag) {
+		return true
+	}
 	return flag != (common.Hash{}) && hasFlag(bitmap, flag)
 }
 
