@@ -161,6 +161,85 @@ func Test_makeDCI_RejectsPermissionlessGameType(t *testing.T) {
 	}
 }
 
+func TestResolveChainProofParams(t *testing.T) {
+	t.Run("uses defaults", func(t *testing.T) {
+		got, err := ResolveChainProofParams(&state.Intent{}, &state.ChainIntent{})
+		require.NoError(t, err)
+		require.Equal(t, state.ChainProofParams{
+			DisputeGameType:         standard.DisputeGameType,
+			DisputeAbsolutePrestate: standard.DisputeAbsolutePrestate,
+			DisputeMaxGameDepth:     standard.DisputeMaxGameDepth,
+			DisputeSplitDepth:       standard.DisputeSplitDepth,
+			DisputeClockExtension:   standard.DisputeClockExtension,
+			DisputeMaxClockDuration: standard.DisputeMaxClockDuration,
+		}, got)
+	})
+
+	t.Run("chain overrides global", func(t *testing.T) {
+		globalPrestate := common.HexToHash("0x11")
+		intent := &state.Intent{GlobalDeployOverrides: map[string]any{
+			"respectedGameType":         embedded.GameTypeCannonKona,
+			"faultGameAbsolutePrestate": globalPrestate,
+			"faultGameMaxDepth":         uint64(101),
+		}}
+		chain := &state.ChainIntent{DeployOverrides: map[string]any{
+			"respectedGameType": embedded.GameTypeSuperCannonKona,
+			"faultGameMaxDepth": uint64(202),
+		}}
+
+		got, err := ResolveChainProofParams(intent, chain)
+		require.NoError(t, err)
+		require.Equal(t, uint32(embedded.GameTypeSuperCannonKona), got.DisputeGameType)
+		require.Equal(t, globalPrestate, got.DisputeAbsolutePrestate)
+		require.Equal(t, uint64(202), got.DisputeMaxGameDepth)
+	})
+
+	t.Run("rejects malformed absolute prestate", func(t *testing.T) {
+		intent := &state.Intent{GlobalDeployOverrides: map[string]any{
+			"faultGameAbsolutePrestate": "not-a-hash",
+		}}
+
+		_, err := ResolveChainProofParams(intent, &state.ChainIntent{})
+		require.Error(t, err)
+	})
+}
+
+func TestPrestateRequirements(t *testing.T) {
+	tests := []struct {
+		name     string
+		gameType embedded.GameType
+		want     PrestateRequirements
+		wantErr  bool
+	}{
+		{name: "CANNON", gameType: embedded.GameTypeCannon, wantErr: true},
+		{name: "PERMISSIONED_CANNON", gameType: embedded.GameTypePermissionedCannon},
+		{name: "SUPER_PERMISSIONED", gameType: embedded.GameTypeSuperPermissioned},
+		{
+			name:     "CANNON_KONA",
+			gameType: embedded.GameTypeCannonKona,
+			want:     PrestateRequirements{Selected: true, CannonFallback: true},
+		},
+		{
+			name:     "SUPER_CANNON_KONA",
+			gameType: embedded.GameTypeSuperCannonKona,
+			want:     PrestateRequirements{Selected: true},
+		},
+		{name: "ZK_DISPUTE_GAME", gameType: embedded.GameTypeZKDisputeGame, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := PrestateRequirementsForGameType(uint32(tt.gameType))
+			if tt.wantErr {
+				require.ErrorContains(t, err, fmt.Sprintf("unsupported initial dispute game type %d", tt.gameType))
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestIsPermissionlessGameType(t *testing.T) {
 	tests := []struct {
 		name     string

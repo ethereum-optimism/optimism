@@ -108,18 +108,19 @@ func TestPrestateStrictValidationAcrossRolesAndSources(t *testing.T) {
 	validSelected := testPrestate("11")
 	validFallback := testPrestate("22")
 	invalidValues := []struct {
-		name    string
-		value   any
-		wantErr string
+		name             string
+		value            any
+		wantErr          string
+		canonicalWantErr string
 	}{
-		{name: "short", value: "0xabc123", wantErr: "exactly 64 hex characters"},
-		{name: "overlong", value: validSelected + "11", wantErr: "exactly 64 hex characters"},
-		{name: "malformed", value: "0x" + strings.Repeat("11", 31) + "zz", wantErr: "valid hex"},
+		{name: "short", value: "0xabc123", wantErr: "exactly 64 hex characters", canonicalWantErr: "hex string has length 6, want 64"},
+		{name: "overlong", value: validSelected + "11", wantErr: "exactly 64 hex characters", canonicalWantErr: "hex string has length 66, want 64"},
+		{name: "malformed", value: "0x" + strings.Repeat("11", 31) + "zz", wantErr: "valid hex", canonicalWantErr: "invalid hex string"},
 		{name: "zero", value: "0x" + strings.Repeat("00", 32), wantErr: "must not be zero"},
-		{name: "missing prefix", value: strings.Repeat("11", 32), wantErr: "must start with 0x"},
-		{name: "explicit empty", value: "", wantErr: "must start with 0x"},
-		{name: "whitespace", value: " " + validSelected, wantErr: "must start with 0x"},
-		{name: "non-string", value: int64(7), wantErr: "must be a string"},
+		{name: "missing prefix", value: strings.Repeat("11", 32), wantErr: "must start with 0x", canonicalWantErr: "without 0x prefix"},
+		{name: "explicit empty", value: "", wantErr: "must start with 0x", canonicalWantErr: "hex string has length 0, want 64"},
+		{name: "whitespace", value: " " + validSelected, wantErr: "must start with 0x", canonicalWantErr: "without 0x prefix"},
+		{name: "non-string", value: int64(7), wantErr: "must be a string", canonicalWantErr: "cannot unmarshal non-string"},
 	}
 
 	roles := []struct {
@@ -176,7 +177,13 @@ func TestPrestateStrictValidationAcrossRolesAndSources(t *testing.T) {
 					}
 					err := Prestate(context.Background(), cfg)
 					require.Error(t, err)
-					require.ErrorContains(t, err, invalid.wantErr)
+					if role.name == "selected" && source != "command" && invalid.canonicalWantErr != "" {
+						require.ErrorContains(t, err, "failed to resolve initial dispute game type")
+						require.ErrorContains(t, err, chainID.Hex())
+						require.ErrorContains(t, err, invalid.canonicalWantErr)
+					} else {
+						require.ErrorContains(t, err, invalid.wantErr)
+					}
 				})
 			}
 		}

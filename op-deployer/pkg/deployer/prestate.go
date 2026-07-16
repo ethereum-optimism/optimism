@@ -7,11 +7,9 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
-	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -137,51 +135,45 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 			hasCannonKona = true
 		case embedded.GameTypeSuperCannonKona:
 			hasSuperCannonKona = true
-		default:
-			if !deployed {
-				return fmt.Errorf("chain %s has unsupported initial dispute game type %d", chain.ID.Hex(), gameType)
-			}
 		}
 		if deployed {
 			continue
 		}
 
+		requirements, err := pipeline.PrestateRequirementsForGameType(uint32(gameType))
+		if err != nil {
+			return fmt.Errorf("chain %s: %w", chain.ID.Hex(), err)
+		}
+
 		assignment := prestateAssignment{ChainID: chain.ID, GameType: gameType}
-		switch gameType {
-		case embedded.GameTypePermissionedCannon:
-			// Clear stale prestate commitments.
-		case embedded.GameTypeCannonKona:
+		if requirements.Selected {
 			hasActiveSelectedConsumer = true
-			hasActiveCannonKona = true
 			selected, err := resolvePrestateRole(chain, intent.GlobalDeployOverrides, selectedPrestateRole, selectedCommand)
 			if err != nil {
 				return err
 			}
+			if !selected.set {
+				gameName := "SUPER_CANNON_KONA"
+				if requirements.CannonFallback {
+					gameName = "CANNON_KONA"
+				}
+				return fmt.Errorf("chain %s with %s requires %s from --%s or intent key %s", chain.ID.Hex(), gameName, selectedPrestateRole.name, selectedPrestateRole.flagName, selectedPrestateRole.intentKey)
+			}
+			assignment.Selected = selected.hash
+		}
+		if requirements.CannonFallback {
+			hasActiveCannonKona = true
 			fallback, err := resolvePrestateRole(chain, intent.GlobalDeployOverrides, cannonFallbackPrestateRole, fallbackCommand)
 			if err != nil {
 				return err
 			}
-			if !selected.set {
-				return fmt.Errorf("chain %s with CANNON_KONA requires %s from --%s or intent key %s", chain.ID.Hex(), selectedPrestateRole.name, selectedPrestateRole.flagName, selectedPrestateRole.intentKey)
-			}
 			if !fallback.set {
 				return fmt.Errorf("chain %s with CANNON_KONA requires %s from --%s or intent key %s", chain.ID.Hex(), cannonFallbackPrestateRole.name, cannonFallbackPrestateRole.flagName, cannonFallbackPrestateRole.intentKey)
 			}
-			if selected.hash == fallback.hash {
-				return fmt.Errorf("chain %s with CANNON_KONA requires different selected and Cannon fallback prestates; both resolve to %s", chain.ID.Hex(), selected.hash.Hex())
-			}
-			assignment.Selected = selected.hash
 			assignment.CannonFallback = fallback.hash
-		case embedded.GameTypeSuperCannonKona:
-			hasActiveSelectedConsumer = true
-			selected, err := resolvePrestateRole(chain, intent.GlobalDeployOverrides, selectedPrestateRole, selectedCommand)
-			if err != nil {
-				return err
+			if assignment.Selected == assignment.CannonFallback {
+				return fmt.Errorf("chain %s with CANNON_KONA requires different selected and Cannon fallback prestates; both resolve to %s", chain.ID.Hex(), assignment.Selected.Hex())
 			}
-			if !selected.set {
-				return fmt.Errorf("chain %s with SUPER_CANNON_KONA requires %s from --%s or intent key %s", chain.ID.Hex(), selectedPrestateRole.name, selectedPrestateRole.flagName, selectedPrestateRole.intentKey)
-			}
-			assignment.Selected = selected.hash
 		}
 		assignments = append(assignments, assignment)
 	}
@@ -294,18 +286,11 @@ func parseIntentPrestate(chainID common.Hash, source string, raw any, role prest
 }
 
 func resolveInitialGameType(intent *state.Intent, chain *state.ChainIntent) (embedded.GameType, error) {
-	type initialGameConfig struct {
-		GameType uint32 `json:"respectedGameType"`
-	}
-	cfg, err := jsonutil.MergeJSON(
-		initialGameConfig{GameType: standard.DisputeGameType},
-		intent.GlobalDeployOverrides,
-		chain.DeployOverrides,
-	)
+	proofParams, err := pipeline.ResolveChainProofParams(intent, chain)
 	if err != nil {
 		return 0, fmt.Errorf("failed to resolve initial dispute game type for chain %s: %w", chain.ID.Hex(), err)
 	}
-	return embedded.GameType(cfg.GameType), nil
+	return embedded.GameType(proofParams.DisputeGameType), nil
 }
 
 func parsePrestate(raw string) (common.Hash, error) {
