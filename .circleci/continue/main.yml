@@ -711,6 +711,135 @@ commands:
                 profile: << parameters.profile >>
                 features: << parameters.features >>
 
+  # Final-binary cache for workspace builds (rust-build-vendored pattern):
+  # binaries are keyed on the git tree of hash_paths + build parameters; on a
+  # hit the cargo build is skipped entirely. Shell logic lives in
+  # .circleci/scripts/rust-binary-cache.sh; restore_cache/save_cache must stay
+  # YAML steps. Keeps rust-build's shared dep/toolchain restore+save so a
+  # binary-cache miss usually finds crate downloads prepopulated.
+  rust-binary-cached-build:
+    description: "Build Rust workspace binaries behind a final-binary cache; skips cargo entirely on a hit"
+    parameters:
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+      hash_paths:
+        description: >
+          Space-separated git paths hashed into the binary cache key. Must
+          cover everything that changes the binaries: the workspace tree,
+          toolchain pins, and any submodule pin a build script embeds.
+        type: string
+      binaries:
+        description: "Space-separated final binary names to cache (and persist)"
+        type: string
+      needs_clang:
+        description: "Whether clang must be available (bindgen for reth-mdbx-sys)"
+        type: boolean
+        default: true
+      version:
+        description: "Version of the shared dep/toolchain cache"
+        type: string
+        default: *rust-cache-version
+      binary_cache_version:
+        description: "Version buster for the binary cache key namespace"
+        type: string
+        default: "1"
+      profile:
+        description: "Profile to build with (as spelled in the target path)"
+        type: string
+        default: "debug"
+      features:
+        description: "Comma-separated list of features to build with"
+        type: string
+        default: "default"
+      package:
+        description: "Package name to build. If not specified, the workspace will be built."
+        type: string
+        default: ""
+      binary:
+        description: "Binary name to build. If not specified, all targets will be built."
+        type: string
+        default: ""
+      save_cache:
+        description: "Whether to save the shared dep/toolchain cache at the end"
+        type: boolean
+        default: true
+      persist_to_workspace:
+        description: "Whether to persist the cached binaries to the CircleCI workspace"
+        type: boolean
+        default: false
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      # Same env prep + dep/toolchain restore as rust-build; cheap on a hit.
+      - rust-prepare-and-restore-cache:
+          needs_clang: << parameters.needs_clang >>
+          version: << parameters.version >>
+          directory: << parameters.directory >>
+          profile: << parameters.profile >>
+          features: << parameters.features >>
+      - run:
+          name: Compute << parameters.directory >> binary cache key
+          environment:
+            BINCACHE_HASH_PATHS: "<< parameters.hash_paths >>"
+            BINCACHE_BINARIES: "<< parameters.binaries >>"
+            BINCACHE_PROFILE: "<< parameters.profile >>"
+            BINCACHE_FEATURES: "<< parameters.features >>"
+            BINCACHE_PACKAGE: "<< parameters.package >>"
+            BINCACHE_BINARY: "<< parameters.binary >>"
+          command: bash .circleci/scripts/rust-binary-cache.sh compute-key
+      - restore_cache:
+          name: Restore << parameters.directory >> workspace binary cache
+          keys:
+            - rust-workspace-bins-v<< parameters.binary_cache_version >>-{{
+              checksum ".circleci-cache/expected-workspace-sha.txt" }}-{{
+              checksum ".circleci-cache/expected-workspace-binaries.txt" }}
+      - run:
+          name: Build << parameters.directory >> binaries (if needed)
+          environment:
+            BINCACHE_DIRECTORY: "<< parameters.directory >>"
+            BINCACHE_BINARIES: "<< parameters.binaries >>"
+            BINCACHE_PROFILE: "<< parameters.profile >>"
+            BINCACHE_FEATURES: "<< parameters.features >>"
+            BINCACHE_PACKAGE: "<< parameters.package >>"
+            BINCACHE_BINARY: "<< parameters.binary >>"
+            BINCACHE_SAVE_SHARED_CACHE: "<< parameters.save_cache >>"
+            BINCACHE_NEEDS_CLANG: "<< parameters.needs_clang >>"
+          command: bash .circleci/scripts/rust-binary-cache.sh build
+          no_output_timeout: 30m
+      - save_cache:
+          key: rust-workspace-bins-v<< parameters.binary_cache_version >>-{{
+            checksum ".circleci-cache/expected-workspace-sha.txt" }}-{{ checksum
+            ".circleci-cache/expected-workspace-binaries.txt" }}
+          name: Save << parameters.directory >> workspace binary cache
+          paths:
+            - ".circleci-cache/rust-workspace-binaries"
+      # Full-workspace build, so it may save the shared dep cache; the hit
+      # path re-seeds an evicted dep key via cargo fetch (see the script).
+      - when:
+          condition: << parameters.save_cache >>
+          steps:
+            - rust-save-build-cache:
+                directory: << parameters.directory >>
+                version: << parameters.version >>
+                profile: << parameters.profile >>
+                features: << parameters.features >>
+      - when:
+          condition: << parameters.persist_to_workspace >>
+          steps:
+            # Identical workspace layout on both the hit and build paths.
+            - run:
+                name: Stage binaries for workspace persistence
+                environment:
+                  BINCACHE_DIRECTORY: "<< parameters.directory >>"
+                  BINCACHE_BINARIES: "<< parameters.binaries >>"
+                  BINCACHE_PROFILE: "<< parameters.profile >>"
+                command: bash .circleci/scripts/rust-binary-cache.sh stage
+            - persist_to_workspace:
+                root: ".circleci-cache/workspace-persist"
+                paths:
+                  - "<< parameters.directory >>"
+
 jobs:
   ci-gate:
     docker:
@@ -777,28 +906,54 @@ jobs:
         description: "Whether to persist the built binaries to the CircleCI workspace"
         type: boolean
         default: false
+      binary_cache_binaries:
+        description: >
+          When non-empty, route to rust-binary-cached-build with this
+          space-separated binary list. Only these binaries are persisted, so
+          downstream jobs may rely on nothing else — add any new consumer's
+          binary here.
+        type: string
+        default: ""
     steps:
-      - rust-build:
-          directory: << parameters.directory >>
-          needs_clang: << parameters.needs_clang >>
-          version: << parameters.version >>
-          profile: << parameters.profile >>
-          features: << parameters.features >>
-          package: << parameters.package >>
-          binary: << parameters.binary >>
-          save_cache: << parameters.save_cache >>
-      - when:
-          condition: << parameters.persist_to_workspace >>
+      - unless:
+          condition: << parameters.binary_cache_binaries >>
           steps:
-            - persist_to_workspace:
-                root: "."
-                paths:
-                  - "<< parameters.directory >>/target/<< parameters.profile
-                    >>/kona-*"
-                  - "<< parameters.directory >>/target/<< parameters.profile
-                    >>/op-*"
-                  - "<< parameters.directory >>/target/<< parameters.profile
-                    >>/rollup-boost"
+            - rust-build:
+                directory: << parameters.directory >>
+                needs_clang: << parameters.needs_clang >>
+                version: << parameters.version >>
+                profile: << parameters.profile >>
+                features: << parameters.features >>
+                package: << parameters.package >>
+                binary: << parameters.binary >>
+                save_cache: << parameters.save_cache >>
+            - when:
+                condition: << parameters.persist_to_workspace >>
+                steps:
+                  - persist_to_workspace:
+                      root: "."
+                      paths:
+                        - "<< parameters.directory >>/target/<< parameters.profile
+                          >>/kona-*"
+                        - "<< parameters.directory >>/target/<< parameters.profile
+                          >>/op-*"
+                        - "<< parameters.directory >>/target/<< parameters.profile
+                          >>/rollup-boost"
+      - when:
+          condition: << parameters.binary_cache_binaries >>
+          steps:
+            - rust-binary-cached-build:
+                directory: << parameters.directory >>
+                hash_paths: "<< parameters.directory >> mise.toml superchain-registry"
+                binaries: << parameters.binary_cache_binaries >>
+                needs_clang: << parameters.needs_clang >>
+                version: << parameters.version >>
+                profile: << parameters.profile >>
+                features: << parameters.features >>
+                package: << parameters.package >>
+                binary: << parameters.binary >>
+                save_cache: << parameters.save_cache >>
+                persist_to_workspace: << parameters.persist_to_workspace >>
 
   # Build the SP1 super-range executor into a dedicated workspace artifact.
   # Keeping its persisted copy out of rust/target prevents it from overlapping

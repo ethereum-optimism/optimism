@@ -356,14 +356,16 @@ workflows:
       - cannon-prestate: &rust-e2e-job-base
           context:
             - circleci-repo-readonly-authenticated-github-token
-      # rust-workspace-release builds the whole rust workspace (no binary filter),
-      # so it produces kona-host, kona-node, op-reth, and the rest. Downstream
-      # e2e jobs attach the workspace and consume the binaries directly.
+      # Release workspace build behind the final-binary cache: when rust/ and
+      # the toolchain/submodule pins are unchanged the cargo build is skipped.
+      # Downstream e2e jobs attach the workspace and may only rely on the
+      # binaries listed here.
       - rust-build-binary: &rust-workspace-release
           name: rust-workspace-release
           directory: rust
           profile: release
           persist_to_workspace: true
+          binary_cache_binaries: "kona-host kona-node op-reth"
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
