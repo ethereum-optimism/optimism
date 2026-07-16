@@ -39,6 +39,16 @@ func NewMetricsClient(httpClient client.HTTP, options ...Option) *MetricsClient 
 	return metricsClient
 }
 
+func (c *MetricsClient) validate() error {
+	if c.client == nil {
+		return fmt.Errorf("fetch metrics: HTTP client must not be nil")
+	}
+	if c.fetchTimeout <= 0 {
+		return fmt.Errorf("fetch metrics: fetch timeout must be positive")
+	}
+	return nil
+}
+
 type Snapshot struct {
 	families map[string]*clientmodel.MetricFamily
 	payload  string
@@ -49,11 +59,8 @@ func (s *Snapshot) Payload() string {
 }
 
 func (c *MetricsClient) Fetch(ctx context.Context) (*Snapshot, error) {
-	if c.client == nil {
-		return nil, fmt.Errorf("fetch metrics: HTTP client must not be nil")
-	}
-	if c.fetchTimeout <= 0 {
-		return nil, fmt.Errorf("fetch metrics: fetch timeout must be positive")
+	if err := c.validate(); err != nil {
+		return nil, err
 	}
 
 	fetchCtx, cancel := context.WithTimeout(ctx, c.fetchTimeout)
@@ -144,6 +151,9 @@ type GaugeDefinition struct {
 }
 
 func (c *MetricsClient) WaitForGauge(ctx context.Context, definition GaugeDefinition, pollInterval time.Duration) error {
+	if err := c.validate(); err != nil {
+		return err
+	}
 	if pollInterval <= 0 {
 		return fmt.Errorf("poll interval must be positive")
 	}

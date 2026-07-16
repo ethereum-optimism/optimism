@@ -75,6 +75,59 @@ func TestMetricsClientFetchRejectsNonPositiveTimeout(t *testing.T) {
 	}
 }
 
+func TestMetricsClientWaitForGaugeRejectsInvalidClientConfiguration(t *testing.T) {
+	tests := []struct {
+		name      string
+		newClient func(stubHTTP) *MetricsClient
+		wantError string
+	}{
+		{
+			name: "nil HTTP client",
+			newClient: func(stubHTTP) *MetricsClient {
+				return NewMetricsClient(nil)
+			},
+			wantError: "HTTP client must not be nil",
+		},
+		{
+			name: "zero fetch timeout",
+			newClient: func(stub stubHTTP) *MetricsClient {
+				return NewMetricsClient(stub, WithFetchTimeout(0))
+			},
+			wantError: "fetch timeout must be positive",
+		},
+		{
+			name: "negative fetch timeout",
+			newClient: func(stub stubHTTP) *MetricsClient {
+				return NewMetricsClient(stub, WithFetchTimeout(-time.Second))
+			},
+			wantError: "fetch timeout must be positive",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fetches := 0
+			stub := stubHTTP(func(context.Context, string, url.Values, http.Header) (*http.Response, error) {
+				fetches++
+				return metricsResponse(http.StatusOK, ""), nil
+			})
+			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			defer cancel()
+
+			err := test.newClient(stub).WaitForGauge(
+				ctx,
+				GaugeDefinition{Name: "target_metric", Expected: 1},
+				time.Millisecond,
+			)
+
+			require.ErrorContains(t, err, test.wantError)
+			require.NotContains(t, err.Error(), "did not reach expected value")
+			require.NotErrorIs(t, err, context.DeadlineExceeded)
+			require.Zero(t, fetches)
+		})
+	}
+}
+
 func TestMetricsClientWaitForGaugeRejectsNonPositivePollInterval(t *testing.T) {
 	for _, pollInterval := range []time.Duration{0, -time.Second} {
 		t.Run(pollInterval.String(), func(t *testing.T) {
