@@ -138,8 +138,8 @@ alloy-sol-types = { version = "1.6.0", default-features = false }
 alloy-consensus = { version = "2.1.1", default-features = false }
 alloy-rlp = { version = "0.3.13", default-features = false }
 alloy-op-evm = { version = "0.32.0", path = "../../../alloy-op-evm", default-features = false }
-sp1-lib = { version = "6.2.4", features = ["verify"] }
-sp1-zkvm = { version = "6.2.4", features = ["verify"] }
+sp1-lib = { version = "6.3.1", features = ["verify"] }
+sp1-zkvm = { version = "6.3.1", features = ["verify"] }
 sha2 = { version = "0.10.9", default-features = false }
 rkyv = "0.8.15"
 serde_json = { version = "1.0.149", default-features = false, features = ["alloc"] }
