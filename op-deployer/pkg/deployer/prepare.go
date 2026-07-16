@@ -242,13 +242,22 @@ func predictChains(lgr log.Logger, intent *state.Intent, st *state.State, run fu
 		}
 
 		st.SetChainContracts(chain.ID, pipeline.OpChainContractsFromDeployOutput(out), false)
-		if err := st.SetChainPrestate(chain.ID, common.Hash{}); err != nil {
-			return fmt.Errorf("failed to clear prestate for chain %s: %w", chain.ID.Hex(), err)
+		chainState, err := st.Chain(chain.ID)
+		if err != nil {
+			return fmt.Errorf("failed to clear prestates for chain %s: %w", chain.ID.Hex(), err)
 		}
+		chainState.Prestate = common.Hash{}
+		chainState.CannonFallbackPrestate = common.Hash{}
 
-		if pipeline.IsPermissionlessGameType(dci.DisputeGameType) {
+		switch embedded.GameType(dci.DisputeGameType) {
+		case embedded.GameTypeCannonKona:
 			lgr.Info(
-				"no prestate committed yet; run op-deployer prestate before continue",
+				"selected and Cannon fallback prestates must be committed; run op-deployer prestate before continue",
+				"chain", chain.ID.Hex(),
+			)
+		case embedded.GameTypeSuperCannonKona:
+			lgr.Info(
+				"selected prestate must be committed; run op-deployer prestate before continue",
 				"chain", chain.ID.Hex(),
 			)
 		}
