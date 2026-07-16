@@ -74,7 +74,6 @@ func TestWithdrawal(gt *testing.T, gameType gameTypes.GameType, extra ...presets
 	l2User.VerifyBalanceExact(expectedL2UserBalance)
 	game := sys.DisputeGameFactory().WaitForGame()
 	t.Require().Equal(gameType, game.GameType())
-	minimumAnchorSequence := game.L2SequenceNumber()
 
 	withdrawal.Prove(l1User)
 	expectedL1UserBalance = expectedL1UserBalance.Sub(withdrawal.ProveGasCost())
@@ -91,7 +90,7 @@ func TestWithdrawal(gt *testing.T, gameType gameTypes.GameType, extra ...presets
 	withdrawal.Finalize(l1User)
 	expectedL1UserBalance = expectedL1UserBalance.Sub(withdrawal.FinalizeGasCost()).Add(withdrawalAmount)
 	l1User.VerifyBalanceExact(expectedL1UserBalance)
-	sys.AnchorStateRegistry().WaitForAnchorGame(gameType, minimumAnchorSequence)
+	sys.AnchorStateRegistry().WaitForAnchorRoot(game)
 }
 
 // TestWithdrawalAfterUpgrade is like TestWithdrawal but waits for the given fork to activate
