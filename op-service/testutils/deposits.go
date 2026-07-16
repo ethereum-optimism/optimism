@@ -42,19 +42,20 @@ func GenerateDeposit(sourceHash common.Hash, rng *rand.Rand) *optypes.DepositTx 
 // TxFromDeposit wraps an op-core deposit tx in a go-ethereum *types.Transaction for
 // test paths that feed deposits into block or tx-list builders still typed on
 // *types.Transaction. Callers that only need the deposit's hash use
-// (*optypes.DepositTx).Hash() instead. It round-trips through the canonical encoding,
-// so it depends on go-ethereum still decoding the deposit tx type; it is removed once
-// the test suites move off *types.Transaction for deposits.
+// (*optypes.DepositTx).Hash() instead. It constructs op-geth's deposit tx directly
+// from the identical fields; it is removed once the test suites move off
+// *types.Transaction for deposits.
 func TxFromDeposit(dep *optypes.DepositTx) *types.Transaction {
-	raw, err := dep.MarshalBinary()
-	if err != nil {
-		panic(err)
-	}
-	var tx types.Transaction
-	if err := tx.UnmarshalBinary(raw); err != nil {
-		panic(err)
-	}
-	return &tx
+	return types.NewTx(&types.DepositTx{
+		SourceHash:          dep.SourceHash,
+		From:                dep.From,
+		To:                  dep.To,
+		Mint:                dep.Mint,
+		Value:               dep.Value,
+		Gas:                 dep.Gas,
+		IsSystemTransaction: dep.IsSystemTransaction,
+		Data:                dep.Data,
+	})
 }
 
 // Generates an EVM log entry with the given topics and data.
