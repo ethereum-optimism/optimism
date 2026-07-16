@@ -14,10 +14,11 @@ flag catalogue of every command, see the
 ## One binary, many commands
 
 `op-reth` ships as a single binary. The command you run day to day is
-`op-reth node`, which starts the execution client itself. Every other
-subcommand is an operational tool that works against the same data directory —
+`op-reth node`, which starts the execution client itself. The other
+subcommands are operational tools: most work against the same data directory —
 initializing it, importing history into it, inspecting it, or repairing it —
-so you rarely run them while the node is running.
+so you rarely run them while the node is running. A couple (`config` and
+`dump-genesis`) simply print information to stdout.
 
 | Command | What it does |
 | --- | --- |
@@ -44,8 +45,8 @@ subcommands (such as `op-reth db stats`) get their own nested pages.
 syncs and serves the chain. It carries by far the largest flag surface,
 organized into functional groups — Metrics, Datadir, Networking, RPC, TxPool,
 Builder, Debug, Dev testnet, Pruning, Engine, and Rollup, among others — with
-each flag namespaced by its group (for example `--rpc.*`, `--txpool.*`,
-`--prune.*`, `--rollup.*`).
+related flags sharing a dotted prefix (for example `--txpool.*`, `--prune.*`,
+`--rollup.*`, or `--http.*` in the RPC group).
 
 The `Rollup` group is OP Stack-specific: flags such as `--rollup.sequencer`
 (the sequencer endpoint that transactions are forwarded to) and
