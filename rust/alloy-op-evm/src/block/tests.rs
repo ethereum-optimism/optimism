@@ -1941,17 +1941,15 @@ mod sdm {
             );
         }
 
-        /// PROOF 1 (root cause) + PROOF 2 (fix / permanent regression guard) — the faithful
-        /// builder-vs-validator consensus test.
+        /// The faithful builder-vs-validator consensus test.
         ///
         /// A *builder* in SDM Produce mode runs `[A (fails, skipped), B]` on one EVM and seals
         /// a block containing only `B` plus the 0x7D refund payload. A *validator* re-executes
-        /// that block in Verify mode — it never runs `A`. On the UNFIXED tree the builder
-        /// charges `B` warm (100) for the access to `A`'s leaked-warm sender while the validator
-        /// charges it cold (2600), so `produced.gas_used != verified.gas_used` (a 2500-gas
-        /// divergence) and the validator rejects the block — a chain halt. Adding `discard_tx()`
-        /// to `OpHandler::catch_error` (or finalizing the journal on the `inspect_tx` error path)
-        /// makes the builder charge `B` cold too, so the block verifies.
+        /// that block in Verify mode — it never runs `A`. Were `OpHandler::catch_error` not to
+        /// discard the failed tx's journal, the builder would charge `B` warm (100) for the
+        /// access to `A`'s leaked-warm sender while the validator charges it cold (2600), so
+        /// `produced.gas_used != verified.gas_used` (a 2500-gas divergence) and the validator
+        /// rejects the block — a chain halt.
         ///
         /// Note: the SDM refund the builder emits for `B` (~7500, from `A` warming the fee
         /// recipients) is *trusted* by the validator (it only bounds-checks the payload), so it
@@ -1981,10 +1979,10 @@ mod sdm {
             );
         }
 
-        /// PROOF 3 (not currently vulnerable). With SDM disabled (production config: Karst
-        /// pre-Lagoon, opt-in OFF) execution uses the `transact` path, whose `finalize()` runs
-        /// even on error and wipes the failed tx's journal — so a skipped failing tx cannot
-        /// affect `B`, even on the UNFIXED tree. This guards today's chains' safety.
+        /// With SDM disabled (production config: Karst pre-Lagoon, opt-in OFF) execution uses
+        /// the `transact` path, whose `finalize()` runs even on error and wipes the failed tx's
+        /// journal — so a skipped failing tx cannot affect `B` regardless of whether
+        /// `OpHandler::catch_error` discards the journal. This guards today's chains' safety.
         #[test]
         fn skipped_failed_tx_does_not_affect_next_tx_when_sdm_disabled() {
             let with_failed_a = probe_b_canonical_gas(PostExecMode::Disabled, true);
