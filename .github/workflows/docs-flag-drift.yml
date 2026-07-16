@@ -42,13 +42,11 @@ jobs:
           egress-policy: audit
       - name: Checkout
         uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e # v6
-      - name: Install mise
-        run: |
-          set -euo pipefail
-          curl --fail --show-error --silent --location --retry 3 --retry-delay 5 https://mise.run | sh
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-      - name: Install pinned tools (go, jq, yq from mise.toml)
-        run: mise install go jq yq
+      - name: Install mise and pinned tools (go, jq, yq from mise.toml)
+        uses: jdx/mise-action@c1ecc8f748cd28cdeabf76dab3cccde4ce692fe4 # v4.0.0
+        with:
+          version: 2026.2.2
+          install_args: go jq yq
       - name: Build the superchain config bundle (Go build prerequisite)
         run: |
           set -euo pipefail
