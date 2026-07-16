@@ -58,8 +58,7 @@ func SendDepositTx(t *testing.T, cfg e2esys.SystemConfig, l1Client *ethclient.Cl
 	idx := len(l1Receipt.Logs) - 1
 	reconstructedDep, err := derive.UnmarshalDepositLogEvent(l1Receipt.Logs[idx])
 	require.NoError(t, err, "Could not reconstruct L2 Deposit")
-	tx = types.NewTx(reconstructedDep)
-	l2Receipt, err := wait.ForReceipt(ctx, l2Client, tx.Hash(), l2Opts.ExpectedStatus)
+	l2Receipt, err := wait.ForReceipt(ctx, l2Client, reconstructedDep.Hash(), l2Opts.ExpectedStatus)
 	require.NoError(t, err, "Waiting for deposit tx on L2")
 	t.Logf("SendDepositTx: arrived on L2")
 	return l2Receipt
