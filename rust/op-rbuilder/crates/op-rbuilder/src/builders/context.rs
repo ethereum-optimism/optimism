@@ -1041,7 +1041,7 @@ mod tests {
         // forced Produce mode below runs on a fork combination that can occur in production.
         let chain_spec = Arc::new(
             OpChainSpecBuilder::optimism_mainnet()
-                .interop_activated()
+                .lagoon_activated()
                 .build(),
         );
 
