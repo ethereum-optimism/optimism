@@ -59,6 +59,10 @@
   },
   "redirects": [
     {
+      "source": "/rust/op-reth/cli/cli",
+      "destination": "/rust/op-reth/cli/overview"
+    },
+    {
       "source": "/chain-operators/reference/architecture",
       "destination": "/chain-operators/guides/management/network-architecture"
     },
@@ -2681,6 +2685,7 @@
           {
             "group": "op-reth - CLI Reference",
             "pages": [
+              "rust/op-reth/cli/overview",
               "rust/op-reth/cli/op-reth",
               {
                 "group": "op-reth",
