@@ -1,0 +1,1 @@
+../../.agents/hooks/remind-prepush-checks.sh

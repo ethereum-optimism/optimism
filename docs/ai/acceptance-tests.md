@@ -36,16 +36,6 @@ RUST_JIT_BUILD=1 cd op-acceptance-tests && mise exec -- just acceptance-test
 
 Runs all test packages with gotestsum, structured logging, and auto-tuned parallelism.
 
-### Gated Subsets
-
-Gate files in `op-acceptance-tests/gates/` list package subsets:
-
-```bash
-RUST_JIT_BUILD=1 cd op-acceptance-tests && mise exec -- just acceptance-test base
-```
-
-This runs only packages listed in `gates/base.txt`.
-
 ### Kona Prestate
 
 Some tests (e.g. superfaultproofs, interop fault proofs) require a kona prestate. This is **not** handled by `build-deps` or `RUST_JIT_BUILD`. There are two ways to build it:

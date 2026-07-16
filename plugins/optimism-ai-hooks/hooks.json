@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ./scripts/remind-prepush-checks.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

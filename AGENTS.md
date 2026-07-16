@@ -54,6 +54,23 @@ The OP Stack includes significant Rust implementations:
 - **op-e2e**: End-to-end testing framework
 - **op-acceptance-tests**: Acceptance test suite
 
+## Local Pre-Push Sanity Checks
+
+After committing and before pushing, run:
+
+```bash
+ops/scripts/precommit-targets.sh --run
+```
+
+The script selects a quick sanity-check set from the files changed on the branch. Claude and Codex hooks also remind agents after `git commit`, but the reminder is not a gate; agents must still run the command and report the result.
+
+Claude loads the hook from `.claude/settings.json`. Codex uses the workspace plugin in `plugins/optimism-ai-hooks`; if Codex has not installed it yet, run:
+
+```bash
+codex plugin marketplace add .
+codex plugin add optimism-ai-hooks --marketplace optimism-workspace
+```
+
 ## Subdirectory Instructions
 
 Some subdirectories have their own CLAUDE.md with domain-specific conventions. Read the relevant file before working in that area — do not read them all upfront.

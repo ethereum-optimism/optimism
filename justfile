@@ -318,6 +318,18 @@ go-tests: cannon build-contracts make-pre-test build-superchain-go
   export PARALLEL=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
   go test -parallel="$PARALLEL" -timeout={{TEST_TIMEOUT}} $(just list-test-packages)
 
+# Runs Go tests for explicit package selectors.
+[positional-arguments]
+[script('bash')]
+go-test-packages *PACKAGES: build-superchain-go
+  set -euo pipefail
+  if [ "$#" -eq 0 ]; then
+      echo "usage: just go-test-packages <package> [<package> ...]" >&2
+      exit 1
+  fi
+  export PARALLEL=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+  go test -parallel="$PARALLEL" -timeout={{TEST_TIMEOUT}} "$@"
+
 # Runs comprehensive Go tests with -short flag.
 [script('bash')]
 go-tests-short: cannon build-contracts make-pre-test build-superchain-go

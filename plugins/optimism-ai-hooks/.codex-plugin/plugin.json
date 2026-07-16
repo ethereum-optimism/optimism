@@ -1,0 +1,23 @@
+{
+  "name": "optimism-ai-hooks",
+  "version": "0.1.0",
+  "description": "Optimism repository hooks for AI coding agents.",
+  "author": {
+    "name": "Optimism"
+  },
+  "license": "MIT",
+  "interface": {
+    "displayName": "Optimism AI Hooks",
+    "shortDescription": "Post-commit reminders for local pre-push sanity checks",
+    "longDescription": "Adds repository hooks that remind AI coding agents to run the changed-file pre-push sanity checks before pushing.",
+    "developerName": "Optimism",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive"
+    ],
+    "defaultPrompt": [
+      "Remind AI agents to run Optimism pre-push sanity checks after committing"
+    ],
+    "screenshots": []
+  }
+}

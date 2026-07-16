@@ -35,15 +35,32 @@ The repo uses [Just](https://github.com/casey/just) as its build system. Shared 
 
 After running language-specific commit checks (lint, test):
 
-1. **Run affected tests broadly** — don't just test the package/crate you changed. Test packages that depend on it too.
+1. **Run pre-push checks** — after committing and before pushing, run:
+   ```bash
+   ops/scripts/precommit-targets.sh --run
+   ```
+   This script selects a quick local sanity set based on the files changed on the branch. It is not a replacement for CI.
 
-2. **Rebase on `develop`** — this is the default branch, not `main`:
+2. **Run affected tests broadly when needed** — don't just test the package/crate you changed when the change can affect dependents.
+
+3. **Rebase on `develop`** — this is the default branch, not `main`:
    ```bash
    git fetch origin develop
    git rebase origin/develop
    ```
 
-3. **Follow PR guidelines** — see `docs/handbook/pr-guidelines.md`. Keep the PR description brief — include only what isn't obvious from the diff.
+4. **Follow PR guidelines** — see `docs/handbook/pr-guidelines.md`. Keep the PR description brief — include only what isn't obvious from the diff.
+
+## AI Agent Hooks
+
+Claude and Codex have post-command hooks that remind the agent after `git commit` to run `ops/scripts/precommit-targets.sh --run` before pushing. The hook is a reminder, not a gate, so agents must still run the command and report the result.
+
+Claude loads `.claude/settings.json` from the repo. Codex uses the workspace plugin in `plugins/optimism-ai-hooks`; if it is not installed, run:
+
+```bash
+codex plugin marketplace add .
+codex plugin add optimism-ai-hooks --marketplace optimism-workspace
+```
 
 ## CI
 
