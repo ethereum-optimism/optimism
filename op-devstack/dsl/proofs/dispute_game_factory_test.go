@@ -33,3 +33,26 @@ func TestAwaitMinVerifiedTimestampRetriesAndReturnsSuccessfulResponse(t *testing
 	require.Equal(t, expected, actual)
 	require.Equal(t, 2, calls)
 }
+
+func TestSafeTimestampRetriesAndReturnsCurrentSafeTimestamp(t *testing.T) {
+	const (
+		queryTimestamp = uint64(1234)
+		expected       = uint64(5678)
+	)
+	calls := 0
+	query := func(context.Context, uint64) (eth.SuperRootAtTimestampResponse, error) {
+		calls++
+		if calls == 1 {
+			return eth.SuperRootAtTimestampResponse{}, errors.New("transient query failure")
+		}
+		return eth.SuperRootAtTimestampResponse{CurrentSafeTimestamp: expected}, nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	actual, err := safeTimestamp(ctx, queryTimestamp, time.Millisecond, query)
+
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+	require.Equal(t, 2, calls)
+}
