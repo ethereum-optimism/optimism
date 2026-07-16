@@ -43,6 +43,23 @@ export function findDocsRoot(): string {
   process.exit(2);
 }
 
+// ─── Path containment ─────────────────────────────────────────────────────────
+
+/**
+ * Resolve path segments against `root` and require the result to stay inside
+ * `root` (or be `root` itself). Returns the resolved absolute path, or null
+ * when it escapes. Cheap CWE-22 containment hardening: every path these
+ * scripts read is derived from docs.json, committed baseline files, or
+ * directory walks — all repo-controlled — but routing every fs access through
+ * this check keeps that provable. Callers treat null as a lint/setup error
+ * and skip the fs call.
+ */
+export function resolveInside(root: string, ...segments: string[]): string | null {
+  const resolved = path.resolve(root, ...segments);
+  if (resolved === root || resolved.startsWith(root + path.sep)) return resolved;
+  return null;
+}
+
 // ─── docs.json ────────────────────────────────────────────────────────────────
 
 export interface Redirect {
@@ -56,7 +73,12 @@ export interface DocsJson {
 }
 
 export function loadDocsJson(docsRoot: string): DocsJson {
-  const raw = fs.readFileSync(path.join(docsRoot, "docs.json"), "utf-8");
+  const docsJsonPath = resolveInside(docsRoot, "docs.json");
+  if (docsJsonPath === null) {
+    console.error("error: docs.json path escapes docs root");
+    process.exit(2);
+  }
+  const raw = fs.readFileSync(docsJsonPath, "utf-8");
   return JSON.parse(raw) as DocsJson;
 }
 
@@ -94,7 +116,8 @@ export function collectDiskPages(docsRoot: string): Set<string> {
   const pages = new Set<string>();
   const walk = (dir: string): void => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const abs = path.join(dir, entry.name);
+      const abs = resolveInside(docsRoot, dir, entry.name);
+      if (abs === null) continue; // never touch a path outside the docs root
       if (entry.isDirectory()) {
         if (dir === docsRoot && NON_PAGE_DIRS.has(entry.name)) continue;
         if (entry.name === "node_modules" || entry.name === ".git") continue;
@@ -116,7 +139,8 @@ export function collectAllFiles(docsRoot: string): Set<string> {
   const files = new Set<string>();
   const walk = (dir: string): void => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const abs = path.join(dir, entry.name);
+      const abs = resolveInside(docsRoot, dir, entry.name);
+      if (abs === null) continue; // never touch a path outside the docs root
       if (entry.isDirectory()) {
         if (entry.name === "node_modules" || entry.name === ".git") continue;
         walk(abs);
