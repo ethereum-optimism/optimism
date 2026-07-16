@@ -709,6 +709,25 @@ jobs:
           name: Check CircleCI schedule triggers
           command: bun .circleci/scripts/test-schedule-triggers.js
 
+  # Deterministic docs guardrails (docs/public-docs/scripts/lint/): nav validator
+  # (docs.json navigation vs on-disk tree) and redirect lint (moved/deleted pages
+  # must ship a redirect in the same PR; no chained/dead redirects; no dead
+  # internal links). Blobless checkout is required: the redirect lint diffs
+  # against the merge-base with origin/develop (tree-level only, no blobs).
+  docs-lint:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: small.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - run:
+          name: Validate docs navigation (docs.json vs tree)
+          command: bun docs/public-docs/scripts/lint/validate-nav.ts
+      - run:
+          name: Lint docs redirects and internal links
+          command: bun docs/public-docs/scripts/lint/validate-redirects.ts
+
   # Build a single Rust binary from a workspace. Will cache the binary by default.
   rust-build-binary:
     description: "Build a Rust workspace with target directory caching"
@@ -2583,6 +2602,10 @@ workflows:
             ./rust/rollup-boost
           context:
             - circleci-repo-readonly-authenticated-github-token
+      # Docs nav/redirect guardrails. Like shell-check, this whole-repo lint runs
+      # on every main pipeline and gates merge via ci-gate; docs-only PRs skip
+      # main but run the same job inside the ci-gate-skip workflow instead.
+      - docs-lint
       # Acceptance test jobs (formerly in separate acceptance-tests workflow)
       - rust-build-binary:
           name: rust-workspace-binaries
@@ -2678,6 +2701,7 @@ workflows:
           requires:
             - check-kontrol-build: terminal
             - shell-check: terminal
+            - docs-lint: terminal
             - go-lint: terminal
             - semgrep-scan-local: terminal
             - semgrep-test: terminal
@@ -3188,15 +3212,20 @@ workflows:
             - circleci-api-token
 
   # ============================================================================
-  # ci-gate (skip) — runs only on the docs-only fast path.
-  # Produces the ci-gate required status check with always-succeed so docs-only
-  # PRs (which skip the full `main` workflow) aren't blocked by a missing check.
+  # ci-gate (docs-only) — runs only on the docs-only fast path.
+  # Produces the ci-gate required status check so docs-only PRs (which skip the
+  # full `main` workflow) aren't blocked by a missing check, gated on the docs
+  # lint: the only check a docs-only PR needs. Terminal requires keep ci-gate
+  # scheduled even when docs-lint fails; ci-gate then verifies it passed (so no
+  # always-succeed here — that would green the check without verifying).
   # The real ci-gate still runs in `main` for every other path.
   # ============================================================================
   ci-gate-skip:
     when: << pipeline.parameters.c-run_ci_gate_skip >>
     jobs:
+      - docs-lint
       - ci-gate:
-          always-succeed: true
+          requires:
+            - docs-lint: terminal
           context:
             - circleci-api-token

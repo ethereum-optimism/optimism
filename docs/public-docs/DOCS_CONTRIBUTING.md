@@ -13,6 +13,7 @@ Thanks for taking the time to contribute! ❤️
     - [File Architecture](#file-architecture)
     - [Content Guidelines](#content-guidelines)
     - [Local Testing](#local-testing)
+    - [Nav and redirect lint (CI-enforced)](#nav-and-redirect-lint-ci-enforced)
   - [Pull Request Process](#pull-request-process)
     - [Before Submitting](#before-submitting)
     - [Submission Guidelines](#submission-guidelines)
@@ -60,6 +61,41 @@ Please refer to our comprehensive [Style Guide](STYLE_GUIDE.md) for detailed for
 ### Local Testing
 
 Follow these [docs](https://www.mintlify.com/docs/installation) for local changes.
+
+### Nav and redirect lint (CI-enforced)
+
+`docs.json` (navigation + redirects) is a CI-guarded artifact. Two deterministic
+checks run automatically on every PR that touches `docs/public-docs/`:
+
+- **Nav validator** (`scripts/lint/validate-nav.ts`): every `.mdx` on disk must
+  be reachable from `docs.json` navigation or explicitly allowlisted in
+  `scripts/lint/nav-allowlist.json` with a reason string; no duplicate nav
+  entries; no nav entries without a file.
+- **Redirect lint** (`scripts/lint/validate-redirects.ts`): a page you delete or
+  move must gain a redirect **in the same PR** (see the
+  [Redirects Guide](REDIRECTS_GUIDE.md)); no chained redirects; no redirects to
+  non-existent targets; no duplicate redirect sources; no redirect source that
+  shadows a live page; no internal links to non-existent paths.
+
+Run them locally before pushing:
+
+```bash
+# from docs/public-docs (uses the tsx devDependency)
+pnpm lint:nav
+pnpm lint:redirects
+
+# or from the monorepo root with bun (what CI runs)
+bun docs/public-docs/scripts/lint/validate-nav.ts
+bun docs/public-docs/scripts/lint/validate-redirects.ts
+```
+
+Violations that pre-date the checks are grandfathered in
+`scripts/lint/nav-allowlist.json` and `scripts/lint/redirect-lint-baseline.json`.
+Those files only shrink: if your PR fixes a grandfathered violation, remove its
+entry in the same PR (a stale entry fails the check). Never add a baseline entry
+to get a new violation past CI — add the missing redirect or nav entry instead;
+the allowlist is reserved for pages that are deliberately unlisted, with the
+reason recorded.
 
 ## Pull Request Process
 
