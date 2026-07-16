@@ -158,6 +158,10 @@ func (f *FaultDisputeGameContract080) DefendTx(ctx context.Context, parent types
 	return f.txWithBond(ctx, parent.Position.Defend(), call)
 }
 
+func (f *FaultDisputeGameContract080) IsClosed(context.Context) (bool, error) {
+	return true, nil
+}
+
 func (f *FaultDisputeGameContract080) GetBondDistributionMode(ctx context.Context, block rpcblock.Block) (types.BondDistributionMode, error) {
 	return types.LegacyDistributionMode, nil
 }

@@ -26,12 +26,13 @@ func withdrawalOpts(gameType gameTypes.GameType, extra ...presets.Option) []pres
 			cfg.DisputeGameType = uint32(gameType)
 		}),
 	}
-	if gameType == gameTypes.SuperPermissionedGameType {
+	if gameType == gameTypes.SuperPermissionedGameType || gameType == gameTypes.SuperCannonKonaGameType {
 		opts = append(opts, presets.WithDeployerOptions(
 			sysgo.WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag),
 			sysgo.WithDevFeatureEnabled(devfeatures.SuperRootGamesMigrationFlag),
 		))
-	} else {
+	}
+	if gameType != gameTypes.SuperPermissionedGameType {
 		opts = append(opts, presets.WithGameTypeAdded(gameType))
 	}
 	return append(opts, extra...)

@@ -10,3 +10,7 @@ import (
 func TestSuperPermissionedWithdrawal(gt *testing.T) {
 	withdrawal.TestWithdrawal(gt, gameTypes.SuperPermissionedGameType)
 }
+
+func TestSuperCannonKonaWithdrawal(gt *testing.T) {
+	withdrawal.TestWithdrawal(gt, gameTypes.SuperCannonKonaGameType)
+}

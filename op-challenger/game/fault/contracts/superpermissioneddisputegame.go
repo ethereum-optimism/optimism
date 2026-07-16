@@ -56,45 +56,40 @@ func (g *SuperPermissionedDisputeGameContract) ClaimCreditTx(
 }
 
 func (g *SuperPermissionedDisputeGameContract) IsClosed(ctx context.Context) (bool, error) {
-	asrAddr, err := g.anchorStateRegistry(ctx)
+	defer g.metrics.StartContractRequest("IsClosed")()
+	results, err := g.multiCaller.Call(
+		ctx,
+		rpcblock.Latest,
+		g.contract.Call(methodSuperPermissionedAnchorStateRegistry),
+		g.contract.Call(methodSuperPermissionedL2SequenceNumber),
+	)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("failed to retrieve game data: %w", err)
 	}
-	gameSequence, err := g.l2SequenceNumber(ctx)
-	if err != nil {
-		return false, err
+	if len(results) != 2 {
+		return false, fmt.Errorf("expected 2 results but got %v", len(results))
 	}
-	asr := NewAnchorStateRegistryContract(g.metrics, asrAddr, g.multiCaller)
+	asr := NewAnchorStateRegistryContract(g.metrics, results[0].GetAddress(0), g.multiCaller)
 	_, anchorSequence, err := asr.GetAnchorRoot(ctx, rpcblock.Latest)
 	if err != nil {
 		return false, err
 	}
-	return anchorSequence.Cmp(gameSequence) >= 0, nil
+	return anchorSequence.Cmp(results[1].GetBigInt(0)) >= 0, nil
 }
 
 func (g *SuperPermissionedDisputeGameContract) CloseGameTx(ctx context.Context) (txmgr.TxCandidate, error) {
-	asrAddr, err := g.anchorStateRegistry(ctx)
+	asr, err := g.anchorStateRegistry(ctx)
 	if err != nil {
 		return txmgr.TxCandidate{}, err
 	}
-	asr := NewAnchorStateRegistryContract(g.metrics, asrAddr, g.multiCaller)
 	return asr.SetAnchorStateTx(ctx, g.contract.Addr())
 }
 
-func (g *SuperPermissionedDisputeGameContract) anchorStateRegistry(ctx context.Context) (common.Address, error) {
+func (g *SuperPermissionedDisputeGameContract) anchorStateRegistry(ctx context.Context) (*AnchorStateRegistryContract, error) {
 	defer g.metrics.StartContractRequest("GetAnchorStateRegistry")()
 	result, err := g.multiCaller.SingleCall(ctx, rpcblock.Latest, g.contract.Call(methodSuperPermissionedAnchorStateRegistry))
 	if err != nil {
-		return common.Address{}, fmt.Errorf("failed to retrieve anchor state registry: %w", err)
+		return nil, fmt.Errorf("failed to retrieve anchor state registry: %w", err)
 	}
-	return result.GetAddress(0), nil
-}
-
-func (g *SuperPermissionedDisputeGameContract) l2SequenceNumber(ctx context.Context) (*big.Int, error) {
-	defer g.metrics.StartContractRequest("GetL2SequenceNumber")()
-	result, err := g.multiCaller.SingleCall(ctx, rpcblock.Latest, g.contract.Call(methodSuperPermissionedL2SequenceNumber))
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve L2 sequence number: %w", err)
-	}
-	return result.GetBigInt(0), nil
+	return NewAnchorStateRegistryContract(g.metrics, result.GetAddress(0), g.multiCaller), nil
 }

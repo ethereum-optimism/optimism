@@ -544,29 +544,7 @@ func (f *FaultDisputeGameContractLatest) GetAllClaims(ctx context.Context, block
 }
 
 func (f *FaultDisputeGameContractLatest) IsClosed(ctx context.Context) (bool, error) {
-	return isClosed(ctx, f)
-}
-
-func (f *FaultDisputeGameContract080) IsClosed(ctx context.Context) (bool, error) {
-	return isClosed(ctx, f)
-}
-
-func (f *FaultDisputeGameContract0180) IsClosed(ctx context.Context) (bool, error) {
-	return isClosed(ctx, f)
-}
-
-func (f *FaultDisputeGameContract111) IsClosed(ctx context.Context) (bool, error) {
-	return isClosed(ctx, f)
-}
-
-func (f *FaultDisputeGameContract131) IsClosed(ctx context.Context) (bool, error) {
-	return isClosed(ctx, f)
-}
-
-func isClosed(ctx context.Context, game interface {
-	GetBondDistributionMode(context.Context, rpcblock.Block) (types.BondDistributionMode, error)
-}) (bool, error) {
-	mode, err := game.GetBondDistributionMode(ctx, rpcblock.Latest)
+	mode, err := f.GetBondDistributionMode(ctx, rpcblock.Latest)
 	if err != nil {
 		return false, err
 	}
