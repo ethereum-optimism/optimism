@@ -38,7 +38,7 @@ The canonical list lives in the [`GameTypes` library](https://github.com/ethereu
 
 Notes:
 
-*   A game type is only playable on a chain after the `DisputeGameFactory` owner registers an implementation for it (`setImplementation`) and sets its initialization bond (`setInitBond`).
+*   A game type is only playable on a chain after the `DisputeGameFactory` owner registers an implementation for it (`setImplementation`); the owner also sets the bond required to create games of that type (`setInitBond`).
 *   The **respected game type** — the game type whose results the system accepts for withdrawals and anchor state updates — is stored in the `AnchorStateRegistry` and can be changed by the Guardian via `setRespectedGameType`.
 *   `op-deployer` deploys new standard chains with the permissioned game (type `1`) as the initial game type.
 
@@ -51,7 +51,7 @@ Per-chain deployment addresses are listed in the [Superchain Registry](/op-stack
 | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | [`DisputeGameFactory`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/DisputeGameFactory.sol)         | Creates dispute games as clones of registered implementations and stores them in a lookup mapping and an append-only list                          |
 | [`FaultDisputeGame`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol)             | The bisection dispute game: claims, moves, chess clocks, bonds, and onchain single-instruction steps                                              |
-| [`PermissionedDisputeGame`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/PermissionedDisputeGame.sol) | `FaultDisputeGame` variant where only the `PROPOSER` and `CHALLENGER` roles can create games and make moves                                        |
+| [`PermissionedDisputeGame`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/PermissionedDisputeGame.sol) | `FaultDisputeGame` variant where only the `PROPOSER` role can create games, and only the `PROPOSER` and `CHALLENGER` roles can make moves                                        |
 | [`SuperFaultDisputeGame`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/SuperFaultDisputeGame.sol)   | Fault dispute game implementation for interop (disputes Super Roots)                                                                              |
 | [`SuperPermissionedDisputeGame`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/SuperPermissionedDisputeGame.sol) | Simplified permissioned super-root game; invalid proposals are invalidated through the `AnchorStateRegistry` blacklist before finalization |
 | [`AnchorStateRegistry`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/AnchorStateRegistry.sol)       | Stores the anchor state (the starting point for new games), the respected game type, the game blacklist, and the retirement timestamp             |
@@ -98,7 +98,7 @@ Individual chains can deviate; always confirm against the chain's deployed confi
 | `disputeGameFinalityDelaySeconds` | 302,400 seconds (3.5 days) | `AnchorStateRegistry` | Delay after a game resolves before its result is considered finalized     |
 | `withdrawalDelaySeconds`          | 302,400 seconds (3.5 days) | `DelayedWETH`         | Delay between unlocking a bond withdrawal and being able to execute it    |
 | `challengePeriodSeconds`          | 86,400 seconds (24 hours)  | `PreimageOracle`      | Challenge window for large-preimage proposals                             |
-| `minProposalSizeBytes`            | 126,000 bytes              | `PreimageOracle`      | Minimum preimage size that must use the large-preimage proposal path      |
+| `minProposalSizeBytes`            | 126,000 bytes              | `PreimageOracle`      | Minimum size of a preimage that can be submitted through the large-preimage proposal path |
 
 ## Clocks
 
@@ -113,7 +113,7 @@ Each side of a fault dispute game plays against a chess clock:
 *   **Creating a game** requires the initialization bond for that game type: `DisputeGameFactory.initBonds(gameType)`, set per chain by the factory owner.
 *   **Every move** (attack or defend) requires a bond of exactly `getRequiredBond(position)`. Bonds scale exponentially with depth: with the constants in `FaultDisputeGame` (an assumed 200 gwei base fee, scaling from 400,000 gas at depth 0 to 300,000,000 gas at `maxGameDepth`), this is 0.08 ETH for a claim at depth 0, rising to 60 ETH at the maximum depth.
 *   Bonds are held in the game's `DelayedWETH` contract and paid out only after the game resolves and is finalized, and after the `DelayedWETH` unlock delay passes.
-*   **Distribution mode:** when a game closes it selects a `BondDistributionMode`. A proper game (registered, respected, not blacklisted, not retired) distributes bonds normally — the bond of every successfully countered claim is paid to the countering party, and uncontested claims are refunded. An improper game enters refund mode and returns every bond to its original depositor.
+*   **Distribution mode:** when a game closes it selects a `BondDistributionMode`. A proper game (created by the `DisputeGameFactory`, not blacklisted, and not retired) distributes bonds normally — the bond of every successfully countered claim is paid to the countering party, and uncontested claims are refunded. An improper game enters refund mode and returns every bond to its original depositor.
 
 ## Game statuses
 
