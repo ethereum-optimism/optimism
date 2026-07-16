@@ -1,0 +1,31 @@
+Policy-conformant examples of every link shape the linter checks.
+
+Current rendered spec path, UTM before the fragment, anchor resolves:
+[frame format](https://specs.optimism.io/protocol/derivation.html?utm_source=op-docs&utm_medium=docs#frame-format).
+
+Plain rendered spec link with a resolving anchor and no query:
+[wire format](https://specs.optimism.io/protocol/derivation.html#batch-submission-wire-format).
+
+Floating source link on a branch (no badge needed):
+[flags.go](https://github.com/ethereum-optimism/optimism/blob/develop/op-batcher/flags/flags.go).
+
+Pinned source link carrying its badge on the same line (as of `v1.1.4`):
+[OptimismPortal.sol](https://github.com/ethereum-optimism/optimism/blob/v1.1.4/packages/contracts-bedrock/contracts/L1/OptimismPortal.sol).
+
+Prefixed release tag, badge on the adjacent line —
+[SystemConfig.sol](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v4.0.0/packages/contracts-bedrock/src/L1/SystemConfig.sol)
+(as of `op-contracts/v4.0.0`).
+
+Root-relative internal link to a page that exists:
+[these examples](/good-links), including with [anchor and query](/good-links?x=1#somewhere).
+
+A fragment-only link is [fine](#somewhere), and URLs inside code are ignored:
+`https://specs.optimism.io/experimental/plasma.html` stays illustrative.
+
+```md
+[not linted](https://specs.optimism.io/experimental/fault-proof/index.html#pre-image-oracle?utm_source=x)
+[not linted either](/nowhere/at/all)
+```
+
+GitHub blob link into the specs repo that is NOT a rendered page (allowed):
+[book.toml](https://github.com/ethereum-optimism/specs/blob/main/book.toml).

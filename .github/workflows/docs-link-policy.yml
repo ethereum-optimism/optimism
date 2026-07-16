@@ -1,0 +1,69 @@
+name: docs-link-policy
+
+# Enforces the cross-repo link policy for docs.optimism.io
+# (docs/public-docs/op-stack/contribute/link-policy.mdx).
+#
+# The linter is deterministic and baseline-gated: pre-existing violations are
+# recorded in docs/public-docs/scripts/lint-link-policy.baseline.json and only
+# NEW violations fail the check. The baseline is the remediation-sweep
+# worklist — shrink it, never grow it.
+
+on:
+  push:
+    branches:
+      - 'develop'
+    paths:
+      - 'docs/public-docs/**'
+      - 'docs/lint-link-policy-fixtures/**'
+      - '.github/workflows/docs-link-policy.yml'
+  pull_request:
+    paths:
+      - 'docs/public-docs/**'
+      - 'docs/lint-link-policy-fixtures/**'
+      - '.github/workflows/docs-link-policy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  link-policy:
+    name: link policy linter
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2
+        with:
+          egress-policy: audit
+      - name: Checkout
+        uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e # v6
+      - name: Linter self-test against the synthetic fixtures
+        run: node docs/public-docs/scripts/lint-link-policy.mjs --self-test
+      - name: Checkout specs source for path/anchor resolution
+        run: git clone --depth 1 https://github.com/ethereum-optimism/specs.git "$RUNNER_TEMP/specs"
+      - name: Lint links (fails only on NEW violations)
+        run: |
+          set -euo pipefail
+          node docs/public-docs/scripts/lint-link-policy.mjs \
+            --docs docs/public-docs \
+            --specs-src "$RUNNER_TEMP/specs" \
+            --baseline docs/public-docs/scripts/lint-link-policy.baseline.json
+
+  # Mintlify's own dead-link checker, run alongside the policy linter as an
+  # advisory second opinion on internal links. Advisory (continue-on-error)
+  # until the B2 remediation sweep clears the pre-existing broken links; flip
+  # to blocking once `mint broken-links` is green on develop.
+  mint-broken-links:
+    name: mint broken-links (advisory)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2
+        with:
+          egress-policy: audit
+      - name: Checkout
+        uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e # v6
+      - name: Run mint broken-links
+        working-directory: docs/public-docs
+        run: npx --yes mint broken-links
