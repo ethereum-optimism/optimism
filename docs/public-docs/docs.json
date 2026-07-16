@@ -2388,6 +2388,16 @@
             "pages": [
               "/op-stack/reference/glossary"
             ]
+          },
+          {
+            "group": "Contribute",
+            "pages": [
+              "/op-stack/contribute/choose-a-content-type",
+              "/op-stack/contribute/solution-guide",
+              "/op-stack/contribute/learning-unit",
+              "/op-stack/contribute/curriculum-hub",
+              "/op-stack/contribute/router-landing"
+            ]
           }
         ]
       },
