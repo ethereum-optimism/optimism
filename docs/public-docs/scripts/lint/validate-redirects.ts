@@ -41,6 +41,7 @@ import {
   loadDocsJson,
   normalizePath,
   report,
+  resolveInside,
   resolvesToPage,
 } from "./common";
 
@@ -54,7 +55,11 @@ const docsJson = loadDocsJson(docsRoot);
 const diskPages = collectDiskPages(docsRoot);
 const allFiles = collectAllFiles(docsRoot);
 
-const baselinePath = path.join(docsRoot, "scripts", "lint", "redirect-lint-baseline.json");
+const baselinePath = resolveInside(docsRoot, "scripts", "lint", "redirect-lint-baseline.json");
+if (baselinePath === null) {
+  console.error("error: redirect-lint-baseline.json path escapes docs root");
+  process.exit(2);
+}
 const baseline = JSON.parse(fs.readFileSync(baselinePath, "utf-8")) as Baseline;
 
 const errors: string[] = [];
@@ -195,7 +200,8 @@ const snippetsDir = path.join(docsRoot, "snippets");
 if (fs.existsSync(snippetsDir)) {
   const walk = (dir: string): void => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const abs = path.join(dir, entry.name);
+      const abs = resolveInside(docsRoot, dir, entry.name);
+      if (abs === null) continue; // never touch a path outside the docs root
       if (entry.isDirectory()) walk(abs);
       else if (entry.name.endsWith(".mdx")) snippetFiles.push(path.relative(docsRoot, abs));
     }
@@ -205,7 +211,12 @@ if (fs.existsSync(snippetsDir)) {
 
 const usedBaseline = new Map<string, Set<string>>();
 for (const file of [...mdxFiles, ...snippetFiles]) {
-  const text = stripCode(fs.readFileSync(path.join(docsRoot, file), "utf-8"));
+  const filePath = resolveInside(docsRoot, file);
+  if (filePath === null) {
+    errors.push(`path escapes docs root: "${file}" — refusing to read it for the link scan`);
+    continue;
+  }
+  const text = stripCode(fs.readFileSync(filePath, "utf-8"));
   for (const match of text.matchAll(LINK_RE)) {
     const target = match[1];
     if (linkOk(target)) continue;

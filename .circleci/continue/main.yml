@@ -2605,7 +2605,9 @@ workflows:
       # Docs nav/redirect guardrails. Like shell-check, this whole-repo lint runs
       # on every main pipeline and gates merge via ci-gate; docs-only PRs skip
       # main but run the same job inside the ci-gate-skip workflow instead.
-      - docs-lint
+      - docs-lint:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       # Acceptance test jobs (formerly in separate acceptance-tests workflow)
       - rust-build-binary:
           name: rust-workspace-binaries
@@ -3223,7 +3225,9 @@ workflows:
   ci-gate-skip:
     when: << pipeline.parameters.c-run_ci_gate_skip >>
     jobs:
-      - docs-lint
+      - docs-lint:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - ci-gate:
           requires:
             - docs-lint: terminal
