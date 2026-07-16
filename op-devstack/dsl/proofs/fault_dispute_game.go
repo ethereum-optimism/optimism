@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
@@ -139,6 +140,11 @@ func (g *FaultDisputeGame) requiredBond(pos challengerTypes.Position) eth.ETH {
 	return eth.WeiBig(contract.Read(g.game.GetRequiredBond((*bindings.Uint128)(pos.ToGIndex()))))
 }
 
+func (g *FaultDisputeGame) readStatus(ctx context.Context) (gameTypes.GameStatus, error) {
+	status, err := contractio.Read(g.game.Status(), ctx)
+	return gameTypes.GameStatus(status), err
+}
+
 func (g *FaultDisputeGame) status() gameTypes.GameStatus {
 	status := contract.Read(g.game.Status())
 	return gameTypes.GameStatus(status)
@@ -150,11 +156,17 @@ func (g *FaultDisputeGame) WaitForGameStatus(expected gameTypes.GameStatus) {
 	defer cancel()
 
 	var actual gameTypes.GameStatus
+	var lastReadErr error
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
-		actual = g.status()
+		actual, lastReadErr = g.readStatus(timedCtx)
+		if lastReadErr != nil {
+			g.t.Logf("Game %v status unavailable while waiting for %v: %v", g.Address, expected, lastReadErr)
+			return false, nil
+		}
+		g.t.Logf("Game %v has status %v, waiting for %v", g.Address, actual, expected)
 		return actual == expected, nil
 	})
-	g.require.NoErrorf(err, "game status mismatch: expected %s, got %s", expected, actual)
+	g.require.NoErrorf(err, "game %v status mismatch: expected %s, got %s; last read error: %v", g.Address, expected, actual, lastReadErr)
 }
 
 func (g *FaultDisputeGame) newClaim(claimIndex uint64, claim bindings.Claim) *Claim {
