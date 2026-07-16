@@ -1936,7 +1936,8 @@
                   "chain-operators/guides/features/setting-da-footprint",
                   "chain-operators/guides/features/flashblocks-guide",
                   "chain-operators/guides/features/alt-da-mode-guide",
-                  "chain-operators/guides/features/blobs"
+                  "chain-operators/guides/features/blobs",
+                  "chain-operators/guides/features/enable-span-batches"
                 ]
               },
               {
