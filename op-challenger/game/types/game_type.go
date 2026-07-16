@@ -39,19 +39,6 @@ func (g GameType) IsPermissioned() bool {
 // configuration (the --cannon-* flags).
 var CannonFamilyGameTypes = []GameType{CannonGameType, PermissionedGameType}
 
-// SupportedLifecycleGameTypes is the fixed set of game types supported by the
-// op-challenger lifecycle, including games that it cannot play.
-var SupportedLifecycleGameTypes = []GameType{
-	AlphabetGameType,
-	CannonGameType,
-	CannonKonaGameType,
-	PermissionedGameType,
-	SuperPermissionedGameType,
-	FastGameType,
-	SuperCannonKonaGameType,
-	ZKDisputeGameType,
-}
-
 // PlayableGameTypes is the set of game types that may be selected for trace execution.
 var PlayableGameTypes = []GameType{
 	AlphabetGameType,
@@ -62,6 +49,13 @@ var PlayableGameTypes = []GameType{
 	SuperCannonKonaGameType,
 	ZKDisputeGameType,
 }
+
+// SupportedLifecycleGameTypes is the fixed set of game types supported by the
+// op-challenger lifecycle, including games that it cannot play.
+var SupportedLifecycleGameTypes = append(
+	[]GameType{SuperPermissionedGameType},
+	PlayableGameTypes...,
+)
 
 // Set implements the Set method required by the [cli.Generic] interface.
 func (g *GameType) Set(value string) error {

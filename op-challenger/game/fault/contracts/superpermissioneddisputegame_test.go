@@ -3,10 +3,13 @@ package contracts
 import (
 	"context"
 	"errors"
+	"math"
 	"math/big"
 	"testing"
+	"time"
 
 	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
+	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
@@ -113,6 +116,101 @@ func TestSuperPermissionedGame_CloseGameTx(t *testing.T) {
 		require.ErrorIs(t, err, simulationErr)
 		require.Equal(t, txmgr.TxCandidate{}, candidate)
 	})
+}
+
+func TestSuperPermissionedGame_GetExtendedMetadata(t *testing.T) {
+	stubRpc, game := setupSuperPermissionedDisputeGameTest(t)
+	l1Head := common.Hash{0xcc}
+	rootClaim := common.Hash{0xdd}
+	stubRpc.SetResponse(superPermissionedGameAddr, methodSuperPermissionedL1Head, rpcblock.Latest, nil, []any{l1Head})
+	stubRpc.SetResponse(superPermissionedGameAddr, methodSuperPermissionedL2SequenceNumber, rpcblock.Latest, nil, []any{big.NewInt(1234)})
+	stubRpc.SetResponse(superPermissionedGameAddr, methodSuperPermissionedRootClaim, rpcblock.Latest, nil, []any{rootClaim})
+	stubRpc.SetResponse(superPermissionedGameAddr, methodSuperPermissionedStatus, rpcblock.Latest, nil, []any{uint8(gameTypes.GameStatusDefenderWon)})
+
+	meta, err := game.GetExtendedMetadata(context.Background(), rpcblock.Latest)
+
+	require.NoError(t, err)
+	require.Equal(t, l1Head, meta.L1Head)
+	require.Equal(t, uint64(1234), meta.L2SequenceNum)
+	require.Equal(t, rootClaim, meta.RootClaim)
+	require.Equal(t, gameTypes.GameStatusDefenderWon, meta.Status)
+}
+
+func TestSuperPermissionedGame_GetExtendedMetadata_L2SequenceNumberOverflow(t *testing.T) {
+	stubRpc, game := setupSuperPermissionedDisputeGameTest(t)
+	tooBig := new(big.Int).Add(new(big.Int).SetUint64(math.MaxUint64), big.NewInt(1))
+	stubRpc.SetResponse(superPermissionedGameAddr, methodSuperPermissionedL1Head, rpcblock.Latest, nil, []any{common.Hash{}})
+	stubRpc.SetResponse(superPermissionedGameAddr, methodSuperPermissionedL2SequenceNumber, rpcblock.Latest, nil, []any{tooBig})
+	stubRpc.SetResponse(superPermissionedGameAddr, methodSuperPermissionedRootClaim, rpcblock.Latest, nil, []any{common.Hash{}})
+	stubRpc.SetResponse(superPermissionedGameAddr, methodSuperPermissionedStatus, rpcblock.Latest, nil, []any{uint8(gameTypes.GameStatusInProgress)})
+
+	meta, err := game.GetExtendedMetadata(context.Background(), rpcblock.Latest)
+
+	require.NoError(t, err)
+	require.Equal(t, uint64(math.MaxUint64), meta.L2SequenceNum)
+}
+
+func TestSuperPermissionedGame_GetAnchorStateRegistry(t *testing.T) {
+	stubRpc, game := setupSuperPermissionedDisputeGameTest(t)
+	stubRpc.SetResponse(superPermissionedGameAddr, methodSuperPermissionedAnchorStateRegistry, rpcblock.Latest, nil, []any{superPermissionedASRAddr})
+
+	actual, err := game.GetAnchorStateRegistry(context.Background(), rpcblock.Latest)
+
+	require.NoError(t, err)
+	require.Equal(t, superPermissionedASRAddr, actual)
+}
+
+func TestSuperPermissionedGame_GetAllClaims(t *testing.T) {
+	_, game := setupSuperPermissionedDisputeGameTest(t)
+	claims, err := game.GetAllClaims(context.Background(), rpcblock.Latest)
+	require.NoError(t, err)
+	require.Nil(t, claims)
+}
+
+func TestSuperPermissionedGame_IsResolved(t *testing.T) {
+	_, game := setupSuperPermissionedDisputeGameTest(t)
+	resolved, err := game.IsResolved(context.Background(), rpcblock.Latest, faultTypes.Claim{}, faultTypes.Claim{})
+	require.NoError(t, err)
+	require.Equal(t, []bool{false, false}, resolved)
+}
+
+func TestSuperPermissionedGame_GetWithdrawals(t *testing.T) {
+	_, game := setupSuperPermissionedDisputeGameTest(t)
+	recipients := []common.Address{{0x01}, {0x02}}
+	withdrawals, err := game.GetWithdrawals(context.Background(), rpcblock.Latest, recipients...)
+	require.NoError(t, err)
+	require.Len(t, withdrawals, len(recipients))
+	for _, withdrawal := range withdrawals {
+		require.Zero(t, withdrawal.Amount.Sign())
+		require.Zero(t, withdrawal.Timestamp.Sign())
+	}
+}
+
+func TestSuperPermissionedGame_GetCredits(t *testing.T) {
+	_, game := setupSuperPermissionedDisputeGameTest(t)
+	recipients := []common.Address{{0x01}, {0x02}, {0x03}}
+	credits, err := game.GetCredits(context.Background(), rpcblock.Latest, recipients...)
+	require.NoError(t, err)
+	require.Len(t, credits, len(recipients))
+	for _, credit := range credits {
+		require.Zero(t, credit.Sign())
+	}
+}
+
+func TestSuperPermissionedGame_GetBondDistributionMode(t *testing.T) {
+	_, game := setupSuperPermissionedDisputeGameTest(t)
+	mode, err := game.GetBondDistributionMode(context.Background(), rpcblock.Latest)
+	require.NoError(t, err)
+	require.Equal(t, faultTypes.UndecidedDistributionMode, mode)
+}
+
+func TestSuperPermissionedGame_GetBalanceAndDelay(t *testing.T) {
+	_, game := setupSuperPermissionedDisputeGameTest(t)
+	balance, delay, addr, err := game.GetBalanceAndDelay(context.Background(), rpcblock.Latest)
+	require.NoError(t, err)
+	require.Zero(t, balance.Sign())
+	require.Equal(t, time.Duration(0), delay)
+	require.Equal(t, common.Address{}, addr)
 }
 
 func setupSuperPermissionedDisputeGameTest(t *testing.T) (*batchingTest.AbiBasedRpc, *SuperPermissionedDisputeGameContract) {
