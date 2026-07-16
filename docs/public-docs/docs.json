@@ -2395,6 +2395,12 @@
             "pages": [
               "/op-stack/reference/glossary"
             ]
+          },
+          {
+            "group": "Contribute",
+            "pages": [
+              "/op-stack/contribute/content-guide"
+            ]
           }
         ]
       },
