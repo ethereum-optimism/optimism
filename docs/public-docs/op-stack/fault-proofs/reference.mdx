@@ -1,0 +1,132 @@
+---
+title: Fault proofs reference
+description: Reference for OP Stack dispute game types, core fault proof contracts,
+  and standard game parameters.
+diataxis: reference
+---
+
+This page catalogues the dispute game types, core contracts, and parameters of the OP Stack's fault proof system.
+For how the system works, see the [Fault proofs explainer](/op-stack/fault-proofs/explainer) and [FP system components](/op-stack/fault-proofs/fp-components).
+
+<Info>
+  Contract addresses and several parameter values are set per chain.
+  Look up the values for a specific chain in the [Superchain Registry](/op-stack/protocol/superchain-registry) or by querying the deployed contracts directly.
+  The standard values on this page are the defaults `op-deployer` applies to new standard chains, as defined in [`op-deployer/pkg/deployer/standard/standard.go`](https://github.com/ethereum-optimism/optimism/blob/develop/op-deployer/pkg/deployer/standard/standard.go).
+</Info>
+
+## Dispute game types
+
+Every dispute game is created through the `DisputeGameFactory` with a `GameType`, a `uint32` that selects which registered game implementation the factory clones.
+The canonical list lives in the [`GameTypes` library](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/lib/Types.sol).
+
+| Value | Name                 | Description                                                                       |
+| ----- | -------------------- | --------------------------------------------------------------------------------- |
+| 0     | `CANNON`             | Fault dispute game using the Cannon VM                                            |
+| 1     | `PERMISSIONED_CANNON` | Permissioned dispute game using the Cannon VM; only the designated `PROPOSER` and `CHALLENGER` roles can participate |
+| 2     | `ASTERISC`           | Dispute game using the Asterisc VM                                                |
+| 3     | `ASTERISC_KONA`      | Dispute game using the Asterisc VM with Kona                                      |
+| 4     | `SUPER_CANNON`       | Dispute game using the Cannon VM over Super Roots (interop)                       |
+| 5     | `SUPER_PERMISSIONED` | Permissioned dispute game for Super Roots                                         |
+| 6     | `OP_SUCCINCT`        | Dispute game using OP Succinct                                                    |
+| 7     | `SUPER_ASTERISC_KONA` | Dispute game using the Asterisc VM with Kona over Super Roots                     |
+| 8     | `CANNON_KONA`        | Dispute game using the Cannon VM with Kona                                        |
+| 9     | `SUPER_CANNON_KONA`  | Dispute game using the Cannon VM with Kona over Super Roots                       |
+| 10    | `ZK_DISPUTE_GAME`    | Dispute game using optimistic + ZK proofs for dispute resolution (Super Roots)    |
+| 254   | `FAST`               | Short-duration game for testing withdrawals; not intended for production use      |
+| 255   | `ALPHABET`           | Test game using an alphabet VM; not intended for production use                   |
+| 1337  | `KAILUA`             | Dispute game using RISC Zero's Kailua                                             |
+
+Notes:
+
+*   A game type is only playable on a chain after the `DisputeGameFactory` owner registers an implementation for it (`setImplementation`) and sets its initialization bond (`setInitBond`).
+*   The **respected game type** — the game type whose results the system accepts for withdrawals and anchor state updates — is stored in the `AnchorStateRegistry` and can be changed by the Guardian via `setRespectedGameType`.
+*   `op-deployer` deploys new standard chains with the permissioned game (type `1`) as the initial game type.
+
+## Core contracts
+
+All fault proof contracts live in the monorepo under [`packages/contracts-bedrock/src`](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src).
+Per-chain deployment addresses are listed in the [Superchain Registry](/op-stack/protocol/superchain-registry).
+
+| Contract                                                                                                                                               | Purpose                                                                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`DisputeGameFactory`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/DisputeGameFactory.sol)         | Creates dispute games as clones of registered implementations and stores them in a lookup mapping and an append-only list                          |
+| [`FaultDisputeGame`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol)             | The bisection dispute game: claims, moves, chess clocks, bonds, and onchain single-instruction steps                                              |
+| [`PermissionedDisputeGame`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/PermissionedDisputeGame.sol) | `FaultDisputeGame` variant where only the `PROPOSER` and `CHALLENGER` roles can create games and make moves                                        |
+| [`SuperFaultDisputeGame`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/SuperFaultDisputeGame.sol)   | Fault dispute game implementation for interop (disputes Super Roots)                                                                              |
+| [`SuperPermissionedDisputeGame`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/SuperPermissionedDisputeGame.sol) | Simplified permissioned super-root game; invalid proposals are invalidated through the `AnchorStateRegistry` blacklist before finalization |
+| [`AnchorStateRegistry`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/AnchorStateRegistry.sol)       | Stores the anchor state (the starting point for new games), the respected game type, the game blacklist, and the retirement timestamp             |
+| [`DelayedWETH`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/DelayedWETH.sol)                       | WETH9 extension that holds game bonds and enforces an unlock-then-delay period before withdrawal, giving the owner time to recover from errors     |
+| [`MIPS64`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/cannon/MIPS64.sol)                                  | Onchain fault proof VM that emulates a single MIPS instruction (the onchain half of [Cannon](/op-stack/fault-proofs/cannon))                       |
+| [`PreimageOracle`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/cannon/PreimageOracle.sol)                  | Stores preimages that the fault proof VM reads during onchain execution, including the large-preimage proposal path                                |
+| [`OptimismPortal2`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OptimismPortal2.sol)                    | Entry point for deposits and withdrawals; withdrawals are proven against dispute game results and finalized after the maturity delay               |
+
+### Common lookup functions
+
+| Function                                              | Contract              | Returns                                                                     |
+| ----------------------------------------------------- | --------------------- | ---------------------------------------------------------------------------- |
+| `gameCount()`                                         | `DisputeGameFactory`  | Total number of games created by the factory                                 |
+| `gameAtIndex(uint256)`                                | `DisputeGameFactory`  | Game type, creation timestamp, and proxy address at an index                 |
+| `games(GameType, Claim, bytes)`                       | `DisputeGameFactory`  | The game proxy (if any) matching a game type, root claim, and extra data     |
+| `findLatestGames(GameType, uint256, uint256)`         | `DisputeGameFactory`  | The `n` most recent games of a type, starting from an index                  |
+| `gameImpls(GameType)`                                 | `DisputeGameFactory`  | The implementation registered for a game type                                |
+| `initBonds(GameType)`                                 | `DisputeGameFactory`  | The bond (in wei) required to create a game of that type                     |
+| `respectedGameType()`                                 | `AnchorStateRegistry` | The game type currently accepted by the system                               |
+| `getAnchorRoot()`                                     | `AnchorStateRegistry` | The current anchor root and its L2 sequence number                           |
+| `isGameBlacklisted(IDisputeGame)`                     | `AnchorStateRegistry` | Whether the Guardian has blacklisted a specific game                          |
+| `status()`                                            | dispute game          | The game's current `GameStatus`                                              |
+| `getRequiredBond(Position)`                           | `FaultDisputeGame`    | The ETH bond (in wei) required for a move at a position                      |
+
+## Standard parameters
+
+Values below are the `op-deployer` standard-chain defaults.
+Individual chains can deviate; always confirm against the chain's deployed configuration.
+
+### Bisection game
+
+| Parameter          | Standard value           | Description                                                                                             |
+| ------------------ | ------------------------ | ------------------------------------------------------------------------------------------------------- |
+| `maxGameDepth`     | 73                       | Maximum depth of the claim tree; at this depth a claim is resolved by an onchain VM `step`               |
+| `splitDepth`       | 30                       | Depth at which the game switches from bisecting output roots to bisecting a single block's execution trace |
+| `maxClockDuration` | 302,400 seconds (3.5 days) | Maximum total time each side's chess clock may accumulate                                                |
+| `clockExtension`   | 10,800 seconds (3 hours)  | Minimum time guaranteed to respond to a claim when the clock is nearly exhausted                          |
+
+### Timing and finality
+
+| Parameter                         | Standard value             | Contract              | Description                                                             |
+| --------------------------------- | -------------------------- | --------------------- | ------------------------------------------------------------------------ |
+| `proofMaturityDelaySeconds`       | 604,800 seconds (7 days)   | `OptimismPortal2`     | Delay between proving a withdrawal and being able to finalize it          |
+| `disputeGameFinalityDelaySeconds` | 302,400 seconds (3.5 days) | `AnchorStateRegistry` | Delay after a game resolves before its result is considered finalized     |
+| `withdrawalDelaySeconds`          | 302,400 seconds (3.5 days) | `DelayedWETH`         | Delay between unlocking a bond withdrawal and being able to execute it    |
+| `challengePeriodSeconds`          | 86,400 seconds (24 hours)  | `PreimageOracle`      | Challenge window for large-preimage proposals                             |
+| `minProposalSizeBytes`            | 126,000 bytes              | `PreimageOracle`      | Minimum preimage size that must use the large-preimage proposal path      |
+
+## Clocks
+
+Each side of a fault dispute game plays against a chess clock:
+
+*   A claim inherits its clock from its grandparent claim (claims at alternating depths belong to alternating teams).
+*   A move can no longer be made against a claim once that claim's clock has accumulated `maxClockDuration` seconds.
+*   When a move would leave the responder with less than the clock extension remaining, the clock is topped up so the responder gets at least the extension time. The extension is `clockExtension` in the general case, `clockExtension * 2` for the move that starts execution-trace bisection (depth `splitDepth - 1`, to allow time to generate the instruction trace), and `clockExtension + challengePeriodSeconds` for the move before a VM step (depth `maxGameDepth - 1`, to allow for large-preimage proposals).
+
+## Bonds
+
+*   **Creating a game** requires the initialization bond for that game type: `DisputeGameFactory.initBonds(gameType)`, set per chain by the factory owner.
+*   **Every move** (attack or defend) requires a bond of exactly `getRequiredBond(position)`. Bonds scale exponentially with depth: with the constants in `FaultDisputeGame` (an assumed 200 gwei base fee, scaling from 400,000 gas at depth 0 to 300,000,000 gas at `maxGameDepth`), this is 0.08 ETH for a claim at depth 0, rising to 60 ETH at the maximum depth.
+*   Bonds are held in the game's `DelayedWETH` contract and paid out only after the game resolves and is finalized, and after the `DelayedWETH` unlock delay passes.
+*   **Distribution mode:** when a game closes it selects a `BondDistributionMode`. A proper game (registered, respected, not blacklisted, not retired) distributes bonds normally — the bond of every successfully countered claim is paid to the countering party, and uncontested claims are refunded. An improper game enters refund mode and returns every bond to its original depositor.
+
+## Game statuses
+
+The `GameStatus` enum in [`Types.sol`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/lib/Types.sol):
+
+| Status            | Meaning                                                             |
+| ----------------- | -------------------------------------------------------------------- |
+| `IN_PROGRESS`     | The game has not been resolved                                        |
+| `CHALLENGER_WINS` | The game concluded and the root claim was successfully challenged     |
+| `DEFENDER_WINS`   | The game concluded and the root claim could not be contested          |
+
+## Next steps
+
+*   For the concepts behind these values, read the [Fault proofs explainer](/op-stack/fault-proofs/explainer) and [FP system components](/op-stack/fault-proofs/fp-components).
+*   For the honest actor that plays these games, see [OP-Challenger](/op-stack/fault-proofs/challenger).
+*   For the normative definitions, see the [fault dispute game specs](https://specs.optimism.io/fault-proof/stage-one/fault-dispute-game.html?utm_source=op-docs&utm_medium=docs) and the [bond incentives specs](https://specs.optimism.io/fault-proof/stage-one/bond-incentives.html?utm_source=op-docs&utm_medium=docs).

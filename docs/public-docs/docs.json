@@ -3332,6 +3332,7 @@
             "pages": [
               "op-stack/fault-proofs/index",
               "op-stack/fault-proofs/explainer",
+              "op-stack/fault-proofs/reference",
               "/op-stack/fault-proofs/fp-security",
               "op-stack/fault-proofs/fp-components",
               "op-stack/fault-proofs/cannon",
