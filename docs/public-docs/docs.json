@@ -2599,6 +2599,7 @@
                 "group": "Protocol Libraries",
                 "pages": [
                   "rust/kona/sdk/protocol/intro",
+                  "rust/kona/sdk/protocol/reference",
                   "rust/kona/sdk/protocol/registry",
                   "rust/kona/sdk/protocol/interop",
                   "rust/kona/sdk/protocol/hardforks",

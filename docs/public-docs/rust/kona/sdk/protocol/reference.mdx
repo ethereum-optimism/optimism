@@ -1,0 +1,214 @@
+---
+title: "Protocol Crates Reference"
+description: "Per-crate catalogue of Kona's six protocol crates: purpose, dependency position, feature flags, and key exports."
+diataxis: reference
+---
+
+This page is a lookup catalogue for the six protocol crates in the Kona
+workspace, which live at
+[`rust/kona/crates/protocol`](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol)
+in the Optimism monorepo. For a narrative overview of how the crates fit
+together, see [Kona Protocol Libraries](/rust/kona/sdk/protocol/intro).
+
+<Info>
+  This catalogue lists each crate's purpose, feature flags, and headline
+  exports. For the complete, always-current API surface (every type, trait,
+  and function), use the crate's docs.rs link — those docs are generated
+  directly from the source.
+</Info>
+
+## Crates at a glance
+
+All six crates are published to [crates.io](https://crates.io) and are
+`no_std` compatible so they can run inside fault proof programs. Every crate
+ships with an empty default feature set: standard-library support,
+serialization, and test helpers are opt-in.
+
+| Crate           | Purpose                                             | Depends on (protocol crates)                                   | API docs                                          |
+| --------------- | --------------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------- |
+| `kona-genesis`  | Optimism genesis types                              | —                                                               | [docs.rs](https://docs.rs/kona-genesis)           |
+| `kona-hardforks`| Consensus hardfork types for the OP Stack           | `kona-genesis`                                                  | [docs.rs](https://docs.rs/kona-hardforks)         |
+| `kona-protocol` | Optimism protocol-specific types                    | `kona-genesis`, `kona-hardforks`                                | [docs.rs](https://docs.rs/kona-protocol)          |
+| `kona-registry` | A registry of superchain configs                    | `kona-genesis`                                                  | [docs.rs](https://docs.rs/kona-registry)          |
+| `kona-interop`  | Core functionality and primitives for the Interop feature of the OP Stack | `kona-genesis`, `kona-protocol`, `kona-registry`                | [docs.rs](https://docs.rs/kona-interop)           |
+| `kona-derive`   | A `no_std` derivation pipeline implementation for the OP Stack | `kona-genesis`, `kona-hardforks`, `kona-protocol`, `kona-interop` | [docs.rs](https://docs.rs/kona-derive)          |
+
+The purpose column is each crate's own description from its `Cargo.toml`.
+The dependency column shows the layering: `kona-genesis` is the foundation,
+and `kona-derive` sits at the top of the stack.
+
+## kona-genesis
+
+Chain configuration and genesis types. The foundation crate — it depends on
+no other Kona crates, only [alloy](https://github.com/alloy-rs/alloy) types.
+`no_std` unless the `std` feature is enabled.
+
+**Key exports**
+
+*   `RollupConfig` — the rollup configuration used across Kona (genesis state,
+    block time, sequencer drift, channel timeouts, hardfork timestamps).
+*   `SystemConfig`, `SystemConfigLog`, `SystemConfigUpdate` — the L1 system
+    config state and parsing of its `ConfigUpdate` log events.
+*   `ChainConfig`, `ChainGenesis`, `HardForkConfig`, `AddressList`, `Roles` —
+    superchain-registry chain configuration types.
+*   `Predeploys` — the addresses of the OP Stack predeploy contracts.
+*   Base fee parameters and helpers, such as `OP_MAINNET_BASE_FEE_CONFIG` and
+    `base_fee_params`.
+
+**Feature flags**
+
+| Feature                  | Effect                                                                                                     |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `std`                    | Standard-library support                                                                                    |
+| `serde`                  | Serialization/deserialization for the types                                                                 |
+| `arbitrary`              | `Arbitrary` implementations for property testing (implies `std`)                                            |
+| `revm`                   | Enables the optional `op-revm` dependency                                                                   |
+| `tabled`                 | Table rendering via `tabled` (implies `std`)                                                                |
+| `rollup_config_override` | Adds override fields to `RollupConfig` (for example `fjord_max_sequencer_drift`) for non-standard chains     |
+
+**Source:** [`rust/kona/crates/protocol/genesis`](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/genesis) · **Guide:** [Genesis](/rust/kona/sdk/protocol/genesis/intro)
+
+## kona-hardforks
+
+Consensus hardfork types, most notably the network upgrade transactions each
+OP Stack hardfork submits. `no_std` unless the `std` feature is enabled.
+
+**Key exports**
+
+*   `Hardfork` — the trait implemented by each hardfork type.
+*   `Hardforks` — entrypoint exposing the network upgrade transactions per
+    hardfork.
+*   Per-hardfork types: `Ecotone`, `Fjord`, `Isthmus`, `Jovian`, `Karst`, and
+    `Lagoon` (interop).
+
+**Feature flags**
+
+| Feature | Effect                                                        |
+| ------- | ------------------------------------------------------------- |
+| `std`   | Standard-library support                                      |
+| `k256`  | secp256k1 support in the underlying alloy/op-alloy types      |
+| `kzg`   | KZG support in the underlying alloy types (implies `std`)     |
+
+**Source:** [`rust/kona/crates/protocol/hardforks`](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/hardforks) · **Guide:** [Hardforks](/rust/kona/sdk/protocol/hardforks)
+
+## kona-protocol
+
+Core protocol types composed on top of `kona-genesis`: the block, frame,
+channel, and batch primitives that OP Stack data flows through. `no_std`
+unless the `std` feature is enabled.
+
+**Key exports**
+
+*   `BlockInfo`, `L2BlockInfo` — L1 and L2 block reference types.
+*   `Frame`, `Channel`, `ChannelId` — batcher data framing primitives.
+*   `Batch`, `SingleBatch`, `SpanBatch`, `BatchReader` — batch types and
+    decoding (including brotli and zlib channel decompression).
+*   `L1BlockInfoTx` — the L1 attributes transaction across hardfork variants
+    (Bedrock, Ecotone, Isthmus, Jovian).
+*   `OutputRoot`, `decode_deposit`, `to_system_config` — output root
+    construction, deposit log decoding, and block-to-`SystemConfig`
+    conversion utilities.
+
+**Feature flags**
+
+| Feature      | Effect                                                            |
+| ------------ | ----------------------------------------------------------------- |
+| `std`        | Standard-library support                                          |
+| `serde`      | Serialization/deserialization for the types                      |
+| `arbitrary`  | `Arbitrary` implementations for property testing (implies `std`) |
+| `test-utils` | Test utilities                                                    |
+
+**Source:** [`rust/kona/crates/protocol/protocol`](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/protocol) · **Guide:** [Protocol](/rust/kona/sdk/protocol/protocol/intro)
+
+## kona-registry
+
+Bindings to the
+[superchain-registry](https://github.com/ethereum-optimism/superchain-registry):
+statically embedded chain and rollup configurations, deserialized at compile
+time into `kona-genesis` types. `no_std` unless the `std` feature is enabled,
+but it always requires `serde` (a non-optional dependency) to read the
+embedded configs.
+
+**Key exports**
+
+*   `Registry` — loads the embedded superchain config set.
+*   Lazily initialized statics: `CHAINS` (chain list), `OPCHAINS` (chain ID →
+    `ChainConfig`), `ROLLUP_CONFIGS` (chain ID → `RollupConfig`),
+    `L1_CONFIGS`, and `DEPENDENCY_SETS` (chain ID → interop `DependencySet`).
+*   Lookup helpers such as `scr_rollup_config_by_ident`.
+
+**Feature flags**
+
+| Feature                  | Effect                                                     |
+| ------------------------ | ---------------------------------------------------------- |
+| `std`                    | Standard-library support                                   |
+| `tabled`                 | Table rendering via `tabled` (implies `std`)               |
+| `rollup_config_override` | Forwards `kona-genesis/rollup_config_override`             |
+
+**Source:** [`rust/kona/crates/protocol/registry`](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/registry) · **Guide:** [Registry](/rust/kona/sdk/protocol/registry)
+
+## kona-interop
+
+Types and primitives for the [Interop
+feature](https://specs.optimism.io/interop/overview.html) of the OP Stack.
+`no_std` unless the `std` feature is enabled.
+
+**Key exports**
+
+*   `MessageGraph` — resolves and validates cross-chain message dependencies.
+*   `ExecutingMessage`, `MessageIdentifier`, and parsing helpers such as
+    `parse_logs_to_executing_msgs`.
+*   `SuperRoot`, `ChainRootInfo`, `OutputRootWithChain` — super root types.
+*   `InteropProvider` — the provider trait for interop data.
+*   Re-exports: `SafetyLevel` (from `op-alloy-consensus`) and
+    `DependencySet`, `ChainDependency` (from `kona-genesis`).
+
+**Feature flags**
+
+| Feature      | Effect                                                            |
+| ------------ | ----------------------------------------------------------------- |
+| `std`        | Standard-library support                                          |
+| `serde`      | Serialization/deserialization for the types                      |
+| `arbitrary`  | `Arbitrary` implementations for property testing (implies `std`) |
+| `test-utils` | Mock providers and builders for testing (implies `std`)          |
+
+**Source:** [`rust/kona/crates/protocol/interop`](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/interop) · **Guide:** [Interop](/rust/kona/sdk/protocol/interop)
+
+## kona-derive
+
+The derivation pipeline: turns L1 data into L2 payload attributes, entirely
+in `no_std`. Unlike the other crates, it has no `std` feature — it is
+`no_std` except when the `metrics` feature is enabled.
+
+**Key exports**
+
+*   `DerivationPipeline`, `PipelineBuilder` — the pipeline and its builder.
+*   Stage types such as `FrameQueue`, `ChannelBank`, `ChannelReader`,
+    `BatchQueue`, `BatchValidator`, and `AttributesQueue`.
+*   Data sources: `EthereumDataSource`, `BlobSource`, `CalldataSource`.
+*   Provider traits: `ChainProvider`, `L2ChainProvider`, `BlobProvider`,
+    `DataAvailabilityProvider`.
+*   Signals: `Signal`, `ResetSignal`, `ActivationSignal`, and the
+    `SignalReceiver` trait.
+*   `StatefulAttributesBuilder` — builds payload attributes from L1 and L2
+    chain data.
+
+**Feature flags**
+
+| Feature      | Effect                                                       |
+| ------------ | ------------------------------------------------------------ |
+| `metrics`    | Metrics instrumentation (disables `no_std`)                  |
+| `serde`      | Serialization/deserialization for the types                 |
+| `test-utils` | Test utilities for pipeline stages                           |
+
+**Source:** [`rust/kona/crates/protocol/derive`](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/derive) · **Guide:** [Derivation](/rust/kona/sdk/protocol/derive/intro)
+
+## Next steps
+
+*   Read the [Protocol Libraries overview](/rust/kona/sdk/protocol/intro) for
+    how the crates layer on alloy and op-alloy.
+*   Follow the [custom derivation pipeline
+    example](/rust/kona/sdk/examples/custom-derivation-pipeline) to compose
+    `kona-derive` stages yourself.
+*   See [load a rollup config](/rust/kona/sdk/examples/load-a-rollup-config)
+    for `kona-registry` in action.
