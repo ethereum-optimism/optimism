@@ -13,7 +13,7 @@ Thanks for taking the time to contribute! ❤️
     - [File Architecture](#file-architecture)
     - [Content Guidelines](#content-guidelines)
     - [Local Testing](#local-testing)
-    - [Nav and redirect lint (CI-enforced)](#nav-and-redirect-lint-ci-enforced)
+    - [Nav and redirect lint](#nav-and-redirect-lint)
   - [Pull Request Process](#pull-request-process)
     - [Before Submitting](#before-submitting)
     - [Submission Guidelines](#submission-guidelines)
@@ -62,10 +62,13 @@ Please refer to our comprehensive [Style Guide](STYLE_GUIDE.md) for detailed for
 
 Follow these [docs](https://www.mintlify.com/docs/installation) for local changes.
 
-### Nav and redirect lint (CI-enforced)
+### Nav and redirect lint
 
-`docs.json` (navigation + redirects) is a CI-guarded artifact. Two deterministic
-checks run automatically on every PR that touches `docs/public-docs/`:
+`docs.json` (navigation + redirects) is a guarded artifact. Two deterministic
+checks apply to every change that touches `docs/public-docs/`. They are enforced
+by a [Mintlify automation](https://www.mintlify.com/docs/automations) that runs
+on content updates and proposes review-gated fixes, and they should be run
+locally before pushing (see below):
 
 - **Nav validator** (`scripts/lint/validate-nav.ts`): every `.mdx` on disk must
   be reachable from `docs.json` navigation or explicitly allowlisted in
@@ -84,7 +87,7 @@ Run them locally before pushing:
 pnpm lint:nav
 pnpm lint:redirects
 
-# or from the monorepo root with bun (what CI runs)
+# or from the monorepo root with bun (zero-dependency)
 bun docs/public-docs/scripts/lint/validate-nav.ts
 bun docs/public-docs/scripts/lint/validate-redirects.ts
 ```
@@ -93,7 +96,7 @@ Violations that pre-date the checks are grandfathered in
 `scripts/lint/nav-allowlist.json` and `scripts/lint/redirect-lint-baseline.json`.
 Those files only shrink: if your PR fixes a grandfathered violation, remove its
 entry in the same PR (a stale entry fails the check). Never add a baseline entry
-to get a new violation past CI — add the missing redirect or nav entry instead;
+to silence a new violation — add the missing redirect or nav entry instead;
 the allowlist is reserved for pages that are deliberately unlisted, with the
 reason recorded.
 
