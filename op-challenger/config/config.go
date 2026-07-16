@@ -247,14 +247,11 @@ func (c Config) Check() error {
 	if c.MaxConcurrency == 0 {
 		return ErrMaxConcurrencyZero
 	}
-	if c.GameTypeEnabled(gameTypes.CannonGameType) || c.GameTypeEnabled(gameTypes.PermissionedGameType) {
+	if slices.ContainsFunc(gameTypes.CannonFamilyGameTypes, c.GameTypeEnabled) {
 		if c.RollupRpc == "" {
 			return ErrMissingRollupRpc
 		}
-		// The permissioned game never reaches step() so does not run op-program; only the
-		// legacy Cannon game type requires the op-program server binary.
-		requireServer := c.GameTypeEnabled(gameTypes.CannonGameType)
-		if err := c.validateBaseCannonOptions(requireServer); err != nil {
+		if err := c.validateBaseCannonOptions(); err != nil {
 			return err
 		}
 	}
@@ -300,11 +297,16 @@ func (c Config) Check() error {
 	return nil
 }
 
-func (c Config) validateBaseCannonOptions(requireServer bool) error {
-	if err := c.Cannon.Check(requireServer); err != nil {
+func (c Config) validateBaseCannonOptions() error {
+	// Permissioned games never reach step() so do not run op-program or load the absolute
+	// prestate; both are only required when an enabled game type can reach step().
+	canReachStep := slices.ContainsFunc(gameTypes.CannonFamilyGameTypes, func(t gameTypes.GameType) bool {
+		return c.GameTypeEnabled(t) && !t.IsPermissioned()
+	})
+	if err := c.Cannon.Check(canReachStep); err != nil {
 		return fmt.Errorf("cannon: %w", err)
 	}
-	if c.CannonAbsolutePreState == "" && c.CannonAbsolutePreStateBaseURL == nil {
+	if canReachStep && c.CannonAbsolutePreState == "" && c.CannonAbsolutePreStateBaseURL == nil {
 		return ErrMissingCannonAbsolutePreState
 	}
 	if c.Cannon.SnapshotFreq == 0 {

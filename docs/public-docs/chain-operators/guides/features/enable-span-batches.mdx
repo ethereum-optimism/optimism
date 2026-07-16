@@ -1,0 +1,79 @@
+---
+title: Enable span batches
+description: Learn how to enable span batches on your OP Stack chain by confirming Delta activation and configuring the batch type on op-batcher.
+diataxis: how-to
+---
+
+Span batches encode a span of consecutive L2 blocks in a single batch, reducing the overhead of batch submission.
+This is especially beneficial for sparse, low-throughput chains.
+The format was introduced in the Delta network upgrade, and chains opt into it through the `op-batcher` configuration.
+For background on what span batches are and why they exist, see [Span batches](/op-stack/features/span-batches).
+
+## Before you begin
+
+Span batches are only valid once the Delta upgrade is active on your chain.
+The `op-node` derivation pipeline drops any span batch whose L1 origin predates Delta activation, logging `dropping span batch before Delta activation`.
+
+<Warning>
+  Do not enable span batches on the batcher before Delta is active on your chain.
+  Verifier nodes will drop the span batches your batcher posts, so the data you pay to submit will not advance the safe chain.
+</Warning>
+
+## Enable span batches
+
+<Steps>
+  <Step title="Confirm Delta is active on your chain">
+    Delta activation is recorded as `delta_time` in your chain's rollup configuration (the `rollup.json` file passed to `op-node`).
+    Delta is active once `delta_time` is set and the L2 block timestamp has passed that value.
+
+    You can read it from the rollup configuration file directly, or query a running `op-node`:
+
+    ```bash
+    cast rpc --rpc-url <OP_NODE_RPC_URL> optimism_rollupConfig | jq .delta_time
+    ```
+
+    If the result is a timestamp in the past, Delta is active.
+    If it is `null`, Delta is not scheduled on your chain and must be activated first.
+    For new chains, the `l2GenesisDeltaTimeOffset` deploy configuration parameter schedules Delta relative to genesis (`0` activates it at genesis) — see the [rollup deployment configuration reference](/chain-operators/guides/configuration/rollup).
+    For Delta activation times on OP Mainnet and OP Sepolia, see [Network upgrades](/op-stack/protocol/network-upgrades).
+  </Step>
+
+  <Step title="Set the batch type on op-batcher">
+    The `op-batcher` `--batch-type` flag (environment variable `OP_BATCHER_BATCH_TYPE`) selects the batch format: `0` for singular batches (the default) and `1` for span batches.
+
+    Set it to `1` and restart the batcher:
+
+    ```bash
+    --batch-type=1
+    ```
+
+    or, as an environment variable:
+
+    ```bash
+    OP_BATCHER_BATCH_TYPE=1
+    ```
+
+    Optionally, `--max-blocks-per-span-batch` (`OP_BATCHER_MAX_BLOCKS_PER_SPAN_BATCH`) caps the number of L2 blocks added to a single span batch.
+    The default is `0`, which means no maximum.
+    See the [batcher configuration reference](/chain-operators/reference/batcher-configuration) for details on both flags.
+  </Step>
+
+  <Step title="Verify the batcher configuration">
+    On startup, the batcher logs its channel configuration.
+    Check the `Initialized channel-config` log line and confirm it reports `batch_type=1`:
+
+    ```text
+    INFO [...] Initialized channel-config ... batch_type=1 ...
+    ```
+  </Step>
+</Steps>
+
+## Revert to singular batches
+
+Singular batches remain valid after Delta, so you can switch back at any time by setting `--batch-type=0` (or unsetting `OP_BATCHER_BATCH_TYPE`, since `0` is the default) and restarting the batcher.
+
+## Next steps
+
+*   Learn what span batches are and how the format works in the [span batches explainer](/op-stack/features/span-batches).
+*   Review the other batcher settings that affect cost and stability in [Configure the batcher](/chain-operators/guides/configuration/batcher).
+*   Read the [span batches specification](https://specs.optimism.io/protocol/delta/span-batches.html?utm_source=op-docs&utm_medium=docs) for the full format definition.

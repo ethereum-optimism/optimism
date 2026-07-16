@@ -24,7 +24,6 @@ import (
 
 type config struct {
 	rpcURL           string
-	sequencerRPCURL  string
 	opRbuilderRPCURL string
 	privateKeyHex    string
 	mnemonic         string
@@ -81,8 +80,7 @@ func parseFlags() config {
 
 	var cfg config
 	flag.StringVar(&cfg.rpcURL, "rpc", defaultRPC, "L2 execution RPC URL (or L2_RPC_URL)")
-	flag.StringVar(&cfg.sequencerRPCURL, "sequencer-rpc", firstEnv("SEQUENCER_RPC_URL", "OP_NODE_RPC_URL"), "sequencer/op-node admin RPC URL for admin_setSdmPostExecOptIn (or SEQUENCER_RPC_URL/OP_NODE_RPC_URL)")
-	flag.StringVar(&cfg.opRbuilderRPCURL, "op-rbuilder-rpc", os.Getenv("OP_RBUILDER_RPC_URL"), "op-rbuilder admin RPC URL for admin_setSdmPostExecOptIn (or OP_RBUILDER_RPC_URL)")
+	flag.StringVar(&cfg.opRbuilderRPCURL, "op-rbuilder-rpc", os.Getenv("OP_RBUILDER_RPC_URL"), "op-rbuilder admin RPC URL for admin_setOperatorSdmOptIn (or OP_RBUILDER_RPC_URL)")
 	flag.StringVar(&cfg.privateKeyHex, "private-key", os.Getenv("PRIVATE_KEY"), "sender private key hex (defaults to devkeys test mnemonic)")
 	flag.StringVar(&cfg.mnemonic, "mnemonic", devkeys.TestMnemonic, "mnemonic used when -private-key is empty")
 	flag.Uint64Var(&cfg.mnemonicIndex, "mnemonic-index", 10_000, "devkeys user index used when -private-key is empty")
@@ -108,7 +106,7 @@ func parseFlags() config {
 	flag.DurationVar(&cfg.pollInterval, "poll-interval", 500*time.Millisecond, "receipt polling interval")
 	flag.BoolVar(&cfg.skipReceipts, "skip-receipts", false, "do not compare payload entries against receipt opGasRefund")
 	flag.BoolVar(&cfg.skipReplay, "skip-replay", false, "do not call debug_replaySDMBlock")
-	flag.BoolVar(&cfg.skipSDMOptIn, "skip-sdm-opt-in", false, "do not call admin_setSdmPostExecOptIn(true) before submitting workload")
+	flag.BoolVar(&cfg.skipSDMOptIn, "skip-sdm-opt-in", false, "do not call admin_setOperatorSdmOptIn(true) before submitting workload")
 	flag.BoolVar(&cfg.jsonOut, "json", false, "print JSON result")
 	flag.Parse()
 	return cfg
@@ -195,15 +193,6 @@ func run(cfg config) error {
 	return fmt.Errorf("no attempt produced a validated SDM post-exec block: %w", lastErr)
 }
 
-func firstEnv(keys ...string) string {
-	for _, key := range keys {
-		if value := os.Getenv(key); value != "" {
-			return value
-		}
-	}
-	return ""
-}
-
 func enableSDM(ctx context.Context, cfg config, sender *sdm.TxSender) error {
 	targets := []struct {
 		name   string
@@ -211,7 +200,6 @@ func enableSDM(ctx context.Context, cfg config, sender *sdm.TxSender) error {
 		client *gethrpc.Client
 	}{
 		{name: "execution", rpcURL: cfg.rpcURL, client: sender.RPC},
-		{name: "sequencer", rpcURL: cfg.sequencerRPCURL},
 		{name: "op-rbuilder", rpcURL: cfg.opRbuilderRPCURL},
 	}
 
@@ -235,10 +223,10 @@ func enableSDM(ctx context.Context, cfg config, sender *sdm.TxSender) error {
 			}
 			defer client.Close()
 		}
-		if err := client.CallContext(ctx, nil, "admin_setSdmPostExecOptIn", true); err != nil {
-			return fmt.Errorf("%s admin_setSdmPostExecOptIn(true) rpc=%s: %w", target.name, target.rpcURL, err)
+		if err := client.CallContext(ctx, nil, "admin_setOperatorSdmOptIn", true); err != nil {
+			return fmt.Errorf("%s admin_setOperatorSdmOptIn(true) rpc=%s: %w", target.name, target.rpcURL, err)
 		}
-		log.Printf("admin_setSdmPostExecOptIn(true) ok target=%s rpc=%s", target.name, target.rpcURL)
+		log.Printf("admin_setOperatorSdmOptIn(true) ok target=%s rpc=%s", target.name, target.rpcURL)
 	}
 	return nil
 }

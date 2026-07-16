@@ -6,8 +6,6 @@ import (
 
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -16,6 +14,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
@@ -96,6 +95,8 @@ type L2FeesConfigurator interface {
 
 type L2HardforkConfigurator interface {
 	WithForkAtGenesis(fork opforks.Name)
+	// WithForkAtOffset configures fork to activate at offset. A nil offset
+	// deactivates fork and every subsequent fork, so calls are order-sensitive.
 	WithForkAtOffset(fork opforks.Name, offset *uint64)
 	WithKeepKarstUpgradeGas()
 }
@@ -497,21 +498,11 @@ func (c *l2Configurator) WithOperatorFeeConstant(value uint64) {
 }
 
 func (c *l2Configurator) WithForkAtGenesis(fork opforks.Name) {
-	var future bool
-	for _, refFork := range opforks.All {
-		if refFork == opforks.Bedrock {
-			continue
-		}
-
-		if future {
-			c.WithForkAtOffset(refFork, nil)
-		} else {
-			c.WithForkAtOffset(refFork, new(uint64))
-		}
-
-		if refFork == fork {
-			future = true
-		}
+	require.True(c.t, opforks.IsValid(fork))
+	overrides, err := genesis.ForkOverridesAtGenesis(fork)
+	require.NoError(c.t, err)
+	for k, v := range overrides {
+		c.builder.intent.Chains[c.chainIndex].DeployOverrides[k] = v
 	}
 }
 
@@ -521,13 +512,23 @@ func (c *l2Configurator) WithKeepKarstUpgradeGas() {
 
 func (c *l2Configurator) WithForkAtOffset(fork opforks.Name, offset *uint64) {
 	require.True(c.t, opforks.IsValid(fork))
-	key := fmt.Sprintf("l2Genesis%sTimeOffset", cases.Title(language.English).String(string(fork)))
+	key, ok := genesis.ForkOffsetKey(fork)
+	require.True(c.t, ok, "fork %q has no deploy-config time offset", fork)
 
+	// The typing is important, or op-deployer merge-JSON tricks will fail.
+	//
+	// A nil offset writes an explicit null override rather than removing the key.
+	// Op-deployer merges user overrides over its defaults, so an omitted key
+	// inherits the default schedule.
+	c.builder.intent.Chains[c.chainIndex].DeployOverrides[key] = (*hexutil.Uint64)(offset)
+
+	// If we are deactivating a fork, then we need to also deactivate all subsequent forks.
 	if offset == nil {
-		delete(c.builder.intent.Chains[c.chainIndex].DeployOverrides, key)
-	} else {
-		// The typing is important, or op-deployer merge-JSON tricks will fail
-		c.builder.intent.Chains[c.chainIndex].DeployOverrides[key] = (*hexutil.Uint64)(offset)
+		for _, opFork := range opforks.From(fork) {
+			key, ok := genesis.ForkOffsetKey(opFork)
+			require.True(c.t, ok, "fork %q has no deploy-config time offset", opFork)
+			c.builder.intent.Chains[c.chainIndex].DeployOverrides[key] = (*hexutil.Uint64)(nil)
+		}
 	}
 }
 

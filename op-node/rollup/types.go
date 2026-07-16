@@ -11,6 +11,7 @@ import (
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -166,7 +167,7 @@ type Config struct {
 	// It is used during safe chain consolidation to translate zero SystemConfig EIP1559
 	// parameters to the protocol values, like the execution layer does.
 	// If missing, it is loaded by the op-node from the embedded superchain config at startup.
-	ChainOpConfig *params.OptimismConfig `json:"chain_op_config,omitempty"`
+	ChainOpConfig *opparams.OptimismConfig `json:"chain_op_config,omitempty"`
 
 	// Optional Features
 

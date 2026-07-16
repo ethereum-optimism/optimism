@@ -8,8 +8,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/params"
-
+	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	registry "github.com/ethereum-optimism/optimism/op-core/superchain"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -42,7 +41,7 @@ func LoadOPStackRollupConfig(chainID uint64) (*rollup.Config, error) {
 // unit-tested directly: feeding a fully-populated ChainConfig through it and checking the result
 // catches any registry field that fails to reach Config.
 func rollupConfigFromRegistry(chConfig *registry.ChainConfig, superConfig registry.Superchain) *rollup.Config {
-	chOpConfig := &params.OptimismConfig{
+	chOpConfig := &opparams.OptimismConfig{
 		EIP1559Elasticity:        chConfig.Optimism.EIP1559Elasticity,
 		EIP1559Denominator:       chConfig.Optimism.EIP1559Denominator,
 		EIP1559DenominatorCanyon: chConfig.Optimism.EIP1559DenominatorCanyon,

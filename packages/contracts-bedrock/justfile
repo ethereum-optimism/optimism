@@ -250,6 +250,10 @@ test-l2cm-activation-test *ARGS:
 test-l2cm-activation-test-rerun *ARGS:
   just test-l2cm-activation-test {{ARGS}} --rerun -vvvv
 
+# Runs L2 operations after a fork activation, such as verifying predeploys.
+post-fork-ops *ARGS:
+  ./scripts/post-fork-ops/verify-predeploys.sh {{ARGS}}
+
 ########################################################
 #                        DEPLOY                        #
 ########################################################

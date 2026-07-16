@@ -1,12 +1,13 @@
 ---
 title: Execution client configuration
-description: Configure op-reth as your OP Stack execution client. op-geth support ends 2026-05-31.
+description: Configure op-reth as your OP Stack execution client. op-geth reached end-of-support 2026-05-31.
+diataxis: how-to
 ---
 
 The execution client provides the EVM runtime and transaction processing for your OP Stack node.
 
 <Warning>
-  **op-geth reaches end-of-support on 2026-05-31 and will not support the L1 Glamsterdam hardfork.** Chains still running op-geth at activation will not follow the canonical chain. Migrate to op-reth — see the [op-geth deprecation notice](/notices/op-geth-deprecation).
+  **op-geth has reached end-of-support (2026-05-31) and does not support the now-active Karst hardfork, so op-geth nodes can no longer follow the canonical chain.** Migrate to op-reth — see the [op-geth deprecation notice](/notices/op-geth-deprecation).
 </Warning>
 
 <Info>
@@ -34,6 +35,10 @@ The execution client provides the EVM runtime and transaction processing for you
     ### Historical proofs
 
     Permissionless chains need ~28 days of historical state for withdrawal proving. Follow the [Running op-reth with Historical Proofs](/node-operators/tutorials/reth-historical-proofs) tutorial to set up the `--proofs-history` (v2) store on op-reth v2.2.3 or later.
+
+    ### Pruning
+
+    op-reth defaults to an archive node. To reclaim disk, prune the state and receipt segments and keep block bodies. Body pruning (`--minimal` or `--prune.bodies.distance`) is unsupported and advised against. See [Pruning op-reth](/node-operators/guides/management/archive-node#pruning-op-reth).
 
     ### Complete reference
 
@@ -74,7 +79,7 @@ This file must be identical for both your execution client and your consensus cl
 ## op-geth (legacy — end of support 2026-05-31)
 
 <Warning>
-  op-geth support ends on **2026-05-31** and **will not support the Glamsterdam hardfork**. For new deployments, use op-reth (above). See the [op-geth deprecation notice](/notices/op-geth-deprecation) for the migration plan.
+  op-geth reached end-of-support on **2026-05-31** and **does not support the now-active Karst hardfork**. For new deployments, use op-reth (above). See the [op-geth deprecation notice](/notices/op-geth-deprecation) for the migration plan.
 </Warning>
 
 <Accordion title="op-geth configuration (legacy)">

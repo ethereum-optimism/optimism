@@ -609,7 +609,18 @@ func TestCannonRequiredArgs(t *testing.T) {
 			})
 
 			t.Run("Required", func(t *testing.T) {
-				verifyArgsInvalid(t, "flag prestates-url/cannon-prestates-url or cannon-prestate is required", addRequiredArgsExcept(gameType, "--cannon-prestate"))
+				if gameType == gameTypes.PermissionedGameType {
+					// The permissioned game never loads the VM prestate.
+					configForArgs(t, addRequiredArgsExcept(gameType, "--cannon-prestate"))
+				} else {
+					verifyArgsInvalid(t, "flag prestates-url/cannon-prestates-url or cannon-prestate is required", addRequiredArgsExcept(gameType, "--cannon-prestate"))
+				}
+			})
+
+			t.Run("RequiredWhenCannonAndPermissionedBothEnabled", func(t *testing.T) {
+				gameTypesArg := fmt.Sprintf("%v,%v", gameTypes.CannonGameType.String(), gameTypes.PermissionedGameType.String())
+				args := addRequiredArgsExceptArr(gameTypes.CannonGameType, []string{"--game-types", "--cannon-prestate"}, "--game-types", gameTypesArg)
+				verifyArgsInvalid(t, "flag prestates-url/cannon-prestates-url or cannon-prestate is required", args)
 			})
 
 			t.Run("Valid", func(t *testing.T) {
@@ -624,7 +635,12 @@ func TestCannonRequiredArgs(t *testing.T) {
 			})
 
 			t.Run("Required", func(t *testing.T) {
-				verifyArgsInvalid(t, "flag prestates-url/cannon-prestates-url or cannon-prestate is required", addRequiredArgsExcept(gameType, "--cannon-prestate"))
+				if gameType == gameTypes.PermissionedGameType {
+					// The permissioned game never loads the VM prestate.
+					configForArgs(t, addRequiredArgsExcept(gameType, "--cannon-prestate"))
+				} else {
+					verifyArgsInvalid(t, "flag prestates-url/cannon-prestates-url or cannon-prestate is required", addRequiredArgsExcept(gameType, "--cannon-prestate"))
+				}
 			})
 
 			t.Run("Valid", func(t *testing.T) {
@@ -649,7 +665,12 @@ func TestCannonRequiredArgs(t *testing.T) {
 			})
 
 			t.Run("RequiredIfCannonPrestatesBaseURLNotSet", func(t *testing.T) {
-				verifyArgsInvalid(t, "flag prestates-url/cannon-prestates-url or cannon-prestate is required", addRequiredArgsExceptArr(gameType, allPrestateOptions))
+				if gameType == gameTypes.PermissionedGameType {
+					// The permissioned game never loads the VM prestate.
+					configForArgs(t, addRequiredArgsExceptArr(gameType, allPrestateOptions))
+				} else {
+					verifyArgsInvalid(t, "flag prestates-url/cannon-prestates-url or cannon-prestate is required", addRequiredArgsExceptArr(gameType, allPrestateOptions))
+				}
 			})
 
 			t.Run("Invalid", func(t *testing.T) {

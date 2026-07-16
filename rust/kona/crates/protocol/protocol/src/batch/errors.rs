@@ -9,6 +9,9 @@ pub enum SpanBatchError {
     /// The bit field is too long
     #[error("The bit field is too long")]
     BitfieldTooLong,
+    /// The bit field is shorter than the declared bit length
+    #[error("The bit field is shorter than the declared bit length")]
+    BitfieldTooShort,
     /// Empty Span Batch
     #[error("Empty span batch")]
     EmptySpanBatch,

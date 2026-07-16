@@ -1,10 +1,11 @@
 ---
 title: Building and running an OP Stack node from source
 description: Build and run an OP Stack node (op-reth + op-node) from source code for full nodes and archive nodes.
+diataxis: tutorial
 ---
 
 <Warning>
-  **op-geth reaches end-of-support on 2026-05-31 and will not support the L1 Glamsterdam hardfork.** This tutorial builds and runs op-reth (the primary supported execution client) and Nethermind. op-geth instructions are retained in a legacy section at the bottom for operators mid-migration. See the [op-geth deprecation notice](/notices/op-geth-deprecation) for the full migration plan.
+  **op-geth has reached end-of-support (2026-05-31) and does not support the now-active Karst hardfork, so op-geth nodes can no longer follow the canonical chain.** This tutorial builds and runs op-reth (the primary supported execution client) and Nethermind. op-geth instructions are retained in a legacy section at the bottom for operators mid-migration. See the [op-geth deprecation notice](/notices/op-geth-deprecation) for the full migration plan.
 </Warning>
 
 This tutorial walks through the full process of building and running an OP Stack node from source — op-node plus an execution client. Building from source is a flexible alternative to using pre-built Docker images and is useful if you need a specific architecture or want to inspect what you're running.
@@ -384,7 +385,7 @@ Blocks and transactions included in OP Mainnet before the Bedrock Upgrade cannot
 ## op-geth (legacy — end of support 2026-05-31)
 
 <Warning>
-  op-geth support ends on **2026-05-31** and **will not support the Glamsterdam hardfork**. For new deployments, use op-reth (above). See the [op-geth deprecation notice](/notices/op-geth-deprecation) for the migration plan.
+  op-geth reached end-of-support on **2026-05-31** and **does not support the now-active Karst hardfork**. For new deployments, use op-reth (above). See the [op-geth deprecation notice](/notices/op-geth-deprecation) for the migration plan.
 </Warning>
 
 <Accordion title="Build and run op-geth (legacy)">

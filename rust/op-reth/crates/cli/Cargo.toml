@@ -58,7 +58,6 @@ alloy-rlp.workspace = true
 # misc
 futures-util.workspace = true
 derive_more.workspace = true
-page_size.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 clap = { workspace = true, features = ["derive", "env"] }

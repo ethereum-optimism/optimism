@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSuperNodeSource_SyncStatus(t *testing.T) {
+func TestSuperRootSource_SyncStatus(t *testing.T) {
 	t.Run("Single-Success", func(t *testing.T) {
 		client := &mockSuperNodeClient{
 			fn: func(_ context.Context, _ uint64) (eth.SuperRootAtTimestampResponse, error) {
@@ -24,7 +24,7 @@ func TestSuperNodeSource_SyncStatus(t *testing.T) {
 				}, nil
 			},
 		}
-		source := NewSuperNodeProposalSource(testlog.Logger(t, log.LvlInfo), client)
+		source := NewSuperRootProposalSource(testlog.Logger(t, log.LvlInfo), client)
 		status, err := source.SyncStatus(context.Background())
 		require.NoError(t, err)
 		require.Equal(t, SyncStatus{
@@ -53,7 +53,7 @@ func TestSuperNodeSource_SyncStatus(t *testing.T) {
 				}, nil
 			},
 		}
-		source := NewSuperNodeProposalSource(testlog.Logger(t, log.LvlInfo), client1, client2)
+		source := NewSuperRootProposalSource(testlog.Logger(t, log.LvlInfo), client1, client2)
 		status, err := source.SyncStatus(context.Background())
 		require.NoError(t, err)
 		require.Equal(t, SyncStatus{
@@ -75,7 +75,7 @@ func TestSuperNodeSource_SyncStatus(t *testing.T) {
 			},
 		}
 		logger, logs := testlog.CaptureLogger(t, log.LvlInfo)
-		source := NewSuperNodeProposalSource(logger, client1, client2)
+		source := NewSuperRootProposalSource(logger, client1, client2)
 		status, err := source.SyncStatus(context.Background())
 		require.NoError(t, err)
 		require.Equal(t, uint64(123), status.SafeL2)
@@ -83,7 +83,7 @@ func TestSuperNodeSource_SyncStatus(t *testing.T) {
 	})
 }
 
-func TestSuperNodeSource_ProposalAtSequenceNum(t *testing.T) {
+func TestSuperRootSource_ProposalAtSequenceNum(t *testing.T) {
 	chainA := eth.ChainIDFromUInt64(1)
 	chainB := eth.ChainIDFromUInt64(2)
 	timestamp := uint64(599)
@@ -127,7 +127,7 @@ func TestSuperNodeSource_ProposalAtSequenceNum(t *testing.T) {
 				timestamp: response,
 			},
 		}
-		source := NewSuperNodeProposalSource(testlog.Logger(t, log.LvlInfo), client)
+		source := NewSuperRootProposalSource(testlog.Logger(t, log.LvlInfo), client)
 		actual, err := source.ProposalAtSequenceNum(context.Background(), timestamp)
 		require.NoError(t, err)
 		require.Equal(t, expected, actual)
@@ -138,7 +138,7 @@ func TestSuperNodeSource_ProposalAtSequenceNum(t *testing.T) {
 		client := &mockSuperNodeClient{
 			err: expectedErr,
 		}
-		source := NewSuperNodeProposalSource(testlog.Logger(t, log.LvlInfo), client)
+		source := NewSuperRootProposalSource(testlog.Logger(t, log.LvlInfo), client)
 		_, err := source.ProposalAtSequenceNum(context.Background(), 294)
 		require.ErrorIs(t, err, expectedErr)
 	})
@@ -155,7 +155,7 @@ func TestSuperNodeSource_ProposalAtSequenceNum(t *testing.T) {
 				},
 			},
 		}
-		source := NewSuperNodeProposalSource(testlog.Logger(t, log.LvlInfo), client)
+		source := NewSuperRootProposalSource(testlog.Logger(t, log.LvlInfo), client)
 		_, err := source.ProposalAtSequenceNum(context.Background(), timestamp)
 		require.ErrorIs(t, err, ErrNoSuperRootData)
 	})
@@ -167,7 +167,7 @@ func TestSuperNodeSource_ProposalAtSequenceNum(t *testing.T) {
 			},
 		}
 		client2 := &mockSuperNodeClient{}
-		source := NewSuperNodeProposalSource(testlog.Logger(t, log.LvlInfo), client1, client2)
+		source := NewSuperRootProposalSource(testlog.Logger(t, log.LvlInfo), client1, client2)
 		actual, err := source.ProposalAtSequenceNum(context.Background(), timestamp)
 		require.NoError(t, err)
 		require.Equal(t, expected, actual)
@@ -185,7 +185,7 @@ func TestSuperNodeSource_ProposalAtSequenceNum(t *testing.T) {
 			},
 		}
 		logger, logs := testlog.CaptureLogger(t, log.LvlInfo)
-		source := NewSuperNodeProposalSource(logger, client1, client2)
+		source := NewSuperRootProposalSource(logger, client1, client2)
 		actual, err := source.ProposalAtSequenceNum(context.Background(), timestamp)
 		require.NoError(t, err)
 		require.Equal(t, expected, actual)
@@ -209,7 +209,7 @@ func TestSuperNodeSource_ProposalAtSequenceNum(t *testing.T) {
 			},
 		}
 		logger, logs := testlog.CaptureLogger(t, log.LvlInfo)
-		source := NewSuperNodeProposalSource(logger, client1, client2)
+		source := NewSuperRootProposalSource(logger, client1, client2)
 		actual, err := source.ProposalAtSequenceNum(context.Background(), timestamp)
 		require.NoError(t, err)
 		require.Equal(t, expected, actual)
@@ -226,7 +226,7 @@ func TestSuperNodeSource_ProposalAtSequenceNum(t *testing.T) {
 			err: errors.New("test error2"),
 		}
 		logger, logs := testlog.CaptureLogger(t, log.LvlInfo)
-		source := NewSuperNodeProposalSource(logger, client1, client2)
+		source := NewSuperRootProposalSource(logger, client1, client2)
 		_, err := source.ProposalAtSequenceNum(context.Background(), timestamp)
 		require.ErrorIs(t, err, client1.err)
 		require.ErrorIs(t, err, client2.err)
@@ -236,6 +236,8 @@ func TestSuperNodeSource_ProposalAtSequenceNum(t *testing.T) {
 		require.NotNil(t, logs.FindLog(testlog.NewLevelFilter(slog.LevelWarn), testlog.NewAttributesFilter("err", client2.err.Error())))
 	})
 }
+
+var _ SuperRootClient = (*mockSuperNodeClient)(nil)
 
 type mockSuperNodeClient struct {
 	responses    map[uint64]eth.SuperRootAtTimestampResponse
