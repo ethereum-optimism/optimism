@@ -239,16 +239,7 @@ jobs:
           working_directory: rust/kona/sp1
           no_output_timeout: 40m
           command: just build-elfs-native
-      - run:
-          name: sccache stats
-          command: |
-            sccache --show-stats
-            compile_requests="$(sccache --show-stats --stats-format json | jq -r '.stats.compile_requests')"
-            if ! [[ "$compile_requests" =~ ^[1-9][0-9]*$ ]]; then
-              echo "ERROR: SP1 guest build did not use sccache" >&2
-              exit 1
-            fi
-          when: always
+      - rust-sccache-stats
       - store_artifacts:
           path: rust/kona/sp1/elf
       - persist_to_workspace:
