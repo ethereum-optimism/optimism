@@ -5,6 +5,7 @@ diataxis: reference
 ---
 
 import ThirdPartyContent from "/snippets/third-party-content.mdx"
+import ThirdPartyContentSingle from "/snippets/third-party-content-single.mdx"
 
 This page defines what content belongs on docs.optimism.io and, for every
 content type, which source is canonical. It exists so that "where does this
@@ -24,7 +25,7 @@ Content belongs on docs.optimism.io only if at least one of the following is
 true (adapted from the Kubernetes content guide's third-party content rules):
 
 1.  **It documents first-party OP Stack software** — software whose source of
-    truth lives in [Optimism Collective](https://github.com/ethereum-optimism)
+    truth lives in [Optimism](https://github.com/ethereum-optimism)
     repositories, such as the components listed on the
     [Releases](/releases) page.
 2.  **It documents third-party software that the OP Stack needs to function**
@@ -125,16 +126,18 @@ Which renders:
 
 <ThirdPartyContent />
 
-When an entire page is about a single third-party project or product, pass
-`single`:
+When an entire page is about a single third-party project or product, use the
+single-project variant instead:
 
 ```mdx
-<ThirdPartyContent single />
+import ThirdPartyContentSingle from "/snippets/third-party-content-single.mdx"
+
+<ThirdPartyContentSingle />
 ```
 
 Which renders:
 
-<ThirdPartyContent single />
+<ThirdPartyContentSingle />
 
 ## Next steps
 
