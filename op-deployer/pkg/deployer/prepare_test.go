@@ -552,7 +552,7 @@ func TestPrepareChainsBuildsInteropDepSetBeforePrediction(t *testing.T) {
 		predictions++
 		require.NotNil(t, st.InteropDepSet)
 		require.Len(t, st.InteropDepSet.Chains(), 2)
-		return opcm.DeployOPChainOutput{}, nil
+		return emptyDeployOPChainOutput(), nil
 	}
 
 	require.NoError(t, prepareChains(testlog.Logger(t, slog.LevelInfo), intent, st, run))
@@ -579,7 +579,7 @@ func TestPredictChainsPermissionlessWithoutPrestate(t *testing.T) {
 
 	run := func(in opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
 		require.Equal(t, uint32(embedded.GameTypeCannonKona), in.DisputeGameType)
-		return opcm.DeployOPChainOutput{}, nil
+		return emptyDeployOPChainOutput(), nil
 	}
 
 	require.NoError(t, predictChains(lgr, intent, st, run))
@@ -591,4 +591,24 @@ func TestPredictChainsPermissionlessWithoutPrestate(t *testing.T) {
 		"run op-deployer prestate before continue",
 		testlog.NewAttributesFilter("chain", chainID.Hex()),
 	)
+}
+
+func emptyDeployOPChainOutput() opcm.DeployOPChainOutput {
+	return opcm.DeployOPChainOutput{
+		OpChainProxyAdmin:                  common.Address{},
+		AddressManager:                     common.Address{},
+		L1ERC721BridgeProxy:                common.Address{},
+		SystemConfigProxy:                  common.Address{},
+		OptimismMintableERC20FactoryProxy:  common.Address{},
+		L1StandardBridgeProxy:              common.Address{},
+		L1CrossDomainMessengerProxy:        common.Address{},
+		OptimismPortalProxy:                common.Address{},
+		EthLockboxProxy:                    common.Address{},
+		DisputeGameFactoryProxy:            common.Address{},
+		AnchorStateRegistryProxy:           common.Address{},
+		FaultDisputeGame:                   common.Address{},
+		PermissionedDisputeGame:            common.Address{},
+		DelayedWETHPermissionedGameProxy:   common.Address{},
+		DelayedWETHPermissionlessGameProxy: common.Address{},
+	}
 }
