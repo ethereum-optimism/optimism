@@ -142,6 +142,13 @@ const DEFAULT_DA_FOOTPRINT_GAS_SCALAR: u16 = 7;
 const DEFAULT_GAS_LIMIT: u64 = 100_000;
 const JOVIAN_TIMESTAMP: u64 = 1_746_806_402;
 
+/// Whether [`build_executor`] attaches an inspector to the EVM — a self-documenting alternative to
+/// a bare `bool` at the call sites.
+enum Inspect {
+    Enabled,
+    Disabled,
+}
+
 #[allow(clippy::too_many_arguments)]
 fn build_executor<'a>(
     db: &'a mut State<InMemoryDB>,
@@ -152,7 +159,7 @@ fn build_executor<'a>(
     parent_timestamp: Option<u64>,
     base_fee: u64,
     beneficiary: Address,
-    inspect: bool,
+    inspect: Inspect,
 ) -> SDMTestExecutor<'a> {
     let ctx = Context::mainnet()
         .with_tx(crate::OpTx(OpTransaction::builder().build_fill()))
@@ -173,7 +180,10 @@ fn build_executor<'a>(
         })
         .modify_cfg_chained(|cfg| cfg.spec = OpSpecId::JOVIAN);
 
-    let evm = OpEvm::new(ctx.build_op_with_inspector(NoOpInspector {}), inspect);
+    let evm = OpEvm::new(
+        ctx.build_op_with_inspector(NoOpInspector {}),
+        matches!(inspect, Inspect::Enabled),
+    );
 
     // Like production call sites, the activation-block flag is computed where the parent
     // timestamp is available and left `false` where it isn't.
@@ -233,7 +243,7 @@ impl SDMExecutorFixture {
             self.parent_timestamp,
             self.base_fee,
             self.beneficiary,
-            true,
+            Inspect::Enabled,
         )
     }
 
@@ -477,7 +487,7 @@ fn test_no_user_tx_activation_block_rejects_user_tx() {
             Some(fork_timestamp - 1),
             0,
             Address::ZERO,
-            true,
+            Inspect::Enabled,
         );
         assert!(
             executor.ctx.no_user_tx_activation_block,
@@ -515,7 +525,7 @@ fn test_fork_activation_block_accepts_deposits_only() {
         Some(KARST_TIMESTAMP - 1),
         0,
         Address::ZERO,
-        true,
+        Inspect::Enabled,
     );
     assert!(executor.ctx.no_user_tx_activation_block);
 
@@ -544,7 +554,7 @@ fn test_normal_post_activation_block_accepts_user_tx() {
         Some(KARST_TIMESTAMP + 1),
         0,
         Address::ZERO,
-        true,
+        Inspect::Enabled,
     );
     assert!(!executor.ctx.no_user_tx_activation_block);
 
@@ -567,7 +577,7 @@ fn test_non_activation_karst_block_not_rejected() {
         Some(KARST_TIMESTAMP + 50),
         0,
         Address::ZERO,
-        true,
+        Inspect::Enabled,
     );
     assert!(!executor.ctx.no_user_tx_activation_block);
 
@@ -593,7 +603,7 @@ fn test_none_parent_timestamp_skips_check() {
         None,
         0,
         Address::ZERO,
-        true,
+        Inspect::Enabled,
     );
     assert!(!executor.ctx.no_user_tx_activation_block);
 
@@ -1849,7 +1859,7 @@ mod sdm {
                 None,
                 0,
                 Address::ZERO,
-                false,
+                Inspect::Disabled,
             );
             executor.set_post_exec_mode(mode);
 
@@ -1889,7 +1899,7 @@ mod sdm {
                 None,
                 0,
                 Address::ZERO,
-                false,
+                Inspect::Disabled,
             );
             producer.set_post_exec_mode(PostExecMode::Produce);
             producer.execute_transaction(&failing_a).expect_err(a_error_context);
@@ -1912,7 +1922,7 @@ mod sdm {
                 None,
                 0,
                 Address::ZERO,
-                false,
+                Inspect::Disabled,
             );
             verifier.set_post_exec_mode(PostExecMode::Verify(post_exec_payload(0, entries)));
             verifier
