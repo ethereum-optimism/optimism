@@ -16,5 +16,8 @@ sha2.workspace = true
 sp1-lib.workspace = true
 sp1-zkvm.workspace = true
 
+[dev-dependencies]
+kona-sp1-client-utils = { workspace = true, features = ["aggregation-test-utils"] }
+
 [lints]
 workspace = true

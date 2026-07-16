@@ -207,6 +207,12 @@ jobs:
           paths:
             - rust/kona/sp1/elf/
       - run:
+          name: Test SP1 guest programs
+          working_directory: rust
+          environment:
+            RUSTFLAGS: -Dwarnings
+          command: just test-sp1-guest
+      - run:
           name: Lint SP1 guest programs
           working_directory: rust
           environment:
