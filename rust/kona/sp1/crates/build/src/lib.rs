@@ -14,6 +14,7 @@ fn build_program(program_name: &str, elf_name: &str, features: Option<Vec<String
         docker: true,
         tag: "v6.2.4".to_string(),
         workspace_directory: Some(".".to_string()),
+        ignore_rust_version: true,
         ..Default::default()
     };
 
