@@ -2,6 +2,7 @@ package sysgo
 
 import (
 	"context"
+
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -27,10 +28,12 @@ func (r *DisputeMonRuntime) MetricsURL() string {
 }
 
 func StartDisputeMon(t devtest.T, input DisputeMonConfig) *DisputeMonRuntime {
+
 	require := t.Require()
 	require.NotEmpty(input.L1RPC, "L1 RPC is required")
 	require.NotEqual(common.Address{}, input.GameFactoryAddress, "dispute game factory address is required")
 	require.NotEmpty(append(append([]string{}, input.RollupRPCs...), input.SupernodeRPCs...), "at least one rollup or supernode RPC is required")
+
 
 	cfg := disputeMonConfig.NewCombinedConfig(
 		input.GameFactoryAddress,
@@ -52,7 +55,6 @@ func StartDisputeMon(t devtest.T, input DisputeMonConfig) *DisputeMonRuntime {
 	require.NotNil(metricsAddr, "dispute monitor metrics address")
 	metricsURL := "http://" + metricsAddr.String()
 	require.NoError(service.Start(t.Ctx()), "start dispute monitor service")
-
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
