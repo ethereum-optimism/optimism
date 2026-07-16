@@ -158,9 +158,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 7.2.1
+    /// @custom:semver 7.2.2
     function version() public pure returns (string memory) {
-        return "7.2.1";
+        return "7.2.2";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -723,10 +723,18 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             revert OPContractsManagerV2_InvalidGameConfigs();
         }
 
-        // The starting anchor root must be set for an initial deployment.
-        if (_isInitialDeployment && _cfg.startingAnchorRoot.root.raw() == bytes32(0)) {
+        // An initial anchor must have a nonzero root and leave room for a uint64 successor.
+        if (
+            _isInitialDeployment
+                && (
+                    _cfg.startingAnchorRoot.root.raw() == bytes32(0)
+                        || _cfg.startingAnchorRoot.l2SequenceNumber >= type(uint64).max
+                )
+        ) {
             revert OPContractsManagerV2_InvalidGameConfigs();
         }
+
+        bool superRootGamesMigrationEnabled = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
 
         // Iterate over each provided config and confirm that it matches the game type array.
         // This places a requirement on the user to order the configs properly but that's
@@ -737,6 +745,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             bool isPermissionedCannonGame = rawGameType == GameTypes.PERMISSIONED_CANNON.raw();
             bool isCannonKonaGame = rawGameType == GameTypes.CANNON_KONA.raw();
             bool isSuperPermissionedGame = rawGameType == GameTypes.SUPER_PERMISSIONED.raw();
+            bool isSuperCannonKonaGame = rawGameType == GameTypes.SUPER_CANNON_KONA.raw();
             bool isZkDisputeGame = rawGameType == GameTypes.ZK_DISPUTE_GAME.raw();
 
             if (_cfg.disputeGameConfigs[i].gameType.raw() != rawGameType) {
@@ -761,11 +770,13 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
-            // Post-U19 initial deployments may enable only PERMISSIONED_CANNON,
-            // CANNON_KONA, and SUPER_PERMISSIONED. Legacy CANNON is rejected.
-            bool enableableAtInitialDeployment = isPermissionedCannonGame || isCannonKonaGame || isSuperPermissionedGame;
-
-            if (_isInitialDeployment && !enableableAtInitialDeployment && _cfg.disputeGameConfigs[i].enabled) {
+            // Initial deployments must select game types compatible with the active mode.
+            // Upgrade inputs define their game types. Super root migration removes output root support.
+            // DeployOPChain adds the permissioned fallback. StandardValidator checks it. OPCM does not require it.
+            bool validForInitialDeploy = superRootGamesMigrationEnabled
+                ? (isSuperPermissionedGame || isSuperCannonKonaGame)
+                : (isPermissionedCannonGame || isCannonKonaGame);
+            if (_isInitialDeployment && _cfg.disputeGameConfigs[i].enabled && !validForInitialDeploy) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
@@ -777,7 +788,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
-            if (_cfg.disputeGameConfigs[i].enabled && (isCannonGame || isCannonKonaGame)) {
+            if (_cfg.disputeGameConfigs[i].enabled && (isCannonGame || isCannonKonaGame || isSuperCannonKonaGame)) {
                 // TODO(#20912): Remove once deploy pipelines provide real anchor roots.
                 // A permissionless initial deployment must not use the placeholder anchor root.
                 if (

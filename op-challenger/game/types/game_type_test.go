@@ -41,6 +41,22 @@ func TestSupportedGameTypeFromString_RejectsSuperPermissioned(t *testing.T) {
 	require.Equal(t, UnknownGameType, result)
 }
 
+func TestIsPermissioned(t *testing.T) {
+	permissioned := []GameType{PermissionedGameType, SuperPermissionedGameType}
+	for _, gameType := range permissioned {
+		t.Run(gameType.String(), func(t *testing.T) {
+			require.True(t, gameType.IsPermissioned())
+		})
+	}
+
+	notPermissioned := []GameType{CannonGameType, CannonKonaGameType, SuperCannonKonaGameType, ZKDisputeGameType, FastGameType, AlphabetGameType}
+	for _, gameType := range notPermissioned {
+		t.Run(gameType.String(), func(t *testing.T) {
+			require.False(t, gameType.IsPermissioned())
+		})
+	}
+}
+
 func TestKnownStringForAllSupportedGameTypes(t *testing.T) {
 	for _, gameType := range SupportedGameTypes {
 		t.Run(gameType.String(), func(t *testing.T) {

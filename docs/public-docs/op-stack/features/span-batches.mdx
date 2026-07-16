@@ -1,44 +1,32 @@
 ---
 title: Span Batches
-description: Learn how to use and enable span batches on your chain.
+description: Learn what span batches are and how they reduce the batch submission overhead of OP Stack chains.
+diataxis: explanation
 ---
 
-Span batches are an important feature that optimize batch processing within the chain. This section provides an overview of span batches, instructions on how to enable them, and links to detailed design documents.
+Span batches are a batch format, introduced in the Delta network upgrade, that encodes a span of consecutive L2 blocks in a single batch.
+They reduce the overhead of posting L2 data to L1, which lowers data availability costs — especially for sparse, low-throughput chains where fixed per-block overhead dominates the submitted data.
 
-## Overview
+## Why span batches exist
 
-Span batches allow for efficient processing of multiple batches in a single operation, reducing overhead and improving performance. By grouping transactions together, span batches can help optimize the throughput of the network.
+Before Delta, the only batch format was the singular batch: one batch per L2 block.
+Every block — including empty blocks on a quiet chain — carried its own batch overhead to L1.
 
-## Enabling span batches
+A span batch instead represents a whole span of consecutive L2 blocks in a more efficient encoding, while preserving the same consistency checks as singular batch data.
+That makes the marginal cost of including an additional (especially empty) block in the submitted data small.
+The full format is defined in the [span batches specification](https://specs.optimism.io/protocol/delta/span-batches.html?utm_source=op-docs&utm_medium=docs).
 
-To enable span batches, follow these steps:
+## How span batches are used
 
-<Steps>
-  1.  **Configuration**:
+Span batches are opt-in for the chain operator: the `op-batcher` selects the batch format with its `--batch-type` flag (`0` for singular batches, the default; `1` for span batches).
+On the verification side, the `op-node` derivation pipeline accepts span batches only once Delta is active on the chain — it drops any span batch whose L1 origin predates Delta activation.
+Singular batches remain valid after Delta, so a chain can switch between the two formats at any time.
 
-      *   Locate your chain configuration file.
-      *   Add or update the following settings to enable span batches:
-
-      ```yaml
-      span_batches:
-          enabled: true
-          max_batch_size: <desired_max_batch_size>  # Set your desired maximum batch size
-          batch_interval: <desired_batch_interval>  # Set your desired batch interval in seconds
-      ```
-
-  2.  **Deploy**:
-
-      *   After updating the configuration, redeploy your chain node to apply the changes.
-
-  3.  **Verify**:
-
-      *   Check the logs to ensure that span batches are enabled and functioning correctly.
-      *   You should see log entries indicating that batches are being processed according to the configured settings.
-</Steps>
+To turn span batches on for your chain, follow the how-to guide: [Enable span batches](/chain-operators/guides/features/enable-span-batches).
 
 ## Links to related pages
 
-For more detailed information on the design and implementation of span batches, refer to the following resources:
-
-*   [Span Batches Specification](https://specs.optimism.io/protocol/delta/span-batches.html#span-batches?utm_source=op-docs&utm_medium=docs)
+*   [Enable span batches](/chain-operators/guides/features/enable-span-batches)
+*   [Configure the batcher](/chain-operators/guides/configuration/batcher)
+*   [Span Batches Specification](https://specs.optimism.io/protocol/delta/span-batches.html?utm_source=op-docs&utm_medium=docs)
 *   [Span Batch Design Docs](https://op-tip.notion.site/Span-Batch-Design-Docs-b85e599a47774dcdb8171cc84cab2476)

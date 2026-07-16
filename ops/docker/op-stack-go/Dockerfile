@@ -206,6 +206,23 @@ RUN <<-EOF
     tar -xzf "${DOWNLOAD_PATH}" -C /usr/local/bin forge
     rm "${DOWNLOAD_PATH}"
 EOF
+# Pre-install solc versions serially (matching .circleci install-solc-compilers) so
+# forge's parallel jobs never race installing them (foundry-rs/foundry#4736).
+# `forge build --use <version>` in an empty dir installs one version, compiles nothing.
+RUN <<-EOF
+    set -e
+    cd "$(mktemp -d)"
+    # Retry: forge doesn't retry the solc download itself.
+    for version in 0.8.15 0.8.19 0.8.25 0.8.28; do
+      n=0
+      until forge build --use "${version}"; do
+        n=$((n+1))
+        [ "${n}" -ge 5 ] && exit 1
+        echo "solc ${version} install retry ${n}/5 in 2s" >&2
+        sleep 2
+      done
+    done
+EOF
 # Compile contracts and create artifacts tarball
 RUN cd packages/contracts-bedrock && forge build --skip "/**/test/**"
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
@@ -239,7 +256,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
   just op-interop-mon/op-interop-mon
 
 # The Rust version must match rust/rust-toolchain.toml. We don't use "latest" to ensure reproducibility
-FROM --platform=$BUILDPLATFORM rust:1.94 AS kona-host-builder
+FROM --platform=$BUILDPLATFORM rust:1.95 AS kona-host-builder
 ARG TARGETARCH
 # Install build dependencies and cross-compilation toolchains
 RUN apt-get -o Acquire::Retries=8 update && apt-get -o Acquire::Retries=8 install -y --no-install-recommends \

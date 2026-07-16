@@ -106,6 +106,10 @@ lint: fmt-check lint-clippy lint-docs lint-sp1-guest
 fmt-check:
   cargo +{{NIGHTLY}} fmt --all -- --check
 
+# Check formatting across both the main and SP1 guest workspaces. Shared by the
+# pre-push git hook and the rust-fmt CI job so the two can't drift.
+fmt-check-all: fmt-check fmt-check-sp1-guest
+
 # Fix formatting (requires nightly); also formats the SP1 guest workspace
 fmt-fix: fmt-fix-sp1-guest
   cargo +{{NIGHTLY}} fmt --all

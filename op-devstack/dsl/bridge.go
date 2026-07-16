@@ -102,6 +102,9 @@ func NewStandardBridge(t devtest.T, l2Network *L2Network, l1EL *L1ELNode) *Stand
 
 func (b *StandardBridge) GameResolutionDelay() time.Duration {
 	gameType := b.RespectedGameType()
+	if gameTypes.GameType(gameType) == gameTypes.SuperPermissionedGameType {
+		return 0
+	}
 	gameImplAddr, err := contractio.Read(b.disputeGameFactory.GameImpls(gameType), b.ctx)
 	b.require.NoErrorf(err, "failed to get implementation for game type %v", gameType)
 	game := bindings.NewBindings[bindings.FaultDisputeGame](bindings.WithClient(b.l1Client.EthClient()), bindings.WithTo(gameImplAddr), bindings.WithTest(b.t))

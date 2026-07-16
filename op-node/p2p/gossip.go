@@ -156,11 +156,21 @@ func BuildMsgIdFn(cfg *rollup.Config) pubsub.MsgIdFunction {
 func (p *Config) ConfigureGossip(rollupCfg *rollup.Config) []pubsub.Option {
 	params := BuildGlobalGossipParams(rollupCfg)
 
-	// override with CLI changes
-	params.D = p.MeshD
-	params.Dlo = p.MeshDLo
-	params.Dhi = p.MeshDHi
-	params.Dlazy = p.MeshDLazy
+	// Override the mesh defaults only where explicitly configured. A zero value means
+	// unset, so keep the BuildGlobalGossipParams default — gossipsub now rejects params
+	// like Dhi=0 (must satisfy Dscore <= Dhi), and 0 is invalid per Config.Check anyway.
+	if p.MeshD > 0 {
+		params.D = p.MeshD
+	}
+	if p.MeshDLo > 0 {
+		params.Dlo = p.MeshDLo
+	}
+	if p.MeshDHi > 0 {
+		params.Dhi = p.MeshDHi
+	}
+	if p.MeshDLazy > 0 {
+		params.Dlazy = p.MeshDLazy
+	}
 
 	// in the future we may add more advanced options like scoring and PX / direct-mesh / episub
 	return []pubsub.Option{

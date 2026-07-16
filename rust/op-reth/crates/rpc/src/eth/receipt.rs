@@ -545,7 +545,7 @@ mod test {
             OpChainSpecBuilder::default()
                 .chain(OP_MAINNET.chain())
                 .genesis(Genesis::default())
-                .interop_activated()
+                .lagoon_activated()
                 .build(),
         );
         let converter = OpReceiptConverter::new(reth_storage_api::noop::NoopProvider::<

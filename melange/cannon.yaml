@@ -1,0 +1,36 @@
+# Standalone cannon image (monorepo cannon-target): multicannon + loose embed files.
+# Same embed staging and multiplexer build as multicannon; additionally copies
+# cannon-0..8 onto /usr/local/bin/ like the Dockerfile's second COPY.
+package:
+  name: cannon
+  version: "0.0.0"
+  epoch: 0
+  description: cannon — OP Stack fault proof VM
+  copyright:
+    - license: MIT
+  options:
+    no-depends: true
+
+environment:
+  contents:
+    keyring:
+      - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+    repositories:
+      - https://packages.wolfi.dev/os
+    packages:
+      - busybox
+      - build-base
+      - ca-certificates-bundle
+      - git
+      - go-1.26
+  environment:
+    CGO_ENABLED: "0"
+
+pipeline:
+  - uses: cannon/build-multicannon
+  - runs: |
+      set -euo pipefail
+      cd cannon
+      cp multicannon/embeds/cannon-* "${{targets.contextdir}}/usr/local/bin/"
+      chmod 755 "${{targets.contextdir}}"/usr/local/bin/cannon-*
+  - uses: strip

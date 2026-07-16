@@ -163,6 +163,16 @@ pub struct RollupArgs {
     #[arg(long = "rollup.enable-tx-conditional", default_value = "false")]
     pub enable_tx_conditional: bool,
 
+    /// Local operator opt-in for SDM `PostExec` production at process boot. The admin RPC
+    /// (`admin_setOperatorSdmOptIn`) can still toggle it at runtime. Defaults to disabled.
+    #[arg(
+        long = "rollup.operator-sdm-opt-in",
+        env = "OP_RETH_OPERATOR_SDM_OPT_IN",
+        action = clap::ArgAction::Set,
+        default_value_t = false
+    )]
+    pub operator_sdm_opt_in: bool,
+
     /// HTTP endpoint(s) for the interop filter, used to validate the interop messages referenced
     /// by incoming transactions. Repeat the flag to configure multiple endpoints; each check is
     /// fanned out to all of them and combined by quorum agreement (see
@@ -282,6 +292,7 @@ impl Default for RollupArgs {
             compute_pending_block: false,
             discovery_v4: false,
             enable_tx_conditional: false,
+            operator_sdm_opt_in: false,
             interop_http: Vec::new(),
             interop_min_responses: None,
             interop_safety_level: SafetyLevel::CrossUnsafe,
@@ -401,6 +412,32 @@ mod tests {
         ])
         .args;
         assert_eq!(args, expected_args);
+    }
+
+    #[test]
+    fn test_parse_optimism_operator_sdm_opt_in() {
+        let expected_args = RollupArgs { operator_sdm_opt_in: true, ..Default::default() };
+        let args = CommandParser::<RollupArgs>::parse_from([
+            "reth",
+            "--rollup.operator-sdm-opt-in",
+            "true",
+        ])
+        .args;
+        assert_eq!(args, expected_args);
+    }
+
+    /// The opt-in is also configurable via the `OP_RETH_OPERATOR_SDM_OPT_IN` environment variable.
+    /// Asserted through clap's arg metadata rather than by setting the variable in the process,
+    /// which would race with the other `RollupArgs` parse tests running in parallel.
+    #[test]
+    fn test_operator_sdm_opt_in_is_bound_to_env_var() {
+        use clap::CommandFactory;
+        let command = CommandParser::<RollupArgs>::command();
+        let arg = command
+            .get_arguments()
+            .find(|arg| arg.get_id().as_str() == "operator_sdm_opt_in")
+            .expect("operator_sdm_opt_in arg should exist");
+        assert_eq!(arg.get_env(), Some(std::ffi::OsStr::new("OP_RETH_OPERATOR_SDM_OPT_IN")));
     }
 
     #[test]

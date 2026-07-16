@@ -460,7 +460,8 @@ commands:
       version:
         description: "Version of the cache"
         type: string
-        default: &rust-cache-version "16"
+        # v18 evicts a partial v17 dep cache seeded by a since-removed single-package save.
+        default: &rust-cache-version "18"
       profile:
         description: "Profile to restore the cache for"
         type: string
@@ -469,10 +470,6 @@ commands:
         description: "Comma-separated list of features to restore the cache for"
         type: string
         default: ""
-      prefix:
-        description: "Prefix to add to the cache key"
-        type: string
-        default: "rust-build"
     steps:
       # Shared across every Rust job: the downloaded crate set is identical
       # for a given Cargo.lock regardless of job, profile, or features, so a
@@ -494,6 +491,9 @@ commands:
             - rust-toolchain-v<< parameters.version >>-{{ checksum "mise.toml"
               }}-{{ checksum "rust/rust-toolchain.toml" }}
 
+  # Only full-workspace builds may attach this command: the shared dep-cache
+  # key is immutable (first save after a Cargo.lock change wins), so a job with
+  # an empty or partial registry would poison the cache for every later build.
   rust-save-build-cache:
     description: "Save the dependency and toolchain caches for a Rust workspace"
     parameters:
@@ -512,10 +512,6 @@ commands:
         description: "Comma-separated list of features to save the cache for"
         type: string
         default: ""
-      prefix:
-        description: "Prefix to add to the cache key"
-        type: string
-        default: "rust-build"
       init_superchain_submodule:
         # Unused by this command. Declared so a job can pass one shared YAML anchor
         # to both rust-prepare-and-restore-cache (which acts on it) and this command
@@ -530,6 +526,17 @@ commands:
           name: sccache stats
           command: 'command -v sccache >/dev/null 2>&1 && sccache --show-stats || true'
           when: always
+      # Backstop for the rule above: catches an empty registry (a partial one
+      # from a single-package build cannot be detected here).
+      - run:
+          name: Assert cargo registry is populated before saving shared cache
+          command: |
+            REGISTRY="/data/mise-data/.cargo/registry"
+            if [ ! -d "$REGISTRY" ] || [ -z "$(ls -A "$REGISTRY" 2>/dev/null)" ]; then
+              echo "ERROR: $REGISTRY is missing or empty; refusing to save the shared rust-deps cache." >&2
+              echo "This job never downloaded crates — remove its rust-save-build-cache step." >&2
+              exit 1
+            fi
       - save_cache:
           key: rust-deps-v<< parameters.version >>-{{ checksum "<< parameters.directory
             >>/Cargo.lock" }}
@@ -567,10 +574,6 @@ commands:
         description: "Comma-separated list of features to restore the cache for"
         type: string
         default: "default"
-      prefix:
-        description: "Prefix to add to the cache key"
-        type: string
-        default: "rust-build"
       enable_sccache:
         description: "Whether to set up the sccache GCS compile cache (see rust-prepare)."
         type: boolean
@@ -598,7 +601,6 @@ commands:
           directory: << parameters.directory >>
           profile: << parameters.profile >>
           features: << parameters.features >>
-          prefix: << parameters.prefix >>
 
   rust-build:
     description: "Build a Rust workspace with target directory caching"
@@ -2986,7 +2988,7 @@ workflows:
                 - main
                 - CUSTOM_GAS_TOKEN
                 - OPTIMISM_PORTAL_INTEROP
-                - ZK_DISPUTE_GAME
+                - ZK_DISPUTE_GAME,SUPER_ROOT_GAMES_MIGRATION
                 - SUPER_ROOT_GAMES_MIGRATION
                 # TODO(#20084): Remove these commented out jobs when removing the L2CM feature toggle.
                 #   L2CM is enabled by default, so we do not need to explicitly enable it and run these additional jobs.
@@ -3148,22 +3150,22 @@ workflows:
             - contracts-bedrock-tests main: terminal
             - contracts-bedrock-tests CUSTOM_GAS_TOKEN: terminal
             - contracts-bedrock-tests OPTIMISM_PORTAL_INTEROP: terminal
-            - contracts-bedrock-tests ZK_DISPUTE_GAME: terminal
+            - contracts-bedrock-tests ZK_DISPUTE_GAME,SUPER_ROOT_GAMES_MIGRATION: terminal
             - contracts-bedrock-tests SUPER_ROOT_GAMES_MIGRATION: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified main: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified CUSTOM_GAS_TOKEN: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified OPTIMISM_PORTAL_INTEROP: terminal
-            - contracts-bedrock-tests-heavy-fuzz-modified ZK_DISPUTE_GAME: terminal
+            - contracts-bedrock-tests-heavy-fuzz-modified ZK_DISPUTE_GAME,SUPER_ROOT_GAMES_MIGRATION: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified SUPER_ROOT_GAMES_MIGRATION: terminal
             - contracts-bedrock-coverage main: terminal
             - contracts-bedrock-coverage CUSTOM_GAS_TOKEN: terminal
             - contracts-bedrock-coverage OPTIMISM_PORTAL_INTEROP: terminal
-            - contracts-bedrock-coverage ZK_DISPUTE_GAME: terminal
+            - contracts-bedrock-coverage ZK_DISPUTE_GAME,SUPER_ROOT_GAMES_MIGRATION: terminal
             - contracts-bedrock-coverage SUPER_ROOT_GAMES_MIGRATION: terminal
             - contracts-bedrock-tests-upgrade op-mainnet main: terminal
             - contracts-bedrock-tests-upgrade op-mainnet CUSTOM_GAS_TOKEN: terminal
             - contracts-bedrock-tests-upgrade op-mainnet OPTIMISM_PORTAL_INTEROP: terminal
-            - contracts-bedrock-tests-upgrade op-mainnet ZK_DISPUTE_GAME: terminal
+            - contracts-bedrock-tests-upgrade op-mainnet ZK_DISPUTE_GAME,SUPER_ROOT_GAMES_MIGRATION: terminal
             - contracts-bedrock-tests-upgrade op-mainnet SUPER_ROOT_GAMES_MIGRATION: terminal
             - contracts-bedrock-tests-upgrade op-mainnet: terminal
             - contracts-bedrock-tests-upgrade ink-mainnet: terminal

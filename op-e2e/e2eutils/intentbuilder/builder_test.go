@@ -185,6 +185,12 @@ func TestBuilder(t *testing.T) {
 					"l2GenesisGraniteTimeOffset":  hexutil.Uint64(0),
 					"l2GenesisHoloceneTimeOffset": hexutil.Uint64(0),
 					"l2GenesisIsthmusTimeOffset":  hexutil.Uint64(isthmusOffset),
+					// Forks after the genesis fork are explicitly deactivated
+					// with a null override so they don't fall back to the
+					// deployer's default hardfork schedule.
+					"l2GenesisJovianTimeOffset": (*hexutil.Uint64)(nil),
+					"l2GenesisKarstTimeOffset":  (*hexutil.Uint64)(nil),
+					"l2GenesisLagoonTimeOffset": (*hexutil.Uint64)(nil),
 				},
 				L2DevGenesisParams: &state.L2DevGenesisParams{
 					Prefund: map[common.Address]*hexutil.U256{
@@ -202,4 +208,20 @@ func TestBuilder(t *testing.T) {
 	require.NoError(t, err)
 
 	require.JSONEq(t, string(expectedJSON), string(actualJSON))
+}
+
+// TestWithForkAtGenesisBedrock is a regression guard: WithForkAtGenesis(Bedrock)
+// is the genesis baseline used by sysgo.WithHardforkSequentialActivation. Bedrock
+// has no schedulable time offset, so it must not panic, and must deactivate every
+// scheduleable fork with an explicit nil override.
+func TestWithForkAtGenesisBedrock(t *testing.T) {
+	b, l2 := New().WithL2(eth.ChainIDFromUInt64(420))
+	require.NotPanics(t, func() { l2.WithForkAtGenesis(opforks.Bedrock) })
+
+	overrides := b.(*intentBuilder).intent.Chains[0].DeployOverrides
+	require.Contains(t, overrides, "l2GenesisRegolithTimeOffset")
+	require.Contains(t, overrides, "l2GenesisLagoonTimeOffset")
+	for k, v := range overrides {
+		require.Nil(t, v, "fork override %s should be deactivated at Bedrock genesis", k)
+	}
 }
