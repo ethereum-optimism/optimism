@@ -88,10 +88,13 @@ func TestMonitor_StartMonitoring(t *testing.T) {
 
 	t.Run("WaitsForInFlightMonitor", func(t *testing.T) {
 		monitor, _, _, _ := setupMonitorTest(t)
-		entered := make(chan struct{})
+		entered := make(chan struct{}, 1)
 		release := make(chan struct{})
 		monitor.fetchHeadBlock = func(context.Context) (eth.L1BlockRef, error) {
-			close(entered)
+			select {
+			case entered <- struct{}{}:
+			default:
+			}
 			<-release
 			return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
 		}
