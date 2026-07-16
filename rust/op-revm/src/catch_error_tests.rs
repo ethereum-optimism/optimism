@@ -10,6 +10,7 @@ use crate::{
     handler::OpHandler,
     transaction::{OpTransactionError, deposit::DEPOSIT_TRANSACTION_TYPE},
 };
+use op_alloy_consensus::OpTxType;
 use revm::{
     context::{Context, TxEnv},
     context_interface::{
@@ -24,9 +25,9 @@ use revm::{
 };
 use rstest::rstest;
 
-/// A non-deposit OP custom transaction type (the SDM post-exec `0x7D` tx). Exercises the
+/// A non-deposit OP custom transaction type (the SDM post-exec tx). Exercises the
 /// `OpTxType::PostExec` arm (a non-deposit type) rather than the deposit arm.
-const POST_EXEC_TX_TYPE: u8 = 0x7D;
+const POST_EXEC_TX_TYPE: u8 = OpTxType::PostExec as u8;
 
 type TestError = EVMError<core::convert::Infallible, OpTransactionError>;
 
