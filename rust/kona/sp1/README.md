@@ -18,13 +18,13 @@ zkVM programs that execute inside the SP1 prover:
 - **`aggregation`**: Aggregates multiple range program proofs into a single proof, enabling efficient verification of longer block ranges.
 - **`super-range`**: Scaffold for the unified multi-chain super-root range
   program, with modes for proving ranges and span-shaped consolidation.
-- **`super-aggregation`**: Scaffold for aggregating unified super-range
-  proofs into the public values consumed by `ZKDisputeGame`.
+- **`super-aggregation`**: Recursively verifies unified super-range proofs and
+  commits the public values consumed by `ZKDisputeGame`.
 
-The super-root aggregation scaffold currently accepts the range program verification
-key as input to support development. This dynamic-vkey mode is not production
-sound until the range vkey is embedded in the aggregation program or
-publicly bound by the verifier path.
+The super-root aggregation program currently accepts the range program verification
+key as input to support development. This dynamic-vkey mode is not production sound
+until the range vkey is embedded in the aggregation program or publicly bound by the
+verifier path.
 
 ### Crates (`crates/`)
 
