@@ -123,6 +123,8 @@ func (j *Job) Open(ctx context.Context) error {
 		if isAmsterdam {
 			slotNumber := (newBlockTime - j.b.genesis.Time) / j.b.blockTime
 			attrs.SlotNumber = &slotNumber
+			targetGasLimit := j.head.GasLimit
+			attrs.TargetGasLimit = &targetGasLimit
 		}
 		fcState := engine.ForkchoiceStateV1{
 			HeadBlockHash:      j.head.Hash(),
