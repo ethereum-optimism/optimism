@@ -1814,12 +1814,20 @@ mod sdm {
             )
         }
 
+        /// Activates every fork through Lagoon at `JOVIAN_TIMESTAMP`. Lagoon gates SDM, so the
+        /// Produce path exercised here runs on a genuinely SDM-active fork rather than being forced
+        /// on a pre-SDM one.
         fn hardforks() -> OpChainHardforks {
-            OpChainHardforks::new(
-                OpHardfork::op_mainnet()
-                    .into_iter()
-                    .chain(vec![(OpHardfork::Jovian, ForkCondition::Timestamp(JOVIAN_TIMESTAMP))]),
-            )
+            let forks = OpHardfork::op_mainnet()
+                .into_iter()
+                .filter(|(fork, _)| fork.idx() < OpHardfork::Jovian.idx())
+                .chain(
+                    OpHardfork::Jovian
+                        .forks_from()
+                        .take_while(|fork| fork.idx() <= OpHardfork::Lagoon.idx())
+                        .map(|fork| (fork, ForkCondition::Timestamp(JOVIAN_TIMESTAMP))),
+                );
+            OpChainHardforks::new(forks)
         }
 
         /// Canonical gas charged to probe tx `B` (BALANCE on `LEAK_ADDR`), optionally preceded
