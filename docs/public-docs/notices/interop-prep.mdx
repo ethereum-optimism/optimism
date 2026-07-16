@@ -85,7 +85,7 @@ The migration has four phases.
 Complete each one and verify it on testnet before the activation timestamp.
 Start the execution clients first, then the supernode — the supernode drives the ELs through their sync, because an EL has no way to know what chain head to target on its own.
 Light CLs come last, since they follow the supernode.
-Full per-flag reference for the supernode is in the [supernode configuration guide](/node-operators/guides/configuration/supernode); this notice walks through the testnet-specific setup.
+Full per-flag reference for the supernode is in the [op-supernode configuration reference](/node-operators/reference/op-supernode-config); this notice walks through the testnet-specific setup.
 
 The command examples in each step are minimum viable configurations — they cover the flags required for the interop topology and nothing else.
 Layer your usual production flags (monitoring, logging, P2P tuning, RPC modules, resource limits) on top as your environment requires.
@@ -162,7 +162,7 @@ Layer your usual production flags (monitoring, logging, P2P tuning, RPC modules,
   If your primary beacon node prunes blob sidecars (the Ethereum default is about 18 days), configure `--l1.beacon-fallbacks` against a non-pruning beacon or an archiver service from the start.
   A supernode that has been offline past the primary beacon's prune window cannot recover the missing blobs alone, and chain containers will stall at the gap.
 
-  For the full flag reference and recommendations, see the [supernode configuration guide](/node-operators/guides/configuration/supernode).
+  For the full flag reference, see the [op-supernode configuration reference](/node-operators/reference/op-supernode-config); for recommendations, see the [supernode configuration guide](/node-operators/guides/configuration/supernode).
   </Step>
 
   <Step title="Migrate every op-node in the fleet to Light CL">
@@ -261,7 +261,8 @@ If you scrape Prometheus, the equivalent gauge on a Light CL is `op_node_default
 
 * [Interop explainer](/op-stack/interop/explainer) — how cross-chain messages and block safety work under interop.
 * [op-supernode explainer](/op-stack/interop/supernode) — what op-supernode is, why it exists, and how it pairs with Light CL.
-* [Supernode configuration guide](/node-operators/guides/configuration/supernode) — flag reference and starter configuration.
+* [Supernode configuration guide](/node-operators/guides/configuration/supernode) — recommended settings and starter configuration.
+* [op-supernode configuration reference](/node-operators/reference/op-supernode-config) — full flag and environment-variable catalogue.
 * [Specialized op-node topology notice](/notices/specialized-node-topology) — operator-facing pattern for running Light CL fleets behind a safe source.
 * [Interop reorg awareness](/op-stack/interop/reorg) — how the safety model handles equivocation and L1 reorgs.
 * [Cross-chain security measures](/op-stack/security/interop-security) — how the safety level for inbound cross-chain messages is configured at the chain level.

@@ -161,7 +161,10 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		chainID,
 		st.Create2Salt.String(),
 		thisIntent.GasLimit,
-		opcm.DefaultStartingAnchorRoot.Root,
+		opcm.Proposal{
+			Root:             opcm.DefaultStartingAnchorRoot.Root,
+			L2SequenceNumber: common.Big0,
+		},
 		proofParams.DisputeAbsolutePrestate,
 		thisIntent,
 	), nil
@@ -170,7 +173,12 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 // IsPermissionlessGameType reports whether the given dispute game type deploys a
 // permissionless chain.
 func IsPermissionlessGameType(gameType uint32) bool {
-	return gameType == uint32(embedded.GameTypeCannonKona)
+	switch embedded.GameType(gameType) {
+	case embedded.GameTypeCannonKona, embedded.GameTypeSuperCannonKona:
+		return true
+	default:
+		return false
+	}
 }
 
 func BuildDeployOPChainInput(
@@ -181,7 +189,7 @@ func BuildDeployOPChainInput(
 	l2ChainID common.Hash,
 	saltMixer string,
 	gasLimit uint64,
-	startingAnchorRoot common.Hash,
+	startingAnchorRoot opcm.Proposal,
 	cannonAbsolutePrestate common.Hash,
 	chain *state.ChainIntent,
 ) opcm.DeployOPChainInput {

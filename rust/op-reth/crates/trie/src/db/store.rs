@@ -903,7 +903,7 @@ impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> OpProofsInitProvider
         if account_nodes.is_empty() {
             return Ok(());
         }
-        self.persist_history_batch(0, account_nodes.into_iter(), true)?;
+        self.persist_history_batch(0, account_nodes, true)?;
         Ok(())
     }
 
@@ -930,7 +930,7 @@ impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> OpProofsInitProvider
         if accounts.is_empty() {
             return Ok(());
         }
-        self.persist_history_batch(0, accounts.into_iter(), true)?;
+        self.persist_history_batch(0, accounts, true)?;
         Ok(())
     }
 

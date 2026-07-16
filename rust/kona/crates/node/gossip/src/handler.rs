@@ -1,6 +1,6 @@
 //! Block Handler
 
-use crate::HandlerEncodeError;
+use crate::{HandlerEncodeError, config::snappy_decompressed_len_within_bound};
 use alloy_primitives::{Address, B256};
 use kona_genesis::RollupConfig;
 use libp2p::gossipsub::{IdentTopic, Message, MessageAcceptance, TopicHash};
@@ -46,6 +46,16 @@ impl Handler for BlockHandler {
     /// Checks validity of a [`OpNetworkPayloadEnvelope`] received over P2P gossip.
     /// If valid, sends the [`OpNetworkPayloadEnvelope`] to the block update channel.
     fn handle(&mut self, msg: Message) -> (MessageAcceptance, Option<OpNetworkPayloadEnvelope>) {
+        // Reject frames whose snappy header declares a decompressed size over MAX_GOSSIP_SIZE
+        // before decoding. `OpNetworkPayloadEnvelope::decode_v*` otherwise pre-allocates a
+        // buffer of the declared length (up to ~4 GiB) from a tiny frame. Mirrors op-node's
+        // gossip topic validator, which rejects `outLen > maxGossipSize` before decompressing.
+        if snappy_decompressed_len_within_bound(&msg.data).is_none() {
+            // Reject without logging: this is unauthenticated remote input and must not be able to
+            // spam warnings just by being invalid.
+            return (MessageAcceptance::Reject, None);
+        }
+
         let decoded = if msg.topic == self.blocks_v1_topic.hash() {
             OpNetworkPayloadEnvelope::decode_v1(&msg.data)
         } else if msg.topic == self.blocks_v2_topic.hash() {

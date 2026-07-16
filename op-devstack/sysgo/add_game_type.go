@@ -104,7 +104,8 @@ func addGameTypesForRuntime(
 
 	l1PAO, l1PAOKey := resolveL1ProxyAdminOwner(t, keys, l1ChainID)
 
-	chainOps := devkeys.ChainOperatorKeys(l1ChainID.ToBig())
+	// Operator roles are scoped to the OP chain, even though the game contracts use them on L1.
+	chainOps := devkeys.ChainOperatorKeys(l2Net.ChainID().ToBig())
 	proposer, err := keys.Address(chainOps(devkeys.ProposerRole))
 	require.NoError(err, "failed to get proposer address")
 	challenger, err := keys.Address(chainOps(devkeys.ChallengerRole))
@@ -117,6 +118,7 @@ func addGameTypesForRuntime(
 	initBond := eth.GWei(80_000_000).ToBig() // 0.08 ETH
 
 	cannonKonaPrestate := PrestateForGameType(t, gameTypes.CannonKonaGameType)
+	superCannonKonaPrestate := PrestateForGameType(t, gameTypes.SuperCannonKonaGameType)
 
 	// Download the contracts artifacts once; reused for the mock verifier deploy and the upgrade.
 	artifactsFS, err := artifacts.Download(t.Ctx(), LocalArtifacts(t), ioutil.NoopProgressor(), t.TempDir())
@@ -168,8 +170,22 @@ func addGameTypesForRuntime(
 				AbsolutePrestate: cannonKonaPrestate,
 			},
 		},
-		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperPermissioned},
-		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeSuperCannonKona},
+		{
+			Enabled:  enabled[gameTypes.SuperPermissionedGameType],
+			InitBond: new(big.Int),
+			GameType: embedded.GameTypeSuperPermissioned,
+			SuperPermissionedDisputeGameConfig: &embedded.SuperPermissionedDisputeGameConfig{
+				Proposer: proposer,
+			},
+		},
+		{
+			Enabled:  enabled[gameTypes.SuperCannonKonaGameType],
+			InitBond: initBond,
+			GameType: embedded.GameTypeSuperCannonKona,
+			FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{
+				AbsolutePrestate: superCannonKonaPrestate,
+			},
+		},
 		{
 			Enabled:             enabled[gameTypes.ZKDisputeGameType],
 			InitBond:            initBond,
@@ -214,6 +230,8 @@ func PrestateForGameType(t devtest.CommonT, gameType gameTypes.GameType) common.
 	switch gameType {
 	case gameTypes.CannonKonaGameType:
 		return getCannonKonaAbsolutePrestate(t)
+	case gameTypes.SuperCannonKonaGameType:
+		return getAbsolutePrestate(t, "rust/kona/prestate-artifacts-cannon-interop/prestate-proof.json")
 	default:
 		t.Require().Fail("no prestate available for game type", gameType)
 		return common.Hash{}

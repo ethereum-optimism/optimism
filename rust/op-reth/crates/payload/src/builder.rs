@@ -364,7 +364,7 @@ where
             config,
             cached_reads: Default::default(),
             execution_cache: None,
-            trie_handle: None,
+            state_root_handle: None,
             cancel: Default::default(),
             best_payload: None,
         };
@@ -385,8 +385,14 @@ fn convert_build_args<N: OpPayloadPrimitives>(
     BuildArguments<OpPayloadBuilderAttributes<N::SignedTx>, OpBuiltPayload<N>>,
     PayloadBuilderError,
 > {
-    let BuildArguments { config, cached_reads, execution_cache, trie_handle, cancel, best_payload } =
-        args;
+    let BuildArguments {
+        config,
+        cached_reads,
+        execution_cache,
+        state_root_handle,
+        cancel,
+        best_payload,
+    } = args;
     let parent_hash = config.parent_header.hash();
     let payload_id = config.payload_id;
     let builder_attrs =
@@ -401,7 +407,7 @@ fn convert_build_args<N: OpPayloadPrimitives>(
         },
         cached_reads,
         execution_cache,
-        trie_handle,
+        state_root_handle,
         cancel,
         best_payload,
     })
@@ -539,6 +545,7 @@ impl<Txs> OpBuilder<'_, Txs> {
             execution_output: Arc::new(execution_outcome),
             hashed_state: Arc::new(hashed_state),
             trie_updates: Arc::new(trie_updates),
+            changed_paths: None,
         };
 
         let no_tx_pool = ctx.attributes().no_tx_pool();
@@ -837,7 +844,7 @@ where
             &self.chain_spec,
             self.attributes().timestamp(),
         );
-        protocol_active && self.builder_config.sdm_post_exec_opt_in.enabled()
+        protocol_active && self.builder_config.operator_sdm_opt_in.enabled()
     }
 
     /// Returns true when the tx pool is excluded and the block must be reproduced

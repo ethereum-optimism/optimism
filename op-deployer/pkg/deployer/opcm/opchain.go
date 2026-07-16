@@ -19,6 +19,12 @@ var PermissionedGameStartingAnchorRoot = []byte{
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 }
 
+// Proposal mirrors the Solidity Proposal tuple used for the starting anchor root.
+type Proposal struct {
+	Root             common.Hash
+	L2SequenceNumber *big.Int
+}
+
 type DeployOPChainInput struct {
 	OpChainProxyAdminOwner common.Address
 	SystemConfigOwner      common.Address
@@ -36,7 +42,7 @@ type DeployOPChainInput struct {
 
 	DisputeGameType              uint32
 	DisputeAbsolutePrestate      common.Hash
-	StartingAnchorRoot           common.Hash
+	StartingAnchorRoot           Proposal
 	CannonAbsolutePrestate       common.Hash
 	DisputeMaxGameDepth          *big.Int
 	DisputeSplitDepth            *big.Int

@@ -1,6 +1,7 @@
 ---
 title: Upgrade Command
-description: The op-deployer upgrade command supports upgrades up to op-contracts/v5.0.0.
+description: Version-support reference for the op-deployer upgrade command, which handles upgrades only up to op-contracts/v5.0.0.
+diataxis: reference
 ---
 
 <Warning>

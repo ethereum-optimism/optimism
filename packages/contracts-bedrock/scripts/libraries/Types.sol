@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { Claim, Duration, GameType, Hash } from "src/dispute/lib/Types.sol";
+import { Claim, Duration, GameType, Proposal } from "src/dispute/lib/Types.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 library Types {
@@ -40,7 +40,7 @@ library Types {
         // Configurable dispute game inputs
         GameType disputeGameType;
         Claim disputeAbsolutePrestate;
-        Hash startingAnchorRoot;
+        Proposal startingAnchorRoot;
         Claim cannonAbsolutePrestate;
         uint256 disputeMaxGameDepth;
         uint256 disputeSplitDepth;

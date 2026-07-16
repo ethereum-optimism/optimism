@@ -16,7 +16,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/holiman/uint256"
 )
@@ -435,10 +434,17 @@ func (envelope *ExecutionPayloadEnvelope) CheckBlockHash() (actual common.Hash, 
 	return blockHash, blockHash == payload.BlockHash
 }
 
+// HardforkConfig reports whether the OP-Stack hardforks relevant to payload conversion are active
+// at a given L2 block timestamp. It is satisfied by rollup.Config.
+type HardforkConfig interface {
+	IsCanyon(timestamp uint64) bool
+	IsIsthmus(timestamp uint64) bool
+}
+
 // BlockAsPayload converts a [*types.Block] to an [ExecutionPayload]. It can only be used to convert
 // OP-Stack blocks, as it follows Canyon and Isthmus rules to set the Withdrawals and
 // WithdrawalsRoot fields.
-func BlockAsPayload(bl *types.Block, config *params.ChainConfig) (*ExecutionPayload, error) {
+func BlockAsPayload(bl *types.Block, config HardforkConfig) (*ExecutionPayload, error) {
 	baseFee, overflow := uint256.FromBig(bl.BaseFee())
 	if overflow {
 		return nil, fmt.Errorf("invalid base fee in block: %s", bl.BaseFee())
@@ -486,7 +492,7 @@ func BlockAsPayload(bl *types.Block, config *params.ChainConfig) (*ExecutionPayl
 	return payload, nil
 }
 
-func BlockAsPayloadEnv(bl *types.Block, config *params.ChainConfig) (*ExecutionPayloadEnvelope, error) {
+func BlockAsPayloadEnv(bl *types.Block, config HardforkConfig) (*ExecutionPayloadEnvelope, error) {
 	payload, err := BlockAsPayload(bl, config)
 	if err != nil {
 		return nil, err

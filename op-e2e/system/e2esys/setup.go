@@ -47,6 +47,7 @@ import (
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
+	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/config/secrets"
@@ -729,7 +730,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 			KarstTime:              cfg.DeployConfig.KarstTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			LagoonTime:             cfg.DeployConfig.LagoonTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			AltDAConfig:            rollupAltDAConfig,
-			ChainOpConfig: &params.OptimismConfig{
+			ChainOpConfig: &opparams.OptimismConfig{
 				EIP1559Elasticity:        cfg.DeployConfig.EIP1559Elasticity,
 				EIP1559Denominator:       cfg.DeployConfig.EIP1559Denominator,
 				EIP1559DenominatorCanyon: &cfg.DeployConfig.EIP1559DenominatorCanyon,

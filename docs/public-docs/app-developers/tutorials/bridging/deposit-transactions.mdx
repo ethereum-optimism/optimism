@@ -1,6 +1,7 @@
 ---
 title: Deposit transactions
 description: Learn about using deposit transactions with `supersim`.
+diataxis: tutorial
 ---
 
 Supersim supports [deposit transactions](/op-stack/bridging/deposit-flow). It uses a very lightweight solution without the `op-node` derivation pipeline by listening directly to the `TransactionDeposited` events on the `OptimismPortal` contract and simply forwarding the transaction to the applicable L2.
