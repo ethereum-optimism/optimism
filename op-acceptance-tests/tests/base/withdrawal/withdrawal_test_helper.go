@@ -44,6 +44,9 @@ func newSystem(t devtest.T, gameType gameTypes.GameType, extra ...presets.Option
 
 func TestWithdrawal(gt *testing.T, gameType gameTypes.GameType, extra ...presets.Option) {
 	t := devtest.ParallelT(gt)
+	if gameType == gameTypes.SuperPermissionedGameType || gameType == gameTypes.SuperCannonKonaGameType {
+		sysgo.SkipOnKonaNode(t, "super-root proposals require op-node superroot RPC")
+	}
 	sys := newSystem(t, gameType, extra...)
 
 	bridge := sys.StandardBridge()

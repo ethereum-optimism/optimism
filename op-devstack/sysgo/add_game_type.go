@@ -122,18 +122,30 @@ func addGameTypesForRuntime(
 
 	cannonKonaPrestate := PrestateForGameType(t, gameTypes.CannonKonaGameType)
 	superCannonKonaPrestate := PrestateForGameType(t, gameTypes.SuperCannonKonaGameType)
-	startingAnchorRoot := opcm.DefaultStartingAnchorRoot
+	extraInstructions := []embedded.ExtraInstruction{
+		{Key: "PermittedProxyDeployment", Data: []byte("DelayedWETH")},
+	}
 	if enabled[gameTypes.SuperCannonKonaGameType] {
 		superrootTime := awaitSuperrootTime(t, l2CL)
-		startingAnchorRoot.Root = common.Hash(getSuperRoot(t, l2CL.UserRPC(), superrootTime))
-		startingAnchorRoot.L2BlockNumber = new(big.Int).SetUint64(superrootTime)
+		startingAnchorRoot := opcm.StartingAnchorRoot{
+			Root:          common.Hash(getSuperRoot(t, l2CL.UserRPC(), superrootTime)),
+			L2BlockNumber: new(big.Int).SetUint64(superrootTime),
+		}
+		extraInstructions = append([]embedded.ExtraInstruction{
+			{
+				Key: "overrides.cfg.startingAnchorRoot",
+				Data: encodeStartingAnchorRoot(
+					t,
+					eth.Bytes32(startingAnchorRoot.Root),
+					bigs.Uint64Strict(startingAnchorRoot.L2BlockNumber),
+				),
+			},
+			{
+				Key:  "overrides.cfg.startingRespectedGameType",
+				Data: encodeStartingRespectedGameType(t, superPermissionedGameType),
+			},
+		}, extraInstructions...)
 	}
-	anchorRootData := encodeStartingAnchorRoot(
-		t,
-		eth.Bytes32(startingAnchorRoot.Root),
-		bigs.Uint64Strict(startingAnchorRoot.L2BlockNumber),
-	)
-	respectedGameTypeData := encodeStartingRespectedGameType(t, superPermissionedGameType)
 
 	// Download the contracts artifacts once; reused for the mock verifier deploy and the upgrade.
 	artifactsFS, err := artifacts.Download(t.Ctx(), LocalArtifacts(t), ioutil.NoopProgressor(), t.TempDir())
@@ -168,7 +180,7 @@ func addGameTypesForRuntime(
 			},
 		},
 		{
-			Enabled:  enabled[gameTypes.PermissionedGameType],
+			Enabled:  true, // Permissioned cannon is always enabled.
 			InitBond: initBond,
 			GameType: embedded.GameTypePermissionedCannon,
 			PermissionedDisputeGameConfig: &embedded.PermissionedDisputeGameConfig{
@@ -186,7 +198,7 @@ func addGameTypesForRuntime(
 			},
 		},
 		{
-			Enabled:  true,
+			Enabled:  enabled[gameTypes.SuperPermissionedGameType] || enabled[gameTypes.SuperCannonKonaGameType],
 			InitBond: new(big.Int),
 			GameType: embedded.GameTypeSuperPermissioned,
 			SuperPermissionedDisputeGameConfig: &embedded.SuperPermissionedDisputeGameConfig{
@@ -221,11 +233,7 @@ func addGameTypesForRuntime(
 		UpgradeInputV2: &embedded.UpgradeInputV2{
 			SystemConfig:       l2Net.deployment.SystemConfigProxyAddr(),
 			DisputeGameConfigs: configs,
-			ExtraInstructions: []embedded.ExtraInstruction{
-				{Key: "overrides.cfg.startingAnchorRoot", Data: anchorRootData},
-				{Key: "overrides.cfg.startingRespectedGameType", Data: respectedGameTypeData},
-				{Key: "PermittedProxyDeployment", Data: []byte("DelayedWETH")},
-			},
+			ExtraInstructions:  extraInstructions,
 		},
 	})
 }
