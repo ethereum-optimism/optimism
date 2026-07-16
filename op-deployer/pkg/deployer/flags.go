@@ -13,24 +13,25 @@ import (
 )
 
 const (
-	EnvVarPrefix             = flags.EnvVarPrefix
-	L1RPCURLFlagName         = flags.L1RPCURLFlagName
-	CacheDirFlagName         = flags.CacheDirFlagName
-	L1ChainIDFlagName        = flags.L1ChainIDFlagName
-	ArtifactsLocatorFlagName = flags.ArtifactsLocatorFlagName
-	L2ChainIDsFlagName       = flags.L2ChainIDsFlagName
-	WorkdirFlagName          = flags.WorkdirFlagName
-	OutdirFlagName           = flags.OutdirFlagName
-	PrivateKeyFlagName       = flags.PrivateKeyFlagName
-	PrestateFlagName         = flags.PrestateFlagName
-	IntentTypeFlagName       = flags.IntentTypeFlagName
-	VerifierAPIKeyFlagName   = flags.VerifierAPIKeyFlagName
-	EtherscanAPIKeyFlagName  = flags.EtherscanAPIKeyFlagName // Deprecated: use VerifierAPIKeyFlagName
-	InputFileFlagName        = flags.InputFileFlagName
-	ContractNameFlagName     = flags.ContractNameFlagName
-	VerifierTypeFlagName     = flags.VerifierTypeFlagName
-	VerifierUrlFlagName      = flags.VerifierUrlFlagName
-	UseForgeFlagName         = flags.UseForgeFlagName
+	EnvVarPrefix                   = flags.EnvVarPrefix
+	L1RPCURLFlagName               = flags.L1RPCURLFlagName
+	CacheDirFlagName               = flags.CacheDirFlagName
+	L1ChainIDFlagName              = flags.L1ChainIDFlagName
+	ArtifactsLocatorFlagName       = flags.ArtifactsLocatorFlagName
+	L2ChainIDsFlagName             = flags.L2ChainIDsFlagName
+	WorkdirFlagName                = flags.WorkdirFlagName
+	OutdirFlagName                 = flags.OutdirFlagName
+	PrivateKeyFlagName             = flags.PrivateKeyFlagName
+	PrestateFlagName               = flags.PrestateFlagName
+	CannonFallbackPrestateFlagName = flags.CannonFallbackPrestateFlagName
+	IntentTypeFlagName             = flags.IntentTypeFlagName
+	VerifierAPIKeyFlagName         = flags.VerifierAPIKeyFlagName
+	EtherscanAPIKeyFlagName        = flags.EtherscanAPIKeyFlagName // Deprecated: use VerifierAPIKeyFlagName
+	InputFileFlagName              = flags.InputFileFlagName
+	ContractNameFlagName           = flags.ContractNameFlagName
+	VerifierTypeFlagName           = flags.VerifierTypeFlagName
+	VerifierUrlFlagName            = flags.VerifierUrlFlagName
+	UseForgeFlagName               = flags.UseForgeFlagName
 )
 
 var (
@@ -82,8 +83,13 @@ var (
 	}
 	PrestateFlag = &cli.StringFlag{
 		Name:    PrestateFlagName,
-		Usage:   "Absolute prestate hash to commit for each chain. Fails if an intent override differs.",
+		Usage:   "Selected permissionless-game absolute prestate hash. Fails if a differing intent value is set.",
 		EnvVars: PrefixEnvVar("DISPUTE_ABSOLUTE_PRESTATE"),
+	}
+	CannonFallbackPrestateFlag = &cli.StringFlag{
+		Name:    CannonFallbackPrestateFlagName,
+		Usage:   "PERMISSIONED_CANNON fallback absolute prestate used only with CANNON_KONA. Fails if a differing intent value is set.",
+		EnvVars: PrefixEnvVar("CANNON_FALLBACK_PRESTATE"),
 	}
 	DeploymentTargetFlag = &cli.StringFlag{
 		Name:    "deployment-target",
@@ -174,6 +180,7 @@ var ApplyFlags = []cli.Flag{
 var PrestateFlags = []cli.Flag{
 	WorkdirFlag,
 	PrestateFlag,
+	CannonFallbackPrestateFlag,
 }
 
 var UpgradeFlags = []cli.Flag{
