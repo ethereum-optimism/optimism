@@ -28,9 +28,9 @@ func TestSuperPermissionedProposerCreatesRepeatedGames(gt *testing.T) {
 	dgf := sys.DisputeGameFactory()
 	firstGame := dgf.WaitForGame()
 	firstGame.VerifyGameType(gameTypes.SuperPermissionedGameType)
-	firstGame.VerifyStatus(gameTypes.GameStatusDefenderWon)
+	firstGame.WaitForGameStatus(gameTypes.GameStatusDefenderWon)
 
 	secondGame := dgf.WaitForGame()
 	secondGame.VerifyGameType(gameTypes.SuperPermissionedGameType)
-	secondGame.VerifyStatus(gameTypes.GameStatusDefenderWon)
+	secondGame.WaitForGameStatus(gameTypes.GameStatusDefenderWon)
 }

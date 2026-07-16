@@ -144,9 +144,17 @@ func (g *FaultDisputeGame) status() gameTypes.GameStatus {
 	return gameTypes.GameStatus(status)
 }
 
-func (g *FaultDisputeGame) VerifyStatus(expected gameTypes.GameStatus) {
-	actual := g.status()
-	g.require.Equalf(expected, actual, "game status mismatch: expected %s, got %s", expected, actual)
+func (g *FaultDisputeGame) WaitForGameStatus(expected gameTypes.GameStatus) {
+	g.t.Logf("Waiting for game %v to have status %v", g.Address, expected)
+	timedCtx, cancel := context.WithTimeout(g.t.Ctx(), defaultTimeout)
+	defer cancel()
+
+	var actual gameTypes.GameStatus
+	err := wait.For(timedCtx, time.Second, func() (bool, error) {
+		actual = g.status()
+		return actual == expected, nil
+	})
+	g.require.NoErrorf(err, "game status mismatch: expected %s, got %s", expected, actual)
 }
 
 func (g *FaultDisputeGame) newClaim(claimIndex uint64, claim bindings.Claim) *Claim {
