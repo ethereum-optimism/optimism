@@ -29,6 +29,11 @@ use rstest::rstest;
 /// `OpTxType::PostExec` arm (a non-deposit type) rather than the deposit arm.
 const POST_EXEC_TX_TYPE: u8 = OpTxType::PostExec as u8;
 
+/// The EIP-4844 (blob) type ID. OP has no `OpTxType::Eip4844` variant, so this value exercises the
+/// `OpTxType::try_from` *failure* fold in `catch_error_tx_error` (the unsupported-type path) rather
+/// than a match arm.
+const EIP4844_TX_TYPE: u8 = 3;
+
 type TestError = EVMError<core::convert::Infallible, OpTransactionError>;
 
 /// Builds an OP transaction whose `tx_type()` is `tx_type`. Deposits are identified by a non-zero
@@ -68,7 +73,7 @@ fn run_catch_error(
 
 #[rstest]
 fn catch_error_over_tx_types_and_error_kinds(
-    #[values(0, 1, 2, 3, 4, POST_EXEC_TX_TYPE, DEPOSIT_TRANSACTION_TYPE)] tx_type: u8,
+    #[values(0, 1, 2, EIP4844_TX_TYPE, 4, POST_EXEC_TX_TYPE, DEPOSIT_TRANSACTION_TYPE)] tx_type: u8,
     #[values(true, false)] is_tx_error: bool,
 ) {
     let result = run_catch_error(tx_type, is_tx_error);
