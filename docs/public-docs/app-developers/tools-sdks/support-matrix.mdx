@@ -1,0 +1,91 @@
+---
+title: Tools & SDKs Support Matrix
+description: One page that differentiates the OP Stack SDK surfaces and developer tools — what each is for, who owns it, where its canonical docs live, and its support status.
+diataxis: reference
+---
+
+import ThirdPartyContent from "/snippets/third-party-content.mdx"
+
+<ThirdPartyContent />
+
+This page is the canonical hub for the tools and SDKs that surround the OP Stack.
+Following the [content guide](/op-stack/contribute/content-guide), each listing
+links exactly one canonical documentation home — this page routes, it does not
+restate. What gets listed here (and what gets removed) is governed by the
+[listing criteria](/app-developers/tools-sdks/listing-criteria).
+
+## Support Status Levels
+
+| Status | Meaning |
+| --- | --- |
+| **Production** | Stable and recommended for production use by its owner. |
+| **Developer preview** | Usable today, but its owner has declared it not yet ready for production; APIs may change. |
+| **Experimental** | A staging ground. Features may change, move, or be upstreamed elsewhere. |
+
+## The Matrix
+
+| Tool | Purpose | Owner | Canonical docs | Support status |
+| --- | --- | --- | --- | --- |
+| [`viem/op-stack`](https://viem.sh/op-stack) | General-purpose TypeScript client for OP Stack chains: deposits, withdrawals, L1 gas estimation, and all standard chain interaction, built into viem | [wevm](https://github.com/wevm/viem) (third party) | [viem.sh/op-stack](https://viem.sh/op-stack) | Production |
+| [`@eth-optimism/viem`](https://github.com/ethereum-optimism/ecosystem/tree/main/packages/viem) | viem extension for OP Stack features that have not yet been upstreamed into viem — Superchain interop actions and utilities; used by this site's bridging and interop tutorials | Optimism Collective ([`ecosystem`](https://github.com/ethereum-optimism/ecosystem) repo) | [Package README & SDK reference](https://github.com/ethereum-optimism/ecosystem/tree/main/packages/viem#readme) | Experimental |
+| [Actions SDK](https://github.com/ethereum-optimism/actions) (`@eth-optimism/actions-sdk`) | High-level abstractions for building onchain apps — wallet, lend, and swap namespaces over Superchain protocols | Optimism Collective ([`actions`](https://github.com/ethereum-optimism/actions) repo) | [Actions quickstart](/app-developers/quickstarts/actions) and [reference](/app-developers/reference/actions/integrating-wallets) on this site | Developer preview |
+| [wagmi](https://wagmi.sh) | React hooks for Ethereum apps; works with OP Stack chains as with any EVM chain | [wevm](https://github.com/wevm/wagmi) (third party) | [wagmi.sh](https://wagmi.sh) | Production |
+| [supersim](https://github.com/ethereum-optimism/supersim) | Local Superchain simulator: one L1 plus multiple OP Stack L2s for testing L1↔L2 and L2↔L2 message passing without deploying to live networks | Optimism Collective ([`supersim`](https://github.com/ethereum-optimism/supersim) repo) | [Supersim docs](https://supersim.pages.dev) | Production (interop features in active development) |
+| [super-cli](https://github.com/ethereum-optimism/super-cli) (`sup`) | Foundry companion CLI for multichain workflows: deploy and verify contracts on multiple chains at once, bridge funds, use connected wallets | Optimism Collective ([`super-cli`](https://github.com/ethereum-optimism/super-cli) repo) | [Repository README](https://github.com/ethereum-optimism/super-cli#readme) | Experimental |
+| [superchain-registry](https://github.com/ethereum-optimism/superchain-registry) tooling | The source-of-truth index of Superchain chains, plus the `just` tasks and validation checks used to add and verify a chain | Optimism Collective ([`superchain-registry`](https://github.com/ethereum-optimism/superchain-registry) repo) | [Registry operations docs](https://github.com/ethereum-optimism/superchain-registry/tree/main/docs) | Production |
+
+## Choose an SDK Surface
+
+Three of the rows above are TypeScript SDK surfaces that are easy to confuse.
+The distinction:
+
+*   **Start with [`viem/op-stack`](https://viem.sh/op-stack).** viem provides
+    first-class OP Stack support in the core library: extend any viem client
+    with `publicActionsL2()` (and friends) imported from `viem/op-stack` to get
+    deposits, withdrawals, and L1 gas estimation. If a feature is available
+    here, this is its production home.
+*   **Reach for [`@eth-optimism/viem`](https://github.com/ethereum-optimism/ecosystem/tree/main/packages/viem)
+    when you need what viem does not have yet.** The package's stated goal is
+    to upstream as much as possible into viem itself; until then it is the
+    home of Superchain interop actions and other pre-production features. The
+    [interop tutorials](/app-developers/tutorials/interoperability/message-passing)
+    and [bridging tutorials](/app-developers/tutorials/bridging/cross-dom-bridge-erc20)
+    on this site use it.
+*   **Use the [Actions SDK](/app-developers/quickstarts/actions) for app-level
+    building blocks, not chain plumbing.** Where the two viem surfaces expose
+    protocol operations, the Actions SDK offers wallet, lend, and swap
+    namespaces for building end-user apps. It is a developer preview and not
+    yet ready for production use.
+
+## Using wagmi With the OP Stack
+
+If you build with React, you likely start from wagmi — and it works with OP
+Stack chains out of the box. OP Stack chains are standard EVM chains, and
+`wagmi/chains` ships their definitions (`optimism`, `base`, `zora`, and every
+other chain from `viem/chains`). Nothing OP-specific is required for reads,
+writes, or wallet connections.
+
+For OP Stack–specific operations — deposits, withdrawals, interop — use the
+fact that wagmi is a wrapper over viem:
+
+1.  Get a viem client from wagmi with the
+    [`useClient`](https://wagmi.sh/react/api/hooks/useClient) or
+    [`useConnectorClient`](https://wagmi.sh/react/api/hooks/useConnectorClient)
+    hooks, following wagmi's own
+    [viem guide](https://wagmi.sh/react/guides/viem).
+2.  Extend that client with the [`viem/op-stack`](https://viem.sh/op-stack)
+    actions and call them directly.
+
+For Superchain interop specifically, the experimental
+[`@eth-optimism/wagmi`](https://github.com/ethereum-optimism/ecosystem/tree/main/packages/wagmi)
+package provides React hooks (such as `useSendL2ToL2Message`) over
+`@eth-optimism/viem`. Treat it like its underlying package: experimental.
+
+## Next Steps
+
+*   Read the [listing criteria and maintenance-sweep policy](/app-developers/tools-sdks/listing-criteria)
+    that govern this page.
+*   Adding a chain rather than building an app? See
+    [Join the Superchain Registry](/chain-operators/guides/join-superchain-registry).
+*   For where content belongs in general, see the
+    [content guide](/op-stack/contribute/content-guide).

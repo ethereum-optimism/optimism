@@ -1,0 +1,124 @@
+---
+title: Join the Superchain Registry
+description: How to add your OP Stack chain to the Superchain Registry — prerequisites, config generation, and the pull-request process.
+diataxis: how-to
+---
+
+{/*
+  Maintainers: this guide wraps the registry repo's docs/ops.md, which remains
+  the canonical source for step details. Last verified against
+  ethereum-optimism/superchain-registry docs/ops.md at commit 738212e.
+*/}
+
+The [Superchain Registry](https://github.com/ethereum-optimism/superchain-registry)
+is the source-of-truth index of who is in the Superchain Ecosystem and how each
+chain is configured. This guide walks you through adding your chain. The
+registry repo's
+[operations documentation](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/ops.md)
+is the canonical reference for every step below — each step links the matching
+section, and if this page and that document ever disagree, the registry repo
+wins.
+
+Joining gets you more than a listing: once your chain is in the registry, its
+config is embedded in downstream releases of `op-node` and `op-geth`, so nodes
+can join your network with the `--network` / `--op-network` flags and can
+inherit Superchain-wide hardfork activations automatically. See the
+[superchain-registry explainer](/op-stack/protocol/superchain-registry) for how
+that works.
+
+## Before You Start
+
+*   **Your chain ID must be registered at
+    [ethereum-lists/chains](https://github.com/ethereum-lists/chains).** The
+    registry's validation suite checks against it; this is a mandatory
+    prerequisite
+    ([ops.md](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/ops.md#adding-a-chain)).
+*   **Standard chains must be deployed with
+    [op-deployer](/chain-operators/tools/op-deployer/overview).** A chain is
+    only considered standard in the registry if it was deployed with
+    op-deployer, which also produces the `state.json` file the registry
+    tooling consumes
+    ([ops.md](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/ops.md#0-standard-chains-deploy-your-chain-with-op-deployer)).
+    Chains deployed another way follow the [custom-chain path](#custom-chains)
+    below.
+*   **Install the tooling dependencies:** `git` (`^2`), `go` (`^1.21`), and
+    [`just`](https://github.com/casey/just) (`^1.28.0`)
+    ([ops.md](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/ops.md#1-install-dependencies)).
+
+## Add Your Chain
+
+<Steps>
+  <Step title="Fork the Registry Repository">
+    You will raise a pull request from your fork to the upstream repo. Start
+    from a fresh, non-protected branch (not your fork's `main`), and add one
+    chain per branch and PR.
+    ([ops.md](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/ops.md#2-fork-this-repository))
+  </Step>
+
+  <Step title="Generate a Config From Your State File">
+    From the root of the registry repo, run:
+
+    ```bash
+    just create-config <shortname> <path to your state file>
+    ```
+
+    where `<shortname>` is your chain's short name (for example `op`) and the
+    state file is the `state.json` produced by op-deployer. This writes two
+    files to the `.staging` directory: `<shortname>.toml` and
+    `<shortname>.json.zst`. If you deployed with custom contracts, pass your
+    op-deployer version as a third argument — supported values live in the
+    registry's `versions.json`.
+    ([ops.md](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/ops.md#3-generate-a-config-from-your-state-file))
+  </Step>
+
+  <Step title="Fill In the Generated Config">
+    Most of `<shortname>.toml` is populated from your deployer state, but you
+    must fill in the rest yourself: `name`, `superchain` (`mainnet` or
+    `sepolia`), `public_rpc`, `sequencer_rpc`, `explorer`, and
+    `deployment_tx_hash`. Double-check the generated values while you are in
+    the file.
+    ([ops.md](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/ops.md#4-update-generated-config))
+  </Step>
+
+  <Step title="Open the Pull Request">
+    Commit to your fork and open one PR per chain. Check the box to
+    [allow edits from maintainers](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/allowing-changes-to-a-pull-request-branch-created-from-a-fork)
+    so reviewers can push to your branch. Automated checks will validate your
+    chain and generate a report on its compliance with the standard
+    blockchain charter.
+    ([ops.md](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/ops.md#5-commit))
+  </Step>
+
+  <Step title="Await Review">
+    A registry maintainer reviews your PR. When it is ready, the team
+    generates code from your PR and pushes to your fork — do not run codegen
+    yourself; it slows down review.
+    ([ops.md](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/ops.md#6-await-review))
+  </Step>
+</Steps>
+
+## Custom Chains
+
+If your chain was not deployed with op-deployer (for example, a heavily
+modified deployment), you must write the config file by hand instead of
+generating it: copy the example config into `.staging`, substitute every field
+for your chain (custom chains set `superchain_level = 0` and
+`governed_by_optimism = false`), and ZST-encode your genesis file with the
+registry's dictionary. The full field-by-field walkthrough lives in
+[Adding a custom chain](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/ops.md#adding-a-custom-chain).
+
+## After You Are In
+
+To receive Superchain-wide coordinated hardfork activations automatically, set
+`superchain_time` in your chain's config (use `0` if your chain has activated
+all Superchain forks up to its genesis time) and run your nodes with the
+network flags. Details in the
+[explainer](/op-stack/protocol/superchain-registry#hard-fork-activation-inheritance-behavior)
+and the registry's
+[hardfork activation inheritance spec](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/hardfork-activation-inheritance.md).
+
+## Next Steps
+
+*   [The superchain-registry explainer](/op-stack/protocol/superchain-registry)
+*   [Deploy your chain with op-deployer](/chain-operators/tools/op-deployer/overview)
+*   [Registry operations documentation](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/ops.md) (canonical)

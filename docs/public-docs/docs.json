@@ -1956,7 +1956,8 @@
                   "chain-operators/guides/management/fee-vaults",
                   "chain-operators/guides/management/troubleshooting"
                 ]
-              }
+              },
+              "chain-operators/guides/join-superchain-registry"
             ]
           },
           {
@@ -2229,6 +2230,13 @@
               "app-developers/guides/transactions/parameters",
               "app-developers/guides/transactions/statuses",
               "app-developers/guides/transactions/troubleshooting"
+            ]
+          },
+          {
+            "group": "Tools & SDKs",
+            "pages": [
+              "app-developers/tools-sdks/support-matrix",
+              "app-developers/tools-sdks/listing-criteria"
             ]
           },
           {
