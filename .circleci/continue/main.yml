@@ -460,7 +460,8 @@ commands:
       version:
         description: "Version of the cache"
         type: string
-        default: &rust-cache-version "16"
+        # v18 evicts a partial v17 dep cache seeded by a since-removed single-package save.
+        default: &rust-cache-version "18"
       profile:
         description: "Profile to restore the cache for"
         type: string
@@ -530,6 +531,25 @@ commands:
           name: sccache stats
           command: 'command -v sccache >/dev/null 2>&1 && sccache --show-stats || true'
           when: always
+      # The shared dep-cache key is immutable: the first job to save it after a
+      # Cargo.lock change wins, so a job that saves with an empty or partial
+      # cargo registry freezes a bad archive that every later build restores —
+      # re-downloading the missing crates until the next Cargo.lock change.
+      # The real protection is structural: only jobs that build the full
+      # workspace attach this command. This guard is a backstop for the worst
+      # case only — it catches an EMPTY registry (a lint job that never fetched
+      # crates), not a partial one from a single-package build. If it fires,
+      # the job doesn't populate the cargo registry: remove its
+      # rust-save-build-cache step rather than weakening the check.
+      - run:
+          name: Assert cargo registry is populated before saving shared cache
+          command: |
+            REGISTRY="/data/mise-data/.cargo/registry"
+            if [ ! -d "$REGISTRY" ] || [ -z "$(ls -A "$REGISTRY" 2>/dev/null)" ]; then
+              echo "ERROR: $REGISTRY is missing or empty; refusing to save the shared rust-deps cache." >&2
+              echo "This job never downloaded crates — remove its rust-save-build-cache step." >&2
+              exit 1
+            fi
       - save_cache:
           key: rust-deps-v<< parameters.version >>-{{ checksum "<< parameters.directory
             >>/Cargo.lock" }}

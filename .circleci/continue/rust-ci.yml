@@ -52,7 +52,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache: &fmt-cache-args
+      - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-fmt
           init_superchain_submodule: false
@@ -60,7 +60,10 @@ jobs:
           name: Check formatting
           working_directory: <<parameters.directory>>
           command: <<parameters.command>>
-      - rust-save-build-cache: *fmt-cache-args
+      # No rust-save-build-cache: `cargo fmt` never downloads crates, so this
+      # job must not race to save the shared (immutable-key) dep cache — an
+      # early save from here stores a near-empty archive that poisons the key
+      # for every real build until the next Cargo.lock change.
 
   # Shared clippy lint job
   rust-ci-clippy:
@@ -107,7 +110,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache: &deny-cache-args
+      - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-deny
           init_superchain_submodule: false
@@ -115,7 +118,9 @@ jobs:
           name: Run cargo deny
           working_directory: <<parameters.directory>>
           command: <<parameters.command>>
-      - rust-save-build-cache: *deny-cache-args
+      # No rust-save-build-cache: cargo-deny fetches the registry index and
+      # advisory DB but never the .crate files, so saving from here would
+      # poison the shared immutable-key dep cache with a crateless registry.
       # rust-deny only runs on develop (see workflow filter); on failure, ping
       # @protocol-oncall in Slack since it gates post-merge, not the PR.
       - notify-failures-on-develop:
@@ -137,7 +142,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache: &zepter-cache-args
+      - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-zepter
           init_superchain_submodule: false
@@ -145,7 +150,9 @@ jobs:
           name: Check feature propagation
           working_directory: <<parameters.directory>>
           command: <<parameters.command>>
-      - rust-save-build-cache: *zepter-cache-args
+      # No rust-save-build-cache: zepter only reads Cargo manifests and never
+      # downloads crates, so saving from here would poison the shared
+      # immutable-key dep cache with an empty registry.
 
   # Shared typos check job
   rust-ci-typos:
@@ -159,7 +166,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache: &typos-cache-args
+      - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
           prefix: <<parameters.directory>>-typos
           init_superchain_submodule: false
@@ -167,7 +174,10 @@ jobs:
           name: Check for typos
           working_directory: <<parameters.directory>>
           command: typos
-      - rust-save-build-cache: *typos-cache-args
+      # No rust-save-build-cache: typos runs no cargo at all. This job finishes
+      # first after a Cargo.lock change, so its save used to win the immutable
+      # shared dep/toolchain key with an empty registry (a 16-byte archive),
+      # forcing every later build to re-download the full crate set.
 
   # Shared no_std compatibility check job
   rust-ci-check-no-std:
@@ -479,7 +489,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache: &op-reth-compact-cache
+      - rust-prepare-and-restore-cache:
           directory: rust
           prefix: op-reth-compact
           profile: debug
@@ -519,7 +529,10 @@ jobs:
           name: Read compact vectors on PR branch
           command: |
             cargo run --bin op-reth --features "dev" --manifest-path rust/op-reth/bin/Cargo.toml -- test-vectors compact --read
-      - rust-save-build-cache: *op-reth-compact-cache
+      # No rust-save-build-cache: this job only builds the op-reth bin, so its
+      # cargo registry holds just that package's dependency subset — a partial
+      # registry must not win the shared immutable-key save race, or the cache
+      # stays incomplete until the next Cargo.lock change.
 
   # --------------------------------------------------------------------------
   # Kona crate-specific jobs
@@ -636,7 +649,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache: &kona-registry-snapshot-cache
+      - rust-prepare-and-restore-cache:
           directory: rust
           prefix: rust-kona-registry-snapshot
       - run:
@@ -660,7 +673,9 @@ jobs:
               echo "rust/kona/crates/protocol/registry/etc/."
               exit 1
             fi
-      - rust-save-build-cache: *kona-registry-snapshot-cache
+      # No rust-save-build-cache: `cargo build -p kona-registry` fetches only
+      # that package's dependency subset — a partial registry must not win the
+      # shared immutable-key save race.
 
   # Verifies that op-reth's committed superchain-configs.tar.sha256 and the
   # generated chain_specs.rs match what `OP_RETH_SYNC_SUPERCHAIN=1 cargo build -p
@@ -674,7 +689,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache: &op-reth-superchain-snapshot-cache
+      - rust-prepare-and-restore-cache:
           directory: rust
           prefix: rust-op-reth-superchain-snapshot
       - run:
@@ -699,7 +714,9 @@ jobs:
               echo "src/superchain/chain_specs.rs."
               exit 1
             fi
-      - rust-save-build-cache: *op-reth-superchain-snapshot-cache
+      # No rust-save-build-cache: `cargo build -p reth-optimism-chainspec`
+      # fetches only that package's dependency subset — a partial registry must
+      # not win the shared immutable-key save race.
 
   # Kona Publish Prestate Artifacts
   kona-publish-prestate-artifacts:
@@ -758,9 +775,10 @@ jobs:
             fi
             gsutil cp ./prestate-artifacts-<<parameters.kind>>/prestate.bin.gz "gs://oplabs-network-data/proofs/kona/<<parameters.kind>>/${PRESTATE_HASH}.bin.gz"
             echo "Successfully published prestates artifacts to GCS"
-      - rust-save-build-cache:
-          directory: rust
-          profile: release
+      # No rust-save-build-cache: the prestate is built reproducibly inside
+      # Docker (see the sccache note above), so the host cargo registry is
+      # never populated and a save from here would poison the shared
+      # immutable-key dep cache.
 
   # fmt-check + clippy for the nested SP1 guest-program workspace. programs/range
   # and programs/aggregation live in their own Cargo workspace with a private
