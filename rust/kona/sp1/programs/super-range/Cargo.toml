@@ -9,7 +9,11 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
+anyhow.workspace = true
+kona-proof.workspace = true
 kona-sp1-client-utils.workspace = true
+kona-sp1-ethereum-client-utils.workspace = true
+rkyv.workspace = true
 sp1-zkvm.workspace = true
 
 [lints]

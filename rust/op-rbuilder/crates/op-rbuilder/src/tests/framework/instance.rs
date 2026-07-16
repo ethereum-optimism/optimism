@@ -115,7 +115,7 @@ impl LocalInstance {
             .expect("Failed to convert rollup args to builder config");
         let da_config = builder_config.da_config.clone();
         let gas_limit_config = builder_config.gas_limit_config.clone();
-        let sdm_post_exec_opt_in = builder_config.sdm_post_exec_opt_in.clone();
+        let operator_sdm_opt_in = builder_config.operator_sdm_opt_in.clone();
         let interop_failsafe = builder_config.interop_failsafe.clone();
 
         let addons: OpAddOns<
@@ -159,10 +159,10 @@ impl LocalInstance {
                 }
 
                 // Same wiring as the production launcher: the admin namespace exposes
-                // `admin_setSdmPostExecOptIn` / `admin_sdmStatus`, sharing the opt-in flag
+                // `admin_setOperatorSdmOptIn` / `admin_sdmStatus`, sharing the opt-in flag
                 // with every payload-builder ctx.
                 let sdm_admin_ext =
-                    SdmAdminExt::new(sdm_post_exec_opt_in.clone(), ctx.provider().chain_spec());
+                    SdmAdminExt::new(operator_sdm_opt_in.clone(), ctx.provider().chain_spec());
                 ctx.modules
                     .add_or_replace_configured(sdm_admin_ext.into_rpc())?;
 
@@ -269,7 +269,7 @@ impl LocalInstance {
     }
 
     /// jsonrpsee client over the node's user-facing RPC IPC endpoint, for calling extension
-    /// namespaces (e.g. `admin_setSdmPostExecOptIn` via `SdmAdminApiClient`) in tests.
+    /// namespaces (e.g. `admin_setOperatorSdmOptIn` via `SdmAdminApiClient`) in tests.
     pub async fn rpc_client(
         &self,
     ) -> eyre::Result<impl SubscriptionClientT + Send + Sync + Unpin + use<>> {

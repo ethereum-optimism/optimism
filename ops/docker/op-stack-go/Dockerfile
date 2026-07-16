@@ -9,8 +9,9 @@
 # It will default to the target platform.
 ARG TARGET_BASE_IMAGE=chainguard/static:latest
 
-# The ubuntu target base image is used for the op-challenger build with kona.
-ARG UBUNTU_TARGET_BASE_IMAGE=ubuntu:24.04
+# op-challenger runs on Wolfi: glibc for kona-host, busybox for the chart's
+# /bin/sh entrypoint, plus a bundled musl loader for the musl-linked cannon embeds.
+ARG CHALLENGER_TARGET_BASE_IMAGE=chainguard/wolfi-base:latest@sha256:02dab76bd852a70556b5b2002195c8a5fdab77d323c433bf6642aab080489795
 
 # builder_foundry does not need to be built on $BUILDPLATFORM, as foundry produces static binaries.
 FROM alpine:3.21 AS builder_foundry
@@ -71,7 +72,9 @@ RUN echo "go mod cache: $(go env GOMODCACHE)"
 RUN echo "go build cache: $(go env GOCACHE)"
 
 # warm-up the cache
-RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build go mod download
+# go mod download has no built-in retry; loop so a transient module proxy drop doesn't flake CI.
+# Already-downloaded modules are cached, so a retry only re-fetches what's missing.
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build n=0; until go mod download; do n=$((n+1)); [ "$n" -ge 5 ] && exit 1; echo "go mod download retry $n/5 in 10s" >&2; sleep 10; done
 
 # NOTE: the Dockerfile.dockerignore file effectively describes all dependencies
 COPY . /app
@@ -187,7 +190,8 @@ RUN apt-get -o Acquire::Retries=8 update && apt-get -o Acquire::Retries=8 instal
 COPY ./go.mod /app/go.mod
 COPY ./go.sum /app/go.sum
 WORKDIR /app
-RUN --mount=type=cache,target=/go/pkg/mod go mod download
+# go mod download has no built-in retry; loop so a transient module proxy drop doesn't flake CI.
+RUN --mount=type=cache,target=/go/pkg/mod n=0; until go mod download; do n=$((n+1)); [ "$n" -ge 5 ] && exit 1; echo "go mod download retry $n/5 in 10s" >&2; sleep 10; done
 COPY . /app
 # Install forge for the build platform (linux/glibc variant)
 RUN <<-EOF
@@ -202,6 +206,23 @@ RUN <<-EOF
     [ "${ACTUAL_SHA}" = "${EXPECTED_SHA}" ] || (echo "Forge checksum mismatch: Expected $EXPECTED_SHA, got $ACTUAL_SHA" && exit 1)
     tar -xzf "${DOWNLOAD_PATH}" -C /usr/local/bin forge
     rm "${DOWNLOAD_PATH}"
+EOF
+# Pre-install solc versions serially (matching .circleci install-solc-compilers) so
+# forge's parallel jobs never race installing them (foundry-rs/foundry#4736).
+# `forge build --use <version>` in an empty dir installs one version, compiles nothing.
+RUN <<-EOF
+    set -e
+    cd "$(mktemp -d)"
+    # Retry: forge doesn't retry the solc download itself.
+    for version in 0.8.15 0.8.19 0.8.25 0.8.28; do
+      n=0
+      until forge build --use "${version}"; do
+        n=$((n+1))
+        [ "${n}" -ge 5 ] && exit 1
+        echo "solc ${version} install retry ${n}/5 in 2s" >&2
+        sleep 2
+      done
+    done
 EOF
 # Compile contracts and create artifacts tarball
 RUN cd packages/contracts-bedrock && forge build --skip "/**/test/**"
@@ -236,7 +257,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
   just op-interop-mon/op-interop-mon
 
 # The Rust version must match rust/rust-toolchain.toml. We don't use "latest" to ensure reproducibility
-FROM --platform=$BUILDPLATFORM rust:1.94 AS kona-host-builder
+FROM --platform=$BUILDPLATFORM rust:1.95 AS kona-host-builder
 ARG TARGETARCH
 # Install build dependencies and cross-compilation toolchains
 RUN apt-get -o Acquire::Retries=8 update && apt-get -o Acquire::Retries=8 install -y --no-install-recommends \
@@ -280,9 +301,15 @@ USER 0
 COPY --from=op-node-builder /app/op-node/bin/op-node /usr/local/bin/
 CMD ["op-node"]
 
-# Also produce an op-challenger loaded with kona using ubuntu
-FROM $UBUNTU_TARGET_BASE_IMAGE AS op-challenger-target
-RUN apt-get -o Acquire::Retries=8 update && apt-get -o Acquire::Retries=8 install -y --no-install-recommends musl openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+# The historical multicannon embeds are Alpine/musl-linked and Wolfi ships no musl
+# package, so bundle the loader+libc (as the melange multicannon pipeline does).
+FROM alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d AS musl-libs
+RUN mkdir -p /musl && cp -a /lib/ld-musl-*.so.1 /lib/libc.musl-*.so.1 /musl/
+
+# Also produce an op-challenger loaded with kona
+FROM $CHALLENGER_TARGET_BASE_IMAGE AS op-challenger-target
+RUN attempt=1; delay=1; until apk add --no-cache ca-certificates-bundle ca-certificates busybox glibc libgcc libstdc++ openssl; do [ "$attempt" -ge 11 ] && exit 1; echo "apk add attempt $attempt/11 failed; retrying in ${delay}s" >&2; sleep "$delay"; attempt=$((attempt+1)); delay=$((delay*2)); [ "$delay" -le 60 ] || delay=60; done
+COPY --from=musl-libs /musl/ /lib/
 COPY --from=op-challenger-builder /app/op-challenger/bin/op-challenger /usr/local/bin/
 # Copy in cannon
 COPY --from=cannon-builder /app/cannon/bin/cannon /usr/local/bin/

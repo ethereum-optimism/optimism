@@ -100,23 +100,51 @@ pub fn default_config() -> Config {
     default_config_builder().build().expect("default gossipsub config must be valid")
 }
 
+/// Returns the snappy-declared decompressed length of `data` if it is within
+/// [`MAX_GOSSIP_SIZE`], or `None` when the frame header is malformed or declares a larger size.
+///
+/// Only the snappy frame header (a varint) is decoded; the decompressed buffer is never
+/// allocated. Gossip receive paths call this to reject oversized frames before running a
+/// decompressor, which would otherwise pre-allocate `vec![0; decompress_len(input)]` — up to
+/// `u32::MAX` (~4 GiB) — from a tiny attacker-controlled frame. These paths are reachable by
+/// unauthenticated remote peers, so the bound must be enforced before decompression.
+///
+/// Op-node applies the same `snappy.DecodedLen(...) <= maxGossipSize` bound in both its
+/// gossipsub `message_id_fn` and its topic validator (in `op-node/p2p/gossip.go`).
+pub(crate) fn snappy_decompressed_len_within_bound(data: &[u8]) -> Option<usize> {
+    snap::raw::decompress_len(data).ok().filter(|&n| n <= MAX_GOSSIP_SIZE)
+}
+
 /// Computes the [`MessageId`] of a `gossipsub` message.
+///
+/// Oversized or malformed snappy frames are rejected via [`snappy_decompressed_len_within_bound`]
+/// before decompression and take the invalid-snappy domain, matching op-node's `BuildMsgIdFn`.
+/// This is invoked as gossipsub's `message_id_fn` on every inbound PUBLISH before signature
+/// validation, so the input is unauthenticated.
 fn compute_message_id(msg: &Message) -> MessageId {
-    let mut decoder = Decoder::new();
-    let id = decoder.decompress_vec(&msg.data).map_or_else(
-        |_| {
-            warn!(target: "cfg", "Failed to decompress message, using invalid snappy");
-            let domain_invalid_snappy: Vec<u8> = vec![0x0, 0x0, 0x0, 0x0];
-            sha256([domain_invalid_snappy.as_slice(), msg.data.as_slice()].concat().as_slice())
-                [..20]
-                .to_vec()
-        },
-        |data| {
-            let domain_valid_snappy: Vec<u8> = vec![0x1, 0x0, 0x0, 0x0];
-            sha256([domain_valid_snappy.as_slice(), data.as_slice()].concat().as_slice())[..20]
-                .to_vec()
-        },
-    );
+    let id = if snappy_decompressed_len_within_bound(&msg.data).is_some() {
+        let mut decoder = Decoder::new();
+        decoder.decompress_vec(&msg.data).map_or_else(
+            |_| {
+                warn!(target: "cfg", "Failed to decompress message, using invalid snappy");
+                let domain_invalid_snappy: Vec<u8> = vec![0x0, 0x0, 0x0, 0x0];
+                sha256([domain_invalid_snappy.as_slice(), msg.data.as_slice()].concat().as_slice())
+                    [..20]
+                    .to_vec()
+            },
+            |data| {
+                let domain_valid_snappy: Vec<u8> = vec![0x1, 0x0, 0x0, 0x0];
+                sha256([domain_valid_snappy.as_slice(), data.as_slice()].concat().as_slice())[..20]
+                    .to_vec()
+            },
+        )
+    } else {
+        // Oversized/malformed frame: take the invalid-snappy domain without logging. This path is
+        // driven by unauthenticated remote input, so it must not be able to spam warnings.
+        let domain_invalid_snappy: Vec<u8> = vec![0x0, 0x0, 0x0, 0x0];
+        sha256([domain_invalid_snappy.as_slice(), msg.data.as_slice()].concat().as_slice())[..20]
+            .to_vec()
+    };
 
     MessageId(id)
 }
@@ -160,5 +188,92 @@ mod tests {
         let id = compute_message_id(&msg);
         let hashed = sha256(&[&[0x1, 0x0, 0x0, 0x0], [1, 2, 3, 4, 5].as_slice()].concat());
         assert_eq!(id.0, hashed[..20].to_vec());
+    }
+
+    /// The classic 7-byte snappy bomb declaring `u32::MAX` decompressed length takes the
+    /// invalid-snappy branch rather than being decompressed. The bound is enforced by
+    /// [`snappy_decompressed_len_within_bound`], which reads only the frame header — see
+    /// `snappy_len_bound_rejects_oversize_without_allocating` for the allocation-free guarantee.
+    #[test]
+    fn compute_message_id_rejects_declared_oversize_bomb() {
+        // Header: varint(u32::MAX) + literal-chunk-tag + one literal byte.
+        let bomb = vec![0xFFu8, 0xFF, 0xFF, 0xFF, 0x0F, 0x00, 0x41];
+        assert_eq!(
+            snap::raw::decompress_len(&bomb).unwrap(),
+            u32::MAX as usize,
+            "sanity: bomb header must declare u32::MAX"
+        );
+
+        let msg = Message {
+            source: None,
+            data: bomb.clone(),
+            sequence_number: None,
+            topic: libp2p::gossipsub::TopicHash::from_raw("test"),
+        };
+
+        let id = compute_message_id(&msg);
+        // Bomb takes the oversized-header rejection branch: hash uses invalid-snappy domain.
+        let expected = sha256(&[&[0x0, 0x0, 0x0, 0x0], bomb.as_slice()].concat());
+        assert_eq!(id.0, expected[..20].to_vec());
+    }
+
+    /// Proves the bound actually gates decompression (distinguishing this implementation from
+    /// an unbounded one): a frame that *validly* decompresses to more than [`MAX_GOSSIP_SIZE`]
+    /// takes the invalid-snappy domain, not the valid-snappy domain an unbounded implementation
+    /// would produce after decompressing it.
+    #[test]
+    fn compute_message_id_rejects_oversize_frame_via_invalid_snappy() {
+        let over = snap::raw::Encoder::new().compress_vec(&vec![0u8; MAX_GOSSIP_SIZE + 1]).unwrap();
+        // The compressed frame is tiny, so the gossipsub transmit-size limit does not stop it.
+        assert!(over.len() <= MAX_GOSSIP_SIZE);
+
+        let msg = Message {
+            source: None,
+            data: over.clone(),
+            sequence_number: None,
+            topic: libp2p::gossipsub::TopicHash::from_raw("test"),
+        };
+        let id = compute_message_id(&msg);
+
+        // Bounded path: invalid-snappy domain over the raw (still-compressed) bytes.
+        let bounded = sha256(&[[0x0u8, 0x0, 0x0, 0x0].as_slice(), over.as_slice()].concat());
+        assert_eq!(id.0, bounded[..20].to_vec());
+
+        // The id an unbounded implementation would produce (decompress, then valid-snappy
+        // domain) must NOT be the one returned.
+        let decompressed = snap::raw::Decoder::new().decompress_vec(&over).unwrap();
+        let unbounded =
+            sha256(&[[0x1u8, 0x0, 0x0, 0x0].as_slice(), decompressed.as_slice()].concat());
+        assert_ne!(id.0, unbounded[..20].to_vec());
+    }
+
+    #[test]
+    fn snappy_len_bound_rejects_oversize_without_allocating() {
+        // A 7-byte frame declaring `u32::MAX` decompressed length. `decompress_len` reads only
+        // the varint header, so the declared buffer is never allocated to evaluate the bound.
+        let bomb = vec![0xFFu8, 0xFF, 0xFF, 0xFF, 0x0F, 0x00, 0x41];
+        assert_eq!(snap::raw::decompress_len(&bomb).unwrap(), u32::MAX as usize);
+        assert_eq!(snappy_decompressed_len_within_bound(&bomb), None);
+
+        // A genuine frame that decompresses to one byte over the limit is also rejected.
+        let over = snap::raw::Encoder::new().compress_vec(&vec![0u8; MAX_GOSSIP_SIZE + 1]).unwrap();
+        assert_eq!(snappy_decompressed_len_within_bound(&over), None);
+
+        // A truncated varint header is malformed and rejected.
+        assert_eq!(snappy_decompressed_len_within_bound(&[0xFF]), None);
+
+        // Empty input declares a zero-length payload, which is within bound (downstream
+        // decoding still rejects it); it must not error out here.
+        assert_eq!(snappy_decompressed_len_within_bound(&[]), Some(0));
+    }
+
+    #[test]
+    fn snappy_len_bound_accepts_up_to_and_including_max() {
+        // Exactly `MAX_GOSSIP_SIZE` is within bound (inclusive), matching op-node.
+        let at_max = snap::raw::Encoder::new().compress_vec(&vec![0u8; MAX_GOSSIP_SIZE]).unwrap();
+        assert_eq!(snappy_decompressed_len_within_bound(&at_max), Some(MAX_GOSSIP_SIZE));
+
+        let small = snap::raw::Encoder::new().compress_vec(&[1, 2, 3, 4, 5]).unwrap();
+        assert_eq!(snappy_decompressed_len_within_bound(&small), Some(5));
     }
 }

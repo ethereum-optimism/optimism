@@ -316,7 +316,10 @@ contract Deploy is Deployer {
         });
         ChainAssertions.checkSystemConfigImpls(impls);
         ChainAssertions.checkAnchorStateRegistryProxy(
-            IAnchorStateRegistry(impls.AnchorStateRegistry), false, GameType.wrap(0), Hash.wrap(bytes32(0))
+            IAnchorStateRegistry(impls.AnchorStateRegistry),
+            false,
+            GameType.wrap(0),
+            Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 })
         );
     }
 

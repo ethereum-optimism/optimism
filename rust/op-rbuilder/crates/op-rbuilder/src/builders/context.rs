@@ -38,11 +38,7 @@ use reth_primitives_traits::{InMemorySize, SealedHeader, SignedTransaction};
 use reth_revm::{State, context::Block};
 use reth_transaction_pool::{BestTransactionsAttributes, PoolTransaction};
 use revm::interpreter::as_u64_saturated;
-use std::{
-    ops::DerefMut,
-    sync::{Arc, atomic::Ordering},
-    time::Instant,
-};
+use std::{ops::DerefMut, sync::Arc, time::Instant};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, trace};
 
@@ -50,7 +46,7 @@ use crate::{
     gas_limiter::AddressGasLimiter,
     metrics::OpRBuilderMetrics,
     primitives::reth::{ExecutionInfo, TxnExecutionResult},
-    sdm_admin::SdmPostExecOptInFlag,
+    sdm_admin::OperatorSdmOptIn,
     traits::PayloadTxsBounds,
     tx::MaybeRevertingTransaction,
     tx_signer::Signer,
@@ -101,11 +97,11 @@ where
 pub(super) fn compute_post_exec_mode(
     evm_config: &OpEvmConfig,
     timestamp: u64,
-    opt_in: &SdmPostExecOptInFlag,
+    opt_in: &OperatorSdmOptIn,
 ) -> PostExecMode {
     let protocol_active = evm_config.is_sdm_active_at_timestamp(timestamp);
-    let operator_opted_in = opt_in.load(Ordering::Acquire);
-    if protocol_active && operator_opted_in {
+    let operator_sdm_opt_in = opt_in.enabled();
+    if protocol_active && operator_sdm_opt_in {
         PostExecMode::Produce
     } else {
         PostExecMode::Disabled

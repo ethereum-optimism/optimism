@@ -67,7 +67,7 @@ fn interop_ctx(
     OpPayloadBuilderAttributes<OpTransactionSigned>,
 > {
     let gas_limit = 1_000_000;
-    let chain_spec = Arc::new(OpChainSpecBuilder::optimism_mainnet().interop_activated().build());
+    let chain_spec = Arc::new(OpChainSpecBuilder::optimism_mainnet().lagoon_activated().build());
     let parent = SealedHeader::seal_slow(Header {
         gas_limit,
         number: 0,
@@ -90,7 +90,7 @@ fn interop_ctx(
     };
     let builder_config = OpBuilderConfig::default();
     if opt_in {
-        builder_config.sdm_post_exec_opt_in.set(true);
+        builder_config.operator_sdm_opt_in.set(true);
     }
 
     OpPayloadBuilderCtx {

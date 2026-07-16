@@ -29,13 +29,18 @@ UPDATING-RETH step 4). The authoritative change set is the **lockfile delta**:
 
 ```bash
 cd rust
-git diff <base>..<head> -- Cargo.lock op-rbuilder/Cargo.lock rollup-boost/Cargo.lock
+git diff <base>..<head> -- Cargo.lock op-rbuilder/Cargo.lock \
+  rollup-boost/Cargo.lock kona/sp1/programs/Cargo.lock
 ```
 
 This lists every crate that moved and its exact old→new version, **including transitive
 bumps** that floated up without a manifest edit (e.g. `revm-interpreter`, `reth-evm`,
-an `alloy-*` core crate). All three lockfiles matter — `op-rbuilder` and `rollup-boost`
-are separate workspaces with their own locks.
+an `alloy-*` core crate). All four lockfiles matter — `op-rbuilder`, `rollup-boost`, and
+the SP1 guest programs are separate workspaces with their own locks.
+
+Review every changed git source outside the intended reth/revm/alloy bump before applying
+the funnel below. A targeted cargo update can advance unrelated branch-based dependencies;
+that drift requires an explicit review or an exact pin, not silent inclusion in the bump.
 
 Then funnel — never spider every transitive dependency:
 
@@ -82,8 +87,6 @@ Organised by **detection difficulty** — the point is catching what the compile
 ### B. Sync-divergence risks (duplicated code drifts)
 
 - Code marked "keep in sync" / "copied from" / "mirrors upstream".
-- Replicated layouts (the `slot_preimages_seed.rs` MDBX layout — diff upstream between
-  the revs per UPDATING-RETH step 6).
 - Locally vendored upstream traits/types — check whether upstream reintroduced or further
   changed them.
 - Test logic mirrored from upstream.
@@ -119,7 +122,7 @@ our override, leaving OP-specific branches byte-identical.
 ## Review process
 
 1. Identify the old→new pins from the `Cargo.toml` diff; compute the lockfile delta
-   across all three locks.
+   across all four locks and isolate unrelated git-source drift.
 2. Apply the funnel to get the review set.
 3. Obtain the upstream diff for each crate in the review set from a git checkout —
    `git log/diff <old>..<new> -- <path>`. Use a local checkout of `paradigmxyz/reth`,
@@ -155,6 +158,6 @@ offer to start a background investigation agent that:
 ## See also
 
 - [`rust/UPDATING-RETH.md`](../../rust/UPDATING-RETH.md) — the bump procedure these
-  reviews accompany (especially step 4 shared-version sync, step 6 replicated layout,
-  step 7 consensus-adjacent rigor).
+  reviews accompany (especially step 4 shared-version sync, step 6 upstream
+  slot-preimage API review, step 7 consensus-adjacent rigor).
 - [rust-dev.md](rust-dev.md) — "Migrated, not vendored", the hardfork mapping, build/test.

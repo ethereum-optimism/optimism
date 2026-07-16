@@ -208,7 +208,7 @@ func startSuperProposer(
 		opt(NewComponentTarget(proposerName, proposerChainID), proposerCLIConfig)
 	}
 	require.NotEmpty(supernodeRPC, "need supernode RPC for super proposer")
-	proposerCLIConfig.SuperNodeRpcs = []string{supernodeRPC}
+	proposerCLIConfig.SuperRootRpcs = []string{supernodeRPC}
 
 	proposer, err := ps.ProposerServiceFromCLIConfig(t.Ctx(), "0.0.1", proposerCLIConfig, logger)
 	require.NoError(err)

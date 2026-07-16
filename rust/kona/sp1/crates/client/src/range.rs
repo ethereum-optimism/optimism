@@ -87,7 +87,10 @@ mod tests {
     use kona_derive::{DataAvailabilityProvider, PipelineResult};
     use kona_driver::PipelineCursor;
     use kona_genesis::{L1ChainConfig, RollupConfig};
-    use kona_preimage::PreimageKey;
+    use kona_preimage::{
+        L1_HEAD_KEY, L2_CHAIN_ID_KEY, L2_CLAIM_BLOCK_NUMBER_KEY, L2_CLAIM_KEY, L2_OUTPUT_ROOT_KEY,
+        PreimageKey,
+    };
     use kona_proof::{
         block_on,
         l1::{OracleL1ChainProvider, OraclePipeline},
@@ -158,13 +161,33 @@ mod tests {
         let agreed_root = B256::from(keccak256(output_preimage));
 
         let mut oracle = PreimageStore::default();
-        oracle.save_preimage(PreimageKey::new_local(1), b256(0x11).as_slice().to_vec()).unwrap();
-        oracle.save_preimage(PreimageKey::new_local(2), agreed_root.as_slice().to_vec()).unwrap();
-        oracle.save_preimage(PreimageKey::new_local(3), claimed_root.as_slice().to_vec()).unwrap();
         oracle
-            .save_preimage(PreimageKey::new_local(4), safe_head.number.to_be_bytes().to_vec())
+            .save_preimage(PreimageKey::new_local(L1_HEAD_KEY.to()), b256(0x11).as_slice().to_vec())
             .unwrap();
-        oracle.save_preimage(PreimageKey::new_local(5), 10u64.to_be_bytes().to_vec()).unwrap();
+        oracle
+            .save_preimage(
+                PreimageKey::new_local(L2_OUTPUT_ROOT_KEY.to()),
+                agreed_root.as_slice().to_vec(),
+            )
+            .unwrap();
+        oracle
+            .save_preimage(
+                PreimageKey::new_local(L2_CLAIM_KEY.to()),
+                claimed_root.as_slice().to_vec(),
+            )
+            .unwrap();
+        oracle
+            .save_preimage(
+                PreimageKey::new_local(L2_CLAIM_BLOCK_NUMBER_KEY.to()),
+                safe_head.number.to_be_bytes().to_vec(),
+            )
+            .unwrap();
+        oracle
+            .save_preimage(
+                PreimageKey::new_local(L2_CHAIN_ID_KEY.to()),
+                10u64.to_be_bytes().to_vec(),
+            )
+            .unwrap();
         oracle
             .save_preimage(PreimageKey::new_keccak256(*agreed_root), output_preimage.to_vec())
             .unwrap();

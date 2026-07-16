@@ -87,9 +87,7 @@ where
     let mut replay_senders = Vec::with_capacity(senders.len());
     let mut original_indexes = Vec::with_capacity(transactions.len());
 
-    for (original_index, (tx, sender)) in
-        transactions.into_iter().zip(senders.into_iter()).enumerate()
-    {
+    for (original_index, (tx, sender)) in transactions.into_iter().zip(senders).enumerate() {
         let original_index = original_index as u64;
         if Some(original_index) == post_exec_tx_index {
             continue;

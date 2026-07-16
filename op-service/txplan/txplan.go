@@ -389,8 +389,6 @@ func WithReader(cl Reader) Option {
 		tx.Read.DependOn(
 			&tx.Sender,
 			&tx.To,
-			&tx.GasFeeCap,
-			&tx.GasTipCap,
 			&tx.Value,
 			&tx.Data,
 			&tx.AccessList,
@@ -402,8 +400,8 @@ func WithReader(cl Reader) Option {
 				To:         tx.To.Value(),
 				Gas:        0, // auto estimated by the node
 				GasPrice:   nil,
-				GasFeeCap:  tx.GasFeeCap.Value(),
-				GasTipCap:  tx.GasTipCap.Value(),
+				GasFeeCap:  nil,
+				GasTipCap:  nil,
 				Value:      tx.Value.Value(),
 				Data:       tx.Data.Value(),
 				AccessList: tx.AccessList.Value(),

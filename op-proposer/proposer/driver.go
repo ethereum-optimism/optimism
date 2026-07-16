@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-proposer/contracts"
 	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	"github.com/ethereum-optimism/optimism/op-proposer/proposer/source"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
@@ -50,6 +51,7 @@ type DriverSetup struct {
 	Log         log.Logger
 	Metr        metrics.Metricer
 	Cfg         ProposerConfig
+	Clock       clock.Clock
 	Txmgr       txmgr.TxManager
 	L1Client    L1Client
 	Multicaller *batching.MultiCaller
@@ -162,14 +164,19 @@ func (l *L2OutputSubmitter) StopL2OutputSubmitting() error {
 // The passed context is expected to be a lifecycle context. A network timeout
 // context will be derived from it.
 func (l *L2OutputSubmitter) FetchDGFOutput(ctx context.Context) (source.Proposal, bool, error) {
-	cutoff := time.Now().Add(-l.Cfg.ProposalInterval)
+	proposerClock := l.Clock
+	if proposerClock == nil {
+		proposerClock = clock.SystemClock
+	}
+	now := proposerClock.Now()
+	cutoff := now.Add(-l.Cfg.ProposalInterval)
 	proposedRecently, proposalTime, claim, err := l.dgfContract.HasProposedSince(ctx, l.Txmgr.From(), cutoff, l.Cfg.DisputeGameType)
 	if err != nil {
 		return source.Proposal{}, false, fmt.Errorf("could not check for recent proposal: %w", err)
 	}
 
 	if proposedRecently {
-		l.Log.Debug("Duration since last game not past proposal interval", "duration", time.Since(proposalTime))
+		l.Log.Debug("Duration since last game not past proposal interval", "duration", now.Sub(proposalTime))
 		return source.Proposal{}, false, nil
 	}
 

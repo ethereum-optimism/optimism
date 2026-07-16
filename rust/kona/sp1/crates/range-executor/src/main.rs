@@ -19,8 +19,7 @@ use std::process::ExitCode;
 use alloy_primitives::B256;
 use clap::Parser;
 use kona_host::single::SingleChainHost;
-use kona_preimage::{BidirectionalChannel, PreimageKey};
-use kona_proof::boot::L2_CLAIM_KEY;
+use kona_preimage::{BidirectionalChannel, L2_CLAIM_KEY, PreimageKey};
 use kona_sp1_client_utils::{
     boot::BootInfoStruct,
     range::{ensure_committed_boot_info_matches_claim, run_range_program},
