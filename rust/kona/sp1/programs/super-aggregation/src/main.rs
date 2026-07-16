@@ -48,7 +48,7 @@ fn consolidation_public_values_digest(output: &SuperConsolidationOutputs) -> [u8
 }
 
 fn interop_public_values_digest(output: &SuperInteropOutputs) -> [u8; 32] {
-    let serialized = bincode::serialize(output).expect("super-root range output serializes");
+    let serialized = bincode::serialize(output).expect("super-root interop output serializes");
     Sha256::digest(serialized).into()
 }
 
