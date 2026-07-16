@@ -38,8 +38,6 @@ library DevFeatures {
     bytes32 public constant DEPLOY_V2_DISPUTE_GAMES =
         bytes32(0x0000000000000000000000000000000000000000000000000000000000000100);
 
-    // Bit 0x100000 is retired (formerly L2CM, now unconditionally enabled).
-
     /// @notice The feature that enables the ZK dispute game system (ZKDisputeGame).
     bytes32 public constant ZK_DISPUTE_GAME =
         bytes32(0x0000000000000000000000000000000000000000000000000000000001000000);

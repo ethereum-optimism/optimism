@@ -24,8 +24,6 @@ var (
 	// DeployV2DisputeGamesFlag enables deployment of V2 dispute game contracts.
 	DeployV2DisputeGamesFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000100")
 
-	// Hash 0x100000 is retired (formerly L2CMFlag, now unconditionally enabled).
-
 	// ZKDisputeGameFlag enables the ZK dispute game system.
 	// TODO(#19432): Use this flag in the OPCM/OPD integration pipeline.
 	ZKDisputeGameFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000001000000")
