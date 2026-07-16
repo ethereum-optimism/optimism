@@ -346,9 +346,9 @@ func startMinimalProposer(
 	switch proposerCLIConfig.DisputeGameType {
 	case superPermissionedGameType, superCannonKonaGameType:
 		proposerCLIConfig.RollupRpc = ""
-		proposerCLIConfig.SuperNodeRpcs = []string{l2CL.UserRPC()}
+		proposerCLIConfig.SuperRootRpcs = []string{l2CL.UserRPC()}
 	default:
-		proposerCLIConfig.SuperNodeRpcs = nil
+		proposerCLIConfig.SuperRootRpcs = nil
 		proposerCLIConfig.RollupRpc = l2CL.UserRPC()
 	}
 
