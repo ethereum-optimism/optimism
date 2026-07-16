@@ -183,7 +183,7 @@ func TestPrestateStrictValidationAcrossRolesAndSources(t *testing.T) {
 	}
 }
 
-func TestPrestateGameTypeMatrix(t *testing.T) {
+func TestPrestateGameTypeRequirements(t *testing.T) {
 	chainA := common.HexToHash("0x01")
 	chainB := common.HexToHash("0x02")
 	selected := testPrestate("11")
@@ -243,25 +243,25 @@ func TestPrestateGameTypeMatrix(t *testing.T) {
 			name:         "SUPER_CANNON_KONA rejects unconsumed fallback flag",
 			chains:       []prestateTestChain{{id: chainA, prepared: true, overrides: gameOverride(embedded.GameTypeSuperCannonKona)}},
 			configure:    commandPair(selected, fallback),
-			wantErrParts: []string{"--" + CannonFallbackPrestateFlagName, "no chain resolves to CANNON_KONA"},
+			wantErrParts: []string{"--" + CannonFallbackPrestateFlagName, "no undeployed chain resolves to CANNON_KONA"},
 		},
 		{
 			name:         "permissioned only rejects unconsumed selected flag",
 			chains:       []prestateTestChain{{id: chainA, prepared: true}},
 			configure:    func(cfg *PrestateConfig) { cfg.Prestate = selected },
-			wantErrParts: []string{"--" + PrestateFlagName, "no chain resolves", "respectedGameType"},
+			wantErrParts: []string{"--" + PrestateFlagName, "no undeployed chain resolves", "respectedGameType"},
 		},
 		{
 			name:         "permissioned only rejects unconsumed fallback flag",
 			chains:       []prestateTestChain{{id: chainA, prepared: true}},
 			configure:    func(cfg *PrestateConfig) { cfg.CannonFallbackPrestate = fallback },
-			wantErrParts: []string{"--" + CannonFallbackPrestateFlagName, "no chain resolves", "respectedGameType"},
+			wantErrParts: []string{"--" + CannonFallbackPrestateFlagName, "no undeployed chain resolves", "respectedGameType"},
 		},
 		{
 			name:         "misspelled respectedGameType override rejects supplied pair",
 			chains:       []prestateTestChain{{id: chainA, prepared: true, overrides: map[string]any{"respectedGamType": embedded.GameTypeCannonKona}}},
 			configure:    commandPair(selected, fallback),
-			wantErrParts: []string{"--" + PrestateFlagName, "no chain resolves", "respectedGameType"},
+			wantErrParts: []string{"--" + PrestateFlagName, "no undeployed chain resolves", "respectedGameType"},
 		},
 		{
 			name:         "unsupported initial type fails",
@@ -297,6 +297,84 @@ func TestPrestateGameTypeMatrix(t *testing.T) {
 			},
 			configure:    func(cfg *PrestateConfig) { cfg.Prestate = selected },
 			wantErrParts: []string{"SUPER_CANNON_KONA", "multi-chain"},
+		},
+		{
+			name: "deployed CANNON_KONA preserves prestates and ignores conflicting sources",
+			chains: []prestateTestChain{
+				{
+					id:              chainA,
+					prepared:        true,
+					deployed:        true,
+					overrides:       map[string]any{"respectedGameType": embedded.GameTypeCannonKona, faultGameAbsolutePrestateOverride: testPrestate("33"), cannonFallbackPrestateOverride: testPrestate("44")},
+					initialSelected: staleSelected,
+					initialFallback: staleFallback,
+				},
+				{id: chainB, prepared: true, overrides: gameOverride(embedded.GameTypeCannonKona)},
+			},
+			configure: commandPair(selected, fallback),
+			want: map[common.Hash][2]common.Hash{
+				chainA: {staleSelected, staleFallback},
+				chainB: {common.HexToHash(selected), common.HexToHash(fallback)},
+			},
+		},
+		{
+			name: "deployed CANNON_KONA needs no sources alongside active permissioned",
+			chains: []prestateTestChain{
+				{id: chainA, prepared: true, deployed: true, overrides: gameOverride(embedded.GameTypeCannonKona), initialSelected: staleSelected, initialFallback: staleFallback},
+				{id: chainB, prepared: true, initialSelected: staleSelected, initialFallback: staleFallback},
+			},
+			want: map[common.Hash][2]common.Hash{
+				chainA: {staleSelected, staleFallback},
+				chainB: {},
+			},
+		},
+		{
+			name:         "selected flag with only deployed consumer is rejected",
+			chains:       []prestateTestChain{{id: chainA, prepared: true, deployed: true, overrides: gameOverride(embedded.GameTypeSuperCannonKona), initialSelected: staleSelected, initialFallback: staleFallback}},
+			configure:    func(cfg *PrestateConfig) { cfg.Prestate = selected },
+			wantErrParts: []string{"--" + PrestateFlagName, "no undeployed chain resolves"},
+		},
+		{
+			name:         "fallback flag with only deployed consumer is rejected",
+			chains:       []prestateTestChain{{id: chainA, prepared: true, deployed: true, overrides: gameOverride(embedded.GameTypeCannonKona), initialSelected: staleSelected, initialFallback: staleFallback}},
+			configure:    func(cfg *PrestateConfig) { cfg.CannonFallbackPrestate = fallback },
+			wantErrParts: []string{"--" + CannonFallbackPrestateFlagName, "no undeployed chain resolves"},
+		},
+		{
+			name: "deployed unsupported game type is ignored",
+			chains: []prestateTestChain{
+				{id: chainA, prepared: true, deployed: true, overrides: gameOverride(embedded.GameTypeCannon), initialSelected: staleSelected, initialFallback: staleFallback},
+				{id: chainB, prepared: true, initialSelected: staleSelected, initialFallback: staleFallback},
+			},
+			want: map[common.Hash][2]common.Hash{
+				chainA: {staleSelected, staleFallback},
+				chainB: {},
+			},
+		},
+		{
+			name: "deployed CANNON_KONA still conflicts with active SUPER_CANNON_KONA",
+			chains: []prestateTestChain{
+				{id: chainA, prepared: true, deployed: true, overrides: gameOverride(embedded.GameTypeCannonKona), initialSelected: staleSelected, initialFallback: staleFallback},
+				{id: chainB, prepared: true, overrides: gameOverride(embedded.GameTypeSuperCannonKona)},
+			},
+			configure:    func(cfg *PrestateConfig) { cfg.Prestate = selected },
+			wantErrParts: []string{"cannot mix CANNON_KONA and SUPER_CANNON_KONA"},
+		},
+		{
+			name: "deployed SUPER_CANNON_KONA is preserved alongside active permissioned",
+			chains: []prestateTestChain{
+				{id: chainA, prepared: true, deployed: true, overrides: gameOverride(embedded.GameTypeSuperCannonKona), initialSelected: staleSelected, initialFallback: staleFallback},
+				{id: chainB, prepared: true, initialSelected: staleSelected, initialFallback: staleFallback},
+			},
+			want: map[common.Hash][2]common.Hash{
+				chainA: {staleSelected, staleFallback},
+				chainB: {},
+			},
+		},
+		{
+			name:         "deployed malformed game type still fails resolution",
+			chains:       []prestateTestChain{{id: chainA, prepared: true, deployed: true, overrides: map[string]any{"respectedGameType": "invalid"}, initialSelected: staleSelected, initialFallback: staleFallback}},
+			wantErrParts: []string{"failed to resolve initial dispute game type", chainA.Hex()},
 		},
 	}
 
@@ -511,6 +589,7 @@ func FuzzParsePrestateRoundTrip(f *testing.F) {
 type prestateTestChain struct {
 	id              common.Hash
 	prepared        bool
+	deployed        bool
 	overrides       map[string]any
 	initialSelected common.Hash
 	initialFallback common.Hash
@@ -556,6 +635,7 @@ func writePrestateWorkdir(t *testing.T, global map[string]any, chains []prestate
 		if chain.prepared {
 			st.Chains = append(st.Chains, &state.ChainState{
 				ID:                     chain.id,
+				Deployed:               &chain.deployed,
 				Prestate:               chain.initialSelected,
 				CannonFallbackPrestate: chain.initialFallback,
 			})

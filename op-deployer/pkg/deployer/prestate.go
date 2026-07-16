@@ -122,10 +122,28 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 	assignments := make([]prestateAssignment, 0, len(intent.Chains))
 	hasCannonKona := false
 	hasSuperCannonKona := false
+	hasActiveSelectedConsumer := false
+	hasActiveCannonKona := false
 	for _, chain := range intent.Chains {
 		gameType, err := resolveInitialGameType(intent, chain)
 		if err != nil {
 			return err
+		}
+
+		deployed := st.IsChainDeployed(chain.ID)
+		switch gameType {
+		case embedded.GameTypePermissionedCannon:
+		case embedded.GameTypeCannonKona:
+			hasCannonKona = true
+		case embedded.GameTypeSuperCannonKona:
+			hasSuperCannonKona = true
+		default:
+			if !deployed {
+				return fmt.Errorf("chain %s has unsupported initial dispute game type %d", chain.ID.Hex(), gameType)
+			}
+		}
+		if deployed {
+			continue
 		}
 
 		assignment := prestateAssignment{ChainID: chain.ID, GameType: gameType}
@@ -133,7 +151,8 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 		case embedded.GameTypePermissionedCannon:
 			// Clear stale prestate commitments.
 		case embedded.GameTypeCannonKona:
-			hasCannonKona = true
+			hasActiveSelectedConsumer = true
+			hasActiveCannonKona = true
 			selected, err := resolvePrestateRole(chain, intent.GlobalDeployOverrides, selectedPrestateRole, selectedCommand)
 			if err != nil {
 				return err
@@ -154,7 +173,7 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 			assignment.Selected = selected.hash
 			assignment.CannonFallback = fallback.hash
 		case embedded.GameTypeSuperCannonKona:
-			hasSuperCannonKona = true
+			hasActiveSelectedConsumer = true
 			selected, err := resolvePrestateRole(chain, intent.GlobalDeployOverrides, selectedPrestateRole, selectedCommand)
 			if err != nil {
 				return err
@@ -163,8 +182,6 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 				return fmt.Errorf("chain %s with SUPER_CANNON_KONA requires %s from --%s or intent key %s", chain.ID.Hex(), selectedPrestateRole.name, selectedPrestateRole.flagName, selectedPrestateRole.intentKey)
 			}
 			assignment.Selected = selected.hash
-		default:
-			return fmt.Errorf("chain %s has unsupported initial dispute game type %d", chain.ID.Hex(), gameType)
 		}
 		assignments = append(assignments, assignment)
 	}
@@ -176,11 +193,11 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 		return fmt.Errorf("SUPER_CANNON_KONA is not supported in a multi-chain intent")
 	}
 	// Reject prestate flags that would otherwise be silently ignored.
-	if selectedCommand.set && !hasCannonKona && !hasSuperCannonKona {
-		return fmt.Errorf("--%s was supplied but no chain resolves to a game type that uses the %s; check respectedGameType in the intent", selectedPrestateRole.flagName, selectedPrestateRole.name)
+	if selectedCommand.set && !hasActiveSelectedConsumer {
+		return fmt.Errorf("--%s was supplied but no undeployed chain resolves to a game type that uses the %s; check respectedGameType in the intent", selectedPrestateRole.flagName, selectedPrestateRole.name)
 	}
-	if fallbackCommand.set && !hasCannonKona {
-		return fmt.Errorf("--%s was supplied but no chain resolves to CANNON_KONA; check respectedGameType in the intent", cannonFallbackPrestateRole.flagName)
+	if fallbackCommand.set && !hasActiveCannonKona {
+		return fmt.Errorf("--%s was supplied but no undeployed chain resolves to CANNON_KONA; check respectedGameType in the intent", cannonFallbackPrestateRole.flagName)
 	}
 
 	// Avoid partial updates if a chain is missing.
