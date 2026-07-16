@@ -283,22 +283,36 @@ func (f *DisputeGameFactory) awaitMinVerifiedTimestamp(timestamp uint64) eth.Sup
 
 type superRootAtTimestampFn func(context.Context, uint64) (eth.SuperRootAtTimestampResponse, error)
 
-func awaitMinVerifiedTimestamp(
+type superRootAtTimestampReadyFn func(eth.SuperRootAtTimestampResponse) bool
+
+func awaitSuperRootAtTimestamp(
 	ctx context.Context,
 	timestamp uint64,
 	pollInterval time.Duration,
 	query superRootAtTimestampFn,
+	ready superRootAtTimestampReadyFn,
 ) (eth.SuperRootAtTimestampResponse, error) {
 	var resp eth.SuperRootAtTimestampResponse
 	err := wait.For(ctx, pollInterval, func() (bool, error) {
 		queried, err := query(ctx, timestamp)
-		if err != nil || queried.Data == nil {
+		if err != nil || !ready(queried) {
 			return false, nil
 		}
 		resp = queried
 		return true, nil
 	})
 	return resp, err
+}
+
+func awaitMinVerifiedTimestamp(
+	ctx context.Context,
+	timestamp uint64,
+	pollInterval time.Duration,
+	query superRootAtTimestampFn,
+) (eth.SuperRootAtTimestampResponse, error) {
+	return awaitSuperRootAtTimestamp(ctx, timestamp, pollInterval, query, func(resp eth.SuperRootAtTimestampResponse) bool {
+		return resp.Data != nil
+	})
 }
 
 func (f *DisputeGameFactory) StartCannonKonaGame(eoa *dsl.EOA, opts ...GameOpt) *FaultDisputeGame {
@@ -491,10 +505,23 @@ func (f *DisputeGameFactory) CreateHelperEOA(eoa *dsl.EOA) *GameHelperEOA {
 
 // safeTimestamp retrieves the current safe timestamp from the supernode.
 func (f *DisputeGameFactory) safeTimestamp() uint64 {
-	now := uint64(time.Now().Unix())
-	resp, err := f.superNode.QueryAPI().SuperRootAtTimestamp(f.t.Ctx(), now)
+	ctx, cancel := context.WithTimeout(f.t.Ctx(), 2*time.Minute)
+	defer cancel()
+	timestamp, err := safeTimestamp(ctx, uint64(time.Now().Unix()), time.Second, f.superNode.QueryAPI().SuperRootAtTimestamp)
 	f.require.NoError(err, "Failed to fetch super root at timestamp")
-	return resp.CurrentSafeTimestamp
+	return timestamp
+}
+
+func safeTimestamp(
+	ctx context.Context,
+	timestamp uint64,
+	pollInterval time.Duration,
+	query superRootAtTimestampFn,
+) (uint64, error) {
+	resp, err := awaitSuperRootAtTimestamp(ctx, timestamp, pollInterval, query, func(eth.SuperRootAtTimestampResponse) bool {
+		return true
+	})
+	return resp.CurrentSafeTimestamp, err
 }
 
 // RunFPP runs the fault proof program between the two supplied timestamps. Currently only supports kona-interop.
