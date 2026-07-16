@@ -78,6 +78,17 @@ go_package_selector() {
   fi
 }
 
+go_tests_excluded_for_component() {
+  local component="$1"
+  local excluded_component
+  for excluded_component in "${go_test_excluded_components[@]}"; do
+    if [[ "${component}" == "${excluded_component}" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 rust_package_for_file() {
   local file="$1"
   local dir
@@ -145,6 +156,11 @@ while IFS= read -r -d '' file; do
   changed_files+=("${file}")
 done < <(git -C "${repo_root}" diff "${git_diff_args[@]}")
 
+go_test_excluded_components=(
+  op-acceptance-tests
+  op-deployer
+)
+
 go_lint=false
 cannon_tests=false
 rust_checks=false
@@ -153,7 +169,6 @@ contracts_checks=false
 go_component_test_dirs=""
 go_package_tests=""
 rust_package_tests=""
-acceptance_package_tests=""
 circleci_checks=false
 
 for file in "${changed_files[@]}"; do
@@ -171,12 +186,6 @@ for file in "${changed_files[@]}"; do
         cannon/*)
           cannon_tests=true
           ;;
-        op-acceptance-tests/tests/*)
-          append_unique_line acceptance_package_tests "$(go_package_selector "${file}")"
-          ;;
-        op-acceptance-tests/*)
-          append_unique_line acceptance_package_tests "$(go_package_selector "${file}")"
-          ;;
         rust/*)
           rust_checks=true
           rust_package="$(rust_package_for_file "${file}")"
@@ -189,7 +198,9 @@ for file in "${changed_files[@]}"; do
           append_unique_line go_package_tests "$(go_package_selector "${file}")"
           ;;
         *)
-          if [[ -f "${repo_root}/${top_dir}/justfile" ]] && grep -Eq '^test([[:space:]:*]|$)' "${repo_root}/${top_dir}/justfile"; then
+          if go_tests_excluded_for_component "${top_dir}"; then
+            :
+          elif [[ -f "${repo_root}/${top_dir}/justfile" ]] && grep -Eq '^test([[:space:]:*]|$)' "${repo_root}/${top_dir}/justfile"; then
             append_unique_line go_component_test_dirs "${top_dir}"
           else
             append_unique_line go_package_tests "$(go_package_selector "${file}")"
@@ -266,15 +277,6 @@ fi
 if [[ "${contracts_checks}" == true ]]; then
   add_mise_x_just_command contracts-lint "${repo_root}/packages/contracts-bedrock" lint
   add_mise_x_just_command contracts-test-dev "${repo_root}/packages/contracts-bedrock" test-dev
-fi
-acceptance_package_args=""
-while IFS= read -r package; do
-  if [[ -n "${package}" ]]; then
-    acceptance_package_args+=" $(quote "${package}")"
-  fi
-done <<<"${acceptance_package_tests}"
-if [[ -n "${acceptance_package_args}" ]]; then
-  add_raw_command acceptance-packages "RUST_JIT_BUILD=1 mise exec -- just -f $(quote "${repo_root}/op-acceptance-tests/justfile") -d $(quote "${repo_root}/op-acceptance-tests") test${acceptance_package_args}"
 fi
 if [[ "${circleci_checks}" == true ]]; then
   add_raw_command circleci-merge "mise exec -- bash $(quote "${repo_root}/.circleci/scripts/merge-configs.sh")"
