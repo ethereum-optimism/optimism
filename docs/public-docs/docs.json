@@ -2046,7 +2046,9 @@
             "pages": [
               "chain-operators/reference/batcher-configuration",
               "chain-operators/reference/opcm",
-              "chain-operators/reference/standard-configuration"
+              "chain-operators/reference/standard-configuration",
+              "chain-operators/reference/fee-parameters",
+              "chain-operators/reference/da-footprint"
             ]
           },
           {
