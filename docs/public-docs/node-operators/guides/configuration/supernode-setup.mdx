@@ -32,7 +32,7 @@ Every flag used below is catalogued in the [op-supernode configuration reference
 You need:
 
 *   **One execution client per chain.** Each chain in the dependency set needs its own execution client with the engine API (authrpc) enabled; one execution client cannot back two chains. See the [execution client configuration guide](/node-operators/guides/configuration/execution-clients) for client options, and the [run a node from source tutorial](/node-operators/tutorials/run-node-from-source) for a full execution-client walkthrough.
-*   **L1 endpoints.** An L1 JSON-RPC endpoint with the `eth` namespace enabled and an L1 beacon-node HTTP endpoint, shared by every chain. A beacon archiver fallback is strongly recommended — see [configure a blob archiver](/node-operators/guides/management/blobs#configure-a-blob-archiver).
+*   **L1 endpoints.** An L1 JSON-RPC endpoint with the `eth` namespace enabled and an L1 beacon-node HTTP endpoint, shared by every chain. A beacon archiver fallback is strongly recommended — see [configuring a blob archiver](/node-operators/guides/management/blobs#configuring-a-blob-archiver).
 *   **The chain IDs of every chain the supernode will host.** For chains in op-node's built-in network registry (for example `op-sepolia`, `unichain-sepolia`), the network name is enough. For any other chain, you need a rollup configuration JSON file per chain.
 
 ## Build op-supernode
