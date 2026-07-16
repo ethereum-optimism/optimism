@@ -34,8 +34,8 @@ func NewMixedOpKonaWithTestSequencerForConfig(t devtest.T, l2Config L2NodeConfig
 }
 
 func withRequiredOpSequencerForTestSequencer(l2Config L2NodeConfig) L2NodeConfig {
-	if l2Config.OpSequencerNodes() == 0 {
-		l2Config.OpSequencerNodesWithGeth = 1
+	if l2Config.OpSequencerNodesWithReth == 0 {
+		l2Config.OpSequencerNodesWithReth = 1
 	}
 	return l2Config
 }

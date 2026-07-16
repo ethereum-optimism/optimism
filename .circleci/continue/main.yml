@@ -1897,7 +1897,7 @@ jobs:
       l2_el_kind:
         description: "L2 execution layer client (op-geth or op-reth)"
         type: string
-        default: "op-geth"
+        default: "op-reth"
       no_output_timeout:
         description: Timeout for when CircleCI kills the job if there's no output
         type: string

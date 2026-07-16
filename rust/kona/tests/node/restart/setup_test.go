@@ -40,8 +40,8 @@ func TestMain(m *testing.M) {
 		}()
 
 		sharedRestartRuntime = node_utils.NewSharedMixedOpKonaRuntimeForConfig(pkg, node_utils.L2NodeConfig{
-			KonaSequencerNodesWithGeth: 1,
-			KonaNodesWithGeth:          1,
+			KonaSequencerNodesWithReth: 1,
+			KonaNodesWithReth:          1,
 		})
 		code = m.Run()
 	}()
