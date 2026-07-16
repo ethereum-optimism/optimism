@@ -1041,9 +1041,11 @@ mod tests {
     /// not discard the journal on non-deposit errors; passes once it does.
     fn assert_no_warm_set_leak_divergence(leak_account: Account, leak_code: Option<Bytes>) {
         let gas_limit = 1_000_000;
+        // Lagoon-active spec: SDM's protocol gate (`compute_post_exec_mode`) requires it, so the
+        // forced Produce mode below runs on a fork combination that can occur in production.
         let chain_spec = Arc::new(
             OpChainSpecBuilder::optimism_mainnet()
-                .regolith_activated()
+                .interop_activated()
                 .build(),
         );
 
