@@ -16,8 +16,8 @@ type FaultDisputeGameContract131 struct {
 	FaultDisputeGameContractLatest
 }
 
-func (f *FaultDisputeGameContract131) IsClosed(context.Context) (bool, error) {
-	return true, nil
+func (f *FaultDisputeGameContract131) IsClosed(ctx context.Context) (bool, error) {
+	return isLegacyGameClosed(ctx, f)
 }
 
 func (f *FaultDisputeGameContract131) GetBondDistributionMode(ctx context.Context, block rpcblock.Block) (types.BondDistributionMode, error) {

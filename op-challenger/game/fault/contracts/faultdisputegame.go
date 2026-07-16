@@ -543,6 +543,15 @@ func (f *FaultDisputeGameContractLatest) GetAllClaims(ctx context.Context, block
 	return claims, nil
 }
 
+func isLegacyGameClosed(ctx context.Context, game DisputeGameContract) (bool, error) {
+	// Legacy games have no separate close cycle.
+	status, err := game.GetStatus(ctx)
+	if err != nil {
+		return false, err
+	}
+	return status != gameTypes.GameStatusInProgress, nil
+}
+
 func (f *FaultDisputeGameContractLatest) IsClosed(ctx context.Context) (bool, error) {
 	mode, err := f.GetBondDistributionMode(ctx, rpcblock.Latest)
 	if err != nil {

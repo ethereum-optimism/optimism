@@ -269,10 +269,22 @@ func TestIsClosed(t *testing.T) {
 		version := version
 		t.Run(version.String(), func(t *testing.T) {
 			if slices.Contains(legacyVersions, version.version) {
-				_, game := setupFaultDisputeGameTest(t, version)
-				closed, err := game.IsClosed(context.Background())
-				require.NoError(t, err)
-				require.True(t, closed)
+				statuses := []gameTypes.GameStatus{
+					gameTypes.GameStatusInProgress,
+					gameTypes.GameStatusChallengerWon,
+					gameTypes.GameStatusDefenderWon,
+				}
+				for _, status := range statuses {
+					t.Run(status.String(), func(t *testing.T) {
+						stubRpc, game := setupFaultDisputeGameTest(t, version)
+						stubRpc.SetResponse(fdgAddr, methodStatus, rpcblock.Latest, nil, []interface{}{uint8(status)})
+
+						closed, err := game.IsClosed(context.Background())
+
+						require.NoError(t, err)
+						require.Equal(t, status != gameTypes.GameStatusInProgress, closed)
+					})
+				}
 				return
 			}
 			for _, test := range modes {
