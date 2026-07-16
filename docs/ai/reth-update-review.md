@@ -67,6 +67,13 @@ Organised by **detection difficulty** — the point is catching what the compile
 - **Overridden method whose upstream sibling/default changed.** We override method X;
   upstream changes the default body of X (or a helper X calls). Our override is now stale
   relative to the new upstream behaviour it was forked from.
+  The canonical instance: revm [#3780](https://github.com/bluealloy/revm/pull/3780) added
+  `journal.discard_tx()` to `EthHandler::catch_error`, but `OpHandler::catch_error`
+  (`rust/op-revm/src/handler.rs`) overrides that method, so the fix did not propagate — the
+  SDM warm-set leak ([#21723](https://github.com/ethereum-optimism/optimism/pull/21723)).
+  On any bump that touches `EthHandler::catch_error` or the journal's
+  `discard_tx`/`commit_tx`/`finalize` semantics, re-derive the `OpHandler::catch_error`
+  override against the new upstream body.
 - **New defaulted trait method.** Upstream adds a method with a default impl to a trait
   we implement (e.g. `Handler`). We inherit the default silently — and an upstream default
   often assumes L1 semantics that are wrong for OP.

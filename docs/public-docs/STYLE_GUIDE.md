@@ -2,12 +2,13 @@
 
 This guide explains how to write technical content for Optimism Docs using a consistent voice, tone, and style.
 
-This Style Guide aims to assist Optimists in writing technical content with a consistent voice, tone, and style. See the [glossary](https://docs.optimism.io/op-stack/reference/glossary) for an alphabetical listing of commonly used words, terms, and concepts used throughout the technical docs and across the OP Collective.
+This Style Guide aims to assist Optimists in writing technical content with a consistent voice, tone, and style. See the [glossary](https://docs.optimism.io/op-stack/reference/glossary) for an alphabetical listing of commonly used words, terms, and concepts used throughout the technical docs and across Optimism.
 
 This doc doesn't cover all questions or use-cases. Our guide is based on the [Microsoft Writing Style Guide](https://learn.microsoft.com/en-us/style-guide/welcome/). Please reference their guide for any use-case or situation we do not cover here.
 
-* For docs-related questions or comments, create an issue in the [docs repo](https://github.com/ethereum-optimism/optimism/issues).
-* For support-related questions or comments, create an issue in the [developers repo](https://github.com/ethereum-optimism/developers/issues).
+This guide covers **how** to write (voice, tone, formatting, and structure). For **what** content belongs on docs.optimism.io — the canonical home for each content type and how to mark third-party content — see the [Content Guide](https://docs.optimism.io/op-stack/contribute/content-guide) ([source](op-stack/contribute/content-guide.mdx)).
+
+* For docs-related questions, comments, or support, create an issue in the [Optimism monorepo](https://github.com/ethereum-optimism/optimism/issues).
 
 ## Table of Contents
 
@@ -47,7 +48,7 @@ File paths, when mentioned **within** a docs page, should be formatted as code s
 
 ### Voice and tone
 
-Write in a friendly, yet professional tone. We are upbeat, knowledgeable, and **optimistic** about the development of the Optimism Collective, which we try our best to convey in our technical documentation.
+Write in a friendly, yet professional tone. We are upbeat, knowledgeable, and **optimistic** about the development of Optimism, which we try our best to convey in our technical documentation.
 
 ### Clear and concise language
 
@@ -276,6 +277,8 @@ Developers trust that we will lead them to sites or pages related to their readi
 
 Content types help manage technical content by defining the purpose and common structure for each file type. All content types used in these technical docs have attributes or properties, as defined below.
 
+This section defines how each content type is structured. For which source is canonical for each content type — and whether a page belongs on docs.optimism.io at all — see the [Content Guide](https://docs.optimism.io/op-stack/contribute/content-guide).
+
 | Document type           | Purpose                                                                                                            | Examples                                                                                      |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
 | Overviews or Explainers | General introduction to a product or feature, provides a happy-path for readers                                    | [Superchain Explainer](https://docs.optimism.io/superchain/superchain-explainer)              |
@@ -427,7 +430,7 @@ Please use `*` instead of `-` for items in a list. This maintains consistency ac
 * **Colon (:)** Use to introduce a list or series.
 
 * **Commas (,)** Use a serial comma in lists of three or more items and use the oxford comma preceding the "and" before the last element in a list.
-  **Example**: The developer built a node, social app, and DeFi app for the Optimism Collective.
+  **Example**: The developer built a node, social app, and DeFi app for Optimism.
 
 * **Em dash (—)** Use to indicate a break in thought or a parenthetical comment. Do not add spaces around the em dash.
   **Example**: The developer graduated—with honors—from Optimism Bootcamp.

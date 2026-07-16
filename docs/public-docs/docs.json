@@ -2392,6 +2392,7 @@
           {
             "group": "Contribute",
             "pages": [
+              "/op-stack/contribute/content-guide",
               "/op-stack/contribute/choose-a-content-type",
               "/op-stack/contribute/solution-guide",
               "/op-stack/contribute/learning-unit",

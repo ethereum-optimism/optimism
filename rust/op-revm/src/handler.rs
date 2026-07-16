@@ -5,6 +5,7 @@ use crate::{
     constants::{BASE_FEE_RECIPIENT, L1_FEE_RECIPIENT, OPERATOR_FEE_RECIPIENT},
     transaction::{OpTransactionError, OpTxTr, deposit::DEPOSIT_TRANSACTION_TYPE},
 };
+use op_alloy_consensus::OpTxType;
 use revm::{
     context::{
         LocalContextTr,
@@ -397,56 +398,13 @@ where
         evm: &mut Self::Evm,
         error: Self::Error,
     ) -> Result<ExecutionResult<Self::HaltReason>, Self::Error> {
-        let is_deposit = evm.ctx().tx().tx_type() == DEPOSIT_TRANSACTION_TYPE;
-        let is_tx_error = error.is_tx_error();
-        let mut output = Err(error);
-
-        // Deposit transaction can't fail so we manually handle it here.
-        if is_tx_error && is_deposit {
-            let ctx = evm.ctx();
-            let spec = ctx.cfg().spec();
-            let tx = ctx.tx();
-            let caller = tx.caller();
-            let mint = tx.mint();
-            let is_system_tx = tx.is_system_transaction();
-            let gas_limit = tx.gas_limit();
-            let journal = evm.ctx().journal_mut();
-
-            // discard all changes of this transaction
-            // Default JournalCheckpoint is the first checkpoint and will wipe all changes.
-            journal.checkpoint_revert(JournalCheckpoint::default());
-
-            // If the transaction is a deposit transaction and it failed
-            // for any reason, the caller nonce must be bumped, and the
-            // gas reported must be altered depending on the Hardfork. This is
-            // also returned as a special Halt variant so that consumers can more
-            // easily distinguish between a failed deposit and a failed
-            // normal transaction.
-
-            // Increment sender nonce and account balance for the mint amount. Deposits
-            // always persist the mint amount, even if the transaction fails.
-            let mut acc = journal.load_account_mut(caller)?;
-            acc.bump_nonce();
-            acc.incr_balance(U256::from(mint.unwrap_or_default()));
-
-            drop(acc); // Drop acc to avoid borrow checker issues.
-
-            // We can now commit the changes.
-            journal.commit_tx();
-
-            // The gas used of a failed deposit post-regolith is the gas
-            // limit of the transaction. pre-regolith, it is the gas limit
-            // of the transaction for non system transactions and 0 for system
-            // transactions.
-            let gas_used =
-                if spec.is_enabled_in(OpSpecId::REGOLITH) || !is_system_tx { gas_limit } else { 0 };
-            // clear the journal
-            output = Ok(ExecutionResult::Halt {
-                reason: OpHaltReason::FailedDeposit,
-                gas: ResultGas::default().with_total_gas_spent(gas_used),
-                logs: Vec::new(),
-            })
-        }
+        let output = if error.is_tx_error() {
+            self.catch_error_tx_error(evm, error)
+        } else {
+            // A non-tx error is not attributable to the transaction's validity: discard the tx's
+            // journal changes and surface the error, regardless of tx type.
+            self.discard_and_surface_error(evm, error)
+        };
 
         // do the cleanup
         evm.ctx().chain_mut().clear_tx_l1_cost();
@@ -454,6 +412,94 @@ where
         evm.frame_stack().clear();
 
         output
+    }
+}
+
+impl<EVM, ERROR, FRAME> OpHandler<EVM, ERROR, FRAME>
+where
+    EVM: EvmTr<Context: OpContextTr, Frame = FRAME>,
+    ERROR: EvmTrError<EVM> + From<OpTransactionError> + FromStringError + IsTxError,
+    FRAME: FrameTr<FrameResult = FrameResult, FrameInit = FrameInit>,
+{
+    /// Handles a transaction-validity error (`is_tx_error()` true), branching on the tx type.
+    fn catch_error_tx_error(
+        &self,
+        evm: &mut EVM,
+        error: ERROR,
+    ) -> Result<ExecutionResult<OpHaltReason>, ERROR> {
+        // An unsupported type byte can't be a deposit, so a `try_from` failure is handled as a
+        // non-deposit failure, the same as the non-deposit arm below.
+        let Ok(tx_type) = OpTxType::try_from(evm.ctx().tx().tx_type()) else {
+            return self.discard_and_surface_error(evm, error);
+        };
+
+        match tx_type {
+            OpTxType::Deposit => self.catch_error_failed_deposit(evm),
+            OpTxType::Legacy |
+            OpTxType::Eip2930 |
+            OpTxType::Eip1559 |
+            OpTxType::Eip7702 |
+            OpTxType::PostExec => self.discard_and_surface_error(evm, error),
+        }
+    }
+
+    /// Discards a failed transaction's journal changes and surfaces `error`.
+    ///
+    /// The failed tx's changes must be discarded and its `transaction_id` advanced, as
+    /// `EthHandler::catch_error` does upstream. Otherwise the failed tx's partial state and
+    /// EIP-2929 warm/cold stamps persist in the shared journal and leak into the next tx executed
+    /// on the same EVM.
+    fn discard_and_surface_error(
+        &self,
+        evm: &mut EVM,
+        error: ERROR,
+    ) -> Result<ExecutionResult<OpHaltReason>, ERROR> {
+        evm.ctx().journal_mut().discard_tx();
+        Err(error)
+    }
+
+    /// Handles a failed deposit transaction. A deposit is never rejected: it still bumps the
+    /// caller nonce, persists the mint, and is reported as a dedicated `FailedDeposit` halt so
+    /// consumers can distinguish it from a failed normal transaction. See the deposits spec:
+    /// <https://specs.optimism.io/protocol/deposits.html#execution>.
+    fn catch_error_failed_deposit(
+        &self,
+        evm: &mut EVM,
+    ) -> Result<ExecutionResult<OpHaltReason>, ERROR> {
+        let ctx = evm.ctx();
+        let spec = ctx.cfg().spec();
+        let tx = ctx.tx();
+        let caller = tx.caller();
+        let mint = tx.mint();
+        let is_system_tx = tx.is_system_transaction();
+        let gas_limit = tx.gas_limit();
+        let journal = evm.ctx().journal_mut();
+
+        // Discard all changes of this transaction. The default `JournalCheckpoint` is the first
+        // checkpoint and will wipe all changes.
+        journal.checkpoint_revert(JournalCheckpoint::default());
+
+        // Increment sender nonce and account balance for the mint amount. Deposits always persist
+        // the mint amount, even if the transaction fails.
+        let mut acc = journal.load_account_mut(caller)?;
+        acc.bump_nonce();
+        acc.incr_balance(U256::from(mint.unwrap_or_default()));
+
+        drop(acc); // Drop acc to avoid borrow checker issues.
+
+        // We can now commit the changes.
+        journal.commit_tx();
+
+        // The gas used of a failed deposit post-regolith is the gas limit of the transaction.
+        // Pre-regolith it is the gas limit for non-system transactions and 0 for system
+        // transactions.
+        let gas_used =
+            if spec.is_enabled_in(OpSpecId::REGOLITH) || !is_system_tx { gas_limit } else { 0 };
+        Ok(ExecutionResult::Halt {
+            reason: OpHaltReason::FailedDeposit,
+            gas: ResultGas::default().with_total_gas_spent(gas_used),
+            logs: Vec::new(),
+        })
     }
 }
 
