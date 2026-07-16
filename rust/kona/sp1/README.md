@@ -18,13 +18,13 @@ zkVM programs that execute inside the SP1 prover:
 - **`aggregation`**: Aggregates multiple range program proofs into a single proof, enabling efficient verification of longer block ranges.
 - **`super-range`**: Scaffold for the unified multi-chain super-root range
   program, with modes for proving ranges and span-shaped consolidation.
-- **`super-aggregation`**: Scaffold for aggregating unified super-range
-  proofs into the public values consumed by `ZKDisputeGame`.
+- **`super-aggregation`**: Recursively verifies unified super-range proofs and
+  commits the public values consumed by `ZKDisputeGame`.
 
-The super-root aggregation scaffold currently accepts the range program verification
-key as input to support development. This dynamic-vkey mode is not production
-sound until the range vkey is embedded in the aggregation program or
-publicly bound by the verifier path.
+The super-root aggregation program currently accepts the range program verification
+key as input to support development. This dynamic-vkey mode is not production sound
+until the range vkey is embedded in the aggregation program or publicly bound by the
+verifier path.
 
 ### Crates (`crates/`)
 
@@ -87,16 +87,17 @@ reproduced:
 
 ### Guest Precompile Patches
 
-The guest programs (`programs/range` and `programs/aggregation`) are isolated in
-`programs/Cargo.toml`, a nested Cargo workspace with its own `Cargo.lock` and
-`[patch.crates-io]` table. That workspace patches `sha2`, `sha3`,
-`crypto-bigint`, `k256`, `p256`, and `substrate-bn` to the SP1 forks, so the
-generated ELFs get zkVM precompile-accelerated crypto without changing the host
-`rust/` workspace dependency graph.
+The guest programs under `programs/` are isolated in `programs/Cargo.toml`, a
+nested Cargo workspace with its own `Cargo.lock` and `[patch.crates-io]` table.
+That workspace patches `sha2`, `sha3`, `crypto-bigint`, `k256`, `p256`, and
+`substrate-bn` to the SP1 forks, so the generated ELFs get zkVM
+precompile-accelerated crypto without changing the host `rust/` workspace
+dependency graph.
 
-The range guest also enables `revm`'s `bn` feature in the nested workspace. That
-forwards to `revm-precompile`'s `substrate-bn` backend for EIP-196/197 bn128
-precompiles. EIP-2537 BLS pairing still uses arkworks and is not SP1 accelerated.
+The EVM-executing range and super-range guests also enable `revm`'s `bn` feature
+in the nested workspace. That forwards to `revm-precompile`'s `substrate-bn`
+backend for EIP-196/197 bn128 precompiles. EIP-2537 BLS pairing still uses
+arkworks and is not SP1 accelerated.
 
 ## Usage
 
