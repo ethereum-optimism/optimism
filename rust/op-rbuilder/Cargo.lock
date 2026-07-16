@@ -8088,6 +8088,7 @@ name = "op-revm"
 version = "20.0.0"
 dependencies = [
  "auto_impl",
+ "op-alloy-consensus",
  "revm",
  "serde",
 ]

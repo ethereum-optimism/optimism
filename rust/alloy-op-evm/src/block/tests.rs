@@ -142,6 +142,13 @@ const DEFAULT_DA_FOOTPRINT_GAS_SCALAR: u16 = 7;
 const DEFAULT_GAS_LIMIT: u64 = 100_000;
 const JOVIAN_TIMESTAMP: u64 = 1_746_806_402;
 
+/// Whether [`build_executor`] attaches an inspector to the EVM — a self-documenting alternative to
+/// a bare `bool` at the call sites.
+enum Inspect {
+    Enabled,
+    Disabled,
+}
+
 #[allow(clippy::too_many_arguments)]
 fn build_executor<'a>(
     db: &'a mut State<InMemoryDB>,
@@ -152,6 +159,7 @@ fn build_executor<'a>(
     parent_timestamp: Option<u64>,
     base_fee: u64,
     beneficiary: Address,
+    inspect: Inspect,
 ) -> SDMTestExecutor<'a> {
     let ctx = Context::mainnet()
         .with_tx(crate::OpTx(OpTransaction::builder().build_fill()))
@@ -172,7 +180,10 @@ fn build_executor<'a>(
         })
         .modify_cfg_chained(|cfg| cfg.spec = OpSpecId::JOVIAN);
 
-    let evm = OpEvm::new(ctx.build_op_with_inspector(NoOpInspector {}), true);
+    let evm = OpEvm::new(
+        ctx.build_op_with_inspector(NoOpInspector {}),
+        matches!(inspect, Inspect::Enabled),
+    );
 
     // Like production call sites, the activation-block flag is computed where the parent
     // timestamp is available and left `false` where it isn't.
@@ -232,6 +243,7 @@ impl SDMExecutorFixture {
             self.parent_timestamp,
             self.base_fee,
             self.beneficiary,
+            Inspect::Enabled,
         )
     }
 
@@ -475,6 +487,7 @@ fn test_no_user_tx_activation_block_rejects_user_tx() {
             Some(fork_timestamp - 1),
             0,
             Address::ZERO,
+            Inspect::Enabled,
         );
         assert!(
             executor.ctx.no_user_tx_activation_block,
@@ -512,6 +525,7 @@ fn test_fork_activation_block_accepts_deposits_only() {
         Some(KARST_TIMESTAMP - 1),
         0,
         Address::ZERO,
+        Inspect::Enabled,
     );
     assert!(executor.ctx.no_user_tx_activation_block);
 
@@ -540,6 +554,7 @@ fn test_normal_post_activation_block_accepts_user_tx() {
         Some(KARST_TIMESTAMP + 1),
         0,
         Address::ZERO,
+        Inspect::Enabled,
     );
     assert!(!executor.ctx.no_user_tx_activation_block);
 
@@ -562,6 +577,7 @@ fn test_non_activation_karst_block_not_rejected() {
         Some(KARST_TIMESTAMP + 50),
         0,
         Address::ZERO,
+        Inspect::Enabled,
     );
     assert!(!executor.ctx.no_user_tx_activation_block);
 
@@ -587,6 +603,7 @@ fn test_none_parent_timestamp_skips_check() {
         None,
         0,
         Address::ZERO,
+        Inspect::Enabled,
     );
     assert!(!executor.ctx.no_user_tx_activation_block);
 
@@ -1714,5 +1731,266 @@ mod sdm {
             total_settled, total_unsettled,
             "SDM post-exec settlement minted or burned ETH relative to the unsettled block",
         );
+    }
+
+    /// Regression coverage for a warm-set leak in op-revm's `catch_error`.
+    ///
+    /// `catch_error` must discard the journal on a non-deposit tx error, as upstream revm's
+    /// `EthHandler::catch_error` does. Were it not to, then on the SDM Produce execution path
+    /// (`alloy-op-evm` routes to `inspect_tx`, which skips `finalize()` on error) a failed
+    /// candidate tx would leave its sender EIP-2929-warm in the shared journal, so a later tx
+    /// executed on the same EVM would be mischarged — diverging from a validator that never
+    /// executed the failed tx. These tests pin that the leak does not occur, and that the current
+    /// production (SDM-disabled) configuration is unaffected either way.
+    mod warm_set_leak {
+        use super::*;
+
+        /// Sender of the failing tx `A` — loaded+warmed during validation before the nonce
+        /// check rejects it. Its leaked warmth is the bug.
+        const LEAK_ADDR: Address = Address::new([0xAA; 20]);
+        /// Sender of the probe tx `B`.
+        const PROBE_SENDER: Address = Address::new([0xBB; 20]);
+        /// Probe contract: `PUSH20 <LEAK_ADDR>; BALANCE; POP; STOP` — a Berlin account access
+        /// on `A`'s sender, charged 100 (warm) or 2600 (cold).
+        const PROBE_CONTRACT: Address = Address::new([0xCC; 20]);
+
+        fn nonce_too_low_db() -> State<InMemoryDB> {
+            // `A`'s sender: nonce 5 so `A` (nonce 0) is rejected `NonceTooLow` *after* the
+            // sender is loaded+warmed, leaving no other state mutation (crisp signal).
+            db_with_leak_account(AccountInfo {
+                nonce: 5,
+                balance: U256::from(1_000_000_000u64),
+                ..Default::default()
+            })
+        }
+
+        /// Like [`nonce_too_low_db`] but `A`'s sender carries code, so `A` is rejected by EIP-3607
+        /// (sender-has-code) instead of by the nonce check — still only after it is loaded+warmed.
+        fn contract_sender_db() -> State<InMemoryDB> {
+            let code = Bytecode::new_raw(vec![0x00u8].into()); // STOP
+            // nonce 0 so the nonce check passes and EIP-3607 is the sole rejection reason.
+            db_with_leak_account(AccountInfo {
+                code_hash: code.hash_slow(),
+                code: Some(code),
+                balance: U256::from(1_000_000_000u64),
+                ..Default::default()
+            })
+        }
+
+        /// Seeds the shared warm-leak accounts; `A`'s sender (`LEAK_ADDR`) is supplied by the
+        /// caller so each test can choose the validation error `A` fails with.
+        fn db_with_leak_account(leak_account: AccountInfo) -> State<InMemoryDB> {
+            let mut db = prepare_jovian_db(DEFAULT_DA_FOOTPRINT_GAS_SCALAR);
+            db.insert_account(LEAK_ADDR, leak_account);
+            // `B`'s sender: funded.
+            db.insert_account(
+                PROBE_SENDER,
+                AccountInfo {
+                    balance: U256::from(1_000_000_000_000_000_000u128),
+                    ..Default::default()
+                },
+            );
+            // Probe contract bytecode: `PUSH20 <LEAK_ADDR>; BALANCE; POP; STOP`.
+            let mut code = vec![0x73u8]; // PUSH20
+            code.extend_from_slice(LEAK_ADDR.as_slice());
+            code.extend_from_slice(&[0x31, 0x50, 0x00]); // BALANCE, POP, STOP
+            let bytecode = Bytecode::new_raw(code.into());
+            db.insert_account(
+                PROBE_CONTRACT,
+                AccountInfo {
+                    code_hash: bytecode.hash_slow(),
+                    code: Some(bytecode),
+                    ..Default::default()
+                },
+            );
+            db
+        }
+
+        fn legacy_with_sender(
+            sender: Address,
+            nonce: u64,
+            to: Address,
+            gas_limit: u64,
+        ) -> Recovered<OpTxEnvelope> {
+            recovered_legacy_from(
+                sender,
+                TxLegacy {
+                    nonce,
+                    gas_limit,
+                    gas_price: 0,
+                    to: alloy_primitives::TxKind::Call(to),
+                    ..Default::default()
+                },
+            )
+        }
+
+        /// Activates every fork through Lagoon at `JOVIAN_TIMESTAMP`. Lagoon gates SDM, so the
+        /// Produce path exercised here runs on a genuinely SDM-active fork rather than being forced
+        /// on a pre-SDM one.
+        fn hardforks() -> OpChainHardforks {
+            let forks = OpHardfork::op_mainnet()
+                .into_iter()
+                .filter(|(fork, _)| fork.idx() < OpHardfork::Jovian.idx())
+                .chain(
+                    OpHardfork::Jovian
+                        .forks_from()
+                        .take_while(|fork| fork.idx() <= OpHardfork::Lagoon.idx())
+                        .map(|fork| (fork, ForkCondition::Timestamp(JOVIAN_TIMESTAMP))),
+                );
+            OpChainHardforks::new(forks)
+        }
+
+        /// Canonical gas charged to probe tx `B` (BALANCE on `LEAK_ADDR`), optionally preceded
+        /// by a failing tx `A` from `LEAK_ADDR` that is attempted then skipped on the same
+        /// executor — mirroring the builder's skip-and-continue loop.
+        fn probe_b_canonical_gas(mode: PostExecMode, include_failing_a: bool) -> u64 {
+            let mut db = nonce_too_low_db();
+            let receipt_builder = OpAlloyReceiptBuilder::default();
+            let op_chain_hardforks = hardforks();
+            // `inspect=false` models real block building/validation (`create_evm` uses false);
+            // the leaky `inspect_tx` path is then reached *only* via SDM Produce's
+            // `begin_post_exec_tx`, exactly as in production.
+            let mut executor = build_executor(
+                &mut db,
+                &receipt_builder,
+                &op_chain_hardforks,
+                1_000_000,
+                JOVIAN_TIMESTAMP,
+                None,
+                0,
+                Address::ZERO,
+                Inspect::Disabled,
+            );
+            executor.set_post_exec_mode(mode);
+
+            if include_failing_a {
+                let tx_a = legacy_with_sender(LEAK_ADDR, 0, PROBE_SENDER, 50_000);
+                executor
+                    .execute_transaction(&tx_a)
+                    .expect_err("tx A must fail NonceTooLow and be skipped");
+            }
+
+            let tx_b = legacy_with_sender(PROBE_SENDER, 0, PROBE_CONTRACT, 200_000);
+            executor.execute_transaction(&tx_b).expect("probe tx B executes").tx_gas_used()
+        }
+
+        /// Drives the builder-vs-validator consensus scenario: a builder in SDM `Produce` mode
+        /// attempts `failing_a` (which must error and be skipped), then includes probe tx `B` and
+        /// the 0x7D refund payload; a validator in `Verify` mode re-executes only `B` and the
+        /// payload, never `A`. Asserts the sealed-block gas matches — i.e. the skipped tx left no
+        /// warm residue for the builder to bill `B` for. `make_db` and `failing_a` are the only
+        /// things that vary between the different validation errors `A` can fail with.
+        fn assert_no_builder_validator_divergence(
+            make_db: impl Fn() -> State<InMemoryDB>,
+            failing_a: Recovered<OpTxEnvelope>,
+            a_error_context: &str,
+        ) {
+            let receipt_builder = OpAlloyReceiptBuilder::default();
+            let op_chain_hardforks = hardforks();
+
+            // ---- Builder (SDM Produce): A is attempted, fails, and is skipped; B is included.
+            let mut producer_db = make_db();
+            let mut producer = build_executor(
+                &mut producer_db,
+                &receipt_builder,
+                &op_chain_hardforks,
+                1_000_000,
+                JOVIAN_TIMESTAMP,
+                None,
+                0,
+                Address::ZERO,
+                Inspect::Disabled,
+            );
+            producer.set_post_exec_mode(PostExecMode::Produce);
+            producer.execute_transaction(&failing_a).expect_err(a_error_context);
+            producer
+                .execute_transaction(&legacy_with_sender(PROBE_SENDER, 0, PROBE_CONTRACT, 200_000))
+                .expect("probe tx B executes");
+            let entries = producer.take_post_exec_entries();
+            let post_exec_tx = recovered_post_exec(0, entries.clone());
+            producer.execute_transaction(&post_exec_tx).expect("producer appends 0x7D tx");
+            let (_, produced) = producer.finish().expect("producer finishes block");
+
+            // ---- Validator (SDM Verify of the sealed block): only B and the 0x7D tx; never A.
+            let mut verifier_db = make_db();
+            let mut verifier = build_executor(
+                &mut verifier_db,
+                &receipt_builder,
+                &op_chain_hardforks,
+                1_000_000,
+                JOVIAN_TIMESTAMP,
+                None,
+                0,
+                Address::ZERO,
+                Inspect::Disabled,
+            );
+            verifier.set_post_exec_mode(PostExecMode::Verify(post_exec_payload(0, entries)));
+            verifier
+                .execute_transaction(&legacy_with_sender(PROBE_SENDER, 0, PROBE_CONTRACT, 200_000))
+                .expect("validator executes B");
+            verifier.execute_transaction(&post_exec_tx).expect("validator consumes 0x7D tx");
+            let (_, verified) = verifier.finish().expect("validator finishes block");
+
+            assert_eq!(
+                produced.gas_used,
+                verified.gas_used,
+                "builder built B against a leaked-warm sender (from skipped tx A) but the \
+                 validator re-executes B cold: {}-gas builder-vs-validator divergence -> block \
+                 rejected. The failed tx's journal must be discarded on the error path",
+                produced.gas_used.abs_diff(verified.gas_used),
+            );
+        }
+
+        /// The faithful builder-vs-validator consensus test.
+        ///
+        /// A *builder* in SDM Produce mode runs `[A (fails, skipped), B]` on one EVM and seals
+        /// a block containing only `B` plus the 0x7D refund payload. A *validator* re-executes
+        /// that block in Verify mode — it never runs `A`. Were `OpHandler::catch_error` not to
+        /// discard the failed tx's journal, the builder would charge `B` warm (100) for the
+        /// access to `A`'s leaked-warm sender while the validator charges it cold (2600), so
+        /// `produced.gas_used != verified.gas_used` (a 2500-gas divergence) and the validator
+        /// rejects the block — a chain halt.
+        ///
+        /// Note: the SDM refund the builder emits for `B` (~7500, from `A` warming the fee
+        /// recipients) is *trusted* by the validator (it only bounds-checks the payload), so it
+        /// is applied identically on both sides and does NOT contribute to this divergence.
+        #[test]
+        fn skipped_failed_tx_in_sdm_produce_does_not_diverge_builder_vs_validator() {
+            // `A`'s sender has nonce 5, so `A` (nonce 0) is rejected `NonceTooLow` after being
+            // loaded+warmed during validation.
+            assert_no_builder_validator_divergence(
+                nonce_too_low_db,
+                legacy_with_sender(LEAK_ADDR, 0, PROBE_SENDER, 50_000),
+                "tx A must fail NonceTooLow and be skipped",
+            );
+        }
+
+        /// EIP-3607 variant of the divergence test: `A` is rejected because its sender carries
+        /// code (a contract may not originate a tx), not because of a stale nonce. revm still
+        /// loads and warms the sender before that check, so a different validation error must
+        /// discard the same warmth — otherwise the builder over-warms `B` and diverges from the
+        /// validator exactly as in the `NonceTooLow` case.
+        #[test]
+        fn skipped_eip3607_failed_tx_in_sdm_produce_does_not_diverge_builder_vs_validator() {
+            assert_no_builder_validator_divergence(
+                contract_sender_db,
+                legacy_with_sender(LEAK_ADDR, 0, PROBE_SENDER, 50_000),
+                "tx A must fail EIP-3607 (contract sender) and be skipped",
+            );
+        }
+
+        /// With SDM disabled (production config: Karst pre-Lagoon, opt-in OFF) execution uses
+        /// the `transact` path, whose `finalize()` runs even on error and wipes the failed tx's
+        /// journal — so a skipped failing tx cannot affect `B` regardless of whether
+        /// `OpHandler::catch_error` discards the journal. This guards today's chains' safety.
+        #[test]
+        fn skipped_failed_tx_does_not_affect_next_tx_when_sdm_disabled() {
+            let with_failed_a = probe_b_canonical_gas(PostExecMode::Disabled, true);
+            let without = probe_b_canonical_gas(PostExecMode::Disabled, false);
+            assert_eq!(
+                without, with_failed_a,
+                "with SDM disabled (prod config) a skipped failing tx must not affect the next tx",
+            );
+        }
     }
 }
