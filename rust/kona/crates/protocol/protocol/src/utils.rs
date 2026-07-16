@@ -146,9 +146,9 @@ fn encode_scalar(blob_base_fee_scalar: u32, base_fee_scalar: u32) -> U256 {
 }
 
 /// Maximum EIP-2718 transaction-type byte. A larger leading byte is not a type identifier but the
-/// start of a prefixless legacy transaction — a bare RLP list, whose header is `0xc0..=0xfe`. Any
-/// other high byte (an RLP string `0x80..=0xbf`, or reserved `0xff`) is rejected by the list check
-/// in [`read_tx_data`].
+/// start of a prefixless legacy transaction — a bare RLP list, whose header is `0xc0..=0xfe`. An
+/// RLP string (`0x80..=0xbf`) fails the list check in [`read_tx_data`], and an overlong list header
+/// (`0xff`) fails header decoding or the size bound.
 const EIP2718_MAX_TX_TYPE: u8 = 0x7F;
 
 /// Reads transaction data from a reader.
@@ -179,9 +179,12 @@ pub fn read_tx_data(r: &mut &[u8]) -> Result<(Vec<u8>, OpTxType), SpanBatchError
         return Err(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData));
     }
 
+    // A leading byte with no `OpTxType` at all is rejected here. Every representable type —
+    // including `Legacy` (a leading `0x00`) and `Deposit`, neither a valid span-batch envelope — is
+    // kept and rejected once by the typed decoder downstream, matching op-node's deferred
+    // rejection.
     let tx_type = match OpTxType::try_from(tx_type_id) {
-        // Deposits are not valid span-batch transactions, and an unknown byte is invalid too.
-        Ok(OpTxType::Deposit) | Err(_) => {
+        Err(_) => {
             return Err(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionType));
         }
         Ok(ty) => ty,
@@ -633,10 +636,38 @@ mod tests {
     }
 
     #[test]
+    fn test_read_tx_data_preserves_deposit_type_byte() {
+        use crate::SpanBatchTransactionData;
+        use alloy_rlp::Decodable;
+
+        // Deposit (0x7E) is a valid OpTxType but never a valid span-batch envelope. Like a leading
+        // `0x00`, the reader keeps the prefix and the typed decoder rejects it downstream, rather
+        // than the reader making the type-validity call.
+        let mut data: &[u8] = &[0x7E, 0xc3, 0x80, 0x80, 0x80];
+        let (tx_data, tx_type) = read_tx_data(&mut data).unwrap();
+        assert_eq!(tx_type, OpTxType::Deposit);
+        assert_eq!(tx_data, vec![0x7E, 0xc3, 0x80, 0x80, 0x80]);
+        SpanBatchTransactionData::decode(&mut tx_data.as_slice())
+            .expect_err("deposit is not a supported span-batch transaction envelope");
+    }
+
+    #[test]
+    fn test_read_tx_data_rejects_unknown_type_byte() {
+        // A type byte <= 0x7F that maps to no `OpTxType` (e.g. 0x03, 0x7F) cannot be represented,
+        // so — unlike Legacy/Deposit, which defer to the typed decoder — it is rejected at
+        // the reader.
+        for first in [0x03u8, 0x7F] {
+            let mut data: &[u8] = &[first, 0xc1, 0x05];
+            let err = read_tx_data(&mut data).unwrap_err();
+            assert_eq!(err, SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionType));
+        }
+    }
+
+    #[test]
     fn test_read_tx_data_rejects_non_list_high_first_byte() {
-        // Not every byte > 0x7F is a legacy list header: 0x80..=0xbf are RLP strings and 0xff is
-        // reserved. These are read as prefixless legacy candidates but rejected by the RLP list
-        // check, so only genuine list headers (0xc0..=0xfe) survive.
+        // Not every byte > 0x7F is a legacy list header: 0x80..=0xbf are RLP strings (rejected by
+        // the list check) and 0xff is an overlong list header (rejected by header decoding). Only
+        // genuine list headers (0xc0..=0xfe) survive.
         for first in [0x80u8, 0xbf, 0xff] {
             let mut data: &[u8] = &[first];
             let err = read_tx_data(&mut data).unwrap_err();
