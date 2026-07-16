@@ -132,7 +132,11 @@ func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash, 
 
 		gamesToClaimOrClose = append(gamesToClaimOrClose, game)
 
-		if !slices.Contains(types.PlayableGameTypes, gameType) || !m.configuredGameType(game.GameType) {
+		if !slices.Contains(types.PlayableGameTypes, gameType) {
+			continue
+		}
+		if !m.configuredGameType(game.GameType) {
+			m.logger.Warn("Skipping unsupported game type", "game", game.Proxy, "gameType", game.GameType)
 			continue
 		}
 		if !m.allowedGame(game.Proxy) {

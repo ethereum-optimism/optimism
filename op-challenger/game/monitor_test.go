@@ -153,6 +153,7 @@ func TestMonitorProgressGamesRoutesLifecycleAndPlayableBatches(t *testing.T) {
 		allowedGames    []common.Address
 		expectLifecycle bool
 		expectPlayable  bool
+		expectWarning   bool
 	}{
 		{
 			name:            "configured Cannon",
@@ -166,11 +167,12 @@ func TestMonitorProgressGamesRoutesLifecycleAndPlayableBatches(t *testing.T) {
 			gameType:        types.PermissionedGameType,
 			configuredTypes: []types.GameType{types.CannonGameType},
 			expectLifecycle: true,
+			expectWarning:   true,
 		},
 		{
-			name:            "configured SuperPermissioned",
+			name:            "unconfigured SuperPermissioned",
 			gameType:        types.SuperPermissionedGameType,
-			configuredTypes: []types.GameType{types.SuperPermissionedGameType},
+			configuredTypes: []types.GameType{types.CannonGameType},
 			expectLifecycle: true,
 		},
 		{
@@ -184,6 +186,7 @@ func TestMonitorProgressGamesRoutesLifecycleAndPlayableBatches(t *testing.T) {
 			name:            "unsupported numeric type",
 			gameType:        types.GameType(11_111),
 			configuredTypes: []types.GameType{types.GameType(11_111)},
+			expectWarning:   true,
 		},
 	}
 
@@ -191,6 +194,8 @@ func TestMonitorProgressGamesRoutesLifecycleAndPlayableBatches(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			monitor, source, playable, _, _, lifecycle := setupMonitorTest(t, test.allowedGames, 0)
 			monitor.gameTypes = test.configuredTypes
+			logger, logs := testlog.CaptureLogger(t, log.LevelWarn)
+			monitor.logger = logger
 			game := newTypedFDG(gameAddr, 9999, test.gameType)
 			source.games = []types.GameMetadata{game}
 			const blockNumber = uint64(123)
@@ -212,6 +217,15 @@ func TestMonitorProgressGamesRoutesLifecycleAndPlayableBatches(t *testing.T) {
 				require.Equal(t, []common.Address{gameAddr}, playable.Scheduled()[0])
 			} else {
 				require.Empty(t, playable.Scheduled()[0])
+			}
+
+			warning := logs.FindLog(
+				testlog.NewLevelFilter(log.LevelWarn),
+				testlog.NewMessageFilter("Skipping unsupported game type"))
+			if test.expectWarning {
+				require.NotNil(t, warning)
+			} else {
+				require.Nil(t, warning)
 			}
 		})
 	}
