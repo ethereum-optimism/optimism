@@ -333,7 +333,7 @@ func startMinimalProposer(
 		PprofConfig:                  oppprof.CLIConfig{},
 		DGFAddress:                   l2Net.deployment.DisputeGameFactoryProxyAddr().Hex(),
 		ProposalInterval:             6 * time.Second,
-		DisputeGameType:              1,
+		DisputeGameType:              superPermissionedGameType,
 		ActiveSequencerCheckDuration: 5 * time.Second,
 		WaitNodeSync:                 false,
 	}
@@ -391,6 +391,11 @@ func startMinimalChallenger(
 
 	rollupCfgs := []*rollup.Config{l2Net.rollupCfg}
 	l2Geneses := []*core.Genesis{l2Net.genesis}
+	dependencySet, err := depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
+		l2Net.ChainID(): {},
+	})
+	require.NoError(err)
+
 	options := []sharedchallenger.Option{
 		sharedchallenger.WithFactoryAddress(l2Net.deployment.DisputeGameFactoryProxyAddr()),
 		sharedchallenger.WithPrivKey(challengerSecret),
@@ -403,17 +408,14 @@ func startMinimalChallenger(
 		cannonKonaEnabled = cannonKonaEnabled || gameType == gameTypes.CannonKonaGameType
 		superCannonKonaEnabled = superCannonKonaEnabled || gameType == gameTypes.SuperCannonKonaGameType
 	}
-	require.False(cannonKonaEnabled && superCannonKonaEnabled, "minimal challenger cannot use Cannon Kona and Super Cannon Kona simultaneously")
-	if !superCannonKonaEnabled {
+	require.False(cannonKonaEnabled && superCannonKonaEnabled, "minimal challenger cannot use legacy and interop Cannon Kona prestates simultaneously")
+	if cannonKonaEnabled {
 		options = append(options,
 			sharedchallenger.WithCannonKonaConfig(rollupCfgs, l1Net.genesis, l2Geneses),
 			sharedchallenger.WithCannonKonaGameType(),
 		)
-	} else {
-		dependencySet, err := depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
-			l2Net.ChainID(): {},
-		})
-		require.NoError(err)
+	}
+	if superCannonKonaEnabled {
 		options = append(options,
 			sharedchallenger.WithDepset(dependencySet),
 			sharedchallenger.WithCannonKonaInteropConfig(rollupCfgs, l1Net.genesis, l2Geneses),

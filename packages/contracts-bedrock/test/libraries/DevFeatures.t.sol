@@ -93,7 +93,10 @@ contract DevFeatures_isDevFeatureEnabled_Test is Test {
 
     /// @notice Tests that ALL_FEATURES against empty bitmap returns false.
     function test_isDevFeatureEnabled_allFeaturesAgainstEmpty_succeeds() public pure {
-        assertFalse(DevFeatures.isDevFeatureEnabled(EMPTY_FEATURES, ALL_FEATURES));
+        // Strip the default-on feature because it is hardcoded enabled regardless of bitmap.
+        assertFalse(
+            DevFeatures.isDevFeatureEnabled(EMPTY_FEATURES, ALL_FEATURES & ~DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
+        );
     }
 
     /// @notice Fuzz test: any non-zero feature should match itself exactly.
@@ -117,7 +120,23 @@ contract DevFeatures_isDevFeatureEnabled_Test is Test {
     /// @notice Fuzz test: feature not found when bitmap has none of the feature's bits.
     function testFuzz_isDevFeatureEnabled_featureNotInDisjointBitmap_succeeds(bytes32 _feature) public pure {
         vm.assume(_feature != bytes32(0));
+        // SuperRootGamesMigration is hardcoded enabled. TODO(#21662): remove with the broader DevFeatures cleanup.
+        vm.assume((_feature & DevFeatures.SUPER_ROOT_GAMES_MIGRATION) != DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
         bytes32 disjointBitmap = ~_feature;
         assertFalse(DevFeatures.isDevFeatureEnabled(disjointBitmap, _feature));
+    }
+
+    /// @notice Tests that the default-on feature is hardcoded enabled regardless of the bitmap.
+    /// @dev TODO(#21662): remove with the broader SuperRootGamesMigration cleanup.
+    function test_isDevFeatureEnabled_defaultOnFeatureAlwaysEnabled_succeeds() public pure {
+        assertDefaultOnFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+    }
+
+    function assertDefaultOnFeatureEnabled(bytes32 _feature) internal pure {
+        assertTrue(DevFeatures.isDevFeatureEnabled(EMPTY_FEATURES, _feature));
+        assertTrue(DevFeatures.isDevFeatureEnabled(~_feature, _feature));
+        assertTrue(DevFeatures.isDevFeatureEnabled(_feature, _feature));
+        assertTrue(DevFeatures.isDevFeatureEnabled(EMPTY_FEATURES, FEATURE_A | _feature));
+        assertTrue(DevFeatures.isDevFeatureEnabled(EMPTY_FEATURES, FEATURE_B | _feature));
     }
 }

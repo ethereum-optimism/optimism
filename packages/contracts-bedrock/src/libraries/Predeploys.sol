@@ -488,7 +488,7 @@ library Predeploys {
         });
         records_[22] = PredeployRecord({
             proxy: L2_DEV_FEATURE_FLAGS,
-            variants: _variants("L2DevFeatureFlags", "L2DevFeatureFlags.sol:L2DevFeatureFlags", 328_228),
+            variants: _variants("L2DevFeatureFlags", "L2DevFeatureFlags.sol:L2DevFeatureFlags", 332_000),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,
