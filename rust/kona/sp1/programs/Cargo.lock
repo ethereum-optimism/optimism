@@ -1954,6 +1954,7 @@ dependencies = [
  "kona-proof",
  "kona-sp1-client-utils",
  "kona-sp1-ethereum-client-utils",
+ "revm",
  "rkyv",
  "sp1-zkvm",
 ]
@@ -2296,6 +2297,7 @@ name = "op-revm"
 version = "20.0.0"
 dependencies = [
  "auto_impl",
+ "op-alloy-consensus",
  "revm",
  "serde",
 ]
