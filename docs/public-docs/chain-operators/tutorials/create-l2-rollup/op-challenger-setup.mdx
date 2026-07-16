@@ -239,6 +239,10 @@ For challenger deployment, we recommend using Docker as it provides a consistent
     # Check out the latest release of op-challenger
     git checkout op-challenger/v1.9.3
 
+    # Generate the embedded superchain config bundle (initializes the
+    # superchain-registry submodule; op-challenger embeds this file at compile time)
+    just build-superchain-go
+
     # Install dependencies and build
     just op-challenger
 

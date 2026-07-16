@@ -209,6 +209,10 @@ For setting up the batcher, we recommend using Docker as it provides a consisten
       # Checkout the latest release tag
       git checkout op-batcher/v1.16.11
 
+      # Generate the embedded superchain config bundle (initializes the
+      # superchain-registry submodule; op-batcher embeds this file at compile time)
+      just build-superchain-go
+
       # Build op-batcher
       cd op-batcher
       just

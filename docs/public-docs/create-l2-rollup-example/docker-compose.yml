@@ -11,6 +11,9 @@ services:
     ports:
       - "8547:8547"
       - "9222:9222"
+    # --p2p.disable is for local devnets only. Remove that flag for production
+    # deployments. (Inside the folded command string below, "#" would be passed
+    # to op-node as an argument, not treated as a comment.)
     command: >
       op-node
       --l1=${L1_RPC_URL}
@@ -23,7 +26,7 @@ services:
       --sequencer.stopped=false
       --sequencer.max-safe-lag=3600
       --verifier.l1-confs=4
-      --p2p.disable  # For local devnet only. Remove this flag for production deployments.
+      --p2p.disable
       --rpc.addr=0.0.0.0
       --rpc.port=8547
       --rpc.enable-admin

@@ -227,6 +227,10 @@ For spinning up a sequencer, we recommend using Docker, as it provides a simpler
       # Checkout the latest op-node release tag
       git checkout op-node/v1.19.3
 
+      # Generate the embedded superchain config bundle (initializes the
+      # superchain-registry submodule; op-node embeds this file at compile time)
+      just build-superchain-go
+
       # Build op-node
       cd op-node
       just
@@ -242,6 +246,10 @@ For spinning up a sequencer, we recommend using Docker, as it provides a simpler
       # Still inside the optimism monorepo:
       # checkout the latest op-reth release tag
       git checkout op-reth/v2.4.0
+
+      # Sync the superchain-registry submodule to this tag
+      # (the op-reth build generates its chain configs from it)
+      just update-superchain-registry-submodule
 
       # Build op-reth (release build; this can take a while)
       cd rust
