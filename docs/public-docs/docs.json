@@ -1899,6 +1899,22 @@
       "destination": "/op-stack/protocol/blockspace-charter"
     },
     {
+      "source": "/rust/kona/run",
+      "destination": "/rust/kona/node/run/overview"
+    },
+    {
+      "source": "/rust/kona/sdk/fpp-dev/io",
+      "destination": "/rust/kona/sdk/fpp-dev/intro"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/settings/set/receipts_in_static_files",
+      "destination": "/rust/op-reth/cli/op-reth/db/settings/set/receipts"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/settings/set/transaction_senders_in_static_files",
+      "destination": "/rust/op-reth/cli/op-reth/db/settings/set/transaction_senders"
+    },
+    {
       "source": "/app-developers/guides/superchain",
       "destination": "/op-stack/introduction/op-stack"
     }
@@ -2133,6 +2149,7 @@
             "pages": [
               "node-operators/reference/op-geth-config",
               "node-operators/reference/op-geth-json-rpc",
+              "node-operators/tutorials/node-from-docker-simple-optimism-node",
               "node-operators/guides/management/snap-sync",
               "node-operators/reference/features/snap-sync"
             ]
@@ -2308,7 +2325,9 @@
               "/op-stack/features/span-batches",
               "/op-stack/features/send-raw-transaction-conditional",
               "/op-stack/features/l2-contract-manager",
-              "/op-stack/features/osaka-on-l2"
+              "/op-stack/features/osaka-on-l2",
+              "/op-stack/features/preinstalls",
+              "/op-stack/features/experimental/alt-da-mode"
             ]
           },
           {
@@ -2516,7 +2535,8 @@
               "rust/kona/intro/overview",
               "rust/kona/intro/why",
               "rust/kona/intro/contributing",
-              "rust/kona/intro/lore"
+              "rust/kona/intro/lore",
+              "rust/kona/glossary"
             ]
           },
           {
@@ -2686,7 +2706,6 @@
             "group": "op-reth - CLI Reference",
             "pages": [
               "rust/op-reth/cli/overview",
-              "rust/op-reth/cli/op-reth",
               {
                 "group": "op-reth",
                 "pages": [

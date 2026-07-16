@@ -3,53 +3,12 @@
   "orphans": [
     {
       "path": "chain-operators/guides/features/sequencer-defined-metering",
-      "reason": "Pre-existing orphan grandfathered at guardrail introduction; re-home or delist in the A2 cleanup (ethereum-optimism/solutions#955)."
-    },
-    {
-      "path": "chain-operators/tools/op-deployer/usage/upgrade",
-      "reason": "Pre-existing orphan grandfathered at guardrail introduction; also shadowed by a redirect source — resolve in the A2 cleanup (ethereum-optimism/solutions#955)."
+      "reason": "Deliberately hidden (frontmatter hidden: true): documents Sequencer Defined Metering, which is not yet live (expected with the Lagoon hardfork). Add to the Chain Operators > Guides > Features nav group when the feature ships."
     },
     {
       "path": "chain-operators/tutorials/create-l2-rollup/code-setup",
-      "reason": "Pre-existing orphan in the flagship tutorial, grandfathered at guardrail introduction; re-home in the A2 cleanup, coordinated with Option C slice C1 (ethereum-optimism/solutions#955)."
-    },
-    {
-      "path": "node-operators/tutorials/node-from-docker-simple-optimism-node",
-      "reason": "Pre-existing orphan grandfathered at guardrail introduction; re-home or delist in the A2 cleanup (ethereum-optimism/solutions#955)."
-    },
-    {
-      "path": "op-stack/features/experimental/alt-da-mode",
-      "reason": "Pre-existing orphan grandfathered at guardrail introduction; re-home or delist in the A2 cleanup (ethereum-optimism/solutions#955)."
-    },
-    {
-      "path": "op-stack/features/preinstalls",
-      "reason": "Pre-existing orphan grandfathered at guardrail introduction; re-home or delist in the A2 cleanup (ethereum-optimism/solutions#955)."
-    },
-    {
-      "path": "rust/kona/glossary",
-      "reason": "Pre-existing orphan grandfathered at guardrail introduction; owned by the Rust-tab dissolution (Option A slice 5) — re-home or return to the kona book (ethereum-optimism/solutions#955)."
-    },
-    {
-      "path": "rust/kona/run",
-      "reason": "Pre-existing orphan grandfathered at guardrail introduction; owned by the Rust-tab dissolution (Option A slice 5) — re-home or return to the kona book (ethereum-optimism/solutions#955)."
-    },
-    {
-      "path": "rust/kona/sdk/fpp-dev/io",
-      "reason": "Pre-existing orphan grandfathered at guardrail introduction; owned by the Rust-tab dissolution (Option A slice 5) — re-home or return to the kona book (ethereum-optimism/solutions#955)."
-    },
-    {
-      "path": "rust/op-reth/cli/op-reth/db/settings/set/receipts_in_static_files",
-      "reason": "Pre-existing orphan in the generated op-reth CLI tree, grandfathered at guardrail introduction; resolve in the A2 cleanup (ethereum-optimism/solutions#955)."
-    },
-    {
-      "path": "rust/op-reth/cli/op-reth/db/settings/set/transaction_senders_in_static_files",
-      "reason": "Pre-existing orphan in the generated op-reth CLI tree, grandfathered at guardrail introduction; resolve in the A2 cleanup (ethereum-optimism/solutions#955)."
+      "reason": "Being re-homed by the Option C slice C1 homepage-router/tutorial-repair PR (create-l2-rollup tutorial repair); remove this entry when that PR lands its nav fix (ethereum-optimism/solutions#955)."
     }
   ],
-  "duplicateNavEntries": [
-    {
-      "path": "rust/op-reth/cli/op-reth",
-      "reason": "Pre-existing duplicate nav entry grandfathered at guardrail introduction; remove the duplicate in the A2 cleanup (ethereum-optimism/solutions#955)."
-    }
-  ]
+  "duplicateNavEntries": []
 }
