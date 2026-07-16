@@ -40,7 +40,8 @@ and `kona-derive` sits at the top of the stack.
 ## kona-genesis
 
 Chain configuration and genesis types. The foundation crate — it depends on
-no other Kona crates, only [alloy](https://github.com/alloy-rs/alloy) types.
+no other Kona crates, building directly on
+[alloy](https://github.com/alloy-rs/alloy) types.
 `no_std` unless the `std` feature is enabled.
 
 **Key exports**
@@ -64,7 +65,7 @@ no other Kona crates, only [alloy](https://github.com/alloy-rs/alloy) types.
 | `arbitrary`              | `Arbitrary` implementations for property testing (implies `std`)                                            |
 | `revm`                   | Enables the optional `op-revm` dependency                                                                   |
 | `tabled`                 | Table rendering via `tabled` (implies `std`)                                                                |
-| `rollup_config_override` | Adds override fields to `RollupConfig` (for example `fjord_max_sequencer_drift`) for non-standard chains     |
+| `rollup_config_override` | Adds an override field (`fjord_max_sequencer_drift`) to `RollupConfig` for non-standard chains              |
 
 **Source:** [`rust/kona/crates/protocol/genesis`](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/genesis) · **Guide:** [Genesis](/rust/kona/sdk/protocol/genesis/intro)
 
@@ -87,7 +88,7 @@ OP Stack hardfork submits. `no_std` unless the `std` feature is enabled.
 | ------- | ------------------------------------------------------------- |
 | `std`   | Standard-library support                                      |
 | `k256`  | secp256k1 support in the underlying alloy/op-alloy types      |
-| `kzg`   | KZG support in the underlying alloy types (implies `std`)     |
+| `kzg`   | KZG support in the underlying alloy/op-alloy types (implies `std`) |
 
 **Source:** [`rust/kona/crates/protocol/hardforks`](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/hardforks) · **Guide:** [Hardforks](/rust/kona/sdk/protocol/hardforks)
 
