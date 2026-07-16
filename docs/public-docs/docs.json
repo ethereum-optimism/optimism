@@ -1668,7 +1668,11 @@
     },
     {
       "source": "/operators/chain-operators/tutorials/create-l2-rollup/op-geth-setup",
-      "destination": "/chain-operators/tutorials/create-l2-rollup/op-geth-setup"
+      "destination": "/chain-operators/tutorials/create-l2-rollup/op-reth-setup"
+    },
+    {
+      "source": "/chain-operators/tutorials/create-l2-rollup/op-geth-setup",
+      "destination": "/chain-operators/tutorials/create-l2-rollup/op-reth-setup"
     },
     {
       "source": "/operators/chain-operators/tutorials/create-l2-rollup/op-deployer-setup",
@@ -1684,7 +1688,7 @@
     },
     {
       "source": "/operators/chain-operators/deploy/sequencer-node",
-      "destination": "/chain-operators/tutorials/create-l2-rollup/op-geth-setup"
+      "destination": "/chain-operators/tutorials/create-l2-rollup/op-reth-setup"
     },
     {
       "source": "/app-developers/tools/testing/devnet",
@@ -1760,7 +1764,7 @@
     },
     {
       "source": "/chain-operators/guides/deployment/sequencer-node",
-      "destination": "/chain-operators/tutorials/create-l2-rollup/op-geth-setup"
+      "destination": "/chain-operators/tutorials/create-l2-rollup/op-reth-setup"
     },
     {
       "source": "/chain-operators/guides/deployment/spin-batcher",
@@ -1914,7 +1918,8 @@
           {
             "group": "Quickstart",
             "pages": [
-              "index"
+              "index",
+              "chain-operators/quickstart"
             ]
           },
           {
@@ -1967,10 +1972,11 @@
                 "pages": [
                   "chain-operators/tutorials/create-l2-rollup/create-l2-rollup",
                   "chain-operators/tutorials/create-l2-rollup/op-deployer-setup",
-                  "chain-operators/tutorials/create-l2-rollup/op-geth-setup",
+                  "chain-operators/tutorials/create-l2-rollup/op-reth-setup",
                   "chain-operators/tutorials/create-l2-rollup/op-batcher-setup",
                   "chain-operators/tutorials/create-l2-rollup/op-proposer-setup",
-                  "chain-operators/tutorials/create-l2-rollup/op-challenger-setup"
+                  "chain-operators/tutorials/create-l2-rollup/op-challenger-setup",
+                  "chain-operators/tutorials/create-l2-rollup/code-setup"
                 ]
               },
               {
@@ -2145,6 +2151,7 @@
           {
             "group": "Quickstarts",
             "pages": [
+              "app-developers/quickstarts/get-started",
               "app-developers/quickstarts/actions"
             ]
           },

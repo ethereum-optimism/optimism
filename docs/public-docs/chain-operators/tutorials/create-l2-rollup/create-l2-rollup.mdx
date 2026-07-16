@@ -17,7 +17,7 @@ Basic familiarity with Docker is also recommended.
 By the end of this tutorial, you'll have a complete OP Stack testnet with:
 
 *   **L1 Smart Contracts** deployed on Sepolia testnet
-*   **Execution Client** (op-geth) processing transactions
+*   **Execution Client** (op-reth) processing transactions
 *   **Consensus Client** (op-node) managing rollup consensus
 *   **Batcher** (op-batcher) publishing transaction data to L1
 *   **Proposer** (op-proposer) submitting state root proposals
@@ -32,7 +32,8 @@ Set up the following before you pick a setup path below. Both the automated and 
 | Dependency                                                    | Version  | Version check command |
 | ------------------------------------------------------------- | -------- | --------------------- |
 | [git](https://git-scm.com/)                                   | `^2`     | `git --version`       |
-| [go](https://go.dev/)                                         | `^1.21`  | `go version`          |
+| [go](https://go.dev/)                                         | `^1.26`  | `go version`          |
+| [rust](https://rustup.rs/) (source builds only)               | pinned by `rust/rust-toolchain.toml` | `rustc --version` |
 | [node](https://nodejs.org/en/)                                | `^20`    | `node --version`      |
 | [pnpm](https://pnpm.io/installation)                          | `^8`     | `pnpm --version`      |
 | [foundry](https://github.com/foundry-rs/foundry#installation) | `^0.2.0` | `forge --version`     |
@@ -169,7 +170,7 @@ To keep your rollup deployment organized, we'll create a dedicated directory str
 ```bash
 rollup/
 ├── deployer/        # op-deployer files and contracts
-├── sequencer/  # op-geth and op-node
+├── sequencer/  # op-reth and op-node
 ├── batcher/    # op-batcher configuration
 ├── proposer/   # op-proposer setup
 └── challenger/ # op-challenger files
@@ -195,9 +196,9 @@ Install op-deployer, deploy L1 contracts, and prepare your environment
 
 <Step title="Spin up sequencer">
 
-Set up and run op-geth and op-node (the execution and consensus layers)
+Set up and run op-reth and op-node (the execution and consensus layers)
 
-[Go to sequencer setup →](/chain-operators/tutorials/create-l2-rollup/op-geth-setup)
+[Go to sequencer setup →](/chain-operators/tutorials/create-l2-rollup/op-reth-setup)
 </Step>
 
 <Step title="Spin up batcher">
@@ -230,4 +231,6 @@ Configure op-challenger for dispute resolution monitoring
 
 ## Need help?
 
-*   **Issues**: Report bugs on GitHub
+*   **Questions**: Ask in [developer support](https://github.com/ethereum-optimism/developers/discussions)
+*   **Issues**: Report bugs or docs problems on the [Optimism monorepo issue tracker](https://github.com/ethereum-optimism/optimism/issues)
+*   **Code examples**: Browse the [complete working example](/chain-operators/tutorials/create-l2-rollup/code-setup) that accompanies this tutorial

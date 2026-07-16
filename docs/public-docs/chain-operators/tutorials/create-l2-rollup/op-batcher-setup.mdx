@@ -1,12 +1,13 @@
 ---
 title: Spin up batcher
 description: Learn how to set up and configure an OP Stack batcher to submit L2 transaction batches to L1.
+diataxis: tutorial
 ---
 
 After you have spun up your sequencer, you need to configure a batcher to submit L2 transaction batches to L1.
 
 <Info>
-  **Step 3 of 5**: This tutorial is designed to be followed step-by-step. Each step builds on the [previous one](/operators/chain-operators/tutorials/create-l2-rollup/op-geth-setup).
+  **Step 3 of 5**: This tutorial is designed to be followed step-by-step. Each step builds on the [previous one](/chain-operators/tutorials/create-l2-rollup/op-reth-setup).
 </Info>
 
 <Info>
@@ -84,7 +85,7 @@ For setting up the batcher, we recommend using Docker as it provides a consisten
       OP_BATCHER_PRIVATE_KEY=YOUR_ACTUAL_PRIVATE_KEY
 
       # L2 Configuration - Should match your sequencer setup
-      OP_BATCHER_L2_ETH_RPC=http://op-geth:8545
+      OP_BATCHER_L2_ETH_RPC=http://op-reth:8545
       OP_BATCHER_ROLLUP_RPC=http://op-node:8547
 
       # Contract addresses - Extract from your op-deployer output
@@ -118,7 +119,7 @@ For setting up the batcher, we recommend using Docker as it provides a consisten
 
       services:
         op-batcher:
-          image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-batcher:v1.13.2
+          image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-batcher:v1.16.11
           volumes:
             - .:/workspace
           working_dir: /workspace
@@ -192,7 +193,7 @@ For setting up the batcher, we recommend using Docker as it provides a consisten
     Look for the latest `op-batcher/v*` release that's compatible with your sequencer setup.
 
     <Info>
-      This guide uses `op-batcher/v1.13.2` which is compatible with op-node/v1.13.3 and op-geth/v1.101511.1 from the sequencer setup.
+      This guide uses `op-batcher/v1.16.11`, the latest release at the time of writing, alongside op-node/v1.19.3 and op-reth/v2.4.0 from the sequencer setup.
       Always check the [release notes](https://github.com/ethereum-optimism/optimism/releases) for compatibility information.
     </Info>
 
@@ -206,7 +207,7 @@ For setting up the batcher, we recommend using Docker as it provides a consisten
       cd optimism
 
       # Checkout the latest release tag
-      git checkout op-batcher/v1.13.2
+      git checkout op-batcher/v1.16.11
 
       # Build op-batcher
       cd op-batcher
@@ -305,8 +306,8 @@ For setting up the batcher, we recommend using Docker as it provides a consisten
       L1_RPC_URL=https://sepolia.infura.io/v3/YOUR_ACTUAL_INFURA_KEY
 
       # L2 Configuration - Should match your sequencer setup
-            L2_RPC_URL=http://op-geth:8545
-          ROLLUP_RPC_URL=http://op-node:8547
+      L2_RPC_URL=http://localhost:8545
+      ROLLUP_RPC_URL=http://localhost:8547
 
       # Contract addresses - Extract from your op-deployer output
       BATCH_INBOX_ADDRESS=YOUR_ACTUAL_BATCH_INBOX_ADDRESS
@@ -407,7 +408,7 @@ For setting up the batcher, we recommend using Docker as it provides a consisten
   When starting your batcher, you might see various log messages:
 
   *   `Added L2 block to local state`: Normal operation, shows the batcher processing blocks
-  *   `SetMaxDASize RPC method unavailable`: Expected if the `op-geth` version used doesn't support this method.
+  *   `SetMaxDASize RPC method unavailable`: Expected if the execution client version used doesn't support this method.
   *   `context canceled` errors during shutdown: Normal cleanup messages
   *   `Failed to query L1 tip`: Can occur during graceful shutdowns
 
@@ -426,4 +427,6 @@ Excellent! Your batcher is publishing transaction data to L1. The next step is t
 
 ## Need Help?
 
+*   **Batcher Configuration**: [Batcher configuration reference](/chain-operators/reference/batcher-configuration)
 *   **Monitoring Guide**: [Chain Monitoring](/chain-operators/tools/chain-monitoring)
+*   **Support**: Ask a question in [developer support](https://github.com/ethereum-optimism/developers/discussions)
