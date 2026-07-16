@@ -287,16 +287,6 @@ func TestZKGame_GetBondDistributionMode(t *testing.T) {
 	}
 }
 
-func TestZKGame_HasBondsToClaim(t *testing.T) {
-	for _, version := range zkVersions {
-		version := version
-		t.Run(version.String(), func(t *testing.T) {
-			_, game := setupZKDisputeGameTest(t, version)
-			require.True(t, game.HasBondsToClaim())
-		})
-	}
-}
-
 func TestZKGame_IsClosed(t *testing.T) {
 	modes := []struct {
 		name   string

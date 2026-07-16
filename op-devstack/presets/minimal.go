@@ -52,6 +52,10 @@ func (m *Minimal) DisputeGameFactory() *proofs.DisputeGameFactory {
 	return proofs.NewDisputeGameFactory(m.T, m.L1Network, m.L1EL.EthClient(), m.L2Chain.DisputeGameFactoryProxyAddr(), m.L2CL, m.L2EL, nil, m.challengerConfig)
 }
 
+func (m *Minimal) AnchorStateRegistry() *dsl.AnchorStateRegistry {
+	return dsl.NewAnchorStateRegistry(m.T, m.L2Chain, m.L1EL)
+}
+
 func (m *Minimal) AdvanceTime(amount time.Duration) {
 	m.T.Require().NotNil(m.timeTravel, "attempting to advance time on incompatible system")
 	m.timeTravel.AdvanceTime(amount)

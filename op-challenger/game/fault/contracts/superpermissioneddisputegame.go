@@ -41,10 +41,6 @@ func NewSuperPermissionedDisputeGameContract(
 	}
 }
 
-func (g *SuperPermissionedDisputeGameContract) HasBondsToClaim() bool {
-	return false
-}
-
 func (g *SuperPermissionedDisputeGameContract) GetCredit(
 	context.Context,
 	common.Address,

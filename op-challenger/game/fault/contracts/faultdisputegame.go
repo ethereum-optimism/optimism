@@ -543,10 +543,6 @@ func (f *FaultDisputeGameContractLatest) GetAllClaims(ctx context.Context, block
 	return claims, nil
 }
 
-func (f *FaultDisputeGameContractLatest) HasBondsToClaim() bool {
-	return true
-}
-
 func (f *FaultDisputeGameContractLatest) IsClosed(ctx context.Context) (bool, error) {
 	return isClosed(ctx, f)
 }
@@ -748,7 +744,6 @@ type FaultDisputeGameContract interface {
 	GetExtendedMetadata(ctx context.Context, block rpcblock.Block) (GameMetadata, error)
 	GetStartingRootHash(ctx context.Context) (common.Hash, error)
 	GetSplitDepth(ctx context.Context) (types.Depth, error)
-	HasBondsToClaim() bool
 	IsClosed(ctx context.Context) (bool, error)
 	GetCredit(ctx context.Context, recipient common.Address) (*big.Int, gameTypes.GameStatus, error)
 	GetRequiredBonds(ctx context.Context, block rpcblock.Block, positions ...*big.Int) ([]*big.Int, error)

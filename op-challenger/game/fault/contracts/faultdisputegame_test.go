@@ -253,16 +253,6 @@ func TestBondDistributionMode(t *testing.T) {
 	}
 }
 
-func TestHasBondsToClaim(t *testing.T) {
-	for _, version := range versions {
-		version := version
-		t.Run(version.String(), func(t *testing.T) {
-			_, game := setupFaultDisputeGameTest(t, version)
-			require.True(t, game.HasBondsToClaim())
-		})
-	}
-}
-
 func TestIsClosed(t *testing.T) {
 	legacyVersions := []string{vers080, vers0180, vers111, vers120, vers131}
 	modes := []struct {

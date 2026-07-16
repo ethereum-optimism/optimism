@@ -147,53 +147,6 @@ func TestClaimer_ClaimBonds(t *testing.T) {
 		require.Equal(t, 0, m.RecordBondClaimedCalls)
 	})
 
-	t.Run("BondlessOpenGameClosesWithoutCreditCalls", func(t *testing.T) {
-		gameAddr := common.HexToAddress("0x1234")
-		c, _, contract, txSender := newTestClaimer(t)
-		contract.hasBondsToClaim = false
-		contract.isClosedResults = []bool{false}
-
-		err := c.ClaimBonds(context.Background(), []types.GameMetadata{{Proxy: gameAddr}})
-
-		require.NoError(t, err)
-		require.Equal(t, 1, txSender.sends)
-		require.Equal(t, 0, contract.getCreditCalls)
-		require.Equal(t, 0, contract.claimCreditTxCalls)
-		require.Equal(t, 1, contract.isClosedCalls)
-		require.Equal(t, 1, contract.closeGameTxCalls)
-	})
-
-	t.Run("BondlessAlreadyClosedGameSkips", func(t *testing.T) {
-		gameAddr := common.HexToAddress("0x1234")
-		c, _, contract, txSender := newTestClaimer(t)
-		contract.hasBondsToClaim = false
-		contract.isClosedResults = []bool{true}
-
-		err := c.ClaimBonds(context.Background(), []types.GameMetadata{{Proxy: gameAddr}})
-
-		require.NoError(t, err)
-		require.Equal(t, 0, txSender.sends)
-		require.Equal(t, 0, contract.getCreditCalls)
-		require.Equal(t, 0, contract.claimCreditTxCalls)
-		require.Equal(t, 1, contract.isClosedCalls)
-		require.Equal(t, 0, contract.closeGameTxCalls)
-	})
-
-	t.Run("BondlessSelectiveModeDoesNotQueryOrSend", func(t *testing.T) {
-		gameAddr := common.HexToAddress("0x1234")
-		c, _, contract, txSender := newTestClaimerWithSelective(t, true)
-		contract.hasBondsToClaim = false
-
-		err := c.ClaimBonds(context.Background(), []types.GameMetadata{{Proxy: gameAddr}})
-
-		require.NoError(t, err)
-		require.Equal(t, 0, txSender.sends)
-		require.Equal(t, 0, contract.getCreditCalls)
-		require.Equal(t, 0, contract.claimCreditTxCalls)
-		require.Equal(t, 0, contract.isClosedCalls)
-		require.Equal(t, 0, contract.closeGameTxCalls)
-	})
-
 	t.Run("SelectiveBondCapableModeOnlyClaimsPositiveCredit", func(t *testing.T) {
 		claimantWithCredit := common.Address{0xaa}
 		claimantWithoutCredit := common.Address{0xbb}
@@ -278,9 +231,8 @@ func newTestClaimerWithSelective(t *testing.T, selective bool, claimants ...comm
 	m := &mockClaimMetrics{}
 	txSender := &mockTxSender{}
 	bondContract := &stubBondContract{
-		status:          types.GameStatusChallengerWon,
-		credit:          make(map[common.Address]int64),
-		hasBondsToClaim: true,
+		status: types.GameStatusChallengerWon,
+		credit: make(map[common.Address]int64),
 	}
 	contractCreator := func(game types.GameMetadata) (BondContract, error) {
 		return bondContract, nil
@@ -324,22 +276,15 @@ func (s *mockTxSender) SendAndWaitSimple(_ string, _ ...txmgr.TxCandidate) error
 type stubBondContract struct {
 	credit                   map[common.Address]int64
 	status                   types.GameStatus
-	hasBondsToClaim          bool
 	isClosedResults          []bool
 	isClosedErrors           []error
 	claimSimulationFails     bool
 	closeGameSimulationFails bool
 	closeGameNotSupported    bool
-	hasBondsToClaimCalls     int
 	getCreditCalls           int
 	claimCreditTxCalls       int
 	isClosedCalls            int
 	closeGameTxCalls         int
-}
-
-func (s *stubBondContract) HasBondsToClaim() bool {
-	s.hasBondsToClaimCalls++
-	return s.hasBondsToClaim
 }
 
 func (s *stubBondContract) IsClosed(_ context.Context) (bool, error) {

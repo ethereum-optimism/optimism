@@ -75,10 +75,6 @@ func TestBondContracts(t *testing.T) {
 
 type stubBondContract struct{}
 
-func (s *stubBondContract) HasBondsToClaim() bool {
-	panic("not supported")
-}
-
 func (s *stubBondContract) IsClosed(_ context.Context) (bool, error) {
 	panic("not supported")
 }

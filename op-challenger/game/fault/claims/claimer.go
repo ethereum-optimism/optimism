@@ -22,7 +22,6 @@ type BondClaimMetrics interface {
 }
 
 type BondContract interface {
-	HasBondsToClaim() bool
 	IsClosed(ctx context.Context) (bool, error)
 	GetCredit(ctx context.Context, recipient common.Address) (*big.Int, types.GameStatus, error)
 	ClaimCreditTx(ctx context.Context, recipient common.Address) (txmgr.TxCandidate, error)
@@ -61,12 +60,8 @@ func (c *Claimer) ClaimBonds(ctx context.Context, games []types.GameMetadata) (e
 			continue
 		}
 
-		anyCreditFound := false
-		if contract.HasBondsToClaim() {
-			var claimErr error
-			anyCreditFound, claimErr = c.claimBonds(ctx, contract, game)
-			err = errors.Join(err, claimErr)
-		}
+		anyCreditFound, claimErr := c.claimBonds(ctx, contract, game)
+		err = errors.Join(err, claimErr)
 
 		if c.selective {
 			continue

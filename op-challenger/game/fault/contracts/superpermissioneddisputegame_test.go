@@ -27,8 +27,6 @@ func TestSuperPermissionedGame_BondCapabilities(t *testing.T) {
 	_, game := setupSuperPermissionedDisputeGameTest(t)
 	recipient := common.Address{0xaa}
 
-	require.False(t, game.HasBondsToClaim())
-
 	credit, status, err := game.GetCredit(context.Background(), recipient)
 	require.NoError(t, err)
 	require.Zero(t, credit.Sign())
