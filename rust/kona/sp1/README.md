@@ -50,10 +50,13 @@ Compiled ELF binaries for the zkVM programs, used by the prover:
 - **`super-range-elf`**: Compiled unified super-root range/consolidation program
 
 In the optimism monorepo port, these files are generated on demand and ignored
-by git, matching the Cannon prestate artifact workflow. Generate real v6.3.1
-ELFs and `elf/vkeys.toml` on linux/amd64 with `just build-elfs`; CI persists
-the manifest with the generated ELFs.
-Use `just build-elfs-native` only for local iteration.
+by git, matching the Cannon prestate artifact workflow. Generate reproducible
+v6.3.1 ELFs and `elf/vkeys.toml` on linux/amd64 with `just build-elfs`. Use
+`just build-elfs-native` for local iteration and the fast per-PR compile check;
+CI persists the native manifest with the generated ELFs. Native ELF hashes may
+differ across build environments because paths and other environment details
+are embedded. A Docker-based, uncached tag/release reproducibility CI check is
+intentionally left to a future follow-up.
 Host-toolchain workspace builds embed empty build-output placeholders when
 generated ELFs are absent, so proving fails fast until the real artifacts are
 built.
@@ -76,9 +79,9 @@ workspace-wide build, clippy, tests, cargo-hack, udeps, docs, typos, and zepter
 gates over the SP1 host-side crates that are workspace members. The guest
 program entrypoints live in their own workspace for SP1 patch scoping and are
 not covered by those host workspace gates. The `kona-build-sp1-elfs` job runs
-`just build-elfs` in rust-e2e CI; scheduled vkey drift coverage is tracked in
-#21661. The following standalone-kona GitHub workflow behavior is not yet
-reproduced:
+`just build-elfs-native` in rust-e2e CI; scheduled vkey drift coverage is
+tracked in #21661. The following standalone-kona GitHub workflow behavior is
+not yet reproduced:
 
 - Codecov flag wiring for SP1 coverage.
 - no-std checks for the SP1/zkVM crates. The monorepo `rust-check-no-std` job is
