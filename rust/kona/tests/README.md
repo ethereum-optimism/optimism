@@ -32,7 +32,7 @@ just test-e2e-sysgo BINARY GO_PKG_NAME DEVNET FILTER
 Where:
 - `BINARY`: The binary to test (`node` or `supervisor`)
 - `GO_PKG_NAME`: The Go package name to test (e.g., `node/common`)
-- `DEVNET`: The devnet configuration (`simple-kona`, `simple-kona-geth`, `simple-kona-sequencer`, `large-kona-sequencer`)
+- `DEVNET`: The devnet configuration (`simple-kona`, `simple-kona-sequencer`, `large-kona-sequencer`)
 - `FILTER`: Optional test filter
 
 For example, to run the common node tests:
@@ -60,8 +60,6 @@ Where:
 - `just build-kona`: Builds the kona-node binary.
 
 - `just build-reth`: Builds the op-reth binary.
-
-- `just long-running-test FILTER OUTPUT_LOGS_DIR`: Runs long-running tests with optional filter and output directory.
 
 - `just action-tests-single`: Runs action tests for the single-chain client program.
 

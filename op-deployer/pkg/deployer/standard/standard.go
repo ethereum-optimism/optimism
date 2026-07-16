@@ -155,7 +155,7 @@ func L2ProxyAdminOwner(chainID uint64) (common.Address, error) {
 // DefaultHardforkSchedule is used to determine which hardforks should be activated by default.
 func DefaultHardforkSchedule() *genesis.UpgradeScheduleDeployConfig {
 	sched := &genesis.UpgradeScheduleDeployConfig{}
-	sched.ActivateForkAtGenesis(forks.Jovian)
+	sched.ActivateForkAtGenesis(forks.Karst)
 
 	return sched
 }
