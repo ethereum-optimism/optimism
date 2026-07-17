@@ -140,7 +140,7 @@ func TestMonitorOnlyScheduleSpecifiedGame(t *testing.T) {
 
 	require.Len(t, sched.Scheduled(), 1)
 	require.Equal(t, []common.Address{addr2}, sched.Scheduled()[0])
-	require.Equal(t, 2, stubClaimer.scheduledGames)
+	require.Equal(t, 1, stubClaimer.scheduledGames)
 }
 
 func TestMonitorProgressGamesRoutesLifecycleAndPlayableBatches(t *testing.T) {
@@ -184,7 +184,12 @@ func TestMonitorProgressGamesRoutesLifecycleAndPlayableBatches(t *testing.T) {
 			gameType:        types.CannonGameType,
 			configuredTypes: []types.GameType{types.CannonGameType},
 			allowedGames:    []common.Address{otherAddr},
-			expectLifecycle: true,
+		},
+		{
+			name:            "allowlisted-out SuperPermissioned",
+			gameType:        types.SuperPermissionedGameType,
+			configuredTypes: []types.GameType{types.CannonGameType},
+			allowedGames:    []common.Address{otherAddr},
 		},
 		{
 			name:            "unsupported numeric type",
@@ -269,13 +274,10 @@ func TestMonitorProgressGamesPreservesIndependentBatchOrder(t *testing.T) {
 		blockNumber: blockNumber,
 		games: []types.GameMetadata{
 			allowedCannon,
-			unconfiguredCannonKona,
-			superPermissioned,
-			allowlistedOutCannon,
 			allowedPermissioned,
 		},
 	}}, lifecycle.scheduledBatches)
-	require.Equal(t, 5, lifecycle.scheduledGames)
+	require.Equal(t, 2, lifecycle.scheduledGames)
 	require.Equal(t, [][]common.Address{{
 		allowedCannon.Proxy,
 		allowedPermissioned.Proxy,

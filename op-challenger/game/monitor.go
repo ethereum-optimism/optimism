@@ -129,6 +129,10 @@ func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash, 
 			m.logger.Warn("Skipping unsupported game type", "game", game.Proxy, "gameType", game.GameType)
 			continue
 		}
+		if !m.allowedGame(game.Proxy) {
+			m.logger.Debug("Skipping game not on allow list", "game", game.Proxy)
+			continue
+		}
 
 		gamesToClaimOrClose = append(gamesToClaimOrClose, game)
 
@@ -137,10 +141,6 @@ func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash, 
 		}
 		if !m.configuredGameType(game.GameType) {
 			m.logger.Warn("Game type not configured for play; processing lifecycle only", "game", game.Proxy, "gameType", game.GameType)
-			continue
-		}
-		if !m.allowedGame(game.Proxy) {
-			m.logger.Debug("Skipping game not on allow list", "game", game.Proxy)
 			continue
 		}
 		gamesToPlay = append(gamesToPlay, game)
