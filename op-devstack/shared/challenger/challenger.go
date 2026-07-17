@@ -223,8 +223,8 @@ func WithFastGames() Option {
 	}
 }
 
-func NewInteropChallengerConfig(ctx context.Context, dir string, l1Endpoint string, l1Beacon string, supervisorEndpoint string, l2Endpoints []string, options ...Option) (*config.Config, error) {
-	cfg := config.NewInteropConfig(common.Address{}, l1Endpoint, l1Beacon, supervisorEndpoint, l2Endpoints, dir)
+func NewInteropChallengerConfig(ctx context.Context, dir string, l1Endpoint string, l1Beacon string, superRootEndpoint string, l2Endpoints []string, options ...Option) (*config.Config, error) {
+	cfg := config.NewInteropConfig(common.Address{}, l1Endpoint, l1Beacon, superRootEndpoint, l2Endpoints, dir)
 	if err := applyCommonChallengerOpts(ctx, &cfg, options...); err != nil {
 		return nil, err
 	}
