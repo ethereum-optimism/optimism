@@ -13,8 +13,8 @@ type L1BlockFetcher interface {
 	CallContext(ctx context.Context, result any, method string, args ...any) error
 }
 
-func FetchL1BlockRefByNumber(ctx context.Context, l1 L1BlockFetcher, blockNumber string) (*state.L1BlockRefJSON, error) {
-	return FetchL1BlockRef(ctx, l1, "eth_getBlockByNumber", blockNumber)
+func FetchL1BlockRefByNumber(ctx context.Context, l1 L1BlockFetcher, blockNumberOrTag string) (*state.L1BlockRefJSON, error) {
+	return FetchL1BlockRef(ctx, l1, "eth_getBlockByNumber", blockNumberOrTag)
 }
 
 func FetchL1BlockRefByHash(ctx context.Context, l1 L1BlockFetcher, hash common.Hash) (*state.L1BlockRefJSON, error) {
