@@ -92,6 +92,9 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 	if !st.Prepared {
 		return fmt.Errorf("state was not produced by op-deployer prepare; run op-deployer prepare before op-deployer prestate")
 	}
+	if err := pipeline.ValidateInteropDepSetMatchesIntent(intent.Chains, st.InteropDepSet); err != nil {
+		return fmt.Errorf("failed to validate prepared chain set: %w", err)
+	}
 	if err := pipeline.ValidateInputs(intent, st); err != nil {
 		return fmt.Errorf("failed to validate prestate inputs: %w", err)
 	}

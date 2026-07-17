@@ -49,6 +49,90 @@ func TestBuildInteropDepSetPropagatesConstructorErrors(t *testing.T) {
 	require.ErrorIs(t, err, expectedErr)
 }
 
+func TestValidateInteropDepSetMatchesIntent(t *testing.T) {
+	chainA := common.HexToHash("0x01")
+	chainB := common.HexToHash("0x02")
+	chainC := common.HexToHash("0x03")
+	chainD := common.HexToHash("0x04")
+
+	tests := []struct {
+		name        string
+		intentIDs   []common.Hash
+		preparedIDs []common.Hash
+		missing     bool
+		wantErr     string
+	}{
+		{
+			name:        "equal sets in different orders",
+			intentIDs:   []common.Hash{chainC, chainA, chainB},
+			preparedIDs: []common.Hash{chainB, chainC, chainA},
+		},
+		{
+			name:      "missing dependency set",
+			intentIDs: []common.Hash{chainA},
+			missing:   true,
+			wantErr:   "prepared interop dependency set is missing; rerun op-deployer prepare",
+		},
+		{
+			name:        "duplicate intent ID",
+			intentIDs:   []common.Hash{chainA, chainB, chainA},
+			preparedIDs: []common.Hash{chainA, chainB},
+			wantErr:     "intent contains duplicate chain IDs [" + chainA.Hex() + "]; rerun op-deployer prepare",
+		},
+		{
+			name:        "added chain",
+			intentIDs:   []common.Hash{chainA, chainB},
+			preparedIDs: []common.Hash{chainA},
+			wantErr:     "intent chain set does not match prepared chain set: added chain IDs [" + chainB.Hex() + "]; removed chain IDs []; rerun op-deployer prepare",
+		},
+		{
+			name:        "removed chain",
+			intentIDs:   []common.Hash{chainA},
+			preparedIDs: []common.Hash{chainA, chainB},
+			wantErr:     "intent chain set does not match prepared chain set: added chain IDs []; removed chain IDs [" + chainB.Hex() + "]; rerun op-deployer prepare",
+		},
+		{
+			name:        "added and removed chains are sorted",
+			intentIDs:   []common.Hash{chainD, chainB},
+			preparedIDs: []common.Hash{chainC, chainA},
+			wantErr: "intent chain set does not match prepared chain set: added chain IDs [" +
+				chainB.Hex() + ", " + chainD.Hex() + "]; removed chain IDs [" +
+				chainA.Hex() + ", " + chainC.Hex() + "]; rerun op-deployer prepare",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			intentChains := make([]*state.ChainIntent, 0, len(test.intentIDs))
+			for _, id := range test.intentIDs {
+				intentChains = append(intentChains, &state.ChainIntent{ID: id})
+			}
+
+			var prepared *depset.StaticConfigDependencySet
+			if !test.missing {
+				var err error
+				prepared, err = BuildInteropDepSet(chainIntents(test.preparedIDs))
+				require.NoError(t, err)
+			}
+
+			err := ValidateInteropDepSetMatchesIntent(intentChains, prepared)
+			if test.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.EqualError(t, err, test.wantErr)
+		})
+	}
+}
+
+func chainIntents(ids []common.Hash) []*state.ChainIntent {
+	chains := make([]*state.ChainIntent, 0, len(ids))
+	for _, id := range ids {
+		chains = append(chains, &state.ChainIntent{ID: id})
+	}
+	return chains
+}
+
 func TestGenerateInteropDepsetPersistsState(t *testing.T) {
 	chainID := common.BigToHash(common.Big1)
 	intent := &state.Intent{

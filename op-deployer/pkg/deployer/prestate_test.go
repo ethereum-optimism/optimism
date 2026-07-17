@@ -545,6 +545,84 @@ func TestPrestatePreconditionsAndAtomicity(t *testing.T) {
 	}
 }
 
+func TestPrestateRejectsIntentChainChangesAfterPrepare(t *testing.T) {
+	chainA := common.HexToHash("0x01")
+	chainB := common.HexToHash("0x02")
+
+	tests := []struct {
+		name     string
+		chains   []prestateTestChain
+		mutate   func(*state.Intent, *state.State)
+		wantErrs []string
+	}{
+		{
+			name:   "missing prepared dependency set",
+			chains: []prestateTestChain{{id: chainA, prepared: true}},
+			mutate: func(_ *state.Intent, st *state.State) {
+				st.InteropDepSet = nil
+			},
+			wantErrs: []string{"prepared interop dependency set is missing", "rerun op-deployer prepare"},
+		},
+		{
+			name:   "added chain",
+			chains: []prestateTestChain{{id: chainA, prepared: true}},
+			mutate: func(intent *state.Intent, _ *state.State) {
+				intent.Chains = append(intent.Chains, &state.ChainIntent{
+					ID:              chainB,
+					DeployOverrides: map[string]any{"respectedGameType": "malformed"},
+				})
+			},
+			wantErrs: []string{"added chain IDs", chainB.Hex(), "rerun op-deployer prepare"},
+		},
+		{
+			name: "removed chain",
+			chains: []prestateTestChain{
+				{id: chainA, prepared: true},
+				{id: chainB, prepared: true},
+			},
+			mutate: func(intent *state.Intent, _ *state.State) {
+				intent.Chains = intent.Chains[:1]
+			},
+			wantErrs: []string{"removed chain IDs", chainB.Hex(), "rerun op-deployer prepare"},
+		},
+		{
+			name:   "duplicate chain",
+			chains: []prestateTestChain{{id: chainA, prepared: true}},
+			mutate: func(intent *state.Intent, _ *state.State) {
+				intent.Chains = append(intent.Chains, intent.Chains[0])
+			},
+			wantErrs: []string{"duplicate chain IDs", chainA.Hex(), "rerun op-deployer prepare"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			workdir := writePrestateWorkdir(t, nil, test.chains, true, 1)
+			intent, err := pipeline.ReadIntent(workdir)
+			require.NoError(t, err)
+			st, err := pipeline.ReadState(workdir)
+			require.NoError(t, err)
+			test.mutate(intent, st)
+			require.NoError(t, intent.WriteToFile(filepath.Join(workdir, "intent.toml")))
+			require.NoError(t, st.WriteToFile(filepath.Join(workdir, "state.json")))
+
+			statePath := filepath.Join(workdir, "state.json")
+			before, err := os.ReadFile(statePath)
+			require.NoError(t, err)
+
+			err = Prestate(context.Background(), newTestPrestateConfig(t, workdir))
+			require.Error(t, err)
+			for _, part := range test.wantErrs {
+				require.ErrorContains(t, err, part)
+			}
+
+			after, readErr := os.ReadFile(statePath)
+			require.NoError(t, readErr)
+			require.Equal(t, before, after)
+		})
+	}
+}
+
 func TestPrestatePersistenceReplacementAndIdempotency(t *testing.T) {
 	chainID := common.HexToHash("0x01")
 	selectedA := testPrestate("11")
@@ -682,7 +760,9 @@ func writePrestateWorkdir(t *testing.T, global map[string]any, chains []prestate
 		intent.Chains[i].DeployOverrides = cloneOverrides(chain.overrides)
 	}
 
-	st := &state.State{Version: version, Prepared: prepared}
+	interopDepSet, err := pipeline.BuildInteropDepSet(intent.Chains)
+	require.NoError(t, err)
+	st := &state.State{Version: version, Prepared: prepared, InteropDepSet: interopDepSet}
 	for _, chain := range chains {
 		if chain.prepared {
 			st.Chains = append(st.Chains, &state.ChainState{
