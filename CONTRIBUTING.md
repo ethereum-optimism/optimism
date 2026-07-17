@@ -144,6 +144,10 @@ go test ./...
 
 See [this document](./op-e2e/README.md)
 
+#### Rust (kona, op-reth, op-alloy, …)
+
+All Rust code lives in the unified [`rust/`](./rust) Cargo workspace and is built and tested with [`just`](https://github.com/casey/just) from that directory (e.g. `cd rust && just build && just test`). See [`docs/ai/rust-dev.md`](./docs/ai/rust-dev.md) for the full build, test, lint, and workflow guide.
+
 #### Running contract static analysis
 
 We perform static analysis with [`slither`](https://github.com/crytic/slither).

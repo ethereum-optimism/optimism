@@ -91,7 +91,12 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
 ├── <a href="./op-wheel">op-wheel</a>: Database utilities
 ├── <a href="./ops">ops</a>: Various operational packages
 ├── <a href="./packages">packages</a>
-│   ├── <a href="./packages/contracts-bedrock">contracts-bedrock</a>: OP Stack smart contracts
+│   └── <a href="./packages/contracts-bedrock">contracts-bedrock</a>: OP Stack smart contracts
+└── <a href="./rust">rust</a>: Rust components — a unified Cargo workspace
+    ├── <a href="./rust/kona">kona</a>: OP Stack state-transition (fault proof) program and rollup node in Rust
+    ├── <a href="./rust/op-reth">op-reth</a>: OP Stack execution client built on reth
+    ├── <a href="./rust/op-alloy">op-alloy</a>: OP Stack types and providers for the alloy ecosystem
+    └── <a href="./rust/op-revm">op-revm</a>: OP Stack EVM implementation (revm fork)
 </pre>
 
 ## Development and Release Process

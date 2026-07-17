@@ -8,24 +8,8 @@ Built on [Alloy][alloy], `op-alloy` connects applications to the OP Stack.
 To use `op-alloy`, add the crate as a dependency to a `Cargo.toml`.
 
 ```toml
-op-alloy = "0.6"
+op-alloy = "2.0"
 ```
-
-### Development Status
-
-`op-alloy` is currently in active development, and is not yet ready for use in production.
-
-
-### Supported Rust Versions (MSRV)
-
-The current MSRV (minimum supported rust version) is 1.86.
-
-Unlike Alloy, op-alloy may use the latest stable release,
-to benefit from the latest features.
-
-The MSRV is not increased automatically, and will be updated
-only as part of a patch (pre-1.0) or minor (post-1.0) release.
-
 
 ### Contributing
 
@@ -73,10 +57,9 @@ shall be dual licensed as above, without any additional terms or conditions.
 
 [check-no-std]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/op-alloy/scripts/check_no_std.sh
 
-[maili]: https://github.com/op-rs/maili
 [kona]: https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona
 [alloy]: https://github.com/alloy-rs/alloy
-[contributing]: https://alloy-rs.github.io/op-alloy
+[contributing]: https://github.com/ethereum-optimism/optimism/blob/develop/CONTRIBUTING.md
 
 [op-alloy-consensus]: https://crates.io/crates/op-alloy-consensus
 [op-alloy-network]: https://crates.io/crates/op-alloy-network
