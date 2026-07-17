@@ -29,9 +29,9 @@ func RandomL2Block(rng *rand.Rand, txCount int, t time.Time) (*types.Block, []*t
 		panic("L1InfoDeposit: " + err.Error())
 	}
 	if t.IsZero() {
-		return testutils.RandomBlockPrependTxs(rng, txCount, types.NewTx(l1InfoTx))
+		return testutils.RandomBlockPrependTxs(rng, txCount, testutils.TxFromDeposit(l1InfoTx))
 	} else {
-		return testutils.RandomBlockPrependTxsWithTime(rng, txCount, uint64(t.Unix()), types.NewTx(l1InfoTx))
+		return testutils.RandomBlockPrependTxsWithTime(rng, txCount, uint64(t.Unix()), testutils.TxFromDeposit(l1InfoTx))
 	}
 
 }

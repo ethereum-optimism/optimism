@@ -1,0 +1,106 @@
+---
+title: Cross-repo link policy
+description: The canonical form for every link from docs.optimism.io into the specs, source repositories, and other pages — and the linter that enforces it.
+diataxis: reference
+---
+
+The documentation joins three layers — the [OP Stack specifications](https://specs.optimism.io/),
+the component source repositories, and these docs — with links. Links rot
+silently: a retired spec path keeps "working" through a hand-maintained
+redirect table, a commit-pinned contract link never 404s while teaching a
+two-generations-old architecture, and a misplaced tracking parameter breaks an
+anchor without breaking the page. This page defines one canonical form for
+each link target, and every rule on it is enforced by a deterministic linter
+(`scripts/lint-link-policy.mjs`).
+
+This policy is an annex of the [content guide](/op-stack/contribute/content-guide):
+the guide decides *where* content lives and when to link instead of restate;
+this page defines *how* those links must be written.
+
+## Linking the specs
+
+**Always link the rendered site, on its current paths.**
+
+*   Link `https://specs.optimism.io/...`, never a GitHub blob of a file under
+    the specs repo's `specs/` directory — every `specs/**.md` source has a
+    rendered page, and the rendered page is the canonical, navigable form.
+    (GitHub links to non-rendered specs-repo files, such as `book.toml`, are
+    fine.)
+*   Use the page's **current** path. Retired paths (for example
+    `/experimental/fault-proof/...`, now `/fault-proof/...`) survive only
+    through a hand-maintained redirect table in the specs repo's `book.toml`
+    and can disappear without notice. The linter vendors that redirect table
+    and reports the current path to use.
+*   **Deep anchors must resolve.** An anchor like `#frame-format` must match a
+    real heading slug in the target page. The linter resolves every specs
+    anchor against a checkout of the specs source (`--specs-src`), so a heading
+    rename upstream surfaces as a lint failure here instead of a silently dead
+    fragment.
+
+## Query parameters come before the fragment
+
+UTM decoration (or any query string) goes **before** the `#fragment`, per the
+URL standard — a query appended after the fragment becomes part of the
+fragment, and the anchor never resolves.
+
+```text
+✅ https://specs.optimism.io/protocol/derivation.html?utm_source=op-docs&utm_medium=docs#frame-format
+❌ https://specs.optimism.io/protocol/derivation.html#frame-format?utm_source=op-docs&utm_medium=docs
+```
+
+## Linking source code
+
+**Prefer floating links; badge every pin.**
+
+*   Links that track a branch (`.../blob/develop/...`) are the default: they
+    follow the code and never teach a stale layout.
+*   A link pinned to a commit sha or release tag
+    (`.../blob/v1.1.4/...`, `.../blob/op-contracts/v1.6.0/...`,
+    `.../blob/62c7f3b0.../...`) is allowed **only** when the pin is the point
+    — quoting behavior at a specific release — and it must carry an
+    ``as of `<tag>` `` badge on, or immediately adjacent to, the same line:
+
+    ```mdx
+    [OptimismPortal.sol](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/L1/OptimismPortal2.sol) (as of `op-contracts/v1.6.0`)
+    ```
+
+    The badge tells the reader the link is a snapshot, and tells the
+    maintenance sweep which pins are deliberate. An unbadged pin is presumed
+    to be accidental staleness and fails the linter.
+
+## Internal links
+
+*   Internal page links are **root-relative**: `/chain-operators/...`, never
+    `./sibling-page` or a bare word. The target page must exist (or be covered
+    by a redirect in `docs.json`).
+*   Static assets are referenced by their on-disk path from the docs root,
+    including the `public/` prefix: `/public/img/...`.
+
+## The linter
+
+`scripts/lint-link-policy.mjs` enforces all of the above plus dead-internal-link
+detection. It is dependency-free and offline-deterministic; Mintlify's
+`mint broken-links` serves as an advisory second opinion on internal links.
+
+```bash
+# from docs/public-docs/
+node scripts/lint-link-policy.mjs --baseline scripts/lint-link-policy.baseline.json
+
+# with specs anchor resolution
+git clone --depth 1 https://github.com/ethereum-optimism/specs.git /tmp/specs
+node scripts/lint-link-policy.mjs --specs-src /tmp/specs --baseline scripts/lint-link-policy.baseline.json
+
+# verify the linter itself against its embedded self-test fixtures
+node scripts/lint-link-policy.mjs --self-test
+```
+
+Violations that predate the linter are recorded in
+`scripts/lint-link-policy.baseline.json`, so a run flags only **new**
+violations. The baseline is a burn-down list, not an allowlist: remediation
+batches shrink it with `--update-baseline`, and pull requests must never grow
+it. If the linter flags a link you believe is a deliberate exception, raise it
+in review — do not rebaseline silently.
+
+Enforcement runs as a scheduled, review-gated docs automation plus the local
+runs above; the linter, its baseline, and its embedded self-test fixtures all
+live under `docs/public-docs/`.
