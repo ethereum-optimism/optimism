@@ -25,18 +25,26 @@ build-elfs:
     just _append-vkey super-aggregation "$m"
 
 # Build ELF files for range programs.
+# Does not update elf/vkeys.toml; prefer build-elfs.
+[private]
 build-range-elfs:
     @just _build-elf range docker
 
 # Build ELF file for aggregation program.
+# Does not update elf/vkeys.toml; prefer build-elfs.
+[private]
 build-agg-elf:
     @just _build-elf aggregation docker
 
 # Build ELF file for the unified super-root range/consolidation program.
+# Does not update elf/vkeys.toml; prefer build-elfs.
+[private]
 build-super-range-elf:
     @just _build-elf super-range docker
 
 # Build ELF file for the super-aggregation program.
+# Does not update elf/vkeys.toml; prefer build-elfs.
+[private]
 build-super-aggregation-elf:
     @just _build-elf super-aggregation docker
 
