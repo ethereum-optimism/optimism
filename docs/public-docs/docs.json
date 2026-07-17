@@ -2350,7 +2350,23 @@
               "/op-stack/protocol/components",
               "/op-stack/protocol/derivation-pipeline",
               "/op-stack/protocol/outages",
-              "/op-stack/protocol/network-upgrades",
+              {
+                "group": "Network Upgrades",
+                "pages": [
+                  "/op-stack/protocol/network-upgrades",
+                  "/op-stack/protocol/hardforks/lagoon",
+                  "/op-stack/protocol/hardforks/karst",
+                  "/op-stack/protocol/hardforks/jovian",
+                  "/op-stack/protocol/hardforks/isthmus",
+                  "/op-stack/protocol/hardforks/holocene",
+                  "/op-stack/protocol/hardforks/granite",
+                  "/op-stack/protocol/hardforks/fjord",
+                  "/op-stack/protocol/hardforks/ecotone",
+                  "/op-stack/protocol/hardforks/delta",
+                  "/op-stack/protocol/hardforks/canyon",
+                  "/op-stack/protocol/hardforks/regolith"
+                ]
+              },
               "/op-stack/protocol/smart-contracts",
               "/op-stack/protocol/privileged-roles",
               "/op-stack/protocol/blockspace-charter",
@@ -2474,13 +2490,28 @@
             "group": "Network Notices",
             "pages": [
               "notices/index",
-              "notices/interop-prep",
-              "notices/upgrade-19",
-              "notices/specialized-node-topology",
-              "notices/stake-based-priority-ordering",
-              "notices/req-resp-cl-sync-deprecation",
-              "notices/op-geth-deprecation",
-              "notices/op-deployer-upgrade-deprecation",
+              {
+                "group": "Network Upgrades",
+                "pages": [
+                  "notices/upgrade-19",
+                  "notices/interop-prep"
+                ]
+              },
+              {
+                "group": "Deprecations",
+                "pages": [
+                  "notices/op-geth-deprecation",
+                  "notices/op-deployer-upgrade-deprecation",
+                  "notices/req-resp-cl-sync-deprecation"
+                ]
+              },
+              {
+                "group": "Operations",
+                "pages": [
+                  "notices/specialized-node-topology",
+                  "notices/stake-based-priority-ordering"
+                ]
+              },
               {
                 "group": "Archive",
                 "pages": [
