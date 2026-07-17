@@ -144,6 +144,12 @@ check-sp1-guest-lints:
       echo "error: expected one '$end' marker in rust/$manifest" >&2
       exit 1
     }
+    begin_line=$(grep -Fnx "$begin" "$manifest" | cut -d: -f1)
+    end_line=$(grep -Fnx "$end" "$manifest" | cut -d: -f1)
+    [[ "$begin_line" -lt "$end_line" ]] || {
+      echo "error: '$begin' must precede '$end' in rust/$manifest" >&2
+      exit 1
+    }
   done
 
   if ! diff -u \
@@ -172,6 +178,12 @@ _sync-sp1-guest-lints:
     }
     [[ $(grep -Fxc "$end" "$manifest") == 1 ]] || {
       echo "error: expected one '$end' marker in rust/$manifest" >&2
+      exit 1
+    }
+    begin_line=$(grep -Fnx "$begin" "$manifest" | cut -d: -f1)
+    end_line=$(grep -Fnx "$end" "$manifest" | cut -d: -f1)
+    [[ "$begin_line" -lt "$end_line" ]] || {
+      echo "error: '$begin' must precede '$end' in rust/$manifest" >&2
       exit 1
     }
   done
