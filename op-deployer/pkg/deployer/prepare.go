@@ -182,7 +182,7 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 
 	// Fetch safe block once, so all unpinned chains without an override share one anchor.
 	// This is also the reference block for the overrides.
-	safe, err := fetchL1BlockRefByNumber(ctx, l1RPC, "safe")
+	safe, err := pipeline.FetchL1BlockRefByNumber(ctx, l1RPC, "safe")
 	if err != nil {
 		return fmt.Errorf("failed to fetch L1 safe block: %w", err)
 	}

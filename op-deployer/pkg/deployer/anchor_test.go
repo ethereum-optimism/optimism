@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// fakeL1 is a stub l1BlockFetcher that serves block refs keyed by the RPC argument
+// fakeL1 is a stub pipeline.L1BlockFetcher that serves block refs keyed by the RPC argument
 // (a tag for eth_getBlockByNumber, or a block hash for eth_getBlockByHash). A key
 // that is absent yields a null result (zero hash), mirroring an unknown block.
 type fakeL1 struct {
