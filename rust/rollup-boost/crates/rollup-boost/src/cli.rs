@@ -104,6 +104,12 @@ pub struct RollupBoostServiceArgs {
     pub debug_server_port: u16,
 }
 
+fn bound_server_addr<HttpMiddleware, RpcMiddleware>(
+    server: &Server<HttpMiddleware, RpcMiddleware>,
+) -> std::io::Result<SocketAddr> {
+    server.local_addr()
+}
+
 impl RollupBoostServiceArgs {
     pub async fn run(self) -> eyre::Result<()> {
         let _ = rustls::crypto::ring::default_provider().install_default();
@@ -140,9 +146,6 @@ impl RollupBoostServiceArgs {
             (health_handle, rpc_module)
         };
 
-        // Build and start the server
-        info!("Starting server on :{}", self.rpc_port);
-
         let http_middleware =
             tower::ServiceBuilder::new()
                 .layer(probe_layer)
@@ -155,7 +158,8 @@ impl RollupBoostServiceArgs {
             .set_http_middleware(http_middleware)
             .build(format!("{}:{}", self.rpc_host, self.rpc_port).parse::<SocketAddr>()?)
             .await?;
-        info!("RPC server listening on {}", server.local_addr()?);
+        let server_addr = bound_server_addr(&server)?;
+        info!("RPC server listening on {server_addr}");
         let handle = server.start(rpc_module);
 
         let stop_handle = handle.clone();
@@ -207,5 +211,23 @@ impl std::str::FromStr for LogFormat {
             "text" => Ok(LogFormat::Text),
             _ => Err("Invalid log format".into()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn bound_server_addr_reports_ephemeral_port() {
+        let server = Server::builder()
+            .build("127.0.0.1:0".parse::<SocketAddr>().unwrap())
+            .await
+            .unwrap();
+
+        let addr = bound_server_addr(&server).unwrap();
+
+        assert_ne!(addr.port(), 0);
+        assert_eq!(server.local_addr().unwrap(), addr);
     }
 }

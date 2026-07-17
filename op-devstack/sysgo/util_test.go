@@ -84,3 +84,43 @@ func TestPropagateEnvVarOrDefault(t *testing.T) {
 		})
 	}
 }
+
+func TestParseBoundAddressLog(t *testing.T) {
+	t.Run("rollup boost RPC", func(t *testing.T) {
+		actual, ok := parseBoundAddressLog(
+			"RPC server listening on 127.0.0.1:43123",
+			"RPC server listening on ",
+			"http",
+		)
+		require.True(t, ok)
+		require.Equal(t, "http://127.0.0.1:43123", actual)
+	})
+
+	t.Run("Kona metrics", func(t *testing.T) {
+		actual, ok := parseBoundAddressLog(
+			"Serving metrics at: http://0.0.0.0:43124",
+			"Serving metrics at: ",
+			"http",
+		)
+		require.True(t, ok)
+		require.Equal(t, "http://0.0.0.0:43124", actual)
+	})
+
+	t.Run("unrelated log", func(t *testing.T) {
+		_, ok := parseBoundAddressLog(
+			"server starting",
+			"RPC server listening on ",
+			"http",
+		)
+		require.False(t, ok)
+	})
+
+	t.Run("zero port", func(t *testing.T) {
+		_, ok := parseBoundAddressLog(
+			"RPC server listening on 127.0.0.1:0",
+			"RPC server listening on ",
+			"http",
+		)
+		require.False(t, ok)
+	})
+}

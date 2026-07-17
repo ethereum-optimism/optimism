@@ -564,9 +564,7 @@ func startMixedKonaNode(
 	}
 
 	if areMetricsEnabled() {
-		metricsPort, err := getAvailableLocalPort()
-		t.Require().NoError(err, "startMixedKonaNode: getting metrics port")
-		envVars = append(envVars, propagateEnvVarOrDefault("KONA_METRICS_PORT", metricsPort))
+		envVars = append(envVars, "KONA_METRICS_PORT=0")
 		envVars = append(envVars, "KONA_METRICS_ENABLED=true")
 	}
 

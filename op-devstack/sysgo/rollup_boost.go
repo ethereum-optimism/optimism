@@ -80,7 +80,7 @@ func (r *RollupBoostNode) Start() {
 	// than blocking the parser goroutine. Channels are not closed: the parser callback
 	// outlives this function (it stays wired into r.sub), so closing would risk a
 	// send-on-closed panic on any late or repeat log line.
-	rpcChan := make(chan string, 1)
+	rpcAddrChan := make(chan string, 1)
 	flashblocksWSChan := make(chan string, 1)
 
 	// Parse Rust-structured logs and forward into Go logger with attributes
@@ -90,13 +90,11 @@ func (r *RollupBoostNode) Start() {
 	// Log parsing callback to extract bound addresses from process output
 	onLogEntry := func(e logpipe.LogEntry) {
 		msg := e.LogMessage()
-		// RPC server - log message from cli.rs after Server::build()
-		if addr, ok := strings.CutPrefix(msg, "RPC server listening on "); ok {
+		if rpcURL, ok := parseBoundAddressLog(msg, "RPC server listening on ", "http"); ok {
 			select {
-			case rpcChan <- "http://" + addr:
+			case rpcAddrChan <- rpcURL:
 			default:
 			}
-			return
 		}
 		// Flashblocks WS - custom log message from outbound.rs
 		if addr, ok := strings.CutPrefix(msg, "Flashblocks WebSocketPublisher listening on "); ok {
@@ -129,9 +127,19 @@ func (r *RollupBoostNode) Start() {
 	err = r.sub.Start(execPath, args, env)
 	r.p.Require().NoError(err, "start rollup-boost")
 
-	// RPC: bound address comes from rollup-boost's "RPC server listening on …" log.
 	var rpcUpstreamURL string
-	r.p.Require().NoError(tasks.Await(r.p.Ctx(), rpcChan, &rpcUpstreamURL), "need RPC address from rollup-boost logs")
+	select {
+	case rpcUpstreamURL = <-rpcAddrChan:
+	case <-r.sub.Exited():
+		select {
+		case rpcUpstreamURL = <-rpcAddrChan:
+		default:
+			r.p.Require().FailNow("rollup-boost exited before its RPC server became ready")
+		}
+	case <-r.p.Ctx().Done():
+		r.p.Require().NoError(r.p.Ctx().Err(), "need rollup-boost RPC address from logs")
+	}
+	waitTCPReady(r.p, rpcUpstreamURL, 5*time.Second)
 	r.logger.Info("rollup-boost upstream RPC ready", "rpc", rpcUpstreamURL)
 	r.rpcProxy.SetUpstream(ProxyAddr(r.p.Require(), rpcUpstreamURL))
 	waitTCPReady(r.p, r.rpcProxyURL, 10*time.Second)
@@ -163,7 +171,6 @@ func (r *RollupBoostNode) Stop() {
 type RollupBoostConfig struct {
 	// RPC endpoint for rollup-boost itself
 	RPCHost string
-	RPCPort uint16
 
 	// Flashblocks proxy WebSocket exposure
 	EnableFlashblocks bool
@@ -199,7 +206,6 @@ type RollupBoostConfig struct {
 func DefaultRollupBoostConfig() *RollupBoostConfig {
 	return &RollupBoostConfig{
 		RPCHost:               "127.0.0.1",
-		RPCPort:               0,
 		EnableFlashblocks:     true,
 		FlashblocksHost:       "127.0.0.1",
 		FlashblocksPort:       0,
@@ -242,8 +248,7 @@ func (cfg *RollupBoostConfig) LaunchSpec(p devtest.CommonT) (args []string, env 
 		}
 	}
 
-	// RPCPort=0 ⇒ kernel-atomic bind; bound address is parsed from logs in Start().
-	args = append(args, "--rpc-host="+cfg.RPCHost, "--rpc-port="+strconv.Itoa(int(cfg.RPCPort)))
+	args = append(args, "--rpc-host="+cfg.RPCHost)
 
 	if cfg.L2EngineURL != "" {
 		args = append(args, "--l2-url="+ensureHTTPURL(cfg.L2EngineURL))
@@ -279,7 +284,18 @@ func (cfg *RollupBoostConfig) LaunchSpec(p devtest.CommonT) (args []string, env 
 		args = append(args, "--debug-server-port=0")
 	}
 
-	args = append(args, cfg.ExtraArgs...)
+	for i := 0; i < len(cfg.ExtraArgs); i++ {
+		arg := cfg.ExtraArgs[i]
+		if arg == "--rpc-port" {
+			i++
+			continue
+		}
+		if strings.HasPrefix(arg, "--rpc-port=") {
+			continue
+		}
+		args = append(args, arg)
+	}
+	args = append(args, "--rpc-port=0")
 
 	return args, env
 }

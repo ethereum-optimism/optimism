@@ -2,7 +2,6 @@ package sysgo
 
 import (
 	"context"
-	"fmt"
 	"net/url"
 	"strings"
 	"sync"
@@ -10,7 +9,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/logpipe"
-	"github.com/ethereum-optimism/optimism/op-service/tasks"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -60,24 +58,22 @@ func (k *KonaNode) Start() {
 	logOut := logpipe.ToLoggerWithMinLevel(k.p.Logger().New("component", "kona-node", "src", "stdout"), log.LevelWarn)
 	logErr := logpipe.ToLoggerWithMinLevel(k.p.Logger().New("component", "kona-node", "src", "stderr"), log.LevelWarn)
 	userRPCChan := make(chan string, 1)
-	defer close(userRPCChan)
 
 	metricsTargetChan := make(chan PrometheusMetricsTarget, 1)
-	defer close(metricsTargetChan)
 
 	onLogEntry := func(e logpipe.LogEntry) {
 		msg := e.LogMessage()
 		if msg == "RPC server bound to address" {
 			userRPCChan <- "http://" + e.FieldValue("addr").(string)
-		} else if metricsUrl, found := strings.CutPrefix(msg, "Serving metrics at: "); found {
-			// Matching messages like "Serving metrics at: http://0.0.0.0:9091"
-			if !strings.HasPrefix(metricsUrl, "http") {
-				metricsUrl = fmt.Sprintf("http://%s", metricsUrl)
+		} else if strings.HasPrefix(msg, "Serving metrics at: ") {
+			metricsURL, ok := parseBoundAddressLog(msg, "Serving metrics at: ", "http")
+			k.p.Require().True(ok, "invalid metrics URL output in logs", "log", msg)
+			parsedURL, err := url.Parse(metricsURL)
+			k.p.Require().NoError(err, "invalid metrics URL output in logs", "log", msg)
+			select {
+			case metricsTargetChan <- NewPrometheusMetricsTarget(parsedURL.Hostname(), parsedURL.Port(), false):
+			default:
 			}
-			parsedUrl, err := url.Parse(metricsUrl)
-			k.p.Require().NoError(err, "invalid metrics url output to logs", "log", msg)
-			k.p.Require().NotEmpty(parsedUrl.Port(), "empty port in logged metrics url", "log", msg)
-			metricsTargetChan <- NewPrometheusMetricsTarget(parsedUrl.Hostname(), parsedUrl.Port(), false)
 		}
 	}
 	stdOutLogs := logpipe.LogCallback(func(line []byte) {
@@ -113,7 +109,17 @@ func (k *KonaNode) Start() {
 
 	if areMetricsEnabled() {
 		var metricsTarget PrometheusMetricsTarget
-		k.p.Require().NoError(tasks.Await(k.p.Ctx(), metricsTargetChan, &metricsTarget), "need metrics endpoint")
+		select {
+		case metricsTarget = <-metricsTargetChan:
+		case <-k.sub.Exited():
+			select {
+			case metricsTarget = <-metricsTargetChan:
+			default:
+				k.p.Require().FailNow("kona-node exited before its metrics server became ready")
+			}
+		case <-k.p.Ctx().Done():
+			k.p.Require().NoError(k.p.Ctx().Err(), "need metrics endpoint")
+		}
 		k.l2MetricsRegistrar.RegisterL2MetricsTargets(k.name, metricsTarget)
 	}
 

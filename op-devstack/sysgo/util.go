@@ -1,14 +1,12 @@
 package sysgo
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"net/url"
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -33,48 +31,6 @@ func propagateEnvVarOrDefault(envVarName string, defaultValue string) string {
 	} else {
 		return fmt.Sprintf("%s=%s", envVarName, val)
 	}
-}
-
-var availableLocalPortMutex sync.Mutex
-var recentlyAllocatedPorts = make(map[int]struct{})
-
-// getAvailableLocalPort searches for and returns a currently unused local port.
-// Tracks recently allocated ports to avoid returning the same port twice
-// (the OS may recycle a port immediately after we release it).
-// Note: this function is threadsafe.
-func getAvailableLocalPort() (string, error) {
-	availableLocalPortMutex.Lock()
-	defer availableLocalPortMutex.Unlock()
-
-	// Keep listeners open while looping so the OS won't return the same port twice
-	var heldListeners []net.Listener
-	defer func() {
-		for _, ln := range heldListeners {
-			ln.Close()
-		}
-	}()
-
-	const maxAttempts = 100
-	for range maxAttempts {
-		ln, err := net.Listen("tcp", "127.0.0.1:0")
-		if err != nil {
-			return "", fmt.Errorf("could not listen on ephemeral port: %w", err)
-		}
-		heldListeners = append(heldListeners, ln)
-
-		addr, ok := ln.Addr().(*net.TCPAddr)
-		if !ok {
-			return "", errors.New("listener did not return a TCP addr")
-		}
-		port := addr.Port
-
-		if _, used := recentlyAllocatedPorts[port]; used {
-			continue
-		}
-		recentlyAllocatedPorts[port] = struct{}{}
-		return strconv.Itoa(port), nil
-	}
-	return "", errors.New("failed to allocate unique port after max attempts")
 }
 
 // waitTCPReady parses a URL and waits for its TCP endpoint to become ready using EventuallyWithT.
@@ -109,4 +65,24 @@ func parseAndValidateAddr(addr, defaultScheme string) string {
 		return ""
 	}
 	return u.String()
+}
+
+func parseBoundAddressLog(message, prefix, defaultScheme string) (string, bool) {
+	addr, found := strings.CutPrefix(message, prefix)
+	if !found {
+		return "", false
+	}
+	validURL := parseAndValidateAddr(addr, defaultScheme)
+	if validURL == "" {
+		return "", false
+	}
+	u, err := url.Parse(validURL)
+	if err != nil {
+		return "", false
+	}
+	port, err := strconv.ParseUint(u.Port(), 10, 16)
+	if err != nil || port == 0 {
+		return "", false
+	}
+	return validURL, true
 }
