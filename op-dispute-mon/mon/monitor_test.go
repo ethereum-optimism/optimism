@@ -88,21 +88,29 @@ func TestMonitor_StartMonitoring(t *testing.T) {
 
 	t.Run("WaitsForInFlightMonitor", func(t *testing.T) {
 		monitor, _, _, _ := setupMonitorTest(t)
+		cl := clock.NewDeterministicClock(time.Unix(0, 0))
+		monitor.clock = cl
 		entered := make(chan struct{}, 1)
 		release := make(chan struct{})
+		var fetchReturned atomic.Bool
 		monitor.fetchHeadBlock = func(context.Context) (eth.L1BlockRef, error) {
 			select {
 			case entered <- struct{}{}:
 			default:
 			}
 			<-release
+			fetchReturned.Store(true)
 			return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
 		}
 
 		monitor.StartMonitoring()
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		require.True(t, cl.WaitForNewPendingTask(ctx), "monitor did not create its ticker")
+		cl.AdvanceTime(monitor.monitorInterval)
 		select {
 		case <-entered:
-		case <-time.After(time.Second):
+		case <-ctx.Done():
 			t.Fatal("monitor did not start fetching the head block")
 		}
 
@@ -114,41 +122,25 @@ func TestMonitor_StartMonitoring(t *testing.T) {
 
 		select {
 		case <-monitor.done:
-		case <-time.After(time.Second):
-			close(release)
+		case <-ctx.Done():
 			t.Fatal("monitor stop was not signaled")
 		}
-
-		returnedBeforeRelease := false
+		close(release)
 		select {
 		case <-stopReturned:
-			returnedBeforeRelease = true
-		case <-time.After(100 * time.Millisecond):
+		case <-ctx.Done():
+			t.Fatal("monitor stop did not return after the in-flight operation completed")
 		}
-
-		close(release)
-		if !returnedBeforeRelease {
-			select {
-			case <-stopReturned:
-			case <-time.After(time.Second):
-				t.Fatal("monitor stop did not return after the in-flight operation completed")
-			}
-		}
-		require.False(t, returnedBeforeRelease, "monitor stop returned while a monitor operation was still in flight")
+		require.True(t, fetchReturned.Load(), "monitor stop returned before the in-flight operation completed")
 	})
 
 	t.Run("StopsBeforeStart", func(t *testing.T) {
 		monitor, _, _, _ := setupMonitorTest(t)
-		stopReturned := make(chan struct{})
-		go func() {
-			monitor.StopMonitoring()
-			close(stopReturned)
-		}()
-
+		monitor.StopMonitoring()
 		select {
-		case <-stopReturned:
-		case <-time.After(time.Second):
-			t.Fatal("monitor stop blocked before monitoring started")
+		case <-monitor.done:
+		default:
+			t.Fatal("monitor stop was not signaled")
 		}
 	})
 }

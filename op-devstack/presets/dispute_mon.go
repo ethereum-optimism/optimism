@@ -70,6 +70,15 @@ func WithDisputeMonSupernodes(nodes ...*dsl.Supernode) DisputeMonOption {
 	}
 }
 
+func (s *SingleChainInterop) StartDisputeMon() *DisputeMon {
+	return StartDisputeMon(
+		s.T,
+		s.L1EL,
+		s.L2ChainA.DisputeGameFactoryProxyAddr(),
+		WithDisputeMonSupernodes(s.SuperRoots),
+	)
+}
+
 func StartDisputeMon(
 	t devtest.T,
 	l1EL *dsl.L1ELNode,

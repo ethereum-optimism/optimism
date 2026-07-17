@@ -3,6 +3,7 @@ package sysgo
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"time"
 
@@ -10,7 +11,6 @@ import (
 	disputeMon "github.com/ethereum-optimism/optimism/op-dispute-mon"
 	disputeMonConfig "github.com/ethereum-optimism/optimism/op-dispute-mon/config"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -28,6 +28,58 @@ type DisputeMonRuntime struct {
 
 func (r *DisputeMonRuntime) MetricsURL() string {
 	return r.metricsURL
+}
+
+type metricsAddrLogHandler struct {
+	delegate slog.Handler
+	addr     chan string
+}
+
+func newMetricsAddrLogHandler(delegate slog.Handler) *metricsAddrLogHandler {
+	return &metricsAddrLogHandler{
+		delegate: delegate,
+		addr:     make(chan string, 1),
+	}
+}
+
+func (h *metricsAddrLogHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	return h.delegate.Enabled(ctx, level)
+}
+
+func (h *metricsAddrLogHandler) Handle(ctx context.Context, record slog.Record) error {
+	if record.Message == "started metrics server" {
+		record.Attrs(func(attr slog.Attr) bool {
+			if attr.Key != "addr" {
+				return true
+			}
+			addr, ok := attr.Value.Any().(net.Addr)
+			if ok {
+				select {
+				case h.addr <- addr.String():
+				default:
+				}
+			}
+			return false
+		})
+	}
+	return h.delegate.Handle(ctx, record)
+}
+
+func (h *metricsAddrLogHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &metricsAddrLogHandler{delegate: h.delegate.WithAttrs(attrs), addr: h.addr}
+}
+
+func (h *metricsAddrLogHandler) WithGroup(name string) slog.Handler {
+	return &metricsAddrLogHandler{delegate: h.delegate.WithGroup(name), addr: h.addr}
+}
+
+func (h *metricsAddrLogHandler) metricsURL() (string, error) {
+	select {
+	case addr := <-h.addr:
+		return "http://" + addr, nil
+	default:
+		return "", fmt.Errorf("started metrics server log with valid addr not found")
+	}
 }
 
 func StartDisputeMon(t devtest.T, input DisputeMonConfig) *DisputeMonRuntime {
@@ -50,11 +102,10 @@ func StartDisputeMon(t devtest.T, input DisputeMonConfig) *DisputeMonRuntime {
 	}
 
 	logger := t.Logger().New("component", "op-dispute-mon")
-	logHandler := testlog.WrapCaptureLogger(logger.Handler())
-	capturedLogs := logHandler.(*testlog.CapturingHandler)
+	logHandler := newMetricsAddrLogHandler(logger.Handler())
 	service, err := disputeMon.Main(t.Ctx(), log.NewLogger(logHandler), &cfg)
 	require.NoError(err, "create dispute monitor service")
-	metricsURL, err := metricsURLFromLogs(capturedLogs)
+	metricsURL, err := logHandler.metricsURL()
 	require.NoError(err, "find dispute monitor metrics URL")
 	require.NoError(service.Start(t.Ctx()), "start dispute monitor service")
 
@@ -65,16 +116,4 @@ func StartDisputeMon(t devtest.T, input DisputeMonConfig) *DisputeMonRuntime {
 	})
 	waitTCPReady(t, metricsURL, 10*time.Second)
 	return &DisputeMonRuntime{metricsURL: metricsURL}
-}
-
-func metricsURLFromLogs(logs *testlog.CapturingHandler) (string, error) {
-	record := logs.FindLog(testlog.NewMessageFilter("started metrics server"))
-	if record == nil {
-		return "", fmt.Errorf("started metrics server log not found")
-	}
-	addr, ok := record.AttrValue("addr").(net.Addr)
-	if !ok {
-		return "", fmt.Errorf("started metrics server log has invalid addr attribute")
-	}
-	return "http://" + addr.String(), nil
 }

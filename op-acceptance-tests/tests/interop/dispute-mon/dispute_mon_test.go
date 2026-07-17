@@ -12,14 +12,8 @@ func TestDisputeMonitorCountsSuperPermissionedGames(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSingleChainInterop(t, presets.WithoutHonestProposer())
 
-	dgf := sys.DisputeGameFactory()
-	dgf.StartSuperPermissionedGame(sys.L1Proposer)
+	sys.DisputeGameFactory().StartSuperPermissionedGame()
 
-	mon := presets.StartDisputeMon(
-		t,
-		sys.L1EL,
-		dgf.Address(),
-		presets.WithDisputeMonSupernodes(sys.SuperRoots),
-	)
+	mon := sys.StartDisputeMon()
 	mon.VerifyGameCount(gameTypes.SuperPermissionedGameType, 1)
 }

@@ -65,7 +65,7 @@ func simpleInteropFromSupernodeProofsRuntime(t devtest.T, runtime *sysgo.MultiCh
 		L2CLB:      twoL2.L2BCL,
 		FaucetB:    components.faucetB,
 	}
-	out.L1Proposer = newL1ProposerEOA(t, runtime, chainA.Network.ChainID(), out.L1EL)
+	out.l1Proposer = newL1ProposerEOA(t, runtime, chainA.Network.ChainID(), out.L1EL)
 	out.FunderL1 = dsl.NewFunder(out.Wallet, out.FaucetL1, out.L1EL)
 	out.FunderA = dsl.NewFunder(out.Wallet, out.FaucetA, out.L2ELA)
 	out.FunderB = dsl.NewFunder(out.Wallet, out.FaucetB, out.L2ELB)
@@ -154,7 +154,7 @@ func singleChainInteropFromSupernodeProofsRuntime(t devtest.T, runtime *sysgo.Mu
 		FaucetL1:         dsl.NewFaucet(faucetL1Frontend),
 		challengerConfig: challengerCfg,
 	}
-	out.L1Proposer = newL1ProposerEOA(t, runtime, l2ChainID, out.L1EL)
+	out.l1Proposer = newL1ProposerEOA(t, runtime, l2ChainID, out.L1EL)
 	l1Network.AddFaucet(faucetL1Frontend)
 	l2Chain.AddFaucet(faucetAFrontend)
 	out.FunderL1 = dsl.NewFunder(out.Wallet, out.FaucetL1, out.L1EL)

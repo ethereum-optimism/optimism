@@ -51,6 +51,7 @@ type DisputeGameFactory struct {
 	l2CL          *dsl.L2CLNode
 	l2EL          *dsl.L2ELNode
 	superNode     *dsl.Supernode
+	l1Proposer    *dsl.EOA
 	gameHelper    *GameHelper
 	challengerCfg *challengerConfig.Config
 
@@ -65,6 +66,7 @@ func NewDisputeGameFactory(
 	l2CL *dsl.L2CLNode,
 	l2EL *dsl.L2ELNode,
 	superNode *dsl.Supernode,
+	l1Proposer *dsl.EOA,
 	challengerCfg *challengerConfig.Config,
 ) *DisputeGameFactory {
 	dgf := bindings.NewDisputeGameFactory(bindings.WithClient(ethClient), bindings.WithTo(dgfAddr), bindings.WithTest(t))
@@ -79,6 +81,7 @@ func NewDisputeGameFactory(
 		l2CL:          l2CL,
 		l2EL:          l2EL,
 		superNode:     superNode,
+		l1Proposer:    l1Proposer,
 		ethClient:     ethClient,
 		challengerCfg: challengerCfg,
 
@@ -223,10 +226,10 @@ func (f *DisputeGameFactory) StartSuperCannonKonaGame(eoa *dsl.EOA, opts ...Game
 	return f.startSuperGameOfType(eoa, gameTypes.SuperCannonKonaGameType, opts...)
 }
 
-func (f *DisputeGameFactory) StartSuperPermissionedGame(eoa *dsl.EOA, opts ...GameOpt) *SuperFaultDisputeGame {
-	f.require.NotNil(eoa, "proposer EOA is required to start a super permissioned game")
+func (f *DisputeGameFactory) StartSuperPermissionedGame(opts ...GameOpt) *SuperFaultDisputeGame {
+	f.require.NotNil(f.l1Proposer, "proposer EOA is required to start a super permissioned game")
 	f.require.NotNil(f.superNode, "super node is required to start super games")
-	return f.startSuperGameOfType(eoa, gameTypes.SuperPermissionedGameType, opts...)
+	return f.startSuperGameOfType(f.l1Proposer, gameTypes.SuperPermissionedGameType, opts...)
 }
 
 func (f *DisputeGameFactory) startSuperGameOfType(eoa *dsl.EOA, gameType gameTypes.GameType, opts ...GameOpt) *SuperFaultDisputeGame {
