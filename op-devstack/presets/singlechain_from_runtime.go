@@ -112,6 +112,13 @@ func singleChainMultiNodeFromRuntime(t devtest.T, runtime *sysgo.SingleChainRunt
 	return preset
 }
 
+// SingleChainMultiNodeFromRuntime projects a composed sysgo runtime into the
+// standard DSL surface. Callers can compose mixed, delayed-join, or fan-out
+// layouts through product-neutral sysgo APIs before creating the frontend.
+func SingleChainMultiNodeFromRuntime(t devtest.T, runtime *sysgo.SingleChainRuntime, runSyncChecks bool) *SingleChainMultiNode {
+	return singleChainMultiNodeFromRuntime(t, runtime, runSyncChecks)
+}
+
 func singleChainMultiNodeWithTestSeqFromRuntime(t devtest.T, runtime *sysgo.SingleChainRuntime) *SingleChainMultiNodeWithTestSeq {
 	preset := singleChainMultiNodeFromRuntime(t, runtime, false)
 	testSequencer := newTestSequencerFrontend(

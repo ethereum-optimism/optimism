@@ -154,6 +154,22 @@ func WithGlobalL2CLOption(opt sysgo.L2CLOption) Option {
 	}
 }
 
+// WithL2CLFactory injects an external, product-neutral L2 consensus-client
+// factory. The factory is consulted independently for every node slot and may
+// decline individual slots to retain the preset's normal client selection.
+func WithL2CLFactory(factory sysgo.L2CLFactory) Option {
+	var kinds optionKinds
+	if factory != nil {
+		kinds = optionKindL2CLFactory
+	}
+	return option{
+		kinds: kinds,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.L2CLFactory = factory
+		},
+	}
+}
+
 func WithGlobalSyncTesterELOption(opt sysgo.SyncTesterELOption) Option {
 	var kinds optionKinds
 	if opt != nil {

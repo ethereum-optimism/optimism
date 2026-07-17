@@ -37,12 +37,22 @@ func TestOptionKindsFromCompositeOptions(t *testing.T) {
 		require.Zero(t, WithLocalContractSourcesAt("").optionKinds())
 		require.Zero(t, WithBatcherOption(nil).optionKinds())
 		require.Zero(t, WithGlobalL2CLOption(nil).optionKinds())
+		require.Zero(t, WithL2CLFactory(nil).optionKinds())
 		require.Zero(t, WithGlobalSyncTesterELOption(nil).optionKinds())
 		require.Zero(t, WithProposerOption(nil).optionKinds())
 		require.Zero(t, WithOPRBuilderOption(nil).optionKinds())
 		require.Zero(t, WithPreGenesisSuperGame().optionKinds())
 		require.Zero(t, AfterBuild(nil).optionKinds())
 	})
+}
+
+func TestWithL2CLFactory(t *testing.T) {
+	factory := sysgo.L2CLFactoryFn(func(devtest.T, sysgo.L2CLLaunchContext) (sysgo.L2CLNode, bool) {
+		return nil, false
+	})
+	cfg, _ := collectPresetConfig([]Option{WithL2CLFactory(factory)})
+	require.NotNil(t, cfg.L2CLFactory)
+	require.Equal(t, optionKindL2CLFactory, WithL2CLFactory(factory).optionKinds())
 }
 
 func TestWithLocalContractSourcesAt(t *testing.T) {

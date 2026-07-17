@@ -34,7 +34,7 @@ func startFlashblocksSingleChainPrimary(
 	connectL2ELPeers(t, logger, l2Builder.UserRPC(), l2EL.UserRPC(), true)
 
 	rollupBoost := startRollupBoostNode(t, world.L2Network.ChainID(), l2EL, l2Builder)
-	l2CL := startSequencerCL(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, rollupBoost, jwtSecret, nil)
+	l2CL := startSequencerCL(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, rollupBoost, jwtSecret, nil, cfg.L2CLFactory)
 
 	return singleChainPrimaryRuntime{
 		EL: l2EL,

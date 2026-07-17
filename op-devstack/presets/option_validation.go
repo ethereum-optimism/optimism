@@ -16,6 +16,7 @@ const (
 	optionKindProposer
 	optionKindOPRBuilder
 	optionKindGlobalL2CL
+	optionKindL2CLFactory
 	optionKindGlobalSyncTesterEL
 	optionKindL1EL
 	optionKindAddedGameType
@@ -37,6 +38,7 @@ const allOptionKinds = optionKindDeployer |
 	optionKindProposer |
 	optionKindOPRBuilder |
 	optionKindGlobalL2CL |
+	optionKindL2CLFactory |
 	optionKindGlobalSyncTesterEL |
 	optionKindL1EL |
 	optionKindAddedGameType |
@@ -61,6 +63,7 @@ var optionKindLabels = []struct {
 	{kind: optionKindProposer, label: "proposer options"},
 	{kind: optionKindOPRBuilder, label: "builder options"},
 	{kind: optionKindGlobalL2CL, label: "L2 CL options"},
+	{kind: optionKindL2CLFactory, label: "L2 CL factory"},
 	{kind: optionKindGlobalSyncTesterEL, label: "sync tester EL options"},
 	{kind: optionKindL1EL, label: "L1 EL options"},
 	{kind: optionKindAddedGameType, label: "added game types"},
@@ -114,6 +117,7 @@ const minimalPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindBatcher |
 	optionKindProposer |
 	optionKindGlobalL2CL |
+	optionKindL2CLFactory |
 	optionKindL1EL |
 	optionKindAddedGameType |
 	optionKindRespectedGameType |
@@ -125,6 +129,7 @@ const minimalWithConductorsPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindBatcher |
 	optionKindProposer |
 	optionKindGlobalL2CL |
+	optionKindL2CLFactory |
 	optionKindL1EL |
 	optionKindAddedGameType |
 	optionKindRespectedGameType |
@@ -139,6 +144,7 @@ const singleChainInteropPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindBatcher |
 	optionKindProposer |
 	optionKindGlobalL2CL |
+	optionKindL2CLFactory |
 	optionKindL1EL |
 	optionKindAddedGameType |
 	optionKindRespectedGameType |

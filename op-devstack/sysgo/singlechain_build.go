@@ -177,7 +177,41 @@ func startL2CLForKey(
 	isSequencer bool,
 	followSource string,
 	l2CLOpts []L2CLOption,
+	factory L2CLFactory,
 ) L2CLNode {
+	target := NewComponentTarget(clKey, l2Net.ChainID())
+	resolvedCfg := DefaultL2CLConfig()
+	resolvedCfg.IsSequencer = isSequencer
+	resolvedCfg.FollowSource = followSource
+	for _, opt := range l2CLOpts {
+		if opt != nil {
+			opt.Apply(t, target, resolvedCfg)
+		}
+	}
+	if factory != nil {
+		role := L2CLRoleVerifier
+		if isSequencer {
+			role = L2CLRoleSequencer
+		}
+		node, handled := factory.CreateL2CL(t, L2CLLaunchContext{
+			Target:       target,
+			Role:         role,
+			L1UserRPC:    l1EL.UserRPC(),
+			L1BeaconRPC:  l1CL.BeaconHTTPAddr(),
+			L2UserRPC:    l2EL.UserRPC(),
+			L2EngineRPC:  l2EL.EngineRPC(),
+			L2JWTPath:    l2EL.JWTPath(),
+			L1Genesis:    l1Net.Genesis(),
+			L2Genesis:    l2Net.genesis,
+			RollupConfig: l2Net.RollupConfig(),
+			FollowSource: followSource,
+			Config:       *resolvedCfg,
+		})
+		if handled {
+			t.Require().NotNil(node, "L2 CL factory handled %s but returned a nil node", target)
+			return node
+		}
+	}
 	switch devstackL2CLKind() {
 	case MixedL2CLKona:
 		return startMixedKonaNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, isSequencer, nil)
@@ -185,16 +219,7 @@ func startL2CLForKey(
 		// Resolve the op-con-specific knobs from the L2CL options (per-node, so a
 		// parallel sibling test is unaffected). Only OpConL1FinalizedGuard,
 		// OpConSequencer, and OpConUnsafePayloadWS are used by op-con-node today.
-		opconCfg := DefaultL2CLConfig()
-		if len(l2CLOpts) > 0 {
-			target := NewComponentTarget(clKey, l2Net.ChainID())
-			for _, opt := range l2CLOpts {
-				if opt == nil {
-					continue
-				}
-				opt.Apply(t, target, opconCfg)
-			}
-		}
+		opconCfg := resolvedCfg
 		// Verifier slots always route to op-con-node. Sequencer slots stay on
 		// op-node (the historical verifier-only default) unless the test opts the
 		// sequencer slot into op-con-node's sequencing mode via
@@ -303,8 +328,9 @@ func startSequencerCL(
 	l2EL L2ELNode,
 	jwtSecret [32]byte,
 	l2CLOpts []L2CLOption,
+	factory L2CLFactory,
 ) L2CLNode {
-	return startL2CLForKey(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, "sequencer", "sequencer", true, "", l2CLOpts)
+	return startL2CLForKey(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, "sequencer", "sequencer", true, "", l2CLOpts, factory)
 }
 
 type l2CLNodeStartConfig struct {

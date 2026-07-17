@@ -606,10 +606,24 @@ func addSingleChainOpNode(
 	jwtPath := runtime.L2EL.JWTPath()
 	jwtSecret := readJWTSecretFromPath(t, jwtPath)
 	l2EL := startL2ELForKey(t, runtime.L2Network, jwtPath, jwtSecret, name, NewELNodeIdentity(0))
-	l2CL := startL2CLForKey(t, runtime.Keys, runtime.L1Network, runtime.L2Network, runtime.L1EL, runtime.L1CL, l2EL, jwtSecret, name, name, isSequencer, followSource, l2Opts)
+	l2CL := startL2CLForKey(t, runtime.Keys, runtime.L1Network, runtime.L2Network, runtime.L1EL, runtime.L1CL, l2EL, jwtSecret, name, name, isSequencer, followSource, l2Opts, runtime.L2CLFactory)
 	node := newSingleChainNodeRuntime(name, isSequencer, l2EL, l2CL)
 	runtime.Nodes[name] = node
 	return node
+}
+
+// AddSingleChainNode adds a sequencer or verifier slot to an existing runtime.
+// The runtime's injected L2CLFactory is consulted for the new slot, making the
+// helper suitable for mixed-client, fan-out, and delayed-join layouts.
+func AddSingleChainNode(
+	t devtest.T,
+	runtime *SingleChainRuntime,
+	name string,
+	isSequencer bool,
+	followSource string,
+	l2Opts ...L2CLOption,
+) *SingleChainNodeRuntime {
+	return addSingleChainOpNode(t, runtime, name, isSequencer, followSource, l2Opts...)
 }
 
 func startSyncTesterService(t devtest.T, chainRPCs map[eth.ChainID]string) *SyncTesterService {
