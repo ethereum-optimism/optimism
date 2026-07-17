@@ -13,6 +13,13 @@ Run from the monorepo root:
 go run ./docs/public-docs/scripts/gen-flags
 ```
 
+To verify the committed snippets match what the current source tree generates
+without rewriting them (exits nonzero on any difference):
+
+```bash
+go run ./docs/public-docs/scripts/gen-flags -check
+```
+
 The monorepo Go build embeds `op-core/superchain/superchain-configs.zip`
 (gitignored). On a fresh checkout, build it first:
 
@@ -29,42 +36,66 @@ just build-superchain-go
 - Flag name, usage, default, and environment variable come from urfave/cli's
   own `DocGenerationFlag` accessors, so the output matches `--help` semantics.
   Hidden flags are skipped.
-- `manifest.json` records the release tag named in each snippet's provenance
-  line (e.g. `op-batcher/v1.16.11`). Bump it when a new component release is
-  cut; the drift check keeps the table itself in sync with the source tree at
-  every commit, tag or not.
-- The drift check (`.github/workflows/docs-flag-drift.yml`) regenerates the
-  snippets and fails on any diff, so a change to a component's flag
-  definitions must land together with the regenerated snippet, and hand edits
-  to generated files always fail CI.
+- `manifest.json` records the finalized release tag each snippet was generated
+  at (e.g. `op-batcher/v1.16.11`), and the snippet's provenance line names the
+  same tag. The two are updated together, only on regeneration.
+
+## Regenerating for a new release
+
+The snippets document *released* software, so regeneration is keyed to
+finalized release tags — not to every change on `develop`. When a new
+finalized (non-rc, non-pre-release) `op-batcher/v*` tag is published:
+
+1. Check out that tag — or, if working from another commit, verify the
+   flag-defining packages are identical to the tag first:
+   `op-batcher/flags/` and the flag families it appends (`op-service/rpc`,
+   `op-service/log`, `op-service/metrics`, `op-service/oppprof`,
+   `op-service/txmgr`, `op-alt-da`), e.g. with
+   `git diff <tag> HEAD -- <paths>`.
+2. Update the component's `tag` in `manifest.json` to the new release tag.
+3. Run the generator; the snippet and its provenance line are rewritten
+   together. Commit the manifest and snippet in the same change.
+
+Never hand-edit the generated snippets (`-check` fails on any hand edit), and
+never regenerate from unreleased code: if the flags changed since the manifest
+tag, the regenerated table would document behavior no released binary has.
+
+Enforcement runs as a review-gated Mintlify docs automation on a weekly
+schedule: it compares the newest finalized `op-batcher/v*` tag against the
+tag in `manifest.json` and, when a newer release exists, regenerates per the
+steps above and proposes the change for human review. Local runs of the
+generator (`-check` for verification) cover the gap between scheduled runs.
 
 ## Adding a component
 
 1. Add the component's flag slice to the `components` table in `main.go`,
    mirroring its required-flag names (the components keep their required
    slices unexported; a runtime sanity check catches renames).
-2. Add its release tag to `manifest.json`.
+2. Add its latest finalized release tag to `manifest.json`.
 3. Run the generator and import the new snippet from the component's
    reference page.
-4. Add the component's flag-definition path to the workflow's path filters.
+4. Extend the docs automation prompt to watch the new component's release
+   tag pattern.
 
 ## Ownership
 
-Per the ownership model in the Solutions repo's
+Everything in this pipeline lives under `docs/public-docs/`, so it is covered
+by the existing CODEOWNERS rule
+(`/docs/public-docs/  @ethereum-optimism/solutions`) — no dedicated entries
+are needed. Per the ownership model in the Solutions repo's
 `projects/docs-improver/plans/option-b-truth-from-source.md`:
 
-| Artifact | Author of record | Reviewer | Drift triage |
+| Artifact | Author of record | Reviewer | Stale-reference triage |
 | --- | --- | --- | --- |
-| Generator code + CI job (this directory, `.github/workflows/docs-flag-drift.yml`) | Matthew Cruz (@sbvegan), docs owner — proposed, pending confirmation | @ethereum-optimism/solutions (via CODEOWNERS) | Author of record |
-| Generated snippets (`snippets/generated/`) | The pipeline — nobody hand-edits; hand edits fail the drift check by construction | — | Unresolved drift is filed as an `accuracy`-labelled issue on the Solutions board |
-| Flag facts (`op-batcher/flags/`, op-service flag families) | Component engineers — the drift check fails on the PR that changes the flags, so the docs delta lands in the same change | Docs team reviews | Component team |
+| Generator code + docs automation (this directory, the Mintlify automation config) | Matthew Cruz (@sbvegan), docs owner — proposed, pending confirmation | @ethereum-optimism/solutions (via the `/docs/public-docs/` CODEOWNERS rule) | Author of record |
+| Generated snippets (`snippets/generated/`) | The pipeline — nobody hand-edits; `-check` fails on hand edits by construction | @ethereum-optimism/solutions review the automation's regeneration PRs | A snippet that can't be regenerated cleanly is filed as an `accuracy`-labelled issue on the Solutions board |
+| Flag facts (`op-batcher/flags/`, op-service flag families) | Component engineers | Component team | Component team; the docs table follows at the next finalized release |
 
 Known residual gaps (accepted, by design):
 
-- The drift workflow is path-filtered to `op-batcher/flags/` and the docs
-  paths. A flag change made purely inside an op-service flag family
-  (rpc/log/metrics/pprof/txmgr/altda) does not trigger it on that PR; the next
-  triggering PR or manual `workflow_dispatch` run surfaces the drift.
+- The table documents the manifest release tag, not `develop`. Flag changes
+  merged after a release are intentionally not reflected until the next
+  finalized tag is published and the automation (or a maintainer) regenerates.
 - The required-flag list is mirrored in `main.go` because the components do
   not export it. A rename fails the generator's sanity check; adding a brand
   new required flag without updating the mirror would list it as optional.

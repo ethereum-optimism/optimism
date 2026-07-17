@@ -23,11 +23,5 @@
 # Public developer documentation
 /docs/public-docs/  @ethereum-optimism/solutions
 
-# Generated flag-reference pipeline (generator + generated snippets + drift check).
-# Ownership model: docs/public-docs/scripts/gen-flags/README.md
-/docs/public-docs/scripts/gen-flags/  @ethereum-optimism/solutions
-/docs/public-docs/snippets/generated/  @ethereum-optimism/solutions
-/.github/workflows/docs-flag-drift.yml  @ethereum-optimism/solutions
-
 # Must come last to avoid being overridden
 /.github/CODEOWNERS  @ethereum-optimism/cloud-security
