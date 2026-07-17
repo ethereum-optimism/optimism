@@ -136,7 +136,10 @@ check-no-self-embed:
   # Direct-dep check only; no shared guest crate depends on range-vkeys today.
   for f in programs/range/Cargo.toml programs/super-range/Cargo.toml; do
     test -f "$f"
-    ! grep -q kona-sp1-range-vkeys "$f"
+    if grep -q kona-sp1-range-vkeys "$f"; then
+      echo "error: $f must not depend on kona-sp1-range-vkeys (build cycle)" >&2
+      exit 1
+    fi
   done
 # Runs before the `--locked` clippy so a kona-only dependency change produces a
 # clear fix hint instead of cargo's cryptic "cannot update the lock file because
