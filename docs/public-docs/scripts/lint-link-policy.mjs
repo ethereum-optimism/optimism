@@ -29,8 +29,10 @@
  *     --baseline <file>     baseline JSON; only findings NOT in the baseline fail the run
  *     --update-baseline     rewrite the baseline file from current findings
  *     --report <file>       write a markdown report of all findings
- *     --self-test           run against the synthetic fixtures and verify each violation
- *                           class fires (and that the passing fixtures are clean)
+ *     --self-test           materialize the embedded synthetic fixtures into a temp
+ *                           directory and verify each violation class fires (and that
+ *                           the passing fixtures are clean); no fixture files live in
+ *                           the repo tree
  *
  * Exit codes: 0 clean (or all findings baselined), 1 new findings, 2 usage/internal error.
  *
@@ -39,6 +41,7 @@
  */
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -351,42 +354,160 @@ function splitByBaseline(findings, baselineFile) {
 }
 
 // ---------------------------------------------------------------------------
-// Self-test on the synthetic fixtures
+// Self-test on embedded synthetic fixtures
+//
+// The fixtures are embedded here as string literals (not checked in as files)
+// and materialized into a fresh os.tmpdir() directory for the duration of the
+// self-test, then deleted. This keeps the whole linter — engine, baseline, and
+// test data — inside docs/public-docs/, and guarantees the deliberate
+// violations in failing/ can never surface in real lint runs or in
+// `mint broken-links` output.
+//
+//   failing/    one .mdx per violation class; the file name is the rule it
+//               must trigger. The self-test fails if any fixture stops firing.
+//   passing/    policy-conformant examples of the same link shapes; the
+//               self-test fails if the linter reports anything here.
+//   specs-src/  a stand-in for an ethereum-optimism/specs checkout, so spec
+//               path/anchor resolution is exercised hermetically (no network).
 // ---------------------------------------------------------------------------
 
-function selfTest() {
-  // The fixtures live OUTSIDE the Mintlify content root (docs/public-docs/) so
-  // their deliberate violations never show up in `mint broken-links` output.
-  const fixtures = path.resolve(SCRIPT_DIR, "..", "..", "lint-link-policy-fixtures");
-  const failingDir = path.join(fixtures, "failing");
-  const passingDir = path.join(fixtures, "passing");
-  const specsFixture = path.join(fixtures, "specs-src");
-  let ok = true;
+const SELF_TEST_FIXTURES = {
+  "failing/anchor-utm-order.mdx": `Violation: UTM decoration appended AFTER the anchor fragment, so the anchor
+never resolves.
 
-  // Every failing fixture must fire the rule named by its filename.
-  const { findings: failFindings } = lintTree(failingDir, { specsSrc: specsFixture });
-  for (const fixture of fs.readdirSync(failingDir).filter((f) => f.endsWith(".mdx")).sort()) {
-    const rule = path.basename(fixture, ".mdx");
-    const hits = failFindings.filter((f) => f.file === fixture && f.rule === rule);
-    if (hits.length === 0) {
-      console.error(`SELF-TEST FAIL: fixture failing/${fixture} did not trigger rule "${rule}"`);
+See the [frame format](https://specs.optimism.io/protocol/derivation.html#frame-format?utm_source=op-docs&utm_medium=docs)
+section.
+`,
+  "failing/dead-internal-link.mdx": `Violation: root-relative internal links whose target page and asset do not
+exist.
+
+Follow the [sequencer setup](/chain-operators/tutorials/create-l2-rollup/op-reth-setup)
+guide, and see ![the diagram](/rust/op-program-fpp.svg).
+`,
+  "failing/malformed-link.mdx": `Violation: internal link target that is neither root-relative nor an absolute
+URL (here, a bare contract address pasted where a URL belongs).
+
+Learn more at the [Light Node Topology Notice Page](0xE69104DD872222E1Bd7C1adD47588F8C62ed64C0).
+`,
+  "failing/retired-spec-path.mdx": `Violation: rides a retired rendered-site path that only survives via the specs
+repo's book.toml redirect table.
+
+See the [fault proof spec](https://specs.optimism.io/experimental/fault-proof/index.html)
+for details.
+`,
+  "failing/spec-blob-link.mdx": `Violation: GitHub blob link into the specs repo sources where a rendered
+specs.optimism.io page exists.
+
+See the [derivation spec](https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/derivation.md)
+for details.
+`,
+  "failing/unbadged-pinned-link.mdx": `Violation: commit- and tag-pinned source links with no "as of" badge anywhere
+nearby.
+
+The old portal contract lives in
+[OptimismPortal.sol](https://github.com/ethereum-optimism/optimism/blob/v1.1.4/packages/contracts-bedrock/contracts/L1/OptimismPortal.sol).
+
+Also pinned to a raw commit:
+[flags.go](https://github.com/ethereum-optimism/optimism/blob/62c7f3b05a70027b30054d4c8974f44000606fb7/op-batcher/flags/flags.go).
+`,
+  "failing/unresolved-spec-anchor.mdx": `Violation: deep anchor that matches no heading slug in the specs source file.
+
+See the [frame format](https://specs.optimism.io/protocol/derivation.html#no-such-heading-anywhere)
+section.
+`,
+  "failing/unresolved-spec-path.mdx": `Violation: specs.optimism.io link whose source file does not exist in the
+specs repo checkout.
+
+See the [ghost page](https://specs.optimism.io/protocol/this-page-never-existed.html)
+for details.
+`,
+  "passing/good-links.mdx": `Policy-conformant examples of every link shape the linter checks.
+
+Current rendered spec path, UTM before the fragment, anchor resolves:
+[frame format](https://specs.optimism.io/protocol/derivation.html?utm_source=op-docs&utm_medium=docs#frame-format).
+
+Plain rendered spec link with a resolving anchor and no query:
+[wire format](https://specs.optimism.io/protocol/derivation.html#batch-submission-wire-format).
+
+Floating source link on a branch (no badge needed):
+[flags.go](https://github.com/ethereum-optimism/optimism/blob/develop/op-batcher/flags/flags.go).
+
+Pinned source link carrying its badge on the same line (as of \`v1.1.4\`):
+[OptimismPortal.sol](https://github.com/ethereum-optimism/optimism/blob/v1.1.4/packages/contracts-bedrock/contracts/L1/OptimismPortal.sol).
+
+Prefixed release tag, badge on the adjacent line —
+[SystemConfig.sol](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v4.0.0/packages/contracts-bedrock/src/L1/SystemConfig.sol)
+(as of \`op-contracts/v4.0.0\`).
+
+Root-relative internal link to a page that exists:
+[these examples](/good-links), including with [anchor and query](/good-links?x=1#somewhere).
+
+A fragment-only link is [fine](#somewhere), and URLs inside code are ignored:
+\`https://specs.optimism.io/experimental/plasma.html\` stays illustrative.
+
+\`\`\`md
+[not linted](https://specs.optimism.io/experimental/fault-proof/index.html#pre-image-oracle?utm_source=x)
+[not linted either](/nowhere/at/all)
+\`\`\`
+
+GitHub blob link into the specs repo that is NOT a rendered page (allowed):
+[book.toml](https://github.com/ethereum-optimism/specs/blob/main/book.toml).
+`,
+  "specs-src/specs/protocol/derivation.md": `# L2 Chain Derivation Specification
+
+Stand-in for the real specs source file, used only by the linter self-test.
+
+## Frame Format
+
+A heading whose mdBook slug is \`frame-format\`.
+
+## Batch Submission Wire Format
+
+A heading whose mdBook slug is \`batch-submission-wire-format\`.
+`,
+};
+
+function selfTest() {
+  const fixtures = fs.mkdtempSync(path.join(os.tmpdir(), "lint-link-policy-selftest-"));
+  try {
+    for (const [rel, content] of Object.entries(SELF_TEST_FIXTURES)) {
+      const abs = path.join(fixtures, ...rel.split("/"));
+      fs.mkdirSync(path.dirname(abs), { recursive: true });
+      fs.writeFileSync(abs, content);
+    }
+
+    const failingDir = path.join(fixtures, "failing");
+    const passingDir = path.join(fixtures, "passing");
+    const specsFixture = path.join(fixtures, "specs-src");
+    let ok = true;
+
+    // Every failing fixture must fire the rule named by its filename.
+    const { findings: failFindings } = lintTree(failingDir, { specsSrc: specsFixture });
+    for (const fixture of fs.readdirSync(failingDir).filter((f) => f.endsWith(".mdx")).sort()) {
+      const rule = path.basename(fixture, ".mdx");
+      const hits = failFindings.filter((f) => f.file === fixture && f.rule === rule);
+      if (hits.length === 0) {
+        console.error(`SELF-TEST FAIL: fixture failing/${fixture} did not trigger rule "${rule}"`);
+        ok = false;
+      } else {
+        console.log(`self-test ok: failing/${fixture} triggers ${rule} (${hits.length}x)`);
+      }
+    }
+
+    // The passing fixtures must be completely clean.
+    const { findings: passFindings } = lintTree(passingDir, { specsSrc: specsFixture });
+    if (passFindings.length > 0) {
+      console.error(`SELF-TEST FAIL: passing fixtures produced ${passFindings.length} finding(s):`);
+      for (const f of passFindings) console.error(`  ${f.file}:${f.line} [${f.rule}] ${f.url}`);
       ok = false;
     } else {
-      console.log(`self-test ok: failing/${fixture} triggers ${rule} (${hits.length}x)`);
+      console.log("self-test ok: passing fixtures are clean");
     }
-  }
 
-  // The passing fixtures must be completely clean.
-  const { findings: passFindings } = lintTree(passingDir, { specsSrc: specsFixture });
-  if (passFindings.length > 0) {
-    console.error(`SELF-TEST FAIL: passing fixtures produced ${passFindings.length} finding(s):`);
-    for (const f of passFindings) console.error(`  ${f.file}:${f.line} [${f.rule}] ${f.url}`);
-    ok = false;
-  } else {
-    console.log("self-test ok: passing fixtures are clean");
+    return ok;
+  } finally {
+    fs.rmSync(fixtures, { recursive: true, force: true });
   }
-
-  return ok;
 }
 
 // ---------------------------------------------------------------------------

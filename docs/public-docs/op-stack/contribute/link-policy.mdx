@@ -1,6 +1,6 @@
 ---
 title: Cross-repo link policy
-description: The canonical form for every link from docs.optimism.io into the specs, source repositories, and other pages — and the CI linter that enforces it.
+description: The canonical form for every link from docs.optimism.io into the specs, source repositories, and other pages — and the linter that enforces it.
 diataxis: reference
 ---
 
@@ -11,7 +11,7 @@ redirect table, a commit-pinned contract link never 404s while teaching a
 two-generations-old architecture, and a misplaced tracking parameter breaks an
 anchor without breaking the page. This page defines one canonical form for
 each link target, and every rule on it is enforced by a deterministic linter
-(`scripts/lint-link-policy.mjs`) that runs on every docs pull request.
+(`scripts/lint-link-policy.mjs`).
 
 This policy is an annex of the [content guide](/op-stack/contribute/content-guide):
 the guide decides *where* content lives and when to link instead of restate;
@@ -32,9 +32,10 @@ this page defines *how* those links must be written.
     and can disappear without notice. The linter vendors that redirect table
     and reports the current path to use.
 *   **Deep anchors must resolve.** An anchor like `#frame-format` must match a
-    real heading slug in the target page. CI resolves every specs anchor
-    against a checkout of the specs source, so a heading rename upstream
-    surfaces as a lint failure here instead of a silently dead fragment.
+    real heading slug in the target page. The linter resolves every specs
+    anchor against a checkout of the specs source (`--specs-src`), so a heading
+    rename upstream surfaces as a lint failure here instead of a silently dead
+    fragment.
 
 ## Query parameters come before the fragment
 
@@ -79,27 +80,27 @@ fragment, and the anchor never resolves.
 
 `scripts/lint-link-policy.mjs` enforces all of the above plus dead-internal-link
 detection. It is dependency-free and offline-deterministic; Mintlify's
-`mint broken-links` runs alongside it in CI as an advisory second opinion on
-internal links.
+`mint broken-links` serves as an advisory second opinion on internal links.
 
 ```bash
 # from docs/public-docs/
 node scripts/lint-link-policy.mjs --baseline scripts/lint-link-policy.baseline.json
 
-# with specs anchor resolution (CI does this automatically)
+# with specs anchor resolution
 git clone --depth 1 https://github.com/ethereum-optimism/specs.git /tmp/specs
 node scripts/lint-link-policy.mjs --specs-src /tmp/specs --baseline scripts/lint-link-policy.baseline.json
 
-# verify the linter itself against its fixtures
+# verify the linter itself against its embedded self-test fixtures
 node scripts/lint-link-policy.mjs --self-test
 ```
 
 Violations that predate the linter are recorded in
-`scripts/lint-link-policy.baseline.json`, so CI blocks only **new**
+`scripts/lint-link-policy.baseline.json`, so a run flags only **new**
 violations. The baseline is a burn-down list, not an allowlist: remediation
 batches shrink it with `--update-baseline`, and pull requests must never grow
 it. If the linter flags a link you believe is a deliberate exception, raise it
 in review — do not rebaseline silently.
 
-CI wiring lives in `.github/workflows/docs-link-policy.yml`, path-filtered to
-`docs/public-docs/**`.
+Enforcement runs as a scheduled, review-gated docs automation plus the local
+runs above; the linter, its baseline, and its embedded self-test fixtures all
+live under `docs/public-docs/`.
