@@ -25,10 +25,9 @@ type SingleChainInterop struct {
 	SuperRoots    *dsl.Supernode
 	TestSequencer *dsl.TestSequencer
 
-	L1Network  *dsl.L1Network
-	L1EL       *dsl.L1ELNode
-	L1CL       *dsl.L1CLNode
-	L1Proposer *dsl.EOA
+	L1Network *dsl.L1Network
+	L1EL      *dsl.L1ELNode
+	L1CL      *dsl.L1CLNode
 
 	L2ChainA   *dsl.L2Network
 	L2BatcherA *dsl.L2Batcher
