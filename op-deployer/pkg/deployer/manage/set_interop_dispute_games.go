@@ -174,7 +174,7 @@ func SetInteropDisputeGamesCLI(cliCtx *cli.Context) error {
 	// cleared — the permissionless super fault game that ZK replaces. SUPER_PERMISSIONED (5)
 	// is deliberately kept as a permissioned liveness backup, mirroring today's SPDG + permissionless shape.
 	//
-	// Note: this command can never re-register SUPER_PERMISSIONED and assumes that the game is
+	// Note: this command can never re-register SUPER_PERMISSIONED and assumes that this game is
 	// already set up on the shared DisputeGameFactory from the super-roots migration.
 	var disputeGameConfigs []DisputeGameConfig
 	for _, raw := range strings.Split(cliCtx.String(SourceGameTypesFlag.Name), ",") {
