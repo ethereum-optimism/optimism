@@ -51,7 +51,7 @@ Compiled ELF binaries for the zkVM programs, used by the prover:
 
 In the optimism monorepo port, these files are generated on demand and ignored
 by git, matching the Cannon prestate artifact workflow. Generate reproducible
-v6.3.1 ELFs and `elf/vkeys.toml` on linux/amd64 with `just build-elfs`. Use
+ELFs and `elf/vkeys.toml` on linux/amd64 with `just build-elfs`. Use
 `just build-elfs-native` for local iteration and the fast per-PR compile check;
 CI persists the native manifest with the generated ELFs. Native ELF hashes may
 differ across build environments because paths and other environment details
