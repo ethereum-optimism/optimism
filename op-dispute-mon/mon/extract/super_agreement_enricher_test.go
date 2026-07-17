@@ -34,7 +34,8 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
-		require.ErrorIs(t, err, ErrSuperNodeRpcRequired)
+		require.ErrorIs(t, err, ErrSuperRootRpcRequired)
+		require.ErrorContains(t, err, "super root RPC required")
 	})
 
 	t.Run("SkipOutputRootGameTypes", func(t *testing.T) {
@@ -43,7 +44,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			gameType := gameType
 			t.Run(fmt.Sprintf("GameType_%d", gameType), func(t *testing.T) {
 				validator, _, metrics := setupSuperValidatorTest(t)
-				validator.clients = nil // Should not error even though there's no super node client
+				validator.clients = nil // Should not error even though there's no super root RPC client
 				game := &types.EnrichedGameData{
 					GameMetadata: challengerTypes.GameMetadata{
 						GameType: gameType,
@@ -95,7 +96,8 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
-		require.ErrorIs(t, err, ErrAllSuperNodesUnavailable)
+		require.ErrorIs(t, err, ErrAllSuperRootRpcsUnavailable)
+		require.ErrorContains(t, err, "all super root RPC sources returned errors")
 		require.Equal(t, common.Hash{}, game.ExpectedRootClaim)
 		require.False(t, game.AgreeWithClaim)
 		require.Zero(t, metrics.fetchTime)
@@ -230,7 +232,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.Error(t, err)
-		require.ErrorIs(t, err, ErrAllSuperNodesUnavailable)
+		require.ErrorIs(t, err, ErrAllSuperRootRpcsUnavailable)
 		require.Equal(t, common.Hash{}, game.ExpectedRootClaim)
 		require.False(t, game.AgreeWithClaim)
 		require.Zero(t, metrics.fetchTime)
@@ -624,7 +626,7 @@ func TestSuperNodeEndpointTracking(t *testing.T) {
 		}
 
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
-		require.ErrorIs(t, err, ErrSuperNodeRpcRequired)
+		require.ErrorIs(t, err, ErrSuperRootRpcRequired)
 
 		// Verify all counts remain zero when no endpoints
 		require.Equal(t, 0, game.NodeEndpointTotalCount)
