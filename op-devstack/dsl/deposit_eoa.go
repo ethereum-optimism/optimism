@@ -3,6 +3,7 @@ package dsl
 import (
 	"math/rand"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -50,7 +51,7 @@ func (d *DepositEOA) DepositTx(to common.Address, calldata []byte) *ethtypes.Rec
 	t.Require().NoError(err, "L1 deposit tx failed")
 	t.Require().Equal(ethtypes.ReceiptStatusSuccessful, l1Receipt.Status, "L1 deposit tx reverted")
 
-	var l2DepositTx *ethtypes.DepositTx
+	var l2DepositTx *optypes.DepositTx
 	for _, log := range l1Receipt.Logs {
 		if l2DepositTx, err = derive.UnmarshalDepositLogEvent(log); err == nil {
 			break
@@ -59,7 +60,7 @@ func (d *DepositEOA) DepositTx(to common.Address, calldata []byte) *ethtypes.Rec
 	t.Require().NotNil(l2DepositTx, "no TransactionDeposited event in L1 receipt")
 
 	d.l2EL.WaitL1OriginReached(eth.Unsafe, bigs.Uint64Strict(l1Receipt.BlockNumber), 120)
-	l2Receipt := d.l2EL.WaitForReceipt(ethtypes.NewTx(l2DepositTx).Hash())
+	l2Receipt := d.l2EL.WaitForReceipt(l2DepositTx.Hash())
 	t.Require().Equal(ethtypes.ReceiptStatusSuccessful, l2Receipt.Status, "deposit tx failed on L2")
 	return l2Receipt
 }

@@ -29,15 +29,8 @@ fn write_elf_input(source: &Path, dest: &Path) {
             panic!("failed to copy {} to {}: {err}", source.display(), dest.display())
         });
     } else {
-        // TODO(#18326): Remove this hacky temporary fallback once SP1 ELF
-        // builds are properly integrated into monorepo CI. Right now the
-        // generated ELF artifacts are ignored by git, and the monorepo Rust CI
-        // does not install the SP1 toolchain or run the Dockerized
-        // `cargo-prove` ELF build. The empty files written here keep normal
-        // host-toolchain compile, clippy, rustdoc, and test jobs working
-        // without making SP1 a global CI prerequisite. Runtime bench/proof
-        // entrypoints still reject these empty placeholders and require
-        // `cd rust/kona/sp1 && just build-elfs` first.
+        // Host-toolchain jobs run without generated, gitignored ELFs.
+        // Runtime proof paths reject these empty placeholders.
         fs::write(dest, b"")
             .unwrap_or_else(|err| panic!("failed to write {}: {err}", dest.display()));
     }

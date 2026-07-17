@@ -87,6 +87,9 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 # ==================== WORKSPACE LINTS ====================
+# Keep all workspace lint tables between these markers; `just fmt-fix` copies
+# this block to the nested SP1 guest workspace.
+# BEGIN SHARED WORKSPACE LINTS
 [workspace.lints.rust]
 missing-debug-implementations = "warn"
 missing-docs = "warn"
@@ -182,6 +185,7 @@ result_large_err = "allow"
 significant_drop_in_scrutinee = "allow"
 significant_drop_tightening = "allow"
 too_long_first_doc_paragraph = "allow"
+# END SHARED WORKSPACE LINTS
 
 # ==================== PROFILES ====================
 [profile.dev]
@@ -489,8 +493,8 @@ op-alloy = { version = "2.0.0", path = "op-alloy/crates/op-alloy", default-featu
 op-alloy-flz = { version = "0.13.1", default-features = false }
 
 # ==================== SP1 ====================
-sp1-build = "6.2.4"
-sp1-sdk = { version = "6.2.4", default-features = false, features = [
+sp1-build = "6.3.1"
+sp1-sdk = { version = "6.3.1", default-features = false, features = [
   "network",
 ] }
 

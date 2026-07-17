@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -50,10 +51,10 @@ type receiptData struct {
 	DepositLogs []bool
 }
 
-func makeReceipts(rng *rand.Rand, blockHash common.Hash, depositContractAddr common.Address, testReceipts []receiptData) ([]*types.Receipt, []*types.DepositTx, error) {
+func makeReceipts(rng *rand.Rand, blockHash common.Hash, depositContractAddr common.Address, testReceipts []receiptData) ([]*types.Receipt, []*optypes.DepositTx, error) {
 	logIndex := uint(0)
 	receipts := []*types.Receipt{}
-	expectedDeposits := []*types.DepositTx{}
+	expectedDeposits := []*optypes.DepositTx{}
 	for txIndex, rData := range testReceipts {
 		var logs []*types.Log
 		status := types.ReceiptStatusSuccessful
@@ -71,7 +72,7 @@ func makeReceipts(rng *rand.Rand, blockHash common.Hash, depositContractAddr com
 				}
 				ev, err = MarshalDepositLogEvent(depositContractAddr, dep)
 				if err != nil {
-					return []*types.Receipt{}, []*types.DepositTx{}, err
+					return []*types.Receipt{}, []*optypes.DepositTx{}, err
 				}
 			} else {
 				ev = testutils.GenerateLog(testutils.RandomAddress(rng), nil, nil)

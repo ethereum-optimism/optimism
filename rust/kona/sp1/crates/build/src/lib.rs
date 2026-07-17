@@ -12,7 +12,7 @@ fn build_program(program_name: &str, elf_name: &str, features: Option<Vec<String
         elf_name: Some(elf_name.to_string()),
         output_directory: Some("kona/sp1/elf".to_string()),
         docker: true,
-        tag: "v6.2.4".to_string(),
+        tag: "v6.3.1".to_string(),
         workspace_directory: Some(".".to_string()),
         ignore_rust_version: true,
         ..Default::default()
