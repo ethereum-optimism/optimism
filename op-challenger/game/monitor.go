@@ -136,7 +136,7 @@ func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash, 
 			continue
 		}
 		if !m.configuredGameType(game.GameType) {
-			m.logger.Warn("Skipping unsupported game type", "game", game.Proxy, "gameType", game.GameType)
+			m.logger.Warn("Game type not configured for play; processing lifecycle only", "game", game.Proxy, "gameType", game.GameType)
 			continue
 		}
 		if !m.allowedGame(game.Proxy) {
