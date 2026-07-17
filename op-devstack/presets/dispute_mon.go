@@ -27,16 +27,12 @@ type DisputeMon struct {
 func newDisputeMon(t devtest.T, metricsURL string) *DisputeMon {
 	httpClient := client.NewBasicHTTPClient(strings.TrimRight(metricsURL, "/"), t.Logger())
 	return &DisputeMon{
-		t: t,
-		metrics: devtestmetrics.NewMetricsClient(
-			httpClient,
-			devtestmetrics.WithFetchTimeout(5*time.Second),
-		),
+		t:       t,
+		metrics: devtestmetrics.NewMetricsClient(httpClient),
 	}
 }
 
 func (d *DisputeMon) VerifyGameCount(gameType gameTypes.GameType, expected int) {
-	d.t.Helper()
 	ctx, cancel := context.WithTimeout(d.t.Ctx(), disputeMonMetricWaitTimeout)
 	defer cancel()
 	err := d.metrics.WaitForGauge(ctx, devtestmetrics.GaugeDefinition{
@@ -80,7 +76,6 @@ func StartDisputeMon(
 	factory common.Address,
 	options ...DisputeMonOption,
 ) *DisputeMon {
-	t.Helper()
 	t.Require().NotNil(l1EL, "L1 EL is required to start dispute monitor")
 	opts := &disputeMonOptions{}
 	for _, option := range options {

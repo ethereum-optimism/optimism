@@ -14,7 +14,7 @@ import (
 	"github.com/prometheus/common/expfmt"
 )
 
-const defaultFetchTimeout = 5 * time.Second
+const defaultFetchTimeout = 30 * time.Second
 
 type MetricsClient struct {
 	client       client.HTTP

@@ -51,6 +51,14 @@ func TestMetricsClientFetchParsesPrometheusResponse(t *testing.T) {
 	require.Len(t, snapshot.families, 2)
 }
 
+func TestMetricsClientUsesThirtySecondFetchTimeoutByDefault(t *testing.T) {
+	client := NewMetricsClient(stubHTTP(func(context.Context, string, url.Values, http.Header) (*http.Response, error) {
+		return metricsResponse(http.StatusOK, ""), nil
+	}))
+
+	require.Equal(t, 30*time.Second, client.fetchTimeout)
+}
+
 func TestMetricsClientFetchRejectsNilHTTPClient(t *testing.T) {
 	_, err := NewMetricsClient(nil).Fetch(context.Background())
 
