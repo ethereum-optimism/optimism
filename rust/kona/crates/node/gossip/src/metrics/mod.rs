@@ -59,8 +59,9 @@ impl Metrics {
     /// validation, by reason.
     ///
     /// The reasons are mutually exclusive per message: the handler's pre-decode snappy bound
-    /// (`oversized_snappy`), envelope decode failures (`decode_error`), and unexpected topics
-    /// (`unknown_topic`). Messages that decode but fail block validation are counted by
+    /// (`invalid_snappy_length`, covering both unreadable and over-`MAX_GOSSIP_SIZE` headers),
+    /// envelope decode failures (`decode_error`), and unexpected topics (`unknown_topic`).
+    /// Messages that decode but fail block validation are counted by
     /// [`Self::BLOCK_VALIDATION_FAILED`] instead; malformed frames caught earlier, in the
     /// gossipsub `message_id` function, are counted by [`Self::MESSAGE_ID_INVALID_SNAPPY`].
     pub const INVALID_MESSAGE: &str = "kona_node_gossip_invalid_message";
@@ -70,7 +71,7 @@ impl Metrics {
     ///
     /// Recorded per receipt — before gossipsub de-duplication and before the block handler runs —
     /// so it counts on a larger denominator than [`Self::INVALID_MESSAGE`] and overlaps that
-    /// counter's `oversized_snappy`/`decode_error` reasons for the same message. It is not a
+    /// counter's `invalid_snappy_length`/`decode_error` reasons for the same message. It is not a
     /// rejection on its own: the message-id function only assigns the message id.
     pub const MESSAGE_ID_INVALID_SNAPPY: &str = "kona_node_gossip_message_id_invalid_snappy";
 
@@ -232,7 +233,7 @@ impl Metrics {
         kona_macros::set!(counter, Self::BLOCK_VERSION, "version", "v4", 0);
 
         // Messages rejected by the block handler before validation, by reason
-        kona_macros::set!(counter, Self::INVALID_MESSAGE, "reason", "oversized_snappy", 0);
+        kona_macros::set!(counter, Self::INVALID_MESSAGE, "reason", "invalid_snappy_length", 0);
         kona_macros::set!(counter, Self::INVALID_MESSAGE, "reason", "decode_error", 0);
         kona_macros::set!(counter, Self::INVALID_MESSAGE, "reason", "unknown_topic", 0);
 

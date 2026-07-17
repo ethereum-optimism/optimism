@@ -51,10 +51,11 @@ impl Handler for BlockHandler {
         // buffer of the declared length (up to ~4 GiB) from a tiny frame. Mirrors op-node's
         // gossip topic validator, which rejects `outLen > maxGossipSize` before decompressing.
         if snappy_decompressed_len_within_bound(&msg.data).is_none() {
-            // Count for alerting and debug-log for investigation, but never warn: unauthenticated
-            // remote input must not be able to spam warnings just by being invalid.
-            kona_macros::inc!(counter, crate::Metrics::INVALID_MESSAGE, "reason" => "oversized_snappy");
-            debug!(target: "gossip", len = msg.data.len(), "Rejecting oversized snappy frame before decode");
+            // The snappy header declares a length that is unreadable or over MAX_GOSSIP_SIZE. Count
+            // for alerting and debug-log for investigation, but never warn: unauthenticated remote
+            // input must not be able to spam warnings just by being invalid.
+            kona_macros::inc!(counter, crate::Metrics::INVALID_MESSAGE, "reason" => "invalid_snappy_length");
+            debug!(target: "gossip", len = msg.data.len(), "Rejecting snappy frame with invalid declared length before decode");
             return (MessageAcceptance::Reject, None);
         }
 
@@ -525,27 +526,32 @@ mod tests {
 
     #[cfg(feature = "metrics")]
     #[test]
-    fn handle_records_invalid_message_metric_for_oversized_snappy() {
+    fn handle_records_invalid_message_metric_for_invalid_snappy_length() {
         use metrics_util::debugging::DebuggingRecorder;
 
-        let mut handler = zero_signer_handler();
-        // Tiny frame whose snappy header declares a decompressed size over MAX_GOSSIP_SIZE.
-        let over = snap::raw::Encoder::new()
+        // Both an over-MAX_GOSSIP_SIZE header and a malformed/truncated header take the pre-decode
+        // reject path and share the `invalid_snappy_length` reason.
+        let oversized = snap::raw::Encoder::new()
             .compress_vec(&vec![0u8; crate::config::MAX_GOSSIP_SIZE + 1])
             .unwrap();
-        let message = Message {
-            source: None,
-            sequence_number: None,
-            topic: handler.blocks_v1_topic.clone().into(),
-            data: over,
-        };
+        let malformed = vec![0xffu8]; // truncated snappy varint header
 
-        let recorder = DebuggingRecorder::new();
-        let snapshotter = recorder.snapshotter();
-        let acc = metrics::with_local_recorder(&recorder, || handler.handle(message).0);
+        for data in [oversized, malformed] {
+            let mut handler = zero_signer_handler();
+            let message = Message {
+                source: None,
+                sequence_number: None,
+                topic: handler.blocks_v1_topic.clone().into(),
+                data,
+            };
 
-        assert!(matches!(acc, MessageAcceptance::Reject));
-        assert_eq!(invalid_message_count(snapshotter.snapshot(), "oversized_snappy"), 1);
+            let recorder = DebuggingRecorder::new();
+            let snapshotter = recorder.snapshotter();
+            let acc = metrics::with_local_recorder(&recorder, || handler.handle(message).0);
+
+            assert!(matches!(acc, MessageAcceptance::Reject));
+            assert_eq!(invalid_message_count(snapshotter.snapshot(), "invalid_snappy_length"), 1);
+        }
     }
 
     #[cfg(feature = "metrics")]
