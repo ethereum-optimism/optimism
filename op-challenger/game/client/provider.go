@@ -100,9 +100,9 @@ func (c *Provider) SuperchainClients() (*sources.SuperNodeClient, types.SyncVali
 	if c.superNodeClient != nil {
 		return c.superNodeClient, c.superSyncValidator, nil
 	}
-	superNodeClient, err := dial.DialSuperNodeClientWithTimeout(c.ctx, c.logger, c.cfg.SuperRPC)
+	superNodeClient, err := dial.DialSuperNodeClientWithTimeout(c.ctx, c.logger, c.cfg.SuperRootRPC)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to dial supernode: %w", err)
+		return nil, nil, fmt.Errorf("failed to dial super root RPC client: %w", err)
 	}
 	c.superNodeClient = superNodeClient
 	c.superSyncValidator = &NoopSyncStatusValidator{}
