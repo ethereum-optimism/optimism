@@ -117,13 +117,13 @@ func TestMakePredictionInput_GameTypeInputs(t *testing.T) {
 		name                       string
 		gameType                   embedded.GameType
 		usesPredictionAnchor       bool
-		usesCannonFallbackPrestate bool
+		usesFixedCannonPlaceholder bool
 	}{
 		{
 			name:                       "CANNON_KONA",
 			gameType:                   embedded.GameTypeCannonKona,
 			usesPredictionAnchor:       true,
-			usesCannonFallbackPrestate: true,
+			usesFixedCannonPlaceholder: true,
 		},
 		{
 			name:                 "SUPER_CANNON_KONA",
@@ -158,7 +158,7 @@ func TestMakePredictionInput_GameTypeInputs(t *testing.T) {
 				require.Equal(t, opcm.DefaultStartingAnchorRoot.Root, dci.StartingAnchorRoot.Root)
 			}
 
-			if tt.usesCannonFallbackPrestate {
+			if tt.usesFixedCannonPlaceholder {
 				require.Equal(t, opcm.PermissionedGamePrestatePlaceholder, dci.CannonAbsolutePrestate)
 				require.NotEqual(t, dci.DisputeAbsolutePrestate, dci.CannonAbsolutePrestate)
 			} else {

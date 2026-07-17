@@ -271,10 +271,10 @@ func TestPrestateGameTypeRequirements(t *testing.T) {
 			wantErrParts: []string{"CANNON_KONA", "requires selected prestate"},
 		},
 		{
-			name:         "CANNON_KONA rejects permissioned placeholder",
-			chains:       []prestateTestChain{{id: chainA, prepared: true, overrides: gameOverride(embedded.GameTypeCannonKona)}},
-			configure:    setCommandPrestate(opcm.PermissionedGamePrestatePlaceholder.Hex()),
-			wantErrParts: []string{"CANNON_KONA", "selected prestate different", opcm.PermissionedGamePrestatePlaceholder.Hex()},
+			name:      "CANNON_KONA accepts selected equal to permissioned placeholder",
+			chains:    []prestateTestChain{{id: chainA, prepared: true, overrides: gameOverride(embedded.GameTypeCannonKona)}},
+			configure: setCommandPrestate(opcm.PermissionedGamePrestatePlaceholder.Hex()),
+			want:      map[common.Hash]common.Hash{chainA: opcm.PermissionedGamePrestatePlaceholder},
 		},
 		{
 			name:      "SUPER_CANNON_KONA commits selected",

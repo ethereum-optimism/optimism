@@ -19,9 +19,8 @@ var PermissionedGameStartingAnchorRoot = []byte{
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 }
 
-// PermissionedGamePrestatePlaceholder is the fixed normal permissioned game
-// prestate 0x000000000000000000000000000000000000000000000000000000000000dead.
-// Permissioned games do not load or execute this prestate.
+// PermissionedGamePrestatePlaceholder is the CANNON_KONA guardian fallback prestate:
+// 0x000000000000000000000000000000000000000000000000000000000000dead.
 var PermissionedGamePrestatePlaceholder = common.HexToHash("0xdead")
 
 // Proposal mirrors the Solidity Proposal tuple used for the starting anchor root.
@@ -45,9 +44,11 @@ type DeployOPChainInput struct {
 	SaltMixer         string
 	GasLimit          uint64
 
-	DisputeGameType              uint32
-	DisputeAbsolutePrestate      common.Hash
-	StartingAnchorRoot           Proposal
+	DisputeGameType         uint32
+	DisputeAbsolutePrestate common.Hash // Selected game prestate.
+	StartingAnchorRoot      Proposal
+	// CannonAbsolutePrestate configures the CANNON_KONA guardian fallback.
+	// Other modes mirror DisputeAbsolutePrestate.
 	CannonAbsolutePrestate       common.Hash
 	DisputeMaxGameDepth          *big.Int
 	DisputeSplitDepth            *big.Int

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
@@ -145,9 +144,6 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 				return fmt.Errorf("chain %s with %s requires %s from --%s or intent key %s", chain.ID.Hex(), gameName, selectedPrestateRole.name, selectedPrestateRole.flagName, selectedPrestateRole.intentKey)
 			}
 			assignment.Selected = selected.hash
-			if gameType == embedded.GameTypeCannonKona && assignment.Selected == opcm.PermissionedGamePrestatePlaceholder {
-				return fmt.Errorf("chain %s with CANNON_KONA requires a selected prestate different from the permissioned-game placeholder %s", chain.ID.Hex(), assignment.Selected.Hex())
-			}
 		}
 		assignments = append(assignments, assignment)
 	}

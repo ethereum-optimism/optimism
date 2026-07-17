@@ -207,8 +207,6 @@ func BuildDeployOPChainInput(
 		gasLimit = standard.GasLimit
 	}
 
-	// DeployOPChain consumes CannonAbsolutePrestate only for CANNON_KONA's
-	// permissioned fallback. Other modes mirror the selected prestate.
 	cannonAbsolutePrestate := proofParams.DisputeAbsolutePrestate
 	if proofParams.DisputeGameType == uint32(embedded.GameTypeCannonKona) {
 		cannonAbsolutePrestate = opcm.PermissionedGamePrestatePlaceholder
@@ -228,7 +226,7 @@ func BuildDeployOPChainInput(
 		SaltMixer:                    saltMixer,
 		GasLimit:                     gasLimit,
 		DisputeGameType:              proofParams.DisputeGameType,
-		DisputeAbsolutePrestate:      proofParams.DisputeAbsolutePrestate, // Selected game prestate
+		DisputeAbsolutePrestate:      proofParams.DisputeAbsolutePrestate,
 		StartingAnchorRoot:           startingAnchorRoot,
 		CannonAbsolutePrestate:       cannonAbsolutePrestate,
 		DisputeMaxGameDepth:          new(big.Int).SetUint64(proofParams.DisputeMaxGameDepth),

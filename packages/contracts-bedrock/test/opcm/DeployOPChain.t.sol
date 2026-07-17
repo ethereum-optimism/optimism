@@ -65,8 +65,7 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
     string saltMixer = "saltMixer";
     uint64 gasLimit = 60_000_000;
     GameType disputeGameType = GameTypes.PERMISSIONED_CANNON;
-    // Prestates are real release hashes from the superchain registry's standard-prestates.toml;
-    // the tests only need them to be non-zero and distinct from each other.
+    // Release hashes from standard-prestates.toml.
     // cannon32 v1.3.1 (op-program).
     Claim disputeAbsolutePrestate = Claim.wrap(0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c);
     Proposal startingAnchorRoot =
@@ -280,6 +279,17 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
             abi.encode(uint256(type(uint64).max))
         );
         assertTrue(doo.anchorStateRegistryProxy.isGameRespected(game), "permissionless game must be respected");
+    }
+
+    function test_run_cannonKonaEqualPrestates_succeeds() public {
+        skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        _setPermissionlessInput(GameTypes.CANNON_KONA);
+        cannonAbsolutePrestate = cannonKonaAbsolutePrestate;
+        deployOPChainInput.cannonAbsolutePrestate = cannonAbsolutePrestate;
+
+        DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
+        _checkCannonKonaPermissionlessDeployment(doo);
+        _validatePermissionlessDeployment(doo);
     }
 
     /// @notice Verifies the guardian can switch a CANNON_KONA deploy to PERMISSIONED_CANNON
@@ -700,16 +710,6 @@ contract DeployOPChain_TestFail is DeployOPChain_TestBase {
         _setPermissionlessInput(GameTypes.CANNON_KONA);
         deployOPChainInput.cannonAbsolutePrestate = Claim.wrap(bytes32(0));
         vm.expectRevert("DeployOPChainInput: cannonAbsolutePrestate not set");
-        deployOPChain.run(deployOPChainInput);
-    }
-
-    /// @notice The Cannon fallback prestate and the selected Kona prestate can never legitimately
-    ///         be equal (they commit to different fault-proof programs).
-    function test_run_cannonKonaEqualPrestates_reverts() public {
-        skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-        _setPermissionlessInput(GameTypes.CANNON_KONA);
-        deployOPChainInput.cannonAbsolutePrestate = cannonKonaAbsolutePrestate;
-        vm.expectRevert("DeployOPChainInput: cannonAbsolutePrestate must differ from disputeAbsolutePrestate");
         deployOPChain.run(deployOPChainInput);
     }
 

@@ -221,7 +221,7 @@ func resolveSuperchainConfigProxy(ctx context.Context, l1RPC *rpc.Client, intent
 
 // predictChains predicts the L1 addresses for each undeployed chain in the intent
 // and records them as not deployed. Chains that have been deployed are skipped so a
-// re-runs don't overwrite their recorded addresses.
+// re-runs do not overwrite their recorded addresses.
 func predictChains(lgr log.Logger, intent *state.Intent, st *state.State, run func(opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error)) error {
 	for _, chain := range intent.Chains {
 		if st.IsChainDeployed(chain.ID) {
@@ -246,7 +246,7 @@ func predictChains(lgr log.Logger, intent *state.Intent, st *state.State, run fu
 		st.SetChainContracts(chain.ID, pipeline.OpChainContractsFromDeployOutput(out), false)
 		chainState, err := st.Chain(chain.ID)
 		if err != nil {
-			return fmt.Errorf("failed to clear prestates for chain %s: %w", chain.ID.Hex(), err)
+			return fmt.Errorf("failed to clear prestate for chain %s: %w", chain.ID.Hex(), err)
 		}
 		chainState.Prestate = common.Hash{}
 
