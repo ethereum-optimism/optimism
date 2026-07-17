@@ -2201,7 +2201,8 @@
                   "app-developers/tutorials/bridging/standard-bridge-standard-token",
                   "app-developers/tutorials/bridging/cross-dom-bridge-eth",
                   "app-developers/tutorials/bridging/bridge-crosschain-eth",
-                  "app-developers/tutorials/bridging/deposit-transactions"
+                  "app-developers/tutorials/bridging/deposit-transactions",
+                  "app-developers/tutorials/bridging/replay-failed-deposit"
                 ]
               },
               {
