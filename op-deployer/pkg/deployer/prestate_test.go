@@ -188,6 +188,163 @@ func TestPrestateStrictValidationAcrossSources(t *testing.T) {
 	}
 }
 
+func TestPrestateRejectsPermissionedPlaceholderAcrossSources(t *testing.T) {
+	chainID := common.HexToHash("0x01")
+	placeholder := opcm.PermissionedGamePrestatePlaceholder.Hex()
+	valid := testPrestate("11")
+
+	tests := []struct {
+		name        string
+		gameType    embedded.GameType
+		source      string
+		environment bool
+		global      map[string]any
+	}{
+		{
+			name:        "CANNON_KONA command/environment",
+			gameType:    embedded.GameTypeCannonKona,
+			source:      "command/environment",
+			environment: true,
+		},
+		{
+			name:     "CANNON_KONA global override",
+			gameType: embedded.GameTypeCannonKona,
+			source:   "global override",
+			global:   map[string]any{faultGameAbsolutePrestateOverride: placeholder},
+		},
+		{
+			name:     "CANNON_KONA chain override",
+			gameType: embedded.GameTypeCannonKona,
+			source:   "chain override",
+		},
+		{
+			name:     "SUPER_CANNON_KONA command/environment",
+			gameType: embedded.GameTypeSuperCannonKona,
+			source:   "command/environment",
+		},
+		{
+			name:     "SUPER_CANNON_KONA global override",
+			gameType: embedded.GameTypeSuperCannonKona,
+			source:   "global override",
+			global:   map[string]any{faultGameAbsolutePrestateOverride: placeholder},
+		},
+		{
+			name:     "SUPER_CANNON_KONA chain override",
+			gameType: embedded.GameTypeSuperCannonKona,
+			source:   "chain override",
+		},
+		{
+			name:     "reserved lower-precedence command alongside valid global override",
+			gameType: embedded.GameTypeCannonKona,
+			source:   "command/environment",
+			global:   map[string]any{faultGameAbsolutePrestateOverride: valid},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			overrides := gameOverride(test.gameType)
+			if test.source == "chain override" {
+				overrides[faultGameAbsolutePrestateOverride] = placeholder
+			}
+			workdir := writePrestateWorkdir(t, test.global, []prestateTestChain{{
+				id: chainID, prepared: true, overrides: overrides,
+			}}, true, 1)
+			cfg := newTestPrestateConfig(t, workdir)
+			if test.source == "command/environment" {
+				if test.environment {
+					t.Setenv("DEPLOYER_DISPUTE_ABSOLUTE_PRESTATE", placeholder)
+					cfg = parsePrestateCLIConfig(t, []string{"--" + WorkdirFlagName, workdir})
+				} else {
+					cfg.Prestate = placeholder
+				}
+			}
+			before, err := os.ReadFile(filepath.Join(workdir, "state.json"))
+			require.NoError(t, err)
+
+			err = Prestate(context.Background(), cfg)
+			require.Error(t, err)
+			for _, part := range []string{
+				test.source,
+				chainID.Hex(),
+				gameTypeName(test.gameType),
+				placeholder,
+				"reserved for the CANNON_KONA permissioned fallback",
+			} {
+				require.ErrorContains(t, err, part)
+			}
+			if test.name == "reserved lower-precedence command alongside valid global override" {
+				require.NotContains(t, err.Error(), "conflicting selected prestate sources")
+			}
+
+			after, readErr := os.ReadFile(filepath.Join(workdir, "state.json"))
+			require.NoError(t, readErr)
+			require.Equal(t, before, after)
+		})
+	}
+}
+
+func TestPrestatePermissionedPlaceholderScope(t *testing.T) {
+	chainA := common.HexToHash("0x01")
+	chainB := common.HexToHash("0x02")
+	placeholder := opcm.PermissionedGamePrestatePlaceholder
+	valid := testPrestate("11")
+	stale := common.HexToHash(testPrestate("aa"))
+
+	t.Run("permissioned-only placeholder command remains unused", func(t *testing.T) {
+		workdir := writePrestateWorkdir(t, nil, []prestateTestChain{{
+			id: chainA, prepared: true, initialSelected: stale,
+		}}, true, 1)
+		cfg := newTestPrestateConfig(t, workdir)
+		cfg.Prestate = placeholder.Hex()
+		before, err := os.ReadFile(filepath.Join(workdir, "state.json"))
+		require.NoError(t, err)
+
+		err = Prestate(context.Background(), cfg)
+		require.ErrorContains(t, err, "--"+PrestateFlagName)
+		require.ErrorContains(t, err, "no undeployed chain resolves")
+		after, readErr := os.ReadFile(filepath.Join(workdir, "state.json"))
+		require.NoError(t, readErr)
+		require.Equal(t, before, after)
+	})
+
+	t.Run("deployed permissionless placeholder override is ignored", func(t *testing.T) {
+		workdir := writePrestateWorkdir(t, nil, []prestateTestChain{{
+			id:              chainA,
+			prepared:        true,
+			deployed:        true,
+			overrides:       map[string]any{"respectedGameType": embedded.GameTypeCannonKona, faultGameAbsolutePrestateOverride: placeholder.Hex()},
+			initialSelected: stale,
+		}}, true, 1)
+
+		require.NoError(t, Prestate(context.Background(), newTestPrestateConfig(t, workdir)))
+		require.Equal(t, stale, readPrestateChain(t, workdir, chainA).Prestate)
+	})
+
+	t.Run("deployed placeholder does not poison undeployed valid prestate", func(t *testing.T) {
+		workdir := writePrestateWorkdir(t, nil, []prestateTestChain{
+			{
+				id:              chainA,
+				prepared:        true,
+				deployed:        true,
+				overrides:       map[string]any{"respectedGameType": embedded.GameTypeCannonKona, faultGameAbsolutePrestateOverride: placeholder.Hex()},
+				initialSelected: placeholder,
+			},
+			{
+				id:        chainB,
+				prepared:  true,
+				overrides: gameOverride(embedded.GameTypeCannonKona),
+			},
+		}, true, 1)
+		cfg := newTestPrestateConfig(t, workdir)
+		cfg.Prestate = valid
+
+		require.NoError(t, Prestate(context.Background(), cfg))
+		require.Equal(t, placeholder, readPrestateChain(t, workdir, chainA).Prestate)
+		require.Equal(t, common.HexToHash(valid), readPrestateChain(t, workdir, chainB).Prestate)
+	})
+}
+
 func TestPrestateRejectsObsoleteFallbackOverrides(t *testing.T) {
 	chainID := common.HexToHash("0x01")
 	value := testPrestate("11")
@@ -269,12 +426,6 @@ func TestPrestateGameTypeRequirements(t *testing.T) {
 			name:         "CANNON_KONA rejects missing selected",
 			chains:       []prestateTestChain{{id: chainA, prepared: true, overrides: gameOverride(embedded.GameTypeCannonKona)}},
 			wantErrParts: []string{"CANNON_KONA", "requires selected prestate"},
-		},
-		{
-			name:      "CANNON_KONA accepts selected equal to permissioned placeholder",
-			chains:    []prestateTestChain{{id: chainA, prepared: true, overrides: gameOverride(embedded.GameTypeCannonKona)}},
-			configure: setCommandPrestate(opcm.PermissionedGamePrestatePlaceholder.Hex()),
-			want:      map[common.Hash]common.Hash{chainA: opcm.PermissionedGamePrestatePlaceholder},
 		},
 		{
 			name:      "SUPER_CANNON_KONA commits selected",

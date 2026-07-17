@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
@@ -135,7 +136,13 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 		}
 
 		assignment := prestateAssignment{ChainID: chain.ID, GameType: gameType}
-		selected, err := resolvePrestateRole(chain, intent.GlobalDeployOverrides, selectedPrestateRole, selectedCommand)
+		var validateCandidate func(resolvedPrestate) error
+		if requiresPrestate {
+			validateCandidate = func(candidate resolvedPrestate) error {
+				return validatePermissionlessPrestateCandidate(chain.ID, gameType, candidate)
+			}
+		}
+		selected, err := resolvePrestateRole(chain, intent.GlobalDeployOverrides, selectedPrestateRole, selectedCommand, validateCandidate)
 		if err != nil {
 			return err
 		}
@@ -216,6 +223,19 @@ type resolvedPrestate struct {
 	hash   common.Hash
 }
 
+func validatePermissionlessPrestateCandidate(chainID common.Hash, gameType embedded.GameType, candidate resolvedPrestate) error {
+	if candidate.hash != opcm.PermissionedGamePrestatePlaceholder {
+		return nil
+	}
+	return fmt.Errorf(
+		"%s selected prestate for chain %s with %s uses reserved value %s; this value is reserved for the CANNON_KONA permissioned fallback",
+		candidate.source,
+		chainID.Hex(),
+		gameTypeName(gameType),
+		opcm.PermissionedGamePrestatePlaceholder.Hex(),
+	)
+}
+
 func parseCommandPrestate(role prestateRole, set bool, raw string) (resolvedPrestate, error) {
 	if !set {
 		return resolvedPrestate{}, nil
@@ -227,7 +247,13 @@ func parseCommandPrestate(role prestateRole, set bool, raw string) (resolvedPres
 	return resolvedPrestate{set: true, source: "command/environment", raw: raw, hash: hash}, nil
 }
 
-func resolvePrestateRole(chain *state.ChainIntent, globalOverrides map[string]any, role prestateRole, command resolvedPrestate) (resolvedPrestate, error) {
+func resolvePrestateRole(
+	chain *state.ChainIntent,
+	globalOverrides map[string]any,
+	role prestateRole,
+	command resolvedPrestate,
+	validateCandidate func(resolvedPrestate) error,
+) (resolvedPrestate, error) {
 	global := resolvedPrestate{}
 	if raw, ok := globalOverrides[role.intentKey]; ok {
 		var err error
@@ -246,6 +272,17 @@ func resolvePrestateRole(chain *state.ChainIntent, globalOverrides map[string]an
 	}
 
 	sources := []resolvedPrestate{command, global, chainOverride}
+	if validateCandidate != nil {
+		for _, source := range sources {
+			if !source.set {
+				continue
+			}
+			if err := validateCandidate(source); err != nil {
+				return resolvedPrestate{}, err
+			}
+		}
+	}
+
 	var first resolvedPrestate
 	for _, source := range sources {
 		if !source.set {
