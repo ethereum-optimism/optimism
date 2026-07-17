@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -178,7 +179,7 @@ func (block *RPCBlock) Verify() error {
 	// Withdrawals validation is different between L1 and L2.
 	// It is possible to determine that it is an L2 block if the first transaction is a deposit.
 	// The genesis block does not have transactions, but does have a known fee-recipient predeploy address.
-	isL2 := (len(block.Transactions) > 0 && block.Transactions[0].IsDepositTx()) ||
+	isL2 := (len(block.Transactions) > 0 && optypes.IsDepositTx(block.Transactions[0])) ||
 		(block.Number == 0 && block.Coinbase == predeploys.SequencerFeeVaultAddr)
 	if isL2 {
 		if err := block.validateL2Withdrawals(block.Withdrawals, block.WithdrawalsRoot); err != nil {

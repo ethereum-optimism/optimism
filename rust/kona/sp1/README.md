@@ -18,13 +18,13 @@ zkVM programs that execute inside the SP1 prover:
 - **`aggregation`**: Aggregates multiple range program proofs into a single proof, enabling efficient verification of longer block ranges.
 - **`super-range`**: Scaffold for the unified multi-chain super-root range
   program, with modes for proving ranges and span-shaped consolidation.
-- **`super-aggregation`**: Scaffold for aggregating unified super-range
-  proofs into the public values consumed by `ZKDisputeGame`.
+- **`super-aggregation`**: Recursively verifies unified super-range proofs and
+  commits the public values consumed by `ZKDisputeGame`.
 
-The super-root aggregation scaffold currently accepts the range program verification
-key as input to support development. This dynamic-vkey mode is not production
-sound until the range vkey is embedded in the aggregation program or
-publicly bound by the verifier path.
+The super-root aggregation program currently accepts the range program verification
+key as input to support development. This dynamic-vkey mode is not production sound
+until the range vkey is embedded in the aggregation program or publicly bound by the
+verifier path.
 
 ### Crates (`crates/`)
 
@@ -44,14 +44,13 @@ Supporting libraries for the SP1 fault proof system:
 Compiled ELF binaries for the zkVM programs, used by the prover:
 
 - **`aggregation-elf`**: Compiled aggregation program
-- **`range-elf`**: Compiled range program. SP1 v6.2.4 no longer exposes a
-  separate bump-allocator feature, so this port keeps one range artifact instead
-  of separate bump and embedded variants.
+- **`range-elf`**: Compiled range program. This port keeps one range artifact
+  instead of separate bump and embedded variants.
 - **`super-aggregation-elf`**: Compiled super-root aggregation program
 - **`super-range-elf`**: Compiled unified super-root range/consolidation program
 
 In the optimism monorepo port, these files are generated on demand and ignored
-by git, matching the Cannon prestate artifact workflow. Generate real v6.2.4
+by git, matching the Cannon prestate artifact workflow. Generate real v6.3.1
 ELFs with `just build-elfs`. Host-toolchain workspace builds embed empty
 build-output placeholders when generated ELFs are absent, so proving fails fast
 until the real artifacts are built.
@@ -65,8 +64,8 @@ program entrypoints live in their own workspace for SP1 patch scoping and are
 not covered by those host workspace gates. The following standalone-kona GitHub
 workflow behavior is not yet reproduced:
 
-- ELF build (`sp1/justfile build-elfs`, Dockerized `cargo-prove --tag v6.2.4`).
-  This requires the SP1 v6.2.4 toolchain from `sp1up` and Docker in CI.
+- ELF build (`sp1/justfile build-elfs`, Dockerized `cargo-prove --tag v6.3.1`).
+  This requires the SP1 v6.3.1 toolchain from `sp1up` and Docker in CI.
 - Codecov flag wiring for SP1 coverage.
 - no-std checks for the SP1/zkVM crates. The monorepo `rust-check-no-std` job is
   package-allowlisted and does not include SP1; add SP1 there if no-std coverage
@@ -74,16 +73,17 @@ workflow behavior is not yet reproduced:
 
 ### Guest Precompile Patches
 
-The guest programs (`programs/range` and `programs/aggregation`) are isolated in
-`programs/Cargo.toml`, a nested Cargo workspace with its own `Cargo.lock` and
-`[patch.crates-io]` table. That workspace patches `sha2`, `sha3`,
-`crypto-bigint`, `k256`, `p256`, and `substrate-bn` to the SP1 forks, so the
-generated ELFs get zkVM precompile-accelerated crypto without changing the host
-`rust/` workspace dependency graph.
+The guest programs under `programs/` are isolated in `programs/Cargo.toml`, a
+nested Cargo workspace with its own `Cargo.lock` and `[patch.crates-io]` table.
+That workspace patches `sha2`, `sha3`, `crypto-bigint`, `k256`, `p256`, and
+`substrate-bn` to the SP1 forks, so the generated ELFs get zkVM
+precompile-accelerated crypto without changing the host `rust/` workspace
+dependency graph.
 
-The range guest also enables `revm`'s `bn` feature in the nested workspace. That
-forwards to `revm-precompile`'s `substrate-bn` backend for EIP-196/197 bn128
-precompiles. EIP-2537 BLS pairing still uses arkworks and is not SP1 accelerated.
+The EVM-executing range and super-range guests also enable `revm`'s `bn` feature
+in the nested workspace. That forwards to `revm-precompile`'s `substrate-bn`
+backend for EIP-196/197 bn128 precompiles. EIP-2537 BLS pairing still uses
+arkworks and is not SP1 accelerated.
 
 ## Usage
 

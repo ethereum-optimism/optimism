@@ -13,10 +13,6 @@ import (
 )
 
 func TestRun(t *testing.T) {
-	// This smoke test runs in the go-tests-short CI workflow, which does not build the Rust
-	// op-reth binary. Use op-geth here until the workflow can provide an op-reth binary.
-	t.Setenv("DEVSTACK_L2EL_KIND", string(sysgo.MixedL2ELOpGeth))
-
 	var wg sync.WaitGroup
 	defer wg.Wait()
 	ctx, cancel := context.WithCancel(context.Background())

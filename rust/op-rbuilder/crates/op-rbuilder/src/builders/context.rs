@@ -726,7 +726,7 @@ mod tests {
         transaction::{Recovered, TxHashRef},
     };
     use alloy_eips::eip2930::{AccessList, AccessListItem};
-    use alloy_primitives::{Address, B256, Signature, TxHash, TxKind, U256};
+    use alloy_primitives::{Address, B256, Bytes, Signature, TxHash, TxKind, U256};
     use reth_evm::ConfigureEvm;
     use reth_optimism_chainspec::{OpChainSpec, OpChainSpecBuilder};
     use reth_optimism_txpool::{OpPooledTransaction, interop_filter::CROSS_L2_INBOX_ADDRESS};
@@ -784,6 +784,7 @@ mod tests {
         chain_spec: Arc<OpChainSpec>,
         gas_limit: u64,
         interop_failsafe: InteropFailsafe,
+        post_exec_mode: PostExecMode,
     ) -> OpPayloadBuilderCtx {
         let parent = SealedHeader::seal_slow(Header {
             gas_limit,
@@ -828,7 +829,7 @@ mod tests {
             extra_ctx: (),
             max_gas_per_txn: None,
             address_gas_limiter: AddressGasLimiter::new(GasLimiterArgs::default()),
-            post_exec_mode: PostExecMode::Disabled,
+            post_exec_mode,
             interop_failsafe,
         }
     }
@@ -896,7 +897,12 @@ mod tests {
         let failsafe = InteropFailsafe::default();
         let build = |failsafe: &InteropFailsafe| {
             run_execute_best_transactions(
-                payload_builder_ctx(chain_spec.clone(), gas_limit, failsafe.clone()),
+                payload_builder_ctx(
+                    chain_spec.clone(),
+                    gas_limit,
+                    failsafe.clone(),
+                    PostExecMode::Disabled,
+                ),
                 signer,
                 vec![normal.clone(), interop.clone()],
             )
@@ -910,5 +916,151 @@ mod tests {
 
         failsafe.set(false);
         assert_eq!(build(&failsafe), vec![normal_hash, interop_hash]);
+    }
+
+    /// Runs the tx-selection loop in Produce mode over probe tx `B` (which does a `BALANCE` on
+    /// `leak`), optionally preceded by a failing tx `A` from `leak` that the loop attempts, sees
+    /// rejected, and skips. `leak_account`/`leak_code` pick the validation error `A` fails with,
+    /// after its sender has been loaded and warmed. Returns the block's pre-refund EVM gas, which
+    /// for `B`'s account access is 2600 cold or 100 warm — so a warm-set leak from the skipped `A`
+    /// shows up as ~2500 gas less.
+    fn warm_set_leak_loop_evm_gas(
+        chain_spec: Arc<OpChainSpec>,
+        gas_limit: u64,
+        leak_account: Account,
+        leak_code: Option<Bytes>,
+        include_failing_a: bool,
+    ) -> u64 {
+        let leak = Address::repeat_byte(0xAA);
+        let probe_sender = Address::repeat_byte(0xBB);
+        let probe_contract = Address::repeat_byte(0xCC);
+
+        // Probe runtime: PUSH20 <leak>; BALANCE; POP; STOP.
+        let mut probe_code = vec![0x73u8];
+        probe_code.extend_from_slice(leak.as_slice());
+        probe_code.extend_from_slice(&[0x31, 0x50, 0x00]);
+
+        let mut state_provider = StateProviderTest::default();
+        state_provider.insert_account(leak, leak_account, leak_code, Default::default());
+        state_provider.insert_account(
+            probe_sender,
+            Account {
+                balance: U256::MAX,
+                ..Default::default()
+            },
+            None,
+            Default::default(),
+        );
+        state_provider.insert_account(
+            probe_contract,
+            Account {
+                balance: U256::ZERO,
+                ..Default::default()
+            },
+            Some(Bytes::from(probe_code)),
+            Default::default(),
+        );
+
+        let mut txs = Vec::new();
+        if include_failing_a {
+            txs.push(normal_pooled_tx(0, leak, probe_sender));
+        }
+        txs.push(normal_pooled_tx(0, probe_sender, probe_contract));
+
+        let ctx = payload_builder_ctx(
+            chain_spec,
+            gas_limit,
+            InteropFailsafe::default(),
+            PostExecMode::Produce,
+        );
+        let mut best_txs = PayloadTransactionsFixed::new(txs);
+        let mut db = State::builder()
+            .with_database(StateProviderDatabase::new(&state_provider))
+            .with_bundle_update()
+            .build();
+        let mut builder = ctx
+            .block_builder_for_next_block(&mut db)
+            .expect("block builder can be created");
+        let mut info: ExecutionInfo = ExecutionInfo::default();
+
+        assert!(
+            ctx.execute_best_transactions(
+                &mut info,
+                &mut builder,
+                &mut best_txs,
+                ctx.block_gas_limit(),
+                None,
+                None,
+            )
+            .expect("best transactions execute")
+            .is_none()
+        );
+
+        info.cumulative_evm_gas_used
+    }
+
+    /// op-rbuilder mirror of the alloy-op-evm warm-leak regression. In SDM Produce mode the
+    /// selection loop skips a failed candidate `A` (NonceTooLow) but must not leave `A`'s sender
+    /// EIP-2929-warm for a later included tx `B`. If it does, the builder bills `B` a warm access
+    /// for a tx that never entered the block, diverging from a validator that never executed `A`
+    /// — a builder-vs-validator gas mismatch that rejects the block. Equal pre-refund EVM gas for
+    /// `B` with vs without the skipped `A` means no divergence.
+    ///
+    /// Fails against an op-revm whose `catch_error` does not discard the journal on non-deposit
+    /// errors; passes once it does.
+    #[test]
+    fn skipped_failed_tx_does_not_warm_later_tx_in_produce_mode() {
+        // `leak` at nonce 5, so its nonce-0 tx `A` is rejected NonceTooLow after being warmed.
+        let leak_account = Account {
+            nonce: 5,
+            balance: U256::MAX,
+            ..Default::default()
+        };
+        assert_no_warm_set_leak_divergence(leak_account, None);
+    }
+
+    #[test]
+    fn skipped_eip3607_failed_tx_does_not_warm_later_tx_in_produce_mode() {
+        // `leak` carries code, so its tx `A` is rejected by EIP-3607 (contract may not originate a
+        // tx) rather than by a nonce check — still after its sender is loaded and warmed.
+        let leak_account = Account {
+            balance: U256::MAX,
+            ..Default::default()
+        };
+        assert_no_warm_set_leak_divergence(leak_account, Some(Bytes::from_static(&[0x00]))); // STOP
+    }
+
+    /// Asserts the selection loop bills probe tx `B` the same pre-refund EVM gas whether or not a
+    /// failing tx `A` (from `leak`) was attempted and skipped before it. A difference means the
+    /// skipped `A` left its sender warm, so the builder would diverge from a validator that never
+    /// ran `A` — a block-rejecting gas mismatch. Fails against an op-revm whose `catch_error` does
+    /// not discard the journal on non-deposit errors; passes once it does.
+    fn assert_no_warm_set_leak_divergence(leak_account: Account, leak_code: Option<Bytes>) {
+        let gas_limit = 1_000_000;
+        // Lagoon-active spec: SDM's protocol gate (`compute_post_exec_mode`) requires it, so the
+        // forced Produce mode below runs on a fork combination that can occur in production.
+        let chain_spec = Arc::new(
+            OpChainSpecBuilder::optimism_mainnet()
+                .lagoon_activated()
+                .build(),
+        );
+
+        let with_failing_a = warm_set_leak_loop_evm_gas(
+            chain_spec.clone(),
+            gas_limit,
+            leak_account,
+            leak_code.clone(),
+            true,
+        );
+        let without =
+            warm_set_leak_loop_evm_gas(chain_spec, gas_limit, leak_account, leak_code, false);
+
+        assert_eq!(
+            without,
+            with_failing_a,
+            "a skipped failed candidate warmed a later included tx: {}-gas builder-vs-validator \
+             EVM-gas divergence",
+            without.abs_diff(with_failing_a),
+        );
     }
 }

@@ -11,7 +11,7 @@ diataxis: how-to
 
 This runbook walks you through merging two existing OP Stack chains into a shared dispute game by calling `OPContractsManagerMigrator.migrate` (`opcm.migrate`). After migration, both chains share a newly deployed `DisputeGameFactory`, `AnchorStateRegistry`, and `ETHLockbox`. New proposals are super-root claims defended on the shared factory; the per-chain dispute game factories are emptied of implementations and exist only to let still-in-flight games resolve so their bonds can be reclaimed.
 
-By the end you will have one `op-proposer` proposing super-root claims to the shared factory against an `op-supernode` that derives both chains, one `op-challenger` defending super-root games on the shared factory, one `op-dispute-mon` watching it, and per-chain `op-challenger` and `op-dispute-mon` "drain" instances — each still backed by its existing single-chain supernode — winding down the retired games on the old per-chain factories.
+By the end you will have one `op-proposer` proposing super-root claims to the shared factory against an `op-supernode` that derives both chains, one `op-challenger` defending super-root games on the shared factory, one `op-dispute-mon` watching it, and per-chain `op-challenger` and `op-dispute-mon` "drain" instances — each using that shared op-supernode's `/<chainID>/` endpoint — winding down the retired games on the old per-chain factories.
 
 <Warning>`opcm.migrate` is a one-way operation that invalidates every withdrawal proof submitted but not finalized on either chain. Affected users must re-prove against a new super-root game after migration. Announce the migration window to users at least seven days in advance—long enough for a withdrawal proven just before the announcement to mature past `PROOF_MATURITY_DELAY_SECONDS` and finalize.</Warning>
 
@@ -26,7 +26,7 @@ This runbook assumes:
 * Exactly two chains, referred to below as `chainA` and `chainB`, are being merged.
 * Neither chain has activated interop yet.
 * Both chains run permissionless fault proofs with `SUPER_CANNON_KONA` (game type `9`) as the respected game type today.
-* The per-chain `op-proposer`, `op-challenger`, and `op-dispute-mon` instances stood up by the [single-chain super-roots upgrade](/chain-operators/tutorials/upgrade-chain-to-super-roots) are running for both chains, each backed by its own **single-chain** `op-supernode` (chainA's stack tracks only chainA; chainB's stack tracks only chainB). These keep running through migration cutover and the subsequent drain window.
+* The per-chain `op-proposer`, `op-challenger`, and `op-dispute-mon` instances stood up by the [single-chain super-roots upgrade](/chain-operators/tutorials/upgrade-chain-to-super-roots) are running for both chains. The per-chain challengers and monitors keep running through migration cutover and the subsequent drain window.
 * A separate `op-supernode` instance is in sync and derives **exactly `chainA` and `chainB`** (and no other chains) in the same process. This is the supernode the new shared `op-proposer`, `op-challenger`, and `op-dispute-mon` point at after migration; it must not double as a multi-chain supernode for any other chain or interop cluster.
 * Both chains have already been upgraded to a release that exposes `OPContractsManagerMigrator.migrate` and have `Features.INTEROP` and `Features.ETH_LOCKBOX` enabled on their `SystemConfig`. These features are turned on automatically by `OPContractsManagerV2.upgrade()` when the OPCM container has the `OPTIMISM_PORTAL_INTEROP` dev feature set; that pre-upgrade is a prerequisite for this runbook.
 
@@ -72,7 +72,7 @@ The portal-derived lookups return the chain's current `DisputeGameFactory`, `Anc
 
 `migrate` reads each chain's `DelayedWETH` directly from `SystemConfig.delayedWETH()` at execution time, so there is nothing to capture for it here.
 
-**Init bonds.** The migration registers two super game types on the new shared factory: `SUPER_PERMISSIONED` (game type `5`) and `SUPER_CANNON_KONA` (game type `9`). Use `0.08 ether` (`80000000000000000` wei) as the `initBond` for both.
+**Init bonds.** The migration registers two super game types on the new shared factory. `SUPER_PERMISSIONED` (game type `5`) is bondless and must use an `initBond` of `0`. `SUPER_CANNON_KONA` (game type `9`) uses `0.08 ether` (`80000000000000000` wei).
 
 **Release artifacts and infrastructure.**
 
@@ -81,8 +81,8 @@ The portal-derived lookups return the chain's current `DisputeGameFactory`, `Anc
 | `OPCM` address for the migrate-feature container | The same OPCM the chains ran for the prerequisite `OPCMv2.upgrade()`. The container has `OPTIMISM_PORTAL_INTEROP` set in `devFeatureBitmap`, which is what enables both `Features.INTEROP` and `Features.ETH_LOCKBOX` on each `SystemConfig`. |
 | `SUPER_CANNON_KONA` absolute prestate hash | `validation/standard/standard-prestates.toml` in `superchain-registry`. Use the entry with `type="interop"` for the OPCM release version. |
 | Prestate artifact URL | The `cannon-kona-prestates-url` server, with the kona-interop prestate uploaded ahead of the migration. |
-| Shared `op-supernode` RPC URL | Your infrastructure team. The instance must derive **exactly `chainA` and `chainB`** (and no other chains). The shared `op-proposer`, `op-challenger`, and `op-dispute-mon` for the merged factory all point at this same instance. The per-chain single-chain supernodes already in use stay attached to their per-chain drain instances and are not replaced. |
-| Privileged `proposer` for `SUPER_PERMISSIONED` | The address that may post proposals to the permissioned super game. `op-proposer` is configured to sign with this key. |
+| Shared `op-supernode` RPC URL | Your infrastructure team. The instance must derive **exactly `chainA` and `chainB`** (and no other chains). The shared `op-proposer`, `op-challenger`, and `op-dispute-mon` for the merged factory all point at this same instance. The per-chain services will be pointed to chain-specific endpoints under this URL. |
+| Privileged `proposer` for `SUPER_PERMISSIONED` | The address authorized to post proposals to the permissioned super game. `op-proposer` is configured to sign with this key. |
 
 ### Verify the Preconditions
 
@@ -129,7 +129,7 @@ Run every check below. Each one corresponds to an invariant the migrator enforce
   # Expect: 9 for both.
   ```
 
-* **Confirm the shared supernode derives exactly the two merging chains.** Verify with your infrastructure team that the instance behind `$SUPERNODE_RPC` has `chainA` and `chainB` in its dependency set and **no** other chains. A supernode that also tracks an unrelated chain (or an interop cluster that includes one) computes super roots over that broader set, and those roots will not match what the shared `SUPER_CANNON_KONA` and `SUPER_PERMISSIONED` games verify. The per-chain drain instances continue to use their existing single-chain supernodes; do not repoint them at the shared one.
+* **Confirm the shared supernode derives exactly the two merging chains.** Verify with your infrastructure team that the instance behind `$SUPERNODE_RPC` has `chainA` and `chainB` in its dependency set and **no** other chains. A supernode that also tracks an unrelated chain (or an interop cluster that includes one) computes super roots over that broader set, and those roots will not match what the shared `SUPER_CANNON_KONA` and `SUPER_PERMISSIONED` games verify.
 * **Confirm the shared supernode is in sync.** It must report a finalized L2 head within both chains' expected finality windows:
 
   ```bash
@@ -150,6 +150,18 @@ Run every check below. Each one corresponds to an invariant the migrator enforce
 
 Apply these changes before you submit the on-chain migration. The pre-migration `op-challenger` and `op-dispute-mon` instances per chain must keep running to defend and watch in-flight games on the per-chain factories until those games resolve. Add a third instance of each component for the shared factory. Stop both per-chain `op-proposer` instances at cutover time, in [Execute the Migration](#execute-the-migration).
 
+### Point Per-Chain Services at the Shared op-supernode
+
+Before migration, point every existing per-chain service at its chain's RPC namespace on the shared op-supernode:
+
+| Service flag | chainA value | chainB value |
+| --- | --- | --- |
+| `op-proposer --superroot-rpcs` | `$SUPERNODE_RPC/$CHAIN_A_CHAINID` | `$SUPERNODE_RPC/$CHAIN_B_CHAINID` |
+| `op-challenger --supernode-rpc` | `$SUPERNODE_RPC/$CHAIN_A_CHAINID` | `$SUPERNODE_RPC/$CHAIN_B_CHAINID` |
+| `op-dispute-mon --supernode-rpc` | `$SUPERNODE_RPC/$CHAIN_A_CHAINID` | `$SUPERNODE_RPC/$CHAIN_B_CHAINID` |
+
+Do not point these per-chain instances at `$SUPERNODE_RPC` without the chain ID suffix; the root endpoint returns a two-chain super root. Restart each service and confirm it connects successfully before continuing. This removes the operational dependency on separate single-chain op-node or op-supernode processes before interop activation.
+
 ### Stand Up a Shared op-challenger
 
 A single `op-challenger` process can only watch one `DisputeGameFactory`, so the existing per-chain instances cannot also cover the new shared factory. Run a third `op-challenger` instance dedicated to the shared factory in addition to the existing per-chain instances.
@@ -159,9 +171,9 @@ Configure the new shared instance with the flags below.
 | Flag (env var) | Value |
 | --- | --- |
 | `--game-factory-address` (`OP_CHALLENGER_GAME_FACTORY_ADDRESS`) | The new shared `<DGF>` (capture from chain A's portal after [Execute the Migration](#execute-the-migration)) |
-| `--supernode-rpc` (`OP_CHALLENGER_SUPERNODE_RPC`) | `op-supernode` RPC URL |
+| `--superroot-rpc` (`OP_CHALLENGER_SUPERNODE_RPC`) | `$SUPERNODE_RPC` |
 | `--l2-eth-rpc` (`OP_CHALLENGER_L2_ETH_RPC`) | `<chainA-EL>,<chainB-EL>` (comma-separated) |
-| `--game-types` (`OP_CHALLENGER_GAME_TYPES`) | `super-cannon-kona,super-permissioned` |
+| `--game-types` (`OP_CHALLENGER_GAME_TYPES`) | `super-cannon-kona`. Do not add `super-permissioned`; the simplified `SUPER_PERMISSIONED` game does not require `op-challenger` to post claims. `op-challenger` is still required by permissioned only networks and will automatically update the `AnchorStateRegistry` as games are finalized. |
 | `--network` (`OP_CHALLENGER_NETWORK`) | `<chainA-network>,<chainB-network>` (the registry chain names; the challenger loads the depset from `superchain-registry` the same way `op-supernode` does) |
 | `--cannon-kona-prestates-url` (`OP_CHALLENGER_CANNON_KONA_PRESTATES_URL`) | The prestate server URL validated in the preconditions |
 
@@ -169,7 +181,7 @@ If either chain is not in `superchain-registry`, omit `--network` and instead pa
 
 The shared instance's `--game-factory-address` is the new shared factory, which only exists once `migrate` has been broadcast. Stage the deployment now with every other flag set; the address is filled in and the process is started in [Start the Shared op-challenger and op-dispute-mon](#start-the-shared-op-challenger-and-op-dispute-mon) after the migration is verified on-chain.
 
-Leave the per-chain `op-challenger` instances unchanged for the duration of the drain window.
+Keep the per-chain `op-challenger` instances running with the namespaced RPC configuration for the duration of the drain window.
 
 ### Stand Up a Shared op-dispute-mon
 
@@ -178,16 +190,16 @@ Leave the per-chain `op-challenger` instances unchanged for the duration of the 
 | Flag (env var) | Value |
 | --- | --- |
 | `--game-factory-address` (`OP_DISPUTE_MON_GAME_FACTORY_ADDRESS`) | The new shared `<DGF>` |
-| `--supernode-rpc` (`OP_DISPUTE_MON_SUPERNODE_RPC`) | `op-supernode` RPC URL or URLs (the flag accepts a comma-separated list; multiple values are queried in parallel for redundancy) |
+| `--superroot-rpc` (`OP_DISPUTE_MON_SUPERNODE_RPC`) | `$SUPERNODE_RPC` or a comma-separated list of high-availability root endpoints for the same dependency set |
 | `--l1-eth-rpc` (`OP_DISPUTE_MON_L1_ETH_RPC`) | unchanged |
 
 As with the shared `op-challenger`, stage the deployment now with every flag except `--game-factory-address`; the address is filled in and the process is started in [Start the Shared op-challenger and op-dispute-mon](#start-the-shared-op-challenger-and-op-dispute-mon) after the migration is verified on-chain.
 
-Leave both per-chain `op-dispute-mon` instances running with their existing configuration so they continue to track in-flight pre-migration games to resolution.
+Keep both per-chain `op-dispute-mon` instances running with the namespaced RPC configuration so they continue to track in-flight pre-migration games to resolution.
 
-### Leave op-proposer Unchanged for Now
+### Leave Other op-proposer Settings Unchanged for Now
 
-Do not touch `op-proposer` until [Execute the Migration](#execute-the-migration). The two per-chain proposers are stopped at cutover and replaced with a single shared one; see [Cut Over to a Single Shared op-proposer](#cut-over-to-a-single-shared-op-proposer).
+After switching the per-chain `op-proposer` RPC endpoints above, leave their other settings unchanged until [Execute the Migration](#execute-the-migration). Stop both per-chain proposers at cutover and replace them with a single shared one; see [Cut Over to a Single Shared op-proposer](#cut-over-to-a-single-shared-op-proposer).
 
 ## Generate the Starting Anchor Super Root
 
@@ -254,7 +266,7 @@ absolutePrestate = "0x<super-cannon-kona prestate>"
 [[disputeGameConfigs]]
 gameType = 5                             # SUPER_PERMISSIONED
 enabled = true
-initBond = 80000000000000000
+initBond = 0                             # SUPER_PERMISSIONED does not charge init bonds
 proposer = "0x<privileged proposer>"
 
 expectedValidationErrors = ""            # fill in after the dry run if any structurally expected codes appear
@@ -366,9 +378,11 @@ cast call $SHARED_DGF 'gameImpls(uint32)(address)' 5 --rpc-url $L1_RPC   # SUPER
 cast call $SHARED_DGF 'gameImpls(uint32)(address)' 9 --rpc-url $L1_RPC   # SUPER_CANNON_KONA
 # Expect both: non-zero
 
-# Init bonds match the configured values
+# Init bonds match each game type's configuration
 cast call $SHARED_DGF 'initBonds(uint32)(uint256)' 5 --rpc-url $L1_RPC
+# Expect: 0
 cast call $SHARED_DGF 'initBonds(uint32)(uint256)' 9 --rpc-url $L1_RPC
+# Expect: 80000000000000000
 
 # No legacy implementations registered on the shared factory
 cast call $SHARED_DGF 'gameImpls(uint32)(address)' 0 --rpc-url $L1_RPC   # CANNON
@@ -402,8 +416,8 @@ Both shared instances were staged in [Stage the Off-Chain Configuration](#stage-
 
 `SUPER_CANNON_KONA` is a permissionless game type, so the moment the shared factory is live anyone can create a game against it — not just `op-proposer`. Once a game is created, its clock runs and it resolves whether or not anyone challenges. `op-challenger` must be running to defend invalid claims before their game clocks expire, and `op-dispute-mon` must be running to observe and alert. This is independent of [Cut Over to a Single Shared op-proposer](#cut-over-to-a-single-shared-op-proposer) below — complete it first regardless of when the proposer cutover happens.
 
-1. **Set the shared `op-challenger`'s `--game-factory-address` (`OP_CHALLENGER_GAME_FACTORY_ADDRESS`) to `$SHARED_DGF` and start the process.** Confirm the startup log lists `super-cannon-kona` and `super-permissioned` as registered trace types and shows no errors connecting to the supernode RPC.
-2. **Set the shared `op-dispute-mon`'s `--game-factory-address` (`OP_DISPUTE_MON_GAME_FACTORY_ADDRESS`) to `$SHARED_DGF` and start the process.** Confirm the startup log shows the supernode connection is healthy and the metrics endpoint is serving.
+1. **Set the shared `op-challenger`'s `--game-factory-address` (`OP_CHALLENGER_GAME_FACTORY_ADDRESS`) to `$SHARED_DGF` and start the process.** Confirm the startup log lists `super-cannon-kona` as a registered trace type and shows no errors connecting to the shared supernode root RPC endpoint.
+2. **Set the shared `op-dispute-mon`'s `--game-factory-address` (`OP_DISPUTE_MON_GAME_FACTORY_ADDRESS`) to `$SHARED_DGF` and start the process.** Confirm the supernode root connection is healthy and the metrics endpoint is serving.
 
 Healthy startup logs and a quiet error stream are the bar for proceeding. Both instances discover existing games on startup, so it does not matter whether a super-root game already exists in the shared factory by the time they come up.
 
@@ -416,7 +430,7 @@ Configure the new instance with the flags below.
 | Flag (env var) | Value |
 | --- | --- |
 | `--game-factory-address` (`OP_PROPOSER_GAME_FACTORY_ADDRESS`) | the new shared `<DGF>` |
-| `--supernode-rpcs` (`OP_PROPOSER_SUPERNODE_RPCS`) | `op-supernode` RPC URL or URLs (multiple values are HA failover, not multi-chain) |
+| `--superroot-rpcs` (`OP_PROPOSER_SUPERROOT_RPCS`) | `$SUPERNODE_RPC` or high-availability root endpoints for the same dependency set |
 | `--game-type` (`OP_PROPOSER_GAME_TYPE`) | `9` (SUPER_CANNON_KONA) |
 | `--l1-eth-rpc` (`OP_PROPOSER_L1_ETH_RPC`) | as for the existing proposers |
 | `--proposal-interval`, `--poll-interval`, `--mnemonic` or `--private-key` | as for the existing proposers |
