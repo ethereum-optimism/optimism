@@ -2358,6 +2358,24 @@
             ]
           },
           {
+            "group": "Stack Components",
+            "pages": [
+              "/op-stack/components/index",
+              {
+                "group": "Sequencing",
+                "pages": [
+                  "/op-stack/components/op-batcher"
+                ]
+              },
+              {
+                "group": "Settlement & Proofs",
+                "pages": [
+                  "/op-stack/components/cannon"
+                ]
+              }
+            ]
+          },
+          {
             "group": "Bridging",
             "pages": [
               "/op-stack/bridging/cross-domain",
@@ -2422,7 +2440,8 @@
             "group": "Contribute",
             "pages": [
               "/op-stack/contribute/content-guide",
-              "/op-stack/contribute/link-policy"
+              "/op-stack/contribute/link-policy",
+              "/op-stack/contribute/component-hub-template"
             ]
           }
         ]
