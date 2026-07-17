@@ -20,10 +20,8 @@
     ],
     "app-developers/tutorials/interoperability/manual-relay.mdx": ["/>"],
     "app-developers/tutorials/interoperability/message-passing.mdx": ["/>"],
-    "chain-operators/tutorials/merge-shared-dispute-game.mdx": ["/superchain/interop"],
     "op-stack/interop/interop.mdx": ["/app-developers/tutorials/interoperability/"],
     "op-stack/introduction/op-stack.mdx": ["/app-developers/tools", "/app-developers/tutorials"],
-    "op-stack/security/interop-security.mdx": ["/app-developers/tutorials/interoperability/"],
-    "rust/kona/sdk/fpp-dev/env.mdx": ["/rust/op-program-fpp.svg"]
+    "op-stack/security/interop-security.mdx": ["/app-developers/tutorials/interoperability/"]
   }
 }
