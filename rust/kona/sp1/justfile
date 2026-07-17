@@ -17,7 +17,7 @@ build-range-elfs:
 
     cd programs/range
     # Mount the monorepo root so kona-hardforks can find op-core/nuts/bundles.
-    ~/.sp1/bin/cargo-prove prove build --ignore-rust-version --elf-name range-elf --docker --tag v6.2.4 --workspace-directory ../../../../.. --output-directory ../../elf
+    ~/.sp1/bin/cargo-prove prove build --ignore-rust-version --elf-name range-elf --docker --tag v6.3.1 --workspace-directory ../../../../.. --output-directory ../../elf
 
 # Build ELF file for aggregation program.
 build-agg-elf:
@@ -25,7 +25,7 @@ build-agg-elf:
 
     cd programs/aggregation
     # Mount the monorepo root so kona-hardforks can find op-core/nuts/bundles.
-    ~/.sp1/bin/cargo-prove prove build --ignore-rust-version --elf-name aggregation-elf --docker --tag v6.2.4 --workspace-directory ../../../../.. --output-directory ../../elf
+    ~/.sp1/bin/cargo-prove prove build --ignore-rust-version --elf-name aggregation-elf --docker --tag v6.3.1 --workspace-directory ../../../../.. --output-directory ../../elf
 
 # Build ELF file for the unified super-root range/consolidation program.
 build-super-range-elf:
@@ -33,7 +33,7 @@ build-super-range-elf:
 
     cd programs/super-range
     # Mount the monorepo root so kona-hardforks can find op-core/nuts/bundles.
-    ~/.sp1/bin/cargo-prove prove build --ignore-rust-version --elf-name super-range-elf --docker --tag v6.2.4 --workspace-directory ../../../../.. --output-directory ../../elf
+    ~/.sp1/bin/cargo-prove prove build --ignore-rust-version --elf-name super-range-elf --docker --tag v6.3.1 --workspace-directory ../../../../.. --output-directory ../../elf
 
 # Build ELF file for the super-aggregation program.
 build-super-aggregation-elf:
@@ -41,4 +41,4 @@ build-super-aggregation-elf:
 
     cd programs/super-aggregation
     # Mount the monorepo root so kona-hardforks can find op-core/nuts/bundles.
-    ~/.sp1/bin/cargo-prove prove build --ignore-rust-version --elf-name super-aggregation-elf --docker --tag v6.2.4 --workspace-directory ../../../../.. --output-directory ../../elf
+    ~/.sp1/bin/cargo-prove prove build --ignore-rust-version --elf-name super-aggregation-elf --docker --tag v6.3.1 --workspace-directory ../../../../.. --output-directory ../../elf
