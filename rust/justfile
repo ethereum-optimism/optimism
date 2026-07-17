@@ -60,7 +60,7 @@ build-release *args='':
 build-sp1:
   cargo build -p kona-sp1-host-utils -p kona-sp1-client-utils \
     -p kona-sp1-ethereum-host-utils -p kona-sp1-ethereum-client-utils \
-    -p kona-sp1-proof-utils -p kona-sp1-build-utils -p kona-sp1-elfs
+    -p kona-sp1-elfs
 
 # Build kona-node
 build-kona-node:
@@ -82,8 +82,9 @@ build-op-reth-debug:
 
 ############################### Test ################################
 
-# Run all tests (unit + doc + SP1 guest tests)
-test: test-unit test-docs test-sp1-guest
+# Run all outer-workspace tests. SP1 guests require generated vkeys and are tested by CI after
+# their ELFs are built.
+test: test-unit test-docs
 
 # Run unit tests (excluding online tests)
 test-unit *args="-E '!test(test_online)'":
@@ -103,8 +104,9 @@ test-sp1-guest:
 
 ############################### Lint ################################
 
-# Run all lints (includes the SP1 guest program workspace)
-lint: fmt-check lint-clippy lint-docs lint-sp1-guest
+# Run all lints for the outer workspace. SP1 guests require generated vkeys and are linted by CI
+# after their ELFs are built.
+lint: fmt-check lint-clippy lint-docs
 
 # Check formatting (requires nightly)
 fmt-check:
@@ -122,9 +124,9 @@ fmt-fix: fmt-fix-sp1-guest
 lint-clippy:
   cargo clippy --workspace --all-features --all-targets -- -D warnings
 
-# lint-config + lock + precompile-patch checks, fmt-check, and clippy for the SP1 guest program
-# workspace (shared by `just lint` and CI)
-lint-sp1-guest: check-sp1-guest-lints check-sp1-guest-lock check-sp1-guest-precompile-patches fmt-check-sp1-guest lint-clippy-sp1-guest
+# Lint-config + self-embed + lock + precompile-patch checks, fmt-check, and clippy for the SP1
+# guest program workspace. CI runs this after building the guest ELFs.
+lint-sp1-guest: check-no-self-embed check-sp1-guest-lints check-sp1-guest-lock check-sp1-guest-precompile-patches fmt-check-sp1-guest lint-clippy-sp1-guest
 
 # Verify the nested guest workspace uses the root workspace's lint configuration.
 [script('bash')]
@@ -200,6 +202,20 @@ _sync-sp1-guest-lints:
     mv "$tmp" "$guest"
   fi
 
+check-no-self-embed:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  cd kona/sp1
+  # A leaf guest must not depend on the range-vkey crate: it would embed its own vkey
+  # (RANGE_VKEY = f(range ELF)), closing a build cycle. Only aggregation guests may depend on it.
+  # Direct-dep check only; no shared guest crate depends on range-vkeys today.
+  for f in programs/range/Cargo.toml programs/super-range/Cargo.toml; do
+    test -f "$f"
+    if grep -q kona-sp1-range-vkeys "$f"; then
+      echo "error: $f must not depend on kona-sp1-range-vkeys (build cycle)" >&2
+      exit 1
+    fi
+  done
 # Runs before the `--locked` clippy so a kona-only dependency change produces a
 # clear fix hint instead of cargo's cryptic "cannot update the lock file because
 # --locked was passed" error.
@@ -289,6 +305,13 @@ fmt-fix-sp1-guest: _sync-sp1-guest-lints
 
 lint-clippy-sp1-guest:
   cargo clippy --manifest-path {{SP1_GUEST_MANIFEST}} --workspace --all-features --all-targets --locked -- -D warnings
+
+# fmt-check + clippy + test the standalone range-vkeys crate (in neither workspace, so nothing
+# else covers it). Requires elf/vkeys.toml and is invoked only after the guest ELFs are built.
+check-range-vkeys:
+  cargo +{{NIGHTLY}} fmt --manifest-path kona/sp1/crates/range-vkeys/Cargo.toml --all -- --check
+  cargo clippy --manifest-path kona/sp1/crates/range-vkeys/Cargo.toml --all-targets --locked -- -D warnings
+  cargo test --manifest-path kona/sp1/crates/range-vkeys/Cargo.toml --locked
 
 # Lint Rust documentation
 lint-docs:

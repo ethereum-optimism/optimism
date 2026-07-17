@@ -211,8 +211,8 @@ pub enum SuperInteropOutputs {
 /// Range program proofs are supplied separately through SP1 stdin with `write_proof`, in the same
 /// order as these public range program outputs: first all range-mode proofs, then all
 /// consolidation-mode proofs.
-/// This typed input carries the range-program public outputs and vkey that the aggregation program
-/// uses to verify those proof-stream entries.
+/// This typed input carries the range-program public outputs that the aggregation program uses to
+/// verify those proof-stream entries against its embedded verification key.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SuperAggregationInputs {
     /// L1 head committed to by `ZKDisputeGame`.
@@ -232,11 +232,6 @@ pub struct SuperAggregationInputs {
     /// Public outputs from verified consolidation-mode proofs, ordered to match the proof
     /// stream after the range-mode proofs.
     pub consolidation_outputs: Vec<SuperConsolidationOutputs>,
-    /// Interim dynamically supplied range program verification key.
-    ///
-    /// This is development-only until the range vkey is embedded in the aggregation program
-    /// See <https://github.com/ethereum-optimism/optimism/issues/21412/>
-    pub range_vkey: [u32; 8],
 }
 
 sol! {
@@ -1108,10 +1103,10 @@ mod tests {
     use crate::test_utils::valid_aggregation_inputs;
 
     use super::{
-        SuperAggregationInputs, SuperConsolidationInputs, SuperConsolidationTransitionInput,
-        SuperInteropInputs, SuperOptimisticBlock, SuperOutputRoot, SuperRangeInputs,
-        SuperRangeTransition, SuperRootError, SuperRootProof, TimestampSpan,
-        encode_super_root_proof, ensure_strictly_increasing_chains, hash_super_root_proof,
+        SuperConsolidationInputs, SuperConsolidationTransitionInput, SuperInteropInputs,
+        SuperOptimisticBlock, SuperOutputRoot, SuperRangeInputs, SuperRangeTransition,
+        SuperRootError, SuperRootProof, TimestampSpan, encode_super_root_proof,
+        ensure_strictly_increasing_chains, hash_super_root_proof,
     };
 
     fn output(chain_id: u64, fill: u8) -> SuperOutputRoot {
@@ -1650,19 +1645,6 @@ mod tests {
             timestamp_mismatch.validate(),
             Err(SuperRootError::ConsolidationTimestampMismatch { expected: 100, actual: 101 })
         );
-    }
-
-    #[test]
-    fn aggregation_inputs_serialize_with_dynamic_range_vkey() {
-        let mut inputs = valid_aggregation_inputs();
-        inputs.range_vkey = [0, 1, 2, 3, 4, 5, 6, 7];
-
-        let encoded = serde_json::to_vec(&inputs).expect("aggregation inputs serialize");
-        let decoded: SuperAggregationInputs =
-            serde_json::from_slice(&encoded).expect("aggregation inputs deserialize");
-
-        assert_eq!(decoded, inputs);
-        assert_eq!(decoded.range_vkey, [0, 1, 2, 3, 4, 5, 6, 7]);
     }
 
     #[test]
