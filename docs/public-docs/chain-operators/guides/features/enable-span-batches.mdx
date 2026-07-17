@@ -34,7 +34,7 @@ The `op-node` derivation pipeline drops any span batch whose L1 origin predates 
 
     If the result is a timestamp in the past, Delta is active.
     If it is `null`, Delta is not scheduled on your chain and must be activated first.
-    For new chains, the `l2GenesisDeltaTimeOffset` deploy configuration parameter schedules Delta relative to genesis (`0` activates it at genesis) — see the [rollup deployment configuration reference](/chain-operators/guides/configuration/rollup).
+    For new chains, the `l2GenesisDeltaTimeOffset` deploy configuration parameter schedules Delta relative to genesis (`0` activates it at genesis) — see the [rollup deployment configuration reference](/chain-operators/reference/rollup-deployment-configuration).
     For Delta activation times on OP Mainnet and OP Sepolia, see [Network upgrades](/op-stack/protocol/network-upgrades).
   </Step>
 
