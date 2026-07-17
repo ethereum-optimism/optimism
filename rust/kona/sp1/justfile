@@ -58,26 +58,11 @@ _build-elf NAME MODE:
     set -euo pipefail
 
     root="$(cd "{{justfile_directory()}}/../../.." && pwd)"
-    config_dir="{{justfile_directory()}}/programs/.cargo"
-    config_file="${config_dir}/config.toml"
-    registry_etc="{{justfile_directory()}}/../crates/protocol/registry/etc"
-    registry_backup=""
     staged_configs=""
-    wrote_config=false
 
     cleanup() {
-      if [[ -n "$registry_backup" ]]; then
-        cp "${registry_backup}/chainList.json" "${registry_etc}/chainList.json"
-        cp "${registry_backup}/configs.json" "${registry_etc}/configs.json"
-        cp "${registry_backup}/depsets.json" "${registry_etc}/depsets.json"
-        rm -rf "$registry_backup"
-      fi
       if [[ -n "$staged_configs" ]]; then
         rm -rf "$staged_configs"
-      fi
-      if [[ "$wrote_config" == true ]]; then
-        rm -f "$config_file"
-        rmdir "$config_dir" 2>/dev/null || true
       fi
     }
     trap cleanup EXIT
@@ -90,31 +75,16 @@ _build-elf NAME MODE:
           exit 1
         }
       done
-      export KONA_CUSTOM_CONFIGS=true
-      mkdir -p "${root}/target"
-      registry_backup="$(mktemp -d "${root}/target/sp1-registry-etc.XXXXXX")"
-      cp "${registry_etc}/chainList.json" "${registry_backup}/"
-      cp "${registry_etc}/configs.json" "${registry_backup}/"
-      cp "${registry_etc}/depsets.json" "${registry_backup}/"
 
       if [[ "{{MODE}}" == "docker" ]]; then
-        [[ ! -e "$config_file" ]] || {
-          echo "ERROR: ${config_file} already exists" >&2
-          exit 1
-        }
+        mkdir -p "${root}/target"
         staged_configs="$(mktemp -d "${root}/target/sp1-custom-configs.XXXXXX")"
         cp "${custom_configs_dir}/chainList.json" "${staged_configs}/"
         cp "${custom_configs_dir}/configs.json" "${staged_configs}/"
         cp "${custom_configs_dir}/depsets.json" "${staged_configs}/"
-        mkdir -p "$config_dir"
         docker_configs_dir="/root/program/${staged_configs#"${root}/"}"
-        {
-          echo "[env]"
-          echo 'KONA_CUSTOM_CONFIGS = "true"'
-          echo "KONA_CUSTOM_CONFIGS_DIR = \"${docker_configs_dir}\""
-        } > "$config_file"
-        wrote_config=true
       else
+        export KONA_CUSTOM_CONFIGS=true
         export KONA_CUSTOM_CONFIGS_DIR="$custom_configs_dir"
       fi
     fi
@@ -123,6 +93,14 @@ _build-elf NAME MODE:
     if [[ "{{MODE}}" == "docker" ]]; then
       mkdir -p "{{justfile_directory()}}/programs/target/elf-compilation/docker"
       args=(--docker --tag "{{SP1_TAG}}" "${args[@]}")
+      if [[ -n "${docker_configs_dir:-}" ]]; then
+        args+=(
+          --rustflags=--cfg
+          '--rustflags=kona_custom_configs="true"'
+          --rustflags=--cfg
+          "--rustflags=kona_custom_configs_dir=\"${docker_configs_dir}\""
+        )
+      fi
     fi
 
     cd "{{justfile_directory()}}/programs/{{NAME}}"

@@ -60,13 +60,13 @@ func TestL1EthRpc(t *testing.T) {
 	})
 }
 
-func TestMustSpecifyEitherRollupRpcOrSuperNodeRpc(t *testing.T) {
-	verifyArgsInvalid(t, "flag rollup-rpc or supernode-rpc is required", addRequiredArgsExcept("--rollup-rpc"))
+func TestMustSpecifyEitherRollupRpcOrSuperRootRpc(t *testing.T) {
+	verifyArgsInvalid(t, "flag rollup-rpc or superroot-rpc is required", addRequiredArgsExcept("--rollup-rpc"))
 }
 
 func TestRollupRpc(t *testing.T) {
-	t.Run("NotRequiredIfSuperNodeRpcSupplied", func(t *testing.T) {
-		configForArgs(t, addRequiredArgsExcept("--rollup-rpc", "--supernode-rpc", "http://localhost/supernode"))
+	t.Run("NotRequiredIfSuperRootRpcSupplied", func(t *testing.T) {
+		configForArgs(t, addRequiredArgsExcept("--rollup-rpc", "--superroot-rpc", "http://localhost/superroot"))
 	})
 
 	t.Run("Valid", func(t *testing.T) {
@@ -83,24 +83,51 @@ func TestRollupRpc(t *testing.T) {
 	})
 }
 
-func TestSuperNodeRpc(t *testing.T) {
+func TestSuperRootRpc(t *testing.T) {
 	t.Run("NotRequiredIfRollupRpcSupplied", func(t *testing.T) {
 		// rollup-rpc is in the default args.
-		configForArgs(t, addRequiredArgsExcept("--supernode-rpc"))
+		configForArgs(t, addRequiredArgsExcept("--superroot-rpc"))
 	})
 
-	t.Run("Valid", func(t *testing.T) {
-		url := "http://example.com:9999"
-		cfg := configForArgs(t, addRequiredArgsExcept("--rollup-rpc", "--supernode-rpc", url))
-		require.Equal(t, []string{url}, cfg.SuperNodeRpcs)
-	})
+	const url1 = "http://example1.com:9999"
+	const url2 = "http://example2.com:8888"
+	testCases := []struct {
+		name     string
+		args     []string
+		envName  string
+		expected []string
+	}{
+		{
+			name:     "PrimaryFlag",
+			args:     []string{"--superroot-rpc", url1, "--superroot-rpc", url2},
+			expected: []string{url1, url2},
+		},
+		{
+			name:     "LegacyFlagAlias",
+			args:     []string{"--supernode-rpc", url1, "--supernode-rpc", url2},
+			expected: []string{url1, url2},
+		},
+		{
+			name:     "PrimaryEnvVar",
+			envName:  "OP_DISPUTE_MON_SUPERROOT_RPC",
+			expected: []string{url1},
+		},
+		{
+			name:     "LegacyEnvVarAlias",
+			envName:  "OP_DISPUTE_MON_SUPERNODE_RPC",
+			expected: []string{url1},
+		},
+	}
 
-	t.Run("MultipleValues", func(t *testing.T) {
-		url1 := "http://example1.com:9999"
-		url2 := "http://example2.com:8888"
-		cfg := configForArgs(t, addRequiredArgsExcept("--rollup-rpc", "--supernode-rpc", url1, "--supernode-rpc", url2))
-		require.Equal(t, []string{url1, url2}, cfg.SuperNodeRpcs)
-	})
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			if testCase.envName != "" {
+				t.Setenv(testCase.envName, url1)
+			}
+			cfg := configForArgs(t, addRequiredArgsExcept("--rollup-rpc", testCase.args...))
+			require.Equal(t, testCase.expected, cfg.SuperRootRpcs)
+		})
+	}
 }
 
 func TestGameFactoryAddress(t *testing.T) {
