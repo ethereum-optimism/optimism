@@ -1,6 +1,8 @@
 package sysgo
 
 import (
+	"bytes"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -19,15 +21,15 @@ import (
 // or the proxy is resumed. It lets tests simulate an unresponsive upstream
 // without stopping the upstream itself.
 type StallableProxy struct {
-	name   string
-	target *url.URL
 	server *http.Server
 	addr   string
 
 	mu      sync.Mutex
 	stallCh chan struct{} // non-nil while stalled; closed by Resume
 
-	stalledRequests atomic.Int64
+	stalledRequests      atomic.Int64
+	concurrentStalled    atomic.Int64
+	maxConcurrentStalled atomic.Int64
 }
 
 // StartStallableProxy starts a StallableProxy in front of targetURL. The proxy
@@ -41,9 +43,7 @@ func StartStallableProxy(p devtest.T, name string, targetURL string) *StallableP
 
 	logger := p.Logger().New("component", "stallable-proxy-"+name)
 	proxy := &StallableProxy{
-		name:   name,
-		target: target,
-		addr:   "http://" + listener.Addr().String(),
+		addr: "http://" + listener.Addr().String(),
 	}
 	rp := httputil.NewSingleHostReverseProxy(target)
 	proxy.server = &http.Server{
@@ -53,14 +53,32 @@ func StartStallableProxy(p devtest.T, name string, targetURL string) *StallableP
 		ReadHeaderTimeout: 5 * time.Second,
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if ch := proxy.currentStall(); ch != nil {
+				// Consume the body before stalling: the net/http server only
+				// watches for client disconnect (canceling r.Context()) once
+				// the request body has been read to EOF. Buffer it so the
+				// request can still be proxied if the stall is resumed.
+				body, err := io.ReadAll(r.Body)
+				if err != nil {
+					return // client already gone
+				}
+				r.Body = io.NopCloser(bytes.NewReader(body))
 				n := proxy.stalledRequests.Add(1)
-				logger.Info("Stalling proxied request", "target", target, "stalled_requests", n)
+				cur := proxy.concurrentStalled.Add(1)
+				for {
+					prevMax := proxy.maxConcurrentStalled.Load()
+					if cur <= prevMax || proxy.maxConcurrentStalled.CompareAndSwap(prevMax, cur) {
+						break
+					}
+				}
+				logger.Info("Stalling proxied request", "target", target, "stalled_requests", n, "concurrent", cur)
 				select {
 				case <-r.Context().Done():
 					// Client gave up (e.g. RPC call timeout) or the server is closing.
+					proxy.concurrentStalled.Add(-1)
 					return
 				case <-ch:
 					// Resumed; serve the request after all.
+					proxy.concurrentStalled.Add(-1)
 				}
 			}
 			rp.ServeHTTP(w, r)
@@ -106,6 +124,14 @@ func (p *StallableProxy) Resume() {
 // stalled proxy, so a mis-wired proxy cannot pass vacuously.
 func (p *StallableProxy) StalledRequests() int64 {
 	return p.stalledRequests.Load()
+}
+
+// MaxConcurrentStalledRequests returns the highest number of requests that were
+// held open by the stall at the same moment. Tests use it to pin down
+// single-flight client behavior: a client that fires a new request on every
+// tick while an earlier one is still blocked drives this above one.
+func (p *StallableProxy) MaxConcurrentStalledRequests() int64 {
+	return p.maxConcurrentStalled.Load()
 }
 
 func (p *StallableProxy) currentStall() chan struct{} {

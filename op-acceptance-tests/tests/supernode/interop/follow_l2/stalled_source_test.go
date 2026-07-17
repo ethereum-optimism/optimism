@@ -33,13 +33,23 @@ func TestLightSequencerKeepsSequencingWhenFollowSourceStalls(gt *testing.T) {
 
 	proxies.ForChain(t, sys.L2A.ChainID()).Stall()
 
-	// maxGap sits strictly below the 10s follow-source call timeout (the
-	// guaranteed production dead window when follow requests block the driver
-	// loop) and well above the healthy block cadence. The 30s window spans
-	// several follow ticks, so a stalled request is guaranteed to be in flight
-	// while we observe.
-	sys.L2ELA.KeptAdvancing(eth.Unsafe, 30*time.Second, 8*time.Second)
+	// maxGap of two block intervals requires production to stay at its normal
+	// cadence, not merely avoid a full stall: it fails both the 10s dead window
+	// of an on-loop follow request (the client call timeout) and any degraded
+	// rhythm where individual blocks slip by more than one interval. It cannot
+	// be tightened much further: KeptAdvancing samples at 500ms, so a healthy
+	// 2s cadence can measure as ~3s between observed advances. The 30s window
+	// spans several follow ticks, so a stalled request is guaranteed to be in
+	// flight while we observe.
+	sys.L2ELA.KeptAdvancing(eth.Unsafe, 30*time.Second, 4*time.Second)
 
-	t.Require().NotZero(proxies.ForChain(t, sys.L2A.ChainID()).StalledRequests(),
+	proxy := proxies.ForChain(t, sys.L2A.ChainID())
+	t.Require().NotZero(proxy.StalledRequests(),
 		"no follow-source request was held by the stalled proxy; the stall did not exercise the follow path")
+	// The follow client keeps at most one fetch in flight, coalescing ticks
+	// that fire while a request is blocked. Without that single-flight
+	// behavior, every 2*blocktime tick would open another request against the
+	// stalled endpoint (each surviving up to its 10s call timeout).
+	t.Require().EqualValues(1, proxy.MaxConcurrentStalledRequests(),
+		"expected exactly one follow-source request in flight at a time; the single-flight contract is broken")
 }
