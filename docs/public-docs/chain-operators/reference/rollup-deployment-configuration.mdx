@@ -83,17 +83,18 @@ standard-configuration requirements from the draft
 *   `superchainConfigGuardian`: standard configuration requires
     [0x09f7150D8c019BeF34450d6920f6B3608ceFdAf2](https://etherscan.io/address/0x09f7150D8c019BeF34450d6920f6B3608ceFdAf2),
     a 1/1 Safe owned by the Security Council Safe, with the
-    [Deputy Guardian Module](https://specs.optimism.io/protocol/safe-extensions.html?utm_source=op-docs&utm_medium=docs#deputy-guardian-module)
-    enabled to allow the Optimism Foundation to act as Guardian.
+    [Deputy Pause Module](https://specs.optimism.io/protocol/deputy-pause-module.html?utm_source=op-docs&utm_medium=docs)
+    enabled to allow the Optimism Foundation to act as Pause Deputy.
 *   `p2pSequencerAddress` and `batchSenderAddress`: hot-key addresses you
     control — the sequencer's block-signing key and the batcher account whose
-    transactions to the batch inbox are considered valid. `batchSenderAddress`
-    can be updated later via the `SystemConfig` contract on L1. No standard
-    requirement.
+    transactions to the batch inbox are considered valid. Neither may be
+    `address(0)`. `batchSenderAddress` can be updated later via the
+    `SystemConfig` contract on L1. No standard requirement.
 *   The [L1 dependency addresses](#l1-dependency-addresses)
     (`l1StandardBridgeProxy`, `l1CrossDomainMessengerProxy`,
     `l1ERC721BridgeProxy`, `systemConfigProxy`, `optimismPortalProxy`): filled
-    in from the L1 deployment rather than hand-configured. Standard
+    in from the L1 deployment rather than hand-configured; none of them may be
+    `address(0)`. Standard
     configuration requires the implementation contracts to be the most
     up-to-date, governance-approved version of the OP Stack codebase — and, if
     the chain has been upgraded in the past, that the previous versions were a
@@ -106,14 +107,14 @@ standard-configuration requirements from the draft
     1 or 2 seconds.
 *   `maxSequencerDrift`: must be nonzero. 1800 (30 minutes) is the constant
     that takes effect with the
-    [Fjord activation](/op-stack/protocol/network-upgrades#fjord).
+    [Fjord activation](/op-stack/protocol/network-upgrades#activations).
 *   `sequencerWindowSize`: must be nonzero. Standard configuration: 3\_600 base
     layer blocks (12 hours for an L2 on Ethereum, assuming 12 second L1
     blocktime). This is an important value for constraining the sequencer's
     ability to re-order transactions; higher values would pose a risk to user
     protections.
 *   `channelTimeout`: the default of 50 was introduced in the
-    [Granite network upgrade](/op-stack/protocol/network-upgrades#granite).
+    [Granite network upgrade](/op-stack/protocol/network-upgrades#activations).
 *   `batchInboxAddress`: standard configuration convention is
     `versionByte || keccak256(bytes32(chainId))[:19]`, where `||` denotes
     concatenation, `versionByte` is `0x00`, and `chainId` is a `uint256`. This
@@ -176,7 +177,10 @@ standard-configuration requirements from the draft
     admin address is recommended to retain a common security model.
 *   The `*FeeVaultWithdrawalNetwork` values choose where each vault withdraws:
     `"remote"` sends fees to the recipient address on L1, `"local"` on L2.
-    Withdrawals to L1 are more expensive.
+    Withdrawals to L1 are more expensive. Note that when the config is
+    re-emitted (for example by `op-deployer inspect deploy-config`), these
+    values marshal in the legacy numeric form: `0` for `"remote"`, `1` for
+    `"local"`.
 *   The `*FeeVaultMinimumWithdrawalAmount` values exist because withdrawals to
     L1 are expensive: the minimum prevents the overhead cost of continuous
     tiny withdrawals that would cost more to execute than they return.
@@ -201,11 +205,13 @@ system; new chains use [fault proofs](#fault-proofs) instead.
     non-zero for networks upgraded from a legacy system (like OP Mainnet).
 *   `l2OutputOracleStartingTimestamp`: MUST be the timestamp corresponding to
     the block defined by `l1StartingBlockTag`.
-*   `l2OutputOracleProposer`: no standard requirement. This role is only
-    active when the `OptimismPortal` respected game type is
-    `PERMISSIONED_CANNON`. The L1 ProxyAdmin sets the implementation of the
-    `PERMISSIONED_CANNON` game type, and thus determines the proposer
-    configuration of the permissioned dispute game.
+*   `l2OutputOracleProposer`: must not be `address(0)`. No standard
+    requirement. This role is only active when the `OptimismPortal` respected
+    game type is `PERMISSIONED_CANNON`. The L1 ProxyAdmin sets the
+    implementation of the `PERMISSIONED_CANNON` game type, and thus determines
+    the proposer configuration of the permissioned dispute game.
+*   `l2OutputOracleChallenger`: must not be `address(0)`; a single admin
+    address is recommended to retain a common security model.
 
 ### Fault-proof value guidance
 
