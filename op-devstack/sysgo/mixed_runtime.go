@@ -54,11 +54,6 @@ type MixedL2CLKind string
 const (
 	MixedL2CLOpNode MixedL2CLKind = "op-node"
 	MixedL2CLKona   MixedL2CLKind = "kona-node"
-	// MixedL2COpCon is op-con-node, the consensus-only node from the opql repo.
-	// It has no P2P. The dispatch routes verifier slots here; sequencer slots
-	// stay on op-node (the historical verifier-only default) unless the test
-	// opts in to op-con-node's sequencing mode via L2CLOpConSequencer().
-	MixedL2CLOpCon MixedL2CLKind = "op-con-node"
 )
 
 // SkipOnOpGeth skips the test when the L2 execution layer is op-geth
@@ -91,23 +86,6 @@ func FlakyOnOpReth(t devtest.T, reason string) {
 func FlakyOnKonaNode(t devtest.T, reason string) {
 	if devstackL2CLKind() == MixedL2CLKona {
 		t.MarkFlaky(reason)
-	}
-}
-
-// SkipOnOpConNode skips the test when the L2 consensus layer is op-con-node.
-// Use for behaviors op-con-node does not implement (sequencing, P2P gossip).
-func SkipOnOpConNode(t devtest.T, reason string) {
-	if devstackL2CLKind() == MixedL2CLOpCon {
-		t.Skipf("skipping on op-con-node: %s", reason)
-	}
-}
-
-// SkipUnlessOpConNode skips the test unless the L2 consensus layer is
-// op-con-node. Use for topologies that only exist for op-con-node (e.g. the
-// op-con-node sequencer fronted by the op-conp2p publish sidecar).
-func SkipUnlessOpConNode(t devtest.T, reason string) {
-	if devstackL2CLKind() != MixedL2CLOpCon {
-		t.Skipf("skipping unless DEVSTACK_L2CL_KIND=op-con-node: %s", reason)
 	}
 }
 

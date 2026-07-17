@@ -88,33 +88,6 @@ type L2CLConfig struct {
 
 	FollowSource string
 
-	// OpConL1FinalizedGuard overrides op-con-node's --l1-finalized-guard
-	// ("required" or "disabled"). Empty falls back to the launcher default
-	// (the DEVSTACK_OPCON_L1_FINALIZED_GUARD env, itself defaulting to "disabled").
-	// Set "required" only against a finalizing L1, so op-con-node tracks L1 finality
-	// and advances its L2 finalized head. Ignored by non-op-con CL kinds.
-	OpConL1FinalizedGuard string
-
-	// OpConSequencer routes this node's SEQUENCER slot to op-con-node when the
-	// devstack CL kind is op-con-node. By default sequencer slots stay on
-	// op-node (op-con-node was verifier-only before it grew a sequencing mode);
-	// tests that exercise op-con-node's sequencer opt in per-test with
-	// L2CLOpConSequencer(). Ignored for verifier slots and non-op-con CL kinds.
-	OpConSequencer bool
-
-	// OpConPayloadRingBlocks overrides the op-con-node sequencer's signed
-	// replay-ring depth (--sequencer-payload-ring-blocks) when > 0. Bootstrap
-	// tests shrink it so a late joiner falls below the signed horizon on a
-	// short devnet chain. Ignored for non-op-con CL kinds and verifier slots.
-	OpConPayloadRingBlocks int
-
-	// OpConUnsafePayloadWS makes an op-con-node verifier follow a sequencing
-	// op-con-node's signed-payload websocket multicast at this ws:// URL
-	// (--follow, the push analog of --follow-el): subscribe,
-	// verify each block's unsafe-block signature against the expected signer,
-	// and ingest accepted blocks. Ignored by non-op-con CL kinds.
-	OpConUnsafePayloadWS string
-
 	// OffsetELSafe retracts safe and finalized from the EL-sync tip by floor(OffsetELSafe / L2BlockTime) blocks.
 	OffsetELSafe time.Duration
 
@@ -138,33 +111,6 @@ func L2CLIndexing() L2CLOption {
 func L2CLFollowSource(source string) L2CLOption {
 	return L2CLOptionFn(func(p devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
 		cfg.FollowSource = source
-	})
-}
-
-// L2CLOpConSequencer opts the sequencer slot into op-con-node when the devstack
-// CL kind is op-con-node (DEVSTACK_L2CL_KIND=op-con-node). With any other CL
-// kind this is a no-op, so tests using it remain valid ordinary suite additions.
-func L2CLOpConSequencer() L2CLOption {
-	return L2CLOptionFn(func(p devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
-		cfg.OpConSequencer = true
-	})
-}
-
-// L2CLOpConUnsafePayloadWS points an op-con-node verifier at a sequencing
-// op-con-node's signed-payload websocket multicast (--follow). No-op
-// for other CL kinds.
-func L2CLOpConUnsafePayloadWS(wsURL string) L2CLOption {
-	return L2CLOptionFn(func(p devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
-		cfg.OpConUnsafePayloadWS = wsURL
-	})
-}
-
-// L2CLOpConPayloadRingBlocks shrinks/overrides the op-con-node sequencer's
-// signed replay-ring depth (--sequencer-payload-ring-blocks). No-op for other
-// CL kinds.
-func L2CLOpConPayloadRingBlocks(blocks int) L2CLOption {
-	return L2CLOptionFn(func(p devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
-		cfg.OpConPayloadRingBlocks = blocks
 	})
 }
 

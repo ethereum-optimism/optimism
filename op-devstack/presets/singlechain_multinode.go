@@ -51,7 +51,7 @@ func NewSingleChainMultiNodeWithoutP2PWithoutCheck(t devtest.T, opts ...Option) 
 // SingleChainMultiNode target with no proposer/challenger and no sequencer↔verifier
 // P2P links, and without initial sync checks. The verifier's only data source is
 // L1 derivation. Skipping the challenger avoids requiring cannon prestate
-// artifacts. Intended for consensus-only verifier tests (e.g. op-con-node).
+// artifacts. Intended for consensus-only verifier tests.
 func NewSingleChainMultiNodeNoFaultProofsWithoutP2PWithoutCheck(t devtest.T, opts ...Option) *SingleChainMultiNode {
 	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewSingleChainMultiNodeNoFaultProofsWithoutP2PWithoutCheck", opts, minimalPresetSupportedOptionKinds)
 	out := singleChainMultiNodeFromRuntime(t, sysgo.NewSingleChainMultiNodeNoFaultProofsRuntimeWithConfig(t, false, presetCfg), false)
@@ -61,11 +61,8 @@ func NewSingleChainMultiNodeNoFaultProofsWithoutP2PWithoutCheck(t devtest.T, opt
 
 // NewSingleChainMultiNodeNoFaultProofsWithP2PWithoutCheck is the with-P2P
 // counterpart of the above: the sequencer publishes unsafe blocks over gossip and
-// the verifier joins the network. With the default op-node verifier this peers
-// over CL P2P; with DEVSTACK_L2CL_KIND=op-con-node the verifier (which has no
-// built-in P2P) is fronted by the op-conp2p gossip sidecar, which delegates each
-// block's signature verdict back to op-con-node. No proposer/challenger (no
-// cannon), no initial sync checks.
+// the verifier joins the network over CL P2P. No proposer/challenger (no cannon)
+// and no initial sync checks.
 func NewSingleChainMultiNodeNoFaultProofsWithP2PWithoutCheck(t devtest.T, opts ...Option) *SingleChainMultiNode {
 	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewSingleChainMultiNodeNoFaultProofsWithP2PWithoutCheck", opts, minimalPresetSupportedOptionKinds)
 	out := singleChainMultiNodeFromRuntime(t, sysgo.NewSingleChainMultiNodeNoFaultProofsRuntimeWithConfig(t, true, presetCfg), false)
@@ -73,66 +70,6 @@ func NewSingleChainMultiNodeNoFaultProofsWithP2PWithoutCheck(t devtest.T, opts .
 	return out
 }
 
-// NewSingleChainOpConSequencerP2PWithoutCheck creates the op-con-node SEQUENCER
-// P2P preset: op-con-node builds + signs the unsafe chain (L2CL), the op-conp2p
-// sidecar publishes each signed block to OP gossip, and a stock op-node verifier
-// (L2CLB) receives + executes them — the mirror image of the with-P2P verifier
-// preset. Requires DEVSTACK_L2CL_KIND=op-con-node. No batcher/proposer/
-// challenger and no initial sync checks.
-func NewSingleChainOpConSequencerP2PWithoutCheck(t devtest.T, opts ...Option) *SingleChainMultiNode {
-	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewSingleChainOpConSequencerP2PWithoutCheck", opts, minimalPresetSupportedOptionKinds)
-	out := singleChainMultiNodeFromRuntime(t, sysgo.NewSingleChainOpConSequencerP2PRuntime(t, presetCfg), false)
-	presetOpts.applyPreset(out)
-	return out
-}
-
-// NewSingleChainOpConSequencerFanOutP2PWithoutCheck is the fan-out variant of
-// the op-con-node sequencer P2P preset: the op-con-node sequencer (L2CL) signs
-// and publishes one unsafe-block feed that reaches TWO verifiers over gossip —
-// a stock op-node gossip hub (internal) and an op-con-node verifier fronted by
-// a receive sidecar (L2CLB, the assertion target). Proves the full op-con↔op-con
-// gossip loop (publish + receive paths together). Requires
-// DEVSTACK_L2CL_KIND=op-con-node. No batcher/proposer/challenger, no initial
-// sync checks.
-func NewSingleChainOpConSequencerFanOutP2PWithoutCheck(t devtest.T, opts ...Option) *SingleChainMultiNode {
-	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewSingleChainOpConSequencerFanOutP2PWithoutCheck", opts, minimalPresetSupportedOptionKinds)
-	out := singleChainMultiNodeFromRuntime(t, sysgo.NewSingleChainOpConSequencerFanOutP2PRuntime(t, presetCfg), false)
-	presetOpts.applyPreset(out)
-	return out
-}
-
-// NewSingleChainOpConSequencerP2PWrongSignerWithoutCheck is the negative
-// security variant: the op-con-node sequencer (L2CL) signs unsafe blocks with a
-// key that is NOT the deployed SystemConfig unsafe-block signer, so the stock
-// op-node verifier (L2CLB) must reject them over gossip and its unsafe head must
-// not advance. Requires DEVSTACK_L2CL_KIND=op-con-node. No batcher/proposer/
-// challenger, no initial sync checks.
-func NewSingleChainOpConSequencerP2PWrongSignerWithoutCheck(t devtest.T, opts ...Option) *SingleChainMultiNode {
-	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewSingleChainOpConSequencerP2PWrongSignerWithoutCheck", opts, minimalPresetSupportedOptionKinds)
-	out := singleChainMultiNodeFromRuntime(t, sysgo.NewSingleChainOpConSequencerP2PWrongSignerRuntime(t, presetCfg), false)
-	presetOpts.applyPreset(out)
-	return out
-}
-
-// NewSingleChainOpConSequencerWSFollowWithoutCheck is the sidecar-less
-// distribution preset: the op-con-node sequencer (L2CL) signs and serves its
-// unsafe blocks on a payload websocket, and an op-con-node verifier (L2CLB)
-// consumes that feed directly via --follow — verifying each block's
-// signature and ingesting it — while deriving its safe chain from L1 (the
-// batcher runs). Requires DEVSTACK_L2CL_KIND=op-con-node. No proposer/challenger,
-// no initial sync checks.
-func NewSingleChainOpConSequencerWSFollowWithoutCheck(t devtest.T, opts ...Option) *SingleChainMultiNode {
-	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewSingleChainOpConSequencerWSFollowWithoutCheck", opts, minimalPresetSupportedOptionKinds)
-	out := singleChainMultiNodeFromRuntime(t, sysgo.NewSingleChainOpConSequencerWSFollowRuntime(t, presetCfg), false)
-	presetOpts.applyPreset(out)
-	return out
-}
-
-// NewSingleChainMultiNodeNoFaultProofsBareVerifierWithoutCheck creates a
-// SingleChainMultiNode whose verifier has no unsafe source at all (no follow, no
-// CL P2P, no sidecar): the test drives the verifier's unsafe chain via
-// admin_postUnsafePayload. No proposer/challenger (no cannon), no initial sync
-// checks. Used for unsafe-payload-queue / gap-handling tests.
 func NewSingleChainMultiNodeNoFaultProofsBareVerifierWithoutCheck(t devtest.T, opts ...Option) *SingleChainMultiNode {
 	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewSingleChainMultiNodeNoFaultProofsBareVerifierWithoutCheck", opts, minimalPresetSupportedOptionKinds)
 	out := singleChainMultiNodeFromRuntime(t, sysgo.NewSingleChainMultiNodeNoFaultProofsBareVerifierRuntime(t, presetCfg), false)
@@ -161,11 +98,11 @@ func NewSingleChainMultiNodeNoFaultProofsBareVerifierWithTestSeqWithoutCheck(t d
 // NewSingleChainMultiNodeNoFaultProofsFollowVerifierWithTestSeqWithoutCheck is the
 // follow-source test-sequencer preset: the verifier has its L2 follow source wired
 // to the sequencer's L2 execution RPC (no CL P2P, no sidecar) AND the test-sequencer
-// drives (and can reorg) L1. The follow-source op-con-node verifier tracks the
-// sequencer's unsafe head via follow mode while deriving its safe chain from L1, so
+// drives (and can reorg) L1. The follow-source verifier tracks the sequencer's
+// unsafe head while deriving its safe chain from L1, so
 // an L1 reorg reorgs both: the follow source's unsafe chain (exercising the
 // follow-mode prefetcher's source-reorg handling) and the L1-derived safe chain.
-// Used for the op-con-node analogue of op-node's sync/follow_l2 TestFollowL2_ReorgRecovery.
+// Used for follow-source L1-reorg recovery coverage.
 func NewSingleChainMultiNodeNoFaultProofsFollowVerifierWithTestSeqWithoutCheck(t devtest.T, opts ...Option) *SingleChainMultiNodeWithTestSeq {
 	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewSingleChainMultiNodeNoFaultProofsFollowVerifierWithTestSeqWithoutCheck", opts, minimalPresetSupportedOptionKinds)
 	out := singleChainMultiNodeWithTestSeqFromRuntime(t, sysgo.NewSingleChainMultiNodeNoFaultProofsRuntimeWithConfig(t, false, presetCfg))

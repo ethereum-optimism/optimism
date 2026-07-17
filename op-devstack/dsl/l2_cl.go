@@ -592,13 +592,8 @@ func WithOutputRootSpan(n uint64) func(opts *verifyOutputRootOpts) {
 // is identical at each height. The embedded syncStatus is node-local (each
 // node's own current L1 and live heads) and is excluded from the comparison.
 //
-// The walk starts at block 1, deliberately excluding genesis: op-con-node's
-// optimism_outputAtBlock cannot serve block 0 (it derives the block ref from the
-// block's first transaction — the L1-attributes deposit — which genesis does not
-// have), while op-node serves it from its rollup-config genesis fallback.
-// Comparing height 0 would therefore fail against op-con-node today; that gap is
-// tracked as an op-con-node follow-up, and this exclusion should be removed once
-// it is closed.
+// The walk starts at block 1 because this verifies derived block ancestry; the
+// genesis anchor itself is configuration rather than a derived block.
 //
 // By default only the trailing defaultOutputRootSpan blocks of the shared range
 // are compared (override with WithOutputRootSpan); a truncated walk logs how
