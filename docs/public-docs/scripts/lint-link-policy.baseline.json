@@ -157,11 +157,6 @@
       "url": "https://github.com/ethereum-optimism/optimism/blob/af091753917c1d7101314cbfe8ac5cbc2efe0e5e/packages/contracts-bedrock/src/L2/CrossL2Inbox.sol#L33"
     },
     {
-      "rule": "anchor-utm-order",
-      "file": "app-developers/guides/testing-apps.mdx",
-      "url": "https://docs.tenderly.co/reference/api#/operations/createAlert?mtm_campaign=ext-docs&mtm_kwd=optimism"
-    },
-    {
       "rule": "unbadged-pinned-link",
       "file": "app-developers/guides/transactions/estimates.mdx",
       "url": "https://github.com/ethereum-optimism/optimism/blob/233ede59d16cb01bdd8e7ff662a153a4c3178bdd/packages/contracts/contracts/L2/predeploys/OVM_GasPriceOracle.sol"
@@ -177,19 +172,9 @@
       "url": "https://github.com/ethereum-optimism/optimism/blob/233ede59d16cb01bdd8e7ff662a153a4c3178bdd/packages/contracts/contracts/L2/predeploys/OVM_GasPriceOracle.sol"
     },
     {
-      "rule": "unresolved-spec-anchor",
-      "file": "app-developers/reference/contracts/interop/predeploy.mdx",
-      "url": "https://specs.optimism.io/interop/predeploys.html?utm_source=op-docs&utm_medium=docs#superchainerc20bridge"
-    },
-    {
       "rule": "unbadged-pinned-link",
       "file": "app-developers/reference/tools/supersim/included-contracts.mdx",
       "url": "https://github.com/ethereum-optimism/optimism-legacy/blob/8205f678b7b4ac4625c2afe351b9c82ffaa2e795/packages/contracts-bedrock/contracts/L1/OptimismPortal.sol"
-    },
-    {
-      "rule": "anchor-utm-order",
-      "file": "app-developers/tools/data/analytics-tools.mdx",
-      "url": "https://docs.tenderly.co/simulations/single-simulations#simulate-via-rpc?mtm_campaign=ext-docs&mtm_kwd=optimism"
     },
     {
       "rule": "unbadged-pinned-link",
@@ -222,19 +207,9 @@
       "url": "https://specs.optimism.io/protocol/derivation.html#frame-format?utm_source=op-docs&utm_medium=docs"
     },
     {
-      "rule": "anchor-utm-order",
-      "file": "chain-operators/guides/features/alt-da-mode-guide.mdx",
-      "url": "https://specs.optimism.io/experimental/alt-da.html#da-server?utm_source=op-docs&utm_medium=docs"
-    },
-    {
       "rule": "dead-internal-link",
       "file": "chain-operators/guides/management/troubleshooting.mdx",
       "url": "/chain-operators/tutorials/create-l2-rollup/op-reth-setup"
-    },
-    {
-      "rule": "unresolved-spec-anchor",
-      "file": "chain-operators/reference/rollup-deployment-configuration.mdx",
-      "url": "https://specs.optimism.io/protocol/safe-extensions.html?utm_source=op-docs&utm_medium=docs#deputy-guardian-module"
     },
     {
       "rule": "unbadged-pinned-link",
@@ -245,11 +220,6 @@
       "rule": "unbadged-pinned-link",
       "file": "chain-operators/tutorials/dispute-games.mdx",
       "url": "https://github.com/ethereum-optimism/optimism/blob/6dc586d551f55b2b3a607cfcca9d3d272dec84d7/packages/contracts-bedrock/src/dispute/DelayedWETH.sol"
-    },
-    {
-      "rule": "dead-internal-link",
-      "file": "chain-operators/tutorials/merge-shared-dispute-game.mdx",
-      "url": "/superchain/interop"
     },
     {
       "rule": "unbadged-pinned-link",
@@ -407,39 +377,9 @@
       "url": "https://github.com/ethereum-optimism/optimism/blob/c332a1bafb206f18561173eb13c31f1747f9aea4/packages/contracts-bedrock/src/L1/opcm/OPContractsManagerV2.sol#L38"
     },
     {
-      "rule": "retired-spec-path",
-      "file": "op-stack/fault-proofs/cannon.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html?utm_source=op-docs&utm_medium=docs#pre-image-oracle"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "op-stack/fault-proofs/cannon.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs#io"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "op-stack/fault-proofs/cannon.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs"
-    },
-    {
       "rule": "unbadged-pinned-link",
       "file": "op-stack/fault-proofs/challenger.mdx",
       "url": "https://github.com/ethereum-optimism/optimism/blob/547ea72d9849e13ce169fd31df0f9197651b3f86/packages/contracts-bedrock/src/dispute/DisputeGameFactory.sol#L99-L100"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "op-stack/fault-proofs/explainer.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/stage-one/bond-incentives.html?utm_source=op-docs&utm_medium=docs"
-    },
-    {
-      "rule": "anchor-utm-order",
-      "file": "op-stack/fault-proofs/fp-components.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html#pre-image-oracle?utm_source=op-docs&utm_medium=docs"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "op-stack/fault-proofs/fp-components.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html#pre-image-oracle?utm_source=op-docs&utm_medium=docs"
     },
     {
       "rule": "unbadged-pinned-link",
@@ -455,11 +395,6 @@
       "rule": "unbadged-pinned-link",
       "file": "op-stack/fault-proofs/fp-security.mdx",
       "url": "https://github.com/ethereum-optimism/optimism/tree/op-contracts/v1.5.0"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "op-stack/fault-proofs/mips.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs#state"
     },
     {
       "rule": "unbadged-pinned-link",
@@ -547,29 +482,14 @@
       "url": "https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/cannon/docs/README.md"
     },
     {
-      "rule": "retired-spec-path",
-      "file": "op-stack/fault-proofs/mips.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs"
-    },
-    {
       "rule": "unbadged-pinned-link",
       "file": "op-stack/features/preinstalls.mdx",
       "url": "https://github.com/ethereum-optimism/optimism/blob/v1.1.4/op-bindings/artifacts.json"
     },
     {
-      "rule": "anchor-utm-order",
-      "file": "op-stack/protocol/components.mdx",
-      "url": "https://specs.optimism.io/protocol/derivation.html#batch-submission-wire-format?utm_source=op-docs&utm_medium=docs"
-    },
-    {
       "rule": "unbadged-pinned-link",
       "file": "op-stack/protocol/components.mdx",
       "url": "https://github.com/ethereum-optimism/optimism/tree/v1.1.4/op-batcher"
-    },
-    {
-      "rule": "anchor-utm-order",
-      "file": "op-stack/protocol/components.mdx",
-      "url": "https://specs.optimism.io/protocol/derivation.html#l2-chain-derivation-pipeline?utm_source=op-docs&utm_medium=docs"
     },
     {
       "rule": "unbadged-pinned-link",
@@ -610,11 +530,6 @@
       "rule": "unbadged-pinned-link",
       "file": "op-stack/protocol/overview.mdx",
       "url": "https://github.com/ethereum-optimism/optimism/blob/v1.1.4/packages/contracts-bedrock/src/L1/L1StandardBridge.sol"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "op-stack/protocol/overview.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html?utm_source=op-docs&utm_medium=docs"
     },
     {
       "rule": "unbadged-pinned-link",
@@ -1147,24 +1062,9 @@
       "url": "https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/SystemConfig.sol#L83"
     },
     {
-      "rule": "spec-blob-link",
-      "file": "op-stack/protocol/smart-contracts.mdx",
-      "url": "https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/isthmus/predeploys.md#operatorfeevault"
-    },
-    {
-      "rule": "malformed-link",
-      "file": "op-stack/reference/glossary.mdx",
-      "url": "0xE69104DD872222E1Bd7C1adD47588F8C62ed64C0"
-    },
-    {
       "rule": "unbadged-pinned-link",
       "file": "op-stack/reference/glossary.mdx",
       "url": "https://github.com/ethereum-optimism/optimism/blob/v1.1.4/packages/contracts-bedrock/src/L1/SystemConfig.sol"
-    },
-    {
-      "rule": "malformed-link",
-      "file": "op-stack/security/faq-sec-model.mdx",
-      "url": "governance/evolution-and-experimentation"
     },
     {
       "rule": "unbadged-pinned-link",
@@ -1262,21 +1162,6 @@
       "url": "https://github.com/ethereum-optimism/optimism/blob/233ede59d16cb01bdd8e7ff662a153a4c3178bdd/packages/contracts-bedrock/contracts/L1/L2OutputOracle.sol"
     },
     {
-      "rule": "retired-spec-path",
-      "file": "releases/kona-client.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "releases/kona-host.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html"
-    },
-    {
-      "rule": "spec-blob-link",
-      "file": "releases/kona-node.mdx",
-      "url": "https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/rollup-node.md"
-    },
-    {
       "rule": "unbadged-pinned-link",
       "file": "releases/kona-node.mdx",
       "url": "https://github.com/ethereum-optimism/superchain-registry/blob/c90d86d2ed13541f16daf5ce8707c688723ca039/superchain/configs/mainnet/op.toml#L24"
@@ -1295,11 +1180,6 @@
       "rule": "spec-blob-link",
       "file": "releases/op-batcher.mdx",
       "url": "https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/derivation.md#frame-format"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "releases/op-challenger.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html"
     },
     {
       "rule": "unbadged-pinned-link",
@@ -1367,11 +1247,6 @@
       "url": "https://github.com/ethereum-optimism/superchain-registry/blob/6b65f330434d46e24abc9ef78852ac3fa1cba4ec/validation/standard/standard-versions-mainnet.toml#L7"
     },
     {
-      "rule": "spec-blob-link",
-      "file": "releases/op-node.mdx",
-      "url": "https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/rollup-node.md"
-    },
-    {
       "rule": "unbadged-pinned-link",
       "file": "releases/op-node.mdx",
       "url": "https://github.com/ethereum-optimism/superchain-registry/blob/c90d86d2ed13541f16daf5ce8707c688723ca039/superchain/configs/mainnet/op.toml#L24"
@@ -1385,11 +1260,6 @@
       "rule": "unbadged-pinned-link",
       "file": "releases/op-node.mdx",
       "url": "https://github.com/ethereum-optimism/superchain-registry/blob/c90d86d2ed13541f16daf5ce8707c688723ca039/superchain/configs/mainnet/op.toml#L24"
-    },
-    {
-      "rule": "spec-blob-link",
-      "file": "releases/op-proposer.mdx",
-      "url": "https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/proposals.md"
     },
     {
       "rule": "unbadged-pinned-link",
@@ -1410,236 +1280,6 @@
       "rule": "unbadged-pinned-link",
       "file": "releases/op-reth.mdx",
       "url": "https://github.com/ethereum-optimism/superchain-registry/blob/c90d86d2ed13541f16daf5ce8707c688723ca039/superchain/configs/mainnet/op.toml#L24"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/glossary.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/glossary.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html#fault-proof-program"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/glossary.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html#pre-image-oracle"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/glossary.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/cannon-fault-proof-vm.html#cannon-fault-proof-virtual-machine"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/intro/overview.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/intro/overview.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html#fault-proof-program"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/intro/overview.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html#pre-image-oracle"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/intro/overview.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/cannon-fault-proof-vm.html#cannon-fault-proof-virtual-machine"
-    },
-    {
-      "rule": "dead-internal-link",
-      "file": "rust/kona/sdk/fpp-dev/env.mdx",
-      "url": "/rust/op-program-fpp.svg"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/sdk/fpp-dev/env.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/sdk/fpp-dev/env.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html#fault-proof-program"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/sdk/fpp-dev/env.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html#pre-image-oracle"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/sdk/fpp-dev/env.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/cannon-fault-proof-vm.html#cannon-fault-proof-virtual-machine"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/sdk/fpp-dev/prologue.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/sdk/fpp-dev/prologue.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html#fault-proof-program"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/sdk/fpp-dev/prologue.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html#pre-image-oracle"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/sdk/fpp-dev/prologue.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/cannon-fault-proof-vm.html#cannon-fault-proof-virtual-machine"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/sdk/fpp-dev/targets.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/sdk/fpp-dev/targets.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html#fault-proof-program"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/sdk/fpp-dev/targets.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html#pre-image-oracle"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/sdk/fpp-dev/targets.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/cannon-fault-proof-vm.html#cannon-fault-proof-virtual-machine"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/sdk/proof/custom-backend.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/sdk/proof/custom-backend.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html#fault-proof-program"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/sdk/proof/custom-backend.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html#pre-image-oracle"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/sdk/proof/custom-backend.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/cannon-fault-proof-vm.html#cannon-fault-proof-virtual-machine"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/sdk/proof/exec-ext.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/sdk/proof/exec-ext.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html#fault-proof-program"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/sdk/proof/exec-ext.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html#pre-image-oracle"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/sdk/proof/exec-ext.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/cannon-fault-proof-vm.html#cannon-fault-proof-virtual-machine"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/sdk/proof/fpvm-backend.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/sdk/proof/fpvm-backend.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html#fault-proof-program"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/sdk/proof/fpvm-backend.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html#pre-image-oracle"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/sdk/proof/fpvm-backend.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/cannon-fault-proof-vm.html#cannon-fault-proof-virtual-machine"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/sdk/proof/intro.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/sdk/proof/intro.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html#fault-proof-program"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/sdk/proof/intro.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html#pre-image-oracle"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/sdk/proof/intro.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/cannon-fault-proof-vm.html#cannon-fault-proof-virtual-machine"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/sdk/protocol/genesis/intro.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/sdk/protocol/genesis/intro.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html#fault-proof-program"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/sdk/protocol/genesis/intro.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/index.html#pre-image-oracle"
-    },
-    {
-      "rule": "retired-spec-path",
-      "file": "rust/kona/sdk/protocol/genesis/intro.mdx",
-      "url": "https://specs.optimism.io/experimental/fault-proof/cannon-fault-proof-vm.html#cannon-fault-proof-virtual-machine"
-    },
-    {
-      "rule": "spec-blob-link",
-      "file": "rust/op-reth/run/opstack.mdx",
-      "url": "https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/rollup-node.md"
-    },
-    {
-      "rule": "spec-blob-link",
-      "file": "rust/op-reth/run/opstack.mdx",
-      "url": "https://github.com/ethereum-optimism/specs/blob/main/specs/background.md#sequencers"
-    },
-    {
-      "rule": "spec-blob-link",
-      "file": "rust/op-reth/run/opstack.mdx",
-      "url": "https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/exec-engine.md"
-    },
-    {
-      "rule": "spec-blob-link",
-      "file": "rust/op-reth/run/opstack.mdx",
-      "url": "https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/deposits.md"
-    },
-    {
-      "rule": "spec-blob-link",
-      "file": "rust/op-reth/run/opstack.mdx",
-      "url": "https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/derivation.md"
     }
   ]
 }
