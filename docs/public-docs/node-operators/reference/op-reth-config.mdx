@@ -16,7 +16,7 @@ catalog, pinned to an old release; it has been retired in favor of the single
 imported surface above so the flag facts cannot drift between two pages.
 
 <Info>
-  **op-reth is the recommended execution client for new OP Stack deployments.** When pairing with op-node, remember to set `--l2.enginekind=reth` on op-node (op-node still defaults to `geth` for backward compatibility). See the [op-node configuration options](/node-operators/reference/op-node-config) page for the matching engine-side flags.
+  **op-reth is the recommended execution client for new OP Stack deployments.** op-node's `--l2.enginekind` flag defaults to `reth`, so no extra engine-kind configuration is needed when pairing the two; set it explicitly only when running a different execution client (`geth` or `erigon`). See the [op-node configuration options](/node-operators/reference/op-node-config) page for the engine-side flags.
 </Info>
 
 ## Related references
