@@ -504,5 +504,5 @@ Once both chains are drained, the steady-state operational footprint is one `op-
 
 ## Next Steps
 
-* Plan the full interop activation milestone—`migrate` joins the chains under a shared dispute game, but turning on cross-chain messaging is a separate step. See [Interop Explainer](/superchain/interop) when you are ready.
+* Plan the full interop activation milestone—`migrate` joins the chains under a shared dispute game, but turning on cross-chain messaging is a separate step. See [Interop Explainer](/op-stack/interop/explainer) when you are ready.
 * Schedule a follow-up to verify the anchor advances on the first super-game finalization, roughly seven days after the new proposer's first proposal. Re-run `cast call $SHARED_ASR 'getAnchorRoot()(bytes32,uint256)' --rpc-url $L1_RPC` and confirm it returns the new game's claim.
