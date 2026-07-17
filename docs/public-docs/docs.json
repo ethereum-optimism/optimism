@@ -2421,7 +2421,8 @@
           {
             "group": "Contribute",
             "pages": [
-              "/op-stack/contribute/content-guide"
+              "/op-stack/contribute/content-guide",
+              "/op-stack/contribute/link-policy"
             ]
           }
         ]
