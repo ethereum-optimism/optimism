@@ -2086,6 +2086,7 @@
             "group": "Reference",
             "pages": [
               "chain-operators/reference/batcher-configuration",
+              "chain-operators/reference/challenger-configuration",
               "chain-operators/reference/opcm",
               "chain-operators/reference/standard-configuration",
               "chain-operators/reference/fee-parameters",

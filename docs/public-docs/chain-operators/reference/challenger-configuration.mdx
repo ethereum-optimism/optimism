@@ -1,0 +1,66 @@
+---
+title: Challenger configuration reference
+description: Reference for all op-challenger configuration options, covering CLI flags, environment variables, and default values.
+diataxis: reference
+---
+
+import OpChallengerFlags from '/snippets/generated/op-challenger-flags.mdx';
+
+This page catalogues every configuration option for the op-challenger, the
+dispute game agent that monitors fault proof games on L1, challenges invalid
+claims, and defends valid state transitions.
+
+The flag tables below are generated directly from the op-challenger's flag
+definitions in the monorepo (`op-challenger/flags`) at the release tag named
+in the provenance line, and are regenerated when a new finalized release is
+published, so they cannot silently fall behind. Every flag can also be set
+through the environment variable listed next to it.
+
+For step-by-step setup instructions — prestates, trace types, wallets, and
+monitoring — see the
+[challenger configuration guide](/chain-operators/guides/configuration/op-challenger-config-guide);
+for how the fault proof system works, see the
+[challenger explainer](/op-stack/fault-proofs/challenger).
+
+## Flags
+
+<OpChallengerFlags />
+
+## Notes on selected flags
+
+### Conditionally required flags
+
+The required table above lists the flags op-challenger always checks at
+startup. Additional flags become required depending on the configuration: the
+chain must be identified by `--network` or by `--game-factory-address`, and
+each enabled game type requires its trace-execution flags (for example the
+`cannon-kona` game type requires the kona server and an absolute prestate via
+`--cannon-kona-prestate` or `--cannon-kona-prestates-url`).
+
+### network
+
+When `--network` is set to a chain bundled from the superchain-registry, the
+`--game-factory-address` is resolved automatically from the registry and does
+not need to be set.
+
+### game-types
+
+Selects which dispute game types the challenger plays. Which type defends
+your chain depends on the protocol version it runs; see the
+[challenger configuration guide](/chain-operators/guides/configuration/op-challenger-config-guide)
+for choosing game types, trace types, and the matching prestates.
+
+### cannon-* and cannon-kona-*
+
+The `cannon-*` flags apply only when a cannon-based game type is enabled, and
+the `cannon-kona-*` variants only to the `cannon-kona` game type. Each of
+these settings has a default variant plus a game-type-specific variant that
+overrides it (the `(<game type> game type only)` suffix in the table above).
+
+## Utility subcommands
+
+Beyond running the challenger service, the `op-challenger` binary provides
+utility subcommands for inspecting and interacting with dispute games:
+`list-games`, `list-claims`, `list-credits`, `game-proposal-outputs`,
+`create-game`, `move`, `resolve`, `resolve-claim`, and `run-trace`. Each
+takes its own flags; run `op-challenger <subcommand> --help` for details.

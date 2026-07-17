@@ -237,17 +237,39 @@ function formatDate(iso: string): string {
   });
 }
 
+// Apply fn to the non-code segments of text, leaving fenced code blocks and
+// inline code spans untouched.
+function mapOutsideCodeBlocks(
+  text: string,
+  fn: (segment: string) => string,
+): string {
+  const parts = text.split(/(```[\s\S]*?```|`[^`\n]+`)/);
+  return parts
+    .map((part, idx) => (idx % 2 === 1 ? part : fn(part)))
+    .join("");
+}
+
 // Escape JSX expression delimiters in non-code text so the MDX parser treats
 // them as literal characters.
 function escapeOutsideCodeBlocks(text: string): string {
-  // Split on fenced code blocks and inline code spans; leave those untouched.
-  const parts = text.split(/(```[\s\S]*?```|`[^`\n]+`)/);
-  return parts
-    .map((part, idx) => {
-      if (idx % 2 === 1) return part; // code block — leave as-is
-      return part.replace(/\{/g, "\\{").replace(/\}/g, "\\}");
-    })
-    .join("");
+  return mapOutsideCodeBlocks(text, (part) =>
+    part.replace(/\{/g, "\\{").replace(/\}/g, "\\}"),
+  );
+}
+
+// Release bodies routinely link to the specs repo's source files
+// (github.com/ethereum-optimism/specs/blob/<ref>/specs/<path>.md), but the
+// canonical form per the docs link policy is the rendered site — the blob
+// path bakes in a ref and the specs repo's file layout, both of which rot.
+// Rewrite blob links to their rendered specs.optimism.io equivalent.
+function rewriteSpecsBlobLinks(text: string): string {
+  return mapOutsideCodeBlocks(text, (part) =>
+    part.replace(
+      /https:\/\/github\.com\/ethereum-optimism\/specs\/blob\/[^\/\s)]+\/specs\/([\w\-./]+)\.md(#[\w\-]+)?/g,
+      (_m, specPath: string, anchor: string | undefined) =>
+        `https://specs.optimism.io/${specPath}.html${anchor ?? ""}`,
+    ),
+  );
 }
 
 function processBody(body: string | null): string {
@@ -261,6 +283,9 @@ function processBody(body: string | null): string {
 
   // Strip remaining HTML tags
   out = out.replace(/<[^>]+>/g, "");
+
+  // Canonicalize specs-repo blob links to the rendered specs site
+  out = rewriteSpecsBlobLinks(out);
 
   // Escape JSX expression delimiters outside code blocks
   out = escapeOutsideCodeBlocks(out);

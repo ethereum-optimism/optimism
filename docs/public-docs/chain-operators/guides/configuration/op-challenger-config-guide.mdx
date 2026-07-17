@@ -14,6 +14,8 @@ audit-source:
 This guide provides step-by-step instructions for setting up the configuration and monitoring options for `op-challenger`. The challenger is a critical fault proofs component that monitors dispute games and challenges invalid claims to protect your OP Stack chain.
 
 See the [OP-Challenger Explainer](/op-stack/fault-proofs/challenger) for a general overview of this fault proofs feature.
+For the complete catalog of flags, environment variables, and defaults, see the
+[challenger configuration reference](/chain-operators/reference/challenger-configuration).
 
 <Warning>
   **From the Karst upgrade, `cannon-kona` is the respected fault-proof game type, replacing op-program.** Configure `op-challenger` with the `cannon-kona` trace type and a kona-client absolute prestate — a challenger still running the `cannon` / op-program trace type past Karst will not defend your chain. Separately, op-geth reached **end-of-support on 2026-05-31**; run **op-reth** as your L2 execution client. See the [op-geth deprecation notice](/notices/op-geth-deprecation).

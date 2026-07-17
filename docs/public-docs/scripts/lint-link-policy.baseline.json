@@ -273,11 +273,6 @@
     },
     {
       "rule": "unbadged-pinned-link",
-      "file": "node-operators/reference/op-node-config.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/844cc20084a2e9716631b4092ce7eca4804a8e0a/op-service/sources/receipts_rpc.go#L239-L322"
-    },
-    {
-      "rule": "unbadged-pinned-link",
       "file": "notices/archive/fusaka-notice.mdx",
       "url": "https://github.com/ethereum-optimism/optimism/tree/op-program/v1.8.0-rc.4"
     },
@@ -1490,11 +1485,6 @@
       "rule": "unbadged-pinned-link",
       "file": "releases/kona-node.mdx",
       "url": "https://github.com/ethereum-optimism/superchain-registry/blob/c90d86d2ed13541f16daf5ce8707c688723ca039/superchain/configs/mainnet/op.toml#L24"
-    },
-    {
-      "rule": "spec-blob-link",
-      "file": "releases/op-batcher.mdx",
-      "url": "https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/derivation.md#frame-format"
     },
     {
       "rule": "retired-spec-path",
