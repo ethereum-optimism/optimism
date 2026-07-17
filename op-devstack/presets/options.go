@@ -88,6 +88,14 @@ func collectPresetConfig(opts []Option) (sysgo.PresetConfig, CombinedOption) {
 	return cfg, combined
 }
 
+// PresetConfigFromOptions applies ordinary preset options for callers using
+// the lower-level sysgo composition APIs. Frontend-only AfterBuild hooks are
+// intentionally not run; callers may apply those after projecting a runtime.
+func PresetConfigFromOptions(opts ...Option) sysgo.PresetConfig {
+	cfg, _ := collectPresetConfig(opts)
+	return cfg
+}
+
 func WithDeployerOptions(opts ...sysgo.DeployerOption) Option {
 	var kinds optionKinds
 	for _, opt := range opts {

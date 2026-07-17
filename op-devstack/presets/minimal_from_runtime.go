@@ -74,3 +74,11 @@ func minimalFromRuntime(t devtest.T, runtime *sysgo.SingleChainRuntime) *Minimal
 	out.FunderL2 = dsl.NewFunder(out.Wallet, out.FaucetL2, out.L2EL)
 	return out
 }
+
+// MinimalFromRuntime projects a composable sysgo runtime into the standard
+// single-chain DSL before any optional follower nodes are attached. It is
+// useful for delayed-join scenarios that need to interact with the primary
+// node or batcher first.
+func MinimalFromRuntime(t devtest.T, runtime *sysgo.SingleChainRuntime) *Minimal {
+	return minimalFromRuntime(t, runtime)
+}
