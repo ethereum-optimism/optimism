@@ -15,10 +15,10 @@ authors = ["Op Stack Contributors"]
 homepage = "https://github.com/ethereum-optimism/optimism"
 repository = "https://github.com/ethereum-optimism/optimism"
 
-# Mirror of rust/Cargo.toml [workspace.lints]. This is a separate Cargo
-# workspace (for SP1 patch isolation), so it cannot inherit the monorepo lint
-# set; keep this block in sync with rust/Cargo.toml so the guest programs are
-# held to the same standards as the rest of the monorepo's Rust code.
+# Generated from rust/Cargo.toml by `just fmt-fix`; checked by the guest lint
+# and formatting recipes. Cargo cannot inherit lints across workspaces, and
+# this workspace must remain separate to isolate the SP1 crypto patches.
+# BEGIN SHARED WORKSPACE LINTS
 [workspace.lints.rust]
 missing-debug-implementations = "warn"
 missing-docs = "warn"
@@ -114,6 +114,7 @@ result_large_err = "allow"
 significant_drop_in_scrutinee = "allow"
 significant_drop_tightening = "allow"
 too_long_first_doc_paragraph = "allow"
+# END SHARED WORKSPACE LINTS
 
 [workspace.dependencies]
 # Guest path dependencies. Paths are relative to rust/kona/sp1/programs.
