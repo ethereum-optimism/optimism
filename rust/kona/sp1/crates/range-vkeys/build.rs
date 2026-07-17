@@ -9,6 +9,7 @@ fn main() {
     let manifest_dir =
         PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is set"));
     let vkeys_path = manifest_dir.join("../../elf/vkeys.toml");
+    // The manifest is outside this crate, so Cargo's default package tracking does not cover it.
     println!("cargo:rerun-if-changed={}", vkeys_path.display());
 
     let manifest = match fs::read_to_string(&vkeys_path) {
