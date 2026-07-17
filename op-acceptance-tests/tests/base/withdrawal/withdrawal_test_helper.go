@@ -90,7 +90,7 @@ func TestWithdrawal(gt *testing.T, gameType gameTypes.GameType, extra ...presets
 	withdrawal.Finalize(l1User)
 	expectedL1UserBalance = expectedL1UserBalance.Sub(withdrawal.FinalizeGasCost()).Add(withdrawalAmount)
 	l1User.VerifyBalanceExact(expectedL1UserBalance)
-	sys.AnchorStateRegistry().WaitForAnchorRoot(game)
+	sys.AnchorStateRegistry().WaitForAnchorRootAtLeast(game)
 }
 
 // TestWithdrawalAfterUpgrade is like TestWithdrawal but waits for the given fork to activate

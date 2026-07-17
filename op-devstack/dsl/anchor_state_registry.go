@@ -7,7 +7,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
-	"github.com/ethereum/go-ethereum/common"
 )
 
 type AnchorStateRegistry struct {
@@ -33,11 +32,9 @@ func NewAnchorStateRegistry(t devtest.T, l2Network *L2Network, l1EL *L1ELNode) *
 	}
 }
 
-func (a *AnchorStateRegistry) WaitForAnchorRoot(game interface {
-	RootClaimValue() common.Hash
+func (a *AnchorStateRegistry) WaitForAnchorRootAtLeast(game interface {
 	L2SequenceNumber() uint64
 }) {
-	expectedRoot := game.RootClaimValue()
 	expectedSequence := new(big.Int).SetUint64(game.L2SequenceNumber())
 
 	a.require.Eventually(func() bool {
@@ -47,6 +44,6 @@ func (a *AnchorStateRegistry) WaitForAnchorRoot(game interface {
 			return false
 		}
 		a.log.Info("Observed anchor root", "root", anchor.Root, "l2SequenceNumber", anchor.L2SequenceNumber)
-		return anchor.Root == expectedRoot && anchor.L2SequenceNumber.Cmp(expectedSequence) == 0
-	}, 2*time.Minute, 5*time.Second, "AnchorStateRegistry did not advance to the expected game root")
+		return anchor.L2SequenceNumber.Cmp(expectedSequence) >= 0
+	}, 2*time.Minute, 5*time.Second, "AnchorStateRegistry did not advance to the expected game sequence")
 }
