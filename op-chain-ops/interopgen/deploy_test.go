@@ -39,6 +39,9 @@ func TestInitialDisputeAbsolutePrestates(t *testing.T) {
 			selectedPrestate, fallbackPrestate := initialDisputeAbsolutePrestates(cfg)
 			require.Equal(t, test.selectedPrestate, selectedPrestate)
 			require.Equal(t, cannonPrestate, fallbackPrestate)
+			if test.gameType == gameTypes.CannonKonaGameType {
+				require.NotEqual(t, selectedPrestate, fallbackPrestate)
+			}
 		})
 	}
 }

@@ -358,6 +358,12 @@ contract DeployOPChain is Script {
 
         if (_i.disputeGameType.raw() == GameTypes.CANNON_KONA.raw()) {
             require(_i.cannonAbsolutePrestate.raw() != bytes32(0), "DeployOPChainInput: cannonAbsolutePrestate not set");
+            // The two prestates commit to different fault-proof programs (op-program vs Kona),
+            // so equal values always indicate a misconfigured producer.
+            require(
+                _i.cannonAbsolutePrestate.raw() != _i.disputeAbsolutePrestate.raw(),
+                "DeployOPChainInput: cannonAbsolutePrestate must differ from disputeAbsolutePrestate"
+            );
         }
 
         if (permissionless) {
