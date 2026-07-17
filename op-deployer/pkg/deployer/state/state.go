@@ -48,7 +48,7 @@ type State struct {
 	// This field is nil for new deployments.
 	AppliedIntent *Intent `json:"appliedIntent"`
 
-	// InteropDepSet contains the interop dependency set render by the prestate SDK if interop is enabled
+	// InteropDepSet contains the interop dependency set generated during prepare when interop is enabled.
 	InteropDepSet *depset.StaticConfigDependencySet `json:"interopDepSet,omitempty"`
 
 	// SuperchainDeployment contains the addresses of the Superchain
@@ -145,6 +145,7 @@ type ChainState struct {
 	// by the prediction step of the prepare command.
 	Deployed *bool `json:"deployed,omitempty"`
 
+	// TODO(#20912): Consume the committed prestates when building the OP-chain deploy input.
 	// Prestate is the selected absolute prestate for permissionless games.
 	Prestate common.Hash `json:"prestate,omitzero"`
 
