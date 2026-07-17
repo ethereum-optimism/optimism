@@ -152,8 +152,8 @@ type ChainState struct {
 
 	StartBlock *L1BlockRefJSON `json:"startBlock"`
 
-	// GenesisTime is the committed L2 genesis timestamp, fixed at anchor selection.
-	// If nil the genesis timestamp then defaults to the StartBlock timestamp.
+	// GenesisTime is the L2 genesis timestamp pinned with StartBlock.
+	// Nil leaves deploy config to derive it from L1StartingBlockTag.
 	GenesisTime *hexutil.Uint64 `json:"genesisTime,omitempty"`
 }
 
