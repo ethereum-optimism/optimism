@@ -59,6 +59,53 @@ func TestState_PrestateJSONOmitsZeroValue(t *testing.T) {
 	}
 }
 
+func TestState_InitialGameTypeJSONRoundTrip(t *testing.T) {
+	chainID := common.HexToHash("0x01")
+	st := &State{
+		Chains: []*ChainState{{
+			ID:              chainID,
+			InitialGameType: ptr.New(uint32(8)),
+		}},
+	}
+
+	data, err := json.Marshal(st)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"initialGameType":8`)
+
+	var roundTripped State
+	require.NoError(t, json.Unmarshal(data, &roundTripped))
+	chain, err := roundTripped.Chain(chainID)
+	require.NoError(t, err)
+	require.Equal(t, ptr.New(uint32(8)), chain.InitialGameType)
+}
+
+func TestState_InitialGameTypeJSONDistinguishesMissingFromZero(t *testing.T) {
+	tests := []struct {
+		name     string
+		gameType *uint32
+		wantKey  bool
+	}{
+		{name: "missing"},
+		{name: "zero", gameType: ptr.New(uint32(0)), wantKey: true},
+		{name: "nonzero", gameType: ptr.New(uint32(8)), wantKey: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			st := &State{
+				Chains: []*ChainState{{
+					ID:              common.HexToHash("0x01"),
+					InitialGameType: tt.gameType,
+				}},
+			}
+
+			data, err := json.Marshal(st)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantKey, strings.Contains(string(data), `"initialGameType"`))
+		})
+	}
+}
+
 func TestState_EnsureCreate2Salt(t *testing.T) {
 	t.Run("generates a salt when unset", func(t *testing.T) {
 		s := &State{}
@@ -197,6 +244,7 @@ func TestState_SetChainContracts(t *testing.T) {
 	s.Chains[0].StartBlock = &L1BlockRefJSON{Hash: common.HexToHash("0xdead")}
 	prestate := common.HexToHash("0x1234")
 	s.Chains[0].Prestate = prestate
+	s.Chains[0].InitialGameType = ptr.New(uint32(8))
 	s.SetChainContracts(chainA, contractsWith("0xa2"), true)
 	require.Len(t, s.Chains, 2)
 
@@ -208,6 +256,7 @@ func TestState_SetChainContracts(t *testing.T) {
 	require.NotNil(t, got.StartBlock, "other fields must be preserved on update")
 	require.Equal(t, common.HexToHash("0xdead"), got.StartBlock.Hash)
 	require.Equal(t, prestate, got.Prestate, "prestate must be preserved on update")
+	require.Equal(t, ptr.New(uint32(8)), got.InitialGameType, "initial game type must be preserved on update")
 }
 
 func TestBlockRef_Deserialize(t *testing.T) {

@@ -117,10 +117,15 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 			continue
 		}
 
-		gameType, err := resolveInitialGameType(intent, chain)
+		chainState, err := st.Chain(chain.ID)
+		if err != nil {
+			return fmt.Errorf("run op-deployer prepare before op-deployer prestate for chain %s: %w", chain.ID.Hex(), err)
+		}
+		preparedGameType, err := pipeline.ResolvePreparedGameType(intent, chain, chainState)
 		if err != nil {
 			return err
 		}
+		gameType := embedded.GameType(preparedGameType)
 
 		switch gameType {
 		case embedded.GameTypePermissionedCannon:
@@ -130,7 +135,7 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 			hasSuperCannonKona = true
 		}
 
-		requiresPrestate, err := pipeline.RequiresPrestateForGameType(uint32(gameType))
+		requiresPrestate, err := pipeline.RequiresPrestateForGameType(preparedGameType)
 		if err != nil {
 			return fmt.Errorf("chain %s: %w", chain.ID.Hex(), err)
 		}
@@ -164,13 +169,6 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 	// Reject prestate flags that would otherwise be silently ignored.
 	if selectedCommand.set && !hasActiveSelectedConsumer {
 		return fmt.Errorf("--%s was supplied but no undeployed chain resolves to a game type that uses the %s; check respectedGameType in the intent", selectedPrestateRole.flagName, selectedPrestateRole.name)
-	}
-
-	// Avoid partial updates if a chain is missing.
-	for _, assignment := range assignments {
-		if _, err := st.Chain(assignment.ChainID); err != nil {
-			return fmt.Errorf("run op-deployer prepare before op-deployer prestate for chain %s: %w", assignment.ChainID.Hex(), err)
-		}
 	}
 
 	for _, assignment := range assignments {
@@ -329,14 +327,6 @@ func parseIntentPrestate(chainID common.Hash, source string, raw any, role prest
 		return resolvedPrestate{}, fmt.Errorf("invalid %s %s for chain %s (%s): %w", source, role.intentKey, chainID.Hex(), role.name, err)
 	}
 	return resolvedPrestate{set: true, source: source, raw: value, hash: hash}, nil
-}
-
-func resolveInitialGameType(intent *state.Intent, chain *state.ChainIntent) (embedded.GameType, error) {
-	proofParams, err := pipeline.ResolveChainProofParams(intent, chain)
-	if err != nil {
-		return 0, fmt.Errorf("failed to resolve initial dispute game type for chain %s: %w", chain.ID.Hex(), err)
-	}
-	return embedded.GameType(proofParams.DisputeGameType), nil
 }
 
 func parsePrestate(raw string) (common.Hash, error) {

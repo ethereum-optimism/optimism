@@ -495,9 +495,13 @@ func TestPredictChains_ClearsOnlyRepredictedPrestates(t *testing.T) {
 	deployed, err := st.Chain(deployedID)
 	require.NoError(t, err)
 	deployed.Prestate = deployedPrestate
+	deployedInitialGameType := uint32(embedded.GameTypeSuperPermissioned)
+	deployed.InitialGameType = &deployedInitialGameType
 	fresh, err := st.Chain(freshID)
 	require.NoError(t, err)
 	fresh.Prestate = freshPrestate
+	freshInitialGameType := uint32(embedded.GameTypePermissionedCannon)
+	fresh.InitialGameType = &freshInitialGameType
 
 	var ran []common.Hash
 	run := func(in opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
@@ -529,11 +533,13 @@ func TestPredictChains_ClearsOnlyRepredictedPrestates(t *testing.T) {
 	require.True(t, *deployed.Deployed)
 	require.Equal(t, deployedContracts.SystemConfigProxy, deployed.SystemConfigProxy)
 	require.Equal(t, deployedPrestate, deployed.Prestate)
+	require.Equal(t, uint32(embedded.GameTypeSuperPermissioned), *deployed.InitialGameType)
 
 	require.NotNil(t, fresh.Deployed)
 	require.False(t, *fresh.Deployed)
 	require.Equal(t, common.HexToAddress("0xbeef"), fresh.SystemConfigProxy)
 	require.Zero(t, fresh.Prestate)
+	require.Equal(t, uint32(embedded.GameTypeCannonKona), *fresh.InitialGameType)
 }
 
 func TestPrepareChainsBuildsInteropDepSetBeforePrediction(t *testing.T) {
@@ -581,10 +587,12 @@ func TestPrepareChainsPredictionFailureOnlyMutatesSuccessfullyPredictedChainsInM
 	st := &state.State{Create2Salt: common.HexToHash("0x03")}
 	st.SetChainContracts(firstID, addresses.OpChainContracts{}, false)
 	st.SetChainContracts(secondID, addresses.OpChainContracts{}, false)
-	for _, chainID := range []common.Hash{firstID, secondID} {
+	for i, chainID := range []common.Hash{firstID, secondID} {
 		chain, err := st.Chain(chainID)
 		require.NoError(t, err)
 		chain.Prestate = common.HexToHash("0x11")
+		gameType := uint32(embedded.GameTypeCannonKona) + uint32(i)
+		chain.InitialGameType = &gameType
 	}
 
 	var predictions int
@@ -602,9 +610,11 @@ func TestPrepareChainsPredictionFailureOnlyMutatesSuccessfullyPredictedChainsInM
 	first, err := st.Chain(firstID)
 	require.NoError(t, err)
 	require.Zero(t, first.Prestate)
+	require.Equal(t, uint32(embedded.GameTypePermissionedCannon), *first.InitialGameType)
 	second, err := st.Chain(secondID)
 	require.NoError(t, err)
 	require.Equal(t, common.HexToHash("0x11"), second.Prestate)
+	require.Equal(t, uint32(embedded.GameTypeSuperCannonKona), *second.InitialGameType)
 }
 
 func TestPredictChainsPrestateReminders(t *testing.T) {
@@ -664,6 +674,8 @@ func TestPredictChainsPrestateReminders(t *testing.T) {
 
 			require.NoError(t, predictChains(lgr, intent, st, run))
 			require.Zero(t, chain.Prestate)
+			require.NotNil(t, chain.InitialGameType)
+			require.Equal(t, uint32(tt.gameType), *chain.InitialGameType)
 
 			chainFilter := testlog.NewAttributesFilter("chain", chainID.Hex())
 			if tt.reminderMessage == "" {

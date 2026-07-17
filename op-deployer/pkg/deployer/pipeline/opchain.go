@@ -138,6 +138,48 @@ func ResolveChainProofParams(intent *state.Intent, chain *state.ChainIntent) (st
 	)
 }
 
+// ResolvePreparedGameType returns the initial game type recorded by prepare after
+// verifying that the current intent still resolves to the same type.
+func ResolvePreparedGameType(intent *state.Intent, chain *state.ChainIntent, chainState *state.ChainState) (uint32, error) {
+	if chainState == nil || chainState.InitialGameType == nil {
+		return 0, fmt.Errorf("chain %s has no initial game type recorded by prepare; rerun op-deployer prepare", chain.ID.Hex())
+	}
+
+	proofParams, err := ResolveChainProofParams(intent, chain)
+	if err != nil {
+		return 0, fmt.Errorf("failed to resolve initial dispute game type for chain %s: %w", chain.ID.Hex(), err)
+	}
+
+	prepared := *chainState.InitialGameType
+	current := proofParams.DisputeGameType
+	if prepared != current {
+		return 0, fmt.Errorf(
+			"chain %s initial game type changed after prepare: prepared %s (%d), intent %s (%d); rerun op-deployer prepare",
+			chain.ID.Hex(),
+			initialGameTypeName(prepared),
+			prepared,
+			initialGameTypeName(current),
+			current,
+		)
+	}
+	return prepared, nil
+}
+
+func initialGameTypeName(gameType uint32) string {
+	switch embedded.GameType(gameType) {
+	case embedded.GameTypePermissionedCannon:
+		return "PERMISSIONED_CANNON"
+	case embedded.GameTypeSuperPermissioned:
+		return "SUPER_PERMISSIONED"
+	case embedded.GameTypeCannonKona:
+		return "CANNON_KONA"
+	case embedded.GameTypeSuperCannonKona:
+		return "SUPER_CANNON_KONA"
+	default:
+		return "UNKNOWN"
+	}
+}
+
 // RequiresPrestateForGameType rejects unsupported game types.
 func RequiresPrestateForGameType(gameType uint32) (bool, error) {
 	switch embedded.GameType(gameType) {

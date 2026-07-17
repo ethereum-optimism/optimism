@@ -715,6 +715,29 @@ func TestPrestateRejectsIntentChainChangesAfterPrepare(t *testing.T) {
 			wantErrs: []string{"prepared interop dependency set is missing", "rerun op-deployer prepare"},
 		},
 		{
+			name:   "missing prepared game type",
+			chains: []prestateTestChain{{id: chainA, prepared: true}},
+			mutate: func(_ *state.Intent, st *state.State) {
+				chain, err := st.Chain(chainA)
+				require.NoError(t, err)
+				chain.InitialGameType = nil
+			},
+			wantErrs: []string{chainA.Hex(), "no initial game type recorded by prepare", "rerun op-deployer prepare"},
+		},
+		{
+			name:   "game type changed",
+			chains: []prestateTestChain{{id: chainA, prepared: true}},
+			mutate: func(intent *state.Intent, _ *state.State) {
+				intent.Chains[0].DeployOverrides = gameOverride(embedded.GameTypeCannonKona)
+			},
+			wantErrs: []string{
+				chainA.Hex(),
+				"prepared PERMISSIONED_CANNON (1)",
+				"intent CANNON_KONA (8)",
+				"rerun op-deployer prepare",
+			},
+		},
+		{
 			name:   "added chain",
 			chains: []prestateTestChain{{id: chainA, prepared: true}},
 			mutate: func(intent *state.Intent, _ *state.State) {
@@ -772,6 +795,28 @@ func TestPrestateRejectsIntentChainChangesAfterPrepare(t *testing.T) {
 			require.Equal(t, before, after)
 		})
 	}
+}
+
+func TestPrestateAllowsAbsolutePrestateChangeAfterPrepare(t *testing.T) {
+	chainID := common.HexToHash("0x01")
+	initial := testPrestate("11")
+	updated := testPrestate("22")
+	workdir := writePrestateWorkdir(t, nil, []prestateTestChain{{
+		id:       chainID,
+		prepared: true,
+		overrides: map[string]any{
+			"respectedGameType":               embedded.GameTypeCannonKona,
+			faultGameAbsolutePrestateOverride: initial,
+		},
+	}}, true, 1)
+
+	intent, err := pipeline.ReadIntent(workdir)
+	require.NoError(t, err)
+	intent.Chains[0].DeployOverrides[faultGameAbsolutePrestateOverride] = updated
+	require.NoError(t, intent.WriteToFile(filepath.Join(workdir, "intent.toml")))
+
+	require.NoError(t, Prestate(context.Background(), newTestPrestateConfig(t, workdir)))
+	require.Equal(t, common.HexToHash(updated), readPrestateChain(t, workdir, chainID).Prestate)
 }
 
 func TestPrestatePersistenceReplacementAndIdempotency(t *testing.T) {
@@ -914,12 +959,18 @@ func writePrestateWorkdir(t *testing.T, global map[string]any, chains []prestate
 	interopDepSet, err := pipeline.BuildInteropDepSet(intent.Chains)
 	require.NoError(t, err)
 	st := &state.State{Version: version, Prepared: prepared, InteropDepSet: interopDepSet}
-	for _, chain := range chains {
+	for i, chain := range chains {
 		if chain.prepared {
+			var initialGameType *uint32
+			if !chain.deployed {
+				gameType := fixtureInitialGameType(t, &intent, intent.Chains[i])
+				initialGameType = &gameType
+			}
 			st.Chains = append(st.Chains, &state.ChainState{
-				ID:       chain.id,
-				Deployed: &chain.deployed,
-				Prestate: chain.initialSelected,
+				ID:              chain.id,
+				Deployed:        &chain.deployed,
+				Prestate:        chain.initialSelected,
+				InitialGameType: initialGameType,
 			})
 		}
 	}
@@ -981,6 +1032,25 @@ func setCommandPrestate(selected string) func(*PrestateConfig) {
 
 func gameOverride(gameType embedded.GameType) map[string]any {
 	return map[string]any{"respectedGameType": gameType}
+}
+
+func fixtureInitialGameType(t *testing.T, intent *state.Intent, chain *state.ChainIntent) uint32 {
+	t.Helper()
+
+	global := make(map[string]any)
+	if gameType, ok := intent.GlobalDeployOverrides["respectedGameType"]; ok {
+		global["respectedGameType"] = gameType
+	}
+	chainOverrides := make(map[string]any)
+	if gameType, ok := chain.DeployOverrides["respectedGameType"]; ok {
+		chainOverrides["respectedGameType"] = gameType
+	}
+	proofParams, err := pipeline.ResolveChainProofParams(
+		&state.Intent{GlobalDeployOverrides: global},
+		&state.ChainIntent{DeployOverrides: chainOverrides},
+	)
+	require.NoError(t, err)
+	return proofParams.DisputeGameType
 }
 
 func cloneOverrides(overrides map[string]any) map[string]any {

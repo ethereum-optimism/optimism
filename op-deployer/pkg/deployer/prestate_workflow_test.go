@@ -60,6 +60,8 @@ func TestPrestateWorkflowFromPrepareChains(t *testing.T) {
 			deployed, err := st.Chain(deployedID)
 			require.NoError(t, err)
 			deployed.Prestate = historicalSelected
+			historicalGameType := uint32(embedded.GameTypeSuperPermissioned)
+			deployed.InitialGameType = &historicalGameType
 
 			predicted := make(map[common.Hash]common.Address)
 			run := func(in opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
@@ -109,16 +111,19 @@ func TestPrestateWorkflowFromPrepareChains(t *testing.T) {
 			deployed, err = persisted.Chain(deployedID)
 			require.NoError(t, err)
 			require.Equal(t, historicalSelected, deployed.Prestate)
+			require.Equal(t, uint32(embedded.GameTypeSuperPermissioned), *deployed.InitialGameType)
 
 			permissioned, err := persisted.Chain(permissionedID)
 			require.NoError(t, err)
 			require.Equal(t, predicted[permissionedID], permissioned.SystemConfigProxy)
 			require.Zero(t, permissioned.Prestate)
+			require.Equal(t, uint32(embedded.GameTypePermissionedCannon), *permissioned.InitialGameType)
 
 			permissionless, err := persisted.Chain(permissionlessID)
 			require.NoError(t, err)
 			require.Equal(t, predicted[permissionlessID], permissionless.SystemConfigProxy)
 			require.Equal(t, tt.wantSelected, permissionless.Prestate)
+			require.Equal(t, uint32(tt.permissionlessType), *permissionless.InitialGameType)
 		})
 	}
 }

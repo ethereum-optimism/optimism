@@ -121,13 +121,18 @@ func writePreparedPrestateCLIWorkdir(t *testing.T) (string, common.Hash) {
 	}
 	chain.DeployOverrides = map[string]any{"respectedGameType": embedded.GameTypeCannonKona}
 
+	interopDepSet, err := pipeline.BuildInteropDepSet(intent.Chains)
+	require.NoError(t, err)
+	initialGameType := uint32(embedded.GameTypeCannonKona)
 	deployed := false
 	st := &state.State{
-		Version:  1,
-		Prepared: true,
+		Version:       1,
+		Prepared:      true,
+		InteropDepSet: interopDepSet,
 		Chains: []*state.ChainState{{
-			ID:       chainID,
-			Deployed: &deployed,
+			ID:              chainID,
+			Deployed:        &deployed,
+			InitialGameType: &initialGameType,
 		}},
 	}
 

@@ -149,6 +149,10 @@ type ChainState struct {
 	// Prestate is the selected absolute prestate for permissionless games.
 	Prestate common.Hash `json:"prestate,omitzero"`
 
+	// InitialGameType is the dispute game type used to predict this chain during prepare.
+	// A nil value means the state predates recording this preparation input.
+	InitialGameType *uint32 `json:"initialGameType,omitempty"`
+
 	AdditionalDisputeGames []AdditionalDisputeGameState `json:"additionalDisputeGames"`
 
 	Allocs *GzipData[foundry.ForgeAllocs] `json:"allocs"`

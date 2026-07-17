@@ -249,6 +249,8 @@ func predictChains(lgr log.Logger, intent *state.Intent, st *state.State, run fu
 			return fmt.Errorf("failed to clear prestate for chain %s: %w", chain.ID.Hex(), err)
 		}
 		chainState.Prestate = common.Hash{}
+		gameType := dci.DisputeGameType
+		chainState.InitialGameType = &gameType
 
 		if requiresPrestate {
 			lgr.Info(
