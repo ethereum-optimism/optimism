@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-core/eip1559"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -32,7 +33,7 @@ func PayloadToBlockRef(rollupCfg *rollup.Config, payload *eth.ExecutionPayload) 
 		if err := tx.UnmarshalBinary(payload.Transactions[0]); err != nil {
 			return eth.L2BlockRef{}, fmt.Errorf("failed to decode first tx to read l1 info from: %w", err)
 		}
-		if tx.Type() != types.DepositTxType {
+		if tx.Type() != optypes.DepositTxType {
 			return eth.L2BlockRef{}, fmt.Errorf("first payload tx has unexpected tx type: %d", tx.Type())
 		}
 		info, err := L1BlockInfoFromBytes(rollupCfg, uint64(payload.Timestamp), tx.Data())
@@ -93,7 +94,7 @@ func PayloadToSystemConfig(rollupCfg *rollup.Config, payload *eth.ExecutionPaylo
 	if err := tx.UnmarshalBinary(payload.Transactions[0]); err != nil {
 		return eth.SystemConfig{}, fmt.Errorf("failed to decode first tx to read l1 info from: %w", err)
 	}
-	if tx.Type() != types.DepositTxType {
+	if tx.Type() != optypes.DepositTxType {
 		return eth.SystemConfig{}, fmt.Errorf("first payload tx has unexpected tx type: %d", tx.Type())
 	}
 	info, err := L1BlockInfoFromBytes(rollupCfg, uint64(payload.Timestamp), tx.Data())

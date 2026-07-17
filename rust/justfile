@@ -3,7 +3,7 @@ set positional-arguments
 NIGHTLY := `grep -oE 'nightly-[0-9]{4}-[0-9]{2}-[0-9]{2}' ../mise.toml | head -1`
 
 # The SP1 guest programs live in a nested Cargo workspace (separate for SP1
-# crypto patch isolation), so fmt/clippy must target its manifest explicitly.
+# crypto patch isolation), so fmt/clippy/tests must target its manifest explicitly.
 # Run from this directory so it shares rust/rustfmt.toml and rust/clippy.toml.
 SP1_GUEST_MANIFEST := "kona/sp1/programs/Cargo.toml"
 
@@ -82,8 +82,8 @@ build-op-reth-debug:
 
 ############################### Test ################################
 
-# Run all tests (unit + doc tests)
-test: test-unit test-docs
+# Run all tests (unit + doc + SP1 guest tests)
+test: test-unit test-docs test-sp1-guest
 
 # Run unit tests (excluding online tests)
 test-unit *args="-E '!test(test_online)'":
@@ -96,6 +96,10 @@ test-online:
 # Run doc tests
 test-docs:
   cargo test --doc --workspace --locked --all-features
+
+# Run tests in the nested SP1 guest program workspace
+test-sp1-guest:
+  cargo test --manifest-path {{SP1_GUEST_MANIFEST}} --workspace --locked
 
 ############################### Lint ################################
 
