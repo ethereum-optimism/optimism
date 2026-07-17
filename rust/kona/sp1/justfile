@@ -3,9 +3,7 @@ default:
 
 SP1_TAG := "v6.3.1"
 
-# Build the range-executor host binary, used by the SP1 execute action tests to run the range guest
-# in SP1 execute mode. The binary loads the range guest ELF at runtime, so build the ELFs before
-# running it (build-elfs).
+# Build the range-executor host binary for SP1 action tests (requires build-elfs first).
 build-range-executor:
     cd ../.. && cargo build -p kona-sp1-range-executor --release
 
