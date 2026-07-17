@@ -1,6 +1,6 @@
 {
   "$comment": "Baseline for validate-redirects.ts: pre-existing violations grandfathered when the guardrail was introduced (tracked in ethereum-optimism/solutions#955). This file only shrinks — fixing a violation requires removing its entry, and new violations always fail CI.",
-  "shadowedSources": ["/chain-operators/tools/op-deployer/usage/upgrade"],
+  "shadowedSources": [],
   "deadInternalLinks": {
     "app-developers/guides/configuring-actions.mdx": ["/app-developers/reference/actions"],
     "app-developers/guides/interoperability/get-started.mdx": [
