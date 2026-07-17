@@ -159,7 +159,7 @@ func TestMakePredictionInput_GameTypeInputs(t *testing.T) {
 			}
 
 			if tt.usesCannonFallbackPrestate {
-				require.Equal(t, predictionCannonAbsolutePrestate, dci.CannonAbsolutePrestate)
+				require.Equal(t, opcm.PermissionedGamePrestatePlaceholder, dci.CannonAbsolutePrestate)
 				require.NotEqual(t, dci.DisputeAbsolutePrestate, dci.CannonAbsolutePrestate)
 			} else {
 				require.Equal(t, dci.DisputeAbsolutePrestate, dci.CannonAbsolutePrestate)

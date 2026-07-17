@@ -188,7 +188,6 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 			Root:             opcm.DefaultStartingAnchorRoot.Root,
 			L2SequenceNumber: common.Big0,
 		},
-		proofParams.DisputeAbsolutePrestate,
 		thisIntent,
 	), nil
 }
@@ -213,11 +212,17 @@ func BuildDeployOPChainInput(
 	saltMixer string,
 	gasLimit uint64,
 	startingAnchorRoot opcm.Proposal,
-	cannonAbsolutePrestate common.Hash,
 	chain *state.ChainIntent,
 ) opcm.DeployOPChainInput {
 	if gasLimit == 0 {
 		gasLimit = standard.GasLimit
+	}
+
+	// DeployOPChain consumes CannonAbsolutePrestate only for CANNON_KONA's
+	// permissioned fallback. Other modes mirror the selected prestate.
+	cannonAbsolutePrestate := proofParams.DisputeAbsolutePrestate
+	if proofParams.DisputeGameType == uint32(embedded.GameTypeCannonKona) {
+		cannonAbsolutePrestate = opcm.PermissionedGamePrestatePlaceholder
 	}
 
 	return opcm.DeployOPChainInput{
@@ -234,9 +239,9 @@ func BuildDeployOPChainInput(
 		SaltMixer:                    saltMixer,
 		GasLimit:                     gasLimit,
 		DisputeGameType:              proofParams.DisputeGameType,
-		DisputeAbsolutePrestate:      proofParams.DisputeAbsolutePrestate, // This is for Permissioned games
+		DisputeAbsolutePrestate:      proofParams.DisputeAbsolutePrestate, // Selected game prestate
 		StartingAnchorRoot:           startingAnchorRoot,
-		CannonAbsolutePrestate:       cannonAbsolutePrestate, // This is for Permissionless games
+		CannonAbsolutePrestate:       cannonAbsolutePrestate,
 		DisputeMaxGameDepth:          new(big.Int).SetUint64(proofParams.DisputeMaxGameDepth),
 		DisputeSplitDepth:            new(big.Int).SetUint64(proofParams.DisputeSplitDepth),
 		DisputeClockExtension:        proofParams.DisputeClockExtension,   // 3 hours (input in seconds)

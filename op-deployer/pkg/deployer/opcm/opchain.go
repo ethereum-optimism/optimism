@@ -19,6 +19,11 @@ var PermissionedGameStartingAnchorRoot = []byte{
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 }
 
+// PermissionedGamePrestatePlaceholder is the fixed normal permissioned game
+// prestate 0x000000000000000000000000000000000000000000000000000000000000dead.
+// Permissioned games do not load or execute this prestate.
+var PermissionedGamePrestatePlaceholder = common.HexToHash("0xdead")
+
 // Proposal mirrors the Solidity Proposal tuple used for the starting anchor root.
 type Proposal struct {
 	Root             common.Hash

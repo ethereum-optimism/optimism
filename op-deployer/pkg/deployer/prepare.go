@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
@@ -278,11 +277,8 @@ func predictChains(lgr log.Logger, intent *state.Intent, st *state.State, run fu
 	return nil
 }
 
-// Sentinel inputs for the prediction dry-run of permissionless deploys.
-var (
-	predictionStartingAnchorRoot     = common.Hash{0x01}
-	predictionCannonAbsolutePrestate = common.Hash{0x01}
-)
+// Sentinel input for the prediction dry-run of permissionless deploys.
+var predictionStartingAnchorRoot = common.Hash{0x01}
 
 // makePredictionInput builds the DeployOPChain input for the prediction dry-run.
 // The OPCM, superchain config and salt mixer are taken from the committed intent
@@ -318,14 +314,9 @@ func makePredictionInput(intent *state.Intent, st *state.State, chain *state.Cha
 		Root:             opcm.DefaultStartingAnchorRoot.Root,
 		L2SequenceNumber: common.Big0,
 	}
-	cannonAbsolutePrestate := proofParams.DisputeAbsolutePrestate
 
 	if pipeline.IsPermissionlessGameType(proofParams.DisputeGameType) {
 		startingAnchorRoot.Root = predictionStartingAnchorRoot
-	}
-
-	if proofParams.DisputeGameType == uint32(embedded.GameTypeCannonKona) {
-		cannonAbsolutePrestate = predictionCannonAbsolutePrestate
 	}
 
 	return pipeline.BuildDeployOPChainInput(
@@ -337,7 +328,6 @@ func makePredictionInput(intent *state.Intent, st *state.State, chain *state.Cha
 		st.Create2Salt.String(),
 		chain.GasLimit,
 		startingAnchorRoot,
-		cannonAbsolutePrestate,
 		chain,
 	), nil
 }
