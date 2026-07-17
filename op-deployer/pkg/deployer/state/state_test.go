@@ -14,72 +14,49 @@ import (
 func TestState_PrestateJSONRoundTrip(t *testing.T) {
 	chainID := common.HexToHash("0x01")
 	selectedPrestate := common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111")
-	fallbackPrestate := common.HexToHash("0x2222222222222222222222222222222222222222222222222222222222222222")
 	st := &State{
 		Chains: []*ChainState{{
-			ID:                     chainID,
-			Prestate:               selectedPrestate,
-			CannonFallbackPrestate: fallbackPrestate,
+			ID:       chainID,
+			Prestate: selectedPrestate,
 		}},
 	}
 
 	data, err := json.Marshal(st)
 	require.NoError(t, err)
 	require.Contains(t, string(data), `"prestate":"`+selectedPrestate.Hex()+`"`)
-	require.Contains(t, string(data), `"cannonFallbackPrestate":"`+fallbackPrestate.Hex()+`"`)
 
 	var roundTripped State
 	require.NoError(t, json.Unmarshal(data, &roundTripped))
 	chain, err := roundTripped.Chain(chainID)
 	require.NoError(t, err)
 	require.Equal(t, selectedPrestate, chain.Prestate)
-	require.Equal(t, fallbackPrestate, chain.CannonFallbackPrestate)
 }
 
 func TestState_PrestateJSONOmitsZeroValue(t *testing.T) {
 	selectedPrestate := common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111")
-	fallbackPrestate := common.HexToHash("0x2222222222222222222222222222222222222222222222222222222222222222")
 	tests := []struct {
-		name               string
-		selectedPrestate   common.Hash
-		fallbackPrestate   common.Hash
-		wantSelected       bool
-		wantCannonFallback bool
+		name             string
+		selectedPrestate common.Hash
+		wantSelected     bool
 	}{
-		{name: "both unset"},
-		{name: "selected unset", fallbackPrestate: fallbackPrestate, wantCannonFallback: true},
-		{name: "fallback unset", selectedPrestate: selectedPrestate, wantSelected: true},
+		{name: "unset"},
+		{name: "set", selectedPrestate: selectedPrestate, wantSelected: true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			st := &State{
 				Chains: []*ChainState{{
-					ID:                     common.HexToHash("0x01"),
-					Prestate:               tt.selectedPrestate,
-					CannonFallbackPrestate: tt.fallbackPrestate,
+					ID:       common.HexToHash("0x01"),
+					Prestate: tt.selectedPrestate,
 				}},
 			}
 
 			data, err := json.Marshal(st)
 			require.NoError(t, err)
 			require.Equal(t, tt.wantSelected, strings.Contains(string(data), `"prestate"`))
-			require.Equal(t, tt.wantCannonFallback, strings.Contains(string(data), `"cannonFallbackPrestate"`))
 		})
 	}
-}
-
-func TestState_PrestateLegacyJSONDefaultsFallbackToZero(t *testing.T) {
-	chainID := common.HexToHash("0x01")
-	selectedPrestate := common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111")
-	data := []byte(`{"opChainDeployments":[{"id":"` + chainID.Hex() + `","prestate":"` + selectedPrestate.Hex() + `"}]}`)
-
-	var st State
-	require.NoError(t, json.Unmarshal(data, &st))
-	chain, err := st.Chain(chainID)
-	require.NoError(t, err)
-	require.Equal(t, selectedPrestate, chain.Prestate)
-	require.Zero(t, chain.CannonFallbackPrestate)
 }
 
 func TestState_EnsureCreate2Salt(t *testing.T) {
@@ -219,9 +196,7 @@ func TestState_SetChainContracts(t *testing.T) {
 	// fields set by other stages, and can flip the deployed flag.
 	s.Chains[0].StartBlock = &L1BlockRefJSON{Hash: common.HexToHash("0xdead")}
 	prestate := common.HexToHash("0x1234")
-	fallbackPrestate := common.HexToHash("0x5678")
 	s.Chains[0].Prestate = prestate
-	s.Chains[0].CannonFallbackPrestate = fallbackPrestate
 	s.SetChainContracts(chainA, contractsWith("0xa2"), true)
 	require.Len(t, s.Chains, 2)
 
@@ -233,7 +208,6 @@ func TestState_SetChainContracts(t *testing.T) {
 	require.NotNil(t, got.StartBlock, "other fields must be preserved on update")
 	require.Equal(t, common.HexToHash("0xdead"), got.StartBlock.Hash)
 	require.Equal(t, prestate, got.Prestate, "prestate must be preserved on update")
-	require.Equal(t, fallbackPrestate, got.CannonFallbackPrestate, "Cannon fallback prestate must be preserved on update")
 }
 
 func TestBlockRef_Deserialize(t *testing.T) {

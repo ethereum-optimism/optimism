@@ -468,8 +468,6 @@ func TestPredictChains_ClearsOnlyRepredictedPrestates(t *testing.T) {
 	freshID := common.HexToHash("0x0b")
 	deployedPrestate := common.HexToHash("0xdead")
 	freshPrestate := common.HexToHash("0xbeef")
-	deployedFallbackPrestate := common.HexToHash("0xcafe")
-	freshFallbackPrestate := common.HexToHash("0xfade")
 
 	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
 	superchainConfig := common.HexToAddress("0xbbbb000000000000000000000000000000000002")
@@ -497,11 +495,9 @@ func TestPredictChains_ClearsOnlyRepredictedPrestates(t *testing.T) {
 	deployed, err := st.Chain(deployedID)
 	require.NoError(t, err)
 	deployed.Prestate = deployedPrestate
-	deployed.CannonFallbackPrestate = deployedFallbackPrestate
 	fresh, err := st.Chain(freshID)
 	require.NoError(t, err)
 	fresh.Prestate = freshPrestate
-	fresh.CannonFallbackPrestate = freshFallbackPrestate
 
 	var ran []common.Hash
 	run := func(in opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
@@ -533,13 +529,11 @@ func TestPredictChains_ClearsOnlyRepredictedPrestates(t *testing.T) {
 	require.True(t, *deployed.Deployed)
 	require.Equal(t, deployedContracts.SystemConfigProxy, deployed.SystemConfigProxy)
 	require.Equal(t, deployedPrestate, deployed.Prestate)
-	require.Equal(t, deployedFallbackPrestate, deployed.CannonFallbackPrestate)
 
 	require.NotNil(t, fresh.Deployed)
 	require.False(t, *fresh.Deployed)
 	require.Equal(t, common.HexToAddress("0xbeef"), fresh.SystemConfigProxy)
 	require.Zero(t, fresh.Prestate)
-	require.Zero(t, fresh.CannonFallbackPrestate)
 }
 
 func TestPrepareChainsBuildsInteropDepSetBeforePrediction(t *testing.T) {
@@ -591,7 +585,6 @@ func TestPrepareChainsPredictionFailureOnlyMutatesSuccessfullyPredictedChainsInM
 		chain, err := st.Chain(chainID)
 		require.NoError(t, err)
 		chain.Prestate = common.HexToHash("0x11")
-		chain.CannonFallbackPrestate = common.HexToHash("0x22")
 	}
 
 	var predictions int
@@ -609,11 +602,9 @@ func TestPrepareChainsPredictionFailureOnlyMutatesSuccessfullyPredictedChainsInM
 	first, err := st.Chain(firstID)
 	require.NoError(t, err)
 	require.Zero(t, first.Prestate)
-	require.Zero(t, first.CannonFallbackPrestate)
 	second, err := st.Chain(secondID)
 	require.NoError(t, err)
 	require.Equal(t, common.HexToHash("0x11"), second.Prestate)
-	require.Equal(t, common.HexToHash("0x22"), second.CannonFallbackPrestate)
 }
 
 func TestPredictChainsPrestateReminders(t *testing.T) {
@@ -628,7 +619,7 @@ func TestPredictChainsPrestateReminders(t *testing.T) {
 		{
 			name:            "CANNON_KONA",
 			gameType:        embedded.GameTypeCannonKona,
-			reminderMessage: "selected and Cannon fallback prestates must be committed",
+			reminderMessage: "selected prestate must be committed",
 		},
 		{
 			name:            "SUPER_CANNON_KONA",
@@ -664,7 +655,6 @@ func TestPredictChainsPrestateReminders(t *testing.T) {
 			chain, err := st.Chain(chainID)
 			require.NoError(t, err)
 			chain.Prestate = common.HexToHash("0x11")
-			chain.CannonFallbackPrestate = common.HexToHash("0x22")
 			lgr, logs := testlog.CaptureLogger(t, slog.LevelInfo)
 
 			run := func(in opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
@@ -674,7 +664,6 @@ func TestPredictChainsPrestateReminders(t *testing.T) {
 
 			require.NoError(t, predictChains(lgr, intent, st, run))
 			require.Zero(t, chain.Prestate)
-			require.Zero(t, chain.CannonFallbackPrestate)
 
 			chainFilter := testlog.NewAttributesFilter("chain", chainID.Hex())
 			if tt.reminderMessage == "" {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
@@ -22,12 +23,10 @@ const (
 )
 
 type PrestateConfig struct {
-	Workdir                   string
-	Logger                    log.Logger
-	Prestate                  string
-	PrestateSet               bool
-	CannonFallbackPrestate    string
-	CannonFallbackPrestateSet bool
+	Workdir     string
+	Logger      log.Logger
+	Prestate    string
+	PrestateSet bool
 }
 
 func (c *PrestateConfig) Check() error {
@@ -42,12 +41,10 @@ func (c *PrestateConfig) Check() error {
 
 func newPrestateConfig(cliCtx *cli.Context, l log.Logger) PrestateConfig {
 	return PrestateConfig{
-		Workdir:                   cliCtx.String(WorkdirFlagName),
-		Logger:                    l,
-		Prestate:                  cliCtx.String(PrestateFlagName),
-		PrestateSet:               cliCtx.IsSet(PrestateFlagName),
-		CannonFallbackPrestate:    cliCtx.String(CannonFallbackPrestateFlagName),
-		CannonFallbackPrestateSet: cliCtx.IsSet(CannonFallbackPrestateFlagName),
+		Workdir:     cliCtx.String(WorkdirFlagName),
+		Logger:      l,
+		Prestate:    cliCtx.String(PrestateFlagName),
+		PrestateSet: cliCtx.IsSet(PrestateFlagName),
 	}
 }
 
@@ -68,24 +65,16 @@ type prestateRole struct {
 	intentKey string
 }
 
-var (
-	selectedPrestateRole = prestateRole{
-		name:      "selected prestate",
-		flagName:  PrestateFlagName,
-		intentKey: faultGameAbsolutePrestateOverride,
-	}
-	cannonFallbackPrestateRole = prestateRole{
-		name:      "Cannon fallback prestate",
-		flagName:  CannonFallbackPrestateFlagName,
-		intentKey: cannonFallbackPrestateOverride,
-	}
-)
+var selectedPrestateRole = prestateRole{
+	name:      "selected prestate",
+	flagName:  PrestateFlagName,
+	intentKey: faultGameAbsolutePrestateOverride,
+}
 
 type prestateAssignment struct {
-	ChainID        common.Hash
-	GameType       embedded.GameType
-	Selected       common.Hash
-	CannonFallback common.Hash
+	ChainID  common.Hash
+	GameType embedded.GameType
+	Selected common.Hash
 }
 
 func Prestate(ctx context.Context, cfg PrestateConfig) error {
@@ -107,12 +96,11 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 	if err := pipeline.ValidateInputs(intent, st); err != nil {
 		return fmt.Errorf("failed to validate prestate inputs: %w", err)
 	}
-
-	selectedCommand, err := parseCommandPrestate(selectedPrestateRole, cfg.PrestateSet || cfg.Prestate != "", cfg.Prestate)
-	if err != nil {
+	if err := rejectObsoleteFallbackOverrides(intent); err != nil {
 		return err
 	}
-	fallbackCommand, err := parseCommandPrestate(cannonFallbackPrestateRole, cfg.CannonFallbackPrestateSet || cfg.CannonFallbackPrestate != "", cfg.CannonFallbackPrestate)
+
+	selectedCommand, err := parseCommandPrestate(selectedPrestateRole, cfg.PrestateSet || cfg.Prestate != "", cfg.Prestate)
 	if err != nil {
 		return err
 	}
@@ -121,7 +109,6 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 	hasCannonKona := false
 	hasSuperCannonKona := false
 	hasActiveSelectedConsumer := false
-	hasActiveCannonKona := false
 	for _, chain := range intent.Chains {
 		gameType, err := resolveInitialGameType(intent, chain)
 		if err != nil {
@@ -140,7 +127,7 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 			continue
 		}
 
-		requirements, err := pipeline.PrestateRequirementsForGameType(uint32(gameType))
+		requiresPrestate, err := pipeline.RequiresPrestateForGameType(uint32(gameType))
 		if err != nil {
 			return fmt.Errorf("chain %s: %w", chain.ID.Hex(), err)
 		}
@@ -150,42 +137,16 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 		if err != nil {
 			return err
 		}
-		fallback, err := resolvePrestateRole(chain, intent.GlobalDeployOverrides, cannonFallbackPrestateRole, fallbackCommand)
-		if err != nil {
-			return err
-		}
-		if _, supplied := chain.DeployOverrides[cannonFallbackPrestateRole.intentKey]; supplied && !requirements.CannonFallback {
-			gameName := fmt.Sprintf("%d", gameType)
-			switch gameType {
-			case embedded.GameTypePermissionedCannon:
-				gameName = "PERMISSIONED_CANNON"
-			case embedded.GameTypeSuperPermissioned:
-				gameName = "SUPER_PERMISSIONED"
-			case embedded.GameTypeSuperCannonKona:
-				gameName = "SUPER_CANNON_KONA"
-			}
-			return fmt.Errorf("chain override %s for chain %s (%s) is unused because the active initial dispute game type is %s, not CANNON_KONA", cannonFallbackPrestateRole.intentKey, chain.ID.Hex(), cannonFallbackPrestateRole.name, gameName)
-		}
 
-		if requirements.Selected {
+		if requiresPrestate {
 			hasActiveSelectedConsumer = true
 			if !selected.set {
-				gameName := "SUPER_CANNON_KONA"
-				if requirements.CannonFallback {
-					gameName = "CANNON_KONA"
-				}
+				gameName := gameTypeName(gameType)
 				return fmt.Errorf("chain %s with %s requires %s from --%s or intent key %s", chain.ID.Hex(), gameName, selectedPrestateRole.name, selectedPrestateRole.flagName, selectedPrestateRole.intentKey)
 			}
 			assignment.Selected = selected.hash
-		}
-		if requirements.CannonFallback {
-			hasActiveCannonKona = true
-			if !fallback.set {
-				return fmt.Errorf("chain %s with CANNON_KONA requires %s from --%s or intent key %s", chain.ID.Hex(), cannonFallbackPrestateRole.name, cannonFallbackPrestateRole.flagName, cannonFallbackPrestateRole.intentKey)
-			}
-			assignment.CannonFallback = fallback.hash
-			if assignment.Selected == assignment.CannonFallback {
-				return fmt.Errorf("chain %s with CANNON_KONA requires different selected and Cannon fallback prestates; both resolve to %s", chain.ID.Hex(), assignment.Selected.Hex())
+			if gameType == embedded.GameTypeCannonKona && assignment.Selected == opcm.PermissionedGamePrestatePlaceholder {
+				return fmt.Errorf("chain %s with CANNON_KONA requires a selected prestate different from the permissioned-game placeholder %s", chain.ID.Hex(), assignment.Selected.Hex())
 			}
 		}
 		assignments = append(assignments, assignment)
@@ -197,12 +158,6 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 	// Reject prestate flags that would otherwise be silently ignored.
 	if selectedCommand.set && !hasActiveSelectedConsumer {
 		return fmt.Errorf("--%s was supplied but no undeployed chain resolves to a game type that uses the %s; check respectedGameType in the intent", selectedPrestateRole.flagName, selectedPrestateRole.name)
-	}
-	if fallbackCommand.set && !hasActiveCannonKona {
-		return fmt.Errorf("--%s was supplied but no undeployed chain resolves to CANNON_KONA; check respectedGameType in the intent", cannonFallbackPrestateRole.flagName)
-	}
-	if _, supplied := intent.GlobalDeployOverrides[cannonFallbackPrestateRole.intentKey]; supplied && !hasActiveCannonKona {
-		return fmt.Errorf("global override %s was supplied but no undeployed chain resolves to CANNON_KONA; check respectedGameType in the intent", cannonFallbackPrestateRole.intentKey)
 	}
 
 	// Avoid partial updates if a chain is missing.
@@ -218,7 +173,6 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 			return fmt.Errorf("prepared chain %s disappeared: %w", assignment.ChainID.Hex(), err)
 		}
 		chainState.Prestate = assignment.Selected
-		chainState.CannonFallbackPrestate = assignment.CannonFallback
 	}
 
 	if err := pipeline.WriteState(cfg.Workdir, st); err != nil {
@@ -226,13 +180,34 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 	}
 	for _, assignment := range assignments {
 		switch assignment.GameType {
-		case embedded.GameTypeCannonKona:
-			cfg.Logger.Info("committed deployment prestates", "chainID", assignment.ChainID.Hex(), "selected", assignment.Selected.Hex(), "cannonFallback", assignment.CannonFallback.Hex())
-		case embedded.GameTypeSuperCannonKona:
+		case embedded.GameTypeCannonKona, embedded.GameTypeSuperCannonKona:
 			cfg.Logger.Info("committed deployment prestate", "chainID", assignment.ChainID.Hex(), "selected", assignment.Selected.Hex())
 		}
 	}
 	return nil
+}
+
+func rejectObsoleteFallbackOverrides(intent *state.Intent) error {
+	if _, ok := intent.GlobalDeployOverrides[cannonFallbackPrestateOverride]; ok {
+		return fmt.Errorf("global override %s is obsolete; remove it from the intent", cannonFallbackPrestateOverride)
+	}
+	for _, chain := range intent.Chains {
+		if _, ok := chain.DeployOverrides[cannonFallbackPrestateOverride]; ok {
+			return fmt.Errorf("chain override %s for chain %s is obsolete; remove it from the intent", cannonFallbackPrestateOverride, chain.ID.Hex())
+		}
+	}
+	return nil
+}
+
+func gameTypeName(gameType embedded.GameType) string {
+	switch gameType {
+	case embedded.GameTypeCannonKona:
+		return "CANNON_KONA"
+	case embedded.GameTypeSuperCannonKona:
+		return "SUPER_CANNON_KONA"
+	default:
+		return fmt.Sprintf("%d", gameType)
+	}
 }
 
 type resolvedPrestate struct {

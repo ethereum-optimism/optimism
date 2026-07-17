@@ -138,26 +138,15 @@ func ResolveChainProofParams(intent *state.Intent, chain *state.ChainIntent) (st
 	)
 }
 
-// PrestateRequirements describes the prestates that must be committed before a
-// chain with a given initial dispute game type can be deployed.
-type PrestateRequirements struct {
-	Selected       bool
-	CannonFallback bool
-}
-
-// PrestateRequirementsForGameType returns the prestates required by an initial
-// dispute game type. Callers that validate or report prestate requirements must
-// use this helper to keep their behavior consistent.
-func PrestateRequirementsForGameType(gameType uint32) (PrestateRequirements, error) {
+// RequiresPrestateForGameType rejects unsupported game types.
+func RequiresPrestateForGameType(gameType uint32) (bool, error) {
 	switch embedded.GameType(gameType) {
 	case embedded.GameTypePermissionedCannon, embedded.GameTypeSuperPermissioned:
-		return PrestateRequirements{}, nil
-	case embedded.GameTypeCannonKona:
-		return PrestateRequirements{Selected: true, CannonFallback: true}, nil
-	case embedded.GameTypeSuperCannonKona:
-		return PrestateRequirements{Selected: true}, nil
+		return false, nil
+	case embedded.GameTypeCannonKona, embedded.GameTypeSuperCannonKona:
+		return true, nil
 	default:
-		return PrestateRequirements{}, fmt.Errorf("unsupported initial dispute game type %d", gameType)
+		return false, fmt.Errorf("unsupported initial dispute game type %d", gameType)
 	}
 }
 

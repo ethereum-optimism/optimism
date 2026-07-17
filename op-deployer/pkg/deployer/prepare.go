@@ -233,9 +233,9 @@ func predictChains(lgr log.Logger, intent *state.Intent, st *state.State, run fu
 		if err != nil {
 			return fmt.Errorf("failed to build prediction input for chain %s: %w", chain.ID.Hex(), err)
 		}
-		prestateRequirements, err := pipeline.PrestateRequirementsForGameType(dci.DisputeGameType)
+		requiresPrestate, err := pipeline.RequiresPrestateForGameType(dci.DisputeGameType)
 		if err != nil {
-			return fmt.Errorf("failed to resolve prestate requirements for chain %s: %w", chain.ID.Hex(), err)
+			return fmt.Errorf("failed to resolve prestate requirement for chain %s: %w", chain.ID.Hex(), err)
 		}
 
 		out, err := run(dci)
@@ -249,15 +249,10 @@ func predictChains(lgr log.Logger, intent *state.Intent, st *state.State, run fu
 			return fmt.Errorf("failed to clear prestates for chain %s: %w", chain.ID.Hex(), err)
 		}
 		chainState.Prestate = common.Hash{}
-		chainState.CannonFallbackPrestate = common.Hash{}
 
-		if prestateRequirements.Selected {
-			message := "selected prestate must be committed; run op-deployer prestate before continue"
-			if prestateRequirements.CannonFallback {
-				message = "selected and Cannon fallback prestates must be committed; run op-deployer prestate before continue"
-			}
+		if requiresPrestate {
 			lgr.Info(
-				message,
+				"selected prestate must be committed; run op-deployer prestate before continue",
 				"chain", chain.ID.Hex(),
 			)
 		}

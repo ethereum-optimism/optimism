@@ -204,11 +204,11 @@ func TestResolveChainProofParams(t *testing.T) {
 	})
 }
 
-func TestPrestateRequirements(t *testing.T) {
+func TestRequiresPrestateForGameType(t *testing.T) {
 	tests := []struct {
 		name     string
 		gameType embedded.GameType
-		want     PrestateRequirements
+		want     bool
 		wantErr  bool
 	}{
 		{name: "CANNON", gameType: embedded.GameTypeCannon, wantErr: true},
@@ -217,19 +217,19 @@ func TestPrestateRequirements(t *testing.T) {
 		{
 			name:     "CANNON_KONA",
 			gameType: embedded.GameTypeCannonKona,
-			want:     PrestateRequirements{Selected: true, CannonFallback: true},
+			want:     true,
 		},
 		{
 			name:     "SUPER_CANNON_KONA",
 			gameType: embedded.GameTypeSuperCannonKona,
-			want:     PrestateRequirements{Selected: true},
+			want:     true,
 		},
 		{name: "ZK_DISPUTE_GAME", gameType: embedded.GameTypeZKDisputeGame, wantErr: true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := PrestateRequirementsForGameType(uint32(tt.gameType))
+			got, err := RequiresPrestateForGameType(uint32(tt.gameType))
 			if tt.wantErr {
 				require.ErrorContains(t, err, fmt.Sprintf("unsupported initial dispute game type %d", tt.gameType))
 				return

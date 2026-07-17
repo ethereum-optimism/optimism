@@ -17,54 +17,37 @@ import (
 )
 
 func TestPrestateCLICommandSources(t *testing.T) {
-	const (
-		selectedEnvVar = "DEPLOYER_DISPUTE_ABSOLUTE_PRESTATE"
-		fallbackEnvVar = "DEPLOYER_CANNON_FALLBACK_PRESTATE"
-	)
+	const selectedEnvVar = "DEPLOYER_DISPUTE_ABSOLUTE_PRESTATE"
 
 	tests := []struct {
 		name         string
 		envSelected  common.Hash
-		envFallback  common.Hash
 		cliSelected  common.Hash
-		cliFallback  common.Hash
 		wantSelected common.Hash
-		wantFallback common.Hash
 	}{
 		{
 			name:         "CLI values reach state",
 			cliSelected:  common.HexToHash("0x11"),
-			cliFallback:  common.HexToHash("0x22"),
 			wantSelected: common.HexToHash("0x11"),
-			wantFallback: common.HexToHash("0x22"),
 		},
 		{
 			name:         "environment-only values reach state",
 			envSelected:  common.HexToHash("0x33"),
-			envFallback:  common.HexToHash("0x44"),
 			wantSelected: common.HexToHash("0x33"),
-			wantFallback: common.HexToHash("0x44"),
 		},
 		{
 			name:         "CLI wins over environment",
 			envSelected:  common.HexToHash("0x55"),
-			envFallback:  common.HexToHash("0x66"),
 			cliSelected:  common.HexToHash("0x77"),
-			cliFallback:  common.HexToHash("0x88"),
 			wantSelected: common.HexToHash("0x77"),
-			wantFallback: common.HexToHash("0x88"),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			clearTestEnv(t, selectedEnvVar)
-			clearTestEnv(t, fallbackEnvVar)
 			if tt.envSelected != (common.Hash{}) {
 				t.Setenv(selectedEnvVar, tt.envSelected.Hex())
-			}
-			if tt.envFallback != (common.Hash{}) {
-				t.Setenv(fallbackEnvVar, tt.envFallback.Hex())
 			}
 
 			workdir, chainID := writePreparedPrestateCLIWorkdir(t)
@@ -77,9 +60,6 @@ func TestPrestateCLICommandSources(t *testing.T) {
 			if tt.cliSelected != (common.Hash{}) {
 				args = append(args, "--dispute-absolute-prestate", tt.cliSelected.Hex())
 			}
-			if tt.cliFallback != (common.Hash{}) {
-				args = append(args, "--cannon-fallback-prestate", tt.cliFallback.Hex())
-			}
 
 			var stdout bytes.Buffer
 			var stderr bytes.Buffer
@@ -91,9 +71,22 @@ func TestPrestateCLICommandSources(t *testing.T) {
 			chain, err := persisted.Chain(chainID)
 			require.NoError(t, err)
 			require.Equal(t, tt.wantSelected, chain.Prestate)
-			require.Equal(t, tt.wantFallback, chain.CannonFallbackPrestate)
 		})
 	}
+}
+
+func TestPrestateCLIRemovedFallbackFlagIsUnknown(t *testing.T) {
+	workdir, _ := writePreparedPrestateCLIWorkdir(t)
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	err := RunCLI(context.Background(), &stdout, &stderr, []string{
+		"op-deployer",
+		"--cache-dir", filepath.Join(workdir, "cache"),
+		"prestate",
+		"--workdir", workdir,
+		"--cannon-fallback-prestate", common.HexToHash("0x22").Hex(),
+	})
+	require.ErrorContains(t, err, "flag provided but not defined")
 }
 
 func writePreparedPrestateCLIWorkdir(t *testing.T) (string, common.Hash) {

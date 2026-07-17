@@ -23,17 +23,13 @@ func TestPrestateWorkflowFromPrepareChains(t *testing.T) {
 		name               string
 		permissionlessType embedded.GameType
 		selected           common.Hash
-		fallback           common.Hash
 		wantSelected       common.Hash
-		wantCannonFallback common.Hash
 	}{
 		{
 			name:               "permissioned and CANNON_KONA",
 			permissionlessType: embedded.GameTypeCannonKona,
 			selected:           common.HexToHash("0x11"),
-			fallback:           common.HexToHash("0x22"),
 			wantSelected:       common.HexToHash("0x11"),
-			wantCannonFallback: common.HexToHash("0x22"),
 		},
 		{
 			name:               "permissioned and SUPER_CANNON_KONA",
@@ -53,7 +49,6 @@ func TestPrestateWorkflowFromPrepareChains(t *testing.T) {
 			intent.Chains[2].DeployOverrides = map[string]any{"respectedGameType": tt.permissionlessType}
 
 			historicalSelected := common.HexToHash("0xaa")
-			historicalFallback := common.HexToHash("0xbb")
 			st := &state.State{
 				Version:     1,
 				Prepared:    true,
@@ -65,7 +60,6 @@ func TestPrestateWorkflowFromPrepareChains(t *testing.T) {
 			deployed, err := st.Chain(deployedID)
 			require.NoError(t, err)
 			deployed.Prestate = historicalSelected
-			deployed.CannonFallbackPrestate = historicalFallback
 
 			predicted := make(map[common.Hash]common.Address)
 			run := func(in opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
@@ -102,10 +96,6 @@ func TestPrestateWorkflowFromPrepareChains(t *testing.T) {
 				Prestate:    tt.selected.Hex(),
 				PrestateSet: true,
 			}
-			if tt.fallback != (common.Hash{}) {
-				cfg.CannonFallbackPrestate = tt.fallback.Hex()
-				cfg.CannonFallbackPrestateSet = true
-			}
 			require.NoError(t, Prestate(context.Background(), cfg))
 
 			persisted, err := pipeline.ReadState(workdir)
@@ -119,19 +109,16 @@ func TestPrestateWorkflowFromPrepareChains(t *testing.T) {
 			deployed, err = persisted.Chain(deployedID)
 			require.NoError(t, err)
 			require.Equal(t, historicalSelected, deployed.Prestate)
-			require.Equal(t, historicalFallback, deployed.CannonFallbackPrestate)
 
 			permissioned, err := persisted.Chain(permissionedID)
 			require.NoError(t, err)
 			require.Equal(t, predicted[permissionedID], permissioned.SystemConfigProxy)
 			require.Zero(t, permissioned.Prestate)
-			require.Zero(t, permissioned.CannonFallbackPrestate)
 
 			permissionless, err := persisted.Chain(permissionlessID)
 			require.NoError(t, err)
 			require.Equal(t, predicted[permissionlessID], permissionless.SystemConfigProxy)
 			require.Equal(t, tt.wantSelected, permissionless.Prestate)
-			require.Equal(t, tt.wantCannonFallback, permissionless.CannonFallbackPrestate)
 		})
 	}
 }

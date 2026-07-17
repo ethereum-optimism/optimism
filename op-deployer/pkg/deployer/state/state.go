@@ -149,9 +149,6 @@ type ChainState struct {
 	// Prestate is the selected absolute prestate for permissionless games.
 	Prestate common.Hash `json:"prestate,omitzero"`
 
-	// CannonFallbackPrestate is the permissioned fallback absolute prestate for CANNON_KONA.
-	CannonFallbackPrestate common.Hash `json:"cannonFallbackPrestate,omitzero"`
-
 	AdditionalDisputeGames []AdditionalDisputeGameState `json:"additionalDisputeGames"`
 
 	Allocs *GzipData[foundry.ForgeAllocs] `json:"allocs"`
