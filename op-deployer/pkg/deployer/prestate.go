@@ -109,21 +109,21 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 	hasSuperCannonKona := false
 	hasActiveSelectedConsumer := false
 	for _, chain := range intent.Chains {
+		if st.IsChainDeployed(chain.ID) {
+			continue
+		}
+
 		gameType, err := resolveInitialGameType(intent, chain)
 		if err != nil {
 			return err
 		}
 
-		deployed := st.IsChainDeployed(chain.ID)
 		switch gameType {
 		case embedded.GameTypePermissionedCannon:
 		case embedded.GameTypeCannonKona:
 			hasCannonKona = true
 		case embedded.GameTypeSuperCannonKona:
 			hasSuperCannonKona = true
-		}
-		if deployed {
-			continue
 		}
 
 		requiresPrestate, err := pipeline.RequiresPrestateForGameType(uint32(gameType))

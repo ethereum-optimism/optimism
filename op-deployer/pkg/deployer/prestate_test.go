@@ -394,13 +394,16 @@ func TestPrestateGameTypeRequirements(t *testing.T) {
 			},
 		},
 		{
-			name: "deployed CANNON_KONA still conflicts with active SUPER_CANNON_KONA",
+			name: "deployed CANNON_KONA migration preserves historical prestate alongside active SUPER_CANNON_KONA",
 			chains: []prestateTestChain{
 				{id: chainA, prepared: true, deployed: true, overrides: gameOverride(embedded.GameTypeCannonKona), initialSelected: stale},
 				{id: chainB, prepared: true, overrides: gameOverride(embedded.GameTypeSuperCannonKona)},
 			},
-			configure:    setCommandPrestate(selected),
-			wantErrParts: []string{"cannot mix CANNON_KONA and SUPER_CANNON_KONA"},
+			configure: setCommandPrestate(selected),
+			want: map[common.Hash]common.Hash{
+				chainA: stale,
+				chainB: common.HexToHash(selected),
+			},
 		},
 		{
 			name: "deployed SUPER_CANNON_KONA is preserved alongside active permissioned",
@@ -426,9 +429,9 @@ func TestPrestateGameTypeRequirements(t *testing.T) {
 			},
 		},
 		{
-			name:         "deployed malformed game type still fails resolution",
-			chains:       []prestateTestChain{{id: chainA, prepared: true, deployed: true, overrides: map[string]any{"respectedGameType": "invalid"}, initialSelected: stale}},
-			wantErrParts: []string{"failed to resolve initial dispute game type", chainA.Hex()},
+			name:   "deployed malformed game type is ignored and preserved",
+			chains: []prestateTestChain{{id: chainA, prepared: true, deployed: true, overrides: map[string]any{"respectedGameType": "invalid"}, initialSelected: stale}},
+			want:   map[common.Hash]common.Hash{chainA: stale},
 		},
 	}
 
