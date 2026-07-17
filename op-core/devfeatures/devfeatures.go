@@ -1,8 +1,6 @@
 package devfeatures
 
 import (
-	"math/big"
-
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -26,9 +24,6 @@ var (
 	// DeployV2DisputeGamesFlag enables deployment of V2 dispute game contracts.
 	DeployV2DisputeGamesFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000100")
 
-	// L2CMFlag enables L2CM.
-	L2CMFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000100000")
-
 	// ZKDisputeGameFlag enables the ZK dispute game system.
 	// TODO(#19432): Use this flag in the OPCM/OPD integration pipeline.
 	ZKDisputeGameFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000001000000")
@@ -41,16 +36,7 @@ var (
 // It performs a bitwise AND between the bitmap and flag to determine if the feature
 // is set. This follows the same pattern as the Solidity DevFeatures library.
 func IsDevFeatureEnabled(bitmap, flag common.Hash) bool {
-	// L2CM is enabled by default. TODO(#20084): remove with the broader L2CMFlag cleanup.
-	if hasFlag(flag, L2CMFlag) {
-		return true
-	}
-	b := new(big.Int).SetBytes(bitmap[:])
-	f := new(big.Int).SetBytes(flag[:])
-
-	featuresIsNonZero := f.Cmp(big.NewInt(0)) != 0
-	bitmapContainsFeatures := new(big.Int).And(b, f).Cmp(f) == 0
-	return featuresIsNonZero && bitmapContainsFeatures
+	return flag != (common.Hash{}) && hasFlag(bitmap, flag)
 }
 
 // hasFlag reports whether all bits of flag are set in features.
