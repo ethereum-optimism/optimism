@@ -207,7 +207,7 @@ Follow the [Development Quick Start](#development-quick-start) to set up your lo
 
 Read any README files in the packages you are contributing to. Some packages have additional instructions that are not covered in this guide.
 
-We prefer the [Scoped Commits](https://scopedcommits.com) format for commit messages and PR titles — see [Commit messages](#commit-messages) below.
+We require the [Scoped Commits](https://scopedcommits.com) format for commit messages and PR titles — see [Commit messages](#commit-messages) below.
 
 Unless your PR is ready for immediate review and merging, please mark it as 'draft' (or simply do not open a PR yet).
 
@@ -217,7 +217,7 @@ Once ready for review, make sure to include a thorough PR description to help re
 
 ### Commit messages
 
-We prefer the [Scoped Commits](https://scopedcommits.com) format for commit messages and PR titles:
+We require the [Scoped Commits](https://scopedcommits.com) format for commit messages and PR titles:
 
 ```
 <scope>: <description>
@@ -229,7 +229,7 @@ We prefer the [Scoped Commits](https://scopedcommits.com) format for commit mess
 
 The scope names the component, subsystem, or area the change touches — for example `op-node`, `contracts-bedrock`, `docs`, or `ci`. For a change spanning a few components, comma-separate the scopes without spaces (`op-node,op-batcher: share event loop metrics`); for tree-wide changes, use `all`.
 
-We discourage [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) type prefixes (`feat:`, `fix:`, `chore(scope):`, ...). The part of the codebase a commit touches is what readers of the log — contributors, debuggers, incident responders — actually scan for, and a well-written description already conveys whether a change is a fix or a feature. See [Stop Using Conventional Commits](https://sumnerevans.com/posts/software-engineering/stop-using-conventional-commits/) for the full rationale.
+Do not use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) type prefixes (`feat:`, `fix:`, `chore(scope):`, ...). The part of the codebase a commit touches is what readers of the log — contributors, debuggers, incident responders — actually scan for, and a well-written description already conveys whether a change is a fix or a feature. See [Stop Using Conventional Commits](https://sumnerevans.com/posts/software-engineering/stop-using-conventional-commits/) for the full rationale.
 
 PRs are squash-merged, so CI validates the PR title against this format (and the commit subject for single-commit PRs, since GitHub uses it as the squash title). The exact rules live in [`.github/scripts/check-pr-title.sh`](.github/scripts/check-pr-title.sh).
 
