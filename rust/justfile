@@ -122,9 +122,83 @@ fmt-fix: fmt-fix-sp1-guest
 lint-clippy:
   cargo clippy --workspace --all-features --all-targets -- -D warnings
 
-# lock + precompile-patch checks, fmt-check, and clippy for the SP1 guest program workspace
-# (shared by `just lint` and CI)
-lint-sp1-guest: check-sp1-guest-lock check-sp1-guest-precompile-patches fmt-check-sp1-guest lint-clippy-sp1-guest
+# lint-config + lock + precompile-patch checks, fmt-check, and clippy for the SP1 guest program
+# workspace (shared by `just lint` and CI)
+lint-sp1-guest: check-sp1-guest-lints check-sp1-guest-lock check-sp1-guest-precompile-patches fmt-check-sp1-guest lint-clippy-sp1-guest
+
+# Verify the nested guest workspace uses the root workspace's lint configuration.
+[script('bash')]
+check-sp1-guest-lints:
+  set -euo pipefail
+  begin='# BEGIN SHARED WORKSPACE LINTS'
+  end='# END SHARED WORKSPACE LINTS'
+  root=Cargo.toml
+  guest={{SP1_GUEST_MANIFEST}}
+
+  for manifest in "$root" "$guest"; do
+    [[ $(grep -Fxc "$begin" "$manifest") == 1 ]] || {
+      echo "error: expected one '$begin' marker in rust/$manifest" >&2
+      exit 1
+    }
+    [[ $(grep -Fxc "$end" "$manifest") == 1 ]] || {
+      echo "error: expected one '$end' marker in rust/$manifest" >&2
+      exit 1
+    }
+    begin_line=$(grep -Fnx "$begin" "$manifest" | cut -d: -f1)
+    end_line=$(grep -Fnx "$end" "$manifest" | cut -d: -f1)
+    [[ "$begin_line" -lt "$end_line" ]] || {
+      echo "error: '$begin' must precede '$end' in rust/$manifest" >&2
+      exit 1
+    }
+  done
+
+  if ! diff -u \
+    --label rust/Cargo.toml \
+    --label rust/{{SP1_GUEST_MANIFEST}} \
+    <(sed -n "/^$begin$/,/^$end$/p" "$root") \
+    <(sed -n "/^$begin$/,/^$end$/p" "$guest"); then
+    echo "error: SP1 guest workspace lints differ from rust/Cargo.toml" >&2
+    echo "       Fix: run \`just fmt-fix\` from rust/." >&2
+    exit 1
+  fi
+
+[private]
+_sync-sp1-guest-lints:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  begin='# BEGIN SHARED WORKSPACE LINTS'
+  end='# END SHARED WORKSPACE LINTS'
+  root=Cargo.toml
+  guest={{SP1_GUEST_MANIFEST}}
+
+  for manifest in "$root" "$guest"; do
+    [[ $(grep -Fxc "$begin" "$manifest") == 1 ]] || {
+      echo "error: expected one '$begin' marker in rust/$manifest" >&2
+      exit 1
+    }
+    [[ $(grep -Fxc "$end" "$manifest") == 1 ]] || {
+      echo "error: expected one '$end' marker in rust/$manifest" >&2
+      exit 1
+    }
+    begin_line=$(grep -Fnx "$begin" "$manifest" | cut -d: -f1)
+    end_line=$(grep -Fnx "$end" "$manifest" | cut -d: -f1)
+    [[ "$begin_line" -lt "$end_line" ]] || {
+      echo "error: '$begin' must precede '$end' in rust/$manifest" >&2
+      exit 1
+    }
+  done
+
+  tmp=$(mktemp "${guest}.tmp.XXXXXX")
+  trap 'rm -f "$tmp"' EXIT
+  cp -p "$guest" "$tmp"
+
+  sed "/^$begin$/q" "$guest" | sed '$d' > "$tmp"
+  sed -n "/^$begin$/,/^$end$/p" "$root" >> "$tmp"
+  sed -n "/^$end$/,\$p" "$guest" | sed '1d' >> "$tmp"
+
+  if ! cmp -s "$tmp" "$guest"; then
+    mv "$tmp" "$guest"
+  fi
 
 # Runs before the `--locked` clippy so a kona-only dependency change produces a
 # clear fix hint instead of cargo's cryptic "cannot update the lock file because
@@ -207,10 +281,10 @@ check-sp1-guest-precompile-patches:
 lock-sp1-guest:
   cargo metadata --manifest-path {{SP1_GUEST_MANIFEST}} --format-version 1 >/dev/null
 
-fmt-check-sp1-guest:
+fmt-check-sp1-guest: check-sp1-guest-lints
   cargo +{{NIGHTLY}} fmt --manifest-path {{SP1_GUEST_MANIFEST}} --all -- --check
 
-fmt-fix-sp1-guest:
+fmt-fix-sp1-guest: _sync-sp1-guest-lints
   cargo +{{NIGHTLY}} fmt --manifest-path {{SP1_GUEST_MANIFEST}} --all
 
 lint-clippy-sp1-guest:
