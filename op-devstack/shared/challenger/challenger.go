@@ -167,9 +167,9 @@ func WithFactoryAddress(addr common.Address) Option {
 	}
 }
 
-func WithSuperRPC(endpoint string) Option {
+func WithSuperRootRPC(endpoint string) Option {
 	return func(_ context.Context, c *config.Config) error {
-		c.SuperRPC = endpoint
+		c.SuperRootRPC = endpoint
 		return nil
 	}
 }
