@@ -53,6 +53,16 @@ type singleChainRuntimeSpec struct {
 	TestSequencer   string
 }
 
+// SingleChainRuntimeOptions controls which product-neutral services surround
+// the primary L2 node. Additional L2 nodes can be attached later with
+// AddSingleChainNode.
+type SingleChainRuntimeOptions struct {
+	StartBatcher    bool
+	StartProposer   bool
+	StartChallenger bool
+	TestSequencer   string
+}
+
 func newSingleChainNodeRuntime(name string, isSequencer bool, el L2ELNode, cl L2CLNode) *SingleChainNodeRuntime {
 	return &SingleChainNodeRuntime{
 		Name:        name,
@@ -111,7 +121,7 @@ func startDefaultSingleChainPrimary(
 		})
 		return singleChainPrimaryRuntime{EL: l2EL, CL: l2CL}
 	}
-	l2CL := startSequencerCL(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, l2EL, jwtSecret, l2CLOptions)
+	l2CL := startSequencerCL(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, l2EL, jwtSecret, l2CLOptions, cfg.L2CLFactory)
 	return singleChainPrimaryRuntime{
 		EL: l2EL,
 		CL: l2CL,
@@ -161,6 +171,7 @@ func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleC
 
 	return &SingleChainRuntime{
 		Keys:          keys,
+		L2CLFactory:   cfg.L2CLFactory,
 		L1Network:     world.L1Network,
 		L2Network:     world.L2Network,
 		L1EL:          l1EL,
@@ -195,6 +206,20 @@ func NewMinimalRuntimeWithConfig(t devtest.T, cfg PresetConfig) *SingleChainRunt
 		StartBatcher:    true,
 		StartProposer:   true,
 		StartChallenger: true,
+	})
+}
+
+// NewSingleChainRuntime constructs a composable single-chain runtime using the
+// default world and primary-node builders. It is the low-level counterpart to
+// the opinionated presets and supports delayed-join and mixed-client layouts.
+func NewSingleChainRuntime(t devtest.T, cfg PresetConfig, opts SingleChainRuntimeOptions) *SingleChainRuntime {
+	return newSingleChainRuntimeWithConfig(t, cfg, singleChainRuntimeSpec{
+		BuildWorld:      newDefaultSingleChainWorld,
+		StartPrimary:    startDefaultSingleChainPrimary,
+		StartBatcher:    opts.StartBatcher,
+		StartProposer:   opts.StartProposer,
+		StartChallenger: opts.StartChallenger,
+		TestSequencer:   opts.TestSequencer,
 	})
 }
 

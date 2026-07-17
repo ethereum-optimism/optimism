@@ -44,7 +44,7 @@ func startFlashblocksSingleChainPrimary(
 			DependencySet: world.Interop.DependencySet,
 		})
 	} else {
-		l2CL = startSequencerCL(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, rollupBoost, jwtSecret, nil)
+		l2CL = startSequencerCL(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, rollupBoost, jwtSecret, nil, cfg.L2CLFactory)
 	}
 
 	return singleChainPrimaryRuntime{

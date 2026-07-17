@@ -36,6 +36,28 @@ func NewSingleChainMultiNodeRuntimeWithConfig(t devtest.T, withP2P bool, cfg Pre
 	return runtime
 }
 
+// NewSingleChainMultiNodeNoFaultProofsRuntimeWithConfig creates a primary,
+// batcher, and verifier without starting proposer or challenger services.
+func NewSingleChainMultiNodeNoFaultProofsRuntimeWithConfig(t devtest.T, withP2P bool, cfg PresetConfig) *SingleChainRuntime {
+	runtime := NewMinimalNoFaultProofsRuntimeWithConfig(t, cfg)
+	nodeB := addSingleChainOpNode(t, runtime, "b", false, runtime.L2EL.UserRPC(), cfg.GlobalL2CLOptions...)
+	if withP2P {
+		connectSingleChainNodes(t, runtime.L2EL, runtime.L2CL, nodeB)
+	}
+	runtime.P2PEnabled = withP2P
+	return runtime
+}
+
+// NewSingleChainMultiNodeNoFaultProofsBareVerifierRuntime creates a verifier
+// without a follow source or preconfigured P2P link. Tests may supply unsafe
+// payloads explicitly while the verifier derives its safe chain from L1.
+func NewSingleChainMultiNodeNoFaultProofsBareVerifierRuntime(t devtest.T, cfg PresetConfig) *SingleChainRuntime {
+	runtime := NewMinimalNoFaultProofsRuntimeWithConfig(t, cfg)
+	addSingleChainOpNode(t, runtime, "b", false, "", cfg.GlobalL2CLOptions...)
+	runtime.P2PEnabled = false
+	return runtime
+}
+
 func NewSingleChainTwoVerifiersRuntime(t devtest.T) *SingleChainRuntime {
 	return NewSingleChainTwoVerifiersRuntimeWithConfig(t, PresetConfig{})
 }
@@ -168,10 +190,24 @@ func addSingleChainOpNode(
 	jwtPath := runtime.L2EL.JWTPath()
 	jwtSecret := readJWTSecretFromPath(t, jwtPath)
 	l2EL := startL2ELForKey(t, runtime.L2Network, jwtPath, jwtSecret, name, NewELNodeIdentity(0))
-	l2CL := startL2CLForKey(t, runtime.Keys, runtime.L1Network, runtime.L2Network, runtime.L1EL, runtime.L1CL, l2EL, jwtSecret, name, name, isSequencer, followSource, l2Opts)
+	l2CL := startL2CLForKey(t, runtime.Keys, runtime.L1Network, runtime.L2Network, runtime.L1EL, runtime.L1CL, l2EL, jwtSecret, name, name, isSequencer, followSource, l2Opts, runtime.L2CLFactory)
 	node := newSingleChainNodeRuntime(name, isSequencer, l2EL, l2CL)
 	runtime.Nodes[name] = node
 	return node
+}
+
+// AddSingleChainNode adds a sequencer or verifier slot to an existing runtime.
+// The runtime's injected L2CLFactory is consulted for the new slot, making the
+// helper suitable for mixed-client, fan-out, and delayed-join layouts.
+func AddSingleChainNode(
+	t devtest.T,
+	runtime *SingleChainRuntime,
+	name string,
+	isSequencer bool,
+	followSource string,
+	l2Opts ...L2CLOption,
+) *SingleChainNodeRuntime {
+	return addSingleChainOpNode(t, runtime, name, isSequencer, followSource, l2Opts...)
 }
 
 func startSyncTesterService(t devtest.T, chainRPCs map[eth.ChainID]string) *SyncTesterService {

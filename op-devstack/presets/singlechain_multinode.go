@@ -47,10 +47,49 @@ func NewSingleChainMultiNodeWithoutP2PWithoutCheck(t devtest.T, opts ...Option) 
 	return out
 }
 
+// NewSingleChainMultiNodeNoFaultProofsWithoutP2PWithoutCheck creates a
+// sequencer, batcher, and verifier without proposer/challenger services,
+// preconfigured CL P2P, or initial sync checks.
+func NewSingleChainMultiNodeNoFaultProofsWithoutP2PWithoutCheck(t devtest.T, opts ...Option) *SingleChainMultiNode {
+	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewSingleChainMultiNodeNoFaultProofsWithoutP2PWithoutCheck", opts, minimalPresetSupportedOptionKinds)
+	out := singleChainMultiNodeFromRuntime(t, sysgo.NewSingleChainMultiNodeNoFaultProofsRuntimeWithConfig(t, false, presetCfg), false)
+	presetOpts.applyPreset(out)
+	return out
+}
+
+// NewSingleChainMultiNodeNoFaultProofsBareVerifierWithoutCheck creates a
+// verifier with no follow source, CL P2P, proposer, challenger, or initial sync
+// checks.
+func NewSingleChainMultiNodeNoFaultProofsBareVerifierWithoutCheck(t devtest.T, opts ...Option) *SingleChainMultiNode {
+	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewSingleChainMultiNodeNoFaultProofsBareVerifierWithoutCheck", opts, minimalPresetSupportedOptionKinds)
+	out := singleChainMultiNodeFromRuntime(t, sysgo.NewSingleChainMultiNodeNoFaultProofsBareVerifierRuntime(t, presetCfg), false)
+	presetOpts.applyPreset(out)
+	return out
+}
+
 type SingleChainMultiNodeWithTestSeq struct {
 	SingleChainMultiNode
 
 	TestSequencer *dsl.TestSequencer
+}
+
+// NewSingleChainMultiNodeNoFaultProofsBareVerifierWithTestSeqWithoutCheck adds
+// the test sequencer to the bare-verifier topology.
+func NewSingleChainMultiNodeNoFaultProofsBareVerifierWithTestSeqWithoutCheck(t devtest.T, opts ...Option) *SingleChainMultiNodeWithTestSeq {
+	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewSingleChainMultiNodeNoFaultProofsBareVerifierWithTestSeqWithoutCheck", opts, minimalPresetSupportedOptionKinds)
+	out := singleChainMultiNodeWithTestSeqFromRuntime(t, sysgo.NewSingleChainMultiNodeNoFaultProofsBareVerifierRuntime(t, presetCfg))
+	presetOpts.applyPreset(out)
+	return out
+}
+
+// NewSingleChainMultiNodeNoFaultProofsFollowVerifierWithTestSeqWithoutCheck
+// adds the test sequencer to a verifier that follows the primary execution
+// endpoint while deriving from L1.
+func NewSingleChainMultiNodeNoFaultProofsFollowVerifierWithTestSeqWithoutCheck(t devtest.T, opts ...Option) *SingleChainMultiNodeWithTestSeq {
+	presetCfg, presetOpts := collectSupportedPresetConfig(t, "NewSingleChainMultiNodeNoFaultProofsFollowVerifierWithTestSeqWithoutCheck", opts, minimalPresetSupportedOptionKinds)
+	out := singleChainMultiNodeWithTestSeqFromRuntime(t, sysgo.NewSingleChainMultiNodeNoFaultProofsRuntimeWithConfig(t, false, presetCfg))
+	presetOpts.applyPreset(out)
+	return out
 }
 
 // NewSingleChainMultiNodeWithTestSeq creates a fresh

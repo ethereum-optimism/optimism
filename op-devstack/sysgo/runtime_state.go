@@ -72,6 +72,9 @@ type SingleChainInteropSupport struct {
 
 type SingleChainRuntime struct {
 	Keys devkeys.Keys
+	// L2CLFactory is retained so delayed and additional node slots use the
+	// same explicit client selection as the primary.
+	L2CLFactory L2CLFactory
 
 	L1Network *L1Network
 	L2Network *L2Network

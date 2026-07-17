@@ -161,6 +161,14 @@ func (el *L2ELNode) BlockRefByNumber(num uint64) eth.L2BlockRef {
 	return block
 }
 
+// VerifyNotReorged asserts that the block at ref's height still has ref's
+// hash. An unchanged block transitively pins all of its ancestors.
+func (el *L2ELNode) VerifyNotReorged(ref eth.L2BlockRef) {
+	el.log.Info("Verifying block not reorged", "name", el.inner.Name(), "block", ref)
+	got := el.BlockRefByNumber(ref.Number)
+	el.require.Equalf(ref.Hash, got.Hash, "block %d was reorged: expected hash %s, now %s", ref.Number, ref.Hash, got.Hash)
+}
+
 // GasLimitAtBlock returns the gas limit of the block at the given number.
 func (el *L2ELNode) GasLimitAtBlock(num uint64) uint64 {
 	return uint64(el.PayloadByNumber(num).ExecutionPayload.GasLimit)

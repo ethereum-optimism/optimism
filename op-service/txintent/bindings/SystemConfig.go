@@ -17,6 +17,7 @@ type SystemConfig struct {
 
 	// Write functions
 	SetOperatorFeeScalars func(operatorFeeScalar uint32, operatorFeeConstant uint64) TypedCall[any] `sol:"setOperatorFeeScalars"`
+	SetGasLimit           func(gasLimit uint64) TypedCall[any]                                      `sol:"setGasLimit"`
 	SetGasConfig          func(overhead *big.Int, scalar *big.Int) TypedCall[any]                   `sol:"setGasConfig"`
 	SetGasConfigEcotone   func(basefeeScalar uint32, blobbasefeeScalar uint32) TypedCall[any]       `sol:"setGasConfigEcotone"`
 }

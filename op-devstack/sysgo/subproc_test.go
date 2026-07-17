@@ -38,6 +38,9 @@ func TestSubProcess(gt *testing.T) {
 	gt.Log("Restarting, second run")
 	capt.Clear()
 	testSleep(gt, capt, sp)
+	gt.Log("Force-killing and restarting")
+	capt.Clear()
+	testKill(gt, capt, sp)
 	gt.Log("Trying a different command now")
 	capt.Clear()
 	testEcho(gt, capt, sp)
@@ -83,6 +86,15 @@ func TestSubProcessConcurrentStop(gt *testing.T) {
 	require.NoError(gt, <-errCh)
 
 	require.NoError(gt, sp.Start("/bin/echo", []string{"restart ok"}, []string{}))
+	require.NoError(gt, sp.Stop(false))
+}
+
+func testKill(gt *testing.T, capt *testlog.CapturingHandler, sp *SubProcess) {
+	require.NoError(gt, sp.Start("/bin/sleep", []string{"10000000000"}, []string{}))
+	require.NoError(gt, sp.Kill())
+	require.NotNil(gt, capt.FindLog(testlog.NewMessageFilter("Killing sub-process")))
+
+	require.NoError(gt, sp.Start("/bin/echo", []string{"restart after kill"}, []string{}))
 	require.NoError(gt, sp.Stop(false))
 }
 

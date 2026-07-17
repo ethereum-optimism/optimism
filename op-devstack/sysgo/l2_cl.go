@@ -5,12 +5,62 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum/go-ethereum/core"
 )
 
 type L2CLNode interface {
 	stack.Lifecycle
 	UserRPC() string
+}
+
+// L2CLRole describes the responsibility of a consensus-layer node slot.
+type L2CLRole string
+
+const (
+	L2CLRoleSequencer L2CLRole = "sequencer"
+	L2CLRoleVerifier  L2CLRole = "verifier"
+)
+
+// L2CLLaunchContext is the product-neutral input required to launch an
+// externally implemented L2 consensus client. It exposes endpoints and
+// immutable network configuration instead of concrete sysgo backends.
+type L2CLLaunchContext struct {
+	Target ComponentTarget
+	Role   L2CLRole
+
+	L1UserRPC   string
+	L1BeaconRPC string
+	L2UserRPC   string
+	L2EngineRPC string
+	L2JWTPath   string
+
+	L1Genesis    *core.Genesis
+	L2Genesis    *core.Genesis
+	RollupConfig *rollup.Config
+	FollowSource string
+	Config       L2CLConfig
+
+	// RegisterMetrics may be nil when the preset does not collect component
+	// metrics. External clients may call it with ordinary Prometheus targets.
+	RegisterMetrics func(serviceName string, endpoints ...PrometheusMetricsTarget)
+}
+
+// L2CLFactory may provide an external implementation for an individual L2 CL
+// slot. Returning handled=false preserves the preset's ordinary op-node/Kona
+// selection for that slot, enabling mixed-client topologies without a global
+// registry or process environment selector.
+type L2CLFactory interface {
+	CreateL2CL(t devtest.T, ctx L2CLLaunchContext) (node L2CLNode, handled bool)
+}
+
+type L2CLFactoryFn func(t devtest.T, ctx L2CLLaunchContext) (node L2CLNode, handled bool)
+
+var _ L2CLFactory = L2CLFactoryFn(nil)
+
+func (fn L2CLFactoryFn) CreateL2CL(t devtest.T, ctx L2CLLaunchContext) (L2CLNode, bool) {
+	return fn(t, ctx)
 }
 
 type L2CLConfig struct {

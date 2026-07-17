@@ -97,6 +97,35 @@ func (sp *SubProcess) StopControlled(ctx context.Context, interruptWait time.Dur
 	return sp.stop(ctx, true, interruptWait, killWait)
 }
 
+// Kill force-terminates the subprocess without first sending an interrupt.
+// This models a crash for lifecycle tests while still waiting for process I/O
+// to drain, so the same SubProcess may be started again safely.
+func (sp *SubProcess) Kill() error {
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+	if sp.cmd == nil {
+		return nil
+	}
+
+	select {
+	case <-sp.exited:
+		// The process already exited; only cleanup remains.
+	default:
+		sp.p.Logger().Info("Killing sub-process")
+		if err := sp.cmd.Process.Kill(); err != nil {
+			select {
+			case <-sp.exited:
+				// It exited between the readiness check and Kill.
+			default:
+				return fmt.Errorf("kill sub-process: %w", err)
+			}
+		}
+	}
+
+	<-sp.exited
+	return sp.completeStopLocked(true, sp.waitErr)
+}
+
 func (sp *SubProcess) stop(ctx context.Context, interrupt bool, interruptWait time.Duration, killWait time.Duration) error {
 	sp.mu.Lock()
 	defer sp.mu.Unlock()
