@@ -42,6 +42,24 @@ func GetPeerInfo(ctx context.Context, p2pClient *sources.P2PClient) (*apis.PeerI
 	return peerInfo, nil
 }
 
+// L2CLGossipMultiaddr returns a dialable gossip address for any L2 consensus
+// client implementing the standard P2P RPC surface.
+func L2CLGossipMultiaddr(ctx context.Context, logger log.Logger, node L2CLNode) (string, error) {
+	client, err := GetP2PClient(ctx, logger, node)
+	if err != nil {
+		return "", err
+	}
+	self, err := GetPeerInfo(ctx, client)
+	if err != nil {
+		return "", err
+	}
+	addr := self.Addresses[0]
+	if !strings.Contains(addr, "/p2p/") {
+		addr = fmt.Sprintf("%s/p2p/%s", addr, self.PeerID.String())
+	}
+	return addr, nil
+}
+
 func GetPeers(ctx context.Context, p2pClient *sources.P2PClient) (*apis.PeerDump, error) {
 	peerDump, err := retry.Do(ctx, 3, retry.Exponential(), func() (*apis.PeerDump, error) {
 		return p2pClient.Peers(ctx, true)
