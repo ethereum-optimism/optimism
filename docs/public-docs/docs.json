@@ -59,6 +59,26 @@
   },
   "redirects": [
     {
+      "source": "/node-operators/reference/op-geth-config",
+      "destination": "/node-operators/reference/op-reth-config"
+    },
+    {
+      "source": "/node-operators/reference/op-geth-json-rpc",
+      "destination": "/node-operators/reference/op-reth-json-rpc"
+    },
+    {
+      "source": "/node-operators/tutorials/node-from-docker-simple-optimism-node",
+      "destination": "/node-operators/tutorials/node-from-docker"
+    },
+    {
+      "source": "/node-operators/guides/management/snap-sync",
+      "destination": "/node-operators/reference/consensus-layer-sync"
+    },
+    {
+      "source": "/node-operators/reference/features/snap-sync",
+      "destination": "/node-operators/reference/consensus-layer-sync"
+    },
+    {
       "source": "/rust/op-reth/cli/cli",
       "destination": "/rust/op-reth/cli/overview"
     },
@@ -1208,7 +1228,7 @@
     },
     {
       "source": "/operators/node-operators/management/snap-sync",
-      "destination": "/node-operators/guides/management/snap-sync"
+      "destination": "/node-operators/reference/consensus-layer-sync"
     },
     {
       "source": "/operators/node-operators/management/snapshots",
@@ -1560,7 +1580,7 @@
     },
     {
       "source": "/node-operators/guides/configuration/execution-config#configuration-options-reference",
-      "destination": "/node-operators/reference/op-geth-config"
+      "destination": "/node-operators/reference/op-reth-config"
     },
     {
       "source": "/node-operators/guides/configuration/execution-config",
@@ -2142,16 +2162,6 @@
               "node-operators/reference/op-reth-json-rpc",
               "node-operators/reference/op-reth-historical-proof-config",
               "node-operators/reference/consensus-layer-sync"
-            ]
-          },
-          {
-            "group": "Archive",
-            "pages": [
-              "node-operators/reference/op-geth-config",
-              "node-operators/reference/op-geth-json-rpc",
-              "node-operators/tutorials/node-from-docker-simple-optimism-node",
-              "node-operators/guides/management/snap-sync",
-              "node-operators/reference/features/snap-sync"
             ]
           }
         ]
