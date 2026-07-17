@@ -1,6 +1,8 @@
 default:
   @just --list
 
+SP1_TAG := "v6.3.1"
+
 # Build the range-executor host binary, used by the SP1 execute action tests to run the range guest
 # in SP1 execute mode. The binary embeds the range guest ELF, so build the ELFs first (build-elfs).
 build-range-executor:
@@ -9,36 +11,139 @@ build-range-executor:
 # Build all ELF files.
 # ELF builds use the nested guest workspace with SP1 precompile-patched crypto,
 # including substrate-bn for bn128 through revm-precompile's `bn` feature.
-build-elfs: build-range-elfs build-agg-elf build-super-range-elf build-super-aggregation-elf
+build-elfs:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    m=elf/vkeys.toml
+    just _vkeys-header > "$m"
+    just build-range-elfs
+    just _append-vkey range "$m"
+    just build-agg-elf
+    just _append-vkey aggregation "$m"
+    just build-super-range-elf
+    just _append-vkey super-range "$m"
+    just build-super-aggregation-elf
+    just _append-vkey super-aggregation "$m"
 
 # Build ELF files for range programs.
 build-range-elfs:
-    #!/usr/bin/env bash
-
-    cd programs/range
-    # Mount the monorepo root so kona-hardforks can find op-core/nuts/bundles.
-    ~/.sp1/bin/cargo-prove prove build --ignore-rust-version --elf-name range-elf --docker --tag v6.3.1 --workspace-directory ../../../../.. --output-directory ../../elf
+    @just _build-elf range docker
 
 # Build ELF file for aggregation program.
 build-agg-elf:
-    #!/usr/bin/env bash
-
-    cd programs/aggregation
-    # Mount the monorepo root so kona-hardforks can find op-core/nuts/bundles.
-    ~/.sp1/bin/cargo-prove prove build --ignore-rust-version --elf-name aggregation-elf --docker --tag v6.3.1 --workspace-directory ../../../../.. --output-directory ../../elf
+    @just _build-elf aggregation docker
 
 # Build ELF file for the unified super-root range/consolidation program.
 build-super-range-elf:
-    #!/usr/bin/env bash
-
-    cd programs/super-range
-    # Mount the monorepo root so kona-hardforks can find op-core/nuts/bundles.
-    ~/.sp1/bin/cargo-prove prove build --ignore-rust-version --elf-name super-range-elf --docker --tag v6.3.1 --workspace-directory ../../../../.. --output-directory ../../elf
+    @just _build-elf super-range docker
 
 # Build ELF file for the super-aggregation program.
 build-super-aggregation-elf:
-    #!/usr/bin/env bash
+    @just _build-elf super-aggregation docker
 
-    cd programs/super-aggregation
-    # Mount the monorepo root so kona-hardforks can find op-core/nuts/bundles.
-    ~/.sp1/bin/cargo-prove prove build --ignore-rust-version --elf-name super-aggregation-elf --docker --tag v6.3.1 --workspace-directory ../../../../.. --output-directory ../../elf
+# Install the native Succinct toolchain for non-Docker builds.
+install-sp1-toolchain:
+    cargo prove install-toolchain
+
+[private]
+_build-elf NAME MODE:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    root="$(cd "{{justfile_directory()}}/../../.." && pwd)"
+    config_dir="{{justfile_directory()}}/programs/.cargo"
+    config_file="${config_dir}/config.toml"
+    registry_etc="{{justfile_directory()}}/../crates/protocol/registry/etc"
+    registry_backup=""
+    staged_configs=""
+    wrote_config=false
+
+    cleanup() {
+      if [[ -n "$registry_backup" ]]; then
+        cp "${registry_backup}/chainList.json" "${registry_etc}/chainList.json"
+        cp "${registry_backup}/configs.json" "${registry_etc}/configs.json"
+        cp "${registry_backup}/depsets.json" "${registry_etc}/depsets.json"
+        rm -rf "$registry_backup"
+      fi
+      if [[ -n "$staged_configs" ]]; then
+        rm -rf "$staged_configs"
+      fi
+      if [[ "$wrote_config" == true ]]; then
+        rm -f "$config_file"
+        rmdir "$config_dir" 2>/dev/null || true
+      fi
+    }
+    trap cleanup EXIT
+
+    if [[ -n "${KONA_CUSTOM_CONFIGS_DIR:-}" ]]; then
+      custom_configs_dir="$(realpath "$KONA_CUSTOM_CONFIGS_DIR")"
+      for file in chainList.json configs.json depsets.json; do
+        [[ -f "${custom_configs_dir}/${file}" ]] || {
+          echo "ERROR: missing ${custom_configs_dir}/${file}" >&2
+          exit 1
+        }
+      done
+      export KONA_CUSTOM_CONFIGS=true
+      mkdir -p "${root}/target"
+      registry_backup="$(mktemp -d "${root}/target/sp1-registry-etc.XXXXXX")"
+      cp "${registry_etc}/chainList.json" "${registry_backup}/"
+      cp "${registry_etc}/configs.json" "${registry_backup}/"
+      cp "${registry_etc}/depsets.json" "${registry_backup}/"
+
+      if [[ "{{MODE}}" == "docker" ]]; then
+        [[ ! -e "$config_file" ]] || {
+          echo "ERROR: ${config_file} already exists" >&2
+          exit 1
+        }
+        staged_configs="$(mktemp -d "${root}/target/sp1-custom-configs.XXXXXX")"
+        cp "${custom_configs_dir}/chainList.json" "${staged_configs}/"
+        cp "${custom_configs_dir}/configs.json" "${staged_configs}/"
+        cp "${custom_configs_dir}/depsets.json" "${staged_configs}/"
+        mkdir -p "$config_dir"
+        docker_configs_dir="/root/program/${staged_configs#"${root}/"}"
+        {
+          echo "[env]"
+          echo 'KONA_CUSTOM_CONFIGS = "true"'
+          echo "KONA_CUSTOM_CONFIGS_DIR = \"${docker_configs_dir}\""
+        } > "$config_file"
+        wrote_config=true
+      else
+        export KONA_CUSTOM_CONFIGS_DIR="$custom_configs_dir"
+      fi
+    fi
+
+    args=(--ignore-rust-version --elf-name "{{NAME}}-elf" --workspace-directory "$root" --output-directory "{{justfile_directory()}}/elf")
+    if [[ "{{MODE}}" == "docker" ]]; then
+      mkdir -p "{{justfile_directory()}}/programs/target/elf-compilation/docker"
+      args=(--docker --tag "{{SP1_TAG}}" "${args[@]}")
+    fi
+
+    cd "{{justfile_directory()}}/programs/{{NAME}}"
+    cargo prove build "${args[@]}"
+
+[private]
+_vkeys-header:
+    #!/usr/bin/env bash
+    echo '# Generated SP1 guest verification-key hashes (bytes32).'
+    echo '# Regenerate on linux/amd64 via "just build-elfs".'
+    echo 'sp1_toolchain_tag = "{{SP1_TAG}}"'
+    echo ''
+
+[private]
+_append-vkey NAME MANIFEST:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    hash=$(SP1_PROVER=cpu cargo prove vkey --elf "elf/{{NAME}}-elf" | grep -oE '0x[0-9a-fA-F]{64}' || true)
+    [ -n "$hash" ] || { echo "ERROR: no bytes32 vkey parsed for {{NAME}}-elf" >&2; exit 1; }
+    echo "{{NAME}} = \"${hash}\"" >> "{{MANIFEST}}"
+
+# Build all ELFs natively for fast local iteration.
+build-elfs-native:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    m=elf/vkeys.toml
+    just _vkeys-header > "$m"
+    for name in range aggregation super-range super-aggregation; do
+      just _build-elf "${name}" native
+      just _append-vkey "${name}" "$m"
+    done
