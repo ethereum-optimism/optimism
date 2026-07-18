@@ -2429,11 +2429,16 @@
               "/op-stack/contribute/content-guide",
               "/op-stack/contribute/link-policy",
               "/op-stack/contribute/style-guide",
-              "/op-stack/contribute/choose-a-content-type",
-              "/op-stack/contribute/solution-guide",
-              "/op-stack/contribute/learning-unit",
-              "/op-stack/contribute/curriculum-hub",
-              "/op-stack/contribute/router-landing"
+              {
+                "group": "Choose a content type",
+                "pages": [
+                  "/op-stack/contribute/choose-a-content-type",
+                  "/op-stack/contribute/solution-guide",
+                  "/op-stack/contribute/learning-unit",
+                  "/op-stack/contribute/curriculum-hub",
+                  "/op-stack/contribute/router-landing"
+                ]
+              }
             ]
           }
         ]
