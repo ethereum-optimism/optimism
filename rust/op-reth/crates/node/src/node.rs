@@ -706,12 +706,7 @@ where
         } = self;
 
         if let Some(config) = blocks_server {
-            let server = BlocksServer::bind(
-                ctx.node.provider().clone(),
-                config,
-                ctx.node.provider().chain_spec().chain_id(),
-            )
-            .await?;
+            let server = BlocksServer::bind(ctx.node.provider().clone(), config).await?;
             let addr = server.local_addr()?;
             info!(target: "reth::cli", %addr, min_offset = config.min_offset, "Blocks server listening");
             ctx.node.task_executor().spawn_critical_task("OP blocks server", server.run());

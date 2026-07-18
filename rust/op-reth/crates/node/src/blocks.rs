@@ -6,23 +6,14 @@
 //!
 //! # Wire format
 //!
-//! Every WebSocket message is one binary frame with a 12-byte header:
+//! Every WebSocket binary message is one block. The first byte is the P2P block version (`0` = V1,
+//! `1` = V2, `2` = V3, `3` = V4). The remaining bytes are the exact uncompressed, unsigned payload
+//! bytes used by OP Stack P2P gossip: the SSZ execution payload for V1/V2, and the 32-byte parent
+//! beacon block root followed by the SSZ execution payload for V3/V4. P2P transports these same
+//! payload bytes with a sequencer signature and Snappy compression.
 //!
-//! ```text
-//! bytes 0..4   "OPBS"
-//! byte  4      protocol version (currently 1)
-//! byte  5      frame kind (0 = metadata, 1 = block)
-//! byte  6      payload version for block frames (1..4), zero for metadata
-//! byte  7      flags (bit 0 = parent beacon block root present)
-//! bytes 8..12  little-endian body length
-//! ```
-//!
-//! A metadata body is four little-endian `u64`s: chain ID, configured minimum offset, requested
-//! offset, and the canonical head observed during the handshake. A block body is an optional
-//! 32-byte parent beacon block root followed by the SSZ encoding of the indicated OP execution
-//! payload version. Transactions therefore remain binary EIP-2718 bytes rather than JSON hex.
-//! OP Engine API sidecar lists not committed in the block are implied by the protocol: blob
-//! versioned hashes and post-Isthmus execution requests are both empty.
+//! The version byte replaces the P2P topic as the payload schema discriminator. WebSocket already
+//! provides message framing, so no magic, message kind, flags, or body length are needed.
 
 use alloy_primitives::B256;
 use futures_util::{SinkExt, Stream, StreamExt};
@@ -51,17 +42,14 @@ use tokio_tungstenite::{
 /// Default address for the blocks server.
 pub const DEFAULT_BLOCKS_SERVER_ADDR: SocketAddr =
     SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST), 8548);
-/// Magic prefix on every blocks stream frame.
-pub const BLOCKS_WIRE_MAGIC: [u8; 4] = *b"OPBS";
-/// Current blocks stream protocol version.
-pub const BLOCKS_WIRE_VERSION: u8 = 1;
-/// Metadata frame kind.
-pub const METADATA_FRAME_KIND: u8 = 0;
-/// Block frame kind.
-pub const BLOCK_FRAME_KIND: u8 = 1;
-
-const FRAME_HEADER_LEN: usize = 12;
-const ROOT_PRESENT_FLAG: u8 = 1;
+/// P2P block version for an [`alloy_rpc_types_engine::ExecutionPayloadV1`].
+pub const BLOCK_VERSION_V1: u8 = 0;
+/// P2P block version for an [`alloy_rpc_types_engine::ExecutionPayloadV2`].
+pub const BLOCK_VERSION_V2: u8 = 1;
+/// P2P block version for an [`alloy_rpc_types_engine::ExecutionPayloadV3`].
+pub const BLOCK_VERSION_V3: u8 = 2;
+/// P2P block version for an [`OpExecutionPayloadV4`].
+pub const BLOCK_VERSION_V4: u8 = 3;
 
 /// Runtime blocks server configuration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -72,47 +60,17 @@ pub struct BlocksServerConfig {
     pub min_offset: u64,
 }
 
-/// Metadata sent as the first frame of every accepted connection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BlocksMetadata {
-    /// L2 chain ID.
-    pub chain_id: u64,
-    /// Configured minimum offset.
-    pub min_offset: u64,
-    /// Inclusive offset requested by the client.
-    pub requested_offset: u64,
-    /// Canonical unsafe head observed during the `WebSocket` handshake.
-    pub head: u64,
-}
-
-/// A decoded blocks stream frame.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum BlocksFrame {
-    /// Initial connection metadata.
-    Metadata(BlocksMetadata),
-    /// Complete OP execution payload envelope.
-    Block(Box<OpExecutionPayloadEnvelope>),
-}
-
-/// Error decoding a blocks stream frame.
+/// Error encoding or decoding a blocks stream message.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BlocksWireError {
-    /// Frame is shorter than the fixed header.
-    Truncated,
-    /// Frame magic is not `OPBS`.
-    InvalidMagic,
-    /// The protocol version is unsupported.
-    UnsupportedVersion(u8),
-    /// The frame kind is unsupported.
-    UnsupportedFrameKind(u8),
-    /// The payload version is unsupported.
+    /// The message does not contain a block-version byte.
+    Empty,
+    /// A V3/V4 payload is missing its required parent beacon block root.
+    MissingParentBeaconBlockRoot(u8),
+    /// The P2P block version is unsupported.
     UnsupportedPayloadVersion(u8),
-    /// Reserved flags were set.
-    UnsupportedFlags(u8),
-    /// The declared body length does not match the `WebSocket` message.
-    InvalidBodyLength,
-    /// Metadata has an invalid shape.
-    InvalidMetadata,
+    /// The message is too short for the indicated P2P block version.
+    Truncated,
     /// A payload could not be decoded from SSZ.
     InvalidPayload(String),
 }
@@ -120,18 +78,14 @@ pub enum BlocksWireError {
 impl fmt::Display for BlocksWireError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Truncated => f.write_str("truncated blocks stream frame"),
-            Self::InvalidMagic => f.write_str("invalid blocks stream magic"),
-            Self::UnsupportedVersion(version) => {
-                write!(f, "unsupported blocks stream version {version}")
+            Self::Empty => f.write_str("empty blocks stream message"),
+            Self::MissingParentBeaconBlockRoot(version) => {
+                write!(f, "block version {version} requires a parent beacon block root")
             }
-            Self::UnsupportedFrameKind(kind) => write!(f, "unsupported frame kind {kind}"),
             Self::UnsupportedPayloadVersion(version) => {
-                write!(f, "unsupported execution payload version {version}")
+                write!(f, "unsupported P2P block version {version}")
             }
-            Self::UnsupportedFlags(flags) => write!(f, "unsupported frame flags {flags:#x}"),
-            Self::InvalidBodyLength => f.write_str("invalid blocks stream body length"),
-            Self::InvalidMetadata => f.write_str("invalid blocks stream metadata"),
+            Self::Truncated => f.write_str("truncated blocks stream message"),
             Self::InvalidPayload(error) => write!(f, "invalid execution payload: {error}"),
         }
     }
@@ -139,123 +93,66 @@ impl fmt::Display for BlocksWireError {
 
 impl std::error::Error for BlocksWireError {}
 
-/// Encode a metadata frame.
-pub fn encode_metadata_frame(metadata: BlocksMetadata) -> Vec<u8> {
-    let mut body = Vec::with_capacity(32);
-    body.extend_from_slice(&metadata.chain_id.to_le_bytes());
-    body.extend_from_slice(&metadata.min_offset.to_le_bytes());
-    body.extend_from_slice(&metadata.requested_offset.to_le_bytes());
-    body.extend_from_slice(&metadata.head.to_le_bytes());
-    encode_frame_header(METADATA_FRAME_KIND, 0, 0, body)
-}
-
-/// Encode a complete OP execution payload envelope as a block frame.
-pub fn encode_block_frame(envelope: &OpExecutionPayloadEnvelope) -> Vec<u8> {
-    let (payload_version, payload) = match &envelope.execution_payload {
-        OpExecutionPayload::V1(payload) => (1, payload.as_ssz_bytes()),
-        OpExecutionPayload::V2(payload) => (2, payload.as_ssz_bytes()),
-        OpExecutionPayload::V3(payload) => (3, payload.as_ssz_bytes()),
-        OpExecutionPayload::V4(payload) => (4, payload.as_ssz_bytes()),
+/// Encode an envelope using the P2P payload encoding, prefixed by its P2P block version.
+pub fn encode_block_frame(
+    envelope: &OpExecutionPayloadEnvelope,
+) -> Result<Vec<u8>, BlocksWireError> {
+    let (block_version, payload, has_parent_beacon_block_root) = match &envelope.execution_payload {
+        OpExecutionPayload::V1(payload) => (BLOCK_VERSION_V1, payload.as_ssz_bytes(), false),
+        OpExecutionPayload::V2(payload) => (BLOCK_VERSION_V2, payload.as_ssz_bytes(), false),
+        OpExecutionPayload::V3(payload) => (BLOCK_VERSION_V3, payload.as_ssz_bytes(), true),
+        OpExecutionPayload::V4(payload) => (BLOCK_VERSION_V4, payload.as_ssz_bytes(), true),
     };
 
-    let mut flags = 0;
-    let mut body = Vec::with_capacity(payload.len() + 32);
-    if let Some(root) = envelope.parent_beacon_block_root {
-        flags |= ROOT_PRESENT_FLAG;
-        body.extend_from_slice(root.as_slice());
+    let mut frame =
+        Vec::with_capacity(1 + payload.len() + usize::from(has_parent_beacon_block_root) * 32);
+    frame.push(block_version);
+    if has_parent_beacon_block_root {
+        let root = envelope
+            .parent_beacon_block_root
+            .ok_or(BlocksWireError::MissingParentBeaconBlockRoot(block_version))?;
+        frame.extend_from_slice(root.as_slice());
     }
-    body.extend_from_slice(&payload);
-    encode_frame_header(BLOCK_FRAME_KIND, payload_version, flags, body)
+    frame.extend_from_slice(&payload);
+    Ok(frame)
 }
 
-/// Decode a metadata or block frame produced by this server.
-pub fn decode_blocks_frame(frame: &[u8]) -> Result<BlocksFrame, BlocksWireError> {
-    if frame.len() < FRAME_HEADER_LEN {
-        return Err(BlocksWireError::Truncated);
-    }
-    if frame[..4] != BLOCKS_WIRE_MAGIC {
-        return Err(BlocksWireError::InvalidMagic);
-    }
-    if frame[4] != BLOCKS_WIRE_VERSION {
-        return Err(BlocksWireError::UnsupportedVersion(frame[4]));
+/// Decode a P2P-version-prefixed payload message produced by this server.
+pub fn decode_block_frame(frame: &[u8]) -> Result<OpExecutionPayloadEnvelope, BlocksWireError> {
+    let (&block_version, body) = frame.split_first().ok_or(BlocksWireError::Empty)?;
+    if block_version > BLOCK_VERSION_V4 {
+        return Err(BlocksWireError::UnsupportedPayloadVersion(block_version));
     }
 
-    let kind = frame[5];
-    let payload_version = frame[6];
-    let flags = frame[7];
-    let body_len = u32::from_le_bytes(frame[8..12].try_into().expect("four byte slice")) as usize;
-    if frame.len() != FRAME_HEADER_LEN + body_len {
-        return Err(BlocksWireError::InvalidBodyLength);
-    }
-    let body = &frame[FRAME_HEADER_LEN..];
-
-    match kind {
-        METADATA_FRAME_KIND => {
-            if payload_version != 0 || flags != 0 || body.len() != 32 {
-                return Err(BlocksWireError::InvalidMetadata);
-            }
-            let read_u64 = |offset| {
-                u64::from_le_bytes(body[offset..offset + 8].try_into().expect("eight byte slice"))
-            };
-            Ok(BlocksFrame::Metadata(BlocksMetadata {
-                chain_id: read_u64(0),
-                min_offset: read_u64(8),
-                requested_offset: read_u64(16),
-                head: read_u64(24),
-            }))
+    let (parent_beacon_block_root, payload_bytes) = if block_version >= BLOCK_VERSION_V3 {
+        if body.len() < 32 {
+            return Err(BlocksWireError::Truncated);
         }
-        BLOCK_FRAME_KIND => {
-            if flags & !ROOT_PRESENT_FLAG != 0 {
-                return Err(BlocksWireError::UnsupportedFlags(flags));
-            }
-            let (parent_beacon_block_root, payload_bytes) = if flags & ROOT_PRESENT_FLAG != 0 {
-                if body.len() < 32 {
-                    return Err(BlocksWireError::InvalidBodyLength);
-                }
-                (Some(B256::from_slice(&body[..32])), &body[32..])
-            } else {
-                (None, body)
-            };
-            let decode_error =
-                |error: ssz::DecodeError| BlocksWireError::InvalidPayload(format!("{error:?}"));
-            let execution_payload = match payload_version {
-                1 => OpExecutionPayload::V1(
-                    alloy_rpc_types_engine::ExecutionPayloadV1::from_ssz_bytes(payload_bytes)
-                        .map_err(decode_error)?,
-                ),
-                2 => OpExecutionPayload::V2(
-                    alloy_rpc_types_engine::ExecutionPayloadV2::from_ssz_bytes(payload_bytes)
-                        .map_err(decode_error)?,
-                ),
-                3 => OpExecutionPayload::V3(
-                    alloy_rpc_types_engine::ExecutionPayloadV3::from_ssz_bytes(payload_bytes)
-                        .map_err(decode_error)?,
-                ),
-                4 => OpExecutionPayload::V4(
-                    OpExecutionPayloadV4::from_ssz_bytes(payload_bytes).map_err(decode_error)?,
-                ),
-                version => return Err(BlocksWireError::UnsupportedPayloadVersion(version)),
-            };
-            Ok(BlocksFrame::Block(Box::new(OpExecutionPayloadEnvelope {
-                parent_beacon_block_root,
-                execution_payload,
-            })))
-        }
-        kind => Err(BlocksWireError::UnsupportedFrameKind(kind)),
-    }
-}
-
-fn encode_frame_header(kind: u8, payload_version: u8, flags: u8, body: Vec<u8>) -> Vec<u8> {
-    let body_len = u32::try_from(body.len()).expect("execution payload exceeds 4 GiB");
-    let mut frame = Vec::with_capacity(FRAME_HEADER_LEN + body.len());
-    frame.extend_from_slice(&BLOCKS_WIRE_MAGIC);
-    frame.push(BLOCKS_WIRE_VERSION);
-    frame.push(kind);
-    frame.push(payload_version);
-    frame.push(flags);
-    frame.extend_from_slice(&body_len.to_le_bytes());
-    frame.extend_from_slice(&body);
-    frame
+        (Some(B256::from_slice(&body[..32])), &body[32..])
+    } else {
+        (None, body)
+    };
+    let decode_error =
+        |error: ssz::DecodeError| BlocksWireError::InvalidPayload(format!("{error:?}"));
+    let execution_payload = match block_version {
+        BLOCK_VERSION_V1 => OpExecutionPayload::V1(
+            alloy_rpc_types_engine::ExecutionPayloadV1::from_ssz_bytes(payload_bytes)
+                .map_err(decode_error)?,
+        ),
+        BLOCK_VERSION_V2 => OpExecutionPayload::V2(
+            alloy_rpc_types_engine::ExecutionPayloadV2::from_ssz_bytes(payload_bytes)
+                .map_err(decode_error)?,
+        ),
+        BLOCK_VERSION_V3 => OpExecutionPayload::V3(
+            alloy_rpc_types_engine::ExecutionPayloadV3::from_ssz_bytes(payload_bytes)
+                .map_err(decode_error)?,
+        ),
+        BLOCK_VERSION_V4 => OpExecutionPayload::V4(
+            OpExecutionPayloadV4::from_ssz_bytes(payload_bytes).map_err(decode_error)?,
+        ),
+        _ => unreachable!("unsupported versions returned above"),
+    };
+    Ok(OpExecutionPayloadEnvelope { parent_beacon_block_root, execution_payload })
 }
 
 #[derive(Debug, Clone)]
@@ -312,7 +209,6 @@ pub struct BlocksServer<P> {
     listener: TcpListener,
     provider: P,
     config: BlocksServerConfig,
-    chain_id: u64,
     metrics: BlocksServerMetrics,
 }
 
@@ -321,13 +217,9 @@ where
     P: BlockReader + CanonStateSubscriptions + Clone + Send + Sync + 'static,
 {
     /// Bind a blocks server.
-    pub async fn bind(
-        provider: P,
-        config: BlocksServerConfig,
-        chain_id: u64,
-    ) -> std::io::Result<Self> {
+    pub async fn bind(provider: P, config: BlocksServerConfig) -> std::io::Result<Self> {
         let listener = TcpListener::bind(config.addr).await?;
-        Ok(Self { listener, provider, config, chain_id, metrics: BlocksServerMetrics::default() })
+        Ok(Self { listener, provider, config, metrics: BlocksServerMetrics::default() })
     }
 
     /// Return the actual local address (useful when binding port zero in tests).
@@ -343,11 +235,9 @@ where
                     let provider = self.provider.clone();
                     let metrics = self.metrics.clone();
                     let config = self.config;
-                    let chain_id = self.chain_id;
                     tokio::spawn(async move {
                         if let Err(error) =
-                            handle_connection(stream, provider, config, chain_id, metrics.clone())
-                                .await
+                            handle_connection(stream, provider, config, metrics.clone()).await
                         {
                             metrics.stream_terminated(error.reason);
                             tracing::debug!(target: "reth::blocks", %peer, reason = error.reason, error = %error.message, "Blocks stream terminated");
@@ -366,7 +256,6 @@ where
 #[derive(Debug)]
 struct AcceptedRequest {
     start: u64,
-    head: u64,
 }
 
 #[derive(Debug)]
@@ -385,7 +274,6 @@ async fn handle_connection<P>(
     stream: TcpStream,
     provider: P,
     config: BlocksServerConfig,
-    chain_id: u64,
     metrics: BlocksServerMetrics,
 ) -> Result<(), StreamTermination>
 where
@@ -409,21 +297,8 @@ where
     metrics.active_connections.increment(1.0);
     let _active_guard = ActiveConnectionGuard(metrics.active_connections.clone());
     metrics.requested_offset.set(accepted.start as f64);
-    metrics.replay_distance.set(if accepted.start <= accepted.head {
-        accepted.head - accepted.start + 1
-    } else {
-        0
-    } as f64);
 
-    let metadata = encode_metadata_frame(BlocksMetadata {
-        chain_id,
-        min_offset: config.min_offset,
-        requested_offset: accepted.start,
-        head: accepted.head,
-    });
     let mut websocket = websocket;
-    send_binary(&mut websocket, metadata, &metrics).await?;
-
     stream_blocks(&mut websocket, &provider, &mut notifications, accepted.start, &metrics).await
 }
 
@@ -493,7 +368,7 @@ where
         }
     }
 
-    Ok(AcceptedRequest { start, head })
+    Ok(AcceptedRequest { start })
 }
 
 fn parse_start(query: Option<&str>) -> Result<u64, &'static str> {
@@ -591,7 +466,8 @@ where
             let frame = encode_block_frame(&OpExecutionPayloadEnvelope {
                 parent_beacon_block_root: execution_data.parent_beacon_block_root(),
                 execution_payload: execution_data.payload,
-            });
+            })
+            .map_err(|error| StreamTermination::new("encoding", error.to_string()))?;
             send_binary(websocket, frame, metrics).await?;
             metrics.blocks_sent.increment(1);
             metrics.current_offset.set(next as f64);
@@ -689,16 +565,6 @@ mod tests {
     }
 
     #[test]
-    fn metadata_roundtrip() {
-        let metadata =
-            BlocksMetadata { chain_id: 10, min_offset: 100, requested_offset: 123, head: 456 };
-        assert_eq!(
-            decode_blocks_frame(&encode_metadata_frame(metadata)).unwrap(),
-            BlocksFrame::Metadata(metadata)
-        );
-    }
-
-    #[test]
     fn payload_versions_roundtrip() {
         let v1 = payload_v1(1);
         let v2 = ExecutionPayloadV2 { payload_inner: v1.clone(), withdrawals: Vec::new() };
@@ -727,11 +593,11 @@ mod tests {
             },
         ];
 
-        for envelope in envelopes {
-            assert_eq!(
-                decode_blocks_frame(&encode_block_frame(&envelope)).unwrap(),
-                BlocksFrame::Block(Box::new(envelope))
-            );
+        for (expected_version, envelope) in envelopes.into_iter().enumerate() {
+            let frame = encode_block_frame(&envelope).unwrap();
+            assert_eq!(frame[0], expected_version as u8);
+            assert_eq!(&frame[1..], envelope.as_ssz_bytes());
+            assert_eq!(decode_block_frame(&frame).unwrap(), envelope);
         }
     }
 
@@ -773,7 +639,6 @@ mod tests {
         let server = BlocksServer::bind(
             provider,
             BlocksServerConfig { addr: "127.0.0.1:0".parse().unwrap(), min_offset },
-            10,
         )
         .await
         .unwrap();
@@ -784,14 +649,14 @@ mod tests {
 
     async fn receive_frame(
         websocket: &mut WebSocketStream<tokio_tungstenite::MaybeTlsStream<TcpStream>>,
-    ) -> BlocksFrame {
+    ) -> OpExecutionPayloadEnvelope {
         let message = tokio::time::timeout(Duration::from_secs(2), websocket.next())
             .await
             .expect("server should send a frame")
             .expect("connection should remain open")
             .expect("frame should be valid WebSocket data");
         let Message::Binary(frame) = message else { panic!("expected binary frame") };
-        decode_blocks_frame(&frame).unwrap()
+        decode_block_frame(&frame).unwrap()
     }
 
     #[tokio::test]
@@ -802,20 +667,9 @@ mod tests {
         let (mut websocket, _) =
             connect_async(format!("ws://{addr}/blocks?start=5")).await.unwrap();
 
-        assert_eq!(
-            receive_frame(&mut websocket).await,
-            BlocksFrame::Metadata(BlocksMetadata {
-                chain_id: 10,
-                min_offset: 5,
-                requested_offset: 5,
-                head: 8,
-            })
-        );
         let mut previous_hash = None;
         for expected_number in 5..=8 {
-            let BlocksFrame::Block(envelope) = receive_frame(&mut websocket).await else {
-                panic!("expected block frame")
-            };
+            let envelope = receive_frame(&mut websocket).await;
             assert_eq!(envelope.execution_payload.block_number(), expected_number);
             if let Some(previous_hash) = previous_hash {
                 assert_eq!(envelope.execution_payload.parent_hash(), previous_hash);
@@ -832,19 +686,12 @@ mod tests {
         let (addr, server) = test_server(provider, 5).await;
 
         let (mut at_head, _) = connect_async(format!("ws://{addr}/blocks?start=8")).await.unwrap();
-        assert!(matches!(receive_frame(&mut at_head).await, BlocksFrame::Metadata(_)));
-        let BlocksFrame::Block(block) = receive_frame(&mut at_head).await else {
-            panic!("expected head block")
-        };
+        let block = receive_frame(&mut at_head).await;
         assert_eq!(block.execution_payload.block_number(), 8);
 
-        let (mut after_head, _) =
-            connect_async(format!("ws://{addr}/blocks?start=9")).await.unwrap();
-        let BlocksFrame::Metadata(metadata) = receive_frame(&mut after_head).await else {
-            panic!("expected metadata")
-        };
-        assert_eq!(metadata.requested_offset, 9);
-        assert_eq!(metadata.head, 8);
+        // A successful upgrade is sufficient to show that head + 1 is accepted. The mock
+        // provider's notification stream closes immediately, so it cannot model waiting here.
+        let (_after_head, _) = connect_async(format!("ws://{addr}/blocks?start=9")).await.unwrap();
         server.abort();
     }
 
@@ -886,14 +733,8 @@ mod tests {
         let (mut early, _) = connect_async(format!("ws://{addr}/blocks?start=5")).await.unwrap();
         let (mut late, _) = connect_async(format!("ws://{addr}/blocks?start=7")).await.unwrap();
 
-        let _ = receive_frame(&mut early).await;
-        let _ = receive_frame(&mut late).await;
-        let BlocksFrame::Block(early_first) = receive_frame(&mut early).await else {
-            panic!("expected block")
-        };
-        let BlocksFrame::Block(late_first) = receive_frame(&mut late).await else {
-            panic!("expected block")
-        };
+        let early_first = receive_frame(&mut early).await;
+        let late_first = receive_frame(&mut late).await;
         assert_eq!(early_first.execution_payload.block_number(), 5);
         assert_eq!(late_first.execution_payload.block_number(), 7);
         server.abort();
@@ -927,9 +768,7 @@ mod tests {
         });
 
         for expected in 5..=6 {
-            let BlocksFrame::Block(block) = receive_frame(&mut client).await else {
-                panic!("expected block")
-            };
+            let block = receive_frame(&mut client).await;
             assert_eq!(block.execution_payload.block_number(), expected);
         }
 
@@ -938,9 +777,7 @@ mod tests {
         provider.extend_blocks(blocks[2..].iter().cloned());
         wake_tx.unbounded_send(()).unwrap();
         for expected in 7..=9 {
-            let BlocksFrame::Block(block) = receive_frame(&mut client).await else {
-                panic!("expected block")
-            };
+            let block = receive_frame(&mut client).await;
             assert_eq!(block.execution_payload.block_number(), expected);
         }
 
@@ -948,23 +785,12 @@ mod tests {
     }
 
     #[test]
-    fn decoder_rejects_unknown_version_and_bad_length() {
-        let mut frame = encode_metadata_frame(BlocksMetadata {
-            chain_id: 1,
-            min_offset: 0,
-            requested_offset: 0,
-            head: 0,
-        });
-        frame[4] = BLOCKS_WIRE_VERSION + 1;
-        assert!(matches!(decode_blocks_frame(&frame), Err(BlocksWireError::UnsupportedVersion(_))));
-
-        let mut frame = encode_metadata_frame(BlocksMetadata {
-            chain_id: 1,
-            min_offset: 0,
-            requested_offset: 0,
-            head: 0,
-        });
-        frame.pop();
-        assert_eq!(decode_blocks_frame(&frame), Err(BlocksWireError::InvalidBodyLength));
+    fn decoder_rejects_unknown_version_and_truncated_messages() {
+        assert_eq!(decode_block_frame(&[]), Err(BlocksWireError::Empty));
+        assert_eq!(
+            decode_block_frame(&[BLOCK_VERSION_V4 + 1]),
+            Err(BlocksWireError::UnsupportedPayloadVersion(BLOCK_VERSION_V4 + 1))
+        );
+        assert_eq!(decode_block_frame(&[BLOCK_VERSION_V3]), Err(BlocksWireError::Truncated));
     }
 }
