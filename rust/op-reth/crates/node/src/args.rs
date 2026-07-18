@@ -147,30 +147,18 @@ pub struct BlocksServerArgs {
         default_value = "127.0.0.1:8548"
     )]
     pub addr: SocketAddr,
-
-    /// Maximum number of blocks a requested start may trail the current head.
-    #[arg(
-        long = "rollup.blocks-server.max-backfill",
-        value_name = "BLOCKS_SERVER_MAX_BACKFILL",
-        default_value_t = 0
-    )]
-    pub max_backfill: u64,
 }
 
 impl BlocksServerArgs {
     /// Return runtime configuration when the service is enabled.
     pub const fn config(self) -> Option<BlocksServerConfig> {
-        if self.enabled {
-            Some(BlocksServerConfig { addr: self.addr, max_backfill: self.max_backfill })
-        } else {
-            None
-        }
+        if self.enabled { Some(BlocksServerConfig { addr: self.addr }) } else { None }
     }
 }
 
 impl Default for BlocksServerArgs {
     fn default() -> Self {
-        Self { enabled: false, addr: DEFAULT_BLOCKS_SERVER_ADDR, max_backfill: 0 }
+        Self { enabled: false, addr: DEFAULT_BLOCKS_SERVER_ADDR }
     }
 }
 
@@ -386,21 +374,15 @@ mod tests {
             "--rollup.blocks-server.enabled",
             "--rollup.blocks-server.addr",
             "0.0.0.0:9000",
-            "--rollup.blocks-server.max-backfill",
-            "1234",
         ])
         .args;
         assert_eq!(
             args.blocks_server,
-            BlocksServerArgs {
-                enabled: true,
-                addr: "0.0.0.0:9000".parse().unwrap(),
-                max_backfill: 1234,
-            }
+            BlocksServerArgs { enabled: true, addr: "0.0.0.0:9000".parse().unwrap() }
         );
         assert_eq!(
             args.blocks_server.config(),
-            Some(BlocksServerConfig { addr: "0.0.0.0:9000".parse().unwrap(), max_backfill: 1234 })
+            Some(BlocksServerConfig { addr: "0.0.0.0:9000".parse().unwrap() })
         );
     }
 

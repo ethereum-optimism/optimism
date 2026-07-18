@@ -56,8 +56,6 @@ pub const BLOCK_VERSION_V4: u8 = 3;
 pub struct BlocksServerConfig {
     /// TCP address on which to serve `/blocks` `WebSocket` upgrades.
     pub addr: SocketAddr,
-    /// Maximum distance behind the handshake head accepted for a requested start block.
-    pub max_backfill: u64,
 }
 
 /// Error encoding or decoding a blocks stream message.
@@ -208,7 +206,6 @@ impl Drop for ActiveConnectionGuard {
 pub struct BlocksServer<P> {
     listener: TcpListener,
     provider: P,
-    config: BlocksServerConfig,
     metrics: BlocksServerMetrics,
 }
 
@@ -219,7 +216,7 @@ where
     /// Bind a blocks server.
     pub async fn bind(provider: P, config: BlocksServerConfig) -> std::io::Result<Self> {
         let listener = TcpListener::bind(config.addr).await?;
-        Ok(Self { listener, provider, config, metrics: BlocksServerMetrics::default() })
+        Ok(Self { listener, provider, metrics: BlocksServerMetrics::default() })
     }
 
     /// Return the actual local address (useful when binding port zero in tests).
@@ -234,10 +231,9 @@ where
                 Ok((stream, peer)) => {
                     let provider = self.provider.clone();
                     let metrics = self.metrics.clone();
-                    let config = self.config;
                     tokio::spawn(async move {
                         if let Err(error) =
-                            handle_connection(stream, provider, config, metrics.clone()).await
+                            handle_connection(stream, provider, metrics.clone()).await
                         {
                             metrics.stream_terminated(error.reason);
                             tracing::debug!(target: "reth::blocks", %peer, reason = error.reason, error = %error.message, "Blocks stream terminated");
@@ -273,7 +269,6 @@ impl StreamTermination {
 async fn handle_connection<P>(
     stream: TcpStream,
     provider: P,
-    config: BlocksServerConfig,
     metrics: BlocksServerMetrics,
 ) -> Result<(), StreamTermination>
 where
@@ -284,7 +279,7 @@ where
     let mut notifications = provider.canonical_state_stream();
     let mut accepted = None;
     let websocket = accept_hdr_async(stream, |request: &Request, response: Response| {
-        let request = validate_handshake(request, &provider, config, &metrics)?;
+        let request = validate_handshake(request, &provider, &metrics)?;
         accepted = Some(request);
         Ok(response)
     })
@@ -305,7 +300,6 @@ where
 fn validate_handshake<P>(
     request: &Request,
     provider: &P,
-    config: BlocksServerConfig,
     metrics: &BlocksServerMetrics,
 ) -> Result<AcceptedRequest, ErrorResponse>
 where
@@ -334,17 +328,6 @@ where
         }
     };
 
-    let earliest = head.saturating_sub(config.max_backfill);
-    if start < earliest {
-        metrics.handshake_failure("outside_backfill_window");
-        return Err(handshake_error(
-            StatusCode::GONE,
-            format!(
-                "start {start} is more than {} blocks behind head {head}; earliest permitted start is {earliest}",
-                config.max_backfill
-            ),
-        ));
-    }
     if start > head.saturating_add(1) {
         metrics.handshake_failure("future_offset");
         return Err(handshake_error(
@@ -636,13 +619,10 @@ mod tests {
             .collect()
     }
 
-    async fn test_server(
-        provider: MockEthProvider<OpPrimitives>,
-        max_backfill: u64,
-    ) -> (SocketAddr, JoinHandle<()>) {
+    async fn test_server(provider: MockEthProvider<OpPrimitives>) -> (SocketAddr, JoinHandle<()>) {
         let server = BlocksServer::bind(
             provider,
-            BlocksServerConfig { addr: "127.0.0.1:0".parse().unwrap(), max_backfill },
+            BlocksServerConfig { addr: "127.0.0.1:0".parse().unwrap() },
         )
         .await
         .unwrap();
@@ -667,7 +647,7 @@ mod tests {
     async fn replays_canonical_range_in_order() {
         let provider = MockEthProvider::<OpPrimitives>::new();
         provider.extend_blocks(canonical_blocks(5, 8));
-        let (addr, server) = test_server(provider, 3).await;
+        let (addr, server) = test_server(provider).await;
         let (mut websocket, _) =
             connect_async(format!("ws://{addr}/blocks?start=5")).await.unwrap();
 
@@ -687,9 +667,8 @@ mod tests {
     async fn accepts_head_and_head_plus_one() {
         let provider = MockEthProvider::<OpPrimitives>::new();
         provider.extend_blocks(canonical_blocks(5, 8));
-        let (addr, server) = test_server(provider, 0).await;
+        let (addr, server) = test_server(provider).await;
 
-        assert_eq!(handshake_status(addr, "/blocks?start=7").await, StatusCode::GONE);
         let (mut at_head, _) = connect_async(format!("ws://{addr}/blocks?start=8")).await.unwrap();
         let block = receive_frame(&mut at_head).await;
         assert_eq!(block.execution_payload.block_number(), 8);
@@ -697,25 +676,6 @@ mod tests {
         // A successful upgrade is sufficient to show that head + 1 is accepted. The mock
         // provider's notification stream closes immediately, so it cannot model waiting here.
         let (_after_head, _) = connect_async(format!("ws://{addr}/blocks?start=9")).await.unwrap();
-        server.abort();
-    }
-
-    #[tokio::test]
-    async fn backfill_window_tracks_head() {
-        let provider = MockEthProvider::<OpPrimitives>::new();
-        let blocks = canonical_blocks(5, 9);
-        provider.extend_blocks(blocks[..4].iter().cloned());
-        let (addr, server) = test_server(provider.clone(), 3).await;
-
-        let (mut at_boundary, _) =
-            connect_async(format!("ws://{addr}/blocks?start=5")).await.unwrap();
-        assert_eq!(receive_frame(&mut at_boundary).await.execution_payload.block_number(), 5);
-
-        provider.add_block(blocks[4].0, blocks[4].1.clone());
-        assert_eq!(handshake_status(addr, "/blocks?start=5").await, StatusCode::GONE);
-        let (mut new_boundary, _) =
-            connect_async(format!("ws://{addr}/blocks?start=6")).await.unwrap();
-        assert_eq!(receive_frame(&mut new_boundary).await.execution_payload.block_number(), 6);
         server.abort();
     }
 
@@ -733,7 +693,7 @@ mod tests {
         // Keep the header for block 6 while omitting its body to emulate pruned/unavailable data.
         provider.add_header(blocks[1].0, blocks[1].1.header.clone());
         provider.add_block(blocks[3].0, blocks[3].1.clone());
-        let (addr, server) = test_server(provider, 3).await;
+        let (addr, server) = test_server(provider).await;
 
         assert_eq!(handshake_status(addr, "/blocks").await, StatusCode::BAD_REQUEST);
         assert_eq!(
@@ -753,7 +713,7 @@ mod tests {
     async fn independent_subscribers_replay_different_offsets() {
         let provider = MockEthProvider::<OpPrimitives>::new();
         provider.extend_blocks(canonical_blocks(5, 8));
-        let (addr, server) = test_server(provider, 3).await;
+        let (addr, server) = test_server(provider).await;
         let (mut early, _) = connect_async(format!("ws://{addr}/blocks?start=5")).await.unwrap();
         let (mut late, _) = connect_async(format!("ws://{addr}/blocks?start=7")).await.unwrap();
 

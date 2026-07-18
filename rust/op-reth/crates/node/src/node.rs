@@ -708,7 +708,7 @@ where
         if let Some(config) = blocks_server {
             let server = BlocksServer::bind(ctx.node.provider().clone(), config).await?;
             let addr = server.local_addr()?;
-            info!(target: "reth::cli", %addr, max_backfill = config.max_backfill, "Blocks server listening");
+            info!(target: "reth::cli", %addr, "Blocks server listening");
             ctx.node.task_executor().spawn_critical_task("OP blocks server", server.run());
         }
 
