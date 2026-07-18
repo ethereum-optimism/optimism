@@ -1,0 +1,152 @@
+---
+title: "Content type: solution guide"
+description: The published contract for solution guides — purpose, tone, required components, title grammar, and a copy-paste template.
+diataxis: reference
+---
+
+A **solution guide** takes a reader with a real goal that spans multiple
+components — "tune my batcher costs", "run a fault-proof challenger" — and
+sequences the existing documentation into one paved path. It is the page a
+reader would otherwise have to assemble themselves from guides, reference
+pages, specs, and READMEs across several properties.
+
+This page is the contract for the type. A new solution guide is reviewed
+against it; cite the relevant section in review instead of re-arguing it.
+
+## Purpose
+
+*   Turn a traced reader journey into **one in-site page with curated
+    exits**, so the goal is completable without leaving docs.optimism.io
+    except through exits the guide chose on purpose.
+*   Add the **connective decision logic** — which option to pick when, and
+    why — that no single component page can own.
+*   **Derive, never duplicate.** Each stop links the canonical page and
+    states what to extract from it. Restating a linked page's steps or facts
+    violates the
+    [dual-sourcing ban](/op-stack/contribute/content-guide#link-dont-restate-the-dual-sourcing-ban).
+
+## Composition
+
+A solution guide is a composition of the existing taxonomy, not a fifth
+quadrant: frontmatter carries `diataxis: how-to` (it is goal- and
+action-oriented) plus `content-type: solution-guide`. See
+[Choose a content type](/op-stack/contribute/choose-a-content-type) for how
+it differs from a plain how-to guide and from a tutorial.
+
+## Tone
+
+*   Direct and economical. The reader has a goal and a working system; no
+    scene-setting beyond the one-paragraph goal statement.
+*   Decisions are stated as conditions: "if X, choose Y because W" — never a
+    bare "we recommend Y".
+*   Honest about staleness: any exit into hand-maintained or version-pinned
+    material carries an "as of" marker rather than implying freshness.
+
+## Required components
+
+Every solution guide must have, in order:
+
+1.  **Frontmatter**: `title`, `description`, `diataxis: how-to`,
+    `content-type: solution-guide`, and `last-reviewed: YYYY-MM-DD` (solution
+    guides are curated artifacts and enter the review sweep on merge).
+2.  **Goal statement**: one paragraph naming the outcome, the intended
+    reader, and the components involved.
+3.  **Fit test** (`## Is this guide for you?`): bullet conditions for when to
+    use the guide, plus where to go instead when it doesn't fit.
+4.  **Starting state** (`## Before you start`): the working state and access
+    the guide assumes. A solution guide never contains environment setup —
+    that is tutorial territory; link one if needed.
+5.  **Sequenced stops** (`## Step 1: …`, `## Step 2: …`): numbered `##`
+    sections, each an imperative action. A stop that derives from another
+    page links it and states exactly what to extract. A stop that is a
+    decision states the decision logic, preferably as an
+    if/choose/because table.
+6.  **Verification** (final step): how the reader confirms the goal is
+    reached.
+7.  **Next steps** (`## Next steps`): the deliberate, curated ways out —
+    deeper reference, the normative spec, upstream material — each with a
+    one-line reason and, where the target is version-pinned or
+    hand-maintained, an "as of" marker.
+
+## Title grammar
+
+`<Imperative verb> <object>` in sentence case, naming the reader's goal:
+"Tune batcher costs", "Run a fault-proof challenger", "Choose your node
+stack". No "How to" prefix, no gerunds ("Tuning…"), no component-first
+titles ("op-batcher cost tuning").
+
+## Template
+
+Copy this template to start a new solution guide:
+
+```mdx
+---
+title: <Verb> <object>
+description: <One sentence naming the outcome and who it serves.>
+diataxis: how-to
+content-type: solution-guide
+last-reviewed: <YYYY-MM-DD>
+---
+
+<One paragraph: the goal, the intended reader, and the components involved.>
+
+## Is this guide for you?
+
+Use this guide if:
+
+*   <condition on the reader's role or system>
+*   <condition on the goal>
+
+If you <adjacent need>, see [<other page>](</path/to/page>) instead.
+
+## Before you start
+
+You should already have:
+
+*   <working state this guide assumes>
+*   <tools or access required>
+
+## Step 1: <Imperative action>
+
+<What to do. When this stop derives from another page, link it and state
+what to extract:>
+
+Read [<page title>](</path/to/page>) and take away:
+
+*   <the specific values, concepts, or commands this goal needs>
+
+## Step 2: <Imperative decision>
+
+<The connective decision logic this guide adds — the material that exists
+nowhere else:>
+
+| If ... | Choose ... | Because ... |
+| --- | --- | --- |
+| <scenario> | <option> | <rationale> |
+
+## Step 3: Verify the outcome
+
+<How the reader confirms the goal is reached: the metric, output, or state
+to check, and what a good result looks like.>
+
+## Next steps
+
+*   [<Exit title>](<url>) — <what the reader gets there>. <As of `<tag or
+    date>` for version-pinned or hand-maintained targets.>
+*   [<Normative spec section>](https://specs.optimism.io/<path>) — <why a
+    reader would need the normative definition>.
+```
+
+## Exemplars
+
+No solution guide exists on the site yet; the first, "Tune batcher costs",
+ships with the Use Cases section and must pass review against this spec.
+Until then, calibrate against:
+
+*   [Configure the batcher](/chain-operators/guides/configuration/batcher) —
+    the central stop of the batcher-costs journey: the depth a solution
+    guide links *into* rather than reproduces.
+*   [Consensus client configuration](/node-operators/guides/configuration/consensus-clients)
+    — in-site precedent for stated decision criteria between options.
+*   Cloudflare's [documentation content strategy](https://developers.cloudflare.com/style-guide/documentation-content-strategy/)
+    — the published-content-type pattern this contract follows.

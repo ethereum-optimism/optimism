@@ -17,6 +17,11 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+func TestSuperRootRpcFlagCompatibility(t *testing.T) {
+	require.Equal(t, []string{"superroot-rpc", "supernode-rpc"}, SuperRootRpcFlag.Names())
+	require.Equal(t, []string{"OP_CHALLENGER_SUPERROOT_RPC", "OP_CHALLENGER_SUPERNODE_RPC"}, SuperRootRpcFlag.EnvVars)
+}
+
 // TestUniqueFlags asserts that all flag names are unique, to avoid accidental conflicts between the many flags.
 func TestUniqueFlags(t *testing.T) {
 	seenCLI := make(map[string]struct{})
@@ -89,7 +94,11 @@ func TestEnvVarFormat(t *testing.T) {
 			})
 			envFlags := envFlagGetter.GetEnvVars()
 			require.True(t, ok, "must be able to cast the flag to an EnvVar interface")
-			require.Equal(t, 1, len(envFlags), "flags should have exactly one env var")
+			if flagName == SuperRootRpcFlag.Name {
+				require.Len(t, envFlags, 2, "super root RPC flag should keep its legacy env var")
+			} else {
+				require.Len(t, envFlags, 1, "flags should have exactly one env var")
+			}
 			expectedEnvVar := opservice.FlagNameToEnvVarName(flagName, "OP_CHALLENGER")
 			require.Equal(t, expectedEnvVar, envFlags[0])
 		})

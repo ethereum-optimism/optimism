@@ -42,7 +42,7 @@ func TestExtractorChecksSuperPermissionedGame(t *testing.T) {
 			},
 		}, nil
 	}
-	superNode := &stubSuperNodeClient{
+	provider := &stubSuperRootProvider{
 		derivedFromL1BlockNum: l1HeadNum,
 		superRoot:             mockRootClaim,
 	}
@@ -62,7 +62,7 @@ func TestExtractorChecksSuperPermissionedGame(t *testing.T) {
 		NewBondEnricher(),
 		NewBalanceEnricher(),
 		NewL1HeadBlockNumEnricher(&stubBlockFetcher{num: l1HeadNum}),
-		NewSuperAgreementEnricher(logger, metrics, []SuperRootProvider{superNode}, clock.NewDeterministicClock(time.Unix(9824924, 499))),
+		NewSuperAgreementEnricher(logger, metrics, []SuperRootProvider{provider}, clock.NewDeterministicClock(time.Unix(9824924, 499))),
 	)
 
 	games, ignored, failed, err := extractor.Extract(context.Background(), blockHash, 0)
@@ -80,7 +80,7 @@ func TestExtractorChecksSuperPermissionedGame(t *testing.T) {
 	require.Empty(t, game.Claims)
 	require.True(t, game.AgreeWithClaim)
 	require.Equal(t, mockRootClaim, game.ExpectedRootClaim)
-	require.Equal(t, l2SequenceNumber, superNode.requestedTimestamp)
+	require.Equal(t, l2SequenceNumber, provider.requestedTimestamp)
 	require.NotZero(t, metrics.fetchTime)
 	require.Nil(t, game.ETHCollateral)
 	require.Equal(t, common.Address{}, game.WETHContract)

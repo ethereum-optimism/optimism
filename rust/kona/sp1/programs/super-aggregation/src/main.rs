@@ -25,15 +25,19 @@ fn aggregate(
 ) -> Result<Vec<u8>, SuperRootError> {
     inputs.validate()?;
 
-    // TODO(#21412): Embed the super-range verification key in this guest instead of accepting it
-    // from the input. Range program proofs are read from SP1's proof stream in this exact
-    // public-output order.
+    // Range program proofs are read from SP1's proof stream in this exact public-output order.
     for range_output in &inputs.range_outputs {
-        verify_proof(&inputs.range_vkey, &range_public_values_digest(range_output));
+        verify_proof(
+            &kona_sp1_range_vkeys::SUPER_RANGE_VKEY,
+            &range_public_values_digest(range_output),
+        );
     }
 
     for consolidation_output in &inputs.consolidation_outputs {
-        verify_proof(&inputs.range_vkey, &consolidation_public_values_digest(consolidation_output));
+        verify_proof(
+            &kona_sp1_range_vkeys::SUPER_RANGE_VKEY,
+            &consolidation_public_values_digest(consolidation_output),
+        );
     }
 
     Ok(inputs.zk_dispute_game_public_values())
@@ -96,10 +100,10 @@ mod tests {
         assert_eq!(
             calls,
             vec![
-                (inputs.range_vkey, RANGE_DIGESTS[0]),
-                (inputs.range_vkey, RANGE_DIGESTS[1]),
-                (inputs.range_vkey, CONSOLIDATION_DIGESTS[0]),
-                (inputs.range_vkey, CONSOLIDATION_DIGESTS[1]),
+                (kona_sp1_range_vkeys::SUPER_RANGE_VKEY, RANGE_DIGESTS[0]),
+                (kona_sp1_range_vkeys::SUPER_RANGE_VKEY, RANGE_DIGESTS[1]),
+                (kona_sp1_range_vkeys::SUPER_RANGE_VKEY, CONSOLIDATION_DIGESTS[0]),
+                (kona_sp1_range_vkeys::SUPER_RANGE_VKEY, CONSOLIDATION_DIGESTS[1]),
             ]
         );
     }

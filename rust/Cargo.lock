@@ -3199,7 +3199,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57663b653d948a338bfb3eeba9bb2fd5fcfaecb9e199e87e1eda4d9e8b240fd9"
 dependencies = [
  "ciborium-io",
- "half 2.7.1",
+ "half",
 ]
 
 [[package]]
@@ -5434,12 +5434,6 @@ dependencies = [
 
 [[package]]
 name = "half"
-version = "1.8.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b43ede17f21864e81be2fa654110bf1e793774238d86ef8555c37e6519c0403"
-
-[[package]]
-name = "half"
 version = "2.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ea2d84b969582b4b1864a92dc5d27cd2b77b622a8d79306834f1be5ba20d84b"
@@ -7645,14 +7639,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "kona-sp1-build-utils"
-version = "0.0.1"
-dependencies = [
- "cargo_metadata 0.23.1",
- "sp1-build",
-]
-
-[[package]]
 name = "kona-sp1-client-utils"
 version = "0.0.1"
 dependencies = [
@@ -7777,23 +7763,12 @@ dependencies = [
  "reqwest 0.13.2",
  "rkyv",
  "serde",
- "serde_cbor",
  "serde_json",
  "sp1-sdk",
  "strum",
  "tokio",
  "tracing",
  "tracing-subscriber 0.3.23",
-]
-
-[[package]]
-name = "kona-sp1-proof-utils"
-version = "0.0.1"
-dependencies = [
- "kona-sp1-elfs",
- "kona-sp1-ethereum-host-utils",
- "kona-sp1-host-utils",
- "tracing",
 ]
 
 [[package]]
@@ -15712,16 +15687,6 @@ version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94a16b99c5ea4fe3daccd14853ad260ec00ea043b2708d1fd1da3106dcd8d9df"
 dependencies = [
- "serde",
-]
-
-[[package]]
-name = "serde_cbor"
-version = "0.11.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2bef2ebfde456fb76bbcf9f59315333decc4fda0b2b44b420243c11e0f5ec1f5"
-dependencies = [
- "half 1.8.3",
  "serde",
 ]
 
