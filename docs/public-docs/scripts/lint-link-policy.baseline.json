@@ -202,11 +202,6 @@
       "url": "https://github.com/ethereum-optimism/specs/blob/main/specs/glossary.md#safe-l2-head"
     },
     {
-      "rule": "anchor-utm-order",
-      "file": "chain-operators/guides/configuration/batcher.mdx",
-      "url": "https://specs.optimism.io/protocol/derivation.html#frame-format?utm_source=op-docs&utm_medium=docs"
-    },
-    {
       "rule": "dead-internal-link",
       "file": "chain-operators/guides/management/troubleshooting.mdx",
       "url": "/chain-operators/tutorials/create-l2-rollup/op-reth-setup"
