@@ -14,7 +14,7 @@
 //! - `2`: an infrastructure error prevented evaluation (witness generation failed, ELF missing,
 //!   etc.) — distinct from a claim verdict.
 
-use std::process::ExitCode;
+use std::{process::ExitCode, sync::Arc};
 
 use alloy_primitives::B256;
 use clap::Parser;
@@ -97,13 +97,14 @@ fn main() -> ExitCode {
     let claimed_output_root = host.claimed_l2_output_root;
     let claimed_block_number = host.claimed_l2_block_number;
 
-    if !args.native_core && kona_sp1_elfs::RANGE_ELF.is_empty() {
-        return infra(
-            "RANGE_ELF is an empty placeholder; build the guest ELFs first with \
-             `cd rust/kona/sp1 && just build-elfs`"
-                .to_string(),
-        );
-    }
+    let range_elf = if args.native_core {
+        None
+    } else {
+        match kona_sp1_elfs::range_elf() {
+            Ok(bytes) => Some(bytes),
+            Err(err) => return infra(format!("range ELF unavailable: {err}")),
+        }
+    };
 
     let runtime = match tokio::runtime::Builder::new_multi_thread().enable_all().build() {
         Ok(runtime) => runtime,
@@ -114,6 +115,7 @@ fn main() -> ExitCode {
         host,
         args.corrupt_claimed_root,
         args.native_core,
+        range_elf,
         claimed_output_root,
         claimed_block_number,
     )) {
@@ -128,6 +130,7 @@ async fn run(
     host: SingleChainHost,
     corrupt_claimed_root: bool,
     native_core: bool,
+    range_elf: Option<Vec<u8>>,
     claimed_output_root: B256,
     claimed_block_number: u64,
 ) -> anyhow::Result<Verdict> {
@@ -137,7 +140,13 @@ async fn run(
         return run_native_core(witness, claimed_output_root, claimed_block_number).await;
     }
 
-    run_sp1_execute(witness, claimed_output_root, claimed_block_number).await
+    run_sp1_execute(
+        witness,
+        range_elf.expect("range ELF is loaded for SP1 execution"),
+        claimed_output_root,
+        claimed_block_number,
+    )
+    .await
 }
 
 /// Runs the shared range-program core natively, bypassing SP1 execute while preserving witness
@@ -171,6 +180,7 @@ async fn run_native_core(
 /// Runs the `range` ELF in SP1 execute mode and reports the claim verdict.
 async fn run_sp1_execute(
     witness: DefaultWitnessData,
+    range_elf_bytes: Vec<u8>,
     claimed_output_root: B256,
     claimed_block_number: u64,
 ) -> anyhow::Result<Verdict> {
@@ -178,7 +188,7 @@ async fn run_sp1_execute(
 
     // `build()` and `execute(..)` are async; the latter runs the zkVM emulator (no proving).
     let client = ProverClient::builder().cpu().build().await;
-    let elf = Elf::Static(kona_sp1_elfs::RANGE_ELF);
+    let elf = Elf::Dynamic(Arc::from(range_elf_bytes));
     let (mut public_values, _report) = match client.execute(elf, stdin).await {
         Ok(output) => output,
         Err(err) => {

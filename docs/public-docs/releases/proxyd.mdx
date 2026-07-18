@@ -15,7 +15,19 @@ diataxis: reference
 
 **proxyd** is an RPC request router and proxy with method whitelisting, backend load balancing, automatic retries, and consensus state tracking across multiple backend nodes.
 
-<Update label="June 15, 2026" description="v4.29.0" tags={["Latest", "Stable"]}>
+<Update label="July 17, 2026" description="v4.29.1" tags={["Latest", "Stable"]}>
+
+## Changelog
+* 1f4e368306dadfc7ccdee3e57e3a56107b235d36 fix(proxyd): fix tx_validation_middleware RPC error when failing close against a failing screening-service/provider (#669)
+* be5330115c4f3bc1651dd5d82245015f4e30c2d2 fix(proxyd): log unexpected block tags as decimal not hex (#661)
+* 151d922565a09208bdd86341001db0bd5c957c04 fix(proxyd): tighten interop access-list descriptor timestamp (#662)
+* a82c8a58b988872a4e6dd34d06a1c4c9b1c0f75b proxyd: Fix a race between reading results and draining discarded ones (#663)
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/infra/releases/tag/proxyd/v4.29.1)
+
+</Update>
+
+<Update label="June 15, 2026" description="v4.29.0" tags={["Stable"]}>
 
 ## Changelog
 * d698adc9486b710db485fc8686e904ecbbb1f318 fix(proxyd): route websocket txs through filters (#655)

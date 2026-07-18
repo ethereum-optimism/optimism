@@ -91,8 +91,6 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         super.setUp();
         _loadImplementations();
         _deployL2CM();
-
-        skipIfDevFeatureDisabled(DevFeatures.L2CM);
     }
 
     /// @notice Looks up an implementation address by name in _implRecords.

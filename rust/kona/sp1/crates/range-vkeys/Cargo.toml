@@ -1,0 +1,12 @@
+[package]
+name = "kona-sp1-range-vkeys"
+version = "0.0.1"
+publish = false
+edition = "2021"
+
+# Standalone workspace so the outer rust/ workspace never pulls this crate in by directory
+# ancestry. Its build script requires elf/vkeys.toml, which must not gate host builds.
+[workspace]
+
+[lints.clippy]
+all = "warn"

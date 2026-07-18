@@ -80,8 +80,6 @@ type L2Config struct {
 	DisputeSplitDepth           uint64
 	DisputeClockExtension       uint64
 	DisputeMaxClockDuration     uint64
-	// TODO(#20084): remove once L2CM is the default codepath and DevFeatures are removed.
-	UseL2CM bool
 }
 
 func (c *L2Config) Check(log log.Logger) error {

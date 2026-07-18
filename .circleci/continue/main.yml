@@ -270,6 +270,14 @@ commands:
                     echo "export RUSTC_WRAPPER=sccache"
                   } >> "$BASH_ENV"
 
+  rust-sccache-stats:
+    description: "Surface sccache hit and write statistics at the end of a Rust job"
+    steps:
+      - run:
+          name: sccache stats
+          command: 'command -v sccache >/dev/null 2>&1 && sccache --show-stats || true'
+          when: always
+
   check-changed:
     description: "Conditionally halts a step if certain modules change"
     parameters:
@@ -520,12 +528,7 @@ commands:
         type: boolean
         default: false
     steps:
-      # Surface sccache hit/write stats at job end. Harmless no-op when sccache
-      # is absent; confirms the GCS cache is hit rather than silently failing.
-      - run:
-          name: sccache stats
-          command: 'command -v sccache >/dev/null 2>&1 && sccache --show-stats || true'
-          when: always
+      - rust-sccache-stats
       # Backstop for the rule above: catches an empty registry (a partial one
       # from a single-package build cannot be detected here).
       - run:
@@ -1425,9 +1428,9 @@ jobs:
         type: string
         default: ci
       features:
-        description: Comma-separated list of features to enable (e.g., "L2CM")
+        description: Comma-separated list of features to enable (e.g., "CUSTOM_GAS_TOKEN")
         type: string
-        default: "L2CM"
+        default: "main"
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
     resource_class: 2xlarge.gen2
@@ -2990,12 +2993,6 @@ workflows:
                 - OPTIMISM_PORTAL_INTEROP
                 - ZK_DISPUTE_GAME,SUPER_ROOT_GAMES_MIGRATION
                 - SUPER_ROOT_GAMES_MIGRATION
-                # TODO(#20084): Remove these commented out jobs when removing the L2CM feature toggle.
-                #   L2CM is enabled by default, so we do not need to explicitly enable it and run these additional jobs.
-                #   However they are kept here for now so that they can easily be reactivated.
-                # - L2CM
-                # - L2CM,CUSTOM_GAS_TOKEN
-                # - L2CM,OPTIMISM_PORTAL_INTEROP
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack

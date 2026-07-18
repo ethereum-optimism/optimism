@@ -45,9 +45,9 @@ lazy statics.
    export KONA_CUSTOM_CONFIGS_DIR=/absolute/path/to/custom-configs
    cargo build -p kona-registry
    ```
-3. The build script merges the custom files into the generated `etc/chainList.json` and
-   `etc/configs.json` before compiling the crate. Attempting to override existing chain ids will
-   result in build failures.
+3. The build script copies the committed registry snapshot into Cargo's build output and merges the
+   custom files there before compiling the crate. The committed files under `etc/` remain unchanged.
+   Attempting to override existing chain ids will result in build failures.
 
 Both JSON files must stay in lockstep: every chain listed in `configs.json` must also appear in
 `chainList.json`, and chain identifiers must map to a single chain id. The build script validates

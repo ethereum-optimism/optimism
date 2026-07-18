@@ -63,10 +63,11 @@ var (
 		Usage:   "Address of L1 Beacon API endpoint to use",
 		EnvVars: prefixEnvVars("L1_BEACON"),
 	}
-	SuperNodeRpcFlag = &cli.StringFlag{
-		Name:    "supernode-rpc",
-		Usage:   "Provider URL for supernode roots",
-		EnvVars: prefixEnvVars("SUPERNODE_RPC"),
+	SuperRootRpcFlag = &cli.StringFlag{
+		Name:    "superroot-rpc",
+		Aliases: []string{"supernode-rpc"},
+		Usage:   "HTTP provider URL for a super root RPC source (op-node or op-supernode)",
+		EnvVars: prefixEnvVars("SUPERROOT_RPC", "SUPERNODE_RPC"),
 	}
 	RollupRpcFlag = &cli.StringFlag{
 		Name:    "rollup-rpc",
@@ -277,7 +278,7 @@ var optionalFlags = []cli.Flag{
 	FactoryAddressFlag,
 	GameTypesFlag,
 	MaxConcurrencyFlag,
-	SuperNodeRpcFlag,
+	SuperRootRpcFlag,
 	L2EthRpcFlag,
 	L2ExperimentalEthRpcFlag,
 	MaxPendingTransactionsFlag,
@@ -353,8 +354,8 @@ func CheckCannonBaseFlags(ctx *cli.Context, enabledTypes []gameTypes.GameType) e
 }
 
 func CheckSuperCannonKonaFlags(ctx *cli.Context) error {
-	if !ctx.IsSet(SuperNodeRpcFlag.Name) {
-		return fmt.Errorf("flag %v is required", SuperNodeRpcFlag.Name)
+	if !ctx.IsSet(SuperRootRpcFlag.Name) {
+		return fmt.Errorf("flag %v is required", SuperRootRpcFlag.Name)
 	}
 	if !ctx.IsSet(flags.NetworkFlagName) &&
 		!(RollupConfigFlag.IsSet(ctx, gameTypes.CannonKonaGameType) && L2GenesisFlag.IsSet(ctx, gameTypes.CannonKonaGameType) && DepsetConfigFlag.IsSet(ctx, gameTypes.CannonKonaGameType)) {
@@ -601,7 +602,7 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 		MinUpdateInterval:       ctx.Duration(MinUpdateInterval.Name),
 		AdditionalBondClaimants: claimants,
 		RollupRpc:               ctx.String(RollupRpcFlag.Name),
-		SuperRPC:                ctx.String(SuperNodeRpcFlag.Name),
+		SuperRootRPC:            ctx.String(SuperRootRpcFlag.Name),
 		Cannon: vm.Config{
 			VmType:            gameTypes.CannonGameType,
 			L1:                l1EthRpc,

@@ -81,6 +81,5 @@ pub fn valid_aggregation_inputs() -> SuperAggregationInputs {
                 transitions: vec![consolidation_transition(101, timestamp_101, 0x55)],
             },
         ],
-        range_vkey: [1, 2, 3, 4, 5, 6, 7, 8],
     }
 }
