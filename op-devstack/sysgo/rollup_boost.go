@@ -72,10 +72,16 @@ func (r *RollupBoostNode) Start() {
 
 	args, env := cfg.LaunchSpec(r.p)
 
-	// Create channel for discovering flashblocks WS port from process logs.
-	// When using port 0, the OS assigns the port at bind time and the process logs it.
+	// Channels for bound-port discovery via log parsing. rollup-boost is launched with
+	// port=0 so the OS atomically picks ports at bind time; pre-allocating in Go would
+	// close the listener before the subprocess could bind it, opening a race window.
+	//
+	// Buffered so a stray duplicate emit is dropped by the select-default below rather
+	// than blocking the parser goroutine. Channels are not closed: the parser callback
+	// outlives this function (it stays wired into r.sub), so closing would risk a
+	// send-on-closed panic on any late or repeat log line.
+	rpcChan := make(chan string, 1)
 	flashblocksWSChan := make(chan string, 1)
-	defer close(flashblocksWSChan)
 
 	// Parse Rust-structured logs and forward into Go logger with attributes
 	logOut := logpipe.ToLoggerWithMinLevel(r.logger.New("stream", "stdout"), log.LevelWarn)
@@ -84,9 +90,16 @@ func (r *RollupBoostNode) Start() {
 	// Log parsing callback to extract bound addresses from process output
 	onLogEntry := func(e logpipe.LogEntry) {
 		msg := e.LogMessage()
+		// RPC server - log message from cli.rs after Server::build()
+		if addr, ok := strings.CutPrefix(msg, "RPC server listening on "); ok {
+			select {
+			case rpcChan <- "http://" + addr:
+			default:
+			}
+			return
+		}
 		// Flashblocks WS - custom log message from outbound.rs
-		if strings.HasPrefix(msg, "Flashblocks WebSocketPublisher listening on ") {
-			addr := strings.TrimPrefix(msg, "Flashblocks WebSocketPublisher listening on ")
+		if addr, ok := strings.CutPrefix(msg, "Flashblocks WebSocketPublisher listening on "); ok {
 			select {
 			case flashblocksWSChan <- "ws://" + addr:
 			default:
@@ -116,11 +129,9 @@ func (r *RollupBoostNode) Start() {
 	err = r.sub.Start(execPath, args, env)
 	r.p.Require().NoError(err, "start rollup-boost")
 
-	// RPC port: still uses pre-allocation because rollup-boost doesn't log the actual
-	// bound RPC address when using port 0. This requires a Rust change to fix.
-	// TODO: Update rollup-boost to log "RPC server listening on {addr}" and parse it here.
-	rpcUpstreamURL := "http://" + cfg.RPCHost + ":" + strconv.Itoa(int(cfg.RPCPort))
-	waitTCPReady(r.p, rpcUpstreamURL, 5*time.Second)
+	// RPC: bound address comes from rollup-boost's "RPC server listening on …" log.
+	var rpcUpstreamURL string
+	r.p.Require().NoError(tasks.Await(r.p.Ctx(), rpcChan, &rpcUpstreamURL), "need RPC address from rollup-boost logs")
 	r.logger.Info("rollup-boost upstream RPC ready", "rpc", rpcUpstreamURL)
 	r.rpcProxy.SetUpstream(ProxyAddr(r.p.Require(), rpcUpstreamURL))
 	waitTCPReady(r.p, r.rpcProxyURL, 10*time.Second)
@@ -231,14 +242,7 @@ func (cfg *RollupBoostConfig) LaunchSpec(p devtest.CommonT) (args []string, env 
 		}
 	}
 
-	if cfg.RPCPort <= 0 {
-		portStr, err := getAvailableLocalPort()
-		p.Require().NoError(err, "allocate rollup-boost rpc port")
-		portVal, err := strconv.ParseUint(portStr, 10, 16)
-		p.Require().NoError(err, "parse rollup-boost rpc port")
-		cfg.RPCPort = uint16(portVal)
-	}
-	p.Require().True(cfg.RPCPort > 0, "RPCPort must be > 0")
+	// RPCPort=0 ⇒ kernel-atomic bind; bound address is parsed from logs in Start().
 	args = append(args, "--rpc-host="+cfg.RPCHost, "--rpc-port="+strconv.Itoa(int(cfg.RPCPort)))
 
 	if cfg.L2EngineURL != "" {
