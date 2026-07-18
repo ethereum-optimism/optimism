@@ -147,10 +147,9 @@ The connective logic:
 | Medium/high throughput                                              | `blobs` with `--target-num-frames` sized so blobs fill before the duration elapses | You stop paying for empty blob space, and fewer L1 transactions carry the same data.  |
 | Any throughput                                                      | Span batches (`--batch-type=1`)                                        | Less overhead per batch at no safety cost on Delta-activated chains.                             |
 
-Use the
-[fee parameter calculator](https://docs.google.com/spreadsheets/d/1V3CWpeUzXv5Iopw8lBSS8tWoSzyR4PDDwV9cu2kKOrs/edit)
-(hand-maintained spreadsheet, as of 2026-07-16) with your transactions per
-day and chosen channel duration to get a concrete blob count.
+To get a concrete blob count, estimate the compressed batch data your
+chain produces per channel duration and divide by blob capacity (~130 KB);
+Step 7's utilization metrics will confirm or correct the estimate.
 
 ## Step 5: Recover the spend with fee scalars
 
@@ -161,8 +160,8 @@ to read and set `basefeeScalar` and `blobBaseFeeScalar` on your
 SystemConfig, and take away the direction of each adjustment. For the
 formula the scalars feed and the values OP Mainnet runs, see the
 [fee parameters reference](/chain-operators/reference/fee-parameters#fee-formulas).
-The fee parameter calculator linked in Step 4 also produces scalar
-suggestions, including your target margin.
+Size the scalars against your measured batcher spend so they recover it
+plus your target margin.
 
 If you switched DA type in Step 3, set the new scalars in the same
 maintenance window: blob-appropriate scalars under calldata (or the reverse)
@@ -236,6 +235,3 @@ custom process name):
 *   [Frame format in the derivation spec](https://specs.optimism.io/protocol/derivation.html?utm_source=op-docs&utm_medium=docs#frame-format):
     the normative definition of channels and frames, for when you need to
     reason about what a channel actually contains.
-*   [Fee parameter calculator](https://docs.google.com/spreadsheets/d/1V3CWpeUzXv5Iopw8lBSS8tWoSzyR4PDDwV9cu2kKOrs/edit):
-    the working cost model behind Steps 4 and 5. Hand-maintained
-    spreadsheet, as of 2026-07-16.
