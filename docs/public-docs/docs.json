@@ -60,6 +60,18 @@
   },
   "redirects": [
     {
+      "source": "/ai/docs-for-agents",
+      "destination": "/ai-docs"
+    },
+    {
+      "source": "/ai/mcp-setup",
+      "destination": "/ai-docs"
+    },
+    {
+      "source": "/ai/prompt-library",
+      "destination": "/ai-docs"
+    },
+    {
       "source": "/rust/op-reth/cli/cli",
       "destination": "/rust/op-reth/cli/overview"
     },
@@ -1915,15 +1927,8 @@
           {
             "group": "Quickstart",
             "pages": [
-              "index"
-            ]
-          },
-          {
-            "group": "AI & Agents",
-            "pages": [
-              "ai/docs-for-agents",
-              "ai/mcp-setup",
-              "ai/prompt-library"
+              "index",
+              "ai-docs"
             ]
           },
           {
