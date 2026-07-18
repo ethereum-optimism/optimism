@@ -15,7 +15,7 @@ If your assistant cannot fetch URLs, open the linked pages and use the contextua
 
 **Persona:** chain operator
 
-Data availability is usually a chain's largest operating cost, and the batcher configuration controls it.
+Data availability is usually a chain's largest onchain operating cost, and the batcher configuration controls it.
 Grounding pages: [Configure the Batcher](/chain-operators/guides/configuration/batcher) and [Transaction Fees 101](/chain-operators/guides/management/transaction-fees-101).
 
 ```text
@@ -68,42 +68,6 @@ configuration I must set, and the monitoring I should attach. List open
 questions I need to answer about my own chain before deploying.
 ```
 
-## Help Me Choose a Node Stack
-
-**Persona:** node operator
-
-There is more than one client for each layer of an OP Stack node; pick deliberately.
-Grounding pages: [Node Operator Overview](/node-operators/overview) and [Kona](/rust/kona/intro/overview).
-
-```text
-Read https://docs.optimism.io/node-operators/overview.md and
-https://docs.optimism.io/rust/kona/intro/overview.md
-
-I want to run a node for [network] with these goals: [archive vs. full,
-RPC serving vs. personal verification, hardware constraints].
-Compare the consensus-layer and execution-layer client options described
-in these docs, recommend a pairing for my goals, and state which facts
-are version-sensitive and should be re-checked against current releases.
-```
-
-## Get My Node Running and Healthy
-
-**Persona:** node operator
-
-Go from an empty machine to a synced node, with an assistant checking your steps.
-Grounding pages: [Building and Running an OP Stack Node From Source](/node-operators/tutorials/run-node-from-source) and [Running a Node With Docker](/node-operators/tutorials/node-from-docker).
-
-```text
-Read https://docs.optimism.io/node-operators/tutorials/run-node-from-source.md
-and https://docs.optimism.io/node-operators/tutorials/node-from-docker.md
-
-I am setting up a node for [network] on [describe hardware and OS], and I
-prefer [Docker / from source]. Confirm my machine meets the hardware
-requirements, then produce a step-by-step setup checklist from these
-tutorials, including how to verify the node is syncing correctly and
-what "healthy" looks like once it catches up.
-```
-
 ## Bridge ETH From L1 in My App
 
 **Persona:** app developer
@@ -136,23 +100,6 @@ chain, how each is calculated, and which ones fluctuate with L1 gas
 prices. Then show me how to estimate the total fee for a transaction
 correctly in my app, and the common estimation mistakes to avoid.
 Here is my current estimation code: [paste code, optional].
-```
-
-## Set Up a Local Multichain Dev Environment
-
-**Persona:** app developer
-
-Develop and test cross-chain behavior locally before touching a testnet.
-Grounding page: [Supersim Multichain Development Environment](/app-developers/tools/supersim).
-
-```text
-Read https://docs.optimism.io/app-developers/tools/supersim.md
-
-Set up a local development environment with Supersim for an app that
-spans multiple OP Stack chains. Give me the install and launch commands,
-explain what chains and services I get out of the box, and show how to
-point my existing tests at the local chains. My project uses
-[framework / tooling].
 ```
 
 ## Debug a Stuck Withdrawal

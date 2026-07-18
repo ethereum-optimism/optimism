@@ -32,7 +32,8 @@
     "options": [
       "copy",
       "chatgpt",
-      "claude"
+      "claude",
+      "mcp"
     ]
   },
   "customCSS": [
