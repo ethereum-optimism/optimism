@@ -38,9 +38,6 @@ library DevFeatures {
     bytes32 public constant DEPLOY_V2_DISPUTE_GAMES =
         bytes32(0x0000000000000000000000000000000000000000000000000000000000000100);
 
-    /// @notice The feature that enables L2CM.
-    bytes32 public constant L2CM = bytes32(0x0000000000000000000000000000000000000000000000000000000000100000);
-
     /// @notice The feature that enables the ZK dispute game system (ZKDisputeGame).
     bytes32 public constant ZK_DISPUTE_GAME =
         bytes32(0x0000000000000000000000000000000000000000000000000000000001000000);
@@ -57,8 +54,6 @@ library DevFeatures {
     /// @param _feature The feature to check.
     /// @return True if the feature is enabled, false otherwise.
     function isDevFeatureEnabled(bytes32 _bitmap, bytes32 _feature) internal pure returns (bool) {
-        // L2CM is enabled by default. TODO(#20084): remove with the broader L2CMFlag cleanup.
-        if (hasFlag(_feature, L2CM)) return true;
         return _feature != 0 && hasFlag(_bitmap, _feature);
     }
 

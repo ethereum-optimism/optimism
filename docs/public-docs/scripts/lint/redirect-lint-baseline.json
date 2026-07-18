@@ -23,11 +23,9 @@
     "chain-operators/guides/management/troubleshooting.mdx": [
       "/chain-operators/tutorials/create-l2-rollup/op-reth-setup"
     ],
-    "chain-operators/tutorials/merge-shared-dispute-game.mdx": ["/superchain/interop"],
     "index.mdx": ["/chain-operators/tutorials/create-l2-rollup"],
     "op-stack/interop/interop.mdx": ["/app-developers/tutorials/interoperability/"],
     "op-stack/introduction/op-stack.mdx": ["/app-developers/tools", "/app-developers/tutorials"],
-    "op-stack/security/interop-security.mdx": ["/app-developers/tutorials/interoperability/"],
-    "rust/kona/sdk/fpp-dev/env.mdx": ["/rust/op-program-fpp.svg"]
+    "op-stack/security/interop-security.mdx": ["/app-developers/tutorials/interoperability/"]
   }
 }

@@ -1,0 +1,132 @@
+---
+title: "Content type: learning unit"
+description: The published contract for learning units — purpose, tone, required components, title grammar, and copy-paste templates for both forms.
+diataxis: reference
+---
+
+A **learning unit** is one stop in an ordered learning sequence — the "Learn
+the OP Stack" track or a per-feature curriculum hub. It gives an existing
+page a place in a syllabus: what the learner already knows on arrival, what
+this stop adds, and where to go next. Content is linked and framed, never
+duplicated.
+
+This page is the contract for the type. A new learning unit is reviewed
+against it; cite the relevant section in review instead of re-arguing it.
+
+## Purpose
+
+*   Let newcomers progress **linearly** through material that was written to
+    be read in any order.
+*   Add **sequencing context only**: orientation, prerequisites-by-position,
+    and a pointer to the next stop.
+*   Protect the underlying pages: a track that needs a page reworded forks
+    nothing — it files an issue against the page itself.
+
+## Composition
+
+A learning unit is a composition, not a fifth quadrant. It has two forms:
+
+*   **Framing header** (the default): a short framing block prepended to an
+    existing page that serves as a track stop. The page keeps its own
+    `diataxis:` value; nothing else about it changes.
+*   **Standalone unit page** (the exception): a new short page written
+    because a sequence needs a stop that no existing page provides (for
+    example, a bridging paragraph between two concepts in a curriculum hub).
+    It carries the quadrant of what it actually is — usually
+    `diataxis: explanation`, or `diataxis: tutorial` for a hands-on stop —
+    plus `content-type: learning-unit`.
+
+See [Choose a content type](/op-stack/contribute/choose-a-content-type) for
+the explanation-vs-learning-unit decision table.
+
+## Tone
+
+*   Welcoming but not chatty; the learner is mid-sequence, so respect their
+    momentum.
+*   Second person, present tense: "you now know…", "this page adds…".
+*   The frame never editorializes about the underlying page ("this excellent
+    guide…") and never summarizes it — a one-line statement of what the stop
+    adds is the ceiling.
+
+## Required components
+
+**Framing header** (on an existing page):
+
+1.  An `<Info>` block at the top of the page body, below the frontmatter and
+    any existing callouts.
+2.  Inside it, in order: the track name and stop position ("stop N of M"),
+    one sentence of arrival context (what the learner knows from previous
+    stops), one sentence of what this stop adds, and a link to the next stop
+    (or a completion line on the last stop).
+3.  Nothing else changes on the page: same `diataxis:` value, same content.
+
+**Standalone unit page**:
+
+1.  **Frontmatter**: `title`, `description`, `diataxis:` (the quadrant of
+    what the page actually is), `content-type: learning-unit`.
+2.  **The same framing block** as above, so every stop reads uniformly.
+3.  **A body that earns its existence**: material no existing page owns. If
+    an existing page covers it, use a framing header on that page instead.
+4.  **A forward exit**: the last line links the next stop, or the track
+    index on completion.
+
+## Title grammar
+
+*   A framing header adds **no title** — the underlying page keeps its own.
+*   A standalone unit page titles the concept as a plain noun phrase in
+    sentence case ("Fault proof economics", "From transactions to blocks").
+    Position ("Part 3:", "Lesson 3") never appears in the title — order
+    lives in the track's nav group and the framing block, so stops can be
+    resequenced without retitling.
+
+## Templates
+
+Framing header — copy onto an existing page that becomes a track stop:
+
+```mdx
+<Info>
+  **<Track name> — stop <N> of <M>.**
+  You've <what the previous stops covered>. This page <what this stop
+  adds>. When you're done, continue to [<next stop title>](</path/to/next>).
+</Info>
+```
+
+Standalone unit page:
+
+```mdx
+---
+title: <Concept noun phrase>
+description: <One sentence: the concept and what understanding it unlocks.>
+diataxis: explanation
+content-type: learning-unit
+---
+
+<Info>
+  **<Track name> — stop <N> of <M>.**
+  You've <what the previous stops covered>. This page <what this stop
+  adds>. When you're done, continue to [<next stop title>](</path/to/next>).
+</Info>
+
+<The concept, at the smallest size that lets the learner continue the
+sequence. Link the canonical deep material rather than reproducing it.>
+
+## Next stop
+
+Continue to [<next stop title>](</path/to/next>), where you'll <what comes
+next>.
+```
+
+## Exemplars
+
+No track is wired yet — the learn track and curriculum hubs consume this
+contract when they ship. Calibrate against the pages that would become
+stops, and the external patterns:
+
+*   [The OP Stack](/op-stack/introduction/op-stack) and the
+    [fault proofs explainer](/op-stack/fault-proofs/explainer) — existing
+    explanations that would gain a framing header, unchanged otherwise.
+*   [Bridging your ERC-20 token](/app-developers/tutorials/bridging/cross-dom-bridge-erc20)
+    — the shape of a hands-on stop (`diataxis: tutorial`).
+*   The [Rust Book](https://doc.rust-lang.org/book/) — the cadence this
+    type exists to reproduce: strictly ordered chapters, hands-on projects
+    spaced through the sequence, depth exiled to reference.

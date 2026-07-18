@@ -214,13 +214,16 @@ action-tests-single-run test_name='.*' parallel="0" *args='':
 # Run the kona-sp1 range guest in SP1 execute mode against the action-test chain.
 #
 # Builds the guest ELFs (Dockerized SP1 toolchain) and the range-executor binary, then runs the SP1
-# execute action tests with KONA_SP1_RANGE_EXECUTOR_PATH set. Tests skip when that var is unset.
+# execute action tests with KONA_SP1_RANGE_EXECUTOR_PATH and KONA_SP1_ELF_DIR set. Tests skip when
+# the executor path is unset.
 action-tests-sp1 test_name='TestSP1.*':
   #!/bin/bash
   set -euo pipefail
 
   echo "Building SP1 guest ELFs (Dockerized SP1 toolchain)..."
   ( cd {{SOURCE}}/../sp1 && just build-elfs )
+  export KONA_SP1_ELF_DIR="{{SOURCE}}/../sp1/elf"
+  echo "KONA_SP1_ELF_DIR: $KONA_SP1_ELF_DIR"
 
   echo "Building kona-sp1-range-executor..."
   ( cd {{SOURCE}}/../sp1 && just build-range-executor )

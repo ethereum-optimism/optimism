@@ -214,7 +214,6 @@ prepare-l2-upgrade-env *ARGS:
   #!/bin/bash
   set -euo pipefail
   export L2_FORK_TEST=true
-  export DEV_FEATURE__L2CM=true
   export FOUNDRY_FORK_RETRIES=10
   export FOUNDRY_FORK_RETRY_BACKOFF=1000
   {{ARGS}} \
@@ -238,7 +237,6 @@ prepare-l2cm-activation-env *ARGS:
   set -euo pipefail
   export L2_FORK_TEST=true
   export L2CM_ACTIVATION_TEST=true
-  export DEV_FEATURE__L2CM=true
   export FOUNDRY_FORK_RETRIES=10
   export FOUNDRY_FORK_RETRY_BACKOFF=1000
   {{ARGS}} \
