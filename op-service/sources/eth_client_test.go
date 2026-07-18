@@ -144,6 +144,25 @@ func TestEthClient_InfoByNumber(t *testing.T) {
 	m.Mock.AssertExpectations(t)
 }
 
+func TestEthClient_InfoByNumberTrustsRPCHash(t *testing.T) {
+	m := new(mockRPC)
+	_, rhdr := randHeader()
+	rhdr.Hash = common.HexToHash("0x1234")
+	n := rhdr.Number
+	ctx := context.Background()
+	m.On("CallContext", ctx, new(*RPCHeader),
+		"eth_getBlockByNumber", []any{n.String(), false}).Run(func(args mock.Arguments) {
+		*args[1].(**RPCHeader) = rhdr
+	}).Return([]error{nil})
+	s, err := NewL1Client(m, nil, nil, L1ClientDefaultConfig(&rollup.Config{SeqWindowSize: 10}, true, RPCKindStandard))
+	require.NoError(t, err)
+	info, err := s.InfoByNumber(ctx, uint64(n))
+	require.NoError(t, err)
+	require.Equal(t, rhdr.Hash, info.Hash())
+	require.NotEqual(t, rhdr.computeBlockHash(), info.Hash())
+	m.Mock.AssertExpectations(t)
+}
+
 func TestEthClient_WrongInfoByNumber(t *testing.T) {
 	m := new(mockRPC)
 	_, rhdr := randHeader()

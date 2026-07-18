@@ -235,6 +235,26 @@ func (s *EthClient) headerCall(ctx context.Context, method string, id rpcBlockID
 	return header, nil
 }
 
+func (s *EthClient) infoCall(ctx context.Context, method string, id rpcBlockID) (eth.BlockInfo, error) {
+	var rpcHdr *RPCHeader
+	err := s.client.CallContext(ctx, &rpcHdr, method, id.Arg(), false) // headers are just blocks without txs
+	if err != nil {
+		return nil, eth.MaybeAsNotFoundErr(err)
+	}
+	if rpcHdr == nil {
+		return nil, ethereum.NotFound
+	}
+	header, err := rpcHdr.Header(s.trustRPC, s.mustBePostMerge)
+	if err != nil {
+		return nil, err
+	}
+	if err := id.CheckID(rpcHdr.BlockID()); err != nil {
+		return nil, fmt.Errorf("fetched block header does not match requested ID: %w", err)
+	}
+	s.headersCache.Add(rpcHdr.Hash, header)
+	return eth.HeaderBlockInfoTrusted(rpcHdr.Hash, header), nil
+}
+
 // blockCall fetches a header + transactions (eth_getBlockBy* with fullTx=true),
 // verifies the header and block-level data (txs root, withdrawals), caches
 // both, and returns them. Source of truth for both HeaderAndTxsBy* and
@@ -338,19 +358,11 @@ func (s *EthClient) InfoByHash(ctx context.Context, hash common.Hash) (eth.Block
 }
 
 func (s *EthClient) InfoByNumber(ctx context.Context, number uint64) (eth.BlockInfo, error) {
-	header, err := s.HeaderByNumber(ctx, number)
-	if err != nil {
-		return nil, err
-	}
-	return eth.HeaderBlockInfo(header), nil
+	return s.infoCall(ctx, "eth_getBlockByNumber", numberID(number))
 }
 
 func (s *EthClient) InfoByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, error) {
-	header, err := s.HeaderByLabel(ctx, label)
-	if err != nil {
-		return nil, err
-	}
-	return eth.HeaderBlockInfo(header), nil
+	return s.infoCall(ctx, "eth_getBlockByNumber", label)
 }
 
 func (s *EthClient) InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error) {
