@@ -50,7 +50,7 @@ type DisputeGameFactory struct {
 	addr          common.Address
 	l2CL          *dsl.L2CLNode
 	l2EL          *dsl.L2ELNode
-	superNode     *dsl.Supernode
+	superNode     dsl.SuperRootSource
 	l1Proposer    *dsl.EOA
 	gameHelper    *GameHelper
 	challengerCfg *challengerConfig.Config
@@ -65,7 +65,7 @@ func NewDisputeGameFactory(
 	dgfAddr common.Address,
 	l2CL *dsl.L2CLNode,
 	l2EL *dsl.L2ELNode,
-	superNode *dsl.Supernode,
+	superNode dsl.SuperRootSource,
 	l1Proposer *dsl.EOA,
 	challengerCfg *challengerConfig.Config,
 ) *DisputeGameFactory {
