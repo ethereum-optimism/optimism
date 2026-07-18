@@ -128,6 +128,16 @@ func TestCapturingAttrHandlerSharesCaptureAcrossDerivedHandlers(t *testing.T) {
 			},
 			want: "grouped",
 		},
+		{
+			name: "group attribute",
+			log: func(logger *slog.Logger) {
+				logger.Info(
+					"started metrics server",
+					slog.Group("network", slog.String("addr", "nested")),
+				)
+			},
+			want: "nested",
+		},
 	}
 
 	for _, test := range tests {
@@ -141,6 +151,17 @@ func TestCapturingAttrHandlerSharesCaptureAcrossDerivedHandlers(t *testing.T) {
 			require.Equal(t, test.want, value.String())
 		})
 	}
+}
+
+func TestCapturingAttrHandlerOwnsInheritedAttributes(t *testing.T) {
+	delegate := &mutatingAttrsHandler{Handler: slog.NewTextHandler(io.Discard, nil)}
+	handler := testlog.NewCapturingAttrHandler(delegate, "started metrics server", "addr")
+
+	slog.New(handler).With("addr", "original").Info("started metrics server")
+
+	value, ok := handler.Captured()
+	require.True(t, ok)
+	require.Equal(t, "original", value.String())
 }
 
 func TestCapturingAttrHandlerIsSafeForConcurrentUse(t *testing.T) {
@@ -190,4 +211,13 @@ func (h *countingHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 
 func (h *countingHandler) WithGroup(name string) slog.Handler {
 	return &countingHandler{Handler: h.Handler.WithGroup(name), handled: h.handled}
+}
+
+type mutatingAttrsHandler struct {
+	slog.Handler
+}
+
+func (h *mutatingAttrsHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	attrs[0] = slog.String("delegate-owned", "mutated")
+	return &mutatingAttrsHandler{Handler: h.Handler.WithAttrs(attrs)}
 }

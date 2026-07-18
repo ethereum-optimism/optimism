@@ -3,6 +3,7 @@ package testlog
 import (
 	"context"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 
@@ -93,12 +94,13 @@ func (c *CapturingAttrHandler) Handle(ctx context.Context, record slog.Record) e
 	if record.Message == c.message {
 		captured := CapturedRecord{Parent: c.attrs, Record: &record}
 		captured.Attrs(func(attr slog.Attr) bool {
-			if attr.Key != c.attrKey {
+			value, ok := findAttrValue(attr, c.attrKey)
+			if !ok {
 				return true
 			}
 			c.state.mu.Lock()
 			if !c.state.ok {
-				c.state.value = attr.Value
+				c.state.value = value
 				c.state.ok = true
 			}
 			c.state.mu.Unlock()
@@ -108,14 +110,30 @@ func (c *CapturingAttrHandler) Handle(ctx context.Context, record slog.Record) e
 	return c.handler.Handle(ctx, record)
 }
 
+func findAttrValue(attr slog.Attr, key string) (slog.Value, bool) {
+	value := attr.Value.Resolve()
+	if attr.Key == key {
+		return value, true
+	}
+	if value.Kind() == slog.KindGroup {
+		for _, groupAttr := range value.Group() {
+			if value, ok := findAttrValue(groupAttr, key); ok {
+				return value, true
+			}
+		}
+	}
+	return slog.Value{}, false
+}
+
 func (c *CapturingAttrHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	ownedAttrs := slices.Clone(attrs)
 	return &CapturingAttrHandler{
 		handler: c.handler.WithAttrs(attrs),
 		message: c.message,
 		attrKey: c.attrKey,
 		attrs: &CapturedAttributes{
 			Parent:     c.attrs,
-			Attributes: attrs,
+			Attributes: ownedAttrs,
 		},
 		state: c.state,
 	}
