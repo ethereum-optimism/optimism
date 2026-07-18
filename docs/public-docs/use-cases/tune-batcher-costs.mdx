@@ -60,26 +60,32 @@ Then skim [Transaction Fees 101](/chain-operators/guides/management/transaction-
 and take away which fee parameters are operator-adjustable and the example
 scenarios that match your chain's traffic pattern.
 
-## Step 2: Fix your sequencing-window budget
+## Step 2: Balance your sequencing-window budget
 
-Cost tuning trades money against batch-submission latency, and the trade has
-hard limits. Read the
+Cost tuning trades posting cost against batch-submission speed, and the
+sequencing window puts a hard cap on that trade. The faster you submit
+batches, the sooner your users' transactions get Ethereum finality
+guarantees; the longer you accumulate before posting, the cheaper each
+byte gets, up to the cap. Read the
 [batcher policy section](/chain-operators/guides/configuration/batcher#batcher-policy)
 of the batcher configuration guide and take away:
 
 *   Your chain's **sequencing window**, which is 3,600 L1 blocks (12 hours)
     on standard chains, and that batches must always land on L1 inside it.
+    Breached sequencing windows result in a
+    [12 hour reorg](/op-stack/protocol/outages#inclusion-rules).
 *   The standard requirement to target batch submission at **1,800 L1
     blocks (6 hours) or lower**, and why operators leave a congestion
     buffer below that.
 *   That a long submission interval stalls the
     [safe head](https://specs.optimism.io/glossary.html?utm_source=op-docs&utm_medium=docs#safe-l2-head)
     for up to that interval, which delays exchanges and bridges that wait
-    for safe blocks.
+    for Ethereum finality.
 
 Every choice in Steps 3 and 4 must keep batch submission inside the
-sequencing window. Decide now how much safe-head delay your chain's users
-tolerate; that number, not the 12-hour ceiling, is your real budget.
+sequencing window. Decide now how long your chain's users can wait for
+Ethereum finality; that number, not the 12-hour hard cap, is your real
+budget.
 
 ## Step 3: Choose a data availability type
 

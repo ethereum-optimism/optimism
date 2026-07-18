@@ -1958,7 +1958,7 @@
             ]
           },
           {
-            "group": "Solution Guides",
+            "group": "Use cases",
             "pages": [
               "use-cases/index",
               "use-cases/tune-batcher-costs"
