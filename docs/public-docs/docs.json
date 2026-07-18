@@ -32,7 +32,8 @@
     "options": [
       "copy",
       "chatgpt",
-      "claude"
+      "claude",
+      "mcp"
     ]
   },
   "customCSS": [
@@ -58,6 +59,18 @@
     }
   },
   "redirects": [
+    {
+      "source": "/ai/docs-for-agents",
+      "destination": "/ai-docs"
+    },
+    {
+      "source": "/ai/mcp-setup",
+      "destination": "/ai-docs"
+    },
+    {
+      "source": "/ai/prompt-library",
+      "destination": "/ai-docs"
+    },
     {
       "source": "/node-operators/reference/op-geth-config",
       "destination": "/node-operators/reference/op-reth-config"
@@ -784,11 +797,11 @@
     },
     {
       "source": "/connect/contribute/style-guide",
-      "destination": "https://github.com/ethereum-optimism/optimism/blob/develop/docs/public-docs/STYLE_GUIDE.md"
+      "destination": "/op-stack/contribute/style-guide"
     },
     {
       "source": "/reference/contribute/style-guide",
-      "destination": "https://github.com/ethereum-optimism/optimism/blob/develop/docs/public-docs/STYLE_GUIDE.md"
+      "destination": "/op-stack/contribute/style-guide"
     },
     {
       "source": "/connect/resources",
@@ -1955,6 +1968,7 @@
             "group": "Quickstart",
             "pages": [
               "index",
+              "ai-docs",
               "chain-operators/quickstart"
             ]
           },
@@ -2430,7 +2444,18 @@
             "group": "Contribute",
             "pages": [
               "/op-stack/contribute/content-guide",
-              "/op-stack/contribute/link-policy"
+              "/op-stack/contribute/link-policy",
+              "/op-stack/contribute/style-guide",
+              {
+                "group": "Choose a content type",
+                "pages": [
+                  "/op-stack/contribute/choose-a-content-type",
+                  "/op-stack/contribute/solution-guide",
+                  "/op-stack/contribute/learning-unit",
+                  "/op-stack/contribute/curriculum-hub",
+                  "/op-stack/contribute/router-landing"
+                ]
+              }
             ]
           }
         ]

@@ -155,6 +155,7 @@ impl RollupBoostServiceArgs {
             .set_http_middleware(http_middleware)
             .build(format!("{}:{}", self.rpc_host, self.rpc_port).parse::<SocketAddr>()?)
             .await?;
+        info!("RPC server listening on {}", server.local_addr()?);
         let handle = server.start(rpc_module);
 
         let stop_handle = handle.clone();

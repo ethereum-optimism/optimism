@@ -84,11 +84,6 @@ abstract contract CommonTest is Test, Setup, Events {
             deploy.cfg().setOperatorFeeVaultWithdrawalNetwork(1);
         }
 
-        if (Config.devFeatureL2CM()) {
-            console.log("CommonTest: enabling l2cm");
-            devFeatureBitmap |= DevFeatures.L2CM;
-        }
-
         if (useInteropOverride) {
             console.log("CommonTest: enabling interop");
             devFeatureBitmap |= DevFeatures.OPTIMISM_PORTAL_INTEROP;
