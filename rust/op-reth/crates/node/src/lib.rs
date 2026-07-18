@@ -14,6 +14,9 @@
 #[cfg(feature = "test-utils")]
 use reth_db_api as _;
 
+/// Gap-free canonical unsafe block WebSocket service.
+pub mod blocks;
+
 /// CLI argument parsing for the optimism node.
 pub mod args;
 

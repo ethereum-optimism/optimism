@@ -3,6 +3,7 @@
 use crate::{
     OpEngineApiBuilder, OpEngineTypes,
     args::RollupArgs,
+    blocks::{BlocksServer, BlocksServerConfig},
     engine::OpEngineValidator,
     txpool::{OpCustomTransactionPool, OpTransactionValidator},
 };
@@ -303,6 +304,7 @@ impl OpNode {
             .with_enable_tx_conditional(self.args.enable_tx_conditional)
             .with_min_suggested_priority_fee(self.args.min_suggested_priority_fee)
             .with_historical_rpc(self.args.historical_rpc.clone())
+            .with_blocks_server(self.args.blocks_server.config())
             .with_flashblocks(self.args.flashblocks_url.clone())
             .with_flashblock_consensus(self.args.flashblock_consensus)
     }
@@ -435,6 +437,8 @@ pub struct OpAddOns<
     /// Enable transaction conditionals.
     enable_tx_conditional: bool,
     min_suggested_priority_fee: u64,
+    /// Optional canonical unsafe block stream configuration.
+    blocks_server: Option<BlocksServerConfig>,
 }
 
 impl<N, EthB, PVB, EB, EVB, RpcMiddleware> OpAddOns<N, EthB, PVB, EB, EVB, RpcMiddleware>
@@ -465,7 +469,14 @@ where
             historical_rpc,
             enable_tx_conditional,
             min_suggested_priority_fee,
+            blocks_server: None,
         }
+    }
+
+    /// Configure the canonical unsafe block stream.
+    pub const fn with_blocks_server(mut self, blocks_server: Option<BlocksServerConfig>) -> Self {
+        self.blocks_server = blocks_server;
+        self
     }
 }
 
@@ -517,7 +528,7 @@ where
             historical_rpc,
             enable_tx_conditional,
             min_suggested_priority_fee,
-            ..
+            blocks_server,
         } = self;
         OpAddOns::new(
             rpc_add_ons.with_engine_api(engine_api_builder),
@@ -530,6 +541,7 @@ where
             enable_tx_conditional,
             min_suggested_priority_fee,
         )
+        .with_blocks_server(blocks_server)
     }
 
     /// Maps the [`PayloadValidatorBuilder`] builder type.
@@ -547,7 +559,7 @@ where
             enable_tx_conditional,
             min_suggested_priority_fee,
             historical_rpc,
-            ..
+            blocks_server,
         } = self;
         OpAddOns::new(
             rpc_add_ons.with_payload_validator(payload_validator_builder),
@@ -560,6 +572,7 @@ where
             enable_tx_conditional,
             min_suggested_priority_fee,
         )
+        .with_blocks_server(blocks_server)
     }
 
     /// Maps the [`EngineValidatorBuilder`] builder type.
@@ -577,7 +590,7 @@ where
             enable_tx_conditional,
             min_suggested_priority_fee,
             historical_rpc,
-            ..
+            blocks_server,
         } = self;
         OpAddOns::new(
             rpc_add_ons.with_engine_validator(engine_validator_builder),
@@ -590,6 +603,7 @@ where
             enable_tx_conditional,
             min_suggested_priority_fee,
         )
+        .with_blocks_server(blocks_server)
     }
 
     /// Sets the RPC middleware stack for processing RPC requests.
@@ -610,7 +624,7 @@ where
             enable_tx_conditional,
             min_suggested_priority_fee,
             historical_rpc,
-            ..
+            blocks_server,
         } = self;
         OpAddOns::new(
             rpc_add_ons.with_rpc_middleware(rpc_middleware),
@@ -623,6 +637,7 @@ where
             enable_tx_conditional,
             min_suggested_priority_fee,
         )
+        .with_blocks_server(blocks_server)
     }
 
     /// Sets the hook that is run once the rpc server is started.
@@ -686,8 +701,21 @@ where
             sequencer_headers,
             enable_tx_conditional,
             historical_rpc,
+            blocks_server,
             ..
         } = self;
+
+        if let Some(config) = blocks_server {
+            let server = BlocksServer::bind(
+                ctx.node.provider().clone(),
+                config,
+                ctx.node.provider().chain_spec().chain_id(),
+            )
+            .await?;
+            let addr = server.local_addr()?;
+            info!(target: "reth::cli", %addr, min_offset = config.min_offset, "Blocks server listening");
+            ctx.node.task_executor().spawn_critical_task("OP blocks server", server.run());
+        }
 
         let eth_config =
             EthConfigHandler::new(ctx.node.provider().clone(), ctx.node.evm_config().clone());
@@ -886,6 +914,8 @@ pub struct OpAddOnsBuilder<NetworkT, RpcMiddleware = Identity> {
     flashblocks_url: Option<Url>,
     /// Enable flashblock consensus client to drive chain forward.
     flashblock_consensus: bool,
+    /// Optional canonical unsafe block stream configuration.
+    blocks_server: Option<BlocksServerConfig>,
 }
 
 impl<NetworkT> Default for OpAddOnsBuilder<NetworkT> {
@@ -904,6 +934,7 @@ impl<NetworkT> Default for OpAddOnsBuilder<NetworkT> {
             tokio_runtime: None,
             flashblocks_url: None,
             flashblock_consensus: false,
+            blocks_server: None,
         }
     }
 }
@@ -981,6 +1012,7 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
             _nt,
             flashblocks_url,
             flashblock_consensus,
+            blocks_server,
             ..
         } = self;
         OpAddOnsBuilder {
@@ -997,7 +1029,14 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
             tokio_runtime,
             flashblocks_url,
             flashblock_consensus,
+            blocks_server,
         }
+    }
+
+    /// Configure the canonical unsafe block stream.
+    pub const fn with_blocks_server(mut self, blocks_server: Option<BlocksServerConfig>) -> Self {
+        self.blocks_server = blocks_server;
+        self
     }
 
     /// With a URL pointing to a flashblocks secure websocket subscription.
@@ -1038,6 +1077,7 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
             tokio_runtime,
             flashblocks_url,
             flashblock_consensus,
+            blocks_server,
             ..
         } = self;
 
@@ -1065,6 +1105,7 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
             enable_tx_conditional,
             min_suggested_priority_fee,
         )
+        .with_blocks_server(blocks_server)
     }
 }
 

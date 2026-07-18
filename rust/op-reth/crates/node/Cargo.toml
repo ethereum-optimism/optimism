@@ -71,6 +71,10 @@ alloy-consensus.workspace = true
 
 # async
 tokio.workspace = true
+tokio-tungstenite.workspace = true
+
+# encoding
+ethereum_ssz.workspace = true
 
 # misc
 clap.workspace = true
@@ -79,6 +83,7 @@ eyre.workspace = true
 url.workspace = true
 futures-util.workspace = true
 tracing.workspace = true
+metrics.workspace = true
 
 # test-utils dependencies
 reth-e2e-test-utils = { workspace = true, optional = true }

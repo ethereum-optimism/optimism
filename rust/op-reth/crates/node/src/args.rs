@@ -2,10 +2,11 @@
 
 //! clap [Args](clap::Args) for optimism rollup configuration
 
+use crate::blocks::{BlocksServerConfig, DEFAULT_BLOCKS_SERVER_ADDR};
 use clap::builder::ArgPredicate;
 use op_alloy_consensus::interop::SafetyLevel;
 use reth_optimism_trie::DEFAULT_BACKFILL_BATCH_SIZE;
-use std::path::PathBuf;
+use std::{net::SocketAddr, path::PathBuf};
 use url::Url;
 
 /// Storage schema version for the proofs-history database.
@@ -132,10 +133,55 @@ impl Default for ProofsHistoryBackfillArgs {
     }
 }
 
+/// Configuration for the gap-free canonical unsafe block `WebSocket` service.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::Args)]
+pub struct BlocksServerArgs {
+    /// Enable the `/blocks?start=<block-number>` `WebSocket` endpoint.
+    #[arg(long = "rollup.blocks-server.enabled", default_value_t = false)]
+    pub enabled: bool,
+
+    /// Address on which the blocks server listens.
+    #[arg(
+        long = "rollup.blocks-server.addr",
+        value_name = "BLOCKS_SERVER_ADDR",
+        default_value = "127.0.0.1:8548"
+    )]
+    pub addr: SocketAddr,
+
+    /// Earliest inclusive block offset the endpoint is willing to serve.
+    #[arg(
+        long = "rollup.blocks-server.min-offset",
+        value_name = "BLOCKS_SERVER_MIN_OFFSET",
+        default_value_t = 0
+    )]
+    pub min_offset: u64,
+}
+
+impl BlocksServerArgs {
+    /// Return runtime configuration when the service is enabled.
+    pub const fn config(self) -> Option<BlocksServerConfig> {
+        if self.enabled {
+            Some(BlocksServerConfig { addr: self.addr, min_offset: self.min_offset })
+        } else {
+            None
+        }
+    }
+}
+
+impl Default for BlocksServerArgs {
+    fn default() -> Self {
+        Self { enabled: false, addr: DEFAULT_BLOCKS_SERVER_ADDR, min_offset: 0 }
+    }
+}
+
 /// Parameters for rollup configuration
 #[derive(Debug, Clone, PartialEq, Eq, clap::Args)]
 #[command(next_help_heading = "Rollup")]
 pub struct RollupArgs {
+    /// Canonical unsafe block stream configuration.
+    #[command(flatten)]
+    pub blocks_server: BlocksServerArgs,
+
     /// Endpoint for the sequencer mempool (can be both HTTP and WS)
     #[arg(long = "rollup.sequencer", visible_aliases = ["rollup.sequencer-http", "rollup.sequencer-ws"])]
     pub sequencer: Option<String>,
@@ -287,6 +333,7 @@ pub struct RollupArgs {
 impl Default for RollupArgs {
     fn default() -> Self {
         Self {
+            blocks_server: BlocksServerArgs::default(),
             sequencer: None,
             disable_txpool_gossip: false,
             compute_pending_block: false,
@@ -330,6 +377,31 @@ mod tests {
         let default_args = RollupArgs::default();
         let args = CommandParser::<RollupArgs>::parse_from(["reth"]).args;
         assert_eq!(args, default_args);
+    }
+
+    #[test]
+    fn test_parse_blocks_server_args() {
+        let args = CommandParser::<RollupArgs>::parse_from([
+            "reth",
+            "--rollup.blocks-server.enabled",
+            "--rollup.blocks-server.addr",
+            "0.0.0.0:9000",
+            "--rollup.blocks-server.min-offset",
+            "1234",
+        ])
+        .args;
+        assert_eq!(
+            args.blocks_server,
+            BlocksServerArgs {
+                enabled: true,
+                addr: "0.0.0.0:9000".parse().unwrap(),
+                min_offset: 1234,
+            }
+        );
+        assert_eq!(
+            args.blocks_server.config(),
+            Some(BlocksServerConfig { addr: "0.0.0.0:9000".parse().unwrap(), min_offset: 1234 })
+        );
     }
 
     #[test]
