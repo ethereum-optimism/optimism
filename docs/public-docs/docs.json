@@ -32,7 +32,8 @@
     "options": [
       "copy",
       "chatgpt",
-      "claude"
+      "claude",
+      "mcp"
     ]
   },
   "customCSS": [
@@ -58,6 +59,18 @@
     }
   },
   "redirects": [
+    {
+      "source": "/ai/docs-for-agents",
+      "destination": "/ai-docs"
+    },
+    {
+      "source": "/ai/mcp-setup",
+      "destination": "/ai-docs"
+    },
+    {
+      "source": "/ai/prompt-library",
+      "destination": "/ai-docs"
+    },
     {
       "source": "/node-operators/reference/op-geth-config",
       "destination": "/node-operators/reference/op-reth-config"
@@ -1954,7 +1967,8 @@
           {
             "group": "Quickstart",
             "pages": [
-              "index"
+              "index",
+              "ai-docs"
             ]
           },
           {
