@@ -418,7 +418,7 @@ func startMinimalChallenger(
 			sharedchallenger.WithDepset(dependencySet),
 			sharedchallenger.WithCannonKonaInteropConfig(rollupCfgs, l1Net.genesis, l2Geneses),
 			sharedchallenger.WithSuperCannonKonaGameType(),
-			sharedchallenger.WithSuperRPC(l2CL.UserRPC()),
+			sharedchallenger.WithSuperRootRPC(l2CL.UserRPC()),
 		)
 	}
 	cfg, err := sharedchallenger.NewPreInteropChallengerConfig(

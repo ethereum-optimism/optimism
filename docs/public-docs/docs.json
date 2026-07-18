@@ -1024,7 +1024,11 @@
     },
     {
       "source": "/operators/chain-operators/configuration/rollup",
-      "destination": "/chain-operators/guides/configuration/rollup"
+      "destination": "/chain-operators/reference/rollup-deployment-configuration"
+    },
+    {
+      "source": "/chain-operators/guides/configuration/rollup",
+      "destination": "/chain-operators/reference/rollup-deployment-configuration"
     },
     {
       "source": "/operators/chain-operators/deploy",
@@ -1962,7 +1966,6 @@
                   "chain-operators/guides/configuration/getting-started",
                   "chain-operators/guides/configuration/batcher",
                   "chain-operators/guides/configuration/proposer",
-                  "chain-operators/guides/configuration/rollup",
                   "chain-operators/guides/configuration/op-challenger-config-guide"
                 ]
               },
@@ -2087,6 +2090,7 @@
             "pages": [
               "chain-operators/reference/batcher-configuration",
               "chain-operators/reference/opcm",
+              "chain-operators/reference/rollup-deployment-configuration",
               "chain-operators/reference/standard-configuration",
               "chain-operators/reference/fee-parameters",
               "chain-operators/reference/da-footprint"
@@ -2197,7 +2201,8 @@
                   "app-developers/tutorials/bridging/standard-bridge-standard-token",
                   "app-developers/tutorials/bridging/cross-dom-bridge-eth",
                   "app-developers/tutorials/bridging/bridge-crosschain-eth",
-                  "app-developers/tutorials/bridging/deposit-transactions"
+                  "app-developers/tutorials/bridging/deposit-transactions",
+                  "app-developers/tutorials/bridging/replay-failed-deposit"
                 ]
               },
               {
@@ -2423,7 +2428,12 @@
             "pages": [
               "/op-stack/contribute/content-guide",
               "/op-stack/contribute/link-policy",
-              "/op-stack/contribute/style-guide"
+              "/op-stack/contribute/style-guide",
+              "/op-stack/contribute/choose-a-content-type",
+              "/op-stack/contribute/solution-guide",
+              "/op-stack/contribute/learning-unit",
+              "/op-stack/contribute/curriculum-hub",
+              "/op-stack/contribute/router-landing"
             ]
           }
         ]

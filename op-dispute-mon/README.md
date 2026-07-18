@@ -26,10 +26,10 @@ shows the available config options and can be accessed by running `./bin/op-disp
   --l1-eth-rpc <L1-Ethereum-RPC-URL> \
   --rollup-rpc <Optimism-Rollup-RPC-URL>,<Secondary-RPC-URL>,<Tertiary-RPC-URL>
 
-# For networks using op-supernode:
+# For networks using super root RPCs:
 ./bin/op-dispute-mon \
   --network <Predefined-Network> \
   --l1-eth-rpc <L1-Ethereum-RPC-URL> \
-  --supernode-rpc <SuperNode-RPC-URL>,<Secondary-RPC-URL>,<Tertiary-RPC-URL>
+  --superroot-rpc <SuperRoot-RPC-URL>,<Secondary-RPC-URL>,<Tertiary-RPC-URL>
 
 ```

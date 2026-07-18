@@ -22,13 +22,13 @@ pub struct Registry {
 impl Registry {
     /// Read the chain list.
     pub fn read_chain_list() -> ChainList {
-        let chain_list = include_str!("../etc/chainList.json");
+        let chain_list = include_str!(concat!(env!("KONA_REGISTRY_DIR"), "/chainList.json"));
         serde_json::from_str(chain_list).expect("Failed to read chain list")
     }
 
     /// Read superchain configs.
     pub fn read_superchain_configs() -> Superchains {
-        let superchain_configs = include_str!("../etc/configs.json");
+        let superchain_configs = include_str!(concat!(env!("KONA_REGISTRY_DIR"), "/configs.json"));
         serde_json::from_str(superchain_configs).expect("Failed to read superchain configs")
     }
 
