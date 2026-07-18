@@ -44,7 +44,7 @@ pub fn main() {
         let serialized_boot_info = bincode::serialize(&boot_info).unwrap();
         let pv_digest = Sha256::digest(serialized_boot_info);
 
-        sp1_lib::verify::verify_sp1_proof(&agg_inputs.multi_block_vkey, &pv_digest.into());
+        sp1_lib::verify::verify_sp1_proof(&kona_sp1_range_vkeys::RANGE_VKEY, &pv_digest.into());
     });
 
     // Create a map of each l1 head in the [`BootInfoStruct`]'s to booleans
@@ -83,7 +83,7 @@ pub fn main() {
     };
 
     // Convert the range vkey to a B256.
-    let multi_block_vkey_b256 = B256::from(u32_to_u8(agg_inputs.multi_block_vkey));
+    let multi_block_vkey_b256 = B256::from(u32_to_u8(kona_sp1_range_vkeys::RANGE_VKEY));
 
     let agg_outputs = AggregationOutputs {
         l1Head: final_boot_info.l1Head,

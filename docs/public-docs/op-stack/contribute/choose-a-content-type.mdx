@@ -1,0 +1,123 @@
+---
+title: Choose a content type
+description: A maintainer-facing decision table for picking the right content type, and how the composed types extend the diataxis frontmatter taxonomy.
+diataxis: reference
+---
+
+This page is for docs maintainers and contributors, not readers. It settles
+the two questions that come up in almost every content pull request — "which
+kind of page am I writing?" and "which frontmatter does it carry?" — by
+decision table, so the answer is cited rather than re-argued per PR. The
+pattern follows Cloudflare's maintainer-facing content-type selection page in
+its [documentation content strategy](https://developers.cloudflare.com/style-guide/documentation-content-strategy/).
+
+Before choosing a type, check the
+[content guide](/op-stack/contribute/content-guide) that the content belongs
+on docs.optimism.io at all.
+
+## The taxonomy: four quadrants, four compositions
+
+Every page on docs.optimism.io carries a `diataxis:` frontmatter key with one
+of the four [Diátaxis](https://diataxis.fr/) quadrant values — `tutorial`,
+`how-to`, `reference`, or `explanation`. That taxonomy is complete and does
+not grow: the composed types below are **compositions of the quadrants, not
+new quadrants**, and they never appear as `diataxis:` values.
+
+A composed type is declared with a second, optional frontmatter key,
+`content-type:`, carried *alongside* `diataxis:`. It takes exactly four
+values, one per published spec:
+
+| Composed type | `content-type:` | `diataxis:` | What the composition is |
+| --- | --- | --- | --- |
+| [Solution guide](/op-stack/contribute/solution-guide) | `solution-guide` | `how-to` | A goal-scoped how-to at journey altitude: it sequences existing pages across quadrants and adds only the connective decision logic |
+| [Learning unit](/op-stack/contribute/learning-unit) | `learning-unit` | The underlying page's quadrant (usually `explanation`; `tutorial` for hands-on stops) | A thin sequencing layer over one existing page inside an ordered track |
+| [Curriculum hub](/op-stack/contribute/curriculum-hub) | `curriculum-hub` | `explanation` | An oriented index that composes all four quadrants for one feature under one sidebar node |
+| [Router/landing](/op-stack/contribute/router-landing) | `router-landing` | Omitted — see below | Pure navigation: the page only routes readers to pages in the quadrants |
+
+Rules that keep this an extension rather than a fork:
+
+*   **`content-type:` never replaces `diataxis:`.** Every page that documents,
+    instructs, or explains anything keeps its quadrant tag. The one sanctioned
+    omission is `content-type: router-landing`: a pure router contains no
+    documentation mode of its own to classify, so it carries `content-type:`
+    and no `diataxis:` key. If a router grows explanatory or instructional
+    content, it is no longer a router — reclassify it.
+*   **Only these four `content-type:` values exist.** Proposing a fifth means
+    amending this page and publishing a spec for it, through normal docs
+    review.
+*   **Pages of the four base types don't carry `content-type:` at all.** An
+    ordinary how-to is just `diataxis: how-to`.
+*   **`keywords.config.yaml` is not extended.** The composed types are
+    declared only in page frontmatter, per the rows above.
+
+## How-to guide vs. tutorial vs. solution guide
+
+These three are confusable because all three are action-oriented. The
+distinctions are the starting state, the scope, and who owns the steps.
+
+| Question | How-to guide | Tutorial | Solution guide |
+| --- | --- | --- | --- |
+| What state does the reader start in? | A working environment, already set up | A clean machine (or close to it) — setup is part of the page | A working system, plus a goal that spans components |
+| How wide is the scope? | One discrete task on one component | One end-to-end build, environment setup included | One goal across multiple components, often multiple documentation properties |
+| Who owns the steps? | The page owns its steps | The page owns its steps | The page **derives**: each stop links an existing page and states what to extract; the page adds only decision logic |
+| What does it end with? | Verification of the task | Verification of the whole working state, then cleanup | Verification of the outcome, then curated exits |
+| Frontmatter | `diataxis: how-to` | `diataxis: tutorial` | `diataxis: how-to` + `content-type: solution-guide` |
+
+Quick tests:
+
+*   If the page must install or configure the environment before the real
+    work starts, it's a **tutorial**.
+*   If the page's steps are its own — copy-pasteable commands the reader
+    executes on one component — it's a **how-to guide**.
+*   If the page's main job is sequencing *other* pages toward a goal and
+    deciding between options along the way, it's a **solution guide**. A
+    solution guide that starts restating the steps of the pages it links is
+    violating the [dual-sourcing ban](/op-stack/contribute/content-guide#link-dont-restate-the-dual-sourcing-ban)
+    — cut the restatement and link.
+
+Exemplars: [Configure the batcher](/chain-operators/guides/configuration/batcher)
+(how-to at configuration-guide depth);
+[Bridging your ERC-20 token](/app-developers/tutorials/bridging/cross-dom-bridge-erc20)
+(tutorial); the first solution guide ships with the Use Cases section — until
+it lands, the [solution guide spec](/op-stack/contribute/solution-guide)
+carries the template.
+
+## Explanation vs. learning unit
+
+Both are understanding-oriented. The distinction is who the reader is and
+what the page may assume.
+
+| Question | Explanation | Learning unit |
+| --- | --- | --- |
+| Who arrives? | Anyone, in any order, usually from search or a cross-link | A learner progressing through an ordered track or curriculum hub |
+| What may it assume? | Only what it states in its own intro | Everything covered by the previous stops in its track |
+| Who owns the content? | The page owns its conceptual material | The unit **frames** existing material: it adds sequencing context (what you now know, what this stop adds, where to go next) and links, never forks |
+| Frontmatter | `diataxis: explanation` | The underlying page's quadrant + `content-type: learning-unit` |
+
+Quick tests:
+
+*   If removing the page from its nav group would leave it fully
+    comprehensible, it's an **explanation**.
+*   If the page opens with "in the previous stop…" or only makes sense at
+    position N of a sequence, it's a **learning unit**.
+*   If you're about to *copy* an explanation into a track so you can reorder
+    it — stop. Learning units link and frame; they never duplicate. Add a
+    framing header to the existing page instead (see the
+    [learning unit spec](/op-stack/contribute/learning-unit)).
+
+Exemplars: [The OP Stack](/op-stack/introduction/op-stack) and the
+[fault proofs explainer](/op-stack/fault-proofs/explainer) (explanations that
+would gain learning-unit framing inside a track without being rewritten).
+
+## Next steps
+
+*   Read the type spec before writing the page:
+    [solution guide](/op-stack/contribute/solution-guide),
+    [learning unit](/op-stack/contribute/learning-unit),
+    [curriculum hub](/op-stack/contribute/curriculum-hub),
+    [router/landing](/op-stack/contribute/router-landing).
+*   For the four base quadrants, the
+    [style guide's content types section](https://github.com/ethereum-optimism/optimism/blob/develop/docs/public-docs/STYLE_GUIDE.md#content-types)
+    remains the reference.
+*   For what belongs on the site at all, see the
+    [content guide](/op-stack/contribute/content-guide).

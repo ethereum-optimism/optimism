@@ -37,9 +37,6 @@ abstract contract L2GenesisForkUpgrade_TestInit is L2ForkUpgrade_TestInit {
         // Skip if running against any fork — this test targets local genesis state only
         skipIfForkTest("genesis upgrade test, not for L1 fork");
 
-        // Skip if L2CM dev feature is not enabled
-        skipIfDevFeatureDisabled(DevFeatures.L2CM);
-
         // Skip if running with an unoptimized Foundry profile
         skipIfUnoptimized();
 

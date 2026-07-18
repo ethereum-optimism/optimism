@@ -34,8 +34,8 @@ var (
 	ErrMissingCannonKonaInfoFreq         = errors.New("missing cannon kona info freq")
 	ErrMissingDepsetConfig               = errors.New("missing network or depset config path")
 
-	ErrMissingRollupRpc = errors.New("missing rollup rpc url")
-	ErrMissingSuperRpc  = errors.New("missing super rpc url")
+	ErrMissingRollupRpc    = errors.New("missing rollup rpc url")
+	ErrMissingSuperRootRpc = errors.New("missing super root RPC URL")
 )
 
 const (
@@ -75,9 +75,9 @@ type Config struct {
 
 	GameTypes []gameTypes.GameType // Type of games supported
 
-	RollupRpc string   // L2 Rollup RPC Url
-	SuperRPC  string   // L2 RPC URL for op-supernode super roots
-	L2Rpcs    []string // L2 RPC Url
+	RollupRpc    string   // L2 Rollup RPC Url
+	SuperRootRPC string   // Super root RPC URL.
+	L2Rpcs       []string // L2 RPC Url
 
 	// Specific to the cannon trace provider
 	Cannon                            vm.Config
@@ -111,7 +111,7 @@ func NewInteropConfig(
 	gameFactoryAddress common.Address,
 	l1EthRpc string,
 	l1BeaconApi string,
-	superRpc string,
+	superRootRpc string,
 	l2Rpcs []string,
 	datadir string,
 	supportedGameTypes ...gameTypes.GameType,
@@ -120,7 +120,7 @@ func NewInteropConfig(
 		L1EthRpc:           l1EthRpc,
 		L1RPCKind:          sources.RPCKindStandard,
 		L1Beacon:           l1BeaconApi,
-		SuperRPC:           superRpc,
+		SuperRootRPC:       superRootRpc,
 		L2Rpcs:             l2Rpcs,
 		GameFactoryAddress: gameFactoryAddress,
 		MaxConcurrency:     uint(runtime.NumCPU()),
@@ -256,8 +256,8 @@ func (c Config) Check() error {
 		}
 	}
 	if c.GameTypeEnabled(gameTypes.SuperCannonKonaGameType) {
-		if c.SuperRPC == "" {
-			return ErrMissingSuperRpc
+		if c.SuperRootRPC == "" {
+			return ErrMissingSuperRootRpc
 		}
 
 		if len(c.CannonKona.Networks) == 0 && c.CannonKona.DepsetConfigPath == "" {
