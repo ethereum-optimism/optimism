@@ -1975,7 +1975,9 @@
             "group": "Use cases",
             "pages": [
               "use-cases/index",
-              "use-cases/tune-batcher-costs"
+              "use-cases/tune-batcher-costs",
+              "use-cases/run-a-fault-proof-challenger",
+              "use-cases/implement-a-custom-deposit-flow"
             ]
           },
           {
@@ -2449,6 +2451,7 @@
             "pages": [
               "/op-stack/contribute/content-guide",
               "/op-stack/contribute/link-policy",
+              "/op-stack/contribute/curation-policy",
               "/op-stack/contribute/style-guide",
               {
                 "group": "Choose a content type",
