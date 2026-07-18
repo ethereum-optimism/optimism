@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/require"
@@ -51,12 +52,13 @@ func TestMetricsClientFetchParsesPrometheusResponse(t *testing.T) {
 	require.Len(t, snapshot.families, 2)
 }
 
-func TestMetricsClientUsesThirtySecondFetchTimeoutByDefault(t *testing.T) {
+func TestMetricsClientUsesDefaultTimeouts(t *testing.T) {
 	client := NewMetricsClient(stubHTTP(func(context.Context, string, url.Values, http.Header) (*http.Response, error) {
 		return metricsResponse(http.StatusOK, ""), nil
 	}))
 
-	require.Equal(t, 30*time.Second, client.fetchTimeout)
+	require.Equal(t, 10*time.Second, client.fetchTimeout)
+	require.Equal(t, 60*time.Second, client.waitTimeout)
 }
 
 func TestMetricsClientFetchRejectsNilHTTPClient(t *testing.T) {
@@ -110,6 +112,20 @@ func TestMetricsClientWaitForGaugeRejectsInvalidClientConfiguration(t *testing.T
 			},
 			wantError: "fetch timeout must be positive",
 		},
+		{
+			name: "zero wait timeout",
+			newClient: func(stub stubHTTP) *MetricsClient {
+				return NewMetricsClient(stub, WithWaitTimeout(0))
+			},
+			wantError: "wait timeout must be positive",
+		},
+		{
+			name: "negative wait timeout",
+			newClient: func(stub stubHTTP) *MetricsClient {
+				return NewMetricsClient(stub, WithWaitTimeout(-time.Second))
+			},
+			wantError: "wait timeout must be positive",
+		},
 	}
 
 	for _, test := range tests {
@@ -119,11 +135,9 @@ func TestMetricsClientWaitForGaugeRejectsInvalidClientConfiguration(t *testing.T
 				fetches++
 				return metricsResponse(http.StatusOK, ""), nil
 			})
-			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-			defer cancel()
 
 			err := test.newClient(stub).WaitForGauge(
-				ctx,
+				context.Background(),
 				GaugeDefinition{Name: "target_metric", Expected: 1},
 				time.Millisecond,
 			)
@@ -294,10 +308,8 @@ func TestMetricsClientWaitForGauge(t *testing.T) {
 		)
 		return metricsResponse(http.StatusOK, payload), nil
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
 
-	err := NewMetricsClient(stub).WaitForGauge(ctx, GaugeDefinition{
+	err := NewMetricsClient(stub).WaitForGauge(context.Background(), GaugeDefinition{
 		Name:     "target_metric",
 		Labels:   map[string]string{"state": "ready"},
 		Expected: 1,
@@ -308,9 +320,7 @@ func TestMetricsClientWaitForGauge(t *testing.T) {
 }
 
 func TestMetricsClientWaitForGaugeCancellationIncludesLastObservation(t *testing.T) {
-	parentCtx, stop := context.WithTimeout(context.Background(), time.Second)
-	defer stop()
-	ctx, cancel := context.WithCancel(parentCtx)
+	ctx, cancel := context.WithCancel(context.Background())
 	fetches := 0
 	stub := stubHTTP(func(fetchCtx context.Context, _ string, _ url.Values, _ http.Header) (*http.Response, error) {
 		fetches++
@@ -336,4 +346,29 @@ func TestMetricsClientWaitForGaugeCancellationIncludesLastObservation(t *testing
 	require.ErrorContains(t, err, "observed 0")
 	require.ErrorContains(t, err, "# attempt 1\n# TYPE target_metric gauge\ntarget_metric 0\n")
 	require.Equal(t, 2, fetches)
+}
+
+func TestMetricsClientWaitForGaugeAppliesWaitTimeout(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		fetches := 0
+		stub := stubHTTP(func(context.Context, string, url.Values, http.Header) (*http.Response, error) {
+			fetches++
+			return metricsResponse(
+				http.StatusOK,
+				"# TYPE target_metric gauge\ntarget_metric 0\n",
+			), nil
+		})
+
+		err := NewMetricsClient(stub, WithWaitTimeout(time.Second)).WaitForGauge(
+			context.Background(),
+			GaugeDefinition{Name: "target_metric", Expected: 1},
+			100*time.Millisecond,
+		)
+
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		require.ErrorContains(t, err, "target_metric")
+		require.ErrorContains(t, err, "expected 1")
+		require.ErrorContains(t, err, "observed 0")
+		require.Positive(t, fetches)
+	})
 }

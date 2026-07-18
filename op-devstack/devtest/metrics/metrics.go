@@ -14,11 +14,15 @@ import (
 	"github.com/prometheus/common/expfmt"
 )
 
-const defaultFetchTimeout = 30 * time.Second
+const (
+	defaultFetchTimeout = 10 * time.Second
+	defaultWaitTimeout  = 60 * time.Second
+)
 
 type MetricsClient struct {
 	client       client.HTTP
 	fetchTimeout time.Duration
+	waitTimeout  time.Duration
 }
 
 type Option func(*MetricsClient)
@@ -29,8 +33,18 @@ func WithFetchTimeout(timeout time.Duration) Option {
 	}
 }
 
+func WithWaitTimeout(timeout time.Duration) Option {
+	return func(client *MetricsClient) {
+		client.waitTimeout = timeout
+	}
+}
+
 func NewMetricsClient(httpClient client.HTTP, options ...Option) *MetricsClient {
-	metricsClient := &MetricsClient{client: httpClient, fetchTimeout: defaultFetchTimeout}
+	metricsClient := &MetricsClient{
+		client:       httpClient,
+		fetchTimeout: defaultFetchTimeout,
+		waitTimeout:  defaultWaitTimeout,
+	}
 	for _, option := range options {
 		if option != nil {
 			option(metricsClient)
@@ -45,6 +59,16 @@ func (c *MetricsClient) validate() error {
 	}
 	if c.fetchTimeout <= 0 {
 		return fmt.Errorf("fetch metrics: fetch timeout must be positive")
+	}
+	return nil
+}
+
+func (c *MetricsClient) validateWait() error {
+	if err := c.validate(); err != nil {
+		return err
+	}
+	if c.waitTimeout <= 0 {
+		return fmt.Errorf("wait for metrics: wait timeout must be positive")
 	}
 	return nil
 }
@@ -151,25 +175,28 @@ type GaugeDefinition struct {
 }
 
 func (c *MetricsClient) WaitForGauge(ctx context.Context, definition GaugeDefinition, pollInterval time.Duration) error {
-	if err := c.validate(); err != nil {
+	if err := c.validateWait(); err != nil {
 		return err
 	}
 	if pollInterval <= 0 {
 		return fmt.Errorf("poll interval must be positive")
 	}
 
+	waitCtx, cancel := context.WithTimeout(ctx, c.waitTimeout)
+	defer cancel()
+
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 
 	var lastErr error
 	for {
-		snapshot, err := c.Fetch(ctx)
-		if err != nil && lastErr != nil && ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+		snapshot, err := c.Fetch(waitCtx)
+		if err != nil && lastErr != nil && waitCtx.Err() != nil && errors.Is(err, waitCtx.Err()) {
 			return fmt.Errorf(
 				"metric %s did not reach expected value: %w: %w",
 				definition.Name,
 				lastErr,
-				ctx.Err(),
+				waitCtx.Err(),
 			)
 		}
 		if err == nil {
@@ -189,21 +216,21 @@ func (c *MetricsClient) WaitForGauge(ctx context.Context, definition GaugeDefini
 		}
 		lastErr = err
 
-		if ctx.Err() != nil {
+		if waitCtx.Err() != nil {
 			return fmt.Errorf(
 				"metric %s did not reach expected value: %w: %w",
 				definition.Name,
 				lastErr,
-				ctx.Err(),
+				waitCtx.Err(),
 			)
 		}
 		select {
-		case <-ctx.Done():
+		case <-waitCtx.Done():
 			return fmt.Errorf(
 				"metric %s did not reach expected value: %w: %w",
 				definition.Name,
 				lastErr,
-				ctx.Err(),
+				waitCtx.Err(),
 			)
 		case <-ticker.C:
 		}

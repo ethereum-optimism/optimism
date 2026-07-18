@@ -1,7 +1,6 @@
 package presets
 
 import (
-	"context"
 	"strings"
 	"time"
 
@@ -14,10 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-const (
-	disputeMonMetricWaitTimeout  = 30 * time.Second
-	disputeMonMetricPollInterval = 100 * time.Millisecond
-)
+const disputeMonMetricPollInterval = 100 * time.Millisecond
 
 type DisputeMon struct {
 	t       devtest.T
@@ -33,9 +29,7 @@ func newDisputeMon(t devtest.T, metricsURL string) *DisputeMon {
 }
 
 func (d *DisputeMon) VerifyGameCount(gameType gameTypes.GameType, expected int) {
-	ctx, cancel := context.WithTimeout(d.t.Ctx(), disputeMonMetricWaitTimeout)
-	defer cancel()
-	err := d.metrics.WaitForGauge(ctx, devtestmetrics.GaugeDefinition{
+	err := d.metrics.WaitForGauge(d.t.Ctx(), devtestmetrics.GaugeDefinition{
 		Name:     "op_dispute_mon_games",
 		Labels:   map[string]string{"game_type": gameType.String()},
 		Expected: float64(expected),
