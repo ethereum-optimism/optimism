@@ -148,20 +148,20 @@ pub struct BlocksServerArgs {
     )]
     pub addr: SocketAddr,
 
-    /// Earliest inclusive block offset the endpoint is willing to serve.
+    /// Maximum number of blocks a requested start may trail the current head.
     #[arg(
-        long = "rollup.blocks-server.min-offset",
-        value_name = "BLOCKS_SERVER_MIN_OFFSET",
+        long = "rollup.blocks-server.max-backfill",
+        value_name = "BLOCKS_SERVER_MAX_BACKFILL",
         default_value_t = 0
     )]
-    pub min_offset: u64,
+    pub max_backfill: u64,
 }
 
 impl BlocksServerArgs {
     /// Return runtime configuration when the service is enabled.
     pub const fn config(self) -> Option<BlocksServerConfig> {
         if self.enabled {
-            Some(BlocksServerConfig { addr: self.addr, min_offset: self.min_offset })
+            Some(BlocksServerConfig { addr: self.addr, max_backfill: self.max_backfill })
         } else {
             None
         }
@@ -170,7 +170,7 @@ impl BlocksServerArgs {
 
 impl Default for BlocksServerArgs {
     fn default() -> Self {
-        Self { enabled: false, addr: DEFAULT_BLOCKS_SERVER_ADDR, min_offset: 0 }
+        Self { enabled: false, addr: DEFAULT_BLOCKS_SERVER_ADDR, max_backfill: 0 }
     }
 }
 
@@ -386,7 +386,7 @@ mod tests {
             "--rollup.blocks-server.enabled",
             "--rollup.blocks-server.addr",
             "0.0.0.0:9000",
-            "--rollup.blocks-server.min-offset",
+            "--rollup.blocks-server.max-backfill",
             "1234",
         ])
         .args;
@@ -395,12 +395,12 @@ mod tests {
             BlocksServerArgs {
                 enabled: true,
                 addr: "0.0.0.0:9000".parse().unwrap(),
-                min_offset: 1234,
+                max_backfill: 1234,
             }
         );
         assert_eq!(
             args.blocks_server.config(),
-            Some(BlocksServerConfig { addr: "0.0.0.0:9000".parse().unwrap(), min_offset: 1234 })
+            Some(BlocksServerConfig { addr: "0.0.0.0:9000".parse().unwrap(), max_backfill: 1234 })
         );
     }
 
