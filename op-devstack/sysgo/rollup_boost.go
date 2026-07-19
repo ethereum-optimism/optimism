@@ -248,7 +248,7 @@ func (cfg *RollupBoostConfig) LaunchSpec(p devtest.CommonT) (args []string, env 
 		}
 	}
 
-	args = append(args, "--rpc-host="+cfg.RPCHost)
+	args = append(args, "--rpc-host="+cfg.RPCHost, "--rpc-port=0")
 
 	if cfg.L2EngineURL != "" {
 		args = append(args, "--l2-url="+ensureHTTPURL(cfg.L2EngineURL))
@@ -284,18 +284,7 @@ func (cfg *RollupBoostConfig) LaunchSpec(p devtest.CommonT) (args []string, env 
 		args = append(args, "--debug-server-port=0")
 	}
 
-	for i := 0; i < len(cfg.ExtraArgs); i++ {
-		arg := cfg.ExtraArgs[i]
-		if arg == "--rpc-port" {
-			i++
-			continue
-		}
-		if strings.HasPrefix(arg, "--rpc-port=") {
-			continue
-		}
-		args = append(args, arg)
-	}
-	args = append(args, "--rpc-port=0")
+	args = append(args, cfg.ExtraArgs...)
 
 	return args, env
 }
