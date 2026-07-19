@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math/big"
+	"strings"
 )
 
 type GasPriceEstimatorFn func(ctx context.Context, backend ETHBackend) (*big.Int, *big.Int, *big.Int, error)
@@ -24,7 +25,10 @@ func DefaultGasPriceEstimatorFn(ctx context.Context, backend ETHBackend) (*big.I
 
 	blobBaseFee, err := backend.BlobBaseFee(ctx)
 	if err != nil {
-		return nil, nil, nil, err
+		if !strings.Contains(err.Error(), "Method not found") {
+			return nil, nil, nil, err
+		}
+		blobBaseFee = nil
 	}
 
 	return tip, head.BaseFee, blobBaseFee, nil
