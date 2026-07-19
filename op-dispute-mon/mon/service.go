@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"sync/atomic"
 	"time"
 
@@ -277,6 +278,14 @@ func (s *Service) Start(ctx context.Context) error {
 
 func (s *Service) Stopped() bool {
 	return s.stopped.Load()
+}
+
+// MetricsAddr returns the bound metrics server address, or nil when metrics are disabled.
+func (s *Service) MetricsAddr() net.Addr {
+	if s.metricsSrv == nil {
+		return nil
+	}
+	return s.metricsSrv.Addr()
 }
 
 func (s *Service) Stop(ctx context.Context) error {

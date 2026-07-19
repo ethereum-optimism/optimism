@@ -2,18 +2,13 @@ package sysgo
 
 import (
 	"context"
-	"fmt"
-	"log/slog"
-	"net"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	disputeMon "github.com/ethereum-optimism/optimism/op-dispute-mon"
 	disputeMonConfig "github.com/ethereum-optimism/optimism/op-dispute-mon/config"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 type DisputeMonConfig struct {
@@ -29,17 +24,6 @@ type DisputeMonRuntime struct {
 
 func (r *DisputeMonRuntime) MetricsURL() string {
 	return r.metricsURL
-}
-
-func metricsURLFromCapturedAddr(value slog.Value, captured bool) (string, error) {
-	if !captured {
-		return "", fmt.Errorf("started metrics server log attribute addr not found")
-	}
-	addr, ok := value.Any().(net.Addr)
-	if !ok {
-		return "", fmt.Errorf("started metrics server log attribute addr is not a net.Addr")
-	}
-	return "http://" + addr.String(), nil
 }
 
 func StartDisputeMon(t devtest.T, input DisputeMonConfig) *DisputeMonRuntime {
@@ -62,11 +46,11 @@ func StartDisputeMon(t devtest.T, input DisputeMonConfig) *DisputeMonRuntime {
 	}
 
 	logger := t.Logger().New("component", "op-dispute-mon")
-	logHandler := testlog.NewCapturingAttrHandler(logger.Handler(), "started metrics server", "addr")
-	service, err := disputeMon.Main(t.Ctx(), log.NewLogger(logHandler), &cfg)
+	service, err := disputeMon.Main(t.Ctx(), logger, &cfg)
 	require.NoError(err, "create dispute monitor service")
-	metricsURL, err := metricsURLFromCapturedAddr(logHandler.Captured())
-	require.NoError(err, "find dispute monitor metrics URL")
+	metricsAddr := service.MetricsAddr()
+	require.NotNil(metricsAddr, "dispute monitor metrics address")
+	metricsURL := "http://" + metricsAddr.String()
 	require.NoError(service.Start(t.Ctx()), "start dispute monitor service")
 
 	t.Cleanup(func() {

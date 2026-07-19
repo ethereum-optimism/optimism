@@ -3,9 +3,7 @@ package testlog
 import (
 	"context"
 	"log/slog"
-	"slices"
 	"strings"
-	"sync"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -53,106 +51,6 @@ func (r *CapturedRecord) Attrs(f func(slog.Attr) bool) {
 	if r.Parent != nil {
 		r.Parent.Attrs(f)
 	}
-}
-
-type capturedAttrState struct {
-	mu    sync.RWMutex
-	value slog.Value
-	ok    bool
-}
-
-// CapturingAttrHandler forwards all records and retains the first attribute matching a message and key.
-// It is safe for concurrent use.
-type CapturingAttrHandler struct {
-	handler slog.Handler
-	message string
-	attrKey string
-	attrs   *CapturedAttributes
-	state   *capturedAttrState
-}
-
-var _ logmods.Handler = (*CapturingAttrHandler)(nil)
-
-func NewCapturingAttrHandler(handler slog.Handler, message string, attrKey string) *CapturingAttrHandler {
-	return &CapturingAttrHandler{
-		handler: handler,
-		message: message,
-		attrKey: attrKey,
-		state:   new(capturedAttrState),
-	}
-}
-
-func (c *CapturingAttrHandler) Unwrap() slog.Handler {
-	return c.handler
-}
-
-func (c *CapturingAttrHandler) Enabled(ctx context.Context, level slog.Level) bool {
-	return c.handler.Enabled(ctx, level)
-}
-
-func (c *CapturingAttrHandler) Handle(ctx context.Context, record slog.Record) error {
-	if record.Message == c.message {
-		captured := CapturedRecord{Parent: c.attrs, Record: &record}
-		captured.Attrs(func(attr slog.Attr) bool {
-			value, ok := findAttrValue(attr, c.attrKey)
-			if !ok {
-				return true
-			}
-			c.state.mu.Lock()
-			if !c.state.ok {
-				c.state.value = value
-				c.state.ok = true
-			}
-			c.state.mu.Unlock()
-			return false
-		})
-	}
-	return c.handler.Handle(ctx, record)
-}
-
-func findAttrValue(attr slog.Attr, key string) (slog.Value, bool) {
-	value := attr.Value.Resolve()
-	if attr.Key == key {
-		return value, true
-	}
-	if value.Kind() == slog.KindGroup {
-		for _, groupAttr := range value.Group() {
-			if value, ok := findAttrValue(groupAttr, key); ok {
-				return value, true
-			}
-		}
-	}
-	return slog.Value{}, false
-}
-
-func (c *CapturingAttrHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	ownedAttrs := slices.Clone(attrs)
-	return &CapturingAttrHandler{
-		handler: c.handler.WithAttrs(attrs),
-		message: c.message,
-		attrKey: c.attrKey,
-		attrs: &CapturedAttributes{
-			Parent:     c.attrs,
-			Attributes: ownedAttrs,
-		},
-		state: c.state,
-	}
-}
-
-func (c *CapturingAttrHandler) WithGroup(name string) slog.Handler {
-	return &CapturingAttrHandler{
-		handler: c.handler.WithGroup(name),
-		message: c.message,
-		attrKey: c.attrKey,
-		attrs:   c.attrs,
-		state:   c.state,
-	}
-}
-
-func (c *CapturingAttrHandler) Captured() (slog.Value, bool) {
-	c.state.mu.RLock()
-	defer c.state.mu.RUnlock()
-	return c.state.value, c.state.ok
 }
 
 // CapturingHandler provides a log handler that captures all log records and optionally forwards them to a delegate.
