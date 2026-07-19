@@ -8,7 +8,7 @@ pub use traits::NodeActor;
 mod blocks;
 pub use blocks::{
     BlocksClient, BlocksClientActor, BlocksClientActorError, BlocksClientConfig, BlocksClientError,
-    MAX_BLOCK_FRAME_SIZE,
+    BlocksClientLocalProvider, BlocksClientLocalProviderError, MAX_BLOCK_FRAME_SIZE,
 };
 
 mod engine;

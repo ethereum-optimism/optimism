@@ -9,5 +9,8 @@ pub use client::{BlocksClient, BlocksClientError, MAX_BLOCK_FRAME_SIZE};
 mod config;
 pub use config::BlocksClientConfig;
 
+mod provider;
+pub use provider::{BlocksClientLocalProvider, BlocksClientLocalProviderError};
+
 #[cfg(test)]
 mod tests;

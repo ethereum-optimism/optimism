@@ -4,7 +4,7 @@ use thiserror::Error;
 use tokio::net::TcpStream;
 use tokio_tungstenite::{
     MaybeTlsStream, WebSocketStream, connect_async_with_config,
-    tungstenite::{Message, protocol::WebSocketConfig},
+    tungstenite::{Message, http::StatusCode, protocol::WebSocketConfig},
 };
 use url::Url;
 
@@ -78,4 +78,36 @@ pub enum BlocksClientError {
     /// The server sent a message type that is invalid on the blocks stream.
     #[error("unexpected {0} message on blocks stream")]
     UnexpectedMessage(&'static str),
+}
+
+impl BlocksClientError {
+    /// Returns the HTTP status from a rejected `WebSocket` handshake, if present.
+    pub fn http_status(&self) -> Option<StatusCode> {
+        let Self::WebSocket(tokio_tungstenite::tungstenite::Error::Http(response)) = self else {
+            return None;
+        };
+        Some(response.status())
+    }
+
+    /// Returns whether reconnecting may recover from this error.
+    pub fn is_retryable(&self) -> bool {
+        match self {
+            Self::StreamEnded | Self::ServerClosed(_) => true,
+            Self::WebSocket(error) => match error {
+                tokio_tungstenite::tungstenite::Error::ConnectionClosed |
+                tokio_tungstenite::tungstenite::Error::AlreadyClosed |
+                tokio_tungstenite::tungstenite::Error::Io(_) |
+                tokio_tungstenite::tungstenite::Error::Tls(_) |
+                tokio_tungstenite::tungstenite::Error::Protocol(
+                    tokio_tungstenite::tungstenite::error::ProtocolError::ResetWithoutClosingHandshake,
+                ) => true,
+                tokio_tungstenite::tungstenite::Error::Http(response) => {
+                    response.status().is_server_error() ||
+                        response.status() == StatusCode::RANGE_NOT_SATISFIABLE
+                }
+                _ => false,
+            },
+            Self::Wire(_) | Self::UnexpectedMessage(_) => false,
+        }
+    }
 }

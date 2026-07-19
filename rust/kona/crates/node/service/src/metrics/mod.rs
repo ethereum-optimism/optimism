@@ -37,6 +37,23 @@ impl Metrics {
     pub const SEQUENCER_TOTAL_TRANSACTIONS_SEQUENCED: &str =
         "kona_node_sequencer_total_transactions_sequenced";
 
+    /// Whether the canonical sequencer blocks client is connected.
+    pub const BLOCKS_CLIENT_CONNECTED: &str = "kona_node_blocks_client_connected";
+    /// Total successful canonical sequencer blocks stream connections.
+    pub const BLOCKS_CLIENT_CONNECTIONS: &str = "kona_node_blocks_client_connections";
+    /// Total canonical sequencer blocks stream reconnect attempts.
+    pub const BLOCKS_CLIENT_RECONNECTS: &str = "kona_node_blocks_client_reconnects";
+    /// Latest block number received from the canonical sequencer blocks stream.
+    pub const BLOCKS_CLIENT_RECEIVED_BLOCK: &str = "kona_node_blocks_client_received_block";
+    /// Latest blocks stream block number applied to the local execution layer.
+    pub const BLOCKS_CLIENT_APPLIED_BLOCK: &str = "kona_node_blocks_client_applied_block";
+    /// Total permanent canonical sequencer blocks stream failures.
+    pub const BLOCKS_CLIENT_FAILURES: &str = "kona_node_blocks_client_failures";
+    /// Total unsafe reorgs observed through the canonical sequencer blocks stream.
+    pub const BLOCKS_CLIENT_REORGS: &str = "kona_node_blocks_client_reorgs";
+    /// Depth of the latest unsafe reorg observed through the blocks stream.
+    pub const BLOCKS_CLIENT_REORG_DEPTH: &str = "kona_node_blocks_client_reorg_depth";
+
     /// Initializes metrics for the node service.
     ///
     /// This does two things:
@@ -96,6 +113,39 @@ impl Metrics {
             metrics::Unit::Count,
             "Total count of sequenced transactions"
         );
+
+        metrics::describe_gauge!(
+            Self::BLOCKS_CLIENT_CONNECTED,
+            "Whether the canonical sequencer blocks client is connected"
+        );
+        metrics::describe_counter!(
+            Self::BLOCKS_CLIENT_CONNECTIONS,
+            "Successful canonical sequencer blocks stream connections"
+        );
+        metrics::describe_counter!(
+            Self::BLOCKS_CLIENT_RECONNECTS,
+            "Canonical sequencer blocks stream reconnect attempts"
+        );
+        metrics::describe_gauge!(
+            Self::BLOCKS_CLIENT_RECEIVED_BLOCK,
+            "Latest block number received from the canonical sequencer blocks stream"
+        );
+        metrics::describe_gauge!(
+            Self::BLOCKS_CLIENT_APPLIED_BLOCK,
+            "Latest blocks stream block number applied to the local execution layer"
+        );
+        metrics::describe_counter!(
+            Self::BLOCKS_CLIENT_FAILURES,
+            "Permanent canonical sequencer blocks stream failures"
+        );
+        metrics::describe_counter!(
+            Self::BLOCKS_CLIENT_REORGS,
+            "Unsafe reorgs observed through the canonical sequencer blocks stream"
+        );
+        metrics::describe_gauge!(
+            Self::BLOCKS_CLIENT_REORG_DEPTH,
+            "Depth of the latest unsafe reorg observed through the blocks stream"
+        );
     }
 
     /// Initializes metrics to `0` so they can be queried immediately by consumers of prometheus
@@ -110,5 +160,14 @@ impl Metrics {
 
         // Sequencer: reset total transactions sequenced
         kona_macros::set!(counter, Self::SEQUENCER_TOTAL_TRANSACTIONS_SEQUENCED, 0);
+
+        kona_macros::set!(gauge, Self::BLOCKS_CLIENT_CONNECTED, 0.0);
+        kona_macros::set!(counter, Self::BLOCKS_CLIENT_CONNECTIONS, 0);
+        kona_macros::set!(counter, Self::BLOCKS_CLIENT_RECONNECTS, 0);
+        kona_macros::set!(gauge, Self::BLOCKS_CLIENT_RECEIVED_BLOCK, 0.0);
+        kona_macros::set!(gauge, Self::BLOCKS_CLIENT_APPLIED_BLOCK, 0.0);
+        kona_macros::set!(counter, Self::BLOCKS_CLIENT_FAILURES, 0);
+        kona_macros::set!(counter, Self::BLOCKS_CLIENT_REORGS, 0);
+        kona_macros::set!(gauge, Self::BLOCKS_CLIENT_REORG_DEPTH, 0.0);
     }
 }
