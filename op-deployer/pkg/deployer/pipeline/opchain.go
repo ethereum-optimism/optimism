@@ -15,6 +15,14 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+// OPChainDeploymentResult must be obtained from ExecuteOPChainDeployment.
+type OPChainDeploymentResult struct {
+	chainID     common.Hash
+	contracts   addresses.OpChainContracts
+	readback    opcm.ReadImplementationAddressesOutput
+	initialized bool
+}
+
 func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID common.Hash) error {
 	lgr := env.Logger.New("stage", "deploy-opchain")
 
@@ -28,22 +36,52 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 		return fmt.Errorf("failed to get chain intent: %w", err)
 	}
 
-	var dco opcm.DeployOPChainOutput
-	lgr.Info("deploying OP chain using local allocs", "id", chainID.Hex())
-
 	dci, err := makeDCI(intent, thisIntent, chainID, st)
 	if err != nil {
 		return fmt.Errorf("error making deploy OP chain input: %w", err)
 	}
 
+	result, err := ExecuteOPChainDeployment(env, st, chainID, dci)
+	if err != nil {
+		return err
+	}
+	return RecordOPChainDeployment(st, result)
+}
+
+// ExecuteOPChainDeployment runs the deployment without recording its result.
+// Script-host transactions must be confirmed before the result is recorded.
+// Forge confirms transactions before returning.
+func ExecuteOPChainDeployment(
+	env *Env,
+	st *state.State,
+	chainID common.Hash,
+	dci opcm.DeployOPChainInput,
+) (OPChainDeploymentResult, error) {
+	var result OPChainDeploymentResult
+	if dci.L2ChainId == nil {
+		return result, fmt.Errorf("deploy OP chain input has nil L2 chain ID; expected %s", chainID.Big())
+	}
+	if dci.L2ChainId.Cmp(chainID.Big()) != 0 {
+		return result, fmt.Errorf(
+			"deploy OP chain input L2 chain ID %s does not match requested chain ID %s",
+			dci.L2ChainId,
+			chainID.Big(),
+		)
+	}
+
+	lgr := env.Logger.New("stage", "deploy-opchain")
+	lgr.Info("deploying OP chain using local allocs", "id", chainID.Hex())
+
 	// We make sure that the deployer and OPCM are the same as the ones used in the dry-run, if any.
 	// Skip when the deployer is the placeholder, which means non-live strategies are being used.
 	if env.Deployer != standard.PlaceholderAddress {
 		if err := st.CheckL1PredictInputs(env.Deployer, dci.Opcm); err != nil {
-			return err
+			return result, err
 		}
 	}
 
+	var dco opcm.DeployOPChainOutput
+	var err error
 	if env.UseForge {
 		lgr.Info("using Forge for DeployOPChain")
 		forgeEnv := &opcm.ForgeEnv{
@@ -54,12 +92,12 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 		}
 		dco, err = opcm.DeployOPChainViaForge(forgeEnv, dci)
 		if err != nil {
-			return err
+			return result, err
 		}
 	} else {
 		dco, err = env.Scripts.DeployOPChain.Run(dci)
 		if err != nil {
-			return fmt.Errorf("error deploying OP chain: %w", err)
+			return result, fmt.Errorf("error deploying OP chain: %w", err)
 		}
 	}
 
@@ -84,41 +122,58 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 		}
 		impls, err = opcm.ReadImplementationAddressesViaForge(forgeEnv, readInput)
 		if err != nil {
-			return err
+			return result, err
 		}
 	} else {
 		readImplementations, err := opcm.NewReadImplementationAddressesScript(env.L1ScriptHost)
 		if err != nil {
-			return fmt.Errorf("failed to load ReadImplementationAddresses script: %w", err)
+			return result, fmt.Errorf("failed to load ReadImplementationAddresses script: %w", err)
 		}
 
 		impls, err = readImplementations.Run(readInput)
 		if err != nil {
-			return fmt.Errorf("failed to run ReadImplementationAddresses script: %w", err)
+			return result, fmt.Errorf("failed to run ReadImplementationAddresses script: %w", err)
 		}
 	}
 
-	st.SetChainContracts(chainID, chainContractsForDeploy(impls, dco), true)
+	return OPChainDeploymentResult{
+		chainID:     chainID,
+		contracts:   chainContractsForDeploy(impls, dco),
+		readback:    impls,
+		initialized: true,
+	}, nil
+}
 
-	st.ImplementationsDeployment.DelayedWethImpl = impls.DelayedWETH
-	st.ImplementationsDeployment.OptimismPortalImpl = impls.OptimismPortal
-	st.ImplementationsDeployment.EthLockboxImpl = impls.EthLockbox
-	st.ImplementationsDeployment.SystemConfigImpl = impls.SystemConfig
-	st.ImplementationsDeployment.AnchorStateRegistryImpl = impls.AnchorStateRegistry
-	st.ImplementationsDeployment.L1CrossDomainMessengerImpl = impls.L1CrossDomainMessenger
-	st.ImplementationsDeployment.L1Erc721BridgeImpl = impls.L1ERC721Bridge
-	st.ImplementationsDeployment.L1StandardBridgeImpl = impls.L1StandardBridge
-	st.ImplementationsDeployment.OptimismMintableErc20FactoryImpl = impls.OptimismMintableERC20Factory
-	st.ImplementationsDeployment.DisputeGameFactoryImpl = impls.DisputeGameFactory
-	st.ImplementationsDeployment.MipsImpl = impls.MipsSingleton
-	st.ImplementationsDeployment.PreimageOracleImpl = impls.PreimageOracleSingleton
-	st.ImplementationsDeployment.FaultDisputeGameImpl = impls.FaultDisputeGame
-	st.ImplementationsDeployment.PermissionedDisputeGameImpl = impls.PermissionedDisputeGame
-	st.ImplementationsDeployment.ZkDisputeGameImpl = impls.ZkDisputeGame
-	st.ImplementationsDeployment.OpcmStandardValidatorImpl = impls.OpcmStandardValidator
-	st.ImplementationsDeployment.SuperFaultDisputeGameImpl = impls.SuperFaultDisputeGame
-	st.ImplementationsDeployment.SuperPermissionedDisputeGameImpl = impls.SuperPermissionedDisputeGame
+// RecordOPChainDeployment records a result after its transactions are confirmed.
+// Calling it again with the same result is safe. It does not save state to disk.
+func RecordOPChainDeployment(st *state.State, result OPChainDeploymentResult) error {
+	if !result.initialized {
+		return fmt.Errorf("cannot record an uninitialized OP chain deployment result")
+	}
 
+	st.SetChainContracts(result.chainID, result.contracts, true)
+
+	if st.ImplementationsDeployment != nil {
+		impls := result.readback
+		st.ImplementationsDeployment.DelayedWethImpl = impls.DelayedWETH
+		st.ImplementationsDeployment.OptimismPortalImpl = impls.OptimismPortal
+		st.ImplementationsDeployment.EthLockboxImpl = impls.EthLockbox
+		st.ImplementationsDeployment.SystemConfigImpl = impls.SystemConfig
+		st.ImplementationsDeployment.AnchorStateRegistryImpl = impls.AnchorStateRegistry
+		st.ImplementationsDeployment.L1CrossDomainMessengerImpl = impls.L1CrossDomainMessenger
+		st.ImplementationsDeployment.L1Erc721BridgeImpl = impls.L1ERC721Bridge
+		st.ImplementationsDeployment.L1StandardBridgeImpl = impls.L1StandardBridge
+		st.ImplementationsDeployment.OptimismMintableErc20FactoryImpl = impls.OptimismMintableERC20Factory
+		st.ImplementationsDeployment.DisputeGameFactoryImpl = impls.DisputeGameFactory
+		st.ImplementationsDeployment.MipsImpl = impls.MipsSingleton
+		st.ImplementationsDeployment.PreimageOracleImpl = impls.PreimageOracleSingleton
+		st.ImplementationsDeployment.FaultDisputeGameImpl = impls.FaultDisputeGame
+		st.ImplementationsDeployment.PermissionedDisputeGameImpl = impls.PermissionedDisputeGame
+		st.ImplementationsDeployment.ZkDisputeGameImpl = impls.ZkDisputeGame
+		st.ImplementationsDeployment.OpcmStandardValidatorImpl = impls.OpcmStandardValidator
+		st.ImplementationsDeployment.SuperFaultDisputeGameImpl = impls.SuperFaultDisputeGame
+		st.ImplementationsDeployment.SuperPermissionedDisputeGameImpl = impls.SuperPermissionedDisputeGame
+	}
 	return nil
 }
 
