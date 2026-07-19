@@ -63,9 +63,11 @@ type FaultDisputeGame struct {
 	StartingSequenceNumber func() TypedCall[uint64]                                                   `sol:"startingSequenceNumber"`
 
 	// IFaultDisputeGame.sol write methods
-	Move   func(targetClaim common.Hash, targetClaimIndex *big.Int, newClaim common.Hash, isAttack bool) TypedCall[any] `sol:"move"`
-	Attack func(targetClaim common.Hash, targetClaimIndex *big.Int, counterClaim common.Hash) TypedCall[any]            `sol:"attack"`
-	Defend func(targetClaim common.Hash, targetClaimIndex *big.Int, supportingClaim common.Hash) TypedCall[any]         `sol:"defend"`
+	Move         func(targetClaim common.Hash, targetClaimIndex *big.Int, newClaim common.Hash, isAttack bool) TypedCall[any] `sol:"move"`
+	Attack       func(targetClaim common.Hash, targetClaimIndex *big.Int, counterClaim common.Hash) TypedCall[any]            `sol:"attack"`
+	Defend       func(targetClaim common.Hash, targetClaimIndex *big.Int, supportingClaim common.Hash) TypedCall[any]         `sol:"defend"`
+	ResolveClaim func(claimIndex *big.Int, numToResolve *big.Int) TypedCall[any]                                              `sol:"resolveClaim"`
+	Resolve      func() TypedCall[any]                                                                                        `sol:"resolve"`
 }
 
 func NewFaultDisputeGame(opts ...CallFactoryOption) *FaultDisputeGame {

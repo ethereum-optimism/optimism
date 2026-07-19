@@ -139,6 +139,17 @@ func (g *FaultDisputeGame) Defend(eoa *dsl.EOA, claimIdx uint64, newClaim common
 	g.t.Require().Equal(receipt.Status, types.ReceiptStatusSuccessful)
 }
 
+func (g *FaultDisputeGame) ResolveClaim(eoa *dsl.EOA, claimIdx uint64) {
+	resolveCall := g.game.ResolveClaim(new(big.Int).SetUint64(claimIdx), common.Big0)
+	receipt := contract.Write(eoa, resolveCall, txplan.WithGasRatio(2))
+	g.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
+}
+
+func (g *FaultDisputeGame) Resolve(eoa *dsl.EOA) {
+	receipt := contract.Write(eoa, g.game.Resolve(), txplan.WithGasRatio(2))
+	g.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
+}
+
 func (g *FaultDisputeGame) PerformMoves(eoa *dsl.EOA, moves ...GameHelperMove) []*Claim {
 	return g.helperProvider(eoa).PerformMoves(eoa, g, moves)
 }
