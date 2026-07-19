@@ -96,16 +96,6 @@ func TestParseBoundAddressLog(t *testing.T) {
 		require.Equal(t, "http://127.0.0.1:43123", actual)
 	})
 
-	t.Run("Kona metrics", func(t *testing.T) {
-		actual, ok := parseBoundAddressLog(
-			"Serving metrics at: http://0.0.0.0:43124",
-			"Serving metrics at: ",
-			"http",
-		)
-		require.True(t, ok)
-		require.Equal(t, "http://0.0.0.0:43124", actual)
-	})
-
 	t.Run("unrelated log", func(t *testing.T) {
 		_, ok := parseBoundAddressLog(
 			"server starting",

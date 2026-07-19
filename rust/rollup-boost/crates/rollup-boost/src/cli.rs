@@ -140,6 +140,9 @@ impl RollupBoostServiceArgs {
             (health_handle, rpc_module)
         };
 
+        // Build and start the server
+        info!("Starting server on :{}", self.rpc_port);
+
         let http_middleware =
             tower::ServiceBuilder::new()
                 .layer(probe_layer)
