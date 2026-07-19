@@ -224,8 +224,9 @@ type minedTxInfo struct {
 type mockBackend struct {
 	mu sync.RWMutex
 
-	g    *gasPricer
-	send sendTransactionFunc
+	g              *gasPricer
+	send           sendTransactionFunc
+	blobBaseFeeErr error
 
 	// blockHeight tracks the current height of the chain.
 	blockHeight uint64
@@ -356,7 +357,33 @@ func (b *mockBackend) Close() {
 }
 
 func (b *mockBackend) BlobBaseFee(ctx context.Context) (*big.Int, error) {
+	if b.blobBaseFeeErr != nil {
+		return nil, b.blobBaseFeeErr
+	}
 	return big.NewInt(0), nil
+}
+
+func TestDefaultGasPriceEstimatorAllowsMissingBlobBaseFee(t *testing.T) {
+	t.Parallel()
+
+	backend := newMockBackend(newGasPricer(1))
+	backend.blobBaseFeeErr = errors.New("the method eth_blobBaseFee does not exist/is not available: Method not found")
+
+	tip, baseFee, blobBaseFee, err := DefaultGasPriceEstimatorFn(context.Background(), backend)
+	require.NoError(t, err)
+	require.NotNil(t, tip)
+	require.NotNil(t, baseFee)
+	require.Nil(t, blobBaseFee)
+}
+
+func TestDefaultGasPriceEstimatorPropagatesBlobBaseFeeError(t *testing.T) {
+	t.Parallel()
+
+	backend := newMockBackend(newGasPricer(1))
+	backend.blobBaseFeeErr = errors.New("temporary RPC failure")
+
+	_, _, _, err := DefaultGasPriceEstimatorFn(context.Background(), backend)
+	require.ErrorContains(t, err, "temporary RPC failure")
 }
 
 type testSendVariantsFn func(ctx context.Context, h *testHarness, tx TxCandidate) (*types.Receipt, error)

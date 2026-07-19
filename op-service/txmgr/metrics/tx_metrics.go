@@ -189,6 +189,9 @@ func (t *TxMetrics) RecordBaseFee(baseFee *big.Int) {
 }
 
 func (t *TxMetrics) RecordBlobBaseFee(blobBaseFee *big.Int) {
+	if blobBaseFee == nil {
+		return
+	}
 	bff, _ := blobBaseFee.Float64()
 	t.blobBaseFee.Set(bff)
 }
