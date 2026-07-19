@@ -1,8 +1,9 @@
 //! Gap-free WebSocket streaming of canonical unsafe blocks.
 //!
-//! The server treats canonical-state notifications only as wake-ups. Every connection keeps its
-//! own block-number cursor and reads all payload data from the canonical provider, so notification
-//! lag or coalescing cannot create gaps in the stream.
+//! Every connection keeps its own block-number cursor and reads all payload data from the
+//! canonical provider, so notification lag or coalescing cannot create gaps in the stream. Commit
+//! notifications only wake the cursor. Reorg notifications rewind it to the common ancestor so
+//! the replacement canonical blocks are sent using their original block numbers.
 //!
 //! # Wire format
 //!
@@ -14,15 +15,19 @@
 //!
 //! The version byte replaces the P2P topic as the payload schema discriminator. WebSocket already
 //! provides message framing, so no magic, message kind, flags, or body length are needed.
+//!
+//! After a reorg, a connection may receive a block number it has already received. The first such
+//! replacement block builds on the common ancestor. Clients must rewind their unsafe chain to that
+//! parent before applying the replacement block.
 
 use alloy_primitives::B256;
-use futures_util::{SinkExt, Stream, StreamExt};
+use futures_util::{FutureExt, SinkExt, Stream, StreamExt};
 use metrics::{Counter, Gauge, Histogram, counter, gauge, histogram};
 use op_alloy_rpc_types_engine::{
     OpExecutionData, OpExecutionPayload, OpExecutionPayloadEnvelope, OpExecutionPayloadV4,
 };
-use reth_primitives_traits::Block as _;
-use reth_provider::{BlockReader, CanonStateSubscriptions};
+use reth_primitives_traits::{Block as _, NodePrimitives};
+use reth_provider::{BlockReader, CanonStateNotification, CanonStateSubscriptions};
 use ssz::{Decode, Encode};
 use std::{
     fmt,
@@ -192,6 +197,24 @@ impl BlocksServerMetrics {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CanonicalUpdate {
+    Wake,
+    Reorg { fork_number: u64, fork_hash: B256 },
+}
+
+impl<N: NodePrimitives> From<CanonStateNotification<N>> for CanonicalUpdate {
+    fn from(notification: CanonStateNotification<N>) -> Self {
+        match notification {
+            CanonStateNotification::Commit { .. } => Self::Wake,
+            CanonStateNotification::Reorg { old, .. } => {
+                let fork = old.fork_block();
+                Self::Reorg { fork_number: fork.number, fork_hash: fork.hash }
+            }
+        }
+    }
+}
+
 struct ActiveConnectionGuard(Gauge);
 
 impl Drop for ActiveConnectionGuard {
@@ -275,8 +298,9 @@ where
     P: BlockReader + CanonStateSubscriptions + Clone + Send + Sync + 'static,
 {
     // Subscribe before observing the initial head. A notification racing with replay is therefore
-    // queued and only acts as a wake-up; the canonical database remains the source of truth.
-    let mut notifications = provider.canonical_state_stream();
+    // queued. Blocks still come from the canonical database; a reorg notification only supplies
+    // the common ancestor at which the per-connection cursor must restart.
+    let mut notifications = provider.canonical_state_stream().map(CanonicalUpdate::from);
     let mut accepted = None;
     let websocket = accept_hdr_async(stream, |request: &Request, response: Response| {
         let request = validate_handshake(request, &provider, &metrics)?;
@@ -383,7 +407,43 @@ fn handshake_error(status: StatusCode, message: impl Into<String>) -> ErrorRespo
         .expect("valid static handshake response")
 }
 
-async fn stream_blocks<P, S, N>(
+fn apply_canonical_update(
+    update: CanonicalUpdate,
+    next: &mut u64,
+    previous_hash: &mut Option<B256>,
+) -> bool {
+    let CanonicalUpdate::Reorg { fork_number, fork_hash } = update else { return false };
+    let replacement_start = fork_number.saturating_add(1);
+    if replacement_start >= *next {
+        return false;
+    }
+
+    tracing::debug!(target: "reth::blocks", fork_number, %fork_hash, "Rewinding blocks stream after canonical reorg");
+    *next = replacement_start;
+    *previous_hash = Some(fork_hash);
+    true
+}
+
+fn drain_canonical_updates<S>(
+    notifications: &mut S,
+    next: &mut u64,
+    previous_hash: &mut Option<B256>,
+) -> bool
+where
+    S: Stream<Item = CanonicalUpdate> + Unpin,
+{
+    let mut rewound = false;
+    loop {
+        match notifications.next().now_or_never() {
+            Some(Some(update)) => {
+                rewound |= apply_canonical_update(update, next, previous_hash);
+            }
+            Some(None) | None => return rewound,
+        }
+    }
+}
+
+async fn stream_blocks<P, S>(
     websocket: &mut WebSocketStream<TcpStream>,
     provider: &P,
     notifications: &mut S,
@@ -392,11 +452,12 @@ async fn stream_blocks<P, S, N>(
 ) -> Result<(), StreamTermination>
 where
     P: BlockReader + Send + Sync,
-    S: Stream<Item = N> + Unpin,
+    S: Stream<Item = CanonicalUpdate> + Unpin,
 {
     let mut previous_hash = None;
 
-    loop {
+    'stream: loop {
+        drain_canonical_updates(notifications, &mut next, &mut previous_hash);
         let head = provider.best_block_number().map_err(|error| {
             StreamTermination::new("provider", format!("failed to read canonical head: {error}"))
         })?;
@@ -407,6 +468,10 @@ where
         }
 
         while next <= head {
+            if drain_canonical_updates(notifications, &mut next, &mut previous_hash) {
+                continue 'stream;
+            }
+
             let read_started = Instant::now();
             let block = provider.block_by_number(next).map_err(|error| {
                 StreamTermination::new(
@@ -437,13 +502,18 @@ where
                     ),
                 ));
             }
-            if let Some(previous_hash) = previous_hash &&
-                execution_data.parent_hash() != previous_hash
+            if let Some(expected_parent_hash) = previous_hash &&
+                execution_data.parent_hash() != expected_parent_hash
             {
+                // A reorg may have landed after the last notification check but before this
+                // canonical block read. Consume it before treating the mismatch as an error.
+                if drain_canonical_updates(notifications, &mut next, &mut previous_hash) {
+                    continue 'stream;
+                }
                 return Err(StreamTermination::new(
                     "parent_mismatch",
                     format!(
-                        "block {next} parent {} does not match previously sent block {previous_hash}",
+                        "block {next} parent {} does not match previously sent block {expected_parent_hash}",
                         execution_data.parent_hash()
                     ),
                 ));
@@ -467,6 +537,9 @@ where
         // Recheck after replay before waiting. If the head advanced during the last database read
         // or WebSocket write, continue immediately. Otherwise the pre-existing subscription makes
         // any advancement racing with this check visible below.
+        if drain_canonical_updates(notifications, &mut next, &mut previous_hash) {
+            continue 'stream;
+        }
         let rechecked_head = provider.best_block_number().map_err(|error| {
             StreamTermination::new("provider", format!("failed to recheck canonical head: {error}"))
         })?;
@@ -476,12 +549,13 @@ where
 
         tokio::select! {
             notification = notifications.next() => {
-                if notification.is_none() {
+                let Some(update) = notification else {
                     return Err(StreamTermination::new(
                         "notifications_closed",
                         "canonical state notification stream closed",
                     ))
-                }
+                };
+                apply_canonical_update(update, &mut next, &mut previous_hash);
             }
             message = websocket.next() => {
                 match message {
@@ -598,7 +672,15 @@ mod tests {
     }
 
     fn canonical_blocks(first: u64, last: u64) -> Vec<(B256, OpBlock)> {
-        let mut parent_hash = B256::ZERO;
+        canonical_blocks_from(first, last, B256::ZERO, Bytes::new())
+    }
+
+    fn canonical_blocks_from(
+        first: u64,
+        last: u64,
+        mut parent_hash: B256,
+        extra_data: Bytes,
+    ) -> Vec<(B256, OpBlock)> {
         (first..=last)
             .map(|number| {
                 let block = Block {
@@ -608,6 +690,7 @@ mod tests {
                         gas_limit: 30_000_000,
                         base_fee_per_gas: Some(7),
                         timestamp: number,
+                        extra_data: extra_data.clone(),
                         ..Default::default()
                     },
                     body: BlockBody::default(),
@@ -738,7 +821,7 @@ mod tests {
         });
         let (mut client, _) = connect_async(format!("ws://{addr}/blocks")).await.unwrap();
         let mut server_websocket = accept.await.unwrap();
-        let (wake_tx, mut wake_rx) = futures::channel::mpsc::unbounded::<()>();
+        let (wake_tx, mut wake_rx) = futures::channel::mpsc::unbounded::<CanonicalUpdate>();
         let stream_provider = provider.clone();
         let stream = tokio::spawn(async move {
             stream_blocks(
@@ -759,10 +842,62 @@ mod tests {
         // Model several dropped/coalesced canonical notifications: add three blocks but send only
         // one wake-up. The connection must query the latest head and replay all three from storage.
         provider.extend_blocks(blocks[2..].iter().cloned());
-        wake_tx.unbounded_send(()).unwrap();
+        wake_tx.unbounded_send(CanonicalUpdate::Wake).unwrap();
         for expected in 7..=9 {
             let block = receive_frame(&mut client).await;
             assert_eq!(block.execution_payload.block_number(), expected);
+        }
+
+        stream.abort();
+    }
+
+    #[tokio::test]
+    async fn reorg_replays_replacement_blocks_from_fork() {
+        let provider = MockEthProvider::<OpPrimitives>::new();
+        let old_chain = canonical_blocks(5, 8);
+        provider.extend_blocks(old_chain.iter().cloned());
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let accept = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            accept_async(stream).await.unwrap()
+        });
+        let (mut client, _) = connect_async(format!("ws://{addr}/blocks")).await.unwrap();
+        let mut server_websocket = accept.await.unwrap();
+        let (update_tx, mut update_rx) = futures::channel::mpsc::unbounded::<CanonicalUpdate>();
+        let stream_provider = provider.clone();
+        let stream = tokio::spawn(async move {
+            stream_blocks(
+                &mut server_websocket,
+                &stream_provider,
+                &mut update_rx,
+                5,
+                &BlocksServerMetrics::default(),
+            )
+            .await
+        });
+
+        for expected in 5..=8 {
+            let block = receive_frame(&mut client).await;
+            assert_eq!(block.execution_payload.block_number(), expected);
+        }
+
+        let fork_hash = old_chain[1].0;
+        let replacement = canonical_blocks_from(7, 9, fork_hash, Bytes::from_static(&[0x42]));
+        provider.blocks.lock().retain(|_, block| block.header.number <= 6);
+        provider.headers.lock().retain(|_, header| header.number <= 6);
+        provider.extend_blocks(replacement.iter().cloned());
+        update_tx.unbounded_send(CanonicalUpdate::Reorg { fork_number: 6, fork_hash }).unwrap();
+
+        for (index, expected_number) in (7..=9).enumerate() {
+            let block = receive_frame(&mut client).await;
+            assert_eq!(block.execution_payload.block_number(), expected_number);
+            assert_eq!(block.execution_payload.block_hash(), replacement[index].0);
+            if index == 0 {
+                assert_eq!(block.execution_payload.parent_hash(), fork_hash);
+                assert_ne!(block.execution_payload.block_hash(), old_chain[2].0);
+            }
         }
 
         stream.abort();
