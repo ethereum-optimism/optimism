@@ -1973,6 +1973,15 @@
             ]
           },
           {
+            "group": "Use cases",
+            "pages": [
+              "use-cases/index",
+              "use-cases/tune-batcher-costs",
+              "use-cases/run-a-fault-proof-challenger",
+              "use-cases/implement-a-custom-deposit-flow"
+            ]
+          },
+          {
             "group": "Guides",
             "pages": [
               {
@@ -2380,6 +2389,24 @@
             ]
           },
           {
+            "group": "Stack Components",
+            "pages": [
+              "/op-stack/components/index",
+              {
+                "group": "Sequencing",
+                "pages": [
+                  "/op-stack/components/op-batcher"
+                ]
+              },
+              {
+                "group": "Settlement & Proofs",
+                "pages": [
+                  "/op-stack/components/cannon"
+                ]
+              }
+            ]
+          },
+          {
             "group": "Bridging",
             "pages": [
               "/op-stack/bridging/cross-domain",
@@ -2445,6 +2472,7 @@
             "pages": [
               "/op-stack/contribute/content-guide",
               "/op-stack/contribute/link-policy",
+              "/op-stack/contribute/curation-policy",
               "/op-stack/contribute/style-guide",
               {
                 "group": "Choose a content type",
@@ -2455,7 +2483,8 @@
                   "/op-stack/contribute/curriculum-hub",
                   "/op-stack/contribute/router-landing"
                 ]
-              }
+              },
+              "/op-stack/contribute/component-hub-template"
             ]
           }
         ]

@@ -48,7 +48,8 @@ Every solution guide must have, in order:
 
 1.  **Frontmatter**: `title`, `description`, `diataxis: how-to`,
     `content-type: solution-guide`, and `last-reviewed: YYYY-MM-DD` (solution
-    guides are curated artifacts and enter the review sweep on merge).
+    guides are curated artifacts and enter the review sweep on merge, per
+    the [curation review policy](/op-stack/contribute/curation-policy)).
 2.  **Goal statement**: one paragraph naming the outcome, the intended
     reader, and the components involved.
 3.  **Fit test** (`## Is this guide for you?`): bullet conditions for when to
@@ -63,7 +64,7 @@ Every solution guide must have, in order:
     if/choose/because table.
 6.  **Verification** (final step): how the reader confirms the goal is
     reached.
-7.  **Curated exits** (`## Curated exits`): the deliberate ways out —
+7.  **Next steps** (`## Next steps`): the deliberate, curated ways out —
     deeper reference, the normative spec, upstream material — each with a
     one-line reason and, where the target is version-pinned or
     hand-maintained, an "as of" marker.
@@ -129,7 +130,7 @@ nowhere else:>
 <How the reader confirms the goal is reached: the metric, output, or state
 to check, and what a good result looks like.>
 
-## Curated exits
+## Next steps
 
 *   [<Exit title>](<url>) — <what the reader gets there>. <As of `<tag or
     date>` for version-pinned or hand-maintained targets.>
@@ -139,10 +140,9 @@ to check, and what a good result looks like.>
 
 ## Exemplars
 
-No solution guide exists on the site yet; the first, "Tune batcher costs",
-ships with the Use Cases section and must pass review against this spec.
-Until then, calibrate against:
-
+*   [Tune batcher costs](/use-cases/tune-batcher-costs): the first solution
+    guide and the proof of the form, with derive-links stating explicit
+    takeaways, if/choose/because tables, and badged exits.
 *   [Configure the batcher](/chain-operators/guides/configuration/batcher) —
     the central stop of the batcher-costs journey: the depth a solution
     guide links *into* rather than reproduces.

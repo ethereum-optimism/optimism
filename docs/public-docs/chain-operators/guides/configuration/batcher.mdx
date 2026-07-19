@@ -58,7 +58,7 @@ To minimize costs, we recommend setting your  `OP_BATCHER_MAX_CHANNEL_DURATION` 
   When there's blob congestion, running with high blob counts can backfire, because you will have a harder time getting blobs included and then fees will bump, which always means a doubling of the priority fees.
 </Info>
 
-The `op-batcher` has the capabilities to send multiple blobs per single blob transaction. This is accomplished by the use of multi-frame channels, see the [specs](https://specs.optimism.io/protocol/derivation.html#frame-format?utm_source=op-docs&utm_medium=docs) for more technical details on channels and frames.
+The `op-batcher` has the capabilities to send multiple blobs per single blob transaction. This is accomplished by the use of multi-frame channels, see the [specs](https://specs.optimism.io/protocol/derivation.html?utm_source=op-docs&utm_medium=docs#frame-format) for more technical details on channels and frames.
 
 A minimal batcher configuration (with env vars) to enable 6-blob batcher transactions is:
 
