@@ -28,11 +28,6 @@ tracing-appender.workspace = true
 metrics-exporter-prometheus = { workspace = true, features = ["http-listener"] }
 metrics-process.workspace = true
 thiserror.workspace = true
-bytes.workspace = true
-http-body-util.workspace = true
-hyper = { workspace = true, features = ["http1", "server"] }
-hyper-util = { workspace = true, features = ["tokio"] }
-tokio = { workspace = true, features = ["net", "rt", "time"] }
 
 # `secrets` feature
 libp2p = { workspace = true, features = ["secp256k1"], optional = true }

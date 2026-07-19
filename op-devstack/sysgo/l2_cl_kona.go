@@ -2,8 +2,6 @@ package sysgo
 
 import (
 	"context"
-	"net/url"
-	"strings"
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -31,8 +29,6 @@ type KonaNode struct {
 	p devtest.T
 
 	sub *SubProcess
-
-	l2MetricsRegistrar L2MetricsRegistrar
 }
 
 func (k *KonaNode) Start() {
@@ -59,21 +55,9 @@ func (k *KonaNode) Start() {
 	logErr := logpipe.ToLoggerWithMinLevel(k.p.Logger().New("component", "kona-node", "src", "stderr"), log.LevelWarn)
 	userRPCChan := make(chan string, 1)
 
-	metricsTargetChan := make(chan PrometheusMetricsTarget, 1)
-
 	onLogEntry := func(e logpipe.LogEntry) {
-		msg := e.LogMessage()
-		if msg == "RPC server bound to address" {
+		if e.LogMessage() == "RPC server bound to address" {
 			userRPCChan <- "http://" + e.FieldValue("addr").(string)
-		} else if strings.HasPrefix(msg, "Serving metrics at: ") {
-			metricsURL, ok := parseBoundAddressLog(msg, "Serving metrics at: ", "http")
-			k.p.Require().True(ok, "invalid metrics URL output in logs", "log", msg)
-			parsedURL, err := url.Parse(metricsURL)
-			k.p.Require().NoError(err, "invalid metrics URL output in logs", "log", msg)
-			select {
-			case metricsTargetChan <- NewPrometheusMetricsTarget(parsedURL.Hostname(), parsedURL.Port(), false):
-			default:
-			}
 		}
 	}
 	stdOutLogs := logpipe.LogCallback(func(line []byte) {
@@ -105,22 +89,6 @@ func (k *KonaNode) Start() {
 		}
 	case <-k.p.Ctx().Done():
 		k.p.Require().NoError(k.p.Ctx().Err(), "need user RPC")
-	}
-
-	if areMetricsEnabled() {
-		var metricsTarget PrometheusMetricsTarget
-		select {
-		case metricsTarget = <-metricsTargetChan:
-		case <-k.sub.Exited():
-			select {
-			case metricsTarget = <-metricsTargetChan:
-			default:
-				k.p.Require().FailNow("kona-node exited before its metrics server became ready")
-			}
-		case <-k.p.Ctx().Done():
-			k.p.Require().NoError(k.p.Ctx().Err(), "need metrics endpoint")
-		}
-		k.l2MetricsRegistrar.RegisterL2MetricsTargets(k.name, metricsTarget)
 	}
 
 	k.userProxy.SetUpstream(ProxyAddr(k.p.Require(), userRPCAddr))
