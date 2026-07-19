@@ -56,6 +56,7 @@ tokio-util.workspace = true
 async-trait.workspace = true
 async-stream.workspace = true
 tokio-stream.workspace = true
+tokio-tungstenite.workspace = true
 strum = { workspace = true, features = ["derive"] }
 backon.workspace = true
 derive_more = { workspace = true, features = ["debug", "eq"] }

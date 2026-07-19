@@ -5,6 +5,12 @@
 mod traits;
 pub use traits::NodeActor;
 
+mod blocks;
+pub use blocks::{
+    BlocksClient, BlocksClientActor, BlocksClientActorError, BlocksClientError,
+    MAX_BLOCK_FRAME_SIZE,
+};
+
 mod engine;
 pub use engine::{
     BuildRequest, EngineActor, EngineActorRequest, EngineClientError, EngineClientResult,
