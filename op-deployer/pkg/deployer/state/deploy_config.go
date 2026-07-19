@@ -166,11 +166,19 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 		}
 	}
 
+	if cfg.GasPriceOracleScalar == 0 && !ecotoneActiveAtGenesis(cfg) {
+		cfg.GasPriceOracleScalar = uint64(standard.BasefeeScalar)
+	}
+
 	if err := cfg.Check(log.New(log.DiscardHandler())); err != nil {
 		return cfg, fmt.Errorf("combined deploy config failed validation: %w", err)
 	}
 
 	return cfg, nil
+}
+
+func ecotoneActiveAtGenesis(cfg genesis.DeployConfig) bool {
+	return cfg.L2GenesisEcotoneTimeOffset != nil && uint64(*cfg.L2GenesisEcotoneTimeOffset) == 0
 }
 
 func calculateBatchInboxAddr(chainID common.Hash) common.Address {
