@@ -1,0 +1,69 @@
+---
+title: op-batcher
+description: Canonical hub for op-batcher, the OP Stack batch submitter — what it does, who runs it, and where its guides, reference, releases, source, and spec live.
+diataxis: explanation
+---
+
+op-batcher is the OP Stack's batch submitter: the service that makes an L2
+chain's transaction data available by posting it to the data availability
+layer.
+
+## Overview
+
+op-batcher reads unsafe blocks from the sequencer, compresses them into
+channels, splits the channels into frames, and submits those frames to the
+data availability layer — as Ethereum calldata or blob transactions, or via
+an [Alt-DA](/op-stack/features/experimental/alt-da-mode) layer. It can also
+select between calldata and blobs automatically based on current L1 prices.
+
+It exists because an OP Stack chain is *derived* from the data availability
+layer: until op-batcher posts a block's data, verifier nodes cannot derive it
+and the chain's safe head does not advance. Batches must also land within the
+chain's sequencing window — see the
+[batcher guide](/chain-operators/guides/configuration/batcher) for the policy
+constraints.
+
+**Who runs it:** the chain operator, as part of the sequencer's
+infrastructure, submitting from the chain's batch submitter address. During
+data availability backlogs, op-batcher can also instruct the block builder to
+throttle how much DA-consuming data new L2 blocks include.
+
+## Get started
+
+*   [Spin up batcher](/chain-operators/tutorials/create-l2-rollup/op-batcher-setup)
+    — set up and configure op-batcher as part of standing up an OP Stack
+    chain.
+
+## How-tos
+
+*   [Configure the batcher](/chain-operators/guides/configuration/batcher) —
+    batcher policy, cost tuning, multi-blob transactions, and sequencer
+    throttling.
+*   [Using Blobs](/chain-operators/guides/features/blobs) — switch the chain's
+    data availability type to blobs.
+*   [Enable span batches](/chain-operators/guides/features/enable-span-batches)
+    — configure the batch type on op-batcher.
+*   [How to run an Alt-DA mode chain](/chain-operators/guides/features/alt-da-mode-guide)
+    — post data to an Alt-DA layer instead of Ethereum.
+
+## Configuration & flags reference
+
+*   [Batcher configuration reference](/chain-operators/reference/batcher-configuration)
+    — every CLI flag and environment variable, with defaults. The reference
+    page states the release it was written against.
+
+## Releases
+
+*   [op-batcher release history](/releases/op-batcher)
+
+## Source & spec links
+
+*   [Source: `op-batcher/`](https://github.com/ethereum-optimism/optimism/tree/develop/op-batcher)
+    in the Optimism monorepo — its [README](https://github.com/ethereum-optimism/optimism/blob/develop/op-batcher/readme.md)
+    documents the internal architecture and design principles.
+*   [DA throttling deep-dive](https://github.com/ethereum-optimism/optimism/blob/develop/op-batcher/throttling.md)
+    — in-repo documentation of the throttling controllers (step, linear,
+    quadratic, and PID), their configuration, and runtime management over
+    RPC.
+*   [Batch submitter specification](https://specs.optimism.io/protocol/batcher.html)
+    — the normative definition of the batcher's role.

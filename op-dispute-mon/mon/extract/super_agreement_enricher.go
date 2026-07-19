@@ -15,8 +15,8 @@ import (
 )
 
 var (
-	ErrSuperNodeRpcRequired     = errors.New("super node rpc required")
-	ErrAllSuperNodesUnavailable = errors.New("all super nodes returned errors")
+	ErrSuperRootRpcRequired        = errors.New("super root RPC required")
+	ErrAllSuperRootRpcsUnavailable = errors.New("all super root RPC sources returned errors")
 )
 
 type SuperRootProvider interface {
@@ -51,7 +51,7 @@ func (e *SuperAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Bloc
 		return nil
 	}
 	if len(e.clients) == 0 {
-		return fmt.Errorf("%w but required for game type %v", ErrSuperNodeRpcRequired, game.GameType)
+		return fmt.Errorf("%w but required for game type %v", ErrSuperRootRpcRequired, game.GameType)
 	}
 
 	game.NodeEndpointTotalCount = len(e.clients)
@@ -117,7 +117,7 @@ func (e *SuperAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Bloc
 
 	// If all results were errors, return an error
 	if len(validResults) == 0 {
-		return fmt.Errorf("failed to get super root at timestamp: %w", ErrAllSuperNodesUnavailable)
+		return fmt.Errorf("failed to get super root at timestamp: %w", ErrAllSuperRootRpcsUnavailable)
 	}
 
 	// If all remaining nodes returned "not found", we disagree with any claim.
