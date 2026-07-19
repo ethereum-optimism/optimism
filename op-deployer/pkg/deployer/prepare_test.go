@@ -463,11 +463,19 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 	}
 }
 
-func TestPredictChains_ClearsOnlyRepredictedPrestates(t *testing.T) {
+func TestPredictChains_ClearsOnlyRepredictedPreparedInputs(t *testing.T) {
 	deployedID := common.HexToHash("0x0a")
 	freshID := common.HexToHash("0x0b")
 	deployedPrestate := common.HexToHash("0xdead")
 	freshPrestate := common.HexToHash("0xbeef")
+	deployedStartingAnchorRoot := &state.StartingAnchorProposal{
+		Root:             common.HexToHash("0x1111"),
+		L2SequenceNumber: 1,
+	}
+	freshStartingAnchorRoot := &state.StartingAnchorProposal{
+		Root:             common.HexToHash("0x2222"),
+		L2SequenceNumber: 2,
+	}
 
 	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
 	superchainConfig := common.HexToAddress("0xbbbb000000000000000000000000000000000002")
@@ -495,11 +503,13 @@ func TestPredictChains_ClearsOnlyRepredictedPrestates(t *testing.T) {
 	deployed, err := st.Chain(deployedID)
 	require.NoError(t, err)
 	deployed.Prestate = deployedPrestate
+	deployed.StartingAnchorRoot = deployedStartingAnchorRoot
 	deployedInitialGameType := uint32(embedded.GameTypeSuperPermissioned)
 	deployed.InitialGameType = &deployedInitialGameType
 	fresh, err := st.Chain(freshID)
 	require.NoError(t, err)
 	fresh.Prestate = freshPrestate
+	fresh.StartingAnchorRoot = freshStartingAnchorRoot
 	freshInitialGameType := uint32(embedded.GameTypePermissionedCannon)
 	fresh.InitialGameType = &freshInitialGameType
 
@@ -533,12 +543,14 @@ func TestPredictChains_ClearsOnlyRepredictedPrestates(t *testing.T) {
 	require.True(t, *deployed.Deployed)
 	require.Equal(t, deployedContracts.SystemConfigProxy, deployed.SystemConfigProxy)
 	require.Equal(t, deployedPrestate, deployed.Prestate)
+	require.Equal(t, deployedStartingAnchorRoot, deployed.StartingAnchorRoot)
 	require.Equal(t, uint32(embedded.GameTypeSuperPermissioned), *deployed.InitialGameType)
 
 	require.NotNil(t, fresh.Deployed)
 	require.False(t, *fresh.Deployed)
 	require.Equal(t, common.HexToAddress("0xbeef"), fresh.SystemConfigProxy)
 	require.Zero(t, fresh.Prestate)
+	require.Nil(t, fresh.StartingAnchorRoot)
 	require.Equal(t, uint32(embedded.GameTypeCannonKona), *fresh.InitialGameType)
 }
 

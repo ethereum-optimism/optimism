@@ -136,6 +136,12 @@ type AdditionalDisputeGameState struct {
 	VMType        VMType
 }
 
+// StartingAnchorProposal is the committed starting-anchor proposal for a permissionless chain.
+type StartingAnchorProposal struct {
+	Root             common.Hash    `json:"root"`
+	L2SequenceNumber hexutil.Uint64 `json:"l2SequenceNumber"`
+}
+
 type ChainState struct {
 	ID common.Hash `json:"id"`
 
@@ -148,6 +154,10 @@ type ChainState struct {
 	// TODO(#20912): Consume the committed prestates when building the OP-chain deploy input.
 	// Prestate is the selected absolute prestate for permissionless games.
 	Prestate common.Hash `json:"prestate,omitzero"`
+
+	// StartingAnchorRoot is produced by the proposal-producing stage and consumed
+	// when building the continuation deploy input.
+	StartingAnchorRoot *StartingAnchorProposal `json:"startingAnchorRoot,omitempty"`
 
 	// InitialGameType is the dispute game type used to predict this chain during prepare.
 	// A nil value means the state predates recording this preparation input.

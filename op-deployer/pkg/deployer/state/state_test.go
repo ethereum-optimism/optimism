@@ -59,6 +59,56 @@ func TestState_PrestateJSONOmitsZeroValue(t *testing.T) {
 	}
 }
 
+func TestState_StartingAnchorRootJSONRoundTrip(t *testing.T) {
+	chainID := common.HexToHash("0x01")
+	proposal := &StartingAnchorProposal{
+		Root:             common.HexToHash("0x2222222222222222222222222222222222222222222222222222222222222222"),
+		L2SequenceNumber: 0,
+	}
+	st := &State{
+		Chains: []*ChainState{{
+			ID:                 chainID,
+			StartingAnchorRoot: proposal,
+		}},
+	}
+
+	data, err := json.Marshal(st)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"startingAnchorRoot":{"root":"`+proposal.Root.Hex()+`","l2SequenceNumber":"0x0"}`)
+
+	var roundTripped State
+	require.NoError(t, json.Unmarshal(data, &roundTripped))
+	chain, err := roundTripped.Chain(chainID)
+	require.NoError(t, err)
+	require.Equal(t, proposal, chain.StartingAnchorRoot)
+}
+
+func TestState_StartingAnchorRootJSONBackwardCompatibility(t *testing.T) {
+	chainID := common.HexToHash("0x01")
+
+	t.Run("nil omitted", func(t *testing.T) {
+		st := &State{
+			Chains: []*ChainState{{
+				ID: chainID,
+			}},
+		}
+
+		data, err := json.Marshal(st)
+		require.NoError(t, err)
+		require.NotContains(t, string(data), `"startingAnchorRoot"`)
+	})
+
+	t.Run("legacy JSON decodes to nil", func(t *testing.T) {
+		data := []byte(`{"opChainDeployments":[{"id":"` + chainID.Hex() + `"}]}`)
+
+		var st State
+		require.NoError(t, json.Unmarshal(data, &st))
+		chain, err := st.Chain(chainID)
+		require.NoError(t, err)
+		require.Nil(t, chain.StartingAnchorRoot)
+	})
+}
+
 func TestState_InitialGameTypeJSONRoundTrip(t *testing.T) {
 	chainID := common.HexToHash("0x01")
 	st := &State{
@@ -244,6 +294,11 @@ func TestState_SetChainContracts(t *testing.T) {
 	s.Chains[0].StartBlock = &L1BlockRefJSON{Hash: common.HexToHash("0xdead")}
 	prestate := common.HexToHash("0x1234")
 	s.Chains[0].Prestate = prestate
+	startingAnchorRoot := &StartingAnchorProposal{
+		Root:             common.HexToHash("0x5678"),
+		L2SequenceNumber: 9,
+	}
+	s.Chains[0].StartingAnchorRoot = startingAnchorRoot
 	s.Chains[0].InitialGameType = ptr.New(uint32(8))
 	s.SetChainContracts(chainA, contractsWith("0xa2"), true)
 	require.Len(t, s.Chains, 2)
@@ -256,6 +311,7 @@ func TestState_SetChainContracts(t *testing.T) {
 	require.NotNil(t, got.StartBlock, "other fields must be preserved on update")
 	require.Equal(t, common.HexToHash("0xdead"), got.StartBlock.Hash)
 	require.Equal(t, prestate, got.Prestate, "prestate must be preserved on update")
+	require.Equal(t, startingAnchorRoot, got.StartingAnchorRoot, "starting anchor root must be preserved on update")
 	require.Equal(t, ptr.New(uint32(8)), got.InitialGameType, "initial game type must be preserved on update")
 }
 

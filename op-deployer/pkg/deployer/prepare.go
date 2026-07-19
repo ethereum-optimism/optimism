@@ -246,9 +246,10 @@ func predictChains(lgr log.Logger, intent *state.Intent, st *state.State, run fu
 		st.SetChainContracts(chain.ID, pipeline.OpChainContractsFromDeployOutput(out), false)
 		chainState, err := st.Chain(chain.ID)
 		if err != nil {
-			return fmt.Errorf("failed to clear prestate for chain %s: %w", chain.ID.Hex(), err)
+			return fmt.Errorf("failed to clear prepared inputs for chain %s: %w", chain.ID.Hex(), err)
 		}
 		chainState.Prestate = common.Hash{}
+		chainState.StartingAnchorRoot = nil
 		gameType := dci.DisputeGameType
 		chainState.InitialGameType = &gameType
 
