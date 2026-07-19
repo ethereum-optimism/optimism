@@ -32,14 +32,14 @@ For more information on the Holocene implementation details, please review [Holo
 
 Chain operators should upgrade their nodes ahead of the activation times to a release that contains the Holocene changes and has the activation times for their chains baked in, or set the activation times manually via overrides.
 
-Besides this, several L1 contract updates must be performed, the fault proof contracts should be updated before the Holocene activation. The `SystemConfig` should be upgraded after the Holocene activation. We have prepared an [upgrade script](https://github.com/ethereum-optimism/optimism/tree/op-contracts/v1.8.0-rc.4/packages/contracts-bedrock/scripts/upgrades/holocene) to automate most of the deployments and superchain-ops task generation or Safe multi-sig input bundle generation.
+Besides this, several L1 contract updates must be performed, the fault proof contracts should be updated before the Holocene activation. The `SystemConfig` should be upgraded after the Holocene activation. We have prepared an [upgrade script](https://github.com/ethereum-optimism/optimism/tree/op-contracts/v1.8.0-rc.4/packages/contracts-bedrock/scripts/upgrades/holocene) (as of `op-contracts/v1.8.0-rc.4`) to automate most of the deployments and superchain-ops task generation or Safe multi-sig input bundle generation.
 
 Chain operators must upgrade their chain's `SystemConfig` to the latest OP Contracts [v1.8.0-rc.3 release](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts%2Fv1.8.0-rc.3) to utilize the EIP-1559 configurability. The updated `SystemConfig` implementations are deployed at addresses:
 
-*   Sepolia: `0x33b83E4C305c908B2Fc181dDa36e230213058d7d` - [Superchain Registry validation file](https://github.com/ethereum-optimism/superchain-registry/blob/ca80c8f88003d599428b79fefc741ceca049da6f/validation/standard/standard-versions-sepolia.toml#L9)
-*   Mainnet: `0xAB9d6cB7A427c0765163A7f45BB91cAfe5f2D375` - [Superchain Registry validation file](https://github.com/ethereum-optimism/superchain-registry/blob/ca80c8f88003d599428b79fefc741ceca049da6f/validation/standard/standard-versions-mainnet.toml#L9)
+*   Sepolia: `0x33b83E4C305c908B2Fc181dDa36e230213058d7d` - [Superchain Registry validation file](https://github.com/ethereum-optimism/superchain-registry/blob/ca80c8f88003d599428b79fefc741ceca049da6f/validation/standard/standard-versions-sepolia.toml#L9) (as of `ca80c8f`)
+*   Mainnet: `0xAB9d6cB7A427c0765163A7f45BB91cAfe5f2D375` - [Superchain Registry validation file](https://github.com/ethereum-optimism/superchain-registry/blob/ca80c8f88003d599428b79fefc741ceca049da6f/validation/standard/standard-versions-mainnet.toml#L9) (as of `ca80c8f`)
 
-Chain operators need to update their proxy contracts to point to these new implementations. The upgrade script in the monorepo can be used to facilitate the upgrade, please follow the instructions in this [README](https://github.com/ethereum-optimism/optimism/tree/op-contracts/v1.8.0-rc.4/packages/contracts-bedrock/scripts/upgrades/holocene/README.md). Note that it is recommended to upgrade the `SystemConfig` after the Holocene activation. You need to upgrade if you want to reconfigure your EIP-1559 parameters.
+Chain operators need to update their proxy contracts to point to these new implementations. The upgrade script in the monorepo can be used to facilitate the upgrade, please follow the instructions in this [README](https://github.com/ethereum-optimism/optimism/tree/op-contracts/v1.8.0-rc.4/packages/contracts-bedrock/scripts/upgrades/holocene/README.md) (as of `op-contracts/v1.8.0-rc.4`). Note that it is recommended to upgrade the `SystemConfig` after the Holocene activation. You need to upgrade if you want to reconfigure your EIP-1559 parameters.
 
 ### For fault proof enabled chains
 
@@ -47,10 +47,10 @@ Since the Holocene upgrade changes the execution and derivation rules, the versi
 
 The `FaultDisputeGame` and `PermissionedDisputeGame` contracts must be deployed separately for each chain. The `MIPS` contract implementation can be shared by all chains and is deployed at:
 
-*   Sepolia: `0x69470D6970Cd2A006b84B1d4d70179c892cFCE01` - [Superchain Registry validation file](https://github.com/ethereum-optimism/superchain-registry/blob/ca80c8f88003d599428b79fefc741ceca049da6f/validation/standard/standard-versions-mainnet.toml#L12)
-*   Mainnet: `0x5fE03a12C1236F9C22Cb6479778DDAa4bce6299C` - [Superchain Registry validation file](https://github.com/ethereum-optimism/superchain-registry/blob/ca80c8f88003d599428b79fefc741ceca049da6f/validation/standard/standard-versions-mainnet.toml#L12)
+*   Sepolia: `0x69470D6970Cd2A006b84B1d4d70179c892cFCE01` - [Superchain Registry validation file](https://github.com/ethereum-optimism/superchain-registry/blob/ca80c8f88003d599428b79fefc741ceca049da6f/validation/standard/standard-versions-mainnet.toml#L12) (as of `ca80c8f`)
+*   Mainnet: `0x5fE03a12C1236F9C22Cb6479778DDAa4bce6299C` - [Superchain Registry validation file](https://github.com/ethereum-optimism/superchain-registry/blob/ca80c8f88003d599428b79fefc741ceca049da6f/validation/standard/standard-versions-mainnet.toml#L12) (as of `ca80c8f`)
 
-Chain operators need to update the `DisputeGameFactory` to use the new `FaultDisputeGame` and `PermissionedDisputeGame` contracts by calling `DisputeGameFactory.setImplementation`. The same upgrade script in the monorepo can be used to facilitate the upgrade, please follow the instructions in this [README](https://github.com/ethereum-optimism/optimism/tree/op-contracts/v1.8.0-rc.4/packages/contracts-bedrock/scripts/upgrades/holocene/README.md).
+Chain operators need to update the `DisputeGameFactory` to use the new `FaultDisputeGame` and `PermissionedDisputeGame` contracts by calling `DisputeGameFactory.setImplementation`. The same upgrade script in the monorepo can be used to facilitate the upgrade, please follow the instructions in this [README](https://github.com/ethereum-optimism/optimism/tree/op-contracts/v1.8.0-rc.4/packages/contracts-bedrock/scripts/upgrades/holocene/README.md) (as of `op-contracts/v1.8.0-rc.4`).
 
 ## For node operators
 

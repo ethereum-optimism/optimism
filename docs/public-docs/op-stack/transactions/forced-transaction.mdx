@@ -42,7 +42,7 @@ Under normal circumstances:
     *   **Extended Downtime (30 minutes to 12 hours):**
         During sequencer downtimes lasting between 30 minutes and 12 hours:
 
-        *   Deposit Transactions: Users can submit forced transactions directly to the [`OptimismPortal`](https://github.com/ethereum-optimism/optimism/blob/111f3f3a3a2881899662e53e0f1b2f845b188a38/packages/contracts-bedrock/src/L1/OptimismPortal.sol#L209) contract on L1. However, these transactions will only be included in the L2 chain once the sequencer resumes or the 12-hour sequencing window expires.
+        *   Deposit Transactions: Users can submit forced transactions directly to the [`OptimismPortal`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OptimismPortal2.sol#L684) contract on L1. However, these transactions will only be included in the L2 chain once the sequencer resumes or the 12-hour sequencing window expires.
             Refer to the [Bypassing the Sequencer](/op-stack/protocol/outages#bypassing-the-sequencer) section for more information about this functionality.
         *   L2 Chain State: The L2 chain's state remains uncertain until either:
             The sequencer resumes operations and processes pending transactions, or

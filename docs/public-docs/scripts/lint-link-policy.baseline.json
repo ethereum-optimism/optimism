@@ -2,196 +2,6 @@
   "comment": "Pre-existing link-policy violations, baselined so CI blocks only NEW violations. This file is the worklist for the B2 remediation sweep — shrink it, never grow it. Regenerate: node scripts/lint-link-policy.mjs --update-baseline [--specs-src <dir>]",
   "findings": [
     {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/guides/bridging/custom-bridge.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/87dd5a4743380b717dac44a4e55c5e6e60e32684/packages/contracts-bedrock/src/universal/StandardBridge.sol"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/guides/bridging/custom-bridge.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/v1.1.4/packages/contracts-bedrock/src/L1/L1ERC721Bridge.sol"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/guides/bridging/messaging.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/111f3f3a3a2881899662e53e0f1b2f845b188a38/packages/contracts-bedrock/src/L1/OptimismPortal.sol#L209"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/guides/bridging/messaging.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/111f3f3a3a2881899662e53e0f1b2f845b188a38/packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/guides/bridging/messaging.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/111f3f3a3a2881899662e53e0f1b2f845b188a38/packages/contracts-bedrock/src/L1/OptimismPortal.sol"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/guides/bridging/standard-bridge.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/65ec61dde94ffa93342728d324fecf474d228e1f/packages/contracts-bedrock/contracts/L1/L1StandardBridge.sol"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/guides/bridging/standard-bridge.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/65ec61dde94ffa93342728d324fecf474d228e1f/packages/contracts-bedrock/contracts/L2/L2StandardBridge.sol"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/guides/bridging/standard-bridge.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/2e647210882d961f04055e656590d90ad98c9934/packages/contracts-bedrock/src/universal/IOptimismMintableERC20.sol#L6-L18"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/guides/bridging/standard-bridge.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/2e647210882d961f04055e656590d90ad98c9934/packages/contracts-bedrock/src/universal/StandardBridge.sol#L193-L217"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/guides/bridging/standard-bridge.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/2e647210882d961f04055e656590d90ad98c9934/packages/contracts-bedrock/src/universal/StandardBridge.sol#L168-L191"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/guides/bridging/standard-bridge.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/2e647210882d961f04055e656590d90ad98c9934/packages/contracts-bedrock/src/universal/StandardBridge.sol#L41-L42"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/guides/bridging/standard-bridge.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/2e647210882d961f04055e656590d90ad98c9934/packages/contracts-bedrock/src/universal/StandardBridge.sol#L250-L287"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/guides/bridging/standard-bridge.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/2e647210882d961f04055e656590d90ad98c9934/packages/contracts-bedrock/src/universal/StandardBridge.sol#L269"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/guides/bridging/standard-bridge.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/2e647210882d961f04055e656590d90ad98c9934/packages/contracts-bedrock/src/universal/StandardBridge.sol#L271"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/guides/bridging/standard-bridge.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/2e647210882d961f04055e656590d90ad98c9934/packages/contracts-bedrock/src/universal/StandardBridge.sol#L272"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/guides/bridging/standard-bridge.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/2e647210882d961f04055e656590d90ad98c9934/packages/contracts-bedrock/src/universal/StandardBridge.sol#L273-L276"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/guides/bridging/standard-bridge.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/2e647210882d961f04055e656590d90ad98c9934/packages/contracts-bedrock/src/universal/StandardBridge.sol#L278"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/guides/bridging/standard-bridge.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/8ed8be8806208976e63421bd68779477d12295b5/packages/contracts-bedrock/src/universal/IOptimismMintableERC20.sol"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/guides/bridging/standard-bridge.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/2e647210882d961f04055e656590d90ad98c9934/packages/contracts-bedrock/src/universal/StandardBridge.sol#L193-L217"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/guides/bridging/standard-bridge.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/2e647210882d961f04055e656590d90ad98c9934/packages/contracts-bedrock/src/universal/StandardBridge.sol#L345"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/guides/bridging/standard-bridge.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/2e647210882d961f04055e656590d90ad98c9934/packages/contracts-bedrock/src/universal/StandardBridge.sol#L250-L287"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/guides/bridging/standard-bridge.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/2e647210882d961f04055e656590d90ad98c9934/packages/contracts-bedrock/src/universal/StandardBridge.sol#L269"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/guides/bridging/standard-bridge.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/2e647210882d961f04055e656590d90ad98c9934/packages/contracts-bedrock/src/universal/StandardBridge.sol#L271"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/guides/bridging/standard-bridge.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/2e647210882d961f04055e656590d90ad98c9934/packages/contracts-bedrock/src/universal/StandardBridge.sol#L280-L281"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/guides/bridging/standard-bridge.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/2e647210882d961f04055e656590d90ad98c9934/packages/contracts-bedrock/src/universal/StandardBridge.sol#L143-L150"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/guides/bridging/standard-bridge.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/2e647210882d961f04055e656590d90ad98c9934/packages/contracts-bedrock/src/universal/StandardBridge.sol#L152-L166"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/guides/bridging/standard-bridge.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/2e647210882d961f04055e656590d90ad98c9934/packages/contracts-bedrock/src/universal/StandardBridge.sol#L119-L121"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/guides/interoperability/message-expiration.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/a979a9444dbb482843f2a42f437ced54a8ac1053/packages/contracts-bedrock/interfaces/L2/IL2ToL2CrossDomainMessenger.sol#L110-L128"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/guides/interoperability/message-expiration.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/a979a9444dbb482843f2a42f437ced54a8ac1053/packages/contracts-bedrock/interfaces/L2/IL2ToL2CrossDomainMessenger.sol#L110-L128"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/guides/interoperability/reading-logs.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/af091753917c1d7101314cbfe8ac5cbc2efe0e5e/packages/contracts-bedrock/src/L2/CrossL2Inbox.sol#L49"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/guides/interoperability/reading-logs.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/af091753917c1d7101314cbfe8ac5cbc2efe0e5e/packages/contracts-bedrock/src/L2/CrossL2Inbox.sol#L33"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/guides/transactions/estimates.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/233ede59d16cb01bdd8e7ff662a153a4c3178bdd/packages/contracts/contracts/L2/predeploys/OVM_GasPriceOracle.sol"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/guides/transactions/estimates.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/233ede59d16cb01bdd8e7ff662a153a4c3178bdd/packages/contracts/contracts/L2/predeploys/OVM_GasPriceOracle.sol#L109-L124"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/guides/transactions/estimates.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/233ede59d16cb01bdd8e7ff662a153a4c3178bdd/packages/contracts/contracts/L2/predeploys/OVM_GasPriceOracle.sol"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/reference/tools/supersim/included-contracts.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism-legacy/blob/8205f678b7b4ac4625c2afe351b9c82ffaa2e795/packages/contracts-bedrock/contracts/L1/OptimismPortal.sol"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/tools/data/oracles.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/233ede59d16cb01bdd8e7ff662a153a4c3178bdd/packages/contracts/contracts/L2/predeploys/OVM_GasPriceOracle.sol"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/tutorials/bridging/standard-bridge-custom-token.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/v1.12.2/packages/contracts-bedrock/src/universal/OptimismMintableERC20.sol"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "app-developers/tutorials/bridging/standard-bridge-standard-token.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/v1.12.0/packages/contracts-bedrock/src/universal/OptimismMintableERC20.sol"
-    },
-    {
       "rule": "spec-blob-link",
       "file": "chain-operators/guides/configuration/batcher.mdx",
       "url": "https://github.com/ethereum-optimism/specs/blob/main/specs/glossary.md#safe-l2-head"
@@ -210,171 +20,6 @@
       "rule": "dead-internal-link",
       "file": "chain-operators/guides/management/troubleshooting.mdx",
       "url": "/chain-operators/tutorials/create-l2-rollup/op-reth-setup"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "chain-operators/tutorials/adding-derivation-attributes.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/c9cd1215b76111888e25ee27a49a0bc0c4eeb0f8/op-node/rollup/derive/l1_block_info.go"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "chain-operators/tutorials/dispute-games.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/6dc586d551f55b2b3a607cfcca9d3d272dec84d7/packages/contracts-bedrock/src/dispute/DelayedWETH.sol"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "chain-operators/tutorials/migrating-permissionless.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/6e563de4a847c54ddd4e6d2e38bc21e8f6067680/packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "chain-operators/tutorials/modifying-predeploys.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/129032f15b76b0d2a940443a39433de931a97a44/packages/contracts-bedrock/src/constants.ts"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "chain-operators/tutorials/modifying-predeploys.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/129032f15b76b0d2a940443a39433de931a97a44/packages/contracts-bedrock/contracts/universal/ProxyAdmin.sol"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "chain-operators/tutorials/modifying-predeploys.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/129032f15b76b0d2a940443a39433de931a97a44/packages/contracts-bedrock/contracts/universal/ProxyAdmin.sol#L205-L229"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "node-operators/reference/op-node-config.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/844cc20084a2e9716631b4092ce7eca4804a8e0a/op-service/sources/receipts_rpc.go#L239-L322"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "notices/archive/fusaka-notice.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/tree/op-program/v1.8.0-rc.4"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "notices/archive/holocene-changes.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/tree/op-contracts/v1.8.0-rc.4/packages/contracts-bedrock/scripts/upgrades/holocene"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "notices/archive/holocene-changes.mdx",
-      "url": "https://github.com/ethereum-optimism/superchain-registry/blob/ca80c8f88003d599428b79fefc741ceca049da6f/validation/standard/standard-versions-sepolia.toml#L9"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "notices/archive/holocene-changes.mdx",
-      "url": "https://github.com/ethereum-optimism/superchain-registry/blob/ca80c8f88003d599428b79fefc741ceca049da6f/validation/standard/standard-versions-mainnet.toml#L9"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "notices/archive/holocene-changes.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/tree/op-contracts/v1.8.0-rc.4/packages/contracts-bedrock/scripts/upgrades/holocene/README.md"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "notices/archive/holocene-changes.mdx",
-      "url": "https://github.com/ethereum-optimism/superchain-registry/blob/ca80c8f88003d599428b79fefc741ceca049da6f/validation/standard/standard-versions-mainnet.toml#L12"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "notices/archive/holocene-changes.mdx",
-      "url": "https://github.com/ethereum-optimism/superchain-registry/blob/ca80c8f88003d599428b79fefc741ceca049da6f/validation/standard/standard-versions-mainnet.toml#L12"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "notices/archive/holocene-changes.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/tree/op-contracts/v1.8.0-rc.4/packages/contracts-bedrock/scripts/upgrades/holocene/README.md"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "notices/archive/pectra-changes.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/tree/op-program/v1.5.0-rc.4"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "notices/archive/pectra-changes.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/0026006e6a7a482332a7833876f915acb9dff4c6/Makefile#L129-L131"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "notices/archive/pectra-changes.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/tree/op-contracts/v1.8.0-rc.4/packages/contracts-bedrock/scripts/upgrades/holocene"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "notices/archive/pectra-changes.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/2073f4059bd806af3e8b76b820aa3fa0b42016d0/packages/contracts-bedrock/scripts/upgrades/holocene/README.md?plain=1#L53-L54"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "notices/archive/pectra-fees.mdx",
-      "url": "https://github.com/ethereum-optimism/op-geth/blob/3d7afdc2701b74c5987e31521e2c336c4511afdf/core/types/rollup_cost.go#L527"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "notices/archive/upgrade-15.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/tree/op-program/v1.6.0-rc.2"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "notices/archive/upgrade-15.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/tree/op-program/v1.6.0-rc.2"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "notices/archive/upgrade-15.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/d6fb90dd489e39efa206b55200766ccc075c1d9b/Makefile#L130-L132"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "notices/archive/upgrade-16.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/tree/op-program/v1.6.1-rc.1"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "notices/archive/upgrade-16.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/d6fb90dd489e39efa206b55200766ccc075c1d9b/Makefile#L130-L132"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "notices/archive/upgrade-16.mdx",
-      "url": "https://github.com/ethereum-optimism/superchain-registry/blob/6621a0f13ce523fe1bb8deea739fe37abe20f90d/validation/standard/standard-versions-mainnet.toml#L22"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "notices/archive/upgrade-16a.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/tree/op-program/v1.6.1-rc.1"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "notices/archive/upgrade-16a.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/d6fb90dd489e39efa206b55200766ccc075c1d9b/Makefile#L130-L132"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "notices/archive/upgrade-16a.mdx",
-      "url": "https://github.com/ethereum-optimism/superchain-registry/blob/6621a0f13ce523fe1bb8deea739fe37abe20f90d/validation/standard/standard-versions-mainnet.toml#L22"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "notices/archive/upgrade-17.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/tree/op-program/v1.8.0-rc.4"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "notices/archive/upgrade-18.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/tree/op-program/v1.9.0-rc.1"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "notices/archive/upgrade-18.mdx",
-      "url": "https://github.com/ethereum-optimism/kona/tree/kona-client/v1.2.7"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "notices/upgrade-19.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/c332a1bafb206f18561173eb13c31f1747f9aea4/packages/contracts-bedrock/src/L1/opcm/OPContractsManagerV2.sol#L38"
     },
     {
       "rule": "unbadged-pinned-link",
@@ -578,11 +223,6 @@
     },
     {
       "rule": "unbadged-pinned-link",
-      "file": "op-stack/fault-proofs/challenger.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/547ea72d9849e13ce169fd31df0f9197651b3f86/packages/contracts-bedrock/src/dispute/DisputeGameFactory.sol#L99-L100"
-    },
-    {
-      "rule": "unbadged-pinned-link",
       "file": "op-stack/fault-proofs/fp-components.mdx",
       "url": "https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/specs/cannon-fault-proof-vm.md"
     },
@@ -590,11 +230,6 @@
       "rule": "unbadged-pinned-link",
       "file": "op-stack/fault-proofs/fp-components.mdx",
       "url": "https://github.com/ethereum-optimism/optimism/blob/6a53c7a3294edf140d552962f81c0f742bf445f9/packages/contracts-bedrock/src/dispute/DisputeGameFactory.sol#L4"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "op-stack/fault-proofs/fp-security.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/tree/op-contracts/v1.5.0"
     },
     {
       "rule": "unbadged-pinned-link",
@@ -683,11 +318,6 @@
     },
     {
       "rule": "unbadged-pinned-link",
-      "file": "op-stack/features/preinstalls.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/v1.1.4/op-bindings/artifacts.json"
-    },
-    {
-      "rule": "unbadged-pinned-link",
       "file": "op-stack/protocol/components.mdx",
       "url": "https://github.com/ethereum-optimism/optimism/tree/v1.1.4/op-batcher"
     },
@@ -703,26 +333,6 @@
     },
     {
       "rule": "unbadged-pinned-link",
-      "file": "op-stack/protocol/outages.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/111f3f3a3a2881899662e53e0f1b2f845b188a38/packages/contracts-bedrock/src/L1/OptimismPortal.sol#L209"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "op-stack/protocol/outages.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/111f3f3a3a2881899662e53e0f1b2f845b188a38/packages/contracts-bedrock/src/L1/OptimismPortal.sol#L209"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "op-stack/protocol/outages.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/111f3f3a3a2881899662e53e0f1b2f845b188a38/packages/contracts-bedrock/src/L1/OptimismPortal.sol#L209"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "op-stack/protocol/outages.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/111f3f3a3a2881899662e53e0f1b2f845b188a38/packages/contracts-bedrock/src/L1/OptimismPortal.sol#L209"
-    },
-    {
-      "rule": "unbadged-pinned-link",
       "file": "op-stack/protocol/overview.mdx",
       "url": "https://github.com/ethereum-optimism/optimism/blob/v1.1.4/packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol"
     },
@@ -730,16 +340,6 @@
       "rule": "unbadged-pinned-link",
       "file": "op-stack/protocol/overview.mdx",
       "url": "https://github.com/ethereum-optimism/optimism/blob/v1.1.4/packages/contracts-bedrock/src/L1/L1StandardBridge.sol"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "op-stack/protocol/privileged-roles.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/62c7f3b05a70027b30054d4c8974f44000606fb7/packages/contracts-bedrock/contracts/L1/SystemConfig.sol"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "op-stack/protocol/privileged-roles.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/62c7f3b05a70027b30054d4c8974f44000606fb7/packages/contracts-bedrock/contracts/governance/MintManager.sol"
     },
     {
       "rule": "unbadged-pinned-link",
@@ -1285,81 +885,6 @@
       "rule": "unbadged-pinned-link",
       "file": "op-stack/security/faq-sec-model.mdx",
       "url": "https://github.com/ethereum-optimism/optimism/tree/v1.1.4/technical-documents/security-reviews"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "op-stack/security/pause.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/v1.1.4/packages/contracts-bedrock/src/L1/OptimismPortal.sol"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "op-stack/security/pause.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/856c08bf84d9aa829d1e764fc8e9a37d41960ba0/packages/contracts-bedrock/src/L1/SuperchainConfig.sol#L66-L71"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "op-stack/security/pause.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/856c08bf84d9aa829d1e764fc8e9a37d41960ba0/packages/contracts-bedrock/src/L1/SuperchainConfig.sol#L73-L78"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "op-stack/transactions/fees.mdx",
-      "url": "https://github.com/ethereum-optimism/op-geth/blob/11a890f1ee0348a17687149abc72f394f9faa5ce/core/types/transaction.go#L131-L141"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "op-stack/transactions/fees.mdx",
-      "url": "https://github.com/ethereum-optimism/op-geth/blob/11a890f1ee0348a17687149abc72f394f9faa5ce/core/types/transaction.go#L131-L141"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "op-stack/transactions/forced-transaction.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/111f3f3a3a2881899662e53e0f1b2f845b188a38/packages/contracts-bedrock/src/L1/OptimismPortal.sol#L209"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "op-stack/transactions/transaction-flow.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/tree/v1.1.4/op-batcher"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "op-stack/transactions/transaction-flow.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/233ede59d16cb01bdd8e7ff662a153a4c3178bdd/op-batcher/batcher/channel_manager.go"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "op-stack/transactions/transaction-flow.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/233ede59d16cb01bdd8e7ff662a153a4c3178bdd/op-batcher/batcher/channel_builder.go"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "op-stack/transactions/transaction-flow.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/233ede59d16cb01bdd8e7ff662a153a4c3178bdd/op-node/rollup/derive/channel_out.go"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "op-stack/transactions/transaction-flow.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/233ede59d16cb01bdd8e7ff662a153a4c3178bdd/op-node/rollup/derive/channel_out.go"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "op-stack/transactions/transaction-flow.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/915036aaa7eba7ee2ce290be90f78bb35df8d066/op-batcher/batcher/driver.go#L284-L299"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "op-stack/transactions/transaction-flow.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/915036aaa7eba7ee2ce290be90f78bb35df8d066/op-batcher/batcher/driver.go#L303-L344"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "op-stack/transactions/transaction-flow.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/tree/v1.1.4/op-proposer"
-    },
-    {
-      "rule": "unbadged-pinned-link",
-      "file": "op-stack/transactions/transaction-flow.mdx",
-      "url": "https://github.com/ethereum-optimism/optimism/blob/233ede59d16cb01bdd8e7ff662a153a4c3178bdd/packages/contracts-bedrock/contracts/L1/L2OutputOracle.sol"
     },
     {
       "rule": "unbadged-pinned-link",
