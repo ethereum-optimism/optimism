@@ -61,11 +61,11 @@ Chains running permissionless fault proofs will need to deploy new dispute game 
     As of upgrade 14, the 64 bit multi-threaded version of cannon is utilized.
   </Info>
 
-  The absolute prestate is generated with the [op-program/v1.6.1-rc.1](https://github.com/ethereum-optimism/optimism/tree/op-program/v1.6.1-rc.1). You can use this new absolute prestate `0x03eb07101fbdeaf3f04d9fb76526362c1eea2824e4c6e970bdb19675b72e4fc8` for the following chains:
+  The absolute prestate is generated with the [op-program/v1.6.1-rc.1](https://github.com/ethereum-optimism/optimism/tree/op-program/v1.6.1-rc.1) (as of `op-program/v1.6.1-rc.1`). You can use this new absolute prestate `0x03eb07101fbdeaf3f04d9fb76526362c1eea2824e4c6e970bdb19675b72e4fc8` for the following chains:
 
   *   Mainnet and Sepolia: `OP`, `Base`, `Soneium`, `Ink` and `Unichain`
 
-  You can verify this absolute prestate by running the following [command](https://github.com/ethereum-optimism/optimism/blob/d6fb90dd489e39efa206b55200766ccc075c1d9b/Makefile#L130-L132) in the root of the monorepo on the `op-program/v1.6.1-rc.1` tag:
+  You can verify this absolute prestate by running the following [command](https://github.com/ethereum-optimism/optimism/blob/d6fb90dd489e39efa206b55200766ccc075c1d9b/Makefile#L130-L132) (as of `d6fb90d`) in the root of the monorepo on the `op-program/v1.6.1-rc.1` tag:
 
   ```shell
   make reproducible-prestate
@@ -102,7 +102,7 @@ Chains running permissionless fault proofs will need to deploy new dispute game 
 
   ### Execute the upgrade
 
-  Once your `op-challenger` is ready with the new preimage, you can execute the upgrade transaction. This should be done by making a delegatecall to the `upgrade()` function of the OP Contract Manager (at the address listed in [the registry](https://github.com/ethereum-optimism/superchain-registry/blob/6621a0f13ce523fe1bb8deea739fe37abe20f90d/validation/standard/standard-versions-mainnet.toml#L22).
+  Once your `op-challenger` is ready with the new preimage, you can execute the upgrade transaction. This should be done by making a delegatecall to the `upgrade()` function of the OP Contract Manager (at the address listed in [the registry](https://github.com/ethereum-optimism/superchain-registry/blob/6621a0f13ce523fe1bb8deea739fe37abe20f90d/validation/standard/standard-versions-mainnet.toml#L22) (as of `6621a0f`).
 
   Please simulate and validate the expected output prior to executing the transaction.
 </Steps>
