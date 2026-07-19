@@ -293,6 +293,23 @@ func (n *OpReth) BlocksURL() string {
 	return n.blocksURL
 }
 
+// PauseBlocksStream disconnects blocks-stream clients and rejects reconnects while keeping the
+// stable test endpoint open. The op-reth blocks server itself continues running.
+func (n *OpReth) PauseBlocksStream() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.p.Require().NotNil(n.blocksProxy, "op-reth blocks server is not enabled")
+	n.blocksProxy.Pause()
+}
+
+// ResumeBlocksStream allows clients to reconnect to the running op-reth blocks server.
+func (n *OpReth) ResumeBlocksStream() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.p.Require().NotNil(n.blocksProxy, "op-reth blocks server is not enabled")
+	n.blocksProxy.Resume()
+}
+
 func (n *OpReth) JWTPath() string {
 	return n.jwtPath
 }

@@ -22,6 +22,8 @@ type Proxy struct {
 	wg           sync.WaitGroup
 	lgr          log.Logger
 	upstreamAddr string
+	generation   uint64
+	paused       bool
 	stopped      atomic.Bool
 }
 
@@ -39,8 +41,41 @@ func (p *Proxy) Addr() string {
 func (p *Proxy) SetUpstream(addr string) {
 	p.mu.Lock()
 	p.upstreamAddr = addr
+	p.generation++
 	p.lgr.Info("set upstream", "addr", addr)
 	p.mu.Unlock()
+}
+
+// Pause rejects new connections and closes every active proxied connection while keeping the
+// proxy listener open. Resume re-enables connections to the configured upstream.
+func (p *Proxy) Pause() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.paused {
+		return
+	}
+	p.paused = true
+	p.generation++
+	p.lgr.Info("pausing proxy", "addr", p.lis.Addr().String())
+	p.closeConnectionsLocked()
+}
+
+// Resume allows new connections to the configured upstream after Pause.
+func (p *Proxy) Resume() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if !p.paused {
+		return
+	}
+	p.paused = false
+	p.generation++
+	p.lgr.Info("resuming proxy", "addr", p.lis.Addr().String(), "upstream", p.upstreamAddr)
+}
+
+func (p *Proxy) closeConnectionsLocked() {
+	for conn := range p.conns {
+		conn.Close()
+	}
 }
 
 func (p *Proxy) Start() error {
@@ -82,8 +117,14 @@ func (p *Proxy) handleConn(downConn net.Conn) {
 
 	p.mu.Lock()
 	addr := p.upstreamAddr
+	generation := p.generation
+	paused := p.paused
+	p.mu.Unlock()
+	if paused {
+		p.lgr.Debug("rejecting connection while proxy is paused")
+		return
+	}
 	if addr == "" {
-		p.mu.Unlock()
 		p.lgr.Error("upstream not set")
 		return
 	}
@@ -94,12 +135,13 @@ func (p *Proxy) handleConn(downConn net.Conn) {
 	})
 	cancel()
 	if err != nil {
-		p.mu.Unlock()
 		p.lgr.Error("failed to dial upstream", "err", err)
 		return
 	}
 	defer upConn.Close()
-	if p.stopped.Load() {
+
+	p.mu.Lock()
+	if p.stopped.Load() || p.paused || p.generation != generation {
 		p.mu.Unlock()
 		return
 	}
@@ -144,9 +186,7 @@ func (p *Proxy) Close() error {
 	// p.stopped under p.mu before adding new connections, so after this
 	// iteration no new connections can appear in p.conns.
 	p.mu.Lock()
-	for conn := range p.conns {
-		conn.Close()
-	}
+	p.closeConnectionsLocked()
 	p.mu.Unlock()
 
 	p.wg.Wait()

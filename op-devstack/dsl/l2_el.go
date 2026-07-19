@@ -525,6 +525,35 @@ func (el *L2ELNode) WaitForReceipt(txHash common.Hash) *types.Receipt {
 	return receipt
 }
 
+// WaitForProofsStoreBlock waits until an op-reth proofs-history ExEx has processed the target
+// canonical block. This is useful after reorgs, which update the EL head before the asynchronous
+// proofs store has finished unwinding and indexing the replacement chain.
+func (el *L2ELNode) WaitForProofsStoreBlock(target uint64) {
+	type proofsSyncStatus struct {
+		Latest *uint64 `json:"latest"`
+	}
+	logger := el.log.With("name", el.inner.Name(), "chain", el.ChainID(), "target", target)
+	logger.Info("Waiting for proofs store to index canonical block")
+	err := retry.Do0(el.ctx, 150, &retry.FixedStrategy{Dur: 200 * time.Millisecond}, func() error {
+		var status proofsSyncStatus
+		if err := el.inner.EthClient().RPC().CallContext(el.ctx, &status, "debug_proofsSyncStatus"); err != nil {
+			logger.Warn("Proofs sync status lookup failed; will retry", "err", err)
+			return err
+		}
+		if status.Latest == nil {
+			logger.Info("Proofs store is not initialized yet")
+			return fmt.Errorf("proofs store has not indexed block %d", target)
+		}
+		if *status.Latest < target {
+			logger.Info("Proofs store still catching up", "latest", *status.Latest)
+			return fmt.Errorf("proofs store has not indexed block %d", target)
+		}
+		logger.Info("Proofs store indexed canonical block", "latest", *status.Latest)
+		return nil
+	})
+	el.require.NoError(err, "proofs store did not index block %d", target)
+}
+
 func (el *L2ELNode) MatchedFn(refNode SyncStatusProvider, lvl safety.Level, attempts int) CheckFunc {
 	return MatchedFn(el, refNode, el.log, el.ctx, lvl, el.ChainID(), attempts)
 }
