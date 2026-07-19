@@ -74,9 +74,6 @@ async-stream.workspace = true
 tokio.workspace = true
 tokio-tungstenite.workspace = true
 
-# encoding
-ethereum_ssz.workspace = true
-
 # misc
 clap.workspace = true
 serde.workspace = true

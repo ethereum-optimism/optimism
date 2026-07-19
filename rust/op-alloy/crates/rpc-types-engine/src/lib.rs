@@ -11,6 +11,14 @@ extern crate alloc;
 
 pub use alloy_rpc_types_engine::ForkchoiceUpdateVersion;
 
+#[cfg(feature = "std")]
+mod blocks;
+#[cfg(feature = "std")]
+pub use blocks::{
+    BLOCK_VERSION_V1, BLOCK_VERSION_V2, BLOCK_VERSION_V3, BLOCK_VERSION_V4, BlocksWireError,
+    decode_block_frame, encode_block_frame,
+};
+
 mod attributes;
 pub use attributes::OpPayloadAttributes;
 

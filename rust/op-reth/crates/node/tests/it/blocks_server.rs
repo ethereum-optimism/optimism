@@ -2,15 +2,14 @@
 
 use alloy_genesis::Genesis;
 use futures::StreamExt;
+use op_alloy_rpc_types_engine::decode_block_frame;
 use reth_chainspec::EthChainSpec;
 use reth_e2e_test_utils::{
     node::NodeTestContext, transaction::TransactionTestContext, wallet::Wallet,
 };
 use reth_node_builder::{NodeBuilder, NodeConfig};
 use reth_optimism_chainspec::OpChainSpecBuilder;
-use reth_optimism_node::{
-    OpNode, args::RollupArgs, blocks::decode_block_frame, utils::optimism_payload_attributes,
-};
+use reth_optimism_node::{OpNode, args::RollupArgs, utils::optimism_payload_attributes};
 use reth_tasks::Runtime;
 use std::{net::TcpListener, sync::Arc, time::Duration};
 use tokio::time::timeout;

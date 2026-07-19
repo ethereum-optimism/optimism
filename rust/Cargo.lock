@@ -13449,7 +13449,6 @@ dependencies = [
  "alloy-signer-local 2.1.1",
  "async-stream",
  "clap",
- "ethereum_ssz",
  "eyre",
  "futures",
  "futures-util",
