@@ -13447,6 +13447,7 @@ dependencies = [
  "alloy-rpc-types-engine",
  "alloy-rpc-types-eth 2.1.1",
  "alloy-signer-local 2.1.1",
+ "async-stream",
  "clap",
  "ethereum_ssz",
  "eyre",
