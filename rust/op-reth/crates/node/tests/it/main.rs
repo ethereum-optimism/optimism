@@ -2,6 +2,8 @@
 
 mod builder;
 
+mod blocks_server;
+
 mod custom_pool;
 
 mod priority;
