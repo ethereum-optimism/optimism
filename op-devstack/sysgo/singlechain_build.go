@@ -186,7 +186,7 @@ func startL2CLForKey(
 ) L2CLNode {
 	switch devstackL2CLKind() {
 	case MixedL2CLKona:
-		return startMixedKonaNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, isSequencer, nil, nil)
+		return startMixedKonaNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, isSequencer, "", nil, nil)
 	default: // op-node
 		return startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
 			Key:            clKey,

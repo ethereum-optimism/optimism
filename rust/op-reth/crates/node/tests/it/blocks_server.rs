@@ -32,7 +32,7 @@ async fn streams_block_containing_submitted_transaction() -> eyre::Result<()> {
 
     let mut rollup_args = RollupArgs::default();
     rollup_args.blocks_server.enabled = true;
-    rollup_args.blocks_server.addr = blocks_addr;
+    rollup_args.blocks_server.listen_addr = blocks_addr;
 
     let node_handle = NodeBuilder::new(NodeConfig::new(chain_spec.clone()).with_unused_ports())
         .testing_node(Runtime::test())

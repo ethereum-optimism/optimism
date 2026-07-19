@@ -19,6 +19,8 @@ import (
 type OpRethConfig struct {
 	// ExtraArgs are appended to the generated CLI args.
 	ExtraArgs []string
+	// BlocksServer enables the canonical unsafe-block WebSocket service on a dynamic port.
+	BlocksServer bool
 	// Binary selects the EL binary to launch. Empty means "op-reth". A CLI-compatible superset
 	// (e.g. "op-reth-premium", which accepts every op-reth subcommand/flag plus the --subblocks.*
 	// namespace) may be selected via OpRethWithBinary.
@@ -65,6 +67,14 @@ func OpRethWithExtraArgs(args ...string) OpRethOption {
 	})
 }
 
+// OpRethWithBlocksServer enables the canonical unsafe-block WebSocket service. The server binds
+// to a dynamic local port and is exposed through a stable proxy returned by BlocksURL.
+func OpRethWithBlocksServer() OpRethOption {
+	return OpRethOptionFn(func(_ devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
+		cfg.BlocksServer = true
+	})
+}
+
 // OpRethWithBinary selects the EL binary to launch instead of the default "op-reth". The binary
 // must be a CLI superset of op-reth (it is invoked with op-reth's subcommands and flags). Used to
 // boot "op-reth-premium" as a drop-in sequencer; since that binary lives in a separate repo it must
@@ -95,9 +105,13 @@ type OpReth struct {
 	jwtSecret [32]byte
 	authRPC   string
 	userRPC   string
+	blocksURL string
 
-	authProxy *tcpproxy.Proxy
-	userProxy *tcpproxy.Proxy
+	authProxy   *tcpproxy.Proxy
+	userProxy   *tcpproxy.Proxy
+	blocksProxy *tcpproxy.Proxy
+
+	blocksServer bool
 
 	execPath string
 	args     []string
@@ -136,17 +150,21 @@ func (n *OpReth) Start() {
 		})
 		n.userRPC = "ws://" + n.userProxy.Addr()
 	}
+	if n.blocksServer && n.blocksProxy == nil {
+		n.blocksProxy = tcpproxy.New(n.p.Logger())
+		n.p.Require().NoError(n.blocksProxy.Start())
+		n.p.Cleanup(func() {
+			n.blocksProxy.Close()
+		})
+		n.blocksURL = "ws://" + n.blocksProxy.Addr()
+	}
 	logOut := logpipe.ToLoggerWithMinLevel(n.p.Logger().New("component", "op-reth", "src", "stdout", "name", n.name, "chain", n.chainID), log.LevelInfo)
 	logErr := logpipe.ToLoggerWithMinLevel(n.p.Logger().New("component", "op-reth", "src", "stderr", "name", n.name, "chain", n.chainID), log.LevelWarn)
 
 	authRPCChan := make(chan string, 1)
-	defer close(authRPCChan)
-
 	metricsTargetChan := make(chan PrometheusMetricsTarget, 1)
-	defer close(metricsTargetChan)
-
 	userRPCChan := make(chan string, 1)
-	defer close(userRPCChan)
+	blocksAddrChan := make(chan string, 1)
 	onLogEntry := func(e logpipe.LogEntry) {
 		msg := e.LogMessage()
 		if msg == "RPC WS server started" {
@@ -157,6 +175,11 @@ func (n *OpReth) Start() {
 		} else if msg == "RPC auth server started" {
 			select {
 			case authRPCChan <- "ws://" + e.FieldValue("url").(string):
+			default:
+			}
+		} else if msg == "Blocks server listening" {
+			select {
+			case blocksAddrChan <- "ws://" + e.FieldValue("addr").(string):
 			default:
 			}
 		} else if metricsUrl, found := strings.CutPrefix(msg, "Starting metrics endpoint at "); found {
@@ -184,9 +207,26 @@ func (n *OpReth) Start() {
 	err := n.sub.Start(n.execPath, n.args, n.env)
 	n.p.Require().NoError(err, "Must start")
 
-	var userRPCAddr, authRPCAddr string
-	n.p.Require().NoError(tasks.Await(n.p.Ctx(), userRPCChan, &userRPCAddr), "need user RPC")
-	n.p.Require().NoError(tasks.Await(n.p.Ctx(), authRPCChan, &authRPCAddr), "need auth RPC")
+	awaitEndpoint := func(name string, endpoint <-chan string) string {
+		select {
+		case addr := <-endpoint:
+			return addr
+		case <-n.sub.Exited():
+			// Re-check in case the endpoint was logged just before the process exited.
+			select {
+			case addr := <-endpoint:
+				return addr
+			default:
+				n.p.Require().FailNow("op-reth exited before endpoint became ready", "endpoint", name)
+			}
+		case <-n.p.Ctx().Done():
+			n.p.Require().NoError(n.p.Ctx().Err(), "need %s", name)
+		}
+		return ""
+	}
+
+	userRPCAddr := awaitEndpoint("user RPC", userRPCChan)
+	authRPCAddr := awaitEndpoint("auth RPC", authRPCChan)
 
 	if areMetricsEnabled() {
 		var metricsTarget PrometheusMetricsTarget
@@ -196,6 +236,10 @@ func (n *OpReth) Start() {
 
 	n.userProxy.SetUpstream(ProxyAddr(n.p.Require(), userRPCAddr))
 	n.authProxy.SetUpstream(ProxyAddr(n.p.Require(), authRPCAddr))
+	if n.blocksServer {
+		blocksAddr := awaitEndpoint("blocks server", blocksAddrChan)
+		n.blocksProxy.SetUpstream(ProxyAddr(n.p.Require(), blocksAddr))
+	}
 }
 
 // Stop stops the op-reth node.
@@ -241,6 +285,12 @@ func (n *OpReth) UserRPC() string {
 
 func (n *OpReth) EngineRPC() string {
 	return n.authRPC
+}
+
+// BlocksURL returns the stable WebSocket endpoint for the canonical unsafe-block stream. It is
+// empty when the blocks server was not enabled for this node.
+func (n *OpReth) BlocksURL() string {
+	return n.blocksURL
 }
 
 func (n *OpReth) JWTPath() string {

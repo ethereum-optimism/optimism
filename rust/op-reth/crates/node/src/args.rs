@@ -146,19 +146,19 @@ pub struct BlocksServerArgs {
         value_name = "BLOCKS_SERVER_ADDR",
         default_value = "127.0.0.1:8548"
     )]
-    pub addr: SocketAddr,
+    pub listen_addr: SocketAddr,
 }
 
 impl BlocksServerArgs {
     /// Return runtime configuration when the service is enabled.
     pub const fn config(self) -> Option<BlocksServerConfig> {
-        if self.enabled { Some(BlocksServerConfig { addr: self.addr }) } else { None }
+        if self.enabled { Some(BlocksServerConfig { addr: self.listen_addr }) } else { None }
     }
 }
 
 impl Default for BlocksServerArgs {
     fn default() -> Self {
-        Self { enabled: false, addr: DEFAULT_BLOCKS_SERVER_ADDR }
+        Self { enabled: false, listen_addr: DEFAULT_BLOCKS_SERVER_ADDR }
     }
 }
 
@@ -378,7 +378,7 @@ mod tests {
         .args;
         assert_eq!(
             args.blocks_server,
-            BlocksServerArgs { enabled: true, addr: "0.0.0.0:9000".parse().unwrap() }
+            BlocksServerArgs { enabled: true, listen_addr: "0.0.0.0:9000".parse().unwrap() }
         );
         assert_eq!(
             args.blocks_server.config(),

@@ -138,10 +138,12 @@ type MixedSingleChainNodeSpec struct {
 	ELKind      MixedL2ELKind
 	CLKind      MixedL2CLKind
 	IsSequencer bool
+	// BlocksSourceELKey configures a Kona validator to consume canonical unsafe blocks from the
+	// named, earlier op-reth EL node. The source's blocks server is enabled automatically.
+	BlocksSourceELKey string
 	// IsolateFromL2P2P keeps this node off the L2 CL/EL P2P mesh: it is never peered with the
-	// other nodes, so it receives no gossiped or req-resp'd unsafe blocks and must advance purely
-	// by deriving from L1. Used to exercise the derivation/force-build path (FCU-with-attributes)
-	// rather than the consolidation path. Defaults to false (fully peered).
+	// other nodes, so it receives no gossiped or req-resp'd unsafe blocks. Without another source
+	// such as BlocksSourceELKey, it must advance purely by deriving from L1. Defaults to false.
 	IsolateFromL2P2P bool
 }
 
@@ -191,6 +193,34 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 	require := t.Require()
 	require.NotEmpty(cfg.NodeSpecs, "mixed runtime requires at least one L2 node spec")
 
+	blocksSourceKeys := make(map[string]struct{})
+	for i, spec := range cfg.NodeSpecs {
+		if spec.BlocksSourceELKey == "" {
+			continue
+		}
+		require.Equal(MixedL2CLKona, spec.CLKind, "blocks stream is only supported by Kona validators")
+		require.False(spec.IsSequencer, "blocks stream is only supported by Kona validators")
+		require.NotEqual(spec.ELKey, spec.BlocksSourceELKey, "blocks stream source must be a different EL node")
+
+		sourceIndex := -1
+		for j, source := range cfg.NodeSpecs {
+			if source.ELKey == spec.BlocksSourceELKey {
+				sourceIndex = j
+				break
+			}
+		}
+		require.NotEqual(-1, sourceIndex, "blocks stream source EL %q does not exist", spec.BlocksSourceELKey)
+		require.Less(sourceIndex, i, "blocks stream source EL %q must start before client %q", spec.BlocksSourceELKey, spec.ELKey)
+		sourceKind := cfg.NodeSpecs[sourceIndex].ELKind
+		require.Contains(
+			[]MixedL2ELKind{MixedL2ELOpReth, MixedL2ELOpRethV2, MixedL2ELOpRethPremium},
+			sourceKind,
+			"blocks stream source EL %q must be op-reth",
+			spec.BlocksSourceELKey,
+		)
+		blocksSourceKeys[spec.BlocksSourceELKey] = struct{}{}
+	}
+
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(err, "failed to derive dev keys from mnemonic")
 
@@ -210,19 +240,37 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 	nodes := make([]mixedSingleChainNode, 0, len(cfg.NodeSpecs))
 	for _, spec := range cfg.NodeSpecs {
 		identity := NewELNodeIdentity(0)
+		opRethOptions := append([]OpRethOption(nil), cfg.OpRethOptions...)
+		if _, isBlocksSource := blocksSourceKeys[spec.ELKey]; isBlocksSource {
+			opRethOptions = append(opRethOptions, OpRethWithBlocksServer())
+		}
 
 		var el L2ELNode
 		switch spec.ELKind {
 		case MixedL2ELOpGeth:
 			el = startL2ELNode(t, l2Net, jwtPath, jwtSecret, spec.ELKey, identity)
 		case MixedL2ELOpReth:
-			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, "v1", cfg.OpRethOptions...)
+			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, "v1", opRethOptions...)
 		case MixedL2ELOpRethV2:
-			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, "v2", cfg.OpRethOptions...)
+			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, "v2", opRethOptions...)
 		case MixedL2ELOpRethPremium:
-			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, "v1", opRethPremiumOpts(cfg.OpRethOptions)...)
+			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, "v1", opRethPremiumOpts(opRethOptions)...)
 		default:
 			require.FailNowf("unsupported EL kind", "unsupported mixed EL kind %q", spec.ELKind)
+		}
+
+		blocksURL := ""
+		if spec.BlocksSourceELKey != "" {
+			for _, source := range nodes {
+				if source.spec.ELKey != spec.BlocksSourceELKey {
+					continue
+				}
+				blocksEndpoint, ok := source.el.(interface{ BlocksURL() string })
+				require.True(ok, "blocks stream source EL %q does not expose a blocks endpoint", spec.BlocksSourceELKey)
+				blocksURL = blocksEndpoint.BlocksURL()
+				break
+			}
+			require.NotEmpty(blocksURL, "blocks stream source EL %q is not ready", spec.BlocksSourceELKey)
 		}
 
 		var cl L2CLNode
@@ -247,6 +295,7 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 				spec.CLKey,
 				spec.ELKey,
 				spec.IsSequencer,
+				blocksURL,
 				metricsRegistrar,
 				depSet,
 			)
@@ -263,8 +312,8 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 
 	for i := range nodes {
 		for j := range i {
-			// Skip peering any pair involving an isolated node, so it stays off the L2 P2P mesh
-			// and can only learn the chain by deriving it from L1.
+			// Skip peering any pair involving an isolated node, so it cannot learn the chain
+			// through L2 CL or EL P2P.
 			if nodes[i].spec.IsolateFromL2P2P || nodes[j].spec.IsolateFromL2P2P {
 				continue
 			}
@@ -407,6 +456,12 @@ func buildMixedOpRethNode(
 	if areMetricsEnabled() {
 		args = append(args, "--metrics=127.0.0.1:0")
 	}
+	if opRethCfg.BlocksServer {
+		args = append(args,
+			"--rollup.blocks-server.enabled",
+			"--rollup.blocks-server.addr=127.0.0.1:0",
+		)
+	}
 
 	initArgs := []string{
 		"init",
@@ -452,6 +507,8 @@ func buildMixedOpRethNode(
 		jwtSecret:          jwtSecret,
 		authRPC:            "",
 		userRPC:            "",
+		blocksURL:          "",
+		blocksServer:       opRethCfg.BlocksServer,
 		execPath:           execPath,
 		args:               args,
 		env:                []string{},
@@ -512,6 +569,7 @@ func startMixedKonaNode(
 	clKey string,
 	elKey string,
 	isSequencer bool,
+	blocksURL string,
 	metricsRegistrar L2MetricsRegistrar,
 	depSet coredepset.DependencySet,
 ) *KonaNode {
@@ -583,6 +641,10 @@ func startMixedKonaNode(
 		)
 	} else {
 		envVars = append(envVars, "KONA_NODE_MODE=Validator")
+	}
+	if blocksURL != "" {
+		t.Require().False(isSequencer, "sequencer blocks stream is only supported in validator mode")
+		envVars = append(envVars, "KONA_NODE_SEQUENCER_BLOCKS_URL="+blocksURL)
 	}
 
 	execPath, err := rustbin.Spec{
