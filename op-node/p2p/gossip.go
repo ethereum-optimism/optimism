@@ -73,6 +73,22 @@ type GossipRuntimeConfig interface {
 	ConfirmCurrentSigner()
 }
 
+// DelegatedBlockSignatureValidator lets an external consensus implementation
+// own unsafe-block signer resolution and validation. Implementations may use
+// product-specific or dynamically sourced signer state; returning Accept,
+// Reject, or Ignore has the same semantics as the built-in runtime-config
+// validator. When this interface is absent, gossip validation retains the
+// standard current/previous signer behavior above.
+type DelegatedBlockSignatureValidator interface {
+	ValidateUnsafeBlockSignature(
+		ctx context.Context,
+		chainID eth.ChainID,
+		version eth.BlockVersion,
+		signature eth.Bytes65,
+		payloadBytes []byte,
+	) pubsub.ValidationResult
+}
+
 //go:generate mockery --name GossipMetricer
 type GossipMetricer interface {
 	RecordGossipEvent(evType int32)
@@ -322,7 +338,7 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 		payloadBytes := data[65:]
 
 		// [REJECT] if the signature by the sequencer is not valid
-		result := verifyBlockSignature(log, cfg, runCfg, id, signature, payloadBytes)
+		result := validateBlockSignature(ctx, log, cfg, runCfg, blockVersion, id, signature, payloadBytes)
 		if result != pubsub.ValidationAccept {
 			return result
 		}
@@ -456,6 +472,28 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 		message.ValidatorData = &envelope
 		return pubsub.ValidationAccept
 	}
+}
+
+func validateBlockSignature(
+	ctx context.Context,
+	log log.Logger,
+	cfg *rollup.Config,
+	runCfg GossipRuntimeConfig,
+	blockVersion eth.BlockVersion,
+	id peer.ID,
+	signature eth.Bytes65,
+	payloadBytes []byte,
+) pubsub.ValidationResult {
+	if validator, ok := runCfg.(DelegatedBlockSignatureValidator); ok {
+		return validator.ValidateUnsafeBlockSignature(
+			ctx,
+			eth.ChainIDFromBig(cfg.L2ChainID),
+			blockVersion,
+			signature,
+			payloadBytes,
+		)
+	}
+	return verifyBlockSignature(log, cfg, runCfg, id, signature, payloadBytes)
 }
 
 func verifyBlockSignature(log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, id peer.ID, signature eth.Bytes65, payloadBytes []byte) pubsub.ValidationResult {
