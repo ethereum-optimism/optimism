@@ -74,6 +74,10 @@ func (g *FaultDisputeGame) SplitDepth() challengerTypes.Depth {
 	return challengerTypes.Depth(bigs.Uint64Strict(contract.Read(g.game.SplitDepth())))
 }
 
+func (g *FaultDisputeGame) MaxClockDuration() time.Duration {
+	return time.Duration(contract.Read(g.game.MaxClockDuration())) * time.Second
+}
+
 func (g *FaultDisputeGame) RootClaim() *Claim {
 	return g.ClaimAtIndex(0)
 }
@@ -104,6 +108,10 @@ func (g *FaultDisputeGame) absolutePrestate() common.Hash {
 
 func (g *FaultDisputeGame) L1Head() common.Hash {
 	return contract.Read(g.game.L1Head())
+}
+
+func (g *FaultDisputeGame) WETHAddress() common.Address {
+	return contract.Read(g.game.Weth())
 }
 
 func (g *FaultDisputeGame) Attack(eoa *dsl.EOA, claimIdx uint64, newClaim common.Hash) {

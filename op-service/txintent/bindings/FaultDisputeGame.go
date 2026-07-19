@@ -58,6 +58,7 @@ type FaultDisputeGame struct {
 	SplitDepth             func() TypedCall[*big.Int]                                                 `sol:"splitDepth"`
 	SubGame                func(parentClaimIndex *big.Int, subGameIndex *big.Int) TypedCall[*big.Int] `sol:"subgame"`
 	MaxClockDuration       func() TypedCall[uint64]                                                   `sol:"maxClockDuration"`
+	Weth                   func() TypedCall[common.Address]                                           `sol:"weth"`
 	StartingBlockNumber    func() TypedCall[uint64]                                                   `sol:"startingBlockNumber"`
 	StartingSequenceNumber func() TypedCall[uint64]                                                   `sol:"startingSequenceNumber"`
 

@@ -146,7 +146,7 @@ func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleC
 	applyMinimalGameTypeOptions(t, keys, world.L1Network, world.L2Network, l1EL, primary.CL, cfg.AddedGameTypes, cfg.RespectedGameTypes)
 
 	var l2Proposer *L2Proposer
-	if spec.StartProposer {
+	if spec.StartProposer && !cfg.SkipHonestProposer {
 		l2Proposer = startMinimalProposer(t, keys, world.L2Network, l1EL, primary.CL, cfg.ProposerOptions...)
 	}
 

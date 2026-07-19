@@ -17,6 +17,7 @@ type DisputeMonConfig struct {
 	GameFactoryAddress common.Address
 	RollupRPCs         []string
 	SupernodeRPCs      []string
+	HonestActors       []common.Address
 }
 
 type DisputeMonRuntime struct {
@@ -41,6 +42,7 @@ func StartDisputeMon(t devtest.T, input DisputeMonConfig) *DisputeMonRuntime {
 		input.RollupRPCs,
 		input.SupernodeRPCs,
 	)
+	cfg.HonestActors = append([]common.Address(nil), input.HonestActors...)
 	cfg.MonitorInterval = time.Second
 	cfg.MetricsConfig = opmetrics.CLIConfig{
 		Enabled:    true,

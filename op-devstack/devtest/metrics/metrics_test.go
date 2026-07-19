@@ -372,3 +372,68 @@ func TestMetricsClientWaitForGaugeAppliesWaitTimeout(t *testing.T) {
 		require.Positive(t, fetches)
 	})
 }
+
+func TestSnapshotGaugeSumSelectsLabels(t *testing.T) {
+	snapshot, err := parseSnapshot(
+		"# TYPE op_dispute_mon_claims gauge\n" +
+			"op_dispute_mon_claims{resolved=\"resolved\",clock=\"expired\"} 2\n" +
+			"op_dispute_mon_claims{resolved=\"resolved\",clock=\"running\"} 3\n" +
+			"op_dispute_mon_claims{resolved=\"unresolved\",clock=\"running\"} 4\n",
+	)
+	require.NoError(t, err)
+
+	value, err := snapshot.GaugeSum(
+		"op_dispute_mon_claims",
+		map[string]string{"resolved": "resolved"},
+	)
+	require.NoError(t, err)
+	require.Equal(t, float64(5), value)
+}
+
+func TestSnapshotHistogramCountSelectsLabels(t *testing.T) {
+	snapshot, err := parseSnapshot(
+		"# TYPE op_dispute_mon_monitor_duration_seconds histogram\n" +
+			"op_dispute_mon_monitor_duration_seconds_bucket{result=\"complete\",le=\"1\"} 2\n" +
+			"op_dispute_mon_monitor_duration_seconds_bucket{result=\"complete\",le=\"+Inf\"} 3\n" +
+			"op_dispute_mon_monitor_duration_seconds_sum{result=\"complete\"} 1.5\n" +
+			"op_dispute_mon_monitor_duration_seconds_count{result=\"complete\"} 3\n",
+	)
+	require.NoError(t, err)
+
+	count, err := snapshot.HistogramCount(
+		"op_dispute_mon_monitor_duration_seconds",
+		map[string]string{"result": "complete"},
+	)
+	require.NoError(t, err)
+	require.Equal(t, uint64(3), count)
+}
+
+func TestMetricsClientWaitForSnapshot(t *testing.T) {
+	values := []int{0, 1}
+	fetches := 0
+	stub := stubHTTP(func(context.Context, string, url.Values, http.Header) (*http.Response, error) {
+		value := values[fetches]
+		fetches++
+		return metricsResponse(
+			http.StatusOK,
+			fmt.Sprintf("# TYPE target_metric gauge\ntarget_metric %d\n", value),
+		), nil
+	})
+
+	snapshot, err := NewMetricsClient(stub).WaitForSnapshot(context.Background(), time.Millisecond, func(snapshot *Snapshot) error {
+		value, err := snapshot.Gauge("target_metric", nil)
+		if err != nil {
+			return err
+		}
+		if value != 1 {
+			return fmt.Errorf("target_metric expected 1 but observed %v", value)
+		}
+		return nil
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 2, fetches)
+	value, err := snapshot.Gauge("target_metric", nil)
+	require.NoError(t, err)
+	require.Equal(t, float64(1), value)
+}
