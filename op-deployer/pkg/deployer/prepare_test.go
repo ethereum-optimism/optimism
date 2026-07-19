@@ -114,16 +114,14 @@ func TestMakePredictionInput_GameTypeInputs(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                       string
-		gameType                   embedded.GameType
-		usesPredictionAnchor       bool
-		usesFixedCannonPlaceholder bool
+		name                 string
+		gameType             embedded.GameType
+		usesPredictionAnchor bool
 	}{
 		{
-			name:                       "CANNON_KONA",
-			gameType:                   embedded.GameTypeCannonKona,
-			usesPredictionAnchor:       true,
-			usesFixedCannonPlaceholder: true,
+			name:                 "CANNON_KONA",
+			gameType:             embedded.GameTypeCannonKona,
+			usesPredictionAnchor: true,
 		},
 		{
 			name:                 "SUPER_CANNON_KONA",
@@ -158,10 +156,13 @@ func TestMakePredictionInput_GameTypeInputs(t *testing.T) {
 				require.Equal(t, opcm.DefaultStartingAnchorRoot.Root, dci.StartingAnchorRoot.Root)
 			}
 
-			if tt.usesFixedCannonPlaceholder {
+			switch tt.gameType {
+			case embedded.GameTypeCannonKona:
 				require.Equal(t, opcm.PermissionedGamePrestatePlaceholder, dci.CannonAbsolutePrestate)
 				require.NotEqual(t, dci.DisputeAbsolutePrestate, dci.CannonAbsolutePrestate)
-			} else {
+			case embedded.GameTypeSuperCannonKona:
+				require.Zero(t, dci.CannonAbsolutePrestate)
+			default:
 				require.Equal(t, dci.DisputeAbsolutePrestate, dci.CannonAbsolutePrestate)
 			}
 		})
@@ -637,6 +638,7 @@ func TestPredictChainsPrestateReminders(t *testing.T) {
 		name            string
 		gameType        embedded.GameType
 		reminderMessage string
+		wantErr         string
 	}{
 		{
 			name:            "CANNON_KONA",
@@ -655,6 +657,7 @@ func TestPredictChainsPrestateReminders(t *testing.T) {
 		{
 			name:     "SUPER_PERMISSIONED",
 			gameType: embedded.GameTypeSuperPermissioned,
+			wantErr:  "SUPER_PERMISSIONED is not an initial-deploy input selector",
 		},
 	}
 
@@ -679,12 +682,22 @@ func TestPredictChainsPrestateReminders(t *testing.T) {
 			chain.Prestate = common.HexToHash("0x11")
 			lgr, logs := testlog.CaptureLogger(t, slog.LevelInfo)
 
+			runCalled := false
 			run := func(in opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
+				runCalled = true
 				require.Equal(t, uint32(tt.gameType), in.DisputeGameType)
 				return emptyDeployOPChainOutput(), nil
 			}
 
-			require.NoError(t, predictChains(lgr, intent, st, run))
+			err = predictChains(lgr, intent, st, run)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				require.False(t, runCalled)
+				require.Equal(t, common.HexToHash("0x11"), chain.Prestate)
+				require.Nil(t, chain.InitialGameType)
+				return
+			}
+			require.NoError(t, err)
 			require.Zero(t, chain.Prestate)
 			require.NotNil(t, chain.InitialGameType)
 			require.Equal(t, uint32(tt.gameType), *chain.InitialGameType)

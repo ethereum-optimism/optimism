@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"fmt"
+	"math"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
@@ -183,13 +184,149 @@ func initialGameTypeName(gameType uint32) string {
 // RequiresPrestateForGameType rejects unsupported game types.
 func RequiresPrestateForGameType(gameType uint32) (bool, error) {
 	switch embedded.GameType(gameType) {
-	case embedded.GameTypePermissionedCannon, embedded.GameTypeSuperPermissioned:
+	case embedded.GameTypePermissionedCannon:
 		return false, nil
 	case embedded.GameTypeCannonKona, embedded.GameTypeSuperCannonKona:
 		return true, nil
+	case embedded.GameTypeSuperPermissioned:
+		return false, fmt.Errorf(
+			"unsupported initial dispute game type %d: SUPER_PERMISSIONED is not an initial-deploy input selector",
+			gameType,
+		)
 	default:
 		return false, fmt.Errorf("unsupported initial dispute game type %d", gameType)
 	}
+}
+
+const faultGameAbsolutePrestateOverride = "faultGameAbsolutePrestate"
+
+// BuildContinuationDCI builds deployment input from prepared state.
+func BuildContinuationDCI(intent *state.Intent, chainID common.Hash, st *state.State) (opcm.DeployOPChainInput, error) {
+	if st == nil || !st.Prepared {
+		return opcm.DeployOPChainInput{}, fmt.Errorf("state was not produced by op-deployer prepare. Run op-deployer prepare")
+	}
+	if st.Create2Salt == (common.Hash{}) {
+		return opcm.DeployOPChainInput{}, fmt.Errorf("prepared state has no CREATE2 salt. Rerun op-deployer prepare")
+	}
+	if st.L1PredictSenderAddress == nil || *st.L1PredictSenderAddress == (common.Address{}) {
+		return opcm.DeployOPChainInput{}, fmt.Errorf("prepared state has no predicted sender address. Rerun op-deployer prepare")
+	}
+	if st.L1PredictOPCMAddress == nil || *st.L1PredictOPCMAddress == (common.Address{}) {
+		return opcm.DeployOPChainInput{}, fmt.Errorf("prepared state has no predicted OPCM address. Rerun op-deployer prepare")
+	}
+	if intent == nil || intent.SuperchainConfigProxy == nil || *intent.SuperchainConfigProxy == (common.Address{}) {
+		return opcm.DeployOPChainInput{}, fmt.Errorf("intent.superchainConfigProxy must be set")
+	}
+
+	chainState, err := st.Chain(chainID)
+	if err != nil {
+		return opcm.DeployOPChainInput{}, fmt.Errorf(
+			"failed to get state prepared for chain %s: %w. Rerun op-deployer prepare",
+			chainID.Hex(),
+			err,
+		)
+	}
+	thisIntent, err := intent.Chain(chainID)
+	if err != nil {
+		return opcm.DeployOPChainInput{}, fmt.Errorf("failed to get chain intent: %w", err)
+	}
+
+	preparedGameType, err := ResolvePreparedGameType(intent, thisIntent, chainState)
+	if err != nil {
+		return opcm.DeployOPChainInput{}, err
+	}
+	requiresPrestate, err := RequiresPrestateForGameType(preparedGameType)
+	if err != nil {
+		return opcm.DeployOPChainInput{}, fmt.Errorf(
+			"chain %s has an invalid prepared game type: %w. Rerun op-deployer prepare",
+			chainID.Hex(),
+			err,
+		)
+	}
+
+	proofParams, err := ResolveChainProofParams(intent, thisIntent)
+	if err != nil {
+		return opcm.DeployOPChainInput{}, fmt.Errorf("error merging proof params from overrides: %w", err)
+	}
+
+	if requiresPrestate {
+		if chainState.Prestate == (common.Hash{}) {
+			return opcm.DeployOPChainInput{}, fmt.Errorf(
+				"chain %s has no prestate committed. Run op-deployer prestate",
+				chainID.Hex(),
+			)
+		}
+		if chainState.Prestate == opcm.PermissionedGamePrestatePlaceholder {
+			return opcm.DeployOPChainInput{}, fmt.Errorf(
+				"chain %s has the reserved permissioned prestate placeholder committed. Rerun op-deployer prestate",
+				chainID.Hex(),
+			)
+		}
+		if hasFaultGameAbsolutePrestateOverride(intent, thisIntent) &&
+			proofParams.DisputeAbsolutePrestate != chainState.Prestate {
+			return opcm.DeployOPChainInput{}, fmt.Errorf(
+				"chain %s faultGameAbsolutePrestate override differs from the committed prestate. Rerun op-deployer prestate",
+				chainID.Hex(),
+			)
+		}
+	}
+
+	permissionless := IsPermissionlessGameType(preparedGameType)
+	startingAnchorRoot := opcm.Proposal{
+		Root:             opcm.DefaultStartingAnchorRoot.Root,
+		L2SequenceNumber: common.Big0,
+	}
+	if permissionless {
+		if chainState.StartingAnchorRoot == nil || chainState.StartingAnchorRoot.Root == (common.Hash{}) {
+			return opcm.DeployOPChainInput{}, fmt.Errorf(
+				"chain %s has no valid starting anchor proposal committed. Rerun the proposal-producing stage",
+				chainID.Hex(),
+			)
+		}
+		if chainState.StartingAnchorRoot.Root == opcm.DefaultStartingAnchorRoot.Root {
+			return opcm.DeployOPChainInput{}, fmt.Errorf(
+				"chain %s has the permissioned starting anchor placeholder committed. Rerun the proposal-producing stage",
+				chainID.Hex(),
+			)
+		}
+		if chainState.StartingAnchorRoot.L2SequenceNumber == math.MaxUint64 {
+			return opcm.DeployOPChainInput{}, fmt.Errorf(
+				"chain %s has a starting anchor sequence number that is too large. Rerun the proposal-producing stage",
+				chainID.Hex(),
+			)
+		}
+
+		startingAnchorRoot = opcm.Proposal{
+			Root: chainState.StartingAnchorRoot.Root,
+			L2SequenceNumber: new(big.Int).SetUint64(
+				uint64(chainState.StartingAnchorRoot.L2SequenceNumber),
+			),
+		}
+	}
+
+	if requiresPrestate {
+		proofParams.DisputeAbsolutePrestate = chainState.Prestate
+	}
+
+	return BuildDeployOPChainInput(
+		proofParams,
+		thisIntent.Roles,
+		*st.L1PredictOPCMAddress,
+		*intent.SuperchainConfigProxy,
+		chainID,
+		st.Create2Salt.String(),
+		thisIntent.GasLimit,
+		startingAnchorRoot,
+		thisIntent,
+	), nil
+}
+
+func hasFaultGameAbsolutePrestateOverride(intent *state.Intent, chain *state.ChainIntent) bool {
+	if _, ok := chain.DeployOverrides[faultGameAbsolutePrestateOverride]; ok {
+		return true
+	}
+	_, ok := intent.GlobalDeployOverrides[faultGameAbsolutePrestateOverride]
+	return ok
 }
 
 func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common.Hash, st *state.State) (opcm.DeployOPChainInput, error) {
@@ -249,9 +386,13 @@ func BuildDeployOPChainInput(
 		gasLimit = standard.GasLimit
 	}
 
-	cannonAbsolutePrestate := proofParams.DisputeAbsolutePrestate
-	if proofParams.DisputeGameType == uint32(embedded.GameTypeCannonKona) {
+	var cannonAbsolutePrestate common.Hash
+	switch proofParams.DisputeGameType {
+	case uint32(embedded.GameTypeCannonKona):
 		cannonAbsolutePrestate = opcm.PermissionedGamePrestatePlaceholder
+	case uint32(embedded.GameTypeSuperCannonKona):
+	default:
+		cannonAbsolutePrestate = proofParams.DisputeAbsolutePrestate
 	}
 
 	return opcm.DeployOPChainInput{

@@ -151,7 +151,6 @@ type ChainState struct {
 	// by the prediction step of the prepare command.
 	Deployed *bool `json:"deployed,omitempty"`
 
-	// TODO(#20912): Consume the committed prestates when building the OP-chain deploy input.
 	// Prestate is the selected absolute prestate for permissionless games.
 	Prestate common.Hash `json:"prestate,omitzero"`
 
