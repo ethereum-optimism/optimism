@@ -29,10 +29,12 @@ type gameMonitor struct {
 	clock   clock.Clock
 	metrics MonitorMetrics
 
-	done   chan struct{}
-	ctx    context.Context
-	cancel context.CancelFunc
-	loopWG sync.WaitGroup
+	done     chan struct{}
+	stopped  chan struct{}
+	stopOnce sync.Once
+	ctx      context.Context
+	cancel   context.CancelFunc
+	loopWG   sync.WaitGroup
 
 	gameWindow      time.Duration
 	monitorInterval time.Duration
@@ -61,6 +63,7 @@ func newGameMonitor(
 		clock:            cl,
 		ctx:              ctx,
 		done:             make(chan struct{}),
+		stopped:          make(chan struct{}),
 		metrics:          metrics,
 		monitorInterval:  monitorInterval,
 		gameWindow:       gameWindow,
@@ -132,12 +135,22 @@ func (m *gameMonitor) StartMonitoring() {
 	go m.loop()
 }
 
-func (m *gameMonitor) StopMonitoring() {
+func (m *gameMonitor) StopMonitoring(ctx context.Context) error {
 	m.logger.Info("Stopping game monitor")
-	if m.cancel != nil {
-		m.cancel()
-		m.cancel = nil
+	m.stopOnce.Do(func() {
+		if m.cancel != nil {
+			m.cancel()
+		}
+		close(m.done)
+		go func() {
+			m.loopWG.Wait()
+			close(m.stopped)
+		}()
+	})
+	select {
+	case <-m.stopped:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("waiting for game monitor to stop: %w", ctx.Err())
 	}
-	close(m.done)
-	m.loopWG.Wait()
 }

@@ -281,11 +281,12 @@ func (s *Service) Stopped() bool {
 
 func (s *Service) Stop(ctx context.Context) error {
 	s.logger.Info("Stopping dispute mon service")
-	if s.monitor != nil {
-		s.monitor.StopMonitoring()
-	}
-
 	var result error
+	if s.monitor != nil {
+		if err := s.monitor.StopMonitoring(ctx); err != nil {
+			result = errors.Join(result, fmt.Errorf("failed to stop game monitor: %w", err))
+		}
+	}
 	if s.pprofService != nil {
 		if err := s.pprofService.Stop(ctx); err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to close pprof server: %w", err))
