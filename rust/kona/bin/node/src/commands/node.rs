@@ -17,7 +17,9 @@ use kona_cli::{LogConfig, MetricsArgs};
 use kona_engine::{HyperAuthClient, OpEngineClient};
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
-use kona_node_service::{EngineConfig, L1ConfigBuilder, NodeMode, RollupNodeBuilder};
+use kona_node_service::{
+    BlocksClientConfig, EngineConfig, L1ConfigBuilder, NodeMode, RollupNodeBuilder,
+};
 use kona_registry::{L1Config, scr_rollup_config_by_alloy_ident};
 use op_alloy_network::Optimism;
 use op_alloy_provider::ext::engine::OpEngineApi;
@@ -25,6 +27,7 @@ use serde_json::from_reader;
 use std::{fs::File, io::Write, path::PathBuf, sync::Arc};
 use strum::IntoEnumIterator;
 use tracing::{debug, error, info};
+use url::Url;
 
 /// A JWT token validation error.
 #[derive(Debug, thiserror::Error)]
@@ -99,6 +102,13 @@ pub struct NodeCommand {
     #[clap(flatten)]
     pub derivation_delegate_args: DerivationDelegateArgs,
 
+    /// Sequencer canonical unsafe blocks `WebSocket` endpoint.
+    ///
+    /// When configured, the stream is the validator's authoritative unsafe payload source and
+    /// received P2P unsafe payloads are not forwarded to the engine.
+    #[arg(long = "sequencer.blocks-url", env = "KONA_NODE_SEQUENCER_BLOCKS_URL")]
+    pub sequencer_blocks_url: Option<Url>,
+
     /// Path to a custom L2 rollup configuration file
     /// (overrides the default rollup configuration from the registry)
     #[arg(long, visible_alias = "rollup-cfg", env = "KONA_NODE_ROLLUP_CONFIG")]
@@ -131,6 +141,7 @@ impl Default for NodeCommand {
             l1_rpc_args: L1ClientArgs::default(),
             l2_client_args: L2ClientArgs::default(),
             derivation_delegate_args: DerivationDelegateArgs::default(),
+            sequencer_blocks_url: None,
             l2_config_file: None,
             l1_config_file: None,
             interop_dependency_set: None,
@@ -273,6 +284,10 @@ impl NodeCommand {
 
     /// Run the Node subcommand.
     pub async fn run(self, args: &GlobalArgs) -> anyhow::Result<()> {
+        if self.node_mode.is_sequencer() && self.sequencer_blocks_url.is_some() {
+            bail!("--sequencer.blocks-url is only supported in validator mode");
+        }
+
         let cfg = self.get_l2_config(args)?;
 
         info!(
@@ -323,6 +338,7 @@ impl NodeCommand {
             p2p_config,
             rpc_config,
         )
+        .with_blocks_client_config(self.sequencer_blocks_url.clone().map(BlocksClientConfig::new))
         .with_sequencer_config(self.sequencer_flags.config())
         .with_derivation_delegate_config(self.derivation_delegate_args.config())
         .with_dependency_set(dependency_set)
@@ -479,6 +495,33 @@ mod tests {
             std::iter::once(&"node").chain(default_flags().iter()).copied(),
         );
         assert_eq!(args.node_mode, NodeMode::Validator);
+        assert_eq!(args.sequencer_blocks_url, None);
+    }
+
+    #[test]
+    fn test_node_cli_parses_sequencer_blocks_url() {
+        let args = NodeCommand::parse_from(
+            std::iter::once(&"node")
+                .chain(default_flags().iter())
+                .copied()
+                .chain(["--sequencer.blocks-url", "ws://sequencer.example:8548"]),
+        );
+        assert_eq!(
+            args.sequencer_blocks_url,
+            Some(Url::parse("ws://sequencer.example:8548").unwrap())
+        );
+    }
+
+    #[tokio::test]
+    async fn test_sequencer_rejects_blocks_url() {
+        let command = NodeCommand {
+            node_mode: NodeMode::Sequencer,
+            sequencer_blocks_url: Some(Url::parse("ws://sequencer.example:8548").unwrap()),
+            ..Default::default()
+        };
+
+        let error = command.run(&GlobalArgs::default()).await.unwrap_err();
+        assert!(error.to_string().contains("only supported in validator mode"));
     }
 
     #[test]

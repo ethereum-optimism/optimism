@@ -1,6 +1,7 @@
 //! Contains the [`RollupNode`] implementation.
 use crate::{
-    ConductorClient, DelayedL1OriginSelectorProvider, DelegateDerivationActor, DerivationActor,
+    BlocksClient, BlocksClientActor, BlocksClientConfig, ConductorClient,
+    DelayedL1OriginSelectorProvider, DelegateDerivationActor, DerivationActor,
     DerivationActorRequest, DerivationDelegateClient, DerivationError, EngineActor,
     EngineActorRequest, EngineConfig, EngineRpcActor, EngineRpcRequest, InteropMode,
     JsonrpseeServerLauncher, L1OriginSelector, L1WatcherActor, NetworkActor, NetworkBuilder,
@@ -12,7 +13,7 @@ use crate::{
 };
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::Address;
-use alloy_provider::RootProvider;
+use alloy_provider::{Provider, RootProvider};
 use jsonrpsee::RpcModule;
 use kona_derive::StatefulAttributesBuilder;
 use kona_engine::{Engine, EngineState, OpEngineClient};
@@ -70,6 +71,8 @@ pub struct RollupNode {
     pub(crate) engine_config: EngineConfig,
     /// The [`RpcBuilder`] for the node.
     pub(crate) rpc_builder: Option<RpcBuilder>,
+    /// Optional canonical unsafe blocks client configuration.
+    pub(crate) blocks_client_config: Option<BlocksClientConfig>,
     /// The P2P [`NetworkConfig`] for the node.
     pub(crate) p2p_config: NetworkConfig,
     /// The [`SequencerConfig`] for the node.
@@ -123,6 +126,9 @@ where
     }
 }
 
+/// Concrete type of the blocks client actor used by `RollupNode`.
+type ConfiguredBlocksClientActor = BlocksClientActor<QueuedNetworkEngineClient>;
+
 /// Concrete type of the engine actor used by `RollupNode`.
 type ConfiguredEngineActor =
     EngineActor<OpEngineClient<RootProvider, RootProvider<Optimism>>, QueuedEngineDerivationClient>;
@@ -142,6 +148,29 @@ type ConfiguredSequencerActor = SequencerActor<
 
 /// Concrete type of the rpc actor used by `RollupNode`.
 type ConfiguredRpcActor = RpcActor<JsonrpseeServerLauncher>;
+
+async fn connect_blocks_client_actor(
+    config: &BlocksClientConfig,
+    local_head: u64,
+    engine_actor_request_tx: mpsc::Sender<EngineActorRequest>,
+) -> Result<ConfiguredBlocksClientActor, String> {
+    let start = local_head
+        .checked_add(1)
+        .ok_or_else(|| "Cannot start blocks client after block u64::MAX".to_string())?;
+    let blocks_client = BlocksClient::connect(config.endpoint.clone(), start)
+        .await
+        .map_err(|error| format!("Failed to connect to sequencer blocks stream: {error}"))?;
+
+    info!(
+        target: "blocks_client",
+        endpoint = %config.endpoint,
+        local_head,
+        start,
+        "Connected to sequencer blocks stream"
+    );
+
+    Ok(BlocksClientActor::new(blocks_client, QueuedNetworkEngineClient { engine_actor_request_tx }))
+}
 
 impl RollupNode {
     /// The mode of operation for the node.
@@ -289,6 +318,22 @@ impl RollupNode {
         }
     }
 
+    /// Builds the canonical unsafe blocks client when one is configured.
+    async fn build_blocks_client(
+        &self,
+        engine_actor_request_tx: mpsc::Sender<EngineActorRequest>,
+    ) -> Result<Option<ConfiguredBlocksClientActor>, String> {
+        let Some(config) = self.blocks_client_config.as_ref() else {
+            return Ok(None);
+        };
+
+        let local_head =
+            self.l2_provider.get_block_number().await.map_err(|error| {
+                format!("Failed to read local L2 head for blocks client: {error}")
+            })?;
+        Ok(Some(connect_blocks_client_actor(config, local_head, engine_actor_request_tx).await?))
+    }
+
     /// Builds the L1 watcher actor along with its head and finalized block streams.
     ///
     /// Unlike the other `build_*` helpers, this one returns `impl NodeActor` rather than a named
@@ -428,8 +473,8 @@ impl RollupNode {
     ///
     /// 1. The data availability layer, with a watcher that listens for new updates. L2 inputs (L2
     ///    transaction batches + deposits) are then derived from the DA layer.
-    /// 2. The L2 sequencer, which produces unsafe L2 blocks and sends them to the network over p2p
-    ///    gossip.
+    /// 2. The L2 sequencer, which produces unsafe L2 blocks and sends them over p2p gossip or an
+    ///    optionally configured canonical blocks stream.
     ///
     /// From these two sources, the node imports `unsafe` blocks from the L2 sequencer, `safe`
     /// blocks from the L2 derivation pipeline into the L2 execution layer via the Engine API,
@@ -482,6 +527,7 @@ impl RollupNode {
         let derivation = self
             .build_derivation_actor(engine_actor_request_tx.clone(), derivation_actor_request_rx)
             .await;
+        let blocks_client = self.build_blocks_client(engine_actor_request_tx.clone()).await?;
 
         // Build and start the libp2p swarm upstream of `NetworkActor::new` so the constructor
         // stays sync.
@@ -500,7 +546,8 @@ impl RollupNode {
             p2p_rpc_rx,
             network_admin_rx,
             gossip_payload_rx,
-        );
+        )
+        .with_gossip_unsafe_block_forwarding(self.blocks_client_config.is_none());
 
         let l1_watcher = self.build_l1_watcher(
             derivation_actor_request_tx,
@@ -535,6 +582,7 @@ impl RollupNode {
             actors = [
                 rpc,
                 sequencer_actor,
+                blocks_client,
                 Some(network),
                 Some(l1_watcher),
                 Some(derivation),
@@ -566,6 +614,11 @@ fn merge_admin_module(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::net::TcpListener;
+    use tokio_tungstenite::{
+        accept_hdr_async,
+        tungstenite::handshake::server::{Request, Response},
+    };
 
     fn admin_method_names(enable_admin: bool) -> Vec<String> {
         let mut modules = RpcModule::new(());
@@ -573,6 +626,30 @@ mod tests {
         merge_admin_module(&mut modules, enable_admin, None, network_admin_tx)
             .expect("admin module registration");
         modules.method_names().map(ToString::to_string).collect()
+    }
+
+    #[tokio::test]
+    async fn configured_blocks_client_connects_after_local_head() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let endpoint =
+            url::Url::parse(&format!("ws://{}", listener.local_addr().unwrap())).unwrap();
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            accept_hdr_async(stream, |request: &Request, response: Response| {
+                assert_eq!(request.uri().path(), "/blocks");
+                assert_eq!(request.uri().query(), Some("start=42"));
+                Ok(response)
+            })
+            .await
+            .unwrap()
+        });
+        let (engine_actor_request_tx, _engine_actor_request_rx) = mpsc::channel(1);
+        let config = BlocksClientConfig::new(endpoint);
+
+        let actor = connect_blocks_client_actor(&config, 41, engine_actor_request_tx).await;
+
+        assert!(actor.is_ok());
+        server.await.unwrap();
     }
 
     #[test]

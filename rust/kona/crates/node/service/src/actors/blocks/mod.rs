@@ -6,5 +6,8 @@ pub use actor::{BlocksClientActor, BlocksClientActorError};
 mod client;
 pub use client::{BlocksClient, BlocksClientError, MAX_BLOCK_FRAME_SIZE};
 
+mod config;
+pub use config::BlocksClientConfig;
+
 #[cfg(test)]
 mod tests;

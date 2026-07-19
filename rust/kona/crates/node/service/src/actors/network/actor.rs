@@ -35,6 +35,8 @@ pub struct NetworkActor<NetworkEngineClient_: NetworkEngineClient> {
     publish_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
     /// A client to use to interact with the engine actor.
     engine_client: NetworkEngineClient_,
+    /// Whether received P2P gossip payloads should be forwarded to the engine actor.
+    forward_gossip_unsafe_blocks: bool,
     // Purely-internal channel: loops gossip-swarm events back into this actor's own select. It
     // never crosses an actor boundary, so it lives here rather than being injected.
     unsafe_block_tx: UnboundedSender<OpExecutionPayloadEnvelope>,
@@ -65,9 +67,20 @@ impl<NetworkEngineClient_: NetworkEngineClient> NetworkActor<NetworkEngineClient
             admin_query_rx,
             publish_rx,
             engine_client,
+            forward_gossip_unsafe_blocks: true,
             unsafe_block_tx,
             unsafe_block_rx,
         }
+    }
+
+    /// Configures whether received P2P gossip payloads are forwarded to the engine actor.
+    ///
+    /// Disabling forwarding leaves discovery, gossip publication, P2P RPC, and admin payload
+    /// injection active. This is used when a canonical sequencer blocks stream is the authoritative
+    /// unsafe payload source.
+    pub const fn with_gossip_unsafe_block_forwarding(mut self, enabled: bool) -> Self {
+        self.forward_gossip_unsafe_blocks = enabled;
+        self
     }
 }
 
@@ -169,10 +182,18 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
                     return Err(NetworkActorError::ChannelClosed);
                 };
 
-                if let Some(payload) = self.handler.gossip.handle_event(event)
-                    && self.unsafe_block_tx.send(payload.into()).is_err()
-                {
-                    warn!(target: "node::p2p", "Failed to send unsafe block to network handler");
+                if let Some(payload) = self.handler.gossip.handle_event(event) {
+                    if self.forward_gossip_unsafe_blocks {
+                        if self.unsafe_block_tx.send(payload.into()).is_err() {
+                            warn!(target: "node::p2p", "Failed to send unsafe block to network handler");
+                        }
+                    } else {
+                        trace!(
+                            target: "node::p2p",
+                            number = payload.payload.block_number(),
+                            "Ignoring P2P unsafe block while sequencer blocks stream is configured"
+                        );
+                    }
                 }
                 Ok(())
             }

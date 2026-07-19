@@ -1,7 +1,7 @@
 //! Contains the builder for the [`RollupNode`].
 
 use crate::{
-    EngineConfig, InteropMode, NetworkConfig, RollupNode, SequencerConfig,
+    BlocksClientConfig, EngineConfig, InteropMode, NetworkConfig, RollupNode, SequencerConfig,
     actors::DerivationDelegateClient, service::node::L1Config,
 };
 use alloy_primitives::Bytes;
@@ -67,6 +67,8 @@ pub struct RollupNodeBuilder {
     pub p2p_config: NetworkConfig,
     /// An RPC Configuration.
     pub rpc_config: Option<RpcBuilder>,
+    /// Optional canonical unsafe blocks client configuration.
+    pub blocks_client_config: Option<BlocksClientConfig>,
     /// The [`SequencerConfig`].
     pub sequencer_config: Option<SequencerConfig>,
     /// Whether to run the node in interop mode.
@@ -95,6 +97,7 @@ impl RollupNodeBuilder {
             engine_config,
             p2p_config,
             rpc_config,
+            blocks_client_config: None,
             interop_mode: InteropMode::default(),
             sequencer_config: None,
             derivation_delegate_config: None,
@@ -119,6 +122,14 @@ impl RollupNodeBuilder {
     /// Sets the [`RpcBuilder`] on the [`RollupNodeBuilder`].
     pub fn with_rpc_config(self, rpc_config: Option<RpcBuilder>) -> Self {
         Self { rpc_config, ..self }
+    }
+
+    /// Sets the canonical unsafe blocks client configuration.
+    pub fn with_blocks_client_config(
+        self,
+        blocks_client_config: Option<BlocksClientConfig>,
+    ) -> Self {
+        Self { blocks_client_config, ..self }
     }
 
     /// Appends the [`SequencerConfig`] to the builder.
@@ -189,10 +200,64 @@ impl RollupNodeBuilder {
             l2_trust_rpc: self.l2_trust_rpc,
             engine_config: self.engine_config,
             rpc_builder: self.rpc_config,
+            blocks_client_config: self.blocks_client_config,
             p2p_config,
             sequencer_config,
             derivation_delegate_provider,
             dependency_set: self.dependency_set,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy_primitives::Address;
+    use alloy_rpc_types_engine::JwtSecret;
+    use discv5::enr::CombinedKey;
+    use kona_disc::LocalNode;
+    use libp2p::{Multiaddr, multiaddr::Protocol};
+    use std::net::{IpAddr, Ipv4Addr};
+
+    fn test_builder() -> RollupNodeBuilder {
+        let rollup_config = RollupConfig::default();
+        let CombinedKey::Secp256k1(signing_key) = CombinedKey::generate_secp256k1() else {
+            unreachable!()
+        };
+        let discovery = LocalNode::new(signing_key, IpAddr::V4(Ipv4Addr::LOCALHOST), 0, 0);
+        let mut gossip = Multiaddr::from(IpAddr::V4(Ipv4Addr::LOCALHOST));
+        gossip.push(Protocol::Tcp(0));
+
+        RollupNodeBuilder::new(
+            rollup_config.clone(),
+            L1ConfigBuilder {
+                chain_config: L1ChainConfig::default(),
+                trust_rpc: true,
+                beacon: Url::parse("http://localhost:5052").unwrap(),
+                rpc_url: Url::parse("http://localhost:8545").unwrap(),
+                slot_duration_override: None,
+            },
+            true,
+            EngineConfig {
+                config: Arc::new(rollup_config.clone()),
+                l2_url: Url::parse("http://localhost:8551").unwrap(),
+                l2_jwt_secret: JwtSecret::random(),
+                l1_url: Url::parse("http://localhost:8545").unwrap(),
+                mode: crate::NodeMode::Validator,
+            },
+            NetworkConfig::new(rollup_config, discovery, gossip, Address::ZERO),
+            None,
+        )
+    }
+
+    #[test]
+    fn blocks_client_config_is_disabled_by_default_and_propagated_when_set() {
+        assert!(test_builder().build().blocks_client_config.is_none());
+
+        let config = BlocksClientConfig::new(
+            Url::parse("ws://sequencer.example:8548").expect("valid blocks endpoint"),
+        );
+        let node = test_builder().with_blocks_client_config(Some(config.clone())).build();
+        assert_eq!(node.blocks_client_config, Some(config));
     }
 }

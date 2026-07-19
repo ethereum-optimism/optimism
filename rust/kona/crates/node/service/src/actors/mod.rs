@@ -7,7 +7,7 @@ pub use traits::NodeActor;
 
 mod blocks;
 pub use blocks::{
-    BlocksClient, BlocksClientActor, BlocksClientActorError, BlocksClientError,
+    BlocksClient, BlocksClientActor, BlocksClientActorError, BlocksClientConfig, BlocksClientError,
     MAX_BLOCK_FRAME_SIZE,
 };
 
