@@ -45,12 +45,12 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 	if err != nil {
 		return err
 	}
-	// This update is saved only after a successful broadcast.
+	// Record in memory. The stage runner persists state after its broadcast succeeds.
 	return RecordOPChainDeployment(st, result)
 }
 
-// ExecuteOPChainDeployment runs the deployment without recording it.
-// Confirm queued transactions before recording. Forge confirms before returning.
+// ExecuteOPChainDeployment runs the deployment without recording state.
+// Script-host execution queues transactions. Forge broadcasts directly.
 func ExecuteOPChainDeployment(
 	env *Env,
 	st *state.State,
@@ -145,7 +145,6 @@ func ExecuteOPChainDeployment(
 }
 
 // RecordOPChainDeployment updates in-memory state and is safe to repeat.
-// Confirm live transactions before saving the state.
 func RecordOPChainDeployment(st *state.State, result OPChainDeploymentResult) error {
 	if !result.initialized {
 		return fmt.Errorf("cannot record an uninitialized OP chain deployment result")
