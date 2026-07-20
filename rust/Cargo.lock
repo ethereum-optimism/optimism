@@ -13517,6 +13517,7 @@ dependencies = [
  "futures",
  "futures-util",
  "jsonrpsee",
+ "libc",
  "op-alloy-consensus",
  "op-alloy-network",
  "op-alloy-rpc-types-engine",
