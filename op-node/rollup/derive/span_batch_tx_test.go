@@ -100,6 +100,9 @@ func testPostExecTx() *optypes.PostExecTx {
 
 // testPostExecGethTx decodes the canonical post-exec encoding into a go-ethereum
 // transaction, mirroring how AddTxs receives post-exec txs from raw batch bytes.
+// The 0x7D type byte keeps this on the typed-transaction decode path (only first
+// bytes > 0x7f decode as legacy RLP); the payload after it — RLP itself, so it can
+// look legacy-shaped — is carried as opaque bytes with no further envelope.
 func testPostExecGethTx(t *testing.T) *types.Transaction {
 	raw, err := testPostExecTx().MarshalBinary()
 	require.NoError(t, err)
