@@ -171,6 +171,42 @@ func TestReceiptUnmarshalBinaryDifferential(t *testing.T) {
 	}
 }
 
+// TestReceiptMarshalBinaryDifferential asserts the consensus encode against
+// op-geth's MarshalBinary for every encoding arm — including the deposit arm,
+// which (unlike the receipts-root derivation) includes the nonce whenever set.
+// It will be removed in the final cutover, when the op-geth dependency is
+// replaced with upstream go-ethereum.
+func TestReceiptMarshalBinaryDifferential(t *testing.T) {
+	for i, gr := range consensusReceiptCases() {
+		theirs, err := gr.MarshalBinary()
+		require.NoError(t, err)
+
+		r := &optypes.Receipt{Receipt: *gr}
+		r.DepositNonce = gr.DepositNonce
+		r.DepositReceiptVersion = gr.DepositReceiptVersion
+		ours, err := r.MarshalBinary()
+		require.NoErrorf(t, err, "receipt %d (type %#x)", i, gr.Type)
+		require.Equalf(t, theirs, ours, "receipt %d (type %#x)", i, gr.Type)
+	}
+}
+
+// TestReceiptBinaryRoundTrip pins, op-geth-independently, that the wrapper's
+// binary codec round-trips — in particular that a deposit receipt built only
+// through this package's own decoder re-encodes identically (P2 of the #21907
+// review: the encoder must read the outer deposit fields).
+func TestReceiptBinaryRoundTrip(t *testing.T) {
+	for i, gr := range consensusReceiptCases() {
+		raw, err := gr.MarshalBinary()
+		require.NoError(t, err)
+
+		var r optypes.Receipt
+		require.NoError(t, r.UnmarshalBinary(raw))
+		reencoded, err := r.MarshalBinary()
+		require.NoErrorf(t, err, "receipt %d (type %#x)", i, gr.Type)
+		require.Equalf(t, raw, reencoded, "receipt %d (type %#x)", i, gr.Type)
+	}
+}
+
 func TestReceiptUnmarshalBinaryErrors(t *testing.T) {
 	var r optypes.Receipt
 	require.Error(t, r.UnmarshalBinary(nil))

@@ -1,7 +1,6 @@
 package types
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"math/big"
@@ -9,7 +8,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/rlp"
 )
 
 // txJSON is the JSON representation of OP Stack transactions on the
@@ -83,7 +81,7 @@ func (d *DepositTx) UnmarshalJSON(input []byte) error {
 	if err := json.Unmarshal(input, &dec); err != nil {
 		return err
 	}
-	if dec.Type == nil || byte(*dec.Type) != DepositTxType {
+	if dec.Type == nil || *dec.Type != hexutil.Uint64(DepositTxType) {
 		return errors.New("transaction type is not deposit")
 	}
 	if dec.AccessList != nil || dec.MaxFeePerGas != nil || dec.MaxPriorityFeePerGas != nil {
@@ -123,18 +121,16 @@ func (d *DepositTx) UnmarshalJSON(input []byte) error {
 	return nil
 }
 
-// Hash returns the transaction hash as op-geth computes it:
-// keccak256(PostExecTxType || RLP([Data])). Note this is NOT the hash of the
-// canonical envelope — the wire encoding appends Data verbatim (see
-// MarshalBinary), but op-geth hashes typed transactions over the RLP of the
-// inner struct, and for PostExecTx the two differ.
+// Hash returns the transaction hash: the keccak-256 hash of the canonical
+// EIP-2718 encoding — the rule every typed transaction follows, shared with
+// op-reth (see TestPostExecTxHashGoldenVector). See DepositTx.Hash for the
+// panic rationale.
 func (p *PostExecTx) Hash() common.Hash {
-	var buf bytes.Buffer
-	buf.WriteByte(PostExecTxType)
-	if err := rlp.Encode(&buf, p); err != nil {
-		panic(err) // a byte slice cannot fail to RLP-encode
+	raw, err := p.MarshalBinary()
+	if err != nil {
+		panic(err)
 	}
-	return crypto.Keccak256Hash(buf.Bytes())
+	return crypto.Keccak256Hash(raw)
 }
 
 // MarshalJSON encodes the post-exec transaction in op-geth's RPC transaction
@@ -159,7 +155,7 @@ func (p *PostExecTx) UnmarshalJSON(input []byte) error {
 	if err := json.Unmarshal(input, &dec); err != nil {
 		return err
 	}
-	if dec.Type == nil || byte(*dec.Type) != PostExecTxType {
+	if dec.Type == nil || *dec.Type != hexutil.Uint64(PostExecTxType) {
 		return errors.New("transaction type is not post-exec")
 	}
 	if (dec.AccessList != nil && len(*dec.AccessList) != 0) ||

@@ -113,6 +113,28 @@ func (rs Receipts) EncodeIndex(i int, w *bytes.Buffer) {
 	}
 }
 
+// MarshalBinary returns the consensus encoding of the receipt, routing the
+// OP Stack synthetic receipt types (0x7E deposit, 0x7D post-exec) to this
+// package and everything else to go-ethereum. The deposit encoding reads the
+// authoritative OUTER DepositNonce/DepositReceiptVersion fields and — unlike
+// the receipts-root derivation in EncodeIndex — always includes the nonce when
+// set, matching op-geth's MarshalBinary. Inverse of UnmarshalBinary.
+func (r *Receipt) MarshalBinary() ([]byte, error) {
+	var buf bytes.Buffer
+	switch r.Type {
+	case DepositTxType:
+		buf.WriteByte(DepositTxType)
+		err := rlp.Encode(&buf, &depositReceiptRLP{r.statusEncoding(), r.CumulativeGasUsed, r.Bloom, r.Logs, r.DepositNonce, r.DepositReceiptVersion})
+		return buf.Bytes(), err
+	case PostExecTxType:
+		buf.WriteByte(PostExecTxType)
+		err := rlp.Encode(&buf, &receiptRLP{r.statusEncoding(), r.CumulativeGasUsed, r.Bloom, r.Logs})
+		return buf.Bytes(), err
+	default:
+		return r.Receipt.MarshalBinary()
+	}
+}
+
 // UnmarshalBinary decodes the consensus encoding of a receipt, routing the
 // OP Stack synthetic receipt types (0x7E deposit, 0x7D post-exec) to this
 // package and everything else to go-ethereum. The OP JSON-only fee fields

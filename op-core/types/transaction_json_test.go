@@ -115,6 +115,7 @@ func TestDepositTxUnmarshalJSONErrors(t *testing.T) {
 		errStr string
 	}{
 		{"wrong type", mutate(func(o map[string]json.RawMessage) { o["type"] = json.RawMessage(`"0x2"`) }), "not deposit"},
+		{"truncated type match", mutate(func(o map[string]json.RawMessage) { o["type"] = json.RawMessage(`"0x17e"`) }), "not deposit"},
 		{"missing type", mutate(func(o map[string]json.RawMessage) { delete(o, "type") }), "not deposit"},
 		{"access list present", mutate(func(o map[string]json.RawMessage) { o["accessList"] = json.RawMessage(`[]`) }), "unexpected field"},
 		{"maxFeePerGas present", mutate(func(o map[string]json.RawMessage) { o["maxFeePerGas"] = json.RawMessage(`"0x1"`) }), "unexpected field"},
@@ -188,6 +189,7 @@ func TestPostExecTxUnmarshalJSONErrors(t *testing.T) {
 		errStr string
 	}{
 		{"wrong type", mutate(func(o map[string]json.RawMessage) { o["type"] = json.RawMessage(`"0x7e"`) }), "not post-exec"},
+		{"truncated type match", mutate(func(o map[string]json.RawMessage) { o["type"] = json.RawMessage(`"0x17d"`) }), "not post-exec"},
 		{"to present", mutate(func(o map[string]json.RawMessage) {
 			o["to"] = json.RawMessage(`"0x4242424242424242424242424242424242424242"`)
 		}), "unexpected field"},
