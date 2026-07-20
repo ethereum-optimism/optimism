@@ -1,0 +1,42 @@
+# Nextest configuration for the `rust/` workspace.
+#
+# This is the only nextest config monorepo CI reads. `rust/op-reth/.config/nextest.toml`
+# is never loaded: op-reth has no standalone Cargo workspace (its crates are members of
+# `rust/Cargo.toml`), and nextest resolves config relative to the workspace root.
+
+# `p2p_version::peers_negotiate_eth_69` intermittently dies with SIGSEGV *after* its body
+# has passed — the assertions succeed and nextest prints `test result: ok`, then the test
+# binary segfaults during teardown. nextest fails the run purely on the signal exit, which
+# has repeatedly ejected unrelated PRs from the merge queue.
+#
+# Retrying is sound here specifically because the crash is teardown-only: nextest reruns in
+# a fresh process, so a pass on retry re-establishes every assertion from scratch rather
+# than papering over a failed one.
+#
+# The retry turns a red job green, so the recurrence would otherwise go unnoticed.
+# The `[profile.default.junit]` report below records the failed attempt as a
+# `<flakyFailure>` carrying its captured stderr; the cargo-test CI job greps that report
+# and pings Slack on a hit (CircleCI does not parse `<flakyFailure>`, so its Tests tab and
+# Insights stay blind — the detection is ours, not theirs).
+#
+# This is a stopgap, not a fix — the crash mechanism is unresolved and tracked in
+# ethereum-optimism/optimism#20973. Remove this override once it is fixed.
+#
+# On the filter form: a `binary_id(reth-optimism-node::it)` predicate would scope this to
+# one binary, but nextest validates override filters against the whole-workspace binary
+# namespace, so a future crate/binary rename would make it match nothing and hard-error
+# *every* nextest run in `rust/`. A `test(=exact)` predicate degrades gracefully to a
+# no-op instead. The `=` is load-bearing: bare `test(...)` is a substring match, so a
+# later sibling such as `peers_negotiate_eth_69_disconnect` would silently inherit these
+# retries — the accidental flake-masking this override exists to avoid.
+[[profile.default.overrides]]
+filter = 'test(=p2p_version::peers_negotiate_eth_69)'
+retries = 2
+
+# Emit a JUnit report for every nextest run in this workspace. The cargo-test CI job uses
+# it three ways: `store_test_results` for CircleCI's Tests tab (per-test pass/fail/timing —
+# the first test-results for rust CI), a grep for `<flakyFailure>` to detect a retried flake
+# and alert on Slack, and a raw-XML artifact so the failed attempt's captured stderr stays
+# retrievable. Written to `target/nextest/default/junit.xml` (relative to the report dir).
+[profile.default.junit]
+path = "junit.xml"
