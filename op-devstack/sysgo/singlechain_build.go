@@ -185,15 +185,16 @@ func startL2CLForKey(
 	l2CLOpts []L2CLOption,
 	factory L2CLFactory,
 ) L2CLNode {
-	target := NewComponentTarget(clKey, l2Net.ChainID())
-	resolvedCfg := DefaultL2CLConfig()
-	resolvedCfg.IsSequencer = isSequencer
-	resolvedCfg.FollowSource = followSource
-	for _, opt := range l2CLOpts {
-		if opt != nil {
-			opt.Apply(t, target, resolvedCfg)
-		}
+	startCfg := l2CLNodeStartConfig{
+		Key:            clKey,
+		IsSequencer:    isSequencer,
+		NoDiscovery:    true,
+		EnableReqResp:  true,
+		L2FollowSource: followSource,
+		L2CLOptions:    l2CLOpts,
 	}
+	target := NewComponentTarget(clKey, l2Net.ChainID())
+	resolvedCfg := resolveL2CLNodeConfig(t, target, startCfg)
 	if factory != nil {
 		role := L2CLRoleVerifier
 		if isSequencer {
@@ -210,7 +211,7 @@ func startL2CLForKey(
 			L1Genesis:    l1Net.Genesis(),
 			L2Genesis:    l2Net.genesis,
 			RollupConfig: l2Net.RollupConfig(),
-			FollowSource: followSource,
+			FollowSource: resolvedCfg.FollowSource,
 			Config:       *resolvedCfg,
 		})
 		if handled {
@@ -222,14 +223,8 @@ func startL2CLForKey(
 	case MixedL2CLKona:
 		return startMixedKonaNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, isSequencer, nil, nil)
 	default: // op-node
-		return startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
-			Key:            clKey,
-			IsSequencer:    isSequencer,
-			NoDiscovery:    true,
-			EnableReqResp:  true,
-			L2FollowSource: followSource,
-			L2CLOptions:    l2CLOpts,
-		})
+		startCfg.ResolvedConfig = resolvedCfg
+		return startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, startCfg)
 	}
 }
 
@@ -325,11 +320,34 @@ type l2CLNodeStartConfig struct {
 	L2FollowSource string
 	DependencySet  depset.DependencySet
 	L2CLOptions    []L2CLOption
+	// ResolvedConfig, when set, is used as the effective config instead of
+	// resolving defaults + L2CLOptions again. startL2CLForKey sets it so
+	// options with side effects (e.g. proxy registration) apply exactly once
+	// across the factory context and the op-node fallback.
+	ResolvedConfig *L2CLConfig
 	// SyncMode overrides the sequencer and verifier sync modes; defaults to CLSync if unset.
 	SyncMode nodeSync.Mode
 	// SequencerStopped starts the sequencer in the stopped state (it must be
 	// activated later via the StartSequencer RPC). Only meaningful when IsSequencer.
 	SequencerStopped bool
+}
+
+// resolveL2CLNodeConfig produces the effective L2CLConfig for a node slot:
+// start-config fields first, then L2CLOptions on top. Options may carry side
+// effects (e.g. registering follow-source proxies), so a slot's config must be
+// resolved at most once.
+func resolveL2CLNodeConfig(t devtest.T, target ComponentTarget, startCfg l2CLNodeStartConfig) *L2CLConfig {
+	cfg := DefaultL2CLConfig()
+	cfg.IsSequencer = startCfg.IsSequencer
+	cfg.NoDiscovery = startCfg.NoDiscovery
+	cfg.EnableReqRespSync = startCfg.EnableReqResp
+	cfg.FollowSource = startCfg.L2FollowSource
+	for _, opt := range startCfg.L2CLOptions {
+		if opt != nil {
+			opt.Apply(t, target, cfg)
+		}
+	}
+	return cfg
 }
 
 func startL2CLNode(
@@ -344,19 +362,9 @@ func startL2CLNode(
 	startCfg l2CLNodeStartConfig,
 ) *OpNode {
 	require := t.Require()
-	cfg := DefaultL2CLConfig()
-	cfg.IsSequencer = startCfg.IsSequencer
-	cfg.NoDiscovery = startCfg.NoDiscovery
-	cfg.EnableReqRespSync = startCfg.EnableReqResp
-	cfg.FollowSource = startCfg.L2FollowSource
-	if len(startCfg.L2CLOptions) > 0 {
-		l2CLTarget := NewComponentTarget(startCfg.Key, l2Net.ChainID())
-		for _, opt := range startCfg.L2CLOptions {
-			if opt == nil {
-				continue
-			}
-			opt.Apply(t, l2CLTarget, cfg)
-		}
+	cfg := startCfg.ResolvedConfig
+	if cfg == nil {
+		cfg = resolveL2CLNodeConfig(t, NewComponentTarget(startCfg.Key, l2Net.ChainID()), startCfg)
 	}
 
 	if startCfg.SyncMode != 0 {

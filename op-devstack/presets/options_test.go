@@ -46,10 +46,14 @@ func TestOptionKindsFromCompositeOptions(t *testing.T) {
 	})
 }
 
-func TestWithL2CLFactory(t *testing.T) {
-	factory := sysgo.L2CLFactoryFn(func(devtest.T, sysgo.L2CLLaunchContext) (sysgo.L2CLNode, bool) {
+func declineAllL2CLFactory() sysgo.L2CLFactory {
+	return sysgo.L2CLFactoryFn(func(devtest.T, sysgo.L2CLLaunchContext) (sysgo.L2CLNode, bool) {
 		return nil, false
 	})
+}
+
+func TestWithL2CLFactory(t *testing.T) {
+	factory := declineAllL2CLFactory()
 	cfg, _ := collectPresetConfig([]Option{WithL2CLFactory(factory)})
 	require.NotNil(t, cfg.L2CLFactory)
 	require.Equal(t, optionKindL2CLFactory, WithL2CLFactory(factory).optionKinds())
@@ -83,6 +87,24 @@ func TestUnsupportedPresetOptionKinds(t *testing.T) {
 			supported: minimalPresetSupportedOptionKinds,
 			opts:      WithL1Geth("/tmp/geth"),
 			want:      0,
+		},
+		{
+			name:      "minimal allows L2 CL factory",
+			supported: minimalPresetSupportedOptionKinds,
+			opts:      WithL2CLFactory(declineAllL2CLFactory()),
+			want:      0,
+		},
+		{
+			name:      "minimal with conductors rejects L2 CL factory",
+			supported: minimalWithConductorsPresetSupportedOptionKinds,
+			opts:      WithL2CLFactory(declineAllL2CLFactory()),
+			want:      optionKindL2CLFactory,
+		},
+		{
+			name:      "simple with sync tester rejects L2 CL factory",
+			supported: simpleWithSyncTesterPresetSupportedOptionKinds,
+			opts:      WithL2CLFactory(declineAllL2CLFactory()),
+			want:      optionKindL2CLFactory,
 		},
 		{
 			name:      "flashblocks allows builder and deployer adapters",
