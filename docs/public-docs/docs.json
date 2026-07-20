@@ -2019,7 +2019,8 @@
                   "chain-operators/guides/management/fee-vaults",
                   "chain-operators/guides/management/troubleshooting"
                 ]
-              }
+              },
+              "chain-operators/guides/join-superchain-registry"
             ]
           },
           {
@@ -2291,8 +2292,10 @@
             ]
           },
           {
-            "group": "Tools",
+            "group": "Tools & SDKs",
             "pages": [
+              "app-developers/tools-sdks/support-matrix",
+              "app-developers/tools-sdks/listing-criteria",
               "app-developers/tools/faucets",
               "app-developers/tools/block-explorers",
               {
