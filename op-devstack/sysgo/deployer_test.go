@@ -74,15 +74,18 @@ func TestWithLocalContractSourcesAt(t *testing.T) {
 func TestParseL1Fork(t *testing.T) {
 	tests := map[string]forks.Fork{
 		"dencun":      forks.Cancun,
-		"CANCUN":      forks.Cancun,
+		"cancun":      forks.Cancun,
 		"pectra":      forks.Prague,
 		"prague":      forks.Prague,
 		"fusaka":      forks.Osaka,
-		"Osaka":       forks.Osaka,
-		"bpo-1":       forks.BPO1,
-		"BPO_5":       forks.BPO5,
+		"osaka":       forks.Osaka,
+		"bpo1":        forks.BPO1,
+		"bpo2":        forks.BPO2,
+		"bpo3":        forks.BPO3,
+		"bpo4":        forks.BPO4,
+		"bpo5":        forks.BPO5,
 		"glamsterdam": forks.Amsterdam,
-		" amsterdam ": forks.Amsterdam,
+		"amsterdam":   forks.Amsterdam,
 	}
 	for input, expected := range tests {
 		t.Run(input, func(t *testing.T) {
@@ -92,8 +95,29 @@ func TestParseL1Fork(t *testing.T) {
 		})
 	}
 
-	_, err := parseL1Fork("frontier")
-	require.EqualError(t, err, `unsupported L1 fork "frontier"`)
+	for _, input := range []string{"frontier", "CANCUN", "Fusaka", "Osaka", "bpo-1", "BPO_5", " amsterdam "} {
+		t.Run("reject "+input, func(t *testing.T) {
+			_, err := parseL1Fork(input)
+			require.EqualError(t, err, `unsupported L1 fork "`+input+`"`)
+		})
+	}
+}
+
+func TestDevstackDefaultsToFusaka(t *testing.T) {
+	t.Setenv(DevstackL1ForkEnvVar, "")
+	builder := newValidIntentBuilder()
+	builder.WithL1ContractsLocator(artifacts.EmbeddedLocator)
+	builder.WithL2ContractsLocator(artifacts.EmbeddedLocator)
+	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
+	require.NoError(t, err)
+
+	applyConfigCommons(devtest.SerialT(t), keys, DefaultL1ID, builder)
+
+	intent, err := builder.Build()
+	require.NoError(t, err)
+	require.NotNil(t, intent.L1DevGenesisParams.OsakaTimeOffset)
+	require.Zero(t, *intent.L1DevGenesisParams.OsakaTimeOffset)
+	require.Nil(t, intent.L1DevGenesisParams.BPO1TimeOffset)
 }
 
 func TestDeployerOptionsOverrideDevstackL1Fork(t *testing.T) {

@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -74,25 +73,28 @@ func defaultL1BlobSchedule() *params.BlobScheduleConfig {
 }
 
 func WithDefaultBPOBlobSchedule(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
-	// Once we get the latest changes from op-geth we can change this to
-	// params.DefaultBlobSchedule.
 	builder.L1().WithL1BlobSchedule(defaultL1BlobSchedule())
 }
 
 // parseL1Fork accepts both Ethereum upgrade names and their geth execution-layer names.
 func parseL1Fork(value string) (forks.Fork, error) {
-	normalized := strings.NewReplacer("-", "", "_", "").Replace(strings.ToLower(strings.TrimSpace(value)))
-	aliases := map[string]forks.Fork{
-		"dencun": forks.Cancun, "pectra": forks.Prague,
-		"fusaka": forks.Osaka, "glamsterdam": forks.Amsterdam,
-	}
-	if fork, ok := aliases[normalized]; ok {
+	fork, ok := map[string]forks.Fork{
+		"dencun":      forks.Cancun,
+		"cancun":      forks.Cancun,
+		"pectra":      forks.Prague,
+		"prague":      forks.Prague,
+		"fusaka":      forks.Osaka,
+		"osaka":       forks.Osaka,
+		"bpo1":        forks.BPO1,
+		"bpo2":        forks.BPO2,
+		"bpo3":        forks.BPO3,
+		"bpo4":        forks.BPO4,
+		"bpo5":        forks.BPO5,
+		"glamsterdam": forks.Amsterdam,
+		"amsterdam":   forks.Amsterdam,
+	}[value]
+	if ok {
 		return fork, nil
-	}
-	for fork := forks.Cancun; fork <= forks.Amsterdam; fork++ {
-		if normalized == strings.ToLower(strings.ReplaceAll(fork.String(), " ", "")) {
-			return fork, nil
-		}
 	}
 	return 0, fmt.Errorf("unsupported L1 fork %q", value)
 }
@@ -277,7 +279,7 @@ func WithCommons(l1ChainID eth.ChainID) DeployerOption {
 		l1StartTimestamp := uint64(time.Now().Unix()) + 1
 		l1Config.WithTimestamp(l1StartTimestamp)
 
-		l1Fork := forks.Prague // activate pectra on L1 by default
+		l1Fork := forks.Osaka // activate Fusaka on L1 by default
 		if value := os.Getenv(DevstackL1ForkEnvVar); value != "" {
 			var err error
 			l1Fork, err = parseL1Fork(value)
