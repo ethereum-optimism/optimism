@@ -1,0 +1,89 @@
+---
+title: Restore a Node From a Snapshot
+sidebarTitle: Restore From a Snapshot
+description: Download, verify, and extract a snapshot into your node's data directory to skip the initial sync.
+diataxis: how-to
+---
+
+This guide walks you through bootstrapping an OP Stack execution client from a pre-synced snapshot: download it, verify the checksum, extract it into your data directory, and start the node from the snapshot's tip instead of replaying the chain from genesis.
+
+For **what** snapshots are available for OP Mainnet and their download links, see the [Snapshots reference page](/op-mainnet/network-information/snapshots).
+
+## When to use a snapshot
+
+<Warning>
+  `op-geth` has [reached end of support](/notices/op-geth-deprecation) and does not support the Karst hardfork. This guide assumes an `op-reth` node.
+</Warning>
+
+You don't always need one. With [execution-layer sync](/node-operators/reference/consensus-layer-sync) — `--syncmode=execution-layer` and `--l2.enginekind=reth` on `op-node` — `op-reth` retrieves blocks over the P2P network instead of deriving each one, which makes the initial sync much faster and, on most OP Stack chains, needs no snapshot at all. [Nethermind](https://docs.nethermind.io/get-started/running-node/l2-networks#op-stack) downloads what it needs automatically.
+
+Use a snapshot when:
+
+*   You are running an **archive node**, or otherwise need to trace the entire chain.
+*   You simply want to skip the initial sync entirely: a mature chain's data directory can run to hundreds of gigabytes (OP Mainnet is roughly 700 GB for a full node), and even execution-layer sync takes days from scratch.
+
+<Note>
+  On **OP Mainnet**, syncing `op-reth` on a fresh data directory is another reason to use a snapshot: it satisfies the [pre-Bedrock state import requirement](/rust/op-reth/run/faq/sync-op-mainnet) in one step, even when execution-layer sync is enabled.
+</Note>
+
+## Before you begin
+
+*   **Disk space**: you temporarily need room for both the compressed archive and the extracted data directory, so plan for roughly twice the snapshot size during the restore, on fast (NVMe-class) storage.
+*   **Tools**: `curl` (or [aria2](https://aria2.github.io/), which can significantly speed up large downloads), `zstd`, and `tar`.
+*   **A stopped client**: never extract into a data directory an execution client is actively using.
+
+## Restore the snapshot
+
+<Steps>
+  <Step title="Pick a snapshot">
+    Pick a recent snapshot matching your network and client from your chain's snapshot provider. For OP Mainnet, browse the OP Labs managed [Data Directories website](https://datadirs.optimism.io/); the [Snapshots reference page](/op-mainnet/network-information/snapshots) lists the available sources, including third-party providers.
+  </Step>
+
+  <Step title="Download and verify it">
+    Download the archive and check its SHA256 against the value published on the index page:
+
+    ```bash
+    curl -fLO <snapshot-url>/<snapshot-file>.tar.zst
+
+    sha256sum <snapshot-file>.tar.zst       # Linux
+    shasum -a 256 <snapshot-file>.tar.zst   # macOS
+    ```
+
+    Don't skip verification — a truncated multi-hundred-gigabyte download is easy to miss and produces a corrupt database.
+  </Step>
+
+  <Step title="Stop your node and clear the old datadir">
+    If the node has run before and you want to start clean from the snapshot, stop the execution client and remove (or move aside) the contents of its data directory.
+  </Step>
+
+  <Step title="Extract into the data directory">
+    Inspect the archive layout first, then extract it into your client's data directory:
+
+    ```bash
+    tar -tf <snapshot-file>.tar.zst | head -3
+
+    mkdir -p <datadir>
+    tar -I zstd -xvf <snapshot-file>.tar.zst -C <datadir> --strip-components=1
+    ```
+
+    `--strip-components=1` removes the top-level wrapping directory inside the tarball. If the inspection shows files already at the archive root, omit it. Use the same path your client is configured with (the `--datadir` flag for `op-reth`).
+  </Step>
+
+  <Step title="Start the node and confirm it picked up the snapshot">
+    Start the execution client pointed at the restored data directory, then confirm the node reports the snapshot's block height — not `0` — as its latest block:
+
+    ```bash
+    curl -s -X POST -H "Content-Type: application/json" \
+      --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
+      http://localhost:8545
+    ```
+
+    The node then syncs from the snapshot's tip to the current head, which takes minutes to hours depending on the snapshot's age. Once caught up, you can delete the downloaded `.tar.zst` archive to reclaim disk space.
+  </Step>
+</Steps>
+
+## Next steps
+
+*   Running with Docker? The [node-from-docker tutorial](/node-operators/tutorials/node-from-docker#bootstrap-from-a-snapshot) shows this flow with a bind-mounted `op-reth` data directory.
+*   See the [Snapshots reference page](/op-mainnet/network-information/snapshots) for all OP Mainnet download links, including the legacy (pre-Bedrock) data directory for archive nodes.
+*   If you run into problems, check the [node troubleshooting guide](/node-operators/guides/troubleshooting) or reach out to [developer support](https://github.com/ethereum-optimism/developers/discussions).

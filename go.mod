@@ -2,7 +2,7 @@ module github.com/ethereum-optimism/optimism
 
 go 1.26.0
 
-toolchain go1.26.4
+toolchain go1.26.5
 
 require (
 	github.com/BurntSushi/toml v1.5.0
@@ -53,7 +53,6 @@ require (
 	golang.org/x/mod v0.38.0
 	golang.org/x/sync v0.21.0
 	golang.org/x/term v0.44.0
-	golang.org/x/text v0.38.0
 	golang.org/x/time v0.14.0
 	gonum.org/v1/plot v0.16.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -83,6 +82,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	golang.org/x/exp v0.0.0-20250606033433-dcc06ee1d476 // indirect
 	golang.org/x/telemetry v0.0.0-20260625142307-59b4966ccb57 // indirect
+	golang.org/x/text v0.38.0 // indirect
 )
 
 require (
@@ -210,7 +210,7 @@ require (
 	github.com/prometheus/common v0.64.0 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
-	github.com/quic-go/quic-go v0.59.0 // indirect
+	github.com/quic-go/quic-go v0.59.1 // indirect
 	github.com/quic-go/webtransport-go v0.10.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect

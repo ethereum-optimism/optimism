@@ -32,7 +32,8 @@
     "options": [
       "copy",
       "chatgpt",
-      "claude"
+      "claude",
+      "mcp"
     ]
   },
   "customCSS": [
@@ -58,6 +59,46 @@
     }
   },
   "redirects": [
+    {
+      "source": "/ai/docs-for-agents",
+      "destination": "/ai-docs"
+    },
+    {
+      "source": "/ai/mcp-setup",
+      "destination": "/ai-docs"
+    },
+    {
+      "source": "/ai/prompt-library",
+      "destination": "/ai-docs"
+    },
+    {
+      "source": "/node-operators/reference/op-geth-config",
+      "destination": "/node-operators/reference/op-reth-config"
+    },
+    {
+      "source": "/node-operators/reference/op-geth-json-rpc",
+      "destination": "/node-operators/reference/op-reth-json-rpc"
+    },
+    {
+      "source": "/node-operators/tutorials/node-from-docker-simple-optimism-node",
+      "destination": "/node-operators/tutorials/node-from-docker"
+    },
+    {
+      "source": "/node-operators/guides/management/snap-sync",
+      "destination": "/node-operators/reference/consensus-layer-sync"
+    },
+    {
+      "source": "/node-operators/reference/features/snap-sync",
+      "destination": "/node-operators/reference/consensus-layer-sync"
+    },
+    {
+      "source": "/rust/op-reth/cli/cli",
+      "destination": "/rust/op-reth/cli/overview"
+    },
+    {
+      "source": "/chain-operators/reference/architecture",
+      "destination": "/chain-operators/guides/management/network-architecture"
+    },
     {
       "source": "/stack/interop/op-supervisor",
       "destination": "/op-stack/interop/explainer"
@@ -372,11 +413,11 @@
     },
     {
       "source": "/identity/optimist-profile",
-      "destination": "/governance/gov-faq"
+      "destination": "/governance/attestation-schemas"
     },
     {
       "source": "/chain/identity/optimist-profile",
-      "destination": "/governance/gov-faq"
+      "destination": "/governance/attestation-schemas"
     },
     {
       "source": "/app-developers/tools/overview",
@@ -663,10 +704,6 @@
       "destination": "/app-developers/guides/interoperability/message-expiration"
     },
     {
-      "source": "/app-developers/quickstarts/get-started",
-      "destination": "/op-stack/interop/interop"
-    },
-    {
       "source": "/app-developers/tutorials/interop/bridge-crosschain-eth",
       "destination": "/app-developers/tutorials/bridging/bridge-crosschain-eth"
     },
@@ -760,11 +797,11 @@
     },
     {
       "source": "/connect/contribute/style-guide",
-      "destination": "https://github.com/ethereum-optimism/optimism/blob/develop/docs/public-docs/STYLE_GUIDE.md"
+      "destination": "/op-stack/contribute/style-guide"
     },
     {
       "source": "/reference/contribute/style-guide",
-      "destination": "https://github.com/ethereum-optimism/optimism/blob/develop/docs/public-docs/STYLE_GUIDE.md"
+      "destination": "/op-stack/contribute/style-guide"
     },
     {
       "source": "/connect/resources",
@@ -976,7 +1013,7 @@
     },
     {
       "source": "/operators/chain-operators/architecture",
-      "destination": "/chain-operators/reference/architecture"
+      "destination": "/chain-operators/guides/management/network-architecture"
     },
     {
       "source": "/operators/chain-operators/configuration",
@@ -996,7 +1033,11 @@
     },
     {
       "source": "/operators/chain-operators/configuration/rollup",
-      "destination": "/chain-operators/guides/configuration/rollup"
+      "destination": "/chain-operators/reference/rollup-deployment-configuration"
+    },
+    {
+      "source": "/chain-operators/guides/configuration/rollup",
+      "destination": "/chain-operators/reference/rollup-deployment-configuration"
     },
     {
       "source": "/operators/chain-operators/deploy",
@@ -1192,11 +1233,15 @@
     },
     {
       "source": "/operators/node-operators/management/regenesis-history",
-      "destination": "/node-operators/guides/management/regenesis-history"
+      "destination": "/op-mainnet/pre-bedrock-history/regenesis-history"
+    },
+    {
+      "source": "/node-operators/guides/management/regenesis-history",
+      "destination": "/op-mainnet/pre-bedrock-history/regenesis-history"
     },
     {
       "source": "/operators/node-operators/management/snap-sync",
-      "destination": "/node-operators/guides/management/snap-sync"
+      "destination": "/node-operators/reference/consensus-layer-sync"
     },
     {
       "source": "/operators/node-operators/management/snapshots",
@@ -1424,11 +1469,15 @@
     },
     {
       "source": "/concepts/transactions/flashblocks",
-      "destination": "/op-stack/transactions/flashblocks"
+      "destination": "/op-stack/features/flashblocks"
     },
     {
       "source": "/stack/transactions/flashblocks",
-      "destination": "/op-stack/transactions/flashblocks"
+      "destination": "/op-stack/features/flashblocks"
+    },
+    {
+      "source": "/op-stack/transactions/flashblocks",
+      "destination": "/op-stack/features/flashblocks"
     },
     {
       "source": "/concepts/transactions/forced-transaction",
@@ -1544,7 +1593,7 @@
     },
     {
       "source": "/node-operators/guides/configuration/execution-config#configuration-options-reference",
-      "destination": "/node-operators/reference/op-geth-config"
+      "destination": "/node-operators/reference/op-reth-config"
     },
     {
       "source": "/node-operators/guides/configuration/execution-config",
@@ -1652,7 +1701,11 @@
     },
     {
       "source": "/operators/chain-operators/tutorials/create-l2-rollup/op-geth-setup",
-      "destination": "/chain-operators/tutorials/create-l2-rollup/op-geth-setup"
+      "destination": "/chain-operators/tutorials/create-l2-rollup/op-reth-setup"
+    },
+    {
+      "source": "/chain-operators/tutorials/create-l2-rollup/op-geth-setup",
+      "destination": "/chain-operators/tutorials/create-l2-rollup/op-reth-setup"
     },
     {
       "source": "/operators/chain-operators/tutorials/create-l2-rollup/op-deployer-setup",
@@ -1668,7 +1721,7 @@
     },
     {
       "source": "/operators/chain-operators/deploy/sequencer-node",
-      "destination": "/chain-operators/tutorials/create-l2-rollup/op-geth-setup"
+      "destination": "/chain-operators/tutorials/create-l2-rollup/op-reth-setup"
     },
     {
       "source": "/app-developers/tools/testing/devnet",
@@ -1744,7 +1797,7 @@
     },
     {
       "source": "/chain-operators/guides/deployment/sequencer-node",
-      "destination": "/chain-operators/tutorials/create-l2-rollup/op-geth-setup"
+      "destination": "/chain-operators/tutorials/create-l2-rollup/op-reth-setup"
     },
     {
       "source": "/chain-operators/guides/deployment/spin-batcher",
@@ -1883,6 +1936,22 @@
       "destination": "/op-stack/protocol/blockspace-charter"
     },
     {
+      "source": "/rust/kona/run",
+      "destination": "/rust/kona/node/run/overview"
+    },
+    {
+      "source": "/rust/kona/sdk/fpp-dev/io",
+      "destination": "/rust/kona/sdk/fpp-dev/intro"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/settings/set/receipts_in_static_files",
+      "destination": "/rust/op-reth/cli/op-reth/db/settings/set/receipts"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/settings/set/transaction_senders_in_static_files",
+      "destination": "/rust/op-reth/cli/op-reth/db/settings/set/transaction_senders"
+    },
+    {
       "source": "/app-developers/guides/superchain",
       "destination": "/op-stack/introduction/op-stack"
     }
@@ -1898,7 +1967,18 @@
           {
             "group": "Quickstart",
             "pages": [
-              "index"
+              "index",
+              "ai-docs",
+              "chain-operators/quickstart"
+            ]
+          },
+          {
+            "group": "Use cases",
+            "pages": [
+              "use-cases/index",
+              "use-cases/tune-batcher-costs",
+              "use-cases/run-a-fault-proof-challenger",
+              "use-cases/implement-a-custom-deposit-flow"
             ]
           },
           {
@@ -1910,7 +1990,6 @@
                   "chain-operators/guides/configuration/getting-started",
                   "chain-operators/guides/configuration/batcher",
                   "chain-operators/guides/configuration/proposer",
-                  "chain-operators/guides/configuration/rollup",
                   "chain-operators/guides/configuration/op-challenger-config-guide"
                 ]
               },
@@ -1924,13 +2003,15 @@
                   "chain-operators/guides/features/setting-da-footprint",
                   "chain-operators/guides/features/flashblocks-guide",
                   "chain-operators/guides/features/alt-da-mode-guide",
-                  "chain-operators/guides/features/blobs"
+                  "chain-operators/guides/features/blobs",
+                  "chain-operators/guides/features/enable-span-batches"
                 ]
               },
               {
                 "group": "Management",
                 "pages": [
                   "chain-operators/guides/management/best-practices",
+                  "chain-operators/guides/management/network-architecture",
                   "chain-operators/guides/management/gas-target-limit",
                   "chain-operators/guides/management/key-management",
                   "chain-operators/guides/management/operations",
@@ -1949,10 +2030,11 @@
                 "pages": [
                   "chain-operators/tutorials/create-l2-rollup/create-l2-rollup",
                   "chain-operators/tutorials/create-l2-rollup/op-deployer-setup",
-                  "chain-operators/tutorials/create-l2-rollup/op-geth-setup",
+                  "chain-operators/tutorials/create-l2-rollup/op-reth-setup",
                   "chain-operators/tutorials/create-l2-rollup/op-batcher-setup",
                   "chain-operators/tutorials/create-l2-rollup/op-proposer-setup",
-                  "chain-operators/tutorials/create-l2-rollup/op-challenger-setup"
+                  "chain-operators/tutorials/create-l2-rollup/op-challenger-setup",
+                  "chain-operators/tutorials/create-l2-rollup/code-setup"
                 ]
               },
               {
@@ -2001,7 +2083,8 @@
                       "chain-operators/tools/op-deployer/usage/init",
                       "chain-operators/tools/op-deployer/usage/apply",
                       "chain-operators/tools/op-deployer/usage/verify",
-                      "chain-operators/tools/op-deployer/usage/custom-deployments"
+                      "chain-operators/tools/op-deployer/usage/custom-deployments",
+                      "chain-operators/tools/op-deployer/usage/release-workflows"
                     ]
                   },
                   "chain-operators/tools/op-deployer/known-limitations",
@@ -2030,9 +2113,12 @@
           {
             "group": "Reference",
             "pages": [
-              "chain-operators/reference/architecture",
+              "chain-operators/reference/batcher-configuration",
               "chain-operators/reference/opcm",
-              "chain-operators/reference/standard-configuration"
+              "chain-operators/reference/rollup-deployment-configuration",
+              "chain-operators/reference/standard-configuration",
+              "chain-operators/reference/fee-parameters",
+              "chain-operators/reference/da-footprint"
             ]
           },
           {
@@ -2069,7 +2155,7 @@
                 "pages": [
                   "node-operators/guides/management/archive-node",
                   "node-operators/guides/management/blobs",
-                  "node-operators/guides/management/regenesis-history"
+                  "node-operators/guides/management/restore-from-snapshot"
                 ]
               },
               {
@@ -2100,19 +2186,11 @@
               },
               "node-operators/reference/op-node-config",
               "node-operators/reference/op-node-json-rpc",
+              "node-operators/reference/op-supernode-config",
               "node-operators/reference/op-reth-config",
               "node-operators/reference/op-reth-json-rpc",
               "node-operators/reference/op-reth-historical-proof-config",
               "node-operators/reference/consensus-layer-sync"
-            ]
-          },
-          {
-            "group": "Archive",
-            "pages": [
-              "node-operators/reference/op-geth-config",
-              "node-operators/reference/op-geth-json-rpc",
-              "node-operators/guides/management/snap-sync",
-              "node-operators/reference/features/snap-sync"
             ]
           }
         ]
@@ -2123,6 +2201,7 @@
           {
             "group": "Quickstarts",
             "pages": [
+              "app-developers/quickstarts/get-started",
               "app-developers/quickstarts/actions"
             ]
           },
@@ -2131,7 +2210,8 @@
             "pages": [
               "app-developers/guides/building-apps",
               "app-developers/guides/testing-apps",
-              "app-developers/guides/configuring-actions"
+              "app-developers/guides/configuring-actions",
+              "app-developers/guides/connect-wallet-to-actions"
             ]
           },
           {
@@ -2147,7 +2227,8 @@
                   "app-developers/tutorials/bridging/standard-bridge-standard-token",
                   "app-developers/tutorials/bridging/cross-dom-bridge-eth",
                   "app-developers/tutorials/bridging/bridge-crosschain-eth",
-                  "app-developers/tutorials/bridging/deposit-transactions"
+                  "app-developers/tutorials/bridging/deposit-transactions",
+                  "app-developers/tutorials/bridging/replay-failed-deposit"
                 ]
               },
               {
@@ -2183,7 +2264,8 @@
               "app-developers/guides/bridging/basics",
               "app-developers/guides/bridging/custom-bridge",
               "app-developers/guides/bridging/messaging",
-              "app-developers/guides/bridging/standard-bridge"
+              "app-developers/guides/bridging/standard-bridge",
+              "app-developers/guides/bridging/verify-bridged-tokens"
             ]
           },
           {
@@ -2201,6 +2283,7 @@
             "pages": [
               "app-developers/guides/transactions/estimates",
               "app-developers/guides/transactions/flashblocks-and-gas-usage",
+              "app-developers/guides/transactions/integrating-flashblocks",
               "app-developers/guides/transactions/parameters",
               "app-developers/guides/transactions/statuses",
               "app-developers/guides/transactions/troubleshooting"
@@ -2283,7 +2366,9 @@
               "/op-stack/features/span-batches",
               "/op-stack/features/send-raw-transaction-conditional",
               "/op-stack/features/l2-contract-manager",
-              "/op-stack/features/osaka-on-l2"
+              "/op-stack/features/osaka-on-l2",
+              "/op-stack/features/preinstalls",
+              "/op-stack/features/experimental/alt-da-mode"
             ]
           },
           {
@@ -2304,6 +2389,24 @@
             ]
           },
           {
+            "group": "Stack Components",
+            "pages": [
+              "/op-stack/components/index",
+              {
+                "group": "Sequencing",
+                "pages": [
+                  "/op-stack/components/op-batcher"
+                ]
+              },
+              {
+                "group": "Settlement & Proofs",
+                "pages": [
+                  "/op-stack/components/cannon"
+                ]
+              }
+            ]
+          },
+          {
             "group": "Bridging",
             "pages": [
               "/op-stack/bridging/cross-domain",
@@ -2316,7 +2419,6 @@
             "pages": [
               "/op-stack/transactions/fees",
               "/op-stack/transactions/fee-vaults",
-              "/op-stack/transactions/flashblocks",
               "/op-stack/transactions/forced-transaction",
               "/op-stack/transactions/transaction-finality",
               "/op-stack/transactions/transaction-flow"
@@ -2364,6 +2466,26 @@
             "pages": [
               "/op-stack/reference/glossary"
             ]
+          },
+          {
+            "group": "Contribute",
+            "pages": [
+              "/op-stack/contribute/content-guide",
+              "/op-stack/contribute/link-policy",
+              "/op-stack/contribute/curation-policy",
+              "/op-stack/contribute/style-guide",
+              {
+                "group": "Choose a content type",
+                "pages": [
+                  "/op-stack/contribute/choose-a-content-type",
+                  "/op-stack/contribute/solution-guide",
+                  "/op-stack/contribute/learning-unit",
+                  "/op-stack/contribute/curriculum-hub",
+                  "/op-stack/contribute/router-landing"
+                ]
+              },
+              "/op-stack/contribute/component-hub-template"
+            ]
           }
         ]
       },
@@ -2382,7 +2504,10 @@
           {
             "group": "Pre-Bedrock History",
             "pages": [
-              "node-operators/guides/configuration/legacy-geth"
+              "node-operators/guides/configuration/legacy-geth",
+              "node-operators/reference/legacy-geth-config",
+              "op-mainnet/pre-bedrock-history/regenesis-history",
+              "op-mainnet/pre-bedrock-history/lost-pre-regenesis-data"
             ]
           }
         ]
@@ -2396,6 +2521,9 @@
               "governance/protocol-upgrades",
               "governance/capital-allocation",
               "governance/evolution-and-experimentation",
+              "governance/eas-attestations",
+              "governance/attestation-schemas",
+              "governance/resources",
               "governance/gov-faq"
             ]
           }
@@ -2486,7 +2614,8 @@
               "rust/kona/intro/overview",
               "rust/kona/intro/why",
               "rust/kona/intro/contributing",
-              "rust/kona/intro/lore"
+              "rust/kona/intro/lore",
+              "rust/kona/glossary"
             ]
           },
           {
@@ -2508,7 +2637,9 @@
                   "rust/kona/node/run/overview",
                   "rust/kona/node/run/binary",
                   "rust/kona/node/run/docker",
-                  "rust/kona/node/run/mechanics"
+                  "rust/kona/node/run/mechanics",
+                  "rust/kona/node/run/rpc-trust",
+                  "rust/kona/node/run/sequencer"
                 ]
               },
               {
@@ -2551,6 +2682,7 @@
                 "group": "Proof SDK",
                 "pages": [
                   "rust/kona/sdk/proof/intro",
+                  "rust/kona/sdk/proof/stf",
                   "rust/kona/sdk/proof/fpvm-backend",
                   "rust/kona/sdk/proof/custom-backend",
                   "rust/kona/sdk/proof/exec-ext"
@@ -2652,7 +2784,7 @@
           {
             "group": "op-reth - CLI Reference",
             "pages": [
-              "rust/op-reth/cli/op-reth",
+              "rust/op-reth/cli/overview",
               {
                 "group": "op-reth",
                 "pages": [

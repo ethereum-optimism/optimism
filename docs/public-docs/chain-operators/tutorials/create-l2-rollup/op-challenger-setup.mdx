@@ -1,6 +1,7 @@
 ---
 title: Spin up challenger
 description: Learn how to configure challenger for your OP Stack chain.
+diataxis: tutorial
 ---
 
 After you have spun up your sequencer, batcher, and proposer, the final step is to configure a challenger to monitor and respond to disputes. The challenger is the security component that ensures the integrity of your rollup by monitoring dispute games and responding to invalid claims.
@@ -147,7 +148,7 @@ For challenger deployment, we recommend using Docker as it provides a consistent
     OP_CHALLENGER_PRIVATE_KEY=YOUR_ACTUAL_PRIVATE_KEY
 
     # L2 Configuration - Replace with your actual node endpoints  
-    OP_CHALLENGER_L2_ETH_RPC=http://op-geth:8545
+    OP_CHALLENGER_L2_ETH_RPC=http://op-reth:8545
     OP_CHALLENGER_ROLLUP_RPC=http://op-node:8547
 
     # OP Stack challenger configuration (optional - defaults provided)
@@ -173,7 +174,7 @@ For challenger deployment, we recommend using Docker as it provides a consistent
     
     services:
       challenger:
-        image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:v1.5.1
+        image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:v1.9.3
         user: "1000"
         volumes:
           - ./challenger-data:/data
@@ -220,7 +221,7 @@ For challenger deployment, we recommend using Docker as it provides a consistent
 
     [OP Stack releases page](https://github.com/ethereum-optimism/optimism/releases)
 
-    Look for the latest `op-challenger/v*` release. The challenger version used in this guide (op-challenger/v1.5.0) is a verified stable version.
+    Look for the latest `op-challenger/v*` release. This guide uses op-challenger/v1.9.3, the latest release at the time of writing.
 
     Always check the release notes to ensure you're using compatible versions with your chain's deployment.
 
@@ -236,7 +237,11 @@ For challenger deployment, we recommend using Docker as it provides a consistent
     cd optimism
 
     # Check out the latest release of op-challenger
-    git checkout op-challenger/v1.5.0
+    git checkout op-challenger/v1.9.3
+
+    # Generate the embedded superchain config bundle (initializes the
+    # superchain-registry submodule; op-challenger embeds this file at compile time)
+    just build-superchain-go
 
     # Install dependencies and build
     just op-challenger
@@ -310,7 +315,7 @@ For challenger deployment, we recommend using Docker as it provides a consistent
 
     **L2 network access:**
 
-    *   L2 RPC URL: Your op-geth archive node endpoint
+    *   L2 RPC URL: Your op-reth node endpoint (op-reth runs as an archive node by default)
     *   Rollup RPC URL: Your op-node endpoint with historical data
 
     **Challenger wallet:**
@@ -365,124 +370,13 @@ For challenger deployment, we recommend using Docker as it provides a consistent
     ```
 
     **Important:** Replace ALL placeholder values (`YOUR_ACTUAL_*`) with your real configuration values.
-    </Step>
-
-    <Step title="Understanding key configuration flags">
-
-    <Expandable title="--l1-eth-rpc">
-    *   This is the HTTP provider URL for a standard L1 node, can be a full node. `op-challenger` will be sending many requests, so chain operators need a node that is trusted and can easily handle many transactions.
-    *   Note: Challenger has a lot of money, and it will spend it if it needs to interact with games. That might risk not defending games or challenging games correctly, so chain operators should really trust the nodes being pointed at Challenger.
-    </Expandable>
-
-    <Expandable title="--l1-beacon">
-    *   This is needed just to get blobs from.
-    *   In some instances, chain operators might need a blob archiver or L1 consensus node configured not to prune blobs:
-        *   If the chain is proposing regularly, a blob archiver isn't needed. There's only a small window in the blob retention period that games can be played.
-        *   If the chain doesn't post a valid output root in 18 days, then a blob archiver running a challenge game is needed. If the actor gets pushed to the bottom of the game, it could lose if it's the only one protecting the chain.
-    </Expandable>
-
-    <Expandable title="--l2-eth-rpc">
-    *   This needs to be `op-geth` archive node, with `debug` enabled.
-    *   Technically doesn't need to go to bedrock, but needs to have access to the start of any game that is still in progress.
-    </Expandable>
-
-    <Expandable title="--rollup-rpc">
-    *   This needs to be an `op-node` archive node because challenger needs access to output roots from back when the games start. See below for important configuration details:
-
-    1.  Safe Head Database (SafeDB) Configuration for op-node:
-
-        *   The `op-node` behind the `op-conductor` must have the SafeDB enabled to ensure it is not stateless.
-        *   To enable SafeDB, set the `--safedb.path` value in your configuration. This specifies the file path used to persist safe head update data.
-        *   Example Configuration:
-
-        ```
-        --safedb.path <path-to-safe-head-db>   # Replace <path-to-safe-head-db> with your actual path
-        ```
-
-        <Info>
-          If this path is not set, the SafeDB feature will be disabled.
-        </Info>
-
-      <Warning>
-        **Never restore the SafeDB from a snapshot.** The SafeDB records the safe head as derived from L1, and a snapshot may not reflect the actual on-chain derivation state. If the SafeDB is out of sync with L1, `op-challenger` will act on an incorrect safe head and may incorrectly attack valid outputs. `op-challenger` cannot detect this condition — the data it receives appears normal. If you suspect the SafeDB was restored from a snapshot or is otherwise corrupted, delete it and resync via consensus sync from a snapshot that is at least 30 days old — `op-node` does not backfill the SafeDB, so it will only populate it going forward from that point. A 30-day-old snapshot provides enough history to cover the 28-day dispute game window.
-      </Warning>
-
-    2.  Ensuring Historical Data Availability:
-
-        *   Both `op-node` and `op-geth` must have data from the start of the games to maintain network consistency and allow nodes to reference historical state and transactions.
-        *   For `op-node`: Configure it to maintain a sufficient history of blockchain data locally or use an archive node.
-        *   For `op-geth`: Similarly, configure to store or access historical data.
-        *   Example Configuration:
-
-        ```
-        op-node \
-        --rollup-rpc <op-node-archive-node-url> \
-        --safedb.path <path-to-safe-head-db>
-        ```
-
-        <Info>
-          Replace `<op-node-archive-node-url>` with the URL of your archive node and `<path-to-safe-head-db>` with the desired path for storing SafeDB data.
-        </Info>
-    </Expandable>
-
-    <Expandable title="--private-key">
-    *   Chain operators must specify a private key or use something else (like `op-signer`).
-    *   This uses the same transaction manager arguments as `op-node` , batcher, and proposer, so chain operators can choose one of the following options:
-        *   a mnemonic
-        *   a private key
-        *   `op-signer` endpoints
-    </Expandable>
-
-    <Expandable title="--network">
-    *   This identifies the L2 network `op-challenger` is running for, e.g., `op-sepolia` or `op-mainnet`.
-    *   When using the `--network` flag, the `--game-factory-address` will be automatically pulled from the [`superchain-registry`](https://github.com/ethereum-optimism/superchain-registry/blob/main/chainList.json).
-    *   When cannon is executed, challenger needs the roll-up config and the L2 Genesis, which is op-geth's Genesis file. Both files are automatically loaded when Cannon Network is used, but custom networks will need to specify both Cannon L2 Genesis and Cannon rollup config.
-    *   For custom networks not in the [`superchain-registry`](https://github.com/ethereum-optimism/superchain-registry/blob/main/chainList.json), the `--game-factory-address` and rollup must be specified, as follows:
-
-        ```
-        --cannon-rollup-config rollup.json  \
-        --cannon-l2-genesis genesis-l2.json \
-        # use this if running challenger outside of the docker image
-        --cannon-server ./op-program/bin/op-program \
-        # json or url, version of op-program deployed on chain
-        # if you use the wrong one, you will lose the game
-        # if you deploy your own contracts, you specify the hash, the root of the json file
-        # op mainnet are tagged versions of op-program
-        # make reproducible prestate
-        # challenger verifies that onchain
-        --cannon-prestate ./op-program/bin/prestate.json \
-        # load the game factory address from system config or superchain registry
-        # point the game factory address at the dispute game factory proxy
-        --game-factory-address
-        ```
 
     <Info>
-      These options vary based on which `--network` is specified. Chain operators always need to specify a way to load prestates and must also specify the cannon-server whenever the docker image isn't being used.
+      For what each configuration flag does and how to choose its value — including
+      the node requirements behind `--l2-eth-rpc` and `--rollup-rpc` (archive nodes,
+      the op-node SafeDB) and the prestate options — see the
+      [challenger configuration guide](/chain-operators/guides/configuration/op-challenger-config-guide).
     </Info>
-    </Expandable>
-
-    <Expandable title="--datadir">
-    *   This is a directory that `op-challenger` can write to and store whatever data it needs. It will manage this directory to add or remove data as needed under that directory.
-    *   If running in docker, it should point to a docker volume or mount point, so the data isn't lost on every restart. The data can be recreated if needed but particularly if challenger has executed cannon as part of responding to a game it may mean a lot of extra processing.
-    </Expandable>
-
-    <Expandable title="--cannon-prestates-url">
-    The pre-state is effectively the version of `op-program` that is deployed on chain. And chain operators must use the right version. `op-challenger` will refuse to interact with games that have a different absolute prestate hash to avoid making invalid claims. If deploying your own contracts, chain operators must specify an absolute prestate hash taken from the `make reproducible-prestate` command during contract deployment, which will also build the required prestate json file.
-
-    All governance approved releases use a tagged version of `op-program`. These can be rebuilt by checking out the version tag and running `make reproducible-prestate`.
-
-    *   There are two ways to specify the prestate to use:
-        *   `--cannon-prestate`: specifies a path to a single Cannon pre-state Json file
-        *   `--cannon-prestates-url`: specifies a URL to load pre-states from. This enables participating in games that use different prestates, for example due to a network upgrade. The prestates are stored in this directory named by their hash.
-    *   Example final URL for a prestate:
-        *   [https://example.com/prestates/0x031e3b504740d0b1264e8cf72b6dde0d497184cfb3f98e451c6be8b33bd3f808.json](https://example.com/prestates/0x031e3b504740d0b1264e8cf72b6dde0d497184cfb3f98e451c6be8b33bd3f808.json)
-        *   This file contains the cannon memory state.
-
-    <Info>
-      Challenger will refuse to interact with any games if it doesn't have the matching prestate.
-      Check this [guide](/operators/chain-operators/tutorials/absolute-prestate#generating-the-absolute-prestate) on how to generate an absolute prestate.
-    </Info>
-    </Expandable>
     </Step>
     </Steps>
 
@@ -545,7 +439,7 @@ For challenger deployment, we recommend using Docker as it provides a consistent
 
 ### Monitoring with op-dispute-mon
 
-Consider running [`op-dispute-mon`](/operators/chain-operators/tools/chain-monitoring#dispute-mon) for enhanced security monitoring:
+Consider running [`op-dispute-mon`](/chain-operators/tools/chain-monitoring#dispute-mon) for enhanced security monitoring:
 
 *   Provides visibility into all game statuses for the last 28 days
 *   Essential for production challenger deployments

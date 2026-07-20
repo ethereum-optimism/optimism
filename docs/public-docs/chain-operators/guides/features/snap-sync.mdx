@@ -1,6 +1,7 @@
 ---
 title: Using snap sync for chain operators
 description: Learn how to enable snap sync on your OP Stack chain.
+diataxis: how-to
 ---
 
 Snap sync significantly improves the experience of syncing an OP Stack node. Snap sync is a native feature of go-ethereum that is now optionally enabled on `op-node` & `op-geth`.
@@ -17,18 +18,18 @@ This node will serve snap sync requests on the execution layer from other nodes 
 
 <Info>
 For snap sync, all `op-geth` nodes should expose port `30303` TCP and `30303` UDP to easily find other `op-geth` nodes to sync from. 
-  *   If you set the port with [`--discovery.port`](/node-operators/reference/op-geth-config#discovery-port), then you must open the port specified for UDP.
-  *   If you set [`--port`](/node-operators/reference/op-geth-config#port), then you must open the port specified for TCP.
+  *   If you set the port with [`--discovery.port`](/node-operators/reference/op-reth-config#discoveryport), then you must open the port specified for UDP.
+  *   If you set [`--port`](/node-operators/reference/op-reth-config#port), then you must open the port specified for TCP.
   *   The only exception is for sequencers and transaction ingress nodes.
 </Info>
 
 <Steps>
   <Step title="Setup a snap sync node">
   *   Expose port `30303` (`op-geth`'s default discovery port) to the internet on TCP and UDP.
-    *   Disable transaction gossip with the [`--rollup.disabletxpoolgossip`](/node-operators/reference/op-geth-config#rollupdisabletxpoolgossip) flag
+    *   Disable transaction gossip with the [`--rollup.disable-tx-pool-gossip`](/node-operators/reference/op-reth-config#rollupdisable-tx-pool-gossip) flag
   </Step>
 
   <Step title="Enable snap sync on your network">
-  *   Follow the [Node operator snap sync guide](/node-operators/guides/management/snap-sync) to enable snap sync for your chain network.
+  *   See the [sync modes reference](/node-operators/reference/consensus-layer-sync) for how node operators enable snap sync (execution-layer sync) on your chain network.
   </Step>
 </Steps>

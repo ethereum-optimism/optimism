@@ -183,6 +183,88 @@ jobs:
           path: rust/kona/tests/proofs/tmp/testlogs
           when: always
 
+  # Build SP1 guest ELFs and persist them for future rust-e2e consumers.
+  kona-build-sp1-elfs:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: large.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+          enable-mise-cache: true
+      - rust-prepare-and-restore-cache: &sp1-guest-checks-cache-args
+          directory: rust/kona/sp1/programs
+          init_superchain_submodule: false
+      - restore_cache:
+          name: Restore SP1 toolchain cache
+          keys:
+            # cargo-prove selects the matching native toolchain. An SP1 pin
+            # update changes this checksum and forces a fresh installation.
+            - sp1-toolchain-v1-{{ arch }}-{{ checksum "mise.toml" }}
+      - run:
+          name: Install or link SP1 toolchain
+          command: |
+            install_sp1_toolchain() {
+              (cd rust/kona/sp1 && just install-sp1-toolchain)
+            }
+
+            mise_sp1_version="$(yq -r '.tools."github:succinctlabs/sp1".version' mise.toml)"
+            guest_sp1_version="$(yq -r '.workspace.dependencies."sp1-zkvm".version' rust/kona/sp1/programs/Cargo.toml)"
+            sp1_tag="$(cd rust/kona/sp1 && just --evaluate SP1_TAG)"
+            if [ "$mise_sp1_version" != "$guest_sp1_version" ] || [ "$sp1_tag" != "v${mise_sp1_version}" ]; then
+              echo "ERROR: SP1 versions in mise.toml, programs/Cargo.toml, and the justfile are out of sync" >&2
+              exit 1
+            fi
+
+            toolchain_dir="$(find "$HOME/.sp1/toolchains" -mindepth 1 -maxdepth 1 -type d -print -quit 2>/dev/null || true)"
+            if [ -n "$toolchain_dir" ]; then
+              rustup toolchain remove succinct || true
+              if rustup toolchain link succinct "$toolchain_dir" && rustc +succinct --version >/dev/null; then
+                echo "Restored SP1 toolchain from $toolchain_dir"
+              else
+                echo "Cached SP1 toolchain is invalid; reinstalling"
+                install_sp1_toolchain
+              fi
+            else
+              install_sp1_toolchain
+            fi
+            rustc +succinct --version
+      - save_cache:
+          name: Save SP1 toolchain cache
+          key: sp1-toolchain-v1-{{ arch }}-{{ checksum "mise.toml" }}
+          paths:
+            - ~/.sp1/toolchains
+      - run:
+          name: Build SP1 guest ELFs
+          working_directory: rust/kona/sp1
+          no_output_timeout: 40m
+          command: just build-elfs-native
+      - store_artifacts:
+          path: rust/kona/sp1/elf
+      - persist_to_workspace:
+          root: .
+          paths:
+            - rust/kona/sp1/elf/
+      - run:
+          name: Test SP1 guest programs
+          working_directory: rust
+          environment:
+            RUSTFLAGS: -Dwarnings
+          command: just test-sp1-guest
+      - run:
+          name: Lint SP1 guest programs
+          working_directory: rust
+          environment:
+            RUSTFLAGS: -Dwarnings
+          command: just lint-sp1-guest
+      - run:
+          name: Check + test the range-vkeys crate
+          working_directory: rust
+          environment:
+            RUSTFLAGS: -Dwarnings
+          command: just check-range-vkeys
+      - rust-save-build-cache: *sp1-guest-checks-cache-args
+
   required-rust-e2e:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
@@ -255,6 +337,10 @@ workflows:
             - contracts-bedrock-build
           context:
             - circleci-repo-readonly-authenticated-github-token
+      - kona-build-sp1-elfs:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
       # -----------------------------------------------------------------------
       # Required gate — fans in on all E2E test jobs
       # -----------------------------------------------------------------------
@@ -265,6 +351,7 @@ workflows:
             - rust-e2e-restart: terminal
             - op-reth-e2e-sysgo-tests: terminal
             - kona-proof-action-single: terminal
+            - kona-build-sp1-elfs: terminal
           context:
             - circleci-api-token
   rust-e2e-gate-skip:

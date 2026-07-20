@@ -122,7 +122,7 @@ func singularBatchToBlock(rollupCfg *rollup.Config, batch *derive.SingularBatch)
 	if err != nil {
 		return nil, fmt.Errorf("could not build L1 Info transaction: %w", err)
 	}
-	txs := []*types.Transaction{types.NewTx(l1InfoTx)}
+	txs := []*types.Transaction{testutils.TxFromDeposit(l1InfoTx)}
 	for i, opaqueTx := range batch.Transactions {
 		var tx types.Transaction
 		err = tx.UnmarshalBinary(opaqueTx)

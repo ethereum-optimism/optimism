@@ -88,6 +88,7 @@ function_name_validation = [
     "test/safe/SafeSigners.t.sol",                             # Function name validation issues
     "test/libraries/Predeploys.t.sol",                         # Function 'uncategorizedInterop' doesn't exist in library
     "test/libraries/TransientContext.t.sol",                   # Function 'reentrantAware' doesn't exist in library
+    "test/dispute/lib/Types.t.sol",                            # isSuperGame is in GameTypes (dispute/lib/Types.sol); artifact lookup by basename resolves to src/libraries/Types.sol's Types library
 ]
 
 [excluded_tests]

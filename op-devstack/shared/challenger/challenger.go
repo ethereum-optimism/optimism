@@ -167,6 +167,13 @@ func WithFactoryAddress(addr common.Address) Option {
 	}
 }
 
+func WithSuperRootRPC(endpoint string) Option {
+	return func(_ context.Context, c *config.Config) error {
+		c.SuperRootRPC = endpoint
+		return nil
+	}
+}
+
 // WithPermissionedCannonConfig wires the Cannon VM config used by the PermissionedCannon game
 // type. The legacy fault-proof program is no longer referenced — the prestate is a dummy and the
 // server is unused.
@@ -216,8 +223,8 @@ func WithFastGames() Option {
 	}
 }
 
-func NewInteropChallengerConfig(ctx context.Context, dir string, l1Endpoint string, l1Beacon string, supervisorEndpoint string, l2Endpoints []string, options ...Option) (*config.Config, error) {
-	cfg := config.NewInteropConfig(common.Address{}, l1Endpoint, l1Beacon, supervisorEndpoint, l2Endpoints, dir)
+func NewInteropChallengerConfig(ctx context.Context, dir string, l1Endpoint string, l1Beacon string, superRootEndpoint string, l2Endpoints []string, options ...Option) (*config.Config, error) {
+	cfg := config.NewInteropConfig(common.Address{}, l1Endpoint, l1Beacon, superRootEndpoint, l2Endpoints, dir)
 	if err := applyCommonChallengerOpts(ctx, &cfg, options...); err != nil {
 		return nil, err
 	}

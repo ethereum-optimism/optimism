@@ -104,6 +104,7 @@ impl PayloadAttributesBuilder<OpPayloadAttrs> for OpLocalPayloadAttributesBuilde
                 .is_cancun_active_at_timestamp(timestamp)
                 .then(alloy_primitives::B256::random),
             slot_number: None,
+            target_gas_limit: None,
         };
 
         /// Dummy system transaction for dev mode.
@@ -250,6 +251,25 @@ impl OpNode {
         self
     }
 
+    /// The [`OpBuilderConfig`] this node's payload builder is configured with.
+    ///
+    /// This is the single assembly site for the payload builder's config: [`components`] and any
+    /// downstream node that replaces the payload component consume it wholesale, so they stay in
+    /// lockstep as [`OpBuilderConfig`] gains fields. Because [`OpBuilderConfig`] is not
+    /// `#[non_exhaustive]`, adding a field forces a compile error here until it is threaded
+    /// through.
+    ///
+    /// [`components`]: OpNode::components
+    pub fn builder_config(&self) -> OpBuilderConfig {
+        OpBuilderConfig {
+            da_config: self.da_config.clone(),
+            gas_limit_config: self.gas_limit_config.clone(),
+            operator_sdm_opt_in: self.operator_sdm_opt_in.clone(),
+            interop_failsafe: self.interop_failsafe.clone(),
+            max_uncompressed_block_size: self.args.max_uncompressed_block_size,
+        }
+    }
+
     /// The pool builder configured the way every OP node's pool expects: tx-conditional support,
     /// interop endpoints and quorum, and the shared interop failsafe gate.
     ///
@@ -281,11 +301,7 @@ impl OpNode {
             .pool(self.standard_pool_builder())
             .payload(BasicPayloadServiceBuilder::new(
                 OpPayloadBuilder::new(compute_pending_block)
-                    .with_da_config(self.da_config.clone())
-                    .with_gas_limit_config(self.gas_limit_config.clone())
-                    .with_operator_sdm_opt_in(self.operator_sdm_opt_in.clone())
-                    .with_interop_failsafe(self.interop_failsafe.clone())
-                    .with_max_uncompressed_block_size(self.args.max_uncompressed_block_size),
+                    .with_builder_config(self.builder_config()),
             ))
             .network(OpNetworkBuilder::new(disable_txpool_gossip, !discovery_v4))
             .consensus(OpConsensusBuilder::default())
@@ -1433,21 +1449,10 @@ pub struct OpPayloadBuilder<Txs = ()> {
     /// The type responsible for yielding the best transactions for the payload if mempool
     /// transactions are allowed.
     pub best_transactions: Txs,
-    /// This data availability configuration specifies constraints for the payload builder
-    /// when assembling payloads
-    pub da_config: OpDAConfig,
-    /// Gas limit configuration for the OP builder.
-    /// This is used to configure gas limit related constraints for the payload builder.
-    pub gas_limit_config: OpGasLimitConfig,
-    /// Operator opt-in flag for SDM `PostExec` production. Shared with the admin RPC.
-    pub operator_sdm_opt_in: OperatorSdmOptIn,
-    /// Interop failsafe gate, read by the builder to exclude interop txs while it is active.
-    pub interop_failsafe: InteropFailsafe,
-    /// Maximum cumulative uncompressed (EIP-2718 encoded) block size in bytes.
-    ///
-    /// `None` disables the limit. See
-    /// [`OpBuilderConfig::max_uncompressed_block_size`](reth_optimism_payload_builder::config::OpBuilderConfig::max_uncompressed_block_size).
-    pub max_uncompressed_block_size: Option<u64>,
+    /// The assembled OP builder config. Set wholesale via
+    /// [`with_builder_config`](OpPayloadBuilder::with_builder_config) (from
+    /// [`OpNode::builder_config`]) or per-field via the `with_*` setters.
+    pub builder_config: OpBuilderConfig,
 }
 
 impl OpPayloadBuilder {
@@ -1457,46 +1462,52 @@ impl OpPayloadBuilder {
         Self {
             compute_pending_block,
             best_transactions: (),
-            da_config: OpDAConfig::default(),
-            gas_limit_config: OpGasLimitConfig::default(),
-            operator_sdm_opt_in: OperatorSdmOptIn::default(),
-            interop_failsafe: InteropFailsafe::default(),
-            max_uncompressed_block_size: None,
+            builder_config: OpBuilderConfig::default(),
         }
     }
 
+    /// Configure the payload builder with an assembled [`OpBuilderConfig`] wholesale.
+    #[must_use]
+    pub fn with_builder_config(mut self, builder_config: OpBuilderConfig) -> Self {
+        self.builder_config = builder_config;
+        self
+    }
+
     /// Configure the data availability configuration for the OP payload builder.
+    #[must_use]
     pub fn with_da_config(mut self, da_config: OpDAConfig) -> Self {
-        self.da_config = da_config;
+        self.builder_config.da_config = da_config;
         self
     }
 
     /// Configure the maximum uncompressed (EIP-2718 encoded) block size for the OP payload builder.
+    #[must_use]
     pub const fn with_max_uncompressed_block_size(
         mut self,
         max_uncompressed_block_size: Option<u64>,
     ) -> Self {
-        self.max_uncompressed_block_size = max_uncompressed_block_size;
+        self.builder_config.max_uncompressed_block_size = max_uncompressed_block_size;
         self
     }
 
     /// Configure the gas limit configuration for the OP payload builder.
+    #[must_use]
     pub fn with_gas_limit_config(mut self, gas_limit_config: OpGasLimitConfig) -> Self {
-        self.gas_limit_config = gas_limit_config;
+        self.builder_config.gas_limit_config = gas_limit_config;
         self
     }
 
     /// Provide the shared SDM operator opt-in flag.
     #[must_use]
     pub fn with_operator_sdm_opt_in(mut self, operator_sdm_opt_in: OperatorSdmOptIn) -> Self {
-        self.operator_sdm_opt_in = operator_sdm_opt_in;
+        self.builder_config.operator_sdm_opt_in = operator_sdm_opt_in;
         self
     }
 
     /// Provide the shared interop failsafe gate read by the builder.
     #[must_use]
     pub fn with_interop_failsafe(mut self, interop_failsafe: InteropFailsafe) -> Self {
-        self.interop_failsafe = interop_failsafe;
+        self.builder_config.interop_failsafe = interop_failsafe;
         self
     }
 }
@@ -1505,24 +1516,8 @@ impl<Txs> OpPayloadBuilder<Txs> {
     /// Configures the type responsible for yielding the transactions that should be included in the
     /// payload.
     pub fn with_transactions<T>(self, best_transactions: T) -> OpPayloadBuilder<T> {
-        let Self {
-            compute_pending_block,
-            da_config,
-            gas_limit_config,
-            operator_sdm_opt_in,
-            interop_failsafe,
-            max_uncompressed_block_size,
-            ..
-        } = self;
-        OpPayloadBuilder {
-            compute_pending_block,
-            best_transactions,
-            da_config,
-            gas_limit_config,
-            operator_sdm_opt_in,
-            interop_failsafe,
-            max_uncompressed_block_size,
-        }
+        let Self { compute_pending_block, builder_config, .. } = self;
+        OpPayloadBuilder { compute_pending_block, best_transactions, builder_config }
     }
 }
 
@@ -1568,13 +1563,7 @@ where
             pool,
             ctx.provider().clone(),
             evm_config,
-            OpBuilderConfig {
-                da_config: self.da_config.clone(),
-                gas_limit_config: self.gas_limit_config.clone(),
-                operator_sdm_opt_in: self.operator_sdm_opt_in.clone(),
-                interop_failsafe: self.interop_failsafe.clone(),
-                max_uncompressed_block_size: self.max_uncompressed_block_size,
-            },
+            self.builder_config.clone(),
         )
         .with_transactions(self.best_transactions.clone())
         .set_compute_pending_block(self.compute_pending_block);
@@ -1775,5 +1764,43 @@ mod tests {
 
         let _: &CoinbaseTipOrdering<OpPooledTransaction> = &pool.ordering;
         let _: &IdentityValidatorWrapper = &pool.validator_wrapper;
+    }
+
+    #[test]
+    fn builder_config_reflects_node_fields() {
+        // Set every node field to a non-default value so a field the accessor forgets to thread
+        // through would surface as a failed assertion below.
+        let node = OpNode::new(RollupArgs {
+            max_uncompressed_block_size: Some(7_340_032),
+            operator_sdm_opt_in: true,
+            ..Default::default()
+        });
+        node.da_config.set_max_da_size(100, 200);
+        node.gas_limit_config.set_gas_limit(30_000_000);
+        node.interop_failsafe.set(true);
+
+        let cfg = node.builder_config();
+
+        assert_eq!(cfg.max_uncompressed_block_size, Some(7_340_032));
+        assert_eq!(cfg.da_config.max_da_tx_size(), Some(100));
+        assert_eq!(cfg.da_config.max_da_block_size(), Some(200));
+        assert!(cfg.constrained_da_config().is_some());
+        assert_eq!(cfg.gas_limit_config.gas_limit(), Some(30_000_000));
+        assert!(cfg.operator_sdm_opt_in.enabled());
+        assert!(cfg.interop_failsafe.enabled());
+    }
+
+    #[test]
+    fn builder_config_da_is_live_shared_handle() {
+        let node = OpNode::new(RollupArgs::default());
+        let cfg = node.builder_config();
+
+        node.da_config.set_max_da_size(1, 2);
+
+        assert_eq!(
+            cfg.da_config.max_da_block_size(),
+            Some(2),
+            "builder_config must carry the node's live DA handle, not a detached copy"
+        );
     }
 }

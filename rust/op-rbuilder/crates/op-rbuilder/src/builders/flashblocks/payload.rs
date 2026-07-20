@@ -1442,6 +1442,7 @@ where
         execution_output: Arc::new(execution_output),
         hashed_state: Arc::new(hashed_state),
         trie_updates: Arc::new(trie_output),
+        changed_paths: None,
     };
     debug!(target: "payload_builder", message = "Executed block created");
 

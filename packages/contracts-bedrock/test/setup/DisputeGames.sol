@@ -98,6 +98,20 @@ library DisputeGames {
         revert DisputeGames_UnsupportedGameArg(_gameArg);
     }
 
+    function permissionedGameType(IDisputeGameFactory _dgf) internal view returns (GameType gameType_) {
+        if (address(_dgf.gameImpls(GameTypes.SUPER_PERMISSIONED)) != address(0)) {
+            return GameTypes.SUPER_PERMISSIONED;
+        }
+        return GameTypes.PERMISSIONED_CANNON;
+    }
+
+    function permissionlessGameType(IDisputeGameFactory _dgf) internal view returns (GameType gameType_) {
+        if (address(_dgf.gameImpls(GameTypes.SUPER_CANNON_KONA)) != address(0)) {
+            return GameTypes.SUPER_CANNON_KONA;
+        }
+        return GameTypes.CANNON_KONA;
+    }
+
     function permissionedGameChallenger(IDisputeGameFactory _dgf) internal view returns (address challenger_) {
         if (address(_dgf.gameImpls(GameTypes.SUPER_PERMISSIONED)) != address(0)) {
             return address(0);

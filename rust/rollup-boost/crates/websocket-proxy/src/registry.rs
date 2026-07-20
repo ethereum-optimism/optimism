@@ -106,11 +106,9 @@ impl Registry {
                 tokio::select! {
                     msg = ws_receiver.next() => {
                         match msg {
-                            Some(Ok(Message::Pong(_))) => {
-                                if ping_enabled {
-                                    trace!(message = "received pong from client", client = client_id);
-                                    last_pong = Instant::now();
-                                }
+                            Some(Ok(Message::Pong(_))) if ping_enabled => {
+                                trace!(message = "received pong from client", client = client_id);
+                                last_pong = Instant::now();
                             }
                             Some(Ok(Message::Close(_))) => {
                                 trace!(message = "received close from client", client = client_id);

@@ -20,6 +20,13 @@ import (
 var factoryAddr = common.Address{0xff, 0xff}
 var proposerAddr = common.Address{0xaa, 0xbb}
 
+type gameMetadata struct {
+	GameType  uint32
+	Timestamp time.Time
+	Address   common.Address
+	Proposer  common.Address
+}
+
 func TestHasProposedSince(t *testing.T) {
 	cutOffTime := time.Unix(1000, 0)
 
@@ -241,6 +248,77 @@ func TestHasProposedSince(t *testing.T) {
 		require.Equal(t, expectedProposalTime, proposalTime)
 		require.Equal(t, expectedClaim, claim)
 	})
+	t.Run("SkipsNonMatchingGamesWithoutCallingThem", func(t *testing.T) {
+		stubRpc, factory := setupDisputeGameFactoryTest(t)
+		expectedProposalTime := time.Unix(1100, 0)
+		expectedClaim := common.Hash{0xdd}
+		matchingGame := gameMetadata{
+			GameType:  0,
+			Timestamp: expectedProposalTime,
+			Address:   common.Address{0x51},
+			Proposer:  proposerAddr,
+		}
+		withoutClaimData := gameMetadata{
+			GameType:  5,
+			Timestamp: time.Unix(1200, 0),
+			Address:   common.Address{0x52},
+		}
+		incompatible := gameMetadata{
+			GameType:  10,
+			Timestamp: time.Unix(1300, 0),
+			Address:   common.Address{0x53},
+		}
+
+		withGameList(stubRpc, matchingGame, withoutClaimData, incompatible)
+		withGameMetadata(stubRpc, matchingGame.Address, snapshots.LoadFaultDisputeGameABI(), proposerAddr, expectedClaim)
+		stubRpc.AddContract(withoutClaimData.Address, snapshots.LoadSuperPermissionedDisputeGameABI())
+		stubRpc.AddContract(incompatible.Address, &abi.ABI{})
+
+		proposed, proposalTime, claim, err := factory.HasProposedSince(context.Background(), proposerAddr, cutOffTime, 0)
+		require.NoError(t, err)
+		require.True(t, proposed)
+		require.Equal(t, expectedProposalTime, proposalTime)
+		require.Equal(t, expectedClaim, claim)
+	})
+
+	t.Run("MatchesSuperPermissionedGameType", func(t *testing.T) {
+		stubRpc, factory := setupDisputeGameFactoryTest(t)
+		expectedProposalTime := time.Unix(1100, 0)
+		expectedClaim := common.Hash{0xee}
+		game := gameMetadata{
+			GameType:  5,
+			Timestamp: expectedProposalTime,
+			Address:   common.Address{0x54},
+			Proposer:  proposerAddr,
+		}
+
+		withGameList(stubRpc, game)
+		withGameMetadata(stubRpc, game.Address, snapshots.LoadSuperPermissionedDisputeGameABI(), proposerAddr, expectedClaim)
+
+		proposed, proposalTime, claim, err := factory.HasProposedSince(context.Background(), proposerAddr, cutOffTime, 5)
+		require.NoError(t, err)
+		require.True(t, proposed)
+		require.Equal(t, expectedProposalTime, proposalTime)
+		require.Equal(t, expectedClaim, claim)
+	})
+
+	t.Run("StopsAtCutOffWithoutCallingGame", func(t *testing.T) {
+		stubRpc, factory := setupDisputeGameFactoryTest(t)
+		game := gameMetadata{
+			GameType:  0,
+			Timestamp: cutOffTime.Add(-time.Second),
+			Address:   common.Address{0x55},
+		}
+
+		withGameList(stubRpc, game)
+
+		proposed, proposalTime, claim, err := factory.HasProposedSince(context.Background(), proposerAddr, cutOffTime, 0)
+		require.NoError(t, err)
+		require.False(t, proposed)
+		require.Equal(t, time.Time{}, proposalTime)
+		require.Equal(t, common.Hash{}, claim)
+	})
+
 }
 
 func TestProposalTx(t *testing.T) {
@@ -259,6 +337,13 @@ func TestProposalTx(t *testing.T) {
 }
 
 func withClaims(stubRpc *batchingTest.AbiBasedRpc, gameAbi *abi.ABI, games ...gameMetadata) {
+	withGameList(stubRpc, games...)
+	for _, game := range games {
+		withGameMetadata(stubRpc, game.Address, gameAbi, game.Proposer, common.Hash{0xdd})
+	}
+}
+
+func withGameList(stubRpc *batchingTest.AbiBasedRpc, games ...gameMetadata) {
 	stubRpc.SetResponse(factoryAddr, methodGameCount, rpcblock.Latest, nil, []interface{}{big.NewInt(int64(len(games)))})
 	for i, game := range games {
 		stubRpc.SetResponse(factoryAddr, methodGameAtIndex, rpcblock.Latest, []interface{}{big.NewInt(int64(i))}, []interface{}{
@@ -266,10 +351,13 @@ func withClaims(stubRpc *batchingTest.AbiBasedRpc, gameAbi *abi.ABI, games ...ga
 			uint64(game.Timestamp.Unix()),
 			game.Address,
 		})
-		stubRpc.AddContract(game.Address, gameAbi)
-		stubRpc.SetResponse(game.Address, "gameCreator", rpcblock.Latest, nil, []interface{}{game.Proposer})
-		stubRpc.SetResponse(game.Address, "rootClaim", rpcblock.Latest, nil, []interface{}{common.Hash{0xdd}})
 	}
+}
+
+func withGameMetadata(stubRpc *batchingTest.AbiBasedRpc, gameAddress common.Address, gameABI *abi.ABI, proposer common.Address, claim common.Hash) {
+	stubRpc.AddContract(gameAddress, gameABI)
+	stubRpc.SetResponse(gameAddress, "gameCreator", rpcblock.Latest, nil, []interface{}{proposer})
+	stubRpc.SetResponse(gameAddress, "rootClaim", rpcblock.Latest, nil, []interface{}{claim})
 }
 
 func setupDisputeGameFactoryTest(t *testing.T) (*batchingTest.AbiBasedRpc, *DisputeGameFactory) {

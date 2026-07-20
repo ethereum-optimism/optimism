@@ -1,6 +1,7 @@
 ---
 title: Rollup protocol overview
 description: Learn how Optimistic Rollups work at a high level.
+diataxis: explanation
 ---
 
 The big idea that makes Optimism possible is the Optimistic Rollup.
@@ -100,7 +101,7 @@ Instead, these commitments are considered pending for a period of time (called t
 If a proposed state commitment goes unchallenged for the duration of the challenge window (currently set to 7 days), then it is considered final.
 Once a commitment is considered final, smart contracts on Ethereum can safely accept withdrawal proofs about the state of OP Mainnet based on that commitment.
 
-When a state commitment is challenged, it can be invalidated through a "fault proof" ([formerly known as a "fraud proof"](https://specs.optimism.io/experimental/fault-proof/index.html?utm_source=op-docs&utm_medium=docs)) process.
+When a state commitment is challenged, it can be invalidated through a "fault proof" ([formerly known as a "fraud proof"](https://specs.optimism.io/fault-proof/index.html?utm_source=op-docs&utm_medium=docs)) process.
 If the commitment is successfully challenged, then it is removed from the `StateCommitmentChain` to eventually be replaced by another proposed commitment.
 It's important to note that a successful challenge does not roll back OP Mainnet itself, only the published commitments about the state of the chain.
 The ordering of transactions and the state of OP Mainnet is unchanged by a fault proof challenge.

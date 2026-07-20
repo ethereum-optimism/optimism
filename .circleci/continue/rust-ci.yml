@@ -52,15 +52,14 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache: &fmt-cache-args
+      - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
-          prefix: <<parameters.directory>>-fmt
           init_superchain_submodule: false
       - run:
           name: Check formatting
           working_directory: <<parameters.directory>>
           command: <<parameters.command>>
-      - rust-save-build-cache: *fmt-cache-args
+      # No cache save: downloads no crates.
 
   # Shared clippy lint job
   rust-ci-clippy:
@@ -80,7 +79,6 @@ jobs:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &clippy-cache-args
           directory: <<parameters.directory>>
-          prefix: <<parameters.directory>>-clippy
           features: "all"
       - run:
           name: Run clippy
@@ -107,15 +105,14 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache: &deny-cache-args
+      - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
-          prefix: <<parameters.directory>>-deny
           init_superchain_submodule: false
       - run:
           name: Run cargo deny
           working_directory: <<parameters.directory>>
           command: <<parameters.command>>
-      - rust-save-build-cache: *deny-cache-args
+      # No cache save: downloads no crates (index/advisory DB only).
       # rust-deny only runs on develop (see workflow filter); on failure, ping
       # @protocol-oncall in Slack since it gates post-merge, not the PR.
       - notify-failures-on-develop:
@@ -137,15 +134,14 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache: &zepter-cache-args
+      - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
-          prefix: <<parameters.directory>>-zepter
           init_superchain_submodule: false
       - run:
           name: Check feature propagation
           working_directory: <<parameters.directory>>
           command: <<parameters.command>>
-      - rust-save-build-cache: *zepter-cache-args
+      # No cache save: downloads no crates.
 
   # Shared typos check job
   rust-ci-typos:
@@ -159,15 +155,14 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache: &typos-cache-args
+      - rust-prepare-and-restore-cache:
           directory: <<parameters.directory>>
-          prefix: <<parameters.directory>>-typos
           init_superchain_submodule: false
       - run:
           name: Check for typos
           working_directory: <<parameters.directory>>
           command: typos
-      - rust-save-build-cache: *typos-cache-args
+      # No cache save: downloads no crates.
 
   # Shared no_std compatibility check job
   rust-ci-check-no-std:
@@ -187,7 +182,6 @@ jobs:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &no-std-cache-args
           directory: <<parameters.directory>>
-          prefix: <<parameters.directory>>-no-std
           init_superchain_submodule: false
       - run:
           name: Check no_std compatibility
@@ -214,7 +208,6 @@ jobs:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &docs-cache-args
           directory: <<parameters.directory>>
-          prefix: <<parameters.directory>>-docs
           features: "all"
       - run:
           name: Build documentation
@@ -241,7 +234,6 @@ jobs:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &doctest-cache-args
           directory: <<parameters.directory>>
-          prefix: <<parameters.directory>>-doctest
       - run:
           name: Run doc tests
           working_directory: <<parameters.directory>>
@@ -275,7 +267,6 @@ jobs:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &tests-cache-args
           directory: <<parameters.directory>>
-          prefix: <<parameters.directory>>-tests
           profile: <<parameters.cache_profile>>
       - run:
           name: Run cargo tests
@@ -295,7 +286,6 @@ jobs:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &interop-diff-cache-args
           directory: rust
-          prefix: rust-interop-deposits-diff
           profile: debug
       # The diff script runs `go run ./op-node/cmd/interop-deposits-dump`, so it
       # builds Go code. Restore the shared Go module cache to avoid a cold
@@ -329,7 +319,6 @@ jobs:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &udeps-cache-args
           directory: <<parameters.directory>>
-          prefix: <<parameters.directory>>-udeps
           profile: "release"
       - run:
           name: Check unused dependencies
@@ -382,7 +371,6 @@ jobs:
                 extra_flags: "--no-install-recommends"
       - rust-prepare-and-restore-cache: &vendored-checks-cache-args
           directory: <<parameters.directory>>
-          prefix: <<parameters.directory>>-checks
       - when:
           condition: <<parameters.pre_command>>
           steps:
@@ -428,7 +416,6 @@ jobs:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &hack-build-cache-args
           directory: <<parameters.directory>>
-          prefix: <<parameters.directory>>-hack-build
       - run:
           name: Build for <<parameters.target>>
           working_directory: <<parameters.directory>>
@@ -452,7 +439,6 @@ jobs:
           checkout-method: blobless
       - rust-prepare-and-restore-cache: &hack-cache-args
           directory: rust
-          prefix: rust-hack
           features: "all"
       - run:
           name: Run cargo hack
@@ -479,9 +465,8 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache: &op-reth-compact-cache
+      - rust-prepare-and-restore-cache:
           directory: rust
-          prefix: op-reth-compact
           profile: debug
       - run:
           name: Generate compact vectors from base
@@ -519,7 +504,7 @@ jobs:
           name: Read compact vectors on PR branch
           command: |
             cargo run --bin op-reth --features "dev" --manifest-path rust/op-reth/bin/Cargo.toml -- test-vectors compact --read
-      - rust-save-build-cache: *op-reth-compact-cache
+      # No cache save: single-package build, partial registry.
 
   # --------------------------------------------------------------------------
   # Kona crate-specific jobs
@@ -636,9 +621,8 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache: &kona-registry-snapshot-cache
+      - rust-prepare-and-restore-cache:
           directory: rust
-          prefix: rust-kona-registry-snapshot
       - run:
           name: Regenerate kona-registry snapshots
           working_directory: rust/kona
@@ -660,7 +644,7 @@ jobs:
               echo "rust/kona/crates/protocol/registry/etc/."
               exit 1
             fi
-      - rust-save-build-cache: *kona-registry-snapshot-cache
+      # No cache save: single-package build, partial registry.
 
   # Verifies that op-reth's committed superchain-configs.tar.sha256 and the
   # generated chain_specs.rs match what `OP_RETH_SYNC_SUPERCHAIN=1 cargo build -p
@@ -674,9 +658,8 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
-      - rust-prepare-and-restore-cache: &op-reth-superchain-snapshot-cache
+      - rust-prepare-and-restore-cache:
           directory: rust
-          prefix: rust-op-reth-superchain-snapshot
       - run:
           name: Regenerate op-reth superchain archive
           working_directory: rust
@@ -699,7 +682,7 @@ jobs:
               echo "src/superchain/chain_specs.rs."
               exit 1
             fi
-      - rust-save-build-cache: *op-reth-superchain-snapshot-cache
+      # No cache save: single-package build, partial registry.
 
   # Kona Publish Prestate Artifacts
   kona-publish-prestate-artifacts:
@@ -758,35 +741,7 @@ jobs:
             fi
             gsutil cp ./prestate-artifacts-<<parameters.kind>>/prestate.bin.gz "gs://oplabs-network-data/proofs/kona/<<parameters.kind>>/${PRESTATE_HASH}.bin.gz"
             echo "Successfully published prestates artifacts to GCS"
-      - rust-save-build-cache:
-          directory: rust
-          profile: release
-
-  # fmt-check + clippy for the nested SP1 guest-program workspace. programs/range
-  # and programs/aggregation live in their own Cargo workspace with a private
-  # [patch.crates-io] table for the SP1 crypto forks, so they are NOT members of
-  # the root rust/ workspace and are not covered by rust-fmt / rust-clippy. This
-  # runs `just lint-sp1-guest` (same recipe `just lint` runs locally) on the host
-  # toolchain (no SP1 cargo-prove / RISC-V target required) so guest-side fmt and
-  # clippy regressions are caught on PRs. Clippy compiles the crates, so it also
-  # serves as the guest compile check.
-  rust-ci-sp1-guest-checks:
-    docker:
-      - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: medium.gen2
-    steps:
-      - utils/checkout-with-mise:
-          checkout-method: blobless
-      - rust-prepare-and-restore-cache: &sp1-guest-checks-cache-args
-          directory: rust/kona/sp1/programs
-          prefix: rust/kona/sp1/programs-checks
-      - run:
-          name: fmt-check + clippy SP1 guest programs
-          working_directory: rust
-          environment:
-            RUSTFLAGS: -Dwarnings
-          command: just lint-sp1-guest
-      - rust-save-build-cache: *sp1-guest-checks-cache-args
+      # No cache save: builds in Docker, host registry stays empty.
 
   required-rust-ci:
     docker:
@@ -979,10 +934,6 @@ workflows:
       - kona-registry-snapshot-check:
           context: *rust-ci-context
 
-      - rust-ci-sp1-guest-checks:
-          name: rust-sp1-guest-checks
-          context: *rust-ci-context
-
       - op-reth-superchain-snapshot-check:
           context: *rust-ci-context
 
@@ -1014,7 +965,6 @@ workflows:
             - op-rbuilder-checks: terminal
             - rollup-boost-checks: terminal
             - kona-registry-snapshot-check: terminal
-            - rust-sp1-guest-checks: terminal
             - op-reth-superchain-snapshot-check: terminal
           context:
             - circleci-api-token

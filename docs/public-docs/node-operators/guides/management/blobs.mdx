@@ -1,6 +1,7 @@
 ---
 title: Using blobs
 description: Configure op-node to fetch L1 batcher blob data, including blobs older than the beacon retention window.
+diataxis: how-to
 ---
 
 OP Stack rollups post batch data to L1 as [EIP-4844 blobs](https://eips.ethereum.org/EIPS/eip-4844). To retrieve this data, `op-node` requires access to an L1 beacon endpoint. Run your own beacon node ([Lighthouse](https://lighthouse-book.sigmaprime.io/run_a_node.html), Lodestar, Nimbus, Prysm, or Teku) or use a third-party service like [QuickNode](https://www.quicknode.com/docs/ethereum/eth-v1-beacon-genesis).

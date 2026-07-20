@@ -2,12 +2,12 @@
 
 # Core dependencies
 bun = "1.2.5"
-go = "1.26.4"
+go = "1.26.5"
 golangci-lint = "2.8.0"
 gotestsum = "1.12.3"
 mockery = "2.53.6"
 rust = [
-  { version = "1.94.0", components = "clippy,rustfmt,llvm-tools-preview", targets = "riscv32imac-unknown-none-elf,wasm32-unknown-unknown,wasm32-wasip1" },
+  { version = "1.95.0", components = "clippy,rustfmt,llvm-tools-preview", targets = "riscv32imac-unknown-none-elf,wasm32-unknown-unknown,wasm32-wasip1" },
   { version = "nightly-2026-02-20", components = "rustfmt,clippy" },
 ]
 python = "3.12.13"
@@ -26,6 +26,7 @@ svm-rs = "0.5.19"
 "github:crate-ci/cargo-release" = { version = "1.1.2" }
 
 "github:nextest-rs/nextest" = { version = "0.9.132", version_prefix = "cargo-nextest-", bin = "cargo-nextest" }
+"github:succinctlabs/sp1" = { version = "6.3.1", version_prefix = "v", bin = "cargo-prove" }
 "github:EmbarkStudios/cargo-deny" = "0.19.4"
 "github:ggwpez/zepter" = { version = "1.88.0", version_prefix = "v" }
 "github:crate-ci/typos" = { version = "1.45.1", version_prefix = "v" }

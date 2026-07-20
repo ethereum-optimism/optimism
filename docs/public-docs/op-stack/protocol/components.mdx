@@ -1,6 +1,7 @@
 ---
 title: OP Stack components
 description: Learn about OP Stack components including the different layers and modules available for development.
+diataxis: explanation
 ---
 
 **The OP Stack is a common development stack for building L2 blockchain ecosystems, built by the Optimism Collective to power Optimism.**
@@ -25,7 +26,7 @@ The Data Availability Layer defines where the raw inputs to an OP Stack based ch
 
 Ethereum DA is currently the most widely used Data Availability module for the OP Stack. When using the Ethereum DA module, source data can be derived from any piece of information accessible on the Ethereum blockchain. This includes Ethereum calldata, events, and 4844 data blobs.
 
-*   [Specifications](https://specs.optimism.io/protocol/derivation.html#batch-submission-wire-format?utm_source=op-docs&utm_medium=docs)
+*   [Specifications](https://specs.optimism.io/protocol/derivation.html?utm_source=op-docs&utm_medium=docs#batch-submission-wire-format)
 *   [Source code](https://github.com/ethereum-optimism/optimism/tree/v1.1.4/op-batcher)
 
 ### Sequencing
@@ -48,7 +49,7 @@ The Derivation Layer defines how the raw data in the Data Availability Layer is 
 
 The Rollup module derives Engine API inputs from Ethereum block data, Sequencer transaction batches, Deposited transaction events, and more.
 
-*   [Specifications](https://specs.optimism.io/protocol/derivation.html#l2-chain-derivation-pipeline?utm_source=op-docs&utm_medium=docs)
+*   [Specifications](https://specs.optimism.io/protocol/derivation.html?utm_source=op-docs&utm_medium=docs#l2-chain-derivation-pipeline)
 *   [Source code](https://github.com/ethereum-optimism/optimism/tree/v1.1.4/op-node)
 
 #### Indexer

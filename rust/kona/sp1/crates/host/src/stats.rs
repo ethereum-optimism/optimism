@@ -105,7 +105,7 @@ impl ExecutionStats {
         let total_gas_used: u64 = block_data.iter().map(|b| b.gas_used).sum();
         let total_instructions = report.total_instruction_count();
 
-        let safe_div = |a: u64, b: u64| if b > 0 { a / b } else { 0 };
+        let safe_div = |a: u64, b: u64| a.checked_div(b).unwrap_or_default();
 
         Self {
             l1_head,

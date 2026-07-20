@@ -1,6 +1,7 @@
 ---
 title: Snapshots
 description: Find download links for data directories and database snapshots for running your own node.
+diataxis: reference
 ---
 
 
@@ -9,11 +10,12 @@ description: Find download links for data directories and database snapshots for
 
 This page contains download links for data directories and node snapshots.
 State snapshots are pre-synced node data that let you start an OP Stack execution client from a recent chain state instead of replaying from genesis. You download the snapshot and run your node from it, which dramatically cuts initial sync time.
+For step-by-step instructions on downloading, verifying, and extracting a snapshot, follow the [Restore a node from a snapshot guide](/node-operators/guides/management/restore-from-snapshot).
 
 <Info>
   Data directories and node snapshots are **not required** in the following cases:
 
-  *   When using [snap sync](/node-operators/guides/management/snap-sync) with op-geth
+  *   When using [snap sync](/node-operators/reference/consensus-layer-sync) with op-geth
   *   When using [Nethermind](https://docs.nethermind.io/get-started/running-node/l2-networks#op-stack) (automatically handles snapshots)
 
   They are still required for archive nodes and in instances when you need to trace the entire chain with `op-reth` or `op-geth`.
