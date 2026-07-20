@@ -11,16 +11,6 @@ To use `op-alloy`, add the crate as a dependency to a `Cargo.toml`.
 op-alloy = "2.0"
 ```
 
-### Contributing
-
-op-alloy is built by open source contributors like you, thank you for improving the project!
-
-A [contributing guide][contributing] is available that sets guidelines for contributing.
-
-Pull requests will not be merged unless CI passes, so please ensure that your contribution follows the
-linting rules and passes clippy.
-
-
 ### `no_std`
 
 op-alloy is intended to be `no_std` compatible, initially for use in [kona][kona].
@@ -59,7 +49,6 @@ shall be dual licensed as above, without any additional terms or conditions.
 
 [kona]: https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona
 [alloy]: https://github.com/alloy-rs/alloy
-[contributing]: https://github.com/ethereum-optimism/optimism/blob/develop/CONTRIBUTING.md
 
 [op-alloy-consensus]: https://crates.io/crates/op-alloy-consensus
 [op-alloy-network]: https://crates.io/crates/op-alloy-network

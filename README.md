@@ -95,8 +95,11 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
 └── <a href="./rust">rust</a>: Rust components — a unified Cargo workspace
     ├── <a href="./rust/kona">kona</a>: OP Stack state-transition (fault proof) program and rollup node in Rust
     ├── <a href="./rust/op-reth">op-reth</a>: OP Stack execution client built on reth
+    ├── <a href="./rust/op-reth-test-engine">op-reth-test-engine</a>: Minimal execution-layer engine, e.g. an op-geth replacement in Go action tests (WIP)
+    ├── <a href="./rust/op-revm">op-revm</a>: OP Stack EVM implementation (revm fork)
     ├── <a href="./rust/op-alloy">op-alloy</a>: OP Stack types and providers for the alloy ecosystem
-    └── <a href="./rust/op-revm">op-revm</a>: OP Stack EVM implementation (revm fork)
+    ├── <a href="./rust/alloy-op-evm">alloy-op-evm</a>: OP Stack EVM support for the alloy ecosystem
+    └── <a href="./rust/alloy-op-hardforks">alloy-op-hardforks</a>: OP Stack hardfork definitions for the alloy ecosystem
 </pre>
 
 ## Development and Release Process
