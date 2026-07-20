@@ -221,7 +221,7 @@ type resolvedPrestate struct {
 }
 
 func validatePermissionlessPrestateCandidate(chainID common.Hash, gameType embedded.GameType, candidate resolvedPrestate) error {
-	if candidate.hash != opcm.PermissionedGamePrestatePlaceholder {
+	if candidate.hash != opcm.PermissionedCannonFallbackPrestatePlaceholder {
 		return nil
 	}
 	return fmt.Errorf(
@@ -229,7 +229,7 @@ func validatePermissionlessPrestateCandidate(chainID common.Hash, gameType embed
 		candidate.source,
 		chainID.Hex(),
 		gameTypeName(gameType),
-		opcm.PermissionedGamePrestatePlaceholder.Hex(),
+		opcm.PermissionedCannonFallbackPrestatePlaceholder.Hex(),
 	)
 }
 

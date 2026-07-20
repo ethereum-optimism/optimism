@@ -256,9 +256,14 @@ func BuildDeployOPChainInput(
 		gasLimit = standard.GasLimit
 	}
 
-	cannonAbsolutePrestate := proofParams.DisputeAbsolutePrestate
-	if proofParams.DisputeGameType == uint32(embedded.GameTypeCannonKona) {
-		cannonAbsolutePrestate = opcm.PermissionedGamePrestatePlaceholder
+	var cannonAbsolutePrestate common.Hash
+	switch embedded.GameType(proofParams.DisputeGameType) {
+	case embedded.GameTypeCannonKona:
+		cannonAbsolutePrestate = opcm.PermissionedCannonFallbackPrestatePlaceholder
+	case embedded.GameTypeSuperCannonKona:
+		cannonAbsolutePrestate = common.Hash{}
+	case embedded.GameTypePermissionedCannon:
+		cannonAbsolutePrestate = proofParams.DisputeAbsolutePrestate
 	}
 
 	return opcm.DeployOPChainInput{

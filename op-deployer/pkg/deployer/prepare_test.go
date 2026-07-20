@@ -156,8 +156,10 @@ func TestMakePredictionInput_GameTypeInputs(t *testing.T) {
 			}
 
 			if tt.usesFixedCannonPlaceholder {
-				require.Equal(t, opcm.PermissionedGamePrestatePlaceholder, dci.CannonAbsolutePrestate)
+				require.Equal(t, opcm.PermissionedCannonFallbackPrestatePlaceholder, dci.CannonAbsolutePrestate)
 				require.NotEqual(t, dci.DisputeAbsolutePrestate, dci.CannonAbsolutePrestate)
+			} else if tt.gameType == embedded.GameTypeSuperCannonKona {
+				require.Zero(t, dci.CannonAbsolutePrestate)
 			} else {
 				require.Equal(t, dci.DisputeAbsolutePrestate, dci.CannonAbsolutePrestate)
 			}
@@ -512,7 +514,7 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 func TestPredictChains_ClearsOnlyRepredictedPrestates(t *testing.T) {
 	deployedID := common.HexToHash("0x0a")
 	freshID := common.HexToHash("0x0b")
-	deployedPrestate := common.HexToHash("0xdead")
+	deployedPrestate := common.HexToHash("0xfeed")
 	freshPrestate := common.HexToHash("0xbeef")
 
 	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")

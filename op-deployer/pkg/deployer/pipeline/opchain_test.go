@@ -387,6 +387,58 @@ func TestResolveInitialDeployRequirements(t *testing.T) {
 	}
 }
 
+func TestBuildDeployOPChainInputCannonAbsolutePrestate(t *testing.T) {
+	selectedPrestate := common.HexToHash("0x1234")
+	tests := []struct {
+		name     string
+		gameType embedded.GameType
+		want     common.Hash
+	}{
+		{
+			name:     "PERMISSIONED_CANNON mirrors selected prestate",
+			gameType: embedded.GameTypePermissionedCannon,
+			want:     selectedPrestate,
+		},
+		{
+			name:     "CANNON_KONA uses canonical fallback",
+			gameType: embedded.GameTypeCannonKona,
+			want:     opcm.PermissionedCannonFallbackPrestatePlaceholder,
+		},
+		{
+			name:     "SUPER_CANNON_KONA leaves unread field zero",
+			gameType: embedded.GameTypeSuperCannonKona,
+			want:     common.Hash{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			proofParams := state.ChainProofParams{
+				DisputeGameType:         uint32(tt.gameType),
+				DisputeAbsolutePrestate: selectedPrestate,
+			}
+			got := BuildDeployOPChainInput(
+				proofParams,
+				state.ChainRoles{},
+				common.Address{},
+				common.Address{},
+				common.Hash{},
+				"",
+				0,
+				opcm.Proposal{},
+				&state.ChainIntent{},
+			)
+
+			require.Equal(t, uint32(tt.gameType), got.DisputeGameType)
+			require.Equal(t, selectedPrestate, got.DisputeAbsolutePrestate)
+			require.Equal(t, tt.want, got.CannonAbsolutePrestate)
+			if tt.gameType == embedded.GameTypeCannonKona {
+				require.NotEqual(t, got.DisputeAbsolutePrestate, got.CannonAbsolutePrestate)
+			}
+		})
+	}
+}
+
 func TestShouldDeployOPChain(t *testing.T) {
 	chainID := common.HexToHash("0x0a")
 	other := common.HexToHash("0x0b")

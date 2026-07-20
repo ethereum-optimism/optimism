@@ -190,7 +190,7 @@ func TestPrestateStrictValidationAcrossSources(t *testing.T) {
 
 func TestPrestateRejectsPermissionedPlaceholderAcrossSources(t *testing.T) {
 	chainID := common.HexToHash("0x01")
-	placeholder := opcm.PermissionedGamePrestatePlaceholder.Hex()
+	placeholder := opcm.PermissionedCannonFallbackPrestatePlaceholder.Hex()
 	valid := testPrestate("11")
 
 	tests := []struct {
@@ -287,7 +287,7 @@ func TestPrestateRejectsPermissionedPlaceholderAcrossSources(t *testing.T) {
 func TestPrestatePermissionedPlaceholderScope(t *testing.T) {
 	chainA := common.HexToHash("0x01")
 	chainB := common.HexToHash("0x02")
-	placeholder := opcm.PermissionedGamePrestatePlaceholder
+	placeholder := opcm.PermissionedCannonFallbackPrestatePlaceholder
 	valid := testPrestate("11")
 	stale := common.HexToHash(testPrestate("aa"))
 
