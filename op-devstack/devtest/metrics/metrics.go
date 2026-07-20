@@ -78,6 +78,8 @@ type Snapshot struct {
 	payload  string
 }
 
+type SnapshotCheck func(*Snapshot) error
+
 func (s *Snapshot) Payload() string {
 	return s.payload
 }
@@ -168,6 +170,58 @@ func (s *Snapshot) HistogramCount(name string, labels map[string]string) (uint64
 	return histogram.GetSampleCount(), nil
 }
 
+func GaugeEquals(name string, labels map[string]string, expected float64) SnapshotCheck {
+	return func(snapshot *Snapshot) error {
+		observed, err := snapshot.Gauge(name, labels)
+		if err != nil {
+			return err
+		}
+		if observed != expected {
+			return fmt.Errorf("metric %s with labels %v expected %v but observed %v", name, labels, expected, observed)
+		}
+		return nil
+	}
+}
+
+func GaugeAtLeast(name string, labels map[string]string, minimum float64) SnapshotCheck {
+	return func(snapshot *Snapshot) error {
+		observed, err := snapshot.Gauge(name, labels)
+		if err != nil {
+			return err
+		}
+		if observed < minimum {
+			return fmt.Errorf("metric %s with labels %v expected at least %v but observed %v", name, labels, minimum, observed)
+		}
+		return nil
+	}
+}
+
+func GaugeSumEquals(name string, labels map[string]string, expected float64) SnapshotCheck {
+	return func(snapshot *Snapshot) error {
+		observed, err := snapshot.GaugeSum(name, labels)
+		if err != nil {
+			return err
+		}
+		if observed != expected {
+			return fmt.Errorf("metric %s sum with labels %v expected %v but observed %v", name, labels, expected, observed)
+		}
+		return nil
+	}
+}
+
+func HistogramCountAtLeast(name string, labels map[string]string, minimum uint64) SnapshotCheck {
+	return func(snapshot *Snapshot) error {
+		observed, err := snapshot.HistogramCount(name, labels)
+		if err != nil {
+			return err
+		}
+		if observed < minimum {
+			return fmt.Errorf("metric %s histogram count with labels %v expected at least %d but observed %d", name, labels, minimum, observed)
+		}
+		return nil
+	}
+}
+
 func (s *Snapshot) matchingMetrics(name string, labels map[string]string, expectedType clientmodel.MetricType) ([]*clientmodel.Metric, error) {
 	family, ok := s.families[name]
 	if !ok {
@@ -212,21 +266,11 @@ type GaugeDefinition struct {
 }
 
 func (c *MetricsClient) WaitForGauge(ctx context.Context, definition GaugeDefinition, pollInterval time.Duration) error {
-	_, err := c.WaitForSnapshot(ctx, pollInterval, func(snapshot *Snapshot) error {
-		observed, err := snapshot.Gauge(definition.Name, definition.Labels)
-		if err != nil {
-			return err
-		}
-		if observed != definition.Expected {
-			return fmt.Errorf(
-				"metric %s expected %v but observed %v",
-				definition.Name,
-				definition.Expected,
-				observed,
-			)
-		}
-		return nil
-	})
+	_, err := c.WaitForSnapshot(
+		ctx,
+		pollInterval,
+		GaugeEquals(definition.Name, definition.Labels, definition.Expected),
+	)
 	return err
 }
 

@@ -7,6 +7,7 @@ import (
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl/disputemon"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/proofs"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -20,7 +21,14 @@ func TestDisputeMonitorReportsHealthySuperPermissionedGame(gt *testing.T) {
 	game := sys.DisputeGameFactory().StartSuperPermissionedGame()
 	game.WaitForGameStatus(gameTypes.GameStatusDefenderWon)
 
-	sys.StartDisputeMon().VerifyHealthySuperPermissionedGame()
+	mon := sys.StartDisputeMon()
+	mon.VerifyDisputeMonHealthy()
+	mon.VerifyState(
+		disputemon.GameCount(gameTypes.SuperPermissionedGameType, 1),
+		disputemon.FailedGames(0),
+		disputemon.AgreedRoots(1),
+		disputemon.DisagreedRoots(0),
+	)
 }
 
 func TestDisputeMonitorForecastsInvalidProposalForChallenger(gt *testing.T) {
@@ -37,7 +45,12 @@ func TestDisputeMonitorForecastsInvalidProposalForChallenger(gt *testing.T) {
 		sys.L2Chain.DisputeGameFactoryProxyAddr(),
 		presets.WithDisputeMonRollupNodes(sys.L2CL),
 	)
-	mon.VerifyInvalidProposalForecast(gameTypes.CannonKonaGameType)
+	mon.VerifyState(
+		disputemon.GameCount(gameTypes.CannonKonaGameType, 1),
+		disputemon.FailedGames(0),
+		disputemon.IncorrectDefenderAhead(1),
+		disputemon.InvalidProposalObserved(game),
+	)
 }
 
 func TestDisputeMonitorReportsIncorrectResolvedGame(gt *testing.T) {
@@ -49,7 +62,13 @@ func TestDisputeMonitorReportsIncorrectResolvedGame(gt *testing.T) {
 	)
 	game.WaitForGameStatus(gameTypes.GameStatusDefenderWon)
 
-	sys.StartDisputeMon().VerifyIncorrectResolvedGame()
+	mon := sys.StartDisputeMon()
+	mon.VerifyState(
+		disputemon.GameCount(gameTypes.SuperPermissionedGameType, 1),
+		disputemon.FailedGames(0),
+		disputemon.IncorrectDefenderWins(1),
+		disputemon.InvalidProposalObserved(game),
+	)
 }
 
 func TestDisputeMonitorReportsReferenceNodeFailure(gt *testing.T) {
@@ -82,7 +101,20 @@ func TestDisputeMonitorReportsResolvedGameAccounting(gt *testing.T) {
 	game.Resolve(proposer)
 	game.WaitForGameStatus(gameTypes.GameStatusDefenderWon)
 
-	startCannonKonaDisputeMon(t, sys).VerifyResolvedGameAccounting(game)
+	startCannonKonaDisputeMon(t, sys).VerifyState(
+		disputemon.GameCount(gameTypes.CannonKonaGameType, 1),
+		disputemon.FailedGames(0),
+		disputemon.CompletedBeforeMaxDuration(1),
+		disputemon.ResolvedClaimsInFirstHalf(1),
+		disputemon.ResolvableClaims(0),
+		disputemon.ExpectedNonWithdrawableCredits(1),
+		disputemon.ExcessCredits(0),
+		disputemon.DeficientNonWithdrawableCredits(0),
+		disputemon.MatchingWithdrawalRequests(game, 0),
+		disputemon.DivergentWithdrawalRequests(game, 0),
+		disputemon.SufficientCollateral(game, game.RootClaim().Bond()),
+		disputemon.NoInsufficientCollateral(game),
+	)
 }
 
 func TestDisputeMonitorReportsHonestActorLoss(gt *testing.T) {
@@ -102,13 +134,19 @@ func TestDisputeMonitorReportsHonestActorLoss(gt *testing.T) {
 	game.Resolve(counterer)
 	game.WaitForGameStatus(gameTypes.GameStatusChallengerWon)
 
-	presets.StartDisputeMon(
+	mon := presets.StartDisputeMon(
 		t,
 		sys.L1EL,
 		sys.L2Chain.DisputeGameFactoryProxyAddr(),
 		presets.WithDisputeMonRollupNodes(sys.L2CL),
 		presets.WithDisputeMonHonestActors(proposer.Address()),
-	).VerifyHonestActorLoss(proposer.Address(), rootBond)
+	)
+	mon.VerifyState(
+		disputemon.GameCount(gameTypes.CannonKonaGameType, 1),
+		disputemon.HonestActorInvalidClaims(proposer.Address(), 1),
+		disputemon.HonestActorLostBonds(proposer.Address(), rootBond),
+		disputemon.CorrectChallengerWins(1),
+	)
 }
 
 func newCannonKonaDisputeSystem(t devtest.T) *presets.Minimal {
@@ -127,7 +165,7 @@ func advanceL1Time(sys *presets.Minimal, duration time.Duration) {
 	sys.L1EL.WaitForTime(target)
 }
 
-func startCannonKonaDisputeMon(t devtest.T, sys *presets.Minimal) *presets.DisputeMon {
+func startCannonKonaDisputeMon(t devtest.T, sys *presets.Minimal) *disputemon.DisputeMon {
 	return presets.StartDisputeMon(
 		t,
 		sys.L1EL,

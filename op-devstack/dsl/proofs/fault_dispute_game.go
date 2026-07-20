@@ -78,6 +78,10 @@ func (g *FaultDisputeGame) MaxClockDuration() time.Duration {
 	return time.Duration(contract.Read(g.game.MaxClockDuration())) * time.Second
 }
 
+func (g *FaultDisputeGame) CreatedAt() uint64 {
+	return contract.Read(g.game.CreatedAt())
+}
+
 func (g *FaultDisputeGame) RootClaim() *Claim {
 	return g.ClaimAtIndex(0)
 }

@@ -437,3 +437,70 @@ func TestMetricsClientWaitForSnapshot(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, float64(1), value)
 }
+
+func TestSnapshotChecks(t *testing.T) {
+	snapshot, err := parseSnapshot(
+		"# TYPE gauge_metric gauge\n" +
+			"gauge_metric{scope=\"a\"} 2\n" +
+			"gauge_metric{scope=\"b\"} 3\n" +
+			"# TYPE duration histogram\n" +
+			"duration_bucket{le=\"+Inf\"} 4\n" +
+			"duration_sum 5\n" +
+			"duration_count 4\n",
+	)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name      string
+		check     SnapshotCheck
+		wantError string
+	}{
+		{
+			name:  "gauge equals",
+			check: GaugeEquals("gauge_metric", map[string]string{"scope": "a"}, 2),
+		},
+		{
+			name:      "gauge does not equal",
+			check:     GaugeEquals("gauge_metric", map[string]string{"scope": "a"}, 1),
+			wantError: "expected 1 but observed 2",
+		},
+		{
+			name:  "gauge at least",
+			check: GaugeAtLeast("gauge_metric", map[string]string{"scope": "a"}, 2),
+		},
+		{
+			name:      "gauge below minimum",
+			check:     GaugeAtLeast("gauge_metric", map[string]string{"scope": "a"}, 3),
+			wantError: "expected at least 3 but observed 2",
+		},
+		{
+			name:  "gauge sum equals",
+			check: GaugeSumEquals("gauge_metric", nil, 5),
+		},
+		{
+			name:      "gauge sum does not equal",
+			check:     GaugeSumEquals("gauge_metric", nil, 4),
+			wantError: "expected 4 but observed 5",
+		},
+		{
+			name:  "histogram count at least",
+			check: HistogramCountAtLeast("duration", nil, 4),
+		},
+		{
+			name:      "histogram count below minimum",
+			check:     HistogramCountAtLeast("duration", nil, 5),
+			wantError: "expected at least 5 but observed 4",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.check(snapshot)
+			if test.wantError == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, test.wantError)
+			}
+		})
+	}
+}
