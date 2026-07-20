@@ -1,0 +1,65 @@
+---
+title: Stack Components
+sidebarTitle: Overview
+description: One canonical hub page per OP Stack component, grouped by protocol role.
+diataxis: explanation
+---
+
+This section gives every OP Stack component exactly one identity page — its
+**hub** — so "where do I find docs for component X" always has the same
+answer. Each hub follows the same
+[skeleton](/op-stack/contribute/component-hub-template): what the component
+is, who runs it, where to start, and where its guides, configuration
+reference, releases, source, and spec live.
+
+Components are grouped by their role in the protocol. For how these roles fit
+together conceptually — data availability, sequencing, derivation, execution,
+settlement — see the [OP Stack components](/op-stack/protocol/components)
+explanation. For release history across all components, see
+[Releases](/releases).
+
+Hubs are shipping in reviewed batches. Components without a hub yet are
+listed with their release history; their hub pages follow.
+
+## Sequencing
+
+Producing L2 blocks and making their data available.
+
+| Component | What it does | Hub | Releases |
+| --- | --- | --- | --- |
+| op-batcher | Posts L2 transaction batches to the data availability layer | [Hub](/op-stack/components/op-batcher) | [Releases](/releases/op-batcher) |
+| op-conductor | High-availability sequencer coordination service | Planned | [Releases](/releases/op-conductor) |
+
+## Derivation & execution
+
+Deriving the canonical L2 chain from the data availability layer and
+executing its blocks.
+
+| Component | What it does | Hub | Releases |
+| --- | --- | --- | --- |
+| op-node | OP Stack consensus-layer (rollup node) client, in Go | Planned | [Releases](/releases/op-node) |
+| kona-node | Rust implementation of the OP Stack rollup node | Planned | [Releases](/releases/kona-node) |
+| op-reth | OP Stack execution-layer client built on Reth | Planned | [Releases](/releases/op-reth) |
+
+## Settlement & proofs
+
+Proposing L2 state to L1 and proving its validity. 
+
+| Component | What it does | Hub | Releases |
+| --- | --- | --- | --- |
+| op-proposer | Proposes L2 output roots to L1 | Planned | [Releases](/releases/op-proposer) |
+| op-challenger | Dispute game challenge agent | Planned | [Releases](/releases/op-challenger) |
+| cannon | Onchain MIPS instruction emulator — the fault proof VM | [Hub](/op-stack/components/cannon) | [Release tags](https://github.com/ethereum-optimism/optimism/releases?q=cannon%2Fv&expanded=false) |
+| kona-client | Fault proof program (client) that executes the OP Stack state transition | Planned | [Releases](/releases/kona-client) |
+| kona-host | Fault proof host that serves preimage data to kona-client | Planned | [Releases](/releases/kona-host) |
+| op-contracts | OP Stack L1 and L2 smart contracts | Planned | [Releases](/releases/op-contracts) |
+
+## Deployment & infrastructure
+
+Deploying chains and operating the infrastructure around them.
+
+| Component | What it does | Hub | Releases |
+| --- | --- | --- | --- |
+| op-deployer | OP Stack chain deployment and upgrade tool | Planned | [Releases](/releases/op-deployer) |
+| proxyd | RPC request router and proxy | Planned | [Releases](/releases/proxyd) |
+| op-acceptor | Network acceptance tester for OP Stack devnets | Planned | [Releases](/releases/op-acceptor) |

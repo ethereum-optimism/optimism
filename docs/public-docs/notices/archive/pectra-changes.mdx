@@ -106,12 +106,12 @@ The Pectra upgrade changes the derivation rules, permissionless fault proof chai
 
 <Steps>
   <Step title="Verify the new absolute prestate">
-  The absolute prestate is generated with the [op-program/v1.5.0-rc.4](https://github.com/ethereum-optimism/optimism/tree/op-program/v1.5.0-rc.4). You can use this new absolute prestate (`0x0354eee87a1775d96afee8977ef6d5d6bd3612b256170952a01bf1051610ee01`) for the following chains:
+  The absolute prestate is generated with the [op-program/v1.5.0-rc.4](https://github.com/ethereum-optimism/optimism/tree/op-program/v1.5.0-rc.4) (as of `op-program/v1.5.0-rc.4`). You can use this new absolute prestate (`0x0354eee87a1775d96afee8977ef6d5d6bd3612b256170952a01bf1051610ee01`) for the following chains:
   
     *   Sepolia: Base, OP, Metal, Mode, Zora, Ethernity, Unichain, Ink, Minato (Soneium)
     *   Mainnet: Base, OP, Orderly, Lyra, Metal, Mode, Zora, Lisk, Ethernity, Binary, Ink, Unichain, Soneium
   
-    You can verify this absolute prestate by running the following [command](https://github.com/ethereum-optimism/optimism/blob/0026006e6a7a482332a7833876f915acb9dff4c6/Makefile#L129-L131) in the root of the monorepo on the `op-program/v1.5.0-rc.4` tag:
+    You can verify this absolute prestate by running the following [command](https://github.com/ethereum-optimism/optimism/blob/0026006e6a7a482332a7833876f915acb9dff4c6/Makefile#L129-L131) (as of `0026006`) in the root of the monorepo on the `op-program/v1.5.0-rc.4` tag:
   
     ```shell
     make reproducible-prestate
@@ -136,7 +136,7 @@ The Pectra upgrade changes the derivation rules, permissionless fault proof chai
   </Step>
 
   <Step title="Deploy new dispute game contracts">
-  You will then take the absolute prestate and deploy new `FaultDisputeGame` and `PermissionedDisputeGame` contracts with that value. You can reuse the [Holocene script](https://github.com/ethereum-optimism/optimism/tree/op-contracts/v1.8.0-rc.4/packages/contracts-bedrock/scripts/upgrades/holocene) to deploy the new contracts. The only change you will need to make is to update the `absolutePrestate` value in your [deploy-config](https://github.com/ethereum-optimism/optimism/blob/2073f4059bd806af3e8b76b820aa3fa0b42016d0/packages/contracts-bedrock/scripts/upgrades/holocene/README.md?plain=1#L53-L54). Alternatively we will be releasing an `OPPrestateUpdater` that can be used to deploy the new contracts.
+  You will then take the absolute prestate and deploy new `FaultDisputeGame` and `PermissionedDisputeGame` contracts with that value. You can reuse the [Holocene script](https://github.com/ethereum-optimism/optimism/tree/op-contracts/v1.8.0-rc.4/packages/contracts-bedrock/scripts/upgrades/holocene) (as of `op-contracts/v1.8.0-rc.4`) to deploy the new contracts. The only change you will need to make is to update the `absolutePrestate` value in your [deploy-config](https://github.com/ethereum-optimism/optimism/blob/2073f4059bd806af3e8b76b820aa3fa0b42016d0/packages/contracts-bedrock/scripts/upgrades/holocene/README.md?plain=1#L53-L54) (as of `2073f40`). Alternatively we will be releasing an `OPPrestateUpdater` that can be used to deploy the new contracts.
   </Step>
 
   <Step title="Update the DisputeGameFactory">

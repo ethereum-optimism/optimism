@@ -6,7 +6,9 @@
   "scripts": {
     "prebuild": "tsx scripts/generate-actions-components.ts && tsx scripts/generate-releases.ts",
     "prebuild:local": "tsx scripts/generate-actions-components.ts --local && tsx scripts/generate-releases.ts",
-    "dev": "mint dev"
+    "dev": "mint dev",
+    "lint:nav": "tsx scripts/lint/validate-nav.ts",
+    "lint:redirects": "tsx scripts/lint/validate-redirects.ts"
   },
   "dependencies": {
     "react": "^18.0.0",

@@ -50,7 +50,7 @@ lazy_static::lazy_static! {
     /// [`DependencySet`]; chains in disjoint clusters map to **different** values.
     /// Cross-cluster proofs must be rejected by the consumer (see `BootInfo::load`).
     pub static ref DEPENDENCY_SETS: HashMap<u64, DependencySet> = {
-        let raw = include_str!("../etc/depsets.json");
+        let raw = include_str!(concat!(env!("KONA_REGISTRY_DIR"), "/depsets.json"));
         let depsets: Vec<DependencySet> = serde_json::from_str(raw)
             .expect("parse embedded etc/depsets.json");
         let mut by_chain: HashMap<u64, DependencySet> = HashMap::default();
@@ -154,6 +154,7 @@ mod tests {
     const CUSTOM_CONFIGS_TEST_ENABLED: Option<&str> = option_env!("KONA_CUSTOM_CONFIGS_TEST");
     const CUSTOM_CONFIGS: Option<&str> = option_env!("KONA_CUSTOM_CONFIGS");
     const CUSTOM_CONFIGS_DIR: Option<&str> = option_env!("KONA_CUSTOM_CONFIGS_DIR");
+    const CUSTOM_CONFIGS_CFG: bool = cfg!(kona_custom_configs = "true");
 
     #[test]
     fn custom_chain_is_loaded_when_enabled() {
@@ -161,12 +162,19 @@ mod tests {
             return;
         };
         assert!(
-            CUSTOM_CONFIGS == Some("true"),
-            "KONA_CUSTOM_CONFIGS is required when KONA_CUSTOM_CONFIGS_TEST is set"
+            CUSTOM_CONFIGS == Some("true") || CUSTOM_CONFIGS_CFG,
+            "KONA_CUSTOM_CONFIGS=true or --cfg kona_custom_configs=\"true\" is required when \
+             KONA_CUSTOM_CONFIGS_TEST is set"
         );
         assert!(
-            CUSTOM_CONFIGS_DIR.is_some(),
-            "KONA_CUSTOM_CONFIGS_DIR is required when KONA_CUSTOM_CONFIGS_TEST is set"
+            CUSTOM_CONFIGS_DIR.is_some() || CUSTOM_CONFIGS_CFG,
+            "KONA_CUSTOM_CONFIGS_DIR or --cfg kona_custom_configs_dir=\"...\" is required when \
+             KONA_CUSTOM_CONFIGS_TEST is set"
+        );
+        assert_eq!(
+            env!("KONA_REGISTRY_DIR").strip_prefix(env!("OUT_DIR")),
+            Some("/registry-etc"),
+            "custom configs must be merged outside the committed registry snapshot"
         );
 
         let test1_chain_id = 123999119;

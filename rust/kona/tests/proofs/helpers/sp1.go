@@ -14,8 +14,8 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-// sp1RangeExecutorPath is the path to a pre-built kona-sp1-range-executor binary. The binary embeds
-// the range guest ELF, so it must be built after the ELFs (see rust/kona/sp1/justfile build-elfs).
+// sp1RangeExecutorPath is the path to a pre-built kona-sp1-range-executor binary. The binary loads
+// the range guest ELF from KONA_SP1_ELF_DIR at runtime.
 var sp1RangeExecutorPath string
 
 func init() {

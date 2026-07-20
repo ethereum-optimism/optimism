@@ -39,7 +39,6 @@ var (
 
 type allocMode struct {
 	name             string
-	l2cm             bool
 	customGasToken   bool
 	devFeatureBitmap common.Hash
 	configure        func(t *testing.T, intent *state.Intent)
@@ -59,16 +58,6 @@ func allocModes(t *testing.T) []allocMode {
 		{
 			name:      "default",
 			configure: func(t *testing.T, intent *state.Intent) {},
-		},
-		{
-			name:             "l2cm",
-			l2cm:             true,
-			devFeatureBitmap: devfeatures.L2CMFlag,
-			configure: func(t *testing.T, intent *state.Intent) {
-				intent.GlobalDeployOverrides = map[string]any{
-					"devFeatureBitmap": devfeatures.L2CMFlag,
-				}
-			},
 		},
 		{
 			name:           "cgt",
@@ -216,12 +205,11 @@ func activePredeploys(mode allocMode) []common.Address {
 		predeploys.ProxyAdminAddr,
 		predeploys.SchemaRegistryAddr,
 		predeploys.EASAddr,
+		conditionalDeployerAddr,
+		l2DevFeatureFlagsAddr,
 	}
 	if mode.customGasToken {
 		proxies = append(proxies, predeploys.LiquidityControllerAddr, predeploys.NativeAssetLiquidityAddr)
-	}
-	if mode.l2cm {
-		proxies = append(proxies, conditionalDeployerAddr, l2DevFeatureFlagsAddr)
 	}
 	return proxies
 }
