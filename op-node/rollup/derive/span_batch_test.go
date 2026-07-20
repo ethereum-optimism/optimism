@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
@@ -486,7 +487,7 @@ func TestSpanBatchReadTxData(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			rng := rand.New(rand.NewSource(int64(0x109550 + i)))
 			chainID := new(big.Int).SetUint64(rng.Uint64())
-			signer := types.NewIsthmusSigner(chainID)
+			signer := types.NewPragueSigner(chainID)
 			if !testCase.protected {
 				signer = types.HomesteadSigner{}
 			}
@@ -518,7 +519,7 @@ func TestSpanBatchReadPostExecTxData(t *testing.T) {
 	r := bytes.NewReader(rawTx)
 	txData, txType, err := ReadTxData(r)
 	require.NoError(t, err)
-	require.Equal(t, int(types.PostExecTxType), txType)
+	require.Equal(t, optypes.PostExecTxType, txType)
 	require.Equal(t, rawTx, txData)
 }
 
