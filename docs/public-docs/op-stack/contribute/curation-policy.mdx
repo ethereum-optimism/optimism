@@ -1,0 +1,118 @@
+---
+title: Curation review policy
+description: The review cadence for curated pages, the last-reviewed frontmatter contract, the sweep that keeps curated content fresh, and the rule for delisting what rots.
+diataxis: reference
+last-reviewed: 2026-07-18
+---
+
+Some pages in these docs are **curated artifacts**: they do not document one
+component, they select, sequence, or recommend across many. A solution guide
+is a chain of links and decisions; a router page is a set of chosen entry
+points; a selection page compares options that keep evolving. Curated content
+is the most valuable kind of page and the fastest to rot, because nothing
+breaks when it goes stale. This page is the standing policy that keeps it
+fresh.
+
+## What counts as a curated artifact
+
+Any page whose main job is choosing or sequencing rather than documenting:
+
+*   **Solution guides** (`content-type: solution-guide`), each a chain of
+    links plus decision tables.
+*   **Router and landing pages** (`content-type: router-landing`), including
+    the section indexes that choose what to surface.
+*   **Curriculum hubs and learning-track indexes** (`content-type:
+    curriculum-hub`), which sequence existing pages into a path.
+*   **Selection and comparison pages**: any page presenting dated facts about
+    alternatives (client choices, tool matrices).
+*   **Prompt libraries and AI onboarding pages**: curated prompts and
+    integration instructions that reference specific product surfaces.
+
+Ordinary tutorials, how-to guides, reference pages, and explanations are not
+curated artifacts; they are maintained by the normal review flow for their
+component.
+
+## The `last-reviewed:` contract
+
+Every curated artifact carries a review stamp in its frontmatter:
+
+```yaml
+last-reviewed: YYYY-MM-DD
+```
+
+The stamp means: on that date, a reviewer confirmed the page's links resolve,
+its load-bearing claims still match source, and its recommendations are still
+the ones we would make. It is set on merge for a new page and bumped only by
+a review that actually re-verified the page, never by an unrelated edit
+passing through.
+
+The frontmatter is deliberately greppable so staleness is checkable
+mechanically:
+
+```bash
+# from docs/public-docs/
+grep -rn "last-reviewed:" --include="*.mdx" .
+```
+
+## Sweep intervals by artifact class
+
+| Artifact class                                             | Sweep interval | Rationale                                                                                     |
+| ------------------------------------------------------------ | ---------------- | ------------------------------------------------------------------------------------------------ |
+| Solution guides, selection and comparison pages            | 90 days          | They carry decision logic and version-sensitive facts; a stale recommendation misleads directly. |
+| Prompt libraries and AI onboarding pages                   | 90 days          | They name concrete product surfaces (URLs, server endpoints) that change without notice.         |
+| Router/landing pages, curriculum hubs, learning-track indexes | 180 days      | They mostly sequence links; the linked pages carry their own accuracy burden.                    |
+
+A page past its interval is not automatically wrong, but it is unverified,
+and unverified curation is treated as a defect: it goes to the front of the
+next sweep.
+
+## What a sweep does
+
+Each sweep pass picks the curated artifact whose `last-reviewed:` is oldest
+relative to its class interval and re-verifies it:
+
+1.  **Chain integrity**: every link on the page resolves, including the
+    off-site exits, per the [link policy](/op-stack/contribute/link-policy).
+    For solution guides this covers the whole chain the guide sequences, not
+    just the guide page: one dead link breaks the paved path.
+2.  **Load-bearing claims**: defaults, thresholds, version numbers, and "as
+    of" markers are re-checked against source, and every "as of" date is
+    either re-confirmed (and re-dated) or the claim is corrected.
+3.  **The stamp**: `last-reviewed:` is bumped to the sweep date in the same
+    change, so the stamp and the verification never drift apart.
+
+Sweeps run as scheduled, review-gated docs automation, with the results
+landing as ordinary reviewable pull requests; a human still owns every merge.
+
+## The delisting rule
+
+Curated pages recommend things, and a recommendation we can no longer stand
+behind is removed, not hedged:
+
+*   If a sweep finds a curated entry (an exit link, a listed tool, a
+    recommended option) that is dead, deprecated, or no longer something the
+    docs would recommend, the entry is **removed or replaced in that sweep's
+    change**, not annotated with a warning and left in place.
+*   If an entire curated page can no longer be verified (its subject was
+    deprecated, its journey no longer exists), the page is removed from the
+    nav and redirected per the
+    [redirects guidance](https://github.com/ethereum-optimism/optimism/blob/develop/docs/public-docs/REDIRECTS_GUIDE.md),
+    with the removal recorded in the pull request.
+
+Listing is a maintenance commitment: a curated entry that nobody re-verifies
+on schedule loses its place. This is the same bargain the
+[content guide](/op-stack/contribute/content-guide) makes for canonical
+homes, applied to curation.
+
+## Adding a new curated page
+
+A new curated artifact enters the rotation on merge:
+
+1.  Carry `last-reviewed:` set to a date within its review cycle (normally
+    the merge date) plus the `content-type:` its
+    [content-type contract](/op-stack/contribute/choose-a-content-type)
+    requires.
+2.  Its pull request states the artifact class, so reviewers know which
+    interval it signed up for.
+3.  No exemptions: a curated page that cannot commit to its class's sweep
+    interval should not ship as a curated page.

@@ -216,7 +216,7 @@ setup_batcher() {
     
     # Create .env file with OP_BATCHER prefixed variables
     cat > .env << EOF
-OP_BATCHER_L2_ETH_RPC=http://op-geth:8545
+OP_BATCHER_L2_ETH_RPC=http://op-reth:8545
 OP_BATCHER_ROLLUP_RPC=http://op-node:8547
 OP_BATCHER_PRIVATE_KEY=$PRIVATE_KEY
 OP_BATCHER_POLL_INTERVAL=1s

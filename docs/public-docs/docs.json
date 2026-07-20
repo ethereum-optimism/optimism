@@ -704,10 +704,6 @@
       "destination": "/app-developers/guides/interoperability/message-expiration"
     },
     {
-      "source": "/app-developers/quickstarts/get-started",
-      "destination": "/op-stack/interop/interop"
-    },
-    {
       "source": "/app-developers/tutorials/interop/bridge-crosschain-eth",
       "destination": "/app-developers/tutorials/bridging/bridge-crosschain-eth"
     },
@@ -1705,7 +1701,11 @@
     },
     {
       "source": "/operators/chain-operators/tutorials/create-l2-rollup/op-geth-setup",
-      "destination": "/chain-operators/tutorials/create-l2-rollup/op-geth-setup"
+      "destination": "/chain-operators/tutorials/create-l2-rollup/op-reth-setup"
+    },
+    {
+      "source": "/chain-operators/tutorials/create-l2-rollup/op-geth-setup",
+      "destination": "/chain-operators/tutorials/create-l2-rollup/op-reth-setup"
     },
     {
       "source": "/operators/chain-operators/tutorials/create-l2-rollup/op-deployer-setup",
@@ -1721,7 +1721,7 @@
     },
     {
       "source": "/operators/chain-operators/deploy/sequencer-node",
-      "destination": "/chain-operators/tutorials/create-l2-rollup/op-geth-setup"
+      "destination": "/chain-operators/tutorials/create-l2-rollup/op-reth-setup"
     },
     {
       "source": "/app-developers/tools/testing/devnet",
@@ -1797,7 +1797,7 @@
     },
     {
       "source": "/chain-operators/guides/deployment/sequencer-node",
-      "destination": "/chain-operators/tutorials/create-l2-rollup/op-geth-setup"
+      "destination": "/chain-operators/tutorials/create-l2-rollup/op-reth-setup"
     },
     {
       "source": "/chain-operators/guides/deployment/spin-batcher",
@@ -1968,14 +1968,17 @@
             "group": "Quickstart",
             "pages": [
               "index",
-              "ai-docs"
+              "ai-docs",
+              "chain-operators/quickstart"
             ]
           },
           {
             "group": "Use cases",
             "pages": [
               "use-cases/index",
-              "use-cases/tune-batcher-costs"
+              "use-cases/tune-batcher-costs",
+              "use-cases/run-a-fault-proof-challenger",
+              "use-cases/implement-a-custom-deposit-flow"
             ]
           },
           {
@@ -2027,10 +2030,11 @@
                 "pages": [
                   "chain-operators/tutorials/create-l2-rollup/create-l2-rollup",
                   "chain-operators/tutorials/create-l2-rollup/op-deployer-setup",
-                  "chain-operators/tutorials/create-l2-rollup/op-geth-setup",
+                  "chain-operators/tutorials/create-l2-rollup/op-reth-setup",
                   "chain-operators/tutorials/create-l2-rollup/op-batcher-setup",
                   "chain-operators/tutorials/create-l2-rollup/op-proposer-setup",
-                  "chain-operators/tutorials/create-l2-rollup/op-challenger-setup"
+                  "chain-operators/tutorials/create-l2-rollup/op-challenger-setup",
+                  "chain-operators/tutorials/create-l2-rollup/code-setup"
                 ]
               },
               {
@@ -2198,6 +2202,7 @@
           {
             "group": "Quickstarts",
             "pages": [
+              "app-developers/quickstarts/get-started",
               "app-developers/quickstarts/actions"
             ]
           },
@@ -2468,6 +2473,7 @@
             "pages": [
               "/op-stack/contribute/content-guide",
               "/op-stack/contribute/link-policy",
+              "/op-stack/contribute/curation-policy",
               "/op-stack/contribute/style-guide",
               {
                 "group": "Choose a content type",

@@ -4,10 +4,6 @@
     {
       "path": "chain-operators/guides/features/sequencer-defined-metering",
       "reason": "Deliberately hidden (frontmatter hidden: true): documents Sequencer Defined Metering, which is not yet live (expected with the Lagoon hardfork). Add to the Chain Operators > Guides > Features nav group when the feature ships."
-    },
-    {
-      "path": "chain-operators/tutorials/create-l2-rollup/code-setup",
-      "reason": "Being re-homed by the Option C slice C1 homepage-router/tutorial-repair PR (create-l2-rollup tutorial repair); remove this entry when that PR lands its nav fix (ethereum-optimism/solutions#955)."
     }
   ],
   "duplicateNavEntries": []
