@@ -95,7 +95,7 @@ var (
 		Aliases: []string{"trace-type"}, // For backwards compatibility
 		Usage:   "The game types to support. Valid options: " + openum.EnumStringer(gameTypes.PlayableGameTypes),
 		EnvVars: prefixEnvVars("GAME_TYPES", "TRACE_TYPE"),
-		Value:   cli.NewStringSlice(gameTypes.CannonGameType.String(), gameTypes.CannonKonaGameType.String()),
+		Value:   cli.NewStringSlice(gameTypes.CannonKonaGameType.String()),
 	}
 	DatadirFlag = &cli.StringFlag{
 		Name:    "datadir",
