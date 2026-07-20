@@ -6,6 +6,7 @@ on:
       - 'develop'
     tags:
       - '*/v*'
+      - 'op-reth/bench*'
   pull_request:
     branches:
       - 'develop'
