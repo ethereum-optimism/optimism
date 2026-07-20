@@ -162,6 +162,14 @@ func SingleChainMultiNodeFromRuntime(t devtest.T, runtime *sysgo.SingleChainRunt
 	return singleChainMultiNodeFromRuntime(t, runtime, runSyncChecks)
 }
 
+// SingleChainMultiNodeWithTestSeqFromRuntime projects a composed sysgo runtime
+// into the standard multi-node DSL surface with its test sequencer attached.
+// Callers can use this with NewSingleChainRuntime to select exactly the
+// services needed by deterministic sequencing tests.
+func SingleChainMultiNodeWithTestSeqFromRuntime(t devtest.T, runtime *sysgo.SingleChainRuntime) *SingleChainMultiNodeWithTestSeq {
+	return singleChainMultiNodeWithTestSeqFromRuntime(t, runtime)
+}
+
 func singleChainMultiNodeWithTestSeqFromRuntime(t devtest.T, runtime *sysgo.SingleChainRuntime) *SingleChainMultiNodeWithTestSeq {
 	preset := singleChainMultiNodeFromRuntime(t, runtime, false)
 	testSequencer := newTestSequencerFrontend(
