@@ -190,6 +190,8 @@ func (f *FakePoS) Start() error {
 				}
 				var res engine.ForkChoiceResponse
 				if isAmsterdam {
+					// FakePoS does not model custody-column availability. EIP-8070 makes the
+					// custody bitmap optional, so custody behavior needs separate CL/DA coverage.
 					res, err = f.engineAPI.ForkchoiceUpdatedV4(ctx, fcState, attrs, nil)
 				} else if isCancun {
 					res, err = f.engineAPI.ForkchoiceUpdatedV3(ctx, fcState, attrs)

@@ -35,7 +35,9 @@ type Builder struct {
 	beacon     Beacon
 	blockchain Blockchain
 	genesis    *types.Header
-	config     *params.ChainConfig
+	// The full chain config is both the block-type descriptor and the source of the
+	// fork schedule used to select Engine API versions.
+	config *params.ChainConfig
 
 	registry work.Jobs
 
