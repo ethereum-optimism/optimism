@@ -60,12 +60,46 @@ func (r *LegacyReceipt) DecodeRLP(s *rlp.Stream) error {
 type storedReceiptRLP struct {
 	PostStateOrStatus []byte
 	CumulativeGasUsed uint64
-	Logs              []*types.LogForStorage
+	Logs              []*logForStorage
 	// UsingOVM
 	L1GasUsed  *big.Int
 	L1GasPrice *big.Int
 	L1Fee      *big.Int
 	FeeScalar  string
+}
+
+// logForStorage decodes the two historical log storage encodings, replicating the
+// legacy LogForStorage type that upstream go-ethereum deleted: the reduced
+// {Address, Topics, Data} form, and the older 8-field form written by l2geth.
+type logForStorage types.Log
+
+type legacyRlpStorageLog struct {
+	Address     common.Address
+	Topics      []common.Hash
+	Data        []byte
+	BlockNumber uint64
+	TxHash      common.Hash
+	TxIndex     uint
+	BlockHash   common.Hash
+	Index       uint
+}
+
+func (l *logForStorage) DecodeRLP(s *rlp.Stream) error {
+	blob, err := s.Raw()
+	if err != nil {
+		return err
+	}
+	var dec types.Log
+	if err := rlp.DecodeBytes(blob, &dec); err == nil {
+		*l = logForStorage(dec)
+		return nil
+	}
+	var legacy legacyRlpStorageLog
+	if err := rlp.DecodeBytes(blob, &legacy); err != nil {
+		return err
+	}
+	*l = logForStorage{Address: legacy.Address, Topics: legacy.Topics, Data: legacy.Data}
+	return nil
 }
 
 func decodeStoredReceiptRLP(r *LegacyReceipt, blob []byte) error {
