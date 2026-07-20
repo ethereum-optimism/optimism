@@ -292,7 +292,7 @@ mod tests {
         }
         let after = rustls::crypto::CryptoProvider::get_default();
         assert!(
-            std::ptr::eq(first.as_deref().unwrap(), after.as_deref().unwrap()),
+            std::ptr::eq(first.unwrap(), after.unwrap()),
             "repeated calls must not replace the provider"
         );
     }
