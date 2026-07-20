@@ -168,60 +168,33 @@ func (v *recordingSignatureValidator) ValidateUnsafeBlockSignature(
 	return v.result
 }
 
-func TestValidateBlockSignatureDelegatesWhenSupported(t *testing.T) {
-	logger := testlog.Logger(t, log.LevelCrit)
+func TestBlocksValidatorDefersDelegationUntilPayloadIsValid(t *testing.T) {
 	cfg := &rollup.Config{L2ChainID: big.NewInt(100)}
-	signature := eth.Bytes65{1, 2, 3}
-	payload := []byte("delegated payload")
 	validator := &recordingSignatureValidator{result: pubsub.ValidationAccept}
-
-	result := validateBlockSignature(
-		context.Background(),
-		logger,
-		cfg,
-		validator,
-		eth.BlockV4,
-		peer.ID("external-cl"),
-		signature,
-		payload,
-	)
-
-	require.Equal(t, pubsub.ValidationAccept, result)
-	require.True(t, validator.called)
-	require.Equal(t, eth.ChainIDFromBig(cfg.L2ChainID), validator.chainID)
-	require.Equal(t, eth.BlockV4, validator.version)
-	require.Equal(t, signature, validator.signature)
-	require.Equal(t, payload, validator.payload)
-}
-
-func TestValidateBlockSignatureUsesBuiltInFallback(t *testing.T) {
-	logger := testlog.Logger(t, log.LevelCrit)
-	cfg := &rollup.Config{L2ChainID: big.NewInt(100)}
-	payload := []byte("standard payload")
 	secret, err := crypto.GenerateKey()
 	require.NoError(t, err)
 	signer := &PreparedSigner{Signer: opsigner.NewLocalSigner(secret)}
-	signature, err := signer.SignBlockV1(
-		context.Background(),
-		eth.ChainIDFromBig(cfg.L2ChainID),
-		opsigner.PayloadHash(payload),
+	gossipConfig := &mockGossipSetupConfigurablesWithThreshold{threshold: 60 * time.Second}
+	blocksValidator := BuildBlocksValidator(
+		testlog.Logger(t, log.LevelCrit), cfg, validator, eth.BlockV2, gossipConfig, clock.SystemClock,
 	)
+
+	payload := createExecutionPayload(types.Withdrawals{}, nil, nil, nil)
+	payload.BlockHash = common.HexToHash("0xdead")
+	invalidData, err := createSignedP2Payload(payload, signer, cfg.L2ChainID)
 	require.NoError(t, err)
-	runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: crypto.PubkeyToAddress(secret.PublicKey)}
+	invalidMessage := &pubsub.Message{Message: &pubsub_pb.Message{Data: invalidData}}
+	require.Equal(t, pubsub.ValidationReject, blocksValidator(context.Background(), peer.ID("external-cl"), invalidMessage))
+	require.False(t, validator.called, "delegate must not observe a payload rejected locally")
 
-	result := validateBlockSignature(
-		context.Background(),
-		logger,
-		cfg,
-		runCfg,
-		eth.BlockV3,
-		peer.ID("standard-cl"),
-		signature,
-		payload,
-	)
-
-	require.Equal(t, pubsub.ValidationAccept, result)
-	require.True(t, runCfg.Confirmed)
+	payload.BlockHash, _ = (&eth.ExecutionPayloadEnvelope{ExecutionPayload: payload}).CheckBlockHash()
+	validData, err := createSignedP2Payload(payload, signer, cfg.L2ChainID)
+	require.NoError(t, err)
+	validMessage := &pubsub.Message{Message: &pubsub_pb.Message{Data: validData}}
+	require.Equal(t, pubsub.ValidationAccept, blocksValidator(context.Background(), peer.ID("external-cl"), validMessage))
+	require.True(t, validator.called)
+	require.Equal(t, eth.ChainIDFromBig(cfg.L2ChainID), validator.chainID)
+	require.Equal(t, eth.BlockV2, validator.version)
 }
 
 type MarshalSSZ interface {

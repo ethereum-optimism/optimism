@@ -337,10 +337,16 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 		signature := eth.Bytes65(data[:65])
 		payloadBytes := data[65:]
 
-		// [REJECT] if the signature by the sequencer is not valid
-		result := validateBlockSignature(ctx, log, cfg, runCfg, blockVersion, id, signature, payloadBytes)
-		if result != pubsub.ValidationAccept {
-			return result
+		// The built-in signature check is pure, so reject bad signatures before
+		// doing the more expensive payload validation below. A delegated validator
+		// may call an external consensus implementation with side effects; defer it
+		// until every product-neutral payload check has succeeded.
+		delegatedValidator, delegated := runCfg.(DelegatedBlockSignatureValidator)
+		if !delegated {
+			result := verifyBlockSignature(log, cfg, runCfg, id, signature, payloadBytes)
+			if result != pubsub.ValidationAccept {
+				return result
+			}
 		}
 
 		var envelope eth.ExecutionPayloadEnvelope
@@ -464,6 +470,22 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 			return pubsub.ValidationIgnore
 		}
 
+		// Delegate only after all structural, temporal, fork, hash, and duplicate
+		// checks have passed. Implementations are allowed to consult an external
+		// consensus service, so no local rejection may occur after acceptance.
+		if delegated {
+			result := delegatedValidator.ValidateUnsafeBlockSignature(
+				ctx,
+				eth.ChainIDFromBig(cfg.L2ChainID),
+				blockVersion,
+				signature,
+				payloadBytes,
+			)
+			if result != pubsub.ValidationAccept {
+				return result
+			}
+		}
+
 		// mark it as seen. (note: with concurrent validation more than 5 blocks may be marked as seen still,
 		// but validator concurrency is limited anyway)
 		seen.markSeen(payload.BlockHash)
@@ -472,28 +494,6 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 		message.ValidatorData = &envelope
 		return pubsub.ValidationAccept
 	}
-}
-
-func validateBlockSignature(
-	ctx context.Context,
-	log log.Logger,
-	cfg *rollup.Config,
-	runCfg GossipRuntimeConfig,
-	blockVersion eth.BlockVersion,
-	id peer.ID,
-	signature eth.Bytes65,
-	payloadBytes []byte,
-) pubsub.ValidationResult {
-	if validator, ok := runCfg.(DelegatedBlockSignatureValidator); ok {
-		return validator.ValidateUnsafeBlockSignature(
-			ctx,
-			eth.ChainIDFromBig(cfg.L2ChainID),
-			blockVersion,
-			signature,
-			payloadBytes,
-		)
-	}
-	return verifyBlockSignature(log, cfg, runCfg, id, signature, payloadBytes)
 }
 
 func verifyBlockSignature(log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, id peer.ID, signature eth.Bytes65, payloadBytes []byte) pubsub.ValidationResult {
