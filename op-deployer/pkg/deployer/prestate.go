@@ -125,6 +125,10 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 		if err != nil {
 			return err
 		}
+		requirements, err := pipeline.ResolveInitialDeployRequirements(preparedGameType)
+		if err != nil {
+			return fmt.Errorf("chain %s: %w", chain.ID.Hex(), err)
+		}
 		gameType := embedded.GameType(preparedGameType)
 
 		switch gameType {
@@ -135,14 +139,9 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 			hasSuperCannonKona = true
 		}
 
-		requiresPrestate, err := pipeline.RequiresPrestateForGameType(preparedGameType)
-		if err != nil {
-			return fmt.Errorf("chain %s: %w", chain.ID.Hex(), err)
-		}
-
 		assignment := prestateAssignment{ChainID: chain.ID, GameType: gameType}
 		var validateCandidate func(resolvedPrestate) error
-		if requiresPrestate {
+		if requirements.RequiresPrestate {
 			validateCandidate = func(candidate resolvedPrestate) error {
 				return validatePermissionlessPrestateCandidate(chain.ID, gameType, candidate)
 			}
@@ -152,7 +151,7 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 			return err
 		}
 
-		if requiresPrestate {
+		if requirements.RequiresPrestate {
 			hasActiveSelectedConsumer = true
 			if !selected.set {
 				gameName := gameTypeName(gameType)

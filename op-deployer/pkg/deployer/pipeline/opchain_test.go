@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 	"math/big"
 	"strings"
 	"testing"
@@ -161,6 +162,51 @@ func Test_makeDCI_RejectsPermissionlessGameType(t *testing.T) {
 	}
 }
 
+func Test_makeDCI_RejectsInvalidInitialGameTypeBeforePermissionlessHandling(t *testing.T) {
+	chainID := common.HexToHash("0x0300")
+	intent := &state.Intent{GlobalDeployOverrides: make(map[string]any)}
+
+	tests := []struct {
+		name     string
+		gameType uint32
+		wantErr  string
+	}{
+		{
+			name:     "CANNON",
+			gameType: uint32(embedded.GameTypeCannon),
+			wantErr:  "unsupported initial dispute game type 0",
+		},
+		{
+			name:     "SUPER_PERMISSIONED",
+			gameType: uint32(embedded.GameTypeSuperPermissioned),
+			wantErr:  "derived fallback and is not an initial-deploy selector",
+		},
+		{
+			name:     "ZK_DISPUTE_GAME",
+			gameType: uint32(embedded.GameTypeZKDisputeGame),
+			wantErr:  "unsupported initial dispute game type 10",
+		},
+		{
+			name:     "unknown",
+			gameType: math.MaxUint32,
+			wantErr:  fmt.Sprintf("unsupported initial dispute game type %d", uint32(math.MaxUint32)),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			chainIntent := &state.ChainIntent{
+				ID:              chainID,
+				DeployOverrides: map[string]any{"respectedGameType": tt.gameType},
+			}
+
+			_, err := makeDCI(intent, chainIntent, chainID, &state.State{})
+			require.ErrorContains(t, err, tt.wantErr)
+			require.NotContains(t, err.Error(), "apply only supports permissioned deploys")
+		})
+	}
+}
+
 func TestResolveChainProofParams(t *testing.T) {
 	t.Run("uses defaults", func(t *testing.T) {
 		got, err := ResolveChainProofParams(&state.Intent{}, &state.ChainIntent{})
@@ -274,73 +320,69 @@ func TestResolvePreparedGameType(t *testing.T) {
 	})
 }
 
-func TestRequiresPrestateForGameType(t *testing.T) {
+func TestResolveInitialDeployRequirements(t *testing.T) {
 	tests := []struct {
 		name     string
-		gameType embedded.GameType
-		want     bool
-		wantErr  bool
+		gameType uint32
+		want     InitialDeployRequirements
+		wantErr  string
 	}{
-		{name: "CANNON", gameType: embedded.GameTypeCannon, wantErr: true},
-		{name: "PERMISSIONED_CANNON", gameType: embedded.GameTypePermissionedCannon},
-		{name: "SUPER_PERMISSIONED", gameType: embedded.GameTypeSuperPermissioned},
+		{
+			name:     "CANNON",
+			gameType: uint32(embedded.GameTypeCannon),
+			wantErr:  "unsupported initial dispute game type 0",
+		},
+		{
+			name:     "PERMISSIONED_CANNON",
+			gameType: uint32(embedded.GameTypePermissionedCannon),
+			want:     InitialDeployRequirements{},
+		},
+		{
+			name:     "SUPER_PERMISSIONED",
+			gameType: uint32(embedded.GameTypeSuperPermissioned),
+			wantErr:  "SUPER_PERMISSIONED (5) is a derived fallback and is not an initial-deploy selector",
+		},
 		{
 			name:     "CANNON_KONA",
-			gameType: embedded.GameTypeCannonKona,
-			want:     true,
+			gameType: uint32(embedded.GameTypeCannonKona),
+			want: InitialDeployRequirements{
+				Permissionless:   true,
+				RequiresPrestate: true,
+			},
 		},
 		{
 			name:     "SUPER_CANNON_KONA",
-			gameType: embedded.GameTypeSuperCannonKona,
-			want:     true,
+			gameType: uint32(embedded.GameTypeSuperCannonKona),
+			want: InitialDeployRequirements{
+				Permissionless:   true,
+				RequiresPrestate: true,
+			},
 		},
-		{name: "ZK_DISPUTE_GAME", gameType: embedded.GameTypeZKDisputeGame, wantErr: true},
+		{
+			name:     "ZK_DISPUTE_GAME",
+			gameType: uint32(embedded.GameTypeZKDisputeGame),
+			wantErr:  "unsupported initial dispute game type 10",
+		},
+		{
+			name:     "unknown",
+			gameType: math.MaxUint32,
+			wantErr:  fmt.Sprintf("unsupported initial dispute game type %d", uint32(math.MaxUint32)),
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := RequiresPrestateForGameType(uint32(tt.gameType))
-			if tt.wantErr {
-				require.ErrorContains(t, err, fmt.Sprintf("unsupported initial dispute game type %d", tt.gameType))
+			got, err := ResolveInitialDeployRequirements(tt.gameType)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				require.Zero(t, got)
 				return
 			}
 			require.NoError(t, err)
 			require.Equal(t, tt.want, got)
-		})
-	}
-}
-
-func TestIsPermissionlessGameType(t *testing.T) {
-	tests := []struct {
-		name     string
-		gameType embedded.GameType
-		expected bool
-	}{
-		{
-			name:     "CANNON_KONA",
-			gameType: embedded.GameTypeCannonKona,
-			expected: true,
-		},
-		{
-			name:     "SUPER_CANNON_KONA",
-			gameType: embedded.GameTypeSuperCannonKona,
-			expected: true,
-		},
-		{
-			name:     "PERMISSIONED_CANNON",
-			gameType: embedded.GameTypePermissionedCannon,
-			expected: false,
-		},
-		{
-			name:     "SUPER_PERMISSIONED",
-			gameType: embedded.GameTypeSuperPermissioned,
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.expected, IsPermissionlessGameType(uint32(tt.gameType)))
+			if got.Permissionless {
+				require.True(t, got.RequiresPrestate)
+			}
 		})
 	}
 }

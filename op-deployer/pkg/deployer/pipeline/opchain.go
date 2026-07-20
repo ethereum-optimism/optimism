@@ -180,15 +180,29 @@ func initialGameTypeName(gameType uint32) string {
 	}
 }
 
-// RequiresPrestateForGameType rejects unsupported game types.
-func RequiresPrestateForGameType(gameType uint32) (bool, error) {
+// InitialDeployRequirements defines initial game deployment requirements.
+type InitialDeployRequirements struct {
+	Permissionless   bool
+	RequiresPrestate bool
+}
+
+// ResolveInitialDeployRequirements returns requirements for a supported initial game type.
+func ResolveInitialDeployRequirements(gameType uint32) (InitialDeployRequirements, error) {
 	switch embedded.GameType(gameType) {
-	case embedded.GameTypePermissionedCannon, embedded.GameTypeSuperPermissioned:
-		return false, nil
+	case embedded.GameTypePermissionedCannon:
+		return InitialDeployRequirements{}, nil
 	case embedded.GameTypeCannonKona, embedded.GameTypeSuperCannonKona:
-		return true, nil
+		return InitialDeployRequirements{
+			Permissionless:   true,
+			RequiresPrestate: true,
+		}, nil
+	case embedded.GameTypeSuperPermissioned:
+		return InitialDeployRequirements{}, fmt.Errorf(
+			"initial dispute game type SUPER_PERMISSIONED (%d) is a derived fallback and is not an initial-deploy selector",
+			gameType,
+		)
 	default:
-		return false, fmt.Errorf("unsupported initial dispute game type %d", gameType)
+		return InitialDeployRequirements{}, fmt.Errorf("unsupported initial dispute game type %d", gameType)
 	}
 }
 
@@ -198,7 +212,11 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		return opcm.DeployOPChainInput{}, fmt.Errorf("error merging proof params from overrides: %w", err)
 	}
 
-	if IsPermissionlessGameType(proofParams.DisputeGameType) {
+	requirements, err := ResolveInitialDeployRequirements(proofParams.DisputeGameType)
+	if err != nil {
+		return opcm.DeployOPChainInput{}, err
+	}
+	if requirements.Permissionless {
 		return opcm.DeployOPChainInput{}, fmt.Errorf("apply only supports permissioned deploys: permissionless chains are deployed through the prepare flow")
 	}
 
@@ -221,17 +239,6 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		},
 		thisIntent,
 	), nil
-}
-
-// IsPermissionlessGameType reports whether the given dispute game type deploys a
-// permissionless chain.
-func IsPermissionlessGameType(gameType uint32) bool {
-	switch embedded.GameType(gameType) {
-	case embedded.GameTypeCannonKona, embedded.GameTypeSuperCannonKona:
-		return true
-	default:
-		return false
-	}
 }
 
 func BuildDeployOPChainInput(

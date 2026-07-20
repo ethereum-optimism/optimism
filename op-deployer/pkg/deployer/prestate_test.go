@@ -797,6 +797,26 @@ func TestPrestateRejectsIntentChainChangesAfterPrepare(t *testing.T) {
 	}
 }
 
+func TestPrestateRejectsUnsupportedPreparedGameTypeWithoutWritingState(t *testing.T) {
+	chainID := common.HexToHash("0x01")
+	workdir := writePrestateWorkdir(t, nil, []prestateTestChain{{
+		id:        chainID,
+		prepared:  true,
+		overrides: gameOverride(embedded.GameTypeZKDisputeGame),
+	}}, true, 1)
+	statePath := filepath.Join(workdir, "state.json")
+	before, err := os.ReadFile(statePath)
+	require.NoError(t, err)
+
+	err = Prestate(context.Background(), newTestPrestateConfig(t, workdir))
+	require.ErrorContains(t, err, chainID.Hex())
+	require.ErrorContains(t, err, "unsupported initial dispute game type 10")
+
+	after, readErr := os.ReadFile(statePath)
+	require.NoError(t, readErr)
+	require.Equal(t, before, after)
+}
+
 func TestPrestateAllowsAbsolutePrestateChangeAfterPrepare(t *testing.T) {
 	chainID := common.HexToHash("0x01")
 	initial := testPrestate("11")

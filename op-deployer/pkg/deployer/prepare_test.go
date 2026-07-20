@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -134,10 +135,6 @@ func TestMakePredictionInput_GameTypeInputs(t *testing.T) {
 			name:     "PERMISSIONED_CANNON",
 			gameType: embedded.GameTypePermissionedCannon,
 		},
-		{
-			name:     "SUPER_PERMISSIONED",
-			gameType: embedded.GameTypeSuperPermissioned,
-		},
 	}
 
 	for _, tt := range tests {
@@ -164,6 +161,55 @@ func TestMakePredictionInput_GameTypeInputs(t *testing.T) {
 			} else {
 				require.Equal(t, dci.DisputeAbsolutePrestate, dci.CannonAbsolutePrestate)
 			}
+		})
+	}
+}
+
+func TestMakePredictionInput_RejectsInvalidInitialGameType(t *testing.T) {
+	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
+	superchainConfig := common.HexToAddress("0xbbbb000000000000000000000000000000000002")
+	intent := &state.Intent{
+		OPCMAddress:           &opcmAddr,
+		SuperchainConfigProxy: &superchainConfig,
+	}
+	st := &state.State{Create2Salt: common.HexToHash("0x03")}
+
+	tests := []struct {
+		name     string
+		gameType uint32
+		wantErr  string
+	}{
+		{
+			name:     "CANNON",
+			gameType: uint32(embedded.GameTypeCannon),
+			wantErr:  "unsupported initial dispute game type 0",
+		},
+		{
+			name:     "SUPER_PERMISSIONED",
+			gameType: uint32(embedded.GameTypeSuperPermissioned),
+			wantErr:  "derived fallback and is not an initial-deploy selector",
+		},
+		{
+			name:     "ZK_DISPUTE_GAME",
+			gameType: uint32(embedded.GameTypeZKDisputeGame),
+			wantErr:  "unsupported initial dispute game type 10",
+		},
+		{
+			name:     "unknown",
+			gameType: math.MaxUint32,
+			wantErr:  fmt.Sprintf("unsupported initial dispute game type %d", uint32(math.MaxUint32)),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			chain := &state.ChainIntent{
+				ID:              common.HexToHash("0x0a"),
+				DeployOverrides: map[string]any{"respectedGameType": tt.gameType},
+			}
+
+			_, err := makePredictionInput(intent, st, chain)
+			require.ErrorContains(t, err, tt.wantErr)
 		})
 	}
 }
@@ -640,10 +686,6 @@ func TestPredictChainsPrestateReminders(t *testing.T) {
 			name:     "PERMISSIONED_CANNON",
 			gameType: embedded.GameTypePermissionedCannon,
 		},
-		{
-			name:     "SUPER_PERMISSIONED",
-			gameType: embedded.GameTypeSuperPermissioned,
-		},
 	}
 
 	for i, tt := range tests {
@@ -686,6 +728,62 @@ func TestPredictChainsPrestateReminders(t *testing.T) {
 				return
 			}
 			logs.RequireMessageContainedOnce(t, tt.reminderMessage, chainFilter)
+		})
+	}
+}
+
+func TestPredictChainsRejectsInvalidInitialGameTypeBeforePrediction(t *testing.T) {
+	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
+	superchainConfig := common.HexToAddress("0xbbbb000000000000000000000000000000000002")
+
+	tests := []struct {
+		name     string
+		gameType uint32
+		wantErr  string
+	}{
+		{
+			name:     "CANNON",
+			gameType: uint32(embedded.GameTypeCannon),
+			wantErr:  "unsupported initial dispute game type 0",
+		},
+		{
+			name:     "SUPER_PERMISSIONED",
+			gameType: uint32(embedded.GameTypeSuperPermissioned),
+			wantErr:  "derived fallback and is not an initial-deploy selector",
+		},
+		{
+			name:     "ZK_DISPUTE_GAME",
+			gameType: uint32(embedded.GameTypeZKDisputeGame),
+			wantErr:  "unsupported initial dispute game type 10",
+		},
+		{
+			name:     "unknown",
+			gameType: math.MaxUint32,
+			wantErr:  fmt.Sprintf("unsupported initial dispute game type %d", uint32(math.MaxUint32)),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			chainID := common.HexToHash("0x01")
+			intent := &state.Intent{
+				OPCMAddress:           &opcmAddr,
+				SuperchainConfigProxy: &superchainConfig,
+				Chains: []*state.ChainIntent{{
+					ID:              chainID,
+					DeployOverrides: map[string]any{"respectedGameType": tt.gameType},
+				}},
+			}
+			st := &state.State{Create2Salt: common.HexToHash("0x03")}
+			var predictionCalls int
+			run := func(opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
+				predictionCalls++
+				return emptyDeployOPChainOutput(), nil
+			}
+
+			err := predictChains(testlog.Logger(t, slog.LevelInfo), intent, st, run)
+			require.ErrorContains(t, err, tt.wantErr)
+			require.Zero(t, predictionCalls)
 		})
 	}
 }
