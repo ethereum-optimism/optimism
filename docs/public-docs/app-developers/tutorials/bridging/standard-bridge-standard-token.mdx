@@ -18,7 +18,7 @@ If you want to include specialized logic within your L2 token, see the tutorial 
 
 ## About OptimismMintableERC20s
 
-The Standard Bridge system requires that L2 representations of L1 tokens implement the [`IOptimismMintableERC20`](https://github.com/ethereum-optimism/optimism/blob/v1.12.0/packages/contracts-bedrock/src/universal/OptimismMintableERC20.sol) interface.
+The Standard Bridge system requires that L2 representations of L1 tokens implement the [`IOptimismMintableERC20`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/interfaces/universal/IOptimismMintableERC20.sol) interface.
 This interface is a superset of the standard ERC-20 interface and includes functions that allow the bridge to properly verify deposits/withdrawals and mint/burn tokens as needed.
 Your L2 token contract must implement this interface in order to be bridged using the Standard Bridge system.
 This tutorial will show you how to use the [`OptimismMintableERC20Factory`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/universal/OptimismMintableERC20Factory.sol) to create a basic standardized ERC-20 token on layer 2.

@@ -9,27 +9,13 @@ on:
       - develop
     tags:
       - "*/v*"
-  pull_request:
-    branches:
-      - develop
-    paths:
-      - "op-*/**"
-      - "cannon/**"
-      - "packages/contracts-bedrock/**"
-      - "rust/**"
-      - "go.mod"
-      - "go.sum"
-      - "apko/**"
-      - "melange/**"
-      - ".github/workflows/build-images.apko.yaml"
-      - ".github/images.apko.json"
   schedule:
     - cron: "0 2 * * *"
   workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: false
 
 env:
   SOURCE_DATE_EPOCH: 0
@@ -86,7 +72,7 @@ jobs:
       source-submodules: ${{ matrix.source_submodules }}
       use-gha-cache: ${{ matrix.use_gha_cache }}
       cache-key-files: ${{ matrix.cache_key_files }}
-      cargo-profile: ${{ github.event_name == 'pull_request' && 'fast-build' || 'maxperf' }}
+      cargo-profile: maxperf
 
   apko:
     name: apko (${{ matrix.service }})

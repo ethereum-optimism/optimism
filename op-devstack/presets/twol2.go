@@ -184,7 +184,7 @@ func NewTwoL2SupernodeInterop(t devtest.T, delaySeconds uint64, opts ...Option) 
 // NewTwoL2SupernodeLightSequencerInterop creates a two-L2 interop setup where
 // light op-node CLs sequence blocks and the shared supernode derives safe heads.
 func NewTwoL2SupernodeLightSequencerInterop(t devtest.T, delaySeconds uint64, opts ...Option) *TwoL2SupernodeInterop {
-	presetCfg, _ := collectSupportedPresetConfig(t, "NewTwoL2SupernodeLightSequencerInterop", opts, twoL2SupernodeInteropPresetSupportedOptionKinds)
+	presetCfg, _ := collectSupportedPresetConfig(t, "NewTwoL2SupernodeLightSequencerInterop", opts, twoL2SupernodeLightSequencerPresetSupportedOptionKinds)
 	if presetCfg.UseInteropFilter {
 		sysgo.SkipOnOpGeth(t, "interop filter is only supported with op-reth")
 	}

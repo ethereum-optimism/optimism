@@ -12,6 +12,7 @@ sha2.workspace = true
 sp1-zkvm.workspace = true
 sp1-lib.workspace = true
 kona-sp1-client-utils.workspace = true
+kona-sp1-range-vkeys.workspace = true
 alloy-consensus.workspace = true
 alloy-primitives.workspace = true
 alloy-sol-types.workspace = true

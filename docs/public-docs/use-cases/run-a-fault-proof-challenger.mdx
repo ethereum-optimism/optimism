@@ -1,0 +1,207 @@
+---
+title: Run a fault-proof challenger
+description: Stand up an op-challenger that defends your OP Stack chain, from bond budgeting and prestate selection through infrastructure, configuration, and monitoring.
+diataxis: how-to
+content-type: solution-guide
+last-reviewed: 2026-07-18
+---
+
+This guide takes an operator who wants an honest challenger defending an OP
+Stack chain and walks the whole path in one pass: what the challenger does and
+spends, the version and prestate choices that decide whether it can win games,
+the four pieces of infrastructure it depends on, and how to confirm it is
+actually defending the chain. It involves `op-challenger`, the Cannon VM with
+a kona-client prestate, an `op-node` with SafeDB, an `op-reth` archive node,
+and your chain's dispute game contracts on L1.
+
+## Is this guide for you?
+
+Use this guide if:
+
+*   Your chain runs the fault proof system: a `DisputeGameFactory` is deployed
+    and proposals are settled by dispute games.
+*   You are responsible for the chain's defense (chain operator) or you are an
+    independent participant willing to put funds at stake to help secure it.
+
+If you are creating a new chain and setting up the challenger as one step of
+that, follow the
+[challenger step of the create L2 rollup tutorial](/chain-operators/tutorials/create-l2-rollup/op-challenger-setup)
+inside that series instead. If you want to understand how dispute games work
+before operating anything, start with the
+[fault proofs explainer](/op-stack/fault-proofs/explainer). If you are
+investigating one specific game rather than running a standing service, use
+[monitoring tooling](/chain-operators/tools/chain-monitoring#dispute-mon).
+
+## Before you start
+
+You should already have:
+
+*   Your chain's contract addresses, in particular the `DisputeGameFactory`
+    proxy address (automatic in Step 3 if your chain is in the
+    superchain-registry).
+*   An L1 account you can fund with enough ETH to post bonds (sized in
+    Step 2), and infrastructure to run several services with persistent
+    storage.
+*   Your chain's `rollup.json` and L2 genesis file if the chain is not in the
+    superchain-registry.
+
+## Step 1: Understand the role you are staffing
+
+The challenger is the honest actor in the dispute system: an autonomous agent
+that monitors every game, defends valid proposals, challenges invalid ones,
+and resolves games so bonds pay out. Read the
+[op-challenger explainer](/op-stack/fault-proofs/challenger) and take away:
+
+*   The five responsibilities (monitor, defend, challenge, resolve, claim
+    bonds), and that the challenger acts on whatever its trusted `op-node`
+    reports, so the integrity of your rollup node is the integrity of your
+    challenger.
+*   That the respected game type is `cannon-kona` (run with kona-host), and
+    that the legacy `cannon` / op-program game type has reached
+    [end of support](/notices/op-geth-deprecation): op-program does not
+    support the now-active Karst hardfork, so the kona variants are the only
+    maintained option.
+
+Then read the
+[fault proofs security model](/op-stack/fault-proofs/fp-security) and take
+away what happens when games go wrong anyway: the Guardian can blacklist a
+bad game or change the respected game type, and bonds sit in `DelayedWETH`
+with a delay so incorrect payouts can be recovered. Your challenger is the
+first line of defense, not the only one.
+
+## Step 2: Budget your bonds and fees
+
+Every claim your challenger posts carries a bond, sent as transaction value,
+and correct claims are refunded while incorrect ones pay the counter-claimer.
+Read the [bond FAQs in the explainer](/op-stack/fault-proofs/challenger#faqs)
+and take away:
+
+*   The sizing logic: honest actors combined must be able to outspend an
+    attacker, so there is no fixed safe number. Playing a single game chain to
+    maximum depth costs about 315.6 ETH per side, and a well-funded operator
+    keeps significant funds available at short notice rather than pre-funding
+    everything.
+*   The cash-flow shape: bonds from won games pay out only after a 7-day
+    delay, so budget for capital being locked while games resolve.
+*   The backstop: attackers who try to outspend honest actors lose their
+    bonds to Guardian intervention, which is the disincentive that keeps the
+    realistic spend far below the worst case.
+
+Decide now how much ETH the challenger's account holds and how quickly you
+can top it up during an active dispute; that operational answer matters more
+than the exact starting balance.
+
+## Step 3: Pin your versions and prestate
+
+The challenger refuses to interact with games whose absolute prestate it does
+not have, and playing with the wrong prestate loses games, so version
+selection is a correctness decision, not housekeeping. Check the
+[op-challenger release history](/releases/op-challenger) for the latest
+release, then read the
+[version guidance in the configuration guide](/chain-operators/guides/configuration/op-challenger-config-guide#finding-the-current-stable-releases)
+and take away which op-challenger, op-reth, and kona-client versions are
+compatible with your chain's deployment.
+
+Then choose your configuration path:
+
+| If ...                                              | Choose ...                                                                 | Because ...                                                                                                                                     |
+| ----------------------------------------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Your chain is in the superchain-registry            | The `--network` flag                                                        | The game factory address, rollup config, and L2 genesis load automatically from the registry, removing three chances to misconfigure.           |
+| Your chain is custom (not in the registry)          | Explicit `--game-factory-address`, rollup config, L2 genesis, and prestate | Nothing can be looked up for you; the prestate must be the one your contracts were deployed with, built via `just reproducible-prestate-kona`.  |
+| Your chain upgrades prestates over time             | `--cannon-kona-prestates-url` instead of a single prestate file            | The challenger can fetch the prestate matching each game, so it keeps playing across a network upgrade instead of ignoring new games.           |
+
+For generating and verifying a prestate, follow the
+[absolute prestate tutorial](/chain-operators/tutorials/absolute-prestate);
+for custom chains, the
+[kona-client custom prestate tutorial](/chain-operators/tutorials/kona-custom-prestate)
+covers embedding your chain's configuration.
+
+## Step 4: Provision the four endpoints
+
+The challenger consumes four services, and each has a requirement beyond
+"reachable RPC". Read the
+[key configuration flags](/chain-operators/guides/configuration/op-challenger-config-guide#configuration-setup)
+in the configuration guide and take away, per endpoint:
+
+*   **L1 RPC** (`--l1-eth-rpc`): a trusted node that can absorb heavy request
+    volume. The challenger signs transactions worth real fees based on what
+    this node tells it, so "trusted" is load-bearing.
+*   **L1 beacon** (`--l1-beacon`): serves the blobs batches were posted in.
+    Decide the blob-archiver question now: if your chain proposes valid
+    outputs regularly, the roughly 18-day blob retention window is enough; if
+    proposals can stall longer than that, a blob archiver is required or the
+    challenger can be pushed into an unwinnable position.
+*   **L2 archive node** (`--l2-eth-rpc`): an op-reth archive node with the
+    debug API and the historical-proofs store enabled and seeded before first
+    start, sized to cover the dispute window (28 days or more).
+*   **Rollup node** (`--rollup-rpc`): an op-node with SafeDB enabled
+    (`--safedb.path`). Take away the warning about never restoring the SafeDB
+    from a snapshot: a SafeDB that disagrees with L1 makes the challenger
+    attack valid outputs, and the challenger cannot detect the condition.
+
+## Step 5: Configure and start the challenger
+
+With versions, prestate, and endpoints in hand, the configuration guide is
+the canonical stop. Choose your deployment form:
+
+| If ...                                                          | Choose ...          | Because ...                                                                                                                |
+| ----------------------------------------------------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| You want full control of binaries for production operations     | Build from source     | You control the exact release tag and can debug against it; the binary needs `--cannon-kona-server` pointed at kona-host.   |
+| You want the packaged path                                      | The Docker image      | The image embeds the kona server and Cannon executable, so the server flag and binaries ship pre-wired.                     |
+
+Follow the matching tab of the
+[challenger configuration guide](/chain-operators/guides/configuration/op-challenger-config-guide)
+end to end. It covers the environment file, the startup script or compose
+file, and the flag-by-flag explanations. Keep the guide's `--trace-type`
+value, which includes the `cannon-kona` game type from Step 1, and use the
+transaction signer posture you use for your other services (private key,
+mnemonic, or op-signer).
+
+## Step 6: Attach monitoring
+
+A challenger that silently stops is worse than none, because you believe you
+are defended. Read the
+[dispute-mon section of chain monitoring](/chain-operators/tools/chain-monitoring#dispute-mon)
+and take away that `op-dispute-mon` tracks the status of every game over the
+last 28 days and is considered essential for production challenger
+deployments. Alert on two conditions at minimum: games the monitor flags as
+resolving against your chain, and the challenger's account balance falling
+below your Step 2 top-up threshold.
+
+## Step 7: Verify the challenger is defending
+
+Give the challenger a few minutes against live games, then confirm each layer:
+
+*   **Startup health**: logs show successful connection to all four
+    endpoints and the prestate loading without warnings; the challenger
+    refuses to play games whose prestate it lacks, and says so in the logs.
+*   **Game visibility**: `op-challenger list-games` (against your L1 RPC and
+    game factory) returns the chain's games; `list-claims` shows the claims
+    of any in-progress game. These read-only subcommands use the same
+    configuration as the running service, so they double as configuration
+    checks.
+*   **Participation**: for a game created after your challenger started, the
+    challenger either leaves a valid proposal alone or posts counter-claims
+    to an invalid one. On a testnet you can exercise this deliberately with
+    the `create-game` subcommand and an intentionally wrong root claim.
+*   **The economic loop**: after games your challenger won resolve and the
+    7-day delay passes, `list-credits` shows bonds owed to your challenger's
+    address being claimed.
+
+## Next steps
+
+*   [op-challenger readme](https://github.com/ethereum-optimism/optimism/blob/develop/op-challenger/README.md):
+    subcommand reference (create-game, move, resolve, run-trace) and devnet
+    walkthroughs beyond configuration. In-repo document on `develop`, as of
+    2026-07-18.
+*   There is no rendered flag catalogue for op-challenger; use
+    `op-challenger --help` on the release you run for the authoritative flag
+    list.
+*   [Honest challenger specification](https://specs.optimism.io/fault-proof/stage-one/honest-challenger-fdg.html?utm_source=op-docs&utm_medium=docs):
+    the normative algorithm your challenger implements, for when you need to
+    reason about what a correct response is.
+*   [Bond incentives specification](https://specs.optimism.io/fault-proof/stage-one/bond-incentives.html?utm_source=op-docs&utm_medium=docs):
+    the required-bond formula behind Step 2's budget.
+*   [op-dispute-mon](https://github.com/ethereum-optimism/optimism/tree/develop/op-dispute-mon):
+    the monitoring service from Step 6. In-repo document on `develop`, as of
+    2026-07-18.

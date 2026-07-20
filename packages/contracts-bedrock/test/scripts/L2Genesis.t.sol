@@ -296,13 +296,10 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
             liquidityControllerOwner: address(0x000000000000000000000000000000000000000d),
             devFeatureBitmap: bytes32(0)
         });
-        // L2CM is the default genesis codepath: predeploy proxies are initialized via
-        // L2ContractsManager.deploy() rather than directly in the setters.
-        input.devFeatureBitmap |= DevFeatures.L2CM;
     }
 
     function test_run_succeeds() external {
-        genesis.run(input);
+        runGenesisAndAssertL2CM();
 
         testProxyAdmin();
         testPredeploys();
@@ -349,7 +346,7 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
     /// @dev Tests that LiquidityController and NativeAssetLiquidity are deployed.
     function test_run_cgt_succeeds() external {
         _setInputCGTEnabled();
-        genesis.run(input);
+        runGenesisAndAssertL2CM();
 
         testProxyAdmin();
         testPredeploys();
@@ -390,32 +387,6 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
         input.nativeAssetLiquidityAmount = uint256(type(uint248).max) + 1;
         vm.expectRevert("L2Genesis: native asset liquidity amount must be less than or equal to type(uint248).max");
         genesis.run(input);
-    }
-
-    /// @notice Tests the default L2CM genesis path (no CGT, no interop).
-    function test_run_l2cm_succeeds() external {
-        runGenesisAndAssertL2CM();
-
-        testProxyAdmin();
-        testPredeploys();
-        testVaults();
-        testGovernance();
-        testFactories();
-        testForks();
-    }
-
-    /// @notice Tests the L2CM genesis path with custom gas token predeploys.
-    function test_run_l2cmCgt_succeeds() external {
-        _setInputCGTEnabled();
-        runGenesisAndAssertL2CM();
-
-        testProxyAdmin();
-        testPredeploys();
-        testVaults();
-        testGovernance();
-        testFactories();
-        testForks();
-        testCGT();
     }
 
     /// @notice Tests the L2CM genesis path with interop predeploys active at genesis.
