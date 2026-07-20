@@ -77,7 +77,7 @@ func spamGlamsterdamTxs(sys *presets.SingleChainMultiNode) {
 	eoas := loadtest.FundEOAs(sys.T, eth.ThousandEther, 2, l2BlockTime, sys.L2EL, sys.Wallet, sys.FaucetL2)
 
 	// Deploy a four-byte infinite-loop runtime. Calls consume their gas limit while adding almost
-	// no batch data, so the fixed-size worker pool fills blocks without delaying derivation itself.
+	// no batch data, so the load schedule fills blocks without delaying derivation itself.
 	const gasBurnerInitCode = "0x6004600c60003960046000f35b600056"
 	deployed, err := eoas[0].Include(sys.T,
 		txplan.WithData(common.FromHex(gasBurnerInitCode)),
@@ -87,31 +87,25 @@ func spamGlamsterdamTxs(sys *presets.SingleChainMultiNode) {
 	gasBurnerAddr := deployed.Receipt.ContractAddress
 	sys.T.Require().NotEqual(common.Address{}, gasBurnerAddr)
 
+	eoasRR := loadtest.NewRoundRobin(eoas)
+	spammer := loadtest.SpammerFunc(func(t devtest.T) error {
+		_, err := eoasRR.Get().Include(t,
+			txplan.WithTo(&gasBurnerAddr),
+			txplan.WithGasLimit(16_000_000),
+		)
+		return err
+	})
+	schedule := loadtest.NewBurst(l2BlockTime, loadtest.WithBaseRPS(2))
+
 	ctx, cancel := context.WithCancel(sys.T.Ctx())
 	var wg sync.WaitGroup
+	wg.Add(1)
 	sys.T.Cleanup(func() {
 		cancel()
 		wg.Wait()
 	})
-	workerT := sys.T.WithCtx(ctx)
-	for _, eoa := range eoas {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for ctx.Err() == nil {
-				_, err := eoa.Include(workerT,
-					txplan.WithTo(&gasBurnerAddr),
-					txplan.WithGasLimit(16_000_000),
-				)
-				if err != nil && ctx.Err() == nil {
-					workerT.Logger().Warn("Failed to include Glamsterdam load transaction", "err", err)
-					select {
-					case <-time.After(l2BlockTime):
-					case <-ctx.Done():
-						return
-					}
-				}
-			}
-		}()
-	}
+	go func() {
+		defer wg.Done()
+		schedule.Run(sys.T.WithCtx(ctx), spammer)
+	}()
 }
