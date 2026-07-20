@@ -128,6 +128,30 @@ func Test_makeDCI_OpcmAddress(t *testing.T) {
 	}
 }
 
+func Test_makeDCI_OwnsStartingAnchorSequenceNumber(t *testing.T) {
+	chainID := common.HexToHash("0x0300")
+	intent := &state.Intent{GlobalDeployOverrides: make(map[string]any)}
+	chainIntent := &state.ChainIntent{ID: chainID}
+	st := &state.State{
+		SuperchainDeployment: &addresses.SuperchainContracts{},
+		ImplementationsDeployment: &addresses.ImplementationsContracts{
+			OpcmV2Impl: common.HexToAddress("0x01"),
+		},
+	}
+
+	first, err := makeDCI(intent, chainIntent, chainID, st)
+	require.NoError(t, err)
+	second, err := makeDCI(intent, chainIntent, chainID, st)
+	require.NoError(t, err)
+
+	require.Zero(t, first.StartingAnchorRoot.L2SequenceNumber.Sign())
+	require.Zero(t, second.StartingAnchorRoot.L2SequenceNumber.Sign())
+	require.NotSame(t, first.StartingAnchorRoot.L2SequenceNumber, second.StartingAnchorRoot.L2SequenceNumber)
+
+	first.StartingAnchorRoot.L2SequenceNumber.SetUint64(1)
+	require.Zero(t, second.StartingAnchorRoot.L2SequenceNumber.Sign())
+}
+
 func Test_makeDCI_RejectsPermissionlessGameType(t *testing.T) {
 	chainID := common.HexToHash("0x0300")
 	intent := &state.Intent{GlobalDeployOverrides: make(map[string]any)}

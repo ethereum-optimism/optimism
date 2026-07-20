@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
+	"math/big"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
@@ -313,7 +314,7 @@ func makePredictionInput(intent *state.Intent, st *state.State, chain *state.Cha
 	// here, and the placeholder is rejected for them.
 	startingAnchorRoot := opcm.Proposal{
 		Root:             opcm.DefaultStartingAnchorRoot.Root,
-		L2SequenceNumber: common.Big0,
+		L2SequenceNumber: new(big.Int),
 	}
 
 	if requirements.Permissionless {

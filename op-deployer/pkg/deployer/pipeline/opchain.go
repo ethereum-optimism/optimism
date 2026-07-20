@@ -235,7 +235,7 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		thisIntent.GasLimit,
 		opcm.Proposal{
 			Root:             opcm.DefaultStartingAnchorRoot.Root,
-			L2SequenceNumber: common.Big0,
+			L2SequenceNumber: new(big.Int),
 		},
 		thisIntent,
 	), nil

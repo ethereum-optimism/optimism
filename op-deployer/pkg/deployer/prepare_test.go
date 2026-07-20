@@ -105,6 +105,29 @@ func TestMakePredictionInput(t *testing.T) {
 	require.Equal(t, dci.DisputeAbsolutePrestate, dci.CannonAbsolutePrestate)
 }
 
+func TestMakePredictionInput_OwnsStartingAnchorSequenceNumber(t *testing.T) {
+	opcmAddr := common.HexToAddress("0x01")
+	superchainConfig := common.HexToAddress("0x02")
+	intent := &state.Intent{
+		OPCMAddress:           &opcmAddr,
+		SuperchainConfigProxy: &superchainConfig,
+	}
+	st := &state.State{}
+	chain := &state.ChainIntent{}
+
+	first, err := makePredictionInput(intent, st, chain)
+	require.NoError(t, err)
+	second, err := makePredictionInput(intent, st, chain)
+	require.NoError(t, err)
+
+	require.Zero(t, first.StartingAnchorRoot.L2SequenceNumber.Sign())
+	require.Zero(t, second.StartingAnchorRoot.L2SequenceNumber.Sign())
+	require.NotSame(t, first.StartingAnchorRoot.L2SequenceNumber, second.StartingAnchorRoot.L2SequenceNumber)
+
+	first.StartingAnchorRoot.L2SequenceNumber.SetUint64(1)
+	require.Zero(t, second.StartingAnchorRoot.L2SequenceNumber.Sign())
+}
+
 func TestMakePredictionInput_GameTypeInputs(t *testing.T) {
 	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
 	superchainConfig := common.HexToAddress("0xbbbb000000000000000000000000000000000002")
