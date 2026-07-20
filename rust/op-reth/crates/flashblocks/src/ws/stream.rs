@@ -231,10 +231,29 @@ impl WsConnect for WsConnector {
     type Sink = WsSink;
 
     async fn connect(&mut self, ws_url: Url) -> eyre::Result<(WsSink, WsStream)> {
+        ensure_crypto_provider();
+
         let (stream, _response) = connect_async(ws_url.as_str()).await?;
 
         Ok(stream.split())
     }
+}
+
+/// Installs a process-level rustls [`CryptoProvider`] for `wss://` (TLS) connections.
+///
+/// `rustls` cannot automatically select a provider when more than one is present in the
+/// dependency graph (both `aws-lc-rs` and `ring` are), so it panics on the first TLS handshake
+/// unless a default has been installed. We install the `ring` provider once, but only if no other
+/// component already installed one, so this stays idempotent and non-clobbering.
+///
+/// [`CryptoProvider`]: rustls::crypto::CryptoProvider
+fn ensure_crypto_provider() {
+    static INIT: std::sync::Once = std::sync::Once::new();
+    INIT.call_once(|| {
+        if rustls::crypto::CryptoProvider::get_default().is_none() {
+            let _ = rustls::crypto::ring::default_provider().install_default();
+        }
+    });
 }
 
 #[cfg(test)]
