@@ -2291,12 +2291,7 @@
             "group": "Tools & SDKs",
             "pages": [
               "app-developers/tools-sdks/support-matrix",
-              "app-developers/tools-sdks/listing-criteria"
-            ]
-          },
-          {
-            "group": "Tools",
-            "pages": [
+              "app-developers/tools-sdks/listing-criteria",
               "app-developers/tools/faucets",
               "app-developers/tools/block-explorers",
               {
