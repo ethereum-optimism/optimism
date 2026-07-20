@@ -3,6 +3,7 @@ package presets
 import (
 	"os"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	gn "github.com/ethereum/go-ethereum/node"
@@ -149,6 +150,10 @@ func newConductorFrontend(t devtest.T, name string, chainID eth.ChainID, rpcEndp
 func newTestSequencerFrontend(t devtest.T, name string, adminRPC string, controlRPCs map[eth.ChainID]string, jwtSecret [32]byte) *testSequencerFrontend {
 	opts := []client.RPCOption{
 		client.WithLazyDial(),
+		// Test-sequencer control calls may synchronously drive an external CL and
+		// EL through a full block transition. Hosted devstack machines can exceed
+		// the generic RPC client's 10-second default while doing that work.
+		client.WithCallTimeout(time.Minute),
 		client.WithGethRPCOptions(rpc.WithHTTPAuth(gn.NewJWTAuth(jwtSecret))),
 	}
 
