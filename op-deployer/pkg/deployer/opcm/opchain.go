@@ -10,18 +10,17 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-// PermissionedGameStartingAnchorRoot is a root of bytes32(hex"dead") for the permissioned game at block 0,
-// and no root for the permissionless game.
-var PermissionedGameStartingAnchorRoot = []byte{
-	0xde, 0xad, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-}
+// PermissionedCannonFallbackPrestatePlaceholder matches the historical bytes32(hex"dead") anchor.
+// Kona prestates cannot select it.
+var PermissionedCannonFallbackPrestatePlaceholder = common.HexToHash(
+	"0xdead000000000000000000000000000000000000000000000000000000000000",
+)
 
-// PermissionedGamePrestatePlaceholder is the CANNON_KONA guardian fallback prestate:
-// 0x000000000000000000000000000000000000000000000000000000000000dead.
-var PermissionedGamePrestatePlaceholder = common.HexToHash("0xdead")
+// PermissionedGameStartingAnchorRoot contains the permissioned placeholder at block 0 and no permissionless root.
+var PermissionedGameStartingAnchorRoot = append(
+	PermissionedCannonFallbackPrestatePlaceholder.Bytes(),
+	make([]byte, common.HashLength)...,
+)
 
 // Proposal mirrors the Solidity Proposal tuple used for the starting anchor root.
 type Proposal struct {
@@ -47,8 +46,8 @@ type DeployOPChainInput struct {
 	DisputeGameType         uint32
 	DisputeAbsolutePrestate common.Hash // Selected game prestate.
 	StartingAnchorRoot      Proposal
-	// CannonAbsolutePrestate is the fixed CANNON_KONA fallback.
-	// It is zero for SUPER_CANNON_KONA and otherwise matches the selected prestate.
+	// CannonAbsolutePrestate configures the CANNON_KONA guardian fallback.
+	// PERMISSIONED_CANNON mirrors the selected prestate. SUPER_CANNON_KONA leaves it zero.
 	CannonAbsolutePrestate       common.Hash
 	DisputeMaxGameDepth          *big.Int
 	DisputeSplitDepth            *big.Int

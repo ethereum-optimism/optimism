@@ -48,7 +48,7 @@ type State struct {
 	// This field is nil for new deployments.
 	AppliedIntent *Intent `json:"appliedIntent"`
 
-	// InteropDepSet contains the interop dependency set generated during prepare when interop is enabled.
+	// InteropDepSet contains the interop dependency set generated from all intent chains during prepare.
 	InteropDepSet *depset.StaticConfigDependencySet `json:"interopDepSet,omitempty"`
 
 	// SuperchainDeployment contains the addresses of the Superchain

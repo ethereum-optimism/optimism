@@ -7,11 +7,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPermissionedGamePrestatePlaceholder(t *testing.T) {
+func TestPermissionedCannonFallbackPrestatePlaceholder(t *testing.T) {
 	require.Equal(
 		t,
-		common.HexToHash("0x000000000000000000000000000000000000000000000000000000000000dead"),
-		PermissionedGamePrestatePlaceholder,
+		common.HexToHash("0xdead000000000000000000000000000000000000000000000000000000000000"),
+		PermissionedCannonFallbackPrestatePlaceholder,
 	)
-	require.NotEqual(t, common.BytesToHash(PermissionedGameStartingAnchorRoot[:32]), PermissionedGamePrestatePlaceholder)
+	require.Equal(
+		t,
+		common.BytesToHash(PermissionedGameStartingAnchorRoot[:common.HashLength]),
+		PermissionedCannonFallbackPrestatePlaceholder,
+	)
 }

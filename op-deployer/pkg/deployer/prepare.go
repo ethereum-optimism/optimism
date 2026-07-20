@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
+	"math/big"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
@@ -233,9 +234,9 @@ func predictChains(lgr log.Logger, intent *state.Intent, st *state.State, run fu
 		if err != nil {
 			return fmt.Errorf("failed to build prediction input for chain %s: %w", chain.ID.Hex(), err)
 		}
-		requiresPrestate, err := pipeline.RequiresPrestateForGameType(dci.DisputeGameType)
+		requirements, err := pipeline.ResolveInitialDeployRequirements(dci.DisputeGameType)
 		if err != nil {
-			return fmt.Errorf("failed to resolve prestate requirement for chain %s: %w", chain.ID.Hex(), err)
+			return fmt.Errorf("failed to resolve initial deploy requirements for chain %s: %w", chain.ID.Hex(), err)
 		}
 
 		out, err := run(dci)
@@ -253,7 +254,7 @@ func predictChains(lgr log.Logger, intent *state.Intent, st *state.State, run fu
 		gameType := dci.DisputeGameType
 		chainState.InitialGameType = &gameType
 
-		if requiresPrestate {
+		if requirements.RequiresPrestate {
 			lgr.Info(
 				"selected prestate must be committed; run op-deployer prestate before continue",
 				"chain", chain.ID.Hex(),
@@ -294,6 +295,10 @@ func makePredictionInput(intent *state.Intent, st *state.State, chain *state.Cha
 	if err != nil {
 		return opcm.DeployOPChainInput{}, fmt.Errorf("failed to resolve dispute params: %w", err)
 	}
+	requirements, err := pipeline.ResolveInitialDeployRequirements(proofParams.DisputeGameType)
+	if err != nil {
+		return opcm.DeployOPChainInput{}, err
+	}
 
 	// Prediction runs against an already existing OPCM
 	placeholderRoles := state.ChainRoles{
@@ -310,10 +315,10 @@ func makePredictionInput(intent *state.Intent, st *state.State, chain *state.Cha
 	// here, and the placeholder is rejected for them.
 	startingAnchorRoot := opcm.Proposal{
 		Root:             opcm.DefaultStartingAnchorRoot.Root,
-		L2SequenceNumber: common.Big0,
+		L2SequenceNumber: new(big.Int),
 	}
 
-	if pipeline.IsPermissionlessGameType(proofParams.DisputeGameType) {
+	if requirements.Permissionless {
 		startingAnchorRoot.Root = predictionStartingAnchorRoot
 	}
 

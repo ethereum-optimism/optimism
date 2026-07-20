@@ -620,7 +620,7 @@ func TestContinuationDeploymentUsesPreparedInputs(t *testing.T) {
 	require.Equal(t, committedPrestate, readAbsolutePrestate(embedded.GameTypeCannonKona))
 	require.Equal(
 		t,
-		opcm.PermissionedGamePrestatePlaceholder,
+		opcm.PermissionedCannonFallbackPrestatePlaceholder,
 		readAbsolutePrestate(embedded.GameTypePermissionedCannon),
 	)
 

@@ -124,6 +124,10 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 		if err != nil {
 			return err
 		}
+		requirements, err := pipeline.ResolveInitialDeployRequirements(preparedGameType)
+		if err != nil {
+			return fmt.Errorf("chain %s: %w", chain.ID.Hex(), err)
+		}
 		gameType := embedded.GameType(preparedGameType)
 
 		switch gameType {
@@ -134,14 +138,9 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 			hasSuperCannonKona = true
 		}
 
-		requiresPrestate, err := pipeline.RequiresPrestateForGameType(preparedGameType)
-		if err != nil {
-			return fmt.Errorf("chain %s: %w", chain.ID.Hex(), err)
-		}
-
 		assignment := prestateAssignment{ChainID: chain.ID, GameType: gameType}
 		var validateCandidate func(resolvedPrestate) error
-		if requiresPrestate {
+		if requirements.RequiresPrestate {
 			validateCandidate = func(candidate resolvedPrestate) error {
 				return validatePermissionlessPrestateCandidate(chain.ID, gameType, candidate)
 			}
@@ -151,7 +150,7 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 			return err
 		}
 
-		if requiresPrestate {
+		if requirements.RequiresPrestate {
 			hasActiveSelectedConsumer = true
 			if !selected.set {
 				gameName := gameTypeName(gameType)
@@ -221,7 +220,7 @@ type resolvedPrestate struct {
 }
 
 func validatePermissionlessPrestateCandidate(chainID common.Hash, gameType embedded.GameType, candidate resolvedPrestate) error {
-	if candidate.hash != opcm.PermissionedGamePrestatePlaceholder {
+	if candidate.hash != opcm.PermissionedCannonFallbackPrestatePlaceholder {
 		return nil
 	}
 	return fmt.Errorf(
@@ -229,7 +228,7 @@ func validatePermissionlessPrestateCandidate(chainID common.Hash, gameType embed
 		candidate.source,
 		chainID.Hex(),
 		gameTypeName(gameType),
-		opcm.PermissionedGamePrestatePlaceholder.Hex(),
+		opcm.PermissionedCannonFallbackPrestatePlaceholder.Hex(),
 	)
 }
 

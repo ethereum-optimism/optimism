@@ -291,7 +291,7 @@ func TestState_SetChainContracts(t *testing.T) {
 
 	// Updating an existing chain in the state replaces it in place, preserves other
 	// fields set by other stages, and can flip the deployed flag.
-	s.Chains[0].StartBlock = &L1BlockRefJSON{Hash: common.HexToHash("0xdead")}
+	s.Chains[0].StartBlock = &L1BlockRefJSON{Hash: common.HexToHash("0xfeed")}
 	prestate := common.HexToHash("0x1234")
 	s.Chains[0].Prestate = prestate
 	startingAnchorRoot := &StartingAnchorProposal{
@@ -309,7 +309,7 @@ func TestState_SetChainContracts(t *testing.T) {
 	require.NotNil(t, got.Deployed)
 	require.True(t, *got.Deployed)
 	require.NotNil(t, got.StartBlock, "other fields must be preserved on update")
-	require.Equal(t, common.HexToHash("0xdead"), got.StartBlock.Hash)
+	require.Equal(t, common.HexToHash("0xfeed"), got.StartBlock.Hash)
 	require.Equal(t, prestate, got.Prestate, "prestate must be preserved on update")
 	require.Equal(t, startingAnchorRoot, got.StartingAnchorRoot, "starting anchor root must be preserved on update")
 	require.Equal(t, ptr.New(uint32(8)), got.InitialGameType, "initial game type must be preserved on update")

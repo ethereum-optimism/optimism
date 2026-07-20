@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -104,6 +105,29 @@ func TestMakePredictionInput(t *testing.T) {
 	require.Equal(t, dci.DisputeAbsolutePrestate, dci.CannonAbsolutePrestate)
 }
 
+func TestMakePredictionInput_OwnsStartingAnchorSequenceNumber(t *testing.T) {
+	opcmAddr := common.HexToAddress("0x01")
+	superchainConfig := common.HexToAddress("0x02")
+	intent := &state.Intent{
+		OPCMAddress:           &opcmAddr,
+		SuperchainConfigProxy: &superchainConfig,
+	}
+	st := &state.State{}
+	chain := &state.ChainIntent{}
+
+	first, err := makePredictionInput(intent, st, chain)
+	require.NoError(t, err)
+	second, err := makePredictionInput(intent, st, chain)
+	require.NoError(t, err)
+
+	require.Zero(t, first.StartingAnchorRoot.L2SequenceNumber.Sign())
+	require.Zero(t, second.StartingAnchorRoot.L2SequenceNumber.Sign())
+	require.NotSame(t, first.StartingAnchorRoot.L2SequenceNumber, second.StartingAnchorRoot.L2SequenceNumber)
+
+	first.StartingAnchorRoot.L2SequenceNumber.SetUint64(1)
+	require.Zero(t, second.StartingAnchorRoot.L2SequenceNumber.Sign())
+}
+
 func TestMakePredictionInput_GameTypeInputs(t *testing.T) {
 	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
 	superchainConfig := common.HexToAddress("0xbbbb000000000000000000000000000000000002")
@@ -132,10 +156,6 @@ func TestMakePredictionInput_GameTypeInputs(t *testing.T) {
 			name:     "PERMISSIONED_CANNON",
 			gameType: embedded.GameTypePermissionedCannon,
 		},
-		{
-			name:     "SUPER_PERMISSIONED",
-			gameType: embedded.GameTypeSuperPermissioned,
-		},
 	}
 
 	for _, tt := range tests {
@@ -158,13 +178,62 @@ func TestMakePredictionInput_GameTypeInputs(t *testing.T) {
 
 			switch tt.gameType {
 			case embedded.GameTypeCannonKona:
-				require.Equal(t, opcm.PermissionedGamePrestatePlaceholder, dci.CannonAbsolutePrestate)
+				require.Equal(t, opcm.PermissionedCannonFallbackPrestatePlaceholder, dci.CannonAbsolutePrestate)
 				require.NotEqual(t, dci.DisputeAbsolutePrestate, dci.CannonAbsolutePrestate)
 			case embedded.GameTypeSuperCannonKona:
 				require.Zero(t, dci.CannonAbsolutePrestate)
 			default:
 				require.Equal(t, dci.DisputeAbsolutePrestate, dci.CannonAbsolutePrestate)
 			}
+		})
+	}
+}
+
+func TestMakePredictionInput_RejectsInvalidInitialGameType(t *testing.T) {
+	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
+	superchainConfig := common.HexToAddress("0xbbbb000000000000000000000000000000000002")
+	intent := &state.Intent{
+		OPCMAddress:           &opcmAddr,
+		SuperchainConfigProxy: &superchainConfig,
+	}
+	st := &state.State{Create2Salt: common.HexToHash("0x03")}
+
+	tests := []struct {
+		name     string
+		gameType uint32
+		wantErr  string
+	}{
+		{
+			name:     "CANNON",
+			gameType: uint32(embedded.GameTypeCannon),
+			wantErr:  "unsupported initial dispute game type 0",
+		},
+		{
+			name:     "SUPER_PERMISSIONED",
+			gameType: uint32(embedded.GameTypeSuperPermissioned),
+			wantErr:  "derived fallback and is not an initial-deploy selector",
+		},
+		{
+			name:     "ZK_DISPUTE_GAME",
+			gameType: uint32(embedded.GameTypeZKDisputeGame),
+			wantErr:  "unsupported initial dispute game type 10",
+		},
+		{
+			name:     "unknown",
+			gameType: math.MaxUint32,
+			wantErr:  fmt.Sprintf("unsupported initial dispute game type %d", uint32(math.MaxUint32)),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			chain := &state.ChainIntent{
+				ID:              common.HexToHash("0x0a"),
+				DeployOverrides: map[string]any{"respectedGameType": tt.gameType},
+			}
+
+			_, err := makePredictionInput(intent, st, chain)
+			require.ErrorContains(t, err, tt.wantErr)
 		})
 	}
 }
@@ -467,7 +536,7 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 func TestPredictChains_ClearsOnlyRepredictedPreparedInputs(t *testing.T) {
 	deployedID := common.HexToHash("0x0a")
 	freshID := common.HexToHash("0x0b")
-	deployedPrestate := common.HexToHash("0xdead")
+	deployedPrestate := common.HexToHash("0xfeed")
 	freshPrestate := common.HexToHash("0xbeef")
 	deployedStartingAnchorRoot := &state.StartingAnchorProposal{
 		Root:             common.HexToHash("0x1111"),
@@ -638,7 +707,6 @@ func TestPredictChainsPrestateReminders(t *testing.T) {
 		name            string
 		gameType        embedded.GameType
 		reminderMessage string
-		wantErr         string
 	}{
 		{
 			name:            "CANNON_KONA",
@@ -653,11 +721,6 @@ func TestPredictChainsPrestateReminders(t *testing.T) {
 		{
 			name:     "PERMISSIONED_CANNON",
 			gameType: embedded.GameTypePermissionedCannon,
-		},
-		{
-			name:     "SUPER_PERMISSIONED",
-			gameType: embedded.GameTypeSuperPermissioned,
-			wantErr:  "SUPER_PERMISSIONED is not an initial-deploy input selector",
 		},
 	}
 
@@ -682,22 +745,12 @@ func TestPredictChainsPrestateReminders(t *testing.T) {
 			chain.Prestate = common.HexToHash("0x11")
 			lgr, logs := testlog.CaptureLogger(t, slog.LevelInfo)
 
-			runCalled := false
 			run := func(in opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
-				runCalled = true
 				require.Equal(t, uint32(tt.gameType), in.DisputeGameType)
 				return emptyDeployOPChainOutput(), nil
 			}
 
-			err = predictChains(lgr, intent, st, run)
-			if tt.wantErr != "" {
-				require.ErrorContains(t, err, tt.wantErr)
-				require.False(t, runCalled)
-				require.Equal(t, common.HexToHash("0x11"), chain.Prestate)
-				require.Nil(t, chain.InitialGameType)
-				return
-			}
-			require.NoError(t, err)
+			require.NoError(t, predictChains(lgr, intent, st, run))
 			require.Zero(t, chain.Prestate)
 			require.NotNil(t, chain.InitialGameType)
 			require.Equal(t, uint32(tt.gameType), *chain.InitialGameType)
@@ -711,6 +764,62 @@ func TestPredictChainsPrestateReminders(t *testing.T) {
 				return
 			}
 			logs.RequireMessageContainedOnce(t, tt.reminderMessage, chainFilter)
+		})
+	}
+}
+
+func TestPredictChainsRejectsInvalidInitialGameTypeBeforePrediction(t *testing.T) {
+	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
+	superchainConfig := common.HexToAddress("0xbbbb000000000000000000000000000000000002")
+
+	tests := []struct {
+		name     string
+		gameType uint32
+		wantErr  string
+	}{
+		{
+			name:     "CANNON",
+			gameType: uint32(embedded.GameTypeCannon),
+			wantErr:  "unsupported initial dispute game type 0",
+		},
+		{
+			name:     "SUPER_PERMISSIONED",
+			gameType: uint32(embedded.GameTypeSuperPermissioned),
+			wantErr:  "derived fallback and is not an initial-deploy selector",
+		},
+		{
+			name:     "ZK_DISPUTE_GAME",
+			gameType: uint32(embedded.GameTypeZKDisputeGame),
+			wantErr:  "unsupported initial dispute game type 10",
+		},
+		{
+			name:     "unknown",
+			gameType: math.MaxUint32,
+			wantErr:  fmt.Sprintf("unsupported initial dispute game type %d", uint32(math.MaxUint32)),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			chainID := common.HexToHash("0x01")
+			intent := &state.Intent{
+				OPCMAddress:           &opcmAddr,
+				SuperchainConfigProxy: &superchainConfig,
+				Chains: []*state.ChainIntent{{
+					ID:              chainID,
+					DeployOverrides: map[string]any{"respectedGameType": tt.gameType},
+				}},
+			}
+			st := &state.State{Create2Salt: common.HexToHash("0x03")}
+			var predictionCalls int
+			run := func(opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
+				predictionCalls++
+				return emptyDeployOPChainOutput(), nil
+			}
+
+			err := predictChains(testlog.Logger(t, slog.LevelInfo), intent, st, run)
+			require.ErrorContains(t, err, tt.wantErr)
+			require.Zero(t, predictionCalls)
 		})
 	}
 }

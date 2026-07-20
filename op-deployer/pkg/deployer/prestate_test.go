@@ -190,7 +190,7 @@ func TestPrestateStrictValidationAcrossSources(t *testing.T) {
 
 func TestPrestateRejectsPermissionedPlaceholderAcrossSources(t *testing.T) {
 	chainID := common.HexToHash("0x01")
-	placeholder := opcm.PermissionedGamePrestatePlaceholder.Hex()
+	placeholder := opcm.PermissionedCannonFallbackPrestatePlaceholder.Hex()
 	valid := testPrestate("11")
 
 	tests := []struct {
@@ -287,7 +287,7 @@ func TestPrestateRejectsPermissionedPlaceholderAcrossSources(t *testing.T) {
 func TestPrestatePermissionedPlaceholderScope(t *testing.T) {
 	chainA := common.HexToHash("0x01")
 	chainB := common.HexToHash("0x02")
-	placeholder := opcm.PermissionedGamePrestatePlaceholder
+	placeholder := opcm.PermissionedCannonFallbackPrestatePlaceholder
 	valid := testPrestate("11")
 	stale := common.HexToHash(testPrestate("aa"))
 
@@ -795,6 +795,26 @@ func TestPrestateRejectsIntentChainChangesAfterPrepare(t *testing.T) {
 			require.Equal(t, before, after)
 		})
 	}
+}
+
+func TestPrestateRejectsUnsupportedPreparedGameTypeWithoutWritingState(t *testing.T) {
+	chainID := common.HexToHash("0x01")
+	workdir := writePrestateWorkdir(t, nil, []prestateTestChain{{
+		id:        chainID,
+		prepared:  true,
+		overrides: gameOverride(embedded.GameTypeZKDisputeGame),
+	}}, true, 1)
+	statePath := filepath.Join(workdir, "state.json")
+	before, err := os.ReadFile(statePath)
+	require.NoError(t, err)
+
+	err = Prestate(context.Background(), newTestPrestateConfig(t, workdir))
+	require.ErrorContains(t, err, chainID.Hex())
+	require.ErrorContains(t, err, "unsupported initial dispute game type 10")
+
+	after, readErr := os.ReadFile(statePath)
+	require.NoError(t, readErr)
+	require.Equal(t, before, after)
 }
 
 func TestPrestateAllowsAbsolutePrestateChangeAfterPrepare(t *testing.T) {
