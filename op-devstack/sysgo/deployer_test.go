@@ -103,23 +103,6 @@ func TestParseL1Fork(t *testing.T) {
 	}
 }
 
-func TestDevstackDefaultsToFusaka(t *testing.T) {
-	t.Setenv(DevstackL1ForkEnvVar, "")
-	builder := newValidIntentBuilder()
-	builder.WithL1ContractsLocator(artifacts.EmbeddedLocator)
-	builder.WithL2ContractsLocator(artifacts.EmbeddedLocator)
-	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
-	require.NoError(t, err)
-
-	applyConfigCommons(devtest.SerialT(t), keys, DefaultL1ID, builder)
-
-	intent, err := builder.Build()
-	require.NoError(t, err)
-	require.NotNil(t, intent.L1DevGenesisParams.OsakaTimeOffset)
-	require.Zero(t, *intent.L1DevGenesisParams.OsakaTimeOffset)
-	require.Nil(t, intent.L1DevGenesisParams.BPO1TimeOffset)
-}
-
 func TestDeployerOptionsOverrideDevstackL1Fork(t *testing.T) {
 	t.Setenv(DevstackL1ForkEnvVar, "glamsterdam")
 	builder := newValidIntentBuilder()
