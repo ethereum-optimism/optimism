@@ -37,7 +37,7 @@ After running language-specific commit checks (lint, test):
 
 1. **Run pre-push checks** — after committing and before pushing, run:
    ```bash
-   ops/scripts/precommit-targets.sh --run
+   ops/scripts/precommit-targets.py --run
    ```
    This script selects a quick local sanity set based on the files changed on the branch. It is not a replacement for CI.
 
@@ -51,16 +51,9 @@ After running language-specific commit checks (lint, test):
 
 4. **Follow PR guidelines** — see `docs/handbook/pr-guidelines.md`. Keep the PR description brief — include only what isn't obvious from the diff.
 
-## AI Agent Hooks
+## Claude Code Hook
 
-Claude and Codex have post-command hooks that remind the agent after `git commit` to run `ops/scripts/precommit-targets.sh --run` before pushing. The hook is a reminder, not a gate, so agents must still run the command and report the result.
-
-Claude loads `.claude/settings.json` from the repo. Codex uses the workspace plugin in `plugins/optimism-ai-hooks`; if it is not installed, run:
-
-```bash
-codex plugin marketplace add .
-codex plugin add optimism-ai-hooks --marketplace optimism-workspace
-```
+Claude Code loads `.claude/settings.json` from the repo and reminds the agent after `git commit` to run `ops/scripts/precommit-targets.py --run` before pushing. The reminder is not a gate, so agents must still run the command and report the result.
 
 ## CI
 

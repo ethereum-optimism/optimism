@@ -59,17 +59,12 @@ The OP Stack includes significant Rust implementations:
 After committing and before pushing, run:
 
 ```bash
-ops/scripts/precommit-targets.sh --run
+ops/scripts/precommit-targets.py --run
 ```
 
-The script selects a quick sanity-check set from the files changed on the branch. Claude and Codex hooks also remind agents after `git commit`, but the reminder is not a gate; agents must still run the command and report the result.
+The script selects a quick sanity-check set from the files changed on the branch. Claude Code also reminds agents after `git commit`, but the reminder is not a gate; agents must still run the command and report the result.
 
-Claude loads the hook from `.claude/settings.json`. Codex uses the workspace plugin in `plugins/optimism-ai-hooks`; if Codex has not installed it yet, run:
-
-```bash
-codex plugin marketplace add .
-codex plugin add optimism-ai-hooks --marketplace optimism-workspace
-```
+Claude Code loads the hook from `.claude/settings.json`.
 
 ## Subdirectory Instructions
 
