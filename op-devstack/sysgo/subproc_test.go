@@ -2,6 +2,9 @@ package sysgo
 
 import (
 	"context"
+	"errors"
+	"os"
+	"syscall"
 	"testing"
 	"time"
 
@@ -86,6 +89,47 @@ func TestSubProcessConcurrentStop(gt *testing.T) {
 	require.NoError(gt, <-errCh)
 
 	require.NoError(gt, sp.Start("/bin/echo", []string{"restart ok"}, []string{}))
+	require.NoError(gt, sp.Stop(false))
+}
+
+// TestSubProcessKillExitRace covers Kill racing with process exit: the shell
+// exits immediately, but an orphaned child keeps the inherited stdout/stderr
+// pipes open, so the OS-level process is done while cmd.Wait is still draining
+// and exited is not yet closed. Kill must treat the resulting ErrProcessDone
+// as an exit, complete cleanup, and leave the SubProcess restartable.
+func TestSubProcessKillExitRace(gt *testing.T) {
+	tLog := testlog.Logger(gt, log.LevelInfo)
+	logger, _ := testlog.CaptureLogger(gt, log.LevelInfo)
+
+	onFailNow := func(v bool) {
+		panic("fail")
+	}
+	onSkipNow := func() {
+		panic("skip")
+	}
+	p := devtest.NewP(context.Background(), logger, onFailNow, onSkipNow)
+	gt.Cleanup(p.Close)
+
+	logCallback := logpipe.LogCallback(func(line []byte) {
+		tLog.Info("Sub-process logged message", "line", string(line))
+	})
+	sp := NewSubProcess(p, logCallback, logCallback)
+
+	require.NoError(gt, sp.Start("/bin/sh", []string{"-c", "/bin/sleep 2 & exit 0"}, []string{}))
+	// Wait until the shell has been reaped (its os.Process reports done) while
+	// the orphaned sleep still holds the pipes open, keeping exited un-closed.
+	require.Eventually(gt, func() bool {
+		return errors.Is(sp.cmd.Process.Signal(syscall.Signal(0)), os.ErrProcessDone)
+	}, 10*time.Second, 10*time.Millisecond)
+	select {
+	case <-sp.Exited():
+		gt.Fatal("expected cmd.Wait to still be draining the orphaned child's pipes")
+	default:
+	}
+
+	require.NoError(gt, sp.Kill())
+
+	require.NoError(gt, sp.Start("/bin/echo", []string{"restart after kill race"}, []string{}))
 	require.NoError(gt, sp.Stop(false))
 }
 

@@ -162,8 +162,6 @@ func connectSingleChainCLPeer(t devtest.T, sourceCL, targetCL L2CLNode) {
 }
 
 func replaceSingleChainTestSequencer(t devtest.T, runtime *SingleChainRuntime, name string, node *SingleChainNodeRuntime) {
-	l2CL, ok := node.CL.(*OpNode)
-	t.Require().True(ok, "single-chain test sequencer requires an op-node CL node")
 	testSequencer := startTestSequencer(
 		t,
 		runtime.Keys,
@@ -174,7 +172,7 @@ func replaceSingleChainTestSequencer(t devtest.T, runtime *SingleChainRuntime, n
 		runtime.L1CL,
 		node.EL,
 		runtime.L2Network,
-		l2CL,
+		node.CL,
 	)
 	runtime.TestSequencer = newTestSequencerRuntime(testSequencer, name)
 }

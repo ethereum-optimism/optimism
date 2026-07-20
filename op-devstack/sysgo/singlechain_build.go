@@ -497,6 +497,8 @@ func startL2CLNode(
 	return l2CL
 }
 
+// startTestSequencer only needs the CL's user RPC, so any L2CLNode — op-node,
+// Kona, or factory-provided — that serves the standard rollup RPC surface works.
 func startTestSequencer(
 	t devtest.T,
 	keys devkeys.Keys,
@@ -507,7 +509,7 @@ func startTestSequencer(
 	l1CL *L1CLNode,
 	l2EL L2ELNode,
 	l2Net *L2Network,
-	l2CL *OpNode,
+	l2CL L2CLNode,
 ) *testSequencer {
 	require := t.Require()
 	logger := t.Logger().New("component", "test-sequencer")

@@ -112,13 +112,12 @@ func (sp *SubProcess) Kill() error {
 		// The process already exited; only cleanup remains.
 	default:
 		sp.p.Logger().Info("Killing sub-process")
-		if err := sp.cmd.Process.Kill(); err != nil {
-			select {
-			case <-sp.exited:
-				// It exited between the readiness check and Kill.
-			default:
-				return fmt.Errorf("kill sub-process: %w", err)
-			}
+		// os.ErrProcessDone means the process exited between the check above
+		// and Kill, possibly with cmd.Wait still draining stdout/stderr (so
+		// exited is not closed yet). Treat it as an exit race and fall through
+		// to wait for exited, so cleanup runs and the process can restart.
+		if err := sp.cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+			return fmt.Errorf("kill sub-process: %w", err)
 		}
 	}
 
