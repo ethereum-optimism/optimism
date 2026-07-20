@@ -35,7 +35,6 @@ func StartDisputeMon(t devtest.T, input DisputeMonConfig) *DisputeMonRuntime {
 	require.NotEqual(common.Address{}, input.GameFactoryAddress, "dispute game factory address is required")
 	require.NotEmpty(append(append([]string{}, input.RollupRPCs...), input.SupernodeRPCs...), "at least one rollup or supernode RPC is required")
 
-
 	cfg := disputeMonConfig.NewCombinedConfig(
 		input.GameFactoryAddress,
 		input.L1RPC,
