@@ -89,6 +89,29 @@ impl<EngineClient_: EngineClient> ConsolidateTask<EngineClient_> {
         state: &mut EngineState,
         attributes: &OpAttributesWithParent,
     ) -> Result<(), ConsolidateTaskError> {
+        // A mismatch means the derived chain is replacing the current unsafe fork. Rewind the
+        // engine and local sync state before building so the seal task does not observe the old
+        // unsafe head and reject the replacement payload as a stale build.
+        if state.sync_state.unsafe_head() != attributes.parent {
+            warn!(
+                target: "engine",
+                old_unsafe = %state.sync_state.unsafe_head(),
+                new_unsafe = %attributes.parent,
+                "Rewinding unsafe head before derived-chain reorg"
+            );
+            SynchronizeTask::new(
+                Arc::clone(&self.client),
+                Arc::clone(&self.cfg),
+                EngineSyncStateUpdate {
+                    unsafe_head: Some(attributes.parent),
+                    cross_unsafe_head: Some(attributes.parent),
+                    ..Default::default()
+                },
+            )
+            .execute(state)
+            .await?;
+        }
+
         build_and_seal(state, self.client.clone(), self.cfg.clone(), attributes.clone(), true)
             .await?;
 
@@ -291,5 +314,61 @@ impl<EngineClient_: EngineClient> EngineTaskExt for ConsolidateTask<EngineClient
         } else {
             self.reconcile_unsafe_to_safe(state).await
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        SealTaskError,
+        test_utils::{TestAttributesBuilder, TestEngineStateBuilder, test_block_info},
+    };
+    use alloy_rpc_types_engine::{ForkchoiceUpdated, PayloadId, PayloadStatus, PayloadStatusEnum};
+
+    #[tokio::test]
+    async fn rewinds_unsafe_head_before_reorg_build_and_seal() {
+        let parent = test_block_info(50);
+        let old_unsafe = test_block_info(62);
+        let attributes = TestAttributesBuilder::new()
+            .with_parent(parent)
+            .with_timestamp(parent.block_info.timestamp + 2)
+            .build();
+
+        let mut cfg = RollupConfig::default();
+        cfg.hardforks.ecotone_time = Some(0);
+        let fcu_response = ForkchoiceUpdated {
+            payload_status: PayloadStatus {
+                status: PayloadStatusEnum::Valid,
+                latest_valid_hash: Some(parent.block_info.hash),
+            },
+            payload_id: Some(PayloadId::new([1; 8])),
+        };
+        let client = crate::test_utils::MockEngineClient::builder()
+            .with_config(Arc::new(cfg.clone()))
+            .with_fork_choice_updated_v3_response(fcu_response)
+            .build();
+        let task = ConsolidateTask::new(
+            Arc::new(client),
+            Arc::new(cfg),
+            ConsolidateInput::Attributes(Box::new(attributes.clone())),
+        );
+        let mut state = TestEngineStateBuilder::new()
+            .with_unsafe_head(old_unsafe)
+            .with_safe_head(parent)
+            .with_finalized_head(parent)
+            .build();
+
+        let err = task
+            .execute_build_and_seal_tasks(&mut state, &attributes)
+            .await
+            .expect_err("mock has no payload response");
+
+        assert!(matches!(
+            err,
+            ConsolidateTaskError::SealTaskFailed(SealTaskError::GetPayloadFailed(_))
+        ));
+        assert_eq!(state.sync_state.unsafe_head(), parent);
+        assert_eq!(state.sync_state.cross_unsafe_head(), parent);
     }
 }
