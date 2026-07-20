@@ -62,7 +62,7 @@ func (s *SingleChainInterop) AnchorStateRegistry(l2Chain *dsl.L2Network) *dsl.An
 
 func (s *SingleChainInterop) AdvanceTime(amount time.Duration) {
 	s.T.Require().NotNil(s.timeTravel, "attempting to advance time on incompatible system")
-	s.timeTravel.AdvanceTime(amount)
+	s.L1EL.AdvanceTime(s.timeTravel, amount)
 }
 
 func (s *SingleChainInterop) proofValidationContext() (devtest.T, *dsl.L1ELNode, []*dsl.L2Network) {

@@ -36,7 +36,7 @@ func TestDisputeMonitorForecastsInvalidProposalForChallenger(gt *testing.T) {
 	sys := presets.NewMinimalNoFaultProofs(t, presets.WithGameTypeAdded(gameTypes.CannonKonaGameType))
 
 	proposer := sys.FunderL1.NewFundedEOA(eth.OneEther)
-	game := sys.DisputeGameFactory().StartCannonKonaGame(proposer, proofs.WithRootClaim(invalidRootClaim()))
+	game := sys.DisputeGameFactory().StartCannonKonaGame(proposer, proofs.WithRootClaim(common.HexToHash("0xdead")))
 	game.WaitForGameStatus(gameTypes.GameStatusInProgress)
 
 	mon := presets.StartDisputeMon(
@@ -58,7 +58,7 @@ func TestDisputeMonitorReportsIncorrectResolvedGame(gt *testing.T) {
 	sys := presets.NewSingleChainInterop(t, presets.WithoutHonestProposer())
 
 	game := sys.DisputeGameFactory().StartSuperPermissionedGame(
-		proofs.WithSuperRootFrom(eth.Bytes32(invalidRootClaim())),
+		proofs.WithSuperRootFrom(eth.Bytes32(common.HexToHash("0xdead"))),
 	)
 	game.WaitForGameStatus(gameTypes.GameStatusDefenderWon)
 
@@ -92,16 +92,27 @@ func TestDisputeMonitorReportsReferenceNodeFailure(gt *testing.T) {
 
 func TestDisputeMonitorReportsResolvedGameAccounting(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := newCannonKonaDisputeSystem(t)
+	sys := presets.NewMinimalNoFaultProofs(
+		t,
+		presets.WithTimeTravelEnabled(),
+		presets.WithGameTypeAdded(gameTypes.CannonKonaGameType),
+		presets.WithRespectedGameTypeOverride(gameTypes.CannonKonaGameType),
+		presets.WithoutHonestProposer(),
+	)
 
 	proposer := sys.FunderL1.NewFundedEOA(eth.OneEther)
 	game := sys.DisputeGameFactory().StartCannonKonaGame(proposer)
-	advanceL1Time(sys, game.MaxClockDuration()+time.Second)
+	sys.AdvanceTime(game.MaxClockDuration() + time.Second)
 	game.ResolveClaim(proposer, 0)
 	game.Resolve(proposer)
 	game.WaitForGameStatus(gameTypes.GameStatusDefenderWon)
 
-	startCannonKonaDisputeMon(t, sys).VerifyState(
+	presets.StartDisputeMon(
+		t,
+		sys.L1EL,
+		sys.L2Chain.DisputeGameFactoryProxyAddr(),
+		presets.WithDisputeMonRollupNodes(sys.L2CL),
+	).VerifyState(
 		disputemon.GameCount(gameTypes.CannonKonaGameType, 1),
 		disputemon.FailedGames(0),
 		disputemon.CompletedBeforeMaxDuration(1),
@@ -119,16 +130,22 @@ func TestDisputeMonitorReportsResolvedGameAccounting(gt *testing.T) {
 
 func TestDisputeMonitorReportsHonestActorLoss(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := newCannonKonaDisputeSystem(t)
+	sys := presets.NewMinimalNoFaultProofs(
+		t,
+		presets.WithTimeTravelEnabled(),
+		presets.WithGameTypeAdded(gameTypes.CannonKonaGameType),
+		presets.WithRespectedGameTypeOverride(gameTypes.CannonKonaGameType),
+		presets.WithoutHonestProposer(),
+	)
 
 	proposer := sys.FunderL1.NewFundedEOA(eth.OneEther)
 	counterer := sys.FunderL1.NewFundedEOA(eth.OneEther)
-	game := sys.DisputeGameFactory().StartCannonKonaGame(proposer, proofs.WithRootClaim(invalidRootClaim()))
+	game := sys.DisputeGameFactory().StartCannonKonaGame(proposer, proofs.WithRootClaim(common.HexToHash("0xdead")))
 	rootClaim := game.RootClaim()
 	rootBond := new(big.Int).Set(rootClaim.Bond())
 	counterClaim := rootClaim.Attack(counterer, common.HexToHash("0xbeef"))
 
-	advanceL1Time(sys, game.MaxClockDuration()+time.Second)
+	sys.AdvanceTime(game.MaxClockDuration() + time.Second)
 	game.ResolveClaim(counterer, counterClaim.Index)
 	game.ResolveClaim(counterer, rootClaim.Index)
 	game.Resolve(counterer)
@@ -147,33 +164,4 @@ func TestDisputeMonitorReportsHonestActorLoss(gt *testing.T) {
 		disputemon.HonestActorLostBonds(proposer.Address(), rootBond),
 		disputemon.CorrectChallengerWins(1),
 	)
-}
-
-func newCannonKonaDisputeSystem(t devtest.T) *presets.Minimal {
-	return presets.NewMinimalNoFaultProofs(
-		t,
-		presets.WithTimeTravelEnabled(),
-		presets.WithGameTypeAdded(gameTypes.CannonKonaGameType),
-		presets.WithRespectedGameTypeOverride(gameTypes.CannonKonaGameType),
-		presets.WithoutHonestProposer(),
-	)
-}
-
-func advanceL1Time(sys *presets.Minimal, duration time.Duration) {
-	target := sys.L1EL.BlockRefByLabel(eth.Unsafe).Time + uint64(duration/time.Second)
-	sys.AdvanceTime(duration)
-	sys.L1EL.WaitForTime(target)
-}
-
-func startCannonKonaDisputeMon(t devtest.T, sys *presets.Minimal) *disputemon.DisputeMon {
-	return presets.StartDisputeMon(
-		t,
-		sys.L1EL,
-		sys.L2Chain.DisputeGameFactoryProxyAddr(),
-		presets.WithDisputeMonRollupNodes(sys.L2CL),
-	)
-}
-
-func invalidRootClaim() common.Hash {
-	return common.HexToHash("0xdead")
 }
