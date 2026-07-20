@@ -68,6 +68,7 @@ func NewMinimalInteropNoSupernodeRuntime(t devtest.T) *SingleChainRuntime {
 // games sourcing super roots directly from the op-node's superroot_atTimestamp endpoint.
 // The primary op-node enables its safe DB (required by superroot_atTimestamp).
 func NewSingleChainInteropNoSupernodeSuperRootRuntimeWithConfig(t devtest.T, cfg PresetConfig) *SingleChainRuntime {
+	cfg = withSuperRootGamesAtGenesisDeployerFeatures(cfg)
 	cfg.AddedGameTypes = append(cfg.AddedGameTypes, gameTypes.SuperCannonKonaGameType)
 	return newSingleChainRuntimeWithConfig(t, cfg, singleChainRuntimeSpec{
 		BuildWorld:      newSingleChainInteropWorldNoSupernode,

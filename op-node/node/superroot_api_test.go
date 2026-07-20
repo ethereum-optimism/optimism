@@ -116,52 +116,15 @@ func (f *fixture) expectOutputV0(hash common.Hash) *eth.OutputV0 {
 }
 
 func TestSuperrootAPI_PreGenesis(t *testing.T) {
-	// Pre-genesis timestamps (e.g. a super dispute game's initial anchor, which
-	// can be timestamp 0) clamp to the genesis L2 block and return the genesis
-	// super root at the requested timestamp. op-supernode does the same; matching
-	// it lets op-challenger validate a super game's starting anchor root when
-	// op-node is the super root source.
+	// Pre-genesis: surface TargetBlockNumber's error rather than a silent empty response.
 	f := newFixture(t)
 
 	genesisHash := f.cfg.Genesis.L2.Hash
 	f.expectBlockRef(0, genesisHash, eth.BlockID{Number: 0})
-	output := f.expectOutputV0(genesisHash)
+	f.expectOutputV0(genesisHash)
 
-	const preGenesisTs = testGenesisL2Ts - 1
-	resp, err := f.api.atTimestamp(context.Background(), preGenesisTs)
-	require.NoError(t, err)
-	require.NotNil(t, resp.Data)
-	require.Equal(t, eth.BlockID{Number: 0}, resp.Data.VerifiedRequiredL1)
-	require.Equal(t, eth.OutputRoot(output), resp.OptimisticAtTimestamp[f.chainID].OutputRoot)
-	require.Equal(t, eth.BlockID{Number: 0}, resp.OptimisticAtTimestamp[f.chainID].RequiredL1)
-
-	// The super root embeds the requested (pre-genesis) timestamp, not the genesis
-	// time, matching op-supernode's handoff-from-optimistic behavior.
-	expectedSuper := eth.NewSuperV1(preGenesisTs, eth.ChainIDAndOutput{
-		ChainID: f.chainID,
-		Output:  eth.OutputRoot(output),
-	})
-	require.Equal(t, eth.SuperRoot(expectedSuper), resp.Data.SuperRoot)
-	f.safeDB.Mock.AssertNotCalled(t, "L1AtSafeHead")
-}
-
-func TestSuperrootAPI_TimestampZero_ClampsToGenesis(t *testing.T) {
-	// Timestamp 0 is the concrete case exercised by a fresh super dispute game's
-	// anchor: it must resolve to the genesis super root rather than erroring.
-	f := newFixture(t)
-
-	genesisHash := f.cfg.Genesis.L2.Hash
-	f.expectBlockRef(0, genesisHash, eth.BlockID{Number: 0})
-	output := f.expectOutputV0(genesisHash)
-
-	resp, err := f.api.atTimestamp(context.Background(), 0)
-	require.NoError(t, err)
-	require.NotNil(t, resp.Data)
-	expectedSuper := eth.NewSuperV1(0, eth.ChainIDAndOutput{
-		ChainID: f.chainID,
-		Output:  eth.OutputRoot(output),
-	})
-	require.Equal(t, eth.SuperRoot(expectedSuper), resp.Data.SuperRoot)
+	_, err := f.api.atTimestamp(context.Background(), testGenesisL2Ts-1)
+	require.ErrorContains(t, err, "target block number")
 }
 
 func TestSuperrootAPI_BeyondUnsafe(t *testing.T) {

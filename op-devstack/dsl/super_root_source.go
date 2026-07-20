@@ -17,6 +17,7 @@ import (
 // single-chain), letting the same dispute-game tests run against either source.
 type SuperRootSource interface {
 	QueryAPI() apis.SupernodeQueryAPI
+	UserRPC() string
 	SuperRootAtTimestamp(timestamp uint64) eth.SuperRootAtTimestampResponse
 	AssertSuperRootAtTimestamp(l2SequenceNumber uint64, rootClaim common.Hash)
 	AwaitValidatedTimestamp(timestamp uint64)
@@ -33,7 +34,8 @@ var (
 // Supernode, which adds op-supernode-only controls on top.
 type SuperRootQuerier struct {
 	commonImpl
-	api apis.SupernodeQueryAPI
+	api     apis.SupernodeQueryAPI
+	userRPC string
 }
 
 // NewOpNodeSuperRoots wraps a single op-node's superroot_atTimestamp endpoint as a
@@ -43,12 +45,18 @@ func NewOpNodeSuperRoots(cl *L2CLNode) *SuperRootQuerier {
 	return &SuperRootQuerier{
 		commonImpl: commonFromT(cl.t),
 		api:        sources.NewSuperNodeClient(cl.inner.ClientRPC()),
+		userRPC:    cl.inner.UserRPC(),
 	}
 }
 
 // QueryAPI returns the super-root query API for this source.
 func (s *SuperRootQuerier) QueryAPI() apis.SupernodeQueryAPI {
 	return s.api
+}
+
+// UserRPC returns the super-root source's RPC endpoint.
+func (s *SuperRootQuerier) UserRPC() string {
+	return s.userRPC
 }
 
 // SuperRootAtTimestamp fetches the super-root at the given timestamp.

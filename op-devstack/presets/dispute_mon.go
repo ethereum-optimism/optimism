@@ -54,11 +54,11 @@ func WithDisputeMonRollupNodes(nodes ...*dsl.L2CLNode) DisputeMonOption {
 	}
 }
 
-func WithDisputeMonSupernodes(nodes ...*dsl.Supernode) DisputeMonOption {
+func WithDisputeMonSupernodes(nodes ...dsl.SuperRootSource) DisputeMonOption {
 	return func(opts *disputeMonOptions) {
 		for _, node := range nodes {
 			if node != nil {
-				opts.supernodeRPCs = append(opts.supernodeRPCs, node.Escape().UserRPC())
+				opts.supernodeRPCs = append(opts.supernodeRPCs, node.UserRPC())
 			}
 		}
 	}

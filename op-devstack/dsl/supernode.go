@@ -30,7 +30,7 @@ func (s *Supernode) ManageVN(vn *L2CLNode) {
 // NewSupernode creates a new Supernode DSL wrapper
 func NewSupernode(inner stack.Supernode) *Supernode {
 	return &Supernode{
-		SuperRootQuerier: SuperRootQuerier{commonImpl: commonFromT(inner.T()), api: inner.QueryAPI()},
+		SuperRootQuerier: SuperRootQuerier{commonImpl: commonFromT(inner.T()), api: inner.QueryAPI(), userRPC: inner.UserRPC()},
 		inner:            inner,
 	}
 }
@@ -39,7 +39,7 @@ func NewSupernode(inner stack.Supernode) *Supernode {
 // The testControl parameter can be nil if no test control is needed.
 func NewSupernodeWithTestControl(inner stack.Supernode, testControl stack.SupernodeTestControl) *Supernode {
 	return &Supernode{
-		SuperRootQuerier: SuperRootQuerier{commonImpl: commonFromT(inner.T()), api: inner.QueryAPI()},
+		SuperRootQuerier: SuperRootQuerier{commonImpl: commonFromT(inner.T()), api: inner.QueryAPI(), userRPC: inner.UserRPC()},
 		inner:            inner,
 		testControl:      testControl,
 	}

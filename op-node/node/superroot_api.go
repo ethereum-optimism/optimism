@@ -35,20 +35,9 @@ func (s *superrootAPI) AtTimestamp(ctx context.Context, timestamp hexutil.Uint64
 func (s *superrootAPI) atTimestamp(ctx context.Context, timestamp uint64) (eth.SuperRootAtTimestampResponse, error) {
 	chainID := eth.ChainIDFromBig(s.cfg.L2ChainID)
 
-	// Pre-genesis timestamps (e.g. a super dispute game's initial anchor, which can
-	// be timestamp 0) clamp to the genesis L2 block. op-supernode returns the genesis
-	// super root here; matching it lets op-challenger validate a super game's starting
-	// anchor root when op-node is the super root source. The response's super root still
-	// embeds the requested timestamp, as op-supernode does.
-	var blockNum uint64
-	if timestamp < s.cfg.Genesis.L2Time {
-		blockNum = s.cfg.Genesis.L2.Number
-	} else {
-		var err error
-		blockNum, err = s.cfg.TargetBlockNumber(timestamp)
-		if err != nil {
-			return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("target block number for timestamp %d: %w", timestamp, err)
-		}
+	blockNum, err := s.cfg.TargetBlockNumber(timestamp)
+	if err != nil {
+		return eth.SuperRootAtTimestampResponse{}, fmt.Errorf("target block number for timestamp %d: %w", timestamp, err)
 	}
 
 	// BlockRefWithStatus returns a non-nil status alongside ethereum.NotFound, so the
