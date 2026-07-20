@@ -170,6 +170,8 @@ func startL2ELForKey(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [3
 // specs. Runtimes constructed from explicit MixedSingleChainNodeSpec.CLKind values (e.g.
 // NewMixedSingleChainRuntime) don't route through here; they resolve the env up front via
 // ResolveMixedL2CLKind instead.
+// depSet carries the world's interop dependency set into the launch context and
+// the stock op-node fallback; it is nil outside interop-enabled worlds.
 func startL2CLForKey(
 	t devtest.T,
 	keys devkeys.Keys,
@@ -182,6 +184,7 @@ func startL2CLForKey(
 	clKey, elKey string,
 	isSequencer bool,
 	followSource string,
+	depSet depset.DependencySet,
 	l2CLOpts []L2CLOption,
 	factory L2CLFactory,
 ) L2CLNode {
@@ -200,18 +203,19 @@ func startL2CLForKey(
 			role = L2CLRoleSequencer
 		}
 		node, handled := factory.CreateL2CL(t, L2CLLaunchContext{
-			Target:       target,
-			Role:         role,
-			L1UserRPC:    l1EL.UserRPC(),
-			L1BeaconRPC:  l1CL.BeaconHTTPAddr(),
-			L2UserRPC:    l2EL.UserRPC(),
-			L2EngineRPC:  l2EL.EngineRPC(),
-			L2JWTPath:    l2EL.JWTPath(),
-			L1Genesis:    l1Net.Genesis(),
-			L2Genesis:    l2Net.genesis,
-			RollupConfig: l2Net.RollupConfig(),
-			FollowSource: followSource,
-			Config:       *resolvedCfg,
+			Target:        target,
+			Role:          role,
+			L1UserRPC:     l1EL.UserRPC(),
+			L1BeaconRPC:   l1CL.BeaconHTTPAddr(),
+			L2UserRPC:     l2EL.UserRPC(),
+			L2EngineRPC:   l2EL.EngineRPC(),
+			L2JWTPath:     l2EL.JWTPath(),
+			L1Genesis:     l1Net.Genesis(),
+			L2Genesis:     l2Net.genesis,
+			RollupConfig:  l2Net.RollupConfig(),
+			FollowSource:  followSource,
+			Config:        *resolvedCfg,
+			DependencySet: depSet,
 		})
 		if handled {
 			t.Require().NotNil(node, "L2 CL factory handled %s but returned a nil node", target)
@@ -228,6 +232,7 @@ func startL2CLForKey(
 			NoDiscovery:    true,
 			EnableReqResp:  true,
 			L2FollowSource: followSource,
+			DependencySet:  depSet,
 			L2CLOptions:    l2CLOpts,
 		})
 	}
@@ -314,7 +319,7 @@ func startSequencerCL(
 	l2CLOpts []L2CLOption,
 	factory L2CLFactory,
 ) L2CLNode {
-	return startL2CLForKey(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, "sequencer", "sequencer", true, "", l2CLOpts, factory)
+	return startL2CLForKey(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, "sequencer", "sequencer", true, "", nil, l2CLOpts, factory)
 }
 
 type l2CLNodeStartConfig struct {

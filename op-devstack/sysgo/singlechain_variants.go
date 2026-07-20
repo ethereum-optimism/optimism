@@ -9,6 +9,7 @@ import (
 	"time"
 
 	opconductor "github.com/ethereum-optimism/optimism/op-conductor/conductor"
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -189,8 +190,14 @@ func addSingleChainOpNode(
 ) *SingleChainNodeRuntime {
 	jwtPath := runtime.L2EL.JWTPath()
 	jwtSecret := readJWTSecretFromPath(t, jwtPath)
+	// Interop-enabled worlds share their dependency set with every added node
+	// slot; outside interop worlds the seam receives nil.
+	var depSet depset.DependencySet
+	if runtime.Interop != nil {
+		depSet = runtime.Interop.DependencySet
+	}
 	l2EL := startL2ELForKey(t, runtime.L2Network, jwtPath, jwtSecret, name, NewELNodeIdentity(0))
-	l2CL := startL2CLForKey(t, runtime.Keys, runtime.L1Network, runtime.L2Network, runtime.L1EL, runtime.L1CL, l2EL, jwtSecret, name, name, isSequencer, followSource, l2Opts, runtime.L2CLFactory)
+	l2CL := startL2CLForKey(t, runtime.Keys, runtime.L1Network, runtime.L2Network, runtime.L1EL, runtime.L1CL, l2EL, jwtSecret, name, name, isSequencer, followSource, depSet, l2Opts, runtime.L2CLFactory)
 	node := newSingleChainNodeRuntime(name, isSequencer, l2EL, l2CL)
 	runtime.Nodes[name] = node
 	return node

@@ -183,6 +183,16 @@ const twoL2SupernodeInteropPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindPreGenesisSuperGame |
 	optionKindSupernodeVNSequencerForBootstrap
 
+// twoL2ExternalCLInteropPresetSupportedOptionKinds covers what the two-L2
+// external-CL interop runtime actually wires: no supernode, no supervisor, no
+// proposer, and no dispute-game surface, so those option kinds are excluded.
+const twoL2ExternalCLInteropPresetSupportedOptionKinds = optionKindDeployer |
+	optionKindBatcher |
+	optionKindTimeTravel |
+	optionKindL1EL |
+	optionKindGlobalL2CL |
+	optionKindL2CLFactory
+
 const singleChainWithFlashblocksPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindOPRBuilder |
 	optionKindOpReth |
