@@ -339,7 +339,7 @@ func TestBuildContinuationDCI_PermissionedInputs(t *testing.T) {
 	chainID := common.HexToHash("0x0300")
 	intent, chain, st := continuationDCITestInputs(chainID, embedded.GameTypePermissionedCannon)
 	proofPrestate := common.HexToHash("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
-	chain.DeployOverrides[faultGameAbsolutePrestateOverride] = proofPrestate
+	chain.DeployOverrides[state.FaultGameAbsolutePrestateOverrideKey] = proofPrestate
 
 	st.Chains[0].Prestate = common.Hash{}
 	st.Chains[0].StartingAnchorRoot = nil
@@ -485,7 +485,7 @@ func TestBuildContinuationDCI_FailClosedGates(t *testing.T) {
 		{
 			name: "gate 11 rejects prestate override drift",
 			mutate: func(_ *state.Intent, chain *state.ChainIntent, _ *state.State) {
-				chain.DeployOverrides[faultGameAbsolutePrestateOverride] = common.HexToHash("0x99")
+				chain.DeployOverrides[state.FaultGameAbsolutePrestateOverrideKey] = common.HexToHash("0x99")
 			},
 			wantErrors: []string{"override differs from the committed prestate", "op-deployer prestate"},
 		},
@@ -548,19 +548,19 @@ func TestBuildContinuationDCI_PrestateOverrideDrift(t *testing.T) {
 		{
 			name: "agreeing chain override",
 			configure: func(_ *state.Intent, chain *state.ChainIntent, prestate common.Hash) {
-				chain.DeployOverrides[faultGameAbsolutePrestateOverride] = prestate
+				chain.DeployOverrides[state.FaultGameAbsolutePrestateOverrideKey] = prestate
 			},
 		},
 		{
 			name: "agreeing global override",
 			configure: func(intent *state.Intent, _ *state.ChainIntent, prestate common.Hash) {
-				intent.GlobalDeployOverrides[faultGameAbsolutePrestateOverride] = prestate
+				intent.GlobalDeployOverrides[state.FaultGameAbsolutePrestateOverrideKey] = prestate
 			},
 		},
 		{
 			name: "differing chain override",
 			configure: func(_ *state.Intent, chain *state.ChainIntent, _ common.Hash) {
-				chain.DeployOverrides[faultGameAbsolutePrestateOverride] = common.HexToHash("0x99")
+				chain.DeployOverrides[state.FaultGameAbsolutePrestateOverrideKey] = common.HexToHash("0x99")
 			},
 			wantErr:    true,
 			wantErrMsg: "op-deployer prestate",
@@ -568,7 +568,7 @@ func TestBuildContinuationDCI_PrestateOverrideDrift(t *testing.T) {
 		{
 			name: "differing global override",
 			configure: func(intent *state.Intent, _ *state.ChainIntent, _ common.Hash) {
-				intent.GlobalDeployOverrides[faultGameAbsolutePrestateOverride] = common.HexToHash("0x99")
+				intent.GlobalDeployOverrides[state.FaultGameAbsolutePrestateOverrideKey] = common.HexToHash("0x99")
 			},
 			wantErr:    true,
 			wantErrMsg: "op-deployer prestate",
@@ -576,8 +576,8 @@ func TestBuildContinuationDCI_PrestateOverrideDrift(t *testing.T) {
 		{
 			name: "chain override shadows differing global override",
 			configure: func(intent *state.Intent, chain *state.ChainIntent, prestate common.Hash) {
-				intent.GlobalDeployOverrides[faultGameAbsolutePrestateOverride] = common.HexToHash("0x99")
-				chain.DeployOverrides[faultGameAbsolutePrestateOverride] = prestate
+				intent.GlobalDeployOverrides[state.FaultGameAbsolutePrestateOverrideKey] = common.HexToHash("0x99")
+				chain.DeployOverrides[state.FaultGameAbsolutePrestateOverrideKey] = prestate
 			},
 		},
 	}
@@ -739,9 +739,9 @@ func TestResolveChainProofParams(t *testing.T) {
 	t.Run("chain overrides global", func(t *testing.T) {
 		globalPrestate := common.HexToHash("0x11")
 		intent := &state.Intent{GlobalDeployOverrides: map[string]any{
-			"respectedGameType":         embedded.GameTypeCannonKona,
-			"faultGameAbsolutePrestate": globalPrestate,
-			"faultGameMaxDepth":         uint64(101),
+			"respectedGameType":                        embedded.GameTypeCannonKona,
+			state.FaultGameAbsolutePrestateOverrideKey: globalPrestate,
+			"faultGameMaxDepth":                        uint64(101),
 		}}
 		chain := &state.ChainIntent{DeployOverrides: map[string]any{
 			"respectedGameType": embedded.GameTypeSuperCannonKona,
@@ -757,7 +757,7 @@ func TestResolveChainProofParams(t *testing.T) {
 
 	t.Run("rejects malformed absolute prestate", func(t *testing.T) {
 		intent := &state.Intent{GlobalDeployOverrides: map[string]any{
-			"faultGameAbsolutePrestate": "not-a-hash",
+			state.FaultGameAbsolutePrestateOverrideKey: "not-a-hash",
 		}}
 
 		_, err := ResolveChainProofParams(intent, &state.ChainIntent{})
@@ -820,8 +820,8 @@ func TestResolvePreparedGameType(t *testing.T) {
 
 	t.Run("allows non-type proof parameter changes", func(t *testing.T) {
 		intent := &state.Intent{GlobalDeployOverrides: map[string]any{
-			"respectedGameType":         embedded.GameTypeCannonKona,
-			"faultGameAbsolutePrestate": common.HexToHash("0x22"),
+			"respectedGameType":                        embedded.GameTypeCannonKona,
+			state.FaultGameAbsolutePrestateOverrideKey: common.HexToHash("0x22"),
 		}}
 		chain := &state.ChainIntent{ID: chainID}
 		chainState := &state.ChainState{
@@ -833,6 +833,56 @@ func TestResolvePreparedGameType(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, uint32(embedded.GameTypeCannonKona), got)
 	})
+}
+
+func TestResolveInitialDeployRequirements(t *testing.T) {
+	tests := []struct {
+		name             string
+		gameType         uint32
+		permissionless   bool
+		requiresPrestate bool
+		wantErr          string
+	}{
+		{
+			name:     "PERMISSIONED_CANNON",
+			gameType: uint32(embedded.GameTypePermissionedCannon),
+		},
+		{
+			name:             "CANNON_KONA",
+			gameType:         uint32(embedded.GameTypeCannonKona),
+			permissionless:   true,
+			requiresPrestate: true,
+		},
+		{
+			name:             "SUPER_CANNON_KONA",
+			gameType:         uint32(embedded.GameTypeSuperCannonKona),
+			permissionless:   true,
+			requiresPrestate: true,
+		},
+		{
+			name:     "SUPER_PERMISSIONED",
+			gameType: uint32(embedded.GameTypeSuperPermissioned),
+			wantErr:  "unsupported initial dispute game type 5: SUPER_PERMISSIONED is not an initial-deploy input selector",
+		},
+		{
+			name:     "unknown",
+			gameType: 999,
+			wantErr:  "unsupported initial dispute game type 999",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := resolveInitialDeployRequirements(tt.gameType)
+			if tt.wantErr != "" {
+				require.EqualError(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.permissionless, got.permissionless)
+			require.Equal(t, tt.requiresPrestate, got.requiresPrestate)
+		})
+	}
 }
 
 func TestRequiresPrestateForGameType(t *testing.T) {
@@ -856,6 +906,7 @@ func TestRequiresPrestateForGameType(t *testing.T) {
 			want:     true,
 		},
 		{name: "ZK_DISPUTE_GAME", gameType: embedded.GameTypeZKDisputeGame, wantErr: true},
+		{name: "UNKNOWN", gameType: embedded.GameType(999), wantErr: true},
 	}
 
 	for _, tt := range tests {
@@ -898,6 +949,11 @@ func TestIsPermissionlessGameType(t *testing.T) {
 		{
 			name:     "SUPER_PERMISSIONED",
 			gameType: embedded.GameTypeSuperPermissioned,
+			expected: false,
+		},
+		{
+			name:     "UNKNOWN",
+			gameType: embedded.GameType(999),
 			expected: false,
 		},
 	}

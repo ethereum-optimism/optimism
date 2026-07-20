@@ -47,8 +47,8 @@ type DeployOPChainInput struct {
 	DisputeGameType         uint32
 	DisputeAbsolutePrestate common.Hash // Selected game prestate.
 	StartingAnchorRoot      Proposal
-	// CannonAbsolutePrestate configures the CANNON_KONA guardian fallback.
-	// Other modes mirror DisputeAbsolutePrestate.
+	// CannonAbsolutePrestate is the fixed CANNON_KONA fallback.
+	// It is zero for SUPER_CANNON_KONA and otherwise matches the selected prestate.
 	CannonAbsolutePrestate       common.Hash
 	DisputeMaxGameDepth          *big.Int
 	DisputeSplitDepth            *big.Int

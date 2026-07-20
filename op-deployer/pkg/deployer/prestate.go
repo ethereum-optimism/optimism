@@ -18,8 +18,7 @@ import (
 )
 
 const (
-	faultGameAbsolutePrestateOverride = "faultGameAbsolutePrestate"
-	cannonFallbackPrestateOverride    = "cannonFallbackPrestate"
+	cannonFallbackPrestateOverride = "cannonFallbackPrestate"
 )
 
 type PrestateConfig struct {
@@ -68,7 +67,7 @@ type prestateRole struct {
 var selectedPrestateRole = prestateRole{
 	name:      "selected prestate",
 	flagName:  PrestateFlagName,
-	intentKey: faultGameAbsolutePrestateOverride,
+	intentKey: state.FaultGameAbsolutePrestateOverrideKey,
 }
 
 type prestateAssignment struct {

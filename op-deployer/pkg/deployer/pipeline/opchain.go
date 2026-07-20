@@ -45,12 +45,12 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 	if err != nil {
 		return err
 	}
+	// This update is saved only after a successful broadcast.
 	return RecordOPChainDeployment(st, result)
 }
 
-// ExecuteOPChainDeployment runs the deployment without recording its result.
-// Script-host transactions must be confirmed before the result is recorded.
-// Forge confirms transactions before returning.
+// ExecuteOPChainDeployment runs the deployment without recording it.
+// Confirm queued transactions before recording. Forge confirms before returning.
 func ExecuteOPChainDeployment(
 	env *Env,
 	st *state.State,
@@ -144,8 +144,8 @@ func ExecuteOPChainDeployment(
 	}, nil
 }
 
-// RecordOPChainDeployment records a result after its transactions are confirmed.
-// Calling it again with the same result is safe. It does not save state to disk.
+// RecordOPChainDeployment updates in-memory state and is safe to repeat.
+// Confirm live transactions before saving the state.
 func RecordOPChainDeployment(st *state.State, result OPChainDeploymentResult) error {
 	if !result.initialized {
 		return fmt.Errorf("cannot record an uninitialized OP chain deployment result")
@@ -236,24 +236,32 @@ func initialGameTypeName(gameType uint32) string {
 	}
 }
 
-// RequiresPrestateForGameType rejects unsupported game types.
-func RequiresPrestateForGameType(gameType uint32) (bool, error) {
+type initialDeployRequirements struct {
+	permissionless   bool
+	requiresPrestate bool
+}
+
+func resolveInitialDeployRequirements(gameType uint32) (initialDeployRequirements, error) {
 	switch embedded.GameType(gameType) {
 	case embedded.GameTypePermissionedCannon:
-		return false, nil
+		return initialDeployRequirements{}, nil
 	case embedded.GameTypeCannonKona, embedded.GameTypeSuperCannonKona:
-		return true, nil
+		return initialDeployRequirements{permissionless: true, requiresPrestate: true}, nil
 	case embedded.GameTypeSuperPermissioned:
-		return false, fmt.Errorf(
+		return initialDeployRequirements{}, fmt.Errorf(
 			"unsupported initial dispute game type %d: SUPER_PERMISSIONED is not an initial-deploy input selector",
 			gameType,
 		)
 	default:
-		return false, fmt.Errorf("unsupported initial dispute game type %d", gameType)
+		return initialDeployRequirements{}, fmt.Errorf("unsupported initial dispute game type %d", gameType)
 	}
 }
 
-const faultGameAbsolutePrestateOverride = "faultGameAbsolutePrestate"
+// RequiresPrestateForGameType reports whether a supported initial game type needs a prestate.
+func RequiresPrestateForGameType(gameType uint32) (bool, error) {
+	requirements, err := resolveInitialDeployRequirements(gameType)
+	return requirements.requiresPrestate, err
+}
 
 // BuildContinuationDCI builds deployment input from prepared state.
 func BuildContinuationDCI(intent *state.Intent, chainID common.Hash, st *state.State) (opcm.DeployOPChainInput, error) {
@@ -290,7 +298,7 @@ func BuildContinuationDCI(intent *state.Intent, chainID common.Hash, st *state.S
 	if err != nil {
 		return opcm.DeployOPChainInput{}, err
 	}
-	requiresPrestate, err := RequiresPrestateForGameType(preparedGameType)
+	requirements, err := resolveInitialDeployRequirements(preparedGameType)
 	if err != nil {
 		return opcm.DeployOPChainInput{}, fmt.Errorf(
 			"chain %s has an invalid prepared game type: %w. Rerun op-deployer prepare",
@@ -304,7 +312,7 @@ func BuildContinuationDCI(intent *state.Intent, chainID common.Hash, st *state.S
 		return opcm.DeployOPChainInput{}, fmt.Errorf("error merging proof params from overrides: %w", err)
 	}
 
-	if requiresPrestate {
+	if requirements.requiresPrestate {
 		if chainState.Prestate == (common.Hash{}) {
 			return opcm.DeployOPChainInput{}, fmt.Errorf(
 				"chain %s has no prestate committed. Run op-deployer prestate",
@@ -326,12 +334,11 @@ func BuildContinuationDCI(intent *state.Intent, chainID common.Hash, st *state.S
 		}
 	}
 
-	permissionless := IsPermissionlessGameType(preparedGameType)
 	startingAnchorRoot := opcm.Proposal{
 		Root:             opcm.DefaultStartingAnchorRoot.Root,
 		L2SequenceNumber: common.Big0,
 	}
-	if permissionless {
+	if requirements.permissionless {
 		if chainState.StartingAnchorRoot == nil || chainState.StartingAnchorRoot.Root == (common.Hash{}) {
 			return opcm.DeployOPChainInput{}, fmt.Errorf(
 				"chain %s has no valid starting anchor proposal committed. Rerun the proposal-producing stage",
@@ -359,7 +366,7 @@ func BuildContinuationDCI(intent *state.Intent, chainID common.Hash, st *state.S
 		}
 	}
 
-	if requiresPrestate {
+	if requirements.requiresPrestate {
 		proofParams.DisputeAbsolutePrestate = chainState.Prestate
 	}
 
@@ -377,10 +384,10 @@ func BuildContinuationDCI(intent *state.Intent, chainID common.Hash, st *state.S
 }
 
 func hasFaultGameAbsolutePrestateOverride(intent *state.Intent, chain *state.ChainIntent) bool {
-	if _, ok := chain.DeployOverrides[faultGameAbsolutePrestateOverride]; ok {
+	if _, ok := chain.DeployOverrides[state.FaultGameAbsolutePrestateOverrideKey]; ok {
 		return true
 	}
-	_, ok := intent.GlobalDeployOverrides[faultGameAbsolutePrestateOverride]
+	_, ok := intent.GlobalDeployOverrides[state.FaultGameAbsolutePrestateOverrideKey]
 	return ok
 }
 
@@ -415,15 +422,13 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 	), nil
 }
 
-// IsPermissionlessGameType reports whether the given dispute game type deploys a
-// permissionless chain.
+// IsPermissionlessGameType reports whether gameType is supported and permissionless.
 func IsPermissionlessGameType(gameType uint32) bool {
-	switch embedded.GameType(gameType) {
-	case embedded.GameTypeCannonKona, embedded.GameTypeSuperCannonKona:
-		return true
-	default:
+	requirements, err := resolveInitialDeployRequirements(gameType)
+	if err != nil {
 		return false
 	}
+	return requirements.permissionless
 }
 
 func BuildDeployOPChainInput(
