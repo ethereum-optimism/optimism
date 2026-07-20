@@ -1,9 +1,11 @@
 package rustbin
 
 import (
+	"context"
 	"errors"
 	"os"
 	"os/exec"
+	"path/filepath"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
@@ -37,11 +39,29 @@ func RunKonaSP1Range(t require.TestingT, logger log.Logger, vmConfig *vm.Config,
 	return runOracleServer(t, logger, "kona-sp1-range-executor", args, dir)
 }
 
+// RunKonaSP1SuperRange runs the kona-sp1 super-range executor. Returns false if the guest
+// rejects the synthesized super-range claim and true otherwise.
+func RunKonaSP1SuperRange(t require.TestingT, logger log.Logger, executorPath string, dir string, args ...string) bool {
+	require.NotEmpty(t, executorPath)
+	argv := append([]string{executorPath}, args...)
+	return runOracleServer(t, logger, "kona-sp1-super-range-executor", argv, dir)
+}
+
 // runOracleServer executes a kona oracle-server binary and interprets its exit code: exit 1 means
 // the program rejected the claim (returns false), exit 0 means it accepted (returns true), and any
 // other failure fails the test.
 func runOracleServer(t require.TestingT, logger log.Logger, component string, args []string, dir string) bool {
-	cmd := exec.Command(args[0], args[1:]...)
+	exePath, err := exec.LookPath(args[0])
+	require.NoError(t, err, "resolve %s executable", component)
+	exePath, err = filepath.Abs(exePath)
+	require.NoError(t, err, "make %s executable path absolute", component)
+
+	contextualT, ok := t.(interface{ Ctx() context.Context })
+	require.True(t, ok, "%s test handle must provide a context", component)
+	if !ok {
+		return false
+	}
+	cmd := exec.CommandContext(contextualT.Ctx(), exePath, args[1:]...)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "KONA_LOG_STDOUT_FORMAT=json", "NO_COLOR=1")
 

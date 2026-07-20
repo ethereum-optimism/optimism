@@ -777,6 +777,32 @@ jobs:
                   - "<< parameters.directory >>/target/<< parameters.profile
                     >>/rollup-boost"
 
+  # Build the SP1 super-range executor into a dedicated workspace artifact.
+  # Keeping its persisted copy out of rust/target prevents it from overlapping
+  # the broad kona-* layer persisted by concurrent full-workspace builds.
+  rust-build-sp1-super-range-executor:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: xlarge.gen2
+    steps:
+      - rust-build:
+          directory: rust
+          profile: release
+          features: all
+          package: kona-sp1-super-range-executor
+          binary: kona-sp1-super-range-executor
+          save_cache: false
+      - run:
+          name: Stage SP1 super-range executor
+          command: |
+            BIN_DIR=".circleci-cache/rust-binaries"
+            mkdir -p "$BIN_DIR"
+            cp rust/target/release/kona-sp1-super-range-executor "$BIN_DIR/"
+      - persist_to_workspace:
+          root: .
+          paths:
+            - ".circleci-cache/rust-binaries/kona-sp1-super-range-executor"
+
   # Build a single Rust binary from a vendored (non-submodule) directory.
   rust-build-vendored:
     docker:
@@ -1984,6 +2010,7 @@ jobs:
             echo "export RUST_BINARY_PATH_OP_RETH=$ROOT_DIR/rust/target/release/op-reth" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
+            echo "export KONA_SP1_SUPER_RANGE_NATIVE_EXECUTOR_PATH=$BIN_DIR/kona-sp1-super-range-executor" >> "$BASH_ENV"
       - run:
           name: Configure L2 stack
           command: |
@@ -2596,6 +2623,11 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
+      - rust-build-sp1-super-range-executor:
+          name: rust-sp1-super-range-executor
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
       - rust-build-vendored: &rust-build-op-rbuilder
           name: rust-build-op-rbuilder
           directory: rust/op-rbuilder
@@ -2627,6 +2659,7 @@ workflows:
       - rust-binaries-for-sysgo:
           requires:
             - rust-workspace-binaries
+            - rust-sp1-super-range-executor
             - rust-build-op-rbuilder
             - rust-build-rollup-boost
       - go-binaries-for-sysgo:
