@@ -20,6 +20,7 @@ type SingleChainInterop struct {
 	Log        log.Logger
 	T          devtest.T
 	timeTravel *clock.AdvancingClock
+	l1Proposer *dsl.EOA
 
 	SuperRoots    *dsl.Supernode
 	TestSequencer *dsl.TestSequencer
@@ -52,7 +53,7 @@ func (s *SingleChainInterop) L2Networks() []*dsl.L2Network {
 
 func (s *SingleChainInterop) DisputeGameFactory() *proofs.DisputeGameFactory {
 	s.T.Require().NotNil(s.SuperRoots, "supernode not configured for this preset")
-	return proofs.NewDisputeGameFactory(s.T, s.L1Network, s.L1EL.EthClient(), s.L2ChainA.DisputeGameFactoryProxyAddr(), nil, nil, s.SuperRoots, s.challengerConfig)
+	return proofs.NewDisputeGameFactory(s.T, s.L1Network, s.L1EL.EthClient(), s.L2ChainA.DisputeGameFactoryProxyAddr(), nil, nil, s.SuperRoots, s.l1Proposer, s.challengerConfig)
 }
 
 func (s *SingleChainInterop) AnchorStateRegistry(l2Chain *dsl.L2Network) *dsl.AnchorStateRegistry {
