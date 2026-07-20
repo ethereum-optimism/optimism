@@ -148,7 +148,7 @@ For challenger deployment, we recommend using Docker as it provides a consistent
     OP_CHALLENGER_PRIVATE_KEY=YOUR_ACTUAL_PRIVATE_KEY
 
     # L2 Configuration - Replace with your actual node endpoints  
-    OP_CHALLENGER_L2_ETH_RPC=http://op-geth:8545
+    OP_CHALLENGER_L2_ETH_RPC=http://op-reth:8545
     OP_CHALLENGER_ROLLUP_RPC=http://op-node:8547
 
     # OP Stack challenger configuration (optional - defaults provided)
@@ -174,7 +174,7 @@ For challenger deployment, we recommend using Docker as it provides a consistent
     
     services:
       challenger:
-        image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:v1.5.1
+        image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:v1.9.3
         user: "1000"
         volumes:
           - ./challenger-data:/data
@@ -221,7 +221,7 @@ For challenger deployment, we recommend using Docker as it provides a consistent
 
     [OP Stack releases page](https://github.com/ethereum-optimism/optimism/releases)
 
-    Look for the latest `op-challenger/v*` release. The challenger version used in this guide (op-challenger/v1.5.0) is a verified stable version.
+    Look for the latest `op-challenger/v*` release. This guide uses op-challenger/v1.9.3, the latest release at the time of writing.
 
     Always check the release notes to ensure you're using compatible versions with your chain's deployment.
 
@@ -237,7 +237,11 @@ For challenger deployment, we recommend using Docker as it provides a consistent
     cd optimism
 
     # Check out the latest release of op-challenger
-    git checkout op-challenger/v1.5.0
+    git checkout op-challenger/v1.9.3
+
+    # Generate the embedded superchain config bundle (initializes the
+    # superchain-registry submodule; op-challenger embeds this file at compile time)
+    just build-superchain-go
 
     # Install dependencies and build
     just op-challenger
@@ -311,7 +315,7 @@ For challenger deployment, we recommend using Docker as it provides a consistent
 
     **L2 network access:**
 
-    *   L2 RPC URL: Your op-geth archive node endpoint
+    *   L2 RPC URL: Your op-reth node endpoint (op-reth runs as an archive node by default)
     *   Rollup RPC URL: Your op-node endpoint with historical data
 
     **Challenger wallet:**
