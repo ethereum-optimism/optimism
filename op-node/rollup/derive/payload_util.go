@@ -4,14 +4,29 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/ethereum/go-ethereum/core/types"
-
 	"github.com/ethereum-optimism/optimism/op-core/eip1559"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
+
+// payloadL1InfoDeposit decodes the L1 info from a payload's first transaction,
+// which must be the L1-info deposit.
+func payloadL1InfoDeposit(rollupCfg *rollup.Config, payload *eth.ExecutionPayload) (*L1BlockInfo, error) {
+	if len(payload.Transactions) == 0 {
+		return nil, fmt.Errorf("l2 block is missing L1 info deposit tx, block hash: %s", payload.BlockHash)
+	}
+	deposit, err := optypes.UnmarshalDepositTx(payload.Transactions[0])
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode L1 info deposit tx from L2 block: %w", err)
+	}
+	info, err := L1BlockInfoFromBytes(rollupCfg, uint64(payload.Timestamp), deposit.Data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse L1 info deposit tx from L2 block: %w", err)
+	}
+	return info, nil
+}
 
 // PayloadToBlockRef extracts the essential L2BlockRef information from an execution payload,
 // falling back to genesis information if necessary.
@@ -26,19 +41,9 @@ func PayloadToBlockRef(rollupCfg *rollup.Config, payload *eth.ExecutionPayload) 
 		l1Origin = genesis.L1
 		sequenceNumber = 0
 	} else {
-		if len(payload.Transactions) == 0 {
-			return eth.L2BlockRef{}, fmt.Errorf("l2 block is missing L1 info deposit tx, block hash: %s", payload.BlockHash)
-		}
-		var tx types.Transaction
-		if err := tx.UnmarshalBinary(payload.Transactions[0]); err != nil {
-			return eth.L2BlockRef{}, fmt.Errorf("failed to decode first tx to read l1 info from: %w", err)
-		}
-		if tx.Type() != optypes.DepositTxType {
-			return eth.L2BlockRef{}, fmt.Errorf("first payload tx has unexpected tx type: %d", tx.Type())
-		}
-		info, err := L1BlockInfoFromBytes(rollupCfg, uint64(payload.Timestamp), tx.Data())
+		info, err := payloadL1InfoDeposit(rollupCfg, payload)
 		if err != nil {
-			return eth.L2BlockRef{}, fmt.Errorf("failed to parse L1 info deposit tx from L2 block: %w", err)
+			return eth.L2BlockRef{}, err
 		}
 		l1Origin = eth.BlockID{Hash: info.BlockHash, Number: info.Number}
 		sequenceNumber = info.SequenceNumber
@@ -87,19 +92,9 @@ func PayloadToSystemConfig(rollupCfg *rollup.Config, payload *eth.ExecutionPaylo
 		return rollupCfg.Genesis.SystemConfig, nil
 	}
 
-	if len(payload.Transactions) == 0 {
-		return eth.SystemConfig{}, fmt.Errorf("l2 block is missing L1 info deposit tx, block hash: %s", payload.BlockHash)
-	}
-	var tx types.Transaction
-	if err := tx.UnmarshalBinary(payload.Transactions[0]); err != nil {
-		return eth.SystemConfig{}, fmt.Errorf("failed to decode first tx to read l1 info from: %w", err)
-	}
-	if tx.Type() != optypes.DepositTxType {
-		return eth.SystemConfig{}, fmt.Errorf("first payload tx has unexpected tx type: %d", tx.Type())
-	}
-	info, err := L1BlockInfoFromBytes(rollupCfg, uint64(payload.Timestamp), tx.Data())
+	info, err := payloadL1InfoDeposit(rollupCfg, payload)
 	if err != nil {
-		return eth.SystemConfig{}, fmt.Errorf("failed to parse L1 info deposit tx from L2 block: %w", err)
+		return eth.SystemConfig{}, err
 	}
 	if isEcotoneButNotFirstBlock(rollupCfg, uint64(payload.Timestamp)) {
 		// Translate Ecotone values back into encoded scalar if needed.

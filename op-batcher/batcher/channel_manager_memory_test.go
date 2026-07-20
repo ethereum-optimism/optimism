@@ -109,7 +109,7 @@ func runMemoryTest(t *testing.T, batchType uint, compressorType string, compress
 			block = newMiniL2BlockWithChainIDNumberParentAndL1Information(5, defaultTestRollupConfig.L2ChainID, big.NewInt(int64(i)), prevBlock.Hash(), 100, 0)
 		}
 
-		require.NoError(t, m.AddL2Block(block))
+		require.NoError(t, m.AddL2Block(mustPayloadFromGeth(block)))
 		prevBlock = block
 
 		// Periodically process blocks and create channels
@@ -174,7 +174,7 @@ func runMemoryTest(t *testing.T, batchType uint, compressorType string, compress
 	require.Greater(t, len(m.blocks), 1, "Expected multiple blocks to be queued")
 	if len(m.blocks) > 1 {
 		for i := 1; i < len(m.blocks); i++ {
-			require.Equal(t, m.blocks[i-1].Hash(), m.blocks[i].ParentHash(),
+			require.Equal(t, m.blocks[i-1].Hash(), m.blocks[i].ParentHash,
 				"Block %d should have parent hash matching block %d", i, i-1)
 		}
 	}
