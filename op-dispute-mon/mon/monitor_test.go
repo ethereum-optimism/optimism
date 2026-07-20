@@ -71,7 +71,7 @@ func TestMonitor_StartMonitoring(t *testing.T) {
 		require.Eventually(t, func() bool {
 			return forecaster.Calls() >= 2
 		}, time.Second, 50*time.Millisecond)
-		require.NoError(t, monitor.StopMonitoring(context.Background()))
+		require.NoError(t, monitor.StopMonitoring(stopContext(t)))
 		require.Equal(t, len(factory.games), forecaster.Calls()) // Each game's status is recorded twice
 	})
 
@@ -83,7 +83,7 @@ func TestMonitor_StartMonitoring(t *testing.T) {
 		require.Eventually(t, func() bool {
 			return factory.Calls() > 0
 		}, time.Second, 50*time.Millisecond)
-		require.NoError(t, monitor.StopMonitoring(context.Background()))
+		require.NoError(t, monitor.StopMonitoring(stopContext(t)))
 		require.Equal(t, 0, forecaster.Calls())
 	})
 
@@ -118,7 +118,7 @@ func TestMonitor_StartMonitoring(t *testing.T) {
 
 			stopReturned := make(chan error, 1)
 			go func() {
-				stopReturned <- monitor.StopMonitoring(context.Background())
+				stopReturned <- monitor.StopMonitoring(stopContext(t))
 			}()
 			synctest.Wait()
 
@@ -146,7 +146,7 @@ func TestMonitor_StartMonitoring(t *testing.T) {
 			monitor.clock.(*clock.AdvancingClock).Stop()
 			stopReturned := make(chan error, 1)
 			go func() {
-				stopReturned <- monitor.StopMonitoring(context.Background())
+				stopReturned <- monitor.StopMonitoring(stopContext(t))
 			}()
 			synctest.Wait()
 			select {
@@ -155,7 +155,7 @@ func TestMonitor_StartMonitoring(t *testing.T) {
 			default:
 				t.Fatal("monitor stop blocked before monitoring started")
 			}
-			require.NoError(t, monitor.StopMonitoring(context.Background()), "second stop should be idempotent")
+			require.NoError(t, monitor.StopMonitoring(stopContext(t)), "second stop should be idempotent")
 		})
 	})
 
@@ -189,9 +189,16 @@ func TestMonitor_StartMonitoring(t *testing.T) {
 
 			close(release)
 			synctest.Wait()
-			require.NoError(t, monitor.StopMonitoring(context.Background()))
+			require.NoError(t, monitor.StopMonitoring(stopContext(t)))
 		})
 	})
+}
+
+func stopContext(t *testing.T) context.Context {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	t.Cleanup(cancel)
+	return ctx
 }
 
 func newEnrichedGameData(proxy common.Address, timestamp uint64) *monTypes.EnrichedGameData {
@@ -752,7 +759,7 @@ func TestServiceStopStopsMonitoring(t *testing.T) {
 	service := &Service{logger: monitor.logger, monitor: monitor}
 
 	require.NoError(t, service.Start(context.Background()))
-	require.NoError(t, service.Stop(context.Background()))
+	require.NoError(t, service.Stop(stopContext(t)))
 
 	select {
 	case <-monitor.done:
