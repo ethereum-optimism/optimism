@@ -11,12 +11,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
-// IncludedTx pairs a confirmed transaction receipt with the L2 block it landed in.
-type IncludedTx struct {
-	Receipt  *types.Receipt
-	BlockNum uint64
-}
-
 // AddrPtr returns a pointer to addr, for the many txplan options that take *common.Address.
 func AddrPtr(addr common.Address) *common.Address {
 	return &addr
@@ -58,7 +52,7 @@ func MustFindRepeatedSlotBlock(
 	sys *RethSystem,
 	minUserTxs int,
 	maxAttempts int,
-) (*sdmpkg.RPCBlock, []IncludedTx, uint64) {
+) (*sdmpkg.RPCBlock, []*types.Receipt, uint64) {
 	l := t.Logger()
 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
@@ -90,19 +84,19 @@ func MustFindRepeatedSlotBlock(
 			))
 		}
 
-		blockTxs := make(map[uint64][]IncludedTx)
+		blockTxs := make(map[uint64][]*types.Receipt)
 		for i, ptx := range plannedTxs {
 			receipt, err := ptx.Included.Eval(t.Ctx())
 			t.Require().NoError(err, "attempt %d tx %d: failed to get receipt", attempt, i)
 			t.Require().Equal(types.ReceiptStatusSuccessful, receipt.Status,
 				"attempt %d tx %d: must succeed", attempt, i)
 
-			itx := IncludedTx{Receipt: receipt, BlockNum: bigs.Uint64Strict(receipt.BlockNumber)}
-			blockTxs[itx.BlockNum] = append(blockTxs[itx.BlockNum], itx)
+			blockNum := bigs.Uint64Strict(receipt.BlockNumber)
+			blockTxs[blockNum] = append(blockTxs[blockNum], receipt)
 		}
 
 		var targetBlockNum uint64
-		var targetIncluded []IncludedTx
+		var targetIncluded []*types.Receipt
 		for blockNum, txs := range blockTxs {
 			if len(txs) > len(targetIncluded) {
 				targetBlockNum = blockNum

@@ -159,6 +159,34 @@ impl<DB: Database, I, P, Tx, R: Default> OpEvm<DB, I, P, Tx, R> {
     }
 }
 
+impl<DB: Database, I, Tx, R: Default> OpEvm<DB, I, PrecompilesMap, Tx, R> {
+    /// Creates an OP EVM with the standard OP context and precompiles.
+    ///
+    /// This is shared by factories that differ only in their fixed post-exec refund inspector.
+    /// The `inspect` argument controls whether `inspector` is invoked during execution.
+    pub fn from_env(
+        db: DB,
+        input: EvmEnv<OpSpecId, BlockEnv>,
+        inspector: I,
+        inspect: bool,
+    ) -> Self {
+        let spec_id = input.cfg_env.spec;
+        let inner = Context::mainnet()
+            .with_tx(OpTx(OpTransaction::builder().build_fill()))
+            .with_cfg(CfgEnv::new_with_spec(OpSpecId::BEDROCK))
+            .with_chain(L1BlockInfo::default())
+            .with_db(db)
+            .with_block(input.block_env)
+            .with_cfg(input.cfg_env)
+            .build_op_with_inspector(inspector)
+            .with_precompiles(PrecompilesMap::from_static(
+                OpPrecompiles::new_with_spec(spec_id).precompiles(),
+            ));
+
+        Self::new(inner, inspect)
+    }
+}
+
 impl<DB: Database, I, P, Tx, R> OpEvm<DB, I, P, Tx, R>
 where
     R: post_exec::PostExecRefundInspector,
@@ -406,20 +434,7 @@ where
         db: DB,
         input: EvmEnv<OpSpecId, BlockEnv>,
     ) -> Self::Evm<DB, NoOpInspector> {
-        let spec_id = input.cfg_env.spec;
-        let inner = Context::mainnet()
-            .with_tx(OpTx(OpTransaction::builder().build_fill()))
-            .with_cfg(CfgEnv::new_with_spec(OpSpecId::BEDROCK))
-            .with_chain(L1BlockInfo::default())
-            .with_db(db)
-            .with_block(input.block_env)
-            .with_cfg(input.cfg_env)
-            .build_op_with_inspector(NoOpInspector {})
-            .with_precompiles(PrecompilesMap::from_static(
-                OpPrecompiles::new_with_spec(spec_id).precompiles(),
-            ));
-
-        OpEvm::new(inner, false)
+        OpEvm::from_env(db, input, NoOpInspector {}, false)
     }
 
     fn create_evm_with_inspector<DB: Database, I: Inspector<Self::Context<DB>>>(
@@ -428,20 +443,7 @@ where
         input: EvmEnv<OpSpecId, BlockEnv>,
         inspector: I,
     ) -> Self::Evm<DB, I> {
-        let spec_id = input.cfg_env.spec;
-        let inner = Context::mainnet()
-            .with_tx(OpTx(OpTransaction::builder().build_fill()))
-            .with_cfg(CfgEnv::new_with_spec(OpSpecId::BEDROCK))
-            .with_chain(L1BlockInfo::default())
-            .with_db(db)
-            .with_block(input.block_env)
-            .with_cfg(input.cfg_env)
-            .build_op_with_inspector(inspector)
-            .with_precompiles(PrecompilesMap::from_static(
-                OpPrecompiles::new_with_spec(spec_id).precompiles(),
-            ));
-
-        OpEvm::new(inner, true)
+        OpEvm::from_env(db, input, inspector, true)
     }
 }
 

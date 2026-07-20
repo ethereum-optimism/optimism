@@ -27,7 +27,7 @@ use super::PostExecTxContext;
 pub trait PostExecRefundInspector {
     /// Opaque block-scoped carry-forward state, threaded across flashblock executors and across a
     /// declined candidate's rollback. The monorepo round-trips it without inspecting its shape.
-    type Snapshot: Clone + Default;
+    type Snapshot: Clone;
 
     /// Begin observing the next transaction.
     fn begin_tx(&mut self, ctx: PostExecTxContext);

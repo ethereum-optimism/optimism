@@ -26,7 +26,7 @@ pub trait PostExecEvm: alloy_evm::Evm {
     /// Opaque block-scoped carry-forward state of the installed refund inspector. The monorepo
     /// round-trips it across flashblock executors without inspecting its shape (it is
     /// [`WarmingState`] for the default [`SDMWarmingInspector`], `()` for [`NoopRefundInspector`]).
-    type Snapshot: Clone + Default;
+    type Snapshot: Clone;
 
     /// Begin post-exec tracking for the next transaction.
     fn begin_post_exec_tx(&mut self, ctx: PostExecTxContext);
@@ -50,7 +50,7 @@ pub trait PostExecEvm: alloy_evm::Evm {
 pub trait PostExecEvmFactoryHooks: EvmFactory {
     /// Opaque block-scoped carry-forward state of the refund inspector this factory fixes. Matches
     /// [`PostExecEvm::Snapshot`] of the EVMs the factory produces.
-    type Snapshot: Clone + Default;
+    type Snapshot: Clone;
 
     /// Begin post-exec tracking for the next transaction.
     fn begin_post_exec_tx<DB, I>(evm: &mut Self::Evm<DB, I>, ctx: PostExecTxContext)
@@ -260,7 +260,7 @@ where
 pub trait PostExecExecutorExt {
     /// Opaque block-scoped carry-forward state of the underlying EVM's refund inspector. Matches
     /// [`PostExecEvm::Snapshot`] of the EVM the executor drives.
-    type Snapshot: Clone + Default;
+    type Snapshot: Clone;
 
     /// Returns the accumulated post-exec entries for the current block without clearing them.
     fn post_exec_entries(&self) -> &[SDMGasEntry];

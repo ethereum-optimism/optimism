@@ -30,7 +30,7 @@ pub trait ConfigurePostExecEvm: ConfigureEvm {
     /// Opaque block-scoped carry-forward state of the refund inspector the produced executors run.
     /// Matches [`PostExecExecutorExt::Snapshot`] of those executors (it is [`WarmingState`] for the
     /// default [`SDMWarmingInspector`](alloy_op_evm::post_exec::SDMWarmingInspector)).
-    type Snapshot: Clone + Default;
+    type Snapshot: Clone;
 
     /// Returns a block executor for the given block with explicit post-exec entry access.
     ///

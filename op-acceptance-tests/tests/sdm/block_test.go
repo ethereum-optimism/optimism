@@ -26,10 +26,10 @@ func TestSDMDisabledNoRefunds(gt *testing.T) {
 	postExecTx, _ := sdmpkg.FindPostExecTransaction(block)
 	t.Require().Nil(postExecTx, "SDM-disabled sequencer must not include a post-exec tx")
 
-	for _, itx := range included {
-		refund, present := getOPGasRefund(t, sys.L2EL, itx.Receipt.TxHash)
+	for _, receipt := range included {
+		refund, present := getOPGasRefund(t, sys.L2EL, receipt.TxHash)
 		t.Require().False(present, "legacy block %d tx %s must not expose opGasRefund",
-			targetBlockNum, itx.Receipt.TxHash)
+			targetBlockNum, receipt.TxHash)
 		t.Require().Zero(refund, "absent opGasRefund must decode to zero")
 	}
 }
@@ -52,9 +52,9 @@ func TestSDMEnabledPayloadAndReplayMatch(gt *testing.T) {
 
 	receiptByHash := make(map[common.Hash]*types.Receipt, len(included))
 	hasNonZeroReceiptRefund := false
-	for _, itx := range included {
-		receiptByHash[itx.Receipt.TxHash] = itx.Receipt
-		refund, _ := getOPGasRefund(t, sys.L2EL, itx.Receipt.TxHash)
+	for _, receipt := range included {
+		receiptByHash[receipt.TxHash] = receipt
+		refund, _ := getOPGasRefund(t, sys.L2EL, receipt.TxHash)
 		if refund > 0 {
 			hasNonZeroReceiptRefund = true
 		}
