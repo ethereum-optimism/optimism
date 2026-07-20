@@ -39,59 +39,40 @@ Before configuring your challenger, complete the following steps:
 
 <Expandable title="Generate absolute prestate (Required)">
 
-The challenger needs the absolute prestate to participate in dispute games. Here's how to generate it:
+The challenger needs the absolute prestate to participate in dispute games. The prestate is the on-chain commitment to a specific build of `kona-client`, the maintained fault proof program. (`op-program`, which previously filled this role, has reached end-of-support; see [End of Support for op-geth and op-program](/notices/op-geth-deprecation).) Here's how to generate it:
 
 1.  **Clone and checkout the correct version**:
     ```bash
     git clone https://github.com/ethereum-optimism/optimism.git
     cd optimism
-    git checkout op-program/v1.6.1  # Use the latest stable version
-    git submodule update --init --recursive
+    git checkout kona-node/v1.6.1  # Use the latest release
     ```
 
-2.  **Copy your chain configuration**:
+2.  **Stage your chain configuration**:
+
+    Because your chain is not in the public Superchain Registry, the prestate build must embed your chain's configuration. Create the two staging files (`chainList.json` and `configs.json`) from your `rollup.json`, L2 genesis, and `op-deployer` state by following [Generating a custom kona-client absolute prestate](/chain-operators/tutorials/kona-custom-prestate), then point the build at them:
+
     ```bash
     # Assuming you're in rollup/challenger/optimism directory
-    # Replace <YOUR-CHAIN-ID> with your actual L2 chain ID
-    cp ../deployer/.deployer/rollup.json op-program/chainconfig/configs/<YOUR-CHAIN-ID>-rollup.json
-    cp ../deployer/.deployer/genesis.json op-program/chainconfig/configs/<YOUR-CHAIN-ID>-genesis.json
-
-    # Your directory structure should look like:
-    # rollup/
-    # ├── deployer/
-    # │   └── .deployer/
-    # │       ├── rollup.json    # Source file
-    # │       └── genesis.json   # Source file
-    # └── optimism/             # You are here
-    #     └── op-program/
-    #         └── chainconfig/
-    #             └── configs/
-    #                 ├── <YOUR-CHAIN-ID>-rollup.json   # Destination
-    #                 └── <YOUR-CHAIN-ID>-genesis.json  # Destination
+    export KONA_CUSTOM_CONFIGS_DIR="$PWD/rust/kona/crates/protocol/registry/etc/custom-configs/<YOUR-CHAIN-NAME>"
     ```
 
 3.  **Generate the prestate**:
     ```bash
-    make reproducible-prestate
+    just reproducible-prestate-kona
+    jq -r .pre rust/kona/prestate-artifacts-cannon/prestate-proof.json
     ```
-    You'll see output like:
-    ```bash
-    -------------------- Production Prestates --------------------
-    Cannon64 Absolute prestate hash: 
-    0x03eb07101fbdeaf3f04d9fb76526362c1eea2824e4c6e970bdb19675b72e4fc8
-    ```
+    The build runs in Docker and writes artifacts to `rust/kona/prestate-artifacts-cannon/`, including a preimage file named by its hash (`0x<PRESTATE_HASH>.bin.gz`). The hash printed by the `jq` command is your chain's absolute prestate.
 
-4.  **Prepare the preimage file**:
+4.  **Verify your chain is embedded in the prestate**:
     ```bash
-    cd op-program/bin
-    mv prestate-mt64.bin.gz 0x[CANNON64_PRESTATE_HASH].bin.gz
+    gunzip -c rust/kona/prestate-artifacts-cannon/prestate.bin.gz | strings | grep "<YOUR-CHAIN-NAME>"
     ```
-    Replace `[CANNON64_PRESTATE_HASH]` with the actual hash from step 3.
+    Zero matches means the custom configuration was not merged (the build silently produces the standard prestate instead); see the [custom prestate tutorial](/chain-operators/tutorials/kona-custom-prestate) for troubleshooting.
 
 <Info>
-  *   Use the `Cannon64` hash for production
-  *   Keep this file accessible - you'll need it for the challenger setup
-  *   For Superchain registry chains, you can find official prestates in the [registry](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml)
+  *   Keep the `0x<PRESTATE_HASH>.bin.gz` file accessible - you'll need it for the challenger setup
+  *   For Superchain registry chains, you can find official `cannon64-kona` prestates in the [registry](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml)
 </Info>
 </Expandable>
 </Step>
@@ -104,7 +85,7 @@ The challenger needs the absolute prestate to participate in dispute games. Here
 
 <Step title="Prepare configuration files">
 
-*   `prestate.json` - The absolute prestate file generated in step 1
+*   `0x<PRESTATE_HASH>.bin.gz` - The absolute prestate preimage file generated in step 1
 *   `rollup.json` - Rollup configuration file from the `op-deployer` guide
 </Step>
 </Steps>
@@ -118,7 +99,7 @@ For challenger deployment, we recommend using Docker as it provides a consistent
     <Tab title="Use docker">
     ### Docker Setup
 
-    The Docker setup provides a containerized environment for running the challenger. This method uses the official Docker image that includes embedded `op-program` server and Cannon executable.
+    The Docker setup provides a containerized environment for running the challenger. This method uses the official Docker image that includes the embedded `kona` server and Cannon executable.
 
     <Steps>
     <Step title="Create challenger directory">
@@ -153,12 +134,12 @@ For challenger deployment, we recommend using Docker as it provides a consistent
 
     # OP Stack challenger configuration (optional - defaults provided)
     OP_CHALLENGER_GAME_FACTORY_ADDRESS=YOUR_GAME_FACTORY_ADDRESS
-    OP_CHALLENGER_CANNON_L2_GENESIS=/workspace/genesis.json
-    OP_CHALLENGER_CANNON_ROLLUP_CONFIG=/workspace/rollup.json
+    OP_CHALLENGER_CANNON_KONA_L2_GENESIS=/workspace/genesis.json
+    OP_CHALLENGER_CANNON_KONA_ROLLUP_CONFIG=/workspace/rollup.json
 
 
-    # Prestate configuration - Replace with the file from 'make reproducible-prestate'
-    OP_CHALLENGER_CANNON_PRESTATE=/workspace/${PRESTATE_HASH}.bin.gz
+    # Prestate configuration - Replace with the file from 'just reproducible-prestate-kona'
+    OP_CHALLENGER_CANNON_KONA_PRESTATE=/workspace/${PRESTATE_HASH}.bin.gz
     EOF
     ```
 
@@ -168,7 +149,7 @@ For challenger deployment, we recommend using Docker as it provides a consistent
     <Step title="Set up Docker Compose">
 
     Create a `docker-compose.yml` file that defines the challenger service. The file mounts several important files:
-    *   `prestate-proof-mt64.json` and `${PRESTATE_HASH}.bin.gz`: Prestate files required for dispute games (the PRESTATE_HASH comes from running `make reproducible-prestate`), replace `PRESTATE_HASH` with the actual hash
+    *   `prestate-proof.json` and `${PRESTATE_HASH}.bin.gz`: Prestate files required for dispute games (the PRESTATE_HASH comes from running `just reproducible-prestate-kona`), replace `PRESTATE_HASH` with the actual hash
 
     ```yaml
     
@@ -180,11 +161,11 @@ For challenger deployment, we recommend using Docker as it provides a consistent
           - ./challenger-data:/data
           - ./rollup.json:/workspace/rollup.json:ro
           - ./genesis-l2.json:/workspace/genesis-l2.json:ro
-          - ./prestate-proof-mt64.json:/workspace/prestate-proof.json:ro
+          - ./prestate-proof.json:/workspace/prestate-proof.json:ro
           - ./${PRESTATE_HASH}.bin.gz:/workspace/${PRESTATE_HASH}.bin.gz:ro
         command: >
           op-challenger run-trace
-          --trace-type=cannon
+          --trace-type=cannon-kona
           --datadir=/data
           --log.level=info
           --log.format=json
@@ -246,7 +227,23 @@ For challenger deployment, we recommend using Docker as it provides a consistent
     # Install dependencies and build
     just op-challenger
 
-    # Binary will be available at ./op-challenger/bin/op-challenger
+    # Build the Cannon VM binary used to run dispute traces
+    just cannon
+
+    # Binaries will be available at ./op-challenger/bin/op-challenger
+    # and ./cannon/bin/cannon
+    ```
+
+    **Build kona-host**
+
+    The challenger also needs `kona-host`, the pre-image oracle server for the `cannon-kona` game type. Build it from the same release tag you used for the absolute prestate (see the prestate step in the prerequisites), so the server matches the `kona-client` build committed on chain:
+
+    ```bash
+    # In the checkout you built the prestate from (kona-node/v1.6.1)
+    cd rust
+    cargo build --release --bin kona-host
+
+    # Binary will be available at ./rust/target/release/kona-host
     ```
 
     ### Verify installation
@@ -263,8 +260,8 @@ For challenger deployment, we recommend using Docker as it provides a consistent
     ## Configuration setup
 
         <Info>
-          The following steps require a Cannon binary and the op-program server. 
-          Ensure these binaries are available at the paths you configure (`CANNON_BIN` and `CANNON_SERVER`). 
+          The following steps require a Cannon binary and the `kona-host` pre-image server. 
+          Ensure these binaries are available at the paths you configure (`CANNON_BIN` and `CANNON_KONA_SERVER`). 
         </Info>
 
     <Steps>
@@ -301,6 +298,9 @@ For challenger deployment, we recommend using Docker as it provides a consistent
     # Adjust paths based on your deployment setup
     cp /path/to/your/rollup.json .
     cp /path/to/your/genesis-l2.json .
+
+    # Copy the prestate preimage file generated in the prerequisites
+    cp /path/to/prestate-artifacts-cannon/0x<PRESTATE_HASH>.bin.gz .
     ```
     </Step>
 
@@ -347,24 +347,22 @@ For challenger deployment, we recommend using Docker as it provides a consistent
     NETWORK=op-sepolia
     GAME_FACTORY_ADDRESS=YOUR_GAME_FACTORY_ADDRESS
 
-    # Trace configuration
-    TRACE_TYPE=permissioned,cannon
+    # Trace configuration (cannon-kona is the maintained fault-proof game type)
+    TRACE_TYPE=cannon-kona
 
     # Data directory
     DATADIR=./challenger-data
 
     # Configuration files from your deployment
-    CANNON_ROLLUP_CONFIG=./rollup.json
-    CANNON_L2_GENESIS=./genesis-l2.json
+    CANNON_KONA_ROLLUP_CONFIG=./rollup.json
+    CANNON_KONA_L2_GENESIS=./genesis-l2.json
 
-    # Cannon configuration
-    # Prestate file - Generate this using the absolute prestate guide
-    # Run 'make reproducible-prestate' in the optimism repo to generate it
-    # The Cannon binary is a specific hash file that matches your deployment
-    CANNON_BIN=./0x<prestate_hash>.bin.gz
-    # The op-program server binary is built when you run 'just op-challenger'
-    CANNON_SERVER=../../optimism/op-program/bin/op-program
-    CANNON_PRESTATE=../../optimism/op-program/bin/prestate.json
+    # Cannon VM binary (built with 'just cannon' in the op-challenger checkout)
+    CANNON_BIN=../../optimism/cannon/bin/cannon
+    # kona-host pre-image server - built from the same release tag as your prestate
+    CANNON_KONA_SERVER=/path/to/rust/target/release/kona-host
+    # Prestate file - generated with 'just reproducible-prestate-kona' in the prerequisites
+    CANNON_KONA_PRESTATE=./0x<PRESTATE_HASH>.bin.gz
 
     EOF
     ```
@@ -390,7 +388,7 @@ For challenger deployment, we recommend using Docker as it provides a consistent
 
     # Path to the challenger binary
     ../../optimism/op-challenger/bin/op-challenger \
-      --trace-type permissioned,cannon \
+      --trace-type cannon-kona \
       --l1-eth-rpc=$L1_RPC_URL \
       --l2-eth-rpc=$L2_RPC_URL \
       --l1-beacon=$L1_BEACON \
@@ -398,10 +396,10 @@ For challenger deployment, we recommend using Docker as it provides a consistent
       --game-factory-address $GAME_FACTORY_ADDRESS \
       --datadir=$DATADIR \
       --cannon-bin=$CANNON_BIN \
-      --cannon-rollup-config=$CANNON_ROLLUP_CONFIG \
-      --cannon-l2-genesis=$CANNON_L2_GENESIS \
-      --cannon-server=$CANNON_SERVER \
-      --cannon-prestate=$CANNON_PRESTATE \
+      --cannon-kona-rollup-config=$CANNON_KONA_ROLLUP_CONFIG \
+      --cannon-kona-l2-genesis=$CANNON_KONA_L2_GENESIS \
+      --cannon-kona-server=$CANNON_KONA_SERVER \
+      --cannon-kona-prestate=$CANNON_KONA_PRESTATE \
       --private-key="$PRIVATE_KEY" 
     ```
     ### Start the challenger
