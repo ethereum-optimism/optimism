@@ -21,6 +21,8 @@ ENV BUILD_PROFILE=$BUILD_PROFILE
 ARG RUSTFLAGS=""
 ENV RUSTFLAGS="$RUSTFLAGS"
 
+ENV TEST_VAR="spekenck"
+
 # Allow cook to fail on patched crates (op-alloy-network) whose crates.io
 # version conflicts with alloy 1.8.  All other dependencies are still cached.
 # The real build below uses the workspace [patch.crates-io] sources.
