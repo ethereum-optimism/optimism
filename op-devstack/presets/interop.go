@@ -55,6 +55,10 @@ func (s *SingleChainInterop) DisputeGameFactory() *proofs.DisputeGameFactory {
 	return proofs.NewDisputeGameFactory(s.T, s.L1Network, s.L1EL.EthClient(), s.L2ChainA.DisputeGameFactoryProxyAddr(), nil, nil, s.SuperRoots, s.challengerConfig)
 }
 
+func (s *SingleChainInterop) AnchorStateRegistry(l2Chain *dsl.L2Network) *dsl.AnchorStateRegistry {
+	return dsl.NewAnchorStateRegistry(s.T, l2Chain, s.L1EL)
+}
+
 func (s *SingleChainInterop) AdvanceTime(amount time.Duration) {
 	s.T.Require().NotNil(s.timeTravel, "attempting to advance time on incompatible system")
 	s.timeTravel.AdvanceTime(amount)

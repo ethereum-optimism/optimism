@@ -15,6 +15,7 @@ import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -24,6 +25,26 @@ type CloseFunc func()
 type Registry interface {
 	RegisterGameType(gameType gameTypes.GameType, creator scheduler.PlayerCreator)
 	RegisterBondContract(gameType gameTypes.GameType, creator claims.BondContractCreator)
+}
+
+func RegisterBondContracts(ctx context.Context, m metrics.Metricer, registry Registry, caller *batching.MultiCaller) {
+	creator := func(game gameTypes.GameMetadata) (claims.BondContract, error) {
+		return contracts.NewFaultDisputeGameContract(ctx, m, game.Proxy, caller)
+	}
+	for _, gameType := range []gameTypes.GameType{
+		gameTypes.AlphabetGameType,
+		gameTypes.CannonGameType,
+		gameTypes.CannonKonaGameType,
+		gameTypes.PermissionedGameType,
+		gameTypes.FastGameType,
+		gameTypes.SuperCannonKonaGameType,
+	} {
+		registry.RegisterBondContract(gameType, creator)
+	}
+	registry.RegisterBondContract(gameTypes.SuperPermissionedGameType,
+		func(game gameTypes.GameMetadata) (claims.BondContract, error) {
+			return contracts.NewSuperPermissionedDisputeGameContract(m, game.Proxy, caller), nil
+		})
 }
 
 type OracleRegistry interface {
