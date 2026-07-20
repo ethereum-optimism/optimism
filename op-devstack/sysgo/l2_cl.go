@@ -3,6 +3,7 @@ package sysgo
 import (
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -41,6 +42,10 @@ type L2CLLaunchContext struct {
 	RollupConfig *rollup.Config
 	FollowSource string
 	Config       L2CLConfig
+
+	// DependencySet is the interop dependency set shared by every chain of the
+	// launched world. It is nil outside interop-enabled worlds.
+	DependencySet depset.DependencySet
 
 	// RegisterMetrics may be nil when the preset does not collect component
 	// metrics. External clients may call it with ordinary Prometheus targets.
