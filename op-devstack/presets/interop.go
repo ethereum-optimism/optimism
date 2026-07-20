@@ -22,7 +22,7 @@ type SingleChainInterop struct {
 	timeTravel *clock.AdvancingClock
 	l1Proposer *dsl.EOA
 
-	SuperRoots    *dsl.Supernode
+	SuperRoots    dsl.SuperRootSource
 	TestSequencer *dsl.TestSequencer
 
 	L1Network *dsl.L1Network
@@ -91,6 +91,15 @@ func (s *SimpleInterop) proofValidationContext() (devtest.T, *dsl.L1ELNode, []*d
 	return s.T, s.L1EL, s.L2Networks()
 }
 
+// Supernode returns the op-supernode backing this system's super roots. SimpleInterop
+// is always supernode-backed, so this exposes supernode-only test controls (e.g.
+// interop pause/resume) that are not part of the SuperRootSource interface.
+func (s *SimpleInterop) Supernode() *dsl.Supernode {
+	sn, ok := s.SuperRoots.(*dsl.Supernode)
+	s.T.Require().True(ok, "SimpleInterop super roots are not supernode-backed")
+	return sn
+}
+
 func (s *SingleChainInterop) StandardBridge(l2Chain *dsl.L2Network) *dsl.StandardBridge {
 	return dsl.NewStandardBridge(s.T, l2Chain, s.L1EL)
 }
@@ -121,6 +130,15 @@ func NewSimpleInteropIsthmusSuper(t devtest.T, opts ...Option) *SimpleInterop {
 func NewSingleChainInteropIsthmusSuper(t devtest.T, opts ...Option) *SingleChainInterop {
 	presetCfg, _ := collectSupportedPresetConfig(t, "NewSingleChainInteropIsthmusSuper", opts, supernodeProofsPresetSupportedOptionKinds)
 	return singleChainInteropFromSupernodeProofsRuntime(t, sysgo.NewSingleChainSupernodeProofsRuntimeWithConfig(t, false, presetCfg))
+}
+
+// NewSingleChainInteropNoSupernode creates a fresh SingleChainInterop target whose
+// super roots are served by the single op-node's superroot_atTimestamp endpoint (no
+// op-supernode). The op-challenger plays super-cannon-kona games against this op-node
+// source. This exercises the "op-node as super root RPC" path end-to-end.
+func NewSingleChainInteropNoSupernode(t devtest.T, opts ...Option) *SingleChainInterop {
+	presetCfg, _ := collectSupportedPresetConfig(t, "NewSingleChainInteropNoSupernode", opts, 0)
+	return singleChainInteropNoSupernodeFromRuntime(t, sysgo.NewSingleChainInteropNoSupernodeSuperRootRuntimeWithConfig(t, presetCfg))
 }
 
 // NewSingleChainInteropSuperRootAtGenesis creates a fresh SingleChainInterop
@@ -165,17 +183,17 @@ func WithInteropNotAtGenesis() Option {
 	return WithRequireInteropNotAtGenesis()
 }
 
-// MinimalInteropNoSupervisor is like Minimal but with interop contracts deployed.
-// No supervisor is running - this tests interop contract deployment with local finality.
-type MinimalInteropNoSupervisor struct {
+// MinimalInteropNoSupernode is like Minimal but with interop contracts deployed.
+// No supernode is running - this tests interop contract deployment with local finality.
+type MinimalInteropNoSupernode struct {
 	Minimal
 }
 
-// NewMinimalInteropNoSupervisor creates a fresh MinimalInteropNoSupervisor target for the
+// NewMinimalInteropNoSupernode creates a fresh MinimalInteropNoSupernode target for the
 // current test.
-func NewMinimalInteropNoSupervisor(t devtest.T, opts ...Option) *MinimalInteropNoSupervisor {
-	_, _ = collectSupportedPresetConfig(t, "NewMinimalInteropNoSupervisor", opts, 0)
-	return &MinimalInteropNoSupervisor{
-		Minimal: *minimalFromRuntime(t, sysgo.NewMinimalInteropNoSupervisorRuntime(t)),
+func NewMinimalInteropNoSupernode(t devtest.T, opts ...Option) *MinimalInteropNoSupernode {
+	_, _ = collectSupportedPresetConfig(t, "NewMinimalInteropNoSupernode", opts, 0)
+	return &MinimalInteropNoSupernode{
+		Minimal: *minimalFromRuntime(t, sysgo.NewMinimalInteropNoSupernodeRuntime(t)),
 	}
 }
