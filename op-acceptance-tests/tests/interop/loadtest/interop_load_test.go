@@ -13,6 +13,7 @@ import (
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -25,7 +26,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 )
@@ -222,13 +222,13 @@ func newReliableEL(el txinclude.EL, blockTime time.Duration, observer txinclude.
 }
 
 // initMsgFromReceipt turns the first log in the receipt into an inititiating message.
-func initMsgFromReceipt(t devtest.T, l2 *L2, receipt *ethtypes.Receipt) (*messages.Message, error) {
+func initMsgFromReceipt(t devtest.T, l2 *L2, receipt *optypes.Receipt) (*messages.Message, error) {
 	ref, err := l2.EL.Escape().EthClient().BlockRefByHash(t.Ctx(), receipt.BlockHash)
 	if err != nil {
 		return nil, fmt.Errorf("get init msg block ref by hash: %w", err)
 	}
 	out := new(txintent.InteropOutput)
-	if err := out.FromReceipt(t.Ctx(), receipt, ref, l2.EL.ChainID()); err != nil {
+	if err := out.FromReceipt(t.Ctx(), &receipt.Receipt, ref, l2.EL.ChainID()); err != nil {
 		return nil, fmt.Errorf("get init msg from receipt: %w", err)
 	}
 	t.Require().NotEmpty(out.Entries)

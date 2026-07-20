@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -119,7 +120,7 @@ func TestAltDADataSource(t *testing.T) {
 		l1Refs = append(l1Refs, ref)
 		logger.Info("new l1 block", "ref", ref)
 		// called for each l1 block to sync challenges
-		l1F.ExpectFetchReceipts(ref.Hash, nil, types.Receipts{}, nil)
+		l1F.ExpectFetchReceipts(ref.Hash, nil, optypes.Receipts{}, nil)
 
 		// pick a random number of commitments to include in the l1 block
 		c := rng.Intn(4)
@@ -207,7 +208,7 @@ func TestAltDADataSource(t *testing.T) {
 			logger.Info("re deriving block", "ref", ref, "i", i)
 
 			if i == len(l1Refs)-1 {
-				l1F.ExpectFetchReceipts(ref.Hash, nil, types.Receipts{}, nil)
+				l1F.ExpectFetchReceipts(ref.Hash, nil, optypes.Receipts{}, nil)
 			}
 			// once past the l1 head, continue generating new l1 refs
 		} else {
@@ -222,7 +223,7 @@ func TestAltDADataSource(t *testing.T) {
 			l1Refs = append(l1Refs, ref)
 			logger.Info("new l1 block", "ref", ref)
 			// called for each l1 block to sync challenges
-			l1F.ExpectFetchReceipts(ref.Hash, nil, types.Receipts{}, nil)
+			l1F.ExpectFetchReceipts(ref.Hash, nil, optypes.Receipts{}, nil)
 
 			// pick a random number of commitments to include in the l1 block
 			c := rng.Intn(4)
@@ -352,7 +353,7 @@ func TestAltDADataSourceStall(t *testing.T) {
 		ParentHash: parent.Hash,
 		Time:       parent.Time + l1Time,
 	}
-	l1F.ExpectFetchReceipts(ref.Hash, nil, types.Receipts{}, nil)
+	l1F.ExpectFetchReceipts(ref.Hash, nil, optypes.Receipts{}, nil)
 	// mock input commitments in l1 transactions
 	input := testutils.RandomData(rng, 2000)
 	comm, _ := storage.SetInput(ctx, input)
@@ -392,7 +393,7 @@ func TestAltDADataSourceStall(t *testing.T) {
 		Hash:   testutils.RandomHash(rng),
 	}
 	l1F.ExpectL1BlockRefByNumber(nextRef.Number, nextRef, nil)
-	l1F.ExpectFetchReceipts(nextRef.Hash, nil, types.Receipts{}, nil)
+	l1F.ExpectFetchReceipts(nextRef.Hash, nil, optypes.Receipts{}, nil)
 
 	// not enough data
 	_, err = src.Next(ctx)
@@ -475,7 +476,7 @@ func TestAltDADataSourceInvalidData(t *testing.T) {
 		ParentHash: parent.Hash,
 		Time:       parent.Time + l1Time,
 	}
-	l1F.ExpectFetchReceipts(ref.Hash, nil, types.Receipts{}, nil)
+	l1F.ExpectFetchReceipts(ref.Hash, nil, optypes.Receipts{}, nil)
 	// mock input commitments in l1 transactions with an oversized input
 	input := testutils.RandomData(rng, altda.MaxInputSize+1)
 	comm, _ := storage.SetInput(ctx, input)

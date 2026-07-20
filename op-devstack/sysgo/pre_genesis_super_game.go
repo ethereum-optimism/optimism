@@ -108,7 +108,7 @@ func preparePreGenesisSuperGame(
 		txplan.WithAgainstLatestBlockEthClient(client),
 		txplan.WithEstimator(client, true),
 		txplan.WithRetrySubmission(client, 5, retry.Exponential()),
-		txplan.WithRetryInclusion(client, 5, retry.Exponential()),
+		txplan.WithRetryInclusion(txplan.FromGethReceipts(client), 5, retry.Exponential()),
 	)
 
 	dgf := bindings.NewBindings[bindings.DisputeGameFactory](

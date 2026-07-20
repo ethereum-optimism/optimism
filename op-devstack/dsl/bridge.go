@@ -177,7 +177,7 @@ func (b *StandardBridge) Deposit(amount eth.ETH, from *EOA) Deposit {
 	b.require.NoError(err, "Could not reconstruct L2 Deposit")
 	l2DepositTxHash := l2DepositTx.Hash()
 	// Give time for L2CL to include the L2 deposit tx
-	var l2DepositReceipt *types.Receipt
+	var l2DepositReceipt *optypes.Receipt
 	b.require.Eventually(func() bool {
 		l2DepositReceipt, err = b.l2Client.TransactionReceipt(b.ctx, l2DepositTxHash)
 		return err == nil
@@ -223,7 +223,7 @@ func (b *StandardBridge) ERC20Deposit(l1TokenAddr common.Address, l2TokenAddr co
 
 	// Give time for L2CL to include the L2 deposit tx
 	sequencingWindowDuration := time.Duration(b.rollupCfg.SeqWindowSize) * b.l1Client.EstimateBlockTime()
-	var l2DepositReceipt *types.Receipt
+	var l2DepositReceipt *optypes.Receipt
 	b.require.Eventually(func() bool {
 		l2DepositReceipt, err = b.l2Client.TransactionReceipt(b.ctx, l2DepositTxHash)
 		return err == nil

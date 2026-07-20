@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/buffer"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -30,7 +31,7 @@ type FinalityCallback func(chainID eth.ChainID, block eth.BlockInfo)
 type FinderClient interface {
 	InfoByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, error)
 	InfoByNumber(ctx context.Context, number uint64) (eth.BlockInfo, error)
-	FetchReceiptsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, types.Receipts, error)
+	FetchReceiptsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, optypes.Receipts, error)
 }
 
 var _ FinderClient = &sources.EthClient{}
@@ -155,7 +156,7 @@ var ErrBlockNotContiguous = errors.New("blocks are not contiguous")
 // it then adds the block to the seenBlocks buffer
 // it returns a sentinel error if the block was not contiguous and
 // a generic error any of the steps fail
-func (t *RPCFinder) processBlock(blockInfo eth.BlockInfo, receipts types.Receipts) error {
+func (t *RPCFinder) processBlock(blockInfo eth.BlockInfo, receipts optypes.Receipts) error {
 	previous := t.seenBlocks.Peek()
 	if previous != nil {
 		// check if the blocks being processed are contiguous
@@ -165,7 +166,7 @@ func (t *RPCFinder) processBlock(blockInfo eth.BlockInfo, receipts types.Receipt
 			return ErrBlockNotContiguous
 		}
 	}
-	jobs := t.toJobs([]*types.Receipt(receipts), t.chainID)
+	jobs := t.toJobs(receipts.Geth(), t.chainID)
 	firstSeen := time.Now()
 	for _, job := range jobs {
 		job.firstSeen = firstSeen

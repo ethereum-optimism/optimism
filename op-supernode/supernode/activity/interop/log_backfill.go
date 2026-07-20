@@ -195,7 +195,7 @@ func (i *Interop) backfillChain(ctx context.Context, cid eth.ChainID, chain cc.C
 			return fmt.Errorf("chain %s: fetch receipts %d: %w", cid, num, err)
 		}
 
-		if err := i.sealBlockDataIntoLogsDB(cid, bid, blockInfo, receipts, blockInfo.Time(), true); err != nil {
+		if err := i.sealBlockDataIntoLogsDB(cid, bid, blockInfo, receipts.Geth(), blockInfo.Time(), true); err != nil {
 			return err
 		}
 

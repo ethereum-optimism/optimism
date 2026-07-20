@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"testing"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
@@ -209,12 +210,12 @@ func (m *mockL1Fetcher) ExpectInfoAndTxsByHash(hash common.Hash, info eth.BlockI
 	m.Mock.On("InfoAndTxsByHash", hash).Once().Return(info, transactions, err)
 }
 
-func (m *mockL1Fetcher) FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error) {
+func (m *mockL1Fetcher) FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, optypes.Receipts, error) {
 	out := m.Mock.Called(blockHash)
-	return *out.Get(0).(*eth.BlockInfo), out.Get(1).(types.Receipts), out.Error(2)
+	return *out.Get(0).(*eth.BlockInfo), out.Get(1).(optypes.Receipts), out.Error(2)
 }
 
-func (m *mockL1Fetcher) ExpectFetchReceipts(hash common.Hash, info eth.BlockInfo, receipts types.Receipts, err error) {
+func (m *mockL1Fetcher) ExpectFetchReceipts(hash common.Hash, info eth.BlockInfo, receipts optypes.Receipts, err error) {
 	m.Mock.On("FetchReceipts", hash).Once().Return(&info, receipts, err)
 }
 
@@ -392,7 +393,7 @@ func TestAdvanceChallengeOrigin(t *testing.T) {
 
 	da := NewAltDAWithState(logger, pcfg, storage, &NoopMetrics{}, state)
 
-	receipts := types.Receipts{&types.Receipt{
+	receipts := optypes.Receipts{{Receipt: types.Receipt{
 		Type:   2,
 		Status: 1,
 		Logs: []*types.Log{
@@ -414,7 +415,7 @@ func TestAdvanceChallengeOrigin(t *testing.T) {
 			},
 		},
 		BlockNumber: big.NewInt(int64(bn)),
-	}}
+	}}}
 	id := eth.BlockID{
 		Number: bn,
 		Hash:   bhash,

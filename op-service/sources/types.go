@@ -159,8 +159,8 @@ func (hdr *RPCHeader) BlockID() eth.BlockID {
 
 type RPCBlock struct {
 	RPCHeader
-	Transactions []*types.Transaction `json:"transactions"`
-	Withdrawals  *types.Withdrawals   `json:"withdrawals,omitempty"`
+	Transactions RawTransactions    `json:"transactions"`
+	Withdrawals  *types.Withdrawals `json:"withdrawals,omitempty"`
 }
 
 func (block *RPCBlock) Verify() error {
@@ -168,18 +168,18 @@ func (block *RPCBlock) Verify() error {
 		return fmt.Errorf("failed to verify block hash: computed %s but RPC said %s", computed, block.Hash)
 	}
 	for i, tx := range block.Transactions {
-		if tx == nil {
-			return fmt.Errorf("block tx %d is nil", i)
+		if len(tx) == 0 {
+			return fmt.Errorf("block tx %d is nil or empty", i)
 		}
 	}
-	if computed := types.DeriveSha(types.Transactions(block.Transactions), trie.NewStackTrie(nil)); block.TxHash != computed {
+	if computed := types.DeriveSha(block.Transactions, trie.NewStackTrie(nil)); block.TxHash != computed {
 		return fmt.Errorf("failed to verify transactions list: computed %s but RPC said %s", computed, block.TxHash)
 	}
 
 	// Withdrawals validation is different between L1 and L2.
 	// It is possible to determine that it is an L2 block if the first transaction is a deposit.
 	// The genesis block does not have transactions, but does have a known fee-recipient predeploy address.
-	isL2 := (len(block.Transactions) > 0 && optypes.IsDepositTx(block.Transactions[0])) ||
+	isL2 := (len(block.Transactions) > 0 && block.Transactions[0].Type() == optypes.DepositTxType) ||
 		(block.Number == 0 && block.Coinbase == predeploys.SequencerFeeVaultAddr)
 	if isL2 {
 		if err := block.validateL2Withdrawals(block.Withdrawals, block.WithdrawalsRoot); err != nil {
@@ -223,7 +223,7 @@ func (block *RPCBlock) validateL2Withdrawals(withdrawals *types.Withdrawals, wit
 	return nil
 }
 
-func (block *RPCBlock) Info(trustCache bool, mustBePostMerge bool) (eth.BlockInfo, types.Transactions, error) {
+func (block *RPCBlock) Info(trustCache bool, mustBePostMerge bool) (eth.BlockInfo, RawTransactions, error) {
 	if mustBePostMerge {
 		if err := block.checkPostMerge(); err != nil {
 			return nil, nil, err
@@ -256,15 +256,11 @@ func (block *RPCBlock) ExecutionPayloadEnvelope(trustCache bool) (*eth.Execution
 	var baseFee uint256.Int
 	baseFee.SetFromBig((*big.Int)(block.BaseFee))
 
-	// Unfortunately eth_getBlockByNumber either returns full transactions, or only tx-hashes.
-	// There is no option for encoded transactions.
+	// Transactions are already held in their canonical binary encoding;
+	// the payload's opaque form is a straight copy.
 	opaqueTxs := make([]hexutil.Bytes, len(block.Transactions))
 	for i, tx := range block.Transactions {
-		data, err := tx.MarshalBinary()
-		if err != nil {
-			return nil, fmt.Errorf("failed to encode tx %d from RPC: %w", i, err)
-		}
-		opaqueTxs[i] = data
+		opaqueTxs[i] = hexutil.Bytes(tx)
 	}
 
 	payload := &eth.ExecutionPayload{

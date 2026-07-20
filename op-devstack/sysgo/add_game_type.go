@@ -76,7 +76,7 @@ func setRespectedGameTypeForRuntime(
 		txplan.WithAgainstLatestBlockEthClient(client),
 		txplan.WithEstimator(client, true),
 		txplan.WithRetrySubmission(client, 5, retry.Exponential()),
-		txplan.WithRetryInclusion(client, 5, retry.Exponential()))
+		txplan.WithRetryInclusion(txplan.FromGethReceipts(client), 5, retry.Exponential()))
 
 	asrBindings := bindings.NewBindings[bindings.AnchorStateRegistry](bindings.WithTo(asrAddr), bindings.WithTest(t))
 	rcpt, err := contractio.Write(asrBindings.SetRespectedGameType(uint32(gameType)), t.Ctx(), txOpts)
