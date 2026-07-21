@@ -8,7 +8,9 @@
     "prebuild:local": "tsx scripts/generate-actions-components.ts --local && tsx scripts/generate-releases.ts",
     "dev": "mint dev",
     "lint:nav": "tsx scripts/lint/validate-nav.ts",
-    "lint:redirects": "tsx scripts/lint/validate-redirects.ts"
+    "lint:redirects": "tsx scripts/lint/validate-redirects.ts",
+    "gen:hardforks": "tsx scripts/generate-hardforks.ts",
+    "gen:hardforks:check": "tsx scripts/generate-hardforks.ts --check"
   },
   "dependencies": {
     "react": "^18.0.0",

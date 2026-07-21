@@ -5,6 +5,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/flags"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 
 	op_service "github.com/ethereum-optimism/optimism/op-service"
@@ -13,23 +14,24 @@ import (
 )
 
 const (
-	EnvVarPrefix             = flags.EnvVarPrefix
-	L1RPCURLFlagName         = flags.L1RPCURLFlagName
-	CacheDirFlagName         = flags.CacheDirFlagName
-	L1ChainIDFlagName        = flags.L1ChainIDFlagName
-	ArtifactsLocatorFlagName = flags.ArtifactsLocatorFlagName
-	L2ChainIDsFlagName       = flags.L2ChainIDsFlagName
-	WorkdirFlagName          = flags.WorkdirFlagName
-	OutdirFlagName           = flags.OutdirFlagName
-	PrivateKeyFlagName       = flags.PrivateKeyFlagName
-	IntentTypeFlagName       = flags.IntentTypeFlagName
-	VerifierAPIKeyFlagName   = flags.VerifierAPIKeyFlagName
-	EtherscanAPIKeyFlagName  = flags.EtherscanAPIKeyFlagName // Deprecated: use VerifierAPIKeyFlagName
-	InputFileFlagName        = flags.InputFileFlagName
-	ContractNameFlagName     = flags.ContractNameFlagName
-	VerifierTypeFlagName     = flags.VerifierTypeFlagName
-	VerifierUrlFlagName      = flags.VerifierUrlFlagName
-	UseForgeFlagName         = flags.UseForgeFlagName
+	EnvVarPrefix              = flags.EnvVarPrefix
+	L1RPCURLFlagName          = flags.L1RPCURLFlagName
+	CacheDirFlagName          = flags.CacheDirFlagName
+	L1ChainIDFlagName         = flags.L1ChainIDFlagName
+	ArtifactsLocatorFlagName  = flags.ArtifactsLocatorFlagName
+	L2ChainIDsFlagName        = flags.L2ChainIDsFlagName
+	WorkdirFlagName           = flags.WorkdirFlagName
+	OutdirFlagName            = flags.OutdirFlagName
+	PrivateKeyFlagName        = flags.PrivateKeyFlagName
+	IntentTypeFlagName        = flags.IntentTypeFlagName
+	VerifierAPIKeyFlagName    = flags.VerifierAPIKeyFlagName
+	EtherscanAPIKeyFlagName   = flags.EtherscanAPIKeyFlagName // Deprecated: use VerifierAPIKeyFlagName
+	InputFileFlagName         = flags.InputFileFlagName
+	ContractNameFlagName      = flags.ContractNameFlagName
+	VerifierTypeFlagName      = flags.VerifierTypeFlagName
+	VerifierUrlFlagName       = flags.VerifierUrlFlagName
+	UseForgeFlagName          = flags.UseForgeFlagName
+	GenesisTimeOffsetFlagName = flags.GenesisTimeOffsetFlagName
 )
 
 var (
@@ -136,6 +138,14 @@ var (
 		EnvVars: PrefixEnvVar("USE_FORGE"),
 		Value:   false,
 	}
+	GenesisTimeOffsetFlag = &cli.Uint64Flag{
+		Name: GenesisTimeOffsetFlagName,
+		Usage: "Offset in seconds added to the L1 anchor block's timestamp to produce the committed L2 genesis " +
+			"timestamp. Must cover the runtime of the off-chain pipeline between anchor selection and OPCM.deploy " +
+			"landing on L1, including the prestate build.",
+		EnvVars: PrefixEnvVar("GENESIS_TIME_OFFSET"),
+		Value:   standard.DefaultGenesisTimeOffsetSeconds,
+	}
 )
 
 var GlobalFlags = append([]cli.Flag{CacheDirFlag}, oplog.CLIFlags(EnvVarPrefix)...)
@@ -151,6 +161,7 @@ var PrepareFlags = []cli.Flag{
 	WorkdirFlag,
 	PrivateKeyFlag,
 	L1RPCURLFlag,
+	GenesisTimeOffsetFlag,
 }
 
 var ApplyFlags = []cli.Flag{

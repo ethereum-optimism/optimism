@@ -1,0 +1,42 @@
+---
+title: Canyon
+description: Hardfork registry entry for the Canyon network upgrade, which brought L1's Shapella upgrade to the OP Stack.
+diataxis: reference
+hardfork_name: canyon
+hardfork_lifecycle: active
+hardfork_spec: https://specs.optimism.io/protocol/canyon/overview.html
+hardfork_activation_mainnet: 1704992401
+hardfork_activation_sepolia: 1699981200
+hardfork_governance: https://gov.optimism.io/t/final-upgrade-proposal-2-canyon-network-upgrade/7088
+---
+
+import CanyonFacts from "/snippets/generated/hardforks/canyon.mdx"
+
+<Info>
+  **Normative spec:** the [Canyon specification](https://specs.optimism.io/protocol/canyon/overview.html)
+  is the canonical definition of this upgrade. This page records activation data
+  and operational pointers; it does not restate the spec.
+</Info>
+
+Canyon brought Ethereum's Shapella upgrade to the OP Stack along with minor
+protocol fixes.
+
+<CanyonFacts />
+
+## What changed
+
+Per the [spec overview](https://specs.optimism.io/protocol/canyon/overview.html):
+
+*   Shapella EIPs on L2: [EIP-3651](https://eips.ethereum.org/EIPS/eip-3651)
+    (warm COINBASE), [EIP-3855](https://eips.ethereum.org/EIPS/eip-3855)
+    (`PUSH0`), [EIP-3860](https://eips.ethereum.org/EIPS/eip-3860) (limit and
+    meter initcode), [EIP-4895](https://eips.ethereum.org/EIPS/eip-4895)
+    (withdrawals operations, set to the empty array on L2), and
+    [EIP-6049](https://eips.ethereum.org/EIPS/eip-6049) (deprecate
+    `SELFDESTRUCT`).
+*   Modified the EIP-1559 denominator.
+*   Added the deposit nonce and deposit nonce version to the deposit receipt
+    hash.
+*   Deployed the `create2Deployer` predeploy at
+    `0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2`.
+*   Consensus layer: channel ordering fix.

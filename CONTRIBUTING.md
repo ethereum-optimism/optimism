@@ -231,7 +231,7 @@ The scope names the component, subsystem, or area the change touches — for exa
 
 Do not use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) type prefixes (`feat:`, `fix:`, `chore(scope):`, ...). The part of the codebase a commit touches is what readers of the log — contributors, debuggers, incident responders — actually scan for, and a well-written description already conveys whether a change is a fix or a feature. See [Stop Using Conventional Commits](https://sumnerevans.com/posts/software-engineering/stop-using-conventional-commits/) for the full rationale.
 
-PRs are squash-merged, so CI validates the PR title against this format (and the commit subject for single-commit PRs, since GitHub uses it as the squash title). The exact rules live in [`.github/scripts/check-pr-title.sh`](.github/scripts/check-pr-title.sh).
+PRs are squash-merged with the PR title as the commit subject, so CI validates the PR title against this format. The exact rules live in [`.github/scripts/check-pr-title.sh`](.github/scripts/check-pr-title.sh).
 
 ### Response time
 
