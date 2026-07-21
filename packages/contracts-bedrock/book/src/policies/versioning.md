@@ -8,8 +8,8 @@ There are four main parts to the versioning and release process:
 - [Semver Rules](#semver-rules): Follows the rules defined in the [style guide](../contributing/style-guide.md#versioning) for when to bump major, minor, and patch versions in individual contracts.
 - [Individual Contract Versioning](#individual-contract-versioning): The versioning scheme for individual contracts and includes beta, release candidate, and feature tags.
 - [Monorepo Contracts Release Versioning](#monorepo-contracts-release-versioning): The versioning scheme for monorepo smart contract releases.
-- [Release Process](#release-process): The process for deploying contracts, creating a governance proposal, and the required associated releases.
-  - [Additional Release Candidates](#additional-release-candidates): How to handle additional release candidates after an initial `op-contracts/vX.Y.Z-rc.1` release.
+- [Release Process](./release-process.md): The process for deploying contracts, creating a governance proposal, and the required associated releases.
+  - [Additional Release Candidates](./release-process.md#additional-release-candidates): How to handle additional release candidates after an initial `op-contracts/vX.Y.Z-rc.1` release.
 
 > [!NOTE]
 > Some release-process conventions described in this document must be enforced manually.
