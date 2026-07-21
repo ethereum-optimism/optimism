@@ -7,17 +7,20 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
@@ -33,6 +36,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
 )
@@ -792,4 +796,59 @@ func TestPredictChains_StaleGenesisTime(t *testing.T) {
 		err := predictChains(lgr, intent, st, run, selectAnchor, safe, 600)
 		require.ErrorContains(t, err, "the deployment window has elapsed")
 	})
+}
+
+// TestGenerateGenesisForChains_UsesPredictedAddressesAndPinnedGenesisTime verifies that L2
+// genesis is built from the L1 addresses and genesis time predictChains commits.
+func TestGenerateGenesisForChains_UsesPredictedAddressesAndPinnedGenesisTime(t *testing.T) {
+	lgr := testlog.Logger(t, slog.LevelWarn)
+	_, pk, dk := shared.DefaultPrivkey(t)
+	deployer := crypto.PubkeyToAddress(pk.PublicKey)
+
+	l1ChainID := big.NewInt(900)
+	l2ChainID := uint256.NewInt(1)
+	loc, afacts := testutil.LocalArtifacts(t)
+
+	intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID, loc, loc, standard.GasLimit)
+	chain := intent.Chains[0]
+
+	// Stub predicted addresses.
+	predicted := addresses.OpChainContracts{
+		OpChainCoreContracts: addresses.OpChainCoreContracts{
+			L1CrossDomainMessengerProxy: common.HexToAddress("0x1111111111111111111111111111111111111111"),
+			L1StandardBridgeProxy:       common.HexToAddress("0x2222222222222222222222222222222222222222"),
+			L1Erc721BridgeProxy:         common.HexToAddress("0x3333333333333333333333333333333333333333"),
+		},
+	}
+	st.SetChainContracts(chain.ID, predicted, false)
+	require.False(t, st.IsChainDeployed(chain.ID), "addresses from a dry run must not be marked deployed")
+
+	genesisTime := hexutil.Uint64(1_700_000_000)
+	st.PinChainAnchor(chain.ID, &state.L1BlockRefJSON{
+		Hash:   common.HexToHash("0xaaaa"),
+		Number: 100,
+		Time:   hexutil.Uint64(uint64(genesisTime) - 100),
+	}, genesisTime)
+
+	genesisEnv := &pipeline.Env{Logger: lgr, Deployer: deployer}
+	bundle := pipeline.ArtifactsBundle{L1: afacts, L2: afacts}
+	require.NoError(t, generateGenesisForChains(genesisEnv, intent, bundle, st))
+
+	chainState, err := st.Chain(chain.ID)
+	require.NoError(t, err)
+	require.NotNil(t, chainState.Allocs, "generateGenesisForChains must populate allocs")
+
+	config, err := state.CombineDeployConfig(intent, chain, st, chainState)
+	require.NoError(t, err)
+	l2Genesis, err := genesis.BuildL2Genesis(&config, chainState.Allocs.Data, chainState.StartBlock.ToBlockRef())
+	require.NoError(t, err)
+	require.Equal(t, uint64(genesisTime), l2Genesis.Timestamp,
+		"genesis header must carry the genesis time pinned at anchor selection")
+
+	// Check that re-running is idempotent.
+	allocsBefore := chainState.Allocs.Data
+	require.NoError(t, generateGenesisForChains(genesisEnv, intent, bundle, st))
+	chainStateAfter, err := st.Chain(chain.ID)
+	require.NoError(t, err)
+	require.Same(t, allocsBefore, chainStateAfter.Allocs.Data, "re-running must not regenerate allocs")
 }
