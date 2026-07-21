@@ -58,13 +58,14 @@ If fixes are required by the audit results, an Additional Release Candidate is r
 
 Development features and system features have different release lifecycles:
 
-- Development features that are not shipping must remain disabled in production. For a development feature that is
-  shipping, the PR that makes the functionality production-default on `develop`, without requiring a development
-  feature to be enabled in production, is the shipping signoff. Subsequent acceptance tests must exercise this release
-  configuration. Cut and audit the release candidate from that commit. Keep the development-feature gate in the
-  audited code through production, then track its removal as follow-up work.
+- Development features must remain disabled in production. To ship development-gated functionality, the PR that
+  removes the development feature flag must be merged into `develop` before audit. That merge is the shipping signoff.
 - System features are production-supported settings stored in `SystemConfig`. They may remain configurable after the
-  release and do not follow the development-feature cleanup lifecycle.
+  release and do not follow the development-feature cleanup lifecycle. For a system feature, the PR that puts `develop`
+  in the intended production configuration is the shipping signoff.
+
+Subsequent acceptance tests must exercise the signed-off production configuration. Cut and audit the release candidate
+from the signed-off commit. Do not change the release configuration between audit and production.
 
 ## Additional Release Candidates
 
