@@ -743,6 +743,27 @@ func TestPrepareChainsRejectsMixedInitialGameTypesBeforePrediction(t *testing.T)
 	require.Zero(t, predictions)
 }
 
+func TestPrepareChainsRejectsDuplicateChainIDsBeforeDepSet(t *testing.T) {
+	chainID := common.HexToHash("0x0a")
+	intent := &state.Intent{
+		Chains: []*state.ChainIntent{
+			{ID: chainID},
+			{ID: chainID},
+		},
+	}
+	st := &state.State{}
+	var predictions int
+	run := func(opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
+		predictions++
+		return emptyDeployOPChainOutput(), nil
+	}
+
+	err := prepareChains(testlog.Logger(t, slog.LevelInfo), intent, st, run, nil, nil, 0)
+	require.EqualError(t, err, "duplicate chain IDs ["+chainID.Hex()+"]")
+	require.Nil(t, st.InteropDepSet)
+	require.Zero(t, predictions)
+}
+
 func TestPrepareChainsPredictionFailureOnlyClearsSuccessfullyPredictedPrestatesInMemory(t *testing.T) {
 	firstID := common.HexToHash("0x0a")
 	secondID := common.HexToHash("0x0b")

@@ -212,6 +212,10 @@ func prepareChains(
 	safe *state.L1BlockRefJSON,
 	genesisTimeOffset uint64,
 ) error {
+	if err := pipeline.ValidateNoDuplicateChainIDs(intent.Chains); err != nil {
+		return err
+	}
+
 	initialGameTypes := make([]uint32, 0, len(intent.Chains))
 	for _, chain := range intent.Chains {
 		if st.IsChainDeployed(chain.ID) {
