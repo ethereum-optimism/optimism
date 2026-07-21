@@ -1,18 +1,29 @@
 ---
-title: 'Fault proof VM: MIPS.sol'
-description: Learn about the `MIPS.sol` smart contract that works as part of Optimism's Fault Proof Virtual Machine.
+title: 'Fault proof VM: MIPS.sol (legacy)'
+description: Learn about the legacy 32-bit `MIPS.sol` smart contract that worked as part of Optimism's Fault Proof Virtual Machine.
 diataxis: explanation
 ---
 
-The `MIPS.sol` smart contract is an onchain implementation of a big-endian virtual machine (VM) that encompasses the MIPS32 R1 Instruction Set Architecture (ISA).
-This smart contract is the counterpart to the off-chain MIPSEVM golang implementation of the same ISA. Together, the onchain and off-chain VM implementations make up [Cannon](/op-stack/fault-proofs/cannon),
-Optimism's Fault Proof Virtual Machine (FPVM). Cannon is a singular instance of a FPVM that can be used as part of the Dispute Game for Optimism's (and Base's) optimistic rollup L2 blockchain.
-The Dispute Game itself is modular, allowing for any FPVM to be used in a dispute; however, Cannon is currently the only FPVM implemented and thus will be used in all disputes.
+<Warning>
+  **Legacy contract.** `MIPS.sol`, the 32-bit onchain FPVM contract described on this page, has been retired and removed from the Optimism monorepo.
+  The maintained onchain FPVM contract is [`MIPS64.sol`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/cannon/MIPS64.sol),
+  which implements the big-endian 64-bit MIPS64 Release 1 (MIPS64r1) ISA and adds multithreading. `MIPS64.sol` verifies instructions for all current Cannon dispute games,
+  including the maintained `cannon-kona` (game type `8`) configuration that runs [kona-client](/releases/kona-client).
+  The 32-bit contract verified the earliest generation of games running the Go fault proof program `op-program`, which has since reached end-of-support
+  (see [End of Support for op-geth and op-program](/notices/op-geth-deprecation)).
+  This page is retained as a reference for the retired contract; its code links point at a historical monorepo snapshot and are labeled as of `546fb2c7`.
+</Warning>
+
+The `MIPS.sol` smart contract was an onchain implementation of a big-endian virtual machine (VM) that encompassed the 32-bit MIPS32 R1 Instruction Set Architecture (ISA).
+It was the counterpart to the off-chain `mipsevm` Go implementation of the same ISA, and together the onchain and off-chain VM implementations made up the original 32-bit generation of [Cannon](/op-stack/fault-proofs/cannon),
+Optimism's Fault Proof Virtual Machine (FPVM). Cannon is an instance of an FPVM that can be used as part of the Dispute Game for any OP Stack blockchain.
+The Dispute Game itself is modular, allowing for any FPVM to be used in a dispute; however, Cannon remains Optimism's default FPVM, and its onchain component today is `MIPS64.sol` rather than the `MIPS.sol` contract described on this page.
 
 ## Control flow
 
 The `FaultDisputeGame.sol` interacts with `MIPS.sol` and then `MIPS.sol` calls into `PreimageOracle.sol`. `MIPS.sol` is only called at the max depth of the game when someone needs to call `step`.
 `FaultDisputeGame.sol` is the deployed instance of a Fault Dispute Game for an active dispute, and `PreimageOracle.sol` stores Pre-images.
+This wiring is unchanged in the current system, with `MIPS64.sol` filling the `MIPS.sol` role.
 
 *   Pre-images contain data from both L1 and L2, which includes information such as block headers, transactions, receipts, world state nodes, and more. Pre-images are used as the inputs to the derivation process used to calculate the true L2 state, and subsequently the true L2 state is used to resolve a dispute game.
 *   A Fault Dispute Game, at a high-level, will effectively determine what L2 state is currently agreed-upon, and move through L2 state until the first disagreed-upon state is found. How the Pre-images are determined and populated into the `PreimageOracle.sol` contract is out-of-scope for this reference document on the `MIPS.sol` contract, as that contract only consumes Pre-images that have already been populated by the off-chain Cannon implementation.
@@ -46,7 +57,7 @@ Thus, even when the instruction run onchain does not explicitly read from `Preim
 
 In order to execute a MIPS instruction onchain, the `MIPS.sol` contract needs to know important state information such as the instruction to run, the values in each of the general purpose registers, etc.
 More specifically, a tightly-packed `State` struct contains all the relevant information that the `MIPS.sol` contract needs to know. This struct is passed to the contract from the `FaultDisputeGame.sol` contract when it invokes the `step` function in `MIPS.sol` (which in-turn executes a single MIPS instruction onchain).
-The following information is stored in the `State` struct. See [doc reference](https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs#state) and [code reference](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/packages/contracts-bedrock/src/cannon/MIPS.sol#L26) (as of `546fb2c7`) for details:
+The following information is stored in the `State` struct. See the [code reference](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/packages/contracts-bedrock/src/cannon/MIPS.sol#L26) (as of `546fb2c7`) for details; note that the [Cannon FPVM specification](https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs#state) now documents the state for the current 64-bit multithreaded VM, whose layout differs from the legacy fields listed below:
 
 1.  `memRoot` - The merkle root hash of the binary merkle tree that represents the MIPS VM's monolithic 32-bit memory space.
 2.  `preimageKey` - Key that uniquely identifies the Pre-image data to be read (if applicable) from the `PreimageOracle.sol`  contract.
@@ -80,6 +91,7 @@ This in turn prevents a user from disputing an output root during a dispute game
 Using a 32-bit ISA means that the total size of the address space (assuming no virtual address space) is `2^32 = 4GiB`. Additionally, the `MIPS.sol` contract is stateless, so it does not store the MIPS memory in contract storage. The primary reason for this is because having to load the entire memory into the `MIPS.sol` contract in order to execute a single instruction onchain is prohibitively expensive. Additionally, the entire memory would need to be loaded per fault proof game, requiring multiple instances of the `MIPS.sol` contract. Therefore, in order to optimize the amount of data that needs to be provided per onchain instruction execution while still maintaining integrity over the entire 32-bit address space, Optimism has converted the memory into a binary merkle tree.
 
 The binary merkle tree (i.e. hash tree) used to store the memory of the MIPS VM has leaf values that are 32 bytes and has a fixed depth of 27 levels. This in turn allows the binary merkle tree to span the full 32-bit address space: `2^27 * 32 = 2^32` (See [memory proofs](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/cannon/docs/README.md#memory-proofs) (as of `546fb2c7`) for more details). In order to ensure the integrity of the entire address space each time memory is read or written to, one or more memory proofs are provided by the FaultDisputeGame.sol contract each time a MIPS instruction is executed onchain in MIPS.sol. A memory proof consists of the current leaf value and 27 sibling nodes (28, 32-byte values in total), where the sibling nodes are the `keccak256` hash of its own child nodes. Using the leaf value, its 27 sibling nodes, and the memory address converted to its binary representation as a guide (0 or 1 tells the order to concatenate left and right values), we can calculate a merkle root. This merkle root should be exactly the same as the merkle root stored in the VM execution State struct.
+For comparison, the 64-bit `MIPS64.sol` uses the same construction with a fixed depth of 59 levels, spanning the full 64-bit address space: `2^59 * 32 = 2^64`.
 
 Reading to memory and writing to memory work similarly, both involve calculating the merkle root. In the case of a memory write, `MIPS.sol` must take care to verify that the provided proof for the memory location to write to is correct. Additionally, writing to memory will change the merkle root stored in the VM execution `State` struct.
 
@@ -251,7 +263,7 @@ The internal pure [`execute`](https://github.com/ethereum-optimism/optimism/blob
 ## Further reading
 
 *   [Cannon Overview](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/cannon/docs/README.md) (as of `546fb2c7`)
-*   [Cannon FPVM Specification](https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs)
+*   [Cannon FPVM Specification](https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs) (now documents the current 64-bit multithreaded VM)
 *   [MIPS IV ISA Specification](https://www.cs.cmu.edu/afs/cs/academic/class/15740-f97/public/doc/mips-isa.pdf)
 *   [MIPS32 Architecture For Programmers Volume II (for SPECIAL2 opcodes)](https://www.cs.cornell.edu/courses/cs3410/2008fa/MIPS_Vol2.pdf)
 *   [MIPS Assembly Wiki Book](https://en.wikibooks.org/wiki/MIPS_Assembly)
