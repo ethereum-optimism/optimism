@@ -1,0 +1,40 @@
+---
+title: Holocene
+description: Hardfork registry entry for the Holocene network upgrade, which introduced stricter derivation and dynamic EIP-1559 parameters.
+diataxis: reference
+hardfork_name: holocene
+hardfork_lifecycle: active
+hardfork_spec: https://specs.optimism.io/protocol/holocene/overview.html
+hardfork_activation_mainnet: 1736445601
+hardfork_activation_sepolia: 1732633200
+hardfork_governance: https://vote.optimism.io/proposals/20127877429053636874064552098716749508236019236440427814457915785398876262515
+hardfork_notice: /notices/archive/holocene-changes
+hardfork_min_versions:
+  - op-node v1.10.2
+  - op-geth v1.101411.4
+hardfork_min_versions_source: "[Holocene notice](/notices/archive/holocene-changes)"
+---
+
+import HoloceneFacts from "/snippets/generated/hardforks/holocene.mdx"
+
+<Info>
+  **Normative spec:** the [Holocene specification](https://specs.optimism.io/protocol/holocene/overview.html)
+  is the canonical definition of this upgrade. This page records activation data
+  and operational pointers; it does not restate the spec.
+</Info>
+
+Holocene reworked derivation rules and made EIP-1559 fee parameters
+configurable by chain operators.
+
+<HoloceneFacts />
+
+## What changed
+
+Per the [spec overview](https://specs.optimism.io/protocol/holocene/overview.html):
+
+*   Execution layer: [dynamic EIP-1559 parameters](https://specs.optimism.io/protocol/holocene/exec-engine.html#dynamic-eip-1559-parameters).
+*   Consensus layer: [Holocene derivation](https://specs.optimism.io/protocol/holocene/derivation.html#holocene-derivation).
+*   Smart contracts: `SystemConfig` updates.
+
+The [Holocene notice](/notices/archive/holocene-changes) covers the operator
+steps that accompanied activation, including the L1 contract upgrades.

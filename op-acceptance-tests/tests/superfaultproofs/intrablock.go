@@ -65,7 +65,7 @@ func RunIntraBlockConsolidationTest(t devtest.T, sys *presets.SimpleInterop, tc 
 	// --- Sync chains and prepare for same-timestamp block building -----------
 	sys.L2ChainB.CatchUpTo(sys.L2ChainA)
 	sys.L2ChainA.CatchUpTo(sys.L2ChainB)
-	sys.SuperRoots.EnsureInteropPaused(sys.L2CLA, sys.L2CLB, 10)
+	sys.Supernode().EnsureInteropPaused(sys.L2CLA, sys.L2CLB, 10)
 
 	sys.L2CLA.StopSequencer()
 	sys.L2CLB.StopSequencer()
@@ -139,7 +139,7 @@ func RunIntraBlockConsolidationTest(t devtest.T, sys *presets.SimpleInterop, tc 
 	sys.TestSequencer.SequenceBlockWithTxs(t, sys.L2ChainB.ChainID(), unsafeB.Hash, rawTxsB)
 
 	// --- Resume interop and wait for validation ------------------------------
-	sys.SuperRoots.ResumeInterop()
+	sys.Supernode().ResumeInterop()
 	sys.SuperRoots.AwaitValidatedTimestamp(nextTimestamp)
 
 	endTimestamp := nextTimestamp

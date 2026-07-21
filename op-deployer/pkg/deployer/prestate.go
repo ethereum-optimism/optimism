@@ -108,8 +108,7 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 	}
 
 	assignments := make([]prestateAssignment, 0, len(intent.Chains))
-	hasCannonKona := false
-	hasSuperCannonKona := false
+	initialGameTypes := make([]uint32, 0, len(intent.Chains))
 	hasActiveSelectedConsumer := false
 	for _, chain := range intent.Chains {
 		if st.IsChainDeployed(chain.ID) {
@@ -129,14 +128,7 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 			return fmt.Errorf("chain %s: %w", chain.ID.Hex(), err)
 		}
 		gameType := embedded.GameType(preparedGameType)
-
-		switch gameType {
-		case embedded.GameTypePermissionedCannon:
-		case embedded.GameTypeCannonKona:
-			hasCannonKona = true
-		case embedded.GameTypeSuperCannonKona:
-			hasSuperCannonKona = true
-		}
+		initialGameTypes = append(initialGameTypes, preparedGameType)
 
 		assignment := prestateAssignment{ChainID: chain.ID, GameType: gameType}
 		var validateCandidate func(resolvedPrestate) error
@@ -161,8 +153,8 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 		assignments = append(assignments, assignment)
 	}
 
-	if hasCannonKona && hasSuperCannonKona {
-		return fmt.Errorf("an intent cannot mix CANNON_KONA and SUPER_CANNON_KONA initial games")
+	if err := pipeline.ValidateInitialGameTypeSet(initialGameTypes); err != nil {
+		return err
 	}
 	// Reject prestate flags that would otherwise be silently ignored.
 	if selectedCommand.set && !hasActiveSelectedConsumer {

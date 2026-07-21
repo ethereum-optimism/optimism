@@ -7,24 +7,25 @@ import (
 )
 
 const (
-	EnvVarPrefix             = "DEPLOYER"
-	L1RPCURLFlagName         = "l1-rpc-url"
-	CacheDirFlagName         = "cache-dir"
-	L1ChainIDFlagName        = "l1-chain-id"
-	ArtifactsLocatorFlagName = "artifacts-locator"
-	L2ChainIDsFlagName       = "l2-chain-ids"
-	WorkdirFlagName          = "workdir"
-	OutdirFlagName           = "outdir"
-	PrivateKeyFlagName       = "private-key"
-	PrestateFlagName         = "dispute-absolute-prestate"
-	IntentTypeFlagName       = "intent-type"
-	VerifierAPIKeyFlagName   = "verifier-api-key"
-	EtherscanAPIKeyFlagName  = "etherscan-api-key" // Deprecated: use VerifierAPIKeyFlagName
-	InputFileFlagName        = "input-file"
-	ContractNameFlagName     = "contract-name"
-	VerifierTypeFlagName     = "verifier"
-	VerifierUrlFlagName      = "verifier-url"
-	UseForgeFlagName         = "use-forge"
+	EnvVarPrefix              = "DEPLOYER"
+	L1RPCURLFlagName          = "l1-rpc-url"
+	CacheDirFlagName          = "cache-dir"
+	L1ChainIDFlagName         = "l1-chain-id"
+	ArtifactsLocatorFlagName  = "artifacts-locator"
+	L2ChainIDsFlagName        = "l2-chain-ids"
+	WorkdirFlagName           = "workdir"
+	OutdirFlagName            = "outdir"
+	PrivateKeyFlagName        = "private-key"
+	PrestateFlagName          = "dispute-absolute-prestate"
+	IntentTypeFlagName        = "intent-type"
+	VerifierAPIKeyFlagName    = "verifier-api-key"
+	EtherscanAPIKeyFlagName   = "etherscan-api-key" // Deprecated: use VerifierAPIKeyFlagName
+	InputFileFlagName         = "input-file"
+	ContractNameFlagName      = "contract-name"
+	VerifierTypeFlagName      = "verifier"
+	VerifierUrlFlagName       = "verifier-url"
+	UseForgeFlagName          = "use-forge"
+	GenesisTimeOffsetFlagName = "genesis-time-offset"
 )
 
 func DefaultCacheDir() string {

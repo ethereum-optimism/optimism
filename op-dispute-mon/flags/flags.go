@@ -21,8 +21,12 @@ const (
 	envVarPrefix = "OP_DISPUTE_MON"
 )
 
-func prefixEnvVars(name string) []string {
-	return opservice.PrefixEnvVar(envVarPrefix, name)
+func prefixEnvVars(names ...string) []string {
+	envs := make([]string, 0, len(names))
+	for _, name := range names {
+		envs = append(envs, envVarPrefix+"_"+name)
+	}
+	return envs
 }
 
 var (
@@ -38,10 +42,11 @@ var (
 		Usage:   "HTTP provider URL for the rollup node. Multiple URLs can be specified for redundancy.",
 		EnvVars: prefixEnvVars("ROLLUP_RPC"),
 	}
-	SuperNodeRpcFlag = &cli.StringSliceFlag{
-		Name:    "supernode-rpc",
-		Usage:   "HTTP provider URL for super nodes. Multiple URLs can be specified for redundancy.",
-		EnvVars: prefixEnvVars("SUPERNODE_RPC"),
+	SuperRootRpcFlag = &cli.StringSliceFlag{
+		Name:    "superroot-rpc",
+		Aliases: []string{"supernode-rpc"},
+		Usage:   "HTTP provider URLs for super root RPC sources (op-node or op-supernode). Multiple URLs can be specified for redundancy.",
+		EnvVars: prefixEnvVars("SUPERROOT_RPC", "SUPERNODE_RPC"),
 	}
 	GameFactoryAddressFlag = &cli.StringFlag{
 		Name:    "game-factory-address",
@@ -92,7 +97,7 @@ var requiredFlags = []cli.Flag{
 // optionalFlags is a list of unchecked cli flags
 var optionalFlags = []cli.Flag{
 	RollupRpcFlag,
-	SuperNodeRpcFlag,
+	SuperRootRpcFlag,
 	GameFactoryAddressFlag,
 	NetworkFlag,
 	HonestActorsFlag,
@@ -119,8 +124,8 @@ func CheckRequired(ctx *cli.Context) error {
 			return fmt.Errorf("flag %s is required", f.Names()[0])
 		}
 	}
-	if len(ctx.StringSlice(RollupRpcFlag.Name)) == 0 && len(ctx.StringSlice(SuperNodeRpcFlag.Name)) == 0 {
-		return fmt.Errorf("flag %s or %s is required", RollupRpcFlag.Name, SuperNodeRpcFlag.Name)
+	if len(ctx.StringSlice(RollupRpcFlag.Name)) == 0 && len(ctx.StringSlice(SuperRootRpcFlag.Name)) == 0 {
+		return fmt.Errorf("flag %s or %s is required", RollupRpcFlag.Name, SuperRootRpcFlag.Name)
 	}
 	return nil
 }
@@ -169,7 +174,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 		L1EthRpc:           ctx.String(L1EthRpcFlag.Name),
 		GameFactoryAddress: gameFactoryAddress,
 		RollupRpcs:         ctx.StringSlice(RollupRpcFlag.Name),
-		SuperNodeRpcs:      ctx.StringSlice(SuperNodeRpcFlag.Name),
+		SuperRootRpcs:      ctx.StringSlice(SuperRootRpcFlag.Name),
 
 		HonestActors:    actors,
 		MonitorInterval: ctx.Duration(MonitorIntervalFlag.Name),

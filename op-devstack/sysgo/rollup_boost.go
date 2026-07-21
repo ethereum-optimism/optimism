@@ -72,10 +72,16 @@ func (r *RollupBoostNode) Start() {
 
 	args, env := cfg.LaunchSpec(r.p)
 
-	// Create channel for discovering flashblocks WS port from process logs.
-	// When using port 0, the OS assigns the port at bind time and the process logs it.
+	// Channels for bound-port discovery via log parsing. rollup-boost is launched with
+	// port=0 so the OS atomically picks ports at bind time; pre-allocating in Go would
+	// close the listener before the subprocess could bind it, opening a race window.
+	//
+	// Buffered so a stray duplicate emit is dropped by the select-default below rather
+	// than blocking the parser goroutine. Channels are not closed: the parser callback
+	// outlives this function (it stays wired into r.sub), so closing would risk a
+	// send-on-closed panic on any late or repeat log line.
+	rpcAddrChan := make(chan string, 1)
 	flashblocksWSChan := make(chan string, 1)
-	defer close(flashblocksWSChan)
 
 	// Parse Rust-structured logs and forward into Go logger with attributes
 	logOut := logpipe.ToLoggerWithMinLevel(r.logger.New("stream", "stdout"), log.LevelWarn)
@@ -84,9 +90,14 @@ func (r *RollupBoostNode) Start() {
 	// Log parsing callback to extract bound addresses from process output
 	onLogEntry := func(e logpipe.LogEntry) {
 		msg := e.LogMessage()
+		if rpcURL, ok := parseBoundAddressLog(msg, "RPC server listening on ", "http"); ok {
+			select {
+			case rpcAddrChan <- rpcURL:
+			default:
+			}
+		}
 		// Flashblocks WS - custom log message from outbound.rs
-		if strings.HasPrefix(msg, "Flashblocks WebSocketPublisher listening on ") {
-			addr := strings.TrimPrefix(msg, "Flashblocks WebSocketPublisher listening on ")
+		if addr, ok := strings.CutPrefix(msg, "Flashblocks WebSocketPublisher listening on "); ok {
 			select {
 			case flashblocksWSChan <- "ws://" + addr:
 			default:
@@ -116,10 +127,18 @@ func (r *RollupBoostNode) Start() {
 	err = r.sub.Start(execPath, args, env)
 	r.p.Require().NoError(err, "start rollup-boost")
 
-	// RPC port: still uses pre-allocation because rollup-boost doesn't log the actual
-	// bound RPC address when using port 0. This requires a Rust change to fix.
-	// TODO: Update rollup-boost to log "RPC server listening on {addr}" and parse it here.
-	rpcUpstreamURL := "http://" + cfg.RPCHost + ":" + strconv.Itoa(int(cfg.RPCPort))
+	var rpcUpstreamURL string
+	select {
+	case rpcUpstreamURL = <-rpcAddrChan:
+	case <-r.sub.Exited():
+		select {
+		case rpcUpstreamURL = <-rpcAddrChan:
+		default:
+			r.p.Require().FailNow("rollup-boost exited before its RPC server became ready")
+		}
+	case <-r.p.Ctx().Done():
+		r.p.Require().NoError(r.p.Ctx().Err(), "need rollup-boost RPC address from logs")
+	}
 	waitTCPReady(r.p, rpcUpstreamURL, 5*time.Second)
 	r.logger.Info("rollup-boost upstream RPC ready", "rpc", rpcUpstreamURL)
 	r.rpcProxy.SetUpstream(ProxyAddr(r.p.Require(), rpcUpstreamURL))
@@ -152,7 +171,6 @@ func (r *RollupBoostNode) Stop() {
 type RollupBoostConfig struct {
 	// RPC endpoint for rollup-boost itself
 	RPCHost string
-	RPCPort uint16
 
 	// Flashblocks proxy WebSocket exposure
 	EnableFlashblocks bool
@@ -188,7 +206,6 @@ type RollupBoostConfig struct {
 func DefaultRollupBoostConfig() *RollupBoostConfig {
 	return &RollupBoostConfig{
 		RPCHost:               "127.0.0.1",
-		RPCPort:               0,
 		EnableFlashblocks:     true,
 		FlashblocksHost:       "127.0.0.1",
 		FlashblocksPort:       0,
@@ -231,15 +248,7 @@ func (cfg *RollupBoostConfig) LaunchSpec(p devtest.CommonT) (args []string, env 
 		}
 	}
 
-	if cfg.RPCPort <= 0 {
-		portStr, err := getAvailableLocalPort()
-		p.Require().NoError(err, "allocate rollup-boost rpc port")
-		portVal, err := strconv.ParseUint(portStr, 10, 16)
-		p.Require().NoError(err, "parse rollup-boost rpc port")
-		cfg.RPCPort = uint16(portVal)
-	}
-	p.Require().True(cfg.RPCPort > 0, "RPCPort must be > 0")
-	args = append(args, "--rpc-host="+cfg.RPCHost, "--rpc-port="+strconv.Itoa(int(cfg.RPCPort)))
+	args = append(args, "--rpc-host="+cfg.RPCHost, "--rpc-port=0")
 
 	if cfg.L2EngineURL != "" {
 		args = append(args, "--l2-url="+ensureHTTPURL(cfg.L2EngineURL))

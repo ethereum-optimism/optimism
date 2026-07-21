@@ -18,7 +18,7 @@ import (
 // This test uses a single-chain setup, so only L2ToL2CrossDomainMessenger is deployed.
 func TestInteropContractsDeployed(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewMinimalInteropNoSupervisor(t)
+	sys := presets.NewMinimalInteropNoSupernode(t)
 	require := t.Require()
 	logger := t.Logger()
 
@@ -50,7 +50,7 @@ func TestInteropContractsDeployed(gt *testing.T) {
 // correctly when interop is active but no supervisor is running.
 func TestLocalFinalityWithoutSupervisor(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewMinimalInteropNoSupervisor(t)
+	sys := presets.NewMinimalInteropNoSupernode(t)
 	require := t.Require()
 	logger := t.Logger()
 

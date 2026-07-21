@@ -143,20 +143,145 @@ func TestMonitorOnlyScheduleSpecifiedGame(t *testing.T) {
 	require.Equal(t, 1, stubClaimer.scheduledGames)
 }
 
-func TestMonitorSkipsUnsupportedGameTypes(t *testing.T) {
-	addr1 := common.Address{0xaa}
-	addr2 := common.Address{0xbb}
-	monitor, source, sched, _, _, stubClaimer := setupMonitorTest(t, []common.Address{}, 0)
-	source.games = []types.GameMetadata{
-		newTypedFDG(addr1, 9999, types.CannonGameType),
-		newTypedFDG(addr2, 9999, types.SuperPermissionedGameType),
+func TestMonitorProgressGamesRoutesLifecycleAndPlayableBatches(t *testing.T) {
+	gameAddr := common.Address{0xaa}
+	otherAddr := common.Address{0xbb}
+	const (
+		unsupportedWarning   = "Skipping unsupported game type"
+		lifecycleOnlyWarning = "Game type not configured for play; processing lifecycle only"
+	)
+	tests := []struct {
+		name            string
+		gameType        types.GameType
+		configuredTypes []types.GameType
+		allowedGames    []common.Address
+		expectLifecycle bool
+		expectPlayable  bool
+		expectedWarning string
+	}{
+		{
+			name:            "configured Cannon",
+			gameType:        types.CannonGameType,
+			configuredTypes: []types.GameType{types.CannonGameType},
+			expectLifecycle: true,
+			expectPlayable:  true,
+		},
+		{
+			name:            "supported unconfigured Permissioned",
+			gameType:        types.PermissionedGameType,
+			configuredTypes: []types.GameType{types.CannonGameType},
+			expectLifecycle: true,
+			expectedWarning: lifecycleOnlyWarning,
+		},
+		{
+			name:            "unconfigured SuperPermissioned",
+			gameType:        types.SuperPermissionedGameType,
+			configuredTypes: []types.GameType{types.CannonGameType},
+			expectLifecycle: true,
+		},
+		{
+			name:            "allowlisted-out Cannon",
+			gameType:        types.CannonGameType,
+			configuredTypes: []types.GameType{types.CannonGameType},
+			allowedGames:    []common.Address{otherAddr},
+		},
+		{
+			name:            "allowlisted-out SuperPermissioned",
+			gameType:        types.SuperPermissionedGameType,
+			configuredTypes: []types.GameType{types.CannonGameType},
+			allowedGames:    []common.Address{otherAddr},
+		},
+		{
+			name:            "unsupported numeric type",
+			gameType:        types.GameType(11_111),
+			configuredTypes: []types.GameType{types.GameType(11_111)},
+			expectedWarning: unsupportedWarning,
+		},
 	}
 
-	require.NoError(t, monitor.progressGames(context.Background(), common.Hash{0x01}, 0))
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			monitor, source, playable, _, _, lifecycle := setupMonitorTest(t, test.allowedGames, 0)
+			monitor.gameTypes = test.configuredTypes
+			logger, logs := testlog.CaptureLogger(t, log.LevelWarn)
+			monitor.logger = logger
+			game := newTypedFDG(gameAddr, 9999, test.gameType)
+			source.games = []types.GameMetadata{game}
+			const blockNumber = uint64(123)
 
-	require.Len(t, sched.Scheduled(), 1)
-	require.Equal(t, []common.Address{addr1}, sched.Scheduled()[0])
-	require.Equal(t, 1, stubClaimer.scheduledGames)
+			require.NoError(t, monitor.progressGames(context.Background(), common.Hash{0x01}, blockNumber))
+
+			require.Len(t, lifecycle.scheduledBatches, 1)
+			require.Equal(t, blockNumber, lifecycle.scheduledBatches[0].blockNumber)
+			if test.expectLifecycle {
+				require.Equal(t, []types.GameMetadata{game}, lifecycle.scheduledBatches[0].games)
+				require.Equal(t, 1, lifecycle.scheduledGames)
+			} else {
+				require.Empty(t, lifecycle.scheduledBatches[0].games)
+				require.Zero(t, lifecycle.scheduledGames)
+			}
+
+			require.Len(t, playable.Scheduled(), 1)
+			if test.expectPlayable {
+				require.Equal(t, []common.Address{gameAddr}, playable.Scheduled()[0])
+			} else {
+				require.Empty(t, playable.Scheduled()[0])
+			}
+
+			for _, message := range []string{unsupportedWarning, lifecycleOnlyWarning} {
+				warning := logs.FindLog(
+					testlog.NewLevelFilter(log.LevelWarn),
+					testlog.NewMessageFilter(message))
+				if message == test.expectedWarning {
+					require.NotNil(t, warning)
+				} else {
+					require.Nil(t, warning)
+				}
+			}
+		})
+	}
+}
+
+func TestMonitorProgressGamesPreservesIndependentBatchOrder(t *testing.T) {
+	allowedCannon := newTypedFDG(common.Address{0xa1}, 9999, types.CannonGameType)
+	unsupported := newTypedFDG(common.Address{0xa2}, 9999, types.GameType(11_111))
+	unconfiguredCannonKona := newTypedFDG(common.Address{0xa3}, 9999, types.CannonKonaGameType)
+	superPermissioned := newTypedFDG(common.Address{0xa4}, 9999, types.SuperPermissionedGameType)
+	allowlistedOutCannon := newTypedFDG(common.Address{0xa5}, 9999, types.CannonGameType)
+	allowedPermissioned := newTypedFDG(common.Address{0xa6}, 9999, types.PermissionedGameType)
+	monitor, source, playable, _, _, lifecycle := setupMonitorTest(t, []common.Address{
+		allowedCannon.Proxy,
+		allowedPermissioned.Proxy,
+	}, 0)
+	monitor.gameTypes = []types.GameType{
+		types.CannonGameType,
+		types.PermissionedGameType,
+		types.SuperPermissionedGameType,
+	}
+	source.games = []types.GameMetadata{
+		allowedCannon,
+		unsupported,
+		unconfiguredCannonKona,
+		superPermissioned,
+		allowlistedOutCannon,
+		allowedPermissioned,
+	}
+	const blockNumber = uint64(456)
+
+	require.NoError(t, monitor.progressGames(context.Background(), common.Hash{0x01}, blockNumber))
+
+	require.Equal(t, []scheduledClaimBatch{{
+		blockNumber: blockNumber,
+		games: []types.GameMetadata{
+			allowedCannon,
+			allowedPermissioned,
+		},
+	}}, lifecycle.scheduledBatches)
+	require.Equal(t, 2, lifecycle.scheduledGames)
+	require.Equal(t, [][]common.Address{{
+		allowedCannon.Proxy,
+		allowedPermissioned.Proxy,
+	}}, playable.Scheduled())
 }
 
 func TestMinUpdatePeriod(t *testing.T) {
@@ -293,13 +418,23 @@ func (m *mockNewHeadSource) Subscribe(
 	return m.sub, nil
 }
 
-type mockScheduler struct {
-	scheduleErr    error
-	scheduledGames int
+type scheduledClaimBatch struct {
+	blockNumber uint64
+	games       []types.GameMetadata
 }
 
-func (m *mockScheduler) Schedule(_ uint64, games []types.GameMetadata) error {
+type mockScheduler struct {
+	scheduleErr      error
+	scheduledGames   int
+	scheduledBatches []scheduledClaimBatch
+}
+
+func (m *mockScheduler) Schedule(blockNumber uint64, games []types.GameMetadata) error {
 	m.scheduledGames += len(games)
+	m.scheduledBatches = append(m.scheduledBatches, scheduledClaimBatch{
+		blockNumber: blockNumber,
+		games:       append([]types.GameMetadata(nil), games...),
+	})
 	return m.scheduleErr
 }
 

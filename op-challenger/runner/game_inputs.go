@@ -32,7 +32,7 @@ func createGameInputs(ctx context.Context, log log.Logger, rollupClient *sources
 	switch gameType {
 	case gameTypes.SuperCannonKonaGameType:
 		if superNodeClient == nil {
-			return utils.LocalGameInputs{}, fmt.Errorf("game type %s requires supernode rpc to be set", gameType)
+			return utils.LocalGameInputs{}, fmt.Errorf("game type %s requires super root RPC to be set", gameType)
 		}
 		return createGameInputsInterop(ctx, log, superNodeClient, typeName)
 	default:
@@ -167,7 +167,7 @@ func hasNonZeroSafeHead(ctx context.Context, client *sources.RollupClient, l1Num
 func createGameInputsInterop(ctx context.Context, log log.Logger, client *sources.SuperNodeClient, typeName string) (utils.LocalGameInputs, error) {
 	status, err := client.SyncStatus(ctx)
 	if err != nil {
-		return utils.LocalGameInputs{}, fmt.Errorf("failed to get supernode sync status: %w", err)
+		return utils.LocalGameInputs{}, fmt.Errorf("failed to get super root RPC sync status: %w", err)
 	}
 	log.Info("Got sync status", "status", status, "type", typeName)
 

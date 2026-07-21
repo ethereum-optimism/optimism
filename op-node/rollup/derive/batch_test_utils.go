@@ -11,7 +11,7 @@ import (
 )
 
 func RandomSingularBatch(rng *rand.Rand, txCount int, chainID *big.Int) *SingularBatch {
-	signer := types.NewIsthmusSigner(chainID)
+	signer := types.NewPragueSigner(chainID)
 	baseFee := big.NewInt(rng.Int63n(300_000_000_000))
 	txsEncoded := make([]hexutil.Bytes, 0, txCount)
 	// force each tx to have equal chainID

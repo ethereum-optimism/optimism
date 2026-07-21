@@ -31,7 +31,7 @@ func (m *SingleChainWithFlashblocks) StandardBridge() *dsl.StandardBridge {
 }
 
 func (m *SingleChainWithFlashblocks) DisputeGameFactory() *proofs.DisputeGameFactory {
-	return proofs.NewDisputeGameFactory(m.T, m.L1Network, m.L1EL.EthClient(), m.L2Chain.DisputeGameFactoryProxyAddr(), m.L2CL, m.L2EL, nil, m.challengerConfig)
+	return proofs.NewDisputeGameFactory(m.T, m.L1Network, m.L1EL.EthClient(), m.L2Chain.DisputeGameFactoryProxyAddr(), m.L2CL, m.L2EL, nil, nil, m.challengerConfig)
 }
 
 func (m *SingleChainWithFlashblocks) AdvanceTime(amount time.Duration) {

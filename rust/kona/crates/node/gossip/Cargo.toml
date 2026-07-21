@@ -61,6 +61,7 @@ multihash.workspace = true
 serde_json.workspace = true
 alloy-eips.workspace = true
 alloy-chains.workspace = true
+metrics-util = { workspace = true, features = ["debugging"] }
 
 rand = { workspace = true, features = ["thread_rng"] }
 arbitrary = { workspace = true, features = ["derive"] }

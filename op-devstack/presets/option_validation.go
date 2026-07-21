@@ -179,6 +179,13 @@ const twoL2SupernodeInteropPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindPreGenesisSuperGame |
 	optionKindSupernodeVNSequencerForBootstrap
 
+// twoL2SupernodeLightSequencerPresetSupportedOptionKinds additionally accepts
+// L2 CL options: the light-sequencer runtime is the only two-L2 supernode
+// variant that wires GlobalL2CLOptions (to the light sequencer CLs), so the
+// option is accepted here and nowhere else to avoid a silent no-op.
+const twoL2SupernodeLightSequencerPresetSupportedOptionKinds = twoL2SupernodeInteropPresetSupportedOptionKinds |
+	optionKindGlobalL2CL
+
 const singleChainWithFlashblocksPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindOPRBuilder |
 	optionKindOpReth |

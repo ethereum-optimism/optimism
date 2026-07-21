@@ -11,9 +11,13 @@ repository.workspace = true
 [dependencies]
 bincode.workspace = true
 kona-sp1-client-utils.workspace = true
+kona-sp1-range-vkeys.workspace = true
 sha2.workspace = true
 sp1-lib.workspace = true
 sp1-zkvm.workspace = true
+
+[dev-dependencies]
+kona-sp1-client-utils = { workspace = true, features = ["aggregation-test-utils"] }
 
 [lints]
 workspace = true

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"sync/atomic"
 	"time"
 
@@ -41,7 +42,7 @@ type Service struct {
 
 	game             *extract.GameCallerCreator
 	rollupClients    []*sources.RollupClient
-	superNodeClients []*sources.SuperNodeClient
+	superRootClients []*sources.SuperNodeClient
 
 	l1RPC    rpcclient.RPC
 	l1Client *sources.L1Client
@@ -85,8 +86,8 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	if err := s.initOutputRollupClient(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init rollup client: %w", err)
 	}
-	if err := s.initSuperNodeClients(ctx, cfg); err != nil {
-		return fmt.Errorf("failed to init super node clients: %w", err)
+	if err := s.initSuperRootClients(ctx, cfg); err != nil {
+		return fmt.Errorf("failed to init super root clients: %w", err)
 	}
 
 	s.initGameCallerCreator() // Must be called before initForecast
@@ -112,8 +113,8 @@ func (s *Service) outputRollupClients() []extract.OutputRollupClient {
 }
 
 func (s *Service) asSuperRootProviders() []extract.SuperRootProvider {
-	clients := make([]extract.SuperRootProvider, len(s.superNodeClients))
-	for i, client := range s.superNodeClients {
+	clients := make([]extract.SuperRootProvider, len(s.superRootClients))
+	for i, client := range s.superRootClients {
 		clients[i] = client
 	}
 	return clients
@@ -133,16 +134,16 @@ func (s *Service) initOutputRollupClient(ctx context.Context, cfg *config.Config
 	return nil
 }
 
-func (s *Service) initSuperNodeClients(ctx context.Context, cfg *config.Config) error {
-	if len(cfg.SuperNodeRpcs) == 0 {
+func (s *Service) initSuperRootClients(ctx context.Context, cfg *config.Config) error {
+	if len(cfg.SuperRootRpcs) == 0 {
 		return nil
 	}
-	for _, rpc := range cfg.SuperNodeRpcs {
+	for _, rpc := range cfg.SuperRootRpcs {
 		client, err := dial.DialSuperNodeClientWithTimeout(ctx, s.logger, rpc, rpcclient.WithLazyDial())
 		if err != nil {
-			return fmt.Errorf("failed to dial super node client %s: %w", rpc, err)
+			return fmt.Errorf("failed to dial super root client %s: %w", rpc, err)
 		}
-		s.superNodeClients = append(s.superNodeClients, client)
+		s.superRootClients = append(s.superRootClients, client)
 	}
 	return nil
 }
@@ -279,10 +280,22 @@ func (s *Service) Stopped() bool {
 	return s.stopped.Load()
 }
 
+// MetricsAddr returns the bound metrics server address, or nil when metrics are disabled.
+func (s *Service) MetricsAddr() net.Addr {
+	if s.metricsSrv == nil {
+		return nil
+	}
+	return s.metricsSrv.Addr()
+}
+
 func (s *Service) Stop(ctx context.Context) error {
 	s.logger.Info("Stopping dispute mon service")
-
 	var result error
+	if s.monitor != nil {
+		if err := s.monitor.StopMonitoring(ctx); err != nil {
+			result = errors.Join(result, fmt.Errorf("failed to stop game monitor: %w", err))
+		}
+	}
 	if s.pprofService != nil {
 		if err := s.pprofService.Stop(ctx); err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to close pprof server: %w", err))

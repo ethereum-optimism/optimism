@@ -47,6 +47,7 @@ type FaultDisputeGame struct {
 	Status           func() TypedCall[uint8]       `sol:"status"`
 	GameType         func() TypedCall[uint32]      `sol:"gameType"`
 	CreatedAt        func() TypedCall[uint64]      `sol:"createdAt"`
+	RootClaim        func() TypedCall[common.Hash] `sol:"rootClaim"`
 
 	// IFaultDisputeGame.sol read methods
 	AbsolutePrestate       func() TypedCall[common.Hash]                                              `sol:"absolutePrestate"`

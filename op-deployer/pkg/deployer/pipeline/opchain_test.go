@@ -931,6 +931,43 @@ func TestResolveInitialDeployRequirements(t *testing.T) {
 	}
 }
 
+func TestValidateInitialGameTypeSet(t *testing.T) {
+	tests := []struct {
+		name      string
+		gameTypes []uint32
+		wantErr   string
+	}{
+		{name: "empty"},
+		{
+			name:      "all CANNON_KONA",
+			gameTypes: []uint32{uint32(embedded.GameTypeCannonKona), uint32(embedded.GameTypeCannonKona)},
+		},
+		{
+			name:      "all SUPER_CANNON_KONA",
+			gameTypes: []uint32{uint32(embedded.GameTypeSuperCannonKona), uint32(embedded.GameTypeSuperCannonKona)},
+		},
+		{
+			name: "mixed",
+			gameTypes: []uint32{
+				uint32(embedded.GameTypeCannonKona),
+				uint32(embedded.GameTypeSuperCannonKona),
+			},
+			wantErr: "an intent cannot mix CANNON_KONA and SUPER_CANNON_KONA initial games",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateInitialGameTypeSet(tt.gameTypes)
+			if tt.wantErr != "" {
+				require.EqualError(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
 func TestBuildDeployOPChainInputCannonAbsolutePrestate(t *testing.T) {
 	selectedPrestate := common.HexToHash("0x1234")
 	tests := []struct {

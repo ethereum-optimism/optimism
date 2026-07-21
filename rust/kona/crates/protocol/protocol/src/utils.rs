@@ -1,17 +1,15 @@
 //! Utility methods used by protocol types.
 
-use alloc::vec::Vec;
 use alloy_consensus::{Transaction, Typed2718};
 use alloy_op_hardforks::OpHardfork;
 use alloy_primitives::{B256, U256};
-use alloy_rlp::{Buf, Header};
 use kona_genesis::{RollupConfig, SystemConfig};
 use kona_hardforks::{Hardfork, Hardforks};
-use op_alloy_consensus::{OpBlock, OpTxType, decode_holocene_extra_data, decode_jovian_extra_data};
+use op_alloy_consensus::{OpBlock, decode_holocene_extra_data, decode_jovian_extra_data};
 
 use crate::{
     L1BlockInfoBedrockOnlyFields as _, L1BlockInfoEcotoneBaseFields as _, L1BlockInfoTx,
-    MAX_SPAN_BATCH_ELEMENTS, OpBlockConversionError, SpanBatchError, SpanDecodingError,
+    OpBlockConversionError,
 };
 
 /// Converts the [`OpBlock`] to a partial [`SystemConfig`].
@@ -143,57 +141,6 @@ fn encode_scalar(blob_base_fee_scalar: u32, base_fee_scalar: u32) -> U256 {
     buf[24..28].copy_from_slice(blob_base_fee_scalar.to_be_bytes().as_ref());
     buf[28..32].copy_from_slice(base_fee_scalar.to_be_bytes().as_ref());
     buf.into()
-}
-
-/// Maximum EIP-2718 transaction-type byte. A leading byte above this is the RLP list header of a
-/// legacy transaction rather than a type identifier.
-const EIP2718_MAX_TX_TYPE: u8 = 0x7F;
-
-/// Reads transaction data from a reader.
-pub fn read_tx_data(r: &mut &[u8]) -> Result<(Vec<u8>, OpTxType), SpanBatchError> {
-    let first_byte =
-        *r.first().ok_or(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData))?;
-    let tx_type_id = if first_byte <= EIP2718_MAX_TX_TYPE {
-        r.advance(1);
-        first_byte
-    } else {
-        u8::from(OpTxType::Legacy)
-    };
-
-    // Read the RLP header with a different reader pointer. This prevents the initial pointer from
-    // being advanced in the case that what we read is invalid.
-    let rlp_header = Header::decode(&mut (**r).as_ref())
-        .map_err(|_| SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData))?;
-    if !rlp_header.list {
-        return Err(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData));
-    }
-
-    let payload_length_with_header = rlp_header.payload_length + rlp_header.length();
-    if payload_length_with_header > MAX_SPAN_BATCH_ELEMENTS as usize {
-        return Err(SpanBatchError::TooBigSpanBatchSize);
-    }
-    if r.len() < payload_length_with_header {
-        return Err(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData));
-    }
-
-    let tx_type = match OpTxType::try_from(tx_type_id) {
-        // Deposits are not valid span-batch transactions, and an unknown byte is invalid too.
-        Ok(OpTxType::Deposit) | Err(_) => {
-            return Err(SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionType));
-        }
-        Ok(ty) => ty,
-    };
-
-    let is_typed_tx = tx_type != OpTxType::Legacy;
-    let tx_data_capacity = payload_length_with_header + usize::from(is_typed_tx);
-    let mut tx_data = Vec::with_capacity(tx_data_capacity);
-    if is_typed_tx {
-        tx_data.push(u8::from(tx_type));
-    }
-    tx_data.extend_from_slice(&r[..payload_length_with_header]);
-    r.advance(payload_length_with_header);
-
-    Ok((tx_data, tx_type))
 }
 
 #[cfg(test)]
@@ -580,30 +527,5 @@ mod tests {
             da_footprint_gas_scalar: None,
         };
         assert_eq!(config, expected);
-    }
-
-    #[test]
-    fn test_read_tx_data_truncated_payload() {
-        // RLP list header claiming 100 bytes of payload, but only 3 bytes actually present.
-        // 0xf8 0x64 = list header with 1-byte length prefix, payload length 100
-        let mut data: &[u8] = &[0xf8, 0x64, 0x00, 0x00, 0x00];
-        let err = read_tx_data(&mut data).unwrap_err();
-        assert_eq!(err, SpanBatchError::Decoding(SpanDecodingError::InvalidTransactionData));
-    }
-
-    #[test]
-    fn test_read_tx_data_exceeds_max_span_batch_elements() {
-        // RLP list header claiming MAX_SPAN_BATCH_ELEMENTS + 1 bytes of payload.
-        // 0xfa = list with 3-byte length prefix (0xf7 + 3), then 0x989681 = 10_000_001.
-        // Header::decode validates the claimed length against the buffer, so we must provide
-        // a buffer large enough for decoding to succeed before the max size check triggers.
-        let mut data = vec![0u8; MAX_SPAN_BATCH_ELEMENTS as usize + 5];
-        data[0] = 0xfa;
-        data[1] = 0x98;
-        data[2] = 0x96;
-        data[3] = 0x81;
-        let mut slice: &[u8] = &data;
-        let err = read_tx_data(&mut slice).unwrap_err();
-        assert_eq!(err, SpanBatchError::TooBigSpanBatchSize);
     }
 }

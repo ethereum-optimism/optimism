@@ -28,7 +28,7 @@ Upgrade 19 introduces the following changes:
 
 * **New Kona absolute prestate:** ships an updated `cannon64-kona` absolute prestate hash embedding the latest chain configurations.
 
-* **OPCMv2:** Upgrade 19 is the first upgrade to use OPCMv2, the redesigned OP Contracts Manager. OPCMv2 has a new interface, please take a look at the [source code](https://github.com/ethereum-optimism/optimism/blob/c332a1bafb206f18561173eb13c31f1747f9aea4/packages/contracts-bedrock/src/L1/opcm/OPContractsManagerV2.sol#L38) for more information.
+* **OPCMv2:** Upgrade 19 is the first upgrade to use OPCMv2, the redesigned OP Contracts Manager. OPCMv2 has a new interface, please take a look at the [source code](https://github.com/ethereum-optimism/optimism/blob/c332a1bafb206f18561173eb13c31f1747f9aea4/packages/contracts-bedrock/src/L1/opcm/OPContractsManagerV2.sol#L38) (as of `c332a1b`) for more information.
 
 <Info>
   This upgrade uses OPCMv2, the new default OP Contracts Manager. Chain operators calling `OPCM.upgrade()` directly or using `op-deployer` should ensure they are targeting the correct OPCMv2 contract version.
@@ -79,8 +79,8 @@ Because Upgrade 19 includes hard fork changes (Osaka on L2 and Glamsterdam Defen
 
   **Chains in the superchain-registry** (e.g. `Soneium`, `Ink`, `Unichain`, `Mode`, `Metal`, `Zora`):
   The Karst activation timestamp is built into the updated releases — no manual timestamp configuration is needed. Make sure you are using the network flag so that op-node and op-reth load chain config from the superchain-registry:
-  * `op-node`: [`--network <network>`](/node-operators/reference/op-node-config#network) (e.g. `--network soneium-mainnet`, `--network op-sepolia`)
-  * `op-reth`: [`--chain <network>`](/node-operators/reference/op-reth-config#chain) (e.g. `--chain soneium`, `--chain unichain`)
+  * `op-node`: [`--network <network>`](/node-operators/reference/op-node-config#network-and-rollup-config) (e.g. `--network soneium-mainnet`, `--network op-sepolia`)
+  * `op-reth`: [`--chain <network>`](/rust/op-reth/cli/op-reth/node) (e.g. `--chain soneium`, `--chain unichain`)
 
   **Chains not in the superchain-registry:**
   Set the activation timestamp manually in each client's config:

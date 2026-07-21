@@ -47,7 +47,7 @@ This release is suitable for the L1 contracts as part of the Holocene network up
 
 *   EIP-1559 configurability: The elasticity and denominator EIP-1559 parameters become configurable via the SystemConfig L1 contract, allowing gas target and gas limit to be independently configured.
 
-*   MIPS contract upgrade: Updates to support additional calls made by the new op-program version.
+*   MIPS contract upgrade: Updates to support additional calls made by the new `op-program` version, the fault proof program at the time. `op-program` has since reached end-of-support; see [End of Support for op-geth and op-program](/notices/op-geth-deprecation).
 
 *   [Official - Holocene Contract Release](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts%2Fv1.8.0)
 
@@ -56,25 +56,25 @@ This release is suitable for the L1 contracts as part of the Holocene network up
 <Expandable title="**Changelog**">
   **Added:**
 
-  *   MIPS: [1.2.1](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.8.0/packages/contracts-bedrock/src/cannon/MIPS.sol)
-  *   SystemConfig: [2.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.8.0/packages/contracts-bedrock/src/L1/SystemConfig.sol)
-  *   FaultDisputeGame: [1.3.1](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.8.0/packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol)
-  *   PermissionedDisputeGame: [1.3.1](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.8.0/packages/contracts-bedrock/src/dispute/PermissionedDisputeGame.sol)
+  *   MIPS: [1.2.1](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.8.0/packages/contracts-bedrock/src/cannon/MIPS.sol) (as of `op-contracts/v1.8.0`)
+  *   SystemConfig: [2.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.8.0/packages/contracts-bedrock/src/L1/SystemConfig.sol) (as of `op-contracts/v1.8.0`)
+  *   FaultDisputeGame: [1.3.1](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.8.0/packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol) (as of `op-contracts/v1.8.0`)
+  *   PermissionedDisputeGame: [1.3.1](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.8.0/packages/contracts-bedrock/src/dispute/PermissionedDisputeGame.sol) (as of `op-contracts/v1.8.0`)
 
   **No change:**
 
-  *   AddressManager: [Latest (this has no version)](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/legacy/AddressManager.sol)
-  *   AnchorStateRegistry: [2.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/dispute/AnchorStateRegistry.sol#L31)
-  *   DelayedWETH: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/dispute/weth/DelayedWETH.sol#L25)
-  *   L1CrossDomainMessenger: [2.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol#L24)
-  *   L1ERC721Bridge: [2.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1ERC721Bridge.sol#L27)
-  *   L1StandardBridge: [2.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1StandardBridge.sol#L73)
-  *   OptimismMintableERC20Factory: [1.9.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/universal/OptimismMintableERC20Factory.sol#L46)
-  *   OptimismPortal: [3.10.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/L1/OptimismPortal2.sol#L144)
-  *   DisputeGameFactory: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/DisputeGameFactory.sol#L25)
-  *   PreimageOracle: [1.1.2](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/cannon/PreimageOracle.sol)
-  *   ProtocolVersions: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/ProtocolVersions.sol#L39)
-  *   SuperchainConfig: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/SuperchainConfig.sol#L38)
+  *   AddressManager: [Latest (this has no version)](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/legacy/AddressManager.sol) (as of `op-contracts/v1.2.0`)
+  *   AnchorStateRegistry: [2.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/dispute/AnchorStateRegistry.sol#L31) (as of `op-contracts/v1.6.0`)
+  *   DelayedWETH: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/dispute/weth/DelayedWETH.sol#L25) (as of `op-contracts/v1.6.0`)
+  *   L1CrossDomainMessenger: [2.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol#L24) (as of `op-contracts/v1.3.0`)
+  *   L1ERC721Bridge: [2.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1ERC721Bridge.sol#L27) (as of `op-contracts/v1.3.0`)
+  *   L1StandardBridge: [2.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1StandardBridge.sol#L73) (as of `op-contracts/v1.3.0`)
+  *   OptimismMintableERC20Factory: [1.9.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/universal/OptimismMintableERC20Factory.sol#L46) (as of `op-contracts/v1.3.0`)
+  *   OptimismPortal: [3.10.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/L1/OptimismPortal2.sol#L144) (as of `op-contracts/v1.4.0`)
+  *   DisputeGameFactory: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/DisputeGameFactory.sol#L25) (as of `op-contracts/v1.4.0`)
+  *   PreimageOracle: [1.1.2](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/cannon/PreimageOracle.sol) (as of `op-contracts/v1.6.0`)
+  *   ProtocolVersions: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/ProtocolVersions.sol#L39) (as of `op-contracts/v1.2.0`)
+  *   SuperchainConfig: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/SuperchainConfig.sol#L38) (as of `op-contracts/v1.2.0`)
 </Expandable>
 
 #### op-contracts/v1.6.0 - Fault proof fixes
@@ -89,26 +89,26 @@ The upgrade was coupled with the Granite network upgrade to improve the stabilit
 <Expandable title="**Changelog**">
   **Added:**
 
-  *   MIPS: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/cannon/MIPS.sol)
-  *   PreimageOracle: [1.1.2](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/cannon/PreimageOracle.sol)
-  *   FaultDisputeGame: [1.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol#L73)
-  *   PermissionedDisputeGame: [1.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/dispute/PermissionedDisputeGame.sol)
-  *   DelayedWETH: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/dispute/weth/DelayedWETH.sol#L25)
-  *   DeputyGuardianModule: [2.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/Safe/SafeSigners.sol)
-  *   AnchorStateRegistry: [2.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/dispute/AnchorStateRegistry.sol#L31)
+  *   MIPS: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/cannon/MIPS.sol) (as of `op-contracts/v1.6.0`)
+  *   PreimageOracle: [1.1.2](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/cannon/PreimageOracle.sol) (as of `op-contracts/v1.6.0`)
+  *   FaultDisputeGame: [1.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol#L73) (as of `op-contracts/v1.6.0`)
+  *   PermissionedDisputeGame: [1.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/dispute/PermissionedDisputeGame.sol) (as of `op-contracts/v1.6.0`)
+  *   DelayedWETH: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/dispute/weth/DelayedWETH.sol#L25) (as of `op-contracts/v1.6.0`)
+  *   DeputyGuardianModule: [2.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/Safe/DeputyGuardianModule.sol#L49) (as of `op-contracts/v1.6.0`)
+  *   AnchorStateRegistry: [2.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/dispute/AnchorStateRegistry.sol#L31) (as of `op-contracts/v1.6.0`)
 
   **No change:**
 
-  *   AddressManager: [Latest (this has no version)](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/legacy/AddressManager.sol)
-  *   L1CrossDomainMessenger: [2.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol#L24)
-  *   L1ERC721Bridge: [2.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1ERC721Bridge.sol#L27)
-  *   L1StandardBridge: [2.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1StandardBridge.sol#L73)
-  *   OptimismMintableERC20Factory: [1.9.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/universal/OptimismMintableERC20Factory.sol#L46)
-  *   OptimismPortal: [3.10.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/L1/OptimismPortal2.sol#L144)
-  *   SystemConfig: [2.2.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/L1/SystemConfig.sol#L111)
-  *   DisputeGameFactory: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/DisputeGameFactory.sol#L25)
-  *   SuperchainConfig: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/SuperchainConfig.sol#L38)
-  *   ProtocolVersions: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/ProtocolVersions.sol#L39)
+  *   AddressManager: [Latest (this has no version)](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/legacy/AddressManager.sol) (as of `op-contracts/v1.2.0`)
+  *   L1CrossDomainMessenger: [2.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol#L24) (as of `op-contracts/v1.3.0`)
+  *   L1ERC721Bridge: [2.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1ERC721Bridge.sol#L27) (as of `op-contracts/v1.3.0`)
+  *   L1StandardBridge: [2.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1StandardBridge.sol#L73) (as of `op-contracts/v1.3.0`)
+  *   OptimismMintableERC20Factory: [1.9.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/universal/OptimismMintableERC20Factory.sol#L46) (as of `op-contracts/v1.3.0`)
+  *   OptimismPortal: [3.10.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/L1/OptimismPortal2.sol#L144) (as of `op-contracts/v1.4.0`)
+  *   SystemConfig: [2.2.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/L1/SystemConfig.sol#L111) (as of `op-contracts/v1.4.0`)
+  *   DisputeGameFactory: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/DisputeGameFactory.sol#L25) (as of `op-contracts/v1.4.0`)
+  *   SuperchainConfig: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/SuperchainConfig.sol#L38) (as of `op-contracts/v1.2.0`)
+  *   ProtocolVersions: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/ProtocolVersions.sol#L39) (as of `op-contracts/v1.2.0`)
 </Expandable>
 
 #### op-contracts/v1.5.0 - Safe extensions
@@ -135,28 +135,28 @@ decentralization of the OP Stack by:
 <Expandable title="**Changelog**">
   **Added:**
 
-  *   LivenessGuard: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/9047beb54c66a5c572784efec8984f259302ec92/packages/contracts-bedrock/src/Safe/LivenessGuard.sol#L29)
-  *   LivenessModule: [1.2.0](https://github.com/ethereum-optimism/optimism/blob/9047beb54c66a5c572784efec8984f259302ec92/packages/contracts-bedrock/src/Safe/LivenessModule.sol#L57)
-  *   DeputyGuardianModule: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.5.0/packages/contracts-bedrock/src/Safe/SafeSigners.sol)
+  *   LivenessGuard: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/9047beb54c66a5c572784efec8984f259302ec92/packages/contracts-bedrock/src/Safe/LivenessGuard.sol#L29) (as of `9047beb`)
+  *   LivenessModule: [1.2.0](https://github.com/ethereum-optimism/optimism/blob/9047beb54c66a5c572784efec8984f259302ec92/packages/contracts-bedrock/src/Safe/LivenessModule.sol#L57) (as of `9047beb`)
+  *   DeputyGuardianModule: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.5.0/packages/contracts-bedrock/src/Safe/DeputyGuardianModule.sol#L47) (as of `op-contracts/v1.5.0`)
 
   **No change:**
 
-  *   AddressManager: [Latest (this has no version)](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/legacy/AddressManager.sol)
-  *   L1CrossDomainMessenger: [2.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol#L24)
-  *   L1ERC721Bridge: [2.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1ERC721Bridge.sol#L27)
-  *   L1StandardBridge: [2.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1StandardBridge.sol#L73)
-  *   OptimismMintableERC20Factory: [1.9.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/universal/OptimismMintableERC20Factory.sol#L46)
-  *   OptimismPortal: [3.10.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/L1/OptimismPortal2.sol#L144)
-  *   SystemConfig: [2.2.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/L1/SystemConfig.sol#L111)
-  *   FaultDisputeGame: [1.2.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol#L73)
-  *   PermissionedDisputeGame: [1.2.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/PermissionedDisputeGame.sol)
-  *   DisputeGameFactory: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/DisputeGameFactory.sol#L25)
-  *   AnchorStateRegistry: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/AnchorStateRegistry.sol#L28)
-  *   DelayedWETH: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/weth/DelayedWETH.sol#L25)
-  *   MIPS: [1.0.1](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/cannon/MIPS.sol#L47)
-  *   PreimageOracle: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/cannon/PreimageOracle.sol#L33)
-  *   SuperchainConfig: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/SuperchainConfig.sol#L38)
-  *   ProtocolVersions: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/ProtocolVersions.sol#L39)
+  *   AddressManager: [Latest (this has no version)](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/legacy/AddressManager.sol) (as of `op-contracts/v1.2.0`)
+  *   L1CrossDomainMessenger: [2.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol#L24) (as of `op-contracts/v1.3.0`)
+  *   L1ERC721Bridge: [2.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1ERC721Bridge.sol#L27) (as of `op-contracts/v1.3.0`)
+  *   L1StandardBridge: [2.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1StandardBridge.sol#L73) (as of `op-contracts/v1.3.0`)
+  *   OptimismMintableERC20Factory: [1.9.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/universal/OptimismMintableERC20Factory.sol#L46) (as of `op-contracts/v1.3.0`)
+  *   OptimismPortal: [3.10.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/L1/OptimismPortal2.sol#L144) (as of `op-contracts/v1.4.0`)
+  *   SystemConfig: [2.2.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/L1/SystemConfig.sol#L111) (as of `op-contracts/v1.4.0`)
+  *   FaultDisputeGame: [1.2.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol#L73) (as of `op-contracts/v1.4.0`)
+  *   PermissionedDisputeGame: [1.2.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/PermissionedDisputeGame.sol) (as of `op-contracts/v1.4.0`)
+  *   DisputeGameFactory: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/DisputeGameFactory.sol#L25) (as of `op-contracts/v1.4.0`)
+  *   AnchorStateRegistry: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/AnchorStateRegistry.sol#L28) (as of `op-contracts/v1.4.0`)
+  *   DelayedWETH: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/weth/DelayedWETH.sol#L25) (as of `op-contracts/v1.4.0`)
+  *   MIPS: [1.0.1](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/cannon/MIPS.sol#L47) (as of `op-contracts/v1.4.0`)
+  *   PreimageOracle: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/cannon/PreimageOracle.sol#L33) (as of `op-contracts/v1.4.0`)
+  *   SuperchainConfig: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/SuperchainConfig.sol#L38) (as of `op-contracts/v1.2.0`)
+  *   ProtocolVersions: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/ProtocolVersions.sol#L39) (as of `op-contracts/v1.2.0`)
 </Expandable>
 
 #### op-contracts/v1.4.0 - Fault proofs
@@ -181,18 +181,18 @@ reach Stage 1 status.
 <Expandable title="**Changelog**">
   **Added:**
 
-  *   FaultDisputeGame: [1.2.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol#L73)
-  *   PermissionedDisputeGame: [1.2.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/PermissionedDisputeGame.sol)
-  *   DisputeGameFactory: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/DisputeGameFactory.sol#L25)
-  *   AnchorStateRegistry: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/AnchorStateRegistry.sol#L28)
-  *   DelayedWETH: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/weth/DelayedWETH.sol#L25)
-  *   MIPS: [1.0.1](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/cannon/MIPS.sol#L47)
-  *   PreimageOracle: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/cannon/PreimageOracle.sol#L33)
+  *   FaultDisputeGame: [1.2.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol#L73) (as of `op-contracts/v1.4.0`)
+  *   PermissionedDisputeGame: [1.2.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/PermissionedDisputeGame.sol) (as of `op-contracts/v1.4.0`)
+  *   DisputeGameFactory: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/DisputeGameFactory.sol#L25) (as of `op-contracts/v1.4.0`)
+  *   AnchorStateRegistry: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/AnchorStateRegistry.sol#L28) (as of `op-contracts/v1.4.0`)
+  *   DelayedWETH: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/dispute/weth/DelayedWETH.sol#L25) (as of `op-contracts/v1.4.0`)
+  *   MIPS: [1.0.1](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/cannon/MIPS.sol#L47) (as of `op-contracts/v1.4.0`)
+  *   PreimageOracle: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/cannon/PreimageOracle.sol#L33) (as of `op-contracts/v1.4.0`)
 
   **Upgraded:**
 
-  *   OptimismPortal: [3.10.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/L1/OptimismPortal2.sol#L144)
-  *   SystemConfig: [2.2.0](https://github.com/ethereum-optimism/optimism/blob/547ea72d9849e13ce169fd31df0f9197651b3f86/packages/contracts-bedrock/src/L1/SystemConfig.sol#L111)
+  *   OptimismPortal: [3.10.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.4.0/packages/contracts-bedrock/src/L1/OptimismPortal2.sol#L144) (as of `op-contracts/v1.4.0`)
+  *   SystemConfig: [2.2.0](https://github.com/ethereum-optimism/optimism/blob/547ea72d9849e13ce169fd31df0f9197651b3f86/packages/contracts-bedrock/src/L1/SystemConfig.sol#L111) (as of `547ea72`)
 
   **Deprecated:**
 
@@ -200,13 +200,13 @@ reach Stage 1 status.
 
   **No change:**
 
-  *   AddressManager: [Latest (this has no version)](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/legacy/AddressManager.sol)
-  *   L1CrossDomainMessenger: [2.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol#L24)
-  *   L1ERC721Bridge: [2.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1ERC721Bridge.sol#L27)
-  *   L1StandardBridge: [2.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1StandardBridge.sol#L73)
-  *   OptimismMintableERC20Factory: [1.9.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/universal/OptimismMintableERC20Factory.sol#L46)
-  *   SuperchainConfig: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/SuperchainConfig.sol#L38)
-  *   ProtocolVersions: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/ProtocolVersions.sol#L39)
+  *   AddressManager: [Latest (this has no version)](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/legacy/AddressManager.sol) (as of `op-contracts/v1.2.0`)
+  *   L1CrossDomainMessenger: [2.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol#L24) (as of `op-contracts/v1.3.0`)
+  *   L1ERC721Bridge: [2.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1ERC721Bridge.sol#L27) (as of `op-contracts/v1.3.0`)
+  *   L1StandardBridge: [2.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1StandardBridge.sol#L73) (as of `op-contracts/v1.3.0`)
+  *   OptimismMintableERC20Factory: [1.9.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/universal/OptimismMintableERC20Factory.sol#L46) (as of `op-contracts/v1.3.0`)
+  *   SuperchainConfig: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/SuperchainConfig.sol#L38) (as of `op-contracts/v1.2.0`)
+  *   ProtocolVersions: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/ProtocolVersions.sol#L39) (as of `op-contracts/v1.2.0`)
 </Expandable>
 
 #### op-contracts/v1.3.0 - Multi-Chain Prep (MCP)
@@ -228,19 +228,19 @@ discover the system's contract addresses programmatically.
 
   **Upgraded:**
 
-  *   OptimismPortal: [2.5.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/OptimismPortal.sol#L94)
-  *   L1CrossDomainMessenger: [2.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol#L24)
-  *   L1StandardBridge: [2.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1StandardBridge.sol#L73)
-  *   L1ERC721Bridge: [2.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1ERC721Bridge.sol#L27)
-  *   OptimismMintableERC20Factory: [1.9.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/universal/OptimismMintableERC20Factory.sol#L46)
-  *   L2OutputOracle: [1.8.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L2OutputOracle.sol#L59)
-  *   SystemConfig: [1.12.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/SystemConfig.sol#L104)
+  *   OptimismPortal: [2.5.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/OptimismPortal.sol#L94) (as of `op-contracts/v1.3.0`)
+  *   L1CrossDomainMessenger: [2.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol#L24) (as of `op-contracts/v1.3.0`)
+  *   L1StandardBridge: [2.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1StandardBridge.sol#L73) (as of `op-contracts/v1.3.0`)
+  *   L1ERC721Bridge: [2.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L1ERC721Bridge.sol#L27) (as of `op-contracts/v1.3.0`)
+  *   OptimismMintableERC20Factory: [1.9.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/universal/OptimismMintableERC20Factory.sol#L46) (as of `op-contracts/v1.3.0`)
+  *   L2OutputOracle: [1.8.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/L2OutputOracle.sol#L59) (as of `op-contracts/v1.3.0`)
+  *   SystemConfig: [1.12.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.3.0/packages/contracts-bedrock/src/L1/SystemConfig.sol#L104) (as of `op-contracts/v1.3.0`)
 
   **No change:**
 
-  *   AddressManager: [Latest (this has no version)](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/legacy/AddressManager.sol)
-  *   SuperchainConfig: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/SuperchainConfig.sol#L38)
-  *   ProtocolVersions: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/ProtocolVersions.sol#L39)
+  *   AddressManager: [Latest (this has no version)](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/legacy/AddressManager.sol) (as of `op-contracts/v1.2.0`)
+  *   SuperchainConfig: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/SuperchainConfig.sol#L38) (as of `op-contracts/v1.2.0`)
+  *   ProtocolVersions: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/ProtocolVersions.sol#L39) (as of `op-contracts/v1.2.0`)
 </Expandable>
 
 #### op-contracts/v1.2.0 - SuperchainConfig with Extended Pause Functionality
@@ -255,19 +255,19 @@ multiple OP Stack chains.
 
   **Added:**
 
-  *   SuperchainConfig: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/SuperchainConfig.sol#L38)
+  *   SuperchainConfig: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/SuperchainConfig.sol#L38) (as of `op-contracts/v1.2.0`)
 
   **Upgraded:**
 
-  *   AddressManager: [Latest (this has no version)](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/legacy/AddressManager.sol)
-  *   L1CrossDomainMessenger: [2.2.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol#L25)
-  *   L1ERC721Bridge: [2.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/L1ERC721Bridge.sol#L26)
-  *   L1StandardBridge: [2.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/L1StandardBridge.sol#L73)
-  *   L2OutputOracle: [1.7.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/L2OutputOracle.sol#L63)
-  *   OptimismMintableERC20Factory: [1.8.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/universal/OptimismMintableERC20Factory.sol#L35)
-  *   OptimismPortal: [2.4.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/OptimismPortal.sol#L96)
-  *   SystemConfig: [1.11.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/SystemConfig.sol#L67)
-  *   ProtocolVersions: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/ProtocolVersions.sol#L39)
+  *   AddressManager: [Latest (this has no version)](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/legacy/AddressManager.sol) (as of `op-contracts/v1.2.0`)
+  *   L1CrossDomainMessenger: [2.2.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol#L25) (as of `op-contracts/v1.2.0`)
+  *   L1ERC721Bridge: [2.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/L1ERC721Bridge.sol#L26) (as of `op-contracts/v1.2.0`)
+  *   L1StandardBridge: [2.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/L1StandardBridge.sol#L73) (as of `op-contracts/v1.2.0`)
+  *   L2OutputOracle: [1.7.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/L2OutputOracle.sol#L63) (as of `op-contracts/v1.2.0`)
+  *   OptimismMintableERC20Factory: [1.8.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/universal/OptimismMintableERC20Factory.sol#L35) (as of `op-contracts/v1.2.0`)
+  *   OptimismPortal: [2.4.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/OptimismPortal.sol#L96) (as of `op-contracts/v1.2.0`)
+  *   SystemConfig: [1.11.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/SystemConfig.sol#L67) (as of `op-contracts/v1.2.0`)
+  *   ProtocolVersions: [1.0.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/L1/ProtocolVersions.sol#L39) (as of `op-contracts/v1.2.0`)
 
   **No change:**
 
@@ -303,14 +303,14 @@ future hardforks, not the activation of said hardforks.
 
   **No change:**
 
-  *   AddressManager: [Latest (this has no version)](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/legacy/AddressManager.sol)
-  *   L1CrossDomainMessenger: [1.4.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/L1CrossDomainMessenger.sol#L23)
-  *   L1ERC721Bridge: [1.1.1](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/L1ERC721Bridge.sol#L23)
-  *   L1StandardBridge: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/L1StandardBridge.sol#L94)
-  *   L2OutputOracle: [1.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/L2OutputOracle.sol#L81)
-  *   OptimismMintableERC20Factory: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/universal/OptimismMintableERC20Factory.sol#L47)
-  *   OptimismPortal: [1.6.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/OptimismPortal.sol#L143)
-  *   SystemConfig: [1.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/SystemConfig.sol#L83)
+  *   AddressManager: [Latest (this has no version)](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/legacy/AddressManager.sol) (as of `op-contracts/v1.2.0`)
+  *   L1CrossDomainMessenger: [1.4.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/L1CrossDomainMessenger.sol#L23) (as of `op-contracts/v1.0.0`)
+  *   L1ERC721Bridge: [1.1.1](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/L1ERC721Bridge.sol#L23) (as of `op-contracts/v1.0.0`)
+  *   L1StandardBridge: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/L1StandardBridge.sol#L94) (as of `op-contracts/v1.0.0`)
+  *   L2OutputOracle: [1.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/L2OutputOracle.sol#L81) (as of `op-contracts/v1.0.0`)
+  *   OptimismMintableERC20Factory: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/universal/OptimismMintableERC20Factory.sol#L47) (as of `op-contracts/v1.0.0`)
+  *   OptimismPortal: [1.6.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/OptimismPortal.sol#L143) (as of `op-contracts/v1.0.0`)
+  *   SystemConfig: [1.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/SystemConfig.sol#L83) (as of `op-contracts/v1.0.0`)
 </Expandable>
 
 #### op-contracts/v1.0.0 - Bedrock
@@ -326,14 +326,14 @@ and most importantly making the stack modular.
 
   **Added:**
 
-  *   AddressManager: [Latest (this has no version)](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/legacy/AddressManager.sol)
-  *   L1CrossDomainMessenger: [1.4.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/L1CrossDomainMessenger.sol#L23)
-  *   L1ERC721Bridge: [1.1.1](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/L1ERC721Bridge.sol#L23)
-  *   L1StandardBridge: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/L1StandardBridge.sol#L94)
-  *   L2OutputOracle: [1.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/L2OutputOracle.sol#L81)
-  *   OptimismMintableERC20Factory: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/universal/OptimismMintableERC20Factory.sol#L47)
-  *   OptimismPortal: [1.6.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/OptimismPortal.sol#L143)
-  *   SystemConfig: [1.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/SystemConfig.sol#L83)
+  *   AddressManager: [Latest (this has no version)](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.2.0/packages/contracts-bedrock/src/legacy/AddressManager.sol) (as of `op-contracts/v1.2.0`)
+  *   L1CrossDomainMessenger: [1.4.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/L1CrossDomainMessenger.sol#L23) (as of `op-contracts/v1.0.0`)
+  *   L1ERC721Bridge: [1.1.1](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/L1ERC721Bridge.sol#L23) (as of `op-contracts/v1.0.0`)
+  *   L1StandardBridge: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/L1StandardBridge.sol#L94) (as of `op-contracts/v1.0.0`)
+  *   L2OutputOracle: [1.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/L2OutputOracle.sol#L81) (as of `op-contracts/v1.0.0`)
+  *   OptimismMintableERC20Factory: [1.1.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/universal/OptimismMintableERC20Factory.sol#L47) (as of `op-contracts/v1.0.0`)
+  *   OptimismPortal: [1.6.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/OptimismPortal.sol#L143) (as of `op-contracts/v1.0.0`)
+  *   SystemConfig: [1.3.0](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.0.0/packages/contracts-bedrock/contracts/L1/SystemConfig.sol#L83) (as of `op-contracts/v1.0.0`)
 </Expandable>
 
 ### L1 Contract Details
@@ -656,7 +656,7 @@ See [fee vaults](/op-stack/transactions/fee-vaults) for details.
 
 ### OperatorFeeVault
 
-The `OperatorFeeVault` predeploy (introduced with the [Isthmus hardfork](https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/isthmus/predeploys.md#operatorfeevault)) receives the operator portion of the transaction fees.
+The `OperatorFeeVault` predeploy (introduced with the [Isthmus hardfork](https://specs.optimism.io/protocol/isthmus/predeploys.html#operatorfeevault)) receives the operator portion of the transaction fees.
 Once the contract has received a certain amount of fees, funds can be withdrawn to
 a configured recipient.
 See [fee vaults](/op-stack/transactions/fee-vaults) for details.

@@ -36,22 +36,8 @@ func ValidateInteropDepSetMatchesIntent(chains []*state.ChainIntent, prepared *d
 		return fmt.Errorf("prepared interop dependency set is missing; rerun op-deployer prepare")
 	}
 
-	seen := make(map[common.Hash]struct{}, len(chains))
-	duplicateSet := make(map[common.Hash]struct{})
-	for _, chain := range chains {
-		if _, ok := seen[chain.ID]; ok {
-			duplicateSet[chain.ID] = struct{}{}
-			continue
-		}
-		seen[chain.ID] = struct{}{}
-	}
-	if len(duplicateSet) > 0 {
-		duplicates := make([]common.Hash, 0, len(duplicateSet))
-		for id := range duplicateSet {
-			duplicates = append(duplicates, id)
-		}
-		sortChainIDs(duplicates)
-		return fmt.Errorf("intent contains duplicate chain IDs %s; rerun op-deployer prepare", formatChainIDs(duplicates))
+	if err := ValidateNoDuplicateChainIDs(chains); err != nil {
+		return fmt.Errorf("intent contains %w; rerun op-deployer prepare", err)
 	}
 
 	intentIDs := make(map[common.Hash]struct{}, len(chains))
@@ -86,6 +72,28 @@ func ValidateInteropDepSetMatchesIntent(chains []*state.ChainIntent, prepared *d
 		formatChainIDs(added),
 		formatChainIDs(removed),
 	)
+}
+
+// ValidateNoDuplicateChainIDs rejects duplicate chain IDs.
+func ValidateNoDuplicateChainIDs(chains []*state.ChainIntent) error {
+	seen := make(map[common.Hash]struct{}, len(chains))
+	duplicateSet := make(map[common.Hash]struct{})
+	for _, chain := range chains {
+		if _, ok := seen[chain.ID]; ok {
+			duplicateSet[chain.ID] = struct{}{}
+			continue
+		}
+		seen[chain.ID] = struct{}{}
+	}
+	if len(duplicateSet) > 0 {
+		duplicates := make([]common.Hash, 0, len(duplicateSet))
+		for id := range duplicateSet {
+			duplicates = append(duplicates, id)
+		}
+		sortChainIDs(duplicates)
+		return fmt.Errorf("duplicate chain IDs %s", formatChainIDs(duplicates))
+	}
+	return nil
 }
 
 func sortChainIDs(ids []common.Hash) {
