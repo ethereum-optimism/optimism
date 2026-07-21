@@ -94,9 +94,8 @@ func main() {
 					beaconClient := sources.NewBeaconHTTPClient(client.NewBasicHTTPClient(beaconAddr, nil))
 					beaconCfg := sources.L1BeaconClientConfig{FetchAllSidecars: false}
 					beacon = sources.NewL1BeaconClient(beaconClient, beaconCfg)
-					_, err := beacon.GetVersion(ctx)
-					if err != nil {
-						log.Fatal(fmt.Errorf("failed to check L1 Beacon API version: %w", err))
+					if _, err := beaconClient.BeaconGenesis(ctx); err != nil {
+						log.Fatal(fmt.Errorf("failed to connect to L1 Beacon API: %w", err))
 					}
 				} else {
 					fmt.Println("L1 Beacon endpoint not set. Unable to fetch post-ecotone channel frames")

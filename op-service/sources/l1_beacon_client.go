@@ -21,7 +21,6 @@ import (
 )
 
 const (
-	versionMethod        = "eth/v1/node/version"
 	specMethod           = "eth/v1/config/spec"
 	genesisMethod        = "eth/v1/beacon/genesis"
 	sidecarsMethodPrefix = "eth/v1/beacon/blob_sidecars/"
@@ -92,14 +91,6 @@ func (cl *BeaconHTTPClient) apiReq(ctx context.Context, dest any, reqPath string
 		return fmt.Errorf("failed to close response body: %w", err)
 	}
 	return nil
-}
-
-func (cl *BeaconHTTPClient) NodeVersion(ctx context.Context) (string, error) {
-	var resp eth.APIVersionResponse
-	if err := cl.apiReq(ctx, &resp, versionMethod, nil); err != nil {
-		return "", err
-	}
-	return resp.Data.Version, nil
 }
 
 func (cl *BeaconHTTPClient) ConfigSpec(ctx context.Context) (eth.APIConfigResponse, error) {
@@ -306,9 +297,4 @@ func verifyBlob(blob *eth.Blob, expectedCommitmentHash common.Hash) error {
 		return fmt.Errorf("recomputed commitment %s does not match expected commitment %s", recomputedCommitmentHash, expectedCommitmentHash)
 	}
 	return nil
-}
-
-// GetVersion fetches the version of the Beacon-node.
-func (cl *L1BeaconClient) GetVersion(ctx context.Context) (string, error) {
-	return cl.cl.NodeVersion(ctx)
 }
