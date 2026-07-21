@@ -8,7 +8,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/params/forks"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
@@ -67,6 +69,68 @@ func TestWithLocalContractSourcesAt(t *testing.T) {
 	expected := artifacts.MustNewFileLocator(artifactsDir)
 	require.True(t, expected.Equal(intent.L1ContractsLocator))
 	require.True(t, expected.Equal(intent.L2ContractsLocator))
+}
+
+func TestParseL1Fork(t *testing.T) {
+	tests := map[string]forks.Fork{
+		"dencun": forks.Cancun,
+		"cancun": forks.Cancun,
+		"pectra": forks.Prague,
+		"prague": forks.Prague,
+		"fusaka": forks.Osaka,
+		"osaka":  forks.Osaka,
+	}
+	for input, expected := range tests {
+		t.Run(input, func(t *testing.T) {
+			actual, err := parseL1Fork(input)
+			require.NoError(t, err)
+			require.Equal(t, expected, actual)
+		})
+	}
+
+	for _, input := range []string{"frontier", "Fusaka", " osaka ", "bpo-1"} {
+		t.Run("reject "+input, func(t *testing.T) {
+			_, err := parseL1Fork(input)
+			require.EqualError(t, err, `unsupported L1 fork "`+input+`"`)
+		})
+	}
+}
+
+func TestDevstackL1ForkEnv(t *testing.T) {
+	t.Setenv(DevstackL1ForkEnvVar, "fusaka")
+	builder := newValidIntentBuilder()
+	builder.WithL1ContractsLocator(artifacts.EmbeddedLocator)
+	builder.WithL2ContractsLocator(artifacts.EmbeddedLocator)
+	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
+	require.NoError(t, err)
+
+	applyConfigCommons(devtest.SerialT(t), keys, DefaultL1ID, builder)
+
+	intent, err := builder.Build()
+	require.NoError(t, err)
+	require.NotNil(t, intent.L1DevGenesisParams.OsakaTimeOffset)
+	require.Zero(t, *intent.L1DevGenesisParams.OsakaTimeOffset)
+}
+
+func TestDeployerOptionsOverrideDevstackL1Fork(t *testing.T) {
+	t.Setenv(DevstackL1ForkEnvVar, "fusaka")
+	builder := newValidIntentBuilder()
+	builder.WithL1ContractsLocator(artifacts.EmbeddedLocator)
+	builder.WithL2ContractsLocator(artifacts.EmbeddedLocator)
+	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
+	require.NoError(t, err)
+	dt := devtest.SerialT(t)
+
+	applyConfigCommons(dt, keys, DefaultL1ID, builder)
+	applyConfigDeployerOptions(dt, keys, builder, []DeployerOption{
+		WithForkAtL1Genesis(forks.Prague),
+	})
+
+	intent, err := builder.Build()
+	require.NoError(t, err)
+	require.NotNil(t, intent.L1DevGenesisParams.PragueTimeOffset)
+	require.Zero(t, *intent.L1DevGenesisParams.PragueTimeOffset)
+	require.Nil(t, intent.L1DevGenesisParams.OsakaTimeOffset)
 }
 
 func newValidIntentBuilder() intentbuilder.Builder {
