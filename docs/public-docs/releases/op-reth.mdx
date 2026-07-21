@@ -15,7 +15,16 @@ diataxis: reference
 
 **op-reth** is the OP Stack execution layer (EL) built on [Reth](https://reth.rs), a modular, high-performance Rust Ethereum node. It is the recommended execution client for OP Stack chains, replacing op-geth.
 
-<Update label="June 26, 2026" description="v2.3.3" tags={["Latest", "Stable"]}>
+<Update label="July 20, 2026" description="v2.4.0" tags={["Latest", "Stable"]}>
+
+> [!NOTE]
+> **Optional upgrade.** New extension points: `OpPoolBuilder` transaction ordering and validator are now injectable ([#21531](https://github.com/ethereum-optimism/optimism/pull/21531)), and `op-alloy-network` makes its reqwest dependency opt-in ([#21175](https://github.com/ethereum-optimism/optimism/pull/21175)). Also fixes Prometheus metric-bucket draining in the op-proofs CLI ([#21596](https://github.com/ethereum-optimism/optimism/pull/21596)). No consensus or operator-facing behavior changes.
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth/v2.4.0)
+
+</Update>
+
+<Update label="June 26, 2026" description="v2.3.3" tags={["Stable"]}>
 
 > [!Warning]
 > **This is a mandatory release for all node operators.** It includes the [Mainnet](https://github.com/ethereum-optimism/superchain-registry/blob/c90d86d2ed13541f16daf5ce8707c688723ca039/superchain/configs/mainnet/op.toml#L24) timestamps for the Karst hardfork. (as of `c90d86d`)
@@ -25,7 +34,7 @@ diataxis: reference
 > **Reminder:** op-geth has reached [end of support](https://docs.optimism.io/notices/op-geth-deprecation), so you must be running op-reth to support the karst activation. For more details on this network upgrade see our [notice page](https://docs.optimism.io/notices/upgrade-19).
 
 > [!IMPORTANT]
-> **Operators must use op-node/v1.19.1 with this release.** Prior versions of op-node will not work with this version of op-reth after Karst due to a new engine API method (`getPayloadV5`) used after Karst. See the [notice page](https://docs.optimism.io/notices/upgrade-19) for more details about recommended versions (including flashblocks components).
+> **Operators must use op-node/v1.19.1+ with this release.** Prior versions of op-node will not work with this version of op-reth after Karst due to a new engine API method (`getPayloadV5`) used after Karst. See the [notice page](https://docs.optimism.io/notices/upgrade-19) for more details about recommended versions (including flashblocks components).
 
 op-reth can now load OP Sepolia and OP Mainnet timestamps from the superchain registry. If you are a node operator for either of those chains, you do not need to specify a custom genesis file with the `--chain` flag.
 
@@ -50,7 +59,7 @@ op-reth can now load OP Sepolia and OP Mainnet timestamps from the superchain re
 > **Reminder:** op-geth has reached [end of support](https://docs.optimism.io/notices/op-geth-deprecation), so you must be running op-reth to support the karst activation. For more details on this network upgrade see our [notice page](https://docs.optimism.io/notices/upgrade-19).
 
 > [!IMPORTANT]
-> **Operators must use op-node/v1.19.1 with this release.** Prior versions of op-node will not work with this version of op-reth after Karst due to a new engine API method (`getPayloadV5`) used after Karst. See the [notice page](https://docs.optimism.io/notices/upgrade-19) for more details about recommended versions (including flashblocks components).
+> **Operators must use op-node/v1.19.1+ with this release.** Prior versions of op-node will not work with this version of op-reth after Karst due to a new engine API method (`getPayloadV5`) used after Karst. See the [notice page](https://docs.optimism.io/notices/upgrade-19) for more details about recommended versions (including flashblocks components).
 
 op-reth can now load OP Sepolia and OP Mainnet timestamps from the superchain registry. If you are a node operator for either of those chains, you do not need to specify a custom genesis file with the `--chain` flag.
 
