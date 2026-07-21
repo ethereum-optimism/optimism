@@ -176,12 +176,6 @@ var ApplyFlags = []cli.Flag{
 	UseForgeFlag,
 }
 
-var UpgradeFlags = []cli.Flag{
-	L1RPCURLFlag,
-	PrivateKeyFlag,
-	DeploymentTargetFlag,
-}
-
 var VerifyFlags = []cli.Flag{
 	L1RPCURLFlag,
 	ArtifactsLocatorFlag,
