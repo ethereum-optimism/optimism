@@ -36,14 +36,14 @@ func ValidateInteropDepSetMatchesIntent(chains []*state.ChainIntent, prepared *d
 		return fmt.Errorf("prepared interop dependency set is missing; rerun op-deployer prepare")
 	}
 
-	seen := make(map[common.Hash]struct{}, len(chains))
+	intentIDs := make(map[common.Hash]struct{}, len(chains))
 	duplicateSet := make(map[common.Hash]struct{})
 	for _, chain := range chains {
-		if _, ok := seen[chain.ID]; ok {
+		if _, ok := intentIDs[chain.ID]; ok {
 			duplicateSet[chain.ID] = struct{}{}
 			continue
 		}
-		seen[chain.ID] = struct{}{}
+		intentIDs[chain.ID] = struct{}{}
 	}
 	if len(duplicateSet) > 0 {
 		duplicates := make([]common.Hash, 0, len(duplicateSet))
@@ -54,10 +54,6 @@ func ValidateInteropDepSetMatchesIntent(chains []*state.ChainIntent, prepared *d
 		return fmt.Errorf("intent contains duplicate chain IDs %s; rerun op-deployer prepare", formatChainIDs(duplicates))
 	}
 
-	intentIDs := make(map[common.Hash]struct{}, len(chains))
-	for _, chain := range chains {
-		intentIDs[chain.ID] = struct{}{}
-	}
 	preparedIDs := make(map[common.Hash]struct{}, len(prepared.Chains()))
 	for _, id := range prepared.Chains() {
 		preparedIDs[common.Hash(id.Bytes32())] = struct{}{}
