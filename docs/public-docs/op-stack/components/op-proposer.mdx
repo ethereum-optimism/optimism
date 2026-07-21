@@ -1,0 +1,69 @@
+---
+title: op-proposer
+description: Canonical hub for op-proposer, the OP Stack output proposer — what it does, who runs it, and where its guides, reference, releases, source, and spec live.
+diataxis: explanation
+---
+
+op-proposer is the OP Stack's output proposer: the service that submits
+output roots, claims about the L2 chain's state, to L1 so that withdrawals
+can be proven against them.
+
+## Overview
+
+op-proposer queries its rollup node for an output root (a commitment to the
+L2 state at a given block) and submits it to L1 on a configured interval. On
+a chain running fault proofs, each proposal is a transaction to the
+`DisputeGameFactory` that creates a new dispute game: a claim that stands
+unless successfully challenged. By default op-proposer proposes only
+finalized L2 state, because a proposal of state that does not hold true later
+is an invalid claim that carries dispute game penalties. (A pre-fault-proof
+proposal path still exists in the code but is effectively unused.)
+
+It exists because proposals are how L1 learns about L2 state: withdrawals are
+authenticated against resolved proposals, so a user proves a withdrawal
+against a proposed output root and finalizes it once that proposal's dispute
+game resolves in its favor. Without op-proposer, no new output roots reach L1
+and withdrawals cannot be proven.
+
+**Who runs it:** the chain operator, as one of the chain's core services. On
+chains with permissioned fault proofs, only the designated
+[proposer role](/op-stack/protocol/privileged-roles) can submit proposals;
+with [permissionless fault proofs](/op-stack/fault-proofs/explainer) anyone
+can propose, but the operator still runs op-proposer so proposals land
+regularly.
+
+## Get started
+
+*   [Spin up proposer](/chain-operators/tutorials/create-l2-rollup/op-proposer-setup):
+    set up and configure op-proposer as part of standing up an OP Stack
+    chain.
+
+## How-tos
+
+*   [Migrating to permissionless fault proofs](/chain-operators/tutorials/migrating-permissionless):
+    configure the dispute components and switch the respected game type.
+*   [Switch to Kona proofs](/chain-operators/guides/features/switching-to-kona-proofs):
+    move a chain to Kona-based fault proofs, including updating the game type
+    op-proposer creates.
+
+## Configuration & flags reference
+
+*   [Proposer configuration](/chain-operators/guides/configuration/proposer):
+    every configuration option and environment variable, plus the proposer
+    policy constraints that govern what gets proposed and when.
+
+## Releases
+
+*   [op-proposer release history](/releases/op-proposer)
+
+## Source & spec links
+
+*   [Source: `op-proposer/`](https://github.com/ethereum-optimism/optimism/tree/develop/op-proposer)
+    in the Optimism monorepo; its
+    [README](https://github.com/ethereum-optimism/optimism/blob/develop/op-proposer/README.md)
+    documents the proposal flow (with a sequence diagram), design principles,
+    and failure modes.
+*   [L2 output root proposals specification](https://specs.optimism.io/protocol/proposals.html):
+    the normative definition of output-root proposals.
+*   [Withdrawals specification](https://specs.optimism.io/protocol/withdrawals.html):
+    how withdrawals are proven against proposals.

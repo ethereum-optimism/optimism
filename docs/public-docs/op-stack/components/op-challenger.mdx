@@ -1,0 +1,76 @@
+---
+title: op-challenger
+description: Canonical hub for op-challenger, the OP Stack dispute game challenge agent — what it does, who runs it, and where its guides, releases, source, and spec live.
+diataxis: explanation
+---
+
+op-challenger is the OP Stack's dispute game challenge agent: the service
+that monitors fault dispute games on L1, defends valid output proposals, and
+challenges invalid ones.
+
+## Overview
+
+op-challenger watches the games created through the `DisputeGameFactory` (on
+a fault proof chain, every output proposal is a dispute game). Checking each
+claim against a trusted, synced rollup node, it defends proposals it agrees
+with, posts counterclaims against those it does not, resolves claims and
+games once the game clocks expire, and claims the bonds paid out to it. When
+a dispute is bisected down to a single VM instruction, op-challenger runs the
+fault proof VM, [cannon](/op-stack/components/cannon), executing kona-client
+with kona-host serving preimage data, to prove that instruction onchain. For
+a deeper walkthrough of this behavior, see the
+[OP-Challenger explainer](/op-stack/fault-proofs/challenger).
+
+It exists because fault proofs only secure withdrawals if someone actually
+responds to invalid claims before the game clocks run out. op-challenger is
+the implementation of the dispute protocol's *honest actor*: it defends the
+chain by ensuring games resolve to the correct state, which is what the
+`OptimismPortal` ultimately trusts for withdrawals.
+
+**Who runs it:** chain operators run at least one challenger to defend their
+chain, and on a permissionless fault proof chain anyone can run one. A
+challenger needs a synced, trusted rollup node to verify claims against, and
+a funded account to post bonds from.
+
+## Get started
+
+*   [Spin up challenger](/chain-operators/tutorials/create-l2-rollup/op-challenger-setup):
+    set up and configure op-challenger as part of standing up an OP Stack
+    chain.
+
+## How-tos
+
+*   [How to configure challenger for your chain](/chain-operators/guides/configuration/op-challenger-config-guide):
+    the configuration options that matter in production.
+*   [Run a fault-proof challenger](/use-cases/run-a-fault-proof-challenger):
+    the whole operational path in one pass: bond budgeting, prestate
+    selection, infrastructure, configuration, and monitoring.
+*   [Generating absolute prestate and preimage files](/chain-operators/tutorials/absolute-prestate):
+    build and verify the prestate op-challenger runs at dispute time.
+*   [Migrating to permissionless fault proofs](/chain-operators/tutorials/migrating-permissionless):
+    upgrade and test op-challenger as part of the migration.
+
+## Configuration & flags reference
+
+*   op-challenger has no flag reference page on this site yet; its flags are
+    documented by `op-challenger --help` and the
+    [in-repo README](https://github.com/ethereum-optimism/optimism/tree/develop/op-challenger#usage).
+    A docs reference is pending; the
+    [configuration guide](/chain-operators/guides/configuration/op-challenger-config-guide)
+    above covers the production-relevant options.
+
+## Releases
+
+*   [op-challenger release history](/releases/op-challenger)
+
+## Source & spec links
+
+*   [Source: `op-challenger/`](https://github.com/ethereum-optimism/optimism/tree/develop/op-challenger)
+    in the Optimism monorepo; its
+    [README](https://github.com/ethereum-optimism/optimism/blob/develop/op-challenger/README.md)
+    documents the quickstart and the manual-testing subcommands
+    (`create-game`, `move`, `resolve`, `list-games`, `run-trace`, and more).
+*   [Honest challenger specification](https://specs.optimism.io/fault-proof/stage-one/honest-challenger-fdg.html):
+    the normative behavior op-challenger implements.
+*   [Fault dispute game specification](https://specs.optimism.io/fault-proof/stage-one/fault-dispute-game.html):
+    the game it plays.
