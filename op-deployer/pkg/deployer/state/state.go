@@ -159,8 +159,8 @@ type ChainState struct {
 	// when building the continuation deploy input.
 	StartingAnchorRoot *StartingAnchorProposal `json:"startingAnchorRoot,omitempty"`
 
-	// InitialGameType is the dispute game type used to predict this chain during prepare.
-	// A nil value means the state predates recording this preparation input.
+	// InitialGameType records the game type used by prepare to detect intent drift.
+	// Legacy states without it must be prepared again before continuation.
 	InitialGameType *uint32 `json:"initialGameType,omitempty"`
 
 	AdditionalDisputeGames []AdditionalDisputeGameState `json:"additionalDisputeGames"`

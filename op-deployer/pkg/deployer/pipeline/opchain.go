@@ -369,6 +369,8 @@ func BuildContinuationDCI(intent *state.Intent, chainID common.Hash, st *state.S
 				chainID.Hex(),
 			)
 		}
+		// The initial anchor must leave room for a strictly greater uint64 game sequence.
+		// The field is uint64-bounded, so equality is the only invalid value representable here.
 		if chainState.StartingAnchorRoot.L2SequenceNumber == math.MaxUint64 {
 			return opcm.DeployOPChainInput{}, fmt.Errorf(
 				"chain %s has a starting anchor sequence number that is too large. Rerun the proposal-producing stage",

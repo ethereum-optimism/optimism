@@ -84,6 +84,15 @@ func TestState_StartingAnchorRootJSONRoundTrip(t *testing.T) {
 	require.Equal(t, proposal, chain.StartingAnchorRoot)
 }
 
+func TestStartingAnchorProposal_RejectsOversizedSequenceNumber(t *testing.T) {
+	var proposal StartingAnchorProposal
+	err := json.Unmarshal(
+		[]byte(`{"l2SequenceNumber":"0x10000000000000000"}`),
+		&proposal,
+	)
+	require.ErrorContains(t, err, "hex number > 64 bits")
+}
+
 func TestState_StartingAnchorRootJSONBackwardCompatibility(t *testing.T) {
 	chainID := common.HexToHash("0x01")
 
