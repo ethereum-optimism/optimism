@@ -6,7 +6,7 @@ diataxis: how-to
 
 <Note>
 If you haven't already built the `kona-node` binary, head over to the
-[Installation](/rust/kona/node/install/overview) guide.
+[Installation](/node-operators/kona-node/install/overview) guide.
 </Note>
 
 `kona-node` is an L2 consensus client (also called a "rollup node").
@@ -23,18 +23,18 @@ Out of the box, the `kona-node` can be used for any `OP Stack` chain
 that is part of the [`superchain-registry`][scr]. In order to use an
 out-of-band `OP Stack` chain, for example a new devnet, you'll need
 to specify the rollup config using the custom `--l2-config-file`
-cli flag. See [rollup configuration loading](/rust/kona/node/configuration#rollup-configuration-loading)
+cli flag. See [rollup configuration loading](/node-operators/kona-node/configuration#rollup-configuration-loading)
 for details.
 
 <Info>
 This tutorial walks through running the `kona-node` as
 a binary. To use docker, head over to the
-[Docker Guide](/rust/kona/node/run/docker) which uses a `docker-compose`
+[Docker Guide](/node-operators/kona-node/run/docker) which uses a `docker-compose`
 setup provided by `kona`. The `docker-compose` setup
 automatically bootstraps the `kona-node` with `op-reth`,
 provisioning grafana dashboards and a default Prometheus
 configuration. It is encouraged to follow the
-[Docker Guide](/rust/kona/node/run/docker) to avoid misconfigurations.
+[Docker Guide](/node-operators/kona-node/run/docker) to avoid misconfigurations.
 </Info>
 
 The `kona-node` requires a few CLI flags.
@@ -104,7 +104,7 @@ quickly.
 By default, `kona-node` trusts its RPC providers and doesn't perform
 additional verification, which is suitable for local nodes. When
 pointing the node at public RPC endpoints, follow
-[configure RPC trust](/rust/kona/node/run/rpc-trust) to enable
+[configure RPC trust](/node-operators/kona-node/run/rpc-trust) to enable
 block hash verification.
 </Note>
 
@@ -141,11 +141,11 @@ engine actor to insert into the chain.
 
 - The node's default ports, default behavior, and every available CLI
   flag - including the sequencer and supervisor flag sets - are
-  catalogued in the [Kona node CLI reference](/rust/kona/node/configuration).
+  catalogued in the [Kona node CLI reference](/node-operators/kona-node/configuration).
 - To adjust log verbosity or set up metrics dashboards, see
-  [Monitoring](/rust/kona/node/monitoring).
+  [Monitoring](/node-operators/kona-node/monitoring).
 - To learn more about running a `kona-node` using docker, check
-  out the [docker guide](/rust/kona/node/run/docker).
+  out the [docker guide](/node-operators/kona-node/run/docker).
 
 
 [scr]: https://github.com/ethereum-optimism/superchain-registry/tree/main

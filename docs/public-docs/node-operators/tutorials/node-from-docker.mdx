@@ -10,6 +10,12 @@ diataxis: tutorial
 
 This tutorial runs an OP Stack node using the **official op-reth and op-node Docker images** in a single `docker-compose.yml`. No source build required.
 
+<Info>
+  To run the Rust consensus client instead of op-node, see the
+  [kona-node Docker guide](/node-operators/kona-node/run/docker), which ships
+  its own docker-compose recipe for a kona-node + op-reth stack.
+</Info>
+
 <Warning>
   **OP Mainnet requires a one-time pre-Bedrock state import.** OP Sepolia does not. If you point this tutorial at OP Mainnet on a fresh datadir, op-reth will fail at startup with `Op-mainnet has been launched without importing the pre-Bedrock state`. Before running OP Mainnet, follow the [op-reth sync-op-mainnet guide](https://reth.rs/run/sync-op-mainnet.html) to either restore from a [pre-synced snapshot](https://datadirs.optimism.io/) or run the minimal-bootstrap import. OP Sepolia bootstraps via snap sync with no extra steps — start there if you're just testing the setup.
 </Warning>
