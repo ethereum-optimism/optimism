@@ -60,7 +60,8 @@ and take away:
 *   The two-client split and which RPCs live on which side; you are making
     two client choices, not one.
 *   The 1:1 rule: never multiple execution clients behind one consensus
-    client or vice versa.
+    client or vice versa. Both client configuration guides (the Step 3 and
+    Step 4 reads) open with this warning.
 
 ## Step 2: Rule out end-of-support software
 
@@ -159,11 +160,12 @@ confirm the choice behaves like the row you picked:
 ## Next steps
 
 *   [op-node configuration reference](/node-operators/reference/op-node-config):
-    the full flag catalogue. Hand-pinned to `op-node/v1.10.2` as of
-    2026-07-21; confirm values against `op-node --help` for the release you
-    run.
+    the full flag catalogue, generated from the op-node flag definitions at
+    the release tag named on the page and regenerated when a new finalized
+    release is published.
 *   [op-reth configuration reference](/node-operators/reference/op-reth-config):
-    the op-reth flag catalogue, including the historical-proofs options.
+    routes to the imported op-reth CLI reference (versioned with the op-reth
+    source tree) and the historical-proofs configuration pages.
 *   [kona-node documentation](/rust/kona/node/install/overview): the
     install-and-run book for the Rust consensus client, in the Rust section
     of these docs.
