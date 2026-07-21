@@ -175,7 +175,7 @@ run_scenario \
   "Scheduled: build_daily" \
   "scheduled_pipeline" "" "" "build_daily" \
   '{}' \
-  scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests scheduled_daily_tests circleci_schedule_trigger_check
+  scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests scheduled_daily_tests scheduled_sp1_elf_smoke circleci_schedule_trigger_check
 
 run_scenario \
   "API: main_dispatch (no github event)" \

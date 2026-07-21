@@ -26,6 +26,7 @@ members = [
   "kona/sp1/crates/ethereum/host",
   "kona/sp1/crates/host",
   "kona/sp1/crates/range-executor",
+  "kona/sp1/crates/super-range-executor",
 
   # Op-Alloy
   "op-alloy/crates/*",
