@@ -20,10 +20,6 @@
     ],
     "app-developers/tutorials/interoperability/manual-relay.mdx": ["/>"],
     "app-developers/tutorials/interoperability/message-passing.mdx": ["/>"],
-    "chain-operators/guides/management/troubleshooting.mdx": [
-      "/chain-operators/tutorials/create-l2-rollup/op-reth-setup"
-    ],
-    "index.mdx": ["/chain-operators/tutorials/create-l2-rollup"],
     "op-stack/interop/interop.mdx": ["/app-developers/tutorials/interoperability/"],
     "op-stack/introduction/op-stack.mdx": ["/app-developers/tools", "/app-developers/tutorials"],
     "op-stack/security/interop-security.mdx": ["/app-developers/tutorials/interoperability/"]

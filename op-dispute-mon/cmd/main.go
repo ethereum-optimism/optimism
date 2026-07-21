@@ -29,7 +29,9 @@ var VersionWithMeta = opservice.FormatVersion(version.Version, GitCommit, GitDat
 func main() {
 	args := os.Args
 	ctx := ctxinterrupt.WithSignalWaiterMain(context.Background())
-	if err := run(ctx, args, monitor.Main); err != nil {
+	if err := run(ctx, args, func(ctx context.Context, logger log.Logger, cfg *config.Config) (cliapp.Lifecycle, error) {
+		return monitor.Main(ctx, logger, cfg)
+	}); err != nil {
 		log.Crit("Application failed", "err", err)
 	}
 }

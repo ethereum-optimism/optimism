@@ -198,7 +198,7 @@ func checkSequencerTxData(log log.Logger, txIndex int, txBytes []byte, isIsthmus
 			log.Warn("sequencers may not embed any SetCode transactions before Isthmus", "tx_index", txIndex)
 			return BatchDrop
 		}
-	case types.PostExecTxType:
+	case optypes.PostExecTxType:
 		if !isSDM {
 			log.Warn("sequencers may not embed any PostExec transactions before SDM", "tx_index", txIndex)
 			return BatchDrop

@@ -102,17 +102,18 @@ func (s *SignerClient) SignTransaction(ctx context.Context, chainId *big.Int, fr
 		return nil, fmt.Errorf("eth_signTransaction failed: %w", err)
 	}
 
-	var signed types.Transaction
+	signed := new(types.Transaction)
 	if err := signed.UnmarshalBinary(result); err != nil {
 		return nil, err
 	}
 	if sidecar != nil {
-		if err := signed.SetBlobTxSidecar(sidecar); err != nil {
-			return nil, fmt.Errorf("failed to attach sidecar to signed blob tx: %w", err)
+		if signed.Type() != types.BlobTxType {
+			return nil, fmt.Errorf("failed to attach sidecar to signed blob tx: not a blob tx, type = %d", signed.Type())
 		}
+		signed = signed.WithBlobTxSidecar(sidecar)
 	}
 
-	return &signed, nil
+	return signed, nil
 }
 
 func (s *SignerClient) SignBlockPayload(ctx context.Context, args *BlockPayloadArgs) (eth.Bytes65, error) {

@@ -15,7 +15,7 @@ import (
 )
 
 // DepositTxType is the EIP-2718 type byte of OP Stack deposit transactions.
-const DepositTxType = byte(0x7E)
+const DepositTxType = 0x7E
 
 // DepositTx is an OP Stack deposit transaction, derived from L1 (or generated
 // for network upgrades) rather than signed by a user. Its canonical encoding is

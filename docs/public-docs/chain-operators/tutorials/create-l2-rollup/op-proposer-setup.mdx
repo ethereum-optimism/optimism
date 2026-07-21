@@ -16,7 +16,7 @@ After you have spun up your sequencer and batcher, you need to attach a proposer
   For a complete working setup with all components, check out the [automated approach](https://github.com/ethereum-optimism/optimism/tree/develop/docs/public-docs/create-l2-rollup-example/) in the code directory.
 </Info>
 
-This guide assumes you already have a functioning sequencer, batcher, and the necessary L1 contracts deployed using [`op-deployer`](./op-deployer-setup). If you haven't set up your sequencer and batcher yet, please refer to the [sequencer guide](./op-geth-setup) and [batcher guide](./op-batcher-setup) first.
+This guide assumes you already have a functioning sequencer, batcher, and the necessary L1 contracts deployed using [`op-deployer`](./op-deployer-setup). If you haven't set up your sequencer and batcher yet, please refer to the [sequencer guide](./op-reth-setup) and [batcher guide](./op-batcher-setup) first.
 
 To see configuration info for the proposer, check out the [configuration page](/chain-operators/guides/configuration/proposer).
 
@@ -113,7 +113,7 @@ For setting up the proposer, we recommend using Docker as it provides a consiste
         Common fixes:
 
         *   Add `networks: - sequencer-node_default` to your proposer's docker-compose.yml
-        *   Use service names like `op-geth:8545` and `op-node:8547` in your `.env` file
+        *   Use service names like `op-reth:8545` and `op-node:8547` in your `.env` file
         *   Verify your sequencer network name with `docker network ls`
       </Info>
 
@@ -121,7 +121,7 @@ For setting up the proposer, we recommend using Docker as it provides a consiste
 
       services:
         op-proposer:
-          image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-proposer:v1.10.0
+          image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-proposer:v1.16.3
           volumes:
             - .:/workspace
           working_dir: /workspace
@@ -235,7 +235,7 @@ For setting up the proposer, we recommend using Docker as it provides a consiste
     Look for the latest `op-proposer/v*` release that's compatible with your sequencer setup.
 
     <Info>
-      This guide uses `op-proposer/v1.10.0` which is compatible with op-node/v1.13.3 and op-geth/v1.101511.1 from the sequencer setup.
+      This guide uses `op-proposer/v1.16.3`, the latest release at the time of writing, alongside op-node/v1.19.3 and op-reth/v2.4.0 from the sequencer setup.
       Always check the [release notes](https://github.com/ethereum-optimism/optimism/releases) for compatibility information.
     </Info>
     Building from source gives you full control over the binaries.
@@ -250,7 +250,7 @@ For setting up the proposer, we recommend using Docker as it provides a consiste
       cd optimism
 
       # Checkout the latest release tag
-      git checkout op-proposer/v1.10.0
+      git checkout op-proposer/v1.16.3
 
       # Build op-proposer
       cd op-proposer

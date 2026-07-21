@@ -37,7 +37,7 @@ func RandomRawSpanBatch(rng *rand.Rand, chainId *big.Int) *RawSpanBatch {
 		blockTxCounts = append(blockTxCounts, blockTxCount)
 		totalblockTxCounts += blockTxCount
 	}
-	signer := types.NewIsthmusSigner(chainId)
+	signer := types.NewPragueSigner(chainId)
 	var txs [][]byte
 	for i := 0; i < int(totalblockTxCounts); i++ {
 		var tx *types.Transaction

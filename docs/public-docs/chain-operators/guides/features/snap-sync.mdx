@@ -18,15 +18,15 @@ This node will serve snap sync requests on the execution layer from other nodes 
 
 <Info>
 For snap sync, all `op-geth` nodes should expose port `30303` TCP and `30303` UDP to easily find other `op-geth` nodes to sync from. 
-  *   If you set the port with [`--discovery.port`](/node-operators/reference/op-reth-config#discoveryport), then you must open the port specified for UDP.
-  *   If you set [`--port`](/node-operators/reference/op-reth-config#port), then you must open the port specified for TCP.
+  *   If you set the port with [`--discovery.port`](/rust/op-reth/cli/op-reth/node), then you must open the port specified for UDP.
+  *   If you set [`--port`](/rust/op-reth/cli/op-reth/node), then you must open the port specified for TCP.
   *   The only exception is for sequencers and transaction ingress nodes.
 </Info>
 
 <Steps>
   <Step title="Setup a snap sync node">
   *   Expose port `30303` (`op-geth`'s default discovery port) to the internet on TCP and UDP.
-    *   Disable transaction gossip with the [`--rollup.disable-tx-pool-gossip`](/node-operators/reference/op-reth-config#rollupdisable-tx-pool-gossip) flag
+    *   Disable transaction gossip with the [`--rollup.disable-tx-pool-gossip`](/rust/op-reth/cli/op-reth/node) flag
   </Step>
 
   <Step title="Enable snap sync on your network">

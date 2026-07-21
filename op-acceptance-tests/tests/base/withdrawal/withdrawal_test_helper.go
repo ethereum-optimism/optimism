@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -19,14 +20,20 @@ func withdrawalOpts(gameType gameTypes.GameType, extra ...presets.Option) []pres
 			sysgo.WithFinalizationPeriodSeconds(1),
 			// Satisfy OptimismPortal2 PROOF_MATURITY_DELAY_SECONDS check, avoid OptimismPortal_ProofNotOldEnough() revert
 			sysgo.WithProofMaturityDelaySeconds(2),
-			// Satisfy AnchorStateRegistry DISPUTE_GAME_FINALITY_DELAY_SECONDS check, avoid OptimismPortal_InvalidRootClaim() revert
-			sysgo.WithDisputeGameFinalityDelaySeconds(2),
 		),
-		presets.WithGameTypeAdded(gameType),
 		presets.WithRespectedGameTypeOverride(gameType),
 		presets.WithProposerOption(func(_ sysgo.ComponentTarget, cfg *ps.CLIConfig) {
 			cfg.DisputeGameType = uint32(gameType)
 		}),
+	}
+	if gameType == gameTypes.SuperPermissionedGameType || gameType == gameTypes.SuperCannonKonaGameType {
+		opts = append(opts, presets.WithDeployerOptions(
+			sysgo.WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag),
+			sysgo.WithDevFeatureEnabled(devfeatures.SuperRootGamesMigrationFlag),
+		))
+	}
+	if gameType != gameTypes.SuperPermissionedGameType {
+		opts = append(opts, presets.WithGameTypeAdded(gameType))
 	}
 	return append(opts, extra...)
 }
@@ -37,6 +44,10 @@ func newSystem(t devtest.T, gameType gameTypes.GameType, extra ...presets.Option
 
 func TestWithdrawal(gt *testing.T, gameType gameTypes.GameType, extra ...presets.Option) {
 	t := devtest.ParallelT(gt)
+	if gameType == gameTypes.SuperPermissionedGameType || gameType == gameTypes.SuperCannonKonaGameType {
+		// TODO(#21861): Enable this when kona-node supports superroot_atTimestamp
+		sysgo.SkipOnKonaNode(t, "super-root proposals require op-node superroot RPC")
+	}
 	sys := newSystem(t, gameType, extra...)
 
 	bridge := sys.StandardBridge()
@@ -61,6 +72,8 @@ func TestWithdrawal(gt *testing.T, gameType gameTypes.GameType, extra ...presets
 	withdrawal := bridge.InitiateWithdrawal(withdrawalAmount, l2User)
 	expectedL2UserBalance = expectedL2UserBalance.Sub(withdrawalAmount).Sub(withdrawal.InitiateGasCost())
 	l2User.VerifyBalanceExact(expectedL2UserBalance)
+	game := sys.DisputeGameFactory().WaitForGame()
+	t.Require().Equal(gameType, game.GameType())
 
 	withdrawal.Prove(l1User)
 	expectedL1UserBalance = expectedL1UserBalance.Sub(withdrawal.ProveGasCost())
@@ -77,6 +90,7 @@ func TestWithdrawal(gt *testing.T, gameType gameTypes.GameType, extra ...presets
 	withdrawal.Finalize(l1User)
 	expectedL1UserBalance = expectedL1UserBalance.Sub(withdrawal.FinalizeGasCost()).Add(withdrawalAmount)
 	l1User.VerifyBalanceExact(expectedL1UserBalance)
+	sys.AnchorStateRegistry().WaitForAnchorRootAtLeast(game)
 }
 
 // TestWithdrawalAfterUpgrade is like TestWithdrawal but waits for the given fork to activate

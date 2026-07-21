@@ -11,10 +11,12 @@ import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	sharedchallenger "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
@@ -91,6 +93,7 @@ func addGameTypesForRuntime(
 	l1ChainID eth.ChainID,
 	l1ELRPC string,
 	l2Net *L2Network,
+	l2CL L2CLNode,
 ) {
 	require := t.Require()
 	require.NotNil(l2Net, "l2 network must exist")
@@ -119,6 +122,30 @@ func addGameTypesForRuntime(
 
 	cannonKonaPrestate := PrestateForGameType(t, gameTypes.CannonKonaGameType)
 	superCannonKonaPrestate := PrestateForGameType(t, gameTypes.SuperCannonKonaGameType)
+	extraInstructions := []embedded.ExtraInstruction{
+		{Key: "PermittedProxyDeployment", Data: []byte("DelayedWETH")},
+	}
+	if enabled[gameTypes.SuperCannonKonaGameType] {
+		superrootTime := awaitSuperrootTime(t, l2CL)
+		startingAnchorRoot := opcm.StartingAnchorRoot{
+			Root:          common.Hash(getSuperRoot(t, l2CL.UserRPC(), superrootTime)),
+			L2BlockNumber: new(big.Int).SetUint64(superrootTime),
+		}
+		extraInstructions = append([]embedded.ExtraInstruction{
+			{
+				Key: "overrides.cfg.startingAnchorRoot",
+				Data: encodeStartingAnchorRoot(
+					t,
+					eth.Bytes32(startingAnchorRoot.Root),
+					bigs.Uint64Strict(startingAnchorRoot.L2BlockNumber),
+				),
+			},
+			{
+				Key:  "overrides.cfg.startingRespectedGameType",
+				Data: encodeStartingRespectedGameType(t, superPermissionedGameType),
+			},
+		}, extraInstructions...)
+	}
 
 	// Download the contracts artifacts once; reused for the mock verifier deploy and the upgrade.
 	artifactsFS, err := artifacts.Download(t.Ctx(), LocalArtifacts(t), ioutil.NoopProgressor(), t.TempDir())
@@ -171,7 +198,7 @@ func addGameTypesForRuntime(
 			},
 		},
 		{
-			Enabled:  enabled[gameTypes.SuperPermissionedGameType],
+			Enabled:  enabled[gameTypes.SuperPermissionedGameType] || enabled[gameTypes.SuperCannonKonaGameType],
 			InitBond: new(big.Int),
 			GameType: embedded.GameTypeSuperPermissioned,
 			SuperPermissionedDisputeGameConfig: &embedded.SuperPermissionedDisputeGameConfig{
@@ -206,9 +233,7 @@ func addGameTypesForRuntime(
 		UpgradeInputV2: &embedded.UpgradeInputV2{
 			SystemConfig:       l2Net.deployment.SystemConfigProxyAddr(),
 			DisputeGameConfigs: configs,
-			ExtraInstructions: []embedded.ExtraInstruction{
-				{Key: "PermittedProxyDeployment", Data: []byte("DelayedWETH")},
-			},
+			ExtraInstructions:  extraInstructions,
 		},
 	})
 }
