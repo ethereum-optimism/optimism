@@ -36,6 +36,12 @@ const (
 	Eip1559Denominator              uint64 = 50
 	Eip1559Elasticity               uint64 = 6
 
+	// TODO(#20916): This value should be replaced with a benchmark based on the time it takes to perform a full
+	// L2 genesis deployment.
+	// DefaultGenesisTimeOffsetSeconds is the default offset added to the L1 anchor block's
+	// timestamp to produce the committed L2 genesis timestamp.
+	DefaultGenesisTimeOffsetSeconds uint64 = 21600 // 6 hours
+
 	ContractsV160Tag        = "op-contracts/v1.6.0"
 	ContractsV180Tag        = "op-contracts/v1.8.0-rc.4"
 	ContractsV170Beta1L2Tag = "op-contracts/v1.7.0-beta.1+l2-contracts"
