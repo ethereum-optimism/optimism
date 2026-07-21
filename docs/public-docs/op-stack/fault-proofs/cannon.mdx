@@ -14,11 +14,12 @@ However, Cannon is Optimism's default Fault Proof Virtual Machine (FPVM). Cannon
 The program that runs inside Cannon is the fault proof program, [kona-client](/releases/kona-client), compiled to a big-endian 64-bit MIPS (MIPS64) ELF binary.
 
 <Info>
-  An earlier generation of Cannon was 32-bit: it ran the Go fault proof program `op-program` on a MIPS32 instruction set, verified onchain by `MIPS.sol`.
-  That generation backs the legacy `CANNON` (game type 0) and `PERMISSIONED_CANNON` (game type 1) dispute games, and `op-program` has since
+  Earlier generations of Cannon ran the Go fault proof program `op-program`: first compiled to 32-bit MIPS32 instructions and verified onchain
+  by `MIPS.sol`, later compiled to MIPS64 and run on the 64-bit Cannon described on this page. Those op-program configurations back the legacy
+  `CANNON` (game type 0) and `PERMISSIONED_CANNON` (game type 1) dispute games, and `op-program` has since
   reached end-of-support (see [End of Support for op-geth and op-program](/notices/op-geth-deprecation)). Current dispute games use the
-  `cannon-kona` (game type 8) configuration: kona-client running on the 64-bit Cannon described on this page.
-  The [MIPS.sol reference](/op-stack/fault-proofs/mips) documents the legacy 32-bit onchain contract.
+  `cannon-kona` (game type 8) configuration: kona-client running on the 64-bit Cannon.
+  The [MIPS.sol reference](/op-stack/fault-proofs/mips) documents the retired 32-bit onchain contract.
 </Info>
 
 Note that Cannon is just one example of an FPVM that can be used to resolve disputes.
@@ -60,8 +61,8 @@ same inputs will produce not only the same outputs, but the same execution trace
 kona-client such that, given the same L2 output root state transition, they can generate the same execution traces. This in turn generates the same
 witness proof for the exact same MIPS instruction that will be run onchain.
 
-Before `op-program` reached end-of-support, it filled this same role for the legacy 32-bit Cannon: Go code compiled to MIPS32 instructions
-with the same determinism property. Only the kona variants are maintained today.
+Before `op-program` reached end-of-support, it filled this same role for the legacy game types: Go code compiled to MIPS instructions
+(32-bit in the earliest generation, 64-bit later) with the same determinism property. Only the kona variants are maintained today.
 
 ## Overview of offchain Cannon components
 
