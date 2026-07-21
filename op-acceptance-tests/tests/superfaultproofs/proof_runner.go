@@ -14,10 +14,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-// KonaSP1SuperRangeNativeExecutorPathEnv configures the native-core executor used by the serial
-// interop fault-proof acceptance scenarios.
-const KonaSP1SuperRangeNativeExecutorPathEnv = "KONA_SP1_SUPER_RANGE_NATIVE_EXECUTOR_PATH"
-
 // ProofRunner executes the proof checks attached to one shared interop scenario.
 // Implementations are constructed here so scenario internals remain private.
 type ProofRunner interface {
@@ -50,8 +46,8 @@ func NewKonaProofRunner() ProofRunner {
 
 // NewSP1NativeProofRunner constructs the fast runner that replays witnesses through the shared
 // native range and consolidation cores.
-func NewSP1NativeProofRunner(executorPath string) ProofRunner {
-	return sp1ProofRunner{executorPath: executorPath, nativeCore: true}
+func NewSP1NativeProofRunner() ProofRunner {
+	return sp1ProofRunner{nativeCore: true}
 }
 
 // NewSP1FullProofRunner constructs the opt-in full-ELF runner used by the single smoke test.
@@ -95,7 +91,20 @@ func (konaProofRunner) run(t devtest.T, sys *presets.SimpleInterop, data *scenar
 }
 
 func (r sp1ProofRunner) run(t devtest.T, sys *presets.SimpleInterop, data *scenarioProofData) {
-	t.Require().NotEmpty(r.executorPath, "SP1 super-range executor path is required")
+	executorPath := r.executorPath
+	if r.nativeCore {
+		var err error
+		executorPath, err = rustbin.Spec{
+			SrcDir:  "rust/kona",
+			Package: "kona-sp1-super-range-executor",
+			Binary:  "kona-sp1-super-range-executor",
+		}.EnsureExists(t.Ctx(), t.Logger())
+		t.Require().NoError(err, "locate kona-sp1 super-range executor")
+		if err != nil {
+			return
+		}
+	}
+	t.Require().NotEmpty(executorPath, "SP1 super-range executor path is required")
 	t.Require().NotNil(data.zkCheckpoint, "SP1 runner requires a ZK checkpoint")
 	name := "SP1FullELF"
 	if r.nativeCore {
@@ -110,7 +119,7 @@ func (r sp1ProofRunner) run(t devtest.T, sys *presets.SimpleInterop, data *scena
 			args = append(args, "--native-core")
 		}
 		t.Require().True(
-			rustbin.RunKonaSP1SuperRange(t, t.Logger(), r.executorPath, t.TempDir(), args...),
+			rustbin.RunKonaSP1SuperRange(t, t.Logger(), executorPath, t.TempDir(), args...),
 			"expected kona-sp1 super-range executor to accept timestamp %d",
 			checkpoint.endTimestamp,
 		)
