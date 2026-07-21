@@ -43,7 +43,7 @@ const COMPONENTS: Component[] = [
     prefix: "op-node/v",
     label: "op-node",
     description: "OP Stack consensus-layer client",
-    intro: "**op-node** implements the [rollup-node spec](https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/rollup-node.md), functioning as the consensus layer (CL) client of an OP Stack chain. It builds, relays, and verifies the canonical L2 chain, working alongside an execution layer client such as op-reth.",
+    intro: "**op-node** implements the [rollup-node spec](https://specs.optimism.io/protocol/rollup-node.html), functioning as the consensus layer (CL) client of an OP Stack chain. It builds, relays, and verifies the canonical L2 chain, working alongside an execution layer client such as op-reth.",
     group: "Protocol",
     icon: "cube",
     repo: "optimism",
@@ -53,7 +53,7 @@ const COMPONENTS: Component[] = [
     prefix: "kona-node/v",
     label: "kona-node",
     description: "Rust implementation of the OP Stack rollup node",
-    intro: "**kona-node** is a Rust implementation of the [rollup-node spec](https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/rollup-node.md), backed by kona-derive. It is a Rust-native alternative to op-node.",
+    intro: "**kona-node** is a Rust implementation of the [rollup-node spec](https://specs.optimism.io/protocol/rollup-node.html), backed by kona-derive. It is a Rust-native alternative to op-node.",
     group: "Protocol",
     icon: "circle-nodes",
     repo: "optimism",
@@ -85,7 +85,7 @@ const COMPONENTS: Component[] = [
     prefix: "op-proposer/v",
     label: "op-proposer",
     description: "L2 output root proposer",
-    intro: "**op-proposer** automates output-root proposal transactions on L1 at a regular interval, submitting claims of L2 state that enable withdrawals. See the [proposals spec](https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/proposals.md).",
+    intro: "**op-proposer** automates output-root proposal transactions on L1 at a regular interval, submitting claims of L2 state that enable withdrawals. See the [proposals spec](https://specs.optimism.io/protocol/proposals.html).",
     group: "Protocol",
     icon: "stamp",
     repo: "optimism",
@@ -95,7 +95,7 @@ const COMPONENTS: Component[] = [
     prefix: "op-challenger/v",
     label: "op-challenger",
     description: "Dispute game challenger",
-    intro: "**op-challenger** is a modular dispute game agent that monitors and challenges invalid fault proof games on-chain. See the [fault proof specs](https://specs.optimism.io/experimental/fault-proof/index.html).",
+    intro: "**op-challenger** is a modular dispute game agent that monitors and challenges invalid fault proof games on-chain. See the [fault proof specs](https://specs.optimism.io/fault-proof/index.html).",
     group: "Protocol",
     icon: "shield",
     repo: "optimism",
@@ -127,7 +127,7 @@ const COMPONENTS: Component[] = [
     prefix: "kona-client/v",
     label: "kona-client",
     description: "Rust fault proof client binary",
-    intro: "**kona-client** is the bare-metal fault proof program that executes the OP Stack state transition on a MIPS prover. It is the primary fault proof program for OP Stack chains. See the [fault proof specs](https://specs.optimism.io/experimental/fault-proof/index.html).",
+    intro: "**kona-client** is the bare-metal fault proof program that executes the OP Stack state transition on a MIPS prover. It is the primary fault proof program for OP Stack chains. See the [fault proof specs](https://specs.optimism.io/fault-proof/index.html).",
     group: "Fault Proofs",
     icon: "microchip",
     repo: "optimism",
@@ -137,7 +137,7 @@ const COMPONENTS: Component[] = [
     prefix: "kona-host/v",
     label: "kona-host",
     description: "Rust fault proof host binary",
-    intro: "**kona-host** runs natively alongside the prover, serving as the [Preimage Oracle](https://specs.optimism.io/experimental/fault-proof/index.html) server that supplies chain data to kona-client during proof execution.",
+    intro: "**kona-host** runs natively alongside the prover, serving as the [Preimage Oracle](https://specs.optimism.io/fault-proof/index.html) server that supplies chain data to kona-client during proof execution.",
     group: "Fault Proofs",
     icon: "server",
     repo: "optimism",
@@ -237,17 +237,39 @@ function formatDate(iso: string): string {
   });
 }
 
+// Apply fn to the non-code segments of text, leaving fenced code blocks and
+// inline code spans untouched.
+function mapOutsideCodeBlocks(
+  text: string,
+  fn: (segment: string) => string,
+): string {
+  const parts = text.split(/(```[\s\S]*?```|`[^`\n]+`)/);
+  return parts
+    .map((part, idx) => (idx % 2 === 1 ? part : fn(part)))
+    .join("");
+}
+
 // Escape JSX expression delimiters in non-code text so the MDX parser treats
 // them as literal characters.
 function escapeOutsideCodeBlocks(text: string): string {
-  // Split on fenced code blocks and inline code spans; leave those untouched.
-  const parts = text.split(/(```[\s\S]*?```|`[^`\n]+`)/);
-  return parts
-    .map((part, idx) => {
-      if (idx % 2 === 1) return part; // code block — leave as-is
-      return part.replace(/\{/g, "\\{").replace(/\}/g, "\\}");
-    })
-    .join("");
+  return mapOutsideCodeBlocks(text, (part) =>
+    part.replace(/\{/g, "\\{").replace(/\}/g, "\\}"),
+  );
+}
+
+// Release bodies routinely link to the specs repo's source files
+// (github.com/ethereum-optimism/specs/blob/<ref>/specs/<path>.md), but the
+// canonical form per the docs link policy is the rendered site — the blob
+// path bakes in a ref and the specs repo's file layout, both of which rot.
+// Rewrite blob links to their rendered specs.optimism.io equivalent.
+function rewriteSpecsBlobLinks(text: string): string {
+  return mapOutsideCodeBlocks(text, (part) =>
+    part.replace(
+      /https:\/\/github\.com\/ethereum-optimism\/specs\/blob\/[^\/\s)]+\/specs\/([\w\-./]+)\.md(#[\w\-]+)?/g,
+      (_m, specPath: string, anchor: string | undefined) =>
+        `https://specs.optimism.io/${specPath}.html${anchor ?? ""}`,
+    ),
+  );
 }
 
 function processBody(body: string | null): string {
@@ -261,6 +283,9 @@ function processBody(body: string | null): string {
 
   // Strip remaining HTML tags
   out = out.replace(/<[^>]+>/g, "");
+
+  // Canonicalize specs-repo blob links to the rendered specs site
+  out = rewriteSpecsBlobLinks(out);
 
   // Escape JSX expression delimiters outside code blocks
   out = escapeOutsideCodeBlocks(out);

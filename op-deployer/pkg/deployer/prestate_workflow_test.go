@@ -78,8 +78,12 @@ func TestPrestateWorkflowFromPrepareChains(t *testing.T) {
 				out.SystemConfigProxy = systemConfigProxy
 				return out, nil
 			}
+			anchor := &state.L1BlockRefJSON{Hash: common.HexToHash("0xa11c"), Number: 100, Time: 5000}
+			selectAnchor := func(overrideHash *common.Hash) (*state.L1BlockRefJSON, error) {
+				return anchor, nil
+			}
 
-			require.NoError(t, prepareChains(testlog.Logger(t, slog.LevelInfo), intent, st, run))
+			require.NoError(t, prepareChains(testlog.Logger(t, slog.LevelInfo), intent, st, run, selectAnchor, anchor, 600))
 			require.Len(t, predicted, 2)
 			require.NotContains(t, predicted, deployedID)
 			require.Len(t, st.Chains, len(chainIDs))

@@ -90,12 +90,18 @@ type FundableEL interface {
 func FundEOAs(t devtest.T, budget eth.ETH, numAccounts uint64, blockTime time.Duration, el FundableEL, wallet *dsl.HDWallet, faucet *dsl.Faucet) []*SyncEOA {
 	t.Require().Equal(faucet.Escape().ChainID(), el.ChainID())
 
+	// Reserve every funding tx's worst-case fee on top of the budget so the mempool's cumulative
+	// pending-cost check passes regardless of base fee; the generous cap is free since only the
+	// base fee is paid.
+	fundingFeeCap := eth.GWei(10_000)
+	funderBudget := budget.Add(fundingFeeCap.Mul(params.TxGas).Mul(numAccounts))
+
 	// Fund a lot of spammer EOAs. The funder provided by the devstack isn't very reliable when
 	// funding lots of different accounts. We fund one account from the faucet and then use that
 	// account to fund all the others.
 	spammerELClient := txinclude.NewReliableEL(el.EthClient(), blockTime)
-	funderEOA := newSyncEOA(dsl.NewFunder(wallet, faucet, el).NewFundedEOA(budget), spammerELClient)
-	budget = budget.Sub(budget.Div(50)) // Reserve 2% of the balance for gas.
+	funderEOA := newSyncEOA(dsl.NewFunder(wallet, faucet, el).NewFundedEOA(funderBudget), spammerELClient)
+
 	ethPerAccount := budget.Div(numAccounts)
 	var eoas []*SyncEOA
 	var mu sync.Mutex
@@ -107,7 +113,8 @@ func FundEOAs(t devtest.T, budget eth.ETH, numAccounts uint64, blockTime time.Du
 
 			eoa := wallet.NewEOA(el)
 			addr := eoa.Address()
-			_, err := funderEOA.Include(t, txplan.WithTo(&addr), txplan.WithValue(ethPerAccount))
+			_, err := funderEOA.Include(t, txplan.WithTo(&addr), txplan.WithValue(ethPerAccount),
+				txplan.WithGasLimit(params.TxGas), txplan.WithGasFeeCap(fundingFeeCap.ToBig()))
 			t.Require().NoError(err)
 
 			mu.Lock()

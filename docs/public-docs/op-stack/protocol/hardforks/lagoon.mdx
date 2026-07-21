@@ -1,0 +1,38 @@
+---
+title: Lagoon
+description: Hardfork registry entry for the Lagoon network upgrade, which activates Superchain interop.
+diataxis: reference
+hardfork_name: lagoon
+hardfork_lifecycle: development
+hardfork_spec: https://specs.optimism.io/protocol/lagoon/overview.html
+hardfork_notice: /notices/interop-prep
+---
+
+import LagoonFacts from "/snippets/generated/hardforks/lagoon.mdx"
+
+<Info>
+  **Normative spec:** the [Lagoon specification](https://specs.optimism.io/protocol/lagoon/overview.html)
+  is the canonical definition of this upgrade. This page records activation data
+  and operational pointers; it does not restate the spec. The Lagoon spec is
+  not yet finalized.
+</Info>
+
+Lagoon is the upcoming hardfork that activates Superchain
+[interop](/op-stack/interop/explainer). No superchain-wide activation defaults
+are set in the superchain-registry yet; the first activations are being
+prepared per chain — see the
+[interop activation prep notice](/notices/interop-prep) for OP Sepolia and
+Unichain Sepolia.
+
+<LagoonFacts />
+
+## What's included
+
+Per the [spec overview](https://specs.optimism.io/protocol/lagoon/overview.html)
+(subject to change while the spec is in development):
+
+*   Interop: dependency set, cross-chain messaging, derivation, sequencer and
+    verifier behavior, super roots, interop fault proofs, and the interop
+    bridging contracts.
+*   Execution layer: post-execution transactions and sequencer-defined
+    metering.

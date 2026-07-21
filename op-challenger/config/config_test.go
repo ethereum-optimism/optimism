@@ -29,7 +29,7 @@ var (
 	validDatadir                          = "/tmp/data"
 	validL2Rpc                            = "http://localhost:9545"
 	validRollupRpc                        = "http://localhost:8555"
-	validSuperRpc                         = "http://localhost/super"
+	validSuperRootRpc                     = "http://localhost/super"
 
 	nonExistingFile = "path/to/nonexistent/file"
 
@@ -87,7 +87,7 @@ func applyValidConfigForCannonKona(t *testing.T, cfg *Config) {
 }
 
 func applyValidConfigForSuperCannonKona(t *testing.T, cfg *Config) {
-	cfg.SuperRPC = validSuperRpc
+	cfg.SuperRootRPC = validSuperRootRpc
 	applyValidConfigForCannonKona(t, cfg)
 }
 
@@ -133,7 +133,7 @@ func validConfigWithNoNetworks(t *testing.T, gameType gameTypes.GameType) Config
 
 // TestValidConfigIsValid checks that the config provided by validConfig is actually valid
 func TestValidConfigIsValid(t *testing.T) {
-	for _, gameType := range gameTypes.SupportedGameTypes {
+	for _, gameType := range gameTypes.PlayableGameTypes {
 		gameType := gameType
 		t.Run(gameType.String(), func(t *testing.T) {
 			err := validConfig(t, gameType).Check()
@@ -531,7 +531,7 @@ func TestHttpPollInterval(t *testing.T) {
 }
 
 func TestRollupRpcRequired(t *testing.T) {
-	for _, gameType := range gameTypes.SupportedGameTypes {
+	for _, gameType := range gameTypes.PlayableGameTypes {
 		gameType := gameType
 		if gameType == gameTypes.SuperCannonKonaGameType {
 			continue
@@ -552,19 +552,20 @@ func TestRollupRpcNotRequiredForInterop(t *testing.T) {
 	})
 }
 
-func TestSuperRpc(t *testing.T) {
-	for _, gameType := range gameTypes.SupportedGameTypes {
+func TestSuperRootRpc(t *testing.T) {
+	for _, gameType := range gameTypes.PlayableGameTypes {
 		gameType := gameType
 		if gameType == gameTypes.SuperCannonKonaGameType {
 			t.Run("RequiredFor"+gameType.String(), func(t *testing.T) {
 				config := validConfig(t, gameType)
-				config.SuperRPC = ""
-				require.ErrorIs(t, config.Check(), ErrMissingSuperRpc)
+				config.SuperRootRPC = ""
+				require.ErrorIs(t, config.Check(), ErrMissingSuperRootRpc)
+				require.EqualError(t, config.Check(), "missing super root RPC URL")
 			})
 		} else {
 			t.Run("NotRequiredFor"+gameType.String(), func(t *testing.T) {
 				config := validConfig(t, gameType)
-				config.SuperRPC = ""
+				config.SuperRootRPC = ""
 				require.NoError(t, config.Check())
 			})
 		}

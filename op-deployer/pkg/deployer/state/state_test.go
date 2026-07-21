@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -193,6 +194,32 @@ func TestState_PreparedSerialization(t *testing.T) {
 	})
 }
 
+func TestChainState_GenesisTimeSerialization(t *testing.T) {
+	t.Run("omitted when unset for backward compatibility", func(t *testing.T) {
+		b, err := json.Marshal(&ChainState{})
+		require.NoError(t, err)
+		require.NotContains(t, string(b), "genesisTime")
+	})
+
+	t.Run("round trip when set", func(t *testing.T) {
+		genesisTime := hexutil.Uint64(1_750_000_000)
+		b, err := json.Marshal(&ChainState{GenesisTime: &genesisTime})
+		require.NoError(t, err)
+		require.Contains(t, string(b), `"genesisTime":"0x684ee180"`) // 1_750_000_000 in hex
+
+		var got ChainState
+		require.NoError(t, json.Unmarshal(b, &got))
+		require.NotNil(t, got.GenesisTime)
+		require.Equal(t, genesisTime, *got.GenesisTime)
+	})
+
+	t.Run("absent field defaults to nil", func(t *testing.T) {
+		var got ChainState
+		require.NoError(t, json.Unmarshal([]byte(`{"startBlock":null}`), &got))
+		require.Nil(t, got.GenesisTime)
+	})
+}
+
 func TestState_IsChainDeployed(t *testing.T) {
 	id := common.HexToHash("0x0a")
 	other := common.HexToHash("0x0b")
@@ -257,6 +284,42 @@ func TestState_SetChainContracts(t *testing.T) {
 	require.Equal(t, common.HexToHash("0xfeed"), got.StartBlock.Hash)
 	require.Equal(t, prestate, got.Prestate, "prestate must be preserved on update")
 	require.Equal(t, ptr.New(uint32(8)), got.InitialGameType, "initial game type must be preserved on update")
+}
+
+func TestState_PinChainAnchor(t *testing.T) {
+	id := common.HexToHash("0x0a")
+	anchor := &L1BlockRefJSON{Hash: common.HexToHash("0xa11c"), Number: 100, Time: 5000}
+
+	t.Run("creates an entry marked as not deployed for an unknown chain", func(t *testing.T) {
+		s := &State{}
+		s.PinChainAnchor(id, anchor, 5600)
+		require.Len(t, s.Chains, 1)
+		got := s.Chains[0]
+		require.Equal(t, id, got.ID)
+		require.Equal(t, anchor, got.StartBlock)
+		require.NotNil(t, got.GenesisTime)
+		require.EqualValues(t, 5600, *got.GenesisTime)
+		require.NotNil(t, got.Deployed)
+		require.False(t, *got.Deployed, "an entry created at pin time must not read as deployed")
+		require.False(t, s.IsChainDeployed(id))
+	})
+
+	t.Run("updates an existing entry in place, preserving other fields", func(t *testing.T) {
+		// Simulates a different stage pinning the dry-run predicted addresses.
+		var contracts addresses.OpChainContracts
+		contracts.SystemConfigProxy = common.HexToAddress("0xbeef")
+		s := &State{}
+		s.SetChainContracts(id, contracts, false)
+
+		s.PinChainAnchor(id, anchor, 5600)
+		require.Len(t, s.Chains, 1)
+		got := s.Chains[0]
+		require.Equal(t, anchor, got.StartBlock)
+		require.EqualValues(t, 5600, *got.GenesisTime)
+		require.Equal(t, common.HexToAddress("0xbeef"), got.SystemConfigProxy, "contracts must be preserved")
+		require.NotNil(t, got.Deployed)
+		require.False(t, *got.Deployed, "the deployed flag must not be touched on update")
+	})
 }
 
 func TestBlockRef_Deserialize(t *testing.T) {

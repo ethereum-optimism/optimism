@@ -42,7 +42,7 @@ pub use frame::{
 };
 
 mod utils;
-pub use utils::{read_tx_data, to_system_config, upgrade_gas};
+pub use utils::{to_system_config, upgrade_gas};
 
 mod channel;
 pub use channel::{

@@ -1,0 +1,243 @@
+---
+title: Use the Docs with AI
+description: Read the Optimism docs as an agent with llms.txt and per-page markdown, connect the hosted MCP server, and start from curated prompts.
+diataxis: how-to
+last-reviewed: 2026-07-18
+---
+
+These docs are built to be read by AI assistants and agents, not just browsers.
+Every page is available as plain markdown, the whole site publishes a machine-readable index, and a hosted MCP server exposes search over the content.
+This page covers the three ways to put them to work: [reading the docs as an agent](#read-the-docs-as-an-agent), [connecting the hosted MCP server](#connect-the-hosted-mcp-server), and [starting from curated prompts](#prompt-starters).
+
+## Read the Docs as an Agent
+
+### The Documentation Index: llms.txt
+
+The site publishes an [llms.txt](https://llmstxt.org/) index at:
+
+```text
+https://docs.optimism.io/llms.txt
+```
+
+It is a plain-markdown listing of the site's pages with their URLs.
+Point an assistant at it to discover what exists before fetching individual pages.
+This is the recommended entry point for any agent working with these docs.
+
+### Per-Page Markdown
+
+Every page is served as raw markdown at its own URL with `.md` appended.
+For example, the [Node Operator Overview](/node-operators/overview) page is available as:
+
+```text
+https://docs.optimism.io/node-operators/overview.md
+```
+
+Fetching the `.md` form skips the HTML shell, navigation, and scripts, so an assistant gets exactly the content of the page in a fraction of the tokens.
+Prefer it over the HTML URL whenever your tooling fetches pages programmatically.
+
+### The Contextual Menu
+
+Every page in these docs has a contextual menu (next to the page title) with assistant-ready actions:
+
+*   **Copy page**: copies the page as markdown, ready to paste into any chat.
+*   **Open in ChatGPT**: opens a ChatGPT conversation preloaded with the page.
+*   **Open in Claude**: opens a Claude conversation preloaded with the page.
+*   **Copy MCP server URL**: copies the [hosted MCP server](#connect-the-hosted-mcp-server) address for your client configuration.
+
+Use it when you are reading a page and want to hand it to an assistant without constructing URLs by hand.
+
+### Tips for Agents Reading These Docs
+
+*   Start from `llms.txt` to map the site, then fetch only the `.md` pages you need.
+*   These docs describe how to *use* the OP Stack. The normative protocol definition lives in the [OP Stack specifications](https://specs.optimism.io) - when a docs page and the specs disagree, the specs win.
+*   Configuration flags and versions change between releases. Confirm load-bearing values against the linked source or release notes before acting on them.
+
+## Connect the Hosted MCP Server
+
+The [Model Context Protocol (MCP)](https://modelcontextprotocol.io) is an open standard for connecting AI assistants to external tools and data sources.
+These docs are hosted on Mintlify, which [automatically generates and hosts an MCP server](https://www.mintlify.com/docs/ai/model-context-protocol) for the site.
+The server exposes a search tool over the documentation, so a connected assistant (Claude Code, Claude Desktop, Cursor, and others) can look up current OP Stack content instead of relying on stale training data.
+
+### Option 1: The Hosted MCP Server (Recommended)
+
+The docs MCP server is available over HTTP at:
+
+```text
+https://docs.optimism.io/mcp
+```
+
+<Steps>
+  <Step title="Add the server to your client">
+    For Claude Code, run:
+
+    ```bash
+    claude mcp add --transport http optimism-docs https://docs.optimism.io/mcp
+    ```
+
+    For Cursor, Claude Desktop, and other clients that use a JSON configuration, add the server URL:
+
+    ```json
+    {
+      "mcpServers": {
+        "optimism-docs": {
+          "url": "https://docs.optimism.io/mcp"
+        }
+      }
+    }
+    ```
+
+    You can also connect from any page of these docs: the contextual menu (next to the page title) includes an option to copy the MCP server details for your client.
+  </Step>
+
+  <Step title="Verify it works">
+    Ask your assistant:
+
+    ```text
+    Using the optimism-docs MCP server, find the page about running a node
+    from source and summarize its hardware requirements.
+    ```
+
+    A correctly wired assistant calls the server's search tool, locates [Building and Running an OP Stack Node From Source](/node-operators/tutorials/run-node-from-source), and answers from the live page.
+  </Step>
+</Steps>
+
+### Option 2: Direct Fetching (No MCP Server Required)
+
+If your assistant can fetch web pages but does not support MCP, no setup is needed.
+The site's [machine-readable surfaces](#read-the-docs-as-an-agent) - the `llms.txt` index and per-page markdown - work with any assistant that can fetch URLs.
+Give it the index and the URL convention:
+
+```text
+The Optimism docs publish a machine-readable index at
+https://docs.optimism.io/llms.txt. Any page is available as raw
+markdown by appending .md to its URL. Use the index to find relevant
+pages, then fetch their .md versions.
+```
+
+Add that to your assistant's project instructions (for example `CLAUDE.md`, `.cursorrules`, or a system prompt) and it will resolve OP Stack questions against the live docs.
+
+If your tooling only reaches the network through MCP and cannot use the hosted server, the reference [fetch server](https://github.com/modelcontextprotocol/servers/tree/main/src/fetch) (`uvx mcp-server-fetch`) plus the instruction block above achieves the same result.
+
+If the hosted MCP endpoint is not responding, [open an issue](https://github.com/ethereum-optimism/optimism/issues) so we can investigate.
+
+## Prompt Starters
+
+Copy-paste prompts for common OP Stack tasks, ready for any AI assistant that can fetch URLs.
+Each prompt names its intended persona, grounds the assistant in specific docs pages (fetched as [per-page markdown](#per-page-markdown)), and tells it what to produce.
+Replace the bracketed placeholders with your own details before sending.
+
+If your assistant cannot fetch URLs, open the linked pages and use the contextual menu's **Copy page** action to paste them in instead.
+
+### Audit My Batcher Configuration for Cost
+
+**Persona:** chain operator
+
+Data availability is usually a chain's largest onchain operating cost, and the batcher configuration controls it.
+Grounding pages: [Configure the Batcher](/chain-operators/guides/configuration/batcher) and [Transaction Fees 101](/chain-operators/guides/management/transaction-fees-101).
+
+```text
+Read https://docs.optimism.io/chain-operators/guides/configuration/batcher.md
+and https://docs.optimism.io/chain-operators/guides/management/transaction-fees-101.md
+
+Here is my current op-batcher configuration: [paste your flags or env vars].
+My chain posts roughly [N] transactions per day and targets [blobs / calldata].
+
+Audit the configuration for data-availability cost: identify settings that
+increase posting cost, explain the trade-off each one controls (cost vs.
+latency vs. safety), and propose a revised configuration with reasoning.
+Flag any flag you are not sure still exists so I can check it against
+op-batcher --help for my release.
+```
+
+### Walk Me Through the Deposit Flow
+
+**Persona:** app developer
+
+Understand what actually happens between an L1 deposit call and the transaction appearing on L2 before you build on it.
+Grounding pages: [Deposit Flow](/op-stack/bridging/deposit-flow) and [Deposit Transactions](/app-developers/tutorials/bridging/deposit-transactions).
+
+```text
+Read https://docs.optimism.io/op-stack/bridging/deposit-flow.md and
+https://docs.optimism.io/app-developers/tutorials/bridging/deposit-transactions.md
+
+Walk me through the full lifecycle of a deposit from L1 to L2: which
+contract I call, what events are emitted, how the L2 transaction is
+derived, and what latency and failure modes to expect. Then show me the
+minimal code to trigger a deposit from my app. I am building
+[describe your app].
+```
+
+### Plan a Fault-Proof Challenger Deployment
+
+**Persona:** chain operator
+
+Every permissionless fault-proof chain needs an honest challenger watching its dispute games.
+Grounding pages: [OP-Challenger Explainer](/op-stack/fault-proofs/challenger) and [How to Configure Challenger for Your Chain](/chain-operators/guides/configuration/op-challenger-config-guide).
+
+```text
+Read https://docs.optimism.io/op-stack/fault-proofs/challenger.md and
+https://docs.optimism.io/chain-operators/guides/configuration/op-challenger-config-guide.md
+
+I operate an OP Stack chain with fault proofs enabled on [network].
+Produce a deployment plan for op-challenger: the role it plays, the
+resources and keys it needs, the bond funding it requires, the
+configuration I must set, and the monitoring I should attach. List open
+questions I need to answer about my own chain before deploying.
+```
+
+### Bridge ETH From L1 in My App
+
+**Persona:** app developer
+
+Move ETH between Ethereum and an OP Stack chain programmatically.
+Grounding page: [Submitting Transactions From L1](/app-developers/tutorials/bridging/cross-dom-bridge-eth).
+
+```text
+Read https://docs.optimism.io/app-developers/tutorials/bridging/cross-dom-bridge-eth.md
+
+Using the approach in this tutorial, write the code for my app to bridge
+ETH from [L1 network] to [L2 network] and report deposit status to the
+user. My stack is [TypeScript framework / environment]. Point out where
+testnet and mainnet configuration differ, and what the user experience
+should show while the deposit is in flight.
+```
+
+### Explain My Transaction's Fee Breakdown
+
+**Persona:** app developer
+
+OP Stack transactions pay an execution fee and a data-availability fee; estimating only one of them causes bugs.
+Grounding page: [Transaction Fees on OP Mainnet](/op-stack/transactions/fees).
+
+```text
+Read https://docs.optimism.io/op-stack/transactions/fees.md
+
+Explain every component of the fee my transaction pays on an OP Stack
+chain, how each is calculated, and which ones fluctuate with L1 gas
+prices. Then show me how to estimate the total fee for a transaction
+correctly in my app, and the common estimation mistakes to avoid.
+Here is my current estimation code: [paste code, optional].
+```
+
+### Debug a Stuck Withdrawal
+
+**Persona:** app developer
+
+Withdrawals are multi-step and time-delayed by design; most "stuck" withdrawals are actually mid-flight.
+Grounding pages: [Withdrawal Flow](/op-stack/bridging/withdrawal-flow) and [Transaction Finality](/op-stack/transactions/transaction-finality).
+
+```text
+Read https://docs.optimism.io/op-stack/bridging/withdrawal-flow.md and
+https://docs.optimism.io/op-stack/transactions/transaction-finality.md
+
+A withdrawal from [L2 network] appears stuck: [describe what you did,
+when, and the transaction hash or current status]. Using the withdrawal
+lifecycle in these docs, determine which stage the withdrawal is in,
+whether the delay is expected protocol behavior or an actual problem,
+and exactly what action (if any) unblocks the next step.
+```
+
+## Contributing
+
+The prompts above are curated: each one maps to a task readers actually arrive with, and each grounds the assistant in maintained docs pages.
+To propose a new prompt or fix a stale one, [open an issue](https://github.com/ethereum-optimism/optimism/issues) or edit this page.

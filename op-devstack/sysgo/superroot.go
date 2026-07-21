@@ -149,7 +149,11 @@ func awaitSuperrootTime(t devtest.T, cls ...L2CLNode) uint64 {
 }
 
 func getSupernodeSuperRoot(t devtest.T, supernode *SuperNode, timestamp uint64) eth.Bytes32 {
-	client, err := dial.DialSuperNodeClientWithTimeout(t.Ctx(), t.Logger(), supernode.UserRPC())
+	return getSuperRoot(t, supernode.UserRPC(), timestamp)
+}
+
+func getSuperRoot(t devtest.T, endpoint string, timestamp uint64) eth.Bytes32 {
+	client, err := dial.DialSuperNodeClientWithTimeout(t.Ctx(), t.Logger(), endpoint)
 	t.Require().NoError(err)
 
 	ctx, cancel := context.WithTimeout(t.Ctx(), 2*time.Minute)
@@ -162,7 +166,7 @@ func getSupernodeSuperRoot(t devtest.T, supernode *SuperNode, timestamp uint64) 
 		return resp.Data != nil, nil
 	})
 	cancel()
-	t.Require().NoError(err, "waiting for supernode superroot to be ready failed")
+	t.Require().NoError(err, "waiting for superroot to be ready failed")
 
 	resp, err := client.SuperRootAtTimestamp(t.Ctx(), timestamp)
 	t.Require().NoError(err, "super root at timestamp failed")

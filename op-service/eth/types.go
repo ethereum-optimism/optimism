@@ -18,6 +18,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/holiman/uint256"
+
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 )
 
 type ErrorCode int
@@ -533,7 +535,7 @@ type PayloadAttributes struct {
 // type. Empty transactions are also considered non-Deposit transactions.
 func (a *PayloadAttributes) IsDepositsOnly() bool {
 	for _, tx := range a.Transactions {
-		if len(tx) == 0 || tx[0] != types.DepositTxType {
+		if len(tx) == 0 || tx[0] != optypes.DepositTxType {
 			return false
 		}
 	}
@@ -546,7 +548,7 @@ func (a *PayloadAttributes) WithDepositsOnly() *PayloadAttributes {
 	clone := *a
 	depositTxs := make([]Data, 0, len(a.Transactions))
 	for _, tx := range a.Transactions {
-		if len(tx) > 0 && tx[0] == types.DepositTxType {
+		if len(tx) > 0 && tx[0] == optypes.DepositTxType {
 			depositTxs = append(depositTxs, tx)
 		}
 	}

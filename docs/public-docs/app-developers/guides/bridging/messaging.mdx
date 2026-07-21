@@ -140,7 +140,7 @@ The process of sending transactions from L2 to L1 involves four distinct steps:
 2.  The block containing the L2 transaction is proposed to the L1.
     This typically takes approximately 20 minutes.
 
-3.  A proof of the transaction is submitted to the [`OptimismPortal`](https://github.com/ethereum-optimism/optimism/blob/111f3f3a3a2881899662e53e0f1b2f845b188a38/packages/contracts-bedrock/src/L1/OptimismPortal.sol#L209) contract on L1.
+3.  A proof of the transaction is submitted to the [`OptimismPortal`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OptimismPortal2.sol#L375) contract on L1.
     This can be done any time after step 2 is complete.
 
 4.  The transaction is finalized on L1.
@@ -178,7 +178,7 @@ modifier onlyOwner() {
 ### For L1 to L2 transactions
 
 The majority of the cost of an L1 to L2 transaction comes from the smart contract execution on L1.
-When sending an L1 to L2 transaction, you send to the [`L1CrossDomainMessenger`](https://github.com/ethereum-optimism/optimism/blob/111f3f3a3a2881899662e53e0f1b2f845b188a38/packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol) contract, which then sends a call to the [`OptimismPortal`](https://github.com/ethereum-optimism/optimism/blob/111f3f3a3a2881899662e53e0f1b2f845b188a38/packages/contracts-bedrock/src/L1/OptimismPortal.sol) contract.
+When sending an L1 to L2 transaction, you send to the [`L1CrossDomainMessenger`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol) contract, which then sends a call to the [`OptimismPortal`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OptimismPortal2.sol) contract.
 This involves some execution on L1, which costs gas.
 The total cost is ultimately determined by gas prices on Ethereum when you're sending the cross-chain transaction.
 

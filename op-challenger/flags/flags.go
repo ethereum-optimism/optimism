@@ -63,10 +63,11 @@ var (
 		Usage:   "Address of L1 Beacon API endpoint to use",
 		EnvVars: prefixEnvVars("L1_BEACON"),
 	}
-	SuperNodeRpcFlag = &cli.StringFlag{
-		Name:    "supernode-rpc",
-		Usage:   "Provider URL for supernode roots",
-		EnvVars: prefixEnvVars("SUPERNODE_RPC"),
+	SuperRootRpcFlag = &cli.StringFlag{
+		Name:    "superroot-rpc",
+		Aliases: []string{"supernode-rpc"},
+		Usage:   "HTTP provider URL for a super root RPC source (op-node or op-supernode)",
+		EnvVars: prefixEnvVars("SUPERROOT_RPC", "SUPERNODE_RPC"),
 	}
 	RollupRpcFlag = &cli.StringFlag{
 		Name:    "rollup-rpc",
@@ -92,9 +93,9 @@ var (
 	GameTypesFlag = &cli.StringSliceFlag{
 		Name:    "game-types",
 		Aliases: []string{"trace-type"}, // For backwards compatibility
-		Usage:   "The game types to support. Valid options: " + openum.EnumStringer(gameTypes.SupportedGameTypes),
+		Usage:   "The game types to support. Valid options: " + openum.EnumStringer(gameTypes.PlayableGameTypes),
 		EnvVars: prefixEnvVars("GAME_TYPES", "TRACE_TYPE"),
-		Value:   cli.NewStringSlice(gameTypes.CannonGameType.String(), gameTypes.CannonKonaGameType.String()),
+		Value:   cli.NewStringSlice(gameTypes.CannonKonaGameType.String()),
 	}
 	DatadirFlag = &cli.StringFlag{
 		Name:    "datadir",
@@ -238,8 +239,9 @@ var (
 		Value:   config.DefaultGameWindow,
 	}
 	SelectiveClaimResolutionFlag = &cli.BoolFlag{
-		Name:    "selective-claim-resolution",
-		Usage:   "Only resolve claims for the configured claimants",
+		Name: "selective-claim-resolution",
+		Usage: "Only resolve claims for the configured claimants and claim their non-zero credit; " +
+			"disables lifecycle-only game close and anchor update transactions",
 		EnvVars: prefixEnvVars("SELECTIVE_CLAIM_RESOLUTION"),
 	}
 	UnsafeAllowInvalidPrestate = &cli.BoolFlag{
@@ -277,7 +279,7 @@ var optionalFlags = []cli.Flag{
 	FactoryAddressFlag,
 	GameTypesFlag,
 	MaxConcurrencyFlag,
-	SuperNodeRpcFlag,
+	SuperRootRpcFlag,
 	L2EthRpcFlag,
 	L2ExperimentalEthRpcFlag,
 	MaxPendingTransactionsFlag,
@@ -353,8 +355,8 @@ func CheckCannonBaseFlags(ctx *cli.Context, enabledTypes []gameTypes.GameType) e
 }
 
 func CheckSuperCannonKonaFlags(ctx *cli.Context) error {
-	if !ctx.IsSet(SuperNodeRpcFlag.Name) {
-		return fmt.Errorf("flag %v is required", SuperNodeRpcFlag.Name)
+	if !ctx.IsSet(SuperRootRpcFlag.Name) {
+		return fmt.Errorf("flag %v is required", SuperRootRpcFlag.Name)
 	}
 	if !ctx.IsSet(flags.NetworkFlagName) &&
 		!(RollupConfigFlag.IsSet(ctx, gameTypes.CannonKonaGameType) && L2GenesisFlag.IsSet(ctx, gameTypes.CannonKonaGameType) && DepsetConfigFlag.IsSet(ctx, gameTypes.CannonKonaGameType)) {
@@ -452,7 +454,7 @@ func CheckRequired(ctx *cli.Context, types []gameTypes.GameType) error {
 				return err
 			}
 		default:
-			return fmt.Errorf("invalid game type %v. must be one of %v", gameType, gameTypes.SupportedGameTypes)
+			return fmt.Errorf("invalid game type %v. must be one of %v", gameType, gameTypes.PlayableGameTypes)
 		}
 	}
 	return nil
@@ -461,7 +463,7 @@ func CheckRequired(ctx *cli.Context, types []gameTypes.GameType) error {
 func parseGameTypes(ctx *cli.Context) ([]gameTypes.GameType, error) {
 	var result []gameTypes.GameType
 	for _, typeName := range ctx.StringSlice(GameTypesFlag.Name) {
-		gameType, err := gameTypes.SupportedGameTypeFromString(typeName)
+		gameType, err := gameTypes.PlayableGameTypeFromString(typeName)
 		if err != nil {
 			return nil, err
 		}
@@ -601,7 +603,7 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 		MinUpdateInterval:       ctx.Duration(MinUpdateInterval.Name),
 		AdditionalBondClaimants: claimants,
 		RollupRpc:               ctx.String(RollupRpcFlag.Name),
-		SuperRPC:                ctx.String(SuperNodeRpcFlag.Name),
+		SuperRootRPC:            ctx.String(SuperRootRpcFlag.Name),
 		Cannon: vm.Config{
 			VmType:            gameTypes.CannonGameType,
 			L1:                l1EthRpc,

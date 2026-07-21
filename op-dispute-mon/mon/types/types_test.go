@@ -177,8 +177,8 @@ func TestEnrichedGameData_HasMixedSafety(t *testing.T) {
 		})
 	}
 }
-func TestAllSupportedGameTypesAreOutputOrSuperRootType(t *testing.T) {
-	for _, gameType := range types.SupportedGameTypes {
+func TestAllSupportedLifecycleGameTypesAreOutputOrSuperRootType(t *testing.T) {
+	for _, gameType := range types.SupportedLifecycleGameTypes {
 		t.Run(gameType.String(), func(t *testing.T) {
 			data := EnrichedGameData{
 				GameMetadata: types.GameMetadata{

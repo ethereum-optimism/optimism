@@ -253,6 +253,56 @@ func TestBondDistributionMode(t *testing.T) {
 	}
 }
 
+func TestIsClosed(t *testing.T) {
+	legacyVersions := []string{vers080, vers0180, vers111, vers120, vers131}
+	modes := []struct {
+		name   string
+		mode   faultTypes.BondDistributionMode
+		closed bool
+	}{
+		{name: "Undecided", mode: faultTypes.UndecidedDistributionMode, closed: false},
+		{name: "Normal", mode: faultTypes.NormalDistributionMode, closed: true},
+		{name: "Refund", mode: faultTypes.RefundDistributionMode, closed: true},
+		{name: "Legacy", mode: faultTypes.LegacyDistributionMode, closed: true},
+	}
+	for _, version := range versions {
+		version := version
+		t.Run(version.String(), func(t *testing.T) {
+			if slices.Contains(legacyVersions, version.version) {
+				statuses := []gameTypes.GameStatus{
+					gameTypes.GameStatusInProgress,
+					gameTypes.GameStatusChallengerWon,
+					gameTypes.GameStatusDefenderWon,
+				}
+				for _, status := range statuses {
+					t.Run(status.String(), func(t *testing.T) {
+						stubRpc, game := setupFaultDisputeGameTest(t, version)
+						stubRpc.SetResponse(fdgAddr, methodStatus, rpcblock.Latest, nil, []interface{}{uint8(status)})
+
+						closed, err := game.IsClosed(context.Background())
+
+						require.NoError(t, err)
+						require.Equal(t, status != gameTypes.GameStatusInProgress, closed)
+					})
+				}
+				return
+			}
+			for _, test := range modes {
+				test := test
+				t.Run(test.name, func(t *testing.T) {
+					stubRpc, game := setupFaultDisputeGameTest(t, version)
+					stubRpc.SetResponse(fdgAddr, methodBondDistributionMode, rpcblock.Latest, nil, []interface{}{uint8(test.mode)})
+
+					closed, err := game.IsClosed(context.Background())
+
+					require.NoError(t, err)
+					require.Equal(t, test.closed, closed)
+				})
+			}
+		})
+	}
+}
+
 func TestGetAnchorStateRegistry(t *testing.T) {
 	expected := common.HexToAddress("0x0123456789abcDEF0123456789abCDef01234567")
 	for _, version := range versions {

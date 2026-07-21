@@ -1,36 +1,39 @@
 services:
-  # Sequencer (op-geth + op-node)
+  # Sequencer (op-reth + op-node)
   op-node:
-    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:v1.13.5
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:v1.19.3
     container_name: op-node
     volumes:
       - ./sequencer:/workspace
-      - op_geth_data:/workspace/op-geth-data
     working_dir: /workspace
     env_file:
       - .env
     ports:
       - "8547:8547"
       - "9222:9222"
+    # --p2p.disable is for local devnets only. Remove that flag for production
+    # deployments. (Inside the folded command string below, "#" would be passed
+    # to op-node as an argument, not treated as a comment.)
     command: >
       op-node
       --l1=${L1_RPC_URL}
       --l1.beacon=${L1_BEACON_URL}
-      --l2=http://op-geth:8551
+      --l2=http://op-reth:8551
       --l2.jwt-secret=/workspace/jwt.txt
+      --l2.enginekind=reth
       --rollup.config=/workspace/rollup.json
       --sequencer.enabled=true
       --sequencer.stopped=false
       --sequencer.max-safe-lag=3600
       --verifier.l1-confs=4
-      --p2p.disable  # For local devnet only. Remove this flag for production deployments.
+      --p2p.disable
       --rpc.addr=0.0.0.0
       --rpc.port=8547
       --rpc.enable-admin
       --log.level=info
       --log.format=json
     depends_on:
-      - op-geth
+      - op-reth
     healthcheck:
       test: ["CMD", "wget", "--post-data={\"jsonrpc\":\"2.0\",\"method\":\"optimism_syncStatus\",\"params\":[],\"id\":1}", "--header=Content-Type: application/json", "--quiet", "--tries=1", "--timeout=10", "--output-document=-", "http://localhost:8547"]
       interval: 30s
@@ -38,12 +41,12 @@ services:
       retries: 5
       start_period: 10s
 
-  op-geth:
-    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-geth:v1.101511.1
-    container_name: op-geth
+  op-reth:
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-reth:v2.4.0
+    container_name: op-reth
     volumes:
       - ./sequencer:/workspace
-      - op_geth_data:/workspace/op-geth-data
+      - op_reth_data:/workspace/op-reth-data
     working_dir: /workspace
     env_file:
       - .env
@@ -51,21 +54,33 @@ services:
       - "8545:8545"
       - "8546:8546"
       - "8551:8551"
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        set -e
-        if [ ! -d /workspace/op-geth-data/geth/chaindata ]; then
-          echo "Initializing geth datadir..."
-          geth init --datadir=/workspace/op-geth-data --state.scheme=hash /workspace/genesis.json
-        fi
-        echo "Starting geth..."
-        exec geth --datadir=/workspace/op-geth-data --http --http.addr=0.0.0.0 --http.port=8545 --ws --ws.addr=0.0.0.0 --ws.port=8546 --authrpc.addr=0.0.0.0 --authrpc.port=8551 --authrpc.jwtsecret=/workspace/jwt.txt --syncmode=full --gcmode=archive --rollup.disabletxpoolgossip=true --http.vhosts=* --http.corsdomain=* --http.api=eth,net,web3,debug,txpool,admin --ws.origins=* --ws.api=eth,net,web3,debug,txpool,admin --authrpc.vhosts=*
+    # op-reth initializes its database from the chain spec on first startup;
+    # no separate `init` step is needed.
+    command: >
+      node
+      --chain=/workspace/genesis.json
+      --datadir=/workspace/op-reth-data
+      --http
+      --http.addr=0.0.0.0
+      --http.port=8545
+      --http.corsdomain=*
+      --http.api=admin,debug,eth,net,txpool,web3
+      --ws
+      --ws.addr=0.0.0.0
+      --ws.port=8546
+      --ws.origins=*
+      --ws.api=admin,debug,eth,net,txpool,web3
+      --authrpc.addr=0.0.0.0
+      --authrpc.port=8551
+      --authrpc.jwtsecret=/workspace/jwt.txt
+      --rollup.disable-tx-pool-gossip
+      --builder.deadline=2
+      --builder.interval=100ms
 
 
   # Batcher
   batcher:
-    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-batcher:v1.14.0
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-batcher:v1.16.11
     container_name: op-batcher
     volumes:
       - ./batcher:/workspace
@@ -92,7 +107,7 @@ services:
 
   # Proposer
   proposer:
-    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-proposer:v1.10.0
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-proposer:v1.16.3
     container_name: op-proposer
     volumes:
       - ./proposer:/workspace
@@ -117,7 +132,7 @@ services:
 
   # Challenger
   challenger:
-    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:v1.5.1
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:v1.9.3
     container_name: op-challenger
     volumes:
       - ./challenger:/workspace
@@ -131,10 +146,10 @@ services:
       - OP_CHALLENGER_PRIVATE_KEY=${PRIVATE_KEY}
     command: >
       op-challenger run-trace
-      --trace-type=cannon
-      --cannon-l2-genesis=/workspace/genesis.json
-      --cannon-rollup-config=/workspace/rollup.json
-      --l2-eth-rpc=http://op-geth:8545
+      --trace-type=cannon-kona
+      --cannon-kona-l2-genesis=/workspace/genesis.json
+      --cannon-kona-rollup-config=/workspace/rollup.json
+      --l2-eth-rpc=http://op-reth:8545
       --rollup-rpc=http://op-node:8547
       --datadir=/workspace/data
       --log.level=info
@@ -145,7 +160,7 @@ services:
 
   # Dispute Monitor
   dispute-mon:
-    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-dispute-mon:v1.4.2-rc.1
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-dispute-mon:v1.5.2
     container_name: dispute-mon
     volumes:
       - ./dispute-mon:/workspace
@@ -173,4 +188,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  op_geth_data:
+  op_reth_data:

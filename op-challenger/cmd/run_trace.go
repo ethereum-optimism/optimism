@@ -105,7 +105,7 @@ func parseRunArg(arg string) (runner.RunConfig, error) {
 	if len(opts) == 0 {
 		return runner.RunConfig{}, fmt.Errorf("invalid run config %q", arg)
 	}
-	gameType, err := gameTypes.SupportedGameTypeFromString(opts[0])
+	gameType, err := gameTypes.PlayableGameTypeFromString(opts[0])
 	if err != nil {
 		return runner.RunConfig{}, fmt.Errorf("%w %q for run config %q", err, opts[0], arg)
 	}

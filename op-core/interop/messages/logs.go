@@ -6,13 +6,14 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/params"
+
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 )
 
 // MessageFromLog returns the executing message decoded from a CrossL2Inbox log,
 // or nil if the log is not an executing message.
 func MessageFromLog(l *ethTypes.Log) (*Message, error) {
-	if l.Address != params.InteropCrossL2InboxAddress {
+	if l.Address != predeploys.CrossL2InboxAddr {
 		return nil, nil
 	}
 	if len(l.Topics) != 2 { // topics: event-id and payload-hash

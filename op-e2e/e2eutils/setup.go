@@ -250,6 +250,9 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		}
 	}
 
+	l2GenesisTime, err := deployConf.L2GenesisTime(l1Block.Time())
+	require.NoError(t, err, "failed to compute l2 genesis time")
+
 	rollupCfg := &rollup.Config{
 		Genesis: rollup.Genesis{
 			L1: eth.BlockID{
@@ -260,7 +263,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 				Hash:   l2Genesis.ToBlock().Hash(),
 				Number: 0,
 			},
-			L2Time:       uint64(deployConf.L1GenesisBlockTimestamp),
+			L2Time:       l2GenesisTime,
 			SystemConfig: SystemConfigFromDeployConfig(deployConf),
 		},
 		BlockTime:              deployConf.L2BlockTime,
@@ -272,18 +275,18 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		BatchInboxAddress:      deployConf.BatchInboxAddress,
 		DepositContractAddress: deployConf.OptimismPortalProxy,
 		L1SystemConfigAddress:  deployConf.SystemConfigProxy,
-		RegolithTime:           deployConf.RegolithTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		CanyonTime:             deployConf.CanyonTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		DeltaTime:              deployConf.DeltaTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		EcotoneTime:            deployConf.EcotoneTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		FjordTime:              deployConf.FjordTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		GraniteTime:            deployConf.GraniteTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		HoloceneTime:           deployConf.HoloceneTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		PectraBlobScheduleTime: deployConf.PectraBlobScheduleTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		IsthmusTime:            deployConf.IsthmusTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		JovianTime:             deployConf.JovianTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		KarstTime:              deployConf.KarstTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		LagoonTime:             deployConf.LagoonTime(uint64(deployConf.L1GenesisBlockTimestamp)),
+		RegolithTime:           deployConf.RegolithTime(l2GenesisTime),
+		CanyonTime:             deployConf.CanyonTime(l2GenesisTime),
+		DeltaTime:              deployConf.DeltaTime(l2GenesisTime),
+		EcotoneTime:            deployConf.EcotoneTime(l2GenesisTime),
+		FjordTime:              deployConf.FjordTime(l2GenesisTime),
+		GraniteTime:            deployConf.GraniteTime(l2GenesisTime),
+		HoloceneTime:           deployConf.HoloceneTime(l2GenesisTime),
+		PectraBlobScheduleTime: deployConf.PectraBlobScheduleTime(l2GenesisTime),
+		IsthmusTime:            deployConf.IsthmusTime(l2GenesisTime),
+		JovianTime:             deployConf.JovianTime(l2GenesisTime),
+		KarstTime:              deployConf.KarstTime(l2GenesisTime),
+		LagoonTime:             deployConf.LagoonTime(l2GenesisTime),
 		KeepKarstUpgradeGas:    deployConf.KeepKarstUpgradeGas,
 		AltDAConfig:            pcfg,
 		ChainOpConfig: &opparams.OptimismConfig{

@@ -26,8 +26,8 @@ The Data Availability Layer defines where the raw inputs to an OP Stack based ch
 
 Ethereum DA is currently the most widely used Data Availability module for the OP Stack. When using the Ethereum DA module, source data can be derived from any piece of information accessible on the Ethereum blockchain. This includes Ethereum calldata, events, and 4844 data blobs.
 
-*   [Specifications](https://specs.optimism.io/protocol/derivation.html#batch-submission-wire-format?utm_source=op-docs&utm_medium=docs)
-*   [Source code](https://github.com/ethereum-optimism/optimism/tree/v1.1.4/op-batcher)
+*   [Specifications](https://specs.optimism.io/protocol/derivation.html?utm_source=op-docs&utm_medium=docs#batch-submission-wire-format)
+*   [Source code](https://github.com/ethereum-optimism/optimism/tree/v1.1.4/op-batcher) (as of `v1.1.4`)
 
 ### Sequencing
 
@@ -49,8 +49,8 @@ The Derivation Layer defines how the raw data in the Data Availability Layer is 
 
 The Rollup module derives Engine API inputs from Ethereum block data, Sequencer transaction batches, Deposited transaction events, and more.
 
-*   [Specifications](https://specs.optimism.io/protocol/derivation.html#l2-chain-derivation-pipeline?utm_source=op-docs&utm_medium=docs)
-*   [Source code](https://github.com/ethereum-optimism/optimism/tree/v1.1.4/op-node)
+*   [Specifications](https://specs.optimism.io/protocol/derivation.html?utm_source=op-docs&utm_medium=docs#l2-chain-derivation-pipeline)
+*   [Source code](https://github.com/ethereum-optimism/optimism/tree/v1.1.4/op-node) (as of `v1.1.4`)
 
 #### Indexer
 
@@ -79,7 +79,7 @@ Once a transaction is published and finalized on the corresponding Data Availabi
 An Attestation-based Fault Proof mechanism uses an optimistic protocol to establish a view of an OP Stack chain. In optimistic settlement mechanisms generally, **Proposer** entities can propose what they believe to be the current valid state of the OP Stack chain. If these proposals are not invalidated within a certain period of time (the "challenge period"), then the proposals are assumed by the mechanism to be correct. In the Attestation Proof mechanism in particular, a proposal can be invalidated if some threshold of pre-defined parties provide attestations to a valid state that is different than the state in the proposal. This places a trust assumption on the honesty of at least a threshold number of the pre-defined participants.
 
 *   [Specifications](https://specs.optimism.io/protocol/withdrawals.html?utm_source=op-docs&utm_medium=docs) (called [withdrawal transactions](/app-developers/guides/bridging/messaging))
-*   [Source code](https://github.com/ethereum-optimism/optimism/tree/v1.1.4/packages/contracts-bedrock/src)
+*   [Source code](https://github.com/ethereum-optimism/optimism/tree/v1.1.4/packages/contracts-bedrock/src) (as of `v1.1.4`)
 
 #### Fault Proof Optimistic Settlement
 

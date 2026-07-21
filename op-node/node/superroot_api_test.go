@@ -119,6 +119,10 @@ func TestSuperrootAPI_PreGenesis(t *testing.T) {
 	// Pre-genesis: surface TargetBlockNumber's error rather than a silent empty response.
 	f := newFixture(t)
 
+	genesisHash := f.cfg.Genesis.L2.Hash
+	f.expectBlockRef(0, genesisHash, eth.BlockID{Number: 0})
+	f.expectOutputV0(genesisHash)
+
 	_, err := f.api.atTimestamp(context.Background(), testGenesisL2Ts-1)
 	require.ErrorContains(t, err, "target block number")
 }

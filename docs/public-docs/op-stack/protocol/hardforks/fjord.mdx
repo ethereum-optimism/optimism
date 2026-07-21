@@ -1,0 +1,35 @@
+---
+title: Fjord
+description: Hardfork registry entry for the Fjord network upgrade, which introduced FastLZ fee estimation and Brotli compression.
+diataxis: reference
+hardfork_name: fjord
+hardfork_lifecycle: active
+hardfork_spec: https://specs.optimism.io/protocol/fjord/overview.html
+hardfork_activation_mainnet: 1720627201
+hardfork_activation_sepolia: 1716998400
+hardfork_governance: https://gov.optimism.io/t/upgrade-proposal-9-fjord-network-upgrade/8236
+---
+
+import FjordFacts from "/snippets/generated/hardforks/fjord.mdx"
+
+<Info>
+  **Normative spec:** the [Fjord specification](https://specs.optimism.io/protocol/fjord/overview.html)
+  is the canonical definition of this upgrade. This page records activation data
+  and operational pointers; it does not restate the spec.
+</Info>
+
+Fjord improved fee estimation and batch compression, and added the secp256r1
+precompile.
+
+<FjordFacts />
+
+## What changed
+
+Per the [spec overview](https://specs.optimism.io/protocol/fjord/overview.html):
+
+*   Execution layer: [RIP-7212](https://github.com/ethereum/RIPs/blob/master/RIPS/rip-7212.md)
+    precompile for secp256r1 curve support; FastLZ compression for L1 data fee
+    calculation; deprecated the `getL1GasUsed` method on the `GasPriceOracle`
+    predeploy and the `L1GasUsed` receipt field.
+*   Consensus layer: constant maximum sequencer drift; Brotli channel
+    compression; increased max bytes per channel and max channel bank size.
