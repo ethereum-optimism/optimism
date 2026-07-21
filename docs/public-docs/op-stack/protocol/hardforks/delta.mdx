@@ -11,12 +11,14 @@ hardfork_governance: https://gov.optimism.io/t/final-upgrade-proposal-3-delta-ne
 ---
 
 import DeltaFacts from "/snippets/generated/hardforks/delta.mdx"
+import { NormativeSpec } from "/snippets/normative-spec.mdx"
 
-<Info>
-  **Normative spec:** the [Delta specification](https://specs.optimism.io/protocol/delta/overview.html)
-  is the canonical definition of this upgrade. This page records activation data
-  and operational pointers; it does not restate the spec.
-</Info>
+<NormativeSpec
+  what="This upgrade"
+  title="Delta specification"
+  href="https://specs.optimism.io/protocol/delta/overview.html"
+  note="This page records activation data and operational pointers; it does not restate the spec."
+/>
 
 Delta consisted of a single consensus-layer feature: span batches, which reduce
 the fixed per-block overhead of batch submission.

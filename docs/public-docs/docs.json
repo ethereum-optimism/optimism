@@ -2378,6 +2378,7 @@
           {
             "group": "Protocol Information",
             "pages": [
+              "/op-stack/protocol/index",
               "/op-stack/protocol/overview",
               "/op-stack/protocol/getting-started",
               "/op-stack/protocol/design-principles",
