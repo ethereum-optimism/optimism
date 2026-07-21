@@ -477,16 +477,8 @@ func applyMinimalGameTypeOptions(
 	}
 	l1ChainID := l1Net.ChainID()
 
-	// Filter out permissioned game type — it's always included by the V2 upgrade.
-	var filteredGameTypes []gameTypes.GameType
-	for _, gameType := range addedGameTypes {
-		if gameType == gameTypes.PermissionedGameType {
-			continue
-		}
-		filteredGameTypes = append(filteredGameTypes, gameType)
-	}
-	if len(filteredGameTypes) > 0 {
-		addGameTypesForRuntime(t, keys, filteredGameTypes, l1ChainID, l1EL.UserRPC(), l2Net, l2CL)
+	if len(addedGameTypes) > 0 {
+		addGameTypesForRuntime(t, keys, addedGameTypes, l1ChainID, l1EL.UserRPC(), l2Net, l2CL)
 	}
 	for _, gameType := range respectedGameTypes {
 		setRespectedGameTypeForRuntime(t, keys, gameType, l1ChainID, l1EL.UserRPC(), l2Net)
