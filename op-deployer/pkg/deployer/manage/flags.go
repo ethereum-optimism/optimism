@@ -8,15 +8,6 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-// superCannonGameType is GameTypes.SUPER_CANNON. OPCMv2 has retired this type from its
-// deploy/upgrade allow-list, so `op-deployer manage migrate` rejects it for both
-// --dispute-game-type and --starting-respected-game-type.
-const superCannonGameType uint32 = 4
-
-// migrateStartingRespectedGameTypeDefault is the default value for --starting-respected-game-type
-// in `op-deployer manage migrate`. SUPER_CANNON_KONA (9) replaces the retired SUPER_CANNON (4).
-const migrateStartingRespectedGameTypeDefault uint32 = 9
-
 var (
 	L1ProxyAdminOwnerFlag = &cli.StringFlag{
 		Name:    "l1-proxy-admin-owner-address",
@@ -28,11 +19,6 @@ var (
 		Usage:   "Address of the OPCM implementation contract. Not compatible with the --workdir flag.",
 		EnvVars: deployer.PrefixEnvVar("OPCM_IMPL_ADDRESS"),
 	}
-	SystemConfigProxyFlag = &cli.StringFlag{
-		Name:    "system-config-proxy-address",
-		Usage:   "Address of the SystemConfig proxy contract. Not compatible with the --workdir flag.",
-		EnvVars: deployer.PrefixEnvVar("SYSTEM_CONFIG_PROXY_ADDRESS"),
-	}
 	OPChainProxyAdminFlag = &cli.StringFlag{
 		Name:    "op-chain-proxy-admin-address",
 		Usage:   "Address of the OP Chain's proxy admin on L1. Not compatible with the --workdir flag.",
@@ -43,12 +29,6 @@ var (
 		Usage: "Address of the DelayedWETHProxy contract to include as part of this game type. If not specified, " +
 			"one will be deployed for you by the OPCM.",
 		EnvVars: deployer.PrefixEnvVar("DELAYED_WETH_PROXY_ADDRESS"),
-	}
-	DisputeGameTypeFlag = &cli.Uint64Flag{
-		Name:    "dispute-game-type",
-		Usage:   "Numeric type identifier for the dispute game.",
-		EnvVars: deployer.PrefixEnvVar("DISPUTE_GAME_TYPE"),
-		Value:   uint64(standard.DisputeGameType),
 	}
 	DisputeAbsolutePrestateFlag = &cli.StringFlag{
 		Name:    "dispute-absolute-prestate",
@@ -93,18 +73,6 @@ var (
 		Usage:   "Chain ID of the L2 network to retrieve from state. Must be specified when --workdir is set.",
 		EnvVars: deployer.PrefixEnvVar("CHAIN_ID"),
 	}
-	MigrateStartingRespectedGameTypeFlag = &cli.Uint64Flag{
-		Name:    "starting-respected-game-type",
-		Usage:   "Starting respected game type for migration. Defaults to 9 (SUPER_CANNON_KONA). 4 (SUPER_CANNON) is rejected.",
-		EnvVars: deployer.PrefixEnvVar("STARTING_RESPECTED_GAME_TYPE"),
-		Value:   uint64(migrateStartingRespectedGameTypeDefault),
-	}
-	MigrateDisputeGameEnabledFlag = &cli.BoolFlag{
-		Name:    "dispute-game-enabled",
-		Usage:   "Whether the dispute game should be enabled. Used for migration.",
-		EnvVars: deployer.PrefixEnvVar("DISPUTE_GAME_ENABLED"),
-		Value:   true,
-	}
 	SystemConfigProxyAddressesFlag = &cli.StringFlag{
 		Name:    "system-config-proxy-addresses",
 		Usage:   "Comma-separated list of SystemConfig proxy addresses for the interop set.",
@@ -148,27 +116,6 @@ var Commands = cli.Commands{
 			deployer.CacheDirFlag,
 		}, oplog.CLIFlags(deployer.EnvVarPrefix)...),
 		Action: AddGameTypeOPCMV2CLI,
-	},
-	&cli.Command{
-		Name:  "migrate",
-		Usage: "migrates the chain to use superproofs.",
-		Flags: append([]cli.Flag{
-			deployer.CacheDirFlag,
-			deployer.L1RPCURLFlag,
-			deployer.PrivateKeyFlag,
-			deployer.ArtifactsLocatorFlag,
-			L1ProxyAdminOwnerFlag,
-			OPCMImplFlag,
-			StartingAnchorRootFlag,
-			StartingAnchorL2SequenceNumberFlag,
-			InitialBondFlag,
-			SystemConfigProxyFlag,
-			MigrateStartingRespectedGameTypeFlag,
-			MigrateDisputeGameEnabledFlag,
-			DisputeGameTypeFlag,
-			DisputeAbsolutePrestateFlag,
-		}, oplog.CLIFlags(deployer.EnvVarPrefix)...),
-		Action: MigrateCLI,
 	},
 	&cli.Command{
 		Name:  "set-interop-dispute-games",
