@@ -3,7 +3,7 @@
 mod inspector;
 mod refund;
 
-pub use refund::{NoopRefundInspector, PostExecRefundInspector};
+pub use refund::PostExecRefundInspector;
 
 use alloc::vec::Vec;
 use alloy_evm::{Database, Evm, EvmEnv, EvmFactory};
@@ -24,15 +24,14 @@ use crate::block::{OpBlockExecutor, receipt_builder::OpReceiptBuilder};
 /// Extension trait for EVMs that can track post-exec per-transaction warming results.
 pub trait PostExecEvm: alloy_evm::Evm {
     /// Opaque block-scoped carry-forward state of the installed refund inspector. The monorepo
-    /// round-trips it across flashblock executors without inspecting its shape (it is
-    /// [`WarmingState`] for the default [`SDMWarmingInspector`], `()` for [`NoopRefundInspector`]).
+    /// round-trips it across flashblock executors without inspecting its shape.
     type Snapshot: Clone;
 
     /// Begin post-exec tracking for the next transaction.
     fn begin_post_exec_tx(&mut self, ctx: PostExecTxContext);
 
-    /// Take the aggregate post-exec refund (in gas) for the most recently executed transaction.
-    fn take_last_post_exec_refund(&mut self) -> u64;
+    /// Take the extracted post-exec result for the most recently executed transaction.
+    fn take_last_post_exec_tx_result(&mut self) -> PostExecExecutedTx;
 
     /// Snapshot the block-scoped refund state for carry-forward across flashblock executors.
     fn warming_state(&self) -> Self::Snapshot;
@@ -58,8 +57,8 @@ pub trait PostExecEvmFactoryHooks: EvmFactory {
         DB: Database,
         I: Inspector<Self::Context<DB>>;
 
-    /// Take the aggregate post-exec refund (in gas) for the most recently executed transaction.
-    fn take_last_post_exec_refund<DB, I>(evm: &mut Self::Evm<DB, I>) -> u64
+    /// Take the extracted post-exec result for the most recently executed transaction.
+    fn take_last_post_exec_tx_result<DB, I>(evm: &mut Self::Evm<DB, I>) -> PostExecExecutedTx
     where
         DB: Database,
         I: Inspector<Self::Context<DB>>;
@@ -182,8 +181,8 @@ where
         F::begin_post_exec_tx(&mut self.inner, ctx);
     }
 
-    fn take_last_post_exec_refund(&mut self) -> u64 {
-        F::take_last_post_exec_refund(&mut self.inner)
+    fn take_last_post_exec_tx_result(&mut self) -> PostExecExecutedTx {
+        F::take_last_post_exec_tx_result(&mut self.inner)
     }
 
     fn warming_state(&self) -> Self::Snapshot {
@@ -268,6 +267,9 @@ pub trait PostExecExecutorExt {
     /// Take the accumulated post-exec entries for the current block.
     fn take_post_exec_entries(&mut self) -> Vec<SDMGasEntry>;
 
+    /// Take the exact per-transaction warming refund attribution events aligned with receipts.
+    fn take_warming_events_by_tx(&mut self) -> Vec<Vec<WarmingRefundEvent>>;
+
     /// Snapshot the block-scoped refund state for carry-forward across flashblock executors.
     fn warming_state(&self) -> Self::Snapshot;
 
@@ -289,6 +291,10 @@ where
 
     fn take_post_exec_entries(&mut self) -> Vec<SDMGasEntry> {
         Self::take_post_exec_entries(self)
+    }
+
+    fn take_warming_events_by_tx(&mut self) -> Vec<Vec<WarmingRefundEvent>> {
+        Self::take_warming_events_by_tx(self)
     }
 
     fn warming_state(&self) -> Self::Snapshot {

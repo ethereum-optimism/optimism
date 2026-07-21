@@ -82,9 +82,9 @@ pub struct PostExecTxContext {
 /// Extracted result for the most recently executed transaction.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PostExecExecutedTx {
-    /// Total refund for the tx.
+    /// Consensus-facing total refund for the tx.
     pub refund_total: u64,
-    /// Exact attribution events for the tx.
+    /// Optional diagnostic attribution events for the tx.
     pub refund_events: Vec<WarmingRefundEvent>,
 }
 
@@ -349,13 +349,9 @@ impl super::PostExecRefundInspector for SDMWarmingInspector {
         self.observe_account_touch(address, false);
     }
 
-    fn finish_tx(&mut self) -> u64 {
-        // Mirrors the inherent `finish_tx`, which the composite still drives directly. The seam
-        // exposes only the aggregate refund; attribution telemetry stays internal to this public
-        // inspector/debug tooling.
-        let result = self.current_tx.finish();
-        self.last_tx = result.clone();
-        result.refund_total
+    #[allow(clippy::use_self)] // Explicitly delegate to the inherent method, not this trait method.
+    fn finish_tx(&mut self) -> PostExecExecutedTx {
+        SDMWarmingInspector::finish_tx(self)
     }
 
     fn snapshot(&self) -> WarmingState {
@@ -472,8 +468,7 @@ where
 ///
 /// `R` is fixed by the EVM factory (it defaults to [`SDMWarmingInspector`]); the always-present
 /// refund inspector is what lets `OpEvm<DB, I, R>` expose post-exec hooks for *any* user inspector
-/// `I` — as `alloy_evm`'s `BlockExecutorFactory` requires. Non-producing nodes install
-/// [`NoopRefundInspector`](super::NoopRefundInspector).
+/// `I` — as `alloy_evm`'s `BlockExecutorFactory` requires.
 #[derive(Debug, Clone)]
 pub struct PostExecCompositeInspector<I, R = SDMWarmingInspector> {
     inner: I,
@@ -525,8 +520,8 @@ impl<I, R: super::PostExecRefundInspector> PostExecCompositeInspector<I, R> {
         self.post_exec.note_account_touch(address);
     }
 
-    /// Finish tracking the current transaction, returning its aggregate refund in gas.
-    pub fn finish_post_exec_tx(&mut self) -> u64 {
+    /// Finish tracking the current transaction.
+    pub fn finish_post_exec_tx(&mut self) -> PostExecExecutedTx {
         self.post_exec.finish_tx()
     }
 }

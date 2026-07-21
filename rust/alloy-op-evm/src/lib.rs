@@ -74,16 +74,14 @@ type OpEvmInner<DB, I, P, R> = op_revm::OpEvm<
 ///
 /// The `R` type parameter is the post-exec refund inspector embedded alongside the user inspector
 /// `I` (see [`post_exec::PostExecCompositeInspector`]). It is fixed by the EVM factory and defaults
-/// to [`SDMWarmingInspector`](post_exec::SDMWarmingInspector); the seam also supports
-/// [`NoopRefundInspector`](post_exec::NoopRefundInspector) for non-producing factories once the
-/// SDM-production teardown flips those defaults.
+/// to [`SDMWarmingInspector`](post_exec::SDMWarmingInspector).
 #[allow(missing_debug_implementations)] // missing revm::OpContext Debug impl
 pub struct OpEvm<DB: Database, I, P = OpPrecompiles, Tx = OpTx, R = post_exec::SDMWarmingInspector>
 {
     inner: OpEvmInner<DB, I, P, R>,
     inspect: bool,
     post_exec_tracking_active: bool,
-    last_tx_post_exec_refund: u64,
+    last_tx_post_exec_result: post_exec::PostExecExecutedTx,
     _tx: PhantomData<Tx>,
 }
 
@@ -153,7 +151,7 @@ impl<DB: Database, I, P, Tx, R: Default> OpEvm<DB, I, P, Tx, R> {
             }),
             inspect,
             post_exec_tracking_active: false,
-            last_tx_post_exec_refund: 0,
+            last_tx_post_exec_result: Default::default(),
             _tx: PhantomData,
         }
     }
@@ -201,9 +199,9 @@ where
         self.inner.0.inspector.note_account_touch(address);
     }
 
-    /// Take the aggregate post-exec refund (in gas) for the most recently executed transaction.
-    pub fn take_last_post_exec_refund(&mut self) -> u64 {
-        core::mem::take(&mut self.last_tx_post_exec_refund)
+    /// Take the extracted post-exec result for the most recently executed transaction.
+    pub fn take_last_post_exec_tx_result(&mut self) -> post_exec::PostExecExecutedTx {
+        core::mem::take(&mut self.last_tx_post_exec_result)
     }
 
     /// Snapshot the block-scoped refund state for carry-forward across flashblock executors.
@@ -228,8 +226,8 @@ where
         Self::begin_post_exec_tx(self, ctx);
     }
 
-    fn take_last_post_exec_refund(&mut self) -> u64 {
-        Self::take_last_post_exec_refund(self)
+    fn take_last_post_exec_tx_result(&mut self) -> post_exec::PostExecExecutedTx {
+        Self::take_last_post_exec_tx_result(self)
     }
 
     fn warming_state(&self) -> Self::Snapshot {
@@ -257,12 +255,14 @@ where
         evm.begin_post_exec_tx(ctx);
     }
 
-    fn take_last_post_exec_refund<DB, I>(evm: &mut Self::Evm<DB, I>) -> u64
+    fn take_last_post_exec_tx_result<DB, I>(
+        evm: &mut Self::Evm<DB, I>,
+    ) -> post_exec::PostExecExecutedTx
     where
         DB: Database,
         I: Inspector<Self::Context<DB>>,
     {
-        evm.take_last_post_exec_refund()
+        evm.take_last_post_exec_tx_result()
     }
 
     fn warming_state<DB, I>(evm: &Self::Evm<DB, I>) -> Self::Snapshot
@@ -331,7 +331,7 @@ where
         &mut self,
         tx: Self::Tx,
     ) -> Result<ResultAndState<Self::HaltReason>, Self::Error> {
-        self.last_tx_post_exec_refund = 0;
+        self.last_tx_post_exec_result = post_exec::PostExecExecutedTx::default();
 
         let track_post_exec = self.post_exec_tracking_active;
         let result = if self.inspect || track_post_exec {
@@ -351,7 +351,7 @@ where
                 }
             }
 
-            self.last_tx_post_exec_refund = self.inner.0.inspector.finish_post_exec_tx();
+            self.last_tx_post_exec_result = self.inner.0.inspector.finish_post_exec_tx();
             self.post_exec_tracking_active = false;
         }
 
@@ -521,7 +521,7 @@ mod tests {
             });
             // `transact_raw` does not commit state in this low-level test, so reuse nonce 0.
             evm.transact_raw(legacy_op_tx(0, caller, target)).expect("tx executes");
-            evm.take_last_post_exec_refund()
+            evm.take_last_post_exec_tx_result().refund_total
         };
 
         assert_eq!(tracked_refund(0), 0);

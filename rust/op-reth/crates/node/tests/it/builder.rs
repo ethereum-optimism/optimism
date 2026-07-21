@@ -3,7 +3,8 @@
 use alloy_op_evm::{
     OpEvmContext, OpTxError,
     post_exec::{
-        PostExecEvmFactoryAdapter, PostExecEvmFactoryHooks, PostExecTxContext, WarmingState,
+        PostExecEvmFactoryAdapter, PostExecEvmFactoryHooks, PostExecExecutedTx, PostExecTxContext,
+        WarmingState,
     },
 };
 use alloy_primitives::{Bytes, address};
@@ -141,12 +142,12 @@ fn test_setup_custom_precompiles() {
             evm.begin_post_exec_tx(ctx);
         }
 
-        fn take_last_post_exec_refund<DB, I>(evm: &mut Self::Evm<DB, I>) -> u64
+        fn take_last_post_exec_tx_result<DB, I>(evm: &mut Self::Evm<DB, I>) -> PostExecExecutedTx
         where
             DB: Database,
             I: Inspector<Self::Context<DB>>,
         {
-            evm.take_last_post_exec_refund()
+            evm.take_last_post_exec_tx_result()
         }
 
         fn warming_state<DB, I>(evm: &Self::Evm<DB, I>) -> Self::Snapshot
