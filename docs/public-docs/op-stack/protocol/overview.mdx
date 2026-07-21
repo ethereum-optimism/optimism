@@ -75,7 +75,7 @@ See the [developer documentation and examples](/app-developers/guides/bridging/s
 
 In Optimism terminology, transactions going from Ethereum (L1) to OP Mainnet (L2) are called *deposits*.
 
-You use [`L1CrossDomainMessenger`](https://github.com/ethereum-optimism/optimism/blob/v1.1.4/packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol) or [`L1StandardBridge`](https://github.com/ethereum-optimism/optimism/blob/v1.1.4/packages/contracts-bedrock/src/L1/L1StandardBridge.sol).
+You use [`L1CrossDomainMessenger`](https://github.com/ethereum-optimism/optimism/blob/v1.1.4/packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol) or [`L1StandardBridge`](https://github.com/ethereum-optimism/optimism/blob/v1.1.4/packages/contracts-bedrock/src/L1/L1StandardBridge.sol) (as of `v1.1.4`).
 Deposit transactions become part of the canonical blockchain in the first L2 block of the "epoch" corresponding to the L1 block where the deposits were made.
 This L2 block will usually be created a few minutes after the corresponding L1 block.
 You can read more about this [in the specs](https://specs.optimism.io/protocol/deposits.html?utm_source=op-docs&utm_medium=docs).

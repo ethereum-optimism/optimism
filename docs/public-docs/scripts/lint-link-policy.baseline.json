@@ -12,11 +12,6 @@
       "url": "https://github.com/ethereum-optimism/specs/blob/main/specs/glossary.md#safe-l2-head"
     },
     {
-      "rule": "dead-internal-link",
-      "file": "chain-operators/guides/management/troubleshooting.mdx",
-      "url": "/chain-operators/tutorials/create-l2-rollup/op-reth-setup"
-    },
-    {
       "rule": "unbadged-pinned-link",
       "file": "op-stack/fault-proofs/fp-components.mdx",
       "url": "https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/specs/cannon-fault-proof-vm.md"
@@ -175,11 +170,6 @@
       "rule": "unbadged-pinned-link",
       "file": "releases/kona-node.mdx",
       "url": "https://github.com/ethereum-optimism/superchain-registry/blob/c90d86d2ed13541f16daf5ce8707c688723ca039/superchain/configs/mainnet/op.toml#L24"
-    },
-    {
-      "rule": "spec-blob-link",
-      "file": "releases/op-batcher.mdx",
-      "url": "https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/derivation.md#frame-format"
     },
     {
       "rule": "unbadged-pinned-link",

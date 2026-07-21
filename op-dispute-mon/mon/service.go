@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"sync/atomic"
 	"time"
 
@@ -279,10 +280,22 @@ func (s *Service) Stopped() bool {
 	return s.stopped.Load()
 }
 
+// MetricsAddr returns the bound metrics server address, or nil when metrics are disabled.
+func (s *Service) MetricsAddr() net.Addr {
+	if s.metricsSrv == nil {
+		return nil
+	}
+	return s.metricsSrv.Addr()
+}
+
 func (s *Service) Stop(ctx context.Context) error {
 	s.logger.Info("Stopping dispute mon service")
-
 	var result error
+	if s.monitor != nil {
+		if err := s.monitor.StopMonitoring(ctx); err != nil {
+			result = errors.Join(result, fmt.Errorf("failed to stop game monitor: %w", err))
+		}
+	}
 	if s.pprofService != nil {
 		if err := s.pprofService.Stop(ctx); err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to close pprof server: %w", err))

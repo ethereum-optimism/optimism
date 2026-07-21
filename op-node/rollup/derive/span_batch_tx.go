@@ -10,6 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/holiman/uint256"
+
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 )
 
 type spanBatchTxData interface {
@@ -62,7 +64,7 @@ type spanBatchPostExecTxData struct {
 	Data []byte
 }
 
-func (txData *spanBatchPostExecTxData) txType() byte { return types.PostExecTxType }
+func (txData *spanBatchPostExecTxData) txType() byte { return optypes.PostExecTxType }
 
 // EncodeRLP writes the opaque post-exec payload bytes directly. Unlike other typed
 // span batch tx data, the post-exec payload is not wrapped in an RLP list.
@@ -136,7 +138,7 @@ func (tx *spanBatchTx) decodeTyped(b []byte) (spanBatchTxData, error) {
 			return nil, fmt.Errorf("failed to decode spanBatchSetCodeTxData: %w", err)
 		}
 		return &inner, nil
-	case types.PostExecTxType:
+	case optypes.PostExecTxType:
 		var inner spanBatchPostExecTxData
 		err := rlp.DecodeBytes(b[1:], &inner)
 		if err != nil {
@@ -170,8 +172,9 @@ func (tx *spanBatchTx) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
-// convertToFullTx takes values and convert spanBatchTx to types.Transaction
-func (tx *spanBatchTx) convertToFullTx(nonce, gas uint64, to *common.Address, chainID, V, R, S *big.Int) (*types.Transaction, error) {
+// convertToFullTx combines the span batch tx data with the given envelope values into the
+// canonical encoding of the full transaction.
+func (tx *spanBatchTx) convertToFullTx(nonce, gas uint64, to *common.Address, chainID, V, R, S *big.Int) ([]byte, error) {
 	var inner types.TxData
 	switch tx.Type() {
 	case types.LegacyTxType:
@@ -239,13 +242,14 @@ func (tx *spanBatchTx) convertToFullTx(nonce, gas uint64, to *common.Address, ch
 			R:          uint256.MustFromBig(R),
 			S:          uint256.MustFromBig(S),
 		}
-	case types.PostExecTxType:
+	case optypes.PostExecTxType:
 		postExecTxInner := tx.inner.(*spanBatchPostExecTxData)
-		inner = &types.PostExecTx{Data: common.CopyBytes(postExecTxInner.Data)}
+		postExecTx := optypes.PostExecTx{Data: common.CopyBytes(postExecTxInner.Data)}
+		return postExecTx.MarshalBinary()
 	default:
 		return nil, fmt.Errorf("invalid tx type: %d", tx.Type())
 	}
-	return types.NewTx(inner), nil
+	return types.NewTx(inner).MarshalBinary()
 }
 
 // newSpanBatchTx converts types.Transaction to spanBatchTx
@@ -282,7 +286,7 @@ func newSpanBatchTx(tx *types.Transaction) (*spanBatchTx, error) {
 			AccessList:        tx.AccessList(),
 			AuthorizationList: tx.SetCodeAuthorizations(),
 		}
-	case types.PostExecTxType:
+	case optypes.PostExecTxType:
 		inner = &spanBatchPostExecTxData{Data: common.CopyBytes(tx.Data())}
 	default:
 		return nil, fmt.Errorf("invalid tx type: %d", tx.Type())

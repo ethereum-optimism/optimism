@@ -78,6 +78,10 @@ func (g *FaultDisputeGame) RootClaim() *Claim {
 	return g.ClaimAtIndex(0)
 }
 
+func (g *FaultDisputeGame) RootClaimValue() common.Hash {
+	return contract.Read(g.game.RootClaim())
+}
+
 func (g *FaultDisputeGame) L2SequenceNumber() uint64 {
 	return bigs.Uint64Strict(contract.Read(g.game.L2SequenceNumber()))
 }

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/claims"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/alphabet"
@@ -294,10 +293,6 @@ func (e *RegisterTask) Register(
 	}
 	registry.RegisterGameType(e.gameType, playerCreator)
 
-	contractCreator := func(game gameTypes.GameMetadata) (claims.BondContract, error) {
-		return contracts.NewFaultDisputeGameContract(ctx, m, game.Proxy, caller)
-	}
-	registry.RegisterBondContract(e.gameType, contractCreator)
 	return nil
 }
 
