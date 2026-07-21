@@ -1,30 +1,33 @@
 ---
 title: op-deployer
-description: Canonical hub for op-deployer, the OP Stack chain deployment and upgrade tool, covering what it does, who runs it, and where its guides, reference, releases, and source live.
+description: Canonical hub for op-deployer, the OP Stack chain deployment tool, covering what it does, who runs it, and where its guides, reference, releases, and source live.
 diataxis: explanation
 ---
 
-op-deployer is the OP Stack's chain deployment and upgrade tool: a CLI that
-deploys the L1 smart contracts for new OP Stack chains and upgrades existing
-ones, driven by a declarative configuration file.
+op-deployer is the OP Stack's chain deployment tool: a CLI that
+deploys the L1 smart contracts for new OP Stack chains, driven by a
+declarative configuration file.
 
 ## Overview
 
 op-deployer reads an *intent* file describing a chain's desired configuration
 and makes the minimum set of smart contract calls required to make the
 deployment match it. It is distributed as a standalone binary with no
-additional dependencies, its configuration is optimized for deploying and
-upgrading Standard OP Chains, and it exposes lower-level primitives and Go
-libraries for more complex setups.
+additional dependencies, its configuration is optimized for deploying
+Standard OP Chains, and it exposes lower-level primitives and Go libraries
+for more complex setups. Its `upgrade` and `manage` commands are deprecated;
+see the
+[deprecation notice](/notices/op-deployer-upgrade-deprecation) for the
+supported upgrade paths and alternatives.
 
 It exists because deploying an OP Stack chain means deploying a large,
 interdependent set of L1 contracts at specific supported versions.
 op-deployer turns that into a declarative, repeatable process, and each of
 its releases maps to the contract releases it supports.
 
-**Who runs it:** chain operators and developers deploying or upgrading
-chains. It runs on demand, from a workstation, in CI pipelines, or inside
-local development environments; it is not a long-running service.
+**Who runs it:** chain operators and developers deploying chains. It runs
+on demand, from a workstation, in CI pipelines, or inside local development
+environments; it is not a long-running service.
 
 Unlike most components, op-deployer already has a full documentation set on
 this site, under [OP Deployer](/chain-operators/tools/op-deployer/overview)
@@ -46,7 +49,10 @@ in the Chain Operators tab; this hub routes into it.
     backport fixes onto earlier op-deployer versions and add support for new
     contract versions.
 *   [Upgrade L1 contracts using op-deployer](/chain-operators/tutorials/l1-contract-upgrades/op-deployer-upgrade):
-    version availability and migration paths for the `upgrade` command.
+    version availability and migration paths for the deprecated `upgrade`
+    command, which supports upgrades only up to `op-contracts/v5.0.0`. For
+    later upgrades, see the
+    [deprecation notice](/notices/op-deployer-upgrade-deprecation).
 
 ## Configuration & flags reference
 
