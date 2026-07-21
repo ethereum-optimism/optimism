@@ -109,6 +109,35 @@ func TestIntegration_Backend_RPCSetFailsafe_UpdatesMetric(t *testing.T) {
 		"admin_setFailsafeEnabled(false) must flip the metric off")
 }
 
+func TestIntegration_Backend_RPCGetPassthroughEnabled(t *testing.T) {
+	t.Parallel()
+
+	bk := twoChainBackend(t, 1)
+	admin := &AdminFrontend{backend: bk.Backend}
+
+	enabled, err := admin.GetPassthroughEnabled(context.Background())
+	require.NoError(t, err)
+	require.False(t, enabled)
+
+	bk.passthrough = true
+	enabled, err = admin.GetPassthroughEnabled(context.Background())
+	require.NoError(t, err)
+	require.True(t, enabled)
+}
+
+func TestIntegration_Backend_PassthroughMetric(t *testing.T) {
+	t.Parallel()
+
+	bk := newSeededBackend(t, backendOpts{
+		Passthrough: true,
+		Specs: []seedSpec{
+			{ChainID: 901, Blocks: []seedBlock{{Num: 100, Ts: 1200}}},
+			{ChainID: 902, Blocks: []seedBlock{{Num: 100, Ts: 1200}}},
+		},
+	})
+	require.True(t, bk.metrics.passthroughMetric())
+}
+
 func TestIntegration_Backend_AutoFailsafe_UpdatesMetric(t *testing.T) {
 	t.Parallel()
 

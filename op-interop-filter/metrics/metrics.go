@@ -14,6 +14,7 @@ type Metricer interface {
 	RecordInfo(version string)
 	RecordUp()
 	RecordFailsafeEnabled(enabled bool)
+	RecordPassthroughEnabled(enabled bool)
 	RecordFailsafeReason(reason string, active bool)
 	RecordChainHead(chainID uint64, blockNum uint64)
 	RecordChainTip(chainID uint64, blockNum uint64)
@@ -37,6 +38,7 @@ type Metrics struct {
 	info                     *prometheus.GaugeVec
 	up                       prometheus.Gauge
 	failsafeEnabled          prometheus.Gauge
+	passthroughEnabled       prometheus.Gauge
 	failsafeReason           *prometheus.GaugeVec
 	chainHead                *prometheus.GaugeVec
 	checkAccessTotal         *prometheus.CounterVec
@@ -88,6 +90,12 @@ func NewMetrics(procName string) *Metrics {
 			Namespace: ns,
 			Name:      "failsafe_enabled",
 			Help:      "1 if failsafe is enabled",
+		}),
+
+		passthroughEnabled: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "passthrough_enabled",
+			Help:      "1 if passthrough mode is enabled",
 		}),
 
 		failsafeReason: factory.NewGaugeVec(prometheus.GaugeOpts{
@@ -195,6 +203,14 @@ func (m *Metrics) RecordFailsafeEnabled(enabled bool) {
 	}
 }
 
+func (m *Metrics) RecordPassthroughEnabled(enabled bool) {
+	if enabled {
+		m.passthroughEnabled.Set(1)
+	} else {
+		m.passthroughEnabled.Set(0)
+	}
+}
+
 func (m *Metrics) RecordFailsafeReason(reason string, active bool) {
 	v := 0.0
 	if active {
@@ -263,6 +279,7 @@ type noopMetrics struct{}
 func (n *noopMetrics) RecordInfo(version string)                               {}
 func (n *noopMetrics) RecordUp()                                               {}
 func (n *noopMetrics) RecordFailsafeEnabled(enabled bool)                      {}
+func (n *noopMetrics) RecordPassthroughEnabled(enabled bool)                   {}
 func (n *noopMetrics) RecordFailsafeReason(reason string, active bool)         {}
 func (n *noopMetrics) RecordChainHead(chainID uint64, blockNum uint64)         {}
 func (n *noopMetrics) RecordChainTip(chainID uint64, blockNum uint64)          {}
