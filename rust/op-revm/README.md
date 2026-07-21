@@ -15,11 +15,12 @@ on top of the upstream `revm` framework.
 
 ## Provenance
 
-This crate is a vendored copy of upstream
-[`bluealloy/revm`'s `crates/op-revm`](https://github.com/bluealloy/revm/tree/main/crates/op-revm)
-imported into the monorepo so it can evolve in lock-step with the rest of the
-OP Stack Rust code. See [`CHANGELOG.md`](./CHANGELOG.md) for the upstream
-release history.
+This crate is the OP Stack's in-tree fork of revm's
+[`op-revm`](https://github.com/bluealloy/revm/tree/main/crates/op-revm). It was
+migrated into the monorepo and is maintained here directly, evolving in
+lock-step with the rest of the OP Stack Rust code. The generic `revm` framework
+it builds on remains an external, pinned dependency (see
+[`UPDATING-RETH.md`](../UPDATING-RETH.md)).
 
 ## Features
 

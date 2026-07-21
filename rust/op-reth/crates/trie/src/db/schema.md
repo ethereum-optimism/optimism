@@ -1,6 +1,5 @@
 # Proof History Database Schema
 
-> Location: `crates/optimism/trie/src/db`
 > Backend: **MDBX** (via `reth-db`)
 > Purpose: Serve **historical `eth_getProof`** by storing versioned trie data in a bounded window.
 
@@ -217,9 +216,6 @@ block_number (u64 BE, 8 bytes)
 Total size: **40 bytes**
 
 ---
-Here is a **short, clean, professional** version suitable for `SCHEMA.md`:
-
----
 
 ## Reads: Hashed & Trie Cursors
 
@@ -309,10 +305,6 @@ For each updated item:
 2. The entry is appended to the corresponding history table.
 
 No existing entries are modified or replaced.
-
-
----
-Here is a **concise, professional, SCHEMA.md-style** explanation aligned exactly with your clarification:
 
 ---
 
