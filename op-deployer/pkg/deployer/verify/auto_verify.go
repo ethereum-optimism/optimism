@@ -10,23 +10,10 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-func AutoVerify(ctx context.Context, logger log.Logger, rpcUrl string, chainID uint64, stateFile string, artifactsLocator *artifacts.Locator, verifierTypes string, verifierUrl string, apiKey string) error {
+func AutoVerify(ctx context.Context, logger log.Logger, rpcUrl string, chainID uint64, stateFile string, retryStateFile string, artifactsLocator *artifacts.Locator, verifierTypes string, verifierUrl string, apiKey string) error {
 	verifiers := strings.Split(verifierTypes, ",")
 	for i := range verifiers {
 		verifiers[i] = strings.TrimSpace(verifiers[i])
-	}
-
-	needsAPIKey := false
-	for _, verifierType := range verifiers {
-		if verifierType == "etherscan" {
-			needsAPIKey = true
-			break
-		}
-	}
-
-	if needsAPIKey && apiKey == "" {
-		logger.Warn("Skipping auto-verification: etherscan verifier requires an API key")
-		return nil
 	}
 
 	logger.Info("Starting automatic contract verification", "verifiers", verifierTypes)
@@ -48,8 +35,15 @@ func AutoVerify(ctx context.Context, logger log.Logger, rpcUrl string, chainID u
 	totalFailed := 0
 	allFailedContracts := make(map[string][]string)
 	allPartiallyVerifiedContracts := make(map[string][]string)
+	unavailableVerifiers := make([]string, 0)
 
 	for _, verifierType := range verifiers {
+		if verifierType == "etherscan" && apiKey == "" {
+			logger.Error("Contract verifier unavailable", "verifier", verifierType, "reason", "API key is required")
+			unavailableVerifiers = append(unavailableVerifiers, verifierType)
+			continue
+		}
+
 		logger.Info("Verifying contracts", "verifier", verifierType)
 
 		v, err := NewForgeVerifier(ForgeVerifierOpts{
@@ -62,8 +56,8 @@ func AutoVerify(ctx context.Context, logger log.Logger, rpcUrl string, chainID u
 			Logger:       logger,
 		})
 		if err != nil {
-			errMsg := fmt.Sprintf("failed to create %s verifier: %v", verifierType, err)
-			logger.Error(errMsg)
+			logger.Error("Contract verifier unavailable", "verifier", verifierType, "err", err)
+			unavailableVerifiers = append(unavailableVerifiers, verifierType)
 			continue
 		}
 
@@ -83,12 +77,28 @@ func AutoVerify(ctx context.Context, logger log.Logger, rpcUrl string, chainID u
 		}
 	}
 
-	printVerificationSummary(logger, totalVerified, totalSkipped, totalPartiallyVerified, totalFailed, allPartiallyVerifiedContracts, allFailedContracts)
+	printVerificationSummary(logger, totalVerified, totalSkipped, totalPartiallyVerified, totalFailed, len(unavailableVerifiers), allPartiallyVerifiedContracts, allFailedContracts)
 
-	if len(allFailedContracts) > 0 {
-		logger.Warn("Deployment succeeded but verification incomplete")
-		logger.Warn("You can retry verification later using: op-deployer verify --input-file <state-file>")
+	if totalFailed > 0 || totalPartiallyVerified > 0 || len(unavailableVerifiers) > 0 {
+		logger.Error("Deployment succeeded but contract verification incomplete",
+			"failed", totalFailed,
+			"partially_verified", totalPartiallyVerified,
+			"unavailable", strings.Join(unavailableVerifiers, ","))
+		logRetryCommand(logger, retryStateFile)
 	}
 
 	return nil
+}
+
+func LogAutoVerifyFailure(logger log.Logger, stateFile string, err error) {
+	logger.Error("Deployment succeeded but contract verification incomplete", "err", err)
+	logRetryCommand(logger, stateFile)
+}
+
+func logRetryCommand(logger log.Logger, stateFile string) {
+	if stateFile == "" || stateFile == "-" {
+		stateFile = "<state-file>"
+		logger.Error("Save the deployment output to a state file before retrying verification")
+	}
+	logger.Error("Retry contract verification", "command", fmt.Sprintf("op-deployer verify --input-file %s", stateFile))
 }

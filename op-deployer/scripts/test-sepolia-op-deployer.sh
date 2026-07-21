@@ -298,11 +298,11 @@ if [ "$DEPLOY_TYPE" != "4" ] && [ "$DEPLOY_TYPE" != "5" ]; then
     fi
 fi
 
-if [ "$DEPLOY_TYPE" != "3" ] && [ "$DEPLOY_TYPE" != "5" ]; then
+if [ "$DEPLOY_TYPE" != "5" ]; then
     echo ""
     echo -e "${YELLOW}Contract Verification${NC}"
     echo "  How would you like to verify contracts?"
-    echo "    1) Auto-verify during deployment (--verify flag)"
+    echo "    1) Auto-verify during deployment (default)"
     echo "    2) Verify after deployment using state file"
     echo "    3) Skip verification"
     echo ""
@@ -629,6 +629,13 @@ case "$DEPLOY_TYPE" in
         
         [ "$USE_FORGE" == "true" ] && APPLY_CMD+=("--use-forge")
         [ "$AUTO_VALIDATE_ENABLED" == "true" ] && APPLY_CMD+=("--validate" "auto")
+
+        if [ "$AUTO_VERIFY" == "true" ] && [ -n "$VERIFIER_TYPE" ]; then
+            APPLY_CMD+=("--verifier" "$VERIFIER_TYPE")
+            [[ "$VERIFIER_TYPE" == *"etherscan"* ]] && [ -n "$ETHERSCAN_API_KEY" ] && APPLY_CMD+=("--verifier-api-key" "$ETHERSCAN_API_KEY")
+        else
+            APPLY_CMD+=("--no-verify")
+        fi
         
         if "${APPLY_CMD[@]}"; then
             echo ""
@@ -638,6 +645,15 @@ case "$DEPLOY_TYPE" in
             echo ""
             echo "  State file: $WORKDIR/state.json"
             echo "  Intent file: $WORKDIR/intent.toml"
+
+            if [ "$AUTO_VERIFY" == "true" ] && [ -n "$VERIFIER_TYPE" ]; then
+                echo -e "${YELLOW}Verification attempted during deployment; check the summary above for failures.${NC}"
+            elif [ "$POST_DEPLOY_VERIFY" == "true" ] && [ -n "$VERIFIER_TYPE" ]; then
+                read -ra VERIFY_CMD <<< "$(build_verify_cmd "$WORKDIR/state.json")"
+                "${VERIFY_CMD[@]}" || echo -e "${YELLOW}Verification had some issues; check the output above.${NC}"
+            else
+                echo -e "${YELLOW}Verification was skipped.${NC}"
+            fi
         else
             echo ""
             echo -e "${RED}✗ Apply failed!${NC}"
@@ -818,10 +834,12 @@ if [ "$DEPLOY_TYPE" == "1" ] || [ "$DEPLOY_TYPE" == "2" ]; then
         )
     fi
     
-    if [ "$AUTO_VERIFY" == "true" ] && [ -n "$VERIFIER_TYPE" ]; then
-        CMD+=("--verify" "--verifier" "$VERIFIER_TYPE")
-        [[ "$VERIFIER_TYPE" == *"etherscan"* ]] && [ -n "$ETHERSCAN_API_KEY" ] && CMD+=("--verifier-api-key" "$ETHERSCAN_API_KEY")
-    fi
+	if [ "$AUTO_VERIFY" == "true" ] && [ -n "$VERIFIER_TYPE" ]; then
+	    CMD+=("--verifier" "$VERIFIER_TYPE")
+	    [[ "$VERIFIER_TYPE" == *"etherscan"* ]] && [ -n "$ETHERSCAN_API_KEY" ] && CMD+=("--verifier-api-key" "$ETHERSCAN_API_KEY")
+	else
+	    CMD+=("--no-verify")
+	fi
     
 
     
@@ -842,8 +860,8 @@ if [ "$DEPLOY_TYPE" == "1" ] || [ "$DEPLOY_TYPE" == "2" ]; then
             echo ""
         fi
         
-        if [ "$AUTO_VERIFY" == "true" ] && [ -n "$VERIFIER_TYPE" ]; then
-            echo -e "${GREEN}✓ Contracts verified during deployment${NC}"
+	    if [ "$AUTO_VERIFY" == "true" ] && [ -n "$VERIFIER_TYPE" ]; then
+	        echo -e "${YELLOW}Verification attempted during deployment; check the summary above for failures.${NC}"
             [[ "$VERIFIER_TYPE" == *"etherscan"* ]] && echo "  Etherscan: https://sepolia.etherscan.io/"
             [[ "$VERIFIER_TYPE" == *"blockscout"* ]] && echo "  Blockscout: https://eth-sepolia.blockscout.com/"
         elif [ "$POST_DEPLOY_VERIFY" == "true" ] && [ -n "$VERIFIER_TYPE" ]; then
