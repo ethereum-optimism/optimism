@@ -44,12 +44,6 @@ parameters:
   sdk_dispatch:
     type: boolean
     default: false
-  publish_contract_artifacts_dispatch:
-    type: boolean
-    default: false
-  publish_contract_artifacts_ref:
-    type: string
-    default: ""
   stale_check_dispatch:
     type: boolean
     default: false
@@ -139,7 +133,6 @@ jobs:
             c-github-event-action: << pipeline.parameters.github-event-action >>
             c-github-event-base64: << pipeline.parameters.github-event-base64 >>
             c-go-cache-version: << pipeline.parameters.go-cache-version >>
-            c-publish_contract_artifacts_ref: << pipeline.parameters.publish_contract_artifacts_ref >>
       # Same as above but for booleans. Separate step because CircleCI renders
       # boolean pipeline params as 0/1 in environment blocks — the "bool" mode
       # normalizes them to JSON true/false.
@@ -155,7 +148,6 @@ jobs:
             c-kontrol_dispatch: << pipeline.parameters.kontrol_dispatch >>
             c-cannon_full_test_dispatch: << pipeline.parameters.cannon_full_test_dispatch >>
             c-sdk_dispatch: << pipeline.parameters.sdk_dispatch >>
-            c-publish_contract_artifacts_dispatch: << pipeline.parameters.publish_contract_artifacts_dispatch >>
             c-stale_check_dispatch: << pipeline.parameters.stale_check_dispatch >>
             c-contracts_coverage_dispatch: << pipeline.parameters.contracts_coverage_dispatch >>
             c-heavy_fuzz_dispatch: << pipeline.parameters.heavy_fuzz_dispatch >>

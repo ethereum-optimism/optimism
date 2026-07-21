@@ -104,7 +104,6 @@ case "${TRIGGER_SOURCE}" in
     elif [[ "${BRANCH}" == "develop" ]]; then
       run main
       run release
-      run publish_contract_artifacts
       run develop_fault_proofs
       run develop_kontrol_tests
       run contracts_feature_tests

@@ -44,8 +44,6 @@ api_dispatch:
     - scheduled_stale_check
   heavy_fuzz_dispatch:
     - scheduled_heavy_fuzz_tests
-  publish_contract_artifacts_dispatch:
-    - publish_contract_artifacts
   l2_fork_test_dispatch:
     - l2_fork_test
   rust_ci_dispatch:
@@ -82,4 +80,3 @@ passthrough_params:
   - c-base_image
   - c-github-event-base64
   - c-go-cache-version
-  - c-publish_contract_artifacts_ref
