@@ -46,7 +46,7 @@ Thus, even when the instruction run onchain does not explicitly read from `Preim
 
 In order to execute a MIPS instruction onchain, the `MIPS.sol` contract needs to know important state information such as the instruction to run, the values in each of the general purpose registers, etc.
 More specifically, a tightly-packed `State` struct contains all the relevant information that the `MIPS.sol` contract needs to know. This struct is passed to the contract from the `FaultDisputeGame.sol` contract when it invokes the `step` function in `MIPS.sol` (which in-turn executes a single MIPS instruction onchain).
-The following information is stored in the `State` struct. See [doc reference](https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs#state) and [code reference](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/packages/contracts-bedrock/src/cannon/MIPS.sol#L26) for details:
+The following information is stored in the `State` struct. See [doc reference](https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs#state) and [code reference](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/packages/contracts-bedrock/src/cannon/MIPS.sol#L26) (as of `546fb2c7`) for details:
 
 1.  `memRoot` - The merkle root hash of the binary merkle tree that represents the MIPS VM's monolithic 32-bit memory space.
 2.  `preimageKey` - Key that uniquely identifies the Pre-image data to be read (if applicable) from the `PreimageOracle.sol`  contract.
@@ -79,7 +79,7 @@ This in turn prevents a user from disputing an output root during a dispute game
 
 Using a 32-bit ISA means that the total size of the address space (assuming no virtual address space) is `2^32 = 4GiB`. Additionally, the `MIPS.sol` contract is stateless, so it does not store the MIPS memory in contract storage. The primary reason for this is because having to load the entire memory into the `MIPS.sol` contract in order to execute a single instruction onchain is prohibitively expensive. Additionally, the entire memory would need to be loaded per fault proof game, requiring multiple instances of the `MIPS.sol` contract. Therefore, in order to optimize the amount of data that needs to be provided per onchain instruction execution while still maintaining integrity over the entire 32-bit address space, Optimism has converted the memory into a binary merkle tree.
 
-The binary merkle tree (i.e. hash tree) used to store the memory of the MIPS VM has leaf values that are 32 bytes and has a fixed depth of 27 levels. This in turn allows the binary merkle tree to span the full 32-bit address space: `2^27 * 32 = 2^32` (See [memory proofs](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/cannon/docs/README.md#memory-proofs) for more details). In order to ensure the integrity of the entire address space each time memory is read or written to, one or more memory proofs are provided by the FaultDisputeGame.sol contract each time a MIPS instruction is executed onchain in MIPS.sol. A memory proof consists of the current leaf value and 27 sibling nodes (28, 32-byte values in total), where the sibling nodes are the `keccak256` hash of its own child nodes. Using the leaf value, its 27 sibling nodes, and the memory address converted to its binary representation as a guide (0 or 1 tells the order to concatenate left and right values), we can calculate a merkle root. This merkle root should be exactly the same as the merkle root stored in the VM execution State struct.
+The binary merkle tree (i.e. hash tree) used to store the memory of the MIPS VM has leaf values that are 32 bytes and has a fixed depth of 27 levels. This in turn allows the binary merkle tree to span the full 32-bit address space: `2^27 * 32 = 2^32` (See [memory proofs](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/cannon/docs/README.md#memory-proofs) (as of `546fb2c7`) for more details). In order to ensure the integrity of the entire address space each time memory is read or written to, one or more memory proofs are provided by the FaultDisputeGame.sol contract each time a MIPS instruction is executed onchain in MIPS.sol. A memory proof consists of the current leaf value and 27 sibling nodes (28, 32-byte values in total), where the sibling nodes are the `keccak256` hash of its own child nodes. Using the leaf value, its 27 sibling nodes, and the memory address converted to its binary representation as a guide (0 or 1 tells the order to concatenate left and right values), we can calculate a merkle root. This merkle root should be exactly the same as the merkle root stored in the VM execution State struct.
 
 Reading to memory and writing to memory work similarly, both involve calculating the merkle root. In the case of a memory write, `MIPS.sol` must take care to verify that the provided proof for the memory location to write to is correct. Additionally, writing to memory will change the merkle root stored in the VM execution `State` struct.
 
@@ -91,19 +91,19 @@ While the MIPS.sol contract may only execute a single instruction onchain, the o
 
 ### oracle
 
-The external view [`oracle`](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/packages/contracts-bedrock/src/cannon/MIPS.sol#L65) function is a getter function that returns the PreimageOracle address cast as a `IPreimageOracle` interface.
+The external view [`oracle`](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/packages/contracts-bedrock/src/cannon/MIPS.sol#L65) (as of `546fb2c7`) function is a getter function that returns the PreimageOracle address cast as a `IPreimageOracle` interface.
 
 ### SE
 
-The internal pure [`SE`](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/packages/contracts-bedrock/src/cannon/MIPS.sol#L70) function performs a sign-extension (SE) on the provided `uint32` value given the number of bits that currently represents the value. While the function operates over an unsigned integer, it follows the typical procedure for [sign-extension of signed values](https://en.wikipedia.org/wiki/Two%27s_complement#Sign_extension) represented using two's complement.
+The internal pure [`SE`](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/packages/contracts-bedrock/src/cannon/MIPS.sol#L70) (as of `546fb2c7`) function performs a sign-extension (SE) on the provided `uint32` value given the number of bits that currently represents the value. While the function operates over an unsigned integer, it follows the typical procedure for [sign-extension of signed values](https://en.wikipedia.org/wiki/Two%27s_complement#Sign_extension) represented using two's complement.
 
 ### outputState
 
-The internal [`outputState`](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/packages/contracts-bedrock/src/cannon/MIPS.sol#L81) function computes the `keccak256` hash of all values in the VM execution `State` struct, and then masks the first two bits of the hash with the current status of the VM as derived from the `exitCode` and `exited` values. Despite the complexity of the function (due to the use of assembly), the implementation is effectively tightly packing all the variables in the `State` struct together, then taking the `keccak256` of the packed bytes. A Solidity equivalent implementation can be viewed in the [`outputState`](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/packages/contracts-bedrock/test/MIPS.t.sol#L1574) function located in the foundry test suite.
+The internal [`outputState`](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/packages/contracts-bedrock/src/cannon/MIPS.sol#L81) (as of `546fb2c7`) function computes the `keccak256` hash of all values in the VM execution `State` struct, and then masks the first two bits of the hash with the current status of the VM as derived from the `exitCode` and `exited` values. Despite the complexity of the function (due to the use of assembly), the implementation is effectively tightly packing all the variables in the `State` struct together, then taking the `keccak256` of the packed bytes. A Solidity equivalent implementation can be viewed in the [`outputState`](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/packages/contracts-bedrock/test/MIPS.t.sol#L1574) (as of `546fb2c7`) function located in the foundry test suite.
 
 ### handleSyscall
 
-The internal [`handleSyscall`](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/packages/contracts-bedrock/src/cannon/MIPS.sol#L145) function handles the syscall MIPS instruction. Only a subset of all syscall numbers are supported by the `MIPS.sol` contract; however, any syscall that is not explicitly supported will return 0s instead of reverting. Most syscalls that are supported partially mimic the behavior specified by the linux manual pages. The two most important syscall numbers that are supported are read and write.
+The internal [`handleSyscall`](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/packages/contracts-bedrock/src/cannon/MIPS.sol#L145) (as of `546fb2c7`) function handles the syscall MIPS instruction. Only a subset of all syscall numbers are supported by the `MIPS.sol` contract; however, any syscall that is not explicitly supported will return 0s instead of reverting. Most syscalls that are supported partially mimic the behavior specified by the linux manual pages. The two most important syscall numbers that are supported are read and write.
 
 #### syscall read
 
@@ -115,23 +115,23 @@ When given the file descriptor 6 as the target of the write syscall, `handleSysc
 
 ### handleBranch
 
-The internal [`handleBranch`](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/packages/contracts-bedrock/src/cannon/MIPS.sol#L313) function handles the multiple branch opcodes and conforms to the MIPS specification for the instructions.
+The internal [`handleBranch`](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/packages/contracts-bedrock/src/cannon/MIPS.sol#L313) (as of `546fb2c7`) function handles the multiple branch opcodes and conforms to the MIPS specification for the instructions.
 
 ### handleHiLo
 
-The internal [`handleHiLo`](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/packages/contracts-bedrock/src/cannon/MIPS.sol#L377) function handles the multiplication, division, and move opcodes that interact with the `hi` and `lo` registers and conforms to the MIPS specification for the instructions.
+The internal [`handleHiLo`](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/packages/contracts-bedrock/src/cannon/MIPS.sol#L377) (as of `546fb2c7`) function handles the multiplication, division, and move opcodes that interact with the `hi` and `lo` registers and conforms to the MIPS specification for the instructions.
 
 ### handleJump
 
-The internal [`handleJump`](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/packages/contracts-bedrock/src/cannon/MIPS.sol#L448) function handles J-type opcodes and conforms to the MIPS specification for the instructions.
+The internal [`handleJump`](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/packages/contracts-bedrock/src/cannon/MIPS.sol#L448) (as of `546fb2c7`) function handles J-type opcodes and conforms to the MIPS specification for the instructions.
 
 ### handleRd
 
-The internal [`handleRd`](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/packages/contracts-bedrock/src/cannon/MIPS.sol#L480) function handles storing a value into a specified register. Certain instructions may include a conditional value, which determines whether the value is stored in the register or not.
+The internal [`handleRd`](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/packages/contracts-bedrock/src/cannon/MIPS.sol#L480) (as of `546fb2c7`) function handles storing a value into a specified register. Certain instructions may include a conditional value, which determines whether the value is stored in the register or not.
 
 ### proofOffset
 
-The internal pure [`proofOffset`](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/packages/contracts-bedrock/src/cannon/MIPS.sol#L508) function handles calculating the offset in calldata to the start of a memory proof given an index. The calldata is provided to this function via the top-level `step` function call. Looking at the calldata, there are two bytes values passed: `stateData` and `proof`. The `bytes stateData` value is the packed VM execution `State` struct, and the `bytes proof` value represents one or more memory proofs that may be necessary for the onchain execution of the MIPS instruction. The `stateData` and memory proof(s) are encoded in calldata using the [Solidity ABI encoding specification](https://docs.soliditylang.org/en/develop/abi-spec.html). Using this information, we can derive the hardcoded values that are being used in the `proofOffset` function:
+The internal pure [`proofOffset`](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/packages/contracts-bedrock/src/cannon/MIPS.sol#L508) (as of `546fb2c7`) function handles calculating the offset in calldata to the start of a memory proof given an index. The calldata is provided to this function via the top-level `step` function call. Looking at the calldata, there are two bytes values passed: `stateData` and `proof`. The `bytes stateData` value is the packed VM execution `State` struct, and the `bytes proof` value represents one or more memory proofs that may be necessary for the onchain execution of the MIPS instruction. The `stateData` and memory proof(s) are encoded in calldata using the [Solidity ABI encoding specification](https://docs.soliditylang.org/en/develop/abi-spec.html). Using this information, we can derive the hardcoded values that are being used in the `proofOffset` function:
 
 | Offset Description                                                   | Num. Bytes     | Notes                                                                                                                                                                                      |
 | -------------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -146,11 +146,11 @@ The internal pure [`proofOffset`](https://github.com/ethereum-optimism/optimism/
 
 ### readMem
 
-The internal pure [`readMem`](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/packages/contracts-bedrock/src/cannon/MIPS.sol#L526) function is a helper function that, given a 32-bit address and an index to a memory proof in calldata, validates the leaf node using the memory proof and then returns the specific 4-byte value to read. Note that a leaf node is 32-bytes so at most `readMem` will only read 4-bytes due to the 32-bit MIPS architecture. The validation given a leaf node and its 27 sibling nodes follows the standard logic for verifying inclusion in a merkle tree. The address is used as the path in order to determine the order for hashing two nodes (or the leaf and a node) together. Once the top of the tree has been reached, and the merkle root calculated, the calculated root is checked against the merkle root stored in the VM execution `State` struct. Once the leaf node has been verified, the logic will shift to the correct location within the 32-bytes value to read from. Also note that `readMem` will always start at an aligned 4-byte location; therefore it is up to subsequent logic to determine the correct position within a 4-byte word in unaligned memory read or write situations.
+The internal pure [`readMem`](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/packages/contracts-bedrock/src/cannon/MIPS.sol#L526) (as of `546fb2c7`) function is a helper function that, given a 32-bit address and an index to a memory proof in calldata, validates the leaf node using the memory proof and then returns the specific 4-byte value to read. Note that a leaf node is 32-bytes so at most `readMem` will only read 4-bytes due to the 32-bit MIPS architecture. The validation given a leaf node and its 27 sibling nodes follows the standard logic for verifying inclusion in a merkle tree. The address is used as the path in order to determine the order for hashing two nodes (or the leaf and a node) together. Once the top of the tree has been reached, and the merkle root calculated, the calculated root is checked against the merkle root stored in the VM execution `State` struct. Once the leaf node has been verified, the logic will shift to the correct location within the 32-bytes value to read from. Also note that `readMem` will always start at an aligned 4-byte location; therefore it is up to subsequent logic to determine the correct position within a 4-byte word in unaligned memory read or write situations.
 
 ### writeMem
 
-The internal pure [`writeMem`](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/packages/contracts-bedrock/src/cannon/MIPS.sol#L580) function is a helper function that, given a 32-bit address, an index to a memory proof in calldata, and a 32-bit value to write, calculates the new merkle root of the VM execution `State` struct.
+The internal pure [`writeMem`](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/packages/contracts-bedrock/src/cannon/MIPS.sol#L580) (as of `546fb2c7`) function is a helper function that, given a 32-bit address, an index to a memory proof in calldata, and a 32-bit value to write, calculates the new merkle root of the VM execution `State` struct.
 Calculating the new merkle root follows the same logic as in the `readMem` function, except that the new value will be stored in the State struct. Note that `writeMem` does not verify the proof used to calculate the new merkle root.
 
 <Info>
@@ -161,7 +161,7 @@ Also note that `writeMem`, similar to `readMem`, only works over 4-byte aligned 
 
 ### step
 
-The public [`step`](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/packages/contracts-bedrock/src/cannon/MIPS.sol#L624) function is the top-level call that executes a single MIPS instruction. This function will be called by an active dispute game in order to determine the true post state given a pre state and a MIPS instruction to run. At a high-level, the function performs the following steps:
+The public [`step`](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/packages/contracts-bedrock/src/cannon/MIPS.sol#L624) (as of `546fb2c7`) function is the top-level call that executes a single MIPS instruction. This function will be called by an active dispute game in order to determine the true post state given a pre state and a MIPS instruction to run. At a high-level, the function performs the following steps:
 
 1.  Verifies and unpacks the stateData variable into the VM execution `State` struct (in memory).
 2.  Reads the instruction located at the program counter (`pc`).
@@ -170,7 +170,7 @@ The public [`step`](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a
 
 ### execute
 
-The internal pure [`execute`](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/packages/contracts-bedrock/src/cannon/MIPS.sol#L793) function handles the execution of MIPS instructions that are not handled by other functions. The `execute` function primarily handles R-type instructions according to the MIPS specification, however other instructions will pass through this function. Instructions handled by other functions will simply return. Invalid or unsupported instructions will cause the `execute` function to revert.
+The internal pure [`execute`](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/packages/contracts-bedrock/src/cannon/MIPS.sol#L793) (as of `546fb2c7`) function handles the execution of MIPS instructions that are not handled by other functions. The `execute` function primarily handles R-type instructions according to the MIPS specification, however other instructions will pass through this function. Instructions handled by other functions will simply return. Invalid or unsupported instructions will cause the `execute` function to revert.
 
 ## Common bitwise operation use cases
 
@@ -250,7 +250,7 @@ The internal pure [`execute`](https://github.com/ethereum-optimism/optimism/blob
 
 ## Further reading
 
-*   [Cannon Overview](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/cannon/docs/README.md)
+*   [Cannon Overview](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/cannon/docs/README.md) (as of `546fb2c7`)
 *   [Cannon FPVM Specification](https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs)
 *   [MIPS IV ISA Specification](https://www.cs.cmu.edu/afs/cs/academic/class/15740-f97/public/doc/mips-isa.pdf)
 *   [MIPS32 Architecture For Programmers Volume II (for SPECIAL2 opcodes)](https://www.cs.cornell.edu/courses/cs3410/2008fa/MIPS_Vol2.pdf)
