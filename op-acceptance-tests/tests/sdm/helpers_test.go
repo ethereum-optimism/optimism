@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/lmittmann/w3"
 )
 
@@ -134,6 +135,41 @@ func replayBlockWithSDM(t devtest.T, l2EL *dsl.L2ELNode, blockNum uint64) *sdmpk
 
 func findPostExecTransaction(block *sdmpkg.RPCBlock) (*sdmpkg.RPCTransaction, int) {
 	return sdmpkg.FindPostExecTransaction(block)
+}
+
+// assertPostExecTxHashIsCanonical derives keccak256(0x7D || Data) from the served post-exec tx —
+// the universal typed-tx hash rule (matching TxDeposit) that a Go consumer like op-service/sources
+// computes — and asserts op-reth serves that hash and resolves the tx and receipt under it.
+//
+// op-geth's PostExecTx shim currently hashes keccak256(0x7D || RLP([Data])) instead — a bug — so
+// this would fail against an op-geth EL until that shim and the op-service/sources codec are fixed.
+func assertPostExecTxHashIsCanonical(t devtest.T, l2EL *dsl.L2ELNode, postExecTx *sdmpkg.RPCTransaction) {
+	canonical := append([]byte{sdmpkg.SDMTxType}, []byte(postExecTx.Input)...)
+	wantHash := crypto.Keccak256Hash(canonical)
+
+	t.Require().Equal(wantHash, postExecTx.Hash,
+		"op-reth-served post-exec tx hash %s must equal keccak256(0x7D || Data) %s (the canonical EIP-2718 rule, matching TxDeposit)",
+		postExecTx.Hash, wantHash)
+
+	rpcClient := l2EL.Escape().L2EthClient().RPC()
+
+	var txRaw json.RawMessage
+	err := rpcClient.CallContext(t.Ctx(), &txRaw, "eth_getTransactionByHash", wantHash)
+	t.Require().NoError(err, "eth_getTransactionByHash RPC failed for canonical hash %s", wantHash)
+	t.Require().False(isNullJSONResult(txRaw),
+		"op-reth must resolve the post-exec tx under its canonical hash %s", wantHash)
+
+	var receiptRaw json.RawMessage
+	err = rpcClient.CallContext(t.Ctx(), &receiptRaw, "eth_getTransactionReceipt", wantHash)
+	t.Require().NoError(err, "eth_getTransactionReceipt RPC failed for canonical hash %s", wantHash)
+	t.Require().False(isNullJSONResult(receiptRaw),
+		"op-reth must resolve the post-exec receipt under its canonical hash %s", wantHash)
+}
+
+// isNullJSONResult reports whether a raw JSON-RPC result is absent (JSON null or empty), i.e. the
+// queried object was not found.
+func isNullJSONResult(raw json.RawMessage) bool {
+	return len(raw) == 0 || strings.TrimSpace(string(raw)) == "null"
 }
 
 func mustFindReplayTxByHash(t devtest.T, replay *sdmpkg.ReplaySDMBlock, txHash common.Hash) *sdmpkg.ReplaySDMTx {

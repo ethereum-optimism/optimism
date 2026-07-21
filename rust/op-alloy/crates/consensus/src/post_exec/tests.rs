@@ -54,6 +54,38 @@ fn post_exec_tx_hash_depends_on_block_number() {
     assert_ne!(tx_a.tx_hash(), tx_b.tx_hash());
 }
 
+/// Post-exec tx hash is `keccak256(0x7D || Data)` — the universal `keccak256(EIP-2718 encoding)`
+/// rule, computed identically to [`TxDeposit`]. op-geth's `PostExecTx` instead hashes
+/// `keccak256(0x7D || RLP([Data]))`, which mismatches its own wire encoding (`0x7D || Data`); that
+/// is an op-geth bug to fix in op-geth and the op-service/sources codec, not here.
+#[test]
+fn post_exec_tx_hash_is_keccak_of_canonical_encoding() {
+    use alloy_primitives::{b256, hex};
+
+    let tx = build_post_exec_tx(42, vec![SDMGasEntry { index: 3, gas_refund: 7 }]);
+
+    // Canonical payload bytes (== op-geth PostExecTx.Data).
+    let data = hex!("c6012ac3c20307");
+    assert_eq!(tx.input.as_ref(), data.as_slice(), "post-exec input bytes drifted");
+
+    // keccak256(0x7D || Data), derived independently and pinned.
+    let mut canonical = vec![POST_EXEC_TX_TYPE_ID];
+    canonical.extend_from_slice(&data);
+    assert_eq!(tx.tx_hash(), keccak256(&canonical), "tx_hash must be keccak256 of encode_2718");
+    assert_eq!(
+        tx.tx_hash(),
+        b256!("0xcbc64a9665039744307b562634bf760d96f3bed235fecd9e09a1f1276a1823c7"),
+        "post-exec tx hash must be keccak256(0x7D || Data), matching the TxDeposit rule",
+    );
+
+    // Guard against regressing to op-geth's buggy inner-struct rule keccak256(0x7D || RLP([Data])).
+    assert_ne!(
+        tx.tx_hash(),
+        b256!("0xf54f4d695af011e5639b49ec48a5090434fbad09fa56ff572e36c28f691cb126"),
+        "op-reth must not adopt op-geth's buggy keccak256(0x7D || RLP([Data])) hash",
+    );
+}
+
 #[test]
 fn post_exec_tx_eip2718_roundtrip() {
     let tx = build_post_exec_tx(
