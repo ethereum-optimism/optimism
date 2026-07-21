@@ -101,7 +101,11 @@ and returns a typed output that the test then may use.
 
 - `DEVSTACK_KEYS_SALT`: Seeds the keys generated with `NewHDWallet`. This is useful for "isolating" test runs, and might be needed to reproduce CI and/or acceptance test runs. It can be any string, including the empty one to use the "usual" devkeys.
 - `DEVNET_EXPECT_PRECONDITIONS_MET`: This can be set of force test failures when their pre-conditions are not met, which would otherwise result in them being skipped. This is helpful in particular for runs that do intend to run specific tests (as opposed to whatever is available). `op-acceptor` does set that variable, for example.
-- `DEVSTACK_L1_FORK=prague` selects the L1 fork active at genesis. Ethereum upgrade names (`pectra`, `fusaka`) and geth execution-fork names (`prague`, `osaka`) are accepted. If unset, Prague remains the default.
+- `DEVSTACK_L1_FORK=fusaka` selects the L1 fork active at genesis. Ethereum upgrade
+  names (`pectra`, `fusaka`, `glamsterdam`) and geth execution-fork names
+  (`prague`, `osaka`, `amsterdam`) are accepted, as are `bpo1` through `bpo5`.
+  BPO5 and Amsterdam inherit BPO4 blob parameters until upstream defaults are available. If
+  unset, Prague remains the devstack default.
 - `DEVSTACK_MONOREPO_ROOT`: Absolute path to a monorepo checkout. Used by out-of-tree acceptance suites (which depend on this module by git rev) so contract-artifact resolution can find `packages/contracts-bedrock` outside the cwd-relative walk. In-tree runs don't need it.
 
 ### Rust stack env vars:
