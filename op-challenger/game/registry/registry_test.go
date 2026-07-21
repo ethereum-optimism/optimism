@@ -6,11 +6,9 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/claims"
-	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler/test"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
@@ -77,15 +75,15 @@ func TestBondContracts(t *testing.T) {
 
 type stubBondContract struct{}
 
+func (s *stubBondContract) IsClosed(_ context.Context) (bool, error) {
+	panic("not supported")
+}
+
 func (s *stubBondContract) GetCredit(_ context.Context, _ common.Address) (*big.Int, types.GameStatus, error) {
 	panic("not supported")
 }
 
 func (s *stubBondContract) ClaimCreditTx(_ context.Context, _ common.Address) (txmgr.TxCandidate, error) {
-	panic("not supported")
-}
-
-func (s *stubBondContract) GetBondDistributionMode(_ context.Context, _ rpcblock.Block) (faultTypes.BondDistributionMode, error) {
 	panic("not supported")
 }
 

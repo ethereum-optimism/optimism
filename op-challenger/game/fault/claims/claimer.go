@@ -7,9 +7,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
-	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -24,9 +22,9 @@ type BondClaimMetrics interface {
 }
 
 type BondContract interface {
+	IsClosed(ctx context.Context) (bool, error)
 	GetCredit(ctx context.Context, recipient common.Address) (*big.Int, types.GameStatus, error)
 	ClaimCreditTx(ctx context.Context, recipient common.Address) (txmgr.TxCandidate, error)
-	GetBondDistributionMode(ctx context.Context, block rpcblock.Block) (faultTypes.BondDistributionMode, error)
 	CloseGameTx(ctx context.Context) (txmgr.TxCandidate, error)
 }
 
@@ -65,6 +63,9 @@ func (c *Claimer) ClaimBonds(ctx context.Context, games []types.GameMetadata) (e
 		anyCreditFound, claimErr := c.claimBonds(ctx, contract, game)
 		err = errors.Join(err, claimErr)
 
+		if c.selective {
+			continue
+		}
 		if !anyCreditFound {
 			err = errors.Join(err, c.closeGame(ctx, contract, game))
 		}
@@ -119,17 +120,12 @@ func (c *Claimer) claimBond(ctx context.Context, contract BondContract, game typ
 }
 
 func (c *Claimer) closeGame(ctx context.Context, contract BondContract, game types.GameMetadata) error {
-	if c.selective {
-		c.logger.Debug("Skipping game close in selective claim resolution mode", "game", game.Proxy)
-		return nil
-	}
-
-	bondMode, err := contract.GetBondDistributionMode(ctx, rpcblock.Latest)
+	closed, err := contract.IsClosed(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get bond distribution mode: %w", err)
+		return fmt.Errorf("failed to check if game is closed: %w", err)
 	}
-	if bondMode != faultTypes.UndecidedDistributionMode {
-		c.logger.Debug("Game already closed", "game", game.Proxy, "bondMode", bondMode)
+	if closed {
+		c.logger.Debug("Game already closed", "game", game.Proxy)
 		return nil
 	}
 
@@ -146,7 +142,16 @@ func (c *Claimer) closeGame(ctx context.Context, contract BondContract, game typ
 
 	c.logger.Info("Closing game to update anchor state", "game", game.Proxy)
 	if err = c.txSender.SendAndWaitSimple("close game", candidate); err != nil {
-		return fmt.Errorf("failed to close game: %w", err)
+		sendErr := fmt.Errorf("failed to close game: %w", err)
+		closed, closeCheckErr := contract.IsClosed(ctx)
+		if closeCheckErr != nil {
+			return errors.Join(sendErr, fmt.Errorf("failed to check if game is closed after failed close: %w", closeCheckErr))
+		}
+		if closed {
+			c.logger.Debug("Game closed concurrently", "game", game.Proxy)
+			return nil
+		}
+		return sendErr
 	}
 
 	return nil

@@ -237,7 +237,7 @@ func (c Config) Check() error {
 		return ErrMissingGameType
 	}
 	for _, gameType := range c.GameTypes {
-		if !slices.Contains(gameTypes.SupportedGameTypes, gameType) {
+		if !slices.Contains(gameTypes.PlayableGameTypes, gameType) {
 			return fmt.Errorf("%w: %q", gameTypes.ErrUnknownGameType, gameType.String())
 		}
 	}

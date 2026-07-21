@@ -1,5 +1,22 @@
 {
   "op-batcher": {
+    "sha256": "b295339298c9f284d8cbdbe1c5e1e7693b6ebc72ee7f97e76e97e292f7bc1cd3",
     "tag": "op-batcher/v1.16.11"
+  },
+  "op-challenger": {
+    "sha256": "ba593ac3882424f9f985375b347fce27f86a6241a9439917cbfd05fb700e7451",
+    "tag": "op-challenger/v1.9.3"
+  },
+  "op-conductor": {
+    "sha256": "ad4dbd3cdf375fbd79c4e52733a1c68ef5844b94e820839bd6421a283d898aa9",
+    "tag": "op-conductor/v0.9.4"
+  },
+  "op-node": {
+    "sha256": "0e82f12b9b28e329349bbf7daeb06a8d073c2b6345ae9e5e0531ac710b9f0fa1",
+    "tag": "op-node/v1.19.3"
+  },
+  "op-proposer": {
+    "sha256": "e610b9fd7240a95183b3ca710d03d2611d08fb28973708fb875dd22b97efe77d",
+    "tag": "op-proposer/v1.16.3"
   }
 }
