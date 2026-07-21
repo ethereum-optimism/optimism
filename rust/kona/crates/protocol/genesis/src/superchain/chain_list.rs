@@ -65,7 +65,9 @@ pub struct Chain {
     #[cfg_attr(feature = "tabled", tabled(skip))]
     pub explorers: Vec<String>,
     /// The Superchain Level.
-    pub superchain_level: u64,
+    #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "Option::is_none"))]
+    #[cfg_attr(feature = "tabled", tabled(display("tabled::derive::display::option", "")))]
+    pub superchain_level: Option<u64>,
     /// Governed by Optimism flag.
     #[cfg_attr(feature = "tabled", tabled(skip))]
     pub governed_by_optimism: Option<bool>,
@@ -131,5 +133,13 @@ mod tests {
         let chains: Vec<Chain> = serde_json::from_str(chain_list).unwrap();
         let op_chain = chains.iter().find(|c| c.name == "OP Mainnet").unwrap();
         assert_eq!(op_chain.chain_id, 10);
+    }
+
+    #[test]
+    fn read_chain_list_without_superchain_level() {
+        let chain_list = include_str!("../../../registry/etc/chainList.json");
+        let mut value: serde_json::Value = serde_json::from_str(chain_list).unwrap();
+        value.as_array_mut().unwrap()[0].as_object_mut().unwrap().remove("superchainLevel");
+        assert!(serde_json::from_value::<Vec<Chain>>(value).is_ok());
     }
 }

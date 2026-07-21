@@ -53,8 +53,16 @@ pub struct ChainConfig {
     #[cfg_attr(feature = "serde", serde(rename = "Explorer", alias = "explorer"))]
     pub explorer: String,
     /// Level of integration with the superchain.
-    #[cfg_attr(feature = "serde", serde(rename = "SuperchainLevel", alias = "superchain_level"))]
-    pub superchain_level: SuperchainLevel,
+    #[cfg_attr(
+        feature = "serde",
+        serde(
+            rename = "SuperchainLevel",
+            alias = "superchain_level",
+            default,
+            skip_serializing_if = "Option::is_none"
+        )
+    )]
+    pub superchain_level: Option<SuperchainLevel>,
     /// Whether the chain is governed by optimism.
     #[cfg_attr(
         feature = "serde",
@@ -292,6 +300,13 @@ mod tests {
         let interop = cfg.interop.as_ref().expect("interop section present");
         assert!(interop.dependencies.contains_key(&420120009));
         assert!(interop.dependencies.contains_key(&420120010));
+    }
+
+    #[test]
+    fn test_chain_config_without_superchain_level() {
+        let toml_src = include_str!("../../tests/fixtures/rehearsal-0-bn-0.toml")
+            .replace("superchain_level = 0\n", "");
+        assert!(toml::from_str::<ChainConfig>(&toml_src).is_ok());
     }
 
     #[test]
