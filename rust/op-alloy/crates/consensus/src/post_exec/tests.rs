@@ -55,9 +55,8 @@ fn post_exec_tx_hash_depends_on_block_number() {
 }
 
 /// Post-exec tx hash is `keccak256(0x7D || Data)` — the universal `keccak256(EIP-2718 encoding)`
-/// rule, computed identically to [`TxDeposit`]. op-geth's `PostExecTx` instead hashes
-/// `keccak256(0x7D || RLP([Data]))`, which mismatches its own wire encoding (`0x7D || Data`); that
-/// is an op-geth bug to fix in op-geth and the op-service/sources codec, not here.
+/// rule, computed identically to [`TxDeposit`]. op-geth adopted this rule in
+/// ethereum-optimism/op-geth#805, replacing its earlier `keccak256(0x7D || RLP([Data]))`.
 #[test]
 fn post_exec_tx_hash_is_keccak_of_canonical_encoding() {
     use alloy_primitives::{b256, hex};
@@ -78,11 +77,11 @@ fn post_exec_tx_hash_is_keccak_of_canonical_encoding() {
         "post-exec tx hash must be keccak256(0x7D || Data), matching the TxDeposit rule",
     );
 
-    // Guard against regressing to op-geth's buggy inner-struct rule keccak256(0x7D || RLP([Data])).
+    // Guard against the pre-#805 `keccak256(0x7D || RLP([Data]))` value.
     assert_ne!(
         tx.tx_hash(),
         b256!("0xf54f4d695af011e5639b49ec48a5090434fbad09fa56ff572e36c28f691cb126"),
-        "op-reth must not adopt op-geth's buggy keccak256(0x7D || RLP([Data])) hash",
+        "must not regress to the pre-#805 keccak256(0x7D || RLP([Data])) hash",
     );
 }
 
