@@ -2010,7 +2010,7 @@ jobs:
             echo "export RUST_BINARY_PATH_OP_RETH=$ROOT_DIR/rust/target/release/op-reth" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
-            echo "export KONA_SP1_SUPER_RANGE_NATIVE_EXECUTOR_PATH=$BIN_DIR/kona-sp1-super-range-executor" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_KONA_SP1_SUPER_RANGE_EXECUTOR=$BIN_DIR/kona-sp1-super-range-executor" >> "$BASH_ENV"
       - run:
           name: Configure L2 stack
           command: |
