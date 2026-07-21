@@ -37,6 +37,19 @@ type StateExpectation struct {
 	check devtestmetrics.SnapshotCheck
 }
 
+func allOf(expectations ...StateExpectation) StateExpectation {
+	return StateExpectation{
+		check: func(snapshot *devtestmetrics.Snapshot) error {
+			for _, expectation := range expectations {
+				if err := expectation.check(snapshot); err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+	}
+}
+
 func GameCount(gameType gameTypes.GameType, expected int) StateExpectation {
 	return StateExpectation{
 		check: devtestmetrics.GaugeEquals(
@@ -188,12 +201,27 @@ func DeficientNonWithdrawableCredits(expected int) StateExpectation {
 	}
 }
 
+func ExactNonWithdrawableCredits(expected int) StateExpectation {
+	return allOf(
+		ExpectedNonWithdrawableCredits(expected),
+		ExcessCredits(0),
+		DeficientNonWithdrawableCredits(0),
+	)
+}
+
 func MatchingWithdrawalRequests(game *proofs.FaultDisputeGame, expected int) StateExpectation {
 	return withdrawalRequests(game, "matching", expected)
 }
 
 func DivergentWithdrawalRequests(game *proofs.FaultDisputeGame, expected int) StateExpectation {
 	return withdrawalRequests(game, "divergent", expected)
+}
+
+func NoWithdrawalRequests(game *proofs.FaultDisputeGame) StateExpectation {
+	return allOf(
+		MatchingWithdrawalRequests(game, 0),
+		DivergentWithdrawalRequests(game, 0),
+	)
 }
 
 func SufficientCollateral(game *proofs.FaultDisputeGame, expectedWei *big.Int) StateExpectation {
@@ -211,6 +239,13 @@ func NoInsufficientCollateral(game *proofs.FaultDisputeGame) StateExpectation {
 			0,
 		),
 	}
+}
+
+func FullyCollateralized(game *proofs.FaultDisputeGame, expectedWei *big.Int) StateExpectation {
+	return allOf(
+		SufficientCollateral(game, expectedWei),
+		NoInsufficientCollateral(game),
+	)
 }
 
 func HonestActorInvalidClaims(actor common.Address, expected int) StateExpectation {

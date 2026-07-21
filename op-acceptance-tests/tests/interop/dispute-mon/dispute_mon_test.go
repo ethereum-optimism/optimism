@@ -116,16 +116,14 @@ func TestDisputeMonitorReportsResolvedGameAccounting(gt *testing.T) {
 	mon.VerifyState(
 		disputemon.GameCount(gameTypes.CannonKonaGameType, 1),
 		disputemon.FailedGames(0),
+
 		disputemon.CompletedBeforeMaxDuration(1),
 		disputemon.ResolvedClaimsInFirstHalf(1),
 		disputemon.ResolvableClaims(0),
-		disputemon.ExpectedNonWithdrawableCredits(1),
-		disputemon.ExcessCredits(0),
-		disputemon.DeficientNonWithdrawableCredits(0),
-		disputemon.MatchingWithdrawalRequests(game, 0),
-		disputemon.DivergentWithdrawalRequests(game, 0),
-		disputemon.SufficientCollateral(game, game.RootClaim().Bond()),
-		disputemon.NoInsufficientCollateral(game),
+
+		disputemon.ExactNonWithdrawableCredits(1),
+		disputemon.NoWithdrawalRequests(game),
+		disputemon.FullyCollateralized(game, game.RootClaim().Bond()),
 	)
 }
 
