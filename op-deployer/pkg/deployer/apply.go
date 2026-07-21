@@ -348,18 +348,19 @@ func ApplyPipeline(
 	}
 
 	pEnv := &pipeline.Env{
-		StateWriter:  opts.StateWriter,
-		L1ScriptHost: l1Host,
-		L1Client:     l1Client,
-		Logger:       opts.Logger,
-		Broadcaster:  bcaster,
-		Deployer:     deployer,
-		Scripts:      opcmScripts,
-		ForgeClient:  forgeClient,
-		UseForge:     opts.UseForge,
-		L1RPCUrl:     opts.L1RPCUrl,
-		PrivateKey:   opts.PrivateKey,
-		Context:      ctx,
+		StateWriter:               opts.StateWriter,
+		L1ScriptHost:              l1Host,
+		L1Client:                  l1Client,
+		Logger:                    opts.Logger,
+		Broadcaster:               bcaster,
+		Deployer:                  deployer,
+		Scripts:                   opcmScripts,
+		ForgeClient:               forgeClient,
+		UseForge:                  opts.UseForge,
+		AllowUnoptimizedContracts: opts.DeploymentTarget == DeploymentTargetGenesis,
+		L1RPCUrl:                  opts.L1RPCUrl,
+		PrivateKey:                opts.PrivateKey,
+		Context:                   ctx,
 	}
 
 	pline := []pipelineStage{
