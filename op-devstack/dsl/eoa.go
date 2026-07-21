@@ -148,7 +148,9 @@ func (u *EOA) Plan() txplan.Option {
 		txplan.WithAgainstLatestBlock(elClient),
 		txplan.WithEstimator(elClient, true),
 		txplan.WithRetrySubmission(elClient, 5, retry.Exponential()),
-		txplan.WithRetryInclusion(elClient, 5, retry.Exponential()),
+		// 10 attempts (~65s) so receipt waits ride out transient devstack stalls,
+		// e.g. the interop filter failing closed until its endpoint responds again.
+		txplan.WithRetryInclusion(elClient, 10, retry.Exponential()),
 		txplan.WithBlockInclusionInfo(elClient),
 	)
 }
