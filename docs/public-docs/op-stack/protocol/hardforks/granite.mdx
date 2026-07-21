@@ -1,0 +1,30 @@
+---
+title: Granite
+description: Hardfork registry entry for the Granite network upgrade, a hardening upgrade limiting bn256Pairing input size.
+diataxis: reference
+hardfork_name: granite
+hardfork_lifecycle: active
+hardfork_spec: https://specs.optimism.io/protocol/granite/overview.html
+hardfork_activation_mainnet: 1726070401
+hardfork_activation_sepolia: 1723478400
+hardfork_governance: https://gov.optimism.io/t/upgrade-proposal-10-granite-network-upgrade/8733
+---
+
+import GraniteFacts from "/snippets/generated/hardforks/granite.mdx"
+
+<Info>
+  **Normative spec:** the [Granite specification](https://specs.optimism.io/protocol/granite/overview.html)
+  is the canonical definition of this upgrade. This page records activation data
+  and operational pointers; it does not restate the spec.
+</Info>
+
+Granite was a small hardening upgrade to the fault-proof surface area.
+
+<GraniteFacts />
+
+## What changed
+
+Per the [spec overview](https://specs.optimism.io/protocol/granite/overview.html):
+
+*   Execution layer: limited the `bn256Pairing` precompile input size.
+*   Consensus layer: reduced the channel timeout to 50.
