@@ -37,12 +37,10 @@ func TestPostExecTxMarshalBinaryDifferential(t *testing.T) {
 }
 
 // TestPostExecTxHashGoldenVector pins the cross-client post-exec (0x7D) tx hash: op-geth and
-// op-reth must agree. Both compute keccak256(0x7D || Data), the canonical EIP-2718 rule. Data is
-// RLP(PostExecPayload{version:1, block:42, entries:[{index:3, gasRefund:7}]}) — op-alloy's
-// build_post_exec_tx(42, [{3,7}]) — and opRethTxHash is the value op-alloy's
-// post_exec_tx_hash_is_keccak_of_canonical_encoding pins for TxPostExec::tx_hash. Guards the
-// op-geth Transaction.Hash fix against regression when the op-geth pin moves (the old op-geth
-// returned keccak256(0x7D || RLP([Data])) here).
+// op-reth must agree on keccak256(0x7D || Data), the canonical EIP-2718 rule. data is op-alloy's
+// build_post_exec_tx(42, [{3,7}]); opRethTxHash is the value op-alloy pins for TxPostExec::tx_hash.
+// Guards the op-geth hash fix against regression when the op-geth pin moves (old op-geth returned
+// keccak256(0x7D || RLP([Data]))).
 func TestPostExecTxHashGoldenVector(t *testing.T) {
 	data := hexutil.MustDecode("0xc6012ac3c20307")
 	const opRethTxHash = "0xcbc64a9665039744307b562634bf760d96f3bed235fecd9e09a1f1276a1823c7"

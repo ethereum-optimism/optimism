@@ -137,11 +137,10 @@ func findPostExecTransaction(block *sdmpkg.RPCBlock) (*sdmpkg.RPCTransaction, in
 	return sdmpkg.FindPostExecTransaction(block)
 }
 
-// assertPostExecTxHashIsCanonical asserts op-reth serves the post-exec tx under the hash the Go
-// PostExecTx.Hash() implementation produces — keccak256(0x7D || Data), the canonical EIP-2718 rule
-// matching TxDeposit — and resolves the tx and receipt under it. Computing the hash via Hash()
-// (rather than a hand-rolled keccak) verifies the Go hasher and op-reth agree, which is the
-// cross-client interop guarantee op-service/sources relies on.
+// assertPostExecTxHashIsCanonical asserts op-reth serves and resolves the post-exec tx (and its
+// receipt) under the hash Go's PostExecTx.Hash() produces — keccak256(0x7D || Data). Hashing via
+// Hash() rather than a hand-rolled keccak checks the Go hasher and op-reth agree — the cross-client
+// guarantee op-service/sources relies on.
 func assertPostExecTxHashIsCanonical(t devtest.T, l2EL *dsl.L2ELNode, postExecTx *sdmpkg.RPCTransaction) {
 	wantHash := gethtypes.NewTx(&gethtypes.PostExecTx{Data: []byte(postExecTx.Input)}).Hash()
 
@@ -164,8 +163,7 @@ func assertPostExecTxHashIsCanonical(t devtest.T, l2EL *dsl.L2ELNode, postExecTx
 		"op-reth must resolve the post-exec receipt under its canonical hash %s", wantHash)
 }
 
-// isNullJSONResult reports whether a raw JSON-RPC result is absent (JSON null or empty), i.e. the
-// queried object was not found.
+// isNullJSONResult reports whether a raw JSON-RPC result is absent (null or empty) — i.e. not found.
 func isNullJSONResult(raw json.RawMessage) bool {
 	return len(raw) == 0 || strings.TrimSpace(string(raw)) == "null"
 }
