@@ -107,12 +107,13 @@ func TestDisputeMonitorReportsResolvedGameAccounting(gt *testing.T) {
 	game.Resolve(proposer)
 	game.WaitForGameStatus(gameTypes.GameStatusDefenderWon)
 
-	presets.StartDisputeMon(
+	mon := presets.StartDisputeMon(
 		t,
 		sys.L1EL,
 		sys.L2Chain.DisputeGameFactoryProxyAddr(),
 		presets.WithDisputeMonRollupNodes(sys.L2CL),
-	).VerifyState(
+	)
+	mon.VerifyState(
 		disputemon.GameCount(gameTypes.CannonKonaGameType, 1),
 		disputemon.FailedGames(0),
 		disputemon.CompletedBeforeMaxDuration(1),
