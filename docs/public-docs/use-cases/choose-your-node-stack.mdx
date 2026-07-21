@@ -1,0 +1,175 @@
+---
+title: Choose your node stack
+description: Pick the consensus and execution clients for an OP Stack node based on what the node is for, with review-dated support facts.
+diataxis: how-to
+content-type: solution-guide
+last-reviewed: 2026-07-21
+---
+
+This guide takes an operator who is about to run an OP Stack node and turns
+"which client software?" into a sequenced decision: fix the two-client
+shape, rule out end-of-support software, choose the execution and consensus
+clients, and match the pairing to the job the node does. It involves
+`op-node` and `kona-node` on the consensus layer, `op-reth` and Nethermind
+on the execution layer, and the special-purpose `op-supernode` and legacy
+Geth. Support status changes over time; the facts on this page are stated
+as of the `last-reviewed` date above, and each exit links where to
+re-check them.
+
+## Is this guide for you?
+
+Use this guide if:
+
+*   You are choosing software for a new node on an OP Stack chain (OP
+    Mainnet, another Superchain chain, or your own chain), or re-evaluating
+    an existing node after the op-geth end of support.
+*   You want the selection reasoning, not the setup commands.
+
+If you already know your stack and want to run it, go straight to the
+[Docker node tutorial](/node-operators/tutorials/node-from-docker) or the
+[from-source tutorial](/node-operators/tutorials/run-node-from-source). If
+you are choosing infrastructure for a whole chain launch, sequencers
+included, see
+[Launch a chain with fault proofs and HA sequencing](/use-cases/launch-a-chain-with-fault-proofs-and-ha-sequencing).
+If your node runs but misbehaves, use the
+[troubleshooting guide](/node-operators/guides/troubleshooting).
+
+## Before you start
+
+You should already know:
+
+*   Which network the node serves, and whether it is in the
+    [superchain-registry](/op-stack/protocol/superchain-registry) (registry
+    chains can be selected by name in both consensus clients; custom chains
+    supply their own configuration).
+*   The job the node does: public RPC, personal verifier, sequencer,
+    fault-proof infrastructure, or archive/analytics. Step 5 keys on this.
+*   Your hardware envelope. Read the
+    [system requirements](/node-operators/overview#system-requirements) and
+    take away the 16 GB RAM baseline for OP Mainnet and that archive nodes
+    need multiple terabytes of NVMe and grow much faster than full nodes.
+
+## Step 1: Fix the shape: one consensus client, one execution client
+
+Every OP Stack node is two processes: a consensus client (rollup node) that
+derives and relays the canonical chain, and an execution client that runs
+the EVM and holds state, connected 1:1 over the authenticated Engine API.
+Read the [node architecture overview](/node-operators/reference/architecture/architecture)
+and take away:
+
+*   The two-client split and which RPCs live on which side; you are making
+    two client choices, not one.
+*   The 1:1 rule: never multiple execution clients behind one consensus
+    client or vice versa.
+
+## Step 2: Rule out end-of-support software
+
+Read the [end-of-support notice](/notices/op-geth-deprecation) and take
+away, as of 2026-07-21:
+
+*   **op-geth reached end of support on 2026-05-31** and does not support
+    the now-active Karst hardfork, so op-geth nodes can no longer follow the
+    canonical chain. It is not a candidate for any new node.
+*   **op-program has also reached end of support**, replaced by kona-client
+    for fault proofs. This affects Step 5's fault-proof row, not your
+    ordinary node choice.
+*   **op-node is not deprecated**, and kona-node is not required for
+    anything: the fault-proof migration to kona-client works with an
+    ordinary op-node.
+
+## Step 3: Choose the execution client
+
+Read the [execution client configuration guide](/node-operators/guides/configuration/execution-clients)
+and take away each client's minimal configuration and where its full
+reference lives. The selection logic:
+
+| If ...                                                       | Choose ...                | Because ...                                                                                                                                        |
+| -------------------------------------------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| You want the default, for any node role                       | op-reth                    | It is the primary supported execution client: new OP Stack feature development, including hardfork support, happens on op-reth. As of 2026-07-21.  |
+| You want client diversity or your team runs .NET infrastructure | Nethermind                 | It is the documented alternative execution client, configured and supported through Nethermind's own documentation.                                |
+| The node is an existing op-geth deployment                    | Migration to op-reth       | op-geth is end-of-support and cannot follow the chain past Karst; the notice carries the migration plan.                                            |
+
+Two op-reth follow-on decisions to make now rather than after sync:
+
+*   **Archive or full**: op-reth is an archive node by default; pass
+    `--full` for a pruned full node. Body pruning is unsupported. See
+    [pruning op-reth](/node-operators/guides/management/archive-node#pruning-op-reth).
+*   **Historical proofs**: infrastructure that serves withdrawal proving on
+    permissionless fault-proof chains needs the historical-proofs store
+    (op-reth v2.2.3 or later); follow the
+    [historical proofs tutorial](/node-operators/tutorials/reth-historical-proofs).
+    The store only fills forward from the moment you enable it, so a node
+    that turns it on late cannot serve the full retention window until it
+    has run that long; decide per node role in Step 5.
+
+## Step 4: Choose the consensus client
+
+Read the [consensus client configuration guide](/node-operators/guides/configuration/consensus-clients)
+and take away each client's minimal flags and sequencer additions. The
+selection logic:
+
+| If ...                                                          | Choose ...    | Because ...                                                                                                                                                     |
+| ----------------------------------------------------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| You want the default, for any node role                          | op-node        | It is the reference implementation, is explicitly not deprecated, and its default engine kind (`--l2.enginekind=reth`) already matches the Step 3 default.       |
+| You want a Rust stack or to contribute client diversity          | kona-node      | It ships tagged releases, superchain-registry support, and sequencer/conductor integration, but its documentation marks it experimental and in active development, so give it a role where that is acceptable. As of 2026-07-21. |
+| The node must follow every chain in an interop dependency set    | op-supernode   | It hosts a virtual op-node per chain in one process and adds cross-chain message verification; it is in active development, tracking a v0.2.x release candidate. As of 2026-07-21. |
+
+One pairing note: op-node's `--l2.enginekind` flag tunes its Engine API
+behavior to the execution client, and its default is `reth`, so the Step 3
+default needs no extra flag; the
+[consensus client guide](/node-operators/guides/configuration/consensus-clients#l2-enginekind)
+covers the other values.
+
+## Step 5: Match the pairing to the node's job
+
+The connective logic across both choices, by node role:
+
+| If the node is ...                                       | Choose ...                                                                 | Because ...                                                                                                                                     |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A public RPC or analytics node                            | op-node + op-reth archive (the default, no pruning flags)                  | Historical state queries need archive data, and op-reth is archive by default; front it per the [network design example](/chain-operators/guides/management/network-architecture#public-rpc). |
+| A personal verifier or app-team node                      | op-node + op-reth with `--full`                                             | A pruned full node is hundreds of gigabytes instead of terabytes, and trustless verification does not need historical state.                    |
+| A sequencer                                               | op-node + op-reth, with op-conductor for high availability                 | Sequencer flags and conductor integration are the documented production path; the [launch guide](/use-cases/launch-a-chain-with-fault-proofs-and-ha-sequencing) covers the topology. |
+| Fault-proof infrastructure (backing op-challenger)        | op-node with SafeDB + op-reth archive with historical proofs               | The challenger requires a SafeDB-enabled rollup node and an archive execution client with the proofs store seeded; the [challenger guide](/use-cases/run-a-fault-proof-challenger#step-4-provision-the-four-endpoints) details all four endpoints. |
+| A complete OP Mainnet archive including pre-Bedrock data  | The Step 3/4 pair plus [legacy Geth](/node-operators/guides/configuration/legacy-geth) | Pre-Bedrock (2023) historical queries on OP Mainnet are served by a separate legacy node; nothing else needs it.                                |
+| Following an interop dependency set                       | op-supernode + one execution client per chain                              | One process replaces an op-node per chain and shares the L1 client and beacon plumbing; see the [supernode guide](/node-operators/guides/configuration/supernode). |
+
+## Step 6: Deploy and verify the choice
+
+Stand the pair up with the
+[Docker node tutorial](/node-operators/tutorials/node-from-docker) (op-reth +
+op-node in one compose file) or the
+[from-source tutorial](/node-operators/tutorials/run-node-from-source), then
+confirm the choice behaves like the row you picked:
+
+*   **Versions**: the running versions match the latest stable releases on
+    the [releases page](/releases); the page is regenerated from the release
+    feed, so it is the freshness check for this guide's dated claims.
+*   **Sync**: `optimism_syncStatus` on the consensus client (see the
+    [op-node JSON-RPC reference](/node-operators/reference/op-node-json-rpc#optimism_syncstatus))
+    shows the unsafe head tracking the chain head you see on a public
+    explorer, and the execution client reports sync complete.
+*   **Disk shape**: an archive node's disk grows like an archive node's; if
+    you meant to run full and the datadir is heading toward terabytes,
+    revisit the pruning flags from Step 3 before the disk fills.
+*   **Role checks**: whatever Step 5 row you picked, exercise its defining
+    feature once: a historical state query on an archive node, a
+    `debug`-namespace proof call on challenger infrastructure, or a
+    cross-chain message check on a supernode.
+
+## Next steps
+
+*   [op-node configuration reference](/node-operators/reference/op-node-config):
+    the full flag catalogue. Hand-pinned to `op-node/v1.10.2` as of
+    2026-07-21; confirm values against `op-node --help` for the release you
+    run.
+*   [op-reth configuration reference](/node-operators/reference/op-reth-config):
+    the op-reth flag catalogue, including the historical-proofs options.
+*   [kona-node documentation](/rust/kona/node/install/overview): the
+    install-and-run book for the Rust consensus client, in the Rust section
+    of these docs.
+*   [Consensus-layer sync](/node-operators/reference/consensus-layer-sync):
+    why execution-layer (snap) sync is the recommended mode and what
+    consensus-layer sync is for, when you tune how the pair syncs.
+*   [reth.rs OP Stack chapter](https://reth.rs/run/opstack): upstream
+    op-reth operational documentation. External book maintained with reth
+    releases, as of 2026-07-21.
