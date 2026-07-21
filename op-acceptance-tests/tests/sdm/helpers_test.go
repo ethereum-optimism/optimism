@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/crypto"
+	gethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/lmittmann/w3"
 )
 
@@ -137,18 +137,16 @@ func findPostExecTransaction(block *sdmpkg.RPCBlock) (*sdmpkg.RPCTransaction, in
 	return sdmpkg.FindPostExecTransaction(block)
 }
 
-// assertPostExecTxHashIsCanonical derives keccak256(0x7D || Data) from the served post-exec tx —
-// the universal typed-tx hash rule (matching TxDeposit) that a Go consumer like op-service/sources
-// computes — and asserts op-reth serves that hash and resolves the tx and receipt under it.
-//
-// op-geth's PostExecTx shim currently hashes keccak256(0x7D || RLP([Data])) instead — a bug — so
-// this would fail against an op-geth EL until that shim and the op-service/sources codec are fixed.
+// assertPostExecTxHashIsCanonical asserts op-reth serves the post-exec tx under the hash the Go
+// PostExecTx.Hash() implementation produces — keccak256(0x7D || Data), the canonical EIP-2718 rule
+// matching TxDeposit — and resolves the tx and receipt under it. Computing the hash via Hash()
+// (rather than a hand-rolled keccak) verifies the Go hasher and op-reth agree, which is the
+// cross-client interop guarantee op-service/sources relies on.
 func assertPostExecTxHashIsCanonical(t devtest.T, l2EL *dsl.L2ELNode, postExecTx *sdmpkg.RPCTransaction) {
-	canonical := append([]byte{sdmpkg.SDMTxType}, []byte(postExecTx.Input)...)
-	wantHash := crypto.Keccak256Hash(canonical)
+	wantHash := gethtypes.NewTx(&gethtypes.PostExecTx{Data: []byte(postExecTx.Input)}).Hash()
 
 	t.Require().Equal(wantHash, postExecTx.Hash,
-		"op-reth-served post-exec tx hash %s must equal keccak256(0x7D || Data) %s (the canonical EIP-2718 rule, matching TxDeposit)",
+		"op-reth-served post-exec tx hash %s must equal PostExecTx.Hash() %s (keccak256(0x7D || Data), matching TxDeposit)",
 		postExecTx.Hash, wantHash)
 
 	rpcClient := l2EL.Escape().L2EthClient().RPC()
