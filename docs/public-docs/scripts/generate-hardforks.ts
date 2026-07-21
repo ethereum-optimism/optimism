@@ -232,9 +232,6 @@ interface RegistryData {
   // fork name -> activation timestamp, per superchain target
   mainnet: Map<string, number>;
   sepolia: Map<string, number>;
-  // genesis anchors of the flagship chain (OP Mainnet / OP Sepolia), used for
-  // "around block" estimates (2-second block time since Bedrock).
-  anchors: { mainnet: { time: number; block: number }; sepolia: { time: number; block: number } };
 }
 
 function parseHardforksToml(file: string): Map<string, number> {
@@ -254,15 +251,6 @@ function parseHardforksToml(file: string): Map<string, number> {
   return out;
 }
 
-function parseGenesisAnchor(file: string): { time: number; block: number } {
-  const raw = fs.readFileSync(file, "utf-8");
-  const time = raw.match(/^\s*l2_time\s*=\s*(\d+)/m);
-  const l2 = raw.match(/\[genesis\.l2\]([\s\S]*?)(\n\s*\[|$)/);
-  const block = l2 && l2[1].match(/^\s*number\s*=\s*(\d+)/m);
-  if (!time || !block) fail(`setup error: could not read genesis anchor from ${file}`);
-  return { time: Number(time![1]), block: Number(block![1]) };
-}
-
 function loadRegistry(): RegistryData {
   const cfg = path.join(registryDir, "superchain", "configs");
   if (!fs.existsSync(cfg)) {
@@ -275,10 +263,6 @@ function loadRegistry(): RegistryData {
   return {
     mainnet: parseHardforksToml(path.join(cfg, "mainnet", "superchain.toml")),
     sepolia: parseHardforksToml(path.join(cfg, "sepolia", "superchain.toml")),
-    anchors: {
-      mainnet: parseGenesisAnchor(path.join(cfg, "mainnet", "op.toml")),
-      sepolia: parseGenesisAnchor(path.join(cfg, "sepolia", "op.toml")),
-    },
   };
 }
 
@@ -343,21 +327,20 @@ function fmtDate(ts: number): string {
   return new Date(ts * 1000).toUTCString().replace(/GMT$/, "UTC");
 }
 
-function fmtActivation(
-  ts: number | undefined,
-  anchor: { time: number; block: number },
-): string {
+// Timestamps only — OP Stack hardforks activate by L2 block timestamp, and
+// block heights differ per chain, so block-number estimates are deliberately
+// not rendered.
+function fmtActivation(ts: number | undefined): string {
   if (ts === undefined) return "Not scheduled";
   if (ts === 0) return "Genesis / at Bedrock";
-  const approxBlock = anchor.block + Math.floor((ts - anchor.time) / 2);
-  return `${fmtDate(ts)} (\`${ts}\`, ≈ block ${approxBlock})`;
+  return `${fmtDate(ts)} (\`${ts}\`)`;
 }
 
 function lifecycleLabel(l: Lifecycle): string {
   return { active: "Active", scheduled: "Scheduled", development: "In development" }[l];
 }
 
-function renderSummary(entries: HardforkEntry[], reg: RegistryData): string {
+function renderSummary(entries: HardforkEntry[]): string {
   // Newest first: in-development forks on top, then by mainnet activation desc.
   const sorted = [...entries].sort((a, b) => {
     const av = a.activationMainnet ?? Number.MAX_SAFE_INTEGER;
@@ -369,8 +352,8 @@ function renderSummary(entries: HardforkEntry[], reg: RegistryData): string {
     return (
       `| [${title}](/op-stack/protocol/hardforks/${e.name}) ` +
       `| ${lifecycleLabel(e.lifecycle)} ` +
-      `| ${fmtActivation(e.activationMainnet, reg.anchors.mainnet)} ` +
-      `| ${fmtActivation(e.activationSepolia, reg.anchors.sepolia)} |`
+      `| ${fmtActivation(e.activationMainnet)} ` +
+      `| ${fmtActivation(e.activationSepolia)} |`
     );
   });
   return (
@@ -379,13 +362,14 @@ function renderSummary(entries: HardforkEntry[], reg: RegistryData): string {
     `| --- | --- | --- | --- |\n` +
     rows.join("\n") +
     `\n\nActivation timestamps are the superchain-wide defaults from the ` +
-    `[superchain-registry](https://github.com/ethereum-optimism/superchain-registry); ` +
-    `block numbers are estimates for OP Mainnet and OP Sepolia (2-second blocks since Bedrock). ` +
-    `Individual chains outside those defaults set their own activation times in their chain config.\n`
+    `[superchain-registry](https://github.com/ethereum-optimism/superchain-registry). ` +
+    `Timestamps are the canonical activation mechanism — block heights differ ` +
+    `per chain, so no block numbers are listed. Individual chains outside those ` +
+    `defaults set their own activation times in their chain config.\n`
   );
 }
 
-function renderFork(e: HardforkEntry, reg: RegistryData): string {
+function renderFork(e: HardforkEntry): string {
   const rows: string[] = [];
   rows.push(`| Status | ${lifecycleLabel(e.lifecycle)} |`);
   rows.push(`| Governing spec | [specs.optimism.io](${e.spec}) |`);
@@ -395,10 +379,10 @@ function renderFork(e: HardforkEntry, reg: RegistryData): string {
     rows.push(`| Operator notice | [${label}](${e.notice}) |`);
   }
   rows.push(
-    `| Mainnet activation (superchain default) | ${fmtActivation(e.activationMainnet, reg.anchors.mainnet)} |`,
+    `| Mainnet activation (superchain default) | ${fmtActivation(e.activationMainnet)} |`,
   );
   rows.push(
-    `| Sepolia activation (superchain default) | ${fmtActivation(e.activationSepolia, reg.anchors.sepolia)} |`,
+    `| Sepolia activation (superchain default) | ${fmtActivation(e.activationSepolia)} |`,
   );
 
   let out =
@@ -432,8 +416,8 @@ if (errors.length > 0) {
 }
 
 const outputs = new Map<string, string>();
-outputs.set("summary.mdx", renderSummary(entries, registry));
-for (const e of entries) outputs.set(`${e.name}.mdx`, renderFork(e, registry));
+outputs.set("summary.mdx", renderSummary(entries));
+for (const e of entries) outputs.set(`${e.name}.mdx`, renderFork(e));
 
 if (checkMode) {
   const stale: string[] = [];

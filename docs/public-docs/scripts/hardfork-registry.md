@@ -75,9 +75,9 @@ hardfork_min_versions_source: "[Upgrade 19 notice](/notices/upgrade-19)"
     not contain.
 *   Keys in `[hardforks]` that are not L2 hardforks in the fork series
     (`pectra_blob_schedule_time`, `keep_karst_upgrade_gas`) are ignored.
-*   `≈ block` estimates in rendered tables are computed from the OP Mainnet /
-    OP Sepolia genesis anchors in `op.toml` (2-second block time since Bedrock),
-    never hand-typed.
+*   Rendered tables show timestamps (and their UTC dates) only. Hardforks
+    activate by L2 block timestamp and block heights differ per chain, so
+    block-number estimates are deliberately not rendered.
 
 ## Adding a new hardfork
 

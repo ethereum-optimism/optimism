@@ -6,11 +6,12 @@ diataxis: reference
 
 import HardforkSummary from "/snippets/generated/hardforks/summary.mdx"
 
-This page is the index of the **hardfork registry**: every OP Stack network
-upgrade has one permanent page recording its activation timestamps, governing
-specification, governance approval, and minimum component versions. Network
-upgrade names after Bedrock follow a geology theme based on the next letter of
-the English alphabet.
+This page is the index of the **hardfork registry**: every OP Stack hardfork
+has one permanent page recording its activation timestamps, governing
+specification, governance approval, and minimum component versions.
+Governance-approved [contract upgrades](#contract-upgrades) that carry no
+hardfork are listed separately below. Network upgrade names after Bedrock
+follow a geology theme based on the next letter of the English alphabet.
 
 The table below is generated from the registry pages' structured frontmatter
 and validated against the
@@ -32,6 +33,28 @@ All of the above build on **Bedrock**, the
 2023 re-genesis of OP Mainnet at block `105235063` (L2 timestamp `1686068903`)
 that the hardfork series starts from. Sepolia OP Stack chains launched on
 Bedrock directly.
+
+## Contract upgrades
+
+Not every governance-approved upgrade is a hardfork: hardforks activate by L2
+block timestamp on every chain, while contract upgrades ship as
+[op-contracts releases](/releases/op-contracts) and are executed on each
+chain's L1 contracts after governance approval. Contract-only upgrades have no
+activation timestamp, so they do not get hardfork registry pages — their
+permanent record is the op-contracts release history and the operator notice.
+
+| Upgrade | What it shipped | Operator notice | op-contracts release |
+| --- | --- | --- | --- |
+| Upgrade 18 | Cannon + Kona game type, Custom Gas Token v2, creator-pattern dispute game refactor | [Notice](/notices/archive/upgrade-18) | [`v6.0.0`](/releases/op-contracts) |
+| Upgrade 16a | Maintenance release superseding Upgrade 16 (removes unused interop withdrawal-proving code, adds feature toggles) | [Notice](/notices/archive/upgrade-16a) | [`v4.1.0`](/releases/op-contracts) |
+| Upgrade 16 | Interop-ready `OptimismPortal`, Stage 1 updates, Go 1.23 support in Cannon | [Notice](/notices/archive/upgrade-16) | [`v4.0.0`](/releases/op-contracts) |
+| Upgrade 14 | Multithreaded 64-bit Cannon (MT-Cannon) and Isthmus L1 contracts | [Notice](/notices/archive/upgrade-14) | [`v3.0.0`](/releases/op-contracts) |
+| Upgrade 13 | OP Contracts Manager (OPCM) and incident response improvements | [Notice](/notices/archive/upgrade-13) | [`v2.0.0`](/releases/op-contracts) |
+
+Hardfork-carrying upgrades (for example Upgrade 15 / Isthmus, Upgrade 17 /
+Jovian, Upgrade 19 / Karst) are listed in the
+[activations table](#activations) above and link to their notices from their
+registry pages.
 
 ## Upgrade process
 
