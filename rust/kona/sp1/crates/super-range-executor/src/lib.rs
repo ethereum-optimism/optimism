@@ -1,8 +1,9 @@
 //! Super-range SP1 executor support.
 //!
-//! The executor queries `superroot_atTimestamp` for the typed super-range inputs, collects a
-//! witness by running the shared native range logic against the interop preimage server, and then
-//! executes the real `super-range` SP1 ELF over that witness.
+//! The executor queries `superroot_atTimestamp` for typed super-range inputs and collects real
+//! range and consolidation witnesses using the shared native cores. It then replays those
+//! witnesses either through the shared cores with `--native-core` or through the real
+//! `super-range` SP1 ELF.
 
 use std::{
     collections::BTreeMap,
@@ -83,8 +84,6 @@ pub enum Verdict {
 /// A full synthesized super-range execution bundle.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SynthesizedExecution {
-    /// The timestamp immediately before `inputs.span.start`.
-    pub previous_timestamp: u64,
     /// Typed inputs for the SP1 guest's range mode.
     pub range_inputs: SuperRangeInputs,
     /// Typed inputs for the SP1 guest's consolidation mode.
@@ -336,7 +335,6 @@ pub fn synthesize_execution(
     consolidation_inputs.validate()?;
 
     Ok(SynthesizedExecution {
-        previous_timestamp,
         range_inputs,
         consolidation_inputs,
         preloaded_preimages,
@@ -1036,7 +1034,6 @@ mod tests {
         let synthesized =
             synthesize_execution(101, b256(0xaa), 8, &previous, &current).expect("synthesizes");
 
-        assert_eq!(synthesized.previous_timestamp, 100);
         assert_eq!(synthesized.range_inputs.span, TimestampSpan { start: 101, end: 101 });
         assert_eq!(synthesized.range_inputs.chain_ids, vec![U256::from(10), U256::from(20)]);
         assert_eq!(
