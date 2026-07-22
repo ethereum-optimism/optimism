@@ -118,7 +118,7 @@ func TestDisputeMonitorReportsResolvedGameAccounting(gt *testing.T) {
 		disputemon.FailedGames(0),
 
 		disputemon.CompletedBeforeMaxDuration(1),
-		disputemon.ResolvedClaimsInFirstHalf(1),
+		disputemon.ResolvedClaims(1),
 		disputemon.ResolvableClaims(0),
 
 		disputemon.ExactNonWithdrawableCredits(1),

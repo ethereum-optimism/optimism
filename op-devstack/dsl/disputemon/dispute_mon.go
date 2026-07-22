@@ -139,14 +139,11 @@ func CompletedBeforeMaxDuration(expected int) StateExpectation {
 	}
 }
 
-func ResolvedClaimsInFirstHalf(expected int) StateExpectation {
+func ResolvedClaims(expected int) StateExpectation {
 	return StateExpectation{
 		check: devtestmetrics.GaugeSumEquals(
 			"op_dispute_mon_claims",
-			map[string]string{
-				"resolved":         "resolved",
-				"game_time_period": "first_half",
-			},
+			map[string]string{"resolved": "resolved"},
 			float64(expected),
 		),
 	}
