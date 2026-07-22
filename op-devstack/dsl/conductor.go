@@ -51,6 +51,38 @@ func (s ConductorSet) leaderAndFollowers() (*Conductor, []*Conductor, error) {
 	return leader, followers, nil
 }
 
+// awaitLeadership waits until the cluster agrees on exactly one Raft leader.
+func (s ConductorSet) awaitLeadership() (*Conductor, []*Conductor) {
+	c := s.common()
+	var leader *Conductor
+	var followers []*Conductor
+	err := retry.Do0(c.ctx, conductorSettleAttempts, retry.Fixed(2*time.Second), func() error {
+		l, f, err := s.leaderAndFollowers()
+		if err != nil {
+			c.log.Info("Waiting for conductor cluster to settle on a single Raft leader", "err", err)
+			return err
+		}
+		leader, followers = l, f
+		return nil
+	})
+	c.require.NoError(err, "conductor cluster did not settle on a single Raft leader")
+	return leader, followers
+}
+
+// Leader waits until the cluster agrees on exactly one Raft leader and returns
+// that conductor.
+func (s ConductorSet) Leader() *Conductor {
+	leader, _ := s.awaitLeadership()
+	return leader
+}
+
+// Followers waits until the cluster agrees on exactly one Raft leader and
+// returns all other conductors.
+func (s ConductorSet) Followers() []*Conductor {
+	_, followers := s.awaitLeadership()
+	return followers
+}
+
 // VerifyOneActiveSequencer waits until the cluster has exactly one Raft leader
 // and verifies that only the leader's sequencer is active — the core HA
 // guarantee that exactly one node sequences at any time. It returns the
@@ -137,38 +169,17 @@ func (c *Conductor) FetchClusterMembership() *consensus.ClusterMembership {
 	return clusterMembership
 }
 
-func (c *Conductor) FetchLeader() *consensus.ServerInfo {
-	c.log.Debug("Fetching leader information")
-	ctx, cancel := context.WithTimeout(c.ctx, DefaultTimeout)
-	defer cancel()
-	leaderInfo, err := retry.Do[*consensus.ServerInfo](ctx, 2, retry.Fixed(500*time.Millisecond), func() (*consensus.ServerInfo, error) {
-		leaderInfo, err := c.inner.RpcAPI().LeaderWithID(c.ctx)
-		return leaderInfo, err
-	})
-	c.require.NoError(err, "Failed to fetch leader information")
-	c.log.Info("Fetched leader information",
-		"leaderInfo", leaderInfo)
-	return leaderInfo
-}
-
-func (c *Conductor) FetchSequencerHealthy() bool {
-	c.log.Debug("Fetching sequencer healthy status")
-	ctx, cancel := context.WithTimeout(c.ctx, DefaultTimeout)
-	defer cancel()
-	healthy, err := c.inner.RpcAPI().SequencerHealthy(ctx)
-	c.require.NoError(err, "Failed to fetch sequencer healthy status")
-	c.log.Info("Fetched sequencer healthy status", "healthy", healthy)
-	return healthy
-}
-
-func (c *Conductor) FetchPaused() bool {
-	c.log.Debug("Fetching paused status")
-	ctx, cancel := context.WithTimeout(c.ctx, DefaultTimeout)
-	defer cancel()
-	paused, err := c.inner.RpcAPI().Paused(ctx)
-	c.require.NoError(err, "Failed to fetch paused status")
-	c.log.Info("Fetched paused status", "paused", paused)
-	return paused
+// clusterMemberInfo returns the Raft ServerInfo of the cluster member with the
+// given ID (conductor names double as Raft server IDs in the presets).
+func (c *Conductor) clusterMemberInfo(id string) consensus.ServerInfo {
+	membership := c.FetchClusterMembership()
+	for _, member := range membership.Servers {
+		if member.ID == id {
+			return member
+		}
+	}
+	c.require.FailNowf("unknown cluster member", "no member %q in cluster membership %v", id, membership.Servers)
+	return consensus.ServerInfo{}
 }
 
 func (c *Conductor) IsLeader() bool {
@@ -188,11 +199,99 @@ func (c *Conductor) isLeader() (bool, error) {
 	return c.inner.RpcAPI().Leader(ctx)
 }
 
-func (c *Conductor) TransferLeadershipTo(targetLeaderInfo consensus.ServerInfo) {
-	c.log.Debug("Transferring leadership to target leader", "targetLeaderID", targetLeaderInfo.ID, "targetLeaderAddr", targetLeaderInfo.Addr)
+// waitForLeadership waits until this conductor's Raft leadership matches want.
+func (c *Conductor) waitForLeadership(want bool) {
+	err := retry.Do0(c.ctx, conductorSettleAttempts, retry.Fixed(2*time.Second), func() error {
+		leader, err := c.isLeader()
+		if err != nil {
+			return err
+		}
+		if leader != want {
+			c.log.Info("Waiting for conductor leadership state", "conductor", c, "want", want, "current", leader)
+			return fmt.Errorf("conductor %s leadership is %v, want %v", c, leader, want)
+		}
+		return nil
+	})
+	c.require.NoErrorf(err, "conductor %s never reached leadership=%v", c, want)
+}
+
+// sequencerHealthy reports this conductor's view of its sequencer's health and
+// returns the RPC error, if any, so polling callers can retry on transient
+// failures.
+func (c *Conductor) sequencerHealthy() (bool, error) {
 	ctx, cancel := context.WithTimeout(c.ctx, DefaultTimeout)
 	defer cancel()
-	err := c.inner.RpcAPI().TransferLeaderToServer(ctx, targetLeaderInfo.ID, targetLeaderInfo.Addr)
-	c.require.NoError(err, "Failed to transfer leadership to target leader", "targetLeaderID", targetLeaderInfo.ID)
-	c.log.Info("Transferred leadership to target leader", "targetLeaderID", targetLeaderInfo.ID)
+	return c.inner.RpcAPI().SequencerHealthy(ctx)
+}
+
+// VerifySequencerHealthy waits until this conductor reports its sequencer as
+// healthy. Leadership changes may cause brief unhealthiness; this rides those
+// out.
+func (c *Conductor) VerifySequencerHealthy() {
+	err := retry.Do0(c.ctx, conductorSettleAttempts, retry.Fixed(2*time.Second), func() error {
+		healthy, err := c.sequencerHealthy()
+		if err != nil {
+			return err
+		}
+		if !healthy {
+			c.log.Info("Waiting for sequencer to become healthy", "conductor", c)
+			return fmt.Errorf("conductor %s reports unhealthy sequencer", c)
+		}
+		return nil
+	})
+	c.require.NoErrorf(err, "conductor %s never reported a healthy sequencer", c)
+	c.log.Info("Verified sequencer is healthy", "conductor", c)
+}
+
+// VerifySequencerActive waits until the sequencer managed by this conductor
+// reports that it is actively sequencing.
+func (c *Conductor) VerifySequencerActive() {
+	c.verifySequencerActive(true)
+}
+
+// VerifySequencerInactive waits until the sequencer managed by this conductor
+// reports that it has stopped sequencing.
+func (c *Conductor) VerifySequencerInactive() {
+	c.verifySequencerActive(false)
+}
+
+func (c *Conductor) verifySequencerActive(want bool) {
+	err := retry.Do0(c.ctx, conductorSettleAttempts, retry.Fixed(2*time.Second), func() error {
+		active, err := c.Sequencer().sequencerActive()
+		if err != nil {
+			return err
+		}
+		if active != want {
+			c.log.Info("Waiting for sequencer active-state", "conductor", c, "want", want, "current", active)
+			return fmt.Errorf("sequencer of %s active is %v, want %v", c, active, want)
+		}
+		return nil
+	})
+	c.require.NoErrorf(err, "sequencer of conductor %s never reached active=%v", c, want)
+	c.log.Info("Verified sequencer active-state", "conductor", c, "active", want)
+}
+
+// TransferLeadershipTo transfers Raft leadership from this conductor to the
+// target conductor. It waits for the preconditions op-conductor requires (this
+// conductor leads and actively sequences, the target is healthy), then
+// performs the transfer and waits until the target has taken over leadership.
+//
+// Sequencer active-state transitions are deliberately not asserted here so
+// tests can verify them explicitly; see VerifySequencerActive and
+// VerifySequencerInactive.
+func (c *Conductor) TransferLeadershipTo(target *Conductor) {
+	c.log.Info("Transferring leadership", "from", c, "to", target)
+	c.waitForLeadership(true)
+	c.VerifySequencerActive()
+	target.VerifySequencerHealthy()
+
+	info := c.clusterMemberInfo(target.String())
+	ctx, cancel := context.WithTimeout(c.ctx, DefaultTimeout)
+	defer cancel()
+	err := c.inner.RpcAPI().TransferLeaderToServer(ctx, info.ID, info.Addr)
+	c.require.NoErrorf(err, "failed to transfer leadership from %s to %s", c, target)
+
+	target.waitForLeadership(true)
+	c.waitForLeadership(false)
+	c.log.Info("Transferred leadership", "from", c, "to", target)
 }
