@@ -777,7 +777,11 @@ func (c *simpleChainContainer) RewindEngine(ctx context.Context, target *eth.Exe
 	defer c.Resume(context.Background()) //nolint:errcheck
 	c.log.Info("chain_container/RewindEngine: paused container")
 
-	// stop the vn
+	// Stop the vn. op-node persists sequencer.stopped=true on graceful shutdown
+	// and the restarted VN honors it, so every chain (frozen peers included)
+	// exits invalidation recovery with sequencing disabled until an operator
+	// runs admin_startSequencer — internal restarts must not resurrect a
+	// sequencer.
 	err = vn.Stop(ctx)
 	if err != nil {
 		return err
