@@ -93,15 +93,26 @@ end to end.
     the versioning scheme it exposed remains documented in the [Superchain
     Upgrades specification](https://specs.optimism.io/protocol/superchain-upgrades.html?utm_source=op-docs&utm_medium=docs#protocol-version).
 
-### Upgrading L1 contracts
+### Upgrading the contracts
 
-There are two main ways to upgrade L1 contracts:
+L1 contracts are upgraded through the
+[OP Contracts Manager (OPCM)](/chain-operators/reference/opcm), which deploys
+and upgrades the L1 contracts as a versioned set. The
+[superchain-ops](/chain-operators/tutorials/l1-contract-upgrades/superchain-ops-guide)
+workflow drives OPCM under the hood and is the path for chains that require
+Security Council signing; other chains can call OPCM directly. `op-deployer`
+remains the tool for initial deployments, but its upgrade command is
+deprecated in favor of OPCM; see the
+[deprecation notice](/notices/op-deployer-upgrade-deprecation).
 
-*   [`op-deployer`](/chain-operators/tutorials/l1-contract-upgrades/op-deployer-upgrade): a simple tool to upgrade your contracts.
-*   [`superchain-ops`](/chain-operators/tutorials/l1-contract-upgrades/superchain-ops-guide): a workflow for chains that require security council signing or a more secure upgrade path.
-
-Both paths apply upgrades through the [OP Contracts Manager](/chain-operators/reference/opcm),
-which deploys and upgrades the L1 contracts as a versioned set.
+L2 predeploys are upgraded through the L2 Contract Manager (L2CM),
+introduced in [Upgrade 19](/notices/upgrade-19). At a network upgrade, the
+consensus layer emits a network upgrade transaction that has the L2
+`ProxyAdmin` delegatecall the `L2ContractsManager` contract, which updates
+every predeploy implementation in a single atomic transaction, replacing the
+older practice of per-contract multisig transactions. See the
+[L2 Contract Manager feature page](/op-stack/features/l2-contract-manager)
+and the [L2 Upgrades specification](https://specs.optimism.io/protocol/l2-upgrades-1-execution.html?utm_source=op-docs&utm_medium=docs).
 
 ### Contract releases
 
