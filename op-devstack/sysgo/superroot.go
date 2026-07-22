@@ -155,21 +155,26 @@ func getSupernodeSuperRoot(t devtest.T, supernode *SuperNode, timestamp uint64) 
 func getSuperRoot(t devtest.T, endpoint string, timestamp uint64) eth.Bytes32 {
 	client, err := dial.DialSuperNodeClientWithTimeout(t.Ctx(), t.Logger(), endpoint)
 	t.Require().NoError(err)
+	defer client.Close()
 
 	ctx, cancel := context.WithTimeout(t.Ctx(), 2*time.Minute)
+	defer cancel()
+
+	var resp eth.SuperRootAtTimestampResponse
 	err = wait.For(ctx, time.Second, func() (bool, error) {
-		resp, err := client.SuperRootAtTimestamp(ctx, timestamp)
+		candidate, err := client.SuperRootAtTimestamp(ctx, timestamp)
 		if err != nil {
 			t.Logf("DEBUG: Failed to get super root at timestamp %d: err: %v", timestamp, err)
-			return false, err
+			return false, nil
 		}
-		return resp.Data != nil, nil
+		if candidate.Data == nil {
+			return false, nil
+		}
+		resp = candidate
+		return true, nil
 	})
 	cancel()
 	t.Require().NoError(err, "waiting for superroot to be ready failed")
-
-	resp, err := client.SuperRootAtTimestamp(t.Ctx(), timestamp)
-	t.Require().NoError(err, "super root at timestamp failed")
 	t.Require().NotNil(resp.Data, "super root data must be present")
 	return resp.Data.SuperRoot
 }
