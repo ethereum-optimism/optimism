@@ -29,11 +29,10 @@ func TestSupernodeDoesNotReadoptInvalidatedBlock(gt *testing.T) {
 	sysgo.SkipOnOpGeth(t, "light-sequencer invalid-message path is op-reth only (#21119)")
 	// Short sequencing window: with the chain B sequencer stalled below, the chain only
 	// advances once the window expires and derivation force-fills deposits-only blocks.
+	// Light CLs sequence from genesis; the batcher follows them (production wiring).
 	sys := presets.NewTwoL2SupernodeLightSequencerInterop(t, 0,
-		presets.WithSupernodeVNSequencerForBootstrap(),
 		presets.WithDeployerOptions(sysgo.WithSequencingWindow(10)),
 	)
-	sys.BootstrapLightSequencersViaVNHandoff()
 
 	alice := sys.FunderA.NewFundedEOA(eth.OneEther)
 	bob := sys.FunderB.NewFundedEOA(eth.OneEther)
