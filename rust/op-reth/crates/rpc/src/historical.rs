@@ -362,6 +362,7 @@ fn extract_block_id_for_method(method: &str, params: &Params<'_>) -> Option<Bloc
     match method {
         "eth_getBlockByNumber" |
         "eth_getBlockByHash" |
+        "eth_getBlockReceipts" |
         "debug_traceBlockByNumber" |
         "debug_traceBlockByHash" => parse_block_id_from_params(params, 0),
         "eth_getBalance" |
@@ -405,6 +406,16 @@ mod tests {
         fn assert_historical_rpc<T: RethRpcMiddleware>() {}
         assert_historical_rpc::<HistoricalRpc<NoopProvider>>();
         assert_historical_rpc::<Either<HistoricalRpc<NoopProvider>, Identity>>();
+    }
+
+    /// Tests that `eth_getBlockReceipts` extracts the block id from the first parameter.
+    #[test]
+    fn extracts_block_id_for_get_block_receipts() {
+        let params = Params::new(Some(r#"["0x64"]"#));
+        assert_eq!(
+            extract_block_id_for_method("eth_getBlockReceipts", &params).unwrap(),
+            BlockId::Number(BlockNumberOrTag::Number(100))
+        );
     }
 
     /// Tests that various valid id types can be parsed from the first parameter.
