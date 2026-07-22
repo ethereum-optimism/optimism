@@ -3,6 +3,7 @@ package virtual_node
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -22,6 +23,11 @@ const VIRTUAL_NODE_CHAIN_ID_LABEL = "virtual_node_chain_id"
 
 // defaultInnerNodeFactory is the default factory that creates a real op-node
 func defaultInnerNodeFactory(ctx context.Context, cfg *opnodecfg.Config, log gethlog.Logger, appVersion string, m *opmetrics.Metrics, initOverload *rollupNode.InitializationOverrides) (innerNode, error) {
+	// Honor persisted sequencer state (e.g. an admin stop-sequencer) across VN
+	// restarts, matching the op-node service entrypoint.
+	if err := cfg.LoadPersisted(log); err != nil {
+		return nil, fmt.Errorf("load persisted config: %w", err)
+	}
 	var overrides rollupNode.InitializationOverrides
 	if initOverload != nil {
 		overrides = *initOverload

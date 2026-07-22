@@ -194,6 +194,31 @@ func (el *L2ELNode) ReachedFn(label eth.BlockLabel, target uint64, attempts int)
 	}
 }
 
+// AwaitBlockReplaced waits until the canonical block at blockNumber has a hash
+// different from oldHash (tolerating temporary absence mid-rewind) and returns it.
+func (el *L2ELNode) AwaitBlockReplaced(blockNumber uint64, oldHash common.Hash, attempts int) eth.L2BlockRef {
+	logger := el.log.With("name", el.inner.Name(), "block", blockNumber, "old_hash", oldHash)
+	logger.Info("Expecting canonical block to be replaced")
+	var replacement eth.L2BlockRef
+	err := retry.Do0(el.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
+		func() error {
+			ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
+			defer cancel()
+			head, err := el.inner.L2EthClient().L2BlockRefByNumber(ctx, blockNumber)
+			if err != nil {
+				return err
+			}
+			if head.Hash == oldHash {
+				return fmt.Errorf("block %d still has hash %s", blockNumber, oldHash)
+			}
+			replacement = head
+			logger.Info("block replaced", "new_hash", head.Hash)
+			return nil
+		})
+	el.require.NoErrorf(err, "canonical block %d was not replaced (expected hash to change from %s)", blockNumber, oldHash)
+	return replacement
+}
+
 func (el *L2ELNode) BlockRefByNumber(num uint64) eth.L2BlockRef {
 	ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
 	defer cancel()
