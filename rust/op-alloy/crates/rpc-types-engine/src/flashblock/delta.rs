@@ -41,11 +41,9 @@ pub struct OpFlashblockPayloadDelta {
         )
     )]
     pub blob_gas_used: Option<u64>,
-    /// Latest cumulative SDM post-exec (`0x7D`) transaction for the materialized block view,
-    /// carried out-of-band. Each subblock *replaces* the previous one (latest-wins); it is never
-    /// included in [`transactions`](Self::transactions). Absent on pre-SDM payloads.
-    /// Wire-compatible with `rollup_boost`'s
-    /// `ExecutionPayloadFlashblockDeltaV1::post_exec_tx`.
+    /// Latest cumulative SDM post-exec (`0x7D`) transaction, carried out of band from
+    /// [`transactions`](Self::transactions). Each subblock replaces the previous value.
+    /// Matches `rollup_boost`'s `ExecutionPayloadFlashblockDeltaV1::post_exec_tx` field.
     #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "Option::is_none"))]
     pub post_exec_tx: Option<Bytes>,
 }
@@ -198,7 +196,7 @@ mod tests {
     #[test]
     #[cfg(feature = "serde")]
     fn test_delta_post_exec_tx_none_skipped() {
-        // Pre-SDM payloads omit post_exec_tx entirely (wire-compatible with older deltas).
+        // Pre-SDM subblocks omit post_exec_tx for wire compatibility.
         let delta = OpFlashblockPayloadDelta::default();
         let json = serde_json::to_string(&delta).unwrap();
         assert!(!json.contains("post_exec_tx"));
@@ -209,8 +207,7 @@ mod tests {
     #[test]
     #[cfg(feature = "serde")]
     fn test_delta_post_exec_tx_some_roundtrips() {
-        // The 0x7D bytes ride out-of-band in post_exec_tx, serialized as a hex string under the
-        // `post_exec_tx` key (matching rollup-boost + the Go FlashblockClient).
+        // Subblocks encode the out-of-band 0x7D bytes as a hex string.
         let delta = OpFlashblockPayloadDelta {
             post_exec_tx: Some(Bytes::from(vec![0x7d, 0xaa, 0xbb])),
             ..Default::default()
