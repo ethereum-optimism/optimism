@@ -137,6 +137,12 @@ type AdditionalDisputeGameState struct {
 	VMType        VMType
 }
 
+// StartingAnchorProposal is the committed starting-anchor proposal for a permissionless chain.
+type StartingAnchorProposal struct {
+	Root             common.Hash    `json:"root"`
+	L2SequenceNumber hexutil.Uint64 `json:"l2SequenceNumber"`
+}
+
 type ChainState struct {
 	ID common.Hash `json:"id"`
 
@@ -155,6 +161,16 @@ type ChainState struct {
 	// GenesisTime is the L2 genesis timestamp pinned with StartBlock.
 	// Nil leaves deploy config to derive it from L1StartingBlockTag.
 	GenesisTime *hexutil.Uint64 `json:"genesisTime,omitempty"`
+
+	// GenesisBlockHash is the L2 genesis block hash computed from Allocs, the combined deploy
+	// config, and the pinned StartBlock/GenesisTime. Used by post-deploy validation to confirm
+	// on-chain seeding matches the predicted genesis.
+	GenesisBlockHash *common.Hash `json:"genesisBlockHash,omitempty"`
+
+	// StartingAnchorRoot is produced by the proposal-producing stage (ComputeGenesisOutputRoot)
+	// and consumed when building the continuation deploy input, in place of the OPCM.deploy()
+	// startingAnchorRoot placeholder.
+	StartingAnchorRoot *StartingAnchorProposal `json:"startingAnchorRoot,omitempty"`
 }
 
 // IsChainDeployed reports whether the chain's addresses have been broadcast.
