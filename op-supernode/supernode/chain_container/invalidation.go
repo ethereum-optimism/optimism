@@ -79,6 +79,24 @@ func OpenDenyList(dataDir string) (*DenyList, error) {
 	return &DenyList{db: db}, nil
 }
 
+// MaxDeniedHeight returns the highest denied block height, and whether any
+// denial exists (genesis cannot be denied, so 0 means none).
+func (d *DenyList) MaxDeniedHeight() (uint64, bool) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	var max uint64
+	err := d.db.View(func(tx *bolt.Tx) error {
+		if k, _ := tx.Bucket(denyListBucketName).Cursor().Last(); k != nil {
+			max = binary.BigEndian.Uint64(k)
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, false
+	}
+	return max, max != 0
+}
+
 // heightToKey converts a block height to a big-endian byte key.
 // Using big-endian ensures lexicographic ordering matches numeric ordering.
 func heightToKey(height uint64) []byte {
