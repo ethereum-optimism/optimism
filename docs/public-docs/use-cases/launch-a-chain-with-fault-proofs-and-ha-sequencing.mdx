@@ -82,10 +82,10 @@ sets to the permissioned game, type `1`), the absolute prestate
 (`faultGameAbsolutePrestate`), and the game depth and clock parameters.
 
 The decision this step adds: keep the standard values. The dispute
-parameters are consensus-critical to how games are played and resolved, and
-overriding them sits behind an intent field literally named
-`dangerouslyAllowCustomDisputeParameters`; the name is the guidance. Change
-them only with a security review that owns the consequences.
+parameters are consensus-critical to how games are played and resolved,
+which is why overriding them requires setting an intent field named
+`dangerouslyAllowCustomDisputeParameters`. Do not change them without a
+dedicated security review.
 
 Record the addresses `op-deployer` produces, in particular the
 `DisputeGameFactory` proxy: the proposer, the challenger, and your
@@ -187,6 +187,37 @@ full flag catalogue behind that setup, the
 [challenger configuration reference](/chain-operators/reference/challenger-configuration)
 is generated from the op-challenger flag definitions at each finalized
 release.
+
+### Give every service a consistent view of L1
+
+Everything in this guide consumes L1: each sequencer's op-node derives the
+chain from an L1 RPC and an L1 beacon endpoint, and the batcher, proposer,
+and challenger read and transact against L1. Redundant L1 nodes are the
+right instinct for a high-availability chain; a generic load balancer in
+front of them is not:
+
+*   Two L1 nodes are never at exactly the same head at the same moment. A
+    service whose consecutive requests round-robin between them watches
+    blocks appear, disappear, and reappear, which reads as L1 reorgs that
+    never happened.
+*   The challenger is the least tolerant consumer, and one behind a normal
+    load balancer can malfunction. It reacts to new L1 heads from a
+    subscription on its L1 RPC, then reads the dispute game contracts with
+    calls pinned to that head's block hash, so a follow-up request served
+    by a node that has not imported the block yet fails. Its progress
+    gauge (`op_challenger_highest_acted_l1_block`) reports the lowest L1
+    block processed across all games, so a single game stalled on an
+    inconsistent endpoint flat-lines the challenger's measured progress.
+    Give it one trusted endpoint that fails over deliberately, not per
+    request, per the
+    [challenger guide's endpoint requirements](/use-cases/run-a-fault-proof-challenger#step-4-provision-the-four-endpoints).
+*   Where you do want balancing, make it consensus-aware. For beacon
+    endpoints, a beacon-chain-aware proxy such as
+    [dugtrio](https://github.com/ethpandaops/dugtrio) monitors its
+    upstream nodes to route around forked-off or unsynced clients and
+    keeps subsequent requests on the same endpoint where possible, which
+    is exactly the property a generic round-robin balancer lacks. As of
+    2026-07-22.
 
 ## Step 7: Schedule the switch to permissionless proofs
 
