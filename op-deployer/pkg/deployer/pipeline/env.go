@@ -111,6 +111,10 @@ func RenderGenesisAndRollup(globalState *state.State, chainID common.Hash, useGl
 		return nil, nil, fmt.Errorf("failed to get chain ID %s: %w", chainID.String(), err)
 	}
 
+	if chainState.StartBlock == nil {
+		return nil, nil, fmt.Errorf("chain %s has no pinned start block - run op-deployer prepare first", chainID.Hex())
+	}
+
 	l2Allocs := chainState.Allocs.Data
 	config, err := state.CombineDeployConfig(
 		globalIntent,
