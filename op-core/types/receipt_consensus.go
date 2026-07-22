@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math/big"
+	"unsafe"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -48,6 +50,10 @@ type receiptRLP struct {
 // depositReceiptRLP is the consensus encoding of a deposit (0x7E) receipt.
 // DepositNonce was introduced in Regolith; DepositReceiptVersion in Canyon,
 // indicating that the receipt hash preimage includes the nonce and version.
+// A set version implies a set nonce: post-Canyon execution always produces
+// both. The optional-field encoding of the impossible version-without-nonce
+// state is not defined cross-client (op-alloy skips the absent nonce where
+// this encoding emits an empty element).
 type depositReceiptRLP struct {
 	PostStateOrStatus []byte
 	CumulativeGasUsed uint64
@@ -112,6 +118,40 @@ func (rs Receipts) EncodeIndex(i int, w *bytes.Buffer) {
 	default:
 		types.Receipts{&r.Receipt}.EncodeIndex(0, w)
 	}
+}
+
+// DeriveFields overrides the promoted go-ethereum method, which reads the
+// deposit nonce for contract-address derivation off the embedded receipt —
+// the shadow of the wrapper's authoritative outer field. While go-ethereum
+// resolves to op-geth, the shadows are synced before delegating; the two
+// assignments stop compiling at the final cutover and the method is rewritten
+// then.
+func (r *Receipt) DeriveFields(signer types.Signer, context types.DeriveReceiptContext) {
+	r.Receipt.DepositNonce = r.DepositNonce
+	r.Receipt.DepositReceiptVersion = r.DepositReceiptVersion
+	r.Receipt.DeriveFields(signer, context)
+}
+
+// Size overrides the promoted go-ethereum method, which measures only the
+// embedded receipt: it adds the wrapper's OP Stack extension fields and their
+// pointees, so cache accounting does not undercount wrapped receipts.
+func (r *Receipt) Size() common.StorageSize {
+	size := r.Receipt.Size()
+	size += common.StorageSize(unsafe.Sizeof(*r)) - common.StorageSize(unsafe.Sizeof(r.Receipt))
+	for _, v := range []*big.Int{r.L1GasPrice, r.L1BlobBaseFee, r.L1GasUsed, r.L1Fee} {
+		if v != nil {
+			size += common.StorageSize(unsafe.Sizeof(*v)) + common.StorageSize(v.BitLen()/8)
+		}
+	}
+	for _, v := range []*uint64{r.DepositNonce, r.DepositReceiptVersion, r.L1BaseFeeScalar, r.L1BlobBaseFeeScalar, r.OperatorFeeScalar, r.OperatorFeeConstant, r.DAFootprintGasScalar} {
+		if v != nil {
+			size += common.StorageSize(unsafe.Sizeof(*v))
+		}
+	}
+	if r.FeeScalar != nil {
+		size += common.StorageSize(unsafe.Sizeof(*r.FeeScalar))
+	}
+	return size
 }
 
 // EncodeRLP implements rlp.Encoder, overriding the promoted go-ethereum

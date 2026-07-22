@@ -2,6 +2,7 @@ package types_test
 
 import (
 	"bytes"
+	"math/big"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -251,6 +252,48 @@ func TestReceiptUnmarshalBinaryErrors(t *testing.T) {
 	require.Error(t, r.UnmarshalBinary([]byte{optypes.DepositTxType}))
 	require.Error(t, r.UnmarshalBinary([]byte{optypes.DepositTxType, 0xff}))
 	require.Error(t, r.UnmarshalBinary([]byte{optypes.PostExecTxType, 0xff}))
+}
+
+// TestReceiptDeriveFieldsOuterNonce pins that contract-address derivation uses
+// the wrapper's authoritative outer DepositNonce, even when the embedded
+// shadow is unset — the promoted go-ethereum method read the shadow.
+func TestReceiptDeriveFieldsOuterNonce(t *testing.T) {
+	depositTx := gethtypes.NewTx(&gethtypes.DepositTx{
+		From:  common.HexToAddress("0x7777777777777777777777777777777777777777"),
+		To:    nil, // contract creation
+		Value: big.NewInt(0),
+		Gas:   1_000_000,
+	})
+	ctx := gethtypes.DeriveReceiptContext{
+		BlockNumber: 101,
+		BaseFee:     big.NewInt(7),
+		Tx:          depositTx,
+	}
+	signer := gethtypes.LatestSignerForChainID(big.NewInt(10))
+
+	r := &optypes.Receipt{}
+	r.DepositNonce = uint64Ptr(7) // outer only — embedded shadow left nil
+	r.DeriveFields(signer, ctx)
+
+	want := &gethtypes.Receipt{DepositNonce: uint64Ptr(7)}
+	want.DeriveFields(signer, ctx)
+	require.Equal(t, want.ContractAddress, r.ContractAddress,
+		"contract address must derive from the outer deposit nonce")
+}
+
+// TestReceiptSizeCountsExtensions pins that Size accounts for the wrapper's
+// extension fields — the promoted go-ethereum method measured only the
+// embedded receipt.
+func TestReceiptSizeCountsExtensions(t *testing.T) {
+	gr := gethReceipt()
+	bare := &optypes.Receipt{Receipt: *gr}
+	full := &optypes.Receipt{Receipt: *gr}
+	full.L1GasPrice = big.NewInt(42_000_000_000)
+	full.L1Fee = big.NewInt(77_000)
+	full.OperatorFeeScalar = uint64Ptr(7)
+
+	require.Greater(t, uint64(bare.Size()), uint64(gr.Size()), "wrapper overhead counted")
+	require.Greater(t, uint64(full.Size()), uint64(bare.Size()), "pointees counted")
 }
 
 func TestReceiptsGeth(t *testing.T) {
