@@ -4,6 +4,15 @@ description: Learn how to enable span batches on your OP Stack chain by confirmi
 diataxis: how-to
 ---
 
+import { NormativeSpec } from "/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="The span batch format"
+  title="span batches specification"
+  href="https://specs.optimism.io/protocol/delta/span-batches.html"
+  note="This guide covers enabling the format on op-batcher; it does not restate the spec."
+/>
+
 Span batches encode a span of consecutive L2 blocks in a single batch, reducing the overhead of batch submission.
 This is especially beneficial for sparse, low-throughput chains.
 The format was introduced in the Delta network upgrade, and chains opt into it through the `op-batcher` configuration.

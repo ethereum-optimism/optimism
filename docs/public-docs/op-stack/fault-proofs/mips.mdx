@@ -4,6 +4,15 @@ description: Learn about the `MIPS64.sol` smart contract that works as part of O
 diataxis: explanation
 ---
 
+import { NormativeSpec } from "/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="The onchain FPVM behavior implemented by MIPS64.sol"
+  title="multithreaded Cannon fault proof VM specification"
+  href="https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html"
+  note="This page tours the contract implementation; it does not restate the spec."
+/>
+
 The [`MIPS64.sol`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/cannon/MIPS64.sol) smart contract is an onchain implementation of a big-endian virtual machine (VM) that encompasses the 64-bit MIPS64 Release 1 (MIPS64r1) Instruction Set Architecture (ISA), extended with multithreading support.
 It is the counterpart to the off-chain `mipsevm` Go implementation of the same ISA, and together the onchain and off-chain VM implementations make up [Cannon](/op-stack/fault-proofs/cannon),
 Optimism's Fault Proof Virtual Machine (FPVM). Cannon is an instance of an FPVM that can be used as part of the Dispute Game for any OP Stack blockchain.

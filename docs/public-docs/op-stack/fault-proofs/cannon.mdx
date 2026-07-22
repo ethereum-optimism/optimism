@@ -4,6 +4,16 @@ description: Learn about Cannon and its default operation as part of Optimism's 
   Virtual Machine.
 diataxis: explanation
 ---
+
+import { NormativeSpec } from "/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="The Cannon fault proof virtual machine"
+  title="multithreaded Cannon fault proof VM specification"
+  href="https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html"
+  note="This page describes the offchain implementation; it does not restate the spec."
+/>
+
 Cannon is an instance of a Fault Proof Virtual Machine (FPVM) that can be used as part of the Dispute Game for any OP Stack Blockchain.
 The Dispute Game itself is modular, allowing for any FPVM to be used in a dispute.
 However, Cannon is Optimism's default Fault Proof Virtual Machine (FPVM). Cannon has two main components:
