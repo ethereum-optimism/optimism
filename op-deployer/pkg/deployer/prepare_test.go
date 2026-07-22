@@ -28,6 +28,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	opdenv "github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/common"
@@ -851,4 +853,23 @@ func TestGenerateGenesisForChains_UsesPredictedAddressesAndPinnedGenesisTime(t *
 	chainStateAfter, err := st.Chain(chain.ID)
 	require.NoError(t, err)
 	require.Same(t, allocsBefore, chainStateAfter.Allocs.Data, "re-running must not regenerate allocs")
+
+	// The genesis output root must be computable from this same state, before any L1
+	// transaction is sent, and match an independent recomputation.
+	require.NoError(t, computeGenesisOutputRootsForChains(genesisEnv, intent, st))
+	require.NotNil(t, chainState.GenesisBlockHash)
+	require.NotNil(t, chainState.StartingAnchorRoot)
+	require.Zero(t, uint64(chainState.StartingAnchorRoot.L2SequenceNumber))
+
+	l2GenesisBlock := l2Genesis.ToBlock()
+	require.Equal(t, l2GenesisBlock.Hash(), *chainState.GenesisBlockHash)
+	require.NotNil(t, l2GenesisBlock.Header().WithdrawalsHash)
+	wantOutputRoot, err := rollup.ComputeL2OutputRootV0(eth.HeaderBlockInfo(l2GenesisBlock.Header()), *l2GenesisBlock.Header().WithdrawalsHash)
+	require.NoError(t, err)
+	require.Equal(t, common.Hash(wantOutputRoot), chainState.StartingAnchorRoot.Root)
+
+	// Re-running the output-root computation is also idempotent.
+	anchorBefore := chainState.StartingAnchorRoot
+	require.NoError(t, computeGenesisOutputRootsForChains(genesisEnv, intent, st))
+	require.Same(t, anchorBefore, chainStateAfter.StartingAnchorRoot)
 }
