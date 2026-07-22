@@ -508,25 +508,26 @@ func TestContinuationDeploymentUsesPreparedInputs(t *testing.T) {
 		}
 
 		st := &state.State{
-			Version:                1,
-			Create2Salt:            phaseOneState.Create2Salt,
-			L1PredictSenderAddress: &deployerAddress,
-			L1PredictOPCMAddress:   &opcmAddress,
-			Prepared:               true,
+			Version:     1,
+			Create2Salt: phaseOneState.Create2Salt,
+			PreparedDeployment: &state.PreparedDeployment{
+				Intent:   intent,
+				Deployer: deployerAddress,
+				OPCM:     opcmAddress,
+			},
 		}
 		chainID := intent.Chains[0].ID
 		// Deployment does not read predicted chain addresses.
 		st.SetChainContracts(chainID, addresses.OpChainContracts{}, false)
 		chainState, err := st.Chain(chainID)
 		require.NoError(t, err)
-		gameType := uint32(embedded.GameTypeCannonKona)
-		chainState.InitialGameType = &gameType
 		chainState.Prestate = committedPrestate
 		chainState.StartingAnchorRoot = committedAnchor
+		st.PreparedDeployment.Chains = []*state.PreparedChainState{{ID: chainID}}
 		return intent, st, chainID
 	}
 
-	intent, st, chainID := newContinuationInputs(t, uint256.NewInt(2))
+	_, st, chainID := newContinuationInputs(t, uint256.NewInt(2))
 	require.Nil(t, st.ImplementationsDeployment)
 	require.Nil(t, st.SuperchainDeployment)
 	host, err := env.DefaultScriptHost(
@@ -550,7 +551,7 @@ func TestContinuationDeploymentUsesPreparedInputs(t *testing.T) {
 		Context:      ctx,
 	}
 
-	dci, err := pipeline.BuildContinuationDCI(intent, chainID, st)
+	dci, err := pipeline.BuildContinuationDCI(chainID, st)
 	require.NoError(t, err)
 	result, err := pipeline.ExecuteOPChainDeployment(pEnv, st, chainID, dci)
 	require.NoError(t, err)
@@ -624,12 +625,12 @@ func TestContinuationDeploymentUsesPreparedInputs(t *testing.T) {
 	require.Equal(t, uint32(embedded.GameTypeCannonKona), actualGameType)
 
 	t.Run("missing committed prestate", func(t *testing.T) {
-		intent, st, chainID := newContinuationInputs(t, uint256.NewInt(3))
+		_, st, chainID := newContinuationInputs(t, uint256.NewInt(3))
 		chainState, err := st.Chain(chainID)
 		require.NoError(t, err)
 		chainState.Prestate = common.Hash{}
 
-		_, err = pipeline.BuildContinuationDCI(intent, chainID, st)
+		_, err = pipeline.BuildContinuationDCI(chainID, st)
 		require.ErrorContains(t, err, "op-deployer prestate")
 		require.False(t, *chainState.Deployed)
 	})

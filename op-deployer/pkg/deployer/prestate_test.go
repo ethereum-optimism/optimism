@@ -8,7 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
@@ -16,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
@@ -75,19 +77,18 @@ func TestPrestateStrictValidationAcrossSources(t *testing.T) {
 	chainID := common.HexToHash("0x01")
 	valid := testPrestate("11")
 	invalidValues := []struct {
-		name             string
-		value            any
-		wantErr          string
-		canonicalWantErr string
+		name    string
+		value   any
+		wantErr string
 	}{
-		{name: "short", value: "0xabc123", wantErr: "exactly 64 hex characters", canonicalWantErr: "hex string has length 6, want 64"},
-		{name: "overlong", value: valid + "11", wantErr: "exactly 64 hex characters", canonicalWantErr: "hex string has length 66, want 64"},
-		{name: "malformed", value: "0x" + strings.Repeat("11", 31) + "zz", wantErr: "valid hex", canonicalWantErr: "invalid hex string"},
+		{name: "short", value: "0xabc123", wantErr: "exactly 64 hex characters"},
+		{name: "overlong", value: valid + "11", wantErr: "exactly 64 hex characters"},
+		{name: "malformed", value: "0x" + strings.Repeat("11", 31) + "zz", wantErr: "valid hex"},
 		{name: "zero", value: "0x" + strings.Repeat("00", 32), wantErr: "must not be zero"},
-		{name: "missing prefix", value: strings.Repeat("11", 32), wantErr: "must start with 0x", canonicalWantErr: "without 0x prefix"},
-		{name: "explicit empty", value: "", wantErr: "must start with 0x", canonicalWantErr: "hex string has length 0, want 64"},
-		{name: "whitespace", value: " " + valid, wantErr: "must start with 0x", canonicalWantErr: "without 0x prefix"},
-		{name: "non-string", value: int64(7), wantErr: "must be a string", canonicalWantErr: "cannot unmarshal non-string"},
+		{name: "missing prefix", value: strings.Repeat("11", 32), wantErr: "must start with 0x"},
+		{name: "explicit empty", value: "", wantErr: "must start with 0x"},
+		{name: "whitespace", value: " " + valid, wantErr: "must start with 0x"},
+		{name: "non-string", value: int64(7), wantErr: "must be a string"},
 	}
 
 	for _, source := range []string{"command", "chain override", "global override"} {
@@ -121,13 +122,7 @@ func TestPrestateStrictValidationAcrossSources(t *testing.T) {
 
 				err = Prestate(context.Background(), cfg)
 				require.Error(t, err)
-				if source != "command" && invalid.canonicalWantErr != "" {
-					require.ErrorContains(t, err, "failed to resolve initial dispute game type")
-					require.ErrorContains(t, err, chainID.Hex())
-					require.ErrorContains(t, err, invalid.canonicalWantErr)
-				} else {
-					require.ErrorContains(t, err, invalid.wantErr)
-				}
+				require.ErrorContains(t, err, invalid.wantErr)
 				after, readErr := os.ReadFile(filepath.Join(workdir, "state.json"))
 				require.NoError(t, readErr)
 				require.Equal(t, before, after)
@@ -136,12 +131,11 @@ func TestPrestateStrictValidationAcrossSources(t *testing.T) {
 	}
 
 	hiddenValues := []struct {
-		name             string
-		value            string
-		wantErr          string
-		canonicalWantErr string
+		name    string
+		value   string
+		wantErr string
 	}{
-		{name: "malformed", value: "0x" + strings.Repeat("11", 31) + "zz", wantErr: "valid hex", canonicalWantErr: "invalid hex string"},
+		{name: "malformed", value: "0x" + strings.Repeat("11", 31) + "zz", wantErr: "valid hex"},
 		{name: "zero", value: "0x" + strings.Repeat("00", 32), wantErr: "must not be zero"},
 	}
 	for _, invalid := range hiddenValues {
@@ -176,11 +170,7 @@ func TestPrestateStrictValidationAcrossSources(t *testing.T) {
 
 			err = Prestate(context.Background(), cfg)
 			require.Error(t, err)
-			if invalid.canonicalWantErr != "" {
-				require.ErrorContains(t, err, invalid.canonicalWantErr)
-			} else {
-				require.ErrorContains(t, err, invalid.wantErr)
-			}
+			require.ErrorContains(t, err, invalid.wantErr)
 			after, readErr := os.ReadFile(filepath.Join(workdir, "state.json"))
 			require.NoError(t, readErr)
 			require.Equal(t, before, after)
@@ -451,11 +441,6 @@ func TestPrestateGameTypeRequirements(t *testing.T) {
 			wantErrParts: []string{"--" + PrestateFlagName, "no undeployed chain resolves", "respectedGameType"},
 		},
 		{
-			name:         "unsupported initial type fails",
-			chains:       []prestateTestChain{{id: chainA, prepared: true, overrides: gameOverride(embedded.GameTypeCannon)}},
-			wantErrParts: []string{"unsupported initial dispute game type", "0"},
-		},
-		{
 			name: "permissioned plus CANNON_KONA succeeds",
 			chains: []prestateTestChain{
 				{id: chainA, prepared: true, initialSelected: stale},
@@ -664,7 +649,7 @@ func TestPrestatePreconditionsAndAtomicity(t *testing.T) {
 				{id: chainA, prepared: true, overrides: gameOverride(embedded.GameTypeCannonKona), initialSelected: oldSelected},
 				{id: chainB, prepared: false, overrides: gameOverride(embedded.GameTypeCannonKona)},
 			},
-			configure: setCommandPrestate(selected), wantErr: "run op-deployer prepare",
+			configure: setCommandPrestate(selected), wantErr: "prepared chain " + chainB.Hex() + " disappeared",
 		},
 		{
 			name: "conflict after earlier chain resolves", prepared: true, version: 1,
@@ -715,27 +700,12 @@ func TestPrestateRejectsIntentChainChangesAfterPrepare(t *testing.T) {
 			wantErrs: []string{"prepared interop dependency set is missing", "rerun op-deployer prepare"},
 		},
 		{
-			name:   "missing prepared game type",
-			chains: []prestateTestChain{{id: chainA, prepared: true}},
-			mutate: func(_ *state.Intent, st *state.State) {
-				chain, err := st.Chain(chainA)
-				require.NoError(t, err)
-				chain.InitialGameType = nil
-			},
-			wantErrs: []string{chainA.Hex(), "no initial game type recorded by prepare", "rerun op-deployer prepare"},
-		},
-		{
 			name:   "game type changed",
 			chains: []prestateTestChain{{id: chainA, prepared: true}},
 			mutate: func(intent *state.Intent, _ *state.State) {
 				intent.Chains[0].DeployOverrides = gameOverride(embedded.GameTypeCannonKona)
 			},
-			wantErrs: []string{
-				chainA.Hex(),
-				"prepared PERMISSIONED_CANNON (1)",
-				"intent CANNON_KONA (8)",
-				"rerun op-deployer prepare",
-			},
+			wantErrs: []string{"deployment intent changed after prepare", "rerun op-deployer prepare"},
 		},
 		{
 			name:   "added chain",
@@ -743,10 +713,10 @@ func TestPrestateRejectsIntentChainChangesAfterPrepare(t *testing.T) {
 			mutate: func(intent *state.Intent, _ *state.State) {
 				intent.Chains = append(intent.Chains, &state.ChainIntent{
 					ID:              chainB,
-					DeployOverrides: map[string]any{"respectedGameType": "malformed"},
+					DeployOverrides: gameOverride(embedded.GameTypePermissionedCannon),
 				})
 			},
-			wantErrs: []string{"added chain IDs", chainB.Hex(), "rerun op-deployer prepare"},
+			wantErrs: []string{"deployment intent changed after prepare", "rerun op-deployer prepare"},
 		},
 		{
 			name: "removed chain",
@@ -757,7 +727,7 @@ func TestPrestateRejectsIntentChainChangesAfterPrepare(t *testing.T) {
 			mutate: func(intent *state.Intent, _ *state.State) {
 				intent.Chains = intent.Chains[:1]
 			},
-			wantErrs: []string{"removed chain IDs", chainB.Hex(), "rerun op-deployer prepare"},
+			wantErrs: []string{"deployment intent changed after prepare", "rerun op-deployer prepare"},
 		},
 		{
 			name:   "duplicate chain",
@@ -765,7 +735,7 @@ func TestPrestateRejectsIntentChainChangesAfterPrepare(t *testing.T) {
 			mutate: func(intent *state.Intent, _ *state.State) {
 				intent.Chains = append(intent.Chains, intent.Chains[0])
 			},
-			wantErrs: []string{"duplicate chain IDs", chainA.Hex(), "rerun op-deployer prepare"},
+			wantErrs: []string{"deployment intent changed after prepare", "rerun op-deployer prepare"},
 		},
 	}
 
@@ -802,8 +772,16 @@ func TestPrestateRejectsUnsupportedPreparedGameTypeWithoutWritingState(t *testin
 	workdir := writePrestateWorkdir(t, nil, []prestateTestChain{{
 		id:        chainID,
 		prepared:  true,
-		overrides: gameOverride(embedded.GameTypeZKDisputeGame),
+		overrides: gameOverride(embedded.GameTypePermissionedCannon),
 	}}, true, 1)
+	intent, err := pipeline.ReadIntent(workdir)
+	require.NoError(t, err)
+	st, err := pipeline.ReadState(workdir)
+	require.NoError(t, err)
+	intent.Chains[0].DeployOverrides = gameOverride(embedded.GameTypeZKDisputeGame)
+	st.PreparedDeployment.Intent.Chains[0].DeployOverrides = gameOverride(embedded.GameTypeZKDisputeGame)
+	require.NoError(t, intent.WriteToFile(filepath.Join(workdir, "intent.toml")))
+	require.NoError(t, pipeline.WriteState(workdir, st))
 	statePath := filepath.Join(workdir, "state.json")
 	before, err := os.ReadFile(statePath)
 	require.NoError(t, err)
@@ -950,11 +928,9 @@ func writePrestateWorkdir(t *testing.T, global map[string]any, chains []prestate
 	intent, err := state.NewIntentCustom(1, ids)
 	require.NoError(t, err)
 	addr := common.HexToAddress("0x0000000000000000000000000000000000000001")
-	intent.SuperchainRoles = &addresses.SuperchainRoles{
-		SuperchainProxyAdminOwner: addr,
-		SuperchainGuardian:        addr,
-		Challenger:                addr,
-	}
+	intent.OPCMAddress = &addr
+	intent.SuperchainConfigProxy = &addr
+	intent.SuperchainRoles = nil
 	intent.GlobalDeployOverrides = cloneOverrides(global)
 	for i, chain := range chains {
 		intent.Chains[i].BaseFeeVaultRecipient = addr
@@ -978,20 +954,28 @@ func writePrestateWorkdir(t *testing.T, global map[string]any, chains []prestate
 
 	interopDepSet, err := pipeline.BuildInteropDepSet(intent.Chains)
 	require.NoError(t, err)
-	st := &state.State{Version: version, Prepared: prepared, InteropDepSet: interopDepSet}
-	for i, chain := range chains {
-		if chain.prepared {
-			var initialGameType *uint32
-			if !chain.deployed {
-				gameType := fixtureInitialGameType(t, &intent, intent.Chains[i])
-				initialGameType = &gameType
-			}
-			st.Chains = append(st.Chains, &state.ChainState{
-				ID:              chain.id,
-				Deployed:        &chain.deployed,
-				Prestate:        chain.initialSelected,
-				InitialGameType: initialGameType,
-			})
+	st := &state.State{Version: version, InteropDepSet: interopDepSet}
+	for _, chain := range chains {
+		genesisTime := hexutil.Uint64(2)
+		st.Chains = append(st.Chains, &state.ChainState{
+			ID:          chain.id,
+			Deployed:    &chain.deployed,
+			Prestate:    chain.initialSelected,
+			StartBlock:  &state.L1BlockRefJSON{Hash: common.Hash{0x01}, Number: 1, Time: 1},
+			GenesisTime: &genesisTime,
+		})
+	}
+	if prepared {
+		bundle := artifacts.Bundle{
+			L1: foundry.OpenArtifactsDir(t.TempDir()).FS,
+			L2: foundry.OpenArtifactsDir(t.TempDir()).FS,
+		}
+		st.PreparedDeployment, err = pipeline.NewPreparedDeployment(&intent, st, addr, addr, bundle)
+		require.NoError(t, err)
+	}
+	for i := len(st.Chains) - 1; i >= 0; i-- {
+		if !chains[i].prepared {
+			st.Chains = append(st.Chains[:i], st.Chains[i+1:]...)
 		}
 	}
 
@@ -1052,25 +1036,6 @@ func setCommandPrestate(selected string) func(*PrestateConfig) {
 
 func gameOverride(gameType embedded.GameType) map[string]any {
 	return map[string]any{"respectedGameType": gameType}
-}
-
-func fixtureInitialGameType(t *testing.T, intent *state.Intent, chain *state.ChainIntent) uint32 {
-	t.Helper()
-
-	global := make(map[string]any)
-	if gameType, ok := intent.GlobalDeployOverrides["respectedGameType"]; ok {
-		global["respectedGameType"] = gameType
-	}
-	chainOverrides := make(map[string]any)
-	if gameType, ok := chain.DeployOverrides["respectedGameType"]; ok {
-		chainOverrides["respectedGameType"] = gameType
-	}
-	proofParams, err := pipeline.ResolveChainProofParams(
-		&state.Intent{GlobalDeployOverrides: global},
-		&state.ChainIntent{DeployOverrides: chainOverrides},
-	)
-	require.NoError(t, err)
-	return proofParams.DisputeGameType
 }
 
 func cloneOverrides(overrides map[string]any) map[string]any {

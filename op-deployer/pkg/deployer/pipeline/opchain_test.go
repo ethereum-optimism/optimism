@@ -406,15 +406,14 @@ func TestBuildContinuationDCI_PermissionlessInputs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			intent, chain, st := continuationDCITestInputs(chainID, tt.gameType)
 
-			got, err := BuildContinuationDCI(intent, chainID, st)
+			got, err := BuildContinuationDCI(chainID, st)
 			require.NoError(t, err)
 			require.Equal(t, uint32(tt.gameType), got.DisputeGameType)
 			require.Equal(t, st.Chains[0].Prestate, got.DisputeAbsolutePrestate)
 			require.Equal(t, st.Chains[0].StartingAnchorRoot.Root, got.StartingAnchorRoot.Root)
 			require.Equal(t, big.NewInt(42), got.StartingAnchorRoot.L2SequenceNumber)
 			require.Equal(t, tt.expectedFallback, got.CannonAbsolutePrestate)
-			require.Equal(t, *st.L1PredictOPCMAddress, got.Opcm)
-			require.NotEqual(t, *intent.OPCMAddress, got.Opcm)
+			require.Equal(t, st.PreparedDeployment.OPCM, got.Opcm)
 			require.Equal(t, *intent.SuperchainConfigProxy, got.SuperchainConfig)
 			require.Equal(t, chain.Roles.L1ProxyAdminOwner, got.OpChainProxyAdminOwner)
 			require.Equal(t, chain.Roles.SystemConfigOwner, got.SystemConfigOwner)
@@ -435,9 +434,9 @@ func TestBuildContinuationDCI_PermissionedInputs(t *testing.T) {
 	st.Chains[0].Prestate = common.Hash{}
 	st.Chains[0].StartingAnchorRoot = nil
 
-	got, err := BuildContinuationDCI(intent, chainID, st)
+	got, err := BuildContinuationDCI(chainID, st)
 	require.NoError(t, err)
-	second, err := BuildContinuationDCI(intent, chainID, st)
+	second, err := BuildContinuationDCI(chainID, st)
 	require.NoError(t, err)
 	require.Equal(t, uint32(embedded.GameTypePermissionedCannon), got.DisputeGameType)
 	require.Equal(t, proofPrestate, got.DisputeAbsolutePrestate)
@@ -448,8 +447,7 @@ func TestBuildContinuationDCI_PermissionedInputs(t *testing.T) {
 	require.NotSame(t, got.StartingAnchorRoot.L2SequenceNumber, second.StartingAnchorRoot.L2SequenceNumber)
 	got.StartingAnchorRoot.L2SequenceNumber.SetUint64(1)
 	require.Zero(t, second.StartingAnchorRoot.L2SequenceNumber.Sign())
-	require.Equal(t, *st.L1PredictOPCMAddress, got.Opcm)
-	require.NotEqual(t, *intent.OPCMAddress, got.Opcm)
+	require.Equal(t, st.PreparedDeployment.OPCM, got.Opcm)
 	require.Equal(t, *intent.SuperchainConfigProxy, got.SuperchainConfig)
 	require.Nil(t, st.ImplementationsDeployment)
 	require.Nil(t, st.SuperchainDeployment)
@@ -467,7 +465,7 @@ func TestBuildContinuationDCI_FailClosedGates(t *testing.T) {
 		{
 			name: "gate 1 requires prepared state",
 			mutate: func(_ *state.Intent, _ *state.ChainIntent, st *state.State) {
-				st.Prepared = false
+				st.PreparedDeployment = nil
 			},
 			wantErrors: []string{"op-deployer prepare"},
 		},
@@ -481,28 +479,14 @@ func TestBuildContinuationDCI_FailClosedGates(t *testing.T) {
 		{
 			name: "gate 3 requires sender pin",
 			mutate: func(_ *state.Intent, _ *state.ChainIntent, st *state.State) {
-				st.L1PredictSenderAddress = nil
-			},
-			wantErrors: []string{"predicted sender", "op-deployer prepare"},
-		},
-		{
-			name: "gate 3 rejects zero sender pin",
-			mutate: func(_ *state.Intent, _ *state.ChainIntent, st *state.State) {
-				st.L1PredictSenderAddress = ptr.New(common.Address{})
+				st.PreparedDeployment.Deployer = common.Address{}
 			},
 			wantErrors: []string{"predicted sender", "op-deployer prepare"},
 		},
 		{
 			name: "gate 4 requires OPCM pin",
 			mutate: func(_ *state.Intent, _ *state.ChainIntent, st *state.State) {
-				st.L1PredictOPCMAddress = nil
-			},
-			wantErrors: []string{"predicted OPCM", "op-deployer prepare"},
-		},
-		{
-			name: "gate 4 rejects zero OPCM pin",
-			mutate: func(_ *state.Intent, _ *state.ChainIntent, st *state.State) {
-				st.L1PredictOPCMAddress = ptr.New(common.Address{})
+				st.PreparedDeployment.OPCM = common.Address{}
 			},
 			wantErrors: []string{"predicted OPCM", "op-deployer prepare"},
 		},
@@ -528,40 +512,23 @@ func TestBuildContinuationDCI_FailClosedGates(t *testing.T) {
 			wantErrors: []string{"state prepared for chain", "chain not found", "op-deployer prepare"},
 		},
 		{
-			name: "gate 6 binds chain intent",
-			mutate: func(intent *state.Intent, _ *state.ChainIntent, _ *state.State) {
-				intent.Chains[0].ID = otherChainID
-			},
-			wantErrors: []string{"failed to get chain intent", "not found"},
-		},
-		{
-			name: "gate 7 requires prepared game type",
+			name: "gate 6 binds prepared chain",
 			mutate: func(_ *state.Intent, _ *state.ChainIntent, st *state.State) {
-				st.Chains[0].InitialGameType = nil
+				st.PreparedDeployment.Chains[0].ID = otherChainID
 			},
-			wantErrors: []string{"no initial game type recorded by prepare", "op-deployer prepare"},
+			wantErrors: []string{"prepared chain not found"},
 		},
 		{
-			name: "gate 7 rejects game type drift",
+			name: "gate 7 rejects unsupported prepared game type",
 			mutate: func(_ *state.Intent, chain *state.ChainIntent, _ *state.State) {
-				chain.DeployOverrides["respectedGameType"] = embedded.GameTypeSuperCannonKona
-			},
-			wantErrors: []string{"initial game type changed after prepare", "op-deployer prepare"},
-		},
-		{
-			name: "gate 8 rejects unknown prepared game type",
-			mutate: func(_ *state.Intent, chain *state.ChainIntent, st *state.State) {
-				const unknownGameType = uint32(999)
-				chain.DeployOverrides["respectedGameType"] = unknownGameType
-				st.Chains[0].InitialGameType = ptr.New(unknownGameType)
+				chain.DeployOverrides["respectedGameType"] = uint32(999)
 			},
 			wantErrors: []string{"unsupported initial dispute game type 999", "op-deployer prepare"},
 		},
 		{
 			name: "gate 8 rejects SUPER_PERMISSIONED selector",
-			mutate: func(_ *state.Intent, chain *state.ChainIntent, st *state.State) {
+			mutate: func(_ *state.Intent, chain *state.ChainIntent, _ *state.State) {
 				chain.DeployOverrides["respectedGameType"] = embedded.GameTypeSuperPermissioned
-				st.Chains[0].InitialGameType = ptr.New(uint32(embedded.GameTypeSuperPermissioned))
 			},
 			wantErrors: []string{"derived fallback and is not an initial-deploy selector", "op-deployer prepare"},
 		},
@@ -578,13 +545,6 @@ func TestBuildContinuationDCI_FailClosedGates(t *testing.T) {
 				st.Chains[0].Prestate = opcm.PermissionedCannonFallbackPrestatePlaceholder
 			},
 			wantErrors: []string{"reserved permissioned prestate placeholder", "op-deployer prestate"},
-		},
-		{
-			name: "gate 11 rejects prestate override drift",
-			mutate: func(_ *state.Intent, chain *state.ChainIntent, _ *state.State) {
-				chain.DeployOverrides[state.FaultGameAbsolutePrestateOverrideKey] = common.HexToHash("0x99")
-			},
-			wantErrors: []string{"override differs from the committed prestate", "op-deployer prestate"},
 		},
 		{
 			name: "gate 12 requires starting anchor proposal",
@@ -621,7 +581,7 @@ func TestBuildContinuationDCI_FailClosedGates(t *testing.T) {
 			intent, chain, st := continuationDCITestInputs(chainID, embedded.GameTypeCannonKona)
 			tt.mutate(intent, chain, st)
 
-			_, err := BuildContinuationDCI(intent, chainID, st)
+			_, err := BuildContinuationDCI(chainID, st)
 			require.Error(t, err)
 			for _, want := range tt.wantErrors {
 				require.ErrorContains(t, err, want)
@@ -630,14 +590,12 @@ func TestBuildContinuationDCI_FailClosedGates(t *testing.T) {
 	}
 }
 
-func TestBuildContinuationDCI_PrestateOverrideDrift(t *testing.T) {
+func TestBuildContinuationDCI_UsesLateBoundPrestate(t *testing.T) {
 	chainID := common.HexToHash("0x0300")
 
 	tests := []struct {
-		name       string
-		configure  func(*state.Intent, *state.ChainIntent, common.Hash)
-		wantErr    bool
-		wantErrMsg string
+		name      string
+		configure func(*state.Intent, *state.ChainIntent, common.Hash)
 	}{
 		{
 			name: "no override uses committed value instead of the default",
@@ -659,16 +617,12 @@ func TestBuildContinuationDCI_PrestateOverrideDrift(t *testing.T) {
 			configure: func(_ *state.Intent, chain *state.ChainIntent, _ common.Hash) {
 				chain.DeployOverrides[state.FaultGameAbsolutePrestateOverrideKey] = common.HexToHash("0x99")
 			},
-			wantErr:    true,
-			wantErrMsg: "op-deployer prestate",
 		},
 		{
 			name: "differing global override",
 			configure: func(intent *state.Intent, _ *state.ChainIntent, _ common.Hash) {
 				intent.GlobalDeployOverrides[state.FaultGameAbsolutePrestateOverrideKey] = common.HexToHash("0x99")
 			},
-			wantErr:    true,
-			wantErrMsg: "op-deployer prestate",
 		},
 		{
 			name: "chain override shadows differing global override",
@@ -688,11 +642,7 @@ func TestBuildContinuationDCI_PrestateOverrideDrift(t *testing.T) {
 				tt.configure(intent, chain, prestate)
 			}
 
-			got, err := BuildContinuationDCI(intent, chainID, st)
-			if tt.wantErr {
-				require.ErrorContains(t, err, tt.wantErrMsg)
-				return
-			}
+			got, err := BuildContinuationDCI(chainID, st)
 			require.NoError(t, err)
 			require.Equal(t, prestate, got.DisputeAbsolutePrestate)
 		})
@@ -703,10 +653,10 @@ func TestBuildContinuationDCI_LosslessAnchorSequenceTransport(t *testing.T) {
 	chainID := common.HexToHash("0x0300")
 
 	t.Run("uint64 max minus one is transported exactly", func(t *testing.T) {
-		intent, _, st := continuationDCITestInputs(chainID, embedded.GameTypeCannonKona)
+		_, _, st := continuationDCITestInputs(chainID, embedded.GameTypeCannonKona)
 		st.Chains[0].StartingAnchorRoot.L2SequenceNumber = math.MaxUint64 - 1
 
-		got, err := BuildContinuationDCI(intent, chainID, st)
+		got, err := BuildContinuationDCI(chainID, st)
 		require.NoError(t, err)
 		require.Equal(
 			t,
@@ -716,10 +666,10 @@ func TestBuildContinuationDCI_LosslessAnchorSequenceTransport(t *testing.T) {
 	})
 
 	t.Run("uint64 max is rejected by the generic transport bound", func(t *testing.T) {
-		intent, _, st := continuationDCITestInputs(chainID, embedded.GameTypeCannonKona)
+		_, _, st := continuationDCITestInputs(chainID, embedded.GameTypeCannonKona)
 		st.Chains[0].StartingAnchorRoot.L2SequenceNumber = math.MaxUint64
 
-		_, err := BuildContinuationDCI(intent, chainID, st)
+		_, err := BuildContinuationDCI(chainID, st)
 		require.ErrorContains(t, err, "starting anchor sequence number that is too large")
 	})
 }
@@ -729,7 +679,6 @@ func continuationDCITestInputs(
 	gameType embedded.GameType,
 ) (*state.Intent, *state.ChainIntent, *state.State) {
 	opcmAddr := common.HexToAddress("0x2222222222222222222222222222222222222222")
-	intentOPCMAddr := common.HexToAddress("0x5555555555555555555555555555555555555555")
 	superchainConfig := common.HexToAddress("0x3333333333333333333333333333333333333333")
 	predictSender := common.HexToAddress("0x4444444444444444444444444444444444444444")
 	chain := &state.ChainIntent{
@@ -748,22 +697,23 @@ func continuationDCITestInputs(
 		},
 	}
 	intent := &state.Intent{
-		OPCMAddress:           &intentOPCMAddr,
 		SuperchainConfigProxy: &superchainConfig,
 		GlobalDeployOverrides: make(map[string]any),
 		Chains:                []*state.ChainIntent{chain},
 	}
 	st := &state.State{
-		Prepared:                  true,
+		PreparedDeployment: &state.PreparedDeployment{
+			Intent:   intent,
+			Deployer: predictSender,
+			OPCM:     opcmAddr,
+			Chains:   []*state.PreparedChainState{{ID: chainID}},
+		},
 		Create2Salt:               common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901234"),
-		L1PredictSenderAddress:    &predictSender,
-		L1PredictOPCMAddress:      &opcmAddr,
 		ImplementationsDeployment: nil,
 		SuperchainDeployment:      nil,
 		Chains: []*state.ChainState{{
-			ID:              chainID,
-			Prestate:        common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111"),
-			InitialGameType: ptr.New(uint32(gameType)),
+			ID:       chainID,
+			Prestate: common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111"),
 			StartingAnchorRoot: &state.StartingAnchorProposal{
 				Root:             common.HexToHash("0x3333333333333333333333333333333333333333333333333333333333333333"),
 				L2SequenceNumber: 42,
@@ -813,76 +763,6 @@ func TestResolveChainProofParams(t *testing.T) {
 
 		_, err := ResolveChainProofParams(intent, &state.ChainIntent{})
 		require.Error(t, err)
-	})
-}
-
-func TestResolvePreparedGameType(t *testing.T) {
-	chainID := common.HexToHash("0x01")
-
-	t.Run("requires recorded type", func(t *testing.T) {
-		_, err := ResolvePreparedGameType(
-			&state.Intent{},
-			&state.ChainIntent{ID: chainID},
-			&state.ChainState{ID: chainID},
-		)
-		require.ErrorContains(t, err, "no initial game type recorded by prepare")
-		require.ErrorContains(t, err, "rerun op-deployer prepare")
-	})
-
-	for _, gameType := range []embedded.GameType{
-		embedded.GameTypePermissionedCannon,
-		embedded.GameTypeSuperPermissioned,
-		embedded.GameTypeCannonKona,
-		embedded.GameTypeSuperCannonKona,
-	} {
-		t.Run(initialGameTypeName(uint32(gameType)), func(t *testing.T) {
-			intent := &state.Intent{GlobalDeployOverrides: make(map[string]any)}
-			chain := &state.ChainIntent{
-				ID:              chainID,
-				DeployOverrides: map[string]any{"respectedGameType": gameType},
-			}
-			chainState := &state.ChainState{
-				ID:              chainID,
-				InitialGameType: ptr.New(uint32(gameType)),
-			}
-
-			got, err := ResolvePreparedGameType(intent, chain, chainState)
-			require.NoError(t, err)
-			require.Equal(t, uint32(gameType), got)
-		})
-	}
-
-	t.Run("rejects drift with names and numbers", func(t *testing.T) {
-		intent := &state.Intent{GlobalDeployOverrides: make(map[string]any)}
-		chain := &state.ChainIntent{
-			ID:              chainID,
-			DeployOverrides: map[string]any{"respectedGameType": embedded.GameTypeCannonKona},
-		}
-		chainState := &state.ChainState{
-			ID:              chainID,
-			InitialGameType: ptr.New(uint32(embedded.GameTypePermissionedCannon)),
-		}
-
-		_, err := ResolvePreparedGameType(intent, chain, chainState)
-		require.ErrorContains(t, err, "prepared PERMISSIONED_CANNON (1)")
-		require.ErrorContains(t, err, "intent CANNON_KONA (8)")
-		require.ErrorContains(t, err, "rerun op-deployer prepare")
-	})
-
-	t.Run("allows non-type proof parameter changes", func(t *testing.T) {
-		intent := &state.Intent{GlobalDeployOverrides: map[string]any{
-			"respectedGameType":                        embedded.GameTypeCannonKona,
-			state.FaultGameAbsolutePrestateOverrideKey: common.HexToHash("0x22"),
-		}}
-		chain := &state.ChainIntent{ID: chainID}
-		chainState := &state.ChainState{
-			ID:              chainID,
-			InitialGameType: ptr.New(uint32(embedded.GameTypeCannonKona)),
-		}
-
-		got, err := ResolvePreparedGameType(intent, chain, chainState)
-		require.NoError(t, err)
-		require.Equal(t, uint32(embedded.GameTypeCannonKona), got)
 	})
 }
 

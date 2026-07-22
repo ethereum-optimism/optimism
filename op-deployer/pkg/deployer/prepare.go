@@ -127,26 +127,28 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return fmt.Errorf("intent.opcmAddress must be set to predict against an existing OPCM")
 	}
 
-	// The sender and OPCM of the deploy dry-run. Pin them into the state so a re-run
-	// cannot silently switch deployer keys or OPCM and invalidate the predicted addresses.
+	// A rerun must use the same deployer and OPCM or the predicted addresses may change.
 	deployer := crypto.PubkeyToAddress(cfg.privateKeyECDSA.PublicKey)
 	opcmAddr := *intent.OPCMAddress
 	if err := st.CheckL1PredictInputs(deployer, opcmAddr); err != nil {
 		return err
 	}
-	st.L1PredictSenderAddress = &deployer
-	st.L1PredictOPCMAddress = &opcmAddr
-	st.Prepared = true
 
 	if err := st.EnsureCreate2Salt(); err != nil {
 		return err
 	}
 
-	// Download the L1 artifacts referenced by the intent so the dry-run uses the
-	// same DeployOPChain script as the eventual broadcast.
-	l1ArtifactsFS, err := artifacts.Download(ctx, intent.L1ContractsLocator, ioutil.BarProgressor(), cfg.CacheDir)
+	// Save hashes of both artifact bundles so continue can detect later changes.
+	// Only the L1 bundle is used for the prediction.
+	bundle, err := artifacts.DownloadBundle(
+		ctx,
+		intent.L1ContractsLocator,
+		intent.L2ContractsLocator,
+		ioutil.BarProgressor(),
+		cfg.CacheDir,
+	)
 	if err != nil {
-		return fmt.Errorf("failed to download L1 artifacts: %w", err)
+		return err
 	}
 
 	l1RPC, err := rpc.Dial(cfg.L1RPCUrl)
@@ -168,7 +170,7 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		broadcaster.NoopBroadcaster(),
 		cfg.Logger,
 		deployer,
-		l1ArtifactsFS,
+		bundle.L1,
 		l1RPC,
 	)
 	if err != nil {
@@ -193,6 +195,10 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 
 	if err := prepareChains(cfg.Logger, intent, st, deployScript.Run, selectAnchor, safe, cfg.GenesisTimeOffset); err != nil {
 		return err
+	}
+	st.PreparedDeployment, err = pipeline.NewPreparedDeployment(intent, st, deployer, opcmAddr, bundle)
+	if err != nil {
+		return fmt.Errorf("failed to freeze prepared deployment: %w", err)
 	}
 
 	if err := pipeline.WriteState(cfg.Workdir, st); err != nil {
@@ -360,9 +366,6 @@ func predictChains(
 		}
 		chainState.Prestate = common.Hash{}
 		chainState.StartingAnchorRoot = nil
-		gameType := dci.DisputeGameType
-		chainState.InitialGameType = &gameType
-
 		if requirements.RequiresPrestate {
 			lgr.Info(
 				"selected prestate must be committed; run op-deployer prestate before continue",

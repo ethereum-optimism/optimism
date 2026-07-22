@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
@@ -32,16 +33,9 @@ type State struct {
 	// Create2Salt is the salt used for CREATE2 deployments.
 	Create2Salt common.Hash `json:"create2Salt"`
 
-	// L1PredictSenderAddress is the address that performed the L1 deploy dry-run.
-	// It is used to verify that the same deployer address is used for the relevant stages of the permissionless pipeline.
-	L1PredictSenderAddress *common.Address `json:"predictSenderAddress,omitempty"`
-
-	// L1PredictOPCMAddress is the OPCM address used for the L1 deploy dry-run.
-	// It is used to verify that the same OPCM is used for the relevant stages of the permissionless pipeline.
-	L1PredictOPCMAddress *common.Address `json:"predictOpcmAddress,omitempty"`
-
-	// Prepared is set when this state was produced by the prepare pipeline.
-	Prepared bool `json:"prepared,omitempty"`
+	// PreparedDeployment stores values that must not change before continue.
+	// Later steps store Prestate and StartingAnchorRoot in ChainState.
+	PreparedDeployment *PreparedDeployment `json:"preparedDeployment,omitempty"`
 
 	// AppliedIntent contains the chain intent that was last
 	// successfully applied. It is diffed against new intent
@@ -95,15 +89,16 @@ func (s *State) Chain(id common.Hash) (*ChainState, error) {
 }
 
 // CheckL1PredictInputs verifies that the deployer and OPCM match the values pinned
-// during the prepare dry-run, keeping the predicted L1 addresses valid across the
-// relevant stages of the permissionless pipeline. A nil pinned value means nothing
-// was pinned for that input, so any value is accepted (older pipeline).
+// during the prepare dry-run. States outside the prepare flow have no snapshot.
 func (s *State) CheckL1PredictInputs(deployer common.Address, opcm common.Address) error {
-	if s.L1PredictSenderAddress != nil && *s.L1PredictSenderAddress != deployer {
-		return fmt.Errorf("deployer address mismatch: expected %s, got %s", s.L1PredictSenderAddress.Hex(), deployer.Hex())
+	if s.PreparedDeployment == nil {
+		return nil
 	}
-	if s.L1PredictOPCMAddress != nil && *s.L1PredictOPCMAddress != opcm {
-		return fmt.Errorf("opcm address mismatch: expected %s, got %s", s.L1PredictOPCMAddress.Hex(), opcm.Hex())
+	if s.PreparedDeployment.Deployer != deployer {
+		return fmt.Errorf("deployer address mismatch: expected %s, got %s", s.PreparedDeployment.Deployer.Hex(), deployer.Hex())
+	}
+	if s.PreparedDeployment.OPCM != opcm {
+		return fmt.Errorf("opcm address mismatch: expected %s, got %s", s.PreparedDeployment.OPCM.Hex(), opcm.Hex())
 	}
 	return nil
 }
@@ -111,7 +106,7 @@ func (s *State) CheckL1PredictInputs(deployer common.Address, opcm common.Addres
 // CheckNotPrepared returns an error if the state was produced by the prepare
 // pipeline.
 func (s *State) CheckNotPrepared() error {
-	if s.Prepared {
+	if s.PreparedDeployment != nil {
 		return fmt.Errorf("state was produced by the prepare pipeline and cannot be applied")
 	}
 	return nil
@@ -143,14 +138,48 @@ type StartingAnchorProposal struct {
 	L2SequenceNumber hexutil.Uint64 `json:"l2SequenceNumber"`
 }
 
-// ContinuationState preserves the prepared address set and mined progress after
-// deployment state is normalized with implementation addresses read from L1.
+// PreparedArtifact records where an artifact bundle came from and its content hash.
+type PreparedArtifact struct {
+	Locator       *artifacts.Locator `json:"locator"`
+	ContentDigest common.Hash        `json:"contentDigest"`
+}
+
+// PreparedDeployment records the values saved by prepare for chains not yet deployed.
+type PreparedDeployment struct {
+	Intent      *Intent               `json:"intent"`
+	Deployer    common.Address        `json:"deployer"`
+	OPCM        common.Address        `json:"opcm"`
+	L1Artifacts PreparedArtifact      `json:"l1Artifacts"`
+	L2Artifacts PreparedArtifact      `json:"l2Artifacts"`
+	Chains      []*PreparedChainState `json:"chains"`
+}
+
+// PreparedChainState contains the prepare-time commitments for one chain.
+type PreparedChainState struct {
+	ID common.Hash `json:"id"`
+
+	addresses.OpChainContracts
+
+	StartBlock  *L1BlockRefJSON `json:"startBlock"`
+	GenesisTime *hexutil.Uint64 `json:"genesisTime"`
+}
+
+func (p *PreparedDeployment) Chain(id common.Hash) (*PreparedChainState, error) {
+	for _, chain := range p.Chains {
+		if chain.ID == id {
+			return chain, nil
+		}
+	}
+	return nil, fmt.Errorf("prepared chain not found: %s", id.Hex())
+}
+
+// ContinuationState records enough progress to resume after an interruption.
+// The three receipt fields must either all be set or all be absent.
 type ContinuationState struct {
-	ExpectedContracts  *addresses.OpChainContracts `json:"expectedContracts,omitempty"`
-	TxHash             *common.Hash                `json:"txHash,omitempty"`
-	ReceiptBlockNumber *hexutil.Uint64             `json:"receiptBlockNumber,omitempty"`
-	ReceiptBlockHash   *common.Hash                `json:"receiptBlockHash,omitempty"`
-	LiveValidated      bool                        `json:"liveValidated,omitempty"`
+	TxHash             *common.Hash    `json:"txHash,omitempty"`
+	ReceiptBlockNumber *hexutil.Uint64 `json:"receiptBlockNumber,omitempty"`
+	ReceiptBlockHash   *common.Hash    `json:"receiptBlockHash,omitempty"`
+	LiveValidated      bool            `json:"liveValidated,omitempty"`
 }
 
 type ChainState struct {
@@ -168,10 +197,6 @@ type ChainState struct {
 	// StartingAnchorRoot is produced by the proposal-producing stage and consumed
 	// when building the continuation deploy input.
 	StartingAnchorRoot *StartingAnchorProposal `json:"startingAnchorRoot,omitempty"`
-
-	// InitialGameType records the game type used by prepare to detect intent drift.
-	// Legacy states without it must be prepared again before continuation.
-	InitialGameType *uint32 `json:"initialGameType,omitempty"`
 
 	AdditionalDisputeGames []AdditionalDisputeGameState `json:"additionalDisputeGames"`
 

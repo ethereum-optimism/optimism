@@ -100,6 +100,7 @@ type continuationRunner struct {
 	l1Client   *ethclient.Client
 	deployer   common.Address
 	pinnedOPCM common.Address
+	artifacts  artifacts.Bundle
 
 	expectedNonce uint64
 	preflightEnv  *pipeline.Env
@@ -134,14 +135,27 @@ func (r *continuationRunner) run() error {
 	if err != nil {
 		return fmt.Errorf("failed to read state: %w", err)
 	}
-	if !st.Prepared {
-		return fmt.Errorf("state was not produced by op-deployer prepare. Run op-deployer prepare before op-deployer continue")
+	if err := pipeline.ValidatePreparedDeployment(intent, st); err != nil {
+		return fmt.Errorf("failed to validate prepared deployment: %w", err)
 	}
 	if err := pipeline.ValidateInputs(intent, st); err != nil {
 		return fmt.Errorf("failed to validate continuation inputs: %w", err)
 	}
 	if err := pipeline.ValidateInteropDepSetMatchesIntent(intent.Chains, st.InteropDepSet); err != nil {
 		return fmt.Errorf("failed to validate prepared chain set: %w", err)
+	}
+	bundle, err := artifacts.DownloadBundle(
+		r.ctx,
+		st.PreparedDeployment.L1Artifacts.Locator,
+		st.PreparedDeployment.L2Artifacts.Locator,
+		ioutil.BarProgressor(),
+		r.cfg.CacheDir,
+	)
+	if err != nil {
+		return err
+	}
+	if err := pipeline.ValidatePreparedArtifactContents(st.PreparedDeployment, bundle); err != nil {
+		return fmt.Errorf("failed to validate prepared artifacts: %w", err)
 	}
 
 	l1RPC, err := rpc.DialContext(r.ctx, r.cfg.L1RPCUrl)
@@ -154,32 +168,17 @@ func (r *continuationRunner) run() error {
 	r.state = st
 	r.l1RPC = l1RPC
 	r.l1Client = l1Client
+	r.artifacts = bundle
 
-	if err := validateL1ChainID(r.ctx, l1RPC, intent); err != nil {
+	if err := validateL1ChainID(r.ctx, l1RPC, st.PreparedDeployment.Intent); err != nil {
 		return err
-	}
-	if st.L1PredictSenderAddress == nil || *st.L1PredictSenderAddress == (common.Address{}) {
-		return fmt.Errorf("prepared state has no pinned deployer address. Rerun op-deployer prepare")
-	}
-	if st.L1PredictOPCMAddress == nil || *st.L1PredictOPCMAddress == (common.Address{}) {
-		return fmt.Errorf("prepared state has no pinned OPCM address. Rerun op-deployer prepare")
 	}
 
 	deployer := crypto.PubkeyToAddress(r.cfg.privateKeyECDSA.PublicKey)
-	pinnedOPCM := *st.L1PredictOPCMAddress
+	pinnedOPCM := st.PreparedDeployment.OPCM
 	r.deployer = deployer
 	r.pinnedOPCM = pinnedOPCM
 	if err := st.CheckL1PredictInputs(deployer, pinnedOPCM); err != nil {
-		return err
-	}
-	if intent.OPCMAddress != nil && *intent.OPCMAddress != pinnedOPCM {
-		return fmt.Errorf(
-			"intent OPCM address changed after prepare: pinned %s, intent %s",
-			pinnedOPCM,
-			*intent.OPCMAddress,
-		)
-	}
-	if err := resolveSuperchainConfigProxy(r.ctx, l1RPC, intent, pinnedOPCM); err != nil {
 		return err
 	}
 	startNonce, err := readContinuationStartNonce(r.ctx, l1Client, deployer)
@@ -230,36 +229,38 @@ func (r *continuationRunner) classifyChains() ([]continuationChain, error) {
 		return nil, fmt.Errorf("failed to get current L1 head: %w", err)
 	}
 
-	pending := make([]continuationChain, 0, len(r.intent.Chains))
-	for _, chain := range r.intent.Chains {
-		chainState, err := r.state.Chain(chain.ID)
+	pending := make([]continuationChain, 0, len(r.state.PreparedDeployment.Chains))
+	for _, preparedChain := range r.state.PreparedDeployment.Chains {
+		chainID := preparedChain.ID
+		chainState, err := r.state.Chain(chainID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get prepared state for chain %s: %w", chain.ID.Hex(), err)
+			return nil, fmt.Errorf("failed to get prepared state for chain %s: %w", chainID.Hex(), err)
 		}
-		if chainState.StartBlock == nil {
-			return nil, fmt.Errorf("chain %s has no anchor block recorded by prepare", chain.ID.Hex())
+		expected := continuationExpectedChainState(preparedChain, chainState)
+		if expected.StartBlock == nil {
+			return nil, fmt.Errorf("chain %s has no anchor block recorded by prepare", chainID.Hex())
 		}
-		if chainState.GenesisTime == nil {
-			return nil, fmt.Errorf("chain %s has no genesis time recorded by prepare", chain.ID.Hex())
+		if expected.GenesisTime == nil {
+			return nil, fmt.Errorf("chain %s has no genesis time recorded by prepare", chainID.Hex())
 		}
-		if err := revalidateContinuationAnchor(r.ctx, r.l1RPC, chain.ID, chainState); err != nil {
+		if err := revalidateContinuationAnchor(r.ctx, r.l1RPC, chainID, &expected); err != nil {
 			return nil, err
 		}
-		if uint64(*chainState.GenesisTime) <= latest.Time {
+		if uint64(*expected.GenesisTime) <= latest.Time {
 			r.cfg.Logger.Warn(
 				"committed genesis time has elapsed",
-				"chainID", chain.ID.Hex(),
-				"genesisTime", uint64(*chainState.GenesisTime),
+				"chainID", chainID.Hex(),
+				"genesisTime", uint64(*expected.GenesisTime),
 				"l1HeadTime", latest.Time,
 			)
 		}
 
-		dci, err := pipeline.BuildContinuationDCI(r.intent, chain.ID, r.state)
+		dci, err := pipeline.BuildContinuationDCI(chainID, r.state)
 		if err != nil {
-			return nil, fmt.Errorf("failed to build continuation input for chain %s: %w", chain.ID.Hex(), err)
+			return nil, fmt.Errorf("failed to build continuation input for chain %s: %w", chainID.Hex(), err)
 		}
-		if r.state.IsChainDeployed(chain.ID) {
-			if err := r.reverifyDeployedChain(chain.ID, chainState, dci); err != nil {
+		if r.state.IsChainDeployed(chainID) {
+			if err := r.reverifyDeployedChain(chainID, chainState, &expected, dci); err != nil {
 				return nil, err
 			}
 			continue
@@ -267,29 +268,28 @@ func (r *continuationRunner) classifyChains() ([]continuationChain, error) {
 		if chainState.Continuation != nil {
 			return nil, fmt.Errorf(
 				"pending chain %s has continuation checkpoint metadata but is not marked deployed",
-				chain.ID.Hex(),
+				chainID.Hex(),
 			)
 		}
 
-		prepared := *chainState
-		liveState, err := classifyContinuationAddresses(r.ctx, r.l1Client, prepared.OpChainContracts)
+		liveState, err := classifyContinuationAddresses(r.ctx, r.l1Client, expected.OpChainContracts)
 		if err != nil {
-			return nil, fmt.Errorf("failed to classify chain %s predicted addresses: %w", chain.ID.Hex(), err)
+			return nil, fmt.Errorf("failed to classify chain %s predicted addresses: %w", chainID.Hex(), err)
 		}
 		switch liveState {
 		case continuationAddressesAbsent:
 			pending = append(pending, continuationChain{
-				id:       chain.ID,
+				id:       chainID,
 				state:    chainState,
-				expected: prepared,
+				expected: expected,
 				dci:      dci,
 			})
 		case continuationAddressesComplete:
-			if err := r.reconcileLiveChain(chain.ID, chainState, &prepared, dci); err != nil {
+			if err := r.reconcileLiveChain(chainID, chainState, &expected, dci); err != nil {
 				return nil, err
 			}
 		default:
-			return nil, fmt.Errorf("chain %s has an unknown continuation address classification", chain.ID.Hex())
+			return nil, fmt.Errorf("chain %s has an unknown continuation address classification", chainID.Hex())
 		}
 	}
 	return pending, nil
@@ -298,11 +298,18 @@ func (r *continuationRunner) classifyChains() ([]continuationChain, error) {
 func (r *continuationRunner) reverifyDeployedChain(
 	chainID common.Hash,
 	chainState *state.ChainState,
+	expected *state.ChainState,
 	dci opcm.DeployOPChainInput,
 ) error {
-	expected, err := continuationExpectedChainState(chainID, chainState)
-	if err != nil {
-		return err
+	if chainState.Continuation == nil {
+		return fmt.Errorf("deployed chain %s has no continuation metadata", chainID.Hex())
+	}
+	metadata := chainState.Continuation
+	hasTxHash := metadata.TxHash != nil
+	hasBlockNumber := metadata.ReceiptBlockNumber != nil
+	hasBlockHash := metadata.ReceiptBlockHash != nil
+	if (hasTxHash || hasBlockNumber || hasBlockHash) && !(hasTxHash && hasBlockNumber && hasBlockHash) {
+		return fmt.Errorf("deployed chain %s has incomplete continuation receipt metadata", chainID.Hex())
 	}
 	previouslyValidated := chainState.Continuation.LiveValidated
 	if err := verifyContinuationDeployment(
@@ -379,11 +386,11 @@ func (r *continuationRunner) reconcileLiveChain(
 	if captured := r.capture.Drain(); len(captured) != 0 {
 		return fmt.Errorf("implementation readback unexpectedly captured %d broadcasts for chain %s", len(captured), chainID.Hex())
 	}
-	if err := setContinuationExpectedContracts(chainState, expected.OpChainContracts); err != nil {
-		return fmt.Errorf("failed to reconcile chain %s: %w", chainID.Hex(), err)
-	}
 	if err := pipeline.RecordOPChainDeployment(r.state, result); err != nil {
 		return fmt.Errorf("failed to record reconciled deployment for chain %s: %w", chainID.Hex(), err)
+	}
+	if chainState.Continuation == nil {
+		chainState.Continuation = new(state.ContinuationState)
 	}
 	chainState.Continuation.LiveValidated = true
 	if err := pipeline.WriteState(r.cfg.Workdir, r.state); err != nil {
@@ -423,17 +430,8 @@ func (r *continuationRunner) initPreflightEnv() error {
 	if r.preflightEnv != nil {
 		return nil
 	}
-	l1ArtifactsFS, err := artifacts.Download(
-		r.ctx,
-		r.intent.L1ContractsLocator,
-		ioutil.BarProgressor(),
-		r.cfg.CacheDir,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to download L1 artifacts: %w", err)
-	}
 	capture := new(broadcaster.CaptureBroadcaster)
-	l1Host, err := initForkHost(r.ctx, capture, r.cfg.Logger, r.deployer, l1ArtifactsFS, r.l1RPC)
+	l1Host, err := initForkHost(r.ctx, capture, r.cfg.Logger, r.deployer, r.artifacts.L1, r.l1RPC)
 	if err != nil {
 		return fmt.Errorf("failed to initialize L1 preflight host: %w", err)
 	}
@@ -456,7 +454,7 @@ func (r *continuationRunner) initPreflightEnv() error {
 }
 
 func (r *continuationRunner) broadcastAndCheckpoint(chain *continuationChain) error {
-	if err := revalidateContinuationAnchor(r.ctx, r.l1RPC, chain.id, chain.state); err != nil {
+	if err := revalidateContinuationAnchor(r.ctx, r.l1RPC, chain.id, &chain.expected); err != nil {
 		return err
 	}
 	if err := invokeContinuationHook("before send", r.beforeSend); err != nil {
@@ -466,10 +464,11 @@ func (r *continuationRunner) broadcastAndCheckpoint(chain *continuationChain) er
 		return err
 	}
 
-	signer := opcrypto.SignerFnFromBind(opcrypto.PrivateKeySignerFn(r.cfg.privateKeyECDSA, r.intent.L1ChainIDBig()))
+	chainID := r.state.PreparedDeployment.Intent.L1ChainIDBig()
+	signer := opcrypto.SignerFnFromBind(opcrypto.PrivateKeySignerFn(r.cfg.privateKeyECDSA, chainID))
 	liveBroadcaster, err := broadcaster.NewKeyedBroadcaster(broadcaster.KeyedBroadcasterOpts{
 		Logger:  r.cfg.Logger,
-		ChainID: new(big.Int).Set(r.intent.L1ChainIDBig()),
+		ChainID: new(big.Int).Set(chainID),
 		Client:  r.l1Client,
 		Signer:  signer,
 		From:    r.deployer,
@@ -496,7 +495,6 @@ func (r *continuationRunner) broadcastAndCheckpoint(chain *continuationChain) er
 
 	if err := setContinuationReceipt(
 		chain.state,
-		chain.expected.OpChainContracts,
 		broadcastResult,
 	); err != nil {
 		return fmt.Errorf("failed to record continuation receipt for chain %s: %w", chain.id.Hex(), err)
@@ -678,55 +676,22 @@ func continuationDeploymentMarkerAddresses(contracts addresses.OpChainContracts)
 }
 
 func continuationExpectedChainState(
-	chainID common.Hash,
+	prepared *state.PreparedChainState,
 	chainState *state.ChainState,
-) (*state.ChainState, error) {
-	if chainState.Continuation == nil || chainState.Continuation.ExpectedContracts == nil {
-		return nil, fmt.Errorf(
-			"deployed chain %s has no prepared expected-contract snapshot in continuation metadata; rerun from the prepared state or recover the checkpoint",
-			chainID.Hex(),
-		)
-	}
-	metadata := chainState.Continuation
-	hasTxHash := metadata.TxHash != nil
-	hasBlockNumber := metadata.ReceiptBlockNumber != nil
-	hasBlockHash := metadata.ReceiptBlockHash != nil
-	if (hasTxHash || hasBlockNumber || hasBlockHash) && !(hasTxHash && hasBlockNumber && hasBlockHash) {
-		return nil, fmt.Errorf(
-			"deployed chain %s has incomplete continuation receipt metadata",
-			chainID.Hex(),
-		)
-	}
+) state.ChainState {
 	expected := *chainState
-	expected.OpChainContracts = *metadata.ExpectedContracts
-	return &expected, nil
-}
-
-func setContinuationExpectedContracts(
-	chainState *state.ChainState,
-	expected addresses.OpChainContracts,
-) error {
-	if chainState.Continuation == nil {
-		chainState.Continuation = new(state.ContinuationState)
-	}
-	if chainState.Continuation.ExpectedContracts == nil {
-		expectedCopy := expected
-		chainState.Continuation.ExpectedContracts = &expectedCopy
-		return nil
-	}
-	if *chainState.Continuation.ExpectedContracts != expected {
-		return fmt.Errorf("prepared expected-contract snapshot changed after it was first recorded")
-	}
-	return nil
+	expected.OpChainContracts = prepared.OpChainContracts
+	expected.StartBlock = prepared.StartBlock
+	expected.GenesisTime = prepared.GenesisTime
+	return expected
 }
 
 func setContinuationReceipt(
 	chainState *state.ChainState,
-	expected addresses.OpChainContracts,
 	result broadcaster.BroadcastResult,
 ) error {
-	if err := setContinuationExpectedContracts(chainState, expected); err != nil {
-		return err
+	if chainState.Continuation == nil {
+		chainState.Continuation = new(state.ContinuationState)
 	}
 	if result.Receipt == nil {
 		return fmt.Errorf("deployment transaction has no receipt")

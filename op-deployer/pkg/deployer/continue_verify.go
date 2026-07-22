@@ -154,17 +154,7 @@ func verifyContinuationDeployment(
 }
 
 func (v *continuationVerifier) resolveGameMode() (continuationGameMode, error) {
-	if v.expected.InitialGameType == nil {
-		return continuationGameMode{}, fmt.Errorf("initial game type mismatch: expected a value from prepared ChainState.InitialGameType, observed nil")
-	}
-	gameType := *v.expected.InitialGameType
-	if gameType != v.dci.DisputeGameType {
-		return continuationGameMode{}, fmt.Errorf(
-			"initial game type mismatch: expected %d from prepared ChainState.InitialGameType, observed %d in frozen DeployOPChainInput",
-			gameType,
-			v.dci.DisputeGameType,
-		)
-	}
+	gameType := v.dci.DisputeGameType
 
 	bitmap, err := readContinuationHash(
 		v.ctx,
@@ -215,7 +205,7 @@ func (v *continuationVerifier) resolveGameMode() (continuationGameMode, error) {
 		mode.permissionless = true
 	default:
 		return continuationGameMode{}, fmt.Errorf(
-			"initial game type mismatch: expected a supported value from prepared ChainState.InitialGameType, observed %d",
+			"initial game type mismatch: expected a supported value from frozen DeployOPChainInput, observed %d",
 			gameType,
 		)
 	}

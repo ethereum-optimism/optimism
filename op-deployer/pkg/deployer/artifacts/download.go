@@ -34,6 +34,29 @@ type Extractor interface {
 	Extract(src string, dest string) (string, error)
 }
 
+// Bundle contains the L1 and L2 artifacts selected by an intent.
+type Bundle struct {
+	L1 foundry.StatDirFs
+	L2 foundry.StatDirFs
+}
+
+func DownloadBundle(
+	ctx context.Context,
+	l1, l2 *Locator,
+	progressor ioutil.Progressor,
+	targetDir string,
+) (Bundle, error) {
+	l1FS, err := Download(ctx, l1, progressor, targetDir)
+	if err != nil {
+		return Bundle{}, fmt.Errorf("failed to download L1 artifacts: %w", err)
+	}
+	l2FS, err := Download(ctx, l2, progressor, targetDir)
+	if err != nil {
+		return Bundle{}, fmt.Errorf("failed to download L2 artifacts: %w", err)
+	}
+	return Bundle{L1: l1FS, L2: l2FS}, nil
+}
+
 func Download(ctx context.Context, loc *Locator, progressor ioutil.Progressor, targetDir string) (foundry.StatDirFs, error) {
 	if progressor == nil {
 		progressor = ioutil.NoopProgressor()

@@ -34,21 +34,23 @@ import (
 )
 
 type continuationEnv struct {
-	ctx               context.Context
-	lgr               log.Logger
-	logs              *testlog.CapturingHandler
-	l1RPC             string
-	l1Client          *ethclient.Client
-	privateKey        string
-	deployer          common.Address
-	cacheDir          string
-	workdir           string
-	intent            *state.Intent
-	prepared          *state.State
-	preparedChain     *state.ChainState
-	preparedChains    []*state.ChainState
-	opcm              common.Address
-	standardValidator common.Address
+	ctx                    context.Context
+	lgr                    log.Logger
+	logs                   *testlog.CapturingHandler
+	l1RPC                  string
+	l1Client               *ethclient.Client
+	privateKey             string
+	deployer               common.Address
+	cacheDir               string
+	workdir                string
+	intent                 *state.Intent
+	prepared               *state.State
+	preparedChain          *state.ChainState
+	preparedChains         []*state.ChainState
+	preparedSnapshotChain  *state.PreparedChainState
+	preparedSnapshotChains []*state.PreparedChainState
+	opcm                   common.Address
+	standardValidator      common.Address
 }
 
 func TestEndToEndContinuePreparedChain(t *testing.T) {
@@ -94,17 +96,17 @@ func testContinuePermissionless(t *testing.T) {
 		Root:             common.HexToHash("0x5678"),
 		L2SequenceNumber: 7,
 	}
-	originalAnchor := env.preparedChain.StartBlock.Hash
-	originalContracts := env.preparedChain.OpChainContracts
+	originalAnchor := env.preparedSnapshotChain.StartBlock.Hash
+	originalContracts := env.preparedSnapshotChain.OpChainContracts
 	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
 	nonceBefore := pendingNonce(t, env)
 
-	env.preparedChain.StartBlock.Hash = common.HexToHash("0xdead")
+	env.preparedSnapshotChain.StartBlock.Hash = common.HexToHash("0xdead")
 	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
 	err := deployer.Continue(env.ctx, env.config())
 	require.ErrorContains(t, err, "pinned anchor block")
 	require.Equal(t, nonceBefore, pendingNonce(t, env))
-	env.preparedChain.StartBlock.Hash = originalAnchor
+	env.preparedSnapshotChain.StartBlock.Hash = originalAnchor
 
 	validatorCode, err := env.l1Client.CodeAt(env.ctx, env.standardValidator, nil)
 	require.NoError(t, err)
@@ -124,13 +126,13 @@ func testContinuePermissionless(t *testing.T) {
 	require.Equal(t, nonceBefore, pendingNonce(t, env))
 	setAnvilCode(t, env.l1Client, env.opcm, opcmCode)
 
-	env.preparedChain.SystemConfigProxy = common.Address{0xff}
+	env.preparedSnapshotChain.SystemConfigProxy = common.Address{0xff}
 	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
 	err = deployer.Continue(env.ctx, env.config())
 	require.ErrorContains(t, err, "simulated contract addresses differ")
 	require.Equal(t, nonceBefore, pendingNonce(t, env))
 
-	env.preparedChain.OpChainContracts = originalContracts
+	env.preparedSnapshotChain.OpChainContracts = originalContracts
 	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
 	require.NoError(t, deployer.Continue(env.ctx, env.config()))
 	continued := assertContinuationCompleted(t, env, nonceBefore)
@@ -150,7 +152,7 @@ func testContinuePermissionless(t *testing.T) {
 	reconciledChain, err := reconciled.Chain(env.intent.Chains[0].ID)
 	require.NoError(t, err)
 	require.Equal(t, recordedContracts, reconciledChain.OpChainContracts)
-	require.Equal(t, originalContracts, *reconciledChain.Continuation.ExpectedContracts)
+	require.Equal(t, originalContracts, env.preparedSnapshotChain.OpChainContracts)
 	require.Nil(t, reconciledChain.Continuation.TxHash)
 	require.Nil(t, reconciledChain.Continuation.ReceiptBlockNumber)
 	require.Nil(t, reconciledChain.Continuation.ReceiptBlockHash)
@@ -187,7 +189,7 @@ func testContinuePermissioned(t *testing.T) {
 	env := newContinuationEnv(t, embedded.GameTypePermissionedCannon)
 	require.Zero(t, env.preparedChain.Prestate)
 	elapsedGenesisTime := hexutil.Uint64(1)
-	env.preparedChain.GenesisTime = &elapsedGenesisTime
+	env.preparedSnapshotChain.GenesisTime = &elapsedGenesisTime
 	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
 	nonceBefore := pendingNonce(t, env)
 
@@ -257,7 +259,9 @@ func testContinueLiveValidationFailure(t *testing.T) {
 	continuedChain, err := continued.Chain(env.intent.Chains[0].ID)
 	require.NoError(t, err)
 	require.NotNil(t, continuedChain.Continuation)
-	require.Equal(t, env.preparedChain.OpChainContracts, *continuedChain.Continuation.ExpectedContracts)
+	continuedSnapshot, err := continued.PreparedDeployment.Chain(env.intent.Chains[0].ID)
+	require.NoError(t, err)
+	require.Equal(t, env.preparedSnapshotChain.OpChainContracts, continuedSnapshot.OpChainContracts)
 	require.NotNil(t, continuedChain.Continuation.TxHash)
 	require.NotNil(t, continuedChain.Continuation.ReceiptBlockNumber)
 	require.NotNil(t, continuedChain.Continuation.ReceiptBlockHash)
@@ -304,8 +308,9 @@ func testContinueMultiChainGlobalPreflight(t *testing.T) {
 	})
 	permissionless := env.preparedChains[1]
 	setPermissionlessContinuationInputs(permissionless, 2)
-	originalSystemConfig := permissionless.SystemConfigProxy
-	permissionless.SystemConfigProxy = common.Address{0xff}
+	preparedPermissionless := env.preparedSnapshotChains[1]
+	originalSystemConfig := preparedPermissionless.SystemConfigProxy
+	preparedPermissionless.SystemConfigProxy = common.Address{0xff}
 	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
 	nonceBefore := pendingNonce(t, env)
 
@@ -318,7 +323,7 @@ func testContinueMultiChainGlobalPreflight(t *testing.T) {
 		require.False(t, failed.IsChainDeployed(chain.ID))
 	}
 
-	permissionless.SystemConfigProxy = originalSystemConfig
+	preparedPermissionless.SystemConfigProxy = originalSystemConfig
 	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
 	require.NoError(t, deployer.Continue(env.ctx, env.config()))
 	require.Equal(t, nonceBefore+uint64(len(env.intent.Chains)), pendingNonce(t, env))
@@ -438,10 +443,9 @@ func testContinueRejectsMixedPermissionlessFamilies(t *testing.T) {
 		embedded.GameTypeSuperCannonKona,
 	}
 	for i, gameType := range gameTypes {
-		preparedGameType := uint32(gameType)
-		env.preparedChains[i].InitialGameType = &preparedGameType
 		setPermissionlessContinuationInputs(env.preparedChains[i], uint64(i+1))
 		env.intent.Chains[i].DeployOverrides = map[string]any{"respectedGameType": gameType}
+		env.prepared.PreparedDeployment.Intent.Chains[i].DeployOverrides = map[string]any{"respectedGameType": gameType}
 	}
 	require.NoError(t, env.intent.WriteToFile(filepath.Join(env.workdir, "intent.toml")))
 	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
@@ -559,33 +563,39 @@ func newContinuationEnvWithIntentMutator(
 
 	prepared, err := pipeline.ReadState(workdir)
 	require.NoError(t, err)
-	require.True(t, prepared.Prepared)
+	require.NotNil(t, prepared.PreparedDeployment)
 	preparedChains := make([]*state.ChainState, 0, len(intent.Chains))
+	preparedSnapshotChains := make([]*state.PreparedChainState, 0, len(intent.Chains))
 	for _, chain := range intent.Chains {
 		require.False(t, prepared.IsChainDeployed(chain.ID))
 		preparedChain, chainErr := prepared.Chain(chain.ID)
 		require.NoError(t, chainErr)
 		preparedChains = append(preparedChains, preparedChain)
+		preparedSnapshotChain, chainErr := prepared.PreparedDeployment.Chain(chain.ID)
+		require.NoError(t, chainErr)
+		preparedSnapshotChains = append(preparedSnapshotChains, preparedSnapshotChain)
 	}
 	validator, err := opcm.NewContract(impls.OpcmV2, l1Client).OPCMStandardValidator(ctx)
 	require.NoError(t, err)
 
 	return &continuationEnv{
-		ctx:               ctx,
-		lgr:               lgr,
-		logs:              logs,
-		l1RPC:             l1RPC,
-		l1Client:          l1Client,
-		privateKey:        privateKey,
-		deployer:          crypto.PubkeyToAddress(key.PublicKey),
-		cacheDir:          cacheDir,
-		workdir:           workdir,
-		intent:            intent,
-		prepared:          prepared,
-		preparedChain:     preparedChains[0],
-		preparedChains:    preparedChains,
-		opcm:              impls.OpcmV2,
-		standardValidator: validator,
+		ctx:                    ctx,
+		lgr:                    lgr,
+		logs:                   logs,
+		l1RPC:                  l1RPC,
+		l1Client:               l1Client,
+		privateKey:             privateKey,
+		deployer:               crypto.PubkeyToAddress(key.PublicKey),
+		cacheDir:               cacheDir,
+		workdir:                workdir,
+		intent:                 intent,
+		prepared:               prepared,
+		preparedChain:          preparedChains[0],
+		preparedChains:         preparedChains,
+		preparedSnapshotChain:  preparedSnapshotChains[0],
+		preparedSnapshotChains: preparedSnapshotChains,
+		opcm:                   impls.OpcmV2,
+		standardValidator:      validator,
 	}
 }
 
@@ -616,7 +626,9 @@ func assertContinuationCompleted(t *testing.T, env *continuationEnv, nonceBefore
 	continuedChain, err := continued.Chain(env.intent.Chains[0].ID)
 	require.NoError(t, err)
 	require.NotNil(t, continuedChain.Continuation)
-	require.Equal(t, env.preparedChain.OpChainContracts, *continuedChain.Continuation.ExpectedContracts)
+	continuedSnapshot, err := continued.PreparedDeployment.Chain(env.intent.Chains[0].ID)
+	require.NoError(t, err)
+	require.Equal(t, env.preparedSnapshotChain.OpChainContracts, continuedSnapshot.OpChainContracts)
 	require.NotNil(t, continuedChain.Continuation.TxHash)
 	require.NotNil(t, continuedChain.Continuation.ReceiptBlockNumber)
 	require.NotNil(t, continuedChain.Continuation.ReceiptBlockHash)

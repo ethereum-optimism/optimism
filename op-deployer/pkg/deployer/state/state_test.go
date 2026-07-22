@@ -38,15 +38,9 @@ func TestState_ContinuationJSONRoundTrip(t *testing.T) {
 	txHash := common.HexToHash("0x02")
 	blockHash := common.HexToHash("0x03")
 	blockNumber := hexutil.Uint64(123)
-	expected := addresses.OpChainContracts{
-		OpChainCoreContracts: addresses.OpChainCoreContracts{
-			SystemConfigProxy: common.Address{0x04},
-		},
-	}
 	st := &State{Chains: []*ChainState{{
 		ID: chainID,
 		Continuation: &ContinuationState{
-			ExpectedContracts:  &expected,
 			TxHash:             &txHash,
 			ReceiptBlockNumber: &blockNumber,
 			ReceiptBlockHash:   &blockHash,
@@ -66,7 +60,7 @@ func TestState_ContinuationJSONRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, st.Chains[0].Continuation, chain.Continuation)
 
-	reconciled := &ContinuationState{ExpectedContracts: &expected, LiveValidated: true}
+	reconciled := &ContinuationState{LiveValidated: true}
 	data, err = json.Marshal(reconciled)
 	require.NoError(t, err)
 	require.NotContains(t, string(data), "txHash")
@@ -160,53 +154,6 @@ func TestState_StartingAnchorRootJSONBackwardCompatibility(t *testing.T) {
 	})
 }
 
-func TestState_InitialGameTypeJSONRoundTrip(t *testing.T) {
-	chainID := common.HexToHash("0x01")
-	st := &State{
-		Chains: []*ChainState{{
-			ID:              chainID,
-			InitialGameType: ptr.New(uint32(8)),
-		}},
-	}
-
-	data, err := json.Marshal(st)
-	require.NoError(t, err)
-	require.Contains(t, string(data), `"initialGameType":8`)
-
-	var roundTripped State
-	require.NoError(t, json.Unmarshal(data, &roundTripped))
-	chain, err := roundTripped.Chain(chainID)
-	require.NoError(t, err)
-	require.Equal(t, ptr.New(uint32(8)), chain.InitialGameType)
-}
-
-func TestState_InitialGameTypeJSONDistinguishesMissingFromZero(t *testing.T) {
-	tests := []struct {
-		name     string
-		gameType *uint32
-		wantKey  bool
-	}{
-		{name: "missing"},
-		{name: "zero", gameType: ptr.New(uint32(0)), wantKey: true},
-		{name: "nonzero", gameType: ptr.New(uint32(8)), wantKey: true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			st := &State{
-				Chains: []*ChainState{{
-					ID:              common.HexToHash("0x01"),
-					InitialGameType: tt.gameType,
-				}},
-			}
-
-			data, err := json.Marshal(st)
-			require.NoError(t, err)
-			require.Equal(t, tt.wantKey, strings.Contains(string(data), `"initialGameType"`))
-		})
-	}
-}
-
 func TestState_EnsureCreate2Salt(t *testing.T) {
 	t.Run("generates a salt when unset", func(t *testing.T) {
 		s := &State{}
@@ -241,20 +188,16 @@ func TestState_CheckL1PredictInputs(t *testing.T) {
 	})
 
 	t.Run("matching deployer and opcm succeeds", func(t *testing.T) {
-		pinnedSender := deployer
-		pinnedOPCM := opcm
-		require.NoError(t, (&State{L1PredictSenderAddress: &pinnedSender, L1PredictOPCMAddress: &pinnedOPCM}).CheckL1PredictInputs(deployer, opcm))
+		require.NoError(t, (&State{PreparedDeployment: &PreparedDeployment{Deployer: deployer, OPCM: opcm}}).CheckL1PredictInputs(deployer, opcm))
 	})
 
 	t.Run("mismatched deployer fails", func(t *testing.T) {
-		pinned := other
-		err := (&State{L1PredictSenderAddress: &pinned}).CheckL1PredictInputs(deployer, opcm)
+		err := (&State{PreparedDeployment: &PreparedDeployment{Deployer: other, OPCM: opcm}}).CheckL1PredictInputs(deployer, opcm)
 		require.ErrorContains(t, err, "deployer address mismatch")
 	})
 
 	t.Run("mismatched opcm fails", func(t *testing.T) {
-		pinned := otherOPCM
-		err := (&State{L1PredictOPCMAddress: &pinned}).CheckL1PredictInputs(deployer, opcm)
+		err := (&State{PreparedDeployment: &PreparedDeployment{Deployer: deployer, OPCM: otherOPCM}}).CheckL1PredictInputs(deployer, opcm)
 		require.ErrorContains(t, err, "opcm address mismatch")
 	})
 }
@@ -265,32 +208,33 @@ func TestState_CheckNotPrepared(t *testing.T) {
 	})
 
 	t.Run("prepared state cannot be applied", func(t *testing.T) {
-		err := (&State{Prepared: true}).CheckNotPrepared()
+		err := (&State{PreparedDeployment: new(PreparedDeployment)}).CheckNotPrepared()
 		require.ErrorContains(t, err, "cannot be applied")
 	})
 }
 
 func TestState_PreparedSerialization(t *testing.T) {
-	t.Run("omitted when false for backward compatibility", func(t *testing.T) {
+	t.Run("omitted when absent", func(t *testing.T) {
 		b, err := json.Marshal(&State{})
 		require.NoError(t, err)
-		require.NotContains(t, string(b), "prepared")
+		require.NotContains(t, string(b), "preparedDeployment")
 	})
 
 	t.Run("round-trips when set", func(t *testing.T) {
-		b, err := json.Marshal(&State{Prepared: true})
+		prepared := &PreparedDeployment{Deployer: common.Address{0x01}, OPCM: common.Address{0x02}}
+		b, err := json.Marshal(&State{PreparedDeployment: prepared})
 		require.NoError(t, err)
-		require.Contains(t, string(b), `"prepared":true`)
+		require.Contains(t, string(b), `"preparedDeployment"`)
 
 		var got State
 		require.NoError(t, json.Unmarshal(b, &got))
-		require.True(t, got.Prepared)
+		require.Equal(t, prepared, got.PreparedDeployment)
 	})
 
-	t.Run("absent field defaults to not prepared", func(t *testing.T) {
+	t.Run("absent field defaults to nil", func(t *testing.T) {
 		var got State
 		require.NoError(t, json.Unmarshal([]byte(`{"version":1}`), &got))
-		require.False(t, got.Prepared)
+		require.Nil(t, got.PreparedDeployment)
 	})
 }
 
@@ -376,7 +320,6 @@ func TestState_SetChainContracts(t *testing.T) {
 		L2SequenceNumber: 9,
 	}
 	s.Chains[0].StartingAnchorRoot = startingAnchorRoot
-	s.Chains[0].InitialGameType = ptr.New(uint32(8))
 	s.SetChainContracts(chainA, contractsWith("0xa2"), true)
 	require.Len(t, s.Chains, 2)
 
@@ -389,7 +332,6 @@ func TestState_SetChainContracts(t *testing.T) {
 	require.Equal(t, common.HexToHash("0xfeed"), got.StartBlock.Hash)
 	require.Equal(t, prestate, got.Prestate, "prestate must be preserved on update")
 	require.Equal(t, startingAnchorRoot, got.StartingAnchorRoot, "starting anchor root must be preserved on update")
-	require.Equal(t, ptr.New(uint32(8)), got.InitialGameType, "initial game type must be preserved on update")
 }
 
 func TestState_PinChainAnchor(t *testing.T) {

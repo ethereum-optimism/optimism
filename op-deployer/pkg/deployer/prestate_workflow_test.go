@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
@@ -51,7 +53,6 @@ func TestPrestateWorkflowFromPrepareChains(t *testing.T) {
 			historicalSelected := common.HexToHash("0xaa")
 			st := &state.State{
 				Version:     1,
-				Prepared:    true,
 				Create2Salt: common.HexToHash("0xcc"),
 			}
 			var deployedContracts addresses.OpChainContracts
@@ -60,8 +61,6 @@ func TestPrestateWorkflowFromPrepareChains(t *testing.T) {
 			deployed, err := st.Chain(deployedID)
 			require.NoError(t, err)
 			deployed.Prestate = historicalSelected
-			historicalGameType := uint32(embedded.GameTypeSuperPermissioned)
-			deployed.InitialGameType = &historicalGameType
 
 			predicted := make(map[common.Hash]common.Address)
 			run := func(in opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
@@ -84,6 +83,12 @@ func TestPrestateWorkflowFromPrepareChains(t *testing.T) {
 			}
 
 			require.NoError(t, prepareChains(testlog.Logger(t, slog.LevelInfo), intent, st, run, selectAnchor, anchor, 600))
+			bundle := artifacts.Bundle{
+				L1: foundry.OpenArtifactsDir(t.TempDir()).FS,
+				L2: foundry.OpenArtifactsDir(t.TempDir()).FS,
+			}
+			st.PreparedDeployment, err = pipeline.NewPreparedDeployment(intent, st, common.Address{0x01}, *intent.OPCMAddress, bundle)
+			require.NoError(t, err)
 			require.Len(t, predicted, 2)
 			require.NotContains(t, predicted, deployedID)
 			require.Len(t, st.Chains, len(chainIDs))
@@ -106,7 +111,7 @@ func TestPrestateWorkflowFromPrepareChains(t *testing.T) {
 
 			persisted, err := pipeline.ReadState(workdir)
 			require.NoError(t, err)
-			require.True(t, persisted.Prepared)
+			require.NotNil(t, persisted.PreparedDeployment)
 			require.NotNil(t, persisted.InteropDepSet)
 			for _, chainID := range chainIDs {
 				require.True(t, persisted.InteropDepSet.HasChain(eth.ChainIDFromBytes32(chainID)))
@@ -115,19 +120,22 @@ func TestPrestateWorkflowFromPrepareChains(t *testing.T) {
 			deployed, err = persisted.Chain(deployedID)
 			require.NoError(t, err)
 			require.Equal(t, historicalSelected, deployed.Prestate)
-			require.Equal(t, uint32(embedded.GameTypeSuperPermissioned), *deployed.InitialGameType)
 
 			permissioned, err := persisted.Chain(permissionedID)
 			require.NoError(t, err)
 			require.Equal(t, predicted[permissionedID], permissioned.SystemConfigProxy)
 			require.Zero(t, permissioned.Prestate)
-			require.Equal(t, uint32(embedded.GameTypePermissionedCannon), *permissioned.InitialGameType)
+			permissionedProof, err := pipeline.PreparedChainProofParams(persisted, permissionedID)
+			require.NoError(t, err)
+			require.Equal(t, uint32(embedded.GameTypePermissionedCannon), permissionedProof.DisputeGameType)
 
 			permissionless, err := persisted.Chain(permissionlessID)
 			require.NoError(t, err)
 			require.Equal(t, predicted[permissionlessID], permissionless.SystemConfigProxy)
 			require.Equal(t, tt.wantSelected, permissionless.Prestate)
-			require.Equal(t, uint32(tt.permissionlessType), *permissionless.InitialGameType)
+			permissionlessProof, err := pipeline.PreparedChainProofParams(persisted, permissionlessID)
+			require.NoError(t, err)
+			require.Equal(t, uint32(tt.permissionlessType), permissionlessProof.DisputeGameType)
 		})
 	}
 }

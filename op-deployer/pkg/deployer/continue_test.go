@@ -14,11 +14,13 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
+	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -114,7 +116,7 @@ func TestContinueRejectsUnpreparedStateBeforeRPC(t *testing.T) {
 		PrivateKey: testPrivKey,
 		Logger:     testlog.Logger(t, slog.LevelInfo),
 	})
-	require.ErrorContains(t, err, "Run op-deployer prepare")
+	require.ErrorContains(t, err, "run op-deployer prepare")
 }
 
 func TestContinueStartupGates(t *testing.T) {
@@ -146,9 +148,9 @@ func TestContinueStartupGates(t *testing.T) {
 			name:     "missing pinned sender",
 			chainIDs: []common.Hash{chainID},
 			mutate: func(_ *state.Intent, st *state.State) {
-				st.L1PredictSenderAddress = nil
+				st.PreparedDeployment.Deployer = common.Address{}
 			},
-			wantErr: "no pinned deployer address",
+			wantErr: "no pinned deployer or OPCM",
 		},
 		{
 			name:       "wrong deployer key",
@@ -160,9 +162,9 @@ func TestContinueStartupGates(t *testing.T) {
 			name:     "missing pinned OPCM",
 			chainIDs: []common.Hash{chainID},
 			mutate: func(_ *state.Intent, st *state.State) {
-				st.L1PredictOPCMAddress = nil
+				st.PreparedDeployment.OPCM = common.Address{}
 			},
-			wantErr: "no pinned OPCM address",
+			wantErr: "no pinned deployer or OPCM",
 		},
 		{
 			name:     "changed intent OPCM",
@@ -197,6 +199,7 @@ func TestContinueStartupGates(t *testing.T) {
 				Workdir:    workdir,
 				L1RPCUrl:   rpcURL,
 				PrivateKey: privateKey,
+				CacheDir:   t.TempDir(),
 				Logger:     log.NewLogger(log.DiscardHandler()),
 			})
 			require.ErrorContains(t, err, tt.wantErr)
@@ -210,6 +213,8 @@ func continueGateInputs(
 ) (*state.Intent, *state.State, string) {
 	t.Helper()
 	intent := newPrestateWorkflowIntent(t, chainIDs)
+	intent.L1ContractsLocator = artifacts.EmbeddedLocator
+	intent.L2ContractsLocator = artifacts.EmbeddedLocator
 	privateKey, err := crypto.HexToECDSA(testPrivKey)
 	require.NoError(t, err)
 	deployer := crypto.PubkeyToAddress(privateKey.PublicKey)
@@ -217,16 +222,18 @@ func continueGateInputs(
 	interopDepSet, err := pipeline.BuildInteropDepSet(intent.Chains)
 	require.NoError(t, err)
 	st := &state.State{
-		Version:                1,
-		Prepared:               true,
-		Create2Salt:            common.Hash{0x01},
-		L1PredictSenderAddress: &deployer,
-		L1PredictOPCMAddress:   &opcmAddress,
-		InteropDepSet:          interopDepSet,
+		Version:       1,
+		Create2Salt:   common.Hash{0x01},
+		InteropDepSet: interopDepSet,
 	}
 	for _, id := range chainIDs {
 		st.SetChainContracts(id, addresses.OpChainContracts{}, false)
+		st.PinChainAnchor(id, &state.L1BlockRefJSON{Hash: common.Hash{0x01}, Number: 1, Time: 1}, 2)
 	}
+	bundle, err := artifacts.DownloadBundle(t.Context(), intent.L1ContractsLocator, intent.L2ContractsLocator, ioutil.NoopProgressor(), t.TempDir())
+	require.NoError(t, err)
+	st.PreparedDeployment, err = pipeline.NewPreparedDeployment(intent, st, deployer, opcmAddress, bundle)
+	require.NoError(t, err)
 	return intent, st, t.TempDir()
 }
 
@@ -291,32 +298,16 @@ func TestValidateContinuationReceipts(t *testing.T) {
 	), "receipt status")
 }
 
-func TestContinuationExpectedContractsAreImmutable(t *testing.T) {
+func TestContinuationExpectedStateUsesPreparedContracts(t *testing.T) {
 	chainID := common.HexToHash("0x01")
 	expected := addressesForValidationTest()
-	chainState := &state.ChainState{ID: chainID}
-
-	require.NoError(t, setContinuationExpectedContracts(chainState, expected))
-	require.NotNil(t, chainState.Continuation)
-	require.Equal(t, expected, *chainState.Continuation.ExpectedContracts)
-
-	changed := expected
-	changed.SystemConfigProxy = common.Address{0xff}
-	require.ErrorContains(
-		t,
-		setContinuationExpectedContracts(chainState, changed),
-		"snapshot changed",
-	)
-	require.Equal(t, expected, *chainState.Continuation.ExpectedContracts)
-
-	chainState.Deployed = new(bool)
-	*chainState.Deployed = true
+	prepared := &state.PreparedChainState{ID: chainID, OpChainContracts: expected}
 	recorded := expected
 	recorded.FaultDisputeGameImpl = common.Address{0xaa}
-	chainState.OpChainContracts = recorded
-	prepared, err := continuationExpectedChainState(chainID, chainState)
-	require.NoError(t, err)
-	require.Equal(t, expected, prepared.OpChainContracts)
+	chainState := &state.ChainState{ID: chainID, OpChainContracts: recorded}
+
+	got := continuationExpectedChainState(prepared, chainState)
+	require.Equal(t, expected, got.OpChainContracts)
 	require.Equal(t, recorded, chainState.OpChainContracts)
 }
 
@@ -338,25 +329,8 @@ func TestValidateContinuationGameTypes(t *testing.T) {
 	}), "cannot mix CANNON_KONA and SUPER_CANNON_KONA")
 }
 
-func TestContinuationExpectedContractsRejectLegacyCheckpoint(t *testing.T) {
-	chainID := common.HexToHash("0x01")
-	_, err := continuationExpectedChainState(chainID, &state.ChainState{})
-	require.ErrorContains(t, err, "no prepared expected-contract snapshot")
-
-	expected := addressesForValidationTest()
-	txHash := common.HexToHash("0x02")
-	_, err = continuationExpectedChainState(chainID, &state.ChainState{
-		Continuation: &state.ContinuationState{
-			ExpectedContracts: &expected,
-			TxHash:            &txHash,
-		},
-	})
-	require.ErrorContains(t, err, "incomplete continuation receipt metadata")
-}
-
 func TestSetContinuationReceipt(t *testing.T) {
 	chainState := new(state.ChainState)
-	expected := addressesForValidationTest()
 	txHash := common.HexToHash("0x11")
 	blockHash := common.HexToHash("0x22")
 	result := broadcaster.BroadcastResult{
@@ -368,16 +342,12 @@ func TestSetContinuationReceipt(t *testing.T) {
 		},
 	}
 
-	require.NoError(t, setContinuationReceipt(chainState, expected, result))
-	require.Equal(t, expected, *chainState.Continuation.ExpectedContracts)
+	require.NoError(t, setContinuationReceipt(chainState, result))
 	require.Equal(t, txHash, *chainState.Continuation.TxHash)
 	require.EqualValues(t, 123, *chainState.Continuation.ReceiptBlockNumber)
 	require.Equal(t, blockHash, *chainState.Continuation.ReceiptBlockHash)
 	require.False(t, chainState.Continuation.LiveValidated)
 
-	changed := expected
-	changed.SystemConfigProxy = common.Address{0xff}
-	require.ErrorContains(t, setContinuationReceipt(chainState, changed, result), "snapshot changed")
 }
 
 func TestClassifyContinuationAddresses(t *testing.T) {

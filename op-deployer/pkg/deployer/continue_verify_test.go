@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
-	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -126,7 +125,6 @@ func newContinuationVerificationFixtureWithMode(
 	expected := &state.ChainState{
 		ID:                 common.HexToHash("0x44"),
 		OpChainContracts:   contracts,
-		InitialGameType:    ptr.New(uint32(gameType)),
 		Prestate:           selectedPrestate,
 		StartingAnchorRoot: startingAnchor,
 	}

@@ -223,48 +223,6 @@ func ResolveChainProofParams(intent *state.Intent, chain *state.ChainIntent) (st
 	)
 }
 
-// ResolvePreparedGameType returns the initial game type recorded by prepare after
-// verifying that the current intent still resolves to the same type.
-func ResolvePreparedGameType(intent *state.Intent, chain *state.ChainIntent, chainState *state.ChainState) (uint32, error) {
-	if chainState == nil || chainState.InitialGameType == nil {
-		return 0, fmt.Errorf("chain %s has no initial game type recorded by prepare; rerun op-deployer prepare", chain.ID.Hex())
-	}
-
-	proofParams, err := ResolveChainProofParams(intent, chain)
-	if err != nil {
-		return 0, fmt.Errorf("failed to resolve initial dispute game type for chain %s: %w", chain.ID.Hex(), err)
-	}
-
-	prepared := *chainState.InitialGameType
-	current := proofParams.DisputeGameType
-	if prepared != current {
-		return 0, fmt.Errorf(
-			"chain %s initial game type changed after prepare: prepared %s (%d), intent %s (%d); rerun op-deployer prepare",
-			chain.ID.Hex(),
-			initialGameTypeName(prepared),
-			prepared,
-			initialGameTypeName(current),
-			current,
-		)
-	}
-	return prepared, nil
-}
-
-func initialGameTypeName(gameType uint32) string {
-	switch embedded.GameType(gameType) {
-	case embedded.GameTypePermissionedCannon:
-		return "PERMISSIONED_CANNON"
-	case embedded.GameTypeSuperPermissioned:
-		return "SUPER_PERMISSIONED"
-	case embedded.GameTypeCannonKona:
-		return "CANNON_KONA"
-	case embedded.GameTypeSuperCannonKona:
-		return "SUPER_CANNON_KONA"
-	default:
-		return "UNKNOWN"
-	}
-}
-
 // InitialDeployRequirements defines initial game deployment requirements.
 type InitialDeployRequirements struct {
 	Permissionless   bool
@@ -311,24 +269,29 @@ func ResolveInitialDeployRequirements(gameType uint32) (InitialDeployRequirement
 	}
 }
 
-// BuildContinuationDCI builds deployment input from prepared state.
-func BuildContinuationDCI(intent *state.Intent, chainID common.Hash, st *state.State) (opcm.DeployOPChainInput, error) {
-	if st == nil || !st.Prepared {
+// BuildContinuationDCI uses the values saved by prepare.
+// It reads Prestate and StartingAnchorRoot from ChainState because later steps set them.
+func BuildContinuationDCI(chainID common.Hash, st *state.State) (opcm.DeployOPChainInput, error) {
+	if st == nil || st.PreparedDeployment == nil || st.PreparedDeployment.Intent == nil {
 		return opcm.DeployOPChainInput{}, fmt.Errorf("state was not produced by op-deployer prepare. Run op-deployer prepare")
 	}
+	prepared := st.PreparedDeployment
 	if st.Create2Salt == (common.Hash{}) {
 		return opcm.DeployOPChainInput{}, fmt.Errorf("prepared state has no CREATE2 salt. Rerun op-deployer prepare")
 	}
-	if st.L1PredictSenderAddress == nil || *st.L1PredictSenderAddress == (common.Address{}) {
+	if prepared.Deployer == (common.Address{}) {
 		return opcm.DeployOPChainInput{}, fmt.Errorf("prepared state has no predicted sender address. Rerun op-deployer prepare")
 	}
-	if st.L1PredictOPCMAddress == nil || *st.L1PredictOPCMAddress == (common.Address{}) {
+	if prepared.OPCM == (common.Address{}) {
 		return opcm.DeployOPChainInput{}, fmt.Errorf("prepared state has no predicted OPCM address. Rerun op-deployer prepare")
 	}
-	if intent == nil || intent.SuperchainConfigProxy == nil || *intent.SuperchainConfigProxy == (common.Address{}) {
+	if prepared.Intent.SuperchainConfigProxy == nil || *prepared.Intent.SuperchainConfigProxy == (common.Address{}) {
 		return opcm.DeployOPChainInput{}, fmt.Errorf("intent.superchainConfigProxy must be set")
 	}
 
+	if _, err := prepared.Chain(chainID); err != nil {
+		return opcm.DeployOPChainInput{}, err
+	}
 	chainState, err := st.Chain(chainID)
 	if err != nil {
 		return opcm.DeployOPChainInput{}, fmt.Errorf(
@@ -337,27 +300,22 @@ func BuildContinuationDCI(intent *state.Intent, chainID common.Hash, st *state.S
 			err,
 		)
 	}
-	thisIntent, err := intent.Chain(chainID)
+	thisIntent, err := prepared.Intent.Chain(chainID)
 	if err != nil {
-		return opcm.DeployOPChainInput{}, fmt.Errorf("failed to get chain intent: %w", err)
+		return opcm.DeployOPChainInput{}, fmt.Errorf("failed to get prepared chain intent: %w", err)
 	}
 
-	preparedGameType, err := ResolvePreparedGameType(intent, thisIntent, chainState)
+	proofParams, err := ResolveChainProofParams(prepared.Intent, thisIntent)
 	if err != nil {
-		return opcm.DeployOPChainInput{}, err
+		return opcm.DeployOPChainInput{}, fmt.Errorf("error merging prepared proof params: %w", err)
 	}
-	requirements, err := ResolveInitialDeployRequirements(preparedGameType)
+	requirements, err := ResolveInitialDeployRequirements(proofParams.DisputeGameType)
 	if err != nil {
 		return opcm.DeployOPChainInput{}, fmt.Errorf(
 			"chain %s has an invalid prepared game type: %w. Rerun op-deployer prepare",
 			chainID.Hex(),
 			err,
 		)
-	}
-
-	proofParams, err := ResolveChainProofParams(intent, thisIntent)
-	if err != nil {
-		return opcm.DeployOPChainInput{}, fmt.Errorf("error merging proof params from overrides: %w", err)
 	}
 
 	if requirements.RequiresPrestate {
@@ -370,13 +328,6 @@ func BuildContinuationDCI(intent *state.Intent, chainID common.Hash, st *state.S
 		if chainState.Prestate == opcm.PermissionedCannonFallbackPrestatePlaceholder {
 			return opcm.DeployOPChainInput{}, fmt.Errorf(
 				"chain %s has the reserved permissioned prestate placeholder committed. Rerun op-deployer prestate",
-				chainID.Hex(),
-			)
-		}
-		if hasFaultGameAbsolutePrestateOverride(intent, thisIntent) &&
-			proofParams.DisputeAbsolutePrestate != chainState.Prestate {
-			return opcm.DeployOPChainInput{}, fmt.Errorf(
-				"chain %s faultGameAbsolutePrestate override differs from the committed prestate. Rerun op-deployer prestate",
 				chainID.Hex(),
 			)
 		}
@@ -423,22 +374,14 @@ func BuildContinuationDCI(intent *state.Intent, chainID common.Hash, st *state.S
 	return BuildDeployOPChainInput(
 		proofParams,
 		thisIntent.Roles,
-		*st.L1PredictOPCMAddress,
-		*intent.SuperchainConfigProxy,
+		prepared.OPCM,
+		*prepared.Intent.SuperchainConfigProxy,
 		chainID,
 		st.Create2Salt.String(),
 		thisIntent.GasLimit,
 		startingAnchorRoot,
 		thisIntent,
 	), nil
-}
-
-func hasFaultGameAbsolutePrestateOverride(intent *state.Intent, chain *state.ChainIntent) bool {
-	if _, ok := chain.DeployOverrides[state.FaultGameAbsolutePrestateOverrideKey]; ok {
-		return true
-	}
-	_, ok := intent.GlobalDeployOverrides[state.FaultGameAbsolutePrestateOverrideKey]
-	return ok
 }
 
 func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common.Hash, st *state.State) (opcm.DeployOPChainInput, error) {
