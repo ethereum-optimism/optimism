@@ -2616,6 +2616,8 @@
                   "/op-stack/components/op-proposer",
                   "/op-stack/components/op-challenger",
                   "/op-stack/components/cannon",
+                  "/op-stack/components/kona-client",
+                  "/op-stack/components/kona-host",
                   "/op-stack/components/op-contracts"
                 ]
               },
