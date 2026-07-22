@@ -524,8 +524,9 @@ func (r *supernodeFrontend) Running() bool {
 
 type conductorFrontend struct {
 	presetCommon
-	chainID eth.ChainID
-	api     conductorRpc.API
+	chainID   eth.ChainID
+	api       conductorRpc.API
+	rpcClient opclient.RPC
 }
 
 var _ stack.Conductor = (*conductorFrontend)(nil)
@@ -536,6 +537,7 @@ func newPresetConductor(t devtest.T, name string, chainID eth.ChainID, rpcCl *ge
 		presetCommon: newPresetCommon(t, name),
 		chainID:      chainID,
 		api:          conductorRpc.NewAPIClient(rpcCl),
+		rpcClient:    opclient.NewBaseRPCClient(rpcCl),
 	}
 }
 
@@ -545,6 +547,10 @@ func (r *conductorFrontend) ChainID() eth.ChainID {
 
 func (r *conductorFrontend) RpcAPI() conductorRpc.API {
 	return r.api
+}
+
+func (r *conductorFrontend) ProxyRPC() opclient.RPC {
+	return r.rpcClient
 }
 
 type testSequencerFrontend struct {

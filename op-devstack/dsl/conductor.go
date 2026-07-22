@@ -2,6 +2,7 @@ package dsl
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -236,6 +237,50 @@ func (c *Conductor) isLeader() (bool, error) {
 	ctx, cancel := context.WithTimeout(c.ctx, DefaultTimeout)
 	defer cancel()
 	return c.inner.RpcAPI().Leader(ctx)
+}
+
+// proxiedSequencerAPIProbes names one representative request per API family
+// op-conductor proxies for the leader: execution (eth_*), rollup (optimism_*),
+// and node admin (admin_*).
+var proxiedSequencerAPIProbes = []struct {
+	method string
+	args   []any
+}{
+	{method: "eth_getBlockByNumber", args: []any{"latest", false}},
+	{method: "optimism_syncStatus"},
+	{method: "admin_sequencerActive"},
+}
+
+// VerifyProxyServesSequencerAPIs verifies this conductor's RPC endpoint
+// forwards execution, rollup, and admin requests to its sequencer. Conductors
+// only proxy for the leader, so this asserts the leader-facing side of the
+// proxy contract; batchers and proposers rely on it to follow the active
+// sequencer.
+func (c *Conductor) VerifyProxyServesSequencerAPIs() {
+	for _, probe := range proxiedSequencerAPIProbes {
+		ctx, cancel := context.WithTimeout(c.ctx, DefaultTimeout)
+		var result json.RawMessage
+		err := c.inner.ProxyRPC().CallContext(ctx, &result, probe.method, probe.args...)
+		cancel()
+		c.require.NoErrorf(err, "expected conductor %s to proxy %s to its sequencer", c, probe.method)
+	}
+	c.log.Info("Verified conductor proxies sequencer APIs", "conductor", c)
+}
+
+// VerifyProxyRefusesSequencerAPIs verifies this conductor's RPC endpoint
+// refuses to proxy sequencer requests, as it must while it is not the leader —
+// otherwise a batcher following the conductor endpoints could read from a
+// stale sequencer.
+func (c *Conductor) VerifyProxyRefusesSequencerAPIs() {
+	for _, probe := range proxiedSequencerAPIProbes {
+		ctx, cancel := context.WithTimeout(c.ctx, DefaultTimeout)
+		var result json.RawMessage
+		err := c.inner.ProxyRPC().CallContext(ctx, &result, probe.method, probe.args...)
+		cancel()
+		c.require.ErrorContainsf(err, "refusing to proxy request to non-leader sequencer",
+			"expected conductor %s to refuse proxying %s", c, probe.method)
+	}
+	c.log.Info("Verified conductor refuses to proxy sequencer APIs", "conductor", c)
 }
 
 // waitForLeadership waits until this conductor's Raft leadership matches want.
