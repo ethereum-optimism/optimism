@@ -25,7 +25,8 @@ func (s ConductorSet) common() commonImpl {
 	return s[0].commonImpl
 }
 
-// Without returns the set without the given conductor.
+// Without returns the set without the given conductor, e.g. the survivors of
+// an injected failure.
 func (s ConductorSet) Without(exclude *Conductor) ConductorSet {
 	out := make(ConductorSet, 0, len(s))
 	for _, c := range s {
@@ -211,6 +212,11 @@ func (c *Conductor) waitForLeadership(want bool) {
 		return nil
 	})
 	c.require.NoErrorf(err, "conductor %s never reached leadership=%v", c, want)
+}
+
+// AwaitNotLeader waits until this conductor no longer reports Raft leadership.
+func (c *Conductor) AwaitNotLeader() {
+	c.waitForLeadership(false)
 }
 
 // sequencerHealthy reports this conductor's view of its sequencer's health and
