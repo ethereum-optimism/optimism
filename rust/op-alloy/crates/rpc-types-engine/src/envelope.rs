@@ -640,7 +640,7 @@ impl PayloadHash {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_primitives::b256;
+    use alloy_primitives::{Bytes, b256};
 
     #[test]
     #[cfg(feature = "std")]
@@ -733,14 +733,18 @@ mod tests {
         assert_eq!(data, encoded);
     }
 
-    // Helper function to create a test flashblock
     #[cfg(test)]
-    fn create_test_flashblock(index: u64, with_base: bool) -> OpFlashblockPayload {
+    fn create_test_flashblock(
+        index: u64,
+        with_base: bool,
+        transactions: Vec<Bytes>,
+        post_exec_tx: Option<Bytes>,
+    ) -> OpFlashblockPayload {
         use crate::flashblock::{
             OpFlashblockPayloadBase, OpFlashblockPayloadDelta, OpFlashblockPayloadMetadata,
         };
         use alloc::collections::BTreeMap;
-        use alloy_primitives::{Address, Bloom, Bytes, U256};
+        use alloy_primitives::{Address, Bloom, U256};
         use alloy_rpc_types_engine::PayloadId;
 
         let base = with_base.then(|| OpFlashblockPayloadBase {
@@ -761,11 +765,11 @@ mod tests {
             logs_bloom: Bloom::ZERO,
             gas_used: 21000,
             block_hash: B256::ZERO,
-            transactions: Vec::new(),
+            transactions,
             withdrawals: Vec::new(),
             withdrawals_root: B256::from([1u8; 32]), // Non-zero for Isthmus
             blob_gas_used: Some(0),
-            post_exec_tx: None,
+            post_exec_tx,
         };
 
         let metadata = OpFlashblockPayloadMetadata {
@@ -785,8 +789,8 @@ mod tests {
 
     #[test]
     fn test_from_flashblocks_non_sequential_indices() {
-        let fb1 = create_test_flashblock(0, true);
-        let fb2 = create_test_flashblock(2, false); // Skip index 1
+        let fb1 = create_test_flashblock(0, true, Vec::new(), None);
+        let fb2 = create_test_flashblock(2, false, Vec::new(), None); // Skip index 1
 
         let result = OpExecutionData::from_flashblocks(&[fb1, fb2]);
         assert!(matches!(result, Err(OpFlashblockError::InvalidIndex)));
@@ -794,7 +798,7 @@ mod tests {
 
     #[test]
     fn test_from_flashblocks_missing_base_in_first() {
-        let fb1 = create_test_flashblock(0, false); // First should have base
+        let fb1 = create_test_flashblock(0, false, Vec::new(), None); // First should have base
 
         let result = OpExecutionData::from_flashblocks(&[fb1]);
         assert!(matches!(result, Err(OpFlashblockError::MissingBasePayload)));
@@ -802,8 +806,8 @@ mod tests {
 
     #[test]
     fn test_from_flashblocks_unexpected_base_in_second() {
-        let fb1 = create_test_flashblock(0, true);
-        let fb2 = create_test_flashblock(1, true); // Should not have base
+        let fb1 = create_test_flashblock(0, true, Vec::new(), None);
+        let fb2 = create_test_flashblock(1, true, Vec::new(), None); // Should not have base
 
         let result = OpExecutionData::from_flashblocks(&[fb1, fb2]);
         assert!(matches!(result, Err(OpFlashblockError::UnexpectedBasePayload)));
@@ -811,7 +815,7 @@ mod tests {
 
     #[test]
     fn test_from_flashblocks_single_valid_flashblock() {
-        let fb1 = create_test_flashblock(0, true);
+        let fb1 = create_test_flashblock(0, true, Vec::new(), None);
 
         let result = OpExecutionData::from_flashblocks(&[fb1]);
         assert!(result.is_ok(), "Single valid flashblock should succeed");
@@ -819,9 +823,9 @@ mod tests {
 
     #[test]
     fn test_from_flashblocks_multiple_valid_flashblocks() {
-        let fb1 = create_test_flashblock(0, true);
-        let fb2 = create_test_flashblock(1, false);
-        let fb3 = create_test_flashblock(2, false);
+        let fb1 = create_test_flashblock(0, true, Vec::new(), None);
+        let fb2 = create_test_flashblock(1, false, Vec::new(), None);
+        let fb3 = create_test_flashblock(2, false, Vec::new(), None);
 
         let result = OpExecutionData::from_flashblocks(&[fb1, fb2, fb3]);
         assert!(result.is_ok(), "Multiple valid flashblocks should succeed");
@@ -829,41 +833,47 @@ mod tests {
 
     #[test]
     fn test_from_flashblocks_wrong_first_index() {
-        let fb1 = create_test_flashblock(1, true); // Should be index 0
+        let fb1 = create_test_flashblock(1, true, Vec::new(), None); // Should be index 0
         let result = OpExecutionData::from_flashblocks(&[fb1]);
         assert!(matches!(result, Err(OpFlashblockError::InvalidIndex)));
     }
 
     #[test]
     fn test_from_subblocks_appends_latest_post_exec_tx() {
-        use alloy_primitives::Bytes;
-
-        let mk = |index: u64, with_base: bool, tx: u8, post_exec: Option<Bytes>| {
-            let mut subblock = create_test_flashblock(index, with_base);
-            subblock.diff.transactions = vec![Bytes::from(vec![tx])];
-            subblock.diff.post_exec_tx = post_exec;
-            subblock
-        };
         let older = Bytes::from(vec![0x7d, 0x01]);
         let latest = Bytes::from(vec![0x7d, 0x02]);
 
-        // Without post_exec_tx, materialization only concatenates regular transactions.
-        let none =
-            OpExecutionData::from_flashblocks(&[mk(0, true, 0x01, None), mk(1, false, 0x02, None)])
-                .unwrap();
+        let none = OpExecutionData::from_flashblocks(&[
+            create_test_flashblock(0, true, vec![Bytes::from(vec![0x01])], None),
+            create_test_flashblock(1, false, vec![Bytes::from(vec![0x02])], None),
+        ])
+        .unwrap();
         assert_eq!(none.payload.transactions().len(), 2, "no 0x7D should be appended");
 
-        // The latest subblock replaces prior values and is appended exactly once.
         let materialized = OpExecutionData::from_flashblocks(&[
-            mk(0, true, 0x01, Some(older.clone())),
-            mk(1, false, 0x02, Some(latest.clone())),
-            mk(2, false, 0x03, Some(latest.clone())),
+            create_test_flashblock(0, true, vec![Bytes::from(vec![0x01])], Some(older.clone())),
+            create_test_flashblock(1, false, vec![Bytes::from(vec![0x02])], Some(latest.clone())),
+            create_test_flashblock(2, false, vec![Bytes::from(vec![0x03])], Some(latest.clone())),
         ])
         .unwrap();
         let txs = materialized.payload.transactions();
         assert_eq!(txs.len(), 4, "3 user txs + exactly one trailing 0x7D");
         assert_eq!(txs.last(), Some(&latest), "the latest post_exec_tx must be the trailing tx");
         assert!(!txs.iter().any(|t| t == &older), "the superseded post_exec_tx must not appear");
+    }
+
+    #[test]
+    fn test_from_subblocks_preserves_empty_post_exec_tx() {
+        let empty = Bytes::new();
+        let materialized = OpExecutionData::from_flashblocks(&[create_test_flashblock(
+            0,
+            true,
+            Vec::new(),
+            Some(empty.clone()),
+        )])
+        .unwrap();
+
+        assert_eq!(materialized.payload.transactions().last(), Some(&empty));
     }
 
     // Real-world test case from Unichain Sepolia
