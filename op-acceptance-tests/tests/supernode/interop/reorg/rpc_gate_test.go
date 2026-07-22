@@ -72,6 +72,10 @@ func TestSupernodeInteropRPCGatedDuringReorg(gt *testing.T) {
 	// Recovery reorgs the invalid block out and replaces it with a valid one.
 	sys.L2ELB.ReorgTriggered(invalidRef, reorgWaitAttempts)
 
+	// The rewind leaves VN sequencing disabled; re-enable on both chains.
+	ensureSequencing(t, sys.L2ACL)
+	ensureSequencing(t, sys.L2BCL)
+
 	sys.Supernode.AwaitValidatedTimestamp(invalidBlockTimestamp)
 	sys.L2ELB.AssertTxNotInBlock(invalidBlockNumber, execMsg.Receipt.TxHash)
 
