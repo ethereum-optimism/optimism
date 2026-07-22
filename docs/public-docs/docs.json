@@ -1937,7 +1937,7 @@
     },
     {
       "source": "/rust/kona/run",
-      "destination": "/rust/kona/node/run/overview"
+      "destination": "/node-operators/kona-node/run/overview"
     },
     {
       "source": "/rust/kona/sdk/fpp-dev/io",
@@ -1954,6 +1954,90 @@
     {
       "source": "/app-developers/guides/superchain",
       "destination": "/op-stack/introduction/op-stack"
+    },
+    {
+      "source": "/rust/kona/node/requirements",
+      "destination": "/node-operators/kona-node/requirements"
+    },
+    {
+      "source": "/rust/kona/node/install/overview",
+      "destination": "/node-operators/kona-node/install/overview"
+    },
+    {
+      "source": "/rust/kona/node/install/binaries",
+      "destination": "/node-operators/kona-node/install/binaries"
+    },
+    {
+      "source": "/rust/kona/node/install/docker",
+      "destination": "/node-operators/kona-node/install/docker"
+    },
+    {
+      "source": "/rust/kona/node/install/source",
+      "destination": "/node-operators/kona-node/install/source"
+    },
+    {
+      "source": "/rust/kona/node/run/overview",
+      "destination": "/node-operators/kona-node/run/overview"
+    },
+    {
+      "source": "/rust/kona/node/run/binary",
+      "destination": "/node-operators/kona-node/run/binary"
+    },
+    {
+      "source": "/rust/kona/node/run/docker",
+      "destination": "/node-operators/kona-node/run/docker"
+    },
+    {
+      "source": "/rust/kona/node/run/mechanics",
+      "destination": "/node-operators/kona-node/run/mechanics"
+    },
+    {
+      "source": "/rust/kona/node/run/rpc-trust",
+      "destination": "/node-operators/kona-node/run/rpc-trust"
+    },
+    {
+      "source": "/rust/kona/node/run/sequencer",
+      "destination": "/node-operators/kona-node/run/sequencer"
+    },
+    {
+      "source": "/rust/kona/node/rpc/overview",
+      "destination": "/node-operators/kona-node/rpc/overview"
+    },
+    {
+      "source": "/rust/kona/node/rpc/p2p",
+      "destination": "/node-operators/kona-node/rpc/p2p"
+    },
+    {
+      "source": "/rust/kona/node/rpc/rollup",
+      "destination": "/node-operators/kona-node/rpc/rollup"
+    },
+    {
+      "source": "/rust/kona/node/rpc/admin",
+      "destination": "/node-operators/kona-node/rpc/admin"
+    },
+    {
+      "source": "/rust/kona/node/configuration",
+      "destination": "/node-operators/kona-node/configuration"
+    },
+    {
+      "source": "/rust/kona/node/monitoring",
+      "destination": "/node-operators/kona-node/monitoring"
+    },
+    {
+      "source": "/rust/kona/node/subcommands",
+      "destination": "/node-operators/kona-node/subcommands"
+    },
+    {
+      "source": "/rust/kona/node/faq/overview",
+      "destination": "/node-operators/kona-node/faq/overview"
+    },
+    {
+      "source": "/rust/kona/node/faq/ports",
+      "destination": "/node-operators/kona-node/faq/ports"
+    },
+    {
+      "source": "/rust/kona/node/faq/profiling",
+      "destination": "/node-operators/kona-node/faq/profiling"
     }
   ],
   "interaction": {
@@ -2177,6 +2261,53 @@
               "node-operators/tutorials/node-from-docker",
               "node-operators/tutorials/run-node-from-source",
               "node-operators/tutorials/reth-historical-proofs"
+            ]
+          },
+          {
+            "group": "Kona Node",
+            "tag": "Rust",
+            "pages": [
+              "node-operators/kona-node/requirements",
+              {
+                "group": "Installation",
+                "pages": [
+                  "node-operators/kona-node/install/overview",
+                  "node-operators/kona-node/install/binaries",
+                  "node-operators/kona-node/install/docker",
+                  "node-operators/kona-node/install/source"
+                ]
+              },
+              {
+                "group": "Run a Node",
+                "pages": [
+                  "node-operators/kona-node/run/overview",
+                  "node-operators/kona-node/run/binary",
+                  "node-operators/kona-node/run/docker",
+                  "node-operators/kona-node/run/mechanics",
+                  "node-operators/kona-node/run/rpc-trust",
+                  "node-operators/kona-node/run/sequencer"
+                ]
+              },
+              {
+                "group": "JSON-RPC Reference",
+                "pages": [
+                  "node-operators/kona-node/rpc/overview",
+                  "node-operators/kona-node/rpc/p2p",
+                  "node-operators/kona-node/rpc/rollup",
+                  "node-operators/kona-node/rpc/admin"
+                ]
+              },
+              "node-operators/kona-node/configuration",
+              "node-operators/kona-node/monitoring",
+              "node-operators/kona-node/subcommands",
+              {
+                "group": "FAQ",
+                "pages": [
+                  "node-operators/kona-node/faq/overview",
+                  "node-operators/kona-node/faq/ports",
+                  "node-operators/kona-node/faq/profiling"
+                ]
+              }
             ]
           },
           {
@@ -2431,7 +2562,8 @@
               {
                 "group": "Derivation & Execution",
                 "pages": [
-                  "/op-stack/components/op-node"
+                  "/op-stack/components/op-node",
+                  "/op-stack/components/kona-node"
                 ]
               },
               {
@@ -2679,52 +2811,6 @@
               "rust/kona/intro/contributing",
               "rust/kona/intro/lore",
               "rust/kona/glossary"
-            ]
-          },
-          {
-            "group": "Kona - Kona for Node Operators",
-            "pages": [
-              "rust/kona/node/requirements",
-              {
-                "group": "Installation",
-                "pages": [
-                  "rust/kona/node/install/overview",
-                  "rust/kona/node/install/binaries",
-                  "rust/kona/node/install/docker",
-                  "rust/kona/node/install/source"
-                ]
-              },
-              {
-                "group": "Run a Node",
-                "pages": [
-                  "rust/kona/node/run/overview",
-                  "rust/kona/node/run/binary",
-                  "rust/kona/node/run/docker",
-                  "rust/kona/node/run/mechanics",
-                  "rust/kona/node/run/rpc-trust",
-                  "rust/kona/node/run/sequencer"
-                ]
-              },
-              {
-                "group": "JSON-RPC Reference",
-                "pages": [
-                  "rust/kona/node/rpc/overview",
-                  "rust/kona/node/rpc/p2p",
-                  "rust/kona/node/rpc/rollup",
-                  "rust/kona/node/rpc/admin"
-                ]
-              },
-              "rust/kona/node/configuration",
-              "rust/kona/node/monitoring",
-              "rust/kona/node/subcommands",
-              {
-                "group": "FAQ",
-                "pages": [
-                  "rust/kona/node/faq/overview",
-                  "rust/kona/node/faq/ports",
-                  "rust/kona/node/faq/profiling"
-                ]
-              }
             ]
           },
           {

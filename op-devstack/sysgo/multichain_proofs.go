@@ -2,10 +2,12 @@ package sysgo
 
 import (
 	"context"
+	"math/big"
 	"runtime"
 	"sort"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
@@ -30,9 +32,11 @@ import (
 )
 
 func withSuperProofsDeployerFeature(cfg PresetConfig) PresetConfig {
-	cfg.DeployerOptions = append([]DeployerOption{
-		WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag),
-	}, cfg.DeployerOptions...)
+	features := []DeployerOption{WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag)}
+	if cfg.ZKDisputeGame != nil {
+		features = append(features, WithDevFeatureEnabled(devfeatures.ZKDisputeGameFlag))
+	}
+	cfg.DeployerOptions = append(features, cfg.DeployerOptions...)
 	return cfg
 }
 
@@ -65,7 +69,27 @@ func attachSupernodeSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg Pre
 	superrootTime := awaitSuperrootTime(t, cls...)
 	if cfg.PreGenesisSuperGame == nil {
 		superRoot := getSupernodeSuperRoot(t, runtime.Supernode, superrootTime)
-		migrateSuperRoots(t, runtime.Keys, runtime.Migration, runtime.L1Network.ChainID(), runtime.L1EL, superRoot, superrootTime, proofChain.Network.ChainID())
+		startingAnchor := Proposal{
+			Root:             common.Hash(superRoot),
+			L2SequenceNumber: new(big.Int).SetUint64(superrootTime),
+		}
+		sharedDGF := migrateSuperRootsWithProposal(t, runtime.Keys, runtime.Migration, runtime.L1Network.ChainID(), runtime.L1EL, startingAnchor, proofChain.Network.ChainID())
+		if cfg.ZKDisputeGame != nil {
+			setInteropZKDisputeGameForRuntime(
+				t,
+				runtime.Keys,
+				runtime.Migration,
+				runtime.L1Network.ChainID(),
+				runtime.L1EL,
+				startingAnchor,
+				sharedDGF,
+				*cfg.ZKDisputeGame,
+			)
+			// TODO(#21463): Start the production proposer once it supports super ZK games.
+			// TODO(#21415): Start the production challenger once it supports the new ZK game API.
+			// Acceptance tests currently drive the game lifecycle explicitly through the DSL.
+			return runtime
+		}
 	}
 
 	attachSuperChallengerAndProposer(t, runtime, cfg, gameTypes.SuperCannonKonaGameType)
@@ -151,6 +175,10 @@ func attachSuperChallengerAndProposer(
 // NewTwoL2SupernodeProofsRuntimeWithConfig creates a two-chain supernode proofs
 // runtime. lagoonAtGenesis controls whether Lagoon activates interop at genesis.
 func NewTwoL2SupernodeProofsRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool, cfg PresetConfig) *MultiChainRuntime {
+	if cfg.ZKDisputeGame != nil {
+		t.Require().NoError(cfg.ZKDisputeGame.validate(), "invalid ZK dispute game config")
+		t.Require().Nil(cfg.PreGenesisSuperGame, "ZK dispute game does not support the pre-genesis game fixture")
+	}
 	cfg = withSuperProofsDeployerFeature(cfg)
 	runtime, _ := newTwoL2SupernodeRuntimeWithConfig(t, lagoonAtGenesis, 0, cfg)
 	attachTestSequencerToRuntime(t, runtime, "test-sequencer-2l2")
