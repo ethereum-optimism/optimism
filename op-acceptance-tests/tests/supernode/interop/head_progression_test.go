@@ -79,11 +79,21 @@ func TestSupernodeInterop_SafeHeadProgression(gt *testing.T) {
 	// Resume interop verification
 	// expect cross safe to catch up on both CL and EL
 	sys.Supernode.ResumeInterop()
+	// Catching up after resume is gated both by interop verification of the
+	// backlog and by continued block production, either of which can transiently
+	// stall under CI load (an EL momentarily starved of CPU can halt block
+	// production for tens of seconds before recovering on its own). A fixed
+	// attempt budget turns such a self-recovering stall into a flake. Wait
+	// progress-aware instead: keep a generous budget while the unsafe head keeps
+	// advancing, but fail fast if it stops advancing entirely (a genuine hang
+	// rather than slowness). See dsl.(*L2CLNode).ReachedWithProgressFn.
+	const catchUpMaxWait = 120 * time.Second
+	const catchUpStallTimeout = 40 * time.Second
 	dsl.CheckAll(t,
-		sys.L2ACL.ReachedFn(safety.CrossSafe, finalTargetBlockNum, attempts),
-		sys.L2BCL.ReachedFn(safety.CrossSafe, finalTargetBlockNum, attempts),
-		sys.L2ELA.ReachedFn(eth.Safe, finalTargetBlockNum, attempts),
-		sys.L2ELB.ReachedFn(eth.Safe, finalTargetBlockNum, attempts),
+		sys.L2ACL.ReachedWithProgressFn(safety.CrossSafe, safety.LocalUnsafe, finalTargetBlockNum, catchUpMaxWait, catchUpStallTimeout),
+		sys.L2BCL.ReachedWithProgressFn(safety.CrossSafe, safety.LocalUnsafe, finalTargetBlockNum, catchUpMaxWait, catchUpStallTimeout),
+		sys.L2ELA.ReachedWithProgressFn(eth.Safe, eth.Unsafe, finalTargetBlockNum, catchUpMaxWait, catchUpStallTimeout),
+		sys.L2ELB.ReachedWithProgressFn(eth.Safe, eth.Unsafe, finalTargetBlockNum, catchUpMaxWait, catchUpStallTimeout),
 	)
 
 	// check EL labels

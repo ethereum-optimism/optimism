@@ -305,6 +305,69 @@ func (cl *L2CLNode) ReachedFn(lvl safety.Level, target uint64, attempts int) Che
 	}
 }
 
+// ReachedWithProgressFn waits for the head at lvl to reach target, but instead
+// of a fixed attempt budget it distinguishes a self-recovering slowdown from a
+// genuinely stuck pipeline. It succeeds as soon as lvl reaches target. It fails
+// when either:
+//   - progressLvl (a strictly more-live head, e.g. LocalUnsafe) has not advanced
+//     for stallTimeout — the node is genuinely wedged, not merely slow; or
+//   - the overall maxWait elapses.
+//
+// This is the "reach a target" analogue of MatchedWithProgressFn. Use it for a
+// catch-up wait whose target head is gated by a pipeline that can transiently
+// stall under load (e.g. CrossSafe catching up after interop resumes, where the
+// EL can be briefly starved) without masking a permanent hang: as long as the
+// chain keeps producing blocks the budget stays generous, but a chain that stops
+// advancing entirely fails fast. Polls every 2s.
+func (cl *L2CLNode) ReachedWithProgressFn(lvl, progressLvl safety.Level, target uint64, maxWait, stallTimeout time.Duration) CheckFunc {
+	return func() error {
+		logger := cl.log.With("name", cl.inner.Name(), "chain", cl.ChainID(), "label", lvl, "progress_label", progressLvl, "target", target)
+		logger.Info("Expecting chain to reach (progress-aware)", "max_wait", maxWait, "stall_timeout", stallTimeout)
+
+		deadline := time.Now().Add(maxWait)
+		lastProgress := uint64(0)
+		if p, err := cl.headBlockRef(progressLvl); err == nil {
+			lastProgress = p.Number
+		}
+		lastProgressTime := time.Now()
+
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			if head, err := cl.headBlockRef(lvl); err != nil {
+				logger.Warn("SyncStatus RPC failed; will retry", "err", err)
+			} else if head.Number >= target {
+				logger.Info("Chain advanced", "target", target)
+				return nil
+			}
+
+			now := time.Now()
+			if p, err := cl.headBlockRef(progressLvl); err != nil {
+				logger.Warn("progress-head lookup failed; will retry", "err", err)
+			} else if p.Number > lastProgress {
+				lastProgress = p.Number
+				lastProgressTime = now
+			}
+
+			stalledFor := now.Sub(lastProgressTime)
+			logger.Info("Chain sync status (progress-aware)", "progress", lastProgress, "stalled_for", stalledFor)
+			if stalledFor >= stallTimeout {
+				return fmt.Errorf("expected head to advance: %s: %s progress stalled at %d for %s", lvl, progressLvl, lastProgress, stalledFor)
+			}
+			if now.After(deadline) {
+				return fmt.Errorf("expected head to advance: %s: timeout after %s (progress at %d)", lvl, maxWait, lastProgress)
+			}
+
+			select {
+			case <-cl.ctx.Done():
+				return cl.ctx.Err()
+			case <-ticker.C:
+			}
+		}
+	}
+}
+
 // ReachedRefFn is same as Reached, but has an additional check to ensure that the block referenced is not reorged
 // Composable with other lambdas to wait in parallel
 func (cl *L2CLNode) ReachedRefFn(lvl safety.Level, target eth.BlockID, attempts int) CheckFunc {

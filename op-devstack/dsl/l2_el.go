@@ -194,6 +194,63 @@ func (el *L2ELNode) ReachedFn(label eth.BlockLabel, target uint64, attempts int)
 	}
 }
 
+// ReachedWithProgressFn is the progress-aware analogue of ReachedFn: it waits
+// for the head at label to reach target, tolerating a self-recovering slowdown
+// while failing fast on a genuinely stuck node. It succeeds when label reaches
+// target, and fails when either progressLabel (a strictly more-live label, e.g.
+// eth.Unsafe) has not advanced for stallTimeout, or the overall maxWait elapses.
+// Use it for a catch-up wait whose target head is gated by a pipeline that can
+// transiently stall under load (e.g. the EL safe label catching up after interop
+// resumes). Polls every 2s. See L2CLNode.ReachedWithProgressFn.
+func (el *L2ELNode) ReachedWithProgressFn(label, progressLabel eth.BlockLabel, target uint64, maxWait, stallTimeout time.Duration) CheckFunc {
+	return func() error {
+		logger := el.log.With("name", el.inner.Name(), "chain", el.ChainID(), "label", label, "progress_label", progressLabel, "target", target)
+		logger.Info("Expecting L2EL to reach (progress-aware)", "max_wait", maxWait, "stall_timeout", stallTimeout)
+
+		deadline := time.Now().Add(maxWait)
+		lastProgress := uint64(0)
+		if p, err := el.blockRefByLabel(progressLabel); err == nil {
+			lastProgress = p.Number
+		}
+		lastProgressTime := time.Now()
+
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			if head, err := el.blockRefByLabel(label); err != nil {
+				logger.Warn("block-label lookup failed; will retry", "err", err)
+			} else if head.Number >= target {
+				logger.Info("L2EL advanced", "target", target)
+				return nil
+			}
+
+			now := time.Now()
+			if p, err := el.blockRefByLabel(progressLabel); err != nil {
+				logger.Warn("progress-label lookup failed; will retry", "err", err)
+			} else if p.Number > lastProgress {
+				lastProgress = p.Number
+				lastProgressTime = now
+			}
+
+			stalledFor := now.Sub(lastProgressTime)
+			logger.Info("L2EL sync status (progress-aware)", "progress", lastProgress, "stalled_for", stalledFor)
+			if stalledFor >= stallTimeout {
+				return fmt.Errorf("expected head for label=%s to advance to target=%d: %s progress stalled at %d for %s", label, target, progressLabel, lastProgress, stalledFor)
+			}
+			if now.After(deadline) {
+				return fmt.Errorf("expected head for label=%s to advance to target=%d: timeout after %s (progress at %d)", label, target, maxWait, lastProgress)
+			}
+
+			select {
+			case <-el.ctx.Done():
+				return el.ctx.Err()
+			case <-ticker.C:
+			}
+		}
+	}
+}
+
 func (el *L2ELNode) BlockRefByNumber(num uint64) eth.L2BlockRef {
 	ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
 	defer cancel()
