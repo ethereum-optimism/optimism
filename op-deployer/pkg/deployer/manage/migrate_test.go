@@ -3,8 +3,6 @@ package manage
 import (
 	"context"
 	"encoding/hex"
-	"flag"
-	"fmt"
 	"log/slog"
 	"math/big"
 	"testing"
@@ -15,10 +13,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
@@ -27,7 +23,6 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
-	"github.com/urfave/cli/v2"
 )
 
 func TestInteropMigration(t *testing.T) {
@@ -158,205 +153,9 @@ func TestInteropMigration(t *testing.T) {
 	require.Equal(t, l1ProxyAdminOwner, *dump[0].To, "Transaction should be sent to prank address")
 }
 
-func TestMigrateCLIV2Flags(t *testing.T) {
-	app := cli.NewApp()
-	flagSet := flag.NewFlagSet("test-migrate-v2", flag.ContinueOnError)
-
-	// Set V2-specific flags
-	flagSet.String(OPCMImplFlag.Name, "0xaf334f4537e87f5155d135392ff6d52f1866465e", "doc")
-	flagSet.String(SystemConfigProxyFlag.Name, "0x034edD2A225f7f429A63E0f1D2084B9E0A93b538", "doc")
-	flagSet.Bool(MigrateDisputeGameEnabledFlag.Name, true, "doc")
-	flagSet.String(InitialBondFlag.Name, "1000000000000000000", "doc")
-	flagSet.Uint64(DisputeGameTypeFlag.Name, 0, "doc")
-	flagSet.String(DisputeAbsolutePrestateFlag.Name, "0x0000000000000000000000000000000000000000000000000000000000000abc", "doc")
-	flagSet.String(StartingAnchorRootFlag.Name, "0x0000000000000000000000000000000000000000000000000000000000000def", "doc")
-	flagSet.Uint64(StartingAnchorL2SequenceNumberFlag.Name, 1, "doc")
-	flagSet.Uint64(MigrateStartingRespectedGameTypeFlag.Name, 0, "doc")
-
-	ctx := cli.NewContext(app, flagSet, nil)
-
-	// Parse V2 flags
-	opcmAddr := common.HexToAddress(ctx.String(OPCMImplFlag.Name))
-	systemConfigProxy := common.HexToAddress(ctx.String(SystemConfigProxyFlag.Name))
-	disputeGameEnabled := ctx.Bool(MigrateDisputeGameEnabledFlag.Name)
-	initBondStr := ctx.String(InitialBondFlag.Name)
-	initBond, ok := new(big.Int).SetString(initBondStr, 10)
-	require.True(t, ok)
-	gameType := uint32(ctx.Uint64(DisputeGameTypeFlag.Name))
-	gameArgs := common.FromHex(ctx.String(DisputeAbsolutePrestateFlag.Name))
-	startingAnchorRoot := common.HexToHash(ctx.String(StartingAnchorRootFlag.Name))
-	startingAnchorL2SeqNum := ctx.Uint64(StartingAnchorL2SequenceNumberFlag.Name)
-	startingRespectedGameType := uint32(ctx.Uint64(MigrateStartingRespectedGameTypeFlag.Name))
-
-	// Verify values
-	require.Equal(t, common.HexToAddress("0xaf334f4537e87f5155d135392ff6d52f1866465e"), opcmAddr)
-	require.Equal(t, common.HexToAddress("0x034edD2A225f7f429A63E0f1D2084B9E0A93b538"), systemConfigProxy)
-	require.True(t, disputeGameEnabled)
-	require.Equal(t, big.NewInt(1000000000000000000), initBond)
-	require.Equal(t, uint32(0), gameType)
-	require.Equal(t, common.FromHex("0x0000000000000000000000000000000000000000000000000000000000000abc"), gameArgs)
-	require.Equal(t, common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000def"), startingAnchorRoot)
-	require.Equal(t, uint64(1), startingAnchorL2SeqNum)
-	require.Equal(t, uint32(0), startingRespectedGameType)
-}
-
-func TestMigrateDefaultGameTypeFlags(t *testing.T) {
-	require.Equal(t, uint64(standard.DisputeGameType), DisputeGameTypeFlag.Value)
-	require.Equal(t, uint64(migrateStartingRespectedGameTypeDefault), MigrateStartingRespectedGameTypeFlag.Value)
-}
-
-func TestMigrateCLIRejectsSuperCannonBeforeRPC(t *testing.T) {
-	cases := []struct {
-		name       string
-		dispute    uint64
-		respected  uint64
-		errFlagArg string
-	}{
-		{
-			name:       "dispute-game-type SUPER_CANNON",
-			dispute:    uint64(superCannonGameType),
-			respected:  9,
-			errFlagArg: "--dispute-game-type = 4",
-		},
-		{
-			name:       "starting-respected-game-type SUPER_CANNON",
-			dispute:    9,
-			respected:  uint64(superCannonGameType),
-			errFlagArg: "--starting-respected-game-type = 4",
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			app := cli.NewApp()
-			flagSet := flag.NewFlagSet(tc.name, flag.ContinueOnError)
-
-			for _, cliFlag := range oplog.CLIFlags(deployer.EnvVarPrefix) {
-				require.NoError(t, cliFlag.Apply(flagSet))
-			}
-
-			flagSet.String(deployer.L1RPCURLFlag.Name, "unsupported://127.0.0.1", "doc")
-			flagSet.String(deployer.PrivateKeyFlag.Name, "0000000000000000000000000000000000000000000000000000000000000001", "doc")
-			flagSet.String(OPCMImplFlag.Name, "0xaf334f4537e87f5155d135392ff6d52f1866465e", "doc")
-			flagSet.String(SystemConfigProxyFlag.Name, "0x034edD2A225f7f429A63E0f1D2084B9E0A93b538", "doc")
-			flagSet.String(L1ProxyAdminOwnerFlag.Name, "0x1Eb2fFc903729a0F03966B917003800b145F56E2", "doc")
-			flagSet.Bool(MigrateDisputeGameEnabledFlag.Name, true, "doc")
-			flagSet.String(InitialBondFlag.Name, "1000000000000000000", "doc")
-			flagSet.Uint64(DisputeGameTypeFlag.Name, tc.dispute, "doc")
-			flagSet.String(DisputeAbsolutePrestateFlag.Name, "0x0000000000000000000000000000000000000000000000000000000000000abc", "doc")
-			flagSet.String(StartingAnchorRootFlag.Name, "0x0000000000000000000000000000000000000000000000000000000000000def", "doc")
-			flagSet.Uint64(StartingAnchorL2SequenceNumberFlag.Name, 1, "doc")
-			flagSet.Uint64(MigrateStartingRespectedGameTypeFlag.Name, tc.respected, "doc")
-
-			ctx := cli.NewContext(app, flagSet, nil)
-
-			err := MigrateCLI(ctx)
-			require.Error(t, err)
-			require.Contains(t, err.Error(), tc.errFlagArg)
-			require.Contains(t, err.Error(), "SUPER_CANNON")
-			require.NotContains(t, err.Error(), "failed to dial RPC")
-		})
-	}
-}
-
-func TestMigrateCLIV2Uint32Overflow(t *testing.T) {
-	testCases := []struct {
-		name                      string
-		disputeGameType           uint64
-		startingRespectedGameType uint64
-		expectError               bool
-		expectedErrContains       string
-	}{
-		{
-			name:                      "valid uint32 values",
-			disputeGameType:           0,
-			startingRespectedGameType: 0,
-			expectError:               false,
-		},
-		{
-			name:                      "max valid uint32 values",
-			disputeGameType:           0xFFFFFFFF,
-			startingRespectedGameType: 0xFFFFFFFF,
-			expectError:               false,
-		},
-		{
-			name:                      "disputeGameType overflow",
-			disputeGameType:           0x100000000, // 2^32
-			startingRespectedGameType: 0,
-			expectError:               true,
-			expectedErrContains:       "disputeGameType",
-		},
-		{
-			name:                      "startingRespectedGameType overflow",
-			disputeGameType:           0,
-			startingRespectedGameType: 0x100000000, // 2^32
-			expectError:               true,
-			expectedErrContains:       "startingRespectedGameType",
-		},
-		{
-			name:                      "disputeGameType large overflow",
-			disputeGameType:           0xFFFFFFFFFFFFFFFF, // max uint64
-			startingRespectedGameType: 0,
-			expectError:               true,
-			expectedErrContains:       "disputeGameType",
-		},
-		{
-			name:                      "startingRespectedGameType large overflow",
-			disputeGameType:           0,
-			startingRespectedGameType: 0xFFFFFFFFFFFFFFFF, // max uint64
-			expectError:               true,
-			expectedErrContains:       "startingRespectedGameType",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			app := cli.NewApp()
-			flagSet := flag.NewFlagSet(fmt.Sprintf("test-%s", tc.name), flag.ContinueOnError)
-
-			// Set all required flags
-			flagSet.String(deployer.L1RPCURLFlag.Name, "http://localhost:8545", "doc")
-			flagSet.String(deployer.PrivateKeyFlag.Name, "0000000000000000000000000000000000000000000000000000000000000001", "doc")
-			flagSet.String(OPCMImplFlag.Name, "0xaf334f4537e87f5155d135392ff6d52f1866465e", "doc")
-			flagSet.String(SystemConfigProxyFlag.Name, "0x034edD2A225f7f429A63E0f1D2084B9E0A93b538", "doc")
-			flagSet.String(L1ProxyAdminOwnerFlag.Name, "0x1Eb2fFc903729a0F03966B917003800b145F56E2", "doc")
-			flagSet.Bool(MigrateDisputeGameEnabledFlag.Name, true, "doc")
-			flagSet.String(InitialBondFlag.Name, "1000000000000000000", "doc")
-			flagSet.Uint64(DisputeGameTypeFlag.Name, tc.disputeGameType, "doc")
-			flagSet.String(DisputeAbsolutePrestateFlag.Name, "0x0000000000000000000000000000000000000000000000000000000000000abc", "doc")
-			flagSet.String(StartingAnchorRootFlag.Name, "0x0000000000000000000000000000000000000000000000000000000000000def", "doc")
-			flagSet.Uint64(StartingAnchorL2SequenceNumberFlag.Name, 1, "doc")
-			flagSet.Uint64(MigrateStartingRespectedGameTypeFlag.Name, tc.startingRespectedGameType, "doc")
-			flagSet.String(deployer.ArtifactsLocatorFlag.Name, "tag://op-contracts/v1.6.0", "doc")
-			flagSet.String(deployer.CacheDirFlag.Name, t.TempDir(), "doc")
-
-			ctx := cli.NewContext(app, flagSet, nil)
-
-			// Parse the flags to validate uint32 bounds
-			disputeGameTypeU64 := ctx.Uint64(DisputeGameTypeFlag.Name)
-			startingRespectedGameTypeU64 := ctx.Uint64(MigrateStartingRespectedGameTypeFlag.Name)
-
-			// Simulate the validation logic from MigrateCLI
-			var validationErr error
-			if disputeGameTypeU64 > 0xFFFFFFFF {
-				validationErr = fmt.Errorf("disputeGameType %d exceeds uint32 max value", disputeGameTypeU64)
-			}
-			if startingRespectedGameTypeU64 > 0xFFFFFFFF {
-				validationErr = fmt.Errorf("startingRespectedGameType %d exceeds uint32 max value", startingRespectedGameTypeU64)
-			}
-
-			if tc.expectError {
-				require.Error(t, validationErr)
-				require.Contains(t, validationErr.Error(), tc.expectedErrContains)
-			} else {
-				require.NoError(t, validationErr)
-				// Verify casting to uint32 is safe
-				disputeGameType := uint32(disputeGameTypeU64)
-				startingRespectedGameType := uint32(startingRespectedGameTypeU64)
-				require.Equal(t, tc.disputeGameType, uint64(disputeGameType))
-				require.Equal(t, tc.startingRespectedGameType, uint64(startingRespectedGameType))
-			}
-		})
+func TestCommandsDoNotIncludeMigrate(t *testing.T) {
+	for _, command := range Commands {
+		require.NotEqual(t, "migrate", command.Name)
 	}
 }
 
