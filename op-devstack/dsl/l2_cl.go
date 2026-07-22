@@ -155,6 +155,32 @@ func (cl *L2CLNode) SequencerActive() bool {
 	return active
 }
 
+// AwaitSequencerActive waits until this node's sequencer is active.
+func (cl *L2CLNode) AwaitSequencerActive() {
+	cl.awaitSequencerActive(true)
+}
+
+// AwaitSequencerInactive waits until this node's sequencer is inactive.
+func (cl *L2CLNode) AwaitSequencerInactive() {
+	cl.awaitSequencerActive(false)
+}
+
+func (cl *L2CLNode) awaitSequencerActive(want bool) {
+	err := retry.Do0(cl.ctx, conductorSettleAttempts, retry.Fixed(2*time.Second), func() error {
+		active, err := cl.sequencerActive()
+		if err != nil {
+			return err
+		}
+		if active != want {
+			cl.log.Info("Waiting for sequencer active-state", "node", cl, "want", want, "current", active)
+			return fmt.Errorf("sequencer of %s active is %v, want %v", cl, active, want)
+		}
+		return nil
+	})
+	cl.require.NoErrorf(err, "sequencer of %s never reached active=%v", cl, want)
+	cl.log.Info("Sequencer reached active-state", "node", cl, "active", want)
+}
+
 // syncStatus fetches the L2CL sync status and returns the RPC error, if any.
 // Internal callers in retry/eventually loops use this so a transient RPC timeout
 // counts as a retry rather than an instant FailNow.

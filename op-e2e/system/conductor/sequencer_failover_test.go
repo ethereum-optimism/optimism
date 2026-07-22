@@ -75,16 +75,7 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 	require.NoError(t, err, "Expected leader to transfer leadership to another node")
 	_ = waitForLeadershipChange(t, leader, lid, conductors, sys)
 
-	// old leader now became follower, we're trying to transfer leadership directly back to it.
-	t.Log("Testing TransferLeaderToServer")
-	fid, follower := lid, leader
-	lid, leader = findLeader(t, conductors)
-	err = leader.client.TransferLeaderToServer(ctx, fid, follower.ConsensusEndpoint())
-	require.NoError(t, err, "Expected leader to transfer leadership to follower")
-	newID := waitForLeadershipChange(t, leader, lid, conductors, sys)
-	require.Equal(t, fid, newID, "Expected leader to transfer to %s", fid)
-
-	leader = follower
+	_, leader = findLeader(t, conductors)
 
 	// Test AddServerAsNonvoter, do not start a new sequencer just for this purpose, use Sequencer3's rpc to start conductor.
 	// This is fine as this mainly tests conductor's ability to add itself into the raft consensus cluster as a nonvoter.
@@ -123,7 +114,7 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 
 	t.Log("Testing RemoveServer, call remove on follower, expected to fail")
 	lid, leader = findLeader(t, conductors)
-	fid, follower = findFollower(t, conductors)
+	fid, follower := findFollower(t, conductors)
 	err = follower.client.RemoveServer(ctx, lid, membership.Version)
 	require.ErrorContains(t, err, "node is not the leader", "Expected follower to fail to remove leader")
 	membership, err = c1.client.ClusterMembership(ctx)
