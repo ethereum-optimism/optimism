@@ -177,7 +177,12 @@ func runInteropInvalidMessageReplacementScenario(t devtest.T, sys *presets.TwoL2
 	}, 8, 20)
 	sys.Supernode.AwaitValidatedTimestamp(sys.L2B.TimestampForBlockNum(settledBlock))
 	// The tx is in a derived-safe block on the supernode; the light sequencer must agree there.
-	// Wait for the light seq EL's safe head to reach it.
+	// The fresh tx re-diverges the light sequencer from upstream, so the follow-source loop must
+	// reconcile again. It advances the light CL's cross-safe roughly one block per two poll cycles
+	// (every other forceReset resets local-safe to genesis before re-adopting upstream, #21119), so
+	// settle on the CL's cross-safe reaching settledBlock before polling the EL: the EL's safe
+	// forkchoice pointer only moves once the CL emits the FCU for that cross-safe head.
+	sys.L2BCL.Reached(safety.CrossSafe, settledBlock, 45)
 	sys.L2BSupernodeEL.AssertTxInBlock(settledBlock, settledTxHash)
 	sys.L2ELB.Reached(eth.Safe, settledBlock, 30)
 	sys.L2ELB.AssertTxInBlock(settledBlock, settledTxHash)
