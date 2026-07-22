@@ -20,9 +20,13 @@ type OpRethConfig struct {
 	// ExtraArgs are appended to the generated CLI args.
 	ExtraArgs []string
 	// Binary selects the EL binary to launch. Empty means "op-reth". A CLI-compatible superset
-	// (e.g. "op-reth-premium", which accepts every op-reth subcommand/flag plus the --subblocks.*
-	// namespace) may be selected via OpRethWithBinary.
+	// (any binary that accepts every op-reth subcommand/flag, plus optionally its own additive
+	// flags) may be selected via OpRethWithBinary.
 	Binary string
+	// DisableProofsHistory skips the proofs-history init + runtime flags for this node. The mixed
+	// runtime otherwise enables proofs-history on every op-reth node; some CLI-superset binaries
+	// reject --proofs-history in certain modes (e.g. op-reth-premium with --subblocks.enable=false).
+	DisableProofsHistory bool
 }
 
 // DefaultOpRethConfig returns a zero-valued OpRethConfig that callers can mutate via OpRethOptions.
@@ -66,12 +70,23 @@ func OpRethWithExtraArgs(args ...string) OpRethOption {
 }
 
 // OpRethWithBinary selects the EL binary to launch instead of the default "op-reth". The binary
-// must be a CLI superset of op-reth (it is invoked with op-reth's subcommands and flags). Used to
-// boot "op-reth-premium" as a drop-in sequencer; since that binary lives in a separate repo it must
-// be supplied via RUST_BINARY_PATH_OP_RETH_PREMIUM (or RUST_SRC_DIR_OP_RETH_PREMIUM + RUST_JIT_BUILD).
+// must be a CLI superset of op-reth (it is invoked with op-reth's subcommands and flags). A binary
+// that lives outside this repo is resolved via the rustbin env overrides keyed off its name —
+// RUST_BINARY_PATH_<NAME> (or RUST_SRC_DIR_<NAME> + RUST_JIT_BUILD), with <NAME> the upper-snake-cased
+// binary name.
 func OpRethWithBinary(binary string) OpRethOption {
 	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
 		cfg.Binary = binary
+	})
+}
+
+// OpRethWithoutProofsHistory disables the proofs-history subsystem for this node. The mixed runtime
+// enables proofs-history on every op-reth node by default; use this for a CLI-superset binary that
+// rejects --proofs-history in the mode under test (e.g. op-reth-premium with --subblocks.enable=false,
+// whose standard SDM node type cannot be installed by the public proof-history launcher).
+func OpRethWithoutProofsHistory() OpRethOption {
+	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
+		cfg.DisableProofsHistory = true
 	})
 }
 
