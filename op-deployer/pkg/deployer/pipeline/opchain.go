@@ -138,13 +138,105 @@ func ResolveChainProofParams(intent *state.Intent, chain *state.ChainIntent) (st
 	)
 }
 
+// ResolvePreparedGameType returns the initial game type recorded by prepare after
+// verifying that the current intent still resolves to the same type.
+func ResolvePreparedGameType(intent *state.Intent, chain *state.ChainIntent, chainState *state.ChainState) (uint32, error) {
+	if chainState == nil || chainState.InitialGameType == nil {
+		return 0, fmt.Errorf("chain %s has no initial game type recorded by prepare; rerun op-deployer prepare", chain.ID.Hex())
+	}
+
+	proofParams, err := ResolveChainProofParams(intent, chain)
+	if err != nil {
+		return 0, fmt.Errorf("failed to resolve initial dispute game type for chain %s: %w", chain.ID.Hex(), err)
+	}
+
+	prepared := *chainState.InitialGameType
+	current := proofParams.DisputeGameType
+	if prepared != current {
+		return 0, fmt.Errorf(
+			"chain %s initial game type changed after prepare: prepared %s (%d), intent %s (%d); rerun op-deployer prepare",
+			chain.ID.Hex(),
+			initialGameTypeName(prepared),
+			prepared,
+			initialGameTypeName(current),
+			current,
+		)
+	}
+	return prepared, nil
+}
+
+func initialGameTypeName(gameType uint32) string {
+	switch embedded.GameType(gameType) {
+	case embedded.GameTypePermissionedCannon:
+		return "PERMISSIONED_CANNON"
+	case embedded.GameTypeSuperPermissioned:
+		return "SUPER_PERMISSIONED"
+	case embedded.GameTypeCannonKona:
+		return "CANNON_KONA"
+	case embedded.GameTypeSuperCannonKona:
+		return "SUPER_CANNON_KONA"
+	default:
+		return "UNKNOWN"
+	}
+}
+
+// InitialDeployRequirements defines initial game deployment requirements.
+type InitialDeployRequirements struct {
+	Permissionless   bool
+	RequiresPrestate bool
+}
+
+// ValidateInitialGameTypeSet rejects a mix of CANNON_KONA and
+// SUPER_CANNON_KONA initial games.
+func ValidateInitialGameTypeSet(gameTypes []uint32) error {
+	hasCannonKona := false
+	hasSuperCannonKona := false
+	for _, gameType := range gameTypes {
+		switch embedded.GameType(gameType) {
+		case embedded.GameTypeCannonKona:
+			hasCannonKona = true
+		case embedded.GameTypeSuperCannonKona:
+			hasSuperCannonKona = true
+		}
+	}
+
+	if hasCannonKona && hasSuperCannonKona {
+		return fmt.Errorf("an intent cannot mix CANNON_KONA and SUPER_CANNON_KONA initial games")
+	}
+	return nil
+}
+
+// ResolveInitialDeployRequirements returns requirements for a supported initial game type.
+func ResolveInitialDeployRequirements(gameType uint32) (InitialDeployRequirements, error) {
+	switch embedded.GameType(gameType) {
+	case embedded.GameTypePermissionedCannon:
+		return InitialDeployRequirements{}, nil
+	case embedded.GameTypeCannonKona, embedded.GameTypeSuperCannonKona:
+		return InitialDeployRequirements{
+			Permissionless:   true,
+			RequiresPrestate: true,
+		}, nil
+	case embedded.GameTypeSuperPermissioned:
+		return InitialDeployRequirements{}, fmt.Errorf(
+			"initial dispute game type SUPER_PERMISSIONED (%d) is a derived fallback and is not an initial-deploy selector",
+			gameType,
+		)
+	default:
+		return InitialDeployRequirements{}, fmt.Errorf("unsupported initial dispute game type %d", gameType)
+	}
+}
+
 func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common.Hash, st *state.State) (opcm.DeployOPChainInput, error) {
 	proofParams, err := ResolveChainProofParams(intent, thisIntent)
 	if err != nil {
 		return opcm.DeployOPChainInput{}, fmt.Errorf("error merging proof params from overrides: %w", err)
 	}
 
-	if IsPermissionlessGameType(proofParams.DisputeGameType) {
+	requirements, err := ResolveInitialDeployRequirements(proofParams.DisputeGameType)
+	if err != nil {
+		return opcm.DeployOPChainInput{}, err
+	}
+	if requirements.Permissionless {
 		return opcm.DeployOPChainInput{}, fmt.Errorf("apply only supports permissioned deploys: permissionless chains are deployed through the prepare flow")
 	}
 
@@ -163,22 +255,10 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		thisIntent.GasLimit,
 		opcm.Proposal{
 			Root:             opcm.DefaultStartingAnchorRoot.Root,
-			L2SequenceNumber: common.Big0,
+			L2SequenceNumber: new(big.Int),
 		},
-		proofParams.DisputeAbsolutePrestate,
 		thisIntent,
 	), nil
-}
-
-// IsPermissionlessGameType reports whether the given dispute game type deploys a
-// permissionless chain.
-func IsPermissionlessGameType(gameType uint32) bool {
-	switch embedded.GameType(gameType) {
-	case embedded.GameTypeCannonKona, embedded.GameTypeSuperCannonKona:
-		return true
-	default:
-		return false
-	}
 }
 
 func BuildDeployOPChainInput(
@@ -190,11 +270,20 @@ func BuildDeployOPChainInput(
 	saltMixer string,
 	gasLimit uint64,
 	startingAnchorRoot opcm.Proposal,
-	cannonAbsolutePrestate common.Hash,
 	chain *state.ChainIntent,
 ) opcm.DeployOPChainInput {
 	if gasLimit == 0 {
 		gasLimit = standard.GasLimit
+	}
+
+	var cannonAbsolutePrestate common.Hash
+	switch embedded.GameType(proofParams.DisputeGameType) {
+	case embedded.GameTypeCannonKona:
+		cannonAbsolutePrestate = opcm.PermissionedCannonFallbackPrestatePlaceholder
+	case embedded.GameTypeSuperCannonKona:
+		cannonAbsolutePrestate = common.Hash{}
+	case embedded.GameTypePermissionedCannon:
+		cannonAbsolutePrestate = proofParams.DisputeAbsolutePrestate
 	}
 
 	return opcm.DeployOPChainInput{
@@ -211,9 +300,9 @@ func BuildDeployOPChainInput(
 		SaltMixer:                    saltMixer,
 		GasLimit:                     gasLimit,
 		DisputeGameType:              proofParams.DisputeGameType,
-		DisputeAbsolutePrestate:      proofParams.DisputeAbsolutePrestate, // This is for Permissioned games
+		DisputeAbsolutePrestate:      proofParams.DisputeAbsolutePrestate,
 		StartingAnchorRoot:           startingAnchorRoot,
-		CannonAbsolutePrestate:       cannonAbsolutePrestate, // This is for Permissionless games
+		CannonAbsolutePrestate:       cannonAbsolutePrestate,
 		DisputeMaxGameDepth:          new(big.Int).SetUint64(proofParams.DisputeMaxGameDepth),
 		DisputeSplitDepth:            new(big.Int).SetUint64(proofParams.DisputeSplitDepth),
 		DisputeClockExtension:        proofParams.DisputeClockExtension,   // 3 hours (input in seconds)

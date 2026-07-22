@@ -23,6 +23,7 @@ const (
 	WorkdirFlagName           = flags.WorkdirFlagName
 	OutdirFlagName            = flags.OutdirFlagName
 	PrivateKeyFlagName        = flags.PrivateKeyFlagName
+	PrestateFlagName          = flags.PrestateFlagName
 	IntentTypeFlagName        = flags.IntentTypeFlagName
 	VerifierAPIKeyFlagName    = flags.VerifierAPIKeyFlagName
 	EtherscanAPIKeyFlagName   = flags.EtherscanAPIKeyFlagName // Deprecated: use VerifierAPIKeyFlagName
@@ -80,6 +81,11 @@ var (
 		Name:    PrivateKeyFlagName,
 		Usage:   "Private key of the deployer account.",
 		EnvVars: PrefixEnvVar("PRIVATE_KEY"),
+	}
+	PrestateFlag = &cli.StringFlag{
+		Name:    PrestateFlagName,
+		Usage:   "Selected permissionless-game absolute prestate hash. Fails if a differing intent value is set.",
+		EnvVars: PrefixEnvVar("DISPUTE_ABSOLUTE_PRESTATE"),
 	}
 	DeploymentTargetFlag = &cli.StringFlag{
 		Name:    "deployment-target",
@@ -174,6 +180,11 @@ var ApplyFlags = []cli.Flag{
 	VerifierFlag,
 	VerifierUrlFlag,
 	UseForgeFlag,
+}
+
+var PrestateFlags = []cli.Flag{
+	WorkdirFlag,
+	PrestateFlag,
 }
 
 var VerifyFlags = []cli.Flag{
