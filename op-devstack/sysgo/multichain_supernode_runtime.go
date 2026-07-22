@@ -352,6 +352,15 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		// When the supernode VN bootstraps + sequences, the light sequencers start
 		// stopped; a test hands off sequencing to them once they leave willStartEL.
 		lightSeqStopped := cfg.SupernodeVNSequencerForBootstrap
+		// In VN-bootstrap mode the light CLs EL-sync the VN's chain before the
+		// handoff. When sequencing from genesis there is nothing to sync and
+		// ELSync would deadlock in willStartEL waiting for a first network
+		// payload the light CL itself is supposed to produce (#21164), so use
+		// CLSync.
+		lightSyncMode := nodeSync.CLSync
+		if cfg.SupernodeVNSequencerForBootstrap {
+			lightSyncMode = nodeSync.ELSync
+		}
 		l2ACL = startL2CLNode(t, keys, l1Net, l2ANet, l1EL, l1CL, seqL2AEL, jwtSecret, l2CLNodeStartConfig{
 			Key:              "sequencer",
 			IsSequencer:      true,
@@ -361,9 +370,7 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 			L2FollowSource:   supernodeL2ACL.UserRPC(),
 			L2CLOptions:      cfg.GlobalL2CLOptions,
 			SequencerStopped: lightSeqStopped,
-			// Follow-mode sequencers reorg onto the supernode's invalid-message
-			// replacement via EL sync.
-			SyncMode: nodeSync.ELSync,
+			SyncMode:         lightSyncMode,
 		})
 		l2BCL = startL2CLNode(t, keys, l1Net, l2BNet, l1EL, l1CL, seqL2BEL, jwtSecret, l2CLNodeStartConfig{
 			Key:              "sequencer",
@@ -374,7 +381,7 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 			L2FollowSource:   supernodeL2BCL.UserRPC(),
 			L2CLOptions:      cfg.GlobalL2CLOptions,
 			SequencerStopped: lightSeqStopped,
-			SyncMode:         nodeSync.ELSync,
+			SyncMode:         lightSyncMode,
 		})
 		// CL gossip: unsafe blocks (incl. the supernode's deposits-only
 		// replacement) propagate between the sequencer CLs and the VN CLs.
