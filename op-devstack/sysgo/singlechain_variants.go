@@ -393,7 +393,7 @@ func startConductorNode(
 		Paused:                  paused,
 		HealthCheck:             healthCheck,
 		RollupCfg:               *l2Net.rollupCfg,
-		RPCEnableProxy:          false,
+		RPCEnableProxy:          true,
 		LogConfig: oplog.CLIConfig{
 			Level:  log.LevelInfo,
 			Format: oplog.FormatText,

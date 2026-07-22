@@ -198,6 +198,13 @@ func (c *Conductor) isLeader() (bool, error) {
 	return c.inner.RpcAPI().Leader(ctx)
 }
 
+// CallProxy calls a sequencer API through this conductor's RPC proxy.
+func (c *Conductor) CallProxy(result any, method string, args ...any) error {
+	ctx, cancel := context.WithTimeout(c.ctx, DefaultTimeout)
+	defer cancel()
+	return c.inner.ProxyRPC().CallContext(ctx, result, method, args...)
+}
+
 // waitForLeadership waits until this conductor's Raft leadership matches want.
 func (c *Conductor) waitForLeadership(want bool) {
 	err := retry.Do0(c.ctx, conductorSettleAttempts, retry.Fixed(2*time.Second), func() error {
