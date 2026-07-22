@@ -1978,7 +1978,9 @@
               "use-cases/index",
               "use-cases/tune-batcher-costs",
               "use-cases/run-a-fault-proof-challenger",
-              "use-cases/implement-a-custom-deposit-flow"
+              "use-cases/implement-a-custom-deposit-flow",
+              "use-cases/launch-a-chain-with-fault-proofs-and-ha-sequencing",
+              "use-cases/choose-your-node-stack"
             ]
           },
           {
@@ -2419,9 +2421,23 @@
                 ]
               },
               {
+                "group": "Derivation & Execution",
+                "pages": [
+                  "/op-stack/components/op-node"
+                ]
+              },
+              {
                 "group": "Settlement & Proofs",
                 "pages": [
+                  "/op-stack/components/op-proposer",
+                  "/op-stack/components/op-challenger",
                   "/op-stack/components/cannon"
+                ]
+              },
+              {
+                "group": "Deployment & Infrastructure",
+                "pages": [
+                  "/op-stack/components/op-deployer"
                 ]
               }
             ]
