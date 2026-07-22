@@ -451,28 +451,6 @@ func TestValidateContinuationReceiptCanonicality(t *testing.T) {
 	)
 }
 
-func TestContinuationFailureHooks(t *testing.T) {
-	wantErr := fmt.Errorf("injected failure")
-	for _, boundary := range []string{
-		"before send",
-		"after send before receipt",
-		"after receipt before state write",
-		"after state write before live validation",
-	} {
-		t.Run(boundary, func(t *testing.T) {
-			called := false
-			err := invokeContinuationHook(boundary, func() error {
-				called = true
-				return wantErr
-			})
-			require.True(t, called)
-			require.ErrorIs(t, err, wantErr)
-			require.ErrorContains(t, err, boundary)
-		})
-	}
-	require.NoError(t, invokeContinuationHook("unused", nil))
-}
-
 func TestStandardValidatorInput(t *testing.T) {
 	contracts := addressesForValidationTest()
 	selected := common.Hash{0x01}

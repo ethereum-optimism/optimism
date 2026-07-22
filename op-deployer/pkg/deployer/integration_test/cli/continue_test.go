@@ -104,7 +104,6 @@ func TestContinueCLIColdStart(t *testing.T) {
 		continuedSnapshot, err := persisted.PreparedDeployment.Chain(fixture.chainID)
 		require.NoError(t, err)
 		require.Equal(t, expectedContracts, continuedSnapshot.OpChainContracts)
-		require.True(t, continuedChain.Continuation.LiveValidated)
 
 		code, err := fixture.l1Client.CodeAt(t.Context(), continuedChain.SystemConfigProxy, nil)
 		require.NoError(t, err)

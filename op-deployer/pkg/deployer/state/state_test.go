@@ -36,15 +36,13 @@ func TestState_PrestateJSONRoundTrip(t *testing.T) {
 func TestState_ContinuationJSONRoundTrip(t *testing.T) {
 	chainID := common.HexToHash("0x01")
 	st := &State{Chains: []*ChainState{{
-		ID: chainID,
-		Continuation: &ContinuationState{
-			LiveValidated: true,
-		},
+		ID:           chainID,
+		Continuation: new(ContinuationState),
 	}}}
 
 	data, err := json.Marshal(st)
 	require.NoError(t, err)
-	require.Contains(t, string(data), `"liveValidated":true`)
+	require.Contains(t, string(data), `"continuation":{}`)
 
 	var roundTripped State
 	require.NoError(t, json.Unmarshal(data, &roundTripped))

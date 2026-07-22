@@ -105,12 +105,6 @@ type continuationRunner struct {
 	expectedNonce uint64
 	preflightEnv  *pipeline.Env
 	capture       *broadcaster.CaptureBroadcaster
-
-	// The hooks exercise durable crash boundaries; production runners leave them nil.
-	beforeSend                     func() error
-	afterSendBeforeReceipt         func() error
-	afterReceiptBeforeStateWrite   func() error
-	afterWriteBeforeLiveValidation func() error
 }
 
 type continuationChain struct {
@@ -261,19 +255,6 @@ func (r *continuationRunner) classifyChains() ([]continuationChain, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to build continuation input for chain %s: %w", chainID.Hex(), err)
 		}
-		if r.state.IsChainDeployed(chainID) {
-			if err := r.reverifyDeployedChain(chainID, chainState, &expected, dci); err != nil {
-				return nil, err
-			}
-			continue
-		}
-		if chainState.Continuation != nil {
-			return nil, fmt.Errorf(
-				"pending chain %s has continuation checkpoint metadata but is not marked deployed",
-				chainID.Hex(),
-			)
-		}
-
 		liveState, err := classifyContinuationAddresses(
 			r.ctx,
 			r.l1Client,
@@ -283,6 +264,30 @@ func (r *continuationRunner) classifyChains() ([]continuationChain, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to classify chain %s predicted addresses: %w", chainID.Hex(), err)
 		}
+		if r.state.IsChainDeployed(chainID) {
+			switch liveState {
+			case continuationAddressesAbsent:
+				r.cfg.Logger.Warn("continued deployment is no longer live; redeploying", "chainID", chainID.Hex())
+				deployed := false
+				chainState.Continuation = nil
+				chainState.Deployed = &deployed
+				if err := pipeline.WriteState(r.cfg.Workdir, r.state); err != nil {
+					return nil, fmt.Errorf("failed to checkpoint reorg recovery for chain %s: %w", chainID.Hex(), err)
+				}
+			case continuationAddressesComplete:
+				if err := r.reverifyDeployedChain(chainID, chainState, &expected, dci); err != nil {
+					return nil, err
+				}
+				continue
+			}
+		}
+		if chainState.Continuation != nil {
+			return nil, fmt.Errorf(
+				"pending chain %s has continuation checkpoint metadata but is not marked deployed",
+				chainID.Hex(),
+			)
+		}
+
 		switch liveState {
 		case continuationAddressesAbsent:
 			pending = append(pending, continuationChain{
@@ -314,7 +319,6 @@ func (r *continuationRunner) reverifyDeployedChain(
 	if chainState.Continuation == nil {
 		return fmt.Errorf("deployed chain %s has no continuation metadata", chainID.Hex())
 	}
-	previouslyValidated := chainState.Continuation.LiveValidated
 	if err := verifyContinuationDeployment(
 		r.ctx,
 		r.l1Client,
@@ -322,30 +326,10 @@ func (r *continuationRunner) reverifyDeployedChain(
 		expected,
 		dci,
 	); err != nil {
-		if previouslyValidated {
-			chainState.Continuation.LiveValidated = false
-			if writeErr := pipeline.WriteState(r.cfg.Workdir, r.state); writeErr != nil {
-				return fmt.Errorf(
-					"live deployment validation failed for deployed chain %s: %w; failed to persist invalid validation status: %w",
-					chainID.Hex(),
-					err,
-					writeErr,
-				)
-			}
-		}
 		return fmt.Errorf("live deployment validation failed for deployed chain %s: %w", chainID.Hex(), err)
 	}
 
-	r.cfg.Logger.Info("reconciled deployed chain",
-		"chainID", chainID.Hex(),
-		"previouslyValidated", previouslyValidated,
-	)
-	if !previouslyValidated {
-		chainState.Continuation.LiveValidated = true
-		if err := pipeline.WriteState(r.cfg.Workdir, r.state); err != nil {
-			return fmt.Errorf("failed to checkpoint live validation for chain %s: %w", chainID.Hex(), err)
-		}
-	}
+	r.cfg.Logger.Info("reconciled deployed chain", "chainID", chainID.Hex())
 	return nil
 }
 
@@ -385,7 +369,6 @@ func (r *continuationRunner) reconcileLiveChain(
 	if chainState.Continuation == nil {
 		chainState.Continuation = new(state.ContinuationState)
 	}
-	chainState.Continuation.LiveValidated = true
 	if err := pipeline.WriteState(r.cfg.Workdir, r.state); err != nil {
 		return fmt.Errorf("failed to checkpoint reconciled deployment for chain %s: %w", chainID.Hex(), err)
 	}
@@ -450,9 +433,6 @@ func (r *continuationRunner) broadcastAndCheckpoint(chain *continuationChain) er
 	if err := revalidateContinuationAnchor(r.ctx, r.l1RPC, chain.id, &chain.expected); err != nil {
 		return err
 	}
-	if err := invokeContinuationHook("before send", r.beforeSend); err != nil {
-		return err
-	}
 	if err := requireContinuationNonce(r.ctx, r.l1Client, r.deployer, r.expectedNonce); err != nil {
 		return err
 	}
@@ -472,18 +452,13 @@ func (r *continuationRunner) broadcastAndCheckpoint(chain *continuationChain) er
 	for _, bcast := range chain.captured {
 		liveBroadcaster.Hook(bcast)
 	}
-	broadcastResults, broadcastErr := liveBroadcaster.BroadcastWithHook(r.ctx, func() error {
-		return invokeContinuationHook("after send before receipt", r.afterSendBeforeReceipt)
-	})
+	broadcastResults, broadcastErr := liveBroadcaster.Broadcast(r.ctx)
 	broadcastResult, err := successfulContinuationBroadcast(broadcastResults, broadcastErr)
 	if err != nil {
 		return fmt.Errorf("failed to broadcast continuation for chain %s: %w", chain.id.Hex(), err)
 	}
 	if err := validateContinuationReceiptCanonicality(r.ctx, r.l1RPC, broadcastResult.Receipt); err != nil {
 		return fmt.Errorf("deployment receipt for chain %s is not canonical: %w", chain.id.Hex(), err)
-	}
-	if err := invokeContinuationHook("after receipt before state write", r.afterReceiptBeforeStateWrite); err != nil {
-		return err
 	}
 
 	chain.state.Continuation = new(state.ContinuationState)
@@ -492,9 +467,6 @@ func (r *continuationRunner) broadcastAndCheckpoint(chain *continuationChain) er
 	}
 	if err := pipeline.WriteState(r.cfg.Workdir, r.state); err != nil {
 		return fmt.Errorf("failed to checkpoint deployment for chain %s: %w", chain.id.Hex(), err)
-	}
-	if err := invokeContinuationHook("after state write before live validation", r.afterWriteBeforeLiveValidation); err != nil {
-		return err
 	}
 	if err := verifyContinuationDeployment(
 		r.ctx,
@@ -505,21 +477,7 @@ func (r *continuationRunner) broadcastAndCheckpoint(chain *continuationChain) er
 	); err != nil {
 		return fmt.Errorf("live deployment validation failed for chain %s: %w", chain.id.Hex(), err)
 	}
-	chain.state.Continuation.LiveValidated = true
-	if err := pipeline.WriteState(r.cfg.Workdir, r.state); err != nil {
-		return fmt.Errorf("failed to checkpoint live validation for chain %s: %w", chain.id.Hex(), err)
-	}
 	r.expectedNonce++
-	return nil
-}
-
-func invokeContinuationHook(name string, hook func() error) error {
-	if hook == nil {
-		return nil
-	}
-	if err := hook(); err != nil {
-		return fmt.Errorf("continuation interrupted %s: %w", name, err)
-	}
 	return nil
 }
 

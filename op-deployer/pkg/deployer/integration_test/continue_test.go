@@ -74,6 +74,9 @@ func TestEndToEndContinuePreparedChain(t *testing.T) {
 	t.Run("live validation failure persists checkpoint", func(t *testing.T) {
 		testContinueLiveValidationFailure(t)
 	})
+	t.Run("post-checkpoint reorg redeploys", func(t *testing.T) {
+		testContinuePostCheckpointReorg(t)
+	})
 	t.Run("partial deployment is rejected", func(t *testing.T) {
 		testContinuePartialDeployment(t)
 	})
@@ -156,7 +159,7 @@ func testContinuePermissionless(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, recordedContracts, reconciledChain.OpChainContracts)
 	require.Equal(t, originalContracts, env.preparedSnapshotChain.OpChainContracts)
-	require.True(t, reconciledChain.Continuation.LiveValidated)
+	require.NotNil(t, reconciledChain.Continuation)
 	require.Nil(t, reconciled.AppliedIntent)
 }
 
@@ -232,14 +235,9 @@ func testContinuePermissioned(t *testing.T) {
 	setAnvilCode(t, env.l1Client, continuedChain.SystemConfigProxy, nil)
 	nonceAfter := pendingNonce(t, env)
 	err = deployer.Continue(env.ctx, env.config())
-	require.ErrorContains(t, err, "live deployment validation failed for deployed chain")
-	require.ErrorContains(t, err, "SystemConfigProxy code")
+	require.ErrorContains(t, err, "partial deployment at predicted addresses")
+	require.ErrorContains(t, err, "SystemConfigProxy")
 	require.Equal(t, nonceAfter, pendingNonce(t, env))
-	stale, err := pipeline.ReadState(env.workdir)
-	require.NoError(t, err)
-	staleChain, err := stale.Chain(env.intent.Chains[0].ID)
-	require.NoError(t, err)
-	require.False(t, staleChain.Continuation.LiveValidated)
 }
 
 func testContinuePermissionedSuperRoot(t *testing.T) {
@@ -287,7 +285,6 @@ func testContinueLiveValidationFailure(t *testing.T) {
 	continuedSnapshot, err := continued.PreparedDeployment.Chain(env.intent.Chains[0].ID)
 	require.NoError(t, err)
 	require.Equal(t, env.preparedSnapshotChain.OpChainContracts, continuedSnapshot.OpChainContracts)
-	require.False(t, continuedChain.Continuation.LiveValidated)
 
 	setAnvilCode(t, env.l1Client, env.standardValidator, validatorResultCode(validValidatorResult))
 	nonceAfterFailure := pendingNonce(t, env)
@@ -297,8 +294,38 @@ func testContinueLiveValidationFailure(t *testing.T) {
 	require.NoError(t, err)
 	retriedChain, err := retried.Chain(env.intent.Chains[0].ID)
 	require.NoError(t, err)
-	require.True(t, retriedChain.Continuation.LiveValidated)
+	require.NotNil(t, retriedChain.Continuation)
 	require.Nil(t, retried.AppliedIntent)
+}
+
+func testContinuePostCheckpointReorg(t *testing.T) {
+	t.Helper()
+	env := newContinuationEnv(t, embedded.GameTypePermissionedCannon)
+	nonceBefore := pendingNonce(t, env)
+	var snapshotID string
+	require.NoError(t, env.l1Client.Client().Call(&snapshotID, "evm_snapshot"))
+	require.NotEmpty(t, snapshotID)
+
+	require.NoError(t, deployer.Continue(env.ctx, env.config()))
+	assertContinuationCompleted(t, env, nonceBefore)
+
+	var reverted bool
+	require.NoError(t, env.l1Client.Client().Call(&reverted, "evm_revert", snapshotID))
+	require.True(t, reverted)
+	require.Equal(t, nonceBefore, pendingNonce(t, env))
+	code, err := env.l1Client.CodeAt(env.ctx, env.preparedSnapshotChain.SystemConfigProxy, nil)
+	require.NoError(t, err)
+	require.Empty(t, code)
+
+	require.NoError(t, deployer.Continue(env.ctx, env.config()))
+	assertContinuationCompleted(t, env, nonceBefore)
+	code, err = env.l1Client.CodeAt(env.ctx, env.preparedSnapshotChain.SystemConfigProxy, nil)
+	require.NoError(t, err)
+	require.NotEmpty(t, code)
+
+	nonceAfterRecovery := pendingNonce(t, env)
+	require.NoError(t, deployer.Continue(env.ctx, env.config()))
+	require.Equal(t, nonceAfterRecovery, pendingNonce(t, env))
 }
 
 func testContinuePartialDeployment(t *testing.T) {
@@ -353,7 +380,7 @@ func testContinueMultiChainGlobalPreflight(t *testing.T) {
 		require.True(t, continued.IsChainDeployed(chain.ID))
 		continuedChain, chainErr := continued.Chain(chain.ID)
 		require.NoError(t, chainErr)
-		require.True(t, continuedChain.Continuation.LiveValidated)
+		require.NotNil(t, continuedChain.Continuation)
 		if i == 0 {
 			require.Zero(t, continuedChain.Prestate)
 		} else {
@@ -387,8 +414,8 @@ func testContinueMultiChainLiveValidationFailure(t *testing.T) {
 	require.NoError(t, err)
 	second, err := checkpointed.Chain(env.intent.Chains[1].ID)
 	require.NoError(t, err)
-	require.True(t, first.Continuation.LiveValidated)
-	require.False(t, second.Continuation.LiveValidated)
+	require.NotNil(t, first.Continuation)
+	require.NotNil(t, second.Continuation)
 
 	setAnvilCode(t, env.l1Client, env.standardValidator, validatorResultCode(validValidatorResult))
 	nonceAfterFailure := pendingNonce(t, env)
@@ -400,7 +427,7 @@ func testContinueMultiChainLiveValidationFailure(t *testing.T) {
 	for _, chain := range env.intent.Chains {
 		retriedChain, chainErr := retried.Chain(chain.ID)
 		require.NoError(t, chainErr)
-		require.True(t, retriedChain.Continuation.LiveValidated)
+		require.NotNil(t, retriedChain.Continuation)
 	}
 }
 
@@ -426,7 +453,7 @@ func testContinueMultiChainSequentialValidation(t *testing.T) {
 	first, err := checkpointed.Chain(env.intent.Chains[0].ID)
 	require.NoError(t, err)
 	require.True(t, checkpointed.IsChainDeployed(env.intent.Chains[0].ID))
-	require.False(t, first.Continuation.LiveValidated)
+	require.NotNil(t, first.Continuation)
 	require.False(t, checkpointed.IsChainDeployed(env.intent.Chains[1].ID))
 	require.Nil(t, checkpointed.AppliedIntent)
 
@@ -439,7 +466,7 @@ func testContinueMultiChainSequentialValidation(t *testing.T) {
 	for _, chain := range env.intent.Chains {
 		completedChain, chainErr := completed.Chain(chain.ID)
 		require.NoError(t, chainErr)
-		require.True(t, completedChain.Continuation.LiveValidated)
+		require.NotNil(t, completedChain.Continuation)
 	}
 }
 
@@ -640,7 +667,6 @@ func assertContinuationCompleted(t *testing.T, env *continuationEnv, nonceBefore
 	continuedSnapshot, err := continued.PreparedDeployment.Chain(env.intent.Chains[0].ID)
 	require.NoError(t, err)
 	require.Equal(t, env.preparedSnapshotChain.OpChainContracts, continuedSnapshot.OpChainContracts)
-	require.True(t, continuedChain.Continuation.LiveValidated)
 	return continued
 }
 

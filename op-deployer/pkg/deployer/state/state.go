@@ -173,13 +173,8 @@ func (p *PreparedDeployment) Chain(id common.Hash) (*PreparedChainState, error) 
 	return nil, fmt.Errorf("prepared chain not found: %s", id.Hex())
 }
 
-// ContinuationState tracks whether a continued deployment's live contracts match
-// its prepared state. Newly broadcast deployments are checkpointed with
-// LiveValidated=false before validation, so retries revalidate them instead of
-// broadcasting again. A later failed revalidation clears the flag.
-type ContinuationState struct {
-	LiveValidated bool `json:"liveValidated,omitempty"`
-}
+// ContinuationState marks a chain recorded by the continuation workflow.
+type ContinuationState struct{}
 
 type ChainState struct {
 	ID common.Hash `json:"id"`
