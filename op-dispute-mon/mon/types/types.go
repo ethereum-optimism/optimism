@@ -20,7 +20,6 @@ var outputRootGameTypes = []types.GameType{
 	types.AsteriscKonaGameType,
 	types.OPSuccinctGameType,
 	types.CannonKonaGameType,
-	types.ZKDisputeGameType,
 	types.FastGameType,
 	types.AlphabetGameType,
 	types.KailuaGameType,
@@ -30,6 +29,7 @@ var superRootGameTypes = []types.GameType{
 	types.SuperPermissionedGameType,
 	types.SuperAsteriscKonaGameType,
 	types.SuperCannonKonaGameType,
+	types.ZKDisputeGameType,
 }
 
 // EnrichedClaim extends the faultTypes.Claim with additional context.
