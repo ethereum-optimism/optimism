@@ -95,6 +95,7 @@ func DefaultForkedScriptHost(
 		forkRPC,
 		latest.Number,
 		scriptCtx,
+		latest.Hash(),
 		additionalOpts...,
 	)
 }
@@ -119,6 +120,7 @@ func ForkedScriptHost(
 		forkRPC,
 		blockNumber,
 		scriptCtx,
+		common.Hash{},
 		additionalOpts...,
 	)
 }
@@ -130,6 +132,7 @@ func forkedScriptHost(
 	forkRPC *rpc.Client,
 	blockNumber *big.Int,
 	scriptCtx script.Context,
+	expectedBlockHash common.Hash,
 	additionalOpts ...script.HostOption,
 ) (*script.Host, error) {
 	h, err := ScriptHost(
@@ -142,6 +145,14 @@ func forkedScriptHost(
 				src, err := forking.RPCSourceByNumber(cfg.URLOrAlias, forkRPC, *cfg.BlockNumber)
 				if err != nil {
 					return nil, fmt.Errorf("failed to create RPC fork source: %w", err)
+				}
+				if expectedBlockHash != (common.Hash{}) && src.BlockHash() != expectedBlockHash {
+					return nil, fmt.Errorf(
+						"fork block %d changed: expected %s, observed %s",
+						*cfg.BlockNumber,
+						expectedBlockHash,
+						src.BlockHash(),
+					)
 				}
 				return forking.Cache(src), nil
 			}),

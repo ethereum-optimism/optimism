@@ -274,7 +274,12 @@ func (r *continuationRunner) classifyChains() ([]continuationChain, error) {
 			)
 		}
 
-		liveState, err := classifyContinuationAddresses(r.ctx, r.l1Client, expected.OpChainContracts)
+		liveState, err := classifyContinuationAddresses(
+			r.ctx,
+			r.l1Client,
+			expected.OpChainContracts,
+			latest.Number,
+		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to classify chain %s predicted addresses: %w", chainID.Hex(), err)
 		}
@@ -293,6 +298,9 @@ func (r *continuationRunner) classifyChains() ([]continuationChain, error) {
 		default:
 			return nil, fmt.Errorf("chain %s has an unknown continuation address classification", chainID.Hex())
 		}
+	}
+	if err := verifyContinuationHead(r.ctx, r.l1Client, latest.Number, latest.Hash()); err != nil {
+		return nil, fmt.Errorf("continuation classification head changed: %w", err)
 	}
 	return pending, nil
 }
@@ -587,6 +595,7 @@ func classifyContinuationAddresses(
 	ctx context.Context,
 	backend continuationReadBackend,
 	contracts addresses.OpChainContracts,
+	blockNumber *big.Int,
 ) (continuationAddressState, error) {
 	type addressCode struct {
 		name    string
@@ -599,7 +608,7 @@ func classifyContinuationAddresses(
 		if !contract.deploymentMarker || contract.address == (common.Address{}) {
 			continue
 		}
-		code, err := backend.CodeAt(ctx, contract.address, nil)
+		code, err := backend.CodeAt(ctx, contract.address, blockNumber)
 		if err != nil {
 			return 0, fmt.Errorf("failed to read %s code at %s: %w", contract.name, contract.address, err)
 		}

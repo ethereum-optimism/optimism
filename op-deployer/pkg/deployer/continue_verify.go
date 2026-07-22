@@ -16,6 +16,7 @@ import (
 	opeth "github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/lmittmann/w3"
@@ -24,6 +25,81 @@ import (
 type continuationReadBackend interface {
 	opcm.CallContractBackend
 	CodeAt(ctx context.Context, contract common.Address, blockNumber *big.Int) ([]byte, error)
+}
+
+type continuationHeaderBackend interface {
+	HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
+}
+
+func verifyContinuationHead(
+	ctx context.Context,
+	backend continuationHeaderBackend,
+	number *big.Int,
+	expectedHash common.Hash,
+) error {
+	header, err := backend.HeaderByNumber(ctx, number)
+	if err != nil {
+		return fmt.Errorf("failed to recheck L1 block %s: %w", number, err)
+	}
+	if header == nil || header.Hash() != expectedHash {
+		var observed common.Hash
+		if header != nil {
+			observed = header.Hash()
+		}
+		return fmt.Errorf(
+			"L1 block %s changed during continuation reads: expected %s, observed %s",
+			number,
+			expectedHash,
+			observed,
+		)
+	}
+	return nil
+}
+
+type pinnedContinuationReadBackend struct {
+	continuationReadBackend
+	blockNumber *big.Int
+}
+
+func (b *pinnedContinuationReadBackend) CallContract(
+	ctx context.Context,
+	call ethereum.CallMsg,
+	_ *big.Int,
+) ([]byte, error) {
+	return b.continuationReadBackend.CallContract(ctx, call, b.blockNumber)
+}
+
+func (b *pinnedContinuationReadBackend) CodeAt(
+	ctx context.Context,
+	contract common.Address,
+	_ *big.Int,
+) ([]byte, error) {
+	return b.continuationReadBackend.CodeAt(ctx, contract, b.blockNumber)
+}
+
+func pinContinuationReads(
+	ctx context.Context,
+	backend continuationReadBackend,
+) (continuationReadBackend, func() error, error) {
+	headRead, ok := backend.(continuationHeaderBackend)
+	if !ok {
+		return backend, func() error { return nil }, nil
+	}
+	head, err := headRead.HeaderByNumber(ctx, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	if head == nil || head.Number == nil {
+		return nil, nil, fmt.Errorf("current L1 head is missing its block number")
+	}
+	number := new(big.Int).Set(head.Number)
+	hash := head.Hash()
+	return &pinnedContinuationReadBackend{
+			continuationReadBackend: backend,
+			blockNumber:             number,
+		}, func() error {
+			return verifyContinuationHead(ctx, headRead, number, hash)
+		}, nil
 }
 
 var _ continuationReadBackend = (*ethclient.Client)(nil)
@@ -125,16 +201,21 @@ func verifyContinuationDeployment(
 	if expected == nil {
 		return fmt.Errorf("prepared ChainState is nil")
 	}
+	pinnedBackend, verifyHead, err := pinContinuationReads(ctx, backend)
+	if err != nil {
+		return fmt.Errorf("failed to pin continuation verification reads: %w", err)
+	}
 
 	verifier := &continuationVerifier{
 		ctx:      ctx,
-		backend:  backend,
+		backend:  pinnedBackend,
 		observed: observed,
 		expected: expected,
 		dci:      dci,
 	}
+	result := func() error { return errors.Join(errors.Join(verifier.failures...), verifyHead()) }
 	if !verifier.verifyAddressesAndCode() {
-		return errors.Join(verifier.failures...)
+		return result()
 	}
 	verifier.verifyStartingAnchorRoot()
 
@@ -153,7 +234,7 @@ func verifyContinuationDeployment(
 	if mode.permissionless {
 		verifier.verifyStandardValidator()
 	}
-	return errors.Join(verifier.failures...)
+	return result()
 }
 
 func (v *continuationVerifier) resolveGameMode() (continuationGameMode, error) {

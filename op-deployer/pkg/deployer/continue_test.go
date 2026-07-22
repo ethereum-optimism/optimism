@@ -356,8 +356,9 @@ func TestValidateContinuationGameTypes(t *testing.T) {
 func TestClassifyContinuationAddresses(t *testing.T) {
 	contracts := continuationVerificationAddresses(embedded.GameTypeCannonKona)
 	backend := newContinuationVerificationBackend()
+	blockNumber := big.NewInt(123)
 
-	classification, err := classifyContinuationAddresses(t.Context(), backend, contracts)
+	classification, err := classifyContinuationAddresses(t.Context(), backend, contracts, blockNumber)
 	require.NoError(t, err)
 	require.Equal(t, continuationAddressesAbsent, classification)
 
@@ -366,15 +367,18 @@ func TestClassifyContinuationAddresses(t *testing.T) {
 			backend.code[contract.address] = []byte{0x60}
 		}
 	}
-	classification, err = classifyContinuationAddresses(t.Context(), backend, contracts)
+	classification, err = classifyContinuationAddresses(t.Context(), backend, contracts, blockNumber)
 	require.NoError(t, err)
 	require.Equal(t, continuationAddressesComplete, classification)
 
 	delete(backend.code, contracts.SystemConfigProxy)
-	_, err = classifyContinuationAddresses(t.Context(), backend, contracts)
+	_, err = classifyContinuationAddresses(t.Context(), backend, contracts, blockNumber)
 	require.ErrorContains(t, err, "partial deployment")
 	require.ErrorContains(t, err, "SystemConfigProxy")
 	require.ErrorContains(t, err, "has no code")
+	for _, observedBlockNumber := range backend.codeBlocks {
+		require.Equal(t, blockNumber, observedBlockNumber)
+	}
 }
 
 type continuationNonceReaderStub struct {

@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/lmittmann/w3"
 	"github.com/stretchr/testify/require"
 )
@@ -25,6 +26,11 @@ type continuationVerificationBackend struct {
 	responses       map[string][]byte
 	code            map[common.Address][]byte
 	calls           []ethereum.CallMsg
+	callBlocks      []*big.Int
+	codeBlocks      []*big.Int
+	headerBlocks    []*big.Int
+	header          *types.Header
+	finalHeader     *types.Header
 	validator       common.Address
 	validatorResult string
 }
@@ -33,15 +39,17 @@ func newContinuationVerificationBackend() *continuationVerificationBackend {
 	return &continuationVerificationBackend{
 		responses: make(map[string][]byte),
 		code:      make(map[common.Address][]byte),
+		header:    &types.Header{Number: big.NewInt(123), Extra: []byte{0x01}},
 	}
 }
 
 func (b *continuationVerificationBackend) CallContract(
 	_ context.Context,
 	call ethereum.CallMsg,
-	_ *big.Int,
+	blockNumber *big.Int,
 ) ([]byte, error) {
 	b.calls = append(b.calls, call)
+	b.callBlocks = append(b.callBlocks, blockNumber)
 	if call.To == nil {
 		return nil, fmt.Errorf("missing call recipient")
 	}
@@ -59,9 +67,21 @@ func (b *continuationVerificationBackend) CallContract(
 func (b *continuationVerificationBackend) CodeAt(
 	_ context.Context,
 	contract common.Address,
-	_ *big.Int,
+	blockNumber *big.Int,
 ) ([]byte, error) {
+	b.codeBlocks = append(b.codeBlocks, blockNumber)
 	return bytes.Clone(b.code[contract]), nil
+}
+
+func (b *continuationVerificationBackend) HeaderByNumber(
+	_ context.Context,
+	blockNumber *big.Int,
+) (*types.Header, error) {
+	b.headerBlocks = append(b.headerBlocks, blockNumber)
+	if blockNumber != nil && b.finalHeader != nil {
+		return b.finalHeader, nil
+	}
+	return b.header, nil
 }
 
 func (b *continuationVerificationBackend) set(
@@ -553,6 +573,27 @@ func TestVerifyContinuationDeployment(t *testing.T) {
 		require.NoError(t, fixture.verify(t))
 		require.Zero(t, fixture.dci.CannonAbsolutePrestate)
 	})
+}
+
+func TestVerifyContinuationDeploymentPinsReadsToOneBlock(t *testing.T) {
+	fixture := newContinuationVerificationFixture(t, embedded.GameTypeCannonKona)
+	require.NoError(t, fixture.verify(t))
+
+	require.Len(t, fixture.backend.headerBlocks, 2)
+	require.Nil(t, fixture.backend.headerBlocks[0])
+	require.Equal(t, fixture.backend.header.Number, fixture.backend.headerBlocks[1])
+	for _, blockNumber := range append(fixture.backend.callBlocks, fixture.backend.codeBlocks...) {
+		require.Equal(t, fixture.backend.header.Number, blockNumber)
+	}
+}
+
+func TestVerifyContinuationDeploymentRejectsHeadChange(t *testing.T) {
+	fixture := newContinuationVerificationFixture(t, embedded.GameTypeCannonKona)
+	fixture.backend.finalHeader = &types.Header{
+		Number: new(big.Int).Set(fixture.backend.header.Number),
+		Extra:  []byte{0x02},
+	}
+	require.ErrorContains(t, fixture.verify(t), "changed during continuation reads")
 }
 
 func TestVerifyContinuationDeploymentRejectsOPCMGameModeMismatch(t *testing.T) {
