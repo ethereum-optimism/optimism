@@ -239,6 +239,77 @@ func (c *Conductor) isLeader() (bool, error) {
 	return c.inner.RpcAPI().Leader(ctx)
 }
 
+// verifyClusterMembership waits until the presence of the given server ID in
+// the cluster membership matches want.
+func (c *Conductor) verifyClusterMembership(id string, want bool) {
+	err := retry.Do0(c.ctx, conductorSettleAttempts, retry.Fixed(2*time.Second), func() error {
+		ctx, cancel := context.WithTimeout(c.ctx, DefaultTimeout)
+		defer cancel()
+		membership, err := c.inner.RpcAPI().ClusterMembership(ctx)
+		if err != nil {
+			return err
+		}
+		present := false
+		for _, member := range membership.Servers {
+			if member.ID == id {
+				present = true
+				break
+			}
+		}
+		if present != want {
+			c.log.Info("Waiting for cluster membership", "conductor", c, "member", id, "want", want, "present", present)
+			return fmt.Errorf("membership of %s is %v, want %v", id, present, want)
+		}
+		return nil
+	})
+	c.require.NoErrorf(err, "cluster membership never reflected member %s present=%v", id, want)
+}
+
+// RemoveFromCluster removes the target conductor from the Raft cluster, using
+// the current configuration version. This is a leader-only operation.
+func (c *Conductor) RemoveFromCluster(target *Conductor) {
+	c.log.Info("Removing conductor from cluster", "leader", c, "target", target)
+	membership := c.FetchClusterMembership()
+	ctx, cancel := context.WithTimeout(c.ctx, DefaultTimeout)
+	defer cancel()
+	err := c.inner.RpcAPI().RemoveServer(ctx, target.String(), membership.Version)
+	c.require.NoErrorf(err, "failed to remove %s from the cluster", target)
+	c.verifyClusterMembership(target.String(), false)
+	c.log.Info("Removed conductor from cluster", "leader", c, "target", target)
+}
+
+// AddVoterToCluster adds the target conductor to the Raft cluster as a voter,
+// using the current configuration version. This is a leader-only operation.
+func (c *Conductor) AddVoterToCluster(target *Conductor) {
+	c.log.Info("Adding conductor to cluster as voter", "leader", c, "target", target)
+	membership := c.FetchClusterMembership()
+	ctx, cancel := context.WithTimeout(c.ctx, DefaultTimeout)
+	defer cancel()
+	err := c.inner.RpcAPI().AddServerAsVoter(ctx, target.String(), target.Escape().ConsensusEndpoint(), membership.Version)
+	c.require.NoErrorf(err, "failed to add %s to the cluster as voter", target)
+	c.verifyClusterMembership(target.String(), true)
+	c.log.Info("Added conductor to cluster as voter", "leader", c, "target", target)
+}
+
+// VerifyMembershipChangeRejectsStaleVersion attempts to remove the target
+// conductor using an outdated configuration version and asserts op-conductor
+// refuses the change and leaves the membership untouched. The version check is
+// the optimistic-concurrency guard operators rely on when automating
+// membership changes.
+func (c *Conductor) VerifyMembershipChangeRejectsStaleVersion(target *Conductor) {
+	membership := c.FetchClusterMembership()
+	ctx, cancel := context.WithTimeout(c.ctx, DefaultTimeout)
+	defer cancel()
+	err := c.inner.RpcAPI().RemoveServer(ctx, target.String(), membership.Version-1)
+	c.require.ErrorContainsf(err, "configuration changed since",
+		"expected removal of %s with a stale configuration version to be refused", target)
+	after := c.FetchClusterMembership()
+	c.require.Equalf(len(membership.Servers), len(after.Servers),
+		"membership must be unchanged after refused removal of %s", target)
+	c.verifyClusterMembership(target.String(), true)
+	c.log.Info("Verified stale-version membership change is rejected", "conductor", c, "target", target)
+}
+
 // Stop shuts down the conductor service via its admin RPC and waits until the
 // conductor stops serving RPC. The service cannot be restarted; tests use this
 // to take cluster members out, e.g. to simulate loss of Raft quorum.
