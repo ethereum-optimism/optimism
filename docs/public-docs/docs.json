@@ -2598,7 +2598,8 @@
               {
                 "group": "Sequencing",
                 "pages": [
-                  "/op-stack/components/op-batcher"
+                  "/op-stack/components/op-batcher",
+                  "/op-stack/components/op-conductor"
                 ]
               },
               {
@@ -2614,13 +2615,15 @@
                 "pages": [
                   "/op-stack/components/op-proposer",
                   "/op-stack/components/op-challenger",
-                  "/op-stack/components/cannon"
+                  "/op-stack/components/cannon",
+                  "/op-stack/components/op-contracts"
                 ]
               },
               {
                 "group": "Deployment & Infrastructure",
                 "pages": [
-                  "/op-stack/components/op-deployer"
+                  "/op-stack/components/op-deployer",
+                  "/op-stack/components/proxyd"
                 ]
               }
             ]

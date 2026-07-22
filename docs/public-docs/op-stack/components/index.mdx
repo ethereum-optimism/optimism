@@ -28,7 +28,7 @@ Producing L2 blocks and making their data available.
 | Component | What it does | Hub | Releases |
 | --- | --- | --- | --- |
 | op-batcher | Posts L2 transaction batches to the data availability layer | [Hub](/op-stack/components/op-batcher) | [Releases](/releases/op-batcher) |
-| op-conductor | High-availability sequencer coordination service | Planned | [Releases](/releases/op-conductor) |
+| op-conductor | High-availability sequencer coordination service | [Hub](/op-stack/components/op-conductor) | [Releases](/releases/op-conductor) |
 
 ## Derivation & execution
 
@@ -52,7 +52,7 @@ Proposing L2 state to L1 and proving its validity.
 | cannon | Onchain MIPS instruction emulator — the fault proof VM | [Hub](/op-stack/components/cannon) | [Release tags](https://github.com/ethereum-optimism/optimism/releases?q=cannon%2Fv&expanded=false) |
 | kona-client | Fault proof program (client) that executes the OP Stack state transition | Planned | [Releases](/releases/kona-client) |
 | kona-host | Fault proof host that serves preimage data to kona-client | Planned | [Releases](/releases/kona-host) |
-| op-contracts | OP Stack L1 and L2 smart contracts | Planned | [Releases](/releases/op-contracts) |
+| op-contracts | OP Stack L1 and L2 smart contracts | [Hub](/op-stack/components/op-contracts) | [Releases](/releases/op-contracts) |
 
 ## Deployment & infrastructure
 
@@ -61,5 +61,4 @@ Deploying chains and operating the infrastructure around them.
 | Component | What it does | Hub | Releases |
 | --- | --- | --- | --- |
 | op-deployer | OP Stack chain deployment and upgrade tool | [Hub](/op-stack/components/op-deployer) | [Releases](/releases/op-deployer) |
-| proxyd | RPC request router and proxy | Planned | [Releases](/releases/proxyd) |
-| op-acceptor | Network acceptance tester for OP Stack devnets | Planned | [Releases](/releases/op-acceptor) |
+| proxyd | RPC request router and proxy | [Hub](/op-stack/components/proxyd) | [Releases](/releases/proxyd) |
