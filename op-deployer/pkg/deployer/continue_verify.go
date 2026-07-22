@@ -13,10 +13,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
+	opeth "github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/lmittmann/w3"
 )
 
 type continuationReadBackend interface {
@@ -55,7 +57,6 @@ func (b *scriptHostReadBackend) CodeAt(
 }
 
 type continuationGameMode struct {
-	selectorGameType        uint32
 	respectedGameType       uint32
 	respectedImplementation common.Address
 	fallbackGameType        *uint32
@@ -67,8 +68,7 @@ type continuationGameMode struct {
 type continuationGameArgsLayout uint8
 
 const (
-	continuationPermissionlessGameArgs continuationGameArgsLayout = iota
-	continuationPermissionedGameArgs
+	continuationPermissionedGameArgs continuationGameArgsLayout = iota
 	continuationSuperPermissionedGameArgs
 )
 
@@ -141,11 +141,13 @@ func verifyContinuationDeployment(
 	if err != nil {
 		verifier.failures = append(verifier.failures, err)
 	} else {
-		verifier.verifyStartingAnchor(mode)
-		verifier.verifyGameConfiguration(mode)
+		implementations := verifier.verifyGameConfiguration(mode)
+		if !mode.permissionless {
+			verifier.verifyProxyAdminOwner()
+		}
+		verifier.verifyPersistentWiring(implementations)
 	}
 	verifier.verifySystemConfig()
-	verifier.verifyProxyAdminOwner()
 	verifier.verifySuperchainConfig()
 	if mode.permissionless {
 		verifier.verifyStandardValidator()
@@ -156,7 +158,7 @@ func verifyContinuationDeployment(
 func (v *continuationVerifier) resolveGameMode() (continuationGameMode, error) {
 	gameType := v.dci.DisputeGameType
 
-	bitmap, err := readContinuationHash(
+	bitmap, err := readContinuation[common.Hash](
 		v.ctx,
 		v.backend,
 		v.dci.Opcm,
@@ -168,7 +170,6 @@ func (v *continuationVerifier) resolveGameMode() (continuationGameMode, error) {
 	superRoot := devfeatures.IsDevFeatureEnabled(bitmap, devfeatures.SuperRootGamesMigrationFlag)
 
 	mode := continuationGameMode{
-		selectorGameType:  gameType,
 		respectedGameType: gameType,
 	}
 	switch embedded.GameType(gameType) {
@@ -252,44 +253,10 @@ func (v *continuationVerifier) verifyAddressesAndCode() bool {
 	return valid
 }
 
-func (v *continuationVerifier) verifyStartingAnchor(mode continuationGameMode) {
-	expectedRoot := opcm.DefaultStartingAnchorRoot.Root
-	expectedSequence := new(big.Int)
-	source := "permissioned starting-anchor placeholder"
-	if mode.permissionless {
-		source = "committed ChainState.StartingAnchorRoot"
-		if v.expected.StartingAnchorRoot == nil {
-			v.addMismatch("starting anchor proposal", source, "a committed proposal", "nil")
-			return
-		}
-		expectedRoot = v.expected.StartingAnchorRoot.Root
-		expectedSequence.SetUint64(uint64(v.expected.StartingAnchorRoot.L2SequenceNumber))
-	}
-
-	root, sequence, err := readContinuationAnchor(
-		v.ctx,
-		v.backend,
-		v.expected.AnchorStateRegistryProxy,
-	)
-	if err != nil {
-		v.addReadError(
-			"starting anchor proposal",
-			source,
-			fmt.Sprintf("root %s and sequence %s", expectedRoot, expectedSequence),
-			err,
-		)
-		return
-	}
-	if root != expectedRoot {
-		v.addMismatch("starting anchor root", source, expectedRoot, root)
-	}
-	if sequence.Cmp(expectedSequence) != 0 {
-		v.addMismatch("starting anchor sequence", source, expectedSequence, sequence)
-	}
-}
-
-func (v *continuationVerifier) verifyGameConfiguration(mode continuationGameMode) {
-	respected, err := readContinuationUint32(
+func (v *continuationVerifier) verifyGameConfiguration(
+	mode continuationGameMode,
+) *continuationOPCMImplementations {
+	respected, err := readContinuation[uint32](
 		v.ctx,
 		v.backend,
 		v.expected.OptimismPortalProxy,
@@ -311,7 +278,7 @@ func (v *continuationVerifier) verifyGameConfiguration(mode continuationGameMode
 		)
 	}
 
-	initialImplementation, err := readContinuationAddress(
+	initialImplementation, err := readContinuation[common.Address](
 		v.ctx,
 		v.backend,
 		v.expected.DisputeGameFactoryProxy,
@@ -335,7 +302,7 @@ func (v *continuationVerifier) verifyGameConfiguration(mode continuationGameMode
 	}
 
 	if mode.fallbackGameType != nil {
-		fallbackImplementation, err := readContinuationAddress(
+		fallbackImplementation, err := readContinuation[common.Address](
 			v.ctx,
 			v.backend,
 			v.expected.DisputeGameFactoryProxy,
@@ -359,82 +326,38 @@ func (v *continuationVerifier) verifyGameConfiguration(mode continuationGameMode
 		}
 	}
 
-	expectedPrestate := v.dci.DisputeAbsolutePrestate
 	if mode.permissionless {
-		expectedPrestate = v.expected.Prestate
-		if v.dci.DisputeAbsolutePrestate != expectedPrestate {
-			v.addMismatch(
-				"selected prestate input",
-				"committed ChainState.Prestate",
-				expectedPrestate,
-				v.dci.DisputeAbsolutePrestate,
-			)
-		}
+		return nil
 	}
 
-	initialLayout := continuationPermissionlessGameArgs
-	if !mode.permissionless {
-		initialLayout = continuationPermissionedGameArgs
-		if !mode.hasChallenger {
-			initialLayout = continuationSuperPermissionedGameArgs
-		}
+	initialLayout := continuationPermissionedGameArgs
+	if !mode.hasChallenger {
+		initialLayout = continuationSuperPermissionedGameArgs
 	}
 	var expectedVM *common.Address
-	if initialLayout != continuationSuperPermissionedGameArgs {
-		implementations, err := readContinuationOPCMImplementations(v.ctx, v.backend, v.dci.Opcm)
-		if err != nil {
-			v.addReadError(
-				"pinned OPCM implementations",
-				"frozen DeployOPChainInput.Opcm",
-				"a readable MIPS implementation",
-				err,
-			)
-		} else {
-			expectedVM = &implementations.MipsImpl
+	var implementations *continuationOPCMImplementations
+	observed, err := readContinuationOPCMImplementations(v.ctx, v.backend, v.dci.Opcm)
+	if err != nil {
+		v.addReadError(
+			"pinned OPCM implementations",
+			"frozen DeployOPChainInput.Opcm",
+			"a readable implementation set",
+			err,
+		)
+	} else {
+		implementations = &observed
+		if initialLayout == continuationPermissionedGameArgs {
+			expectedVM = &observed.MipsImpl
 		}
 	}
 	v.verifyConfiguredGameArgs(
 		"selected",
 		mode.respectedGameType,
 		initialLayout,
-		expectedPrestate,
+		v.dci.DisputeAbsolutePrestate,
 		expectedVM,
 	)
-
-	switch embedded.GameType(mode.selectorGameType) {
-	case embedded.GameTypeCannonKona:
-		if v.dci.CannonAbsolutePrestate != opcm.PermissionedCannonFallbackPrestatePlaceholder {
-			v.addMismatch(
-				"fallback prestate input",
-				"fixed CANNON_KONA permissioned fallback",
-				opcm.PermissionedCannonFallbackPrestatePlaceholder,
-				v.dci.CannonAbsolutePrestate,
-			)
-		}
-		v.verifyConfiguredGameArgs(
-			"fallback",
-			*mode.fallbackGameType,
-			continuationPermissionedGameArgs,
-			opcm.PermissionedCannonFallbackPrestatePlaceholder,
-			expectedVM,
-		)
-	case embedded.GameTypeSuperCannonKona:
-		if v.dci.CannonAbsolutePrestate != (common.Hash{}) {
-			v.addMismatch(
-				"fallback prestate input",
-				"SUPER_CANNON_KONA no-prestate fallback rule",
-				common.Hash{},
-				v.dci.CannonAbsolutePrestate,
-			)
-		}
-		v.verifyConfiguredGameArgs(
-			"fallback",
-			*mode.fallbackGameType,
-			continuationSuperPermissionedGameArgs,
-			common.Hash{},
-			nil,
-		)
-	}
+	return implementations
 }
 
 func (v *continuationVerifier) verifyConfiguredGameArgs(
@@ -444,7 +367,7 @@ func (v *continuationVerifier) verifyConfiguredGameArgs(
 	expectedPrestate common.Hash,
 	expectedVM *common.Address,
 ) {
-	gameArgs, err := readContinuationBytes(
+	gameArgs, err := readContinuation[[]byte](
 		v.ctx,
 		v.backend,
 		v.expected.DisputeGameFactoryProxy,
@@ -506,9 +429,6 @@ func (v *continuationVerifier) verifyConfiguredGameArgs(
 	}
 
 	expectedWETH := v.expected.DelayedWethPermissionedGameProxy
-	if layout == continuationPermissionlessGameArgs {
-		expectedWETH = v.expected.DelayedWethPermissionlessGameProxy
-	}
 	if decoded.delayedWETH != expectedWETH {
 		v.addMismatch(
 			label+" game DelayedWETH",
@@ -519,9 +439,6 @@ func (v *continuationVerifier) verifyConfiguredGameArgs(
 	}
 
 	expectedL2ChainID := v.dci.L2ChainId
-	if embedded.GameType(gameType) == embedded.GameTypeSuperCannonKona {
-		expectedL2ChainID = new(big.Int)
-	}
 	if expectedL2ChainID == nil || decoded.l2ChainID.Cmp(expectedL2ChainID) != 0 {
 		v.addMismatch(
 			label+" game L2 chain ID",
@@ -531,125 +448,47 @@ func (v *continuationVerifier) verifyConfiguredGameArgs(
 		)
 	}
 
-	if layout == continuationPermissionedGameArgs {
-		if decoded.proposer != v.dci.Proposer {
-			v.addMismatch(
-				label+" game proposer",
-				"frozen DeployOPChainInput.Proposer",
-				v.dci.Proposer,
-				decoded.proposer,
-			)
-		}
-		if decoded.challenger != v.dci.Challenger {
-			v.addMismatch(
-				label+" game challenger",
-				"frozen DeployOPChainInput.Challenger",
-				v.dci.Challenger,
-				decoded.challenger,
-			)
-		}
+	if decoded.proposer != v.dci.Proposer {
+		v.addMismatch(
+			label+" game proposer",
+			"frozen DeployOPChainInput.Proposer",
+			v.dci.Proposer,
+			decoded.proposer,
+		)
+	}
+	if decoded.challenger != v.dci.Challenger {
+		v.addMismatch(
+			label+" game challenger",
+			"frozen DeployOPChainInput.Challenger",
+			v.dci.Challenger,
+			decoded.challenger,
+		)
 	}
 }
 
 func (v *continuationVerifier) verifySystemConfig() {
 	systemConfig := v.expected.SystemConfigProxy
-	v.verifyAddressGetter(
-		"SystemConfig owner",
-		"frozen DeployOPChainInput.SystemConfigOwner",
-		systemConfig,
-		continuationOwnerMethod,
-		v.dci.SystemConfigOwner,
-	)
-	v.verifyUint32Getter(
-		"SystemConfig base fee scalar",
-		"frozen DeployOPChainInput.BasefeeScalar",
-		systemConfig,
-		continuationBasefeeScalarMethod,
-		v.dci.BasefeeScalar,
-	)
-	v.verifyUint32Getter(
-		"SystemConfig blob base fee scalar",
-		"frozen DeployOPChainInput.BlobBaseFeeScalar",
-		systemConfig,
-		continuationBlobBasefeeScalarMethod,
-		v.dci.BlobBaseFeeScalar,
-	)
-	v.verifyUint32Getter(
-		"SystemConfig operator fee scalar",
-		"frozen DeployOPChainInput.OperatorFeeScalar",
-		systemConfig,
-		continuationOperatorFeeScalarMethod,
-		v.dci.OperatorFeeScalar,
-	)
-	v.verifyUint64Getter(
-		"SystemConfig operator fee constant",
-		"frozen DeployOPChainInput.OperatorFeeConstant",
-		systemConfig,
-		continuationOperatorFeeConstantMethod,
-		v.dci.OperatorFeeConstant,
-	)
-	v.verifyBoolGetter(
-		"SystemConfig custom gas token mode",
-		"frozen DeployOPChainInput.UseCustomGasToken",
-		systemConfig,
-		continuationIsCustomGasTokenMethod,
-		v.dci.UseCustomGasToken,
-	)
+	verifyContinuationExpectations(v, []continuationExpectation[common.Address]{
+		{"SystemConfig owner", "frozen DeployOPChainInput.SystemConfigOwner", systemConfig, continuationOwnerMethod, nil, v.dci.SystemConfigOwner},
+		{"SystemConfig unsafe block signer", "frozen DeployOPChainInput.UnsafeBlockSigner", systemConfig, continuationUnsafeBlockSignerMethod, nil, v.dci.UnsafeBlockSigner},
+	})
+	verifyContinuationExpectations(v, []continuationExpectation[uint32]{
+		{"SystemConfig base fee scalar", "frozen DeployOPChainInput.BasefeeScalar", systemConfig, continuationBasefeeScalarMethod, nil, v.dci.BasefeeScalar},
+		{"SystemConfig blob base fee scalar", "frozen DeployOPChainInput.BlobBaseFeeScalar", systemConfig, continuationBlobBasefeeScalarMethod, nil, v.dci.BlobBaseFeeScalar},
+		{"SystemConfig operator fee scalar", "frozen DeployOPChainInput.OperatorFeeScalar", systemConfig, continuationOperatorFeeScalarMethod, nil, v.dci.OperatorFeeScalar},
+	})
+	verifyContinuationExpectations(v, []continuationExpectation[uint64]{
+		{"SystemConfig operator fee constant", "frozen DeployOPChainInput.OperatorFeeConstant", systemConfig, continuationOperatorFeeConstantMethod, nil, v.dci.OperatorFeeConstant},
+		{"SystemConfig gas limit", "frozen DeployOPChainInput.GasLimit", systemConfig, continuationGasLimitMethod, nil, v.dci.GasLimit},
+	})
+	verifyContinuationExpectations(v, []continuationExpectation[bool]{
+		{"SystemConfig custom gas token mode", "frozen DeployOPChainInput.UseCustomGasToken", systemConfig, continuationIsCustomGasTokenMethod, nil, v.dci.UseCustomGasToken},
+	})
+	verifyContinuationExpectations(v, []continuationExpectation[common.Hash]{
+		{"SystemConfig batcher", "frozen DeployOPChainInput.Batcher", systemConfig, continuationBatcherHashMethod, nil, common.BytesToHash(v.dci.Batcher.Bytes())},
+	})
 
-	batcherHash, err := readContinuationHash(
-		v.ctx,
-		v.backend,
-		systemConfig,
-		continuationBatcherHashMethod,
-	)
-	expectedBatcherHash := common.BytesToHash(v.dci.Batcher.Bytes())
-	if err != nil {
-		v.addReadError(
-			"SystemConfig batcher",
-			"frozen DeployOPChainInput.Batcher",
-			expectedBatcherHash,
-			err,
-		)
-	} else if batcherHash != expectedBatcherHash {
-		v.addMismatch(
-			"SystemConfig batcher",
-			"frozen DeployOPChainInput.Batcher",
-			expectedBatcherHash,
-			batcherHash,
-		)
-	}
-
-	v.verifyAddressGetter(
-		"SystemConfig unsafe block signer",
-		"frozen DeployOPChainInput.UnsafeBlockSigner",
-		systemConfig,
-		continuationUnsafeBlockSignerMethod,
-		v.dci.UnsafeBlockSigner,
-	)
-
-	gasLimit, err := readContinuationUint64(
-		v.ctx,
-		v.backend,
-		systemConfig,
-		continuationGasLimitMethod,
-	)
-	if err != nil {
-		v.addReadError(
-			"SystemConfig gas limit",
-			"frozen DeployOPChainInput.GasLimit",
-			v.dci.GasLimit,
-			err,
-		)
-	} else if gasLimit != v.dci.GasLimit {
-		v.addMismatch(
-			"SystemConfig gas limit",
-			"frozen DeployOPChainInput.GasLimit",
-			v.dci.GasLimit,
-			gasLimit,
-		)
-	}
-
-	l2ChainID, err := readContinuationBig(
+	l2ChainID, err := readContinuation[*big.Int](
 		v.ctx,
 		v.backend,
 		systemConfig,
@@ -673,45 +512,133 @@ func (v *continuationVerifier) verifySystemConfig() {
 }
 
 func (v *continuationVerifier) verifyProxyAdminOwner() {
-	v.verifyAddressGetter(
-		"OpChain ProxyAdmin owner",
-		"frozen DeployOPChainInput.OpChainProxyAdminOwner",
-		v.expected.OpChainProxyAdminImpl,
-		continuationOwnerMethod,
-		v.dci.OpChainProxyAdminOwner,
+	verifyContinuationExpectations(v, []continuationExpectation[common.Address]{
+		{"OpChain ProxyAdmin owner", "frozen DeployOPChainInput.OpChainProxyAdminOwner", v.expected.OpChainProxyAdminImpl, continuationOwnerMethod, nil, v.dci.OpChainProxyAdminOwner},
+	})
+}
+
+// Recheck persistent assertions from the deployment's ChainAssertions.sol.
+// Deployment-only state cannot be verified during continuation. StandardValidator
+// covers permissionless implementation wiring; permissioned wiring is checked directly.
+func (v *continuationVerifier) verifyPersistentWiring(implementations *continuationOPCMImplementations) {
+	verifyContinuationExpectations(v, v.persistentAddressExpectations(implementations))
+
+	scalar := opeth.EncodeScalar(opeth.EcotoneScalars{
+		BlobBaseFeeScalar: v.dci.BlobBaseFeeScalar,
+		BaseFeeScalar:     v.dci.BasefeeScalar,
+	})
+	observedScalar, err := readContinuation[*big.Int](
+		v.ctx,
+		v.backend,
+		v.expected.SystemConfigProxy,
+		continuationScalarMethod,
 	)
+	expectedScalar := new(big.Int).SetBytes(scalar[:])
+	if err != nil {
+		v.addReadError("CHECK-SCFG-70 SystemConfig scalar", "frozen DeployOPChainInput fee scalars", expectedScalar, err)
+	} else if observedScalar.Cmp(expectedScalar) != 0 {
+		v.addMismatch("CHECK-SCFG-70 SystemConfig scalar", "frozen DeployOPChainInput fee scalars", expectedScalar, observedScalar)
+	}
+
+	paused, err := readContinuation[bool](
+		v.ctx,
+		v.backend,
+		v.expected.SystemConfigProxy,
+		continuationPausedMethod,
+	)
+	if err != nil {
+		v.addReadError("CHECK-OP2-60 SystemConfig paused state", "SystemConfig", "a readable value", err)
+	} else {
+		verifyContinuationExpectations(v, []continuationExpectation[bool]{
+			{"CHECK-OP2-60 OptimismPortal paused state", "SystemConfig.paused()", v.expected.OptimismPortalProxy, continuationPausedMethod, nil, paused},
+		})
+	}
+
+	lockbox, err := readContinuation[common.Address](
+		v.ctx,
+		v.backend,
+		v.expected.OptimismPortalProxy,
+		continuationEthLockboxMethod,
+	)
+	if err != nil {
+		v.addReadError("CHECK-OP2-80 OptimismPortal ETHLockbox", "predicted OpChainContracts", v.expected.EthLockboxProxy, err)
+	} else if lockbox != (common.Address{}) && lockbox != v.expected.EthLockboxProxy {
+		v.addMismatch("CHECK-OP2-80 OptimismPortal ETHLockbox", "predicted OpChainContracts or disabled feature", v.expected.EthLockboxProxy, lockbox)
+	}
+}
+
+func (v *continuationVerifier) persistentAddressExpectations(
+	implementations *continuationOPCMImplementations,
+) []continuationExpectation[common.Address] {
+	contracts := v.expected.OpChainContracts
+	expectations := []continuationExpectation[common.Address]{
+		{"CHECK-SCFG-150 SystemConfig batch inbox", "frozen DeployOPChainInput.L2ChainId", contracts.SystemConfigProxy, continuationBatchInboxMethod, nil, continuationBatchInboxAddress(v.dci.L2ChainId)},
+		{"CHECK-SCFG-160 SystemConfig L1CrossDomainMessenger", "predicted OpChainContracts", contracts.SystemConfigProxy, continuationL1XDMMethod, nil, contracts.L1CrossDomainMessengerProxy},
+		{"CHECK-SCFG-170 SystemConfig L1ERC721Bridge", "predicted OpChainContracts", contracts.SystemConfigProxy, continuationL1ERC721BridgeMethod, nil, contracts.L1Erc721BridgeProxy},
+		{"CHECK-SCFG-180 SystemConfig L1StandardBridge", "predicted OpChainContracts", contracts.SystemConfigProxy, continuationL1StandardBridgeMethod, nil, contracts.L1StandardBridgeProxy},
+		{"CHECK-SCFG-200 SystemConfig OptimismPortal", "predicted OpChainContracts", contracts.SystemConfigProxy, continuationOptimismPortalMethod, nil, contracts.OptimismPortalProxy},
+		{"CHECK-SCFG-210 SystemConfig mintable factory", "predicted OpChainContracts", contracts.SystemConfigProxy, continuationMintableFactoryMethod, nil, contracts.OptimismMintableErc20FactoryProxy},
+		{"CHECK-OP2-25 OptimismPortal AnchorStateRegistry", "predicted OpChainContracts", contracts.OptimismPortalProxy, continuationAnchorRegistryMethod, nil, contracts.AnchorStateRegistryProxy},
+		{"CHECK-OP2-90 OptimismPortal ProxyAdmin owner", "frozen DeployOPChainInput.OpChainProxyAdminOwner", contracts.OptimismPortalProxy, continuationProxyAdminOwnerMethod, nil, v.dci.OpChainProxyAdminOwner},
+		{"AM-10 AddressManager owner", "predicted OpChainContracts.OpChainProxyAdminImpl", contracts.AddressManagerImpl, continuationOwnerMethod, nil, contracts.OpChainProxyAdminImpl},
+		{"OPCPA-30 ProxyAdmin AddressManager", "predicted OpChainContracts.AddressManagerImpl", contracts.OpChainProxyAdminImpl, continuationAddressManagerMethod, nil, contracts.AddressManagerImpl},
+	}
+	if implementations == nil {
+		return expectations
+	}
+	for _, proxy := range []struct {
+		check          string
+		address        common.Address
+		implementation common.Address
+	}{
+		{"OPCPA-20 L1CrossDomainMessenger implementation", contracts.L1CrossDomainMessengerProxy, implementations.L1CrossDomainMessengerImpl},
+		{"OPCPA-40 L1StandardBridge implementation", contracts.L1StandardBridgeProxy, implementations.L1StandardBridgeImpl},
+		{"OPCPA-50 L1ERC721Bridge implementation", contracts.L1Erc721BridgeProxy, implementations.L1ERC721BridgeImpl},
+		{"OPCPA-60 OptimismPortal implementation", contracts.OptimismPortalProxy, implementations.OptimismPortalImpl},
+		{"OPCPA-70 SystemConfig implementation", contracts.SystemConfigProxy, implementations.SystemConfigImpl},
+		{"OPCPA-80 mintable factory implementation", contracts.OptimismMintableErc20FactoryProxy, implementations.OptimismMintableERC20FactoryImpl},
+		{"OPCPA-90 DisputeGameFactory implementation", contracts.DisputeGameFactoryProxy, implementations.DisputeGameFactoryImpl},
+		{"OPCPA-100 DelayedWETH implementation", contracts.DelayedWethPermissionedGameProxy, implementations.DelayedWETHImpl},
+		{"OPCPA-110 AnchorStateRegistry implementation", contracts.AnchorStateRegistryProxy, implementations.AnchorStateRegistryImpl},
+		{"OPCPA-120 ETHLockbox implementation", contracts.EthLockboxProxy, implementations.ETHLockboxImpl},
+	} {
+		expectations = append(expectations, continuationExpectation[common.Address]{
+			proxy.check,
+			"pinned OPCM implementations",
+			contracts.OpChainProxyAdminImpl,
+			continuationProxyImplementationMethod,
+			[]any{proxy.address},
+			proxy.implementation,
+		})
+	}
+	return expectations
+}
+
+func continuationBatchInboxAddress(chainID *big.Int) common.Address {
+	if chainID == nil {
+		return common.Address{}
+	}
+	hash := crypto.Keccak256(common.BigToHash(chainID).Bytes())
+	var inbox common.Address
+	copy(inbox[1:], hash[:19])
+	return inbox
 }
 
 func (v *continuationVerifier) verifySuperchainConfig() {
-	attachments := []struct {
-		name    string
-		address common.Address
-		method  abi.Method
-	}{
-		{"SystemConfig", v.expected.SystemConfigProxy, continuationSuperchainConfigMethod},
-		{"OptimismPortal", v.expected.OptimismPortalProxy, continuationSuperchainConfigMethod},
-		{"AnchorStateRegistry", v.expected.AnchorStateRegistryProxy, continuationSuperchainConfigMethod},
-		{"L1CrossDomainMessenger", v.expected.L1CrossDomainMessengerProxy, continuationSuperchainConfigMethod},
-		{"L1ERC721Bridge", v.expected.L1Erc721BridgeProxy, continuationSuperchainConfigMethod},
-		{"L1StandardBridge", v.expected.L1StandardBridgeProxy, continuationSuperchainConfigMethod},
-		{"ETHLockbox", v.expected.EthLockboxProxy, continuationSuperchainConfigMethod},
-		{"DelayedWETH permissioned", v.expected.DelayedWethPermissionedGameProxy, continuationConfigMethod},
-		{"DelayedWETH permissionless", v.expected.DelayedWethPermissionlessGameProxy, continuationConfigMethod},
+	attachments := []continuationExpectation[common.Address]{
+		{"SystemConfig SuperchainConfig attachment", "frozen DeployOPChainInput.SuperchainConfig", v.expected.SystemConfigProxy, continuationSuperchainConfigMethod, nil, v.dci.SuperchainConfig},
+		{"OptimismPortal SuperchainConfig attachment", "frozen DeployOPChainInput.SuperchainConfig", v.expected.OptimismPortalProxy, continuationSuperchainConfigMethod, nil, v.dci.SuperchainConfig},
+		{"AnchorStateRegistry SuperchainConfig attachment", "frozen DeployOPChainInput.SuperchainConfig", v.expected.AnchorStateRegistryProxy, continuationSuperchainConfigMethod, nil, v.dci.SuperchainConfig},
+		{"L1CrossDomainMessenger SuperchainConfig attachment", "frozen DeployOPChainInput.SuperchainConfig", v.expected.L1CrossDomainMessengerProxy, continuationSuperchainConfigMethod, nil, v.dci.SuperchainConfig},
+		{"L1ERC721Bridge SuperchainConfig attachment", "frozen DeployOPChainInput.SuperchainConfig", v.expected.L1Erc721BridgeProxy, continuationSuperchainConfigMethod, nil, v.dci.SuperchainConfig},
+		{"L1StandardBridge SuperchainConfig attachment", "frozen DeployOPChainInput.SuperchainConfig", v.expected.L1StandardBridgeProxy, continuationSuperchainConfigMethod, nil, v.dci.SuperchainConfig},
+		{"ETHLockbox SuperchainConfig attachment", "frozen DeployOPChainInput.SuperchainConfig", v.expected.EthLockboxProxy, continuationSuperchainConfigMethod, nil, v.dci.SuperchainConfig},
+		{"DelayedWETH permissioned SuperchainConfig attachment", "frozen DeployOPChainInput.SuperchainConfig", v.expected.DelayedWethPermissionedGameProxy, continuationConfigMethod, nil, v.dci.SuperchainConfig},
+		{"DelayedWETH permissionless SuperchainConfig attachment", "frozen DeployOPChainInput.SuperchainConfig", v.expected.DelayedWethPermissionlessGameProxy, continuationConfigMethod, nil, v.dci.SuperchainConfig},
 	}
-	for _, attachment := range attachments {
-		if attachment.address == (common.Address{}) {
-			continue
-		}
-		v.verifyAddressGetter(
-			attachment.name+" SuperchainConfig attachment",
-			"frozen DeployOPChainInput.SuperchainConfig",
-			attachment.address,
-			attachment.method,
-			v.dci.SuperchainConfig,
-		)
-	}
+	verifyContinuationExpectations(v, attachments)
 
-	guardian, err := readContinuationAddress(
+	guardian, err := readContinuation[common.Address](
 		v.ctx,
 		v.backend,
 		v.dci.SuperchainConfig,
@@ -726,24 +653,14 @@ func (v *continuationVerifier) verifySuperchainConfig() {
 		)
 		return
 	}
-	v.verifyAddressGetter(
-		"SystemConfig guardian",
-		"guardian read live from frozen DeployOPChainInput.SuperchainConfig",
-		v.expected.SystemConfigProxy,
-		continuationGuardianMethod,
-		guardian,
-	)
-	v.verifyAddressGetter(
-		"OptimismPortal guardian",
-		"guardian read live from frozen DeployOPChainInput.SuperchainConfig",
-		v.expected.OptimismPortalProxy,
-		continuationGuardianMethod,
-		guardian,
-	)
+	verifyContinuationExpectations(v, []continuationExpectation[common.Address]{
+		{"SystemConfig guardian", "guardian read live from frozen DeployOPChainInput.SuperchainConfig", v.expected.SystemConfigProxy, continuationGuardianMethod, nil, guardian},
+		{"OptimismPortal guardian", "guardian read live from frozen DeployOPChainInput.SuperchainConfig", v.expected.OptimismPortalProxy, continuationGuardianMethod, nil, guardian},
+	})
 }
 
 func (v *continuationVerifier) verifyStandardValidator() {
-	validator, err := readContinuationAddress(
+	validator, err := readContinuation[common.Address](
 		v.ctx,
 		v.backend,
 		v.dci.Opcm,
@@ -773,63 +690,35 @@ func (v *continuationVerifier) verifyStandardValidator() {
 	}
 }
 
-func (v *continuationVerifier) verifyAddressGetter(
-	check string,
-	source string,
-	contract common.Address,
-	method abi.Method,
-	expected common.Address,
-) {
-	observed, err := readContinuationAddress(v.ctx, v.backend, contract, method)
-	if err != nil {
-		v.addReadError(check, source, expected, err)
-	} else if observed != expected {
-		v.addMismatch(check, source, expected, observed)
-	}
+type continuationExpectation[T comparable] struct {
+	check    string
+	source   string
+	contract common.Address
+	method   *w3.Func
+	args     []any
+	expected T
 }
 
-func (v *continuationVerifier) verifyUint32Getter(
-	check string,
-	source string,
-	contract common.Address,
-	method abi.Method,
-	expected uint32,
+func verifyContinuationExpectations[T comparable](
+	v *continuationVerifier,
+	expectations []continuationExpectation[T],
 ) {
-	observed, err := readContinuationUint32(v.ctx, v.backend, contract, method)
-	if err != nil {
-		v.addReadError(check, source, expected, err)
-	} else if observed != expected {
-		v.addMismatch(check, source, expected, observed)
-	}
-}
-
-func (v *continuationVerifier) verifyUint64Getter(
-	check string,
-	source string,
-	contract common.Address,
-	method abi.Method,
-	expected uint64,
-) {
-	observed, err := readContinuationUint64(v.ctx, v.backend, contract, method)
-	if err != nil {
-		v.addReadError(check, source, expected, err)
-	} else if observed != expected {
-		v.addMismatch(check, source, expected, observed)
-	}
-}
-
-func (v *continuationVerifier) verifyBoolGetter(
-	check string,
-	source string,
-	contract common.Address,
-	method abi.Method,
-	expected bool,
-) {
-	observed, err := readContinuationBool(v.ctx, v.backend, contract, method)
-	if err != nil {
-		v.addReadError(check, source, expected, err)
-	} else if observed != expected {
-		v.addMismatch(check, source, expected, observed)
+	for _, expectation := range expectations {
+		if expectation.contract == (common.Address{}) {
+			continue
+		}
+		observed, err := readContinuation[T](
+			v.ctx,
+			v.backend,
+			expectation.contract,
+			expectation.method,
+			expectation.args...,
+		)
+		if err != nil {
+			v.addReadError(expectation.check, expectation.source, expectation.expected, err)
+		} else if observed != expectation.expected {
+			v.addMismatch(expectation.check, expectation.source, expectation.expected, observed)
+		}
 	}
 }
 
@@ -869,196 +758,91 @@ func standardValidatorInput(
 type namedAddress struct {
 	name    string
 	address common.Address
+
+	// Shared implementations are not deployment markers because they may already
+	// contain code before this chain's contracts are deployed.
+	deploymentMarker bool
 }
 
 func continuationContractAddresses(contracts addresses.OpChainContracts) []namedAddress {
 	return []namedAddress{
-		{"OpChainProxyAdminImpl", contracts.OpChainProxyAdminImpl},
-		{"OptimismPortalProxy", contracts.OptimismPortalProxy},
-		{"AddressManagerImpl", contracts.AddressManagerImpl},
-		{"L1Erc721BridgeProxy", contracts.L1Erc721BridgeProxy},
-		{"SystemConfigProxy", contracts.SystemConfigProxy},
-		{"OptimismMintableErc20FactoryProxy", contracts.OptimismMintableErc20FactoryProxy},
-		{"L1StandardBridgeProxy", contracts.L1StandardBridgeProxy},
-		{"L1CrossDomainMessengerProxy", contracts.L1CrossDomainMessengerProxy},
-		{"EthLockboxProxy", contracts.EthLockboxProxy},
-		{"DisputeGameFactoryProxy", contracts.DisputeGameFactoryProxy},
-		{"AnchorStateRegistryProxy", contracts.AnchorStateRegistryProxy},
-		{"FaultDisputeGameImpl", contracts.FaultDisputeGameImpl},
-		{"FaultDisputeGameCannonKonaImpl", contracts.FaultDisputeGameCannonKonaImpl},
-		{"PermissionedDisputeGameImpl", contracts.PermissionedDisputeGameImpl},
-		{"DelayedWethPermissionedGameProxy", contracts.DelayedWethPermissionedGameProxy},
-		{"DelayedWethPermissionlessGameProxy", contracts.DelayedWethPermissionlessGameProxy},
-		{"AltDAChallengeProxy", contracts.AltDAChallengeProxy},
-		{"AltDAChallengeImpl", contracts.AltDAChallengeImpl},
-		{"L2OutputOracleProxy", contracts.L2OutputOracleProxy},
+		{"OpChainProxyAdminImpl", contracts.OpChainProxyAdminImpl, true},
+		{"OptimismPortalProxy", contracts.OptimismPortalProxy, true},
+		{"AddressManagerImpl", contracts.AddressManagerImpl, true},
+		{"L1Erc721BridgeProxy", contracts.L1Erc721BridgeProxy, true},
+		{"SystemConfigProxy", contracts.SystemConfigProxy, true},
+		{"OptimismMintableErc20FactoryProxy", contracts.OptimismMintableErc20FactoryProxy, true},
+		{"L1StandardBridgeProxy", contracts.L1StandardBridgeProxy, true},
+		{"L1CrossDomainMessengerProxy", contracts.L1CrossDomainMessengerProxy, true},
+		{"EthLockboxProxy", contracts.EthLockboxProxy, true},
+		{"DisputeGameFactoryProxy", contracts.DisputeGameFactoryProxy, true},
+		{"AnchorStateRegistryProxy", contracts.AnchorStateRegistryProxy, true},
+		{"FaultDisputeGameImpl", contracts.FaultDisputeGameImpl, false},
+		{"FaultDisputeGameCannonKonaImpl", contracts.FaultDisputeGameCannonKonaImpl, false},
+		{"PermissionedDisputeGameImpl", contracts.PermissionedDisputeGameImpl, false},
+		{"DelayedWethPermissionedGameProxy", contracts.DelayedWethPermissionedGameProxy, true},
+		{"DelayedWethPermissionlessGameProxy", contracts.DelayedWethPermissionlessGameProxy, true},
+		{"AltDAChallengeProxy", contracts.AltDAChallengeProxy, true},
+		{"AltDAChallengeImpl", contracts.AltDAChallengeImpl, false},
+		{"L2OutputOracleProxy", contracts.L2OutputOracleProxy, true},
 	}
 }
 
 var (
-	continuationStartingAnchorMethod      = newContinuationViewMethod("getStartingAnchorRoot", nil, "bytes32", "uint256")
-	continuationRespectedGameTypeMethod   = newContinuationViewMethod("respectedGameType", nil, "uint32")
-	continuationGameImplMethod            = newContinuationViewMethod("gameImpls", []string{"uint32"}, "address")
-	continuationGameArgsMethod            = newContinuationViewMethod("gameArgs", []string{"uint32"}, "bytes")
-	continuationImplementationsMethod     = newContinuationImplementationsMethod()
-	continuationOwnerMethod               = newContinuationViewMethod("owner", nil, "address")
-	continuationBasefeeScalarMethod       = newContinuationViewMethod("basefeeScalar", nil, "uint32")
-	continuationBlobBasefeeScalarMethod   = newContinuationViewMethod("blobbasefeeScalar", nil, "uint32")
-	continuationBatcherHashMethod         = newContinuationViewMethod("batcherHash", nil, "bytes32")
-	continuationUnsafeBlockSignerMethod   = newContinuationViewMethod("unsafeBlockSigner", nil, "address")
-	continuationGasLimitMethod            = newContinuationViewMethod("gasLimit", nil, "uint64")
-	continuationL2ChainIDMethod           = newContinuationViewMethod("l2ChainId", nil, "uint256")
-	continuationOperatorFeeScalarMethod   = newContinuationViewMethod("operatorFeeScalar", nil, "uint32")
-	continuationOperatorFeeConstantMethod = newContinuationViewMethod("operatorFeeConstant", nil, "uint64")
-	continuationIsCustomGasTokenMethod    = newContinuationViewMethod("isCustomGasToken", nil, "bool")
-	continuationSuperchainConfigMethod    = newContinuationViewMethod("superchainConfig", nil, "address")
-	continuationConfigMethod              = newContinuationViewMethod("config", nil, "address")
-	continuationGuardianMethod            = newContinuationViewMethod("guardian", nil, "address")
-	continuationStandardValidatorMethod   = newContinuationViewMethod("opcmStandardValidator", nil, "address")
-	continuationDevFeatureBitmapMethod    = newContinuationViewMethod("devFeatureBitmap", nil, "bytes32")
+	continuationRespectedGameTypeMethod   = w3.MustNewFunc("respectedGameType()", "uint32")
+	continuationGameImplMethod            = w3.MustNewFunc("gameImpls(uint32)", "address")
+	continuationGameArgsMethod            = w3.MustNewFunc("gameArgs(uint32)", "bytes")
+	continuationImplementationsMethod     = w3.MustNewFunc("implementations()", `(address superchainConfigImpl,address l1ERC721BridgeImpl,address optimismPortalImpl,address ethLockboxImpl,address systemConfigImpl,address optimismMintableERC20FactoryImpl,address l1CrossDomainMessengerImpl,address l1StandardBridgeImpl,address disputeGameFactoryImpl,address anchorStateRegistryImpl,address delayedWETHImpl,address mipsImpl,address faultDisputeGameImpl,address permissionedDisputeGameImpl,address superFaultDisputeGameImpl,address superPermissionedDisputeGameImpl,address zkDisputeGameImpl,address storageSetterImpl)`)
+	continuationOwnerMethod               = w3.MustNewFunc("owner()", "address")
+	continuationAddressManagerMethod      = w3.MustNewFunc("addressManager()", "address")
+	continuationProxyImplementationMethod = w3.MustNewFunc("getProxyImplementation(address)", "address")
+	continuationBasefeeScalarMethod       = w3.MustNewFunc("basefeeScalar()", "uint32")
+	continuationBlobBasefeeScalarMethod   = w3.MustNewFunc("blobbasefeeScalar()", "uint32")
+	continuationScalarMethod              = w3.MustNewFunc("scalar()", "uint256")
+	continuationBatcherHashMethod         = w3.MustNewFunc("batcherHash()", "bytes32")
+	continuationBatchInboxMethod          = w3.MustNewFunc("batchInbox()", "address")
+	continuationUnsafeBlockSignerMethod   = w3.MustNewFunc("unsafeBlockSigner()", "address")
+	continuationGasLimitMethod            = w3.MustNewFunc("gasLimit()", "uint64")
+	continuationL2ChainIDMethod           = w3.MustNewFunc("l2ChainId()", "uint256")
+	continuationOperatorFeeScalarMethod   = w3.MustNewFunc("operatorFeeScalar()", "uint32")
+	continuationOperatorFeeConstantMethod = w3.MustNewFunc("operatorFeeConstant()", "uint64")
+	continuationIsCustomGasTokenMethod    = w3.MustNewFunc("isCustomGasToken()", "bool")
+	continuationSuperchainConfigMethod    = w3.MustNewFunc("superchainConfig()", "address")
+	continuationL1XDMMethod               = w3.MustNewFunc("l1CrossDomainMessenger()", "address")
+	continuationL1ERC721BridgeMethod      = w3.MustNewFunc("l1ERC721Bridge()", "address")
+	continuationL1StandardBridgeMethod    = w3.MustNewFunc("l1StandardBridge()", "address")
+	continuationOptimismPortalMethod      = w3.MustNewFunc("optimismPortal()", "address")
+	continuationMintableFactoryMethod     = w3.MustNewFunc("optimismMintableERC20Factory()", "address")
+	continuationAnchorRegistryMethod      = w3.MustNewFunc("anchorStateRegistry()", "address")
+	continuationEthLockboxMethod          = w3.MustNewFunc("ethLockbox()", "address")
+	continuationProxyAdminOwnerMethod     = w3.MustNewFunc("proxyAdminOwner()", "address")
+	continuationPausedMethod              = w3.MustNewFunc("paused()", "bool")
+	continuationConfigMethod              = w3.MustNewFunc("config()", "address")
+	continuationGuardianMethod            = w3.MustNewFunc("guardian()", "address")
+	continuationStandardValidatorMethod   = w3.MustNewFunc("opcmStandardValidator()", "address")
+	continuationDevFeatureBitmapMethod    = w3.MustNewFunc("devFeatureBitmap()", "bytes32")
 )
 
-func newContinuationViewMethod(name string, inputTypes []string, outputTypes ...string) abi.Method {
-	inputs := make(abi.Arguments, len(inputTypes))
-	for i, inputType := range inputTypes {
-		inputs[i] = abi.Argument{Type: opcm.MustType(inputType)}
-	}
-	outputs := make(abi.Arguments, len(outputTypes))
-	for i, outputType := range outputTypes {
-		outputs[i] = abi.Argument{Type: opcm.MustType(outputType)}
-	}
-	return abi.NewMethod(name, name, abi.Function, "view", true, false, inputs, outputs)
-}
-
-func newContinuationImplementationsMethod() abi.Method {
-	components := []abi.ArgumentMarshaling{
-		{Name: "superchainConfigImpl", Type: "address"},
-		{Name: "l1ERC721BridgeImpl", Type: "address"},
-		{Name: "optimismPortalImpl", Type: "address"},
-		{Name: "ethLockboxImpl", Type: "address"},
-		{Name: "systemConfigImpl", Type: "address"},
-		{Name: "optimismMintableERC20FactoryImpl", Type: "address"},
-		{Name: "l1CrossDomainMessengerImpl", Type: "address"},
-		{Name: "l1StandardBridgeImpl", Type: "address"},
-		{Name: "disputeGameFactoryImpl", Type: "address"},
-		{Name: "anchorStateRegistryImpl", Type: "address"},
-		{Name: "delayedWETHImpl", Type: "address"},
-		{Name: "mipsImpl", Type: "address"},
-		{Name: "faultDisputeGameImpl", Type: "address"},
-		{Name: "permissionedDisputeGameImpl", Type: "address"},
-		{Name: "superFaultDisputeGameImpl", Type: "address"},
-		{Name: "superPermissionedDisputeGameImpl", Type: "address"},
-		{Name: "zkDisputeGameImpl", Type: "address"},
-		{Name: "storageSetterImpl", Type: "address"},
-	}
-	implementationsType, err := abi.NewType("tuple", "", components)
-	if err != nil {
-		panic(fmt.Errorf("failed to define OPCM implementations ABI type: %w", err))
-	}
-	return abi.NewMethod(
-		"implementations",
-		"implementations",
-		abi.Function,
-		"view",
-		true,
-		false,
-		nil,
-		abi.Arguments{{Type: implementationsType}},
-	)
-}
-
-func callContinuationMethod(
+func readContinuation[T any](
 	ctx context.Context,
 	backend opcm.CallContractBackend,
 	contract common.Address,
-	method abi.Method,
+	method *w3.Func,
 	args ...any,
-) ([]any, error) {
-	input, err := method.Inputs.Pack(args...)
+) (T, error) {
+	var value T
+	calldata, err := method.EncodeArgs(args...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to encode %s call: %w", method.Name, err)
+		return value, fmt.Errorf("failed to encode %s call: %w", method.Signature, err)
 	}
-	calldata := append(bytes.Clone(method.ID), input...)
 	result, err := backend.CallContract(ctx, ethereum.CallMsg{To: &contract, Data: calldata}, nil)
 	if err != nil {
-		return nil, fmt.Errorf("%s call to %s failed: %w", method.Name, contract, err)
+		return value, fmt.Errorf("%s call to %s failed: %w", method.Signature, contract, err)
 	}
-	values, err := method.Outputs.Unpack(result)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode %s result from %s: %w", method.Name, contract, err)
+	if err := method.DecodeReturns(result, &value); err != nil {
+		return value, fmt.Errorf("failed to decode %s result from %s: %w", method.Signature, contract, err)
 	}
-	return values, nil
-}
-
-func readContinuationOne(
-	ctx context.Context,
-	backend opcm.CallContractBackend,
-	contract common.Address,
-	method abi.Method,
-	args ...any,
-) (any, error) {
-	values, err := callContinuationMethod(ctx, backend, contract, method, args...)
-	if err != nil {
-		return nil, err
-	}
-	if len(values) != 1 {
-		return nil, fmt.Errorf("%s returned %d values", method.Name, len(values))
-	}
-	return values[0], nil
-}
-
-func readContinuationAddress(
-	ctx context.Context,
-	backend opcm.CallContractBackend,
-	contract common.Address,
-	method abi.Method,
-	args ...any,
-) (common.Address, error) {
-	value, err := readContinuationOne(ctx, backend, contract, method, args...)
-	if err != nil {
-		return common.Address{}, err
-	}
-	address, ok := value.(common.Address)
-	if !ok {
-		return common.Address{}, fmt.Errorf("%s returned unexpected type %T", method.Name, value)
-	}
-	return address, nil
-}
-
-func readContinuationHash(
-	ctx context.Context,
-	backend opcm.CallContractBackend,
-	contract common.Address,
-	method abi.Method,
-	args ...any,
-) (common.Hash, error) {
-	value, err := readContinuationOne(ctx, backend, contract, method, args...)
-	if err != nil {
-		return common.Hash{}, err
-	}
-	hash, ok := value.([common.HashLength]byte)
-	if !ok {
-		return common.Hash{}, fmt.Errorf("%s returned unexpected type %T", method.Name, value)
-	}
-	return common.Hash(hash), nil
-}
-
-func readContinuationBytes(
-	ctx context.Context,
-	backend opcm.CallContractBackend,
-	contract common.Address,
-	method abi.Method,
-	args ...any,
-) ([]byte, error) {
-	value, err := readContinuationOne(ctx, backend, contract, method, args...)
-	if err != nil {
-		return nil, err
-	}
-	result, ok := value.([]byte)
-	if !ok {
-		return nil, fmt.Errorf("%s returned unexpected type %T", method.Name, value)
-	}
-	return result, nil
+	return value, nil
 }
 
 func readContinuationOPCMImplementations(
@@ -1066,18 +850,12 @@ func readContinuationOPCMImplementations(
 	backend opcm.CallContractBackend,
 	opcmAddress common.Address,
 ) (continuationOPCMImplementations, error) {
-	value, err := readContinuationOne(ctx, backend, opcmAddress, continuationImplementationsMethod)
-	if err != nil {
-		return continuationOPCMImplementations{}, err
-	}
-	implementations, ok := abi.ConvertType(value, new(continuationOPCMImplementations)).(*continuationOPCMImplementations)
-	if !ok {
-		return continuationOPCMImplementations{}, fmt.Errorf(
-			"implementations returned unexpected type %T",
-			value,
-		)
-	}
-	return *implementations, nil
+	return readContinuation[continuationOPCMImplementations](
+		ctx,
+		backend,
+		opcmAddress,
+		continuationImplementationsMethod,
+	)
 }
 
 // These offsets mirror packages/contracts-bedrock/src/dispute/lib/LibGameArgs.sol.
@@ -1098,12 +876,10 @@ func decodeContinuationGameArgs(
 		}, nil
 	}
 
-	expectedLength := 124
-	if layout == continuationPermissionedGameArgs {
-		expectedLength = 164
-	} else if layout != continuationPermissionlessGameArgs {
+	if layout != continuationPermissionedGameArgs {
 		return continuationGameArgs{}, fmt.Errorf("unknown continuation game argument layout %d", layout)
 	}
+	expectedLength := 164
 	if len(gameArgs) != expectedLength {
 		return continuationGameArgs{}, fmt.Errorf(
 			"configured game arguments have length %d, expected %d",
@@ -1119,104 +895,7 @@ func decodeContinuationGameArgs(
 		delayedWETH:         common.BytesToAddress(gameArgs[72:92]),
 		l2ChainID:           new(big.Int).SetBytes(gameArgs[92:124]),
 	}
-	if layout == continuationPermissionedGameArgs {
-		decoded.proposer = common.BytesToAddress(gameArgs[124:144])
-		decoded.challenger = common.BytesToAddress(gameArgs[144:164])
-	}
+	decoded.proposer = common.BytesToAddress(gameArgs[124:144])
+	decoded.challenger = common.BytesToAddress(gameArgs[144:164])
 	return decoded, nil
-}
-
-func readContinuationUint32(
-	ctx context.Context,
-	backend opcm.CallContractBackend,
-	contract common.Address,
-	method abi.Method,
-	args ...any,
-) (uint32, error) {
-	value, err := readContinuationOne(ctx, backend, contract, method, args...)
-	if err != nil {
-		return 0, err
-	}
-	result, ok := value.(uint32)
-	if !ok {
-		return 0, fmt.Errorf("%s returned unexpected type %T", method.Name, value)
-	}
-	return result, nil
-}
-
-func readContinuationUint64(
-	ctx context.Context,
-	backend opcm.CallContractBackend,
-	contract common.Address,
-	method abi.Method,
-	args ...any,
-) (uint64, error) {
-	value, err := readContinuationOne(ctx, backend, contract, method, args...)
-	if err != nil {
-		return 0, err
-	}
-	result, ok := value.(uint64)
-	if !ok {
-		return 0, fmt.Errorf("%s returned unexpected type %T", method.Name, value)
-	}
-	return result, nil
-}
-
-func readContinuationBool(
-	ctx context.Context,
-	backend opcm.CallContractBackend,
-	contract common.Address,
-	method abi.Method,
-	args ...any,
-) (bool, error) {
-	value, err := readContinuationOne(ctx, backend, contract, method, args...)
-	if err != nil {
-		return false, err
-	}
-	result, ok := value.(bool)
-	if !ok {
-		return false, fmt.Errorf("%s returned unexpected type %T", method.Name, value)
-	}
-	return result, nil
-}
-
-func readContinuationBig(
-	ctx context.Context,
-	backend opcm.CallContractBackend,
-	contract common.Address,
-	method abi.Method,
-	args ...any,
-) (*big.Int, error) {
-	value, err := readContinuationOne(ctx, backend, contract, method, args...)
-	if err != nil {
-		return nil, err
-	}
-	result, ok := value.(*big.Int)
-	if !ok {
-		return nil, fmt.Errorf("%s returned unexpected type %T", method.Name, value)
-	}
-	return result, nil
-}
-
-func readContinuationAnchor(
-	ctx context.Context,
-	backend opcm.CallContractBackend,
-	contract common.Address,
-) (common.Hash, *big.Int, error) {
-	values, err := callContinuationMethod(ctx, backend, contract, continuationStartingAnchorMethod)
-	if err != nil {
-		return common.Hash{}, nil, err
-	}
-	if len(values) != 2 {
-		return common.Hash{}, nil, fmt.Errorf("getStartingAnchorRoot returned %d values", len(values))
-	}
-	root, ok := values[0].([common.HashLength]byte)
-	if !ok {
-		return common.Hash{}, nil, fmt.Errorf("getStartingAnchorRoot root returned unexpected type %T", values[0])
-	}
-	sequence, ok := values[1].(*big.Int)
-	if !ok {
-		return common.Hash{}, nil, fmt.Errorf("getStartingAnchorRoot sequence returned unexpected type %T", values[1])
-	}
-	return common.Hash(root), sequence, nil
 }

@@ -13,9 +13,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
+	opeth "github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/lmittmann/w3"
 	"github.com/stretchr/testify/require"
 )
 
@@ -65,16 +67,15 @@ func (b *continuationVerificationBackend) CodeAt(
 func (b *continuationVerificationBackend) set(
 	t *testing.T,
 	contract common.Address,
-	method abi.Method,
+	method *w3.Func,
 	args []any,
 	values ...any,
 ) {
 	t.Helper()
-	input, err := method.Inputs.Pack(args...)
+	calldata, err := method.EncodeArgs(args...)
 	require.NoError(t, err)
-	output, err := method.Outputs.Pack(values...)
+	output, err := method.Returns.Pack(values...)
 	require.NoError(t, err)
-	calldata := append(bytes.Clone(method.ID), input...)
 	b.responses[continuationCallKey(contract, calldata)] = output
 }
 
@@ -99,6 +100,7 @@ type continuationVerificationFixture struct {
 	dci       opcm.DeployOPChainInput
 	guardian  common.Address
 	vm        common.Address
+	impls     continuationOPCMImplementations
 	superRoot bool
 }
 
@@ -180,6 +182,19 @@ func newContinuationVerificationFixtureWithMode(
 		vm:        common.Address{0xc1},
 		superRoot: superRoot,
 	}
+	fixture.impls = continuationOPCMImplementations{
+		L1ERC721BridgeImpl:               common.Address{0xc2},
+		OptimismPortalImpl:               common.Address{0xc3},
+		ETHLockboxImpl:                   common.Address{0xc4},
+		SystemConfigImpl:                 common.Address{0xc5},
+		OptimismMintableERC20FactoryImpl: common.Address{0xc6},
+		L1CrossDomainMessengerImpl:       common.Address{0xc7},
+		L1StandardBridgeImpl:             common.Address{0xc8},
+		DisputeGameFactoryImpl:           common.Address{0xc9},
+		AnchorStateRegistryImpl:          common.Address{0xca},
+		DelayedWETHImpl:                  common.Address{0xcb},
+		MipsImpl:                         fixture.vm,
+	}
 	fixture.seed(t, gameType)
 	return fixture
 }
@@ -219,16 +234,6 @@ func (f *continuationVerificationFixture) seed(t *testing.T, gameType embedded.G
 		}
 	}
 
-	anchorRoot := f.dci.StartingAnchorRoot.Root
-	anchorSequence := f.dci.StartingAnchorRoot.L2SequenceNumber
-	f.backend.set(
-		t,
-		f.expected.AnchorStateRegistryProxy,
-		continuationStartingAnchorMethod,
-		nil,
-		anchorRoot,
-		anchorSequence,
-	)
 	f.backend.set(
 		t,
 		f.dci.Opcm,
@@ -241,7 +246,7 @@ func (f *continuationVerificationFixture) seed(t *testing.T, gameType embedded.G
 		f.dci.Opcm,
 		continuationImplementationsMethod,
 		nil,
-		continuationOPCMImplementations{MipsImpl: f.vm},
+		f.impls,
 	)
 
 	respectedGameType := gameType
@@ -363,10 +368,22 @@ func (f *continuationVerificationFixture) seed(t *testing.T, gameType embedded.G
 		nil,
 		f.dci.OpChainProxyAdminOwner,
 	)
+	verifier := &continuationVerifier{expected: f.expected, dci: f.dci}
+	for _, expectation := range verifier.persistentAddressExpectations(&f.impls) {
+		f.backend.set(t, expectation.contract, expectation.method, expectation.args, expectation.expected)
+	}
+	scalar := opeth.EncodeScalar(opeth.EcotoneScalars{
+		BlobBaseFeeScalar: f.dci.BlobBaseFeeScalar,
+		BaseFeeScalar:     f.dci.BasefeeScalar,
+	})
+	f.backend.set(t, f.expected.SystemConfigProxy, continuationScalarMethod, nil, new(big.Int).SetBytes(scalar[:]))
+	f.backend.set(t, f.expected.SystemConfigProxy, continuationPausedMethod, nil, false)
+	f.backend.set(t, f.expected.OptimismPortalProxy, continuationPausedMethod, nil, false)
+	f.backend.set(t, f.expected.OptimismPortalProxy, continuationEthLockboxMethod, nil, f.expected.EthLockboxProxy)
 
 	attachments := []struct {
 		address common.Address
-		method  abi.Method
+		method  *w3.Func
 	}{
 		{f.expected.SystemConfigProxy, continuationSuperchainConfigMethod},
 		{f.expected.OptimismPortalProxy, continuationSuperchainConfigMethod},
@@ -387,6 +404,7 @@ func (f *continuationVerificationFixture) seed(t *testing.T, gameType embedded.G
 
 	if gameType != embedded.GameTypePermissionedCannon {
 		f.backend.validator = common.Address{0xb4}
+		f.backend.validatorResult = "OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER"
 		f.backend.set(
 			t,
 			f.dci.Opcm,
@@ -460,16 +478,6 @@ func superPermissionedContinuationGameArgs(anchorStateRegistry common.Address, p
 	return append(args, proposer.Bytes()...)
 }
 
-func (f *continuationVerificationFixture) permissionlessArgs(prestate common.Hash, l2ChainID *big.Int) []byte {
-	return permissionlessContinuationGameArgs(
-		prestate,
-		f.vm,
-		f.expected.AnchorStateRegistryProxy,
-		f.expected.DelayedWethPermissionlessGameProxy,
-		l2ChainID,
-	)
-}
-
 func (f *continuationVerificationFixture) permissionedArgs(
 	prestate common.Hash,
 	proposer common.Address,
@@ -529,7 +537,7 @@ func TestVerifyContinuationDeployment(t *testing.T) {
 	t.Run("permissioned selector uses SUPER_PERMISSIONED with a super-root OPCM", func(t *testing.T) {
 		fixture := newContinuationVerificationFixtureWithMode(t, embedded.GameTypePermissionedCannon, true)
 		require.NoError(t, fixture.verify(t))
-		require.Equal(t, 1, fixture.backend.callsTo(fixture.dci.Opcm))
+		require.Equal(t, 2, fixture.backend.callsTo(fixture.dci.Opcm))
 		require.Zero(t, fixture.backend.callsTo(fixture.backend.validator))
 	})
 
@@ -591,16 +599,6 @@ func TestVerifyContinuationDeploymentSuperPermissionedArguments(t *testing.T) {
 	}
 }
 
-func TestVerifyContinuationDeploymentRejectsNonzeroSuperGameChainID(t *testing.T) {
-	fixture := newContinuationVerificationFixture(t, embedded.GameTypeSuperCannonKona)
-	fixture.setGameArgs(
-		t,
-		embedded.GameTypeSuperCannonKona,
-		fixture.permissionlessArgs(fixture.expected.Prestate, fixture.dci.L2ChainId),
-	)
-	require.ErrorContains(t, fixture.verify(t), "selected game L2 chain ID")
-}
-
 func TestVerifyContinuationDeploymentChecksPermissionedSystemConfigExactly(t *testing.T) {
 	fixture := newContinuationVerificationFixture(t, embedded.GameTypePermissionedCannon)
 	fixture.backend.set(
@@ -615,13 +613,23 @@ func TestVerifyContinuationDeploymentChecksPermissionedSystemConfigExactly(t *te
 	require.Zero(t, fixture.backend.callsTo(fixture.backend.validator))
 }
 
+func TestVerifyContinuationDeploymentPermissionedAddressParity(t *testing.T) {
+	template := newContinuationVerificationFixture(t, embedded.GameTypePermissionedCannon)
+	verifier := &continuationVerifier{expected: template.expected, dci: template.dci}
+	for _, expectation := range verifier.persistentAddressExpectations(&template.impls) {
+		t.Run(expectation.check, func(t *testing.T) {
+			fixture := newContinuationVerificationFixture(t, embedded.GameTypePermissionedCannon)
+			fixture.backend.set(t, expectation.contract, expectation.method, expectation.args, common.Address{0xff})
+			require.ErrorContains(t, fixture.verify(t), expectation.check)
+		})
+	}
+}
+
 func TestDecodeContinuationGameArgsRejectsInvalidLengths(t *testing.T) {
 	tests := []struct {
 		layout continuationGameArgsLayout
 		length int
 	}{
-		{continuationPermissionlessGameArgs, 123},
-		{continuationPermissionlessGameArgs, 125},
 		{continuationPermissionedGameArgs, 163},
 		{continuationPermissionedGameArgs, 165},
 		{continuationSuperPermissionedGameArgs, 39},
@@ -635,9 +643,10 @@ func TestDecodeContinuationGameArgsRejectsInvalidLengths(t *testing.T) {
 
 func TestVerifyContinuationDeploymentFailures(t *testing.T) {
 	tests := []struct {
-		name    string
-		wantErr string
-		mutate  func(*testing.T, *continuationVerificationFixture)
+		name         string
+		wantErr      string
+		permissioned bool
+		mutate       func(*testing.T, *continuationVerificationFixture)
 	}{
 		{
 			name:    "address set",
@@ -651,34 +660,6 @@ func TestVerifyContinuationDeploymentFailures(t *testing.T) {
 			wantErr: "AddressManagerImpl code",
 			mutate: func(_ *testing.T, f *continuationVerificationFixture) {
 				delete(f.backend.code, f.expected.AddressManagerImpl)
-			},
-		},
-		{
-			name:    "anchor root",
-			wantErr: "starting anchor root",
-			mutate: func(t *testing.T, f *continuationVerificationFixture) {
-				f.backend.set(
-					t,
-					f.expected.AnchorStateRegistryProxy,
-					continuationStartingAnchorMethod,
-					nil,
-					common.Hash{0xff},
-					f.dci.StartingAnchorRoot.L2SequenceNumber,
-				)
-			},
-		},
-		{
-			name:    "anchor sequence",
-			wantErr: "starting anchor sequence",
-			mutate: func(t *testing.T, f *continuationVerificationFixture) {
-				f.backend.set(
-					t,
-					f.expected.AnchorStateRegistryProxy,
-					continuationStartingAnchorMethod,
-					nil,
-					f.dci.StartingAnchorRoot.Root,
-					big.NewInt(8),
-				)
 			},
 		},
 		{
@@ -721,142 +702,51 @@ func TestVerifyContinuationDeploymentFailures(t *testing.T) {
 			},
 		},
 		{
-			name:    "selected prestate",
-			wantErr: "selected game prestate",
+			name:         "selected prestate",
+			wantErr:      "selected game prestate",
+			permissioned: true,
 			mutate: func(t *testing.T, f *continuationVerificationFixture) {
-				f.backend.set(
-					t,
-					f.expected.DisputeGameFactoryProxy,
-					continuationGameArgsMethod,
-					[]any{uint32(embedded.GameTypeCannonKona)},
-					permissionlessContinuationGameArgs(
-						common.Hash{0xff},
-						f.vm,
-						f.expected.AnchorStateRegistryProxy,
-						f.expected.DelayedWethPermissionlessGameProxy,
-						f.dci.L2ChainId,
-					),
-				)
+				f.setGameArgs(t, embedded.GameTypePermissionedCannon, f.permissionedArgs(common.Hash{0xff}, f.dci.Proposer, f.dci.Challenger))
 			},
 		},
 		{
-			name:    "selected VM",
-			wantErr: "selected game VM",
+			name:         "selected VM",
+			wantErr:      "selected game VM",
+			permissioned: true,
 			mutate: func(t *testing.T, f *continuationVerificationFixture) {
-				args := f.permissionlessArgs(f.expected.Prestate, f.dci.L2ChainId)
-				copy(args[32:52], common.Address{0xff}.Bytes())
-				f.setGameArgs(t, embedded.GameTypeCannonKona, args)
-			},
-		},
-		{
-			name:    "selected AnchorStateRegistry",
-			wantErr: "selected game AnchorStateRegistry",
-			mutate: func(t *testing.T, f *continuationVerificationFixture) {
-				args := f.permissionlessArgs(f.expected.Prestate, f.dci.L2ChainId)
-				copy(args[52:72], common.Address{0xff}.Bytes())
-				f.setGameArgs(t, embedded.GameTypeCannonKona, args)
-			},
-		},
-		{
-			name:    "selected DelayedWETH",
-			wantErr: "selected game DelayedWETH",
-			mutate: func(t *testing.T, f *continuationVerificationFixture) {
-				args := f.permissionlessArgs(f.expected.Prestate, f.dci.L2ChainId)
-				copy(args[72:92], common.Address{0xff}.Bytes())
-				f.setGameArgs(t, embedded.GameTypeCannonKona, args)
-			},
-		},
-		{
-			name:    "selected L2 chain ID",
-			wantErr: "selected game L2 chain ID",
-			mutate: func(t *testing.T, f *continuationVerificationFixture) {
-				f.setGameArgs(t, embedded.GameTypeCannonKona, f.permissionlessArgs(f.expected.Prestate, big.NewInt(902)))
-			},
-		},
-		{
-			name:    "fallback prestate",
-			wantErr: "fallback game prestate",
-			mutate: func(t *testing.T, f *continuationVerificationFixture) {
-				f.backend.set(
-					t,
-					f.expected.DisputeGameFactoryProxy,
-					continuationGameArgsMethod,
-					[]any{uint32(embedded.GameTypePermissionedCannon)},
-					permissionedContinuationGameArgs(
-						common.Hash{0xff},
-						f.vm,
-						f.expected.AnchorStateRegistryProxy,
-						f.expected.DelayedWethPermissionedGameProxy,
-						f.dci.L2ChainId,
-						f.dci.Proposer,
-						f.dci.Challenger,
-					),
-				)
-			},
-		},
-		{
-			name:    "fallback VM",
-			wantErr: "fallback game VM",
-			mutate: func(t *testing.T, f *continuationVerificationFixture) {
-				args := f.permissionedArgs(
-					opcm.PermissionedCannonFallbackPrestatePlaceholder,
-					f.dci.Proposer,
-					f.dci.Challenger,
-				)
+				args := f.permissionedArgs(f.dci.DisputeAbsolutePrestate, f.dci.Proposer, f.dci.Challenger)
 				copy(args[32:52], common.Address{0xff}.Bytes())
 				f.setGameArgs(t, embedded.GameTypePermissionedCannon, args)
 			},
 		},
 		{
-			name:    "fallback AnchorStateRegistry",
-			wantErr: "fallback game AnchorStateRegistry",
+			name:         "selected AnchorStateRegistry",
+			wantErr:      "selected game AnchorStateRegistry",
+			permissioned: true,
 			mutate: func(t *testing.T, f *continuationVerificationFixture) {
-				args := f.permissionedArgs(
-					opcm.PermissionedCannonFallbackPrestatePlaceholder,
-					f.dci.Proposer,
-					f.dci.Challenger,
-				)
+				args := f.permissionedArgs(f.dci.DisputeAbsolutePrestate, f.dci.Proposer, f.dci.Challenger)
 				copy(args[52:72], common.Address{0xff}.Bytes())
 				f.setGameArgs(t, embedded.GameTypePermissionedCannon, args)
 			},
 		},
 		{
-			name:    "fallback DelayedWETH",
-			wantErr: "fallback game DelayedWETH",
+			name:         "selected DelayedWETH",
+			wantErr:      "selected game DelayedWETH",
+			permissioned: true,
 			mutate: func(t *testing.T, f *continuationVerificationFixture) {
-				args := f.permissionedArgs(
-					opcm.PermissionedCannonFallbackPrestatePlaceholder,
-					f.dci.Proposer,
-					f.dci.Challenger,
-				)
+				args := f.permissionedArgs(f.dci.DisputeAbsolutePrestate, f.dci.Proposer, f.dci.Challenger)
 				copy(args[72:92], common.Address{0xff}.Bytes())
 				f.setGameArgs(t, embedded.GameTypePermissionedCannon, args)
 			},
 		},
 		{
-			name:    "fallback L2 chain ID",
-			wantErr: "fallback game L2 chain ID",
+			name:         "selected L2 chain ID",
+			wantErr:      "selected game L2 chain ID",
+			permissioned: true,
 			mutate: func(t *testing.T, f *continuationVerificationFixture) {
-				args := f.permissionedArgs(
-					opcm.PermissionedCannonFallbackPrestatePlaceholder,
-					f.dci.Proposer,
-					f.dci.Challenger,
-				)
+				args := f.permissionedArgs(f.dci.DisputeAbsolutePrestate, f.dci.Proposer, f.dci.Challenger)
 				copy(args[92:124], common.LeftPadBytes(big.NewInt(902).Bytes(), common.HashLength))
 				f.setGameArgs(t, embedded.GameTypePermissionedCannon, args)
-			},
-		},
-		{
-			name:    "missing fallback prestate",
-			wantErr: "fallback game arguments",
-			mutate: func(t *testing.T, f *continuationVerificationFixture) {
-				f.backend.set(
-					t,
-					f.expected.DisputeGameFactoryProxy,
-					continuationGameArgsMethod,
-					[]any{uint32(embedded.GameTypePermissionedCannon)},
-					[]byte{},
-				)
 			},
 		},
 		{
@@ -936,50 +826,54 @@ func TestVerifyContinuationDeploymentFailures(t *testing.T) {
 			},
 		},
 		{
-			name:    "permissioned proposer",
-			wantErr: "fallback game proposer",
+			name:         "SystemConfig combined scalar",
+			wantErr:      "CHECK-SCFG-70 SystemConfig scalar",
+			permissioned: true,
 			mutate: func(t *testing.T, f *continuationVerificationFixture) {
-				f.backend.set(
-					t,
-					f.expected.DisputeGameFactoryProxy,
-					continuationGameArgsMethod,
-					[]any{uint32(embedded.GameTypePermissionedCannon)},
-					permissionedContinuationGameArgs(
-						opcm.PermissionedCannonFallbackPrestatePlaceholder,
-						f.vm,
-						f.expected.AnchorStateRegistryProxy,
-						f.expected.DelayedWethPermissionedGameProxy,
-						f.dci.L2ChainId,
-						common.Address{0xff},
-						f.dci.Challenger,
-					),
-				)
+				scalar := opeth.EncodeScalar(opeth.EcotoneScalars{
+					BlobBaseFeeScalar: f.dci.BlobBaseFeeScalar,
+					BaseFeeScalar:     f.dci.BasefeeScalar,
+				})
+				observed := new(big.Int).SetBytes(scalar[:])
+				f.backend.set(t, f.expected.SystemConfigProxy, continuationScalarMethod, nil, observed.Add(observed, big.NewInt(1)))
 			},
 		},
 		{
-			name:    "permissioned challenger",
-			wantErr: "fallback game challenger",
+			name:         "OptimismPortal paused state",
+			wantErr:      "CHECK-OP2-60 OptimismPortal paused state",
+			permissioned: true,
 			mutate: func(t *testing.T, f *continuationVerificationFixture) {
-				f.backend.set(
-					t,
-					f.expected.DisputeGameFactoryProxy,
-					continuationGameArgsMethod,
-					[]any{uint32(embedded.GameTypePermissionedCannon)},
-					permissionedContinuationGameArgs(
-						opcm.PermissionedCannonFallbackPrestatePlaceholder,
-						f.vm,
-						f.expected.AnchorStateRegistryProxy,
-						f.expected.DelayedWethPermissionedGameProxy,
-						f.dci.L2ChainId,
-						f.dci.Proposer,
-						common.Address{0xff},
-					),
-				)
+				f.backend.set(t, f.expected.OptimismPortalProxy, continuationPausedMethod, nil, true)
 			},
 		},
 		{
-			name:    "ProxyAdmin owner",
-			wantErr: "OpChain ProxyAdmin owner",
+			name:         "OptimismPortal ETHLockbox",
+			wantErr:      "CHECK-OP2-80 OptimismPortal ETHLockbox",
+			permissioned: true,
+			mutate: func(t *testing.T, f *continuationVerificationFixture) {
+				f.backend.set(t, f.expected.OptimismPortalProxy, continuationEthLockboxMethod, nil, common.Address{0xff})
+			},
+		},
+		{
+			name:         "permissioned proposer",
+			wantErr:      "selected game proposer",
+			permissioned: true,
+			mutate: func(t *testing.T, f *continuationVerificationFixture) {
+				f.setGameArgs(t, embedded.GameTypePermissionedCannon, f.permissionedArgs(f.dci.DisputeAbsolutePrestate, common.Address{0xff}, f.dci.Challenger))
+			},
+		},
+		{
+			name:         "permissioned challenger",
+			wantErr:      "selected game challenger",
+			permissioned: true,
+			mutate: func(t *testing.T, f *continuationVerificationFixture) {
+				f.setGameArgs(t, embedded.GameTypePermissionedCannon, f.permissionedArgs(f.dci.DisputeAbsolutePrestate, f.dci.Proposer, common.Address{0xff}))
+			},
+		},
+		{
+			name:         "ProxyAdmin owner",
+			wantErr:      "OpChain ProxyAdmin owner",
+			permissioned: true,
 			mutate: func(t *testing.T, f *continuationVerificationFixture) {
 				f.backend.set(t, f.expected.OpChainProxyAdminImpl, continuationOwnerMethod, nil, common.Address{0xff})
 			},
@@ -1015,7 +909,11 @@ func TestVerifyContinuationDeploymentFailures(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			fixture := newContinuationVerificationFixture(t, embedded.GameTypeCannonKona)
+			gameType := embedded.GameTypeCannonKona
+			if test.permissioned {
+				gameType = embedded.GameTypePermissionedCannon
+			}
+			fixture := newContinuationVerificationFixture(t, gameType)
 			test.mutate(t, fixture)
 			require.ErrorContains(t, fixture.verify(t), test.wantErr)
 		})

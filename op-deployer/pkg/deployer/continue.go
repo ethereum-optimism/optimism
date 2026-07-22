@@ -615,8 +615,8 @@ func classifyContinuationAddresses(
 	}
 	codeStates := make([]addressCode, 0)
 	withCode := 0
-	for _, contract := range continuationDeploymentMarkerAddresses(contracts) {
-		if contract.address == (common.Address{}) {
+	for _, contract := range continuationContractAddresses(contracts) {
+		if !contract.deploymentMarker || contract.address == (common.Address{}) {
 			continue
 		}
 		code, err := backend.CodeAt(ctx, contract.address, nil)
@@ -651,28 +651,6 @@ func classifyContinuationAddresses(
 		)
 	}
 	return 0, fmt.Errorf("partial deployment at predicted addresses: %s", strings.Join(diagnostics, "; "))
-}
-
-// continuationDeploymentMarkerAddresses omits shared implementation references,
-// which may contain code before any chain-specific contracts are broadcast.
-func continuationDeploymentMarkerAddresses(contracts addresses.OpChainContracts) []namedAddress {
-	return []namedAddress{
-		{"OpChainProxyAdminImpl", contracts.OpChainProxyAdminImpl},
-		{"OptimismPortalProxy", contracts.OptimismPortalProxy},
-		{"AddressManagerImpl", contracts.AddressManagerImpl},
-		{"L1Erc721BridgeProxy", contracts.L1Erc721BridgeProxy},
-		{"SystemConfigProxy", contracts.SystemConfigProxy},
-		{"OptimismMintableErc20FactoryProxy", contracts.OptimismMintableErc20FactoryProxy},
-		{"L1StandardBridgeProxy", contracts.L1StandardBridgeProxy},
-		{"L1CrossDomainMessengerProxy", contracts.L1CrossDomainMessengerProxy},
-		{"EthLockboxProxy", contracts.EthLockboxProxy},
-		{"DisputeGameFactoryProxy", contracts.DisputeGameFactoryProxy},
-		{"AnchorStateRegistryProxy", contracts.AnchorStateRegistryProxy},
-		{"DelayedWethPermissionedGameProxy", contracts.DelayedWethPermissionedGameProxy},
-		{"DelayedWethPermissionlessGameProxy", contracts.DelayedWethPermissionlessGameProxy},
-		{"AltDAChallengeProxy", contracts.AltDAChallengeProxy},
-		{"L2OutputOracleProxy", contracts.L2OutputOracleProxy},
-	}
 }
 
 func continuationExpectedChainState(
