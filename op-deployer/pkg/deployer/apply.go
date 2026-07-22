@@ -11,7 +11,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
@@ -25,7 +24,6 @@ import (
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -196,62 +194,6 @@ type ApplyPipelineOpts struct {
 	Workdir            string
 }
 
-func initForkHost(
-	ctx context.Context,
-	bcaster broadcaster.Broadcaster,
-	lgr log.Logger,
-	deployer common.Address,
-	l1ArtifactsFS foundry.StatDirFs,
-	l1RPC *rpc.Client,
-) (*script.Host, error) {
-	l1Client := ethclient.NewClient(l1RPC)
-	latest, err := l1Client.HeaderByNumber(ctx, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get latest block: %w", err)
-	}
-	chainID, err := l1Client.ChainID(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get L1 chain ID: %w", err)
-	}
-	// Selecting an L1 fork loads its state but does not update the host's EVM
-	// context. Populate that context from the same chain and head so deployment
-	// scripts observe consistent block metadata.
-	scriptCtx := script.DefaultContext
-	scriptCtx.ChainID = chainID
-	scriptCtx.Sender = deployer
-	scriptCtx.Origin = deployer
-	scriptCtx.FeeRecipient = latest.Coinbase
-	scriptCtx.BlockNum = bigs.Uint64Strict(latest.Number)
-	scriptCtx.Timestamp = latest.Time
-	scriptCtx.PrevRandao = latest.MixDigest
-
-	l1Host, err := env.ScriptHost(
-		bcaster,
-		lgr,
-		l1ArtifactsFS,
-		scriptCtx,
-		script.WithForkHook(func(cfg *script.ForkConfig) (forking.ForkSource, error) {
-			src, err := forking.RPCSourceByNumber(cfg.URLOrAlias, l1RPC, *cfg.BlockNumber)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create RPC fork source: %w", err)
-			}
-			return forking.Cache(src), nil
-		}),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create L1 script host: %w", err)
-	}
-
-	if _, err := l1Host.CreateSelectFork(
-		script.ForkWithURLOrAlias("main"),
-		script.ForkWithBlockNumberU256(latest.Number),
-	); err != nil {
-		return nil, fmt.Errorf("failed to select fork: %w", err)
-	}
-
-	return l1Host, nil
-}
-
 func ApplyPipeline(
 	ctx context.Context,
 	opts ApplyPipelineOpts,
@@ -319,7 +261,7 @@ func ApplyPipeline(
 			return fmt.Errorf("failed to create broadcaster: %w", err)
 		}
 
-		l1Host, err = initForkHost(ctx, bcaster, opts.Logger, deployer, bundle.L1, l1RPC)
+		l1Host, err = env.DefaultForkedScriptHost(ctx, bcaster, opts.Logger, deployer, bundle.L1, l1RPC)
 		if err != nil {
 			return fmt.Errorf("failed to initialize L1 host: %w", err)
 		}
@@ -333,7 +275,7 @@ func ApplyPipeline(
 
 		bcaster = new(broadcaster.CalldataBroadcaster)
 
-		l1Host, err = initForkHost(ctx, bcaster, opts.Logger, deployer, bundle.L1, l1RPC)
+		l1Host, err = env.DefaultForkedScriptHost(ctx, bcaster, opts.Logger, deployer, bundle.L1, l1RPC)
 		if err != nil {
 			return fmt.Errorf("failed to initialize L1 host: %w", err)
 		}

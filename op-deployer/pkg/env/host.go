@@ -6,6 +6,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 
@@ -71,14 +72,29 @@ func DefaultForkedScriptHost(
 	if err != nil {
 		return nil, fmt.Errorf("failed to get latest block: %w", err)
 	}
+	chainID, err := client.ChainID(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get L1 chain ID: %w", err)
+	}
+	// Selecting an L1 fork loads its state but does not update the host's EVM
+	// context. Populate that context from the same chain and head so scripts
+	// observe consistent block metadata.
+	scriptCtx := script.DefaultContext
+	scriptCtx.ChainID = chainID
+	scriptCtx.Sender = deployer
+	scriptCtx.Origin = deployer
+	scriptCtx.FeeRecipient = latest.Coinbase
+	scriptCtx.BlockNum = bigs.Uint64Strict(latest.Number)
+	scriptCtx.Timestamp = latest.Time
+	scriptCtx.PrevRandao = latest.MixDigest
 
-	return ForkedScriptHost(
+	return forkedScriptHost(
 		bcaster,
 		lgr,
-		deployer,
 		artifacts,
 		forkRPC,
 		latest.Number,
+		scriptCtx,
 		additionalOpts...,
 	)
 }
@@ -92,11 +108,35 @@ func ForkedScriptHost(
 	blockNumber *big.Int,
 	additionalOpts ...script.HostOption,
 ) (*script.Host, error) {
-	h, err := DefaultScriptHost(
+	scriptCtx := script.DefaultContext
+	scriptCtx.Sender = deployer
+	scriptCtx.Origin = deployer
+
+	return forkedScriptHost(
 		bcaster,
 		lgr,
-		deployer,
 		artifacts,
+		forkRPC,
+		blockNumber,
+		scriptCtx,
+		additionalOpts...,
+	)
+}
+
+func forkedScriptHost(
+	bcaster broadcaster.Broadcaster,
+	lgr log.Logger,
+	artifacts foundry.StatDirFs,
+	forkRPC *rpc.Client,
+	blockNumber *big.Int,
+	scriptCtx script.Context,
+	additionalOpts ...script.HostOption,
+) (*script.Host, error) {
+	h, err := ScriptHost(
+		bcaster,
+		lgr,
+		artifacts,
+		scriptCtx,
 		append([]script.HostOption{
 			script.WithForkHook(func(cfg *script.ForkConfig) (forking.ForkSource, error) {
 				src, err := forking.RPCSourceByNumber(cfg.URLOrAlias, forkRPC, *cfg.BlockNumber)
@@ -108,7 +148,7 @@ func ForkedScriptHost(
 		}, additionalOpts...)...,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create default script host: %w", err)
+		return nil, fmt.Errorf("failed to create forked script host: %w", err)
 	}
 
 	if _, err := h.CreateSelectFork(

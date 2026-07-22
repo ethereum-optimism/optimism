@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
@@ -431,7 +432,7 @@ func (r *continuationRunner) initPreflightEnv() error {
 		return nil
 	}
 	capture := new(broadcaster.CaptureBroadcaster)
-	l1Host, err := initForkHost(r.ctx, capture, r.cfg.Logger, r.deployer, r.artifacts.L1, r.l1RPC)
+	l1Host, err := env.DefaultForkedScriptHost(r.ctx, capture, r.cfg.Logger, r.deployer, r.artifacts.L1, r.l1RPC)
 	if err != nil {
 		return fmt.Errorf("failed to initialize L1 preflight host: %w", err)
 	}
