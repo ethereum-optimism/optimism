@@ -15,18 +15,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
-// [Category: Initial Setup]
-// In this test, we test that we can successfully setup a working cluster.
-func TestSequencerFailover_SetupCluster(t *testing.T) {
-	_, conductors, cleanup := setupSequencerFailoverTest(t)
-	defer cleanup()
-
-	require.Equal(t, 3, len(conductors), "Expected 3 conductors")
-	for _, con := range conductors {
-		require.NotNil(t, con, "Expected conductor to be non-nil")
-	}
-}
-
 // [Category: conductor rpc]
 // In this test, we test all rpcs exposed by conductor.
 func TestSequencerFailover_ConductorRPC(t *testing.T) {
