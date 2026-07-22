@@ -60,7 +60,11 @@ pub enum PostExecTxKind {
 }
 
 impl PostExecTxKind {
-    const fn claims_refunds(self) -> bool {
+    /// Whether a transaction of this kind may claim post-exec refunds.
+    ///
+    /// Only a [`Normal`](Self::Normal) transaction claims. Deposits and the trailing post-exec
+    /// transaction only warm state. External producer policies can reuse this classification.
+    pub const fn claims_refunds(self) -> bool {
         matches!(self, Self::Normal)
     }
 }
@@ -77,9 +81,9 @@ pub struct PostExecTxContext {
 /// Extracted result for the most recently executed transaction.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PostExecExecutedTx {
-    /// Total refund for the tx.
+    /// Consensus-facing total refund for the tx.
     pub refund_total: u64,
-    /// Exact attribution events for the tx.
+    /// Optional diagnostic attribution events for the tx.
     pub refund_events: Vec<WarmingRefundEvent>,
 }
 
@@ -146,14 +150,9 @@ impl CurrentTxState {
 
 /// Block-scoped warming provenance snapshotted from an [`SDMWarmingInspector`].
 ///
-/// SDM warming refunds are *block*-scoped: once a tx warms an account/slot, a later tx's touch of
-/// the same account/slot becomes refundable. A builder that executes a block across several
-/// independent flashblock executors (each with its own fresh inspector) would otherwise reset this
-/// warming at every flashblock boundary and diverge from a single canonical pass. Carrying this
-/// state from one flashblock's inspector into the next (via [`SDMWarmingInspector::warming_state`]
-/// and [`SDMWarmingInspector::seed_warming_state`]) keeps the per-flashblock refund set identical
-/// to whole-block execution. The carried provenance only feeds attribution events, so its
-/// flashblock-local tx indices do not affect the consensus `SDMGasEntry` set.
+/// Warming refunds are block-scoped. Carrying this state between subblock inspectors makes their
+/// refunds match one canonical execution. Provenance only feeds diagnostics; subblock-local
+/// transaction indices do not affect the consensus `SDMGasEntry` set.
 #[derive(Debug, Clone, Default)]
 pub struct WarmingState {
     /// Account -> index of the tx that first warmed it.
@@ -333,6 +332,31 @@ impl SDMWarmingInspector {
     }
 }
 
+impl super::PostExecRefundInspector for SDMWarmingInspector {
+    type Snapshot = WarmingState;
+
+    fn begin_tx(&mut self, ctx: PostExecTxContext) {
+        self.current_tx.begin(ctx);
+    }
+
+    fn note_account_touch(&mut self, address: Address) {
+        self.observe_account_touch(address, false);
+    }
+
+    #[allow(clippy::use_self)] // Explicitly delegate to the inherent method, not this trait method.
+    fn finish_tx(&mut self) -> PostExecExecutedTx {
+        SDMWarmingInspector::finish_tx(self)
+    }
+
+    fn snapshot(&self) -> WarmingState {
+        self.warming_state()
+    }
+
+    fn restore(&mut self, snapshot: WarmingState) {
+        self.seed_warming_state(snapshot);
+    }
+}
+
 impl<CTX> Inspector<CTX> for SDMWarmingInspector
 where
     CTX: ContextTr<Journal: JournalExt>,
@@ -392,6 +416,11 @@ where
         let caller = inputs.caller();
         self.observe_account_touch(caller, true);
 
+        // `CreateInputs::created_address` memoizes its result (`OnceCell`): the canonical create
+        // frame computes and caches the address from the *pre-bump* creator nonce before this hook
+        // runs, so the value below is the correct created address regardless of the nonce we pass.
+        // The journal-nonce read is only a best-effort fallback for the (currently unreached) case
+        // where the cache is not yet populated; it cannot make the recorded address stale.
         let created_address = match inputs.scheme() {
             CreateScheme::Create => {
                 let nonce = context
@@ -428,20 +457,26 @@ where
     }
 }
 
-/// Composite inspector that always includes the [`SDMWarmingInspector`] alongside a
-/// caller-provided inner inspector, fanning every hook to both.
+/// Composite inspector that always includes a refund inspector `R` alongside a caller-provided
+/// inner inspector `I`, fanning every hook to both.
+///
+/// `R` is fixed by the EVM factory (it defaults to [`SDMWarmingInspector`]); the always-present
+/// refund inspector is what lets `OpEvm<DB, I, R>` expose post-exec hooks for *any* user inspector
+/// `I` — as `alloy_evm`'s `BlockExecutorFactory` requires.
 #[derive(Debug, Clone)]
-pub struct PostExecCompositeInspector<I> {
+pub struct PostExecCompositeInspector<I, R = SDMWarmingInspector> {
     inner: I,
-    post_exec: SDMWarmingInspector,
+    post_exec: R,
 }
 
-impl<I> PostExecCompositeInspector<I> {
-    /// Creates a new composite inspector.
+impl<I, R: Default> PostExecCompositeInspector<I, R> {
+    /// Creates a new composite inspector with a default-constructed refund inspector.
     pub fn new(inner: I) -> Self {
-        Self { inner, post_exec: SDMWarmingInspector::default() }
+        Self { inner, post_exec: R::default() }
     }
+}
 
+impl<I, R> PostExecCompositeInspector<I, R> {
     /// Returns the wrapped user inspector.
     pub const fn inner(&self) -> &I {
         &self.inner
@@ -456,20 +491,22 @@ impl<I> PostExecCompositeInspector<I> {
     pub fn into_inner(self) -> I {
         self.inner
     }
+}
 
+impl<I, R: super::PostExecRefundInspector> PostExecCompositeInspector<I, R> {
     /// Begin tracking the next transaction.
     pub fn begin_post_exec_tx(&mut self, ctx: PostExecTxContext) {
         self.post_exec.begin_tx(ctx);
     }
 
-    /// Snapshots the block-scoped warming state for carry-forward across flashblock executors.
-    pub fn warming_state(&self) -> WarmingState {
-        self.post_exec.warming_state()
+    /// Snapshot refund state to carry across subblock executors.
+    pub fn warming_state(&self) -> R::Snapshot {
+        self.post_exec.snapshot()
     }
 
-    /// Seeds the block-scoped warming state captured from a prior flashblock's inspector.
-    pub fn seed_warming_state(&mut self, state: WarmingState) {
-        self.post_exec.seed_warming_state(state);
+    /// Seed refund state captured from a prior subblock.
+    pub fn seed_warming_state(&mut self, state: R::Snapshot) {
+        self.post_exec.restore(state);
     }
 
     /// Notes an account touch that happened outside opcode stepping.
@@ -483,11 +520,11 @@ impl<I> PostExecCompositeInspector<I> {
     }
 }
 
-impl<CTX, INTR, I> Inspector<CTX, INTR> for PostExecCompositeInspector<I>
+impl<CTX, INTR, I, R> Inspector<CTX, INTR> for PostExecCompositeInspector<I, R>
 where
     INTR: revm::interpreter::InterpreterTypes,
     I: Inspector<CTX, INTR>,
-    SDMWarmingInspector: Inspector<CTX, INTR>,
+    R: Inspector<CTX, INTR>,
 {
     fn initialize_interp(&mut self, interp: &mut Interpreter<INTR>, context: &mut CTX) {
         self.inner.initialize_interp(interp, context);
@@ -530,10 +567,7 @@ where
         // outcome, so inner's return value is authoritative.
         let inner = self.inner.call(context, inputs);
         let post_exec = self.post_exec.call(context, inputs);
-        debug_assert!(
-            post_exec.is_none(),
-            "SDMWarmingInspector must not synthesize a call outcome",
-        );
+        debug_assert!(post_exec.is_none(), "refund inspector must not synthesize a call outcome",);
         inner
     }
 
@@ -555,10 +589,7 @@ where
         // See `call` above: always observe; inner's outcome wins.
         let inner = self.inner.create(context, inputs);
         let post_exec = self.post_exec.create(context, inputs);
-        debug_assert!(
-            post_exec.is_none(),
-            "SDMWarmingInspector must not synthesize a create outcome",
-        );
+        debug_assert!(post_exec.is_none(), "refund inspector must not synthesize a create outcome",);
         inner
     }
 

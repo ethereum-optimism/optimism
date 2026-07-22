@@ -994,6 +994,64 @@ mod sdm {
         );
     }
 
+    // A contract created by one tx must be warmed for a later tx that genuinely cold-accesses it,
+    // so the later tx earns its warming rebate. The `create` hook records the address via
+    // `CreateInputs::created_address`, which `revm` memoizes (`OnceCell`) from the canonical
+    // pre-bump nonce before the hook runs — so the address is always correct regardless of the
+    // nonce the inspector passes (this is why the "CREATE-address staleness" concern does not arise
+    // against the pinned revm). This guards the end-to-end property: created contract -> warmed ->
+    // later cold access rebated.
+    #[test]
+    fn test_created_contract_address_is_warmed_for_a_later_tx() {
+        const BLOCK_GAS_LIMIT: u64 = 2_000_000;
+
+        // Probe the canonical address the CREATE produces (revm computes it from the pre-bump
+        // nonce). Sender and nonce match the real run below, so the address is identical.
+        let created = {
+            let mut probe_fixture = SDMExecutorFixture::new(
+                DEFAULT_DA_FOOTPRINT_GAS_SCALAR,
+                BLOCK_GAS_LIMIT,
+                JOVIAN_TIMESTAMP,
+            );
+            let mut probe = probe_fixture.executor_with_post_exec_mode(PostExecMode::Produce);
+            let mut created = None;
+            probe
+                .execute_transaction_with_result_closure(&create_tx(0), |res| {
+                    if let ExecutionResult::Success {
+                        output: Output::Create(_, Some(addr)), ..
+                    } = &res.result().result
+                    {
+                        created = Some(*addr);
+                    }
+                })
+                .expect("probe create tx");
+            created.expect("create produced a contract address")
+        };
+
+        // Real run: tx0 creates the contract; tx1 cold-`BALANCE`-touches it through a probe.
+        let probe = Address::from([0x8c; 20]);
+        let mut fixture = SDMExecutorFixture::new(
+            DEFAULT_DA_FOOTPRINT_GAS_SCALAR,
+            BLOCK_GAS_LIMIT,
+            JOVIAN_TIMESTAMP,
+        );
+        fixture.db.insert_account(probe, balance_probe_account(&[created]));
+        let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
+        producer.execute_transaction(&create_tx(0)).expect("tx0 creates the contract");
+        producer
+            .execute_transaction(&legacy_tx(1, probe))
+            .expect("tx1 cold-touches the created contract");
+
+        let created_event = all_warming_events(&producer)
+            .into_iter()
+            .find(|event| event.address == created)
+            .expect("tx1 must earn a warming rebate for the contract created by tx0");
+        assert_eq!(created_event.claiming_tx_index, 1, "rebate is claimed by tx1");
+        assert_eq!(created_event.first_warmed_by_tx_index, 0, "contract was warmed by tx0");
+        assert_eq!(created_event.amount, 2_500, "warm-account rebate amount");
+        assert_eq!(created_event.slot, None, "account rebate has no storage slot");
+    }
+
     // End-to-end companion to the inspector-level settlement test: the OP fee vaults (L1/base-fee/
     // operator-fee recipients) are warmed by the protocol's per-tx fee settlement write in
     // `transact_raw`, not by a user opcode access, so no cold EIP-2929 access is ever paid for
@@ -1280,15 +1338,19 @@ mod sdm {
         );
     }
 
-    /// A `Verify` block must include `0x7D` even when normal txs consume every verifier entry;
-    /// otherwise the payload-vs-block byte check is skipped.
+    /// A `Verify` block whose normal txs apply the claimed refunds but which never carries the
+    /// trailing `0x7D` post-exec tx must be rejected. Per-tx settlement drains each verifier entry
+    /// as the refunded tx commits, so the unconsumed-entries check above passes — the presence of
+    /// the synthetic `0x7D` is the only thing proving the producer actually committed those refunds
+    /// on-chain. Without this guard the block validates while diverging from one that includes the
+    /// tx, and the `0x7D`'s payload-vs-block byte check is skipped entirely.
     #[test]
     fn test_finish_rejects_verify_block_missing_post_exec_tx() {
         const BLOCK_GAS_LIMIT: u64 = 100_000;
         let target = Address::from([0x11; 20]);
         let tx0 = legacy_tx(0, target);
         let tx1 = legacy_tx(1, target);
-        // Make tx1 consume its verifier entry during normal settlement.
+        // Refund the second tx so its verifier entry is consumed during normal settlement.
         let entries = full_refund_for_second_tx(BLOCK_GAS_LIMIT, &tx0, &tx1);
 
         let mut fixture = SDMExecutorFixture::new(
@@ -1304,7 +1366,7 @@ mod sdm {
             "the refunded tx must already have drained every verifier entry",
         );
 
-        // No 0x7D ran, so only the missing-tx guard can catch this.
+        // The 0x7D was never executed, so the unconsumed-entries check cannot catch this.
         let Err(err) = verifier.finish() else {
             panic!("a Verify block that applies refunds but omits the 0x7D must be rejected");
         };
@@ -1331,6 +1393,97 @@ mod sdm {
         assert_invalid_post_exec(
             err,
             "unexpected post-exec tx at index 0: SDM not active for this block",
+        );
+    }
+
+    #[derive(Debug, Default)]
+    struct ErroringRefundInspector {
+        block_state: u64,
+    }
+
+    impl<CTX, INTR: revm::interpreter::InterpreterTypes> revm::Inspector<CTX, INTR>
+        for ErroringRefundInspector
+    {
+    }
+
+    impl crate::post_exec::PostExecRefundInspector for ErroringRefundInspector {
+        type Snapshot = u64;
+
+        fn begin_tx(&mut self, _ctx: PostExecTxContext) {
+            self.block_state += 1;
+        }
+
+        fn note_account_touch(&mut self, _address: Address) {
+            self.block_state += 1;
+        }
+
+        fn finish_tx(&mut self) -> crate::post_exec::PostExecExecutedTx {
+            crate::post_exec::PostExecExecutedTx {
+                refund_total: u64::MAX,
+                refund_events: Vec::new(),
+            }
+        }
+
+        fn snapshot(&self) -> Self::Snapshot {
+            self.block_state
+        }
+
+        fn restore(&mut self, snapshot: Self::Snapshot) {
+            self.block_state = snapshot;
+        }
+    }
+
+    // An execution error after post-exec tracking starts must restore the same snapshot used for
+    // declined candidates. Today the reachable post-warming errors are fatal block-validation
+    // errors, but payload-builder code may catch some execution errors and continue; restoring here
+    // prevents those skipped txs from leaving phantom producer-only warming behind.
+    #[test]
+    fn test_execution_error_restores_warming_snapshot() {
+        let mut fixture = SDMExecutorFixture::default();
+        let ctx = Context::mainnet()
+            .with_tx(crate::OpTx(OpTransaction::builder().build_fill()))
+            .with_cfg(CfgEnv::new_with_spec(OpSpecId::BEDROCK))
+            .with_chain(L1BlockInfo::default())
+            .with_db(&mut fixture.db)
+            .with_chain(L1BlockInfo {
+                operator_fee_scalar: Some(U256::from(2)),
+                operator_fee_constant: Some(U256::from(50)),
+                ..Default::default()
+            })
+            .with_block(BlockEnv {
+                timestamp: U256::from(fixture.jovian_timestamp),
+                gas_limit: fixture.gas_limit,
+                basefee: fixture.base_fee,
+                beneficiary: fixture.beneficiary,
+                ..Default::default()
+            })
+            .modify_cfg_chained(|cfg| cfg.spec = OpSpecId::JOVIAN);
+        let evm = OpEvm::<_, _, _, crate::OpTx, ErroringRefundInspector>::new(
+            ctx.build_op_with_inspector(NoOpInspector {}),
+            true,
+        );
+        let mut producer = OpBlockExecutor::new(
+            evm,
+            OpBlockExecutionCtx::default(),
+            &fixture.op_chain_hardforks,
+            &fixture.receipt_builder,
+        )
+        .with_post_exec_mode(PostExecMode::Produce);
+
+        let err = producer
+            .execute_transaction_with_commit_condition(
+                &legacy_tx(0, Address::from([0x55; 20])),
+                |_| CommitChanges::Yes,
+            )
+            .expect_err("custom refund inspector must force a post-exec validation error");
+        assert_invalid_post_exec(
+            err,
+            "produced refund 18446744073709551615 exceeds evm_gas_used 21000 for tx index 0",
+        );
+        assert_eq!(
+            producer.warming_state(),
+            0,
+            "post-exec snapshot must be restored when execution returns an error",
         );
     }
 

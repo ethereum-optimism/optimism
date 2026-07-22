@@ -689,7 +689,7 @@ where
     where
         Builder:
             reth_evm::execute::BlockBuilder<Primitives = reth_optimism_primitives::OpPrimitives>,
-        Builder::Executor: PostExecExecutorExt
+        Builder::Executor: PostExecExecutorExt<Snapshot = WarmingState>
             + AlloyBlockExecutor<
                 Transaction = OpTransactionSigned,
                 Receipt = OpReceipt,
@@ -1143,7 +1143,7 @@ fn current_post_exec_entries<Builder>(
 ) -> Vec<SDMGasEntry>
 where
     Builder: BlockBuilder,
-    Builder::Executor: PostExecExecutorExt,
+    Builder::Executor: PostExecExecutorExt<Snapshot = WarmingState>,
 {
     offset_post_exec_entries(
         &info.extra.post_exec_entries,
@@ -1231,7 +1231,7 @@ fn execute_pre_steps<'a, DB, ExtraCtx>(
     (
         impl reth_evm::execute::BlockBuilder<
             Primitives = reth_optimism_primitives::OpPrimitives,
-            Executor: PostExecExecutorExt
+            Executor: PostExecExecutorExt<Snapshot = WarmingState>
                           + AlloyBlockExecutor<
                 Evm: alloy_evm::Evm<DB: core::ops::DerefMut<Target = State<DB>>>,
                 Result: PreRefundGasUsed,

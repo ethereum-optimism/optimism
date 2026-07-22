@@ -39,8 +39,8 @@ use revm::{
 };
 
 use crate::post_exec::{
-    PostExecEvm, PostExecEvmFactoryAdapter, PostExecEvmFactoryHooks, PostExecTxContext,
-    PostExecTxKind, WarmingRefundEvent, WarmingState,
+    PostExecEvm, PostExecEvmFactoryAdapter, PostExecEvmFactoryHooks, PostExecExecutedTx,
+    PostExecTxContext, PostExecTxKind, WarmingRefundEvent,
 };
 
 mod canyon;
@@ -232,8 +232,11 @@ impl PostExecState {
         }
     }
 
-    /// Whether a `Verify` block had a post-exec payload but no trailing `0x7D`.
-    /// Per-tx settlement can consume all verifier entries, so check this separately.
+    /// Whether a `Verify` block claims a post-exec payload yet never carried the trailing `0x7D`.
+    ///
+    /// Per-tx settlement drains the verifier entries as the refunded txs commit, so an absent
+    /// `0x7D` is invisible to the unconsumed-entries check — only this flag proves the producer
+    /// actually committed the claimed refunds on-chain.
     const fn missing_post_exec_tx(&self) -> bool {
         matches!(self, Self::Verifying { saw_post_exec_tx: false, .. })
     }
@@ -435,16 +438,13 @@ where
     E: PostExecEvm,
     R: OpReceiptBuilder,
 {
-    /// Snapshot the block-scoped warming state from the underlying EVM's inspector.
-    ///
-    /// Builders that execute a block across multiple flashblock executors carry this into the next
-    /// flashblock's executor so block-scoped warming refunds match a single canonical pass.
-    pub fn warming_state(&self) -> WarmingState {
+    /// Snapshot refund state to carry across subblock executors.
+    pub fn warming_state(&self) -> E::Snapshot {
         self.evm.warming_state()
     }
 
-    /// Seed the underlying EVM's inspector with warming state captured from a prior flashblock.
-    pub fn seed_warming_state(&mut self, state: WarmingState) {
+    /// Seed refund state captured from a prior subblock.
+    pub fn seed_warming_state(&mut self, state: E::Snapshot) {
         self.evm.seed_warming_state(state);
     }
 }
@@ -838,11 +838,20 @@ where
         // Commit-only paths (block import, `debug_replaySDMBlock` derivation) never see that
         // warmth, so the producer's payload would diverge from derivation.
         //
-        // Snapshot warming before execution and restore it when the tx isn't committed. Only
-        // `Producing` mode tracks warming, so we clone the maps solely on that path.
+        // Snapshot warming before execution and restore it when the tx isn't committed or when
+        // execution fails after post-exec tracking has started. Only `Producing` mode tracks
+        // warming, so we clone the maps solely on that path.
         let warming_snapshot = self.post_exec.is_producing().then(|| self.warming_state());
 
-        let output = self.execute_transaction_without_commit(tx)?;
+        let output = match self.execute_transaction_without_commit(tx) {
+            Ok(output) => output,
+            Err(err) => {
+                if let Some(snapshot) = warming_snapshot {
+                    self.seed_warming_state(snapshot);
+                }
+                return Err(err);
+            }
+        };
 
         if !f(&output).should_commit() {
             if let Some(snapshot) = warming_snapshot {
@@ -956,8 +965,8 @@ where
 
         let evm_gas_used = result.result.tx_gas_used();
         let (post_exec_refund, warming_events) = if self.post_exec.is_producing() {
-            let post_exec_result = self.evm.take_last_post_exec_tx_result();
-            let refund = post_exec_result.refund_total;
+            let PostExecExecutedTx { refund_total: refund, refund_events } =
+                self.evm.take_last_post_exec_tx_result();
             // The inspector's accumulated refund must never exceed the tx's evm_gas_used. If
             // it does, we'd emit an `SDMGasEntry` that any honest verifier would reject
             // at pre-execution ("payload refund exceeds evm_gas_used"), so the sequencer
@@ -968,7 +977,7 @@ where
                     "produced refund {refund} exceeds evm_gas_used {evm_gas_used} for tx index {tx_index}",
                 )));
             }
-            (refund, post_exec_result.refund_events)
+            (refund, refund_events)
         } else {
             (
                 self.verifier_post_exec_refund_for_tx(tx_index, is_deposit, false, evm_gas_used)?,
