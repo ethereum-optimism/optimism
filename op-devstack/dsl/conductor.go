@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-conductor/consensus"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
@@ -120,6 +121,32 @@ func (s ConductorSet) VerifyOneActiveSequencer() *Conductor {
 	c.require.NoError(err, "expected exactly one active sequencer, the Raft leader's")
 	c.log.Info("Verified exactly one active sequencer", "leader", leader)
 	return leader
+}
+
+// VerifyUnsafeChainAdvancesAndConverges waits until every conductor-managed
+// sequencer node advances its unsafe head by at least delta blocks, and until
+// all nodes agree on the canonical unsafe chain. Together these prove the
+// active sequencer keeps producing blocks and its peers follow the same chain,
+// e.g. after a leadership change.
+func (s ConductorSet) VerifyUnsafeChainAdvancesAndConverges(delta uint64) {
+	c := s.common()
+	c.log.Info("Verifying the unsafe chain advances on all sequencer nodes and converges", "delta", delta)
+	advanceChecks := make([]CheckFunc, 0, len(s))
+	for _, con := range s {
+		advanceChecks = append(advanceChecks, con.Sequencer().AdvancedFn(safety.LocalUnsafe, delta, conductorSettleAttempts))
+	}
+	CheckAll(c.t, advanceChecks...)
+
+	// Check convergence only after every node has advanced. Running these
+	// checks in parallel with the advancement checks would let them pass at the
+	// shared pre-transfer head without verifying any newly produced block.
+	ref := s[0].Sequencer()
+	convergenceChecks := make([]CheckFunc, 0, len(s)-1)
+	for _, con := range s[1:] {
+		convergenceChecks = append(convergenceChecks, con.Sequencer().InSyncFn(ref, safety.LocalUnsafe, conductorSettleAttempts))
+	}
+	CheckAll(c.t, convergenceChecks...)
+	c.log.Info("Verified the unsafe chain advances on all sequencer nodes and converges", "delta", delta)
 }
 
 type Conductor struct {
