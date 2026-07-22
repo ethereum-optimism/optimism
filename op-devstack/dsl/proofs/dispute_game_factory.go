@@ -256,8 +256,11 @@ func (f *DisputeGameFactory) StartZKGame(eoa *dsl.EOA, opts ...GameOpt) *ZKGame 
 
 	timestamp := cfg.l2SequenceNumber
 	if !cfg.l2SequenceNumberSet {
-		anchorSequence := f.zkAnchorSequenceNumber()
-		timestamp = f.waitForSafeSuperRootAfter(anchorSequence)
+		minSequence := f.zkAnchorSequenceNumber()
+		if cfg.zkParentIndex != nil {
+			minSequence = f.ZKGameAtIndex(*cfg.zkParentIndex).L2SequenceNumber()
+		}
+		timestamp = f.waitForSafeSuperRootAfter(minSequence)
 	}
 
 	superRootProof := f.createSuperGameExtraData(timestamp, cfg)
