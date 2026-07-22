@@ -69,7 +69,7 @@ func NewApp(versionWithMeta string) *cli.App {
 		},
 		{
 			Name:   "verify",
-			Usage:  "verifies deployed contracts on Etherscan",
+			Usage:  "verifies deployed contracts with contract explorers",
 			Flags:  cliapp.ProtectFlags(deployer.VerifyFlags),
 			Action: verify.VerifyCLI,
 		},
