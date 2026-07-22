@@ -39,12 +39,7 @@ func TestDisputeMonitorForecastsInvalidProposalForChallenger(gt *testing.T) {
 	game := sys.DisputeGameFactory().StartCannonKonaGame(proposer, proofs.WithRootClaim(common.HexToHash("0xdead")))
 	game.WaitForGameStatus(gameTypes.GameStatusInProgress)
 
-	mon := presets.StartDisputeMon(
-		t,
-		sys.L1EL,
-		sys.L2Chain.DisputeGameFactoryProxyAddr(),
-		presets.WithDisputeMonRollupNodes(sys.L2CL),
-	)
+	mon := sys.StartDisputeMon()
 	mon.VerifyState(
 		disputemon.GameCount(gameTypes.CannonKonaGameType, 1),
 		disputemon.FailedGames(0),
@@ -78,12 +73,7 @@ func TestDisputeMonitorReportsReferenceNodeFailure(gt *testing.T) {
 	proposer := sys.FunderL1.NewFundedEOA(eth.OneEther)
 	sys.DisputeGameFactory().StartCannonKonaGame(proposer)
 
-	mon := presets.StartDisputeMon(
-		t,
-		sys.L1EL,
-		sys.L2Chain.DisputeGameFactoryProxyAddr(),
-		presets.WithDisputeMonRollupNodes(sys.L2CL),
-	)
+	mon := sys.StartDisputeMon()
 	baseline := mon.VerifyHealthyOutputFetch(gameTypes.CannonKonaGameType)
 
 	sys.L2CL.Stop()
@@ -180,13 +170,7 @@ func TestDisputeMonitorReportsHonestActorLoss(gt *testing.T) {
 	game.Resolve(counterer)
 	game.WaitForGameStatus(gameTypes.GameStatusChallengerWon)
 
-	mon := presets.StartDisputeMon(
-		t,
-		sys.L1EL,
-		sys.L2Chain.DisputeGameFactoryProxyAddr(),
-		presets.WithDisputeMonRollupNodes(sys.L2CL),
-		presets.WithDisputeMonHonestActors(proposer.Address()),
-	)
+	mon := sys.StartDisputeMon(presets.WithDisputeMonHonestActors(proposer.Address()))
 	mon.VerifyState(
 		disputemon.GameCount(gameTypes.CannonKonaGameType, 1),
 		disputemon.HonestActorInvalidClaims(proposer.Address(), 1),
