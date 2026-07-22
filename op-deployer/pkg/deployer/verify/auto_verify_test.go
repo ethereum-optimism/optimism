@@ -72,5 +72,6 @@ func TestAutoVerifyContinuesWhenEtherscanIsUnavailable(t *testing.T) {
 	))
 	require.NotNil(t, logs.FindLog(
 		testlog.NewMessageFilter("Retry contract verification"),
+		testlog.NewAttributesContainsFilter("command", "--verifier-api-key"),
 	))
 }

@@ -36,11 +36,13 @@ func AutoVerify(ctx context.Context, logger log.Logger, rpcUrl string, chainID u
 	allFailedContracts := make(map[string][]string)
 	allPartiallyVerifiedContracts := make(map[string][]string)
 	unavailableVerifiers := make([]string, 0)
+	missingEtherscanKey := false
 
 	for _, verifierType := range verifiers {
 		if verifierType == "etherscan" && apiKey == "" {
 			logger.Error("Contract verifier unavailable", "verifier", verifierType, "reason", "API key is required")
 			unavailableVerifiers = append(unavailableVerifiers, verifierType)
+			missingEtherscanKey = true
 			continue
 		}
 
@@ -79,12 +81,12 @@ func AutoVerify(ctx context.Context, logger log.Logger, rpcUrl string, chainID u
 
 	printVerificationSummary(logger, totalVerified, totalSkipped, totalPartiallyVerified, totalFailed, len(unavailableVerifiers), allPartiallyVerifiedContracts, allFailedContracts)
 
-	if totalFailed > 0 || totalPartiallyVerified > 0 || len(unavailableVerifiers) > 0 {
+	if totalFailed > 0 || len(unavailableVerifiers) > 0 {
 		logger.Error("Deployment succeeded but contract verification incomplete",
 			"failed", totalFailed,
 			"partially_verified", totalPartiallyVerified,
 			"unavailable", strings.Join(unavailableVerifiers, ","))
-		logRetryCommand(logger, retryStateFile)
+		logRetryCommand(logger, retryStateFile, missingEtherscanKey)
 	}
 
 	return nil
@@ -92,13 +94,17 @@ func AutoVerify(ctx context.Context, logger log.Logger, rpcUrl string, chainID u
 
 func LogAutoVerifyFailure(logger log.Logger, stateFile string, err error) {
 	logger.Error("Deployment succeeded but contract verification incomplete", "err", err)
-	logRetryCommand(logger, stateFile)
+	logRetryCommand(logger, stateFile, false)
 }
 
-func logRetryCommand(logger log.Logger, stateFile string) {
+func logRetryCommand(logger log.Logger, stateFile string, missingEtherscanKey bool) {
 	if stateFile == "" || stateFile == "-" {
 		stateFile = "<state-file>"
 		logger.Error("Save the deployment output to a state file before retrying verification")
 	}
-	logger.Error("Retry contract verification", "command", fmt.Sprintf("op-deployer verify --input-file %s", stateFile))
+	command := fmt.Sprintf("op-deployer verify --input-file %s", stateFile)
+	if missingEtherscanKey {
+		command += " --verifier-api-key <your-etherscan-api-key>"
+	}
+	logger.Error("Retry contract verification", "command", command)
 }
