@@ -15,7 +15,16 @@ diataxis: reference
 
 **op-batcher** is responsible for data availability — it reads unsafe blocks from the sequencer and posts transaction batches to the DA layer (L1 or Alt DA). See the [batcher spec](https://specs.optimism.io/protocol/batcher.html).
 
-<Update label="June 5, 2026" description="v1.16.10" tags={["Latest", "Stable"]}>
+<Update label="July 20, 2026" description="v1.16.11" tags={["Latest", "Stable"]}>
+
+> [!NOTE]
+> **Optional upgrade.** No op-batcher-specific changes — this release refreshes shared dependencies: Go 1.26.4 + dependency bumps for image CVE fixes ([#21452](https://github.com/ethereum-optimism/optimism/pull/21452), [#21450](https://github.com/ethereum-optimism/optimism/pull/21450)), a txmgr fix suppressing a spurious receipt-missing log after successful sends ([#21317](https://github.com/ethereum-optimism/optimism/pull/21317)), and Karst/Lagoon hardfork plumbing in shared packages. Recommended to pick up the CVE-motivated image refresh.
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-batcher/v1.16.11)
+
+</Update>
+
+<Update label="June 5, 2026" description="v1.16.10" tags={["Stable"]}>
 
 Generating release notes for op-batcher/v1.16.9..op-batcher/v1.16.10
 
@@ -226,22 +235,6 @@ This is a recommended release for all users to upgrade to.
 ‼️ This release contains a critical fix for the batcher's throttling feature, and it is recommended for all to upgrade.
 
 [View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-batcher/v1.11.3)
-
-</Update>
-
-<Update label="February 26, 2025" description="v1.11.2" tags={["Stable"]}>
-
-🐞 **This version of the batcher uses the LocalSafeL2 field of the Sequencer's SyncStatus response, which is sometimes incorrectly reported as `0`, causing the batcher to behave incorrectly and fail to post fresh batches. Please upgrade to at least [`v1.11.4`](https://github.com/ethereum-optimism/optimism/releases/tag/op-batcher%2Fv1.11.4) to avoid this issue.**
-
-‼️ This is a critical release and strongly recommended for all to upgrade
-
-This release:
-* changes the batcher's throttling behaviour to purely event-driven instead of happening periodically.
-* fixes a bug where the batcher cannot post to L1 networks which activated Pectra, triggered when the transaction is very small (typical in alt-DA settings).
-
-❗ This release removes the `OP_BATCHER_THROTTLE_INTERVAL` configuration variable. This variable was previously used to disable the throttling feature by setting it to zero. In this release, operators should instead set `OP_BATCHER_THROTTLE_THRESHOLD` to zero  if they want to disable throttling. We strongly recommend enabling throttling in production settings.
-
-[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-batcher/v1.11.2)
 
 </Update>
 

@@ -187,12 +187,6 @@ var PrestateFlags = []cli.Flag{
 	PrestateFlag,
 }
 
-var UpgradeFlags = []cli.Flag{
-	L1RPCURLFlag,
-	PrivateKeyFlag,
-	DeploymentTargetFlag,
-}
-
 var VerifyFlags = []cli.Flag{
 	L1RPCURLFlag,
 	ArtifactsLocatorFlag,

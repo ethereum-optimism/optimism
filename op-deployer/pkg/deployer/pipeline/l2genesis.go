@@ -5,6 +5,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
@@ -62,11 +63,16 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 
 	lgr.Info("generating L2 genesis", "id", chainID.Hex())
 
+	hostOpts := []script.HostOption{}
+	if pEnv.AllowUnoptimizedContracts {
+		hostOpts = append(hostOpts, script.WithNoMaxCodeSize())
+	}
 	host, err := env.DefaultScriptHost(
 		broadcaster.NoopBroadcaster(),
 		pEnv.Logger,
 		pEnv.Deployer,
 		bundle.L2,
+		hostOpts...,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create L2 script host: %w", err)

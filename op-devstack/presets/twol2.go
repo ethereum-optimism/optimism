@@ -113,7 +113,7 @@ func (s *TwoL2SupernodeInterop) L2UserRPCURLs() []string {
 // AdvanceTime advances the time-travel clock if enabled.
 func (s *TwoL2SupernodeInterop) AdvanceTime(amount time.Duration) {
 	s.T.Require().NotNil(s.timeTravel, "attempting to advance time on incompatible system")
-	s.timeTravel.AdvanceTime(amount)
+	s.L1EL.AdvanceTime(s.timeTravel, amount)
 }
 
 // SuperNodeClient returns an API for calling supernode-specific RPC methods

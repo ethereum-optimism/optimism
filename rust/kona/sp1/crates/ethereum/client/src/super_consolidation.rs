@@ -11,8 +11,9 @@ use kona_interop::DependencySet;
 use kona_preimage::{CommsClient, PreimageKey};
 use kona_proof::l2::OracleL2ChainProvider;
 use kona_proof_interop::{
-    BootInfo as InteropBootInfo, OptimisticBlock as InteropOptimisticBlock, OracleInteropProvider,
-    PreState, SuperchainConsolidator, TRANSITION_STATE_MAX_STEPS, TransitionState,
+    BootInfo as InteropBootInfo, HintType, OptimisticBlock as InteropOptimisticBlock,
+    OracleInteropProvider, PreState, SuperchainConsolidator, TRANSITION_STATE_MAX_STEPS,
+    TransitionState,
 };
 use kona_registry::HashMap as RegistryHashMap;
 use kona_sp1_client_utils::{
@@ -214,8 +215,16 @@ where
             actual = optimistic_output_block_hash,
             expected = optimistic_block.block_hash,
         );
+        HintType::L2BlockData
+            .with_data(&[
+                cross_safe_head_hash.as_slice(),
+                optimistic_block.block_hash.as_slice(),
+                chain_id.to_be_bytes().as_ref(),
+            ])
+            .send(oracle.as_ref())
+            .await?;
         let local_safe_header =
-            fetch_l2_header(oracle.as_ref(), optimistic_block.block_hash).await?;
+            fetch_l2_header(oracle.as_ref(), optimistic_block.block_hash, chain_id).await?;
         ensure!(
             local_safe_header.timestamp <= timestamp,
             "consolidation optimistic block timestamp {actual} is after super-root timestamp {expected}",
