@@ -7,14 +7,12 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
@@ -154,6 +152,7 @@ func Continue(ctx context.Context, cfg ContinueConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed to get prepared state for chain %s: %w", chainID.Hex(), err)
 	}
+	preparedChainState := *chainState
 	if chainState.StartBlock == nil {
 		return fmt.Errorf("chain %s has no anchor block recorded by prepare", chainID.Hex())
 	}
@@ -213,35 +212,14 @@ func Continue(ctx context.Context, cfg ContinueConfig) error {
 	if err := validateContinuationBroadcast(captured, deployer, pinnedOPCM); err != nil {
 		return fmt.Errorf("continuation preflight failed for chain %s: %w", chainID.Hex(), err)
 	}
-	if result.Contracts() != chainState.OpChainContracts {
-		return fmt.Errorf(
-			"simulated contract addresses differ from the addresses prepared for chain %s: simulated %+v, prepared %+v",
-			chainID.Hex(),
-			result.Contracts(),
-			chainState.OpChainContracts,
-		)
-	}
-
-	deployRequirements, err := pipeline.ResolveInitialDeployRequirements(dci.DisputeGameType)
-	if err != nil {
-		return fmt.Errorf("failed to resolve validation requirements for chain %s: %w", chainID.Hex(), err)
-	}
-	var validator common.Address
-	var validatorInput opcm.StandardValidatorInput
-	if deployRequirements.Permissionless {
-		validator, err = opcm.NewContract(pinnedOPCM, l1Client).OPCMStandardValidator(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to resolve StandardValidator from pinned OPCM %s: %w", pinnedOPCM, err)
-		}
-		validatorInput = standardValidatorInput(dci, result.Contracts())
-		if err := opcm.ValidateStandardDeployment(
-			ctx,
-			opcm.NewScriptHostCallBackend(l1Host),
-			validator,
-			validatorInput,
-		); err != nil {
-			return fmt.Errorf("simulated deployment validation failed for chain %s: %w", chainID.Hex(), err)
-		}
+	if err := verifyContinuationDeployment(
+		ctx,
+		newScriptHostReadBackend(l1Host),
+		result.Contracts(),
+		&preparedChainState,
+		dci,
+	); err != nil {
+		return fmt.Errorf("simulated deployment validation failed for chain %s: %w", chainID.Hex(), err)
 	}
 
 	if err := revalidateContinuationAnchor(ctx, l1RPC, chainID, chainState); err != nil {
@@ -273,13 +251,8 @@ func Continue(ctx context.Context, cfg ContinueConfig) error {
 		return fmt.Errorf("failed to checkpoint deployment for chain %s: %w", chainID.Hex(), err)
 	}
 
-	if err := validateContinuationCode(ctx, l1Client, chainState.OpChainContracts); err != nil {
+	if err := verifyContinuationDeployment(ctx, l1Client, result.Contracts(), &preparedChainState, dci); err != nil {
 		return fmt.Errorf("live deployment validation failed for chain %s: %w", chainID.Hex(), err)
-	}
-	if deployRequirements.Permissionless {
-		if err := opcm.ValidateStandardDeployment(ctx, l1Client, validator, validatorInput); err != nil {
-			return fmt.Errorf("live deployment validation failed for chain %s: %w", chainID.Hex(), err)
-		}
 	}
 
 	st.AppliedIntent = intent
@@ -344,70 +317,4 @@ func validateContinuationReceipts(results []broadcaster.BroadcastResult, broadca
 		return fmt.Errorf("deployment transaction %s failed with receipt status %d", result.TxHash, result.Receipt.Status)
 	}
 	return nil
-}
-
-func standardValidatorInput(
-	dci opcm.DeployOPChainInput,
-	contracts addresses.OpChainContracts,
-) opcm.StandardValidatorInput {
-	gameType := embedded.GameType(dci.DisputeGameType)
-	useDevInput := gameType == embedded.GameTypeCannonKona || gameType == embedded.GameTypeSuperCannonKona
-	return opcm.StandardValidatorInput{
-		SystemConfig:        contracts.SystemConfigProxy,
-		AbsolutePrestate:    dci.DisputeAbsolutePrestate,
-		CannonPrestate:      dci.CannonAbsolutePrestate,
-		CannonKonaPrestate:  dci.DisputeAbsolutePrestate,
-		L2ChainID:           dci.L2ChainId,
-		Proposer:            dci.Proposer,
-		UseDevFeaturesInput: useDevInput,
-	}
-}
-
-type namedAddress struct {
-	name    string
-	address common.Address
-}
-
-func validateContinuationCode(
-	ctx context.Context,
-	client *ethclient.Client,
-	contracts addresses.OpChainContracts,
-) error {
-	for _, contract := range continuationContractAddresses(contracts) {
-		if contract.address == (common.Address{}) {
-			continue
-		}
-		code, err := client.CodeAt(ctx, contract.address, nil)
-		if err != nil {
-			return fmt.Errorf("failed to read %s code at %s: %w", contract.name, contract.address, err)
-		}
-		if len(code) == 0 {
-			return fmt.Errorf("%s has no code at %s", contract.name, contract.address)
-		}
-	}
-	return nil
-}
-
-func continuationContractAddresses(contracts addresses.OpChainContracts) []namedAddress {
-	return []namedAddress{
-		{"OpChainProxyAdminImpl", contracts.OpChainProxyAdminImpl},
-		{"OptimismPortalProxy", contracts.OptimismPortalProxy},
-		{"AddressManagerImpl", contracts.AddressManagerImpl},
-		{"L1Erc721BridgeProxy", contracts.L1Erc721BridgeProxy},
-		{"SystemConfigProxy", contracts.SystemConfigProxy},
-		{"OptimismMintableErc20FactoryProxy", contracts.OptimismMintableErc20FactoryProxy},
-		{"L1StandardBridgeProxy", contracts.L1StandardBridgeProxy},
-		{"L1CrossDomainMessengerProxy", contracts.L1CrossDomainMessengerProxy},
-		{"EthLockboxProxy", contracts.EthLockboxProxy},
-		{"DisputeGameFactoryProxy", contracts.DisputeGameFactoryProxy},
-		{"AnchorStateRegistryProxy", contracts.AnchorStateRegistryProxy},
-		{"FaultDisputeGameImpl", contracts.FaultDisputeGameImpl},
-		{"FaultDisputeGameCannonKonaImpl", contracts.FaultDisputeGameCannonKonaImpl},
-		{"PermissionedDisputeGameImpl", contracts.PermissionedDisputeGameImpl},
-		{"DelayedWethPermissionedGameProxy", contracts.DelayedWethPermissionedGameProxy},
-		{"DelayedWethPermissionlessGameProxy", contracts.DelayedWethPermissionlessGameProxy},
-		{"AltDAChallengeProxy", contracts.AltDAChallengeProxy},
-		{"AltDAChallengeImpl", contracts.AltDAChallengeImpl},
-		{"L2OutputOracleProxy", contracts.L2OutputOracleProxy},
-	}
 }

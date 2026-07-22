@@ -206,7 +206,7 @@ func ResolveChainProofParams(intent *state.Intent, chain *state.ChainIntent) (st
 // verifying that the current intent still resolves to the same type.
 func ResolvePreparedGameType(intent *state.Intent, chain *state.ChainIntent, chainState *state.ChainState) (uint32, error) {
 	if chainState == nil || chainState.InitialGameType == nil {
-		return 0, fmt.Errorf("chain %s has no initial game type recorded by prepare. Rerun op-deployer prepare", chain.ID.Hex())
+		return 0, fmt.Errorf("chain %s has no initial game type recorded by prepare; rerun op-deployer prepare", chain.ID.Hex())
 	}
 
 	proofParams, err := ResolveChainProofParams(intent, chain)
@@ -218,7 +218,7 @@ func ResolvePreparedGameType(intent *state.Intent, chain *state.ChainIntent, cha
 	current := proofParams.DisputeGameType
 	if prepared != current {
 		return 0, fmt.Errorf(
-			"chain %s initial game type changed after prepare: prepared %s (%d), intent %s (%d). Rerun op-deployer prepare",
+			"chain %s initial game type changed after prepare: prepared %s (%d), intent %s (%d); rerun op-deployer prepare",
 			chain.ID.Hex(),
 			initialGameTypeName(prepared),
 			prepared,
