@@ -10,6 +10,8 @@ import (
 type MinimalWithConductors struct {
 	*Minimal
 
+	Conductors dsl.ConductorSet
+
 	ConductorSets map[eth.ChainID]dsl.ConductorSet
 }
 
