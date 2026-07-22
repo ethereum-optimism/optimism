@@ -139,6 +139,26 @@ func (cl *L2CLNode) SetSequencerRecoverMode(b bool) error {
 	return cl.inner.RollupAPI().SetRecoverMode(cl.ctx, b)
 }
 
+// OverrideLeader disables the node's conductor interactions so its sequencer
+// can run in non-HA mode during disaster recovery. The override cannot be
+// cleared through the node's admin API.
+func (cl *L2CLNode) OverrideLeader() {
+	err := cl.inner.RollupAPI().OverrideLeader(cl.ctx)
+	cl.require.NoError(err, "Expected to be able to override conductor leadership on the node")
+	cl.log.Info("Overrode conductor leadership on node", "chain", cl.ChainID())
+}
+
+// VerifyStartSequencerRefused attempts to start the sequencer at the node's
+// current unsafe head and asserts the request is refused with an error
+// containing errContains — e.g. a conductor-managed node refusing to sequence
+// while its conductor is not the Raft leader.
+func (cl *L2CLNode) VerifyStartSequencerRefused(errContains string) {
+	unsafe := cl.HeadBlockRef(safety.LocalUnsafe)
+	err := cl.inner.RollupAPI().StartSequencer(cl.ctx, unsafe.Hash)
+	cl.require.ErrorContains(err, errContains, "expected StartSequencer to be refused")
+	cl.log.Info("StartSequencer was refused as expected", "chain", cl.ChainID(), "err", err)
+}
+
 // sequencerActive fetches the sequencer active-state and returns the RPC
 // error, if any. Internal callers in retry/eventually loops use this so a
 // transient RPC timeout counts as a retry rather than an instant FailNow.

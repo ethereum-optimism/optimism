@@ -239,6 +239,40 @@ func (c *Conductor) isLeader() (bool, error) {
 	return c.inner.RpcAPI().Leader(ctx)
 }
 
+// Stop shuts down the conductor service via its admin RPC and waits until the
+// conductor stops serving RPC. The service cannot be restarted; tests use this
+// to take cluster members out, e.g. to simulate loss of Raft quorum.
+func (c *Conductor) Stop() {
+	c.log.Info("Stopping conductor", "conductor", c)
+	ctx, cancel := context.WithTimeout(c.ctx, DefaultTimeout)
+	defer cancel()
+	err := c.inner.RpcAPI().Stop(ctx)
+	c.require.NoErrorf(err, "failed to stop conductor %s", c)
+	err = retry.Do0(c.ctx, conductorSettleAttempts, retry.Fixed(2*time.Second), func() error {
+		if _, err := c.isLeader(); err == nil {
+			return fmt.Errorf("conductor %s is still serving RPC after stop", c)
+		}
+		return nil
+	})
+	c.require.NoErrorf(err, "conductor %s never stopped serving RPC", c)
+	c.log.Info("Stopped conductor", "conductor", c)
+}
+
+// OverrideLeader forces this conductor to report itself as leader regardless
+// of actual Raft state, or clears the override again with false. This is the
+// disaster-recovery escape hatch used when the cluster cannot form a quorum.
+func (c *Conductor) OverrideLeader(override bool) {
+	c.log.Info("Setting conductor leader override", "conductor", c, "override", override)
+	ctx, cancel := context.WithTimeout(c.ctx, DefaultTimeout)
+	defer cancel()
+	err := c.inner.RpcAPI().OverrideLeader(ctx, override)
+	c.require.NoErrorf(err, "failed to set leader override of conductor %s to %v", c, override)
+	overridden, err := c.inner.RpcAPI().LeaderOverridden(ctx)
+	c.require.NoErrorf(err, "failed to read back leader override of conductor %s", c)
+	c.require.Equalf(override, overridden, "conductor %s did not report the leader override just set", c)
+	c.log.Info("Set conductor leader override", "conductor", c, "override", override)
+}
+
 // proxiedSequencerAPIProbes names one representative request per API family
 // op-conductor proxies for the leader: execution (eth_*), rollup (optimism_*),
 // and node admin (admin_*).
