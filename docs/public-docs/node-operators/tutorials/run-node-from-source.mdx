@@ -235,7 +235,7 @@ Once your execution client is running, start `op-node`. It will connect to the E
     </Info>
 
     <Info>
-      `--l2.enginekind=reth` is required when pairing with op-reth. The binary still defaults to `geth` for backward compatibility — set `--l2.enginekind=geth` if you are still running op-geth.
+      `--l2.enginekind` tells op-node which kind of execution client it is driving. The binary defaults to `reth`, so this flag is shown for clarity and can be omitted when pairing with op-reth.
     </Info>
 
     ```bash
@@ -389,7 +389,7 @@ Blocks and transactions included in OP Mainnet before the Bedrock Upgrade cannot
 </Warning>
 
 <Accordion title="Build and run op-geth (legacy)">
-  Pair op-geth with op-node by setting `--l2.enginekind=geth` (the binary default) instead of `reth` in the op-node command above.
+  Pair op-geth with op-node by setting `--l2.enginekind=geth` instead of `reth` in the op-node command above.
 
   ### Build op-geth
 
