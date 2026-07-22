@@ -81,6 +81,10 @@ func ContinueCLI() func(cliCtx *cli.Context) error {
 	}
 }
 
+// Continue resumes a prepared deployment after simulating and validating every pending chain.
+// This global preflight prevents predictable partial deployments but cannot make independent L1
+// transactions atomic. Each chain's pinned anchor and the deployer nonce are therefore rechecked
+// immediately before broadcast, and any drift stops the remaining sends.
 func Continue(ctx context.Context, cfg ContinueConfig) error {
 	runner := &continuationRunner{ctx: ctx, cfg: cfg}
 	return runner.run()
@@ -188,14 +192,16 @@ func (r *continuationRunner) run() error {
 	if err != nil {
 		return err
 	}
-	if err := validateContinuationPendingChains(pending); err != nil {
+	if err := validateContinuationGameTypes(pending); err != nil {
 		return err
 	}
-	if len(pending) == 1 {
-		if err := r.preflight(&pending[0]); err != nil {
+	for i := range pending {
+		if err := r.preflight(&pending[i]); err != nil {
 			return err
 		}
-		if err := r.broadcastAndCheckpoint(&pending[0]); err != nil {
+	}
+	for i := range pending {
+		if err := r.broadcastAndCheckpoint(&pending[i]); err != nil {
 			return err
 		}
 	}
@@ -207,9 +213,13 @@ func (r *continuationRunner) run() error {
 	return nil
 }
 
-func validateContinuationPendingChains(pending []continuationChain) error {
-	if len(pending) > 1 {
-		return fmt.Errorf("continue supports exactly one pending chain but found %d", len(pending))
+func validateContinuationGameTypes(pending []continuationChain) error {
+	gameTypes := make([]uint32, 0, len(pending))
+	for _, chain := range pending {
+		gameTypes = append(gameTypes, chain.dci.DisputeGameType)
+	}
+	if err := pipeline.ValidateInitialGameTypeSet(gameTypes); err != nil {
+		return fmt.Errorf("invalid pending continuation game types: %w", err)
 	}
 	return nil
 }

@@ -320,14 +320,22 @@ func TestContinuationExpectedContractsAreImmutable(t *testing.T) {
 	require.Equal(t, recorded, chainState.OpChainContracts)
 }
 
-func TestValidateContinuationPendingChains(t *testing.T) {
-	require.NoError(t, validateContinuationPendingChains(nil))
-	require.NoError(t, validateContinuationPendingChains([]continuationChain{{}}))
-	require.ErrorContains(
-		t,
-		validateContinuationPendingChains([]continuationChain{{}, {}}),
-		"exactly one pending chain",
-	)
+func TestValidateContinuationGameTypes(t *testing.T) {
+	chain := func(gameType embedded.GameType) continuationChain {
+		var dci opcm.DeployOPChainInput
+		dci.DisputeGameType = uint32(gameType)
+		return continuationChain{dci: dci}
+	}
+
+	require.NoError(t, validateContinuationGameTypes(nil))
+	require.NoError(t, validateContinuationGameTypes([]continuationChain{
+		chain(embedded.GameTypePermissionedCannon),
+		chain(embedded.GameTypeCannonKona),
+	}))
+	require.ErrorContains(t, validateContinuationGameTypes([]continuationChain{
+		chain(embedded.GameTypeCannonKona),
+		chain(embedded.GameTypeSuperCannonKona),
+	}), "cannot mix CANNON_KONA and SUPER_CANNON_KONA")
 }
 
 func TestContinuationExpectedContractsRejectLegacyCheckpoint(t *testing.T) {

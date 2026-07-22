@@ -45,6 +45,7 @@ type continuationEnv struct {
 	intent            *state.Intent
 	prepared          *state.State
 	preparedChain     *state.ChainState
+	preparedChains    []*state.ChainState
 	opcm              common.Address
 	standardValidator common.Address
 }
@@ -63,6 +64,18 @@ func TestEndToEndContinuePreparedChain(t *testing.T) {
 	})
 	t.Run("partial deployment is rejected", func(t *testing.T) {
 		testContinuePartialDeployment(t)
+	})
+	t.Run("multi-chain global preflight and mixed modes", func(t *testing.T) {
+		testContinueMultiChainGlobalPreflight(t)
+	})
+	t.Run("later live validation failure preserves checkpoints", func(t *testing.T) {
+		testContinueMultiChainLiveValidationFailure(t)
+	})
+	t.Run("live validation gates the next send", func(t *testing.T) {
+		testContinueMultiChainSequentialValidation(t)
+	})
+	t.Run("mixed permissionless families are rejected", func(t *testing.T) {
+		testContinueRejectsMixedPermissionlessFamilies(t)
 	})
 }
 
@@ -237,9 +250,178 @@ func testContinuePartialDeployment(t *testing.T) {
 	require.Equal(t, nonceBefore, pendingNonce(t, env))
 }
 
-func newContinuationEnv(t *testing.T, gameType embedded.GameType) *continuationEnv {
+func testContinueMultiChainGlobalPreflight(t *testing.T) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
+	env := newContinuationEnvForGameTypes(t, []embedded.GameType{
+		embedded.GameTypePermissionedCannon,
+		embedded.GameTypeCannonKona,
+	})
+	permissionless := env.preparedChains[1]
+	setPermissionlessContinuationInputs(permissionless, 2)
+	originalSystemConfig := permissionless.SystemConfigProxy
+	permissionless.SystemConfigProxy = common.Address{0xff}
+	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
+	nonceBefore := pendingNonce(t, env)
+
+	err := deployer.Continue(env.ctx, env.config())
+	require.ErrorContains(t, err, "simulated contract addresses differ")
+	require.Equal(t, nonceBefore, pendingNonce(t, env))
+	failed, err := pipeline.ReadState(env.workdir)
+	require.NoError(t, err)
+	for _, chain := range env.intent.Chains {
+		require.False(t, failed.IsChainDeployed(chain.ID))
+	}
+
+	permissionless.SystemConfigProxy = originalSystemConfig
+	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
+	require.NoError(t, deployer.Continue(env.ctx, env.config()))
+	require.Equal(t, nonceBefore+uint64(len(env.intent.Chains)), pendingNonce(t, env))
+	continued, err := pipeline.ReadState(env.workdir)
+	require.NoError(t, err)
+	require.NotNil(t, continued.AppliedIntent)
+	var previousReceiptBlock uint64
+	for i, chain := range env.intent.Chains {
+		require.True(t, continued.IsChainDeployed(chain.ID))
+		continuedChain, chainErr := continued.Chain(chain.ID)
+		require.NoError(t, chainErr)
+		require.True(t, continuedChain.Continuation.LiveValidated)
+		receiptBlock := uint64(*continuedChain.Continuation.ReceiptBlockNumber)
+		if i > 0 {
+			require.Greater(t, receiptBlock, previousReceiptBlock)
+		}
+		previousReceiptBlock = receiptBlock
+		if i == 0 {
+			require.Zero(t, continuedChain.Prestate)
+		} else {
+			require.NotZero(t, continuedChain.Prestate)
+		}
+	}
+}
+
+func testContinueMultiChainLiveValidationFailure(t *testing.T) {
+	t.Helper()
+	env := newContinuationEnvForGameTypes(t, []embedded.GameType{
+		embedded.GameTypePermissionedCannon,
+		embedded.GameTypeCannonKona,
+	})
+	setPermissionlessContinuationInputs(env.preparedChains[1], 2)
+	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
+	nonceBefore := pendingNonce(t, env)
+	latest, err := env.l1Client.HeaderByNumber(env.ctx, nil)
+	require.NoError(t, err)
+	secondReceiptBlock := new(big.Int).Add(latest.Number, big.NewInt(2))
+	setAnvilCode(t, env.l1Client, env.standardValidator, conditionalValidatorCode(secondReceiptBlock))
+
+	err = deployer.Continue(env.ctx, env.config())
+	require.ErrorContains(t, err, "live deployment validation failed")
+	require.ErrorContains(t, err, "TEST-FAIL")
+	require.Equal(t, nonceBefore+2, pendingNonce(t, env))
+	checkpointed, err := pipeline.ReadState(env.workdir)
+	require.NoError(t, err)
+	require.Nil(t, checkpointed.AppliedIntent)
+	first, err := checkpointed.Chain(env.intent.Chains[0].ID)
+	require.NoError(t, err)
+	second, err := checkpointed.Chain(env.intent.Chains[1].ID)
+	require.NoError(t, err)
+	require.True(t, first.Continuation.LiveValidated)
+	require.False(t, second.Continuation.LiveValidated)
+	require.NotNil(t, first.Continuation.TxHash)
+	require.NotNil(t, second.Continuation.TxHash)
+
+	setAnvilCode(t, env.l1Client, env.standardValidator, validatorResultCode(""))
+	nonceAfterFailure := pendingNonce(t, env)
+	require.NoError(t, deployer.Continue(env.ctx, env.config()))
+	require.Equal(t, nonceAfterFailure, pendingNonce(t, env))
+	retried, err := pipeline.ReadState(env.workdir)
+	require.NoError(t, err)
+	require.NotNil(t, retried.AppliedIntent)
+	for _, chain := range env.intent.Chains {
+		retriedChain, chainErr := retried.Chain(chain.ID)
+		require.NoError(t, chainErr)
+		require.True(t, retriedChain.Continuation.LiveValidated)
+	}
+}
+
+func testContinueMultiChainSequentialValidation(t *testing.T) {
+	t.Helper()
+	env := newContinuationEnvForGameTypes(t, []embedded.GameType{
+		embedded.GameTypeCannonKona,
+		embedded.GameTypePermissionedCannon,
+	})
+	setPermissionlessContinuationInputs(env.preparedChains[0], 1)
+	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
+	nonceBefore := pendingNonce(t, env)
+	latest, err := env.l1Client.HeaderByNumber(env.ctx, nil)
+	require.NoError(t, err)
+	firstReceiptBlock := new(big.Int).Add(latest.Number, big.NewInt(1))
+	setAnvilCode(t, env.l1Client, env.standardValidator, conditionalValidatorCode(firstReceiptBlock))
+
+	err = deployer.Continue(env.ctx, env.config())
+	require.ErrorContains(t, err, "live deployment validation failed")
+	require.Equal(t, nonceBefore+1, pendingNonce(t, env))
+	checkpointed, err := pipeline.ReadState(env.workdir)
+	require.NoError(t, err)
+	first, err := checkpointed.Chain(env.intent.Chains[0].ID)
+	require.NoError(t, err)
+	require.True(t, checkpointed.IsChainDeployed(env.intent.Chains[0].ID))
+	require.False(t, first.Continuation.LiveValidated)
+	require.False(t, checkpointed.IsChainDeployed(env.intent.Chains[1].ID))
+	require.Nil(t, checkpointed.AppliedIntent)
+
+	setAnvilCode(t, env.l1Client, env.standardValidator, validatorResultCode(""))
+	require.NoError(t, deployer.Continue(env.ctx, env.config()))
+	require.Equal(t, nonceBefore+2, pendingNonce(t, env))
+	completed, err := pipeline.ReadState(env.workdir)
+	require.NoError(t, err)
+	require.NotNil(t, completed.AppliedIntent)
+	for _, chain := range env.intent.Chains {
+		completedChain, chainErr := completed.Chain(chain.ID)
+		require.NoError(t, chainErr)
+		require.True(t, completedChain.Continuation.LiveValidated)
+	}
+}
+
+func testContinueRejectsMixedPermissionlessFamilies(t *testing.T) {
+	t.Helper()
+	env := newContinuationEnvForGameTypes(t, []embedded.GameType{
+		embedded.GameTypePermissionedCannon,
+		embedded.GameTypePermissionedCannon,
+	})
+	gameTypes := []embedded.GameType{
+		embedded.GameTypeCannonKona,
+		embedded.GameTypeSuperCannonKona,
+	}
+	for i, gameType := range gameTypes {
+		preparedGameType := uint32(gameType)
+		env.preparedChains[i].InitialGameType = &preparedGameType
+		setPermissionlessContinuationInputs(env.preparedChains[i], uint64(i+1))
+		env.intent.Chains[i].DeployOverrides = map[string]any{"respectedGameType": gameType}
+	}
+	require.NoError(t, env.intent.WriteToFile(filepath.Join(env.workdir, "intent.toml")))
+	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
+	nonceBefore := pendingNonce(t, env)
+
+	err := deployer.Continue(env.ctx, env.config())
+	require.ErrorContains(t, err, "cannot mix CANNON_KONA and SUPER_CANNON_KONA")
+	require.Equal(t, nonceBefore, pendingNonce(t, env))
+}
+
+func setPermissionlessContinuationInputs(chain *state.ChainState, sequenceNumber uint64) {
+	chain.Prestate = common.BigToHash(new(big.Int).SetUint64(0x1200 + sequenceNumber))
+	chain.StartingAnchorRoot = &state.StartingAnchorProposal{
+		Root:             common.BigToHash(new(big.Int).SetUint64(0x5600 + sequenceNumber)),
+		L2SequenceNumber: hexutil.Uint64(sequenceNumber),
+	}
+}
+
+func newContinuationEnv(t *testing.T, gameType embedded.GameType) *continuationEnv {
+	return newContinuationEnvForGameTypes(t, []embedded.GameType{gameType})
+}
+
+func newContinuationEnvForGameTypes(t *testing.T, gameTypes []embedded.GameType) *continuationEnv {
+	t.Helper()
+	require.NotEmpty(t, gameTypes)
+	ctx, cancel := context.WithTimeout(t.Context(), 180*time.Second)
 	t.Cleanup(cancel)
 	lgr, logs := testlog.CaptureLogger(t, slog.LevelWarn)
 	l1RPC, l1Client := devnet.DefaultAnvilRPC(t, lgr)
@@ -248,6 +430,12 @@ func newContinuationEnv(t *testing.T, gameType embedded.GameType) *continuationE
 	loc, _ := testutil.LocalArtifacts(t)
 	cacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
 	intent, st := shared.NewIntent(t, l1ChainID, dk, uint256.NewInt(1), loc, loc, testCustomGasLimit)
+	for i := 1; i < len(gameTypes); i++ {
+		intent.Chains = append(
+			intent.Chains,
+			shared.NewChainIntent(t, dk, l1ChainID, uint256.NewInt(uint64(i+1)), testCustomGasLimit),
+		)
+	}
 
 	superchainPAO := shared.AddrFor(t, dk, devkeys.L1ProxyAdminOwnerRole.Key(l1ChainID))
 	bstrap, err := bootstrap.Superchain(ctx, bootstrap.SuperchainConfig{
@@ -287,7 +475,9 @@ func newContinuationEnv(t *testing.T, gameType embedded.GameType) *continuationE
 	intent.SuperchainRoles = nil
 	intent.OPCMAddress = &impls.OpcmV2
 	intent.SuperchainConfigProxy = &bstrap.SuperchainConfigProxy
-	intent.Chains[0].DeployOverrides = map[string]any{"respectedGameType": gameType}
+	for i, gameType := range gameTypes {
+		intent.Chains[i].DeployOverrides = map[string]any{"respectedGameType": gameType}
+	}
 	workdir := t.TempDir()
 	require.NoError(t, intent.WriteToFile(filepath.Join(workdir, "intent.toml")))
 	require.NoError(t, pipeline.WriteState(workdir, st))
@@ -303,9 +493,13 @@ func newContinuationEnv(t *testing.T, gameType embedded.GameType) *continuationE
 	prepared, err := pipeline.ReadState(workdir)
 	require.NoError(t, err)
 	require.True(t, prepared.Prepared)
-	require.False(t, prepared.IsChainDeployed(intent.Chains[0].ID))
-	preparedChain, err := prepared.Chain(intent.Chains[0].ID)
-	require.NoError(t, err)
+	preparedChains := make([]*state.ChainState, 0, len(intent.Chains))
+	for _, chain := range intent.Chains {
+		require.False(t, prepared.IsChainDeployed(chain.ID))
+		preparedChain, chainErr := prepared.Chain(chain.ID)
+		require.NoError(t, chainErr)
+		preparedChains = append(preparedChains, preparedChain)
+	}
 	validator, err := opcm.NewContract(impls.OpcmV2, l1Client).OPCMStandardValidator(ctx)
 	require.NoError(t, err)
 
@@ -321,7 +515,8 @@ func newContinuationEnv(t *testing.T, gameType embedded.GameType) *continuationE
 		workdir:           workdir,
 		intent:            intent,
 		prepared:          prepared,
-		preparedChain:     preparedChain,
+		preparedChain:     preparedChains[0],
+		preparedChains:    preparedChains,
 		opcm:              impls.OpcmV2,
 		standardValidator: validator,
 	}
