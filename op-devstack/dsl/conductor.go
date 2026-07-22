@@ -11,24 +11,26 @@ import (
 
 type ConductorSet []*Conductor
 
-func NewConductorSet(inner []stack.Conductor) ConductorSet {
-	conductors := make([]*Conductor, len(inner))
-	for i, c := range inner {
-		conductors[i] = NewConductor(c)
-	}
-	return conductors
-}
-
 type Conductor struct {
 	commonImpl
-	inner stack.Conductor
+	inner     stack.Conductor
+	sequencer *L2CLNode
 }
 
-func NewConductor(inner stack.Conductor) *Conductor {
+func NewConductor(inner stack.Conductor, sequencer *L2CLNode) *Conductor {
+	common := commonFromT(inner.T())
+	common.require.NotNil(sequencer, "conductor %s has no sequencer node", inner.Name())
 	return &Conductor{
-		commonImpl: commonFromT(inner.T()),
+		commonImpl: common,
 		inner:      inner,
+		sequencer:  sequencer,
 	}
+}
+
+// Sequencer returns the L2CL node whose sequencer this conductor manages.
+func (c *Conductor) Sequencer() *L2CLNode {
+	c.require.NotNil(c.sequencer, "conductor %s has no sequencer node attached", c)
+	return c.sequencer
 }
 
 func (c *Conductor) String() string {

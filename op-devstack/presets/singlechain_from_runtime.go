@@ -9,7 +9,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -264,23 +263,35 @@ func minimalWithConductorsFromRuntime(t devtest.T, runtime *sysgo.SingleChainRun
 	l2ChainID := runtime.L2Network.ChainID()
 	t.Require().NotNil(runtime.Conductors, "missing conductor support")
 
-	cAName := "sequencer"
-	cBName := "b"
-	cCName := "c"
-	cA := newConductorFrontend(t, cAName, l2ChainID, runtime.Conductors[cAName].HTTPEndpoint())
-	cB := newConductorFrontend(t, cBName, l2ChainID, runtime.Conductors[cBName].HTTPEndpoint())
-	cC := newConductorFrontend(t, cCName, l2ChainID, runtime.Conductors[cCName].HTTPEndpoint())
 	l2Net, ok := minimal.L2Chain.Escape().(*presetL2Network)
 	t.Require().True(ok, "expected preset L2 network")
-	l2Net.AddConductor(cA)
-	l2Net.AddConductor(cB)
-	l2Net.AddConductor(cC)
 
-	conductors := []stack.Conductor{cA, cB, cC}
+	// The primary sequencer node frontends already exist on Minimal; build
+	// frontends for the other two sequencer nodes the conductors manage.
+	sequencerCLs := map[string]*dsl.L2CLNode{"sequencer": minimal.L2CL}
+	for _, name := range []string{"b", "c"} {
+		node := runtime.Nodes[name]
+		t.Require().NotNilf(node, "missing single-chain node %s", name)
+		el := newL2ELFrontend(t, name, l2ChainID, node.EL.UserRPC(), node.EL.EngineRPC(), node.EL.JWTPath(), runtime.L2Network.RollupConfig(), node.EL)
+		cl := newL2CLFrontend(t, name, l2ChainID, node.CL.UserRPC(), node.CL)
+		cl.attachEL(el)
+		l2Net.AddL2ELNode(el)
+		l2Net.AddL2CLNode(cl)
+		sequencerCLs[name] = dsl.NewL2CLNode(cl)
+	}
+	conductors := make(dsl.ConductorSet, 0, len(sequencerCLs))
+	for _, name := range []string{"sequencer", "b", "c"} {
+		frontend := newConductorFrontend(t, name, l2ChainID, runtime.Conductors[name].HTTPEndpoint())
+		l2Net.AddConductor(frontend)
+		conductor := dsl.NewConductor(frontend, sequencerCLs[name])
+		conductors = append(conductors, conductor)
+	}
+
 	return &MinimalWithConductors{
-		Minimal: minimal,
+		Minimal:    minimal,
+		Conductors: conductors,
 		ConductorSets: map[eth.ChainID]dsl.ConductorSet{
-			l2ChainID: dsl.NewConductorSet(conductors),
+			l2ChainID: conductors,
 		},
 	}
 }
