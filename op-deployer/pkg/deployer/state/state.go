@@ -173,13 +173,12 @@ func (p *PreparedDeployment) Chain(id common.Hash) (*PreparedChainState, error) 
 	return nil, fmt.Errorf("prepared chain not found: %s", id.Hex())
 }
 
-// ContinuationState records enough progress to resume after an interruption.
-// The three receipt fields must either all be set or all be absent.
+// ContinuationState tracks whether a continued deployment's live contracts match
+// its prepared state. Newly broadcast deployments are checkpointed with
+// LiveValidated=false before validation, so retries revalidate them instead of
+// broadcasting again. A later failed revalidation clears the flag.
 type ContinuationState struct {
-	TxHash             *common.Hash    `json:"txHash,omitempty"`
-	ReceiptBlockNumber *hexutil.Uint64 `json:"receiptBlockNumber,omitempty"`
-	ReceiptBlockHash   *common.Hash    `json:"receiptBlockHash,omitempty"`
-	LiveValidated      bool            `json:"liveValidated,omitempty"`
+	LiveValidated bool `json:"liveValidated,omitempty"`
 }
 
 type ChainState struct {

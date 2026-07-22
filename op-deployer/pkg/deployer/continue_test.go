@@ -287,15 +287,39 @@ func TestValidateContinuationBroadcast(t *testing.T) {
 	}
 }
 
-func TestValidateContinuationReceipts(t *testing.T) {
-	valid := broadcaster.BroadcastResult{Receipt: &types.Receipt{Status: types.ReceiptStatusSuccessful}}
-	require.NoError(t, validateContinuationReceipts([]broadcaster.BroadcastResult{valid}, nil))
-	require.ErrorContains(t, validateContinuationReceipts(nil, nil), "expected one")
-	require.ErrorContains(t, validateContinuationReceipts([]broadcaster.BroadcastResult{{}}, nil), "no receipt")
-	require.ErrorContains(t, validateContinuationReceipts(
-		[]broadcaster.BroadcastResult{{Receipt: &types.Receipt{Status: types.ReceiptStatusFailed}}},
-		nil,
-	), "receipt status")
+func TestSuccessfulContinuationBroadcast(t *testing.T) {
+	txHash := common.HexToHash("0x11")
+	valid := broadcaster.BroadcastResult{
+		TxHash:  txHash,
+		Receipt: &types.Receipt{Status: types.ReceiptStatusSuccessful},
+	}
+	tests := []struct {
+		name         string
+		results      []broadcaster.BroadcastResult
+		broadcastErr error
+		want         broadcaster.BroadcastResult
+		wantErr      string
+	}{
+		{name: "valid", results: []broadcaster.BroadcastResult{valid}, want: valid},
+		{name: "broadcast error", broadcastErr: fmt.Errorf("broadcast failed"), wantErr: "broadcast failed"},
+		{name: "no result", wantErr: "expected one"},
+		{name: "multiple results", results: []broadcaster.BroadcastResult{valid, valid}, wantErr: "expected one"},
+		{name: "result error", results: []broadcaster.BroadcastResult{{Err: fmt.Errorf("result failed")}}, wantErr: "result failed"},
+		{name: "no receipt", results: []broadcaster.BroadcastResult{{TxHash: txHash}}, wantErr: "no receipt"},
+		{name: "failed receipt", results: []broadcaster.BroadcastResult{{TxHash: txHash, Receipt: &types.Receipt{Status: types.ReceiptStatusFailed}}}, wantErr: "receipt status"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := successfulContinuationBroadcast(tt.results, tt.broadcastErr)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
 }
 
 func TestContinuationExpectedStateUsesPreparedContracts(t *testing.T) {
@@ -327,27 +351,6 @@ func TestValidateContinuationGameTypes(t *testing.T) {
 		chain(embedded.GameTypeCannonKona),
 		chain(embedded.GameTypeSuperCannonKona),
 	}), "cannot mix CANNON_KONA and SUPER_CANNON_KONA")
-}
-
-func TestSetContinuationReceipt(t *testing.T) {
-	chainState := new(state.ChainState)
-	txHash := common.HexToHash("0x11")
-	blockHash := common.HexToHash("0x22")
-	result := broadcaster.BroadcastResult{
-		TxHash: txHash,
-		Receipt: &types.Receipt{
-			TxHash:      txHash,
-			BlockNumber: big.NewInt(123),
-			BlockHash:   blockHash,
-		},
-	}
-
-	require.NoError(t, setContinuationReceipt(chainState, result))
-	require.Equal(t, txHash, *chainState.Continuation.TxHash)
-	require.EqualValues(t, 123, *chainState.Continuation.ReceiptBlockNumber)
-	require.Equal(t, blockHash, *chainState.Continuation.ReceiptBlockHash)
-	require.False(t, chainState.Continuation.LiveValidated)
-
 }
 
 func TestClassifyContinuationAddresses(t *testing.T) {

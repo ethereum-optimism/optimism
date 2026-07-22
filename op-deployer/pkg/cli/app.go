@@ -48,7 +48,7 @@ func NewApp(versionWithMeta string) *cli.App {
 		},
 		{
 			Name:   "continue",
-			Usage:  "broadcasts and validates an already-prepared chain deployment",
+			Usage:  "broadcasts and validates already-prepared chain deployments",
 			Flags:  cliapp.ProtectFlags(deployer.ContinueFlags),
 			Action: deployer.ContinueCLI(),
 		},

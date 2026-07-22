@@ -35,23 +35,15 @@ func TestState_PrestateJSONRoundTrip(t *testing.T) {
 
 func TestState_ContinuationJSONRoundTrip(t *testing.T) {
 	chainID := common.HexToHash("0x01")
-	txHash := common.HexToHash("0x02")
-	blockHash := common.HexToHash("0x03")
-	blockNumber := hexutil.Uint64(123)
 	st := &State{Chains: []*ChainState{{
 		ID: chainID,
 		Continuation: &ContinuationState{
-			TxHash:             &txHash,
-			ReceiptBlockNumber: &blockNumber,
-			ReceiptBlockHash:   &blockHash,
-			LiveValidated:      true,
+			LiveValidated: true,
 		},
 	}}}
 
 	data, err := json.Marshal(st)
 	require.NoError(t, err)
-	require.Contains(t, string(data), `"txHash":"`+txHash.Hex()+`"`)
-	require.Contains(t, string(data), `"receiptBlockNumber":"0x7b"`)
 	require.Contains(t, string(data), `"liveValidated":true`)
 
 	var roundTripped State
@@ -59,13 +51,6 @@ func TestState_ContinuationJSONRoundTrip(t *testing.T) {
 	chain, err := roundTripped.Chain(chainID)
 	require.NoError(t, err)
 	require.Equal(t, st.Chains[0].Continuation, chain.Continuation)
-
-	reconciled := &ContinuationState{LiveValidated: true}
-	data, err = json.Marshal(reconciled)
-	require.NoError(t, err)
-	require.NotContains(t, string(data), "txHash")
-	require.NotContains(t, string(data), "receiptBlockNumber")
-	require.NotContains(t, string(data), "receiptBlockHash")
 }
 
 func TestState_PrestateJSONOmitsZeroValue(t *testing.T) {

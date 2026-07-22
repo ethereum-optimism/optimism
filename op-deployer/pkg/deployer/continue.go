@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
-	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
@@ -305,13 +304,6 @@ func (r *continuationRunner) reverifyDeployedChain(
 	if chainState.Continuation == nil {
 		return fmt.Errorf("deployed chain %s has no continuation metadata", chainID.Hex())
 	}
-	metadata := chainState.Continuation
-	hasTxHash := metadata.TxHash != nil
-	hasBlockNumber := metadata.ReceiptBlockNumber != nil
-	hasBlockHash := metadata.ReceiptBlockHash != nil
-	if (hasTxHash || hasBlockNumber || hasBlockHash) && !(hasTxHash && hasBlockNumber && hasBlockHash) {
-		return fmt.Errorf("deployed chain %s has incomplete continuation receipt metadata", chainID.Hex())
-	}
 	previouslyValidated := chainState.Continuation.LiveValidated
 	if err := verifyContinuationDeployment(
 		r.ctx,
@@ -334,20 +326,10 @@ func (r *continuationRunner) reverifyDeployedChain(
 		return fmt.Errorf("live deployment validation failed for deployed chain %s: %w", chainID.Hex(), err)
 	}
 
-	attrs := []any{
+	r.cfg.Logger.Info("reconciled deployed chain",
 		"chainID", chainID.Hex(),
 		"previouslyValidated", previouslyValidated,
-	}
-	if metadata := chainState.Continuation; metadata.TxHash != nil {
-		attrs = append(attrs, "txHash", *metadata.TxHash)
-		if metadata.ReceiptBlockNumber != nil {
-			attrs = append(attrs, "receiptBlockNumber", uint64(*metadata.ReceiptBlockNumber))
-		}
-		if metadata.ReceiptBlockHash != nil {
-			attrs = append(attrs, "receiptBlockHash", *metadata.ReceiptBlockHash)
-		}
-	}
-	r.cfg.Logger.Info("reconciled deployed chain", attrs...)
+	)
 	if !previouslyValidated {
 		chainState.Continuation.LiveValidated = true
 		if err := pipeline.WriteState(r.cfg.Workdir, r.state); err != nil {
@@ -494,12 +476,7 @@ func (r *continuationRunner) broadcastAndCheckpoint(chain *continuationChain) er
 		return err
 	}
 
-	if err := setContinuationReceipt(
-		chain.state,
-		broadcastResult,
-	); err != nil {
-		return fmt.Errorf("failed to record continuation receipt for chain %s: %w", chain.id.Hex(), err)
-	}
+	chain.state.Continuation = new(state.ContinuationState)
 	if err := pipeline.RecordOPChainDeployment(r.state, chain.result); err != nil {
 		return fmt.Errorf("failed to record deployment for chain %s: %w", chain.id.Hex(), err)
 	}
@@ -665,41 +642,6 @@ func continuationExpectedChainState(
 	return expected
 }
 
-func setContinuationReceipt(
-	chainState *state.ChainState,
-	result broadcaster.BroadcastResult,
-) error {
-	if chainState.Continuation == nil {
-		chainState.Continuation = new(state.ContinuationState)
-	}
-	if result.Receipt == nil {
-		return fmt.Errorf("deployment transaction has no receipt")
-	}
-	if result.Receipt.BlockNumber == nil || !result.Receipt.BlockNumber.IsUint64() {
-		return fmt.Errorf("deployment transaction receipt has no uint64 block number")
-	}
-	txHash := result.TxHash
-	if txHash == (common.Hash{}) {
-		txHash = result.Receipt.TxHash
-	}
-	if txHash == (common.Hash{}) {
-		return fmt.Errorf("deployment transaction receipt has no transaction hash")
-	}
-	if result.Receipt.TxHash != (common.Hash{}) && result.Receipt.TxHash != txHash {
-		return fmt.Errorf("broadcast transaction hash %s differs from receipt transaction hash %s", txHash, result.Receipt.TxHash)
-	}
-	if result.Receipt.BlockHash == (common.Hash{}) {
-		return fmt.Errorf("deployment transaction receipt has no block hash")
-	}
-	blockNumber := hexutil.Uint64(bigs.Uint64Strict(result.Receipt.BlockNumber))
-	blockHash := result.Receipt.BlockHash
-	chainState.Continuation.TxHash = &txHash
-	chainState.Continuation.ReceiptBlockNumber = &blockNumber
-	chainState.Continuation.ReceiptBlockHash = &blockHash
-	chainState.Continuation.LiveValidated = false
-	return nil
-}
-
 func validateContinuationReceiptCanonicality(
 	ctx context.Context,
 	l1 pipeline.L1BlockFetcher,
@@ -761,11 +703,6 @@ func validateContinuationBroadcast(
 		return fmt.Errorf("deployment broadcast sender mismatch: expected %s, got %s", deployer, bcast.From)
 	}
 	return nil
-}
-
-func validateContinuationReceipts(results []broadcaster.BroadcastResult, broadcastErr error) error {
-	_, err := successfulContinuationBroadcast(results, broadcastErr)
-	return err
 }
 
 func successfulContinuationBroadcast(

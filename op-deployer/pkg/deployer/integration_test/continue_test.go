@@ -153,9 +153,6 @@ func testContinuePermissionless(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, recordedContracts, reconciledChain.OpChainContracts)
 	require.Equal(t, originalContracts, env.preparedSnapshotChain.OpChainContracts)
-	require.Nil(t, reconciledChain.Continuation.TxHash)
-	require.Nil(t, reconciledChain.Continuation.ReceiptBlockNumber)
-	require.Nil(t, reconciledChain.Continuation.ReceiptBlockHash)
 	require.True(t, reconciledChain.Continuation.LiveValidated)
 	require.NotNil(t, reconciled.AppliedIntent)
 }
@@ -262,9 +259,6 @@ func testContinueLiveValidationFailure(t *testing.T) {
 	continuedSnapshot, err := continued.PreparedDeployment.Chain(env.intent.Chains[0].ID)
 	require.NoError(t, err)
 	require.Equal(t, env.preparedSnapshotChain.OpChainContracts, continuedSnapshot.OpChainContracts)
-	require.NotNil(t, continuedChain.Continuation.TxHash)
-	require.NotNil(t, continuedChain.Continuation.ReceiptBlockNumber)
-	require.NotNil(t, continuedChain.Continuation.ReceiptBlockHash)
 	require.False(t, continuedChain.Continuation.LiveValidated)
 
 	setAnvilCode(t, env.l1Client, env.standardValidator, validatorResultCode(validValidatorResult))
@@ -276,9 +270,6 @@ func testContinueLiveValidationFailure(t *testing.T) {
 	retriedChain, err := retried.Chain(env.intent.Chains[0].ID)
 	require.NoError(t, err)
 	require.True(t, retriedChain.Continuation.LiveValidated)
-	require.Equal(t, continuedChain.Continuation.TxHash, retriedChain.Continuation.TxHash)
-	require.Equal(t, continuedChain.Continuation.ReceiptBlockNumber, retriedChain.Continuation.ReceiptBlockNumber)
-	require.Equal(t, continuedChain.Continuation.ReceiptBlockHash, retriedChain.Continuation.ReceiptBlockHash)
 	require.NotNil(t, retried.AppliedIntent)
 }
 
@@ -330,17 +321,11 @@ func testContinueMultiChainGlobalPreflight(t *testing.T) {
 	continued, err := pipeline.ReadState(env.workdir)
 	require.NoError(t, err)
 	require.NotNil(t, continued.AppliedIntent)
-	var previousReceiptBlock uint64
 	for i, chain := range env.intent.Chains {
 		require.True(t, continued.IsChainDeployed(chain.ID))
 		continuedChain, chainErr := continued.Chain(chain.ID)
 		require.NoError(t, chainErr)
 		require.True(t, continuedChain.Continuation.LiveValidated)
-		receiptBlock := uint64(*continuedChain.Continuation.ReceiptBlockNumber)
-		if i > 0 {
-			require.Greater(t, receiptBlock, previousReceiptBlock)
-		}
-		previousReceiptBlock = receiptBlock
 		if i == 0 {
 			require.Zero(t, continuedChain.Prestate)
 		} else {
@@ -376,8 +361,6 @@ func testContinueMultiChainLiveValidationFailure(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, first.Continuation.LiveValidated)
 	require.False(t, second.Continuation.LiveValidated)
-	require.NotNil(t, first.Continuation.TxHash)
-	require.NotNil(t, second.Continuation.TxHash)
 
 	setAnvilCode(t, env.l1Client, env.standardValidator, validatorResultCode(validValidatorResult))
 	nonceAfterFailure := pendingNonce(t, env)
@@ -629,9 +612,6 @@ func assertContinuationCompleted(t *testing.T, env *continuationEnv, nonceBefore
 	continuedSnapshot, err := continued.PreparedDeployment.Chain(env.intent.Chains[0].ID)
 	require.NoError(t, err)
 	require.Equal(t, env.preparedSnapshotChain.OpChainContracts, continuedSnapshot.OpChainContracts)
-	require.NotNil(t, continuedChain.Continuation.TxHash)
-	require.NotNil(t, continuedChain.Continuation.ReceiptBlockNumber)
-	require.NotNil(t, continuedChain.Continuation.ReceiptBlockHash)
 	require.True(t, continuedChain.Continuation.LiveValidated)
 	return continued
 }
