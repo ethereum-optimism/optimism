@@ -13,11 +13,13 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"slices"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/interopsmoke"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -101,7 +103,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		return runOpUp(cliCtx.Context, cliCtx.App.ErrWriter, cliCtx.String(dirFlag.Name), cliCtx.Bool(interopFlag.Name))
 	}
 	app.Commands = []*cli.Command{
-		smokeCommand(),
+		interopsmoke.Command(envPrefix),
 	}
 	return app.RunContext(ctx, args)
 }
@@ -640,7 +642,17 @@ func (t *testingT) Skipped() bool {
 
 // TempDir implements devtest.T.
 func (t *testingT) TempDir() string {
-	dir, err := os.MkdirTemp(t.state.tempRoot, "op-up-*")
+	return t.TempDirWithPrefix("op-up")
+}
+
+// TempDirWithPrefix implements devtest.T.
+func (t *testingT) TempDirWithPrefix(prefix string) string {
+	prefix = strings.NewReplacer("/", "-", "\\", "-", " ", "-", "_", "-").Replace(strings.TrimSpace(prefix))
+	prefix = strings.Trim(prefix, "-")
+	if prefix == "" {
+		prefix = "op-up"
+	}
+	dir, err := os.MkdirTemp(t.state.tempRoot, prefix+"-*")
 	if err != nil {
 		t.failf("failed to create temp dir: %v", err)
 	}

@@ -52,6 +52,7 @@ func run(ctx context.Context, args []string, action ConfiguredLifecycle) error {
 		ListGamesCommand,
 		ListClaimsCommand,
 		ListCreditsCommand,
+		GameProposalOutputsCommand,
 		CreateGameCommand,
 		MoveCommand,
 		ResolveCommand,

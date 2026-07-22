@@ -19,7 +19,7 @@ import { ISuperFaultDisputeGame } from "interfaces/dispute/ISuperFaultDisputeGam
 import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissionedDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
 import { IZKDisputeGame } from "interfaces/dispute/zk/IZKDisputeGame.sol";
-import { Duration, GameType, GameTypes } from "src/dispute/lib/Types.sol";
+import { Duration, GameType, GameTypes, Hash, Proposal } from "src/dispute/lib/Types.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
@@ -776,7 +776,7 @@ contract DeployImplementations is Script {
         ChainAssertions.checkDelayedWETHImpl(_output.delayedWETHImpl, _input.withdrawalDelaySeconds);
         GameType permGameType = DevFeatures.isDevFeatureEnabled(
             _input.devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION
-        ) ? GameTypes.SUPER_PERMISSIONED_CANNON : GameTypes.PERMISSIONED_CANNON;
+        ) ? GameTypes.SUPER_PERMISSIONED : GameTypes.PERMISSIONED_CANNON;
         ChainAssertions.checkDisputeGameFactory(
             _output.disputeGameFactoryImpl, address(0), address(0), false, permGameType
         );
@@ -804,6 +804,11 @@ contract DeployImplementations is Script {
         });
         ChainAssertions.checkETHLockboxImpl(_output.ethLockboxImpl, _output.optimismPortalImpl);
         ChainAssertions.checkSystemConfigImpls(impls);
-        ChainAssertions.checkAnchorStateRegistryProxy(IAnchorStateRegistry(impls.AnchorStateRegistry), false);
+        ChainAssertions.checkAnchorStateRegistryProxy(
+            IAnchorStateRegistry(impls.AnchorStateRegistry),
+            false,
+            GameType.wrap(0),
+            Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 })
+        );
     }
 }

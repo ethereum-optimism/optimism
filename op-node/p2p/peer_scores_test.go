@@ -71,7 +71,7 @@ func getNetHosts(testSuite *PeerScoresTestSuite, ctx context.Context, n int) []h
 	var out []host.Host
 	log := testlog.Logger(testSuite.T(), log.LevelError)
 	for i := 0; i < n; i++ {
-		swarm := tswarm.GenSwarm(testSuite.T())
+		swarm := tswarm.GenSwarm(testSuite.T(), tswarm.OptDisableQUIC)
 		eps, err := store.NewExtendedPeerstore(ctx, log, clock.SystemClock, swarm.Peerstore(), sync.MutexWrap(ds.NewMapDatastore()), 1*time.Hour)
 		netw := &customPeerstoreNetwork{swarm, eps}
 		require.NoError(testSuite.T(), err)

@@ -8,8 +8,8 @@ import (
 	"time"
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-core/superchain"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/ethereum/go-ethereum/superchain"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -27,7 +27,7 @@ var (
 	network                 = "op-mainnet"
 	testNetwork             = "op-sepolia"
 	l2EthRpc                = "http://example.com:9545"
-	superRpc                = "http://example.com/super"
+	superRootRpc            = "http://example.com/super"
 	cannonBin               = "./bin/cannon"
 	cannonServer            = "./bin/op-program"
 	cannonPreState          = "./pre.json"
@@ -107,37 +107,72 @@ func TestL1Beacon(t *testing.T) {
 	})
 }
 
-func TestSuperNodeRpc(t *testing.T) {
+func TestSuperRootRpc(t *testing.T) {
 	t.Run("RequiredForSuperCannonKona", func(t *testing.T) {
-		verifyArgsInvalid(t, "flag supernode-rpc is required", addRequiredArgsExcept(gameTypes.SuperCannonKonaGameType, "--supernode-rpc"))
+		verifyArgsInvalid(t, "flag superroot-rpc is required", addRequiredArgsExcept(gameTypes.SuperCannonKonaGameType, "--superroot-rpc"))
 	})
 
-	for _, gameType := range gameTypes.SupportedGameTypes {
+	for _, gameType := range gameTypes.PlayableGameTypes {
 		gameType := gameType
 		if gameType == gameTypes.SuperCannonKonaGameType {
 			continue
 		}
 
 		t.Run("NotRequiredForGameType-"+gameType.String(), func(t *testing.T) {
-			configForArgs(t, addRequiredArgsExcept(gameType, "--supernode-rpc"))
+			configForArgs(t, addRequiredArgsExcept(gameType, "--superroot-rpc"))
 		})
 	}
 
 	t.Run("Valid-SuperCannonKona", func(t *testing.T) {
 		url := "http://localhost/super"
-		cfg := configForArgs(t, addRequiredArgsExcept(gameTypes.SuperCannonKonaGameType, "--supernode-rpc", "--supernode-rpc", url))
-		require.Equal(t, url, cfg.SuperRPC)
+		cfg := configForArgs(t, addRequiredArgsExcept(gameTypes.SuperCannonKonaGameType, "--superroot-rpc", "--superroot-rpc", url))
+		require.Equal(t, url, cfg.SuperRootRPC)
 	})
+}
+func TestSuperRootRpcCompatibility(t *testing.T) {
+	const url = "http://localhost/super"
+	testCases := []struct {
+		name    string
+		args    []string
+		envName string
+	}{
+		{
+			name: "PrimaryFlag",
+			args: []string{"--superroot-rpc", url},
+		},
+		{
+			name: "LegacyFlagAlias",
+			args: []string{"--supernode-rpc", url},
+		},
+		{
+			name:    "PrimaryEnvVar",
+			envName: "OP_CHALLENGER_SUPERROOT_RPC",
+		},
+		{
+			name:    "LegacyEnvVarAlias",
+			envName: "OP_CHALLENGER_SUPERNODE_RPC",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			if testCase.envName != "" {
+				t.Setenv(testCase.envName, url)
+			}
+			cfg := configForArgs(t, addRequiredArgsExcept(gameTypes.SuperCannonKonaGameType, "--superroot-rpc", testCase.args...))
+			require.Equal(t, url, cfg.SuperRootRPC)
+		})
+	}
 }
 
 func TestGameTypes(t *testing.T) {
 	t.Run("Default", func(t *testing.T) {
-		expectedDefault := []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.CannonKonaGameType}
+		expectedDefault := []gameTypes.GameType{gameTypes.CannonKonaGameType}
 		cfg := configForArgs(t, addRequiredArgsForMultipleGameTypesExcept(expectedDefault, "--game-types"))
 		require.Equal(t, expectedDefault, cfg.GameTypes)
 	})
 
-	for _, gameType := range gameTypes.SupportedGameTypes {
+	for _, gameType := range gameTypes.PlayableGameTypes {
 		gameType := gameType
 		t.Run("Valid_"+gameType.String(), func(t *testing.T) {
 			cfg := configForArgs(t, addRequiredArgs(gameType))
@@ -153,7 +188,7 @@ func TestGameTypes(t *testing.T) {
 	})
 
 	// Check we provide an alias for --trace-type to preserve backwards compatibility
-	for _, gameType := range gameTypes.SupportedGameTypes {
+	for _, gameType := range gameTypes.PlayableGameTypes {
 		gameType := gameType
 		t.Run("TraceTypeAlias-"+gameType.String(), func(t *testing.T) {
 			cfg := configForArgs(t, addRequiredArgsExcept(gameType, "--game-types", "--trace-type", gameType.String()))
@@ -609,7 +644,18 @@ func TestCannonRequiredArgs(t *testing.T) {
 			})
 
 			t.Run("Required", func(t *testing.T) {
-				verifyArgsInvalid(t, "flag prestates-url/cannon-prestates-url or cannon-prestate is required", addRequiredArgsExcept(gameType, "--cannon-prestate"))
+				if gameType == gameTypes.PermissionedGameType {
+					// The permissioned game never loads the VM prestate.
+					configForArgs(t, addRequiredArgsExcept(gameType, "--cannon-prestate"))
+				} else {
+					verifyArgsInvalid(t, "flag prestates-url/cannon-prestates-url or cannon-prestate is required", addRequiredArgsExcept(gameType, "--cannon-prestate"))
+				}
+			})
+
+			t.Run("RequiredWhenCannonAndPermissionedBothEnabled", func(t *testing.T) {
+				gameTypesArg := fmt.Sprintf("%v,%v", gameTypes.CannonGameType.String(), gameTypes.PermissionedGameType.String())
+				args := addRequiredArgsExceptArr(gameTypes.CannonGameType, []string{"--game-types", "--cannon-prestate"}, "--game-types", gameTypesArg)
+				verifyArgsInvalid(t, "flag prestates-url/cannon-prestates-url or cannon-prestate is required", args)
 			})
 
 			t.Run("Valid", func(t *testing.T) {
@@ -624,7 +670,12 @@ func TestCannonRequiredArgs(t *testing.T) {
 			})
 
 			t.Run("Required", func(t *testing.T) {
-				verifyArgsInvalid(t, "flag prestates-url/cannon-prestates-url or cannon-prestate is required", addRequiredArgsExcept(gameType, "--cannon-prestate"))
+				if gameType == gameTypes.PermissionedGameType {
+					// The permissioned game never loads the VM prestate.
+					configForArgs(t, addRequiredArgsExcept(gameType, "--cannon-prestate"))
+				} else {
+					verifyArgsInvalid(t, "flag prestates-url/cannon-prestates-url or cannon-prestate is required", addRequiredArgsExcept(gameType, "--cannon-prestate"))
+				}
 			})
 
 			t.Run("Valid", func(t *testing.T) {
@@ -649,7 +700,12 @@ func TestCannonRequiredArgs(t *testing.T) {
 			})
 
 			t.Run("RequiredIfCannonPrestatesBaseURLNotSet", func(t *testing.T) {
-				verifyArgsInvalid(t, "flag prestates-url/cannon-prestates-url or cannon-prestate is required", addRequiredArgsExceptArr(gameType, allPrestateOptions))
+				if gameType == gameTypes.PermissionedGameType {
+					// The permissioned game never loads the VM prestate.
+					configForArgs(t, addRequiredArgsExceptArr(gameType, allPrestateOptions))
+				} else {
+					verifyArgsInvalid(t, "flag prestates-url/cannon-prestates-url or cannon-prestate is required", addRequiredArgsExceptArr(gameType, allPrestateOptions))
+				}
 			})
 
 			t.Run("Invalid", func(t *testing.T) {
@@ -773,7 +829,7 @@ func TestCannonKonaRequiredArgs(t *testing.T) {
 }
 
 func TestDepsetConfig(t *testing.T) {
-	for _, gameType := range gameTypes.SupportedGameTypes {
+	for _, gameType := range gameTypes.PlayableGameTypes {
 		if gameType == gameTypes.SuperCannonKonaGameType {
 			t.Run("Required-"+gameType.String(), func(t *testing.T) {
 				verifyArgsInvalid(t,
@@ -790,7 +846,7 @@ func TestDepsetConfig(t *testing.T) {
 }
 
 func TestDataDir(t *testing.T) {
-	for _, gameType := range gameTypes.SupportedGameTypes {
+	for _, gameType := range gameTypes.PlayableGameTypes {
 		gameType := gameType
 
 		t.Run(fmt.Sprintf("RequiredFor-%v", gameType), func(t *testing.T) {
@@ -805,7 +861,7 @@ func TestDataDir(t *testing.T) {
 }
 
 func TestRollupRpc(t *testing.T) {
-	for _, gameType := range gameTypes.SupportedGameTypes {
+	for _, gameType := range gameTypes.PlayableGameTypes {
 		gameType := gameType
 
 		if gameType == gameTypes.SuperCannonKonaGameType {
@@ -1029,7 +1085,7 @@ func addRequiredCannonKonaBaseArgs(args map[string]string) {
 
 func addRequiredSuperCannonKonaArgs(args map[string]string) {
 	addRequiredCannonKonaBaseArgs(args)
-	args["--supernode-rpc"] = superRpc
+	args["--superroot-rpc"] = superRootRpc
 }
 
 func toArgList(req map[string]string) []string {

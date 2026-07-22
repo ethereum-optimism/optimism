@@ -1,6 +1,7 @@
 ---
 title: Bridging your custom ERC-20 token using the Standard Bridge
 description: Learn how to bridge your custom ERC-20 token using the standard bridge.
+diataxis: tutorial
 ---
 
 
@@ -269,7 +270,7 @@ contract MyCustomL2Token is IOptimismMintableERC20, ILegacyMintableERC20, ERC20,
   </Step>
   <Step title="Review the example contract">
 
-  Take a moment to review the example contract. It's closely based on the official [`OptimismMintableERC20`](https://github.com/ethereum-optimism/optimism/blob/v1.12.2/packages/contracts-bedrock/src/universal/OptimismMintableERC20.sol) contract with one key modification:
+  Take a moment to review the example contract. It's closely based on the official [`OptimismMintableERC20`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/universal/OptimismMintableERC20.sol) contract with one key modification:
 
   The `burn` function has been modified to always revert, making it impossible to withdraw tokens back to L1.
 

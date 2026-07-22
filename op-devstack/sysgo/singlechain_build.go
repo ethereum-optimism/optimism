@@ -156,6 +156,8 @@ func startL2ELForKey(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [3
 		return startL2ELNode(t, l2Net, jwtPath, jwtSecret, key, identity)
 	case MixedL2ELOpRethV2:
 		return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil, "v2", opts...)
+	case MixedL2ELOpRethPremium:
+		return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil, "v1", opRethPremiumOpts(opts)...)
 	case MixedOpRbuilder:
 		return startBuilderEL(t, l2Net, jwtPath, identity)
 	default: // op-reth v1
@@ -184,14 +186,13 @@ func startL2CLForKey(
 ) L2CLNode {
 	switch devstackL2CLKind() {
 	case MixedL2CLKona:
-		return startMixedKonaNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, isSequencer, nil, nil)
+		return startMixedKonaNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, isSequencer, nil)
 	default: // op-node
 		return startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
 			Key:            clKey,
 			IsSequencer:    isSequencer,
 			NoDiscovery:    true,
 			EnableReqResp:  true,
-			UseReqResp:     true,
 			L2FollowSource: followSource,
 			L2CLOptions:    l2CLOpts,
 		})
@@ -286,7 +287,6 @@ type l2CLNodeStartConfig struct {
 	IsSequencer    bool
 	NoDiscovery    bool
 	EnableReqResp  bool
-	UseReqResp     bool
 	L2FollowSource string
 	DependencySet  depset.DependencySet
 	L2CLOptions    []L2CLOption
@@ -313,7 +313,6 @@ func startL2CLNode(
 	cfg.IsSequencer = startCfg.IsSequencer
 	cfg.NoDiscovery = startCfg.NoDiscovery
 	cfg.EnableReqRespSync = startCfg.EnableReqResp
-	cfg.UseReqRespSync = startCfg.UseReqResp
 	cfg.FollowSource = startCfg.L2FollowSource
 	if len(startCfg.L2CLOptions) > 0 {
 		l2CLTarget := NewComponentTarget(startCfg.Key, l2Net.ChainID())
@@ -421,7 +420,6 @@ func startL2CLNode(
 		Tracer:                      nil,
 		Sync: nodeSync.Config{
 			SyncMode:                       syncMode,
-			SyncModeReqResp:                cfg.UseReqRespSync,
 			SkipSyncStartCheck:             false,
 			SupportsPostFinalizationELSync: false,
 			L2FollowSourceEndpoint:         cfg.FollowSource,

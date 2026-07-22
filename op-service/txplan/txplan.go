@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/plan"
 )
@@ -389,8 +390,6 @@ func WithReader(cl Reader) Option {
 		tx.Read.DependOn(
 			&tx.Sender,
 			&tx.To,
-			&tx.GasFeeCap,
-			&tx.GasTipCap,
 			&tx.Value,
 			&tx.Data,
 			&tx.AccessList,
@@ -402,8 +401,8 @@ func WithReader(cl Reader) Option {
 				To:         tx.To.Value(),
 				Gas:        0, // auto estimated by the node
 				GasPrice:   nil,
-				GasFeeCap:  tx.GasFeeCap.Value(),
-				GasTipCap:  tx.GasTipCap.Value(),
+				GasFeeCap:  nil,
+				GasTipCap:  nil,
 				Value:      tx.Value.Value(),
 				Data:       tx.Data.Value(),
 				AccessList: tx.AccessList.Value(),
@@ -596,7 +595,7 @@ func (tx *PlannedTx) Defaults() {
 				R:          nil,
 				S:          nil,
 			}, nil
-		case types.DepositTxType:
+		case optypes.DepositTxType:
 			return nil, errors.New("deposit tx not supported")
 		default:
 			return nil, fmt.Errorf("unrecognized tx type: %d", tx.Type.Value())

@@ -634,27 +634,6 @@
     }
   },
   {
-    "name": "Creator Chain Testnet",
-    "identifier": "sepolia/creator-chain-testnet",
-    "chainId": 66665,
-    "rpc": [
-      "https://rpc.creatorchain.io"
-    ],
-    "explorers": [
-      "https://explorer.creatorchain.io"
-    ],
-    "superchainLevel": 0,
-    "governedByOptimism": false,
-    "dataAvailabilityType": "eth-da",
-    "parent": {
-      "type": "L2",
-      "chain": "sepolia"
-    },
-    "faultProofs": {
-      "status": "permissioned"
-    }
-  },
-  {
     "name": "Cyber Testnet",
     "identifier": "sepolia/cyber",
     "chainId": 111557560,
@@ -665,27 +644,6 @@
       "https://testnet.cyberscan.co/"
     ],
     "superchainLevel": 0,
-    "governedByOptimism": false,
-    "dataAvailabilityType": "eth-da",
-    "parent": {
-      "type": "L2",
-      "chain": "sepolia"
-    },
-    "faultProofs": {
-      "status": "none"
-    }
-  },
-  {
-    "name": "Ethernity Testnet",
-    "identifier": "sepolia/ethernity",
-    "chainId": 233,
-    "rpc": [
-      "https://testnet.ethernitychain.io"
-    ],
-    "explorers": [
-      "https://testnet.ernscan.io"
-    ],
-    "superchainLevel": 1,
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -1119,48 +1077,6 @@
     }
   },
   {
-    "name": "rehearsal-0-bn-0",
-    "identifier": "rehearsal-0-bn/rehearsal-0-bn-0",
-    "chainId": 420120009,
-    "rpc": [
-      ""
-    ],
-    "explorers": [
-      ""
-    ],
-    "superchainLevel": 0,
-    "governedByOptimism": false,
-    "dataAvailabilityType": "eth-da",
-    "parent": {
-      "type": "L2",
-      "chain": "rehearsal-0-bn"
-    },
-    "faultProofs": {
-      "status": "permissioned"
-    }
-  },
-  {
-    "name": "rehearsal-0-bn-1",
-    "identifier": "rehearsal-0-bn/rehearsal-0-bn-1",
-    "chainId": 420120010,
-    "rpc": [
-      ""
-    ],
-    "explorers": [
-      ""
-    ],
-    "superchainLevel": 0,
-    "governedByOptimism": false,
-    "dataAvailabilityType": "eth-da",
-    "parent": {
-      "type": "L2",
-      "chain": "rehearsal-0-bn"
-    },
-    "faultProofs": {
-      "status": "permissioned"
-    }
-  },
-  {
     "name": "Silent Data Mainnet",
     "identifier": "mainnet/silent-data-mainnet",
     "chainId": 380929,
@@ -1201,6 +1117,27 @@
     "gasPayingToken": "0x3C7011fD5e6Aed460cAa4985cF8d8Caba435b092",
     "faultProofs": {
       "status": "permissioned"
+    }
+  },
+  {
+    "name": "sepolia-devnet-2",
+    "identifier": "sepolia-devnet-2/sepolia-devnet-2",
+    "chainId": 420130015,
+    "rpc": [
+      "https://sepolia-devnet-2.optimism.io/rpc"
+    ],
+    "explorers": [
+      ""
+    ],
+    "superchainLevel": 0,
+    "governedByOptimism": false,
+    "dataAvailabilityType": "eth-da",
+    "parent": {
+      "type": "L2",
+      "chain": "sepolia-devnet-2"
+    },
+    "faultProofs": {
+      "status": "permissionless"
     }
   }
 ]

@@ -2,11 +2,12 @@ package sysgo
 
 import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 )
 
-func newSingleChainInteropWorldNoSupervisor(t devtest.T, keys devkeys.Keys, cfg PresetConfig) singleChainRuntimeWorld {
+func newSingleChainInteropWorldNoSupernode(t devtest.T, keys devkeys.Keys, cfg PresetConfig) singleChainRuntimeWorld {
 	cfg.DeployerOptions = append([]DeployerOption{
 		WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag),
 	}, cfg.DeployerOptions...)
@@ -21,7 +22,7 @@ func newSingleChainInteropWorldNoSupervisor(t devtest.T, keys devkeys.Keys, cfg 
 	}
 }
 
-func startSingleChainInteropPrimaryNoSupervisor(
+func startSingleChainInteropPrimaryNoSupernode(
 	t devtest.T,
 	keys devkeys.Keys,
 	world singleChainRuntimeWorld,
@@ -40,7 +41,6 @@ func startSingleChainInteropPrimaryNoSupervisor(
 		IsSequencer:    true,
 		NoDiscovery:    true,
 		EnableReqResp:  true,
-		UseReqResp:     true,
 		DependencySet:  world.Interop.DependencySet,
 		L2FollowSource: "",
 		L2CLOptions:    cfg.GlobalL2CLOptions,
@@ -51,14 +51,30 @@ func startSingleChainInteropPrimaryNoSupervisor(
 	}
 }
 
-// NewMinimalInteropNoSupervisorRuntime constructs the single-chain interop world
-// without supervisor wiring.
-func NewMinimalInteropNoSupervisorRuntime(t devtest.T) *SingleChainRuntime {
+// NewMinimalInteropNoSupernodeRuntime constructs the single-chain interop world
+// without supernode wiring.
+func NewMinimalInteropNoSupernodeRuntime(t devtest.T) *SingleChainRuntime {
 	return newSingleChainRuntimeWithConfig(t, PresetConfig{}, singleChainRuntimeSpec{
-		BuildWorld:      newSingleChainInteropWorldNoSupervisor,
-		StartPrimary:    startSingleChainInteropPrimaryNoSupervisor,
+		BuildWorld:      newSingleChainInteropWorldNoSupernode,
+		StartPrimary:    startSingleChainInteropPrimaryNoSupernode,
 		StartBatcher:    true,
 		StartProposer:   true,
 		StartChallenger: false,
+	})
+}
+
+// NewSingleChainInteropNoSupernodeSuperRootRuntimeWithConfig constructs a single-chain
+// interop world with no supernode, running an op-challenger that plays super-cannon-kona
+// games sourcing super roots directly from the op-node's superroot_atTimestamp endpoint.
+// The primary op-node enables its safe DB (required by superroot_atTimestamp).
+func NewSingleChainInteropNoSupernodeSuperRootRuntimeWithConfig(t devtest.T, cfg PresetConfig) *SingleChainRuntime {
+	cfg = withSuperRootGamesAtGenesisDeployerFeatures(cfg)
+	cfg.AddedGameTypes = append(cfg.AddedGameTypes, gameTypes.SuperCannonKonaGameType)
+	return newSingleChainRuntimeWithConfig(t, cfg, singleChainRuntimeSpec{
+		BuildWorld:      newSingleChainInteropWorldNoSupernode,
+		StartPrimary:    startDefaultSingleChainPrimary,
+		StartBatcher:    true,
+		StartProposer:   false,
+		StartChallenger: true,
 	})
 }

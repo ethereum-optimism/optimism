@@ -83,7 +83,7 @@ func buildSuperRootUpgradeGameConfigs(
 		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypePermissionedCannon},
 		{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeCannonKona},
 		{
-			Enabled: true, InitBond: new(big.Int), GameType: embedded.GameTypeSuperPermCannon,
+			Enabled: true, InitBond: new(big.Int), GameType: embedded.GameTypeSuperPermissioned,
 			SuperPermissionedDisputeGameConfig: &embedded.SuperPermissionedDisputeGameConfig{
 				Proposer: proposer,
 			},

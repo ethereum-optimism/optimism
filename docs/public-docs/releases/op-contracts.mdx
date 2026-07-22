@@ -3,6 +3,7 @@ title: "op-contracts Releases"
 sidebarTitle: "op-contracts"
 description: "Release history for op-contracts. OP Stack L1 and L2 smart contracts."
 rss: true
+diataxis: reference
 ---
 
 {/*
@@ -13,6 +14,14 @@ rss: true
 */}
 
 **op-contracts** contains the L1 and L2 smart contracts for the OP Stack. See the [contract reference](https://devdocs.optimism.io/contracts-bedrock) for interface documentation and architecture details.
+
+<Update label="June 25, 2026" description="v7.0.0" tags={["Latest", "Stable"]}>
+
+This is the op-contracts release associated with [Upgrade 19](https://gov.optimism.io/t/upgrade-19b-karst-hardfork/10713).
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts/v7.0.0)
+
+</Update>
 
 <Update label="May 29, 2026" description="v7.0.0-rc.4" tags={["Release Candidate"]}>
 
@@ -61,13 +70,13 @@ rss: true
 
 </Update>
 
-<Update label="March 16, 2026" description="v6.0.0" tags={["Latest", "Stable"]}>
+<Update label="March 16, 2026" description="v6.0.0" tags={["Stable"]}>
 
 This is the contracts release for [Upgrade 18](https://gov.optimism.io/t/upgrade-18-custom-gas-token-v2-and-kona-proofs/10576). The main changes in this release are:
 
 - Custom Gas Token v2: gated behind the CUSTOM_GAS_TOKEN feature flag in SystemConfig and is intended for new chains that enable it at deployment.
 - Creator Pattern Dispute Game Refactor: efficient deployment of dispute game contracts, allowing one single implementation to be used for all chains (which is then cloned and configured separately for each chain).
-- Cannon + Kona: This upgrade adds a [new game type](https://github.com/ethereum-optimism/optimism/blob/b9dc5808f61c160de048fb7db39a04fe4fba4574/packages/contracts-bedrock/src/dispute/lib/Types.sol#L76-L77) to use [Kona Proof](https://github.com/ethereum-optimism/optimism/tree/develop/kona/crates/proof/proof) with the Cannon [Fault Proof VM](https://specs.optimism.io/fault-proof/index.html#fault-proof-vm). It does not change the respected game type.
+- Cannon + Kona: This upgrade adds a [new game type](https://github.com/ethereum-optimism/optimism/blob/b9dc5808f61c160de048fb7db39a04fe4fba4574/packages/contracts-bedrock/src/dispute/lib/Types.sol#L76-L77) to use [Kona Proof](https://github.com/ethereum-optimism/optimism/tree/develop/kona/crates/proof/proof) with the Cannon [Fault Proof VM](https://specs.optimism.io/fault-proof/index.html#fault-proof-vm). It does not change the respected game type. (as of `b9dc580`)
 
 The audit results [are published here](https://github.com/ethereum-optimism/optimism/blob/develop/docs/security-reviews/2026_01-U18-Cantina.pdf).
 
@@ -107,8 +116,8 @@ Cannon has been updated to support versions of op-program that are compiled with
 The OPCM version includes changes to prepare for supporting the [Kona](https://github.com/op-rs/kona) fault proof program in a future release and the `CANNON_KONA` game type has been added.
 
 For details of individual contract versions and standard deployments, please see the below links in the superchain registry:
-* [Sepolia](https://github.com/ethereum-optimism/superchain-registry/blob/80818cd29c28a37be79e2f31fe5cd2a8254fc58c/validation/standard/standard-versions-sepolia.toml#L6-L25)
-* [Mainnet](https://github.com/ethereum-optimism/superchain-registry/blob/80818cd29c28a37be79e2f31fe5cd2a8254fc58c/validation/standard/standard-versions-mainnet.toml#L6-L25)
+* [Sepolia](https://github.com/ethereum-optimism/superchain-registry/blob/80818cd29c28a37be79e2f31fe5cd2a8254fc58c/validation/standard/standard-versions-sepolia.toml#L6-L25) (as of `80818cd`)
+* [Mainnet](https://github.com/ethereum-optimism/superchain-registry/blob/80818cd29c28a37be79e2f31fe5cd2a8254fc58c/validation/standard/standard-versions-mainnet.toml#L6-L25) (as of `80818cd`)
 
 [View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts/v5.0.0)
 
@@ -119,8 +128,8 @@ For details of individual contract versions and standard deployments, please see
 This release adds support for configuring the minimum base fee and DA footprint gas scalar variables, which affect features activating with the Jovian hardfork. It also includes support for Go 1.24 in the Cannon fault proof VM. 
 
 For details of individual contract versions and standard deployments, please see the below links in the superchain registry:
-* [Sepolia](https://github.com/ethereum-optimism/superchain-registry/blob/0cc526c0acdfffac5b1966bf7465406e41f33b00/validation/standard/standard-versions-sepolia.toml#L6-L25)
-* [Mainnet](https://github.com/ethereum-optimism/superchain-registry/blob/0cc526c0acdfffac5b1966bf7465406e41f33b00/validation/standard/standard-versions-mainnet.toml#L6-L25)
+* [Sepolia](https://github.com/ethereum-optimism/superchain-registry/blob/0cc526c0acdfffac5b1966bf7465406e41f33b00/validation/standard/standard-versions-sepolia.toml#L6-L25) (as of `0cc526c`)
+* [Mainnet](https://github.com/ethereum-optimism/superchain-registry/blob/0cc526c0acdfffac5b1966bf7465406e41f33b00/validation/standard/standard-versions-mainnet.toml#L6-L25) (as of `0cc526c`)
 
 [View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts/v5.0.0-rc.2)
 
@@ -132,8 +141,8 @@ This is the `op-contracts` release associated with the [Upgrade 16a protocol upg
 
 For contract versions and implementation addresses in this release, please refer to the superchain-registry:
 
-[Sepolia versions](https://github.com/ethereum-optimism/superchain-registry/blob/df4e953b384b7fb6dad14676fc5d9a9a994e5748/validation/standard/standard-versions-sepolia.toml#L7)
-[Mainnet versions](https://github.com/ethereum-optimism/superchain-registry/blob/df4e953b384b7fb6dad14676fc5d9a9a994e5748/validation/standard/standard-versions-mainnet.toml#L7)
+[Sepolia versions](https://github.com/ethereum-optimism/superchain-registry/blob/df4e953b384b7fb6dad14676fc5d9a9a994e5748/validation/standard/standard-versions-sepolia.toml#L7) (as of `df4e953`)
+[Mainnet versions](https://github.com/ethereum-optimism/superchain-registry/blob/df4e953b384b7fb6dad14676fc5d9a9a994e5748/validation/standard/standard-versions-mainnet.toml#L7) (as of `df4e953`)
 
 The associated governance proposal can be found [here](https://gov.optimism.io/t/maintenance-upgrade-proposal-u16a/10288). Deployment operations should be executed using the associated op-deployer release.
 
@@ -151,8 +160,8 @@ Chains which use their own SuperchainConfig, rather than sharing it with OP Main
 
 For contract versions and implementation addresses in this release; please refer to the superchain-registry:
 
-- [Sepolia versions](https://github.com/ethereum-optimism/superchain-registry/blob/802e9b18739ae1a674fc609ca3a51e556b128b97/validation/standard/standard-versions-mainnet.toml#L145)
-- [Mainnet versions](https://github.com/ethereum-optimism/superchain-registry/blob/802e9b18739ae1a674fc609ca3a51e556b128b97/validation/standard/standard-versions-sepolia.toml#L145)
+- [Sepolia versions](https://github.com/ethereum-optimism/superchain-registry/blob/802e9b18739ae1a674fc609ca3a51e556b128b97/validation/standard/standard-versions-mainnet.toml#L145) (as of `802e9b1`)
+- [Mainnet versions](https://github.com/ethereum-optimism/superchain-registry/blob/802e9b18739ae1a674fc609ca3a51e556b128b97/validation/standard/standard-versions-sepolia.toml#L145) (as of `802e9b1`)
 
 Deployment operations should be executed using the associated `op-deployer` release. 
 
@@ -167,8 +176,8 @@ Deployment operations should be executed using the associated `op-deployer` rele
 This is the op-contracts release intended for the forthcoming [Upgrade 16 protocol upgrade](https://docs.optimism.io/notices/upgrade-16).
 
 For contract versions and implementation addresses in this release; please refer to the superchain-registry:
-- [Sepolia versions](https://github.com/ethereum-optimism/superchain-registry/blob/6b65f330434d46e24abc9ef78852ac3fa1cba4ec/validation/standard/standard-versions-sepolia.toml#L7)
-- [Mainnet versions](https://github.com/ethereum-optimism/superchain-registry/blob/6b65f330434d46e24abc9ef78852ac3fa1cba4ec/validation/standard/standard-versions-mainnet.toml#L7)
+- [Sepolia versions](https://github.com/ethereum-optimism/superchain-registry/blob/6b65f330434d46e24abc9ef78852ac3fa1cba4ec/validation/standard/standard-versions-sepolia.toml#L7) (as of `6b65f33`)
+- [Mainnet versions](https://github.com/ethereum-optimism/superchain-registry/blob/6b65f330434d46e24abc9ef78852ac3fa1cba4ec/validation/standard/standard-versions-mainnet.toml#L7) (as of `6b65f33`)
 
 The associated governance proposal can be found [here](https://gov.optimism.io/t/upgrade-16-proposal-interop-contracts-stage-1-and-go-1-23-support-in-cannon/10037). 
 
@@ -184,8 +193,8 @@ This is the op-contracts release associated with the recently passed [Upgrade 16
 
 For contract versions and implementation addresses in this release; please refer to the superchain-registry:
 
-- [Sepolia versions](https://github.com/ethereum-optimism/superchain-registry/blob/6b65f330434d46e24abc9ef78852ac3fa1cba4ec/validation/standard/standard-versions-sepolia.toml#L7)
-- [Mainnet versions](https://github.com/ethereum-optimism/superchain-registry/blob/6b65f330434d46e24abc9ef78852ac3fa1cba4ec/validation/standard/standard-versions-mainnet.toml#L7)
+- [Sepolia versions](https://github.com/ethereum-optimism/superchain-registry/blob/6b65f330434d46e24abc9ef78852ac3fa1cba4ec/validation/standard/standard-versions-sepolia.toml#L7) (as of `6b65f33`)
+- [Mainnet versions](https://github.com/ethereum-optimism/superchain-registry/blob/6b65f330434d46e24abc9ef78852ac3fa1cba4ec/validation/standard/standard-versions-mainnet.toml#L7) (as of `6b65f33`)
 The associated governance proposal can be found [here](https://gov.optimism.io/t/upgrade-16-proposal-interop-contracts-stage-1-and-go-1-23-support-in-cannon/10037).
 
 Deployment operations should be executed using the associated `op-deployer` release.
@@ -264,7 +273,7 @@ This release is suitable for the L1 contracts as part of the Holocene network up
 
 </Update>
 
-<Update label="November 6, 2024" description="v1.8.0-rc.1" tags={["Release Candidate"]}>
+<Update label="November 7, 2024" description="v1.8.0-rc.1" tags={["Release Candidate"]}>
 
 # Overview
 
@@ -281,15 +290,5 @@ This release is suitable for the L1 contracts as part of the Holocene network up
 This release is suitable for generating L2 genesis. The L1 contract deployments should be done with another release.
 
 [View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts/v.1.7.0-beta.1%2Bl2-contracts)
-
-</Update>
-
-<Update label="September 13, 2024" description="v2.0.0-beta.3" tags={["Release Candidate"]}>
-
-## Overview
-
-This set of contracts includes the Custom Gas Token feature.  The tagged commit includes updates in which the `plasma` feature was renamed to `AltDA`, therefore this release is compatible with the new `AltDA` configurations.
-
-[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts/v2.0.0-beta.3)
 
 </Update>

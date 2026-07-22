@@ -158,7 +158,7 @@ func NewTwoL2SupernodeProofsRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool,
 }
 
 // NewSingleChainSupernodeProofsRuntimeWithConfig deploys a single chain with
-// SuperPermissionedCannon at genesis, then uses opcm.upgrade to add the
+// SuperPermissioned at genesis, then uses opcm.upgrade to add the
 // permissionless super games and set the real starting anchor root.
 // lagoonAtGenesis controls whether Lagoon activates interop at genesis.
 func NewSingleChainSupernodeProofsRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool, cfg PresetConfig) *MultiChainRuntime {
@@ -208,7 +208,7 @@ func startSuperProposer(
 		opt(NewComponentTarget(proposerName, proposerChainID), proposerCLIConfig)
 	}
 	require.NotEmpty(supernodeRPC, "need supernode RPC for super proposer")
-	proposerCLIConfig.SuperNodeRpcs = []string{supernodeRPC}
+	proposerCLIConfig.SuperRootRpcs = []string{supernodeRPC}
 
 	proposer, err := ps.ProposerServiceFromCLIConfig(t.Ctx(), "0.0.1", proposerCLIConfig, logger)
 	require.NoError(err)
@@ -272,7 +272,7 @@ func startInteropChallenger(
 	}
 	cfg, err := sharedchallenger.NewInteropChallengerConfig(
 		t.Ctx(),
-		t.TempDir(),
+		t.TempDirWithPrefix("super-challenger"),
 		l1EL.UserRPC(),
 		l1CL.beaconHTTPAddr,
 		superRPC,

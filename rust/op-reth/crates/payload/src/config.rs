@@ -1,5 +1,6 @@
 //! Additional configuration for the OP builder
 
+use reth_optimism_txpool::interop::InteropFailsafe;
 use std::sync::{
     Arc,
     atomic::{AtomicBool, AtomicU64, Ordering},
@@ -12,8 +13,11 @@ pub struct OpBuilderConfig {
     pub da_config: OpDAConfig,
     /// Gas limit configuration for the OP builder.
     pub gas_limit_config: OpGasLimitConfig,
-    /// Local SDM `PostExec` production opt-in. Shared with the admin RPC.
-    pub sdm_post_exec_opt_in: SdmPostExecOptIn,
+    /// Local SDM `PostExec` production operator opt-in. Shared with the admin RPC.
+    pub operator_sdm_opt_in: OperatorSdmOptIn,
+    /// Interop failsafe gate. Set by the interop filter client; read by the builder to exclude
+    /// interop txs from blocks while it is enabled.
+    pub interop_failsafe: InteropFailsafe,
     /// Maximum cumulative uncompressed (EIP-2718 encoded) block size in bytes.
     ///
     /// `None` disables the limit (the historical behavior). When set, the payload builder stops
@@ -31,7 +35,8 @@ impl OpBuilderConfig {
         Self {
             da_config,
             gas_limit_config,
-            sdm_post_exec_opt_in: SdmPostExecOptIn::default(),
+            operator_sdm_opt_in: OperatorSdmOptIn::default(),
+            interop_failsafe: InteropFailsafe::default(),
             max_uncompressed_block_size: None,
         }
     }
@@ -48,11 +53,11 @@ impl OpBuilderConfig {
 /// `false` on construction. The admin RPC writes; the payload builder reads. The protocol gate
 /// (chain spec Interop activation) is checked separately; both must be true to actually produce.
 #[derive(Debug, Clone, Default)]
-pub struct SdmPostExecOptIn {
+pub struct OperatorSdmOptIn {
     inner: Arc<AtomicBool>,
 }
 
-impl SdmPostExecOptIn {
+impl OperatorSdmOptIn {
     /// Returns the current opt-in state.
     pub fn enabled(&self) -> bool {
         self.inner.load(Ordering::Acquire)

@@ -28,7 +28,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
@@ -328,32 +327,6 @@ func TestEndToEndApply(t *testing.T) {
 		account, exists := l2Genesis[nativeAssetLiquidityAddr]
 		require.True(t, exists, "Native asset liquidity predeploy should exist in L2 genesis")
 		require.Equal(t, amount, account.Balance, "Native asset liquidity predeploy should have the configured balance")
-	})
-
-	t.Run("with L2CM", func(t *testing.T) {
-		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID1, loc, loc, testCustomGasLimit)
-
-		intent.GlobalDeployOverrides = map[string]any{
-			"devFeatureBitmap": devfeatures.L2CMFlag,
-		}
-
-		require.NoError(t, deployer.ApplyPipeline(ctx, deployer.ApplyPipelineOpts{
-			DeploymentTarget:   deployer.DeploymentTargetLive,
-			L1RPCUrl:           l1RPC,
-			DeployerPrivateKey: pk,
-			Intent:             intent,
-			State:              st,
-			Logger:             lgr,
-			StateWriter:        pipeline.NoopStateWriter(),
-			CacheDir:           testCacheDir,
-		}))
-
-		// Check that the conditional deployer predeploy is deployed in L2 genesis
-		conditionalDeployerAddr := common.HexToAddress("0x420000000000000000000000000000000000002C")
-		l2Genesis := st.Chains[0].Allocs.Data.Accounts
-		account, exists := l2Genesis[conditionalDeployerAddr]
-		require.True(t, exists, "Conditional deployer should exist in L2 genesis")
-		require.NotEmpty(t, account.Code, "Conditional deployer should have code deployed")
 	})
 
 	t.Run("OPCMV2 deployment", func(t *testing.T) {
@@ -927,7 +900,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 							{
 								Enabled:  false,
 								InitBond: big.NewInt(0),
-								GameType: embedded.GameTypeSuperPermCannon,
+								GameType: embedded.GameTypeSuperPermissioned,
 							},
 							{
 								Enabled:  false,

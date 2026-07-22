@@ -11,13 +11,20 @@ import (
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rpc"
 )
+
+// historyPrunedErrCode is the JSON-RPC error code an execution engine returns when the requested
+// block predates its earliest retained history (EIP-4444 history expiry). reth returns this for
+// any block below its earliest available history height.
+const historyPrunedErrCode = 4444
 
 var (
 	ErrBlockTimeZero                 = errors.New("block time cannot be 0")
@@ -133,6 +140,15 @@ type Config struct {
 	// Active if KarstTime != nil && L2 block timestamp >= *KarstTime, inactive otherwise.
 	KarstTime *uint64 `json:"karst_time,omitempty"`
 
+	// KeepKarstUpgradeGas opts out of the fix for the Karst upgrade-gas leak, where the
+	// one-time upgrade gas added to the Karst activation block was persisting on every later
+	// block instead of only the activation block.
+	// Defaults to false: the upgrade gas is subtracted again at the block right after the
+	// Karst activation block, so the gas limit reverts. Set to true only on chains that
+	// already activated Karst with the leak baked into their history — the inflated gas limit
+	// is kept, and the operator clears it themselves with a setGasLimit whenever they choose.
+	KeepKarstUpgradeGas bool `json:"keep_karst_upgrade_gas,omitempty"`
+
 	// LagoonTime sets the activation time for an experimental feature-set, activated like a hardfork.
 	// Active if LagoonTime != nil && L2 block timestamp >= *LagoonTime, inactive otherwise.
 	LagoonTime *uint64 `json:"lagoon_time,omitempty"`
@@ -151,7 +167,7 @@ type Config struct {
 	// It is used during safe chain consolidation to translate zero SystemConfig EIP1559
 	// parameters to the protocol values, like the execution layer does.
 	// If missing, it is loaded by the op-node from the embedded superchain config at startup.
-	ChainOpConfig *params.OptimismConfig `json:"chain_op_config,omitempty"`
+	ChainOpConfig *opparams.OptimismConfig `json:"chain_op_config,omitempty"`
 
 	// Optional Features
 
@@ -183,7 +199,7 @@ func (cfg *Config) ValidateL1Config(ctx context.Context, logger log.Logger, clie
 }
 
 // ValidateL2Config checks L2 config variables for errors.
-func (cfg *Config) ValidateL2Config(ctx context.Context, client L2Client, skipL2GenesisBlockHash bool) error {
+func (cfg *Config) ValidateL2Config(ctx context.Context, logger log.Logger, client L2Client, skipL2GenesisBlockHash bool) error {
 	// Validate the L2 Client Chain ID
 	if err := cfg.CheckL2ChainID(ctx, client); err != nil {
 		return err
@@ -193,7 +209,7 @@ func (cfg *Config) ValidateL2Config(ctx context.Context, client L2Client, skipL2
 	if skipL2GenesisBlockHash {
 		return nil
 	}
-	if err := cfg.CheckL2GenesisBlockHash(ctx, client); err != nil {
+	if err := cfg.CheckL2GenesisBlockHash(ctx, logger, client); err != nil {
 		return err
 	}
 
@@ -273,15 +289,29 @@ func (cfg *Config) CheckL2ChainID(ctx context.Context, client L2Client) error {
 }
 
 // CheckL2GenesisBlockHash checks that the configured L2 genesis block hash is valid for the given client.
-func (cfg *Config) CheckL2GenesisBlockHash(ctx context.Context, client L2Client) error {
+func (cfg *Config) CheckL2GenesisBlockHash(ctx context.Context, logger log.Logger, client L2Client) error {
 	l2GenesisBlockRef, err := client.L2BlockRefByNumber(ctx, cfg.Genesis.L2.Number)
 	if err != nil {
+		// The execution engine may no longer retain the genesis block, either because it was never
+		// found or because history expiry has pruned it. The genesis block hash is fully determined
+		// by the rollup config, so accept the configured value rather than failing initialization.
+		if errors.Is(eth.MaybeAsNotFoundErr(err), ethereum.NotFound) || isHistoryPrunedErr(err) {
+			logger.Warn("L2 genesis block not retained by execution engine, skipping validity check", "err", err)
+			return nil
+		}
 		return fmt.Errorf("failed to get L2 genesis blockhash: %w", err)
 	}
 	if l2GenesisBlockRef.Hash != cfg.Genesis.L2.Hash {
 		return fmt.Errorf("incorrect L2 genesis block hash %s, expected %s", l2GenesisBlockRef.Hash, cfg.Genesis.L2.Hash)
 	}
 	return nil
+}
+
+// isHistoryPrunedErr reports whether err is the JSON-RPC error an execution engine returns when the
+// requested block has been pruned by history expiry (see historyPrunedErrCode).
+func isHistoryPrunedErr(err error) bool {
+	var rpcErr rpc.Error
+	return errors.As(err, &rpcErr) && rpcErr.ErrorCode() == historyPrunedErrCode
 }
 
 // Check verifies that the given configuration makes sense
@@ -809,6 +839,10 @@ func (c *Config) Description(l2Chains map[string]string) string {
 	c.forEachFork(func(name string, _ string, time *uint64) {
 		banner += fmt.Sprintf("  - %v: %s\n", name, fmtForkTimeOrUnset(time))
 	})
+	if c.KeepKarstUpgradeGas {
+		// Only reported when set, since it is an opt-out behavioral flag, not a scheduled time.
+		banner += "Keep Karst upgrade gas: true\n"
+	}
 	if c.AltDAConfig != nil {
 		banner += fmt.Sprintf("Node supports Alt-DA Mode with CommitmentType %v\n", c.AltDAConfig.CommitmentType)
 	}
@@ -846,6 +880,10 @@ func (c *Config) LogDescription(log log.Logger, l2Chains map[string]string) {
 	c.forEachFork(func(_ string, logName string, time *uint64) {
 		ctx = append(ctx, logName, fmtForkTimeOrUnset(time))
 	})
+	if c.KeepKarstUpgradeGas {
+		// Only reported when set, since it is an opt-out behavioral flag, not a scheduled time.
+		ctx = append(ctx, "keep_karst_upgrade_gas", true)
+	}
 	if c.AltDAConfig != nil {
 		ctx = append(ctx, "alt_da", *c.AltDAConfig)
 	}
@@ -868,25 +906,6 @@ func (c *Config) forEachFork(callback func(name string, logName string, time *ui
 	callback("Jovian", "jovian_time", c.JovianTime)
 	callback("Karst", "karst_time", c.KarstTime)
 	callback("Lagoon", "lagoon_time", c.LagoonTime)
-}
-
-// UnmarshalJSON accepts the legacy `interop_time` JSON key as an alias for
-// `lagoon_time`, mirroring the Rust HardForkConfig `#[serde(alias = "interop_time")]`
-// carveout. Drop both once superchain-registry renames the TOML key to
-// `lagoon_time` — tracked in ethereum-optimism/optimism#21135.
-func (c *Config) UnmarshalJSON(data []byte) error {
-	type rawConfig Config
-	aux := struct {
-		InteropTime *uint64 `json:"interop_time,omitempty"`
-		*rawConfig
-	}{rawConfig: (*rawConfig)(c)}
-	if err := json.Unmarshal(data, &aux); err != nil {
-		return err
-	}
-	if c.LagoonTime == nil && aux.InteropTime != nil {
-		c.LagoonTime = aux.InteropTime
-	}
-	return nil
 }
 
 func (c *Config) ParseRollupConfig(in io.Reader) error {

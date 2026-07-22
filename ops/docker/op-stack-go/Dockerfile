@@ -9,8 +9,9 @@
 # It will default to the target platform.
 ARG TARGET_BASE_IMAGE=chainguard/static:latest
 
-# The ubuntu target base image is used for the op-challenger build with kona.
-ARG UBUNTU_TARGET_BASE_IMAGE=ubuntu:24.04
+# op-challenger runs on Wolfi: glibc for kona-host, busybox for the chart's
+# /bin/sh entrypoint, plus a bundled musl loader for the musl-linked cannon embeds.
+ARG CHALLENGER_TARGET_BASE_IMAGE=chainguard/wolfi-base:latest@sha256:02dab76bd852a70556b5b2002195c8a5fdab77d323c433bf6642aab080489795
 
 # builder_foundry does not need to be built on $BUILDPLATFORM, as foundry produces static binaries.
 FROM alpine:3.21 AS builder_foundry
@@ -18,7 +19,8 @@ FROM alpine:3.21 AS builder_foundry
 # Build args are only-available in top-level by default, so we'll need to declare it inside the stage too
 ARG TARGETARCH
 
-RUN apk add --no-cache curl bash git jq
+# apk has no built-in download retry; loop so a transient CDN drop doesn't flake CI (~5 min budget).
+RUN n=0; until apk add --no-cache curl bash git jq; do n=$((n+1)); [ "$n" -ge 15 ] && exit 1; echo "apk add retry $n/15 in 20s" >&2; sleep 20; done
 
 COPY ./op-deployer/pkg/deployer/forge/version.json /tmp/op-deployer-versions.json
 
@@ -33,7 +35,7 @@ RUN <<-EOF
     DOWNLOAD_PATH="/tmp/forge.tar.gz"
 
     # Download the artifact archive
-    curl -fL -o ${DOWNLOAD_PATH} "${FOUNDRY_URL}"
+    curl -fL --retry 5 --retry-all-errors --retry-delay 2 -o ${DOWNLOAD_PATH} "${FOUNDRY_URL}"
 
     # Ensure the checksum matches our expectations
     ACTUAL_SHA="$(sha256sum "${DOWNLOAD_PATH}" | awk '{print $1}')"
@@ -49,13 +51,14 @@ EOF
 RUN forge --version
 
 # We may be cross-building for another platform. Specify which platform we need as builder.
-FROM --platform=$BUILDPLATFORM golang:1.24.13-alpine3.22 AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.5-alpine3.23 AS builder
 
 # Enforce that builds use the committed go.mod/go.sum exactly and never
 # silently mutate them. Fails the build if the lockfile is out of date.
 ENV GOFLAGS=-mod=readonly
 
-RUN apk add --no-cache curl tar gzip make gcc musl-dev linux-headers git jq yq-go bash just
+# apk has no built-in download retry; loop so a transient CDN drop doesn't flake CI (~5 min budget).
+RUN n=0; until apk add --no-cache curl tar gzip make gcc musl-dev linux-headers git jq yq-go zip bash just; do n=$((n+1)); [ "$n" -ge 15 ] && exit 1; echo "apk add retry $n/15 in 20s" >&2; sleep 20; done
 
 ARG TARGETARCH
 
@@ -69,10 +72,19 @@ RUN echo "go mod cache: $(go env GOMODCACHE)"
 RUN echo "go build cache: $(go env GOCACHE)"
 
 # warm-up the cache
-RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build go mod download
+# go mod download has no built-in retry; loop so a transient module proxy drop doesn't flake CI.
+# Already-downloaded modules are cached, so a retry only re-fetches what's missing.
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build n=0; until go mod download; do n=$((n+1)); [ "$n" -ge 5 ] && exit 1; echo "go mod download retry $n/5 in 10s" >&2; sleep 10; done
 
 # NOTE: the Dockerfile.dockerignore file effectively describes all dependencies
 COPY . /app
+
+# Most op-stack-go services embed op-core/superchain/superchain-configs.zip via
+# //go:embed. It's gitignored and regenerated from the superchain-registry
+# submodule, whose data is copied into the build context (see Dockerfile.dockerignore).
+# Build it here in the shared builder stage — git-free, verifying against the
+# committed .sha256 — so every Go build stage below links it.
+RUN bash op-core/superchain/sync-superchain.sh
 
 # We avoid copying the full .git dir into the build for just some metadata.
 # Instead, specify:
@@ -171,14 +183,15 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 
 # Compile contracts in a glibc-based image (solc requires glibc, crashes on Alpine musl).
 # Uses BUILDPLATFORM so it runs natively (no QEMU). Contract artifacts are platform-independent.
-FROM --platform=$BUILDPLATFORM golang:1.24.13-bookworm AS op-deployer-contracts
+FROM --platform=$BUILDPLATFORM golang:1.26.5-bookworm AS op-deployer-contracts
 ARG BUILDARCH
 ENV GOFLAGS=-mod=readonly
-RUN apt-get update && apt-get install -y --no-install-recommends curl jq git && rm -rf /var/lib/apt/lists/*
+RUN apt-get -o Acquire::Retries=8 update && apt-get -o Acquire::Retries=8 install -y --no-install-recommends curl jq git && rm -rf /var/lib/apt/lists/*
 COPY ./go.mod /app/go.mod
 COPY ./go.sum /app/go.sum
 WORKDIR /app
-RUN --mount=type=cache,target=/go/pkg/mod go mod download
+# go mod download has no built-in retry; loop so a transient module proxy drop doesn't flake CI.
+RUN --mount=type=cache,target=/go/pkg/mod n=0; until go mod download; do n=$((n+1)); [ "$n" -ge 5 ] && exit 1; echo "go mod download retry $n/5 in 10s" >&2; sleep 10; done
 COPY . /app
 # Install forge for the build platform (linux/glibc variant)
 RUN <<-EOF
@@ -187,12 +200,29 @@ RUN <<-EOF
     FOUNDRY_PLATFORM=linux_${BUILDARCH}
     FOUNDRY_URL="https://github.com/foundry-rs/foundry/releases/download/${FOUNDRY_VERSION}/foundry_${FOUNDRY_VERSION}_${FOUNDRY_PLATFORM}.tar.gz"
     DOWNLOAD_PATH="/tmp/forge.tar.gz"
-    curl -fL -o "${DOWNLOAD_PATH}" "${FOUNDRY_URL}"
+    curl -fL --retry 5 --retry-all-errors --retry-delay 2 -o "${DOWNLOAD_PATH}" "${FOUNDRY_URL}"
     ACTUAL_SHA="$(sha256sum "${DOWNLOAD_PATH}" | awk '{print $1}')"
     EXPECTED_SHA="$(jq -r --arg arch "${FOUNDRY_PLATFORM}" '.checksums[$arch]' op-deployer/pkg/deployer/forge/version.json)"
     [ "${ACTUAL_SHA}" = "${EXPECTED_SHA}" ] || (echo "Forge checksum mismatch: Expected $EXPECTED_SHA, got $ACTUAL_SHA" && exit 1)
     tar -xzf "${DOWNLOAD_PATH}" -C /usr/local/bin forge
     rm "${DOWNLOAD_PATH}"
+EOF
+# Pre-install solc versions serially (matching .circleci install-solc-compilers) so
+# forge's parallel jobs never race installing them (foundry-rs/foundry#4736).
+# `forge build --use <version>` in an empty dir installs one version, compiles nothing.
+RUN <<-EOF
+    set -e
+    cd "$(mktemp -d)"
+    # Retry: forge doesn't retry the solc download itself.
+    for version in 0.8.15 0.8.19 0.8.25 0.8.28; do
+      n=0
+      until forge build --use "${version}"; do
+        n=$((n+1))
+        [ "${n}" -ge 5 ] && exit 1
+        echo "solc ${version} install retry ${n}/5 in 2s" >&2
+        sleep 2
+      done
+    done
 EOF
 # Compile contracts and create artifacts tarball
 RUN cd packages/contracts-bedrock && forge build --skip "/**/test/**"
@@ -227,10 +257,10 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
   just op-interop-mon/op-interop-mon
 
 # The Rust version must match rust/rust-toolchain.toml. We don't use "latest" to ensure reproducibility
-FROM --platform=$BUILDPLATFORM rust:1.94 AS kona-host-builder
+FROM --platform=$BUILDPLATFORM rust:1.95 AS kona-host-builder
 ARG TARGETARCH
 # Install build dependencies and cross-compilation toolchains
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get -o Acquire::Retries=8 update && apt-get -o Acquire::Retries=8 install -y --no-install-recommends \
   build-essential \
   libssl-dev \
   clang \
@@ -271,9 +301,15 @@ USER 0
 COPY --from=op-node-builder /app/op-node/bin/op-node /usr/local/bin/
 CMD ["op-node"]
 
-# Also produce an op-challenger loaded with kona using ubuntu
-FROM $UBUNTU_TARGET_BASE_IMAGE AS op-challenger-target
-RUN apt-get update && apt-get install -y --no-install-recommends musl openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+# The historical multicannon embeds are Alpine/musl-linked and Wolfi ships no musl
+# package, so bundle the loader+libc (as the melange multicannon pipeline does).
+FROM alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d AS musl-libs
+RUN mkdir -p /musl && cp -a /lib/ld-musl-*.so.1 /lib/libc.musl-*.so.1 /musl/
+
+# Also produce an op-challenger loaded with kona
+FROM $CHALLENGER_TARGET_BASE_IMAGE AS op-challenger-target
+RUN attempt=1; delay=1; until apk add --no-cache ca-certificates-bundle ca-certificates busybox glibc libgcc libstdc++ openssl; do [ "$attempt" -ge 11 ] && exit 1; echo "apk add attempt $attempt/11 failed; retrying in ${delay}s" >&2; sleep "$delay"; attempt=$((attempt+1)); delay=$((delay*2)); [ "$delay" -le 60 ] || delay=60; done
+COPY --from=musl-libs /musl/ /lib/
 COPY --from=op-challenger-builder /app/op-challenger/bin/op-challenger /usr/local/bin/
 # Copy in cannon
 COPY --from=cannon-builder /app/cannon/bin/cannon /usr/local/bin/

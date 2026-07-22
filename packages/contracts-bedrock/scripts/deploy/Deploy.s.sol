@@ -300,7 +300,7 @@ contract Deploy is Deployer {
         );
         GameType permGameType = DevFeatures.isDevFeatureEnabled(
             cfg.devFeatureBitmap(), DevFeatures.SUPER_ROOT_GAMES_MIGRATION
-        ) ? GameTypes.SUPER_PERMISSIONED_CANNON : GameTypes.PERMISSIONED_CANNON;
+        ) ? GameTypes.SUPER_PERMISSIONED : GameTypes.PERMISSIONED_CANNON;
         ChainAssertions.checkDisputeGameFactory(
             IDisputeGameFactory(impls.DisputeGameFactory), address(0), address(0), false, permGameType
         );
@@ -315,7 +315,12 @@ contract Deploy is Deployer {
             _mips: IMIPS64(address(dio.mipsSingleton))
         });
         ChainAssertions.checkSystemConfigImpls(impls);
-        ChainAssertions.checkAnchorStateRegistryProxy(IAnchorStateRegistry(impls.AnchorStateRegistry), false);
+        ChainAssertions.checkAnchorStateRegistryProxy(
+            IAnchorStateRegistry(impls.AnchorStateRegistry),
+            false,
+            GameType.wrap(0),
+            Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 })
+        );
     }
 
     /// @notice Deploy all of the OP Chain specific contracts
@@ -406,7 +411,7 @@ contract Deploy is Deployer {
         disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
             initBond: 0,
-            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+            gameType: GameTypes.SUPER_PERMISSIONED,
             gameArgs: abi.encode(
                 IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: cfg.l2OutputOracleProposer() })
             )
@@ -439,7 +444,7 @@ contract Deploy is Deployer {
                 root: Hash.wrap(cfg.faultGameGenesisOutputRoot()),
                 l2SequenceNumber: uint64(cfg.faultGameGenesisBlock())
             }),
-            startingRespectedGameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+            startingRespectedGameType: GameTypes.SUPER_PERMISSIONED,
             basefeeScalar: cfg.basefeeScalar(),
             blobBasefeeScalar: cfg.blobbasefeeScalar(),
             gasLimit: uint64(cfg.l2GenesisBlockGasLimit()),
@@ -488,7 +493,7 @@ contract Deploy is Deployer {
         disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
-            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+            gameType: GameTypes.SUPER_PERMISSIONED,
             gameArgs: bytes("")
         });
         disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({

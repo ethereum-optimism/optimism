@@ -107,7 +107,8 @@ where
 
         let da_config = builder_config.da_config.clone();
         let gas_limit_config = builder_config.gas_limit_config.clone();
-        let sdm_post_exec_opt_in = builder_config.sdm_post_exec_opt_in.clone();
+        let operator_sdm_opt_in = builder_config.operator_sdm_opt_in.clone();
+        let interop_failsafe = builder_config.interop_failsafe.clone();
         let rollup_args = builder_args.rollup_args;
         let op_node = OpNode::new(rollup_args.clone());
         let reverted_cache = Cache::builder().max_capacity(100).build();
@@ -146,7 +147,8 @@ where
                                 rollup_args.interop_http.clone(),
                                 rollup_args.interop_min_responses,
                                 rollup_args.interop_safety_level,
-                            ),
+                            )
+                            .with_interop_failsafe(interop_failsafe),
                     )
                     .payload(B::new_service(builder_config)?),
             )
@@ -169,7 +171,7 @@ where
                 }
 
                 let sdm_admin_ext =
-                    SdmAdminExt::new(sdm_post_exec_opt_in.clone(), ctx.provider().chain_spec());
+                    SdmAdminExt::new(operator_sdm_opt_in.clone(), ctx.provider().chain_spec());
                 ctx.modules
                     .add_or_replace_configured(sdm_admin_ext.into_rpc())?;
 

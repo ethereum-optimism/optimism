@@ -135,8 +135,7 @@ type Config struct {
 	// Underlying store that hosts connection-gater and peerstore data.
 	Store ds.Batching
 
-	EnableReqRespSync   bool
-	SyncOnlyReqToStatic bool
+	EnableReqRespSync bool
 
 	EnablePingService bool
 }
@@ -146,8 +145,7 @@ func DefaultConnManager(conf *Config) (connmgr.ConnManager, error) {
 		int(conf.PeersLo),
 		int(conf.PeersHi),
 		cmgr.WithGracePeriod(conf.PeersGrace),
-		cmgr.WithSilencePeriod(time.Minute),
-		cmgr.WithEmergencyTrim(true))
+		cmgr.WithSilencePeriod(time.Minute))
 }
 
 func (conf *Config) TargetPeers() uint {

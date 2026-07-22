@@ -10,8 +10,10 @@
 
 use crate::backfill::error::BackfillError;
 use alloy_primitives::BlockNumber;
+use reth_primitives_traits::AlloyBlockHeader;
 use reth_provider::{
-    BlockNumReader, ChangeSetReader, DBProvider, StorageChangeSetReader, StorageSettingsCache,
+    BlockNumReader, ChangeSetReader, DBProvider, HeaderProvider, ProviderError,
+    StorageChangeSetReader, StorageSettingsCache,
 };
 use reth_trie::{
     StateRoot,
@@ -42,6 +44,7 @@ where
         + StorageChangeSetReader
         + BlockNumReader
         + DBProvider
+        + HeaderProvider
         + StorageSettingsCache,
     T: TrieCursorFactory + Clone,
     H: HashedCursorFactory + Clone,
@@ -49,6 +52,25 @@ where
     // Per-block leaf revert: doubles as `post_state` for `prepend_block` and
     // as the state overlay for the trie@N-1 reconstruction below.
     let individual_state_revert = from_reverts_auto(reth_provider, block_number..=block_number)?;
+
+    // Reth prunes the per-block changesets together with the body. An empty revert means either:
+    // (a) the block genuinely changed nothing — header[N].state_root == header[N-1].state_root, or
+    // (b) reth has pruned the changesets we need.
+    // Fail fast on (b) with an accurate error; (a) is a legal no-op and falls through.
+    if individual_state_revert.is_empty() && block_number > 0 {
+        let state_root_n = reth_provider
+            .header_by_number(block_number)?
+            .ok_or_else(|| ProviderError::HeaderNotFound(block_number.into()))?
+            .state_root();
+        let state_root_prev = reth_provider
+            .header_by_number(block_number - 1)?
+            .ok_or_else(|| ProviderError::HeaderNotFound((block_number - 1).into()))?
+            .state_root();
+        if state_root_n != state_root_prev {
+            return Err(BackfillError::BlockBodyPruned(block_number));
+        }
+    }
+
     let trie_changesets = compute_trie_changesets_against_proofs(
         trie_cursor_factory,
         hashed_cursor_factory,

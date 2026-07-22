@@ -7,6 +7,8 @@ import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.s
 // Libraries
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { BondDistributionMode, Claim, Duration, GameStatus, GameType, Hash, Timestamp } from "src/dispute/lib/Types.sol";
+import { Types } from "src/libraries/Types.sol";
+import { Encoding } from "src/libraries/Encoding.sol";
 import {
     AnchorRootNotFound,
     BadExtraData,
@@ -57,7 +59,20 @@ abstract contract ZKDisputeGame_TestInit is DisputeGameFactory_TestInit {
     GameType gameType = GameTypes.ZK_DISPUTE_GAME;
     Duration maxChallengeDuration = Duration.wrap(12 hours);
     Duration maxProveDuration = Duration.wrap(3 days);
-    Claim rootClaim = Claim.wrap(keccak256("rootClaim"));
+
+    // Per-chain output roots packed into each game's SuperRootProof.
+    // Parent game only uses one output root for a single chain.
+    // Child game uses multiple output roots for multiple chains.
+    bytes32 parentOutputRoot = keccak256("parent-output-root");
+    bytes32 childOutputRoot = keccak256("child-output-root");
+
+    // The child game's multi-chain super root pairs (populated in setUp). The `l2ChainId` pair
+    // carries `childOutputRoot` while the others test the `rootClaimByChainId` implementation.
+    Types.OutputRootWithChainId[] internal childPairs;
+
+    // Game rootClaims, computed in setUp() once the per-chain pairs are known.
+    Claim parentRootClaim;
+    Claim rootClaim;
 
     // Sequence number offsets from anchor state (for parent and child games).
     uint256 parentSequenceOffset = 1000;
@@ -107,17 +122,9 @@ abstract contract ZKDisputeGame_TestInit is DisputeGameFactory_TestInit {
         vm.warp(block.timestamp + 1000);
 
         // Create parent game (uses uint32.max to indicate first game in chain).
-        parentGame = ZKDisputeGame(
-            payable(
-                address(
-                    disputeGameFactory.create{ value: 1 ether }(
-                        gameType,
-                        Claim.wrap(keccak256("genesis")),
-                        abi.encodePacked(parentL2SequenceNumber, type(uint32).max)
-                    )
-                )
-            )
-        );
+        // The parent only uses one output root for a single chain.
+        parentGame = _createZKGame(type(uint32).max, uint64(parentL2SequenceNumber), parentOutputRoot);
+        parentRootClaim = parentGame.rootClaim();
 
         // Record actual index of parent game (on fork, existing games already occupy indices 0, 1, ...)
         parentGameIndex = uint32(disputeGameFactory.gameCount() - 1);
@@ -130,15 +137,13 @@ abstract contract ZKDisputeGame_TestInit is DisputeGameFactory_TestInit {
         // Create the child game before claiming parent credit, because claimCredit triggers
         // closeGame() which advances the anchor to parentL2SequenceNumber. After that, the
         // parent's seq num would equal the anchor, violating the "strictly above" invariant.
-        game = ZKDisputeGame(
-            payable(
-                address(
-                    disputeGameFactory.create{ value: 1 ether }(
-                        gameType, rootClaim, abi.encodePacked(childL2SequenceNumber, parentGameIndex)
-                    )
-                )
-            )
-        );
+        // The child carries a multi-chain super root so all the tests check for multi-root validity.
+        // In practice, the absolute prestate would also change here to match the new ZK program.
+        childPairs.push(Types.OutputRootWithChainId({ chainId: 10, root: keccak256("op-mainnet") }));
+        childPairs.push(Types.OutputRootWithChainId({ chainId: l2ChainId, root: childOutputRoot }));
+        childPairs.push(Types.OutputRootWithChainId({ chainId: 130, root: keccak256("unichain") }));
+        game = _createZKGame(parentGameIndex, uint64(childL2SequenceNumber), childPairs);
+        rootClaim = game.rootClaim();
 
         // Record actual index of child game.
         childGameIndex = uint32(disputeGameFactory.gameCount() - 1);
@@ -151,6 +156,39 @@ abstract contract ZKDisputeGame_TestInit is DisputeGameFactory_TestInit {
         _game.claimCredit(_recipient); // Phase 1: unlock
         vm.warp(block.timestamp + delayedWeth.delay() + 1 seconds);
         _game.claimCredit(_recipient); // Phase 2: withdraw
+    }
+
+    /// @notice Single-chain variant of `_createZKGame` — delegates to the multi-chain variant with
+    ///         a one-pair set bound to the fixture's `l2ChainId`.
+    function _createZKGame(
+        uint32 _parentIndex,
+        uint64 _timestamp,
+        bytes32 _outputRoot
+    )
+        internal
+        returns (ZKDisputeGame game_)
+    {
+        Types.OutputRootWithChainId[] memory pairs = new Types.OutputRootWithChainId[](1);
+        pairs[0] = Types.OutputRootWithChainId({ chainId: l2ChainId, root: _outputRoot });
+        game_ = _createZKGame(_parentIndex, _timestamp, pairs);
+    }
+
+    /// @notice Build the SuperRootProof from `_pairs`, derive its rootClaim, and create the ZK
+    ///         dispute game via `disputeGameFactory.create`. Returns the deployed game.
+    function _createZKGame(
+        uint32 _parentIndex,
+        uint64 _timestamp,
+        Types.OutputRootWithChainId[] memory _pairs
+    )
+        internal
+        returns (ZKDisputeGame game_)
+    {
+        (bytes memory ed, Claim rc) = _makeZKExtraDataAndClaim(_parentIndex, _timestamp, _pairs);
+        game_ = ZKDisputeGame(
+            payable(
+                address(disputeGameFactory.create{ value: disputeGameFactory.initBonds(gameType) }(gameType, rc, ed))
+            )
+        );
     }
 }
 
@@ -175,7 +213,6 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         assertEq(game.maxProveDuration().raw(), maxProveDuration.raw());
         assertEq(address(game.disputeGameFactory()), address(disputeGameFactory));
         assertEq(game.l2SequenceNumber(), childL2SequenceNumber);
-        assertEq(game.l2ChainId(), l2ChainId);
         assertEq(address(game.weth()), address(delayedWeth));
         assertEq(address(game.anchorStateRegistry()), address(anchorStateRegistry));
         assertEq(game.parentIndex(), parentGameIndex);
@@ -183,20 +220,23 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         assertTrue(address(game.verifier()) != address(0));
         assertEq(game.challengerBond(), 1 ether);
         assertTrue(game.l1Head().raw() != bytes32(0));
-        assertEq(game.rootClaimByChainId(l2ChainId).raw(), rootClaim.raw());
+        // Check all chains in the SuperRootProof return their packed output roots.
+        for (uint256 i; i < childPairs.length; i++) {
+            assertEq(game.rootClaimByChainId(childPairs[i].chainId).raw(), childPairs[i].root);
+        }
 
         // The game was created while its game type was respected.
         assertTrue(game.wasRespectedGameTypeWhenCreated());
 
-        // extraData is 36 bytes: l2SequenceNumber (32) + parentIndex (4).
+        // extraData layout: 4 byte parentIndex + 1 byte version + 8 byte timestamp + 3 pairs (3*64B) = 205 bytes.
         bytes memory extra = game.extraData();
-        assertEq(extra.length, 36);
+        assertEq(extra.length, 205);
 
-        // The parent's sequence number (startingBlockNumber() returns l2SequenceNumber).
-        assertEq(game.startingBlockNumber(), parentL2SequenceNumber);
+        // The parent's sequence number (timestamp).
+        assertEq(game.startingSequenceNumber(), parentL2SequenceNumber);
 
-        // The parent's root was keccak256("genesis").
-        assertEq(game.startingRootHash().raw(), keccak256("genesis"));
+        // The parent's rootClaim is the hash of its own SuperRootProof.
+        assertEq(game.startingRootHash().raw(), parentRootClaim.raw());
 
         // ETH is deposited into DelayedWETH, so game balance is 0.
         assertEq(address(game).balance, 0);
@@ -232,52 +272,40 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         vm.startPrank(anyUser);
         vm.deal(anyUser, 1 ether);
 
-        ZKDisputeGame newGame = ZKDisputeGame(
-            payable(
-                address(
-                    disputeGameFactory.create{ value: 1 ether }(
-                        gameType,
-                        Claim.wrap(keccak256("permissionless-claim")),
-                        abi.encodePacked(childL2SequenceNumber + grandchildOffset1, childGameIndex)
-                    )
-                )
-            )
+        ZKDisputeGame newGame = _createZKGame(
+            childGameIndex, uint64(childL2SequenceNumber + grandchildOffset1), keccak256("permissionless-claim")
         );
         vm.stopPrank();
 
         assertEq(newGame.gameCreator(), anyUser);
     }
 
-    function test_initialize_blockNumberTooSmall_reverts() public {
-        // Try to create a child game that references a block number smaller than parent's.
+    function test_initialize_sequenceNumberTooSmall_reverts() public {
+        // Try to create a child game whose super-root timestamp is below the parent's.
         vm.startPrank(proposer);
         vm.deal(proposer, 1 ether);
 
-        // We expect revert because l2BlockNumber (1) < parent's block number
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                UnexpectedRootClaim.selector,
-                Claim.wrap(keccak256("rootClaim")) // The rootClaim we pass.
-            )
-        );
+        (bytes memory ed, Claim rc) = _makeZKExtraDataAndClaim(parentGameIndex, uint64(1), keccak256("rootClaim"));
 
-        disputeGameFactory.create{ value: 1 ether }(
-            gameType,
-            rootClaim,
-            abi.encodePacked(uint256(1), parentGameIndex) // L2 block is smaller than parent's block.
-        );
+        // We expect revert because timestamp (1) <= parent's sequence number.
+        vm.expectRevert(abi.encodeWithSelector(UnexpectedRootClaim.selector, rc));
+        disputeGameFactory.create{ value: 1 ether }(gameType, rc, ed);
         vm.stopPrank();
     }
 
-    function testFuzz_initialize_blockNumberTooLarge_reverts(uint256 _l2SequenceNumber) public {
-        _l2SequenceNumber = bound(_l2SequenceNumber, uint256(type(uint64).max) + 1, type(uint256).max);
+    /// @notice Fuzz over every timestamp in `[0, parentL2SequenceNumber]`. All must revert with
+    ///         `UnexpectedRootClaim` because the new claim must be strictly above the parent's
+    ///         sequence number.
+    function testFuzz_initialize_timestampAtOrBeforeParent_reverts(uint64 _timestamp) public {
+        _timestamp = uint64(bound(_timestamp, 0, parentL2SequenceNumber));
+
+        (bytes memory ed, Claim rc) =
+            _makeZKExtraDataAndClaim(parentGameIndex, _timestamp, keccak256("any-output-root"));
 
         vm.startPrank(proposer);
         vm.deal(proposer, 1 ether);
-        vm.expectRevert(abi.encodeWithSelector(UnexpectedRootClaim.selector, rootClaim));
-        disputeGameFactory.create{ value: 1 ether }(
-            gameType, rootClaim, abi.encodePacked(_l2SequenceNumber, parentGameIndex)
-        );
+        vm.expectRevert(abi.encodeWithSelector(UnexpectedRootClaim.selector, rc));
+        disputeGameFactory.create{ value: 1 ether }(gameType, rc, ed);
         vm.stopPrank();
     }
 
@@ -288,12 +316,11 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
 
         vm.startPrank(proposer);
         vm.deal(proposer, 1 ether);
-        vm.expectRevert(InvalidParentGame.selector);
-        disputeGameFactory.create{ value: 1 ether }(
-            gameType,
-            Claim.wrap(keccak256("blacklisted-parent-game")),
-            abi.encodePacked(childL2SequenceNumber + grandchildOffset1, childGameIndex)
+        (bytes memory ed, Claim rc) = _makeZKExtraDataAndClaim(
+            childGameIndex, uint64(childL2SequenceNumber + grandchildOffset1), keccak256("blacklisted-parent-game")
         );
+        vm.expectRevert(InvalidParentGame.selector);
+        disputeGameFactory.create{ value: 1 ether }(gameType, rc, ed);
         vm.stopPrank();
     }
 
@@ -301,16 +328,8 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         // Create a new game which will be the parent.
         vm.startPrank(proposer);
         vm.deal(proposer, 1 ether);
-        ZKDisputeGame parentNotRespected = ZKDisputeGame(
-            payable(
-                address(
-                    disputeGameFactory.create{ value: 1 ether }(
-                        gameType,
-                        Claim.wrap(keccak256("not-respected-parent-game")),
-                        abi.encodePacked(childL2SequenceNumber + grandchildOffset1, childGameIndex)
-                    )
-                )
-            )
+        ZKDisputeGame parentNotRespected = _createZKGame(
+            childGameIndex, uint64(childL2SequenceNumber + grandchildOffset1), keccak256("not-respected-parent-game")
         );
         uint32 parentNotRespectedIndex = uint32(disputeGameFactory.gameCount() - 1);
         vm.stopPrank();
@@ -322,12 +341,13 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         // Try to create a game with a parent game that is not valid.
         vm.startPrank(proposer);
         vm.deal(proposer, 1 ether);
-        vm.expectRevert(InvalidParentGame.selector);
-        disputeGameFactory.create{ value: 1 ether }(
-            gameType,
-            Claim.wrap(keccak256("child-with-not-respected-parent")),
-            abi.encodePacked(childL2SequenceNumber + grandchildOffset2, parentNotRespectedIndex)
+        (bytes memory ed2, Claim rc2) = _makeZKExtraDataAndClaim(
+            parentNotRespectedIndex,
+            uint64(childL2SequenceNumber + grandchildOffset2),
+            keccak256("child-with-not-respected-parent")
         );
+        vm.expectRevert(InvalidParentGame.selector);
+        disputeGameFactory.create{ value: 1 ether }(gameType, rc2, ed2);
         vm.stopPrank();
     }
 
@@ -339,12 +359,11 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         // Try to create a new game referencing the (now retired) child game as parent.
         vm.startPrank(proposer);
         vm.deal(proposer, 1 ether);
-        vm.expectRevert(InvalidParentGame.selector);
-        disputeGameFactory.create{ value: 1 ether }(
-            gameType,
-            Claim.wrap(keccak256("child-of-retired-parent")),
-            abi.encodePacked(childL2SequenceNumber + grandchildOffset1, childGameIndex)
+        (bytes memory ed, Claim rc) = _makeZKExtraDataAndClaim(
+            childGameIndex, uint64(childL2SequenceNumber + grandchildOffset1), keccak256("child-of-retired-parent")
         );
+        vm.expectRevert(InvalidParentGame.selector);
+        disputeGameFactory.create{ value: 1 ether }(gameType, rc, ed);
         vm.stopPrank();
     }
 
@@ -363,12 +382,11 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         // Trying to create a new game referencing the invalidated game should revert.
         vm.startPrank(proposer);
         vm.deal(proposer, 1 ether);
-        vm.expectRevert(InvalidParentGame.selector);
-        disputeGameFactory.create{ value: 1 ether }(
-            gameType,
-            Claim.wrap(keccak256("child-of-challenger-wins")),
-            abi.encodePacked(childL2SequenceNumber + grandchildOffset1, childGameIndex)
+        (bytes memory ed, Claim rc) = _makeZKExtraDataAndClaim(
+            childGameIndex, uint64(childL2SequenceNumber + grandchildOffset1), keccak256("child-of-challenger-wins")
         );
+        vm.expectRevert(InvalidParentGame.selector);
+        disputeGameFactory.create{ value: 1 ether }(gameType, rc, ed);
         vm.stopPrank();
     }
 
@@ -385,8 +403,7 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
             maxProveDuration,
             uint256(1 ether),
             anchorStateRegistry,
-            delayedWeth,
-            l2ChainId
+            delayedWeth
         );
 
         vm.prank(superchainConfig.guardian());
@@ -400,12 +417,11 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         // Try to create a game of differentGameType referencing childGameIndex (which is gameType).
         vm.startPrank(proposer);
         vm.deal(proposer, 1 ether);
-        vm.expectRevert(UnexpectedGameType.selector);
-        disputeGameFactory.create{ value: 1 ether }(
-            differentGameType,
-            Claim.wrap(keccak256("different-type-claim")),
-            abi.encodePacked(childL2SequenceNumber + grandchildOffset1, childGameIndex)
+        (bytes memory ed, Claim rc) = _makeZKExtraDataAndClaim(
+            childGameIndex, uint64(childL2SequenceNumber + grandchildOffset1), keccak256("different-type-claim")
         );
+        vm.expectRevert(UnexpectedGameType.selector);
+        disputeGameFactory.create{ value: 1 ether }(differentGameType, rc, ed);
         vm.stopPrank();
     }
 
@@ -423,12 +439,11 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         // Trying to create a new game referencing the parent (whose seq num < anchor) should revert.
         vm.startPrank(proposer);
         vm.deal(proposer, 1 ether);
-        vm.expectRevert(InvalidParentGame.selector);
-        disputeGameFactory.create{ value: 1 ether }(
-            gameType,
-            Claim.wrap(keccak256("below-anchor-claim")),
-            abi.encodePacked(childL2SequenceNumber + grandchildOffset1, parentGameIndex)
+        (bytes memory ed, Claim rc) = _makeZKExtraDataAndClaim(
+            parentGameIndex, uint64(childL2SequenceNumber + grandchildOffset1), keccak256("below-anchor-claim")
         );
+        vm.expectRevert(InvalidParentGame.selector);
+        disputeGameFactory.create{ value: 1 ether }(gameType, rc, ed);
         vm.stopPrank();
     }
 
@@ -447,49 +462,11 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         // because parent seq num must be strictly above anchor.
         vm.startPrank(proposer);
         vm.deal(proposer, 1 ether);
+        (bytes memory ed, Claim rc) = _makeZKExtraDataAndClaim(
+            childGameIndex, uint64(childL2SequenceNumber + grandchildOffset1), keccak256("equal-anchor-claim")
+        );
         vm.expectRevert(InvalidParentGame.selector);
-        disputeGameFactory.create{ value: 1 ether }(
-            gameType,
-            Claim.wrap(keccak256("equal-anchor-claim")),
-            abi.encodePacked(childL2SequenceNumber + grandchildOffset1, childGameIndex)
-        );
-        vm.stopPrank();
-    }
-
-    function test_initialize_l2ChainIdZero_reverts() public {
-        // Deploy a new game impl with l2ChainId = 0 in gameArgs
-        IZKVerifier zkVerifier = IZKVerifier(address(new ZKMockVerifier()));
-        address newImpl = address(new ZKDisputeGame());
-
-        bytes memory gameArgs = abi.encodePacked(
-            bytes32(0), // absolutePrestate
-            zkVerifier, // verifier
-            maxChallengeDuration, // maxChallengeDuration
-            maxProveDuration, // maxProveDuration
-            uint256(1 ether), // challengerBond
-            anchorStateRegistry, // anchorStateRegistry
-            delayedWeth, // weth
-            uint256(0) // l2ChainId = 0
-        );
-
-        GameType zeroChainGameType = GameType.wrap(200);
-
-        vm.prank(superchainConfig.guardian());
-        anchorStateRegistry.setRespectedGameType(zeroChainGameType);
-
-        vm.startPrank(disputeGameFactory.owner());
-        disputeGameFactory.setImplementation(zeroChainGameType, IDisputeGame(newImpl), gameArgs);
-        disputeGameFactory.setInitBond(zeroChainGameType, 1 ether);
-        vm.stopPrank();
-
-        vm.startPrank(proposer);
-        vm.deal(proposer, 1 ether);
-        vm.expectRevert(UnknownChainId.selector);
-        disputeGameFactory.create{ value: 1 ether }(
-            zeroChainGameType,
-            Claim.wrap(keccak256("zero-chain-claim")),
-            abi.encodePacked(parentL2SequenceNumber, type(uint32).max)
-        );
+        disputeGameFactory.create{ value: 1 ether }(gameType, rc, ed);
         vm.stopPrank();
     }
 
@@ -498,24 +475,14 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         vm.startPrank(proposer);
         vm.deal(proposer, 1 ether);
 
-        uint256 seqNum = anchorL2SequenceNumber + 5000;
-        ZKDisputeGame anchorGame = ZKDisputeGame(
-            payable(
-                address(
-                    disputeGameFactory.create{ value: 1 ether }(
-                        gameType,
-                        Claim.wrap(keccak256("anchor-start-claim")),
-                        abi.encodePacked(seqNum, type(uint32).max)
-                    )
-                )
-            )
-        );
+        ZKDisputeGame anchorGame =
+            _createZKGame(type(uint32).max, uint64(anchorL2SequenceNumber + 5000), keccak256("anchor-start-claim"));
         vm.stopPrank();
 
         // The starting proposal should match the anchor state values.
         (Hash anchorRoot, uint256 anchorSeqNum) = anchorStateRegistry.getAnchorRoot();
         assertEq(anchorGame.startingRootHash().raw(), anchorRoot.raw());
-        assertEq(anchorGame.startingBlockNumber(), anchorSeqNum);
+        assertEq(anchorGame.startingSequenceNumber(), anchorSeqNum);
         assertEq(anchorGame.parentIndex(), type(uint32).max);
     }
 
@@ -529,14 +496,14 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
             abi.encode(Hash.wrap(bytes32(0)), anchorL2SequenceNumber)
         );
 
+        (bytes memory ed, Claim rc) = _makeZKExtraDataAndClaim(
+            type(uint32).max, uint64(anchorL2SequenceNumber + 5000), keccak256("zero-anchor-claim")
+        );
+
         vm.startPrank(proposer);
         vm.deal(proposer, 1 ether);
         vm.expectRevert(AnchorRootNotFound.selector);
-        disputeGameFactory.create{ value: 1 ether }(
-            gameType,
-            Claim.wrap(keccak256("zero-anchor-claim")),
-            abi.encodePacked(anchorL2SequenceNumber + 5000, type(uint32).max)
-        );
+        disputeGameFactory.create{ value: 1 ether }(gameType, rc, ed);
         vm.stopPrank();
     }
 
@@ -548,16 +515,8 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
         // Create a game after the respected type has changed.
         vm.startPrank(proposer);
         vm.deal(proposer, 1 ether);
-        ZKDisputeGame notRespectedGame = ZKDisputeGame(
-            payable(
-                address(
-                    disputeGameFactory.create{ value: 1 ether }(
-                        gameType,
-                        Claim.wrap(keccak256("not-respected-claim")),
-                        abi.encodePacked(childL2SequenceNumber + grandchildOffset1, childGameIndex)
-                    )
-                )
-            )
+        ZKDisputeGame notRespectedGame = _createZKGame(
+            childGameIndex, uint64(childL2SequenceNumber + grandchildOffset1), keccak256("not-respected-claim")
         );
         vm.stopPrank();
 
@@ -566,24 +525,43 @@ contract ZKDisputeGame_Initialize_Test is ZKDisputeGame_TestInit {
     }
 
     function test_initialize_invalidCalldataSize_reverts() public {
-        // The initialize function checks calldatasize() == 0x12E via assembly.
-        // Valid extraData is 36 bytes (32 for childL2SequenceNumber + 4 for parentGameIndex).
+        // initialize() validates the extraData shape via `_verifyInitCallDataLength`. The minimum
+        // valid length is 4 (parentIndex) + 1 (version) + 8 (timestamp) + 64 (one pair) = 77 bytes;
+        // any larger size must add full 64-byte pairs. Anything else reverts BadExtraData.
         vm.startPrank(proposer);
-        vm.deal(proposer, 2 ether);
+        vm.deal(proposer, 5 ether);
 
-        // Case 1: oversized extraData (37 bytes instead of 36) makes calldata larger than expected.
+        // Case 1: 78-byte extraData — one byte over the 77-byte minimum, doesn't extend to a full
+        // additional pair (would need 77 + 64 = 141). Hits `rem % 64 != 0`.
+        bytes memory tooBig = new bytes(78);
         vm.expectRevert(BadExtraData.selector);
-        disputeGameFactory.create{ value: 1 ether }(
-            gameType, rootClaim, abi.encodePacked(childL2SequenceNumber, parentGameIndex, bytes1(0x00))
-        );
+        disputeGameFactory.create{ value: 1 ether }(gameType, rootClaim, tooBig);
 
-        // Case 2: undersized extraData (35 bytes instead of 36) makes calldata smaller than expected.
+        // Case 2: 76-byte extraData — one byte under the 77-byte minimum. Hits `rem % 64 != 0`.
+        bytes memory tooSmall = new bytes(76);
         vm.expectRevert(BadExtraData.selector);
-        disputeGameFactory.create{ value: 1 ether }(
-            gameType, rootClaim, abi.encodePacked(childL2SequenceNumber, uint24(parentGameIndex))
-        );
+        disputeGameFactory.create{ value: 1 ether }(gameType, rootClaim, tooSmall);
+
+        // Case 3: 13-byte extraData — header bytes only, no chain pairs. Hits `rem == 0`.
+        bytes memory noPairs = new bytes(13);
+        vm.expectRevert(BadExtraData.selector);
+        disputeGameFactory.create{ value: 1 ether }(gameType, rootClaim, noPairs);
+
+        // Case 4: 12-byte extraData — header incomplete. Hits `extraLen < 13`.
+        bytes memory headerTooShort = new bytes(12);
+        vm.expectRevert(BadExtraData.selector);
+        disputeGameFactory.create{ value: 1 ether }(gameType, rootClaim, headerTooShort);
 
         vm.stopPrank();
+    }
+
+    function test_initialize_calledDirectlyOnImpl_reverts() public {
+        // Calling initialize() directly on the impl has no CWIA-appended immutable args, so
+        // msg.data.length is just the 4-byte selector — below `preExtraDataLen` (94). Hits the
+        // `msg.data.length < preExtraDataLen` branch in `_verifyInitCallDataLength` which is
+        // unreachable through the factory.
+        vm.expectRevert(BadExtraData.selector);
+        gameImpl.initialize();
     }
 
     function test_initialize_alreadyInitialized_reverts() public {
@@ -718,17 +696,8 @@ contract ZKDisputeGame_Prove_Test is ZKDisputeGame_TestInit {
     function test_prove_parentChallengerWins_reverts() public {
         // Create a child game referencing our game as parent.
         vm.startPrank(proposer);
-        ZKDisputeGame childGame = ZKDisputeGame(
-            payable(
-                address(
-                    disputeGameFactory.create{ value: 1 ether }(
-                        gameType,
-                        Claim.wrap(keccak256("child-claim")),
-                        abi.encodePacked(childL2SequenceNumber + grandchildOffset1, childGameIndex)
-                    )
-                )
-            )
-        );
+        ZKDisputeGame childGame =
+            _createZKGame(childGameIndex, uint64(childL2SequenceNumber + grandchildOffset1), keccak256("child-claim"));
         vm.stopPrank();
 
         // Challenge the parent game so it resolves as CHALLENGER_WINS.
@@ -747,13 +716,13 @@ contract ZKDisputeGame_Prove_Test is ZKDisputeGame_TestInit {
     }
 
     function test_prove_publicValuesEncoding_succeeds() public {
-        // Build the expected public values that prove() should pass to the verifier.
+        // Build the expected public values that prove() should pass to the verifier. The super-root
+        // migration removed `l2ChainId` from the encoding.
         bytes memory expectedPublicValues = abi.encode(
             game.l1Head(),
             game.startingRootHash(),
             game.rootClaim(),
             game.l2SequenceNumber(),
-            game.l2ChainId(),
             prover // msg.sender inside prove()
         );
 
@@ -801,8 +770,7 @@ contract ZKDisputeGame_Prove_Test is ZKDisputeGame_TestInit {
             maxProveDuration,
             uint256(1 ether),
             anchorStateRegistry,
-            delayedWeth,
-            l2ChainId
+            delayedWeth
         );
 
         vm.prank(superchainConfig.guardian());
@@ -815,13 +783,13 @@ contract ZKDisputeGame_Prove_Test is ZKDisputeGame_TestInit {
 
         vm.startPrank(proposer);
         vm.deal(proposer, 1 ether);
+        (bytes memory ed, Claim rc) =
+            _makeZKExtraDataAndClaim(type(uint32).max, uint64(parentL2SequenceNumber), keccak256("reject-claim"));
         ZKDisputeGame rejectGame = ZKDisputeGame(
             payable(
                 address(
-                    disputeGameFactory.create{ value: 1 ether }(
-                        rejectGameType,
-                        Claim.wrap(keccak256("reject-claim")),
-                        abi.encodePacked(parentL2SequenceNumber, type(uint32).max)
+                    disputeGameFactory.create{ value: disputeGameFactory.initBonds(rejectGameType) }(
+                        rejectGameType, rc, ed
                     )
                 )
             )
@@ -1020,17 +988,8 @@ contract ZKDisputeGame_Resolve_Test is ZKDisputeGame_TestInit {
         vm.startPrank(proposer);
 
         // Create a new game referencing the child game as parent.
-        ZKDisputeGame childGame = ZKDisputeGame(
-            payable(
-                address(
-                    disputeGameFactory.create{ value: 1 ether }(
-                        gameType,
-                        Claim.wrap(keccak256("new-claim")),
-                        abi.encodePacked(childL2SequenceNumber + grandchildOffset1, childGameIndex)
-                    )
-                )
-            )
-        );
+        ZKDisputeGame childGame =
+            _createZKGame(childGameIndex, uint64(childL2SequenceNumber + grandchildOffset1), keccak256("new-claim"));
 
         vm.stopPrank();
 
@@ -1043,16 +1002,8 @@ contract ZKDisputeGame_Resolve_Test is ZKDisputeGame_TestInit {
     function test_resolve_parentGameInvalid_succeeds() public {
         // 1) Now create a child game referencing that losing parent at index 1.
         vm.startPrank(proposer);
-        ZKDisputeGame childGame = ZKDisputeGame(
-            payable(
-                address(
-                    disputeGameFactory.create{ value: 1 ether }(
-                        gameType,
-                        Claim.wrap(keccak256("child-of-loser")),
-                        abi.encodePacked(childL2SequenceNumber + grandchildOffset4, childGameIndex)
-                    )
-                )
-            )
+        ZKDisputeGame childGame = _createZKGame(
+            childGameIndex, uint64(childL2SequenceNumber + grandchildOffset4), keccak256("child-of-loser")
         );
         vm.stopPrank();
 
@@ -1097,16 +1048,8 @@ contract ZKDisputeGame_Resolve_Test is ZKDisputeGame_TestInit {
     function test_resolve_parentInvalidChildChallenged_succeeds() public {
         // Create a child game referencing our game as parent.
         vm.startPrank(proposer);
-        ZKDisputeGame childGame = ZKDisputeGame(
-            payable(
-                address(
-                    disputeGameFactory.create{ value: 1 ether }(
-                        gameType,
-                        Claim.wrap(keccak256("child-of-invalid-parent")),
-                        abi.encodePacked(childL2SequenceNumber + grandchildOffset4, childGameIndex)
-                    )
-                )
-            )
+        ZKDisputeGame childGame = _createZKGame(
+            childGameIndex, uint64(childL2SequenceNumber + grandchildOffset4), keccak256("child-of-invalid-parent")
         );
         vm.stopPrank();
 
@@ -1269,16 +1212,8 @@ contract ZKDisputeGame_ClaimCredit_Test is ZKDisputeGame_TestInit {
         // Create a game where the proposer is the reverting contract.
         vm.startPrank(address(revertingRecipient));
         vm.deal(address(revertingRecipient), 1 ether);
-        ZKDisputeGame revertGame = ZKDisputeGame(
-            payable(
-                address(
-                    disputeGameFactory.create{ value: 1 ether }(
-                        gameType,
-                        Claim.wrap(keccak256("revert-recipient-claim")),
-                        abi.encodePacked(childL2SequenceNumber + grandchildOffset1, childGameIndex)
-                    )
-                )
-            )
+        ZKDisputeGame revertGame = _createZKGame(
+            childGameIndex, uint64(childL2SequenceNumber + grandchildOffset1), keccak256("revert-recipient-claim")
         );
         vm.stopPrank();
 
@@ -1377,6 +1312,27 @@ contract ZKDisputeGame_CloseGame_Test is ZKDisputeGame_TestInit {
         vm.prank(superchainConfig.guardian());
         superchainConfig.unpause(address(0));
     }
+
+    function test_closeGame_setAnchorStateReverts_succeeds() public {
+        // Resolve and finalize the game.
+        (,,,, Timestamp deadline,) = game.claimData();
+        vm.warp(deadline.raw() + 1);
+        game.resolve();
+        vm.warp(game.resolvedAt().raw() + anchorStateRegistry.disputeGameFinalityDelaySeconds() + 1 seconds);
+
+        // Force `setAnchorState` to revert. The try/catch inside `closeGame` swallows the failure
+        // and continues; `isGameProper` is independently consulted to determine bond distribution.
+        vm.mockCallRevert(
+            address(anchorStateRegistry),
+            abi.encodeCall(IAnchorStateRegistry.setAnchorState, (IDisputeGame(address(game)))),
+            bytes("setAnchorState failed")
+        );
+
+        game.closeGame();
+
+        // Despite the anchor update failing, the game is still proper → NORMAL distribution.
+        assertTrue(game.bondDistributionMode() == BondDistributionMode.NORMAL);
+    }
 }
 
 /// @title ZKDisputeGame_GameOver_Test
@@ -1451,16 +1407,62 @@ contract ZKDisputeGame_Credit_Test is ZKDisputeGame_TestInit {
 /// @title ZKDisputeGame_RootClaim_Test
 /// @notice Tests the `rootClaimByChainId` function of `ZKDisputeGame`.
 contract ZKDisputeGame_RootClaim_Test is ZKDisputeGame_TestInit {
-    /// @notice Tests that rootClaimByChainId returns the same value as rootClaim() for the correct chain ID.
+    /// @notice Tests that rootClaimByChainId returns the per-chain output root packed in the
+    ///         SuperRootProof, not the super-root hash itself.
     function test_rootClaimByChainId_succeeds() public view {
-        assertEq(game.rootClaimByChainId(game.l2ChainId()).raw(), game.rootClaim().raw());
+        // setUp() packed (l2ChainId, childOutputRoot) into the child game's SuperRootProof.
+        assertEq(game.rootClaimByChainId(l2ChainId).raw(), childOutputRoot);
+        // The returned value is NOT the super-root hash.
+        assertTrue(game.rootClaimByChainId(l2ChainId).raw() != game.rootClaim().raw());
     }
 
-    /// @notice Tests that rootClaimByChainId reverts when called with a valid but wrong chain ID.
+    /// @notice Tests that rootClaimByChainId reverts when called with a chain ID that is not
+    ///         present in the SuperRootProof's pair list.
     function testFuzz_rootClaimByChainId_wrongChainId_reverts(uint256 _chainId) public {
-        vm.assume(_chainId != game.l2ChainId());
+        // Exclude every chain present in the default child super root (see setUp).
+        for (uint256 i; i < childPairs.length; i++) {
+            vm.assume(_chainId != childPairs[i].chainId);
+        }
         vm.expectRevert(UnknownChainId.selector);
         game.rootClaimByChainId(_chainId);
+    }
+
+    /// @notice Tests that the contract's hash-binding invariant rejects mismatched extraData ↔
+    ///         rootClaim pairs.
+    function test_initialize_rootClaimMismatch_reverts() public {
+        // Build valid extraData but pair it with the wrong rootClaim (any unrelated hash).
+        (bytes memory ed, /* Claim */ ) = _makeZKExtraDataAndClaim(
+            childGameIndex, uint64(childL2SequenceNumber + grandchildOffset1), keccak256("genuine")
+        );
+        Claim wrongRootClaim = Claim.wrap(keccak256("not-the-binding-hash"));
+
+        vm.startPrank(proposer);
+        vm.deal(proposer, 1 ether);
+        vm.expectRevert(BadExtraData.selector);
+        disputeGameFactory.create{ value: 1 ether }(gameType, wrongRootClaim, ed);
+        vm.stopPrank();
+    }
+
+    /// @notice Verifies that the bytes packed after the 4-byte parentIndex header in `extraData()`
+    ///         decode to a well-formed `SuperRootProof` whose fields match what setUp packed. This
+    ///         is the same slice `_superRootProof()` performs internally.
+    function test_superRootProof_returnsExpectedBytes_succeeds() public view {
+        // _superRootProof() == extraData()[4:] (strip the 4-byte parentIndex prefix).
+        bytes memory full = game.extraData();
+        bytes memory proofBytes = new bytes(full.length - 4);
+        for (uint256 i = 0; i < proofBytes.length; i++) {
+            proofBytes[i] = full[i + 4];
+        }
+
+        // The slice decodes to a SuperRootProof matching the values setUp packed.
+        Types.SuperRootProof memory decoded = Encoding.decodeSuperRootProof(proofBytes);
+        assertEq(decoded.version, bytes1(0x01));
+        assertEq(decoded.timestamp, uint64(childL2SequenceNumber));
+        assertEq(decoded.outputRoots.length, childPairs.length);
+        for (uint256 i = 0; i < childPairs.length; i++) {
+            assertEq(decoded.outputRoots[i].chainId, childPairs[i].chainId);
+            assertEq(decoded.outputRoots[i].root, childPairs[i].root);
+        }
     }
 }
 
@@ -1472,6 +1474,6 @@ contract ZKDisputeGame_RevertOnReceive_Harness {
     }
 }
 
-// Import needed for the l2ChainId=0 test
+// Verifier test doubles used by the prove() tests.
 import { ZKMockVerifier } from "test/dispute/zk/ZKMockVerifier.sol";
 import { ZKRejectingVerifier } from "test/dispute/zk/ZKRejectingVerifier.sol";

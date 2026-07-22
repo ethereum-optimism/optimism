@@ -88,6 +88,7 @@ serde_json = { workspace = true, optional = true }
 [dev-dependencies]
 reth-optimism-node = { workspace = true, features = ["test-utils"] }
 reth-db = { workspace = true, features = ["test-utils"] }
+reth-db-common.workspace = true
 reth-node-builder = { workspace = true, features = ["test-utils"] }
 reth-provider = { workspace = true, features = ["test-utils"] }
 reth-tasks.workspace = true
@@ -102,6 +103,7 @@ alloy-network.workspace = true
 alloy-op-evm.workspace = true
 alloy-op-hardforks.workspace = true
 alloy-rpc-types-admin.workspace = true
+alloy-signer-local.workspace = true
 futures.workspace = true
 op-alloy-network.workspace = true
 
@@ -131,6 +133,8 @@ test-utils = [
 	"serde_json",
 	"reth-node-builder/test-utils",
 	"reth-chainspec/test-utils",
+	# `utils.rs` builds OP Sepolia / OP Mainnet specs, which live behind this feature.
+	"reth-optimism-chainspec/superchain-configs",
 	"reth-consensus/test-utils",
 	"reth-evm/test-utils",
 	"reth-network/test-utils",

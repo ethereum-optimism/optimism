@@ -400,7 +400,7 @@ mod test {
     use alloy_primitives::{Address, Bytes, Signature, U256, hex};
     use op_alloy_consensus::{OpTypedTransaction, SDMGasEntry, build_post_exec_tx};
     use op_alloy_network::eip2718::Decodable2718;
-    use reth_optimism_chainspec::{BASE_MAINNET, OP_MAINNET, OpChainSpecBuilder};
+    use reth_optimism_chainspec::{OP_MAINNET, OpChainSpecBuilder};
     use reth_optimism_primitives::{OpPrimitives, OpTransactionSigned};
     use reth_primitives_traits::{Recovered, SealedBlock};
     use std::sync::Arc;
@@ -565,7 +565,7 @@ mod test {
             OpChainSpecBuilder::default()
                 .chain(OP_MAINNET.chain())
                 .genesis(Genesis::default())
-                .interop_activated()
+                .lagoon_activated()
                 .build(),
         );
         let converter = OpReceiptConverter::new(reth_storage_api::noop::NoopProvider::<
@@ -670,7 +670,7 @@ mod test {
         let tx_1 = OpTransactionSigned::decode_2718(&mut &tx[..]).unwrap();
 
         let receipt_meta = OpReceiptFieldsBuilder::new(1730216981, 21713817)
-            .l1_block_info(&*BASE_MAINNET, &tx_1, &mut l1_block_info)
+            .l1_block_info(&*OP_MAINNET, &tx_1, &mut l1_block_info)
             .expect("should parse revm l1 info")
             .build();
 

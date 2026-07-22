@@ -13,6 +13,18 @@ pub enum EngineError {
     /// Block was not found in the provider during sync catch-up.
     #[error("Block {0} not found in provider")]
     BlockNotFound(u64),
+    /// Reth has pruned the block body, so we cannot recompute its state delta.
+    ///
+    /// Detected when `recovered_block` returns a block whose header advertises a non-empty
+    /// transaction trie but whose body comes back empty: reth still has the header/body-indices
+    /// (so `recovered_block` returns `Some`) but the transaction data behind them has been pruned.
+    /// Executing such a block would yield zero state changes and a misleading
+    /// [`Self::StateRootMismatch`] against the header's real post-state root.
+    #[error(
+        "Block #{0} body has been pruned by reth; cannot recompute state root. \
+         Re-sync reth without body pruning, or reduce the backfill window."
+    )]
+    BlockBodyPruned(u64),
     /// The background persistence service channel closed unexpectedly.
     #[error("Persistence service disconnected")]
     PersistenceDisconnected,

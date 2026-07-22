@@ -9,7 +9,7 @@
 ARG FEATURES
 ARG RBUILDER_BIN="op-rbuilder"
 
-FROM rust:1.94 AS base
+FROM rust:1.95 AS base
 ARG TARGETPLATFORM
 
 RUN apt-get update \
@@ -82,6 +82,9 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 FROM base AS builder
 WORKDIR /workspace/op-rbuilder
 COPY --from=monorepo-rust . /workspace/
+# op-reth's chainspec build.rs regenerates its gitignored superchain archive from
+# the submodule; provide the subset it reads at /superchain-registry.
+COPY --from=superchain-registry superchain /superchain-registry/superchain
 COPY --from=planner /workspace/op-rbuilder/recipe.json recipe.json
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
@@ -112,6 +115,8 @@ ARG CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C target-feature=+crt-sta
 
 WORKDIR /workspace/op-rbuilder
 COPY --from=monorepo-rust . /workspace/
+# chainspec build.rs needs the submodule (see builder stage).
+COPY --from=superchain-registry superchain /superchain-registry/superchain
 COPY . .
 RUN case "$TARGETPLATFORM" in \
       "linux/amd64")  ARCH_TAG="x86_64-unknown-linux-gnu" ;; \
@@ -131,14 +136,16 @@ RUN case "$TARGETPLATFORM" in \
     cargo build --release --locked --features="$FEATURES" --package=${RBUILDER_BIN} --target "${ARCH_TAG}"
 
 # Runtime container for rbuilder
-FROM gcr.io/distroless/cc-debian13:latest@sha256:8b5d1db6d2253036a53cb8362d3e3fa82a7caf84c247772c46a023166c64e977 AS rbuilder-runtime
+FROM chainguard/wolfi-base:latest@sha256:02dab76bd852a70556b5b2002195c8a5fdab77d323c433bf6642aab080489795 AS rbuilder-runtime
+RUN attempt=1; delay=1; until apk add --no-cache ca-certificates-bundle ca-certificates busybox glibc libgcc libstdc++ openssl; do [ "$attempt" -ge 11 ] && exit 1; echo "apk add attempt $attempt/11 failed; retrying in ${delay}s" >&2; sleep "$delay"; attempt=$((attempt+1)); delay=$((delay*2)); [ "$delay" -le 60 ] || delay=60; done
 ARG RBUILDER_BIN
 WORKDIR /app
 COPY --from=rbuilder /workspace/op-rbuilder/target/release/${RBUILDER_BIN} /app/rbuilder
 ENTRYPOINT ["/app/rbuilder"]
 
 # Reproducible runtime container for rbuilder
-FROM gcr.io/distroless/cc-debian13:latest@sha256:8b5d1db6d2253036a53cb8362d3e3fa82a7caf84c247772c46a023166c64e977 AS rbuilder-reproducible-runtime
+FROM chainguard/wolfi-base:latest@sha256:02dab76bd852a70556b5b2002195c8a5fdab77d323c433bf6642aab080489795 AS rbuilder-reproducible-runtime
+RUN attempt=1; delay=1; until apk add --no-cache ca-certificates-bundle ca-certificates busybox glibc libgcc libstdc++ openssl; do [ "$attempt" -ge 11 ] && exit 1; echo "apk add attempt $attempt/11 failed; retrying in ${delay}s" >&2; sleep "$delay"; attempt=$((attempt+1)); delay=$((delay*2)); [ "$delay" -le 60 ] || delay=60; done
 ARG RBUILDER_BIN
 WORKDIR /app
 COPY --from=rbuilder-reproducible /workspace/op-rbuilder/target/*/release/${RBUILDER_BIN} /app/rbuilder

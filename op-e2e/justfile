@@ -54,9 +54,10 @@ pre-test:
 clean:
     rm -rf ../.devnet
 
-# Run fuzz tests
+# Run fuzz tests. `-parallel=1` keeps one fuzz worker per target so the concurrent
+# `parallel` doesn't oversubscribe the CPU.
 fuzz:
-    parallel --line-buffer --tag -N1 "go test -run NOTAREALTEST -tags cgo_test -v -fuzztime 10s -fuzz {} ./opgeth" ::: FuzzFjordCostFunction FuzzFastLzGethSolidity FuzzFastLzCgo
+    parallel --line-buffer --tag -N1 "go test -run NOTAREALTEST -parallel=1 -tags cgo_test -v -fuzztime 10s -fuzz {} ./opgeth" ::: FuzzFjordCostFunction FuzzFastLzGethSolidity FuzzFastLzCgo
 
 # Generate contract bindings
 gen-binding CONTRACT:

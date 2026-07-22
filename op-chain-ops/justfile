@@ -15,6 +15,9 @@ ecotone-scalar: (go_build "./bin/ecotone-scalar" "./cmd/ecotone-scalar" "-ldflag
 # Build receipt-reference-builder binary
 receipt-reference-builder: (go_build "./bin/receipt-reference-builder" "./cmd/receipt-reference-builder" "-ldflags" _LDFLAGSSTRING)
 
+# Build interop-smoke binary
+interop-smoke: (go_build "./bin/interop-smoke" "./cmd/interop-smoke" "-ldflags" _LDFLAGSSTRING)
+
 # Run tests
 test: (go_test "./...")
 
@@ -30,7 +33,6 @@ fuzz_task FUZZ TIME='10s': (go_fuzz FUZZ TIME "./crossdomain")
 fuzz:
     printf "%s\n" \
         "FuzzEncodeDecodeWithdrawal" \
-        "FuzzEncodeDecodeLegacyWithdrawal" \
         "FuzzAliasing" \
         "FuzzVersionedNonce" \
     | parallel --tag -j {{PARALLEL_JOBS}} {{just_executable()}} fuzz_task {}

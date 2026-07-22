@@ -47,6 +47,7 @@ import (
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
+	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/config/secrets"
@@ -693,6 +694,11 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 		}
 	}
 
+	l2GenesisTime, err := cfg.DeployConfig.L2GenesisTime(l1Block.Time())
+	if err != nil {
+		return nil, err
+	}
+
 	makeRollupConfig := func() rollup.Config {
 		return rollup.Config{
 			Genesis: rollup.Genesis{
@@ -704,7 +710,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 					Hash:   l2Genesis.ToBlock().Hash(),
 					Number: 0,
 				},
-				L2Time:       uint64(cfg.DeployConfig.L1GenesisBlockTimestamp),
+				L2Time:       l2GenesisTime,
 				SystemConfig: e2eutils.SystemConfigFromDeployConfig(cfg.DeployConfig),
 			},
 			BlockTime:              cfg.DeployConfig.L2BlockTime,
@@ -716,20 +722,20 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 			BatchInboxAddress:      cfg.DeployConfig.BatchInboxAddress,
 			DepositContractAddress: cfg.DeployConfig.OptimismPortalProxy,
 			L1SystemConfigAddress:  cfg.DeployConfig.SystemConfigProxy,
-			RegolithTime:           cfg.DeployConfig.RegolithTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
-			CanyonTime:             cfg.DeployConfig.CanyonTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
-			DeltaTime:              cfg.DeployConfig.DeltaTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
-			EcotoneTime:            cfg.DeployConfig.EcotoneTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
-			FjordTime:              cfg.DeployConfig.FjordTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
-			GraniteTime:            cfg.DeployConfig.GraniteTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
-			HoloceneTime:           cfg.DeployConfig.HoloceneTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
-			PectraBlobScheduleTime: cfg.DeployConfig.PectraBlobScheduleTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
-			IsthmusTime:            cfg.DeployConfig.IsthmusTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
-			JovianTime:             cfg.DeployConfig.JovianTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
-			KarstTime:              cfg.DeployConfig.KarstTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
-			LagoonTime:             cfg.DeployConfig.LagoonTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
+			RegolithTime:           cfg.DeployConfig.RegolithTime(l2GenesisTime),
+			CanyonTime:             cfg.DeployConfig.CanyonTime(l2GenesisTime),
+			DeltaTime:              cfg.DeployConfig.DeltaTime(l2GenesisTime),
+			EcotoneTime:            cfg.DeployConfig.EcotoneTime(l2GenesisTime),
+			FjordTime:              cfg.DeployConfig.FjordTime(l2GenesisTime),
+			GraniteTime:            cfg.DeployConfig.GraniteTime(l2GenesisTime),
+			HoloceneTime:           cfg.DeployConfig.HoloceneTime(l2GenesisTime),
+			PectraBlobScheduleTime: cfg.DeployConfig.PectraBlobScheduleTime(l2GenesisTime),
+			IsthmusTime:            cfg.DeployConfig.IsthmusTime(l2GenesisTime),
+			JovianTime:             cfg.DeployConfig.JovianTime(l2GenesisTime),
+			KarstTime:              cfg.DeployConfig.KarstTime(l2GenesisTime),
+			LagoonTime:             cfg.DeployConfig.LagoonTime(l2GenesisTime),
 			AltDAConfig:            rollupAltDAConfig,
-			ChainOpConfig: &params.OptimismConfig{
+			ChainOpConfig: &opparams.OptimismConfig{
 				EIP1559Elasticity:        cfg.DeployConfig.EIP1559Elasticity,
 				EIP1559Denominator:       cfg.DeployConfig.EIP1559Denominator,
 				EIP1559DenominatorCanyon: &cfg.DeployConfig.EIP1559DenominatorCanyon,

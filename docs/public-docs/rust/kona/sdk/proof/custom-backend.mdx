@@ -1,30 +1,10 @@
 ---
 title: "Custom Backends"
+description: "Implement kona-derive and kona-executor data source traits to run the OP Stack STF on a custom verifiable backend such as a zkVM or TEE."
+diataxis: how-to
 ---
 
-## Understanding the OP Stack STF
-
-The OP Stack state transition is comprised of two primary components:
-
-- **The [derivation pipeline](https://specs.optimism.io/protocol/derivation.html)** (`kona-derive`)
-  - Responsible for deriving L2 chain state from the DA layer.
-- **The [execution engine](https://specs.optimism.io/protocol/exec-engine.html#l2-execution-engine)** (`kona-executor`)
-  - Responsible for the execution of transactions and state commitments.
-  - Ensures correct application of derived L2 state.
-
-To prove the correctness of the state transition, Kona composes these two components:
-
-- It combines the derivation of the L2 chain with its execution in the same process.
-- It pulls in necessary data from sources to complete the STF, verifiably unrolling the input commitments along the way.
-
-`kona-client` serves as an implementation of this process, capable of deriving and executing a single L2 block in a
-verifiable manner.
-
-> 📖 Why just a single block by default?
->
-> On the OP Stack, we employ an interactive bisection game that narrows in on the disagreed upon block -> block state
-> transition before requiring a fault proof to be ran. Because of this, the default implementation only serves
-> to derive and execute the single block that the participants of the bisection game landed on.
+This guide walks through implementing the data source traits that let you run `kona-client`, or a variation of it, on a verifiable backend of your choosing. Before starting, make sure you're familiar with the two components being composed - the derivation pipeline and the execution engine - covered in [understanding the OP Stack STF](/rust/kona/sdk/proof/stf).
 
 ## Backend Traits
 
@@ -124,10 +104,10 @@ offers a good example of running the pipeline and executor across a string of co
 [cannon]: https://github.com/ethereum-optimism/optimism/tree/develop/cannon
 [cannon-rs]: https://github.com/op-rs/cannon-rs
 [asterisc]: https://github.com/ethereum-optimism/asterisc
-[fp-specs]: https://specs.optimism.io/experimental/fault-proof/index.html
-[fpp-specs]: https://specs.optimism.io/experimental/fault-proof/index.html#fault-proof-program
-[preimage-specs]: https://specs.optimism.io/experimental/fault-proof/index.html#pre-image-oracle
-[cannon-specs]: https://specs.optimism.io/experimental/fault-proof/cannon-fault-proof-vm.html#cannon-fault-proof-virtual-machine
+[fp-specs]: https://specs.optimism.io/fault-proof/index.html
+[fpp-specs]: https://specs.optimism.io/fault-proof/index.html#fault-proof-program
+[preimage-specs]: https://specs.optimism.io/fault-proof/index.html#pre-image-oracle
+[cannon-specs]: https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html
 [l2-output-root]: https://specs.optimism.io/protocol/proposals.html#l2-output-commitment-construction
 [op-succinct]: https://github.com/succinctlabs/op-succinct
 [revm]: https://github.com/bluealloy/revm

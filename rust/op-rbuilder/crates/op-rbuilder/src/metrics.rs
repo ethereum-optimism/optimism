@@ -218,7 +218,7 @@ pub fn record_flag_gauge_metrics(builder_args: &OpRbuilderArgs) {
     gauge!("op_rbuilder_flags_enable_revert_protection")
         .set(builder_args.enable_revert_protection as i32);
     // SDM opt-in starts disabled on every process boot; the value is mutated at runtime via
-    // admin_setSdmPostExecOptIn. We seed the gauge here so scrapes pre-RPC see 0 rather than
+    // admin_setOperatorSdmOptIn. We seed the gauge here so scrapes pre-RPC see 0 rather than
     // missing-metric.
     gauge!("op_rbuilder_flags_sdm_enabled").set(0);
 }

@@ -3,40 +3,25 @@
 
 use crate::{HintType, INVALID_TRANSITION, INVALID_TRANSITION_HASH, PreState};
 use alloc::{string::ToString, vec::Vec};
-use alloy_primitives::{B256, Bytes, U256};
+use alloy_primitives::{B256, Bytes};
 use alloy_rlp::Decodable;
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_preimage::{
-    CommsClient, HintWriterClient, PreimageKey, PreimageKeyType, PreimageOracleClient,
-    errors::PreimageOracleError,
+    CommsClient, HintWriterClient, L2_CLAIM_BLOCK_NUMBER_KEY, L2_CLAIM_KEY, L2_OUTPUT_ROOT_KEY,
+    PreimageKey, PreimageKeyType, PreimageOracleClient, errors::PreimageOracleError,
+};
+pub use kona_preimage::{
+    DEPENDENCY_SET_KEY, L1_CONFIG_KEY, L1_HEAD_KEY,
+    L2_CLAIM_BLOCK_NUMBER_KEY as L2_CLAIMED_TIMESTAMP_KEY,
+    L2_CLAIM_KEY as L2_CLAIMED_POST_STATE_KEY, L2_OUTPUT_ROOT_KEY as L2_AGREED_PRE_STATE_KEY,
+    L2_ROLLUP_CONFIG_KEY,
 };
 use kona_proof::errors::OracleProviderError;
 use kona_registry::{DEPENDENCY_SETS, HashMap, L1_CONFIGS, ROLLUP_CONFIGS};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::warn;
-
-/// The local key ident for the L1 head hash.
-pub const L1_HEAD_KEY: U256 = U256::from_be_slice(&[1]);
-
-/// The local key ident for the agreed upon L2 pre-state claim.
-pub const L2_AGREED_PRE_STATE_KEY: U256 = U256::from_be_slice(&[2]);
-
-/// The local key ident for the L2 post-state claim.
-pub const L2_CLAIMED_POST_STATE_KEY: U256 = U256::from_be_slice(&[3]);
-
-/// The local key ident for the L2 claim timestamp.
-pub const L2_CLAIMED_TIMESTAMP_KEY: U256 = U256::from_be_slice(&[4]);
-
-/// The local key ident for the L2 rollup config.
-pub const L2_ROLLUP_CONFIG_KEY: U256 = U256::from_be_slice(&[6]);
-
-/// The local key ident for the l1 config.
-pub const L1_CONFIG_KEY: U256 = U256::from_be_slice(&[7]);
-
-/// The local key ident for the dependency set.
-pub const DEPENDENCY_SET_KEY: U256 = U256::from_be_slice(&[8]);
 
 /// The boot information for the interop client program.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -80,19 +65,19 @@ impl BootInfo {
 
         let mut l2_pre: B256 = B256::ZERO;
         oracle
-            .get_exact(PreimageKey::new_local(L2_AGREED_PRE_STATE_KEY.to()), l2_pre.as_mut())
+            .get_exact(PreimageKey::new_local(L2_OUTPUT_ROOT_KEY.to()), l2_pre.as_mut())
             .await
             .map_err(OracleProviderError::Preimage)?;
 
         let mut l2_post: B256 = B256::ZERO;
         oracle
-            .get_exact(PreimageKey::new_local(L2_CLAIMED_POST_STATE_KEY.to()), l2_post.as_mut())
+            .get_exact(PreimageKey::new_local(L2_CLAIM_KEY.to()), l2_post.as_mut())
             .await
             .map_err(OracleProviderError::Preimage)?;
 
         let l2_claim_block = u64::from_be_bytes(
             oracle
-                .get(PreimageKey::new_local(L2_CLAIMED_TIMESTAMP_KEY.to()))
+                .get(PreimageKey::new_local(L2_CLAIM_BLOCK_NUMBER_KEY.to()))
                 .await
                 .map_err(OracleProviderError::Preimage)?
                 .as_slice()
@@ -308,6 +293,24 @@ mod tests {
     use kona_genesis::{ChainDependency, DependencySet};
     use kona_preimage::{HintWriterClient, errors::PreimageOracleError};
     use kona_registry::HashMap;
+
+    #[test]
+    fn legacy_local_key_exports_match_canonical_keys() {
+        assert_eq!(kona_proof::boot::L1_HEAD_KEY, kona_preimage::L1_HEAD_KEY);
+        assert_eq!(kona_proof::boot::L2_OUTPUT_ROOT_KEY, kona_preimage::L2_OUTPUT_ROOT_KEY);
+        assert_eq!(kona_proof::boot::L2_CLAIM_KEY, kona_preimage::L2_CLAIM_KEY);
+        assert_eq!(
+            kona_proof::boot::L2_CLAIM_BLOCK_NUMBER_KEY,
+            kona_preimage::L2_CLAIM_BLOCK_NUMBER_KEY
+        );
+        assert_eq!(kona_proof::boot::L2_CHAIN_ID_KEY, kona_preimage::L2_CHAIN_ID_KEY);
+        assert_eq!(kona_proof::boot::L2_ROLLUP_CONFIG_KEY, kona_preimage::L2_ROLLUP_CONFIG_KEY);
+        assert_eq!(kona_proof::boot::L1_CONFIG_KEY, kona_preimage::L1_CONFIG_KEY);
+
+        assert_eq!(L2_AGREED_PRE_STATE_KEY, kona_preimage::L2_OUTPUT_ROOT_KEY);
+        assert_eq!(L2_CLAIMED_POST_STATE_KEY, kona_preimage::L2_CLAIM_KEY);
+        assert_eq!(L2_CLAIMED_TIMESTAMP_KEY, kona_preimage::L2_CLAIM_BLOCK_NUMBER_KEY);
+    }
 
     #[derive(Default)]
     struct MockOracle {

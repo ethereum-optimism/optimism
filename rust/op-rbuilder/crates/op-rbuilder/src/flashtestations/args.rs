@@ -19,6 +19,7 @@ pub struct FlashtestationsArgs {
 
     /// Whether to use the debug HTTP service for quotes
     #[arg(
+        id = "flashtestations.debug",
         long = "flashtestations.debug",
         default_value = "false",
         env = "FLASHTESTATIONS_DEBUG"

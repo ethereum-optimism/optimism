@@ -260,6 +260,141 @@ fn backfill_then_forward_write_preserves_state_roots() {
     }
 }
 
+/// Batched (K > 1) and per-block (K = 1) backfill must be observationally equivalent: both
+/// runs land the same proof window and reconstruct the same state root at every block in it.
+#[test]
+fn run_batched_matches_unbatched_state_roots() {
+    use crate::test_utils::build_chain_with_storage_writes_and_initialize_storage;
+
+    // Storage-writing chain exercises both account and storage history paths.
+    const N: u64 = 20;
+    const TARGET: u64 = 3;
+
+    // Run 1: K=1 (per-block commits).
+    let (pf_a, storage_a, latest_a, _hash_a) =
+        build_chain_with_storage_writes_and_initialize_storage(N);
+    {
+        let provider = pf_a.database_provider_ro().unwrap();
+        BackfillJob::new(provider, storage_a.clone()).with_batch_size(1).run(TARGET).unwrap();
+    }
+
+    // Run 2: K=10 (batched commits).
+    let (pf_b, storage_b, latest_b, _hash_b) =
+        build_chain_with_storage_writes_and_initialize_storage(N);
+    {
+        let provider = pf_b.database_provider_ro().unwrap();
+        BackfillJob::new(provider, storage_b.clone()).with_batch_size(10).run(TARGET).unwrap();
+    }
+
+    assert_eq!(latest_a, latest_b, "chain construction is deterministic");
+    assert_eq!(latest_a, N);
+
+    // Both runs should leave `earliest` at the same place.
+    {
+        let win_a = storage_a.provider_ro().unwrap().get_proof_window().unwrap();
+        let win_b = storage_b.provider_ro().unwrap().get_proof_window().unwrap();
+        assert_eq!(win_a.earliest, win_b.earliest);
+        assert_eq!(win_a.latest, win_b.latest);
+        assert_eq!(win_a.earliest.number, TARGET);
+    }
+
+    // Reconstruct state root at every block in [TARGET, N] from BOTH storages and confirm they
+    // agree with each other and with reth's header. If batching corrupted any per-block history,
+    // the overlay-root computation here would diverge.
+    let reth_provider_a = pf_a.database_provider_ro().unwrap();
+    for n in TARGET..=N {
+        let expected = reth_provider::HeaderProvider::header_by_number(&reth_provider_a, n)
+            .unwrap()
+            .unwrap()
+            .state_root();
+        let computed_a = StateRoot::overlay_root(
+            storage_a.provider_ro().unwrap(),
+            n,
+            HashedPostState::default(),
+        )
+        .unwrap();
+        let computed_b = StateRoot::overlay_root(
+            storage_b.provider_ro().unwrap(),
+            n,
+            HashedPostState::default(),
+        )
+        .unwrap();
+        assert_eq!(computed_a, expected, "K=1 path: state root mismatch at block {n}",);
+        assert_eq!(computed_b, expected, "K=10 path: state root mismatch at block {n}",);
+        assert_eq!(computed_a, computed_b, "K=1 vs K=10 disagree at block {n}");
+    }
+}
+
+/// Job-loop atomicity: a validation failure mid-batch drops the open RW tx, rolling back
+/// the in-flight writes for every prior block in the same batch.
+#[test]
+fn run_rolls_back_in_flight_batch_writes_on_validation_failure() {
+    let key_pair = deterministic_keypair();
+    let sender = public_key_to_address(key_pair.public_key());
+    let chain_spec = chain_spec_with_address(sender);
+    let provider_factory = create_test_provider_factory_with_chain_spec(chain_spec.clone());
+    init_genesis(&provider_factory).unwrap();
+
+    let recipient = Address::repeat_byte(0x42);
+    const NUM_BLOCKS: u64 = 5;
+    // Corrupt `header[2].state_root` — `validate_state_root` for block 3 will check it,
+    // *after* blocks 5 and 4 have prepended successfully within the same open tx.
+    const CORRUPTED_BLOCK: u64 = 2;
+    const FAILING_VALIDATE_BLOCK: u64 = CORRUPTED_BLOCK + 1;
+    const BOGUS_ROOT: B256 = B256::repeat_byte(0xAB);
+
+    let mut last_hash = chain_spec.genesis_hash();
+    for n in 1..=NUM_BLOCKS {
+        let mut block = build_transfer_block(n, last_hash, &chain_spec, key_pair, n - 1, recipient);
+        let exec = execute_block(&mut block, &provider_factory, &chain_spec);
+        if n == CORRUPTED_BLOCK {
+            block.set_state_root(BOGUS_ROOT);
+        }
+        commit_block_to_database(&block, &exec, &provider_factory);
+        last_hash = block.hash();
+    }
+
+    // Init proofs at the chain tip.
+    let storage = create_storage();
+    {
+        let trie_layout = if provider_factory.cached_storage_settings().is_v2() {
+            RethTrieStorageLayout::Packed
+        } else {
+            RethTrieStorageLayout::Legacy
+        };
+        let tx = provider_factory.db_ref().tx().unwrap();
+        InitializationJob::new(storage.clone(), tx, trie_layout)
+            .run(NUM_BLOCKS, last_hash)
+            .unwrap();
+    }
+    let earliest_before = storage.provider_ro().unwrap().get_earliest_block().unwrap();
+    assert_eq!(earliest_before, NumHash::new(NUM_BLOCKS, last_hash));
+
+    // K=10 means the whole 5-block range fits in one batch — no commit before the failure.
+    let provider = provider_factory.database_provider_ro().unwrap();
+    let err = BackfillJob::new(provider, storage.clone()).with_batch_size(10).run(0).unwrap_err();
+
+    match err {
+        BackfillError::StateRootMismatch { block_number, expected, .. } => {
+            assert_eq!(
+                block_number, FAILING_VALIDATE_BLOCK,
+                "validation must fire at block {FAILING_VALIDATE_BLOCK} (parent header is bogus)",
+            );
+            assert_eq!(expected, BOGUS_ROOT, "expected root comes from the tampered header");
+        }
+        other => panic!("expected StateRootMismatch, got {other:?}"),
+    }
+
+    // Atomicity check: blocks 5 and 4 had successfully prepended (and validated) within the open
+    // tx before iteration 3 failed. The tx dropped on `Err`, so none of those writes — nor block
+    // 3's prepend — persisted. `earliest` must still be at the pre-backfill value.
+    let earliest_after = storage.provider_ro().unwrap().get_earliest_block().unwrap();
+    assert_eq!(
+        earliest_after, earliest_before,
+        "in-flight batch writes (blocks 5, 4, 3) must roll back when the batch fails",
+    );
+}
+
 // ============================ Snapshot-accelerated tests ============================
 
 #[test]
@@ -418,6 +553,70 @@ fn run_with_snapshot_extends_window_backward_with_storage_writes() {
     assert_eq!(sp.snapshot_anchor().unwrap(), BlockNumHash::new(0, genesis_hash));
 }
 
+/// Snapshot-accelerated batched backfill (K > 1) must produce the same proofs DB state and
+/// snapshot anchor as the per-block path (K = 1). Mirrors
+/// [`run_batched_matches_unbatched_state_roots`] for the snapshot path.
+#[test]
+#[serial]
+fn run_with_snapshot_batched_matches_unbatched_state_roots() {
+    const N: u64 = 20;
+    const TARGET: u64 = 3;
+
+    // Run A: K=1 (per-block commits on the snapshot path).
+    let (pf_a, storage_a, _, _) = build_chain_with_storage_writes_and_initialize_storage(N);
+    {
+        let provider = pf_a.database_provider_ro().unwrap();
+        BackfillJob::new(provider, storage_a.clone())
+            .with_batch_size(1)
+            .run_with_snapshot(TARGET)
+            .unwrap();
+    }
+
+    // Run B: K=10 (batched commits, same path).
+    let (pf_b, storage_b, _, _) = build_chain_with_storage_writes_and_initialize_storage(N);
+    {
+        let provider = pf_b.database_provider_ro().unwrap();
+        BackfillJob::new(provider, storage_b.clone())
+            .with_batch_size(10)
+            .run_with_snapshot(TARGET)
+            .unwrap();
+    }
+
+    // Earliest + snapshot anchor must match across both runs.
+    let win_a = storage_a.provider_ro().unwrap().get_proof_window().unwrap();
+    let win_b = storage_b.provider_ro().unwrap().get_proof_window().unwrap();
+    assert_eq!(win_a.earliest, win_b.earliest);
+    assert_eq!(win_a.latest, win_b.latest);
+    assert_eq!(win_a.earliest.number, TARGET);
+
+    let anchor_a = storage_a.snapshot_provider_ro().unwrap().snapshot_anchor().unwrap();
+    let anchor_b = storage_b.snapshot_provider_ro().unwrap().snapshot_anchor().unwrap();
+    assert_eq!(anchor_a, anchor_b, "snapshot anchors must match across batch sizes");
+
+    // State roots from BOTH storages must agree with reth at every backfilled block.
+    let reth_provider = pf_a.database_provider_ro().unwrap();
+    for n in TARGET..=N {
+        let expected = reth_provider::HeaderProvider::header_by_number(&reth_provider, n)
+            .unwrap()
+            .unwrap()
+            .state_root();
+        let root_a = StateRoot::overlay_root(
+            storage_a.provider_ro().unwrap(),
+            n,
+            HashedPostState::default(),
+        )
+        .unwrap();
+        let root_b = StateRoot::overlay_root(
+            storage_b.provider_ro().unwrap(),
+            n,
+            HashedPostState::default(),
+        )
+        .unwrap();
+        assert_eq!(root_a, expected, "snapshot K=1: state root mismatch at block {n}",);
+        assert_eq!(root_b, expected, "snapshot K=10: state root mismatch at block {n}",);
+    }
+}
+
 /// Negative test for the validation safety net in [`BackfillJob`]. Every
 /// "happy path" test feeds a self-consistent chain, so the
 /// [`BackfillError::StateRootMismatch`] arm in `validate_state_root` is never
@@ -532,5 +731,91 @@ fn run_with_snapshot_aborts_with_state_root_mismatch_when_header_corrupted() {
             assert_eq!(expected, BOGUS_ROOT, "expected root must come from the tampered header");
         }
         other => panic!("expected StateRootMismatch, got {other:?}"),
+    }
+}
+
+/// Negative test for the changeset-pruned detection in
+/// [`compute_block_backfill_diff`](super::changesets::compute_block_backfill_diff).
+///
+/// When reth prunes a block it typically deletes the per-block account/storage changesets
+/// together with the body. Without detection, `from_reverts_auto` returns an empty revert,
+/// the reconstructed trie@N-1 equals trie@N, and validation surfaces the misleading
+/// [`BackfillError::StateRootMismatch`]. The fix detects the case directly and returns
+/// [`BackfillError::BlockBodyPruned`] instead.
+///
+/// We exercise this by:
+/// 1. Building a 3-block transfer chain with `StorageSettings::v1()` (so changesets live in MDBX
+///    and are surgically deletable).
+/// 2. Deleting every `AccountChangeSets` entry at the targeted block.
+/// 3. Running backfill and asserting `BlockBodyPruned(n)` rather than `StateRootMismatch`.
+#[test]
+fn run_aborts_with_block_body_pruned_when_changesets_deleted() {
+    use reth_db::{
+        cursor::{DbCursorRO, DbDupCursorRW},
+        tables,
+        transaction::{DbTx, DbTxMut},
+    };
+    use reth_db_api::models::StorageSettings;
+    use reth_db_common::init::init_genesis_with_settings;
+
+    // Custom chain build: force v1 so changesets land in MDBX (deletable via cursor).
+    let key_pair = deterministic_keypair();
+    let sender = public_key_to_address(key_pair.public_key());
+    let chain_spec = chain_spec_with_address(sender);
+    let provider_factory = create_test_provider_factory_with_chain_spec(chain_spec.clone());
+    init_genesis_with_settings(&provider_factory, StorageSettings::v1()).unwrap();
+
+    let recipient = Address::repeat_byte(0x42);
+    const NUM_BLOCKS: u64 = 3;
+    const PRUNED_BLOCK: u64 = 2;
+
+    let mut last_hash = chain_spec.genesis_hash();
+    for n in 1..=NUM_BLOCKS {
+        let mut block = build_transfer_block(n, last_hash, &chain_spec, key_pair, n - 1, recipient);
+        let exec = execute_block(&mut block, &provider_factory, &chain_spec);
+        commit_block_to_database(&block, &exec, &provider_factory);
+        last_hash = block.hash();
+    }
+
+    // Simulate reth pruning: delete every AccountChangeSets entry at PRUNED_BLOCK.
+    // Transfer-only txs produce account changesets but no storage changesets, so the
+    // account table is enough to break the per-block revert at that height.
+    {
+        let tx = provider_factory.db_ref().tx_mut().unwrap();
+        let mut cursor = tx.cursor_dup_write::<tables::AccountChangeSets>().unwrap();
+        let found = cursor.seek_exact(PRUNED_BLOCK).unwrap();
+        assert!(found.is_some(), "block {PRUNED_BLOCK} must have changeset entries pre-deletion");
+        cursor.delete_current_duplicates().unwrap();
+        assert!(cursor.seek_exact(PRUNED_BLOCK).unwrap().is_none(), "deletion left residue");
+        drop(cursor);
+        tx.commit().unwrap();
+    }
+
+    // Initialize proofs storage at the chain tip.
+    let storage = create_storage();
+    {
+        let trie_layout = if provider_factory.cached_storage_settings().is_v2() {
+            RethTrieStorageLayout::Packed
+        } else {
+            RethTrieStorageLayout::Legacy
+        };
+        let tx = provider_factory.db_ref().tx().unwrap();
+        InitializationJob::new(storage.clone(), tx, trie_layout)
+            .run(NUM_BLOCKS, last_hash)
+            .unwrap();
+    }
+
+    // Backfill descends from NUM_BLOCKS down. Block NUM_BLOCKS prepends successfully; the
+    // detection fires when the job moves on to PRUNED_BLOCK.
+    let provider = provider_factory.database_provider_ro().unwrap();
+    let err = BackfillJob::new(provider, storage).run(0).unwrap_err();
+    match err {
+        BackfillError::BlockBodyPruned(block_number) => {
+            assert_eq!(
+                block_number, PRUNED_BLOCK,
+                "detection must fire at the block whose changesets are missing",
+            );
+        }
+        other => panic!("expected BlockBodyPruned, got {other:?}"),
     }
 }

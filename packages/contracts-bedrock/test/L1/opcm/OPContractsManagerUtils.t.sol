@@ -25,6 +25,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IStorageSetter } from "interfaces/universal/IStorageSetter.sol";
 import { Claim, Duration } from "src/dispute/lib/LibUDT.sol";
 import { GameTypes } from "src/dispute/lib/Types.sol";
+import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
@@ -942,7 +943,7 @@ contract OPContractsManagerUtils_MakeGameArgs_Test is OPContractsManagerUtils_Te
         uint256 challengerBond = 1 ether;
         IAnchorStateRegistry anchorStateRegistry = IAnchorStateRegistry(makeAddr("anchorStateRegistry"));
         IDelayedWETH delayedWETH = IDelayedWETH(payable(makeAddr("delayedWETH")));
-        uint256 l2ChainId = 42;
+        uint256 l2ChainId = 0; // l2chainid is always 0 for super games
 
         IOPContractsManagerUtils.DisputeGameConfig memory cfg = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
@@ -962,7 +963,9 @@ contract OPContractsManagerUtils_MakeGameArgs_Test is OPContractsManagerUtils_Te
         bytes memory result = utils.makeGameArgs(l2ChainId, anchorStateRegistry, delayedWETH, cfg);
 
         // Verify the CWIA layout: absolutePrestate | verifier | maxChallengeDuration | maxProveDuration |
-        // challengerBond | anchorStateRegistry | delayedWETH | l2ChainId
+        // challengerBond | anchorStateRegistry | delayedWETH
+        // ZK_DISPUTE_GAME is a super game: chain scoping comes from the SuperRootProof preimage
+        // committed to via rootClaim, so no l2ChainId field is included in the encoded args.
         bytes memory expected = abi.encodePacked(
             absolutePrestate,
             verifier,
@@ -970,10 +973,19 @@ contract OPContractsManagerUtils_MakeGameArgs_Test is OPContractsManagerUtils_Te
             maxProveDuration,
             challengerBond,
             address(anchorStateRegistry),
-            address(delayedWETH),
-            l2ChainId
+            address(delayedWETH)
         );
         assertEq(keccak256(result), keccak256(expected), "ZK game args CWIA layout mismatch");
+
+        // Decode the encoded args back through LibGameArgs and assert every field round-trips.
+        LibGameArgs.ZKGameArgs memory decoded = LibGameArgs.decodeZK(result);
+        assertEq(decoded.absolutePrestate, absolutePrestate.raw(), "absolutePrestate mismatch");
+        assertEq(decoded.verifier, address(verifier), "verifier mismatch");
+        assertEq(decoded.maxChallengeDuration, maxChallengeDuration.raw(), "maxChallengeDuration mismatch");
+        assertEq(decoded.maxProveDuration, maxProveDuration.raw(), "maxProveDuration mismatch");
+        assertEq(decoded.challengerBond, challengerBond, "challengerBond mismatch");
+        assertEq(decoded.anchorStateRegistry, address(anchorStateRegistry), "anchorStateRegistry mismatch");
+        assertEq(decoded.weth, address(delayedWETH), "weth mismatch");
     }
 
     /// @notice Tests that makeGameArgs reverts for an unsupported game type.

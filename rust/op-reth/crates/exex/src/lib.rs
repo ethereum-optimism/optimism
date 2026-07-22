@@ -108,14 +108,14 @@ where
 /// use reth_db::test_utils::create_test_rw_db;
 /// use reth_node_api::NodeTypesWithDBAdapter;
 /// use reth_node_builder::{NodeBuilder, NodeConfig};
-/// use reth_optimism_chainspec::BASE_MAINNET;
+/// use reth_optimism_chainspec::OP_MAINNET;
 /// use reth_optimism_exex::OpProofsExEx;
 /// use reth_optimism_node::{args::RollupArgs, OpNode};
 /// use reth_optimism_trie::{db::MdbxProofsStorageV2, InMemoryProofsStorage, OpProofsStorage};
 /// use reth_provider::providers::BlockchainProvider;
 /// use std::{sync::Arc, time::Duration};
 ///
-/// let config = NodeConfig::new(BASE_MAINNET.clone());
+/// let config = NodeConfig::new(OP_MAINNET.clone());
 /// let db = create_test_rw_db();
 /// let args = RollupArgs::default();
 /// let op_node = OpNode::new(args);
@@ -304,7 +304,7 @@ where
             let precomputed = (!should_verify).then(|| new.trie_data_at(block_number)).flatten();
 
             if let Some(d) = precomputed {
-                let SortedTrieData { hashed_state, trie_updates } = d.get();
+                let SortedTrieData { hashed_state, trie_updates } = &d.get().sorted;
                 engine_handle.index_block(
                     block.block_with_parent(),
                     (**trie_updates).clone(),
@@ -358,8 +358,8 @@ where
                     eyre::eyre!("Missing Trie data for block {} in new chain", block_number)
                 })?
                 .get();
-            let trie_updates = &trie_data.trie_updates;
-            let hashed_state = &trie_data.hashed_state;
+            let trie_updates = &trie_data.sorted.trie_updates;
+            let hashed_state = &trie_data.sorted.hashed_state;
 
             block_updates.push((
                 block.block_with_parent(),
@@ -403,7 +403,9 @@ mod tests {
         OpProofsStore, db::MdbxProofsStorageV2, engine::EngineHandle,
     };
     use reth_primitives_traits::RecoveredBlock;
-    use reth_trie::{HashedPostStateSorted, LazyTrieData, updates::TrieUpdatesSorted};
+    use reth_trie::{
+        ComputedTrieData, HashedPostStateSorted, LazyTrieData, updates::TrieUpdatesSorted,
+    };
     use std::{collections::BTreeMap, default::Default, sync::Arc};
 
     // -------------------------------------------------------------------------
@@ -447,10 +449,10 @@ mod tests {
             }
             blocks.push(b);
 
-            let data = LazyTrieData::ready(
+            let data = LazyTrieData::ready(ComputedTrieData::new(
                 Arc::new(HashedPostStateSorted::default()),
                 Arc::new(TrieUpdatesSorted::default()),
-            );
+            ));
             trie_data.insert(n, data);
         }
 

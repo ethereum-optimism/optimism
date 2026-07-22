@@ -1,5 +1,6 @@
 ---
 title: "Trait-abstracted Providers"
+diataxis: how-to
 ---
 
 Kona's derivation pipeline pulls in data from sources that are trait
@@ -61,10 +62,12 @@ let pipeline = PipelineBuilder::new()
 
 ## Implementing a Custom Data Availability Provider
 
-> Notice
->
-> The only required method for the [`DataAvailabilityProvider`][dap]
-> trait is the [`next`][next] method.
+<Note>
+**Notice**
+
+The only required method for the [`DataAvailabilityProvider`][dap]
+trait is the [`next`][next] method.
+</Note>
 
 ```rust
 use async_trait::async_trait;

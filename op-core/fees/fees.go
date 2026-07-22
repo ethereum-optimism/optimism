@@ -40,9 +40,15 @@ type RollupCostData struct {
 	FastLzSize   uint64
 }
 
-// L1CostFunc returns the data-availability fee charged to the sender of a non-deposit
-// transaction. It returns nil when no DA fee applies.
-type L1CostFunc func(rcd RollupCostData, blockTime uint64) *big.Int
+// L1FeeParams holds the L1 base fee, blob base fee, and their scalars used to price a
+// transaction's data availability under Ecotone and Fjord. They are read together from the
+// L1-block-info attributes (or the L1Block / gas-price-oracle predeploys).
+type L1FeeParams struct {
+	L1BaseFee     *big.Int
+	L1BlobBaseFee *big.Int
+	BaseFeeScalar *big.Int
+	BlobFeeScalar *big.Int
+}
 
 // NewRollupCostData computes the RollupCostData for the given L1 transaction bytes.
 func NewRollupCostData(data []byte) (out RollupCostData) {
@@ -82,22 +88,19 @@ func L1CostBedrock(rollupDataGas uint64, l1BaseFee, overhead, scalar *big.Int) *
 	return fee
 }
 
-// NewL1CostFuncEcotone returns an L1CostFunc for the Ecotone upgrade (excluding the very
-// first Ecotone block, which still uses the Bedrock function). The returned function ignores
-// blockTime: the fee parameters are fixed at construction.
-func NewL1CostFuncEcotone(l1BaseFee, l1BlobBaseFee, l1BaseFeeScalar, l1BlobBaseFeeScalar *big.Int) L1CostFunc {
-	return func(costData RollupCostData, _ uint64) *big.Int {
-		// Ecotone L1 cost function, computed as
-		//   calldataGas * (l1BaseFee*16*l1BaseFeeScalar + l1BlobBaseFee*l1BlobBaseFeeScalar) / 16e6
-		// for better integer-arithmetic precision.
-		calldataGasUsed := bedrockCalldataGasUsed(costData)
-		calldataCostPerByte := new(big.Int).Mul(l1BaseFee, sixteen)
-		calldataCostPerByte.Mul(calldataCostPerByte, l1BaseFeeScalar)
-		blobCostPerByte := new(big.Int).Mul(l1BlobBaseFee, l1BlobBaseFeeScalar)
-		fee := new(big.Int).Add(calldataCostPerByte, blobCostPerByte)
-		fee.Mul(fee, calldataGasUsed)
-		return fee.Div(fee, ecotoneDivisor)
-	}
+// L1CostEcotone returns the Ecotone-era data-availability fee for a transaction (excluding the
+// very first Ecotone block, which still uses [L1CostBedrock]).
+func L1CostEcotone(rcd RollupCostData, p L1FeeParams) *big.Int {
+	// Ecotone L1 cost function, computed as
+	//   calldataGas * (l1BaseFee*16*l1BaseFeeScalar + l1BlobBaseFee*l1BlobBaseFeeScalar) / 16e6
+	// for better integer-arithmetic precision.
+	calldataGasUsed := bedrockCalldataGasUsed(rcd)
+	calldataCostPerByte := new(big.Int).Mul(p.L1BaseFee, sixteen)
+	calldataCostPerByte.Mul(calldataCostPerByte, p.BaseFeeScalar)
+	blobCostPerByte := new(big.Int).Mul(p.L1BlobBaseFee, p.BlobFeeScalar)
+	fee := new(big.Int).Add(calldataCostPerByte, blobCostPerByte)
+	fee.Mul(fee, calldataGasUsed)
+	return fee.Div(fee, ecotoneDivisor)
 }
 
 // bedrockCalldataGasUsed returns the calldata gas of a transaction under the EIP-2028 schedule.
@@ -106,22 +109,19 @@ func bedrockCalldataGasUsed(costData RollupCostData) *big.Int {
 	return new(big.Int).SetUint64(calldataGas)
 }
 
-// NewL1CostFuncFjord returns an L1CostFunc for the Fjord upgrade. The returned function
-// ignores blockTime: the fee parameters are fixed at construction.
-func NewL1CostFuncFjord(l1BaseFee, l1BlobBaseFee, baseFeeScalar, blobFeeScalar *big.Int) L1CostFunc {
-	return func(costData RollupCostData, _ uint64) *big.Int {
-		// Fjord L1 cost function:
-		//   l1FeeScaled   = baseFeeScalar*l1BaseFee*16 + blobFeeScalar*l1BlobBaseFee
-		//   estimatedSize = max(minTransactionSize, intercept + fastlzCoef*fastlzSize)
-		//   l1Cost        = estimatedSize * l1FeeScaled / 1e12
-		scaledL1BaseFee := new(big.Int).Mul(baseFeeScalar, l1BaseFee)
-		calldataCostPerByte := new(big.Int).Mul(scaledL1BaseFee, sixteen)
-		blobCostPerByte := new(big.Int).Mul(blobFeeScalar, l1BlobBaseFee)
-		l1FeeScaled := new(big.Int).Add(calldataCostPerByte, blobCostPerByte)
-		estimatedSize := costData.estimatedDASizeScaled()
-		l1CostScaled := new(big.Int).Mul(estimatedSize, l1FeeScaled)
-		return new(big.Int).Div(l1CostScaled, fjordDivisor)
-	}
+// L1CostFjord returns the Fjord-era data-availability fee for a transaction.
+func L1CostFjord(rcd RollupCostData, p L1FeeParams) *big.Int {
+	// Fjord L1 cost function:
+	//   l1FeeScaled   = baseFeeScalar*l1BaseFee*16 + blobFeeScalar*l1BlobBaseFee
+	//   estimatedSize = max(minTransactionSize, intercept + fastlzCoef*fastlzSize)
+	//   l1Cost        = estimatedSize * l1FeeScaled / 1e12
+	scaledL1BaseFee := new(big.Int).Mul(p.BaseFeeScalar, p.L1BaseFee)
+	calldataCostPerByte := new(big.Int).Mul(scaledL1BaseFee, sixteen)
+	blobCostPerByte := new(big.Int).Mul(p.BlobFeeScalar, p.L1BlobBaseFee)
+	l1FeeScaled := new(big.Int).Add(calldataCostPerByte, blobCostPerByte)
+	estimatedSize := rcd.estimatedDASizeScaled()
+	l1CostScaled := new(big.Int).Mul(estimatedSize, l1FeeScaled)
+	return new(big.Int).Div(l1CostScaled, fjordDivisor)
 }
 
 // OperatorCostIsthmus computes the Isthmus operator fee charged to a transaction:

@@ -1,5 +1,6 @@
 ---
 title: "How it Works"
+diataxis: explanation
 ---
 
 Kona brings together a powerful suite of `no-std` and `std` Rust components,
@@ -24,14 +25,12 @@ Paired with an execution engine like op-reth or op-geth, `kona-node` tracks
 the unsafe, safe, and finalized tips of the L2 OP Stack chain, ensuring the
 node is always in sync with the latest state.
 
-:::note
-
+<Note>
 Rollup nodes hold minimal state. Unsafe and safe payloads alike are sent
 away to the execution engine client which holds the chain's db. This way,
 the rollup node holds a view of the tip of the chain - unsafe, safe, and
 finalized block info. All data otherwise needed is held in memory.
-
-:::
+</Note>
 
 There are a few core architectural pieces of the `kona-node`.
 
@@ -73,15 +72,13 @@ The `kona-node` syncs the L2 chain in two main phases:
    derived this way are executed as an engine task which submits
    the payloads to the execution engine for validation and execution.
 
-:::note
-
+<Note>
 - `kona-node` does **not** support historical CL sync or backfilling
   L2 blocks from L1 for past chain history. It relies on the EL client
   to perform the initial sync of the L2 chain.
 - Only after the EL is fully synced does the node begin deriving and
   following new L2 blocks from L1.
-
-:::
+</Note>
 
 ### Extensibility
 

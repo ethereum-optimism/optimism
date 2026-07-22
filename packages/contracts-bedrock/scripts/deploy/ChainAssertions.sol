@@ -14,8 +14,7 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Types } from "scripts/libraries/Types.sol";
 import { Blueprint } from "src/libraries/Blueprint.sol";
-import { GameType, GameTypes } from "src/dispute/lib/Types.sol";
-import { Hash } from "src/dispute/lib/Types.sol";
+import { GameType, Proposal } from "src/dispute/lib/Types.sol";
 // Interfaces
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
@@ -402,7 +401,14 @@ library ChainAssertions {
         );
     }
 
-    function checkAnchorStateRegistryProxy(IAnchorStateRegistry _anchorStateRegistryProxy, bool _isProxy) internal {
+    function checkAnchorStateRegistryProxy(
+        IAnchorStateRegistry _anchorStateRegistryProxy,
+        bool _isProxy,
+        GameType _expectedRespectedGameType,
+        Proposal memory _expectedAnchor
+    )
+        internal
+    {
         DeployUtils.assertValidContractAddress(address(_anchorStateRegistryProxy));
         if (_isProxy) {
             DeployUtils.assertERC1967ImplementationSet(address(_anchorStateRegistryProxy));
@@ -416,15 +422,11 @@ library ChainAssertions {
         });
 
         // The below check cannot be done in the standard validator because the assertion only applies at deploy time.
-        (Hash actualRoot,) = _anchorStateRegistryProxy.anchors(GameTypes.PERMISSIONED_CANNON);
-        if (_isProxy) {
-            require(
-                Hash.unwrap(actualRoot) == 0xdead000000000000000000000000000000000000000000000000000000000000,
-                "ANCHORP-40"
-            );
-        } else {
-            require(Hash.unwrap(actualRoot) == bytes32(0), "ANCHORP-40");
-        }
+        Proposal memory actualAnchor = _anchorStateRegistryProxy.getStartingAnchorRoot();
+
+        require(_anchorStateRegistryProxy.respectedGameType().raw() == _expectedRespectedGameType.raw(), "ANCHORP-30");
+        require(actualAnchor.root.raw() == _expectedAnchor.root.raw(), "ANCHORP-40");
+        require(actualAnchor.l2SequenceNumber == _expectedAnchor.l2SequenceNumber, "ANCHORP-50");
     }
 
     /// @notice Asserts that the ZKDisputeGame implementation is setup correctly.

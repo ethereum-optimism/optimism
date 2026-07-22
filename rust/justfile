@@ -2,10 +2,16 @@ set positional-arguments
 
 NIGHTLY := `grep -oE 'nightly-[0-9]{4}-[0-9]{2}-[0-9]{2}' ../mise.toml | head -1`
 
+# The SP1 guest programs live in a nested Cargo workspace (separate for SP1
+# crypto patch isolation), so fmt/clippy/tests must target its manifest explicitly.
+# Run from this directory so it shares rust/rustfmt.toml and rust/clippy.toml.
+SP1_GUEST_MANIFEST := "kona/sp1/programs/Cargo.toml"
+
 # Aliases
 alias t := test
 alias l := lint
 alias f := fmt-fix
+alias fmt := fmt-fix
 alias b := build
 
 # default recipe to display help information
@@ -50,6 +56,12 @@ build-no-examples *args='':
 build-release *args='':
   cargo build --workspace --release {{args}}
 
+# Build the kona-sp1 crates under the host toolchain.
+build-sp1:
+  cargo build -p kona-sp1-host-utils -p kona-sp1-client-utils \
+    -p kona-sp1-ethereum-host-utils -p kona-sp1-ethereum-client-utils \
+    -p kona-sp1-elfs
+
 # Build kona-node
 build-kona-node:
   cargo build --release --bin kona-node
@@ -70,7 +82,8 @@ build-op-reth-debug:
 
 ############################### Test ################################
 
-# Run all tests (unit + doc tests)
+# Run all outer-workspace tests. SP1 guests require generated vkeys and are tested by CI after
+# their ELFs are built.
 test: test-unit test-docs
 
 # Run unit tests (excluding online tests)
@@ -85,22 +98,220 @@ test-online:
 test-docs:
   cargo test --doc --workspace --locked --all-features
 
+# Run tests in the nested SP1 guest program workspace
+test-sp1-guest:
+  cargo test --manifest-path {{SP1_GUEST_MANIFEST}} --workspace --locked
+
 ############################### Lint ################################
 
-# Run all lints
+# Run all lints for the outer workspace. SP1 guests require generated vkeys and are linted by CI
+# after their ELFs are built.
 lint: fmt-check lint-clippy lint-docs
 
 # Check formatting (requires nightly)
 fmt-check:
   cargo +{{NIGHTLY}} fmt --all -- --check
 
-# Fix formatting (requires nightly)
-fmt-fix:
+# Check formatting across both the main and SP1 guest workspaces. Shared by the
+# pre-push git hook and the rust-fmt CI job so the two can't drift.
+fmt-check-all: fmt-check fmt-check-sp1-guest
+
+# Fix formatting (requires nightly); also formats the SP1 guest workspace
+fmt-fix: fmt-fix-sp1-guest
   cargo +{{NIGHTLY}} fmt --all
 
 # Run clippy
 lint-clippy:
   cargo clippy --workspace --all-features --all-targets -- -D warnings
+
+# Lint-config + self-embed + lock + precompile-patch checks, fmt-check, and clippy for the SP1
+# guest program workspace. CI runs this after building the guest ELFs.
+lint-sp1-guest: check-no-self-embed check-sp1-guest-lints check-sp1-guest-lock check-sp1-guest-precompile-patches fmt-check-sp1-guest lint-clippy-sp1-guest
+
+# Verify the nested guest workspace uses the root workspace's lint configuration.
+[script('bash')]
+check-sp1-guest-lints:
+  set -euo pipefail
+  begin='# BEGIN SHARED WORKSPACE LINTS'
+  end='# END SHARED WORKSPACE LINTS'
+  root=Cargo.toml
+  guest={{SP1_GUEST_MANIFEST}}
+
+  for manifest in "$root" "$guest"; do
+    [[ $(grep -Fxc "$begin" "$manifest") == 1 ]] || {
+      echo "error: expected one '$begin' marker in rust/$manifest" >&2
+      exit 1
+    }
+    [[ $(grep -Fxc "$end" "$manifest") == 1 ]] || {
+      echo "error: expected one '$end' marker in rust/$manifest" >&2
+      exit 1
+    }
+    begin_line=$(grep -Fnx "$begin" "$manifest" | cut -d: -f1)
+    end_line=$(grep -Fnx "$end" "$manifest" | cut -d: -f1)
+    [[ "$begin_line" -lt "$end_line" ]] || {
+      echo "error: '$begin' must precede '$end' in rust/$manifest" >&2
+      exit 1
+    }
+  done
+
+  if ! diff -u \
+    --label rust/Cargo.toml \
+    --label rust/{{SP1_GUEST_MANIFEST}} \
+    <(sed -n "/^$begin$/,/^$end$/p" "$root") \
+    <(sed -n "/^$begin$/,/^$end$/p" "$guest"); then
+    echo "error: SP1 guest workspace lints differ from rust/Cargo.toml" >&2
+    echo "       Fix: run \`just fmt-fix\` from rust/." >&2
+    exit 1
+  fi
+
+[private]
+_sync-sp1-guest-lints:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  begin='# BEGIN SHARED WORKSPACE LINTS'
+  end='# END SHARED WORKSPACE LINTS'
+  root=Cargo.toml
+  guest={{SP1_GUEST_MANIFEST}}
+
+  for manifest in "$root" "$guest"; do
+    [[ $(grep -Fxc "$begin" "$manifest") == 1 ]] || {
+      echo "error: expected one '$begin' marker in rust/$manifest" >&2
+      exit 1
+    }
+    [[ $(grep -Fxc "$end" "$manifest") == 1 ]] || {
+      echo "error: expected one '$end' marker in rust/$manifest" >&2
+      exit 1
+    }
+    begin_line=$(grep -Fnx "$begin" "$manifest" | cut -d: -f1)
+    end_line=$(grep -Fnx "$end" "$manifest" | cut -d: -f1)
+    [[ "$begin_line" -lt "$end_line" ]] || {
+      echo "error: '$begin' must precede '$end' in rust/$manifest" >&2
+      exit 1
+    }
+  done
+
+  tmp=$(mktemp "${guest}.tmp.XXXXXX")
+  trap 'rm -f "$tmp"' EXIT
+  cp -p "$guest" "$tmp"
+
+  sed "/^$begin$/q" "$guest" | sed '$d' > "$tmp"
+  sed -n "/^$begin$/,/^$end$/p" "$root" >> "$tmp"
+  sed -n "/^$end$/,\$p" "$guest" | sed '1d' >> "$tmp"
+
+  if ! cmp -s "$tmp" "$guest"; then
+    mv "$tmp" "$guest"
+  fi
+
+check-no-self-embed:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  cd kona/sp1
+  # A leaf guest must not depend on the range-vkey crate: it would embed its own vkey
+  # (RANGE_VKEY = f(range ELF)), closing a build cycle. Only aggregation guests may depend on it.
+  # Direct-dep check only; no shared guest crate depends on range-vkeys today.
+  for f in programs/range/Cargo.toml programs/super-range/Cargo.toml; do
+    test -f "$f"
+    if grep -q kona-sp1-range-vkeys "$f"; then
+      echo "error: $f must not depend on kona-sp1-range-vkeys (build cycle)" >&2
+      exit 1
+    fi
+  done
+# Runs before the `--locked` clippy so a kona-only dependency change produces a
+# clear fix hint instead of cargo's cryptic "cannot update the lock file because
+# --locked was passed" error.
+# Verify the SP1 guest Cargo.lock is in sync with its manifests and path-deps
+[script('bash')]
+check-sp1-guest-lock:
+  if ! cargo metadata --manifest-path {{SP1_GUEST_MANIFEST}} --format-version 1 --locked >/dev/null 2>&1; then
+    echo "error: SP1 guest Cargo.lock (rust/kona/sp1/programs/Cargo.lock) is out of date." >&2
+    echo "       A rust/ kona crate's dependencies likely changed; the guest workspace" >&2
+    echo "       path-depends on those crates, so its separate lockfile needs refreshing." >&2
+    echo "       Fix: run \`just lock-sp1-guest\` from rust/ and commit the updated lockfile." >&2
+    exit 1
+  fi
+
+# Cargo only warns when a [patch.crates-io] entry is unused. Assert that every
+# crypto crate used by each guest program resolves exclusively to its SP1 fork.
+[script('bash')]
+check-sp1-guest-precompile-patches:
+  set -euo pipefail
+
+  common_patches=(
+    "sha2 RustCrypto-hashes"
+    "sha3 RustCrypto-hashes"
+    "crypto-bigint RustCrypto-bigint"
+    "k256 elliptic-curves"
+    "p256 elliptic-curves"
+  )
+
+  verify_program_patches() {
+    local program="$1"
+    shift
+
+    local dependency_tree
+    dependency_tree=$(cargo tree \
+      --manifest-path {{SP1_GUEST_MANIFEST}} \
+      --locked \
+      --package "$program" \
+      --edges normal \
+      --prefix none \
+      --format '{p}')
+
+    local patch package repository expected_source dependency found
+    for patch in "$@"; do
+      read -r package repository <<< "$patch"
+      expected_source="https://github.com/sp1-patches/${repository}?"
+      found=false
+
+      while IFS= read -r dependency; do
+        [[ "$dependency" == "$package v"* ]] || continue
+        found=true
+
+        if [[ "$dependency" != *"$expected_source"* ]]; then
+          echo "error: $program resolves an unpatched $package dependency:" >&2
+          echo "       $dependency" >&2
+          echo "       Expected every $package dependency to resolve from $expected_source" >&2
+          exit 1
+        fi
+      done <<< "$dependency_tree"
+
+      if [[ "$found" != true ]]; then
+        echo "error: $program does not resolve the expected $package dependency." >&2
+        exit 1
+      fi
+    done
+  }
+
+  # The range guests execute the L2 EVM, so they must also use the patched
+  # substrate-bn backend selected by revm's `bn` feature.
+  verify_program_patches kona-sp1-range "${common_patches[@]}" "substrate-bn bn"
+  verify_program_patches kona-sp1-super-range "${common_patches[@]}" "substrate-bn bn"
+
+  # Aggregation guests verify proofs but do not execute L2 EVM precompiles.
+  verify_program_patches kona-sp1-aggregation "${common_patches[@]}"
+  verify_program_patches kona-sp1-super-aggregation "${common_patches[@]}"
+
+# Resolves without --locked (minimal change), so it only touches entries that
+# actually moved rather than bumping unrelated guest deps.
+# Refresh the SP1 guest Cargo.lock after changing kona crates it depends on
+lock-sp1-guest:
+  cargo metadata --manifest-path {{SP1_GUEST_MANIFEST}} --format-version 1 >/dev/null
+
+fmt-check-sp1-guest: check-sp1-guest-lints
+  cargo +{{NIGHTLY}} fmt --manifest-path {{SP1_GUEST_MANIFEST}} --all -- --check
+
+fmt-fix-sp1-guest: _sync-sp1-guest-lints
+  cargo +{{NIGHTLY}} fmt --manifest-path {{SP1_GUEST_MANIFEST}} --all
+
+lint-clippy-sp1-guest:
+  cargo clippy --manifest-path {{SP1_GUEST_MANIFEST}} --workspace --all-features --all-targets --locked -- -D warnings
+
+# fmt-check + clippy + test the standalone range-vkeys crate (in neither workspace, so nothing
+# else covers it). Requires elf/vkeys.toml and is invoked only after the guest ELFs are built.
+check-range-vkeys:
+  cargo +{{NIGHTLY}} fmt --manifest-path kona/sp1/crates/range-vkeys/Cargo.toml --all -- --check
+  cargo clippy --manifest-path kona/sp1/crates/range-vkeys/Cargo.toml --all-targets --locked -- -D warnings
+  cargo test --manifest-path kona/sp1/crates/range-vkeys/Cargo.toml --locked
 
 # Lint Rust documentation
 lint-docs:
@@ -283,7 +494,7 @@ release TARGET VERSION MODE="dry" *ARGS="":
     KONA_BATCH_1="kona-genesis kona-macros kona-mpt kona-preimage kona-serde kona-sources kona-registry kona-std-fpvm kona-cli kona-peers kona-protocol kona-std-fpvm-proc kona-disc kona-engine kona-executor kona-hardforks"
     KONA_BATCH_2="kona-interop example-discovery kona-gossip execution-fixture kona-derive kona-rpc kona-driver kona-providers-alloy kona-providers-local kona-proof kona-node-service kona-proof-interop example-gossip kona-node kona-client kona-host"
 
-    ACTUAL_KONA=$(echo "$METADATA" | jq -r '.packages[] | select(.manifest_path | contains("/rust/kona/")) | .name' | sort -u)
+    ACTUAL_KONA=$(echo "$METADATA" | jq -r '.packages[] | select((.manifest_path | contains("/rust/kona/")) and (.manifest_path | contains("/rust/kona/sp1/") | not)) | .name' | sort -u)
     EXPECTED_KONA=$(echo "$KONA_BATCH_1 $KONA_BATCH_2" | tr ' ' '\n' | sort -u)
     if [[ "$ACTUAL_KONA" != "$EXPECTED_KONA" ]]; then
       echo "error: hardcoded kona batches don't match actual kona crates." >&2

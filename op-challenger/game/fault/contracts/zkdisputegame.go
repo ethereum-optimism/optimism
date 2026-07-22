@@ -63,6 +63,7 @@ type ZKDisputeGameContract interface {
 	ChallengeTx(ctx context.Context) (txmgr.TxCandidate, error)
 	GetProposal(ctx context.Context) (common.Hash, uint64, error)
 	GetChallengerMetadata(ctx context.Context, block rpcblock.Block) (ChallengerMetadata, error)
+	IsClosed(ctx context.Context) (bool, error)
 	GetCredit(ctx context.Context, recipient common.Address) (*big.Int, gameTypes.GameStatus, error)
 	ClaimCreditTx(ctx context.Context, recipient common.Address) (txmgr.TxCandidate, error)
 	GetBondDistributionMode(ctx context.Context, block rpcblock.Block) (types.BondDistributionMode, error)
@@ -73,6 +74,14 @@ type ZKDisputeGameContractLatest struct {
 	metrics     metrics.ContractMetricer
 	multiCaller *batching.MultiCaller
 	contract    *batching.BoundContract
+}
+
+func (g *ZKDisputeGameContractLatest) IsClosed(ctx context.Context) (bool, error) {
+	mode, err := g.GetBondDistributionMode(ctx, rpcblock.Latest)
+	if err != nil {
+		return false, err
+	}
+	return mode != types.UndecidedDistributionMode, nil
 }
 
 func (g *ZKDisputeGameContractLatest) GetCredit(ctx context.Context, recipient common.Address) (*big.Int, gameTypes.GameStatus, error) {
@@ -192,7 +201,7 @@ func (g *ZKDisputeGameContractLatest) GetStatus(ctx context.Context) (gameTypes.
 func (g *ZKDisputeGameContractLatest) GetGameRange(ctx context.Context) (prestateBlock uint64, poststateBlock uint64, retErr error) {
 	defer g.metrics.StartContractRequest("GetGameRange")()
 	results, err := g.multiCaller.Call(ctx, rpcblock.Latest,
-		g.contract.Call(methodStartingBlockNumber),
+		g.contract.Call(methodStartingSequenceNumber),
 		g.contract.Call(methodL2SequenceNumber))
 	if err != nil {
 		retErr = fmt.Errorf("failed to retrieve game block range: %w", err)

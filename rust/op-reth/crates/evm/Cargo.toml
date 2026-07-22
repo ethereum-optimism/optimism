@@ -51,6 +51,7 @@ reth-revm = { workspace = true, features = ["test-utils"] }
 alloy-genesis.workspace = true
 serde_json.workspace = true
 reth-optimism-primitives = { workspace = true, features = ["arbitrary"] }
+reth-optimism-chainspec = { workspace = true, features = ["superchain-configs"] }
 
 [features]
 default = ["std"]

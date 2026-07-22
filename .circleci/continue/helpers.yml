@@ -101,6 +101,16 @@ commands:
             - run:
                 name: Ensure clang available
                 command: 'command -v clang >/dev/null 2>&1 || { echo "ERROR: clang is required but was not found in PATH" >&2; exit 1; }'
+      # protoc + libprotobuf-dev well-known types (sp1-sdk prost/tonic build
+      # dep) are preinstalled in ci-base-clang, so just assert their presence.
+      - run:
+          name: Ensure protobuf compiler available
+          command: |
+            if ! command -v protoc >/dev/null 2>&1 || [ ! -f /usr/include/google/protobuf/empty.proto ]; then
+              echo "ERROR: protoc and the protobuf well-known type includes are required but were not found in PATH (expected in the ci-base-clang image)" >&2
+              exit 1
+            fi
+            protoc --version
       # Shared GCS compile cache (op-rust-sccache).
       - rust-sccache-setup:
           enabled: << parameters.enable_sccache >>

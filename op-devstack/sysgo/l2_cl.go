@@ -24,11 +24,8 @@ type L2CLConfig struct {
 
 	IsSequencer bool
 
-	// EnableReqRespSync is the flag to enable/disable req-resp sync.
+	// EnableReqRespSync enables/disables the req-resp sync server (serving payloads to peers).
 	EnableReqRespSync bool
-
-	// UseReqRespSync controls whether to use the req-resp sync protocol. EnableReqRespSync == false && UseReqRespSync == true is not allowed, and node will fail to start.
-	UseReqRespSync bool
 
 	// NoDiscovery is the flag to enable/disable discovery
 	NoDiscovery bool
@@ -70,7 +67,6 @@ func DefaultL2CLConfig() *L2CLConfig {
 		SafeDBPath:        "",
 		IsSequencer:       false,
 		EnableReqRespSync: true,
-		UseReqRespSync:    false,
 		NoDiscovery:       false,
 		FollowSource:      "",
 	}
