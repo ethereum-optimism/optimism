@@ -2,6 +2,7 @@ package dsl
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-conductor/consensus"
@@ -9,7 +10,85 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
+// conductorSettleAttempts bounds the polling loops that wait for cluster-wide
+// conditions (leadership, sequencer active-state). Polls are 2s apart.
+const conductorSettleAttempts = 30
+
 type ConductorSet []*Conductor
+
+// common returns the shared test plumbing of the set. The preset always
+// constructs non-empty sets; an empty set is a wiring bug, not a test failure.
+func (s ConductorSet) common() commonImpl {
+	if len(s) == 0 {
+		panic("empty conductor set: preset wiring is broken")
+	}
+	return s[0].commonImpl
+}
+
+// leaderAndFollowers samples Raft leadership across the set once, requiring
+// exactly one leader. It returns errors instead of asserting so polling
+// callers can treat transient RPC failures and unsettled elections as retries.
+func (s ConductorSet) leaderAndFollowers() (*Conductor, []*Conductor, error) {
+	var leader *Conductor
+	followers := make([]*Conductor, 0, len(s))
+	for _, c := range s {
+		isLeader, err := c.isLeader()
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to check leadership of %s: %w", c, err)
+		}
+		if !isLeader {
+			followers = append(followers, c)
+			continue
+		}
+		if leader != nil {
+			return nil, nil, fmt.Errorf("multiple Raft leaders: %s and %s", leader, c)
+		}
+		leader = c
+	}
+	if leader == nil {
+		return nil, nil, fmt.Errorf("no Raft leader among %d conductors", len(s))
+	}
+	return leader, followers, nil
+}
+
+// VerifyOneActiveSequencer waits until the cluster has exactly one Raft leader
+// and verifies that only the leader's sequencer is active — the core HA
+// guarantee that exactly one node sequences at any time. It returns the
+// leader's conductor.
+func (s ConductorSet) VerifyOneActiveSequencer() *Conductor {
+	c := s.common()
+	var leader *Conductor
+	err := retry.Do0(c.ctx, conductorSettleAttempts, retry.Fixed(2*time.Second), func() error {
+		l, followers, err := s.leaderAndFollowers()
+		if err != nil {
+			c.log.Info("Waiting for conductor cluster to settle on a single Raft leader", "err", err)
+			return err
+		}
+		active, err := l.Sequencer().sequencerActive()
+		if err != nil {
+			return err
+		}
+		if !active {
+			c.log.Info("Waiting for leader's sequencer to become active", "leader", l)
+			return fmt.Errorf("leader %s sequencer is not active", l)
+		}
+		for _, f := range followers {
+			active, err := f.Sequencer().sequencerActive()
+			if err != nil {
+				return err
+			}
+			if active {
+				c.log.Info("Waiting for follower's sequencer to become inactive", "follower", f)
+				return fmt.Errorf("follower %s sequencer is active", f)
+			}
+		}
+		leader = l
+		return nil
+	})
+	c.require.NoError(err, "expected exactly one active sequencer, the Raft leader's")
+	c.log.Info("Verified exactly one active sequencer", "leader", leader)
+	return leader
+}
 
 type Conductor struct {
 	commonImpl
@@ -94,12 +173,19 @@ func (c *Conductor) FetchPaused() bool {
 
 func (c *Conductor) IsLeader() bool {
 	c.log.Debug("Checking if conductor is leader")
-	ctx, cancel := context.WithTimeout(c.ctx, DefaultTimeout)
-	defer cancel()
-	leader, err := c.inner.RpcAPI().Leader(ctx)
+	leader, err := c.isLeader()
 	c.require.NoError(err, "Failed to check if conductor is leader")
 	c.log.Info("Checked if conductor is leader", "leader", leader)
 	return leader
+}
+
+// isLeader reports Raft leadership and returns the RPC error, if any. Internal
+// callers in retry loops use this so a transient RPC failure counts as a retry
+// rather than an instant FailNow.
+func (c *Conductor) isLeader() (bool, error) {
+	ctx, cancel := context.WithTimeout(c.ctx, DefaultTimeout)
+	defer cancel()
+	return c.inner.RpcAPI().Leader(ctx)
 }
 
 func (c *Conductor) TransferLeadershipTo(targetLeaderInfo consensus.ServerInfo) {

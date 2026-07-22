@@ -139,6 +139,15 @@ func (cl *L2CLNode) SetSequencerRecoverMode(b bool) error {
 	return cl.inner.RollupAPI().SetRecoverMode(cl.ctx, b)
 }
 
+// sequencerActive fetches the sequencer active-state and returns the RPC
+// error, if any. Internal callers in retry/eventually loops use this so a
+// transient RPC timeout counts as a retry rather than an instant FailNow.
+func (cl *L2CLNode) sequencerActive() (bool, error) {
+	ctx, cancel := context.WithTimeout(cl.ctx, DefaultTimeout)
+	defer cancel()
+	return cl.inner.RollupAPI().SequencerActive(ctx)
+}
+
 // syncStatus fetches the L2CL sync status and returns the RPC error, if any.
 // Internal callers in retry/eventually loops use this so a transient RPC timeout
 // counts as a retry rather than an instant FailNow.
