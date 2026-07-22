@@ -2579,8 +2579,7 @@
                 "group": "Deployment & Infrastructure",
                 "pages": [
                   "/op-stack/components/op-deployer",
-                  "/op-stack/components/proxyd",
-                  "/op-stack/components/op-acceptor"
+                  "/op-stack/components/proxyd"
                 ]
               }
             ]
