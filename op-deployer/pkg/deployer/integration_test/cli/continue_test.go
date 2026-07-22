@@ -96,7 +96,7 @@ func TestContinueCLIColdStart(t *testing.T) {
 		require.Equal(t, nonceBefore+1, continueCLINonce(t, fixture))
 		persisted, err := pipeline.ReadState(workdir)
 		require.NoError(t, err)
-		require.NotNil(t, persisted.AppliedIntent)
+		require.Nil(t, persisted.AppliedIntent)
 		require.True(t, persisted.IsChainDeployed(fixture.chainID))
 		continuedChain, err := persisted.Chain(fixture.chainID)
 		require.NoError(t, err)

@@ -62,6 +62,9 @@ func TestEndToEndContinuePreparedChain(t *testing.T) {
 	t.Run("permissionless with custom roles", func(t *testing.T) {
 		testContinuePermissionlessWithCustomRoles(t)
 	})
+	t.Run("prestate override drift is rejected before broadcast", func(t *testing.T) {
+		testContinueRejectsPrestateOverrideDrift(t)
+	})
 	t.Run("permissioned without committed prestate", func(t *testing.T) {
 		testContinuePermissioned(t)
 	})
@@ -154,7 +157,7 @@ func testContinuePermissionless(t *testing.T) {
 	require.Equal(t, recordedContracts, reconciledChain.OpChainContracts)
 	require.Equal(t, originalContracts, env.preparedSnapshotChain.OpChainContracts)
 	require.True(t, reconciledChain.Continuation.LiveValidated)
-	require.NotNil(t, reconciled.AppliedIntent)
+	require.Nil(t, reconciled.AppliedIntent)
 }
 
 func testContinuePermissionlessWithCustomRoles(t *testing.T) {
@@ -179,6 +182,31 @@ func testContinuePermissionlessWithCustomRoles(t *testing.T) {
 
 	require.NoError(t, deployer.Continue(env.ctx, env.config()))
 	assertContinuationCompleted(t, env, nonceBefore)
+}
+
+func testContinueRejectsPrestateOverrideDrift(t *testing.T) {
+	t.Helper()
+	env := newContinuationEnv(t, embedded.GameTypeCannonKona)
+	prestateA := common.HexToHash("0x1234")
+	env.intent.Chains[0].DeployOverrides[state.FaultGameAbsolutePrestateOverrideKey] = prestateA
+	require.NoError(t, env.intent.WriteToFile(filepath.Join(env.workdir, "intent.toml")))
+	require.NoError(t, deployer.Prestate(env.ctx, deployer.PrestateConfig{
+		Workdir: env.workdir,
+		Logger:  env.lgr,
+	}))
+	committed, err := pipeline.ReadState(env.workdir)
+	require.NoError(t, err)
+	committedChain, err := committed.Chain(env.intent.Chains[0].ID)
+	require.NoError(t, err)
+	require.Equal(t, prestateA, committedChain.Prestate)
+
+	env.intent.Chains[0].DeployOverrides[state.FaultGameAbsolutePrestateOverrideKey] = common.HexToHash("0x5678")
+	require.NoError(t, env.intent.WriteToFile(filepath.Join(env.workdir, "intent.toml")))
+	nonceBefore := pendingNonce(t, env)
+	err = deployer.Continue(env.ctx, env.config())
+	require.ErrorContains(t, err, "override differs from the committed prestate")
+	require.ErrorContains(t, err, "Rerun op-deployer prestate")
+	require.Equal(t, nonceBefore, pendingNonce(t, env))
 }
 
 func testContinuePermissioned(t *testing.T) {
@@ -270,7 +298,7 @@ func testContinueLiveValidationFailure(t *testing.T) {
 	retriedChain, err := retried.Chain(env.intent.Chains[0].ID)
 	require.NoError(t, err)
 	require.True(t, retriedChain.Continuation.LiveValidated)
-	require.NotNil(t, retried.AppliedIntent)
+	require.Nil(t, retried.AppliedIntent)
 }
 
 func testContinuePartialDeployment(t *testing.T) {
@@ -320,7 +348,7 @@ func testContinueMultiChainGlobalPreflight(t *testing.T) {
 	require.Equal(t, nonceBefore+uint64(len(env.intent.Chains)), pendingNonce(t, env))
 	continued, err := pipeline.ReadState(env.workdir)
 	require.NoError(t, err)
-	require.NotNil(t, continued.AppliedIntent)
+	require.Nil(t, continued.AppliedIntent)
 	for i, chain := range env.intent.Chains {
 		require.True(t, continued.IsChainDeployed(chain.ID))
 		continuedChain, chainErr := continued.Chain(chain.ID)
@@ -368,7 +396,7 @@ func testContinueMultiChainLiveValidationFailure(t *testing.T) {
 	require.Equal(t, nonceAfterFailure, pendingNonce(t, env))
 	retried, err := pipeline.ReadState(env.workdir)
 	require.NoError(t, err)
-	require.NotNil(t, retried.AppliedIntent)
+	require.Nil(t, retried.AppliedIntent)
 	for _, chain := range env.intent.Chains {
 		retriedChain, chainErr := retried.Chain(chain.ID)
 		require.NoError(t, chainErr)
@@ -407,7 +435,7 @@ func testContinueMultiChainSequentialValidation(t *testing.T) {
 	require.Equal(t, nonceBefore+2, pendingNonce(t, env))
 	completed, err := pipeline.ReadState(env.workdir)
 	require.NoError(t, err)
-	require.NotNil(t, completed.AppliedIntent)
+	require.Nil(t, completed.AppliedIntent)
 	for _, chain := range env.intent.Chains {
 		completedChain, chainErr := completed.Chain(chain.ID)
 		require.NoError(t, chainErr)
@@ -605,7 +633,7 @@ func assertContinuationCompleted(t *testing.T, env *continuationEnv, nonceBefore
 	continued, err := pipeline.ReadState(env.workdir)
 	require.NoError(t, err)
 	require.True(t, continued.IsChainDeployed(env.intent.Chains[0].ID))
-	require.NotNil(t, continued.AppliedIntent)
+	require.Nil(t, continued.AppliedIntent)
 	continuedChain, err := continued.Chain(env.intent.Chains[0].ID)
 	require.NoError(t, err)
 	require.NotNil(t, continuedChain.Continuation)

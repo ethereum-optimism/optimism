@@ -380,6 +380,13 @@ func (f *continuationVerificationFixture) seed(t *testing.T, gameType embedded.G
 	f.backend.set(t, f.expected.SystemConfigProxy, continuationPausedMethod, nil, false)
 	f.backend.set(t, f.expected.OptimismPortalProxy, continuationPausedMethod, nil, false)
 	f.backend.set(t, f.expected.OptimismPortalProxy, continuationEthLockboxMethod, nil, f.expected.EthLockboxProxy)
+	f.backend.set(
+		t,
+		f.expected.AnchorStateRegistryProxy,
+		continuationStartingAnchorRootMethod,
+		nil,
+		f.dci.StartingAnchorRoot,
+	)
 
 	attachments := []struct {
 		address common.Address
@@ -565,6 +572,41 @@ func TestVerifyContinuationDeploymentRejectsOPCMGameModeMismatch(t *testing.T) {
 		fixture := newContinuationVerificationFixture(t, embedded.GameTypeSuperCannonKona)
 		fixture.backend.set(t, fixture.dci.Opcm, continuationDevFeatureBitmapMethod, nil, common.Hash{})
 		require.ErrorContains(t, fixture.verify(t), "requires an OPCM with SUPER_ROOT_GAMES_MIGRATION")
+	})
+}
+
+func TestVerifyContinuationDeploymentStartingAnchorRoot(t *testing.T) {
+	t.Run("root mismatch", func(t *testing.T) {
+		fixture := newContinuationVerificationFixture(t, embedded.GameTypeCannonKona)
+		fixture.backend.set(
+			t,
+			fixture.expected.AnchorStateRegistryProxy,
+			continuationStartingAnchorRootMethod,
+			nil,
+			opcm.Proposal{
+				Root:             common.Hash{0xff},
+				L2SequenceNumber: new(big.Int).Set(fixture.dci.StartingAnchorRoot.L2SequenceNumber),
+			},
+		)
+		require.ErrorContains(t, fixture.verify(t), "starting anchor root")
+	})
+
+	t.Run("sequence mismatch", func(t *testing.T) {
+		fixture := newContinuationVerificationFixture(t, embedded.GameTypeCannonKona)
+		fixture.backend.set(
+			t,
+			fixture.expected.AnchorStateRegistryProxy,
+			continuationStartingAnchorRootMethod,
+			nil,
+			opcm.Proposal{
+				Root: fixture.dci.StartingAnchorRoot.Root,
+				L2SequenceNumber: new(big.Int).Add(
+					fixture.dci.StartingAnchorRoot.L2SequenceNumber,
+					big.NewInt(1),
+				),
+			},
+		)
+		require.ErrorContains(t, fixture.verify(t), "starting anchor sequence number")
 	})
 }
 

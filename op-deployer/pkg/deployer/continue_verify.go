@@ -136,6 +136,7 @@ func verifyContinuationDeployment(
 	if !verifier.verifyAddressesAndCode() {
 		return errors.Join(verifier.failures...)
 	}
+	verifier.verifyStartingAnchorRoot()
 
 	mode, err := verifier.resolveGameMode()
 	if err != nil {
@@ -251,6 +252,41 @@ func (v *continuationVerifier) verifyAddressesAndCode() bool {
 		}
 	}
 	return valid
+}
+
+func (v *continuationVerifier) verifyStartingAnchorRoot() {
+	observed, err := readContinuation[opcm.Proposal](
+		v.ctx,
+		v.backend,
+		v.expected.AnchorStateRegistryProxy,
+		continuationStartingAnchorRootMethod,
+	)
+	if err != nil {
+		v.addReadError(
+			"starting anchor proposal",
+			"frozen DeployOPChainInput.StartingAnchorRoot",
+			v.dci.StartingAnchorRoot,
+			err,
+		)
+		return
+	}
+	if observed.Root != v.dci.StartingAnchorRoot.Root {
+		v.addMismatch(
+			"starting anchor root",
+			"frozen DeployOPChainInput.StartingAnchorRoot.Root",
+			v.dci.StartingAnchorRoot.Root,
+			observed.Root,
+		)
+	}
+	expectedSequence := v.dci.StartingAnchorRoot.L2SequenceNumber
+	if expectedSequence == nil || observed.L2SequenceNumber == nil || observed.L2SequenceNumber.Cmp(expectedSequence) != 0 {
+		v.addMismatch(
+			"starting anchor sequence number",
+			"frozen DeployOPChainInput.StartingAnchorRoot.L2SequenceNumber",
+			expectedSequence,
+			observed.L2SequenceNumber,
+		)
+	}
 }
 
 func (v *continuationVerifier) verifyGameConfiguration(
@@ -821,6 +857,7 @@ var (
 	continuationGuardianMethod            = w3.MustNewFunc("guardian()", "address")
 	continuationStandardValidatorMethod   = w3.MustNewFunc("opcmStandardValidator()", "address")
 	continuationDevFeatureBitmapMethod    = w3.MustNewFunc("devFeatureBitmap()", "bytes32")
+	continuationStartingAnchorRootMethod  = w3.MustNewFunc("getStartingAnchorRoot()", "(bytes32 root,uint256 l2SequenceNumber)")
 )
 
 func readContinuation[T any](

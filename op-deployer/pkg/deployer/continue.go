@@ -138,6 +138,9 @@ func (r *continuationRunner) run() error {
 	if err := pipeline.ValidatePreparedDeployment(intent, st); err != nil {
 		return fmt.Errorf("failed to validate prepared deployment: %w", err)
 	}
+	if err := pipeline.ValidateCommittedPrestateOverrides(intent, st); err != nil {
+		return fmt.Errorf("failed to validate committed prestates: %w", err)
+	}
 	if err := pipeline.ValidateInputs(intent, st); err != nil {
 		return fmt.Errorf("failed to validate continuation inputs: %w", err)
 	}
@@ -205,7 +208,6 @@ func (r *continuationRunner) run() error {
 		}
 	}
 
-	st.AppliedIntent = intent
 	if err := pipeline.WriteState(r.cfg.Workdir, st); err != nil {
 		return fmt.Errorf("failed to write completed continuation state: %w", err)
 	}

@@ -142,6 +142,58 @@ func ValidatePreparedDeployment(intent *state.Intent, st *state.State) error {
 	return nil
 }
 
+// ValidateCommittedPrestateOverrides preserves the value selected by op-deployer
+// prestate: once committed, an explicit prestate override cannot change.
+func ValidateCommittedPrestateOverrides(intent *state.Intent, st *state.State) error {
+	if intent == nil {
+		return fmt.Errorf("intent is missing")
+	}
+	if st == nil || st.PreparedDeployment == nil || st.PreparedDeployment.Intent == nil {
+		return fmt.Errorf("prepared deployment is missing")
+	}
+
+	for _, preparedChain := range st.PreparedDeployment.Intent.Chains {
+		chain, err := intent.Chain(preparedChain.ID)
+		if err != nil {
+			return fmt.Errorf("failed to get current intent for chain %s: %w", preparedChain.ID.Hex(), err)
+		}
+		chainState, err := st.Chain(preparedChain.ID)
+		if err != nil {
+			return fmt.Errorf("failed to get prepared state for chain %s: %w", preparedChain.ID.Hex(), err)
+		}
+		if chainState.Prestate == (common.Hash{}) {
+			continue
+		}
+
+		proofParams, err := ResolveChainProofParams(intent, chain)
+		if err != nil {
+			return fmt.Errorf("failed to resolve proof parameters for chain %s: %w", chain.ID.Hex(), err)
+		}
+		requirements, err := ResolveInitialDeployRequirements(proofParams.DisputeGameType)
+		if err != nil {
+			return fmt.Errorf("chain %s: %w", chain.ID.Hex(), err)
+		}
+		if !requirements.RequiresPrestate || !hasFaultGameAbsolutePrestateOverride(intent, chain) {
+			continue
+		}
+		if proofParams.DisputeAbsolutePrestate != chainState.Prestate {
+			return fmt.Errorf(
+				"chain %s faultGameAbsolutePrestate override differs from the committed prestate. Rerun op-deployer prestate",
+				chain.ID.Hex(),
+			)
+		}
+	}
+	return nil
+}
+
+func hasFaultGameAbsolutePrestateOverride(intent *state.Intent, chain *state.ChainIntent) bool {
+	if _, ok := chain.DeployOverrides[state.FaultGameAbsolutePrestateOverrideKey]; ok {
+		return true
+	}
+	_, ok := intent.GlobalDeployOverrides[state.FaultGameAbsolutePrestateOverrideKey]
+	return ok
+}
+
 func ValidatePreparedArtifactContents(prepared *state.PreparedDeployment, bundle artifacts.Bundle) error {
 	if prepared == nil {
 		return fmt.Errorf("prepared deployment is missing")
