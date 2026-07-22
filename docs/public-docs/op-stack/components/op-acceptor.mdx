@@ -1,0 +1,61 @@
+---
+title: op-acceptor
+description: Canonical hub for op-acceptor, the retired network acceptance tester for OP Stack devnets, covering what it did, where its release history lives, and what replaced it.
+diataxis: explanation
+---
+
+op-acceptor was the OP Stack's network acceptance tester: a tool that ran
+validation checks, written as standard Go tests, against a network to
+determine whether it was ready for production. It is retired: the component
+was removed from the `ethereum-optimism/infra` repository in June 2026
+([infra#651](https://github.com/ethereum-optimism/infra/pull/651)) after
+op-devstack dropped the sysext support it relied on.
+
+## Overview
+
+op-acceptor executed Go test suites against a running devnet, either by
+auto-discovering every test in a directory (gateless mode) or through
+gate-based validation configs that grouped tests into named gates a network
+had to pass. Its releases shipped from the Optimism infra repository as
+`op-acceptor/vX.Y.Z`.
+
+**Who ran it:** OP Stack developers and devnet operators, in CI pipelines and
+release qualification runs. Nothing runs it today: acceptance testing now
+lives in the monorepo's
+[`op-acceptance-tests`](https://github.com/ethereum-optimism/optimism/tree/develop/op-acceptance-tests)
+package, which runs against the in-process `sysgo` devstack as normal Go
+tests.
+
+## Get started
+
+op-acceptor is retired and is not a supported starting point. To
+acceptance-test an OP Stack devnet today, start from the
+[op-acceptance-tests README](https://github.com/ethereum-optimism/optimism/blob/develop/op-acceptance-tests/README.md)
+in the Optimism monorepo.
+
+## How-tos
+
+No task guides on this site use op-acceptor. Its final in-repo README
+documents the gateless and gate-based usage modes, preserved at the last
+release tag (as of `op-acceptor/v3.10.2`):
+[op-acceptor README](https://github.com/ethereum-optimism/infra/blob/op-acceptor/v3.10.2/op-acceptor/README.md).
+
+## Configuration & flags reference
+
+No configuration reference exists on this site, and none is pending given the
+retirement. The final README linked above documents the CLI flags (as of
+`op-acceptor/v3.10.2`).
+
+## Releases
+
+*   [op-acceptor release history](/releases/op-acceptor), through the final
+    release in March 2026.
+
+## Source & spec links
+
+*   [Source: `op-acceptor/`](https://github.com/ethereum-optimism/infra/tree/op-acceptor/v3.10.2/op-acceptor)
+    at its final release tag in the Optimism infra repository (as of
+    `op-acceptor/v3.10.2`); the directory no longer exists on the
+    repository's `main` branch.
+*   op-acceptor was development tooling and has no section of its own in the
+    OP Stack specifications.
