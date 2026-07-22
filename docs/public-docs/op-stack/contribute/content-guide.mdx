@@ -6,6 +6,7 @@ diataxis: reference
 
 import ThirdPartyContent from "/snippets/third-party-content.mdx"
 import ThirdPartyContentSingle from "/snippets/third-party-content-single.mdx"
+import { NormativeSpec } from "/snippets/normative-spec.mdx"
 
 This page defines what content belongs on docs.optimism.io and, for every
 content type, which source is canonical. It exists so that "where does this
@@ -138,6 +139,47 @@ import ThirdPartyContentSingle from "/snippets/third-party-content-single.mdx"
 Which renders:
 
 <ThirdPartyContentSingle />
+
+## Citing the normative spec
+
+<Info>
+  This section documents the `<NormativeSpec>` component, the standing
+  callout that applies the [dual-sourcing ban](#link-dont-restate-the-dual-sourcing-ban)
+  to protocol pages: every page whose subject is normatively defined in the
+  [OP Stack specifications](https://specs.optimism.io/) is stamped the same
+  way, so spec citations stay uniform and greppable.
+</Info>
+
+A page that explains protocol behavior must open with the `<NormativeSpec>`
+component, deep-linking the exact spec section that defines its subject:
+
+```mdx
+import { NormativeSpec } from "/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="The derivation pipeline"
+  title="L2 chain derivation specification"
+  href="https://specs.optimism.io/protocol/derivation.html"
+  note="This page is a short orientation; it does not restate the spec."
+/>
+```
+
+Which renders:
+
+<NormativeSpec
+  what="The derivation pipeline"
+  title="L2 chain derivation specification"
+  href="https://specs.optimism.io/protocol/derivation.html"
+  note="This page is a short orientation; it does not restate the spec."
+/>
+
+All four variables are required: `what` names the subject the spec defines,
+`title` and `href` name and deep-link the governing spec section (a rendered
+`specs.optimism.io` URL on its current path, per the
+[link policy](/op-stack/contribute/link-policy)), and `note` states what the
+page does instead of restating the spec. The
+[hardfork registry pages](/op-stack/protocol/network-upgrades) carry the same
+component with the spec URL from their structured frontmatter.
 
 ## Next steps
 
