@@ -198,6 +198,76 @@ func (c *Conductor) isLeader() (bool, error) {
 	return c.inner.RpcAPI().Leader(ctx)
 }
 
+// awaitClusterMembership waits until the presence of the given server ID in
+// the cluster membership matches want.
+func (c *Conductor) awaitClusterMembership(id string, want bool) {
+	err := retry.Do0(c.ctx, conductorSettleAttempts, retry.Fixed(2*time.Second), func() error {
+		ctx, cancel := context.WithTimeout(c.ctx, DefaultTimeout)
+		defer cancel()
+		membership, err := c.inner.RpcAPI().ClusterMembership(ctx)
+		if err != nil {
+			return err
+		}
+		present := false
+		for _, member := range membership.Servers {
+			if member.ID == id {
+				present = true
+				break
+			}
+		}
+		if present != want {
+			c.log.Info("Waiting for cluster membership", "conductor", c, "member", id, "want", want, "present", present)
+			return fmt.Errorf("membership of %s is %v, want %v", id, present, want)
+		}
+		return nil
+	})
+	c.require.NoErrorf(err, "cluster membership never reflected member %s present=%v", id, want)
+}
+
+// RemoveServer removes a server using the given Raft configuration version.
+func (c *Conductor) RemoveServer(id string, version uint64) error {
+	ctx, cancel := context.WithTimeout(c.ctx, DefaultTimeout)
+	defer cancel()
+	return c.inner.RpcAPI().RemoveServer(ctx, id, version)
+}
+
+// AddServerAsVoter adds a server using the given Raft configuration version.
+func (c *Conductor) AddServerAsVoter(id, addr string, version uint64) error {
+	ctx, cancel := context.WithTimeout(c.ctx, DefaultTimeout)
+	defer cancel()
+	return c.inner.RpcAPI().AddServerAsVoter(ctx, id, addr, version)
+}
+
+// AddServerAsNonvoter adds a server using the given Raft configuration version.
+func (c *Conductor) AddServerAsNonvoter(id, addr string, version uint64) error {
+	ctx, cancel := context.WithTimeout(c.ctx, DefaultTimeout)
+	defer cancel()
+	return c.inner.RpcAPI().AddServerAsNonvoter(ctx, id, addr, version)
+}
+
+// RemoveFromCluster removes the target conductor from the Raft cluster, using
+// the current configuration version, and waits for the change to take effect.
+func (c *Conductor) RemoveFromCluster(target *Conductor) {
+	c.log.Info("Removing conductor from cluster", "leader", c, "target", target)
+	membership := c.FetchClusterMembership()
+	err := c.RemoveServer(target.String(), membership.Version)
+	c.require.NoErrorf(err, "failed to remove %s from the cluster", target)
+	c.awaitClusterMembership(target.String(), false)
+	c.log.Info("Removed conductor from cluster", "leader", c, "target", target)
+}
+
+// AddVoterToCluster adds the target conductor to the Raft cluster as a voter,
+// using the current configuration version, and waits for the change to take
+// effect.
+func (c *Conductor) AddVoterToCluster(target *Conductor) {
+	c.log.Info("Adding conductor to cluster as voter", "leader", c, "target", target)
+	membership := c.FetchClusterMembership()
+	err := c.AddServerAsVoter(target.String(), target.Escape().ConsensusEndpoint(), membership.Version)
+	c.require.NoErrorf(err, "failed to add %s to the cluster as voter", target)
+	c.awaitClusterMembership(target.String(), true)
+	c.log.Info("Added conductor to cluster as voter", "leader", c, "target", target)
+}
+
 // Stop shuts down the conductor service via its admin RPC and waits until the
 // conductor stops serving RPC. The service cannot be restarted; tests use this
 // to take cluster members out, e.g. to simulate loss of Raft quorum.

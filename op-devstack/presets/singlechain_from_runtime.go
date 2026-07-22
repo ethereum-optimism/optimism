@@ -284,7 +284,7 @@ func minimalWithConductorsFromRuntime(t devtest.T, runtime *sysgo.SingleChainRun
 
 	conductors := make(dsl.ConductorSet, 0, len(sequencerCLs))
 	for _, name := range []string{"sequencer", "b", "c"} {
-		frontend := newConductorFrontend(t, name, l2ChainID, runtime.Conductors[name].HTTPEndpoint())
+		frontend := newConductorFrontend(t, name, l2ChainID, runtime.Conductors[name].HTTPEndpoint(), runtime.Conductors[name].ConsensusEndpoint())
 		l2Net.AddConductor(frontend)
 		conductor := dsl.NewConductor(frontend, sequencerCLs[name])
 		conductors = append(conductors, conductor)

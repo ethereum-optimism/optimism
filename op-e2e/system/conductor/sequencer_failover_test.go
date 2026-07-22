@@ -13,7 +13,7 @@ import (
 )
 
 // [Category: conductor rpc]
-// In this test, we test all rpcs exposed by conductor.
+// This test covers conductor RPC behaviors that are not exercised by acceptance tests.
 func TestSequencerFailover_ConductorRPC(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
@@ -87,15 +87,6 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 		require.NoError(t, err)
 	}()
 
-	membership, err = leader.client.ClusterMembership(ctx)
-	require.NoError(t, err)
-
-	err = leader.client.AddServerAsNonvoter(ctx, VerifierName, nonvoter.ConsensusEndpoint(), membership.Version-1)
-	require.ErrorContains(t, err, "configuration changed since", "Expected leader to fail to add nonvoter due to version mismatch")
-	membership, err = leader.client.ClusterMembership(ctx)
-	require.NoError(t, err)
-	require.Equal(t, 3, len(membership.Servers), "Expected 3 members in cluster")
-
 	err = leader.client.AddServerAsNonvoter(ctx, VerifierName, nonvoter.ConsensusEndpoint(), 0)
 	require.NoError(t, err, "Expected leader to add non-voter")
 	membership, err = leader.client.ClusterMembership(ctx)
@@ -105,7 +96,7 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 
 	t.Log("Testing RemoveServer, call remove on follower, expected to fail")
 	lid, leader := findLeader(t, conductors)
-	fid, follower := findFollower(t, conductors)
+	_, follower := findFollower(t, conductors)
 	err = follower.client.RemoveServer(ctx, lid, membership.Version)
 	require.ErrorContains(t, err, "node is not the leader", "Expected follower to fail to remove leader")
 	membership, err = c1.client.ClusterMembership(ctx)
@@ -119,22 +110,6 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 3, len(membership.Servers), "Expected 2 members in cluster after removal")
 	require.NotContains(t, memberIDs(membership), VerifierName, "Expected follower to be removed from cluster")
-
-	t.Log("Testing RemoveServer, call remove on leader with incorrect version, expect voter not to be removed")
-	err = leader.client.RemoveServer(ctx, fid, membership.Version-1)
-	require.ErrorContains(t, err, "configuration changed since", "Expected leader to fail to remove follower due to version mismatch")
-	membership, err = c1.client.ClusterMembership(ctx)
-	require.NoError(t, err)
-	require.Equal(t, 3, len(membership.Servers), "Expected 3 members in cluster after failed removal")
-	require.Contains(t, memberIDs(membership), fid, "Expected follower to not be removed from cluster")
-
-	t.Log("Testing RemoveServer, call remove on leader, expect voter to be removed")
-	err = leader.client.RemoveServer(ctx, fid, membership.Version)
-	require.NoError(t, err, "Expected leader to remove follower")
-	membership, err = c1.client.ClusterMembership(ctx)
-	require.NoError(t, err)
-	require.Equal(t, 2, len(membership.Servers), "Expected 2 members in cluster after removal")
-	require.NotContains(t, memberIDs(membership), fid, "Expected follower to be removed from cluster")
 
 	// Testing the stop api
 	t.Log("Testing Stop API")
