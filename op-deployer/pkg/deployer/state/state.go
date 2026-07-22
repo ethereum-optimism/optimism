@@ -143,6 +143,16 @@ type StartingAnchorProposal struct {
 	L2SequenceNumber hexutil.Uint64 `json:"l2SequenceNumber"`
 }
 
+// ContinuationState preserves the prepared address set and mined progress after
+// deployment state is normalized with implementation addresses read from L1.
+type ContinuationState struct {
+	ExpectedContracts  *addresses.OpChainContracts `json:"expectedContracts,omitempty"`
+	TxHash             *common.Hash                `json:"txHash,omitempty"`
+	ReceiptBlockNumber *hexutil.Uint64             `json:"receiptBlockNumber,omitempty"`
+	ReceiptBlockHash   *common.Hash                `json:"receiptBlockHash,omitempty"`
+	LiveValidated      bool                        `json:"liveValidated,omitempty"`
+}
+
 type ChainState struct {
 	ID common.Hash `json:"id"`
 
@@ -172,6 +182,8 @@ type ChainState struct {
 	// GenesisTime is the L2 genesis timestamp pinned with StartBlock.
 	// Nil leaves deploy config to derive it from L1StartingBlockTag.
 	GenesisTime *hexutil.Uint64 `json:"genesisTime,omitempty"`
+
+	Continuation *ContinuationState `json:"continuation,omitempty"`
 }
 
 // IsChainDeployed reports whether the chain's addresses have been broadcast.

@@ -109,20 +109,41 @@ func ExecuteOPChainDeployment(
 		}
 	}
 
+	return readOPChainDeployment(env, chainID, OpChainContractsFromDeployOutput(dco), dci.Opcm)
+}
+
+// ReconcileOPChainDeployment reads the implementation addresses needed to
+// produce the same recorded state as a freshly receipted deployment.
+func ReconcileOPChainDeployment(
+	env *Env,
+	chainID common.Hash,
+	expected addresses.OpChainContracts,
+	pinnedOPCM common.Address,
+) (OPChainDeploymentResult, error) {
+	return readOPChainDeployment(env, chainID, expected, pinnedOPCM)
+}
+
+func readOPChainDeployment(
+	env *Env,
+	chainID common.Hash,
+	outputContracts addresses.OpChainContracts,
+	pinnedOPCM common.Address,
+) (OPChainDeploymentResult, error) {
 	readInput := opcm.ReadImplementationAddressesInput{
-		AddressManager:                    dco.AddressManager,
-		L1ERC721BridgeProxy:               dco.L1ERC721BridgeProxy,
-		SystemConfigProxy:                 dco.SystemConfigProxy,
-		OptimismMintableERC20FactoryProxy: dco.OptimismMintableERC20FactoryProxy,
-		L1StandardBridgeProxy:             dco.L1StandardBridgeProxy,
-		OptimismPortalProxy:               dco.OptimismPortalProxy,
-		DisputeGameFactoryProxy:           dco.DisputeGameFactoryProxy,
-		Opcm:                              dci.Opcm,
+		AddressManager:                    outputContracts.AddressManagerImpl,
+		L1ERC721BridgeProxy:               outputContracts.L1Erc721BridgeProxy,
+		SystemConfigProxy:                 outputContracts.SystemConfigProxy,
+		OptimismMintableERC20FactoryProxy: outputContracts.OptimismMintableErc20FactoryProxy,
+		L1StandardBridgeProxy:             outputContracts.L1StandardBridgeProxy,
+		OptimismPortalProxy:               outputContracts.OptimismPortalProxy,
+		DisputeGameFactoryProxy:           outputContracts.DisputeGameFactoryProxy,
+		Opcm:                              pinnedOPCM,
 	}
 
 	var impls opcm.ReadImplementationAddressesOutput
+	var err error
 	if env.UseForge {
-		lgr.Info("using Forge for ReadImplementationAddresses")
+		env.Logger.Info("using Forge for ReadImplementationAddresses", "stage", "deploy-opchain")
 		forgeEnv := &opcm.ForgeEnv{
 			Client:   env.ForgeClient,
 			Context:  env.Context,
@@ -130,24 +151,24 @@ func ExecuteOPChainDeployment(
 		}
 		impls, err = opcm.ReadImplementationAddressesViaForge(forgeEnv, readInput)
 		if err != nil {
-			return result, err
+			return OPChainDeploymentResult{}, err
 		}
 	} else {
 		readImplementations, err := opcm.NewReadImplementationAddressesScript(env.L1ScriptHost)
 		if err != nil {
-			return result, fmt.Errorf("failed to load ReadImplementationAddresses script: %w", err)
+			return OPChainDeploymentResult{}, fmt.Errorf("failed to load ReadImplementationAddresses script: %w", err)
 		}
 
 		impls, err = readImplementations.Run(readInput)
 		if err != nil {
-			return result, fmt.Errorf("failed to run ReadImplementationAddresses script: %w", err)
+			return OPChainDeploymentResult{}, fmt.Errorf("failed to run ReadImplementationAddresses script: %w", err)
 		}
 	}
 
 	return OPChainDeploymentResult{
 		chainID:         chainID,
-		contracts:       chainContractsForDeploy(impls, dco),
-		outputContracts: OpChainContractsFromDeployOutput(dco),
+		contracts:       chainContractsForRecordedState(impls, outputContracts),
+		outputContracts: outputContracts,
 		readback:        impls,
 		initialized:     true,
 	}, nil
@@ -530,11 +551,10 @@ func OpChainContractsFromDeployOutput(dco opcm.DeployOPChainOutput) addresses.Op
 	return opChainContracts
 }
 
-// chainContractsForDeploy builds the OpChainContracts for a deployed chain,
-// overriding the dispute game impls with the values read back from the proxies.
-func chainContractsForDeploy(impls opcm.ReadImplementationAddressesOutput, dco opcm.DeployOPChainOutput) addresses.OpChainContracts {
-	opChainContracts := OpChainContractsFromDeployOutput(dco)
-
+func chainContractsForRecordedState(
+	impls opcm.ReadImplementationAddressesOutput,
+	opChainContracts addresses.OpChainContracts,
+) addresses.OpChainContracts {
 	if (impls.PermissionedDisputeGame != common.Address{}) {
 		opChainContracts.PermissionedDisputeGameImpl = impls.PermissionedDisputeGame
 	}

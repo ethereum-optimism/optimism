@@ -61,6 +61,9 @@ func TestEndToEndContinuePreparedChain(t *testing.T) {
 	t.Run("live validation failure persists checkpoint", func(t *testing.T) {
 		testContinueLiveValidationFailure(t)
 	})
+	t.Run("partial deployment is rejected", func(t *testing.T) {
+		testContinuePartialDeployment(t)
+	})
 }
 
 func testContinuePermissionless(t *testing.T) {
@@ -110,7 +113,29 @@ func testContinuePermissionless(t *testing.T) {
 	env.preparedChain.OpChainContracts = originalContracts
 	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
 	require.NoError(t, deployer.Continue(env.ctx, env.config()))
-	assertContinuationCompleted(t, env, nonceBefore)
+	continued := assertContinuationCompleted(t, env, nonceBefore)
+	continuedChain, err := continued.Chain(env.intent.Chains[0].ID)
+	require.NoError(t, err)
+	recordedContracts := continuedChain.OpChainContracts
+
+	nonceAfter := pendingNonce(t, env)
+	require.NoError(t, deployer.Continue(env.ctx, env.config()))
+	require.Equal(t, nonceAfter, pendingNonce(t, env))
+
+	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
+	require.NoError(t, deployer.Continue(env.ctx, env.config()))
+	require.Equal(t, nonceAfter, pendingNonce(t, env))
+	reconciled, err := pipeline.ReadState(env.workdir)
+	require.NoError(t, err)
+	reconciledChain, err := reconciled.Chain(env.intent.Chains[0].ID)
+	require.NoError(t, err)
+	require.Equal(t, recordedContracts, reconciledChain.OpChainContracts)
+	require.Equal(t, originalContracts, *reconciledChain.Continuation.ExpectedContracts)
+	require.Nil(t, reconciledChain.Continuation.TxHash)
+	require.Nil(t, reconciledChain.Continuation.ReceiptBlockNumber)
+	require.Nil(t, reconciledChain.Continuation.ReceiptBlockHash)
+	require.True(t, reconciledChain.Continuation.LiveValidated)
+	require.NotNil(t, reconciled.AppliedIntent)
 }
 
 func testContinuePermissioned(t *testing.T) {
@@ -123,13 +148,27 @@ func testContinuePermissioned(t *testing.T) {
 	nonceBefore := pendingNonce(t, env)
 
 	require.NoError(t, deployer.Continue(env.ctx, env.config()))
-	assertContinuationCompleted(t, env, nonceBefore)
+	continued := assertContinuationCompleted(t, env, nonceBefore)
 	env.logs.RequireMessageContained(
 		t,
 		"committed genesis time has elapsed",
 		testlog.NewLevelFilter(slog.LevelWarn),
 		testlog.NewAttributesFilter("chainID", env.intent.Chains[0].ID.Hex()),
 	)
+
+	continuedChain, err := continued.Chain(env.intent.Chains[0].ID)
+	require.NoError(t, err)
+	setAnvilCode(t, env.l1Client, continuedChain.SystemConfigProxy, nil)
+	nonceAfter := pendingNonce(t, env)
+	err = deployer.Continue(env.ctx, env.config())
+	require.ErrorContains(t, err, "live deployment validation failed for deployed chain")
+	require.ErrorContains(t, err, "SystemConfigProxy code")
+	require.Equal(t, nonceAfter, pendingNonce(t, env))
+	stale, err := pipeline.ReadState(env.workdir)
+	require.NoError(t, err)
+	staleChain, err := stale.Chain(env.intent.Chains[0].ID)
+	require.NoError(t, err)
+	require.False(t, staleChain.Continuation.LiveValidated)
 }
 
 func testContinueLiveValidationFailure(t *testing.T) {
@@ -156,6 +195,46 @@ func testContinueLiveValidationFailure(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, continued.IsChainDeployed(env.intent.Chains[0].ID))
 	require.Nil(t, continued.AppliedIntent)
+	continuedChain, err := continued.Chain(env.intent.Chains[0].ID)
+	require.NoError(t, err)
+	require.NotNil(t, continuedChain.Continuation)
+	require.Equal(t, env.preparedChain.OpChainContracts, *continuedChain.Continuation.ExpectedContracts)
+	require.NotNil(t, continuedChain.Continuation.TxHash)
+	require.NotNil(t, continuedChain.Continuation.ReceiptBlockNumber)
+	require.NotNil(t, continuedChain.Continuation.ReceiptBlockHash)
+	require.False(t, continuedChain.Continuation.LiveValidated)
+
+	setAnvilCode(t, env.l1Client, env.standardValidator, validatorResultCode(""))
+	nonceAfterFailure := pendingNonce(t, env)
+	require.NoError(t, deployer.Continue(env.ctx, env.config()))
+	require.Equal(t, nonceAfterFailure, pendingNonce(t, env))
+	retried, err := pipeline.ReadState(env.workdir)
+	require.NoError(t, err)
+	retriedChain, err := retried.Chain(env.intent.Chains[0].ID)
+	require.NoError(t, err)
+	require.True(t, retriedChain.Continuation.LiveValidated)
+	require.Equal(t, continuedChain.Continuation.TxHash, retriedChain.Continuation.TxHash)
+	require.Equal(t, continuedChain.Continuation.ReceiptBlockNumber, retriedChain.Continuation.ReceiptBlockNumber)
+	require.Equal(t, continuedChain.Continuation.ReceiptBlockHash, retriedChain.Continuation.ReceiptBlockHash)
+	require.NotNil(t, retried.AppliedIntent)
+}
+
+func testContinuePartialDeployment(t *testing.T) {
+	t.Helper()
+	env := newContinuationEnv(t, embedded.GameTypeCannonKona)
+	env.preparedChain.Prestate = common.HexToHash("0x1234")
+	env.preparedChain.StartingAnchorRoot = &state.StartingAnchorProposal{
+		Root:             common.HexToHash("0x5678"),
+		L2SequenceNumber: 7,
+	}
+	setAnvilCode(t, env.l1Client, env.preparedChain.SystemConfigProxy, []byte{byte(vm.STOP)})
+	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
+	nonceBefore := pendingNonce(t, env)
+
+	err := deployer.Continue(env.ctx, env.config())
+	require.ErrorContains(t, err, "partial deployment at predicted addresses")
+	require.ErrorContains(t, err, "SystemConfigProxy")
+	require.Equal(t, nonceBefore, pendingNonce(t, env))
 }
 
 func newContinuationEnv(t *testing.T, gameType embedded.GameType) *continuationEnv {
@@ -265,13 +344,22 @@ func pendingNonce(t *testing.T, env *continuationEnv) uint64 {
 	return nonce
 }
 
-func assertContinuationCompleted(t *testing.T, env *continuationEnv, nonceBefore uint64) {
+func assertContinuationCompleted(t *testing.T, env *continuationEnv, nonceBefore uint64) *state.State {
 	t.Helper()
 	require.Equal(t, nonceBefore+1, pendingNonce(t, env))
 	continued, err := pipeline.ReadState(env.workdir)
 	require.NoError(t, err)
 	require.True(t, continued.IsChainDeployed(env.intent.Chains[0].ID))
 	require.NotNil(t, continued.AppliedIntent)
+	continuedChain, err := continued.Chain(env.intent.Chains[0].ID)
+	require.NoError(t, err)
+	require.NotNil(t, continuedChain.Continuation)
+	require.Equal(t, env.preparedChain.OpChainContracts, *continuedChain.Continuation.ExpectedContracts)
+	require.NotNil(t, continuedChain.Continuation.TxHash)
+	require.NotNil(t, continuedChain.Continuation.ReceiptBlockNumber)
+	require.NotNil(t, continuedChain.Continuation.ReceiptBlockHash)
+	require.True(t, continuedChain.Continuation.LiveValidated)
+	return continued
 }
 
 func setAnvilCode(t *testing.T, client *ethclient.Client, address common.Address, code []byte) {

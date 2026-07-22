@@ -100,6 +100,12 @@ func (t *KeyedBroadcaster) Hook(bcast script.Broadcast) {
 }
 
 func (t *KeyedBroadcaster) Broadcast(ctx context.Context) ([]BroadcastResult, error) {
+	return t.BroadcastWithHook(ctx, nil)
+}
+
+// BroadcastWithHook invokes afterSend after starting every send and before
+// awaiting receipts, exposing the otherwise unobservable crash boundary.
+func (t *KeyedBroadcaster) BroadcastWithHook(ctx context.Context, afterSend func() error) ([]BroadcastResult, error) {
 	// Empty the internal broadcast buffer as soon as this method is called.
 	t.mtx.Lock()
 	bcasts := t.bcasts
@@ -126,6 +132,11 @@ func (t *KeyedBroadcaster) Broadcast(ctx context.Context) ([]BroadcastResult, er
 			"id", ids[i],
 			"nonce", bcast.Nonce,
 		)
+	}
+	if afterSend != nil {
+		if err := afterSend(); err != nil {
+			return nil, err
+		}
 	}
 
 	var txErr error

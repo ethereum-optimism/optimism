@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -118,7 +119,6 @@ func TestContinueRejectsUnpreparedStateBeforeRPC(t *testing.T) {
 
 func TestContinueStartupGates(t *testing.T) {
 	chainID := common.HexToHash("0x01")
-	secondChainID := common.HexToHash("0x02")
 
 	tests := []struct {
 		name       string
@@ -172,20 +172,6 @@ func TestContinueStartupGates(t *testing.T) {
 				intent.OPCMAddress = &changed
 			},
 			wantErr: "intent OPCM address changed",
-		},
-		{
-			name:     "zero pending chains",
-			chainIDs: []common.Hash{chainID},
-			mutate: func(_ *state.Intent, st *state.State) {
-				deployed := true
-				st.Chains[0].Deployed = &deployed
-			},
-			wantErr: "reconciliation is not supported",
-		},
-		{
-			name:     "multiple pending chains",
-			chainIDs: []common.Hash{chainID, secondChainID},
-			wantErr:  "exactly one pending chain",
 		},
 	}
 
@@ -303,6 +289,203 @@ func TestValidateContinuationReceipts(t *testing.T) {
 		[]broadcaster.BroadcastResult{{Receipt: &types.Receipt{Status: types.ReceiptStatusFailed}}},
 		nil,
 	), "receipt status")
+}
+
+func TestContinuationExpectedContractsAreImmutable(t *testing.T) {
+	chainID := common.HexToHash("0x01")
+	expected := addressesForValidationTest()
+	chainState := &state.ChainState{ID: chainID}
+
+	require.NoError(t, setContinuationExpectedContracts(chainState, expected))
+	require.NotNil(t, chainState.Continuation)
+	require.Equal(t, expected, *chainState.Continuation.ExpectedContracts)
+
+	changed := expected
+	changed.SystemConfigProxy = common.Address{0xff}
+	require.ErrorContains(
+		t,
+		setContinuationExpectedContracts(chainState, changed),
+		"snapshot changed",
+	)
+	require.Equal(t, expected, *chainState.Continuation.ExpectedContracts)
+
+	chainState.Deployed = new(bool)
+	*chainState.Deployed = true
+	recorded := expected
+	recorded.FaultDisputeGameImpl = common.Address{0xaa}
+	chainState.OpChainContracts = recorded
+	prepared, err := continuationExpectedChainState(chainID, chainState)
+	require.NoError(t, err)
+	require.Equal(t, expected, prepared.OpChainContracts)
+	require.Equal(t, recorded, chainState.OpChainContracts)
+}
+
+func TestValidateContinuationPendingChains(t *testing.T) {
+	require.NoError(t, validateContinuationPendingChains(nil))
+	require.NoError(t, validateContinuationPendingChains([]continuationChain{{}}))
+	require.ErrorContains(
+		t,
+		validateContinuationPendingChains([]continuationChain{{}, {}}),
+		"exactly one pending chain",
+	)
+}
+
+func TestContinuationExpectedContractsRejectLegacyCheckpoint(t *testing.T) {
+	chainID := common.HexToHash("0x01")
+	_, err := continuationExpectedChainState(chainID, &state.ChainState{})
+	require.ErrorContains(t, err, "no prepared expected-contract snapshot")
+
+	expected := addressesForValidationTest()
+	txHash := common.HexToHash("0x02")
+	_, err = continuationExpectedChainState(chainID, &state.ChainState{
+		Continuation: &state.ContinuationState{
+			ExpectedContracts: &expected,
+			TxHash:            &txHash,
+		},
+	})
+	require.ErrorContains(t, err, "incomplete continuation receipt metadata")
+}
+
+func TestSetContinuationReceipt(t *testing.T) {
+	chainState := new(state.ChainState)
+	expected := addressesForValidationTest()
+	txHash := common.HexToHash("0x11")
+	blockHash := common.HexToHash("0x22")
+	result := broadcaster.BroadcastResult{
+		TxHash: txHash,
+		Receipt: &types.Receipt{
+			TxHash:      txHash,
+			BlockNumber: big.NewInt(123),
+			BlockHash:   blockHash,
+		},
+	}
+
+	require.NoError(t, setContinuationReceipt(chainState, expected, result))
+	require.Equal(t, expected, *chainState.Continuation.ExpectedContracts)
+	require.Equal(t, txHash, *chainState.Continuation.TxHash)
+	require.EqualValues(t, 123, *chainState.Continuation.ReceiptBlockNumber)
+	require.Equal(t, blockHash, *chainState.Continuation.ReceiptBlockHash)
+	require.False(t, chainState.Continuation.LiveValidated)
+
+	changed := expected
+	changed.SystemConfigProxy = common.Address{0xff}
+	require.ErrorContains(t, setContinuationReceipt(chainState, changed, result), "snapshot changed")
+}
+
+func TestClassifyContinuationAddresses(t *testing.T) {
+	contracts := continuationVerificationAddresses(embedded.GameTypeCannonKona)
+	backend := newContinuationVerificationBackend()
+
+	classification, err := classifyContinuationAddresses(t.Context(), backend, contracts)
+	require.NoError(t, err)
+	require.Equal(t, continuationAddressesAbsent, classification)
+
+	for _, contract := range continuationContractAddresses(contracts) {
+		if contract.address != (common.Address{}) {
+			backend.code[contract.address] = []byte{0x60}
+		}
+	}
+	classification, err = classifyContinuationAddresses(t.Context(), backend, contracts)
+	require.NoError(t, err)
+	require.Equal(t, continuationAddressesComplete, classification)
+
+	delete(backend.code, contracts.SystemConfigProxy)
+	_, err = classifyContinuationAddresses(t.Context(), backend, contracts)
+	require.ErrorContains(t, err, "partial deployment")
+	require.ErrorContains(t, err, "SystemConfigProxy")
+	require.ErrorContains(t, err, "has no code")
+}
+
+type continuationNonceReaderStub struct {
+	latest  uint64
+	pending uint64
+}
+
+func (s *continuationNonceReaderStub) NonceAt(context.Context, common.Address, *big.Int) (uint64, error) {
+	return s.latest, nil
+}
+
+func (s *continuationNonceReaderStub) PendingNonceAt(context.Context, common.Address) (uint64, error) {
+	return s.pending, nil
+}
+
+func TestContinuationNonceOwnership(t *testing.T) {
+	client := &continuationNonceReaderStub{latest: 7, pending: 7}
+	nonce, err := readContinuationStartNonce(t.Context(), client, common.Address{0x01})
+	require.NoError(t, err)
+	require.EqualValues(t, 7, nonce)
+	require.NoError(t, requireContinuationNonce(t.Context(), client, common.Address{0x01}, nonce))
+
+	client.pending = 8
+	_, err = readContinuationStartNonce(t.Context(), client, common.Address{0x01})
+	require.ErrorContains(t, err, "nonce is already moving")
+	require.ErrorContains(t, requireContinuationNonce(t.Context(), client, common.Address{0x01}, nonce), "unexpected deployer nonce movement")
+
+	client.latest = 8
+	require.ErrorContains(t, requireContinuationNonce(t.Context(), client, common.Address{0x01}, nonce), "unexpected deployer nonce movement")
+}
+
+type continuationBlockFetcherStub struct {
+	ref state.L1BlockRefJSON
+}
+
+func (s *continuationBlockFetcherStub) CallContext(
+	_ context.Context,
+	result any,
+	method string,
+	args ...any,
+) error {
+	if method != "eth_getBlockByNumber" {
+		return fmt.Errorf("unexpected method %s", method)
+	}
+	if len(args) != 2 {
+		return fmt.Errorf("unexpected argument count %d", len(args))
+	}
+	if args[0] != "0x7b" {
+		return fmt.Errorf("unexpected block argument %v", args[0])
+	}
+	ref, ok := result.(*state.L1BlockRefJSON)
+	if !ok {
+		return fmt.Errorf("unexpected result type %T", result)
+	}
+	*ref = s.ref
+	return nil
+}
+
+func TestValidateContinuationReceiptCanonicality(t *testing.T) {
+	blockHash := common.HexToHash("0x22")
+	receipt := &types.Receipt{BlockNumber: big.NewInt(123), BlockHash: blockHash}
+	client := &continuationBlockFetcherStub{ref: state.L1BlockRefJSON{Hash: blockHash, Number: 123}}
+	require.NoError(t, validateContinuationReceiptCanonicality(t.Context(), client, receipt))
+
+	client.ref.Hash = common.HexToHash("0x33")
+	require.ErrorContains(
+		t,
+		validateContinuationReceiptCanonicality(t.Context(), client, receipt),
+		"receipt block hash mismatch",
+	)
+}
+
+func TestContinuationFailureHooks(t *testing.T) {
+	wantErr := fmt.Errorf("injected failure")
+	for _, boundary := range []string{
+		"before send",
+		"after send before receipt",
+		"after receipt before state write",
+		"after state write before live validation",
+	} {
+		t.Run(boundary, func(t *testing.T) {
+			called := false
+			err := invokeContinuationHook(boundary, func() error {
+				called = true
+				return wantErr
+			})
+			require.True(t, called)
+			require.ErrorIs(t, err, wantErr)
+			require.ErrorContains(t, err, boundary)
+		})
+	}
+	require.NoError(t, invokeContinuationHook("unused", nil))
 }
 
 func TestStandardValidatorInput(t *testing.T) {

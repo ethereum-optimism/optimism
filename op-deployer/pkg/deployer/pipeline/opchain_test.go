@@ -360,6 +360,28 @@ func TestRecordOPChainDeploymentAppliesImplementationReadback(t *testing.T) {
 	require.Equal(t, readback.SuperFaultDisputeGame, st.ImplementationsDeployment.SuperFaultDisputeGameImpl)
 }
 
+func TestChainContractsForRecordedStatePreservesPreparedAddresses(t *testing.T) {
+	prepared := addresses.OpChainContracts{
+		OpChainCoreContracts: addresses.OpChainCoreContracts{
+			SystemConfigProxy: common.Address{0x01},
+		},
+		OpChainFaultProofsContracts: addresses.OpChainFaultProofsContracts{
+			FaultDisputeGameImpl:        common.Address{0x02},
+			PermissionedDisputeGameImpl: common.Address{0x03},
+		},
+	}
+	var readback opcm.ReadImplementationAddressesOutput
+	readback.FaultDisputeGame = common.Address{0x04}
+	readback.PermissionedDisputeGame = common.Address{0x05}
+
+	recorded := chainContractsForRecordedState(readback, prepared)
+	require.Equal(t, prepared.SystemConfigProxy, recorded.SystemConfigProxy)
+	require.Equal(t, readback.FaultDisputeGame, recorded.FaultDisputeGameImpl)
+	require.Equal(t, readback.PermissionedDisputeGame, recorded.PermissionedDisputeGameImpl)
+	require.Equal(t, common.Address{0x02}, prepared.FaultDisputeGameImpl)
+	require.Equal(t, common.Address{0x03}, prepared.PermissionedDisputeGameImpl)
+}
+
 func TestBuildContinuationDCI_PermissionlessInputs(t *testing.T) {
 	chainID := common.HexToHash("0x0300")
 

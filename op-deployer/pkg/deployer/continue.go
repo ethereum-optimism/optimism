@@ -7,17 +7,20 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -79,15 +82,51 @@ func ContinueCLI() func(cliCtx *cli.Context) error {
 }
 
 func Continue(ctx context.Context, cfg ContinueConfig) error {
-	if err := cfg.Check(); err != nil {
+	runner := &continuationRunner{ctx: ctx, cfg: cfg}
+	return runner.run()
+}
+
+type continuationRunner struct {
+	ctx context.Context
+	cfg ContinueConfig
+
+	intent     *state.Intent
+	state      *state.State
+	l1RPC      *rpc.Client
+	l1Client   *ethclient.Client
+	deployer   common.Address
+	pinnedOPCM common.Address
+
+	expectedNonce uint64
+	preflightEnv  *pipeline.Env
+	capture       *broadcaster.CaptureBroadcaster
+
+	// The hooks exercise durable crash boundaries; production runners leave them nil.
+	beforeSend                     func() error
+	afterSendBeforeReceipt         func() error
+	afterReceiptBeforeStateWrite   func() error
+	afterWriteBeforeLiveValidation func() error
+}
+
+type continuationChain struct {
+	id       common.Hash
+	state    *state.ChainState
+	expected state.ChainState
+	dci      opcm.DeployOPChainInput
+	result   pipeline.OPChainDeploymentResult
+	captured []script.Broadcast
+}
+
+func (r *continuationRunner) run() error {
+	if err := r.cfg.Check(); err != nil {
 		return fmt.Errorf("invalid config for continue: %w", err)
 	}
 
-	intent, err := pipeline.ReadIntent(cfg.Workdir)
+	intent, err := pipeline.ReadIntent(r.cfg.Workdir)
 	if err != nil {
 		return fmt.Errorf("failed to read intent: %w", err)
 	}
-	st, err := pipeline.ReadState(cfg.Workdir)
+	st, err := pipeline.ReadState(r.cfg.Workdir)
 	if err != nil {
 		return fmt.Errorf("failed to read state: %w", err)
 	}
@@ -101,14 +140,18 @@ func Continue(ctx context.Context, cfg ContinueConfig) error {
 		return fmt.Errorf("failed to validate prepared chain set: %w", err)
 	}
 
-	l1RPC, err := rpc.DialContext(ctx, cfg.L1RPCUrl)
+	l1RPC, err := rpc.DialContext(r.ctx, r.cfg.L1RPCUrl)
 	if err != nil {
 		return fmt.Errorf("failed to connect to L1 RPC: %w", err)
 	}
 	defer l1RPC.Close()
 	l1Client := ethclient.NewClient(l1RPC)
+	r.intent = intent
+	r.state = st
+	r.l1RPC = l1RPC
+	r.l1Client = l1Client
 
-	if err := validateL1ChainID(ctx, l1RPC, intent); err != nil {
+	if err := validateL1ChainID(r.ctx, l1RPC, intent); err != nil {
 		return err
 	}
 	if st.L1PredictSenderAddress == nil || *st.L1PredictSenderAddress == (common.Address{}) {
@@ -118,8 +161,10 @@ func Continue(ctx context.Context, cfg ContinueConfig) error {
 		return fmt.Errorf("prepared state has no pinned OPCM address. Rerun op-deployer prepare")
 	}
 
-	deployer := crypto.PubkeyToAddress(cfg.privateKeyECDSA.PublicKey)
+	deployer := crypto.PubkeyToAddress(r.cfg.privateKeyECDSA.PublicKey)
 	pinnedOPCM := *st.L1PredictOPCMAddress
+	r.deployer = deployer
+	r.pinnedOPCM = pinnedOPCM
 	if err := st.CheckL1PredictInputs(deployer, pinnedOPCM); err != nil {
 		return err
 	}
@@ -130,62 +175,255 @@ func Continue(ctx context.Context, cfg ContinueConfig) error {
 			*intent.OPCMAddress,
 		)
 	}
-	if err := resolveSuperchainConfigProxy(ctx, l1RPC, intent, pinnedOPCM); err != nil {
+	if err := resolveSuperchainConfigProxy(r.ctx, l1RPC, intent, pinnedOPCM); err != nil {
 		return err
 	}
+	startNonce, err := readContinuationStartNonce(r.ctx, l1Client, deployer)
+	if err != nil {
+		return err
+	}
+	r.expectedNonce = startNonce
 
-	pending := make([]common.Hash, 0, len(intent.Chains))
-	for _, chain := range intent.Chains {
-		if !st.IsChainDeployed(chain.ID) {
-			pending = append(pending, chain.ID)
+	pending, err := r.classifyChains()
+	if err != nil {
+		return err
+	}
+	if err := validateContinuationPendingChains(pending); err != nil {
+		return err
+	}
+	if len(pending) == 1 {
+		if err := r.preflight(&pending[0]); err != nil {
+			return err
+		}
+		if err := r.broadcastAndCheckpoint(&pending[0]); err != nil {
+			return err
 		}
 	}
-	if len(pending) == 0 {
-		return fmt.Errorf("no pending chains. Already-live reconciliation is not supported")
+
+	st.AppliedIntent = intent
+	if err := pipeline.WriteState(r.cfg.Workdir, st); err != nil {
+		return fmt.Errorf("failed to write completed continuation state: %w", err)
 	}
+	return nil
+}
+
+func validateContinuationPendingChains(pending []continuationChain) error {
 	if len(pending) > 1 {
 		return fmt.Errorf("continue supports exactly one pending chain but found %d", len(pending))
 	}
+	return nil
+}
 
-	chainID := pending[0]
-	chainState, err := st.Chain(chainID)
+func (r *continuationRunner) classifyChains() ([]continuationChain, error) {
+	latest, err := r.l1Client.HeaderByNumber(r.ctx, nil)
 	if err != nil {
-		return fmt.Errorf("failed to get prepared state for chain %s: %w", chainID.Hex(), err)
+		return nil, fmt.Errorf("failed to get current L1 head: %w", err)
 	}
-	preparedChainState := *chainState
-	if chainState.StartBlock == nil {
-		return fmt.Errorf("chain %s has no anchor block recorded by prepare", chainID.Hex())
+
+	pending := make([]continuationChain, 0, len(r.intent.Chains))
+	for _, chain := range r.intent.Chains {
+		chainState, err := r.state.Chain(chain.ID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get prepared state for chain %s: %w", chain.ID.Hex(), err)
+		}
+		if chainState.StartBlock == nil {
+			return nil, fmt.Errorf("chain %s has no anchor block recorded by prepare", chain.ID.Hex())
+		}
+		if chainState.GenesisTime == nil {
+			return nil, fmt.Errorf("chain %s has no genesis time recorded by prepare", chain.ID.Hex())
+		}
+		if err := revalidateContinuationAnchor(r.ctx, r.l1RPC, chain.ID, chainState); err != nil {
+			return nil, err
+		}
+		if uint64(*chainState.GenesisTime) <= latest.Time {
+			r.cfg.Logger.Warn(
+				"committed genesis time has elapsed",
+				"chainID", chain.ID.Hex(),
+				"genesisTime", uint64(*chainState.GenesisTime),
+				"l1HeadTime", latest.Time,
+			)
+		}
+
+		dci, err := pipeline.BuildContinuationDCI(r.intent, chain.ID, r.state)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build continuation input for chain %s: %w", chain.ID.Hex(), err)
+		}
+		if r.state.IsChainDeployed(chain.ID) {
+			if err := r.reverifyDeployedChain(chain.ID, chainState, dci); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		if chainState.Continuation != nil {
+			return nil, fmt.Errorf(
+				"pending chain %s has continuation checkpoint metadata but is not marked deployed",
+				chain.ID.Hex(),
+			)
+		}
+
+		prepared := *chainState
+		liveState, err := classifyContinuationAddresses(r.ctx, r.l1Client, prepared.OpChainContracts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to classify chain %s predicted addresses: %w", chain.ID.Hex(), err)
+		}
+		switch liveState {
+		case continuationAddressesAbsent:
+			pending = append(pending, continuationChain{
+				id:       chain.ID,
+				state:    chainState,
+				expected: prepared,
+				dci:      dci,
+			})
+		case continuationAddressesComplete:
+			if err := r.reconcileLiveChain(chain.ID, chainState, &prepared, dci); err != nil {
+				return nil, err
+			}
+		default:
+			return nil, fmt.Errorf("chain %s has an unknown continuation address classification", chain.ID.Hex())
+		}
 	}
-	if chainState.GenesisTime == nil {
-		return fmt.Errorf("chain %s has no genesis time recorded by prepare", chainID.Hex())
-	}
-	if err := revalidateContinuationAnchor(ctx, l1RPC, chainID, chainState); err != nil {
+	return pending, nil
+}
+
+func (r *continuationRunner) reverifyDeployedChain(
+	chainID common.Hash,
+	chainState *state.ChainState,
+	dci opcm.DeployOPChainInput,
+) error {
+	expected, err := continuationExpectedChainState(chainID, chainState)
+	if err != nil {
 		return err
 	}
-	latest, err := l1Client.HeaderByNumber(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("failed to get current L1 head: %w", err)
-	}
-	if uint64(*chainState.GenesisTime) <= latest.Time {
-		cfg.Logger.Warn(
-			"committed genesis time has elapsed",
-			"chainID", chainID.Hex(),
-			"genesisTime", uint64(*chainState.GenesisTime),
-			"l1HeadTime", latest.Time,
-		)
+	previouslyValidated := chainState.Continuation.LiveValidated
+	if err := verifyContinuationDeployment(
+		r.ctx,
+		r.l1Client,
+		expected.OpChainContracts,
+		expected,
+		dci,
+	); err != nil {
+		if previouslyValidated {
+			chainState.Continuation.LiveValidated = false
+			if writeErr := pipeline.WriteState(r.cfg.Workdir, r.state); writeErr != nil {
+				return fmt.Errorf(
+					"live deployment validation failed for deployed chain %s: %w; failed to persist invalid validation status: %w",
+					chainID.Hex(),
+					err,
+					writeErr,
+				)
+			}
+		}
+		return fmt.Errorf("live deployment validation failed for deployed chain %s: %w", chainID.Hex(), err)
 	}
 
-	dci, err := pipeline.BuildContinuationDCI(intent, chainID, st)
-	if err != nil {
-		return fmt.Errorf("failed to build continuation input for chain %s: %w", chainID.Hex(), err)
+	attrs := []any{
+		"chainID", chainID.Hex(),
+		"previouslyValidated", previouslyValidated,
 	}
+	if metadata := chainState.Continuation; metadata.TxHash != nil {
+		attrs = append(attrs, "txHash", *metadata.TxHash)
+		if metadata.ReceiptBlockNumber != nil {
+			attrs = append(attrs, "receiptBlockNumber", uint64(*metadata.ReceiptBlockNumber))
+		}
+		if metadata.ReceiptBlockHash != nil {
+			attrs = append(attrs, "receiptBlockHash", *metadata.ReceiptBlockHash)
+		}
+	}
+	r.cfg.Logger.Info("reconciled deployed chain", attrs...)
+	if !previouslyValidated {
+		chainState.Continuation.LiveValidated = true
+		if err := pipeline.WriteState(r.cfg.Workdir, r.state); err != nil {
+			return fmt.Errorf("failed to checkpoint live validation for chain %s: %w", chainID.Hex(), err)
+		}
+	}
+	return nil
+}
 
-	l1ArtifactsFS, err := artifacts.Download(ctx, intent.L1ContractsLocator, ioutil.BarProgressor(), cfg.CacheDir)
+func (r *continuationRunner) reconcileLiveChain(
+	chainID common.Hash,
+	chainState *state.ChainState,
+	expected *state.ChainState,
+	dci opcm.DeployOPChainInput,
+) error {
+	if err := verifyContinuationDeployment(
+		r.ctx,
+		r.l1Client,
+		expected.OpChainContracts,
+		expected,
+		dci,
+	); err != nil {
+		return fmt.Errorf("already-live deployment validation failed for chain %s: %w", chainID.Hex(), err)
+	}
+	if err := r.initPreflightEnv(); err != nil {
+		return err
+	}
+	result, err := pipeline.ReconcileOPChainDeployment(
+		r.preflightEnv,
+		chainID,
+		expected.OpChainContracts,
+		r.pinnedOPCM,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to normalize already-live deployment for chain %s: %w", chainID.Hex(), err)
+	}
+	if captured := r.capture.Drain(); len(captured) != 0 {
+		return fmt.Errorf("implementation readback unexpectedly captured %d broadcasts for chain %s", len(captured), chainID.Hex())
+	}
+	if err := setContinuationExpectedContracts(chainState, expected.OpChainContracts); err != nil {
+		return fmt.Errorf("failed to reconcile chain %s: %w", chainID.Hex(), err)
+	}
+	if err := pipeline.RecordOPChainDeployment(r.state, result); err != nil {
+		return fmt.Errorf("failed to record reconciled deployment for chain %s: %w", chainID.Hex(), err)
+	}
+	chainState.Continuation.LiveValidated = true
+	if err := pipeline.WriteState(r.cfg.Workdir, r.state); err != nil {
+		return fmt.Errorf("failed to checkpoint reconciled deployment for chain %s: %w", chainID.Hex(), err)
+	}
+	r.cfg.Logger.Info("reconciled already-live pending chain", "chainID", chainID.Hex())
+	return nil
+}
+
+func (r *continuationRunner) preflight(chain *continuationChain) error {
+	if err := r.initPreflightEnv(); err != nil {
+		return err
+	}
+	result, err := pipeline.ExecuteOPChainDeployment(r.preflightEnv, r.state, chain.id, chain.dci)
+	if err != nil {
+		return fmt.Errorf("continuation preflight failed for chain %s: %w", chain.id.Hex(), err)
+	}
+	captured := r.capture.Drain()
+	if err := validateContinuationBroadcast(captured, r.deployer, r.pinnedOPCM); err != nil {
+		return fmt.Errorf("continuation preflight failed for chain %s: %w", chain.id.Hex(), err)
+	}
+	if err := verifyContinuationDeployment(
+		r.ctx,
+		newScriptHostReadBackend(r.preflightEnv.L1ScriptHost),
+		result.Contracts(),
+		&chain.expected,
+		chain.dci,
+	); err != nil {
+		return fmt.Errorf("simulated deployment validation failed for chain %s: %w", chain.id.Hex(), err)
+	}
+	chain.result = result
+	chain.captured = captured
+	return nil
+}
+
+func (r *continuationRunner) initPreflightEnv() error {
+	if r.preflightEnv != nil {
+		return nil
+	}
+	l1ArtifactsFS, err := artifacts.Download(
+		r.ctx,
+		r.intent.L1ContractsLocator,
+		ioutil.BarProgressor(),
+		r.cfg.CacheDir,
+	)
 	if err != nil {
 		return fmt.Errorf("failed to download L1 artifacts: %w", err)
 	}
 	capture := new(broadcaster.CaptureBroadcaster)
-	l1Host, err := initForkHost(ctx, capture, cfg.Logger, deployer, l1ArtifactsFS, l1RPC)
+	l1Host, err := initForkHost(r.ctx, capture, r.cfg.Logger, r.deployer, l1ArtifactsFS, r.l1RPC)
 	if err != nil {
 		return fmt.Errorf("failed to initialize L1 preflight host: %w", err)
 	}
@@ -193,71 +431,343 @@ func Continue(ctx context.Context, cfg ContinueConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed to load OPCM scripts: %w", err)
 	}
-	pipelineEnv := &pipeline.Env{
+	r.capture = capture
+	r.preflightEnv = &pipeline.Env{
 		StateWriter:  pipeline.NoopStateWriter(),
 		L1ScriptHost: l1Host,
-		L1Client:     l1Client,
+		L1Client:     r.l1Client,
 		Broadcaster:  capture,
-		Deployer:     deployer,
-		Logger:       cfg.Logger,
+		Deployer:     r.deployer,
+		Logger:       r.cfg.Logger,
 		Scripts:      scripts,
-		Context:      ctx,
+		Context:      r.ctx,
 	}
+	return nil
+}
 
-	result, err := pipeline.ExecuteOPChainDeployment(pipelineEnv, st, chainID, dci)
-	if err != nil {
-		return fmt.Errorf("continuation preflight failed for chain %s: %w", chainID.Hex(), err)
-	}
-	captured := capture.Drain()
-	if err := validateContinuationBroadcast(captured, deployer, pinnedOPCM); err != nil {
-		return fmt.Errorf("continuation preflight failed for chain %s: %w", chainID.Hex(), err)
-	}
-	if err := verifyContinuationDeployment(
-		ctx,
-		newScriptHostReadBackend(l1Host),
-		result.Contracts(),
-		&preparedChainState,
-		dci,
-	); err != nil {
-		return fmt.Errorf("simulated deployment validation failed for chain %s: %w", chainID.Hex(), err)
-	}
-
-	if err := revalidateContinuationAnchor(ctx, l1RPC, chainID, chainState); err != nil {
+func (r *continuationRunner) broadcastAndCheckpoint(chain *continuationChain) error {
+	if err := revalidateContinuationAnchor(r.ctx, r.l1RPC, chain.id, chain.state); err != nil {
 		return err
 	}
-	signer := opcrypto.SignerFnFromBind(opcrypto.PrivateKeySignerFn(cfg.privateKeyECDSA, intent.L1ChainIDBig()))
+	if err := invokeContinuationHook("before send", r.beforeSend); err != nil {
+		return err
+	}
+	if err := requireContinuationNonce(r.ctx, r.l1Client, r.deployer, r.expectedNonce); err != nil {
+		return err
+	}
+
+	signer := opcrypto.SignerFnFromBind(opcrypto.PrivateKeySignerFn(r.cfg.privateKeyECDSA, r.intent.L1ChainIDBig()))
 	liveBroadcaster, err := broadcaster.NewKeyedBroadcaster(broadcaster.KeyedBroadcasterOpts{
-		Logger:  cfg.Logger,
-		ChainID: new(big.Int).Set(intent.L1ChainIDBig()),
-		Client:  l1Client,
+		Logger:  r.cfg.Logger,
+		ChainID: new(big.Int).Set(r.intent.L1ChainIDBig()),
+		Client:  r.l1Client,
 		Signer:  signer,
-		From:    deployer,
+		From:    r.deployer,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create live broadcaster: %w", err)
 	}
-	for _, bcast := range captured {
+	for _, bcast := range chain.captured {
 		liveBroadcaster.Hook(bcast)
 	}
-	broadcastResults, broadcastErr := liveBroadcaster.Broadcast(ctx)
-	if err := validateContinuationReceipts(broadcastResults, broadcastErr); err != nil {
-		return fmt.Errorf("failed to broadcast continuation for chain %s: %w", chainID.Hex(), err)
+	broadcastResults, broadcastErr := liveBroadcaster.BroadcastWithHook(r.ctx, func() error {
+		return invokeContinuationHook("after send before receipt", r.afterSendBeforeReceipt)
+	})
+	broadcastResult, err := successfulContinuationBroadcast(broadcastResults, broadcastErr)
+	if err != nil {
+		return fmt.Errorf("failed to broadcast continuation for chain %s: %w", chain.id.Hex(), err)
+	}
+	if err := validateContinuationReceiptCanonicality(r.ctx, r.l1RPC, broadcastResult.Receipt); err != nil {
+		return fmt.Errorf("deployment receipt for chain %s is not canonical: %w", chain.id.Hex(), err)
+	}
+	if err := invokeContinuationHook("after receipt before state write", r.afterReceiptBeforeStateWrite); err != nil {
+		return err
 	}
 
-	if err := pipeline.RecordOPChainDeployment(st, result); err != nil {
-		return fmt.Errorf("failed to record deployment for chain %s: %w", chainID.Hex(), err)
+	if err := setContinuationReceipt(
+		chain.state,
+		chain.expected.OpChainContracts,
+		broadcastResult,
+	); err != nil {
+		return fmt.Errorf("failed to record continuation receipt for chain %s: %w", chain.id.Hex(), err)
 	}
-	if err := pipeline.WriteState(cfg.Workdir, st); err != nil {
-		return fmt.Errorf("failed to checkpoint deployment for chain %s: %w", chainID.Hex(), err)
+	if err := pipeline.RecordOPChainDeployment(r.state, chain.result); err != nil {
+		return fmt.Errorf("failed to record deployment for chain %s: %w", chain.id.Hex(), err)
+	}
+	if err := pipeline.WriteState(r.cfg.Workdir, r.state); err != nil {
+		return fmt.Errorf("failed to checkpoint deployment for chain %s: %w", chain.id.Hex(), err)
+	}
+	if err := invokeContinuationHook("after state write before live validation", r.afterWriteBeforeLiveValidation); err != nil {
+		return err
+	}
+	if err := verifyContinuationDeployment(
+		r.ctx,
+		r.l1Client,
+		chain.expected.OpChainContracts,
+		&chain.expected,
+		chain.dci,
+	); err != nil {
+		return fmt.Errorf("live deployment validation failed for chain %s: %w", chain.id.Hex(), err)
+	}
+	chain.state.Continuation.LiveValidated = true
+	if err := pipeline.WriteState(r.cfg.Workdir, r.state); err != nil {
+		return fmt.Errorf("failed to checkpoint live validation for chain %s: %w", chain.id.Hex(), err)
+	}
+	r.expectedNonce++
+	return nil
+}
+
+func invokeContinuationHook(name string, hook func() error) error {
+	if hook == nil {
+		return nil
+	}
+	if err := hook(); err != nil {
+		return fmt.Errorf("continuation interrupted %s: %w", name, err)
+	}
+	return nil
+}
+
+type continuationNonceReader interface {
+	NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error)
+	PendingNonceAt(ctx context.Context, account common.Address) (uint64, error)
+}
+
+func readContinuationStartNonce(
+	ctx context.Context,
+	client continuationNonceReader,
+	deployer common.Address,
+) (uint64, error) {
+	latest, pending, err := readContinuationNonces(ctx, client, deployer)
+	if err != nil {
+		return 0, err
+	}
+	if latest != pending {
+		return 0, fmt.Errorf(
+			"deployer nonce is already moving at continuation start: latest %d, pending %d",
+			latest,
+			pending,
+		)
+	}
+	return latest, nil
+}
+
+func requireContinuationNonce(
+	ctx context.Context,
+	client continuationNonceReader,
+	deployer common.Address,
+	expected uint64,
+) error {
+	latest, pending, err := readContinuationNonces(ctx, client, deployer)
+	if err != nil {
+		return err
+	}
+	if latest != expected || pending != expected {
+		return fmt.Errorf(
+			"unexpected deployer nonce movement before send: expected latest and pending nonce %d, got latest %d and pending %d",
+			expected,
+			latest,
+			pending,
+		)
+	}
+	return nil
+}
+
+func readContinuationNonces(
+	ctx context.Context,
+	client continuationNonceReader,
+	deployer common.Address,
+) (uint64, uint64, error) {
+	latest, err := client.NonceAt(ctx, deployer, nil)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to read latest deployer nonce: %w", err)
+	}
+	pending, err := client.PendingNonceAt(ctx, deployer)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to read pending deployer nonce: %w", err)
+	}
+	return latest, pending, nil
+}
+
+type continuationAddressState uint8
+
+const (
+	continuationAddressesAbsent continuationAddressState = iota
+	continuationAddressesComplete
+)
+
+func classifyContinuationAddresses(
+	ctx context.Context,
+	backend continuationReadBackend,
+	contracts addresses.OpChainContracts,
+) (continuationAddressState, error) {
+	type addressCode struct {
+		name    string
+		address common.Address
+		hasCode bool
+	}
+	codeStates := make([]addressCode, 0)
+	withCode := 0
+	for _, contract := range continuationDeploymentMarkerAddresses(contracts) {
+		if contract.address == (common.Address{}) {
+			continue
+		}
+		code, err := backend.CodeAt(ctx, contract.address, nil)
+		if err != nil {
+			return 0, fmt.Errorf("failed to read %s code at %s: %w", contract.name, contract.address, err)
+		}
+		hasCode := len(code) != 0
+		if hasCode {
+			withCode++
+		}
+		codeStates = append(codeStates, addressCode{contract.name, contract.address, hasCode})
+	}
+	if len(codeStates) == 0 {
+		return 0, fmt.Errorf("prepared state contains no nonzero predicted contract addresses")
+	}
+	if withCode == 0 {
+		return continuationAddressesAbsent, nil
+	}
+	if withCode == len(codeStates) {
+		return continuationAddressesComplete, nil
 	}
 
-	if err := verifyContinuationDeployment(ctx, l1Client, result.Contracts(), &preparedChainState, dci); err != nil {
-		return fmt.Errorf("live deployment validation failed for chain %s: %w", chainID.Hex(), err)
+	diagnostics := make([]string, 0, len(codeStates))
+	for _, codeState := range codeStates {
+		status := "has no code"
+		if codeState.hasCode {
+			status = "has code"
+		}
+		diagnostics = append(
+			diagnostics,
+			fmt.Sprintf("%s %s %s", codeState.name, codeState.address, status),
+		)
 	}
+	return 0, fmt.Errorf("partial deployment at predicted addresses: %s", strings.Join(diagnostics, "; "))
+}
 
-	st.AppliedIntent = intent
-	if err := pipeline.WriteState(cfg.Workdir, st); err != nil {
-		return fmt.Errorf("failed to write completed continuation state: %w", err)
+// continuationDeploymentMarkerAddresses omits shared implementation references,
+// which may contain code before any chain-specific contracts are broadcast.
+func continuationDeploymentMarkerAddresses(contracts addresses.OpChainContracts) []namedAddress {
+	return []namedAddress{
+		{"OpChainProxyAdminImpl", contracts.OpChainProxyAdminImpl},
+		{"OptimismPortalProxy", contracts.OptimismPortalProxy},
+		{"AddressManagerImpl", contracts.AddressManagerImpl},
+		{"L1Erc721BridgeProxy", contracts.L1Erc721BridgeProxy},
+		{"SystemConfigProxy", contracts.SystemConfigProxy},
+		{"OptimismMintableErc20FactoryProxy", contracts.OptimismMintableErc20FactoryProxy},
+		{"L1StandardBridgeProxy", contracts.L1StandardBridgeProxy},
+		{"L1CrossDomainMessengerProxy", contracts.L1CrossDomainMessengerProxy},
+		{"EthLockboxProxy", contracts.EthLockboxProxy},
+		{"DisputeGameFactoryProxy", contracts.DisputeGameFactoryProxy},
+		{"AnchorStateRegistryProxy", contracts.AnchorStateRegistryProxy},
+		{"DelayedWethPermissionedGameProxy", contracts.DelayedWethPermissionedGameProxy},
+		{"DelayedWethPermissionlessGameProxy", contracts.DelayedWethPermissionlessGameProxy},
+		{"AltDAChallengeProxy", contracts.AltDAChallengeProxy},
+		{"L2OutputOracleProxy", contracts.L2OutputOracleProxy},
+	}
+}
+
+func continuationExpectedChainState(
+	chainID common.Hash,
+	chainState *state.ChainState,
+) (*state.ChainState, error) {
+	if chainState.Continuation == nil || chainState.Continuation.ExpectedContracts == nil {
+		return nil, fmt.Errorf(
+			"deployed chain %s has no prepared expected-contract snapshot in continuation metadata; rerun from the prepared state or recover the checkpoint",
+			chainID.Hex(),
+		)
+	}
+	metadata := chainState.Continuation
+	hasTxHash := metadata.TxHash != nil
+	hasBlockNumber := metadata.ReceiptBlockNumber != nil
+	hasBlockHash := metadata.ReceiptBlockHash != nil
+	if (hasTxHash || hasBlockNumber || hasBlockHash) && !(hasTxHash && hasBlockNumber && hasBlockHash) {
+		return nil, fmt.Errorf(
+			"deployed chain %s has incomplete continuation receipt metadata",
+			chainID.Hex(),
+		)
+	}
+	expected := *chainState
+	expected.OpChainContracts = *metadata.ExpectedContracts
+	return &expected, nil
+}
+
+func setContinuationExpectedContracts(
+	chainState *state.ChainState,
+	expected addresses.OpChainContracts,
+) error {
+	if chainState.Continuation == nil {
+		chainState.Continuation = new(state.ContinuationState)
+	}
+	if chainState.Continuation.ExpectedContracts == nil {
+		expectedCopy := expected
+		chainState.Continuation.ExpectedContracts = &expectedCopy
+		return nil
+	}
+	if *chainState.Continuation.ExpectedContracts != expected {
+		return fmt.Errorf("prepared expected-contract snapshot changed after it was first recorded")
+	}
+	return nil
+}
+
+func setContinuationReceipt(
+	chainState *state.ChainState,
+	expected addresses.OpChainContracts,
+	result broadcaster.BroadcastResult,
+) error {
+	if err := setContinuationExpectedContracts(chainState, expected); err != nil {
+		return err
+	}
+	if result.Receipt == nil {
+		return fmt.Errorf("deployment transaction has no receipt")
+	}
+	if result.Receipt.BlockNumber == nil || !result.Receipt.BlockNumber.IsUint64() {
+		return fmt.Errorf("deployment transaction receipt has no uint64 block number")
+	}
+	txHash := result.TxHash
+	if txHash == (common.Hash{}) {
+		txHash = result.Receipt.TxHash
+	}
+	if txHash == (common.Hash{}) {
+		return fmt.Errorf("deployment transaction receipt has no transaction hash")
+	}
+	if result.Receipt.TxHash != (common.Hash{}) && result.Receipt.TxHash != txHash {
+		return fmt.Errorf("broadcast transaction hash %s differs from receipt transaction hash %s", txHash, result.Receipt.TxHash)
+	}
+	if result.Receipt.BlockHash == (common.Hash{}) {
+		return fmt.Errorf("deployment transaction receipt has no block hash")
+	}
+	blockNumber := hexutil.Uint64(bigs.Uint64Strict(result.Receipt.BlockNumber))
+	blockHash := result.Receipt.BlockHash
+	chainState.Continuation.TxHash = &txHash
+	chainState.Continuation.ReceiptBlockNumber = &blockNumber
+	chainState.Continuation.ReceiptBlockHash = &blockHash
+	chainState.Continuation.LiveValidated = false
+	return nil
+}
+
+func validateContinuationReceiptCanonicality(
+	ctx context.Context,
+	l1 pipeline.L1BlockFetcher,
+	receipt *types.Receipt,
+) error {
+	if receipt == nil {
+		return fmt.Errorf("deployment transaction has no receipt")
+	}
+	if receipt.BlockNumber == nil {
+		return fmt.Errorf("deployment transaction receipt has no block number")
+	}
+	canonical, err := pipeline.FetchL1BlockRefByNumber(ctx, l1, hexutil.EncodeBig(receipt.BlockNumber))
+	if err != nil {
+		return fmt.Errorf("failed to fetch receipt block %s: %w", receipt.BlockNumber, err)
+	}
+	if canonical.Hash != receipt.BlockHash {
+		return fmt.Errorf(
+			"receipt block hash mismatch at height %s: receipt %s, canonical %s",
+			receipt.BlockNumber,
+			receipt.BlockHash,
+			canonical.Hash,
+		)
 	}
 	return nil
 }
@@ -300,21 +810,33 @@ func validateContinuationBroadcast(
 }
 
 func validateContinuationReceipts(results []broadcaster.BroadcastResult, broadcastErr error) error {
+	_, err := successfulContinuationBroadcast(results, broadcastErr)
+	return err
+}
+
+func successfulContinuationBroadcast(
+	results []broadcaster.BroadcastResult,
+	broadcastErr error,
+) (broadcaster.BroadcastResult, error) {
 	if broadcastErr != nil {
-		return broadcastErr
+		return broadcaster.BroadcastResult{}, broadcastErr
 	}
 	if len(results) != 1 {
-		return fmt.Errorf("expected one broadcast result, got %d", len(results))
+		return broadcaster.BroadcastResult{}, fmt.Errorf("expected one broadcast result, got %d", len(results))
 	}
 	result := results[0]
 	if result.Err != nil {
-		return result.Err
+		return broadcaster.BroadcastResult{}, result.Err
 	}
 	if result.Receipt == nil {
-		return fmt.Errorf("deployment transaction %s has no receipt", result.TxHash)
+		return broadcaster.BroadcastResult{}, fmt.Errorf("deployment transaction %s has no receipt", result.TxHash)
 	}
 	if result.Receipt.Status != types.ReceiptStatusSuccessful {
-		return fmt.Errorf("deployment transaction %s failed with receipt status %d", result.TxHash, result.Receipt.Status)
+		return broadcaster.BroadcastResult{}, fmt.Errorf(
+			"deployment transaction %s failed with receipt status %d",
+			result.TxHash,
+			result.Receipt.Status,
+		)
 	}
-	return nil
+	return result, nil
 }
