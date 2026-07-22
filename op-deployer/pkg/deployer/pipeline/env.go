@@ -147,3 +147,17 @@ func RenderGenesisAndRollup(globalState *state.State, chainID common.Hash, useGl
 
 	return l2GenesisBuilt, rollupConfig, nil
 }
+
+// ResolveRenderIntent returns the intent to use when rendering derived artifacts for a chain.
+// Applied state always uses the frozen AppliedIntent snapshot, so rendered
+// artifacts match what was actually broadcast on-chain. Prepared only state falls
+// back to the live intent.toml.
+func ResolveRenderIntent(workdir string, globalState *state.State) (*state.Intent, error) {
+	if globalState.AppliedIntent != nil {
+		return globalState.AppliedIntent, nil
+	}
+	if !globalState.Prepared {
+		return nil, fmt.Errorf("chain state is neither prepared nor applied - run op-deployer prepare or apply")
+	}
+	return ReadIntent(workdir)
+}
