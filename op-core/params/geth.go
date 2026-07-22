@@ -1,52 +1,13 @@
 package params
 
 import (
-	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	gethparams "github.com/ethereum/go-ethereum/params"
 
-	"github.com/ethereum-optimism/optimism/op-core/superchain"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
 )
-
-// FromSuperchainConfig builds an OP-Stack ChainConfig from a superchain registry
-// chain config. It replaces op-geth's params.LoadOPStackChainConfig.
-func FromSuperchainConfig(chConfig *superchain.ChainConfig) *ChainConfig {
-	hardforks := chConfig.Hardforks
-	out := &ChainConfig{
-		ChainID:      new(big.Int).SetUint64(chConfig.ChainID),
-		BedrockBlock: common.Big0,
-		RegolithTime: ptr.New(uint64(0)),
-		CanyonTime:   hardforks.CanyonTime,
-		EcotoneTime:  hardforks.EcotoneTime,
-		FjordTime:    hardforks.FjordTime,
-		GraniteTime:  hardforks.GraniteTime,
-		HoloceneTime: hardforks.HoloceneTime,
-		IsthmusTime:  hardforks.IsthmusTime,
-		JovianTime:   hardforks.JovianTime,
-		KarstTime:    hardforks.KarstTime,
-		LagoonTime:   hardforks.LagoonTime,
-	}
-
-	if chConfig.Optimism != nil {
-		out.Optimism = &OptimismConfig{
-			EIP1559Elasticity:  chConfig.Optimism.EIP1559Elasticity,
-			EIP1559Denominator: chConfig.Optimism.EIP1559Denominator,
-		}
-		if chConfig.Optimism.EIP1559DenominatorCanyon != nil {
-			out.Optimism.EIP1559DenominatorCanyon = ptr.New(*chConfig.Optimism.EIP1559DenominatorCanyon)
-		}
-	}
-
-	// OP Mainnet treats its Bedrock-migration block as genesis.
-	if chConfig.ChainID == OPMainnetChainID {
-		out.BedrockBlock = big.NewInt(OPMainnetGenesisBlockNum)
-	}
-
-	return out
-}
 
 // GethChainConfig returns the equivalent go-ethereum params.ChainConfig. It exists
 // for code that drives a go-ethereum EVM, genesis, or block processor and therefore
@@ -110,22 +71,4 @@ func (c *ChainConfig) GethChainConfig() *gethparams.ChainConfig {
 	}
 
 	return out
-}
-
-// LoadChainConfigFromChainID loads the OP-Stack ChainConfig for the given L2 chain
-// ID from the embedded superchain registry.
-//
-// This by-chain-ID convenience lives here, rather than in op-core/superchain,
-// so that op-core/superchain stays a pure registry leaf: op-core/params imports
-// op-core/superchain (one-way), which keeps the two packages free of an import cycle.
-func LoadChainConfigFromChainID(chainID uint64) (*ChainConfig, error) {
-	chain, err := superchain.GetChain(chainID)
-	if err != nil {
-		return nil, fmt.Errorf("unable to get chain %d from superchain registry: %w", chainID, err)
-	}
-	chConfig, err := chain.Config()
-	if err != nil {
-		return nil, fmt.Errorf("unable to retrieve chain %d config: %w", chainID, err)
-	}
-	return FromSuperchainConfig(chConfig), nil
 }

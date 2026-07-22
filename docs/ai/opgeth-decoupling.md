@@ -210,9 +210,8 @@ reads on go-ethereum's `*params.ChainConfig` go through `rollup.Config` or
 
 ## 6. `params/superchain.go` – `LoadOPStackChainConfig` — **DONE**
 
-Moved to `op-core/params.FromSuperchainConfig`; the by-chain-ID loader
-(`LoadChainConfigFromChainID`, ex-superutil) lives in `op-core/params` too. §7 has the layering
-rationale.
+Moved to `op-core/superchain`: `(*superchain.ChainConfig).OpChainConfig()` plus the by-chain-ID
+loader `superchain.LoadOpChainConfig` (ex-superutil). §7 has the layering rationale.
 
 ---
 
@@ -223,10 +222,13 @@ repo-root `superchain-registry` submodule by `sync-superchain.sh`; the zip is gi
 by a committed `.sha256`). `op-service/superutil` was deleted; all consumers import
 `op-core/superchain`.
 
-Layering decision worth remembering: the by-chain-ID loader lives in **`op-core/params`**, not
-`op-core/superchain`, because `params.FromSuperchainConfig` takes a `superchain.ChainConfig` —
-putting the loader in `superchain` would create an import cycle. `op-core/superchain` stays a
-pure registry leaf.
+Layering decision worth remembering: `op-core/params` holds pure config types and must stay
+free of `op-core/superchain`, which embeds the bundle — anything in its build closure needs the
+bundle generated before it compiles, and external module consumers (the superchain-registry ops
+tooling) cannot generate it at all. The registry→`ChainConfig` conversion (`OpChainConfig`,
+`LoadOpChainConfig`) therefore lives in **`op-core/superchain`**, which imports `op-core/params`
+one-way. Transitive guard tests in `op-node/rollup`, `op-chain-ops/script`, and
+`op-fetcher/pkg/fetcher/fetch/script` enforce the boundary (`op-service/testutils/depguard`).
 
 `rollup.Config` carries the full OP hardfork schedule itself (loaded from the registry,
 bypassing any geth `ChainConfig`); future forks extend `rollup.Config` directly. Any remaining
