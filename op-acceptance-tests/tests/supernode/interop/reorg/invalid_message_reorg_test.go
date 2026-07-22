@@ -46,6 +46,25 @@ func TestSupernodeLightSequencerInteropInvalidMessageReplacement(gt *testing.T) 
 	runInteropInvalidMessageReplacementScenario(t, sys)
 }
 
+// ensureSequencing re-enables sequencing on cl if it is inactive. An
+// invalidation rewind restarts every VN, and restarted op-nodes honor
+// persisted sequencer state (stopped) until an operator start — the test
+// plays the operator. Light-sequencer CLs never restart and are left alone.
+func ensureSequencing(t devtest.T, cl *dsl.L2CLNode) {
+	var active bool
+	require.Eventually(t, func() bool {
+		a, err := cl.Escape().RollupAPI().SequencerActive(t.Ctx())
+		if err != nil {
+			return false
+		}
+		active = a
+		return true
+	}, 60*time.Second, time.Second, "sequencer state should be readable after rewind")
+	if !active {
+		cl.StartSequencer()
+	}
+}
+
 // runInteropInvalidMessageReplacementScenario drives the invalid-message replacement
 // scenario against an already-constructed two-L2 supernode interop system, so the
 // caller owns the sequencer topology (virtual sequencer vs light op-node follow-CL).
@@ -135,6 +154,11 @@ func runInteropInvalidMessageReplacementScenario(t devtest.T, sys *presets.TwoL2
 		}
 		return false
 	}, 60*time.Second, time.Second, "reset should be detected")
+
+	// The rewind leaves VN sequencing disabled; re-enable where the VN is the
+	// active sequencer (virtual-sequencer topology).
+	ensureSequencing(t, sys.L2ACL)
+	ensureSequencing(t, sys.L2BCL)
 
 	// Wait for interop to proceed and verify the replacement block at the timestamp
 	sys.Supernode.AwaitValidatedTimestamp(invalidBlockTimestamp)
