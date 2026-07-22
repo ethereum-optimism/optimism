@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"strings"
@@ -443,6 +444,8 @@ func TestSnapshotChecks(t *testing.T) {
 		"# TYPE gauge_metric gauge\n" +
 			"gauge_metric{scope=\"a\"} 2\n" +
 			"gauge_metric{scope=\"b\"} 3\n" +
+			"# TYPE nan_metric gauge\n" +
+			"nan_metric NaN\n" +
 			"# TYPE duration histogram\n" +
 			"duration_bucket{le=\"+Inf\"} 4\n" +
 			"duration_sum 5\n" +
@@ -472,6 +475,16 @@ func TestSnapshotChecks(t *testing.T) {
 			name:      "gauge below minimum",
 			check:     GaugeAtLeast("gauge_metric", map[string]string{"scope": "a"}, 3),
 			wantError: "expected at least 3 but observed 2",
+		},
+		{
+			name:      "gauge NaN minimum",
+			check:     GaugeAtLeast("gauge_metric", map[string]string{"scope": "a"}, math.NaN()),
+			wantError: "minimum must not be NaN",
+		},
+		{
+			name:      "gauge NaN observed",
+			check:     GaugeAtLeast("nan_metric", nil, 1),
+			wantError: "observed NaN",
 		},
 		{
 			name:  "gauge sum equals",

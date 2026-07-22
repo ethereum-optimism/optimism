@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -185,9 +186,15 @@ func GaugeEquals(name string, labels map[string]string, expected float64) Snapsh
 
 func GaugeAtLeast(name string, labels map[string]string, minimum float64) SnapshotCheck {
 	return func(snapshot *Snapshot) error {
+		if math.IsNaN(minimum) {
+			return fmt.Errorf("metric %s with labels %v minimum must not be NaN", name, labels)
+		}
 		observed, err := snapshot.Gauge(name, labels)
 		if err != nil {
 			return err
+		}
+		if math.IsNaN(observed) {
+			return fmt.Errorf("metric %s with labels %v observed NaN", name, labels)
 		}
 		if observed < minimum {
 			return fmt.Errorf("metric %s with labels %v expected at least %v but observed %v", name, labels, minimum, observed)

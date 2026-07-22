@@ -144,12 +144,14 @@ func (g *FaultDisputeGame) Defend(eoa *dsl.EOA, claimIdx uint64, newClaim common
 }
 
 func (g *FaultDisputeGame) ResolveClaim(eoa *dsl.EOA, claimIdx uint64) {
+	g.t.Logf("Resolving claim %v in game %v with actor %v", claimIdx, g.Address, eoa.Address())
 	resolveCall := g.game.ResolveClaim(new(big.Int).SetUint64(claimIdx), common.Big0)
 	receipt := contract.Write(eoa, resolveCall, txplan.WithGasRatio(2))
 	g.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
 }
 
 func (g *FaultDisputeGame) Resolve(eoa *dsl.EOA) {
+	g.t.Logf("Resolving game %v with actor %v", g.Address, eoa.Address())
 	receipt := contract.Write(eoa, g.game.Resolve(), txplan.WithGasRatio(2))
 	g.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
 }
