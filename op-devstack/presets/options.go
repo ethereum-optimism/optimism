@@ -389,6 +389,19 @@ func WithoutHonestChallenger() Option {
 	}
 }
 
+// WithConductorFastHealthChecks runs conductor health checks every second so
+// health-based failover reacts to sequencer failures within test timescales.
+// The default conductor preset effectively disables health monitoring (hourly
+// checks) to keep manual leadership operations deterministic.
+func WithConductorFastHealthChecks() Option {
+	return option{
+		kinds: optionKindConductorFastHealthChecks,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.ConductorFastHealthChecks = true
+		},
+	}
+}
+
 // WithInteropAtGenesis activates the Lagoon hardfork at genesis on the L2 chain and provisions
 // a DependencySet for op-node startup without a supervisor. Required by presets that exercise
 // interop-gated consensus features (e.g. SDM PostExec).

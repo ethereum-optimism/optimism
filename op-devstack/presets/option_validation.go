@@ -38,6 +38,7 @@ const (
 	optionKindSupernodeVNSequencerForBootstrap
 	optionKindZKDisputeGame
 	optionKindZKProposer
+	optionKindConductorFastHealthChecks
 )
 
 const allOptionKinds = optionKindDeployer |
@@ -66,7 +67,8 @@ const allOptionKinds = optionKindDeployer |
 	optionKindInteropAtGenesis |
 	optionKindSupernodeVNSequencerForBootstrap |
 	optionKindZKDisputeGame |
-	optionKindZKProposer
+	optionKindZKProposer |
+	optionKindConductorFastHealthChecks
 
 var optionKindLabels = []struct {
 	kind  optionKinds
@@ -99,6 +101,7 @@ var optionKindLabels = []struct {
 	{kind: optionKindSupernodeVNSequencerForBootstrap, label: "supernode VN sequencer for bootstrap"},
 	{kind: optionKindZKDisputeGame, label: "ZK dispute game"},
 	{kind: optionKindZKProposer, label: "ZK proposer options"},
+	{kind: optionKindConductorFastHealthChecks, label: "conductor fast health checks"},
 }
 
 func (k optionKinds) String() string {
@@ -158,7 +161,8 @@ const minimalPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindProofValidation |
 	optionKindSkipHonestProposer
 
-const minimalWithConductorsPresetSupportedOptionKinds = minimalPresetSupportedOptionKinds
+const minimalWithConductorsPresetSupportedOptionKinds = minimalPresetSupportedOptionKinds |
+	optionKindConductorFastHealthChecks
 
 // Builds on the minimal set, op-reth options included: the added node is a sync-tester EL, not a
 // sequencing candidate, so the sequencer-builds / stock-verifies split holds.
