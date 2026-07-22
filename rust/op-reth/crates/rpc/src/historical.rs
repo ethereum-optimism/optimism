@@ -363,6 +363,8 @@ fn extract_block_id_for_method(method: &str, params: &Params<'_>) -> Option<Bloc
         "eth_getBlockByNumber" |
         "eth_getBlockByHash" |
         "eth_getBlockReceipts" |
+        "eth_getHeaderByNumber" |
+        "eth_getHeaderByHash" |
         "eth_getBlockTransactionCountByNumber" |
         "eth_getBlockTransactionCountByHash" |
         "eth_getUncleCountByBlockNumber" |
@@ -371,6 +373,8 @@ fn extract_block_id_for_method(method: &str, params: &Params<'_>) -> Option<Bloc
         "eth_getUncleByBlockHashAndIndex" |
         "eth_getTransactionByBlockNumberAndIndex" |
         "eth_getTransactionByBlockHashAndIndex" |
+        "eth_getRawTransactionByBlockNumberAndIndex" |
+        "eth_getRawTransactionByBlockHashAndIndex" |
         "debug_traceBlockByNumber" |
         "debug_traceBlockByHash" => parse_block_id_from_params(params, 0),
         "eth_getBalance" |
@@ -416,27 +420,20 @@ mod tests {
         assert_historical_rpc::<Either<HistoricalRpc<NoopProvider>, Identity>>();
     }
 
-    /// Tests that `eth_getBlockReceipts` extracts the block id from the first parameter.
-    #[test]
-    fn extracts_block_id_for_get_block_receipts() {
-        let params = Params::new(Some(r#"["0x64"]"#));
-        assert_eq!(
-            extract_block_id_for_method("eth_getBlockReceipts", &params).unwrap(),
-            BlockId::Number(BlockNumberOrTag::Number(100))
-        );
-    }
-
     /// Tests that block-number-parameterized methods extract the block id from the first
     /// parameter.
     #[test]
     fn extracts_block_id_for_block_number_methods() {
-        let params = Params::new(Some(r#"["0x64", "0x0"]"#));
-        for method in [
-            "eth_getBlockTransactionCountByNumber",
-            "eth_getUncleCountByBlockNumber",
-            "eth_getUncleByBlockNumberAndIndex",
-            "eth_getTransactionByBlockNumberAndIndex",
+        for (method, params_str) in [
+            ("eth_getBlockReceipts", r#"["0x64"]"#),
+            ("eth_getHeaderByNumber", r#"["0x64"]"#),
+            ("eth_getBlockTransactionCountByNumber", r#"["0x64"]"#),
+            ("eth_getUncleCountByBlockNumber", r#"["0x64"]"#),
+            ("eth_getUncleByBlockNumberAndIndex", r#"["0x64", "0x0"]"#),
+            ("eth_getTransactionByBlockNumberAndIndex", r#"["0x64", "0x0"]"#),
+            ("eth_getRawTransactionByBlockNumberAndIndex", r#"["0x64", "0x0"]"#),
         ] {
+            let params = Params::new(Some(params_str));
             assert_eq!(
                 extract_block_id_for_method(method, &params).unwrap(),
                 BlockId::Number(BlockNumberOrTag::Number(100)),
@@ -449,14 +446,16 @@ mod tests {
     #[test]
     fn extracts_block_id_for_block_hash_methods() {
         let hash = "0xdbdfa0f88b2cf815fdc1621bd20c2bd2b0eed4f0c56c9be2602957b5a60ec702";
-        let params_str = format!(r#"["{hash}", "0x0"]"#);
-        let params = Params::new(Some(&params_str));
-        for method in [
-            "eth_getBlockTransactionCountByHash",
-            "eth_getUncleCountByBlockHash",
-            "eth_getUncleByBlockHashAndIndex",
-            "eth_getTransactionByBlockHashAndIndex",
+        for (method, params_str) in [
+            ("eth_getBlockReceipts", format!(r#"["{hash}"]"#)),
+            ("eth_getHeaderByHash", format!(r#"["{hash}"]"#)),
+            ("eth_getBlockTransactionCountByHash", format!(r#"["{hash}"]"#)),
+            ("eth_getUncleCountByBlockHash", format!(r#"["{hash}"]"#)),
+            ("eth_getUncleByBlockHashAndIndex", format!(r#"["{hash}", "0x0"]"#)),
+            ("eth_getTransactionByBlockHashAndIndex", format!(r#"["{hash}", "0x0"]"#)),
+            ("eth_getRawTransactionByBlockHashAndIndex", format!(r#"["{hash}", "0x0"]"#)),
         ] {
+            let params = Params::new(Some(&params_str));
             assert_eq!(
                 extract_block_id_for_method(method, &params).unwrap(),
                 BlockId::Hash(hash.parse::<B256>().unwrap().into()),
