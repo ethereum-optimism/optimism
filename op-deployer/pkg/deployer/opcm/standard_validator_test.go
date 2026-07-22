@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
@@ -14,7 +15,9 @@ import (
 
 type standardValidatorBackend struct {
 	t             *testing.T
-	wantMethod    []byte
+	wantMethod    abi.Method
+	wantInput     any
+	wantOverrides validationOverrides
 	wantValidator common.Address
 	result        string
 	err           error
@@ -28,24 +31,27 @@ func (b *standardValidatorBackend) CallContract(
 	b.t.Helper()
 	require.NotNil(b.t, call.To)
 	require.Equal(b.t, b.wantValidator, *call.To)
-	require.Equal(b.t, b.wantMethod, call.Data[:4])
-	method := standardValidationMethod
-	if string(b.wantMethod) == string(standardValidationDevMethod.ID) {
-		method = standardValidationDevMethod
-	}
-	values, err := method.Inputs.Unpack(call.Data[4:])
+	require.Equal(b.t, b.wantMethod.ID, call.Data[:4])
+	wantArgs, err := b.wantMethod.Inputs.Pack(b.wantInput, false, b.wantOverrides)
 	require.NoError(b.t, err)
-	require.Len(b.t, values, 2)
-	require.Equal(b.t, true, values[1])
+	require.Equal(b.t, wantArgs, call.Data[4:])
 	if b.err != nil {
 		return nil, b.err
 	}
-	return standardValidationMethod.Outputs.Pack(b.result)
+	return b.wantMethod.Outputs.Pack(b.result)
 }
 
 func TestValidateStandardDeployment(t *testing.T) {
-	require.Equal(t, crypto.Keccak256([]byte("validate((address,bytes32,uint256,address),bool)"))[:4], standardValidationMethod.ID)
-	require.Equal(t, crypto.Keccak256([]byte("validate((address,bytes32,bytes32,uint256,address),bool)"))[:4], standardValidationDevMethod.ID)
+	require.Equal(
+		t,
+		crypto.Keccak256([]byte("validateWithOverrides((address,bytes32,uint256,address),bool,(address,address))"))[:4],
+		standardValidationMethod.ID,
+	)
+	require.Equal(
+		t,
+		crypto.Keccak256([]byte("validateWithOverrides((address,bytes32,bytes32,uint256,address),bool,(address,address))"))[:4],
+		standardValidationDevMethod.ID,
+	)
 
 	validator := common.Address{0x01}
 	var input StandardValidatorInput
@@ -53,20 +59,38 @@ func TestValidateStandardDeployment(t *testing.T) {
 	input.AbsolutePrestate = common.Hash{0x03}
 	input.L2ChainID = big.NewInt(4)
 	input.Proposer = common.Address{0x05}
+	input.L1PAOMultisig = common.Address{0x06}
+	input.Challenger = common.Address{0x07}
+	wantOverrides := validationOverrides{
+		L1PAOMultisig: input.L1PAOMultisig,
+		Challenger:    input.Challenger,
+	}
+	wantResult := "OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER"
+	wantInput := validationInput{
+		SystemConfig:     input.SystemConfig,
+		AbsolutePrestate: input.AbsolutePrestate,
+		L2ChainID:        input.L2ChainID,
+		Proposer:         input.Proposer,
+	}
 
-	t.Run("empty result passes", func(t *testing.T) {
+	t.Run("expected override marker passes", func(t *testing.T) {
 		backend := &standardValidatorBackend{
 			t:             t,
-			wantMethod:    standardValidationMethod.ID,
+			wantMethod:    standardValidationMethod,
+			wantInput:     wantInput,
+			wantOverrides: wantOverrides,
 			wantValidator: validator,
+			result:        wantResult,
 		}
 		require.NoError(t, ValidateStandardDeployment(t.Context(), backend, validator, input))
 	})
 
-	t.Run("non-empty result fails", func(t *testing.T) {
+	t.Run("unexpected result fails", func(t *testing.T) {
 		backend := &standardValidatorBackend{
 			t:             t,
-			wantMethod:    standardValidationMethod.ID,
+			wantMethod:    standardValidationMethod,
+			wantInput:     wantInput,
+			wantOverrides: wantOverrides,
 			wantValidator: validator,
 			result:        "PDDG-FAULT",
 		}
@@ -77,7 +101,9 @@ func TestValidateStandardDeployment(t *testing.T) {
 	t.Run("call failure fails", func(t *testing.T) {
 		backend := &standardValidatorBackend{
 			t:             t,
-			wantMethod:    standardValidationMethod.ID,
+			wantMethod:    standardValidationMethod,
+			wantInput:     wantInput,
+			wantOverrides: wantOverrides,
 			wantValidator: validator,
 			err:           fmt.Errorf("execution reverted"),
 		}
@@ -87,12 +113,21 @@ func TestValidateStandardDeployment(t *testing.T) {
 
 	t.Run("dev input uses overload", func(t *testing.T) {
 		input.UseDevFeaturesInput = true
-		input.CannonPrestate = common.Hash{0x06}
-		input.CannonKonaPrestate = common.Hash{0x07}
+		input.CannonPrestate = common.Hash{0x08}
+		input.CannonKonaPrestate = common.Hash{0x09}
 		backend := &standardValidatorBackend{
-			t:             t,
-			wantMethod:    standardValidationDevMethod.ID,
+			t:          t,
+			wantMethod: standardValidationDevMethod,
+			wantInput: validationInputDev{
+				SystemConfig:       input.SystemConfig,
+				CannonPrestate:     input.CannonPrestate,
+				CannonKonaPrestate: input.CannonKonaPrestate,
+				L2ChainID:          input.L2ChainID,
+				Proposer:           input.Proposer,
+			},
+			wantOverrides: wantOverrides,
 			wantValidator: validator,
+			result:        wantResult,
 		}
 		require.NoError(t, ValidateStandardDeployment(t.Context(), backend, validator, input))
 	})

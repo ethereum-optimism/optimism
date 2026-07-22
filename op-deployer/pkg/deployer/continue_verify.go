@@ -870,6 +870,8 @@ func standardValidatorInput(
 		CannonKonaPrestate:  dci.DisputeAbsolutePrestate,
 		L2ChainID:           dci.L2ChainId,
 		Proposer:            dci.Proposer,
+		L1PAOMultisig:       dci.OpChainProxyAdminOwner,
+		Challenger:          dci.Challenger,
 		UseDevFeaturesInput: useDevInput,
 	}
 }

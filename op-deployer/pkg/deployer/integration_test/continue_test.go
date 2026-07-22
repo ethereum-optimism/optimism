@@ -57,6 +57,9 @@ func TestEndToEndContinuePreparedChain(t *testing.T) {
 	t.Run("permissionless", func(t *testing.T) {
 		testContinuePermissionless(t)
 	})
+	t.Run("permissionless with custom roles", func(t *testing.T) {
+		testContinuePermissionlessWithCustomRoles(t)
+	})
 	t.Run("permissioned without committed prestate", func(t *testing.T) {
 		testContinuePermissioned(t)
 	})
@@ -155,6 +158,30 @@ func testContinuePermissionless(t *testing.T) {
 	require.NotNil(t, reconciled.AppliedIntent)
 }
 
+func testContinuePermissionlessWithCustomRoles(t *testing.T) {
+	t.Helper()
+	customProxyAdminOwner := common.Address{0xa1}
+	customChallenger := common.Address{0xa2}
+	env := newContinuationEnvWithIntentMutator(
+		t,
+		[]embedded.GameType{embedded.GameTypeCannonKona},
+		common.Hash{},
+		func(intent *state.Intent) {
+			roles := &intent.Chains[0].Roles
+			require.NotEqual(t, roles.L1ProxyAdminOwner, customProxyAdminOwner)
+			require.NotEqual(t, roles.Challenger, customChallenger)
+			roles.L1ProxyAdminOwner = customProxyAdminOwner
+			roles.Challenger = customChallenger
+		},
+	)
+	setPermissionlessContinuationInputs(env.preparedChain, 7)
+	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
+	nonceBefore := pendingNonce(t, env)
+
+	require.NoError(t, deployer.Continue(env.ctx, env.config()))
+	assertContinuationCompleted(t, env, nonceBefore)
+}
+
 func testContinuePermissioned(t *testing.T) {
 	t.Helper()
 	env := newContinuationEnv(t, embedded.GameTypePermissionedCannon)
@@ -236,7 +263,7 @@ func testContinueLiveValidationFailure(t *testing.T) {
 	require.NotNil(t, continuedChain.Continuation.ReceiptBlockHash)
 	require.False(t, continuedChain.Continuation.LiveValidated)
 
-	setAnvilCode(t, env.l1Client, env.standardValidator, validatorResultCode(""))
+	setAnvilCode(t, env.l1Client, env.standardValidator, validatorResultCode(validValidatorResult))
 	nonceAfterFailure := pendingNonce(t, env)
 	require.NoError(t, deployer.Continue(env.ctx, env.config()))
 	require.Equal(t, nonceAfterFailure, pendingNonce(t, env))
@@ -347,7 +374,7 @@ func testContinueMultiChainLiveValidationFailure(t *testing.T) {
 	require.NotNil(t, first.Continuation.TxHash)
 	require.NotNil(t, second.Continuation.TxHash)
 
-	setAnvilCode(t, env.l1Client, env.standardValidator, validatorResultCode(""))
+	setAnvilCode(t, env.l1Client, env.standardValidator, validatorResultCode(validValidatorResult))
 	nonceAfterFailure := pendingNonce(t, env)
 	require.NoError(t, deployer.Continue(env.ctx, env.config()))
 	require.Equal(t, nonceAfterFailure, pendingNonce(t, env))
@@ -387,7 +414,7 @@ func testContinueMultiChainSequentialValidation(t *testing.T) {
 	require.False(t, checkpointed.IsChainDeployed(env.intent.Chains[1].ID))
 	require.Nil(t, checkpointed.AppliedIntent)
 
-	setAnvilCode(t, env.l1Client, env.standardValidator, validatorResultCode(""))
+	setAnvilCode(t, env.l1Client, env.standardValidator, validatorResultCode(validValidatorResult))
 	require.NoError(t, deployer.Continue(env.ctx, env.config()))
 	require.Equal(t, nonceBefore+2, pendingNonce(t, env))
 	completed, err := pipeline.ReadState(env.workdir)
@@ -446,6 +473,15 @@ func newContinuationEnvForGameTypesAndFeatures(
 	gameTypes []embedded.GameType,
 	devFeatureBitmap common.Hash,
 ) *continuationEnv {
+	return newContinuationEnvWithIntentMutator(t, gameTypes, devFeatureBitmap, nil)
+}
+
+func newContinuationEnvWithIntentMutator(
+	t *testing.T,
+	gameTypes []embedded.GameType,
+	devFeatureBitmap common.Hash,
+	mutateIntentAfterBootstrap func(*state.Intent),
+) *continuationEnv {
 	t.Helper()
 	require.NotEmpty(t, gameTypes)
 	ctx, cancel := context.WithTimeout(t.Context(), 180*time.Second)
@@ -500,6 +536,9 @@ func newContinuationEnvForGameTypesAndFeatures(
 	})
 	require.NoError(t, err)
 
+	if mutateIntentAfterBootstrap != nil {
+		mutateIntentAfterBootstrap(intent)
+	}
 	intent.SuperchainRoles = nil
 	intent.OPCMAddress = &impls.OpcmV2
 	intent.SuperchainConfigProxy = &bstrap.SuperchainConfigProxy
@@ -590,19 +629,24 @@ func setAnvilCode(t *testing.T, client *ethclient.Client, address common.Address
 	require.NoError(t, client.Client().Call(nil, "anvil_setCode", address, hexutil.Encode(code)))
 }
 
+const validValidatorResult = "OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER"
+
 func validatorResultCode(result string) []byte {
-	data := common.RightPadBytes([]byte(result), 32)
 	code := []byte{
 		byte(vm.PUSH1), 0x20, byte(vm.PUSH1), 0, byte(vm.MSTORE),
 		byte(vm.PUSH1), byte(len(result)), byte(vm.PUSH1), 0x20, byte(vm.MSTORE),
-		byte(vm.PUSH32),
 	}
-	code = append(code, data...)
-	code = append(code, byte(vm.PUSH1), 0x40, byte(vm.MSTORE))
-	returnSize := byte(0x40)
-	if result != "" {
-		returnSize = 0x60
+	data := []byte(result)
+	for offset := 0; offset < len(data); offset += 32 {
+		end := offset + 32
+		if end > len(data) {
+			end = len(data)
+		}
+		code = append(code, byte(vm.PUSH32))
+		code = append(code, common.RightPadBytes(data[offset:end], 32)...)
+		code = append(code, byte(vm.PUSH1), byte(0x40+offset), byte(vm.MSTORE))
 	}
+	returnSize := byte(0x40 + 32*((len(data)+31)/32))
 	return append(code, byte(vm.PUSH1), returnSize, byte(vm.PUSH1), 0, byte(vm.RETURN))
 }
 
@@ -611,7 +655,7 @@ func conditionalValidatorCode(liveValidationBlock *big.Int) []byte {
 	code = append(code, common.LeftPadBytes(liveValidationBlock.Bytes(), 32)...)
 	code = append(code, byte(vm.EQ), byte(vm.PUSH1), 0, byte(vm.JUMPI))
 	jumpDestinationIndex := len(code) - 2
-	code = append(code, validatorResultCode("")...)
+	code = append(code, validatorResultCode(validValidatorResult)...)
 	code[jumpDestinationIndex] = byte(len(code))
 	code = append(code, byte(vm.JUMPDEST))
 	return append(code, validatorResultCode("TEST-FAIL")...)

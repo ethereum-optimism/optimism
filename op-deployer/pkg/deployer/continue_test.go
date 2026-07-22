@@ -504,10 +504,14 @@ func TestStandardValidatorInput(t *testing.T) {
 	dci.DisputeGameType = uint32(embedded.GameTypeCannonKona)
 	dci.DisputeAbsolutePrestate = selected
 	dci.CannonAbsolutePrestate = fallback
+	dci.OpChainProxyAdminOwner = common.Address{0x03}
+	dci.Challenger = common.Address{0x04}
 	input := standardValidatorInput(dci, contracts)
 	require.Equal(t, contracts.SystemConfigProxy, input.SystemConfig)
 	require.Equal(t, selected, input.CannonKonaPrestate)
 	require.Equal(t, fallback, input.CannonPrestate)
+	require.Equal(t, dci.OpChainProxyAdminOwner, input.L1PAOMultisig)
+	require.Equal(t, dci.Challenger, input.Challenger)
 	require.True(t, input.UseDevFeaturesInput)
 
 	dci.DisputeGameType = uint32(embedded.GameTypeSuperCannonKona)

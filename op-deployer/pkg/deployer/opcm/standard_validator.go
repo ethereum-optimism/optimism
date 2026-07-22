@@ -24,6 +24,8 @@ type StandardValidatorInput struct {
 	CannonKonaPrestate  common.Hash
 	L2ChainID           *big.Int
 	Proposer            common.Address
+	L1PAOMultisig       common.Address
+	Challenger          common.Address
 	UseDevFeaturesInput bool
 }
 
@@ -40,6 +42,11 @@ type validationInputDev struct {
 	CannonKonaPrestate common.Hash    `abi:"cannonKonaPrestate"`
 	L2ChainID          *big.Int       `abi:"l2ChainID"`
 	Proposer           common.Address `abi:"proposer"`
+}
+
+type validationOverrides struct {
+	L1PAOMultisig common.Address `abi:"l1PAOMultisig"`
+	Challenger    common.Address `abi:"challenger"`
 }
 
 var (
@@ -68,9 +75,16 @@ func newStandardValidationMethod(dev bool) abi.Method {
 	if err != nil {
 		panic(err)
 	}
+	overrides, err := abi.NewType("tuple", "", []abi.ArgumentMarshaling{
+		{Name: "l1PAOMultisig", Type: "address"},
+		{Name: "challenger", Type: "address"},
+	})
+	if err != nil {
+		panic(err)
+	}
 	return abi.NewMethod(
-		"validate",
-		"validate",
+		"validateWithOverrides",
+		"validateWithOverrides",
 		abi.Function,
 		"view",
 		true,
@@ -78,6 +92,7 @@ func newStandardValidationMethod(dev bool) abi.Method {
 		abi.Arguments{
 			{Name: "_input", Type: tuple},
 			{Name: "_allowFailure", Type: MustType("bool")},
+			{Name: "_overrides", Type: overrides},
 		},
 		abi.Arguments{{Name: "", Type: MustType("string")}},
 	)
@@ -111,7 +126,11 @@ func ValidateStandardDeployment(
 		}
 	}
 
-	args, err := method.Inputs.Pack(callInput, true)
+	overrides := validationOverrides{
+		L1PAOMultisig: input.L1PAOMultisig,
+		Challenger:    input.Challenger,
+	}
+	args, err := method.Inputs.Pack(callInput, false, overrides)
 	if err != nil {
 		return fmt.Errorf("failed to encode standard validator input: %w", err)
 	}
@@ -131,10 +150,23 @@ func ValidateStandardDeployment(
 	if !ok {
 		return fmt.Errorf("standard validator returned unexpected type %T", values[0])
 	}
-	if validationErr != "" {
+	if expected := expectedOverrideMarker(overrides); validationErr != expected {
 		return fmt.Errorf("standard validator reported errors: %s", validationErr)
 	}
 	return nil
+}
+
+func expectedOverrideMarker(overrides validationOverrides) string {
+	switch {
+	case overrides.L1PAOMultisig != (common.Address{}) && overrides.Challenger != (common.Address{}):
+		return "OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER"
+	case overrides.L1PAOMultisig != (common.Address{}):
+		return "OVERRIDES-L1PAOMULTISIG"
+	case overrides.Challenger != (common.Address{}):
+		return "OVERRIDES-CHALLENGER"
+	default:
+		return ""
+	}
 }
 
 type ScriptHostCallBackend struct {
