@@ -1,24 +1,16 @@
 //! Seed the slot-preimage database during state-dump import.
 //!
-//! reth's V2 storage layout (`--storage.v2`, hashed state as the canonical state
-//! representation) keeps storage under `HashedStorages` (keyed by `keccak256(slot)`).
-//! For pre-Cancun blocks, `SELFDESTRUCT` wipes storage, and the execution stage must
-//! rewrite the storage-changeset reverts using *plain* slot keys. To recover a plain
-//! key from its hash it consults an auxiliary MDBX database at `<datadir>/db/preimage`,
-//! populated only while executing blocks (see reth
-//! `crates/stages/stages/src/stages/execution/slot_preimages.rs`).
+//! Storage V2 stores each contract storage slot under its hash rather than its original slot
+//! number. Before Ecotone, `SELFDESTRUCT` can delete every slot in a contract, and reth needs the
+//! original slot numbers to create undo records.
 //!
-//! A state-dump import (`init-state --without-ovm`, i.e. the OP Mainnet Bedrock bootstrap)
-//! writes hashed storage directly and never populates that preimage DB. Any contract whose
-//! storage came only from the imported snapshot and is later self-destructed in a pre-Ecotone
-//! block then fails the execution stage with `missing slot preimage for 0x… (addr=0x…)`.
+//! Normally reth learns these slot numbers while executing blocks. `init-state --without-ovm`
+//! imports the OP Mainnet Bedrock snapshot without executing the earlier blocks, so that lookup
+//! information is missing for storage from the snapshot.
 //!
-//! This module closes that gap: it re-reads the dump (which carries plain slot keys) and seeds
-//! `keccak256(slot) → slot` for every imported slot, so the execution stage can resolve them.
-//! The preimage DB is address-independent and reth deletes it once Ecotone (Cancun) activates.
-//!
-//! The upstream [`SlotPreimages`] API owns the MDBX layout and insertion behavior. This module
-//! only handles streaming the OP state-dump format and batching its slot preimages.
+//! This module rereads the state dump and records `keccak256(slot) → slot` for every imported
+//! storage slot. This allows reth to process `SELFDESTRUCT` until Ecotone, after which the lookup
+//! database is no longer needed.
 
 use alloy_genesis::GenesisAccount;
 use alloy_primitives::{Address, B256, keccak256};
@@ -33,9 +25,9 @@ use tracing::info;
 /// Number of preimage entries to accumulate before flushing a write transaction.
 const FLUSH_THRESHOLD: usize = 1_000_000;
 
-/// A single account as laid out in the state-dump file. Mirrors reth's private
-/// `GenesisAccountWithAddress`; only the storage map is used here, but `address` must be
-/// present for the flattened deserialization to match the dump format.
+/// An account entry from the state dump. This mirrors reth's private
+/// `GenesisAccountWithAddress`; the address is part of each entry but is not needed when
+/// collecting slot keys.
 #[derive(Deserialize)]
 struct DumpAccount {
     #[serde(flatten)]
@@ -44,14 +36,14 @@ struct DumpAccount {
     address: Address,
 }
 
-/// Batch-inserts `hashed_slot → plain_slot` entries, skipping keys already present, and
-/// clears `batch` on success so the caller can keep reusing the same allocation.
+/// Sorts and inserts a batch of `hashed_slot → plain_slot` entries, then clears it for reuse.
+/// [`SlotPreimages::insert_preimages`] skips entries already in the database.
 fn flush(preimages: &SlotPreimages, batch: &mut Vec<(B256, B256)>) -> eyre::Result<()> {
     if batch.is_empty() {
         return Ok(());
     }
 
-    // Sorted inserts hit MDBX's append fast path.
+    // Sorting improves MDBX cursor locality.
     batch.sort_unstable_by_key(|(hashed, _)| *hashed);
 
     preimages.insert_preimages(batch)?;
