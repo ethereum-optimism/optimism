@@ -2364,6 +2364,12 @@
             ]
           },
           {
+            "group": "Learn the OP Stack",
+            "pages": [
+              "/op-stack/learn/index"
+            ]
+          },
+          {
             "group": "Features",
             "pages": [
               "/op-stack/features/flashblocks",
@@ -2510,6 +2516,7 @@
               "/op-stack/contribute/content-guide",
               "/op-stack/contribute/link-policy",
               "/op-stack/contribute/curation-policy",
+              "/op-stack/contribute/learn-track-syllabus",
               "/op-stack/contribute/style-guide",
               {
                 "group": "Choose a content type",
