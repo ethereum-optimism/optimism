@@ -2285,7 +2285,6 @@
           },
           {
             "group": "Kona Node",
-            "tag": "Rust",
             "pages": [
               "node-operators/kona-node/requirements",
               {
@@ -2332,7 +2331,6 @@
           },
           {
             "group": "op-reth",
-            "tag": "Rust",
             "pages": [
               "node-operators/op-reth/index",
               {
