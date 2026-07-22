@@ -7,7 +7,7 @@ diataxis: explanation
 This page explains how the `op-reth` command-line interface is organized, so
 you can find the right command and understand where its configuration comes
 from. To install and start a node, follow
-[Running op-reth on OP Stack chains](/rust/op-reth/run/opstack). For the full
+[Running op-reth on OP Stack chains](/node-operators/op-reth/run/opstack). For the full
 flag catalogue of every command, see the
 [generated CLI reference](/rust/op-reth/cli/op-reth).
 
@@ -52,7 +52,7 @@ The `Rollup` group is OP Stack-specific: flags such as `--rollup.sequencer`
 (the sequencer endpoint that transactions are forwarded to) and
 `--rollup.disable-tx-pool-gossip` configure behavior that only exists on OP
 Stack chains. These are covered with examples in
-[Running op-reth on OP Stack chains](/rust/op-reth/run/opstack).
+[Running op-reth on OP Stack chains](/node-operators/op-reth/run/opstack).
 
 ### Initializing and importing
 
@@ -65,7 +65,7 @@ the network.
 [`import-receipts-op`](/rust/op-reth/cli/op-reth/import-receipts-op) exist for
 one OP Stack-specific job: loading OP Mainnet history from before the Bedrock
 migration, which cannot be re-executed and is instead imported from files.
-[Sync OP Mainnet](/rust/op-reth/run/faq/sync-op-mainnet) explains when you
+[Sync OP Mainnet](/node-operators/op-reth/run/faq/sync-op-mainnet) explains when you
 need them — most operators use the minimal bootstrap path with `init-state`
 and skip the pre-Bedrock import entirely.
 
@@ -131,9 +131,9 @@ is the quickest way to see what is configurable through the file.
 
 ## Next steps
 
-*   Follow [Running op-reth on OP Stack chains](/rust/op-reth/run/opstack) to
+*   Follow [Running op-reth on OP Stack chains](/node-operators/op-reth/run/opstack) to
     install op-reth and pair it with a rollup node.
 *   Browse the [CLI reference](/rust/op-reth/cli/op-reth) for the complete
     flag catalogue of every command.
-*   See [Sync OP Mainnet](/rust/op-reth/run/faq/sync-op-mainnet) if you are
+*   See [Sync OP Mainnet](/node-operators/op-reth/run/faq/sync-op-mainnet) if you are
     bootstrapping an OP Mainnet archive node.

@@ -93,7 +93,7 @@
     },
     {
       "source": "/rust/op-reth/cli/cli",
-      "destination": "/rust/op-reth/cli/overview"
+      "destination": "/node-operators/op-reth/cli/overview"
     },
     {
       "source": "/chain-operators/reference/architecture",
@@ -2038,6 +2038,26 @@
     {
       "source": "/rust/kona/node/faq/profiling",
       "destination": "/node-operators/kona-node/faq/profiling"
+    },
+    {
+      "source": "/rust/op-reth",
+      "destination": "/node-operators/op-reth/index"
+    },
+    {
+      "source": "/rust/op-reth/index",
+      "destination": "/node-operators/op-reth/index"
+    },
+    {
+      "source": "/rust/op-reth/run/opstack",
+      "destination": "/node-operators/op-reth/run/opstack"
+    },
+    {
+      "source": "/rust/op-reth/run/faq/sync-op-mainnet",
+      "destination": "/node-operators/op-reth/run/faq/sync-op-mainnet"
+    },
+    {
+      "source": "/rust/op-reth/cli/overview",
+      "destination": "/node-operators/op-reth/cli/overview"
     }
   ],
   "interaction": {
@@ -2311,6 +2331,31 @@
             ]
           },
           {
+            "group": "op-reth",
+            "tag": "Rust",
+            "pages": [
+              "node-operators/op-reth/index",
+              {
+                "group": "Run a Node",
+                "pages": [
+                  "node-operators/op-reth/run/opstack",
+                  {
+                    "group": "FAQ",
+                    "pages": [
+                      "node-operators/op-reth/run/faq/sync-op-mainnet"
+                    ]
+                  }
+                ]
+              },
+              {
+                "group": "CLI Reference",
+                "pages": [
+                  "node-operators/op-reth/cli/overview"
+                ]
+              }
+            ]
+          },
+          {
             "group": "Reference",
             "pages": [
               {
@@ -2562,7 +2607,8 @@
                 "group": "Derivation & Execution",
                 "pages": [
                   "/op-stack/components/op-node",
-                  "/op-stack/components/kona-node"
+                  "/op-stack/components/kona-node",
+                  "/op-stack/components/op-reth"
                 ]
               },
               {
@@ -2909,27 +2955,8 @@
             ]
           },
           {
-            "group": "op-reth - Introduction",
-            "pages": [
-              "rust/op-reth/index"
-            ]
-          },
-          {
-            "group": "op-reth - Running op-reth",
-            "pages": [
-              "rust/op-reth/run/opstack",
-              {
-                "group": "FAQ",
-                "pages": [
-                  "rust/op-reth/run/faq/sync-op-mainnet"
-                ]
-              }
-            ]
-          },
-          {
             "group": "op-reth - CLI Reference",
             "pages": [
-              "rust/op-reth/cli/overview",
               {
                 "group": "op-reth",
                 "pages": [
