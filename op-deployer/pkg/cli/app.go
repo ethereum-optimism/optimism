@@ -6,7 +6,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/clean"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/manage"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/validate"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/verify"
 
@@ -46,12 +45,6 @@ func NewApp(versionWithMeta string) *cli.App {
 			Usage:  "applies a chain intent to the chain. MUST NOT be used on an intent on which `prepare` was already used",
 			Flags:  cliapp.ProtectFlags(deployer.ApplyFlags),
 			Action: deployer.ApplyCLI(),
-		},
-		{
-			Name:        "upgrade",
-			Usage:       "upgrades contracts by sending tx to OPCM.upgrade function",
-			Flags:       cliapp.ProtectFlags(deployer.UpgradeFlags),
-			Subcommands: upgrade.Commands,
 		},
 		{
 			Name:        "bootstrap",
