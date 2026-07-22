@@ -5,6 +5,7 @@ use alloy_eips::BlockId;
 use alloy_json_rpc::{RpcRecv, RpcSend};
 use alloy_primitives::{B256, BlockNumber};
 use alloy_rpc_client::RpcClient;
+use alloy_transport::TransportErrorKind;
 use jsonrpsee::BatchResponseBuilder;
 use jsonrpsee_core::{
     middleware::{Batch, BatchEntry, Notification, RpcServiceT},
@@ -37,6 +38,17 @@ impl HistoricalRpcClient {
                 client,
             }),
         })
+    }
+
+    /// Constructs a historical RPC client around an existing [`RpcClient`], for tests.
+    #[cfg(test)]
+    fn with_client(client: RpcClient) -> Self {
+        Self {
+            inner: Arc::new(HistoricalRpcClientInner {
+                historical_endpoint: "http://localhost:0".to_string(),
+                client,
+            }),
+        }
     }
 
     /// Returns a reference to the underlying RPC client
@@ -342,11 +354,113 @@ where
 
         let params = serde_json::from_str::<serde_json::Value>(params_str).ok()?;
 
-        let raw =
-            self.client.request::<_, serde_json::Value>(req.method_name(), params).await.ok()?;
+        let raw = match self.client.request::<_, serde_json::Value>(req.method_name(), params).await
+        {
+            Ok(raw) => raw,
+            // l2geth doesn't serve `eth_getBlockReceipts`; stitch the response from per-tx
+            // receipts instead. Any other error keeps the existing fall-through-to-local
+            // behavior for all methods.
+            Err(err)
+                if req.method_name() == "eth_getBlockReceipts" && is_method_not_found(&err) =>
+            {
+                return Some(self.stitch_block_receipts(req).await);
+            }
+            Err(_) => return None,
+        };
 
         let payload = jsonrpsee_types::ResponsePayload::success(raw).into();
         Some(MethodResponse::response(req.id.clone(), payload, usize::MAX))
+    }
+
+    /// Serves `eth_getBlockReceipts` against a historical endpoint that lacks the method by
+    /// fetching the block's transaction hashes and issuing one `eth_getTransactionReceipt` per
+    /// hash. Receipts are passed through verbatim, matching what the forwarded
+    /// `eth_getTransactionReceipt` returns for the same transactions.
+    ///
+    /// Failures produce a JSON-RPC error response instead of falling through to local handling,
+    /// which cannot serve pre-bedrock receipts.
+    async fn stitch_block_receipts(&self, req: &Request<'_>) -> MethodResponse {
+        match self.fetch_stitched_block_receipts(req).await {
+            Ok(raw) => {
+                let payload = jsonrpsee_types::ResponsePayload::success(raw).into();
+                MethodResponse::response(req.id.clone(), payload, usize::MAX)
+            }
+            Err(err) => {
+                warn!(
+                    target: "rpc::historical",
+                    %err,
+                    "failed to stitch eth_getBlockReceipts response from historical endpoint"
+                );
+                MethodResponse::error(
+                    req.id.clone(),
+                    jsonrpsee_types::ErrorObject::owned(
+                        jsonrpsee_types::error::INTERNAL_ERROR_CODE,
+                        format!(
+                            "failed to fetch pre-bedrock receipts from historical endpoint: {err}"
+                        ),
+                        None::<()>,
+                    ),
+                )
+            }
+        }
+    }
+
+    /// Assembles an `eth_getBlockReceipts` response from per-transaction receipt requests.
+    ///
+    /// Returns JSON `null` if the historical endpoint doesn't know the block, and `[]` for a
+    /// block without transactions.
+    async fn fetch_stitched_block_receipts(
+        &self,
+        req: &Request<'_>,
+    ) -> Result<serde_json::Value, Error> {
+        let block_id = parse_block_id_from_params(&req.params(), 0).ok_or_else(|| {
+            Error::TransportError(TransportErrorKind::custom_str("invalid block id parameter"))
+        })?;
+
+        // `full = false` returns transaction hashes only
+        let (method, block_param) = match block_id {
+            BlockId::Hash(hash) => ("eth_getBlockByHash", serde_json::json!(hash.block_hash)),
+            BlockId::Number(number) => ("eth_getBlockByNumber", serde_json::json!(number)),
+        };
+        let block =
+            self.client.request::<_, serde_json::Value>(method, (block_param, false)).await?;
+
+        if block.is_null() {
+            return Ok(serde_json::Value::Null);
+        }
+
+        let tx_hashes = block
+            .get("transactions")
+            .and_then(serde_json::Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+
+        // pre-bedrock OP mainnet blocks contain at most one transaction
+        let mut receipts = Vec::with_capacity(tx_hashes.len());
+        for tx_hash in tx_hashes {
+            let receipt = self
+                .client
+                .request::<_, serde_json::Value>("eth_getTransactionReceipt", (tx_hash,))
+                .await?;
+            if receipt.is_null() {
+                return Err(Error::TransportError(TransportErrorKind::custom_str(
+                    "historical endpoint returned no receipt for a block transaction",
+                )));
+            }
+            receipts.push(receipt);
+        }
+
+        Ok(serde_json::Value::Array(receipts))
+    }
+}
+
+/// Returns true if the given error is a JSON-RPC "method not found" error response.
+fn is_method_not_found(err: &Error) -> bool {
+    match err {
+        Error::TransportError(err) => err
+            .as_error_resp()
+            .is_some_and(|resp| resp.code == jsonrpsee_types::error::METHOD_NOT_FOUND_CODE as i64),
+        _ => false,
     }
 }
 
@@ -407,11 +521,44 @@ fn parse_transaction_hash_from_params(params: &Params<'_>) -> Result<B256, Parse
 mod tests {
     use super::*;
     use alloy_eips::{BlockId, BlockNumberOrTag};
+    use alloy_json_rpc::ErrorPayload;
+    use alloy_transport::mock::Asserter;
     use jsonrpsee::types::Params;
     use jsonrpsee_core::middleware::layer::Either;
+    use jsonrpsee_types::Id;
     use reth_node_builder::rpc::RethRpcMiddleware;
     use reth_storage_api::noop::NoopProvider;
+    use serde_json::json;
     use tower::layer::util::Identity;
+
+    fn method_not_found_payload() -> ErrorPayload {
+        ErrorPayload {
+            code: jsonrpsee_types::error::METHOD_NOT_FOUND_CODE as i64,
+            message: "the method eth_getBlockReceipts does not exist/is not available".into(),
+            data: None,
+        }
+    }
+
+    fn mocked_historical(asserter: Asserter) -> HistoricalRpcInner<NoopProvider> {
+        HistoricalRpcInner {
+            provider: NoopProvider::default(),
+            client: HistoricalRpcClient::with_client(RpcClient::mocked(asserter)),
+            bedrock_block: 105235063,
+        }
+    }
+
+    fn owned_request(method: &str, params: &str) -> Request<'static> {
+        Request::owned(
+            method.to_string(),
+            Some(serde_json::value::RawValue::from_string(params.to_string()).unwrap()),
+            Id::Number(1),
+        )
+    }
+
+    fn result_of(resp: &MethodResponse) -> serde_json::Value {
+        let json: serde_json::Value = serde_json::from_str(resp.as_json().get()).unwrap();
+        json.get("result").cloned().unwrap()
+    }
 
     #[test]
     fn check_historical_rpc() {
@@ -535,5 +682,122 @@ mod tests {
         let result = parse_transaction_hash_from_params(&params);
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), ParseError::MissingParameter));
+    }
+
+    /// Tests that `eth_getBlockReceipts` responses from endpoints that serve the method natively
+    /// are passed through unchanged by a single upstream call.
+    #[tokio::test]
+    async fn forwards_block_receipts_natively() {
+        let asserter = Asserter::new();
+        let receipts = json!([{"transactionHash": "0xabc", "status": "0x1"}]);
+        asserter.push_success(&receipts);
+
+        let historical = mocked_historical(asserter.clone());
+        let req = owned_request("eth_getBlockReceipts", r#"["0x64"]"#);
+        let resp = historical.forward_to_historical(&req).await.unwrap();
+
+        assert!(resp.is_success());
+        assert_eq!(result_of(&resp), receipts);
+        assert!(asserter.read_q().is_empty(), "expected a single upstream call");
+    }
+
+    /// Tests that a method-not-found error from the historical endpoint (l2geth) stitches the
+    /// response from the block's per-transaction receipts, passed through verbatim.
+    #[tokio::test]
+    async fn stitches_block_receipts_on_method_not_found() {
+        let asserter = Asserter::new();
+        let tx_hash = "0x9c50bb3ba00b689fcbca3fb0837ca1af1cbd9e6b16fea8f0e4f47442dd0f78ec";
+        let receipt = json!({"transactionHash": tx_hash, "status": "0x1", "l1Fee": "0x143839f0f0"});
+        asserter.push_failure(method_not_found_payload());
+        asserter.push_success(&json!({"number": "0x64", "transactions": [tx_hash]}));
+        asserter.push_success(&receipt);
+
+        let historical = mocked_historical(asserter.clone());
+        let req = owned_request("eth_getBlockReceipts", r#"["0x64"]"#);
+        let resp = historical.forward_to_historical(&req).await.unwrap();
+
+        assert!(resp.is_success());
+        assert_eq!(result_of(&resp), json!([receipt]));
+        assert!(asserter.read_q().is_empty());
+    }
+
+    /// Tests that stitching works for hash block ids as well.
+    #[tokio::test]
+    async fn stitches_block_receipts_for_hash_param() {
+        let asserter = Asserter::new();
+        let block_hash = "0xdbdfa0f88b2cf815fdc1621bd20c2bd2b0eed4f0c56c9be2602957b5a60ec702";
+        let tx_hash = "0x9c50bb3ba00b689fcbca3fb0837ca1af1cbd9e6b16fea8f0e4f47442dd0f78ec";
+        let receipt = json!({"transactionHash": tx_hash, "status": "0x1"});
+        asserter.push_failure(method_not_found_payload());
+        asserter.push_success(&json!({"hash": block_hash, "transactions": [tx_hash]}));
+        asserter.push_success(&receipt);
+
+        let historical = mocked_historical(asserter);
+        let req = owned_request("eth_getBlockReceipts", &format!(r#"["{block_hash}"]"#));
+        let resp = historical.forward_to_historical(&req).await.unwrap();
+
+        assert!(resp.is_success());
+        assert_eq!(result_of(&resp), json!([receipt]));
+    }
+
+    /// Tests that a block without transactions stitches to an empty array.
+    #[tokio::test]
+    async fn stitches_empty_receipts_for_empty_block() {
+        let asserter = Asserter::new();
+        asserter.push_failure(method_not_found_payload());
+        asserter.push_success(&json!({"number": "0x0", "transactions": []}));
+
+        let historical = mocked_historical(asserter);
+        let req = owned_request("eth_getBlockReceipts", r#"["0x0"]"#);
+        let resp = historical.forward_to_historical(&req).await.unwrap();
+
+        assert!(resp.is_success());
+        assert_eq!(result_of(&resp), json!([]));
+    }
+
+    /// Tests that a block unknown to the historical endpoint stitches to `null`, mirroring what
+    /// an endpoint serving `eth_getBlockReceipts` natively returns.
+    #[tokio::test]
+    async fn stitches_null_for_unknown_block() {
+        let asserter = Asserter::new();
+        asserter.push_failure(method_not_found_payload());
+        asserter.push_success(&serde_json::Value::Null);
+
+        let historical = mocked_historical(asserter);
+        let req = owned_request("eth_getBlockReceipts", r#"["0x64"]"#);
+        let resp = historical.forward_to_historical(&req).await.unwrap();
+
+        assert!(resp.is_success());
+        assert_eq!(result_of(&resp), serde_json::Value::Null);
+    }
+
+    /// Tests that a failing receipt request during stitching produces a JSON-RPC error instead
+    /// of falling through to local handling.
+    #[tokio::test]
+    async fn stitch_receipt_failure_returns_error() {
+        let asserter = Asserter::new();
+        let tx_hash = "0x9c50bb3ba00b689fcbca3fb0837ca1af1cbd9e6b16fea8f0e4f47442dd0f78ec";
+        asserter.push_failure(method_not_found_payload());
+        asserter.push_success(&json!({"number": "0x64", "transactions": [tx_hash]}));
+        asserter.push_failure_msg("receipt fetch failed");
+
+        let historical = mocked_historical(asserter);
+        let req = owned_request("eth_getBlockReceipts", r#"["0x64"]"#);
+        let resp = historical.forward_to_historical(&req).await.unwrap();
+
+        assert!(!resp.is_success());
+        assert_eq!(resp.as_error_code(), Some(jsonrpsee_types::error::INTERNAL_ERROR_CODE));
+    }
+
+    /// Tests that method-not-found errors for methods other than `eth_getBlockReceipts` keep the
+    /// existing fall-through-to-local behavior.
+    #[tokio::test]
+    async fn method_not_found_falls_through_for_other_methods() {
+        let asserter = Asserter::new();
+        asserter.push_failure(method_not_found_payload());
+
+        let historical = mocked_historical(asserter);
+        let req = owned_request("eth_getHeaderByNumber", r#"["0x64"]"#);
+        assert!(historical.forward_to_historical(&req).await.is_none());
     }
 }
