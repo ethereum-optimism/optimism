@@ -365,7 +365,15 @@ where
             {
                 return Some(self.stitch_block_receipts(req).await);
             }
-            Err(_) => return None,
+            Err(err) => {
+                debug!(
+                    target: "rpc::historical",
+                    method = %req.method_name(),
+                    %err,
+                    "historical endpoint request failed; falling back to local handling"
+                );
+                return None;
+            }
         };
 
         let payload = jsonrpsee_types::ResponsePayload::success(raw).into();
