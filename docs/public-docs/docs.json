@@ -2421,9 +2421,23 @@
                 ]
               },
               {
+                "group": "Derivation & Execution",
+                "pages": [
+                  "/op-stack/components/op-node"
+                ]
+              },
+              {
                 "group": "Settlement & Proofs",
                 "pages": [
+                  "/op-stack/components/op-proposer",
+                  "/op-stack/components/op-challenger",
                   "/op-stack/components/cannon"
+                ]
+              },
+              {
+                "group": "Deployment & Infrastructure",
+                "pages": [
+                  "/op-stack/components/op-deployer"
                 ]
               }
             ]
