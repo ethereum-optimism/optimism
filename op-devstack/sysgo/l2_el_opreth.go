@@ -23,6 +23,10 @@ type OpRethConfig struct {
 	// (any binary that accepts every op-reth subcommand/flag, plus optionally its own additive
 	// flags) may be selected via OpRethWithBinary.
 	Binary string
+	// DisableProofsHistory skips the proofs-history init + runtime flags for this node. The mixed
+	// runtime otherwise enables proofs-history on every op-reth node; some CLI-superset binaries
+	// reject --proofs-history in certain modes (e.g. op-reth-premium with --subblocks.enable=false).
+	DisableProofsHistory bool
 }
 
 // DefaultOpRethConfig returns a zero-valued OpRethConfig that callers can mutate via OpRethOptions.
@@ -73,6 +77,16 @@ func OpRethWithExtraArgs(args ...string) OpRethOption {
 func OpRethWithBinary(binary string) OpRethOption {
 	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
 		cfg.Binary = binary
+	})
+}
+
+// OpRethWithoutProofsHistory disables the proofs-history subsystem for this node. The mixed runtime
+// enables proofs-history on every op-reth node by default; use this for a CLI-superset binary that
+// rejects --proofs-history in the mode under test (e.g. op-reth-premium with --subblocks.enable=false,
+// whose standard SDM node type cannot be installed by the public proof-history launcher).
+func OpRethWithoutProofsHistory() OpRethOption {
+	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
+		cfg.DisableProofsHistory = true
 	})
 }
 

@@ -412,32 +412,34 @@ func buildMixedOpRethNode(
 	err = exec.Command(execPath, initArgs...).Run()
 	t.Require().NoError(err, "must init op-reth node")
 
-	proofHistoryDir := filepath.Join(tempDir, "proof-history")
+	if !opRethCfg.DisableProofsHistory {
+		proofHistoryDir := filepath.Join(tempDir, "proof-history")
 
-	initProofsArgs := []string{
-		"proofs",
-		"init",
-		"--datadir=" + dataDirPath,
-		"--chain=" + chainConfigPath,
-		"--proofs-history.storage-path=" + proofHistoryDir,
-		"--proofs-history.storage-version=" + storageVersion,
-	}
-	// `op-proofs init` now runs snapshot-accelerated backfill by default,
-	// which V1 storage does not support — the command rejects v1 + backfill
-	// upfront. Opt out explicitly when targeting v1.
-	if storageVersion == "v1" {
-		initProofsArgs = append(initProofsArgs, "--proofs-history.skip-backfill")
-	}
-	initOut, initErr := exec.Command(execPath, initProofsArgs...).CombinedOutput()
-	t.Require().NoError(initErr, "must init op-reth proof history: %s", string(initOut))
+		initProofsArgs := []string{
+			"proofs",
+			"init",
+			"--datadir=" + dataDirPath,
+			"--chain=" + chainConfigPath,
+			"--proofs-history.storage-path=" + proofHistoryDir,
+			"--proofs-history.storage-version=" + storageVersion,
+		}
+		// `op-proofs init` now runs snapshot-accelerated backfill by default,
+		// which V1 storage does not support — the command rejects v1 + backfill
+		// upfront. Opt out explicitly when targeting v1.
+		if storageVersion == "v1" {
+			initProofsArgs = append(initProofsArgs, "--proofs-history.skip-backfill")
+		}
+		initOut, initErr := exec.Command(execPath, initProofsArgs...).CombinedOutput()
+		t.Require().NoError(initErr, "must init op-reth proof history: %s", string(initOut))
 
-	args = append(
-		args,
-		"--proofs-history",
-		"--proofs-history.window=10000",
-		"--proofs-history.storage-path="+proofHistoryDir,
-		"--proofs-history.storage-version="+storageVersion,
-	)
+		args = append(
+			args,
+			"--proofs-history",
+			"--proofs-history.window=10000",
+			"--proofs-history.storage-path="+proofHistoryDir,
+			"--proofs-history.storage-version="+storageVersion,
+		)
+	}
 
 	args = append(args, opRethCfg.ExtraArgs...)
 
