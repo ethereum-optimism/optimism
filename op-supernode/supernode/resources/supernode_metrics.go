@@ -8,18 +8,22 @@ import "github.com/prometheus/client_golang/prometheus"
 // NewSupernodeMetrics(), which creates functional counters not attached
 // to any scraped registry (safe for tests).
 type SupernodeMetrics struct {
-	VNRestarts                  *prometheus.CounterVec
-	InteropTimestampsVerified   prometheus.Counter
-	InteropInvalidations        *prometheus.CounterVec
-	InteropVerifiedTimestamp    prometheus.Gauge
-	InteropRoundDecisions       *prometheus.CounterVec
-	InteropRewinds              prometheus.Counter
-	InteropVerificationDuration prometheus.Histogram
-	ChainRewindDepthBlocks      *prometheus.HistogramVec
-	DenyListEntries             *prometheus.CounterVec
-	LogBackfillProgress         *prometheus.GaugeVec
-	LogBackfillRetries          *prometheus.CounterVec
-	ActivityErrors              *prometheus.CounterVec
+	VNRestarts                          *prometheus.CounterVec
+	InteropTimestampsVerified           prometheus.Counter
+	InteropInvalidations                *prometheus.CounterVec
+	InteropInvalidationRecoveryActive   *prometheus.GaugeVec
+	InteropInvalidationBlock            *prometheus.GaugeVec
+	InteropInvalidationReplacementBlock *prometheus.GaugeVec
+	InteropInvalidationLatestInfo       *prometheus.GaugeVec
+	InteropVerifiedTimestamp            prometheus.Gauge
+	InteropRoundDecisions               *prometheus.CounterVec
+	InteropRewinds                      prometheus.Counter
+	InteropVerificationDuration         prometheus.Histogram
+	ChainRewindDepthBlocks              *prometheus.HistogramVec
+	DenyListEntries                     *prometheus.CounterVec
+	LogBackfillProgress                 *prometheus.GaugeVec
+	LogBackfillRetries                  *prometheus.CounterVec
+	ActivityErrors                      *prometheus.CounterVec
 	// InteropActivityState tracks the interop activity lifecycle:
 	// 0=not_started, 1=cold_start_waiting, 2=running, 3=halted.
 	InteropActivityState prometheus.Gauge
@@ -46,6 +50,26 @@ func NewSupernodeMetrics() *SupernodeMetrics {
 			Name:      "interop_invalidations_total",
 			Help:      "Total number of successful block invalidations triggered by interop.",
 		}, []string{"chain_id"}),
+		InteropInvalidationRecoveryActive: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: "supernode",
+			Name:      "interop_invalidation_recovery_active",
+			Help:      "Whether an interop invalidation recovery is active for the chain (0=no, 1=yes).",
+		}, []string{"chain_id"}),
+		InteropInvalidationBlock: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: "supernode",
+			Name:      "interop_invalidation_block",
+			Help:      "L2 block number of the latest successful interop invalidation for the chain.",
+		}, []string{"chain_id"}),
+		InteropInvalidationReplacementBlock: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: "supernode",
+			Name:      "interop_invalidation_replacement_block",
+			Help:      "Expected deposits-only replacement L2 block number for the latest successful interop invalidation.",
+		}, []string{"chain_id"}),
+		InteropInvalidationLatestInfo: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: "supernode",
+			Name:      "interop_invalidation_latest_info",
+			Help:      "Identity of the latest successful interop invalidation for the chain.",
+		}, []string{"chain_id", "invalidated_hash"}),
 		InteropVerifiedTimestamp: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "supernode",
 			Name:      "interop_verified_timestamp",
@@ -104,6 +128,10 @@ func NewSupernodeMetrics() *SupernodeMetrics {
 		m.VNRestarts,
 		m.InteropTimestampsVerified,
 		m.InteropInvalidations,
+		m.InteropInvalidationRecoveryActive,
+		m.InteropInvalidationBlock,
+		m.InteropInvalidationReplacementBlock,
+		m.InteropInvalidationLatestInfo,
 		m.InteropVerifiedTimestamp,
 		m.InteropRoundDecisions,
 		m.InteropRewinds,

@@ -214,8 +214,10 @@ type Interop struct {
 	// via New; tests inject noopL1Checker.
 	l1Checker l1ConsistencyChecker
 
-	logBackfillDepth time.Duration
-	metrics          *resources.SupernodeMetrics
+	logBackfillDepth               time.Duration
+	metrics                        *resources.SupernodeMetrics
+	invalidationDecisionTimestamps map[eth.ChainID]uint64
+	invalidationHashes             map[eth.ChainID]string
 
 	// clock is used for all wall-clock reads and sleeps so deterministic
 	// tests can inject a fake. Defaults to clock.SystemClock in New.
@@ -843,6 +845,22 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 				failedAny = true
 			} else {
 				i.metrics.InteropInvalidations.WithLabelValues(p.ChainID.String()).Inc()
+				chainID := p.ChainID.String()
+				i.metrics.InteropInvalidationRecoveryActive.WithLabelValues(chainID).Set(1)
+				i.metrics.InteropInvalidationBlock.WithLabelValues(chainID).Set(float64(p.BlockID.Number))
+				i.metrics.InteropInvalidationReplacementBlock.WithLabelValues(chainID).Set(float64(p.BlockID.Number))
+				if previousHash, ok := i.invalidationHashes[p.ChainID]; ok {
+					i.metrics.InteropInvalidationLatestInfo.DeleteLabelValues(chainID, previousHash)
+				}
+				i.metrics.InteropInvalidationLatestInfo.WithLabelValues(chainID, p.BlockID.Hash.Hex()).Set(1)
+				if i.invalidationDecisionTimestamps == nil {
+					i.invalidationDecisionTimestamps = make(map[eth.ChainID]uint64)
+				}
+				i.invalidationDecisionTimestamps[p.ChainID] = p.Timestamp
+				if i.invalidationHashes == nil {
+					i.invalidationHashes = make(map[eth.ChainID]string)
+				}
+				i.invalidationHashes[p.ChainID] = p.BlockID.Hash.Hex()
 			}
 		}
 		// Resume non-invalidated chains. Invalidated chains are resumed by
@@ -898,6 +916,12 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 		i.log.Info("committed verified result", "timestamp", pending.Result.Timestamp)
 		i.metrics.InteropTimestampsVerified.Inc()
 		i.metrics.InteropVerifiedTimestamp.Set(float64(pending.Result.Timestamp))
+		for chainID, decisionTimestamp := range i.invalidationDecisionTimestamps {
+			if pending.Result.Timestamp > decisionTimestamp {
+				i.metrics.InteropInvalidationRecoveryActive.WithLabelValues(chainID.String()).Set(0)
+				delete(i.invalidationDecisionTimestamps, chainID)
+			}
+		}
 		// L1Inclusion is the max L1 block used for derivation across all chains at this
 		// timestamp. It can exceed some chains' actual CurrentL1 — e.g. chain A derived
 		// from L1 1000 while chain B derived from L1 990. Chain B may then advance to
