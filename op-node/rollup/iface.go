@@ -68,6 +68,11 @@ type SuperAuthority interface {
 	// IsDenied reports whether a payload hash is denied at the given block
 	// number. Errors are logged but not fatal.
 	IsDenied(blockNumber uint64, payloadHash common.Hash) (bool, error)
+
+	// MaxDeniedHeight returns the highest denied block height, and whether any
+	// denial exists. Consulted on every unsafe payload insert, so it must be
+	// cheap (a local lookup, no network I/O).
+	MaxDeniedHeight() (uint64, bool)
 }
 
 // SafeHeadListener is called when the safe head is updated.

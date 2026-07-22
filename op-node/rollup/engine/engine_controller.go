@@ -752,6 +752,22 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 	return e.insertUnsafePayload(ctx, envelope, ref)
 }
 
+// unsafeDenyGatingActive reports whether unsafe-payload ingestion is blocked
+// by the SuperAuthority deny list: from the moment a block is denied until the
+// finalized head passes the highest denied height. Unsafe sync could otherwise
+// re-adopt the invalidated branch (gossip redelivery, or EL sync toward a
+// far-ahead descendant backfilling the denied ancestry), undoing the
+// deposits-only replacement and re-triggering the same invalidation. During
+// the window the chain advances via (deny-list-checked) derivation only.
+// Callers must hold e.mu.
+func (e *EngineController) unsafeDenyGatingActive() bool {
+	if e.superAuthority == nil {
+		return false
+	}
+	maxDenied, ok := e.superAuthority.MaxDeniedHeight()
+	return ok && maxDenied > e.FinalizedHead().Number
+}
+
 func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef) error {
 	// Check if there is a finalized head once when doing EL sync. If so, transition to CL sync
 	if e.syncStatus == syncStatusWillStartEL {
@@ -769,6 +785,16 @@ func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *et
 			return derive.NewTemporaryError(fmt.Errorf("failed to fetch finalized head: %w", err))
 		}
 	}
+	// See unsafeDenyGatingActive: no unsafe ingestion during invalidation
+	// recovery. Guards the ELSync direct-insert path and the queue gap-fill;
+	// AddUnsafePayload keeps gated payloads out of the queue in the first place
+	// so none survive the window to be gap-filled after it closes.
+	if e.unsafeDenyGatingActive() {
+		e.log.Debug("Dropping unsafe payload during invalidation recovery",
+			"block", envelope.ExecutionPayload.ID())
+		return nil
+	}
+
 	// Insert the payload & then call FCU
 	newPayloadStart := time.Now()
 	status, err := e.engine.NewPayload(ctx, envelope.ExecutionPayload, envelope.ParentBeaconBlockRoot)
@@ -1364,6 +1390,15 @@ func (e *EngineController) AddUnsafePayload(ctx context.Context, envelope *eth.E
 	defer e.mu.Unlock()
 
 	e.log.Debug("Received payload", "payload", envelope.ExecutionPayload.ID())
+
+	// Keep gated payloads out of the queue entirely: a queued denied-branch
+	// payload would outlive the recovery window and be gap-filled into the
+	// engine the moment the gate lifts.
+	if e.unsafeDenyGatingActive() {
+		e.log.Debug("Dropping unsafe payload during invalidation recovery",
+			"block", envelope.ExecutionPayload.ID())
+		return
+	}
 
 	if err := e.unsafePayloads.Push(envelope); err != nil {
 		e.log.Warn("Could not add unsafe payload", "id", envelope.ExecutionPayload.ID(), "timestamp", uint64(envelope.ExecutionPayload.Timestamp), "err", err)

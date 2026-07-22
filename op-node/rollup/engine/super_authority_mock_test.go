@@ -48,6 +48,16 @@ func (m *mockSuperAuthority) IsDenied(blockNumber uint64, payloadHash common.Has
 	return false, nil
 }
 
+func (m *mockSuperAuthority) MaxDeniedHeight() (uint64, bool) {
+	var max uint64
+	for num := range m.deniedBlocks {
+		if num > max {
+			max = num
+		}
+	}
+	return max, max != 0
+}
+
 func (m *mockSuperAuthority) FullyVerifiedL2Head(ctx context.Context) (rollup.VerifierHead, bool) {
 	return rollup.VerifierHead{
 		Block:     m.fullyVerifiedL2Head,
