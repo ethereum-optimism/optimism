@@ -272,6 +272,60 @@ function rewriteSpecsBlobLinks(text: string): string {
   );
 }
 
+// Release bodies also deliberately pin ethereum-optimism source links to the
+// commit or tag the release shipped with (registry configs, contract sources).
+// The docs link policy (op-stack/contribute/link-policy.mdx) requires an
+// "as of `<ref>`" badge adjacent to every commit-/tag-pinned source link, and
+// hand-badging the committed output would be overwritten on regeneration — so
+// the generator appends the badge mechanically. Ref classification and the
+// ±1-line badge window mirror scripts/lint-link-policy.mjs (parseRef /
+// unbadged-pinned-link), so generated pages satisfy the linter by construction.
+const FLOATING_REFS = new Set(["develop", "main", "master", "HEAD"]);
+const PINNED_LINK_RE =
+  /https:\/\/github\.com\/ethereum-optimism\/[\w.-]+\/(?:blob|raw|tree)\/([^\s)\]"'<>`]+)/g;
+
+// Returns the badge form of a pinned ref (short sha for commits, the tag
+// otherwise), or null when the ref is a floating branch. Mirrors the linter's
+// parseRef, including slash-containing release tags (op-node/v1.2.3).
+function pinnedRef(segments: string[]): string | null {
+  const [a, b] = segments;
+  if (!a || FLOATING_REFS.has(a)) return null;
+  if (/^[0-9a-f]{7,40}$/.test(a)) return a.slice(0, 7);
+  if (/^v\d/.test(a)) return a;
+  if (b && /^v\d/.test(b) && /^[a-z0-9][a-z0-9._-]*$/i.test(a)) return `${a}/${b}`;
+  return null;
+}
+
+function badgePinnedSourceLinks(text: string): string {
+  const lines = text.split("\n");
+  let inFence = false;
+  return lines
+    .map((line, i) => {
+      if (/^\s*(```|~~~)/.test(line)) {
+        inFence = !inFence;
+        return line;
+      }
+      if (inFence) return line;
+      // Already badged (same line or an adjacent one) — the linter's window.
+      const window = [lines[i - 1] ?? "", line, lines[i + 1] ?? ""].join("\n");
+      if (/as of/i.test(window)) return line;
+      // Blank inline code spans so illustrative URLs inside code are skipped.
+      const prose = line.replace(/`[^`]*`/g, (m) => " ".repeat(m.length));
+      const refs: string[] = [];
+      for (const m of prose.matchAll(PINNED_LINK_RE)) {
+        const ref = pinnedRef(m[1].split("/"));
+        if (ref && !refs.includes(ref)) refs.push(ref);
+      }
+      if (refs.length === 0) return line;
+      const badge = ` (as of ${refs.map((r) => `\`${r}\``).join(", ")})`;
+      // Bodies from the GitHub API use CRLF; keep the badge before the CR.
+      return line.endsWith("\r")
+        ? `${line.slice(0, -1)}${badge}\r`
+        : `${line}${badge}`;
+    })
+    .join("\n");
+}
+
 function processBody(body: string | null): string {
   if (!body || body.trim() === "") return "";
 
@@ -286,6 +340,9 @@ function processBody(body: string | null): string {
 
   // Canonicalize specs-repo blob links to the rendered specs site
   out = rewriteSpecsBlobLinks(out);
+
+  // Badge remaining commit-/tag-pinned source links per the docs link policy
+  out = badgePinnedSourceLinks(out);
 
   // Escape JSX expression delimiters outside code blocks
   out = escapeOutsideCodeBlocks(out);

@@ -852,8 +852,8 @@ func RunUnsafeProposalTest(t devtest.T, sys *presets.SimpleInterop) {
 }
 
 // RunSuperFaultProofTest encapsulates the basic super fault proof test flow.
-func RunSuperFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
-	runFaultProofTest(t, sys)
+func RunSuperFaultProofTest(t devtest.T, sys *presets.SimpleInterop, runners ...ProofRunner) {
+	runFaultProofTest(t, sys, runners...)
 }
 
 // RunVariedBlockTimesTest verifies that the super fault proof system works
@@ -862,7 +862,7 @@ func RunSuperFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 //
 // The system must be configured with varied block times before calling this
 // function (e.g. via presets.WithL2BlockTimes).
-func RunVariedBlockTimesTest(t devtest.T, sys *presets.SimpleInterop) {
+func RunVariedBlockTimesTest(t devtest.T, sys *presets.SimpleInterop, runners ...ProofRunner) {
 	chains := orderedChains(sys)
 	t.Require().Len(chains, 2, "expected exactly 2 interop chains")
 
@@ -870,14 +870,14 @@ func RunVariedBlockTimesTest(t devtest.T, sys *presets.SimpleInterop) {
 	t.Require().NotEqual(chains[0].Cfg.BlockTime, chains[1].Cfg.BlockTime,
 		"this test requires chains with different block times")
 
-	runFaultProofTest(t, sys)
+	runFaultProofTest(t, sys, runners...)
 }
 
 // runFaultProofTest is the shared body for RunSuperFaultProofTest and
 // RunVariedBlockTimesTest. It takes exclusive control of L2 block production
 // via TestSequencer and per-chain Batcher.Start/Stop, then exercises the
 // proof game over a deterministically-built chain state.
-func runFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
+func runFaultProofTest(t devtest.T, sys *presets.SimpleInterop, runners ...ProofRunner) {
 	t.Require().NotNil(sys.SuperRoots, "supernode is required for this test")
 
 	chains := orderedChains(sys)
@@ -924,6 +924,14 @@ func runFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 	// block data and both halves return the same valid TransitionState.
 	boundaryTimestamp := endTimestamp + 1
 	extendChainsExpectingBoundaryBlock(t, sys, chains, boundaryTimestamp)
+	zkEndTimestamp := endTimestamp
+	if chains[0].Cfg.BlockTime != chains[1].Cfg.BlockTime && hasSP1Runner(runners) {
+		// The FPVM boundary cases deliberately retain l1HeadCurrent, which predates
+		// the faster chain's boundary batch. The ZK checkpoint instead uses the
+		// fully supported boundary so it exercises the scheduled no-op transition.
+		sys.SuperRoots.AwaitValidatedTimestamp(boundaryTimestamp)
+		zkEndTimestamp = boundaryTimestamp
+	}
 
 	// Build expected transition states.
 	start := superRootAtTimestamp(t, chains, startTimestamp)
@@ -948,19 +956,11 @@ func runFaultProofTest(t devtest.T, sys *presets.SimpleInterop) {
 		chains, end, endNext, endTimestamp, l1HeadCurrent,
 		firstOptimisticNext, secondOptimisticNext)...)
 
-	challengerCfg := sys.L2ChainA.Escape().L2Challengers()[0].Config()
-	gameDepth := sys.DisputeGameFactory().GameImpl(gameTypes.SuperCannonKonaGameType).SplitDepth()
-
-	for _, test := range tests {
-		t.Run(test.Name+"-fpp", func(t devtest.T) {
-			runKonaInteropProgram(t, challengerCfg.CannonKona, test.L1Head.Hash,
-				test.AgreedClaim, crypto.Keccak256Hash(test.DisputedClaim),
-				test.ClaimTimestamp, test.ExpectValid)
-		})
-		t.Run(test.Name+"-challenger", func(t devtest.T) {
-			runChallengerProviderTest(t, sys.SuperRoots.QueryAPI(), gameDepth, startTimestamp, test.ClaimTimestamp, test)
-		})
-	}
+	runScenarioProofs(t, sys, &scenarioProofData{
+		fpvmTransitions:    tests,
+		fpvmStartTimestamp: startTimestamp,
+		zkCheckpoint:       newZKCheckpointForRunners(t, sys, zkEndTimestamp, false, runners),
+	}, runners...)
 }
 
 // RunPreForkActivationTest verifies that super-root transitions produce
@@ -1061,7 +1061,7 @@ func RunPreForkActivationTest(t devtest.T, sys *presets.SimpleInterop) {
 	}
 }
 
-func RunConsolidateValidCrossChainMessageTest(t devtest.T, sys *presets.SimpleInterop) {
+func RunConsolidateValidCrossChainMessageTest(t devtest.T, sys *presets.SimpleInterop, runners ...ProofRunner) {
 	t.Require().NotNil(sys.SuperRoots, "supernode is required for this test")
 	rng := rand.New(rand.NewSource(1234))
 
@@ -1112,22 +1112,14 @@ func RunConsolidateValidCrossChainMessageTest(t devtest.T, sys *presets.SimpleIn
 		},
 	}
 
-	challengerCfg := sys.L2ChainA.Escape().L2Challengers()[0].Config()
-	gameDepth := sys.DisputeGameFactory().GameImpl(gameTypes.SuperCannonKonaGameType).SplitDepth()
-	for _, test := range tests {
-		t.Run(test.Name+"-fpp", func(t devtest.T) {
-			runKonaInteropProgram(t, challengerCfg.CannonKona, test.L1Head.Hash,
-				test.AgreedClaim, crypto.Keccak256Hash(test.DisputedClaim),
-				test.ClaimTimestamp, test.ExpectValid)
-		})
-
-		t.Run(test.Name+"-challenger", func(t devtest.T) {
-			runChallengerProviderTest(t, sys.SuperRoots.QueryAPI(), gameDepth, startTimestamp, test.ClaimTimestamp, test)
-		})
-	}
+	runScenarioProofs(t, sys, &scenarioProofData{
+		fpvmTransitions:    tests,
+		fpvmStartTimestamp: startTimestamp,
+		zkCheckpoint:       newZKCheckpointForRunners(t, sys, endTimestamp, false, runners),
+	}, runners...)
 }
 
-func RunInvalidBlockTest(t devtest.T, sys *presets.SimpleInterop) {
+func RunInvalidBlockTest(t devtest.T, sys *presets.SimpleInterop, runners ...ProofRunner) {
 	t.Require().NotNil(sys.SuperRoots, "supernode is required for this test")
 	rng := rand.New(rand.NewSource(1234))
 
@@ -1275,19 +1267,11 @@ func RunInvalidBlockTest(t devtest.T, sys *presets.SimpleInterop) {
 		},
 	}
 
-	challengerCfg := sys.L2ChainA.Escape().L2Challengers()[0].Config()
-	gameDepth := sys.DisputeGameFactory().GameImpl(gameTypes.SuperCannonKonaGameType).SplitDepth()
-	for _, test := range tests {
-		t.Run(test.Name+"-fpp", func(t devtest.T) {
-			runKonaInteropProgram(t, challengerCfg.CannonKona, test.L1Head.Hash,
-				test.AgreedClaim, crypto.Keccak256Hash(test.DisputedClaim),
-				test.ClaimTimestamp, test.ExpectValid)
-		})
-
-		t.Run(test.Name+"-challenger", func(t devtest.T) {
-			runChallengerProviderTest(t, sys.SuperRoots.QueryAPI(), gameDepth, startTimestamp, test.ClaimTimestamp, test)
-		})
-	}
+	runScenarioProofs(t, sys, &scenarioProofData{
+		fpvmTransitions:    tests,
+		fpvmStartTimestamp: startTimestamp,
+		zkCheckpoint:       newZKCheckpointForRunners(t, sys, endTimestamp, true, runners),
+	}, runners...)
 }
 
 // RunMessageExpiryTest verifies that when a cross-chain message expires (the
@@ -1298,7 +1282,7 @@ func RunInvalidBlockTest(t devtest.T, sys *presets.SimpleInterop) {
 //
 // msgExpiryWindow is the configured message expiry window in seconds; it must
 // match the value passed to WithMessageExpiryWindow when creating the system.
-func RunMessageExpiryTest(t devtest.T, sys *presets.SimpleInterop, msgExpiryWindow uint64) {
+func RunMessageExpiryTest(t devtest.T, sys *presets.SimpleInterop, msgExpiryWindow uint64, runners ...ProofRunner) {
 	t.Require().NotNil(sys.SuperRoots, "supernode is required for this test")
 	rng := rand.New(rand.NewSource(1234))
 
@@ -1415,24 +1399,16 @@ func RunMessageExpiryTest(t devtest.T, sys *presets.SimpleInterop, msgExpiryWind
 		},
 	}
 
-	challengerCfg := sys.L2ChainA.Escape().L2Challengers()[0].Config()
-	gameDepth := sys.DisputeGameFactory().GameImpl(gameTypes.SuperCannonKonaGameType).SplitDepth()
-	for _, test := range tests {
-		t.Run(test.Name+"-fpp", func(t devtest.T) {
-			runKonaInteropProgram(t, challengerCfg.CannonKona, test.L1Head.Hash,
-				test.AgreedClaim, crypto.Keccak256Hash(test.DisputedClaim),
-				test.ClaimTimestamp, test.ExpectValid)
-		})
-
-		t.Run(test.Name+"-challenger", func(t devtest.T) {
-			runChallengerProviderTest(t, sys.SuperRoots.QueryAPI(), gameDepth, startTimestamp, test.ClaimTimestamp, test)
-		})
-	}
+	runScenarioProofs(t, sys, &scenarioProofData{
+		fpvmTransitions:    tests,
+		fpvmStartTimestamp: startTimestamp,
+		zkCheckpoint:       newZKCheckpointForRunners(t, sys, endTimestamp, true, runners),
+	}, runners...)
 }
 
 // RunDepositMessageTest verifies that the fault proof system correctly handles
 // consolidation when a cross-chain message is initiated via an L1 deposit transaction.
-func RunDepositMessageTest(t devtest.T, sys *presets.SimpleInterop) {
+func RunDepositMessageTest(t devtest.T, sys *presets.SimpleInterop, runners ...ProofRunner) {
 	t.Require().NotNil(sys.SuperRoots, "supernode is required for this test")
 	rng := rand.New(rand.NewSource(5678))
 
@@ -1486,26 +1462,18 @@ func RunDepositMessageTest(t devtest.T, sys *presets.SimpleInterop) {
 		},
 	}
 
-	challengerCfg := sys.L2ChainA.Escape().L2Challengers()[0].Config()
-	gameDepth := sys.DisputeGameFactory().GameImpl(gameTypes.SuperCannonKonaGameType).SplitDepth()
-	for _, test := range tests {
-		t.Run(test.Name+"-fpp", func(t devtest.T) {
-			runKonaInteropProgram(t, challengerCfg.CannonKona, test.L1Head.Hash,
-				test.AgreedClaim, crypto.Keccak256Hash(test.DisputedClaim),
-				test.ClaimTimestamp, test.ExpectValid)
-		})
-
-		t.Run(test.Name+"-challenger", func(t devtest.T) {
-			runChallengerProviderTest(t, sys.SuperRoots.QueryAPI(), gameDepth, startTimestamp, test.ClaimTimestamp, test)
-		})
-	}
+	runScenarioProofs(t, sys, &scenarioProofData{
+		fpvmTransitions:    tests,
+		fpvmStartTimestamp: startTimestamp,
+		zkCheckpoint:       newZKCheckpointForRunners(t, sys, endTimestamp, false, runners),
+	}, runners...)
 }
 
 // RunDepositMessageInvalidExecutionTest verifies that the fault proof system correctly
 // detects an invalid executing message when the initiating message was sent via an L1
 // deposit transaction. The executing message uses an invalid identifier, so consolidation
 // must replace the optimistic block with the cross-safe result.
-func RunDepositMessageInvalidExecutionTest(t devtest.T, sys *presets.SimpleInterop) {
+func RunDepositMessageInvalidExecutionTest(t devtest.T, sys *presets.SimpleInterop, runners ...ProofRunner) {
 	t.Require().NotNil(sys.SuperRoots, "supernode is required for this test")
 	rng := rand.New(rand.NewSource(9012))
 
@@ -1575,17 +1543,9 @@ func RunDepositMessageInvalidExecutionTest(t devtest.T, sys *presets.SimpleInter
 		},
 	}
 
-	challengerCfg := sys.L2ChainA.Escape().L2Challengers()[0].Config()
-	gameDepth := sys.DisputeGameFactory().GameImpl(gameTypes.SuperCannonKonaGameType).SplitDepth()
-	for _, test := range tests {
-		t.Run(test.Name+"-fpp", func(t devtest.T) {
-			runKonaInteropProgram(t, challengerCfg.CannonKona, test.L1Head.Hash,
-				test.AgreedClaim, crypto.Keccak256Hash(test.DisputedClaim),
-				test.ClaimTimestamp, test.ExpectValid)
-		})
-
-		t.Run(test.Name+"-challenger", func(t devtest.T) {
-			runChallengerProviderTest(t, sys.SuperRoots.QueryAPI(), gameDepth, startTimestamp, test.ClaimTimestamp, test)
-		})
-	}
+	runScenarioProofs(t, sys, &scenarioProofData{
+		fpvmTransitions:    tests,
+		fpvmStartTimestamp: startTimestamp,
+		zkCheckpoint:       newZKCheckpointForRunners(t, sys, endTimestamp, true, runners),
+	}, runners...)
 }
