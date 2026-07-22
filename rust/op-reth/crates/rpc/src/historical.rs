@@ -363,6 +363,14 @@ fn extract_block_id_for_method(method: &str, params: &Params<'_>) -> Option<Bloc
         "eth_getBlockByNumber" |
         "eth_getBlockByHash" |
         "eth_getBlockReceipts" |
+        "eth_getBlockTransactionCountByNumber" |
+        "eth_getBlockTransactionCountByHash" |
+        "eth_getUncleCountByBlockNumber" |
+        "eth_getUncleCountByBlockHash" |
+        "eth_getUncleByBlockNumberAndIndex" |
+        "eth_getUncleByBlockHashAndIndex" |
+        "eth_getTransactionByBlockNumberAndIndex" |
+        "eth_getTransactionByBlockHashAndIndex" |
         "debug_traceBlockByNumber" |
         "debug_traceBlockByHash" => parse_block_id_from_params(params, 0),
         "eth_getBalance" |
@@ -416,6 +424,45 @@ mod tests {
             extract_block_id_for_method("eth_getBlockReceipts", &params).unwrap(),
             BlockId::Number(BlockNumberOrTag::Number(100))
         );
+    }
+
+    /// Tests that block-number-parameterized methods extract the block id from the first
+    /// parameter.
+    #[test]
+    fn extracts_block_id_for_block_number_methods() {
+        let params = Params::new(Some(r#"["0x64", "0x0"]"#));
+        for method in [
+            "eth_getBlockTransactionCountByNumber",
+            "eth_getUncleCountByBlockNumber",
+            "eth_getUncleByBlockNumberAndIndex",
+            "eth_getTransactionByBlockNumberAndIndex",
+        ] {
+            assert_eq!(
+                extract_block_id_for_method(method, &params).unwrap(),
+                BlockId::Number(BlockNumberOrTag::Number(100)),
+                "{method}"
+            );
+        }
+    }
+
+    /// Tests that block-hash-parameterized methods extract the block id from the first parameter.
+    #[test]
+    fn extracts_block_id_for_block_hash_methods() {
+        let hash = "0xdbdfa0f88b2cf815fdc1621bd20c2bd2b0eed4f0c56c9be2602957b5a60ec702";
+        let params_str = format!(r#"["{hash}", "0x0"]"#);
+        let params = Params::new(Some(&params_str));
+        for method in [
+            "eth_getBlockTransactionCountByHash",
+            "eth_getUncleCountByBlockHash",
+            "eth_getUncleByBlockHashAndIndex",
+            "eth_getTransactionByBlockHashAndIndex",
+        ] {
+            assert_eq!(
+                extract_block_id_for_method(method, &params).unwrap(),
+                BlockId::Hash(hash.parse::<B256>().unwrap().into()),
+                "{method}"
+            );
+        }
     }
 
     /// Tests that various valid id types can be parsed from the first parameter.
