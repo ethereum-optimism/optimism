@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum/common"
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
 
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
@@ -94,6 +95,32 @@ func TestDepositTxJSONWithNonceDifferential(t *testing.T) {
 	canonical, err := tc.tx.MarshalBinary()
 	require.NoError(t, err)
 	require.Equal(t, canonical, ours)
+}
+
+// TestDepositTxJSONNilValueRoundTrip pins that a nil Value — valid for the
+// binary codec — marshals as zero and round-trips through this type's own
+// JSON codec (a null value would be rejected by UnmarshalJSON).
+func TestDepositTxJSONNilValueRoundTrip(t *testing.T) {
+	d := &optypes.DepositTx{
+		SourceHash: common.HexToHash("0x06"),
+		From:       common.HexToAddress("0x6666666666666666666666666666666666666666"),
+		Value:      nil,
+		Gas:        21000,
+	}
+	data, err := json.Marshal(d)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"value":"0x0"`)
+
+	var decoded optypes.DepositTx
+	require.NoError(t, json.Unmarshal(data, &decoded))
+	require.Zero(t, decoded.Value.Sign())
+
+	// Binary encodings of the nil and decoded-zero forms agree.
+	origBin, err := d.MarshalBinary()
+	require.NoError(t, err)
+	decodedBin, err := decoded.MarshalBinary()
+	require.NoError(t, err)
+	require.Equal(t, origBin, decodedBin)
 }
 
 func TestDepositTxUnmarshalJSONErrors(t *testing.T) {

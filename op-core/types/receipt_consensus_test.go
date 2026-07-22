@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
 
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
@@ -204,6 +205,43 @@ func TestReceiptBinaryRoundTrip(t *testing.T) {
 		reencoded, err := r.MarshalBinary()
 		require.NoErrorf(t, err, "receipt %d (type %#x)", i, gr.Type)
 		require.Equalf(t, raw, reencoded, "receipt %d (type %#x)", i, gr.Type)
+	}
+}
+
+// TestReceiptRLPDifferential asserts the rlp.Encoder/Decoder implementation
+// against op-geth's for every encoding arm: identical encoding, and decode
+// equivalence via re-encode. It will be removed in the final cutover, when the
+// op-geth dependency is replaced with upstream go-ethereum.
+func TestReceiptRLPDifferential(t *testing.T) {
+	for i, gr := range consensusReceiptCases() {
+		theirs, err := rlp.EncodeToBytes(gr)
+		require.NoError(t, err)
+
+		r := &optypes.Receipt{Receipt: *gr}
+		r.DepositNonce = gr.DepositNonce
+		r.DepositReceiptVersion = gr.DepositReceiptVersion
+		ours, err := rlp.EncodeToBytes(r)
+		require.NoErrorf(t, err, "receipt %d (type %#x)", i, gr.Type)
+		require.Equalf(t, theirs, ours, "receipt %d (type %#x)", i, gr.Type)
+	}
+}
+
+// TestReceiptRLPRoundTrip pins, op-geth-independently, that rlp round-trips
+// through the wrapper's own codec — including a deposit receipt whose
+// authoritative fields live only on the wrapper.
+func TestReceiptRLPRoundTrip(t *testing.T) {
+	for i, gr := range consensusReceiptCases() {
+		encoded, err := rlp.EncodeToBytes(&optypes.Receipt{Receipt: *gr, DepositNonce: gr.DepositNonce, DepositReceiptVersion: gr.DepositReceiptVersion})
+		require.NoError(t, err)
+
+		var decoded optypes.Receipt
+		require.NoErrorf(t, rlp.DecodeBytes(encoded, &decoded), "receipt %d (type %#x)", i, gr.Type)
+		require.Equal(t, gr.DepositNonce, decoded.DepositNonce)
+		require.Equal(t, gr.DepositReceiptVersion, decoded.DepositReceiptVersion)
+
+		reencoded, err := rlp.EncodeToBytes(&decoded)
+		require.NoError(t, err)
+		require.Equalf(t, encoded, reencoded, "receipt %d (type %#x)", i, gr.Type)
 	}
 }
 

@@ -55,11 +55,17 @@ func nonZeroSignature(dec *txJSON) bool {
 // round-trip does not preserve it.
 func (d *DepositTx) MarshalJSON() ([]byte, error) {
 	typ := hexutil.Uint64(DepositTxType)
+	// A nil Value is valid for the binary codec and encodes like zero; the JSON
+	// field is required on decode, so normalize nil to zero (as op-geth does).
+	value := d.Value
+	if value == nil {
+		value = new(big.Int)
+	}
 	enc := &txJSON{
 		Type:       &typ,
 		To:         d.To,
 		Gas:        (*hexutil.Uint64)(&d.Gas),
-		Value:      (*hexutil.Big)(d.Value),
+		Value:      (*hexutil.Big)(value),
 		Input:      (*hexutil.Bytes)(&d.Data),
 		SourceHash: &d.SourceHash,
 		From:       &d.From,

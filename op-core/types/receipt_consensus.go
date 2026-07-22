@@ -3,6 +3,7 @@ package types
 import (
 	"bytes"
 	"fmt"
+	"io"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -110,6 +111,45 @@ func (rs Receipts) EncodeIndex(i int, w *bytes.Buffer) {
 		_ = rlp.Encode(w, &receiptRLP{r.statusEncoding(), r.CumulativeGasUsed, r.Bloom, r.Logs})
 	default:
 		types.Receipts{&r.Receipt}.EncodeIndex(0, w)
+	}
+}
+
+// EncodeRLP implements rlp.Encoder, overriding the promoted go-ethereum
+// encoder so the OP Stack synthetic receipt types encode from this package —
+// the deposit arm reads the authoritative OUTER nonce/version fields. Like
+// go-ethereum, a typed receipt is encoded as an RLP byte string wrapping its
+// consensus envelope; legacy receipts delegate.
+func (r *Receipt) EncodeRLP(w io.Writer) error {
+	switch r.Type {
+	case DepositTxType, PostExecTxType:
+		envelope, err := r.MarshalBinary()
+		if err != nil {
+			return err
+		}
+		return rlp.Encode(w, envelope)
+	default:
+		return r.Receipt.EncodeRLP(w)
+	}
+}
+
+// DecodeRLP implements rlp.Decoder, overriding the promoted go-ethereum
+// decoder so the OP Stack synthetic receipt types route through this
+// package's OP-aware decode. Inverse of EncodeRLP.
+func (r *Receipt) DecodeRLP(s *rlp.Stream) error {
+	kind, _, err := s.Kind()
+	switch {
+	case err != nil:
+		return err
+	case kind == rlp.String:
+		// An EIP-2718 typed receipt, wrapped as an RLP byte string.
+		b, err := s.Bytes()
+		if err != nil {
+			return err
+		}
+		return r.UnmarshalBinary(b)
+	default:
+		// A legacy receipt (RLP list); delegate to go-ethereum.
+		return r.Receipt.DecodeRLP(s)
 	}
 }
 
