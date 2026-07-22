@@ -41,6 +41,13 @@ pub struct OpFlashblockPayloadDelta {
         )
     )]
     pub blob_gas_used: Option<u64>,
+    /// Latest cumulative SDM post-exec (`0x7D`) transaction for the materialized block view,
+    /// carried out-of-band. Each subblock *replaces* the previous one (latest-wins); it is never
+    /// included in [`transactions`](Self::transactions). Absent on pre-SDM payloads.
+    /// Wire-compatible with `rollup_boost`'s
+    /// `ExecutionPayloadFlashblockDeltaV1::post_exec_tx`.
+    #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "Option::is_none"))]
+    pub post_exec_tx: Option<Bytes>,
 }
 
 #[cfg(test)]
@@ -61,6 +68,7 @@ mod tests {
             withdrawals: vec![],
             withdrawals_root: B256::random(),
             blob_gas_used: Some(123456),
+            post_exec_tx: Some(Bytes::from(vec![0x7d, 0x01])),
         };
 
         let json = serde_json::to_string(&delta).unwrap();
@@ -81,6 +89,7 @@ mod tests {
             withdrawals: vec![],
             withdrawals_root: B256::ZERO,
             blob_gas_used: Some(0),
+            post_exec_tx: None,
         };
 
         let json = serde_json::to_string(&delta).unwrap();
@@ -113,6 +122,7 @@ mod tests {
             withdrawals: vec![withdrawal],
             withdrawals_root: B256::ZERO,
             blob_gas_used: Some(0),
+            post_exec_tx: None,
         };
 
         let json = serde_json::to_string(&delta).unwrap();
@@ -135,6 +145,7 @@ mod tests {
             withdrawals: vec![],
             withdrawals_root: B256::ZERO,
             blob_gas_used: None,
+            post_exec_tx: None,
         };
 
         let json = serde_json::to_string(&delta).unwrap();
@@ -160,6 +171,7 @@ mod tests {
             withdrawals: vec![],
             withdrawals_root: B256::ZERO,
             blob_gas_used: Some(12345),
+            post_exec_tx: None,
         };
 
         let json = serde_json::to_string(&delta).unwrap();
@@ -180,5 +192,33 @@ mod tests {
         assert!(delta.withdrawals.is_empty());
         assert_eq!(delta.withdrawals_root, B256::ZERO);
         assert_eq!(delta.blob_gas_used, None);
+        assert_eq!(delta.post_exec_tx, None);
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_delta_post_exec_tx_none_skipped() {
+        // Pre-SDM payloads omit post_exec_tx entirely (wire-compatible with older deltas).
+        let delta = OpFlashblockPayloadDelta::default();
+        let json = serde_json::to_string(&delta).unwrap();
+        assert!(!json.contains("post_exec_tx"));
+        let decoded: OpFlashblockPayloadDelta = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.post_exec_tx, None);
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_delta_post_exec_tx_some_roundtrips() {
+        // The 0x7D bytes ride out-of-band in post_exec_tx, serialized as a hex string under the
+        // `post_exec_tx` key (matching rollup-boost + the Go FlashblockClient).
+        let delta = OpFlashblockPayloadDelta {
+            post_exec_tx: Some(Bytes::from(vec![0x7d, 0xaa, 0xbb])),
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&delta).unwrap();
+        assert!(json.contains("post_exec_tx"));
+        assert!(json.contains("0x7daabb"));
+        let decoded: OpFlashblockPayloadDelta = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.post_exec_tx, Some(Bytes::from(vec![0x7d, 0xaa, 0xbb])));
     }
 }
