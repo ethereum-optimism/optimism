@@ -412,20 +412,22 @@ func (r *supernodeFrontend) Running() bool {
 
 type conductorFrontend struct {
 	presetCommon
-	chainID   eth.ChainID
-	api       conductorRpc.API
-	rpcClient opclient.RPC
+	chainID           eth.ChainID
+	api               conductorRpc.API
+	rpcClient         opclient.RPC
+	consensusEndpoint string
 }
 
 var _ stack.Conductor = (*conductorFrontend)(nil)
 
-func newPresetConductor(t devtest.T, name string, chainID eth.ChainID, rpcCl *gethrpc.Client) *conductorFrontend {
+func newPresetConductor(t devtest.T, name string, chainID eth.ChainID, rpcCl *gethrpc.Client, consensusEndpoint string) *conductorFrontend {
 	t = t.WithCtx(stack.ContextWithChainID(t.Ctx(), chainID))
 	return &conductorFrontend{
-		presetCommon: newPresetCommon(t, name),
-		chainID:      chainID,
-		api:          conductorRpc.NewAPIClient(rpcCl),
-		rpcClient:    opclient.NewBaseRPCClient(rpcCl),
+		presetCommon:      newPresetCommon(t, name),
+		chainID:           chainID,
+		api:               conductorRpc.NewAPIClient(rpcCl),
+		rpcClient:         opclient.NewBaseRPCClient(rpcCl),
+		consensusEndpoint: consensusEndpoint,
 	}
 }
 
@@ -439,6 +441,10 @@ func (r *conductorFrontend) RpcAPI() conductorRpc.API {
 
 func (r *conductorFrontend) ProxyRPC() opclient.RPC {
 	return r.rpcClient
+}
+
+func (r *conductorFrontend) ConsensusEndpoint() string {
+	return r.consensusEndpoint
 }
 
 type testSequencerFrontend struct {

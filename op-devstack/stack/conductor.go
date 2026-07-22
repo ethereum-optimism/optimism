@@ -17,4 +17,8 @@ type Conductor interface {
 	// (optimism_*), and admin (admin_*) requests to its sequencer while it is
 	// the leader, so batchers and proposers can follow the active sequencer.
 	ProxyRPC() client.RPC
+
+	// ConsensusEndpoint is the Raft consensus address of this conductor, used
+	// when (re-)adding it to a cluster.
+	ConsensusEndpoint() string
 }
