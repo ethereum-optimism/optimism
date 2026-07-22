@@ -1,4 +1,4 @@
-package params_test
+package superchain
 
 import (
 	"testing"
@@ -9,9 +9,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 )
 
-func TestLoadChainConfigFromChainID(t *testing.T) {
+func TestLoadOpChainConfig(t *testing.T) {
 	t.Run("mainnet", func(t *testing.T) {
-		cfg, err := opparams.LoadChainConfigFromChainID(opparams.OPMainnetChainID)
+		cfg, err := LoadOpChainConfig(opparams.OPMainnetChainID)
 		require.NoError(t, err)
 		require.Equal(t, uint64(opparams.OPMainnetChainID), bigs.Uint64Strict(cfg.ChainID))
 		require.NotNil(t, cfg.Optimism)
@@ -22,7 +22,7 @@ func TestLoadChainConfigFromChainID(t *testing.T) {
 	})
 
 	t.Run("nonexistent chain", func(t *testing.T) {
-		cfg, err := opparams.LoadChainConfigFromChainID(23409527340)
+		cfg, err := LoadOpChainConfig(23409527340)
 		require.Error(t, err)
 		require.Nil(t, cfg)
 	})
