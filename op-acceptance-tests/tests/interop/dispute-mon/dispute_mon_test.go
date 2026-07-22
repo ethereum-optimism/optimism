@@ -90,6 +90,39 @@ func TestDisputeMonitorReportsReferenceNodeFailure(gt *testing.T) {
 	mon.VerifyReferenceNodeFailure(baseline)
 }
 
+func TestDisputeMonitorReportsClaimTiming(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sys := presets.NewMinimalNoFaultProofs(
+		t,
+		presets.WithTimeTravelEnabled(),
+		presets.WithGameTypeAdded(gameTypes.CannonKonaGameType),
+		presets.WithoutHonestProposer(),
+	)
+
+	proposer := sys.FunderL1.NewFundedEOA(eth.OneEther)
+	game := sys.DisputeGameFactory().StartCannonKonaGame(proposer)
+	mon := sys.StartDisputeMon()
+
+	mon.VerifyState(
+		disputemon.GameCount(gameTypes.CannonKonaGameType, 1),
+		disputemon.FailedGames(0),
+		disputemon.UnresolvedClaimsInFirstHalf(1),
+		disputemon.UnresolvedClaimsInSecondHalf(0),
+		disputemon.ExpiredClaims(0),
+		disputemon.UnexpiredClaims(1),
+		disputemon.ResolvableClaims(0),
+	)
+
+	sys.AdvanceTime(game.MaxClockDuration() + time.Second)
+	mon.VerifyState(
+		disputemon.UnresolvedClaimsInFirstHalf(0),
+		disputemon.UnresolvedClaimsInSecondHalf(1),
+		disputemon.ExpiredClaims(1),
+		disputemon.UnexpiredClaims(0),
+		disputemon.ResolvableClaims(1),
+	)
+}
+
 func TestDisputeMonitorReportsResolvedGameAccounting(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewMinimalNoFaultProofs(
@@ -107,18 +140,15 @@ func TestDisputeMonitorReportsResolvedGameAccounting(gt *testing.T) {
 	game.Resolve(proposer)
 	game.WaitForGameStatus(gameTypes.GameStatusDefenderWon)
 
-	mon := presets.StartDisputeMon(
-		t,
-		sys.L1EL,
-		sys.L2Chain.DisputeGameFactoryProxyAddr(),
-		presets.WithDisputeMonRollupNodes(sys.L2CL),
-	)
+	mon := sys.StartDisputeMon()
 	mon.VerifyState(
 		disputemon.GameCount(gameTypes.CannonKonaGameType, 1),
 		disputemon.FailedGames(0),
 
 		disputemon.CompletedBeforeMaxDuration(1),
 		disputemon.ResolvedClaims(1),
+		disputemon.ResolvedClaimsInFirstHalf(0),
+		disputemon.ResolvedClaimsInSecondHalf(1),
 		disputemon.ResolvableClaims(0),
 
 		disputemon.ExactNonWithdrawableCredits(1),
