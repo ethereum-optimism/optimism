@@ -118,10 +118,11 @@ func NewMinimalWithConductorsRuntimeWithConfig(t devtest.T, cfg PresetConfig) *S
 	nodeB := addStoppedSingleChainSequencerNode(t, runtime, "b", cfg.GlobalL2CLOptions...)
 	nodeC := addStoppedSingleChainSequencerNode(t, runtime, "c", cfg.GlobalL2CLOptions...)
 
+	healthCheck := conductorHealthCheckConfig(cfg.ConductorFastHealthChecks)
 	primaryCL := runtime.L2CL.(*OpNode)
-	conductorA := startConductorNode(t, "sequencer", runtime.L2Network, primaryCL, runtime.L2EL, true, false)
-	conductorB := startConductorNode(t, "b", runtime.L2Network, nodeB.CL.(*OpNode), nodeB.EL, false, true)
-	conductorC := startConductorNode(t, "c", runtime.L2Network, nodeC.CL.(*OpNode), nodeC.EL, false, true)
+	conductorA := startConductorNode(t, "sequencer", runtime.L2Network, primaryCL, runtime.L2EL, true, false, healthCheck)
+	conductorB := startConductorNode(t, "b", runtime.L2Network, nodeB.CL.(*OpNode), nodeB.EL, false, true, healthCheck)
+	conductorC := startConductorNode(t, "c", runtime.L2Network, nodeC.CL.(*OpNode), nodeC.EL, false, true, healthCheck)
 
 	// Mesh the sequencer CL nodes over p2p, as in a production HA deployment:
 	// the active sequencer gossips unsafe blocks to the followers, which keeps
@@ -273,6 +274,30 @@ func startSyncTesterELNode(
 	return node
 }
 
+// conductorHealthCheckConfig returns the conductor health-monitor settings.
+// By default checks effectively never run (hourly), keeping manual leadership
+// operations deterministic. With fast=true, checks run every second so that a
+// dead sequencer node flips its conductor to unhealthy and triggers failover;
+// the staleness windows stay at an hour so health remains purely
+// liveness-based, and MinPeerCount is 1 (op-conductor rejects 0) — each node
+// keeps at least one peer of the three-node mesh even after one node dies.
+func conductorHealthCheckConfig(fast bool) opconductor.HealthCheckConfig {
+	if fast {
+		return opconductor.HealthCheckConfig{
+			Interval:       1,
+			UnsafeInterval: 3600,
+			SafeInterval:   3600,
+			MinPeerCount:   1,
+		}
+	}
+	return opconductor.HealthCheckConfig{
+		Interval:       3600,
+		UnsafeInterval: 3600,
+		SafeInterval:   3600,
+		MinPeerCount:   1,
+	}
+}
+
 func startConductorNode(
 	t devtest.T,
 	conductorName string,
@@ -281,6 +306,7 @@ func startConductorNode(
 	l2EL L2ELNode,
 	bootstrap bool,
 	paused bool,
+	healthCheck opconductor.HealthCheckConfig,
 ) *Conductor {
 	require := t.Require()
 	serverID := conductorName
@@ -321,14 +347,9 @@ func startConductorNode(
 		NodeRPC:                 opNode.UserRPC(),
 		ExecutionRPC:            l2EL.UserRPC(),
 		Paused:                  paused,
-		HealthCheck: opconductor.HealthCheckConfig{
-			Interval:       3600,
-			UnsafeInterval: 3600,
-			SafeInterval:   3600,
-			MinPeerCount:   1,
-		},
-		RollupCfg:      *l2Net.rollupCfg,
-		RPCEnableProxy: false,
+		HealthCheck:             healthCheck,
+		RollupCfg:               *l2Net.rollupCfg,
+		RPCEnableProxy:          false,
 		LogConfig: oplog.CLIConfig{
 			Level:  log.LevelInfo,
 			Format: oplog.FormatText,
