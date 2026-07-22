@@ -9,7 +9,7 @@ This tutorial layers the **proofs-history** historical proof store (storage form
 <Info>
   **Do you need this tutorial?** Withdrawal proving on op-reth uses `eth_getProof` against historical L2 state, so both permissioned and permissionless chains need historical state exposed — but the required lookback differs sharply:
 
-  - **Permissioned chains** only need a few hours of lookback (covering your dispute-game publishing cadence with margin). The lighter `--rpc.eth-proof-window <num_blocks>` flag is sufficient on its own — no separate proofs database is needed, and **this tutorial does not apply**. See the [op-reth configuration reference](/rust/op-reth/cli/op-reth/node) for that flag.
+  - **Permissioned chains** only need a few hours of lookback (covering your dispute-game publishing cadence with margin). The lighter `--rpc.eth-proof-window <num_blocks>` flag is sufficient on its own — no separate proofs database is needed, and **this tutorial does not apply**. See the [op-reth configuration reference](/node-operators/op-reth/cli/op-reth/node) for that flag.
   - **Permissionless chains** need ~28 days of lookback. `--rpc.eth-proof-window` becomes too slow and memory-hungry at that range, so follow this tutorial to set up `--proofs-history` (v2).
 </Info>
 
