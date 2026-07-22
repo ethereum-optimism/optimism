@@ -3,12 +3,12 @@
 
 # Expert areas
 
-/op-node/rollup/derive @ethereum-optimism/consensus # exclusive
-/rust/kona/crates/protocol @ethereum-optimism/consensus # exclusive
+/op-node/rollup/derive @ethereum-optimism/protocol # exclusive
+/rust/kona/crates/protocol @ethereum-optimism/protocol # exclusive
 
 /op-deployer    @ethereum-optimism/core-team @ethereum-optimism/monorepo-reviewers
 
-/op-conductor   @ethereum-optimism/op-conductor @ethereum-optimism/monorepo-reviewers
+/op-conductor   @ethereum-optimism/sequencing @ethereum-optimism/monorepo-reviewers
 
 # Contracts
 # We require a minimum of 2 reviewers for all changes to the contracts-bedrock
