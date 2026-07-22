@@ -2,6 +2,9 @@ package presets
 
 import (
 	"testing"
+	"time"
+
+	"github.com/ethereum/go-ethereum/common"
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -48,6 +51,17 @@ func TestOptionKindsFromCompositeOptions(t *testing.T) {
 func TestWithLocalContractSourcesAt(t *testing.T) {
 	cfg, _ := collectPresetConfig([]Option{WithLocalContractSourcesAt("/tmp/contracts-bedrock")})
 	require.Equal(t, "/tmp/contracts-bedrock", cfg.LocalContractArtifactsPath)
+}
+
+func TestWithZKDisputeGame(t *testing.T) {
+	want := sysgo.ZKDisputeGameConfig{
+		ProgramVKey:          common.HexToHash("0x1234"),
+		MaxChallengeDuration: 30 * time.Second,
+		MaxProveDuration:     30 * time.Second,
+	}
+	cfg, combined := collectPresetConfig([]Option{WithZKDisputeGame(want)})
+	require.Equal(t, optionKindZKDisputeGame, combined.optionKinds())
+	require.Equal(t, &want, cfg.ZKDisputeGame)
 }
 
 func TestUnsupportedPresetOptionKinds(t *testing.T) {
@@ -101,6 +115,18 @@ func TestUnsupportedPresetOptionKinds(t *testing.T) {
 				WithPreGenesisSuperGame(eth.Bytes32{0x01}, eth.Bytes32{0x02}),
 			),
 			want: 0,
+		},
+		{
+			name:      "two l2 supernode proofs accept ZK dispute game",
+			supported: twoL2SupernodeProofsPresetSupportedOptionKinds,
+			opts:      WithZKDisputeGame(sysgo.ZKDisputeGameConfig{}),
+			want:      0,
+		},
+		{
+			name:      "single chain supernode proofs reject ZK dispute game",
+			supported: supernodeProofsPresetSupportedOptionKinds,
+			opts:      WithZKDisputeGame(sysgo.ZKDisputeGameConfig{}),
+			want:      optionKindZKDisputeGame,
 		},
 		{
 			name:      "two l2 supernode rejects time travel",
