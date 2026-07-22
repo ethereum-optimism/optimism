@@ -27,6 +27,16 @@ func DefaultScriptHost(
 	scriptCtx := script.DefaultContext
 	scriptCtx.Sender = deployer
 	scriptCtx.Origin = deployer
+	return ScriptHost(bcaster, lgr, artifacts, scriptCtx, additionalOpts...)
+}
+
+func ScriptHost(
+	bcaster broadcaster.Broadcaster,
+	lgr log.Logger,
+	artifacts foundry.StatDirFs,
+	scriptCtx script.Context,
+	additionalOpts ...script.HostOption,
+) (*script.Host, error) {
 	h := script.NewHost(
 		lgr,
 		&foundry.ArtifactsFS{FS: artifacts},

@@ -17,10 +17,18 @@ import (
 
 // OPChainDeploymentResult must be obtained from ExecuteOPChainDeployment.
 type OPChainDeploymentResult struct {
-	chainID     common.Hash
-	contracts   addresses.OpChainContracts
-	readback    opcm.ReadImplementationAddressesOutput
-	initialized bool
+	chainID         common.Hash
+	contracts       addresses.OpChainContracts
+	outputContracts addresses.OpChainContracts
+	readback        opcm.ReadImplementationAddressesOutput
+	initialized     bool
+}
+
+// Contracts returns the addresses emitted by DeployOPChain, matching the set
+// recorded by prepare. RecordOPChainDeployment uses a separate set whose dispute
+// game implementations are replaced with addresses read back from their proxies.
+func (r OPChainDeploymentResult) Contracts() addresses.OpChainContracts {
+	return r.outputContracts
 }
 
 func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID common.Hash) error {
@@ -59,7 +67,7 @@ func ExecuteOPChainDeployment(
 ) (OPChainDeploymentResult, error) {
 	var result OPChainDeploymentResult
 	if dci.L2ChainId == nil {
-		return result, fmt.Errorf("deploy OP chain input has nil L2 chain ID; expected %s", chainID.Big())
+		return result, fmt.Errorf("deploy OP chain input has nil L2 chain ID. Expected %s", chainID.Big())
 	}
 	if dci.L2ChainId.Cmp(chainID.Big()) != 0 {
 		return result, fmt.Errorf(
@@ -137,10 +145,11 @@ func ExecuteOPChainDeployment(
 	}
 
 	return OPChainDeploymentResult{
-		chainID:     chainID,
-		contracts:   chainContractsForDeploy(impls, dco),
-		readback:    impls,
-		initialized: true,
+		chainID:         chainID,
+		contracts:       chainContractsForDeploy(impls, dco),
+		outputContracts: OpChainContractsFromDeployOutput(dco),
+		readback:        impls,
+		initialized:     true,
 	}, nil
 }
 
@@ -197,7 +206,7 @@ func ResolveChainProofParams(intent *state.Intent, chain *state.ChainIntent) (st
 // verifying that the current intent still resolves to the same type.
 func ResolvePreparedGameType(intent *state.Intent, chain *state.ChainIntent, chainState *state.ChainState) (uint32, error) {
 	if chainState == nil || chainState.InitialGameType == nil {
-		return 0, fmt.Errorf("chain %s has no initial game type recorded by prepare; rerun op-deployer prepare", chain.ID.Hex())
+		return 0, fmt.Errorf("chain %s has no initial game type recorded by prepare. Rerun op-deployer prepare", chain.ID.Hex())
 	}
 
 	proofParams, err := ResolveChainProofParams(intent, chain)
@@ -209,7 +218,7 @@ func ResolvePreparedGameType(intent *state.Intent, chain *state.ChainIntent, cha
 	current := proofParams.DisputeGameType
 	if prepared != current {
 		return 0, fmt.Errorf(
-			"chain %s initial game type changed after prepare: prepared %s (%d), intent %s (%d); rerun op-deployer prepare",
+			"chain %s initial game type changed after prepare: prepared %s (%d), intent %s (%d). Rerun op-deployer prepare",
 			chain.ID.Hex(),
 			initialGameTypeName(prepared),
 			prepared,
