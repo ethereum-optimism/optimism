@@ -11,17 +11,10 @@ import (
 
 type ConductorSet []*Conductor
 
-func NewConductorSet(inner []stack.Conductor) ConductorSet {
-	conductors := make([]*Conductor, len(inner))
-	for i, c := range inner {
-		conductors[i] = NewConductor(c)
-	}
-	return conductors
-}
-
 type Conductor struct {
 	commonImpl
-	inner stack.Conductor
+	inner     stack.Conductor
+	sequencer *L2CLNode
 }
 
 func NewConductor(inner stack.Conductor) *Conductor {
@@ -29,6 +22,18 @@ func NewConductor(inner stack.Conductor) *Conductor {
 		commonImpl: commonFromT(inner.T()),
 		inner:      inner,
 	}
+}
+
+// AttachSequencer links the L2CL node whose sequencer this conductor manages.
+// Preset wiring calls this once at construction time.
+func (c *Conductor) AttachSequencer(cl *L2CLNode) {
+	c.sequencer = cl
+}
+
+// Sequencer returns the L2CL node whose sequencer this conductor manages.
+func (c *Conductor) Sequencer() *L2CLNode {
+	c.require.NotNil(c.sequencer, "conductor %s has no sequencer node attached", c)
+	return c.sequencer
 }
 
 func (c *Conductor) String() string {

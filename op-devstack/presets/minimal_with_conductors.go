@@ -10,6 +10,11 @@ import (
 type MinimalWithConductors struct {
 	*Minimal
 
+	// Conductors are the conductors of the single L2 chain, one per sequencer
+	// node. Each conductor is linked to the L2CL node it manages (see
+	// dsl.Conductor.Sequencer).
+	Conductors dsl.ConductorSet
+
 	ConductorSets map[eth.ChainID]dsl.ConductorSet
 }
 
