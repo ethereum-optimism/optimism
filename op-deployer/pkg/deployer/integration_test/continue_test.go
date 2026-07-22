@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/bootstrap"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
@@ -58,6 +59,9 @@ func TestEndToEndContinuePreparedChain(t *testing.T) {
 	})
 	t.Run("permissioned without committed prestate", func(t *testing.T) {
 		testContinuePermissioned(t)
+	})
+	t.Run("permissioned with super-root OPCM", func(t *testing.T) {
+		testContinuePermissionedSuperRoot(t)
 	})
 	t.Run("live validation failure persists checkpoint", func(t *testing.T) {
 		testContinueLiveValidationFailure(t)
@@ -182,6 +186,21 @@ func testContinuePermissioned(t *testing.T) {
 	staleChain, err := stale.Chain(env.intent.Chains[0].ID)
 	require.NoError(t, err)
 	require.False(t, staleChain.Continuation.LiveValidated)
+}
+
+func testContinuePermissionedSuperRoot(t *testing.T) {
+	t.Helper()
+	env := newContinuationEnvForGameTypesAndFeatures(
+		t,
+		[]embedded.GameType{embedded.GameTypePermissionedCannon},
+		devfeatures.SuperRootGamesMigrationFlag,
+	)
+	require.Zero(t, env.preparedChain.Prestate)
+	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
+	nonceBefore := pendingNonce(t, env)
+
+	require.NoError(t, deployer.Continue(env.ctx, env.config()))
+	assertContinuationCompleted(t, env, nonceBefore)
 }
 
 func testContinueLiveValidationFailure(t *testing.T) {
@@ -419,6 +438,14 @@ func newContinuationEnv(t *testing.T, gameType embedded.GameType) *continuationE
 }
 
 func newContinuationEnvForGameTypes(t *testing.T, gameTypes []embedded.GameType) *continuationEnv {
+	return newContinuationEnvForGameTypesAndFeatures(t, gameTypes, common.Hash{})
+}
+
+func newContinuationEnvForGameTypesAndFeatures(
+	t *testing.T,
+	gameTypes []embedded.GameType,
+	devFeatureBitmap common.Hash,
+) *continuationEnv {
 	t.Helper()
 	require.NotEmpty(t, gameTypes)
 	ctx, cancel := context.WithTimeout(t.Context(), 180*time.Second)
@@ -459,6 +486,7 @@ func newContinuationEnvForGameTypes(t *testing.T, gameTypes []embedded.GameType)
 		ChallengePeriodSeconds:          standard.ChallengePeriodSeconds,
 		ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
 		DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
+		DevFeatureBitmap:                devFeatureBitmap,
 		SuperchainConfigProxy:           bstrap.SuperchainConfigProxy,
 		L1ProxyAdminOwner:               intent.Chains[0].Roles.L1ProxyAdminOwner,
 		SuperchainProxyAdmin:            bstrap.SuperchainProxyAdmin,

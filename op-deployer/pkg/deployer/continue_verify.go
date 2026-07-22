@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
@@ -54,13 +55,52 @@ func (b *scriptHostReadBackend) CodeAt(
 }
 
 type continuationGameMode struct {
-	initialGameType        uint32
-	initialImplementation  common.Address
-	fallbackGameType       *uint32
-	fallbackImplementation common.Address
-	permissionedGameType   uint32
-	permissionless         bool
-	hasChallenger          bool
+	selectorGameType        uint32
+	respectedGameType       uint32
+	respectedImplementation common.Address
+	fallbackGameType        *uint32
+	fallbackImplementation  common.Address
+	permissionless          bool
+	hasChallenger           bool
+}
+
+type continuationGameArgsLayout uint8
+
+const (
+	continuationPermissionlessGameArgs continuationGameArgsLayout = iota
+	continuationPermissionedGameArgs
+	continuationSuperPermissionedGameArgs
+)
+
+type continuationGameArgs struct {
+	absolutePrestate    common.Hash
+	vm                  common.Address
+	anchorStateRegistry common.Address
+	delayedWETH         common.Address
+	l2ChainID           *big.Int
+	proposer            common.Address
+	challenger          common.Address
+}
+
+type continuationOPCMImplementations struct {
+	SuperchainConfigImpl             common.Address
+	L1ERC721BridgeImpl               common.Address
+	OptimismPortalImpl               common.Address
+	ETHLockboxImpl                   common.Address `abi:"ethLockboxImpl"`
+	SystemConfigImpl                 common.Address
+	OptimismMintableERC20FactoryImpl common.Address
+	L1CrossDomainMessengerImpl       common.Address
+	L1StandardBridgeImpl             common.Address
+	DisputeGameFactoryImpl           common.Address
+	AnchorStateRegistryImpl          common.Address
+	DelayedWETHImpl                  common.Address
+	MipsImpl                         common.Address
+	FaultDisputeGameImpl             common.Address
+	PermissionedDisputeGameImpl      common.Address
+	SuperFaultDisputeGameImpl        common.Address
+	SuperPermissionedDisputeGameImpl common.Address
+	ZkDisputeGameImpl                common.Address
+	StorageSetterImpl                common.Address
 }
 
 type continuationVerifier struct {
@@ -103,7 +143,6 @@ func verifyContinuationDeployment(
 	} else {
 		verifier.verifyStartingAnchor(mode)
 		verifier.verifyGameConfiguration(mode)
-		verifier.verifyPermissionedGameRoles(mode)
 	}
 	verifier.verifySystemConfig()
 	verifier.verifyProxyAdminOwner()
@@ -127,26 +166,52 @@ func (v *continuationVerifier) resolveGameMode() (continuationGameMode, error) {
 		)
 	}
 
-	mode := continuationGameMode{initialGameType: gameType}
+	bitmap, err := readContinuationHash(
+		v.ctx,
+		v.backend,
+		v.dci.Opcm,
+		continuationDevFeatureBitmapMethod,
+	)
+	if err != nil {
+		return continuationGameMode{}, fmt.Errorf("failed to read pinned OPCM dev feature bitmap: %w", err)
+	}
+	superRoot := devfeatures.IsDevFeatureEnabled(bitmap, devfeatures.SuperRootGamesMigrationFlag)
+
+	mode := continuationGameMode{
+		selectorGameType:  gameType,
+		respectedGameType: gameType,
+	}
 	switch embedded.GameType(gameType) {
 	case embedded.GameTypePermissionedCannon:
-		mode.initialImplementation = v.expected.PermissionedDisputeGameImpl
-		mode.permissionedGameType = gameType
-		mode.hasChallenger = true
+		if superRoot {
+			mode.respectedGameType = uint32(embedded.GameTypeSuperPermissioned)
+		}
+		mode.respectedImplementation = v.expected.PermissionedDisputeGameImpl
+		mode.hasChallenger = !superRoot
 	case embedded.GameTypeCannonKona:
+		if superRoot {
+			return continuationGameMode{}, fmt.Errorf(
+				"initial game type mismatch: frozen selector %d requires an OPCM without SUPER_ROOT_GAMES_MIGRATION",
+				gameType,
+			)
+		}
 		fallback := uint32(embedded.GameTypePermissionedCannon)
-		mode.initialImplementation = v.expected.FaultDisputeGameImpl
+		mode.respectedImplementation = v.expected.FaultDisputeGameImpl
 		mode.fallbackGameType = &fallback
 		mode.fallbackImplementation = v.expected.PermissionedDisputeGameImpl
-		mode.permissionedGameType = fallback
 		mode.permissionless = true
 		mode.hasChallenger = true
 	case embedded.GameTypeSuperCannonKona:
+		if !superRoot {
+			return continuationGameMode{}, fmt.Errorf(
+				"initial game type mismatch: frozen selector %d requires an OPCM with SUPER_ROOT_GAMES_MIGRATION",
+				gameType,
+			)
+		}
 		fallback := uint32(embedded.GameTypeSuperPermissioned)
-		mode.initialImplementation = v.expected.FaultDisputeGameImpl
+		mode.respectedImplementation = v.expected.FaultDisputeGameImpl
 		mode.fallbackGameType = &fallback
 		mode.fallbackImplementation = v.expected.PermissionedDisputeGameImpl
-		mode.permissionedGameType = fallback
 		mode.permissionless = true
 	default:
 		return continuationGameMode{}, fmt.Errorf(
@@ -243,15 +308,15 @@ func (v *continuationVerifier) verifyGameConfiguration(mode continuationGameMode
 	if err != nil {
 		v.addReadError(
 			"respected game type",
-			"prepared ChainState.InitialGameType",
-			mode.initialGameType,
+			"prepared selector and pinned OPCM dev feature bitmap",
+			mode.respectedGameType,
 			err,
 		)
-	} else if respected != mode.initialGameType {
+	} else if respected != mode.respectedGameType {
 		v.addMismatch(
 			"respected game type",
-			"prepared ChainState.InitialGameType",
-			mode.initialGameType,
+			"prepared selector and pinned OPCM dev feature bitmap",
+			mode.respectedGameType,
 			respected,
 		)
 	}
@@ -261,20 +326,20 @@ func (v *continuationVerifier) verifyGameConfiguration(mode continuationGameMode
 		v.backend,
 		v.expected.DisputeGameFactoryProxy,
 		continuationGameImplMethod,
-		mode.initialGameType,
+		mode.respectedGameType,
 	)
 	if err != nil {
 		v.addReadError(
 			"initial game implementation",
 			"predicted ChainState.OpChainContracts",
-			mode.initialImplementation,
+			mode.respectedImplementation,
 			err,
 		)
-	} else if initialImplementation != mode.initialImplementation {
+	} else if initialImplementation != mode.respectedImplementation {
 		v.addMismatch(
 			"initial game implementation",
 			"predicted ChainState.OpChainContracts",
-			mode.initialImplementation,
+			mode.respectedImplementation,
 			initialImplementation,
 		)
 	}
@@ -305,71 +370,64 @@ func (v *continuationVerifier) verifyGameConfiguration(mode continuationGameMode
 	}
 
 	expectedPrestate := v.dci.DisputeAbsolutePrestate
-	prestateSource := "frozen DeployOPChainInput.DisputeAbsolutePrestate"
 	if mode.permissionless {
 		expectedPrestate = v.expected.Prestate
-		prestateSource = "committed ChainState.Prestate"
 		if v.dci.DisputeAbsolutePrestate != expectedPrestate {
 			v.addMismatch(
 				"selected prestate input",
-				prestateSource,
+				"committed ChainState.Prestate",
 				expectedPrestate,
 				v.dci.DisputeAbsolutePrestate,
 			)
 		}
 	}
-	initialGameArgs, err := readContinuationBytes(
-		v.ctx,
-		v.backend,
-		v.expected.DisputeGameFactoryProxy,
-		continuationGameArgsMethod,
-		mode.initialGameType,
-	)
-	if err != nil {
-		v.addReadError("selected prestate", prestateSource, expectedPrestate, err)
-	} else {
-		prestate, err := decodeContinuationGamePrestate(initialGameArgs, mode.permissionless)
-		if err != nil {
-			v.addReadError("selected prestate", prestateSource, expectedPrestate, err)
-		} else if prestate != expectedPrestate {
-			v.addMismatch("selected prestate", prestateSource, expectedPrestate, prestate)
+
+	initialLayout := continuationPermissionlessGameArgs
+	if !mode.permissionless {
+		initialLayout = continuationPermissionedGameArgs
+		if !mode.hasChallenger {
+			initialLayout = continuationSuperPermissionedGameArgs
 		}
 	}
-
-	switch embedded.GameType(mode.initialGameType) {
-	case embedded.GameTypeCannonKona:
-		fallbackGameArgs, err := readContinuationBytes(
-			v.ctx,
-			v.backend,
-			v.expected.DisputeGameFactoryProxy,
-			continuationGameArgsMethod,
-			*mode.fallbackGameType,
-		)
+	var expectedVM *common.Address
+	if initialLayout != continuationSuperPermissionedGameArgs {
+		implementations, err := readContinuationOPCMImplementations(v.ctx, v.backend, v.dci.Opcm)
 		if err != nil {
 			v.addReadError(
-				"fallback prestate",
-				"fixed CANNON_KONA permissioned fallback",
-				opcm.PermissionedCannonFallbackPrestatePlaceholder,
+				"pinned OPCM implementations",
+				"frozen DeployOPChainInput.Opcm",
+				"a readable MIPS implementation",
 				err,
 			)
 		} else {
-			fallbackPrestate, err := decodeContinuationGamePrestate(fallbackGameArgs, false)
-			if err != nil {
-				v.addReadError(
-					"fallback prestate",
-					"fixed CANNON_KONA permissioned fallback",
-					opcm.PermissionedCannonFallbackPrestatePlaceholder,
-					err,
-				)
-			} else if fallbackPrestate != opcm.PermissionedCannonFallbackPrestatePlaceholder {
-				v.addMismatch(
-					"fallback prestate",
-					"fixed CANNON_KONA permissioned fallback",
-					opcm.PermissionedCannonFallbackPrestatePlaceholder,
-					fallbackPrestate,
-				)
-			}
+			expectedVM = &implementations.MipsImpl
 		}
+	}
+	v.verifyConfiguredGameArgs(
+		"selected",
+		mode.respectedGameType,
+		initialLayout,
+		expectedPrestate,
+		expectedVM,
+	)
+
+	switch embedded.GameType(mode.selectorGameType) {
+	case embedded.GameTypeCannonKona:
+		if v.dci.CannonAbsolutePrestate != opcm.PermissionedCannonFallbackPrestatePlaceholder {
+			v.addMismatch(
+				"fallback prestate input",
+				"fixed CANNON_KONA permissioned fallback",
+				opcm.PermissionedCannonFallbackPrestatePlaceholder,
+				v.dci.CannonAbsolutePrestate,
+			)
+		}
+		v.verifyConfiguredGameArgs(
+			"fallback",
+			*mode.fallbackGameType,
+			continuationPermissionedGameArgs,
+			opcm.PermissionedCannonFallbackPrestatePlaceholder,
+			expectedVM,
+		)
 	case embedded.GameTypeSuperCannonKona:
 		if v.dci.CannonAbsolutePrestate != (common.Hash{}) {
 			v.addMismatch(
@@ -379,55 +437,127 @@ func (v *continuationVerifier) verifyGameConfiguration(mode continuationGameMode
 				v.dci.CannonAbsolutePrestate,
 			)
 		}
+		v.verifyConfiguredGameArgs(
+			"fallback",
+			*mode.fallbackGameType,
+			continuationSuperPermissionedGameArgs,
+			common.Hash{},
+			nil,
+		)
 	}
 }
 
-func (v *continuationVerifier) verifyPermissionedGameRoles(mode continuationGameMode) {
+func (v *continuationVerifier) verifyConfiguredGameArgs(
+	label string,
+	gameType uint32,
+	layout continuationGameArgsLayout,
+	expectedPrestate common.Hash,
+	expectedVM *common.Address,
+) {
 	gameArgs, err := readContinuationBytes(
 		v.ctx,
 		v.backend,
 		v.expected.DisputeGameFactoryProxy,
 		continuationGameArgsMethod,
-		mode.permissionedGameType,
+		gameType,
 	)
 	if err != nil {
 		v.addReadError(
-			"permissioned game roles",
-			"frozen DeployOPChainInput proposer and challenger",
+			label+" game arguments",
+			"frozen DeployOPChainInput and predicted ChainState.OpChainContracts",
 			"readable configured game arguments",
 			err,
 		)
 		return
 	}
-	proposer, challenger, err := decodeContinuationPermissionedRoles(gameArgs, mode.hasChallenger)
+	decoded, err := decodeContinuationGameArgs(gameArgs, layout)
 	if err != nil {
 		v.addReadError(
-			"permissioned game roles",
-			"frozen DeployOPChainInput proposer and challenger",
+			label+" game arguments",
+			"frozen DeployOPChainInput and predicted ChainState.OpChainContracts",
 			"valid configured game arguments",
 			err,
 		)
 		return
 	}
-	if proposer != v.dci.Proposer {
+
+	if decoded.anchorStateRegistry != v.expected.AnchorStateRegistryProxy {
 		v.addMismatch(
-			"permissioned game proposer",
-			"frozen DeployOPChainInput.Proposer",
-			v.dci.Proposer,
-			proposer,
+			label+" game AnchorStateRegistry",
+			"predicted ChainState.OpChainContracts.AnchorStateRegistryProxy",
+			v.expected.AnchorStateRegistryProxy,
+			decoded.anchorStateRegistry,
 		)
 	}
 
-	if !mode.hasChallenger {
+	if layout == continuationSuperPermissionedGameArgs {
+		if decoded.proposer != v.dci.Proposer {
+			v.addMismatch(
+				label+" game proposer",
+				"frozen DeployOPChainInput.Proposer",
+				v.dci.Proposer,
+				decoded.proposer,
+			)
+		}
 		return
 	}
-	if challenger != v.dci.Challenger {
+
+	if decoded.absolutePrestate != expectedPrestate {
 		v.addMismatch(
-			"permissioned game challenger",
-			"frozen DeployOPChainInput.Challenger",
-			v.dci.Challenger,
-			challenger,
+			label+" game prestate",
+			"frozen/committed game prestate",
+			expectedPrestate,
+			decoded.absolutePrestate,
 		)
+	}
+
+	if expectedVM != nil && decoded.vm != *expectedVM {
+		v.addMismatch(label+" game VM", "pinned OPCM implementations", *expectedVM, decoded.vm)
+	}
+
+	expectedWETH := v.expected.DelayedWethPermissionedGameProxy
+	if layout == continuationPermissionlessGameArgs {
+		expectedWETH = v.expected.DelayedWethPermissionlessGameProxy
+	}
+	if decoded.delayedWETH != expectedWETH {
+		v.addMismatch(
+			label+" game DelayedWETH",
+			"predicted ChainState.OpChainContracts",
+			expectedWETH,
+			decoded.delayedWETH,
+		)
+	}
+
+	expectedL2ChainID := v.dci.L2ChainId
+	if embedded.GameType(gameType) == embedded.GameTypeSuperCannonKona {
+		expectedL2ChainID = new(big.Int)
+	}
+	if expectedL2ChainID == nil || decoded.l2ChainID.Cmp(expectedL2ChainID) != 0 {
+		v.addMismatch(
+			label+" game L2 chain ID",
+			"frozen DeployOPChainInput.L2ChainId and game-type rules",
+			expectedL2ChainID,
+			decoded.l2ChainID,
+		)
+	}
+
+	if layout == continuationPermissionedGameArgs {
+		if decoded.proposer != v.dci.Proposer {
+			v.addMismatch(
+				label+" game proposer",
+				"frozen DeployOPChainInput.Proposer",
+				v.dci.Proposer,
+				decoded.proposer,
+			)
+		}
+		if decoded.challenger != v.dci.Challenger {
+			v.addMismatch(
+				label+" game challenger",
+				"frozen DeployOPChainInput.Challenger",
+				v.dci.Challenger,
+				decoded.challenger,
+			)
+		}
 	}
 }
 
@@ -439,6 +569,41 @@ func (v *continuationVerifier) verifySystemConfig() {
 		systemConfig,
 		continuationOwnerMethod,
 		v.dci.SystemConfigOwner,
+	)
+	v.verifyUint32Getter(
+		"SystemConfig base fee scalar",
+		"frozen DeployOPChainInput.BasefeeScalar",
+		systemConfig,
+		continuationBasefeeScalarMethod,
+		v.dci.BasefeeScalar,
+	)
+	v.verifyUint32Getter(
+		"SystemConfig blob base fee scalar",
+		"frozen DeployOPChainInput.BlobBaseFeeScalar",
+		systemConfig,
+		continuationBlobBasefeeScalarMethod,
+		v.dci.BlobBaseFeeScalar,
+	)
+	v.verifyUint32Getter(
+		"SystemConfig operator fee scalar",
+		"frozen DeployOPChainInput.OperatorFeeScalar",
+		systemConfig,
+		continuationOperatorFeeScalarMethod,
+		v.dci.OperatorFeeScalar,
+	)
+	v.verifyUint64Getter(
+		"SystemConfig operator fee constant",
+		"frozen DeployOPChainInput.OperatorFeeConstant",
+		systemConfig,
+		continuationOperatorFeeConstantMethod,
+		v.dci.OperatorFeeConstant,
+	)
+	v.verifyBoolGetter(
+		"SystemConfig custom gas token mode",
+		"frozen DeployOPChainInput.UseCustomGasToken",
+		systemConfig,
+		continuationIsCustomGasTokenMethod,
+		v.dci.UseCustomGasToken,
 	)
 
 	batcherHash, err := readContinuationHash(
@@ -633,6 +798,51 @@ func (v *continuationVerifier) verifyAddressGetter(
 	}
 }
 
+func (v *continuationVerifier) verifyUint32Getter(
+	check string,
+	source string,
+	contract common.Address,
+	method abi.Method,
+	expected uint32,
+) {
+	observed, err := readContinuationUint32(v.ctx, v.backend, contract, method)
+	if err != nil {
+		v.addReadError(check, source, expected, err)
+	} else if observed != expected {
+		v.addMismatch(check, source, expected, observed)
+	}
+}
+
+func (v *continuationVerifier) verifyUint64Getter(
+	check string,
+	source string,
+	contract common.Address,
+	method abi.Method,
+	expected uint64,
+) {
+	observed, err := readContinuationUint64(v.ctx, v.backend, contract, method)
+	if err != nil {
+		v.addReadError(check, source, expected, err)
+	} else if observed != expected {
+		v.addMismatch(check, source, expected, observed)
+	}
+}
+
+func (v *continuationVerifier) verifyBoolGetter(
+	check string,
+	source string,
+	contract common.Address,
+	method abi.Method,
+	expected bool,
+) {
+	observed, err := readContinuationBool(v.ctx, v.backend, contract, method)
+	if err != nil {
+		v.addReadError(check, source, expected, err)
+	} else if observed != expected {
+		v.addMismatch(check, source, expected, observed)
+	}
+}
+
 func (v *continuationVerifier) addMismatch(check string, source string, expected any, observed any) {
 	v.failures = append(v.failures, fmt.Errorf(
 		"%s: expected %v from %s, observed %v",
@@ -694,19 +904,26 @@ func continuationContractAddresses(contracts addresses.OpChainContracts) []named
 }
 
 var (
-	continuationStartingAnchorMethod    = newContinuationViewMethod("getStartingAnchorRoot", nil, "bytes32", "uint256")
-	continuationRespectedGameTypeMethod = newContinuationViewMethod("respectedGameType", nil, "uint32")
-	continuationGameImplMethod          = newContinuationViewMethod("gameImpls", []string{"uint32"}, "address")
-	continuationGameArgsMethod          = newContinuationViewMethod("gameArgs", []string{"uint32"}, "bytes")
-	continuationOwnerMethod             = newContinuationViewMethod("owner", nil, "address")
-	continuationBatcherHashMethod       = newContinuationViewMethod("batcherHash", nil, "bytes32")
-	continuationUnsafeBlockSignerMethod = newContinuationViewMethod("unsafeBlockSigner", nil, "address")
-	continuationGasLimitMethod          = newContinuationViewMethod("gasLimit", nil, "uint64")
-	continuationL2ChainIDMethod         = newContinuationViewMethod("l2ChainId", nil, "uint256")
-	continuationSuperchainConfigMethod  = newContinuationViewMethod("superchainConfig", nil, "address")
-	continuationConfigMethod            = newContinuationViewMethod("config", nil, "address")
-	continuationGuardianMethod          = newContinuationViewMethod("guardian", nil, "address")
-	continuationStandardValidatorMethod = newContinuationViewMethod("opcmStandardValidator", nil, "address")
+	continuationStartingAnchorMethod      = newContinuationViewMethod("getStartingAnchorRoot", nil, "bytes32", "uint256")
+	continuationRespectedGameTypeMethod   = newContinuationViewMethod("respectedGameType", nil, "uint32")
+	continuationGameImplMethod            = newContinuationViewMethod("gameImpls", []string{"uint32"}, "address")
+	continuationGameArgsMethod            = newContinuationViewMethod("gameArgs", []string{"uint32"}, "bytes")
+	continuationImplementationsMethod     = newContinuationImplementationsMethod()
+	continuationOwnerMethod               = newContinuationViewMethod("owner", nil, "address")
+	continuationBasefeeScalarMethod       = newContinuationViewMethod("basefeeScalar", nil, "uint32")
+	continuationBlobBasefeeScalarMethod   = newContinuationViewMethod("blobbasefeeScalar", nil, "uint32")
+	continuationBatcherHashMethod         = newContinuationViewMethod("batcherHash", nil, "bytes32")
+	continuationUnsafeBlockSignerMethod   = newContinuationViewMethod("unsafeBlockSigner", nil, "address")
+	continuationGasLimitMethod            = newContinuationViewMethod("gasLimit", nil, "uint64")
+	continuationL2ChainIDMethod           = newContinuationViewMethod("l2ChainId", nil, "uint256")
+	continuationOperatorFeeScalarMethod   = newContinuationViewMethod("operatorFeeScalar", nil, "uint32")
+	continuationOperatorFeeConstantMethod = newContinuationViewMethod("operatorFeeConstant", nil, "uint64")
+	continuationIsCustomGasTokenMethod    = newContinuationViewMethod("isCustomGasToken", nil, "bool")
+	continuationSuperchainConfigMethod    = newContinuationViewMethod("superchainConfig", nil, "address")
+	continuationConfigMethod              = newContinuationViewMethod("config", nil, "address")
+	continuationGuardianMethod            = newContinuationViewMethod("guardian", nil, "address")
+	continuationStandardValidatorMethod   = newContinuationViewMethod("opcmStandardValidator", nil, "address")
+	continuationDevFeatureBitmapMethod    = newContinuationViewMethod("devFeatureBitmap", nil, "bytes32")
 )
 
 func newContinuationViewMethod(name string, inputTypes []string, outputTypes ...string) abi.Method {
@@ -719,6 +936,43 @@ func newContinuationViewMethod(name string, inputTypes []string, outputTypes ...
 		outputs[i] = abi.Argument{Type: opcm.MustType(outputType)}
 	}
 	return abi.NewMethod(name, name, abi.Function, "view", true, false, inputs, outputs)
+}
+
+func newContinuationImplementationsMethod() abi.Method {
+	components := []abi.ArgumentMarshaling{
+		{Name: "superchainConfigImpl", Type: "address"},
+		{Name: "l1ERC721BridgeImpl", Type: "address"},
+		{Name: "optimismPortalImpl", Type: "address"},
+		{Name: "ethLockboxImpl", Type: "address"},
+		{Name: "systemConfigImpl", Type: "address"},
+		{Name: "optimismMintableERC20FactoryImpl", Type: "address"},
+		{Name: "l1CrossDomainMessengerImpl", Type: "address"},
+		{Name: "l1StandardBridgeImpl", Type: "address"},
+		{Name: "disputeGameFactoryImpl", Type: "address"},
+		{Name: "anchorStateRegistryImpl", Type: "address"},
+		{Name: "delayedWETHImpl", Type: "address"},
+		{Name: "mipsImpl", Type: "address"},
+		{Name: "faultDisputeGameImpl", Type: "address"},
+		{Name: "permissionedDisputeGameImpl", Type: "address"},
+		{Name: "superFaultDisputeGameImpl", Type: "address"},
+		{Name: "superPermissionedDisputeGameImpl", Type: "address"},
+		{Name: "zkDisputeGameImpl", Type: "address"},
+		{Name: "storageSetterImpl", Type: "address"},
+	}
+	implementationsType, err := abi.NewType("tuple", "", components)
+	if err != nil {
+		panic(fmt.Errorf("failed to define OPCM implementations ABI type: %w", err))
+	}
+	return abi.NewMethod(
+		"implementations",
+		"implementations",
+		abi.Function,
+		"view",
+		true,
+		false,
+		nil,
+		abi.Arguments{{Type: implementationsType}},
+	)
 }
 
 func callContinuationMethod(
@@ -815,38 +1069,69 @@ func readContinuationBytes(
 	return result, nil
 }
 
-// These offsets mirror packages/contracts-bedrock/src/dispute/lib/LibGameArgs.sol.
-func decodeContinuationGamePrestate(gameArgs []byte, permissionless bool) (common.Hash, error) {
-	expectedLength := 164
-	if permissionless {
-		expectedLength = 124
+func readContinuationOPCMImplementations(
+	ctx context.Context,
+	backend opcm.CallContractBackend,
+	opcmAddress common.Address,
+) (continuationOPCMImplementations, error) {
+	value, err := readContinuationOne(ctx, backend, opcmAddress, continuationImplementationsMethod)
+	if err != nil {
+		return continuationOPCMImplementations{}, err
 	}
-	if len(gameArgs) != expectedLength {
-		return common.Hash{}, fmt.Errorf("configured game arguments have length %d, expected %d", len(gameArgs), expectedLength)
+	implementations, ok := abi.ConvertType(value, new(continuationOPCMImplementations)).(*continuationOPCMImplementations)
+	if !ok {
+		return continuationOPCMImplementations{}, fmt.Errorf(
+			"implementations returned unexpected type %T",
+			value,
+		)
 	}
-	return common.BytesToHash(gameArgs[:common.HashLength]), nil
+	return *implementations, nil
 }
 
-func decodeContinuationPermissionedRoles(
+// These offsets mirror packages/contracts-bedrock/src/dispute/lib/LibGameArgs.sol.
+func decodeContinuationGameArgs(
 	gameArgs []byte,
-	hasChallenger bool,
-) (common.Address, common.Address, error) {
-	if hasChallenger {
-		if len(gameArgs) != 164 {
-			return common.Address{}, common.Address{}, fmt.Errorf(
-				"configured permissioned game arguments have length %d, expected 164",
+	layout continuationGameArgsLayout,
+) (continuationGameArgs, error) {
+	if layout == continuationSuperPermissionedGameArgs {
+		if len(gameArgs) != 40 {
+			return continuationGameArgs{}, fmt.Errorf(
+				"configured super permissioned game arguments have length %d, expected 40",
 				len(gameArgs),
 			)
 		}
-		return common.BytesToAddress(gameArgs[124:144]), common.BytesToAddress(gameArgs[144:164]), nil
+		return continuationGameArgs{
+			anchorStateRegistry: common.BytesToAddress(gameArgs[:20]),
+			proposer:            common.BytesToAddress(gameArgs[20:40]),
+		}, nil
 	}
-	if len(gameArgs) != 40 {
-		return common.Address{}, common.Address{}, fmt.Errorf(
-			"configured super permissioned game arguments have length %d, expected 40",
+
+	expectedLength := 124
+	if layout == continuationPermissionedGameArgs {
+		expectedLength = 164
+	} else if layout != continuationPermissionlessGameArgs {
+		return continuationGameArgs{}, fmt.Errorf("unknown continuation game argument layout %d", layout)
+	}
+	if len(gameArgs) != expectedLength {
+		return continuationGameArgs{}, fmt.Errorf(
+			"configured game arguments have length %d, expected %d",
 			len(gameArgs),
+			expectedLength,
 		)
 	}
-	return common.BytesToAddress(gameArgs[20:40]), common.Address{}, nil
+
+	decoded := continuationGameArgs{
+		absolutePrestate:    common.BytesToHash(gameArgs[:32]),
+		vm:                  common.BytesToAddress(gameArgs[32:52]),
+		anchorStateRegistry: common.BytesToAddress(gameArgs[52:72]),
+		delayedWETH:         common.BytesToAddress(gameArgs[72:92]),
+		l2ChainID:           new(big.Int).SetBytes(gameArgs[92:124]),
+	}
+	if layout == continuationPermissionedGameArgs {
+		decoded.proposer = common.BytesToAddress(gameArgs[124:144])
+		decoded.challenger = common.BytesToAddress(gameArgs[144:164])
+	}
+	return decoded, nil
 }
 
 func readContinuationUint32(
@@ -881,6 +1166,24 @@ func readContinuationUint64(
 	result, ok := value.(uint64)
 	if !ok {
 		return 0, fmt.Errorf("%s returned unexpected type %T", method.Name, value)
+	}
+	return result, nil
+}
+
+func readContinuationBool(
+	ctx context.Context,
+	backend opcm.CallContractBackend,
+	contract common.Address,
+	method abi.Method,
+	args ...any,
+) (bool, error) {
+	value, err := readContinuationOne(ctx, backend, contract, method, args...)
+	if err != nil {
+		return false, err
+	}
+	result, ok := value.(bool)
+	if !ok {
+		return false, fmt.Errorf("%s returned unexpected type %T", method.Name, value)
 	}
 	return result, nil
 }
