@@ -9,19 +9,19 @@ last-reviewed: 2026-07-21
 This guide takes an operator who is about to run an OP Stack node and turns
 "which client software?" into a sequenced decision: fix the two-client
 shape, rule out end-of-support software, choose the execution and consensus
-clients, and match the pairing to the job the node does. It involves
-`op-node` and `kona-node` on the consensus layer, `op-reth` and Nethermind
-on the execution layer, and the special-purpose `op-supernode` and legacy
-Geth. Support status changes over time; the facts on this page are stated
-as of the `last-reviewed` date above, and each exit links where to
-re-check them.
+clients, and match the pairing to the job the node does. It centers on the
+software Optimism maintains: `op-node` and `kona-node` on the consensus
+layer, `op-reth` on the execution layer, and the special-purpose
+`op-supernode` and legacy Geth. Support status changes over time; the
+facts on this page are stated as of the `last-reviewed` date above, and
+each exit links where to re-check them.
 
 ## Is this guide for you?
 
 Use this guide if:
 
 *   You are choosing software for a new node on an OP Stack chain (OP
-    Mainnet, another Superchain chain, or your own chain), or re-evaluating
+    Mainnet, another OP Stack chain, or your own chain), or re-evaluating
     an existing node after the op-geth end of support.
 *   You want the selection reasoning, not the setup commands.
 
@@ -78,6 +78,11 @@ away, as of 2026-07-21:
     anything: the fault-proof migration to kona-client works with an
     ordinary op-node.
 
+One more retirement outside that notice: **op-erigon, a third-party
+execution client, has also been deprecated** by its maintainer; see the
+[sunsetting announcement](https://www.sunnyside.io/blogs/sunsetting-op-erigon).
+It is not a candidate for any new node either.
+
 ## Step 3: Choose the execution client
 
 Read the [execution client configuration guide](/node-operators/guides/configuration/execution-clients)
@@ -86,9 +91,12 @@ reference lives. The selection logic:
 
 | If ...                                                       | Choose ...                | Because ...                                                                                                                                        |
 | -------------------------------------------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| You want the default, for any node role                       | op-reth                    | It is the primary supported execution client: new OP Stack feature development, including hardfork support, happens on op-reth. As of 2026-07-21.  |
-| You want client diversity or your team runs .NET infrastructure | Nethermind                 | It is the documented alternative execution client, configured and supported through Nethermind's own documentation.                                |
+| You want the default, for any node role                       | op-reth                    | It is the primary supported execution client, and the implementation maintained by Optimism: new OP Stack feature development, including hardfork support, happens on op-reth. As of 2026-07-21.  |
 | The node is an existing op-geth deployment                    | Migration to op-reth       | op-geth is end-of-support and cannot follow the chain past Karst; the notice carries the migration plan.                                            |
+
+Third-party execution clients maintained outside Optimism also exist, such
+as Nethermind; they are configured and supported through their own
+documentation, not these docs.
 
 Two op-reth follow-on decisions to make now rather than after sync:
 
@@ -112,7 +120,7 @@ selection logic:
 | If ...                                                          | Choose ...    | Because ...                                                                                                                                                     |
 | ----------------------------------------------------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | You want the default, for any node role                          | op-node        | It is the reference implementation, is explicitly not deprecated, and its default engine kind (`--l2.enginekind=reth`) already matches the Step 3 default.       |
-| You want a Rust stack or to contribute client diversity          | kona-node      | It ships tagged releases, superchain-registry support, and sequencer/conductor integration, but its documentation marks it experimental and in active development, so give it a role where that is acceptable. As of 2026-07-21. |
+| You want to try the in-development Rust consensus node           | kona-node      | It ships tagged releases, superchain-registry support, and sequencer/conductor integration, but it is not yet production ready: its documentation marks it experimental and in active development, so give it a role where that is acceptable. As of 2026-07-21. |
 | The node must follow every chain in an interop dependency set    | op-supernode   | It hosts a virtual op-node per chain in one process and adds cross-chain message verification; it is in active development, tracking a v0.2.x release candidate. As of 2026-07-21. |
 
 One pairing note: op-node's `--l2.enginekind` flag tunes its Engine API
