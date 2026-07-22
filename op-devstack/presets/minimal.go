@@ -58,7 +58,7 @@ func (m *Minimal) AnchorStateRegistry() *dsl.AnchorStateRegistry {
 
 func (m *Minimal) AdvanceTime(amount time.Duration) {
 	m.T.Require().NotNil(m.timeTravel, "attempting to advance time on incompatible system")
-	m.timeTravel.AdvanceTime(amount)
+	m.L1EL.AdvanceTime(m.timeTravel, amount)
 }
 
 func (m *Minimal) proofValidationContext() (devtest.T, *dsl.L1ELNode, []*dsl.L2Network) {

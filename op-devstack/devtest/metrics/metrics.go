@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -78,6 +79,8 @@ type Snapshot struct {
 	payload  string
 }
 
+type SnapshotCheck func(*Snapshot) error
+
 func (s *Snapshot) Payload() string {
 	return s.payload
 }
@@ -123,12 +126,116 @@ func parseSnapshot(payload string) (*Snapshot, error) {
 }
 
 func (s *Snapshot) Gauge(name string, labels map[string]string) (float64, error) {
+	matches, err := s.matchingMetrics(name, labels, clientmodel.MetricType_GAUGE)
+	if err != nil {
+		return 0, err
+	}
+	if len(matches) > 1 {
+		return 0, fmt.Errorf("metric %s with labels %v matched multiple series", name, labels)
+	}
+	gauge := matches[0].GetGauge()
+	if gauge == nil {
+		return 0, fmt.Errorf("metric %s with labels %v has no gauge value", name, labels)
+	}
+	return gauge.GetValue(), nil
+}
+
+func (s *Snapshot) GaugeSum(name string, labels map[string]string) (float64, error) {
+	matches, err := s.matchingMetrics(name, labels, clientmodel.MetricType_GAUGE)
+	if err != nil {
+		return 0, err
+	}
+	var sum float64
+	for _, metric := range matches {
+		gauge := metric.GetGauge()
+		if gauge == nil {
+			return 0, fmt.Errorf("metric %s with labels %v has no gauge value", name, labels)
+		}
+		sum += gauge.GetValue()
+	}
+	return sum, nil
+}
+
+func (s *Snapshot) HistogramCount(name string, labels map[string]string) (uint64, error) {
+	matches, err := s.matchingMetrics(name, labels, clientmodel.MetricType_HISTOGRAM)
+	if err != nil {
+		return 0, err
+	}
+	if len(matches) > 1 {
+		return 0, fmt.Errorf("metric %s with labels %v matched multiple series", name, labels)
+	}
+	histogram := matches[0].GetHistogram()
+	if histogram == nil {
+		return 0, fmt.Errorf("metric %s with labels %v has no histogram value", name, labels)
+	}
+	return histogram.GetSampleCount(), nil
+}
+
+func GaugeEquals(name string, labels map[string]string, expected float64) SnapshotCheck {
+	return func(snapshot *Snapshot) error {
+		observed, err := snapshot.Gauge(name, labels)
+		if err != nil {
+			return err
+		}
+		if observed != expected {
+			return fmt.Errorf("metric %s with labels %v expected %v but observed %v", name, labels, expected, observed)
+		}
+		return nil
+	}
+}
+
+func GaugeAtLeast(name string, labels map[string]string, minimum float64) SnapshotCheck {
+	return func(snapshot *Snapshot) error {
+		if math.IsNaN(minimum) {
+			return fmt.Errorf("metric %s with labels %v minimum must not be NaN", name, labels)
+		}
+		observed, err := snapshot.Gauge(name, labels)
+		if err != nil {
+			return err
+		}
+		if math.IsNaN(observed) {
+			return fmt.Errorf("metric %s with labels %v observed NaN", name, labels)
+		}
+		if observed < minimum {
+			return fmt.Errorf("metric %s with labels %v expected at least %v but observed %v", name, labels, minimum, observed)
+		}
+		return nil
+	}
+}
+
+func GaugeSumEquals(name string, labels map[string]string, expected float64) SnapshotCheck {
+	return func(snapshot *Snapshot) error {
+		observed, err := snapshot.GaugeSum(name, labels)
+		if err != nil {
+			return err
+		}
+		if observed != expected {
+			return fmt.Errorf("metric %s sum with labels %v expected %v but observed %v", name, labels, expected, observed)
+		}
+		return nil
+	}
+}
+
+func HistogramCountAtLeast(name string, labels map[string]string, minimum uint64) SnapshotCheck {
+	return func(snapshot *Snapshot) error {
+		observed, err := snapshot.HistogramCount(name, labels)
+		if err != nil {
+			return err
+		}
+		if observed < minimum {
+			return fmt.Errorf("metric %s histogram count with labels %v expected at least %d but observed %d", name, labels, minimum, observed)
+		}
+		return nil
+	}
+}
+
+func (s *Snapshot) matchingMetrics(name string, labels map[string]string, expectedType clientmodel.MetricType) ([]*clientmodel.Metric, error) {
 	family, ok := s.families[name]
 	if !ok {
-		return 0, fmt.Errorf("metric family %s not found", name)
+		return nil, fmt.Errorf("metric family %s not found", name)
 	}
-	if family.GetType() != clientmodel.MetricType_GAUGE {
-		return 0, fmt.Errorf("metric %s is not a gauge", name)
+	if family.GetType() != expectedType {
+		return nil, fmt.Errorf("metric %s is not a %s", name, strings.ToLower(expectedType.String()))
 	}
 
 	var matches []*clientmodel.Metric
@@ -137,19 +244,10 @@ func (s *Snapshot) Gauge(name string, labels map[string]string) (float64, error)
 			matches = append(matches, metric)
 		}
 	}
-	switch len(matches) {
-	case 0:
-		return 0, fmt.Errorf("metric %s with labels %v not found", name, labels)
-	case 1:
-	default:
-		return 0, fmt.Errorf("metric %s with labels %v matched multiple series", name, labels)
+	if len(matches) == 0 {
+		return nil, fmt.Errorf("metric %s with labels %v not found", name, labels)
 	}
-
-	gauge := matches[0].GetGauge()
-	if gauge == nil {
-		return 0, fmt.Errorf("metric %s with labels %v has no gauge value", name, labels)
-	}
-	return gauge.GetValue(), nil
+	return matches, nil
 }
 
 func metricHasLabels(metric *clientmodel.Metric, expected map[string]string) bool {
@@ -175,11 +273,27 @@ type GaugeDefinition struct {
 }
 
 func (c *MetricsClient) WaitForGauge(ctx context.Context, definition GaugeDefinition, pollInterval time.Duration) error {
+	_, err := c.WaitForSnapshot(
+		ctx,
+		pollInterval,
+		GaugeEquals(definition.Name, definition.Labels, definition.Expected),
+	)
+	return err
+}
+
+func (c *MetricsClient) WaitForSnapshot(
+	ctx context.Context,
+	pollInterval time.Duration,
+	check func(*Snapshot) error,
+) (*Snapshot, error) {
 	if err := c.validateWait(); err != nil {
-		return err
+		return nil, err
 	}
 	if pollInterval <= 0 {
-		return fmt.Errorf("poll interval must be positive")
+		return nil, fmt.Errorf("poll interval must be positive")
+	}
+	if check == nil {
+		return nil, fmt.Errorf("snapshot check must not be nil")
 	}
 
 	waitCtx, cancel := context.WithTimeout(ctx, c.waitTimeout)
@@ -192,46 +306,23 @@ func (c *MetricsClient) WaitForGauge(ctx context.Context, definition GaugeDefini
 	for {
 		snapshot, err := c.Fetch(waitCtx)
 		if err != nil && lastErr != nil && waitCtx.Err() != nil && errors.Is(err, waitCtx.Err()) {
-			return fmt.Errorf(
-				"metric %s did not reach expected value: %w: %w",
-				definition.Name,
-				lastErr,
-				waitCtx.Err(),
-			)
+			return nil, fmt.Errorf("metrics did not reach expected state: %w: %w", lastErr, waitCtx.Err())
 		}
 		if err == nil {
-			observed, gaugeErr := snapshot.Gauge(definition.Name, definition.Labels)
-			if gaugeErr == nil && observed == definition.Expected {
-				return nil
+			if checkErr := check(snapshot); checkErr == nil {
+				return snapshot, nil
+			} else {
+				err = fmt.Errorf("%w\nmetrics payload:\n%s", checkErr, snapshot.Payload())
 			}
-			if gaugeErr == nil {
-				gaugeErr = fmt.Errorf(
-					"metric %s expected %v but observed %v",
-					definition.Name,
-					definition.Expected,
-					observed,
-				)
-			}
-			err = fmt.Errorf("%w\nmetrics payload:\n%s", gaugeErr, snapshot.Payload())
 		}
 		lastErr = err
 
 		if waitCtx.Err() != nil {
-			return fmt.Errorf(
-				"metric %s did not reach expected value: %w: %w",
-				definition.Name,
-				lastErr,
-				waitCtx.Err(),
-			)
+			return nil, fmt.Errorf("metrics did not reach expected state: %w: %w", lastErr, waitCtx.Err())
 		}
 		select {
 		case <-waitCtx.Done():
-			return fmt.Errorf(
-				"metric %s did not reach expected value: %w: %w",
-				definition.Name,
-				lastErr,
-				waitCtx.Err(),
-			)
+			return nil, fmt.Errorf("metrics did not reach expected state: %w: %w", lastErr, waitCtx.Err())
 		case <-ticker.C:
 		}
 	}
