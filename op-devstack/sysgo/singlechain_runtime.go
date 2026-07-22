@@ -146,7 +146,7 @@ func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleC
 	applyMinimalGameTypeOptions(t, keys, world.L1Network, world.L2Network, l1EL, primary.CL, cfg.AddedGameTypes, cfg.RespectedGameTypes)
 
 	var l2Proposer *L2Proposer
-	if spec.StartProposer {
+	if spec.StartProposer && !cfg.SkipHonestProposer {
 		l2Proposer = startMinimalProposer(t, keys, world.L2Network, l1EL, primary.CL, cfg.ProposerOptions...)
 	}
 
@@ -183,7 +183,7 @@ func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleC
 
 // SingleChainRuntime is the shared DAG runtime for single-chain preset topologies.
 // It is the root for minimal, flashblocks, follower-node, sync-tester, conductor,
-// and no-supervisor interop variants.
+// and no-supernode interop variants.
 func NewMinimalRuntime(t devtest.T) *SingleChainRuntime {
 	return NewMinimalRuntimeWithConfig(t, PresetConfig{})
 }

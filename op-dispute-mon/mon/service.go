@@ -290,6 +290,7 @@ func (s *Service) MetricsAddr() net.Addr {
 
 func (s *Service) Stop(ctx context.Context) error {
 	s.logger.Info("Stopping dispute mon service")
+
 	var result error
 	if s.monitor != nil {
 		if err := s.monitor.StopMonitoring(ctx); err != nil {

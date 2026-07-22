@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
+	"math/big"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
@@ -12,12 +13,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -35,6 +36,9 @@ type PrepareConfig struct {
 	L1RPCUrl string
 	// CacheDir is where downloaded artifacts are cached.
 	CacheDir string
+	// GenesisTimeOffset is the number of seconds added to the L1 anchor block's timestamp
+	// to produce the committed L2 genesis timestamp.
+	GenesisTimeOffset uint64
 
 	privateKeyECDSA *ecdsa.PrivateKey
 }
@@ -80,11 +84,12 @@ func PrepareCLI() func(cliCtx *cli.Context) error {
 // parsed and validated later in Check, mirroring apply.
 func newPrepareConfig(cliCtx *cli.Context, l log.Logger) PrepareConfig {
 	return PrepareConfig{
-		Workdir:    cliCtx.String(WorkdirFlagName),
-		Logger:     l,
-		PrivateKey: cliCtx.String(PrivateKeyFlagName),
-		L1RPCUrl:   cliCtx.String(L1RPCURLFlagName),
-		CacheDir:   cliCtx.String(CacheDirFlagName),
+		Workdir:           cliCtx.String(WorkdirFlagName),
+		Logger:            l,
+		PrivateKey:        cliCtx.String(PrivateKeyFlagName),
+		L1RPCUrl:          cliCtx.String(L1RPCURLFlagName),
+		CacheDir:          cliCtx.String(CacheDirFlagName),
+		GenesisTimeOffset: cliCtx.Uint64(GenesisTimeOffsetFlagName),
 	}
 }
 
@@ -106,6 +111,10 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 	}
 
 	if err := pipeline.ValidateInputs(intent, st); err != nil {
+		return err
+	}
+
+	if err := checkReservedOverrides(intent, st); err != nil {
 		return err
 	}
 
@@ -171,7 +180,18 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return fmt.Errorf("failed to load DeployOPChain script: %w", err)
 	}
 
-	if err := predictChains(cfg.Logger, intent, st, deployScript.Run); err != nil {
+	// Fetch safe block once, so all unpinned chains without an override share one anchor.
+	// This is also the reference block for the overrides.
+	safe, err := pipeline.FetchL1BlockRefByNumber(ctx, l1RPC, "safe")
+	if err != nil {
+		return fmt.Errorf("failed to fetch L1 safe block: %w", err)
+	}
+
+	selectAnchor := func(overrideHash *common.Hash) (*state.L1BlockRefJSON, error) {
+		return selectAnchorBlock(ctx, l1RPC, safe, overrideHash)
+	}
+
+	if err := prepareChains(cfg.Logger, intent, st, deployScript.Run, selectAnchor, safe, cfg.GenesisTimeOffset); err != nil {
 		return err
 	}
 
@@ -180,6 +200,44 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 	}
 
 	return nil
+}
+
+// Validate the dependency set before mutating chain state.
+func prepareChains(
+	lgr log.Logger,
+	intent *state.Intent,
+	st *state.State,
+	run func(opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error),
+	selectAnchor func(overrideHash *common.Hash) (*state.L1BlockRefJSON, error),
+	safe *state.L1BlockRefJSON,
+	genesisTimeOffset uint64,
+) error {
+	if err := pipeline.ValidateNoDuplicateChainIDs(intent.Chains); err != nil {
+		return err
+	}
+
+	initialGameTypes := make([]uint32, 0, len(intent.Chains))
+	for _, chain := range intent.Chains {
+		if st.IsChainDeployed(chain.ID) {
+			continue
+		}
+		proofParams, err := pipeline.ResolveChainProofParams(intent, chain)
+		if err != nil {
+			return fmt.Errorf("failed to resolve initial dispute game type for chain %s: %w", chain.ID.Hex(), err)
+		}
+		initialGameTypes = append(initialGameTypes, proofParams.DisputeGameType)
+	}
+	if err := pipeline.ValidateInitialGameTypeSet(initialGameTypes); err != nil {
+		return err
+	}
+
+	interopDepSet, err := pipeline.BuildInteropDepSet(intent.Chains)
+	if err != nil {
+		return fmt.Errorf("failed to create interop dependency set: %w", err)
+	}
+	st.InteropDepSet = interopDepSet
+
+	return predictChains(lgr, intent, st, run, selectAnchor, safe, genesisTimeOffset)
 }
 
 // validateL1ChainID checks that the L1 RPC endpoint serves the chain the intent was
@@ -209,19 +267,84 @@ func resolveSuperchainConfigProxy(ctx context.Context, l1RPC *rpc.Client, intent
 	return nil
 }
 
-// predictChains predicts the L1 addresses for each undeployed chain in the intent
-// and records them as not deployed. Chains that have been deployed are skipped so a
-// re-runs don't overwrite their recorded addresses.
-func predictChains(lgr log.Logger, intent *state.Intent, st *state.State, run func(opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error)) error {
+// predictChains predicts and records contract L1 addresses for undeployed chains.
+// It pins each chain's anchor and derived genesis time before prediction.
+// Reruns revalidate and reuse that pair instead of recomputing it.
+func predictChains(
+	lgr log.Logger,
+	intent *state.Intent,
+	st *state.State,
+	run func(opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error),
+	selectAnchor func(overrideHash *common.Hash) (*state.L1BlockRefJSON, error),
+	safe *state.L1BlockRefJSON,
+	genesisTimeOffset uint64,
+) error {
 	for _, chain := range intent.Chains {
 		if st.IsChainDeployed(chain.ID) {
 			lgr.Info("skipping already deployed chain", "chain", chain.ID.Hex())
 			continue
 		}
 
+		var genesisTime hexutil.Uint64
+		if pinned := pinnedAnchorState(st, chain.ID); pinned != nil {
+			// A prior run already committed this chain's anchor and genesis time. Check the intent's override
+			// and the block commitment are the same.
+			if chain.L1StartBlockHash != nil && *chain.L1StartBlockHash != pinned.StartBlock.Hash {
+				return fmt.Errorf(
+					"chain %s: the l1StartBlockHash override (%s) conflicts with the anchor block pinned by a previous run (%s), clear the chain's state to re-pin",
+					chain.ID.Hex(), chain.L1StartBlockHash.Hex(), pinned.StartBlock.Hash.Hex(),
+				)
+			}
+
+			// Validate the pinned anchor block is still valid.
+			if _, err := selectAnchor(&pinned.StartBlock.Hash); err != nil {
+				return fmt.Errorf("pinned anchor block for chain %s is no longer valid: %w", chain.ID.Hex(), err)
+			}
+			genesisTime = *pinned.GenesisTime
+			lgr.Info(
+				"reusing pinned anchor block and genesis time",
+				"chain", chain.ID.Hex(),
+				"number", uint64(pinned.StartBlock.Number),
+				"hash", pinned.StartBlock.Hash,
+				"genesisTime", uint64(genesisTime),
+			)
+		} else {
+			// Resolve the reorg-safe anchor block before the dry-run.
+			anchorBlock, err := selectAnchor(chain.L1StartBlockHash)
+			if err != nil {
+				return fmt.Errorf("failed to select anchor block for chain %s: %w", chain.ID.Hex(), err)
+			}
+
+			// TODO(#20916): A reasonable minimum will be enforced in the future, once the L2 deployment is benchmarked.
+			// Commit the anchor and the genesis time.
+			genesisTime = hexutil.Uint64(uint64(anchorBlock.Time) + genesisTimeOffset)
+			st.PinChainAnchor(chain.ID, anchorBlock, genesisTime)
+			lgr.Info(
+				"pinned anchor block and genesis time",
+				"chain", chain.ID.Hex(),
+				"number", uint64(anchorBlock.Number),
+				"hash", anchorBlock.Hash,
+				"genesisTime", uint64(genesisTime),
+			)
+		}
+
+		// The deployment must land after the current safe head, so a genesis time at or
+		// below its timestamp can no longer be met.
+		if uint64(genesisTime) <= uint64(safe.Time) {
+			return fmt.Errorf(
+				"chain %s: the committed genesis time (%d) is not after the current L1 safe head timestamp (%d), the deployment window has elapsed; "+
+					"use a newer anchor block or a larger --%s (for a pin from a previous run, clear the chain's state to re-pin)",
+				chain.ID.Hex(), uint64(genesisTime), uint64(safe.Time), GenesisTimeOffsetFlagName,
+			)
+		}
+
 		dci, err := makePredictionInput(intent, st, chain)
 		if err != nil {
 			return fmt.Errorf("failed to build prediction input for chain %s: %w", chain.ID.Hex(), err)
+		}
+		requirements, err := pipeline.ResolveInitialDeployRequirements(dci.DisputeGameType)
+		if err != nil {
+			return fmt.Errorf("failed to resolve initial deploy requirements for chain %s: %w", chain.ID.Hex(), err)
 		}
 
 		out, err := run(dci)
@@ -229,7 +352,22 @@ func predictChains(lgr log.Logger, intent *state.Intent, st *state.State, run fu
 			return fmt.Errorf("failed to predict L1 addresses for chain %s: %w", chain.ID.Hex(), err)
 		}
 
+		// Record the predicted addresses, marked not deployed yet.
 		st.SetChainContracts(chain.ID, pipeline.OpChainContractsFromDeployOutput(out), false)
+		chainState, err := st.Chain(chain.ID)
+		if err != nil {
+			return fmt.Errorf("failed to clear prestate for chain %s: %w", chain.ID.Hex(), err)
+		}
+		chainState.Prestate = common.Hash{}
+		gameType := dci.DisputeGameType
+		chainState.InitialGameType = &gameType
+
+		if requirements.RequiresPrestate {
+			lgr.Info(
+				"selected prestate must be committed; run op-deployer prestate before continue",
+				"chain", chain.ID.Hex(),
+			)
+		}
 
 		lgr.Info(
 			"predicted L1 addresses",
@@ -246,11 +384,41 @@ func predictChains(lgr log.Logger, intent *state.Intent, st *state.State, run fu
 	return nil
 }
 
-// Sentinel inputs for the prediction dry-run of permissionless deploys.
-var (
-	predictionStartingAnchorRoot     = common.Hash{0x01}
-	predictionCannonAbsolutePrestate = common.Hash{0x01}
-)
+// checkReservedOverrides rejects deploy overrides for values that prepare commits
+// into state.
+func checkReservedOverrides(intent *state.Intent, st *state.State) error {
+	if key, ok := state.FindPinnedOverrideKey(intent.GlobalDeployOverrides); ok {
+		return fmt.Errorf(
+			"globalDeployOverrides key %q is reserved by the prepare flow: set the anchor block via the chain's l1StartBlockHash and the genesis time via --%s",
+			key, GenesisTimeOffsetFlagName,
+		)
+	}
+	for _, chain := range intent.Chains {
+		if st.IsChainDeployed(chain.ID) {
+			continue
+		}
+		if key, ok := state.FindPinnedOverrideKey(chain.DeployOverrides); ok {
+			return fmt.Errorf(
+				"chain %s: deployOverrides key %q is reserved by the prepare flow: set the anchor block via l1StartBlockHash and the genesis time via --%s",
+				chain.ID.Hex(), key, GenesisTimeOffsetFlagName,
+			)
+		}
+	}
+	return nil
+}
+
+// pinnedAnchorState returns the chain's state when a prior prepare run committed both
+// its anchor block and genesis time, and nil otherwise.
+func pinnedAnchorState(st *state.State, id common.Hash) *state.ChainState {
+	chainState, err := st.Chain(id)
+	if err != nil || chainState.StartBlock == nil || chainState.GenesisTime == nil {
+		return nil
+	}
+	return chainState
+}
+
+// Sentinel input for the prediction dry-run of permissionless deploys.
+var predictionStartingAnchorRoot = common.Hash{0x01}
 
 // makePredictionInput builds the DeployOPChain input for the prediction dry-run.
 // The OPCM, superchain config and salt mixer are taken from the committed intent
@@ -268,6 +436,10 @@ func makePredictionInput(intent *state.Intent, st *state.State, chain *state.Cha
 	if err != nil {
 		return opcm.DeployOPChainInput{}, fmt.Errorf("failed to resolve dispute params: %w", err)
 	}
+	requirements, err := pipeline.ResolveInitialDeployRequirements(proofParams.DisputeGameType)
+	if err != nil {
+		return opcm.DeployOPChainInput{}, err
+	}
 
 	// Prediction runs against an already existing OPCM
 	placeholderRoles := state.ChainRoles{
@@ -284,16 +456,11 @@ func makePredictionInput(intent *state.Intent, st *state.State, chain *state.Cha
 	// here, and the placeholder is rejected for them.
 	startingAnchorRoot := opcm.Proposal{
 		Root:             opcm.DefaultStartingAnchorRoot.Root,
-		L2SequenceNumber: common.Big0,
+		L2SequenceNumber: new(big.Int),
 	}
-	cannonAbsolutePrestate := proofParams.DisputeAbsolutePrestate
 
-	if pipeline.IsPermissionlessGameType(proofParams.DisputeGameType) {
+	if requirements.Permissionless {
 		startingAnchorRoot.Root = predictionStartingAnchorRoot
-	}
-
-	if proofParams.DisputeGameType == uint32(embedded.GameTypeCannonKona) {
-		cannonAbsolutePrestate = predictionCannonAbsolutePrestate
 	}
 
 	return pipeline.BuildDeployOPChainInput(
@@ -305,7 +472,6 @@ func makePredictionInput(intent *state.Intent, st *state.State, chain *state.Cha
 		st.Create2Salt.String(),
 		chain.GasLimit,
 		startingAnchorRoot,
-		cannonAbsolutePrestate,
 		chain,
 	), nil
 }

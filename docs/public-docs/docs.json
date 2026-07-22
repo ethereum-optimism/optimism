@@ -2062,7 +2062,9 @@
               "use-cases/index",
               "use-cases/tune-batcher-costs",
               "use-cases/run-a-fault-proof-challenger",
-              "use-cases/implement-a-custom-deposit-flow"
+              "use-cases/implement-a-custom-deposit-flow",
+              "use-cases/launch-a-chain-with-fault-proofs-and-ha-sequencing",
+              "use-cases/choose-your-node-stack"
             ]
           },
           {
@@ -2103,7 +2105,8 @@
                   "chain-operators/guides/management/fee-vaults",
                   "chain-operators/guides/management/troubleshooting"
                 ]
-              }
+              },
+              "chain-operators/guides/join-superchain-registry"
             ]
           },
           {
@@ -2422,8 +2425,10 @@
             ]
           },
           {
-            "group": "Tools",
+            "group": "Tools & SDKs",
             "pages": [
+              "app-developers/tools-sdks/support-matrix",
+              "app-developers/tools-sdks/listing-criteria",
               "app-developers/tools/faucets",
               "app-developers/tools/block-explorers",
               {
@@ -2490,6 +2495,12 @@
             ]
           },
           {
+            "group": "Learn the OP Stack",
+            "pages": [
+              "/op-stack/learn/index"
+            ]
+          },
+          {
             "group": "Features",
             "pages": [
               "/op-stack/features/flashblocks",
@@ -2506,6 +2517,7 @@
           {
             "group": "Protocol Information",
             "pages": [
+              "/op-stack/protocol/index",
               "/op-stack/protocol/overview",
               "/op-stack/protocol/getting-started",
               "/op-stack/protocol/design-principles",
@@ -2513,7 +2525,23 @@
               "/op-stack/protocol/components",
               "/op-stack/protocol/derivation-pipeline",
               "/op-stack/protocol/outages",
-              "/op-stack/protocol/network-upgrades",
+              {
+                "group": "Network Upgrades",
+                "pages": [
+                  "/op-stack/protocol/network-upgrades",
+                  "/op-stack/protocol/hardforks/lagoon",
+                  "/op-stack/protocol/hardforks/karst",
+                  "/op-stack/protocol/hardforks/jovian",
+                  "/op-stack/protocol/hardforks/isthmus",
+                  "/op-stack/protocol/hardforks/holocene",
+                  "/op-stack/protocol/hardforks/granite",
+                  "/op-stack/protocol/hardforks/fjord",
+                  "/op-stack/protocol/hardforks/ecotone",
+                  "/op-stack/protocol/hardforks/delta",
+                  "/op-stack/protocol/hardforks/canyon",
+                  "/op-stack/protocol/hardforks/regolith"
+                ]
+              },
               "/op-stack/protocol/smart-contracts",
               "/op-stack/protocol/privileged-roles",
               "/op-stack/protocol/blockspace-charter",
@@ -2533,13 +2561,22 @@
               {
                 "group": "Derivation & Execution",
                 "pages": [
+                  "/op-stack/components/op-node",
                   "/op-stack/components/kona-node"
                 ]
               },
               {
                 "group": "Settlement & Proofs",
                 "pages": [
+                  "/op-stack/components/op-proposer",
+                  "/op-stack/components/op-challenger",
                   "/op-stack/components/cannon"
+                ]
+              },
+              {
+                "group": "Deployment & Infrastructure",
+                "pages": [
+                  "/op-stack/components/op-deployer"
                 ]
               }
             ]
@@ -2611,6 +2648,7 @@
               "/op-stack/contribute/content-guide",
               "/op-stack/contribute/link-policy",
               "/op-stack/contribute/curation-policy",
+              "/op-stack/contribute/learn-track-syllabus",
               "/op-stack/contribute/style-guide",
               {
                 "group": "Choose a content type",
@@ -2674,13 +2712,28 @@
             "group": "Network Notices",
             "pages": [
               "notices/index",
-              "notices/interop-prep",
-              "notices/upgrade-19",
-              "notices/specialized-node-topology",
-              "notices/stake-based-priority-ordering",
-              "notices/req-resp-cl-sync-deprecation",
-              "notices/op-geth-deprecation",
-              "notices/op-deployer-upgrade-deprecation",
+              {
+                "group": "Network Upgrades",
+                "pages": [
+                  "notices/upgrade-19",
+                  "notices/interop-prep"
+                ]
+              },
+              {
+                "group": "Deprecations",
+                "pages": [
+                  "notices/op-geth-deprecation",
+                  "notices/op-deployer-upgrade-deprecation",
+                  "notices/req-resp-cl-sync-deprecation"
+                ]
+              },
+              {
+                "group": "Operations",
+                "pages": [
+                  "notices/specialized-node-topology",
+                  "notices/stake-based-priority-ordering"
+                ]
+              },
               {
                 "group": "Archive",
                 "pages": [

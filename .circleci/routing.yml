@@ -21,6 +21,7 @@ schedules:
     - scheduled_stale_check
     - scheduled_heavy_fuzz_tests
     - scheduled_daily_tests
+    - scheduled_sp1_elf_smoke
     - circleci_schedule_trigger_check
 
 # API triggers: dispatch flag -> workflows enabled when that flag is set.

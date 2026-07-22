@@ -29,16 +29,3 @@ jobs:
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: bash .github/scripts/check-pr-title.sh "$PR_TITLE"
-      # squash_merge_commit_title is COMMIT_OR_PR_TITLE: a single-commit PR is
-      # squashed under its commit subject, not the PR title, so that subject
-      # must satisfy the format too.
-      - name: Check single-commit subject
-        if: github.event.pull_request.commits == 1
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_URL: ${{ github.event.pull_request.html_url }}
-        run: |
-          set -euo pipefail
-          subject=$(gh pr view "$PR_URL" --json commits --jq '.commits[0].messageHeadline')
-          echo "single-commit PR; a squash merge will use the commit subject"
-          bash .github/scripts/check-pr-title.sh "$subject"

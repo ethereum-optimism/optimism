@@ -121,6 +121,7 @@ contract DeployOPChain is Script {
 
         bool enableCannonKona = _input.disputeGameType.raw() == GameTypes.CANNON_KONA.raw();
         bool enableSuperCannonKona = _input.disputeGameType.raw() == GameTypes.SUPER_CANNON_KONA.raw();
+        // Register the CANNON_KONA guardian fallback. OPCMV2 does not require it.
         bool enablePermissionedCannon = enableCannonKona || (!isSuperRoot && !permissionless);
         bool enableSuperPermissioned = enableSuperCannonKona || (isSuperRoot && !permissionless);
         // Build dispute game configs - OPCMV2 requires all 6 game type configs.
@@ -138,7 +139,6 @@ contract DeployOPChain is Script {
             GameTypes.PERMISSIONED_CANNON,
             abi.encode(
                 IOPContractsManagerUtils.PermissionedDisputeGameConfig({
-                    // CANNON_KONA uses the dedicated Cannon prestate for its fallback.
                     absolutePrestate: enableCannonKona ? _input.cannonAbsolutePrestate : _input.disputeAbsolutePrestate,
                     proposer: _input.proposer,
                     challenger: _input.challenger

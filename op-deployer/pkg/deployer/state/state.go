@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
+	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -48,7 +49,7 @@ type State struct {
 	// This field is nil for new deployments.
 	AppliedIntent *Intent `json:"appliedIntent"`
 
-	// InteropDepSet contains the interop dependency set render by the prestate SDK if interop is enabled
+	// InteropDepSet contains the interop dependency set generated from all intent chains during prepare.
 	InteropDepSet *depset.StaticConfigDependencySet `json:"interopDepSet,omitempty"`
 
 	// SuperchainDeployment contains the addresses of the Superchain
@@ -145,11 +146,23 @@ type ChainState struct {
 	// by the prediction step of the prepare command.
 	Deployed *bool `json:"deployed,omitempty"`
 
+	// TODO(#20912): Consume the committed prestates when building the OP-chain deploy input.
+	// Prestate is the selected absolute prestate for permissionless games.
+	Prestate common.Hash `json:"prestate,omitzero"`
+
+	// InitialGameType is the dispute game type used to predict this chain during prepare.
+	// A nil value means the state predates recording this preparation input.
+	InitialGameType *uint32 `json:"initialGameType,omitempty"`
+
 	AdditionalDisputeGames []AdditionalDisputeGameState `json:"additionalDisputeGames"`
 
 	Allocs *GzipData[foundry.ForgeAllocs] `json:"allocs"`
 
 	StartBlock *L1BlockRefJSON `json:"startBlock"`
+
+	// GenesisTime is the L2 genesis timestamp pinned with StartBlock.
+	// Nil leaves deploy config to derive it from L1StartingBlockTag.
+	GenesisTime *hexutil.Uint64 `json:"genesisTime,omitempty"`
 }
 
 // IsChainDeployed reports whether the chain's addresses have been broadcast.
@@ -180,6 +193,26 @@ func (s *State) SetChainContracts(id common.Hash, contracts addresses.OpChainCon
 		ID:               id,
 		OpChainContracts: contracts,
 		Deployed:         &deployed,
+	})
+}
+
+// PinChainAnchor records a chain's L1 anchor block and derived L2 genesis time.
+// Downstream stages must reuse this pair so generated artifacts agree and
+// reruns remain idempotent. New entries are marked undeployed, while updates
+// preserve fields written by other stages.
+func (s *State) PinChainAnchor(id common.Hash, anchor *L1BlockRefJSON, genesisTime hexutil.Uint64) {
+	for _, chain := range s.Chains {
+		if chain.ID == id {
+			chain.StartBlock = anchor
+			chain.GenesisTime = &genesisTime
+			return
+		}
+	}
+	s.Chains = append(s.Chains, &ChainState{
+		ID:          id,
+		Deployed:    ptr.New(false),
+		StartBlock:  anchor,
+		GenesisTime: &genesisTime,
 	})
 }
 

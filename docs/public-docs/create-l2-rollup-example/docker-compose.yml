@@ -146,9 +146,9 @@ services:
       - OP_CHALLENGER_PRIVATE_KEY=${PRIVATE_KEY}
     command: >
       op-challenger run-trace
-      --trace-type=cannon
-      --cannon-l2-genesis=/workspace/genesis.json
-      --cannon-rollup-config=/workspace/rollup.json
+      --trace-type=cannon-kona
+      --cannon-kona-l2-genesis=/workspace/genesis.json
+      --cannon-kona-rollup-config=/workspace/rollup.json
       --l2-eth-rpc=http://op-reth:8545
       --rollup-rpc=http://op-node:8547
       --datadir=/workspace/data

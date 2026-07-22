@@ -15,10 +15,19 @@ diataxis: reference
 
 **kona-node** is a Rust implementation of the [rollup-node spec](https://specs.optimism.io/protocol/rollup-node.html), backed by kona-derive. It is a Rust-native alternative to op-node.
 
-<Update label="June 26, 2026" description="v1.6.1" tags={["Latest", "Stable"]}>
+<Update label="July 20, 2026" description="v1.6.2" tags={["Latest", "Stable"]}>
+
+> [!NOTE]
+> **Recommended upgrade for fault-proof operators.** Fixes precompile gas accounting in the fpvm provider — gas is fully spent on precompile halt ([#21634](https://github.com/ethereum-optimism/optimism/pull/21634)) and out-of-gas on overspend is handled gracefully ([#21582](https://github.com/ethereum-optimism/optimism/pull/21582)). Registry config decoding is now strict (`deny_unknown_fields`, [#21648](https://github.com/ethereum-optimism/optimism/pull/21648)): unknown keys fail loudly; custom registry data with unmodeled keys will no longer load. Remaining changes are kona-sp1 proof-program scaffolding with no node-facing impact.
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/kona-node/v1.6.2)
+
+</Update>
+
+<Update label="June 26, 2026" description="v1.6.1" tags={["Stable"]}>
 
 > [!Warning]
-> **This is a mandatory release for all node operators.** It includes the [Mainnet](https://github.com/ethereum-optimism/superchain-registry/blob/c90d86d2ed13541f16daf5ce8707c688723ca039/superchain/configs/mainnet/op.toml#L24) timestamps for the Karst hardfork.
+> **This is a mandatory release for all node operators.** It includes the [Mainnet](https://github.com/ethereum-optimism/superchain-registry/blob/c90d86d2ed13541f16daf5ce8707c688723ca039/superchain/configs/mainnet/op.toml#L24) timestamps for the Karst hardfork. (as of `c90d86d`)
 >
 > The following Mainnet chains will activate on **1783526401 (Wed Jul 8 2026 16:00:01 UTC)**, pending governance approval: op, ink, zora, mode, lisk, metal, unichain, soneium, ethernity, tbn
 >
@@ -34,7 +43,7 @@ diataxis: reference
 <Update label="June 2, 2026" description="v1.6.0" tags={["Stable"]}>
 
 > [!WARNING]
-> This is a mandatory release for all node operators. It includes [Sepolia](https://github.com/ethereum-optimism/superchain-registry/blob/c90d86d2ed13541f16daf5ce8707c688723ca039/superchain/configs/sepolia/op.toml#L25) and [Mainnet](https://github.com/ethereum-optimism/superchain-registry/blob/c90d86d2ed13541f16daf5ce8707c688723ca039/superchain/configs/mainnet/op.toml#L24) timestamps for the Karst hardfork. 
+> This is a mandatory release for all node operators. It includes [Sepolia](https://github.com/ethereum-optimism/superchain-registry/blob/c90d86d2ed13541f16daf5ce8707c688723ca039/superchain/configs/sepolia/op.toml#L25) and [Mainnet](https://github.com/ethereum-optimism/superchain-registry/blob/c90d86d2ed13541f16daf5ce8707c688723ca039/superchain/configs/mainnet/op.toml#L24) timestamps for the Karst hardfork.  (as of `c90d86d`)
 >
 > **Operators must upgrade before the scheduled hard fork times.**
 >

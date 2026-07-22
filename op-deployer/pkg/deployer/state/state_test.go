@@ -2,13 +2,110 @@ package state
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 )
+
+func TestState_PrestateJSONRoundTrip(t *testing.T) {
+	chainID := common.HexToHash("0x01")
+	selectedPrestate := common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111")
+	st := &State{
+		Chains: []*ChainState{{
+			ID:       chainID,
+			Prestate: selectedPrestate,
+		}},
+	}
+
+	data, err := json.Marshal(st)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"prestate":"`+selectedPrestate.Hex()+`"`)
+
+	var roundTripped State
+	require.NoError(t, json.Unmarshal(data, &roundTripped))
+	chain, err := roundTripped.Chain(chainID)
+	require.NoError(t, err)
+	require.Equal(t, selectedPrestate, chain.Prestate)
+}
+
+func TestState_PrestateJSONOmitsZeroValue(t *testing.T) {
+	selectedPrestate := common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111")
+	tests := []struct {
+		name             string
+		selectedPrestate common.Hash
+		wantSelected     bool
+	}{
+		{name: "unset"},
+		{name: "set", selectedPrestate: selectedPrestate, wantSelected: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			st := &State{
+				Chains: []*ChainState{{
+					ID:       common.HexToHash("0x01"),
+					Prestate: tt.selectedPrestate,
+				}},
+			}
+
+			data, err := json.Marshal(st)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantSelected, strings.Contains(string(data), `"prestate"`))
+		})
+	}
+}
+
+func TestState_InitialGameTypeJSONRoundTrip(t *testing.T) {
+	chainID := common.HexToHash("0x01")
+	st := &State{
+		Chains: []*ChainState{{
+			ID:              chainID,
+			InitialGameType: ptr.New(uint32(8)),
+		}},
+	}
+
+	data, err := json.Marshal(st)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"initialGameType":8`)
+
+	var roundTripped State
+	require.NoError(t, json.Unmarshal(data, &roundTripped))
+	chain, err := roundTripped.Chain(chainID)
+	require.NoError(t, err)
+	require.Equal(t, ptr.New(uint32(8)), chain.InitialGameType)
+}
+
+func TestState_InitialGameTypeJSONDistinguishesMissingFromZero(t *testing.T) {
+	tests := []struct {
+		name     string
+		gameType *uint32
+		wantKey  bool
+	}{
+		{name: "missing"},
+		{name: "zero", gameType: ptr.New(uint32(0)), wantKey: true},
+		{name: "nonzero", gameType: ptr.New(uint32(8)), wantKey: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			st := &State{
+				Chains: []*ChainState{{
+					ID:              common.HexToHash("0x01"),
+					InitialGameType: tt.gameType,
+				}},
+			}
+
+			data, err := json.Marshal(st)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantKey, strings.Contains(string(data), `"initialGameType"`))
+		})
+	}
+}
 
 func TestState_EnsureCreate2Salt(t *testing.T) {
 	t.Run("generates a salt when unset", func(t *testing.T) {
@@ -97,6 +194,32 @@ func TestState_PreparedSerialization(t *testing.T) {
 	})
 }
 
+func TestChainState_GenesisTimeSerialization(t *testing.T) {
+	t.Run("omitted when unset for backward compatibility", func(t *testing.T) {
+		b, err := json.Marshal(&ChainState{})
+		require.NoError(t, err)
+		require.NotContains(t, string(b), "genesisTime")
+	})
+
+	t.Run("round trip when set", func(t *testing.T) {
+		genesisTime := hexutil.Uint64(1_750_000_000)
+		b, err := json.Marshal(&ChainState{GenesisTime: &genesisTime})
+		require.NoError(t, err)
+		require.Contains(t, string(b), `"genesisTime":"0x684ee180"`) // 1_750_000_000 in hex
+
+		var got ChainState
+		require.NoError(t, json.Unmarshal(b, &got))
+		require.NotNil(t, got.GenesisTime)
+		require.Equal(t, genesisTime, *got.GenesisTime)
+	})
+
+	t.Run("absent field defaults to nil", func(t *testing.T) {
+		var got ChainState
+		require.NoError(t, json.Unmarshal([]byte(`{"startBlock":null}`), &got))
+		require.Nil(t, got.GenesisTime)
+	})
+}
+
 func TestState_IsChainDeployed(t *testing.T) {
 	id := common.HexToHash("0x0a")
 	other := common.HexToHash("0x0b")
@@ -145,7 +268,10 @@ func TestState_SetChainContracts(t *testing.T) {
 
 	// Updating an existing chain in the state replaces it in place, preserves other
 	// fields set by other stages, and can flip the deployed flag.
-	s.Chains[0].StartBlock = &L1BlockRefJSON{Hash: common.HexToHash("0xdead")}
+	s.Chains[0].StartBlock = &L1BlockRefJSON{Hash: common.HexToHash("0xfeed")}
+	prestate := common.HexToHash("0x1234")
+	s.Chains[0].Prestate = prestate
+	s.Chains[0].InitialGameType = ptr.New(uint32(8))
 	s.SetChainContracts(chainA, contractsWith("0xa2"), true)
 	require.Len(t, s.Chains, 2)
 
@@ -155,7 +281,45 @@ func TestState_SetChainContracts(t *testing.T) {
 	require.NotNil(t, got.Deployed)
 	require.True(t, *got.Deployed)
 	require.NotNil(t, got.StartBlock, "other fields must be preserved on update")
-	require.Equal(t, common.HexToHash("0xdead"), got.StartBlock.Hash)
+	require.Equal(t, common.HexToHash("0xfeed"), got.StartBlock.Hash)
+	require.Equal(t, prestate, got.Prestate, "prestate must be preserved on update")
+	require.Equal(t, ptr.New(uint32(8)), got.InitialGameType, "initial game type must be preserved on update")
+}
+
+func TestState_PinChainAnchor(t *testing.T) {
+	id := common.HexToHash("0x0a")
+	anchor := &L1BlockRefJSON{Hash: common.HexToHash("0xa11c"), Number: 100, Time: 5000}
+
+	t.Run("creates an entry marked as not deployed for an unknown chain", func(t *testing.T) {
+		s := &State{}
+		s.PinChainAnchor(id, anchor, 5600)
+		require.Len(t, s.Chains, 1)
+		got := s.Chains[0]
+		require.Equal(t, id, got.ID)
+		require.Equal(t, anchor, got.StartBlock)
+		require.NotNil(t, got.GenesisTime)
+		require.EqualValues(t, 5600, *got.GenesisTime)
+		require.NotNil(t, got.Deployed)
+		require.False(t, *got.Deployed, "an entry created at pin time must not read as deployed")
+		require.False(t, s.IsChainDeployed(id))
+	})
+
+	t.Run("updates an existing entry in place, preserving other fields", func(t *testing.T) {
+		// Simulates a different stage pinning the dry-run predicted addresses.
+		var contracts addresses.OpChainContracts
+		contracts.SystemConfigProxy = common.HexToAddress("0xbeef")
+		s := &State{}
+		s.SetChainContracts(id, contracts, false)
+
+		s.PinChainAnchor(id, anchor, 5600)
+		require.Len(t, s.Chains, 1)
+		got := s.Chains[0]
+		require.Equal(t, anchor, got.StartBlock)
+		require.EqualValues(t, 5600, *got.GenesisTime)
+		require.Equal(t, common.HexToAddress("0xbeef"), got.SystemConfigProxy, "contracts must be preserved")
+		require.NotNil(t, got.Deployed)
+		require.False(t, *got.Deployed, "the deployed flag must not be touched on update")
+	})
 }
 
 func TestBlockRef_Deserialize(t *testing.T) {

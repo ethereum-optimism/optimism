@@ -1,0 +1,28 @@
+{/*
+  Standing "Normative spec" callout, per the content guide's dual-sourcing ban:
+  https://docs.optimism.io/op-stack/contribute/content-guide
+
+  Usage:
+    import { NormativeSpec } from "/snippets/normative-spec.mdx"
+
+    <NormativeSpec
+      what="The derivation pipeline"
+      title="L2 chain derivation specification"
+      href="https://specs.optimism.io/protocol/derivation.html"
+      note="This page is a short orientation; it does not restate the spec."
+    />
+
+  All four props are required:
+    what  - the singular subject the spec defines ("This upgrade").
+    title - the linked spec section's name.
+    href  - a rendered specs.optimism.io URL on its current path, deep-linked
+            to the exact section, per the cross-repo link policy.
+    note  - what this page does instead of restating the spec.
+*/}
+
+export const NormativeSpec = ({ what, title, href, note }) => (
+  <Info>
+    <strong>Normative spec:</strong> {what} is normatively defined in the{" "}
+    <a href={href}>{title}</a>. {note}
+  </Info>
+);
