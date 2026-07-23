@@ -2,7 +2,10 @@ package dsl
 
 import (
 	"context"
+	"fmt"
 	"time"
+
+	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
@@ -355,4 +358,28 @@ func (s *Supernode) EnsureInteropPaused(clA, clB *L2CLNode, pauseOffset uint64) 
 	s.t.Error("EnsureInteropPaused: failed to find unverified timestamp within 100 timestamps")
 	s.t.FailNow()
 	return pauseTimestamp
+}
+
+// AwaitValidatedTimestampWithoutReadoption waits like AwaitValidatedTimestamp, while
+// requiring that the canonical block at blockNumber on el never has deniedHash on any
+// poll. Used after an invalidation to assert verification durably passes the
+// replacement without unsafe sync re-adopting the invalidated block.
+func (s *Supernode) AwaitValidatedTimestampWithoutReadoption(timestamp uint64, el *L2ELNode, blockNumber uint64, deniedHash common.Hash) {
+	// Generous window: with the sequencer stalled, the chain only advances via
+	// derivation once the sequencing window expires.
+	ctx, cancel := context.WithTimeout(s.ctx, 12*DefaultTimeout)
+	defer cancel()
+	api := s.inner.QueryAPI()
+	err := wait.For(ctx, 1*time.Second, func() (bool, error) {
+		head, err := el.inner.L2EthClient().L2BlockRefByNumber(ctx, blockNumber)
+		if err == nil && head.Hash == deniedHash {
+			return false, fmt.Errorf("invalidated block %d re-adopted as canonical on %s", blockNumber, el.inner.Name())
+		}
+		resp, err := api.SuperRootAtTimestamp(ctx, timestamp)
+		if err != nil {
+			return false, nil // Ignore transient errors.
+		}
+		return resp.Data != nil, nil
+	})
+	s.require.NoErrorf(err, "verification did not pass timestamp %d while holding replacement of block %d", timestamp, blockNumber)
 }
