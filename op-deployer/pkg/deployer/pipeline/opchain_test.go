@@ -799,9 +799,9 @@ func TestResolvePreparedGameType(t *testing.T) {
 
 	t.Run("requires recorded type", func(t *testing.T) {
 		_, err := ResolvePreparedGameType(
-			&state.Intent{},
 			&state.ChainIntent{ID: chainID},
 			&state.ChainState{ID: chainID},
+			uint32(embedded.GameTypePermissionedCannon),
 		)
 		require.ErrorContains(t, err, "no initial game type recorded by prepare")
 		require.ErrorContains(t, err, "rerun op-deployer prepare")
@@ -814,53 +814,29 @@ func TestResolvePreparedGameType(t *testing.T) {
 		embedded.GameTypeSuperCannonKona,
 	} {
 		t.Run(initialGameTypeName(uint32(gameType)), func(t *testing.T) {
-			intent := &state.Intent{GlobalDeployOverrides: make(map[string]any)}
-			chain := &state.ChainIntent{
-				ID:              chainID,
-				DeployOverrides: map[string]any{"respectedGameType": gameType},
-			}
+			chain := &state.ChainIntent{ID: chainID}
 			chainState := &state.ChainState{
 				ID:              chainID,
 				InitialGameType: ptr.New(uint32(gameType)),
 			}
 
-			got, err := ResolvePreparedGameType(intent, chain, chainState)
+			got, err := ResolvePreparedGameType(chain, chainState, uint32(gameType))
 			require.NoError(t, err)
 			require.Equal(t, uint32(gameType), got)
 		})
 	}
 
 	t.Run("rejects drift with names and numbers", func(t *testing.T) {
-		intent := &state.Intent{GlobalDeployOverrides: make(map[string]any)}
-		chain := &state.ChainIntent{
-			ID:              chainID,
-			DeployOverrides: map[string]any{"respectedGameType": embedded.GameTypeCannonKona},
-		}
+		chain := &state.ChainIntent{ID: chainID}
 		chainState := &state.ChainState{
 			ID:              chainID,
 			InitialGameType: ptr.New(uint32(embedded.GameTypePermissionedCannon)),
 		}
 
-		_, err := ResolvePreparedGameType(intent, chain, chainState)
+		_, err := ResolvePreparedGameType(chain, chainState, uint32(embedded.GameTypeCannonKona))
 		require.ErrorContains(t, err, "prepared PERMISSIONED_CANNON (1)")
 		require.ErrorContains(t, err, "intent CANNON_KONA (8)")
 		require.ErrorContains(t, err, "rerun op-deployer prepare")
-	})
-
-	t.Run("allows non-type proof parameter changes", func(t *testing.T) {
-		intent := &state.Intent{GlobalDeployOverrides: map[string]any{
-			"respectedGameType":                        embedded.GameTypeCannonKona,
-			state.FaultGameAbsolutePrestateOverrideKey: common.HexToHash("0x22"),
-		}}
-		chain := &state.ChainIntent{ID: chainID}
-		chainState := &state.ChainState{
-			ID:              chainID,
-			InitialGameType: ptr.New(uint32(embedded.GameTypeCannonKona)),
-		}
-
-		got, err := ResolvePreparedGameType(intent, chain, chainState)
-		require.NoError(t, err)
-		require.Equal(t, uint32(embedded.GameTypeCannonKona), got)
 	})
 }
 

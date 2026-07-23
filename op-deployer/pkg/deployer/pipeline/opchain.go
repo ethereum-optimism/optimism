@@ -152,6 +152,9 @@ func RecordOPChainDeployment(st *state.State, result OPChainDeploymentResult) er
 
 	st.SetChainContracts(result.chainID, result.contracts, true)
 
+	// Continuation deployments may reference an existing OPCM without carrying
+	// its implementation addresses in state. Full apply deployments do carry
+	// them, so refresh the recorded addresses only when that record exists.
 	if st.ImplementationsDeployment != nil {
 		impls := result.readback
 		st.ImplementationsDeployment.DelayedWethImpl = impls.DelayedWETH
@@ -194,19 +197,13 @@ func ResolveChainProofParams(intent *state.Intent, chain *state.ChainIntent) (st
 }
 
 // ResolvePreparedGameType returns the initial game type recorded by prepare after
-// verifying that the current intent still resolves to the same type.
-func ResolvePreparedGameType(intent *state.Intent, chain *state.ChainIntent, chainState *state.ChainState) (uint32, error) {
+// verifying that it matches the currently resolved game type.
+func ResolvePreparedGameType(chain *state.ChainIntent, chainState *state.ChainState, current uint32) (uint32, error) {
 	if chainState == nil || chainState.InitialGameType == nil {
 		return 0, fmt.Errorf("chain %s has no initial game type recorded by prepare; rerun op-deployer prepare", chain.ID.Hex())
 	}
 
-	proofParams, err := ResolveChainProofParams(intent, chain)
-	if err != nil {
-		return 0, fmt.Errorf("failed to resolve initial dispute game type for chain %s: %w", chain.ID.Hex(), err)
-	}
-
 	prepared := *chainState.InitialGameType
-	current := proofParams.DisputeGameType
 	if prepared != current {
 		return 0, fmt.Errorf(
 			"chain %s initial game type changed after prepare: prepared %s (%d), intent %s (%d); rerun op-deployer prepare",
@@ -312,7 +309,12 @@ func BuildContinuationDCI(intent *state.Intent, chainID common.Hash, st *state.S
 		return opcm.DeployOPChainInput{}, fmt.Errorf("failed to get chain intent: %w", err)
 	}
 
-	preparedGameType, err := ResolvePreparedGameType(intent, thisIntent, chainState)
+	proofParams, err := ResolveChainProofParams(intent, thisIntent)
+	if err != nil {
+		return opcm.DeployOPChainInput{}, fmt.Errorf("error merging proof params from overrides: %w", err)
+	}
+
+	preparedGameType, err := ResolvePreparedGameType(thisIntent, chainState, proofParams.DisputeGameType)
 	if err != nil {
 		return opcm.DeployOPChainInput{}, err
 	}
@@ -323,11 +325,6 @@ func BuildContinuationDCI(intent *state.Intent, chainID common.Hash, st *state.S
 			chainID.Hex(),
 			err,
 		)
-	}
-
-	proofParams, err := ResolveChainProofParams(intent, thisIntent)
-	if err != nil {
-		return opcm.DeployOPChainInput{}, fmt.Errorf("error merging proof params from overrides: %w", err)
 	}
 
 	if requirements.RequiresPrestate {
@@ -350,12 +347,10 @@ func BuildContinuationDCI(intent *state.Intent, chainID common.Hash, st *state.S
 				chainID.Hex(),
 			)
 		}
+		proofParams.DisputeAbsolutePrestate = chainState.Prestate
 	}
 
-	startingAnchorRoot := opcm.Proposal{
-		Root:             opcm.DefaultStartingAnchorRoot.Root,
-		L2SequenceNumber: new(big.Int),
-	}
+	startingAnchorRoot := opcm.DefaultStartingAnchorProposal()
 	if requirements.Permissionless {
 		if chainState.StartingAnchorRoot == nil || chainState.StartingAnchorRoot.Root == (common.Hash{}) {
 			return opcm.DeployOPChainInput{}, fmt.Errorf(
@@ -384,10 +379,6 @@ func BuildContinuationDCI(intent *state.Intent, chainID common.Hash, st *state.S
 				uint64(chainState.StartingAnchorRoot.L2SequenceNumber),
 			),
 		}
-	}
-
-	if requirements.RequiresPrestate {
-		proofParams.DisputeAbsolutePrestate = chainState.Prestate
 	}
 
 	return BuildDeployOPChainInput(
@@ -438,10 +429,7 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		chainID,
 		st.Create2Salt.String(),
 		thisIntent.GasLimit,
-		opcm.Proposal{
-			Root:             opcm.DefaultStartingAnchorRoot.Root,
-			L2SequenceNumber: new(big.Int),
-		},
+		opcm.DefaultStartingAnchorProposal(),
 		thisIntent,
 	), nil
 }

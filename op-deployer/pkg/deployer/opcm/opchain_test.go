@@ -7,6 +7,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestDefaultStartingAnchorProposal(t *testing.T) {
+	first := DefaultStartingAnchorProposal()
+	second := DefaultStartingAnchorProposal()
+
+	require.Equal(t, DefaultStartingAnchorRoot.Root, first.Root)
+	require.Equal(t, DefaultStartingAnchorRoot.Root, second.Root)
+	require.Zero(t, first.L2SequenceNumber.Sign())
+	require.Zero(t, second.L2SequenceNumber.Sign())
+	require.NotSame(t, first.L2SequenceNumber, second.L2SequenceNumber)
+
+	first.L2SequenceNumber.SetUint64(1)
+	require.Zero(t, second.L2SequenceNumber.Sign())
+}
+
 func TestPermissionedCannonFallbackPrestatePlaceholder(t *testing.T) {
 	require.Equal(
 		t,

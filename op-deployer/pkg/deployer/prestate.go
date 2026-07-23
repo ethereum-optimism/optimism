@@ -119,7 +119,11 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 		if err != nil {
 			return fmt.Errorf("run op-deployer prepare before op-deployer prestate for chain %s: %w", chain.ID.Hex(), err)
 		}
-		preparedGameType, err := pipeline.ResolvePreparedGameType(intent, chain, chainState)
+		proofParams, err := pipeline.ResolveChainProofParams(intent, chain)
+		if err != nil {
+			return fmt.Errorf("failed to resolve initial dispute game type for chain %s: %w", chain.ID.Hex(), err)
+		}
+		preparedGameType, err := pipeline.ResolvePreparedGameType(chain, chainState, proofParams.DisputeGameType)
 		if err != nil {
 			return err
 		}
