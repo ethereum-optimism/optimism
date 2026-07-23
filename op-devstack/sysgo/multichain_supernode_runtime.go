@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"time"
@@ -620,8 +621,11 @@ func startTwoL2SharedSupernode(
 			P2P:                             p2pConfig,
 			L1EpochPollInterval:             2 * time.Second,
 			RuntimeConfigReloadInterval:     0,
-			Sync:                            nodeSync.Config{SyncMode: nodeSync.CLSync},
-			ConfigPersistence:               opnodeconfig.DisabledConfigPersistence{},
+			Sync: nodeSync.Config{SyncMode: nodeSync.CLSync},
+			// Real persistence so an admin stop-sequencer (e.g. the light-sequencer
+			// handoff) survives VN restarts instead of resurrecting the bootstrap
+			// sequencer.
+			ConfigPersistence:               opnodeconfig.NewConfigPersistence(filepath.Join(t.TempDir(), fmt.Sprintf("vn-seq-state-%s.json", l2Net.ChainID()))),
 			Metrics:                         opmetrics.CLIConfig{},
 			Pprof:                           oppprof.CLIConfig{},
 			IgnoreMissingPectraBlobSchedule: false,
