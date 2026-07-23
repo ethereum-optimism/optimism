@@ -2490,6 +2490,50 @@
     {
       "source": "/rust/kona/sdk/protocol/protocol/batches",
       "destination": "https://specs.optimism.io/protocol/derivation.html#batch-format"
+    },
+    {
+      "source": "/rust",
+      "destination": "/op-stack/components/index"
+    },
+    {
+      "source": "/rust/index",
+      "destination": "/op-stack/components/index"
+    },
+    {
+      "source": "/rust/op-alloy/intro",
+      "destination": "/app-developers/tools-sdks/op-alloy/intro"
+    },
+    {
+      "source": "/rust/op-alloy/starting",
+      "destination": "/app-developers/tools-sdks/op-alloy/starting"
+    },
+    {
+      "source": "/rust/op-alloy/building",
+      "destination": "/app-developers/tools-sdks/op-alloy/building/index"
+    },
+    {
+      "source": "/rust/op-alloy/building/index",
+      "destination": "/app-developers/tools-sdks/op-alloy/building/index"
+    },
+    {
+      "source": "/rust/op-alloy/building/consensus",
+      "destination": "/app-developers/tools-sdks/op-alloy/building/consensus"
+    },
+    {
+      "source": "/rust/op-alloy/building/engine",
+      "destination": "/app-developers/tools-sdks/op-alloy/building/engine"
+    },
+    {
+      "source": "/rust/op-alloy/glossary",
+      "destination": "/app-developers/tools-sdks/op-alloy/glossary"
+    },
+    {
+      "source": "/rust/op-revm",
+      "destination": "/app-developers/tools-sdks/op-revm"
+    },
+    {
+      "source": "/rust/op-revm/index",
+      "destination": "/app-developers/tools-sdks/op-revm"
     }
   ],
   "interaction": {
@@ -3036,6 +3080,23 @@
             "pages": [
               "app-developers/tools-sdks/support-matrix",
               "app-developers/tools-sdks/listing-criteria",
+              {
+                "group": "op-alloy",
+                "pages": [
+                  "app-developers/tools-sdks/op-alloy/intro",
+                  "app-developers/tools-sdks/op-alloy/starting",
+                  {
+                    "group": "Building",
+                    "pages": [
+                      "app-developers/tools-sdks/op-alloy/building/index",
+                      "app-developers/tools-sdks/op-alloy/building/consensus",
+                      "app-developers/tools-sdks/op-alloy/building/engine"
+                    ]
+                  },
+                  "app-developers/tools-sdks/op-alloy/glossary"
+                ]
+              },
+              "app-developers/tools-sdks/op-revm",
               "app-developers/tools/faucets",
               "app-developers/tools/block-explorers",
               {
@@ -3427,44 +3488,6 @@
                   "releases/op-acceptor"
                 ]
               }
-            ]
-          }
-        ]
-      },
-      {
-        "tab": "Rust",
-        "groups": [
-          {
-            "group": "Overview",
-            "pages": [
-              "rust/index"
-            ]
-          },
-          {
-            "group": "op-alloy - Introduction",
-            "pages": [
-              "rust/op-alloy/intro",
-              "rust/op-alloy/starting"
-            ]
-          },
-          {
-            "group": "op-alloy - Building",
-            "pages": [
-              "rust/op-alloy/building/index",
-              "rust/op-alloy/building/consensus",
-              "rust/op-alloy/building/engine"
-            ]
-          },
-          {
-            "group": "op-alloy - Reference",
-            "pages": [
-              "rust/op-alloy/glossary"
-            ]
-          },
-          {
-            "group": "op-revm",
-            "pages": [
-              "rust/op-revm/index"
             ]
           }
         ]
