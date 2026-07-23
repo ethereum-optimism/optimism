@@ -68,6 +68,8 @@ type PresetConfig struct {
 	InteropLogBackfillDepth time.Duration
 	PreGenesisSuperGame     *PreGenesisSuperGameConfig
 	ZKDisputeGame           *ZKDisputeGameConfig
+	// StartZKChallenger starts an honest op-challenger for the ZK game against the supernode.
+	StartZKChallenger bool
 	// SkipHonestProposer skips starting op-proposer.
 	SkipHonestProposer bool
 	// SupernodeVerifierSyncMode overrides the supernode VN's sync mode when set.

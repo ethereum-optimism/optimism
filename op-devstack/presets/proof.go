@@ -116,3 +116,14 @@ func WithZKDisputeGame(zkCfg sysgo.ZKDisputeGameConfig) Option {
 		},
 	}
 }
+
+// WithZKChallenger starts an honest op-challenger for the ZK game, sourcing super roots from the
+// supernode. Requires WithZKDisputeGame. Without it, tests drive the game lifecycle manually.
+func WithZKChallenger() Option {
+	return option{
+		kinds: optionKindZKChallenger,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.StartZKChallenger = true
+		},
+	}
+}

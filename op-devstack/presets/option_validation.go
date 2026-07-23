@@ -36,6 +36,7 @@ const (
 	optionKindInteropAtGenesis
 	optionKindSupernodeVNSequencerForBootstrap
 	optionKindZKDisputeGame
+	optionKindZKChallenger
 )
 
 const allOptionKinds = optionKindDeployer |
@@ -62,7 +63,8 @@ const allOptionKinds = optionKindDeployer |
 	optionKindInteropActivationDelay |
 	optionKindInteropAtGenesis |
 	optionKindSupernodeVNSequencerForBootstrap |
-	optionKindZKDisputeGame
+	optionKindZKDisputeGame |
+	optionKindZKChallenger
 
 var optionKindLabels = []struct {
 	kind  optionKinds
@@ -93,6 +95,7 @@ var optionKindLabels = []struct {
 	{kind: optionKindInteropAtGenesis, label: "interop at genesis"},
 	{kind: optionKindSupernodeVNSequencerForBootstrap, label: "supernode VN sequencer for bootstrap"},
 	{kind: optionKindZKDisputeGame, label: "ZK dispute game"},
+	{kind: optionKindZKChallenger, label: "ZK challenger"},
 }
 
 func (k optionKinds) String() string {
@@ -170,7 +173,8 @@ const supernodeProofsPresetSupportedOptionKinds = optionKindDeployer |
 
 const twoL2SupernodeProofsPresetSupportedOptionKinds = supernodeProofsPresetSupportedOptionKinds |
 	optionKindPreGenesisSuperGame |
-	optionKindZKDisputeGame
+	optionKindZKDisputeGame |
+	optionKindZKChallenger
 
 const twoL2SupernodePresetSupportedOptionKinds = optionKindDeployer |
 	optionKindL1EL

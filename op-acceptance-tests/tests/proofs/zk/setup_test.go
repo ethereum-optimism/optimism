@@ -6,9 +6,11 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
@@ -51,4 +53,31 @@ func newSystem(t devtest.T) (*presets.SimpleInterop, common.Hash) {
 		presets.WithDisputeGameFinalityDelaySeconds(uint64(zkFinalityDelay/time.Second)),
 		presets.WithDeployerOptions(sysgo.WithJovianAtGenesis),
 	), vkey
+}
+
+// newSystemWithHonestChallenger is like newSystem but also runs an honest op-challenger for the ZK
+// game, sourcing super roots from the supernode. Tests seed a game; the challenger acts on it.
+func newSystemWithHonestChallenger(t devtest.T) *presets.SimpleInterop {
+	vkey := loadSuperAggregationVKey(t)
+	zkCfg := sysgo.ZKDisputeGameConfig{
+		ProgramVKey:          vkey,
+		MaxChallengeDuration: zkChallengeDuration,
+		MaxProveDuration:     zkProveDuration,
+	}
+	return presets.NewSimpleInterop(t,
+		presets.WithZKDisputeGame(zkCfg),
+		presets.WithZKChallenger(),
+		presets.WithTimeTravelEnabled(),
+		presets.WithDisputeGameFinalityDelaySeconds(uint64(zkFinalityDelay/time.Second)),
+		presets.WithDeployerOptions(sysgo.WithJovianAtGenesis),
+	)
+}
+
+// zkChallengerAddress derives the honest challenger's address for the given L2 chain.
+func zkChallengerAddress(t devtest.T, chainID eth.ChainID) common.Address {
+	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
+	t.Require().NoError(err)
+	addr, err := keys.Address(devkeys.ChainOperatorKeys(chainID.ToBig())(devkeys.ChallengerRole))
+	t.Require().NoError(err)
+	return addr
 }

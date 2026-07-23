@@ -198,6 +198,8 @@ func (g *ZKDisputeGameContractLatest) GetStatus(ctx context.Context) (gameTypes.
 	return gameTypes.GameStatusFromUint8(result.GetUint8(0))
 }
 
+// GetGameRange returns the starting and ending sequence numbers. For the super-root ZK game these
+// are super-root timestamps, not L2 block numbers; they feed status display and the (Noop) sync validator.
 func (g *ZKDisputeGameContractLatest) GetGameRange(ctx context.Context) (prestateBlock uint64, poststateBlock uint64, retErr error) {
 	defer g.metrics.StartContractRequest("GetGameRange")()
 	results, err := g.multiCaller.Call(ctx, rpcblock.Latest,
@@ -260,6 +262,8 @@ func (g *ZKDisputeGameContractLatest) ChallengeTx(ctx context.Context) (txmgr.Tx
 	return tx, nil
 }
 
+// GetProposal returns the root claim and its l2SequenceNumber. For the super-root ZK game the root
+// claim is a super-root hash and l2SequenceNumber is a super-root timestamp, not an L2 block number.
 func (g *ZKDisputeGameContractLatest) GetProposal(ctx context.Context) (common.Hash, uint64, error) {
 	results, err := g.multiCaller.Call(ctx, rpcblock.Latest, g.contract.Call(methodRootClaim), g.contract.Call(methodL2SequenceNumber))
 	if err != nil {

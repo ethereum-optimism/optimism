@@ -86,8 +86,27 @@ func attachSupernodeSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg Pre
 				*cfg.ZKDisputeGame,
 			)
 			// TODO(#21463): Start the production proposer once it supports super ZK games.
-			// TODO(#21415): Start the production challenger once it supports the new ZK game API.
-			// Acceptance tests currently drive the game lifecycle explicitly through the DSL.
+			if cfg.StartZKChallenger {
+				nets := make([]*L2Network, 0, len(chains))
+				els := make([]L2ELNode, 0, len(chains))
+				for _, chain := range chains {
+					nets = append(nets, chain.Network)
+					els = append(els, chain.EL)
+				}
+				challenger := startInteropChallenger(
+					t,
+					runtime.Keys,
+					runtime.L1Network,
+					runtime.L1EL,
+					runtime.L1CL,
+					runtime.DependencySet,
+					runtime.Supernode.UserRPC(),
+					nets,
+					els,
+					gameTypes.ZKDisputeGameType,
+				)
+				runtime.L2ChallengerConfig = challenger.Config()
+			}
 			return runtime
 		}
 	}
@@ -149,6 +168,7 @@ func attachSuperChallengerAndProposer(
 		runtime.Supernode.UserRPC(),
 		nets,
 		els,
+		proposerGameType,
 	)
 	runtime.L2ChallengerConfig = challenger.Config()
 
@@ -267,6 +287,7 @@ func startInteropChallenger(
 	superRPC string,
 	l2Nets []*L2Network,
 	l2ELs []L2ELNode,
+	gameType gameTypes.GameType,
 ) *L2Challenger {
 	require := t.Require()
 	require.NotEmpty(l2Nets, "at least one L2 network is required")
@@ -288,15 +309,25 @@ func startInteropChallenger(
 		l2Geneses[i] = l2Nets[i].genesis
 		l2ChainIDs[i] = l2Nets[i].ChainID()
 	}
-	staticDepSet, ok := depSet.(*depset.StaticConfigDependencySet)
-	require.True(ok, "expected static dependency set for super challenger")
 
 	options := []sharedchallenger.Option{
 		sharedchallenger.WithFactoryAddress(l2Nets[0].deployment.DisputeGameFactoryProxyAddr()),
 		sharedchallenger.WithPrivKey(challengerSecret),
-		sharedchallenger.WithDepset(staticDepSet),
-		sharedchallenger.WithCannonKonaInteropConfig(rollupCfgs, l1Net.genesis, l2Geneses),
-		sharedchallenger.WithSuperCannonKonaGameType(),
+	}
+	switch gameType {
+	case gameTypes.ZKDisputeGameType:
+		// The ZK game validates super roots from the supernode; it needs no VM config or dependency set.
+		options = append(options, sharedchallenger.WithZKDisputeGameType())
+	case gameTypes.SuperCannonKonaGameType:
+		staticDepSet, ok := depSet.(*depset.StaticConfigDependencySet)
+		require.True(ok, "expected static dependency set for super challenger")
+		options = append(options,
+			sharedchallenger.WithDepset(staticDepSet),
+			sharedchallenger.WithCannonKonaInteropConfig(rollupCfgs, l1Net.genesis, l2Geneses),
+			sharedchallenger.WithSuperCannonKonaGameType(),
+		)
+	default:
+		require.FailNowf("unsupported interop challenger game type", "%v", gameType)
 	}
 	cfg, err := sharedchallenger.NewInteropChallengerConfig(
 		t.Ctx(),

@@ -16,7 +16,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,15 +25,18 @@ var (
 	l1Time        = time.Unix(9892842, 0)
 )
 
+// zkTestL1Head is the game's committed L1 head. currentL1 must be strictly greater for the node to
+// count as synced past it (the sync gate skips while currentL1 <= l1Head).
+const zkTestL1Head = uint64(785)
+
 type zkTestStubs struct {
-	rootProvider *stubRootProvider
+	rootProvider *stubSuperRootProvider
 	contract     *stubContract
 	sender       *stubTxSender
 }
 
 func TestActor(t *testing.T) {
-	// Output root: Valid, Invalid
-	// Safety: Safe, Unsafe, Beyond unsafe
+	// Super root: matches proposal, mismatches, not yet cross-safe, absent (Data nil), rpc error
 	// In challenge period, ChallengePeriodExpired, In proof period, ProvenWithoutChallenge, ProvenAfterChallenge, ProofPeriodExpired, Resolved
 	// No parent, parent in progress, parent valid, parent invalid
 	tests := []struct {
@@ -42,17 +44,18 @@ func TestActor(t *testing.T) {
 		setup     func(t *testing.T, stubs *zkTestStubs)
 		challenge bool
 		resolve   bool
+		expectErr bool
 	}{
 		{
-			name: "DoNotChallengeCorrectProposal",
+			name: "DoNotChallengeValidSuperRootProposal",
 			setup: func(t *testing.T, stubs *zkTestStubs) {
 				stubs.contract.setDeadlineNotReached()
 				stubs.contract.proposalHash = stubs.rootProvider.root
-				stubs.contract.l2SequenceNumber = stubs.rootProvider.rootBlockNum
+				stubs.contract.l2SequenceNumber = stubs.rootProvider.rootTimestamp
 			},
 		},
 		{
-			name: "ChallengeIncorrectProposal",
+			name: "ChallengeMismatchedSuperRoot",
 			setup: func(t *testing.T, stubs *zkTestStubs) {
 				stubs.contract.proposalHash = common.Hash{0xba, 0xd0}
 			},
@@ -66,23 +69,51 @@ func TestActor(t *testing.T) {
 			},
 		},
 		{
-			name: "ChallengeProposalBeyondCurrentUnsafeHead",
+			name: "ErrorWhenSuperRootUnavailable",
 			setup: func(t *testing.T, stubs *zkTestStubs) {
-				stubs.rootProvider.root = common.Hash{0xba, 0xd0}
-				stubs.rootProvider.outputErr = mockNotFoundRPCError()
+				stubs.rootProvider.outputErr = errors.New("connection refused")
 				stubs.contract.proposalHash = stubs.rootProvider.root
-				stubs.contract.l2SequenceNumber = stubs.rootProvider.rootBlockNum
+				stubs.contract.l2SequenceNumber = stubs.rootProvider.rootTimestamp
+			},
+			expectErr: true,
+		},
+		{
+			name: "ChallengeProposalWithNoSuperRootAtTimestamp",
+			setup: func(t *testing.T, stubs *zkTestStubs) {
+				stubs.rootProvider.dataNil = true
+				stubs.contract.proposalHash = stubs.rootProvider.root
+				stubs.contract.l2SequenceNumber = stubs.rootProvider.rootTimestamp
 			},
 			challenge: true,
 		},
 		{
-			name: "ChallengeCurrentlyUnsafeProposal",
+			name: "ChallengeStillUnsafeProposal",
 			setup: func(t *testing.T, stubs *zkTestStubs) {
 				stubs.contract.proposalHash = stubs.rootProvider.root
-				stubs.contract.l2SequenceNumber = stubs.rootProvider.rootBlockNum
-				stubs.rootProvider.safeBlockNum = stubs.rootProvider.rootBlockNum - 1
+				stubs.contract.l2SequenceNumber = stubs.rootProvider.rootTimestamp
+				stubs.rootProvider.safeTimestamp = stubs.rootProvider.rootTimestamp - 1
 			},
 			challenge: true,
+		},
+		{
+			// Behind the game L1 head and the proposal is invalid: the sync gate must win, so the
+			// actor skips rather than challenges on a stale view.
+			name: "WaitWhenNotSyncedPastGameL1Head",
+			setup: func(t *testing.T, stubs *zkTestStubs) {
+				stubs.contract.proposalHash = common.Hash{0xba, 0xd0}
+				stubs.rootProvider.currentL1 = eth.BlockID{Number: zkTestL1Head}
+			},
+		},
+		{
+			// Behind the game L1 head: the challenge is sync-skipped, but ungated resolution still
+			// fires off the invalid parent.
+			name: "ResolveWhileNotSyncedPastGameL1Head",
+			setup: func(t *testing.T, stubs *zkTestStubs) {
+				stubs.contract.proposalHash = common.Hash{0xba, 0xd0}
+				stubs.rootProvider.currentL1 = eth.BlockID{Number: zkTestL1Head}
+				stubs.contract.setParentStatus(types.GameStatusChallengerWon)
+			},
+			resolve: true,
 		},
 		{
 			name: "ChallengeUnresolvableGameWithNoParent",
@@ -187,6 +218,11 @@ func TestActor(t *testing.T) {
 				tt.setup(t, stubs)
 			}
 			err := actor.Act(context.Background())
+			if tt.expectErr {
+				require.Error(t, err)
+				require.Empty(t, stubs.sender.sentData)
+				return
+			}
 			require.NoError(t, err)
 			expectedTxCount := 0
 			if tt.challenge {
@@ -202,22 +238,56 @@ func TestActor(t *testing.T) {
 	}
 }
 
+// TestActor_CanonicalUnprovableProposal_WarnsButDoesNotChallenge exercises the Decision-2
+// divergence: a canonical, cross-safe proposal that is not provable within the game l1Head is
+// accepted with a warning, never challenged. Steps 6 and 7 are otherwise both 0-tx, so the log is
+// the only observable difference.
+func TestActor_CanonicalUnprovableProposal_WarnsButDoesNotChallenge(t *testing.T) {
+	const warnMsg = "not provable within game l1Head"
+
+	t.Run("WarnsWhenUnprovableWithinGameL1Head", func(t *testing.T) {
+		logger, logs := testlog.CaptureLogger(t, log.LvlInfo)
+		actor, stubs := newZKActor(t, logger)
+		stubs.rootProvider.verifiedRequiredL1 = eth.BlockID{Number: zkTestL1Head + 1}
+		require.NoError(t, actor.Act(context.Background()))
+		require.Empty(t, stubs.sender.sentData)
+		require.NotNil(t, logs.FindLog(testlog.NewMessageContainsFilter(warnMsg)),
+			"expected warning for canonical-but-unprovable proposal")
+	})
+
+	t.Run("NoWarnWhenProvableWithinGameL1Head", func(t *testing.T) {
+		logger, logs := testlog.CaptureLogger(t, log.LvlInfo)
+		actor, stubs := newZKActor(t, logger)
+		// Default verifiedRequiredL1 (== l1Head) is provable within the game.
+		require.NoError(t, actor.Act(context.Background()))
+		require.Empty(t, stubs.sender.sentData)
+		require.Nil(t, logs.FindLog(testlog.NewMessageContainsFilter(warnMsg)),
+			"step-7 valid proposal must not warn")
+	})
+}
+
 func setupActorTest(t *testing.T) (*Actor, *zkTestStubs) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	return newZKActor(t, testlog.Logger(t, log.LvlInfo))
+}
+
+func newZKActor(t *testing.T, logger log.Logger) (*Actor, *zkTestStubs) {
 	l1Head := eth.BlockID{
 		Hash:   common.Hash{0x12},
-		Number: 785,
+		Number: zkTestL1Head,
 	}
-	rootBlockNum := uint64(28492)
-	rootProvider := &stubRootProvider{
-		root:         common.Hash{0x11},
-		rootBlockNum: rootBlockNum,
-		safeBlockNum: rootBlockNum + 10,
+	rootTimestamp := uint64(28492)
+	rootProvider := &stubSuperRootProvider{
+		root:          common.Hash{0x11},
+		rootTimestamp: rootTimestamp,
+		safeTimestamp: rootTimestamp + 10,
+		// Synced past l1Head and provable within it, so the default proposal is valid.
+		currentL1:          eth.BlockID{Number: zkTestL1Head + 1},
+		verifiedRequiredL1: eth.BlockID{Number: zkTestL1Head},
 	}
 	// Default to a valid proposal
 	contract := &stubContract{
 		proposalHash:     rootProvider.root,
-		l2SequenceNumber: rootProvider.rootBlockNum,
+		l2SequenceNumber: rootProvider.rootTimestamp,
 		parentStatus:     types.GameStatusDefenderWon,
 		parentIndex:      482,
 	}
@@ -237,28 +307,34 @@ func setupActorTest(t *testing.T) (*Actor, *zkTestStubs) {
 	}
 }
 
-type stubRootProvider struct {
-	outputErr    error
-	rootBlockNum uint64
-	root         common.Hash
-	safeBlockNum uint64
+type stubSuperRootProvider struct {
+	outputErr          error
+	rootTimestamp      uint64
+	root               common.Hash
+	safeTimestamp      uint64
+	currentL1          eth.BlockID
+	verifiedRequiredL1 eth.BlockID
+	dataNil            bool
 }
 
-func (s *stubRootProvider) OutputAtBlock(_ context.Context, blockNum uint64) (*eth.OutputResponse, error) {
+func (s *stubSuperRootProvider) SuperRootAtTimestamp(_ context.Context, timestamp uint64) (eth.SuperRootAtTimestampResponse, error) {
 	if s.outputErr != nil {
-		return nil, s.outputErr
+		return eth.SuperRootAtTimestampResponse{}, s.outputErr
 	}
-	if blockNum != s.rootBlockNum {
-		return nil, errors.New("unexpected output request")
+	if timestamp != s.rootTimestamp {
+		return eth.SuperRootAtTimestampResponse{}, errors.New("unexpected super root request")
 	}
-	return &eth.OutputResponse{
-		OutputRoot: eth.Bytes32(s.root),
-		Status: &eth.SyncStatus{
-			SafeL2: eth.L2BlockRef{
-				Number: s.safeBlockNum,
-			},
-		},
-	}, nil
+	resp := eth.SuperRootAtTimestampResponse{
+		CurrentSafeTimestamp: s.safeTimestamp,
+		CurrentL1:            s.currentL1,
+	}
+	if !s.dataNil {
+		resp.Data = &eth.SuperRootResponseData{
+			SuperRoot:          eth.Bytes32(s.root),
+			VerifiedRequiredL1: s.verifiedRequiredL1,
+		}
+	}
+	return resp, nil
 }
 
 type stubContract struct {
@@ -356,15 +432,3 @@ func (s *stubTxSender) SendAndWaitSimple(_ string, candidates ...txmgr.TxCandida
 	}
 	return nil
 }
-
-// mockNotFoundRPCError creates a minimal rpc.Error that reports a "not found" message
-// to exercise the JSON-RPC application error path in the enricher.
-func mockNotFoundRPCError() rpc.Error { return testRPCError{msg: "not found", code: -32000} }
-
-type testRPCError struct {
-	msg  string
-	code int
-}
-
-func (e testRPCError) Error() string  { return e.msg }
-func (e testRPCError) ErrorCode() int { return e.code }

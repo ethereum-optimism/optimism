@@ -92,7 +92,7 @@ func applyValidConfigForSuperCannonKona(t *testing.T, cfg *Config) {
 }
 
 func applyValidConfigForZKDisputeGame(cfg *Config) {
-	cfg.RollupRpc = validRollupRpc
+	cfg.SuperRootRPC = validSuperRootRpc
 }
 
 func validConfig(t *testing.T, gameType gameTypes.GameType) Config {
@@ -533,7 +533,7 @@ func TestHttpPollInterval(t *testing.T) {
 func TestRollupRpcRequired(t *testing.T) {
 	for _, gameType := range gameTypes.PlayableGameTypes {
 		gameType := gameType
-		if gameType == gameTypes.SuperCannonKonaGameType {
+		if gameType == gameTypes.SuperCannonKonaGameType || gameType == gameTypes.ZKDisputeGameType {
 			continue
 		}
 		t.Run(gameType.String(), func(t *testing.T) {
@@ -555,7 +555,7 @@ func TestRollupRpcNotRequiredForInterop(t *testing.T) {
 func TestSuperRootRpc(t *testing.T) {
 	for _, gameType := range gameTypes.PlayableGameTypes {
 		gameType := gameType
-		if gameType == gameTypes.SuperCannonKonaGameType {
+		if gameType == gameTypes.SuperCannonKonaGameType || gameType == gameTypes.ZKDisputeGameType {
 			t.Run("RequiredFor"+gameType.String(), func(t *testing.T) {
 				config := validConfig(t, gameType)
 				config.SuperRootRPC = ""

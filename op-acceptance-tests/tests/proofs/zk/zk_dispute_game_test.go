@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	challengerTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
@@ -37,7 +36,7 @@ func TestDeploymentUsesSuperAggregationVKey(gt *testing.T) {
 
 func TestUnchallengedValidProposalAnchors(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys, _ := newSystem(t)
+	sys := newSystemWithHonestChallenger(t)
 	factory := sys.DisputeGameFactory()
 	proposer := sys.FunderL1.NewFundedEOA(eth.OneEther)
 
@@ -45,43 +44,42 @@ func TestUnchallengedValidProposalAnchors(gt *testing.T) {
 	game := factory.StartZKGame(proposer)
 	advanceL1To(sys, game.ClaimData().Deadline+1)
 
-	// TODO(#21415): Let op-challenger resolve and close the unchallenged proposal.
-	t.Require().Equal(gameTypes.GameStatusDefenderWon, game.Resolve(proposer))
+	// The honest challenger resolves the unchallenged valid proposal and closes it, anchoring the root.
+	game.WaitForGameStatus(gameTypes.GameStatusDefenderWon)
 	advanceL1To(sys, game.ResolvedAt()+uint64(zkFinalityDelay/time.Second)+1)
-	game.Close(proposer)
 	sys.AnchorStateRegistry(sys.L2ChainA).WaitForAnchorRoot(game)
 }
 
 func TestChallengedValidProposalAnchors(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys, _ := newSystem(t)
+	sys := newSystemWithHonestChallenger(t)
 	factory := sys.DisputeGameFactory()
 	proposer, challenger, prover := fundedActors(sys)
 
-	// TODO(#21463): Let the kona-sp1 proposer create the valid proposal and submit its proof.
+	// TODO(#21463): Let the kona-sp1 proposer create the valid proposal.
 	game := factory.StartZKGame(proposer)
 	t.Require().Equal(uint32(math.MaxUint32), game.ParentIndex())
 	t.Require().Equal(proofs.ZKProposalUnchallenged, game.ProposalStatus())
 
+	// A third party grief-challenges the valid proposal; the honest challenger does not challenge it.
 	challengedClaim := game.Challenge(challenger)
 	t.Require().Equal(challenger.Address(), challengedClaim.Challenger)
+	// TODO(#21414): Submit the proof via a real/mock proposer once it is updated.
 	provedClaim := game.Prove(prover, []byte("mock-sp1-super-aggregation-proof"))
 	t.Require().Equal(proofs.ZKProposalChallengedAndValidProofProvided, proofs.ZKProposalStatus(provedClaim.Status))
 	t.Require().Equal(prover.Address(), provedClaim.Prover)
 
-	// TODO(#21415): Let op-challenger resolve and close the proven proposal.
-	t.Require().Equal(gameTypes.GameStatusDefenderWon, game.Resolve(proposer))
+	// The honest challenger resolves the proven-valid proposal and closes it, anchoring the root.
+	game.WaitForGameStatus(gameTypes.GameStatusDefenderWon)
 	advanceL1To(sys, game.ResolvedAt()+uint64(zkFinalityDelay/time.Second)+1)
-	game.Close(proposer)
-	t.Require().Equal(challengerTypes.NormalDistributionMode, game.BondDistributionMode())
 	sys.AnchorStateRegistry(sys.L2ChainA).WaitForAnchorRoot(game)
 }
 
 func TestChallengedInvalidProposalTimesOutWithoutAnchoring(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys, _ := newSystem(t)
+	sys := newSystemWithHonestChallenger(t)
 	factory := sys.DisputeGameFactory()
-	proposer, challenger, resolver := fundedActors(sys)
+	proposer := sys.FunderL1.NewFundedEOA(eth.OneEther)
 	registry := sys.AnchorStateRegistry(sys.L2ChainA)
 	anchorRoot, anchorSequence := registry.AnchorRoot()
 
@@ -93,16 +91,15 @@ func TestChallengedInvalidProposalTimesOutWithoutAnchoring(gt *testing.T) {
 		proofs.WithL2SequenceNumber(timestamp),
 		proofs.WithSuperRootFrom(outputRoots...),
 	)
-	// TODO(#21415): Let the op-challenger detect, challenge, resolve, and close this invalid proposal.
-	challengedClaim := game.Challenge(challenger)
 
-	advanceL1To(sys, challengedClaim.Deadline+1)
-	t.Require().True(game.GameOver())
-	t.Require().Equal(gameTypes.GameStatusChallengerWon, game.Resolve(resolver))
+	// The honest challenger detects the invalid proposal, challenges it, resolves it, and closes it.
+	game.WaitForProposalStatus(proofs.ZKProposalChallenged)
+	advanceL1To(sys, game.ClaimData().Deadline+1)
+	game.WaitForGameStatus(gameTypes.GameStatusChallengerWon)
 	advanceL1To(sys, game.ResolvedAt()+uint64(zkFinalityDelay/time.Second)+1)
-	game.Close(resolver)
-	t.Require().Equal(challengerTypes.NormalDistributionMode, game.BondDistributionMode())
+	game.WaitForClaimedCredit(zkChallengerAddress(t, sys.L2ChainA.ChainID()))
 
+	// The invalid proposal must not advance the anchor state.
 	actualRoot, actualSequence := registry.AnchorRoot()
 	t.Require().Equal(anchorRoot, actualRoot)
 	t.Require().Equal(anchorSequence, actualSequence)
