@@ -16,7 +16,8 @@ import (
 
 func TestDeploymentUsesSuperAggregationVKey(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys, vkey := newSystem(t)
+	sys := newSystem(t)
+	vkey := loadSuperAggregationVKey(t)
 	factory := sys.DisputeGameFactory()
 
 	factory.VerifyGameImplAbsent(gameTypes.SuperCannonKonaGameType)
@@ -36,7 +37,7 @@ func TestDeploymentUsesSuperAggregationVKey(gt *testing.T) {
 
 func TestUnchallengedValidProposalAnchors(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := newSystemWithHonestChallenger(t)
+	sys := newSystem(t)
 	factory := sys.DisputeGameFactory()
 	proposer := sys.FunderL1.NewFundedEOA(eth.OneEther)
 
@@ -52,7 +53,7 @@ func TestUnchallengedValidProposalAnchors(gt *testing.T) {
 
 func TestChallengedValidProposalAnchors(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := newSystemWithHonestChallenger(t)
+	sys := newSystem(t)
 	factory := sys.DisputeGameFactory()
 	proposer, challenger, prover := fundedActors(sys)
 
@@ -77,7 +78,7 @@ func TestChallengedValidProposalAnchors(gt *testing.T) {
 
 func TestChallengedInvalidProposalTimesOutWithoutAnchoring(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := newSystemWithHonestChallenger(t)
+	sys := newSystem(t)
 	factory := sys.DisputeGameFactory()
 	proposer := sys.FunderL1.NewFundedEOA(eth.OneEther)
 	registry := sys.AnchorStateRegistry(sys.L2ChainA)

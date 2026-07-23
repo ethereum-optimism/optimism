@@ -86,27 +86,25 @@ func attachSupernodeSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg Pre
 				*cfg.ZKDisputeGame,
 			)
 			// TODO(#21463): Start the production proposer once it supports super ZK games.
-			if cfg.StartZKChallenger {
-				nets := make([]*L2Network, 0, len(chains))
-				els := make([]L2ELNode, 0, len(chains))
-				for _, chain := range chains {
-					nets = append(nets, chain.Network)
-					els = append(els, chain.EL)
-				}
-				challenger := startInteropChallenger(
-					t,
-					runtime.Keys,
-					runtime.L1Network,
-					runtime.L1EL,
-					runtime.L1CL,
-					runtime.DependencySet,
-					runtime.Supernode.UserRPC(),
-					nets,
-					els,
-					gameTypes.ZKDisputeGameType,
-				)
-				runtime.L2ChallengerConfig = challenger.Config()
+			nets := make([]*L2Network, 0, len(chains))
+			els := make([]L2ELNode, 0, len(chains))
+			for _, chain := range chains {
+				nets = append(nets, chain.Network)
+				els = append(els, chain.EL)
 			}
+			challenger := startInteropChallenger(
+				t,
+				runtime.Keys,
+				runtime.L1Network,
+				runtime.L1EL,
+				runtime.L1CL,
+				runtime.DependencySet,
+				runtime.Supernode.UserRPC(),
+				nets,
+				els,
+				gameTypes.ZKDisputeGameType,
+			)
+			runtime.L2ChallengerConfig = challenger.Config()
 			return runtime
 		}
 	}

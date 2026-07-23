@@ -15,7 +15,7 @@ import (
 // proposal, so the game resolves DEFENDER_WINS once the challenge window expires.
 func TestZK_HonestChallenger_Supernode_ValidProposal_DefenderWins(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := newSystemWithHonestChallenger(t)
+	sys := newSystem(t)
 	factory := sys.DisputeGameFactory()
 	proposer := sys.FunderL1.NewFundedEOA(eth.OneEther)
 
@@ -30,7 +30,7 @@ func TestZK_HonestChallenger_Supernode_ValidProposal_DefenderWins(gt *testing.T)
 // prover — resolves it CHALLENGER_WINS without ever proving.
 func TestZK_HonestChallenger_Supernode_InvalidProposal_ChallengerWins(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := newSystemWithHonestChallenger(t)
+	sys := newSystem(t)
 	factory := sys.DisputeGameFactory()
 	proposer := sys.FunderL1.NewFundedEOA(eth.OneEther)
 	registry := sys.AnchorStateRegistry(sys.L2ChainA)
@@ -56,7 +56,7 @@ func TestZK_HonestChallenger_Supernode_InvalidProposal_ChallengerWins(gt *testin
 // not-yet-safe timestamp is challenged and resolves CHALLENGER_WINS.
 func TestZK_HonestChallenger_Supernode_UnsafeProposal_ChallengerWins(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := newSystemWithHonestChallenger(t)
+	sys := newSystem(t)
 	factory := sys.DisputeGameFactory()
 	proposer := sys.FunderL1.NewFundedEOA(eth.OneEther)
 	registry := sys.AnchorStateRegistry(sys.L2ChainA)

@@ -40,7 +40,10 @@ func loadSuperAggregationVKey(t devtest.T) common.Hash {
 	return vkey
 }
 
-func newSystem(t devtest.T) (*presets.SimpleInterop, common.Hash) {
+// newSystem builds a supernode-backed interop system with the ZK dispute game installed and an
+// honest op-challenger playing it, sourcing super roots from the supernode. Tests seed a game; the
+// challenger acts on it.
+func newSystem(t devtest.T) *presets.SimpleInterop {
 	vkey := loadSuperAggregationVKey(t)
 	zkCfg := sysgo.ZKDisputeGameConfig{
 		ProgramVKey:          vkey,
@@ -49,24 +52,6 @@ func newSystem(t devtest.T) (*presets.SimpleInterop, common.Hash) {
 	}
 	return presets.NewSimpleInterop(t,
 		presets.WithZKDisputeGame(zkCfg),
-		presets.WithTimeTravelEnabled(),
-		presets.WithDisputeGameFinalityDelaySeconds(uint64(zkFinalityDelay/time.Second)),
-		presets.WithDeployerOptions(sysgo.WithJovianAtGenesis),
-	), vkey
-}
-
-// newSystemWithHonestChallenger is like newSystem but also runs an honest op-challenger for the ZK
-// game, sourcing super roots from the supernode. Tests seed a game; the challenger acts on it.
-func newSystemWithHonestChallenger(t devtest.T) *presets.SimpleInterop {
-	vkey := loadSuperAggregationVKey(t)
-	zkCfg := sysgo.ZKDisputeGameConfig{
-		ProgramVKey:          vkey,
-		MaxChallengeDuration: zkChallengeDuration,
-		MaxProveDuration:     zkProveDuration,
-	}
-	return presets.NewSimpleInterop(t,
-		presets.WithZKDisputeGame(zkCfg),
-		presets.WithZKChallenger(),
 		presets.WithTimeTravelEnabled(),
 		presets.WithDisputeGameFinalityDelaySeconds(uint64(zkFinalityDelay/time.Second)),
 		presets.WithDeployerOptions(sysgo.WithJovianAtGenesis),

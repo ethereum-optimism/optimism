@@ -106,24 +106,14 @@ func WithDisputeGameFinalityDelaySeconds(seconds uint64) Option {
 }
 
 // WithZKDisputeGame installs a shared ZK dispute game after the interop
-// migration. The verifier remains a dev-only mock, while the configured
-// program vkey is the real SP1 super-aggregation vkey.
+// migration and starts an honest op-challenger that plays it, sourcing super
+// roots from the supernode. The verifier remains a dev-only mock, while the
+// configured program vkey is the real SP1 super-aggregation vkey.
 func WithZKDisputeGame(zkCfg sysgo.ZKDisputeGameConfig) Option {
 	return option{
 		kinds: optionKindZKDisputeGame,
 		applyFn: func(cfg *sysgo.PresetConfig) {
 			cfg.ZKDisputeGame = &zkCfg
-		},
-	}
-}
-
-// WithZKChallenger starts an honest op-challenger for the ZK game, sourcing super roots from the
-// supernode. Requires WithZKDisputeGame. Without it, tests drive the game lifecycle manually.
-func WithZKChallenger() Option {
-	return option{
-		kinds: optionKindZKChallenger,
-		applyFn: func(cfg *sysgo.PresetConfig) {
-			cfg.StartZKChallenger = true
 		},
 	}
 }
