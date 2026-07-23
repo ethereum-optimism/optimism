@@ -68,6 +68,33 @@ func TestZK_HonestChallenger_InvalidProposal_ChallengerWins(gt *testing.T) {
 	t.Require().Equal(common.Address{}, game.ClaimData().Prover, "challenger must not prove")
 }
 
+// TestZK_HonestChallenger_UnsafeProposal_ChallengerWins locks in the subtle rule that a proposal for
+// a timestamp the node has not yet made safe has no canonical super root (Data == nil), which the
+// honest challenger treats as invalid: it challenges and, with no proof submitted, resolves
+// CHALLENGER_WINS. This is a distinct path from a mismatched-root proposal at an already-safe
+// timestamp.
+func TestZK_HonestChallenger_UnsafeProposal_ChallengerWins(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := newOpNodeSystem(t)
+	factory := sys.DisputeGameFactory()
+	proposer := sys.FunderL1.NewFundedEOA(eth.OneEther)
+	registry := sys.AnchorStateRegistry(sys.L2ChainA)
+	_, anchorSequence := registry.AnchorRoot()
+
+	// Propose a super root far beyond the current safe head; the chain never reaches it during the
+	// test, so the challenger keeps seeing Data == nil and challenges on that basis.
+	safeTimestamp, _ := factory.WaitForSafeSuperRootAfter(anchorSequence)
+	game := factory.StartZKGame(proposer,
+		proofs.WithL2SequenceNumber(safeTimestamp+3600),
+		proofs.WithFutureProposal(),
+	)
+
+	game.WaitForProposalStatus(proofs.ZKProposalChallenged)
+	advanceOpNodeL1To(sys, game.ClaimData().Deadline+1)
+	game.WaitForGameStatus(gameTypes.GameStatusChallengerWon)
+	t.Require().Equal(common.Address{}, game.ClaimData().Prover, "challenger must not prove")
+}
+
 // TestZK_HonestChallenger_ChildOfInvalidParent_ChallengerWins checks resolution ordering: a child
 // game referencing an invalid parent resolves CHALLENGER_WINS by inheritance only after the honest
 // challenger has resolved the parent CHALLENGER_WINS.
