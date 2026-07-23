@@ -250,11 +250,10 @@ func canonicalPreparedIntent(
 		L1ChainID:             intent.L1ChainID,
 		SuperchainConfigProxy: &superchainConfig,
 		FundDevAccounts:       intent.FundDevAccounts,
-		Chains:                intent.Chains,
 		GlobalDeployOverrides: intent.GlobalDeployOverrides,
 		UseInterop:            intent.UseInterop,
 	}
-	canonical.Chains = nil
+
 	for _, chain := range intent.Chains {
 		if include[chain.ID] {
 			canonical.Chains = append(canonical.Chains, chain)
