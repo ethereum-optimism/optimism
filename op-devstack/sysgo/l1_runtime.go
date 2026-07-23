@@ -172,6 +172,7 @@ func startSubprocessL1WithClock(t devtest.T, l1Net *L1Network, jwtPath string, l
 		"--nodiscover",
 		"--verbosity", "5",
 		"--miner.recommit", "2s",
+		"--syncmode", "full",
 		"--gcmode", "archive",
 	}
 	require.NoError(sub.Start(execPath, args, nil), "must start geth subprocess")
@@ -215,6 +216,7 @@ func startSubprocessL1WithClock(t devtest.T, l1Net *L1Network, jwtPath string, l
 		userRPC:  userRPC,
 		authRPC:  authRPC,
 		blobPath: tempDir,
+		command:  append([]string{execPath}, args...),
 	}
 	l1CL := &L1CLNode{
 		name:           "l1",

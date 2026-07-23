@@ -20,6 +20,7 @@ type L1Geth struct {
 	authRPC  string
 	l1Geth   *geth.GethInstance
 	blobPath string
+	command  []string
 }
 
 func (*L1Geth) l1ELNode() {}
@@ -30,6 +31,12 @@ func (g *L1Geth) UserRPC() string {
 
 func (g *L1Geth) AuthRPC() string {
 	return g.authRPC
+}
+
+// Command returns the subprocess invocation used by staged runtimes. It is
+// empty for the legacy in-process L1 implementation.
+func (g *L1Geth) Command() []string {
+	return append([]string(nil), g.command...)
 }
 
 type L1CLNode struct {

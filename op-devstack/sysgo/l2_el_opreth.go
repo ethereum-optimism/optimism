@@ -247,6 +247,14 @@ func (n *OpReth) JWTPath() string {
 	return n.jwtPath
 }
 
+// Command returns the exact executable and argv used for this node. Runtime
+// secrets are file-backed and therefore do not appear in the returned slice.
+func (n *OpReth) Command() []string {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return append([]string{n.execPath}, n.args...)
+}
+
 // ConfigureInteropRPC restarts op-reth against its existing datadir and stable
 // RPC proxies with a new chain-local interop admission endpoint.
 func (n *OpReth) ConfigureInteropRPC(endpoint string) {
