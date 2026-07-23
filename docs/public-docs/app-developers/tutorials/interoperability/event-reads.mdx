@@ -4,15 +4,6 @@ description: Understand how a horizontally scalable TicTacToe implementation use
 diataxis: explanation
 ---
 
-import { NormativeSpec } from "/snippets/normative-spec.mdx"
-
-<NormativeSpec
-  what="Cross-chain event validation through the CrossL2Inbox"
-  title="CrossL2Inbox section of the interop predeploys specification"
-  href="https://specs.optimism.io/interop/predeploys.html#crossl2inbox"
-  note="This page walks an example that builds on it; it does not restate the spec."
-/>
-
 <Info>OP Stack interop is in active development. Some features may be experimental.</Info>
 This page explains a horizontally scalable implementation of TicTacToe. This [implementation](https://github.com/ethereum-optimism/supersim/blob/main/contracts/src/tictactoe/TicTacToe.sol) allows players to play each other from any chain without cross-chain calls, instead relying on cross-chain event reading. Since OP Stack interop can allow for event reading with a 1-block latency, the experience is the **same as a single-chain implementation**.
 

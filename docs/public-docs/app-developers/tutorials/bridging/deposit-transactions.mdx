@@ -4,15 +4,6 @@ description: Learn about using deposit transactions with `supersim`.
 diataxis: tutorial
 ---
 
-import { NormativeSpec } from "/snippets/normative-spec.mdx"
-
-<NormativeSpec
-  what="The deposited transaction type"
-  title="deposits specification"
-  href="https://specs.optimism.io/protocol/deposits.html"
-  note="This tutorial covers using deposits with Supersim; it does not restate the spec."
-/>
-
 Supersim supports [deposit transactions](/op-stack/bridging/deposit-flow). It uses a very lightweight solution without the `op-node` derivation pipeline by listening directly to the `TransactionDeposited` events on the `OptimismPortal` contract and simply forwarding the transaction to the applicable L2.
 
 The execution engine used with Supersim must support the Optimism [deposit transaction type](https://specs.optimism.io/protocol/deposits.html#the-deposited-transaction-type).
