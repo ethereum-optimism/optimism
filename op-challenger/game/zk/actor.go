@@ -128,25 +128,12 @@ func (a *Actor) isValidProposal(ctx context.Context) (bool, error) {
 		return false, gameTypes.ErrNotInSync
 	}
 	if resp.Data == nil {
-		// No super root at this timestamp (future / not yet available) — cannot be valid.
+		// Data is only populated once the timestamp is safe, so a nil here means the proposal is too
+		// early to be backed by the canonical chain and is therefore invalid.
 		return false, nil
 	}
-	if common.Hash(resp.Data.SuperRoot) != proposalHash {
-		// Super root doesn't match the proposal claim — cannot be valid.
-		return false, nil
-	}
-	if resp.CurrentSafeTimestamp < proposalTimestamp {
-		// Proposal timestamp is beyond the cross-safe tip, so it cannot be validated yet.
-		a.logger.Debug("Proposed super root is not yet safe, treating as invalid",
-			"safeTimestamp", resp.CurrentSafeTimestamp, "proposedTimestamp", proposalTimestamp)
-		return false, nil
-	}
-	if resp.Data.VerifiedRequiredL1.Number > a.l1Head.Number {
-		// Canonical and safe now but unprovable within this game's l1Head; accept, don't challenge.
-		a.logger.Warn("ZK proposal canonical but not provable within game l1Head; not challenging",
-			"proposalTimestamp", proposalTimestamp, "verifiedRequiredL1", resp.Data.VerifiedRequiredL1.Number, "gameL1Head", a.l1Head.Number)
-	}
-	return true, nil
+	// Valid exactly when the canonical super root matches the proposal claim.
+	return common.Hash(resp.Data.SuperRoot) == proposalHash, nil
 }
 
 func (a *Actor) createResolveTx(ctx context.Context, gameState contracts.ChallengerMetadata) (txmgr.TxCandidate, error) {

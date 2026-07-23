@@ -36,7 +36,7 @@ type zkTestStubs struct {
 }
 
 func TestActor(t *testing.T) {
-	// Super root: matches proposal, mismatches, not yet cross-safe, absent (Data nil), rpc error
+	// Super root: matches proposal, mismatches, absent (Data nil), rpc error
 	// In challenge period, ChallengePeriodExpired, In proof period, ProvenWithoutChallenge, ProvenAfterChallenge, ProofPeriodExpired, Resolved
 	// No parent, parent in progress, parent valid, parent invalid
 	tests := []struct {
@@ -52,6 +52,17 @@ func TestActor(t *testing.T) {
 				stubs.contract.setDeadlineNotReached()
 				stubs.contract.proposalHash = stubs.rootProvider.root
 				stubs.contract.l2SequenceNumber = stubs.rootProvider.rootTimestamp
+			},
+		},
+		{
+			// Canonical and safe, but its data only landed on L1 after the game's l1Head
+			// (VerifiedRequiredL1 > l1Head). The challenger decides on canonicity alone and accepts it;
+			// it deliberately does not gate on l1Head-provability the way the interactive super game does.
+			name: "DoNotChallengeCanonicalProposalUnprovableWithinGameL1Head",
+			setup: func(t *testing.T, stubs *zkTestStubs) {
+				stubs.contract.proposalHash = stubs.rootProvider.root
+				stubs.contract.l2SequenceNumber = stubs.rootProvider.rootTimestamp
+				stubs.rootProvider.verifiedRequiredL1 = eth.BlockID{Number: zkTestL1Head + 1}
 			},
 		},
 		{
@@ -78,20 +89,13 @@ func TestActor(t *testing.T) {
 			expectErr: true,
 		},
 		{
+			// The timestamp is not yet safe (proposed too early), so the source node returns no super
+			// root data. That absence is the signal to challenge.
 			name: "ChallengeProposalWithNoSuperRootAtTimestamp",
 			setup: func(t *testing.T, stubs *zkTestStubs) {
 				stubs.rootProvider.dataNil = true
 				stubs.contract.proposalHash = stubs.rootProvider.root
 				stubs.contract.l2SequenceNumber = stubs.rootProvider.rootTimestamp
-			},
-			challenge: true,
-		},
-		{
-			name: "ChallengeStillUnsafeProposal",
-			setup: func(t *testing.T, stubs *zkTestStubs) {
-				stubs.contract.proposalHash = stubs.rootProvider.root
-				stubs.contract.l2SequenceNumber = stubs.rootProvider.rootTimestamp
-				stubs.rootProvider.safeTimestamp = stubs.rootProvider.rootTimestamp - 1
 			},
 			challenge: true,
 		},
@@ -238,34 +242,6 @@ func TestActor(t *testing.T) {
 	}
 }
 
-// TestActor_CanonicalUnprovableProposal_WarnsButDoesNotChallenge covers a canonical, cross-safe
-// proposal whose data landed on L1 after the game's l1Head: it is accepted with a warning, never
-// challenged. The warning is the only observable difference from an ordinary valid proposal (both
-// send no tx), so assert on it directly.
-func TestActor_CanonicalUnprovableProposal_WarnsButDoesNotChallenge(t *testing.T) {
-	const warnMsg = "not provable within game l1Head"
-
-	t.Run("WarnsWhenUnprovableWithinGameL1Head", func(t *testing.T) {
-		logger, logs := testlog.CaptureLogger(t, log.LvlInfo)
-		actor, stubs := newZKActor(t, logger)
-		stubs.rootProvider.verifiedRequiredL1 = eth.BlockID{Number: zkTestL1Head + 1}
-		require.NoError(t, actor.Act(context.Background()))
-		require.Empty(t, stubs.sender.sentData)
-		require.NotNil(t, logs.FindLog(testlog.NewMessageContainsFilter(warnMsg)),
-			"expected warning for canonical-but-unprovable proposal")
-	})
-
-	t.Run("NoWarnWhenProvableWithinGameL1Head", func(t *testing.T) {
-		logger, logs := testlog.CaptureLogger(t, log.LvlInfo)
-		actor, stubs := newZKActor(t, logger)
-		// Default verifiedRequiredL1 (== l1Head) is provable within the game.
-		require.NoError(t, actor.Act(context.Background()))
-		require.Empty(t, stubs.sender.sentData)
-		require.Nil(t, logs.FindLog(testlog.NewMessageContainsFilter(warnMsg)),
-			"an ordinary valid proposal must not warn")
-	})
-}
-
 func setupActorTest(t *testing.T) (*Actor, *zkTestStubs) {
 	return newZKActor(t, testlog.Logger(t, log.LvlInfo))
 }
@@ -279,8 +255,7 @@ func newZKActor(t *testing.T, logger log.Logger) (*Actor, *zkTestStubs) {
 	rootProvider := &stubSuperRootProvider{
 		root:          common.Hash{0x11},
 		rootTimestamp: rootTimestamp,
-		safeTimestamp: rootTimestamp + 10,
-		// Synced past l1Head and provable within it, so the default proposal is valid.
+		// Synced past l1Head and backed by data within it, so the default proposal is valid.
 		currentL1:          eth.BlockID{Number: zkTestL1Head + 1},
 		verifiedRequiredL1: eth.BlockID{Number: zkTestL1Head},
 	}
@@ -311,7 +286,6 @@ type stubSuperRootProvider struct {
 	outputErr          error
 	rootTimestamp      uint64
 	root               common.Hash
-	safeTimestamp      uint64
 	currentL1          eth.BlockID
 	verifiedRequiredL1 eth.BlockID
 	dataNil            bool
@@ -325,8 +299,7 @@ func (s *stubSuperRootProvider) SuperRootAtTimestamp(_ context.Context, timestam
 		return eth.SuperRootAtTimestampResponse{}, errors.New("unexpected super root request")
 	}
 	resp := eth.SuperRootAtTimestampResponse{
-		CurrentSafeTimestamp: s.safeTimestamp,
-		CurrentL1:            s.currentL1,
+		CurrentL1: s.currentL1,
 	}
 	if !s.dataNil {
 		resp.Data = &eth.SuperRootResponseData{
