@@ -861,7 +861,11 @@
     },
     {
       "source": "/interop/estimate-costs",
-      "destination": "/app-developers/guides/interoperability/estimate-costs"
+      "destination": "/app-developers/guides/interoperability/message-passing"
+    },
+    {
+      "source": "/app-developers/guides/interoperability/estimate-costs",
+      "destination": "/app-developers/guides/interoperability/message-passing"
     },
     {
       "source": "/interop/reorg",
@@ -2452,8 +2456,7 @@
               "app-developers/guides/interoperability/get-started",
               "app-developers/guides/interoperability/message-passing",
               "app-developers/guides/interoperability/reading-logs",
-              "app-developers/guides/interoperability/message-expiration",
-              "app-developers/guides/interoperability/estimate-costs"
+              "app-developers/guides/interoperability/message-expiration"
             ]
           },
           {
