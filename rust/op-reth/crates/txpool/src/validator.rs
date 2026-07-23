@@ -203,6 +203,27 @@ where
             );
         }
 
+        // Reserve gas for the L1-info deposit that is present in every OP block, mirroring
+        // op-geth's `EffectiveGasLimit` (`core/txpool/validation.go`). The L1-info deposit is
+        // injected as the first transaction of every block and always consumes some gas, so a
+        // non-deposit transaction can never use the full block gas limit. The inner validator
+        // caps at the full block gas limit, which would admit a transaction in
+        // `(block_gas_limit - L1_INFO_GAS_OVERHEAD, block_gas_limit]` that can never be included
+        // (it would sit in the pool until it expires). Reject it up front, as op-geth does.
+        //
+        // This is done before the interop `is_valid_cross_tx` check below: the gas check is cheap,
+        // stateless and deterministic, whereas cross-tx validation is `async` and potentially
+        // network-bound (access-list filtering, up to `CHECK_ACCESS_LIST_TIMEOUT_SECS`). Rejecting
+        // an over-gas-limit transaction here avoids that work and is better admission-DoS hygiene.
+        let gas_limit = transaction.gas_limit();
+        let effective_gas_limit = self.inner.block_gas_limit().saturating_sub(L1_INFO_GAS_OVERHEAD);
+        if gas_limit > effective_gas_limit {
+            return TransactionValidationOutcome::Invalid(
+                transaction,
+                InvalidPoolTransactionError::ExceedsGasLimit(gas_limit, effective_gas_limit),
+            );
+        }
+
         // Interop cross tx validation
         match self.is_valid_cross_tx(&transaction).await {
             Some(Err(err)) => {
@@ -220,22 +241,6 @@ where
                     .set_interop_deadline(self.block_timestamp() + CHECK_ACCESS_LIST_TIMEOUT_SECS);
             }
             _ => {}
-        }
-
-        // Reserve gas for the L1-info deposit that is present in every OP block, mirroring
-        // op-geth's `EffectiveGasLimit` (`core/txpool/validation.go`). The L1-info deposit is
-        // injected as the first transaction of every block and always consumes some gas, so a
-        // non-deposit transaction can never use the full block gas limit. The inner validator
-        // caps at the full block gas limit, which would admit a transaction in
-        // `(block_gas_limit - L1_INFO_GAS_OVERHEAD, block_gas_limit]` that can never be included
-        // (it would sit in the pool until it expires). Reject it up front, as op-geth does.
-        let gas_limit = transaction.gas_limit();
-        let effective_gas_limit = self.inner.block_gas_limit().saturating_sub(L1_INFO_GAS_OVERHEAD);
-        if gas_limit > effective_gas_limit {
-            return TransactionValidationOutcome::Invalid(
-                transaction,
-                InvalidPoolTransactionError::ExceedsGasLimit(gas_limit, effective_gas_limit),
-            );
         }
 
         let outcome = self.inner.validate_one_with_state(origin, transaction, state);
