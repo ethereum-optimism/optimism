@@ -205,13 +205,13 @@ where
     }
 
     /// Snapshot refund state to carry across subblock executors.
-    pub fn warming_state(&self) -> R::Snapshot {
-        self.inner.0.inspector.warming_state()
+    pub fn refund_snapshot(&self) -> R::Snapshot {
+        self.inner.0.inspector.refund_snapshot()
     }
 
     /// Seed refund state captured from a prior subblock.
-    pub fn seed_warming_state(&mut self, state: R::Snapshot) {
-        self.inner.0.inspector.seed_warming_state(state);
+    pub fn seed_refund_snapshot(&mut self, state: R::Snapshot) {
+        self.inner.0.inspector.seed_refund_snapshot(state);
     }
 }
 
@@ -230,12 +230,12 @@ where
         Self::take_last_post_exec_tx_result(self)
     }
 
-    fn warming_state(&self) -> Self::Snapshot {
-        Self::warming_state(self)
+    fn refund_snapshot(&self) -> Self::Snapshot {
+        Self::refund_snapshot(self)
     }
 
-    fn seed_warming_state(&mut self, state: Self::Snapshot) {
-        Self::seed_warming_state(self, state);
+    fn seed_refund_snapshot(&mut self, state: Self::Snapshot) {
+        Self::seed_refund_snapshot(self, state);
     }
 }
 
@@ -265,20 +265,20 @@ where
         evm.take_last_post_exec_tx_result()
     }
 
-    fn warming_state<DB, I>(evm: &Self::Evm<DB, I>) -> Self::Snapshot
+    fn refund_snapshot<DB, I>(evm: &Self::Evm<DB, I>) -> Self::Snapshot
     where
         DB: Database,
         I: Inspector<Self::Context<DB>>,
     {
-        evm.warming_state()
+        evm.refund_snapshot()
     }
 
-    fn seed_warming_state<DB, I>(evm: &mut Self::Evm<DB, I>, state: Self::Snapshot)
+    fn seed_refund_snapshot<DB, I>(evm: &mut Self::Evm<DB, I>, state: Self::Snapshot)
     where
         DB: Database,
         I: Inspector<Self::Context<DB>>,
     {
-        evm.seed_warming_state(state);
+        evm.seed_refund_snapshot(state);
     }
 }
 

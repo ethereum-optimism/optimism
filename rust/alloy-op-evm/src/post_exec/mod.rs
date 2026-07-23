@@ -33,10 +33,10 @@ pub trait PostExecEvm: alloy_evm::Evm {
     fn take_last_post_exec_tx_result(&mut self) -> PostExecExecutedTx;
 
     /// Snapshot refund state to carry across subblock executors.
-    fn warming_state(&self) -> Self::Snapshot;
+    fn refund_snapshot(&self) -> Self::Snapshot;
 
     /// Seed refund state captured from a prior subblock.
-    fn seed_warming_state(&mut self, state: Self::Snapshot);
+    fn seed_refund_snapshot(&mut self, state: Self::Snapshot);
 }
 
 /// Extension trait for EVM factories whose produced EVMs support post-exec tracking.
@@ -60,13 +60,13 @@ pub trait PostExecEvmFactoryHooks: EvmFactory {
         I: Inspector<Self::Context<DB>>;
 
     /// Snapshot refund state to carry across subblock executors.
-    fn warming_state<DB, I>(evm: &Self::Evm<DB, I>) -> Self::Snapshot
+    fn refund_snapshot<DB, I>(evm: &Self::Evm<DB, I>) -> Self::Snapshot
     where
         DB: Database,
         I: Inspector<Self::Context<DB>>;
 
     /// Seed refund state captured from a prior subblock.
-    fn seed_warming_state<DB, I>(evm: &mut Self::Evm<DB, I>, state: Self::Snapshot)
+    fn seed_refund_snapshot<DB, I>(evm: &mut Self::Evm<DB, I>, state: Self::Snapshot)
     where
         DB: Database,
         I: Inspector<Self::Context<DB>>;
@@ -181,12 +181,12 @@ where
         F::take_last_post_exec_tx_result(&mut self.inner)
     }
 
-    fn warming_state(&self) -> Self::Snapshot {
-        F::warming_state(&self.inner)
+    fn refund_snapshot(&self) -> Self::Snapshot {
+        F::refund_snapshot(&self.inner)
     }
 
-    fn seed_warming_state(&mut self, state: Self::Snapshot) {
-        F::seed_warming_state(&mut self.inner, state);
+    fn seed_refund_snapshot(&mut self, state: Self::Snapshot) {
+        F::seed_refund_snapshot(&mut self.inner, state);
     }
 }
 
@@ -266,10 +266,10 @@ pub trait PostExecExecutorExt {
     fn take_warming_events_by_tx(&mut self) -> Vec<Vec<WarmingRefundEvent>>;
 
     /// Snapshot refund state to carry across subblock executors.
-    fn warming_state(&self) -> Self::Snapshot;
+    fn refund_snapshot(&self) -> Self::Snapshot;
 
     /// Seed refund state captured from a prior subblock.
-    fn seed_warming_state(&mut self, state: Self::Snapshot);
+    fn seed_refund_snapshot(&mut self, state: Self::Snapshot);
 }
 
 impl<E, R, Spec> PostExecExecutorExt for OpBlockExecutor<E, R, Spec>
@@ -292,11 +292,11 @@ where
         Self::take_warming_events_by_tx(self)
     }
 
-    fn warming_state(&self) -> Self::Snapshot {
-        Self::warming_state(self)
+    fn refund_snapshot(&self) -> Self::Snapshot {
+        Self::refund_snapshot(self)
     }
 
-    fn seed_warming_state(&mut self, state: Self::Snapshot) {
-        Self::seed_warming_state(self, state);
+    fn seed_refund_snapshot(&mut self, state: Self::Snapshot) {
+        Self::seed_refund_snapshot(self, state);
     }
 }

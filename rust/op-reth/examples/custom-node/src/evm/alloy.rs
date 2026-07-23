@@ -50,12 +50,12 @@ where
         Self::take_last_post_exec_tx_result(self)
     }
 
-    fn warming_state(&self) -> Self::Snapshot {
-        self.inner.warming_state()
+    fn refund_snapshot(&self) -> Self::Snapshot {
+        self.inner.refund_snapshot()
     }
 
-    fn seed_warming_state(&mut self, state: Self::Snapshot) {
-        self.inner.seed_warming_state(state);
+    fn seed_refund_snapshot(&mut self, state: Self::Snapshot) {
+        self.inner.seed_refund_snapshot(state);
     }
 }
 

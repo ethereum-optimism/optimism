@@ -445,7 +445,7 @@ where
             info.extra.post_exec_entries = post_exec_entries;
             // Carry the base block's warming provenance (deposits + builder tx) into the first
             // flashblock executor; subsequent flashblocks chain off this in build_next_flashblock.
-            info.extra.warming_state = builder.executor().warming_state();
+            info.extra.warming_state = builder.executor().refund_snapshot();
 
             (info, payload, fb_payload)
         };
@@ -706,7 +706,7 @@ where
         // from op-reth's single canonical pass. Recaptured after the build below.
         builder
             .executor_mut()
-            .seed_warming_state(core::mem::take(&mut info.extra.warming_state));
+            .seed_refund_snapshot(core::mem::take(&mut info.extra.warming_state));
         let mut target_gas_for_batch = ctx.extra_ctx.target_gas_for_batch;
         let mut target_da_for_batch = ctx.extra_ctx.target_da_for_batch;
         let mut target_da_footprint_for_batch = ctx.extra_ctx.target_da_footprint_for_batch;
@@ -856,7 +856,7 @@ where
             Ok((new_payload, mut fb_payload)) => {
                 info.extra.post_exec_entries = post_exec_entries;
                 // Carry this flashblock's accumulated warming provenance into the next flashblock.
-                info.extra.warming_state = builder.executor().warming_state();
+                info.extra.warming_state = builder.executor().refund_snapshot();
                 fb_payload.index = flashblock_index;
                 fb_payload.base = None;
 
@@ -1143,7 +1143,7 @@ fn current_post_exec_entries<Builder>(
 ) -> Vec<SDMGasEntry>
 where
     Builder: BlockBuilder,
-    Builder::Executor: PostExecExecutorExt<Snapshot = WarmingState>,
+    Builder::Executor: PostExecExecutorExt,
 {
     offset_post_exec_entries(
         &info.extra.post_exec_entries,

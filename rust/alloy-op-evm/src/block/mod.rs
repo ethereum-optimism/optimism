@@ -439,13 +439,13 @@ where
     R: OpReceiptBuilder,
 {
     /// Snapshot refund state to carry across subblock executors.
-    pub fn warming_state(&self) -> E::Snapshot {
-        self.evm.warming_state()
+    pub fn refund_snapshot(&self) -> E::Snapshot {
+        self.evm.refund_snapshot()
     }
 
     /// Seed refund state captured from a prior subblock.
-    pub fn seed_warming_state(&mut self, state: E::Snapshot) {
-        self.evm.seed_warming_state(state);
+    pub fn seed_refund_snapshot(&mut self, state: E::Snapshot) {
+        self.evm.seed_refund_snapshot(state);
     }
 }
 
@@ -841,13 +841,13 @@ where
         // Snapshot warming before execution and restore it when the tx isn't committed or when
         // execution fails after post-exec tracking has started. Only `Producing` mode tracks
         // warming, so we clone the maps solely on that path.
-        let warming_snapshot = self.post_exec.is_producing().then(|| self.warming_state());
+        let warming_snapshot = self.post_exec.is_producing().then(|| self.refund_snapshot());
 
         let output = match self.execute_transaction_without_commit(tx) {
             Ok(output) => output,
             Err(err) => {
                 if let Some(snapshot) = warming_snapshot {
-                    self.seed_warming_state(snapshot);
+                    self.seed_refund_snapshot(snapshot);
                 }
                 return Err(err);
             }
@@ -855,7 +855,7 @@ where
 
         if !f(&output).should_commit() {
             if let Some(snapshot) = warming_snapshot {
-                self.seed_warming_state(snapshot);
+                self.seed_refund_snapshot(snapshot);
             }
             return Ok(None);
         }

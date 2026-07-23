@@ -1443,7 +1443,6 @@ mod sdm {
         let ctx = Context::mainnet()
             .with_tx(crate::OpTx(OpTransaction::builder().build_fill()))
             .with_cfg(CfgEnv::new_with_spec(OpSpecId::BEDROCK))
-            .with_chain(L1BlockInfo::default())
             .with_db(&mut fixture.db)
             .with_chain(L1BlockInfo {
                 operator_fee_scalar: Some(U256::from(2)),
@@ -1481,7 +1480,7 @@ mod sdm {
             "produced refund 18446744073709551615 exceeds evm_gas_used 21000 for tx index 0",
         );
         assert_eq!(
-            producer.warming_state(),
+            producer.refund_snapshot(),
             0,
             "post-exec snapshot must be restored when execution returns an error",
         );

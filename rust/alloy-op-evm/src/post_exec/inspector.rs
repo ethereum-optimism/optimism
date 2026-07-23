@@ -500,12 +500,12 @@ impl<I, R: super::PostExecRefundInspector> PostExecCompositeInspector<I, R> {
     }
 
     /// Snapshot refund state to carry across subblock executors.
-    pub fn warming_state(&self) -> R::Snapshot {
+    pub fn refund_snapshot(&self) -> R::Snapshot {
         self.post_exec.snapshot()
     }
 
     /// Seed refund state captured from a prior subblock.
-    pub fn seed_warming_state(&mut self, state: R::Snapshot) {
+    pub fn seed_refund_snapshot(&mut self, state: R::Snapshot) {
         self.post_exec.restore(state);
     }
 

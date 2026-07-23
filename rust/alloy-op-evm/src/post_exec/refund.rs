@@ -18,9 +18,24 @@ use super::{PostExecExecutedTx, PostExecTxContext};
 ///
 /// **Not consensus.** The executor reads [`PostExecExecutedTx::refund_total`] via
 /// [`finish_tx`](Self::finish_tx) and bounds it by the structural `refund <= evm_gas_used` rule —
-/// it never observes how the refund was computed. A buggy or proprietary producer can therefore
-/// only ever yield an *economically* different refund, never an *invalid* block.
+/// it never observes how the refund was computed. Verifiers run the default inspector and discard
+/// its refund, so a proprietary producer policy can never make a verifier accept an *invalid*
+/// block. It can, however, produce a *self-rejecting* block: the seam requires the implementor to
+/// be side-effect-free w.r.t. EVM state (see the [`Inspector`](revm::Inspector) rule below); a
+/// violation just fails the producer's own block, never verifier acceptance.
 /// [`PostExecExecutedTx::refund_events`] are optional diagnostics and may be empty.
+///
+/// # Implementor contract
+/// - [`finish_tx`](Self::finish_tx) is called exactly once per [`begin_tx`](Self::begin_tx),
+///   **including when the EVM call itself errors** (`transact_raw` runs its finish block before
+///   propagating). Implementors must tolerate finishing a failed tx.
+/// - [`begin_tx`](Self::begin_tx) must fully reset per-transaction state.
+///   [`snapshot`](Self::snapshot)/[`restore`](Self::restore) only cover block-scoped carry-forward,
+///   so a failed or declined candidate relies on the next `begin_tx` for per-tx cleanup.
+/// - The implementor's [`Inspector`](revm::Inspector) impl must never synthesize call/create
+///   outcomes and must not mutate EVM state (enforced in debug builds by `debug_assert!`s in
+///   `PostExecCompositeInspector`). A non-observing implementor can satisfy the `Inspector` bound
+///   with an empty impl.
 pub trait PostExecRefundInspector {
     /// Opaque block-scoped state carried across subblocks and candidate rollback.
     type Snapshot: Clone;
