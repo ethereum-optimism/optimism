@@ -230,7 +230,7 @@ func ApplyPipeline(
 		}
 	}
 
-	bundle := pipeline.ArtifactsBundle{
+	bundle := artifacts.Bundle{
 		L1: l1ArtifactsFS,
 		L2: l2ArtifactsFS,
 	}
