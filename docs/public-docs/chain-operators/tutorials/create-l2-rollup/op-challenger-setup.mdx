@@ -4,15 +4,6 @@ description: Learn how to configure challenger for your OP Stack chain.
 diataxis: tutorial
 ---
 
-import { NormativeSpec } from "/snippets/normative-spec.mdx"
-
-<NormativeSpec
-  what="The honest challenger's behavior"
-  title="honest challenger specification"
-  href="https://specs.optimism.io/fault-proof/stage-one/honest-challenger-fdg.html"
-  note="This tutorial covers spinning up op-challenger; it does not restate the spec."
-/>
-
 After you have spun up your sequencer, batcher, and proposer, the final step is to configure a challenger to monitor and respond to disputes. The challenger is the security component that ensures the integrity of your rollup by monitoring dispute games and responding to invalid claims.
 
 <Info>

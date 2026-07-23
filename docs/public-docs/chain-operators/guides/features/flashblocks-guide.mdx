@@ -4,15 +4,6 @@ description: "Configure rollup-boost, op-rbuilder, and flashblocks-websocket-pro
 diataxis: how-to
 ---
 
-import { NormativeSpec } from "/snippets/normative-spec.mdx"
-
-<NormativeSpec
-  what="Flashblocks"
-  title="Flashblocks specification"
-  href="https://specs.optimism.io/protocol/flashblocks.html"
-  note="This guide covers deployment and configuration; it does not restate the spec."
-/>
-
 This guide shows how to enable Flashblocks on an OP Stack chain: running `rollup-boost` as the block-building coordination layer, streaming flashblocks from `op-rbuilder`, and serving the stream to RPC providers through `flashblocks-websocket-proxy` — in both single-sequencer and high-availability (HA) multi-sequencer setups.
 
 For what Flashblocks are, the component architecture, and the lifecycle of a flashblock, see the [Flashblocks explainer](/op-stack/features/flashblocks).
