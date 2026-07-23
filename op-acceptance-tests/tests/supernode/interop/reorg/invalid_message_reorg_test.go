@@ -39,10 +39,8 @@ func TestSupernodeLightSequencerInteropInvalidMessageReplacement(gt *testing.T) 
 	t := devtest.SerialT(gt)
 	// op-reth only: on op-geth the follower never adopts the deposits-only replacement.
 	sysgo.SkipOnOpGeth(t, "op-geth does not adopt the invalid-message replacement on the light path (#21119)")
-	// Bootstrap via the supernode VN sequencer and hand off to the light ELSync sequencers, then
-	// run the invalid-message scenario on the live chain.
-	sys := presets.NewTwoL2SupernodeLightSequencerInterop(t, 0, presets.WithSupernodeVNSequencerForBootstrap())
-	sys.BootstrapLightSequencersViaVNHandoff()
+	// Light CLs sequence from genesis; the batcher follows them (production wiring).
+	sys := presets.NewTwoL2SupernodeLightSequencerInterop(t, 0)
 	runInteropInvalidMessageReplacementScenario(t, sys)
 }
 
