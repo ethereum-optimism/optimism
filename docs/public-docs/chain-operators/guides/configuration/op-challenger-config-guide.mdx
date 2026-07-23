@@ -10,6 +10,14 @@ audit-source:
   - rust/op-reth/crates/node/src/args.rs
 ---
 
+import { NormativeSpec } from "/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="The honest challenger's behavior"
+  title="honest challenger specification"
+  href="https://specs.optimism.io/fault-proof/stage-one/honest-challenger-fdg.html"
+  note="This guide covers operational configuration; it does not restate the spec."
+/>
 
 This guide provides step-by-step instructions for setting up the configuration and monitoring options for `op-challenger`. The challenger is a critical fault proofs component that monitors dispute games and challenges invalid claims to protect your OP Stack chain.
 

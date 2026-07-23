@@ -1,0 +1,68 @@
+---
+title: proxyd
+description: Canonical hub for proxyd, the RPC request router and proxy, covering what it does, who runs it, and where its guide, configuration, releases, and source live.
+diataxis: explanation
+---
+
+proxyd is the OP Stack's RPC request router and proxy: a daemon that fronts a
+fleet of backend nodes and presents them to clients as one reliable RPC
+endpoint.
+
+## Overview
+
+proxyd whitelists RPC methods, routes them to groups of backend services,
+automatically retries failed backend requests, load-balances across backends,
+caches immutable responses, and exposes metrics for request latency, error
+rates, and backend health. In consensus-aware mode it additionally tracks
+each backend's `latest`, `safe`, and `finalized` blocks, resolves a consensus
+group of healthy backends, and rewrites requests and responses to enforce
+that consensus, so clients see a consistent view of the chain and experience
+fewer reorgs.
+
+It exists because serving production RPC traffic from a single node is
+fragile: one crashed, forked, or lagging backend becomes user-visible
+downtime. proxyd turns a pool of replicas into a fault-tolerant serving
+layer. It is infrastructure around the chain, not a protocol component.
+
+**Who runs it:** chain operators and RPC providers serving public or internal
+RPC from a pool of replica nodes. It is also the recommended front for a
+high-availability pool of op-supernode instances.
+
+## Get started
+
+*   [proxyd](/chain-operators/tools/proxyd): build the binary, create a
+    configuration file, and start the service.
+
+## How-tos
+
+*   [Network architecture](/chain-operators/guides/management/network-architecture):
+    where proxyd sits in a production topology, including running public RPC
+    behind proxyd in consensus-aware routing mode.
+*   [Supernode configuration](/node-operators/guides/configuration/supernode):
+    front a high-availability pool of op-supernode instances with a
+    consensus-aware proxyd.
+
+## Configuration & flags reference
+
+proxyd is configured through a TOML file rather than CLI flags, and no
+generated configuration reference exists on this site yet.
+
+*   [example.config.toml](https://github.com/ethereum-optimism/infra/blob/main/proxyd/example.config.toml):
+    the full list of options, with commentary, in the proxyd source.
+*   The [proxyd guide](/chain-operators/tools/proxyd) documents the
+    consensus-awareness, caching, and metrics settings.
+
+## Releases
+
+*   [proxyd release history](/releases/proxyd)
+
+## Source & spec links
+
+*   [Source: `proxyd/`](https://github.com/ethereum-optimism/infra/tree/main/proxyd)
+    in the Optimism infra repository, the monorepo's extension repository for
+    ecosystem infrastructure; its
+    [README](https://github.com/ethereum-optimism/infra/blob/main/proxyd/README.md)
+    documents the request lifecycle, WebSocket support, and consensus
+    awareness.
+*   proxyd is RPC infrastructure and has no section of its own in the
+    OP Stack specifications.

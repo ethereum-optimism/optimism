@@ -1,0 +1,72 @@
+---
+title: kona-host
+description: Canonical hub for kona-host, the fault proof host that serves preimage data to kona-client, covering what it does, who runs it, and where its guides, releases, source, and spec live.
+diataxis: explanation
+---
+
+kona-host is the OP Stack's fault proof host program: a native Rust binary,
+built as part of the [Kona](/rust/kona/intro/overview) project, that runs the
+preimage server supplying chain data to
+[kona-client](/op-stack/components/kona-client) while it executes.
+
+## Overview
+
+kona-client runs with no network access, so it cannot fetch chain data
+itself: everything it reads arrives as a preimage requested by key over the
+preimage oracle ABI. kona-host is the other end of that channel. It fetches
+the requested data (L1 headers, transactions, receipts, blobs, L2 state)
+from its configured L1, L1 beacon, and L2 endpoints, responds to the
+client's hints so the right preimages are ready when asked for, and serves
+them back. Without it, the
+fault proof program would have no way to learn the chain state it is asked
+to verify.
+
+kona-host runs in `single` mode (one pre-interop chain) or `super` mode (an
+interop superchain cluster), and its preimage server starts in one of two
+ways: `server` mode, where it only serves preimages to a client program run
+by an FPVM (when [cannon](/op-stack/components/cannon) executes kona-client,
+it launches kona-host as a subprocess, passing the host command after a `--`
+separator on `cannon run`), and `native` mode, where kona-host runs
+kona-client itself in a native process, useful for witness generation and
+testing.
+
+**Who runs it:** dispute game participants, indirectly:
+[op-challenger](/op-stack/fault-proofs/challenger)'s `--cannon-kona-server`
+flag points at a kona-host binary, which cannon launches when a fault
+dispute reaches the execution-trace stage. Developers also run it directly
+in native mode to execute kona-client without an FPVM.
+
+## Get started
+
+*   [kona-host usage](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/bin/host#usage):
+    the in-repo README documents the host modes, the preimage server modes,
+    and the CLI surface.
+
+## How-tos
+
+*   [Run a fault-proof challenger](/use-cases/run-a-fault-proof-challenger):
+    stand up an op-challenger deployment, including pointing
+    `--cannon-kona-server` at a kona-host build that matches the configured
+    prestate.
+*   [Spin up challenger](/chain-operators/tutorials/create-l2-rollup/op-challenger-setup):
+    configure op-challenger for a new chain, including where to get the
+    kona-host binary it needs.
+
+## Configuration & flags reference
+
+*   kona-host has no configuration reference page on this site yet; it is
+    configured entirely through CLI flags, documented by `kona-host --help`
+    and the
+    [in-repo README](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/bin/host#usage).
+
+## Releases
+
+*   [kona-host release history](/releases/kona-host)
+
+## Source & spec links
+
+*   [Source: `rust/kona/bin/host`](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/bin/host)
+    in the Optimism monorepo.
+*   [Pre-image oracle specification](https://specs.optimism.io/fault-proof/index.html#pre-image-oracle):
+    the normative definition of the ABI kona-host implements, including the
+    preimage key types, hinting, and bootstrapping.

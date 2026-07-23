@@ -6,7 +6,7 @@ diataxis: how-to
 <Note>
 Building from source requires that the Rust toolchain is installed, as well as the `just` command runner.
 
-Visit the [Prerequisites](/rust/kona/node/install/overview) for details on installing Rust and `just`.
+Visit the [Prerequisites](/node-operators/kona-node/install/overview) for details on installing Rust and `just`.
 </Note>
 
 First clone the repository:
@@ -71,7 +71,7 @@ the `rust-version` key in kona's [Cargo.toml](https://github.com/ethereum-optimi
 If compilation fails with `(signal: 9, SIGKILL: kill)`, this could mean
 your machine ran out of memory during compilation. If you are on Docker,
 consider increasing the memory of the container, or use a [pre-built
-binary](/rust/kona/node/install/binaries).
+binary](/node-operators/kona-node/install/binaries).
 
 If compilation fails with `error: linking with cc failed: exit code: 1`,
 try running `cargo clean`.
@@ -79,5 +79,5 @@ try running `cargo clean`.
 ## Next Steps
 
 - Read the [Overview](/rust/kona/intro/overview) to understand Kona's architecture
-- Check out the [Binaries](/rust/kona/node/run/binary) documentation
+- Check out the [Binaries](/node-operators/kona-node/run/binary) documentation
 - Explore the [Examples](/rust/kona/sdk/examples/intro)

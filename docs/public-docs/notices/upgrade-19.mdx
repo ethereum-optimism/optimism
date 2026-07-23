@@ -80,7 +80,7 @@ Because Upgrade 19 includes hard fork changes (Osaka on L2 and Glamsterdam Defen
   **Chains in the superchain-registry** (e.g. `Soneium`, `Ink`, `Unichain`, `Mode`, `Metal`, `Zora`):
   The Karst activation timestamp is built into the updated releases — no manual timestamp configuration is needed. Make sure you are using the network flag so that op-node and op-reth load chain config from the superchain-registry:
   * `op-node`: [`--network <network>`](/node-operators/reference/op-node-config#network-and-rollup-config) (e.g. `--network soneium-mainnet`, `--network op-sepolia`)
-  * `op-reth`: [`--chain <network>`](/rust/op-reth/cli/op-reth/node) (e.g. `--chain soneium`, `--chain unichain`)
+  * `op-reth`: [`--chain <network>`](/node-operators/op-reth/cli/op-reth/node) (e.g. `--chain soneium`, `--chain unichain`)
 
   **Chains not in the superchain-registry:**
   Set the activation timestamp manually in each client's config:

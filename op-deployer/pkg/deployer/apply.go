@@ -108,32 +108,42 @@ func ApplyCLI() func(cliCtx *cli.Context) error {
 			return err
 		}
 
-		if !cliCtx.Bool(AutoVerifyFlag.Name) {
+		if depTarget != DeploymentTargetLive {
+			return nil
+		}
+		if cliCtx.Bool(NoVerifyFlag.Name) {
+			l.Warn("Contract verification skipped", "reason", "--no-verify was set")
 			return nil
 		}
 
 		stateFile := fmt.Sprintf("%s/state.json", workdir)
-		chainID, err := ChainIDFromRPC(ctx, l1RPCUrl)
-		if err != nil {
-			return fmt.Errorf("failed to get chain ID: %w", err)
-		}
+		if err := func() error {
+			chainID, err := ChainIDFromRPC(ctx, l1RPCUrl)
+			if err != nil {
+				return fmt.Errorf("failed to get chain ID: %w", err)
+			}
 
-		intent, err := pipeline.ReadIntent(workdir)
-		if err != nil {
-			return fmt.Errorf("failed to read intent: %w", err)
-		}
+			intent, err := pipeline.ReadIntent(workdir)
+			if err != nil {
+				return fmt.Errorf("failed to read intent: %w", err)
+			}
 
-		return verify.AutoVerify(
-			ctx,
-			l,
-			l1RPCUrl,
-			bigs.Uint64Strict(chainID),
-			stateFile,
-			intent.L1ContractsLocator,
-			cliCtx.String(VerifierTypeFlagName),
-			cliCtx.String(VerifierUrlFlagName),
-			cliCtx.String(VerifierAPIKeyFlagName),
-		)
+			return verify.AutoVerify(
+				ctx,
+				l,
+				l1RPCUrl,
+				bigs.Uint64Strict(chainID),
+				stateFile,
+				stateFile,
+				intent.L1ContractsLocator,
+				cliCtx.String(VerifierTypeFlagName),
+				cliCtx.String(VerifierUrlFlagName),
+				cliCtx.String(VerifierAPIKeyFlagName),
+			)
+		}(); err != nil {
+			verify.LogAutoVerifyFailure(l, stateFile, err)
+		}
+		return nil
 	}
 }
 

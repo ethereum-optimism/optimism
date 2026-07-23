@@ -9,8 +9,7 @@ use alloy_primitives::Address;
 use crate::FJORD_MAX_SEQUENCER_DRIFT;
 use crate::{
     AddressList, AltDAConfig, BaseFeeConfig, ChainGenesis, GRANITE_CHANNEL_TIMEOUT, HardForkConfig,
-    Roles, RollupConfig, SuperchainLevel, base_fee_params, base_fee_params_canyon,
-    params::base_fee_config,
+    Roles, RollupConfig, base_fee_params, base_fee_params_canyon, params::base_fee_config,
 };
 
 /// L1 chain configuration from the `alloy-genesis` crate.
@@ -52,9 +51,6 @@ pub struct ChainConfig {
     /// Chain explorer HTTP endpoint
     #[cfg_attr(feature = "serde", serde(rename = "Explorer", alias = "explorer"))]
     pub explorer: String,
-    /// Level of integration with the superchain.
-    #[cfg_attr(feature = "serde", serde(rename = "SuperchainLevel", alias = "superchain_level"))]
-    pub superchain_level: SuperchainLevel,
     /// Whether the chain is governed by optimism.
     #[cfg_attr(
         feature = "serde",
@@ -209,7 +205,6 @@ mod tests {
             "PublicRPC": "https://mainnet.base.org",
             "SequencerRPC": "https://mainnet-sequencer.base.org",
             "Explorer": "https://explorer.base.org",
-            "SuperchainLevel": 1,
             "GovernedByOptimism": false,
             "SuperchainTime": 0,
             "DataAvailabilityType": "eth-da",
@@ -295,6 +290,14 @@ mod tests {
     }
 
     #[test]
+    fn test_chain_config_rejects_superchain_level() {
+        let mut toml_src = include_str!("../../tests/fixtures/rehearsal-0-bn-0.toml").to_string();
+        toml_src.insert_str(0, "superchain_level = 0\n");
+        let err = toml::from_str::<ChainConfig>(&toml_src).unwrap_err();
+        assert!(err.to_string().contains("unknown field `superchain_level`"));
+    }
+
+    #[test]
     fn test_chain_config_without_interop_skipped_in_json() {
         // ChainConfig::default() has interop: None; serializing must omit the key entirely.
         let cfg = ChainConfig::default();
@@ -313,7 +316,6 @@ mod tests {
             "PublicRPC": "https://mainnet.base.org",
             "SequencerRPC": "https://mainnet-sequencer.base.org",
             "Explorer": "https://explorer.base.org",
-            "SuperchainLevel": 1,
             "GovernedByOptimism": false,
             "SuperchainTime": 0,
             "DataAvailabilityType": "eth-da",

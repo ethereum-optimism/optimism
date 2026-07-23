@@ -8,7 +8,21 @@ diataxis: tutorial
   **op-geth has reached end-of-support (2026-05-31) and does not support the now-active Karst hardfork, so op-geth nodes can no longer follow the canonical chain.** This tutorial runs op-reth (the primary supported execution client) via Docker. See the [op-geth deprecation notice](/notices/op-geth-deprecation) for the full migration plan.
 </Warning>
 
+<Info>
+  **Learn the OP Stack — stop 13 of 13.**
+  You've learned the stack from concepts to cross-layer flows. In this
+  capstone you run an OP Stack node on a live network with the official
+  Docker images. When it syncs, you've finished the track: head back to
+  [Learn the OP Stack](/op-stack/learn/index) for where to go next.
+</Info>
+
 This tutorial runs an OP Stack node using the **official op-reth and op-node Docker images** in a single `docker-compose.yml`. No source build required.
+
+<Info>
+  To run the Rust consensus client instead of op-node, see the
+  [kona-node Docker guide](/node-operators/kona-node/run/docker), which ships
+  its own docker-compose recipe for a kona-node + op-reth stack.
+</Info>
 
 <Warning>
   **OP Mainnet requires a one-time pre-Bedrock state import.** OP Sepolia does not. If you point this tutorial at OP Mainnet on a fresh datadir, op-reth will fail at startup with `Op-mainnet has been launched without importing the pre-Bedrock state`. Before running OP Mainnet, follow the [op-reth sync-op-mainnet guide](https://reth.rs/run/sync-op-mainnet.html) to either restore from a [pre-synced snapshot](https://datadirs.optimism.io/) or run the minimal-bootstrap import. OP Sepolia bootstraps via snap sync with no extra steps — start there if you're just testing the setup.

@@ -2011,6 +2011,8 @@ jobs:
             echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_KONA_SP1_SUPER_RANGE_EXECUTOR=$BIN_DIR/kona-sp1-super-range-executor" >> "$BASH_ENV"
+            echo "export KONA_SP1_ELF_DIR=$ROOT_DIR/rust/kona/sp1/elf" >> "$BASH_ENV"
+            test -s "$ROOT_DIR/rust/kona/sp1/elf/vkeys.toml"
       - run:
           name: Configure L2 stack
           command: |
@@ -2628,6 +2630,12 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
+      # The ZK dispute-game acceptance tests consume the generated
+      # super-aggregation vkey from this job's workspace artifact.
+      - kona-build-sp1-elfs:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
       - rust-build-vendored: &rust-build-op-rbuilder
           name: rust-build-op-rbuilder
           directory: rust/op-rbuilder
@@ -2684,6 +2692,7 @@ workflows:
             - rust-binaries-for-sysgo
             - go-binaries-for-sysgo
             - prep-go-modules
+            - kona-build-sp1-elfs
             # for the gitignored superchain-configs.zip op-acceptance-tests //go:embeds
             - prep-superchain
       # IN-MEMORY - kona/op-reth
@@ -2704,6 +2713,7 @@ workflows:
             - rust-binaries-for-sysgo
             - go-binaries-for-sysgo
             - prep-go-modules
+            - kona-build-sp1-elfs
             # for the gitignored superchain-configs.zip op-acceptance-tests //go:embeds
             - prep-superchain
       # Gate job - single stable job used as GitHub required status check for develop.

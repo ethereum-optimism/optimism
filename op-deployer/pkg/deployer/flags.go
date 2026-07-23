@@ -123,19 +123,19 @@ var (
 	}
 	VerifierFlag = &cli.StringFlag{
 		Name:    VerifierTypeFlagName,
-		Usage:   "contract verifier type(s) to use. Comma-separated for multiple verifiers. Options: etherscan (default), blockscout, custom. Example: etherscan,blockscout",
+		Usage:   "contract verifier type(s) to use. Comma-separated for multiple verifiers. Options: etherscan, blockscout, custom. Defaults to etherscan and blockscout",
 		EnvVars: PrefixEnvVar("VERIFIER_TYPE"),
-		Value:   "etherscan",
+		Value:   "etherscan,blockscout",
 	}
 	VerifierUrlFlag = &cli.StringFlag{
 		Name:    VerifierUrlFlagName,
 		Usage:   "verifier URL (optional for blockscout, required for custom, ignored for etherscan)",
 		EnvVars: PrefixEnvVar("VERIFIER_URL"),
 	}
-	AutoVerifyFlag = &cli.BoolFlag{
-		Name:    "verify",
-		Usage:   "automatically verify contracts after deployment",
-		EnvVars: PrefixEnvVar("VERIFY"),
+	NoVerifyFlag = &cli.BoolFlag{
+		Name:    "no-verify",
+		Usage:   "skip automatic contract verification after deployment",
+		EnvVars: PrefixEnvVar("NO_VERIFY"),
 		Value:   false,
 	}
 	UseForgeFlag = &cli.BoolFlag{
@@ -175,7 +175,7 @@ var ApplyFlags = []cli.Flag{
 	WorkdirFlag,
 	PrivateKeyFlag,
 	DeploymentTargetFlag,
-	AutoVerifyFlag,
+	NoVerifyFlag,
 	VerifierAPIKeyFlag,
 	VerifierFlag,
 	VerifierUrlFlag,

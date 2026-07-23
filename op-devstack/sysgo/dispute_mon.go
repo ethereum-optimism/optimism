@@ -8,6 +8,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	disputeMon "github.com/ethereum-optimism/optimism/op-dispute-mon"
 	disputeMonConfig "github.com/ethereum-optimism/optimism/op-dispute-mon/config"
+	disputeMonService "github.com/ethereum-optimism/optimism/op-dispute-mon/mon"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -18,6 +20,7 @@ type DisputeMonConfig struct {
 	RollupRPCs         []string
 	SupernodeRPCs      []string
 	HonestActors       []common.Address
+	Clock              clock.Clock
 }
 
 type DisputeMonRuntime struct {
@@ -49,8 +52,13 @@ func StartDisputeMon(t devtest.T, input DisputeMonConfig) *DisputeMonRuntime {
 		ListenPort: 0,
 	}
 
+	var serviceOptions []disputeMonService.ServiceOption
+	if input.Clock != nil {
+		serviceOptions = append(serviceOptions, disputeMonService.WithClock(input.Clock))
+	}
+
 	logger := t.Logger().New("component", "op-dispute-mon")
-	service, err := disputeMon.Main(t.Ctx(), logger, &cfg)
+	service, err := disputeMon.Main(t.Ctx(), logger, &cfg, serviceOptions...)
 	require.NoError(err, "create dispute monitor service")
 	metricsAddr := service.MetricsAddr()
 	require.NotNil(metricsAddr, "dispute monitor metrics address")
