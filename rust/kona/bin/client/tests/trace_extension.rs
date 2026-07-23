@@ -2,7 +2,10 @@ use alloy_consensus::Header;
 use alloy_primitives::B256;
 use async_trait::async_trait;
 use kona_client::single::{FaultProofProgramError, run};
-use kona_preimage::{HintWriterClient, PreimageKey, errors::PreimageOracleResult};
+use kona_preimage::{
+    HintWriterClient, L1_HEAD_KEY, L2_CHAIN_ID_KEY, L2_CLAIM_BLOCK_NUMBER_KEY, L2_CLAIM_KEY,
+    L2_OUTPUT_ROOT_KEY, PreimageKey, errors::PreimageOracleResult,
+};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
 
@@ -35,14 +38,15 @@ fn setup_preimages(
 ) -> HashMap<PreimageKey, Vec<u8>> {
     let mut preimages = HashMap::new();
 
-    // BootInfo local keys (see `kona_proof::boot`):
-    // 1: L1 head hash, 2: agreed output root, 3: claimed output root, 4: claimed block number,
-    // 5: chain id.
-    preimages.insert(PreimageKey::new_local(1), b256(0x11).as_slice().to_vec());
-    preimages.insert(PreimageKey::new_local(2), agreed_root.as_slice().to_vec());
-    preimages.insert(PreimageKey::new_local(3), claimed_root.as_slice().to_vec());
-    preimages.insert(PreimageKey::new_local(4), claimed_block_number.to_be_bytes().to_vec());
-    preimages.insert(PreimageKey::new_local(5), 10u64.to_be_bytes().to_vec());
+    preimages.insert(PreimageKey::new_local(L1_HEAD_KEY.to()), b256(0x11).as_slice().to_vec());
+    preimages
+        .insert(PreimageKey::new_local(L2_OUTPUT_ROOT_KEY.to()), agreed_root.as_slice().to_vec());
+    preimages.insert(PreimageKey::new_local(L2_CLAIM_KEY.to()), claimed_root.as_slice().to_vec());
+    preimages.insert(
+        PreimageKey::new_local(L2_CLAIM_BLOCK_NUMBER_KEY.to()),
+        claimed_block_number.to_be_bytes().to_vec(),
+    );
+    preimages.insert(PreimageKey::new_local(L2_CHAIN_ID_KEY.to()), 10u64.to_be_bytes().to_vec());
 
     // Output root preimage for `fetch_safe_head_hash(...)`. The safe head hash is read from
     // bytes [96..128].

@@ -26,6 +26,9 @@ abstract contract PastNUTBundles_TestInit is Test {
 
     /// @notice L2ContractsManager address encoded by the committed Karst NUT bundle.
     address internal constant KARST_L2CM = 0x5398A70Eb0929dd7bfc73c59E7137d8C7CDF6669;
+
+    /// @notice L2ContractsManager address encoded by the committed Lagoon NUT bundle.
+    address internal constant LAGOON_L2CM = 0x82c0BB44c86bBB1620583890B2af560382AA83c8;
 }
 
 /// @title PastNUTBundles_OrderTarget
@@ -311,6 +314,55 @@ contract PastNUTBundles_applyPastBundles_Test is PastNUTBundles_TestInit {
         PastNUTBundles.applyPastBundles(currentTxns, script, entries);
     }
 
+    /// @notice A prior bundle already applied to the fork is skipped.
+    function testFuzz_applyPastBundles_skipsWhenAlreadyApplied_succeeds(address _l2cm) public {
+        vm.assume(_l2cm != address(0) && _l2cm != KARST_L2CM);
+        ExecuteNUTBundle script = new ExecuteNUTBundle();
+
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory currentTxns = new NetworkUpgradeTxns.NetworkUpgradeTxn[](1);
+        currentTxns[0] = NetworkUpgradeTxns.NetworkUpgradeTxn({
+            data: abi.encodeCall(IL2ProxyAdmin.upgradePredeploys, (_l2cm)),
+            from: address(0),
+            gasLimit: 0,
+            intent: "L2ProxyAdmin Upgrade Predeploys",
+            to: Predeploys.PROXY_ADMIN
+        });
+
+        PastNUTBundles.NUTBundle[] memory entries = new PastNUTBundles.NUTBundle[](1);
+        entries[0] = PastNUTBundles.NUTBundle({ fork: "karst", path: KARST_BUNDLE_PATH });
+
+        // Simulate a fork that already activated Karst
+        vm.etch(Predeploys.CONDITIONAL_DEPLOYER, hex"01");
+        vm.etch(KARST_L2CM, hex"01");
+
+        // The executor must not run
+        vm.expectCall(address(script), abi.encodePacked(ExecuteNUTBundle.executeAll.selector), 0);
+        PastNUTBundles.applyPastBundles(currentTxns, script, entries);
+    }
+
+    /// @notice A prior bundle whose L2CM is absent is still applied even when the ConditionalDeployer
+    ///         predeploy already has code since a fork later than that prior bundle's activation deploys
+    ///         the ConditionalDeployer without applying every earlier prior bundle.
+    function test_applyPastBundles_appliesWhenOnlyConditionalDeployerPresent_succeeds() public {
+        ExecuteNUTBundle script = new ExecuteNUTBundle();
+
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory karstTxns = NetworkUpgradeTxns.readArtifact(KARST_BUNDLE_PATH);
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory lagoonTxns = NetworkUpgradeTxns.readArtifact(LAGOON_BUNDLE_PATH);
+
+        PastNUTBundles.NUTBundle[] memory entries = new PastNUTBundles.NUTBundle[](1);
+        entries[0] = PastNUTBundles.NUTBundle({ fork: "lagoon", path: LAGOON_BUNDLE_PATH });
+
+        // ConditionalDeployer has code (Karst ran) but the Lagoon L2CM does not: Lagoon is not yet
+        // applied, so its bundle must still be executed.
+        vm.etch(Predeploys.CONDITIONAL_DEPLOYER, hex"01");
+        assertEq(LAGOON_L2CM.code.length, 0, "Lagoon L2CM should have no code in this test");
+
+        vm.mockCall(address(script), abi.encodePacked(ExecuteNUTBundle.executeAll.selector), "");
+        // current == karst so the prior Lagoon entry is not skipped by the "L2CM matches current" rule.
+        vm.expectCall(address(script), abi.encodeCall(ExecuteNUTBundle.executeAll, (lagoonTxns)), 1);
+        PastNUTBundles.applyPastBundles(karstTxns, script, entries);
+    }
+
     /// @notice Multiple entries are evaluated independently: entries with matching L2CMs are
     ///         skipped while entries with different L2CMs are applied.
     function test_applyPastBundles_multipleEntriesSkipOneApplyOther_succeeds() public {
@@ -328,5 +380,35 @@ contract PastNUTBundles_applyPastBundles_Test is PastNUTBundles_TestInit {
         vm.expectCall(address(script), abi.encodeCall(ExecuteNUTBundle.executeAll, (lagoonTxns)), 1);
 
         PastNUTBundles.applyPastBundles(karstTxns, script, entries);
+    }
+}
+
+/// @title PastNUTBundles_isBundleApplied_Test
+contract PastNUTBundles_isBundleApplied_Test is PastNUTBundles_TestInit {
+    /// @notice Fresh pre-Karst fork which has neither signal present, so no bundle is considered applied.
+    function testFuzz_isBundleApplied_neitherPresent_succeeds(address _l2cm) public view {
+        vm.assume(_l2cm.code.length == 0);
+        assertFalse(PastNUTBundles.isBundleApplied(_l2cm));
+    }
+
+    /// @notice ConditionalDeployer present but the bundle's L2CM absent in which a later fork deployed the
+    ///         ConditionalDeployer without applying this bundle and not considered applied.
+    function testFuzz_isBundleApplied_onlyConditionalDeployer_succeeds(address _l2cm) public {
+        vm.assume(_l2cm != Predeploys.CONDITIONAL_DEPLOYER && _l2cm.code.length == 0);
+        vm.etch(Predeploys.CONDITIONAL_DEPLOYER, hex"01");
+        assertFalse(PastNUTBundles.isBundleApplied(_l2cm));
+    }
+
+    /// @notice L2CM present but ConditionalDeployer absent so not considered applied.
+    function test_isBundleApplied_onlyL2CM_succeeds() public {
+        vm.etch(KARST_L2CM, hex"01");
+        assertFalse(PastNUTBundles.isBundleApplied(KARST_L2CM));
+    }
+
+    /// @notice Post-activation fork in which both CD and L2CM present, so the bundle is considered applied.
+    function test_isBundleApplied_bothPresent_succeeds() public {
+        vm.etch(Predeploys.CONDITIONAL_DEPLOYER, hex"01");
+        vm.etch(KARST_L2CM, hex"01");
+        assertTrue(PastNUTBundles.isBundleApplied(KARST_L2CM));
     }
 }

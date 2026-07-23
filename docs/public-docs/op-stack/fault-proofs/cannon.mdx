@@ -2,6 +2,7 @@
 title: 'Fault proof VM: Cannon'
 description: Learn about Cannon and its default operation as part of Optimism's Fault Proof
   Virtual Machine.
+diataxis: explanation
 ---
 Cannon is an instance of a Fault Proof Virtual Machine (FPVM) that can be used as part of the Dispute Game for any OP Stack Blockchain.
 The Dispute Game itself is modular, allowing for any FPVM to be used in a dispute.
@@ -201,17 +202,17 @@ The PreimageOracle Server connection is instantiated in `run.go`, where the serv
 `mips.go` communicates with the PreimageOracle Server when reading and writing Pre-images as part of MIPS syscall instructions,
 as well as hinting to the PreimageOracle Server.
 
-The OP-stack fault-proof [Pre-image Oracle specs](https://specs.optimism.io/experimental/fault-proof/index.html?utm_source=op-docs&utm_medium=docs#pre-image-oracle)
+The OP-stack fault-proof [Pre-image Oracle specs](https://specs.optimism.io/fault-proof/index.html?utm_source=op-docs&utm_medium=docs#pre-image-oracle)
 define the ABI for communicating pre-images.
 
-This ABI is implemented by the VM by intercepting the `read`/`write` syscalls to specific file descriptors. See [Cannon VM Specs](https://specs.optimism.io/experimental/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs#io) for more details.
+This ABI is implemented by the VM by intercepting the `read`/`write` syscalls to specific file descriptors. See [Cannon VM Specs](https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs#io) for more details.
 
 Note that although the oracle provides up to 32 bytes of the pre-image,
 Cannon only supports reading at most 4 bytes at a time, to unify the memory operations with 32-bit load/stores.
 
 ## Further Reading
 
-*   [Cannon FPVM Specification](https://specs.optimism.io/experimental/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs)
+*   [Cannon FPVM Specification](https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs)
 *   [Merkle Proofs Specification](https://github.com/ethereum/consensus-specs/blob/dev/ssz/merkle-proofs.md)
 *   [Executable and Linkable Format (ELF)](https://en.wikipedia.org/wiki/Executable_and_Linkable_Format)
 *   [Keys in Mordor Summit: Cannon & Fault Proofs](https://www.youtube.com/watch?v=ASLMj70V0Ao)

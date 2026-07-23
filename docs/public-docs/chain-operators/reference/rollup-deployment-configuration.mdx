@@ -1,0 +1,244 @@
+---
+title: Rollup deployment configuration
+description: Reference for the OP Stack rollup deployment configuration values.
+diataxis: reference
+---
+
+import DeployConfigSchema from '/snippets/generated/deploy-config-schema.mdx';
+
+This page is the reference for the values in the `DeployConfig` — the flat JSON
+configuration that sets the L1 contract parameters and the L2 genesis state when
+an OP Stack chain is deployed.
+
+The schema tables below are generated directly from the `DeployConfig` Go
+struct tree in the monorepo (`op-chain-ops/genesis`) at a finalized op-deployer
+release, so the field list, JSON keys, types, and descriptions cannot silently
+fall behind the source. Recommended values and standard-configuration
+requirements are policy rather than code, and are maintained by hand in the
+[guidance section](#guidance-and-standard-configuration-requirements) below.
+
+<Info>
+  **The recommended way to deploy an OP Stack chain is [OP Deployer](/chain-operators/tools/op-deployer/overview).**
+  OP Deployer takes a declarative [intent file](/chain-operators/tools/op-deployer/usage/init) (`intent.toml`)
+  rather than a hand-written `DeployConfig` JSON, and derives the `DeployConfig`
+  documented here from that intent as part of its deployment pipeline. Most chain
+  operators set the intent file and never edit a `DeployConfig` directly.
+
+  This page documents the underlying `DeployConfig` surface: the exhaustive set of
+  values a deployment ultimately resolves to. Use it to understand what an intent
+  setting maps to, to interpret the `DeployConfig` that OP Deployer can emit for an
+  applied deployment (via `op-deployer inspect deploy-config`), or as background for
+  the lower-level [custom deployments](/chain-operators/tools/op-deployer/usage/custom-deployments)
+  OP Deployer also supports.
+</Info>
+
+<Info>
+  Deploy-config values are largely immutable after a chain is deployed, so this page targets the values you set at genesis.
+  The output-oracle proposal fields (the [`l2OutputOracle*` values](#legacy-output-oracle)) describe the legacy `L2OutputOracle` proposal system and apply only to chains still on that system. Chains using [permissionless fault proofs](/op-stack/fault-proofs/explainer) — the standard configuration for new OP Stack chains — set the [fault-proof deployment values](#fault-proofs) instead: `useFaultProofs` together with the `faultGame*`, `preimageOracle*`, `proofMaturityDelaySeconds`, `disputeGameFinalityDelaySeconds`, and `respectedGameType` fields.
+</Info>
+
+<Info>
+  Standard configuration is the set of requirements for an OP Stack chain to be
+  considered a Standard Chain within the OP Stack. These requirements are
+  currently a draft, pending governance approval. For more details, please see
+  this [governance thread](https://gov.optimism.io/t/season-6-draft-standard-rollup-charter/8135)
+  and the actual requirements in the [OP Stack Configurability Specification](https://specs.optimism.io/protocol/configurability.html?utm_source=op-docs&utm_medium=docs).
+</Info>
+
+## Configuration values
+
+<DeployConfigSchema />
+
+## Guidance and standard-configuration requirements
+
+The tables above are the exhaustive schema. This section carries the
+hand-maintained guidance for the values chain operators most often need to
+reason about: recommended values, validation constraints, and the
+standard-configuration requirements from the draft
+[Standard Rollup Charter](https://gov.optimism.io/t/season-6-draft-standard-rollup-charter/8135).
+
+### Hardfork activation guidance
+
+*   The standard configuration requires network upgrades (hardforks) to be
+    activated. New chains set each `l2Genesis<Fork>TimeOffset` to `"0x0"` so
+    every governance-approved upgrade is active at genesis; a nil (omitted)
+    offset disables the fork.
+*   Later forks cannot activate before earlier ones, and two forks cannot
+    activate at the same post-genesis time.
+*   The interoperability hardfork activation offset is a non-standard feature:
+    interoperability is still [experimental](https://specs.optimism.io/interop/overview.html?utm_source=op-docs&utm_medium=docs).
+
+### Roles and ownership requirements
+
+*   `finalSystemOwner`: must not be `address(0)`. It is recommended to have a
+    single admin address to retain a common security model. Standard
+    configuration: must be the Chain Governor or Servicer; however, the L1
+    ProxyAdmin owner must be held by the Optimism Security Council. At the
+    moment, the L1 ProxyAdmin owner is transferred from the Chain Governor or
+    Servicer to [0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A](https://etherscan.io/address/0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A).
+*   `proxyAdminOwner`: owns the `ProxyAdmin` predeploy on L2, which owns all of
+    the Proxy contracts for every predeployed contract in the range
+    `0x42...0000` to `0x42...2048`, making predeploys upgradeable. Must not be
+    `address(0)`; a single admin address is recommended.
+*   `superchainConfigGuardian`: standard configuration requires
+    [0x09f7150D8c019BeF34450d6920f6B3608ceFdAf2](https://etherscan.io/address/0x09f7150D8c019BeF34450d6920f6B3608ceFdAf2),
+    a 1/1 Safe owned by the Security Council Safe, with the
+    [Deputy Pause Module](https://specs.optimism.io/protocol/deputy-pause-module.html?utm_source=op-docs&utm_medium=docs)
+    enabled to allow the Optimism Foundation to act as Pause Deputy.
+*   `p2pSequencerAddress` and `batchSenderAddress`: hot-key addresses you
+    control — the sequencer's block-signing key and the batcher account whose
+    transactions to the batch inbox are considered valid. Neither may be
+    `address(0)`. `batchSenderAddress` can be updated later via the
+    `SystemConfig` contract on L1. No standard requirement.
+*   The [L1 dependency addresses](#l1-dependency-addresses)
+    (`l1StandardBridgeProxy`, `l1CrossDomainMessengerProxy`,
+    `l1ERC721BridgeProxy`, `systemConfigProxy`, `optimismPortalProxy`): filled
+    in from the L1 deployment rather than hand-configured; none of them may be
+    `address(0)`. Standard
+    configuration requires the implementation contracts to be the most
+    up-to-date, governance-approved version of the OP Stack codebase — and, if
+    the chain has been upgraded in the past, that the previous versions were a
+    standard release of the codebase.
+
+### Sequencing and batching guidance
+
+*   `l2BlockTime`: must be nonzero, a whole number, and less than the L1 block
+    time (12 seconds on Ethereum mainnet and Sepolia). Standard configuration:
+    1 or 2 seconds.
+*   `maxSequencerDrift`: must be nonzero. 1800 (30 minutes) is the constant
+    that takes effect with the
+    [Fjord activation](/op-stack/protocol/network-upgrades#activations).
+*   `sequencerWindowSize`: must be nonzero. Standard configuration: 3\_600 base
+    layer blocks (12 hours for an L2 on Ethereum, assuming 12 second L1
+    blocktime). This is an important value for constraining the sequencer's
+    ability to re-order transactions; higher values would pose a risk to user
+    protections.
+*   `channelTimeout`: the default of 50 was introduced in the
+    [Granite network upgrade](/op-stack/protocol/network-upgrades#activations).
+*   `batchInboxAddress`: standard configuration convention is
+    `versionByte || keccak256(bytes32(chainId))[:19]`, where `||` denotes
+    concatenation, `versionByte` is `0x00`, and `chainId` is a `uint256`. This
+    covers the full range of chain IDs, up to the full `uint256` size:
+
+    ```solidity
+    bytes32 hash = keccak256(abi.encodePacked(bytes32(uint256(chainId))));
+    // take the first 19 bytes of the hash, then prepend a version byte of 0x00
+    // batchInboxAddress = 0x00{hash[:19]}
+    ```
+*   `systemConfigStartBlock`: standard configuration: the block where the
+    `SystemConfig` was initialized.
+*   `l1StartingBlockTag`: it is generally recommended to use a finalized L1
+    block to avoid issues with reorgs.
+
+### Chain ID requirements
+
+*   `l1ChainID`: must be nonzero. 1 for Ethereum mainnet, 11155111 for the
+    Sepolia test network; see [chainlist](https://chainlist.org/?testnets=true)
+    for other networks. Standard configuration: 1 (Ethereum).
+*   `l2ChainID`: must be nonzero and, for security reasons, unique. Standard
+    configuration: a Foundation-approved, globally unique value. Chains should
+    add their chain IDs to
+    [ethereum-lists/chains](https://github.com/ethereum-lists/chains).
+
+### Gas and fee guidance
+
+*   `l2GenesisBlockGasLimit`: must be nonzero and greater than
+    `MaxResourceLimit + SystemTxMaxGas` (the gas a deposit plus the system
+    transaction can use). Standard configuration: no higher than 200\_000\_000
+    gas; chain operators are driven to maintain a stable and reliable chain,
+    so careful deliberation is necessary when considering a change.
+*   `l2GenesisBlockBaseFeePerGas`: cannot be nil.
+*   `gasPriceOracleBaseFeeScalar` and `gasPriceOracleBlobBaseFeeScalar`: should
+    not be 0. Standard configuration: set such that the fee margin is between
+    0 and 50%. See [transaction fees](/op-stack/transactions/fees) for how the
+    scalars enter the fee calculation.
+*   `eip1559Elasticity` and `eip1559Denominator`: must be nonzero.
+    `eip1559DenominatorCanyon` must be nonzero if Canyon is activated; 250 is
+    the recommended value.
+*   `minBaseFee`: an absolute minimum base fee in wei, to help shorten the
+    length of priority fee auctions; 0 disables it (the default). 100000 wei
+    is the recommended value; setting the minimum too high may make
+    transactions harder to get included for users. Standard configuration:
+    must not be set higher than 10000000000 wei. See the
+    [minimum base fee specs](https://specs.optimism.io/protocol/jovian/exec-engine.html#minimum-base-fee)
+    for more detail.
+*   `daFootprintGasScalar`: multiplied by the DA usage estimate to limit the
+    total estimated compressed transaction data that can fit into a block; 400
+    is the recommended value. As of Jovian, the base fee update calculation
+    uses `gasMetered := max(gasUsed, blobGasUsed)` in place of `gasUsed`, so
+    blocks with high DA usage may cause the base fee to increase in subsequent
+    blocks. See the
+    [DA footprint block limit specs](https://specs.optimism.io/protocol/jovian/exec-engine.html#da-footprint-block-limit)
+    for more detail.
+
+### Fee vault guidance
+
+*   The `*FeeVaultRecipient` addresses must not be `address(0)`; a single
+    admin address is recommended to retain a common security model.
+*   The `*FeeVaultWithdrawalNetwork` values choose where each vault withdraws:
+    `"remote"` sends fees to the recipient address on L1, `"local"` on L2.
+    Withdrawals to L1 are more expensive. Note that when the config is
+    re-emitted (for example by `op-deployer inspect deploy-config`), these
+    values marshal in the legacy numeric form: `0` for `"remote"`, `1` for
+    `"local"`.
+*   The `*FeeVaultMinimumWithdrawalAmount` values exist because withdrawals to
+    L1 are expensive: the minimum prevents the overhead cost of continuous
+    tiny withdrawals that would cost more to execute than they return.
+
+### Withdrawal finality guidance
+
+*   `finalizationPeriodSeconds`: must be nonzero. 12 seconds is recommended on
+    test networks, seven days on production ones. Standard configuration: 7
+    days — a high-security, excessively safe upper bound that leaves enough
+    time to consider social-layer solutions to a hack if necessary, and allows
+    other network participants to challenge the integrity of the corresponding
+    output root.
+
+### Legacy output-oracle guidance
+
+These apply only to chains still on the legacy `L2OutputOracle` proposal
+system; new chains use [fault proofs](#fault-proofs) instead.
+
+*   `l2OutputOracleSubmissionInterval`: must be nonzero; 120 blocks (4
+    minutes) is suggested.
+*   `l2OutputOracleStartingBlockNumber`: should be 0 for new chains; may be
+    non-zero for networks upgraded from a legacy system (like OP Mainnet).
+*   `l2OutputOracleStartingTimestamp`: MUST be the timestamp corresponding to
+    the block defined by `l1StartingBlockTag`.
+*   `l2OutputOracleProposer`: must not be `address(0)`. No standard
+    requirement. This role is only active when the `OptimismPortal` respected
+    game type is `PERMISSIONED_CANNON`. The L1 ProxyAdmin sets the
+    implementation of the `PERMISSIONED_CANNON` game type, and thus determines
+    the proposer configuration of the permissioned dispute game.
+*   `l2OutputOracleChallenger`: must not be `address(0)`; a single admin
+    address is recommended to retain a common security model.
+
+### Fault-proof value guidance
+
+You should understand the implications of running a fault-proof chain before
+setting `useFaultProofs`; see the
+[fault proofs explainer](/op-stack/fault-proofs/explainer).
+`proofMaturityDelaySeconds` and `disputeGameFinalityDelaySeconds` should not
+be 0. `faultGameMaxDepth` should be conservatively set so that there is always
+enough room for a full Cannon trace.
+
+### Alt-DA guidance
+
+Alt-DA mode is a non-standard feature. It enables integration of Data
+Availability layers into the OP Stack regardless of their commitment type; see
+[Alt-DA mode](/op-stack/features/experimental/alt-da-mode).
+
+*   `daCommitmentType`: must be either `KeccakCommitment` or
+    `GenericCommitment` (recommended); `KeccakCommitment` will be deprecated.
+*   `daChallengeWindow` and `daResolveWindow`: must be nonzero when using
+    Alt-DA mode with Keccak commitments.
+*   `daChallengeProxy`: must not be `address(0)` when using Alt-DA mode with
+    Keccak commitments, and must be `address(0)` with generic commitments.
+
+### Governance and development settings
+
+*   `enableGovernance`: false is recommended; the governance token predeploy
+    is exclusive to OP Mainnet and the testing of OP-Mainnet-like chains.
+*   `fundDevAccounts` and the [development L1 genesis](#development-l1-genesis)
+    values are for devnet deployments only; a production L2 deployment does
+    not use them, except for the `l1BlockTime` sanity check (12 for Ethereum).

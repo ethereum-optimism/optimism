@@ -3,6 +3,7 @@ title: "proxyd Releases"
 sidebarTitle: "proxyd"
 description: "Release history for proxyd. RPC request router and proxy."
 rss: true
+diataxis: reference
 ---
 
 {/*
@@ -14,7 +15,19 @@ rss: true
 
 **proxyd** is an RPC request router and proxy with method whitelisting, backend load balancing, automatic retries, and consensus state tracking across multiple backend nodes.
 
-<Update label="June 15, 2026" description="v4.29.0" tags={["Latest", "Stable"]}>
+<Update label="July 17, 2026" description="v4.29.1" tags={["Latest", "Stable"]}>
+
+## Changelog
+* 1f4e368306dadfc7ccdee3e57e3a56107b235d36 fix(proxyd): fix tx_validation_middleware RPC error when failing close against a failing screening-service/provider (#669)
+* be5330115c4f3bc1651dd5d82245015f4e30c2d2 fix(proxyd): log unexpected block tags as decimal not hex (#661)
+* 151d922565a09208bdd86341001db0bd5c957c04 fix(proxyd): tighten interop access-list descriptor timestamp (#662)
+* a82c8a58b988872a4e6dd34d06a1c4c9b1c0f75b proxyd: Fix a race between reading results and draining discarded ones (#663)
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/infra/releases/tag/proxyd/v4.29.1)
+
+</Update>
+
+<Update label="June 15, 2026" description="v4.29.0" tags={["Stable"]}>
 
 ## Changelog
 * d698adc9486b710db485fc8686e904ecbbb1f318 fix(proxyd): route websocket txs through filters (#655)
@@ -211,63 +224,5 @@ rss: true
 **Full Changelog**: https://github.com/ethereum-optimism/infra/compare/op-acceptor/v0.4.1...proxyd/v4.16.2
 
 [View full release on GitHub →](https://github.com/ethereum-optimism/infra/releases/tag/proxyd/v4.16.2)
-
-</Update>
-
-<Update label="June 10, 2025" description="v4.16.1" tags={["Stable"]}>
-
-## What's Changed
-
-* feat(proxyd): don't use semaphore if allowing unlimited concurrency by @charlesma4 in https://github.com/ethereum-optimism/infra/pull/405
-
-[View full release on GitHub →](https://github.com/ethereum-optimism/infra/releases/tag/proxyd/v4.16.1)
-
-</Update>
-
-<Update label="May 29, 2025" description="v4.16.0" tags={["Stable"]}>
-
-## What's Changed
-* feat(proxyd): req params size limit by @yashvardhan-kukreja in https://github.com/ethereum-optimism/infra/pull/337
-* feat(proxyd): interop access list inbox entries client-side deduplication by @yashvardhan-kukreja in https://github.com/ethereum-optimism/infra/pull/340
-* chore(proxyd): organize interop validation strategies by @yashvardhan-kukreja in https://github.com/ethereum-optimism/infra/pull/368
-* feat(proxyd): health-aware-load-balancing strategy for interop message validation by @yashvardhan-kukreja in https://github.com/ethereum-optimism/infra/pull/369
-
-
-**Full Changelog**: https://github.com/ethereum-optimism/infra/compare/proxyd/v4.15.1...proxyd/v4.16.0
-
-[View full release on GitHub →](https://github.com/ethereum-optimism/infra/releases/tag/proxyd/v4.16.0)
-
-</Update>
-
-<Update label="May 7, 2025" description="v4.15.1" tags={["Stable"]}>
-
-## What's Changed
-* interop error code spec awareness and rpc_supervisor_checks metric improvements by @yashvardhan-kukreja in https://github.com/ethereum-optimism/infra/pull/306
-
-
-**Full Changelog**: https://github.com/ethereum-optimism/infra/compare/proxyd/v4.15.0...proxyd/v4.15.1
-
-[View full release on GitHub →](https://github.com/ethereum-optimism/infra/releases/tag/proxyd/v4.15.1)
-
-</Update>
-
-<Update label="May 2, 2025" description="v4.15.0" tags={["Stable"]}>
-
-## What's Changed
-* feat: interop message validation by @yashvardhan-kukreja in https://github.com/ethereum-optimism/infra/pull/300
-
-
-**Full Changelog**: https://github.com/ethereum-optimism/infra/compare/proxyd/v4.14.5...proxyd/v4.15.0
-
-[View full release on GitHub →](https://github.com/ethereum-optimism/infra/releases/tag/proxyd/v4.15.0)
-
-</Update>
-
-<Update label="April 18, 2025" description="v4.14.5" tags={["Stable"]}>
-
-## Changelog
-* 0223e61234c2b9b5354ca4672f23a1d6727b9b84 explicitly handle some backend responses so we don't mark as unservic… (#279)
-
-[View full release on GitHub →](https://github.com/ethereum-optimism/infra/releases/tag/proxyd/v4.14.5)
 
 </Update>

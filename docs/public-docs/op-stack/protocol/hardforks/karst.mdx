@@ -1,0 +1,58 @@
+---
+title: Karst
+description: Hardfork registry entry for the Karst network upgrade, which introduced the L2 Contract Manager and Osaka EIPs on L2.
+diataxis: reference
+hardfork_name: karst
+hardfork_lifecycle: active
+hardfork_spec: https://specs.optimism.io/protocol/karst/overview.html
+hardfork_activation_mainnet: 1783526401
+hardfork_activation_sepolia: 1781712001
+hardfork_notice: /notices/upgrade-19
+hardfork_upgrade_number: 19
+hardfork_min_versions:
+  - op-node v1.19.1
+  - op-reth v2.3.3
+  - op-challenger v1.9.3
+  - op-dispute-mon v1.5.2
+  - op-contracts v7.0.0
+hardfork_min_versions_source: "[Upgrade 19 notice](/notices/upgrade-19)"
+---
+
+import KarstFacts from "/snippets/generated/hardforks/karst.mdx"
+
+<Info>
+  **Normative spec:** the [Karst specification](https://specs.optimism.io/protocol/karst/overview.html)
+  is the canonical definition of this upgrade. This page records activation data
+  and operational pointers; it does not restate the spec.
+</Info>
+
+Karst (Upgrade 19) introduced the L2 Contract Manager, activated a subset of
+Osaka EIPs on L2, promoted `CANNON_KONA` to the respected game type, and
+reduced the `bn256Pairing` precompile input limit as a preemptive Glamsterdam
+defense. `op-geth` and `op-program` do not support Karst — see the
+[end-of-support notice](/notices/op-geth-deprecation).
+
+<KarstFacts />
+
+## What changed
+
+Per the [spec overview](https://specs.optimism.io/protocol/karst/overview.html)
+and the [Upgrade 19 notice](/notices/upgrade-19):
+
+*   [L2 Contract Manager (L2CM)](/op-stack/features/l2-contract-manager):
+    governance-approved L2 predeploy upgrades through a consensus-layer
+    mechanism.
+*   Osaka EIPs on L2, including
+    [EIP-7825](https://eips.ethereum.org/EIPS/eip-7825) (transaction gas limit
+    cap, not applied to deposits),
+    [EIP-7823](https://eips.ethereum.org/EIPS/eip-7823) and
+    [EIP-7883](https://eips.ethereum.org/EIPS/eip-7883) (MODEXP bounds and gas),
+    [EIP-7910](https://eips.ethereum.org/EIPS/eip-7910) (`eth_config`),
+    [EIP-7939](https://eips.ethereum.org/EIPS/eip-7939) (CLZ opcode), and
+    [EIP-7951](https://eips.ethereum.org/EIPS/eip-7951) (secp256r1 gas cost
+    alignment).
+*   Reduced the `bn256Pairing` precompile maximum input size from 427 to 300
+    pairs (Glamsterdam defense).
+*   Promoted `CANNON_KONA` (game type 8) to the respected game type, making
+    `kona-client` the primary fault proof program used for withdrawals.
+*   Consensus layer: network upgrade transactions applied during derivation.

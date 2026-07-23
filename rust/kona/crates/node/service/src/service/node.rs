@@ -391,9 +391,12 @@ impl RollupNode {
         modules
             .merge(P2pRpc::new(p2p_rpc_tx).into_rpc())
             .map_err(|e| format!("Failed to register p2p module: {e:?}"))?;
-        modules
-            .merge(AdminRpc::new(sequencer_admin_client, network_admin_tx).into_rpc())
-            .map_err(|e| format!("Failed to register admin module: {e:?}"))?;
+        merge_admin_module(
+            &mut modules,
+            config.enable_admin(),
+            sequencer_admin_client,
+            network_admin_tx,
+        )?;
         modules
             .merge(RollupRpc::new(engine_rpc_client.clone(), l1_watcher_queries_tx).into_rpc())
             .map_err(|e| format!("Failed to register rollup module: {e:?}"))?;
@@ -540,5 +543,51 @@ impl RollupNode {
             ]
         );
         Ok(())
+    }
+}
+
+/// Registers the admin API namespace on `modules`, but only when `enable_admin` is set.
+///
+/// The admin API is opt-in via `--rpc.enable-admin`, matching op-node's admin namespace.
+fn merge_admin_module(
+    modules: &mut RpcModule<()>,
+    enable_admin: bool,
+    sequencer_admin_client: Option<QueuedSequencerAdminAPIClient>,
+    network_admin_tx: mpsc::Sender<NetworkAdminQuery>,
+) -> Result<(), String> {
+    if enable_admin {
+        modules
+            .merge(AdminRpc::new(sequencer_admin_client, network_admin_tx).into_rpc())
+            .map_err(|e| format!("Failed to register admin module: {e:?}"))?;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn admin_method_names(enable_admin: bool) -> Vec<String> {
+        let mut modules = RpcModule::new(());
+        let (network_admin_tx, _rx) = mpsc::channel(1);
+        merge_admin_module(&mut modules, enable_admin, None, network_admin_tx)
+            .expect("admin module registration");
+        modules.method_names().map(ToString::to_string).collect()
+    }
+
+    #[test]
+    fn admin_module_registered_only_when_enabled() {
+        // Without `--rpc.enable-admin`, no admin methods are exposed.
+        assert!(
+            admin_method_names(false).is_empty(),
+            "admin namespace must not be registered when disabled"
+        );
+
+        // With it enabled, the sequencer-control and payload-injection methods the acceptance
+        // suite relies on are present.
+        let enabled = admin_method_names(true);
+        for method in ["admin_postUnsafePayload", "admin_startSequencer", "admin_stopSequencer"] {
+            assert!(enabled.iter().any(|m| m == method), "missing {method}");
+        }
     }
 }

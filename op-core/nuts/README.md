@@ -63,6 +63,7 @@ Requires `forge` for the provenance check (step 2).
 ### CI checks
 
 - **`check-nut-locks`** — Verifies all bundle hashes match their lock entries, all entries have a commit, every `*_nut_bundle.json` file has a corresponding lock entry, and each locked fork has a committed pre-fork state (`op-core/nuts/state/<fork>_state.json`). Runs in CI on every PR.
+- **`check-nut-prefork-states`** — Regenerates every committed non-seed `op-core/nuts/state/<fork>_state.json` file and fails if any committed state snapshot drifts.
 
 ## fork_lock.toml schema
 

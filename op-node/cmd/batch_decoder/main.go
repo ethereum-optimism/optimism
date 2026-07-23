@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/cmd/batch_decoder/reassemble"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/superchain"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -93,9 +94,8 @@ func main() {
 					beaconClient := sources.NewBeaconHTTPClient(client.NewBasicHTTPClient(beaconAddr, nil))
 					beaconCfg := sources.L1BeaconClientConfig{FetchAllSidecars: false}
 					beacon = sources.NewL1BeaconClient(beaconClient, beaconCfg)
-					_, err := beacon.GetVersion(ctx)
-					if err != nil {
-						log.Fatal(fmt.Errorf("failed to check L1 Beacon API version: %w", err))
+					if _, err := beaconClient.BeaconGenesis(ctx); err != nil {
+						log.Fatal(fmt.Errorf("failed to connect to L1 Beacon API: %w", err))
 					}
 				} else {
 					fmt.Println("L1 Beacon endpoint not set. Unable to fetch post-ecotone channel frames")
@@ -104,7 +104,7 @@ func main() {
 				var inbox, sender common.Address
 				if cliCtx.IsSet("l2-chain-id") {
 					l2ChainID := cliCtx.Uint64("l2-chain-id")
-					rcfg, err := rollup.LoadOPStackRollupConfig(l2ChainID)
+					rcfg, err := superchain.LoadOPStackRollupConfig(l2ChainID)
 					if err != nil {
 						return err
 					}
@@ -163,7 +163,7 @@ func main() {
 				var rollupCfg *rollup.Config
 				if cliCtx.IsSet("l2-chain-id") {
 					l2ChainID := new(big.Int).SetUint64(cliCtx.Uint64("l2-chain-id"))
-					cfg, err := rollup.LoadOPStackRollupConfig(bigs.Uint64Strict(l2ChainID))
+					cfg, err := superchain.LoadOPStackRollupConfig(bigs.Uint64Strict(l2ChainID))
 					if err != nil {
 						return err
 					}

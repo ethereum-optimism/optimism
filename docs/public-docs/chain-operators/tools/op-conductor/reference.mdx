@@ -1,0 +1,428 @@
+---
+title: Configuration and RPCs
+description: Reference for op-conductor configuration flags, environment variables, and conductor namespace RPC methods.
+diataxis: reference
+---
+
+import OpConductorFlags from '/snippets/generated/op-conductor-flags.mdx';
+
+This page catalogues op-conductor's configuration options and its admin RPC
+methods. For how the service works, see
+[OP Conductor](/chain-operators/tools/op-conductor); to add it to a running
+network, follow the [setup guide](/chain-operators/tools/op-conductor/setup).
+
+## Configuration options
+
+The flag tables below are generated directly from op-conductor's flag
+definitions in the monorepo (`op-conductor/flags`) at the release tag named in
+the provenance line, and are regenerated when a new finalized release is
+published, so they cannot silently fall behind. Every flag can also be set
+through the environment variable listed next to it.
+
+<OpConductorFlags />
+
+## Notes on selected flags
+
+### raft.bootstrap
+
+<Info>
+  For bootstrapping a new cluster. This should only be used on the sequencer
+  that is currently active and can only be started once with this flag,
+  otherwise the flag has to be removed or the raft log must be deleted before
+  re-bootstrapping the cluster.
+</Info>
+
+### paused
+
+<Info>
+  There is no configuration state, so if you unpause via RPC and then restart,
+  it will start paused again.
+</Info>
+
+## RPCs
+
+Conductor exposes [admin RPCs](https://github.com/ethereum-optimism/optimism/blob/develop/op-conductor/rpc/api.go#L17)
+on the `conductor` namespace.
+
+### conductor_overrideLeader
+
+`OverrideLeader` is used to override the leader status, this is only used to
+return true for `Leader()` & `LeaderWithID()` calls. It does not impact the
+actual raft consensus leadership status. It is supposed to be used when the
+cluster is unhealthy and the node is the only one up, to allow batcher to
+be able to connect to the node so that it could download blocks from the
+manually started sequencer.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_overrideLeader","params":[],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_overrideLeader --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+### conductor_pause
+
+`Pause` pauses op-conductor.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_pause","params":[],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_pause --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+### conductor_resume
+
+`Resume` resumes op-conductor.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_resume","params":[],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_resume --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+### conductor_paused
+
+Paused returns true if the op-conductor is paused.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_paused","params":[],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_paused --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+### conductor_stopped
+
+Stopped returns true if the op-conductor is stopped.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_stopped","params":[],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_stopped --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+### conductor\_sequencerHealthy
+
+SequencerHealthy returns true if the sequencer is healthy.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_sequencerHealthy","params":[],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_sequencerHealthy --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+### conductor_leader
+
+<Info>
+  API related to consensus.
+</Info>
+
+Leader returns true if the server is the leader.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_leader","params":[],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_leader --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+### conductor_leaderWithID
+
+<Info>
+  API related to consensus.
+</Info>
+
+LeaderWithID returns the current leader's server info.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_leaderWithID","params":[],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_leaderWithID --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+### conductor_addServerAsVoter
+
+<Info>
+  API related to consensus.
+</Info>
+
+AddServerAsVoter adds a server as a voter to the cluster. 
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_addServerAsVoter","params":[<raft-server-id>, <raft-consensus-addr>, <raft-config-version>],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_addServerAsVoter <raft-server-id> <raft-consensus-addr> <raft-config-version> --rpc-url http://127.0.0.1:8547 
+    ```
+  </Tab>
+</Tabs>
+
+### conductor_addServerAsNonvoter
+
+<Info>
+  API related to consensus.
+</Info>
+
+AddServerAsNonvoter adds a server as a non-voter to the cluster. non-voter
+The non-voter will not participate in the leader election.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_addServerAsNonvoter","params":[<raft-server-id>, <raft-consensus-addr>, <raft-config-version>],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_addServerAsNonvoter <raft-server-id> <raft-consensus-addr> <raft-config-version> --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+### conductor_removeServer
+
+<Info>
+  API related to consensus.
+</Info>
+
+RemoveServer removes a server from the cluster.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_removeServer","params":[<raft-server-id>, <raft-config-version>],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_removeServer <raft-server-id> <raft-config-version> --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+### conductor_transferLeader
+
+<Info>
+  API related to consensus.
+</Info>
+
+TransferLeader transfers leadership to another server (resigns).
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_transferLeader","params":[],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_transferLeader --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+### conductor_transferLeaderToServer
+
+<Info>
+  API related to consensus.
+</Info>
+
+TransferLeaderToServer transfers leadership to a specific server.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_transferLeaderToServer","params":[<raft-server-id>, <raft-consensus-addr>, <raft-config-version>],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_transferLeaderToServer <raft-server-id> <raft-consensus-addr> <raft-config-version> --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+### conductor_clusterMembership
+
+ClusterMembership returns the current cluster membership configuration.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_clusterMembership","params":[],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_clusterMembership --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+### conductor_active
+
+<Info>
+  API called by `op-node`.
+</Info>
+
+Active returns true if the op-conductor is active (not paused or stopped).
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_active","params":[],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    cast rpc conductor_active --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>
+
+### conductor_commitUnsafePayload
+
+<Info>
+  API called by `op-node`.
+</Info>
+
+CommitUnsafePayload commits an unsafe payload (latest head) to the consensus
+layer. This method is typically called by the op-node to commit execution payload envelopes.
+
+<Tabs>
+  <Tab title="curl">
+    ```sh
+    curl -X POST -H "Content-Type: application/json" --data \
+        '{"jsonrpc":"2.0","method":"conductor_commitUnsafePayload","params":[{
+            "executionPayload": {
+                "parentHash": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+                "feeRecipient": "0x4200000000000000000000000000000000000019",
+                "stateRoot": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+                "receiptsRoot": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+                "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                "prevRandao": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+                "blockNumber": "0x64",
+                "gasLimit": "0x1c9c380",
+                "gasUsed": "0x5208",
+                "timestamp": "0x12345678",
+                "extraData": "0x",
+                "baseFeePerGas": "0x7",
+                "blockHash": "0x9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba",
+                "transactions": []
+            }
+        }],"id":1}'  \
+        http://127.0.0.1:8547
+    ```
+  </Tab>
+
+  <Tab title="cast">
+    ```sh
+    # Example with basic payload structure
+    cast rpc conductor_commitUnsafePayload \
+        '{"executionPayload":{"parentHash":"0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef","feeRecipient":"0x4200000000000000000000000000000000000019","stateRoot":"0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890","receiptsRoot":"0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef","logsBloom":"0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","prevRandao":"0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef","blockNumber":"0x64","gasLimit":"0x1c9c380","gasUsed":"0x5208","timestamp":"0x12345678","extraData":"0x","baseFeePerGas":"0x7","blockHash":"0x9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba","transactions":[]}}' \
+        --rpc-url http://127.0.0.1:8547
+    ```
+  </Tab>
+</Tabs>

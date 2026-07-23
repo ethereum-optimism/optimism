@@ -113,6 +113,47 @@ func (el *L2ELNode) AdvancedFn(label eth.BlockLabel, block uint64, opts ...Advan
 	}
 }
 
+// KeptAdvancingFn returns a CheckFunc that observes the head for the given
+// label over observeFor and fails if the head ever goes longer than maxGap of
+// wall-clock time without advancing to a higher block number. Use it to assert
+// sustained liveness (e.g. continuous block production) rather than eventual
+// progress: AdvancedFn passes as long as the target is reached eventually,
+// while KeptAdvancingFn also fails on a long stall followed by a catch-up burst.
+// Transient lookup errors are tolerated until they persist past maxGap.
+func (el *L2ELNode) KeptAdvancingFn(label eth.BlockLabel, observeFor time.Duration, maxGap time.Duration) CheckFunc {
+	return func() error {
+		start := time.Now()
+		last, err := el.blockRefByLabel(label)
+		if err != nil {
+			return fmt.Errorf("initial %s head lookup failed: %w", label, err)
+		}
+		lastAdvance := start
+		el.log.Info("expecting chain to keep advancing", "chain", el.inner.ChainID(), "label", label,
+			"from", last.Number, "observe_for", observeFor, "max_gap", maxGap)
+		for time.Since(start) < observeFor {
+			if err := clock.SystemClock.SleepCtx(el.ctx, 500*time.Millisecond); err != nil { // nosemgrep: flake-sleep-in-test -- fixed-cadence sampling to measure production gaps; there is no single chain event to wait on
+				return err
+			}
+			head, lookupErr := el.blockRefByLabel(label)
+			if lookupErr != nil {
+				el.log.Warn("head lookup failed; will retry", "chain", el.inner.ChainID(), "label", label, "err", lookupErr)
+			} else if head.Number > last.Number {
+				el.log.Info("chain advanced", "chain", el.inner.ChainID(), "label", label,
+					"block", head.Number, "gap", time.Since(lastAdvance).Round(time.Millisecond))
+				last = head
+				lastAdvance = time.Now()
+			}
+			if gap := time.Since(lastAdvance); gap > maxGap {
+				return fmt.Errorf("chain %s %s head stalled at block %d: no new block for %s (max allowed %s)",
+					el.inner.ChainID(), label, last.Number, gap.Round(time.Millisecond), maxGap)
+			}
+		}
+		el.log.Info("chain kept advancing for the whole observation window",
+			"chain", el.inner.ChainID(), "label", label, "at", last.Number, "observed", observeFor)
+		return nil
+	}
+}
+
 func (el *L2ELNode) NotAdvancedFn(label eth.BlockLabel, attempts int) CheckFunc {
 	return func() error {
 		el.log.Info("expecting chain not to advance", "chain", el.inner.ChainID(), "label", label)
@@ -159,6 +200,11 @@ func (el *L2ELNode) BlockRefByNumber(num uint64) eth.L2BlockRef {
 	block, err := el.inner.L2EthClient().L2BlockRefByNumber(ctx, num)
 	el.require.NoError(err, "block not found using block number %d", num)
 	return block
+}
+
+// GasLimitAtBlock returns the gas limit of the block at the given number.
+func (el *L2ELNode) GasLimitAtBlock(num uint64) uint64 {
+	return uint64(el.PayloadByNumber(num).ExecutionPayload.GasLimit)
 }
 
 // ReorgTriggeredFn returns a lambda that checks that a L2 reorg occurred on or before the expected block
@@ -225,6 +271,10 @@ func (el *L2ELNode) Advanced(label eth.BlockLabel, block uint64) {
 
 func (el *L2ELNode) Reached(label eth.BlockLabel, block uint64, attempts int) {
 	el.require.NoError(el.ReachedFn(label, block, attempts)())
+}
+
+func (el *L2ELNode) KeptAdvancing(label eth.BlockLabel, observeFor time.Duration, maxGap time.Duration) {
+	el.require.NoError(el.KeptAdvancingFn(label, observeFor, maxGap)())
 }
 
 func (el *L2ELNode) NotAdvanced(label eth.BlockLabel, attempts int) {

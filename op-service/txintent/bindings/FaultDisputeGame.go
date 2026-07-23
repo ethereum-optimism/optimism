@@ -47,6 +47,7 @@ type FaultDisputeGame struct {
 	Status           func() TypedCall[uint8]       `sol:"status"`
 	GameType         func() TypedCall[uint32]      `sol:"gameType"`
 	CreatedAt        func() TypedCall[uint64]      `sol:"createdAt"`
+	RootClaim        func() TypedCall[common.Hash] `sol:"rootClaim"`
 
 	// IFaultDisputeGame.sol read methods
 	AbsolutePrestate       func() TypedCall[common.Hash]                                              `sol:"absolutePrestate"`
@@ -57,13 +58,16 @@ type FaultDisputeGame struct {
 	SplitDepth             func() TypedCall[*big.Int]                                                 `sol:"splitDepth"`
 	SubGame                func(parentClaimIndex *big.Int, subGameIndex *big.Int) TypedCall[*big.Int] `sol:"subgame"`
 	MaxClockDuration       func() TypedCall[uint64]                                                   `sol:"maxClockDuration"`
+	Weth                   func() TypedCall[common.Address]                                           `sol:"weth"`
 	StartingBlockNumber    func() TypedCall[uint64]                                                   `sol:"startingBlockNumber"`
 	StartingSequenceNumber func() TypedCall[uint64]                                                   `sol:"startingSequenceNumber"`
 
 	// IFaultDisputeGame.sol write methods
-	Move   func(targetClaim common.Hash, targetClaimIndex *big.Int, newClaim common.Hash, isAttack bool) TypedCall[any] `sol:"move"`
-	Attack func(targetClaim common.Hash, targetClaimIndex *big.Int, counterClaim common.Hash) TypedCall[any]            `sol:"attack"`
-	Defend func(targetClaim common.Hash, targetClaimIndex *big.Int, supportingClaim common.Hash) TypedCall[any]         `sol:"defend"`
+	Move         func(targetClaim common.Hash, targetClaimIndex *big.Int, newClaim common.Hash, isAttack bool) TypedCall[any] `sol:"move"`
+	Attack       func(targetClaim common.Hash, targetClaimIndex *big.Int, counterClaim common.Hash) TypedCall[any]            `sol:"attack"`
+	Defend       func(targetClaim common.Hash, targetClaimIndex *big.Int, supportingClaim common.Hash) TypedCall[any]         `sol:"defend"`
+	ResolveClaim func(claimIndex *big.Int, numToResolve *big.Int) TypedCall[any]                                              `sol:"resolveClaim"`
+	Resolve      func() TypedCall[any]                                                                                        `sol:"resolve"`
 }
 
 func NewFaultDisputeGame(opts ...CallFactoryOption) *FaultDisputeGame {

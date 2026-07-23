@@ -1,6 +1,7 @@
 package serial
 
 import (
+	"os"
 	"testing"
 
 	sfp "github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/superfaultproofs"
@@ -13,7 +14,7 @@ import (
 func TestInteropFaultProofs(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
-	sfp.RunSuperFaultProofTest(t, sys)
+	sfp.RunSuperFaultProofTest(t, sys, proofRunners()...)
 }
 
 func TestInteropFaultProofs_PreForkActivation(gt *testing.T) {
@@ -29,19 +30,19 @@ func TestInteropFaultProofs_ActivationBoundary(gt *testing.T) {
 	sys := presets.NewSimpleInterop(t,
 		presets.WithSuggestedInteropActivationOffset(6),
 	)
-	sfp.RunInteropActivationBoundaryTest(t, sys)
+	sfp.RunInteropActivationBoundaryTest(t, sys, proofRunners()...)
 }
 
 func TestInteropFaultProofs_ConsolidateValidCrossChainMessage(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
-	sfp.RunConsolidateValidCrossChainMessageTest(t, sys)
+	sfp.RunConsolidateValidCrossChainMessageTest(t, sys, proofRunners()...)
 }
 
 func TestInteropFaultProofs_DepositMessage(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
-	sfp.RunDepositMessageTest(t, sys)
+	sfp.RunDepositMessageTest(t, sys, proofRunners()...)
 }
 
 func TestInteropFaultProofs_VariedBlockTimes(gt *testing.T) {
@@ -53,7 +54,7 @@ func TestInteropFaultProofs_VariedBlockTimes(gt *testing.T) {
 			sysgo.DefaultL2BID: 2,
 		}),
 	)
-	sfp.RunVariedBlockTimesTest(t, sys)
+	sfp.RunVariedBlockTimesTest(t, sys, proofRunners()...)
 }
 
 func TestInteropFaultProofs_VariedBlockTimes_FasterChainB(gt *testing.T) {
@@ -65,13 +66,13 @@ func TestInteropFaultProofs_VariedBlockTimes_FasterChainB(gt *testing.T) {
 			sysgo.DefaultL2BID: 1,
 		}),
 	)
-	sfp.RunVariedBlockTimesTest(t, sys)
+	sfp.RunVariedBlockTimesTest(t, sys, proofRunners()...)
 }
 
 func TestInteropFaultProofs_InvalidBlock(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
-	sfp.RunInvalidBlockTest(t, sys)
+	sfp.RunInvalidBlockTest(t, sys, proofRunners()...)
 }
 
 func TestInteropFaultProofs_IntraBlock(gt *testing.T) {
@@ -79,7 +80,7 @@ func TestInteropFaultProofs_IntraBlock(gt *testing.T) {
 		gt.Run(tc.Name, func(gt *testing.T) {
 			t := devtest.SerialT(gt)
 			sys := presets.NewSimpleInterop(t)
-			sfp.RunIntraBlockConsolidationTest(t, sys, tc)
+			sfp.RunIntraBlockConsolidationTest(t, sys, tc, proofRunners()...)
 		})
 	}
 }
@@ -87,7 +88,7 @@ func TestInteropFaultProofs_IntraBlock(gt *testing.T) {
 func TestInteropFaultProofs_DepositMessage_InvalidExecution(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
-	sfp.RunDepositMessageInvalidExecutionTest(t, sys)
+	sfp.RunDepositMessageInvalidExecutionTest(t, sys, proofRunners()...)
 }
 
 func TestInteropFaultProofs_SuperrootOptimisticPairing(gt *testing.T) {
@@ -108,5 +109,13 @@ func TestInteropFaultProofs_MessageExpiry(gt *testing.T) {
 	sys := presets.NewSimpleInterop(t,
 		presets.WithMessageExpiryWindow(messageExpiryWindow),
 	)
-	sfp.RunMessageExpiryTest(t, sys, messageExpiryWindow)
+	sfp.RunMessageExpiryTest(t, sys, messageExpiryWindow, proofRunners()...)
+}
+
+func proofRunners() []sfp.ProofRunner {
+	runners := []sfp.ProofRunner{sfp.NewKonaProofRunner()}
+	if os.Getenv("RUST_BINARY_PATH_KONA_SP1_SUPER_RANGE_EXECUTOR") != "" || os.Getenv("RUST_JIT_BUILD") != "" {
+		runners = append(runners, sfp.NewSP1NativeProofRunner())
+	}
+	return runners
 }

@@ -3,6 +3,7 @@ package state
 import (
 	"fmt"
 	"math/big"
+	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 
@@ -20,6 +21,25 @@ import (
 )
 
 var l2GenesisBlockBaseFeePerGas = hexutil.Big(*(big.NewInt(1000000000)))
+
+// PinnedOverrideKeys are DeployConfig JSON keys whose values are committed into
+// ChainState at anchor selection. Once pinned, deploy overrides **MUST NOT** replace them.
+// The genesis block, rollup config and prestate are all derived from the committed
+// pair and would silently diverge from it.
+var PinnedOverrideKeys = []string{"l1StartingBlockTag", "l2GenesisBlockTimestamp"}
+
+// FindPinnedOverrideKey returns the override key colliding with a pinned override
+// key, if any.
+func FindPinnedOverrideKey(overrides map[string]any) (string, bool) {
+	for key := range overrides {
+		for _, reserved := range PinnedOverrideKeys {
+			if strings.EqualFold(key, reserved) {
+				return key, true
+			}
+		}
+	}
+	return "", false
+}
 
 func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State, chainState *ChainState) (genesis.DeployConfig, error) {
 	upgradeSchedule := standard.DefaultHardforkSchedule()
@@ -127,6 +147,8 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 		cfg.L1StartingBlockTag = (*genesis.MarshalableRPCBlockNumberOrHash)(&blockNumOrHash)
 	}
 
+	cfg.L2GenesisBlockTimestamp = chainState.GenesisTime
+
 	if chainIntent.DangerousAltDAConfig.UseAltDA {
 		cfg.AltDADeployConfig = chainIntent.DangerousAltDAConfig
 		cfg.L1DependenciesConfig.DAChallengeProxy = chainState.AltDAChallengeProxy
@@ -149,6 +171,15 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 		L2OutputOracleChallenger:         dummyAddr,
 	}
 	// End of dummy variables
+
+	if chainState.GenesisTime != nil {
+		if key, ok := FindPinnedOverrideKey(intent.GlobalDeployOverrides); ok {
+			return genesis.DeployConfig{}, fmt.Errorf("globalDeployOverrides key %q conflicts with the anchor commitment pinned in state, remove the override or clear the chain's state to re-pin", key)
+		}
+		if key, ok := FindPinnedOverrideKey(chainIntent.DeployOverrides); ok {
+			return genesis.DeployConfig{}, fmt.Errorf("deployOverrides key %q conflicts with the anchor commitment pinned in state, remove the override or clear the chain's state to re-pin", key)
+		}
+	}
 
 	// Apply overrides after setting the main values.
 	var err error

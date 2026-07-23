@@ -247,7 +247,6 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 				spec.CLKey,
 				spec.ELKey,
 				spec.IsSequencer,
-				metricsRegistrar,
 				depSet,
 			)
 		default:
@@ -341,7 +340,7 @@ func buildMixedOpRethNode(
 	storageVersion string,
 	opts ...OpRethOption,
 ) *OpReth {
-	tempDir := t.TempDir()
+	tempDir := t.TempDirWithPrefix("l2-el-" + NewComponentTarget(key, l2Net.ChainID()).String())
 
 	data, err := json.Marshal(l2Net.genesis)
 	t.Require().NoError(err, "must json-encode genesis")
@@ -512,10 +511,9 @@ func startMixedKonaNode(
 	clKey string,
 	elKey string,
 	isSequencer bool,
-	metricsRegistrar L2MetricsRegistrar,
 	depSet coredepset.DependencySet,
 ) *KonaNode {
-	tempKonaDir := t.TempDir()
+	tempKonaDir := t.TempDirWithPrefix("l2-cl-kona-" + NewComponentTarget(clKey, l2Net.ChainID()).String())
 
 	tempP2PPath := filepath.Join(tempKonaDir, "p2pkey.txt")
 
@@ -541,7 +539,9 @@ func startMixedKonaNode(
 		propagateEnvVarOrDefault("KONA_NODE_RPC_ADDR", "127.0.0.1"),
 		propagateEnvVarOrDefault("KONA_NODE_RPC_PORT", "0"),
 		propagateEnvVarOrDefault("KONA_NODE_RPC_WS_ENABLED", "true"),
-		propagateEnvVarOrDefault("KONA_METRICS_ADDR", ""),
+		// Acceptance tests drive the sequencer via the admin API (StartSequencer, etc.), which
+		// kona only registers when admin is enabled. op-node's devstack node enables it too.
+		propagateEnvVarOrDefault("KONA_NODE_RPC_ENABLE_ADMIN", "true"),
 		propagateEnvVarOrDefault("KONA_LOG_LEVEL", "3"),
 		propagateEnvVarOrDefault("KONA_LOG_STDOUT_FORMAT", "json"),
 		propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_IP", "127.0.0.1"),
@@ -558,13 +558,6 @@ func startMixedKonaNode(
 		tempDepSetPath := filepath.Join(tempKonaDir, "interop-depset.json")
 		t.Require().NoError(os.WriteFile(tempDepSetPath, depSetData, 0o640), "must write interop dependency set")
 		envVars = append(envVars, "KONA_NODE_INTEROP_DEPENDENCY_SET="+tempDepSetPath)
-	}
-
-	if areMetricsEnabled() {
-		metricsPort, err := getAvailableLocalPort()
-		t.Require().NoError(err, "startMixedKonaNode: getting metrics port")
-		envVars = append(envVars, propagateEnvVarOrDefault("KONA_METRICS_PORT", metricsPort))
-		envVars = append(envVars, "KONA_METRICS_ENABLED=true")
 	}
 
 	if isSequencer {
@@ -591,14 +584,13 @@ func startMixedKonaNode(
 	t.Require().NotEmpty(execPath, "kona-node binary path resolved")
 
 	k := &KonaNode{
-		name:               clKey,
-		chainID:            l2Net.ChainID(),
-		userRPC:            "",
-		execPath:           execPath,
-		args:               []string{"node"},
-		env:                envVars,
-		p:                  t,
-		l2MetricsRegistrar: metricsRegistrar,
+		name:     clKey,
+		chainID:  l2Net.ChainID(),
+		userRPC:  "",
+		execPath: execPath,
+		args:     []string{"node"},
+		env:      envVars,
+		p:        t,
 	}
 	t.Logger().Info("Starting kona-node", "name", clKey, "chain", l2Net.ChainID(), "el", elKey)
 	k.Start()

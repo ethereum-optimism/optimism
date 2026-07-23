@@ -4,9 +4,9 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -35,7 +35,7 @@ func FjordNetworkUpgradeTransactions() ([]hexutil.Bytes, error) {
 	upgradeTxns := make([]hexutil.Bytes, 0, 3)
 
 	// Deploy Gas Price Oracle transaction
-	deployGasPriceOracle, err := types.NewTx(&types.DepositTx{
+	deployGasPriceOracle, err := (&optypes.DepositTx{
 		SourceHash:          deployFjordGasPriceOracleSource.SourceHash(),
 		From:                GasPriceOracleFjordDeployerAddress,
 		To:                  nil,
@@ -52,7 +52,7 @@ func FjordNetworkUpgradeTransactions() ([]hexutil.Bytes, error) {
 
 	upgradeTxns = append(upgradeTxns, deployGasPriceOracle)
 
-	updateGasPriceOracleProxy, err := types.NewTx(&types.DepositTx{
+	updateGasPriceOracleProxy, err := (&optypes.DepositTx{
 		SourceHash:          updateFjordGasPriceOracleSource.SourceHash(),
 		From:                common.Address{},
 		To:                  &predeploys.GasPriceOracleAddr,
@@ -69,7 +69,7 @@ func FjordNetworkUpgradeTransactions() ([]hexutil.Bytes, error) {
 
 	upgradeTxns = append(upgradeTxns, updateGasPriceOracleProxy)
 
-	enableFjord, err := types.NewTx(&types.DepositTx{
+	enableFjord, err := (&optypes.DepositTx{
 		SourceHash:          enableFjordSource.SourceHash(),
 		From:                L1InfoDepositerAddress,
 		To:                  &predeploys.GasPriceOracleAddr,

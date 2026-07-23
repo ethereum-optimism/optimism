@@ -906,6 +906,11 @@
   },
   {
     "inputs": [],
+    "name": "OptimismPortal_LockboxNotAuthorizedForPortal",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OptimismPortal_MigratingToSameRegistry",
     "type": "error"
   },
@@ -932,6 +937,11 @@
   {
     "inputs": [],
     "name": "OptimismPortal_Unproven",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OptimismPortal_ZeroAddress",
     "type": "error"
   },
   {

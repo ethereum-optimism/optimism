@@ -29,7 +29,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
-	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
@@ -218,6 +217,29 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	return rollupNode
 }
 
+type proposerSuperRootSafeDB struct{}
+
+func (proposerSuperRootSafeDB) SafeHeadAtL1(context.Context, uint64) (eth.BlockID, eth.BlockID, error) {
+	return eth.BlockID{}, eth.BlockID{}, errors.New("safe head at L1 is unsupported by the action proposer superroot API")
+}
+
+func (proposerSuperRootSafeDB) L1AtSafeHead(context.Context, uint64) (eth.BlockID, eth.BlockID, error) {
+	return eth.BlockID{}, eth.BlockID{}, nil
+}
+
+func (proposerSuperRootSafeDB) FirstEntry(context.Context) (eth.BlockID, eth.BlockID, error) {
+	return eth.BlockID{}, eth.BlockID{}, errors.New("first safe head entry is unsupported by the action proposer superroot API")
+}
+
+func (proposerSuperRootSafeDB) LastEntry(context.Context) (eth.BlockID, eth.BlockID, error) {
+	return eth.BlockID{}, eth.BlockID{}, errors.New("last safe head entry is unsupported by the action proposer superroot API")
+}
+
+func (s *L2Verifier) EnableProposerSuperRootAPI(t Testing) {
+	api := node.NewSuperrootAPI(s.RollupCfg, s.Eng, &l2VerifierBackend{verifier: s}, proposerSuperRootSafeDB{})
+	require.NoError(t, s.rpc.RegisterName("superroot", api))
+}
+
 type l2VerifierBackend struct {
 	verifier *L2Verifier
 }
@@ -246,14 +268,6 @@ func (s *l2VerifierBackend) StopSequencer(ctx context.Context) (common.Hash, err
 
 func (s *l2VerifierBackend) SequencerActive(ctx context.Context) (bool, error) {
 	return false, nil
-}
-
-func (s *l2VerifierBackend) SetSdmPostExecOptIn(ctx context.Context, enabled bool) error {
-	return errors.New("SDM sequencing unsupported")
-}
-
-func (s *l2VerifierBackend) SdmStatus(ctx context.Context) (apis.SdmStatus, error) {
-	return apis.SdmStatus{}, errors.New("SDM sequencing unsupported")
 }
 
 func (s *l2VerifierBackend) OverrideLeader(ctx context.Context) error {

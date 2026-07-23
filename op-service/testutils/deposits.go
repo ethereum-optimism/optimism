@@ -6,10 +6,12 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 )
 
 // Returns a DepositEvent customized on the basis of the id parameter.
-func GenerateDeposit(sourceHash common.Hash, rng *rand.Rand) *types.DepositTx {
+func GenerateDeposit(sourceHash common.Hash, rng *rand.Rand) *optypes.DepositTx {
 	dataLen := rng.Int63n(10_000)
 	data := make([]byte, dataLen)
 	rng.Read(data)
@@ -24,7 +26,7 @@ func GenerateDeposit(sourceHash common.Hash, rng *rand.Rand) *types.DepositTx {
 		mint = RandomETH(rng, 200)
 	}
 
-	dep := &types.DepositTx{
+	dep := &optypes.DepositTx{
 		SourceHash:          sourceHash,
 		From:                RandomAddress(rng),
 		To:                  to,
@@ -35,6 +37,25 @@ func GenerateDeposit(sourceHash common.Hash, rng *rand.Rand) *types.DepositTx {
 		IsSystemTransaction: false,
 	}
 	return dep
+}
+
+// TxFromDeposit wraps an op-core deposit tx in a go-ethereum *types.Transaction for
+// test paths that feed deposits into block or tx-list builders still typed on
+// *types.Transaction. Callers that only need the deposit's hash use
+// (*optypes.DepositTx).Hash() instead. It constructs op-geth's deposit tx directly
+// from the identical fields; it is removed once the test suites move off
+// *types.Transaction for deposits.
+func TxFromDeposit(dep *optypes.DepositTx) *types.Transaction {
+	return types.NewTx(&types.DepositTx{
+		SourceHash:          dep.SourceHash,
+		From:                dep.From,
+		To:                  dep.To,
+		Mint:                dep.Mint,
+		Value:               dep.Value,
+		Gas:                 dep.Gas,
+		IsSystemTransaction: dep.IsSystemTransaction,
+		Data:                dep.Data,
+	})
 }
 
 // Generates an EVM log entry with the given topics and data.

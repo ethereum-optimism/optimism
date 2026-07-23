@@ -8,10 +8,6 @@ To run an example, use the command `cargo run -p <example>`.
 If you have an idea for a new example, [open an issue][issue].
 Otherwise if you already have an example you'd like to add, open a PR!
 
-#### Discovery
-
-
-
 <!-- Links -->
 
 [issue]: https://github.com/ethereum-optimism/optimism/issues/new

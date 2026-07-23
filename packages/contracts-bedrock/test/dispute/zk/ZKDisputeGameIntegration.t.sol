@@ -6,14 +6,16 @@ import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.s
 
 // Libraries
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
-import { Claim, Duration, GameStatus, GameType, Hash, Timestamp } from "src/dispute/lib/Types.sol";
+import { BondDistributionMode, Claim, Duration, GameStatus, GameType, Hash, Timestamp } from "src/dispute/lib/Types.sol";
 import { GameTypes } from "src/dispute/lib/Types.sol";
-import { NoCreditToClaim } from "src/dispute/lib/Errors.sol";
+import { NoCreditToClaim, UnknownChainId } from "src/dispute/lib/Errors.sol";
+import { Types } from "src/libraries/Types.sol";
 
 // Contracts
 import { ZKDisputeGame } from "src/dispute/zk/ZKDisputeGame.sol";
 
 // Interfaces
+import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
 
 /// @title ZKDisputeGame_Integration_Test
@@ -54,6 +56,44 @@ import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisput
 ///     PDG-established anchor root and sequence number.
 ///  5. The ZK game runs through a full challenge → prove → resolve cycle.
 ///  6. Credits are claimed and the anchor advances to the ZK game, crossing the game-type boundary.
+///
+/// Scenario 4 — Unrespected ZK game resolves normally but does not advance anchor
+/// ─────────────────────────────────────────────────────────────────────────────────
+///  1. The respected game type is switched away from ZK → next ZK game gets
+///     wasRespectedGameTypeWhenCreated=false.
+///  2. A ZK game is created from anchor state. It runs unchallenged → DEFENDER_WINS.
+///  3. After finality, closeGame() sees isGameProper()=true → sets NORMAL bond distribution.
+///  4. setAnchorState() is silently skipped inside closeGame() because isGameClaimValid()
+///     fails: isGameRespected() returns false for this game.
+///  5. The anchor has NOT advanced. Proposer still claims the full bond back via NORMAL mode.
+///
+/// Scenario 5 — Guardian blacklists a challenged game mid-execution; both participants get refunds
+/// ─────────────────────────────────────────────────────────────────────────────────────────────────
+///  1. A ZK game is created and challenged (both proposer and challenger have bonded ETH).
+///  2. The guardian blacklists the game on the AnchorStateRegistry.
+///  3. The prove deadline expires without a proof → resolve → CHALLENGER_WINS.
+///  4. After finality, closeGame() calls isGameProper() → false (blacklisted) → REFUND mode.
+///  5. Proposer reclaims original initBond; challenger reclaims original challengerBond.
+///     Bond distribution ignores the CHALLENGER_WINS outcome entirely.
+///
+/// Scenario 6 — Blacklisted parent does not automatically invalidate in-flight child
+/// ──────────────────────────────────────────────────────────────────────────────────
+///  1. A parent game is created and resolved DEFENDER_WINS.
+///  2. A child game is created referencing the parent before the parent is closed.
+///  3. The guardian blacklists the parent after the child is already initialized.
+///  4. The child resolves DEFENDER_WINS: resolve() reads parent's GameStatus (unchanged by
+///     blacklisting), so the blacklist is invisible to the child's resolution path.
+///  5. closeGame() on the child sees isGameProper()=true (child not blacklisted) → NORMAL mode.
+///  6. Proposer claims full bond back. The guardian must explicitly blacklist the child to
+///     invalidate it — parent blacklisting does not propagate automatically.
+///
+/// Scenario 7 — Child game with modified chain set resolves normally
+/// ───────────────────────────────────────────────────────────────────────────
+///  1. Parent game commits to a 2-chain super root [op-mainnet=10, l2ChainId].
+///  2. Child game references the parent but commits to a 3-chain super root.
+///     Absolute prestate is updated in the factory gameArgs.
+///  3. Both games run unchallenged → DEFENDER_WINS → finalize → close.
+///  4. Each game's per-chain lookups remain isolated to its own committed chain set.
 contract ZKDisputeGame_Integration_Test is DisputeGameFactory_TestInit {
     // Events
     event Challenged(address indexed challenger);
@@ -333,6 +373,210 @@ contract ZKDisputeGame_Integration_Test is DisputeGameFactory_TestInit {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    //  Scenario 4 — Unrespected ZK game resolves normally but does not advance anchor
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// @notice A ZK game created while ZK is not the respected game type resolves and distributes
+    ///         bonds normally (NORMAL mode, isGameProper=true), but never advances the anchor
+    ///         because wasRespectedGameTypeWhenCreated=false causes isGameClaimValid() to fail.
+    function test_integration_unrespectedGameDoesNotAdvanceAnchor_succeeds() public {
+        // ── Capture the current anchor before the scenario ──
+        (Hash anchorRootBefore, uint256 anchorSeqBefore) = anchorStateRegistry.getAnchorRoot();
+        Claim anchorClaimBefore = Claim.wrap(anchorRootBefore.raw());
+
+        // ── Switch respected game type away from ZK ──
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.setRespectedGameType(GameTypes.CANNON);
+
+        // ── Create a ZK game while ZK is not the respected game type ──
+        uint256 seqNum = anchorSeqBefore + 1000;
+        (ZKDisputeGame game,,) = _createGame(keccak256("unrespectedClaim"), seqNum, type(uint32).max);
+
+        assertFalse(game.wasRespectedGameTypeWhenCreated());
+
+        // ── Let the game expire unchallenged → DEFENDER_WINS ──
+        _resolveUnchallenged(game);
+        assertEq(uint8(game.status()), uint8(GameStatus.DEFENDER_WINS));
+
+        // ── Wait for finality then close the game ──
+        // closeGame() sees isGameProper()=true → NORMAL mode.
+        // setAnchorState() is still attempted but fails: isGameClaimValid() fails on isGameRespected().
+        _waitForFinality(game);
+        game.closeGame();
+
+        // Game is proper (not blacklisted/retired/paused) → NORMAL mode.
+        // Anchor does not advance. setAnchorState fails due to wasRespectedGameTypeWhenCreated=false.
+        assertTrue(anchorStateRegistry.isGameProper(IDisputeGame(address(game))));
+        assertEq(uint8(game.bondDistributionMode()), uint8(BondDistributionMode.NORMAL));
+        _assertAnchor(anchorClaimBefore, anchorSeqBefore);
+
+        // ── Proposer claims full bond back (NORMAL mode, unchallenged path) ──
+        _claimCreditAndAssert(game, proposer, bond);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  Scenario 5 — Guardian blacklists a game mid-flight; both participants receive refunds
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// @notice When the guardian blacklists a game, closeGame() enters REFUND mode and both
+    ///         the proposer and challenger reclaim their original deposits regardless of outcome.
+    function test_integration_blacklistedGameRefundsBothParties_succeeds() public {
+        (, uint256 anchorSeqBefore) = anchorStateRegistry.getAnchorRoot();
+
+        // ── Create a ZK game and challenge it so both parties have bonded ETH ──
+        uint256 seqNum = anchorSeqBefore + 1000;
+        (ZKDisputeGame game,,) = _createGame(keccak256("blacklistedClaim"), seqNum, type(uint32).max);
+
+        vm.prank(challenger);
+        game.challenge{ value: bond }();
+        _assertProposalStatus(game, ZKDisputeGame.ProposalStatus.Challenged);
+
+        // ── Guardian blacklists the game (e.g. invalid starting state discovered) ──
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.blacklistDisputeGame(IDisputeGame(address(game)));
+
+        // Blacklist took effect: game is no longer proper.
+        assertFalse(anchorStateRegistry.isGameProper(IDisputeGame(address(game))));
+
+        // ── Prove deadline expires without a proof → CHALLENGER_WINS ──
+        (,,,, Timestamp deadline,) = game.claimData();
+        vm.warp(deadline.raw() + 1);
+        game.resolve();
+        assertEq(uint8(game.status()), uint8(GameStatus.CHALLENGER_WINS));
+
+        // resolve() credited the challenger via normalModeCredit, but REFUND mode will ignore it.
+        assertGt(game.normalModeCredit(challenger), 0);
+
+        // ── closeGame() sees isGameProper()=false (blacklisted) → REFUND mode ──
+        // setAnchorState() is still attempted but fails silently (CHALLENGER_WINS + blacklisted).
+        _waitForFinality(game);
+        game.closeGame();
+
+        assertEq(uint8(game.bondDistributionMode()), uint8(BondDistributionMode.REFUND));
+
+        // ── Both participants reclaim their original deposits; outcome is irrelevant ──
+        _claimCreditAndAssert(game, proposer, bond);
+        _claimCreditAndAssert(game, challenger, bond);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  Scenario 6 — Blacklisted parent does not automatically invalidate child
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// @notice Blacklisting a parent after a child is initialized does not affect the child.
+    ///         resolve() checks parent GameStatus only — blacklisting does not change GameStatus.
+    ///         The child resolves DEFENDER_WINS, enters NORMAL mode, and the proposer reclaims
+    ///         the bond. The guardian must explicitly blacklist the child to invalidate it.
+    function test_integration_blacklistedParentDoesNotInvalidateChild_succeeds() public {
+        (, uint256 anchorSeqBefore) = anchorStateRegistry.getAnchorRoot();
+
+        // ── Create and resolve a parent game ──
+        uint256 parentSeqNum = anchorSeqBefore + 1000;
+        (ZKDisputeGame parentGame,, uint32 parentIdx) =
+            _createGame(keccak256("parentClaim"), parentSeqNum, type(uint32).max);
+        _resolveUnchallenged(parentGame);
+
+        // ── Create child referencing parent before parent is closed ──
+        uint256 childSeqNum = parentSeqNum + 1000;
+        (ZKDisputeGame childGame, Claim childClaim,) = _createGame(keccak256("childClaim"), childSeqNum, parentIdx);
+
+        // ── Guardian blacklists the parent after the child is already in-flight ──
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.blacklistDisputeGame(IDisputeGame(address(parentGame)));
+
+        // Blacklisting changes isGameProper but not GameStatus.
+        assertEq(uint8(parentGame.status()), uint8(GameStatus.DEFENDER_WINS));
+        assertFalse(anchorStateRegistry.isGameProper(IDisputeGame(address(parentGame))));
+        assertTrue(anchorStateRegistry.isGameProper(IDisputeGame(address(childGame))));
+
+        // ── Child resolves normally — blacklisting does not change parent's GameStatus ──
+        _resolveUnchallenged(childGame);
+        assertEq(uint8(childGame.status()), uint8(GameStatus.DEFENDER_WINS));
+
+        // ── closeGame() sees isGameProper(child)=true (child is not blacklisted) → NORMAL mode ──
+        // setAnchorState(child) succeeds: child passes all validity checks independently of parent.
+        _waitForFinality(childGame);
+        childGame.closeGame();
+
+        assertEq(uint8(childGame.bondDistributionMode()), uint8(BondDistributionMode.NORMAL));
+        _assertAnchor(childClaim, childSeqNum);
+
+        // ── Proposer claims full bond back ──
+        _claimCreditAndAssert(childGame, proposer, bond);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  Scenario 7 — Child game with modified chain set resolves normally
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// @notice A child game can commit to a super root with a different chain
+    ///         set than its parent, and both resolve via prove(). The contract
+    ///         does not constrain a child's chain set based on the
+    ///         parent's commitment.
+    function test_integration_childWithModifiedChainSet_succeeds() public {
+        (, uint256 anchorSeqBefore) = anchorStateRegistry.getAnchorRoot();
+
+        // ── Parent: 2-chain super root, self-proved ──
+        Types.OutputRootWithChainId[] memory parentPairs = new Types.OutputRootWithChainId[](2);
+        parentPairs[0] = Types.OutputRootWithChainId({ chainId: 10, root: keccak256("op-parent") });
+        parentPairs[1] = Types.OutputRootWithChainId({ chainId: l2ChainId, root: keccak256("local-parent") });
+
+        uint256 parentSeqNum = anchorSeqBefore + 1000;
+        (ZKDisputeGame parentGame, Claim parentClaim, uint32 parentIdx) =
+            _createGameWithPairs(parentPairs, parentSeqNum, type(uint32).max);
+
+        vm.prank(proposer);
+        parentGame.prove(bytes(""));
+        parentGame.resolve();
+        assertEq(uint8(parentGame.status()), uint8(GameStatus.DEFENDER_WINS));
+
+        // ── Rotate `absolutePrestate` before extending the chain set ──
+        // Expanding the proven chain set means the ZK program changes. Governance needs to update the
+        // absolutePresate in the factory gameArgs.
+        // The mock verifier accepts unconditionally, so the contract permits the transition.
+        // Note: This is not strictly needed here but exercises the intended flow.
+        setupZKDisputeGame(
+            ZKDisputeGameParams({
+                maxChallengeDuration: maxChallengeDuration,
+                maxProveDuration: maxProveDuration,
+                absolutePrestate: bytes32(uint256(1)),
+                challengerBond: bond
+            })
+        );
+        vm.warp(block.timestamp + 1000);
+
+        // ── Child: 3-chain super root (adds unichain), self-proved with the new prestate ──
+        Types.OutputRootWithChainId[] memory childPairs = new Types.OutputRootWithChainId[](3);
+        childPairs[0] = Types.OutputRootWithChainId({ chainId: 10, root: keccak256("op-child") });
+        childPairs[1] = Types.OutputRootWithChainId({ chainId: l2ChainId, root: keccak256("local-child") });
+        childPairs[2] = Types.OutputRootWithChainId({ chainId: 130, root: keccak256("unichain-child") });
+
+        uint256 childSeqNum = parentSeqNum + 1000;
+        (ZKDisputeGame childGame, Claim childClaim,) = _createGameWithPairs(childPairs, childSeqNum, parentIdx);
+
+        // Each clone carries its own prestate via CWIA — parent kept the old one, child has the new.
+        assertEq(parentGame.absolutePrestate(), bytes32(0));
+        assertEq(childGame.absolutePrestate(), bytes32(uint256(1)));
+
+        vm.prank(proposer);
+        childGame.prove(bytes(""));
+        childGame.resolve();
+        assertEq(uint8(childGame.status()), uint8(GameStatus.DEFENDER_WINS));
+
+        // ── Per-chain lookups remain isolated to each game's committed chain set ──
+        assertEq(childGame.rootClaimByChainId(130).raw(), keccak256("unichain-child"));
+        vm.expectRevert(UnknownChainId.selector);
+        parentGame.rootClaimByChainId(130);
+
+        // ── Finalization: both games claim bonds. Anchor advances twice ──
+        _waitForFinality(childGame);
+        _claimCreditAndAssert(parentGame, proposer, bond);
+        _assertAnchor(parentClaim, parentSeqNum);
+        _claimCreditAndAssert(childGame, proposer, bond);
+        _assertAnchor(childClaim, childSeqNum);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     //  Helpers
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -348,6 +592,23 @@ contract ZKDisputeGame_Integration_Test is DisputeGameFactory_TestInit {
     {
         bytes memory ed;
         (ed, rootClaim_) = _makeZKExtraDataAndClaim(_parentIndex, uint64(_seqNum), _outputRoot);
+        vm.prank(proposer);
+        game_ = ZKDisputeGame(payable(address(disputeGameFactory.create{ value: bond }(gameType, rootClaim_, ed))));
+        index_ = uint32(disputeGameFactory.gameCount() - 1);
+    }
+
+    /// @notice Creates a ZK dispute game committing to an explicit set of per-chain output roots, so
+    ///         scenarios can exercise multi-chain super roots beyond the single-chain `_createGame` path.
+    function _createGameWithPairs(
+        Types.OutputRootWithChainId[] memory _pairs,
+        uint256 _seqNum,
+        uint32 _parentIndex
+    )
+        internal
+        returns (ZKDisputeGame game_, Claim rootClaim_, uint32 index_)
+    {
+        bytes memory ed;
+        (ed, rootClaim_) = _makeZKExtraDataAndClaim(_parentIndex, uint64(_seqNum), _pairs);
         vm.prank(proposer);
         game_ = ZKDisputeGame(payable(address(disputeGameFactory.create{ value: bond }(gameType, rootClaim_, ed))));
         index_ = uint32(disputeGameFactory.gameCount() - 1);

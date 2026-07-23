@@ -97,33 +97,15 @@ test-e2e-sysgo-run BINARY="node" GO_PKG_NAME="node/common" DEVNET="simple-kona" 
     if [ "{{DEVNET}}" = "simple-kona" ]; then
         export KONA_SEQUENCER_WITH_RETH=0
         export KONA_VALIDATOR_WITH_RETH=1
-        export KONA_SEQUENCER_WITH_GETH=0
-        export KONA_VALIDATOR_WITH_GETH=0
 
         export OP_SEQUENCER_WITH_RETH=1
         export OP_VALIDATOR_WITH_RETH=1
-        export OP_SEQUENCER_WITH_GETH=0
-        export OP_VALIDATOR_WITH_GETH=0
-    elif [ "{{DEVNET}}" = "simple-kona-geth" ]; then
-        export KONA_SEQUENCER_WITH_RETH=0
-        export KONA_VALIDATOR_WITH_RETH=0
-        export KONA_SEQUENCER_WITH_GETH=0
-        export KONA_VALIDATOR_WITH_GETH=1
-
-        export OP_SEQUENCER_WITH_RETH=0
-        export OP_VALIDATOR_WITH_RETH=0
-        export OP_SEQUENCER_WITH_GETH=1
-        export OP_VALIDATOR_WITH_GETH=1
     elif [ "{{DEVNET}}" = "simple-kona-sequencer" ]; then
         export KONA_SEQUENCER_WITH_RETH=1
         export KONA_VALIDATOR_WITH_RETH=1
-        export KONA_SEQUENCER_WITH_GETH=0
-        export KONA_VALIDATOR_WITH_GETH=1
 
         export OP_SEQUENCER_WITH_RETH=0
         export OP_VALIDATOR_WITH_RETH=0
-        export OP_SEQUENCER_WITH_GETH=0
-        export OP_VALIDATOR_WITH_GETH=0
     fi
 
     export SKIP_P2P_CONNECTION_CHECK=true
@@ -135,43 +117,6 @@ test-e2e-sysgo-run BINARY="node" GO_PKG_NAME="node/common" DEVNET="simple-kona" 
         --junitfile=./tmp/test-results/results.xml \
         --jsonfile=./tmp/testlogs/log.json \
         -- -count=1 -timeout 40m ./$GO_PKG_NAME $FILTER
-
-long-running-test FILTER="" OUTPUT_LOGS_DIR="":
-    #!/bin/bash
-    if ! [ -z "{{FILTER}}" ]; then
-        export FILTER="-run {{FILTER}}"
-    fi
-
-    export KONA_SEQUENCER_WITH_RETH=1
-    export KONA_VALIDATOR_WITH_RETH=4
-    export KONA_SEQUENCER_WITH_GETH=0
-    export KONA_VALIDATOR_WITH_GETH=4
-
-    export OP_SEQUENCER_WITH_RETH=0
-    export OP_VALIDATOR_WITH_RETH=0
-    export OP_SEQUENCER_WITH_GETH=0
-    export OP_VALIDATOR_WITH_GETH=0
-
-    export KONA_NODE_EXEC_PATH="{{SOURCE}}/../target/debug/kona-node"
-    export OP_RETH_EXEC_PATH="{{SOURCE}}/../../target/debug/op-reth"
-    export DEVSTACK_ORCHESTRATOR=sysgo
-    echo "Building kona-node..."
-    just build-kona
-    echo "Building op-reth..."
-    just build-reth
-
-    export OP_TESTLOG_FILE_LOGGER_OUTDIR="{{OUTPUT_LOGS_DIR}}"
-    if [ -z "{{OUTPUT_LOGS_DIR}}" ]; then
-        export OP_TESTLOG_FILE_LOGGER_OUTDIR="{{CURRENT_DIR}}/kona-test-logs"
-    fi
-
-    mkdir -p $OP_TESTLOG_FILE_LOGGER_OUTDIR
-
-    export DISABLE_OP_E2E_LEGACY=true
-    export SKIP_P2P_CONNECTION_CHECK=true
-
-    # Run the test with count=1 to avoid caching the test results.
-    cd {{SOURCE}} && go test -count=1 -timeout 0 -v ./node/long-running $FILTER
 
 # Run action tests for the single-chain client program on the native target.
 #
@@ -266,6 +211,29 @@ action-tests-single-run test_name='.*' parallel="0" *args='':
     --jsonfile=./tmp/testlogs/log.json \
     -- -count=1 -parallel=$PARALLEL -timeout=60m -run "{{test_name}}"
 
+# Run the kona-sp1 range guest in SP1 execute mode against the action-test chain.
+#
+# Builds the guest ELFs (Dockerized SP1 toolchain) and the range-executor binary, then runs the SP1
+# execute action tests with KONA_SP1_RANGE_EXECUTOR_PATH and KONA_SP1_ELF_DIR set. Tests skip when
+# the executor path is unset.
+action-tests-sp1 test_name='TestSP1.*':
+  #!/bin/bash
+  set -euo pipefail
+
+  echo "Building SP1 guest ELFs (Dockerized SP1 toolchain)..."
+  ( cd {{SOURCE}}/../sp1 && just build-elfs )
+  export KONA_SP1_ELF_DIR="{{SOURCE}}/../sp1/elf"
+  echo "KONA_SP1_ELF_DIR: $KONA_SP1_ELF_DIR"
+
+  echo "Building kona-sp1-range-executor..."
+  ( cd {{SOURCE}}/../sp1 && just build-range-executor )
+
+  export KONA_SP1_RANGE_EXECUTOR_PATH="{{SOURCE}}/../../target/release/kona-sp1-range-executor"
+  echo "KONA_SP1_RANGE_EXECUTOR_PATH: $KONA_SP1_RANGE_EXECUTOR_PATH"
+
+  cd {{SOURCE}}/proofs
+  go test -count=1 -timeout=60m -run "{{test_name}}" .
+
 update-packages:
     #!/bin/bash
     cd {{SOURCE}}/optimism/op-deployer && just build-contracts copy-contract-artifacts
@@ -275,4 +243,3 @@ update-packages:
 update-optimism:
   #!/bin/bash
   git submodule update --remote --force
-

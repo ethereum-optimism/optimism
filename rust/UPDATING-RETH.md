@@ -97,28 +97,36 @@ main's CI actually validated.
    keeps the manifest honest about what we actually build against and signals
    the sync to downstream consumers (e.g. Hardhat tracking `op-revm`).
 
-5. Refresh the lockfiles — all three workspaces have their own. `cargo update
-   -p reth` does **not** work — there is no top-level crate literally named
-   `reth` in the dep graph; the workspace depends on `reth-*` subcrates. Pass
-   any real reth subcrate; cargo cascades to every git dep sharing the same
-   source:
+5. Refresh the lockfiles — all four Rust workspaces have their own. `cargo
+   update -p reth` does **not** work — there is no top-level crate literally
+   named `reth` in the dependency graph. Pass any real reth subcrate in the
+   three workspaces that depend on reth directly, then refresh revm in the SP1
+   guest workspace:
 
    ```bash
    for d in . op-rbuilder rollup-boost; do
      (cd $d && mise exec -- cargo update reth-chainspec)
    done
+   (cd kona/sp1/programs && mise exec -- cargo update revm)
    ```
 
-6. Revisit the slot-preimage layout reference.
-   `op-reth/crates/cli/src/commands/slot_preimages_seed.rs` replicates reth's
-   private `SlotPreimages` MDBX layout and carries the rev it was copied from.
-   Diff the upstream source between the revs; if unchanged, just update the rev
-   in the comment, otherwise port the layout change:
+   A targeted cargo update can also advance unrelated dependencies that track a
+   branch. Inspect every changed git source in the lockfile delta. Restore
+   unrelated drift or replace its branch with an intentionally reviewed exact
+   revision before proceeding.
+
+6. Revisit the upstream slot-preimage seeding API.
+   `op-reth/crates/cli/src/commands/slot_preimages_seed.rs` uses reth's public
+   `SlotPreimages` helper directly. Review changes to that helper and its MDBX
+   layout between the old and new reth revisions:
 
    ```bash
    git -C <reth-checkout> diff <OLD_REV> <NEW_REV> -- \
      crates/stages/stages/src/stages/execution/slot_preimages.rs
    ```
+
+   Confirm the import and `open`/`insert_preimages` calls remain compatible. Do
+   not reintroduce a local copy of the MDBX layout.
 
 7. Compile and adapt:
 
@@ -219,11 +227,17 @@ onto an older base, or accept the broader catch-up work as part of the bump.
 
 ## See also
 
+- `docs/ai/reth-update-review.md` — the review guide for these bumps: the risk
+  taxonomy and the `reth-update-reviewer` agent that surfaces upstream changes
+  which should have forced an op- change but didn't.
 - `docs/ai/rust-dev.md` — broader Rust workflow (build, test, lint).
 - `rust/Cargo.toml` — where the pin lives (~70 occurrences), plus
   `rust/op-rbuilder/Cargo.toml` and the two `rust/rollup-boost` crate
   manifests.
+- `rust/kona/sp1/programs/Cargo.lock` — the fourth lockfile; refresh it when
+  shared revm or alloy anchors move.
 - `rust/op-reth/crates/rpc/src/witness.rs` — example of vendoring a trait that
   upstream removed.
-- `rust/op-reth/crates/cli/src/commands/slot_preimages_seed.rs` — replicated
-  upstream MDBX layout; revisit on every bump.
+- `rust/op-reth/crates/cli/src/commands/slot_preimages_seed.rs` — caller of
+  reth's public `SlotPreimages` seeding API; review the upstream helper on every
+  bump.

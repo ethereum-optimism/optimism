@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	gethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/lmittmann/w3"
 )
 
@@ -68,12 +69,12 @@ var (
 )
 
 // setSDMEnabled toggles the local SDM PostExec production opt-in on an L2 EL via the
-// admin_setSdmPostExecOptIn RPC. SDM is disabled by default on every process boot; tests that
+// admin_setOperatorSdmOptIn RPC. SDM is disabled by default on every process boot; tests that
 // expect PostExec txs to flow must opt in explicitly on the sequencer's EL.
 func setSDMEnabled(t devtest.T, l2EL *dsl.L2ELNode, enabled bool) {
 	rpcClient := l2EL.Escape().L2EthClient().RPC()
-	err := rpcClient.CallContext(t.Ctx(), nil, "admin_setSdmPostExecOptIn", enabled)
-	t.Require().NoError(err, "admin_setSdmPostExecOptIn(%v) RPC failed", enabled)
+	err := rpcClient.CallContext(t.Ctx(), nil, "admin_setOperatorSdmOptIn", enabled)
+	t.Require().NoError(err, "admin_setOperatorSdmOptIn(%v) RPC failed", enabled)
 }
 
 // verifyOpReth checks the L2 execution layer client is op-reth by calling
@@ -134,6 +135,37 @@ func replayBlockWithSDM(t devtest.T, l2EL *dsl.L2ELNode, blockNum uint64) *sdmpk
 
 func findPostExecTransaction(block *sdmpkg.RPCBlock) (*sdmpkg.RPCTransaction, int) {
 	return sdmpkg.FindPostExecTransaction(block)
+}
+
+// assertPostExecTxHashIsCanonical asserts op-reth serves and resolves the post-exec tx (and its
+// receipt) under the hash Go's PostExecTx.Hash() produces — keccak256(0x7D || Data). Hashing via
+// Hash() rather than a hand-rolled keccak checks the Go hasher and op-reth agree — the cross-client
+// guarantee op-service/sources relies on.
+func assertPostExecTxHashIsCanonical(t devtest.T, l2EL *dsl.L2ELNode, postExecTx *sdmpkg.RPCTransaction) {
+	wantHash := gethtypes.NewTx(&gethtypes.PostExecTx{Data: []byte(postExecTx.Input)}).Hash()
+
+	t.Require().Equal(wantHash, postExecTx.Hash,
+		"op-reth-served post-exec tx hash %s must equal PostExecTx.Hash() %s (keccak256(0x7D || Data), matching TxDeposit)",
+		postExecTx.Hash, wantHash)
+
+	rpcClient := l2EL.Escape().L2EthClient().RPC()
+
+	var txRaw json.RawMessage
+	err := rpcClient.CallContext(t.Ctx(), &txRaw, "eth_getTransactionByHash", wantHash)
+	t.Require().NoError(err, "eth_getTransactionByHash RPC failed for canonical hash %s", wantHash)
+	t.Require().False(isNullJSONResult(txRaw),
+		"op-reth must resolve the post-exec tx under its canonical hash %s", wantHash)
+
+	var receiptRaw json.RawMessage
+	err = rpcClient.CallContext(t.Ctx(), &receiptRaw, "eth_getTransactionReceipt", wantHash)
+	t.Require().NoError(err, "eth_getTransactionReceipt RPC failed for canonical hash %s", wantHash)
+	t.Require().False(isNullJSONResult(receiptRaw),
+		"op-reth must resolve the post-exec receipt under its canonical hash %s", wantHash)
+}
+
+// isNullJSONResult reports whether a raw JSON-RPC result is absent (null or empty) — i.e. not found.
+func isNullJSONResult(raw json.RawMessage) bool {
+	return len(raw) == 0 || strings.TrimSpace(string(raw)) == "null"
 }
 
 func mustFindReplayTxByHash(t devtest.T, replay *sdmpkg.ReplaySDMBlock, txHash common.Hash) *sdmpkg.ReplaySDMTx {

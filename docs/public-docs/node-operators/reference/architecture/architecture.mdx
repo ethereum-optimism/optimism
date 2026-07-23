@@ -1,9 +1,12 @@
 ---
 title: Node architecture
-description: Learn about node architecture.
+description: Understand how the components of an OP Stack node fit together.
+diataxis: explanation
 ---
 
-This page reviews node architecture for all nodes running on OP Stack networks. All OP Mainnet nodes are composed of two core software services, the Rollup Node and the Execution Client.
+This page explains how an OP Stack node is put together: what its components are, what each one is responsible for, and how they relate to the equivalent parts of an Ethereum node. It is background reading to build a mental model before you run a node — for the steps to actually stand one up, see the [Next steps](#next-steps) below.
+
+Every node on an OP Stack network is composed of two core software services, the Rollup Node and the Execution Client.
 OP Mainnet also optionally supports a third component, Legacy Geth, that can serve stateful queries for blocks and transactions created before the [Bedrock Upgrade](https://web.archive.org/web/20230608050602/https://blog.oplabs.co/introducing-optimism-bedrock/).
 
 ## Node flow diagram

@@ -87,28 +87,27 @@ test-dev *ARGS: build-go-ffi
   FOUNDRY_PROFILE=lite forge test {{ARGS}}
 
 # Default block number for the forked upgrade path.
-# Block numbers are calculated deterministically based on the current week.
-# The block is set to approximately Sunday 00:00 UTC of each week.
-# This allows for consistent caching while automatically updating weekly.
+# Block numbers are calculated deterministically based on the current day.
+# The block is set to approximately 00:00 UTC of the current day.
+# This allows for consistent caching while automatically updating daily.
 #
 # Note: We use a recipe instead of top-level exports to avoid eager evaluation
 # of both chains' block numbers when only one is needed.
 
 # Calculates and prints the pinned block number for the current ETH_RPC_URL.
-# Uses the most recent Sunday at 00:00 UTC as the target timestamp.
+# Uses the start of the current day (00:00 UTC) as the target timestamp.
 # Retries up to 3 times with a 5-second delay to handle transient RPC failures.
 print-pinned-block-number:
   #!/usr/bin/env bash
   set -euo pipefail
-  # Calculate most recent Sunday at 00:00 UTC
+  # Calculate the start of the current day at 00:00 UTC
   now=$(date -u +%s)
-  dow=$(date -u +%w)  # 0=Sunday
   h=$(date -u +%H); m=$(date -u +%M); s=$(date -u +%S)
   secs_since_midnight=$(( 10#$h * 3600 + 10#$m * 60 + 10#$s ))
-  sunday_midnight=$(( now - secs_since_midnight - dow * 86400 ))
+  today_midnight=$(( now - secs_since_midnight ))
   delay=5
   for attempt in 1 2 3; do
-    if cast find-block "$sunday_midnight" --rpc-url $ETH_RPC_URL; then
+    if cast find-block "$today_midnight" --rpc-url $ETH_RPC_URL; then
       exit 0
     fi
     if [ "$attempt" -lt 3 ]; then
@@ -215,7 +214,6 @@ prepare-l2-upgrade-env *ARGS:
   #!/bin/bash
   set -euo pipefail
   export L2_FORK_TEST=true
-  export DEV_FEATURE__L2CM=true
   export FOUNDRY_FORK_RETRIES=10
   export FOUNDRY_FORK_RETRY_BACKOFF=1000
   {{ARGS}} \
@@ -239,7 +237,6 @@ prepare-l2cm-activation-env *ARGS:
   set -euo pipefail
   export L2_FORK_TEST=true
   export L2CM_ACTIVATION_TEST=true
-  export DEV_FEATURE__L2CM=true
   export FOUNDRY_FORK_RETRIES=10
   export FOUNDRY_FORK_RETRY_BACKOFF=1000
   {{ARGS}} \
@@ -252,6 +249,10 @@ test-l2cm-activation-test *ARGS:
 
 test-l2cm-activation-test-rerun *ARGS:
   just test-l2cm-activation-test {{ARGS}} --rerun -vvvv
+
+# Runs L2 operations after a fork activation, such as verifying predeploys.
+post-fork-ops *ARGS:
+  ./scripts/post-fork-ops/verify-predeploys.sh {{ARGS}}
 
 ########################################################
 #                        DEPLOY                        #

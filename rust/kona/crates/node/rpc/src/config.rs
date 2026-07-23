@@ -21,6 +21,11 @@ pub struct RpcBuilder {
 }
 
 impl RpcBuilder {
+    /// Returns whether the admin API namespace is enabled.
+    pub const fn enable_admin(&self) -> bool {
+        self.enable_admin
+    }
+
     /// Returns whether `WebSocket` RPC endpoint is enabled
     pub const fn ws_enabled(&self) -> bool {
         self.ws_enabled

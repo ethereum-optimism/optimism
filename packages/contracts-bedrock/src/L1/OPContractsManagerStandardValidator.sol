@@ -46,8 +46,8 @@ import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 /// before and after an upgrade.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 2.10.3
-    string public constant version = "2.10.3";
+    /// @custom:semver 2.11.1
+    string public constant version = "2.11.1";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -948,16 +948,6 @@ contract OPContractsManagerStandardValidator is ISemver {
             _errors = assertValidPermissionlessDisputeGame(
                 _errors,
                 _input.sysCfg,
-                GameTypes.CANNON,
-                _input.cannonPrestate,
-                _input.l2ChainID,
-                _proxyAdmin,
-                _overrides,
-                "PLDG"
-            );
-            _errors = assertValidPermissionlessDisputeGame(
-                _errors,
-                _input.sysCfg,
                 GameTypes.CANNON_KONA,
                 _input.cannonKonaPrestate,
                 _input.l2ChainID,
@@ -1060,7 +1050,6 @@ contract OPContractsManagerStandardValidator is ISemver {
     {
         IDisputeGameFactory factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
         LibGameArgs.ZKGameArgs memory args = LibGameArgs.decodeZK(factory.gameArgs(GameTypes.ZK_DISPUTE_GAME));
-
         _errors = internalRequire(args.absolutePrestate != bytes32(0), string.concat(_errorPrefix, "-70"), _errors);
         _errors = internalRequire(
             args.verifier != address(0) && args.verifier.code.length > 0, string.concat(_errorPrefix, "-80"), _errors
@@ -1106,9 +1095,8 @@ contract OPContractsManagerStandardValidator is ISemver {
         // Note: Even if the devFeatureBitmap is on for ZK_DISPUTE_GAME, we treat the deployment pipeline and
         // as extension, the factory as the source of truth for deciding whether to validate the ZK game.
         // ZK is the only per-chain opt-in game type; mandatory game types fail loud in getGameImplementation()
-        // TODO: Once ZK is mandatory (not per-chain opt-in) post interop migration, remove this early return so chains
-        // without ZKDisputeGame registered fail validation. Companion to the ZKDG-NOSHAPE TODO in
-        // StandardValidatorUtils.sol.
+        // TODO(#21529): once ZK is mandatory (not opt-in), drop this early return so chains without a ZK game fail
+        // validation. Pairs with the ZKDG-NOSHAPE TODO in StandardValidatorUtils.sol.
         IDisputeGameFactory _factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
         if (address(_factory.gameImpls(GameTypes.ZK_DISPUTE_GAME)) == address(0)) {
             return _errors;

@@ -19,6 +19,7 @@ import (
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	opcoreparams "github.com/ethereum-optimism/optimism/op-core/params"
 	opparams "github.com/ethereum-optimism/optimism/op-node/params"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -95,10 +96,13 @@ type L2GenesisBlockDeployConfig struct {
 	L2GenesisBlockGasUsed       hexutil.Uint64 `json:"l2GenesisBlockGasUsed"`
 	L2GenesisBlockParentHash    common.Hash    `json:"l2GenesisBlockParentHash"`
 	L2GenesisBlockBaseFeePerGas *hexutil.Big   `json:"l2GenesisBlockBaseFeePerGas"`
+	// L2GenesisBlockTimestamp is the timestamp of the L2 genesis block. When unset, it
+	// defaults to the timestamp of the "l1StartingBlockTag" block. When set, it must not be
+	// below that block's timestamp. It also serves as the base for the hardfork
+	//  activation-time offsets.
+	L2GenesisBlockTimestamp *hexutil.Uint64 `json:"l2GenesisBlockTimestamp,omitempty"`
 	// Note that there is no L2 genesis ExtraData, as it must default to a valid Holocene eip-1559
 	// configuration. See constant 'HoloceneExtraData' for the specific value used.
-	// Note that there is no L2 genesis timestamp:
-	// This is instead configured based on the timestamp of "l1StartingBlockTag".
 }
 
 var _ ConfigChecker = (*L2GenesisBlockDeployConfig)(nil)
@@ -116,6 +120,23 @@ func (d *L2GenesisBlockDeployConfig) Check(log log.Logger) error {
 		return fmt.Errorf("%w: L2 genesis block base fee per gas cannot be nil", ErrInvalidDeployConfig)
 	}
 	return nil
+}
+
+// L2GenesisTime returns the L2 genesis timestamp for a chain anchored at an L1 block with
+// timestamp l1StartTime (the explicit L2GenesisBlockTimestamp when set, l1StartTime
+// otherwise). Returns an error if the explicit L2GenesisBlockTimestamp is below l1StartTime.
+func (d *L2GenesisBlockDeployConfig) L2GenesisTime(l1StartTime uint64) (uint64, error) {
+	if d.L2GenesisBlockTimestamp == nil {
+		return l1StartTime, nil
+	}
+	l2GenesisTime := uint64(*d.L2GenesisBlockTimestamp)
+	if l2GenesisTime < l1StartTime {
+		return 0, fmt.Errorf(
+			"%w: l2GenesisBlockTimestamp (%d) is below the timestamp of the L1 starting block (%d)",
+			ErrInvalidDeployConfig, l2GenesisTime, l1StartTime,
+		)
+	}
+	return l2GenesisTime, nil
 }
 
 // OwnershipDeployConfig defines the ownership of an L2 chain deployment.
@@ -1098,7 +1119,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *eth.BlockRef, l2GenesisBlockHa
 		return nil, errors.New("SystemConfigProxy cannot be address(0)")
 	}
 
-	chainOpConfig := &params.OptimismConfig{
+	chainOpConfig := &opcoreparams.OptimismConfig{
 		EIP1559Elasticity:        d.EIP1559Elasticity,
 		EIP1559Denominator:       d.EIP1559Denominator,
 		EIP1559DenominatorCanyon: &d.EIP1559DenominatorCanyon,
@@ -1114,7 +1135,10 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *eth.BlockRef, l2GenesisBlockHa
 		}
 	}
 
-	l1StartTime := l1StartBlock.Time
+	l2GenesisTime, err := d.L2GenesisTime(l1StartBlock.Time)
+	if err != nil {
+		return nil, err
+	}
 
 	return &rollup.Config{
 		Genesis: rollup.Genesis{
@@ -1126,7 +1150,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *eth.BlockRef, l2GenesisBlockHa
 				Hash:   l2GenesisBlockHash,
 				Number: l2GenesisBlockNumber,
 			},
-			L2Time:       l1StartBlock.Time,
+			L2Time:       l2GenesisTime,
 			SystemConfig: d.GenesisSystemConfig(),
 		},
 		BlockTime:              d.L2BlockTime,
@@ -1138,18 +1162,18 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *eth.BlockRef, l2GenesisBlockHa
 		BatchInboxAddress:      d.BatchInboxAddress,
 		DepositContractAddress: d.OptimismPortalProxy,
 		L1SystemConfigAddress:  d.SystemConfigProxy,
-		RegolithTime:           d.RegolithTime(l1StartTime),
-		CanyonTime:             d.CanyonTime(l1StartTime),
-		DeltaTime:              d.DeltaTime(l1StartTime),
-		EcotoneTime:            d.EcotoneTime(l1StartTime),
-		FjordTime:              d.FjordTime(l1StartTime),
-		GraniteTime:            d.GraniteTime(l1StartTime),
-		HoloceneTime:           d.HoloceneTime(l1StartTime),
-		PectraBlobScheduleTime: d.PectraBlobScheduleTime(l1StartTime),
-		IsthmusTime:            d.IsthmusTime(l1StartTime),
-		JovianTime:             d.JovianTime(l1StartTime),
-		KarstTime:              d.KarstTime(l1StartTime),
-		LagoonTime:             d.LagoonTime(l1StartTime),
+		RegolithTime:           d.RegolithTime(l2GenesisTime),
+		CanyonTime:             d.CanyonTime(l2GenesisTime),
+		DeltaTime:              d.DeltaTime(l2GenesisTime),
+		EcotoneTime:            d.EcotoneTime(l2GenesisTime),
+		FjordTime:              d.FjordTime(l2GenesisTime),
+		GraniteTime:            d.GraniteTime(l2GenesisTime),
+		HoloceneTime:           d.HoloceneTime(l2GenesisTime),
+		PectraBlobScheduleTime: d.PectraBlobScheduleTime(l2GenesisTime),
+		IsthmusTime:            d.IsthmusTime(l2GenesisTime),
+		JovianTime:             d.JovianTime(l2GenesisTime),
+		KarstTime:              d.KarstTime(l2GenesisTime),
+		LagoonTime:             d.LagoonTime(l2GenesisTime),
 		KeepKarstUpgradeGas:    d.KeepKarstUpgradeGas,
 		AltDAConfig:            altDA,
 		ChainOpConfig:          chainOpConfig,

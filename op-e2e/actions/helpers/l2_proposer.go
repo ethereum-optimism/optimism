@@ -3,8 +3,6 @@ package helpers
 import (
 	"context"
 	"crypto/ecdsa"
-	"encoding/binary"
-	"errors"
 	"math/big"
 	"time"
 
@@ -26,7 +24,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	"github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	"github.com/ethereum-optimism/optimism/op-proposer/proposer/source"
-	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
@@ -96,7 +93,7 @@ func (f fakeTxMgr) SuggestGasPriceCaps(context.Context) (*big.Int, *big.Int, *bi
 	panic("unimplemented")
 }
 
-func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Client, rollupCl *sources.RollupClient) *L2Proposer {
+func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Client, proposalSource source.ProposalSource) *L2Proposer {
 	proposerConfig := proposer.ProposerConfig{
 		PollInterval:           time.Second,
 		NetworkTimeout:         time.Second,
@@ -105,8 +102,7 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 		DisputeGameType:        cfg.DisputeGameType,
 		AllowNonFinalized:      cfg.AllowNonFinalized,
 	}
-	rollupProvider, err := dial.NewStaticL2RollupProviderFromExistingRollup(rollupCl)
-	require.NoError(t, err)
+	t.Cleanup(proposalSource.Close)
 
 	driverSetup := proposer.DriverSetup{
 		Log:            log,
@@ -115,7 +111,7 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 		Txmgr:          fakeTxMgr{from: crypto.PubkeyToAddress(cfg.ProposerKey.PublicKey), chainID: cfg.ChainID},
 		L1Client:       l1,
 		Multicaller:    batching.NewMultiCaller(l1.Client(), batching.DefaultBatchSize),
-		ProposalSource: source.NewRollupProposalSource(rollupProvider),
+		ProposalSource: proposalSource,
 	}
 
 	dr, err := proposer.NewL2OutputSubmitter(driverSetup)
@@ -198,12 +194,7 @@ func (p *L2Proposer) fetchNextOutput(t Testing) (source.Proposal, bool, error) {
 	if err != nil || !shouldPropose {
 		return source.Proposal{}, false, err
 	}
-	if output.IsSuperRootProposal() {
-		return source.Proposal{}, false, errors.New("unexpected super root proposal")
-	}
-	encodedBlockNumber := make([]byte, 32)
-	binary.BigEndian.PutUint64(encodedBlockNumber[24:], output.SequenceNum)
-	game, err := p.disputeGameFactory.Games(&bind.CallOpts{}, p.driver.Cfg.DisputeGameType, output.Root, encodedBlockNumber)
+	game, err := p.disputeGameFactory.Games(&bind.CallOpts{}, p.driver.Cfg.DisputeGameType, output.Root, output.ExtraData())
 	if err != nil {
 		return source.Proposal{}, false, err
 	}
