@@ -64,6 +64,8 @@ pub struct Chain {
     /// List of Explorer Endpoints.
     #[cfg_attr(feature = "tabled", tabled(skip))]
     pub explorers: Vec<String>,
+    /// The Superchain Level.
+    pub superchain_level: u64,
     /// Governed by Optimism flag.
     #[cfg_attr(feature = "tabled", tabled(skip))]
     pub governed_by_optimism: Option<bool>,
@@ -101,7 +103,7 @@ impl SuperchainParent {
         match self.chain.as_ref() {
             "mainnet" => 1,
             "sepolia" => 11155111,
-            "sepolia-dev-0" => 11155421,
+            "sepolia-devnet-2" => 420130015,
             _ => 10,
         }
     }
@@ -142,5 +144,11 @@ mod tests {
                 .iter()
                 .all(|chain| { !chain.as_object().unwrap().contains_key("superchainLevel") })
         );
+    }
+
+    #[test]
+    fn chain_id_for_sepolia_devnet_2() {
+        let parent = SuperchainParent { chain: "sepolia-devnet-2".into(), ..Default::default() };
+        assert_eq!(parent.chain_id(), 420130015);
     }
 }

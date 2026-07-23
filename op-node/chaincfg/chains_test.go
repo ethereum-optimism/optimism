@@ -22,9 +22,9 @@ import (
 // the superchain-registry is no longer deemed experimental.
 func TestGetRollupConfig(t *testing.T) {
 	configsByName := map[string]rollup.Config{
-		"mainnet":                       mainnetCfg,
-		"sepolia":                       sepoliaCfg,
-		"oplabs-devnet-0-sepolia-dev-0": sepoliaDev0Cfg,
+		"mainnet":                           mainnetCfg,
+		"sepolia":                           sepoliaCfg,
+		"sepolia-devnet-2-sepolia-devnet-2": sepoliaDevnet2Cfg,
 	}
 
 	for name, expectedCfg := range configsByName {
@@ -146,22 +146,21 @@ var sepoliaCfg = rollup.Config{
 	ChainOpConfig:          defaultOpConfig,
 }
 
-var sepoliaDev0Cfg = rollup.Config{
+var sepoliaDevnet2Cfg = rollup.Config{
 	Genesis: rollup.Genesis{
 		L1: eth.BlockID{
-			Hash:   common.HexToHash("0x5639be97000fec7131a880b19b664cae43f975c773f628a08a9bb658c2a68df0"),
-			Number: 5173577,
+			Hash:   common.HexToHash("0x46fb808baa0c4cf0b71e2f85bff8529011a84944529ccbf257e9c82ca88200ba"),
+			Number: 11231178,
 		},
 		L2: eth.BlockID{
-			Hash:   common.HexToHash("0x027ae1f4f9a441f9c8a01828f3b6d05803a0f524c07e09263264a38b755f804b"),
+			Hash:   common.HexToHash("0x782e7ef559d86bd85ca14b3b51bcd64b2a5abba5bf3017d83d34e666d8dc0a57"),
 			Number: 0,
 		},
-		L2Time: 1706484048,
+		L2Time: 1783536096,
 		SystemConfig: eth.SystemConfig{
-			BatcherAddr: common.HexToAddress("0x19cc7073150d9f5888f09e0e9016d2a39667df14"),
-			Overhead:    eth.Bytes32(common.HexToHash("0x00000000000000000000000000000000000000000000000000000000000000bc")),
-			Scalar:      eth.Bytes32(common.HexToHash("0x00000000000000000000000000000000000000000000000000000000000a6fe0")),
-			GasLimit:    30000000,
+			BatcherAddr: common.HexToAddress("0x62a6Ed699757EFA7C6D7E14e11AFf684E904E91a"),
+			Scalar:      eth.Bytes32(common.HexToHash("0x010000000000000000000000000000000000000000000000000c3c9d00000558")),
+			GasLimit:    60000000,
 		},
 	},
 	BlockTime:              2,
@@ -169,20 +168,21 @@ var sepoliaDev0Cfg = rollup.Config{
 	SeqWindowSize:          3600,
 	ChannelTimeoutBedrock:  300,
 	L1ChainID:              big.NewInt(11155111),
-	L2ChainID:              big.NewInt(11155421),
-	BatchInboxAddress:      common.HexToAddress("0xff00000000000000000000000000000011155421"),
-	DepositContractAddress: common.HexToAddress("0x76114bd29dFcC7a9892240D317E6c7C2A281Ffc6"),
-	L1SystemConfigAddress:  common.HexToAddress("0xa6b72407e2dc9EBF84b839B69A24C88929cf20F7"),
+	L2ChainID:              big.NewInt(420130015),
+	BatchInboxAddress:      common.HexToAddress("0x00ab2D21A3e869A42603c37731699D1EedF89eB3"),
+	DepositContractAddress: common.HexToAddress("0xCe313e6d194260417FF9Fee5C58f487D1da9fce0"),
+	L1SystemConfigAddress:  common.HexToAddress("0x5F91Ea5EEA70E505b457A442Dc7A8e5D9641b937"),
 	RegolithTime:           u64Ptr(0),
 	CanyonTime:             u64Ptr(0),
 	DeltaTime:              u64Ptr(0),
-	EcotoneTime:            u64Ptr(1706634000),
-	FjordTime:              u64Ptr(1715961600),
-	GraniteTime:            u64Ptr(1723046400),
-	HoloceneTime:           u64Ptr(1731682800),
-	PectraBlobScheduleTime: u64Ptr(1741687200),
-	IsthmusTime:            u64Ptr(1744300800),
-	JovianTime:             u64Ptr(1762185600),
+	EcotoneTime:            u64Ptr(0),
+	FjordTime:              u64Ptr(0),
+	GraniteTime:            u64Ptr(0),
+	HoloceneTime:           u64Ptr(0),
+	PectraBlobScheduleTime: nil,
+	IsthmusTime:            u64Ptr(0),
+	JovianTime:             u64Ptr(0),
+	KarstTime:              u64Ptr(0),
 	ChainOpConfig:          defaultOpConfig,
 }
 
