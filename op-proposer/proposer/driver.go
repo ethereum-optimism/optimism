@@ -40,6 +40,10 @@ type DGFContract interface {
 	Version(ctx context.Context) (string, error)
 	HasProposedSince(ctx context.Context, proposer common.Address, cutoff time.Time, gameType uint32) (bool, time.Time, common.Hash, error)
 	ProposalTx(ctx context.Context, gameType uint32, outputRoot common.Hash, extraData []byte) (txmgr.TxCandidate, error)
+	// SelectZKParent returns the parent game index for a new ZK dispute game
+	// (math.MaxUint32 for a root game) and the starting L2 sequence number the
+	// new proposal must strictly exceed.
+	SelectZKParent(ctx context.Context, gameType uint32) (uint32, uint64, error)
 }
 
 type RollupClient interface {
@@ -201,6 +205,26 @@ func (l *L2OutputSubmitter) FetchDGFOutput(ctx context.Context) (source.Proposal
 		return source.Proposal{}, false, nil
 	}
 
+	if l.Cfg.DisputeGameType == ZKDisputeGameType {
+		// Select the parent game the new ZK game will build on. The parent can
+		// turn invalid (e.g. blacklisted) between selection and tx inclusion;
+		// game creation then reverts in initialize() and the next tick
+		// re-selects, the same at-most-one-wasted-tx failure mode the proposer
+		// already has for reorgs.
+		parentIdx, startingSeq, err := l.dgfContract.SelectZKParent(ctx, l.Cfg.DisputeGameType)
+		if err != nil {
+			return source.Proposal{}, false, fmt.Errorf("could not select ZK parent game: %w", err)
+		}
+		if output.SequenceNum <= startingSeq {
+			// ZKDisputeGame.initialize() rejects proposals at or before the
+			// starting proposal's sequence number; wait for the next tick.
+			l.Log.Debug("Skipping ZK proposal: sequence number not beyond starting proposal",
+				"sequence_num", output.SequenceNum, "starting_sequence_num", startingSeq, "parent_index", parentIdx)
+			return source.Proposal{}, false, nil
+		}
+		output.ZKParentIndex = &parentIdx
+	}
+
 	l.Log.Info("No proposals found for at least proposal interval, submitting proposal now", "proposalInterval", l.Cfg.ProposalInterval)
 
 	return output, true, nil
@@ -232,15 +256,40 @@ func (l *L2OutputSubmitter) FetchOutput(ctx context.Context, block uint64) (sour
 	return proposal, nil
 }
 
+// proposalExtraData is the single place the dispute game extraData shape is
+// decided. ZK dispute games prepend the parent game index selected by the
+// driver to the super root proof; every other game type uses the proposal
+// source's encoding unchanged.
+func (l *L2OutputSubmitter) proposalExtraData(output source.Proposal) ([]byte, error) {
+	if l.Cfg.DisputeGameType != ZKDisputeGameType {
+		return output.ExtraData(), nil
+	}
+	if !output.IsSuperRootProposal() {
+		return nil, errors.New("ZK dispute game proposals require a super root proposal source")
+	}
+	if output.ZKParentIndex == nil {
+		return nil, errors.New("ZK dispute game proposal is missing a parent game index")
+	}
+	return zkExtraData(*output.ZKParentIndex, output.Super.Marshal()), nil
+}
+
 func (l *L2OutputSubmitter) ProposeL2OutputDGFTxCandidate(ctx context.Context, output source.Proposal) (txmgr.TxCandidate, error) {
+	extraData, err := l.proposalExtraData(output)
+	if err != nil {
+		return txmgr.TxCandidate{}, err
+	}
 	cCtx, cancel := context.WithTimeout(ctx, l.Cfg.NetworkTimeout)
 	defer cancel()
-	return l.dgfContract.ProposalTx(cCtx, l.Cfg.DisputeGameType, output.Root, output.ExtraData())
+	return l.dgfContract.ProposalTx(cCtx, l.Cfg.DisputeGameType, output.Root, extraData)
 }
 
 // sendTransaction creates & sends transactions through the underlying transaction manager.
 func (l *L2OutputSubmitter) sendTransaction(ctx context.Context, output source.Proposal) error {
-	l.Log.Info("Proposing output root", "output", output.Root, "sequenceNum", output.SequenceNum, "extraData", output.ExtraData())
+	extraData, err := l.proposalExtraData(output)
+	if err != nil {
+		return err
+	}
+	l.Log.Info("Proposing output root", "output", output.Root, "sequenceNum", output.SequenceNum, "extraData", extraData)
 
 	candidate, err := l.ProposeL2OutputDGFTxCandidate(ctx, output)
 	if err != nil {

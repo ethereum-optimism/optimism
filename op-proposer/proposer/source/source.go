@@ -20,6 +20,11 @@ type Proposal struct {
 
 	CurrentL1 eth.BlockID
 
+	// ZKParentIndex is the parent game index for ZK dispute game proposals.
+	// It is derived from L1 dispute-game-factory state and set by the driver,
+	// never by a proposal source. It is nil for all other proposal types.
+	ZKParentIndex *uint32
+
 	// Legacy provides data that is only available when retrieving data from a single rollup node.
 	// It should only be used for optional logs and metrics.
 	Legacy LegacyProposalData

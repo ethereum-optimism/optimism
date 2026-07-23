@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	batchingTest "github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
@@ -37,6 +38,7 @@ func TestHasProposedSince(t *testing.T) {
 		{"FaultDisputeGame", snapshots.LoadFaultDisputeGameABI()},
 		{"SuperFaultDisputeGame", snapshots.LoadSuperFaultDisputeGameABI()},
 		{"SuperPermissionedDisputeGame", snapshots.LoadSuperPermissionedDisputeGameABI()},
+		{"ZKDisputeGame", snapshots.LoadZKDisputeGameABI()},
 	}
 
 	for _, contractType := range gameContractTypes {
@@ -334,6 +336,189 @@ func TestProposalTx(t *testing.T) {
 	stubRpc.VerifyTxCandidate(tx)
 	require.NotNil(t, tx.Value)
 	require.Truef(t, bond.Cmp(tx.Value) == 0, "Expected bond %v but was %v", bond, tx.Value)
+}
+
+type zkTestGame struct {
+	gameType    uint32
+	addr        common.Address
+	status      uint8
+	seqNum      uint64
+	blacklisted bool
+	retired     bool
+}
+
+const zkGameType = uint32(10)
+
+var zkAsrAddr = common.Address{0xa5, 0x12}
+
+func TestSelectZKParent(t *testing.T) {
+	const anchorSeq = uint64(1000)
+
+	validGame := func(addr byte, seqNum uint64) zkTestGame {
+		return zkTestGame{gameType: zkGameType, addr: common.Address{addr}, seqNum: seqNum}
+	}
+
+	tests := []struct {
+		name           string
+		games          []zkTestGame
+		expectedParent uint32
+		expectedSeq    uint64
+	}{
+		{
+			name:           "NoGames",
+			games:          nil,
+			expectedParent: math.MaxUint32,
+			expectedSeq:    anchorSeq,
+		},
+		{
+			name:           "PicksNewestValid",
+			games:          []zkTestGame{validGame(0x01, 1100), validGame(0x02, 1200)},
+			expectedParent: 1,
+			expectedSeq:    1200,
+		},
+		{
+			name: "SkipsChallengerWins",
+			games: []zkTestGame{
+				validGame(0x01, 1100),
+				{gameType: zkGameType, addr: common.Address{0x02}, seqNum: 1200, status: gameStatusChallengerWins},
+			},
+			expectedParent: 0,
+			expectedSeq:    1100,
+		},
+		{
+			name: "SkipsBlacklisted",
+			games: []zkTestGame{
+				validGame(0x01, 1100),
+				{gameType: zkGameType, addr: common.Address{0x02}, seqNum: 1200, blacklisted: true},
+			},
+			expectedParent: 0,
+			expectedSeq:    1100,
+		},
+		{
+			name: "SkipsRetired",
+			games: []zkTestGame{
+				validGame(0x01, 1100),
+				{gameType: zkGameType, addr: common.Address{0x02}, seqNum: 1200, retired: true},
+			},
+			expectedParent: 0,
+			expectedSeq:    1100,
+		},
+		{
+			name: "SkipsAtOrBelowAnchor",
+			games: []zkTestGame{
+				validGame(0x01, 1100),
+				{gameType: zkGameType, addr: common.Address{0x02}, seqNum: anchorSeq},
+			},
+			expectedParent: 0,
+			expectedSeq:    1100,
+		},
+		{
+			name: "SkipsOtherGameTypes",
+			games: []zkTestGame{
+				validGame(0x01, 1100),
+				// Non-ZK games have no stubbed contract; touching them fails the test.
+				{gameType: 4, addr: common.Address{0x02}},
+				{gameType: 5, addr: common.Address{0x03}},
+			},
+			expectedParent: 0,
+			expectedSeq:    1100,
+		},
+		{
+			name: "AllInvalid",
+			games: []zkTestGame{
+				{gameType: zkGameType, addr: common.Address{0x01}, seqNum: 1100, retired: true},
+				{gameType: zkGameType, addr: common.Address{0x02}, seqNum: 1200, status: gameStatusChallengerWins},
+			},
+			expectedParent: math.MaxUint32,
+			expectedSeq:    anchorSeq,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			stubRpc, factory := setupDisputeGameFactoryTest(t)
+			withZKGameArgs(stubRpc, zkAsrAddr)
+			withAnchorRoot(stubRpc, common.Hash{0xa1}, anchorSeq)
+			withZKGames(stubRpc, test.games...)
+
+			parentIdx, startingSeq, err := factory.SelectZKParent(context.Background(), zkGameType)
+			require.NoError(t, err)
+			require.Equal(t, test.expectedParent, parentIdx)
+			require.Equal(t, test.expectedSeq, startingSeq)
+		})
+	}
+
+	t.Run("WalksAcrossPages", func(t *testing.T) {
+		stubRpc, factory := setupDisputeGameFactoryTest(t)
+		withZKGameArgs(stubRpc, zkAsrAddr)
+		withAnchorRoot(stubRpc, common.Hash{0xa1}, anchorSeq)
+		// More games than one multicaller batch (DefaultBatchSize=100), with the
+		// only valid ZK parent in the oldest page.
+		games := make([]zkTestGame, batching.DefaultBatchSize+50)
+		for i := range games {
+			games[i] = zkTestGame{gameType: 4, addr: common.Address{0x10, byte(i / 256), byte(i % 256)}}
+		}
+		games[5] = zkTestGame{gameType: zkGameType, addr: common.Address{0x05}, seqNum: 1100}
+		withZKGames(stubRpc, games...)
+
+		parentIdx, startingSeq, err := factory.SelectZKParent(context.Background(), zkGameType)
+		require.NoError(t, err)
+		require.Equal(t, uint32(5), parentIdx)
+		require.Equal(t, uint64(1100), startingSeq)
+	})
+
+	t.Run("ZeroAnchorRoot", func(t *testing.T) {
+		stubRpc, factory := setupDisputeGameFactoryTest(t)
+		withZKGameArgs(stubRpc, zkAsrAddr)
+		withAnchorRoot(stubRpc, common.Hash{}, anchorSeq)
+
+		_, _, err := factory.SelectZKParent(context.Background(), zkGameType)
+		require.ErrorContains(t, err, "no anchor root")
+	})
+
+	t.Run("BadGameArgs", func(t *testing.T) {
+		stubRpc, factory := setupDisputeGameFactoryTest(t)
+		stubRpc.SetResponse(factoryAddr, methodGameArgs, rpcblock.Latest, []interface{}{zkGameType}, []interface{}{[]byte{0x01, 0x02}})
+
+		_, _, err := factory.SelectZKParent(context.Background(), zkGameType)
+		require.ErrorIs(t, err, gameargs.ErrInvalidGameArgs)
+	})
+}
+
+func withZKGameArgs(stubRpc *batchingTest.AbiBasedRpc, asrAddr common.Address) {
+	args := gameargs.ZKGameArgs{
+		AbsolutePrestate:     common.Hash{0x01},
+		Verifier:             common.Address{0x02},
+		MaxChallengeDuration: 30,
+		MaxProveDuration:     30,
+		ChallengerBond:       big.NewInt(1),
+		AnchorStateRegistry:  asrAddr,
+		Weth:                 common.Address{0x03},
+	}
+	stubRpc.SetResponse(factoryAddr, methodGameArgs, rpcblock.Latest, []interface{}{zkGameType}, []interface{}{args.Pack()})
+}
+
+func withAnchorRoot(stubRpc *batchingTest.AbiBasedRpc, root common.Hash, seqNum uint64) {
+	stubRpc.AddContract(zkAsrAddr, snapshots.LoadAnchorStateRegistryABI())
+	stubRpc.SetResponse(zkAsrAddr, methodGetAnchorRoot, rpcblock.Latest, nil, []interface{}{root, new(big.Int).SetUint64(seqNum)})
+}
+
+func withZKGames(stubRpc *batchingTest.AbiBasedRpc, games ...zkTestGame) {
+	stubRpc.SetResponse(factoryAddr, methodGameCount, rpcblock.Latest, nil, []interface{}{big.NewInt(int64(len(games)))})
+	for i, game := range games {
+		stubRpc.SetResponse(factoryAddr, methodGameAtIndex, rpcblock.Latest, []interface{}{big.NewInt(int64(i))}, []interface{}{
+			game.gameType,
+			uint64(1000 + i),
+			game.addr,
+		})
+		if game.gameType != zkGameType {
+			continue
+		}
+		stubRpc.AddContract(game.addr, snapshots.LoadZKDisputeGameABI())
+		stubRpc.SetResponse(game.addr, methodStatus, rpcblock.Latest, nil, []interface{}{game.status})
+		stubRpc.SetResponse(game.addr, methodL2SequenceNumber, rpcblock.Latest, nil, []interface{}{new(big.Int).SetUint64(game.seqNum)})
+		stubRpc.SetResponse(zkAsrAddr, methodIsGameBlacklisted, rpcblock.Latest, []interface{}{game.addr}, []interface{}{game.blacklisted})
+		stubRpc.SetResponse(zkAsrAddr, methodIsGameRetired, rpcblock.Latest, []interface{}{game.addr}, []interface{}{game.retired})
+	}
 }
 
 func withClaims(stubRpc *batchingTest.AbiBasedRpc, gameAbi *abi.ABI, games ...gameMetadata) {

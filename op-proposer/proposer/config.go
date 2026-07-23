@@ -29,7 +29,7 @@ var (
 	// postInteropGameTypes are game types that enforce having a super root RPC.
 	// It is ok if this list isn't complete, unknown game types will allow either rollup or super root RPCs.
 	// We just want to reduce foot-guns during the migration period.
-	postInteropGameTypes = []uint32{4, 5}
+	postInteropGameTypes = []uint32{4, 5, ZKDisputeGameType}
 )
 
 // CLIConfig is a well typed config that is parsed from the CLI params.

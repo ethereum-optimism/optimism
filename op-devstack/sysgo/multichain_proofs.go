@@ -85,9 +85,26 @@ func attachSupernodeSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg Pre
 				sharedDGF,
 				*cfg.ZKDisputeGame,
 			)
-			// TODO(#21463): Start the production proposer once it supports super ZK games.
 			// TODO(#21415): Start the production challenger once it supports the new ZK game API.
-			// Acceptance tests currently drive the game lifecycle explicitly through the DSL.
+			// Game creation is driven by the real proposer below (unless SkipHonestProposer);
+			// challenge and resolution are still driven by the acceptance tests.
+			if !cfg.SkipHonestProposer {
+				proposerOpts := append([]ProposerOption{
+					func(_ ComponentTarget, c *ps.CLIConfig) {
+						c.DisputeGameType = uint32(gameTypes.ZKDisputeGameType)
+					},
+				}, cfg.ProposerOptions...)
+				_ = startSuperProposer(
+					t,
+					runtime.Keys,
+					"main",
+					proofChain.Network.ChainID(),
+					runtime.L1EL,
+					proofChain.Network,
+					runtime.Supernode.UserRPC(),
+					proposerOpts...,
+				)
+			}
 			return runtime
 		}
 	}

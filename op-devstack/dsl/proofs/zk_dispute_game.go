@@ -1,7 +1,6 @@
 package proofs
 
 import (
-	"encoding/binary"
 	"math/big"
 
 	challengerContracts "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
@@ -162,30 +161,11 @@ func (g *ZKGame) Close(eoa *dsl.EOA) {
 func (f *DisputeGameFactory) ZKGameImpl() *ZKDisputeGame {
 	impl := f.GameImpl(gameTypes.ZKDisputeGameType)
 	raw := f.GameArgs(gameTypes.ZKDisputeGameType)
-	f.require.Len(raw, gameargs.ZKArgsLength, "ZK game args must be exactly %d bytes", gameargs.ZKArgsLength)
-
-	var prestate common.Hash
-	copy(prestate[:], raw[0:32])
-
-	var verifier common.Address
-	copy(verifier[:], raw[32:52])
-
-	var asr common.Address
-	copy(asr[:], raw[100:120])
-
-	var weth common.Address
-	copy(weth[:], raw[120:140])
+	args, err := gameargs.ParseZK(raw)
+	f.require.NoError(err, "failed to parse ZK game args")
 
 	return &ZKDisputeGame{
 		Address: impl.Address,
-		Args: gameargs.ZKGameArgs{
-			AbsolutePrestate:     prestate,
-			Verifier:             verifier,
-			MaxChallengeDuration: binary.BigEndian.Uint64(raw[52:60]),
-			MaxProveDuration:     binary.BigEndian.Uint64(raw[60:68]),
-			ChallengerBond:       new(big.Int).SetBytes(raw[68:100]),
-			AnchorStateRegistry:  asr,
-			Weth:                 weth,
-		},
+		Args:    args,
 	}
 }
