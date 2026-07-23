@@ -10,6 +10,7 @@ This guide explains the nuances of forced transactions during sequencer downtime
 
 In the OP Stack, forced transactions serve as a mechanism to ensure transaction inclusion, even during sequencer downtime.
 Users are able to force-include transactions, which can initiate withdrawals, at any time. 
+A forced transaction is an ordinary [deposit transaction](/op-stack/bridging/deposit-flow) submitted directly on L1; this page focuses on its censorship-resistance role and inclusion timing during sequencer downtime, while the [Deposit flow](/op-stack/bridging/deposit-flow) explainer covers the underlying mechanics.
 However, there are important nuances to understand about the chain derivation pipeline and sequencer behavior.
 
 
