@@ -158,6 +158,9 @@ func attachSuperChallengerAndProposer(
 		els = append(els, chain.EL)
 	}
 
+	// The honest challenger for interop super games runs the super-cannon-kona trace regardless of the
+	// proposed game type; proposerGameType configures only the proposer below. SuperPermissioned, for
+	// example, resolves at initialization and is never challenged here.
 	challenger := startInteropChallenger(
 		t,
 		runtime.Keys,
@@ -168,7 +171,7 @@ func attachSuperChallengerAndProposer(
 		runtime.Supernode.UserRPC(),
 		nets,
 		els,
-		proposerGameType,
+		gameTypes.SuperCannonKonaGameType,
 	)
 	runtime.L2ChallengerConfig = challenger.Config()
 
@@ -318,8 +321,7 @@ func startInteropChallenger(
 	case gameTypes.ZKDisputeGameType:
 		// The ZK game validates super roots from the supernode; it needs no VM config or dependency set.
 		options = append(options, sharedchallenger.WithZKDisputeGameType())
-	case gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType:
-		// Both are cannon/kona-based super games and share the interop VM challenger config.
+	case gameTypes.SuperCannonKonaGameType:
 		staticDepSet, ok := depSet.(*depset.StaticConfigDependencySet)
 		require.True(ok, "expected static dependency set for super challenger")
 		options = append(options,
