@@ -4,6 +4,8 @@ description: Learn how to configure Legacy Geth for serving historical execution
 diataxis: how-to
 ---
 
+import OpGethEol from "/snippets/op-geth-eol.mdx"
+
 Legacy Geth (`l2geth`) is the old pre-Bedrock OVM client running against a preconfigured data directory.
 It is required only for upgraded networks like OP Mainnet to serve historical execution traces from before the Bedrock upgrade.
 If you're running a node that had a chain genesis after the Bedrock upgrade, you do not need Legacy Geth.
@@ -76,9 +78,7 @@ Both op-reth and op-geth use the same `--rollup.historicalrpc` flag to route pre
   </Tab>
 
   <Tab title="op-geth">
-    <Warning>
-      **op-geth has reached end-of-support (2026-05-31) and does not support the now-active Karst hardfork.** New deployments should use op-reth. See the [op-geth deprecation notice](/notices/op-geth-deprecation).
-    </Warning>
+    <OpGethEol />
 
     ```bash
     geth \
