@@ -4,7 +4,7 @@ description: "How long transactions take to reach each finality stage on OP Main
 diataxis: explanation
 ---
 
-OP Mainnet follows the standard OP Stack finality model. A transaction is **unsafe** while its data has not yet been posted to Ethereum, **safe** once the batch containing it is included in an Ethereum block, and **finalized** once that Ethereum block is finalized. For the full explanation of these states, including common misconceptions, see [Transaction finality](/op-stack/transactions/transaction-finality).
+OP Mainnet follows the standard OP Stack finality model. A transaction gets fast sequencer preconfirmation (sub-second with Flashblocks) and gets Ethereum guaranteed finality once the batch containing it is included in an Ethereum block and that block is finalized, typically 15 to 30 minutes after submission. For the full explanation of the journey from soft finality to Ethereum guaranteed finality, see [Transaction finality](/op-stack/transactions/transaction-finality).
 
 <Note>
 A common misconception is that transactions on OP Mainnet take 7 days to finalize. **This is incorrect.** Only *withdrawals* to Ethereum through the Standard Bridge wait 7 days; transaction finality itself typically takes about 15 to 30 minutes.
@@ -15,11 +15,11 @@ A common misconception is that transactions on OP Mainnet take 7 days to finaliz
 | Stage                      | What has happened                                                                        | Typical time after submission |
 | -------------------------- | ---------------------------------------------------------------------------------------- | ----------------------------- |
 | Flashblock preconfirmation | The Sequencer includes the transaction in a [Flashblock](/op-stack/features/flashblocks) | ~250 milliseconds             |
-| L2 block inclusion (unsafe) | The transaction is in an L2 block distributed over the peer-to-peer network             | ~2 seconds                    |
-| Data on Ethereum (safe)    | A batch containing the transaction lands in an Ethereum block                            | A few minutes                 |
+| L2 block inclusion | The transaction is in an L2 block distributed over the peer-to-peer network             | ~2 seconds                    |
+| Data on Ethereum  | A batch containing the transaction lands in an Ethereum block                            | A few minutes                 |
 | Finalized                  | Ethereum finalizes the block containing the batch                                        | ~15 to 30 minutes             |
 
-These timings depend on Ethereum network conditions. The safe stage depends on the batcher's submission cadence: OP Mainnet produces enough data to post batches every few minutes. The finalized stage then adds Ethereum's own time to finality, normally about two to three epochs (roughly 13 to 19 minutes) after the batch lands on Ethereum, and longer if Ethereum finality is delayed.
+These timings depend on Ethereum network conditions. The inclusion on Ethereum's blockchain depends on the batcher's submission cadence: OP Mainnet produces enough data to post batches every few minutes. The finalized stage then adds Ethereum's own time to finality, normally about two to three epochs (roughly 13 to 19 minutes) after the batch lands on Ethereum.
 
 ## Withdrawals to Ethereum
 

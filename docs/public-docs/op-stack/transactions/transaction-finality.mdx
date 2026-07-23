@@ -24,7 +24,6 @@ Transactions on OP Stack chains move through three states on the way to finality
 4.  The Ethereum block containing the batch data is finalized by [Ethereum's consensus mechanism](https://ethereum.org/en/developers/docs/consensus-mechanisms/pos/#finality). At this point, the transaction reaches the **"finalized"** state. Ethereum finalizes blocks in epochs of 6.4 minutes, and under normal conditions an Ethereum block is finalized roughly two to three epochs (about 13 to 19 minutes) after it is proposed. Finality can take longer during adverse network conditions on Ethereum. Adding this to the batch submission step, a transaction on OP Mainnet typically reaches the finalized state within about 15 to 30 minutes of submission; on chains that post batches less frequently, the wait is dominated by the batch submission interval.
 
 ```mermaid
-
 sequenceDiagram
     participant User
     participant Network
@@ -35,16 +34,15 @@ sequenceDiagram
     Network->>Sequencer: Forward transaction
     Sequencer->>Sequencer: Include transaction in block
     Sequencer->>Network: Distribute block over P2P network
-    Note right of Sequencer: Transaction status: "unsafe"<br>(block data not yet posted to Ethereum)<br>~a few seconds
+    Note right of Sequencer: Transaction status: "unsafe"<br/>(block data not yet posted to Ethereum)<br/>~a few seconds
 
-    Sequencer->>Ethereum: Batcher publishes block data<br>(as blob data or calldata)
-    Note right of Ethereum: Transaction status: "safe"<br>(included in an Ethereum block)<br>minutes on OP Mainnet;<br>depends on batcher configuration
+    Sequencer->>Ethereum: Batcher publishes block data<br/>(as blob data or calldata)
+    Note right of Ethereum: Transaction status: "safe"<br/>(included in an Ethereum block)<br/>minutes on OP Mainnet;<br/>depends on batcher configuration
 
-    Ethereum->>Ethereum: Finalize block containing the batch<br>(~2 to 3 epochs)
-    Note right of Ethereum: Transaction status: "finalized"<br>~13 to 19 minutes after the batch lands<br>(may vary)
-
-
+    Ethereum->>Ethereum: Finalize block containing the batch<br/>(~2 to 3 epochs)
+    Note right of Ethereum: Transaction status: "finalized"<br/>~13 to 19 minutes after the batch lands<br/>(may vary)
 ```
+
 ## Common misconceptions
 
 ### Transactions take 7 days to finalize
