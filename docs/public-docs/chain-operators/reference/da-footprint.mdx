@@ -4,15 +4,6 @@ description: Understand the Data Availability (DA) footprint block limit introdu
 diataxis: explanation
 ---
 
-import { NormativeSpec } from "/snippets/normative-spec.mdx"
-
-<NormativeSpec
-  what="The DA footprint block limit"
-  title="DA footprint block limit section of the Jovian execution engine specification"
-  href="https://specs.optimism.io/protocol/jovian/exec-engine.html#da-footprint-block-limit"
-  note="This page explains the motivation and mechanics; it does not restate the spec."
-/>
-
 The **Data Availability (DA) Footprint Block Limit** was introduced in the **[Jovian hardfork](https://docs.optimism.io/notices/upgrade-17)** to limit the total amount of transaction data that can fit into a block based on a scaled estimate of the compressed size (or "data availability footprint") of that data.
 This page explains the problem the limit solves, how the DA footprint is calculated, and how the `daFootprintGasScalar` parameter shapes the limit.
 To change the scalar on your chain, follow the [DA footprint setup guide](/chain-operators/guides/features/setting-da-footprint).
