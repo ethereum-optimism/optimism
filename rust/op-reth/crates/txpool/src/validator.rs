@@ -250,10 +250,14 @@ where
                 }
             };
 
-            // Also reserve the operator fee (introduced in Isthmus), matching op-geth's operator
-            // cost function (`core/types/rollup_cost.go`). Reserving only the L1 data fee above
-            // lets a sender covering L2 gas + value + L1 data fee — but not the
-            // operator fee — be admitted to the pool and then fail at execution.
+            // Also reserve the operator fee (introduced in Isthmus). The Isthmus exec-engine spec
+            // mandates this pool behavior: "the transaction pool must reject transactions that do
+            // not have enough balance to cover the worst-case cost of the transaction fee. This
+            // worst-case cost of a transaction now includes the worst-case operator fee."
+            // <https://specs.optimism.io/protocol/isthmus/exec-engine.html#operator-fee>
+            // (Jovian changes the formula: <https://specs.optimism.io/protocol/jovian/exec-engine.html#operator-fee>.)
+            // Reserving only the L1 data fee above lets a sender covering L2 gas + value + L1 data
+            // fee — but not the operator fee — be admitted to the pool and then fail at execution.
             let spec_id =
                 revm_spec_by_timestamp_after_bedrock(self.chain_spec(), self.block_timestamp());
             cost_addition = cost_addition.saturating_add(operator_fee_addition(
@@ -348,14 +352,19 @@ impl OpForkTracker {
 
 /// Operator fee to reserve for a non-deposit transaction in the tx-pool balance check.
 ///
-/// Mirrors op-geth's operator cost function (`core/types/rollup_cost.go`). `apply_op_checks`
-/// otherwise reserves only the L1 data fee, so a sender covering L2 gas + value + L1 data fee — but
-/// not the operator fee — would be admitted to the pool and then fail at execution.
+/// Implements the pool-admission rule from the Isthmus exec-engine spec (the pool must reserve the
+/// worst-case operator fee): <https://specs.optimism.io/protocol/isthmus/exec-engine.html#operator-fee>.
+/// The charge delegates to [`L1BlockInfo::operator_fee_charge`], so the fork-dependent formula
+/// (Isthmus vs the Jovian 100× multiplier,
+/// <https://specs.optimism.io/protocol/jovian/exec-engine.html#operator-fee>) stays in one place.
+/// `apply_op_checks` otherwise reserves only the L1 data fee, so a sender covering L2 gas + value +
+/// L1 data fee — but not the operator fee — would be admitted to the pool and then fail at
+/// execution.
 ///
 /// Returns zero before Isthmus or when the operator fee params are unset:
 /// [`L1BlockInfo::operator_fee_charge`] panics on a missing scalar/constant, so both must be
 /// present before the charge is computed. Uses the transaction's `gas_limit` (worst-case spend),
-/// matching op-geth's use of `tx.Gas()`.
+/// matching the spec's worst-case reservation.
 fn operator_fee_addition(
     l1_block_info: &L1BlockInfo,
     spec_id: OpSpecId,
@@ -400,6 +409,32 @@ mod tests {
         assert_eq!(
             operator_fee_addition(&l1, OpSpecId::ISTHMUS, NON_DEPOSIT_ENCODED, gas_limit),
             expected
+        );
+    }
+
+    #[test]
+    fn operator_fee_uses_jovian_formula_in_jovian() {
+        // Jovian changes the operator fee formula (`gas × scalar × 100 + constant`) from the
+        // Isthmus one (`gas × scalar ÷ 1e6 + constant`) — a ~100× difference for the same params.
+        // The reservation passes `spec_id` straight through to `operator_fee_charge`, so this pins
+        // it to the fork: if the delegation ever drifts, the Jovian path here breaks.
+        // <https://specs.optimism.io/protocol/jovian/exec-engine.html#operator-fee>
+        let l1 = l1_info_with_operator_fee(1, 2);
+        let gas_limit = 21_000u64;
+
+        let expected =
+            l1.operator_fee_charge(NON_DEPOSIT_ENCODED, U256::from(gas_limit), OpSpecId::JOVIAN);
+        assert_eq!(
+            operator_fee_addition(&l1, OpSpecId::JOVIAN, NON_DEPOSIT_ENCODED, gas_limit),
+            expected
+        );
+
+        // Same params, higher fork: Jovian's multiplier makes the reservation strictly larger than
+        // Isthmus — so a fork mix-up can't go unnoticed.
+        let isthmus = operator_fee_addition(&l1, OpSpecId::ISTHMUS, NON_DEPOSIT_ENCODED, gas_limit);
+        assert!(
+            expected > isthmus,
+            "Jovian reservation ({expected}) must exceed Isthmus ({isthmus}) for the same params"
         );
     }
 
