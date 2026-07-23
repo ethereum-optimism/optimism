@@ -135,6 +135,37 @@ func TestDownloadBundle(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestDownloadBundleSkipsRedundantDownloadForEqualLocators(t *testing.T) {
+	testTarGzPath := filepath.Join("testdata", "test.tar.gz")
+	f, err := os.Open(testTarGzPath)
+	require.NoError(t, err)
+	defer f.Close()
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, err := io.Copy(w, f)
+		require.NoError(t, err)
+		_, err = f.Seek(0, 0)
+		require.NoError(t, err)
+	}))
+	defer ts.Close()
+
+	ctx := context.Background()
+	loc := MustNewLocatorFromURL(ts.URL)
+	cacheDir := t.TempDir()
+
+	bundle, err := DownloadBundle(ctx, loc, loc, nil, cacheDir)
+	require.NoError(t, err)
+	require.Equal(t, bundle.L1, bundle.L2)
+
+	// downloadHTTP extracts into a fresh op-deployer-artifacts-* dir on every call,
+	// even when the tarball itself is served from cache, so a second, redundant
+	// Download for L2 would show up as a second extraction directory here.
+	entries, err := filepath.Glob(filepath.Join(cacheDir, "op-deployer-artifacts-*"))
+	require.NoError(t, err)
+	require.Len(t, entries, 1, "L2 should not be downloaded separately when its locator equals L1's")
+}
+
 func TestDownloadBundleLabelsFailures(t *testing.T) {
 	ctx := context.Background()
 	valid := MustNewFileLocator(t.TempDir())

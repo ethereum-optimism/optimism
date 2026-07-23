@@ -51,6 +51,11 @@ func DownloadBundle(
 	if err != nil {
 		return Bundle{}, fmt.Errorf("failed to download L1 artifacts: %w", err)
 	}
+
+	if l1.Equal(l2) {
+		return Bundle{L1: l1FS, L2: l1FS}, nil
+	}
+
 	l2FS, err := Download(ctx, l2, progressor, targetDir)
 	if err != nil {
 		return Bundle{}, fmt.Errorf("failed to download L2 artifacts: %w", err)
