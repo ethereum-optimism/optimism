@@ -318,7 +318,8 @@ func startInteropChallenger(
 	case gameTypes.ZKDisputeGameType:
 		// The ZK game validates super roots from the supernode; it needs no VM config or dependency set.
 		options = append(options, sharedchallenger.WithZKDisputeGameType())
-	case gameTypes.SuperCannonKonaGameType:
+	case gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType:
+		// Both are cannon/kona-based super games and share the interop VM challenger config.
 		staticDepSet, ok := depSet.(*depset.StaticConfigDependencySet)
 		require.True(ok, "expected static dependency set for super challenger")
 		options = append(options,
