@@ -25,34 +25,16 @@ Requirements scale with both:
 *   **CPU:** A reasonably modern CPU.
 *   **Disk:** An SSD, sized to the network and node type. A full OP Mainnet node needs hundreds of gigabytes and grows steadily; an archive node needs multiple terabytes and grows much faster, so use an NVMe SSD for archive nodes.
 
-Test networks are far lighter than OP Mainnet — an OP Sepolia full node syncs into tens of gigabytes rather than hundreds.
+Test networks are far lighter than OP Mainnet: an OP Sepolia full node syncs into tens of gigabytes rather than hundreds.
 If you're setting up for the first time, start on OP Sepolia to validate your setup before committing OP Mainnet-scale disk.
 
 For the current OP Mainnet storage figures and their growth rates, see the [hardware requirements](/node-operators/tutorials/run-node-from-source#hardware-requirements) in the from-source tutorial.
 
 ## Node Architecture
 
-Regardless of which OP Stack network you're running a node for, all nodes share the same fundamental two-client architecture.
-There is the consensus client and the execution client, which communicate via the Engine API with JWT authentication.
-
-### Consensus Layer (Rollup Node)
-
-The consensus layer builds, relays and verifies the canonical chain of blocks. 
-The following are the most popular implementations:
-
-* **[op-node](https://github.com/ethereum-optimism/optimism/tree/develop/op-node)** 
-* **[kona-node](/node-operators/kona-node/install/overview)** (Rust implementation; see its [component hub](/op-stack/components/kona-node))
-
-For nodes running multiple chains as part of an [interop](/op-stack/interop/explainer) dependency set, deploy the consensus layer as **[op-supernode](/op-stack/interop/supernode)**, which hosts an op-node instance for every chain in one process and adds cross-chain message verification.
-See the [supernode configuration guide](/node-operators/guides/configuration/supernode) for recommended settings and the [op-supernode configuration reference](/node-operators/reference/op-supernode-config) for the flag catalogue.
-
-### Execution Layer
-
-The execution layer provides the EVM execution environment.
-The following are the supported implementations:
-
-* **[op-reth](/node-operators/op-reth/index)** — primary supported execution client; see its [component hub](/op-stack/components/op-reth).
-* **[Nethermind](https://github.com/NethermindEth/nethermind)** — alternative execution client.
+Regardless of which OP Stack network you're running a node for, all nodes share the same fundamental two-client architecture: a consensus client (rollup node, either [op-node](/op-stack/components/op-node) or [kona-node](/op-stack/components/kona-node)) paired with an execution client ([op-reth](/op-stack/components/op-reth)), communicating via the Engine API with JWT authentication.
+Nodes that follow every chain in an [interop](/op-stack/interop/explainer) dependency set run [op-supernode](/op-stack/interop/supernode) as the consensus layer instead.
+See the [architecture reference](/node-operators/reference/architecture/architecture) for how the components fit together and the current client support matrix.
 
 ## Node Types
 
@@ -74,12 +56,12 @@ Upgrade announcements, deprecations, and other changes that affect node operator
 
 ## Next steps
 
-*   [**Run a node with Docker**](/node-operators/tutorials/node-from-docker) — recommended path; uses the official op-reth + op-node images.
-*   [**Build and run a node from source**](/node-operators/tutorials/run-node-from-source) — covers op-reth and Nethermind.
-*   [**Run op-reth with historical proofs**](/node-operators/tutorials/reth-historical-proofs) — configure op-reth's proofs-history store for permissionless withdrawal proving.
-*   [**Consensus client configuration**](/node-operators/guides/configuration/consensus-clients) — working base configuration and recommended flags for the rollup node.
-*   [**Execution client configuration**](/node-operators/guides/configuration/execution-clients) — working base configuration and recommended flags for the execution client.
-*   [**Supernode configuration**](/node-operators/guides/configuration/supernode) — recommended settings and a starter configuration for running op-supernode in an interop dependency set.
-*   [**Node metrics and monitoring**](/node-operators/guides/monitoring/metrics) — keep tabs on your node once it's running.
-*   [**Node troubleshooting**](/node-operators/guides/troubleshooting) — help with common problems.
-*   [**Architecture reference**](/node-operators/reference/architecture/architecture) — deeper detail on the two-client architecture.
+*   [**Run a node with Docker**](/node-operators/tutorials/node-from-docker): recommended path; uses the official op-reth + op-node images.
+*   [**Build and run a node from source**](/node-operators/tutorials/run-node-from-source): covers op-reth and Nethermind.
+*   [**Run op-reth with historical proofs**](/node-operators/tutorials/reth-historical-proofs): configure op-reth's proofs-history store for permissionless withdrawal proving.
+*   [**Consensus client configuration**](/node-operators/guides/configuration/consensus-clients): working base configuration and recommended flags for the rollup node.
+*   [**Execution client configuration**](/node-operators/guides/configuration/execution-clients): working base configuration and recommended flags for the execution client.
+*   [**Supernode configuration**](/node-operators/guides/configuration/supernode): recommended settings and a starter configuration for running op-supernode in an interop dependency set.
+*   [**Node metrics and monitoring**](/node-operators/guides/monitoring/metrics): keep tabs on your node once it's running.
+*   [**Node troubleshooting**](/node-operators/guides/troubleshooting): help with common problems.
+*   [**Architecture reference**](/node-operators/reference/architecture/architecture): deeper detail on the two-client architecture.
