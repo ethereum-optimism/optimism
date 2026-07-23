@@ -342,6 +342,26 @@ impl OpReceiptBuilder {
             core_receipt.blob_gas_used = Some(da_size);
         }
 
+        // OP deposit-receipt spec: for a deposit contract-creation tx (`to == null`), the
+        // `depositNonce` "helps derive the correct `contractAddress` meta-data, instead of
+        // assuming the nonce was zero". The deposit nonce is the sender's real L2 nonce, persisted
+        // on the receipt; a deposit tx's own `nonce()` is hard-coded to 0. Available from Regolith
+        // onward (before Regolith the receipt has no deposit nonce, so the address stays
+        // `CREATE(from, 0)`). See
+        // <https://specs.optimism.io/protocol/deposits.html#deposit-receipt>.
+        //
+        // `build_receipt` (chain-agnostic, from `reth_rpc_eth_types`) derives the address as
+        // `CREATE(from, tx.nonce())` = `CREATE(from, 0)`, while the contract is actually deployed
+        // at `CREATE(from, depositNonce)`. Without this override
+        // `eth_getCode(receipt.contractAddress)` returns `0x` whenever the deposit sender's L2
+        // nonce > 0.
+        if core_receipt.contract_address.is_some() &&
+            let OpReceipt::Deposit(deposit_receipt) = &core_receipt.inner.receipt &&
+            let Some(deposit_nonce) = deposit_receipt.deposit_nonce
+        {
+            core_receipt.contract_address = Some(core_receipt.from.create(deposit_nonce));
+        }
+
         let op_receipt_fields = OpReceiptFieldsBuilder::new(timestamp, block_number)
             .l1_block_info(chain_spec, tx_signed, l1_block_info)?
             .op_gas_refund(op_gas_refund)
@@ -819,5 +839,132 @@ mod test {
         .unwrap();
 
         assert_eq!(op_receipt.core_receipt.blob_gas_used, None);
+    }
+
+    /// Builds a deposit `OpTransactionReceipt` for the given creation kind and receipt-extension
+    /// fields, returning `(from, contractAddress)` for assertions. `deposit_nonce` /
+    /// `deposit_receipt_version` model the per-fork receipt shape:
+    /// <https://specs.optimism.io/protocol/deposits.html#deposit-receipt>.
+    fn deposit_receipt_contract_address(
+        to: alloy_primitives::TxKind,
+        deposit_nonce: Option<u64>,
+        deposit_receipt_version: Option<u64>,
+    ) -> (Address, Option<Address>) {
+        use op_alloy_consensus::{OpDepositReceipt, TxDeposit};
+
+        let from = Address::with_last_byte(0x42);
+
+        // A deposit tx's `nonce()` is always hard-coded to 0.
+        let tx = TxDeposit {
+            source_hash: Default::default(),
+            from,
+            to,
+            mint: 0,
+            value: U256::ZERO,
+            gas_limit: 1_000_000,
+            is_system_transaction: false,
+            // init code: PUSH1 0x42, PUSH1 0, MSTORE, PUSH1 32, PUSH1 0, RETURN
+            input: Bytes::from_static(&hex!("604260005260206000f3")),
+        };
+        let signature = Signature::new(U256::ZERO, U256::ZERO, false);
+        let tx: OpTransactionSigned =
+            OpTransactionSigned::new_unhashed(OpTypedTransaction::Deposit(tx), signature);
+
+        let mut l1_block_info = op_revm::L1BlockInfo::default();
+        let op_hardforks = OpChainHardforks::op_mainnet();
+
+        let op_receipt = OpReceiptBuilder::new(
+            &op_hardforks,
+            ConvertReceiptInput::<OpPrimitives> {
+                tx: Recovered::new_unchecked(&tx, from),
+                receipt: OpReceipt::Deposit(OpDepositReceipt {
+                    inner: Receipt {
+                        status: Eip658Value::Eip658(true),
+                        cumulative_gas_used: 100,
+                        logs: vec![],
+                    },
+                    deposit_nonce,
+                    deposit_receipt_version,
+                }),
+                gas_used: 100,
+                next_log_index: 0,
+                meta: TransactionMeta {
+                    timestamp: OP_MAINNET_ISTHMUS_TIMESTAMP,
+                    ..Default::default()
+                },
+            },
+            &mut l1_block_info,
+            None,
+        )
+        .unwrap();
+
+        (from, op_receipt.core_receipt.contract_address)
+    }
+
+    // Deposit contract-creation `contractAddress` across the three receipt eras defined by the
+    // spec. Per <https://specs.optimism.io/protocol/deposits.html#deposit-receipt>, the receipt
+    // extension fields are: omitted before Regolith; `depositNonce` from Regolith; and
+    // `depositNonce` + `depositReceiptVersion == 1` from Canyon. Address derivation depends only
+    // on `depositNonce` presence, so Regolith and Canyon must yield the same address, and only the
+    // pre-Regolith (no-nonce) case falls back to `CREATE(from, 0)`.
+
+    const DEPOSIT_NONCE: u64 = 35_964;
+
+    /// Pre-Regolith: no `depositNonce` (and no version). The override is a no-op and the address
+    /// stays `build_receipt`'s `CREATE(from, 0)` -- the guard's silent fall-through, the branch
+    /// most likely to regress.
+    #[test]
+    fn deposit_creation_pre_regolith_stays_zero() {
+        let (from, addr) =
+            deposit_receipt_contract_address(alloy_primitives::TxKind::Create, None, None);
+        assert_eq!(
+            addr,
+            Some(from.create(0)),
+            "without a deposit nonce the address must stay CREATE(from, 0)"
+        );
+    }
+
+    /// Regolith: `depositNonce = Some`, version omitted. Address must be `CREATE(from, nonce)`.
+    #[test]
+    fn deposit_creation_regolith_uses_deposit_nonce() {
+        let (from, addr) = deposit_receipt_contract_address(
+            alloy_primitives::TxKind::Create,
+            Some(DEPOSIT_NONCE),
+            None,
+        );
+        assert_eq!(addr, Some(from.create(DEPOSIT_NONCE)));
+        assert_ne!(
+            addr,
+            Some(from.create(0)),
+            "must not derive the address from the deposit tx nonce (0)"
+        );
+    }
+
+    /// Canyon: `depositNonce = Some` and `depositReceiptVersion = Some(1)`. The version must not
+    /// affect derivation -- the address is identical to the Regolith case.
+    #[test]
+    fn deposit_creation_canyon_matches_regolith() {
+        let (from, addr) = deposit_receipt_contract_address(
+            alloy_primitives::TxKind::Create,
+            Some(DEPOSIT_NONCE),
+            Some(1),
+        );
+        assert_eq!(
+            addr,
+            Some(from.create(DEPOSIT_NONCE)),
+            "depositReceiptVersion must not change contract-address derivation"
+        );
+    }
+
+    /// A deposit *call* (`to != Create`) must never receive a fabricated `contractAddress`, even
+    /// with a deposit nonce present -- the `is_some()` guard must hold it at `None`.
+    #[test]
+    fn deposit_call_keeps_contract_address_none() {
+        let (_from, addr) = deposit_receipt_contract_address(
+            alloy_primitives::TxKind::Call(Address::with_last_byte(0x99)),
+            Some(DEPOSIT_NONCE),
+            Some(1),
+        );
+        assert_eq!(addr, None, "a deposit call must not derive a contract address");
     }
 }

@@ -1,0 +1,84 @@
+---
+title: kona-client
+description: Canonical hub for kona-client, the OP Stack fault proof program, covering what it does, who runs it, and where its guides, releases, source, and spec live.
+diataxis: explanation
+---
+
+kona-client is the OP Stack's fault proof program: a Rust program, built as
+part of the [Kona](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona) project, that executes the L2
+state transition so a disputed output root can be verified inside a fault
+proof VM.
+
+## Overview
+
+kona-client derives the disputed span of the L2 chain from L1 data,
+re-executes its blocks, and checks the result against the claimed L2 output
+root. It runs sandboxed, with no network access: every piece of chain data it
+consumes (L1 headers, transactions, receipts, blobs, L2 state) arrives
+through the preimage oracle ABI, served by its companion host process,
+[kona-host](/op-stack/components/kona-host). It is built so that the same
+inputs produce not only the same outputs but the same execution trace.
+
+That determinism is what makes fault disputes resolvable. For dispute games,
+kona-client is compiled to a big-endian 64-bit MIPS (MIPS64) ELF binary and
+run inside the [cannon](/op-stack/components/cannon) FPVM; this pairing backs
+the `CANNON_KONA` dispute game (game type 8), the respected game type for
+permissionless fault proofs since [Upgrade 19](/notices/upgrade-19). Because
+every honest participant computes the identical execution trace, a dispute
+can be bisected down to a single MIPS instruction and that one instruction
+proven on L1.
+
+kona-client succeeded op-program, the Go fault proof program behind the
+legacy `CANNON` (game type 0) and `PERMISSIONED_CANNON` (game type 1) games;
+op-program has reached end of support (see
+[End of Support for op-geth and op-program](/notices/op-geth-deprecation)),
+and the kona binaries are the maintained fault proof program today.
+
+**Who runs it:** nobody invokes it by hand in production.
+[op-challenger](/op-stack/fault-proofs/challenger) runs cannon when a fault
+dispute reaches the execution-trace stage, and cannon executes the
+kona-client ELF committed to by the chain's absolute prestate. Chain
+operators pin that prestate when configuring fault proofs; developers can
+also run kona-client natively through kona-host for testing.
+
+## Get started
+
+*   [Generating absolute prestate and preimage files](/chain-operators/tutorials/absolute-prestate):
+    build and verify the absolute prestate, the onchain commitment to a
+    specific kona-client build, whose preimage op-challenger runs at dispute
+    time.
+
+## How-tos
+
+*   [Generating a custom kona-client absolute prestate](/chain-operators/tutorials/kona-custom-prestate):
+    build a kona-client that embeds a chain configuration not yet in the
+    public Superchain Registry.
+*   [Switch to Kona Proofs](/chain-operators/guides/features/switching-to-kona-proofs):
+    move an existing chain's respected game type to the Kona-based fault
+    proofs.
+*   [Run a fault-proof challenger](/use-cases/run-a-fault-proof-challenger):
+    stand up the op-challenger deployment that exercises kona-client, from
+    prestate selection through configuration and monitoring.
+
+## Configuration & flags reference
+
+*   kona-client has no configuration reference page and no operator-facing
+    flags. Its inputs (the L1 head, the disputed output roots, the chain
+    configuration) arrive as bootstrap data over the preimage oracle, as
+    defined in the
+    [fault proof program specification](https://specs.optimism.io/fault-proof/index.html#fault-proof-program).
+
+## Releases
+
+*   [kona-client release history](/releases/kona-client)
+
+## Source & spec links
+
+*   [Source: `rust/kona/bin/client`](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/bin/client)
+    in the Optimism monorepo.
+*   [Fault proof program development](/op-stack/fault-proofs/kona/fpp-dev/intro): how
+    fault proof programs like kona-client are structured
+    (prologue, execution, epilogue) and built on the Kona SDK.
+*   [Fault proof program specification](https://specs.optimism.io/fault-proof/index.html#fault-proof-program):
+    the normative definition of the program's prologue, main content, and
+    epilogue.
