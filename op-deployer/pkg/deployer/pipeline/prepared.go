@@ -69,15 +69,7 @@ func NewPreparedDeployment(
 	}
 
 	// Detach the durable snapshot from all live intent and state pointers.
-	data, err := json.Marshal(prepared)
-	if err != nil {
-		return nil, fmt.Errorf("failed to encode prepared deployment: %w", err)
-	}
-	var detached state.PreparedDeployment
-	if err := json.Unmarshal(data, &detached); err != nil {
-		return nil, fmt.Errorf("failed to decode prepared deployment: %w", err)
-	}
-	return &detached, nil
+	return prepared.Clone()
 }
 
 // ValidatePreparedDeployment rejects live settings or artifact locators that no longer
@@ -259,15 +251,10 @@ func canonicalPreparedIntent(
 			canonical.Chains = append(canonical.Chains, chain)
 		}
 	}
-	data, err := json.Marshal(canonical)
+	canonical, err := canonical.Clone()
 	if err != nil {
-		return nil, fmt.Errorf("failed to encode canonical intent: %w", err)
+		return nil, fmt.Errorf("failed to clone canonical intent: %w", err)
 	}
-	var detached state.Intent
-	if err := json.Unmarshal(data, &detached); err != nil {
-		return nil, fmt.Errorf("failed to decode canonical intent: %w", err)
-	}
-	canonical = &detached
 
 	proofParams := make([]state.ChainProofParams, len(canonical.Chains))
 	requirements := make([]InitialDeployRequirements, len(canonical.Chains))

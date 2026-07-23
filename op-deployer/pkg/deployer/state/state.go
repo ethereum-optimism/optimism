@@ -2,6 +2,7 @@ package state
 
 import (
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/core"
@@ -182,6 +183,19 @@ func (p *PreparedDeployment) Chain(id common.Hash) (*PreparedChainState, error) 
 		}
 	}
 	return nil, fmt.Errorf("prepared chain not found: %s", id.Hex())
+}
+
+// Clone returns a deep copy of the prepared deployment, detached from the receiver's pointers.
+func (p *PreparedDeployment) Clone() (*PreparedDeployment, error) {
+	data, err := json.Marshal(p)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode prepared deployment: %w", err)
+	}
+	var clone PreparedDeployment
+	if err := json.Unmarshal(data, &clone); err != nil {
+		return nil, fmt.Errorf("failed to decode prepared deployment: %w", err)
+	}
+	return &clone, nil
 }
 
 type ChainState struct {

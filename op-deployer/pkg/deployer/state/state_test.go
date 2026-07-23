@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -227,6 +228,44 @@ func TestState_CheckNotPrepared(t *testing.T) {
 		err := (&State{Prepared: true}).CheckNotPrepared()
 		require.ErrorContains(t, err, "cannot be applied")
 	})
+}
+
+func TestPreparedDeploymentClone(t *testing.T) {
+	l1Locator, err := artifacts.NewFileLocator("/tmp/l1-artifacts")
+	require.NoError(t, err)
+
+	prepared := &PreparedDeployment{
+		Intent: &Intent{
+			FundDevAccounts: true,
+			Chains:          []*ChainIntent{{ID: common.HexToHash("0x1")}},
+		},
+		Deployer: common.HexToAddress("0x01"),
+		OPCM:     common.HexToAddress("0x02"),
+		L1Artifacts: PreparedArtifact{
+			Locator: l1Locator,
+		},
+		Chains: []*PreparedChainState{
+			{
+				ID:          common.HexToHash("0x1"),
+				GenesisTime: ptr.New(hexutil.Uint64(10)),
+			},
+		},
+	}
+
+	clone, err := prepared.Clone()
+	require.NoError(t, err)
+	require.Equal(t, prepared, clone)
+
+	// Mutating the clone's pointers and slices must not reach back into the original.
+	clone.Intent.FundDevAccounts = false
+	clone.Intent.Chains[0].ID = common.HexToHash("0x2")
+	*clone.Chains[0].GenesisTime = hexutil.Uint64(99)
+	clone.L1Artifacts.Locator.URL.Path = "/changed"
+
+	require.True(t, prepared.Intent.FundDevAccounts)
+	require.Equal(t, common.HexToHash("0x1"), prepared.Intent.Chains[0].ID)
+	require.Equal(t, hexutil.Uint64(10), *prepared.Chains[0].GenesisTime)
+	require.NotEqual(t, "/changed", prepared.L1Artifacts.Locator.URL.Path)
 }
 
 func TestState_PreparedSerialization(t *testing.T) {
