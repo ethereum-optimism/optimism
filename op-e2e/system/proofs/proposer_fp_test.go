@@ -69,7 +69,6 @@ func TestL2OutputSubmitterFaultProofs(t *testing.T) {
 			require.NoError(t, err)
 			// A new game may still predate the target block, so keep polling until a proposal covers it.
 			if gameBlockNumber >= targetBlockNumber {
-				require.GreaterOrEqual(t, gameBlockNumber, targetBlockNumber)
 				require.Len(t, superV1.Chains, 1)
 				require.Equal(t, eth.ChainIDFromBig(sys.RollupConfig.L2ChainID), superV1.Chains[0].ChainID)
 				require.Equal(t, eth.SuperRoot(superV1), eth.Bytes32(latestGame.RootClaim))
