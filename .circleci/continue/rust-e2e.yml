@@ -238,6 +238,11 @@ jobs:
           paths:
             - ~/.sp1/toolchains
       - run:
+          # Check the committed guest lock before build-elfs-native regenerates it in place and masks drift.
+          name: Check SP1 guest lock
+          working_directory: rust
+          command: just check-sp1-guest-lock
+      - run:
           name: Build SP1 guest ELFs
           working_directory: rust/kona/sp1
           no_output_timeout: 40m
