@@ -41,19 +41,19 @@ type Actor struct {
 	logger             log.Logger
 	l1Clock            ClockReader
 	l1Head             eth.BlockID
-	rootProvider       SuperRootProvider
+	superRootProvider  SuperRootProvider
 	gameStatusProvider GameStatusProvider
 	contract           ChallengableContract
 	txSender           TxSender
 }
 
-func ActorCreator(l1Clock ClockReader, rootProvider SuperRootProvider, gameStatusProvider GameStatusProvider, contract ChallengableContract, txSender TxSender) generic.ActorCreator {
+func ActorCreator(l1Clock ClockReader, superRootProvider SuperRootProvider, gameStatusProvider GameStatusProvider, contract ChallengableContract, txSender TxSender) generic.ActorCreator {
 	return func(_ context.Context, logger log.Logger, l1Head eth.BlockID) (generic.Actor, error) {
 		return &Actor{
 			logger:             logger,
 			l1Clock:            l1Clock,
 			l1Head:             l1Head,
-			rootProvider:       rootProvider,
+			superRootProvider:  superRootProvider,
 			gameStatusProvider: gameStatusProvider,
 			contract:           contract,
 			txSender:           txSender,
@@ -119,7 +119,7 @@ func (a *Actor) isValidProposal(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("failed to get zk game proposal: %w", err)
 	}
-	resp, err := a.rootProvider.SuperRootAtTimestamp(ctx, proposalTimestamp)
+	resp, err := a.superRootProvider.SuperRootAtTimestamp(ctx, proposalTimestamp)
 	if err != nil {
 		return false, fmt.Errorf("failed to get canonical super root at timestamp %v: %w", proposalTimestamp, err)
 	}

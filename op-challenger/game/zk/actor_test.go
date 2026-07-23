@@ -238,10 +238,10 @@ func TestActor(t *testing.T) {
 	}
 }
 
-// TestActor_CanonicalUnprovableProposal_WarnsButDoesNotChallenge exercises the Decision-2
-// divergence: a canonical, cross-safe proposal that is not provable within the game l1Head is
-// accepted with a warning, never challenged. Steps 6 and 7 are otherwise both 0-tx, so the log is
-// the only observable difference.
+// TestActor_CanonicalUnprovableProposal_WarnsButDoesNotChallenge covers a canonical, cross-safe
+// proposal whose data landed on L1 after the game's l1Head: it is accepted with a warning, never
+// challenged. The warning is the only observable difference from an ordinary valid proposal (both
+// send no tx), so assert on it directly.
 func TestActor_CanonicalUnprovableProposal_WarnsButDoesNotChallenge(t *testing.T) {
 	const warnMsg = "not provable within game l1Head"
 
@@ -262,7 +262,7 @@ func TestActor_CanonicalUnprovableProposal_WarnsButDoesNotChallenge(t *testing.T
 		require.NoError(t, actor.Act(context.Background()))
 		require.Empty(t, stubs.sender.sentData)
 		require.Nil(t, logs.FindLog(testlog.NewMessageContainsFilter(warnMsg)),
-			"step-7 valid proposal must not warn")
+			"an ordinary valid proposal must not warn")
 	})
 }
 
