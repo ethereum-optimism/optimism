@@ -218,7 +218,6 @@ func (of *OperatorFee) RestoreOriginalConfig() {
 func RunOperatorFeeTest(t devtest.T, l2Chain *L2Network, l1EL *L1ELNode, funderL1, funderL2 *Funder) {
 	fundAmount := eth.OneTenthEther
 	alice := funderL2.NewFundedEOA(fundAmount)
-	alice.WaitForBalance(fundAmount)
 	bob := funderL2.NewFundedEOA(eth.ZeroWei)
 
 	operatorFee := NewOperatorFee(t, l2Chain, l1EL)

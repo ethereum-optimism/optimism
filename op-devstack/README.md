@@ -113,7 +113,7 @@ and returns a typed output that the test then may use.
 - `SYSGO_GETH_EXEC_PATH=/path/to/geth` to select the geth executable to run
 
 ### Metrics env vars:
-- `SYSGO_METRICS_ENABLED` set to `true` to enable metrics to be exposed via prometheus and grafana for all running components that expose metrics (default: `false`)
+- `SYSGO_METRICS_ENABLED` set to `true` to expose Prometheus and Grafana metrics for supported running components; sysgo does not enable Kona metrics (default: `false`)
 - `SYSGO_DOCKER_EXEC_PATH` path to docker executable (defaults to `docker` assuming it is in your `PATH`)
 - `SYSGO_GRAFANA_PROVISIONING_DIR` to provide a local grafana provisioning dir to use (otherwise a temp dir will be created and removed at the end of tests)
 - `SYSGO_GRAFANA_DATA_DIR` to provide a local grafana data dir to use (otherwise a temp dir will be created and removed at the end of tests)

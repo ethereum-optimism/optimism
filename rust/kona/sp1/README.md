@@ -16,46 +16,70 @@ zkVM programs that execute inside the SP1 prover:
 
 - **`range`**: Verifies OP Stack state transitions across a range of L2 blocks with Ethereum DA. Generates proofs for multi-block execution that can be verified on-chain.
 - **`aggregation`**: Aggregates multiple range program proofs into a single proof, enabling efficient verification of longer block ranges.
+- **`super-range`**: Scaffold for the unified multi-chain super-root range
+  program, with modes for proving ranges and span-shaped consolidation.
+- **`super-aggregation`**: Recursively verifies unified super-range proofs and
+  commits the public values consumed by `ZKDisputeGame`.
 
 ### Crates (`crates/`)
 
 Supporting libraries for the SP1 fault proof system:
 
-- **`build`**: Build utilities for compiling SP1 programs
 - **`client`**: Client-side utilities and types for witness execution in the zkVM
-- **`elfs`**: Management and references to compiled ELF binaries
+- **`elfs`**: Runtime loading of compiled ELF binaries
 - **`ethereum`**: Ethereum-specific data availability utilities
   - `client/`: Client-side Ethereum DA utilities
   - `host/`: Host-side Ethereum DA witness generation
 - **`host`**: Host utilities for witness generation, proof orchestration, and preimage serving
-- **`proof`**: High-level proof generation utilities and workflows
+- **`range-vkeys`**: Compile-time range and super-range guest verification keys, embedded from
+  generated `elf/vkeys.toml` and used only by the aggregation guests
 
 ### ELF Binaries (`elf/`)
 
 Compiled ELF binaries for the zkVM programs, used by the prover:
 
 - **`aggregation-elf`**: Compiled aggregation program
-- **`range-elf`**: Compiled range program. SP1 v6.2.4 no longer exposes a
-  separate bump-allocator feature, so this port keeps one range artifact instead
-  of separate bump and embedded variants.
+- **`range-elf`**: Compiled range program. This port keeps one range artifact
+  instead of separate bump and embedded variants.
+- **`super-aggregation-elf`**: Compiled super-root aggregation program
+- **`super-range-elf`**: Compiled unified super-root range/consolidation program
 
-In the optimism monorepo port, these files are generated on demand and ignored
-by git, matching the Cannon prestate artifact workflow. Generate real v6.2.4
-ELFs with `just build-elfs`. Host-toolchain workspace builds embed empty
-build-output placeholders when generated ELFs are absent, so proving fails fast
-until the real artifacts are built.
+In the optimism monorepo port, these files and `elf/vkeys.toml` are generated on demand and
+ignored by git, matching the Cannon prestate artifact workflow. Generate reproducible ELFs
+on linux/amd64 with `just build-elfs`; it builds the leaf guests first, generates their vkeys, and
+then builds the aggregation guests with those vkeys embedded through `kona-sp1-range-vkeys`. Use
+`just build-elfs-native` for local iteration and the fast per-PR compile check; CI persists the
+native manifest with the generated ELFs. Native ELF hashes may differ across build environments
+because paths and other environment details are embedded. A Docker-based, uncached tag/release
+reproducibility CI check is intentionally left to a future follow-up.
+
+Host-toolchain workspace builds need neither ELFs nor `vkeys.toml`. Host binaries load guest
+artifacts at runtime from `KONA_SP1_ELF_DIR`; a missing or empty artifact fails as an
+infrastructure error. Release automation will eventually pin per-version vkeys from the generated
+manifest into `superchain-registry/validation/standard/standard-prestates.toml` and verify
+reproducible builds.
+
+Custom chains and devnets can compile separate SP1 artifacts with custom kona
+registry inputs:
+
+```bash
+KONA_CUSTOM_CONFIGS_DIR=/path/to/custom/configs just build-elfs
+```
+
+The directory must contain `chainList.json`, `configs.json`, and `depsets.json`.
+Those files are compiled into the kona crates used by the guest programs, so
+custom configs produce different ELFs and verification-key hashes.
 
 ## CI TODOs
 
 TODO(#18326): the monorepo's CircleCI runs the
 workspace-wide build, clippy, tests, cargo-hack, udeps, docs, typos, and zepter
-gates over the SP1 host-side crates that are workspace members. The guest
-program entrypoints live in their own workspace for SP1 patch scoping and are
-not covered by those host workspace gates. The following standalone-kona GitHub
-workflow behavior is not yet reproduced:
+gates over the SP1 host-side crates that are workspace members. The guest program entrypoints and
+`range-vkeys` crate live outside that workspace. The `kona-build-sp1-elfs` rust-e2e job runs
+`just build-elfs-native`, tests and lints all guests, and checks and tests `range-vkeys`; scheduled
+vkey drift coverage is tracked in #21661. The following standalone-kona GitHub workflow behavior
+is not yet reproduced:
 
-- ELF build (`sp1/justfile build-elfs`, Dockerized `cargo-prove --tag v6.2.4`).
-  This requires the SP1 v6.2.4 toolchain from `sp1up` and Docker in CI.
 - Codecov flag wiring for SP1 coverage.
 - no-std checks for the SP1/zkVM crates. The monorepo `rust-check-no-std` job is
   package-allowlisted and does not include SP1; add SP1 there if no-std coverage
@@ -63,16 +87,16 @@ workflow behavior is not yet reproduced:
 
 ### Guest Precompile Patches
 
-The guest programs (`programs/range` and `programs/aggregation`) are isolated in
-`programs/Cargo.toml`, a nested Cargo workspace with its own `Cargo.lock` and
-`[patch.crates-io]` table. That workspace patches `sha2`, `sha3`,
+All four guest programs are isolated in `programs/Cargo.toml`, a nested Cargo workspace with its
+own `Cargo.lock` and `[patch.crates-io]` table. That workspace patches `sha2`, `sha3`,
 `crypto-bigint`, `k256`, `p256`, and `substrate-bn` to the SP1 forks, so the
 generated ELFs get zkVM precompile-accelerated crypto without changing the host
 `rust/` workspace dependency graph.
 
-The range guest also enables `revm`'s `bn` feature in the nested workspace. That
-forwards to `revm-precompile`'s `substrate-bn` backend for EIP-196/197 bn128
-precompiles. EIP-2537 BLS pairing still uses arkworks and is not SP1 accelerated.
+The EVM-executing range and super-range guests also enable `revm`'s `bn` feature
+in the nested workspace. That forwards to `revm-precompile`'s `substrate-bn`
+backend for EIP-196/197 bn128 precompiles. EIP-2537 BLS pairing still uses
+arkworks and is not SP1 accelerated.
 
 ## Usage
 
@@ -84,7 +108,14 @@ The SP1 integration follows the same fault proof workflow as the native Kona imp
 
 ## Building
 
-Build utilities are provided in the `build` crate. Programs can be compiled for the zkVM target using the SP1 toolchain.
+Programs are compiled for the zkVM target through the recipes in this directory's `justfile`.
+
+The `cargo prove` subcommand is pinned by `mise.toml`. Install the native Succinct
+toolchain for non-Docker local builds with:
+
+```bash
+just install-sp1-toolchain
+```
 
 ## Testing (SP1 execute action tests)
 
@@ -104,10 +135,11 @@ with:
 cd rust/kona/tests && just action-tests-sp1
 ```
 
-That recipe builds the guest ELFs (`just build-elfs`, Dockerized SP1 toolchain), builds
-the `range-executor` binary (which embeds the `range` ELF), and runs the test with
-`KONA_SP1_RANGE_EXECUTOR_PATH` set. The test skips when that variable is unset, so the
-heavy SP1 toolchain is only required when explicitly running the SP1 action tests.
+That recipe builds the guest ELFs (`just build-elfs`, Dockerized SP1 toolchain), builds the
+`range-executor` binary, and runs the test with `KONA_SP1_RANGE_EXECUTOR_PATH` and
+`KONA_SP1_ELF_DIR` set. The executor loads the `range` ELF at runtime. The test skips when the
+executor-path variable is unset, so the heavy SP1 toolchain is only required when explicitly
+running the SP1 action tests.
 
 For faster coverage of the range-program logic, the same executor also supports
 `--native-core`. This mode still generates the real witness, but runs the shared range

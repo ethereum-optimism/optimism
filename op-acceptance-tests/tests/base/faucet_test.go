@@ -29,7 +29,7 @@ func TestFaucetFund(gt *testing.T) {
 
 	_, span = tracer.Start(ctx, "wait for balance")
 	t.Logger().InfoContext(ctx, "funds transferred", "amount", fundAmount)
-	alice.WaitForBalance(eth.WeiBig(l1Balance.ToBig().Add(l1Balance.ToBig(), fundAmount.ToBig())))
-	bob.WaitForBalance(eth.WeiBig(l2Balance.ToBig().Add(l2Balance.ToBig(), fundAmount.ToBig())))
+	alice.WaitForBalanceAtLeast(eth.WeiBig(l1Balance.ToBig().Add(l1Balance.ToBig(), fundAmount.ToBig())))
+	bob.WaitForBalanceAtLeast(eth.WeiBig(l2Balance.ToBig().Add(l2Balance.ToBig(), fundAmount.ToBig())))
 	span.End()
 }

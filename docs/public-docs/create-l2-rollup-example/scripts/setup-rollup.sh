@@ -216,7 +216,7 @@ setup_batcher() {
     
     # Create .env file with OP_BATCHER prefixed variables
     cat > .env << EOF
-OP_BATCHER_L2_ETH_RPC=http://op-geth:8545
+OP_BATCHER_L2_ETH_RPC=http://op-reth:8545
 OP_BATCHER_ROLLUP_RPC=http://op-node:8547
 OP_BATCHER_PRIVATE_KEY=$PRIVATE_KEY
 OP_BATCHER_POLL_INTERVAL=1s
@@ -290,7 +290,7 @@ setup_challenger() {
     cat > .env << EOF
 OP_CHALLENGER_GAME_FACTORY_ADDRESS=$GAME_FACTORY_ADDR
 OP_CHALLENGER_PRIVATE_KEY=$PRIVATE_KEY
-OP_CHALLENGER_CANNON_PRESTATE=/workspace/$CHALLENGER_PRESTATE_FILE
+OP_CHALLENGER_CANNON_KONA_PRESTATE=/workspace/$CHALLENGER_PRESTATE_FILE
 EOF
 
     log_success "Challenger setup complete"
@@ -358,6 +358,27 @@ generate_challenger_prestate() {
 
     log_info "Chain ID for prestate generation: $CHAIN_ID"
 
+    # The prestate commits to kona-client, the maintained fault proof program.
+    # op-program has reached end-of-support and must not be used:
+    # https://docs.optimism.io/notices/op-geth-deprecation
+    #
+    # Because this chain is not in the public Superchain Registry, the build
+    # must embed the chain configuration. Stage chainList.json and configs.json
+    # for your chain (see
+    # https://docs.optimism.io/chain-operators/tutorials/kona-custom-prestate)
+    # and point KONA_CUSTOM_CONFIGS_DIR at the directory containing them.
+    KONA_CUSTOM_CONFIGS_DIR="${KONA_CUSTOM_CONFIGS_DIR:-$ROLLUP_DIR/challenger/custom-configs}"
+    if [ ! -f "$KONA_CUSTOM_CONFIGS_DIR/chainList.json" ] || [ ! -f "$KONA_CUSTOM_CONFIGS_DIR/configs.json" ]; then
+        log_error "Custom chain config staging not found in $KONA_CUSTOM_CONFIGS_DIR"
+        log_error "Create chainList.json and configs.json for chain $CHAIN_ID following:"
+        log_error "https://docs.optimism.io/chain-operators/tutorials/kona-custom-prestate"
+        log_error "(or set KONA_CUSTOM_CONFIGS_DIR to a directory that contains them)"
+        return 1
+    fi
+    # The prestate build requires an absolute path
+    KONA_CUSTOM_CONFIGS_DIR="$(cd "$KONA_CUSTOM_CONFIGS_DIR" && pwd)"
+    export KONA_CUSTOM_CONFIGS_DIR
+
     # Create optimism directory for prestate generation
     OPTIMISM_DIR="$ROLLUP_DIR/optimism"
     if [ ! -d "$OPTIMISM_DIR" ]; then
@@ -365,57 +386,60 @@ generate_challenger_prestate() {
         git clone https://github.com/ethereum-optimism/optimism.git "$OPTIMISM_DIR"
         cd "$OPTIMISM_DIR"
 
-        # Find the latest op-program tag
-        log_info "Finding latest op-program version..."
-        OP_PROGRAM_TAG=$(git tag --list "op-program/v*" | sort -V | tail -1)
-        if [ -z "$OP_PROGRAM_TAG" ]; then
-            log_error "Could not find any op-program tags"
+        # Find the latest kona-node tag (kona-client prestates are built from kona-node releases)
+        log_info "Finding latest kona-node version..."
+        KONA_NODE_TAG=$(git tag --list "kona-node/v*" | grep -v -- "-rc" | sort -V | tail -1)
+        if [ -z "$KONA_NODE_TAG" ]; then
+            log_error "Could not find any kona-node tags"
             return 1
         fi
-        log_info "Using op-program version: $OP_PROGRAM_TAG"
+        log_info "Using kona-node version: $KONA_NODE_TAG"
 
-        git checkout "$OP_PROGRAM_TAG"
+        git checkout "$KONA_NODE_TAG"
         git submodule update --init --recursive
     else
         log_info "Optimism repository already exists, checking configuration..."
         cd "$OPTIMISM_DIR"
 
-        # Check if we're on the correct op-program tag
+        # Check if we're on the correct kona-node tag
         CURRENT_TAG=$(git describe --tags --exact-match 2>/dev/null || echo "")
-        LATEST_TAG=$(git tag --list "op-program/v*" | sort -V | tail -1)
+        LATEST_TAG=$(git tag --list "kona-node/v*" | grep -v -- "-rc" | sort -V | tail -1)
 
         if [ "$CURRENT_TAG" != "$LATEST_TAG" ]; then
-            log_info "Updating to latest op-program version: $LATEST_TAG"
+            log_info "Updating to latest kona-node version: $LATEST_TAG"
             git checkout "$LATEST_TAG"
             git submodule update --init --recursive
         else
-            log_info "Already on correct op-program version: $CURRENT_TAG"
+            log_info "Already on correct kona-node version: $CURRENT_TAG"
         fi
     fi
 
-    # Copy configuration files
-    log_info "Copying chain configuration files..."
-    mkdir -p op-program/chainconfig/configs
-    cp "$DEPLOYER_DIR/.deployer/rollup.json" "op-program/chainconfig/configs/${CHAIN_ID}-rollup.json"
-    cp "$DEPLOYER_DIR/.deployer/genesis.json" "op-program/chainconfig/configs/${CHAIN_ID}-genesis-l2.json"
-
-    # Generate prestate
-    log_info "Generating reproducible prestate..."
-    make reproducible-prestate
+    # Generate prestate (runs in Docker; embeds the staged chain configuration)
+    log_info "Generating reproducible kona prestate..."
+    just reproducible-prestate-kona
 
     # Extract the prestate hash from the JSON file
-    PRESTATE_HASH=$(jq -r '.pre' op-program/bin/prestate-proof-mt64.json)
+    PRESTATE_HASH=$(jq -r '.pre' rust/kona/prestate-artifacts-cannon/prestate-proof.json)
     if [ -z "$PRESTATE_HASH" ] || [ "$PRESTATE_HASH" = "null" ]; then
-        log_error "Could not extract prestate hash from prestate-proof-mt64.json"
+        log_error "Could not extract prestate hash from prestate-proof.json"
         return 1
     fi
 
     log_info "Prestate hash: $PRESTATE_HASH"
 
-    # Move the prestate file
-    log_info "Moving prestate file to challenger directory..."
+    # Verify the custom chain configuration was merged into the prestate image;
+    # a build that silently drops it produces the standard prestate instead
+    CHAIN_NAME=$(jq -r '.[0].name' "$KONA_CUSTOM_CONFIGS_DIR/chainList.json")
+    if ! gunzip -c rust/kona/prestate-artifacts-cannon/prestate.bin.gz | grep -aq "$CHAIN_NAME"; then
+        log_error "Chain '$CHAIN_NAME' not found in the prestate image; custom configs were not merged"
+        log_error "See https://docs.optimism.io/chain-operators/tutorials/kona-custom-prestate"
+        return 1
+    fi
+
+    # Copy the prestate file
+    log_info "Copying prestate file to challenger directory..."
     mkdir -p "$ROLLUP_DIR/challenger"
-    mv "op-program/bin/prestate-mt64.bin.gz" "$ROLLUP_DIR/challenger/${PRESTATE_HASH}.bin.gz"
+    cp "rust/kona/prestate-artifacts-cannon/${PRESTATE_HASH}.bin.gz" "$ROLLUP_DIR/challenger/${PRESTATE_HASH}.bin.gz"
 
     # Verify the prestate file was created successfully
     if [ ! -f "$ROLLUP_DIR/challenger/${PRESTATE_HASH}.bin.gz" ]; then

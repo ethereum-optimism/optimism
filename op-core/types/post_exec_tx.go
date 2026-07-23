@@ -9,7 +9,7 @@ import (
 )
 
 // PostExecTxType is the EIP-2718 type byte of OP Stack post-execution transactions.
-const PostExecTxType = byte(0x7D)
+const PostExecTxType = 0x7D
 
 // PostExecTx is a synthetic, unsigned OP Stack transaction used to carry
 // post-execution metadata in SDM blocks. Its canonical encoding is

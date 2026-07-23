@@ -117,11 +117,11 @@ func (r *Runner) Start(ctx context.Context) error {
 		rollupClient = cl
 	}
 	var superNodeClient *sources.SuperNodeClient
-	if r.cfg.SuperRPC != "" {
-		r.log.Info("Dialling supernode client", "url", r.cfg.SuperRPC)
-		cl, err := dial.DialSuperNodeClientWithTimeout(ctx, r.log, r.cfg.SuperRPC)
+	if r.cfg.SuperRootRPC != "" {
+		r.log.Info("Dialling super root RPC client", "url", r.cfg.SuperRootRPC)
+		cl, err := dial.DialSuperNodeClientWithTimeout(ctx, r.log, r.cfg.SuperRootRPC)
 		if err != nil {
-			return fmt.Errorf("failed to dial supernode: %w", err)
+			return fmt.Errorf("failed to dial super root RPC client: %w", err)
 		}
 		superNodeClient = cl
 	}

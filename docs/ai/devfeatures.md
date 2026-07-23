@@ -1,6 +1,6 @@
 # DevFeatures System
 
-Reference for the `DevFeatures` bitmap system. The bitmap is transitional infrastructure that lets in-development features ride alongside production code without a full hardfork. It is expected to disappear once each feature it gates either ships as a real hardfork or is abandoned (see #20084 for the L2CM/CannonKona cleanup).
+Reference for the `DevFeatures` bitmap system. The bitmap is transitional infrastructure that lets in-development features ride alongside production code without a full hardfork. It is expected to disappear once each feature it gates either ships as a real hardfork or is abandoned.
 
 ## A. What it is
 
@@ -16,13 +16,12 @@ Active flags:
 | Flag | Gates |
 |------|-------|
 | `OptimismPortalInterop` | Interop migration functions on OptimismPortal2 |
-| `CannonKona` | Respected-game-type override for CANNON_KONA during upgrades — **enabled by default** |
 | `DeployV2DisputeGames` | Legacy, no longer used; constant kept for historical reasons |
-| `L2CM` | L2ContractsManager + supporting L2 predeploys — **enabled by default** |
 | `ZKDisputeGame` | ZK dispute game system |
 | `SuperRootGamesMigration` | Super-root games migration path in OPCM upgrade |
 
-The predicate is a bitwise AND (`(bitmap & flag) == flag && flag != 0`) — except that `IsDevFeatureEnabled` short-circuits to `true` for `L2CM` and `CannonKona`, which are enabled by default on both the Go and Solidity sides (the bitmap no longer acts as a circuit breaker for them; removal tracked in #20084).
+
+The predicate is a bitwise AND (`(bitmap & flag) == flag && flag != 0`).
 
 **Adding a new dev feature**: the full checklist lives in the `DevFeatures.sol` natspec — both constant files, the env-var reader in `scripts/libraries/Config.sol`, the test assembler in `test/setup/FeatureFlags.sol`, and the CI `&features_matrix` anchor in `.circleci/continue/main.yml` all need updating; there is no compile-time link between them.
 
@@ -61,12 +60,10 @@ What it gates is **runtime activation timing** in op-node (when NUT bundle depos
 A separate, **test-only** assembler exists for Foundry tests and fork scripts. It is isolated from the production path — no `src/` contract and no production deploy script reads these env vars.
 
 - `DEV_FEATURE__OPTIMISM_PORTAL_INTEROP`
-- `DEV_FEATURE__L2CM`
 - `DEV_FEATURE__ZK_DISPUTE_GAME`
-- `DEV_FEATURE__CANNON_KONA`
 - `DEV_FEATURE__SUPER_ROOT_GAMES_MIGRATION`
 
-Each is read via `vm.envOr(..., false)` in `packages/contracts-bedrock/scripts/libraries/Config.sol` (functions `devFeatureInterop()`, `devFeatureL2CM()`, etc.). The only callers are under `test/`:
+Each is read via `vm.envOr(..., false)` in `packages/contracts-bedrock/scripts/libraries/Config.sol` (functions `devFeatureInterop()`, `devFeatureZkDisputeGame()`, etc.). The only callers are under `test/`:
 
 - `test/setup/FeatureFlags.sol` — `resolveFeaturesFromEnv()` OR-s each enabled flag into `devFeatureBitmap`
 - `test/setup/CommonTest.sol`, `test/setup/ForkL1Live.s.sol`, `test/setup/ForkL2Live.s.sol` — branch on individual `Config.devFeature*` returns
@@ -101,7 +98,7 @@ It does **not** flow to op-node, op-program, or kona at runtime. They learn abou
 
 **On L2 (Solidity)**, readers consult either the in-memory bitmap (during deploy scripts) or the `L2DevFeatureFlags` predeploy (at runtime):
 
-- `Predeploys.isSupportedPredeploy(...)` in `src/libraries/Predeploys.sol` takes the bitmap as a parameter. Gates whether `CONDITIONAL_DEPLOYER` (0x2C), `L2_DEV_FEATURE_FLAGS` (0x2D), and the interop predeploys are considered "real" predeploys.
+- `Predeploys.isSupportedPredeploy(...)` in `src/libraries/Predeploys.sol` takes the bitmap as a parameter. Gates whether the interop predeploys (`CrossL2Inbox`, `L2ToL2CrossDomainMessenger`, `SuperchainETHBridge`, `ETHLiquidity`, all under `OptimismPortalInterop`) are considered "real" predeploys.
 - `scripts/L2Genesis.s.sol` — gates which predeploys get installed at genesis.
 - `L2ContractsManager._isDevFeatureEnabled()` in `src/L2/L2ContractsManager.sol` — at runtime, calls `IL2DevFeatureFlags.isDevFeatureEnabled(...)` on the predeploy to decide whether to execute upgrade flows.
 
@@ -118,17 +115,7 @@ It does **not** flow to op-node, op-program, or kona at runtime. They learn abou
 
 ## F. Hardfork interaction
 
-For **L2CM specifically** there are two independent gates:
-
-1. **Hardfork timestamp** — `IsL2CM(time)` in `op-node/rollup/toggles.go` returns `IsKarst(time)`. This decides **when** L2CM upgrade transactions are executed across the network.
-2. **Bitmap** — gates **whether the L2CM machinery exists at all** on a given chain (predeploys installed, implementations deployed, upgrade paths active). Since #20439 the L2CM bit is enabled by default, so on new deploys the machinery is always provisioned.
-
-So: hardfork is the network-wide "go" signal; bitmap is the per-chain "is this feature provisioned" switch. Other flags (interop, super-root migration) are bitmap-only, no parallel hardfork timestamp.
-
-## G. Lifecycle direction
-
-- L2CM and CannonKona are now **default-on** (#20439): `IsDevFeatureEnabled` / `isDevFeatureEnabled` return `true` for them regardless of the bitmap.
-- **#20084** tracks removing the L2CM and CannonKona flags (and eventually the wider DevFeatures scaffolding) once L2CM is proven in production.
+The bitmap flags (interop, ZK, super-root migration) have no parallel hardfork timestamp — the bitmap is the per-chain "is this feature provisioned" switch and the only gate. Network-wide activation timing is a separate mechanism: the hardfork timestamps mapped by the developer toggles in `op-node/rollup/toggles.go` (see section B), e.g. `IsL2CM(time)` decides **when** L2ContractsManager upgrade transactions execute across the network.
 
 ## File index
 

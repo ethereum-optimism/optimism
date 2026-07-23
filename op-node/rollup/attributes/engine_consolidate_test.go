@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-core/eip1559"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -21,7 +21,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
-var defaultOpConfig = &params.OptimismConfig{
+var defaultOpConfig = &opparams.OptimismConfig{
 	EIP1559Elasticity:        6,
 	EIP1559Denominator:       50,
 	EIP1559DenominatorCanyon: ptr(uint64(250)),
@@ -628,7 +628,7 @@ func TestGetMissingTxnHashes(t *testing.T) {
 	for i := 0; i < len(depositTxs); i++ {
 		rng := rand.New(rand.NewSource(1234 + int64(i)))
 		safeDeposit := testutils.GenerateDeposit(testutils.RandomHash(rng), rng)
-		depositTxs[i] = types.NewTx(safeDeposit)
+		depositTxs[i] = testutils.TxFromDeposit(safeDeposit)
 	}
 
 	tests := []struct {

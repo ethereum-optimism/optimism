@@ -17,7 +17,6 @@ import { UpgradeUtils } from "scripts/libraries/UpgradeUtils.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Preinstalls } from "src/libraries/Preinstalls.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
 import { Types } from "src/libraries/Types.sol";
 import { NetworkUpgradeTxns } from "src/libraries/NetworkUpgradeTxns.sol";
@@ -74,9 +73,6 @@ contract L2ForkUpgrade_TestInit is CommonTest {
         // Skip if not L2 fork test
         skipIfNotL2ForkTest("L2ForkUpgrade: not a fork test");
 
-        // Skip if L2CM dev feature is not enabled
-        skipIfDevFeatureDisabled(DevFeatures.L2CM);
-
         if (!Config.l2CMActivationTest()) {
             // Initialize scripts
             executeScript = new ExecuteNUTBundle();
@@ -107,12 +103,9 @@ contract L2ForkUpgrade_TestInit is CommonTest {
     }
 
     /// @notice Returns true when the current bundle has already been applied to the forked chain.
-    ///         Uses two checks: ConditionalDeployer exists (Karst ran) and this bundle's
-    ///         L2ContractsManager was deployed at its expected address.
     function _isCurrentBundleAlreadyApplied() internal view returns (bool) {
-        if (Predeploys.CONDITIONAL_DEPLOYER.code.length == 0) return false;
         address l2cm = PastNUTBundles.extractL2CM(_currentBundleTxns(), Constants.CURRENT_BUNDLE_PATH);
-        return l2cm.code.length > 0;
+        return PastNUTBundles.isBundleApplied(l2cm);
     }
 
     /// @notice Copies the cached current bundle transactions from storage to memory.

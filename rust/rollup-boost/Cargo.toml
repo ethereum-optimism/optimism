@@ -36,17 +36,17 @@ backoff = "0.4.0"
 reth-optimism-payload-builder = { path = "../op-reth/crates/payload" }
 
 # Alloy libraries
-alloy-rpc-types-engine = { version = "2.0.4", default-features = false }
-alloy-rpc-types-eth = { version = "2.0.4", default-features = false }
-alloy-primitives = { version = "1.5.6", default-features = false, features = ["rand"] }
-alloy-serde = { version = "2.0.4", default-features = false }
-alloy-eips = { version = "2.0.4", default-features = false }
-alloy-json-rpc = { version = "2.0.4", default-features = false }
-alloy-consensus = { version = "2.0.4", default-features = false }
-alloy-rpc-types = { version = "2.0.4", features = ["eth"], default-features = false }
-alloy-genesis = { version = "2.0.4", default-features = false }
-alloy-rpc-client = { version = "2.0.4", default-features = false }
-alloy-provider = { version = "2.0.4", features = ["reqwest", "debug-api"], default-features = false }
+alloy-rpc-types-engine = { version = "2.1.1", default-features = false }
+alloy-rpc-types-eth = { version = "2.1.1", default-features = false }
+alloy-primitives = { version = "1.6.0", default-features = false, features = ["rand"] }
+alloy-serde = { version = "2.1.1", default-features = false }
+alloy-eips = { version = "2.1.1", default-features = false }
+alloy-json-rpc = { version = "2.1.1", default-features = false }
+alloy-consensus = { version = "2.1.1", default-features = false }
+alloy-rpc-types = { version = "2.1.1", features = ["eth"], default-features = false }
+alloy-genesis = { version = "2.1.1", default-features = false }
+alloy-rpc-client = { version = "2.1.1", default-features = false }
+alloy-provider = { version = "2.1.1", features = ["reqwest", "debug-api"], default-features = false }
 op-alloy-network = { version = "2.0.0", path = "../op-alloy/crates/network", default-features = false }
 op-alloy-rpc-types-engine = { version = "2.0.0", path = "../op-alloy/crates/rpc-types-engine", default-features = false }
 op-alloy-consensus = { version = "2.0.0", path = "../op-alloy/crates/consensus", default-features = false }

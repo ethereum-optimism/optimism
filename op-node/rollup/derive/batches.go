@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -189,7 +190,7 @@ func checkSequencerTxData(log log.Logger, txIndex int, txBytes []byte, isIsthmus
 		return BatchDrop
 	}
 	switch txBytes[0] {
-	case types.DepositTxType:
+	case optypes.DepositTxType:
 		log.Warn("sequencers may not embed any deposits into batch data, but found tx that has one", "tx_index", txIndex)
 		return BatchDrop
 	case types.SetCodeTxType:
@@ -197,7 +198,7 @@ func checkSequencerTxData(log log.Logger, txIndex int, txBytes []byte, isIsthmus
 			log.Warn("sequencers may not embed any SetCode transactions before Isthmus", "tx_index", txIndex)
 			return BatchDrop
 		}
-	case types.PostExecTxType:
+	case optypes.PostExecTxType:
 		if !isSDM {
 			log.Warn("sequencers may not embed any PostExec transactions before SDM", "tx_index", txIndex)
 			return BatchDrop
@@ -402,7 +403,7 @@ func checkSpanBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1B
 				log.Warn("transaction data must not be empty, but found empty tx", "tx_index", i)
 				return BatchDrop
 			}
-			if txBytes[0] == types.DepositTxType {
+			if txBytes[0] == optypes.DepositTxType {
 				log.Warn("sequencers may not embed any deposits into batch data, but found tx that has one", "tx_index", i)
 				return BatchDrop
 			}
@@ -430,7 +431,7 @@ func checkSpanBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1B
 			// execution payload has deposit TXs, but batch does not.
 			depositCount := 0
 			for _, tx := range safeBlockTxs {
-				if tx[0] == types.DepositTxType {
+				if tx[0] == optypes.DepositTxType {
 					depositCount++
 				}
 			}

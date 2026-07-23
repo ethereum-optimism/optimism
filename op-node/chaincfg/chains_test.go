@@ -4,10 +4,10 @@ import (
 	"math/big"
 	"testing"
 
+	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
@@ -36,7 +36,28 @@ func TestGetRollupConfig(t *testing.T) {
 	}
 }
 
-var defaultOpConfig = &params.OptimismConfig{
+func TestKarstUpgradeGasCompatibilityByNetwork(t *testing.T) {
+	// These values preserve each chain's behavior when it activated Karst.
+	tests := []struct {
+		network string
+		want    bool
+	}{
+		{network: "mode-mainnet", want: false},
+		{network: "metal-mainnet", want: false},
+		{network: "zora-mainnet", want: false},
+		{network: "op-mainnet", want: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.network, func(t *testing.T) {
+			cfg, err := GetRollupConfig(test.network)
+			require.NoError(t, err)
+			require.Equal(t, test.want, cfg.KeepKarstUpgradeGas)
+		})
+	}
+}
+
+var defaultOpConfig = &opparams.OptimismConfig{
 	EIP1559Elasticity:        6,
 	EIP1559Denominator:       50,
 	EIP1559DenominatorCanyon: u64Ptr(250),

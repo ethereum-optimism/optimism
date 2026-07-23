@@ -4,10 +4,9 @@
 use super::SingleChainHost;
 use crate::{KeyValueStore, Result};
 use alloy_primitives::B256;
-use kona_preimage::PreimageKey;
-use kona_proof::boot::{
+use kona_preimage::{
     L1_CONFIG_KEY, L1_HEAD_KEY, L2_CHAIN_ID_KEY, L2_CLAIM_BLOCK_NUMBER_KEY, L2_CLAIM_KEY,
-    L2_OUTPUT_ROOT_KEY, L2_ROLLUP_CONFIG_KEY,
+    L2_OUTPUT_ROOT_KEY, L2_ROLLUP_CONFIG_KEY, PreimageKey,
 };
 
 /// A simple, synchronous key-value store that returns data from a [`SingleChainHost`] config.

@@ -420,12 +420,19 @@ contract FetchChainInfo is Script {
                 _fo.set(_fo.anchorStateRegistryProxy.selector, anchorStateRegistryProxy);
             }
 
-            address faultDisputeGameImpl = _getFaultDisputeGame(disputeGameFactoryProxy, GameTypes.CANNON);
+            // Report the live permissionless fault dispute game. CANNON is being deprecated in favor
+            // of CANNON_KONA, but chains that have not yet migrated still run CANNON (and this script
+            // syncs the whole registry), so report whichever type is registered. CANNON is preferred
+            // when both exist to preserve the historical faultDisputeGameImpl for legacy chains.
+            address cannonImpl = _getFaultDisputeGame(disputeGameFactoryProxy, GameTypes.CANNON);
+            address cannonKonaImpl = _getFaultDisputeGame(disputeGameFactoryProxy, GameTypes.CANNON_KONA);
+            GameType permissionlessGameType = cannonImpl != address(0) ? GameTypes.CANNON : GameTypes.CANNON_KONA;
+            address faultDisputeGameImpl = cannonImpl != address(0) ? cannonImpl : cannonKonaImpl;
             if (faultDisputeGameImpl != address(0)) {
                 _fo.set(_fo.faultDisputeGameImpl.selector, faultDisputeGameImpl);
                 _fo.set(_fo.permissionless.selector, true);
 
-                bytes memory permissionlessArgs = _getGameArgs(disputeGameFactoryProxy, GameTypes.CANNON);
+                bytes memory permissionlessArgs = _getGameArgs(disputeGameFactoryProxy, permissionlessGameType);
                 if (permissionlessArgs.length > 0) {
                     LibGameArgs.GameArgs memory args = LibGameArgs.decode(permissionlessArgs);
                     _fo.set(_fo.delayedWethPermissionlessGameProxy.selector, args.weth);
@@ -442,11 +449,8 @@ contract FetchChainInfo is Script {
                 _fo.set(_fo.preimageOracleImpl.selector, IFetcher(mipsImpl).oracle());
             }
 
-            address faultDisputeGameCannonKonaImpl =
-                _getFaultDisputeGame(disputeGameFactoryProxy, GameTypes.CANNON_KONA);
-            if (faultDisputeGameCannonKonaImpl != address(0)) {
-                _fo.set(_fo.faultDisputeGameCannonKonaImpl.selector, faultDisputeGameCannonKonaImpl);
-                // if we have CANNON_KONA, we must also have CANNON
+            if (cannonKonaImpl != address(0)) {
+                _fo.set(_fo.faultDisputeGameCannonKonaImpl.selector, cannonKonaImpl);
             }
         } else {
             // some older chains have L2OutputOracle instead of DisputeGameFactory.

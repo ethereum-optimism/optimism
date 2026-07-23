@@ -148,6 +148,10 @@ func FuzzEncodeDecodeBlob(f *testing.F) {
 }
 
 func FuzzDetectNonBijectivity(f *testing.F) {
+	// Seed whose sha256-derived flip lands on a non-encoded high bit of blob[0]
+	// (bit 7). The blob still decodes to identical data, which must not be
+	// treated as a bijectivity violation.
+	f.Add([]byte{0x00, 0x18, 0x7e, 0x6a})
 	var b Blob
 	f.Fuzz(func(t *testing.T, d []byte) {
 		if len(d) > MaxBlobDataSize {
@@ -169,9 +173,34 @@ func FuzzDetectNonBijectivity(f *testing.F) {
 		b[byteToFlip] = b[byteToFlip] ^ mask
 		decoded, err := b.ToData()
 		if err == nil {
-			require.NotEqual(t, data, decoded)
+			// The two high bits of blob[0] are not part of the encoding: FromData
+			// always writes them as 0 and ToData masks them off in reassembleBytes
+			// (& 0b0011_1111), so flipping them legitimately decodes to identical
+			// data. Only assert bijectivity for bits that are actually encoded.
+			if byteToFlip == 0 && bitToFlip >= 6 {
+				require.Equal(t, data, decoded)
+			} else {
+				require.NotEqual(t, data, decoded)
+			}
 		}
 	})
+}
+
+// TestBlobNonEncodedHighBits verifies that the two high bits of blob[0] are not
+// part of the encoding: flipping them is a no-op that still decodes without error
+// to identical data. This is the case FuzzDetectNonBijectivity must not flag.
+func TestBlobNonEncodedHighBits(t *testing.T) {
+	data := Data("this is a test of blob encoding/decoding")
+	for _, bit := range []int{6, 7} {
+		var b Blob
+		require.NoError(t, b.FromData(data))
+		require.Zero(t, b[0]&(1<<bit), "FromData must write the high bits of blob[0] as 0")
+
+		b[0] ^= 1 << bit
+		decoded, err := b.ToData()
+		require.NoError(t, err)
+		require.Equal(t, data, decoded)
+	}
 }
 
 func TestDecodeTestVectors(t *testing.T) {

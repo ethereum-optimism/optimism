@@ -1,7 +1,7 @@
 //! SDM PostExec (`0x7D`) production tests.
 //!
 //! These run against a chain spec with Interop (Lagoon) active at genesis, so the SDM
-//! protocol gate is on and the operator opt-in (`admin_setSdmPostExecOptIn`) decides
+//! protocol gate is on and the operator opt-in (`admin_setOperatorSdmOptIn`) decides
 //! whether the builder produces the trailing PostExec tx. The driver round-trips every
 //! built payload through `newPayload` on the same node, which re-executes it with the
 //! post-exec mode derived from the block's own transactions — so a block whose state
@@ -101,7 +101,7 @@ async fn post_exec_tx_follows_operator_opt_in(rbuilder: LocalInstance) -> eyre::
         "chain spec must have the SDM protocol gate active at genesis"
     );
     assert!(
-        !status.post_exec_opt_in,
+        !status.operator_sdm_opt_in,
         "operator opt-in must start disabled on boot"
     );
 
@@ -136,7 +136,7 @@ async fn post_exec_tx_follows_operator_opt_in(rbuilder: LocalInstance) -> eyre::
 
     // Opted in: the same workload must produce exactly one PostExec tx, in the final
     // position, anchored to this block, with refund entries pointing at earlier txs.
-    client.set_sdm_post_exec_opt_in(true).await?;
+    client.set_operator_sdm_opt_in(true).await?;
     assert!(client.sdm_status(None).await?.effective);
 
     let first = driver.create_transaction().with_to(contract).send().await?;
@@ -173,7 +173,7 @@ async fn post_exec_tx_follows_operator_opt_in(rbuilder: LocalInstance) -> eyre::
     }
 
     // Opting back out stops production again.
-    client.set_sdm_post_exec_opt_in(false).await?;
+    client.set_operator_sdm_opt_in(false).await?;
     let first = driver.create_transaction().with_to(contract).send().await?;
     let block = driver.build_new_block().await?;
     assert!(block.includes(first.tx_hash()));

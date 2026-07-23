@@ -65,13 +65,6 @@ type L1Client interface {
 	Close()
 }
 
-// BeaconClient is the interface that op-node uses to interact with L1 Beacon.
-// This allows wrapped or mocked clients to be used
-type BeaconClient interface {
-	GetVersion(ctx context.Context) (string, error)
-	GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error)
-}
-
 type closableSafeDB interface {
 	rollup.SafeHeadListener
 	SafeDBReader
@@ -297,6 +290,7 @@ func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides Initial
 	}
 
 	n.metrics.RecordInfo(n.appVersion)
+	n.metrics.RecordHardforkActivationTimes(&cfg.Rollup)
 	n.metrics.RecordUp()
 
 	n.pprofService, err = initPProf(cfg, n)
@@ -484,18 +478,18 @@ func initL1BeaconAPI(ctx context.Context, cfg *config.Config, node *OpNode) (*so
 	}
 	beacon := sources.NewL1BeaconClient(beaconClient, beaconCfg, fallbacks...)
 
-	// Retry retrieval of the Beacon API version, to be more robust on startup against Beacon API connection issues.
-	beaconVersion, missingEndpoint, err := retry.Do2[string, bool](ctx, 5, retry.Exponential(), func() (string, bool, error) {
+	// Ping the Beacon API on startup to be more robust against connection issues.
+	missingEndpoint, err := retry.Do[bool](ctx, 5, retry.Exponential(), func() (bool, error) {
 		ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 		defer cancel()
-		beaconVersion, err := beacon.GetVersion(ctx)
+		_, err := beaconClient.BeaconGenesis(ctx)
 		if err != nil {
 			if errors.Is(err, client.ErrNoEndpoint) {
-				return "", true, nil // don't return an error, we do not have to retry when there is a config issue.
+				return true, nil // don't return an error, we do not have to retry when there is a config issue.
 			}
-			return "", false, err
+			return false, err
 		}
-		return beaconVersion, false, nil
+		return false, nil
 	})
 	if missingEndpoint {
 		// Allow the user to continue if they explicitly ignore the requirement of the endpoint.
@@ -513,14 +507,14 @@ func initL1BeaconAPI(ctx context.Context, cfg *config.Config, node *OpNode) (*so
 		}
 	} else if err != nil {
 		if cfg.Beacon.ShouldIgnoreBeaconCheck() {
-			node.log.Warn("Failed to check L1 Beacon API version, but configuration ignores results. "+
+			node.log.Warn("Failed to connect to L1 Beacon API, but configuration ignores results. "+
 				"The node may be unable to retrieve EIP-4844 blobs data.", "err", err)
 			return beacon, nil
 		} else {
-			return nil, fmt.Errorf("failed to check L1 Beacon API version: %w", err)
+			return nil, fmt.Errorf("failed to connect to L1 Beacon API: %w", err)
 		}
 	} else {
-		node.log.Info("Connected to L1 Beacon API, ready for EIP-4844 blobs retrieval.", "version", beaconVersion)
+		node.log.Info("Connected to L1 Beacon API, ready for EIP-4844 blobs retrieval.")
 		return beacon, nil
 	}
 }

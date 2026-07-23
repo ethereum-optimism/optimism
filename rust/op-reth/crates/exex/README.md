@@ -1,9 +1,4 @@
 # op-reth historical proofs
-[![codecov](https://codecov.io/gh/op-rs/op-reth/branch/main/graph/badge.svg)](https://app.codecov.io/gh/op-rs/op-reth/tree/unstable/crates%2Foptimism?components%5B0%5D=op%20historical%20proof)
-
-> **⚠️ Under Construction**
->
-> This is a work in progress. Stay tuned!
 
 ## Motivation
 
