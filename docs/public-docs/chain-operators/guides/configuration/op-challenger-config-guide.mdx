@@ -68,7 +68,7 @@ To ensure you're using the latest compatible versions of OP Stack components, al
 
 This guide is verified against the following versions:
 
-*   **op-challenger** — `op-challenger/v1.9.3` (look for the latest `op-challenger/v*`).
+*   **op-challenger** — `op-challenger/v1.9.4` (look for the latest `op-challenger/v*`).
 *   **op-reth** — `v2.2.5` (look for the latest [op-reth release](https://github.com/ethereum-optimism/optimism/releases?q=op-reth)). op-reth is both the sequencer's execution client and the archive node the challenger reads withdrawal proofs from.
 *   **kona-client** — the absolute prestate is built from a tagged `kona-client/v*` release (e.g. `kona-client/v1.6.0-rc.1`). Use the tag matching the prestate registered on your chain; for governance-approved upgrades the version is named in the upgrade notice. See the [kona-client prestate tutorial](/chain-operators/tutorials/kona-custom-prestate).
 
@@ -92,7 +92,7 @@ git clone https://github.com/ethereum-optimism/optimism.git
 cd optimism
 
 # Check out the latest release of op-challenger
-git checkout op-challenger/v1.9.3
+git checkout op-challenger/v1.9.4
 
 # Generate the embedded superchain config bundle (initializes the
 # superchain-registry submodule; op-challenger embeds this file at compile time)
@@ -587,7 +587,7 @@ The challenger should show logs indicating:
   
   services:
     challenger:
-      image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:v1.9.3
+      image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:v1.9.4
       user: "1000"
       volumes:
         - ./challenger-data:/data

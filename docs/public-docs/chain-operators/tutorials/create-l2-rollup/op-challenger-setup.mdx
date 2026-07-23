@@ -152,7 +152,7 @@ For challenger deployment, we recommend using Docker as it provides a consistent
     
     services:
       challenger:
-        image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:v1.9.3
+        image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:v1.9.4
         user: "1000"
         volumes:
           - ./challenger-data:/data
@@ -210,8 +210,9 @@ For challenger deployment, we recommend using Docker as it provides a consistent
         prerequisites (`kona-node/v1.6.1`), so the server matches your chain's absolute
         prestate, and point `CANNON_KONA_SERVER` at the resulting binary.
     *   **Configuration files**: copy `rollup.json` and `genesis-l2.json` from the
-        op-deployer step into `rollup/challenger`, set `CANNON_KONA_ROLLUP_CONFIG=./rollup.json`
-        and `CANNON_KONA_L2_GENESIS=./genesis-l2.json`, and set
+        op-deployer step into `rollup/challenger`, set `CANNON_ROLLUP_CONFIG=./rollup.json`
+        and `CANNON_L2_GENESIS=./genesis-l2.json` (the guide's startup script passes these
+        to `--cannon-kona-rollup-config` and `--cannon-kona-l2-genesis`), and set
         `CANNON_KONA_PRESTATE=./0x<PRESTATE_HASH>.bin.gz`, the preimage file generated
         in the prerequisites.
     *   **Trace type and wallet**: this chain is not in the superchain-registry, so keep
