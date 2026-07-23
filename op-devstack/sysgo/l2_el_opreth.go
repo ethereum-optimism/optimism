@@ -246,3 +246,27 @@ func (n *OpReth) EngineRPC() string {
 func (n *OpReth) JWTPath() string {
 	return n.jwtPath
 }
+
+// ConfigureInteropRPC restarts op-reth against its existing datadir and stable
+// RPC proxies with a new chain-local interop admission endpoint.
+func (n *OpReth) ConfigureInteropRPC(endpoint string) {
+	wasRunning := n.Running()
+	if wasRunning {
+		n.Stop()
+	}
+	n.mu.Lock()
+	filtered := n.args[:0]
+	for _, arg := range n.args {
+		if !strings.HasPrefix(arg, "--rollup.interop-http=") {
+			filtered = append(filtered, arg)
+		}
+	}
+	n.args = filtered
+	if endpoint != "" {
+		n.args = append(n.args, "--rollup.interop-http="+endpoint)
+	}
+	n.mu.Unlock()
+	if wasRunning {
+		n.Start()
+	}
+}

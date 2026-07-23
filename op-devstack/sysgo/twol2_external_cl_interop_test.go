@@ -74,6 +74,8 @@ func TestTwoL2ExternalCLInteropVerifierSlotsUseFactory(t *testing.T) {
 	verifierBEL := fakeInteropL2EL{user: "http://127.0.0.1:9101", engine: "http://127.0.0.1:9102", jwt: "/jwt/b"}
 	followSourceA := "http://127.0.0.1:9545"
 	followSourceB := "http://127.0.0.1:9645"
+	sequencerAEL := fakeInteropL2EL{user: followSourceA, engine: "http://127.0.0.1:9551", jwt: "/jwt/seq-a"}
+	sequencerBEL := fakeInteropL2EL{user: followSourceB, engine: "http://127.0.0.1:9651", jwt: "/jwt/seq-b"}
 
 	var seen []L2CLLaunchContext
 	nodes := make(map[eth.ChainID]*fakeExternalL2CL)
@@ -84,8 +86,8 @@ func TestTwoL2ExternalCLInteropVerifierSlotsUseFactory(t *testing.T) {
 		return node, true
 	})
 
-	verifierACL := startInteropVerifierCL(dt, nil, l1Net, l2ANet, l1EL, l1CL, verifierAEL, [32]byte{}, followSourceA, depSet, nil, factory)
-	verifierBCL := startInteropVerifierCL(dt, nil, l1Net, l2BNet, l1EL, l1CL, verifierBEL, [32]byte{}, followSourceB, depSet, nil, factory)
+	verifierACL := startInteropVerifierCL(dt, nil, l1Net, l2ANet, l1EL, l1CL, verifierAEL, [32]byte{}, sequencerAEL, depSet, nil, factory)
+	verifierBCL := startInteropVerifierCL(dt, nil, l1Net, l2BNet, l1EL, l1CL, verifierBEL, [32]byte{}, sequencerBEL, depSet, nil, factory)
 
 	require.Len(t, seen, 2, "factory must be consulted exactly once per chain")
 	require.Same(t, nodes[chainAID], verifierACL, "chain A slot uses the factory-provided node")
@@ -115,11 +117,15 @@ func TestTwoL2ExternalCLInteropVerifierSlotsUseFactory(t *testing.T) {
 	require.Equal(t, verifierAEL.engine, seen[0].L2EngineRPC)
 	require.Equal(t, verifierAEL.jwt, seen[0].L2JWTPath)
 	require.Equal(t, followSourceA, seen[0].FollowSource)
+	require.Equal(t, sequencerAEL.engine, seen[0].UnsafeSourceEngineRPC)
+	require.Equal(t, sequencerAEL.jwt, seen[0].UnsafeSourceJWTPath)
 	require.Equal(t, chainAID.ToBig(), seen[0].RollupConfig.L2ChainID)
 
 	require.Equal(t, verifierBEL.user, seen[1].L2UserRPC)
 	require.Equal(t, verifierBEL.engine, seen[1].L2EngineRPC)
 	require.Equal(t, verifierBEL.jwt, seen[1].L2JWTPath)
 	require.Equal(t, followSourceB, seen[1].FollowSource)
+	require.Equal(t, sequencerBEL.engine, seen[1].UnsafeSourceEngineRPC)
+	require.Equal(t, sequencerBEL.jwt, seen[1].UnsafeSourceJWTPath)
 	require.Equal(t, chainBID.ToBig(), seen[1].RollupConfig.L2ChainID)
 }

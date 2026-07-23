@@ -187,6 +187,7 @@ func startL2CLForKey(
 	depSet depset.DependencySet,
 	l2CLOpts []L2CLOption,
 	factory L2CLFactory,
+	unsafeSourceEL L2ELNode,
 ) L2CLNode {
 	startCfg := l2CLNodeStartConfig{
 		Key:            clKey,
@@ -204,7 +205,7 @@ func startL2CLForKey(
 		if isSequencer {
 			role = L2CLRoleSequencer
 		}
-		node, handled := factory.CreateL2CL(t, L2CLLaunchContext{
+		launchCtx := L2CLLaunchContext{
 			Target:        target,
 			Role:          role,
 			L1UserRPC:     l1EL.UserRPC(),
@@ -218,7 +219,19 @@ func startL2CLForKey(
 			FollowSource:  resolvedCfg.FollowSource,
 			Config:        *resolvedCfg,
 			DependencySet: depSet,
-		})
+		}
+		if unsafeSourceEL != nil {
+			launchCtx.UnsafeSourceUserRPC = unsafeSourceEL.UserRPC()
+			launchCtx.UnsafeSourceEngineRPC = unsafeSourceEL.EngineRPC()
+			launchCtx.UnsafeSourceJWTPath = unsafeSourceEL.JWTPath()
+			if configurable, ok := unsafeSourceEL.(interface{ ConfigureInteropRPC(string) }); ok {
+				launchCtx.ConfigureUnsafeSourceInteropRPC = configurable.ConfigureInteropRPC
+			}
+		}
+		if configurable, ok := l2EL.(interface{ ConfigureInteropRPC(string) }); ok {
+			launchCtx.ConfigureInteropRPC = configurable.ConfigureInteropRPC
+		}
+		node, handled := factory.CreateL2CL(t, launchCtx)
 		if handled {
 			t.Require().NotNil(node, "L2 CL factory handled %s but returned a nil node", target)
 			return node
@@ -275,6 +288,12 @@ func connectL2ELPeers(t devtest.T, logger log.Logger, initiatorRPC, acceptorRPC 
 	ConnectP2P(t.Ctx(), require, rpc1, rpc2, trusted)
 }
 
+// ConnectL2ELPeers connects two already-running ELs without coupling callers
+// to their concrete sysgo implementations.
+func ConnectL2ELPeers(t devtest.T, initiatorRPC, acceptorRPC string, trusted bool) {
+	connectL2ELPeers(t, t.Logger(), initiatorRPC, acceptorRPC, trusted)
+}
+
 func connectL2CLPeers(t devtest.T, logger log.Logger, l2CL1, l2CL2 L2CLNode) {
 	require := t.Require()
 	ctx := t.Ctx()
@@ -314,7 +333,7 @@ func startSequencerCL(
 	l2CLOpts []L2CLOption,
 	factory L2CLFactory,
 ) L2CLNode {
-	return startL2CLForKey(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, "sequencer", "sequencer", true, "", nil, l2CLOpts, factory)
+	return startL2CLForKey(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, "sequencer", "sequencer", true, "", nil, l2CLOpts, factory, nil)
 }
 
 type l2CLNodeStartConfig struct {
@@ -450,7 +469,7 @@ func startL2CLNode(
 		},
 		Driver: driver.Config{
 			SequencerEnabled:    cfg.IsSequencer,
-			SequencerStopped:    startCfg.SequencerStopped,
+			SequencerStopped:    startCfg.SequencerStopped || cfg.SequencerStopped,
 			SequencerConfDepth:  2,
 			SequencerMaxSafeLag: cfg.SequencerMaxSafeLag,
 		},

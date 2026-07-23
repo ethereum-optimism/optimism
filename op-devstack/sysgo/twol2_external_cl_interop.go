@@ -69,7 +69,7 @@ func NewTwoL2ExternalCLInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64
 		// Dedicated verifier EL (default kind selection, op-reth unless
 		// overridden), driven by the factory-provided CL when one is set.
 		verifierEL := startL2ELForKey(t, l2Net, jwtPath, jwtSecret, twoL2VerifierNodeKey, NewELNodeIdentity(0))
-		verifierCL := startInteropVerifierCL(t, keys, l1Net, l2Net, l1EL, l1CL, verifierEL, jwtSecret, seqEL.UserRPC(), runtimeDepSet, cfg.GlobalL2CLOptions, cfg.L2CLFactory)
+		verifierCL := startInteropVerifierCL(t, keys, l1Net, l2Net, l1EL, l1CL, verifierEL, jwtSecret, seqEL, runtimeDepSet, cfg.GlobalL2CLOptions, cfg.L2CLFactory)
 
 		return &MultiChainNodeRuntime{
 			Name:    l2Net.Name(),
@@ -132,10 +132,10 @@ func startInteropVerifierCL(
 	l1CL *L1CLNode,
 	verifierEL L2ELNode,
 	jwtSecret [32]byte,
-	followSource string,
+	unsafeSourceEL L2ELNode,
 	depSet depset.DependencySet,
 	l2CLOpts []L2CLOption,
 	factory L2CLFactory,
 ) L2CLNode {
-	return startL2CLForKey(t, keys, l1Net, l2Net, l1EL, l1CL, verifierEL, jwtSecret, twoL2VerifierNodeKey, twoL2VerifierNodeKey, false, followSource, depSet, l2CLOpts, factory)
+	return startL2CLForKey(t, keys, l1Net, l2Net, l1EL, l1CL, verifierEL, jwtSecret, twoL2VerifierNodeKey, twoL2VerifierNodeKey, false, unsafeSourceEL.UserRPC(), depSet, l2CLOpts, factory, unsafeSourceEL)
 }

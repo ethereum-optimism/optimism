@@ -41,7 +41,17 @@ type L2CLLaunchContext struct {
 	L2Genesis    *core.Genesis
 	RollupConfig *rollup.Config
 	FollowSource string
-	Config       L2CLConfig
+	// UnsafeSource* exposes the complete EL selected as this verifier's unsafe
+	// source when the runtime owns it. External multi-process CL factories use
+	// these product-neutral endpoints to attach a separate sequencer process.
+	UnsafeSourceUserRPC   string
+	UnsafeSourceEngineRPC string
+	UnsafeSourceJWTPath   string
+	// ConfigureInteropRPC retargets the attached EL's interop admission client.
+	// It is nil when the EL does not support runtime reconfiguration.
+	ConfigureInteropRPC             func(string)
+	ConfigureUnsafeSourceInteropRPC func(string)
+	Config                          L2CLConfig
 
 	// DependencySet is the interop dependency set shared by every chain of the
 	// launched world. It is nil outside interop-enabled worlds.
@@ -78,6 +88,9 @@ type L2CLConfig struct {
 	SafeDBPath string
 
 	IsSequencer bool
+	// SequencerStopped starts a sequencer without producing blocks until its
+	// admin start method is called.
+	SequencerStopped bool
 
 	// EnableReqRespSync enables/disables the req-resp sync server (serving payloads to peers).
 	EnableReqRespSync bool
@@ -98,6 +111,12 @@ type L2CLConfig struct {
 func L2CLSequencer() L2CLOption {
 	return L2CLOptionFn(func(p devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
 		cfg.IsSequencer = true
+	})
+}
+
+func L2CLSequencerStopped() L2CLOption {
+	return L2CLOptionFn(func(_ devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
+		cfg.SequencerStopped = true
 	})
 }
 
