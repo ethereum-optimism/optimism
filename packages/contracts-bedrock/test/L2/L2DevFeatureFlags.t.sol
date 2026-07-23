@@ -75,8 +75,8 @@ contract L2DevFeatureFlags_IsDevFeatureEnabled_Test is L2DevFeatureFlags_TestIni
     function test_isDevFeatureEnabled_superRootGamesMigrationAlwaysEnabled_succeeds() public view {
         assertTrue(l2DevFeatureFlags.isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION));
     }
-    /// @notice Tests that `isDevFeatureEnabled` returns false for zero feature.
 
+    /// @notice Tests that `isDevFeatureEnabled` returns false for zero feature.
     function testFuzz_isDevFeatureEnabled_zeroFeature_succeeds(bytes32 _bitmap) public {
         vm.prank(Constants.DEPOSITOR_ACCOUNT);
         l2DevFeatureFlags.setDevFeatureBitmap(_bitmap);
