@@ -4,6 +4,8 @@ description: Learn how to configure challenger for your OP Stack chain.
 diataxis: tutorial
 ---
 
+import OpEnterpriseCallout from '/snippets/op-enterprise-callout.mdx';
+
 After you have spun up your sequencer, batcher, and proposer, the final step is to configure a challenger to monitor and respond to disputes. The challenger is the security component that ensures the integrity of your rollup by monitoring dispute games and responding to invalid claims.
 
 <Info>
@@ -487,6 +489,10 @@ This will trigger a deposit that will mint ETH into your wallet on L2.
 
 You can interact with your Rollup the same way you'd interact with any other EVM chain.
 Send some transactions, deploy some contracts, and see what happens!
+
+You now have a working testnet. Here is what the distance to production looks like:
+
+<OpEnterpriseCallout />
 
 ## Need Help?
 
