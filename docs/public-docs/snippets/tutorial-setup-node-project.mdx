@@ -26,10 +26,12 @@
 
   The empty component export below declares the props so that they also
   interpolate inside the fenced code blocks, following the fenced-code
-  variables example in the Mintlify reusable-snippets guide.
+  variables example in the Mintlify reusable-snippets guide (its example
+  names the empty component identically to the component name the
+  destination file imports, so this one is named TutorialSetupNodeProject).
 */}
 
-export const TutorialSetupNodeProjectProps = ({ lib, folder, packages }) => <></>;
+export const TutorialSetupNodeProject = ({ lib, folder, packages }) => <></>;
 
 You're going to use the {lib} library for this tutorial.
 Since {lib} is a [Node.js](https://nodejs.org/en/) library, you'll need to create a Node.js project to use it.
