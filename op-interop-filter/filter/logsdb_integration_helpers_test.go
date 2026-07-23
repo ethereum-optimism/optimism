@@ -487,14 +487,15 @@ func (sb *seededBackend) requireAccepted(execChain eth.ChainID, execTs uint64, a
 // =============================================================================
 
 type capturingMetrics struct {
-	mu              sync.Mutex
-	rejections      map[string]int
-	reorgs          map[uint64]int
-	blockSealed     map[uint64]int64
-	logsAdded       map[uint64]int64
-	chainHead       map[uint64]uint64
-	failsafeGauge   bool
-	failsafeReasons map[string]bool
+	mu               sync.Mutex
+	rejections       map[string]int
+	reorgs           map[uint64]int
+	blockSealed      map[uint64]int64
+	logsAdded        map[uint64]int64
+	chainHead        map[uint64]uint64
+	failsafeGauge    bool
+	passthroughGauge bool
+	failsafeReasons  map[string]bool
 }
 
 func newCapturingMetrics() *capturingMetrics {
@@ -532,6 +533,10 @@ func (m *capturingMetrics) RecordFailsafeEnabled(enabled bool) {
 	m.locked(func() { m.failsafeGauge = enabled })
 }
 
+func (m *capturingMetrics) RecordPassthroughEnabled(enabled bool) {
+	m.locked(func() { m.passthroughGauge = enabled })
+}
+
 func (m *capturingMetrics) RecordFailsafeReason(reason string, active bool) {
 	m.locked(func() { m.failsafeReasons[reason] = active })
 }
@@ -541,6 +546,12 @@ func (m *capturingMetrics) failsafeMetric() bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.failsafeGauge
+}
+
+func (m *capturingMetrics) passthroughMetric() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.passthroughGauge
 }
 
 // failsafeReasonActive returns the last value recorded for the given reason.
