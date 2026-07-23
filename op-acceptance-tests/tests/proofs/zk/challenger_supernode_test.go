@@ -49,3 +49,29 @@ func TestZK_HonestChallenger_Supernode_InvalidProposal_ChallengerWins(gt *testin
 	game.WaitForGameStatus(gameTypes.GameStatusChallengerWon)
 	t.Require().Equal(common.Address{}, game.ClaimData().Prover, "challenger must not prove")
 }
+
+// TestZK_HonestChallenger_Supernode_UnsafeProposal_ChallengerWins mirrors the op-node unsafe-proposal
+// case against the supernode source, which reaches Data == nil through a different path than op-node
+// (VerifiedResultAtTimestamp returns NotFound rather than an op-node skeleton). A proposal for a
+// not-yet-safe timestamp is challenged and resolves CHALLENGER_WINS.
+func TestZK_HonestChallenger_Supernode_UnsafeProposal_ChallengerWins(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := newSystemWithHonestChallenger(t)
+	factory := sys.DisputeGameFactory()
+	proposer := sys.FunderL1.NewFundedEOA(eth.OneEther)
+	registry := sys.AnchorStateRegistry(sys.L2ChainA)
+	_, anchorSequence := registry.AnchorRoot()
+
+	// Propose a super root far beyond the current safe head; the chain never reaches it during the
+	// test, so the challenger keeps seeing Data == nil and challenges on that basis.
+	safeTimestamp, _ := factory.WaitForSafeSuperRootAfter(anchorSequence)
+	game := factory.StartZKGame(proposer,
+		proofs.WithL2SequenceNumber(safeTimestamp+3600),
+		proofs.WithFutureProposal(),
+	)
+
+	game.WaitForProposalStatus(proofs.ZKProposalChallenged)
+	advanceL1To(sys, game.ClaimData().Deadline+1)
+	game.WaitForGameStatus(gameTypes.GameStatusChallengerWon)
+	t.Require().Equal(common.Address{}, game.ClaimData().Prover, "challenger must not prove")
+}
