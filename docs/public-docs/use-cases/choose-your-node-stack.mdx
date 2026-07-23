@@ -6,6 +6,8 @@ content-type: solution-guide
 last-reviewed: 2026-07-21
 ---
 
+import OpGethEol from "/snippets/op-geth-eol.mdx"
+
 This guide takes an operator who is about to run an OP Stack node and turns
 "which client software?" into a sequenced decision: fix the two-client
 shape, rule out end-of-support software, choose the execution and consensus
@@ -65,12 +67,12 @@ and take away:
 
 ## Step 2: Rule out end-of-support software
 
+<OpGethEol />
+
 Read the [end-of-support notice](/notices/op-geth-deprecation) and take
 away, as of 2026-07-21:
 
-*   **op-geth reached end of support on 2026-05-31** and does not support
-    the now-active Karst hardfork, so op-geth nodes can no longer follow the
-    canonical chain. It is not a candidate for any new node.
+*   **op-geth is not a candidate for any new node**; see the warning above.
 *   **op-program has also reached end of support**, replaced by kona-client
     for fault proofs. This affects Step 5's fault-proof row, not your
     ordinary node choice.
@@ -92,7 +94,7 @@ reference lives. The selection logic:
 | If ...                                                       | Choose ...                | Because ...                                                                                                                                        |
 | -------------------------------------------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | You want the default, for any node role                       | op-reth                    | It is the primary supported execution client, and the implementation maintained by Optimism: new OP Stack feature development, including hardfork support, happens on op-reth. As of 2026-07-21.  |
-| The node is an existing op-geth deployment                    | Migration to op-reth       | op-geth is end-of-support and cannot follow the chain past Karst; the notice carries the migration plan.                                            |
+| The node is an existing op-geth deployment                    | Migration to op-reth       | op-geth is end-of-support; the [notice](/notices/op-geth-deprecation) carries the migration plan.                                            |
 
 Third-party execution clients maintained outside Optimism also exist, such
 as Nethermind; they are configured and supported through their own

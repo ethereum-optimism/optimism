@@ -5,15 +5,17 @@ description: Download, verify, and extract a snapshot into your node's data dire
 diataxis: how-to
 ---
 
+import OpGethEol from "/snippets/op-geth-eol.mdx"
+
 This guide walks you through bootstrapping an OP Stack execution client from a pre-synced snapshot: download it, verify the checksum, extract it into your data directory, and start the node from the snapshot's tip instead of replaying the chain from genesis.
 
 For **what** snapshots are available for OP Mainnet and their download links, see the [Snapshots reference page](/op-mainnet/network-information/snapshots).
 
 ## When to use a snapshot
 
-<Warning>
-  `op-geth` has [reached end of support](/notices/op-geth-deprecation) and does not support the Karst hardfork. This guide assumes an `op-reth` node.
-</Warning>
+<OpGethEol />
+
+This guide assumes an `op-reth` node.
 
 You don't always need one. With [execution-layer sync](/node-operators/reference/consensus-layer-sync) — `--syncmode=execution-layer` and `--l2.enginekind=reth` on `op-node` — `op-reth` retrieves blocks over the P2P network instead of deriving each one, which makes the initial sync much faster and, on most OP Stack chains, needs no snapshot at all. [Nethermind](https://docs.nethermind.io/get-started/running-node/l2-networks#op-stack) downloads what it needs automatically.
 

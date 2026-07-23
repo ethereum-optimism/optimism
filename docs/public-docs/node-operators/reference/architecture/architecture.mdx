@@ -4,6 +4,8 @@ description: Understand how the components of an OP Stack node fit together.
 diataxis: explanation
 ---
 
+import OpGethEol from "/snippets/op-geth-eol.mdx"
+
 This page explains how an OP Stack node is put together: what its components are, what each one is responsible for, and how they relate to the equivalent parts of an Ethereum node. It is background reading to build a mental model before you run a node; for the steps to actually stand one up, see the [Next steps](#next-steps) below.
 
 Every node on an OP Stack network is composed of two core software services, the Rollup Node and the Execution Client.
@@ -37,9 +39,9 @@ The Execution Client is largely analogous to an [execution client](https://ether
 *   **[op-reth](/op-stack/components/op-reth)** is the Optimism-maintained execution client, written in Rust and built on reth. It is the primary supported execution client for OP Stack nodes. See the [execution client configuration guide](/node-operators/guides/configuration/execution-clients) for a working configuration.
 *   **[Nethermind](https://github.com/NethermindEth/nethermind)** is a third-party execution client written in C# that also supports OP Stack chains. The docs focus on Optimism-maintained software; for Nethermind specifics, see the [Nethermind documentation](https://docs.nethermind.io/get-started/running-node/l2-networks).
 
-<Warning>
-  **op-geth**, the original execution client for the OP Stack, reached end of support on May 31, 2026, and does not support the now-active Karst hardfork, so op-geth nodes can no longer follow the canonical chain. op-program has also reached end of support, replaced by kona-client for fault proofs. Migrate to op-reth; see the [End of Support for op-geth and op-program notice](/notices/op-geth-deprecation).
-</Warning>
+<OpGethEol />
+
+op-program has also reached end of support, replaced by kona-client for fault proofs; the same [notice](/notices/op-geth-deprecation) covers both migrations.
 
 ## Legacy Geth
 

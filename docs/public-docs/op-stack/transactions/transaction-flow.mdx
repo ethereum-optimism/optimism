@@ -4,6 +4,8 @@ description: Learn the transaction flow process for rollup transactions.
 diataxis: explanation
 ---
 
+import OpGethEol from "/snippets/op-geth-eol.mdx"
+
 <Info>
   **Learn the OP Stack — stop 6 of 13.**
   You've deployed a chain and started its components. This page replays
@@ -115,7 +117,9 @@ State processing can be divided into two steps:
 
 ### State changes
 
-The state is stored and modified by the execution client. The default is [`op-reth`](https://github.com/paradigmxyz/reth); [`op-geth`](https://op-geth.optimism.io/) — a slightly modified version of standard [geth](https://geth.ethereum.org/) — was previously supported but reached [end-of-support](/notices/op-geth-deprecation) on 2026-05-31.
+The state is stored and modified by the execution client. The default is [`op-reth`](https://github.com/paradigmxyz/reth).
+
+<OpGethEol />
 
 ### State root proposals
 
