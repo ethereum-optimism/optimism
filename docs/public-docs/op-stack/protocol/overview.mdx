@@ -74,34 +74,10 @@ The execution engine (implemented as the `op-geth` component) receives blocks us
 ## Bridging ETH or tokens between layers
 
 Optimism is designed so that users can send arbitrary messages between smart contracts on L2 (OP Mainnet, OP Sepolia, etc.) and the underlying L1 (Ethereum mainnet, Sepolia, etc.).
-This makes it possible to transfer ETH or tokens, including ERC20 tokens, between the two networks.
-The exact mechanism by which this communication occurs differs depending on the direction in which messages are being sent.
-
-OP Mainnet uses this functionality in the Standard bridge to allow users to deposit tokens from Ethereum to OP Mainnet and also to allow withdrawals of the same tokens from OP Mainnet back to Ethereum.
-See the [developer documentation and examples](/app-developers/guides/bridging/standard-bridge) for details on the inner workings of the Standard bridge.
-
-### Moving from Ethereum to OP Mainnet
-
-In Optimism terminology, transactions going from Ethereum (L1) to OP Mainnet (L2) are called *deposits*.
-
-You use [`L1CrossDomainMessenger`](https://github.com/ethereum-optimism/optimism/blob/v1.1.4/packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol) or [`L1StandardBridge`](https://github.com/ethereum-optimism/optimism/blob/v1.1.4/packages/contracts-bedrock/src/L1/L1StandardBridge.sol) (as of `v1.1.4`).
-Deposit transactions become part of the canonical blockchain in the first L2 block of the "epoch" corresponding to the L1 block where the deposits were made.
-This L2 block will usually be created a few minutes after the corresponding L1 block.
-You can read more about this [in the specs](https://specs.optimism.io/protocol/deposits.html?utm_source=op-docs&utm_medium=docs).
-
-### Moving from OP Mainnet to Ethereum
-
-Withdrawals (the term is used for any OP Mainnet to Ethereum message) have three stages:
-
-1.  You initialize withdrawals with an L2 transaction.
-
-2.  Wait for the next output root to be submitted to L1 and then submit the withdrawal proof using `proveWithdrawalTransaction`.
-    This new step enables offchain monitoring of the withdrawals, which makes it easier to identify incorrect withdrawals or output roots.
-    This protects OP Mainnet users against a whole class of potential bridge vulnerabilities.
-
-3.  After the fault challenge period ends (a week on mainnet, less than that on the test network), finalize the withdrawal.
-
-[You can read the full withdrawal specifications here](https://specs.optimism.io/protocol/withdrawals.html?utm_source=op-docs&utm_medium=docs)
+This makes it possible to transfer ETH or tokens, including ERC20 tokens, between the two networks, and the Standard bridge uses this functionality to let users deposit tokens from Ethereum to OP Mainnet and withdraw them back again.
+Transactions going from L1 to L2 are called *deposits*; they become part of the canonical chain in the first L2 block of the "epoch" corresponding to the L1 block where the deposit was made, usually a few minutes later.
+Transactions going from L2 to L1 are called *withdrawals*; a withdrawal is initiated on L2, proven on L1 against an output root, and finalized on L1 only after the fault challenge period (a week on mainnet, less than that on the test network) has passed.
+For the step-by-step mechanics of each direction, see [Deposit flow](/op-stack/bridging/deposit-flow) and [Withdrawal flow](/op-stack/bridging/withdrawal-flow); for using the Standard bridge from an application, see the [developer documentation and examples](/app-developers/guides/bridging/standard-bridge).
 
 ## Fault proofs
 
