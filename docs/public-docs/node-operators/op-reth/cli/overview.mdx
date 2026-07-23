@@ -9,7 +9,7 @@ you can find the right command and understand where its configuration comes
 from. To install and start a node, follow
 [Running op-reth on OP Stack chains](/node-operators/op-reth/run/opstack). For the full
 flag catalogue of every command, see the
-[generated CLI reference](/rust/op-reth/cli/op-reth).
+[generated CLI reference](/node-operators/op-reth/cli/op-reth).
 
 ## One binary, many commands
 
@@ -22,26 +22,26 @@ so you rarely run them while the node is running. A couple (`config` and
 
 | Command | What it does |
 | --- | --- |
-| [`node`](/rust/op-reth/cli/op-reth/node) | Start the node |
-| [`init`](/rust/op-reth/cli/op-reth/init) | Initialize the database from a genesis file |
-| [`init-state`](/rust/op-reth/cli/op-reth/init-state) | Initialize the database from a state dump file |
-| [`import-op`](/rust/op-reth/cli/op-reth/import-op) | Sync RLP-encoded OP blocks below Bedrock from a file, without executing |
-| [`import-receipts-op`](/rust/op-reth/cli/op-reth/import-receipts-op) | Import RLP-encoded receipts from a file |
-| [`dump-genesis`](/rust/op-reth/cli/op-reth/dump-genesis) | Dump the genesis block JSON configuration to stdout |
-| [`db`](/rust/op-reth/cli/op-reth/db) | Database debugging utilities |
-| [`stage`](/rust/op-reth/cli/op-reth/stage) | Manipulate individual sync stages |
-| [`p2p`](/rust/op-reth/cli/op-reth/p2p) | P2P debugging utilities |
-| [`config`](/rust/op-reth/cli/op-reth/config) | Write the configuration to stdout |
-| [`prune`](/rust/op-reth/cli/op-reth/prune) | Prune according to the configuration without any limits |
-| [`re-execute`](/rust/op-reth/cli/op-reth/re-execute) | Re-execute blocks in parallel to verify historical sync correctness |
+| [`node`](/node-operators/op-reth/cli/op-reth/node) | Start the node |
+| [`init`](/node-operators/op-reth/cli/op-reth/init) | Initialize the database from a genesis file |
+| [`init-state`](/node-operators/op-reth/cli/op-reth/init-state) | Initialize the database from a state dump file |
+| [`import-op`](/node-operators/op-reth/cli/op-reth/import-op) | Sync RLP-encoded OP blocks below Bedrock from a file, without executing |
+| [`import-receipts-op`](/node-operators/op-reth/cli/op-reth/import-receipts-op) | Import RLP-encoded receipts from a file |
+| [`dump-genesis`](/node-operators/op-reth/cli/op-reth/dump-genesis) | Dump the genesis block JSON configuration to stdout |
+| [`db`](/node-operators/op-reth/cli/op-reth/db) | Database debugging utilities |
+| [`stage`](/node-operators/op-reth/cli/op-reth/stage) | Manipulate individual sync stages |
+| [`p2p`](/node-operators/op-reth/cli/op-reth/p2p) | P2P debugging utilities |
+| [`config`](/node-operators/op-reth/cli/op-reth/config) | Write the configuration to stdout |
+| [`prune`](/node-operators/op-reth/cli/op-reth/prune) | Prune according to the configuration without any limits |
+| [`re-execute`](/node-operators/op-reth/cli/op-reth/re-execute) | Re-execute blocks in parallel to verify historical sync correctness |
 
-The [CLI reference](/rust/op-reth/cli/op-reth) mirrors this structure: each
+The [CLI reference](/node-operators/op-reth/cli/op-reth) mirrors this structure: each
 page reproduces the output of `op-reth <command> --help`, and nested
 subcommands (such as `op-reth db stats`) get their own nested pages.
 
 ### Running the node
 
-[`node`](/rust/op-reth/cli/op-reth/node) is the long-running command that
+[`node`](/node-operators/op-reth/cli/op-reth/node) is the long-running command that
 syncs and serves the chain. It carries by far the largest flag surface,
 organized into functional groups — Metrics, Datadir, Networking, RPC, TxPool,
 Builder, Debug, Dev testnet, Pruning, Engine, and Rollup, among others — with
@@ -56,13 +56,13 @@ Stack chains. These are covered with examples in
 
 ### Initializing and importing
 
-[`init`](/rust/op-reth/cli/op-reth/init) and
-[`init-state`](/rust/op-reth/cli/op-reth/init-state) create a fresh database
+[`init`](/node-operators/op-reth/cli/op-reth/init) and
+[`init-state`](/node-operators/op-reth/cli/op-reth/init-state) create a fresh database
 from a genesis file or a state dump file respectively, instead of syncing from
 the network.
 
-[`import-op`](/rust/op-reth/cli/op-reth/import-op) and
-[`import-receipts-op`](/rust/op-reth/cli/op-reth/import-receipts-op) exist for
+[`import-op`](/node-operators/op-reth/cli/op-reth/import-op) and
+[`import-receipts-op`](/node-operators/op-reth/cli/op-reth/import-receipts-op) exist for
 one OP Stack-specific job: loading OP Mainnet history from before the Bedrock
 migration, which cannot be re-executed and is instead imported from files.
 [Sync OP Mainnet](/node-operators/op-reth/run/faq/sync-op-mainnet) explains when you
@@ -73,21 +73,21 @@ and skip the pre-Bedrock import entirely.
 
 The remaining commands are diagnostic and maintenance tools:
 
-*   [`db`](/rust/op-reth/cli/op-reth/db) inspects and repairs the database:
+*   [`db`](/node-operators/op-reth/cli/op-reth/db) inspects and repairs the database:
     table statistics, checksums, diffs between databases, and storage
     settings.
-*   [`stage`](/rust/op-reth/cli/op-reth/stage) runs, drops, dumps, or unwinds
+*   [`stage`](/node-operators/op-reth/cli/op-reth/stage) runs, drops, dumps, or unwinds
     individual stages of reth's staged-sync pipeline (such as execution,
     account hashing, and merkle) — useful for debugging or re-running one part
     of sync without starting over.
-*   [`p2p`](/rust/op-reth/cli/op-reth/p2p) debugs the networking layer:
+*   [`p2p`](/node-operators/op-reth/cli/op-reth/p2p) debugs the networking layer:
     downloading a single header or body from peers, RLPx utilities, and
     running a bootnode.
-*   [`config`](/rust/op-reth/cli/op-reth/config) and
-    [`dump-genesis`](/rust/op-reth/cli/op-reth/dump-genesis) print the
+*   [`config`](/node-operators/op-reth/cli/op-reth/config) and
+    [`dump-genesis`](/node-operators/op-reth/cli/op-reth/dump-genesis) print the
     effective configuration and the chain's genesis JSON to stdout.
-*   [`prune`](/rust/op-reth/cli/op-reth/prune) and
-    [`re-execute`](/rust/op-reth/cli/op-reth/re-execute) are heavyweight
+*   [`prune`](/node-operators/op-reth/cli/op-reth/prune) and
+    [`re-execute`](/node-operators/op-reth/cli/op-reth/re-execute) are heavyweight
     maintenance passes: pruning historical data according to your
     configuration, and re-executing blocks in parallel to verify that
     historical sync produced correct results.
@@ -104,14 +104,14 @@ op-reth bakes the registry's chain configurations into the binary at build
 time, so chains like `base`, `unichain`, `ink`, `mode`, `zora`, and their
 Sepolia counterparts (for example `unichain-sepolia`) work by name with no
 extra configuration files. The full list of built-in chains is in the
-[`node` reference](/rust/op-reth/cli/op-reth/node) under `--chain`. For a
+[`node` reference](/node-operators/op-reth/cli/op-reth/node) under `--chain`. For a
 chain that is not in the registry, pass the path to its chain specification
 file instead.
 
 ## Where configuration comes from
 
 op-reth is configured primarily through CLI flags. Three conventions in the
-help text (and the [generated reference](/rust/op-reth/cli/op-reth)) tell you
+help text (and the [generated reference](/node-operators/op-reth/cli/op-reth)) tell you
 how a flag behaves:
 
 *   **Defaults** — every flag with a default value lists it as
@@ -133,7 +133,7 @@ is the quickest way to see what is configurable through the file.
 
 *   Follow [Running op-reth on OP Stack chains](/node-operators/op-reth/run/opstack) to
     install op-reth and pair it with a rollup node.
-*   Browse the [CLI reference](/rust/op-reth/cli/op-reth) for the complete
+*   Browse the [CLI reference](/node-operators/op-reth/cli/op-reth) for the complete
     flag catalogue of every command.
 *   See [Sync OP Mainnet](/node-operators/op-reth/run/faq/sync-op-mainnet) if you are
     bootstrapping an OP Mainnet archive node.
