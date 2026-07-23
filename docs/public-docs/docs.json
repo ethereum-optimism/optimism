@@ -1945,7 +1945,7 @@
     },
     {
       "source": "/rust/kona/sdk/fpp-dev/io",
-      "destination": "/rust/kona/sdk/fpp-dev/intro"
+      "destination": "/op-stack/fault-proofs/kona/fpp-dev/intro"
     },
     {
       "source": "/rust/op-reth/cli/op-reth/db/settings/set/receipts_in_static_files",
@@ -2294,6 +2294,202 @@
     {
       "source": "/rust/op-reth/cli/op-reth/re-execute",
       "destination": "/node-operators/op-reth/cli/op-reth/re-execute"
+    },
+    {
+      "source": "/rust/kona/node/design/intro",
+      "destination": "/node-operators/kona-node/design/intro"
+    },
+    {
+      "source": "/rust/kona/node/design/derivation",
+      "destination": "/node-operators/kona-node/design/derivation"
+    },
+    {
+      "source": "/rust/kona/node/design/engine",
+      "destination": "/node-operators/kona-node/design/engine"
+    },
+    {
+      "source": "/rust/kona/node/design/p2p",
+      "destination": "/node-operators/kona-node/design/p2p"
+    },
+    {
+      "source": "/rust/kona/node/design/sequencer",
+      "destination": "/node-operators/kona-node/design/sequencer"
+    },
+    {
+      "source": "/rust/kona/sdk/fpp-dev/intro",
+      "destination": "/op-stack/fault-proofs/kona/fpp-dev/intro"
+    },
+    {
+      "source": "/rust/kona/sdk/fpp-dev/env",
+      "destination": "/op-stack/fault-proofs/kona/fpp-dev/env"
+    },
+    {
+      "source": "/rust/kona/sdk/fpp-dev/targets",
+      "destination": "/op-stack/fault-proofs/kona/fpp-dev/targets"
+    },
+    {
+      "source": "/rust/kona/sdk/fpp-dev/prologue",
+      "destination": "/op-stack/fault-proofs/kona/fpp-dev/prologue"
+    },
+    {
+      "source": "/rust/kona/sdk/fpp-dev/execution",
+      "destination": "/op-stack/fault-proofs/kona/fpp-dev/execution"
+    },
+    {
+      "source": "/rust/kona/sdk/fpp-dev/epilogue",
+      "destination": "/op-stack/fault-proofs/kona/fpp-dev/epilogue"
+    },
+    {
+      "source": "/rust/kona/sdk/proof/intro",
+      "destination": "/op-stack/fault-proofs/kona/proof/intro"
+    },
+    {
+      "source": "/rust/kona/sdk/proof/stf",
+      "destination": "/op-stack/fault-proofs/kona/proof/stf"
+    },
+    {
+      "source": "/rust/kona/sdk/proof/fpvm-backend",
+      "destination": "/op-stack/fault-proofs/kona/proof/fpvm-backend"
+    },
+    {
+      "source": "/rust/kona/sdk/proof/custom-backend",
+      "destination": "/op-stack/fault-proofs/kona/proof/custom-backend"
+    },
+    {
+      "source": "/rust/kona/sdk/proof/exec-ext",
+      "destination": "/op-stack/fault-proofs/kona/proof/exec-ext"
+    },
+    {
+      "source": "/rust/kona/intro/overview",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona"
+    },
+    {
+      "source": "/rust/kona/intro/why",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona"
+    },
+    {
+      "source": "/rust/kona/intro/contributing",
+      "destination": "https://github.com/ethereum-optimism/optimism/blob/develop/CONTRIBUTING.md"
+    },
+    {
+      "source": "/rust/kona/intro/lore",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona"
+    },
+    {
+      "source": "/rust/kona/glossary",
+      "destination": "https://specs.optimism.io/glossary.html"
+    },
+    {
+      "source": "/rust/kona/rfc/active/intro",
+      "destination": "https://github.com/ethereum-optimism/design-docs"
+    },
+    {
+      "source": "/rust/kona/rfc/archived/monorepo",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona"
+    },
+    {
+      "source": "/rust/kona/rfc/archived/umbrellas",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona"
+    },
+    {
+      "source": "/rust/kona/sdk/overview",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona"
+    },
+    {
+      "source": "/rust/kona/sdk/examples/intro",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/examples"
+    },
+    {
+      "source": "/rust/kona/sdk/examples/load-a-rollup-config",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/examples"
+    },
+    {
+      "source": "/rust/kona/sdk/examples/frames-to-batch",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/examples"
+    },
+    {
+      "source": "/rust/kona/sdk/examples/new-l1-block-info-tx-hardfork",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/examples"
+    },
+    {
+      "source": "/rust/kona/sdk/examples/executor-test-fixtures",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/examples"
+    },
+    {
+      "source": "/rust/kona/sdk/examples/p2p-peer-scoring",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/examples"
+    },
+    {
+      "source": "/rust/kona/sdk/examples/custom-derivation-pipeline",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/examples"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/intro",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/registry",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/registry"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/interop",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/interop"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/hardforks",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/hardforks"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/derive/intro",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/derive"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/derive/providers",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/derive"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/derive/stages",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/derive"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/derive/signaling",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/derive"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/genesis/intro",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/genesis"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/genesis/rollup-config",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/genesis"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/genesis/system-config",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/genesis"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/protocol/intro",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/protocol"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/protocol/block-info",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/protocol"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/protocol/l2-block-info",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/protocol"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/protocol/frames",
+      "destination": "https://specs.optimism.io/protocol/derivation.html#frame-format"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/protocol/channels",
+      "destination": "https://specs.optimism.io/protocol/derivation.html#channel-format"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/protocol/batches",
+      "destination": "https://specs.optimism.io/protocol/derivation.html#batch-format"
     }
   ],
   "interaction": {
@@ -2561,6 +2757,16 @@
                   "node-operators/kona-node/faq/overview",
                   "node-operators/kona-node/faq/ports",
                   "node-operators/kona-node/faq/profiling"
+                ]
+              },
+              {
+                "group": "Design",
+                "pages": [
+                  "node-operators/kona-node/design/intro",
+                  "node-operators/kona-node/design/derivation",
+                  "node-operators/kona-node/design/engine",
+                  "node-operators/kona-node/design/p2p",
+                  "node-operators/kona-node/design/sequencer"
                 ]
               }
             ]
@@ -3015,7 +3221,33 @@
               "op-stack/fault-proofs/fp-components",
               "op-stack/fault-proofs/cannon",
               "op-stack/fault-proofs/mips",
-              "op-stack/fault-proofs/challenger"
+              "op-stack/fault-proofs/challenger",
+              {
+                "group": "Kona",
+                "pages": [
+                  {
+                    "group": "Fault Proof Program Development",
+                    "pages": [
+                      "op-stack/fault-proofs/kona/fpp-dev/intro",
+                      "op-stack/fault-proofs/kona/fpp-dev/env",
+                      "op-stack/fault-proofs/kona/fpp-dev/targets",
+                      "op-stack/fault-proofs/kona/fpp-dev/prologue",
+                      "op-stack/fault-proofs/kona/fpp-dev/execution",
+                      "op-stack/fault-proofs/kona/fpp-dev/epilogue"
+                    ]
+                  },
+                  {
+                    "group": "Proof SDK",
+                    "pages": [
+                      "op-stack/fault-proofs/kona/proof/intro",
+                      "op-stack/fault-proofs/kona/proof/stf",
+                      "op-stack/fault-proofs/kona/proof/fpvm-backend",
+                      "op-stack/fault-proofs/kona/proof/custom-backend",
+                      "op-stack/fault-proofs/kona/proof/exec-ext"
+                    ]
+                  }
+                ]
+              }
             ]
           },
           {
@@ -3206,115 +3438,6 @@
             "group": "Overview",
             "pages": [
               "rust/index"
-            ]
-          },
-          {
-            "group": "Kona - Introduction",
-            "pages": [
-              "rust/kona/intro/overview",
-              "rust/kona/intro/why",
-              "rust/kona/intro/contributing",
-              "rust/kona/intro/lore",
-              "rust/kona/glossary"
-            ]
-          },
-          {
-            "group": "Kona - Kona as a Library",
-            "pages": [
-              "rust/kona/sdk/overview",
-              {
-                "group": "Node SDK",
-                "pages": [
-                  "rust/kona/node/design/intro",
-                  "rust/kona/node/design/derivation",
-                  "rust/kona/node/design/engine",
-                  "rust/kona/node/design/p2p",
-                  "rust/kona/node/design/sequencer"
-                ]
-              },
-              {
-                "group": "Proof SDK",
-                "pages": [
-                  "rust/kona/sdk/proof/intro",
-                  "rust/kona/sdk/proof/stf",
-                  "rust/kona/sdk/proof/fpvm-backend",
-                  "rust/kona/sdk/proof/custom-backend",
-                  "rust/kona/sdk/proof/exec-ext"
-                ]
-              },
-              {
-                "group": "Fault Proof Program Development",
-                "pages": [
-                  "rust/kona/sdk/fpp-dev/intro",
-                  "rust/kona/sdk/fpp-dev/env",
-                  "rust/kona/sdk/fpp-dev/targets",
-                  "rust/kona/sdk/fpp-dev/prologue",
-                  "rust/kona/sdk/fpp-dev/execution",
-                  "rust/kona/sdk/fpp-dev/epilogue"
-                ]
-              },
-              {
-                "group": "Protocol Libraries",
-                "pages": [
-                  "rust/kona/sdk/protocol/intro",
-                  "rust/kona/sdk/protocol/registry",
-                  "rust/kona/sdk/protocol/interop",
-                  "rust/kona/sdk/protocol/hardforks",
-                  {
-                    "group": "Derivation",
-                    "pages": [
-                      "rust/kona/sdk/protocol/derive/intro",
-                      "rust/kona/sdk/protocol/derive/providers",
-                      "rust/kona/sdk/protocol/derive/stages",
-                      "rust/kona/sdk/protocol/derive/signaling"
-                    ]
-                  },
-                  {
-                    "group": "Genesis",
-                    "pages": [
-                      "rust/kona/sdk/protocol/genesis/intro",
-                      "rust/kona/sdk/protocol/genesis/rollup-config",
-                      "rust/kona/sdk/protocol/genesis/system-config"
-                    ]
-                  },
-                  {
-                    "group": "Protocol",
-                    "pages": [
-                      "rust/kona/sdk/protocol/protocol/intro",
-                      "rust/kona/sdk/protocol/protocol/block-info",
-                      "rust/kona/sdk/protocol/protocol/l2-block-info",
-                      "rust/kona/sdk/protocol/protocol/frames",
-                      "rust/kona/sdk/protocol/protocol/channels",
-                      "rust/kona/sdk/protocol/protocol/batches"
-                    ]
-                  }
-                ]
-              },
-              {
-                "group": "Examples",
-                "pages": [
-                  "rust/kona/sdk/examples/intro",
-                  "rust/kona/sdk/examples/load-a-rollup-config",
-                  "rust/kona/sdk/examples/frames-to-batch",
-                  "rust/kona/sdk/examples/new-l1-block-info-tx-hardfork",
-                  "rust/kona/sdk/examples/executor-test-fixtures",
-                  "rust/kona/sdk/examples/p2p-peer-scoring",
-                  "rust/kona/sdk/examples/custom-derivation-pipeline"
-                ]
-              }
-            ]
-          },
-          {
-            "group": "Kona - RFC",
-            "pages": [
-              "rust/kona/rfc/active/intro",
-              {
-                "group": "Archived RFCs",
-                "pages": [
-                  "rust/kona/rfc/archived/umbrellas",
-                  "rust/kona/rfc/archived/monorepo"
-                ]
-              }
             ]
           },
           {
