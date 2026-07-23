@@ -4,6 +4,15 @@ description: Query pre-confirmed Flashblocks state from your app using standard 
 diataxis: how-to
 ---
 
+import { NormativeSpec } from "/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="The Flashblocks JSON-RPC interface"
+  title="Flashblock JSON-RPC APIs section of the Flashblocks specification"
+  href="https://specs.optimism.io/protocol/flashblocks.html#flashblock-json-rpc-apis"
+  note="This guide covers reading pre-confirmed state from your app; it does not restate the spec."
+/>
+
 Flashblocks-enabled chains stream pre-confirmations every few hundred milliseconds, so your app can show transaction results well before the next full block is sealed.
 This guide shows how to read that pre-confirmed state over standard Ethereum JSON-RPC and from the viem and ethers libraries.
 For how Flashblocks work under the hood, see the [Flashblocks explainer](/op-stack/features/flashblocks).
