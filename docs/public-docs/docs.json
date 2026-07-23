@@ -3006,6 +3006,7 @@
           {
             "group": "Fault Proofs",
             "pages": [
+              "op-stack/fault-proofs/index",
               "op-stack/fault-proofs/explainer",
               "/op-stack/fault-proofs/fp-security",
               "op-stack/fault-proofs/fp-components",
@@ -3033,6 +3034,7 @@
           {
             "group": "Interoperability",
             "pages": [
+              "/op-stack/interop/index",
               "/op-stack/interop/interop",
               "/op-stack/interop/explainer",
               "/op-stack/interop/supernode",
