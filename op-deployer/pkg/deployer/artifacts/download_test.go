@@ -113,6 +113,40 @@ func TestDownloadArtifacts_MockArtifacts(t *testing.T) {
 	})
 }
 
+func TestDownloadBundle(t *testing.T) {
+	ctx := context.Background()
+	cacheDir := t.TempDir()
+	l1Dir := t.TempDir()
+	l2Dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(l1Dir, "l1.json"), []byte("l1"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(l2Dir, "l2.json"), []byte("l2"), 0o600))
+
+	bundle, err := DownloadBundle(
+		ctx,
+		MustNewFileLocator(l1Dir),
+		MustNewFileLocator(l2Dir),
+		nil,
+		cacheDir,
+	)
+	require.NoError(t, err)
+	_, err = bundle.L1.Stat("l1.json")
+	require.NoError(t, err)
+	_, err = bundle.L2.Stat("l2.json")
+	require.NoError(t, err)
+}
+
+func TestDownloadBundleLabelsFailures(t *testing.T) {
+	ctx := context.Background()
+	valid := MustNewFileLocator(t.TempDir())
+	unsupported := MustNewLocatorFromURL("ftp://example.invalid/artifacts")
+
+	_, err := DownloadBundle(ctx, unsupported, valid, nil, t.TempDir())
+	require.ErrorContains(t, err, "failed to download L1 artifacts")
+
+	_, err = DownloadBundle(ctx, valid, unsupported, nil, t.TempDir())
+	require.ErrorContains(t, err, "failed to download L2 artifacts")
+}
+
 func TestTarballExtractor_Extract(t *testing.T) {
 	t.Run("gzip extraction", func(t *testing.T) {
 		extractor := &TarballExtractor{

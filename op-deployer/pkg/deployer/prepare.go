@@ -141,11 +141,17 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return err
 	}
 
-	// Download the L1 artifacts referenced by the intent so the dry-run uses the
-	// same DeployOPChain script as the eventual broadcast.
-	l1ArtifactsFS, err := artifacts.Download(ctx, intent.L1ContractsLocator, ioutil.BarProgressor(), cfg.CacheDir)
+	// Download both artifact bundles so prepare can commit their contents to the snapshot.
+	// Only the L1 artifacts are used by the address-prediction script.
+	bundle, err := artifacts.DownloadBundle(
+		ctx,
+		intent.L1ContractsLocator,
+		intent.L2ContractsLocator,
+		ioutil.BarProgressor(),
+		cfg.CacheDir,
+	)
 	if err != nil {
-		return fmt.Errorf("failed to download L1 artifacts: %w", err)
+		return err
 	}
 
 	l1RPC, err := rpc.Dial(cfg.L1RPCUrl)
@@ -167,7 +173,7 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		broadcaster.NoopBroadcaster(),
 		cfg.Logger,
 		deployer,
-		l1ArtifactsFS,
+		bundle.L1,
 		l1RPC,
 	)
 	if err != nil {
@@ -192,6 +198,10 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 
 	if err := prepareChains(cfg.Logger, intent, st, deployScript.Run, selectAnchor, safe, cfg.GenesisTimeOffset); err != nil {
 		return err
+	}
+	st.PreparedDeployment, err = pipeline.NewPreparedDeployment(intent, st, deployer, opcmAddr, bundle)
+	if err != nil {
+		return fmt.Errorf("failed to freeze prepared deployment: %w", err)
 	}
 
 	if err := pipeline.WriteState(cfg.Workdir, st); err != nil {

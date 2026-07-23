@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
@@ -42,6 +43,10 @@ type State struct {
 
 	// Prepared is set when this state was produced by the prepare pipeline.
 	Prepared bool `json:"prepared,omitempty"`
+
+	// PreparedDeployment freezes inputs and predictions for chains awaiting deployment.
+	// Values committed by other stages, such as Prestate and StartingAnchorRoot, remain in ChainState.
+	PreparedDeployment *PreparedDeployment `json:"preparedDeployment,omitempty"`
 
 	// AppliedIntent contains the chain intent that was last
 	// successfully applied. It is diffed against new intent
@@ -141,6 +146,42 @@ type AdditionalDisputeGameState struct {
 type StartingAnchorProposal struct {
 	Root             common.Hash    `json:"root"`
 	L2SequenceNumber hexutil.Uint64 `json:"l2SequenceNumber"`
+}
+
+// PreparedArtifact binds an artifact locator to the bundle contents resolved during prepare.
+type PreparedArtifact struct {
+	Locator       *artifacts.Locator `json:"locator"`
+	ContentDigest common.Hash        `json:"contentDigest"`
+}
+
+// PreparedDeployment freezes the inputs and predictions for chains awaiting deployment.
+type PreparedDeployment struct {
+	Intent      *Intent               `json:"intent"`
+	Deployer    common.Address        `json:"deployer"`
+	OPCM        common.Address        `json:"opcm"`
+	L1Artifacts PreparedArtifact      `json:"l1Artifacts"`
+	L2Artifacts PreparedArtifact      `json:"l2Artifacts"`
+	Chains      []*PreparedChainState `json:"chains"`
+}
+
+// PreparedChainState freezes prediction output and timing for one undeployed chain.
+type PreparedChainState struct {
+	ID common.Hash `json:"id"`
+
+	addresses.OpChainContracts
+
+	StartBlock  *L1BlockRefJSON `json:"startBlock"`
+	GenesisTime *hexutil.Uint64 `json:"genesisTime"`
+}
+
+// Chain returns the frozen state for a chain included in the prepared deployment.
+func (p *PreparedDeployment) Chain(id common.Hash) (*PreparedChainState, error) {
+	for _, chain := range p.Chains {
+		if chain.ID == id {
+			return chain, nil
+		}
+	}
+	return nil, fmt.Errorf("prepared chain not found: %s", id.Hex())
 }
 
 type ChainState struct {

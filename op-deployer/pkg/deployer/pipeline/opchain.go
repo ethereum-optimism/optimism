@@ -394,14 +394,6 @@ func BuildContinuationDCI(intent *state.Intent, chainID common.Hash, st *state.S
 	), nil
 }
 
-func hasFaultGameAbsolutePrestateOverride(intent *state.Intent, chain *state.ChainIntent) bool {
-	if _, ok := chain.DeployOverrides[state.FaultGameAbsolutePrestateOverrideKey]; ok {
-		return true
-	}
-	_, ok := intent.GlobalDeployOverrides[state.FaultGameAbsolutePrestateOverrideKey]
-	return ok
-}
-
 func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common.Hash, st *state.State) (opcm.DeployOPChainInput, error) {
 	proofParams, err := ResolveChainProofParams(intent, thisIntent)
 	if err != nil {
