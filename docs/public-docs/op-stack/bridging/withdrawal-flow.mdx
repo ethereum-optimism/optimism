@@ -20,6 +20,8 @@ Withdrawals require the user to submit three transactions:
 2.  **Withdrawal proving transaction**, which the user submits on L1 to prove that the withdrawal is legitimate (based on a Merkle-Patricia trie root that commits to the state of the `L2ToL1MessagePasser`'s storage on L2)
 3.  **Withdrawal finalizing transaction**, which the user submits on L1 after the fault challenge period has passed, to actually run the transaction on L1.
 
+You can read the full [withdrawal specifications here](https://specs.optimism.io/protocol/withdrawals.html?utm_source=op-docs&utm_medium=docs).
+
 <Info>
   You can see an example of how to implement this process [in the bridging tutorials](/app-developers/tutorials/bridging/cross-dom-bridge-erc20).
 </Info>
