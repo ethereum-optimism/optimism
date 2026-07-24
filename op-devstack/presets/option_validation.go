@@ -140,10 +140,9 @@ const minimalPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindAfterBuild |
 	optionKindProofValidation
 
-// The conductors runtime type-asserts every CL to *OpNode for conductor
-// wiring, so an L2 CL factory handling any slot would panic. No factory
-// support until that runtime is factory-aware.
-const minimalWithConductorsPresetSupportedOptionKinds = minimalPresetSupportedOptionKinds &^ optionKindL2CLFactory
+// The conductors runtime has a dedicated factory-aware path that hands each
+// external consensus client directly to op-conductor.
+const minimalWithConductorsPresetSupportedOptionKinds = minimalPresetSupportedOptionKinds
 
 // The sync-tester runtime starts its verifier through startL2CLNode directly,
 // so a factory would silently be skipped for that slot. No factory support

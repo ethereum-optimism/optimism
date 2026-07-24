@@ -95,10 +95,10 @@ func TestUnsupportedPresetOptionKinds(t *testing.T) {
 			want:      0,
 		},
 		{
-			name:      "minimal with conductors rejects L2 CL factory",
+			name:      "minimal with conductors allows L2 CL factory",
 			supported: minimalWithConductorsPresetSupportedOptionKinds,
 			opts:      WithL2CLFactory(declineAllL2CLFactory()),
-			want:      optionKindL2CLFactory,
+			want:      0,
 		},
 		{
 			name:      "simple with sync tester rejects L2 CL factory",
