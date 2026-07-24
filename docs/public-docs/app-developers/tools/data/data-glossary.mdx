@@ -45,7 +45,7 @@ This glossary is a living document and will be updated over time as new metrics 
 *   **Net Onchain Profit:** Chain Revenue - L1 Gas Fees
 *   **Chain Revenue:** Sum of the L1 Data Fee + L2 Base Fee + L2 Priority Fee + L2 Operator Fee (Also includes any additional fee types added in the future.)
 *   *L1 Gas Fees:* Total gas fees spent by the chain on L1 in transaction batches (including blob costs) and state output submissions or dispute games.
-*   **Transaction Batches:** All transactions where the transaction from address is the `batcherHash` address and the transaction to address is the `batchInbox` as defined in the chains' `SystemConfigProxy` contract.
+*   **Transaction Batches:** All transactions where the transaction from address is the `batcherHash` address as defined in the chains' `SystemConfigProxy` contract, and the transaction to address is the chain's `batch_inbox_address` as defined in the Superchain Registry. (The batch inbox address was previously also readable from the `SystemConfigProxy` contract, but that getter is removed as of SystemConfig 4.0.0.)
 *   **State Output Submissions or Dispute Games:** All transactions where the transaction from address is the `Proposer` and the transaction to address is either the `outputOracleProxy` or the `disputeGameFactoryProxy` as defined in the chains' `SystemConfigProxy` contract.
 *   Each chain's `SystemConfigProxy` contract can be found in the superchain-registry.
 *   **Resolving Dispute Games:** All transactions sent to dispute game contracts created by the `disputeGameFactoryProxy`, where the transaction's method id (function call) is either `Resolve`, `ResolveClaim`, or `ClaimCredit`.
