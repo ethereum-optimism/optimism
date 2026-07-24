@@ -4,6 +4,8 @@ description: Learn how to configure and run an archive node.
 diataxis: how-to
 ---
 
+import OpGethEol from "/snippets/op-geth-eol.mdx"
+
 This guide shows you how to configure your node to run as an archive node. Archive nodes store the complete history of the blockchain, including all historical states.
 
 ## Overview
@@ -64,9 +66,7 @@ Enable archive mode on Nethermind using the archive network configuration:
 
 ### op-geth
 
-<Warning>
-  **op-geth has reached end-of-support (2026-05-31) and does not support the now-active Karst hardfork, so op-geth nodes can no longer follow the canonical chain.** New deployments should use op-reth. See the [op-geth deprecation notice](/notices/op-geth-deprecation) for the full migration plan.
-</Warning>
+<OpGethEol />
 
 Set on `op-node`:
 

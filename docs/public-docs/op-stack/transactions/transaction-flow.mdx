@@ -4,6 +4,8 @@ description: Learn the transaction flow process for rollup transactions.
 diataxis: explanation
 ---
 
+import OpGethEol from "/snippets/op-geth-eol.mdx"
+
 <Info>
   **Learn the OP Stack — stop 6 of 13.**
   You've deployed a chain and started its components. This page replays
@@ -55,22 +57,8 @@ You can see the code that implements this process in [`channel_manager.go`](http
 
 When a channel is full it is posted, either as a single transaction or as multiple transactions (depending on data size) to L1.
 
-Processed L2 transactions exist in one of three states:
-
-*   **unsafe** transactions are already processed, but not written to L1 yet.
-    A batcher fault might cause these transactions to be dropped.
-
-*   **safe** transactions are already processed and written to L1.
-    However, they might be dropped due to a reorganization at the L1 level.
-
-*   **finalized** transactions are written to L1 in an L1 block that is old enough to be extremely unlikely to be re-organized.
-
-<Info>
-  When are transactions irrevocable?
-
-  Once a transaction is finalized, you can rely that it has "happened".
-  While the state after the transaction is subject to fault challenges, the transaction itself is fixed and immutable.
-</Info>
+Writing to L1 is what moves a processed L2 transaction through the protocol's finality states: **unsafe** (processed, but not written to L1 yet), **safe** (written to L1), and **finalized** (the L1 block containing it has been finalized by Ethereum).
+For what these states mean and when you can rely on a transaction being irreversible, see [Transaction finality](/op-stack/transactions/transaction-finality).
 
 You can see the code that builds the channels to be written to L1 in [`channel_out.go`](https://github.com/ethereum-optimism/optimism/blob/develop/op-node/rollup/derive/channel_out.go) and [`channel_builder.go`](https://github.com/ethereum-optimism/optimism/blob/develop/op-batcher/batcher/channel_builder.go).
 The transactions themselves are sent in [`op-batcher`'s main loop](https://github.com/ethereum-optimism/optimism/blob/develop/op-batcher/batcher/driver.go#L489-L520), which calls [`publishStateToL1`](https://github.com/ethereum-optimism/optimism/blob/develop/op-batcher/batcher/driver.go#L784)
@@ -115,11 +103,13 @@ State processing can be divided into two steps:
 
 ### State changes
 
-The state is stored and modified by the execution client. The default is [`op-reth`](https://github.com/paradigmxyz/reth); [`op-geth`](https://op-geth.optimism.io/) — a slightly modified version of standard [geth](https://geth.ethereum.org/) — was previously supported but reached [end-of-support](/notices/op-geth-deprecation) on 2026-05-31.
+The state is stored and modified by the execution client. The default is [`op-reth`](https://github.com/paradigmxyz/reth).
+
+<OpGethEol />
 
 ### State root proposals
 
 The state root proposals are posted by [`op-proposer`](https://github.com/ethereum-optimism/optimism/tree/develop/op-proposer) to [`L2OutputOracle`](https://github.com/ethereum-optimism/optimism/blob/233ede59d16cb01bdd8e7ff662a153a4c3178bdd/packages/contracts-bedrock/contracts/L1/L2OutputOracle.sol) (as of `233ede5`) on L1.
 
 Output proposals are *not* immediately valid.
-They can only be considered authoritative once the fault challenge period (7 days on the production network, less on test networks) has passed.
+They can only be considered authoritative once the fault challenge period has passed; see [Withdrawal flow](/op-stack/bridging/withdrawal-flow) for how output roots are used to prove and finalize withdrawals.

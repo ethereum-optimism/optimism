@@ -13,6 +13,7 @@ audit-source:
 import OpChallengerAbout from '/snippets/op-challenger-about.mdx';
 import OpChallengerDockerIntro from '/snippets/op-challenger-docker-intro.mdx';
 import OpChallengerDisputeMon from '/snippets/op-challenger-dispute-mon.mdx';
+import OpGethEol from "/snippets/op-geth-eol.mdx"
 
 This guide provides step-by-step instructions for setting up the configuration and monitoring options for `op-challenger`.
 
@@ -22,8 +23,10 @@ For the complete catalog of flags, environment variables, and defaults, see the
 [challenger configuration reference](/chain-operators/reference/challenger-configuration).
 
 <Warning>
-  **From the Karst upgrade, `cannon-kona` is the respected fault-proof game type, replacing op-program.** Configure `op-challenger` with the `cannon-kona` trace type and a kona-client absolute prestate — a challenger still running the `cannon` / op-program trace type past Karst will not defend your chain. Separately, op-geth reached **end-of-support on 2026-05-31**; run **op-reth** as your L2 execution client. See the [op-geth deprecation notice](/notices/op-geth-deprecation).
+  **From the Karst upgrade, `cannon-kona` is the respected fault-proof game type, replacing op-program.** Configure `op-challenger` with the `cannon-kona` trace type and a kona-client absolute prestate. A challenger still running the `cannon` / op-program trace type past Karst will not defend your chain.
 </Warning>
+
+<OpGethEol />
 
 ## Prerequisites
 
