@@ -144,10 +144,8 @@ const minimalPresetSupportedOptionKinds = optionKindDeployer |
 // external consensus client directly to op-conductor.
 const minimalWithConductorsPresetSupportedOptionKinds = minimalPresetSupportedOptionKinds
 
-// The sync-tester runtime starts its verifier through startL2CLNode directly,
-// so a factory would silently be skipped for that slot. No factory support
-// until every slot consults the factory.
-const simpleWithSyncTesterPresetSupportedOptionKinds = (minimalPresetSupportedOptionKinds &^ optionKindL2CLFactory) |
+// The sync-tester runtime routes its verifier slot through the L2 CL factory.
+const simpleWithSyncTesterPresetSupportedOptionKinds = minimalPresetSupportedOptionKinds |
 	optionKindGlobalSyncTesterEL
 
 // singleSupernodeWithSyncTesterPresetSupportedOptionKinds covers exactly what

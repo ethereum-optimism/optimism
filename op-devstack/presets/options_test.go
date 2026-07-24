@@ -101,10 +101,10 @@ func TestUnsupportedPresetOptionKinds(t *testing.T) {
 			want:      0,
 		},
 		{
-			name:      "simple with sync tester rejects L2 CL factory",
+			name:      "simple with sync tester allows L2 CL factory",
 			supported: simpleWithSyncTesterPresetSupportedOptionKinds,
 			opts:      WithL2CLFactory(declineAllL2CLFactory()),
-			want:      optionKindL2CLFactory,
+			want:      0,
 		},
 		{
 			name:      "flashblocks allows builder and deployer adapters",
