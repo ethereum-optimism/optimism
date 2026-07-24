@@ -82,7 +82,10 @@ func NewSimpleWithSyncTesterRuntime(t devtest.T) *SingleChainRuntime {
 }
 
 func NewSimpleWithSyncTesterRuntimeWithConfig(t devtest.T, cfg PresetConfig) *SingleChainRuntime {
-	runtime := NewMinimalRuntimeWithConfig(t, cfg)
+	// Sync Tester scenarios exercise only sequencing, derivation, and Engine
+	// API behavior. Avoid requiring fault-proof binaries that are unrelated to
+	// this topology (and are not built by the focused Rust acceptance jobs).
+	runtime := NewMinimalNoFaultProofsRuntimeWithConfig(t, cfg)
 	syncTester := startSyncTesterService(t, map[eth.ChainID]string{
 		runtime.L2Network.ChainID(): runtime.L2EL.UserRPC(),
 	})
@@ -104,16 +107,29 @@ func NewSimpleWithSyncTesterRuntimeWithConfig(t devtest.T, cfg PresetConfig) *Si
 		syncTesterELCfg,
 	)
 	jwtSecret := readJWTSecretFromPath(t, runtime.L2EL.JWTPath())
-	l2CL2 := startL2CLNode(t, runtime.Keys, runtime.L1Network, runtime.L2Network, runtime.L1EL, runtime.L1CL, syncTesterEL, jwtSecret, l2CLNodeStartConfig{
-		Key:           "verifier",
-		IsSequencer:   false,
-		NoDiscovery:   true,
-		EnableReqResp: true,
-		L2CLOptions:   cfg.GlobalL2CLOptions,
-	})
+	l2CL2 := startL2CLForKey(
+		t,
+		runtime.Keys,
+		runtime.L1Network,
+		runtime.L2Network,
+		runtime.L1EL,
+		runtime.L1CL,
+		syncTesterEL,
+		jwtSecret,
+		"verifier",
+		"sync-tester-el",
+		false,
+		runtime.L2EL.UserRPC(),
+		nil,
+		cfg.GlobalL2CLOptions,
+		cfg.L2CLFactory,
+		runtime.L2EL,
+	)
 	node := newSingleChainNodeRuntime("verifier", false, syncTesterEL, l2CL2)
 	runtime.Nodes[node.Name] = node
-	connectSingleChainCLPeer(t, runtime.L2CL, node.CL)
+	if cfg.L2CLFactory == nil {
+		connectSingleChainCLPeer(t, runtime.L2CL, node.CL)
+	}
 	runtime.SyncTester = &SyncTesterRuntime{
 		Service: syncTester,
 		Node:    node,
@@ -128,6 +144,10 @@ func NewMinimalWithConductorsRuntime(t devtest.T) *SingleChainRuntime {
 }
 
 func NewMinimalWithConductorsRuntimeWithConfig(t devtest.T, cfg PresetConfig) *SingleChainRuntime {
+	if cfg.L2CLFactory != nil {
+		return newMinimalWithExternalCLConductorsRuntime(t, cfg)
+	}
+
 	// Conductor tests only exercise sequencing leadership. They do not need a
 	// challenger, and rust e2e jobs do not build cannon artifacts.
 	runtime := newSingleChainRuntimeWithConfig(t, cfg, singleChainRuntimeSpec{
@@ -143,6 +163,39 @@ func NewMinimalWithConductorsRuntimeWithConfig(t devtest.T, cfg PresetConfig) *S
 	conductorA := startConductorNode(t, "sequencer", runtime.L2Network, runtime.L2CL.(*OpNode), runtime.L2EL, true, false)
 	conductorB := startConductorNode(t, "b", runtime.L2Network, nodeB.CL.(*OpNode), nodeB.EL, false, true)
 	conductorC := startConductorNode(t, "c", runtime.L2Network, nodeC.CL.(*OpNode), nodeC.EL, false, true)
+	startConductorCluster(t, conductorA, []*Conductor{conductorB, conductorC})
+
+	runtime.Conductors = map[string]*Conductor{
+		"sequencer": conductorA,
+		"b":         conductorB,
+		"c":         conductorC,
+	}
+	return runtime
+}
+
+// newMinimalWithExternalCLConductorsRuntime builds the conductor topology
+// through the product-neutral L2CLFactory seam. External clients cannot be
+// mutated and restarted as concrete *OpNode values, so all three sequencer
+// slots are launched stopped and handed directly to op-conductor.
+func newMinimalWithExternalCLConductorsRuntime(t devtest.T, cfg PresetConfig) *SingleChainRuntime {
+	externalCfg := cfg
+	externalCfg.GlobalL2CLOptions = append(
+		append([]L2CLOption(nil), cfg.GlobalL2CLOptions...),
+		L2CLSequencerStopped(),
+	)
+	runtime := newSingleChainRuntimeWithConfig(t, externalCfg, singleChainRuntimeSpec{
+		BuildWorld:      newDefaultSingleChainWorld,
+		StartPrimary:    startDefaultSingleChainPrimary,
+		StartBatcher:    true,
+		StartProposer:   true,
+		StartChallenger: false,
+	})
+	nodeB := addSingleChainOpNode(t, runtime, "b", true, "", externalCfg.GlobalL2CLOptions...)
+	nodeC := addSingleChainOpNode(t, runtime, "c", true, "", externalCfg.GlobalL2CLOptions...)
+
+	conductorA := startExternalConductorNode(t, "sequencer", runtime.L2Network, runtime.L2CL, runtime.L2EL, true, false)
+	conductorB := startExternalConductorNode(t, "b", runtime.L2Network, nodeB.CL, nodeB.EL, false, true)
+	conductorC := startExternalConductorNode(t, "c", runtime.L2Network, nodeC.CL, nodeC.EL, false, true)
 	startConductorCluster(t, conductorA, []*Conductor{conductorB, conductorC})
 
 	runtime.Conductors = map[string]*Conductor{
@@ -277,10 +330,6 @@ func startConductorNode(
 	bootstrap bool,
 	paused bool,
 ) *Conductor {
-	require := t.Require()
-	serverID := conductorName
-	require.NotEmpty(serverID, "conductor ID key cannot be empty")
-
 	var conductorRPCEndpoint atomic.Value
 	conductorRPCEndpoint.Store("")
 	opNode.cfg.ConductorEnabled = true
@@ -301,6 +350,36 @@ func startConductorNode(
 	opNode.Stop()
 	opNode.Start()
 
+	out := startConductorService(t, conductorName, l2Net, opNode.UserRPC(), l2EL, bootstrap, paused)
+	conductorRPCEndpoint.Store(out.HTTPEndpoint())
+	return out
+}
+
+func startExternalConductorNode(
+	t devtest.T,
+	conductorName string,
+	l2Net *L2Network,
+	l2CL L2CLNode,
+	l2EL L2ELNode,
+	bootstrap bool,
+	paused bool,
+) *Conductor {
+	return startConductorService(t, conductorName, l2Net, l2CL.UserRPC(), l2EL, bootstrap, paused)
+}
+
+func startConductorService(
+	t devtest.T,
+	conductorName string,
+	l2Net *L2Network,
+	nodeRPC string,
+	l2EL L2ELNode,
+	bootstrap bool,
+	paused bool,
+) *Conductor {
+	require := t.Require()
+	serverID := conductorName
+	require.NotEmpty(serverID, "conductor ID key cannot be empty")
+
 	cfg := opconductor.Config{
 		ConsensusAddr:           "127.0.0.1",
 		ConsensusPort:           0,
@@ -313,7 +392,7 @@ func startConductorNode(
 		RaftTrailingLogs:        10240,
 		RaftHeartbeatTimeout:    1000 * time.Millisecond,
 		RaftLeaderLeaseTimeout:  500 * time.Millisecond,
-		NodeRPC:                 opNode.UserRPC(),
+		NodeRPC:                 nodeRPC,
 		ExecutionRPC:            l2EL.UserRPC(),
 		Paused:                  paused,
 		HealthCheck: opconductor.HealthCheckConfig{
@@ -356,7 +435,6 @@ func startConductorNode(
 		rpcEndpoint:       svc.HTTPEndpoint(),
 		service:           svc,
 	}
-	conductorRPCEndpoint.Store(svc.HTTPEndpoint())
 	return out
 }
 

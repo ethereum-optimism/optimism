@@ -146,7 +146,12 @@ type MixedSingleChainNodeSpec struct {
 }
 
 type MixedSingleChainPresetConfig struct {
-	NodeSpecs                  []MixedSingleChainNodeSpec
+	NodeSpecs []MixedSingleChainNodeSpec
+	// L2CLFactory optionally supplies an external consensus client for each
+	// mixed-EL slot. This is the same product-neutral seam used by the ordinary
+	// single-chain runtimes; keeping it here lets acceptance tests vary the EL
+	// implementation without falling back to an op-node-only topology.
+	L2CLFactory                L2CLFactory
 	WithTestSequencer          bool
 	TestSequencerName          string
 	LocalContractArtifactsPath string
@@ -225,33 +230,55 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 			require.FailNowf("unsupported EL kind", "unsupported mixed EL kind %q", spec.ELKind)
 		}
 
+		var unsafeSourceEL L2ELNode
+		if !spec.IsSequencer && !spec.IsolateFromL2P2P {
+			for i := range nodes {
+				if nodes[i].spec.IsSequencer {
+					unsafeSourceEL = nodes[i].el
+					break
+				}
+			}
+		}
+
 		var cl L2CLNode
-		switch spec.CLKind {
-		case MixedL2CLOpNode:
-			cl = startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, el, jwtSecret, l2CLNodeStartConfig{
-				Key:           spec.CLKey,
-				IsSequencer:   spec.IsSequencer,
-				NoDiscovery:   true,
-				EnableReqResp: true,
-				DependencySet: depSet,
-			})
-		case MixedL2CLKona:
-			cl = startMixedKonaNode(
-				t,
-				keys,
-				l1Net,
-				l2Net,
-				l1EL,
-				l1CL,
-				el,
-				spec.CLKey,
-				spec.ELKey,
-				spec.IsSequencer,
-				metricsRegistrar,
-				depSet,
+		if cfg.L2CLFactory != nil {
+			followSource := ""
+			if unsafeSourceEL != nil {
+				followSource = unsafeSourceEL.UserRPC()
+			}
+			cl = startL2CLForKey(
+				t, keys, l1Net, l2Net, l1EL, l1CL, el, jwtSecret,
+				spec.CLKey, spec.ELKey, spec.IsSequencer, followSource,
+				depSet, nil, cfg.L2CLFactory, unsafeSourceEL,
 			)
-		default:
-			require.FailNowf("unsupported CL kind", "unsupported mixed CL kind %q", spec.CLKind)
+		} else {
+			switch spec.CLKind {
+			case MixedL2CLOpNode:
+				cl = startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, el, jwtSecret, l2CLNodeStartConfig{
+					Key:           spec.CLKey,
+					IsSequencer:   spec.IsSequencer,
+					NoDiscovery:   true,
+					EnableReqResp: true,
+					DependencySet: depSet,
+				})
+			case MixedL2CLKona:
+				cl = startMixedKonaNode(
+					t,
+					keys,
+					l1Net,
+					l2Net,
+					l1EL,
+					l1CL,
+					el,
+					spec.CLKey,
+					spec.ELKey,
+					spec.IsSequencer,
+					metricsRegistrar,
+					depSet,
+				)
+			default:
+				require.FailNowf("unsupported CL kind", "unsupported mixed CL kind %q", spec.CLKind)
+			}
 		}
 
 		nodes = append(nodes, mixedSingleChainNode{
@@ -268,7 +295,12 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 			if nodes[i].spec.IsolateFromL2P2P || nodes[j].spec.IsolateFromL2P2P {
 				continue
 			}
-			connectL2CLPeers(t, t.Logger(), nodes[i].cl, nodes[j].cl)
+			// External consensus clients are not required to implement op-node's
+			// devp2p admin RPCs. Their per-slot unsafe-source wiring above replaces
+			// this CL peering path while EL peering remains available to applications.
+			if cfg.L2CLFactory == nil {
+				connectL2CLPeers(t, t.Logger(), nodes[i].cl, nodes[j].cl)
+			}
 			connectL2ELPeers(t, t.Logger(), nodes[i].el.UserRPC(), nodes[j].el.UserRPC(), false)
 		}
 	}
