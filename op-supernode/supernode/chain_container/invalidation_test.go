@@ -1090,3 +1090,33 @@ func TestDenyList_GetDeniedRecords_IncludesRoots(t *testing.T) {
 	require.Equal(t, out2.MessagePasserStorageRoot, recordMap[hash2].MessagePasserStorageRoot)
 	require.Equal(t, uint64(11), recordMap[hash2].DecisionTimestamp)
 }
+
+func TestDenyList_MaxDeniedHeight(t *testing.T) {
+	t.Parallel()
+
+	dl, err := OpenDenyList(t.TempDir())
+	require.NoError(t, err)
+	defer dl.Close()
+
+	_, any, err := dl.MaxDeniedHeight()
+	require.NoError(t, err)
+	require.False(t, any, "empty deny list has no max height")
+
+	require.NoError(t, dl.Add(100, common.HexToHash("0xaaaa"), 10, eth.Bytes32{}, eth.Bytes32{}))
+	require.NoError(t, dl.Add(500, common.HexToHash("0xbbbb"), 20, eth.Bytes32{}, eth.Bytes32{}))
+	require.NoError(t, dl.Add(300, common.HexToHash("0xcccc"), 30, eth.Bytes32{}, eth.Bytes32{}))
+
+	maxHeight, any, err := dl.MaxDeniedHeight()
+	require.NoError(t, err)
+	require.True(t, any)
+	require.Equal(t, uint64(500), maxHeight)
+
+	// Pruning the highest entries lowers the max.
+	removed, err := dl.PruneAtOrAfterTimestamp(20)
+	require.NoError(t, err)
+	require.Len(t, removed, 2)
+	maxHeight, any, err = dl.MaxDeniedHeight()
+	require.NoError(t, err)
+	require.True(t, any)
+	require.Equal(t, uint64(100), maxHeight)
+}
