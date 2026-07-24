@@ -78,7 +78,7 @@ func honestChallengerBeatsUnsafeProposal(t devtest.T, sys *presets.SingleChainIn
 	// test, so the challenger keeps seeing Data == nil and challenges on that basis.
 	safeTimestamp, _ := factory.WaitForSafeSuperRootAfter(anchorSequence)
 	game := factory.StartZKGame(proposer,
-		proofs.WithL2SequenceNumber(safeTimestamp+3600),
+		proofs.WithL2SequenceNumber(safeTimestamp+uint64(zkUnsafeProposalLead/time.Second)),
 		proofs.WithFutureProposal(),
 	)
 
