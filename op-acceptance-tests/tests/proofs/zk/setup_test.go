@@ -38,17 +38,31 @@ func loadSuperAggregationVKey(t devtest.T) common.Hash {
 	return vkey
 }
 
+// newSystem builds the ZK proofs system with the honest proposer disabled so
+// tests keep manual control over game creation.
 func newSystem(t devtest.T) (*presets.SimpleInterop, common.Hash) {
 	vkey := loadSuperAggregationVKey(t)
+	opts := append(zkPresetOptions(vkey), presets.WithoutHonestProposer())
+	return presets.NewSimpleInterop(t, opts...), vkey
+}
+
+// newProposerSystem builds the ZK proofs system with the kona-sp1-proposer
+// running against the ZK dispute game type.
+func newProposerSystem(t devtest.T) (*presets.SimpleInterop, common.Hash) {
+	vkey := loadSuperAggregationVKey(t)
+	return presets.NewSimpleInterop(t, zkPresetOptions(vkey)...), vkey
+}
+
+func zkPresetOptions(vkey common.Hash) []presets.Option {
 	zkCfg := sysgo.ZKDisputeGameConfig{
 		ProgramVKey:          vkey,
 		MaxChallengeDuration: zkChallengeDuration,
 		MaxProveDuration:     zkProveDuration,
 	}
-	return presets.NewSimpleInterop(t,
+	return []presets.Option{
 		presets.WithZKDisputeGame(zkCfg),
 		presets.WithTimeTravelEnabled(),
-		presets.WithDisputeGameFinalityDelaySeconds(uint64(zkFinalityDelay/time.Second)),
+		presets.WithDisputeGameFinalityDelaySeconds(uint64(zkFinalityDelay / time.Second)),
 		presets.WithDeployerOptions(sysgo.WithJovianAtGenesis),
-	), vkey
+	}
 }

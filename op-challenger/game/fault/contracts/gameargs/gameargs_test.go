@@ -82,6 +82,39 @@ func TestZKGameArgsPack(t *testing.T) {
 	require.Equal(t, weth[:], got[120:140])
 }
 
+func TestParseZK(t *testing.T) {
+	t.Run("Invalid-ZeroLength", func(t *testing.T) {
+		_, err := ParseZK([]byte{})
+		require.ErrorIs(t, err, ErrInvalidGameArgs)
+	})
+
+	t.Run("Invalid-TooShort", func(t *testing.T) {
+		_, err := ParseZK(make([]byte, ZKArgsLength-1))
+		require.ErrorIs(t, err, ErrInvalidGameArgs)
+	})
+
+	t.Run("Invalid-TooLong", func(t *testing.T) {
+		_, err := ParseZK(make([]byte, ZKArgsLength+1))
+		require.ErrorIs(t, err, ErrInvalidGameArgs)
+	})
+
+	t.Run("Valid-RoundTrip", func(t *testing.T) {
+		rng := rand.New(rand.NewSource(1))
+		expected := ZKGameArgs{
+			AbsolutePrestate:     testutils.RandomHash(rng),
+			Verifier:             testutils.RandomAddress(rng),
+			MaxChallengeDuration: 3600,
+			MaxProveDuration:     7200,
+			ChallengerBond:       big.NewInt(1e18),
+			AnchorStateRegistry:  testutils.RandomAddress(rng),
+			Weth:                 testutils.RandomAddress(rng),
+		}
+		actual, err := ParseZK(expected.Pack())
+		require.NoError(t, err)
+		require.Equal(t, expected, actual)
+	})
+}
+
 func fullGameArgs() GameArgs {
 	rng := rand.New(rand.NewSource(0))
 	return GameArgs{

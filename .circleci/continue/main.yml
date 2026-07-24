@@ -2007,6 +2007,7 @@ jobs:
             BIN_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
 
             echo "export RUST_BINARY_PATH_KONA_NODE=$ROOT_DIR/rust/target/release/kona-node" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_KONA_SP1_PROPOSER=$ROOT_DIR/rust/target/release/kona-sp1-proposer" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RETH=$ROOT_DIR/rust/target/release/op-reth" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
