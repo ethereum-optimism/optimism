@@ -45,13 +45,8 @@ op-program has also reached end of support, replaced by kona-client for fault pr
 
 ## Legacy Geth
 
-OP Mainnet underwent a large database migration as part of the [Bedrock Upgrade](https://web.archive.org/web/20230608050602/https://blog.oplabs.co/introducing-optimism-bedrock/) in 2023.
-Blocks and transactions included in OP Mainnet prior to the Bedrock Upgrade are served by current execution engines but cannot be executed without the help of a special component called Legacy Geth.
-This means that you will need to run Legacy Geth if you want to be able to run RPC calls such as `eth_call` on blocks before the Bedrock Upgrade.
-
-Legacy Geth is the software that was used to run OP Mainnet nodes prior to the Bedrock Upgrade.
-If you run an instance of Legacy Geth alongside your OP Mainnet node, your node will be able to forward requests against historical transactions to the Legacy Geth instance.
-Legacy Geth is **not** required and is typically only necessary if you want to maintain a complete archive node for OP Mainnet.
+OP Mainnet blocks and transactions from before the 2023 [Bedrock Upgrade](https://web.archive.org/web/20230608050602/https://blog.oplabs.co/introducing-optimism-bedrock/) can be read from any current execution client, but re-executing them (RPC calls such as `eth_call` against pre-Bedrock blocks) requires an optional third component, Legacy Geth (`l2geth`), the client that ran OP Mainnet before the upgrade.
+It is typically only needed for complete OP Mainnet archive nodes; see the [Legacy Geth configuration guide](/node-operators/guides/configuration/legacy-geth) for setup and request routing, and [accessing pre-regenesis history](/op-mainnet/pre-bedrock-history/regenesis-history) for the even older history that predates the current chain data entirely.
 
 ## Next steps
 
