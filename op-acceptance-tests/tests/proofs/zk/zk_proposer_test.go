@@ -20,7 +20,7 @@ import (
 
 func TestProposerCreatesRootZKGame(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys, _ := newProposerSystem(t)
+	sys := newProposerSystem(t)
 	factory := sys.DisputeGameFactory()
 	_, anchorSequence := sys.AnchorStateRegistry(sys.L2ChainA).AnchorRoot()
 
@@ -34,7 +34,7 @@ func TestProposerCreatesRootZKGame(gt *testing.T) {
 
 func TestProposerChainsSecondZKGameOnFirst(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys, _ := newProposerSystem(t)
+	sys := newProposerSystem(t)
 	factory := sys.DisputeGameFactory()
 
 	game0 := factory.WaitForZKGameCount(1)
@@ -48,11 +48,11 @@ func TestProposerChainsSecondZKGameOnFirst(gt *testing.T) {
 
 func TestProposerResolvesOwnUnchallengedGame(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys, _ := newProposerSystem(t)
+	sys := newProposerSystem(t)
 	factory := sys.DisputeGameFactory()
 
 	game0 := factory.WaitForZKGameCount(1)
-	advanceL1To(sys, game0.ClaimData().Deadline+1)
+	advanceL1To(&sys.SingleChainInterop, game0.ClaimData().Deadline+1)
 
 	// The proposer's resolution task must resolve its own unchallenged game;
 	// the test never calls resolve itself.
@@ -61,15 +61,15 @@ func TestProposerResolvesOwnUnchallengedGame(gt *testing.T) {
 
 func TestProposerClaimsBondAfterResolution(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys, _ := newProposerSystem(t)
+	sys := newProposerSystem(t)
 	factory := sys.DisputeGameFactory()
 	proposerAddr := zkProposerAddress(t, sys)
 	weth := factory.DelayedWETH(factory.ZKGameImpl().Args.Weth)
 
 	game0 := factory.WaitForZKGameCount(1)
-	advanceL1To(sys, game0.ClaimData().Deadline+1)
+	advanceL1To(&sys.SingleChainInterop, game0.ClaimData().Deadline+1)
 	game0.WaitForGameStatus(gameTypes.GameStatusDefenderWon)
-	advanceL1To(sys, game0.ResolvedAt()+uint64(zkFinalityDelay/time.Second)+1)
+	advanceL1To(&sys.SingleChainInterop, game0.ResolvedAt()+uint64(zkFinalityDelay/time.Second)+1)
 
 	// Phase 1 (unlock): the proposer's claim task closes the game and unlocks
 	// its bond credit into DelayedWETH.
@@ -84,14 +84,14 @@ func TestProposerClaimsBondAfterResolution(gt *testing.T) {
 	// DelayedWETH.withdraw, so "withdrawal fully drained and credit zeroed"
 	// is the deterministic claim-completion observable; a raw balance-growth
 	// check would race the live proposer bonding new games in this window.
-	advanceL1To(sys, uint64(new(big.Int).Add(withdrawal.Timestamp, weth.Delay()).Int64())+1)
+	advanceL1To(&sys.SingleChainInterop, uint64(new(big.Int).Add(withdrawal.Timestamp, weth.Delay()).Int64())+1)
 
 	t.Require().Eventuallyf(func() bool {
 		return weth.Withdrawal(game0.Address, proposerAddr).Amount.Sign() == 0 &&
-			game0.Credit(proposerAddr).Sign() == 0
+			game0.Credit(proposerAddr).IsZero()
 	}, 2*time.Minute, time.Second, "proposer did not claim its bond after the withdrawal delay")
 
-	t.Require().Zero(game0.Credit(proposerAddr).Sign(), "claimed game must hold no credit for the proposer")
+	t.Require().True(game0.Credit(proposerAddr).IsZero(), "claimed game must hold no credit for the proposer")
 	t.Require().Zero(weth.Withdrawal(game0.Address, proposerAddr).Amount.Sign(), "claimed game must hold no pending withdrawal")
 }
 

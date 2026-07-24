@@ -198,7 +198,7 @@ func addGameTypesForRuntime(
 			},
 		},
 		{
-			Enabled:  enabled[gameTypes.SuperPermissionedGameType] || enabled[gameTypes.SuperCannonKonaGameType],
+			Enabled:  enabled[gameTypes.SuperPermissionedGameType] || enabled[gameTypes.SuperCannonKonaGameType] || enabled[gameTypes.ZKDisputeGameType],
 			InitBond: new(big.Int),
 			GameType: embedded.GameTypeSuperPermissioned,
 			SuperPermissionedDisputeGameConfig: &embedded.SuperPermissionedDisputeGameConfig{

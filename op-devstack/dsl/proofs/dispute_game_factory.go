@@ -361,17 +361,17 @@ func (f *DisputeGameFactory) startSuperGameOfType(eoa *dsl.EOA, gameType gameTyp
 
 func (f *DisputeGameFactory) createSuperGameExtraData(timestamp uint64, cfg *GameCfg) []byte {
 	f.require.NotNil(f.superNode, "super node is required create super games")
-	var resp eth.SuperRootAtTimestampResponse
+	// A future proposal commits to a timestamp the node has not reached, so no super root exists there
+	// yet. Model it by stamping the current safe super root's dependency set at the requested timestamp.
+	queryTimestamp := timestamp
 	if cfg.allowFuture {
-		var err error
-		resp, err = f.superNode.QueryAPI().SuperRootAtTimestamp(f.t.Ctx(), timestamp)
-		f.require.NoError(err, "Failed to fetch super root at timestamp")
-	} else {
-		resp = f.awaitMinVerifiedTimestamp(timestamp)
+		queryTimestamp = f.safeTimestamp()
 	}
-	f.require.NotNil(resp.Data, "Super root data must be present at timestamp %v", timestamp)
+	resp := f.awaitMinVerifiedTimestamp(queryTimestamp)
+	f.require.NotNil(resp.Data, "Super root data must be present at timestamp %v", queryTimestamp)
 	superV1, ok := resp.Data.Super.(*eth.SuperV1)
 	f.require.Truef(ok, "unsupported super type %T", resp.Data.Super)
+	superV1.Timestamp = timestamp
 	if len(cfg.superOutputRoots) != 0 {
 		f.require.Len(cfg.superOutputRoots, len(superV1.Chains), "Super output roots length mismatch")
 		for i := range superV1.Chains {
