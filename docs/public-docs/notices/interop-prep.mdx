@@ -87,7 +87,7 @@ Start the execution clients first, then the supernode — the supernode drives t
 Light CLs come last, since they follow the supernode.
 Full per-flag reference for the supernode is in the [op-supernode configuration reference](/node-operators/reference/op-supernode-config); this notice walks through the testnet-specific setup.
 
-The command examples in each step are minimum viable configurations — they cover the flags required for the interop topology and nothing else.
+The command examples in the steps are minimum viable configurations; they cover the flags required for the interop topology and nothing else.
 Layer your usual production flags (monitoring, logging, P2P tuning, RPC modules, resource limits) on top as your environment requires.
 
 <Steps>
@@ -98,8 +98,7 @@ Layer your usual production flags (monitoring, logging, P2P tuning, RPC modules,
   Each execution client needs its own JWT secret file (a single shared file across both ELs is fine — see the note at the end of this step) and its own engine-API listen address.
   ELs can start unsynced; they wait until the supernode connects before they know what chain head to sync to.
   The supernode then drives each EL through its initial sync via the engine API, and tolerates the common case where one chain's EL is already synced and the other isn't.
-  Configure each EL to retain block and receipt history for at least 7 days so the supernode can backfill initiating-message logs (a full archive isn't required — see the [op-reth configuration reference](/node-operators/reference/op-reth-config) for the granular `--prune.*` flags).
-  If you also run op-challenger for permissionless fault proofs, these ELs have additional historical data requirements that go beyond the 7-day baseline above — see [Running op-reth with Historical Proofs](/node-operators/tutorials/reth-historical-proofs) for the retention window and configuration. Pure node operators without op-challenger can skip that.
+  Configure each EL's history retention so the supernode can backfill initiating-message logs after restarts or downtime; the [EL retention recommendation](/node-operators/guides/configuration/supernode#configure-el-retention-for-supernode-backfill) in the supernode guide covers the retention window, the relevant op-reth pruning flags, and the extra requirements that apply if you also run op-challenger.
 
   ```bash
   # OP Sepolia execution client
@@ -123,44 +122,14 @@ Layer your usual production flags (monitoring, logging, P2P tuning, RPC modules,
 
   Each EL in the fleet has exactly one consensus client connected to it.
   The supernode drives its ELs via per-chain virtual nodes; each Light CL also gets its own EL.
-  Set one JWT secret path for all of the supernode's virtual nodes via `OP_SUPERNODE_VN_ALL_L2_ENGINE_AUTH`, or override per chain with `OP_SUPERNODE_VN_<CHAINID>_L2_ENGINE_AUTH` if a chain's EL needs its own secret.
+  The supernode can share one JWT secret path across all of its virtual nodes, with per-chain overrides if an EL needs its own secret; the [shared JWT secret recommendation](/node-operators/guides/configuration/supernode) in the supernode guide covers the flags.
   Each Light CL connects to its EL with its own `--l2.jwt-secret` flag.
   </Step>
 
   <Step title="Stand up op-supernode for both chains">
-  Run op-supernode with both chains in `--chains`, a shared L1 RPC, and a shared beacon endpoint.
-  A beacon archive fallback is optional — only required if your primary beacon node doesn't keep the full blob history the supernode might need to backfill (Ethereum beacon nodes typically prune blob sidecars after roughly 18 days).
-  The example below uses environment variables; pass the equivalent `--flag` arguments if that fits your deployment better.
-  Fill in the placeholders before starting the binary.
-
-  ```yaml
-  # Dependency set and storage
-  OP_SUPERNODE_CHAINS: "11155420,1301"          # OP Sepolia + Unichain Sepolia
-  OP_SUPERNODE_DATA_DIR: /var/lib/op-supernode
-
-  # Shared L1 access
-  OP_SUPERNODE_L1_ETH_RPC: <your-sepolia-l1-eth-rpc>
-  OP_SUPERNODE_L1_BEACON: <your-sepolia-l1-beacon-rpc>
-  # OP_SUPERNODE_L1_BEACON_FALLBACKS: <your-sepolia-l1-beacon-archiver-rpc>  # optional; add if your primary beacon prunes blob sidecars
-
-  # Shared JWT secret for every virtual node's engine connection
-  OP_SUPERNODE_VN_ALL_L2_ENGINE_AUTH: /etc/op/jwt-secret.txt
-
-  # Per-chain: chain identity, engine RPC, and engine kind (reth for both since the fleet runs op-reth)
-  OP_SUPERNODE_VN_11155420_NETWORK: op-sepolia
-  OP_SUPERNODE_VN_11155420_L2_ENGINE_RPC: http://127.0.0.1:8551
-  OP_SUPERNODE_VN_11155420_L2_ENGINE_KIND: reth
-  OP_SUPERNODE_VN_1301_NETWORK: unichain-sepolia
-  OP_SUPERNODE_VN_1301_L2_ENGINE_RPC: http://127.0.0.1:8561
-  OP_SUPERNODE_VN_1301_L2_ENGINE_KIND: reth
-
-  # Top-level JSON-RPC server (per-chain namespaces under /<chainID>/)
-  OP_SUPERNODE_RPC_ADDR: 0.0.0.0
-  OP_SUPERNODE_RPC_PORT: "8545"
-  ```
-
-  If your primary beacon node prunes blob sidecars (the Ethereum default is about 18 days), configure `--l1.beacon-fallbacks` against a non-pruning beacon or an archiver service from the start.
-  A supernode that has been offline past the primary beacon's prune window cannot recover the missing blobs alone, and chain containers will stall at the gap.
+  Run op-supernode with both chains in `--chains` (`11155420,1301`), a shared L1 RPC, and a shared beacon endpoint.
+  The [example configuration](/node-operators/guides/configuration/supernode#example-configuration) in the supernode guide is written for exactly this dependency set (OP Sepolia plus Unichain Sepolia); use it as your starting point, and keep the engine kind set to `reth` for both chains since the fleet runs op-reth.
+  Follow the guide's recommendation to configure a beacon archiver fallback from the start, so a supernode that has been offline for an extended period can still recover pruned blobs.
 
   For the full flag reference, see the [op-supernode configuration reference](/node-operators/reference/op-supernode-config); for recommendations, see the [supernode configuration guide](/node-operators/guides/configuration/supernode).
   </Step>
@@ -200,15 +169,9 @@ Layer your usual production flags (monitoring, logging, P2P tuning, RPC modules,
   For background on the topology and why it scales, see the [specialized op-node topology notice](/notices/specialized-node-topology).
   </Step>
 
-  <Step title="Place your supernodes behind a consensus-aware proxyd">
-  OP Labs recommends running an **HA pool of at least three op-supernode instances** and fronting them with a [consensus-aware `proxyd`](/chain-operators/tools/proxyd#consensus-awareness) configured with the `consensus_aware_consensus_layer` routing strategy.
-  Point the fleet's `--l2.follow.source` at the proxyd endpoint rather than at a single supernode.
-  This hides individual supernode failures or reorgs from the Light CL fleet and lets the supernode tier roll between releases without downtime.
-
-  An individual supernode going down inside the HA pool is masked by `proxyd` — Light CLs continue following the surviving instances.
-  If the entire supernode tier becomes unreachable, Light CLs keep advancing the unsafe chain over P2P gossip and resume safe-head tracking automatically once the tier is restored.
-
-  A single op-supernode is acceptable for evaluation, but treat it as a single point of failure for safe-head progression on both chains.
+  <Step title="Plan the production topology before activation">
+  For production fleets, run several supernodes as a highly available pool behind a consensus-aware proxyd and point the Light CLs at the pool rather than at a single supernode; a lone supernode is fine for evaluating the setup, but it is a single point of failure for safe-head progression on both chains.
+  Put this in place before the activation timestamp: the [HA pool recommendation](/node-operators/guides/configuration/supernode#run-an-ha-pool-of-supernodes-behind-a-consensus-aware-proxyd) in the supernode guide covers the pool size, routing strategy, and failure behavior.
   </Step>
 </Steps>
 
