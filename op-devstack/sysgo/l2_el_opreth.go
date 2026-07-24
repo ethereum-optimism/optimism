@@ -212,8 +212,8 @@ func (n *OpReth) Start() {
 	n.authProxy.SetUpstream(ProxyAddr(n.p.Require(), authRPCAddr))
 }
 
-// Stop stops the op-reth node.
-// warning: no restarts supported yet, since the RPC port is not remembered.
+// Stop stops the op-reth node. The proxies stay up on their stable addresses;
+// the next Start re-points them at the new process's ports.
 func (n *OpReth) Stop() {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -224,6 +224,20 @@ func (n *OpReth) Stop() {
 	err := n.sub.Stop(true)
 	n.p.Require().NoError(err, "Must stop")
 	n.sub = nil
+	n.clearProxyUpstreams()
+}
+
+// clearProxyUpstreams unsets the proxy upstreams after the process stopped.
+// The dead process's OS-assigned ports may be rebound by another node (e.g.
+// a different chain's EL restarting), and a stale upstream would silently
+// cross-wire this node's endpoints to it. Callers must hold n.mu.
+func (n *OpReth) clearProxyUpstreams() {
+	if n.userProxy != nil {
+		n.userProxy.ClearUpstream()
+	}
+	if n.authProxy != nil {
+		n.authProxy.ClearUpstream()
+	}
 }
 
 func (n *OpReth) StartControlled(ctx context.Context) error {
@@ -240,6 +254,7 @@ func (n *OpReth) StopControlled(ctx context.Context) error {
 		return err
 	}
 	n.sub = nil
+	n.clearProxyUpstreams()
 	return nil
 }
 

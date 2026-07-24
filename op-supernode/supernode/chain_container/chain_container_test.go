@@ -711,6 +711,55 @@ func TestChainContainer_Lifecycle(t *testing.T) {
 	})
 }
 
+// TestChainContainer_RestartLoopBacksOffOnFastFailure guards against the
+// restart loop hot-spinning when the virtual node fails fast at init (e.g. a
+// mis-wired or unreachable L2 endpoint). Without backoff the loop retries at
+// ~1000 restarts/sec and floods the L2 engine with dials.
+func TestChainContainer_RestartLoopBacksOffOnFastFailure(t *testing.T) {
+	t.Parallel()
+
+	chainID := eth.ChainIDFromUInt64(420)
+	vncfg := createTestVNConfig()
+	initOverload := &rollupNode.InitializationOverrides{}
+	log := createTestLogger(t)
+	cfg := createTestCLIConfig(t.TempDir())
+	container := mustNewChainContainer(t, chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+	impl, ok := container.(*simpleChainContainer)
+	require.True(t, ok)
+
+	var mu sync.Mutex
+	var startTimes []time.Time
+	mockVN := newMockVirtualNode()
+	mockVN.startFunc = func(ctx context.Context) error {
+		mu.Lock()
+		startTimes = append(startTimes, time.Now())
+		mu.Unlock()
+		return errors.New("failed to init L2")
+	}
+	impl.virtualNodeFactory = func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string, superAuthority rollup.SuperAuthority) virtual_node.VirtualNode {
+		return mockVN
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() { _ = container.Start(ctx) }()
+
+	require.Eventually(t, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(startTimes) >= 3
+	}, 10*time.Second, 10*time.Millisecond)
+	cancel()
+
+	mu.Lock()
+	gap := startTimes[2].Sub(startTimes[0])
+	mu.Unlock()
+	// The delays before the 2nd and 3rd attempts are at least
+	// vnRestartBackoffMin and 2*vnRestartBackoffMin respectively.
+	require.GreaterOrEqual(t, gap, 3*vnRestartBackoffMin,
+		"restart loop must back off between fast-failing VN starts")
+}
+
 // TestChainContainer_PauseResume tests pause/resume functionality
 func TestChainContainer_PauseResume(t *testing.T) {
 	t.Parallel()
