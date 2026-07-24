@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
@@ -43,7 +44,7 @@ type cgtConfig struct {
 	LiquidityControllerOwner   common.Address
 }
 
-func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, st *state.State, chainID common.Hash) error {
+func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle artifacts.Bundle, st *state.State, chainID common.Hash) error {
 	lgr := pEnv.Logger.New("stage", "generate-l2-genesis")
 
 	thisIntent, err := intent.Chain(chainID)
