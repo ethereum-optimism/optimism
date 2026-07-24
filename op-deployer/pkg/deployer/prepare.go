@@ -154,17 +154,6 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return err
 	}
 
-	// Download the L2 artifacts too, so L2 genesis can be generated in this same run. Reuse the
-	// L1 download when the locators match, which is the common case.
-	l2ArtifactsFS := l1ArtifactsFS
-	if !intent.L1ContractsLocator.Equal(intent.L2ContractsLocator) {
-		l2ArtifactsFS, err = artifacts.Download(ctx, intent.L2ContractsLocator, ioutil.BarProgressor(), cfg.CacheDir)
-		if err != nil {
-			return fmt.Errorf("failed to download L2 artifacts: %w", err)
-		}
-	}
-	artifactsBundle := pipeline.ArtifactsBundle{L1: l1ArtifactsFS, L2: l2ArtifactsFS}
-
 	l1RPC, err := rpc.Dial(cfg.L1RPCUrl)
 	if err != nil {
 		return fmt.Errorf("failed to connect to L1 RPC: %w", err)
@@ -217,7 +206,7 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 
 	// Build L2 genesis from the addresses and genesis time just committed.
 	genesisEnv := &pipeline.Env{Logger: cfg.Logger, Deployer: deployer}
-	if err := generateGenesisForChains(genesisEnv, intent, artifactsBundle, st); err != nil {
+	if err := generateGenesisForChains(genesisEnv, intent, bundle, st); err != nil {
 		return err
 	}
 
@@ -419,7 +408,7 @@ func predictChains(
 // generateGenesisForChains builds each chain's L2 genesis allocs from the addresses and genesis
 // time predictChains just committed. Chains that already have allocs are skipped by GenerateL2Genesis's
 // own idempotency check.
-func generateGenesisForChains(pEnv *pipeline.Env, intent *state.Intent, bundle pipeline.ArtifactsBundle, st *state.State) error {
+func generateGenesisForChains(pEnv *pipeline.Env, intent *state.Intent, bundle artifacts.Bundle, st *state.State) error {
 	for _, chain := range intent.Chains {
 		if err := pipeline.GenerateL2Genesis(pEnv, intent, bundle, st, chain.ID); err != nil {
 			return fmt.Errorf("failed to generate L2 genesis for chain %s: %w", chain.ID.Hex(), err)

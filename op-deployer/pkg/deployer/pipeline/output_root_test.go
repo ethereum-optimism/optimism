@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
@@ -47,7 +48,7 @@ func setupChainWithGenesis(t *testing.T) (*Env, *state.Intent, *state.State, com
 	}, genesisTime)
 
 	pEnv := &Env{Logger: lgr, Deployer: deployer}
-	bundle := ArtifactsBundle{L1: afacts, L2: afacts}
+	bundle := artifacts.Bundle{L1: afacts, L2: afacts}
 	require.NoError(t, GenerateL2Genesis(pEnv, intent, bundle, st, chain.ID))
 
 	return pEnv, intent, st, chain.ID

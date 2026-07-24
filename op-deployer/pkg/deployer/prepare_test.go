@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -1232,7 +1233,7 @@ func TestGenerateGenesisForChains_UsesPredictedAddressesAndPinnedGenesisTime(t *
 	}, genesisTime)
 
 	genesisEnv := &pipeline.Env{Logger: lgr, Deployer: deployer}
-	bundle := pipeline.ArtifactsBundle{L1: afacts, L2: afacts}
+	bundle := artifacts.Bundle{L1: afacts, L2: afacts}
 	require.NoError(t, generateGenesisForChains(genesisEnv, intent, bundle, st))
 
 	chainState, err := st.Chain(chain.ID)

@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
@@ -57,7 +58,7 @@ func buildPreparedWorkdir(t *testing.T) (string, common.Hash) {
 	}, genesisTime)
 
 	pEnv := &pipeline.Env{Logger: lgr, Deployer: deployerAddr}
-	bundle := pipeline.ArtifactsBundle{L1: afacts, L2: afacts}
+	bundle := artifacts.Bundle{L1: afacts, L2: afacts}
 	require.NoError(t, pipeline.GenerateL2Genesis(pEnv, intent, bundle, st, chain.ID))
 	require.NoError(t, pipeline.ComputeGenesisOutputRoot(pEnv, intent, st, chain.ID))
 
