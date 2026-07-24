@@ -1,0 +1,68 @@
+{/*
+  Shared app-developer tutorial setup: testnet faucets and the tutorial
+  private key.
+
+  Hand-maintained; not generated. Extracted from the duplicated setup
+  sections of the app-developer tutorials (duplication census cluster S1).
+
+  Usage:
+    import TutorialSetupWalletAndFunds, { TutorialFaucets } from '/snippets/tutorial-setup-wallet-and-funds.mdx';
+
+    <TutorialFaucets />                    faucet links for Sepolia and OP Sepolia
+    <TutorialFaucets opSepolia={false} />  faucet link for Sepolia only
+    <TutorialFaucets sepolia={false} />    faucet link for OP Sepolia only
+
+    ## Add a private key to your environment
+
+    <TutorialSetupWalletAndFunds networks="both Sepolia and OP Sepolia" />
+
+  Props:
+    networks (default export, required) - prose phrase naming the network or
+      networks where the private key's address needs ETH, for example
+      "Sepolia", "OP Sepolia", or "both Sepolia and OP Sepolia".
+    sepolia, opSepolia (TutorialFaucets, optional, default true) - which
+      faucet links to show.
+
+  Consumer pages:
+    app-developers/tutorials/bridging/cross-dom-bridge-eth.mdx
+    app-developers/tutorials/bridging/cross-dom-bridge-erc20.mdx
+    app-developers/tutorials/bridging/cross-dom-solidity.mdx
+    app-developers/tutorials/bridging/standard-bridge-standard-token.mdx
+    app-developers/tutorials/bridging/standard-bridge-custom-token.mdx
+    app-developers/tutorials/transactions/sdk-estimate-costs.mdx
+    app-developers/tutorials/transactions/send-tx-from-eth.mdx
+*/}
+
+export const TutorialFaucets = ({ sepolia = true, opSepolia = true }) => (
+  <Info>
+    {sepolia && (
+      <>
+        You can use <a href="https://sepoliafaucet.com">this faucet</a> to get
+        ETH on Sepolia.
+      </>
+    )}
+    {sepolia && opSepolia && " "}
+    {opSepolia && (
+      <>
+        You can use the{" "}
+        <a href="https://console.optimism.io/faucet?utm_source=op-docs&utm_medium=docs">
+          Superchain Faucet
+        </a>{" "}
+        to get ETH on OP Sepolia.
+      </>
+    )}
+  </Info>
+);
+
+You need a private key in order to sign transactions.
+Set your private key as an environment variable with the `export` command.
+Make sure this private key corresponds to an address that has ETH on {networks}.
+
+<Info>
+  Want to create a new wallet for this tutorial?
+  If you have [`cast`](https://book.getfoundry.sh/getting-started/installation) installed you can run `cast wallet new` in your terminal to create a new wallet and get the private key.
+</Info>
+
+```bash
+export TUTORIAL_PRIVATE_KEY=0x...
+```
