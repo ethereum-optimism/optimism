@@ -238,6 +238,13 @@ type InitialDeployRequirements struct {
 	RequiresPrestate bool
 }
 
+// IsSuperGameType reports whether the given dispute game type is SUPER_CANNON_KONA.
+// SUPER_PERMISSIONED is deliberately excluded as it's a derived fallback and
+// can never appear here as a chain's resolved DisputeGameType.
+func IsSuperGameType(gameType uint32) bool {
+	return embedded.GameType(gameType) == embedded.GameTypeSuperCannonKona
+}
+
 // ValidateInitialGameTypeSet rejects a mix of CANNON_KONA and
 // SUPER_CANNON_KONA initial games.
 func ValidateInitialGameTypeSet(gameTypes []uint32) error {

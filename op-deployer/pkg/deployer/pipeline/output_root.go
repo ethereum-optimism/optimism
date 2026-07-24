@@ -66,14 +66,30 @@ func ComputeGenesisOutputRoot(pEnv *Env, intent *state.Intent, st *state.State, 
 
 	blockHash := block.Hash()
 	outputRootHash := common.Hash(outputRoot)
+
+	proofParams, err := ResolveChainProofParams(intent, thisIntent)
+	if err != nil {
+		return fmt.Errorf("failed to resolve proof params for chain %s: %w", chainID.Hex(), err)
+	}
+
+	anchorRoot := outputRootHash
+	if IsSuperGameType(proofParams.DisputeGameType) {
+		// A solo chain's genesis anchor must be the SuperV1 encoding of just its own output
+		superRoot := eth.NewSuperV1(header.Time, eth.ChainIDAndOutput{
+			ChainID: eth.ChainIDFromBytes32(chainID),
+			Output:  eth.Bytes32(outputRootHash),
+		})
+		anchorRoot = common.Hash(eth.SuperRoot(superRoot))
+	}
+
 	thisChainState.GenesisBlockHash = &blockHash
 	// The genesis anchor is always sequence number 0
 	thisChainState.StartingAnchorRoot = &state.StartingAnchorProposal{
-		Root:             outputRootHash,
+		Root:             anchorRoot,
 		L2SequenceNumber: 0,
 	}
 
-	lgr.Info("computed genesis output root", "outputRoot", outputRootHash, "blockHash", blockHash)
+	lgr.Info("computed genesis output root", "outputRoot", outputRootHash, "anchorRoot", anchorRoot, "blockHash", blockHash)
 
 	return nil
 }

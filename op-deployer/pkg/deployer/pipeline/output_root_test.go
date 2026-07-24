@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -116,4 +117,44 @@ func TestComputeGenesisOutputRoot_ComputesAndPersists(t *testing.T) {
 	require.NoError(t, err)
 	require.Same(t, blockHashBefore, chainStateAfter.GenesisBlockHash)
 	require.Same(t, anchorBefore, chainStateAfter.StartingAnchorRoot)
+}
+
+// TestComputeGenesisOutputRoot_SuperGameTypeWrapsSuperV1Root verifies that a chain configured
+// for SUPER_CANNON_KONA gets a genesis anchor encoded as a SuperV1 root over just its own
+// output, not the bare V0 root.
+func TestComputeGenesisOutputRoot_SuperGameTypeWrapsSuperV1Root(t *testing.T) {
+	pEnv, intent, st, chainID := setupChainWithGenesis(t)
+
+	chainIntent, err := intent.Chain(chainID)
+	require.NoError(t, err)
+	if chainIntent.DeployOverrides == nil {
+		chainIntent.DeployOverrides = map[string]any{}
+	}
+	chainIntent.DeployOverrides["respectedGameType"] = embedded.GameTypeSuperCannonKona
+
+	require.NoError(t, ComputeGenesisOutputRoot(pEnv, intent, st, chainID))
+
+	chainState, err := st.Chain(chainID)
+	require.NoError(t, err)
+	require.NotNil(t, chainState.StartingAnchorRoot)
+
+	config, err := state.CombineDeployConfig(intent, chainIntent, st, chainState)
+	require.NoError(t, err)
+	l2Genesis, err := genesis.BuildL2Genesis(&config, chainState.Allocs.Data, chainState.StartBlock.ToBlockRef())
+	require.NoError(t, err)
+	block := l2Genesis.ToBlock()
+	header := block.Header()
+	plainV0Root, err := rollup.ComputeL2OutputRootV0(eth.HeaderBlockInfo(header), *header.WithdrawalsHash)
+	require.NoError(t, err)
+
+	superRoot := eth.NewSuperV1(header.Time, eth.ChainIDAndOutput{
+		ChainID: eth.ChainIDFromBytes32(chainID),
+		Output:  eth.Bytes32(plainV0Root),
+	})
+	wantAnchor := common.Hash(eth.SuperRoot(superRoot))
+
+	require.Equal(t, wantAnchor, chainState.StartingAnchorRoot.Root)
+	require.NotEqual(t, common.Hash(plainV0Root), chainState.StartingAnchorRoot.Root,
+		"the persisted anchor must be the SuperV1 wrap, not the bare V0 root")
+	require.Zero(t, uint64(chainState.StartingAnchorRoot.L2SequenceNumber))
 }

@@ -944,6 +944,25 @@ func TestValidateInitialGameTypeSet(t *testing.T) {
 	}
 }
 
+func TestIsSuperGameType(t *testing.T) {
+	tests := []struct {
+		name     string
+		gameType embedded.GameType
+		expected bool
+	}{
+		{name: "SUPER_CANNON_KONA", gameType: embedded.GameTypeSuperCannonKona, expected: true},
+		{name: "CANNON_KONA", gameType: embedded.GameTypeCannonKona, expected: false},
+		{name: "PERMISSIONED_CANNON", gameType: embedded.GameTypePermissionedCannon, expected: false},
+		{name: "SUPER_PERMISSIONED", gameType: embedded.GameTypeSuperPermissioned, expected: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, IsSuperGameType(uint32(tt.gameType)))
+		})
+	}
+}
+
 func TestBuildDeployOPChainInputCannonAbsolutePrestate(t *testing.T) {
 	selectedPrestate := common.HexToHash("0x1234")
 	tests := []struct {
