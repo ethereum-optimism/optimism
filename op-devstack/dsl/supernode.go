@@ -6,16 +6,14 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
-	"github.com/ethereum-optimism/optimism/op-service/apis"
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop"
-	"github.com/ethereum/go-ethereum/common"
 )
 
 // Supernode wraps a stack.Supernode interface for DSL operations
 type Supernode struct {
-	commonImpl
+	SuperRootQuerier
 	inner       stack.Supernode
 	testControl stack.SupernodeTestControl
 	managedVNs  []*L2CLNode
@@ -32,8 +30,8 @@ func (s *Supernode) ManageVN(vn *L2CLNode) {
 // NewSupernode creates a new Supernode DSL wrapper
 func NewSupernode(inner stack.Supernode) *Supernode {
 	return &Supernode{
-		commonImpl: commonFromT(inner.T()),
-		inner:      inner,
+		SuperRootQuerier: SuperRootQuerier{commonImpl: commonFromT(inner.T()), api: inner.QueryAPI(), userRPC: inner.UserRPC()},
+		inner:            inner,
 	}
 }
 
@@ -41,9 +39,9 @@ func NewSupernode(inner stack.Supernode) *Supernode {
 // The testControl parameter can be nil if no test control is needed.
 func NewSupernodeWithTestControl(inner stack.Supernode, testControl stack.SupernodeTestControl) *Supernode {
 	return &Supernode{
-		commonImpl:  commonFromT(inner.T()),
-		inner:       inner,
-		testControl: testControl,
+		SuperRootQuerier: SuperRootQuerier{commonImpl: commonFromT(inner.T()), api: inner.QueryAPI(), userRPC: inner.UserRPC()},
+		inner:            inner,
+		testControl:      testControl,
 	}
 }
 
@@ -60,65 +58,12 @@ func (s *Supernode) Escape() stack.Supernode {
 	return s.inner
 }
 
-// QueryAPI returns the supernode's query API
-func (s *Supernode) QueryAPI() apis.SupernodeQueryAPI {
-	return s.inner.QueryAPI()
-}
-
 func (s *Supernode) ClientRPC() opclient.RPC {
 	return s.inner.ClientRPC()
 }
 
 func (s *Supernode) UserRPC() string {
 	return s.inner.UserRPC()
-}
-
-// SuperRootAtTimestamp fetches the super-root at the given timestamp
-func (s *Supernode) SuperRootAtTimestamp(timestamp uint64) eth.SuperRootAtTimestampResponse {
-	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)
-	defer cancel()
-	resp, err := s.inner.QueryAPI().SuperRootAtTimestamp(ctx, timestamp)
-	s.require.NoError(err, "failed to get super-root at timestamp %d", timestamp)
-	return resp
-}
-
-// AssertSuperRootAtTimestamp asserts that the super-root at the given timestamp matches the expected root claim
-func (s *Supernode) AssertSuperRootAtTimestamp(l2SequenceNumber uint64, rootClaim common.Hash) {
-	resp := s.SuperRootAtTimestamp(l2SequenceNumber)
-	s.require.NotNilf(resp.Data, "super root does not exist at time %d", l2SequenceNumber)
-	superRoot := eth.SuperRoot(resp.Data.Super)
-	s.require.Equal(superRoot[:], rootClaim[:])
-}
-
-// AwaitFullyProcessedL1 waits until the supernode has fully processed the given L1
-// block number. SuperRootAtTimestamp's CurrentL1 names the block currently being
-// processed (L1[<CurrentL1] is fully processed), so this returns once
-// CurrentL1.Number > targetL1.
-func (s *Supernode) AwaitFullyProcessedL1(targetL1 uint64) {
-	ctx, cancel := context.WithTimeout(s.ctx, 5*DefaultTimeout)
-	defer cancel()
-	err := wait.For(ctx, 1*time.Second, func() (bool, error) {
-		resp, err := s.inner.QueryAPI().SuperRootAtTimestamp(ctx, uint64(time.Now().Unix()))
-		if err != nil {
-			return false, nil // Ignore transient errors.
-		}
-		return resp.CurrentL1.Number > targetL1, nil
-	})
-	s.require.NoError(err, "supernode did not fully process L1 block %d in time", targetL1)
-}
-
-// AwaitValidatedTimestamp waits for the super-root at the given timestamp to be fully validated
-func (s *Supernode) AwaitValidatedTimestamp(timestamp uint64) {
-	ctx, cancel := context.WithTimeout(s.ctx, 5*DefaultTimeout)
-	defer cancel()
-	err := wait.For(ctx, 1*time.Second, func() (bool, error) {
-		resp, err := s.inner.QueryAPI().SuperRootAtTimestamp(ctx, timestamp)
-		if err != nil {
-			return false, nil // Ignore transient errors.
-		}
-		return resp.Data != nil, nil
-	})
-	s.require.NoError(err, "super-root at timestamp %d was not validated in time", timestamp)
 }
 
 // AwaitFinalizationAdvanced reads the supernode's current finalized timestamp

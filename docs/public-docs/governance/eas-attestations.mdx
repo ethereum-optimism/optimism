@@ -1,0 +1,72 @@
+---
+title: "How identity works in the Optimism Collective"
+description: "Learn how the Optimism Collective uses onchain attestations to represent Citizenship, project identity, and governance roles."
+diataxis: explanation
+---
+
+Optimism governance gives a voice to several distinct stakeholder groups: tokenholders, chains, apps, and end-users.
+Token House voting power is straightforward to establish — it follows OP token holdings.
+The rest of the system is harder: the Citizens' House uses a "1 member, 1 vote" model, Retro Funding rewards specific projects for their impact, and elected roles carry responsibilities across Seasons.
+All of that requires a shared, verifiable answer to the question "who is this participant?" — without handing the answer to a private membership database.
+
+The Collective's answer is **attestations**: signed onchain statements, published where anyone can read and verify them.
+This page explains what attestations are, how the Collective uses them, and why the model works the way it does.
+
+## Attestations and the Ethereum Attestation Service
+
+An attestation is an onchain record in which one account (the issuer) makes a structured claim — for example, "this address is a Citizen" or "this project applied to Retro Funding Round 6."
+
+Attestations in the Collective are built on the [Ethereum Attestation Service ("EAS")](https://attest.sh/), an open-source public good that is included as a predeploy in the OP Stack.
+Every OP Stack chain ships with two EAS contracts at fixed addresses:
+
+*   The **EAS contract** (`0x4200000000000000000000000000000000000021`), where attestations are created and stored.
+*   The **SchemaRegistry contract** (`0x4200000000000000000000000000000000000020`), which holds the schemas that attestations are checked against.
+
+Because these are predeploys, the same identity infrastructure is available on OP Mainnet, OP Sepolia, and any other OP Stack chain, with no extra deployment.
+For predeploy details, see the [smart contracts overview](/op-stack/protocol/smart-contracts#eas-ethereum-attestation-service).
+
+### Schemas give attestations structure
+
+A schema defines the structure and type of data that an attestation can carry, and each schema has a unique identifier (UID).
+This is what makes attestations machine-readable rather than free-form claims: an application that wants to check Citizenship looks for attestations issued against the specific Citizen schema UID, and knows exactly which fields (such as the member's Farcaster ID and selection method) it will find there.
+
+The full catalogue of schemas the Collective uses — with their UIDs, issuers, and field-by-field descriptions — is maintained in the [EAS contracts and attestation schemas reference](/governance/attestation-schemas).
+
+### Trust comes from the issuer, not the statement
+
+Anyone can issue an attestation, so an attestation on its own proves only that *someone* made a claim.
+What makes an attestation meaningful is *who issued it*.
+Citizen attestations, for example, are only valid when issued by the Optimism Foundation, and the schema's resolver contract enforces that check onchain.
+Other schemas document their expected issuer addresses so that consumers can verify them — several archived schemas explicitly remind readers to verify the attester address before trusting the record.
+
+This is the core design trade-off: rather than a closed registry that must be queried and trusted wholesale, the Collective publishes individually signed claims and lets every consumer verify the issuer for themselves.
+
+## How the Collective uses attestations
+
+### Citizenship
+
+Membership in the Citizens' House is represented by Citizen attestations, first issued in Season 6.
+A Citizen attestation identifies the member (by Farcaster ID), records how they were selected, and — for chain and app Citizens — references the organization or project they represent.
+Citizenship is recorded separately from the ability to vote in any specific Retro Funding round.
+To learn who is eligible and how to register, see the [governance FAQ](/governance/gov-faq).
+
+### Projects and organizations
+
+Projects and organizations in the Collective (as registered in [OP Atlas](https://atlas.optimism.io)) are identified by attestations: an identifier attestation acts as the project's unique ID, and metadata attestations — re-issued each time something changes — associate names, categories, and metadata locations with it.
+This is how Retro Funding knows which project an application, approval, or reward belongs to.
+
+### Retro Funding and grants
+
+The Retro Funding lifecycle is recorded as a chain of attestations: applications to a round, approval or rejection decisions, voting badges for the round's voters, and finally the reward amount each approved project received.
+Token House grant approvals and governance contributions (such as serving on the Grants Council) are attested in the same way.
+
+### Proof of personhood
+
+For end-user Citizens, the Collective relies on external proof-of-personhood systems — [World ID](https://world.org/world-id) and [Passport](https://app.passport.xyz/) — alongside attestations such as Gitcoin Passport scores.
+Until Sybil-resistance mechanisms are more mature, the Optimism Foundation may suspend Citizens flagged as possible Sybils and request further verification of unique personhood.
+
+## Next steps
+
+*   Look up contract addresses, schema UIDs, and field definitions in the [EAS contracts and attestation schemas reference](/governance/attestation-schemas).
+*   Read or issue attestations via [EAS scan for OP Mainnet](https://optimism.easscan.org/) or the [EAS SDK](https://docs.attest.sh/docs/developer-tools/eas-sdk).
+*   Learn how the Token House and Citizens' House use these identities in the [governance FAQ](/governance/gov-faq).

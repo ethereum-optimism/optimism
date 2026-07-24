@@ -5,9 +5,9 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -37,7 +37,7 @@ var (
 )
 
 func DAFootprintNetworkUpgradeTransactions() ([]hexutil.Bytes, error) {
-	deployL1Block, err := types.NewTx(&types.DepositTx{
+	deployL1Block, err := (&optypes.DepositTx{
 		SourceHash:          deployJovianL1BlockSource.SourceHash(),
 		From:                L1BlockJovianDeployerAddress,
 		To:                  nil,
@@ -51,7 +51,7 @@ func DAFootprintNetworkUpgradeTransactions() ([]hexutil.Bytes, error) {
 		return nil, fmt.Errorf("build tx to deploy L1 block transaction: %w", err)
 	}
 
-	updateL1BlockProxy, err := types.NewTx(&types.DepositTx{
+	updateL1BlockProxy, err := (&optypes.DepositTx{
 		SourceHash:          updateJovianL1BlockProxySource.SourceHash(),
 		From:                common.Address{},
 		To:                  &predeploys.L1BlockAddr,
@@ -72,7 +72,7 @@ func OperatorFeeFixUpgradeTransactions() ([]hexutil.Bytes, error) {
 	upgradeTxns := make([]hexutil.Bytes, 0, 8)
 
 	// Deploy Gas Price Oracle transaction
-	deployGasPriceOracle, err := types.NewTx(&types.DepositTx{
+	deployGasPriceOracle, err := (&optypes.DepositTx{
 		SourceHash:          deployJovianGasPriceOracleSource.SourceHash(),
 		From:                GasPriceOracleJovianDeployerAddress,
 		To:                  nil,
@@ -90,7 +90,7 @@ func OperatorFeeFixUpgradeTransactions() ([]hexutil.Bytes, error) {
 	upgradeTxns = append(upgradeTxns, deployGasPriceOracle)
 
 	// Deploy Gas Price Oracle Proxy upgrade transaction
-	updateGasPriceOracleProxy, err := types.NewTx(&types.DepositTx{
+	updateGasPriceOracleProxy, err := (&optypes.DepositTx{
 		SourceHash:          updateJovianGasPriceOracleSource.SourceHash(),
 		From:                common.Address{},
 		To:                  &predeploys.GasPriceOracleAddr,
@@ -108,7 +108,7 @@ func OperatorFeeFixUpgradeTransactions() ([]hexutil.Bytes, error) {
 	upgradeTxns = append(upgradeTxns, updateGasPriceOracleProxy)
 
 	// Enable Jovian transaction
-	enableJovian, err := types.NewTx(&types.DepositTx{
+	enableJovian, err := (&optypes.DepositTx{
 		SourceHash:          enableJovianSource.SourceHash(),
 		From:                L1InfoDepositerAddress,
 		To:                  &predeploys.GasPriceOracleAddr,

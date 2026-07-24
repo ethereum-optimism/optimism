@@ -1,6 +1,7 @@
 package state
 
 import (
+	"crypto/rand"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/core"
@@ -13,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
+	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -29,6 +31,17 @@ type State struct {
 
 	// Create2Salt is the salt used for CREATE2 deployments.
 	Create2Salt common.Hash `json:"create2Salt"`
+
+	// L1PredictSenderAddress is the address that performed the L1 deploy dry-run.
+	// It is used to verify that the same deployer address is used for the relevant stages of the permissionless pipeline.
+	L1PredictSenderAddress *common.Address `json:"predictSenderAddress,omitempty"`
+
+	// L1PredictOPCMAddress is the OPCM address used for the L1 deploy dry-run.
+	// It is used to verify that the same OPCM is used for the relevant stages of the permissionless pipeline.
+	L1PredictOPCMAddress *common.Address `json:"predictOpcmAddress,omitempty"`
+
+	// Prepared is set when this state was produced by the prepare pipeline.
+	Prepared bool `json:"prepared,omitempty"`
 
 	// AppliedIntent contains the chain intent that was last
 	// successfully applied. It is diffed against new intent
@@ -81,6 +94,41 @@ func (s *State) Chain(id common.Hash) (*ChainState, error) {
 	return nil, fmt.Errorf("chain not found: %s", id.Hex())
 }
 
+// CheckL1PredictInputs verifies that the deployer and OPCM match the values pinned
+// during the prepare dry-run, keeping the predicted L1 addresses valid across the
+// relevant stages of the permissionless pipeline. A nil pinned value means nothing
+// was pinned for that input, so any value is accepted (older pipeline).
+func (s *State) CheckL1PredictInputs(deployer common.Address, opcm common.Address) error {
+	if s.L1PredictSenderAddress != nil && *s.L1PredictSenderAddress != deployer {
+		return fmt.Errorf("deployer address mismatch: expected %s, got %s", s.L1PredictSenderAddress.Hex(), deployer.Hex())
+	}
+	if s.L1PredictOPCMAddress != nil && *s.L1PredictOPCMAddress != opcm {
+		return fmt.Errorf("opcm address mismatch: expected %s, got %s", s.L1PredictOPCMAddress.Hex(), opcm.Hex())
+	}
+	return nil
+}
+
+// CheckNotPrepared returns an error if the state was produced by the prepare
+// pipeline.
+func (s *State) CheckNotPrepared() error {
+	if s.Prepared {
+		return fmt.Errorf("state was produced by the prepare pipeline and cannot be applied")
+	}
+	return nil
+}
+
+// EnsureCreate2Salt generates a random CREATE2 salt if one has not been set yet.
+// If a salt has been already set then it is preserved.
+func (s *State) EnsureCreate2Salt() error {
+	if s.Create2Salt != (common.Hash{}) {
+		return nil
+	}
+	if _, err := rand.Read(s.Create2Salt[:]); err != nil {
+		return fmt.Errorf("failed to generate CREATE2 salt: %w", err)
+	}
+	return nil
+}
+
 type AdditionalDisputeGameState struct {
 	GameType      uint32
 	GameAddress   common.Address
@@ -94,11 +142,70 @@ type ChainState struct {
 
 	addresses.OpChainContracts
 
+	// Deployed indicates whether the addresses in this chain have been deployed or are just addresses produced
+	// by the prediction step of the prepare command.
+	Deployed *bool `json:"deployed,omitempty"`
+
 	AdditionalDisputeGames []AdditionalDisputeGameState `json:"additionalDisputeGames"`
 
 	Allocs *GzipData[foundry.ForgeAllocs] `json:"allocs"`
 
 	StartBlock *L1BlockRefJSON `json:"startBlock"`
+
+	// GenesisTime is the L2 genesis timestamp pinned with StartBlock.
+	// Nil leaves deploy config to derive it from L1StartingBlockTag.
+	GenesisTime *hexutil.Uint64 `json:"genesisTime,omitempty"`
+}
+
+// IsChainDeployed reports whether the chain's addresses have been broadcast.
+// States from older pipelines have no flag and are treated as deployed, any
+// unknown chain is treated as not yet deployed.
+func (s *State) IsChainDeployed(id common.Hash) bool {
+	for _, chain := range s.Chains {
+		if chain.ID == id {
+			return chain.Deployed == nil || *chain.Deployed
+		}
+	}
+	return false
+}
+
+// SetChainContracts records the L1 contract addresses for a chain. It creates
+// the chain entry if it does not exist and otherwise updates it in place,
+// preserving any other fields already set by other stages. deployed indicates whether the addresses
+// have been already broadcast or are just predicted addresses from the prepare stage.
+func (s *State) SetChainContracts(id common.Hash, contracts addresses.OpChainContracts, deployed bool) {
+	for _, chain := range s.Chains {
+		if chain.ID == id {
+			chain.OpChainContracts = contracts
+			chain.Deployed = &deployed
+			return
+		}
+	}
+	s.Chains = append(s.Chains, &ChainState{
+		ID:               id,
+		OpChainContracts: contracts,
+		Deployed:         &deployed,
+	})
+}
+
+// PinChainAnchor records a chain's L1 anchor block and derived L2 genesis time.
+// Downstream stages must reuse this pair so generated artifacts agree and
+// reruns remain idempotent. New entries are marked undeployed, while updates
+// preserve fields written by other stages.
+func (s *State) PinChainAnchor(id common.Hash, anchor *L1BlockRefJSON, genesisTime hexutil.Uint64) {
+	for _, chain := range s.Chains {
+		if chain.ID == id {
+			chain.StartBlock = anchor
+			chain.GenesisTime = &genesisTime
+			return
+		}
+	}
+	s.Chains = append(s.Chains, &ChainState{
+		ID:          id,
+		Deployed:    ptr.New(false),
+		StartBlock:  anchor,
+		GenesisTime: &genesisTime,
+	})
 }
 
 type L1BlockRefJSON struct {

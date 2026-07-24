@@ -37,8 +37,8 @@ use reth_rpc_eth_api::{
     EthApiTypes, FromEvmError, FullEthApiServer, RpcConvert, RpcConverter, RpcNodeCore,
     RpcNodeCoreExt, RpcTypes,
     helpers::{
-        EthApiSpec, EthFees, EthState, LoadFee, LoadPendingBlock, LoadState, SpawnBlocking, Trace,
-        bal::GetBlockAccessList, pending_block::BuildPendingEnv,
+        EthApiSpec, EthFees, EthState, EthSubscriptions, LoadFee, LoadPendingBlock, LoadState,
+        SpawnBlocking, Trace, bal::GetBlockAccessList, pending_block::BuildPendingEnv,
     },
 };
 use reth_rpc_eth_types::{
@@ -376,6 +376,13 @@ impl<N, Rpc> EthFees for OpEthApi<N, Rpc>
 where
     N: RpcNodeCore,
     OpEthApiError: FromEvmError<N::Evm>,
+    Rpc: RpcConvert<Primitives = N::Primitives, Error = OpEthApiError>,
+{
+}
+
+impl<N, Rpc> EthSubscriptions for OpEthApi<N, Rpc>
+where
+    N: RpcNodeCore,
     Rpc: RpcConvert<Primitives = N::Primitives, Error = OpEthApiError>,
 {
 }

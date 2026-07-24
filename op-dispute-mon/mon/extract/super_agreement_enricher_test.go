@@ -21,7 +21,7 @@ import (
 func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ErrorWhenNoSuperNodeClient", func(t *testing.T) {
+	t.Run("ErrorWhenNoSuperRootProvider", func(t *testing.T) {
 		validator, _, _ := setupSuperValidatorTest(t)
 		validator.clients = nil // Set to nil to test the error case
 		game := &types.EnrichedGameData{
@@ -34,7 +34,8 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
-		require.ErrorIs(t, err, ErrSuperNodeRpcRequired)
+		require.ErrorIs(t, err, ErrSuperRootRpcRequired)
+		require.ErrorContains(t, err, "super root RPC required")
 	})
 
 	t.Run("SkipOutputRootGameTypes", func(t *testing.T) {
@@ -43,7 +44,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			gameType := gameType
 			t.Run(fmt.Sprintf("GameType_%d", gameType), func(t *testing.T) {
 				validator, _, metrics := setupSuperValidatorTest(t)
-				validator.clients = nil // Should not error even though there's no super node client
+				validator.clients = nil // Should not error even though there's no super root RPC client
 				game := &types.EnrichedGameData{
 					GameMetadata: challengerTypes.GameMetadata{
 						GameType: gameType,
@@ -95,7 +96,8 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			NodeEndpointErrors: make(map[string]bool),
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
-		require.ErrorIs(t, err, ErrAllSuperNodesUnavailable)
+		require.ErrorIs(t, err, ErrAllSuperRootRpcsUnavailable)
+		require.ErrorContains(t, err, "all super root RPC sources returned errors")
 		require.Equal(t, common.Hash{}, game.ExpectedRootClaim)
 		require.False(t, game.AgreeWithClaim)
 		require.Zero(t, metrics.fetchTime)
@@ -214,8 +216,8 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 		require.Zero(t, metrics.fetchTime)
 	})
 
-	t.Run("AllSuperNodesReturnError", func(t *testing.T) {
-		validator, clients, metrics := setupMultiSuperNodeTest(t, 3)
+	t.Run("AllSuperRootRpcsReturnError", func(t *testing.T) {
+		validator, clients, metrics := setupMultiSuperRootTest(t, 3)
 		for _, client := range clients {
 			client.outputErr = errors.New("boom")
 		}
@@ -230,14 +232,14 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.Error(t, err)
-		require.ErrorIs(t, err, ErrAllSuperNodesUnavailable)
+		require.ErrorIs(t, err, ErrAllSuperRootRpcsUnavailable)
 		require.Equal(t, common.Hash{}, game.ExpectedRootClaim)
 		require.False(t, game.AgreeWithClaim)
 		require.Zero(t, metrics.fetchTime)
 	})
 
-	t.Run("AllSuperNodesReturnNotFound", func(t *testing.T) {
-		validator, clients, metrics := setupMultiSuperNodeTest(t, 3)
+	t.Run("AllSuperRootRpcsReturnNotFound", func(t *testing.T) {
+		validator, clients, metrics := setupMultiSuperRootTest(t, 3)
 		for _, client := range clients {
 			client.notFound = true
 		}
@@ -257,8 +259,8 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 		require.Zero(t, metrics.fetchTime)
 	})
 
-	t.Run("SomeSuperNodesOutOfSync", func(t *testing.T) {
-		validator, clients, metrics := setupMultiSuperNodeTest(t, 3)
+	t.Run("SomeSuperRootRpcsOutOfSync", func(t *testing.T) {
+		validator, clients, metrics := setupMultiSuperRootTest(t, 3)
 		clients[0].notFound = true
 		clients[1].outputErr = nil
 		clients[2].outputErr = nil
@@ -278,8 +280,8 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 		require.NotZero(t, metrics.fetchTime)
 	})
 
-	t.Run("SuperNodesDiverged", func(t *testing.T) {
-		validator, clients, metrics := setupMultiSuperNodeTest(t, 3)
+	t.Run("SuperRootRpcsDiverged", func(t *testing.T) {
+		validator, clients, metrics := setupMultiSuperRootTest(t, 3)
 		divergedRoot := common.HexToHash("0x5678")
 		clients[0].superRoot = mockRootClaim
 		clients[1].superRoot = divergedRoot
@@ -300,8 +302,8 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 		require.NotZero(t, metrics.fetchTime)
 	})
 
-	t.Run("AllSuperNodesAgree", func(t *testing.T) {
-		validator, clients, metrics := setupMultiSuperNodeTest(t, 3)
+	t.Run("AllSuperRootRpcsAgree", func(t *testing.T) {
+		validator, clients, metrics := setupMultiSuperRootTest(t, 3)
 		clients[0].derivedFromL1BlockNum = 200
 		clients[1].derivedFromL1BlockNum = 199
 		clients[2].derivedFromL1BlockNum = 201
@@ -322,7 +324,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 	})
 
 	t.Run("MixedResponses_FoundNodesMatchClaimAndSafe", func(t *testing.T) {
-		validator, clients, metrics := setupMultiSuperNodeTest(t, 4)
+		validator, clients, metrics := setupMultiSuperRootTest(t, 4)
 		clients[0].notFound = true
 		clients[1].notFound = true
 		clients[2].superRoot = mockRootClaim
@@ -346,7 +348,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 	})
 
 	t.Run("MixedResponses_FoundNodesDontMatchClaim", func(t *testing.T) {
-		validator, clients, metrics := setupMultiSuperNodeTest(t, 3)
+		validator, clients, metrics := setupMultiSuperRootTest(t, 3)
 		differentRoot := common.HexToHash("0x9999")
 		clients[0].notFound = true
 		clients[1].superRoot = differentRoot
@@ -370,7 +372,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 	})
 
 	t.Run("AllNodesAgree_SuperRootMatchesClaim_NoneReportSafe", func(t *testing.T) {
-		validator, clients, metrics := setupMultiSuperNodeTest(t, 3)
+		validator, clients, metrics := setupMultiSuperRootTest(t, 3)
 
 		for _, client := range clients {
 			client.superRoot = mockRootClaim
@@ -394,7 +396,7 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 	})
 
 	t.Run("AllNodesAgree_SuperRootDifferentFromClaim", func(t *testing.T) {
-		validator, clients, metrics := setupMultiSuperNodeTest(t, 3)
+		validator, clients, metrics := setupMultiSuperRootTest(t, 3)
 
 		differentRoot := common.HexToHash("0xdifferent")
 		for _, client := range clients {
@@ -419,31 +421,31 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 	})
 }
 
-func setupSuperValidatorTest(t *testing.T) (*SuperAgreementEnricher, *stubSuperNodeClient, *stubOutputMetrics) {
+func setupSuperValidatorTest(t *testing.T) (*SuperAgreementEnricher, *stubSuperRootProvider, *stubOutputMetrics) {
 	logger := testlog.Logger(t, log.LvlInfo)
-	client := &stubSuperNodeClient{derivedFromL1BlockNum: 0, superRoot: mockRootClaim}
+	client := &stubSuperRootProvider{derivedFromL1BlockNum: 0, superRoot: mockRootClaim}
 	metrics := &stubOutputMetrics{}
 	validator := NewSuperAgreementEnricher(logger, metrics, []SuperRootProvider{client}, clock.NewDeterministicClock(time.Unix(9824924, 499)))
 	return validator, client, metrics
 }
 
-func setupMultiSuperNodeTest(t *testing.T, numNodes int) (*SuperAgreementEnricher, []*stubSuperNodeClient, *stubOutputMetrics) {
+func setupMultiSuperRootTest(t *testing.T, numNodes int) (*SuperAgreementEnricher, []*stubSuperRootProvider, *stubOutputMetrics) {
 	logger := testlog.Logger(t, log.LvlInfo)
-	clients := make([]*stubSuperNodeClient, numNodes)
-	superNodeClients := make([]SuperRootProvider, numNodes)
+	clients := make([]*stubSuperRootProvider, numNodes)
+	providers := make([]SuperRootProvider, numNodes)
 	for i := range clients {
-		clients[i] = &stubSuperNodeClient{
+		clients[i] = &stubSuperRootProvider{
 			derivedFromL1BlockNum: 0,
 			superRoot:             mockRootClaim,
 		}
-		superNodeClients[i] = clients[i]
+		providers[i] = clients[i]
 	}
 	metrics := &stubOutputMetrics{}
-	validator := NewSuperAgreementEnricher(logger, metrics, superNodeClients, clock.NewDeterministicClock(time.Unix(9824924, 499)))
+	validator := NewSuperAgreementEnricher(logger, metrics, providers, clock.NewDeterministicClock(time.Unix(9824924, 499)))
 	return validator, clients, metrics
 }
 
-type stubSuperNodeClient struct {
+type stubSuperRootProvider struct {
 	requestedTimestamp    uint64
 	outputErr             error
 	notFound              bool
@@ -451,7 +453,7 @@ type stubSuperNodeClient struct {
 	superRoot             common.Hash
 }
 
-func (s *stubSuperNodeClient) SuperRootAtTimestamp(_ context.Context, timestamp uint64) (eth.SuperRootAtTimestampResponse, error) {
+func (s *stubSuperRootProvider) SuperRootAtTimestamp(_ context.Context, timestamp uint64) (eth.SuperRootAtTimestampResponse, error) {
 	s.requestedTimestamp = uint64(timestamp)
 	if s.outputErr != nil {
 		return eth.SuperRootAtTimestampResponse{}, s.outputErr
@@ -468,10 +470,10 @@ func (s *stubSuperNodeClient) SuperRootAtTimestamp(_ context.Context, timestamp 
 	}, nil
 }
 
-// TestSuperNodeEndpointTracking verifies that all endpoint tracking fields are properly populated
-func TestSuperNodeEndpointTracking(t *testing.T) {
+// TestSuperRootEndpointTracking verifies that all endpoint tracking fields are properly populated
+func TestSuperRootEndpointTracking(t *testing.T) {
 	t.Run("TrackErrorsCorrectly", func(t *testing.T) {
-		validator, clients, _ := setupMultiSuperNodeTest(t, 3)
+		validator, clients, _ := setupMultiSuperRootTest(t, 3)
 		clients[0].outputErr = errors.New("error1")
 		clients[1].outputErr = errors.New("error2")
 		clients[2].superRoot = mockRootClaim
@@ -499,7 +501,7 @@ func TestSuperNodeEndpointTracking(t *testing.T) {
 	})
 
 	t.Run("TrackNotFoundCount", func(t *testing.T) {
-		validator, clients, _ := setupMultiSuperNodeTest(t, 3)
+		validator, clients, _ := setupMultiSuperRootTest(t, 3)
 		clients[0].notFound = true
 		clients[1].notFound = true
 		clients[2].superRoot = mockRootClaim
@@ -524,7 +526,7 @@ func TestSuperNodeEndpointTracking(t *testing.T) {
 	})
 
 	t.Run("TrackSafeUnsafeCounts", func(t *testing.T) {
-		validator, clients, _ := setupMultiSuperNodeTest(t, 4)
+		validator, clients, _ := setupMultiSuperRootTest(t, 4)
 		// Two clients report safe (derivedFromL1BlockNum <= game.L1HeadNum)
 		clients[0].superRoot = mockRootClaim
 		clients[0].derivedFromL1BlockNum = 100 // Safe
@@ -557,7 +559,7 @@ func TestSuperNodeEndpointTracking(t *testing.T) {
 	})
 
 	t.Run("TrackDivergentSuperRoots", func(t *testing.T) {
-		validator, clients, _ := setupMultiSuperNodeTest(t, 3)
+		validator, clients, _ := setupMultiSuperRootTest(t, 3)
 		divergedRoot := common.HexToHash("0xdivergent")
 		clients[0].superRoot = mockRootClaim
 		clients[0].derivedFromL1BlockNum = 100
@@ -584,7 +586,7 @@ func TestSuperNodeEndpointTracking(t *testing.T) {
 	})
 
 	t.Run("TrackMixedAvailability", func(t *testing.T) {
-		validator, clients, _ := setupMultiSuperNodeTest(t, 3)
+		validator, clients, _ := setupMultiSuperRootTest(t, 3)
 		clients[0].notFound = true
 		clients[1].superRoot = mockRootClaim
 		clients[1].derivedFromL1BlockNum = 100
@@ -624,7 +626,7 @@ func TestSuperNodeEndpointTracking(t *testing.T) {
 		}
 
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
-		require.ErrorIs(t, err, ErrSuperNodeRpcRequired)
+		require.ErrorIs(t, err, ErrSuperRootRpcRequired)
 
 		// Verify all counts remain zero when no endpoints
 		require.Equal(t, 0, game.NodeEndpointTotalCount)

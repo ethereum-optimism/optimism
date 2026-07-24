@@ -508,8 +508,8 @@ var DeprecatedFlags = []cli.Flag{
 var Flags []cli.Flag
 
 var rpcDefaults = oprpc.CLIConfig{
-	ListenAddr:  "0.0.0.0", // TODO(#16487): Switch to 127.0.0.1
-	ListenPort:  9545,      // op-node defaults to a different port than ethereum EL (8545)
+	ListenAddr:  "0.0.0.0",
+	ListenPort:  9545, // op-node defaults to a different port than ethereum EL (8545)
 	EnableAdmin: false,
 }
 

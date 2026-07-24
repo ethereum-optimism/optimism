@@ -331,20 +331,9 @@ library Config {
         return vm.envOr("DEV_FEATURE__OPTIMISM_PORTAL_INTEROP", false);
     }
 
-    /// @notice Returns true if the development feature l2cm is enabled.
-    /// @dev Defaults to true: L2CM is the default genesis codepath. See TODO(#20084).
-    function devFeatureL2CM() internal view returns (bool) {
-        return vm.envOr("DEV_FEATURE__L2CM", true);
-    }
-
     /// @notice Returns true if the development feature ZK_DISPUTE_GAME is enabled.
     function devFeatureZkDisputeGame() internal view returns (bool) {
         return vm.envOr("DEV_FEATURE__ZK_DISPUTE_GAME", false);
-    }
-
-    /// @notice Returns true if the development feature cannon_kona is enabled.
-    function devFeatureCannonKona() internal view returns (bool) {
-        return vm.envOr("DEV_FEATURE__CANNON_KONA", false);
     }
 
     /// @notice Returns true if the development feature super root games migration is enabled.

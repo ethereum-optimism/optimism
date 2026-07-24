@@ -15,9 +15,6 @@ pub struct AggregationInputs {
     /// The latest L1 checkpoint head.
     pub latest_l1_checkpoint_head: B256,
 
-    /// The vkey of the range proof program
-    pub multi_block_vkey: [u32; 8],
-
     /// The address of the prover to commit to.
     pub prover_address: Address,
 }

@@ -16,6 +16,7 @@ When this happens, offer to submit the improvement to the relevant file in `docs
 ## Repository Overview
 
 - **Default branch**: `develop` (not `main`)
+- **Commit messages and PR titles**: use the [Scoped Commits](https://scopedcommits.com) format — `<scope>: <description>`, where the scope names the component or area changed (e.g. `op-node: handle unsafe head reorgs`). Do not use Conventional Commits type prefixes (`feat:`, `fix:`, `chore(scope):`, ...). See [CONTRIBUTING.md](CONTRIBUTING.md#commit-messages)
 - **Build system**: migrating from Make to [Just](https://github.com/casey/just) — shared justfile infra lives in `justfiles/`
 
 This repository contains multiple components spanning different technologies:
@@ -80,7 +81,7 @@ More detailed guidance for AI agents can be found in:
 - [docs/ai/devfeatures.md](docs/ai/devfeatures.md) - The `DevFeatures` bitmap system gating in-development smart contract features: where the bitmap is supplied, composed, propagated, and read. Only relevant for contract development and op-deployer — not needed for client (op-node / op-reth / kona) work
 - [docs/ai/acceptance-tests.md](docs/ai/acceptance-tests.md) - Building and running acceptance tests locally
 - [docs/ai/writing-acceptance-tests.md](docs/ai/writing-acceptance-tests.md) - Writing new acceptance tests: DSL patterns, naming, what to avoid
-- [docs/ai/opgeth-decoupling.md](docs/ai/opgeth-decoupling.md) - op-geth decoupling plan: consult when migrating OP Stack–specific code out of op-geth into `op-core/*` so the monorepo can depend on upstream go-ethereum (scope: op-node, op-service, op-batcher, op-proposer, op-challenger, op-faucet, op-supernode, cannon, op-e2e, op-acceptance-tests, op-devstack)
+- [docs/ai/opgeth-decoupling.md](docs/ai/opgeth-decoupling.md) - op-geth decoupling plan: consult when doing any op-geth decoupling work — migrating OP Stack–specific code out of op-geth into `op-core/*`, retiring op-geth-backed execution in tests/tooling, or removing fork-only API uses — so the monorepo can depend on upstream go-ethereum (scope: the whole monorepo — single go.mod; tracking issue #20257)
 
 ## External References
 

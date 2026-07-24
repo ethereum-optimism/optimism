@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -402,7 +403,7 @@ func CheckEIP7825DepositBypass(
 	}
 	logger.Info("EIP-7825-deposit: L1 deposit included", "block", l1Receipt.BlockNumber, "tx", l1Receipt.TxHash)
 
-	var l2DepositTx *types.DepositTx
+	var l2DepositTx *optypes.DepositTx
 	for _, log := range l1Receipt.Logs {
 		var unmarshalErr error
 		if l2DepositTx, unmarshalErr = derive.UnmarshalDepositLogEvent(log); unmarshalErr == nil {
@@ -416,7 +417,7 @@ func CheckEIP7825DepositBypass(
 		return 0, fmt.Errorf("L2 deposit tx gas: got %d, want %d", l2DepositTx.Gas, depositGasLimit)
 	}
 
-	l2DepositHash := types.NewTx(l2DepositTx).Hash()
+	l2DepositHash := l2DepositTx.Hash()
 	logger.Info("EIP-7825-deposit: waiting for L2 deposit receipt", "tx", l2DepositHash)
 	var l2Receipt *types.Receipt
 	for {

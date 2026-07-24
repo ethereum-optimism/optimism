@@ -28,7 +28,7 @@ Upgrade 19 introduces the following changes:
 
 * **New Kona absolute prestate:** ships an updated `cannon64-kona` absolute prestate hash embedding the latest chain configurations.
 
-* **OPCMv2:** Upgrade 19 is the first upgrade to use OPCMv2, the redesigned OP Contracts Manager. OPCMv2 has a new interface, please take a look at the [source code](https://github.com/ethereum-optimism/optimism/blob/c332a1bafb206f18561173eb13c31f1747f9aea4/packages/contracts-bedrock/src/L1/opcm/OPContractsManagerV2.sol#L38) for more information.
+* **OPCMv2:** Upgrade 19 is the first upgrade to use OPCMv2, the redesigned OP Contracts Manager. OPCMv2 has a new interface, please take a look at the [source code](https://github.com/ethereum-optimism/optimism/blob/c332a1bafb206f18561173eb13c31f1747f9aea4/packages/contracts-bedrock/src/L1/opcm/OPContractsManagerV2.sol#L38) (as of `c332a1b`) for more information.
 
 <Info>
   This upgrade uses OPCMv2, the new default OP Contracts Manager. Chain operators calling `OPCM.upgrade()` directly or using `op-deployer` should ensure they are targeting the correct OPCMv2 contract version.
@@ -79,8 +79,8 @@ Because Upgrade 19 includes hard fork changes (Osaka on L2 and Glamsterdam Defen
 
   **Chains in the superchain-registry** (e.g. `Soneium`, `Ink`, `Unichain`, `Mode`, `Metal`, `Zora`):
   The Karst activation timestamp is built into the updated releases — no manual timestamp configuration is needed. Make sure you are using the network flag so that op-node and op-reth load chain config from the superchain-registry:
-  * `op-node`: [`--network <network>`](/node-operators/reference/op-node-config#network) (e.g. `--network soneium-mainnet`, `--network op-sepolia`)
-  * `op-reth`: [`--chain <network>`](/node-operators/reference/op-reth-config#chain) (e.g. `--chain soneium`, `--chain unichain`)
+  * `op-node`: [`--network <network>`](/node-operators/reference/op-node-config#network-and-rollup-config) (e.g. `--network soneium-mainnet`, `--network op-sepolia`)
+  * `op-reth`: [`--chain <network>`](/rust/op-reth/cli/op-reth/node) (e.g. `--chain soneium`, `--chain unichain`)
 
   **Chains not in the superchain-registry:**
   Set the activation timestamp manually in each client's config:
@@ -120,12 +120,17 @@ Update the following components:
 * If your chain does not have the flag, the latest releases mean you are not affected and no action is required.
 * If your chain already activated Karst, it **must** use `keep_karst_upgrade_gas = true`. Some chains that have not yet activated Karst (including mainnet chains) also have the flag set — check the list below to see whether yours is affected.
 
-The chains with `keep_karst_upgrade_gas = true` (the [canonical list](https://github.com/ethereum-optimism/superchain-registry/pull/1259/files)) are:
+The chains with `keep_karst_upgrade_gas = true` are:
 
-* **Mainnet:** `OP`, `Ink`, `Metal`, `Mode`, `Soneium`, `Unichain`, `Zora`
-* **Sepolia:** `OP`, `Ink`, `Lisk`, `Metal`, `Mode`, `Soneium (Minato)`, `Unichain`, `Zora`
 
-Sepolia chains have already activated Karst, so the action is due now.
+* **Mainnet:** `OP`, `Ink`, `Soneium (Minato)`, `Unichain`
+* **Sepolia:** `OP`, `Ink`, `Lisk`, `Metal`, `Mode`, `Soneium`, `Unichain`, `Zora`
+
+Metal, Mode, and Zora Mainnet did not have this value configured on their sequencers during Karst activation.
+So they inherited the default value of `keep_karst_upgrade_gas = false`.
+
+Node operators will not be able to utilize the `--network` flag on `op-node` until a subsequent node release is cut with these changes being [updated](https://github.com/ethereum-optimism/superchain-registry/pull/1281) in the superchain-registry.
+
 
 #### Restoring the gas limit
 

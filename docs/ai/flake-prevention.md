@@ -338,6 +338,27 @@ require.NoError(t, g.Wait())
 
 **Examples:** [#20200](https://github.com/ethereum-optimism/optimism/pull/20200). **Lint:** `flake-markflaky-without-issue`.
 
+### F15 — Selecting a free port before starting the service
+
+Finding a free port and then passing its number to another process is inherently a time-of-check/time-of-use (TOCTOU) race. Closing the probe listener releases the port; another process can bind it before the service starts. Retries reduce the probability of failure but do not make the allocation safe.
+
+```go
+// BAD — the port is no longer reserved after listener.Close().
+listener, err := net.Listen("tcp", "127.0.0.1:0")
+require.NoError(t, err)
+port := listener.Addr().(*net.TCPAddr).Port
+require.NoError(t, listener.Close())
+startProcess("--port=" + strconv.Itoa(port))
+
+// GOOD — the service asks the OS to select a port during its actual bind.
+startProcess("--port=0")
+addr := waitForBoundAddressFromStartupLog()
+```
+
+Prefer binding port `0` in the service that will own the socket, then discover the bound address from the live listener or structured startup output. If the service cannot report its bound address, add that capability or transfer ownership of an already-open listener; do not preselect and release a port.
+
+**Examples:** [#21872](https://github.com/ethereum-optimism/optimism/pull/21872). **Lint:** no (cross-process lifecycle).
+
 ## Reviewer checklist
 
 When reviewing a PR that touches `op-acceptance-tests/` or `op-devstack/`, ask:
@@ -354,8 +375,9 @@ When reviewing a PR that touches `op-acceptance-tests/` or `op-devstack/`, ask:
 - [ ] **F10**: Multiple defers — does the LIFO order produce a deadlock? Collapse to one closure.
 - [ ] **F11**: Does the preset run components the test does not exercise? Consider an opt-out.
 - [ ] **F12**: Any "first matching event" logic on a stream that can supersede entries?
-- [ ] **F13**: Concurrent operations sharing nonces, ports, or other unique resources?
+- [ ] **F13**: Concurrent transaction submissions sharing a nonce source?
 - [ ] **F14**: New `MarkFlaky` → linked C-flake issue and owner?
+- [ ] **F15**: Any code selecting a free port, closing the listener, then starting a service on that port?
 
 ## When a flake report comes in
 

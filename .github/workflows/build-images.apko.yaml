@@ -1,0 +1,123 @@
+# Stage 1: plan -> melange matrix from .github/images.apko.json
+# Stage 2: apko matrix from same image config.
+# Stage 3: smoke test matrix from image smoke_test entries.
+name: build-images.apko
+
+on:
+  push:
+    branches:
+      - develop
+    tags:
+      - "*/v*"
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  SOURCE_DATE_EPOCH: 0
+  REGISTRY: us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus
+
+jobs:
+  plan:
+    name: plan
+    runs-on: ubuntu-slim
+    permissions:
+      contents: read
+    outputs:
+      melange_matrix_json: ${{ steps.plan.outputs.melange_matrix_json }}
+      apko_matrix_json: ${{ steps.plan.outputs.apko_matrix_json }}
+      smoke_matrix_json: ${{ steps.plan.outputs.smoke_matrix_json }}
+      has_builds: ${{ steps.plan.outputs.has_builds }}
+      is_release: ${{ steps.plan.outputs.is_release }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e # v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'schedule' && 'develop' || '' }}
+
+      - name: Plan melange, apko, and smoke matrices
+        id: plan
+        uses: ethereum-optimism/factory/actions/apko-plan@303276b8684655b2af1e878f0317c522826b5857
+        with:
+          config: .github/images.apko.json
+
+  melange:
+    name: melange (${{ matrix.stack }}, ${{ matrix.arch }})
+    needs: plan
+    if: needs.plan.outputs.has_builds == 'true' && needs.plan.outputs.melange_matrix_json != '[]'
+    strategy:
+      fail-fast: true
+      matrix:
+        include: ${{ fromJson(needs.plan.outputs.melange_matrix_json) }}
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    uses: ethereum-optimism/factory/.github/workflows/melange-build.yaml@303276b8684655b2af1e878f0317c522826b5857
+    with:
+      stack: ${{ matrix.stack }}
+      arch: ${{ matrix.arch }}
+      runner: ${{ matrix.runner }}
+      melange-config: ${{ matrix.melange_config }}
+      source-repository: ${{ matrix.source_repository }}
+      source-ref: ${{ matrix.source_ref }}
+      source-path: ${{ matrix.source_path }}
+      checkout-source: ${{ matrix.checkout_source }}
+      source-submodules: ${{ matrix.source_submodules }}
+      use-gha-cache: ${{ matrix.use_gha_cache }}
+      cache-key-files: ${{ matrix.cache_key_files }}
+      cargo-profile: maxperf
+
+  apko:
+    name: apko (${{ matrix.service }})
+    needs: [plan, melange]
+    if: |
+      always() &&
+      needs.plan.outputs.has_builds == 'true' &&
+      (needs.melange.result == 'success' || needs.melange.result == 'skipped')
+    strategy:
+      fail-fast: true
+      matrix:
+        include: ${{ fromJson(needs.plan.outputs.apko_matrix_json) }}
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+      actions: read
+    uses: ethereum-optimism/factory/.github/workflows/apko-publish.yaml@303276b8684655b2af1e878f0317c522826b5857
+    with:
+      service: ${{ matrix.service }}
+      needs-melange-apks: ${{ matrix.needs_melange_apks }}
+      registry: us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus
+      publish-tag: ${{ matrix.publish_tag }}
+      archs: ${{ matrix.archs }}
+
+  smoke-test:
+    name: smoke test (${{ matrix.service }}, ${{ matrix.arch }})
+    needs: [plan, apko]
+    if: |
+      always() &&
+      needs.plan.outputs.has_builds == 'true' &&
+      needs.plan.outputs.smoke_matrix_json != '[]' &&
+      needs.apko.result == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.plan.outputs.smoke_matrix_json) }}
+    permissions:
+      contents: read
+      id-token: write
+    uses: ethereum-optimism/factory/.github/workflows/apko-smoke-test.yaml@303276b8684655b2af1e878f0317c522826b5857
+    with:
+      service: ${{ matrix.service }}
+      registry: us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus
+      arch: ${{ matrix.arch }}
+      runner: ${{ matrix.runner }}
+      smoke-test: ${{ matrix.smoke_test }}

@@ -145,6 +145,9 @@ func TestSDMEnabledPayloadAndReplayMatch(gt *testing.T) {
 	t.Require().Greater(len(postExecTx.Input), 0, "post-exec tx input must not be empty")
 	t.Require().Equal(uint64(sdmpkg.SDMTxType), uint64(postExecTx.Type), "post-exec tx type must be 0x7D")
 
+	// Tx-hash parity: op-reth must serve and index under the canonical keccak256(0x7D || Data) hash.
+	assertPostExecTxHashIsCanonical(t, sys.L2EL, postExecTx)
+
 	payload, err := sdmpkg.DecodePayload(postExecTx.Input)
 	t.Require().NoError(err, "post-exec payload must decode")
 	t.Require().Equal(sdmpkg.PostExecPayloadVersion, payload.Version, "post-exec payload version must be 1")

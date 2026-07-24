@@ -137,7 +137,7 @@ func buildSDMRethSystem(t devtest.T, interopAtGenesis bool, isolateVerifier bool
 
 	// The protocol gate (Interop hardfork) is already scheduled above when
 	// interopAtGenesis is true. Local PostExec production additionally requires the
-	// sequencer's op-reth to be opted in via admin_setSdmPostExecOptIn; nothing else
+	// sequencer's op-reth to be opted in via admin_setOperatorSdmOptIn; nothing else
 	// flips this on. Verifier nodes do not need to opt in — they accept PostExec
 	// txs by chain spec rule alone.
 	if interopAtGenesis {

@@ -18,7 +18,7 @@ RUN apt-get -o Acquire::Retries=8 update && apt-get -o Acquire::Retries=8 instal
   pkg-config
 
 # Install rust
-ENV RUST_VERSION=1.94
+ENV RUST_VERSION=1.95
 RUN curl https://sh.rustup.rs -sSf --retry 5 --retry-all-errors --retry-delay 2 | bash -s -- -y --default-toolchain ${RUST_VERSION} --profile minimal
 ENV PATH="/root/.cargo/bin:${PATH}"
 
@@ -82,6 +82,21 @@ COPY --from=planner /app/recipe.json recipe.json
 
 # Build dependencies - this is the caching Docker layer!
 RUN RUSTFLAGS="-C target-cpu=generic" cargo chef cook --bin "${BIN_TARGET}" --locked --profile "${BUILD_PROFILE}" --recipe-path recipe.json
+
+# Build metadata for the version string, read at compile time via `option_env!`
+# in kona-node (kona/bin/node/src/version.rs). Declared here — after the
+# `cargo chef cook` dependency layer — so that a new commit invalidates only the
+# app build below, not the cached dependency layer. Only the kona-node bake
+# target passes these; other apps built from this shared Dockerfile leave them
+# empty (and don't read them). GIT_VERSION is the release tag and the source of
+# truth for the reported version.
+ARG GIT_VERSION=""
+ENV GIT_VERSION=$GIT_VERSION
+ARG GIT_COMMIT=""
+ENV GIT_COMMIT=$GIT_COMMIT
+ARG GIT_DATE=""
+ENV GIT_DATE=$GIT_DATE
+ENV BUILD_PROFILE=$BUILD_PROFILE
 
 # Build application. This step will systematically trigger a cache invalidation if the source code changes.
 COPY --from=app-setup /workspace .

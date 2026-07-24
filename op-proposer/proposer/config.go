@@ -17,17 +17,17 @@ import (
 
 var (
 	ErrMissingRollupRpc    = errors.New("missing rollup rpc")
-	ErrMissingSuperNodeRpc = errors.New("missing supernode rpc")
-	ErrMissingSource       = errors.New("missing proposal source rpc (rollup or supernode)")
-	ErrConflictingSource   = errors.New("must specify exactly one of rollup rpc or supernode rpc")
+	ErrMissingSuperRootRpc = errors.New("missing super root rpc")
+	ErrMissingSource       = errors.New("missing proposal source rpc (rollup or super root)")
+	ErrConflictingSource   = errors.New("must specify exactly one of rollup rpc or super root rpc")
 
-	// preInteropGameTypes are game types that enforce having a rollup rpc.
-	// It is ok if this list isn't complete, unknown game types will allow either rollup or supernode.
+	// preInteropGameTypes are game types that enforce having a rollup RPC.
+	// It is ok if this list isn't complete, unknown game types will allow either rollup or super root RPCs.
 	// We just want to reduce foot-guns during the migration period.
 	preInteropGameTypes = []uint32{0, 1, 2, 3, 6, 254, 255, 1337}
 
-	// postInteropGameTypes are game types that enforce having a supernode rpc.
-	// It is ok if this list isn't complete, unknown game types will allow either rollup or supernode.
+	// postInteropGameTypes are game types that enforce having a super root RPC.
+	// It is ok if this list isn't complete, unknown game types will allow either rollup or super root RPCs.
 	// We just want to reduce foot-guns during the migration period.
 	postInteropGameTypes = []uint32{4, 5}
 )
@@ -44,9 +44,9 @@ type CLIConfig struct {
 	// RollupRpc is the HTTP provider URL for the rollup node. A comma-separated list enables the active rollup provider.
 	RollupRpc string
 
-	// SuperNodeRpcs is the list of HTTP provider URLs for supernode instances.
+	// SuperRootRpcs is the list of HTTP provider URLs for super root RPC sources.
 	// Mutually exclusive with RollupRpc.
-	SuperNodeRpcs []string
+	SuperRootRpcs []string
 
 	// PollInterval is the delay between periodic checks on whether it is time to load an output root and propose it.
 	PollInterval time.Duration
@@ -109,19 +109,19 @@ func (c *CLIConfig) Check() error {
 	if c.RollupRpc != "" {
 		sourceCount++
 	}
-	if len(c.SuperNodeRpcs) != 0 {
+	if len(c.SuperRootRpcs) != 0 {
 		sourceCount++
 	}
 	if sourceCount > 1 {
 		return ErrConflictingSource
 	}
-	// Require rollup RPC for pre interop game types
+	// Require rollup RPC for pre interop game types.
 	if c.DGFAddress != "" && slices.Contains(preInteropGameTypes, c.DisputeGameType) && c.RollupRpc == "" {
 		return ErrMissingRollupRpc
 	}
-	// Require supernode RPC for post interop game types
-	if c.DGFAddress != "" && slices.Contains(postInteropGameTypes, c.DisputeGameType) && len(c.SuperNodeRpcs) == 0 {
-		return ErrMissingSuperNodeRpc
+	// Require super root RPC for post interop game types.
+	if c.DGFAddress != "" && slices.Contains(postInteropGameTypes, c.DisputeGameType) && len(c.SuperRootRpcs) == 0 {
+		return ErrMissingSuperRootRpc
 	}
 	// For unknown game types, allow any source, but require at least one.
 	if sourceCount == 0 {
@@ -136,7 +136,7 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 	return &CLIConfig{
 		L1EthRpc:                     ctx.String(flags.L1EthRpcFlag.Name),
 		RollupRpc:                    ctx.String(flags.RollupRpcFlag.Name),
-		SuperNodeRpcs:                ctx.StringSlice(flags.SuperNodeRpcsFlag.Name),
+		SuperRootRpcs:                ctx.StringSlice(flags.SuperRootRpcsFlag.Name),
 		PollInterval:                 ctx.Duration(flags.PollIntervalFlag.Name),
 		TxMgrConfig:                  txmgr.ReadCLIConfig(ctx),
 		AllowNonFinalized:            ctx.Bool(flags.AllowNonFinalizedFlag.Name),

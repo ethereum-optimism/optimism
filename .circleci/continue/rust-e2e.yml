@@ -24,6 +24,9 @@ parameters:
   c-run_rust_e2e_gate_skip:
     type: boolean
     default: false
+  c-run_scheduled_sp1_elf_smoke:
+    type: boolean
+    default: false
 
 # ============================================================================
 # RUST E2E JOBS
@@ -183,6 +186,144 @@ jobs:
           path: rust/kona/tests/proofs/tmp/testlogs
           when: always
 
+  # Build SP1 guest ELFs and persist them for future rust-e2e consumers.
+  kona-build-sp1-elfs:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: large.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+          enable-mise-cache: true
+      - rust-prepare-and-restore-cache: &sp1-guest-checks-cache-args
+          directory: rust/kona/sp1/programs
+          init_superchain_submodule: false
+      - restore_cache:
+          name: Restore SP1 toolchain cache
+          keys:
+            # cargo-prove selects the matching native toolchain. An SP1 pin
+            # update changes this checksum and forces a fresh installation.
+            - sp1-toolchain-v1-{{ arch }}-{{ checksum "mise.toml" }}
+      - run:
+          name: Install or link SP1 toolchain
+          command: |
+            install_sp1_toolchain() {
+              (cd rust/kona/sp1 && just install-sp1-toolchain)
+            }
+
+            mise_sp1_version="$(yq -r '.tools."github:succinctlabs/sp1".version' mise.toml)"
+            guest_sp1_version="$(yq -r '.workspace.dependencies."sp1-zkvm".version' rust/kona/sp1/programs/Cargo.toml)"
+            sp1_tag="$(cd rust/kona/sp1 && just --evaluate SP1_TAG)"
+            if [ "$mise_sp1_version" != "$guest_sp1_version" ] || [ "$sp1_tag" != "v${mise_sp1_version}" ]; then
+              echo "ERROR: SP1 versions in mise.toml, programs/Cargo.toml, and the justfile are out of sync" >&2
+              exit 1
+            fi
+
+            toolchain_dir="$(find "$HOME/.sp1/toolchains" -mindepth 1 -maxdepth 1 -type d -print -quit 2>/dev/null || true)"
+            if [ -n "$toolchain_dir" ]; then
+              rustup toolchain remove succinct || true
+              if rustup toolchain link succinct "$toolchain_dir" && rustc +succinct --version >/dev/null; then
+                echo "Restored SP1 toolchain from $toolchain_dir"
+              else
+                echo "Cached SP1 toolchain is invalid; reinstalling"
+                install_sp1_toolchain
+              fi
+            else
+              install_sp1_toolchain
+            fi
+            rustc +succinct --version
+      - save_cache:
+          name: Save SP1 toolchain cache
+          key: sp1-toolchain-v1-{{ arch }}-{{ checksum "mise.toml" }}
+          paths:
+            - ~/.sp1/toolchains
+      - run:
+          name: Build SP1 guest ELFs
+          working_directory: rust/kona/sp1
+          no_output_timeout: 40m
+          command: just build-elfs-native
+      - store_artifacts:
+          path: rust/kona/sp1/elf
+      - persist_to_workspace:
+          root: .
+          paths:
+            - rust/kona/sp1/elf/
+      - run:
+          name: Test SP1 guest programs
+          working_directory: rust
+          environment:
+            RUSTFLAGS: -Dwarnings
+          command: just test-sp1-guest
+      - run:
+          name: Lint SP1 guest programs
+          working_directory: rust
+          environment:
+            RUSTFLAGS: -Dwarnings
+          command: just lint-sp1-guest
+      - run:
+          name: Check + test the range-vkeys crate
+          working_directory: rust
+          environment:
+            RUSTFLAGS: -Dwarnings
+          command: just check-range-vkeys
+      - rust-save-build-cache: *sp1-guest-checks-cache-args
+
+  sp1-super-range-elf-smoke:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    # Full SP1 ELF execution peaked near 13 GiB locally. Keep it isolated on a
+    # 32 GB runner instead of competing with parallel acceptance tests.
+    resource_class: 2xlarge.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+          enable-mise-cache: true
+      - attach_workspace:
+          at: .
+      - go-restore-cache:
+          namespace: sp1-super-range-elf-smoke
+      - run:
+          name: Run SP1 super-range ELF smoke
+          no_output_timeout: 30m
+          command: |
+            ROOT_DIR="$(pwd)"
+            RESULTS_DIR="$ROOT_DIR/tmp/test-results"
+            LOG_DIR="$ROOT_DIR/tmp/testlogs/sp1-super-range-elf"
+            mkdir -p "$RESULTS_DIR" "$LOG_DIR"
+
+            export DEVSTACK_L2CL_KIND=op-node
+            export DEVSTACK_L2EL_KIND=op-reth
+            export RUST_BINARY_PATH_OP_RETH="$ROOT_DIR/rust/target/release/op-reth"
+            export RUST_BINARY_PATH_KONA_HOST="$ROOT_DIR/rust/target/release/kona-host"
+            export KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH="$ROOT_DIR/.circleci-cache/rust-binaries/kona-sp1-super-range-executor"
+            export KONA_SP1_ELF_DIR="$ROOT_DIR/rust/kona/sp1/elf"
+
+            test -x "$RUST_BINARY_PATH_OP_RETH"
+            test -x "$RUST_BINARY_PATH_KONA_HOST"
+            test -x "$KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH"
+            test -x "$ROOT_DIR/cannon/bin/cannon"
+            test -s "$ROOT_DIR/rust/kona/prestate-artifacts-cannon-interop/prestate.bin.gz"
+            test -s "$KONA_SP1_ELF_DIR/super-range-elf"
+
+            gotestsum \
+              --format=testname \
+              --junitfile="$RESULTS_DIR/sp1-super-range-elf.xml" \
+              --jsonfile="$LOG_DIR/go-test.json" \
+              -- \
+              -count=1 \
+              -timeout=30m \
+              -run '^TestSP1SuperRangeELFExecutionValidCrossChainMessageSmoke$' \
+              ./op-acceptance-tests/tests/interop/proofs/sp1
+      - go-save-cache:
+          namespace: sp1-super-range-elf-smoke
+      - store_test_results:
+          path: tmp/test-results
+      - store_artifacts:
+          path: tmp/testlogs/sp1-super-range-elf
+          when: always
+      - notify-failures-on-develop:
+          mentions: "@proofs-team"
+
   required-rust-e2e:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
@@ -226,7 +367,7 @@ workflows:
           matrix:
             parameters:
               devnet_config:
-                ["simple-kona", "simple-kona-geth", "simple-kona-sequencer"]
+                ["simple-kona", "simple-kona-sequencer"]
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
@@ -255,17 +396,21 @@ workflows:
             - contracts-bedrock-build
           context:
             - circleci-repo-readonly-authenticated-github-token
+      - kona-build-sp1-elfs:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
       # -----------------------------------------------------------------------
       # Required gate — fans in on all E2E test jobs
       # -----------------------------------------------------------------------
       - required-rust-e2e:
           requires:
             - rust-e2e-simple-kona: terminal
-            - rust-e2e-simple-kona-geth: terminal
             - rust-e2e-simple-kona-sequencer: terminal
             - rust-e2e-restart: terminal
             - op-reth-e2e-sysgo-tests: terminal
             - kona-proof-action-single: terminal
+            - kona-build-sp1-elfs: terminal
           context:
             - circleci-api-token
   rust-e2e-gate-skip:
@@ -275,3 +420,59 @@ workflows:
           always-succeed: true
           context:
             - circleci-api-token
+
+  scheduled-sp1-elf-smoke:
+    when: << pipeline.parameters.c-run_scheduled_sp1_elf_smoke >>
+    jobs:
+      - prep-go-modules:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - prep-superchain:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - contracts-bedrock-build:
+          build_args: --deny-warnings --skip test
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - prep-go-modules
+      - rust-build-binary:
+          # The default Rust workspace members include both op-reth and kona-host,
+          # which the shared proofs preset starts or configures.
+          name: sp1-elf-smoke-rust-binaries
+          directory: rust
+          profile: release
+          persist_to_workspace: true
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
+      - rust-build-sp1-super-range-executor:
+          name: sp1-elf-smoke-executor
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
+      - kona-build-sp1-elfs:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
+      - cannon-prestate:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - go-binaries-for-sysgo:
+          requires:
+            - prep-go-modules
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - sp1-super-range-elf-smoke:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - slack
+          requires:
+            - prep-go-modules
+            - prep-superchain
+            - contracts-bedrock-build
+            - sp1-elf-smoke-rust-binaries
+            - sp1-elf-smoke-executor
+            - kona-build-sp1-elfs
+            - cannon-prestate
+            - go-binaries-for-sysgo

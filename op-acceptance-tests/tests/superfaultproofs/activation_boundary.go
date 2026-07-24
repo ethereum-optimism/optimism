@@ -1,11 +1,9 @@
 package superfaultproofs
 
 import (
-	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // RunInteropActivationBoundaryTest verifies that the fault proof system
@@ -17,7 +15,7 @@ import (
 // The system must be configured with a non-zero interop activation offset
 // (via WithSuggestedInteropActivationOffset) so that early blocks are
 // pre-interop and later blocks are post-interop.
-func RunInteropActivationBoundaryTest(t devtest.T, sys *presets.SimpleInterop) {
+func RunInteropActivationBoundaryTest(t devtest.T, sys *presets.SimpleInterop, runners ...ProofRunner) {
 	t.Require().NotNil(sys.SuperRoots, "supernode is required for this test")
 
 	chains := orderedChains(sys)
@@ -97,17 +95,9 @@ func RunInteropActivationBoundaryTest(t devtest.T, sys *presets.SimpleInterop) {
 		},
 	}
 
-	challengerCfg := sys.L2ChainA.Escape().L2Challengers()[0].Config()
-	gameDepth := sys.DisputeGameFactory().GameImpl(gameTypes.SuperCannonKonaGameType).SplitDepth()
-
-	for _, test := range tests {
-		t.Run(test.Name+"-fpp", func(t devtest.T) {
-			runKonaInteropProgram(t, challengerCfg.CannonKona, test.L1Head.Hash,
-				test.AgreedClaim, crypto.Keccak256Hash(test.DisputedClaim),
-				test.ClaimTimestamp, test.ExpectValid)
-		})
-		t.Run(test.Name+"-challenger", func(t devtest.T) {
-			runChallengerProviderTest(t, sys.SuperRoots.QueryAPI(), gameDepth, startTimestamp, test.ClaimTimestamp, test)
-		})
-	}
+	runScenarioProofs(t, sys, &scenarioProofData{
+		fpvmTransitions:    tests,
+		fpvmStartTimestamp: startTimestamp,
+		zkCheckpoint:       newZKCheckpointForRunners(t, sys, endTimestamp, false, runners),
+	}, runners...)
 }

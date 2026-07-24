@@ -1,14 +1,15 @@
 ---
 title: Migrating to permissionless fault proofs on OP Stack
-description: A high-level guide for transitioning from permissioned to permissionless fault proofs on an OP Stack.
+description: "Migrate your OP Stack chain from permissioned to permissionless fault proofs: configure the dispute components, deploy the contracts with OPCM, test the off-chain agents, and switch the respected game type."
+diataxis: how-to
 audit-source:
   - op-challenger/flags/flags.go
   - op-challenger/game/types/game_type.go
   - op-challenger/cmd/run_trace.go
 ---
 
-This guide provides a high-level overview for chain operators looking to transition their OP Stack from permissioned to permissionless fault proofs.
-It's designed to be accessible for technical decision makers while providing sufficient detail for implementation teams.
+This guide shows you how to transition your OP Stack chain from permissioned to permissionless fault proofs.
+It walks chain operators through the four migration phases: configuring the dispute components, deploying the smart contracts with OPCM, testing the off-chain agents, and switching the respected game type.
 
 ## Overview
 
@@ -21,7 +22,7 @@ This migration involves several key components:
 *   Configuring security-critical dispute [monitoring services](/chain-operators/tools/chain-monitoring)
 *   Deploying and configuring smart contracts using [op-deployer](/chain-operators/tools/op-deployer/overview)
 *   Testing the new system before activation
-*   Setting the respected game type to permissionless fault proofs, specifically using the [`FaultDisputeGame`](https://github.com/ethereum-optimism/optimism/blob/6e563de4a847c54ddd4e6d2e38bc21e8f6067680/packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol)
+*   Setting the respected game type to permissionless fault proofs, specifically using the [`FaultDisputeGame`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol)
 
 ## Prerequisites
 

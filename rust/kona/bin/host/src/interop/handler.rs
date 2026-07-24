@@ -343,7 +343,7 @@ impl HintHandler for InteropHintHandler {
             HintType::L2StateNode => {
                 ensure!(hint.data.len() == 40, "Invalid hint data length");
 
-                let hash: B256 = hint.data.as_ref().try_into()?;
+                let hash = B256::from_slice(&hint.data[..32]);
                 let chain_id = u64::from_be_bytes(hint.data[32..40].try_into()?);
 
                 // Fetch the preimage from the L2 chain provider.

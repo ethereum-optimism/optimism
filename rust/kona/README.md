@@ -33,7 +33,7 @@ Run Kona commands from `rust/kona`:
 - `just test-docs`: test documentation examples.
 
 The Rust toolchain and MSRV are pinned in [`../rust-toolchain.toml`](../rust-toolchain.toml).
-Release instructions live in [`RELEASES.md`](./RELEASES.md).
+Release the kona crates from `rust/` with `just release kona <version>` (see the recipe in [`../justfile`](../justfile)).
 
 ## Links
 

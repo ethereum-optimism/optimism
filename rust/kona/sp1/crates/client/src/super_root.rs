@@ -211,8 +211,8 @@ pub enum SuperInteropOutputs {
 /// Range program proofs are supplied separately through SP1 stdin with `write_proof`, in the same
 /// order as these public range program outputs: first all range-mode proofs, then all
 /// consolidation-mode proofs.
-/// This typed input carries the range-program public outputs and vkey that the aggregation program
-/// uses to verify those proof-stream entries.
+/// This typed input carries the range-program public outputs that the aggregation program uses to
+/// verify those proof-stream entries against its embedded verification key.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SuperAggregationInputs {
     /// L1 head committed to by `ZKDisputeGame`.
@@ -232,11 +232,6 @@ pub struct SuperAggregationInputs {
     /// Public outputs from verified consolidation-mode proofs, ordered to match the proof
     /// stream after the range-mode proofs.
     pub consolidation_outputs: Vec<SuperConsolidationOutputs>,
-    /// Interim dynamically supplied range program verification key.
-    ///
-    /// This is development-only until the range vkey is embedded in the aggregation program
-    /// See <https://github.com/ethereum-optimism/optimism/issues/21412/>
-    pub range_vkey: [u32; 8],
 }
 
 sol! {
@@ -282,6 +277,9 @@ impl SuperAggregationInputs {
             });
         }
 
+        // TODO(#21700): Bind the configured chain universe and timestamp-indexed activation
+        // schedule, including an authenticated pre-activation output root for newly activated
+        // chains.
         let chain_ids = self
             .starting_super_root_proof
             .super_root
@@ -657,6 +655,15 @@ pub enum SuperRootError {
         /// Chain ID from the claimed super-root proof.
         claimed_chain_id: U256,
     },
+    /// Consolidation inputs and claimed super-root proof disagree on output root.
+    MismatchedConsolidationOutputRoot {
+        /// Chain ID whose output root mismatched.
+        chain_id: U256,
+        /// Optimistic output root supplied to consolidation.
+        optimistic_output_root: B256,
+        /// Output root committed by the claimed super-root proof.
+        claimed_output_root: B256,
+    },
 }
 
 impl core::fmt::Display for SuperRootError {
@@ -761,6 +768,14 @@ impl core::fmt::Display for SuperRootError {
                     "consolidation optimistic chain ID {optimistic_chain_id} does not match claimed chain ID {claimed_chain_id}"
                 )
             }
+            Self::MismatchedConsolidationOutputRoot {
+                chain_id,
+                optimistic_output_root,
+                claimed_output_root,
+            } => write!(
+                f,
+                "consolidation optimistic output root {optimistic_output_root} for chain {chain_id} does not match claimed output root {claimed_output_root}"
+            ),
         }
     }
 }
@@ -1083,14 +1098,15 @@ fn ensure_matching_consolidation_chains(
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::{Address, B256, U256, address, b256, hex};
+    use alloy_primitives::{Address, B256, U256, b256, hex};
+
+    use crate::test_utils::valid_aggregation_inputs;
 
     use super::{
-        SuperAggregationInputs, SuperConsolidationInputs, SuperConsolidationOutputs,
-        SuperConsolidationTransition, SuperConsolidationTransitionInput, SuperInteropInputs,
-        SuperOptimisticBlock, SuperOutputRoot, SuperRangeInputs, SuperRangeOutputs,
-        SuperRangeTransition, SuperRootError, SuperRootProof, TimestampSpan,
-        encode_super_root_proof, ensure_strictly_increasing_chains, hash_super_root_proof,
+        SuperConsolidationInputs, SuperConsolidationTransitionInput, SuperInteropInputs,
+        SuperOptimisticBlock, SuperOutputRoot, SuperRangeInputs, SuperRangeTransition,
+        SuperRootError, SuperRootProof, TimestampSpan, encode_super_root_proof,
+        ensure_strictly_increasing_chains, hash_super_root_proof,
     };
 
     fn output(chain_id: u64, fill: u8) -> SuperOutputRoot {
@@ -1105,6 +1121,10 @@ mod tests {
         }
     }
 
+    fn previous_proof(timestamp: u64) -> SuperRootProof {
+        SuperRootProof::new(timestamp, vec![output(10, 0x01), output(20, 0x02)])
+    }
+
     fn transition(
         timestamp: u64,
         chain_id: u64,
@@ -1114,74 +1134,6 @@ mod tests {
         SuperRangeTransition {
             timestamp,
             optimistic_block: optimistic(chain_id, block_fill, output_fill),
-        }
-    }
-
-    fn consolidation_transition(
-        timestamp: u64,
-        optimistic_blocks: Vec<SuperOptimisticBlock>,
-        super_root_fill: u8,
-    ) -> SuperConsolidationTransition {
-        SuperConsolidationTransition {
-            timestamp,
-            optimistic_blocks,
-            super_root: B256::from([super_root_fill; 32]),
-        }
-    }
-
-    fn range_vkey() -> [u32; 8] {
-        [1, 2, 3, 4, 5, 6, 7, 8]
-    }
-
-    fn valid_aggregation_inputs() -> SuperAggregationInputs {
-        let starting_super_root_proof =
-            SuperRootProof::new(99, vec![output(10, 0x01), output(20, 0x02)]);
-        let starting_root_hash =
-            hash_super_root_proof(&starting_super_root_proof).expect("starting root hashes");
-        let final_super_root = B256::from([0x55; 32]);
-        let timestamp_100 = vec![optimistic(10, 0x11, 0x12), optimistic(20, 0x21, 0x22)];
-        let timestamp_101 = vec![optimistic(10, 0x31, 0x32), optimistic(20, 0x41, 0x42)];
-
-        SuperAggregationInputs {
-            l1_head: B256::from([0x99; 32]),
-            starting_root_hash,
-            starting_super_root_proof,
-            root_claim: final_super_root,
-            l2_sequence_number: 101,
-            prover: address!("0x1234567890123456789012345678901234567890"),
-            range_outputs: vec![
-                SuperRangeOutputs {
-                    span: TimestampSpan::new(100, 100).expect("valid span"),
-                    l1_head: B256::from([0x99; 32]),
-                    previous_super_roots: vec![starting_root_hash],
-                    transitions: vec![
-                        SuperRangeTransition { timestamp: 100, optimistic_block: timestamp_100[0] },
-                        SuperRangeTransition { timestamp: 100, optimistic_block: timestamp_100[1] },
-                    ],
-                },
-                SuperRangeOutputs {
-                    span: TimestampSpan::new(101, 101).expect("valid span"),
-                    l1_head: B256::from([0x99; 32]),
-                    previous_super_roots: vec![B256::from([0x44; 32])],
-                    transitions: vec![
-                        SuperRangeTransition { timestamp: 101, optimistic_block: timestamp_101[0] },
-                        SuperRangeTransition { timestamp: 101, optimistic_block: timestamp_101[1] },
-                    ],
-                },
-            ],
-            consolidation_outputs: vec![
-                SuperConsolidationOutputs {
-                    span: TimestampSpan::new(100, 100).expect("valid span"),
-                    previous_super_root: starting_root_hash,
-                    transitions: vec![consolidation_transition(100, timestamp_100, 0x44)],
-                },
-                SuperConsolidationOutputs {
-                    span: TimestampSpan::new(101, 101).expect("valid span"),
-                    previous_super_root: B256::from([0x44; 32]),
-                    transitions: vec![consolidation_transition(101, timestamp_101, 0x55)],
-                },
-            ],
-            range_vkey: range_vkey(),
         }
     }
 
@@ -1291,6 +1243,53 @@ mod tests {
     }
 
     #[test]
+    fn aggregation_inputs_reject_timestamp_coverage_gaps() {
+        let mut missing_consolidation_timestamp = valid_aggregation_inputs();
+        missing_consolidation_timestamp.consolidation_outputs.pop();
+        assert_eq!(
+            missing_consolidation_timestamp.validate(),
+            Err(SuperRootError::ConsolidationSpanStartMismatch { expected: 102, actual: 101 })
+        );
+
+        let mut missing_range_timestamp = valid_aggregation_inputs();
+        missing_range_timestamp.range_outputs.pop();
+        assert_eq!(
+            missing_range_timestamp.validate(),
+            Err(SuperRootError::RangeSpanStartMismatch { expected: 102, actual: 101 })
+        );
+    }
+
+    #[test]
+    fn aggregation_inputs_reject_chain_coverage_gaps() {
+        let mut missing_consolidation_chain = valid_aggregation_inputs();
+        missing_consolidation_chain.consolidation_outputs[0].transitions[0].optimistic_blocks.pop();
+        assert_eq!(
+            missing_consolidation_chain.validate(),
+            Err(SuperRootError::InvalidRangeTransitionCount { expected: 2, actual: 1 })
+        );
+
+        let mut missing_range_chain = valid_aggregation_inputs();
+        missing_range_chain.range_outputs[0].transitions.pop();
+        assert_eq!(
+            missing_range_chain.validate(),
+            Err(SuperRootError::InvalidRangeTransitionCount { expected: 2, actual: 1 })
+        );
+    }
+
+    #[test]
+    fn aggregation_inputs_reject_consolidation_previous_root_mismatch() {
+        let mut inputs = valid_aggregation_inputs();
+        let expected = inputs.consolidation_outputs[1].previous_super_root;
+        let actual = B256::from([0xee; 32]);
+        inputs.consolidation_outputs[1].previous_super_root = actual;
+
+        assert_eq!(
+            inputs.validate(),
+            Err(SuperRootError::PreviousSuperRootMismatch { expected, actual })
+        );
+    }
+
+    #[test]
     fn chain_ordering_requires_non_empty_strictly_increasing_ids() {
         assert_eq!(ensure_strictly_increasing_chains(&[]), Err(SuperRootError::EmptyOutputRoots));
 
@@ -1362,6 +1361,67 @@ mod tests {
         };
 
         inputs.validate().expect("complete ordered range coverage is valid");
+    }
+
+    #[test]
+    fn range_inputs_reject_previous_root_count_timestamp_and_chain_mismatches() {
+        let base = SuperRangeInputs {
+            span: TimestampSpan::new(100, 101).expect("valid span"),
+            l1_head: B256::from([0x99; 32]),
+            chain_ids: vec![U256::from(10), U256::from(20)],
+            previous_super_root_proofs: vec![previous_proof(99), previous_proof(100)],
+            claimed_transitions: vec![
+                transition(100, 10, 0x11, 0x12),
+                transition(100, 20, 0x21, 0x22),
+                transition(101, 10, 0x31, 0x32),
+                transition(101, 20, 0x41, 0x42),
+            ],
+        };
+
+        let missing_previous = SuperRangeInputs {
+            previous_super_root_proofs: vec![previous_proof(99)],
+            ..base.clone()
+        };
+        assert_eq!(
+            missing_previous.validate(),
+            Err(SuperRootError::InvalidRangePreviousRootCount { expected: 2, actual: 1 })
+        );
+
+        let wrong_timestamp = SuperRangeInputs {
+            previous_super_root_proofs: vec![previous_proof(98), previous_proof(100)],
+            ..base.clone()
+        };
+        assert_eq!(
+            wrong_timestamp.validate(),
+            Err(SuperRootError::RangePreviousRootTimestampMismatch { expected: 99, actual: 98 })
+        );
+
+        let missing_chain = SuperRangeInputs {
+            previous_super_root_proofs: vec![
+                SuperRootProof::new(99, vec![output(10, 0x01)]),
+                previous_proof(100),
+            ],
+            ..base.clone()
+        };
+        assert_eq!(
+            missing_chain.validate(),
+            Err(SuperRootError::MismatchedRangePreviousRootChainCount { expected: 2, actual: 1 })
+        );
+
+        let wrong_chain = SuperRangeInputs {
+            previous_super_root_proofs: vec![
+                SuperRootProof::new(99, vec![output(10, 0x01), output(30, 0x02)]),
+                previous_proof(100),
+            ],
+            ..base
+        };
+        assert_eq!(
+            wrong_chain.validate(),
+            Err(SuperRootError::MismatchedRangePreviousRootChainId {
+                expected: U256::from(20),
+                actual: U256::from(30),
+            })
+        );
     }
 
     #[test]
@@ -1585,16 +1645,6 @@ mod tests {
             timestamp_mismatch.validate(),
             Err(SuperRootError::ConsolidationTimestampMismatch { expected: 100, actual: 101 })
         );
-    }
-
-    #[test]
-    fn range_vkey_input_serializes_with_json() {
-        let vkey = [0, 1, 2, 3, 4, 5, 6, 7];
-
-        let encoded = serde_json::to_vec(&vkey).expect("vkey serializes");
-        let decoded: [u32; 8] = serde_json::from_slice(&encoded).expect("vkey deserializes");
-
-        assert_eq!(decoded, vkey);
     }
 
     #[test]

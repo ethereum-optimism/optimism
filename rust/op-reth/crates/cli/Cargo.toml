@@ -32,6 +32,7 @@ reth-fs-util.workspace = true
 
 # so jemalloc metrics can be included
 reth-node-metrics.workspace = true
+metrics.workspace = true
 
 ## optimism
 reth-optimism-primitives.workspace = true
@@ -57,7 +58,6 @@ alloy-rlp.workspace = true
 # misc
 futures-util.workspace = true
 derive_more.workspace = true
-page_size.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 clap = { workspace = true, features = ["derive", "env"] }
@@ -74,6 +74,7 @@ op-alloy-consensus.workspace = true
 [dev-dependencies]
 tempfile.workspace = true
 reth-stages = { workspace = true, features = ["test-utils"] }
+metrics-exporter-prometheus.workspace = true
 
 [build-dependencies]
 reth-optimism-chainspec = { workspace = true, features = ["std", "superchain-configs"] }
@@ -97,7 +98,6 @@ keccak-cache-global = [
     "reth-optimism-node/keccak-cache-global",
 ]
 
-# Jemalloc feature for vergen to generate correct env vars
 jemalloc = [
     "reth-node-core/jemalloc",
     "reth-node-metrics/jemalloc",
@@ -126,4 +126,3 @@ serde = [
     "reth-primitives-traits/serde",
     "reth-optimism-chainspec/serde",
 ]
-
