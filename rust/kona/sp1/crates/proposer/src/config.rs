@@ -32,6 +32,7 @@ impl FromStr for ProposalSafety {
     }
 }
 
+/// Runtime configuration for the proposer, parsed from environment variables.
 #[derive(Debug, Clone)]
 pub struct ProposerConfig {
     /// The L1 RPC URL.
@@ -96,6 +97,8 @@ where
 }
 
 impl ProposerConfig {
+    /// Parses the configuration from environment variables, applying defaults
+    /// for optional settings and failing on missing or invalid required ones.
     pub fn from_env() -> Result<Self> {
         Ok(Self {
             l1_rpc: env::var("L1_RPC")

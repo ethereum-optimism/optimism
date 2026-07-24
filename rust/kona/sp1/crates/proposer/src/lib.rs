@@ -23,11 +23,15 @@ use async_trait::async_trait;
 
 use crate::contract::{DisputeGameFactory::DisputeGameFactoryInstance, GameStatus, ZKDisputeGame};
 
+/// The L1 provider type used throughout the proposer (a plain alloy root provider).
 pub type L1Provider = RootProvider;
 
+/// Number of L1 confirmations required before a transaction is considered included.
 pub const NUM_CONFIRMATIONS: u64 = 3;
+/// Maximum time, in seconds, to wait for an L1 transaction receipt.
 pub const TIMEOUT_SECONDS: u64 = 60;
 
+/// Read-only view of the `DisputeGameFactory` contract used during sync and game creation.
 #[async_trait]
 pub trait FactoryTrait<P>
 where
@@ -73,10 +77,10 @@ where
     }
 }
 
-/// Returns whether the parent game is resolved (not `IN_PROGRESS`).
+/// Returns whether the parent game is resolved (not `InProgress`).
 ///
 /// A `u32::MAX` parent index denotes an anchor-rooted game; the contract's
-/// `getParentGameStatus` treats it as `DEFENDER_WINS`, so it counts as
+/// `getParentGameStatus` treats it as `DefenderWins`, so it counts as
 /// resolved here too.
 pub async fn is_parent_resolved<P>(
     parent_index: u32,
@@ -93,7 +97,7 @@ where
     let parent = ZKDisputeGame::new(parent_address, factory.provider().clone());
     let status = parent.status().block(pinned_block).call().await?;
     let status = GameStatus::try_from(status).context("invalid parent game status")?;
-    Ok(status != GameStatus::IN_PROGRESS)
+    Ok(status != GameStatus::InProgress)
 }
 
 /// Prefix used for transaction revert errors.

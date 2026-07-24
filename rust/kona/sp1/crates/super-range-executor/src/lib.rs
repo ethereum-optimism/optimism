@@ -1027,6 +1027,9 @@ mod tests {
         let super_root = hash_super_root_proof(&proof).expect("proof hashes");
         SuperRootAtTimestampResponse {
             current_l1: block(required_l1 + 1),
+            current_safe_timestamp: timestamp,
+            current_local_safe_timestamp: timestamp,
+            current_finalized_timestamp: timestamp,
             optimistic_at_timestamp,
             chain_ids: chain_ids.iter().copied().map(|id| ChainId(U256::from(id))).collect(),
             data: Some(SuperRootResponseData {

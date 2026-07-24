@@ -17,18 +17,22 @@ use crate::proposer::Game;
 pub const BACKUP_VERSION: u32 = 1;
 
 /// Serializable backup of the proposer state.
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ProposerBackup {
+    /// Backup format version this file was written with; must equal [`BACKUP_VERSION`] to load.
     pub version: u32,
+    /// Factory game index the sync loop has processed up to, if any games were seen.
     pub cursor: Option<U256>,
+    /// Cached games tracked by the proposer at backup time.
     pub games: Vec<Game>,
+    /// Factory index of the anchor game the cache was seeded from, if known.
     pub anchor_game_index: Option<U256>,
     /// L2 block of the most recently created game. Prevents duplicate creation after
     /// restart when the pinned sync cache hasn't caught up. Defaults to 0 for backups
     /// created before this field existed.
     #[serde(default)]
     pub last_created_game_l2_sequence_number: u64,
-    /// Address of the most recently created game. Used for precise `CHALLENGER_WINS`
+    /// Address of the most recently created game. Used for precise `ChallengerWins`
     /// guard reset. Defaults to `Address::ZERO` (no guard) for old backups.
     #[serde(default)]
     pub last_created_game_address: Address,
@@ -84,7 +88,7 @@ impl ProposerBackup {
         let json =
             serde_json::to_string_pretty(self).context("failed to serialize proposer backup")?;
 
-        let dir = path.parent().unwrap_or(Path::new("."));
+        let dir = path.parent().unwrap_or_else(|| Path::new("."));
         let mut temp =
             NamedTempFile::new_in(dir).context("failed to create proposer backup temp file")?;
         temp.write_all(json.as_bytes()).context("failed to write proposer backup temp file")?;
@@ -150,7 +154,7 @@ mod tests {
             address: Address::ZERO,
             parent_index: 0,
             l2_sequence_number: 0,
-            status: GameStatus::IN_PROGRESS,
+            status: GameStatus::InProgress,
             proposal_status: ProposalStatus::Unchallenged,
             deadline: 0,
             should_attempt_to_resolve: false,

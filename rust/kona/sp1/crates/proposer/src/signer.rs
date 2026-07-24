@@ -18,7 +18,9 @@ use alloy_transport_http::reqwest::Url;
 use anyhow::{Context, Result};
 use tokio::{sync::Mutex, time::Duration};
 
+/// Number of L1 confirmations required before a transaction is considered included.
 pub const NUM_CONFIRMATIONS: u64 = 3;
+/// Default time, in seconds, to wait for an L1 transaction receipt.
 pub const TIMEOUT_SECONDS: u64 = 60;
 
 #[derive(Clone, Debug)]
@@ -31,6 +33,7 @@ pub enum Signer {
 }
 
 impl Signer {
+    /// Returns the L1 address transactions are signed with.
     pub const fn address(&self) -> Address {
         match self {
             Self::Web3Signer(_, address) => *address,
@@ -50,6 +53,8 @@ impl Signer {
         Ok(Self::LocalSigner(private_key))
     }
 
+    /// Builds a signer from the environment: `SIGNER_URL` + `SIGNER_ADDRESS` selects
+    /// [`Signer::Web3Signer`], otherwise `PRIVATE_KEY` selects [`Signer::LocalSigner`].
     pub async fn from_env() -> Result<Self> {
         if let (Ok(signer_url_str), Ok(signer_address_str)) =
             (std::env::var("SIGNER_URL"), std::env::var("SIGNER_ADDRESS"))

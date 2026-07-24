@@ -16,7 +16,7 @@ pub use kona_sp1_super_range_executor::{
 use crate::config::ProposalSafety;
 
 /// Thin supernode client wrapper.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SupernodeClient {
     client: HttpClient,
 }

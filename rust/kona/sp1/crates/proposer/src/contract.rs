@@ -52,10 +52,15 @@ sol! {
     /// Proposal lifecycle status, mirroring ZKDisputeGame.sol `ProposalStatus`.
     #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
     enum ProposalStatus {
+        /// No challenge has been made against the proposal.
         Unchallenged,
+        /// The proposal has been challenged but no validity proof has been provided.
         Challenged,
+        /// A valid proof was provided without the proposal ever being challenged.
         UnchallengedAndValidProofProvided,
+        /// The proposal was challenged and then a valid proof was provided.
         ChallengedAndValidProofProvided,
+        /// The proposal has been resolved and can no longer transition.
         Resolved,
     }
 
@@ -140,9 +145,12 @@ sol! {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(u8)]
 pub enum GameStatus {
-    IN_PROGRESS = 0,
-    CHALLENGER_WINS = 1,
-    DEFENDER_WINS = 2,
+    /// The game is in progress and awaiting resolution.
+    InProgress = 0,
+    /// The game resolved in favor of the challenger; the root claim was invalid.
+    ChallengerWins = 1,
+    /// The game resolved in favor of the defender; the root claim was valid.
+    DefenderWins = 2,
 }
 
 impl TryFrom<u8> for GameStatus {
@@ -150,9 +158,9 @@ impl TryFrom<u8> for GameStatus {
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
-            0 => Ok(Self::IN_PROGRESS),
-            1 => Ok(Self::CHALLENGER_WINS),
-            2 => Ok(Self::DEFENDER_WINS),
+            0 => Ok(Self::InProgress),
+            1 => Ok(Self::ChallengerWins),
+            2 => Ok(Self::DefenderWins),
             _ => Err(anyhow!("invalid game status: {value}")),
         }
     }
@@ -162,12 +170,19 @@ impl TryFrom<u8> for GameStatus {
 /// mirrors `op-challenger/game/fault/contracts/gameargs` `ZKGameArgs`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ZKGameArgs {
+    /// Absolute prestate hash committing to the ZK program being verified.
     pub absolute_prestate: alloy_primitives::B256,
+    /// Address of the on-chain proof verifier contract.
     pub verifier: alloy_primitives::Address,
+    /// Maximum duration, in seconds, during which the proposal may be challenged.
     pub max_challenge_duration: u64,
+    /// Maximum duration, in seconds, allowed to supply a proof after a challenge.
     pub max_prove_duration: u64,
+    /// Bond, in wei, a challenger must post to challenge the proposal.
     pub challenger_bond: U256,
+    /// Address of the `AnchorStateRegistry` tracking the anchor game.
     pub anchor_state_registry: alloy_primitives::Address,
+    /// Address of the `DelayedWETH` contract holding game bonds.
     pub weth: alloy_primitives::Address,
 }
 
@@ -202,9 +217,9 @@ mod tests {
     /// Pins the enum numeric values to Types.sol / ZKDisputeGame.sol.
     #[test]
     fn game_status_values_match_types_sol() {
-        assert_eq!(GameStatus::IN_PROGRESS as u8, 0);
-        assert_eq!(GameStatus::CHALLENGER_WINS as u8, 1);
-        assert_eq!(GameStatus::DEFENDER_WINS as u8, 2);
+        assert_eq!(GameStatus::InProgress as u8, 0);
+        assert_eq!(GameStatus::ChallengerWins as u8, 1);
+        assert_eq!(GameStatus::DefenderWins as u8, 2);
         assert!(GameStatus::try_from(3).is_err());
     }
 

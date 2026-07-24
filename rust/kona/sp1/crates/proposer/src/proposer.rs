@@ -65,8 +65,14 @@ pub type TaskMap = HashMap<TaskId, (TaskHandle, TaskInfo)>;
 /// Information about a running task
 #[derive(Clone, Debug)]
 pub enum TaskInfo {
-    GameCreation { sequence_number: u64 },
+    /// Task creating a new game at the given super-root timestamp.
+    GameCreation {
+        /// Super-root timestamp (`l2SequenceNumber`) of the game being created.
+        sequence_number: u64,
+    },
+    /// Task resolving finished games.
     GameResolution,
+    /// Task unlocking and claiming game bonds.
     BondClaim,
 }
 
@@ -107,15 +113,23 @@ impl ProposerIdentity {
 /// propose new games, defend existing ones, resolve completed games and claim bonds.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Game {
+    /// Index of the game in the `DisputeGameFactory`.
     pub index: U256,
+    /// On-chain address of the game contract.
     pub address: Address,
+    /// Factory index of the parent game this game extends (`u32::MAX` for anchor-rooted games).
     pub parent_index: u32,
     /// Super-root timestamp of the proposal (`l2SequenceNumber()`).
     pub l2_sequence_number: u64,
+    /// On-chain lifecycle status of the game (in progress / resolved).
     pub status: GameStatus,
+    /// ZK dispute game proposal status (unchallenged, challenged, proven, etc.).
     pub proposal_status: ProposalStatus,
+    /// Claim deadline as an L1 timestamp in seconds.
     pub deadline: u64,
+    /// Whether the proposer should try to resolve this game next resolution cycle.
     pub should_attempt_to_resolve: bool,
+    /// Whether the proposer should try to claim this game's bond next claim cycle.
     pub should_attempt_to_claim_bond: bool,
     /// The game implementation's `absolutePrestate()` (the program vkey).
     pub absolute_prestate: B256,
@@ -173,7 +187,7 @@ impl ProposerState {
 
     /// Remove a game subtree from the cache.
     ///
-    /// Used when a game is invalidated (i.e., `CHALLENGER_WINS`) and its entire subtree must be
+    /// Used when a game is invalidated (i.e., `ChallengerWins`) and its entire subtree must be
     /// dropped.
     fn remove_subtree(&mut self, root_index: U256) {
         tracing::info!(?root_index, "Removing subtree from cache");
@@ -246,9 +260,13 @@ impl ProposerState {
 /// Snapshot of the proposer's cached state for testing and monitoring.
 #[derive(Clone, Debug)]
 pub struct ProposerStateSnapshot {
+    /// Factory index of the anchor game, if one is set.
     pub anchor_index: Option<U256>,
+    /// Factory index of the current canonical head game, if any.
     pub canonical_head_index: Option<U256>,
+    /// Super-root timestamp of the canonical head (0 when no head exists).
     pub canonical_head_sequence_number: u64,
+    /// Cached games as `(factory index, game address)` pairs.
     pub games: Vec<(U256, Address)>,
 }
 
@@ -261,18 +279,27 @@ pub struct ContractParams {
     pub max_prove_duration: u64,
 }
 
+/// Core proposer service: syncs the on-chain game DAG, creates and defends games,
+/// resolves finished ones, and claims bonds.
 #[derive(Clone)]
 pub struct Proposer<P>
 where
     P: Provider + Clone + Send + Sync + 'static,
 {
+    /// Proposer configuration loaded at startup.
     pub config: ProposerConfig,
     contract_params: OnceLock<ContractParams>,
+    /// Shared transaction signer, serialized behind a lock.
     pub signer: SignerLock,
+    /// L1 execution-layer provider used for contract reads and transactions.
     pub l1_provider: L1Provider,
+    /// Supernode client used to fetch super roots and safe-head data.
     pub supernode: SupernodeClient,
+    /// `AnchorStateRegistry` contract instance tracking the anchor game.
     pub anchor_state_registry: Arc<AnchorStateRegistryInstance<P>>,
+    /// `DisputeGameFactory` contract instance used to create and enumerate games.
     pub factory: Arc<DisputeGameFactoryInstance<P>>,
+    /// `DelayedWETH` contract instance holding game bonds.
     pub weth: Arc<DelayedWETHInstance<P>>,
     /// `DelayedWETH` withdrawal delay in seconds, read once at init.
     weth_delay: OnceLock<u64>,
@@ -290,7 +317,7 @@ where
     /// game creation when the pinned sync cache lags behind the chain tip.
     last_created_game_l2_sequence_number: Arc<AtomicU64>,
     /// Address of the most recently created game. Used to precisely identify
-    /// the guarded game for `CHALLENGER_WINS` subtree removal.
+    /// the guarded game for `ChallengerWins` subtree removal.
     last_created_game_address: Arc<tokio::sync::Mutex<Address>>,
     /// Games seen on-chain whose timestamps are not yet safe from this
     /// node's view. Excluded from the DAG (and parent eligibility) but
@@ -298,6 +325,18 @@ where
     /// unlike terminal invalidity, pending games must not be dropped by the
     /// cursor (see `fetch_game`).
     pending_games: Arc<RwLock<HashSet<U256>>>,
+}
+
+impl<P> std::fmt::Debug for Proposer<P>
+where
+    P: Provider + Clone + Send + Sync + 'static,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Proposer")
+            .field("config", &self.config)
+            .field("identity", &self.identity)
+            .finish_non_exhaustive()
+    }
 }
 
 impl<P> Proposer<P>
@@ -515,7 +554,7 @@ where
             }
 
             // Validate path is writable by creating a temp file in the same directory.
-            let dir = path.parent().unwrap_or(Path::new("."));
+            let dir = path.parent().unwrap_or_else(|| Path::new("."));
             tempfile::NamedTempFile::new_in(dir)
                 .with_context(|| format!("backup path is not writable: {:?}", path))?;
 
@@ -638,7 +677,7 @@ where
     ///    - Games are marked for bond claim if they are finalized and there is credit to claim.
     /// 3. Evict games from the cache.
     ///    - Games that are finalized but there is no credit left to claim.
-    ///    - The entire subtree of a `CHALLENGER_WINS` game.
+    ///    - The entire subtree of a `ChallengerWins` game.
     pub async fn sync_games(&self, pinned_block: BlockId, pinned_timestamp: u64) -> Result<()> {
         // 0. Prune cached games that don't exist at the pinned block. After a backup restore, the
         //    cache may contain games created in tip blocks that are ahead of the pinned snapshot.
@@ -651,10 +690,7 @@ where
             let future_games: Vec<U256> = state
                 .games
                 .keys()
-                .filter(|idx| match pinned_latest_index {
-                    Some(max) => **idx > max,
-                    None => true,
-                })
+                .filter(|idx| pinned_latest_index.is_none_or(|max| **idx > max))
                 .copied()
                 .collect();
             if !future_games.is_empty() {
@@ -769,14 +805,14 @@ where
                         break;
                     }
                 }
-                GameFetchResult::UnsupportedAnchorStateRegistry { .. } => {}
+                GameFetchResult::UnsupportedAnchorStateRegistry { .. } |
+                GameFetchResult::AlreadyExists => {}
                 GameFetchResult::InvalidGame { index } => {
                     invalid_game_ids.push(index);
                 }
                 GameFetchResult::Pending { index } => {
                     newly_pending.push(index);
                 }
-                GameFetchResult::AlreadyExists => {}
             }
 
             index.step_back();
@@ -862,7 +898,7 @@ where
                     .await?;
 
                 match status {
-                    GameStatus::IN_PROGRESS => {
+                    GameStatus::InProgress => {
                         let parent_resolved =
                             is_parent_resolved(parent_index, self.factory.as_ref(), pinned_block)
                                 .await?;
@@ -898,7 +934,7 @@ where
                             should_attempt_to_claim_bond: false,
                         });
                     }
-                    GameStatus::DEFENDER_WINS => {
+                    GameStatus::DefenderWins => {
                         let credit =
                             contract.credit(signer_address).block(pinned_block).call().await?;
                         let withdrawal = self
@@ -974,7 +1010,7 @@ where
                             });
                         }
                     }
-                    GameStatus::CHALLENGER_WINS => {
+                    GameStatus::ChallengerWins => {
                         actions.push(GameSyncAction::RemoveSubtree(index));
                     }
                 }
@@ -1021,7 +1057,7 @@ where
                                 tracing::info!(
                                     ?guarded_addr,
                                     root_index = %index,
-                                    "Reset creation guard: tracked game removed by CHALLENGER_WINS"
+                                    "Reset creation guard: tracked game removed by ChallengerWins"
                                 );
                             }
                         }
@@ -1180,7 +1216,7 @@ where
             let contract = ZKDisputeGame::new(game.address, self.l1_provider.clone());
             match contract.status().call().await {
                 Ok(status) => match GameStatus::try_from(status) {
-                    Ok(status) if status != GameStatus::IN_PROGRESS => {
+                    Ok(status) if status != GameStatus::InProgress => {
                         tracing::info!(
                             game_index = %game.index,
                             game_address = ?game.address,
@@ -1326,6 +1362,7 @@ where
         Ok(())
     }
 
+    /// Submits a `resolve()` transaction for the game and bails if it reverted.
     pub async fn submit_resolution_transaction(&self, game: &Game) -> Result<()> {
         let contract = ZKDisputeGame::new(game.address, self.l1_provider.clone());
         let transaction_request = contract.resolve().into_transaction_request();
@@ -1955,22 +1992,40 @@ where
 /// Result of fetching a game from the factory.
 ///
 /// Games can either be added to the cache or dropped based on validation criteria.
+#[derive(Debug)]
 pub enum GameFetchResult {
     /// Game was successfully validated and added to cache
-    ValidGame { game_address: Address, deadline: u64 },
+    ValidGame {
+        /// Address of the validated game.
+        game_address: Address,
+        /// Claim deadline of the game (L1 timestamp, seconds).
+        deadline: u64,
+    },
     /// Game type is unsupported
-    UnsupportedType { game_address: Address },
+    UnsupportedType {
+        /// Address of the rejected game.
+        game_address: Address,
+    },
     /// Game's anchor state registry does not match the configured registry
-    UnsupportedAnchorStateRegistry { game_address: Address },
+    UnsupportedAnchorStateRegistry {
+        /// Address of the rejected game.
+        game_address: Address,
+    },
     /// Game is invalid
-    InvalidGame { index: U256 },
+    InvalidGame {
+        /// Factory index of the invalid game.
+        index: U256,
+    },
     /// The game's timestamp is not yet safe from this node's view: it cannot
     /// be validated yet. Kept OUT of the DAG (never parent-eligible) but
     /// re-validated each sync until data appears or the horizon expires -
     /// unlike terminal invalidity, this verdict is not permanent (the
     /// upstream design could drop terminally because its data source errored
     /// on unavailable blocks; ours reports absence as `data: None`).
-    Pending { index: U256 },
+    Pending {
+        /// Factory index of the pending game.
+        index: U256,
+    },
     /// Game was already present in the cache
     AlreadyExists,
 }
@@ -2052,8 +2107,8 @@ pub fn advance_collision_timestamp(current: u64, max_proposable: u64) -> Option<
     (next <= max_proposable).then_some(next)
 }
 
-/// Action to take for an owned `DEFENDER_WINS` game in the two-phase
-/// DelayedWETH claim flow.
+/// Action to take for an owned `DefenderWins` game in the two-phase
+/// `DelayedWETH` claim flow.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BondClaimAction {
     /// Phase (a): credit remains and the game is finalized - call
@@ -2069,7 +2124,7 @@ pub enum BondClaimAction {
     Done,
 }
 
-/// Two-phase DelayedWETH claim decision. `l1_now` MUST be an L1 block
+/// Two-phase `DelayedWETH` claim decision. `l1_now` MUST be an L1 block
 /// timestamp: `DelayedWETH.withdraw` enforces
 /// `timestamp + DELAY_SECONDS <= block.timestamp`, and wall-clock time
 /// diverges from chain time under devstack time travel.
@@ -2093,7 +2148,7 @@ pub fn bond_claim_action(
     BondClaimAction::Wait
 }
 
-/// Returns whether a recorded DelayedWETH withdrawal has matured at the
+/// Returns whether a recorded `DelayedWETH` withdrawal has matured at the
 /// given L1 timestamp.
 pub fn withdrawal_matured(withdrawal_ts: u64, weth_delay: u64, l1_now: u64) -> bool {
     withdrawal_ts != 0 &&
@@ -2159,7 +2214,7 @@ mod tests {
             address: Address::left_padding_from(&[index as u8]),
             parent_index,
             l2_sequence_number,
-            status: GameStatus::IN_PROGRESS,
+            status: GameStatus::InProgress,
             proposal_status: ProposalStatus::Unchallenged,
             deadline: 0,
             should_attempt_to_resolve: false,
