@@ -1076,6 +1076,22 @@ func TestConfig_IsSDM(t *testing.T) {
 	require.True(t, cfg.IsSDM(101))
 }
 
+// TestConfig_IsEip8130 pins the dark-launch state: EIP-8130 is not yet assigned to a network
+// upgrade, so no fork schedule may activate it. Wiring the toggle to a fork must be a deliberate
+// edit, not something scheduling an upgrade can trigger.
+func TestConfig_IsEip8130(t *testing.T) {
+	var cfg Config
+	require.False(t, cfg.IsEip8130(0))
+
+	activation := uint64(100)
+	for _, fork := range scheduleableForks {
+		cfg.SetActivationTime(fork, &activation)
+	}
+	require.False(t, cfg.IsEip8130(99))
+	require.False(t, cfg.IsEip8130(100))
+	require.False(t, cfg.IsEip8130(101))
+}
+
 // TestConfig_ActivationBlockAndForFork combines tests for IsActivationBlock and IsActivationBlockForFork.
 func TestConfig_ActivationBlockAndForFork(t *testing.T) {
 	for _, fork := range scheduleableForks {

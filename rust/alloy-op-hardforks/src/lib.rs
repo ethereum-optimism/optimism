@@ -317,6 +317,18 @@ pub trait OpHardforks: EthereumHardforks {
     fn is_interop_active_at_timestamp(&self, timestamp: u64) -> bool {
         self.is_lagoon_active_at_timestamp(timestamp)
     }
+
+    /// Returns `true` if the [EIP-8130] account-abstraction feature is active at the given block
+    /// timestamp.
+    ///
+    /// EIP-8130 is not yet assigned to a hard fork, so this returns `false` unconditionally
+    /// and no fork schedule activates the feature. Replace the body with the carrying fork's accessor
+    /// the body with the carrying fork's accessor once that upgrade is chosen.
+    ///
+    /// [EIP-8130]: https://eips.ethereum.org/EIPS/eip-8130
+    fn is_eip8130_active_at_timestamp(&self, _timestamp: u64) -> bool {
+        false
+    }
 }
 
 /// A type allowing to configure activation [`ForkCondition`]s for a given list of

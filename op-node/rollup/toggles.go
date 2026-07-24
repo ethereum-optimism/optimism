@@ -43,3 +43,13 @@ func (c *Config) IsInteropActivationBlock(l2BlockTime uint64) bool {
 	}
 	return c.IsLagoonActivationBlock(l2BlockTime)
 }
+
+// IsEip8130 gates EIP-8130 account-abstraction transactions: when false, batches carrying
+// 0x79 transactions are rejected during derivation.
+//
+// EIP-8130 is not yet assigned to a network upgrade, so this returns false unconditionally
+// and no schedule activates the feature. Replace the body with the carrying fork's accessor
+// once that upgrade is chosen.
+func (c *Config) IsEip8130(time uint64) bool {
+	return false
+}

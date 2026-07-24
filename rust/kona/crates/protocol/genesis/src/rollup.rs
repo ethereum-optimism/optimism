@@ -366,6 +366,19 @@ impl RollupConfig {
             !self.is_interop_active(timestamp.saturating_sub(self.block_time))
     }
 
+    /// Returns true if the [EIP-8130] account-abstraction feature is active at the given
+    /// timestamp.
+    ///
+    /// EIP-8130 is not yet assigned to a hardfork, so this returns false unconditionally and no
+    /// fork schedule activates the feature. Replace the body with the carrying fork's accessor
+    /// once that upgrade is chosen. EIP-8130 code should gate on this, not on a raw fork accessor,
+    /// so that flip happens in one place.
+    ///
+    /// [EIP-8130]: https://eips.ethereum.org/EIPS/eip-8130
+    pub const fn is_eip8130_active(&self, _timestamp: u64) -> bool {
+        false
+    }
+
     /// Returns true if a DA Challenge proxy Address is provided in the rollup config and the
     /// address is not zero.
     pub fn is_alt_da_enabled(&self) -> bool {
@@ -787,6 +800,22 @@ mod tests {
         assert_eq!(config.is_interop_active(120), config.is_lagoon_active(120));
         assert!(config.is_first_interop_block(120));
         assert!(!config.is_first_interop_block(122));
+    }
+
+    /// Pins the dark-launch state: EIP-8130 is not yet assigned to a hardfork, so no fork schedule
+    /// may activate it. Wiring the gate to a fork must be a deliberate edit, not something
+    /// scheduling an upgrade can trigger.
+    #[test]
+    fn test_eip8130_is_not_activated_by_any_fork() {
+        let mut config = RollupConfig { block_time: 2, ..Default::default() };
+        assert!(!config.is_eip8130_active(0));
+
+        config.hardforks.jovian_time = Some(100);
+        config.hardforks.karst_time = Some(100);
+        config.hardforks.lagoon_time = Some(100);
+        assert!(!config.is_eip8130_active(99));
+        assert!(!config.is_eip8130_active(100));
+        assert!(!config.is_eip8130_active(101));
     }
 
     #[test]
