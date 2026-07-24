@@ -1,10 +1,11 @@
 use crate::{InvalidCrossTx, OpPooledTx, interop_filter::InteropFilterClient};
 use alloy_consensus::{BlockHeader, Transaction};
-use op_revm::L1BlockInfo;
+use alloy_primitives::U256;
+use op_revm::{L1BlockInfo, OpSpecId};
 use parking_lot::RwLock;
 use reth_chainspec::ChainSpecProvider;
 use reth_evm::ConfigureEvm;
-use reth_optimism_evm::RethL1BlockInfo;
+use reth_optimism_evm::{RethL1BlockInfo, revm_spec_by_timestamp_after_bedrock};
 use reth_optimism_forks::OpHardforks;
 use reth_primitives_traits::{
     Block, BlockBody, BlockTy, GotExpected, SealedBlock,
@@ -237,7 +238,7 @@ where
 
             let encoded = valid_tx.transaction().encoded_2718();
 
-            let cost_addition = match l1_block_info.l1_tx_data_fee(
+            let mut cost_addition = match l1_block_info.l1_tx_data_fee(
                 self.chain_spec(),
                 self.block_timestamp(),
                 &encoded,
@@ -248,6 +249,24 @@ where
                     return TransactionValidationOutcome::Error(*valid_tx.hash(), Box::new(err));
                 }
             };
+
+            // Also reserve the operator fee (introduced in Isthmus). The Isthmus exec-engine spec
+            // mandates this pool behavior: "the transaction pool must reject transactions that do
+            // not have enough balance to cover the worst-case cost of the transaction fee. This
+            // worst-case cost of a transaction now includes the worst-case operator fee."
+            // <https://specs.optimism.io/protocol/isthmus/exec-engine.html#operator-fee>
+            // (Jovian changes the formula: <https://specs.optimism.io/protocol/jovian/exec-engine.html#operator-fee>.)
+            // Reserving only the L1 data fee above lets a sender covering L2 gas + value + L1 data
+            // fee — but not the operator fee — be admitted to the pool and then fail at execution.
+            let spec_id =
+                revm_spec_by_timestamp_after_bedrock(self.chain_spec(), self.block_timestamp());
+            cost_addition = cost_addition.saturating_add(operator_fee_addition(
+                &l1_block_info,
+                spec_id,
+                &encoded,
+                valid_tx.transaction().gas_limit(),
+            ));
+
             let cost = valid_tx.transaction().cost().saturating_add(cost_addition);
 
             // Checks for max cost
@@ -328,5 +347,126 @@ impl OpForkTracker {
     /// Returns `true` if Lagoon fork is activated.
     pub(crate) fn is_interop_activated(&self) -> bool {
         self.interop.load(Ordering::Relaxed)
+    }
+}
+
+/// Operator fee to reserve for a non-deposit transaction in the tx-pool balance check.
+///
+/// Implements the pool-admission rule from the Isthmus exec-engine spec (the pool must reserve the
+/// worst-case operator fee): <https://specs.optimism.io/protocol/isthmus/exec-engine.html#operator-fee>.
+/// The charge delegates to [`L1BlockInfo::operator_fee_charge`], so the fork-dependent formula
+/// (Isthmus vs the Jovian 100× multiplier,
+/// <https://specs.optimism.io/protocol/jovian/exec-engine.html#operator-fee>) stays in one place.
+/// `apply_op_checks` otherwise reserves only the L1 data fee, so a sender covering L2 gas + value +
+/// L1 data fee — but not the operator fee — would be admitted to the pool and then fail at
+/// execution.
+///
+/// Returns zero before Isthmus or when the operator fee params are unset:
+/// [`L1BlockInfo::operator_fee_charge`] panics on a missing scalar/constant, so both must be
+/// present before the charge is computed. Uses the transaction's `gas_limit` (worst-case spend),
+/// matching the spec's worst-case reservation.
+fn operator_fee_addition(
+    l1_block_info: &L1BlockInfo,
+    spec_id: OpSpecId,
+    encoded: &[u8],
+    gas_limit: u64,
+) -> U256 {
+    if spec_id.is_enabled_in(OpSpecId::ISTHMUS) &&
+        l1_block_info.operator_fee_scalar.is_some() &&
+        l1_block_info.operator_fee_constant.is_some()
+    {
+        l1_block_info.operator_fee_charge(encoded, U256::from(gas_limit), spec_id)
+    } else {
+        U256::ZERO
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::operator_fee_addition;
+    use alloy_primitives::U256;
+    use op_revm::{L1BlockInfo, OpSpecId};
+
+    /// A non-deposit EIP-2718 encoding: first byte is a tx-type (0x02 = EIP-1559), not the `0x7E`
+    /// deposit marker, and non-empty — so `operator_fee_charge` does not short-circuit.
+    const NON_DEPOSIT_ENCODED: &[u8] = &[0x02, 0xAB, 0xCD];
+
+    fn l1_info_with_operator_fee(scalar: u64, constant: u64) -> L1BlockInfo {
+        L1BlockInfo {
+            operator_fee_scalar: Some(U256::from(scalar)),
+            operator_fee_constant: Some(U256::from(constant)),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn operator_fee_added_when_isthmus_and_params_present() {
+        let l1 = l1_info_with_operator_fee(1, 2);
+        let gas_limit = 21_000u64;
+        let expected =
+            l1.operator_fee_charge(NON_DEPOSIT_ENCODED, U256::from(gas_limit), OpSpecId::ISTHMUS);
+        assert!(expected > U256::ZERO);
+        assert_eq!(
+            operator_fee_addition(&l1, OpSpecId::ISTHMUS, NON_DEPOSIT_ENCODED, gas_limit),
+            expected
+        );
+    }
+
+    #[test]
+    fn operator_fee_uses_jovian_formula_in_jovian() {
+        // Jovian changes the operator fee formula (`gas × scalar × 100 + constant`) from the
+        // Isthmus one (`gas × scalar ÷ 1e6 + constant`) — a ~100× difference for the same params.
+        // The reservation passes `spec_id` straight through to `operator_fee_charge`, so this pins
+        // it to the fork: if the delegation ever drifts, the Jovian path here breaks.
+        // <https://specs.optimism.io/protocol/jovian/exec-engine.html#operator-fee>
+        let l1 = l1_info_with_operator_fee(1, 2);
+        let gas_limit = 21_000u64;
+
+        let expected =
+            l1.operator_fee_charge(NON_DEPOSIT_ENCODED, U256::from(gas_limit), OpSpecId::JOVIAN);
+        assert_eq!(
+            operator_fee_addition(&l1, OpSpecId::JOVIAN, NON_DEPOSIT_ENCODED, gas_limit),
+            expected
+        );
+
+        // Same params, higher fork: Jovian's multiplier makes the reservation strictly larger than
+        // Isthmus — so a fork mix-up can't go unnoticed.
+        let isthmus = operator_fee_addition(&l1, OpSpecId::ISTHMUS, NON_DEPOSIT_ENCODED, gas_limit);
+        assert!(
+            expected > isthmus,
+            "Jovian reservation ({expected}) must exceed Isthmus ({isthmus}) for the same params"
+        );
+    }
+
+    #[test]
+    fn operator_fee_zero_before_isthmus() {
+        // Params present but spec pre-Isthmus → op-geth charges no operator fee.
+        let l1 = l1_info_with_operator_fee(1, 2);
+        assert_eq!(
+            operator_fee_addition(&l1, OpSpecId::BEDROCK, NON_DEPOSIT_ENCODED, 21_000),
+            U256::ZERO
+        );
+    }
+
+    #[test]
+    fn operator_fee_zero_and_no_panic_when_params_unset() {
+        // Pre-Isthmus L1 info has no operator fee params; `operator_fee_charge` would panic on the
+        // missing scalar/constant, so the guard must return zero without calling it.
+        let l1 = L1BlockInfo::default();
+        assert!(l1.operator_fee_scalar.is_none() && l1.operator_fee_constant.is_none());
+        assert_eq!(
+            operator_fee_addition(&l1, OpSpecId::ISTHMUS, NON_DEPOSIT_ENCODED, 21_000),
+            U256::ZERO
+        );
+    }
+
+    #[test]
+    fn operator_fee_zero_for_deposit_input() {
+        // A deposit-typed (0x7E) encoding is exempt from the operator fee.
+        let l1 = l1_info_with_operator_fee(1, 2);
+        assert_eq!(
+            operator_fee_addition(&l1, OpSpecId::ISTHMUS, &[0x7E, 0x00], 21_000),
+            U256::ZERO
+        );
     }
 }
