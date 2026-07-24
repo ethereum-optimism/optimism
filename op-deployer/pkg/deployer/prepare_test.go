@@ -18,7 +18,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
@@ -426,8 +425,7 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 	embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
 	require.NoError(t, err)
 
-	forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
-	require.NoError(t, err)
+	forgeClient := testutil.NewForgeClient(t, fmt.Sprintf("%v", embeddedArtifactsFS))
 
 	_, afacts := testutil.LocalArtifacts(t)
 	lgr := testlog.Logger(t, slog.LevelInfo)

@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
@@ -28,8 +27,7 @@ func TestDeploySuperchain_WithForge(t *testing.T) {
 	embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
 	require.NoError(t, err)
 
-	forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
-	require.NoError(t, err)
+	forgeClient := testutil.NewForgeClient(t, fmt.Sprintf("%v", embeddedArtifactsFS))
 
 	_, afacts := testutil.LocalArtifacts(t)
 	lgr := testlog.Logger(t, slog.LevelInfo)
@@ -97,8 +95,7 @@ func TestDeploySuperchain_WithForgeEverywhere(t *testing.T) {
 	embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
 	require.NoError(t, err)
 
-	forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
-	require.NoError(t, err)
+	forgeClient := testutil.NewForgeClient(t, fmt.Sprintf("%v", embeddedArtifactsFS))
 
 	_, afacts := testutil.LocalArtifacts(t)
 	lgr := testlog.Logger(t, slog.LevelInfo)
@@ -163,8 +160,7 @@ func TestDeploySuperchain_WithForge_ManualCall(t *testing.T) {
 	embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
 	require.NoError(t, err)
 
-	forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
-	require.NoError(t, err)
+	forgeClient := testutil.NewForgeClient(t, fmt.Sprintf("%v", embeddedArtifactsFS))
 
 	deploySuperchain := opcm.NewDeploySuperchainForgeCaller(forgeClient)
 
