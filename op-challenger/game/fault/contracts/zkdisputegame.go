@@ -198,9 +198,9 @@ func (g *ZKDisputeGameContractLatest) GetStatus(ctx context.Context) (gameTypes.
 	return gameTypes.GameStatusFromUint8(result.GetUint8(0))
 }
 
-// GetGameRange returns the starting and ending sequence numbers. For the super-root ZK game these
-// are super-root timestamps, not L2 block numbers; they feed status display and the (Noop) sync validator.
-func (g *ZKDisputeGameContractLatest) GetGameRange(ctx context.Context) (prestateBlock uint64, poststateBlock uint64, retErr error) {
+// GetGameRange returns super-root timestamps, not L2 block numbers, for the super-root ZK game; they
+// feed status display and the (Noop) sync validator.
+func (g *ZKDisputeGameContractLatest) GetGameRange(ctx context.Context) (prestateSeqNr uint64, poststateSeqNr uint64, retErr error) {
 	defer g.metrics.StartContractRequest("GetGameRange")()
 	results, err := g.multiCaller.Call(ctx, rpcblock.Latest,
 		g.contract.Call(methodStartingSequenceNumber),
@@ -213,8 +213,8 @@ func (g *ZKDisputeGameContractLatest) GetGameRange(ctx context.Context) (prestat
 		retErr = fmt.Errorf("expected 2 results but got %v", len(results))
 		return
 	}
-	prestateBlock = getBlockNumber(results[0], 0)
-	poststateBlock = getBlockNumber(results[1], 0)
+	prestateSeqNr = getBlockNumber(results[0], 0)
+	poststateSeqNr = getBlockNumber(results[1], 0)
 	return
 }
 
