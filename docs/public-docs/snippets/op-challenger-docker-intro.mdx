@@ -1,0 +1,17 @@
+{/*
+  Shared framing for the op-challenger Docker deployment path. Single home
+  for the fact that the official image embeds the kona server and the Cannon
+  executable. Compose files, environment variables, and paths are
+  deployment-specific and stay on the consumer page.
+
+  Usage:
+    import OpChallengerDockerIntro from "/snippets/op-challenger-docker-intro.mdx"
+
+    <OpChallengerDockerIntro />
+
+  Consumer pages (keep this list in sync):
+    chain-operators/guides/configuration/op-challenger-config-guide.mdx
+    chain-operators/tutorials/create-l2-rollup/op-challenger-setup.mdx
+*/}
+
+The Docker setup provides a containerized environment for running the challenger. This method uses the official Docker image that includes the embedded `kona` server and Cannon executable.
