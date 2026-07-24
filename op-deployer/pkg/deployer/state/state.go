@@ -2,6 +2,7 @@ package state
 
 import (
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/core"
@@ -33,8 +34,8 @@ type State struct {
 	// Create2Salt is the salt used for CREATE2 deployments.
 	Create2Salt common.Hash `json:"create2Salt"`
 
-	// PreparedDeployment stores values that must not change before continue.
-	// Later steps store Prestate and StartingAnchorRoot in ChainState.
+	// PreparedDeployment freezes inputs and predictions for chains awaiting deployment.
+	// Values committed by other stages, such as Prestate and StartingAnchorRoot, remain in ChainState.
 	PreparedDeployment *PreparedDeployment `json:"preparedDeployment,omitempty"`
 
 	// AppliedIntent contains the chain intent that was last
@@ -138,13 +139,13 @@ type StartingAnchorProposal struct {
 	L2SequenceNumber hexutil.Uint64 `json:"l2SequenceNumber"`
 }
 
-// PreparedArtifact records where an artifact bundle came from and its content hash.
+// PreparedArtifact binds an artifact locator to the bundle contents resolved during prepare.
 type PreparedArtifact struct {
 	Locator       *artifacts.Locator `json:"locator"`
 	ContentDigest common.Hash        `json:"contentDigest"`
 }
 
-// PreparedDeployment records the values saved by prepare for chains not yet deployed.
+// PreparedDeployment freezes the inputs and predictions for chains awaiting deployment.
 type PreparedDeployment struct {
 	Intent      *Intent               `json:"intent"`
 	Deployer    common.Address        `json:"deployer"`
@@ -154,7 +155,7 @@ type PreparedDeployment struct {
 	Chains      []*PreparedChainState `json:"chains"`
 }
 
-// PreparedChainState contains the prepare-time commitments for one chain.
+// PreparedChainState freezes prediction output and timing for one undeployed chain.
 type PreparedChainState struct {
 	ID common.Hash `json:"id"`
 
@@ -164,6 +165,7 @@ type PreparedChainState struct {
 	GenesisTime *hexutil.Uint64 `json:"genesisTime"`
 }
 
+// Chain returns the frozen state for a chain included in the prepared deployment.
 func (p *PreparedDeployment) Chain(id common.Hash) (*PreparedChainState, error) {
 	for _, chain := range p.Chains {
 		if chain.ID == id {
@@ -171,6 +173,19 @@ func (p *PreparedDeployment) Chain(id common.Hash) (*PreparedChainState, error) 
 		}
 	}
 	return nil, fmt.Errorf("prepared chain not found: %s", id.Hex())
+}
+
+// Clone returns a deep copy of the prepared deployment, detached from the receiver's pointers.
+func (p *PreparedDeployment) Clone() (*PreparedDeployment, error) {
+	data, err := json.Marshal(p)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode prepared deployment: %w", err)
+	}
+	var clone PreparedDeployment
+	if err := json.Unmarshal(data, &clone); err != nil {
+		return nil, fmt.Errorf("failed to decode prepared deployment: %w", err)
+	}
+	return &clone, nil
 }
 
 // ContinuationState marks a chain recorded by the continuation workflow.
@@ -191,6 +206,10 @@ type ChainState struct {
 	// StartingAnchorRoot is produced by the proposal-producing stage and consumed
 	// when building the continuation deploy input.
 	StartingAnchorRoot *StartingAnchorProposal `json:"startingAnchorRoot,omitempty"`
+
+	// InitialGameType records the game type used by prepare to detect intent drift.
+	// Legacy states without it must be prepared again before continuation.
+	InitialGameType *uint32 `json:"initialGameType,omitempty"`
 
 	AdditionalDisputeGames []AdditionalDisputeGameState `json:"additionalDisputeGames"`
 

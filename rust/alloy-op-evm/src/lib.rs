@@ -56,6 +56,13 @@ pub mod post_exec;
 /// The OP EVM context type.
 pub type OpEvmContext<DB> = Context<BlockEnv, OpTx, CfgEnv<OpSpecId>, DB, Journal<DB>, L1BlockInfo>;
 
+type OpEvmInner<DB, I, P, R> = op_revm::OpEvm<
+    OpEvmContext<DB>,
+    post_exec::PostExecCompositeInspector<I, R>,
+    EthInstructions<EthInterpreter, OpEvmContext<DB>>,
+    P,
+>;
+
 /// OP EVM implementation.
 ///
 /// This is a wrapper type around the `revm` evm with optional [`Inspector`] (tracing)
@@ -64,21 +71,21 @@ pub type OpEvmContext<DB> = Context<BlockEnv, OpTx, CfgEnv<OpSpecId>, DB, Journa
 ///
 /// The `Tx` type parameter controls the transaction environment type. By default it uses
 /// [`OpTx`] which wraps [`OpTransaction<TxEnv>`] and implements the necessary foreign traits.
+///
+/// The `R` type parameter is the post-exec refund inspector embedded alongside the user inspector
+/// `I` (see [`post_exec::PostExecCompositeInspector`]). It is fixed by the EVM factory and defaults
+/// to [`SDMWarmingInspector`](post_exec::SDMWarmingInspector).
 #[allow(missing_debug_implementations)] // missing revm::OpContext Debug impl
-pub struct OpEvm<DB: Database, I, P = OpPrecompiles, Tx = OpTx> {
-    inner: op_revm::OpEvm<
-        OpEvmContext<DB>,
-        post_exec::PostExecCompositeInspector<I>,
-        EthInstructions<EthInterpreter, OpEvmContext<DB>>,
-        P,
-    >,
+pub struct OpEvm<DB: Database, I, P = OpPrecompiles, Tx = OpTx, R = post_exec::SDMWarmingInspector>
+{
+    inner: OpEvmInner<DB, I, P, R>,
     inspect: bool,
     post_exec_tracking_active: bool,
     last_tx_post_exec_result: post_exec::PostExecExecutedTx,
     _tx: PhantomData<Tx>,
 }
 
-impl<DB: Database, I, P, Tx> OpEvm<DB, I, P, Tx> {
+impl<DB: Database, I, P, Tx, R> OpEvm<DB, I, P, Tx, R> {
     /// Consumes self and return the inner EVM instance.
     pub fn into_inner(
         self,
@@ -112,7 +119,7 @@ impl<DB: Database, I, P, Tx> OpEvm<DB, I, P, Tx> {
     }
 }
 
-impl<DB: Database, I, P, Tx> OpEvm<DB, I, P, Tx> {
+impl<DB: Database, I, P, Tx, R: Default> OpEvm<DB, I, P, Tx, R> {
     /// Creates a new OP EVM instance.
     ///
     /// The `inspect` argument determines whether the configured [`Inspector`] of the given
@@ -148,7 +155,40 @@ impl<DB: Database, I, P, Tx> OpEvm<DB, I, P, Tx> {
             _tx: PhantomData,
         }
     }
+}
 
+impl<DB: Database, I, Tx, R: Default> OpEvm<DB, I, PrecompilesMap, Tx, R> {
+    /// Creates an OP EVM with the standard OP context and precompiles.
+    ///
+    /// This is shared by factories that differ only in their fixed post-exec refund inspector.
+    /// The `inspect` argument controls whether `inspector` is invoked during execution.
+    pub fn from_env(
+        db: DB,
+        input: EvmEnv<OpSpecId, BlockEnv>,
+        inspector: I,
+        inspect: bool,
+    ) -> Self {
+        let spec_id = input.cfg_env.spec;
+        let inner = Context::mainnet()
+            .with_tx(OpTx(OpTransaction::builder().build_fill()))
+            .with_cfg(CfgEnv::new_with_spec(OpSpecId::BEDROCK))
+            .with_chain(L1BlockInfo::default())
+            .with_db(db)
+            .with_block(input.block_env)
+            .with_cfg(input.cfg_env)
+            .build_op_with_inspector(inspector)
+            .with_precompiles(PrecompilesMap::from_static(
+                OpPrecompiles::new_with_spec(spec_id).precompiles(),
+            ));
+
+        Self::new(inner, inspect)
+    }
+}
+
+impl<DB: Database, I, P, Tx, R> OpEvm<DB, I, P, Tx, R>
+where
+    R: post_exec::PostExecRefundInspector,
+{
     /// Begin post-exec tracking for the next transaction.
     pub fn begin_post_exec_tx(&mut self, ctx: post_exec::PostExecTxContext) {
         self.post_exec_tracking_active = true;
@@ -164,21 +204,24 @@ impl<DB: Database, I, P, Tx> OpEvm<DB, I, P, Tx> {
         core::mem::take(&mut self.last_tx_post_exec_result)
     }
 
-    /// Snapshot the block-scoped warming state for carry-forward across flashblock executors.
-    pub fn warming_state(&self) -> post_exec::WarmingState {
-        self.inner.0.inspector.warming_state()
+    /// Snapshot refund state to carry across subblock executors.
+    pub fn refund_snapshot(&self) -> R::Snapshot {
+        self.inner.0.inspector.refund_snapshot()
     }
 
-    /// Seed the block-scoped warming state captured from a prior flashblock's executor.
-    pub fn seed_warming_state(&mut self, state: post_exec::WarmingState) {
-        self.inner.0.inspector.seed_warming_state(state);
+    /// Seed refund state captured from a prior subblock.
+    pub fn seed_refund_snapshot(&mut self, state: R::Snapshot) {
+        self.inner.0.inspector.seed_refund_snapshot(state);
     }
 }
 
-impl<DB: Database, I, P, Tx> post_exec::PostExecEvm for OpEvm<DB, I, P, Tx>
+impl<DB: Database, I, P, Tx, R> post_exec::PostExecEvm for OpEvm<DB, I, P, Tx, R>
 where
     Self: Evm,
+    R: post_exec::PostExecRefundInspector,
 {
+    type Snapshot = R::Snapshot;
+
     fn begin_post_exec_tx(&mut self, ctx: post_exec::PostExecTxContext) {
         Self::begin_post_exec_tx(self, ctx);
     }
@@ -187,12 +230,12 @@ where
         Self::take_last_post_exec_tx_result(self)
     }
 
-    fn warming_state(&self) -> post_exec::WarmingState {
-        Self::warming_state(self)
+    fn refund_snapshot(&self) -> Self::Snapshot {
+        Self::refund_snapshot(self)
     }
 
-    fn seed_warming_state(&mut self, state: post_exec::WarmingState) {
-        Self::seed_warming_state(self, state);
+    fn seed_refund_snapshot(&mut self, state: Self::Snapshot) {
+        Self::seed_refund_snapshot(self, state);
     }
 }
 
@@ -200,6 +243,10 @@ impl<Tx> post_exec::PostExecEvmFactoryHooks for OpEvmFactory<Tx>
 where
     Tx: IntoTxEnv<Tx> + Into<OpTransaction<TxEnv>> + Default + Clone + Debug,
 {
+    // The factory fixes the EVM's default refund inspector (`SDMWarmingInspector`), whose
+    // carry-forward state is `WarmingState`.
+    type Snapshot = post_exec::WarmingState;
+
     fn begin_post_exec_tx<DB, I>(evm: &mut Self::Evm<DB, I>, ctx: post_exec::PostExecTxContext)
     where
         DB: Database,
@@ -218,24 +265,24 @@ where
         evm.take_last_post_exec_tx_result()
     }
 
-    fn warming_state<DB, I>(evm: &Self::Evm<DB, I>) -> post_exec::WarmingState
+    fn refund_snapshot<DB, I>(evm: &Self::Evm<DB, I>) -> Self::Snapshot
     where
         DB: Database,
         I: Inspector<Self::Context<DB>>,
     {
-        evm.warming_state()
+        evm.refund_snapshot()
     }
 
-    fn seed_warming_state<DB, I>(evm: &mut Self::Evm<DB, I>, state: post_exec::WarmingState)
+    fn seed_refund_snapshot<DB, I>(evm: &mut Self::Evm<DB, I>, state: Self::Snapshot)
     where
         DB: Database,
         I: Inspector<Self::Context<DB>>,
     {
-        evm.seed_warming_state(state);
+        evm.seed_refund_snapshot(state);
     }
 }
 
-impl<DB: Database, I, P, Tx> Deref for OpEvm<DB, I, P, Tx> {
+impl<DB: Database, I, P, Tx, R> Deref for OpEvm<DB, I, P, Tx, R> {
     type Target = OpEvmContext<DB>;
 
     #[inline]
@@ -244,19 +291,20 @@ impl<DB: Database, I, P, Tx> Deref for OpEvm<DB, I, P, Tx> {
     }
 }
 
-impl<DB: Database, I, P, Tx> DerefMut for OpEvm<DB, I, P, Tx> {
+impl<DB: Database, I, P, Tx, R> DerefMut for OpEvm<DB, I, P, Tx, R> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.ctx_mut()
     }
 }
 
-impl<DB, I, P, Tx> Evm for OpEvm<DB, I, P, Tx>
+impl<DB, I, P, Tx, R> Evm for OpEvm<DB, I, P, Tx, R>
 where
     DB: Database,
     I: Inspector<OpEvmContext<DB>>,
     P: PrecompileProvider<OpEvmContext<DB>, Output = InterpreterResult>,
     Tx: IntoTxEnv<Tx> + Into<OpTransaction<TxEnv>>,
+    R: Inspector<OpEvmContext<DB>> + post_exec::PostExecRefundInspector,
 {
     type DB = DB;
     type Tx = Tx;
@@ -386,20 +434,7 @@ where
         db: DB,
         input: EvmEnv<OpSpecId, BlockEnv>,
     ) -> Self::Evm<DB, NoOpInspector> {
-        let spec_id = input.cfg_env.spec;
-        let inner = Context::mainnet()
-            .with_tx(OpTx(OpTransaction::builder().build_fill()))
-            .with_cfg(CfgEnv::new_with_spec(OpSpecId::BEDROCK))
-            .with_chain(L1BlockInfo::default())
-            .with_db(db)
-            .with_block(input.block_env)
-            .with_cfg(input.cfg_env)
-            .build_op_with_inspector(NoOpInspector {})
-            .with_precompiles(PrecompilesMap::from_static(
-                OpPrecompiles::new_with_spec(spec_id).precompiles(),
-            ));
-
-        OpEvm::new(inner, false)
+        OpEvm::from_env(db, input, NoOpInspector {}, false)
     }
 
     fn create_evm_with_inspector<DB: Database, I: Inspector<Self::Context<DB>>>(
@@ -408,20 +443,7 @@ where
         input: EvmEnv<OpSpecId, BlockEnv>,
         inspector: I,
     ) -> Self::Evm<DB, I> {
-        let spec_id = input.cfg_env.spec;
-        let inner = Context::mainnet()
-            .with_tx(OpTx(OpTransaction::builder().build_fill()))
-            .with_cfg(CfgEnv::new_with_spec(OpSpecId::BEDROCK))
-            .with_chain(L1BlockInfo::default())
-            .with_db(db)
-            .with_block(input.block_env)
-            .with_cfg(input.cfg_env)
-            .build_op_with_inspector(inspector)
-            .with_precompiles(PrecompilesMap::from_static(
-                OpPrecompiles::new_with_spec(spec_id).precompiles(),
-            ));
-
-        OpEvm::new(inner, true)
+        OpEvm::from_env(db, input, inspector, true)
     }
 }
 

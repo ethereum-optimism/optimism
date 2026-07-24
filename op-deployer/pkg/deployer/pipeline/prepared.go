@@ -10,9 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-// NewPreparedDeployment copies the intent, deployer, OPCM, artifact hashes,
-// predicted addresses, start blocks, and genesis times used by prepare.
-// Prestate and StartingAnchorRoot remain in ChainState because later steps set them.
+// NewPreparedDeployment freezes the inputs and predictions for undeployed intent chains.
+// Values committed by separate stages, such as Prestate and StartingAnchorRoot, remain in ChainState.
 func NewPreparedDeployment(
 	intent *state.Intent,
 	st *state.State,
@@ -70,19 +69,11 @@ func NewPreparedDeployment(
 	}
 
 	// Detach the durable snapshot from all live intent and state pointers.
-	data, err := json.Marshal(prepared)
-	if err != nil {
-		return nil, fmt.Errorf("failed to encode prepared deployment: %w", err)
-	}
-	var detached state.PreparedDeployment
-	if err := json.Unmarshal(data, &detached); err != nil {
-		return nil, fmt.Errorf("failed to decode prepared deployment: %w", err)
-	}
-	return &detached, nil
+	return prepared.Clone()
 }
 
-// ValidatePreparedDeployment checks that pending-chain settings and artifact
-// locations have not changed since prepare.
+// ValidatePreparedDeployment rejects live settings or artifact locators that no longer
+// match the snapshot for chains awaiting deployment.
 func ValidatePreparedDeployment(intent *state.Intent, st *state.State) error {
 	if intent == nil {
 		return fmt.Errorf("intent is missing")
@@ -142,8 +133,8 @@ func ValidatePreparedDeployment(intent *state.Intent, st *state.State) error {
 	return nil
 }
 
-// ValidateCommittedPrestateOverrides preserves the value selected by op-deployer
-// prestate: once committed, an explicit prestate override cannot change.
+// ValidateCommittedPrestateOverrides rejects explicit live overrides that conflict
+// with a prestate already committed to ChainState.
 func ValidateCommittedPrestateOverrides(intent *state.Intent, st *state.State) error {
 	if intent == nil {
 		return fmt.Errorf("intent is missing")
@@ -194,6 +185,8 @@ func hasFaultGameAbsolutePrestateOverride(intent *state.Intent, chain *state.Cha
 	return ok
 }
 
+// ValidatePreparedArtifactContents rejects bundles that no longer match the
+// content digests recorded by prepare.
 func ValidatePreparedArtifactContents(prepared *state.PreparedDeployment, bundle artifacts.Bundle) error {
 	if prepared == nil {
 		return fmt.Errorf("prepared deployment is missing")
@@ -215,6 +208,8 @@ func ValidatePreparedArtifactContents(prepared *state.PreparedDeployment, bundle
 	return nil
 }
 
+// PreparedChainProofParams resolves proof parameters from the frozen intent,
+// independently of later edits to the live intent.
 func PreparedChainProofParams(st *state.State, chainID common.Hash) (state.ChainProofParams, error) {
 	if st == nil || st.PreparedDeployment == nil || st.PreparedDeployment.Intent == nil {
 		return state.ChainProofParams{}, fmt.Errorf("prepared deployment is missing")
@@ -246,25 +241,20 @@ func canonicalPreparedIntent(
 		ConfigType:            intent.ConfigType,
 		L1ChainID:             intent.L1ChainID,
 		SuperchainConfigProxy: &superchainConfig,
-		Chains:                intent.Chains,
+		FundDevAccounts:       intent.FundDevAccounts,
 		GlobalDeployOverrides: intent.GlobalDeployOverrides,
 		UseInterop:            intent.UseInterop,
 	}
-	canonical.Chains = nil
+
 	for _, chain := range intent.Chains {
 		if include[chain.ID] {
 			canonical.Chains = append(canonical.Chains, chain)
 		}
 	}
-	data, err := json.Marshal(canonical)
+	canonical, err := canonical.Clone()
 	if err != nil {
-		return nil, fmt.Errorf("failed to encode canonical intent: %w", err)
+		return nil, fmt.Errorf("failed to clone canonical intent: %w", err)
 	}
-	var detached state.Intent
-	if err := json.Unmarshal(data, &detached); err != nil {
-		return nil, fmt.Errorf("failed to decode canonical intent: %w", err)
-	}
-	canonical = &detached
 
 	proofParams := make([]state.ChainProofParams, len(canonical.Chains))
 	requirements := make([]InitialDeployRequirements, len(canonical.Chains))

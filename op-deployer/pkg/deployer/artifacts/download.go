@@ -34,12 +34,13 @@ type Extractor interface {
 	Extract(src string, dest string) (string, error)
 }
 
-// Bundle contains the L1 and L2 artifacts selected by an intent.
+// Bundle keeps the L1 and L2 contract artifacts selected for one deployment together.
 type Bundle struct {
 	L1 foundry.StatDirFs
 	L2 foundry.StatDirFs
 }
 
+// DownloadBundle resolves both artifact locators through the same cache.
 func DownloadBundle(
 	ctx context.Context,
 	l1, l2 *Locator,
@@ -50,6 +51,11 @@ func DownloadBundle(
 	if err != nil {
 		return Bundle{}, fmt.Errorf("failed to download L1 artifacts: %w", err)
 	}
+
+	if l1.Equal(l2) {
+		return Bundle{L1: l1FS, L2: l1FS}, nil
+	}
+
 	l2FS, err := Download(ctx, l2, progressor, targetDir)
 	if err != nil {
 		return Bundle{}, fmt.Errorf("failed to download L2 artifacts: %w", err)

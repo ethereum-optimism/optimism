@@ -521,6 +521,8 @@ func TestContinuationDeploymentUsesPreparedInputs(t *testing.T) {
 		st.SetChainContracts(chainID, addresses.OpChainContracts{}, false)
 		chainState, err := st.Chain(chainID)
 		require.NoError(t, err)
+		gameType := uint32(embedded.GameTypeCannonKona)
+		chainState.InitialGameType = &gameType
 		chainState.Prestate = committedPrestate
 		chainState.StartingAnchorRoot = committedAnchor
 		st.PreparedDeployment.Chains = []*state.PreparedChainState{{ID: chainID}}

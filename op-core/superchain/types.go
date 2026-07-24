@@ -9,7 +9,6 @@ type ChainConfig struct {
 	PublicRPC            string       `toml:"public_rpc"`
 	SequencerRPC         string       `toml:"sequencer_rpc"`
 	Explorer             string       `toml:"explorer"`
-	SuperchainLevel      int          `toml:"superchain_level"`
 	GovernedByOptimism   bool         `toml:"governed_by_optimism"`
 	SuperchainTime       *uint64      `toml:"superchain_time"`
 	DataAvailabilityType string       `toml:"data_availability_type"`

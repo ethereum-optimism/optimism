@@ -54,13 +54,30 @@ type Service struct {
 	stopped atomic.Bool
 }
 
+// ServiceOption customizes a dispute monitor service.
+type ServiceOption func(*Service)
+
+// WithClock overrides the service clock.
+func WithClock(cl clock.Clock) ServiceOption {
+	return func(service *Service) {
+		if cl != nil {
+			service.cl = cl
+		}
+	}
+}
+
 // NewService creates a new Service.
-func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*Service, error) {
+func NewService(ctx context.Context, logger log.Logger, cfg *config.Config, options ...ServiceOption) (*Service, error) {
 	s := &Service{
 		cl:           clock.SystemClock,
 		logger:       logger,
 		metrics:      metrics.NewMetrics(),
 		honestActors: types.NewHonestActors(cfg.HonestActors),
+	}
+	for _, option := range options {
+		if option != nil {
+			option(s)
+		}
 	}
 
 	if err := s.initFromConfig(ctx, cfg); err != nil {

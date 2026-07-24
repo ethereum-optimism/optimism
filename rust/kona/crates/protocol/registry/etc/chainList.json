@@ -9,7 +9,6 @@
     "explorers": [
       "https://explorer.ata.network"
     ],
-    "superchainLevel": 0,
     "governedByOptimism": false,
     "dataAvailabilityType": "alt-da",
     "parent": {
@@ -31,7 +30,6 @@
     "explorers": [
       "https://explorer.gobob.xyz"
     ],
-    "superchainLevel": 0,
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -52,7 +50,6 @@
     "explorers": [
       "https://explorer.thebinaryholdings.com"
     ],
-    "superchainLevel": 0,
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -74,7 +71,6 @@
     "explorers": [
       "https://cyberscan.co/"
     ],
-    "superchainLevel": 0,
     "governedByOptimism": false,
     "dataAvailabilityType": "alt-da",
     "parent": {
@@ -95,7 +91,6 @@
     "explorers": [
       "https://ernscan.io"
     ],
-    "superchainLevel": 1,
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -116,7 +111,6 @@
     "explorers": [
       "https://fraxscan.com"
     ],
-    "superchainLevel": 0,
     "governedByOptimism": false,
     "dataAvailabilityType": "alt-da",
     "parent": {
@@ -137,7 +131,6 @@
     "explorers": [
       "https://funki.superscan.network"
     ],
-    "superchainLevel": 0,
     "governedByOptimism": false,
     "dataAvailabilityType": "alt-da",
     "parent": {
@@ -158,7 +151,6 @@
     "explorers": [
       "https://explorer.hsk.xyz"
     ],
-    "superchainLevel": 0,
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -180,7 +172,6 @@
     "explorers": [
       "https://explorer.inkonchain.com"
     ],
-    "superchainLevel": 1,
     "governedByOptimism": true,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -201,7 +192,6 @@
     "explorers": [
       "https://blockscout.lisk.com"
     ],
-    "superchainLevel": 1,
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -222,7 +212,6 @@
     "explorers": [
       "https://explorer.lyra.finance"
     ],
-    "superchainLevel": 0,
     "governedByOptimism": false,
     "dataAvailabilityType": "alt-da",
     "parent": {
@@ -243,7 +232,6 @@
     "explorers": [
       "https://explorer.metall2.com"
     ],
-    "superchainLevel": 1,
     "governedByOptimism": true,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -264,7 +252,6 @@
     "explorers": [
       "https://explorer.mintchain.io"
     ],
-    "superchainLevel": 0,
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -285,7 +272,6 @@
     "explorers": [
       "https://explorer.mode.network"
     ],
-    "superchainLevel": 1,
     "governedByOptimism": true,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -306,7 +292,6 @@
     "explorers": [
       "https://explorer.optimism.io"
     ],
-    "superchainLevel": 2,
     "governedByOptimism": true,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -327,7 +312,6 @@
     "explorers": [
       "https://explorer.orderly.network"
     ],
-    "superchainLevel": 0,
     "governedByOptimism": false,
     "dataAvailabilityType": "alt-da",
     "parent": {
@@ -348,7 +332,6 @@
     "explorers": [
       "https://polynomialscan.io"
     ],
-    "superchainLevel": 1,
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -369,7 +352,6 @@
     "explorers": [
       "https://racescan.io/"
     ],
-    "superchainLevel": 0,
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -390,7 +372,6 @@
     "explorers": [
       "https://explorer.redstone.xyz"
     ],
-    "superchainLevel": 0,
     "governedByOptimism": false,
     "dataAvailabilityType": "alt-da",
     "parent": {
@@ -411,7 +392,6 @@
     "explorers": [
       "mainnet.settlus.network"
     ],
-    "superchainLevel": 0,
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -432,7 +412,6 @@
     "explorers": [
       "https://shape-mainnet.explorer.alchemy.com/"
     ],
-    "superchainLevel": 1,
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -453,7 +432,6 @@
     "explorers": [
       "https://soneium.blockscout.com/"
     ],
-    "superchainLevel": 1,
     "governedByOptimism": true,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -474,7 +452,6 @@
     "explorers": [
       "https://explorer.superseed.xyz"
     ],
-    "superchainLevel": 1,
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -495,7 +472,6 @@
     "explorers": [
       "https://swanscan.io"
     ],
-    "superchainLevel": 0,
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -516,7 +492,6 @@
     "explorers": [
       "https://explorer.unichain.org"
     ],
-    "superchainLevel": 1,
     "governedByOptimism": true,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -537,7 +512,6 @@
     "explorers": [
       "https://worldchain-mainnet.explorer.alchemy.com/"
     ],
-    "superchainLevel": 1,
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -558,7 +532,6 @@
     "explorers": [
       "https://eth.xterscan.io/"
     ],
-    "superchainLevel": 0,
     "governedByOptimism": false,
     "dataAvailabilityType": "alt-da",
     "parent": {
@@ -579,7 +552,6 @@
     "explorers": [
       "https://explorer.zora.energy"
     ],
-    "superchainLevel": 1,
     "governedByOptimism": true,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -600,7 +572,6 @@
     "explorers": [
       "https://explorer.sepolia.thebinaryholdings.com"
     ],
-    "superchainLevel": 0,
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -622,7 +593,6 @@
     "explorers": [
       "https://testnet.bobascan.com"
     ],
-    "superchainLevel": 0,
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -643,7 +613,6 @@
     "explorers": [
       "https://testnet.cyberscan.co/"
     ],
-    "superchainLevel": 0,
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -664,7 +633,6 @@
     "explorers": [
       "https://sepolia-sandbox.funkichain.com/"
     ],
-    "superchainLevel": 0,
     "governedByOptimism": false,
     "dataAvailabilityType": "alt-da",
     "parent": {
@@ -685,7 +653,6 @@
     "explorers": [
       "https://explorer-sepolia.inkonchain.com"
     ],
-    "superchainLevel": 1,
     "governedByOptimism": true,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -706,7 +673,6 @@
     "explorers": [
       "https://sepolia-blockscout.lisk.com"
     ],
-    "superchainLevel": 1,
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -727,7 +693,6 @@
     "explorers": [
       "https://testnet.explorer.metall2.com"
     ],
-    "superchainLevel": 1,
     "governedByOptimism": true,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -748,7 +713,6 @@
     "explorers": [
       "https://sepolia.explorer.mode.network"
     ],
-    "superchainLevel": 1,
     "governedByOptimism": true,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -769,7 +733,6 @@
     "explorers": [
       "https://testnet-explorer.optimism.io"
     ],
-    "superchainLevel": 1,
     "governedByOptimism": true,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -790,7 +753,6 @@
     "explorers": [
       "https://ozean-testnet.explorer.caldera.xyz"
     ],
-    "superchainLevel": 0,
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -812,7 +774,6 @@
     "explorers": [
       "https://sepolia.pivotalscan.org/"
     ],
-    "superchainLevel": 1,
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -833,7 +794,6 @@
     "explorers": [
       "https://testnet.racescan.io/"
     ],
-    "superchainLevel": 0,
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -854,7 +814,6 @@
     "explorers": [
       "sepolia.settlus.network"
     ],
-    "superchainLevel": 0,
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -875,7 +834,6 @@
     "explorers": [
       "https://shape-sepolia.explorer.alchemy.com/"
     ],
-    "superchainLevel": 1,
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -896,7 +854,6 @@
     "explorers": [
       "https://soneium-minato.blockscout.com/"
     ],
-    "superchainLevel": 1,
     "governedByOptimism": true,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -917,7 +874,6 @@
     "explorers": [
       "https://sepolia.uniscan.xyz"
     ],
-    "superchainLevel": 1,
     "governedByOptimism": true,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -938,7 +894,6 @@
     "explorers": [
       "https://worldchain-sepolia.explorer.alchemy.com/"
     ],
-    "superchainLevel": 0,
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -959,7 +914,6 @@
     "explorers": [
       "https://sepolia.explorer.zora.energy"
     ],
-    "superchainLevel": 1,
     "governedByOptimism": true,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -980,7 +934,6 @@
     "explorers": [
       ""
     ],
-    "superchainLevel": 0,
     "governedByOptimism": true,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -1001,7 +954,6 @@
     "explorers": [
       "https://bobascan.com"
     ],
-    "superchainLevel": 0,
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -1022,7 +974,6 @@
     "explorers": [
       "https://testnet-rpc.theradius.xyz/"
     ],
-    "superchainLevel": 0,
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -1043,7 +994,6 @@
     "explorers": [
       "https://camp-network-testnet.blockscout.com"
     ],
-    "superchainLevel": 0,
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -1064,7 +1014,6 @@
     "explorers": [
       "https://celoscan.io/"
     ],
-    "superchainLevel": 0,
     "governedByOptimism": false,
     "dataAvailabilityType": "alt-da",
     "parent": {
@@ -1086,7 +1035,6 @@
     "explorers": [
       "https://explorer-mainnet.rollup.silentdata.com"
     ],
-    "superchainLevel": 0,
     "governedByOptimism": false,
     "dataAvailabilityType": "alt-da",
     "parent": {
@@ -1107,7 +1055,6 @@
     "explorers": [
       "https://celo-sepolia.blockscout.com"
     ],
-    "superchainLevel": 2,
     "governedByOptimism": false,
     "dataAvailabilityType": "alt-da",
     "parent": {
@@ -1129,7 +1076,6 @@
     "explorers": [
       ""
     ],
-    "superchainLevel": 0,
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {

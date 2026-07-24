@@ -4,6 +4,24 @@ description: Learn about the OP Stack's Fault Proof System.
 diataxis: explanation
 ---
 
+import { NormativeSpec } from "/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="The fault proof system"
+  title="fault proof specification"
+  href="https://specs.optimism.io/fault-proof/index.html"
+  note="This page is a conceptual explainer; it does not restate the spec."
+/>
+
+<Info>
+  **Learn the OP Stack — stop 11 of 13.**
+  You've proven and finalized a withdrawal yourself. This page adds why
+  that process can be trusted: permissionless proposals about the state
+  of the chain, and permissionless challenges to them. When you're done,
+  continue to
+  [OP Stack interoperability explainer](/op-stack/interop/explainer).
+</Info>
+
 Fault Proofs are an important part of an Optimistic Rollup system.
 Users withdraw ETH and tokens from OP Stack chains like OP Mainnet by submitting a withdrawal proof that shows the withdrawal was actually included in the OP Stack chain.
 Fault Proofs allow users to permissionlessly submit and challenge the proposals about the state of an OP Stack chain that are used to prove withdrawals.

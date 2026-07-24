@@ -7,7 +7,7 @@ diataxis: reference
 This page catalogues the environment variables Legacy Geth (`l2geth`) accepts and the RPC methods your execution client routes to it.
 For what Legacy Geth is and how to set it up, see the [Legacy Geth guide](/node-operators/guides/configuration/legacy-geth).
 
-Legacy Geth is required only for upgraded networks like OP Mainnet to serve historical execution traces from before the Bedrock upgrade.
+Legacy Geth applies only to networks that upgraded through Bedrock, such as OP Mainnet, where it serves execution requests against pre-Bedrock blocks.
 
 ## Environment variables
 
@@ -25,8 +25,8 @@ Legacy Geth accepts the following environment variables:
 | `RPC_VHOSTS` | Virtual hosts | `localhost` |
 
 <Warning>
-  It is imperative that you specify the `USING_OVM=true` environment variable.
-  Failing to specify this will cause `l2geth` to return invalid execution traces or panic at startup.
+  `USING_OVM=true` must always be set.
+  Without it, `l2geth` panics at startup or returns invalid execution traces.
 </Warning>
 
 ## Execution-client routing flag

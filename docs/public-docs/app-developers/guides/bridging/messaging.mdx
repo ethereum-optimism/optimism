@@ -120,33 +120,10 @@ contract MyContract {
 ## Communication speed
 
 Unlike calls between contracts on the same blockchain, calls between Ethereum and OP Mainnet are *not* instantaneous.
-The speed of a cross-chain transaction depends on the direction in which the transaction is sent.
-
-### For L1 to L2 transactions
-
-Transactions sent from L1 to L2 take **approximately 1-3 minutes** to get from Ethereum to OP Mainnet, or from Sepolia to OP Sepolia.
-This is because the Sequencer waits for a certain number of L1 blocks to be created before including L1 to L2 transactions to avoid potentially annoying [reorgs](https://www.alchemy.com/overviews/what-is-a-reorg).
-
-### For L2 to L1 transactions
-
-Transactions sent from L2 to L1 take **approximately 7 days** to get from OP Mainnet to Ethereum, or from OP Sepolia to Sepolia.
-This is because the bridge contract on L1 must wait for the L2 state to be *proven* to the L1 chain before it can relay the message.
-
-The process of sending transactions from L2 to L1 involves four distinct steps:
-
-1.  The L2 transaction that sends a message to L1 is sent to the Sequencer.
-    This is just like any other L2 transaction and takes just a few seconds to be confirmed by the Sequencer.
-
-2.  The block containing the L2 transaction is proposed to the L1.
-    This typically takes approximately 20 minutes.
-
-3.  A proof of the transaction is submitted to the [`OptimismPortal`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OptimismPortal2.sol#L375) contract on L1.
-    This can be done any time after step 2 is complete.
-
-4.  The transaction is finalized on L1.
-    This can *only* be done after the [fault challenge period](#understanding-the-challenge-period) has elapsed.
-    This period is 7 days on Ethereum and a few seconds on Sepolia.
-    This waiting period is a core part of the security model of the OP Stack and cannot be circumvented.
+Transactions sent from L1 to L2 take **approximately 1-3 minutes**, because the Sequencer waits for a certain number of L1 blocks to be created before including L1 to L2 transactions to avoid potentially annoying [reorgs](https://www.alchemy.com/overviews/what-is-a-reorg).
+Transactions sent from L2 to L1 take **approximately 7 days**: the message must be initiated on L2, proven on L1 against an output root, and finalized on L1 only after the [challenge period](#understanding-the-challenge-period) (7 days on mainnet, shorter on test networks) has elapsed.
+This waiting period is a core part of the security model of the OP Stack and cannot be circumvented.
+For the step-by-step mechanics in each direction, see [Deposit flow](/op-stack/bridging/deposit-flow) and [Withdrawal flow](/op-stack/bridging/withdrawal-flow).
 
 ## Accessing `msg.sender`
 
@@ -210,20 +187,6 @@ The L1 proof and finalization transactions are typically significantly more expe
 ## Understanding the challenge period
 
 One of the most important things to understand about L1 ⇔ L2 interaction is that **mainnet messages sent from Layer 2 to Layer 1 cannot be relayed for at least 7 days**.
-This means that any messages you send from Layer 2 will only be received on Layer 1 after this one-week period has elapsed.
-We call this period of time the "challenge period" because it is the time during which a transaction can be challenged with a [fault proof](/op-stack/protocol/overview#fault-proofs).
-
-Optimistic Rollups are "optimistic" because they're based around the idea of publishing the *result* of a transaction to Ethereum without actually executing the transaction on Ethereum.
-In the "optimistic" case, this transaction result is correct and one can completely avoid the need to perform complicated (and expensive) logic on Ethereum.
-
-However, one still needs to find a way to prevent incorrect transaction results from being published in place of correct ones.
-Here's where the "fault proof" comes into play.
-Whenever a transaction result is published, it's considered "pending" for a period of time known as the challenge period.
-During this period of time, anyone may re-execute the transaction *on Ethereum* in an attempt to demonstrate that the published result was incorrect.
-
-If someone can prove that a transaction result is faulty, then the result is scrubbed from existence and anyone can publish another result in its place (hopefully the correct one this time, financial punishments make faulty results *very* costly for their publishers).
-Once the window for a given transaction result has fully passed without a challenge, the result can be considered fully valid (or else someone would've challenged it).
-
-Anyway, the point here is that **you don't want to be making decisions about Layer 2 transaction results from inside a smart contract on Layer 1 until this challenge period has elapsed**.
-Otherwise you might be making decisions based on an invalid transaction result.
-As a result, L2 ⇒ L1 messages sent using the standard messenger contracts cannot be relayed until they've waited out the full challenge period.
+This period of time is called the "challenge period" because it is the window during which a published transaction result can be challenged with a [fault proof](/op-stack/protocol/overview#fault-proofs): Optimistic Rollups publish transaction *results* to Ethereum without executing the transactions there, so L1 contracts must give challengers time to prove a published result faulty before acting on it.
+The practical consequence for app developers is that **you don't want to be making decisions about Layer 2 transaction results from inside a smart contract on Layer 1 until this challenge period has elapsed**, and L2 ⇒ L1 messages sent using the standard messenger contracts cannot be relayed until they've waited out the full challenge period.
+For how the challenge period fits into the withdrawal process, see [Withdrawal flow](/op-stack/bridging/withdrawal-flow); for why it exists, see the [fault proofs overview](/op-stack/protocol/overview#fault-proofs).

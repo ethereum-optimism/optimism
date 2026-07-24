@@ -1,6 +1,7 @@
 package state
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -276,6 +277,19 @@ func (c *Intent) Chain(id common.Hash) (*ChainIntent, error) {
 
 func (c *Intent) WriteToFile(path string) error {
 	return jsonutil.WriteTOML(c, ioutil.ToAtomicFile(path, 0o755))
+}
+
+// Clone returns a deep copy of the intent, detached from the receiver's pointers.
+func (c *Intent) Clone() (*Intent, error) {
+	data, err := json.Marshal(c)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode intent: %w", err)
+	}
+	var clone Intent
+	if err := json.Unmarshal(data, &clone); err != nil {
+		return nil, fmt.Errorf("failed to decode intent: %w", err)
+	}
+	return &clone, nil
 }
 
 func (c *Intent) checkL1Prod() error {

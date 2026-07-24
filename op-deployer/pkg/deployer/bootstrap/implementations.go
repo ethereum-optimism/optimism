@@ -152,42 +152,49 @@ func ImplementationsCLI(cliCtx *cli.Context) error {
 		return fmt.Errorf("failed to write output: %w", err)
 	}
 
-	if !cliCtx.Bool(deployer.AutoVerifyFlag.Name) {
+	if cliCtx.Bool(deployer.NoVerifyFlag.Name) {
+		l.Warn("Contract verification skipped", "reason", "--no-verify was set")
 		return nil
 	}
 
 	verifyFile := outfile
-	if verifyFile == "" || verifyFile == "-" {
-		tmpFile, err := os.CreateTemp("", "op-deployer-implementations-*.json")
+	if err := func() error {
+		if verifyFile == "" || verifyFile == "-" {
+			tmpFile, err := os.CreateTemp("", "op-deployer-implementations-*.json")
+			if err != nil {
+				return fmt.Errorf("failed to create temp file for verification: %w", err)
+			}
+			tmpPath := tmpFile.Name()
+			tmpFile.Close()
+			defer os.Remove(tmpPath)
+			verifyFile = tmpPath
+			if err := jsonutil.WriteJSON(dio, ioutil.ToBasicFile(tmpPath, 0o644)); err != nil {
+				return fmt.Errorf("failed to write temp file for verification: %w", err)
+			}
+		}
+
+		l1RPCUrl := cliCtx.String(deployer.L1RPCURLFlagName)
+		chainID, err := deployer.ChainIDFromRPC(ctx, l1RPCUrl)
 		if err != nil {
-			return fmt.Errorf("failed to create temp file for verification: %w", err)
+			return fmt.Errorf("failed to get chain ID: %w", err)
 		}
-		tmpPath := tmpFile.Name()
-		tmpFile.Close()
-		defer os.Remove(tmpPath)
-		verifyFile = tmpPath
-		if err := jsonutil.WriteJSON(dio, ioutil.ToBasicFile(tmpPath, 0o644)); err != nil {
-			return fmt.Errorf("failed to write temp file for verification: %w", err)
-		}
-	}
 
-	l1RPCUrl := cliCtx.String(deployer.L1RPCURLFlagName)
-	chainID, err := deployer.ChainIDFromRPC(ctx, l1RPCUrl)
-	if err != nil {
-		return fmt.Errorf("failed to get chain ID: %w", err)
+		return verify.AutoVerify(
+			ctx,
+			l,
+			l1RPCUrl,
+			bigs.Uint64Strict(chainID),
+			verifyFile,
+			outfile,
+			cfg.ArtifactsLocator,
+			cliCtx.String(deployer.VerifierTypeFlagName),
+			cliCtx.String(deployer.VerifierUrlFlagName),
+			cliCtx.String(deployer.VerifierAPIKeyFlagName),
+		)
+	}(); err != nil {
+		verify.LogAutoVerifyFailure(l, outfile, err)
 	}
-
-	return verify.AutoVerify(
-		ctx,
-		l,
-		l1RPCUrl,
-		bigs.Uint64Strict(chainID),
-		verifyFile,
-		cfg.ArtifactsLocator,
-		cliCtx.String(deployer.VerifierTypeFlagName),
-		cliCtx.String(deployer.VerifierUrlFlagName),
-		cliCtx.String(deployer.VerifierAPIKeyFlagName),
-	)
+	return nil
 }
 
 func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.DeployImplementationsOutput, error) {

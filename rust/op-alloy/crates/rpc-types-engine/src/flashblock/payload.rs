@@ -111,6 +111,7 @@ mod tests {
             withdrawals: vec![],
             withdrawals_root: B256::ZERO,
             blob_gas_used: Some(0),
+            post_exec_tx: None,
         };
 
         let metadata = OpFlashblockPayloadMetadata {

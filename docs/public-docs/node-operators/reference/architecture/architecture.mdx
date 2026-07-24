@@ -4,7 +4,9 @@ description: Understand how the components of an OP Stack node fit together.
 diataxis: explanation
 ---
 
-This page explains how an OP Stack node is put together: what its components are, what each one is responsible for, and how they relate to the equivalent parts of an Ethereum node. It is background reading to build a mental model before you run a node — for the steps to actually stand one up, see the [Next steps](#next-steps) below.
+import OpGethEol from "/snippets/op-geth-eol.mdx"
+
+This page explains how an OP Stack node is put together: what its components are, what each one is responsible for, and how they relate to the equivalent parts of an Ethereum node. It is background reading to build a mental model before you run a node; for the steps to actually stand one up, see the [Next steps](#next-steps) below.
 
 Every node on an OP Stack network is composed of two core software services, the Rollup Node and the Execution Client.
 OP Mainnet also optionally supports a third component, Legacy Geth, that can serve stateful queries for blocks and transactions created before the [Bedrock Upgrade](https://web.archive.org/web/20230608050602/https://blog.oplabs.co/introducing-optimism-bedrock/).
@@ -19,31 +21,32 @@ This diagram uses the `op-node` implementation of the Rollup Node and shows the 
 
 The Rollup Node is responsible for deriving L2 block payloads from L1 data and passing those payloads to the Execution Client. The Rollup Node can also optionally participate in a peer-to-peer network to receive blocks directly from the Sequencer before those blocks are submitted to L1. The Rollup Node is largely analogous to a [consensus client](https://ethereum.org/en/developers/docs/nodes-and-clients/#what-are-nodes-and-clients) in Ethereum.
 
+### Rollup node implementations
+
+*   **[op-node](/op-stack/components/op-node)** is the reference implementation of the Rollup Node, written in Go and maintained by Optimism. It is the default choice for any node role and is not deprecated.
+*   **[kona-node](/op-stack/components/kona-node)** is the Rust implementation of the Rollup Node, built as part of the Kona project. It is in active development and should be considered experimental, so give it a role where that is acceptable.
+
+For nodes that follow every chain in an [interop](/op-stack/interop/explainer) dependency set, deploy the consensus layer as [op-supernode](/op-stack/interop/supernode), which hosts an op-node instance for each chain in one process and adds cross-chain message verification. See the [supernode configuration guide](/node-operators/guides/configuration/supernode) for recommended settings and the [op-supernode configuration reference](/node-operators/reference/op-supernode-config) for the flag catalogue.
+
 ## Execution client
 
 The Execution Client is responsible for executing the block payloads it receives from the Rollup Node over JSON-RPC via the standard [Ethereum Engine API](https://github.com/ethereum/execution-apis/blob/main/src/engine/common.md#engine-api----common-definitions).
 The Execution Client exposes the standard JSON-RPC API that Ethereum developers are familiar with, and can be used to query blockchain data and submit transactions to the network.
 The Execution Client is largely analogous to an [execution client](https://ethereum.org/en/developers/docs/nodes-and-clients/#what-are-nodes-and-clients) in Ethereum.
 
-The OP Stack supports multiple execution client implementations:
+### Execution client implementations
 
-### op-geth
+*   **[op-reth](/op-stack/components/op-reth)** is the Optimism-maintained execution client, written in Rust and built on reth. It is the primary supported execution client for OP Stack nodes. See the [execution client configuration guide](/node-operators/guides/configuration/execution-clients) for a working configuration.
+*   **[Nethermind](https://github.com/NethermindEth/nethermind)** is a third-party execution client written in C# that also supports OP Stack chains. The docs focus on Optimism-maintained software; for Nethermind specifics, see the [Nethermind documentation](https://docs.nethermind.io/get-started/running-node/l2-networks).
 
-`op-geth` is the original execution client for the OP Stack, based on the Go Ethereum (Geth) implementation. It has been modified to support the specific requirements of OP Stack chains.
+<OpGethEol />
 
-### Nethermind
-
-Nethermind is a high-performance execution client implementation written in C#. The `Nethermind` client has been adapted to support OP Stack chains, providing an alternative execution client option for node operators.
+op-program has also reached end of support, replaced by kona-client for fault proofs; the same [notice](/notices/op-geth-deprecation) covers both migrations.
 
 ## Legacy Geth
 
-OP Mainnet underwent a large database migration as part of the [Bedrock Upgrade](https://web.archive.org/web/20230608050602/https://blog.oplabs.co/introducing-optimism-bedrock/) in 2023.
-Blocks and transactions included in OP Mainnet prior to the Bedrock Upgrade are served by current execution engines but cannot be executed without the help of a special component called Legacy Geth.
-This means that you will need to run Legacy Geth if you want to be able to run RPC calls such as `eth_call` on blocks before the Bedrock Upgrade.
-
-Legacy Geth is the software that was used to run OP Mainnet nodes prior to the Bedrock Upgrade.
-If you run an instance of Legacy Geth alongside your OP Mainnet node, your node will be able to forward requests against historical transactions to the Legacy Geth instance.
-Legacy Geth is **not** required and is typically only necessary if you want to maintain a complete archive node for OP Mainnet.
+OP Mainnet blocks and transactions from before the 2023 [Bedrock Upgrade](https://web.archive.org/web/20230608050602/https://blog.oplabs.co/introducing-optimism-bedrock/) can be read from any current execution client, but re-executing them (RPC calls such as `eth_call` against pre-Bedrock blocks) requires an optional third component, Legacy Geth (`l2geth`), the client that ran OP Mainnet before the upgrade.
+It is typically only needed for complete OP Mainnet archive nodes; see the [Legacy Geth configuration guide](/node-operators/guides/configuration/legacy-geth) for setup and request routing, and [accessing pre-regenesis history](/op-mainnet/pre-bedrock-history/regenesis-history) for the even older history that predates the current chain data entirely.
 
 ## Next steps
 

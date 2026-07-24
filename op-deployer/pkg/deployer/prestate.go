@@ -119,7 +119,14 @@ func Prestate(ctx context.Context, cfg PrestateConfig) error {
 		if err != nil {
 			return fmt.Errorf("failed to resolve prepared proof parameters for chain %s: %w", chain.ID.Hex(), err)
 		}
-		preparedGameType := proofParams.DisputeGameType
+		chainState, err := st.Chain(chain.ID)
+		if err != nil {
+			return fmt.Errorf("prepared chain %s disappeared: %w", chain.ID.Hex(), err)
+		}
+		preparedGameType, err := pipeline.ResolvePreparedGameType(chain, chainState, proofParams.DisputeGameType)
+		if err != nil {
+			return err
+		}
 		requirements, err := pipeline.ResolveInitialDeployRequirements(preparedGameType)
 		if err != nil {
 			return fmt.Errorf("chain %s: %w", chain.ID.Hex(), err)

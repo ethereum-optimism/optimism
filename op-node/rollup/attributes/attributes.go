@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -27,6 +28,8 @@ type EngineController interface {
 	RequestForkchoiceUpdate(ctx context.Context)
 	RequestPendingSafeUpdate(ctx context.Context)
 	IsEngineInitialELSyncing() bool
+	// IsDenied reports whether the given payload is on the SuperAuthority deny-list.
+	IsDenied(blockNumber uint64, payloadHash common.Hash) (bool, error)
 }
 
 type L2 interface {
@@ -230,19 +233,46 @@ func (eq *AttributesHandler) consolidateNextSafeAttributes(attributes *derive.At
 		eq.log.Warn("L2 reorg: existing unsafe block does not match derived attributes from L1",
 			"err", err, "unsafe", envelope.ExecutionPayload.ID(), "pending_safe", onto)
 
-		eq.sentAttributes = true
-		// geth cannot wind back a chain without reorging to a new, previously non-canonical, block
-		eq.emitter.Emit(eq.ctx, engine.BuildStartEvent{Attributes: attributes})
+		eq.reorgOutUnsafeChain(attributes)
 		return
-	} else {
-		ref, err := derive.PayloadToBlockRef(eq.cfg, envelope.ExecutionPayload)
-		if err != nil {
-			eq.log.Error("Failed to compute block-ref from execution payload")
-			return
-		}
-		eq.engineController.TryUpdatePendingSafe(eq.ctx, ref, attributes.Concluding, attributes.DerivedFrom)
-		eq.engineController.TryUpdateLocalSafe(eq.ctx, ref, attributes.Concluding, attributes.DerivedFrom)
 	}
 
+	// A denied block can re-enter the canonical chain via unsafe sync; the
+	// build-path deny check only runs on a consolidation mismatch, so gate here
+	// too. On a deny, force the build path (as with a mismatch) to reorg it out.
+	payload := envelope.ExecutionPayload
+	denied, err := eq.engineController.IsDenied(uint64(payload.BlockNumber), payload.BlockHash)
+	if err != nil {
+		// Fail closed: without a deny-list result we cannot promote the block, and
+		// we must not reorg either. Stall and retry on the next safe-head poke.
+		eq.emitter.Emit(eq.ctx, rollup.EngineTemporaryErrorEvent{
+			Err: fmt.Errorf("failed to check SuperAuthority deny-list for block %s during consolidation: %w", payload.ID(), err),
+		})
+		return
+	}
+	if denied {
+		eq.log.Warn("Consolidated block denied by SuperAuthority, forcing reorg to build replacement",
+			"blockNumber", payload.BlockNumber, "blockHash", payload.BlockHash, "pending_safe", onto)
+		eq.reorgOutUnsafeChain(attributes)
+		return
+	}
+
+	ref, err := derive.PayloadToBlockRef(eq.cfg, envelope.ExecutionPayload)
+	if err != nil {
+		eq.log.Error("Failed to compute block-ref from execution payload")
+		return
+	}
+	eq.engineController.TryUpdatePendingSafe(eq.ctx, ref, attributes.Concluding, attributes.DerivedFrom)
+	eq.engineController.TryUpdateLocalSafe(eq.ctx, ref, attributes.Concluding, attributes.DerivedFrom)
+
 	// unsafe head stays the same, we did not reorg the chain.
+}
+
+// reorgOutUnsafeChain forces derivation to rebuild the block, reorging out the
+// existing canonical block (which did not match the derived attributes, or was
+// denied). geth cannot wind back a chain without reorging to a new, previously
+// non-canonical, block.
+func (eq *AttributesHandler) reorgOutUnsafeChain(attributes *derive.AttributesWithParent) {
+	eq.sentAttributes = true
+	eq.emitter.Emit(eq.ctx, engine.BuildStartEvent{Attributes: attributes})
 }

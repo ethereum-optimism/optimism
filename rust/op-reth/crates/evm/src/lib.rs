@@ -110,20 +110,27 @@ impl<ChainSpec: EthChainSpec<Header = Header> + OpHardforks> OpEvmConfig<ChainSp
     }
 }
 
+impl<ChainSpec, N: NodePrimitives, R, EvmFactory> OpEvmConfig<ChainSpec, N, R, EvmFactory> {
+    /// Creates a new [`OpEvmConfig`] with an explicit EVM factory.
+    pub fn new_with_evm_factory(
+        chain_spec: Arc<ChainSpec>,
+        receipt_builder: R,
+        evm_factory: EvmFactory,
+    ) -> Self {
+        Self {
+            block_assembler: OpBlockAssembler::new(chain_spec.clone()),
+            executor_factory: OpBlockExecutorFactory::new(receipt_builder, chain_spec, evm_factory),
+            _pd: core::marker::PhantomData,
+        }
+    }
+}
+
 impl<ChainSpec: EthChainSpec<Header = Header> + OpHardforks, N: NodePrimitives, R>
     OpEvmConfig<ChainSpec, N, R>
 {
     /// Creates a new [`OpEvmConfig`] with the given chain spec.
     pub fn new(chain_spec: Arc<ChainSpec>, receipt_builder: R) -> Self {
-        Self {
-            block_assembler: OpBlockAssembler::new(chain_spec.clone()),
-            executor_factory: OpBlockExecutorFactory::new(
-                receipt_builder,
-                chain_spec,
-                OpEvmFactory::<OpTx>::default(),
-            ),
-            _pd: core::marker::PhantomData,
-        }
+        Self::new_with_evm_factory(chain_spec, receipt_builder, OpEvmFactory::<OpTx>::default())
     }
 }
 

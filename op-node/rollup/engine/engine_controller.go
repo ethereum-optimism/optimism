@@ -1099,6 +1099,15 @@ func (e *EngineController) RequestPendingSafeUpdate(ctx context.Context) {
 	})
 }
 
+// IsDenied reports whether the payload is on the SuperAuthority deny-list;
+// false when no SuperAuthority is registered.
+func (e *EngineController) IsDenied(blockNumber uint64, payloadHash common.Hash) (bool, error) {
+	if e.superAuthority == nil {
+		return false, nil
+	}
+	return e.superAuthority.IsDenied(blockNumber, payloadHash)
+}
+
 // TryUpdatePendingSafe updates the pending safe head if the new reference is newer, acquiring lock
 func (e *EngineController) TryUpdatePendingSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef) {
 	e.mu.Lock()

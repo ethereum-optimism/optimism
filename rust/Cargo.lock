@@ -7066,7 +7066,6 @@ dependencies = [
  "rand 0.9.4",
  "serde",
  "serde_json",
- "serde_repr",
  "tabled",
  "thiserror 2.0.18",
  "toml",

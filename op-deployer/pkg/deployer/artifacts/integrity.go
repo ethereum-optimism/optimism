@@ -32,8 +32,8 @@ func (noopIntegrityChecker) CheckIntegrity([]byte) error {
 	return nil
 }
 
-// ContentDigest hashes the file paths and contents in a bundle.
-// It ignores empty directories and file metadata so extraction does not change the hash.
+// ContentDigest commits to every file path and file content in an artifact bundle.
+// Filesystem metadata and empty directories are ignored so equivalent extractions hash identically.
 func ContentDigest(bundle fs.FS) (common.Hash, error) {
 	digest := sha256.New()
 	err := fs.WalkDir(bundle, ".", func(name string, entry fs.DirEntry, walkErr error) error {

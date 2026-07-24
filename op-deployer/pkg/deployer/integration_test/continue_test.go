@@ -484,6 +484,8 @@ func testContinueRejectsMixedPermissionlessFamilies(t *testing.T) {
 		setPermissionlessContinuationInputs(env.preparedChains[i], uint64(i+1))
 		env.intent.Chains[i].DeployOverrides = map[string]any{"respectedGameType": gameType}
 		env.prepared.PreparedDeployment.Intent.Chains[i].DeployOverrides = map[string]any{"respectedGameType": gameType}
+		recordedGameType := uint32(gameType)
+		env.preparedChains[i].InitialGameType = &recordedGameType
 	}
 	require.NoError(t, env.intent.WriteToFile(filepath.Join(env.workdir, "intent.toml")))
 	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))

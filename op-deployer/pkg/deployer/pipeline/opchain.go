@@ -67,7 +67,7 @@ func ExecuteOPChainDeployment(
 ) (OPChainDeploymentResult, error) {
 	var result OPChainDeploymentResult
 	if dci.L2ChainId == nil {
-		return result, fmt.Errorf("deploy OP chain input has nil L2 chain ID. Expected %s", chainID.Big())
+		return result, fmt.Errorf("deploy OP chain input has nil L2 chain ID; expected %s", chainID.Big())
 	}
 	if dci.L2ChainId.Cmp(chainID.Big()) != 0 {
 		return result, fmt.Errorf(
@@ -182,6 +182,9 @@ func RecordOPChainDeployment(st *state.State, result OPChainDeploymentResult) er
 
 	st.SetChainContracts(result.chainID, result.contracts, true)
 
+	// Continuation deployments may reference an existing OPCM without carrying
+	// its implementation addresses in state. Full apply deployments do carry
+	// them, so refresh the recorded addresses only when that record exists.
 	if st.ImplementationsDeployment != nil {
 		impls := result.readback
 		st.ImplementationsDeployment.DelayedWethImpl = impls.DelayedWETH
@@ -221,6 +224,42 @@ func ResolveChainProofParams(intent *state.Intent, chain *state.ChainIntent) (st
 		intent.GlobalDeployOverrides,
 		chain.DeployOverrides,
 	)
+}
+
+// ResolvePreparedGameType returns the initial game type recorded by prepare after
+// verifying that it matches the currently resolved game type.
+func ResolvePreparedGameType(chain *state.ChainIntent, chainState *state.ChainState, current uint32) (uint32, error) {
+	if chainState == nil || chainState.InitialGameType == nil {
+		return 0, fmt.Errorf("chain %s has no initial game type recorded by prepare; rerun op-deployer prepare", chain.ID.Hex())
+	}
+
+	prepared := *chainState.InitialGameType
+	if prepared != current {
+		return 0, fmt.Errorf(
+			"chain %s initial game type changed after prepare: prepared %s (%d), intent %s (%d); rerun op-deployer prepare",
+			chain.ID.Hex(),
+			initialGameTypeName(prepared),
+			prepared,
+			initialGameTypeName(current),
+			current,
+		)
+	}
+	return prepared, nil
+}
+
+func initialGameTypeName(gameType uint32) string {
+	switch embedded.GameType(gameType) {
+	case embedded.GameTypePermissionedCannon:
+		return "PERMISSIONED_CANNON"
+	case embedded.GameTypeSuperPermissioned:
+		return "SUPER_PERMISSIONED"
+	case embedded.GameTypeCannonKona:
+		return "CANNON_KONA"
+	case embedded.GameTypeSuperCannonKona:
+		return "SUPER_CANNON_KONA"
+	default:
+		return "UNKNOWN"
+	}
 }
 
 // InitialDeployRequirements defines initial game deployment requirements.
@@ -309,7 +348,11 @@ func BuildContinuationDCI(chainID common.Hash, st *state.State) (opcm.DeployOPCh
 	if err != nil {
 		return opcm.DeployOPChainInput{}, fmt.Errorf("error merging prepared proof params: %w", err)
 	}
-	requirements, err := ResolveInitialDeployRequirements(proofParams.DisputeGameType)
+	preparedGameType, err := ResolvePreparedGameType(thisIntent, chainState, proofParams.DisputeGameType)
+	if err != nil {
+		return opcm.DeployOPChainInput{}, err
+	}
+	requirements, err := ResolveInitialDeployRequirements(preparedGameType)
 	if err != nil {
 		return opcm.DeployOPChainInput{}, fmt.Errorf(
 			"chain %s has an invalid prepared game type: %w. Rerun op-deployer prepare",
@@ -333,10 +376,7 @@ func BuildContinuationDCI(chainID common.Hash, st *state.State) (opcm.DeployOPCh
 		}
 	}
 
-	startingAnchorRoot := opcm.Proposal{
-		Root:             opcm.DefaultStartingAnchorRoot.Root,
-		L2SequenceNumber: new(big.Int),
-	}
+	startingAnchorRoot := opcm.DefaultStartingAnchorProposal()
 	if requirements.Permissionless {
 		if chainState.StartingAnchorRoot == nil || chainState.StartingAnchorRoot.Root == (common.Hash{}) {
 			return opcm.DeployOPChainInput{}, fmt.Errorf(
@@ -411,10 +451,7 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		chainID,
 		st.Create2Salt.String(),
 		thisIntent.GasLimit,
-		opcm.Proposal{
-			Root:             opcm.DefaultStartingAnchorRoot.Root,
-			L2SequenceNumber: new(big.Int),
-		},
+		opcm.DefaultStartingAnchorProposal(),
 		thisIntent,
 	), nil
 }

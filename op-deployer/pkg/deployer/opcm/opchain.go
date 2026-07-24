@@ -28,6 +28,15 @@ type Proposal struct {
 	L2SequenceNumber *big.Int
 }
 
+// DefaultStartingAnchorProposal returns the permissioned placeholder proposal.
+// Each call returns an independent sequence number that callers may safely mutate.
+func DefaultStartingAnchorProposal() Proposal {
+	return Proposal{
+		Root:             DefaultStartingAnchorRoot.Root,
+		L2SequenceNumber: new(big.Int),
+	}
+}
+
 type DeployOPChainInput struct {
 	OpChainProxyAdminOwner common.Address
 	SystemConfigOwner      common.Address

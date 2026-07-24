@@ -700,6 +700,16 @@ func TestPrestateRejectsIntentChainChangesAfterPrepare(t *testing.T) {
 			wantErrs: []string{"prepared interop dependency set is missing", "rerun op-deployer prepare"},
 		},
 		{
+			name:   "missing prepared game type",
+			chains: []prestateTestChain{{id: chainA, prepared: true}},
+			mutate: func(_ *state.Intent, st *state.State) {
+				chain, err := st.Chain(chainA)
+				require.NoError(t, err)
+				chain.InitialGameType = nil
+			},
+			wantErrs: []string{chainA.Hex(), "no initial game type recorded by prepare", "rerun op-deployer prepare"},
+		},
+		{
 			name:   "game type changed",
 			chains: []prestateTestChain{{id: chainA, prepared: true}},
 			mutate: func(intent *state.Intent, _ *state.State) {
@@ -955,14 +965,20 @@ func writePrestateWorkdir(t *testing.T, global map[string]any, chains []prestate
 	interopDepSet, err := pipeline.BuildInteropDepSet(intent.Chains)
 	require.NoError(t, err)
 	st := &state.State{Version: version, InteropDepSet: interopDepSet}
-	for _, chain := range chains {
+	for i, chain := range chains {
 		genesisTime := hexutil.Uint64(2)
+		var initialGameType *uint32
+		if chain.prepared && !chain.deployed {
+			gameType := fixtureInitialGameType(t, &intent, intent.Chains[i])
+			initialGameType = &gameType
+		}
 		st.Chains = append(st.Chains, &state.ChainState{
-			ID:          chain.id,
-			Deployed:    &chain.deployed,
-			Prestate:    chain.initialSelected,
-			StartBlock:  &state.L1BlockRefJSON{Hash: common.Hash{0x01}, Number: 1, Time: 1},
-			GenesisTime: &genesisTime,
+			ID:              chain.id,
+			Deployed:        &chain.deployed,
+			Prestate:        chain.initialSelected,
+			InitialGameType: initialGameType,
+			StartBlock:      &state.L1BlockRefJSON{Hash: common.Hash{0x01}, Number: 1, Time: 1},
+			GenesisTime:     &genesisTime,
 		})
 	}
 	if prepared {
@@ -1036,6 +1052,25 @@ func setCommandPrestate(selected string) func(*PrestateConfig) {
 
 func gameOverride(gameType embedded.GameType) map[string]any {
 	return map[string]any{"respectedGameType": gameType}
+}
+
+func fixtureInitialGameType(t *testing.T, intent *state.Intent, chain *state.ChainIntent) uint32 {
+	t.Helper()
+
+	global := make(map[string]any)
+	if gameType, ok := intent.GlobalDeployOverrides["respectedGameType"]; ok {
+		global["respectedGameType"] = gameType
+	}
+	chainOverrides := make(map[string]any)
+	if gameType, ok := chain.DeployOverrides["respectedGameType"]; ok {
+		chainOverrides["respectedGameType"] = gameType
+	}
+	proofParams, err := pipeline.ResolveChainProofParams(
+		&state.Intent{GlobalDeployOverrides: global},
+		&state.ChainIntent{DeployOverrides: chainOverrides},
+	)
+	require.NoError(t, err)
+	return proofParams.DisputeGameType
 }
 
 func cloneOverrides(overrides map[string]any) map[string]any {

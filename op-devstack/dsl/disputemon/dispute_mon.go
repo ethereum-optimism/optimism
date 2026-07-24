@@ -140,26 +140,50 @@ func CompletedBeforeMaxDuration(expected int) StateExpectation {
 }
 
 func ResolvedClaims(expected int) StateExpectation {
-	return StateExpectation{
-		check: devtestmetrics.GaugeSumEquals(
-			"op_dispute_mon_claims",
-			map[string]string{"resolved": "resolved"},
-			float64(expected),
-		),
-	}
+	return claimCount(map[string]string{"resolved": "resolved"}, expected)
+}
+
+func ResolvedClaimsInFirstHalf(expected int) StateExpectation {
+	return claimCount(map[string]string{
+		"resolved":         "resolved",
+		"game_time_period": "first_half",
+	}, expected)
+}
+
+func ResolvedClaimsInSecondHalf(expected int) StateExpectation {
+	return claimCount(map[string]string{
+		"resolved":         "resolved",
+		"game_time_period": "second_half",
+	}, expected)
+}
+
+func UnresolvedClaimsInFirstHalf(expected int) StateExpectation {
+	return claimCount(map[string]string{
+		"resolved":         "unresolved",
+		"game_time_period": "first_half",
+	}, expected)
+}
+
+func UnresolvedClaimsInSecondHalf(expected int) StateExpectation {
+	return claimCount(map[string]string{
+		"resolved":         "unresolved",
+		"game_time_period": "second_half",
+	}, expected)
+}
+
+func ExpiredClaims(expected int) StateExpectation {
+	return claimCount(map[string]string{"clock": "expired"}, expected)
+}
+
+func UnexpiredClaims(expected int) StateExpectation {
+	return claimCount(map[string]string{"clock": "not_expired"}, expected)
 }
 
 func ResolvableClaims(expected int) StateExpectation {
-	return StateExpectation{
-		check: devtestmetrics.GaugeSumEquals(
-			"op_dispute_mon_claims",
-			map[string]string{
-				"resolved":   "unresolved",
-				"resolvable": "resolvable",
-			},
-			float64(expected),
-		),
-	}
+	return claimCount(map[string]string{
+		"resolved":   "unresolved",
+		"resolvable": "resolvable",
+	}, expected)
 }
 
 func ExpectedNonWithdrawableCredits(expected int) StateExpectation {
@@ -267,6 +291,16 @@ func HonestActorLostBonds(actor common.Address, expectedWei *big.Int) StateExpec
 				"state":                "lost",
 			},
 			weiToEther(expectedWei),
+		),
+	}
+}
+
+func claimCount(labels map[string]string, expected int) StateExpectation {
+	return StateExpectation{
+		check: devtestmetrics.GaugeSumEquals(
+			"op_dispute_mon_claims",
+			labels,
+			float64(expected),
 		),
 	}
 }

@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -43,12 +44,27 @@ func TestValidatePreparedDeploymentDrift(t *testing.T) {
 			wantErr: "deployment intent changed",
 		},
 		{
+			name: "fund dev accounts",
+			mutate: func(intent *state.Intent) {
+				intent.FundDevAccounts = false
+			},
+			wantErr: "deployment intent changed",
+		},
+		{
 			name: "SuperchainConfig",
 			mutate: func(intent *state.Intent) {
 				changed := common.Address{0xee}
 				intent.SuperchainConfigProxy = &changed
 			},
 			wantErr: "deployment intent changed",
+		},
+		{
+			name: "OPCM",
+			mutate: func(intent *state.Intent) {
+				changed := common.Address{0xdd}
+				intent.OPCMAddress = &changed
+			},
+			wantErr: "intent OPCM address changed",
 		},
 		{
 			name: "proof parameters",
@@ -82,6 +98,40 @@ func TestValidatePreparedDeploymentDrift(t *testing.T) {
 	}
 }
 
+func TestValidatePreparedDeploymentChainSetDrift(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*state.Intent)
+	}{
+		{
+			name: "added",
+			mutate: func(intent *state.Intent) {
+				intent.Chains = append(intent.Chains, &state.ChainIntent{ID: common.Hash{0x02}})
+			},
+		},
+		{
+			name: "removed",
+			mutate: func(intent *state.Intent) {
+				intent.Chains = nil
+			},
+		},
+		{
+			name: "duplicated",
+			mutate: func(intent *state.Intent) {
+				intent.Chains = append(intent.Chains, intent.Chains[0])
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			intent, st, _, _ := preparedDeploymentFixture(t, embedded.GameTypePermissionedCannon)
+			test.mutate(intent)
+			require.ErrorContains(t, ValidatePreparedDeployment(intent, st), "deployment intent changed")
+		})
+	}
+}
+
 func TestValidatePreparedDeploymentLateBoundPrestate(t *testing.T) {
 	intent, st, _, _ := preparedDeploymentFixture(t, embedded.GameTypeCannonKona)
 	intent.Chains[0].DeployOverrides[state.FaultGameAbsolutePrestateOverrideKey] = common.Hash{0xaa}
@@ -97,6 +147,126 @@ func TestValidatePreparedDeploymentAfterCheckpoint(t *testing.T) {
 	deployed := true
 	st.Chains[0].Deployed = &deployed
 	require.NoError(t, ValidatePreparedDeployment(intent, st))
+}
+
+func TestValidateCommittedPrestateOverrides(t *testing.T) {
+	committed := common.Hash{0xaa}
+	tests := []struct {
+		name    string
+		mutate  func(*state.Intent)
+		wantErr string
+	}{
+		{
+			name:   "no explicit override",
+			mutate: func(*state.Intent) {},
+		},
+		{
+			name: "matching chain override",
+			mutate: func(intent *state.Intent) {
+				intent.Chains[0].DeployOverrides[state.FaultGameAbsolutePrestateOverrideKey] = committed
+			},
+		},
+		{
+			name: "changed chain override",
+			mutate: func(intent *state.Intent) {
+				intent.Chains[0].DeployOverrides[state.FaultGameAbsolutePrestateOverrideKey] = common.Hash{0xbb}
+			},
+			wantErr: "differs from the committed prestate",
+		},
+		{
+			name: "changed global override",
+			mutate: func(intent *state.Intent) {
+				intent.GlobalDeployOverrides[state.FaultGameAbsolutePrestateOverrideKey] = common.Hash{0xcc}
+			},
+			wantErr: "differs from the committed prestate",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			intent, st, _, _ := preparedDeploymentFixture(t, embedded.GameTypeCannonKona)
+			st.Chains[0].Prestate = committed
+			test.mutate(intent)
+			err := ValidateCommittedPrestateOverrides(intent, st)
+			if test.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, test.wantErr)
+			}
+		})
+	}
+}
+
+func TestPreparedChainProofParamsUsesFrozenIntent(t *testing.T) {
+	intent, st, _, _ := preparedDeploymentFixture(t, embedded.GameTypePermissionedCannon)
+	chainID := intent.Chains[0].ID
+	before, err := PreparedChainProofParams(st, chainID)
+	require.NoError(t, err)
+
+	intent.Chains[0].DeployOverrides["faultGameMaxDepth"] = uint64(99)
+	after, err := PreparedChainProofParams(st, chainID)
+	require.NoError(t, err)
+	require.Equal(t, before, after)
+	require.NotEqual(t, uint64(99), after.DisputeMaxGameDepth)
+}
+
+func TestNewPreparedDeploymentDetachesAndSurvivesStateJSONRoundTrip(t *testing.T) {
+	intent, st, _, _ := preparedDeploymentFixture(t, embedded.GameTypePermissionedCannon)
+	require.True(t, st.PreparedDeployment.Intent.FundDevAccounts)
+	preparedJSON, err := json.Marshal(st.PreparedDeployment)
+	require.NoError(t, err)
+
+	intent.Chains[0].Roles.SystemConfigOwner = common.Address{0xaa}
+	intent.Chains[0].DeployOverrides["faultGameMaxDepth"] = uint64(99)
+	intent.L1ContractsLocator.URL.Path = "/changed"
+	st.Chains[0].SystemConfigProxy = common.Address{0xbb}
+	st.Chains[0].StartBlock.Hash = common.Hash{0xcc}
+	*st.Chains[0].GenesisTime = hexutil.Uint64(99)
+
+	afterMutationJSON, err := json.Marshal(st.PreparedDeployment)
+	require.NoError(t, err)
+	require.Equal(t, preparedJSON, afterMutationJSON)
+
+	stateJSON, err := json.Marshal(st)
+	require.NoError(t, err)
+	var roundTripped state.State
+	require.NoError(t, json.Unmarshal(stateJSON, &roundTripped))
+	require.Equal(t, st.PreparedDeployment, roundTripped.PreparedDeployment)
+}
+
+func TestNewPreparedDeploymentRequiresPinnedChainTiming(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*state.ChainState)
+	}{
+		{
+			name: "missing start block",
+			mutate: func(chain *state.ChainState) {
+				chain.StartBlock = nil
+			},
+		},
+		{
+			name: "missing genesis time",
+			mutate: func(chain *state.ChainState) {
+				chain.GenesisTime = nil
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			intent, st, bundle, _ := preparedDeploymentFixture(t, embedded.GameTypePermissionedCannon)
+			test.mutate(st.Chains[0])
+			_, err := NewPreparedDeployment(
+				intent,
+				st,
+				st.PreparedDeployment.Deployer,
+				st.PreparedDeployment.OPCM,
+				bundle,
+			)
+			require.ErrorContains(t, err, "has no pinned anchor and genesis time")
+		})
+	}
 }
 
 func TestValidatePreparedArtifactContents(t *testing.T) {
@@ -165,6 +335,7 @@ func preparedDeploymentFixture(
 		L1ChainID:             1,
 		OPCMAddress:           &opcm,
 		SuperchainConfigProxy: &superchainConfig,
+		FundDevAccounts:       true,
 		L1ContractsLocator:    artifacts.MustNewFileLocator(l1Dir),
 		L2ContractsLocator:    artifacts.MustNewFileLocator(l2Dir),
 		Chains:                []*state.ChainIntent{chain},

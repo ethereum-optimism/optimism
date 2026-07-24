@@ -4,6 +4,8 @@ description: Learn how to configure Legacy Geth for serving historical execution
 diataxis: how-to
 ---
 
+import OpGethEol from "/snippets/op-geth-eol.mdx"
+
 Legacy Geth (`l2geth`) is the old pre-Bedrock OVM client running against a preconfigured data directory.
 It is required only for upgraded networks like OP Mainnet to serve historical execution traces from before the Bedrock upgrade.
 If you're running a node that had a chain genesis after the Bedrock upgrade, you do not need Legacy Geth.
@@ -19,7 +21,7 @@ If you need state proofs for post-Bedrock blocks (for example, for withdrawal pr
 ## Do you need Legacy Geth?
 
 Only requests for *historical execution* — RPC methods that need to execute pre-Bedrock transactions rather than just read data from the database, such as `eth_call` and the `debug_trace*` methods — are routed to Legacy Geth.
-Everything else will be served by your execution client directly.
+Your execution client serves everything else directly.
 If you do not need these RPC methods for pre-Bedrock blocks, then you do not need to run Legacy Geth at all.
 
 For the exact lists of which RPC methods are routed to Legacy Geth and which are served by your execution client, see the [Legacy Geth configuration reference](/node-operators/reference/legacy-geth-config#historical-execution-vs-historical-data).
@@ -63,7 +65,7 @@ The full set of environment variables Legacy Geth accepts, with defaults, is cat
 
 ### 3. Configure your execution client to route to Legacy Geth
 
-Both op-reth and op-geth use the same `--rollup.historicalrpc` flag to route pre-Bedrock execution requests to Legacy Geth.
+Point your execution client at Legacy Geth with the `--rollup.historicalrpc` flag; op-reth and op-geth accept the same flag (see the [routing-flag reference](/node-operators/reference/legacy-geth-config#execution-client-routing-flag)).
 
 <Tabs>
   <Tab title="op-reth">
@@ -76,9 +78,7 @@ Both op-reth and op-geth use the same `--rollup.historicalrpc` flag to route pre
   </Tab>
 
   <Tab title="op-geth">
-    <Warning>
-      **op-geth has reached end-of-support (2026-05-31) and does not support the now-active Karst hardfork.** New deployments should use op-reth. See the [op-geth deprecation notice](/notices/op-geth-deprecation).
-    </Warning>
+    <OpGethEol />
 
     ```bash
     geth \
@@ -88,8 +88,6 @@ Both op-reth and op-geth use the same `--rollup.historicalrpc` flag to route pre
     ```
   </Tab>
 </Tabs>
-
-The `--rollup.historicalrpc` flag tells your execution client where to route requests for historical execution.
 
 ## Troubleshooting
 

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -137,6 +138,53 @@ func TestState_StartingAnchorRootJSONBackwardCompatibility(t *testing.T) {
 	})
 }
 
+func TestState_InitialGameTypeJSONRoundTrip(t *testing.T) {
+	chainID := common.HexToHash("0x01")
+	st := &State{
+		Chains: []*ChainState{{
+			ID:              chainID,
+			InitialGameType: ptr.New(uint32(8)),
+		}},
+	}
+
+	data, err := json.Marshal(st)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"initialGameType":8`)
+
+	var roundTripped State
+	require.NoError(t, json.Unmarshal(data, &roundTripped))
+	chain, err := roundTripped.Chain(chainID)
+	require.NoError(t, err)
+	require.Equal(t, ptr.New(uint32(8)), chain.InitialGameType)
+}
+
+func TestState_InitialGameTypeJSONDistinguishesMissingFromZero(t *testing.T) {
+	tests := []struct {
+		name     string
+		gameType *uint32
+		wantKey  bool
+	}{
+		{name: "missing"},
+		{name: "zero", gameType: ptr.New(uint32(0)), wantKey: true},
+		{name: "nonzero", gameType: ptr.New(uint32(8)), wantKey: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			st := &State{
+				Chains: []*ChainState{{
+					ID:              common.HexToHash("0x01"),
+					InitialGameType: tt.gameType,
+				}},
+			}
+
+			data, err := json.Marshal(st)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantKey, strings.Contains(string(data), `"initialGameType"`))
+		})
+	}
+}
+
 func TestState_EnsureCreate2Salt(t *testing.T) {
 	t.Run("generates a salt when unset", func(t *testing.T) {
 		s := &State{}
@@ -194,6 +242,44 @@ func TestState_CheckNotPrepared(t *testing.T) {
 		err := (&State{PreparedDeployment: new(PreparedDeployment)}).CheckNotPrepared()
 		require.ErrorContains(t, err, "cannot be applied")
 	})
+}
+
+func TestPreparedDeploymentClone(t *testing.T) {
+	l1Locator, err := artifacts.NewFileLocator("/tmp/l1-artifacts")
+	require.NoError(t, err)
+
+	prepared := &PreparedDeployment{
+		Intent: &Intent{
+			FundDevAccounts: true,
+			Chains:          []*ChainIntent{{ID: common.HexToHash("0x1")}},
+		},
+		Deployer: common.HexToAddress("0x01"),
+		OPCM:     common.HexToAddress("0x02"),
+		L1Artifacts: PreparedArtifact{
+			Locator: l1Locator,
+		},
+		Chains: []*PreparedChainState{
+			{
+				ID:          common.HexToHash("0x1"),
+				GenesisTime: ptr.New(hexutil.Uint64(10)),
+			},
+		},
+	}
+
+	clone, err := prepared.Clone()
+	require.NoError(t, err)
+	require.Equal(t, prepared, clone)
+
+	// Mutating the clone's pointers and slices must not reach back into the original.
+	clone.Intent.FundDevAccounts = false
+	clone.Intent.Chains[0].ID = common.HexToHash("0x2")
+	*clone.Chains[0].GenesisTime = hexutil.Uint64(99)
+	clone.L1Artifacts.Locator.URL.Path = "/changed"
+
+	require.True(t, prepared.Intent.FundDevAccounts)
+	require.Equal(t, common.HexToHash("0x1"), prepared.Intent.Chains[0].ID)
+	require.Equal(t, hexutil.Uint64(10), *prepared.Chains[0].GenesisTime)
+	require.NotEqual(t, "/changed", prepared.L1Artifacts.Locator.URL.Path)
 }
 
 func TestState_PreparedSerialization(t *testing.T) {
@@ -303,6 +389,7 @@ func TestState_SetChainContracts(t *testing.T) {
 		L2SequenceNumber: 9,
 	}
 	s.Chains[0].StartingAnchorRoot = startingAnchorRoot
+	s.Chains[0].InitialGameType = ptr.New(uint32(8))
 	s.SetChainContracts(chainA, contractsWith("0xa2"), true)
 	require.Len(t, s.Chains, 2)
 
@@ -315,6 +402,7 @@ func TestState_SetChainContracts(t *testing.T) {
 	require.Equal(t, common.HexToHash("0xfeed"), got.StartBlock.Hash)
 	require.Equal(t, prestate, got.Prestate, "prestate must be preserved on update")
 	require.Equal(t, startingAnchorRoot, got.StartingAnchorRoot, "starting anchor root must be preserved on update")
+	require.Equal(t, ptr.New(uint32(8)), got.InitialGameType, "initial game type must be preserved on update")
 }
 
 func TestState_PinChainAnchor(t *testing.T) {

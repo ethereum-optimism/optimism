@@ -10,12 +10,14 @@ hardfork_activation_sepolia: 0
 ---
 
 import RegolithFacts from "/snippets/generated/hardforks/regolith.mdx"
+import { NormativeSpec } from "/snippets/normative-spec.mdx"
 
-<Info>
-  **Normative spec:** the [Regolith specification](https://specs.optimism.io/protocol/regolith/overview.html)
-  is the canonical definition of this upgrade. This page records activation data
-  and operational pointers; it does not restate the spec.
-</Info>
+<NormativeSpec
+  what="This upgrade"
+  title="Regolith specification"
+  href="https://specs.optimism.io/protocol/regolith/overview.html"
+  note="This page records activation data and operational pointers; it does not restate the spec."
+/>
 
 Regolith made minor corrections to deposit processing based on audit findings
 after Bedrock. It activates at timestamp `0` on OP Mainnet and OP Sepolia —

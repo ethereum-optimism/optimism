@@ -1,0 +1,101 @@
+---
+title: Fault proofs
+description: One place to learn the OP Stack fault proof system, from the gentle introduction through the components, hands-on guides, bond economics, and the normative spec.
+diataxis: explanation
+content-type: curriculum-hub
+last-reviewed: 2026-07-22
+---
+
+Fault proofs are how OP Stack chains secure withdrawals without a trusted
+third party: anyone can propose the state of the chain on Ethereum, and
+anyone can challenge a proposal they believe is wrong. A dispute is
+narrowed down, through a bisection game, to a single instruction of
+execution, and that one instruction is proven on Ethereum inside an onchain
+virtual machine.
+
+This page is the recommended reading order for the whole topic. Start with
+the explainer for the mental model, work through the component pages to see
+how the pieces fit, then use the hands-on guides if you operate a chain or
+want to run a challenger. The bond economics and the normative spec close
+the loop for readers who need full depth. Every stop is an existing page;
+nothing here replaces them.
+
+## Start here
+
+*   [Fault proofs explainer](/op-stack/fault-proofs/explainer): read this
+    first for the mental model, covering permissionless proposals,
+    permissionless challenges, and the Guardian backstop behind both.
+
+## Go deeper
+
+*   [FP system components](/op-stack/fault-proofs/fp-components): the three
+    modules of the system (fault proof program, fault proof virtual machine,
+    dispute game protocol), why they are decoupled, and why `kona-client` is
+    the default fault proof program today.
+*   [Fault proof VM: Cannon](/op-stack/fault-proofs/cannon): the default
+    fault proof virtual machine, split between the onchain `MIPS64.sol`
+    contract and the offchain `mipsevm` Go implementation.
+*   [Fault proof VM: MIPS64.sol](/op-stack/fault-proofs/mips): the onchain
+    half at instruction level, an EVM implementation of the multithreaded
+    64-bit MIPS instruction set.
+*   [OP-Challenger explainer](/op-stack/fault-proofs/challenger): how the
+    honest actor detects faults, and how it defends valid proposals and
+    counters invalid claims move by move.
+
+## Get hands-on
+
+*   [Run a fault-proof challenger](/use-cases/run-a-fault-proof-challenger):
+    the end-to-end path to a challenger that defends a chain, from bond
+    budgeting and prestate selection through infrastructure, configuration,
+    and monitoring.
+*   [How to configure challenger for your chain](/chain-operators/guides/configuration/op-challenger-config-guide):
+    the per-flag configuration walkthrough behind that path.
+*   [Challenger configuration reference](/chain-operators/reference/challenger-configuration):
+    the full catalogue of `op-challenger` flags, environment variables, and
+    defaults to keep open while you configure.
+*   [Generating absolute prestate and preimage files](/chain-operators/tutorials/absolute-prestate):
+    build and verify the `kona-client` absolute prestate that anchors every
+    dispute for your chain.
+*   [Migrating to permissionless fault proofs](/chain-operators/tutorials/migrating-permissionless):
+    move a chain from the permissioned dispute game to permissionless fault
+    proofs in four phases.
+*   [Chain monitoring options](/chain-operators/tools/chain-monitoring#dispute-mon):
+    run `op-dispute-mon`, the security monitoring service that tracks the
+    status of every game over the last 28 days.
+
+## Economics and incentives
+
+*   [Fault proofs explainer FAQs](/op-stack/fault-proofs/explainer#faqs):
+    what proposals cost a chain operator to run and how bonds are sized to
+    deter invalid claims.
+*   [OP-Challenger explainer FAQs](/op-stack/fault-proofs/challenger#faqs):
+    what the bond does, how much ETH a full-depth game can require, and the
+    infrastructure questions (like blob retention) that decide whether you
+    can win.
+
+## The normative spec
+
+The definitive definition of fault proof behavior lives in the OP Stack
+specifications:
+
+*   [Fault proof](https://specs.optimism.io/fault-proof/index.html?utm_source=op-docs&utm_medium=docs):
+    the fault proof program and the pre-image oracle it reads from.
+*   [Fault dispute game](https://specs.optimism.io/fault-proof/stage-one/fault-dispute-game.html?utm_source=op-docs&utm_medium=docs):
+    the game itself, including bisection, clocks, and resolution.
+*   [Honest challenger](https://specs.optimism.io/fault-proof/stage-one/honest-challenger-fdg.html?utm_source=op-docs&utm_medium=docs):
+    the behavior an honest challenger must implement, which `op-challenger`
+    follows.
+*   [Bond incentives](https://specs.optimism.io/fault-proof/stage-one/bond-incentives.html?utm_source=op-docs&utm_medium=docs):
+    the normative bond economics behind the FAQ answers above.
+*   [Multithreaded Cannon fault proof VM](https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs):
+    the specification of the FPVM that Cannon implements.
+
+## Audits and security
+
+*   [Fault proofs security](/op-stack/fault-proofs/fp-security): the
+    security model and its safeguards, including the Guardian role, game
+    blacklisting, the global pause, and delayed bond payouts through
+    `DelayedWETH`.
+*   [Audit reports](/op-stack/security/audit-reports): the standing index of
+    OP Stack security reviews, which routes to the full list in the
+    monorepo.

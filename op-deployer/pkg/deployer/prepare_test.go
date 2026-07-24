@@ -642,10 +642,14 @@ func TestPredictChains_ClearsOnlyRepredictedPreparedInputs(t *testing.T) {
 	require.NoError(t, err)
 	deployed.Prestate = deployedPrestate
 	deployed.StartingAnchorRoot = deployedStartingAnchorRoot
+	deployedInitialGameType := uint32(embedded.GameTypeSuperPermissioned)
+	deployed.InitialGameType = &deployedInitialGameType
 	fresh, err := st.Chain(freshID)
 	require.NoError(t, err)
 	fresh.Prestate = freshPrestate
 	fresh.StartingAnchorRoot = freshStartingAnchorRoot
+	freshInitialGameType := uint32(embedded.GameTypePermissionedCannon)
+	fresh.InitialGameType = &freshInitialGameType
 
 	var ran []common.Hash
 	run := func(in opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
@@ -685,12 +689,14 @@ func TestPredictChains_ClearsOnlyRepredictedPreparedInputs(t *testing.T) {
 	require.Equal(t, deployedContracts.SystemConfigProxy, deployed.SystemConfigProxy)
 	require.Equal(t, deployedPrestate, deployed.Prestate)
 	require.Equal(t, deployedStartingAnchorRoot, deployed.StartingAnchorRoot)
+	require.Equal(t, uint32(embedded.GameTypeSuperPermissioned), *deployed.InitialGameType)
 
 	require.NotNil(t, fresh.Deployed)
 	require.False(t, *fresh.Deployed)
 	require.Equal(t, common.HexToAddress("0xbeef"), fresh.SystemConfigProxy)
 	require.Zero(t, fresh.Prestate)
 	require.Nil(t, fresh.StartingAnchorRoot)
+	require.Equal(t, uint32(embedded.GameTypeCannonKona), *fresh.InitialGameType)
 	require.Equal(t, anchor, fresh.StartBlock, "fresh chain must have its anchor block pinned")
 	require.NotNil(t, fresh.GenesisTime, "fresh chain must have its genesis time committed")
 	require.EqualValues(t, uint64(anchor.Time)+genesisTimeOffset, *fresh.GenesisTime)
@@ -802,10 +808,12 @@ func TestPrepareChainsPredictionFailureOnlyClearsSuccessfullyPredictedPrestatesI
 	var secondContracts addresses.OpChainContracts
 	secondContracts.SystemConfigProxy = common.HexToAddress("0x2222")
 	st.SetChainContracts(secondID, secondContracts, false)
-	for _, chainID := range []common.Hash{firstID, secondID} {
+	for i, chainID := range []common.Hash{firstID, secondID} {
 		chain, err := st.Chain(chainID)
 		require.NoError(t, err)
 		chain.Prestate = common.HexToHash("0x11")
+		gameType := uint32(embedded.GameTypeCannonKona) + uint32(i)
+		chain.InitialGameType = &gameType
 	}
 
 	var predictions int
@@ -834,6 +842,7 @@ func TestPrepareChainsPredictionFailureOnlyClearsSuccessfullyPredictedPrestatesI
 	require.EqualValues(t, uint64(anchor.Time)+genesisTimeOffset, *first.GenesisTime)
 	require.Equal(t, common.HexToAddress("0x3333"), first.SystemConfigProxy)
 	require.Zero(t, first.Prestate)
+	require.Equal(t, uint32(embedded.GameTypePermissionedCannon), *first.InitialGameType)
 	second, err := st.Chain(secondID)
 	require.NoError(t, err)
 	require.Equal(t, anchor, second.StartBlock)
@@ -841,6 +850,7 @@ func TestPrepareChainsPredictionFailureOnlyClearsSuccessfullyPredictedPrestatesI
 	require.EqualValues(t, uint64(anchor.Time)+genesisTimeOffset, *second.GenesisTime)
 	require.Equal(t, secondContracts.SystemConfigProxy, second.SystemConfigProxy)
 	require.Equal(t, common.HexToHash("0x11"), second.Prestate)
+	require.Equal(t, uint32(embedded.GameTypeSuperCannonKona), *second.InitialGameType)
 }
 
 func TestPredictChainsPrestateReminders(t *testing.T) {
@@ -900,6 +910,8 @@ func TestPredictChainsPrestateReminders(t *testing.T) {
 
 			require.NoError(t, predictChains(lgr, intent, st, run, selectAnchor, anchor, 600))
 			require.Zero(t, chain.Prestate)
+			require.NotNil(t, chain.InitialGameType)
+			require.Equal(t, uint32(tt.gameType), *chain.InitialGameType)
 
 			chainFilter := testlog.NewAttributesFilter("chain", chainID.Hex())
 			if tt.reminderMessage == "" {

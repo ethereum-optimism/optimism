@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
-	"math/big"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
@@ -138,8 +137,8 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return err
 	}
 
-	// Save hashes of both artifact bundles so continue can detect later changes.
-	// Only the L1 bundle is used for the prediction.
+	// Download both artifact bundles so prepare can commit their contents to the snapshot.
+	// Only the L1 artifacts are used by the address-prediction script.
 	bundle, err := artifacts.DownloadBundle(
 		ctx,
 		intent.L1ContractsLocator,
@@ -366,6 +365,9 @@ func predictChains(
 		}
 		chainState.Prestate = common.Hash{}
 		chainState.StartingAnchorRoot = nil
+		gameType := dci.DisputeGameType
+		chainState.InitialGameType = &gameType
+
 		if requirements.RequiresPrestate {
 			lgr.Info(
 				"selected prestate must be committed; run op-deployer prestate before continue",
@@ -458,10 +460,7 @@ func makePredictionInput(intent *state.Intent, st *state.State, chain *state.Cha
 	// Permissioned deploys use the placeholder anchor broadcast by apply. Permissionless
 	// deploys use a sentinel because their real anchor depends on the addresses predicted
 	// here, and the placeholder is rejected for them.
-	startingAnchorRoot := opcm.Proposal{
-		Root:             opcm.DefaultStartingAnchorRoot.Root,
-		L2SequenceNumber: new(big.Int),
-	}
+	startingAnchorRoot := opcm.DefaultStartingAnchorProposal()
 
 	if requirements.Permissionless {
 		startingAnchorRoot.Root = predictionStartingAnchorRoot

@@ -1,8 +1,5 @@
 //! Contains superchain-specific types.
 
-mod level;
-pub use level::SuperchainLevel;
-
 mod chain;
 pub use chain::Superchain;
 
