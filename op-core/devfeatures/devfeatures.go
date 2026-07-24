@@ -27,20 +27,12 @@ var (
 	// ZKDisputeGameFlag enables the ZK dispute game system.
 	// TODO(#19432): Use this flag in the OPCM/OPD integration pipeline.
 	ZKDisputeGameFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000001000000")
-
-	// SuperRootGamesMigrationFlag enables the super root games migration path in OPCM upgrade.
-	SuperRootGamesMigrationFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000010000000")
 )
 
 // IsDevFeatureEnabled checks if a specific development feature is enabled in a feature bitmap.
 // It performs a bitwise AND between the bitmap and flag to determine if the feature
 // is set. This follows the same pattern as the Solidity DevFeatures library.
 func IsDevFeatureEnabled(bitmap, flag common.Hash) bool {
-	// SuperRootGamesMigration is enabled by default.
-	// TODO(#21662): remove with the broader SuperRootGamesMigrationFlag cleanup.
-	if hasFlag(flag, SuperRootGamesMigrationFlag) {
-		return true
-	}
 	return flag != (common.Hash{}) && hasFlag(bitmap, flag)
 }
 

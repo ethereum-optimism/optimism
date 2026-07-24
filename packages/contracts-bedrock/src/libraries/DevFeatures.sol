@@ -14,7 +14,8 @@ pragma solidity ^0.8.0;
 ///      Update every item below.
 ///
 ///        1. Add the new feature bit in this file. Do not reuse a retired value unless the reuse is
-///           intentional and reviewed.
+///           intentional and reviewed. Retired values: 0x...10000000 (SUPER_ROOT_GAMES_MIGRATION,
+///           may still be set in the genesis bitmap of older devnets).
 ///        2. Add the matching Go flag in `op-core/devfeatures/devfeatures.go`. The Go value MUST
 ///           match the Solidity value byte-for-byte.
 ///        3. Add the env var reader in `packages/contracts-bedrock/scripts/libraries/Config.sol`.
@@ -42,10 +43,6 @@ library DevFeatures {
     bytes32 public constant ZK_DISPUTE_GAME =
         bytes32(0x0000000000000000000000000000000000000000000000000000000001000000);
 
-    /// @notice The feature that enables the super root games migration path in OPCM upgrade.
-    bytes32 public constant SUPER_ROOT_GAMES_MIGRATION =
-        bytes32(0x0000000000000000000000000000000000000000000000000000000010000000);
-
     /// @notice Checks if a feature is enabled in a bitmap. Note that this function does not check
     ///         that the input feature represents a single feature and the bitwise AND operation
     ///         allows for multiple features to be enabled at once. Users should generally check
@@ -54,9 +51,6 @@ library DevFeatures {
     /// @param _feature The feature to check.
     /// @return True if the feature is enabled, false otherwise.
     function isDevFeatureEnabled(bytes32 _bitmap, bytes32 _feature) internal pure returns (bool) {
-        // SuperRootGamesMigration is enabled by default.
-        // TODO(#21662): remove with the broader SuperRootGamesMigration cleanup.
-        if (hasFlag(_feature, SUPER_ROOT_GAMES_MIGRATION)) return true;
         return _feature != 0 && hasFlag(_bitmap, _feature);
     }
 

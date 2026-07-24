@@ -29,14 +29,10 @@ import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { GameType, GameTypes } from "src/dispute/lib/Types.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 contract DeployOPChain is Script {
     /// @notice The default init bond for the dispute games.
     uint256 public constant DEFAULT_INIT_BOND = 0.08 ether;
-
-    /// @notice Whether the OPCM has SUPER_ROOT_GAMES_MIGRATION enabled.
-    bool public isSuperRoot;
 
     /// @notice The output of the DeployOPChain script. This is the same as the DeployOPChainOutput type in the
     /// op-deployer package.
@@ -77,7 +73,6 @@ contract DeployOPChain is Script {
         require(address(_input.opcm).code.length > 0, "DeployOPChain: OPCM address has no code");
 
         IOPContractsManagerV2 opcmV2 = IOPContractsManagerV2(_input.opcm);
-        isSuperRoot = _isSuperRootEnabled(opcmV2);
         IOPContractsManagerV2.FullConfig memory config = _toOPCMV2DeployInput(_input);
 
         vm.broadcast(msg.sender);
@@ -113,17 +108,16 @@ contract DeployOPChain is Script {
     /// @return config_ The deployed input parameters.
     function _toOPCMV2DeployInput(Types.DeployOPChainInput memory _input)
         internal
-        view
+        pure
         returns (IOPContractsManagerV2.FullConfig memory config_)
     {
-        (bool permissionless, GameType respectedGameType) =
-            _initialDeployGameSelection(_input.disputeGameType, isSuperRoot);
+        (bool permissionless, GameType respectedGameType) = _initialDeployGameSelection(_input.disputeGameType);
 
         bool enableCannonKona = _input.disputeGameType.raw() == GameTypes.CANNON_KONA.raw();
         bool enableSuperCannonKona = _input.disputeGameType.raw() == GameTypes.SUPER_CANNON_KONA.raw();
         // Register the CANNON_KONA guardian fallback. OPCMV2 does not require it.
-        bool enablePermissionedCannon = enableCannonKona || (!isSuperRoot && !permissionless);
-        bool enableSuperPermissioned = enableSuperCannonKona || (isSuperRoot && !permissionless);
+        bool enablePermissionedCannon = enableCannonKona;
+        bool enableSuperPermissioned = enableSuperCannonKona || !permissionless;
         // Build dispute game configs - OPCMV2 requires all 6 game type configs.
         // Order must match validGameTypes in OPContractsManagerV2._assertValidFullConfig().
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
@@ -204,10 +198,8 @@ contract DeployOPChain is Script {
         view
         returns (Output memory output_)
     {
-        GameType permGameType = isSuperRoot ? GameTypes.SUPER_PERMISSIONED : GameTypes.PERMISSIONED_CANNON;
-        GameType faultGameType = isSuperRoot ? GameTypes.SUPER_CANNON_KONA : GameTypes.CANNON_KONA;
-        address permissionedDgImpl = address(_chainContracts.disputeGameFactory.gameImpls(permGameType));
-        address faultDgImpl = address(_chainContracts.disputeGameFactory.gameImpls(faultGameType));
+        address permissionedDgImpl = address(_chainContracts.disputeGameFactory.gameImpls(GameTypes.SUPER_PERMISSIONED));
+        address faultDgImpl = address(_chainContracts.disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON_KONA));
 
         output_ = Output({
             opChainProxyAdmin: _chainContracts.proxyAdmin,
@@ -267,10 +259,7 @@ contract DeployOPChain is Script {
     /// @notice Returns the permissionless mode and respected game type for an initial deployment.
     /// @dev CANNON_KONA and SUPER_CANNON_KONA prestates are not interchangeable, so the type must be explicit.
     ///      PERMISSIONED_CANNON selects the permissioned game for the OPCM mode; SUPER_PERMISSIONED has no prestate.
-    function _initialDeployGameSelection(
-        GameType _disputeGameType,
-        bool _isSuperRoot
-    )
+    function _initialDeployGameSelection(GameType _disputeGameType)
         internal
         pure
         returns (bool permissionless_, GameType respectedGameType_)
@@ -284,16 +273,7 @@ contract DeployOPChain is Script {
             "DeployOPChain: unsupported dispute game type"
         );
 
-        respectedGameType_ = permissionless_
-            ? _disputeGameType
-            : (_isSuperRoot ? GameTypes.SUPER_PERMISSIONED : GameTypes.PERMISSIONED_CANNON);
-    }
-
-    /// @notice Returns whether the given OPCM has the SUPER_ROOT_GAMES_MIGRATION dev feature enabled.
-    /// @param _opcm The OPCM to check.
-    /// @return Whether SUPER_ROOT_GAMES_MIGRATION is enabled.
-    function _isSuperRootEnabled(IOPContractsManagerV2 _opcm) internal view returns (bool) {
-        return DevFeatures.isDevFeatureEnabled(_opcm.devFeatureBitmap(), DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        respectedGameType_ = permissionless_ ? _disputeGameType : GameTypes.SUPER_PERMISSIONED;
     }
 
     /// @notice Creates a game config, clearing its bond and arguments when disabled.
@@ -336,12 +316,10 @@ contract DeployOPChain is Script {
 
         require(_i.opcm != address(0), "DeployOPChainInput: opcm not set");
         DeployUtils.assertValidContractAddress(_i.opcm);
-        bool superRoot = _isSuperRootEnabled(IOPContractsManagerV2(_i.opcm));
-        (bool permissionless,) = _initialDeployGameSelection(_i.disputeGameType, superRoot);
+        (bool permissionless,) = _initialDeployGameSelection(_i.disputeGameType);
         if (permissionless) {
-            GameType expectedGameType = superRoot ? GameTypes.SUPER_CANNON_KONA : GameTypes.CANNON_KONA;
             require(
-                _i.disputeGameType.raw() == expectedGameType.raw(),
+                _i.disputeGameType.raw() == GameTypes.SUPER_CANNON_KONA.raw(),
                 "DeployOPChainInput: dispute game type does not match OPCM mode"
             );
         }
@@ -423,14 +401,11 @@ contract DeployOPChain is Script {
 
         // Check dispute games and get superchain config
         IOPContractsManagerV2 opcmV2 = IOPContractsManagerV2(_i.opcm);
-        bool superRoot = _isSuperRootEnabled(opcmV2);
         IOPContractsManagerContainer.Implementations memory implementations = opcmV2.implementations();
 
-        (bool permissionless, GameType respectedGameType) = _initialDeployGameSelection(_i.disputeGameType, superRoot);
-        address expectedPermissionedDGImpl =
-            superRoot ? implementations.superPermissionedDisputeGameImpl : implementations.permissionedDisputeGameImpl;
-        address expectedFaultDGImpl =
-            superRoot ? implementations.superFaultDisputeGameImpl : implementations.faultDisputeGameImpl;
+        (bool permissionless, GameType respectedGameType) = _initialDeployGameSelection(_i.disputeGameType);
+        address expectedPermissionedDGImpl = implementations.superPermissionedDisputeGameImpl;
+        address expectedFaultDGImpl = implementations.superFaultDisputeGameImpl;
         address expectedRespectedDGImpl = permissionless ? expectedFaultDGImpl : expectedPermissionedDGImpl;
         ChainAssertions.checkDisputeGameFactory(
             _o.disputeGameFactoryProxy, _i.opChainProxyAdminOwner, expectedRespectedDGImpl, true, respectedGameType

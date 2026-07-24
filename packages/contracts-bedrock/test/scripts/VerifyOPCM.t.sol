@@ -141,12 +141,6 @@ abstract contract VerifyOPCM_TestInit is CommonTest {
         );
     }
 
-    function superGamesEnabled() internal view returns (bool) {
-        bytes32 bitmap = opcm.devFeatureBitmap();
-        return DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
-            || DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-    }
-
     function zkDisputeGameEnabled() internal view returns (bool) {
         return DevFeatures.isDevFeatureEnabled(opcm.devFeatureBitmap(), DevFeatures.ZK_DISPUTE_GAME);
     }
@@ -180,10 +174,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         for (uint8 i = 0; i < refsByType.length; i++) {
             for (uint256 j = 0; j < refsByType[i].length; j++) {
                 VerifyOPCM.OpcmContractRef memory ref = refsByType[i][j];
-
-                if (_isSuperDisputeGameContractRef(ref) && !superGamesEnabled()) {
-                    continue;
-                }
 
                 // TODO: Remove this skip once ZK dispute game is no longer behind a feature flag
                 if (_isZKDisputeGameContractRef(ref)) {
@@ -249,11 +239,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
             // Pick a random implementation to change.
             uint256 randomImplIndex = vm.randomUint(0, refs.length - 1);
             VerifyOPCM.OpcmContractRef memory ref = refs[randomImplIndex];
-
-            // Skip super dispute games when feature disabled
-            if (_isSuperDisputeGameContractRef(ref) && !superGamesEnabled()) {
-                continue;
-            }
 
             // Skip ZK dispute game when feature disabled
             if (_isZKDisputeGameContractRef(ref) && !zkDisputeGameEnabled()) {
@@ -322,11 +307,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
             // Pick a random implementation to change.
             uint256 randomImplIndex = vm.randomUint(0, refs.length - 1);
             VerifyOPCM.OpcmContractRef memory ref = refs[randomImplIndex];
-
-            // Skip super dispute games when feature disabled
-            if (_isSuperDisputeGameContractRef(ref) && !superGamesEnabled()) {
-                continue;
-            }
 
             // Skip ZK dispute game when feature disabled
             if (_isZKDisputeGameContractRef(ref) && !zkDisputeGameEnabled()) {
@@ -542,10 +522,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
         // Ensure we actually tested some components (currently: opcmV2, opcmMigrator)
         assertGt(componentsWithUtilsTested, 0, "Should have tested at least one component with opcmUtils");
-    }
-
-    function _isSuperDisputeGameContractRef(VerifyOPCM.OpcmContractRef memory ref) internal pure returns (bool) {
-        return LibString.eq(ref.name, "SuperFaultDisputeGame") || LibString.eq(ref.name, "SuperPermissionedDisputeGame");
     }
 
     function _isZKDisputeGameContractRef(VerifyOPCM.OpcmContractRef memory ref) internal pure returns (bool) {

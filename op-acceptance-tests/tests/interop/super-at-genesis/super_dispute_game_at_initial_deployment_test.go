@@ -9,9 +9,8 @@ import (
 )
 
 // TestSuperPermissionedDisputeGameInstalledAtInitialDeployment verifies that
-// a chain deployed with the SuperRootGamesMigration dev feature flag has
-// SuperPermissionedDisputeGame in the permissioned slot at initial deploy,
-// without requiring a post-deploy OPCMv2 migration.
+// a newly deployed chain has SuperPermissionedDisputeGame in the permissioned
+// slot at initial deploy, without requiring a post-deploy OPCMv2 migration.
 func TestSuperPermissionedDisputeGameInstalledAtInitialDeployment(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSingleChainInteropSuperRootAtGenesis(t)

@@ -61,7 +61,6 @@ contract ZKDisputeGameSuperMigration_Test is DisputeGameFactory_TestInit {
     function setUp() public override {
         super.setUp();
         skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-        skipIfDevFeatureDisabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
 
         zkVerifier = IZKVerifier(address(new ZKMockVerifier()));
 

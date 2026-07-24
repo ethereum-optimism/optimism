@@ -110,7 +110,7 @@ func DefaultPrivkey(t *testing.T) (string, *ecdsa.PrivateKey, *devkeys.MnemonicD
 	return pkHex, pk, dk
 }
 
-// defaultInitBond matches Deploy.s.sol DEFAULT_INIT_BOND (0.08 ether).
+// defaultInitBond matches DeployOPChain.s.sol DEFAULT_INIT_BOND (0.08 ether).
 var defaultInitBond = big.NewInt(8e16)
 
 // lastUsedOPCMVersionSelector is the selector for SystemConfig.lastUsedOPCMVersion()

@@ -158,9 +158,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 7.2.2
+    /// @custom:semver 7.2.3
     function version() public pure returns (string memory) {
-        return "7.2.2";
+        return "7.2.3";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -367,9 +367,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             }
 
             // Super root games migration requires overriding anchor root.
-            if (isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
-                if (_isMatchingInstructionByKey(_instruction, "overrides.cfg.startingAnchorRoot")) return true;
-            }
+            if (_isMatchingInstructionByKey(_instruction, "overrides.cfg.startingAnchorRoot")) return true;
         }
 
         // Allow overriding the starting respected game type during upgrades. This is needed when
@@ -734,15 +732,12 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             revert OPContractsManagerV2_InvalidGameConfigs();
         }
 
-        bool superRootGamesMigrationEnabled = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-
         // Iterate over each provided config and confirm that it matches the game type array.
         // This places a requirement on the user to order the configs properly but that's
         // probably a good thing, keeps the config consistent.
         for (uint256 i = 0; i < _cfg.disputeGameConfigs.length; i++) {
             uint32 rawGameType = validGameTypes[i].raw();
             bool isCannonGame = rawGameType == GameTypes.CANNON.raw();
-            bool isPermissionedCannonGame = rawGameType == GameTypes.PERMISSIONED_CANNON.raw();
             bool isCannonKonaGame = rawGameType == GameTypes.CANNON_KONA.raw();
             bool isSuperPermissionedGame = rawGameType == GameTypes.SUPER_PERMISSIONED.raw();
             bool isSuperCannonKonaGame = rawGameType == GameTypes.SUPER_CANNON_KONA.raw();
@@ -773,9 +768,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             // Initial deployments must select game types compatible with the active mode.
             // Upgrade inputs define their game types. Super root migration removes output root support.
             // DeployOPChain adds the permissioned fallback. StandardValidator checks it. OPCM does not require it.
-            bool validForInitialDeploy = superRootGamesMigrationEnabled
-                ? (isSuperPermissionedGame || isSuperCannonKonaGame)
-                : (isPermissionedCannonGame || isCannonKonaGame);
+            bool validForInitialDeploy = isSuperPermissionedGame || isSuperCannonKonaGame;
             if (_isInitialDeployment && _cfg.disputeGameConfigs[i].enabled && !validForInitialDeploy) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }

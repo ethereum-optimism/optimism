@@ -23,7 +23,6 @@ import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 import { Types } from "scripts/libraries/Types.sol";
 import { GameType, Claim, GameTypes, Proposal, Hash } from "src/dispute/lib/Types.sol";
 import { Constants } from "src/libraries/Constants.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
@@ -51,9 +50,6 @@ import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMin
 ///         This contract must not have constructor logic because it is set into state using `etch`.
 contract Deploy is Deployer {
     using stdJson for string;
-
-    /// @notice The default initial bond. Should match DeployOPChain.DEFAULT_INIT_BOND for consistency.
-    uint256 private constant DEFAULT_INIT_BOND = 0.08 ether;
 
     ////////////////////////////////////////////////////////////////
     //                        Modifiers                           //
@@ -298,11 +294,8 @@ contract Deploy is Deployer {
         ChainAssertions.checkOptimismMintableERC20FactoryImpl(
             IOptimismMintableERC20Factory(impls.OptimismMintableERC20Factory)
         );
-        GameType permGameType = DevFeatures.isDevFeatureEnabled(
-            cfg.devFeatureBitmap(), DevFeatures.SUPER_ROOT_GAMES_MIGRATION
-        ) ? GameTypes.SUPER_PERMISSIONED : GameTypes.PERMISSIONED_CANNON;
         ChainAssertions.checkDisputeGameFactory(
-            IDisputeGameFactory(impls.DisputeGameFactory), address(0), address(0), false, permGameType
+            IDisputeGameFactory(impls.DisputeGameFactory), address(0), address(0), false, GameTypes.SUPER_PERMISSIONED
         );
         ChainAssertions.checkDelayedWETHImpl(IDelayedWETH(payable(impls.DelayedWETH)), cfg.faultGameWithdrawalDelay());
         ChainAssertions.checkMIPS({
@@ -334,9 +327,7 @@ contract Deploy is Deployer {
         // Ensure that the requisite contracts are deployed
         IOPContractsManagerV2 opcm = IOPContractsManagerV2(artifacts.mustGetAddress("OPContractsManagerV2"));
 
-        IOPContractsManagerV2.FullConfig memory deployInput = DevFeatures.isDevFeatureEnabled(
-            cfg.devFeatureBitmap(), DevFeatures.SUPER_ROOT_GAMES_MIGRATION
-        ) ? getSuperRootDeployInputV2() : getDeployInputV2();
+        IOPContractsManagerV2.FullConfig memory deployInput = getSuperRootDeployInputV2();
         IOPContractsManagerV2.ChainContracts memory deployOutput = opcm.deploy(deployInput);
 
         // Save all deploy outputs from the OPCM, in the order they are declared in the DeployOutput struct
@@ -445,82 +436,6 @@ contract Deploy is Deployer {
                 l2SequenceNumber: uint64(cfg.faultGameGenesisBlock())
             }),
             startingRespectedGameType: GameTypes.SUPER_PERMISSIONED,
-            basefeeScalar: cfg.basefeeScalar(),
-            blobBasefeeScalar: cfg.blobbasefeeScalar(),
-            gasLimit: uint64(cfg.l2GenesisBlockGasLimit()),
-            l2ChainId: cfg.l2ChainID(),
-            resourceConfig: Constants.DEFAULT_RESOURCE_CONFIG(),
-            disputeGameConfigs: disputeGameConfigs,
-            useCustomGasToken: cfg.useCustomGasToken()
-        });
-    }
-
-    function getDeployInputV2() public view returns (IOPContractsManagerV2.FullConfig memory) {
-        IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
-            new IOPContractsManagerUtils.DisputeGameConfig[](6);
-        disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.CANNON,
-            gameArgs: abi.encode(
-                IOPContractsManagerUtils.FaultDisputeGameConfig({
-                    absolutePrestate: Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()))
-                })
-            )
-        });
-        disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: true,
-            initBond: DEFAULT_INIT_BOND,
-            gameType: GameTypes.PERMISSIONED_CANNON,
-            gameArgs: abi.encode(
-                IOPContractsManagerUtils.PermissionedDisputeGameConfig({
-                    absolutePrestate: Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate())),
-                    proposer: cfg.l2OutputOracleProposer(),
-                    challenger: cfg.l2OutputOracleChallenger()
-                })
-            )
-        });
-        disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.CANNON_KONA,
-            gameArgs: abi.encode(
-                IOPContractsManagerUtils.FaultDisputeGameConfig({
-                    absolutePrestate: Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()))
-                })
-            )
-        });
-        disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.SUPER_PERMISSIONED,
-            gameArgs: bytes("")
-        });
-        disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.SUPER_CANNON_KONA,
-            gameArgs: bytes("")
-        });
-        disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.ZK_DISPUTE_GAME,
-            gameArgs: bytes("")
-        });
-
-        return IOPContractsManagerV2.FullConfig({
-            saltMixer: "salt mixer",
-            superchainConfig: ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy")),
-            proxyAdminOwner: cfg.finalSystemOwner(),
-            systemConfigOwner: cfg.finalSystemOwner(),
-            unsafeBlockSigner: cfg.p2pSequencerAddress(),
-            batcher: cfg.batchSenderAddress(),
-            startingAnchorRoot: Proposal({
-                root: Hash.wrap(cfg.faultGameGenesisOutputRoot()),
-                l2SequenceNumber: uint64(cfg.faultGameGenesisBlock())
-            }),
-            startingRespectedGameType: GameTypes.PERMISSIONED_CANNON,
             basefeeScalar: cfg.basefeeScalar(),
             blobBasefeeScalar: cfg.blobbasefeeScalar(),
             gasLimit: uint64(cfg.l2GenesisBlockGasLimit()),

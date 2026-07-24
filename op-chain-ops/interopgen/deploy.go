@@ -31,7 +31,7 @@ var (
 	// At the end we verify none of the deployed contracts persist (there may be temporary ones, to insert bytecode).
 	sysGenesisDeployer = common.Address(crypto.Keccak256([]byte("System genesis deployer"))[12:])
 
-	// defaultInitBond matches Deploy.s.sol DEFAULT_INIT_BOND (0.08 ether).
+	// defaultInitBond matches DeployOPChain.s.sol DEFAULT_INIT_BOND (0.08 ether).
 	defaultInitBond = big.NewInt(8e16)
 )
 

@@ -16,7 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 )
 
-// defaultInitBond matches Deploy.s.sol DEFAULT_INIT_BOND (0.08 ether).
+// defaultInitBond matches DeployOPChain.s.sol DEFAULT_INIT_BOND (0.08 ether).
 var defaultInitBond = big.NewInt(8e16)
 
 // upgradeToSuperRoots calls OPCMv2.upgrade on each chain in the migration state

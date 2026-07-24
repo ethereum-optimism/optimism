@@ -16,7 +16,6 @@ import { DisputeActor, HonestDisputeActor } from "test/actors/FaultDisputeActors
 // Libraries
 import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { RLPWriter } from "src/libraries/rlp/RLPWriter.sol";
 import { LibClock } from "src/dispute/lib/LibUDT.sol";
 import { LibPosition } from "src/dispute/lib/LibPosition.sol";
@@ -2008,32 +2007,6 @@ contract FaultDisputeGame_Resolve_Test is FaultDisputeGame_TestInit {
         assertEq(disputeGameFactory.initBonds(GAME_TYPE), initBond);
     }
 
-    /// @notice Static unit test asserting that the anchor state updates when the game resolves in
-    ///         favor of the defender and the anchor state is older than the game state.
-    function test_resolve_validNewerStateUpdatesAnchor_succeeds() public {
-        skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-
-        // Confirm that the anchor state is older than the game state.
-        (Hash root, uint256 l2BlockNumber) = anchorStateRegistry.anchors(gameProxy.gameType());
-        assert(l2BlockNumber < gameProxy.l2BlockNumber());
-
-        // Resolve the game.
-        vm.warp(block.timestamp + 3 days + 12 hours);
-        gameProxy.resolveClaim(0, 0);
-        assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.DEFENDER_WINS));
-
-        // Wait for finalization delay.
-        vm.warp(block.timestamp + 3.5 days + 1 seconds);
-
-        // Close the game.
-        gameProxy.closeGame();
-
-        // Confirm that the anchor state is now the same as the game state.
-        (root, l2BlockNumber) = anchorStateRegistry.anchors(gameProxy.gameType());
-        assertEq(l2BlockNumber, gameProxy.l2BlockNumber());
-        assertEq(root.raw(), gameProxy.rootClaim().raw());
-    }
-
     /// @notice Static unit test asserting that the anchor state does not change when the game
     ///         resolves in favor of the defender but the game state is not newer than the anchor
     ///         state.
@@ -2420,28 +2393,6 @@ contract FaultDisputeGame_CloseGame_Test is FaultDisputeGame_TestInit {
         gameProxy.closeGame();
     }
 
-    /// @notice Tests that closeGame succeeds for a proper game (normal distribution)
-    function test_closeGame_properGame_succeeds() public {
-        skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-
-        // Resolve the game
-        vm.warp(block.timestamp + 3 days + 12 hours);
-        gameProxy.resolveClaim(0, 0);
-        gameProxy.resolve();
-
-        // Wait for finalization delay
-        vm.warp(block.timestamp + 3.5 days + 1 seconds);
-
-        // Close the game and verify normal distribution mode
-        vm.expectEmit(true, true, true, true);
-        emit GameClosed(BondDistributionMode.NORMAL);
-        gameProxy.closeGame();
-        assertEq(uint8(gameProxy.bondDistributionMode()), uint8(BondDistributionMode.NORMAL));
-
-        // Check that the anchor state was set correctly.
-        assertEq(address(gameProxy.anchorStateRegistry().anchorGame()), address(gameProxy));
-    }
-
     /// @notice Tests that closeGame succeeds for an improper game (refund mode)
     function test_closeGame_improperGame_succeeds() public {
         // Resolve the game
@@ -2487,40 +2438,6 @@ contract FaultDisputeGame_CloseGame_Test is FaultDisputeGame_TestInit {
 
         gameProxy.closeGame();
         assertEq(uint8(gameProxy.bondDistributionMode()), uint8(BondDistributionMode.NORMAL));
-    }
-
-    /// @notice Tests that closeGame called with any amount of gas either reverts (with OOG) or
-    ///      updates the anchor state. This is specifically to verify that the try/catch inside
-    ///      closeGame can't be called with just enough gas to OOG when calling the
-    ///      AnchorStateRegistry but successfully execute the remainder of the function.
-    /// @param _gas Amount of gas to provide to closeGame.
-    function testFuzz_closeGame_canUpdateAnchorStateAndDoes_succeeds(uint256 _gas) public {
-        skipIfDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-
-        // Resolve and close the game first
-        vm.warp(block.timestamp + 3 days + 12 hours);
-        gameProxy.resolveClaim(0, 0);
-        gameProxy.resolve();
-
-        // Wait for finalization delay
-        vm.warp(block.timestamp + 3.5 days + 1 seconds);
-
-        // Since providing *too* much gas isn't the issue here, bounding it to half the block gas
-        // limit is sufficient. We want to know that either (1) the function reverts or (2) the
-        // anchor state gets updated. If the function doesn't revert and the anchor state isn't
-        // updated then we have a problem.
-        _gas = bound(_gas, 0, block.gaslimit / 2);
-
-        // The anchor state should not be the game proxy.
-        assert(address(gameProxy.anchorStateRegistry().anchorGame()) != address(gameProxy));
-
-        // Try closing the game.
-        try gameProxy.closeGame{ gas: _gas }() {
-            // If we got here, the function didn't revert, so the anchor state should have updated.
-            assert(address(gameProxy.anchorStateRegistry().anchorGame()) == address(gameProxy));
-        } catch {
-            // Ok, function reverted.
-        }
     }
 }
 
