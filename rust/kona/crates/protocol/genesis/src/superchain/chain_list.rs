@@ -64,8 +64,6 @@ pub struct Chain {
     /// List of Explorer Endpoints.
     #[cfg_attr(feature = "tabled", tabled(skip))]
     pub explorers: Vec<String>,
-    /// The Superchain Level.
-    pub superchain_level: u64,
     /// Governed by Optimism flag.
     #[cfg_attr(feature = "tabled", tabled(skip))]
     pub governed_by_optimism: Option<bool>,
@@ -131,5 +129,18 @@ mod tests {
         let chains: Vec<Chain> = serde_json::from_str(chain_list).unwrap();
         let op_chain = chains.iter().find(|c| c.name == "OP Mainnet").unwrap();
         assert_eq!(op_chain.chain_id, 10);
+    }
+
+    #[test]
+    fn chain_list_does_not_contain_superchain_level() {
+        let chain_list = include_str!("../../../registry/etc/chainList.json");
+        let value: serde_json::Value = serde_json::from_str(chain_list).unwrap();
+        assert!(
+            value
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|chain| { !chain.as_object().unwrap().contains_key("superchainLevel") })
+        );
     }
 }

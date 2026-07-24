@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"strings"
@@ -371,4 +372,148 @@ func TestMetricsClientWaitForGaugeAppliesWaitTimeout(t *testing.T) {
 		require.ErrorContains(t, err, "observed 0")
 		require.Positive(t, fetches)
 	})
+}
+
+func TestSnapshotGaugeSumSelectsLabels(t *testing.T) {
+	snapshot, err := parseSnapshot(
+		"# TYPE op_dispute_mon_claims gauge\n" +
+			"op_dispute_mon_claims{resolved=\"resolved\",clock=\"expired\"} 2\n" +
+			"op_dispute_mon_claims{resolved=\"resolved\",clock=\"running\"} 3\n" +
+			"op_dispute_mon_claims{resolved=\"unresolved\",clock=\"running\"} 4\n",
+	)
+	require.NoError(t, err)
+
+	value, err := snapshot.GaugeSum(
+		"op_dispute_mon_claims",
+		map[string]string{"resolved": "resolved"},
+	)
+	require.NoError(t, err)
+	require.Equal(t, float64(5), value)
+}
+
+func TestSnapshotHistogramCountSelectsLabels(t *testing.T) {
+	snapshot, err := parseSnapshot(
+		"# TYPE op_dispute_mon_monitor_duration_seconds histogram\n" +
+			"op_dispute_mon_monitor_duration_seconds_bucket{result=\"complete\",le=\"1\"} 2\n" +
+			"op_dispute_mon_monitor_duration_seconds_bucket{result=\"complete\",le=\"+Inf\"} 3\n" +
+			"op_dispute_mon_monitor_duration_seconds_sum{result=\"complete\"} 1.5\n" +
+			"op_dispute_mon_monitor_duration_seconds_count{result=\"complete\"} 3\n",
+	)
+	require.NoError(t, err)
+
+	count, err := snapshot.HistogramCount(
+		"op_dispute_mon_monitor_duration_seconds",
+		map[string]string{"result": "complete"},
+	)
+	require.NoError(t, err)
+	require.Equal(t, uint64(3), count)
+}
+
+func TestMetricsClientWaitForSnapshot(t *testing.T) {
+	values := []int{0, 1}
+	fetches := 0
+	stub := stubHTTP(func(context.Context, string, url.Values, http.Header) (*http.Response, error) {
+		value := values[fetches]
+		fetches++
+		return metricsResponse(
+			http.StatusOK,
+			fmt.Sprintf("# TYPE target_metric gauge\ntarget_metric %d\n", value),
+		), nil
+	})
+
+	snapshot, err := NewMetricsClient(stub).WaitForSnapshot(context.Background(), time.Millisecond, func(snapshot *Snapshot) error {
+		value, err := snapshot.Gauge("target_metric", nil)
+		if err != nil {
+			return err
+		}
+		if value != 1 {
+			return fmt.Errorf("target_metric expected 1 but observed %v", value)
+		}
+		return nil
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 2, fetches)
+	value, err := snapshot.Gauge("target_metric", nil)
+	require.NoError(t, err)
+	require.Equal(t, float64(1), value)
+}
+
+func TestSnapshotChecks(t *testing.T) {
+	snapshot, err := parseSnapshot(
+		"# TYPE gauge_metric gauge\n" +
+			"gauge_metric{scope=\"a\"} 2\n" +
+			"gauge_metric{scope=\"b\"} 3\n" +
+			"# TYPE nan_metric gauge\n" +
+			"nan_metric NaN\n" +
+			"# TYPE duration histogram\n" +
+			"duration_bucket{le=\"+Inf\"} 4\n" +
+			"duration_sum 5\n" +
+			"duration_count 4\n",
+	)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name      string
+		check     SnapshotCheck
+		wantError string
+	}{
+		{
+			name:  "gauge equals",
+			check: GaugeEquals("gauge_metric", map[string]string{"scope": "a"}, 2),
+		},
+		{
+			name:      "gauge does not equal",
+			check:     GaugeEquals("gauge_metric", map[string]string{"scope": "a"}, 1),
+			wantError: "expected 1 but observed 2",
+		},
+		{
+			name:  "gauge at least",
+			check: GaugeAtLeast("gauge_metric", map[string]string{"scope": "a"}, 2),
+		},
+		{
+			name:      "gauge below minimum",
+			check:     GaugeAtLeast("gauge_metric", map[string]string{"scope": "a"}, 3),
+			wantError: "expected at least 3 but observed 2",
+		},
+		{
+			name:      "gauge NaN minimum",
+			check:     GaugeAtLeast("gauge_metric", map[string]string{"scope": "a"}, math.NaN()),
+			wantError: "minimum must not be NaN",
+		},
+		{
+			name:      "gauge NaN observed",
+			check:     GaugeAtLeast("nan_metric", nil, 1),
+			wantError: "observed NaN",
+		},
+		{
+			name:  "gauge sum equals",
+			check: GaugeSumEquals("gauge_metric", nil, 5),
+		},
+		{
+			name:      "gauge sum does not equal",
+			check:     GaugeSumEquals("gauge_metric", nil, 4),
+			wantError: "expected 4 but observed 5",
+		},
+		{
+			name:  "histogram count at least",
+			check: HistogramCountAtLeast("duration", nil, 4),
+		},
+		{
+			name:      "histogram count below minimum",
+			check:     HistogramCountAtLeast("duration", nil, 5),
+			wantError: "expected at least 5 but observed 4",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.check(snapshot)
+			if test.wantError == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, test.wantError)
+			}
+		})
+	}
 }

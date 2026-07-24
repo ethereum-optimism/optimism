@@ -93,7 +93,7 @@
     },
     {
       "source": "/rust/op-reth/cli/cli",
-      "destination": "/rust/op-reth/cli/overview"
+      "destination": "/node-operators/op-reth/cli/overview"
     },
     {
       "source": "/chain-operators/reference/architecture",
@@ -861,7 +861,11 @@
     },
     {
       "source": "/interop/estimate-costs",
-      "destination": "/app-developers/guides/interoperability/estimate-costs"
+      "destination": "/app-developers/guides/interoperability/message-passing"
+    },
+    {
+      "source": "/app-developers/guides/interoperability/estimate-costs",
+      "destination": "/app-developers/guides/interoperability/message-passing"
     },
     {
       "source": "/interop/reorg",
@@ -1937,23 +1941,599 @@
     },
     {
       "source": "/rust/kona/run",
-      "destination": "/rust/kona/node/run/overview"
+      "destination": "/node-operators/kona-node/run/overview"
     },
     {
       "source": "/rust/kona/sdk/fpp-dev/io",
-      "destination": "/rust/kona/sdk/fpp-dev/intro"
+      "destination": "/op-stack/fault-proofs/kona/fpp-dev/intro"
     },
     {
       "source": "/rust/op-reth/cli/op-reth/db/settings/set/receipts_in_static_files",
-      "destination": "/rust/op-reth/cli/op-reth/db/settings/set/receipts"
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/receipts"
     },
     {
       "source": "/rust/op-reth/cli/op-reth/db/settings/set/transaction_senders_in_static_files",
-      "destination": "/rust/op-reth/cli/op-reth/db/settings/set/transaction_senders"
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/transaction_senders"
     },
     {
       "source": "/app-developers/guides/superchain",
       "destination": "/op-stack/introduction/op-stack"
+    },
+    {
+      "source": "/rust/kona/node/requirements",
+      "destination": "/node-operators/kona-node/requirements"
+    },
+    {
+      "source": "/rust/kona/node/install/overview",
+      "destination": "/node-operators/kona-node/install/overview"
+    },
+    {
+      "source": "/rust/kona/node/install/binaries",
+      "destination": "/node-operators/kona-node/install/binaries"
+    },
+    {
+      "source": "/rust/kona/node/install/docker",
+      "destination": "/node-operators/kona-node/install/docker"
+    },
+    {
+      "source": "/rust/kona/node/install/source",
+      "destination": "/node-operators/kona-node/install/source"
+    },
+    {
+      "source": "/rust/kona/node/run/overview",
+      "destination": "/node-operators/kona-node/run/overview"
+    },
+    {
+      "source": "/rust/kona/node/run/binary",
+      "destination": "/node-operators/kona-node/run/binary"
+    },
+    {
+      "source": "/rust/kona/node/run/docker",
+      "destination": "/node-operators/kona-node/run/docker"
+    },
+    {
+      "source": "/rust/kona/node/run/mechanics",
+      "destination": "/node-operators/kona-node/run/mechanics"
+    },
+    {
+      "source": "/rust/kona/node/run/rpc-trust",
+      "destination": "/node-operators/kona-node/run/rpc-trust"
+    },
+    {
+      "source": "/rust/kona/node/run/sequencer",
+      "destination": "/node-operators/kona-node/run/sequencer"
+    },
+    {
+      "source": "/rust/kona/node/rpc/overview",
+      "destination": "/node-operators/kona-node/rpc/overview"
+    },
+    {
+      "source": "/rust/kona/node/rpc/p2p",
+      "destination": "/node-operators/kona-node/rpc/p2p"
+    },
+    {
+      "source": "/rust/kona/node/rpc/rollup",
+      "destination": "/node-operators/kona-node/rpc/rollup"
+    },
+    {
+      "source": "/rust/kona/node/rpc/admin",
+      "destination": "/node-operators/kona-node/rpc/admin"
+    },
+    {
+      "source": "/rust/kona/node/configuration",
+      "destination": "/node-operators/kona-node/configuration"
+    },
+    {
+      "source": "/rust/kona/node/monitoring",
+      "destination": "/node-operators/kona-node/monitoring"
+    },
+    {
+      "source": "/rust/kona/node/subcommands",
+      "destination": "/node-operators/kona-node/subcommands"
+    },
+    {
+      "source": "/rust/kona/node/faq/overview",
+      "destination": "/node-operators/kona-node/faq/overview"
+    },
+    {
+      "source": "/rust/kona/node/faq/ports",
+      "destination": "/node-operators/kona-node/faq/ports"
+    },
+    {
+      "source": "/rust/kona/node/faq/profiling",
+      "destination": "/node-operators/kona-node/faq/profiling"
+    },
+    {
+      "source": "/rust/op-reth",
+      "destination": "/node-operators/op-reth/index"
+    },
+    {
+      "source": "/rust/op-reth/index",
+      "destination": "/node-operators/op-reth/index"
+    },
+    {
+      "source": "/rust/op-reth/run/opstack",
+      "destination": "/node-operators/op-reth/run/opstack"
+    },
+    {
+      "source": "/rust/op-reth/run/faq/sync-op-mainnet",
+      "destination": "/node-operators/op-reth/run/faq/sync-op-mainnet"
+    },
+    {
+      "source": "/rust/op-reth/cli/overview",
+      "destination": "/node-operators/op-reth/cli/overview"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth",
+      "destination": "/node-operators/op-reth/cli/op-reth"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/node",
+      "destination": "/node-operators/op-reth/cli/op-reth/node"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/init",
+      "destination": "/node-operators/op-reth/cli/op-reth/init"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/init-state",
+      "destination": "/node-operators/op-reth/cli/op-reth/init-state"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/import-op",
+      "destination": "/node-operators/op-reth/cli/op-reth/import-op"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/import-receipts-op",
+      "destination": "/node-operators/op-reth/cli/op-reth/import-receipts-op"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/dump-genesis",
+      "destination": "/node-operators/op-reth/cli/op-reth/dump-genesis"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db",
+      "destination": "/node-operators/op-reth/cli/op-reth/db"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/stats",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/stats"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/list",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/list"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/checksum",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/checksum"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/checksum/mdbx",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/checksum/mdbx"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/checksum/static-file",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/checksum/static-file"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/diff",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/diff"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/get",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/get"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/get/mdbx",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/get/mdbx"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/get/static-file",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/get/static-file"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/drop",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/drop"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/clear",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/clear"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/clear/mdbx",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/clear/mdbx"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/clear/static-file",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/clear/static-file"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/repair-trie",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/repair-trie"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/static-file-header",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/static-file-header"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/static-file-header/block",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/static-file-header/block"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/static-file-header/path",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/static-file-header/path"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/version",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/version"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/path",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/path"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/settings",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/settings/get",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/get"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/settings/set",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/settings/set/receipts",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/receipts"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/settings/set/transaction_senders",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/transaction_senders"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/settings/set/account_changesets",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/account_changesets"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/settings/set/storages_history",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/storages_history"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/settings/set/transaction_hash_numbers",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/transaction_hash_numbers"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/settings/set/account_history",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/account_history"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/settings/set/storage_changesets",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/storage_changesets"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/account-storage",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/account-storage"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/stage",
+      "destination": "/node-operators/op-reth/cli/op-reth/stage"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/stage/run",
+      "destination": "/node-operators/op-reth/cli/op-reth/stage/run"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/stage/drop",
+      "destination": "/node-operators/op-reth/cli/op-reth/stage/drop"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/stage/dump",
+      "destination": "/node-operators/op-reth/cli/op-reth/stage/dump"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/stage/dump/execution",
+      "destination": "/node-operators/op-reth/cli/op-reth/stage/dump/execution"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/stage/dump/storage-hashing",
+      "destination": "/node-operators/op-reth/cli/op-reth/stage/dump/storage-hashing"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/stage/dump/account-hashing",
+      "destination": "/node-operators/op-reth/cli/op-reth/stage/dump/account-hashing"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/stage/dump/merkle",
+      "destination": "/node-operators/op-reth/cli/op-reth/stage/dump/merkle"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/stage/unwind",
+      "destination": "/node-operators/op-reth/cli/op-reth/stage/unwind"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/stage/unwind/to-block",
+      "destination": "/node-operators/op-reth/cli/op-reth/stage/unwind/to-block"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/stage/unwind/num-blocks",
+      "destination": "/node-operators/op-reth/cli/op-reth/stage/unwind/num-blocks"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/p2p",
+      "destination": "/node-operators/op-reth/cli/op-reth/p2p"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/p2p/header",
+      "destination": "/node-operators/op-reth/cli/op-reth/p2p/header"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/p2p/body",
+      "destination": "/node-operators/op-reth/cli/op-reth/p2p/body"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/p2p/rlpx",
+      "destination": "/node-operators/op-reth/cli/op-reth/p2p/rlpx"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/p2p/rlpx/ping",
+      "destination": "/node-operators/op-reth/cli/op-reth/p2p/rlpx/ping"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/p2p/bootnode",
+      "destination": "/node-operators/op-reth/cli/op-reth/p2p/bootnode"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/config",
+      "destination": "/node-operators/op-reth/cli/op-reth/config"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/prune",
+      "destination": "/node-operators/op-reth/cli/op-reth/prune"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/re-execute",
+      "destination": "/node-operators/op-reth/cli/op-reth/re-execute"
+    },
+    {
+      "source": "/rust/kona/node/design/intro",
+      "destination": "/node-operators/kona-node/design/intro"
+    },
+    {
+      "source": "/rust/kona/node/design/derivation",
+      "destination": "/node-operators/kona-node/design/derivation"
+    },
+    {
+      "source": "/rust/kona/node/design/engine",
+      "destination": "/node-operators/kona-node/design/engine"
+    },
+    {
+      "source": "/rust/kona/node/design/p2p",
+      "destination": "/node-operators/kona-node/design/p2p"
+    },
+    {
+      "source": "/rust/kona/node/design/sequencer",
+      "destination": "/node-operators/kona-node/design/sequencer"
+    },
+    {
+      "source": "/rust/kona/sdk/fpp-dev/intro",
+      "destination": "/op-stack/fault-proofs/kona/fpp-dev/intro"
+    },
+    {
+      "source": "/rust/kona/sdk/fpp-dev/env",
+      "destination": "/op-stack/fault-proofs/kona/fpp-dev/env"
+    },
+    {
+      "source": "/rust/kona/sdk/fpp-dev/targets",
+      "destination": "/op-stack/fault-proofs/kona/fpp-dev/targets"
+    },
+    {
+      "source": "/rust/kona/sdk/fpp-dev/prologue",
+      "destination": "/op-stack/fault-proofs/kona/fpp-dev/prologue"
+    },
+    {
+      "source": "/rust/kona/sdk/fpp-dev/execution",
+      "destination": "/op-stack/fault-proofs/kona/fpp-dev/execution"
+    },
+    {
+      "source": "/rust/kona/sdk/fpp-dev/epilogue",
+      "destination": "/op-stack/fault-proofs/kona/fpp-dev/epilogue"
+    },
+    {
+      "source": "/rust/kona/sdk/proof/intro",
+      "destination": "/op-stack/fault-proofs/kona/proof/intro"
+    },
+    {
+      "source": "/rust/kona/sdk/proof/stf",
+      "destination": "/op-stack/fault-proofs/kona/proof/stf"
+    },
+    {
+      "source": "/rust/kona/sdk/proof/fpvm-backend",
+      "destination": "/op-stack/fault-proofs/kona/proof/fpvm-backend"
+    },
+    {
+      "source": "/rust/kona/sdk/proof/custom-backend",
+      "destination": "/op-stack/fault-proofs/kona/proof/custom-backend"
+    },
+    {
+      "source": "/rust/kona/sdk/proof/exec-ext",
+      "destination": "/op-stack/fault-proofs/kona/proof/exec-ext"
+    },
+    {
+      "source": "/rust/kona/intro/overview",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona"
+    },
+    {
+      "source": "/rust/kona/intro/why",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona"
+    },
+    {
+      "source": "/rust/kona/intro/contributing",
+      "destination": "https://github.com/ethereum-optimism/optimism/blob/develop/CONTRIBUTING.md"
+    },
+    {
+      "source": "/rust/kona/intro/lore",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona"
+    },
+    {
+      "source": "/rust/kona/glossary",
+      "destination": "https://specs.optimism.io/glossary.html"
+    },
+    {
+      "source": "/rust/kona/rfc/active/intro",
+      "destination": "https://github.com/ethereum-optimism/design-docs"
+    },
+    {
+      "source": "/rust/kona/rfc/archived/monorepo",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona"
+    },
+    {
+      "source": "/rust/kona/rfc/archived/umbrellas",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona"
+    },
+    {
+      "source": "/rust/kona/sdk/overview",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona"
+    },
+    {
+      "source": "/rust/kona/sdk/examples/intro",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/examples"
+    },
+    {
+      "source": "/rust/kona/sdk/examples/load-a-rollup-config",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/examples"
+    },
+    {
+      "source": "/rust/kona/sdk/examples/frames-to-batch",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/examples"
+    },
+    {
+      "source": "/rust/kona/sdk/examples/new-l1-block-info-tx-hardfork",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/examples"
+    },
+    {
+      "source": "/rust/kona/sdk/examples/executor-test-fixtures",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/examples"
+    },
+    {
+      "source": "/rust/kona/sdk/examples/p2p-peer-scoring",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/examples"
+    },
+    {
+      "source": "/rust/kona/sdk/examples/custom-derivation-pipeline",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/examples"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/intro",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/registry",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/registry"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/interop",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/interop"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/hardforks",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/hardforks"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/derive/intro",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/derive"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/derive/providers",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/derive"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/derive/stages",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/derive"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/derive/signaling",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/derive"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/genesis/intro",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/genesis"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/genesis/rollup-config",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/genesis"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/genesis/system-config",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/genesis"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/protocol/intro",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/protocol"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/protocol/block-info",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/protocol"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/protocol/l2-block-info",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/protocol"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/protocol/frames",
+      "destination": "https://specs.optimism.io/protocol/derivation.html#frame-format"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/protocol/channels",
+      "destination": "https://specs.optimism.io/protocol/derivation.html#channel-format"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/protocol/batches",
+      "destination": "https://specs.optimism.io/protocol/derivation.html#batch-format"
+    },
+    {
+      "source": "/rust",
+      "destination": "/op-stack/components/index"
+    },
+    {
+      "source": "/rust/index",
+      "destination": "/op-stack/components/index"
+    },
+    {
+      "source": "/rust/op-alloy/intro",
+      "destination": "/app-developers/tools-sdks/op-alloy/intro"
+    },
+    {
+      "source": "/rust/op-alloy/starting",
+      "destination": "/app-developers/tools-sdks/op-alloy/starting"
+    },
+    {
+      "source": "/rust/op-alloy/building",
+      "destination": "/app-developers/tools-sdks/op-alloy/building/index"
+    },
+    {
+      "source": "/rust/op-alloy/building/index",
+      "destination": "/app-developers/tools-sdks/op-alloy/building/index"
+    },
+    {
+      "source": "/rust/op-alloy/building/consensus",
+      "destination": "/app-developers/tools-sdks/op-alloy/building/consensus"
+    },
+    {
+      "source": "/rust/op-alloy/building/engine",
+      "destination": "/app-developers/tools-sdks/op-alloy/building/engine"
+    },
+    {
+      "source": "/rust/op-alloy/glossary",
+      "destination": "/app-developers/tools-sdks/op-alloy/glossary"
+    },
+    {
+      "source": "/rust/op-revm",
+      "destination": "/app-developers/tools-sdks/op-revm"
+    },
+    {
+      "source": "/rust/op-revm/index",
+      "destination": "/app-developers/tools-sdks/op-revm"
     }
   ],
   "interaction": {
@@ -1978,7 +2558,9 @@
               "use-cases/index",
               "use-cases/tune-batcher-costs",
               "use-cases/run-a-fault-proof-challenger",
-              "use-cases/implement-a-custom-deposit-flow"
+              "use-cases/implement-a-custom-deposit-flow",
+              "use-cases/launch-a-chain-with-fault-proofs-and-ha-sequencing",
+              "use-cases/choose-your-node-stack"
             ]
           },
           {
@@ -2178,6 +2760,209 @@
             ]
           },
           {
+            "group": "Kona Node",
+            "pages": [
+              "node-operators/kona-node/requirements",
+              {
+                "group": "Installation",
+                "pages": [
+                  "node-operators/kona-node/install/overview",
+                  "node-operators/kona-node/install/binaries",
+                  "node-operators/kona-node/install/docker",
+                  "node-operators/kona-node/install/source"
+                ]
+              },
+              {
+                "group": "Run a Node",
+                "pages": [
+                  "node-operators/kona-node/run/overview",
+                  "node-operators/kona-node/run/binary",
+                  "node-operators/kona-node/run/docker",
+                  "node-operators/kona-node/run/mechanics",
+                  "node-operators/kona-node/run/rpc-trust",
+                  "node-operators/kona-node/run/sequencer"
+                ]
+              },
+              {
+                "group": "JSON-RPC Reference",
+                "pages": [
+                  "node-operators/kona-node/rpc/overview",
+                  "node-operators/kona-node/rpc/p2p",
+                  "node-operators/kona-node/rpc/rollup",
+                  "node-operators/kona-node/rpc/admin"
+                ]
+              },
+              "node-operators/kona-node/configuration",
+              "node-operators/kona-node/monitoring",
+              "node-operators/kona-node/subcommands",
+              {
+                "group": "FAQ",
+                "pages": [
+                  "node-operators/kona-node/faq/overview",
+                  "node-operators/kona-node/faq/ports",
+                  "node-operators/kona-node/faq/profiling"
+                ]
+              },
+              {
+                "group": "Design",
+                "pages": [
+                  "node-operators/kona-node/design/intro",
+                  "node-operators/kona-node/design/derivation",
+                  "node-operators/kona-node/design/engine",
+                  "node-operators/kona-node/design/p2p",
+                  "node-operators/kona-node/design/sequencer"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "op-reth",
+            "pages": [
+              "node-operators/op-reth/index",
+              {
+                "group": "Run a Node",
+                "pages": [
+                  "node-operators/op-reth/run/opstack",
+                  {
+                    "group": "FAQ",
+                    "pages": [
+                      "node-operators/op-reth/run/faq/sync-op-mainnet"
+                    ]
+                  }
+                ]
+              },
+              {
+                "group": "CLI Reference",
+                "pages": [
+                  "node-operators/op-reth/cli/overview",
+                  {
+                    "group": "op-reth",
+                    "pages": [
+                      "node-operators/op-reth/cli/op-reth",
+                      "node-operators/op-reth/cli/op-reth/node",
+                      "node-operators/op-reth/cli/op-reth/init",
+                      "node-operators/op-reth/cli/op-reth/init-state",
+                      "node-operators/op-reth/cli/op-reth/import-op",
+                      "node-operators/op-reth/cli/op-reth/import-receipts-op",
+                      "node-operators/op-reth/cli/op-reth/dump-genesis",
+                      {
+                        "group": "op-reth db",
+                        "pages": [
+                          "node-operators/op-reth/cli/op-reth/db",
+                          "node-operators/op-reth/cli/op-reth/db/stats",
+                          "node-operators/op-reth/cli/op-reth/db/list",
+                          {
+                            "group": "op-reth db checksum",
+                            "pages": [
+                              "node-operators/op-reth/cli/op-reth/db/checksum",
+                              "node-operators/op-reth/cli/op-reth/db/checksum/mdbx",
+                              "node-operators/op-reth/cli/op-reth/db/checksum/static-file"
+                            ]
+                          },
+                          "node-operators/op-reth/cli/op-reth/db/diff",
+                          {
+                            "group": "op-reth db get",
+                            "pages": [
+                              "node-operators/op-reth/cli/op-reth/db/get",
+                              "node-operators/op-reth/cli/op-reth/db/get/mdbx",
+                              "node-operators/op-reth/cli/op-reth/db/get/static-file"
+                            ]
+                          },
+                          "node-operators/op-reth/cli/op-reth/db/drop",
+                          {
+                            "group": "op-reth db clear",
+                            "pages": [
+                              "node-operators/op-reth/cli/op-reth/db/clear",
+                              "node-operators/op-reth/cli/op-reth/db/clear/mdbx",
+                              "node-operators/op-reth/cli/op-reth/db/clear/static-file"
+                            ]
+                          },
+                          "node-operators/op-reth/cli/op-reth/db/repair-trie",
+                          {
+                            "group": "op-reth db static-file-header",
+                            "pages": [
+                              "node-operators/op-reth/cli/op-reth/db/static-file-header",
+                              "node-operators/op-reth/cli/op-reth/db/static-file-header/block",
+                              "node-operators/op-reth/cli/op-reth/db/static-file-header/path"
+                            ]
+                          },
+                          "node-operators/op-reth/cli/op-reth/db/version",
+                          "node-operators/op-reth/cli/op-reth/db/path",
+                          {
+                            "group": "op-reth db settings",
+                            "pages": [
+                              "node-operators/op-reth/cli/op-reth/db/settings",
+                              "node-operators/op-reth/cli/op-reth/db/settings/get",
+                              {
+                                "group": "op-reth db settings set",
+                                "pages": [
+                                  "node-operators/op-reth/cli/op-reth/db/settings/set",
+                                  "node-operators/op-reth/cli/op-reth/db/settings/set/receipts",
+                                  "node-operators/op-reth/cli/op-reth/db/settings/set/transaction_senders",
+                                  "node-operators/op-reth/cli/op-reth/db/settings/set/account_changesets",
+                                  "node-operators/op-reth/cli/op-reth/db/settings/set/storages_history",
+                                  "node-operators/op-reth/cli/op-reth/db/settings/set/transaction_hash_numbers",
+                                  "node-operators/op-reth/cli/op-reth/db/settings/set/account_history",
+                                  "node-operators/op-reth/cli/op-reth/db/settings/set/storage_changesets"
+                                ]
+                              }
+                            ]
+                          },
+                          "node-operators/op-reth/cli/op-reth/db/account-storage"
+                        ]
+                      },
+                      {
+                        "group": "op-reth stage",
+                        "pages": [
+                          "node-operators/op-reth/cli/op-reth/stage",
+                          "node-operators/op-reth/cli/op-reth/stage/run",
+                          "node-operators/op-reth/cli/op-reth/stage/drop",
+                          {
+                            "group": "op-reth stage dump",
+                            "pages": [
+                              "node-operators/op-reth/cli/op-reth/stage/dump",
+                              "node-operators/op-reth/cli/op-reth/stage/dump/execution",
+                              "node-operators/op-reth/cli/op-reth/stage/dump/storage-hashing",
+                              "node-operators/op-reth/cli/op-reth/stage/dump/account-hashing",
+                              "node-operators/op-reth/cli/op-reth/stage/dump/merkle"
+                            ]
+                          },
+                          {
+                            "group": "op-reth stage unwind",
+                            "pages": [
+                              "node-operators/op-reth/cli/op-reth/stage/unwind",
+                              "node-operators/op-reth/cli/op-reth/stage/unwind/to-block",
+                              "node-operators/op-reth/cli/op-reth/stage/unwind/num-blocks"
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "group": "op-reth p2p",
+                        "pages": [
+                          "node-operators/op-reth/cli/op-reth/p2p",
+                          "node-operators/op-reth/cli/op-reth/p2p/header",
+                          "node-operators/op-reth/cli/op-reth/p2p/body",
+                          {
+                            "group": "op-reth p2p rlpx",
+                            "pages": [
+                              "node-operators/op-reth/cli/op-reth/p2p/rlpx",
+                              "node-operators/op-reth/cli/op-reth/p2p/rlpx/ping"
+                            ]
+                          },
+                          "node-operators/op-reth/cli/op-reth/p2p/bootnode"
+                        ]
+                      },
+                      "node-operators/op-reth/cli/op-reth/config",
+                      "node-operators/op-reth/cli/op-reth/prune",
+                      "node-operators/op-reth/cli/op-reth/re-execute"
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
             "group": "Reference",
             "pages": [
               {
@@ -2276,8 +3061,7 @@
               "app-developers/guides/interoperability/get-started",
               "app-developers/guides/interoperability/message-passing",
               "app-developers/guides/interoperability/reading-logs",
-              "app-developers/guides/interoperability/message-expiration",
-              "app-developers/guides/interoperability/estimate-costs"
+              "app-developers/guides/interoperability/message-expiration"
             ]
           },
           {
@@ -2296,6 +3080,23 @@
             "pages": [
               "app-developers/tools-sdks/support-matrix",
               "app-developers/tools-sdks/listing-criteria",
+              {
+                "group": "op-alloy",
+                "pages": [
+                  "app-developers/tools-sdks/op-alloy/intro",
+                  "app-developers/tools-sdks/op-alloy/starting",
+                  {
+                    "group": "Building",
+                    "pages": [
+                      "app-developers/tools-sdks/op-alloy/building/index",
+                      "app-developers/tools-sdks/op-alloy/building/consensus",
+                      "app-developers/tools-sdks/op-alloy/building/engine"
+                    ]
+                  },
+                  "app-developers/tools-sdks/op-alloy/glossary"
+                ]
+              },
+              "app-developers/tools-sdks/op-revm",
               "app-developers/tools/faucets",
               "app-developers/tools/block-explorers",
               {
@@ -2362,6 +3163,12 @@
             ]
           },
           {
+            "group": "Learn the OP Stack",
+            "pages": [
+              "/op-stack/learn/index"
+            ]
+          },
+          {
             "group": "Features",
             "pages": [
               "/op-stack/features/flashblocks",
@@ -2378,6 +3185,7 @@
           {
             "group": "Protocol Information",
             "pages": [
+              "/op-stack/protocol/index",
               "/op-stack/protocol/overview",
               "/op-stack/protocol/getting-started",
               "/op-stack/protocol/design-principles",
@@ -2415,13 +3223,34 @@
               {
                 "group": "Sequencing",
                 "pages": [
-                  "/op-stack/components/op-batcher"
+                  "/op-stack/components/op-batcher",
+                  "/op-stack/components/op-conductor"
+                ]
+              },
+              {
+                "group": "Derivation & Execution",
+                "pages": [
+                  "/op-stack/components/op-node",
+                  "/op-stack/components/kona-node",
+                  "/op-stack/components/op-reth"
                 ]
               },
               {
                 "group": "Settlement & Proofs",
                 "pages": [
-                  "/op-stack/components/cannon"
+                  "/op-stack/components/op-proposer",
+                  "/op-stack/components/op-challenger",
+                  "/op-stack/components/cannon",
+                  "/op-stack/components/kona-client",
+                  "/op-stack/components/kona-host",
+                  "/op-stack/components/op-contracts"
+                ]
+              },
+              {
+                "group": "Deployment & Infrastructure",
+                "pages": [
+                  "/op-stack/components/op-deployer",
+                  "/op-stack/components/proxyd"
                 ]
               }
             ]
@@ -2447,12 +3276,39 @@
           {
             "group": "Fault Proofs",
             "pages": [
+              "op-stack/fault-proofs/index",
               "op-stack/fault-proofs/explainer",
               "/op-stack/fault-proofs/fp-security",
               "op-stack/fault-proofs/fp-components",
               "op-stack/fault-proofs/cannon",
               "op-stack/fault-proofs/mips",
-              "op-stack/fault-proofs/challenger"
+              "op-stack/fault-proofs/challenger",
+              {
+                "group": "Kona",
+                "pages": [
+                  {
+                    "group": "Fault Proof Program Development",
+                    "pages": [
+                      "op-stack/fault-proofs/kona/fpp-dev/intro",
+                      "op-stack/fault-proofs/kona/fpp-dev/env",
+                      "op-stack/fault-proofs/kona/fpp-dev/targets",
+                      "op-stack/fault-proofs/kona/fpp-dev/prologue",
+                      "op-stack/fault-proofs/kona/fpp-dev/execution",
+                      "op-stack/fault-proofs/kona/fpp-dev/epilogue"
+                    ]
+                  },
+                  {
+                    "group": "Proof SDK",
+                    "pages": [
+                      "op-stack/fault-proofs/kona/proof/intro",
+                      "op-stack/fault-proofs/kona/proof/stf",
+                      "op-stack/fault-proofs/kona/proof/fpvm-backend",
+                      "op-stack/fault-proofs/kona/proof/custom-backend",
+                      "op-stack/fault-proofs/kona/proof/exec-ext"
+                    ]
+                  }
+                ]
+              }
             ]
           },
           {
@@ -2474,6 +3330,7 @@
           {
             "group": "Interoperability",
             "pages": [
+              "/op-stack/interop/index",
               "/op-stack/interop/interop",
               "/op-stack/interop/explainer",
               "/op-stack/interop/supernode",
@@ -2493,6 +3350,7 @@
               "/op-stack/contribute/content-guide",
               "/op-stack/contribute/link-policy",
               "/op-stack/contribute/curation-policy",
+              "/op-stack/contribute/learn-track-syllabus",
               "/op-stack/contribute/style-guide",
               {
                 "group": "Choose a content type",
@@ -2630,346 +3488,6 @@
                   "releases/op-acceptor"
                 ]
               }
-            ]
-          }
-        ]
-      },
-      {
-        "tab": "Rust",
-        "groups": [
-          {
-            "group": "Overview",
-            "pages": [
-              "rust/index"
-            ]
-          },
-          {
-            "group": "Kona - Introduction",
-            "pages": [
-              "rust/kona/intro/overview",
-              "rust/kona/intro/why",
-              "rust/kona/intro/contributing",
-              "rust/kona/intro/lore",
-              "rust/kona/glossary"
-            ]
-          },
-          {
-            "group": "Kona - Kona for Node Operators",
-            "pages": [
-              "rust/kona/node/requirements",
-              {
-                "group": "Installation",
-                "pages": [
-                  "rust/kona/node/install/overview",
-                  "rust/kona/node/install/binaries",
-                  "rust/kona/node/install/docker",
-                  "rust/kona/node/install/source"
-                ]
-              },
-              {
-                "group": "Run a Node",
-                "pages": [
-                  "rust/kona/node/run/overview",
-                  "rust/kona/node/run/binary",
-                  "rust/kona/node/run/docker",
-                  "rust/kona/node/run/mechanics",
-                  "rust/kona/node/run/rpc-trust",
-                  "rust/kona/node/run/sequencer"
-                ]
-              },
-              {
-                "group": "JSON-RPC Reference",
-                "pages": [
-                  "rust/kona/node/rpc/overview",
-                  "rust/kona/node/rpc/p2p",
-                  "rust/kona/node/rpc/rollup",
-                  "rust/kona/node/rpc/admin"
-                ]
-              },
-              "rust/kona/node/configuration",
-              "rust/kona/node/monitoring",
-              "rust/kona/node/subcommands",
-              {
-                "group": "FAQ",
-                "pages": [
-                  "rust/kona/node/faq/overview",
-                  "rust/kona/node/faq/ports",
-                  "rust/kona/node/faq/profiling"
-                ]
-              }
-            ]
-          },
-          {
-            "group": "Kona - Kona as a Library",
-            "pages": [
-              "rust/kona/sdk/overview",
-              {
-                "group": "Node SDK",
-                "pages": [
-                  "rust/kona/node/design/intro",
-                  "rust/kona/node/design/derivation",
-                  "rust/kona/node/design/engine",
-                  "rust/kona/node/design/p2p",
-                  "rust/kona/node/design/sequencer"
-                ]
-              },
-              {
-                "group": "Proof SDK",
-                "pages": [
-                  "rust/kona/sdk/proof/intro",
-                  "rust/kona/sdk/proof/stf",
-                  "rust/kona/sdk/proof/fpvm-backend",
-                  "rust/kona/sdk/proof/custom-backend",
-                  "rust/kona/sdk/proof/exec-ext"
-                ]
-              },
-              {
-                "group": "Fault Proof Program Development",
-                "pages": [
-                  "rust/kona/sdk/fpp-dev/intro",
-                  "rust/kona/sdk/fpp-dev/env",
-                  "rust/kona/sdk/fpp-dev/targets",
-                  "rust/kona/sdk/fpp-dev/prologue",
-                  "rust/kona/sdk/fpp-dev/execution",
-                  "rust/kona/sdk/fpp-dev/epilogue"
-                ]
-              },
-              {
-                "group": "Protocol Libraries",
-                "pages": [
-                  "rust/kona/sdk/protocol/intro",
-                  "rust/kona/sdk/protocol/registry",
-                  "rust/kona/sdk/protocol/interop",
-                  "rust/kona/sdk/protocol/hardforks",
-                  {
-                    "group": "Derivation",
-                    "pages": [
-                      "rust/kona/sdk/protocol/derive/intro",
-                      "rust/kona/sdk/protocol/derive/providers",
-                      "rust/kona/sdk/protocol/derive/stages",
-                      "rust/kona/sdk/protocol/derive/signaling"
-                    ]
-                  },
-                  {
-                    "group": "Genesis",
-                    "pages": [
-                      "rust/kona/sdk/protocol/genesis/intro",
-                      "rust/kona/sdk/protocol/genesis/rollup-config",
-                      "rust/kona/sdk/protocol/genesis/system-config"
-                    ]
-                  },
-                  {
-                    "group": "Protocol",
-                    "pages": [
-                      "rust/kona/sdk/protocol/protocol/intro",
-                      "rust/kona/sdk/protocol/protocol/block-info",
-                      "rust/kona/sdk/protocol/protocol/l2-block-info",
-                      "rust/kona/sdk/protocol/protocol/frames",
-                      "rust/kona/sdk/protocol/protocol/channels",
-                      "rust/kona/sdk/protocol/protocol/batches"
-                    ]
-                  }
-                ]
-              },
-              {
-                "group": "Examples",
-                "pages": [
-                  "rust/kona/sdk/examples/intro",
-                  "rust/kona/sdk/examples/load-a-rollup-config",
-                  "rust/kona/sdk/examples/frames-to-batch",
-                  "rust/kona/sdk/examples/new-l1-block-info-tx-hardfork",
-                  "rust/kona/sdk/examples/executor-test-fixtures",
-                  "rust/kona/sdk/examples/p2p-peer-scoring",
-                  "rust/kona/sdk/examples/custom-derivation-pipeline"
-                ]
-              }
-            ]
-          },
-          {
-            "group": "Kona - RFC",
-            "pages": [
-              "rust/kona/rfc/active/intro",
-              {
-                "group": "Archived RFCs",
-                "pages": [
-                  "rust/kona/rfc/archived/umbrellas",
-                  "rust/kona/rfc/archived/monorepo"
-                ]
-              }
-            ]
-          },
-          {
-            "group": "op-reth - Introduction",
-            "pages": [
-              "rust/op-reth/index"
-            ]
-          },
-          {
-            "group": "op-reth - Running op-reth",
-            "pages": [
-              "rust/op-reth/run/opstack",
-              {
-                "group": "FAQ",
-                "pages": [
-                  "rust/op-reth/run/faq/sync-op-mainnet"
-                ]
-              }
-            ]
-          },
-          {
-            "group": "op-reth - CLI Reference",
-            "pages": [
-              "rust/op-reth/cli/overview",
-              {
-                "group": "op-reth",
-                "pages": [
-                  "rust/op-reth/cli/op-reth",
-                  "rust/op-reth/cli/op-reth/node",
-                  "rust/op-reth/cli/op-reth/init",
-                  "rust/op-reth/cli/op-reth/init-state",
-                  "rust/op-reth/cli/op-reth/import-op",
-                  "rust/op-reth/cli/op-reth/import-receipts-op",
-                  "rust/op-reth/cli/op-reth/dump-genesis",
-                  {
-                    "group": "op-reth db",
-                    "pages": [
-                      "rust/op-reth/cli/op-reth/db",
-                      "rust/op-reth/cli/op-reth/db/stats",
-                      "rust/op-reth/cli/op-reth/db/list",
-                      {
-                        "group": "op-reth db checksum",
-                        "pages": [
-                          "rust/op-reth/cli/op-reth/db/checksum",
-                          "rust/op-reth/cli/op-reth/db/checksum/mdbx",
-                          "rust/op-reth/cli/op-reth/db/checksum/static-file"
-                        ]
-                      },
-                      "rust/op-reth/cli/op-reth/db/diff",
-                      {
-                        "group": "op-reth db get",
-                        "pages": [
-                          "rust/op-reth/cli/op-reth/db/get",
-                          "rust/op-reth/cli/op-reth/db/get/mdbx",
-                          "rust/op-reth/cli/op-reth/db/get/static-file"
-                        ]
-                      },
-                      "rust/op-reth/cli/op-reth/db/drop",
-                      {
-                        "group": "op-reth db clear",
-                        "pages": [
-                          "rust/op-reth/cli/op-reth/db/clear",
-                          "rust/op-reth/cli/op-reth/db/clear/mdbx",
-                          "rust/op-reth/cli/op-reth/db/clear/static-file"
-                        ]
-                      },
-                      "rust/op-reth/cli/op-reth/db/repair-trie",
-                      {
-                        "group": "op-reth db static-file-header",
-                        "pages": [
-                          "rust/op-reth/cli/op-reth/db/static-file-header",
-                          "rust/op-reth/cli/op-reth/db/static-file-header/block",
-                          "rust/op-reth/cli/op-reth/db/static-file-header/path"
-                        ]
-                      },
-                      "rust/op-reth/cli/op-reth/db/version",
-                      "rust/op-reth/cli/op-reth/db/path",
-                      {
-                        "group": "op-reth db settings",
-                        "pages": [
-                          "rust/op-reth/cli/op-reth/db/settings",
-                          "rust/op-reth/cli/op-reth/db/settings/get",
-                          {
-                            "group": "op-reth db settings set",
-                            "pages": [
-                              "rust/op-reth/cli/op-reth/db/settings/set",
-                              "rust/op-reth/cli/op-reth/db/settings/set/receipts",
-                              "rust/op-reth/cli/op-reth/db/settings/set/transaction_senders",
-                              "rust/op-reth/cli/op-reth/db/settings/set/account_changesets",
-                              "rust/op-reth/cli/op-reth/db/settings/set/storages_history",
-                              "rust/op-reth/cli/op-reth/db/settings/set/transaction_hash_numbers",
-                              "rust/op-reth/cli/op-reth/db/settings/set/account_history",
-                              "rust/op-reth/cli/op-reth/db/settings/set/storage_changesets"
-                            ]
-                          }
-                        ]
-                      },
-                      "rust/op-reth/cli/op-reth/db/account-storage"
-                    ]
-                  },
-                  {
-                    "group": "op-reth stage",
-                    "pages": [
-                      "rust/op-reth/cli/op-reth/stage",
-                      "rust/op-reth/cli/op-reth/stage/run",
-                      "rust/op-reth/cli/op-reth/stage/drop",
-                      {
-                        "group": "op-reth stage dump",
-                        "pages": [
-                          "rust/op-reth/cli/op-reth/stage/dump",
-                          "rust/op-reth/cli/op-reth/stage/dump/execution",
-                          "rust/op-reth/cli/op-reth/stage/dump/storage-hashing",
-                          "rust/op-reth/cli/op-reth/stage/dump/account-hashing",
-                          "rust/op-reth/cli/op-reth/stage/dump/merkle"
-                        ]
-                      },
-                      {
-                        "group": "op-reth stage unwind",
-                        "pages": [
-                          "rust/op-reth/cli/op-reth/stage/unwind",
-                          "rust/op-reth/cli/op-reth/stage/unwind/to-block",
-                          "rust/op-reth/cli/op-reth/stage/unwind/num-blocks"
-                        ]
-                      }
-                    ]
-                  },
-                  {
-                    "group": "op-reth p2p",
-                    "pages": [
-                      "rust/op-reth/cli/op-reth/p2p",
-                      "rust/op-reth/cli/op-reth/p2p/header",
-                      "rust/op-reth/cli/op-reth/p2p/body",
-                      {
-                        "group": "op-reth p2p rlpx",
-                        "pages": [
-                          "rust/op-reth/cli/op-reth/p2p/rlpx",
-                          "rust/op-reth/cli/op-reth/p2p/rlpx/ping"
-                        ]
-                      },
-                      "rust/op-reth/cli/op-reth/p2p/bootnode"
-                    ]
-                  },
-                  "rust/op-reth/cli/op-reth/config",
-                  "rust/op-reth/cli/op-reth/prune",
-                  "rust/op-reth/cli/op-reth/re-execute"
-                ]
-              }
-            ]
-          },
-          {
-            "group": "op-alloy - Introduction",
-            "pages": [
-              "rust/op-alloy/intro",
-              "rust/op-alloy/starting"
-            ]
-          },
-          {
-            "group": "op-alloy - Building",
-            "pages": [
-              "rust/op-alloy/building/index",
-              "rust/op-alloy/building/consensus",
-              "rust/op-alloy/building/engine"
-            ]
-          },
-          {
-            "group": "op-alloy - Reference",
-            "pages": [
-              "rust/op-alloy/glossary"
-            ]
-          },
-          {
-            "group": "op-revm",
-            "pages": [
-              "rust/op-revm/index"
             ]
           }
         ]

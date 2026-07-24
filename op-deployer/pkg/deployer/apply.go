@@ -9,7 +9,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
@@ -108,32 +107,42 @@ func ApplyCLI() func(cliCtx *cli.Context) error {
 			return err
 		}
 
-		if !cliCtx.Bool(AutoVerifyFlag.Name) {
+		if depTarget != DeploymentTargetLive {
+			return nil
+		}
+		if cliCtx.Bool(NoVerifyFlag.Name) {
+			l.Warn("Contract verification skipped", "reason", "--no-verify was set")
 			return nil
 		}
 
 		stateFile := fmt.Sprintf("%s/state.json", workdir)
-		chainID, err := ChainIDFromRPC(ctx, l1RPCUrl)
-		if err != nil {
-			return fmt.Errorf("failed to get chain ID: %w", err)
-		}
+		if err := func() error {
+			chainID, err := ChainIDFromRPC(ctx, l1RPCUrl)
+			if err != nil {
+				return fmt.Errorf("failed to get chain ID: %w", err)
+			}
 
-		intent, err := pipeline.ReadIntent(workdir)
-		if err != nil {
-			return fmt.Errorf("failed to read intent: %w", err)
-		}
+			intent, err := pipeline.ReadIntent(workdir)
+			if err != nil {
+				return fmt.Errorf("failed to read intent: %w", err)
+			}
 
-		return verify.AutoVerify(
-			ctx,
-			l,
-			l1RPCUrl,
-			bigs.Uint64Strict(chainID),
-			stateFile,
-			intent.L1ContractsLocator,
-			cliCtx.String(VerifierTypeFlagName),
-			cliCtx.String(VerifierUrlFlagName),
-			cliCtx.String(VerifierAPIKeyFlagName),
-		)
+			return verify.AutoVerify(
+				ctx,
+				l,
+				l1RPCUrl,
+				bigs.Uint64Strict(chainID),
+				stateFile,
+				stateFile,
+				intent.L1ContractsLocator,
+				cliCtx.String(VerifierTypeFlagName),
+				cliCtx.String(VerifierUrlFlagName),
+				cliCtx.String(VerifierAPIKeyFlagName),
+			)
+		}(); err != nil {
+			verify.LogAutoVerifyFailure(l, stateFile, err)
+		}
+		return nil
 	}
 }
 
@@ -205,24 +214,9 @@ func ApplyPipeline(
 		return err
 	}
 
-	l1ArtifactsFS, err := artifacts.Download(ctx, intent.L1ContractsLocator, ioutil.BarProgressor(), opts.CacheDir)
+	bundle, err := artifacts.DownloadBundle(ctx, intent.L1ContractsLocator, intent.L2ContractsLocator, ioutil.BarProgressor(), opts.CacheDir)
 	if err != nil {
-		return fmt.Errorf("failed to download L1 artifacts: %w", err)
-	}
-
-	var l2ArtifactsFS foundry.StatDirFs
-	if intent.L1ContractsLocator.Equal(intent.L2ContractsLocator) {
-		l2ArtifactsFS = l1ArtifactsFS
-	} else {
-		l2ArtifactsFS, err = artifacts.Download(ctx, intent.L2ContractsLocator, ioutil.BarProgressor(), opts.CacheDir)
-		if err != nil {
-			return fmt.Errorf("failed to download L2 artifacts: %w", err)
-		}
-	}
-
-	bundle := pipeline.ArtifactsBundle{
-		L1: l1ArtifactsFS,
-		L2: l2ArtifactsFS,
+		return err
 	}
 
 	deployer := standard.PlaceholderAddress
@@ -348,18 +342,19 @@ func ApplyPipeline(
 	}
 
 	pEnv := &pipeline.Env{
-		StateWriter:  opts.StateWriter,
-		L1ScriptHost: l1Host,
-		L1Client:     l1Client,
-		Logger:       opts.Logger,
-		Broadcaster:  bcaster,
-		Deployer:     deployer,
-		Scripts:      opcmScripts,
-		ForgeClient:  forgeClient,
-		UseForge:     opts.UseForge,
-		L1RPCUrl:     opts.L1RPCUrl,
-		PrivateKey:   opts.PrivateKey,
-		Context:      ctx,
+		StateWriter:               opts.StateWriter,
+		L1ScriptHost:              l1Host,
+		L1Client:                  l1Client,
+		Logger:                    opts.Logger,
+		Broadcaster:               bcaster,
+		Deployer:                  deployer,
+		Scripts:                   opcmScripts,
+		ForgeClient:               forgeClient,
+		UseForge:                  opts.UseForge,
+		AllowUnoptimizedContracts: opts.DeploymentTarget == DeploymentTargetGenesis,
+		L1RPCUrl:                  opts.L1RPCUrl,
+		PrivateKey:                opts.PrivateKey,
+		Context:                   ctx,
 	}
 
 	pline := []pipelineStage{
@@ -375,9 +370,11 @@ func ApplyPipeline(
 		{"deploy-implementations", func() error {
 			return pipeline.DeployImplementations(pEnv, intent, st)
 		}},
+		{"generate-interop-depset", func() error {
+			return pipeline.GenerateInteropDepset(ctx, pEnv, intent, st)
+		}},
 	}
 
-	// Deploy all OP Chains first.
 	for _, chain := range intent.Chains {
 		chainID := chain.ID
 		pline = append(pline, pipelineStage{
@@ -450,14 +447,6 @@ func ApplyPipeline(
 			},
 		})
 	}
-
-	// Generate the interop dependency set
-	pline = append(pline, pipelineStage{
-		"generate-interop-depset",
-		func() error {
-			return pipeline.GenerateInteropDepset(ctx, pEnv, intent, st)
-		},
-	})
 
 	// Validate that the deployed state renders into a valid L2 genesis and rollup
 	// config for every chain, so an invalid intent fails during apply rather than

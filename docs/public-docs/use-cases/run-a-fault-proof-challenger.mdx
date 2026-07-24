@@ -3,7 +3,7 @@ title: Run a fault-proof challenger
 description: Stand up an op-challenger that defends your OP Stack chain, from bond budgeting and prestate selection through infrastructure, configuration, and monitoring.
 diataxis: how-to
 content-type: solution-guide
-last-reviewed: 2026-07-18
+last-reviewed: 2026-07-24
 ---
 
 This guide takes an operator who wants an honest challenger defending an OP
@@ -31,6 +31,11 @@ before operating anything, start with the
 [fault proofs explainer](/op-stack/fault-proofs/explainer). If you are
 investigating one specific game rather than running a standing service, use
 [monitoring tooling](/chain-operators/tools/chain-monitoring#dispute-mon).
+
+If you want this role staffed without running it yourself, or with OP Labs
+engineering supporting your team, see
+[OP Enterprise](https://optimism.io/op-enterprise?utm_source=docs&utm_medium=docs&utm_campaign=op-enterprise);
+this guide is the reference for what defending a chain involves either way.
 
 ## Before you start
 
@@ -194,9 +199,10 @@ Give the challenger a few minutes against live games, then confirm each layer:
     subcommand reference (create-game, move, resolve, run-trace) and devnet
     walkthroughs beyond configuration. In-repo document on `develop`, as of
     2026-07-18.
-*   There is no rendered flag catalogue for op-challenger; use
-    `op-challenger --help` on the release you run for the authoritative flag
-    list.
+*   [Challenger configuration reference](/chain-operators/reference/challenger-configuration):
+    the rendered flag catalogue, generated from the op-challenger flag
+    definitions at the release tag named on the page and regenerated when a
+    new finalized release is published.
 *   [Honest challenger specification](https://specs.optimism.io/fault-proof/stage-one/honest-challenger-fdg.html?utm_source=op-docs&utm_medium=docs):
     the normative algorithm your challenger implements, for when you need to
     reason about what a correct response is.

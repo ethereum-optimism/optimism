@@ -4,6 +4,14 @@ description: Learn the withdrawal flow process for transactions sent from L2 to 
 diataxis: explanation
 ---
 
+<Info>
+  **Learn the OP Stack — stop 9 of 13.**
+  You know how transactions enter L2 from L1. This page adds the return
+  direction: the initiate, prove, and finalize steps a withdrawal takes
+  back to L1. When you're done, continue to
+  [Submitting transactions from L1](/app-developers/tutorials/bridging/cross-dom-bridge-eth).
+</Info>
+
 In Optimism terminology, a *withdrawal* is a transaction sent from L2 (OP Mainnet, OP Sepolia etc.) to L1 (Ethereum mainnet, Sepolia, etc.).
 
 Withdrawals require the user to submit three transactions:
@@ -11,6 +19,8 @@ Withdrawals require the user to submit three transactions:
 1.  **Withdrawal initiating transaction**, which the user submits on L2.
 2.  **Withdrawal proving transaction**, which the user submits on L1 to prove that the withdrawal is legitimate (based on a Merkle-Patricia trie root that commits to the state of the `L2ToL1MessagePasser`'s storage on L2)
 3.  **Withdrawal finalizing transaction**, which the user submits on L1 after the fault challenge period has passed, to actually run the transaction on L1.
+
+You can read the full [withdrawal specifications here](https://specs.optimism.io/protocol/withdrawals.html?utm_source=op-docs&utm_medium=docs).
 
 <Info>
   You can see an example of how to implement this process [in the bridging tutorials](/app-developers/tutorials/bridging/cross-dom-bridge-erc20).
@@ -60,7 +70,7 @@ Once an output root that includes the `MessagePassed` event is published to L1, 
 
 [`OptimismPortal.proveWithdrawalTransaction()`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OptimismPortal2.sol#L375) runs a few sanity checks. Then it verifies that in `L2ToL1MessagePasser.sentMessages` on L2 the hash for the withdrawal is turned on, using a Merkle proof against the output root claimed by a fault dispute game. If everything checks out, it writes the dispute game and the timestamp of the proof in `provenWithdrawals` and emits an event. A withdrawal can be proven more than once (for example, against a different dispute game if the original game turns out to be invalid), and re-proving resets the proof timer.
 
-The next step is to wait the fault challenge period, to ensure that the L2 output root used in the proof is legitimate, and that the proof itself is legitimate and not a hack.
+The next step is to wait the fault challenge period (7 days on mainnet, shorter on test networks), to ensure that the L2 output root used in the proof is legitimate, and that the proof itself is legitimate and not a hack.
 
 ## Withdrawal finalizing transaction
 

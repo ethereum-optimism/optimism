@@ -7,7 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
-	"math/big"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -120,6 +120,29 @@ func TestMakePredictionInput(t *testing.T) {
 	require.Equal(t, dci.DisputeAbsolutePrestate, dci.CannonAbsolutePrestate)
 }
 
+func TestMakePredictionInput_OwnsStartingAnchorSequenceNumber(t *testing.T) {
+	opcmAddr := common.HexToAddress("0x01")
+	superchainConfig := common.HexToAddress("0x02")
+	intent := &state.Intent{
+		OPCMAddress:           &opcmAddr,
+		SuperchainConfigProxy: &superchainConfig,
+	}
+	st := &state.State{}
+	chain := &state.ChainIntent{}
+
+	first, err := makePredictionInput(intent, st, chain)
+	require.NoError(t, err)
+	second, err := makePredictionInput(intent, st, chain)
+	require.NoError(t, err)
+
+	require.Zero(t, first.StartingAnchorRoot.L2SequenceNumber.Sign())
+	require.Zero(t, second.StartingAnchorRoot.L2SequenceNumber.Sign())
+	require.NotSame(t, first.StartingAnchorRoot.L2SequenceNumber, second.StartingAnchorRoot.L2SequenceNumber)
+
+	first.StartingAnchorRoot.L2SequenceNumber.SetUint64(1)
+	require.Zero(t, second.StartingAnchorRoot.L2SequenceNumber.Sign())
+}
+
 func TestMakePredictionInput_GameTypeInputs(t *testing.T) {
 	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
 	superchainConfig := common.HexToAddress("0xbbbb000000000000000000000000000000000002")
@@ -130,16 +153,14 @@ func TestMakePredictionInput_GameTypeInputs(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                       string
-		gameType                   embedded.GameType
-		usesPredictionAnchor       bool
-		usesCannonFallbackPrestate bool
+		name                 string
+		gameType             embedded.GameType
+		usesPredictionAnchor bool
 	}{
 		{
-			name:                       "CANNON_KONA",
-			gameType:                   embedded.GameTypeCannonKona,
-			usesPredictionAnchor:       true,
-			usesCannonFallbackPrestate: true,
+			name:                 "CANNON_KONA",
+			gameType:             embedded.GameTypeCannonKona,
+			usesPredictionAnchor: true,
 		},
 		{
 			name:                 "SUPER_CANNON_KONA",
@@ -149,10 +170,6 @@ func TestMakePredictionInput_GameTypeInputs(t *testing.T) {
 		{
 			name:     "PERMISSIONED_CANNON",
 			gameType: embedded.GameTypePermissionedCannon,
-		},
-		{
-			name:     "SUPER_PERMISSIONED",
-			gameType: embedded.GameTypeSuperPermissioned,
 		},
 	}
 
@@ -174,12 +191,64 @@ func TestMakePredictionInput_GameTypeInputs(t *testing.T) {
 				require.Equal(t, opcm.DefaultStartingAnchorRoot.Root, dci.StartingAnchorRoot.Root)
 			}
 
-			if tt.usesCannonFallbackPrestate {
-				require.Equal(t, predictionCannonAbsolutePrestate, dci.CannonAbsolutePrestate)
+			switch tt.gameType {
+			case embedded.GameTypeCannonKona:
+				require.Equal(t, opcm.PermissionedCannonFallbackPrestatePlaceholder, dci.CannonAbsolutePrestate)
 				require.NotEqual(t, dci.DisputeAbsolutePrestate, dci.CannonAbsolutePrestate)
-			} else {
+			case embedded.GameTypeSuperCannonKona:
+				require.Zero(t, dci.CannonAbsolutePrestate)
+			default:
 				require.Equal(t, dci.DisputeAbsolutePrestate, dci.CannonAbsolutePrestate)
 			}
+		})
+	}
+}
+
+func TestMakePredictionInput_RejectsInvalidInitialGameType(t *testing.T) {
+	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
+	superchainConfig := common.HexToAddress("0xbbbb000000000000000000000000000000000002")
+	intent := &state.Intent{
+		OPCMAddress:           &opcmAddr,
+		SuperchainConfigProxy: &superchainConfig,
+	}
+	st := &state.State{Create2Salt: common.HexToHash("0x03")}
+
+	tests := []struct {
+		name     string
+		gameType uint32
+		wantErr  string
+	}{
+		{
+			name:     "CANNON",
+			gameType: uint32(embedded.GameTypeCannon),
+			wantErr:  "unsupported initial dispute game type 0",
+		},
+		{
+			name:     "SUPER_PERMISSIONED",
+			gameType: uint32(embedded.GameTypeSuperPermissioned),
+			wantErr:  "derived fallback and is not an initial-deploy selector",
+		},
+		{
+			name:     "ZK_DISPUTE_GAME",
+			gameType: uint32(embedded.GameTypeZKDisputeGame),
+			wantErr:  "unsupported initial dispute game type 10",
+		},
+		{
+			name:     "unknown",
+			gameType: math.MaxUint32,
+			wantErr:  fmt.Sprintf("unsupported initial dispute game type %d", uint32(math.MaxUint32)),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			chain := &state.ChainIntent{
+				ID:              common.HexToHash("0x0a"),
+				DeployOverrides: map[string]any{"respectedGameType": tt.gameType},
+			}
+
+			_, err := makePredictionInput(intent, st, chain)
+			require.ErrorContains(t, err, tt.wantErr)
 		})
 	}
 }
@@ -525,9 +594,19 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 	}
 }
 
-func TestPredictChains_SkipsDeployed(t *testing.T) {
+func TestPredictChains_ClearsOnlyRepredictedPreparedInputs(t *testing.T) {
 	deployedID := common.HexToHash("0x0a")
 	freshID := common.HexToHash("0x0b")
+	deployedPrestate := common.HexToHash("0xfeed")
+	freshPrestate := common.HexToHash("0xbeef")
+	deployedStartingAnchorRoot := &state.StartingAnchorProposal{
+		Root:             common.HexToHash("0x1111"),
+		L2SequenceNumber: 1,
+	}
+	freshStartingAnchorRoot := &state.StartingAnchorProposal{
+		Root:             common.HexToHash("0x2222"),
+		L2SequenceNumber: 2,
+	}
 
 	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
 	superchainConfig := common.HexToAddress("0xbbbb000000000000000000000000000000000002")
@@ -538,7 +617,12 @@ func TestPredictChains_SkipsDeployed(t *testing.T) {
 		GlobalDeployOverrides: make(map[string]any),
 		Chains: []*state.ChainIntent{
 			{ID: deployedID},
-			{ID: freshID},
+			{
+				ID: freshID,
+				DeployOverrides: map[string]any{
+					"respectedGameType": embedded.GameTypeCannonKona,
+				},
+			},
 		},
 	}
 
@@ -546,6 +630,19 @@ func TestPredictChains_SkipsDeployed(t *testing.T) {
 	deployedContracts.SystemConfigProxy = common.HexToAddress("0xdead")
 	st := &state.State{Create2Salt: common.HexToHash("0x03")}
 	st.SetChainContracts(deployedID, deployedContracts, true)
+	st.SetChainContracts(freshID, addresses.OpChainContracts{}, false)
+	deployed, err := st.Chain(deployedID)
+	require.NoError(t, err)
+	deployed.Prestate = deployedPrestate
+	deployed.StartingAnchorRoot = deployedStartingAnchorRoot
+	deployedInitialGameType := uint32(embedded.GameTypeSuperPermissioned)
+	deployed.InitialGameType = &deployedInitialGameType
+	fresh, err := st.Chain(freshID)
+	require.NoError(t, err)
+	fresh.Prestate = freshPrestate
+	fresh.StartingAnchorRoot = freshStartingAnchorRoot
+	freshInitialGameType := uint32(embedded.GameTypePermissionedCannon)
+	fresh.InitialGameType = &freshInitialGameType
 
 	var ran []common.Hash
 	run := func(in opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
@@ -580,17 +677,19 @@ func TestPredictChains_SkipsDeployed(t *testing.T) {
 
 	require.Equal(t, []common.Hash{freshID}, ran)
 
-	deployed, err := st.Chain(deployedID)
-	require.NoError(t, err)
 	require.NotNil(t, deployed.Deployed)
 	require.True(t, *deployed.Deployed)
 	require.Equal(t, deployedContracts.SystemConfigProxy, deployed.SystemConfigProxy)
+	require.Equal(t, deployedPrestate, deployed.Prestate)
+	require.Equal(t, deployedStartingAnchorRoot, deployed.StartingAnchorRoot)
+	require.Equal(t, uint32(embedded.GameTypeSuperPermissioned), *deployed.InitialGameType)
 
-	fresh, err := st.Chain(freshID)
-	require.NoError(t, err)
 	require.NotNil(t, fresh.Deployed)
 	require.False(t, *fresh.Deployed)
 	require.Equal(t, common.HexToAddress("0xbeef"), fresh.SystemConfigProxy)
+	require.Zero(t, fresh.Prestate)
+	require.Nil(t, fresh.StartingAnchorRoot)
+	require.Equal(t, uint32(embedded.GameTypeCannonKona), *fresh.InitialGameType)
 	require.Equal(t, anchor, fresh.StartBlock, "fresh chain must have its anchor block pinned")
 	require.NotNil(t, fresh.GenesisTime, "fresh chain must have its genesis time committed")
 	require.EqualValues(t, uint64(anchor.Time)+genesisTimeOffset, *fresh.GenesisTime)
@@ -598,6 +697,306 @@ func TestPredictChains_SkipsDeployed(t *testing.T) {
 	// The already-deployed chain is skipped, so its anchor is never resolved or pinned.
 	require.Nil(t, deployed.StartBlock)
 	require.Nil(t, deployed.GenesisTime)
+}
+
+func TestPrepareChainsBuildsInteropDepSetBeforePrediction(t *testing.T) {
+	firstID := common.HexToHash("0x0a")
+	secondID := common.HexToHash("0x0b")
+	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
+	superchainConfig := common.HexToAddress("0xbbbb000000000000000000000000000000000002")
+	intent := &state.Intent{
+		OPCMAddress:           &opcmAddr,
+		SuperchainConfigProxy: &superchainConfig,
+		GlobalDeployOverrides: make(map[string]any),
+		Chains: []*state.ChainIntent{
+			{ID: firstID},
+			{ID: secondID},
+		},
+	}
+	st := &state.State{Create2Salt: common.HexToHash("0x03")}
+
+	var predictions int
+	run := func(opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
+		predictions++
+		require.NotNil(t, st.InteropDepSet)
+		require.Len(t, st.InteropDepSet.Chains(), 2)
+		return emptyDeployOPChainOutput(), nil
+	}
+	anchor := &state.L1BlockRefJSON{Hash: common.HexToHash("0xa11c"), Number: 100, Time: 5000}
+	selectAnchor := func(overrideHash *common.Hash) (*state.L1BlockRefJSON, error) {
+		return anchor, nil
+	}
+
+	require.NoError(t, prepareChains(testlog.Logger(t, slog.LevelInfo), intent, st, run, selectAnchor, anchor, 600))
+	require.Equal(t, 2, predictions)
+}
+
+func TestPrepareChainsRejectsMixedInitialGameTypesBeforePrediction(t *testing.T) {
+	firstID := common.HexToHash("0x0a")
+	secondID := common.HexToHash("0x0b")
+	intent := &state.Intent{
+		Chains: []*state.ChainIntent{
+			{
+				ID:              firstID,
+				DeployOverrides: map[string]any{"respectedGameType": embedded.GameTypeCannonKona},
+			},
+			{
+				ID:              secondID,
+				DeployOverrides: map[string]any{"respectedGameType": embedded.GameTypeSuperCannonKona},
+			},
+		},
+	}
+	st := &state.State{}
+	var predictions int
+	run := func(opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
+		predictions++
+		return emptyDeployOPChainOutput(), nil
+	}
+
+	err := prepareChains(testlog.Logger(t, slog.LevelInfo), intent, st, run, nil, nil, 0)
+	require.EqualError(t, err, "an intent cannot mix CANNON_KONA and SUPER_CANNON_KONA initial games")
+	require.Nil(t, st.InteropDepSet)
+	require.Zero(t, predictions)
+}
+
+func TestPrepareChainsRejectsDuplicateChainIDsBeforeDepSet(t *testing.T) {
+	chainID := common.HexToHash("0x0a")
+	intent := &state.Intent{
+		Chains: []*state.ChainIntent{
+			{ID: chainID},
+			{ID: chainID},
+		},
+	}
+	st := &state.State{}
+	var predictions int
+	run := func(opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
+		predictions++
+		return emptyDeployOPChainOutput(), nil
+	}
+
+	err := prepareChains(testlog.Logger(t, slog.LevelInfo), intent, st, run, nil, nil, 0)
+	require.EqualError(t, err, "duplicate chain IDs ["+chainID.Hex()+"]")
+	require.Nil(t, st.InteropDepSet)
+	require.Zero(t, predictions)
+}
+
+func TestPrepareChainsPredictionFailureOnlyClearsSuccessfullyPredictedPrestatesInMemory(t *testing.T) {
+	firstID := common.HexToHash("0x0a")
+	secondID := common.HexToHash("0x0b")
+	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
+	superchainConfig := common.HexToAddress("0xbbbb000000000000000000000000000000000002")
+	intent := &state.Intent{
+		OPCMAddress:           &opcmAddr,
+		SuperchainConfigProxy: &superchainConfig,
+		GlobalDeployOverrides: make(map[string]any),
+		Chains: []*state.ChainIntent{
+			{ID: firstID},
+			{ID: secondID},
+		},
+	}
+	st := &state.State{Create2Salt: common.HexToHash("0x03")}
+	var firstContracts addresses.OpChainContracts
+	firstContracts.SystemConfigProxy = common.HexToAddress("0x1111")
+	st.SetChainContracts(firstID, firstContracts, false)
+	var secondContracts addresses.OpChainContracts
+	secondContracts.SystemConfigProxy = common.HexToAddress("0x2222")
+	st.SetChainContracts(secondID, secondContracts, false)
+	for i, chainID := range []common.Hash{firstID, secondID} {
+		chain, err := st.Chain(chainID)
+		require.NoError(t, err)
+		chain.Prestate = common.HexToHash("0x11")
+		gameType := uint32(embedded.GameTypeCannonKona) + uint32(i)
+		chain.InitialGameType = &gameType
+	}
+
+	var predictions int
+	run := func(in opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
+		predictions++
+		if predictions == 2 {
+			return opcm.DeployOPChainOutput{}, fmt.Errorf("prediction sentinel")
+		}
+		out := emptyDeployOPChainOutput()
+		out.SystemConfigProxy = common.HexToAddress("0x3333")
+		return out, nil
+	}
+	anchor := &state.L1BlockRefJSON{Hash: common.HexToHash("0xa11c"), Number: 100, Time: 5000}
+	selectAnchor := func(overrideHash *common.Hash) (*state.L1BlockRefJSON, error) {
+		return anchor, nil
+	}
+	const genesisTimeOffset = 600
+
+	err := prepareChains(testlog.Logger(t, slog.LevelInfo), intent, st, run, selectAnchor, anchor, genesisTimeOffset)
+	require.ErrorContains(t, err, "prediction sentinel")
+
+	first, err := st.Chain(firstID)
+	require.NoError(t, err)
+	require.Equal(t, anchor, first.StartBlock)
+	require.NotNil(t, first.GenesisTime)
+	require.EqualValues(t, uint64(anchor.Time)+genesisTimeOffset, *first.GenesisTime)
+	require.Equal(t, common.HexToAddress("0x3333"), first.SystemConfigProxy)
+	require.Zero(t, first.Prestate)
+	require.Equal(t, uint32(embedded.GameTypePermissionedCannon), *first.InitialGameType)
+	second, err := st.Chain(secondID)
+	require.NoError(t, err)
+	require.Equal(t, anchor, second.StartBlock)
+	require.NotNil(t, second.GenesisTime)
+	require.EqualValues(t, uint64(anchor.Time)+genesisTimeOffset, *second.GenesisTime)
+	require.Equal(t, secondContracts.SystemConfigProxy, second.SystemConfigProxy)
+	require.Equal(t, common.HexToHash("0x11"), second.Prestate)
+	require.Equal(t, uint32(embedded.GameTypeSuperCannonKona), *second.InitialGameType)
+}
+
+func TestPredictChainsPrestateReminders(t *testing.T) {
+	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
+	superchainConfig := common.HexToAddress("0xbbbb000000000000000000000000000000000002")
+
+	tests := []struct {
+		name            string
+		gameType        embedded.GameType
+		reminderMessage string
+	}{
+		{
+			name:            "CANNON_KONA",
+			gameType:        embedded.GameTypeCannonKona,
+			reminderMessage: "selected prestate must be committed",
+		},
+		{
+			name:            "SUPER_CANNON_KONA",
+			gameType:        embedded.GameTypeSuperCannonKona,
+			reminderMessage: "selected prestate must be committed",
+		},
+		{
+			name:     "PERMISSIONED_CANNON",
+			gameType: embedded.GameTypePermissionedCannon,
+		},
+	}
+
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			chainID := common.HexToHash(fmt.Sprintf("0x%x", i+1))
+			intent := &state.Intent{
+				OPCMAddress:           &opcmAddr,
+				SuperchainConfigProxy: &superchainConfig,
+				GlobalDeployOverrides: make(map[string]any),
+				Chains: []*state.ChainIntent{{
+					ID: chainID,
+					DeployOverrides: map[string]any{
+						"respectedGameType": tt.gameType,
+					},
+				}},
+			}
+			st := &state.State{Create2Salt: common.HexToHash("0x03")}
+			st.SetChainContracts(chainID, addresses.OpChainContracts{}, false)
+			chain, err := st.Chain(chainID)
+			require.NoError(t, err)
+			chain.Prestate = common.HexToHash("0x11")
+			lgr, logs := testlog.CaptureLogger(t, slog.LevelInfo)
+
+			run := func(in opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
+				require.Equal(t, uint32(tt.gameType), in.DisputeGameType)
+				return emptyDeployOPChainOutput(), nil
+			}
+			anchor := &state.L1BlockRefJSON{Hash: common.HexToHash("0xa11c"), Number: 100, Time: 5000}
+			selectAnchor := func(overrideHash *common.Hash) (*state.L1BlockRefJSON, error) {
+				return anchor, nil
+			}
+
+			require.NoError(t, predictChains(lgr, intent, st, run, selectAnchor, anchor, 600))
+			require.Zero(t, chain.Prestate)
+			require.NotNil(t, chain.InitialGameType)
+			require.Equal(t, uint32(tt.gameType), *chain.InitialGameType)
+
+			chainFilter := testlog.NewAttributesFilter("chain", chainID.Hex())
+			if tt.reminderMessage == "" {
+				require.Nil(t, logs.FindLog(
+					testlog.NewMessageContainsFilter("run op-deployer prestate before continue"),
+					chainFilter,
+				))
+				return
+			}
+			logs.RequireMessageContainedOnce(t, tt.reminderMessage, chainFilter)
+		})
+	}
+}
+
+func TestPredictChainsRejectsInvalidInitialGameTypeBeforePrediction(t *testing.T) {
+	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
+	superchainConfig := common.HexToAddress("0xbbbb000000000000000000000000000000000002")
+
+	tests := []struct {
+		name     string
+		gameType uint32
+		wantErr  string
+	}{
+		{
+			name:     "CANNON",
+			gameType: uint32(embedded.GameTypeCannon),
+			wantErr:  "unsupported initial dispute game type 0",
+		},
+		{
+			name:     "SUPER_PERMISSIONED",
+			gameType: uint32(embedded.GameTypeSuperPermissioned),
+			wantErr:  "derived fallback and is not an initial-deploy selector",
+		},
+		{
+			name:     "ZK_DISPUTE_GAME",
+			gameType: uint32(embedded.GameTypeZKDisputeGame),
+			wantErr:  "unsupported initial dispute game type 10",
+		},
+		{
+			name:     "unknown",
+			gameType: math.MaxUint32,
+			wantErr:  fmt.Sprintf("unsupported initial dispute game type %d", uint32(math.MaxUint32)),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			chainID := common.HexToHash("0x01")
+			intent := &state.Intent{
+				OPCMAddress:           &opcmAddr,
+				SuperchainConfigProxy: &superchainConfig,
+				Chains: []*state.ChainIntent{{
+					ID:              chainID,
+					DeployOverrides: map[string]any{"respectedGameType": tt.gameType},
+				}},
+			}
+			st := &state.State{Create2Salt: common.HexToHash("0x03")}
+			var predictionCalls int
+			run := func(opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
+				predictionCalls++
+				return emptyDeployOPChainOutput(), nil
+			}
+			anchor := &state.L1BlockRefJSON{Hash: common.HexToHash("0xa11c"), Number: 100, Time: 5000}
+			selectAnchor := func(overrideHash *common.Hash) (*state.L1BlockRefJSON, error) {
+				return anchor, nil
+			}
+
+			err := predictChains(testlog.Logger(t, slog.LevelInfo), intent, st, run, selectAnchor, anchor, 600)
+			require.ErrorContains(t, err, tt.wantErr)
+			require.Zero(t, predictionCalls)
+		})
+	}
+}
+
+func emptyDeployOPChainOutput() opcm.DeployOPChainOutput {
+	return opcm.DeployOPChainOutput{
+		OpChainProxyAdmin:                  common.Address{},
+		AddressManager:                     common.Address{},
+		L1ERC721BridgeProxy:                common.Address{},
+		SystemConfigProxy:                  common.Address{},
+		OptimismMintableERC20FactoryProxy:  common.Address{},
+		L1StandardBridgeProxy:              common.Address{},
+		L1CrossDomainMessengerProxy:        common.Address{},
+		OptimismPortalProxy:                common.Address{},
+		EthLockboxProxy:                    common.Address{},
+		DisputeGameFactoryProxy:            common.Address{},
+		AnchorStateRegistryProxy:           common.Address{},
+		FaultDisputeGame:                   common.Address{},
+		PermissionedDisputeGame:            common.Address{},
+		DelayedWETHPermissionedGameProxy:   common.Address{},
+		DelayedWETHPermissionlessGameProxy: common.Address{},
+	}
 }
 
 func TestPredictChains_ReusesPinnedAnchor(t *testing.T) {

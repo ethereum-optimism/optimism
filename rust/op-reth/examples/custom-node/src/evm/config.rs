@@ -213,6 +213,8 @@ where
 }
 
 impl ConfigurePostExecEvm for CustomEvmConfig {
+    type Snapshot = alloy_op_evm::post_exec::WarmingState;
+
     fn post_exec_executor_for_block<'a, DB: Database>(
         &'a self,
         db: &'a mut State<DB>,
@@ -220,7 +222,7 @@ impl ConfigurePostExecEvm for CustomEvmConfig {
         post_exec_mode: PostExecMode,
     ) -> Result<
         impl BlockExecutor<Transaction = CustomTransaction, Receipt = OpReceipt>
-        + PostExecExecutorExt
+        + PostExecExecutorExt<Snapshot = Self::Snapshot>
         + 'a,
         Self::Error,
     > {
@@ -254,7 +256,7 @@ impl ConfigurePostExecEvm for CustomEvmConfig {
     ) -> Result<
         impl BlockBuilder<
             Primitives = CustomNodePrimitives,
-            Executor: PostExecExecutorExt
+            Executor: PostExecExecutorExt<Snapshot = Self::Snapshot>
                           + alloy_evm::block::BlockExecutor<
                 Evm: alloy_evm::Evm<DB: core::ops::DerefMut<Target = State<DB>>>,
                 Result: PreRefundGasUsed,

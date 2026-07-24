@@ -1,45 +1,19 @@
 package presets
 
 import (
-	"strings"
-	"time"
-
-	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	devtestmetrics "github.com/ethereum-optimism/optimism/op-devstack/devtest/metrics"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl/disputemon"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
-	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum/go-ethereum/common"
 )
-
-const disputeMonMetricPollInterval = 100 * time.Millisecond
-
-type DisputeMon struct {
-	t       devtest.T
-	metrics *devtestmetrics.MetricsClient
-}
-
-func newDisputeMon(t devtest.T, metricsURL string) *DisputeMon {
-	httpClient := client.NewBasicHTTPClient(strings.TrimRight(metricsURL, "/"), t.Logger())
-	return &DisputeMon{
-		t:       t,
-		metrics: devtestmetrics.NewMetricsClient(httpClient),
-	}
-}
-
-func (d *DisputeMon) VerifyGameCount(gameType gameTypes.GameType, expected int) {
-	err := d.metrics.WaitForGauge(d.t.Ctx(), devtestmetrics.GaugeDefinition{
-		Name:     "op_dispute_mon_games",
-		Labels:   map[string]string{"game_type": gameType.String()},
-		Expected: float64(expected),
-	}, disputeMonMetricPollInterval)
-	d.t.Require().NoError(err, "expected dispute monitor to export %d games of type %s", expected, gameType)
-}
 
 type disputeMonOptions struct {
 	rollupRPCs    []string
 	supernodeRPCs []string
+	honestActors  []common.Address
+	clock         clock.Clock
 }
 
 type DisputeMonOption func(*disputeMonOptions)
@@ -64,12 +38,40 @@ func WithDisputeMonSupernodes(nodes ...dsl.SuperRootSource) DisputeMonOption {
 	}
 }
 
-func (s *SingleChainInterop) StartDisputeMon() *DisputeMon {
+func WithDisputeMonHonestActors(actors ...common.Address) DisputeMonOption {
+	return func(opts *disputeMonOptions) {
+		opts.honestActors = append(opts.honestActors, actors...)
+	}
+}
+
+func withDisputeMonClock(cl *clock.AdvancingClock) DisputeMonOption {
+	return func(opts *disputeMonOptions) {
+		if cl != nil {
+			opts.clock = cl
+		}
+	}
+}
+
+func (s *SingleChainInterop) StartDisputeMon() *disputemon.DisputeMon {
 	return StartDisputeMon(
 		s.T,
 		s.L1EL,
 		s.L2ChainA.DisputeGameFactoryProxyAddr(),
 		WithDisputeMonSupernodes(s.SuperRoots),
+		withDisputeMonClock(s.timeTravel),
+	)
+}
+
+func (m *Minimal) StartDisputeMon(options ...DisputeMonOption) *disputemon.DisputeMon {
+	options = append([]DisputeMonOption{
+		WithDisputeMonRollupNodes(m.L2CL),
+		withDisputeMonClock(m.timeTravel),
+	}, options...)
+	return StartDisputeMon(
+		m.T,
+		m.L1EL,
+		m.L2Chain.DisputeGameFactoryProxyAddr(),
+		options...,
 	)
 }
 
@@ -78,7 +80,7 @@ func StartDisputeMon(
 	l1EL *dsl.L1ELNode,
 	factory common.Address,
 	options ...DisputeMonOption,
-) *DisputeMon {
+) *disputemon.DisputeMon {
 	t.Require().NotNil(l1EL, "L1 EL is required to start dispute monitor")
 	opts := &disputeMonOptions{}
 	for _, option := range options {
@@ -95,6 +97,8 @@ func StartDisputeMon(
 		GameFactoryAddress: factory,
 		RollupRPCs:         opts.rollupRPCs,
 		SupernodeRPCs:      opts.supernodeRPCs,
+		HonestActors:       opts.honestActors,
+		Clock:              opts.clock,
 	})
-	return newDisputeMon(t, runtime.MetricsURL())
+	return disputemon.New(t, runtime.MetricsURL())
 }

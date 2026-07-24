@@ -175,6 +175,10 @@ func (fakeEngController) RequestPendingSafeUpdate(ctx context.Context) {}
 
 func (fakeEngController) IsEngineInitialELSyncing() bool { return false }
 
+func (fakeEngController) IsDenied(blockNumber uint64, payloadHash common.Hash) (bool, error) {
+	return false, nil
+}
+
 // TestSequencer_StartStop runs through start/stop state back and forth to test state changes.
 func TestSequencer_StartStop(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelError)

@@ -2,11 +2,13 @@ package state
 
 import (
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/core"
 
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
@@ -43,13 +45,17 @@ type State struct {
 	// Prepared is set when this state was produced by the prepare pipeline.
 	Prepared bool `json:"prepared,omitempty"`
 
+	// PreparedDeployment freezes inputs and predictions for chains awaiting deployment.
+	// Values committed by other stages, such as Prestate and StartingAnchorRoot, remain in ChainState.
+	PreparedDeployment *PreparedDeployment `json:"preparedDeployment,omitempty"`
+
 	// AppliedIntent contains the chain intent that was last
 	// successfully applied. It is diffed against new intent
 	// in order to determine what deployment steps to take.
 	// This field is nil for new deployments.
 	AppliedIntent *Intent `json:"appliedIntent"`
 
-	// InteropDepSet contains the interop dependency set render by the prestate SDK if interop is enabled
+	// InteropDepSet contains the interop dependency set generated from all intent chains during prepare.
 	InteropDepSet *depset.StaticConfigDependencySet `json:"interopDepSet,omitempty"`
 
 	// SuperchainDeployment contains the addresses of the Superchain
@@ -143,6 +149,55 @@ type StartingAnchorProposal struct {
 	L2SequenceNumber hexutil.Uint64 `json:"l2SequenceNumber"`
 }
 
+// PreparedArtifact binds an artifact locator to the bundle contents resolved during prepare.
+type PreparedArtifact struct {
+	Locator       *artifacts.Locator `json:"locator"`
+	ContentDigest common.Hash        `json:"contentDigest"`
+}
+
+// PreparedDeployment freezes the inputs and predictions for chains awaiting deployment.
+type PreparedDeployment struct {
+	Intent      *Intent               `json:"intent"`
+	Deployer    common.Address        `json:"deployer"`
+	OPCM        common.Address        `json:"opcm"`
+	L1Artifacts PreparedArtifact      `json:"l1Artifacts"`
+	L2Artifacts PreparedArtifact      `json:"l2Artifacts"`
+	Chains      []*PreparedChainState `json:"chains"`
+}
+
+// PreparedChainState freezes prediction output and timing for one undeployed chain.
+type PreparedChainState struct {
+	ID common.Hash `json:"id"`
+
+	addresses.OpChainContracts
+
+	StartBlock  *L1BlockRefJSON `json:"startBlock"`
+	GenesisTime *hexutil.Uint64 `json:"genesisTime"`
+}
+
+// Chain returns the frozen state for a chain included in the prepared deployment.
+func (p *PreparedDeployment) Chain(id common.Hash) (*PreparedChainState, error) {
+	for _, chain := range p.Chains {
+		if chain.ID == id {
+			return chain, nil
+		}
+	}
+	return nil, fmt.Errorf("prepared chain not found: %s", id.Hex())
+}
+
+// Clone returns a deep copy of the prepared deployment, detached from the receiver's pointers.
+func (p *PreparedDeployment) Clone() (*PreparedDeployment, error) {
+	data, err := json.Marshal(p)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode prepared deployment: %w", err)
+	}
+	var clone PreparedDeployment
+	if err := json.Unmarshal(data, &clone); err != nil {
+		return nil, fmt.Errorf("failed to decode prepared deployment: %w", err)
+	}
+	return &clone, nil
+}
+
 type ChainState struct {
 	ID common.Hash `json:"id"`
 
@@ -151,6 +206,17 @@ type ChainState struct {
 	// Deployed indicates whether the addresses in this chain have been deployed or are just addresses produced
 	// by the prediction step of the prepare command.
 	Deployed *bool `json:"deployed,omitempty"`
+
+	// Prestate is the selected absolute prestate for permissionless games.
+	Prestate common.Hash `json:"prestate,omitzero"`
+
+	// StartingAnchorRoot is produced by the proposal-producing stage and consumed
+	// when building the continuation deploy input.
+	StartingAnchorRoot *StartingAnchorProposal `json:"startingAnchorRoot,omitempty"`
+
+	// InitialGameType records the game type used by prepare to detect intent drift.
+	// Legacy states without it must be prepared again before continuation.
+	InitialGameType *uint32 `json:"initialGameType,omitempty"`
 
 	AdditionalDisputeGames []AdditionalDisputeGameState `json:"additionalDisputeGames"`
 
@@ -166,11 +232,6 @@ type ChainState struct {
 	// config, and the pinned StartBlock/GenesisTime. Used by post-deploy validation to confirm
 	// on-chain seeding matches the predicted genesis.
 	GenesisBlockHash *common.Hash `json:"genesisBlockHash,omitempty"`
-
-	// StartingAnchorRoot is produced by the proposal-producing stage (ComputeGenesisOutputRoot)
-	// and consumed when building the continuation deploy input, in place of the OPCM.deploy()
-	// startingAnchorRoot placeholder.
-	StartingAnchorRoot *StartingAnchorProposal `json:"startingAnchorRoot,omitempty"`
 }
 
 // IsChainDeployed reports whether the chain's addresses have been broadcast.

@@ -1,0 +1,287 @@
+---
+title: Launch a chain with fault proofs and HA sequencing
+description: Take an OP Stack chain to production with a working fault-proof system and a high-availability sequencer cluster, from contract deployment through failover drills.
+diataxis: how-to
+content-type: solution-guide
+last-reviewed: 2026-07-24
+---
+
+This guide takes a chain operator from "my testnet deployment works" to a
+production launch with the two properties that are hard to retrofit: a
+fault-proof system that secures withdrawals from day one, and a sequencer
+topology with no single point of failure. It involves `op-deployer` and your
+chain's dispute game contracts on L1, a cluster of `op-node` + `op-reth`
+sequencers managed by `op-conductor`, and the L1-facing services
+(`op-batcher`, `op-proposer`, `op-challenger`, `op-dispute-mon`) that keep
+the chain posting, proposing, and defended.
+
+## Is this guide for you?
+
+Use this guide if:
+
+*   You are planning a production OP Stack chain launch: real users will
+    depend on its uptime and withdraw real value through its fault-proof
+    system.
+*   You control the deployment (the `op-deployer` intent and the resulting
+    contracts) and the infrastructure the chain's services run on.
+
+If you are deploying an OP Stack chain for the first time, run the
+[create L2 rollup tutorial](/chain-operators/tutorials/create-l2-rollup/create-l2-rollup)
+on a testnet first; this guide assumes that experience and adds the
+production decisions on top. If your chain is already live and you only want
+to add sequencer high availability, skip to Step 4 and the
+[op-conductor setup guide](/chain-operators/tools/op-conductor/setup). If
+your chain is already live on permissioned fault proofs and you want to go
+permissionless, go straight to the
+[permissionless migration tutorial](/chain-operators/tutorials/migrating-permissionless).
+
+If you want these properties without operating them, or with OP Labs
+engineering supporting your team, see
+[OP Enterprise](https://optimism.io/op-enterprise?utm_source=docs&utm_medium=docs&utm_campaign=op-enterprise);
+this guide is the reference for what a production launch involves either way.
+
+## Before you start
+
+You should already have:
+
+*   A completed testnet deployment, so the `op-deployer` intent-and-apply
+    workflow and the per-service setup steps are familiar.
+*   Funded L1 accounts for the batcher, proposer, and challenger, managed
+    under the signing posture from the
+    [key management guide](/chain-operators/guides/management/key-management).
+*   Infrastructure that can run three sequencer nodes in separate failure
+    domains (regions or availability zones) on a private network, plus the
+    supporting services. op-conductor's RPC does no authentication, so the
+    cluster must not be publicly reachable.
+
+## Step 1: Understand what launch day ships
+
+A chain launched today starts with fault proofs, but not the fully
+permissionless form. Read the
+[fault proofs explainer](/op-stack/fault-proofs/explainer) and take away:
+
+*   Proposals about your chain's state settle through dispute games created
+    via the `DisputeGameFactory`, and withdrawals are proven against those
+    proposals.
+*   The safety net behind the games: the Guardian can blacklist a bad game
+    or change the respected game type, and bonds sit in `DelayedWETH` so
+    incorrect payouts can be recovered.
+
+Then read the note in
+[deploying new dispute games with OPCM](/chain-operators/tutorials/dispute-games#understanding-dispute-games)
+and take away the launch-day reality: chains deployed with `op-deployer`
+initially include only the **permissioned** dispute game, in which the
+proposer and challenger are specific addresses holding
+[privileged roles](/op-stack/protocol/privileged-roles). Permissionless
+fault proofs are a post-launch switch you schedule in Step 7, not a box you
+tick at deployment.
+
+## Step 2: Deploy the contracts with standard proof parameters
+
+Deploy with [op-deployer](/chain-operators/tools/op-deployer/overview),
+which encodes the intent-file workflow your testnet run used. Before you
+apply, review the fault-proof entries your intent controls, catalogued in the
+[rollup deployment configuration reference](/chain-operators/reference/rollup-deployment-configuration):
+the respected game type (`respectedGameType`, which a standard deployment
+sets to the permissioned game, type `1`), the absolute prestate
+(`faultGameAbsolutePrestate`), and the game depth and clock parameters.
+
+The decision this step adds: keep the standard values. The dispute
+parameters are consensus-critical to how games are played and resolved,
+which is why overriding them requires setting an intent field named
+`dangerouslyAllowCustomDisputeParameters`. Do not change them without a
+dedicated security review.
+
+Record the addresses `op-deployer` produces, in particular the
+`DisputeGameFactory` proxy: the proposer, the challenger, and your
+monitoring all take it as configuration.
+
+## Step 3: Design the sequencer topology
+
+A single sequencer is a single point of failure for the whole chain: when
+it stops, no new unsafe blocks exist for anyone. The OP Stack's
+high-availability answer is `op-conductor`. Read the
+[OP Conductor explainer](/chain-operators/tools/op-conductor) and take away:
+
+*   Each sequencer runs a conductor alongside it; the conductors form a Raft
+    cluster, and the Raft leader is the one sequencer allowed to produce and
+    gossip unsafe blocks.
+*   The three guarantees of the design: no unsafe reorgs, no unsafe-head
+    stall during a network partition, and 100% uptime with no more than one
+    node failure in the standard three-node setup.
+*   The design is not Byzantine fault tolerant: it assumes every node in the
+    cluster is honest and operated by you. It protects against crashes and
+    partitions, not against a malicious cluster member.
+
+Then read the
+[network design example](/chain-operators/guides/management/network-architecture)
+and take away where sequencers sit relative to transaction-ingress nodes,
+archive nodes, and public RPC, and that the conductor RPC can act as a
+leader-aware proxy for services that must always talk to the active
+sequencer.
+
+| If ...                                                            | Choose ...                                             | Because ...                                                                                                                          |
+| ------------------------------------------------------------------ | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| This launch is a testnet or downtime is acceptable                | A single sequencer, no conductor                        | You avoid running three sequencer stacks; conductor can be added to a live network later without downtime via the setup guide.        |
+| Production launch with an uptime commitment                       | A three-node conductor cluster across failure domains   | It survives any single node failure with no unsafe reorg; Raft needs a quorum, so two of the three nodes must stay reachable.          |
+| You need protection against a compromised or malicious sequencer  | More than conductor                                     | Conductor is explicitly not BFT; it manages availability among nodes you trust, and cannot defend against a dishonest cluster member.  |
+
+## Step 4: Bootstrap the conductor cluster
+
+Stand up the three sequencers (each an `op-node` + `op-reth` pair with a
+conductor beside it), then form the cluster. The
+[op-conductor setup guide](/chain-operators/tools/op-conductor/setup) is the
+canonical stop; follow it end to end and take away:
+
+*   The bootstrap shape: exactly one conductor starts with
+    `OP_CONDUCTOR_RAFT_BOOTSTRAP=true` (and `OP_CONDUCTOR_PAUSED=true`), the
+    others join via `conductor_addServerAsVoter` against the leader, and the
+    bootstrap flag must be removed after the cluster exists so a redeploy
+    cannot re-bootstrap it.
+*   The op-node side: every sequencer's op-node runs with
+    `OP_NODE_CONDUCTOR_ENABLED=true`, which is what commits unsafe blocks to
+    the Raft log, and the `OP_NODE_RPC_ADMIN_STATE` flag cannot be used with
+    conductor.
+*   The health-check settings that decide when leadership moves:
+    `OP_CONDUCTOR_HEALTHCHECK_MIN_PEER_COUNT` sized to your internal peer
+    count, and `OP_CONDUCTOR_HEALTHCHECK_UNSAFE_INTERVAL` at a small
+    multiple of your block time so a brief hiccup does not trigger failover.
+*   The pause/resume/transfer-leadership RPCs, which are also your manual
+    override during incidents.
+
+The setup guide is written for adding conductor to an already-running
+network with a blue/green deployment; for a chain that is not live yet, the
+same sequence applies without the zero-downtime choreography, and the
+[op-conductor runbook](https://github.com/ethereum-optimism/optimism/blob/develop/op-conductor/RUNBOOK.md)
+covers bootstrapping a cluster from scratch (in-repo document on `develop`,
+as of 2026-07-21).
+
+## Step 5: Wire the L1-facing services to the leader
+
+The batcher and proposer must follow whichever sequencer is currently
+leading, not a fixed node:
+
+*   **op-batcher**: point it at the conductor RPC, whose leader-aware proxy
+    mode (`OP_CONDUCTOR_RPC_ENABLE_PROXY`, on by default) serves the
+    necessary op-node and execution RPCs only while its node leads, per the
+    [network design example](/chain-operators/guides/management/network-architecture#sequencers).
+    Then configure it per the
+    [batcher configuration guide](/chain-operators/guides/configuration/batcher);
+    once the chain is live, cost tuning has
+    [its own guide](/use-cases/tune-batcher-costs).
+*   **op-proposer**: configure it per the
+    [proposer configuration guide](/chain-operators/guides/configuration/proposer),
+    with `--game-factory-address` from Step 2 and `--game-type` set to your
+    chain's respected game type, which is `1` (permissioned) for a standard
+    launch. Only proposals made as the respected game type can be used to
+    prove withdrawals, and on a permissioned chain the proposer must sign
+    with the designated proposer address from your intent.
+
+## Step 6: Stand up the defense
+
+Even while the chain is permissioned, run the full defense stack: the
+challenger and monitoring you battle-test now are a precondition for the
+permissionless switch. Follow the
+[run a fault-proof challenger guide](/use-cases/run-a-fault-proof-challenger),
+which covers bond budgeting, prestate selection, the four infrastructure
+endpoints, and monitoring with `op-dispute-mon`, and take away one
+launch-specific point: in the permissioned game, only addresses holding the
+proposer or challenger role can participate in disputes, so the challenger
+must sign with the challenger role address from your Step 2 intent. For the
+full flag catalogue behind that setup, the
+[challenger configuration reference](/chain-operators/reference/challenger-configuration)
+is generated from the op-challenger flag definitions at each finalized
+release.
+
+### Give every service a consistent view of L1
+
+Everything in this guide consumes L1: each sequencer's op-node derives the
+chain from an L1 RPC and an L1 beacon endpoint, and the batcher, proposer,
+and challenger read and transact against L1. Redundant L1 nodes are the
+right instinct for a high-availability chain; a generic load balancer in
+front of them is not:
+
+*   Two L1 nodes are never at exactly the same head at the same moment. A
+    service whose consecutive requests round-robin between them watches
+    blocks appear, disappear, and reappear, which reads as L1 reorgs that
+    never happened.
+*   The challenger is the least tolerant consumer, and one behind a normal
+    load balancer can malfunction. It reacts to new L1 heads from a
+    subscription on its L1 RPC, then reads the dispute game contracts with
+    calls pinned to that head's block hash, so a follow-up request served
+    by a node that has not imported the block yet fails. Its progress
+    gauge (`op_challenger_highest_acted_l1_block`) reports the lowest L1
+    block processed across all games, so a single game stalled on an
+    inconsistent endpoint flat-lines the challenger's measured progress.
+    Give it one trusted endpoint that fails over deliberately, not per
+    request, per the
+    [challenger guide's endpoint requirements](/use-cases/run-a-fault-proof-challenger#step-4-provision-the-four-endpoints).
+*   Where you do want balancing, make it consensus-aware. For beacon
+    endpoints, a beacon-chain-aware proxy such as
+    [dugtrio](https://github.com/ethpandaops/dugtrio) monitors its
+    upstream nodes to route around forked-off or unsynced clients and
+    keeps subsequent requests on the same endpoint where possible, which
+    is exactly the property a generic round-robin balancer lacks. As of
+    2026-07-22.
+
+## Step 7: Schedule the switch to permissionless proofs
+
+Permissionless fault proofs are the security upgrade the system exists for:
+anyone can propose and anyone can challenge, so users no longer depend on
+your proposer being honest and available. Read the
+[permissionless migration tutorial](/chain-operators/tutorials/migrating-permissionless)
+and take away the four phases: configure the dispute components, deploy the
+permissionless game contracts through OPCM's `addGameType` (detailed in the
+[dispute games tutorial](/chain-operators/tutorials/dispute-games)), test the
+off-chain agents against the new game type, and only then switch the
+respected game type. Since the Karst upgrade the permissionless game to
+enable is `cannon-kona` (kona-client run inside the Cannon VM); the legacy
+op-program path has reached
+[end of support](/notices/op-geth-deprecation).
+
+| If ...                                                                  | Choose ...                             | Because ...                                                                                                                       |
+| ------------------------------------------------------------------------ | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Launch day                                                              | Stay permissioned                       | The dispute stack has never seen your production traffic; the Guardian and your monitoring cover the gap while you build evidence.  |
+| Challenger and dispute-mon have run cleanly against live games          | Schedule the migration                  | The migration's testing phase assumes working agents; proving them first makes the respected-game-type switch a config change, not a leap. |
+| Your contracts predate op-contracts v5.0.0                              | Upgrade contracts first                 | The migration tutorial's minimum supported contracts version is v5.0.0.                                                              |
+
+## Step 8: Verify the launch
+
+Confirm each property you paid for, before users depend on it:
+
+*   **Cluster health**: query `conductor_leader` (or use `op-conductor-ops`)
+    and confirm exactly one leader, with the other two conductors as
+    followers and their sequencers stopped.
+*   **Failover**: run a leadership-transfer drill with
+    `conductor_transferLeaderToServer` and confirm the unsafe head keeps
+    advancing without a gap or reorg; then repeat by stopping the leading
+    sequencer outright and watching leadership move on its own.
+*   **Posting and proposing**: batcher transactions land on L1 at the
+    expected cadence and the safe head advances; the `DisputeGameFactory`
+    shows new games from your proposer address at the proposal interval.
+*   **Defense**: `op-dispute-mon` tracks the games your proposer creates,
+    and the challenger's logs show it monitoring them (the
+    [challenger guide's verification step](/use-cases/run-a-fault-proof-challenger#step-7-verify-the-challenger-is-defending)
+    has the full checklist).
+*   **The user path**: complete one withdrawal end to end (prove against a
+    proposal, wait out the delays, finalize) before real users need to.
+
+## Next steps
+
+*   [op-conductor runbook](https://github.com/ethereum-optimism/optimism/blob/develop/op-conductor/RUNBOOK.md):
+    disaster-recovery procedures and manual overrides for every failure mode
+    the cluster can enter. In-repo document on `develop`, as of 2026-07-21.
+*   [op-conductor configuration and RPC reference](/chain-operators/tools/op-conductor/reference):
+    the flag and RPC catalogue behind Steps 4 and 8.
+*   [op-conductor-ops](https://github.com/ethereum-optimism/infra/tree/main/op-conductor-ops):
+    the operational CLI for inspecting and driving a conductor cluster, and
+    op-conductor-mon for metrics, in the infra repository. As of 2026-07-21.
+*   [Fault dispute game specification](https://specs.optimism.io/fault-proof/stage-one/fault-dispute-game.html?utm_source=op-docs&utm_medium=docs):
+    the normative game semantics, for when you need to reason about what
+    your proposer and challenger are participating in.
+*   [Chain operator best practices](/chain-operators/guides/management/best-practices):
+    the wider operational posture (release versions, incremental upgrade
+    rollouts, sequencer isolation, runbooks) around the launch this guide
+    covered.
+*   [Tune batcher costs](/use-cases/tune-batcher-costs): the cost loop to
+    work through once the chain has real traffic.
