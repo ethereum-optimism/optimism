@@ -202,23 +202,28 @@ func (g *ZKGame) WaitForClaimedCredit(recipient common.Address) {
 	timedCtx, cancel := context.WithTimeout(g.t.Ctx(), defaultTimeout)
 	defer cancel()
 
+	var lastReadErr error
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
-		mode, err := contractio.Read(g.contract.BondDistributionMode(), timedCtx)
-		if err != nil {
+		var mode uint8
+		mode, lastReadErr = contractio.Read(g.contract.BondDistributionMode(), timedCtx)
+		if lastReadErr != nil {
+			g.t.Logf("Zk game %v bond distribution mode unavailable while waiting for %v to claim its credit: %v", g.Address, recipient, lastReadErr)
 			return false, nil
 		}
 		if challengerTypes.BondDistributionMode(mode) != challengerTypes.NormalDistributionMode {
 			g.t.Logf("Zk game %v not yet closed (bond distribution mode %v)", g.Address, mode)
 			return false, nil
 		}
-		credit, err := contractio.Read(g.contract.Credit(recipient), timedCtx)
-		if err != nil {
+		var credit *big.Int
+		credit, lastReadErr = contractio.Read(g.contract.Credit(recipient), timedCtx)
+		if lastReadErr != nil {
+			g.t.Logf("Zk game %v credit for %v unavailable while waiting to claim: %v", g.Address, recipient, lastReadErr)
 			return false, nil
 		}
 		g.t.Logf("Zk game %v closed, %v unclaimed credit %v", g.Address, recipient, credit)
 		return credit.Sign() == 0, nil
 	})
-	g.require.NoErrorf(err, "challenger %v did not claim its credit for zk game %v", recipient, g.Address)
+	g.require.NoErrorf(err, "challenger %v did not claim its credit for zk game %v; last read error: %v", recipient, g.Address, lastReadErr)
 }
 
 // WaitForProposalStatus polls the proposal status until it reaches expected or the timeout elapses.
