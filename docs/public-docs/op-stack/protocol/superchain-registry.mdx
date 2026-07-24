@@ -8,9 +8,9 @@ The [superchain-registry](https://github.com/ethereum-optimism/superchain-regist
 
 *   A step-by-step process new chains can follow to join the registry
 *   Validation checks to ensure standard chains comply with the Standard Rollup Charter and non-standard chains pass baseline validation before joining the superchain-registry
-*   A repository that shows who's in the registry and the chain's configuration. Chains are denoted with a [`superchain_level`](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/glossary.md#superchain-level-and-rollup-stage) which tells you which chains are standard: chains with `superchain_level = 2` have proven that they follow the Standard Rollup Charter, and can be classified as a Standard Rollup.
+*   A repository that shows who's in the registry and each chain's configuration
 
-All registered chains are publicly listed with their configurations, and being part of the registry signals reliability and alignment with the OP Stack ecosystem.
+The main benefit of joining the registry is a practical one: a registered chain's genesis and rollup configuration are baked into releases of the canonical OP Stack node software, including op-node, op-geth, and op-reth. Operators and node runners can start a node against a registered chain simply by passing its name to the client's network flag, with no need to hand-distribute configuration files. See [hard fork activation inheritance behavior](#hard-fork-activation-inheritance-behavior) below for the exact flags. Registration also lists your chain publicly alongside its configuration and signals reliability and alignment with the OP Stack ecosystem.
 
 ## What is a standard chain?
 
@@ -31,7 +31,7 @@ A standard chain in the OP Stack refers to a rollup that adheres to the followin
     *   Transparent and collaborative decision-making aligned with the OP Stack ecosystem.
 
 3.  **Interoperability:**
-    *   Maintaining compatibility with the OP Stack protocol level cross-chain interactions.
+    *   Standard chains get Superchain interop by default: they can exchange cross-chain messages and assets with other standard chains under identical trust assumptions.
 
 Chains that deviate from these principles, such as introducing unsupported features, are considered non-standard configurations.
 For example, any alterations to core system contracts break standardization and aren't supported in the official OP Stack specification.
@@ -42,7 +42,7 @@ For a detailed list of standard configurations, refer to the [Standard Rollup Ch
 Standardization benefits the OP Stack ecosystem in several ways:
 
 *   **Interoperability:**
-    A standard stack and security model makes your chain eligible for interactions between other standard chains, such as single block cross-chain messaging and token transfers.
+    A standard stack and security model gives your chain interop with other standard chains by default, such as single block cross-chain messaging and token transfers, with identical trust assumptions across all interoperating chains.
 
 *   **Simplified upgrade path:**
     Reduces the complexity of upgrading your chain to the latest version.
@@ -78,7 +78,6 @@ By using op-deployer, chain operators can reduce the complexity of chain deploym
 ## Joining the Registry
 
 To join the Registry, follow the [Join the Superchain Registry guide](/chain-operators/guides/join-superchain-registry) to submit a pull request and join the Registry. This guide will help you set up your chain, create your environment, and run all the validation checks needed to ensure your chain is ready to join the Registry.
-For clarifications on standardization, consult the [developer support](https://github.com/ethereum-optimism/developers/discussions) team.
 
 ## Hard fork activation inheritance behavior
 
