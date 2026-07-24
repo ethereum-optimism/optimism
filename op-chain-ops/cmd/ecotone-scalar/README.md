@@ -1,9 +1,10 @@
 # ecotone-scalar
 
 A CLI tool for computing the value of `scalar` to use after the Ecotone upgrade in a call to
-`setGasConfig(scalar, overhead)` of the L1 `SystemConfigProxy` contract. After the Ecotone upgrade, the
-overhead parameter is ignored, and the scalar parameter encodes a versioned `bytes32` that allows
-configuring the base fee scalar and blob base fee scalars separately.
+`setGasConfigEcotone(basefeeScalar, blobbasefeeScalar)` of the L1 `SystemConfigProxy` contract. The
+scalar is stored as a versioned `bytes32` that configures the base fee scalar and blob base fee
+scalar separately. The pre-Ecotone `setGasConfig(overhead, scalar)` function it originally targeted
+was removed in SystemConfig 4.0.0.
 
 #### Usage
 
