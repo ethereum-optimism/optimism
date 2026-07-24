@@ -32,10 +32,13 @@ type RethSystem struct {
 }
 
 // FinishRethSystem wraps a built MixedSingleChainRuntime in DSL frontends, derives the verifier
-// refs + an L2 funder, and (when SDM is active) opts the sequencer in via admin_setOperatorSdmOptIn.
-// Shared by the stock-op-reth builder and any external premium-sequencer builder so both produce an
-// identical RethSystem regardless of which EL binary the sequencer runs.
-func FinishRethSystem(t devtest.T, runtime *sysgo.MixedSingleChainRuntime, interopAtGenesis bool) *RethSystem {
+// refs + an L2 funder, and (when optInSDM is true) opts the sequencer in via
+// admin_setOperatorSdmOptIn. Shared by the stock-op-reth builder and any external premium-sequencer
+// builder so both produce an identical RethSystem regardless of which EL binary the sequencer runs.
+//
+// The returned system's batcher starts stopped; tests start it explicitly (sys.L2Batcher.Start())
+// to control batching windows.
+func FinishRethSystem(t devtest.T, runtime *sysgo.MixedSingleChainRuntime, optInSDM bool) *RethSystem {
 	frontends := presets.NewMixedSingleChainFrontends(t, runtime)
 	frontends.L2Batcher.Stop()
 	t.Require().Len(frontends.Nodes, 2, "SDM op-reth system must include sequencer and verifier nodes")
@@ -64,12 +67,11 @@ func FinishRethSystem(t devtest.T, runtime *sysgo.MixedSingleChainRuntime, inter
 		FunderL2:     dsl.NewFunder(wallet, frontends.FaucetL2, frontends.L2Network.PrimaryEL()),
 	}
 
-	// The protocol gate (Interop hardfork) is already scheduled by the caller when
-	// interopAtGenesis is true. Local PostExec production additionally requires the
-	// sequencer's op-reth to be opted in via admin_setOperatorSdmOptIn; nothing else
-	// flips this on. Verifier nodes do not need to opt in — they accept PostExec
-	// txs by chain spec rule alone.
-	if interopAtGenesis {
+	// Local PostExec production requires the sequencer's op-reth to be opted in via
+	// admin_setOperatorSdmOptIn; nothing else flips this on. Verifier nodes do not need to
+	// opt in — they accept PostExec txs by chain spec rule alone. (The Interop/Lagoon
+	// protocol gate is scheduled separately by the caller.)
+	if optInSDM {
 		SetSDMEnabled(t, sys.L2EL, true)
 	}
 	return sys
