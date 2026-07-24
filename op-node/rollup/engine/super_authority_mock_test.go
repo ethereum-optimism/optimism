@@ -25,6 +25,8 @@ type mockSuperAuthority struct {
 
 	deniedBlocks map[uint64]common.Hash
 	shouldError  bool
+	// When set, MaxDeniedHeight fails with this error instead of reading deniedBlocks.
+	maxDeniedHeightErr error
 }
 
 func newMockSuperAuthority() *mockSuperAuthority {
@@ -48,14 +50,17 @@ func (m *mockSuperAuthority) IsDenied(blockNumber uint64, payloadHash common.Has
 	return false, nil
 }
 
-func (m *mockSuperAuthority) MaxDeniedHeight() (uint64, bool) {
-	var max uint64
+func (m *mockSuperAuthority) MaxDeniedHeight() (uint64, bool, error) {
+	if m.maxDeniedHeightErr != nil {
+		return 0, false, m.maxDeniedHeightErr
+	}
+	var maxHeight uint64
 	for num := range m.deniedBlocks {
-		if num > max {
-			max = num
+		if num > maxHeight {
+			maxHeight = num
 		}
 	}
-	return max, max != 0
+	return maxHeight, maxHeight != 0, nil
 }
 
 func (m *mockSuperAuthority) FullyVerifiedL2Head(ctx context.Context) (rollup.VerifierHead, bool) {

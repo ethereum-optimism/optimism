@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -106,6 +107,68 @@ func TestAddUnsafePayloadNotQueuedDuringRecovery(t *testing.T) {
 	payload, _ := ec.PeekUnsafePayload()
 	require.Nil(t, payload, "payload must not be queued during recovery")
 
+	emitter.AssertExpectations(t)
+}
+
+// A payload queued before the invalidation must not survive the recovery
+// window: an invalidation rewind leaves the queue holding denied-branch
+// payloads far ahead of the new unsafe head, which
+// DropInapplicableUnsafePayloads never removes. The driver's gap ticker peeks
+// (never pops) such an entry, so without the drain in insertUnsafePayload it
+// would be gap-filled into the engine on the first tick after the gate lifts.
+func TestQueuedPayloadDrainedDuringRecovery(t *testing.T) {
+	cfg, refA0, _, _ := buildSimpleCfgAndPayload(t)
+	engine := &testutils.MockEngine{}
+	emitter := &testutils.MockEmitter{}
+	sa := newMockSuperAuthority()
+
+	ec := newUnsafeIngestionEC(t, cfg, engine, sa, emitter, refA0)
+
+	// Pre-invalidation: the payload is accepted into the queue as normal.
+	payload5, ref5 := gapPayload(refA0, cfg)
+	emitter.ExpectOnceType("ForkchoiceUpdateEvent")
+	ec.AddUnsafePayload(context.Background(), payload5)
+	require.Equal(t, payload5, ec.unsafePayloads.Peek(), "payload must be queued before the invalidation")
+
+	// The invalidation lands, and the driver's gap ticker re-inserts the peeked
+	// payload. It is dropped, and the queue is drained with it.
+	sa.denyBlock(2, common.Hash{0xba, 0xd0})
+	require.NoError(t, ec.InsertUnsafePayload(context.Background(), payload5, ref5))
+	require.Equal(t, refA0, ec.UnsafeL2Head(), "unsafe head must not advance during recovery")
+	require.Zero(t, ec.unsafePayloads.Len(), "pre-invalidation payload must not survive the recovery window")
+
+	// Finality passes the denied height and the gate lifts. Nothing is left in
+	// the queue for the gap ticker to feed the engine.
+	ec.SetFinalizedHead(eth.L2BlockRef{
+		Hash:   common.Hash{0x02},
+		Number: 2,
+		Time:   refA0.Time + 2*cfg.BlockTime,
+	})
+	require.Zero(t, ec.unsafePayloads.Len(), "queue must still be empty once the gate lifts")
+
+	engine.AssertExpectations(t)
+	emitter.AssertExpectations(t)
+}
+
+// A deny-list read error fails open: wedging unsafe ingestion on a transient DB
+// fault is worse than looping invalidation until it heals.
+func TestUnsafeDenyGatingFailsOpenOnReadError(t *testing.T) {
+	cfg, refA0, _, _ := buildSimpleCfgAndPayload(t)
+	engine := &testutils.MockEngine{}
+	emitter := &testutils.MockEmitter{}
+	sa := newMockSuperAuthority()
+	sa.denyBlock(2, common.Hash{0xba, 0xd0})
+	sa.maxDeniedHeightErr = errors.New("denylist read failed")
+
+	ec := newUnsafeIngestionEC(t, cfg, engine, sa, emitter, refA0)
+
+	payload5, ref5 := gapPayload(refA0, cfg)
+	expectGapFillSyncing(engine, payload5, ref5, refA0.Hash, refA0.Hash)
+
+	err := ec.InsertUnsafePayload(context.Background(), payload5, ref5)
+	require.ErrorIs(t, err, derive.ErrTemporary, "ingestion proceeds when the deny-list read fails")
+
+	engine.AssertExpectations(t)
 	emitter.AssertExpectations(t)
 }
 

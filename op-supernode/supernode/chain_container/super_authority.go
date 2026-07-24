@@ -105,9 +105,9 @@ func (c *simpleChainContainer) IsDenied(height uint64, payloadHash common.Hash) 
 
 // MaxDeniedHeight returns the highest denied block height and whether any
 // denial exists.
-func (c *simpleChainContainer) MaxDeniedHeight() (uint64, bool) {
+func (c *simpleChainContainer) MaxDeniedHeight() (uint64, bool, error) {
 	if c.denyList == nil {
-		return 0, false
+		return 0, false, nil
 	}
 	return c.denyList.MaxDeniedHeight()
 }

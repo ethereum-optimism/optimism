@@ -71,8 +71,9 @@ type SuperAuthority interface {
 
 	// MaxDeniedHeight returns the highest denied block height, and whether any
 	// denial exists. Consulted on every unsafe payload insert, so it must be
-	// cheap (a local lookup, no network I/O).
-	MaxDeniedHeight() (uint64, bool)
+	// cheap (a local lookup, no network I/O). A read error is returned rather
+	// than reported as "no denials", so callers can log it.
+	MaxDeniedHeight() (uint64, bool, error)
 }
 
 // SafeHeadListener is called when the safe head is updated.

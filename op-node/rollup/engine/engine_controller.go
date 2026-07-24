@@ -173,6 +173,11 @@ type EngineController struct {
 	// SuperAuthority for payload validation (may be nil when not in supernode context)
 	superAuthority rollup.SuperAuthority
 
+	// Last observed state of the unsafe-ingestion deny gate, so entering and
+	// leaving invalidation recovery is logged once rather than per payload.
+	// See unsafeDenyGatingActive.
+	unsafeDenyGated bool
+
 	// crossSafeCache holds the last canonical cross-safe head; consulted by
 	// crossSafeFallback when the verifier is unavailable or returns a reorg
 	// signal, so a transient outage doesn't drop cross-safe to FinalizedHead.
@@ -755,13 +760,39 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 // unsafeDenyGatingActive reports whether unsafe-payload ingestion is blocked
 // by the SuperAuthority deny list: from the moment a block is denied until the
 // finalized head passes the highest denied height, so unsafe sync cannot
-// re-adopt the invalidated branch. Callers must hold e.mu.
+// re-adopt the invalidated branch.
+//
+// Both ingestion paths consult it. AddUnsafePayload keeps new arrivals out of
+// the queue; insertUnsafePayload guards the ELSync direct-insert path and the
+// driver gap-fill, and drains the queue there so payloads buffered before the
+// invalidation don't outlive the window and get gap-filled once it closes.
+//
+// A deny-list read error fails open: a wedged unsafe pipeline is worse than
+// looping invalidation until the DB heals. It is always logged.
+//
+// Callers must hold e.mu.
 func (e *EngineController) unsafeDenyGatingActive() bool {
 	if e.superAuthority == nil {
 		return false
 	}
-	maxDenied, ok := e.superAuthority.MaxDeniedHeight()
-	return ok && maxDenied > e.FinalizedHead().Number
+	maxDenied, ok, err := e.superAuthority.MaxDeniedHeight()
+	if err != nil {
+		e.log.Error("Failed to read max denied height, allowing unsafe ingestion", "err", err)
+		return false
+	}
+	finalized := e.FinalizedHead()
+	active := ok && maxDenied > finalized.Number
+	if active != e.unsafeDenyGated {
+		e.unsafeDenyGated = active
+		if active {
+			e.log.Warn("Gating unsafe ingestion during invalidation recovery",
+				"maxDeniedHeight", maxDenied, "finalized", finalized)
+		} else {
+			e.log.Warn("Resuming unsafe ingestion, finality passed the invalidation",
+				"maxDeniedHeight", maxDenied, "finalized", finalized)
+		}
+	}
+	return active
 }
 
 func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef) error {
@@ -781,13 +812,18 @@ func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *et
 			return derive.NewTemporaryError(fmt.Errorf("failed to fetch finalized head: %w", err))
 		}
 	}
-	// See unsafeDenyGatingActive: no unsafe ingestion during invalidation
-	// recovery. Guards the ELSync direct-insert path and the queue gap-fill;
-	// AddUnsafePayload keeps gated payloads out of the queue in the first place
-	// so none survive the window to be gap-filled after it closes.
+	// See unsafeDenyGatingActive: no unsafe ingestion during invalidation recovery.
 	if e.unsafeDenyGatingActive() {
 		e.log.Debug("Dropping unsafe payload during invalidation recovery",
 			"block", envelope.ExecutionPayload.ID())
+		// Drain what was buffered before the gate activated. A rewind leaves the
+		// queue holding denied-branch payloads far ahead of the new unsafe head,
+		// which DropInapplicableUnsafePayloads never removes; the driver's gap
+		// ticker reaches this path on every tick while such an entry is queued,
+		// so draining here keeps them from surviving the window.
+		for e.unsafePayloads.Pop() != nil {
+		}
+		e.metrics.RecordUnsafePayloadsBuffer(uint64(e.unsafePayloads.Len()), e.unsafePayloads.MemSize(), eth.BlockID{})
 		return nil
 	}
 
@@ -1387,9 +1423,7 @@ func (e *EngineController) AddUnsafePayload(ctx context.Context, envelope *eth.E
 
 	e.log.Debug("Received payload", "payload", envelope.ExecutionPayload.ID())
 
-	// Keep gated payloads out of the queue entirely: a queued denied-branch
-	// payload would outlive the recovery window and be gap-filled into the
-	// engine the moment the gate lifts.
+	// See unsafeDenyGatingActive: no unsafe ingestion during invalidation recovery.
 	if e.unsafeDenyGatingActive() {
 		e.log.Debug("Dropping unsafe payload during invalidation recovery",
 			"block", envelope.ExecutionPayload.ID())

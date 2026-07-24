@@ -1098,22 +1098,25 @@ func TestDenyList_MaxDeniedHeight(t *testing.T) {
 	require.NoError(t, err)
 	defer dl.Close()
 
-	_, any := dl.MaxDeniedHeight()
+	_, any, err := dl.MaxDeniedHeight()
+	require.NoError(t, err)
 	require.False(t, any, "empty deny list has no max height")
 
 	require.NoError(t, dl.Add(100, common.HexToHash("0xaaaa"), 10, eth.Bytes32{}, eth.Bytes32{}))
 	require.NoError(t, dl.Add(500, common.HexToHash("0xbbbb"), 20, eth.Bytes32{}, eth.Bytes32{}))
 	require.NoError(t, dl.Add(300, common.HexToHash("0xcccc"), 30, eth.Bytes32{}, eth.Bytes32{}))
 
-	max, any := dl.MaxDeniedHeight()
+	maxHeight, any, err := dl.MaxDeniedHeight()
+	require.NoError(t, err)
 	require.True(t, any)
-	require.Equal(t, uint64(500), max)
+	require.Equal(t, uint64(500), maxHeight)
 
 	// Pruning the highest entries lowers the max.
 	removed, err := dl.PruneAtOrAfterTimestamp(20)
 	require.NoError(t, err)
 	require.Len(t, removed, 2)
-	max, any = dl.MaxDeniedHeight()
+	maxHeight, any, err = dl.MaxDeniedHeight()
+	require.NoError(t, err)
 	require.True(t, any)
-	require.Equal(t, uint64(100), max)
+	require.Equal(t, uint64(100), maxHeight)
 }
