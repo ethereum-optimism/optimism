@@ -21,7 +21,7 @@ func TestZK_HonestChallenger_Supernode_ValidProposal_DefenderWins(gt *testing.T)
 
 	game := factory.StartZKGame(proposer)
 
-	advanceL1To(sys, game.ClaimData().Deadline+1)
+	advanceL1To(&sys.SingleChainInterop, game.ClaimData().Deadline+1)
 	game.WaitForGameStatus(gameTypes.GameStatusDefenderWon)
 }
 
@@ -45,7 +45,7 @@ func TestZK_HonestChallenger_Supernode_InvalidProposal_ChallengerWins(gt *testin
 	)
 
 	game.WaitForProposalStatus(proofs.ZKProposalChallenged)
-	advanceL1To(sys, game.ClaimData().Deadline+1)
+	advanceL1To(&sys.SingleChainInterop, game.ClaimData().Deadline+1)
 	game.WaitForGameStatus(gameTypes.GameStatusChallengerWon)
 	t.Require().Equal(common.Address{}, game.ClaimData().Prover, "challenger must not prove")
 }
@@ -71,7 +71,7 @@ func TestZK_HonestChallenger_Supernode_UnsafeProposal_ChallengerWins(gt *testing
 	)
 
 	game.WaitForProposalStatus(proofs.ZKProposalChallenged)
-	advanceL1To(sys, game.ClaimData().Deadline+1)
+	advanceL1To(&sys.SingleChainInterop, game.ClaimData().Deadline+1)
 	game.WaitForGameStatus(gameTypes.GameStatusChallengerWon)
 	t.Require().Equal(common.Address{}, game.ClaimData().Prover, "challenger must not prove")
 }

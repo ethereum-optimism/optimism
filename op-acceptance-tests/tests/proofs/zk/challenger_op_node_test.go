@@ -18,14 +18,6 @@ func newOpNodeSystem(t devtest.T) *presets.SingleChainInterop {
 	return presets.NewSingleChainInteropNoSupernodeZKDispute(t)
 }
 
-func advanceOpNodeL1To(sys *presets.SingleChainInterop, timestamp uint64) {
-	current := sys.L1EL.BlockRefByLabel(eth.Unsafe).Time
-	if current < timestamp {
-		sys.AdvanceTime(time.Duration(timestamp-current) * time.Second)
-	}
-	sys.L1EL.WaitForTime(timestamp)
-}
-
 // TestZK_HonestChallenger_ValidProposal_DefenderWins is the canonical repro: against a valid
 // super-root proposal, the honest challenger recognizes it as valid and does not challenge, so the
 // game resolves DEFENDER_WINS once the challenge window expires. The pre-migration actor compared a
@@ -39,7 +31,7 @@ func TestZK_HonestChallenger_ValidProposal_DefenderWins(gt *testing.T) {
 
 	game := factory.StartZKGame(proposer)
 
-	advanceOpNodeL1To(sys, game.ClaimData().Deadline+1)
+	advanceL1To(sys, game.ClaimData().Deadline+1)
 	game.WaitForGameStatus(gameTypes.GameStatusDefenderWon)
 }
 
@@ -63,7 +55,7 @@ func TestZK_HonestChallenger_InvalidProposal_ChallengerWins(gt *testing.T) {
 	)
 
 	game.WaitForProposalStatus(proofs.ZKProposalChallenged)
-	advanceOpNodeL1To(sys, game.ClaimData().Deadline+1)
+	advanceL1To(sys, game.ClaimData().Deadline+1)
 	game.WaitForGameStatus(gameTypes.GameStatusChallengerWon)
 	t.Require().Equal(common.Address{}, game.ClaimData().Prover, "challenger must not prove")
 }
@@ -90,7 +82,7 @@ func TestZK_HonestChallenger_UnsafeProposal_ChallengerWins(gt *testing.T) {
 	)
 
 	game.WaitForProposalStatus(proofs.ZKProposalChallenged)
-	advanceOpNodeL1To(sys, game.ClaimData().Deadline+1)
+	advanceL1To(sys, game.ClaimData().Deadline+1)
 	game.WaitForGameStatus(gameTypes.GameStatusChallengerWon)
 	t.Require().Equal(common.Address{}, game.ClaimData().Prover, "challenger must not prove")
 }
@@ -116,7 +108,7 @@ func TestZK_HonestChallenger_ChildOfInvalidParent_ChallengerWins(gt *testing.T) 
 	child := factory.StartZKGame(proposer, proofs.WithZKParent(parent.FactoryIndex()))
 
 	parent.WaitForProposalStatus(proofs.ZKProposalChallenged)
-	advanceOpNodeL1To(sys, parent.ClaimData().Deadline+1)
+	advanceL1To(sys, parent.ClaimData().Deadline+1)
 	parent.WaitForGameStatus(gameTypes.GameStatusChallengerWon)
 	child.WaitForGameStatus(gameTypes.GameStatusChallengerWon)
 }
@@ -140,10 +132,10 @@ func TestZK_HonestChallenger_ClaimsCredit(gt *testing.T) {
 	)
 
 	game.WaitForProposalStatus(proofs.ZKProposalChallenged)
-	advanceOpNodeL1To(sys, game.ClaimData().Deadline+1)
+	advanceL1To(sys, game.ClaimData().Deadline+1)
 	game.WaitForGameStatus(gameTypes.GameStatusChallengerWon)
 
 	finalityDelay := sys.StandardBridge(sys.L2ChainA).DisputeGameFinalityDelay()
-	advanceOpNodeL1To(sys, game.ResolvedAt()+uint64(finalityDelay/time.Second)+1)
+	advanceL1To(sys, game.ResolvedAt()+uint64(finalityDelay/time.Second)+1)
 	game.WaitForClaimedCredit(zkChallengerAddress(t, sys.L2ChainA.ChainID()))
 }

@@ -43,11 +43,11 @@ func TestUnchallengedValidProposalAnchors(gt *testing.T) {
 
 	// TODO(#21463): Let the kona-sp1 proposer create the valid proposal.
 	game := factory.StartZKGame(proposer)
-	advanceL1To(sys, game.ClaimData().Deadline+1)
+	advanceL1To(&sys.SingleChainInterop, game.ClaimData().Deadline+1)
 
 	// The honest challenger resolves the unchallenged valid proposal and closes it, anchoring the root.
 	game.WaitForGameStatus(gameTypes.GameStatusDefenderWon)
-	advanceL1To(sys, game.ResolvedAt()+uint64(zkFinalityDelay/time.Second)+1)
+	advanceL1To(&sys.SingleChainInterop, game.ResolvedAt()+uint64(zkFinalityDelay/time.Second)+1)
 	sys.AnchorStateRegistry(sys.L2ChainA).WaitForAnchorRoot(game)
 }
 
@@ -72,7 +72,7 @@ func TestChallengedValidProposalAnchors(gt *testing.T) {
 
 	// The honest challenger resolves the proven-valid proposal and closes it, anchoring the root.
 	game.WaitForGameStatus(gameTypes.GameStatusDefenderWon)
-	advanceL1To(sys, game.ResolvedAt()+uint64(zkFinalityDelay/time.Second)+1)
+	advanceL1To(&sys.SingleChainInterop, game.ResolvedAt()+uint64(zkFinalityDelay/time.Second)+1)
 	sys.AnchorStateRegistry(sys.L2ChainA).WaitForAnchorRoot(game)
 }
 
@@ -95,9 +95,9 @@ func TestChallengedInvalidProposalTimesOutWithoutAnchoring(gt *testing.T) {
 
 	// The honest challenger detects the invalid proposal, challenges it, resolves it, and closes it.
 	game.WaitForProposalStatus(proofs.ZKProposalChallenged)
-	advanceL1To(sys, game.ClaimData().Deadline+1)
+	advanceL1To(&sys.SingleChainInterop, game.ClaimData().Deadline+1)
 	game.WaitForGameStatus(gameTypes.GameStatusChallengerWon)
-	advanceL1To(sys, game.ResolvedAt()+uint64(zkFinalityDelay/time.Second)+1)
+	advanceL1To(&sys.SingleChainInterop, game.ResolvedAt()+uint64(zkFinalityDelay/time.Second)+1)
 	game.WaitForClaimedCredit(zkChallengerAddress(t, sys.L2ChainA.ChainID()))
 
 	// The invalid proposal must not advance the anchor state.
@@ -111,7 +111,7 @@ func fundedActors(sys *presets.SimpleInterop) (*dsl.EOA, *dsl.EOA, *dsl.EOA) {
 	return actors[0], actors[1], actors[2]
 }
 
-func advanceL1To(sys *presets.SimpleInterop, timestamp uint64) {
+func advanceL1To(sys *presets.SingleChainInterop, timestamp uint64) {
 	current := sys.L1EL.BlockRefByLabel(eth.Unsafe).Time
 	if current < timestamp {
 		sys.AdvanceTime(time.Duration(timestamp-current) * time.Second)
