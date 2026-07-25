@@ -40,6 +40,8 @@ func buildPreparedWorkdir(t *testing.T) (string, common.Hash) {
 	loc, afacts := testutil.LocalArtifacts(t)
 
 	intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID, loc, loc, standard.GasLimit)
+	superchainConfig := common.HexToAddress("0x5ea4")
+	intent.SuperchainConfigProxy = &superchainConfig
 	chain := intent.Chains[0]
 
 	// RollupConfig requires the predicted L1 addresses prepare's predictChains would have set.
@@ -63,6 +65,9 @@ func buildPreparedWorkdir(t *testing.T) (string, common.Hash) {
 	require.NoError(t, pipeline.ComputeGenesisOutputRoot(pEnv, intent, st, chain.ID))
 
 	st.Prepared = true
+	prepared, err := pipeline.NewPreparedDeployment(intent, st, deployerAddr, common.HexToAddress("0x1234"), bundle)
+	require.NoError(t, err)
+	st.PreparedDeployment = prepared
 
 	dir := t.TempDir()
 	require.NoError(t, intent.WriteToFile(filepath.Join(dir, "intent.toml")))

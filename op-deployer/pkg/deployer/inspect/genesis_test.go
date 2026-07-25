@@ -32,6 +32,7 @@ func TestGenesisCLI_ErrorsWhenNeitherPreparedNorApplied(t *testing.T) {
 	st, err := pipeline.ReadState(workdir)
 	require.NoError(t, err)
 	st.Prepared = false
+	st.PreparedDeployment = nil
 	require.NoError(t, pipeline.WriteState(workdir, st))
 
 	outfile := filepath.Join(t.TempDir(), "genesis.json")
