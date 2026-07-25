@@ -2554,10 +2554,10 @@
   "navigation": {
     "tabs": [
       {
-        "tab": "Chain Operators",
+        "tab": "Get Started",
         "groups": [
           {
-            "group": "Quickstart",
+            "group": "Get started",
             "pages": [
               "index",
               "ai-docs",
@@ -2574,7 +2574,12 @@
               "use-cases/launch-a-chain-with-fault-proofs-and-ha-sequencing",
               "use-cases/choose-your-node-stack"
             ]
-          },
+          }
+        ]
+      },
+      {
+        "tab": "Chain Operators",
+        "groups": [
           {
             "group": "Guides",
             "pages": [
