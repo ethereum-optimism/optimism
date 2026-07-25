@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/params"
@@ -105,6 +106,22 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		_, err := attrBuilder.PreparePayloadAttributes(context.Background(), l2Parent, epoch)
 		require.ErrorIs(t, err, mockRPCErr, "mock rpc error expected")
 		require.ErrorIs(t, err, ErrTemporary, "rpc errors should not be critical, it is not necessary to reorg")
+	})
+	t.Run("non-canonical parent missing by hash resets", func(t *testing.T) {
+		rng := rand.New(rand.NewSource(1234))
+		l1Fetcher := &testutils.MockL1Source{}
+		l2Parent := testutils.RandomL2BlockRef(rng)
+		canonicalParent := l2Parent
+		canonicalParent.Hash = testutils.RandomHash(rng)
+		l2Fetcher := &testutils.MockL2Client{}
+		l2Fetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, eth.SystemConfig{}, ethereum.NotFound)
+		l2Fetcher.ExpectL2BlockRefByNumber(l2Parent.Number, canonicalParent, nil)
+		defer l2Fetcher.AssertExpectations(t)
+
+		attrBuilder := NewFetchingAttributesBuilder(mkCfg(), params.MergedTestChainConfig, nil, l1Fetcher, l2Fetcher)
+		_, err := attrBuilder.PreparePayloadAttributes(context.Background(), l2Parent, l2Parent.L1Origin)
+
+		require.ErrorIs(t, err, ErrReset, "a definitively non-canonical parent must reset derivation")
 	})
 	t.Run("next origin without deposits", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))

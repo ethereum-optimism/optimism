@@ -77,3 +77,34 @@ func TestForkchoiceUpdateSeedsLocalSafeWithGenesisSafe(t *testing.T) {
 	require.Equal(t, genesis, status.LocalSafeL2)
 	require.Equal(t, genesis, status.FinalizedL2)
 }
+
+func TestResetEventClearsPendingSafe(t *testing.T) {
+	tracker := NewStatusTracker(testlog.Logger(t, log.LevelDebug), NoopMetrics{})
+	tracker.OnEvent(context.Background(), engine.PendingSafeUpdateEvent{
+		PendingSafe: eth.L2BlockRef{Number: 200},
+		Unsafe:      eth.L2BlockRef{Number: 300},
+	})
+
+	tracker.OnEvent(context.Background(), rollup.ResetEvent{})
+
+	require.Equal(t, eth.L2BlockRef{}, tracker.SyncStatus().PendingSafeL2)
+}
+
+func TestEngineResetConfirmedSetsPendingSafeToLocalSafe(t *testing.T) {
+	tracker := NewStatusTracker(testlog.Logger(t, log.LevelDebug), NoopMetrics{})
+	tracker.OnEvent(context.Background(), engine.PendingSafeUpdateEvent{
+		PendingSafe: eth.L2BlockRef{Number: 200},
+		Unsafe:      eth.L2BlockRef{Number: 300},
+	})
+	localSafe := eth.L2BlockRef{Number: 100}
+
+	tracker.OnEvent(context.Background(), engine.EngineResetConfirmedEvent{
+		LocalUnsafe: eth.L2BlockRef{Number: 300},
+		CrossUnsafe: eth.L2BlockRef{Number: 100},
+		LocalSafe:   localSafe,
+		CrossSafe:   localSafe,
+		Finalized:   eth.L2BlockRef{Number: 90},
+	})
+
+	require.Equal(t, localSafe, tracker.SyncStatus().PendingSafeL2)
+}

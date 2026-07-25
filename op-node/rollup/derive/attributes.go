@@ -2,8 +2,10 @@ package derive
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -28,6 +30,7 @@ type L1ReceiptsFetcher interface {
 
 type SystemConfigL2Fetcher interface {
 	SystemConfigByL2Hash(ctx context.Context, hash common.Hash) (eth.SystemConfig, error)
+	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
 }
 
 // FetchingAttributesBuilder fetches inputs for the building of L2 payload attributes on the fly.
@@ -72,6 +75,14 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 
 	sysConfig, err := ba.l2.SystemConfigByL2Hash(ctx, l2Parent.Hash)
 	if err != nil {
+		if errors.Is(err, ethereum.NotFound) {
+			canonical, canonicalErr := ba.l2.L2BlockRefByNumber(ctx, l2Parent.Number)
+			if canonicalErr == nil && canonical.Hash != l2Parent.Hash {
+				return nil, NewResetError(fmt.Errorf(
+					"L2 parent %s is non-canonical; canonical block is %s: %w",
+					l2Parent.ID(), canonical.ID(), err))
+			}
+		}
 		return nil, NewTemporaryError(fmt.Errorf("failed to retrieve L2 parent block: %w", err))
 	}
 
