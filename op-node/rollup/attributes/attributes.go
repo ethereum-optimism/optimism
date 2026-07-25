@@ -251,9 +251,14 @@ func (eq *AttributesHandler) consolidateNextSafeAttributes(attributes *derive.At
 		return
 	}
 	if denied {
-		eq.log.Warn("Consolidated block denied by SuperAuthority, forcing reorg to build replacement",
+		eq.log.Warn("Consolidated block denied by SuperAuthority, requesting deposits-only replacement",
 			"blockNumber", payload.BlockNumber, "blockHash", payload.BlockHash, "pending_safe", onto)
-		eq.reorgOutUnsafeChain(attributes)
+		eq.attributes = nil
+		eq.sentAttributes = false
+		eq.emitter.Emit(eq.ctx, derive.DepositsOnlyPayloadAttributesRequestEvent{
+			Parent:      attributes.Parent.ID(),
+			DerivedFrom: attributes.DerivedFrom,
+		})
 		return
 	}
 

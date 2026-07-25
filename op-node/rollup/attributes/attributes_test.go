@@ -344,8 +344,8 @@ func TestAttributesHandler(t *testing.T) {
 			})
 		})
 		t.Run("consolidation passes but block denied", func(t *testing.T) {
-			// Matching attributes but the block is denied: must force the build
-			// path, not promote.
+			// Matching attributes but the block is denied: request deposits-only
+			// attributes before starting an EL payload job.
 			logger := testlog.Logger(t, log.LevelInfo)
 			l2 := &testutils.MockL2Client{}
 			emitter := &testutils.MockEmitter{}
@@ -369,8 +369,10 @@ func TestAttributesHandler(t *testing.T) {
 			// Call during consolidation: attributes match, but the block is denied.
 			l2.ExpectPayloadByNumber(refA1.Number, payloadA1, nil)
 			engDeriver.On("IsDenied", uint64(payloadA1.ExecutionPayload.BlockNumber), payloadA1.ExecutionPayload.BlockHash).Return(true, nil).Once()
-			// Denied block forces a reorg via the build path rather than promotion.
-			emitter.ExpectOnce(engine.BuildStartEvent{Attributes: attr})
+			emitter.ExpectOnce(derive.DepositsOnlyPayloadAttributesRequestEvent{
+				Parent:      attr.Parent.ID(),
+				DerivedFrom: attr.DerivedFrom,
+			})
 			ah.OnEvent(context.Background(), engine.PendingSafeUpdateEvent{
 				PendingSafe: refA0,
 				Unsafe:      refA1,
@@ -378,8 +380,8 @@ func TestAttributesHandler(t *testing.T) {
 			engDeriver.AssertExpectations(t)
 			l2.AssertExpectations(t)
 			emitter.AssertExpectations(t)
-			require.True(t, ah.sentAttributes, "attributes were sent to the build path")
-			require.NotNil(t, ah.attributes, "attributes stay queued until the replacement is processed")
+			require.False(t, ah.sentAttributes, "denied attributes must not reach the build path")
+			require.Nil(t, ah.attributes, "drop denied attributes while deriving the replacement")
 		})
 		t.Run("deny-list check error stalls without promoting", func(t *testing.T) {
 			// Fail closed: if the deny-list can't be checked we must neither promote

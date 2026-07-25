@@ -62,16 +62,14 @@ func TestSuperAuthority(t *testing.T) {
 			},
 		},
 		{
-			name: "Error_ProceedsWithPayload",
+			name: "Error_StallsPayload",
 			setup: func(payload *eth.ExecutionPayloadEnvelope) (*testutils.MockEngine, rollup.SuperAuthority, eth.L1BlockRef) {
 				sa := newMockSuperAuthority()
 				sa.shouldError = true
-				return &testutils.MockEngine{}, sa, eth.L1BlockRef{}
+				return nil, sa, eth.L1BlockRef{}
 			},
 			expectations: func(emitter *testutils.MockEmitter, engine *testutils.MockEngine, payload *eth.ExecutionPayloadEnvelope) {
-				// Despite error, expect NewPayload (graceful degradation)
-				engine.ExpectNewPayload(payload.ExecutionPayload, nil, &eth.PayloadStatusV1{Status: eth.ExecutionValid}, nil)
-				emitter.ExpectOnceType("PayloadSuccessEvent")
+				emitter.ExpectOnceType("EngineTemporaryErrorEvent")
 			},
 		},
 		{

@@ -33,11 +33,15 @@ func (e *EngineController) onPayloadProcess(ctx context.Context, ev PayloadProce
 		payload := ev.Envelope.ExecutionPayload
 		denied, err := e.superAuthority.IsDenied(uint64(payload.BlockNumber), payload.BlockHash)
 		if err != nil {
-			e.log.Error("Failed to check SuperAuthority denylist, proceeding with payload",
+			e.log.Error("Failed to check SuperAuthority denylist, stalling payload",
 				"blockNumber", payload.BlockNumber,
 				"blockHash", payload.BlockHash,
 				"err", err,
 			)
+			e.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{
+				Err: fmt.Errorf("failed to check SuperAuthority deny-list for block %s: %w", payload.ID(), err),
+			})
+			return
 		} else if denied {
 			if ev.DerivedFrom != (eth.L1BlockRef{}) {
 				e.log.Warn("Requesting deposits-only replacement for derived payload",
