@@ -21,6 +21,7 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
@@ -854,11 +855,17 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             revert OPContractsManagerV2_InvalidUpgradeSequence(_cts.systemConfig.lastUsedOPCMVersion(), _version());
         }
 
+        // Each proxy is upgraded through the ProxyAdmin that actually administers it (resolved
+        // per-target via _adminFor), since post-interop-migration the shared contracts are
+        // administered by the first chain's ProxyAdmin, not the caller's. Ref: #21731.
         // Update the SystemConfig.
         // SystemConfig initializer is the only one large enough to require a separate function to
         // avoid stack-too-deep errors.
         _upgrade(
-            _cts.proxyAdmin, address(_cts.systemConfig), impls.systemConfigImpl, _makeSystemConfigInitArgs(_cfg, _cts)
+            _adminFor(_cts.proxyAdmin, _cts.systemConfig),
+            address(_cts.systemConfig),
+            impls.systemConfigImpl,
+            _makeSystemConfigInitArgs(_cfg, _cts)
         );
 
         // Update the OptimismPortal. If a chain already uses ETHLockbox, preserve that lockbox
@@ -869,7 +876,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         }
         IETHLockbox portalLockbox = isEthLockboxEnabled ? _cts.ethLockbox : IETHLockbox(address(0));
         _upgrade(
-            _cts.proxyAdmin,
+            _adminFor(_cts.proxyAdmin, _cts.optimismPortal),
             address(_cts.optimismPortal),
             impls.optimismPortalImpl,
             abi.encodeCall(IOptimismPortal.initialize, (_cts.systemConfig, _cts.anchorStateRegistry, portalLockbox))
@@ -884,7 +891,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             IOptimismPortal[] memory portals = new IOptimismPortal[](1);
             portals[0] = _cts.optimismPortal;
             _upgrade(
-                _cts.proxyAdmin,
+                _adminFor(_cts.proxyAdmin, _cts.ethLockbox),
                 address(_cts.ethLockbox),
                 impls.ethLockboxImpl,
                 abi.encodeCall(IETHLockbox.initialize, (_cts.systemConfig, portals))
@@ -894,7 +901,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // Update the L1CrossDomainMessenger.
         // NOTE: L1CrossDomainMessenger initializer is at slot 0, offset 20.
         _upgrade(
-            _cts.proxyAdmin,
+            _adminFor(_cts.proxyAdmin, _cts.l1CrossDomainMessenger),
             address(_cts.l1CrossDomainMessenger),
             impls.l1CrossDomainMessengerImpl,
             abi.encodeCall(IL1CrossDomainMessenger.initialize, (_cts.systemConfig, _cts.optimismPortal)),
@@ -904,7 +911,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
         // Update the L1StandardBridge.
         _upgrade(
-            _cts.proxyAdmin,
+            _adminFor(_cts.proxyAdmin, _cts.l1StandardBridge),
             address(_cts.l1StandardBridge),
             impls.l1StandardBridgeImpl,
             abi.encodeCall(IL1StandardBridge.initialize, (_cts.l1CrossDomainMessenger, _cts.systemConfig))
@@ -912,7 +919,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
         // Update the L1ERC721Bridge.
         _upgrade(
-            _cts.proxyAdmin,
+            _adminFor(_cts.proxyAdmin, _cts.l1ERC721Bridge),
             address(_cts.l1ERC721Bridge),
             impls.l1ERC721BridgeImpl,
             abi.encodeCall(IL1ERC721Bridge.initialize, (_cts.l1CrossDomainMessenger, _cts.systemConfig))
@@ -920,7 +927,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
         // Update the OptimismMintableERC20Factory.
         _upgrade(
-            _cts.proxyAdmin,
+            _adminFor(_cts.proxyAdmin, _cts.optimismMintableERC20Factory),
             address(_cts.optimismMintableERC20Factory),
             impls.optimismMintableERC20FactoryImpl,
             abi.encodeCall(IOptimismMintableERC20Factory.initialize, (address(_cts.l1StandardBridge)))
@@ -928,7 +935,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
         // Update the DisputeGameFactory.
         _upgrade(
-            _cts.proxyAdmin,
+            _adminFor(_cts.proxyAdmin, _cts.disputeGameFactory),
             address(_cts.disputeGameFactory),
             impls.disputeGameFactoryImpl,
             abi.encodeCall(IDisputeGameFactory.initialize, (address(this)))
@@ -936,7 +943,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
         // Update the DelayedWETH.
         _upgrade(
-            _cts.proxyAdmin,
+            _adminFor(_cts.proxyAdmin, _cts.delayedWETH),
             address(_cts.delayedWETH),
             impls.delayedWETHImpl,
             abi.encodeCall(IDelayedWETH.initialize, (_cts.systemConfig))
@@ -944,7 +951,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
         // Update the AnchorStateRegistry.
         _upgrade(
-            _cts.proxyAdmin,
+            _adminFor(_cts.proxyAdmin, _cts.anchorStateRegistry),
             address(_cts.anchorStateRegistry),
             impls.anchorStateRegistryImpl,
             abi.encodeCall(
@@ -1021,6 +1028,22 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
         // Return contracts as the execution output.
         return _cts;
+    }
+
+    /// @notice Resolves the ProxyAdmin that administers a proxy from its self-reported admin
+    ///         (ProxyAdminOwnedBase), so upgrades route correctly when a set spans distinct
+    ///         ProxyAdmins (post-interop-migration). Falls back to _defaultAdmin for a
+    ///         freshly-deployed proxy that can't yet report one. Ref: #21731.
+    /// @param _defaultAdmin Fallback ProxyAdmin for not-yet-initialized proxies.
+    /// @param _target The proxy whose administering ProxyAdmin should be resolved.
+    /// @return The administering ProxyAdmin.
+    function _adminFor(IProxyAdmin _defaultAdmin, IProxyAdminOwnedBase _target) internal view returns (IProxyAdmin) {
+        // eip150-safe
+        try _target.proxyAdmin() returns (IProxyAdmin admin_) {
+            return address(admin_) == address(0) ? _defaultAdmin : admin_;
+        } catch {
+            return _defaultAdmin;
+        }
     }
 
     /// @notice Helper for making the SystemConfig initializer arguments. This is the only
