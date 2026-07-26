@@ -14,6 +14,7 @@ import (
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	rollupsync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -219,6 +220,12 @@ func NewChainContainer(
 ) (InteropChain, error) {
 	if metrics == nil {
 		metrics = resources.NewSupernodeMetrics()
+	}
+	if vncfg.Sync.SyncMode != rollupsync.ELSync {
+		log.Warn("overriding virtual node sync mode to execution-layer",
+			"configured", vncfg.Sync.SyncMode,
+			"reason", "consensus-layer cold starts can rebuild deep history against an independently synced execution engine")
+		vncfg.Sync.SyncMode = rollupsync.ELSync
 	}
 	c := &simpleChainContainer{
 		vncfg:              vncfg,

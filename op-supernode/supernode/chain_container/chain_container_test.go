@@ -15,6 +15,7 @@ import (
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	rollupsync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -353,6 +354,16 @@ func TestChainContainer_Constructor(t *testing.T) {
 		require.Equal(t, log, impl.log)
 		require.NotNil(t, impl.stopped)
 		require.Equal(t, 1, cap(impl.stopped))
+	})
+
+	t.Run("forces execution layer sync", func(t *testing.T) {
+		cfg := createTestVNConfig()
+		cfg.Sync.SyncMode = rollupsync.CLSync
+
+		container := mustNewChainContainer(t, chainID, cfg, log, createTestCLIConfig(t.TempDir()), initOverload, nil, nil, nil, nil)
+		impl := container.(*simpleChainContainer)
+
+		require.Equal(t, rollupsync.ELSync, impl.vncfg.Sync.SyncMode)
 	})
 
 	t.Run("SafeDBPath uses subPath", func(t *testing.T) {
