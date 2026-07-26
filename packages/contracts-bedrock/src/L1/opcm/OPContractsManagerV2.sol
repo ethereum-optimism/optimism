@@ -21,6 +21,7 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
@@ -158,9 +159,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 7.2.2
+    /// @custom:semver 7.2.3
     function version() public pure returns (string memory) {
-        return "7.2.2";
+        return "7.2.3";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -881,8 +882,12 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // iterating over some sort of array because it's easier to implement and understand.
 
         // We upgrade/initialize the ETHLockbox if this is an initial deployment or if it's an
-        // upgrade and the ETH_LOCKBOX feature is enabled.
-        if (_isInitialDeployment || _cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
+        // upgrade and the ETH_LOCKBOX feature is enabled. Skip if this chain's ProxyAdmin does not
+        // administer it (shared across an interop set post-migration). Ref: #21731.
+        if (
+            (_isInitialDeployment || _cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX))
+                && (_isInitialDeployment || _isAdminOf(address(_cts.ethLockbox), _cts.proxyAdmin))
+        ) {
             IOptimismPortal[] memory portals = new IOptimismPortal[](1);
             portals[0] = _cts.optimismPortal;
             _upgrade(
@@ -928,70 +933,92 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             abi.encodeCall(IOptimismMintableERC20Factory.initialize, (address(_cts.l1StandardBridge)))
         );
 
+        // The DisputeGameFactory, DelayedWETH, and AnchorStateRegistry are shared across an interop
+        // set and administered by the first chain's ProxyAdmin, so a non-first chain's ProxyAdmin
+        // cannot upgrade them. Skip any shared proxy this chain's ProxyAdmin doesn't administer;
+        // they're upgraded once, during the first chain's upgrade() call. Ref: #21731.
+        bool ownsDisputeGameFactory =
+            _isInitialDeployment || _isAdminOf(address(_cts.disputeGameFactory), _cts.proxyAdmin);
+
         // Update the DisputeGameFactory.
-        _upgrade(
-            _cts.proxyAdmin,
-            address(_cts.disputeGameFactory),
-            impls.disputeGameFactoryImpl,
-            abi.encodeCall(IDisputeGameFactory.initialize, (address(this)))
-        );
-
-        // Update the DelayedWETH.
-        _upgrade(
-            _cts.proxyAdmin,
-            address(_cts.delayedWETH),
-            impls.delayedWETHImpl,
-            abi.encodeCall(IDelayedWETH.initialize, (_cts.systemConfig))
-        );
-
-        // Update the AnchorStateRegistry.
-        _upgrade(
-            _cts.proxyAdmin,
-            address(_cts.anchorStateRegistry),
-            impls.anchorStateRegistryImpl,
-            abi.encodeCall(
-                IAnchorStateRegistry.initialize,
-                (_cts.systemConfig, _cts.disputeGameFactory, _cfg.startingAnchorRoot, _cfg.startingRespectedGameType)
-            )
-        );
-
-        // Update the DisputeGame config and implementations.
-        // NOTE: We assert in _assertValidFullConfig that we have a configuration for all valid game
-        // types so we can be confident that we're setting/unsetting everything we care about.
-        for (uint256 i = 0; i < _cfg.disputeGameConfigs.length; i++) {
-            // Game implementation and arguments default to empty values. If the game is disabled,
-            // we'll use these empty values to unset the game in the factory.
-            IDisputeGame gameImpl = IDisputeGame(address(0));
-            bytes memory gameArgs = bytes("");
-
-            // If the game is enabled, grab the implementation and craft the game arguments.
-            if (_cfg.disputeGameConfigs[i].enabled) {
-                gameImpl = _getGameImpl(_cfg.disputeGameConfigs[i].gameType);
-                if (address(gameImpl) == address(0) || address(gameImpl).code.length == 0) {
-                    revert OPContractsManagerV2_ZeroGameImplementation(_cfg.disputeGameConfigs[i].gameType);
-                }
-                gameArgs = _makeGameArgs(
-                    _cfg.l2ChainId, _cts.anchorStateRegistry, _cts.delayedWETH, _cfg.disputeGameConfigs[i]
-                );
-            }
-
-            // Set the game implementation and arguments.
-            // NOTE: If the game is disabled, we'll set the implementation to address(0) and the
-            // arguments to bytes(""), disabling the game.
-            _cts.disputeGameFactory.setImplementation(_cfg.disputeGameConfigs[i].gameType, gameImpl, gameArgs);
-            _cts.disputeGameFactory.setInitBond(
-                _cfg.disputeGameConfigs[i].gameType, _cfg.disputeGameConfigs[i].initBond
+        if (ownsDisputeGameFactory) {
+            _upgrade(
+                _cts.proxyAdmin,
+                address(_cts.disputeGameFactory),
+                impls.disputeGameFactoryImpl,
+                abi.encodeCall(IDisputeGameFactory.initialize, (address(this)))
             );
         }
 
-        // SUPER_CANNON has been retired from OPCMv2's deploy/upgrade allow-list. Some chains may
-        // still have a non-zero gameImpls(SUPER_CANNON) registered from a prior OPCM. Clear it
-        // unconditionally so the post-upgrade state matches the StandardValidator's expectation
-        // (SCDG-SHAPE / SCDG-NOSHAPE both require gameImpls(SUPER_CANNON) == address(0)). On
-        // initial deployment the DisputeGameFactory was just initialized and the slot is already
-        // zero, so this is a no-op state-wise (only emits a redundant event).
-        _cts.disputeGameFactory.setImplementation(GameTypes.SUPER_CANNON, IDisputeGame(address(0)), hex"");
-        _cts.disputeGameFactory.setInitBond(GameTypes.SUPER_CANNON, 0);
+        // Update the DelayedWETH.
+        if (_isInitialDeployment || _isAdminOf(address(_cts.delayedWETH), _cts.proxyAdmin)) {
+            _upgrade(
+                _cts.proxyAdmin,
+                address(_cts.delayedWETH),
+                impls.delayedWETHImpl,
+                abi.encodeCall(IDelayedWETH.initialize, (_cts.systemConfig))
+            );
+        }
+
+        // Update the AnchorStateRegistry.
+        if (_isInitialDeployment || _isAdminOf(address(_cts.anchorStateRegistry), _cts.proxyAdmin)) {
+            _upgrade(
+                _cts.proxyAdmin,
+                address(_cts.anchorStateRegistry),
+                impls.anchorStateRegistryImpl,
+                abi.encodeCall(
+                    IAnchorStateRegistry.initialize,
+                    (
+                        _cts.systemConfig,
+                        _cts.disputeGameFactory,
+                        _cfg.startingAnchorRoot,
+                        _cfg.startingRespectedGameType
+                    )
+                )
+            );
+        }
+
+        // Update the DisputeGame config and implementations. These mutate the shared
+        // DisputeGameFactory, so they only run when this chain's ProxyAdmin administers it. Ref: #21731.
+        // NOTE: We assert in _assertValidFullConfig that we have a configuration for all valid game
+        // types so we can be confident that we're setting/unsetting everything we care about.
+        if (ownsDisputeGameFactory) {
+            for (uint256 i = 0; i < _cfg.disputeGameConfigs.length; i++) {
+                // Game implementation and arguments default to empty values. If the game is
+                // disabled, we'll use these empty values to unset the game in the factory.
+                IDisputeGame gameImpl = IDisputeGame(address(0));
+                bytes memory gameArgs = bytes("");
+
+                // If the game is enabled, grab the implementation and craft the game arguments.
+                if (_cfg.disputeGameConfigs[i].enabled) {
+                    gameImpl = _getGameImpl(_cfg.disputeGameConfigs[i].gameType);
+                    if (address(gameImpl) == address(0) || address(gameImpl).code.length == 0) {
+                        revert OPContractsManagerV2_ZeroGameImplementation(_cfg.disputeGameConfigs[i].gameType);
+                    }
+                    gameArgs = _makeGameArgs(
+                        _cfg.l2ChainId, _cts.anchorStateRegistry, _cts.delayedWETH, _cfg.disputeGameConfigs[i]
+                    );
+                }
+
+                // Set the game implementation and arguments.
+                // NOTE: If the game is disabled, we'll set the implementation to address(0) and the
+                // arguments to bytes(""), disabling the game.
+                _cts.disputeGameFactory.setImplementation(_cfg.disputeGameConfigs[i].gameType, gameImpl, gameArgs);
+                _cts.disputeGameFactory.setInitBond(
+                    _cfg.disputeGameConfigs[i].gameType, _cfg.disputeGameConfigs[i].initBond
+                );
+            }
+
+            // SUPER_CANNON has been retired from OPCMv2's deploy/upgrade allow-list. Some chains
+            // may still have a non-zero gameImpls(SUPER_CANNON) registered from a prior OPCM.
+            // Clear it unconditionally so the post-upgrade state matches the StandardValidator's
+            // expectation (SCDG-SHAPE / SCDG-NOSHAPE both require gameImpls(SUPER_CANNON) ==
+            // address(0)). On initial deployment the DisputeGameFactory was just initialized and
+            // the slot is already zero, so this is a no-op state-wise (only emits a redundant
+            // event).
+            _cts.disputeGameFactory.setImplementation(GameTypes.SUPER_CANNON, IDisputeGame(address(0)), hex"");
+            _cts.disputeGameFactory.setInitBond(GameTypes.SUPER_CANNON, 0);
+        }
 
         // If the custom gas token feature was requested, enable it in the SystemConfig.
         // If the cgt is enabled, we skip this step.
@@ -1023,6 +1050,16 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
         // Return contracts as the execution output.
         return _cts;
+    }
+
+    /// @notice Returns whether _proxyAdmin administers _target, read from the proxy's self-reported
+    ///         ProxyAdmin (ProxyAdminOwnedBase). Only valid once the proxy has an implementation
+    ///         set (not during initial deployment). Ref: #21731.
+    /// @param _target The proxy to inspect.
+    /// @param _proxyAdmin The ProxyAdmin to compare against.
+    /// @return True if _proxyAdmin administers _target.
+    function _isAdminOf(address _target, IProxyAdmin _proxyAdmin) internal view returns (bool) {
+        return address(IProxyAdminOwnedBase(_target).proxyAdmin()) == address(_proxyAdmin);
     }
 
     /// @notice Helper for making the SystemConfig initializer arguments. This is the only

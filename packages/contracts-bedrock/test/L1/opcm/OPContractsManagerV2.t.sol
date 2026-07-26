@@ -3214,6 +3214,144 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         // Execute the migration, expect revert.
         _doMigration(input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InteropNotEnabled.selector);
     }
+
+    /// @notice Builds a post-interop-migration upgrade input for a member chain. After migration
+    ///         the respected game type is SUPER_PERMISSIONED, so we enable that game type and
+    ///         disable the rest.
+    /// @param _systemConfig The member chain's SystemConfig.
+    /// @return input_ The upgrade input.
+    function _postMigrationUpgradeInput(ISystemConfig _systemConfig)
+        internal
+        returns (IOPContractsManagerV2.UpgradeInput memory input_)
+    {
+        address proposer = makeAddr("superProposer");
+        IOPContractsManagerUtils.DisputeGameConfig[] memory dgConfigs =
+            new IOPContractsManagerUtils.DisputeGameConfig[](6);
+        dgConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.CANNON,
+            gameArgs: bytes("")
+        });
+        dgConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.PERMISSIONED_CANNON,
+            gameArgs: bytes("")
+        });
+        dgConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.CANNON_KONA,
+            gameArgs: bytes("")
+        });
+        dgConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: true,
+            initBond: 0,
+            gameType: GameTypes.SUPER_PERMISSIONED,
+            gameArgs: abi.encode(IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: proposer }))
+        });
+        dgConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.SUPER_CANNON_KONA,
+            gameArgs: bytes("")
+        });
+        dgConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.ZK_DISPUTE_GAME,
+            gameArgs: abi.encode(
+                IOPContractsManagerUtils.ZKDisputeGameConfig({
+                    absolutePrestate: Claim.wrap(bytes32(0)),
+                    verifier: IZKVerifier(address(0)),
+                    maxChallengeDuration: Duration.wrap(0),
+                    maxProveDuration: Duration.wrap(0),
+                    challengerBond: 0
+                })
+            )
+        });
+
+        IOPContractsManagerUtils.ExtraInstruction[] memory extra = new IOPContractsManagerUtils.ExtraInstruction[](1);
+        extra[0] =
+            IOPContractsManagerUtils.ExtraInstruction({ key: "PermittedProxyDeployment", data: bytes("DelayedWETH") });
+
+        input_.systemConfig = _systemConfig;
+        input_.disputeGameConfigs = dgConfigs;
+        input_.extraInstructions = extra;
+    }
+
+    /// @notice Regression test for ethereum-optimism/optimism#21731. After an interop migration the
+    ///         shared contracts (ETHLockbox, DisputeGameFactory, DelayedWETH, AnchorStateRegistry)
+    ///         are administered by the first chain's ProxyAdmin. upgrade() must succeed for every
+    ///         member chain — including non-first chains — by skipping the shared contracts it does
+    ///         not administer, while the shared contracts are upgraded exactly once via the first
+    ///         chain's call.
+    function test_upgrade_afterMigrationNonFirstChain_succeeds() public {
+        _enableEthLockboxes();
+        _doMigration(_getDefaultMigrateInput());
+
+        // Resolve the shared infra established by the migration.
+        IOptimismPortal2 portal1 = IOptimismPortal2(payable(chainContracts1.systemConfig.optimismPortal()));
+        IAnchorStateRegistry sharedAsr = portal1.anchorStateRegistry();
+        IDisputeGameFactory sharedDgf = sharedAsr.disputeGameFactory();
+        IETHLockbox sharedLockbox = portal1.ethLockbox();
+        address sharedDelayedWeth = chainContracts1.systemConfig.delayedWETH();
+
+        // The shared contracts are administered by chain 1's ProxyAdmin, not chain 2's. This is
+        // exactly the condition that made upgrade() revert for chain 2 before the fix.
+        assertEq(
+            EIP1967Helper.getAdmin(address(sharedDgf)),
+            address(chainContracts1.proxyAdmin),
+            "shared DGF not admined by chain 1 ProxyAdmin"
+        );
+        assertTrue(
+            address(chainContracts1.proxyAdmin) != address(chainContracts2.proxyAdmin),
+            "chains unexpectedly share a ProxyAdmin"
+        );
+
+        IOPContractsManagerContainer.Implementations memory impls = opcmV2.implementations();
+        address pao = chainContracts1.proxyAdmin.owner();
+
+        // Upgrade the first chain, which owns (administers) the shared contracts.
+        prankDelegateCall(pao);
+        (bool ok1,) = address(opcmV2).delegatecall(
+            abi.encodeCall(IOPContractsManagerV2.upgrade, (_postMigrationUpgradeInput(chainContracts1.systemConfig)))
+        );
+        assertTrue(ok1, "first chain upgrade failed");
+
+        // The shared contracts were upgraded to the target implementations during that call.
+        assertEq(EIP1967Helper.getImplementation(address(sharedDgf)), impls.disputeGameFactoryImpl, "DGF impl");
+        assertEq(EIP1967Helper.getImplementation(address(sharedAsr)), impls.anchorStateRegistryImpl, "ASR impl");
+        assertEq(EIP1967Helper.getImplementation(address(sharedLockbox)), impls.ethLockboxImpl, "lockbox impl");
+        assertEq(EIP1967Helper.getImplementation(sharedDelayedWeth), impls.delayedWETHImpl, "delayedWETH impl");
+
+        // Upgrade the non-first chain. Before the fix this reverted because chain 2's ProxyAdmin
+        // does not administer the shared proxies. It must now succeed by skipping them.
+        prankDelegateCall(pao);
+        (bool ok2,) = address(opcmV2).delegatecall(
+            abi.encodeCall(IOPContractsManagerV2.upgrade, (_postMigrationUpgradeInput(chainContracts2.systemConfig)))
+        );
+        assertTrue(ok2, "non-first chain upgrade failed");
+
+        // The non-first chain's own per-chain contracts were upgraded...
+        assertEq(
+            EIP1967Helper.getImplementation(address(chainContracts2.systemConfig)),
+            impls.systemConfigImpl,
+            "chain 2 SystemConfig impl"
+        );
+        assertEq(
+            EIP1967Helper.getImplementation(chainContracts2.systemConfig.optimismPortal()),
+            impls.optimismPortalImpl,
+            "chain 2 OptimismPortal impl"
+        );
+
+        // ...while the shared contracts were left untouched by chain 2's call (still at target).
+        assertEq(EIP1967Helper.getImplementation(address(sharedDgf)), impls.disputeGameFactoryImpl, "DGF impl changed");
+        assertEq(EIP1967Helper.getImplementation(address(sharedAsr)), impls.anchorStateRegistryImpl, "ASR impl changed");
+        assertEq(EIP1967Helper.getImplementation(address(sharedLockbox)), impls.ethLockboxImpl, "lockbox impl changed");
+        assertEq(EIP1967Helper.getImplementation(sharedDelayedWeth), impls.delayedWETHImpl, "delayedWETH impl changed");
+    }
 }
 
 /// @title OPContractsManagerV2_FeatBatchUpgrade_Test
