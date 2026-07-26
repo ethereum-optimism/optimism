@@ -21,6 +21,7 @@ type RPCClient interface {
 type RPCSource struct {
 	stateRoot common.Hash
 	blockHash common.Hash
+	blockRef  any
 
 	maxAttempts int
 	timeout     time.Duration
@@ -37,13 +38,16 @@ var _ ForkSource = (*RPCSource)(nil)
 
 func RPCSourceByNumber(urlOrAlias string, cl RPCClient, num uint64) (*RPCSource, error) {
 	src := newRPCSource(urlOrAlias, cl)
-	err := src.init(hexutil.Uint64(num))
+	blockRef := hexutil.Uint64(num)
+	err := src.init(blockRef)
+	src.blockRef = blockRef
 	return src, err
 }
 
 func RPCSourceByHash(urlOrAlias string, cl RPCClient, h common.Hash) (*RPCSource, error) {
 	src := newRPCSource(urlOrAlias, cl)
 	err := src.init(h)
+	src.blockRef = h
 	return src, err
 }
 
@@ -94,12 +98,19 @@ func (r *RPCSource) StateRoot() common.Hash {
 	return r.stateRoot
 }
 
+func (r *RPCSource) stateBlockRef() any {
+	if r.blockRef != nil {
+		return r.blockRef
+	}
+	return r.blockHash
+}
+
 func (r *RPCSource) Nonce(addr common.Address) (uint64, error) {
 	return retry.Do[uint64](r.ctx, r.maxAttempts, r.strategy, func() (uint64, error) {
 		ctx, cancel := context.WithTimeout(r.ctx, r.timeout)
 		defer cancel()
 		var result hexutil.Uint64
-		err := r.client.CallContext(ctx, &result, "eth_getTransactionCount", addr, r.blockHash)
+		err := r.client.CallContext(ctx, &result, "eth_getTransactionCount", addr, r.stateBlockRef())
 		return uint64(result), err
 	})
 }
@@ -109,7 +120,7 @@ func (r *RPCSource) Balance(addr common.Address) (*uint256.Int, error) {
 		ctx, cancel := context.WithTimeout(r.ctx, r.timeout)
 		defer cancel()
 		var result hexutil.U256
-		err := r.client.CallContext(ctx, &result, "eth_getBalance", addr, r.blockHash)
+		err := r.client.CallContext(ctx, &result, "eth_getBalance", addr, r.stateBlockRef())
 		return (*uint256.Int)(&result), err
 	})
 }
@@ -119,7 +130,7 @@ func (r *RPCSource) StorageAt(addr common.Address, key common.Hash) (common.Hash
 		ctx, cancel := context.WithTimeout(r.ctx, r.timeout)
 		defer cancel()
 		var result common.Hash
-		err := r.client.CallContext(ctx, &result, "eth_getStorageAt", addr, key, r.blockHash)
+		err := r.client.CallContext(ctx, &result, "eth_getStorageAt", addr, key, r.stateBlockRef())
 		return result, err
 	})
 }
@@ -129,7 +140,7 @@ func (r *RPCSource) Code(addr common.Address) ([]byte, error) {
 		ctx, cancel := context.WithTimeout(r.ctx, r.timeout)
 		defer cancel()
 		var result hexutil.Bytes
-		err := r.client.CallContext(ctx, &result, "eth_getCode", addr, r.blockHash)
+		err := r.client.CallContext(ctx, &result, "eth_getCode", addr, r.stateBlockRef())
 		return result, err
 	})
 }

@@ -341,6 +341,7 @@ func ApplyPipeline(
 			opts.Logger,
 			deployer,
 			bundle.L1,
+			script.WithNoMaxCodeSize(),
 			script.WithForkHook(func(cfg *script.ForkConfig) (forking.ForkSource, error) {
 				src, err := forking.RPCSourceByNumber(cfg.URLOrAlias, l1RPC, *cfg.BlockNumber)
 				if err != nil {

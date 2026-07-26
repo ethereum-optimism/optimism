@@ -23,8 +23,14 @@ import (
 )
 
 const (
-	GasPadFactor = 1.2
+	GasPadFactor           = 2.0
+	ProxyAdminCallGasFloor = 500_000
 )
+
+var proxyAdminGasFloorSelectors = map[[4]byte]struct{}{
+	{0x96, 0x23, 0x60, 0x9d}: {}, // upgradeAndCall(address payable,address,bytes)
+	{0xf2, 0xfd, 0xe3, 0x8b}: {}, // transferOwnership(address)
+}
 
 type KeyedBroadcaster struct {
 	lgr    log.Logger
@@ -248,8 +254,21 @@ func padGasLimit(data []byte, gasUsed uint64, creation bool, blockGasLimit uint6
 	}
 
 	limit := uint64(float64(gas) * GasPadFactor)
+	if !creation && needsProxyAdminGasFloor(data) && limit < ProxyAdminCallGasFloor {
+		limit = ProxyAdminCallGasFloor
+	}
 	if limit > blockGasLimit {
 		return blockGasLimit
 	}
 	return limit
+}
+
+func needsProxyAdminGasFloor(data []byte) bool {
+	if len(data) < 4 {
+		return false
+	}
+	var selector [4]byte
+	copy(selector[:], data[:4])
+	_, ok := proxyAdminGasFloorSelectors[selector]
+	return ok
 }
