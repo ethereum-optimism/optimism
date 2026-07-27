@@ -87,31 +87,6 @@ pub enum ProposerGauge {
         message = "Total number of metrics errors encountered by the proposer"
     )]
     MetricsError,
-    // Backup metrics
-    /// Total number of successful proposer state backup saves.
-    #[strum(
-        serialize = "kona_sp1_proposer_backup_save_success",
-        message = "Total number of successful backup saves"
-    )]
-    BackupSaveSuccess,
-    /// Total number of proposer state backup save errors.
-    #[strum(
-        serialize = "kona_sp1_proposer_backup_save_error",
-        message = "Total number of backup save errors"
-    )]
-    BackupSaveError,
-    /// Total number of successful proposer state backup restores.
-    #[strum(
-        serialize = "kona_sp1_proposer_backup_restore_success",
-        message = "Total number of successful backup restores"
-    )]
-    BackupRestoreSuccess,
-    /// Total number of proposer state backup restore errors.
-    #[strum(
-        serialize = "kona_sp1_proposer_backup_restore_error",
-        message = "Total number of backup restore errors"
-    )]
-    BackupRestoreError,
 }
 
 impl MetricsGauge for ProposerGauge {}

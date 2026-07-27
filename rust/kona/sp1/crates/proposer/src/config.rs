@@ -5,7 +5,7 @@
 //! provider settings) arrive with the defend path (#21463); challenger and
 //! forge-deploy configs are not ported.
 
-use std::{env, path::PathBuf, str::FromStr};
+use std::{env, str::FromStr};
 
 use alloy_primitives::{Address, B256};
 use alloy_transport_http::reqwest::Url;
@@ -67,10 +67,6 @@ pub struct ProposerConfig {
     /// The metrics port. Metrics are disabled when 0.
     pub metrics_port: u16,
 
-    /// Optional path to a backup file persisting proposer state across
-    /// restarts (startup-latency optimization only).
-    pub backup_path: Option<PathBuf>,
-
     /// Number of L1 blocks behind `latest` to pin reads during sync cycles.
     pub sync_l1_confirmations: u64,
 
@@ -119,7 +115,6 @@ impl ProposerConfig {
             proposal_safety: parsed_env_or("PROPOSAL_SAFETY", ProposalSafety::Finalized)?,
             fetch_interval: parsed_env_or("FETCH_INTERVAL", 30u64)?,
             metrics_port: parsed_env_or("METRICS_PORT", 0u16)?,
-            backup_path: optional_env("BACKUP_PATH").map(PathBuf::from),
             sync_l1_confirmations: parsed_env_or("SYNC_L1_CONFIRMATIONS", 0u64)?,
             tx_confirmation_timeout: parsed_env_or("TX_CONFIRMATION_TIMEOUT", 60u64)?,
         })

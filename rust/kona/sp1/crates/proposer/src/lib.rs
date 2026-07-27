@@ -7,7 +7,6 @@
 //! two-phase `DelayedWETH` bond claiming. Proving/defense is intentionally
 //! absent here; it arrives with the defend path (#21463).
 
-pub mod backup;
 pub mod config;
 pub mod contract;
 pub mod metrics;

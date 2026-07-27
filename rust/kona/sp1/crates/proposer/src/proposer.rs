@@ -9,7 +9,6 @@
 
 use std::{
     collections::{HashMap, HashSet},
-    path::Path,
     sync::{
         Arc, OnceLock,
         atomic::{AtomicU64, Ordering},
@@ -23,14 +22,10 @@ use alloy_provider::{Provider, ProviderBuilder};
 use alloy_sol_types::SolEvent;
 use anyhow::{Context, Result, bail};
 use kona_sp1_host_utils::metrics::MetricsGauge;
-use tokio::{
-    sync::{RwLock, Semaphore},
-    time,
-};
+use tokio::{sync::RwLock, time};
 
 use crate::{
     FactoryTrait, L1Provider, TX_REVERTED_PREFIX, TxErrorExt,
-    backup::ProposerBackup,
     config::ProposerConfig,
     contract::{
         AnchorStateRegistry::AnchorStateRegistryInstance,
@@ -307,7 +302,6 @@ where
     tasks: Arc<tokio::sync::Mutex<TaskMap>>,
     next_task_id: Arc<AtomicU64>,
     state: Arc<RwLock<ProposerState>>,
-    backup_semaphore: Arc<Semaphore>,
     /// Proposer identity for foreign-game filtering and hardfork safety.
     pub identity: ProposerIdentity,
     /// L1 block number used in the last successful sync cycle. Sync is skipped when the
@@ -372,7 +366,6 @@ where
             tasks: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
             next_task_id: Arc::new(AtomicU64::new(1)),
             state: Arc::new(RwLock::new(ProposerState::default())),
-            backup_semaphore: Arc::new(Semaphore::new(1)),
             identity,
             last_synced_l1_block: Arc::new(AtomicU64::new(0)),
             last_created_game_l2_sequence_number: Arc::new(AtomicU64::new(0)),
@@ -416,8 +409,6 @@ where
                 tracing::warn!("Failed to sync proposer state: {:?}", e);
                 continue;
             }
-
-            self.backup().await;
 
             // 2. Handle completed tasks.
             if let Err(e) = self.handle_completed_tasks().await {
@@ -543,44 +534,6 @@ where
             .set(weth_delay)
             .map_err(|_| anyhow::anyhow!("weth_delay must not already be set"))?;
 
-        // Validate backup path and restore state if available.
-        if let Some(path) = &self.config.backup_path {
-            // Validate parent directory exists.
-            if let Some(parent) = path.parent() &&
-                !parent.as_os_str().is_empty() &&
-                !parent.exists()
-            {
-                anyhow::bail!("backup path parent directory does not exist: {:?}", parent);
-            }
-
-            // Validate path is writable by creating a temp file in the same directory.
-            let dir = path.parent().unwrap_or_else(|| Path::new("."));
-            tempfile::NamedTempFile::new_in(dir)
-                .with_context(|| format!("backup path is not writable: {:?}", path))?;
-
-            // Restore state from backup if available.
-            if let Some((restored, last_created_l2, last_created_addr, pending)) =
-                ProposerState::try_restore(path)
-            {
-                // Restore the creation guard so duplicate-sibling protection survives restart.
-                self.last_created_game_l2_sequence_number.store(last_created_l2, Ordering::Relaxed);
-                *self.last_created_game_address.lock().await = last_created_addr;
-                // Restore pending games: the restored cursor is already past
-                // them, so an empty set would make them permanently invisible.
-                *self.pending_games.write().await = pending.into_iter().collect();
-
-                let mut state = self.state.write().await;
-                state.cursor = restored.cursor;
-                state.games = restored.games;
-                state.anchor_game = restored.anchor_game;
-                ProposerGauge::BackupRestoreSuccess.increment(1.0);
-            } else if path.exists() {
-                // File exists but couldn't be parsed - this is an error.
-                tracing::warn!(?path, "Failed to restore proposer state from backup");
-                ProposerGauge::BackupRestoreError.increment(1.0);
-            }
-        }
-
         Ok(())
     }
 
@@ -679,58 +632,7 @@ where
     ///    - Games that are finalized but there is no credit left to claim.
     ///    - The entire subtree of a `ChallengerWins` game.
     pub async fn sync_games(&self, pinned_block: BlockId, pinned_timestamp: u64) -> Result<()> {
-        // 0. Prune cached games that don't exist at the pinned block. After a backup restore, the
-        //    cache may contain games created in tip blocks that are ahead of the pinned snapshot.
-        //    Reading their on-chain state at the pinned block would fail, and leaving them in the
-        //    cache would let compute_canonical_head pick a head that doesn't exist at the pinned
-        //    height.
         let pinned_latest_index = self.factory.fetch_latest_game_index(pinned_block).await?;
-        {
-            let mut state = self.state.write().await;
-            let future_games: Vec<U256> = state
-                .games
-                .keys()
-                .filter(|idx| pinned_latest_index.is_none_or(|max| **idx > max))
-                .copied()
-                .collect();
-            if !future_games.is_empty() {
-                // Determine if the duplicate-creation guard's tracked game is among the
-                // entries this prune is about to remove. Must be evaluated BEFORE the
-                // removal loop while state.games still holds them. Checking "absent from
-                // post-prune cache" instead would over-clear the guard when the just-
-                // created game has not yet been added to the cache (e.g., right after
-                // creation, or after a backup restore that prunes unrelated entries),
-                // allowing should_create_game to re-submit a duplicate at the same L2
-                // block before the cache catches up.
-                let guarded_addr = *self.last_created_game_address.lock().await;
-                let guard_in_pruned = guarded_addr != Address::ZERO &&
-                    future_games.iter().any(|idx| {
-                        state.games.get(idx).is_some_and(|g| g.address == guarded_addr)
-                    });
-
-                for idx in &future_games {
-                    state.games.remove(idx);
-                }
-                tracing::info!(
-                    count = future_games.len(),
-                    "Pruned games above pinned latest index"
-                );
-                // Clear anchor if it pointed to a pruned game.
-                let should_clear_anchor =
-                    state.anchor_game.as_ref().is_some_and(|a| !state.games.contains_key(&a.index));
-                if should_clear_anchor {
-                    state.anchor_game = None;
-                }
-                if guard_in_pruned {
-                    self.last_created_game_l2_sequence_number.store(0, Ordering::Relaxed);
-                    *self.last_created_game_address.lock().await = Address::ZERO;
-                    tracing::warn!(
-                        ?guarded_addr,
-                        "Reset creation guard: tracked game was among pruned entries"
-                    );
-                }
-            }
-        }
 
         // 1. Load new games.
         let latest_index = if let Some(index) = pinned_latest_index {
@@ -1833,10 +1735,6 @@ where
 
             ProposerGauge::GamesCreated.increment(1.0);
 
-            // Persist the creation guard immediately so a crash before the next periodic
-            // backup doesn't lose the duplicate-creation protection.
-            proposer.backup().await;
-
             Ok(())
         });
 
@@ -1933,32 +1831,6 @@ where
         let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_secs();
         let response = self.supernode.superroot_at_timestamp(now).await?;
         Ok(SupernodeClient::max_proposable_timestamp(&response, self.config.proposal_safety))
-    }
-
-    /// Backup proposer state to disk in background. Skips if backup already in progress.
-    async fn backup(&self) {
-        let Some(path) = &self.config.backup_path else { return };
-
-        let Ok(permit) = self.backup_semaphore.clone().try_acquire_owned() else {
-            tracing::debug!("Skipping backup: previous backup still in progress");
-            return;
-        };
-
-        let mut backup = self.state.read().await.to_backup();
-        backup.last_created_game_l2_sequence_number =
-            self.last_created_game_l2_sequence_number.load(Ordering::Relaxed);
-        backup.last_created_game_address = *self.last_created_game_address.lock().await;
-        backup.pending_games = self.pending_games.read().await.iter().copied().collect();
-        let path = path.clone();
-        tokio::task::spawn_blocking(move || {
-            if let Err(e) = backup.save(&path) {
-                tracing::warn!("Failed to backup proposer state: {:?}", e);
-                ProposerGauge::BackupSaveError.increment(1.0);
-            } else {
-                ProposerGauge::BackupSaveSuccess.increment(1.0);
-            }
-            drop(permit);
-        });
     }
 
     /// Spawn a game resolution task
@@ -2153,53 +2025,6 @@ pub fn bond_claim_action(
 pub fn withdrawal_matured(withdrawal_ts: u64, weth_delay: u64, l1_now: u64) -> bool {
     withdrawal_ts != 0 &&
         withdrawal_ts.checked_add(weth_delay).is_some_and(|deadline| l1_now >= deadline)
-}
-
-impl ProposerState {
-    /// Serialize the current state to a backup struct.
-    pub(crate) fn to_backup(&self) -> ProposerBackup {
-        ProposerBackup::new(
-            self.cursor.index(),
-            self.games.values().cloned().collect(),
-            self.anchor_game.as_ref().map(|g| g.index),
-        )
-    }
-
-    /// Restore state from a backup struct.
-    fn from_backup(backup: ProposerBackup) -> Self {
-        let games: HashMap<U256, Game> = backup.games.into_iter().map(|g| (g.index, g)).collect();
-
-        let anchor_game = backup.anchor_game_index.and_then(|idx| games.get(&idx).cloned());
-
-        Self {
-            cursor: backup.cursor.map(Cursor::from).unwrap_or_default(),
-            games,
-            anchor_game,
-            // NOTE(fakedev9999): Not persisted; re-computed on first sync cycle from on-chain
-            // state.
-            canonical_head_index: None,
-            canonical_head_sequence_number: None,
-        }
-    }
-
-    /// Try to restore state from a backup file. Returns None if file doesn't exist or is invalid.
-    pub(crate) fn try_restore(path: &Path) -> Option<(Self, u64, Address, Vec<U256>)> {
-        let backup = ProposerBackup::load(path)?;
-        let last_created_l2 = backup.last_created_game_l2_sequence_number;
-        let last_created_addr = backup.last_created_game_address;
-        let pending_games = backup.pending_games.clone();
-        let state = Self::from_backup(backup);
-        tracing::info!(
-            ?path,
-            games = state.games.len(),
-            cursor = %state.cursor,
-            last_created_l2,
-            ?last_created_addr,
-            pending = pending_games.len(),
-            "Proposer state restored from backup"
-        );
-        Some((state, last_created_l2, last_created_addr, pending_games))
-    }
 }
 
 #[cfg(test)]
