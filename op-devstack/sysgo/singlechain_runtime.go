@@ -398,18 +398,23 @@ func startMinimalChallenger(
 		sharedchallenger.WithPermissionedGameType(),
 		sharedchallenger.WithFastGames(),
 	}
-	var cannonKonaEnabled, superCannonKonaEnabled bool
+	var cannonKonaEnabled, superCannonKonaEnabled, zkEnabled bool
 	for _, gameType := range addedGameTypes {
 		cannonKonaEnabled = cannonKonaEnabled || gameType == gameTypes.CannonKonaGameType
 		superCannonKonaEnabled = superCannonKonaEnabled || gameType == gameTypes.SuperCannonKonaGameType
+		zkEnabled = zkEnabled || gameType == gameTypes.ZKDisputeGameType
 	}
 	require.False(cannonKonaEnabled && superCannonKonaEnabled, "minimal challenger cannot use Cannon Kona and Super Cannon Kona simultaneously")
-	if !superCannonKonaEnabled {
+	require.False(zkEnabled && (cannonKonaEnabled || superCannonKonaEnabled), "minimal challenger cannot use the ZK game alongside cannon-kona game types")
+	switch {
+	case zkEnabled:
+		// The ZK game validates super roots from the op-node's superroot_atTimestamp endpoint;
+		// it needs no VM config or dependency set.
 		options = append(options,
-			sharedchallenger.WithCannonKonaConfig(rollupCfgs, l1Net.genesis, l2Geneses),
-			sharedchallenger.WithCannonKonaGameType(),
+			sharedchallenger.WithZKDisputeGameType(),
+			sharedchallenger.WithSuperRootRPC(l2CL.UserRPC()),
 		)
-	} else {
+	case superCannonKonaEnabled:
 		dependencySet, err := depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
 			l2Net.ChainID(): {},
 		})
@@ -419,6 +424,11 @@ func startMinimalChallenger(
 			sharedchallenger.WithCannonKonaInteropConfig(rollupCfgs, l1Net.genesis, l2Geneses),
 			sharedchallenger.WithSuperCannonKonaGameType(),
 			sharedchallenger.WithSuperRootRPC(l2CL.UserRPC()),
+		)
+	default:
+		options = append(options,
+			sharedchallenger.WithCannonKonaConfig(rollupCfgs, l1Net.genesis, l2Geneses),
+			sharedchallenger.WithCannonKonaGameType(),
 		)
 	}
 	cfg, err := sharedchallenger.NewPreInteropChallengerConfig(

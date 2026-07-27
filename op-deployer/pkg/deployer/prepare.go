@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
@@ -142,11 +141,17 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return err
 	}
 
-	// Download the L1 artifacts referenced by the intent so the dry-run uses the
-	// same DeployOPChain script as the eventual broadcast.
-	l1ArtifactsFS, err := artifacts.Download(ctx, intent.L1ContractsLocator, ioutil.BarProgressor(), cfg.CacheDir)
+	// Download both artifact bundles so prepare can commit their contents to the snapshot.
+	// Only the L1 artifacts are used by the address-prediction script.
+	bundle, err := artifacts.DownloadBundle(
+		ctx,
+		intent.L1ContractsLocator,
+		intent.L2ContractsLocator,
+		ioutil.BarProgressor(),
+		cfg.CacheDir,
+	)
 	if err != nil {
-		return fmt.Errorf("failed to download L1 artifacts: %w", err)
+		return err
 	}
 
 	l1RPC, err := rpc.Dial(cfg.L1RPCUrl)
@@ -168,7 +173,7 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		broadcaster.NoopBroadcaster(),
 		cfg.Logger,
 		deployer,
-		l1ArtifactsFS,
+		bundle.L1,
 		l1RPC,
 	)
 	if err != nil {
@@ -191,8 +196,12 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return selectAnchorBlock(ctx, l1RPC, safe, overrideHash)
 	}
 
-	if err := predictChains(cfg.Logger, intent, st, deployScript.Run, selectAnchor, safe, cfg.GenesisTimeOffset); err != nil {
+	if err := prepareChains(cfg.Logger, intent, st, deployScript.Run, selectAnchor, safe, cfg.GenesisTimeOffset); err != nil {
 		return err
+	}
+	st.PreparedDeployment, err = pipeline.NewPreparedDeployment(intent, st, deployer, opcmAddr, bundle)
+	if err != nil {
+		return fmt.Errorf("failed to freeze prepared deployment: %w", err)
 	}
 
 	if err := pipeline.WriteState(cfg.Workdir, st); err != nil {
@@ -200,6 +209,44 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 	}
 
 	return nil
+}
+
+// Validate the dependency set before mutating chain state.
+func prepareChains(
+	lgr log.Logger,
+	intent *state.Intent,
+	st *state.State,
+	run func(opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error),
+	selectAnchor func(overrideHash *common.Hash) (*state.L1BlockRefJSON, error),
+	safe *state.L1BlockRefJSON,
+	genesisTimeOffset uint64,
+) error {
+	if err := pipeline.ValidateNoDuplicateChainIDs(intent.Chains); err != nil {
+		return err
+	}
+
+	initialGameTypes := make([]uint32, 0, len(intent.Chains))
+	for _, chain := range intent.Chains {
+		if st.IsChainDeployed(chain.ID) {
+			continue
+		}
+		proofParams, err := pipeline.ResolveChainProofParams(intent, chain)
+		if err != nil {
+			return fmt.Errorf("failed to resolve initial dispute game type for chain %s: %w", chain.ID.Hex(), err)
+		}
+		initialGameTypes = append(initialGameTypes, proofParams.DisputeGameType)
+	}
+	if err := pipeline.ValidateInitialGameTypeSet(initialGameTypes); err != nil {
+		return err
+	}
+
+	interopDepSet, err := pipeline.BuildInteropDepSet(intent.Chains)
+	if err != nil {
+		return fmt.Errorf("failed to create interop dependency set: %w", err)
+	}
+	st.InteropDepSet = interopDepSet
+
+	return predictChains(lgr, intent, st, run, selectAnchor, safe, genesisTimeOffset)
 }
 
 // validateL1ChainID checks that the L1 RPC endpoint serves the chain the intent was
@@ -304,6 +351,10 @@ func predictChains(
 		if err != nil {
 			return fmt.Errorf("failed to build prediction input for chain %s: %w", chain.ID.Hex(), err)
 		}
+		requirements, err := pipeline.ResolveInitialDeployRequirements(dci.DisputeGameType)
+		if err != nil {
+			return fmt.Errorf("failed to resolve initial deploy requirements for chain %s: %w", chain.ID.Hex(), err)
+		}
 
 		out, err := run(dci)
 		if err != nil {
@@ -312,6 +363,21 @@ func predictChains(
 
 		// Record the predicted addresses, marked not deployed yet.
 		st.SetChainContracts(chain.ID, pipeline.OpChainContractsFromDeployOutput(out), false)
+		chainState, err := st.Chain(chain.ID)
+		if err != nil {
+			return fmt.Errorf("failed to clear prepared inputs for chain %s: %w", chain.ID.Hex(), err)
+		}
+		chainState.Prestate = common.Hash{}
+		chainState.StartingAnchorRoot = nil
+		gameType := dci.DisputeGameType
+		chainState.InitialGameType = &gameType
+
+		if requirements.RequiresPrestate {
+			lgr.Info(
+				"selected prestate must be committed; run op-deployer prestate before continue",
+				"chain", chain.ID.Hex(),
+			)
+		}
 
 		lgr.Info(
 			"predicted L1 addresses",
@@ -361,11 +427,8 @@ func pinnedAnchorState(st *state.State, id common.Hash) *state.ChainState {
 	return chainState
 }
 
-// Sentinel inputs for the prediction dry-run of permissionless deploys.
-var (
-	predictionStartingAnchorRoot     = common.Hash{0x01}
-	predictionCannonAbsolutePrestate = common.Hash{0x01}
-)
+// Sentinel input for the prediction dry-run of permissionless deploys.
+var predictionStartingAnchorRoot = common.Hash{0x01}
 
 // makePredictionInput builds the DeployOPChain input for the prediction dry-run.
 // The OPCM, superchain config and salt mixer are taken from the committed intent
@@ -383,6 +446,10 @@ func makePredictionInput(intent *state.Intent, st *state.State, chain *state.Cha
 	if err != nil {
 		return opcm.DeployOPChainInput{}, fmt.Errorf("failed to resolve dispute params: %w", err)
 	}
+	requirements, err := pipeline.ResolveInitialDeployRequirements(proofParams.DisputeGameType)
+	if err != nil {
+		return opcm.DeployOPChainInput{}, err
+	}
 
 	// Prediction runs against an already existing OPCM
 	placeholderRoles := state.ChainRoles{
@@ -397,18 +464,10 @@ func makePredictionInput(intent *state.Intent, st *state.State, chain *state.Cha
 	// Permissioned deploys use the placeholder anchor broadcast by apply. Permissionless
 	// deploys use a sentinel because their real anchor depends on the addresses predicted
 	// here, and the placeholder is rejected for them.
-	startingAnchorRoot := opcm.Proposal{
-		Root:             opcm.DefaultStartingAnchorRoot.Root,
-		L2SequenceNumber: common.Big0,
-	}
-	cannonAbsolutePrestate := proofParams.DisputeAbsolutePrestate
+	startingAnchorRoot := opcm.DefaultStartingAnchorProposal()
 
-	if pipeline.IsPermissionlessGameType(proofParams.DisputeGameType) {
+	if requirements.Permissionless {
 		startingAnchorRoot.Root = predictionStartingAnchorRoot
-	}
-
-	if proofParams.DisputeGameType == uint32(embedded.GameTypeCannonKona) {
-		cannonAbsolutePrestate = predictionCannonAbsolutePrestate
 	}
 
 	return pipeline.BuildDeployOPChainInput(
@@ -420,7 +479,6 @@ func makePredictionInput(intent *state.Intent, st *state.State, chain *state.Cha
 		st.Create2Salt.String(),
 		chain.GasLimit,
 		startingAnchorRoot,
-		cannonAbsolutePrestate,
 		chain,
 	), nil
 }

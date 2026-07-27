@@ -1,14 +1,14 @@
 ---
 title: Execution client configuration
-description: Configure op-reth as your OP Stack execution client. op-geth reached end-of-support 2026-05-31.
+description: Configure op-reth as your OP Stack execution client and migrate off end-of-support op-geth.
 diataxis: how-to
 ---
 
+import OpGethEol from "/snippets/op-geth-eol.mdx"
+
 The execution client provides the EVM runtime and transaction processing for your OP Stack node.
 
-<Warning>
-  **op-geth has reached end-of-support (2026-05-31) and does not support the now-active Karst hardfork, so op-geth nodes can no longer follow the canonical chain.** Migrate to op-reth — see the [op-geth deprecation notice](/notices/op-geth-deprecation).
-</Warning>
+<OpGethEol />
 
 <Info>
   Always run your execution client and consensus client in a 1:1 configuration. Don't run multiple execution clients behind one consensus client, or vice versa.
@@ -76,11 +76,9 @@ openssl rand -hex 32 > jwt-secret.txt
 
 This file must be identical for both your execution client and your consensus client.
 
-## op-geth (legacy — end of support 2026-05-31)
+## op-geth (legacy, end of support 2026-05-31)
 
-<Warning>
-  op-geth reached end-of-support on **2026-05-31** and **does not support the now-active Karst hardfork**. For new deployments, use op-reth (above). See the [op-geth deprecation notice](/notices/op-geth-deprecation) for the migration plan.
-</Warning>
+<OpGethEol />
 
 <Accordion title="op-geth configuration (legacy)">
   [op-geth](https://github.com/ethereum-optimism/op-geth) is a minimal fork of go-ethereum optimized for the OP Stack.

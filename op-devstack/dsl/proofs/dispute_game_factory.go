@@ -3,6 +3,7 @@ package proofs
 import (
 	"context"
 	"encoding/binary"
+	"math"
 	"math/big"
 	"net/url"
 	"os"
@@ -98,6 +99,7 @@ type GameCfg struct {
 	rootClaimSet        bool
 	rootClaim           common.Hash
 	superOutputRoots    []eth.Bytes32
+	zkParentIndex       *uint32
 }
 type GameOpt interface {
 	Apply(cfg *GameCfg)
@@ -139,6 +141,14 @@ func WithL2SequenceNumber(seqNum uint64) GameOpt {
 func WithSuperRootFrom(outputRoots ...eth.Bytes32) GameOpt {
 	return gameOptFn(func(c *GameCfg) {
 		c.superOutputRoots = outputRoots
+	})
+}
+
+// WithZKParent links a ZK game to an earlier ZK game in the factory. Without
+// this option, StartZKGame uses the uint32 max sentinel for a root game.
+func WithZKParent(parentIndex uint32) GameOpt {
+	return gameOptFn(func(c *GameCfg) {
+		c.zkParentIndex = &parentIndex
 	})
 }
 
@@ -187,6 +197,13 @@ func (f *DisputeGameFactory) SuperGameAtIndex(idx int64) *SuperFaultDisputeGame 
 	return NewSuperFaultDisputeGame(f.t, f.require, gameInfo.Proxy, f.getGameHelper, f.honestTraceForGame, game)
 }
 
+func (f *DisputeGameFactory) ZKGameAtIndex(idx uint32) *ZKGame {
+	gameInfo := contract.Read(f.dgf.GameAtIndex(big.NewInt(int64(idx))))
+	f.require.Equalf(gameTypes.ZKDisputeGameType, gameTypes.GameType(gameInfo.GameType),
+		"game at index %d is not a ZK dispute game", idx)
+	return newZKGame(f.t, f.require, f.ethClient, gameInfo.Proxy).withFactoryIndex(idx)
+}
+
 func (f *DisputeGameFactory) GameImpl(gameType gameTypes.GameType) *FaultDisputeGame {
 	implAddr := contract.Read(f.dgf.GameImpls(uint32(gameType)))
 	game := bindings.NewFaultDisputeGame(bindings.WithClient(f.ethClient), bindings.WithTo(implAddr), bindings.WithTest(f.t))
@@ -233,6 +250,75 @@ func (f *DisputeGameFactory) StartSuperPermissionedGame(opts ...GameOpt) *SuperF
 	return f.startSuperGameOfType(f.l1Proposer, gameTypes.SuperPermissionedGameType, opts...)
 }
 
+func (f *DisputeGameFactory) StartZKGame(eoa *dsl.EOA, opts ...GameOpt) *ZKGame {
+	f.require.NotNil(f.superNode, "super node is required to start ZK games")
+	cfg := NewGameCfg(opts...)
+	f.require.False(cfg.rootClaimSet, "ZK root claim is derived from the super-root proof and cannot be overridden")
+
+	timestamp := cfg.l2SequenceNumber
+	if !cfg.l2SequenceNumberSet {
+		minSequence := f.zkAnchorSequenceNumber()
+		if cfg.zkParentIndex != nil {
+			minSequence = f.ZKGameAtIndex(*cfg.zkParentIndex).L2SequenceNumber()
+		}
+		timestamp = f.waitForSafeSuperRootAfter(minSequence)
+	}
+
+	superRootProof := f.createSuperGameExtraData(timestamp, cfg)
+	parentIndex := uint32(math.MaxUint32)
+	if cfg.zkParentIndex != nil {
+		parentIndex = *cfg.zkParentIndex
+	}
+	extraData := make([]byte, 4+len(superRootProof))
+	binary.BigEndian.PutUint32(extraData[:4], parentIndex)
+	copy(extraData[4:], superRootProof)
+	rootClaim := crypto.Keccak256Hash(superRootProof)
+
+	gameIndex := f.GameCount()
+	f.require.GreaterOrEqual(gameIndex, int64(0), "ZK game index must not be negative")
+	f.require.LessOrEqual(gameIndex, int64(math.MaxUint32), "ZK game index must fit in uint32")
+	_, addr := f.createNewGame(eoa, gameTypes.ZKDisputeGameType, rootClaim, extraData)
+	return newZKGame(f.t, f.require, f.ethClient, addr).withFactoryIndex(uint32(gameIndex))
+}
+
+// WaitForSafeSuperRootAfter returns a verified super-root timestamp and a copy
+// of its per-chain output roots. Tests can mutate the copy to model a faulty
+// proposer without changing supernode-owned response data.
+func (f *DisputeGameFactory) WaitForSafeSuperRootAfter(sequence uint64) (uint64, []eth.Bytes32) {
+	f.require.NotNil(f.superNode, "super node is required to read safe super roots")
+	timestamp := f.waitForSafeSuperRootAfter(sequence)
+
+	resp := f.superNode.SuperRootAtTimestamp(timestamp)
+	f.require.NotNil(resp.Data, "super root data must be present at timestamp %d", timestamp)
+	superV1, ok := resp.Data.Super.(*eth.SuperV1)
+	f.require.Truef(ok, "unsupported super type %T", resp.Data.Super)
+	outputs := make([]eth.Bytes32, len(superV1.Chains))
+	for i := range superV1.Chains {
+		outputs[i] = superV1.Chains[i].Output
+	}
+	return timestamp, outputs
+}
+
+func (f *DisputeGameFactory) waitForSafeSuperRootAfter(sequence uint64) uint64 {
+	var timestamp uint64
+	f.t.Require().Eventually(func() bool {
+		timestamp = f.safeTimestamp()
+		return timestamp > sequence
+	}, 2*time.Minute, time.Second, "safe super-root timestamp did not advance beyond the requested sequence")
+	return timestamp
+}
+
+func (f *DisputeGameFactory) zkAnchorSequenceNumber() uint64 {
+	impl := f.ZKGameImpl()
+	registry := bindings.NewBindings[bindings.AnchorStateRegistry](
+		bindings.WithClient(f.ethClient),
+		bindings.WithTo(impl.Args.AnchorStateRegistry),
+		bindings.WithTest(f.t),
+	)
+	anchor := contract.Read(registry.GetAnchorRoot())
+	return bigs.Uint64Strict(anchor.L2SequenceNumber)
+}
+
 func (f *DisputeGameFactory) startSuperGameOfType(eoa *dsl.EOA, gameType gameTypes.GameType, opts ...GameOpt) *SuperFaultDisputeGame {
 	cfg := NewGameCfg(opts...)
 	if len(cfg.superOutputRoots) != 0 && cfg.rootClaimSet {
@@ -255,17 +341,17 @@ func (f *DisputeGameFactory) startSuperGameOfType(eoa *dsl.EOA, gameType gameTyp
 
 func (f *DisputeGameFactory) createSuperGameExtraData(timestamp uint64, cfg *GameCfg) []byte {
 	f.require.NotNil(f.superNode, "super node is required create super games")
-	var resp eth.SuperRootAtTimestampResponse
+	// A future proposal commits to a timestamp the node has not reached, so no super root exists there
+	// yet. Model it by stamping the current safe super root's dependency set at the requested timestamp.
+	queryTimestamp := timestamp
 	if cfg.allowFuture {
-		var err error
-		resp, err = f.superNode.QueryAPI().SuperRootAtTimestamp(f.t.Ctx(), timestamp)
-		f.require.NoError(err, "Failed to fetch super root at timestamp")
-	} else {
-		resp = f.awaitMinVerifiedTimestamp(timestamp)
+		queryTimestamp = f.safeTimestamp()
 	}
-	f.require.NotNil(resp.Data, "Super root data must be present at timestamp %v", timestamp)
+	resp := f.awaitMinVerifiedTimestamp(queryTimestamp)
+	f.require.NotNil(resp.Data, "Super root data must be present at timestamp %v", queryTimestamp)
 	superV1, ok := resp.Data.Super.(*eth.SuperV1)
 	f.require.Truef(ok, "unsupported super type %T", resp.Data.Super)
+	superV1.Timestamp = timestamp
 	if len(cfg.superOutputRoots) != 0 {
 		f.require.Len(cfg.superOutputRoots, len(superV1.Chains), "Super output roots length mismatch")
 		for i := range superV1.Chains {

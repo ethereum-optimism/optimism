@@ -2,14 +2,170 @@ package state
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 )
+
+func TestState_PrestateJSONRoundTrip(t *testing.T) {
+	chainID := common.HexToHash("0x01")
+	selectedPrestate := common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111")
+	st := &State{
+		Chains: []*ChainState{{
+			ID:       chainID,
+			Prestate: selectedPrestate,
+		}},
+	}
+
+	data, err := json.Marshal(st)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"prestate":"`+selectedPrestate.Hex()+`"`)
+
+	var roundTripped State
+	require.NoError(t, json.Unmarshal(data, &roundTripped))
+	chain, err := roundTripped.Chain(chainID)
+	require.NoError(t, err)
+	require.Equal(t, selectedPrestate, chain.Prestate)
+}
+
+func TestState_PrestateJSONOmitsZeroValue(t *testing.T) {
+	selectedPrestate := common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111")
+	tests := []struct {
+		name             string
+		selectedPrestate common.Hash
+		wantSelected     bool
+	}{
+		{name: "unset"},
+		{name: "set", selectedPrestate: selectedPrestate, wantSelected: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			st := &State{
+				Chains: []*ChainState{{
+					ID:       common.HexToHash("0x01"),
+					Prestate: tt.selectedPrestate,
+				}},
+			}
+
+			data, err := json.Marshal(st)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantSelected, strings.Contains(string(data), `"prestate"`))
+		})
+	}
+}
+
+func TestState_StartingAnchorRootJSONRoundTrip(t *testing.T) {
+	chainID := common.HexToHash("0x01")
+	proposal := &StartingAnchorProposal{
+		Root:             common.HexToHash("0x2222222222222222222222222222222222222222222222222222222222222222"),
+		L2SequenceNumber: 0,
+	}
+	st := &State{
+		Chains: []*ChainState{{
+			ID:                 chainID,
+			StartingAnchorRoot: proposal,
+		}},
+	}
+
+	data, err := json.Marshal(st)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"startingAnchorRoot":{"root":"`+proposal.Root.Hex()+`","l2SequenceNumber":"0x0"}`)
+
+	var roundTripped State
+	require.NoError(t, json.Unmarshal(data, &roundTripped))
+	chain, err := roundTripped.Chain(chainID)
+	require.NoError(t, err)
+	require.Equal(t, proposal, chain.StartingAnchorRoot)
+}
+
+func TestStartingAnchorProposal_RejectsOversizedSequenceNumber(t *testing.T) {
+	var proposal StartingAnchorProposal
+	err := json.Unmarshal(
+		[]byte(`{"l2SequenceNumber":"0x10000000000000000"}`),
+		&proposal,
+	)
+	require.ErrorContains(t, err, "hex number > 64 bits")
+}
+
+func TestState_StartingAnchorRootJSONBackwardCompatibility(t *testing.T) {
+	chainID := common.HexToHash("0x01")
+
+	t.Run("nil omitted", func(t *testing.T) {
+		st := &State{
+			Chains: []*ChainState{{
+				ID: chainID,
+			}},
+		}
+
+		data, err := json.Marshal(st)
+		require.NoError(t, err)
+		require.NotContains(t, string(data), `"startingAnchorRoot"`)
+	})
+
+	t.Run("legacy JSON decodes to nil", func(t *testing.T) {
+		data := []byte(`{"opChainDeployments":[{"id":"` + chainID.Hex() + `"}]}`)
+
+		var st State
+		require.NoError(t, json.Unmarshal(data, &st))
+		chain, err := st.Chain(chainID)
+		require.NoError(t, err)
+		require.Nil(t, chain.StartingAnchorRoot)
+	})
+}
+
+func TestState_InitialGameTypeJSONRoundTrip(t *testing.T) {
+	chainID := common.HexToHash("0x01")
+	st := &State{
+		Chains: []*ChainState{{
+			ID:              chainID,
+			InitialGameType: ptr.New(uint32(8)),
+		}},
+	}
+
+	data, err := json.Marshal(st)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"initialGameType":8`)
+
+	var roundTripped State
+	require.NoError(t, json.Unmarshal(data, &roundTripped))
+	chain, err := roundTripped.Chain(chainID)
+	require.NoError(t, err)
+	require.Equal(t, ptr.New(uint32(8)), chain.InitialGameType)
+}
+
+func TestState_InitialGameTypeJSONDistinguishesMissingFromZero(t *testing.T) {
+	tests := []struct {
+		name     string
+		gameType *uint32
+		wantKey  bool
+	}{
+		{name: "missing"},
+		{name: "zero", gameType: ptr.New(uint32(0)), wantKey: true},
+		{name: "nonzero", gameType: ptr.New(uint32(8)), wantKey: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			st := &State{
+				Chains: []*ChainState{{
+					ID:              common.HexToHash("0x01"),
+					InitialGameType: tt.gameType,
+				}},
+			}
+
+			data, err := json.Marshal(st)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantKey, strings.Contains(string(data), `"initialGameType"`))
+		})
+	}
+}
 
 func TestState_EnsureCreate2Salt(t *testing.T) {
 	t.Run("generates a salt when unset", func(t *testing.T) {
@@ -72,6 +228,44 @@ func TestState_CheckNotPrepared(t *testing.T) {
 		err := (&State{Prepared: true}).CheckNotPrepared()
 		require.ErrorContains(t, err, "cannot be applied")
 	})
+}
+
+func TestPreparedDeploymentClone(t *testing.T) {
+	l1Locator, err := artifacts.NewFileLocator("/tmp/l1-artifacts")
+	require.NoError(t, err)
+
+	prepared := &PreparedDeployment{
+		Intent: &Intent{
+			FundDevAccounts: true,
+			Chains:          []*ChainIntent{{ID: common.HexToHash("0x1")}},
+		},
+		Deployer: common.HexToAddress("0x01"),
+		OPCM:     common.HexToAddress("0x02"),
+		L1Artifacts: PreparedArtifact{
+			Locator: l1Locator,
+		},
+		Chains: []*PreparedChainState{
+			{
+				ID:          common.HexToHash("0x1"),
+				GenesisTime: ptr.New(hexutil.Uint64(10)),
+			},
+		},
+	}
+
+	clone, err := prepared.Clone()
+	require.NoError(t, err)
+	require.Equal(t, prepared, clone)
+
+	// Mutating the clone's pointers and slices must not reach back into the original.
+	clone.Intent.FundDevAccounts = false
+	clone.Intent.Chains[0].ID = common.HexToHash("0x2")
+	*clone.Chains[0].GenesisTime = hexutil.Uint64(99)
+	clone.L1Artifacts.Locator.URL.Path = "/changed"
+
+	require.True(t, prepared.Intent.FundDevAccounts)
+	require.Equal(t, common.HexToHash("0x1"), prepared.Intent.Chains[0].ID)
+	require.Equal(t, hexutil.Uint64(10), *prepared.Chains[0].GenesisTime)
+	require.NotEqual(t, "/changed", prepared.L1Artifacts.Locator.URL.Path)
 }
 
 func TestState_PreparedSerialization(t *testing.T) {
@@ -172,7 +366,15 @@ func TestState_SetChainContracts(t *testing.T) {
 
 	// Updating an existing chain in the state replaces it in place, preserves other
 	// fields set by other stages, and can flip the deployed flag.
-	s.Chains[0].StartBlock = &L1BlockRefJSON{Hash: common.HexToHash("0xdead")}
+	s.Chains[0].StartBlock = &L1BlockRefJSON{Hash: common.HexToHash("0xfeed")}
+	prestate := common.HexToHash("0x1234")
+	s.Chains[0].Prestate = prestate
+	startingAnchorRoot := &StartingAnchorProposal{
+		Root:             common.HexToHash("0x5678"),
+		L2SequenceNumber: 9,
+	}
+	s.Chains[0].StartingAnchorRoot = startingAnchorRoot
+	s.Chains[0].InitialGameType = ptr.New(uint32(8))
 	s.SetChainContracts(chainA, contractsWith("0xa2"), true)
 	require.Len(t, s.Chains, 2)
 
@@ -182,7 +384,10 @@ func TestState_SetChainContracts(t *testing.T) {
 	require.NotNil(t, got.Deployed)
 	require.True(t, *got.Deployed)
 	require.NotNil(t, got.StartBlock, "other fields must be preserved on update")
-	require.Equal(t, common.HexToHash("0xdead"), got.StartBlock.Hash)
+	require.Equal(t, common.HexToHash("0xfeed"), got.StartBlock.Hash)
+	require.Equal(t, prestate, got.Prestate, "prestate must be preserved on update")
+	require.Equal(t, startingAnchorRoot, got.StartingAnchorRoot, "starting anchor root must be preserved on update")
+	require.Equal(t, ptr.New(uint32(8)), got.InitialGameType, "initial game type must be preserved on update")
 }
 
 func TestState_PinChainAnchor(t *testing.T) {

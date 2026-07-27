@@ -3,6 +3,7 @@ package sdm
 import (
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sdm/sdmtest"
 	sdmpkg "github.com/ethereum-optimism/optimism/op-chain-ops/pkg/sdm"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -27,22 +28,22 @@ func TestSDMActivatesAtInteropBoundary(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	offset := boundaryInteropOffset
 	sys := newSDMRethSystemWithInteropOffset(t, &offset)
-	verifyOpReth(t, sys.L2EL)
+	sdmtest.VerifyOpReth(t, sys.L2EL)
 
 	t.Require().False(sys.L2Network.IsForkActive(forks.Lagoon),
 		"Interop must not be active yet at the start of the boundary test")
 
 	// Phase 1: pre-Interop workload. We may need a few attempts to land the densest
-	// block before the activation timestamp; mustFindRepeatedSlotBlock retries
-	// internally and findPostExecTransaction tolerates absence.
-	preBlock, preIncluded, preBlockNum := mustFindRepeatedSlotBlock(t, sys, 2, 3)
+	// block before the activation timestamp; sdmtest.MustFindRepeatedSlotBlock retries
+	// internally and sdmpkg.FindPostExecTransaction tolerates absence.
+	preBlock, preIncluded, preBlockNum := sdmtest.MustFindRepeatedSlotBlock(t, sys, 2, 3)
 	t.Require().GreaterOrEqual(len(preIncluded), 2, "pre-Interop target block must contain user txs")
 	preRef := sys.L2EL.BlockRefByNumber(preBlockNum)
 	t.Require().False(sys.L2Network.IsForkActiveAt(forks.Lagoon, preRef.Time),
 		"pre-Interop workload block %d (ts=%d) must land before Interop activation",
 		preBlockNum, preRef.Time)
 
-	prePostExecTx, _ := findPostExecTransaction(preBlock)
+	prePostExecTx, _ := sdmpkg.FindPostExecTransaction(preBlock)
 	t.Require().Nil(prePostExecTx,
 		"pre-Interop block %d must not contain a PostExec tx; chain-spec gates SDM off", preBlockNum)
 
@@ -52,14 +53,14 @@ func TestSDMActivatesAtInteropBoundary(gt *testing.T) {
 	t.Require().True(sys.L2Network.IsForkActive(forks.Lagoon),
 		"Interop must be active after AwaitActivation returns")
 
-	postBlock, postIncluded, postBlockNum := mustFindRepeatedSlotBlock(t, sys, 2, 3)
+	postBlock, postIncluded, postBlockNum := sdmtest.MustFindRepeatedSlotBlock(t, sys, 2, 3)
 	t.Require().GreaterOrEqual(len(postIncluded), 2, "post-Interop target block must contain user txs")
 	postRef := sys.L2EL.BlockRefByNumber(postBlockNum)
 	t.Require().True(sys.L2Network.IsForkActiveAt(forks.Lagoon, postRef.Time),
 		"post-Interop workload block %d (ts=%d) must land after Interop activation",
 		postBlockNum, postRef.Time)
 
-	postPostExecTx, _ := findPostExecTransaction(postBlock)
+	postPostExecTx, _ := sdmpkg.FindPostExecTransaction(postBlock)
 	t.Require().NotNil(postPostExecTx,
 		"post-Interop block %d must contain a PostExec tx; chain-spec gates SDM on", postBlockNum)
 	t.Require().Equal(uint64(sdmpkg.SDMTxType), uint64(postPostExecTx.Type),

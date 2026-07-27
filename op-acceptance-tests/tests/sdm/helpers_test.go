@@ -9,7 +9,6 @@ import (
 	sdmpkg "github.com/ethereum-optimism/optimism/op-chain-ops/pkg/sdm"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
-	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
@@ -68,39 +67,6 @@ var (
 	funcHitManySlots = w3.MustNewFunc("hitManySlots(uint256)", "")
 )
 
-// setSDMEnabled toggles the local SDM PostExec production opt-in on an L2 EL via the
-// admin_setOperatorSdmOptIn RPC. SDM is disabled by default on every process boot; tests that
-// expect PostExec txs to flow must opt in explicitly on the sequencer's EL.
-func setSDMEnabled(t devtest.T, l2EL *dsl.L2ELNode, enabled bool) {
-	rpcClient := l2EL.Escape().L2EthClient().RPC()
-	err := rpcClient.CallContext(t.Ctx(), nil, "admin_setOperatorSdmOptIn", enabled)
-	t.Require().NoError(err, "admin_setOperatorSdmOptIn(%v) RPC failed", enabled)
-}
-
-// verifyOpReth checks the L2 execution layer client is op-reth by calling
-// web3_clientVersion via the L2EthClient's RPC and asserting it contains "reth".
-func verifyOpReth(t devtest.T, l2EL *dsl.L2ELNode) string {
-	rpcClient := l2EL.Escape().L2EthClient().RPC()
-	var clientVersion string
-	err := rpcClient.CallContext(t.Ctx(), &clientVersion, "web3_clientVersion")
-	t.Require().NoError(err, "web3_clientVersion RPC failed — cannot verify EL client")
-
-	lower := strings.ToLower(clientVersion)
-	t.Require().True(
-		strings.Contains(lower, "reth"),
-		"FATAL: Expected op-reth execution client, but got: %q. "+
-			"This test MUST run on op-reth. "+
-			"Set DEVSTACK_L2EL_KIND=op-reth or ensure op-reth binary is available.",
-		clientVersion,
-	)
-	t.Require().False(
-		strings.Contains(lower, "geth"),
-		"FATAL: Detected op-geth (%q) but this test requires op-reth.", clientVersion,
-	)
-
-	return clientVersion
-}
-
 // getOPGasRefund reads the opGasRefund field from a transaction receipt via
 // raw JSON RPC. The boolean return value reports whether the field was present.
 func getOPGasRefund(t devtest.T, l2EL *dsl.L2ELNode, txHash common.Hash) (uint64, bool) {
@@ -119,22 +85,6 @@ func getOPGasRefund(t devtest.T, l2EL *dsl.L2ELNode, txHash common.Hash) (uint64
 		return 0, false
 	}
 	return uint64(*result.OPGasRefund), true
-}
-
-func getBlockWithTxs(t devtest.T, l2EL *dsl.L2ELNode, blockNum uint64) *sdmpkg.RPCBlock {
-	block, err := sdmpkg.GetBlockWithTxs(t.Ctx(), l2EL.Escape().L2EthClient().RPC(), blockNum)
-	t.Require().NoError(err, "eth_getBlockByNumber RPC failed for block %d", blockNum)
-	return block
-}
-
-func replayBlockWithSDM(t devtest.T, l2EL *dsl.L2ELNode, blockNum uint64) *sdmpkg.ReplaySDMBlock {
-	replay, err := sdmpkg.ReplayBlockWithSDM(t.Ctx(), l2EL.Escape().L2EthClient().RPC(), blockNum, true)
-	t.Require().NoError(err, "debug_replaySDMBlock RPC failed for block %d", blockNum)
-	return replay
-}
-
-func findPostExecTransaction(block *sdmpkg.RPCBlock) (*sdmpkg.RPCTransaction, int) {
-	return sdmpkg.FindPostExecTransaction(block)
 }
 
 // assertPostExecTxHashIsCanonical asserts op-reth serves and resolves the post-exec tx (and its
@@ -177,13 +127,6 @@ func mustFindReplayTxByHash(t devtest.T, replay *sdmpkg.ReplaySDMBlock, txHash c
 
 	t.Require().FailNowf("replay tx missing", "tx %s not found in replay for block %d", txHash, replay.BlockNum)
 	return nil
-}
-
-func deployContract(t devtest.T, eoa *dsl.EOA, hexBytecode string) common.Address {
-	tx := txplan.NewPlannedTx(eoa.Plan(), txplan.WithData(common.FromHex(hexBytecode)))
-	res, err := tx.Included.Eval(t.Ctx())
-	t.Require().NoError(err, "failed to deploy contract")
-	return res.ContractAddress
 }
 
 func encodeEmitLog(topicCount int, dataLen int) []byte {

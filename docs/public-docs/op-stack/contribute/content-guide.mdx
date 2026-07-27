@@ -6,6 +6,7 @@ diataxis: reference
 
 import ThirdPartyContent from "/snippets/third-party-content.mdx"
 import ThirdPartyContentSingle from "/snippets/third-party-content-single.mdx"
+import { NormativeSpec } from "/snippets/normative-spec.mdx"
 
 This page defines what content belongs on docs.optimism.io and, for every
 content type, which source is canonical. It exists so that "where does this
@@ -83,10 +84,8 @@ Precedents for the matrix, clause by clause:
     through its structured
     [feature gates reference](https://kubernetes.io/docs/reference/command-line-tools-reference/feature-gates/)
     rather than copying design documents into prose.
-*   **One identity page per component.** ZKsync documents each service of its
-    stack in a single canonical place
-    ([ZK Stack components](https://docs.zksync.io/zk-stack/components));
-    Cloudflare publishes a uniform per-product
+*   **One identity page per component.** Cloudflare publishes a uniform
+    per-product
     [content strategy](https://developers.cloudflare.com/style-guide/documentation-content-strategy/)
     so every product's documentation set has the same shape.
 *   **A curated matrix over the periphery.** Stripe's
@@ -138,6 +137,59 @@ import ThirdPartyContentSingle from "/snippets/third-party-content-single.mdx"
 Which renders:
 
 <ThirdPartyContentSingle />
+
+## Citing the normative spec
+
+<Info>
+  This section documents the `<NormativeSpec>` component, the standing
+  callout that applies the [dual-sourcing ban](#link-dont-restate-the-dual-sourcing-ban)
+  to protocol pages: every page whose subject is normatively defined in the
+  [OP Stack specifications](https://specs.optimism.io/) is stamped the same
+  way, so spec citations stay uniform and greppable.
+</Info>
+
+The component is **reserved for explainer pages** — pages whose frontmatter
+declares `diataxis: explanation`, primarily the concept pages in the OP Stack
+section. An explainer page whose subject is normatively defined in the spec
+must open with the `<NormativeSpec>` component, deep-linking the exact spec
+section that defines its subject:
+
+```mdx
+import { NormativeSpec } from "/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="The derivation pipeline"
+  title="L2 chain derivation specification"
+  href="https://specs.optimism.io/protocol/derivation.html"
+  note="This page is a short orientation; it does not restate the spec."
+/>
+```
+
+Which renders:
+
+<NormativeSpec
+  what="The derivation pipeline"
+  title="L2 chain derivation specification"
+  href="https://specs.optimism.io/protocol/derivation.html"
+  note="This page is a short orientation; it does not restate the spec."
+/>
+
+All four variables are required: `what` names the subject the spec defines,
+`title` and `href` name and deep-link the governing spec section (a rendered
+`specs.optimism.io` URL on its current path, per the
+[link policy](/op-stack/contribute/link-policy)), and `note` states what the
+page does instead of restating the spec.
+
+Guides, tutorials, and reference pages do **not** open with the component.
+They should not go deep into protocol workings at all — that depth belongs
+on an explainer page or in the spec itself. Where a guide, tutorial, or
+reference page needs to touch a spec-defined concept, link the relevant spec
+section inline at the point of use instead.
+
+One deliberate exception: the
+[hardfork registry pages](/op-stack/protocol/network-upgrades) are reference
+pages, but the registry's purpose is the spec pointer, so they carry the
+same component with the spec URL from their structured frontmatter.
 
 ## Next steps
 

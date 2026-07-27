@@ -2,7 +2,6 @@ name = "rehearsal-0-bn-0"
 public_rpc = ""
 sequencer_rpc = ""
 explorer = ""
-superchain_level = 0
 governed_by_optimism = false
 superchain_time = 0
 data_availability_type = "eth-da"

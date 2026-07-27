@@ -81,6 +81,8 @@ type OpChainFaultProofsContracts struct {
 	FaultDisputeGameImpl               common.Address
 	FaultDisputeGameCannonKonaImpl     common.Address
 	PermissionedDisputeGameImpl        common.Address
+	SuperFaultDisputeGameImpl          common.Address
+	SuperPermissionedDisputeGameImpl   common.Address
 	DelayedWethPermissionedGameProxy   common.Address
 	DelayedWethPermissionlessGameProxy common.Address
 }

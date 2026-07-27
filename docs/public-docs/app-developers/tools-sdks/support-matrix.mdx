@@ -33,6 +33,8 @@ restate. What gets listed here (and what gets removed) is governed by the
 | [supersim](/app-developers/tools/supersim) | Local Superchain simulator: one L1 plus multiple OP Stack L2s for testing L1↔L2 and L2↔L2 message passing without deploying to live networks | Optimism ([`supersim`](https://github.com/ethereum-optimism/supersim) repo) | [Supersim docs](https://supersim.pages.dev) | Developer preview (all releases are alpha pre-releases; interop features in active development) |
 | [super-cli](https://github.com/ethereum-optimism/super-cli) (`sup`) | Foundry companion CLI for multichain workflows: deploy and verify contracts on multiple chains at once, bridge funds, use connected wallets | Optimism ([`super-cli`](https://github.com/ethereum-optimism/super-cli) repo) | [Repository README](https://github.com/ethereum-optimism/super-cli#readme) | Experimental |
 | [superchain-registry](https://github.com/ethereum-optimism/superchain-registry) tooling | Not an SDK — the source-of-truth library of chain configs that OP Stack software (such as `op-node` and `op-geth`) consumes, plus the `just` tasks and validation checks used to add and verify a chain | Optimism ([`superchain-registry`](https://github.com/ethereum-optimism/superchain-registry) repo) | [Registry operations docs](https://github.com/ethereum-optimism/superchain-registry/tree/main/docs) | Production |
+| [op-alloy](/app-developers/tools-sdks/op-alloy/intro) | Rust crates for interfacing with OP Stack chains: consensus, RPC, engine, and network types built on the [Alloy](https://github.com/alloy-rs/alloy) ecosystem; the type layer consumed by kona and op-reth | Optimism ([`rust/op-alloy`](https://github.com/ethereum-optimism/optimism/tree/develop/rust/op-alloy) in the monorepo) | [op-alloy docs](/app-developers/tools-sdks/op-alloy/intro) on this site | Developer preview (owner-declared not yet production-ready; APIs may change) |
+| [op-revm](/app-developers/tools-sdks/op-revm) | Rust crate implementing the OP Stack's EVM: a revm variant with deposit transactions, L1 and operator fee accounting, and OP-specific precompiles; the EVM inside op-reth and kona | Optimism ([`rust/op-revm`](https://github.com/ethereum-optimism/optimism/tree/develop/rust/op-revm) in the monorepo, vendored from upstream [`bluealloy/revm`](https://github.com/bluealloy/revm)) | [op-revm docs](/app-developers/tools-sdks/op-revm) on this site | Production (consumed transitively through op-reth or kona by most users) |
 
 ## Choose an SDK Surface
 
@@ -56,6 +58,12 @@ The distinction:
     protocol operations, the Actions SDK offers wallet, lend, and swap
     namespaces for building end-user apps. It is a developer preview and not
     yet ready for production use.
+
+Building in Rust rather than TypeScript? Start from
+[op-alloy](/app-developers/tools-sdks/op-alloy/intro) for OP Stack types and RPC
+surfaces and [op-revm](/app-developers/tools-sdks/op-revm) for execution, and see
+the [Stack Components index](/op-stack/components/index) for the Rust clients
+themselves (op-reth, kona-node, kona-client).
 
 ## Using wagmi With the OP Stack
 

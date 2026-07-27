@@ -20,6 +20,7 @@ use reth_node_api::PayloadBuilderError;
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_evm::{
     ConfigurePostExecEvm, OpEvmConfig, OpNextBlockEnvAttributes, PostExecExecutorExt, PostExecMode,
+    WarmingState,
 };
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_node::OpPayloadBuilderAttributes;
@@ -344,7 +345,7 @@ impl<ExtraCtx: Debug + Default> OpPayloadBuilderCtx<ExtraCtx> {
     ) -> Result<
         impl BlockBuilder<
             Primitives = reth_optimism_primitives::OpPrimitives,
-            Executor: PostExecExecutorExt
+            Executor: PostExecExecutorExt<Snapshot = WarmingState>
                           + AlloyBlockExecutor<
                 Transaction = OpTransactionSigned,
                 Receipt = OpReceipt,

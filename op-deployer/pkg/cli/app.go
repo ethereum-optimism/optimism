@@ -41,6 +41,12 @@ func NewApp(versionWithMeta string) *cli.App {
 			Action: deployer.PrepareCLI(),
 		},
 		{
+			Name:   "prestate",
+			Usage:  "commits absolute prestate hashes to state",
+			Flags:  cliapp.ProtectFlags(deployer.PrestateFlags),
+			Action: deployer.PrestateCLI(),
+		},
+		{
 			Name:   "apply",
 			Usage:  "applies a chain intent to the chain. MUST NOT be used on an intent on which `prepare` was already used",
 			Flags:  cliapp.ProtectFlags(deployer.ApplyFlags),
@@ -63,7 +69,7 @@ func NewApp(versionWithMeta string) *cli.App {
 		},
 		{
 			Name:   "verify",
-			Usage:  "verifies deployed contracts on Etherscan",
+			Usage:  "verifies deployed contracts with contract explorers",
 			Flags:  cliapp.ProtectFlags(deployer.VerifyFlags),
 			Action: verify.VerifyCLI,
 		},

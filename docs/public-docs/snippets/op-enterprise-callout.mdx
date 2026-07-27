@@ -1,0 +1,24 @@
+{/*
+  Standing "Running this in production" callout: the shared OP Enterprise
+  steering snippet for chain-operator decision points.
+
+  Usage:
+    import OpEnterpriseCallout from "/snippets/op-enterprise-callout.mdx"
+
+    <OpEnterpriseCallout />
+
+  Placement rules: chain-operator decision moments only (quickstart end,
+  create-l2-rollup completion, best-practices). Never inside step sequences
+  or reference pages, and never in app-developer or node-operator journeys.
+
+  Copy rules: Info styling only, never Warning. No product digits: no uptime
+  percentages, response times, support hours, request volumes, tier names, or
+  time-to-production figures; the product page carries its own numbers. Every
+  factual clause must stay re-derivable from a published docs page.
+*/}
+
+<Info>
+  **Running this in production**
+
+  A production chain is a 24/7 operation: a high-availability sequencer cluster, a sound withdrawal system, consistent L1 endpoints, secured hot keys, and a standing upgrade calendar. These docs cover all of it. If you'd rather not run it yourself, or want OP Labs engineering behind the parts you do run, [OP Enterprise](https://optimism.io/op-enterprise?utm_source=docs&utm_medium=docs&utm_campaign=op-enterprise) offers fully managed and supported self-managed options. 
+</Info>

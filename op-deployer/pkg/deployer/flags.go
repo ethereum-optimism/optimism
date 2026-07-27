@@ -23,6 +23,7 @@ const (
 	WorkdirFlagName           = flags.WorkdirFlagName
 	OutdirFlagName            = flags.OutdirFlagName
 	PrivateKeyFlagName        = flags.PrivateKeyFlagName
+	PrestateFlagName          = flags.PrestateFlagName
 	IntentTypeFlagName        = flags.IntentTypeFlagName
 	VerifierAPIKeyFlagName    = flags.VerifierAPIKeyFlagName
 	EtherscanAPIKeyFlagName   = flags.EtherscanAPIKeyFlagName // Deprecated: use VerifierAPIKeyFlagName
@@ -81,6 +82,11 @@ var (
 		Usage:   "Private key of the deployer account.",
 		EnvVars: PrefixEnvVar("PRIVATE_KEY"),
 	}
+	PrestateFlag = &cli.StringFlag{
+		Name:    PrestateFlagName,
+		Usage:   "Selected permissionless-game absolute prestate hash. Fails if a differing intent value is set.",
+		EnvVars: PrefixEnvVar("DISPUTE_ABSOLUTE_PRESTATE"),
+	}
 	DeploymentTargetFlag = &cli.StringFlag{
 		Name:    "deployment-target",
 		Usage:   fmt.Sprintf("Where to deploy L1 contracts. Options: %s, %s, %s, %s", DeploymentTargetLive, DeploymentTargetGenesis, DeploymentTargetCalldata, DeploymentTargetNoop),
@@ -117,19 +123,19 @@ var (
 	}
 	VerifierFlag = &cli.StringFlag{
 		Name:    VerifierTypeFlagName,
-		Usage:   "contract verifier type(s) to use. Comma-separated for multiple verifiers. Options: etherscan (default), blockscout, custom. Example: etherscan,blockscout",
+		Usage:   "contract verifier type(s) to use. Comma-separated for multiple verifiers. Options: etherscan, blockscout, custom. Defaults to etherscan and blockscout",
 		EnvVars: PrefixEnvVar("VERIFIER_TYPE"),
-		Value:   "etherscan",
+		Value:   "etherscan,blockscout",
 	}
 	VerifierUrlFlag = &cli.StringFlag{
 		Name:    VerifierUrlFlagName,
 		Usage:   "verifier URL (optional for blockscout, required for custom, ignored for etherscan)",
 		EnvVars: PrefixEnvVar("VERIFIER_URL"),
 	}
-	AutoVerifyFlag = &cli.BoolFlag{
-		Name:    "verify",
-		Usage:   "automatically verify contracts after deployment",
-		EnvVars: PrefixEnvVar("VERIFY"),
+	NoVerifyFlag = &cli.BoolFlag{
+		Name:    "no-verify",
+		Usage:   "skip automatic contract verification after deployment",
+		EnvVars: PrefixEnvVar("NO_VERIFY"),
 		Value:   false,
 	}
 	UseForgeFlag = &cli.BoolFlag{
@@ -169,11 +175,16 @@ var ApplyFlags = []cli.Flag{
 	WorkdirFlag,
 	PrivateKeyFlag,
 	DeploymentTargetFlag,
-	AutoVerifyFlag,
+	NoVerifyFlag,
 	VerifierAPIKeyFlag,
 	VerifierFlag,
 	VerifierUrlFlag,
 	UseForgeFlag,
+}
+
+var PrestateFlags = []cli.Flag{
+	WorkdirFlag,
+	PrestateFlag,
 }
 
 var VerifyFlags = []cli.Flag{

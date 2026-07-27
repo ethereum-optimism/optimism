@@ -1,0 +1,71 @@
+---
+title: op-conductor
+description: Canonical hub for op-conductor, the high-availability sequencer coordination service, covering what it does, who runs it, and where its guides, reference, releases, and source live.
+diataxis: explanation
+---
+
+op-conductor is the OP Stack's high-availability sequencer coordination
+service: it manages a cluster of sequencers so that exactly one leads the
+chain at a time and block production survives single-node failures.
+
+## Overview
+
+op-conductor runs alongside each sequencer in a multi-node cluster, typically
+three nodes spread across regions or availability zones. It participates in a
+Raft consensus layer to elect the leader and to store the latest unsafe
+block, monitors its sequencer's health, starts or stops sequencing based on
+leadership and health, and serves admin RPCs for manual recovery scenarios.
+The design provides three guarantees: no unsafe reorgs, no unsafe head stall
+during a network partition, and continued uptime with no more than one node
+failure in a standard three-node setup. For how this works in detail, see the
+[OP Conductor explainer](/chain-operators/tools/op-conductor).
+
+It exists because a single sequencer is a single point of failure: without
+coordination, a crashed sequencer halts block production, and a naive
+failover can produce two active sequencers or reorg unsafe blocks.
+op-conductor is not Byzantine fault tolerant: it assumes all participating
+nodes are honest, performs no authentication or authorization of RPC
+requests, and is intended to run inside a private network.
+
+**Who runs it:** chain operators running a high-availability sequencer setup,
+with one conductor instance per sequencer node. The rollup node's sequencer
+mode integrates with it on both op-node (`--conductor.enabled` and
+`--conductor.rpc`) and kona-node (`--conductor.rpc`). Chains running a single
+sequencer do not need it.
+
+## Get started
+
+*   [Setup](/chain-operators/tools/op-conductor/setup): add op-conductor to
+    an existing multi-sequencer OP Stack network without downtime.
+
+## How-tos
+
+*   [Launch a chain with fault proofs and HA sequencing](/use-cases/launch-a-chain-with-fault-proofs-and-ha-sequencing):
+    the whole production path in one pass, from contract deployment through
+    conductor cluster setup and failover drills.
+*   [Network architecture](/chain-operators/guides/management/network-architecture):
+    where op-conductor sits in a production topology, including its use as a
+    leader-aware RPC proxy for op-batcher.
+
+## Configuration & flags reference
+
+*   [Configuration and RPCs](/chain-operators/tools/op-conductor/reference):
+    every CLI flag and environment variable, with flag tables generated from
+    the op-conductor release named on the page, plus the `conductor`
+    namespace RPC methods for cluster management.
+
+## Releases
+
+*   [op-conductor release history](/releases/op-conductor)
+
+## Source & spec links
+
+*   [Source: `op-conductor/`](https://github.com/ethereum-optimism/optimism/tree/develop/op-conductor)
+    in the Optimism monorepo; its
+    [README](https://github.com/ethereum-optimism/optimism/blob/develop/op-conductor/README.md)
+    documents the architecture, the conductor state transitions, and
+    walkthroughs of each failure scenario.
+*   op-conductor is operational tooling and has no section of its own in the
+    OP Stack specifications; the sequencing role it coordinates is specified
+    in the
+    [rollup node specification](https://specs.optimism.io/protocol/rollup-node.html).

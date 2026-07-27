@@ -1,0 +1,62 @@
+{/*
+  Shared app-developer tutorial setup: create the Node.js demo project.
+
+  Hand-maintained; not generated. Extracted from the duplicated setup
+  sections of the app-developer tutorials (duplication census cluster S1).
+
+  Usage:
+    import TutorialSetupNodeProject from '/snippets/tutorial-setup-node-project.mdx';
+
+    ## Create a demo project
+
+    <TutorialSetupNodeProject lib="Viem" folder="bridge-eth" packages="viem" />
+
+  Props (all required):
+    lib      - library display name used in the intro prose, for example
+               "Viem", "viem", or "@eth-optimism/viem".
+    folder   - project folder name used in the mkdir and cd commands.
+    packages - space-separated package list for the pnpm add command.
+
+  Consumer pages:
+    app-developers/tutorials/bridging/cross-dom-bridge-eth.mdx
+    app-developers/tutorials/bridging/cross-dom-bridge-erc20.mdx
+    app-developers/tutorials/transactions/sdk-estimate-costs.mdx
+    app-developers/tutorials/transactions/sdk-trace-txns.mdx
+    app-developers/tutorials/transactions/send-tx-from-eth.mdx
+
+  The empty component export below declares the props so that they also
+  interpolate inside the fenced code blocks, following the fenced-code
+  variables example in the Mintlify reusable-snippets guide (its example
+  names the empty component identically to the component name the
+  destination file imports, so this one is named TutorialSetupNodeProject).
+*/}
+
+export const TutorialSetupNodeProject = ({ lib, folder, packages }) => <></>;
+
+You're going to use the {lib} library for this tutorial.
+Since {lib} is a [Node.js](https://nodejs.org/en/) library, you'll need to create a Node.js project to use it.
+
+<Steps>
+  <Step title="Make a project folder">
+
+  ```bash
+  mkdir {folder}
+  cd {folder}
+  ```
+
+  </Step>
+  <Step title="Initialize the project">
+
+  ```bash
+  pnpm init
+  ```
+
+  </Step>
+  <Step title="Install dependencies">
+
+  ```bash
+  pnpm add {packages}
+  ```
+
+  </Step>
+</Steps>

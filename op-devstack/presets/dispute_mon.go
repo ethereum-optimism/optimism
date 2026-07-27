@@ -5,6 +5,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/disputemon"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -12,6 +13,7 @@ type disputeMonOptions struct {
 	rollupRPCs    []string
 	supernodeRPCs []string
 	honestActors  []common.Address
+	clock         clock.Clock
 }
 
 type DisputeMonOption func(*disputeMonOptions)
@@ -42,12 +44,34 @@ func WithDisputeMonHonestActors(actors ...common.Address) DisputeMonOption {
 	}
 }
 
+func withDisputeMonClock(cl *clock.AdvancingClock) DisputeMonOption {
+	return func(opts *disputeMonOptions) {
+		if cl != nil {
+			opts.clock = cl
+		}
+	}
+}
+
 func (s *SingleChainInterop) StartDisputeMon() *disputemon.DisputeMon {
 	return StartDisputeMon(
 		s.T,
 		s.L1EL,
 		s.L2ChainA.DisputeGameFactoryProxyAddr(),
 		WithDisputeMonSupernodes(s.SuperRoots),
+		withDisputeMonClock(s.timeTravel),
+	)
+}
+
+func (m *Minimal) StartDisputeMon(options ...DisputeMonOption) *disputemon.DisputeMon {
+	options = append([]DisputeMonOption{
+		WithDisputeMonRollupNodes(m.L2CL),
+		withDisputeMonClock(m.timeTravel),
+	}, options...)
+	return StartDisputeMon(
+		m.T,
+		m.L1EL,
+		m.L2Chain.DisputeGameFactoryProxyAddr(),
+		options...,
 	)
 }
 
@@ -74,6 +98,7 @@ func StartDisputeMon(
 		RollupRPCs:         opts.rollupRPCs,
 		SupernodeRPCs:      opts.supernodeRPCs,
 		HonestActors:       opts.honestActors,
+		Clock:              opts.clock,
 	})
 	return disputemon.New(t, runtime.MetricsURL())
 }

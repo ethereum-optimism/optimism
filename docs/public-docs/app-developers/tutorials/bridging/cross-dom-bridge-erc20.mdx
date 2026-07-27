@@ -4,6 +4,10 @@ description: Learn how to use @eth-optimism/viem and viem packages to transfer E
 diataxis: tutorial
 ---
 
+import TutorialSetupNodeProject from '/snippets/tutorial-setup-node-project.mdx';
+import TutorialSetupWalletAndFunds, { TutorialFaucets } from '/snippets/tutorial-setup-wallet-and-funds.mdx';
+import TutorialSetupRepl from '/snippets/tutorial-setup-repl.mdx';
+
 This tutorial explains how you can use [@eth-optimism/viem](https://www.npmjs.com/package/@eth-optimism/viem) and [viem](https://viem.sh/op-stack) to bridge ERC-20 tokens between L1 (Ethereum or Sepolia) and L2 (OP Mainnet or OP Sepolia).
 The `@eth-optimism/viem` and `viem` packages are an easy way to add bridging functionality to your javascript-based application.
 They also provide some safety rails to prevent common mistakes that could cause tokens to be made inaccessible.
@@ -30,79 +34,22 @@ If you want to use a network that isn't included by default, you can add it to V
 
 ## Create a demo project
 
-You're going to use the `@eth-optimism/viem` package for this tutorial.
-Since the `@eth-optimism/viem` package is a [Node.js](https://nodejs.org/en/) library, you'll need to create a Node.js project to use it.
-
-<Steps>
-  <Step title="Make a Project Folder">
-
-  ```bash
-  mkdir bridging-erc20-tokens
-  cd bridging-erc20-tokens
-  ```
-
-  </Step>
-  <Step title="Initialize the Project">
-
-  ```bash
-  pnpm init
-  ```
-
-  </Step>
-  <Step title="Install the `@eth-optimism/viem`">
-
-  ```bash
-  pnpm add @eth-optimism/viem
-  ```
-
-  </Step>
-  <Step title="Install viem">
-
-  ```bash
-  pnpm add viem
-  ```
-  </Step>
-</Steps>
-
-<Info>
-  Want to create a new wallet for this tutorial? If you have
-  [`cast`](https://book.getfoundry.sh/getting-started/installation) installed
-  you can run `cast wallet new` in your terminal to create a new wallet and get
-  the private key.
-</Info>
+<TutorialSetupNodeProject lib="@eth-optimism/viem" folder="bridging-erc20-tokens" packages="@eth-optimism/viem viem" />
 
 ## Get ETH on Sepolia and OP Sepolia
 
 This tutorial explains how to bridge tokens from Sepolia to OP Sepolia.
 You will need to get some ETH on both of these testnets.
 
-<Info>
-  You can use [this faucet](https://sepoliafaucet.com) to get ETH on Sepolia.
-  You can use the [Superchain
-  Faucet](https://console.optimism.io/faucet?utm_source=op-docs&utm_medium=docs) to get ETH on OP
-  Sepolia.
-</Info>
+<TutorialFaucets />
 
 ## Add a private key to your environment
 
-You need a private key to sign transactions.
-Set your private key as an environment variable with the `export` command.
-Make sure this private key corresponds to an address that has ETH on both Sepolia and OP Sepolia.
-
-```bash
-export TUTORIAL_PRIVATE_KEY=0x...
-```
+<TutorialSetupWalletAndFunds networks="both Sepolia and OP Sepolia" />
 
 ## Start the Node REPL
 
-You're going to use the Node REPL to interact with the `@eth-optimism/viem`.
-To start the Node REPL, run the following command in your terminal:
-
-```bash
-node
-```
-
-This will bring up a Node REPL prompt that allows you to run javascript code.
+<TutorialSetupRepl lib="@eth-optimism/viem" />
 
 ## Import dependencies
 
