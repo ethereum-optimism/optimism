@@ -103,10 +103,10 @@ workflow drives OPCM under the hood and is the path for chains that require
 Security Council signing; other chains can call OPCM directly. `op-deployer`
 remains the tool for initial deployments, but its upgrade command is
 deprecated in favor of OPCM; see the
-[deprecation notice](/notices/op-deployer-upgrade-deprecation).
+[deprecation notice](/notices/archive/op-deployer-upgrade-deprecation).
 
 L2 predeploys are upgraded through the L2 Contract Manager (L2CM),
-introduced in [Upgrade 19](/notices/upgrade-19). At a network upgrade, the
+introduced in [Upgrade 19](/notices/archive/upgrade-19). At a network upgrade, the
 consensus layer emits a network upgrade transaction that has the L2
 `ProxyAdmin` delegatecall the `L2ContractsManager` contract, which updates
 every predeploy implementation in a single atomic transaction, replacing the

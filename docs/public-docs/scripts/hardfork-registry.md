@@ -40,7 +40,7 @@ generator needs no YAML dependency. Timestamps are unix seconds, UTC.
 | `hardfork_activation_mainnet` | unless `development` | Superchain-wide mainnet default from `superchain/configs/mainnet/superchain.toml`. `0` means genesis-active / at Bedrock (predates the superchain defaults; e.g. Regolith). |
 | `hardfork_activation_sepolia` | unless `development` | Superchain-wide sepolia default from `superchain/configs/sepolia/superchain.toml`. Same `0` convention. |
 | `hardfork_governance` | no | Governance approval URL (`gov.optimism.io` thread or `vote.optimism.io` proposal). |
-| `hardfork_notice` | no | Root-relative link to the operator notice for the upgrade (e.g. `/notices/upgrade-19`). |
+| `hardfork_notice` | no | Root-relative link to the operator notice for the upgrade (e.g. `/notices/archive/upgrade-19`). |
 | `hardfork_upgrade_number` | no | The governance "Upgrade N" number, only where a notice in this repo confirms it. |
 | `hardfork_min_versions` | no | Block list of `"<component> <version>"` strings — minimum component versions to follow the fork. |
 | `hardfork_min_versions_source` | with `hardfork_min_versions` | Markdown link citing where the versions come from (the upgrade notice or release notes). |
@@ -57,12 +57,12 @@ hardfork_lifecycle: active
 hardfork_spec: https://specs.optimism.io/protocol/karst/overview.html
 hardfork_activation_mainnet: 1783526401
 hardfork_activation_sepolia: 1781712001
-hardfork_notice: /notices/upgrade-19
+hardfork_notice: /notices/archive/upgrade-19
 hardfork_upgrade_number: 19
 hardfork_min_versions:
   - op-node v1.19.1
   - op-reth v2.3.3
-hardfork_min_versions_source: "[Upgrade 19 notice](/notices/upgrade-19)"
+hardfork_min_versions_source: "[Upgrade 19 notice](/notices/archive/upgrade-19)"
 ---
 ```
 
