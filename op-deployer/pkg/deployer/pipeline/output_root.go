@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 // ComputeGenesisOutputRoot builds the L2 genesis block from the chain's already-generated
@@ -79,7 +80,12 @@ func ComputeGenesisOutputRoot(pEnv *Env, intent *state.Intent, st *state.State, 
 		return fmt.Errorf("failed to resolve proof params for chain %s: %w", chainID.Hex(), err)
 	}
 
+	// l2SequenceNumber identifies the anchor's position in the chain's ordered sequence of
+	// states, and the two game families measure that differently. Output-root games use the L2
+	// block number, so the genesis anchor is 0. Super-root games use the timestamp of the
+	// committed super root, so the genesis anchor carries the L2 genesis time.
 	anchorRoot := outputRootHash
+	var anchorSequenceNumber hexutil.Uint64
 	if IsSuperGameType(proofParams.DisputeGameType) {
 		// A solo chain's genesis anchor must be the SuperV1 encoding of just its own output
 		superRoot := eth.NewSuperV1(header.Time, eth.ChainIDAndOutput{
@@ -87,16 +93,22 @@ func ComputeGenesisOutputRoot(pEnv *Env, intent *state.Intent, st *state.State, 
 			Output:  eth.Bytes32(outputRootHash),
 		})
 		anchorRoot = common.Hash(eth.SuperRoot(superRoot))
+		anchorSequenceNumber = hexutil.Uint64(header.Time)
 	}
 
 	thisChainState.GenesisBlockHash = &blockHash
-	// The genesis anchor is always sequence number 0
 	thisChainState.StartingAnchorRoot = &state.StartingAnchorProposal{
 		Root:             anchorRoot,
-		L2SequenceNumber: 0,
+		L2SequenceNumber: anchorSequenceNumber,
 	}
 
-	lgr.Info("computed genesis output root", "outputRoot", outputRootHash, "anchorRoot", anchorRoot, "blockHash", blockHash)
+	lgr.Info(
+		"computed genesis output root",
+		"outputRoot", outputRootHash,
+		"anchorRoot", anchorRoot,
+		"anchorSequenceNumber", uint64(anchorSequenceNumber),
+		"blockHash", blockHash,
+	)
 
 	return nil
 }

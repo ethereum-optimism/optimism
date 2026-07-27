@@ -90,7 +90,7 @@ func TestComputeGenesisOutputRoot_ComputesAndPersists(t *testing.T) {
 	require.NotNil(t, chainState.GenesisBlockHash)
 	require.NotNil(t, chainState.StartingAnchorRoot)
 	require.Zero(t, uint64(chainState.StartingAnchorRoot.L2SequenceNumber),
-		"the genesis anchor must always be sequence number 0")
+		"the genesis anchor must always be sequence number 0 for a non super root game")
 	require.NotEqual(t, common.Hash{}, chainState.StartingAnchorRoot.Root)
 	require.NotEqual(t, opcm.DefaultStartingAnchorRoot.Root, chainState.StartingAnchorRoot.Root)
 
@@ -178,5 +178,61 @@ func TestComputeGenesisOutputRoot_SuperGameTypeWrapsSuperV1Root(t *testing.T) {
 	require.Equal(t, wantAnchor, chainState.StartingAnchorRoot.Root)
 	require.NotEqual(t, common.Hash(plainV0Root), chainState.StartingAnchorRoot.Root,
 		"the persisted anchor must be the SuperV1 wrap, not the bare V0 root")
-	require.Zero(t, uint64(chainState.StartingAnchorRoot.L2SequenceNumber))
+
+	// A super-root game measures l2SequenceNumber in timestamps, not blocks, so the genesis
+	// anchor carries the L2 genesis time.
+	require.Equal(t, header.Time, uint64(chainState.StartingAnchorRoot.L2SequenceNumber),
+		"the super genesis anchor must be sequenced by the L2 genesis timestamp")
+	require.NotNil(t, chainState.GenesisTime)
+	require.Equal(t, uint64(*chainState.GenesisTime), uint64(chainState.StartingAnchorRoot.L2SequenceNumber),
+		"the anchor sequence number must be the genesis time pinned by prepare")
+}
+
+// TestComputeGenesisOutputRoot_SuperAnchorRoundTrips verifies that the persistedpair is self-consistent:
+//  rebuilding the SuperV1 encoding from the recorded sequence number alone must reproduce the recorded anchor root.
+func TestComputeGenesisOutputRoot_SuperAnchorRoundTrips(t *testing.T) {
+	pEnv, intent, st, chainID := setupChainWithGenesis(t)
+
+	chainIntent, err := intent.Chain(chainID)
+	require.NoError(t, err)
+	if chainIntent.DeployOverrides == nil {
+		chainIntent.DeployOverrides = map[string]any{}
+	}
+	chainIntent.DeployOverrides["respectedGameType"] = embedded.GameTypeSuperCannonKona
+
+	require.NoError(t, ComputeGenesisOutputRoot(pEnv, intent, st, chainID))
+
+	chainState, err := st.Chain(chainID)
+	require.NoError(t, err)
+	require.NotNil(t, chainState.StartingAnchorRoot)
+
+	anchor := chainState.StartingAnchorRoot
+	timestamp := uint64(anchor.L2SequenceNumber)
+	require.NotZero(t, timestamp, "a super anchor sequenced at 0 is unreachable by any trace")
+
+	// Recover the chain's own output root from the anchor by rebuilding the genesis block, then
+	// re-wrap it using only the recorded sequence number.
+	config, err := state.CombineDeployConfig(intent, chainIntent, st, chainState)
+	require.NoError(t, err)
+	l2Genesis, err := genesis.BuildL2Genesis(&config, chainState.Allocs.Data, chainState.StartBlock.ToBlockRef())
+	require.NoError(t, err)
+	header := l2Genesis.ToBlock().Header()
+	v0Root, err := rollup.ComputeL2OutputRootV0(eth.HeaderBlockInfo(header), *header.WithdrawalsHash)
+	require.NoError(t, err)
+
+	rebuilt := eth.NewSuperV1(timestamp, eth.ChainIDAndOutput{
+		ChainID: eth.ChainIDFromBytes32(chainID),
+		Output:  eth.Bytes32(v0Root),
+	})
+	require.Equal(t, anchor.Root, common.Hash(eth.SuperRoot(rebuilt)),
+		"the anchor root must be the SuperV1 encoding at the recorded sequence number")
+
+	// The same root at a nearby timestamp is a different hash, so a
+	// sequence number that drifts from the encoded timestamp must be caught.
+	offBySecond := eth.NewSuperV1(timestamp+1, eth.ChainIDAndOutput{
+		ChainID: eth.ChainIDFromBytes32(chainID),
+		Output:  eth.Bytes32(v0Root),
+	})
+	require.NotEqual(t, anchor.Root, common.Hash(eth.SuperRoot(offBySecond)),
+		"the SuperV1 encoding must commit to the timestamp")
 }
