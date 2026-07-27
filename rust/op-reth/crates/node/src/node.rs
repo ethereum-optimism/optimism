@@ -74,8 +74,24 @@ use url::Url;
 use reth_optimism_payload_builder::OpPayloadAttrs;
 
 /// Builds [`OpPayloadAttrs`] for local/dev-mode payload generation.
-struct OpLocalPayloadAttributesBuilder {
+///
+/// Public so that downstream nodes wrapping [`OpNode`] can implement
+/// [`DebugNode`] for their own node types. [`DebugNode`] is implemented here only
+/// for [`OpNode`] (bounded on `Types = Self`), so a wrapper node — which supplies
+/// its own [`NodeTypes`] — cannot reuse that impl and must return an attributes
+/// builder of its own. Without this being nameable, the only option is to
+/// duplicate the dev-mode attribute logic below, including the dummy
+/// `TX_SET_L1_BLOCK` system transaction.
+#[derive(Debug, Clone)]
+pub struct OpLocalPayloadAttributesBuilder {
     chain_spec: Arc<OpChainSpec>,
+}
+
+impl OpLocalPayloadAttributesBuilder {
+    /// Creates a builder that generates dev-mode payload attributes for `chain_spec`.
+    pub const fn new(chain_spec: Arc<OpChainSpec>) -> Self {
+        Self { chain_spec }
+    }
 }
 
 impl PayloadAttributesBuilder<OpPayloadAttrs> for OpLocalPayloadAttributesBuilder {
@@ -405,7 +421,7 @@ where
     fn local_payload_attributes_builder(
         chain_spec: &Self::ChainSpec,
     ) -> impl PayloadAttributesBuilder<<Self::Payload as PayloadTypes>::PayloadAttributes> {
-        OpLocalPayloadAttributesBuilder { chain_spec: Arc::new(chain_spec.clone()) }
+        OpLocalPayloadAttributesBuilder::new(Arc::new(chain_spec.clone()))
     }
 }
 
