@@ -890,7 +890,7 @@ pub struct OpAddOnsBuilder<NetworkT, RpcMiddleware = Identity> {
     operator_sdm_opt_in: Option<OperatorSdmOptIn>,
     /// Enable transaction conditionals.
     enable_tx_conditional: bool,
-    /// Retain RPC-submitted txs in the local pool even when forwarded to a sequencer.
+    /// Whether to retain forwarded transactions in the local pool.
     enable_txpool_admission: bool,
     /// Marker for network types.
     _nt: PhantomData<NetworkT>,
@@ -965,9 +965,7 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
         self
     }
 
-    /// Retain RPC-submitted txs in the local pool even when forwarded to a sequencer.
-    /// Off by default for forwarding nodes; mirrors op-geth's
-    /// `--rollup.txpool.enable-admission`.
+    /// Retains forwarded transactions in the local pool when enabled.
     pub const fn with_enable_txpool_admission(mut self, enable_txpool_admission: bool) -> Self {
         self.enable_txpool_admission = enable_txpool_admission;
         self

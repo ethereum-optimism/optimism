@@ -163,15 +163,7 @@ pub struct RollupArgs {
     #[arg(long = "rollup.enable-tx-conditional", default_value = "false")]
     pub enable_tx_conditional: bool,
 
-    /// Retain RPC-submitted transactions in the local txpool even when they are forwarded to a
-    /// configured sequencer (`--rollup.sequencer`).
-    ///
-    /// Off by default for forwarding nodes: such a node does not build blocks, so retaining
-    /// forwarded txs in its local pool produces a mempool view — and a `pending` nonce — that
-    /// need not match the sequencer's. Mirrors op-geth's `--rollup.txpool.enable-admission`.
-    ///
-    /// When no sequencer is configured this flag has no effect: RPC-submitted transactions always
-    /// enter the local pool (that is how sequencer / non-forwarding nodes work).
+    /// Retain RPC-submitted transactions in the local pool after forwarding them.
     #[arg(long = "rollup.txpool.enable-admission", default_value_t = false)]
     pub enable_txpool_admission: bool,
 
@@ -394,7 +386,6 @@ mod tests {
 
     #[test]
     fn test_parse_optimism_enable_txpool_admission() {
-        // off by default
         assert!(!RollupArgs::default().enable_txpool_admission);
 
         let expected_args = RollupArgs { enable_txpool_admission: true, ..Default::default() };

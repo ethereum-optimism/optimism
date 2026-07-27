@@ -424,8 +424,7 @@ pub struct OpEthApiInner<N: RpcNodeCore, Rpc: RpcConvert> {
     ///
     /// If set, provides receivers for pending blocks, flashblock sequences, and build status.
     flashblocks: Option<FlashblocksListeners<N::Primitives>>,
-    /// Whether RPC-submitted txs are retained in the local pool after being forwarded to a
-    /// sequencer. Off by default for forwarding nodes; consulted in `send_transaction`.
+    /// Whether to retain forwarded transactions in the local pool.
     enable_txpool_admission: bool,
 }
 
@@ -446,7 +445,7 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApiInner<N, Rpc> {
         self.sequencer_client.as_ref()
     }
 
-    /// Whether RPC-submitted txs are retained in the local pool after forwarding to a sequencer.
+    /// Returns whether forwarded transactions are retained in the local pool.
     const fn is_txpool_admission_enabled(&self) -> bool {
         self.enable_txpool_admission
     }
@@ -484,8 +483,7 @@ pub struct OpEthApiBuilder<NetworkT = Optimism> {
     /// `newPayload` and `forkchoiceUpdated` calls, advancing the canonical chain state.
     /// Requires `flashblocks_url` to be set.
     flashblock_consensus: bool,
-    /// Retain RPC-submitted txs in the local pool even when forwarded to a sequencer. Off by
-    /// default for forwarding nodes; mirrors op-geth's `--rollup.txpool.enable-admission`.
+    /// Whether to retain forwarded transactions in the local pool.
     enable_txpool_admission: bool,
     /// Marker for network types.
     _nt: PhantomData<NetworkT>,
@@ -549,9 +547,7 @@ impl<NetworkT> OpEthApiBuilder<NetworkT> {
         self
     }
 
-    /// Retain RPC-submitted txs in the local pool even when they are forwarded to a sequencer.
-    /// Off by default for forwarding nodes; mirrors op-geth's
-    /// `--rollup.txpool.enable-admission`.
+    /// Retains forwarded transactions in the local pool when enabled.
     pub const fn with_enable_txpool_admission(mut self, enable_txpool_admission: bool) -> Self {
         self.enable_txpool_admission = enable_txpool_admission;
         self
