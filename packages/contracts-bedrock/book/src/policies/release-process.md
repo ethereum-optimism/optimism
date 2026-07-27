@@ -58,8 +58,14 @@ If fixes are required by the audit results, an Additional Release Candidate is r
 
 Development features and system features have different release lifecycles:
 
-- Development features must remain disabled in production. To ship development-gated functionality, the PR that
-  removes the development feature flag must be merged into `develop` before audit. That merge is the shipping signoff.
+- Development features are shipped by enabling the flag on `develop`, not by removing it. The feature's getter is hard
+  coded to `return true`, overriding the feature flag bitmap, which is still asserted to be `0x0000` on mainnet chains.
+  The PR that enables the feature is the shipping signoff. Keeping the flag through the audit means a major audit
+  finding can be handled by toggling the feature back off rather than delaying the rest of the release; if the flag had
+  already been removed, the only escape hatch is a revert, which conflicts with nearby changes very quickly. The flag is
+  removed on `develop` once the release is fully deployed, so the cleanup ships with the next release. (`CANNON_KONA`
+  and `L2CM` were shipped this way in U19.) This mechanism is awkward and is expected to be replaced by flags with
+  proper default-on/default-off semantics that can be overridden in either direction.
 - System features are production-supported settings stored in `SystemConfig`. They may remain configurable after the
   release and do not follow the development-feature cleanup lifecycle. For a system feature, the PR that puts `develop`
   in the intended production configuration is the shipping signoff.
