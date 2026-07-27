@@ -235,7 +235,38 @@ func (u *remoteUser) sendRandomInitMessage(ctx context.Context, rng *rand.Rand, 
 	return &initMessage{Tx: tx, Receipt: receipt}, nil
 }
 
+// waitForTimestamp waits for this chain to build past the given timestamp. An executing message is
+// invalid when its block is not newer than the message it references, and op-geth filters pending
+// executing messages against the unsafe head.
+func (u *remoteUser) waitForTimestamp(ctx context.Context, timestamp uint64) error {
+	for {
+		head, err := u.chain.ethClient.InfoByLabel(ctx, eth.Unsafe)
+		if err != nil {
+			return fmt.Errorf("failed to get unsafe head of %s: %w", u.chain.name, err)
+		}
+		if head.Time() > timestamp {
+			return nil
+		}
+		select {
+		case <-time.After(250 * time.Millisecond):
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
 func (u *remoteUser) sendExecMessage(ctx context.Context, initMsg *initMessage) (*execMessage, error) {
+	result, err := initMsg.Tx.Result.Eval(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(result.Entries) == 0 {
+		return nil, fmt.Errorf("init tx produced no interop entries")
+	}
+	if err := u.waitForTimestamp(ctx, result.Entries[0].Identifier.Timestamp); err != nil {
+		return nil, err
+	}
+
 	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](u.plan())
 	tx.Content.DependOn(&initMsg.Tx.Result)
 	tx.Content.Fn(txintent.ExecuteIndexed(predeploys.CrossL2InboxAddr, &initMsg.Tx.Result, 0))
@@ -261,6 +292,9 @@ func (u *remoteUser) sendInvalidExecMessage(ctx context.Context, initMsg *initMe
 
 	msg := result.Entries[0]
 	msg.Identifier.LogIndex++
+	if err := u.waitForTimestamp(ctx, msg.Identifier.Timestamp); err != nil {
+		return nil, err
+	}
 
 	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](u.plan())
 	tx.Content.DependOn(&initMsg.Tx.Result)

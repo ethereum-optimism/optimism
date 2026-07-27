@@ -14,6 +14,7 @@ import (
 	e2eBindings "github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/plan"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
@@ -322,11 +323,31 @@ func WithExpectRevert() ExecMessageOpt {
 	}
 }
 
+// WaitForInitMessages waits for this EOA's chain to reach the timestamp of the given initiating
+// messages. An executing message is invalid when its block is older than the message it
+// references, which happens whenever the destination chain lags the source chain.
+func (u *EOA) WaitForInitMessages(result *plan.Lazy[*txintent.InteropOutput]) {
+	out, err := result.Eval(u.ctx)
+	u.t.Require().NoError(err, "failed to evaluate init result")
+	u.waitForMessages(out.Entries)
+}
+
+func (u *EOA) waitForMessages(msgs []messages.Message) {
+	var timestamp uint64
+	for _, msg := range msgs {
+		timestamp = max(timestamp, msg.Identifier.Timestamp)
+	}
+	// Strictly newer: op-geth filters executing messages against the unsafe head timestamp rather
+	// than the pending block. See https://github.com/ethereum-optimism/op-geth/issues/603.
+	u.el.WaitForTime(timestamp + 1)
+}
+
 func (u *EOA) SendExecMessage(initMsg *InitMessage, opts ...ExecMessageOpt) *ExecMessage {
 	var cfg execMessageConfig
 	for _, o := range opts {
 		o(&cfg)
 	}
+	u.WaitForInitMessages(&initMsg.Tx.Result)
 	planOpts := append([]txplan.Option{u.Plan()}, cfg.txOpts...)
 	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](txplan.Combine(planOpts...))
 	tx.Content.DependOn(&initMsg.Tx.Result)
@@ -352,6 +373,7 @@ func (u *EOA) SendExecMessage(initMsg *InitMessage, opts ...ExecMessageOpt) *Exe
 // transaction bytes and tx hash. The raw bytes are suitable for injection via
 // TestSequencer.SequenceBlockWithTxs, bypassing mempool filtering.
 func (u *EOA) PrepareExecTx(initMsg *InitMessage) (rawTx []byte, txHash common.Hash) {
+	u.WaitForInitMessages(&initMsg.Tx.Result)
 	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](u.Plan())
 	tx.Content.DependOn(&initMsg.Tx.Result)
 	tx.Content.Fn(txintent.ExecuteIndexed(predeploys.CrossL2InboxAddr, &initMsg.Tx.Result, 0))
@@ -372,6 +394,7 @@ func (u *EOA) SendInvalidExecMessage(initMsg *InitMessage) *ExecMessage {
 	// Get the message and modify it to be invalid by incrementing the log index
 	msg := result.Entries[0]
 	msg.Identifier.LogIndex++
+	u.waitForMessages([]messages.Message{msg})
 
 	// Create the exec trigger with the invalid message
 	execTrigger := &txintent.ExecTrigger{
@@ -426,6 +449,7 @@ func (u *EOA) SendPackedExecMessages(dependOn *txintent.IntentTx[*txintent.Multi
 	for idx := range len(result.Entries) {
 		indexes = append(indexes, idx)
 	}
+	u.waitForMessages(result.Entries)
 	tx.Content.Fn(txintent.ExecuteIndexeds(predeploys.MultiCall3Addr, predeploys.CrossL2InboxAddr, &dependOn.Result, indexes))
 	receipt, err := tx.PlannedTx.Included.Eval(u.ctx)
 	if err != nil {

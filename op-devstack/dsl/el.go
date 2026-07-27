@@ -10,6 +10,7 @@ import (
 
 type ELNode interface {
 	ChainID() eth.ChainID
+	WaitForTime(timestamp uint64) eth.BlockRef
 	stackEL() stack.ELNode
 }
 

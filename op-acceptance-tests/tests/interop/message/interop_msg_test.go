@@ -283,6 +283,7 @@ func TestInitExecMultipleMsg(gt *testing.T) {
 	// Two events in tx so use every index
 	indexes := []int{0, 1}
 	txB.Content.Fn(txintent.ExecuteIndexeds(predeploys.MultiCall3Addr, predeploys.CrossL2InboxAddr, &txA.Result, indexes))
+	bob.WaitForInitMessages(&txA.Result)
 
 	receiptB, err := txB.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(err)
@@ -325,6 +326,7 @@ func TestExecSameMsgTwice(gt *testing.T) {
 	// Single event in tx so indexes are 0, 0
 	indexes := []int{0, 0}
 	txB.Content.Fn(txintent.ExecuteIndexeds(predeploys.MultiCall3Addr, predeploys.CrossL2InboxAddr, &txA.Result, indexes))
+	bob.WaitForInitMessages(&txA.Result)
 
 	receiptB, err := txB.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(err)
@@ -377,6 +379,7 @@ func TestExecDifferentTopicCount(gt *testing.T) {
 	// Five events in tx so use every index
 	indexes := []int{0, 1, 2, 3, 4}
 	txB.Content.Fn(txintent.ExecuteIndexeds(predeploys.MultiCall3Addr, predeploys.CrossL2InboxAddr, &txA.Result, indexes))
+	bob.WaitForInitMessages(&txA.Result)
 
 	receiptB, err := txB.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(err)
@@ -427,6 +430,7 @@ func TestExecMsgOpaqueData(gt *testing.T) {
 	// Two events in tx so use every index
 	indexes := []int{0, 1}
 	txB.Content.Fn(txintent.ExecuteIndexeds(predeploys.MultiCall3Addr, predeploys.CrossL2InboxAddr, &txA.Result, indexes))
+	bob.WaitForInitMessages(&txA.Result)
 
 	receiptB, err := txB.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(err)
@@ -475,6 +479,7 @@ func TestExecMsgDifferEventIndexInSingleTx(gt *testing.T) {
 	// first, random or last event of a tx.
 	indexes := []int{0, 1 + rng.Intn(eventCnt-1), eventCnt - 1}
 	txB.Content.Fn(txintent.ExecuteIndexeds(predeploys.MultiCall3Addr, predeploys.CrossL2InboxAddr, &txA.Result, indexes))
+	bob.WaitForInitMessages(&txA.Result)
 
 	receiptB, err := txB.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(err)
@@ -631,6 +636,7 @@ func TestExecMessageInvalidAttributes(gt *testing.T) {
 	// Three events in tx so use every index
 	indexes := []int{0, 1, 2}
 	txB.Content.Fn(txintent.ExecuteIndexeds(predeploys.MultiCall3Addr, predeploys.CrossL2InboxAddr, &txA.Result, indexes))
+	bob.WaitForInitMessages(&txA.Result)
 
 	receiptB, err := txB.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(err)
