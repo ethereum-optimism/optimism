@@ -1103,6 +1103,9 @@ func (m *algoMockChain) OptimisticAt(ctx context.Context, ts uint64) (eth.BlockI
 	}
 	return m.optimisticL2, m.optimisticL1, nil
 }
+func (m *algoMockChain) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
+	return eth.L2BlockRef{}, nil
+}
 func (m *algoMockChain) OutputRootAtL2BlockHash(ctx context.Context, blockHash common.Hash) (eth.Bytes32, error) {
 	return eth.Bytes32{}, nil
 }

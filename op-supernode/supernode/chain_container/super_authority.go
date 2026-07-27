@@ -128,4 +128,11 @@ func (c *simpleChainContainer) OutputV0AtBlockNumber(ctx context.Context, l2Bloc
 	return c.engine.OutputV0AtBlockNumber(ctx, l2BlockNum)
 }
 
+func (c *simpleChainContainer) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
+	if c.engine == nil {
+		return eth.L2BlockRef{}, engine_controller.ErrNoEngineClient
+	}
+	return c.engine.L2BlockRefByNumber(ctx, num)
+}
+
 var _ rollup.SuperAuthority = (*simpleChainContainer)(nil)

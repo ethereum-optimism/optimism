@@ -73,6 +73,9 @@ func (m *mockCC) OptimisticAt(ctx context.Context, ts uint64) (eth.BlockID, eth.
 	}
 	return m.optL2, m.optL1, nil
 }
+func (m *mockCC) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
+	return eth.L2BlockRef{}, nil
+}
 func (m *mockCC) OutputRootAtL2BlockHash(ctx context.Context, blockHash common.Hash) (eth.Bytes32, error) {
 	m.byHashCalled++
 	if m.byHashErr != nil {

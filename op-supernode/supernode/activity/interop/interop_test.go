@@ -1590,12 +1590,10 @@ func TestInterop_ProgressAndRecord_L1InconsistencyTriggersRewind(t *testing.T) {
 	require.Empty(t, mock.rewindEngineCalls, "L1 drift rewinds accepted Supernode state only")
 }
 
-// TestInterop_ProgressAndRecord_L2FrontierReorgTriggersRewind advances twice
-// through progressAndRecord, then makes the last verified L2 head non-canonical
-// (its number now resolves to a different hash, as when the EL is driven off the
-// safe chain by non-safe-descendant gossip). observeRound must detect the stale
-// frontier and drive a rewind of accepted state — verifiedDB trimmed, WAL
-// cleared, engines untouched — instead of advancing into an impossible append.
+// TestInterop_ProgressAndRecord_L2FrontierReorgTriggersRewind advances twice,
+// then makes the last verified L2 head resolve to a different hash (a safe-head
+// reorg under the frontier). observeRound must rewind accepted state — verifiedDB
+// trimmed, WAL cleared, engines untouched — not advance into an impossible append.
 func TestInterop_ProgressAndRecord_L2FrontierReorgTriggersRewind(t *testing.T) {
 	h := newInteropTestHarness(t). // newInteropTestHarness calls t.Parallel()
 					WithActivation(100).
@@ -1621,12 +1619,11 @@ func TestInterop_ProgressAndRecord_L2FrontierReorgTriggersRewind(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, uint64(102), lastTS)
 
-	// The last verified head at block N was sealed with hash BigToHash(N) (what
-	// OptimisticAt reports). Make the canonical block at that number resolve to a
-	// different hash, simulating the safe head being reorged out from under the
-	// accepted frontier. observeRound must now choose DecisionRewind.
-	mock.outputV0Override = func(_ context.Context, num uint64) (*eth.OutputV0, error) {
-		return &eth.OutputV0{BlockHash: common.HexToHash("0xreorg")}, nil
+	// Verified heads are sealed with hash BigToHash(N) (what OptimisticAt reports).
+	// Make the canonical block at that number resolve to a different hash so the
+	// frontier is non-canonical; observeRound must now choose DecisionRewind.
+	mock.l2BlockRefByNumberOverride = func(_ context.Context, num uint64) (eth.L2BlockRef, error) {
+		return eth.L2BlockRef{Number: num, Hash: common.HexToHash("0xreorg")}, nil
 	}
 
 	made, err := h.interop.progressAndRecord()
@@ -1828,7 +1825,8 @@ type mockChainContainer struct {
 	resumeErr           error
 	callLog             *callLog // shared ordered call log across mocks
 
-	outputV0Override func(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error)
+	outputV0Override           func(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error)
+	l2BlockRefByNumberOverride func(ctx context.Context, num uint64) (eth.L2BlockRef, error)
 
 	// timestampToBlockNumberOverride lets tests decouple TimestampToBlockNumber
 	// from the default ts==blockNum identity. Used by
@@ -2130,6 +2128,12 @@ func (m *mockChainContainer) OutputV0AtBlockNumber(ctx context.Context, l2BlockN
 		MessagePasserStorageRoot: eth.Bytes32(common.HexToHash("0xmockmsg")),
 		BlockHash:                common.BigToHash(new(big.Int).SetUint64(l2BlockNum)),
 	}, nil
+}
+func (m *mockChainContainer) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
+	if m.l2BlockRefByNumberOverride != nil {
+		return m.l2BlockRefByNumberOverride(ctx, num)
+	}
+	return eth.L2BlockRef{Number: num, Hash: common.BigToHash(new(big.Int).SetUint64(num))}, nil
 }
 func (m *mockChainContainer) GetDeniedOutput(height uint64, payloadHash common.Hash) (*eth.OutputV0, error) {
 	return nil, nil

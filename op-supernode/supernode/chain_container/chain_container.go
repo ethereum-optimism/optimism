@@ -81,6 +81,10 @@ type ChainContainer interface {
 	FirstSafeHeadTimestamp(ctx context.Context) (uint64, error)
 	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
 	OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
+	// L2BlockRefByNumber returns the canonical L2 block reference at the given
+	// number. Lightweight (no output-root or state-proof computation); returns
+	// ethereum.NotFound if the EL has no canonical block at that number.
+	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
 	// OutputRootAtL2BlockHash returns the L2 output root for the canonical
 	// block at the given hash. Post-Isthmus the root is derived from the
 	// header alone; pre-Isthmus it falls back to eth_getProof on state at
