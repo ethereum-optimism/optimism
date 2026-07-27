@@ -150,7 +150,19 @@ func (n *OpReth) Start() {
 		})
 		n.userRPC = "ws://" + n.userProxy.Addr()
 	}
-	logOut := logpipe.ToLoggerWithMinLevel(n.p.Logger().New("component", "op-reth", "src", "stdout", "name", n.name, "chain", n.chainID), log.LevelInfo)
+	stdoutLogger := n.p.Logger().New("component", "op-reth", "src", "stdout", "name", n.name, "chain", n.chainID)
+	stdoutInfo := logpipe.ToLoggerWithMinLevel(stdoutLogger, log.LevelInfo)
+	stdoutAll := logpipe.ToLogger(stdoutLogger)
+	// Peer-disconnect reasons are logged below INFO under net::session / net::peers;
+	// let those targets bypass the level filter so peer drops are diagnosable.
+	logOut := func(e logpipe.LogEntry) {
+		if r, ok := e.(logpipe.StructuredRustLogEntry); ok &&
+			(strings.HasPrefix(r.Target, "net::session") || strings.HasPrefix(r.Target, "net::peers")) {
+			stdoutAll(e)
+			return
+		}
+		stdoutInfo(e)
+	}
 	logErr := logpipe.ToLoggerWithMinLevel(n.p.Logger().New("component", "op-reth", "src", "stderr", "name", n.name, "chain", n.chainID), log.LevelWarn)
 
 	authRPCChan := make(chan string, 1)

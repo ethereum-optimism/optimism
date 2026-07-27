@@ -19,7 +19,11 @@ type RpcCaller interface {
 }
 
 // ConnectP2P creates a p2p peer connection between node1 and node2.
-func ConnectP2P(ctx context.Context, require *testreq.Assertions, initiator RpcCaller, acceptor RpcCaller, trusted bool) {
+// The peering is registered as trusted on both nodes: with discovery disabled,
+// an untrusted one-sided peering is unrecoverable once a session drops (the
+// inbound side has no dialable address to re-dial), whereas trusted peers are
+// never evicted and are re-dialed indefinitely.
+func ConnectP2P(ctx context.Context, require *testreq.Assertions, initiator RpcCaller, acceptor RpcCaller) {
 	var targetInfo p2p.NodeInfo
 	require.NoError(acceptor.CallContext(ctx, &targetInfo, "admin_nodeInfo"), "get node info")
 	targetNode, err := enode.ParseV4(targetInfo.Enode)
@@ -29,15 +33,17 @@ func ConnectP2P(ctx context.Context, require *testreq.Assertions, initiator RpcC
 	var initiatorInfo p2p.NodeInfo
 	require.NoError(initiator.CallContext(ctx, &initiatorInfo, "admin_nodeInfo"), "get initiator node info")
 
+	addTrustedPeer := func(node RpcCaller, enodeURL string, side string) {
+		var added bool
+		require.NoError(node.CallContext(ctx, &added, "admin_addTrustedPeer", enodeURL), "add trusted peer on "+side)
+		require.True(added, "should have added trusted peer on "+side)
+	}
+	addTrustedPeer(initiator, targetInfo.Enode, "initiator")
+	addTrustedPeer(acceptor, initiatorInfo.Enode, "acceptor")
+
 	var peerAdded bool
 	require.NoError(initiator.CallContext(ctx, &peerAdded, "admin_addPeer", targetInfo.Enode), "add peer")
 	require.True(peerAdded, "should have added peer successfully")
-
-	if trusted {
-		var peerAddedTrusted bool
-		require.NoError(initiator.CallContext(ctx, &peerAddedTrusted, "admin_addTrustedPeer", targetInfo.Enode), "add trusted peer")
-		require.True(peerAddedTrusted, "should have added trusted peer successfully")
-	}
 
 	// Skip P2P connection verification if SKIP_P2P_CONNECTION_CHECK is set
 	// FIXME(#18570): it seems we have some issues getting op-reth to connect to op-geth. This is a temporary workaround to ensure we can still run the
@@ -69,8 +75,20 @@ func DisconnectP2P(ctx context.Context, require *testreq.Assertions, initiator R
 	require.NoError(err, "failed to parse target node")
 	expectedID := targetNode.ID().String()
 
+	var initiatorInfo p2p.NodeInfo
+	require.NoError(initiator.CallContext(ctx, &initiatorInfo, "admin_nodeInfo"), "get initiator node info")
+
+	// Drop the trusted status set up by ConnectP2P first, or the nodes keep re-dialing each other.
+	removeTrustedPeer := func(node RpcCaller, enodeURL string, side string) {
+		var removed bool
+		require.NoError(node.CallContext(ctx, &removed, "admin_removeTrustedPeer", enodeURL), "remove trusted peer on "+side)
+		require.True(removed, "should have removed trusted peer on "+side)
+	}
+	removeTrustedPeer(initiator, targetInfo.Enode, "initiator")
+	removeTrustedPeer(acceptor, initiatorInfo.Enode, "acceptor")
+
 	var peerRemoved bool
-	require.NoError(initiator.CallContext(ctx, &peerRemoved, "admin_removePeer", targetInfo.ENR), "add peer")
+	require.NoError(initiator.CallContext(ctx, &peerRemoved, "admin_removePeer", targetInfo.ENR), "remove peer")
 	require.True(peerRemoved, "should have removed peer successfully")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

@@ -13,13 +13,14 @@ type rawRustJSONLog struct {
 	//"timestamp" ignored
 	Level  string         `json:"level"`
 	Fields map[string]any `json:"fields"`
-	//"target" ignored"
+	Target string         `json:"target"`
 }
 
 type StructuredRustLogEntry struct {
 	Message string
 	Level   slog.Level
 	Fields  map[string]any
+	Target  string
 }
 
 func ParseRustStructuredLogs(line []byte) LogEntry {
@@ -44,6 +45,7 @@ func ParseRustStructuredLogs(line []byte) LogEntry {
 		Message: msg,
 		Level:   lvl,
 		Fields:  e.Fields,
+		Target:  e.Target,
 	}
 }
 
@@ -56,7 +58,10 @@ func (e StructuredRustLogEntry) LogMessage() string {
 }
 
 func (e StructuredRustLogEntry) LogFields() []any {
-	attrs := make([]any, 0, len(e.Fields))
+	attrs := make([]any, 0, len(e.Fields)+1)
+	if e.Target != "" {
+		attrs = append(attrs, slog.String("target", e.Target))
+	}
 	for k, v := range e.Fields {
 		if x, ok := v.(json.Number); ok {
 			v = x.String()
