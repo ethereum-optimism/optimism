@@ -30,6 +30,7 @@ func TestSystemConfigBatchType(t *testing.T) {
 		f    func(gt *testing.T, deltaTimeOffset *hexutil.Uint64)
 	}{
 		{"BatcherKeyRotation", BatcherKeyRotation},
+		{"GPODefaultParams", GPODefaultParams},
 		{"GasLimitChange", GasLimitChange},
 	}
 	for _, test := range tests {
@@ -222,6 +223,66 @@ func BatcherKeyRotation(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	verifier.ActL2PipelineFull(t)
 	require.Equal(t, uint64(3+6+1), verifier.L2Safe().L1Origin.Number, "sync new L1 chain, while key change is reorged out")
 	require.Equal(t, sequencer.L2Unsafe(), verifier.L2Unsafe(), "verifier synced")
+}
+
+// GPODefaultParams tests that the pre-Ecotone L1 data fee charged to an L2 transaction is
+// computed from the genesis gas config: op-node derives the fee parameters, the sequencer
+// applies them through the L1 attributes transaction, and they surface on the receipt.
+//
+// This previously also changed the parameters mid-chain via SystemConfig.setGasConfig and
+// re-checked the fees. That half went away with setGasConfig itself in SystemConfig 4.0.0;
+// parsing of version-0 FEE_SCALARS updates is covered by the GasConfig case in
+// op-node/rollup/derive/system_config_test.go.
+func GPODefaultParams(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
+	t := actionsHelpers.NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, actionsHelpers.DefaultRollupTestParams())
+	upgradesHelpers.ApplyDeltaTimeOffset(dp, deltaTimeOffset)
+
+	// activating Delta only, not Ecotone and further:
+	// the GPO change assertions here all apply only for the Delta transition.
+	// Separate tests cover Ecotone GPO changes.
+	dp.DeployConfig.L2GenesisEcotoneTimeOffset = nil
+	dp.DeployConfig.L2GenesisFjordTimeOffset = nil
+	dp.DeployConfig.L2GenesisGraniteTimeOffset = nil
+	dp.DeployConfig.L2GenesisHoloceneTimeOffset = nil
+
+	sd := e2eutils.Setup(t, dp, actionsHelpers.DefaultAlloc)
+	log := testlog.Logger(t, log.LevelDebug)
+	miner, seqEngine, sequencer := actionsHelpers.SetupSequencerTest(t, sd, log)
+	alice := actionsHelpers.NewBasicUser[any](log, dp.Secrets.Alice, rand.New(rand.NewSource(1234)))
+	alice.SetUserEnv(&actionsHelpers.BasicUserEnv[any]{
+		EthCl:  seqEngine.EthClient(),
+		Signer: types.LatestSigner(sd.L2Cfg.Config),
+	})
+
+	sequencer.ActL2PipelineFull(t)
+
+	// new L1 block, with new L2 chain
+	miner.ActEmptyBlock(t)
+	sequencer.ActL1HeadSignal(t)
+	sequencer.ActBuildToL1Head(t)
+	basefee := miner.L1Chain().CurrentBlock().BaseFee
+
+	// alice makes a L2 tx, sequencer includes it
+	alice.ActResetTxOpts(t)
+	alice.ActMakeTx(t)
+	sequencer.ActL2StartBlock(t)
+	seqEngine.ActL2IncludeTx(dp.Addresses.Alice)(t)
+	sequencer.ActL2EndBlock(t)
+
+	receipt := alice.LastTxReceipt(t)
+	require.Equal(t, basefee, receipt.L1GasPrice, "L1 gas price matches basefee of L1 origin")
+	require.NotZero(t, receipt.L1GasUsed, "L2 tx uses L1 data")
+	require.Equal(t,
+		new(big.Float).Mul(
+			new(big.Float).SetInt(basefee),
+			new(big.Float).Mul(new(big.Float).SetInt(receipt.L1GasUsed), receipt.FeeScalar),
+		),
+		new(big.Float).SetInt(receipt.L1Fee), "fee field in receipt matches gas used times scalar times basefee")
+	// receipt.L1GasUsed includes the overhead already, so subtract that before passing it into the L1 cost func
+	l1Cost := types.L1Cost(bigs.Uint64Strict(receipt.L1GasUsed)-2100, basefee, big.NewInt(2100), big.NewInt(1000_000))
+	require.Equal(t, l1Cost, receipt.L1Fee, "L1 fee is computed with standard GPO params")
+	require.Equal(t, "1", receipt.FeeScalar.String(), "1000_000 divided by 6 decimals = float(1)")
 }
 
 // GasLimitChange tests that the gas limit can be configured to L1,
