@@ -22,6 +22,14 @@ func (e *EngineController) onBuildStart(ctx context.Context, ev BuildStartEvent)
 	rpcCtx, cancel := context.WithTimeout(e.ctx, buildStartTimeout)
 	defer cancel()
 
+	if !ev.Attributes.IsDerived() && ev.Attributes.Parent.ID() != e.unsafeHead.ID() {
+		e.log.Warn("dropping stale sequencer build start",
+			"attributes_parent", ev.Attributes.Parent, "unsafe", e.unsafeHead)
+		// Re-emit the forkchoice so the sequencer drops the stale build job and restarts on the current unsafe head.
+		e.requestForkchoiceUpdate(ctx)
+		return
+	}
+
 	if ev.Attributes.DerivedFrom != (eth.L1BlockRef{}) &&
 		e.pendingSafeHead.Hash != ev.Attributes.Parent.Hash {
 		// Warn about small reorgs, happens when pending safe head is getting rolled back
