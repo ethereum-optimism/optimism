@@ -639,6 +639,13 @@ commands:
         description: "Whether to save the cache at the end of the build"
         type: boolean
         default: false
+      fetch_workspace:
+        description: >
+          Run `cargo fetch` for the whole workspace before the (possibly
+          package-scoped) build so the shared rust-deps cache this job saves is
+          complete rather than partial.
+        type: boolean
+        default: false
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -664,7 +671,11 @@ commands:
 
             export PACKAGE="--workspace"
             if [ -n "<< parameters.package >>" ]; then
-              export PACKAGE="--package << parameters.package >>"
+              # Space-separated package list -> repeated --package flags.
+              export PACKAGE=""
+              for pkg in << parameters.package >>; do
+                export PACKAGE="$PACKAGE --package $pkg"
+              done
             fi
 
             export BINARY=""
@@ -677,7 +688,14 @@ commands:
               export FEATURES="--all-features"
             fi
 
-            cd << parameters.directory >> && cargo build $PROFILE $TARGET $PACKAGE $FEATURES $BINARY
+            cd << parameters.directory >>
+            if [ "<< parameters.fetch_workspace >>" = "true" ]; then
+              # Populate the complete workspace crate registry so the shared
+              # rust-deps cache this job saves is not partial (a package-scoped
+              # build alone would omit crates other workspace members need).
+              cargo fetch --locked
+            fi
+            cargo build $PROFILE $TARGET $PACKAGE $FEATURES $BINARY
           no_output_timeout: 30m
       - when:
           condition: << parameters.save_cache >>
@@ -802,6 +820,41 @@ jobs:
           root: .
           paths:
             - ".circleci-cache/rust-binaries/kona-sp1-super-range-executor"
+
+  # Split of the former single whole-workspace rust binaries build: kona binaries and
+  # op-reth compile in parallel jobs, so the critical path is the slower of the
+  # two rather than their sum, and neither job compiles the other's dep tree.
+  rust-kona-binaries:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: xlarge.gen2
+    steps:
+      - rust-build:
+          directory: rust
+          profile: release
+          package: "kona-host kona-client kona-node"
+          save_cache: true
+          fetch_workspace: true
+      - persist_to_workspace:
+          root: "."
+          paths:
+            - "rust/target/release/kona-*"
+
+  rust-op-reth-binary:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: xlarge.gen2
+    steps:
+      - rust-build:
+          directory: rust
+          profile: release
+          package: op-reth
+          binary: op-reth
+          save_cache: false
+      - persist_to_workspace:
+          root: "."
+          paths:
+            - "rust/target/release/op-reth"
 
   # Build a single Rust binary from a vendored (non-submodule) directory.
   rust-build-vendored:
@@ -2553,7 +2606,8 @@ workflows:
             - go-binaries-for-sysgo
             - prep-superchain
             - prep-go-modules
-            - rust-workspace-binaries
+            - rust-kona-binaries
+            - rust-op-reth-binary
           context:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-repo-rpc-secrets
@@ -2576,7 +2630,8 @@ workflows:
             - go-binaries-for-sysgo
             - prep-superchain
             - prep-go-modules
-            - rust-workspace-binaries
+            - rust-kona-binaries
+            - rust-op-reth-binary
           context:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-repo-rpc-secrets
@@ -2616,12 +2671,11 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
       # Acceptance test jobs (formerly in separate acceptance-tests workflow)
-      - rust-build-binary:
-          name: rust-workspace-binaries
-          directory: rust
-          profile: "release"
-          save_cache: true
-          persist_to_workspace: true
+      - rust-kona-binaries:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
+      - rust-op-reth-binary:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
@@ -2666,7 +2720,8 @@ workflows:
       # via each crate's `make lint`.
       - rust-binaries-for-sysgo:
           requires:
-            - rust-workspace-binaries
+            - rust-kona-binaries
+            - rust-op-reth-binary
             - rust-sp1-super-range-executor
             - rust-build-op-rbuilder
             - rust-build-rollup-boost
@@ -2865,12 +2920,11 @@ workflows:
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
-      - rust-build-binary:
-          name: rust-workspace-binaries
-          directory: rust
-          profile: "release"
-          save_cache: true
-          persist_to_workspace: true
+      - rust-kona-binaries:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
+      - rust-op-reth-binary:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
@@ -2888,7 +2942,8 @@ workflows:
           requires:
             - contracts-bedrock-build
             - cannon-prestate
-            - rust-workspace-binaries
+            - rust-kona-binaries
+            - rust-op-reth-binary
             - prep-go-modules
 
   develop-kontrol-tests:
