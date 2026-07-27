@@ -677,7 +677,16 @@ commands:
               export FEATURES="--all-features"
             fi
 
-            cd << parameters.directory >> && cargo build $PROFILE $TARGET $PACKAGE $FEATURES $BINARY
+            # Use the mold linker (preinstalled in ci-base-clang) to cut final link
+            # time. `mold -run` intercepts the linker at exec time, so it needs no
+            # RUSTFLAGS change and does not perturb the sccache compile-cache key.
+            # Falls back to the default linker if mold is unavailable.
+            cd << parameters.directory >>
+            if command -v mold >/dev/null 2>&1; then
+              mold -run cargo build $PROFILE $TARGET $PACKAGE $FEATURES $BINARY
+            else
+              cargo build $PROFILE $TARGET $PACKAGE $FEATURES $BINARY
+            fi
           no_output_timeout: 30m
       - when:
           condition: << parameters.save_cache >>
