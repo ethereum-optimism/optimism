@@ -25,6 +25,7 @@ func (e *EngineController) onBuildStart(ctx context.Context, ev BuildStartEvent)
 	if !ev.Attributes.IsDerived() && ev.Attributes.Parent.ID() != e.unsafeHead.ID() {
 		e.log.Warn("dropping stale sequencer build start",
 			"attributes_parent", ev.Attributes.Parent, "unsafe", e.unsafeHead)
+		// Re-emit the forkchoice so the sequencer drops the stale build job and restarts on the current unsafe head.
 		e.requestForkchoiceUpdate(ctx)
 		return
 	}
