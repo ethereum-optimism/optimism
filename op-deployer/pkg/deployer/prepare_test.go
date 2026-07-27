@@ -1268,8 +1268,8 @@ func TestGenerateGenesisForChains_UsesPredictedAddressesAndPinnedGenesisTime(t *
 	require.NoError(t, err)
 	require.Equal(t, common.Hash(wantOutputRoot), chainState.StartingAnchorRoot.Root)
 
-	// Re-running the output-root computation is also idempotent.
-	anchorBefore := chainState.StartingAnchorRoot
+	// Re-running the output-root computation is deterministic. The anchor is recomputed.
+	anchorBefore := *chainState.StartingAnchorRoot
 	require.NoError(t, computeGenesisOutputRootsForChains(genesisEnv, intent, st))
-	require.Same(t, anchorBefore, chainStateAfter.StartingAnchorRoot)
+	require.Equal(t, anchorBefore, *chainStateAfter.StartingAnchorRoot)
 }

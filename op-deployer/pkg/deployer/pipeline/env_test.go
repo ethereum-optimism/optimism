@@ -97,7 +97,7 @@ func TestRenderGenesisAndRollup_AcceptsMatchingGenesisBlockHash(t *testing.T) {
 	pEnv, intent, st, chainID := setupChainWithGenesis(t)
 	st.Prepared = true
 
-	require.NoError(t, ComputeGenesisOutputRoot(pEnv, intent, st, chainID))
+	require.NoError(t, ComputeGenesisOutputRoots(pEnv, intent, st))
 
 	chainState, err := st.Chain(chainID)
 	require.NoError(t, err)
@@ -115,7 +115,7 @@ func TestRenderGenesisAndRollup_RejectsGenesisBlockHashMismatch(t *testing.T) {
 	pEnv, intent, st, chainID := setupChainWithGenesis(t)
 	st.Prepared = true
 
-	require.NoError(t, ComputeGenesisOutputRoot(pEnv, intent, st, chainID))
+	require.NoError(t, ComputeGenesisOutputRoots(pEnv, intent, st))
 
 	chainState, err := st.Chain(chainID)
 	require.NoError(t, err)

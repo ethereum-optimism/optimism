@@ -245,6 +245,45 @@ func IsSuperGameType(gameType uint32) bool {
 	return embedded.GameType(gameType) == embedded.GameTypeSuperCannonKona
 }
 
+// DeploymentUsesSuperRoots reports whether this deployment's initial games are super-root games.
+// Every chain in one intent resolves to the same family, so a mixed intent is therefore always a
+// configuration error. Already-deployed chains are ignored, since their games are fixed on L1.
+func DeploymentUsesSuperRoots(intent *state.Intent, st *state.State) (bool, error) {
+	var (
+		decided bool
+		super   bool
+		firstID common.Hash
+	)
+	for _, chain := range intent.Chains {
+		if st.IsChainDeployed(chain.ID) {
+			continue
+		}
+		proofParams, err := ResolveChainProofParams(intent, chain)
+		if err != nil {
+			return false, fmt.Errorf("failed to resolve proof params for chain %s: %w", chain.ID.Hex(), err)
+		}
+		chainUsesSuper := IsSuperGameType(proofParams.DisputeGameType)
+		if !decided {
+			decided, super, firstID = true, chainUsesSuper, chain.ID
+			continue
+		}
+		if chainUsesSuper != super {
+			return false, fmt.Errorf(
+				"an intent cannot mix super-root and output-root initial games: chain %s uses %s, chain %s uses %s",
+				firstID.Hex(), gameFamilyName(super), chain.ID.Hex(), gameFamilyName(chainUsesSuper),
+			)
+		}
+	}
+	return super, nil
+}
+
+func gameFamilyName(super bool) string {
+	if super {
+		return "super-root games"
+	}
+	return "output-root games"
+}
+
 // ValidateInitialGameTypeSet rejects a mix of CANNON_KONA and
 // SUPER_CANNON_KONA initial games.
 func ValidateInitialGameTypeSet(gameTypes []uint32) error {

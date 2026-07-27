@@ -417,13 +417,11 @@ func generateGenesisForChains(pEnv *pipeline.Env, intent *state.Intent, bundle a
 	return nil
 }
 
-// computeGenesisOutputRootsForChains computes and persists each chain's genesis output root and
-// block hash from the L2 genesis generateGenesisForChains just built.
+// computeGenesisOutputRootsForChains computes and persists every chain's genesis block hash and
+// starting anchor proposal from the L2 genesis generateGenesisForChains just built.
 func computeGenesisOutputRootsForChains(pEnv *pipeline.Env, intent *state.Intent, st *state.State) error {
-	for _, chain := range intent.Chains {
-		if err := pipeline.ComputeGenesisOutputRoot(pEnv, intent, st, chain.ID); err != nil {
-			return fmt.Errorf("failed to compute genesis output root for chain %s: %w", chain.ID.Hex(), err)
-		}
+	if err := pipeline.ComputeGenesisOutputRoots(pEnv, intent, st); err != nil {
+		return fmt.Errorf("failed to compute genesis output roots: %w", err)
 	}
 	return nil
 }
