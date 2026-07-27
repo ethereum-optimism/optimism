@@ -81,6 +81,7 @@ type RoundObservation struct {
 	L1Heads        map[eth.ChainID]eth.BlockID
 	L1Consistent   bool
 	L1NeedsRewind  bool
+	L2NeedsRewind  bool
 	Paused         bool
 }
 
@@ -498,6 +499,10 @@ func checkPreconditions(obs RoundObservation) *StepOutput {
 		output := StepOutput{Decision: DecisionRewind}
 		return &output
 	}
+	if obs.L2NeedsRewind {
+		output := StepOutput{Decision: DecisionRewind}
+		return &output
+	}
 	if !obs.L1Consistent {
 		output := StepOutput{Decision: DecisionWait}
 		return &output
@@ -639,6 +644,21 @@ func (i *Interop) observeRound() (RoundObservation, error) {
 			obs.L1NeedsRewind = true
 			return obs, nil
 		}
+
+		// A verifier is the authority for its own safe head, so the last verified
+		// L2 frontier must still be canonical. If it is not, the EL was driven off
+		// the safe chain out from under the accepted frontier (e.g. it adopted a
+		// non-safe-descendant sequencer gossip payload without rolling back; see
+		// optimism-private#577). Advancing would seal a block whose parent no
+		// longer matches the logsDB tip, so rewind the accepted frontier instead.
+		reorged, err := i.lastVerifiedFrontierReorged(obs.LastVerified.L2Heads)
+		if err != nil {
+			return obs, fmt.Errorf("L2 frontier canonicality check: %w", err)
+		}
+		if reorged {
+			obs.L2NeedsRewind = true
+			return obs, nil
+		}
 	}
 
 	// Check the new frontier independently from the accepted L1 head. If the
@@ -655,6 +675,30 @@ func (i *Interop) observeRound() (RoundObservation, error) {
 	obs.L1Consistent = same
 
 	return obs, nil
+}
+
+// lastVerifiedFrontierReorged reports whether any chain's last verified L2 head
+// is no longer the canonical block at that height. In a supernode the verifier
+// alone drives its safe head, so a mismatch means the EL left the safe chain
+// underneath the accepted frontier. Any read error is returned so the round
+// backs off and retries rather than advancing on unproven canonicality.
+func (i *Interop) lastVerifiedFrontierReorged(heads map[eth.ChainID]eth.BlockID) (bool, error) {
+	for chainID, head := range heads {
+		chain, ok := i.chains[chainID]
+		if !ok {
+			continue
+		}
+		out, err := chain.OutputV0AtBlockNumber(i.ctx, head.Number)
+		if err != nil {
+			return false, fmt.Errorf("chain %s: resolve canonical block %d: %w", chainID, head.Number, err)
+		}
+		if out.BlockHash != head.Hash {
+			i.log.Warn("last verified L2 head is no longer canonical; rewinding accepted frontier",
+				"chain", chainID, "verifiedHead", head, "canonical", out.BlockHash)
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // verify runs the heavy I/O: log loading, message verification, and cycle detection.

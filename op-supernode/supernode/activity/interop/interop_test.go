@@ -1590,6 +1590,61 @@ func TestInterop_ProgressAndRecord_L1InconsistencyTriggersRewind(t *testing.T) {
 	require.Empty(t, mock.rewindEngineCalls, "L1 drift rewinds accepted Supernode state only")
 }
 
+// TestInterop_ProgressAndRecord_L2FrontierReorgTriggersRewind advances twice
+// through progressAndRecord, then makes the last verified L2 head non-canonical
+// (its number now resolves to a different hash, as when the EL is driven off the
+// safe chain by non-safe-descendant gossip). observeRound must detect the stale
+// frontier and drive a rewind of accepted state — verifiedDB trimmed, WAL
+// cleared, engines untouched — instead of advancing into an impossible append.
+func TestInterop_ProgressAndRecord_L2FrontierReorgTriggersRewind(t *testing.T) {
+	h := newInteropTestHarness(t). // newInteropTestHarness calls t.Parallel()
+					WithActivation(100).
+					WithChain(10, func(m *mockChainContainer) {
+			m.currentL1 = eth.BlockRef{Number: 1000, Hash: common.HexToHash("0xL1")}
+			m.blockAtTimestamp = eth.L2BlockRef{Number: 500, Hash: common.HexToHash("0xL2")}
+		}).
+		Build()
+
+	mock := h.Mock(10)
+	h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+		return Result{Timestamp: ts, L1Inclusion: eth.BlockID{Number: 100}, L2Heads: blocks}, nil
+	}
+	h.interop.cycleVerifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+		return Result{}, nil
+	}
+
+	for i := 0; i < 2; i++ {
+		_, err := h.interop.progressAndRecord()
+		require.NoError(t, err)
+	}
+	lastTS, ok := h.interop.verifiedDB.LastTimestamp()
+	require.True(t, ok)
+	require.Equal(t, uint64(102), lastTS)
+
+	// The last verified head at block N was sealed with hash BigToHash(N) (what
+	// OptimisticAt reports). Make the canonical block at that number resolve to a
+	// different hash, simulating the safe head being reorged out from under the
+	// accepted frontier. observeRound must now choose DecisionRewind.
+	mock.outputV0Override = func(_ context.Context, num uint64) (*eth.OutputV0, error) {
+		return &eth.OutputV0{BlockHash: common.HexToHash("0xreorg")}, nil
+	}
+
+	made, err := h.interop.progressAndRecord()
+	require.NoError(t, err)
+	require.False(t, made, "rewind does not advance the verified timestamp")
+
+	// Rewind removed the last-committed entry and left the earlier one in place.
+	lastTS, ok = h.interop.verifiedDB.LastTimestamp()
+	require.True(t, ok)
+	require.Equal(t, uint64(101), lastTS)
+
+	pending, err := h.interop.verifiedDB.GetPendingTransition()
+	require.NoError(t, err)
+	require.Nil(t, pending, "WAL cleared after successful rewind")
+
+	require.Empty(t, mock.rewindEngineCalls, "L2 frontier reorg rewinds accepted Supernode state only")
+}
+
 func TestInterop_ProgressAndRecord_StaleFrontierL1Waits(t *testing.T) {
 	h := newInteropTestHarness(t). // newInteropTestHarness calls t.Parallel()
 					WithActivation(100).

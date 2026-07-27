@@ -42,6 +42,15 @@ func TestCheckPreconditions(t *testing.T) {
 			want: ptrDecision(DecisionRewind),
 		},
 		{
+			name: "rewind when L2 frontier reorged",
+			obs: RoundObservation{
+				ChainsReady:   true,
+				L1Consistent:  true,
+				L2NeedsRewind: true,
+			},
+			want: ptrDecision(DecisionRewind),
+		},
+		{
 			name: "wait when frontier L1 inconsistent",
 			obs: RoundObservation{
 				ChainsReady:  true,
