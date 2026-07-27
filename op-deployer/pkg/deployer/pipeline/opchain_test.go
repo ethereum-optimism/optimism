@@ -923,12 +923,25 @@ func TestValidateInitialGameTypeSet(t *testing.T) {
 			gameTypes: []uint32{uint32(embedded.GameTypeSuperCannonKona), uint32(embedded.GameTypeSuperCannonKona)},
 		},
 		{
+			name:      "all PERMISSIONED_CANNON",
+			gameTypes: []uint32{uint32(embedded.GameTypePermissionedCannon), uint32(embedded.GameTypePermissionedCannon)},
+		},
+		{
+			// These two need opposite settings of the OPCM's SUPER_ROOT_GAMES_MIGRATION bit.
 			name: "mixed",
 			gameTypes: []uint32{
 				uint32(embedded.GameTypeCannonKona),
 				uint32(embedded.GameTypeSuperCannonKona),
 			},
 			wantErr: "an intent cannot mix CANNON_KONA and SUPER_CANNON_KONA initial games",
+		},
+		{
+			// Allowed: the OPCM bit promotes the permissioned chain to SUPER_PERMISSIONED.
+			name: "PERMISSIONED_CANNON alongside SUPER_CANNON_KONA",
+			gameTypes: []uint32{
+				uint32(embedded.GameTypePermissionedCannon),
+				uint32(embedded.GameTypeSuperCannonKona),
+			},
 		},
 	}
 

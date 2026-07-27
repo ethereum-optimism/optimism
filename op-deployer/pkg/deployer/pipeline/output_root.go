@@ -163,7 +163,8 @@ func setSuperRootAnchors(lgr log.Logger, intent *state.Intent, st *state.State, 
 		if !ok {
 			return fmt.Errorf(
 				"cannot compute a super-root genesis anchor: dependency set member %s has no genesis output root in this run; "+
-					"it is either already deployed, in which case its anchor cannot be changed, or missing from the intent",
+					"it is either already deployed, in which case run op-deployer continue to reuse the committed anchors, "+
+					"or missing from the intent",
 				id.Hex(),
 			)
 		}
@@ -174,7 +175,8 @@ func setSuperRootAnchors(lgr log.Logger, intent *state.Intent, st *state.State, 
 			return fmt.Errorf(
 				"cannot compute a super-root genesis anchor: dependency set members disagree on the L2 genesis timestamp "+
 					"(chain %s pins %d, chain %s pins %d); a super root at a timestamp requires every member to exist at it, "+
-					"so all chains in one super-root deployment must share a genesis time",
+					"so all chains in one super-root deployment must share a genesis time; check for a per-chain "+
+					"l1StartBlockHash override",
 				firstID.Hex(), timestamp, id.Hex(), out.timestamp,
 			)
 		}

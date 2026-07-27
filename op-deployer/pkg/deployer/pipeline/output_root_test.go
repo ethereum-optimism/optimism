@@ -408,19 +408,39 @@ func TestComputeGenesisOutputRoots_SuperAnchorRejectsDeployedMember(t *testing.T
 	require.ErrorContains(t, err, "already deployed")
 }
 
-// TestComputeGenesisOutputRoots_RejectsMixedGameFamilies covers the case where
-// non super games are mixed in the intent with super games. Since OPCM gates the family on its own
-// dev-feature bit, one intent cannot contain both.
-func TestComputeGenesisOutputRoots_RejectsMixedGameFamilies(t *testing.T) {
-	pEnv, intent, st, _ := setupClusterWithGenesis(t, 2)
+// TestComputeGenesisOutputRoots_PermissionedMemberJoinsSuperCluster covers a permissioned chain
+// alongside a SUPER_CANNON_KONA one.
+func TestComputeGenesisOutputRoots_PermissionedMemberJoinsSuperCluster(t *testing.T) {
+	pEnv, intent, st, ids := setupClusterWithGenesis(t, 2)
 
+	// Chain 0 keeps the default PERMISSIONED_CANNON; only chain 1 asks for a super game.
 	if intent.Chains[1].DeployOverrides == nil {
 		intent.Chains[1].DeployOverrides = map[string]any{}
 	}
 	intent.Chains[1].DeployOverrides["respectedGameType"] = embedded.GameTypeSuperCannonKona
 
-	err := ComputeGenesisOutputRoots(pEnv, intent, st)
-	require.ErrorContains(t, err, "cannot mix super-root and output-root initial games")
+	require.NoError(t, ComputeGenesisOutputRoots(pEnv, intent, st))
+
+	chainOutputs := make([]eth.ChainIDAndOutput, 0, len(ids))
+	var sharedTimestamp uint64
+	for _, id := range ids {
+		v0Root, timestamp := v0RootOf(t, intent, st, id)
+		sharedTimestamp = timestamp
+		chainOutputs = append(chainOutputs, eth.ChainIDAndOutput{
+			ChainID: eth.ChainIDFromBytes32(id),
+			Output:  eth.Bytes32(v0Root),
+		})
+	}
+	wantAnchor := common.Hash(eth.SuperRoot(eth.NewSuperV1(sharedTimestamp, chainOutputs...)))
+
+	for _, id := range ids {
+		chainState, err := st.Chain(id)
+		require.NoError(t, err)
+		require.NotNil(t, chainState.StartingAnchorRoot)
+		require.Equal(t, wantAnchor, chainState.StartingAnchorRoot.Root,
+			"chain %s must be anchored to the cluster-wide super root", id.Hex())
+		require.Equal(t, sharedTimestamp, uint64(chainState.StartingAnchorRoot.L2SequenceNumber))
+	}
 }
 
 // TestComputeGenesisOutputRoots_SuperAnchorRequiresDependencySet guards the case where a prepared
