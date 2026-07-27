@@ -2561,7 +2561,8 @@
             "pages": [
               "index",
               "ai-docs",
-              "chain-operators/quickstart"
+              "chain-operators/quickstart",
+              "/op-stack/reference/glossary"
             ]
           },
           {
@@ -2573,6 +2574,28 @@
               "use-cases/implement-a-custom-deposit-flow",
               "use-cases/launch-a-chain-with-fault-proofs-and-ha-sequencing",
               "use-cases/choose-your-node-stack"
+            ]
+          },
+          {
+            "group": "Contribute",
+            "pages": [
+              "/op-stack/contribute/index",
+              "/op-stack/contribute/content-guide",
+              "/op-stack/contribute/link-policy",
+              "/op-stack/contribute/curation-policy",
+              "/op-stack/contribute/learn-track-syllabus",
+              "/op-stack/contribute/style-guide",
+              {
+                "group": "Choose a content type",
+                "pages": [
+                  "/op-stack/contribute/choose-a-content-type",
+                  "/op-stack/contribute/solution-guide",
+                  "/op-stack/contribute/learning-unit",
+                  "/op-stack/contribute/curriculum-hub",
+                  "/op-stack/contribute/router-landing"
+                ]
+              },
+              "/op-stack/contribute/component-hub-template"
             ]
           }
         ]
@@ -3169,18 +3192,13 @@
         ]
       },
       {
-        "tab": "OP Stack",
+        "tab": "Protocol",
         "groups": [
           {
             "group": "Introduction",
             "pages": [
               "/op-stack/introduction/op-stack",
-              "/op-stack/introduction/fact-sheet"
-            ]
-          },
-          {
-            "group": "Learn the OP Stack",
-            "pages": [
+              "/op-stack/introduction/fact-sheet",
               "/op-stack/learn/index"
             ]
           },
@@ -3228,7 +3246,8 @@
               "/op-stack/protocol/smart-contracts",
               "/op-stack/protocol/privileged-roles",
               "/op-stack/protocol/blockspace-charter",
-              "/op-stack/protocol/superchain-registry"
+              "/op-stack/protocol/superchain-registry",
+              "/op-stack/research/block-time-research"
             ]
           },
           {
@@ -3337,12 +3356,6 @@
             ]
           },
           {
-            "group": "Research",
-            "pages": [
-              "/op-stack/research/block-time-research"
-            ]
-          },
-          {
             "group": "Interoperability",
             "pages": [
               "/op-stack/interop/index",
@@ -3350,33 +3363,6 @@
               "/op-stack/interop/supernode",
               "/op-stack/interop/reorg",
               "/op-stack/interop/superchain-eth-bridge"
-            ]
-          },
-          {
-            "group": "Reference",
-            "pages": [
-              "/op-stack/reference/glossary"
-            ]
-          },
-          {
-            "group": "Contribute",
-            "pages": [
-              "/op-stack/contribute/content-guide",
-              "/op-stack/contribute/link-policy",
-              "/op-stack/contribute/curation-policy",
-              "/op-stack/contribute/learn-track-syllabus",
-              "/op-stack/contribute/style-guide",
-              {
-                "group": "Choose a content type",
-                "pages": [
-                  "/op-stack/contribute/choose-a-content-type",
-                  "/op-stack/contribute/solution-guide",
-                  "/op-stack/contribute/learning-unit",
-                  "/op-stack/contribute/curriculum-hub",
-                  "/op-stack/contribute/router-landing"
-                ]
-              },
-              "/op-stack/contribute/component-hub-template"
             ]
           }
         ]
@@ -3405,10 +3391,10 @@
         ]
       },
       {
-        "tab": "How Optimism Evolves",
+        "tab": "Governance",
         "groups": [
           {
-            "group": "How Optimism Evolves",
+            "group": "Governance",
             "pages": [
               "governance/protocol-upgrades",
               "governance/capital-allocation",
