@@ -8,6 +8,7 @@ repository.workspace = true
 homepage.workspace = true
 rust-version.workspace = true
 description = "Proposer service for the super-root ZK dispute game, derived from op-succinct's fault-proof proposer"
+publish = false
 
 [lints]
 workspace = true
@@ -34,8 +35,6 @@ alloy-contract.workspace = true
 # general
 anyhow.workspace = true
 async-trait.workspace = true
-clap = { workspace = true, features = ["derive", "env"] }
-dotenvy.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 strum.workspace = true

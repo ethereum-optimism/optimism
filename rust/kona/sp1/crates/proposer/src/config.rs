@@ -45,9 +45,6 @@ pub struct ProposerConfig {
     /// The address of the `DisputeGameFactory` contract.
     pub factory_address: Address,
 
-    /// The dispute game type to propose (ZK dispute game = 10).
-    pub game_type: u32,
-
     /// The super-aggregation program verification key. Game implementations
     /// whose `absolutePrestate()` differs are foreign: never used as
     /// parents, never resolved or claimed, and creation pauses when the
@@ -106,7 +103,6 @@ impl ProposerConfig {
                 .context("FACTORY_ADDRESS not set")?
                 .parse()
                 .map_err(|err| anyhow!("invalid FACTORY_ADDRESS: {err}"))?,
-            game_type: parsed_env_or("GAME_TYPE", 10u32)?,
             program_vkey: env::var("PROGRAM_VKEY")
                 .context("PROGRAM_VKEY not set")?
                 .parse()

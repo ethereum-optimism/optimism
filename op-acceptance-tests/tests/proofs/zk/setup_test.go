@@ -55,10 +55,11 @@ func newSystem(t devtest.T) *presets.SimpleInterop {
 }
 
 // newProposerSystem builds the ZK proofs system with the kona-sp1-proposer
-// running against the ZK dispute game type (and the honest challenger).
-func newProposerSystem(t devtest.T) *presets.SimpleInterop {
+// running against the ZK dispute game type (and, unless disabled via extra
+// options, the honest challenger).
+func newProposerSystem(t devtest.T, extra ...presets.Option) *presets.SimpleInterop {
 	vkey := loadSuperAggregationVKey(t)
-	return presets.NewSimpleInterop(t, zkPresetOptions(vkey)...)
+	return presets.NewSimpleInterop(t, append(zkPresetOptions(vkey), extra...)...)
 }
 
 func zkPresetOptions(vkey common.Hash) []presets.Option {

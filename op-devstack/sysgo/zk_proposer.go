@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -26,13 +25,8 @@ const zkProposerReadyMessage = "kona-sp1-proposer started"
 
 // startZKProposer launches the Rust kona-sp1-proposer binary against the ZK
 // dispute game type. Modeled on the kona-node launcher (l2_cl_kona.go), minus
-// the RPC proxy: the proposer serves no HTTP API.
-//
-// Unlike other sysgo Rust services, which are flag-configured, the proposer is
-// configured exclusively through environment variables. This is the first
-// env-configured sysgo service; the mechanism has always existed (SubProcess
-// appends the given env to os.Environ, subproc.go:56), only the convention is
-// new.
+// the RPC proxy: the proposer serves no HTTP API. The proposer is configured
+// exclusively through environment variables.
 func startZKProposer(
 	t devtest.T,
 	keys devkeys.Keys,
@@ -59,7 +53,6 @@ func startZKProposer(
 		"L1_RPC=" + l1EL.UserRPC(),
 		"SUPERNODE_RPC=" + supernodeRPC,
 		"FACTORY_ADDRESS=" + factoryAddr.Hex(),
-		"GAME_TYPE=" + strconv.FormatUint(uint64(gameTypes.ZKDisputeGameType), 10),
 		"PROGRAM_VKEY=" + programVKey.Hex(),
 		"PRIVATE_KEY=" + hexutil.Encode(crypto.FromECDSA(proposerSecret)),
 		// Short cadence for devstack: propose every 6s off the safe head so

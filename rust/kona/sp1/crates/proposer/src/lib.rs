@@ -12,7 +12,7 @@ pub mod contract;
 pub mod metrics;
 pub mod proposer;
 pub mod signer;
-pub mod supernode;
+pub mod superroot;
 
 use alloy_eips::BlockId;
 use alloy_primitives::U256;
@@ -29,6 +29,10 @@ pub type L1Provider = RootProvider;
 pub const NUM_CONFIRMATIONS: u64 = 3;
 /// Maximum time, in seconds, to wait for an L1 transaction receipt.
 pub const TIMEOUT_SECONDS: u64 = 60;
+/// The dispute game type this proposer plays. Game type 10 is reserved as the
+/// ZK dispute game type for all OP Stack networks; not configurable to avoid
+/// misconfiguration.
+pub const ZK_GAME_TYPE: u32 = 10;
 
 /// Read-only view of the `DisputeGameFactory` contract used during sync and game creation.
 #[async_trait]

@@ -16,7 +16,7 @@ import (
 
 // The live proposer keeps creating games while these tests run (including
 // during time travel), so assertions only reference the specific games
-// returned by WaitForZKGameCount and never assume a total game count.
+// returned by WaitForZKGameAtIndex and never assume a total game count.
 
 func TestProposerCreatesRootZKGame(gt *testing.T) {
 	t := devtest.SerialT(gt)
@@ -24,7 +24,7 @@ func TestProposerCreatesRootZKGame(gt *testing.T) {
 	factory := sys.DisputeGameFactory()
 	_, anchorSequence := sys.AnchorStateRegistry(sys.L2ChainA).AnchorRoot()
 
-	game0 := factory.WaitForZKGameCount(1)
+	game0 := factory.WaitForZKGameAtIndex(0)
 
 	t.Require().Equal(uint32(math.MaxUint32), game0.ParentIndex(),
 		"first proposer game must be a root game using the max-uint32 parent sentinel")
@@ -37,8 +37,8 @@ func TestProposerChainsSecondZKGameOnFirst(gt *testing.T) {
 	sys := newProposerSystem(t)
 	factory := sys.DisputeGameFactory()
 
-	game0 := factory.WaitForZKGameCount(1)
-	game1 := factory.WaitForZKGameCount(2)
+	game0 := factory.WaitForZKGameAtIndex(0)
+	game1 := factory.WaitForZKGameAtIndex(1)
 
 	t.Require().Equal(uint32(0), game1.ParentIndex(),
 		"second proposer game must chain on the first game at factory index 0")
@@ -48,10 +48,12 @@ func TestProposerChainsSecondZKGameOnFirst(gt *testing.T) {
 
 func TestProposerResolvesOwnUnchallengedGame(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := newProposerSystem(t)
+	// The challenger resolves all games, not just those it challenges; disable
+	// it so this test proves the proposer alone drives resolution.
+	sys := newProposerSystem(t, presets.WithoutHonestChallenger())
 	factory := sys.DisputeGameFactory()
 
-	game0 := factory.WaitForZKGameCount(1)
+	game0 := factory.WaitForZKGameAtIndex(0)
 	advanceL1To(&sys.SingleChainInterop, game0.ClaimData().Deadline+1)
 
 	// The proposer's resolution task must resolve its own unchallenged game;
@@ -61,12 +63,15 @@ func TestProposerResolvesOwnUnchallengedGame(gt *testing.T) {
 
 func TestProposerClaimsBondAfterResolution(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := newProposerSystem(t)
+	// The challenger can resolve games and claim credit on the proposer's
+	// behalf; disable it so this test proves the proposer alone resolves,
+	// unlocks, and claims.
+	sys := newProposerSystem(t, presets.WithoutHonestChallenger())
 	factory := sys.DisputeGameFactory()
 	proposerAddr := zkProposerAddress(t, sys)
 	weth := factory.DelayedWETH(factory.ZKGameImpl().Args.Weth)
 
-	game0 := factory.WaitForZKGameCount(1)
+	game0 := factory.WaitForZKGameAtIndex(0)
 	advanceL1To(&sys.SingleChainInterop, game0.ClaimData().Deadline+1)
 	game0.WaitForGameStatus(gameTypes.GameStatusDefenderWon)
 	advanceL1To(&sys.SingleChainInterop, game0.ResolvedAt()+uint64(zkFinalityDelay/time.Second)+1)

@@ -17,7 +17,7 @@ use crate::config::ProposalSafety;
 
 /// Thin supernode client wrapper.
 #[derive(Clone, Debug)]
-pub struct SupernodeClient {
+pub struct SuperrootClient {
     client: HttpClient,
 }
 
@@ -30,12 +30,12 @@ pub struct SuperRootAt {
     pub super_root: B256,
 }
 
-impl SupernodeClient {
+impl SuperrootClient {
     /// Builds a client for the supernode (or single-chain op-node) RPC.
     pub fn new(url: &str) -> Result<Self> {
         let client = HttpClientBuilder::default()
             .build(url)
-            .with_context(|| format!("failed to build supernode client for {url}"))?;
+            .with_context(|| format!("failed to build super-root client for {url}"))?;
         Ok(Self { client })
     }
 

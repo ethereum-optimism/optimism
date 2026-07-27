@@ -25,7 +25,7 @@ use kona_sp1_host_utils::metrics::MetricsGauge;
 use tokio::{sync::RwLock, time};
 
 use crate::{
-    FactoryTrait, L1Provider, TX_REVERTED_PREFIX, TxErrorExt,
+    FactoryTrait, L1Provider, TX_REVERTED_PREFIX, TxErrorExt, ZK_GAME_TYPE,
     config::ProposerConfig,
     contract::{
         AnchorStateRegistry::AnchorStateRegistryInstance,
@@ -36,7 +36,7 @@ use crate::{
     is_parent_resolved,
     metrics::ProposerGauge,
     signer::SignerLock,
-    supernode::{SupernodeClient, zk_extra_data},
+    superroot::{SuperrootClient, zk_extra_data},
 };
 
 /// Max allowed time (secs) between a game's deadline and the anchor game's deadline.
@@ -160,7 +160,7 @@ struct ProposerState {
 impl ProposerState {
     /// Returns all game indices reachable from `root_index`, including the root.
     ///
-    /// NOTE(fakedev9999): If this becomes hot, consider maintaining an adjacency index
+    /// If this becomes hot, consider maintaining an adjacency index
     /// `parent -> Vec<child>`.
     fn descendants_of(&self, root_index: U256) -> HashSet<U256> {
         let mut reachable: HashSet<U256> = HashSet::new();
@@ -289,16 +289,13 @@ where
     /// L1 execution-layer provider used for contract reads and transactions.
     pub l1_provider: L1Provider,
     /// Supernode client used to fetch super roots and safe-head data.
-    pub supernode: SupernodeClient,
+    pub superroot_client: SuperrootClient,
     /// `AnchorStateRegistry` contract instance tracking the anchor game.
     pub anchor_state_registry: Arc<AnchorStateRegistryInstance<P>>,
     /// `DisputeGameFactory` contract instance used to create and enumerate games.
     pub factory: Arc<DisputeGameFactoryInstance<P>>,
     /// `DelayedWETH` contract instance holding game bonds.
     pub weth: Arc<DelayedWETHInstance<P>>,
-    /// `DelayedWETH` withdrawal delay in seconds, read once at init.
-    weth_delay: OnceLock<u64>,
-    init_bond: OnceLock<U256>,
     tasks: Arc<tokio::sync::Mutex<TaskMap>>,
     next_task_id: Arc<AtomicU64>,
     state: Arc<RwLock<ProposerState>>,
@@ -350,19 +347,17 @@ where
         identity.log_startup_info();
 
         let l1_provider = ProviderBuilder::default().connect_http(config.l1_rpc.clone());
-        let supernode = SupernodeClient::new(&config.supernode_rpc)?;
+        let superroot_client = SuperrootClient::new(&config.supernode_rpc)?;
 
         Ok(Self {
             config,
             contract_params: OnceLock::new(),
             signer,
             l1_provider,
-            supernode,
+            superroot_client,
             anchor_state_registry: Arc::new(anchor_state_registry),
             factory: Arc::new(factory),
             weth: Arc::new(weth),
-            weth_delay: OnceLock::new(),
-            init_bond: OnceLock::new(),
             tasks: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
             next_task_id: Arc::new(AtomicU64::new(1)),
             state: Arc::new(RwLock::new(ProposerState::default())),
@@ -453,19 +448,17 @@ where
 
     /// Validates startup and initializes state.
     pub async fn validate_and_init(&self) -> Result<()> {
-        let (anchor_sequence_number, init_bond, contract_params, weth_delay) =
-            self.startup_validations().await?;
-        self.init_state(anchor_sequence_number, init_bond, contract_params, weth_delay).await
+        let (anchor_sequence_number, contract_params) = self.startup_validations().await?;
+        self.init_state(anchor_sequence_number, contract_params).await
     }
 
     /// Runs one-time startup validations before the proposer begins normal operations.
-    /// Returns the validated anchor sequence number, init bond, contract params, and
-    /// `DelayedWETH` withdrawal delay.
-    async fn startup_validations(&self) -> Result<(u64, U256, ContractParams, u64)> {
+    /// Returns the validated anchor sequence number and contract params.
+    async fn startup_validations(&self) -> Result<(u64, ContractParams)> {
         // Validate the registered game args (prestate, ASR, WETH) against config.
-        let game_args = self.factory.gameArgs(self.config.game_type).call().await?;
+        let game_args = self.factory.gameArgs(ZK_GAME_TYPE).call().await?;
         let game_args = ZKGameArgs::decode(&game_args).with_context(|| {
-            format!("game type {} has no valid registered game args", self.config.game_type)
+            format!("game type {} has no valid registered game args", ZK_GAME_TYPE)
         })?;
         anyhow::ensure!(
             game_args.anchor_state_registry == *self.anchor_state_registry.address(),
@@ -498,41 +491,26 @@ where
         let anchor_sequence_number: u64 =
             anchor.l2SequenceNumber_.try_into().context("anchor sequence number exceeds u64")?;
 
-        // Fetch init bond.
-        let init_bond = self.factory.fetch_init_bond(self.config.game_type).await?;
-
         // Contract params from the registered game args.
         let contract_params = ContractParams {
             max_challenge_duration: game_args.max_challenge_duration,
             max_prove_duration: game_args.max_prove_duration,
         };
 
-        // DelayedWETH withdrawal delay (drives two-phase bond claiming).
-        let weth_delay: u64 =
-            self.weth.delay().call().await?.try_into().context("DelayedWETH delay exceeds u64")?;
-
-        Ok((anchor_sequence_number, init_bond, contract_params, weth_delay))
+        Ok((anchor_sequence_number, contract_params))
     }
 
-    /// Initialize proposer state with the validated anchor sequence number, init bond,
-    /// contract params, and `DelayedWETH` delay.
+    /// Initialize proposer state with the validated anchor sequence number and
+    /// contract params.
     async fn init_state(
         &self,
         anchor_sequence_number: u64,
-        init_bond: U256,
         contract_params: ContractParams,
-        weth_delay: u64,
     ) -> Result<()> {
         self.state.write().await.canonical_head_sequence_number = Some(anchor_sequence_number);
-        self.init_bond
-            .set(init_bond)
-            .map_err(|_| anyhow::anyhow!("init_bond must not already be set"))?;
         self.contract_params
             .set(contract_params)
             .map_err(|_| anyhow::anyhow!("contract_params must not already be set"))?;
-        self.weth_delay
-            .set(weth_delay)
-            .map_err(|_| anyhow::anyhow!("weth_delay must not already be set"))?;
 
         Ok(())
     }
@@ -808,7 +786,7 @@ where
                         // proposer are those set by third parties; they still make the
                         // game "over" for resolution purposes.
                         let is_game_over = match claim_data.status {
-                            ProposalStatus::Unchallenged => now_ts >= deadline,
+                            ProposalStatus::Unchallenged => now_ts > deadline,
                             ProposalStatus::UnchallengedAndValidProofProvided |
                             ProposalStatus::ChallengedAndValidProofProvided => true,
                             _ => false,
@@ -848,10 +826,17 @@ where
                         let withdrawal_amount = withdrawal.amount_;
                         let withdrawal_ts: u64 =
                             withdrawal.timestamp_.try_into().unwrap_or(u64::MAX);
-                        let weth_delay = *self
-                            .weth_delay
-                            .get()
-                            .context("weth_delay must be set via try_init")?;
+                        // Read per sync cycle rather than once at startup: while
+                        // the delay is immutable on a given DelayedWETH, the
+                        // registered contract can change across upgrades.
+                        let weth_delay: u64 = self
+                            .weth
+                            .delay()
+                            .block(pinned_block)
+                            .call()
+                            .await?
+                            .try_into()
+                            .context("DelayedWETH delay exceeds u64")?;
 
                         let action = bond_claim_action(
                             is_finalized,
@@ -1040,7 +1025,7 @@ where
     /// ours (safe to create games). Reads the factory's registered game args;
     /// a mismatch means a hardfork/upgrade replaced the release bundle.
     async fn registered_prestate_matches(&self) -> Result<bool> {
-        let args = self.factory.gameArgs(self.config.game_type).call().await?;
+        let args = self.factory.gameArgs(ZK_GAME_TYPE).call().await?;
         let args = ZKGameArgs::decode(&args)?;
         let matches = args.absolute_prestate == self.identity.program_vkey;
         if !matches {
@@ -1058,11 +1043,12 @@ where
     /// `root_claim`: the super-root hash we are proposing.
     /// `extra_data`: `parentIndex (4B BE) || superRootProof`.
     pub async fn create_game(&self, root_claim: B256, extra_data: Vec<u8>) -> Result<Address> {
-        let init_bond =
-            *self.init_bond.get().context("init_bond must be set via startup_validations")?;
+        // Read at creation time rather than startup: the factory's init bond
+        // can change, and a stale value would revert every create.
+        let init_bond = self.factory.fetch_init_bond(ZK_GAME_TYPE).await?;
         let transaction_request = self
             .factory
-            .create(self.config.game_type, root_claim, extra_data.into())
+            .create(ZK_GAME_TYPE, root_claim, extra_data.into())
             .value(init_bond)
             .into_transaction_request();
 
@@ -1211,8 +1197,13 @@ where
                     // `timestamp + DELAY_SECONDS <= block.timestamp`; wall
                     // clock and L1 time diverge under devstack time travel
                     // (and can drift in production).
-                    let weth_delay =
-                        *self.weth_delay.get().context("weth_delay must be set via try_init")?;
+                    let weth_delay: u64 = self
+                        .weth
+                        .delay()
+                        .call()
+                        .await?
+                        .try_into()
+                        .context("DelayedWETH delay exceeds u64")?;
                     let l1_now = self
                         .l1_provider
                         .get_block_by_number(BlockNumberOrTag::Latest)
@@ -1345,12 +1336,12 @@ where
         let game_type = game.gameType_;
 
         // Drop unsupported game types.
-        if game_type != self.config.game_type {
+        if game_type != ZK_GAME_TYPE {
             tracing::warn!(
                 game_index = %index,
                 ?game_address,
                 game_type,
-                expected_game_type = self.config.game_type,
+                expected_game_type = ZK_GAME_TYPE,
                 "Unsupported game type"
             );
             return Ok(GameFetchResult::UnsupportedType { game_address });
@@ -1394,15 +1385,15 @@ where
             tracing::warn!(
                 game_index = %index,
                 ?game_address, game_type,
-                expected_game_type = self.config.game_type,
+                expected_game_type = ZK_GAME_TYPE,
                 "Invalid game: game type was not respected when created"
             );
             return Ok(GameFetchResult::InvalidGame { index });
         }
 
         // Validate the claim against the canonical super root at the game's timestamp.
-        let response = self.supernode.superroot_at_timestamp(sequence_number).await?;
-        match SupernodeClient::super_root_at(&response)? {
+        let response = self.superroot_client.superroot_at_timestamp(sequence_number).await?;
+        match SuperrootClient::super_root_at(&response)? {
             None => {
                 // Not yet safe from this node's view. Far-future timestamps beyond
                 // the validation horizon are terminal (bonded spam); anything
@@ -1486,8 +1477,8 @@ where
         let max_proposable = self.max_proposable_timestamp().await?;
 
         loop {
-            let response = self.supernode.superroot_at_timestamp(sequence_number).await?;
-            let Some(super_root) = SupernodeClient::super_root_at(&response)? else {
+            let response = self.superroot_client.superroot_at_timestamp(sequence_number).await?;
+            let Some(super_root) = SuperrootClient::super_root_at(&response)? else {
                 // Transient: the chosen timestamp is not yet safe from this
                 // node's view. Bail and retry on a later tick.
                 bail!("no canonical super root at timestamp {sequence_number} yet");
@@ -1495,7 +1486,7 @@ where
             let extra_data = zk_extra_data(parent_game_index, &super_root.proof_bytes);
             let existing_game = self
                 .factory
-                .games(self.config.game_type, super_root.super_root, extra_data.clone().into())
+                .games(ZK_GAME_TYPE, super_root.super_root, extra_data.clone().into())
                 .call()
                 .await?
                 .proxy_;
@@ -1760,9 +1751,9 @@ where
         // Check if our game type matches the current respected game type.
         // The proposer should only create games when its type is the respected type.
         let respected_game_type = self.anchor_state_registry.respectedGameType().call().await?;
-        if self.config.game_type != respected_game_type {
+        if ZK_GAME_TYPE != respected_game_type {
             tracing::warn!(
-                proposer_game_type = self.config.game_type,
+                proposer_game_type = ZK_GAME_TYPE,
                 ?respected_game_type,
                 "Skipping game creation, game type does not match respected type"
             );
@@ -1829,8 +1820,8 @@ where
     /// configured safety level, from a fresh supernode response.
     async fn max_proposable_timestamp(&self) -> Result<u64> {
         let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_secs();
-        let response = self.supernode.superroot_at_timestamp(now).await?;
-        Ok(SupernodeClient::max_proposable_timestamp(&response, self.config.proposal_safety))
+        let response = self.superroot_client.superroot_at_timestamp(now).await?;
+        Ok(SuperrootClient::max_proposable_timestamp(&response, self.config.proposal_safety))
     }
 
     /// Spawn a game resolution task
