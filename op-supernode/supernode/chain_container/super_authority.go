@@ -103,6 +103,15 @@ func (c *simpleChainContainer) IsDenied(height uint64, payloadHash common.Hash) 
 	return c.denyList.Contains(height, payloadHash)
 }
 
+// MaxDeniedHeight returns the highest denied block height and whether any
+// denial exists.
+func (c *simpleChainContainer) MaxDeniedHeight() (uint64, bool, error) {
+	if c.denyList == nil {
+		return 0, false, nil
+	}
+	return c.denyList.MaxDeniedHeight()
+}
+
 // GetDeniedOutput returns the reconstructed OutputV0 for a denied block.
 func (c *simpleChainContainer) GetDeniedOutput(height uint64, payloadHash common.Hash) (*eth.OutputV0, error) {
 	if c.denyList == nil {

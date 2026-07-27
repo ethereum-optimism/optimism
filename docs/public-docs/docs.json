@@ -129,7 +129,7 @@
     },
     {
       "source": "/pages/app-developers/starter-kit",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/app-developers/tools/data-and-dashboards",
@@ -185,7 +185,7 @@
     },
     {
       "source": "/builders/dapp-developers/quick-start",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/dapp-developers/creating-a-nft",
@@ -325,7 +325,7 @@
     },
     {
       "source": "/stack/interop/transfer-superchainERC20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/stack/interop/architecture",
@@ -365,7 +365,7 @@
     },
     {
       "source": "/stack/overview",
-      "destination": "/op-stack/protocol/getting-started"
+      "destination": "/op-stack/introduction/op-stack"
     },
     {
       "source": "/stack/explainer",
@@ -481,7 +481,7 @@
     },
     {
       "source": "/stack/interop/compatible-tokens",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/stack/interop/reading-logs",
@@ -501,11 +501,11 @@
     },
     {
       "source": "/stack/interop/superchain-erc20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/stack/interop/tutorials/transfer-superchainERC20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/stack/interop/tutorials/bridge-crosschain-eth",
@@ -521,7 +521,7 @@
     },
     {
       "source": "/stack/interop/tutorials/custom-superchain-erc20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/stack/interop/tutorials/relay-messages-cast",
@@ -541,7 +541,7 @@
     },
     {
       "source": "/stack/interop/tutorials/deploy-superchain-erc20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/stack/interop/predeploy",
@@ -589,7 +589,7 @@
     },
     {
       "source": "/app-developers/get-started",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/app-developers/interop",
@@ -597,7 +597,7 @@
     },
     {
       "source": "/app-developers/starter-kit",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/app-developers/testing-apps",
@@ -713,7 +713,7 @@
     },
     {
       "source": "/app-developers/tutorials/interop/deploy-superchain-erc20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/app-developers/tutorials/interop/event-contests",
@@ -733,7 +733,7 @@
     },
     {
       "source": "/app-developers/tutorials/interop/transfer-superchainERC20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/app-developers/tutorials/supersim",
@@ -809,11 +809,11 @@
     },
     {
       "source": "/get-started/interop",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/concepts/interoperability/interop",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/get-started/op-stack",
@@ -825,7 +825,7 @@
     },
     {
       "source": "/interop/compatible-tokens",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/interop/explainer",
@@ -877,15 +877,15 @@
     },
     {
       "source": "/interop/starter-kit",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/interop/superchain-erc20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/concepts/interoperability/superchain-erc20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/interop/superchain-eth-bridge",
@@ -925,11 +925,11 @@
     },
     {
       "source": "/interop/tutorials/custom-superchain-erc20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/interop/tutorials/deploy-superchain-erc20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/interop/tutorials/event-contests",
@@ -953,7 +953,7 @@
     },
     {
       "source": "/interop/tutorials/transfer-superchainERC20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/notices/blob-fee-bug",
@@ -1361,7 +1361,7 @@
     },
     {
       "source": "/stack/getting-started",
-      "destination": "/op-stack/protocol/getting-started"
+      "destination": "/op-stack/introduction/op-stack"
     },
     {
       "source": "/stack/opcm",
@@ -1537,7 +1537,7 @@
     },
     {
       "source": "/superchain/standard-configuration",
-      "destination": "/chain-operators/reference/standard-configuration"
+      "destination": "/op-stack/protocol/superchain-registry"
     },
     {
       "source": "/chain-operators/reference/superchain-registry",
@@ -1761,7 +1761,7 @@
     },
     {
       "source": "/concepts/stack/getting-started",
-      "destination": "/op-stack/protocol/getting-started"
+      "destination": "/op-stack/introduction/op-stack"
     },
     {
       "source": "/concepts/stack/differences",
@@ -1901,27 +1901,27 @@
     },
     {
       "source": "/app-developers/quickstarts/starter-kit",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/app-developers/reference/tokens/compatible-tokens",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/app-developers/tutorials/tokens/custom-superchain-erc20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/app-developers/tutorials/tokens/deploy-superchain-erc20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/app-developers/tutorials/tokens/transfer-superchainERC20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/op-stack/interop/superchain-erc20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/superchain/introduction/superchain-explainer",
@@ -2534,6 +2534,18 @@
     {
       "source": "/rust/op-revm/index",
       "destination": "/app-developers/tools-sdks/op-revm"
+    },
+    {
+      "source": "/op-stack/interop/interop",
+      "destination": "/op-stack/interop/explainer"
+    },
+    {
+      "source": "/op-stack/protocol/getting-started",
+      "destination": "/op-stack/introduction/op-stack"
+    },
+    {
+      "source": "/chain-operators/reference/standard-configuration",
+      "destination": "/op-stack/protocol/superchain-registry"
     }
   ],
   "interaction": {
@@ -2542,10 +2554,10 @@
   "navigation": {
     "tabs": [
       {
-        "tab": "Chain Operators",
+        "tab": "Get Started",
         "groups": [
           {
-            "group": "Quickstart",
+            "group": "Get started",
             "pages": [
               "index",
               "ai-docs",
@@ -2562,7 +2574,12 @@
               "use-cases/launch-a-chain-with-fault-proofs-and-ha-sequencing",
               "use-cases/choose-your-node-stack"
             ]
-          },
+          }
+        ]
+      },
+      {
+        "tab": "Chain Operators",
+        "groups": [
           {
             "group": "Guides",
             "pages": [
@@ -2700,7 +2717,6 @@
               "chain-operators/reference/challenger-configuration",
               "chain-operators/reference/opcm",
               "chain-operators/reference/rollup-deployment-configuration",
-              "chain-operators/reference/standard-configuration",
               "chain-operators/reference/fee-parameters",
               "chain-operators/reference/da-footprint"
             ]
@@ -3187,7 +3203,6 @@
             "pages": [
               "/op-stack/protocol/index",
               "/op-stack/protocol/overview",
-              "/op-stack/protocol/getting-started",
               "/op-stack/protocol/design-principles",
               "/op-stack/protocol/differences",
               "/op-stack/protocol/components",
@@ -3331,7 +3346,6 @@
             "group": "Interoperability",
             "pages": [
               "/op-stack/interop/index",
-              "/op-stack/interop/interop",
               "/op-stack/interop/explainer",
               "/op-stack/interop/supernode",
               "/op-stack/interop/reorg",

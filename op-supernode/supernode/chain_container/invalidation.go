@@ -79,6 +79,26 @@ func OpenDenyList(dataDir string) (*DenyList, error) {
 	return &DenyList{db: db}, nil
 }
 
+// MaxDeniedHeight returns the highest denied block height, and whether any
+// denial exists (genesis cannot be denied, so 0 means none). A read error is
+// returned rather than reported as "no denials", so the caller can decide how
+// to treat it and log it.
+func (d *DenyList) MaxDeniedHeight() (uint64, bool, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	var maxHeight uint64
+	err := d.db.View(func(tx *bolt.Tx) error {
+		if k, _ := tx.Bucket(denyListBucketName).Cursor().Last(); k != nil {
+			maxHeight = binary.BigEndian.Uint64(k)
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, false, fmt.Errorf("failed to read max denied height: %w", err)
+	}
+	return maxHeight, maxHeight != 0, nil
+}
+
 // heightToKey converts a block height to a big-endian byte key.
 // Using big-endian ensures lexicographic ordering matches numeric ordering.
 func heightToKey(height uint64) []byte {
@@ -392,9 +412,13 @@ func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint6
 		return false, fmt.Errorf("failed to add block to deny list: %w", err)
 	}
 
+	// validParent is the canonical block the chain must sit on once the
+	// invalidated block is removed: the WAL-captured parent at height-1.
+	validParent := parentPayload.ExecutionPayload.ID()
 	c.log.Info("added block to deny list",
-		"height", height,
-		"payloadHash", payloadHash,
+		"invalidatedBlock", eth.BlockID{Hash: payloadHash, Number: height},
+		"rewindToValidParent", validParent,
+		"decisionTimestamp", decisionTimestamp,
 	)
 
 	if c.metrics != nil {
@@ -429,7 +453,10 @@ func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint6
 		return false, fmt.Errorf("failed to get current block at height %d: %w", height, err)
 	}
 
-	c.log.Warn("initiating rewind after block invalidation", "height", height, "hash", payloadHash)
+	c.log.Warn("initiating rewind after block invalidation",
+		"invalidatedBlock", eth.BlockID{Hash: payloadHash, Number: height},
+		"rewindToValidParent", validParent,
+	)
 
 	if err := c.RewindEngine(ctx, parentPayload, invalidatedBlock); err != nil {
 		return false, fmt.Errorf("failed to rewind engine: %w", err)
@@ -453,7 +480,14 @@ func (c *simpleChainContainer) PruneDeniedAtOrAfterTimestamp(timestamp uint64) (
 	if c.denyList == nil {
 		return nil, fmt.Errorf("deny list not initialized")
 	}
-	return c.denyList.PruneAtOrAfterTimestamp(timestamp)
+	removed, err := c.denyList.PruneAtOrAfterTimestamp(timestamp)
+	if err == nil && len(removed) > 0 {
+		c.log.Info("pruned deny list entries whose decision basis was reorged out",
+			"decisionTimestamp", timestamp,
+			"removed", removed,
+		)
+	}
+	return removed, err
 }
 
 func (c *simpleChainContainer) HasDeniedAtOrAfterTimestamp(timestamp uint64) (bool, error) {

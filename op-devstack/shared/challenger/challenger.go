@@ -216,6 +216,13 @@ func WithSuperCannonKonaGameType() Option {
 	}
 }
 
+func WithZKDisputeGameType() Option {
+	return func(_ context.Context, c *config.Config) error {
+		c.GameTypes = append(c.GameTypes, gameTypes.ZKDisputeGameType)
+		return nil
+	}
+}
+
 func WithFastGames() Option {
 	return func(_ context.Context, c *config.Config) error {
 		c.GameTypes = append(c.GameTypes, gameTypes.FastGameType)
