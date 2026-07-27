@@ -152,13 +152,14 @@ func (n *OpReth) Start() {
 	}
 	stdoutLogger := n.p.Logger().New("component", "op-reth", "src", "stdout", "name", n.name, "chain", n.chainID)
 	stdoutInfo := logpipe.ToLoggerWithMinLevel(stdoutLogger, log.LevelInfo)
-	stdoutAll := logpipe.ToLogger(stdoutLogger)
-	// Peer-disconnect reasons are logged below INFO under net::session / net::peers;
-	// let those targets bypass the level filter so peer drops are diagnosable.
+	// Peer-disconnect reasons are logged below INFO under net::session / net::peers.
+	// Raise those entries to INFO (original level kept as an attribute) so they
+	// survive the devtest INFO log filter and peer drops stay diagnosable.
+	stdoutNetPeers := logpipe.ToLoggerRaisedToLevel(stdoutLogger, log.LevelInfo)
 	logOut := func(e logpipe.LogEntry) {
 		if r, ok := e.(logpipe.StructuredRustLogEntry); ok &&
 			(strings.HasPrefix(r.Target, "net::session") || strings.HasPrefix(r.Target, "net::peers")) {
-			stdoutAll(e)
+			stdoutNetPeers(e)
 			return
 		}
 		stdoutInfo(e)
