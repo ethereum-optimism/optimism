@@ -119,6 +119,28 @@ func TestComputeGenesisOutputRoot_ComputesAndPersists(t *testing.T) {
 	require.Same(t, anchorBefore, chainStateAfter.StartingAnchorRoot)
 }
 
+// TestComputeGenesisOutputRoot_SkipsAlreadyDeployedChain verifies that a chain deployed via the
+// plain apply pipeline, which populates Allocs/StartBlock/GenesisTime but never calls
+// ComputeGenesisOutputRoot, since it uses the placeholder anchor.
+func TestComputeGenesisOutputRoot_SkipsAlreadyDeployedChain(t *testing.T) {
+	pEnv, intent, st, chainID := setupChainWithGenesis(t)
+
+	chainState, err := st.Chain(chainID)
+	require.NoError(t, err)
+	require.Nil(t, chainState.StartingAnchorRoot)
+	require.Nil(t, chainState.GenesisBlockHash)
+
+	st.SetChainContracts(chainID, chainState.OpChainContracts, true)
+	require.True(t, st.IsChainDeployed(chainID))
+
+	require.NoError(t, ComputeGenesisOutputRoot(pEnv, intent, st, chainID))
+
+	chainStateAfter, err := st.Chain(chainID)
+	require.NoError(t, err)
+	require.Nil(t, chainStateAfter.StartingAnchorRoot, "must not fabricate an anchor for an already-deployed chain")
+	require.Nil(t, chainStateAfter.GenesisBlockHash, "must not fabricate a genesis block hash for an already-deployed chain")
+}
+
 // TestComputeGenesisOutputRoot_SuperGameTypeWrapsSuperV1Root verifies that a chain configured
 // for SUPER_CANNON_KONA gets a genesis anchor encoded as a SuperV1 root over just its own
 // output, not the bare V0 root.

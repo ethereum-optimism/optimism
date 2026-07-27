@@ -26,7 +26,14 @@ func ComputeGenesisOutputRoot(pEnv *Env, intent *state.Intent, st *state.State, 
 		return fmt.Errorf("failed to get chain state: %w", err)
 	}
 
-	if thisChainState.StartingAnchorRoot != nil {
+	if st.IsChainDeployed(chainID) {
+		// Chains deployed via plain apply never populate these fields, so recomputing here
+		// would fabricate a StartingAnchorRoot/GenesisBlockHash unrelated to what's actually on L1.
+		lgr.Info("chain already deployed, not recomputing genesis output root", "id", chainID.Hex())
+		return nil
+	}
+
+	if thisChainState.StartingAnchorRoot != nil && thisChainState.GenesisBlockHash != nil {
 		lgr.Info("genesis output root already computed")
 		return nil
 	}
