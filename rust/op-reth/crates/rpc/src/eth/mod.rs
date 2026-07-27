@@ -485,7 +485,7 @@ pub struct OpEthApiBuilder<NetworkT = Optimism> {
     /// Requires `flashblocks_url` to be set.
     flashblock_consensus: bool,
     /// Retain RPC-submitted txs in the local pool even when forwarded to a sequencer. Off by
-    /// default for forwarding nodes; mirrors op-geth's `--rollup.enabletxpooladmission`.
+    /// default for forwarding nodes; mirrors op-geth's `--rollup.txpool.enable-admission`.
     enable_txpool_admission: bool,
     /// Marker for network types.
     _nt: PhantomData<NetworkT>,
@@ -550,7 +550,8 @@ impl<NetworkT> OpEthApiBuilder<NetworkT> {
     }
 
     /// Retain RPC-submitted txs in the local pool even when they are forwarded to a sequencer.
-    /// Off by default for forwarding nodes; mirrors op-geth's `--rollup.enabletxpooladmission`.
+    /// Off by default for forwarding nodes; mirrors op-geth's
+    /// `--rollup.txpool.enable-admission`.
     pub const fn with_enable_txpool_admission(mut self, enable_txpool_admission: bool) -> Self {
         self.enable_txpool_admission = enable_txpool_admission;
         self

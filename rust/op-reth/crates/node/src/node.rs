@@ -966,7 +966,8 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
     }
 
     /// Retain RPC-submitted txs in the local pool even when forwarded to a sequencer.
-    /// Off by default for forwarding nodes; mirrors op-geth's `--rollup.enabletxpooladmission`.
+    /// Off by default for forwarding nodes; mirrors op-geth's
+    /// `--rollup.txpool.enable-admission`.
     pub const fn with_enable_txpool_admission(mut self, enable_txpool_admission: bool) -> Self {
         self.enable_txpool_admission = enable_txpool_admission;
         self

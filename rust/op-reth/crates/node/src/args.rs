@@ -168,15 +168,11 @@ pub struct RollupArgs {
     ///
     /// Off by default for forwarding nodes: such a node does not build blocks, so retaining
     /// forwarded txs in its local pool produces a mempool view — and a `pending` nonce — that
-    /// need not match the sequencer's. Mirrors op-geth's `--rollup.enabletxpooladmission`.
+    /// need not match the sequencer's. Mirrors op-geth's `--rollup.txpool.enable-admission`.
     ///
     /// When no sequencer is configured this flag has no effect: RPC-submitted transactions always
     /// enter the local pool (that is how sequencer / non-forwarding nodes work).
-    #[arg(
-        long = "rollup.enabletxpooladmission",
-        alias = "rollup.enable-tx-pool-admission",
-        default_value_t = false
-    )]
+    #[arg(long = "rollup.txpool.enable-admission", default_value_t = false)]
     pub enable_txpool_admission: bool,
 
     /// Local operator opt-in for SDM `PostExec` production at process boot. The admin RPC
@@ -402,14 +398,8 @@ mod tests {
         assert!(!RollupArgs::default().enable_txpool_admission);
 
         let expected_args = RollupArgs { enable_txpool_admission: true, ..Default::default() };
-        // primary flag (op-geth spelling)
         let args =
-            CommandParser::<RollupArgs>::parse_from(["reth", "--rollup.enabletxpooladmission"])
-                .args;
-        assert_eq!(args, expected_args);
-        // dashed alias
-        let args =
-            CommandParser::<RollupArgs>::parse_from(["reth", "--rollup.enable-tx-pool-admission"])
+            CommandParser::<RollupArgs>::parse_from(["reth", "--rollup.txpool.enable-admission"])
                 .args;
         assert_eq!(args, expected_args);
     }

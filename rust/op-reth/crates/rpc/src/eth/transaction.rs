@@ -63,7 +63,7 @@ where
             // Retain tx in local tx pool after forwarding, for local RPC usage. Opt-in: a
             // forwarding node does not build blocks, so by default we do NOT keep forwarded txs
             // in the local pool (its mempool view / `pending` nonce need not match the sequencer).
-            // Enable with `--rollup.enabletxpooladmission`; mirrors op-geth.
+            // Enable with `--rollup.txpool.enable-admission`; mirrors op-geth.
             if self.inner.is_txpool_admission_enabled() {
                 let _ = self.inner.eth_api.add_pool_transaction(origin, pool_transaction).await.inspect_err(|err| {
                     tracing::warn!(target: "rpc::eth", %err, %hash, "successfully sent tx to sequencer, but failed to persist in local tx pool");
