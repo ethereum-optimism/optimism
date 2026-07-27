@@ -141,10 +141,7 @@ contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
         assertNotEq(systemConfig.l2ChainId(), 0);
     }
 
-    /// @notice Tests that initialization clears the legacy batch inbox slot. The OP Stack reads the
-    ///         batch inbox address from the rollup configuration, so this copy is redundant, and
-    ///         OPCMv2's reinitialization used to recompute it with the new-chain addressing scheme
-    ///         and thereby rotate it for pre-OPCM chains.
+    /// @notice Tests that initialization clears the legacy batch inbox slot.
     function test_initialize_clearsLegacyBatchInboxSlot_succeeds() external {
         bytes32 slot = bytes32(uint256(keccak256("systemconfig.batchinbox")) - 1);
 
@@ -152,59 +149,26 @@ contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
         vm.store(address(systemConfig), slot, bytes32(uint256(uint160(address(0xbadbad)))));
         assertEq(vm.load(address(systemConfig), slot), bytes32(uint256(uint160(address(0xbadbad)))));
 
-        _reinitializeSystemConfig();
-
-        assertEq(vm.load(address(systemConfig), slot), bytes32(0));
-    }
-
-    /// @notice Tests that reinitialization preserves the start block. Unlike the batch inbox, the
-    ///         start block is only written when unset, so it must survive an upgrade rather than
-    ///         being overwritten with the upgrade's block number.
-    function test_initialize_preservesStartBlock_succeeds() external {
-        uint256 startBlockBefore = systemConfig.startBlock();
-        assertNotEq(startBlockBefore, 0);
-
-        vm.roll(block.number + 1000);
-        _reinitializeSystemConfig();
-
-        assertEq(systemConfig.startBlock(), startBlockBefore);
-    }
-
-    /// @notice Reinitializes the SystemConfig proxy with its current configuration, simulating what
-    ///         an OPCM upgrade does. Wipes the initialized slot so the reinitializer can run again.
-    function _reinitializeSystemConfig() internal {
-        // Read the current configuration before pranking. These getters are external calls, so
-        // evaluating them as `initialize` arguments would consume the prank and leave `initialize`
-        // itself called by this test contract, which the ProxyAdmin check then rejects.
-        address currentOwner = systemConfig.owner();
-        uint32 currentBasefeeScalar = systemConfig.basefeeScalar();
-        uint32 currentBlobbasefeeScalar = systemConfig.blobbasefeeScalar();
-        bytes32 currentBatcherHash = systemConfig.batcherHash();
-        uint64 currentGasLimit = systemConfig.gasLimit();
-        address currentUnsafeBlockSigner = systemConfig.unsafeBlockSigner();
-        IResourceMetering.ResourceConfig memory currentConfig = systemConfig.resourceConfig();
-        ISystemConfig.Addresses memory currentAddresses = systemConfig.getAddresses();
-        uint256 currentL2ChainId = systemConfig.l2ChainId();
-        ISuperchainConfig currentSuperchainConfig = systemConfig.superchainConfig();
-
-        address admin = address(uint160(uint256(vm.load(address(systemConfig), Constants.PROXY_OWNER_ADDRESS))));
-
-        // Wipe the initialized slot so the reinitializer can run again.
         vm.store(address(systemConfig), bytes32(0), bytes32(0));
-
+        ISystemConfig.Addresses memory addresses = systemConfig.getAddresses();
+        uint256 l2ChainId = systemConfig.l2ChainId();
+        ISuperchainConfig superchainConfig = systemConfig.superchainConfig();
+        address admin = address(uint160(uint256(vm.load(address(systemConfig), Constants.PROXY_OWNER_ADDRESS))));
         vm.prank(admin);
         systemConfig.initialize({
-            _owner: currentOwner,
-            _basefeeScalar: currentBasefeeScalar,
-            _blobbasefeeScalar: currentBlobbasefeeScalar,
-            _batcherHash: currentBatcherHash,
-            _gasLimit: currentGasLimit,
-            _unsafeBlockSigner: currentUnsafeBlockSigner,
-            _config: currentConfig,
-            _addresses: currentAddresses,
-            _l2ChainId: currentL2ChainId,
-            _superchainConfig: currentSuperchainConfig
+            _owner: owner,
+            _basefeeScalar: basefeeScalar,
+            _blobbasefeeScalar: blobbasefeeScalar,
+            _batcherHash: batcherHash,
+            _gasLimit: gasLimit,
+            _unsafeBlockSigner: unsafeBlockSigner,
+            _config: Constants.DEFAULT_RESOURCE_CONFIG(),
+            _addresses: addresses,
+            _l2ChainId: l2ChainId,
+            _superchainConfig: superchainConfig
         });
+
+        assertEq(vm.load(address(systemConfig), slot), bytes32(0));
     }
 
     /// @notice Tests that initialization reverts if the gas limit is too low.
@@ -333,8 +297,8 @@ contract SystemConfig_StartBlock_Test is SystemConfig_TestInit {
         assertEq(systemConfig.startBlock(), block.number);
     }
 
-    /// @notice Tests that startBlock is not updated when it's not zero.
-    function test_startBlock_update_fails() external {
+    /// @notice Tests that initialization preserves a non-zero start block.
+    function test_initialize_preservesStartBlock_succeeds() external {
         // Wipe out the initialized slot so the proxy can be initialized again
         vm.store(address(systemConfig), bytes32(0), bytes32(0));
         // Set slot startBlock to non-zero value 1

@@ -33,7 +33,7 @@
   },
   "src/L1/SystemConfig.sol:SystemConfig": {
     "initCodeHash": "0xf3cbb633b8c0ffe929f31c839eb21eb7d440746746d244686ab72e09c1f5883a",
-    "sourceCodeHash": "0x04a7b64078ee6a2856a0db7d9ee7e3ec00dbd9cefe7cac391869449419ea7826"
+    "sourceCodeHash": "0x27b51f1e3758e672323365b9e89192f95880dc66dc7934e15c2fff2212279819"
   },
   "src/L1/opcm/OPContractsManagerV2.sol:OPContractsManagerV2": {
     "initCodeHash": "0xcb0ce590af709c28184eb1783cc14bff6c34c21e652b569d605996397ac6c875",

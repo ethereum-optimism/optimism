@@ -228,11 +228,6 @@ func BatcherKeyRotation(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 // GPODefaultParams tests that the pre-Ecotone L1 data fee charged to an L2 transaction is
 // computed from the genesis gas config: op-node derives the fee parameters, the sequencer
 // applies them through the L1 attributes transaction, and they surface on the receipt.
-//
-// This previously also changed the parameters mid-chain via SystemConfig.setGasConfig and
-// re-checked the fees. That half went away with setGasConfig itself in SystemConfig 4.0.0;
-// parsing of version-0 FEE_SCALARS updates is covered by the GasConfig case in
-// op-node/rollup/derive/system_config_test.go.
 func GPODefaultParams(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := actionsHelpers.NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, actionsHelpers.DefaultRollupTestParams())
