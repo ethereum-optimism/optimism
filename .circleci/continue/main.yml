@@ -651,6 +651,10 @@ commands:
       - run:
           name: Build << parameters.directory >>
           command: |
+            # A/B EXPERIMENT (do not merge): disable the sccache compiler wrapper to
+            # measure sccache's true benefit on the workspace build. sccache server
+            # setup elsewhere is harmless; cargo just won't use it here.
+            export RUSTC_WRAPPER=""
             PWD=$(pwd)
             export CARGO_TARGET_DIR="$PWD/<< parameters.directory >>/target"
             echo "CARGO_TARGET_DIR: $CARGO_TARGET_DIR"
