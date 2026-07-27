@@ -1,16 +1,25 @@
 //! RPC integration tests.
 
+use alloy_consensus::{SignableTransaction, TxEip1559};
+use alloy_genesis::Genesis;
+use alloy_network::{TxSignerSync, eip2718::Encodable2718};
+use alloy_primitives::{Address, Bytes, TxKind};
+use jsonrpsee::{RpcModule, server::ServerBuilder};
 use reth_chainspec::EthChainSpec;
+use reth_e2e_test_utils::wallet::Wallet;
 use reth_network::types::NatResolver;
 use reth_node_builder::{NodeBuilder, NodeHandle};
 use reth_node_core::{
     args::{NetworkArgs, RpcServerArgs},
     node_config::NodeConfig,
 };
-use reth_optimism_chainspec::OP_SEPOLIA;
-use reth_optimism_node::OpNode;
+use reth_optimism_chainspec::{OP_SEPOLIA, OpChainSpecBuilder};
+use reth_optimism_node::{OpNode, args::RollupArgs};
 use reth_rpc_api::{EthConfigApiClient, servers::AdminApiServer};
+use reth_rpc_eth_api::helpers::EthTransactions;
 use reth_tasks::Runtime;
+use reth_transaction_pool::TransactionPool;
+use std::sync::Arc;
 
 // <https://github.com/paradigmxyz/reth/issues/19765>
 #[tokio::test]
@@ -39,6 +48,68 @@ async fn test_admin_external_ip() -> eyre::Result<()> {
     let info = api.node_info().await.unwrap();
 
     assert_eq!(info.ip, external_ip);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_forwarded_transaction_txpool_admission() -> eyre::Result<()> {
+    reth_tracing::init_test_tracing();
+
+    let genesis: Genesis = serde_json::from_str(include_str!("../assets/genesis.json"))?;
+    let chain_spec = Arc::new(
+        OpChainSpecBuilder::optimism_sepolia().genesis(genesis).ecotone_activated().build(),
+    );
+    let chain_id = chain_spec.chain_id();
+    let signer = Wallet::new(1).with_chain_id(chain_id).wallet_gen().remove(0);
+
+    let mut tx = TxEip1559 {
+        chain_id,
+        gas_limit: 21_000,
+        max_fee_per_gas: 20_000_000_000,
+        max_priority_fee_per_gas: 1_000_000_000,
+        to: TxKind::Call(Address::random()),
+        ..Default::default()
+    };
+    let signature = signer.sign_transaction_sync(&mut tx)?;
+    let signed = tx.into_signed(signature);
+    let tx_hash = *signed.hash();
+    let raw_tx: Bytes =
+        op_alloy_consensus::OpPooledTransaction::Eip1559(signed).encoded_2718().into();
+
+    let server = ServerBuilder::default().build("127.0.0.1:0").await?;
+    let sequencer_url = format!("http://{}", server.local_addr()?);
+    let mut module = RpcModule::new(());
+    module.register_method("eth_sendRawTransaction", move |_params, _ctx, _ext| {
+        Ok::<_, jsonrpsee::types::ErrorObjectOwned>(tx_hash)
+    })?;
+    let _server_handle = server.start(module);
+
+    let exec = Runtime::test();
+    for enable_txpool_admission in [false, true] {
+        let mut network_args = NetworkArgs::default().with_unused_ports();
+        network_args.discovery.discv5_port = Some(0);
+        network_args.discovery.discv5_port_ipv6 = Some(0);
+        let node_config = NodeConfig::test()
+            .map_chain(chain_spec.clone())
+            .with_network(network_args)
+            .with_rpc(RpcServerArgs::default().with_unused_ports());
+        let op_node = OpNode::new(RollupArgs {
+            sequencer: Some(sequencer_url.clone()),
+            enable_txpool_admission,
+            ..Default::default()
+        });
+
+        let NodeHandle { node, node_exit_future: _ } =
+            NodeBuilder::new(node_config).testing_node(exec.clone()).node(op_node).launch().await?;
+
+        let forwarded_hash =
+            EthTransactions::send_raw_transaction(node.add_ons_handle.eth_api(), raw_tx.clone())
+                .await?;
+        assert_eq!(forwarded_hash, tx_hash);
+        assert_eq!(node.pool.len(), usize::from(enable_txpool_admission));
+        assert_eq!(node.pool.get(&tx_hash).is_some(), enable_txpool_admission);
+    }
 
     Ok(())
 }

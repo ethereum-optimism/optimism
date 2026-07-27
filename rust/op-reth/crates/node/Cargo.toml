@@ -95,6 +95,7 @@ reth-tasks.workspace = true
 reth-payload-util.workspace = true
 reth-revm = { workspace = true, features = ["std"] }
 reth-rpc.workspace = true
+reth-rpc-eth-api.workspace = true
 reth-rpc-eth-types.workspace = true
 reth-stages-types.workspace = true
 reth-trie-db.workspace = true
@@ -106,6 +107,7 @@ alloy-rpc-types-admin.workspace = true
 alloy-signer-local.workspace = true
 futures.workspace = true
 op-alloy-network.workspace = true
+jsonrpsee.workspace = true
 
 [features]
 default = ["reth-codec"]
