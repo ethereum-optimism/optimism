@@ -7,7 +7,7 @@ diataxis: reference
 This page catalogues the environment variables Legacy Geth (`l2geth`) accepts and the RPC methods your execution client routes to it.
 For what Legacy Geth is and how to set it up, see the [Legacy Geth guide](/node-operators/guides/configuration/legacy-geth).
 
-Legacy Geth applies only to networks that upgraded through Bedrock, such as OP Mainnet, where it serves execution requests against pre-Bedrock blocks.
+Legacy Geth applies only to networks that upgraded through Bedrock, such as OP Mainnet, where it serves execution requests and chain data for pre-Bedrock blocks.
 
 ## Environment variables
 
@@ -31,31 +31,61 @@ Legacy Geth accepts the following environment variables:
 
 ## Execution-client routing flag
 
-Both op-reth and op-geth use the same `--rollup.historicalrpc` flag to route pre-Bedrock execution requests to Legacy Geth.
+Both op-reth and op-geth use the same `--rollup.historicalrpc` flag to route pre-Bedrock requests to Legacy Geth.
 The flag takes the URL of the Legacy Geth RPC endpoint, for example `--rollup.historicalrpc=http://localhost:8545`.
 
-## Historical execution vs. historical data
+## RPC methods routed to Legacy Geth
 
-Only requests for **historical execution** will be routed to Legacy Geth.
-Everything else will be served by your execution client directly.
+This section describes op-reth.
+When `--rollup.historicalrpc` is set, op-reth forwards requests that target pre-Bedrock blocks to Legacy Geth and serves everything else directly.
+This covers both methods that require transaction execution (which op-reth cannot perform for pre-Bedrock blocks) and methods that read pre-Bedrock block or transaction data.
+Methods not listed below (for example `eth_getLogs`) are never routed to Legacy Geth.
 
-### Historical execution RPC methods
+<Info>
+  op-geth behaved differently: it served pre-Bedrock block and transaction data locally from its migrated database and routed only execution methods to Legacy Geth.
+  op-geth has reached end-of-support and this behavior is no longer documented here; see the [op-geth deprecation notice](/notices/op-geth-deprecation).
+</Info>
 
-These methods require transaction execution and are routed to Legacy Geth for pre-Bedrock blocks:
+### State and execution methods
+
+Routed to Legacy Geth when the method's block parameter refers to a pre-Bedrock block:
 
 - `eth_call`
 - `eth_estimateGas`
-- `debug_traceBlockByNumber`
-- `debug_traceBlockByHash`
+- `eth_createAccessList`
+- `eth_getBalance`
+- `eth_getCode`
+- `eth_getStorageAt`
+- `eth_getTransactionCount`
+- `eth_getProof`
 - `debug_traceCall`
-- `debug_traceTransaction`
 
-### Historical data RPC methods
+### Block data methods
 
-These methods only read data from the database and are served by your execution client:
+Routed to Legacy Geth when the requested block is pre-Bedrock, or when the requested block hash is unknown to op-reth:
 
-- `eth_getBlockByNumber`
-- `eth_getBlockByHash`
+- `eth_getBlockByNumber` / `eth_getBlockByHash`
+- `eth_getBlockReceipts`
+- `eth_getHeaderByNumber` / `eth_getHeaderByHash`
+- `eth_getBlockTransactionCountByNumber` / `eth_getBlockTransactionCountByHash`
+- `eth_getUncleCountByBlockNumber` / `eth_getUncleCountByBlockHash`
+- `eth_getUncleByBlockNumberAndIndex` / `eth_getUncleByBlockHashAndIndex`
+- `eth_getTransactionByBlockNumberAndIndex` / `eth_getTransactionByBlockHashAndIndex`
+- `eth_getRawTransactionByBlockNumberAndIndex` / `eth_getRawTransactionByBlockHashAndIndex`
+- `debug_traceBlockByNumber` / `debug_traceBlockByHash`
+
+### Transaction data methods
+
+Routed to Legacy Geth when the transaction belongs to a pre-Bedrock block, or when the transaction is unknown to op-reth:
+
 - `eth_getTransactionByHash`
 - `eth_getTransactionReceipt`
-- `eth_getLogs`
+- `eth_getRawTransactionByHash`
+- `debug_traceTransaction`
+
+### `eth_getBlockReceipts` emulation
+
+Legacy Geth (`l2geth`) predates `eth_getBlockReceipts` and does not implement it.
+op-reth forwards the request first; if Legacy Geth responds that the method does not exist, op-reth fetches the block's transaction hashes from Legacy Geth and assembles the response from one `eth_getTransactionReceipt` call per transaction.
+Receipts are returned in transaction order and passed through verbatim, with their legacy fields intact — exactly what a forwarded `eth_getTransactionReceipt` returns for the same transactions.
+A block unknown to Legacy Geth returns `null`, and a block without transactions returns `[]`.
