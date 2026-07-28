@@ -1,41 +1,37 @@
 ---
 title: Upgrade 20
-description: Prepare OP Stack fault-proof infrastructure for the move from output-root dispute games to super-root dispute games.
+description: Prepare OP Stack Fault Proof infrastructure for the move from Output Root Dispute Games to Super Root Dispute Games.
 ---
 
-Upgrade 20 is a contracts-and-proofs upgrade for OP Stack chains. It moves fault proofs from output-root dispute games to super-root dispute games while preserving each chain's existing permission model.
-
-<Info>
-  Upgrade 20 does not include a hardfork.
-</Info>
+Upgrade 20 is an L1 smart contract upgrade for OP Stack chains. It moves Fault Proofs from Output Root Dispute Games to Super Root Dispute Games while preserving each chain's existing permission model.
 
 ## What's included
 
-Upgrade 20 adds the following super-root dispute game types:
+Upgrade 20 adds the following Super Root Dispute Game types:
 
-* `SUPER_PERMISSIONED` (game type `5`) for chains that use permissioned fault proofs.
-* `SUPER_CANNON_KONA` (game type `9`) for chains that use permissionless fault proofs.
+* `SUPER_PERMISSIONED` (game type `5`) for chains that use permissioned Fault Proofs.
+* `SUPER_CANNON_KONA` (game type `9`) for chains that use permissionless Fault Proofs.
 
-A permissioned chain remains permissioned. A permissionless chain runs both super-root game types and uses `SUPER_CANNON_KONA` as its respected game type. Existing dispute games continue to resolve through their original game types.
+A permissioned chain remains permissioned. A permissionless chain runs both Super Root Dispute Game types and uses `SUPER_CANNON_KONA` as its respected game type. Existing Dispute Games continue to resolve through their original game types.
 
-The upgrade keeps each chain's existing `AnchorStateRegistry` and `DisputeGameFactory`. It uses an `OPCM.upgrade` transaction rather than migrating the chain to a shared dispute-game setup.
+The upgrade keeps each chain's existing `AnchorStateRegistry` and `DisputeGameFactory`. It uses an `OPCM.upgrade` transaction rather than migrating the chain to a shared Dispute Game setup.
 
-## Prepare fault-proof services
+## Prepare Fault Proof services
 
 Use the following configuration changes when staging the Upgrade 20 component releases:
 
 | Component | Required change |
 | --- | --- |
-| `op-challenger` | Add `--superroot-rpc` (`OP_CHALLENGER_SUPERROOT_RPC`). On a permissionless chain, append `super-cannon-kona` to the existing `--game-types` (`OP_CHALLENGER_GAME_TYPES`) value and configure the reviewed kona-interop prestate. Keep the existing game types so the challenger can finish games already in progress. |
-| `op-dispute-mon` | Add `--superroot-rpc` (`OP_DISPUTE_MON_SUPERROOT_RPC`). Keep `--rollup-rpc` while output-root games remain in progress. |
-| `op-proposer` | Switch at the contract-upgrade cutover. Replace `--rollup-rpc` with `--superroot-rpcs` (`OP_PROPOSER_SUPERROOT_RPCS`) and set `OP_PROPOSER_GAME_TYPE=5` for a permissioned chain or `OP_PROPOSER_GAME_TYPE=9` for a permissionless chain. |
+| `op-challenger` | Add `--superroot-rpc` (`OP_CHALLENGER_SUPERROOT_RPC`). On a permissionless chain, append `super-cannon-kona` to the existing `--game-types` (`OP_CHALLENGER_GAME_TYPES`) value and configure the reviewed Kona Interop prestate. Keep the existing game types so the challenger can finish games already in progress. |
+| `op-dispute-mon` | Add `--superroot-rpc` (`OP_DISPUTE_MON_SUPERROOT_RPC`). Keep `--rollup-rpc` while Output Root Dispute Games remain in progress. |
+| `op-proposer` | Switch at the contract upgrade cutover. Replace `--rollup-rpc` with `--superroot-rpcs` (`OP_PROPOSER_SUPERROOT_RPCS`) and set `OP_PROPOSER_GAME_TYPE=5` for a permissioned chain or `OP_PROPOSER_GAME_TYPE=9` for a permissionless chain. |
 | `op-node` and `op-batcher` | No configuration change is required. Upgrade 20 has no hardfork activation. |
 
-The super-root RPC must return a root for the chain or dependency set that the dispute game covers. For a single-chain upgrade, use the chain's op-node RPC endpoint or the chain-specific endpoint exposed by an op-supernode.
+The Super Root RPC must return a root for the chain or dependency set that the Dispute Game covers. For a single-chain upgrade, use the chain's `op-node` RPC endpoint or the chain-specific endpoint exposed by an `op-supernode`.
 
 ## Locate or build the absolute prestate
 
-Permissionless chains need the Upgrade 20 `kona-client` interop-variant absolute prestate for `SUPER_CANNON_KONA`. Use the `kona-client-int` artifact even when interop is not scheduled for the chain.
+Permissionless chains need the Upgrade 20 `kona-client` Interop variant absolute prestate for `SUPER_CANNON_KONA`. Use the `kona-client-int` artifact even when Interop is not scheduled for the chain.
 
 <Tabs>
   <Tab title="Standard chain configuration">
@@ -70,6 +66,6 @@ Permissionless chains need the Upgrade 20 `kona-client` interop-variant absolute
 
 Upgrade 20 is applied as an L1 contract upgrade and has no L2 hardfork activation timestamp.
 
-The [output-root to super-root upgrade runbook](/chain-operators/tutorials/upgrade-chain-to-super-roots) describes the onchain upgrade and cutover checks.
+The [Output Root to Super Root upgrade runbook](/chain-operators/tutorials/upgrade-chain-to-super-roots) describes the onchain upgrade and cutover checks.
 
 For support, [open an issue in the Optimism monorepo](https://github.com/ethereum-optimism/optimism/issues).
