@@ -38,6 +38,25 @@ LEGACY_KONA_VERSIONS=(
 LEGACY_KONA_REPO="https://github.com/op-rs/kona"
 LEGACY_KONA_DIR="${TMP_DIR}/kona-legacy"
 
+# Each attempt is time-bounded so a stalled clone fails and retries instead of
+# hanging silently until CI's no-output watchdog kills the job.
+function clone_legacy_kona() {
+  local version=$1
+  local log_file=$2
+  local attempt
+  for attempt in 1 2 3; do
+    if timeout 300 git clone -b "${version}" "${LEGACY_KONA_REPO}" kona >> "${log_file}" 2>&1; then
+      return 0
+    fi
+    rm -rf kona
+    echo "Clone attempt ${attempt}/3 of ${LEGACY_KONA_REPO} failed"
+    if ((attempt < 3)); then
+      sleep 5
+    fi
+  done
+  return 1
+}
+
 # Legacy kona prestates are built from the old op-rs/kona repo.
 function build_legacy_kona_prestate() {
   local version=$1
@@ -52,7 +71,7 @@ function build_legacy_kona_prestate() {
     cd kona
     git checkout --force "${version}" > "${log_file}" 2>&1
   else
-    git clone -b "${version}" "${LEGACY_KONA_REPO}" kona > "${log_file}" 2>&1
+    clone_legacy_kona "${version}" "${log_file}"
     cd kona
   fi
   # kona doesn't define a just dependency in its mise config.
