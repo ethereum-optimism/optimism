@@ -30,6 +30,7 @@ const (
 	L2toL2CrossDomainMessenger    = "0x4200000000000000000000000000000000000023"
 	SuperchainETHBridge           = "0x4200000000000000000000000000000000000024"
 	ETHLiquidity                  = "0x4200000000000000000000000000000000000025"
+	SuperchainERC20Factory        = "0x4200000000000000000000000000000000000026"
 	SuperchainTokenBridge         = "0x4200000000000000000000000000000000000028"
 	NativeAssetLiquidity          = "0x4200000000000000000000000000000000000029"
 	LiquidityController           = "0x420000000000000000000000000000000000002a"
@@ -75,6 +76,7 @@ var (
 	L2toL2CrossDomainMessengerAddr    = common.HexToAddress(L2toL2CrossDomainMessenger)
 	SuperchainETHBridgeAddr           = common.HexToAddress(SuperchainETHBridge)
 	ETHLiquidityAddr                  = common.HexToAddress(ETHLiquidity)
+	SuperchainERC20FactoryAddr        = common.HexToAddress(SuperchainERC20Factory)
 	SuperchainTokenBridgeAddr         = common.HexToAddress(SuperchainTokenBridge)
 	NativeAssetLiquidityAddr          = common.HexToAddress(NativeAssetLiquidity)
 	LiquidityControllerAddr           = common.HexToAddress(LiquidityController)
@@ -114,6 +116,7 @@ func init() {
 	Predeploys["SuperchainETHBridge"] = &Predeploy{Address: SuperchainETHBridgeAddr}
 	Predeploys["ETHLiquidity"] = &Predeploy{Address: ETHLiquidityAddr}
 	Predeploys["SuperchainTokenBridge"] = &Predeploy{Address: SuperchainTokenBridgeAddr}
+	Predeploys["SuperchainERC20Factory"] = &Predeploy{Address: SuperchainERC20FactoryAddr}
 	Predeploys["ConditionalDeployer"] = &Predeploy{Address: ConditionalDeployerAddr}
 	Predeploys["L2DevFeatureFlags"] = &Predeploy{Address: L2DevFeatureFlagsAddr}
 	Predeploys["GovernanceToken"] = &Predeploy{

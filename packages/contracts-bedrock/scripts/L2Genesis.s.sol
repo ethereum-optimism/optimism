@@ -283,6 +283,7 @@ contract L2Genesis is Script {
             setL2ToL2CrossDomainMessenger(); // 23
             setSuperchainETHBridge(); // 24
             setETHLiquidity(); // 25
+            setSuperchainERC20Factory(); // 26
             setSuperchainTokenBridge(); // 28
         }
         if (_input.useCustomGasToken) {
@@ -639,6 +640,13 @@ contract L2Genesis is Script {
     function setSuperchainTokenBridge() internal {
         Predeploys.assertGates(Predeploys.SUPERCHAIN_TOKEN_BRIDGE, DevFeatures.OPTIMISM_PORTAL_INTEROP, false, true);
         _setImplementationCode(Predeploys.SUPERCHAIN_TOKEN_BRIDGE);
+    }
+
+    /// @notice This predeploy is following the safety invariant #1.
+    ///         This contract has no initializer.
+    function setSuperchainERC20Factory() internal {
+        Predeploys.assertGates(Predeploys.SUPERCHAIN_ERC20_FACTORY, DevFeatures.OPTIMISM_PORTAL_INTEROP, false, true);
+        _setImplementationCode(Predeploys.SUPERCHAIN_ERC20_FACTORY);
     }
 
     /// @notice This predeploy is following the safety invariant #1.

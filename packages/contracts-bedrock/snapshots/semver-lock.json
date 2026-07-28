@@ -72,8 +72,8 @@
     "sourceCodeHash": "0x8876e106997cbaa64501bba7e5aa1fd8931873b8acef9f34f9d1ec2676df97d6"
   },
   "src/L2/L2ContractsManager.sol:L2ContractsManager": {
-    "initCodeHash": "0x0c45d158d2ca2fd66124d0c02c764d5f715171f77e021bb152d1b0dcdc74758d",
-    "sourceCodeHash": "0xadf197508601103a3b75c4802145bb6dbc12253398dcbf20767ba1433321d66b"
+    "initCodeHash": "0x84e34a5dd96c30624a98c21826d4eecadfea2251a7628be18222ebb4648ddbc5",
+    "sourceCodeHash": "0xdc35b01098a8a9f2be6ef155342f30df25bce5c129ca0687e1f7307e1fce110a"
   },
   "src/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger": {
     "initCodeHash": "0x76784e1bc7abe615094033f3eb16d3a6bd5caf28c2717377a3dd25e6825228f3",
@@ -131,6 +131,10 @@
     "initCodeHash": "0xf51c910e8b09a8884aa793a9ed1cf5828f007140eb50e38c02028f51333b8e4f",
     "sourceCodeHash": "0x5e91f103e14750fdc05bbd3c6d121547a76dfed86b94431e1cee6fe229bdbfdd"
   },
+  "src/L2/SuperchainERC20Factory.sol:SuperchainERC20Factory": {
+    "initCodeHash": "0xcdfc20191760bc0e34053389e747ff6ce180ff0213d309467555a3f69ea5ef95",
+    "sourceCodeHash": "0xa09a5300292b9414e8e43f6cb807bc53d56ef853cba3fec8e86cf7f45d0e6b24"
+  },
   "src/L2/SuperchainETHBridge.sol:SuperchainETHBridge": {
     "initCodeHash": "0xa43665ad0f2b4f092ff04b12e38f24aa8d2cb34ae7a06fc037970743547bdf98",
     "sourceCodeHash": "0x862b8a2e5dd5cafcda55e35df7713b0d0b7a93d4d6ce29ea9ca53e045bf63cb4"
@@ -138,6 +142,10 @@
   "src/L2/SuperchainTokenBridge.sol:SuperchainTokenBridge": {
     "initCodeHash": "0xb0d25dc03b9c84b07b263921c2b717e6caad3f4297fa939207e35978d7d25abe",
     "sourceCodeHash": "0x0ff7c1f0264d784fac5d69b792c6bc9d064d4a09701c1bafa808388685c8c4f1"
+  },
+  "src/L2/SuperchainWrappedERC20.sol:SuperchainWrappedERC20": {
+    "initCodeHash": "0xce8e1692e58853e11930081925cfcd26c933bc704f7e2eaf839464cc89ec90d5",
+    "sourceCodeHash": "0x1fbc971ef2cce0aec0976af7eed9ad23befabd170e96f0962b858a7f21462bbf"
   },
   "src/L2/WETH.sol:WETH": {
     "initCodeHash": "0xbc2cd025153720943e51b79822c2dc374d270a78b92cf47d49548c468e218e46",

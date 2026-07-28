@@ -184,6 +184,7 @@ func assertInactivePredeploys(t *testing.T, gen generatedL2Genesis) {
 	assertInactiveProxy(t, gen, predeploys.SuperchainETHBridgeAddr)
 	assertInactiveProxy(t, gen, predeploys.ETHLiquidityAddr)
 	assertInactiveProxy(t, gen, predeploys.SuperchainTokenBridgeAddr)
+	assertInactiveProxy(t, gen, predeploys.SuperchainERC20FactoryAddr)
 }
 
 func activePredeploys(mode allocMode) []common.Address {

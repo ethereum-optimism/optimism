@@ -1,0 +1,16 @@
+[
+  {
+    "bytes": "32",
+    "label": "wrappedName",
+    "offset": 0,
+    "slot": "0",
+    "type": "string"
+  },
+  {
+    "bytes": "32",
+    "label": "wrappedSymbol",
+    "offset": 0,
+    "slot": "1",
+    "type": "string"
+  }
+]
