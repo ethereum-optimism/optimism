@@ -72,8 +72,8 @@
     "sourceCodeHash": "0x8876e106997cbaa64501bba7e5aa1fd8931873b8acef9f34f9d1ec2676df97d6"
   },
   "src/L2/L2ContractsManager.sol:L2ContractsManager": {
-    "initCodeHash": "0xbddf0e30ab0a7b264b0c0fb400f386a8c68937ca260ae4fee824c7fa52ff854d",
-    "sourceCodeHash": "0x4e53c2c11bf9a4b28eae56281dfd1ffed45fd8521c67d34c7bd3cf4f1030ad8a"
+    "initCodeHash": "0x0c45d158d2ca2fd66124d0c02c764d5f715171f77e021bb152d1b0dcdc74758d",
+    "sourceCodeHash": "0xadf197508601103a3b75c4802145bb6dbc12253398dcbf20767ba1433321d66b"
   },
   "src/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger": {
     "initCodeHash": "0x76784e1bc7abe615094033f3eb16d3a6bd5caf28c2717377a3dd25e6825228f3",
@@ -134,6 +134,10 @@
   "src/L2/SuperchainETHBridge.sol:SuperchainETHBridge": {
     "initCodeHash": "0xa43665ad0f2b4f092ff04b12e38f24aa8d2cb34ae7a06fc037970743547bdf98",
     "sourceCodeHash": "0x862b8a2e5dd5cafcda55e35df7713b0d0b7a93d4d6ce29ea9ca53e045bf63cb4"
+  },
+  "src/L2/SuperchainTokenBridge.sol:SuperchainTokenBridge": {
+    "initCodeHash": "0xb0d25dc03b9c84b07b263921c2b717e6caad3f4297fa939207e35978d7d25abe",
+    "sourceCodeHash": "0x0ff7c1f0264d784fac5d69b792c6bc9d064d4a09701c1bafa808388685c8c4f1"
   },
   "src/L2/WETH.sol:WETH": {
     "initCodeHash": "0xbc2cd025153720943e51b79822c2dc374d270a78b92cf47d49548c468e218e46",

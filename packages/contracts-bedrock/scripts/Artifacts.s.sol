@@ -122,6 +122,8 @@ contract Artifacts {
             return payable(Predeploys.SCHEMA_REGISTRY);
         } else if (digest == keccak256(bytes("EAS"))) {
             return payable(Predeploys.EAS);
+        } else if (digest == keccak256(bytes("SuperchainTokenBridge"))) {
+            return payable(Predeploys.SUPERCHAIN_TOKEN_BRIDGE);
         }
         return payable(address(0));
     }
