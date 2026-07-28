@@ -1,20 +1,61 @@
 ---
 title: Upgrade 20
-description: Prepare OP Stack Fault Proof infrastructure for the move from Output Root Dispute Games to Super Root Dispute Games.
+description: Prepare Fault Proof services and contract integrations for the Upgrade 20 move to Super Root Dispute Games.
 ---
 
-Upgrade 20 is an L1 smart contract upgrade for OP Stack chains. It moves Fault Proofs from Output Root Dispute Games to Super Root Dispute Games while preserving each chain's existing permission model.
+Upgrade 20 is an L1 smart contract upgrade for OP Stack chains.
+It moves Fault Proofs from Output Root Dispute Games to Super Root Dispute Games and includes `SystemConfig` and OP Contracts Manager (OPCM) maintenance changes.
+
+## Why Upgrade 20
+
+Output Root Dispute Games commit to one chain's state at an L2 block number.
+Interop requires a dispute game format that can commit to the state of multiple chains at the same timestamp.
+Super Root Dispute Games provide that format.
+
+Upgrade 20 moves each chain to Super Root Dispute Games before shared cross-chain dispute infrastructure is enabled.
+Each game created after this upgrade still contains one chain's Output Root.
+The upgrade does not enable Interop, call `OPCM.migrate()`, or move a chain to a shared Dispute Game setup.
+
+Super Root Dispute Games use a timestamp as the `l2SequenceNumber` and validate an incorrect proposal timestamp through the Fault Proof state transition.
+This removes the separate L2 block number challenge used by Output Root Dispute Games.
+The `OptimismPortal` continues to support both formats, so games and withdrawal proofs created before the upgrade remain valid.
 
 ## What's included
+
+### Super Root Dispute Games
 
 Upgrade 20 adds the following Super Root Dispute Game types:
 
 * `SUPER_PERMISSIONED` (game type `5`) for chains that use permissioned Fault Proofs.
 * `SUPER_CANNON_KONA` (game type `9`) for chains that use permissionless Fault Proofs.
 
-A permissioned chain remains permissioned. A permissionless chain runs both Super Root Dispute Game types and uses `SUPER_CANNON_KONA` as its respected game type. Existing Dispute Games continue to resolve through their original game types.
+A permissioned chain remains permissioned.
+A permissionless chain runs both Super Root Dispute Game types and uses `SUPER_CANNON_KONA` as its respected game type.
+Existing Dispute Games continue to resolve through their original game types.
 
-The upgrade keeps each chain's existing `AnchorStateRegistry` and `DisputeGameFactory`. It uses an `OPCM.upgrade` transaction rather than migrating the chain to a shared Dispute Game setup.
+The upgrade keeps each chain's existing `AnchorStateRegistry` and `DisputeGameFactory`.
+It uses an `OPCM.upgrade()` transaction rather than migrating the chain to a shared Dispute Game setup.
+
+### SystemConfig Interface Cleanup
+
+Upgrade 19 recomputed the onchain `SystemConfig` batch inbox address for chains deployed before OPCM.
+The change did not affect derivation because OP Stack clients read the batch inbox address from the chain's rollup configuration, but it left the redundant onchain value out of sync.
+
+Upgrade 20 removes `batchInbox()` and clears its legacy storage slot.
+It also removes the deprecated `setGasConfig(uint256,uint256)` function, which could leave `scalar()` out of sync with the fee scalar values that OPCM preserves during an upgrade.
+The updated `SystemConfig` has contract version `4.0.0`.
+
+The `overhead()` getter remains available and its stored value does not change during the upgrade.
+Calls to `setGasConfigEcotone(uint32,uint32)` continue to emit a two-word `FEE_SCALARS` payload, but the first word for `overhead` is always zero.
+
+### OPCM Upgrades for Interop Sets
+
+Upgrade 20 updates `OPCM.upgrade()` for chains that have already migrated into an Interop set.
+An Interop set can use different per-chain `ProxyAdmin` contracts while its shared `ETHLockbox`, `DisputeGameFactory`, `AnchorStateRegistry`, and `DelayedWETH` use the first member chain's `ProxyAdmin` and `SystemConfig`.
+
+OPCM now uses the `ProxyAdmin` that owns each target proxy and preserves the existing `SystemConfig` binding of each shared contract.
+Calling `OPCM.upgrade()` for each member chain can therefore reapply the shared-contract portion of the upgrade without resetting games, anchors, withdrawal state, balances, or lockbox authorizations.
+This change does not migrate a chain into an Interop set.
 
 ## Prepare Fault Proof services
 
@@ -27,7 +68,20 @@ Use the following configuration changes when staging the Upgrade 20 component re
 | `op-proposer` | Switch at the contract upgrade cutover. Replace `--rollup-rpc` with `--superroot-rpcs` (`OP_PROPOSER_SUPERROOT_RPCS`) and set `OP_PROPOSER_GAME_TYPE=5` for a permissioned chain or `OP_PROPOSER_GAME_TYPE=9` for a permissionless chain. |
 | `op-node` and `op-batcher` | No configuration change is required. Upgrade 20 has no hardfork activation. |
 
-The Super Root RPC must return a root for the chain or dependency set that the Dispute Game covers. For a single-chain upgrade, use the chain's `op-node` RPC endpoint or the chain-specific endpoint exposed by an `op-supernode`.
+The Super Root RPC must return a root for the chain or dependency set that the Dispute Game covers.
+For a single-chain upgrade, use the chain's `op-node` RPC endpoint or the chain-specific endpoint exposed by an `op-supernode`.
+
+## Update `SystemConfig` integrations
+
+<Warning>
+  Calls to `SystemConfig.batchInbox()` and `SystemConfig.setGasConfig(uint256,uint256)` revert after Upgrade 20.
+</Warning>
+
+If your tooling reads or writes `SystemConfig` directly:
+
+* Read the batch inbox address from the chain's rollup configuration or its entry in the [Superchain Registry](https://github.com/ethereum-optimism/superchain-registry).
+* Replace `setGasConfig(uint256,uint256)` calls with [`setGasConfigEcotone(uint32,uint32)`](/chain-operators/reference/fee-parameters) for the base fee and blob base fee scalars.
+* If you decode `FEE_SCALARS` `ConfigUpdate` events, treat the first word as zero rather than the current value returned by `overhead()`.
 
 ## Locate or build the absolute prestate
 
@@ -44,11 +98,13 @@ Permissionless chains need the Upgrade 20 `kona-client` Interop variant absolute
     jq -r .pre rust/kona/prestate-artifacts-cannon-interop/prestate-proof.json
     ```
 
-    Confirm the output matches the published hash. Host the generated hash-named `.bin.gz` file on the prestate server used by `op-challenger`.
+    Confirm the output matches the published hash.
+    Host the generated hash-named `.bin.gz` file on the prestate server used by `op-challenger`.
   </Tab>
 
   <Tab title="Custom chain configuration">
-    First, stage the chain data described in [Generating a custom kona-client absolute prestate](/chain-operators/tutorials/kona-custom-prestate). Check out the matching Upgrade 20 Kona release tag and build the interop variant with the same custom configuration:
+    First, stage the chain data described in [Generating a custom kona-client absolute prestate](/chain-operators/tutorials/kona-custom-prestate).
+    Check out the matching Upgrade 20 Kona release tag and build the interop variant with the same custom configuration:
 
     ```bash
     cd rust
@@ -58,7 +114,9 @@ Permissionless chains need the Upgrade 20 `kona-client` Interop variant absolute
     jq -r .pre kona/prestate-artifacts-cannon-interop/prestate-proof.json
     ```
 
-    Rebuild from a clean checkout with the same inputs and confirm the hash is identical. Host the generated hash-named `.bin.gz` file at a URL reachable by every challenger that participates on the chain. A custom prestate hash is specific to its embedded chain configuration and does not appear in `standard-prestates.toml`.
+    Rebuild from a clean checkout with the same inputs and confirm the hash is identical.
+    Host the generated hash-named `.bin.gz` file at a URL reachable by every challenger that participates on the chain.
+    A custom prestate hash is specific to its embedded chain configuration and does not appear in `standard-prestates.toml`.
   </Tab>
 </Tabs>
 
@@ -67,5 +125,6 @@ Permissionless chains need the Upgrade 20 `kona-client` Interop variant absolute
 Upgrade 20 is applied as an L1 contract upgrade and has no L2 hardfork activation timestamp.
 
 The [Output Root to Super Root upgrade runbook](/chain-operators/tutorials/upgrade-chain-to-super-roots) describes the onchain upgrade and cutover checks.
+For chains in an existing Interop set, include every member chain in the upgrade and verify both per-chain and shared contracts after execution.
 
 For support, [open an issue in the Optimism monorepo](https://github.com/ethereum-optimism/optimism/issues).
