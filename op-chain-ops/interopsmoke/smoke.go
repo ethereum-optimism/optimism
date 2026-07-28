@@ -239,20 +239,9 @@ func (u *remoteUser) sendRandomInitMessage(ctx context.Context, rng *rand.Rand, 
 
 // waitForTime waits for this chain to build a block with a timestamp of at least minTime.
 func (u *remoteUser) waitForTime(ctx context.Context, minTime uint64) error {
-	for {
-		head, err := u.chain.ethClient.InfoByLabel(ctx, eth.Unsafe)
-		if err != nil {
-			return fmt.Errorf("failed to get unsafe head of %s: %w", u.chain.name, err)
-		}
-		if head.Time() >= minTime {
-			return nil
-		}
-		select {
-		case <-time.After(250 * time.Millisecond):
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	}
+	return waitForHead(ctx, u.chain, fmt.Sprintf("timestamp >= %d", minTime), func(head eth.BlockRef) bool {
+		return head.Time >= minTime
+	})
 }
 
 func (u *remoteUser) sendExecMessage(ctx context.Context, initMsg *initMessage) (*execMessage, error) {
@@ -1282,10 +1271,19 @@ func waitForNextBlock(ctx context.Context, chain *remoteChain) (eth.BlockRef, er
 }
 
 func waitForHeadAtLeast(ctx context.Context, chain *remoteChain, target uint64) error {
+	return waitForHead(ctx, chain, fmt.Sprintf("head >= %d", target), func(head eth.BlockRef) bool {
+		return head.Number >= target
+	})
+}
+
+// waitForHead polls the unsafe head of the chain until ready accepts it. A failure to read the head
+// is transient by assumption: these are live chains, so it is retried until the timeout, and only
+// reported if the head never became ready.
+func waitForHead(ctx context.Context, chain *remoteChain, want string, ready func(eth.BlockRef) bool) error {
 	deadline := time.Now().Add(smokeWaitTimeout)
 	for {
 		head, err := chain.ethClient.BlockRefByLabel(ctx, eth.Unsafe)
-		if err == nil && head.Number >= target {
+		if err == nil && ready(head) {
 			return nil
 		}
 		if err := ctx.Err(); err != nil {
@@ -1293,9 +1291,10 @@ func waitForHeadAtLeast(ctx context.Context, chain *remoteChain, target uint64) 
 		}
 		if time.Now().After(deadline) {
 			if err != nil {
-				return fmt.Errorf("timed out waiting for %s head >= %d: %w", chain.name, target, err)
+				return fmt.Errorf("timed out waiting for %s %s: %w", chain.name, want, err)
 			}
-			return fmt.Errorf("timed out waiting for %s head >= %d; current head is %d", chain.name, target, head.Number)
+			return fmt.Errorf("timed out waiting for %s %s; head is %d at timestamp %d",
+				chain.name, want, head.Number, head.Time)
 		}
 		time.Sleep(time.Second)
 	}
