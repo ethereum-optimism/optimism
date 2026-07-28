@@ -475,10 +475,10 @@ where
             AnchorStateRegistry::new(game_args.anchor_state_registry, self.l1_provider.clone());
         let anchor = registry.getAnchorRoot().call().await?;
         anyhow::ensure!(
-            anchor.root_ != B256::ZERO,
+            anchor._0 != B256::ZERO,
             "anchor state registry has no anchor root (game creation would revert)"
         );
-        anchor.l2SequenceNumber_.try_into().context("anchor sequence number exceeds u64")
+        anchor._1.try_into().context("anchor sequence number exceeds u64")
     }
 
     /// Fetches and decodes the currently registered game args at `block`.
@@ -760,6 +760,8 @@ where
             for (index, game_address, game_weth, game_asr) in games {
                 let contract = ZKDisputeGame::new(game_address, self.l1_provider.clone());
                 let claim_data = contract.claimData().block(pinned_block).call().await?;
+                // Enums are uint8 in the ABI; convert once at the read boundary.
+                let proposal_status = ProposalStatus::try_from(claim_data.status)?;
                 let status =
                     GameStatus::try_from(contract.status().block(pinned_block).call().await?)?;
                 let deadline = claim_data.deadline;
@@ -782,14 +784,14 @@ where
                         // The only proof-provided statuses reachable in the create-path
                         // proposer are those set by third parties; they still make the
                         // game "over" for resolution purposes.
-                        let is_game_over = match claim_data.status {
+                        let is_game_over = match proposal_status {
                             ProposalStatus::Unchallenged => now_ts > deadline,
                             ProposalStatus::UnchallengedAndValidProofProvided |
                             ProposalStatus::ChallengedAndValidProofProvided => true,
                             _ => false,
                         };
                         let creator = contract.gameCreator().block(pinned_block).call().await?;
-                        let is_own_game = match claim_data.status {
+                        let is_own_game = match proposal_status {
                             ProposalStatus::Unchallenged => creator == signer_address,
                             ProposalStatus::UnchallengedAndValidProofProvided |
                             ProposalStatus::ChallengedAndValidProofProvided => {
@@ -805,7 +807,7 @@ where
                         actions.push(GameSyncAction::Update {
                             index,
                             status,
-                            proposal_status: claim_data.status,
+                            proposal_status,
                             deadline,
                             should_attempt_to_resolve,
                             should_attempt_to_claim_bond: false,
@@ -822,9 +824,9 @@ where
                             .block(pinned_block)
                             .call()
                             .await?;
-                        let withdrawal_amount = withdrawal.amount_;
+                        let withdrawal_amount = withdrawal.amount;
                         let withdrawal_ts: u64 =
-                            withdrawal.timestamp_.try_into().unwrap_or(u64::MAX);
+                            withdrawal.timestamp.try_into().unwrap_or(u64::MAX);
                         let weth_delay: u64 = weth
                             .delay()
                             .block(pinned_block)
@@ -872,7 +874,7 @@ where
                                 actions.push(GameSyncAction::Update {
                                     index,
                                     status,
-                                    proposal_status: claim_data.status,
+                                    proposal_status,
                                     deadline,
                                     should_attempt_to_resolve: false,
                                     should_attempt_to_claim_bond: false,
@@ -882,7 +884,7 @@ where
                             actions.push(GameSyncAction::Update {
                                 index,
                                 status,
-                                proposal_status: claim_data.status,
+                                proposal_status,
                                 deadline,
                                 should_attempt_to_resolve: false,
                                 should_attempt_to_claim_bond: matches!(
@@ -1182,7 +1184,7 @@ where
             let weth = DelayedWETH::new(game.weth, self.l1_provider.clone());
             let withdrawal = weth.withdrawals(game.address, signer_address).call().await;
             if let (Ok(credit), Ok(withdrawal)) = (credit, withdrawal) {
-                if credit == U256::ZERO && withdrawal.amount_ == U256::ZERO {
+                if credit == U256::ZERO && withdrawal.amount == U256::ZERO {
                     tracing::info!(
                         game_index = %game.index,
                         game_address = ?game.address,
@@ -1190,7 +1192,7 @@ where
                     );
                     continue;
                 }
-                if credit == U256::ZERO && withdrawal.amount_ > U256::ZERO {
+                if credit == U256::ZERO && withdrawal.amount > U256::ZERO {
                     // Phase 2: only submit once the WETH delay has elapsed in
                     // CHAIN time. DelayedWETH enforces
                     // `timestamp + DELAY_SECONDS <= block.timestamp`; wall
@@ -1210,7 +1212,7 @@ where
                         .header
                         .timestamp;
                     let matured = withdrawal
-                        .timestamp_
+                        .timestamp
                         .try_into()
                         .map(|ts: u64| withdrawal_matured(ts, weth_delay, l1_now))
                         .unwrap_or(false);
@@ -1370,8 +1372,12 @@ where
         let claim_data = contract.claimData().block(pinned_block).call().await?;
         let absolute_prestate = contract.absolutePrestate().block(pinned_block).call().await?;
 
-        let (parent_index, proposal_status, deadline) =
-            (claim_data.parentIndex, claim_data.status, claim_data.deadline);
+        // Enums are uint8 in the ABI; convert once at the read boundary.
+        let (parent_index, proposal_status, deadline) = (
+            claim_data.parentIndex,
+            ProposalStatus::try_from(claim_data.status)?,
+            claim_data.deadline,
+        );
 
         // Drop games whose type does not respect the expected type.
         if !was_respected {
@@ -1971,8 +1977,8 @@ pub fn advance_collision_timestamp(current: u64, max_proposable: u64) -> Option<
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BondClaimAction {
     /// Phase (a): credit remains and the game is finalized - call
-    /// `claimCredit` to zero the credit and unlock the WETH withdrawal
-    /// (claimCredit's implicit closeGame reverts before finality).
+    /// `claimCredit` to zero the credit and unlock the WETH withdrawal    /// (claimCredit's
+    /// implicit closeGame reverts before finality).
     Unlock,
     /// Phase (b): a withdrawal is recorded and the WETH delay has elapsed
     /// in CHAIN time - call `claimCredit` again for the payout.
