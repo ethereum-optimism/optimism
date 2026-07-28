@@ -63,72 +63,40 @@ func (m *mockEL) TransactionReceipt(ctx context.Context, hash common.Hash) (*typ
 	}
 }
 
-// minedNonceTooLowEL models a node where our tx has already been mined: every
-// (re)submit returns ErrNonceTooLow (the nonce is consumed), while the receipt for
-// our tx is available. The receipt is delayed slightly so the send-path
-// ErrNonceTooLow reaches the includer before the receipt does, deterministically
-// exercising the post-ErrNonceTooLow receipt lookup.
-type minedNonceTooLowEL struct {
-	receipt *types.Receipt
-	sends   atomic.Int64
+// acceptedThenNonceTooLowEL models an EL that accepts a transaction once, then
+// reports ErrNonceTooLow when the resubmitter sends the same transaction again.
+// The receipt remains unavailable until the test observes a further resubmission.
+type acceptedThenNonceTooLowEL struct {
+	receipt      *types.Receipt
+	receiptReady chan struct{}
+	retried      chan struct{}
+	sends        atomic.Int64
 }
 
-func (m *minedNonceTooLowEL) SendTransaction(_ context.Context, _ *types.Transaction) error {
-	m.sends.Add(1)
+func newAcceptedThenNonceTooLowEL(receipt *types.Receipt) *acceptedThenNonceTooLowEL {
+	return &acceptedThenNonceTooLowEL{
+		receipt:      receipt,
+		receiptReady: make(chan struct{}),
+		retried:      make(chan struct{}),
+	}
+}
+
+func (m *acceptedThenNonceTooLowEL) SendTransaction(_ context.Context, _ *types.Transaction) error {
+	call := m.sends.Add(1)
+	if call == 1 {
+		return nil
+	}
+	if call == 3 {
+		close(m.retried)
+	}
 	return core.ErrNonceTooLow
 }
 
-func (m *minedNonceTooLowEL) TransactionReceipt(ctx context.Context, _ common.Hash) (*types.Receipt, error) {
+func (m *acceptedThenNonceTooLowEL) TransactionReceipt(context.Context, common.Hash) (*types.Receipt, error) {
 	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case <-time.After(10 * time.Millisecond):
-		return m.receipt, nil
-	}
-}
-
-// gapThenMinedEL models a genuine nonce gap: the first len(sendErrs) sends return
-// those errors (ErrNonceTooLow) and, until a send succeeds, our tx has no receipt.
-// Unlike a real reliable EL it returns ethereum.NotFound (after a short delay)
-// rather than blocking, so the includer's post-ErrNonceTooLow lookup concludes
-// "not ours -> advance" quickly. The delay lets the send-path ErrNonceTooLow win
-// the includer's initial select.
-type gapThenMinedEL struct {
-	sendErrs []error
-	sends    atomic.Int64
-	receipt  *types.Receipt
-	minedCh  chan struct{}
-}
-
-func newGapThenMinedEL(sendErrs []error, receipt *types.Receipt) *gapThenMinedEL {
-	return &gapThenMinedEL{sendErrs: sendErrs, receipt: receipt, minedCh: make(chan struct{})}
-}
-
-func (m *gapThenMinedEL) SendTransaction(_ context.Context, _ *types.Transaction) error {
-	i := int(m.sends.Add(1) - 1)
-	if i < len(m.sendErrs) {
-		return m.sendErrs[i]
-	}
-	select {
-	case <-m.minedCh: // already closed
-	default:
-		close(m.minedCh)
-	}
-	return nil
-}
-
-func (m *gapThenMinedEL) TransactionReceipt(ctx context.Context, _ common.Hash) (*types.Receipt, error) {
-	select {
-	case <-m.minedCh:
+	case <-m.receiptReady:
 		return m.receipt, nil
 	default:
-	}
-	select {
-	case <-m.minedCh:
-		return m.receipt, nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case <-time.After(10 * time.Millisecond):
 		return nil, ethereum.NotFound
 	}
 }
@@ -181,11 +149,7 @@ func TestPersistentFixesNonceTooLow(t *testing.T) {
 		},
 	}
 
-	// The nonce is genuinely consumed by a gap here (no receipt for our tx until a
-	// send succeeds), so the disambiguating lookup finds no receipt and the includer
-	// advances. The mock returns not-found quickly so the test doesn't wait the full
-	// lookup timeout.
-	el := newGapThenMinedEL([]error{core.ErrNonceTooLow, core.ErrNonceTooLow}, want.Receipt)
+	el := newMockEL([]error{core.ErrNonceTooLow, core.ErrNonceTooLow}, want.Receipt)
 	startingBalance := eth.OneEther
 	budget := accounting.NewBudget(startingBalance)
 	p := txinclude.NewPersistent(newSigner(t), el, txinclude.WithBudget(txinclude.NewTxBudget(budget)))
@@ -195,10 +159,7 @@ func TestPersistentFixesNonceTooLow(t *testing.T) {
 	require.Equal(t, startingBalance.Sub(eth.OneGWei.Mul(want.Receipt.GasUsed)), budget.Balance())
 }
 
-// TestPersistentDoesNotResendMinedTx guards against over-sending: once our tx is
-// mined, a resubmit returns ErrNonceTooLow, and the includer must recognize the tx
-// as included (via a receipt lookup) rather than advancing the nonce and resending.
-func TestPersistentDoesNotResendMinedTx(t *testing.T) {
+func TestPersistentResubmitsSameTxAfterNonceTooLow(t *testing.T) {
 	original := &types.DynamicFeeTx{
 		GasFeeCap: eth.OneGWei.ToBig(),
 		Gas:       21_000,
@@ -208,13 +169,36 @@ func TestPersistentDoesNotResendMinedTx(t *testing.T) {
 		GasUsed:           original.Gas,
 		EffectiveGasPrice: original.GasFeeCap,
 	}
-	el := &minedNonceTooLowEL{receipt: receipt}
-	p := txinclude.NewPersistent(newSigner(t), el)
-	got, err := p.Include(context.Background(), original)
-	require.NoError(t, err)
-	require.Equal(t, receipt, got.Receipt)
-	require.Equal(t, original.Nonce, got.Transaction.Nonce(), "must not advance the nonce for an already-mined tx")
-	require.Equal(t, int64(1), el.sends.Load(), "must not resubmit an already-mined tx at a new nonce")
+	el := newAcceptedThenNonceTooLowEL(receipt)
+	p := txinclude.NewPersistent(newSigner(t), txinclude.NewReliableEL(el, time.Millisecond))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	type result struct {
+		included *txinclude.IncludedTx
+		err      error
+	}
+	resultCh := make(chan result, 1)
+	go func() {
+		included, err := p.Include(ctx, original)
+		resultCh <- result{included: included, err: err}
+	}()
+
+	select {
+	case <-el.retried:
+		close(el.receiptReady)
+	case <-time.After(time.Second):
+		t.Fatal("transaction was not resubmitted after ErrNonceTooLow")
+	}
+
+	select {
+	case res := <-resultCh:
+		require.NoError(t, res.err)
+		require.Equal(t, receipt, res.included.Receipt)
+		require.Equal(t, original.Nonce, res.included.Transaction.Nonce(), "must keep resubmitting the same nonce")
+		require.GreaterOrEqual(t, el.sends.Load(), int64(3))
+	case <-time.After(time.Second):
+		t.Fatal("transaction receipt was not returned")
+	}
 }
 
 func TestPersistentNoChangeOnUnderpriced(t *testing.T) {

@@ -115,18 +115,31 @@ func tryToRecognizeError(err error) error {
 // that the resubmitter considers unfixable with resubmissions alone (e.g., requiring modifications to tx)
 // See fatalErrs for the list of these errors.
 func (r *Resubmitter) SendTransaction(ctx context.Context, tx *types.Transaction) error {
+	submitted := false
 	for {
 		err := tryToRecognizeError(r.inner.SendTransaction(ctx, tx))
 		r.cfg.observer.SubmissionError(err)
 
-		for _, fatalErr := range fatalErrs {
-			if errors.Is(err, fatalErr) {
-				return err
+		accepted := err == nil || errors.Is(err, txpool.ErrAlreadyKnown)
+		if accepted {
+			submitted = true
+		}
+		// Some ELs may return ErrNonceTooLow instead of ErrAlreadyKnown when a
+		// previously submitted transaction is still pending or has just been mined.
+		// Keep resubmitting the same signed transaction after it has been accepted.
+		// An ErrNonceTooLow before any successful submission remains fatal.
+		nonceTooLowAfterSubmission := submitted && errors.Is(err, core.ErrNonceTooLow)
+
+		if !nonceTooLowAfterSubmission {
+			for _, fatalErr := range fatalErrs {
+				if errors.Is(err, fatalErr) {
+					return err
+				}
 			}
 		}
 
 		var resubmitDelay time.Duration
-		if err == nil || errors.Is(err, txpool.ErrAlreadyKnown) {
+		if accepted || nonceTooLowAfterSubmission {
 			// Resubmit after three blocks after successful inclusion in the mempool.
 			// The transaction could be evicted for some reason, so we'll continue to resubmit
 			// to make sure it stays in the mempool.

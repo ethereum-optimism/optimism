@@ -3,10 +3,12 @@ package txinclude_test
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/txinclude"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
@@ -28,6 +30,22 @@ func (m *mockSender) SendTransaction(ctx context.Context, tx *types.Transaction)
 	return nil
 }
 
+type acceptedThenNonceTooLowSender struct {
+	calls   atomic.Uint64
+	retried chan struct{}
+}
+
+func (s *acceptedThenNonceTooLowSender) SendTransaction(context.Context, *types.Transaction) error {
+	call := s.calls.Add(1)
+	if call == 1 {
+		return nil
+	}
+	if call == 3 {
+		close(s.retried)
+	}
+	return core.ErrNonceTooLow
+}
+
 func TestResubmitterSuccessfulTransaction(t *testing.T) {
 	inner := &mockSender{}
 	resubmitter := txinclude.NewResubmitter(inner, time.Millisecond)
@@ -45,10 +63,30 @@ func TestResubmitterSuccessfulTransaction(t *testing.T) {
 	}()
 }
 
+func TestResubmitterRetriesNonceTooLowAfterSuccessfulSubmission(t *testing.T) {
+	inner := &acceptedThenNonceTooLowSender{retried: make(chan struct{})}
+	resubmitter := txinclude.NewResubmitter(inner, time.Millisecond)
+	ctx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- resubmitter.SendTransaction(ctx, types.NewTx(&types.DynamicFeeTx{}))
+	}()
+
+	select {
+	case <-inner.retried:
+		cancel()
+	case <-time.After(time.Second):
+		cancel()
+		t.Fatal("resubmitter did not retry after ErrNonceTooLow")
+	}
+	require.ErrorIs(t, <-errCh, context.Canceled)
+	require.GreaterOrEqual(t, inner.calls.Load(), uint64(3))
+}
+
 func TestResubmitterFatalErrors(t *testing.T) {
 	inner := &mockSender{
-		// Just test a subset of them.
-		errs: []error{txpool.ErrInvalidSender, txpool.ErrReplaceUnderpriced, txpool.ErrGasLimit},
+		// Just test a subset of them, including an initial ErrNonceTooLow.
+		errs: []error{core.ErrNonceTooLow, txpool.ErrInvalidSender, txpool.ErrReplaceUnderpriced, txpool.ErrGasLimit},
 	}
 	resubmitter := txinclude.NewResubmitter(inner, time.Millisecond)
 	for _, want := range inner.errs {

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/core"
@@ -14,6 +13,8 @@ import (
 )
 
 // Persistent is an Includer that persists transactions to an execution layer.
+// It owns the account used by its signer: callers must not submit transactions
+// from that account through another path while the Persistent is in use.
 type Persistent struct {
 	cfg    *persistentConfig
 	signer Signer
@@ -44,7 +45,9 @@ func WithBudget(budget Budget) PersistentOption {
 	}
 }
 
-// NewPersistent creates a Persistent Includer.
+// NewPersistent creates a Persistent Includer. The returned includer exclusively
+// owns the account used by signer and manages all of its transaction nonces.
+//
 // It assumes el is reliable:
 //   - el.SendTransaction guarantees mempool inclusion without the possibility of eviction.
 //   - el.TransactionReceipt will return a valid receipt if one eventually exists.
@@ -165,15 +168,6 @@ func (p *Persistent) try(parentCtx context.Context, state *tryState, includedCh 
 	case err := <-errCh:
 		switch {
 		case errors.Is(err, core.ErrNonceTooLow):
-			// Check to see if our tx was committed. Otherwise, increment the nonce and retry.
-			lookupCtx, lookupCancel := context.WithTimeout(ctx, 6*time.Second)
-			receipt, lookupErr := p.el.TransactionReceipt(lookupCtx, signed.Hash())
-			lookupCancel()
-			if lookupErr == nil {
-				included := &IncludedTx{Transaction: signed, Receipt: receipt}
-				state.Budget.AfterIncluded(state.Cost, included)
-				return included, nil, nil
-			}
 			state.Transaction.SetNonce(p.cfg.nonces.Next())
 			return nil, state, nil
 		case errors.Is(err, txpool.ErrReplaceUnderpriced) || errors.Is(err, txpool.ErrUnderpriced):
