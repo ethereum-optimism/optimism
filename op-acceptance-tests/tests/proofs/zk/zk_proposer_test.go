@@ -17,28 +17,24 @@ import (
 // during time travel), so assertions only reference the specific games
 // returned by WaitForZKGameAtIndex and never assume a total game count.
 
-func TestProposerCreatesRootZKGame(gt *testing.T) {
+// TestProposerChainsSecondZKGameOnFirst covers the create path end to end: the
+// proposer's first game is a well-formed root game (max-uint32 parent sentinel,
+// sequence number beyond the anchor) and its second game chains on the first.
+// Broader root-game lifecycle behavior (challenge, prove, anchor) is covered by
+// TestChallengedValidProposalAnchors.
+func TestProposerChainsSecondZKGameOnFirst(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := newProposerSystem(t)
 	factory := sys.DisputeGameFactory()
 	_, anchorSequence := sys.AnchorStateRegistry(sys.L2ChainA).AnchorRoot()
 
 	game0 := factory.WaitForZKGameAtIndex(0)
-
 	t.Require().Equal(uint32(math.MaxUint32), game0.ParentIndex(),
 		"first proposer game must be a root game using the max-uint32 parent sentinel")
 	t.Require().Greater(game0.L2SequenceNumber(), anchorSequence,
 		"root game must propose a sequence number beyond the anchor")
-}
 
-func TestProposerChainsSecondZKGameOnFirst(gt *testing.T) {
-	t := devtest.SerialT(gt)
-	sys := newProposerSystem(t)
-	factory := sys.DisputeGameFactory()
-
-	game0 := factory.WaitForZKGameAtIndex(0)
 	game1 := factory.WaitForZKGameAtIndex(1)
-
 	t.Require().Equal(uint32(0), game1.ParentIndex(),
 		"second proposer game must chain on the first game at factory index 0")
 	t.Require().Greater(game1.L2SequenceNumber(), game0.L2SequenceNumber(),
