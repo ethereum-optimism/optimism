@@ -35,6 +35,7 @@ out.json
 
 # Prestate artifacts
 prestate-artifacts-*
+prestate-elfs/
 
 # IDE specific
 .idea

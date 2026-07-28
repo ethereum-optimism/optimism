@@ -237,18 +237,18 @@ op-interop-filter:
 cannon:
   cd cannon && just cannon
 
-# Builds reproducible prestate for kona.
+# Builds the reproducible kona prestates (all variants).
 reproducible-prestate-kona:
   cd rust && just build-kona-reproducible-prestate
 
-# Builds the reproducible kona prestate and prints its hash.
+# Builds the reproducible kona prestates and prints their hashes.
 [script('bash')]
 reproducible-prestate:
   set -euo pipefail
   (cd rust && just build-kona-reproducible-prestate)
   (cd rust && just output-kona-prestate-hash)
 
-# Builds the cannon prestate.
+# Builds the kona prestates natively (hashes will not match release builds).
 cannon-prestates:
   cd rust && just build-kona-prestates
 

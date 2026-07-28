@@ -2094,9 +2094,8 @@ jobs:
             # chainList.json from the checkout (baked into the binary via include_str!)
             cp rust/kona/crates/protocol/registry/etc/chainList.json /tmp/prestate-debug/chainList.json
 
-            # The kona-client ELF binaries (for offline inspection with strings/objdump)
-            cp rust/kona/prestate-artifacts-cannon/kona-client-elf /tmp/prestate-debug/kona-client-elf-cannon 2>/dev/null || true
-            cp rust/kona/prestate-artifacts-cannon-interop/kona-client-elf /tmp/prestate-debug/kona-client-elf-cannon-interop 2>/dev/null || true
+            # The kona-client ELFs (for offline inspection with strings/objdump)
+            cp rust/kona/prestate-elfs/* /tmp/prestate-debug/
       - store_artifacts:
           path: /tmp/prestate-debug
           destination: prestate-debug
