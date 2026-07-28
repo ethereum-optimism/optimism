@@ -45,8 +45,9 @@ Upgrade 20 removes `batchInbox()` and clears its legacy storage slot.
 It also removes the deprecated `setGasConfig(uint256,uint256)` function, which could leave `scalar()` out of sync with the fee scalar values that OPCM preserves during an upgrade.
 The updated `SystemConfig` has contract version `4.0.0`.
 
-The `overhead()` getter remains available and its stored value does not change during the upgrade.
-Calls to `setGasConfigEcotone(uint32,uint32)` continue to emit a two-word `FEE_SCALARS` payload, but the first word for `overhead` is always zero.
+The deprecated `overhead()` getter remains available for compatibility with existing integrations.
+Because `setGasConfig(uint256,uint256)` was its only writer, the stored value is no longer writable and does not change during the upgrade.
+To preserve the two-word `FEE_SCALARS` event payload without requiring a hardfork, calls to `setGasConfigEcotone(uint32,uint32)` encode zero in the first word instead of the stored `overhead()` value.
 
 ### OPCM Upgrades for Interop Sets
 
