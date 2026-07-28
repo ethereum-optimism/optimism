@@ -6,6 +6,8 @@ content-type: router-landing
 last-reviewed: 2026-07-24
 ---
 
+import { OpEnterpriseCalloutBody } from '/snippets/op-enterprise-callout.mdx';
+
 Each page in this section is a **solution guide**: one goal that in practice
 spans several components, sequenced as a single in-site path. A solution
 guide links each stop to its canonical page and states what to take from it,
@@ -39,11 +41,6 @@ start here instead of assembling the path yourself.
     operators, and protocol readers.
   </Card>
   <Card title="Rather run less of this yourself?" href="https://optimism.io/op-enterprise?utm_source=docs&utm_medium=docs&utm_campaign=op-enterprise">
-    A production chain is a 24/7 operation: a high-availability sequencer
-    cluster, a sound withdrawal system, consistent L1 endpoints, secured hot
-    keys, and a standing upgrade calendar. These docs cover all of it. If
-    you'd rather not run it yourself, or want OP Labs engineering behind the
-    parts you do run, OP Enterprise offers fully managed and supported
-    self-managed options.
+    <OpEnterpriseCalloutBody linked={false} />
   </Card>
 </CardGroup>
