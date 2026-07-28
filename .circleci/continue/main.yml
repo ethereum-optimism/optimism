@@ -3229,11 +3229,14 @@ workflows:
           filters:
             branches:
               only: develop
-      # Always run L2 fork tests with ci profile
+      # L2 fork tests run against a block pinned below OP Mainnet's L2CM predeploy upgrade.
+      # That upgrade landed at block 153963812 and deployed ConditionalDeployer, so forking at
+      # `latest` makes the NUT bundle's ConditionalDeployer CREATE2 revert with CreateCollision.
+      # Raise this pin only to another pre-upgrade block.
       - contracts-bedrock-tests-l2-fork:
           name: contracts-bedrock-tests-l2-fork op-mainnet
           fork_op_chain: op-mainnet
-          l2_fork_block_number: latest
+          l2_fork_block_number: "153963811"
           test_profile: ci
           context:
             - circleci-repo-readonly-authenticated-github-token
