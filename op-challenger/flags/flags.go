@@ -66,7 +66,7 @@ var (
 	SuperRootRpcFlag = &cli.StringFlag{
 		Name:    "superroot-rpc",
 		Aliases: []string{"supernode-rpc"},
-		Usage:   "HTTP provider URL for a super root RPC source (op-node or op-supernode)",
+		Usage:   "HTTP provider URL for a super root RPC source (op-supernode for interop; op-node for single-chain). Must cover the full dependency set, else correct proposals won't match and the challenger over-challenges.",
 		EnvVars: prefixEnvVars("SUPERROOT_RPC", "SUPERNODE_RPC"),
 	}
 	RollupRpcFlag = &cli.StringFlag{
@@ -327,6 +327,13 @@ func checkOutputProviderFlags(ctx *cli.Context) error {
 	return nil
 }
 
+func checkSuperRootProviderFlags(ctx *cli.Context) error {
+	if !ctx.IsSet(SuperRootRpcFlag.Name) {
+		return fmt.Errorf("flag %v is required", SuperRootRpcFlag.Name)
+	}
+	return nil
+}
+
 func CheckCannonBaseFlags(ctx *cli.Context, enabledTypes []gameTypes.GameType) error {
 	// Permissioned games never reach step() so do not run op-program or load the
 	// absolute prestate; both are only required when an enabled game type can reach step().
@@ -449,7 +456,11 @@ func CheckRequired(ctx *cli.Context, types []gameTypes.GameType) error {
 			if err := CheckSuperCannonKonaFlags(ctx); err != nil {
 				return err
 			}
-		case gameTypes.ZKDisputeGameType, gameTypes.AlphabetGameType, gameTypes.FastGameType:
+		case gameTypes.ZKDisputeGameType:
+			if err := checkSuperRootProviderFlags(ctx); err != nil {
+				return err
+			}
+		case gameTypes.AlphabetGameType, gameTypes.FastGameType:
 			if err := checkOutputProviderFlags(ctx); err != nil {
 				return err
 			}

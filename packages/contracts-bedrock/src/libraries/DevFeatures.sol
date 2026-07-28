@@ -54,6 +54,9 @@ library DevFeatures {
     /// @param _feature The feature to check.
     /// @return True if the feature is enabled, false otherwise.
     function isDevFeatureEnabled(bytes32 _bitmap, bytes32 _feature) internal pure returns (bool) {
+        // SuperRootGamesMigration is enabled by default.
+        // TODO(#21662): remove with the broader SuperRootGamesMigration cleanup.
+        if (hasFlag(_feature, SUPER_ROOT_GAMES_MIGRATION)) return true;
         return _feature != 0 && hasFlag(_bitmap, _feature);
     }
 

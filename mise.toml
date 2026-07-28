@@ -22,6 +22,11 @@ make = "4.4.1"
 
 svm-rs = "0.5.19"
 
+# Fast linker used for Rust link steps in CI (see .circleci rust-build). Linux
+# only: mold ships no macOS build, so gate on os to keep `mise install` green on
+# developer Macs. Pinned here so CI's linker version is fixed and reproducible.
+mold = { version = "2.41.0", os = ["linux"] }
+
 # Rust tooling
 "github:crate-ci/cargo-release" = { version = "1.1.2" }
 

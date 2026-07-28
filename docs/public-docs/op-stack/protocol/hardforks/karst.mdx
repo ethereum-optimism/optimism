@@ -7,7 +7,7 @@ hardfork_lifecycle: active
 hardfork_spec: https://specs.optimism.io/protocol/karst/overview.html
 hardfork_activation_mainnet: 1783526401
 hardfork_activation_sepolia: 1781712001
-hardfork_notice: /notices/upgrade-19
+hardfork_notice: /notices/archive/upgrade-19
 hardfork_upgrade_number: 19
 hardfork_min_versions:
   - op-node v1.19.1
@@ -15,7 +15,7 @@ hardfork_min_versions:
   - op-challenger v1.9.3
   - op-dispute-mon v1.5.2
   - op-contracts v7.0.0
-hardfork_min_versions_source: "[Upgrade 19 notice](/notices/upgrade-19)"
+hardfork_min_versions_source: "[Upgrade 19 notice](/notices/archive/upgrade-19)"
 ---
 
 import KarstFacts from "/snippets/generated/hardforks/karst.mdx"
@@ -32,14 +32,14 @@ Karst (Upgrade 19) introduced the L2 Contract Manager, activated a subset of
 Osaka EIPs on L2, promoted `CANNON_KONA` to the respected game type, and
 reduced the `bn256Pairing` precompile input limit as a preemptive Glamsterdam
 defense. `op-geth` and `op-program` do not support Karst — see the
-[end-of-support notice](/notices/op-geth-deprecation).
+[end-of-support notice](/notices/archive/op-geth-deprecation).
 
 <KarstFacts />
 
 ## What changed
 
 Per the [spec overview](https://specs.optimism.io/protocol/karst/overview.html)
-and the [Upgrade 19 notice](/notices/upgrade-19):
+and the [Upgrade 19 notice](/notices/archive/upgrade-19):
 
 *   [L2 Contract Manager (L2CM)](/op-stack/features/l2-contract-manager):
     governance-approved L2 predeploy upgrades through a consensus-layer

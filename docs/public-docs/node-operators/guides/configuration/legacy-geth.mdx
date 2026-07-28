@@ -7,7 +7,7 @@ diataxis: how-to
 import OpGethEol from "/snippets/op-geth-eol.mdx"
 
 Legacy Geth (`l2geth`) is the old pre-Bedrock OVM client running against a preconfigured data directory.
-It is required only for upgraded networks like OP Mainnet to serve historical execution traces from before the Bedrock upgrade.
+It is required only for upgraded networks like OP Mainnet to serve execution traces and chain data from before the Bedrock upgrade.
 If you're running a node that had a chain genesis after the Bedrock upgrade, you do not need Legacy Geth.
 
 <Info>
@@ -20,11 +20,12 @@ If you need state proofs for post-Bedrock blocks (for example, for withdrawal pr
 
 ## Do you need Legacy Geth?
 
-Only requests for *historical execution* — RPC methods that need to execute pre-Bedrock transactions rather than just read data from the database, such as `eth_call` and the `debug_trace*` methods — are routed to Legacy Geth.
-Your execution client serves everything else directly.
-If you do not need these RPC methods for pre-Bedrock blocks, then you do not need to run Legacy Geth at all.
+op-reth routes RPC requests that target pre-Bedrock blocks to Legacy Geth.
+This includes *historical execution* — methods that need to execute pre-Bedrock transactions, such as `eth_call` and the `debug_trace*` methods — as well as reads of pre-Bedrock block and transaction data, such as `eth_getBlockByNumber` and `eth_getTransactionReceipt`.
+op-reth serves everything post-Bedrock directly.
+If you do not need any RPC access to pre-Bedrock blocks, then you do not need to run Legacy Geth at all.
 
-For the exact lists of which RPC methods are routed to Legacy Geth and which are served by your execution client, see the [Legacy Geth configuration reference](/node-operators/reference/legacy-geth-config#historical-execution-vs-historical-data).
+For the exact list of RPC methods routed to Legacy Geth, see the [Legacy Geth configuration reference](/node-operators/reference/legacy-geth-config#rpc-methods-routed-to-legacy-geth).
 
 ## Setup
 

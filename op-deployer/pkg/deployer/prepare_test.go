@@ -18,10 +18,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
@@ -423,9 +421,9 @@ func TestCheckReservedOverrides(t *testing.T) {
 	})
 }
 
-// TestPredictionDryRun_Permissionless exercises the prediction dry-run end to end for a
-// permissionless chain: it deploys a superchain + OPCM onto anvil, then runs
-// the DeployOPChain script against a fork with the prediction input.
+// TestPredictionDryRun_Permissionless exercises the prediction dry-run end to end for the
+// permissionless super-root game type: it deploys a super-root OPCM onto anvil, then runs the
+// DeployOPChain script against a fork with the prediction input.
 func TestPredictionDryRun_Permissionless(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
@@ -433,8 +431,7 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 	embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
 	require.NoError(t, err)
 
-	forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
-	require.NoError(t, err)
+	forgeClient := testutil.NewForgeClient(t, fmt.Sprintf("%v", embeddedArtifactsFS))
 
 	_, afacts := testutil.LocalArtifacts(t)
 	lgr := testlog.Logger(t, slog.LevelInfo)
@@ -508,17 +505,10 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 		salt             common.Hash
 	}{
 		{
-			name:     "CANNON_KONA",
-			gameType: embedded.GameTypeCannonKona,
-			chainID:  common.HexToHash("0x0300"),
-			salt:     common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901234"),
-		},
-		{
-			name:             "SUPER_CANNON_KONA",
-			gameType:         embedded.GameTypeSuperCannonKona,
-			devFeatureBitmap: devfeatures.SuperRootGamesMigrationFlag,
-			chainID:          common.HexToHash("0x0301"),
-			salt:             common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901235"),
+			name:     "SUPER_CANNON_KONA",
+			gameType: embedded.GameTypeSuperCannonKona,
+			chainID:  common.HexToHash("0x0301"),
+			salt:     common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901235"),
 		},
 	}
 
