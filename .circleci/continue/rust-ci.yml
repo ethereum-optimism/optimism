@@ -289,6 +289,19 @@ jobs:
           path: <<parameters.directory>>/target/nextest
           destination: nextest-junit
           when: always
+      # SCRATCH SELF-TEST — DO NOT MERGE. Injects a synthetic <flakyFailure> after the
+      # artifact/results upload (so those stay clean) to force the Slack step to fire once,
+      # proving token/channel/mentions end to end. Revert before this branch is anything
+      # but a throwaway.
+      - run:
+          name: SCRATCH inject fake flaky result
+          when: always
+          working_directory: <<parameters.directory>>
+          command: |
+            f=target/nextest/default/junit.xml
+            [ -f "$f" ] || printf '<testsuites></testsuites>' > "$f"
+            sed -i 's#</testsuites>#<testsuite name="slack-selftest"><testcase name="SLACK_ALERT_SELFTEST"><flakyFailure message="scratch self-test, ignore"/></testcase></testsuite></testsuites>#' "$f"
+            echo "injected synthetic flakyFailure into $f"
       # A retried flake (e.g. the eth69 teardown SIGSEGV, #20973) passes on rerun and
       # leaves the job GREEN, so nothing else surfaces it — CircleCI does not parse
       # nextest's <flakyFailure> element, so store_test_results/Insights stay blind. Detect
