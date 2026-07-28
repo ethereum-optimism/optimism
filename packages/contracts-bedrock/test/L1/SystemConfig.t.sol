@@ -398,8 +398,7 @@ contract SystemConfig_SetGasConfigEcotone_Test is SystemConfig_TestInit {
     }
 
     function testFuzz_setGasConfigEcotone_succeeds(uint32 _basefeeScalar, uint32 _blobbasefeeScalar) external {
-        // Seed the legacy `overhead` value so that the event assertion below proves the emitted
-        // overhead is hardcoded to zero rather than read from storage.
+        // Seed `overhead` so the event assertion proves the emitted zero is hardcoded, not read.
         StorageSlot memory overheadSlot = ForgeArtifacts.getSlot("SystemConfig", "overhead");
         vm.store(address(systemConfig), bytes32(overheadSlot.slot), bytes32(uint256(2100)));
 

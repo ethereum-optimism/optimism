@@ -92,8 +92,7 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @notice Storage slot that the OPCM address is stored at.
     bytes32 public constant OPCM_SLOT = bytes32(uint256(keccak256("systemconfig.opcm")) - 1);
 
-    /// @notice Legacy storage slot for the batch inbox address. The OP Stack reads this value from
-    ///         the rollup configuration, so the slot is cleared during initialization.
+    /// @notice Legacy slot for the batch inbox address, which lives only in the rollup config.
     bytes32 internal constant LEGACY_BATCH_INBOX_SLOT = bytes32(uint256(keccak256("systemconfig.batchinbox")) - 1);
 
     /// @notice Storage slot for block at which the op-node can start searching for logs from.
@@ -104,9 +103,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     ///         optimizations and improvements are made to the system at large.
     uint64 internal constant MAX_GAS_LIMIT = 500_000_000;
 
-    /// @notice Fixed L2 gas overhead. Ignored by op-node after Ecotone. No longer writable and no
-    ///         longer emitted in the FEE_SCALARS ConfigUpdate event; retained only so that existing
-    ///         offchain readers of the getter keep working.
+    /// @notice Fixed L2 gas overhead. Ignored by op-node after Ecotone.
+    /// @custom:deprecated No longer writable, and `setGasConfigEcotone` emits zero in its place.
+    ///                    Retained so offchain readers of the getter keep working.
     uint256 public overhead;
 
     /// @notice Dynamic L2 gas overhead. Used as part of the L2 fee calculation.
@@ -189,9 +188,7 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         _disableInitializers();
     }
 
-    /// @notice Initializer. Clears the obsolete batch inbox slot because the OP Stack sources this
-    ///         value from the rollup configuration. This migration write can be removed once all
-    ///         supported upgrade paths have passed through SystemConfig 4.0.0.
+    /// @notice Initializer.
     ///         The resource config must be set before the require check.
     /// @param _owner             Initial owner of the contract.
     /// @param _basefeeScalar     Initial basefee scalar value.
@@ -240,6 +237,8 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         Storage.setAddress(OPCM_SLOT, _addresses.opcm);
         _setStartBlock();
 
+        // TODO Remove this write and LEGACY_BATCH_INBOX_SLOT after U20, once all supported upgrade
+        // paths have passed through SystemConfig 4.0.0.
         Storage.setAddress(LEGACY_BATCH_INBOX_SLOT, address(0));
 
         _setResourceConfig(_config);
@@ -390,9 +389,8 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
 
         scalar = (uint256(0x01) << 248) | (uint256(_blobbasefeeScalar) << 32) | _basefeeScalar;
 
-        // op-node ignores the overhead after Ecotone, so a zero is emitted rather than the legacy
-        // `overhead` value. The event data is still expected to be 64 bytes long, so the word
-        // cannot simply be dropped.
+        // Emit zero for the deprecated overhead, which op-node ignores after Ecotone. The word
+        // stays because consumers expect 64 bytes of event data.
         bytes memory data = abi.encode(uint256(0), scalar);
         emit ConfigUpdate(VERSION, UpdateType.FEE_SCALARS, data);
     }
