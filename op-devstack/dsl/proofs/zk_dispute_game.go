@@ -272,7 +272,7 @@ type ZKWithdrawal struct {
 // paid out under the given DelayedWETH delay (DelayedWETH.withdraw requires
 // `timestamp + delay <= block.timestamp`).
 func (w ZKWithdrawal) MaturesAt(delay *big.Int) uint64 {
-	return new(big.Int).Add(w.Timestamp, delay).Uint64() + 1
+	return bigs.Uint64Strict(new(big.Int).Add(w.Timestamp, delay)) + 1
 }
 
 type delayedWETHBinding struct {
