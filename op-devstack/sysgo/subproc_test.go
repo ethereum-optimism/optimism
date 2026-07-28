@@ -3,6 +3,7 @@ package sysgo
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -43,6 +44,46 @@ func TestSubProcess(gt *testing.T) {
 	gt.Log("Second run of different command")
 	capt.Clear()
 	testEcho(gt, capt, sp)
+}
+
+func TestSubProcessConcurrentStop(gt *testing.T) {
+	tLog := testlog.Logger(gt, log.LevelInfo)
+	logger, _ := testlog.CaptureLogger(gt, log.LevelInfo)
+
+	onFailNow := func(v bool) {
+		panic("fail")
+	}
+	onSkipNow := func() {
+		panic("skip")
+	}
+	p := devtest.NewP(context.Background(), logger, onFailNow, onSkipNow)
+	gt.Cleanup(p.Close)
+
+	logCallback := logpipe.LogCallback(func(line []byte) {
+		logger.Info(string(line))
+		tLog.Info("Sub-process logged message", "line", string(line))
+	})
+	sp := NewSubProcess(p, logCallback, logCallback)
+
+	require.NoError(gt, sp.Start("/bin/sh", []string{"-c", "trap '' INT; exec /bin/sleep 10000000000"}, []string{}))
+
+	start := make(chan struct{})
+	errCh := make(chan error, 2)
+	for i := 0; i < 2; i++ {
+		go func() {
+			<-start
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			errCh <- sp.StopControlled(ctx, 100*time.Millisecond, time.Second)
+		}()
+	}
+	close(start)
+
+	require.NoError(gt, <-errCh)
+	require.NoError(gt, <-errCh)
+
+	require.NoError(gt, sp.Start("/bin/echo", []string{"restart ok"}, []string{}))
+	require.NoError(gt, sp.Stop(false))
 }
 
 // testEcho tests that we can handle a sub-process that completes on its own

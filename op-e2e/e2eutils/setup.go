@@ -1,6 +1,7 @@
 package e2eutils
 
 import (
+	"fmt"
 	"math/big"
 	"os"
 	"path"
@@ -8,16 +9,18 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-e2e/config/secrets"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/stretchr/testify/require"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	opparams "github.com/ethereum-optimism/optimism/op-core/params"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -99,6 +102,10 @@ type AllocParams struct {
 	L1Alloc          types.GenesisAlloc
 	L2Alloc          types.GenesisAlloc
 	PrefundTestUsers bool
+	// L2AllocIsFrozenPreForkState treats L2Alloc as authoritative for proxied predeploys
+	// by removing generated implementation accounts absent from it and clearing the generated
+	// implementation slot when the proxy itself is absent.
+	L2AllocIsFrozenPreForkState bool
 }
 
 var etherScalar = new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
@@ -134,6 +141,53 @@ func GetL2AllocsMode(dc *genesis.DeployConfig, t uint64) genesis.L2AllocsMode {
 		return genesis.L2AllocsEcotone
 	}
 	return genesis.L2AllocsDelta
+}
+
+func removeGeneratedPredeployImplementations(generated, overlay types.GenesisAlloc) {
+	for _, predeploy := range predeploys.Predeploys {
+		if predeploy.ProxyDisabled {
+			continue
+		}
+		account, ok := generated[predeploy.Address]
+		if !ok {
+			continue
+		}
+		generatedImpl, hasImpl := account.Storage[genesis.ImplementationSlot]
+		if hasImpl && generatedImpl != (common.Hash{}) {
+			generatedImplAddr := common.BytesToAddress(generatedImpl.Bytes())
+			if _, ok := overlay[generatedImplAddr]; !ok {
+				delete(generated, generatedImplAddr)
+			}
+		}
+		if _, ok := overlay[predeploy.Address]; !ok {
+			delete(account.Storage, genesis.ImplementationSlot)
+		}
+	}
+}
+
+func validatePredeployImplementations(alloc types.GenesisAlloc) error {
+	for _, predeploy := range predeploys.Predeploys {
+		if predeploy.ProxyDisabled {
+			continue
+		}
+		account, ok := alloc[predeploy.Address]
+		if !ok {
+			continue
+		}
+		implHash := account.Storage[genesis.ImplementationSlot]
+		if implHash == (common.Hash{}) {
+			continue
+		}
+		implAddr := common.BytesToAddress(implHash.Bytes())
+		impl, ok := alloc[implAddr]
+		if !ok {
+			return fmt.Errorf("predeploy %s implementation %s missing from alloc", predeploy.Address, implAddr)
+		}
+		if len(impl.Code) == 0 {
+			return fmt.Errorf("predeploy %s implementation %s has no code", predeploy.Address, implAddr)
+		}
+	}
+	return nil
 }
 
 // Setup computes the testing setup configurations from deployment configuration and optional allocation parameters.
@@ -176,8 +230,14 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 			}
 		}
 	}
+	if alloc.L2AllocIsFrozenPreForkState {
+		removeGeneratedPredeployImplementations(l2Genesis.Alloc, alloc.L2Alloc)
+	}
 	for addr, val := range alloc.L2Alloc {
 		l2Genesis.Alloc[addr] = val
+	}
+	if alloc.L2AllocIsFrozenPreForkState {
+		require.NoError(t, validatePredeployImplementations(l2Genesis.Alloc))
 	}
 
 	var pcfg *rollup.AltDAConfig
@@ -190,6 +250,9 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		}
 	}
 
+	l2GenesisTime, err := deployConf.L2GenesisTime(l1Block.Time())
+	require.NoError(t, err, "failed to compute l2 genesis time")
+
 	rollupCfg := &rollup.Config{
 		Genesis: rollup.Genesis{
 			L1: eth.BlockID{
@@ -200,7 +263,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 				Hash:   l2Genesis.ToBlock().Hash(),
 				Number: 0,
 			},
-			L2Time:       uint64(deployConf.L1GenesisBlockTimestamp),
+			L2Time:       l2GenesisTime,
 			SystemConfig: SystemConfigFromDeployConfig(deployConf),
 		},
 		BlockTime:              deployConf.L2BlockTime,
@@ -212,21 +275,21 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		BatchInboxAddress:      deployConf.BatchInboxAddress,
 		DepositContractAddress: deployConf.OptimismPortalProxy,
 		L1SystemConfigAddress:  deployConf.SystemConfigProxy,
-		RegolithTime:           deployConf.RegolithTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		CanyonTime:             deployConf.CanyonTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		DeltaTime:              deployConf.DeltaTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		EcotoneTime:            deployConf.EcotoneTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		FjordTime:              deployConf.FjordTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		GraniteTime:            deployConf.GraniteTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		HoloceneTime:           deployConf.HoloceneTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		PectraBlobScheduleTime: deployConf.PectraBlobScheduleTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		IsthmusTime:            deployConf.IsthmusTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		JovianTime:             deployConf.JovianTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		KarstTime:              deployConf.KarstTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		LagoonTime:             deployConf.LagoonTime(uint64(deployConf.L1GenesisBlockTimestamp)),
+		RegolithTime:           deployConf.RegolithTime(l2GenesisTime),
+		CanyonTime:             deployConf.CanyonTime(l2GenesisTime),
+		DeltaTime:              deployConf.DeltaTime(l2GenesisTime),
+		EcotoneTime:            deployConf.EcotoneTime(l2GenesisTime),
+		FjordTime:              deployConf.FjordTime(l2GenesisTime),
+		GraniteTime:            deployConf.GraniteTime(l2GenesisTime),
+		HoloceneTime:           deployConf.HoloceneTime(l2GenesisTime),
+		PectraBlobScheduleTime: deployConf.PectraBlobScheduleTime(l2GenesisTime),
+		IsthmusTime:            deployConf.IsthmusTime(l2GenesisTime),
+		JovianTime:             deployConf.JovianTime(l2GenesisTime),
+		KarstTime:              deployConf.KarstTime(l2GenesisTime),
+		LagoonTime:             deployConf.LagoonTime(l2GenesisTime),
 		KeepKarstUpgradeGas:    deployConf.KeepKarstUpgradeGas,
 		AltDAConfig:            pcfg,
-		ChainOpConfig: &params.OptimismConfig{
+		ChainOpConfig: &opparams.OptimismConfig{
 			EIP1559Elasticity:        deployConf.EIP1559Elasticity,
 			EIP1559Denominator:       deployConf.EIP1559Denominator,
 			EIP1559DenominatorCanyon: &deployConf.EIP1559DenominatorCanyon,

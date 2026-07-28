@@ -37,7 +37,6 @@ arbitrary = { workspace = true, features = ["derive"], optional = true }
 
 # `serde` feature
 serde = { workspace = true, optional = true }
-serde_repr = { workspace = true, optional = true }
 
 # `tabled` feature
 tabled = { workspace = true, features = ["derive"], optional = true }
@@ -92,6 +91,5 @@ serde = [
 	"alloy-op-hardforks/serde",
 	"alloy-primitives/serde",
 	"dep:serde",
-	"dep:serde_repr",
 	"op-revm?/serde",
 ]

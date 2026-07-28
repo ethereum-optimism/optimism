@@ -49,17 +49,7 @@ const (
 	MixedL2ELOpReth   MixedL2ELKind = "op-reth"
 	MixedL2ELOpRethV2 MixedL2ELKind = "op-reth-proof-v2"
 	MixedOpRbuilder   MixedL2ELKind = "op-rbuilder"
-	// MixedL2ELOpRethPremium boots op-reth-premium as a drop-in: it is launched with op-reth's
-	// CLI (a superset) and runs its subblocks producer (--subblocks.enable defaults to true). The
-	// binary must be supplied via RUST_BINARY_PATH_OP_RETH_PREMIUM (separate repo).
-	MixedL2ELOpRethPremium MixedL2ELKind = "op-reth-premium"
 )
-
-// opRethPremiumOpts prepends the binary selection so op-reth-premium is launched in place of
-// op-reth; caller options follow and may further customise (or override) the invocation.
-func opRethPremiumOpts(opts []OpRethOption) []OpRethOption {
-	return append([]OpRethOption{OpRethWithBinary("op-reth-premium")}, opts...)
-}
 
 type MixedL2CLKind string
 
@@ -143,6 +133,11 @@ type MixedSingleChainNodeSpec struct {
 	// by deriving from L1. Used to exercise the derivation/force-build path (FCU-with-attributes)
 	// rather than the consolidation path. Defaults to false (fully peered).
 	IsolateFromL2P2P bool
+	// OpRethOpts are per-node op-reth options applied AFTER the shared cfg.OpRethOptions, only to
+	// this node's EL. Use for options that must not reach every node — e.g. a per-node binary
+	// override (OpRethWithBinary) or a flag a single node should receive while its peers reject it.
+	// Ignored for non-op-reth EL kinds.
+	OpRethOpts []OpRethOption
 }
 
 type MixedSingleChainPresetConfig struct {
@@ -211,16 +206,18 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 	for _, spec := range cfg.NodeSpecs {
 		identity := NewELNodeIdentity(0)
 
+		// Shared options first, then this node's per-spec options (so a per-node flag can
+		// override or extend the shared set without leaking to other nodes).
+		nodeOpRethOpts := append(append([]OpRethOption{}, cfg.OpRethOptions...), spec.OpRethOpts...)
+
 		var el L2ELNode
 		switch spec.ELKind {
 		case MixedL2ELOpGeth:
 			el = startL2ELNode(t, l2Net, jwtPath, jwtSecret, spec.ELKey, identity)
 		case MixedL2ELOpReth:
-			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, "v1", cfg.OpRethOptions...)
+			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, "v1", nodeOpRethOpts...)
 		case MixedL2ELOpRethV2:
-			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, "v2", cfg.OpRethOptions...)
-		case MixedL2ELOpRethPremium:
-			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, "v1", opRethPremiumOpts(cfg.OpRethOptions)...)
+			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, "v2", nodeOpRethOpts...)
 		default:
 			require.FailNowf("unsupported EL kind", "unsupported mixed EL kind %q", spec.ELKind)
 		}
@@ -247,7 +244,6 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 				spec.CLKey,
 				spec.ELKey,
 				spec.IsSequencer,
-				metricsRegistrar,
 				depSet,
 			)
 		default:
@@ -341,7 +337,7 @@ func buildMixedOpRethNode(
 	storageVersion string,
 	opts ...OpRethOption,
 ) *OpReth {
-	tempDir := t.TempDir()
+	tempDir := t.TempDirWithPrefix("l2-el-" + NewComponentTarget(key, l2Net.ChainID()).String())
 
 	data, err := json.Marshal(l2Net.genesis)
 	t.Require().NoError(err, "must json-encode genesis")
@@ -357,7 +353,7 @@ func buildMixedOpRethNode(
 	tempP2PPath := filepath.Join(tempDir, "p2pkey.txt")
 
 	// Apply options before resolving the binary so OpRethWithBinary can select a CLI-compatible
-	// superset (e.g. op-reth-premium). cfg.ExtraArgs is appended to the CLI further below.
+	// superset binary. cfg.ExtraArgs is appended to the CLI further below.
 	opRethCfg := DefaultOpRethConfig()
 	OpRethOptionBundle(opts).Apply(t, NewComponentTarget(key, l2Net.ChainID()), opRethCfg)
 	elBinary := opRethCfg.Binary
@@ -370,7 +366,7 @@ func buildMixedOpRethNode(
 		Package: elBinary,
 		Binary:  elBinary,
 	}.EnsureExists(t.Ctx(), t.Logger())
-	t.Require().NoError(err, "%s binary not available (build with 'just build-rust-release', set RUST_JIT_BUILD=1, or for op-reth-premium set RUST_BINARY_PATH_OP_RETH_PREMIUM)", elBinary)
+	t.Require().NoError(err, "%s binary not available (build with 'just build-rust-release', set RUST_JIT_BUILD=1, or set RUST_BINARY_PATH_<NAME> for a binary built from another repo)", elBinary)
 
 	args := []string{
 		"node",
@@ -416,32 +412,34 @@ func buildMixedOpRethNode(
 	err = exec.Command(execPath, initArgs...).Run()
 	t.Require().NoError(err, "must init op-reth node")
 
-	proofHistoryDir := filepath.Join(tempDir, "proof-history")
+	if !opRethCfg.DisableProofsHistory {
+		proofHistoryDir := filepath.Join(tempDir, "proof-history")
 
-	initProofsArgs := []string{
-		"proofs",
-		"init",
-		"--datadir=" + dataDirPath,
-		"--chain=" + chainConfigPath,
-		"--proofs-history.storage-path=" + proofHistoryDir,
-		"--proofs-history.storage-version=" + storageVersion,
-	}
-	// `op-proofs init` now runs snapshot-accelerated backfill by default,
-	// which V1 storage does not support — the command rejects v1 + backfill
-	// upfront. Opt out explicitly when targeting v1.
-	if storageVersion == "v1" {
-		initProofsArgs = append(initProofsArgs, "--proofs-history.skip-backfill")
-	}
-	initOut, initErr := exec.Command(execPath, initProofsArgs...).CombinedOutput()
-	t.Require().NoError(initErr, "must init op-reth proof history: %s", string(initOut))
+		initProofsArgs := []string{
+			"proofs",
+			"init",
+			"--datadir=" + dataDirPath,
+			"--chain=" + chainConfigPath,
+			"--proofs-history.storage-path=" + proofHistoryDir,
+			"--proofs-history.storage-version=" + storageVersion,
+		}
+		// `op-proofs init` now runs snapshot-accelerated backfill by default,
+		// which V1 storage does not support — the command rejects v1 + backfill
+		// upfront. Opt out explicitly when targeting v1.
+		if storageVersion == "v1" {
+			initProofsArgs = append(initProofsArgs, "--proofs-history.skip-backfill")
+		}
+		initOut, initErr := exec.Command(execPath, initProofsArgs...).CombinedOutput()
+		t.Require().NoError(initErr, "must init op-reth proof history: %s", string(initOut))
 
-	args = append(
-		args,
-		"--proofs-history",
-		"--proofs-history.window=10000",
-		"--proofs-history.storage-path="+proofHistoryDir,
-		"--proofs-history.storage-version="+storageVersion,
-	)
+		args = append(
+			args,
+			"--proofs-history",
+			"--proofs-history.window=10000",
+			"--proofs-history.storage-path="+proofHistoryDir,
+			"--proofs-history.storage-version="+storageVersion,
+		)
+	}
 
 	args = append(args, opRethCfg.ExtraArgs...)
 
@@ -512,10 +510,9 @@ func startMixedKonaNode(
 	clKey string,
 	elKey string,
 	isSequencer bool,
-	metricsRegistrar L2MetricsRegistrar,
 	depSet coredepset.DependencySet,
 ) *KonaNode {
-	tempKonaDir := t.TempDir()
+	tempKonaDir := t.TempDirWithPrefix("l2-cl-kona-" + NewComponentTarget(clKey, l2Net.ChainID()).String())
 
 	tempP2PPath := filepath.Join(tempKonaDir, "p2pkey.txt")
 
@@ -541,7 +538,9 @@ func startMixedKonaNode(
 		propagateEnvVarOrDefault("KONA_NODE_RPC_ADDR", "127.0.0.1"),
 		propagateEnvVarOrDefault("KONA_NODE_RPC_PORT", "0"),
 		propagateEnvVarOrDefault("KONA_NODE_RPC_WS_ENABLED", "true"),
-		propagateEnvVarOrDefault("KONA_METRICS_ADDR", ""),
+		// Acceptance tests drive the sequencer via the admin API (StartSequencer, etc.), which
+		// kona only registers when admin is enabled. op-node's devstack node enables it too.
+		propagateEnvVarOrDefault("KONA_NODE_RPC_ENABLE_ADMIN", "true"),
 		propagateEnvVarOrDefault("KONA_LOG_LEVEL", "3"),
 		propagateEnvVarOrDefault("KONA_LOG_STDOUT_FORMAT", "json"),
 		propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_IP", "127.0.0.1"),
@@ -558,13 +557,6 @@ func startMixedKonaNode(
 		tempDepSetPath := filepath.Join(tempKonaDir, "interop-depset.json")
 		t.Require().NoError(os.WriteFile(tempDepSetPath, depSetData, 0o640), "must write interop dependency set")
 		envVars = append(envVars, "KONA_NODE_INTEROP_DEPENDENCY_SET="+tempDepSetPath)
-	}
-
-	if areMetricsEnabled() {
-		metricsPort, err := getAvailableLocalPort()
-		t.Require().NoError(err, "startMixedKonaNode: getting metrics port")
-		envVars = append(envVars, propagateEnvVarOrDefault("KONA_METRICS_PORT", metricsPort))
-		envVars = append(envVars, "KONA_METRICS_ENABLED=true")
 	}
 
 	if isSequencer {
@@ -591,14 +583,13 @@ func startMixedKonaNode(
 	t.Require().NotEmpty(execPath, "kona-node binary path resolved")
 
 	k := &KonaNode{
-		name:               clKey,
-		chainID:            l2Net.ChainID(),
-		userRPC:            "",
-		execPath:           execPath,
-		args:               []string{"node"},
-		env:                envVars,
-		p:                  t,
-		l2MetricsRegistrar: metricsRegistrar,
+		name:     clKey,
+		chainID:  l2Net.ChainID(),
+		userRPC:  "",
+		execPath: execPath,
+		args:     []string{"node"},
+		env:      envVars,
+		p:        t,
 	}
 	t.Logger().Info("Starting kona-node", "name", clKey, "chain", l2Net.ChainID(), "el", elKey)
 	k.Start()

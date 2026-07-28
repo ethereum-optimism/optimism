@@ -140,6 +140,17 @@ func TestDepositTxMarshalBinaryDifferential(t *testing.T) {
 	}
 }
 
+// TestDepositHashParity asserts DepositTx.Hash is identical to op-geth's
+// types.Transaction.Hash for the same deposit. It will be removed in the final
+// cutover, when the op-geth dependency is replaced with upstream go-ethereum.
+func TestDepositHashParity(t *testing.T) {
+	for _, tc := range depositTxTestCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.gethTx().Hash(), tc.tx.Hash())
+		})
+	}
+}
+
 func TestUnmarshalDepositTxRoundTrip(t *testing.T) {
 	for _, tc := range depositTxTestCases() {
 		t.Run(tc.name, func(t *testing.T) {

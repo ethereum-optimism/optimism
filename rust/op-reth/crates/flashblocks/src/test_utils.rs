@@ -320,6 +320,7 @@ impl TestFlashBlockBuilder {
                 withdrawals: self.withdrawals,
                 withdrawals_root: self.withdrawals_root,
                 blob_gas_used: self.blob_gas_used,
+                post_exec_tx: None,
             },
             metadata: OpFlashblockPayloadMetadata {
                 block_number: self.block_number,

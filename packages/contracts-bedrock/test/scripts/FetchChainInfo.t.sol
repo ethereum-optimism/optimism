@@ -10,6 +10,7 @@ import { FetchChainInfo, FetchChainInfoInput, FetchChainInfoOutput } from "scrip
 // Libraries
 import { GameTypes, GameType } from "src/dispute/lib/Types.sol";
 import { LibGameType } from "src/dispute/lib/LibUDT.sol";
+import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 
 address constant TEST_GUARDIAN = address(0xBEEF);
 address constant TEST_PROPOSER = address(0xCAFE);
@@ -37,6 +38,11 @@ contract BaseMockContract {
 
 interface IRespectedGameType {
     function respectedGameType() external view returns (GameType);
+}
+
+interface ISuperGameFetchOutput {
+    function superFaultDisputeGameImpl() external view returns (address);
+    function superPermissionedDisputeGameImpl() external view returns (address);
 }
 
 // Legacy style contracts (e.g., L2OutputOracle era)
@@ -134,9 +140,14 @@ contract ModernMockContract is BaseMockContract {
 
 contract DisputeGameFactoryMock is ModernMockContract {
     mapping(GameType => address) public gameImpls;
+    mapping(GameType => bytes) public gameArgs;
 
     function set_gameImpl(GameType _type, address _impl) external {
         gameImpls[_type] = _impl;
+    }
+
+    function set_gameArgs(GameType _type, bytes memory _args) external {
+        gameArgs[_type] = _args;
     }
 }
 
@@ -211,6 +222,8 @@ contract FetchChainInfoTest is Test {
         address permissionedGame;
         address permissionlessGame;
         address permissionlessCannonKonaGame;
+        address superPermissionedGame;
+        address superCannonKonaGame;
         address l2OutputOracle;
         address mips;
         address preimageOracle;
@@ -352,6 +365,130 @@ contract FetchChainInfoTest is Test {
 
     function test_modernPermissionlessCannonKona_succeeds() public {
         _test_modernPermissionless_succeeds(true);
+    }
+
+    /// @notice Once CANNON is deprecated, a chain with only CANNON_KONA registered (no CANNON) must
+    ///         still be reported as permissionless, with CANNON_KONA as the fault dispute game impl.
+    function test_modernPermissionlessCannonKonaOnly_succeeds() public {
+        TestContext memory ctx = _prepareModernTestContext();
+
+        ctx.disputeGameFactory = address(new DisputeGameFactoryMock());
+        ctx.permissionedGame = address(new PermissionedDisputeGameMock());
+        ctx.permissionlessCannonKonaGame = address(new PermissionlessCannonKonaDisputeGameMock());
+        ctx.superchainConfig = address(new ModernMockContract());
+        ctx.mips = address(new OracleMock());
+        ctx.preimageOracle = address(new ModernMockContract());
+        ctx.anchorStateRegistry = address(new ModernMockContract());
+
+        ModernMockContract(payable(ctx.l1StandardBridgeProxy)).set_messenger(ctx.l1CrossDomainMessenger);
+        ModernMockContract(payable(ctx.l1CrossDomainMessenger)).set_portal(ctx.optimismPortal);
+        ModernMockContract(payable(ctx.systemConfigProxy)).set_disputeGameFactory(ctx.disputeGameFactory);
+        ModernMockContract(payable(ctx.optimismPortal)).set_superchainConfig(ctx.superchainConfig);
+        ModernMockContract(payable(ctx.optimismPortal)).set_guardian(TEST_GUARDIAN);
+        ModernMockContract(payable(ctx.optimismPortal)).set_systemConfig(ctx.systemConfigProxy);
+
+        // CANNON is intentionally not registered, only CANNON_KONA and the permissioned game exist.
+        DisputeGameFactoryMock(payable(ctx.disputeGameFactory)).set_gameImpl(
+            GameTypes.CANNON_KONA, ctx.permissionlessCannonKonaGame
+        );
+        DisputeGameFactoryMock(payable(ctx.disputeGameFactory)).set_gameImpl(
+            GameTypes.PERMISSIONED_CANNON, ctx.permissionedGame
+        );
+
+        PermissionedDisputeGameMock(payable(ctx.permissionedGame)).set_challenger(TEST_CHALLENGER);
+        PermissionedDisputeGameMock(payable(ctx.permissionedGame)).set_proposer(TEST_PROPOSER);
+        PermissionedDisputeGameMock(payable(ctx.permissionedGame)).set_vm(ctx.mips);
+        PermissionedDisputeGameMock(payable(ctx.permissionedGame)).set_anchorStateRegistry(ctx.anchorStateRegistry);
+
+        OracleMock(payable(ctx.mips)).set_oracle(ctx.preimageOracle);
+
+        _setupAddressManagerSlot(ctx.l1CrossDomainMessenger, TEST_ADDRESS_MANAGER);
+
+        fetchChainInfo = new FetchChainInfo();
+        fetchChainInfo.run(ctx.input, ctx.output);
+
+        assertTrue(ctx.output.permissionless(), "Permissionless proofs should be enabled");
+        assertEq(
+            ctx.output.faultDisputeGameImpl(),
+            ctx.permissionlessCannonKonaGame,
+            "FaultDisputeGame should fall back to CANNON_KONA"
+        );
+        assertEq(
+            ctx.output.faultDisputeGameCannonKonaImpl(),
+            ctx.permissionlessCannonKonaGame,
+            "FaultDisputeGameCannonKona should match"
+        );
+    }
+
+    function test_postSuperRootMigration_succeeds() public {
+        TestContext memory ctx = _prepareModernTestContext();
+
+        ctx.disputeGameFactory = address(new DisputeGameFactoryMock());
+        ctx.superPermissionedGame = address(new ModernMockContract());
+        ctx.superCannonKonaGame = address(new ModernMockContract());
+        ctx.superchainConfig = address(new ModernMockContract());
+        ctx.mips = address(new OracleMock());
+        ctx.preimageOracle = address(new ModernMockContract());
+        ctx.anchorStateRegistry = address(new ModernMockContract());
+
+        ModernMockContract(payable(ctx.l1StandardBridgeProxy)).set_messenger(ctx.l1CrossDomainMessenger);
+        ModernMockContract(payable(ctx.l1CrossDomainMessenger)).set_portal(ctx.optimismPortal);
+        ModernMockContract(payable(ctx.systemConfigProxy)).set_disputeGameFactory(ctx.disputeGameFactory);
+        ModernMockContract(payable(ctx.optimismPortal)).set_superchainConfig(ctx.superchainConfig);
+        ModernMockContract(payable(ctx.optimismPortal)).set_guardian(TEST_GUARDIAN);
+        ModernMockContract(payable(ctx.optimismPortal)).set_respectedGameType(GameTypes.SUPER_PERMISSIONED);
+
+        DisputeGameFactoryMock factory = DisputeGameFactoryMock(payable(ctx.disputeGameFactory));
+        factory.set_gameImpl(GameTypes.SUPER_PERMISSIONED, ctx.superPermissionedGame);
+        factory.set_gameArgs(
+            GameTypes.SUPER_PERMISSIONED,
+            LibGameArgs.encodeSuperPermissioned(
+                LibGameArgs.SuperPermissionedGameArgs({
+                    anchorStateRegistry: ctx.anchorStateRegistry,
+                    proposer: TEST_PROPOSER
+                })
+            )
+        );
+        factory.set_gameImpl(GameTypes.SUPER_CANNON_KONA, ctx.superCannonKonaGame);
+        factory.set_gameArgs(
+            GameTypes.SUPER_CANNON_KONA,
+            LibGameArgs.encode(
+                LibGameArgs.GameArgs({
+                    absolutePrestate: bytes32(uint256(1)),
+                    vm: ctx.mips,
+                    anchorStateRegistry: ctx.anchorStateRegistry,
+                    weth: WETH_PERMISSIONLESS,
+                    l2ChainId: 1,
+                    proposer: address(0),
+                    challenger: address(0)
+                })
+            )
+        );
+        OracleMock(payable(ctx.mips)).set_oracle(ctx.preimageOracle);
+
+        _setupAddressManagerSlot(ctx.l1CrossDomainMessenger, TEST_ADDRESS_MANAGER);
+
+        fetchChainInfo = new FetchChainInfo();
+        fetchChainInfo.run(ctx.input, ctx.output);
+
+        ISuperGameFetchOutput superOutput = ISuperGameFetchOutput(address(ctx.output));
+        assertEq(
+            superOutput.superPermissionedDisputeGameImpl(),
+            ctx.superPermissionedGame,
+            "SuperPermissionedDisputeGame should match"
+        );
+        assertEq(superOutput.superFaultDisputeGameImpl(), ctx.superCannonKonaGame, "SuperFaultDisputeGame should match");
+        assertEq(ctx.output.proposer(), TEST_PROPOSER, "Proposer should come from SUPER_PERMISSIONED args");
+        assertEq(ctx.output.mipsImpl(), ctx.mips, "MIPS should come from SUPER_CANNON_KONA args");
+        assertEq(ctx.output.preimageOracleImpl(), ctx.preimageOracle, "PreimageOracle should match");
+        assertEq(ctx.output.anchorStateRegistryProxy(), ctx.anchorStateRegistry, "AnchorStateRegistry should match");
+        assertEq(
+            ctx.output.delayedWethPermissionlessGameProxy(),
+            WETH_PERMISSIONLESS,
+            "Permissionless delayed WETH should match"
+        );
+        assertTrue(ctx.output.permissioned(), "Permissioned proofs should be enabled");
+        assertTrue(ctx.output.permissionless(), "Permissionless proofs should be enabled");
     }
 
     // Test to verify fallback mechanism for guardian() to GUARDIAN()

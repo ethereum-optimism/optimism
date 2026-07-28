@@ -19,8 +19,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindingspreview"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-proposer/proposer/source"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
@@ -42,8 +45,16 @@ func runProposerTest(gt *testing.T, deltaTimeOffset *hexutil.Uint64, allocType c
 	dp := e2eutils.MakeDeployParams(t, params)
 	upgradesHelpers.ApplyDeltaTimeOffset(dp, deltaTimeOffset)
 	sd := e2eutils.Setup(t, dp, actionsHelpers.DefaultAlloc)
+	const (
+		testClockOffset  = 30 * time.Minute
+		proposalInterval = time.Hour
+	)
+	proposerClock := clock.NewDeterministicClock(time.Unix(int64(sd.L1Cfg.Timestamp), 0).Add(testClockOffset))
 	log := testlog.Logger(t, log.LevelDebug)
 	miner, seqEngine, sequencer := actionsHelpers.SetupSequencerTest(t, sd, log)
+	sequencer.EnableProposerSuperRootAPI(t)
+	superNodeClient := sources.NewSuperNodeClient(sequencer.RPCClient())
+	proposalSource := source.NewSuperRootProposalSource(log, superNodeClient)
 
 	rollupSeqCl := sequencer.RollupClient()
 	batcher := actionsHelpers.NewL2Batcher(log, sd.RollupCfg, actionsHelpers.DefaultBatcherCfg(dp),
@@ -55,14 +66,15 @@ func runProposerTest(gt *testing.T, deltaTimeOffset *hexutil.Uint64, allocType c
 	require.NoError(t, err)
 	proposer := actionsHelpers.NewL2Proposer(t, log, &actionsHelpers.ProposerCfg{
 		DisputeGameFactoryAddr: &sd.DeploymentsL1.DisputeGameFactoryProxy,
-		ProposalInterval:       6 * time.Second,
+		ProposalInterval:       proposalInterval,
 		ProposalRetryInterval:  3 * time.Second,
 		DisputeGameType:        respectedGameType,
 		ProposerKey:            dp.Secrets.Proposer,
 		AllowNonFinalized:      true,
 		AllocType:              allocType,
 		ChainID:                eth.ChainIDFromBig(sd.L1Cfg.Config.ChainID),
-	}, miner.EthClient(), rollupSeqCl)
+		Clock:                  proposerClock,
+	}, miner.EthClient(), proposalSource)
 
 	// L1 block
 	miner.ActEmptyBlock(t)
@@ -85,23 +97,38 @@ func runProposerTest(gt *testing.T, deltaTimeOffset *hexutil.Uint64, allocType c
 	sequencer.ActL1SafeSignal(t)
 	sequencer.ActL1FinalizedSignal(t)
 	sequencer.ActL2PipelineFull(t)
-	require.Equal(t, sequencer.SyncStatus().UnsafeL2, sequencer.SyncStatus().FinalizedL2)
+	proposedL2 := sequencer.SyncStatus().FinalizedL2
+	require.Equal(t, sequencer.SyncStatus().UnsafeL2, proposedL2)
+	status := sequencer.SyncStatus()
+	rpcOutput, err := superNodeClient.SuperRootAtTimestamp(t.Ctx(), proposedL2.Time)
+	require.NoError(t, err)
+	require.Equal(t, status.CurrentL1.ID(), rpcOutput.CurrentL1)
+	require.Equal(t, status.SafeL2.Time, rpcOutput.CurrentSafeTimestamp)
+	require.Equal(t, status.FinalizedL2.Time, rpcOutput.CurrentFinalizedTimestamp)
+	require.Equal(t, []eth.ChainID{eth.ChainIDFromBig(sd.RollupCfg.L2ChainID)}, rpcOutput.ChainIDs)
+	require.NotNil(t, rpcOutput.Data)
+	rpcSuperV1, ok := rpcOutput.Data.Super.(*eth.SuperV1)
+	require.True(t, ok)
+	require.Len(t, rpcSuperV1.Chains, 1)
+	require.Equal(t, proposedL2.Time, rpcSuperV1.Timestamp)
+	require.Equal(t, rpcOutput.Data.SuperRoot, eth.SuperRoot(rpcSuperV1))
+	outputComputed, err := rollupSeqCl.OutputAtBlock(t.Ctx(), proposedL2.Number)
+	require.NoError(t, err)
+	require.Equal(t, outputComputed.OutputRoot, rpcSuperV1.Chains[0].Output)
+	require.Equal(t, eth.ChainIDFromBig(sd.RollupCfg.L2ChainID), rpcSuperV1.Chains[0].ChainID)
 	require.True(t, proposer.CanPropose(t))
 
-	// make proposals until there is nothing left to propose
-	for proposer.CanPropose(t) {
-		proposer.ActMakeProposalTx(t)
-		// include proposal on L1
-		miner.ActL1StartBlock(12)(t)
-		miner.ActL1IncludeTx(dp.Addresses.Proposer)(t)
-		miner.ActL1EndBlock(t)
-		// Check proposal was successful
-		receipt, err := miner.EthClient().TransactionReceipt(t.Ctx(), proposer.LastProposalTx())
-		require.NoError(t, err)
-		require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "proposal failed")
-	}
+	proposer.ActMakeProposalTx(t)
+	// include proposal on L1
+	miner.ActL1StartBlock(12)(t)
+	miner.ActL1IncludeTx(dp.Addresses.Proposer)(t)
+	miner.ActL1EndBlock(t)
+	// Check proposal was successful
+	receipt, err := miner.EthClient().TransactionReceipt(t.Ctx(), proposer.LastProposalTx())
+	require.NoError(t, err)
+	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "proposal failed")
 
-	// check that L1 stored the expected output root
+	// Check the created game's timestamp exercises a real, nonzero proposal interval.
 	disputeGameFactoryContract, err := bindings.NewDisputeGameFactory(sd.DeploymentsL1.DisputeGameFactoryProxy, miner.EthClient())
 	require.NoError(t, err)
 	gameCount, err := disputeGameFactoryContract.GameCount(&bind.CallOpts{})
@@ -111,12 +138,49 @@ func runProposerTest(gt *testing.T, deltaTimeOffset *hexutil.Uint64, allocType c
 	require.NoError(t, err)
 	require.Greater(t, len(latestGames), 0, "latest games must be greater than 0")
 	latestGame := latestGames[0]
-	gameBlockNumber := new(big.Int)
-	gameBlockNumber.SetBytes(latestGame.ExtraData[0:32])
-	block, err := seqEngine.EthClient().BlockByNumber(t.Ctx(), gameBlockNumber)
+	gameTimestamp := time.Unix(int64(latestGame.Timestamp), 0)
+	require.True(t, gameTimestamp.Before(proposerClock.Now()), "test clock must be after the created game's timestamp")
+	require.True(t, gameTimestamp.After(proposerClock.Now().Add(-proposalInterval)), "created game must be inside the nonzero proposal interval")
+
+	clockAdvance := proposalInterval + time.Second
+	proposerClock.AdvanceTime(clockAdvance)
+	require.False(t, proposer.CanPropose(t), "exact duplicate-game lookup must suppress the unchanged proposal after the proposal interval expires")
+	proposerClock.AdvanceTime(-clockAdvance)
+
+	// Advance the finalized L2 head while the first proposal is still inside the proposal interval.
+	sequencer.ActL1HeadSignal(t)
+	sequencer.ActL2PipelineFull(t)
+	sequencer.ActBuildToL1Head(t)
+	batcher.ActSubmitAll(t)
+	miner.ActL1StartBlock(12)(t)
+	miner.ActL1IncludeTx(dp.Addresses.Batcher)(t)
+	miner.ActL1EndBlock(t)
+	miner.ActL1SafeNext(t)
+	miner.ActL1SafeNext(t)
+	miner.ActL1FinalizeNext(t)
+	miner.ActL1FinalizeNext(t)
+	sequencer.ActL2PipelineFull(t)
+	sequencer.ActL1SafeSignal(t)
+	sequencer.ActL1FinalizedSignal(t)
+	sequencer.ActL2PipelineFull(t)
+	newFinalizedL2 := sequencer.SyncStatus().FinalizedL2
+	require.Greater(t, newFinalizedL2.Time, proposedL2.Time)
+	newProposal, err := proposalSource.ProposalAtSequenceNum(t.Ctx(), newFinalizedL2.Time)
+	require.NoError(t, err)
+	require.NotEqual(t, common.Hash(rpcOutput.Data.SuperRoot), newProposal.Root, "new finalized L2 head must produce a different proposal root before testing interval throttling")
+	require.False(t, proposer.CanPropose(t), "proposal interval must suppress a different proposal while the first game remains recent")
+
+	// check that L1 stored the expected output root
+	superRoot, err := eth.UnmarshalSuperRoot(latestGame.ExtraData)
+	require.NoError(t, err)
+	superV1, ok := superRoot.(*eth.SuperV1)
+	require.True(t, ok)
+	require.Len(t, superV1.Chains, 1)
+	require.Equal(t, eth.ChainIDFromBig(sd.RollupCfg.L2ChainID), superV1.Chains[0].ChainID)
+	require.Equal(t, proposedL2.Time, superV1.Timestamp)
+	block, err := seqEngine.EthClient().BlockByNumber(t.Ctx(), new(big.Int).SetUint64(proposedL2.Number))
 	require.NoError(t, err)
 	require.Less(t, block.Time(), latestGame.Timestamp, "output is registered with L1 timestamp of proposal tx, past L2 block")
-	outputComputed, err := sequencer.RollupClient().OutputAtBlock(t.Ctx(), bigs.Uint64Strict(gameBlockNumber))
-	require.NoError(t, err)
-	require.Equal(t, eth.Bytes32(latestGame.RootClaim), outputComputed.OutputRoot, "output roots must match")
+	require.Equal(t, outputComputed.OutputRoot, superV1.Chains[0].Output, "output roots must match")
+	require.Equal(t, eth.Bytes32(latestGame.RootClaim), eth.SuperRoot(superV1), "super roots must match")
 }

@@ -1,9 +1,10 @@
 ---
 title: Pausing the bridge
 description: Learn how the OP Stack bridge can be paused as backup safety mechanism.
+diataxis: explanation
 ---
 
-The [`OptimismPortal`](https://github.com/ethereum-optimism/optimism/blob/v1.1.4/packages/contracts-bedrock/src/L1/OptimismPortal.sol) is the low-level L1 message passing contract present on all standard OP Stack chains.
+The [`OptimismPortal`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OptimismPortal2.sol) is the low-level L1 message passing contract present on all standard OP Stack chains.
 This contract handles the L1 side of the communication channel between an OP Stack chain and its L1 parent chain.
 
 As a safety mechanism, a privileged `GUARDIAN` address can pause withdrawals.
@@ -25,7 +26,7 @@ Pauses are designed to be a backup safety mechanism and are expected to be used 
 
 ## Pause and unpause functions
 
-The `GUARDIAN` can pause and unpause L2-to-L1 transactions at any time by calling the [`pause`](https://github.com/ethereum-optimism/optimism/blob/856c08bf84d9aa829d1e764fc8e9a37d41960ba0/packages/contracts-bedrock/src/L1/SuperchainConfig.sol#L66-L71) and [`unpause`](https://github.com/ethereum-optimism/optimism/blob/856c08bf84d9aa829d1e764fc8e9a37d41960ba0/packages/contracts-bedrock/src/L1/SuperchainConfig.sol#L73-L78) functions on the `SuperchainConfig` contract.
+The `GUARDIAN` can pause and unpause L2-to-L1 transactions at any time by calling the [`pause`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/SuperchainConfig.sol#L81-L94) and [`unpause`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/SuperchainConfig.sol#L98-L105) functions on the `SuperchainConfig` contract.
 
 ## Guardian address
 

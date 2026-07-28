@@ -101,6 +101,7 @@ and returns a typed output that the test then may use.
 
 - `DEVSTACK_KEYS_SALT`: Seeds the keys generated with `NewHDWallet`. This is useful for "isolating" test runs, and might be needed to reproduce CI and/or acceptance test runs. It can be any string, including the empty one to use the "usual" devkeys.
 - `DEVNET_EXPECT_PRECONDITIONS_MET`: This can be set of force test failures when their pre-conditions are not met, which would otherwise result in them being skipped. This is helpful in particular for runs that do intend to run specific tests (as opposed to whatever is available). `op-acceptor` does set that variable, for example.
+- `DEVSTACK_MONOREPO_ROOT`: Absolute path to a monorepo checkout. Used by out-of-tree acceptance suites (which depend on this module by git rev) so contract-artifact resolution can find `packages/contracts-bedrock` outside the cwd-relative walk. In-tree runs don't need it.
 
 ### Rust stack env vars:
 - `DEVSTACK_L2CL_KIND=kona-node` to select kona-node as default L2 CL node
@@ -113,7 +114,7 @@ and returns a typed output that the test then may use.
 - `SYSGO_GETH_EXEC_PATH=/path/to/geth` to select the geth executable to run
 
 ### Metrics env vars:
-- `SYSGO_METRICS_ENABLED` set to `true` to enable metrics to be exposed via prometheus and grafana for all running components that expose metrics (default: `false`)
+- `SYSGO_METRICS_ENABLED` set to `true` to expose Prometheus and Grafana metrics for supported running components; sysgo does not enable Kona metrics (default: `false`)
 - `SYSGO_DOCKER_EXEC_PATH` path to docker executable (defaults to `docker` assuming it is in your `PATH`)
 - `SYSGO_GRAFANA_PROVISIONING_DIR` to provide a local grafana provisioning dir to use (otherwise a temp dir will be created and removed at the end of tests)
 - `SYSGO_GRAFANA_DATA_DIR` to provide a local grafana data dir to use (otherwise a temp dir will be created and removed at the end of tests)

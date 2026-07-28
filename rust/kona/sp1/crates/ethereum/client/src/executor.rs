@@ -7,6 +7,7 @@ use async_trait::async_trait;
 use kona_derive::{BlobProvider, EthereumDataSource};
 use kona_driver::PipelineCursor;
 use kona_genesis::{L1ChainConfig, RollupConfig};
+use kona_interop::DependencySet;
 use kona_preimage::CommsClient;
 use kona_proof::{
     FlushableCache,
@@ -23,6 +24,7 @@ where
     O: CommsClient + FlushableCache + Send + Sync + Debug,
     B: BlobProvider + Send + Sync + Debug + Clone,
 {
+    dependency_set: Option<Arc<DependencySet>>,
     _marker: std::marker::PhantomData<(O, B)>,
 }
 
@@ -34,7 +36,12 @@ where
 {
     /// Creates a new [`ETHDAWitnessExecutor`].
     pub const fn new() -> Self {
-        Self { _marker: std::marker::PhantomData }
+        Self { dependency_set: None, _marker: std::marker::PhantomData }
+    }
+
+    /// Creates a new [`ETHDAWitnessExecutor`] with an interop dependency set.
+    pub const fn new_with_dependency_set(dependency_set: Arc<DependencySet>) -> Self {
+        Self { dependency_set: Some(dependency_set), _marker: std::marker::PhantomData }
     }
 }
 
@@ -70,7 +77,7 @@ where
             da_provider,
             l1_provider,
             l2_provider,
-            None,
+            self.dependency_set.clone(),
         )
         .await?)
     }

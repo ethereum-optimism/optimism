@@ -1,4 +1,4 @@
-use crate::{Cli, Commands};
+use crate::{Cli, Commands, metrics::register_hardfork_activation_metrics};
 use eyre::{Result, eyre};
 use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_commands::launcher::Launcher;
@@ -68,6 +68,9 @@ where
 
         // Install the prometheus recorder to be sure to record all metrics
         install_prometheus_recorder();
+        if let Some(chain_spec) = self.cli.command.chain_spec() {
+            register_hardfork_activation_metrics(chain_spec);
+        }
 
         let components = |spec: Arc<OpChainSpec>| {
             (OpExecutorProvider::optimism(spec.clone()), Arc::new(OpBeaconConsensus::new(spec)))

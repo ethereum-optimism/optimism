@@ -1,0 +1,4 @@
+{
+  "comment": "Pre-existing link-policy violations, baselined so CI blocks only NEW violations. This file is the worklist for the B2 remediation sweep — shrink it, never grow it. Regenerate: node scripts/lint-link-policy.mjs --update-baseline [--specs-src <dir>]",
+  "findings": []
+}

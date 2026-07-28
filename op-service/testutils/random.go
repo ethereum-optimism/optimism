@@ -143,14 +143,19 @@ func RandomTo(rng *rand.Rand) *common.Address {
 	return &to
 }
 
-func isIsthmusSigner(signer types.Signer) bool {
-	isthusSigner := types.NewIsthmusSigner(signer.ChainID())
-	return signer.Equal(isthusSigner)
+// signerSupportsSetCode reports whether the signer accepts EIP-7702 set-code
+// transactions. It probes via SignatureValues instead of comparing against a
+// concrete signer, so it recognizes both op-geth's Isthmus signer (a Prague
+// signer without blob-tx support) and upstream go-ethereum's modern signers.
+func signerSupportsSetCode(signer types.Signer) bool {
+	var sig [crypto.SignatureLength]byte
+	_, _, _, err := signer.SignatureValues(types.NewTx(&types.SetCodeTx{}), sig[:])
+	return err == nil
 }
 
 func RandomTx(rng *rand.Rand, baseFee *big.Int, signer types.Signer) *types.Transaction {
 	txTypeList := []int{types.LegacyTxType, types.AccessListTxType, types.DynamicFeeTxType}
-	if isIsthmusSigner(signer) {
+	if signerSupportsSetCode(signer) {
 		txTypeList = append(txTypeList, types.SetCodeTxType)
 	}
 	txType := txTypeList[rng.Intn(len(txTypeList))]
@@ -360,7 +365,7 @@ func RandomBlockPrependTxsWithTime(rng *rand.Rand, txCount int, t uint64, ptxs .
 		chainIDInt++
 	}
 	chainID := big.NewInt(chainIDInt)
-	signer := types.NewIsthmusSigner(chainID)
+	signer := types.NewPragueSigner(chainID)
 	txs := make([]*types.Transaction, 0, txCount+len(ptxs))
 	txs = append(txs, ptxs...)
 	for i := 0; i < txCount; i++ {

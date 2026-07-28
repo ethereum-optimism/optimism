@@ -1,4 +1,4 @@
-FROM golang:1.26.4-alpine3.22 AS builder
+FROM golang:1.26.5-alpine3.23 AS builder
 
 # Enforce that builds use the committed go.mod/go.sum exactly and never
 # silently mutate them. Fails the build if the lockfile is out of date.
@@ -19,7 +19,8 @@ WORKDIR /app
 RUN echo "go mod cache: $(go env GOMODCACHE)"
 RUN echo "go build cache: $(go env GOCACHE)"
 
-RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build go mod download
+# go mod download has no built-in retry; loop so a transient module proxy drop doesn't flake CI.
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build n=0; until go mod download; do n=$((n+1)); [ "$n" -ge 5 ] && exit 1; echo "go mod download retry $n/5 in 10s" >&2; sleep 10; done
 
 COPY . /app
 

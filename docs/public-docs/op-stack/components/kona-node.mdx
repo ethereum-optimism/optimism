@@ -1,0 +1,69 @@
+---
+title: kona-node
+description: Canonical hub for kona-node, the Rust implementation of the OP Stack rollup node, with links to its guides, reference, releases, source, and spec.
+diataxis: explanation
+---
+
+kona-node is the Rust implementation of the OP Stack consensus-layer (rollup
+node) client, built as part of the [Kona](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona) project.
+
+## Overview
+
+kona-node performs the same protocol role as [op-node](/op-stack/protocol/components):
+it reads batch data and deposits from the data availability layer, derives the
+canonical L2 chain, and drives an execution-layer client (such as
+[op-reth](/node-operators/guides/configuration/execution-clients)) through the
+Engine API. It also participates in the unsafe-block gossip network and can
+run in sequencer mode.
+
+It exists to bring client diversity to the OP Stack: with independent rollup
+node implementations, a bug in one client cannot take down every node on a
+chain. Kona is in active development and kona-node should be considered
+experimental.
+
+**Who runs it:** node operators, as the consensus-layer half of a node stack,
+paired with an execution client. Chain operators can also run it in sequencer
+mode.
+
+## Get started
+
+*   [Install kona-node](/node-operators/kona-node/install/overview): pre-built
+    binaries, Docker images, or building from source. Check the
+    [system requirements](/node-operators/kona-node/requirements) first.
+
+## How-tos
+
+*   [Run a node](/node-operators/kona-node/run/overview): using the
+    [binary](/node-operators/kona-node/run/binary) or the
+    [Docker recipe](/node-operators/kona-node/run/docker), including
+    [how sync works](/node-operators/kona-node/run/mechanics) and
+    [RPC trust considerations](/node-operators/kona-node/run/rpc-trust).
+*   [Run a sequencer node](/node-operators/kona-node/run/sequencer): flags,
+    key management, and example configurations for sequencer mode.
+*   [Monitoring](/node-operators/kona-node/monitoring): logging, Prometheus
+    metrics, and Grafana dashboards.
+
+## Configuration & flags reference
+
+*   [kona-node CLI reference](/node-operators/kona-node/configuration): every
+    CLI flag and environment variable for the `node` subcommand, plus default
+    ports and default runtime behavior.
+*   [`kona-node` subcommands](/node-operators/kona-node/subcommands): the
+    other subcommands the binary ships.
+*   [JSON-RPC reference](/node-operators/kona-node/rpc/overview): the P2P,
+    rollup, and admin RPC namespaces.
+
+## Releases
+
+*   [kona-node release history](/releases/kona-node)
+
+## Source & spec links
+
+*   [Source: `rust/kona/bin/node`](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/bin/node)
+    in the Optimism monorepo.
+*   [Kona source and README](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona): the Kona
+    project in the Optimism monorepo; the node's
+    [design internals](/node-operators/kona-node/design/intro) are documented
+    beside the operator guides.
+*   [Rollup node specification](https://specs.optimism.io/protocol/rollup-node.html):
+    the normative definition of the rollup node's role.

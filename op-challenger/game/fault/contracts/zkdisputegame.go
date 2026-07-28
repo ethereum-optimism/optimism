@@ -63,6 +63,7 @@ type ZKDisputeGameContract interface {
 	ChallengeTx(ctx context.Context) (txmgr.TxCandidate, error)
 	GetProposal(ctx context.Context) (common.Hash, uint64, error)
 	GetChallengerMetadata(ctx context.Context, block rpcblock.Block) (ChallengerMetadata, error)
+	IsClosed(ctx context.Context) (bool, error)
 	GetCredit(ctx context.Context, recipient common.Address) (*big.Int, gameTypes.GameStatus, error)
 	ClaimCreditTx(ctx context.Context, recipient common.Address) (txmgr.TxCandidate, error)
 	GetBondDistributionMode(ctx context.Context, block rpcblock.Block) (types.BondDistributionMode, error)
@@ -73,6 +74,14 @@ type ZKDisputeGameContractLatest struct {
 	metrics     metrics.ContractMetricer
 	multiCaller *batching.MultiCaller
 	contract    *batching.BoundContract
+}
+
+func (g *ZKDisputeGameContractLatest) IsClosed(ctx context.Context) (bool, error) {
+	mode, err := g.GetBondDistributionMode(ctx, rpcblock.Latest)
+	if err != nil {
+		return false, err
+	}
+	return mode != types.UndecidedDistributionMode, nil
 }
 
 func (g *ZKDisputeGameContractLatest) GetCredit(ctx context.Context, recipient common.Address) (*big.Int, gameTypes.GameStatus, error) {
@@ -189,7 +198,9 @@ func (g *ZKDisputeGameContractLatest) GetStatus(ctx context.Context) (gameTypes.
 	return gameTypes.GameStatusFromUint8(result.GetUint8(0))
 }
 
-func (g *ZKDisputeGameContractLatest) GetGameRange(ctx context.Context) (prestateBlock uint64, poststateBlock uint64, retErr error) {
+// GetGameRange returns super-root timestamps, not L2 block numbers, for the super-root ZK game; they
+// feed status display and the (Noop) sync validator.
+func (g *ZKDisputeGameContractLatest) GetGameRange(ctx context.Context) (prestateSeqNr uint64, poststateSeqNr uint64, retErr error) {
 	defer g.metrics.StartContractRequest("GetGameRange")()
 	results, err := g.multiCaller.Call(ctx, rpcblock.Latest,
 		g.contract.Call(methodStartingSequenceNumber),
@@ -202,8 +213,8 @@ func (g *ZKDisputeGameContractLatest) GetGameRange(ctx context.Context) (prestat
 		retErr = fmt.Errorf("expected 2 results but got %v", len(results))
 		return
 	}
-	prestateBlock = getBlockNumber(results[0], 0)
-	poststateBlock = getBlockNumber(results[1], 0)
+	prestateSeqNr = getBlockNumber(results[0], 0)
+	poststateSeqNr = getBlockNumber(results[1], 0)
 	return
 }
 
@@ -251,6 +262,8 @@ func (g *ZKDisputeGameContractLatest) ChallengeTx(ctx context.Context) (txmgr.Tx
 	return tx, nil
 }
 
+// GetProposal returns the root claim and its l2SequenceNumber. For the super-root ZK game the root
+// claim is a super-root hash and l2SequenceNumber is a super-root timestamp, not an L2 block number.
 func (g *ZKDisputeGameContractLatest) GetProposal(ctx context.Context) (common.Hash, uint64, error) {
 	results, err := g.multiCaller.Call(ctx, rpcblock.Latest, g.contract.Call(methodRootClaim), g.contract.Call(methodL2SequenceNumber))
 	if err != nil {

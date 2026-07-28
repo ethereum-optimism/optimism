@@ -103,6 +103,47 @@ func canonicalizeL1Block(allocs *foundry.ForgeAllocs) {
 	}
 }
 
+func TestPredeployScopedRetainsKarstPredeploysAndImplementations(t *testing.T) {
+	tests := []struct {
+		name           string
+		proxy          common.Address
+		implementation common.Address
+		code           []byte
+	}{
+		{
+			name:           "ConditionalDeployer",
+			proxy:          common.HexToAddress("0x420000000000000000000000000000000000002c"),
+			implementation: common.HexToAddress("0xc0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3002c"),
+			code:           []byte{0x60, 0x00},
+		},
+		{
+			name:           "L2DevFeatureFlags",
+			proxy:          common.HexToAddress("0x420000000000000000000000000000000000002d"),
+			implementation: common.HexToAddress("0xc0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3002d"),
+			code:           []byte{0x60, 0x01},
+		},
+	}
+
+	full := &foundry.ForgeAllocs{Accounts: make(types.GenesisAlloc)}
+	for _, test := range tests {
+		full.Accounts[test.proxy] = types.Account{Storage: map[common.Hash]common.Hash{
+			genesis.ImplementationSlot: common.BytesToHash(test.implementation.Bytes()),
+		}}
+		full.Accounts[test.implementation] = types.Account{Code: test.code}
+	}
+
+	scoped := predeployScoped(full)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Contains(t, scoped.Accounts, test.proxy)
+			require.Equal(t, full.Accounts[test.proxy], scoped.Accounts[test.proxy])
+			require.Contains(t, scoped.Accounts, test.implementation)
+			require.Equal(t, full.Accounts[test.implementation], scoped.Accounts[test.implementation])
+		})
+	}
+}
+
 // predeployScoped keeps every predeploy and preinstall, plus the
 // impls they point at via their EIP-1967 slot — with full per-account storage.
 // Everything else (e.g. prefunded EOAs) is dropped.

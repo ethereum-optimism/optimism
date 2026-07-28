@@ -1,0 +1,201 @@
+---
+title: Content guide
+description: What content belongs on docs.optimism.io, the canonical home for each content type, and how to mark third-party content.
+diataxis: reference
+---
+
+import ThirdPartyContent from "/snippets/third-party-content.mdx"
+import ThirdPartyContentSingle from "/snippets/third-party-content-single.mdx"
+import { NormativeSpec } from "/snippets/normative-spec.mdx"
+
+This page defines what content belongs on docs.optimism.io and, for every
+content type, which source is canonical. It exists so that "where does this
+live?" is settled by citing a rule, not re-argued in every pull request.
+Reviewers should link the relevant section of this page when requesting
+changes.
+
+The approach is adapted from the Kubernetes
+[content guide](https://kubernetes.io/docs/contribute/style/content-guide/),
+which governs kubernetes.io with the same two ideas: a short allowlist test
+for what the site hosts, and a strict preference for linking canonical
+sources over restating them.
+
+## What's allowed: the three-clause test
+
+Content belongs on docs.optimism.io only if at least one of the following is
+true (adapted from the Kubernetes content guide's third-party content rules):
+
+1.  **It documents first-party OP Stack software** — software whose source of
+    truth lives in [Optimism](https://github.com/ethereum-optimism)
+    repositories, such as the components listed on the
+    [Releases](/releases) page.
+2.  **It documents third-party software that the OP Stack needs to function**
+    — for example, an L1 execution client or key-management tooling that an
+    OP Stack chain cannot run without. Such content must be marked with the
+    [`<ThirdPartyContent>` component](#marking-third-party-content).
+3.  **It routes to canonical content that lives elsewhere** — a selection,
+    orientation, or hub page whose job is to send readers to the right
+    canonical home (for example, a curated matrix of SDKs that links each
+    SDK's own documentation).
+
+Content that satisfies none of the three clauses — tooling promotion,
+project-specific marketing, or documentation for software that is neither
+first-party nor required by the OP Stack — belongs on the third party's own
+site, not here.
+
+## Link, don't restate: the dual-sourcing ban
+
+Wherever a canonical source already exists, **link it — never restate it**.
+The Kubernetes content guide states the reason plainly: dual-sourced content
+"requires double the effort to maintain and grows stale more quickly."
+
+In practice:
+
+*   **Never paraphrase normative protocol text.** Explain the concept in your
+    own words at explanation depth, then deep-link the exact section of the
+    [OP Stack specifications](https://specs.optimism.io/) for the normative
+    definition.
+*   **Never copy reference material from another living document.** If a
+    component's book, README, or upstream API reference already documents
+    something, link to it.
+*   **Never fork a table of facts** (versions, addresses, activation times,
+    flag lists) that another system maintains. Render from the source of
+    truth or link it.
+
+## Canonical homes
+
+One home per thing. The matrix below assigns a canonical home to each content
+type across the three layers of the OP Stack documentation surface — the
+protocol, the components, and the periphery — and states what
+docs.optimism.io holds for each.
+
+| Layer | Content type | Canonical home | What docs.optimism.io holds |
+| --- | --- | --- | --- |
+| Protocol | Normative protocol behavior | [specs.optimism.io](https://specs.optimism.io/) | Explanation and routing pages that cite the spec with deep links — never restated normative text |
+| Protocol | Hardfork activations and chain metadata | [superchain-registry](https://github.com/ethereum-optimism/superchain-registry) | Pages rendered from the registry's structured data, joined — not hand-copied |
+| Components | Concepts, how-tos, and tutorials for running components | docs.optimism.io (full ownership) | The pages themselves, e.g. the [batcher guide](/chain-operators/guides/configuration/batcher) |
+| Components | Flags and configuration reference | The component's source at a tagged release | A reference page generated from source where a generator exists; otherwise a hand-maintained page pinned to a named release, e.g. the [batcher configuration reference](/chain-operators/reference/batcher-configuration) |
+| Components | Implementation internals and developer books (e.g. [kona](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona), [op-reth](https://github.com/ethereum-optimism/optimism/tree/develop/rust/op-reth)) | The component's developer documentation, maintained beside its source | Orientation and selection pages that link into the deep material |
+| Periphery | SDKs and ecosystem tooling (e.g. [viem](https://viem.sh/op-stack), wagmi) | The upstream project's own documentation | One curated hub with a support matrix; every listing marked with `<ThirdPartyContent>` |
+
+Precedents for the matrix, clause by clause:
+
+*   **Spec joined, never mirrored.** Kubernetes documents feature lifecycles
+    through its structured
+    [feature gates reference](https://kubernetes.io/docs/reference/command-line-tools-reference/feature-gates/)
+    rather than copying design documents into prose.
+*   **One identity page per component.** Cloudflare publishes a uniform
+    per-product
+    [content strategy](https://developers.cloudflare.com/style-guide/documentation-content-strategy/)
+    so every product's documentation set has the same shape.
+*   **A curated matrix over the periphery.** Stripe's
+    [SDK page](https://docs.stripe.com/sdks) differentiates its client
+    surfaces in one table; ethereum.org publishes written
+    [listing criteria](https://ethereum.org/en/contributing/adding-products/)
+    so curation is policy application rather than per-PR debate.
+*   **The component declares its docs home.** Each component's README should
+    point at its canonical documentation, following the
+    [op-deployer README](https://github.com/ethereum-optimism/optimism/blob/develop/op-deployer/README.md)
+    model.
+
+When two pages could both claim a topic, the matrix decides. If the matrix
+does not cover the case, raise it in the docs PR and propose a new row —
+amendments to this page go through the same review as any other docs change.
+
+## Marking third-party content
+
+<Info>
+  This section documents the `<ThirdPartyContent>` component, following the
+  Kubernetes [`thirdparty-content` shortcode](https://kubernetes.io/docs/contribute/style/content-guide/)
+  pattern: every third-party mention is stamped the same way, so third-party
+  content stays greppable and auditable.
+</Info>
+
+Pages or sections that document or list third-party software (clauses 2 and 3
+of the [three-clause test](#whats-allowed-the-three-clause-test)) must open
+with the `<ThirdPartyContent>` component:
+
+```mdx
+import ThirdPartyContent from "/snippets/third-party-content.mdx"
+
+<ThirdPartyContent />
+```
+
+Which renders:
+
+<ThirdPartyContent />
+
+When an entire page is about a single third-party project or product, use the
+single-project variant instead:
+
+```mdx
+import ThirdPartyContentSingle from "/snippets/third-party-content-single.mdx"
+
+<ThirdPartyContentSingle />
+```
+
+Which renders:
+
+<ThirdPartyContentSingle />
+
+## Citing the normative spec
+
+<Info>
+  This section documents the `<NormativeSpec>` component, the standing
+  callout that applies the [dual-sourcing ban](#link-dont-restate-the-dual-sourcing-ban)
+  to protocol pages: every page whose subject is normatively defined in the
+  [OP Stack specifications](https://specs.optimism.io/) is stamped the same
+  way, so spec citations stay uniform and greppable.
+</Info>
+
+The component is **reserved for explainer pages** — pages whose frontmatter
+declares `diataxis: explanation`, primarily the concept pages in the OP Stack
+section. An explainer page whose subject is normatively defined in the spec
+must open with the `<NormativeSpec>` component, deep-linking the exact spec
+section that defines its subject:
+
+```mdx
+import { NormativeSpec } from "/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="The derivation pipeline"
+  title="L2 chain derivation specification"
+  href="https://specs.optimism.io/protocol/derivation.html"
+  note="This page is a short orientation; it does not restate the spec."
+/>
+```
+
+Which renders:
+
+<NormativeSpec
+  what="The derivation pipeline"
+  title="L2 chain derivation specification"
+  href="https://specs.optimism.io/protocol/derivation.html"
+  note="This page is a short orientation; it does not restate the spec."
+/>
+
+All four variables are required: `what` names the subject the spec defines,
+`title` and `href` name and deep-link the governing spec section (a rendered
+`specs.optimism.io` URL on its current path, per the
+[link policy](/op-stack/contribute/link-policy)), and `note` states what the
+page does instead of restating the spec.
+
+Guides, tutorials, and reference pages do **not** open with the component.
+They should not go deep into protocol workings at all — that depth belongs
+on an explainer page or in the spec itself. Where a guide, tutorial, or
+reference page needs to touch a spec-defined concept, link the relevant spec
+section inline at the point of use instead.
+
+One deliberate exception: the
+[hardfork registry pages](/op-stack/protocol/network-upgrades) are reference
+pages, but the registry's purpose is the spec pointer, so they carry the
+same component with the spec URL from their structured frontmatter.
+
+## Next steps
+
+*   Read the [style guide](/op-stack/contribute/style-guide)
+    for voice, tone, and formatting conventions.
+*   Read the [contributing guide](https://github.com/ethereum-optimism/optimism/blob/develop/docs/public-docs/DOCS_CONTRIBUTING.md)
+    for development setup and the pull request process.
+*   Have questions? Open an issue in the
+    [Optimism monorepo](https://github.com/ethereum-optimism/optimism/issues).

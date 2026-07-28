@@ -229,6 +229,8 @@ func (s *Service) registerGameTypes(ctx context.Context, cfg *config.Config) err
 	if err != nil {
 		return err
 	}
+	fault.RegisterBondContracts(ctx, s.metrics, gameTypeRegistry, s.clientProvider.MultiCaller())
+	zk.RegisterBondContracts(s.metrics, gameTypeRegistry, s.clientProvider.MultiCaller())
 	s.registry = gameTypeRegistry
 	s.oracles = oracles
 	return nil

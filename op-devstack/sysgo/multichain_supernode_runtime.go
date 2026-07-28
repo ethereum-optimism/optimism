@@ -639,7 +639,7 @@ func startTwoL2SharedSupernode(
 
 	snCfg := &snconfig.CLIConfig{
 		Chains:                     chainIDs,
-		DataDir:                    t.TempDir(),
+		DataDir:                    t.TempDirWithPrefix("supernode"),
 		L1NodeAddr:                 l1EL.UserRPC(),
 		L1HTTPPollInterval:         100 * time.Millisecond,
 		L1BeaconAddr:               l1CL.beaconHTTPAddr,
@@ -749,7 +749,7 @@ func startSingleChainSharedSupernode(
 
 	snCfg := &snconfig.CLIConfig{
 		Chains:                     []uint64{eth.EvilChainIDToUInt64(l2Net.ChainID())},
-		DataDir:                    t.TempDir(),
+		DataDir:                    t.TempDirWithPrefix("supernode"),
 		L1NodeAddr:                 l1EL.UserRPC(),
 		L1HTTPPollInterval:         100 * time.Millisecond,
 		L1BeaconAddr:               l1CL.beaconHTTPAddr,

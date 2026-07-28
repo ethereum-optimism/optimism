@@ -480,7 +480,7 @@ library Predeploys {
         records_[21] = PredeployRecord({
             proxy: CONDITIONAL_DEPLOYER,
             variants: _variants("ConditionalDeployer", "ConditionalDeployer.sol:ConditionalDeployer", 600_000),
-            devFeatureGate: DevFeatures.L2CM,
+            devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,
             isProxied: true,
@@ -488,8 +488,8 @@ library Predeploys {
         });
         records_[22] = PredeployRecord({
             proxy: L2_DEV_FEATURE_FLAGS,
-            variants: _variants("L2DevFeatureFlags", "L2DevFeatureFlags.sol:L2DevFeatureFlags", 328_228),
-            devFeatureGate: DevFeatures.L2CM,
+            variants: _variants("L2DevFeatureFlags", "L2DevFeatureFlags.sol:L2DevFeatureFlags", 332_000),
+            devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,
             isProxied: true,

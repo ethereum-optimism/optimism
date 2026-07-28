@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
@@ -70,7 +71,7 @@ func TestMonitor_StartMonitoring(t *testing.T) {
 		require.Eventually(t, func() bool {
 			return forecaster.Calls() >= 2
 		}, time.Second, 50*time.Millisecond)
-		monitor.StopMonitoring()
+		require.NoError(t, monitor.StopMonitoring(stopContext(t)))
 		require.Equal(t, len(factory.games), forecaster.Calls()) // Each game's status is recorded twice
 	})
 
@@ -80,11 +81,124 @@ func TestMonitor_StartMonitoring(t *testing.T) {
 
 		monitor.StartMonitoring()
 		require.Eventually(t, func() bool {
-			return factory.calls > 0
+			return factory.Calls() > 0
 		}, time.Second, 50*time.Millisecond)
-		monitor.StopMonitoring()
+		require.NoError(t, monitor.StopMonitoring(stopContext(t)))
 		require.Equal(t, 0, forecaster.Calls())
 	})
+
+	t.Run("WaitsForInFlightMonitor", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			monitor, _, _, _ := setupMonitorTest(t)
+			monitor.clock.(*clock.AdvancingClock).Stop()
+			cl := clock.NewDeterministicClock(time.Unix(0, 0))
+			monitor.clock = cl
+			entered := make(chan struct{}, 1)
+			release := make(chan struct{})
+			var fetchReturned atomic.Bool
+			monitor.fetchHeadBlock = func(context.Context) (eth.L1BlockRef, error) {
+				select {
+				case entered <- struct{}{}:
+				default:
+				}
+				<-release
+				fetchReturned.Store(true)
+				return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
+			}
+
+			monitor.StartMonitoring()
+			synctest.Wait()
+			cl.AdvanceTime(monitor.monitorInterval)
+			synctest.Wait()
+			select {
+			case <-entered:
+			default:
+				t.Fatal("monitor did not start fetching the head block")
+			}
+
+			stopReturned := make(chan error, 1)
+			go func() {
+				stopReturned <- monitor.StopMonitoring(stopContext(t))
+			}()
+			synctest.Wait()
+
+			select {
+			case <-monitor.done:
+			default:
+				t.Fatal("monitor stop was not signaled")
+			}
+			select {
+			case <-stopReturned:
+				t.Fatal("monitor stop returned while a monitor operation was still in flight")
+			default:
+			}
+
+			close(release)
+			synctest.Wait()
+			require.True(t, fetchReturned.Load(), "in-flight monitor operation did not complete")
+			require.NoError(t, <-stopReturned, "monitor stop did not complete successfully")
+		})
+	})
+
+	t.Run("StopsBeforeStart", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			monitor, _, _, _ := setupMonitorTest(t)
+			monitor.clock.(*clock.AdvancingClock).Stop()
+			stopReturned := make(chan error, 1)
+			go func() {
+				stopReturned <- monitor.StopMonitoring(stopContext(t))
+			}()
+			synctest.Wait()
+			select {
+			case err := <-stopReturned:
+				require.NoError(t, err)
+			default:
+				t.Fatal("monitor stop blocked before monitoring started")
+			}
+			require.NoError(t, monitor.StopMonitoring(stopContext(t)), "second stop should be idempotent")
+		})
+	})
+
+	t.Run("HonorsStopContext", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			monitor, _, _, _ := setupMonitorTest(t)
+			monitor.clock.(*clock.AdvancingClock).Stop()
+			cl := clock.NewDeterministicClock(time.Unix(0, 0))
+			monitor.clock = cl
+			entered := make(chan struct{}, 1)
+			release := make(chan struct{})
+			monitor.fetchHeadBlock = func(context.Context) (eth.L1BlockRef, error) {
+				entered <- struct{}{}
+				<-release
+				return eth.L1BlockRef{}, nil
+			}
+
+			monitor.StartMonitoring()
+			synctest.Wait()
+			cl.AdvanceTime(monitor.monitorInterval)
+			synctest.Wait()
+			select {
+			case <-entered:
+			default:
+				t.Fatal("monitor did not start fetching the head block")
+			}
+
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			require.ErrorIs(t, monitor.StopMonitoring(ctx), context.Canceled)
+
+			close(release)
+			synctest.Wait()
+			require.NoError(t, monitor.StopMonitoring(stopContext(t)))
+		})
+	})
+}
+
+func stopContext(t *testing.T) context.Context {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	t.Cleanup(cancel)
+	return ctx
 }
 
 func newEnrichedGameData(proxy common.Address, timestamp uint64) *monTypes.EnrichedGameData {
@@ -139,7 +253,7 @@ func (m *mockForecast) Forecast(_ []*monTypes.EnrichedGameData, _, _ int) {
 
 type mockExtractor struct {
 	fetchErr     error
-	calls        int
+	calls        atomic.Int64
 	maxSuccess   int
 	games        []*monTypes.EnrichedGameData
 	ignoredCount int
@@ -151,14 +265,18 @@ func (m *mockExtractor) Extract(
 	_ common.Hash,
 	_ uint64,
 ) ([]*monTypes.EnrichedGameData, int, int, error) {
-	m.calls++
+	calls := int(m.calls.Add(1))
 	if m.fetchErr != nil {
 		return nil, 0, 0, m.fetchErr
 	}
-	if m.calls > m.maxSuccess && m.maxSuccess != 0 {
+	if calls > m.maxSuccess && m.maxSuccess != 0 {
 		return nil, 0, 0, mockErr
 	}
 	return m.games, m.ignoredCount, m.failedCount, nil
+}
+
+func (m *mockExtractor) Calls() int {
+	return int(m.calls.Load())
 }
 
 func TestMonitor_NodeEndpointErrorsMonitorIntegration(t *testing.T) {
@@ -634,4 +752,19 @@ type mockDifferentOutputRootMetrics struct {
 
 func (m *mockDifferentOutputRootMetrics) RecordDifferentRootGames(count int) {
 	m.recordedCount = count
+}
+
+func TestServiceStopStopsMonitoring(t *testing.T) {
+	monitor, _, _, _ := setupMonitorTest(t)
+	service := &Service{logger: monitor.logger, monitor: monitor}
+
+	require.NoError(t, service.Start(context.Background()))
+	require.NoError(t, service.Stop(stopContext(t)))
+
+	select {
+	case <-monitor.done:
+		// The monitor loop was stopped.
+	default:
+		t.Fatal("service stop did not stop the game monitor")
+	}
 }

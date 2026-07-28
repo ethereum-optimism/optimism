@@ -23,6 +23,11 @@ FRAUD_PROOF_TEST_PKGS := "./op-e2e/faultproofs/..."
 help:
   @just --list
 
+# Install the repo's git hooks (core.hooksPath -> .githooks). Idempotent; run once per clone.
+install-git-hooks:
+  git config core.hooksPath .githooks
+  @echo "Installed git hooks: core.hooksPath -> .githooks"
+
 # Initializes/updates the superchain-registry submodule — the single canonical SR
 # commit pin. Scoped to ONLY this submodule (never a bare `git submodule update`).
 # With no ref it initializes at the pinned commit (shallow) and leaves an
@@ -418,6 +423,24 @@ build-rust-release:
 check-nut-locks:
   go run ./ops/scripts/check-nut-locks
 
+# Checks that committed NUT pre-fork states regenerate without drift. Assumes required build artifacts are present.
+[script('bash')]
+_check-nut-prefork-states:
+  set -euo pipefail
+  shopt -s nullglob
+  for state in op-core/nuts/state/*_state.json; do
+    fork="$(basename "$state" _state.json)"
+    if [ "$fork" = "jovian" ]; then
+      continue
+    fi
+    just _nut-prefork-state-for "$fork"
+  done
+  git diff --exit-code -- op-core/nuts/state/*_state.json
+
+# Checks that committed NUT pre-fork states regenerate without drift.
+check-nut-prefork-states: build-contracts build-superchain-go
+  just _check-nut-prefork-states
+
 # Snapshots current-upgrade-bundle.json as a fork's NUT bundle and updates the lock file.
 nut-snapshot-for fork:
   go run ./ops/scripts/nut-snapshot-for {{fork}}
@@ -427,9 +450,12 @@ nut-provenance-verify fork:
   go run ./ops/scripts/nut-provenance-verify {{fork}}
 
 # Generates op-core/nuts/state/<fork>_state.json (predecessor state + frozen <fork> bundle).
-nut-prefork-state-for fork:
-  OP_E2E_GEN_PREFORK_STATE={{fork}} go test -run TestGenerateForkState ./rust/kona/tests/proofs/
+_nut-prefork-state-for fork:
+  OP_E2E_GEN_PREFORK_STATE={{fork}} go test -count=1 -run TestGenerateForkState ./rust/kona/tests/proofs/
 
+# Generates op-core/nuts/state/<fork>_state.json (predecessor state + frozen <fork> bundle).
+nut-prefork-state-for fork: build-contracts build-superchain-go
+  just _nut-prefork-state-for {{fork}}
 
 # Checks that TODO comments have corresponding issues.
 todo-checker:

@@ -1,6 +1,7 @@
 ---
 title: How to configure challenger for your chain
 description: Learn how to configure challenger for your OP Stack chain.
+diataxis: how-to
 audit-source:
   - op-challenger/flags/flags.go
   - op-challenger/flags/vm_flag.go
@@ -9,21 +10,23 @@ audit-source:
   - rust/op-reth/crates/node/src/args.rs
 ---
 
+import OpChallengerAbout from '/snippets/op-challenger-about.mdx';
+import OpChallengerDockerIntro from '/snippets/op-challenger-docker-intro.mdx';
+import OpChallengerDisputeMon from '/snippets/op-challenger-dispute-mon.mdx';
+import OpGethEol from "/snippets/op-geth-eol.mdx"
 
-This guide provides step-by-step instructions for setting up the configuration and monitoring options for `op-challenger`. The challenger is a critical fault proofs component that monitors dispute games and challenges invalid claims to protect your OP Stack chain.
+This guide provides step-by-step instructions for setting up the configuration and monitoring options for `op-challenger`.
 
-See the [OP-Challenger Explainer](/op-stack/fault-proofs/challenger) for a general overview of this fault proofs feature.
+<OpChallengerAbout />
+
+For the complete catalog of flags, environment variables, and defaults, see the
+[challenger configuration reference](/chain-operators/reference/challenger-configuration).
 
 <Warning>
-  **From the Karst upgrade, `cannon-kona` is the respected fault-proof game type, replacing op-program.** Configure `op-challenger` with the `cannon-kona` trace type and a kona-client absolute prestate — a challenger still running the `cannon` / op-program trace type past Karst will not defend your chain. Separately, op-geth reached **end-of-support on 2026-05-31**; run **op-reth** as your L2 execution client. See the [op-geth deprecation notice](/notices/op-geth-deprecation).
+  **From the Karst upgrade, `cannon-kona` is the respected fault-proof game type, replacing op-program.** Configure `op-challenger` with the `cannon-kona` trace type and a kona-client absolute prestate. A challenger still running the `cannon` / op-program trace type past Karst will not defend your chain.
 </Warning>
 
-The challenger is responsible for:
-
-*   Monitoring dispute games created by the fault proof system
-*   Challenging invalid claims in dispute games
-*   Defending valid state transitions
-*   Resolving games when possible
+<OpGethEol />
 
 ## Prerequisites
 
@@ -68,7 +71,7 @@ To ensure you're using the latest compatible versions of OP Stack components, al
 
 This guide is verified against the following versions:
 
-*   **op-challenger** — `op-challenger/v1.9.3` (look for the latest `op-challenger/v*`).
+*   **op-challenger** — `op-challenger/v1.9.4` (look for the latest `op-challenger/v*`).
 *   **op-reth** — `v2.2.5` (look for the latest [op-reth release](https://github.com/ethereum-optimism/optimism/releases?q=op-reth)). op-reth is both the sequencer's execution client and the archive node the challenger reads withdrawal proofs from.
 *   **kona-client** — the absolute prestate is built from a tagged `kona-client/v*` release (e.g. `kona-client/v1.6.0-rc.1`). Use the tag matching the prestate registered on your chain; for governance-approved upgrades the version is named in the upgrade notice. See the [kona-client prestate tutorial](/chain-operators/tutorials/kona-custom-prestate).
 
@@ -92,12 +95,32 @@ git clone https://github.com/ethereum-optimism/optimism.git
 cd optimism
 
 # Check out the latest release of op-challenger
-git checkout op-challenger/v1.9.3
+git checkout op-challenger/v1.9.4
+
+# Generate the embedded superchain config bundle (initializes the
+# superchain-registry submodule; op-challenger embeds this file at compile time)
+just build-superchain-go
 
 # Install dependencies and build
 just op-challenger
 
-# Binary will be available at ./op-challenger/bin/op-challenger
+# Build the Cannon VM binary used to run dispute traces
+just cannon
+
+# Binaries will be available at ./op-challenger/bin/op-challenger
+# and ./cannon/bin/cannon
+```
+
+**Build kona-host**
+
+The challenger also needs `kona-host`, the pre-image oracle server for the `cannon-kona` game type. Build it from the kona-client release tag matching the absolute prestate registered on your chain (see [Finding the current stable releases](#finding-the-current-stable-releases)), so the server matches the `kona-client` build committed on chain:
+
+```bash
+# In a checkout of the tag your prestate was built from
+cd rust
+cargo build --release --bin kona-host
+
+# Binary will be available at ./rust/target/release/kona-host
 ```
 
 ### Verify installation
@@ -399,7 +422,7 @@ The challenger should show logs indicating:
 <Tab title="Use docker">
 ### Docker setup
 
-The Docker setup provides a containerized environment for running the challenger. This method uses the official Docker image that includes the embedded `kona` server and Cannon executable.
+<OpChallengerDockerIntro />
 
 <Steps>
   <Step title="Create environment file">
@@ -567,7 +590,7 @@ The Docker setup provides a containerized environment for running the challenger
   
   services:
     challenger:
-      image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:v1.9.3
+      image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:v1.9.4
       user: "1000"
       volumes:
         - ./challenger-data:/data
@@ -620,10 +643,7 @@ The Docker setup provides a containerized environment for running the challenger
 
 ### Monitoring with op-dispute-mon
 
-Consider running [`op-dispute-mon`](/chain-operators/tools/chain-monitoring#dispute-mon) for enhanced security monitoring:
-
-*   Provides visibility into all game statuses for the last 28 days
-*   Essential for production challenger deployments
+<OpChallengerDisputeMon />
 
 ## Next steps
 

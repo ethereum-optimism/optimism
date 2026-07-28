@@ -265,7 +265,7 @@ where
         let post_exec_mode = compute_post_exec_mode(
             &self.evm_config,
             timestamp,
-            &self.config.sdm_post_exec_opt_in,
+            &self.config.operator_sdm_opt_in,
         );
         let ctx = OpPayloadBuilderCtx {
             evm_config: self.evm_config.clone(),
@@ -671,6 +671,7 @@ impl<Txs: PayloadTxsBounds> OpBuilder<'_, Txs> {
             execution_output: Arc::new(execution_output),
             hashed_state: Arc::new(hashed_state),
             trie_updates: Arc::new(trie_output),
+            changed_paths: None,
         };
 
         let no_tx_pool = ctx.attributes().no_tx_pool;

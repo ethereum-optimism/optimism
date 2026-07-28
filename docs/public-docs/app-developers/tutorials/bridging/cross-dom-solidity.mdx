@@ -1,8 +1,10 @@
 ---
 title: Communicating between OP Stack and Ethereum in Solidity
 description: Learn how to write Solidity contracts on OP Stack and Ethereum that can talk to each other.
+diataxis: tutorial
 ---
 
+import { TutorialFaucets } from '/snippets/tutorial-setup-wallet-and-funds.mdx';
 
 This tutorial explains how to write Solidity contracts on OP Stack and Ethereum that can talk to each other.
 Here you'll use a contract on OP Stack that can set a "greeting" variable on a contract on Ethereum, and vice-versa.
@@ -35,10 +37,7 @@ Read more about message passing in the guide to [Sending Data Between L1 and L2]
 This tutorial explains how to send messages from Sepolia to OP Sepolia.
 You will need to get some ETH on both of these testnets.
 
-<Info>
-  You can use [this faucet](https://sepoliafaucet.com/) to get ETH on Sepolia.
-  You can use the [Superchain Faucet](https://console.optimism.io/faucet?utm_source=op-docs&utm_medium=docs) to get ETH on OP Sepolia.
-</Info>
+<TutorialFaucets />
 
 ## Review the contracts
 

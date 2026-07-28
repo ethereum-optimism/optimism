@@ -11,7 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCombineDeployConfig(t *testing.T) {
+// newCombineFixture returns a minimal intent/state fixture that passes
+// CombineDeployConfig's validation.
+func newCombineFixture() (Intent, ChainIntent, State, ChainState) {
 	intent := Intent{
 		L1ChainID:          1,
 		L1ContractsLocator: artifacts.EmbeddedLocator,
@@ -40,6 +42,11 @@ func TestCombineDeployConfig(t *testing.T) {
 	state := State{
 		SuperchainDeployment: &addresses.SuperchainContracts{},
 	}
+	return intent, chainIntent, state, chainState
+}
+
+func TestCombineDeployConfig(t *testing.T) {
+	intent, chainIntent, state, chainState := newCombineFixture()
 
 	// apply hard fork overrides
 	chainIntent.DeployOverrides = map[string]any{
@@ -61,4 +68,71 @@ func TestCombineDeployConfig(t *testing.T) {
 	require.Equal(t, *out.L2InitializationConfig.UpgradeScheduleDeployConfig.L2GenesisJovianTimeOffset, hexutil.Uint64(5))
 	require.Equal(t, *out.L2InitializationConfig.UpgradeScheduleDeployConfig.L2GenesisKarstTimeOffset, hexutil.Uint64(6))
 	require.Equal(t, *out.L2InitializationConfig.UpgradeScheduleDeployConfig.L2GenesisLagoonTimeOffset, hexutil.Uint64(7))
+}
+
+func TestCombineDeployConfig_GenesisTime(t *testing.T) {
+	t.Run("unset leaves the deploy config timestamp nil", func(t *testing.T) {
+		intent, chainIntent, state, chainState := newCombineFixture()
+		out, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState)
+		require.NoError(t, err)
+		require.Nil(t, out.L2GenesisBlockTimestamp)
+	})
+
+	t.Run("committed genesis time in chain state propagates to the deploy config", func(t *testing.T) {
+		intent, chainIntent, state, chainState := newCombineFixture()
+		genesisTime := hexutil.Uint64(1_750_000_000)
+		chainState.GenesisTime = &genesisTime
+		out, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState)
+		require.NoError(t, err)
+		require.NotNil(t, out.L2GenesisBlockTimestamp)
+		require.Equal(t, genesisTime, *out.L2GenesisBlockTimestamp)
+	})
+}
+
+func TestCombineDeployConfig_PinnedOverrides(t *testing.T) {
+	genesisTime := hexutil.Uint64(1_750_000_000)
+
+	t.Run("a pinned genesis time rejects the timestamp override in chain's intent even when it matches", func(t *testing.T) {
+		intent, chainIntent, state, chainState := newCombineFixture()
+		chainState.GenesisTime = &genesisTime
+		chainIntent.DeployOverrides = map[string]any{"l2GenesisBlockTimestamp": genesisTime}
+		_, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState)
+		require.ErrorContains(t, err, `deployOverrides key "l2GenesisBlockTimestamp" conflicts with the anchor commitment`)
+	})
+
+	t.Run("a pinned genesis time rejects the global starting block tag override", func(t *testing.T) {
+		intent, chainIntent, state, chainState := newCombineFixture()
+		chainState.GenesisTime = &genesisTime
+		intent.GlobalDeployOverrides = map[string]any{"l1StartingBlockTag": "0x1111111111111111111111111111111111111111111111111111111111111111"}
+		_, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState)
+		require.ErrorContains(t, err, `globalDeployOverrides key "l1StartingBlockTag" conflicts with the anchor commitment`)
+	})
+
+	t.Run("reserved keys matches are case insensitive", func(t *testing.T) {
+		intent, chainIntent, state, chainState := newCombineFixture()
+		chainState.GenesisTime = &genesisTime
+		chainIntent.DeployOverrides = map[string]any{"L2GenesisBlockTimestamp": hexutil.Uint64(1)}
+		_, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState)
+		require.ErrorContains(t, err, `deployOverrides key "L2GenesisBlockTimestamp" conflicts with the anchor commitment`)
+	})
+
+	t.Run("without a pin the timestamp override keeps its legacy behavior", func(t *testing.T) {
+		intent, chainIntent, state, chainState := newCombineFixture()
+		override := hexutil.Uint64(1_760_000_000)
+		chainIntent.DeployOverrides = map[string]any{"l2GenesisBlockTimestamp": override}
+		out, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState)
+		require.NoError(t, err)
+		require.NotNil(t, out.L2GenesisBlockTimestamp)
+		require.Equal(t, override, *out.L2GenesisBlockTimestamp)
+	})
+
+	t.Run("a pinned genesis time still accepts unrelated overrides", func(t *testing.T) {
+		intent, chainIntent, state, chainState := newCombineFixture()
+		chainState.GenesisTime = &genesisTime
+		chainIntent.DeployOverrides = map[string]any{"l2BlockTime": 1}
+		out, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, out.L2BlockTime)
+		require.Equal(t, genesisTime, *out.L2GenesisBlockTimestamp)
+	})
 }

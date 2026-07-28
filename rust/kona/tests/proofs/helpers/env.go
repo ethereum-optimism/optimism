@@ -178,6 +178,16 @@ func WithCorruptClaim() FixtureInputParam {
 	}
 }
 
+// WithSP1NativeCore instructs the SP1 range executor to generate the witness and then run the
+// shared range-program core natively instead of executing the SP1 ELF. This is useful for broad,
+// faster kona-sp1 coverage; keep at least one default SP1 execute test for ELF/IO smoke coverage.
+// Has no effect on the native fault-proof program.
+func WithSP1NativeCore() FixtureInputParam {
+	return func(f *FixtureInputs) {
+		f.SP1NativeCore = true
+	}
+}
+
 // RunFaultProofProgram runs the fault proof program for each state transition from genesis up to the provided l2 block num.
 func (env *L2FaultProofEnv) RunFaultProofProgramFromGenesis(t helpers.Testing, finalL2BlockNum uint64, checkResult CheckResult, fixtureInputParams ...FixtureInputParam) {
 	l2ClaimBlockNum := uint64(0)

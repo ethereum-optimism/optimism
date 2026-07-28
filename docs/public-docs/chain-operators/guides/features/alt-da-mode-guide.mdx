@@ -1,10 +1,13 @@
 ---
 title: How to run an Alt-DA mode chain
 description: Learn how to configure and run an Alt-DA mode chain within the OP Stack.
+diataxis: how-to
 ---
 
+import OpGethEol from "/snippets/op-geth-eol.mdx"
+
 <Info>
-  The Alt-DA Mode feature is currently in <strong>Beta</strong>  within the MIT-licensed OP Stack. Beta features are built and reviewed by Optimism Collective core contributors, and provide developers with early access to highly requested configurations.
+  The Alt-DA Mode feature is currently in <strong>Beta</strong>  within the MIT-licensed OP Stack. Beta features are built and reviewed by core contributors, and provide developers with early access to highly requested configurations.
   These features may experience stability issues, and we encourage feedback from our early users.
 </Info>
 
@@ -22,12 +25,14 @@ You should use at least the following compatible op\* versions when running your
 *   op-node/v1.9.1
 *   op-proposer/v1.9.1
 *   op-batcher/v1.9.1
-*   [Latest version of op-geth](https://github.com/ethereum-optimism/op-geth/releases/latest)
+*   Latest version of op-reth (see the [execution clients guide](/node-operators/guides/configuration/execution-clients))
+
+<OpGethEol />
 
 <Steps>
   <Step title="Setup your DA server">
   <Info>
-      DA Servers are not built or maintained by Optimism Collective Core Contributors. DA servers are maintained by third parties and run at your own risk. Please reach out to the team who built the DA Server you are trying to run with any questions or issues.
+      DA Servers are not built or maintained by core contributors. DA servers are maintained by third parties and run at your own risk. Please reach out to the team who built the DA Server you are trying to run with any questions or issues.
     </Info>
   
     *   Celestia's docs on how to run the [Celestia DA server](https://github.com/celestiaorg/op-plasma-celestia/blob/main/README.md)
@@ -39,7 +44,7 @@ You should use at least the following compatible op\* versions when running your
 
   <Step title="Configure your `op-node`">
   *   Spin up your OP chain as usual but set `--altda.enabled=true` and point both `op-batcher` and `op-node` to the DA server.
-    *   No configuration changes are required for `op-geth` or `op-proposer`.
+    *   No configuration changes are required for your execution client (`op-reth`) or `op-proposer`.
   
     ```
        Alt-DA (EXPERIMENTAL)
@@ -104,7 +109,7 @@ You should use at least the following compatible op\* versions when running your
 
 Alt DA teams who want to be featured on this page must meet the following criteria:
 
-*   Functional [DA Server](https://specs.optimism.io/experimental/alt-da.html#da-server?utm_source=op-docs&utm_medium=docs), maintained in your own repo
+*   Functional [DA Server](https://specs.optimism.io/experimental/alt-da.html?utm_source=op-docs&utm_medium=docs#da-server), maintained in your own repo
 *   Supporting detailed documentation, to be referenced [here](#setup-your-da-server)
 *   Functioning OP Stack devnet using your DA server with linked configuration, contract addresses, and RPC address
 

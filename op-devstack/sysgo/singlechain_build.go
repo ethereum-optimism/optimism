@@ -151,17 +151,18 @@ func applyConfigPrefundedL2(t devtest.T, keys devkeys.Keys, l1ChainID, l2ChainID
 // startL2ELForKey starts an L2 EL node for the given key, respecting DEVSTACK_L2EL_KIND.
 // This is the single env-aware dispatch point for L2 EL selection.
 func startL2ELForKey(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [32]byte, key string, identity *ELNodeIdentity, opts ...OpRethOption) L2ELNode {
-	switch devstackL2ELKind() {
+	switch k := devstackL2ELKind(); k {
 	case MixedL2ELOpGeth:
 		return startL2ELNode(t, l2Net, jwtPath, jwtSecret, key, identity)
 	case MixedL2ELOpRethV2:
 		return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil, "v2", opts...)
-	case MixedL2ELOpRethPremium:
-		return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil, "v1", opRethPremiumOpts(opts)...)
 	case MixedOpRbuilder:
 		return startBuilderEL(t, l2Net, jwtPath, identity)
-	default: // op-reth v1
+	case "", MixedL2ELOpReth: // unset (default) or explicit op-reth v1
 		return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil, "v1", opts...)
+	default:
+		t.Require().FailNow("unsupported L2 EL kind", "unknown DEVSTACK_L2EL_KIND %q", k)
+		return nil // unreachable
 	}
 }
 
@@ -186,7 +187,7 @@ func startL2CLForKey(
 ) L2CLNode {
 	switch devstackL2CLKind() {
 	case MixedL2CLKona:
-		return startMixedKonaNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, isSequencer, nil, nil)
+		return startMixedKonaNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, isSequencer, nil)
 	default: // op-node
 		return startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
 			Key:            clKey,

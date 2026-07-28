@@ -14,8 +14,8 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-// sp1RangeExecutorPath is the path to a pre-built kona-sp1-range-executor binary. The binary embeds
-// the range guest ELF, so it must be built after the ELFs (see rust/kona/sp1/justfile build-elfs).
+// sp1RangeExecutorPath is the path to a pre-built kona-sp1-range-executor binary. The binary loads
+// the range guest ELF from KONA_SP1_ELF_DIR at runtime.
 var sp1RangeExecutorPath string
 
 func init() {
@@ -29,15 +29,17 @@ func SP1RangeExecutorPath() string {
 	return sp1RangeExecutorPath
 }
 
-// RunRangeExecutor runs the kona-sp1 range guest in SP1 execute mode for the state transition
-// described by fixtureInputs. It mirrors RunKonaNative but, instead of running the native client,
-// generates the witness and executes the range ELF. It returns ErrClaimNotValid when the guest
-// rejects the claim.
+// RunRangeExecutor runs the kona-sp1 range program for the state transition described by
+// fixtureInputs. It mirrors RunKonaNative but, instead of running the native client, generates the
+// witness and executes the range ELF (or the shared native range core when SP1NativeCore is set).
+// It returns ErrClaimNotValid when the program rejects the claim.
 //
 // fixtureInputs.L2Claim must be the real/honest output root: witness generation runs on it, and a
 // wrong root is rejected host-side before the guest runs (surfacing as an infra error, not a claim
 // verdict). To test an invalid claim, keep the honest claim and set fixtureInputs.CorruptClaim
 // (see WithCorruptClaim), which tampers the claim in the witness so the guest rejects it.
+// Set fixtureInputs.SP1NativeCore (see WithSP1NativeCore) to run the shared range-program core
+// natively instead of executing the SP1 ELF.
 func RunRangeExecutor(
 	t helpers.Testing,
 	workDir string,
@@ -76,6 +78,9 @@ func RunRangeExecutor(
 	var extraArgs []string
 	if fixtureInputs.CorruptClaim {
 		extraArgs = append(extraArgs, "--corrupt-claimed-root")
+	}
+	if fixtureInputs.SP1NativeCore {
+		extraArgs = append(extraArgs, "--native-core")
 	}
 
 	if !rustbin.RunKonaSP1Range(t, logger, &vmCfg, workDir, &inputs, extraArgs...) {

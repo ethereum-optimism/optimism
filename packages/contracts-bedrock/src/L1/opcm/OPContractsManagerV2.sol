@@ -158,9 +158,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 7.1.23
+    /// @custom:semver 7.2.3
     function version() public pure returns (string memory) {
-        return "7.1.23";
+        return "7.2.3";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -296,6 +296,24 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         }
     }
 
+    /// @notice Re-points the shared dispute games of an already-interop set to a new respected super
+    ///         game (current use: transition to a shared super ZKDisputeGame). Delegates to the
+    ///         migrator. Transitional, like migrate().
+    /// @param _input The input parameters for the dispute game re-point.
+    function setInteropDisputeGames(IOPContractsManagerMigrator.MigrateInput calldata _input) public {
+        _onlyDelegateCall();
+
+        // Delegatecall to the migrator contract.
+        (bool success, bytes memory result) = address(opcmMigrator).delegatecall(
+            abi.encodeCall(IOPContractsManagerMigrator.setInteropDisputeGames, (_input))
+        );
+        if (!success) {
+            assembly {
+                revert(add(result, 0x20), mload(result))
+            }
+        }
+    }
+
     ///////////////////////////////////////////////////////////////////////////
     //                  INTERNAL CHAIN MANAGEMENT FUNCTIONS                  //
     ///////////////////////////////////////////////////////////////////////////
@@ -358,10 +376,6 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // disabling the currently-respected game type, since the validation requires the starting
         // respected game type to correspond to an enabled game config.
         if (_isMatchingInstructionByKey(_instruction, "overrides.cfg.startingRespectedGameType")) {
-            GameType gameType = abi.decode(_instruction.data, (GameType));
-            if (gameType.raw() == GameTypes.CANNON_KONA.raw()) {
-                return isDevFeatureEnabled(DevFeatures.CANNON_KONA);
-            }
             return true;
         }
 
@@ -709,11 +723,32 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             revert OPContractsManagerV2_InvalidGameConfigs();
         }
 
+        // An initial anchor must have a nonzero root and leave room for a uint64 successor.
+        if (
+            _isInitialDeployment
+                && (
+                    _cfg.startingAnchorRoot.root.raw() == bytes32(0)
+                        || _cfg.startingAnchorRoot.l2SequenceNumber >= type(uint64).max
+                )
+        ) {
+            revert OPContractsManagerV2_InvalidGameConfigs();
+        }
+
+        bool superRootGamesMigrationEnabled = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+
         // Iterate over each provided config and confirm that it matches the game type array.
         // This places a requirement on the user to order the configs properly but that's
         // probably a good thing, keeps the config consistent.
         for (uint256 i = 0; i < _cfg.disputeGameConfigs.length; i++) {
-            if (_cfg.disputeGameConfigs[i].gameType.raw() != validGameTypes[i].raw()) {
+            uint32 rawGameType = validGameTypes[i].raw();
+            bool isCannonGame = rawGameType == GameTypes.CANNON.raw();
+            bool isPermissionedCannonGame = rawGameType == GameTypes.PERMISSIONED_CANNON.raw();
+            bool isCannonKonaGame = rawGameType == GameTypes.CANNON_KONA.raw();
+            bool isSuperPermissionedGame = rawGameType == GameTypes.SUPER_PERMISSIONED.raw();
+            bool isSuperCannonKonaGame = rawGameType == GameTypes.SUPER_CANNON_KONA.raw();
+            bool isZkDisputeGame = rawGameType == GameTypes.ZK_DISPUTE_GAME.raw();
+
+            if (_cfg.disputeGameConfigs[i].gameType.raw() != rawGameType) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
@@ -722,38 +757,51 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
-            if (
-                _cfg.disputeGameConfigs[i].gameType.raw() == GameTypes.SUPER_PERMISSIONED.raw()
-                    && _cfg.disputeGameConfigs[i].initBond != 0
-            ) {
+            if (isSuperPermissionedGame && _cfg.disputeGameConfigs[i].initBond != 0) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
             // If game is enabled, we must have a non-zero init bond, except
             // SUPER_PERMISSIONED which does not use bonds.
             if (
-                _cfg.disputeGameConfigs[i].gameType.raw() != GameTypes.SUPER_PERMISSIONED.raw()
-                    && _cfg.disputeGameConfigs[i].enabled && _cfg.disputeGameConfigs[i].initBond == 0
+                !isSuperPermissionedGame && _cfg.disputeGameConfigs[i].enabled
+                    && _cfg.disputeGameConfigs[i].initBond == 0
             ) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
-            // Check if this is a permissioned type.
-            bool isPermissioned = validGameTypes[i].raw() == GameTypes.PERMISSIONED_CANNON.raw()
-                || validGameTypes[i].raw() == GameTypes.SUPER_PERMISSIONED.raw();
-
-            // During initial deployment, only permissioned types can be enabled, because no
-            // prestate exists for permissionless games.
-            if (_isInitialDeployment && !isPermissioned && _cfg.disputeGameConfigs[i].enabled) {
+            // Initial deployments must select game types compatible with the active mode.
+            // Upgrade inputs define their game types. Super root migration removes output root support.
+            // DeployOPChain adds the permissioned fallback. StandardValidator checks it. OPCM does not require it.
+            bool validForInitialDeploy = superRootGamesMigrationEnabled
+                ? (isSuperPermissionedGame || isSuperCannonKonaGame)
+                : (isPermissionedCannonGame || isCannonKonaGame);
+            if (_isInitialDeployment && _cfg.disputeGameConfigs[i].enabled && !validForInitialDeploy) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
 
             // ZK_DISPUTE_GAME can only be enabled when the dev flag is on (upgrade path).
             if (
-                validGameTypes[i].raw() == GameTypes.ZK_DISPUTE_GAME.raw() && _cfg.disputeGameConfigs[i].enabled
+                isZkDisputeGame && _cfg.disputeGameConfigs[i].enabled
                     && !isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME)
             ) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
+            }
+
+            if (_cfg.disputeGameConfigs[i].enabled && (isCannonGame || isCannonKonaGame || isSuperCannonKonaGame)) {
+                if (
+                    _isInitialDeployment
+                        && _cfg.startingAnchorRoot.root.raw() == Constants.PLACEHOLDER_STARTING_ANCHOR_ROOT
+                ) {
+                    revert OPContractsManagerV2_InvalidGameConfigs();
+                }
+
+                // If a permissionless game is being enabled the prestate must be not empty, otherwise revert.
+                IOPContractsManagerUtils.FaultDisputeGameConfig memory faultGameConfig =
+                    abi.decode(_cfg.disputeGameConfigs[i].gameArgs, (IOPContractsManagerUtils.FaultDisputeGameConfig));
+                if (faultGameConfig.absolutePrestate.raw() == bytes32(0)) {
+                    revert OPContractsManagerV2_InvalidGameConfigs();
+                }
             }
         }
 

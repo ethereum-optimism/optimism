@@ -1,6 +1,7 @@
 ---
 title: "Generating absolute prestate and preimage files"
 description: "Generate, verify, and configure the kona-client absolute prestate for permissionless fault proofs."
+diataxis: how-to
 ---
 
 # Overview
@@ -8,7 +9,7 @@ description: "Generate, verify, and configure the kona-client absolute prestate 
 The absolute prestate is the on-chain commitment to a specific build of `kona-client`. The matching preimage (a gzipped binary) is what `op-challenger` runs at dispute time. This guide is the minimal reproducer.
 
 <Info>
-  As of [Upgrade 19](/notices/upgrade-19), `CANNON_KONA` (game type `8`) is the respected game type for permissionless fault proofs. If your chain is not yet in the public Superchain Registry, follow [Generating a custom kona-client absolute prestate](/chain-operators/tutorials/kona-custom-prestate) instead.
+  As of [Upgrade 19](/notices/archive/upgrade-19), `CANNON_KONA` (game type `8`) is the respected game type for permissionless fault proofs. If your chain is not yet in the public Superchain Registry, follow [Generating a custom kona-client absolute prestate](/chain-operators/tutorials/kona-custom-prestate) instead.
 </Info>
 
 ## Prerequisites

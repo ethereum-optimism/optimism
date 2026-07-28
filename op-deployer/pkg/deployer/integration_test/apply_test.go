@@ -11,14 +11,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/bootstrap"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 
 	"github.com/ethereum/go-ethereum"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 
@@ -28,7 +31,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
@@ -330,32 +332,6 @@ func TestEndToEndApply(t *testing.T) {
 		require.Equal(t, amount, account.Balance, "Native asset liquidity predeploy should have the configured balance")
 	})
 
-	t.Run("with L2CM", func(t *testing.T) {
-		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID1, loc, loc, testCustomGasLimit)
-
-		intent.GlobalDeployOverrides = map[string]any{
-			"devFeatureBitmap": devfeatures.L2CMFlag,
-		}
-
-		require.NoError(t, deployer.ApplyPipeline(ctx, deployer.ApplyPipelineOpts{
-			DeploymentTarget:   deployer.DeploymentTargetLive,
-			L1RPCUrl:           l1RPC,
-			DeployerPrivateKey: pk,
-			Intent:             intent,
-			State:              st,
-			Logger:             lgr,
-			StateWriter:        pipeline.NoopStateWriter(),
-			CacheDir:           testCacheDir,
-		}))
-
-		// Check that the conditional deployer predeploy is deployed in L2 genesis
-		conditionalDeployerAddr := common.HexToAddress("0x420000000000000000000000000000000000002C")
-		l2Genesis := st.Chains[0].Allocs.Data.Accounts
-		account, exists := l2Genesis[conditionalDeployerAddr]
-		require.True(t, exists, "Conditional deployer should exist in L2 genesis")
-		require.NotEmpty(t, account.Code, "Conditional deployer should have code deployed")
-	})
-
 	t.Run("OPCMV2 deployment", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -489,6 +465,168 @@ func TestApplyGenesisStrategy(t *testing.T) {
 		require.NotNil(t, st.L1DevGenesis.Config.PragueTime)
 		expectedPragueTimestamp := l1GenesisParams.BlockParams.Timestamp + *l1GenesisParams.PragueTimeOffset
 		require.EqualValues(t, expectedPragueTimestamp, *st.L1DevGenesis.Config.PragueTime)
+	})
+}
+
+func TestContinuationDeploymentUsesPreparedInputs(t *testing.T) {
+	op_e2e.InitParallel(t)
+
+	ctx := t.Context()
+
+	opts, _, phaseOneState := setupGenesisChain(t, devnet.DefaultChainID)
+	require.NoError(t, deployer.ApplyPipeline(ctx, opts))
+	require.NotNil(t, phaseOneState.ImplementationsDeployment)
+	require.NotNil(t, phaseOneState.SuperchainDeployment)
+	require.NotNil(t, phaseOneState.L1StateDump)
+
+	opcmAddress := phaseOneState.ImplementationsDeployment.OpcmV2Impl
+	superchainConfigProxy := phaseOneState.SuperchainDeployment.SuperchainConfigProxy
+	l1StateDump := phaseOneState.L1StateDump.Data
+	deployerAddress := crypto.PubkeyToAddress(opts.DeployerPrivateKey.PublicKey)
+	require.NotZero(t, phaseOneState.Create2Salt)
+	require.NotZero(t, opcmAddress)
+	require.NotZero(t, superchainConfigProxy)
+	require.NotEqual(t, standard.PlaceholderAddress, deployerAddress)
+
+	loc, l1Artifacts := testutil.LocalArtifacts(t)
+	dk, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
+	require.NoError(t, err)
+	l1ChainID := new(big.Int).SetUint64(devnet.DefaultChainID)
+	committedPrestate := common.HexToHash("0x123456")
+	committedAnchor := &state.StartingAnchorProposal{
+		Root:             common.HexToHash("0xabcdef"),
+		L2SequenceNumber: 7,
+	}
+
+	newContinuationInputs := func(t *testing.T, l2ChainID *uint256.Int) (*state.Intent, *state.State, common.Hash) {
+		t.Helper()
+
+		intent, _ := shared.NewIntent(t, l1ChainID, dk, l2ChainID, loc, loc, testCustomGasLimit)
+		intent.SuperchainConfigProxy = &superchainConfigProxy
+		intent.Chains[0].DeployOverrides = map[string]any{
+			"respectedGameType": embedded.GameTypeSuperCannonKona,
+		}
+
+		st := &state.State{
+			Version:                1,
+			Create2Salt:            phaseOneState.Create2Salt,
+			L1PredictSenderAddress: &deployerAddress,
+			L1PredictOPCMAddress:   &opcmAddress,
+			Prepared:               true,
+		}
+		chainID := intent.Chains[0].ID
+		// Deployment does not read predicted chain addresses.
+		st.SetChainContracts(chainID, addresses.OpChainContracts{}, false)
+		chainState, err := st.Chain(chainID)
+		require.NoError(t, err)
+		gameType := uint32(embedded.GameTypeSuperCannonKona)
+		chainState.InitialGameType = &gameType
+		chainState.Prestate = committedPrestate
+		chainState.StartingAnchorRoot = committedAnchor
+		return intent, st, chainID
+	}
+
+	intent, st, chainID := newContinuationInputs(t, uint256.NewInt(2))
+	require.Nil(t, st.ImplementationsDeployment)
+	require.Nil(t, st.SuperchainDeployment)
+	host, err := env.DefaultScriptHost(
+		broadcaster.NoopBroadcaster(),
+		opts.Logger,
+		deployerAddress,
+		l1Artifacts,
+		script.WithNoMaxCodeSize(),
+	)
+	require.NoError(t, err)
+	host.ImportState(l1StateDump)
+	scripts, err := opcm.NewScripts(host)
+	require.NoError(t, err)
+	pEnv := &pipeline.Env{
+		StateWriter:  pipeline.NoopStateWriter(),
+		L1ScriptHost: host,
+		Broadcaster:  broadcaster.NoopBroadcaster(),
+		Deployer:     deployerAddress,
+		Logger:       opts.Logger,
+		Scripts:      scripts,
+		Context:      ctx,
+	}
+
+	dci, err := pipeline.BuildContinuationDCI(intent, chainID, st)
+	require.NoError(t, err)
+	result, err := pipeline.ExecuteOPChainDeployment(pEnv, st, chainID, dci)
+	require.NoError(t, err)
+
+	chainState, err := st.Chain(chainID)
+	require.NoError(t, err)
+	require.False(t, *chainState.Deployed)
+	require.NoError(t, pipeline.RecordOPChainDeployment(st, result))
+	chainState, err = st.Chain(chainID)
+	require.NoError(t, err)
+	require.True(t, *chainState.Deployed)
+
+	caller := &shared.HostCaller{Host: host}
+	gameImpls := w3.MustNewFunc("gameImpls(uint32)", "address")
+	readGameImpl := func(gameType embedded.GameType) common.Address {
+		callData, err := gameImpls.EncodeArgs(uint32(gameType))
+		require.NoError(t, err)
+		ret, err := caller.Call(chainState.DisputeGameFactoryProxy, callData)
+		require.NoError(t, err)
+		var implementation common.Address
+		require.NoError(t, gameImpls.DecodeReturns(ret, &implementation))
+		require.NotZero(t, implementation)
+		return implementation
+	}
+	superCannonKonaImpl := readGameImpl(embedded.GameTypeSuperCannonKona)
+	superPermissionedImpl := readGameImpl(embedded.GameTypeSuperPermissioned)
+	require.NotEqual(t, superCannonKonaImpl, superPermissionedImpl)
+
+	gameArgs := w3.MustNewFunc("gameArgs(uint32)", "bytes")
+	readAbsolutePrestate := func(gameType embedded.GameType) common.Hash {
+		callData, err := gameArgs.EncodeArgs(uint32(gameType))
+		require.NoError(t, err)
+		ret, err := caller.Call(chainState.DisputeGameFactoryProxy, callData)
+		require.NoError(t, err)
+		var args []byte
+		require.NoError(t, gameArgs.DecodeReturns(ret, &args))
+		require.GreaterOrEqual(t, len(args), common.HashLength)
+		return common.BytesToHash(args[:common.HashLength])
+	}
+	require.Equal(t, committedPrestate, readAbsolutePrestate(embedded.GameTypeSuperCannonKona))
+
+	getStartingAnchorRoot := w3.MustNewFunc(
+		"getStartingAnchorRoot()",
+		"(bytes32 root, uint256 l2SequenceNumber)",
+	)
+	callData, err := getStartingAnchorRoot.EncodeArgs()
+	require.NoError(t, err)
+	ret, err := caller.Call(chainState.AnchorStateRegistryProxy, callData)
+	require.NoError(t, err)
+	var actualAnchor opcm.Proposal
+	require.NoError(t, getStartingAnchorRoot.DecodeReturns(ret, &actualAnchor))
+	require.Equal(t, committedAnchor.Root, actualAnchor.Root)
+	require.Equal(
+		t,
+		new(big.Int).SetUint64(uint64(committedAnchor.L2SequenceNumber)),
+		actualAnchor.L2SequenceNumber,
+	)
+
+	respectedGameType := w3.MustNewFunc("respectedGameType()", "uint32")
+	callData, err = respectedGameType.EncodeArgs()
+	require.NoError(t, err)
+	ret, err = caller.Call(chainState.AnchorStateRegistryProxy, callData)
+	require.NoError(t, err)
+	var actualGameType uint32
+	require.NoError(t, respectedGameType.DecodeReturns(ret, &actualGameType))
+	require.Equal(t, uint32(embedded.GameTypeSuperCannonKona), actualGameType)
+
+	t.Run("missing committed prestate", func(t *testing.T) {
+		intent, st, chainID := newContinuationInputs(t, uint256.NewInt(3))
+		chainState, err := st.Chain(chainID)
+		require.NoError(t, err)
+		chainState.Prestate = common.Hash{}
+
+		_, err = pipeline.BuildContinuationDCI(intent, chainID, st)
+		require.ErrorContains(t, err, "op-deployer prestate")
+		require.False(t, *chainState.Deployed)
 	})
 }
 

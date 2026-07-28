@@ -79,18 +79,20 @@ func TestIsDevFeatureEnabled(t *testing.T) {
 		require.False(t, IsDevFeatureEnabled(ALL_FEATURES, EMPTY_FEATURES))
 	})
 
-	// Hardcoded-on flags share identical override semantics. TODO(#20084): remove with the broader DevFeatures cleanup.
+	// SuperRootGamesMigration is hardcoded on. TODO(#21662): remove with the broader DevFeatures cleanup.
 	hardcoded := []struct {
 		name string
 		flag common.Hash
 	}{
-		{"L2CM", L2CMFlag},
-		{"CannonKona", CannonKonaFlag},
+		{"SuperRootGamesMigration", SuperRootGamesMigrationFlag},
 	}
 
 	t.Run("all against empty", func(t *testing.T) {
 		// Strip hardcoded-enabled flags.
-		require.False(t, IsDevFeatureEnabled(EMPTY_FEATURES, and(ALL_FEATURES, not(or(L2CMFlag, CannonKonaFlag)))))
+		require.False(t, IsDevFeatureEnabled(
+			EMPTY_FEATURES,
+			and(ALL_FEATURES, not(SuperRootGamesMigrationFlag)),
+		))
 	})
 
 	for _, c := range hardcoded {
@@ -132,7 +134,7 @@ func not(a [32]byte) [32]byte {
 
 func and(a, b [32]byte) [32]byte {
 	var out [32]byte
-	for i := 0; i < 32; i++ {
+	for i := range 32 {
 		out[i] = a[i] & b[i]
 	}
 	return out

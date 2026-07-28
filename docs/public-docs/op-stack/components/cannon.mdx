@@ -1,0 +1,72 @@
+---
+title: cannon
+description: Canonical hub for cannon, the OP Stack fault proof virtual machine — what it does, who runs it, and where its guides, releases, source, and spec live.
+diataxis: explanation
+---
+
+cannon is the OP Stack's fault proof virtual machine (FPVM): an onchain MIPS
+instruction emulator that lets a disputed L2 state transition be re-executed,
+one instruction at a time, on L1.
+
+## Overview
+
+cannon has two halves that must behave identically:
+
+*   **Onchain `MIPS64.sol`** — a Solidity implementation of big-endian 64-bit
+    MIPS (MIPS64r1) instruction execution, used to verify a single disputed
+    instruction on L1.
+*   **Offchain `mipsevm`** — an instrumented emulator of the same
+    instruction set that runs the full program and produces the witness data
+    needed to repeat any one step onchain.
+
+The program cannon executes is the fault proof program,
+[kona-client](/releases/kona-client), compiled to a MIPS ELF binary; the
+[kona-host](/releases/kona-host) binary runs alongside as the preimage
+server that supplies chain data during execution. Together they make fault
+disputes resolvable: participants bisect an execution trace down to a single
+MIPS instruction, and that one instruction is proven onchain.
+
+**Who runs it:** dispute game participants, not everyday node operators.
+[op-challenger](/op-stack/fault-proofs/challenger) invokes the cannon binary
+automatically when a fault dispute reaches the execution-trace stage, and
+chain operators build cannon prestates when configuring permissionless fault
+proofs. For how cannon fits into the dispute game, see the
+[fault proofs explainer](/op-stack/fault-proofs/explainer) and the
+[Cannon](/op-stack/fault-proofs/cannon) and
+[MIPS](/op-stack/fault-proofs/mips) deep-dive pages.
+
+## Get started
+
+*   [Cannon usage](https://github.com/ethereum-optimism/optimism/tree/develop/cannon#usage)
+    — the in-repo README walks through building cannon, loading a kona-client
+    ELF into an initial VM state, and running the emulator.
+
+## How-tos
+
+*   [Generating absolute prestate and preimage files](/chain-operators/tutorials/absolute-prestate)
+    — build and verify the cannon prestate of kona-client that op-challenger
+    runs at dispute time.
+*   [Generating a custom kona-client absolute prestate](/chain-operators/tutorials/kona-custom-prestate)
+    — the same, for chains not yet in the public Superchain Registry.
+
+## Configuration & flags reference
+
+*   cannon has no configuration reference page on this site yet; it is
+    configured entirely through CLI flags, documented by `cannon --help` and
+    the [in-repo README](https://github.com/ethereum-optimism/optimism/tree/develop/cannon#usage).
+
+## Releases
+
+*   [cannon release tags on GitHub](https://github.com/ethereum-optimism/optimism/releases?q=cannon%2Fv&expanded=false)
+    — cannon does not have a page under [Releases](/releases) yet.
+
+## Source & spec links
+
+*   [Source: `cannon/`](https://github.com/ethereum-optimism/optimism/tree/develop/cannon)
+    in the Optimism monorepo; the onchain contracts live in
+    [`packages/contracts-bedrock/src/cannon`](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/cannon).
+*   [Cannon overview docs](https://github.com/ethereum-optimism/optimism/blob/develop/cannon/docs/README.md)
+    — in-repo documentation of the onchain/offchain split and the witness
+    data (packed state, memory proofs, preimage data).
+*   [Cannon fault proof VM specification](https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html)
+    — the normative definition of the VM.
