@@ -47,12 +47,12 @@ func main() {
 	}
 
 	// op-program prestates stay in the registry for posterity but are no longer
-	// rebuilt, so drop them from the expected set and only verify the kona types.
-	builtTypes := map[string]bool{"cannon64-kona": true, "cannon64-kona-interop": true}
+	// rebuilt, so exclude those types; every other type is still verified.
+	skippedTypes := map[string]bool{"cannon32": true, "cannon64": true, "interop": true}
 	for version, standardVersion := range expected.Prestates {
 		filtered := standardVersion[:0]
 		for _, prestate := range standardVersion {
-			if builtTypes[prestate.Type] {
+			if !skippedTypes[prestate.Type] {
 				filtered = append(filtered, prestate)
 			}
 		}
