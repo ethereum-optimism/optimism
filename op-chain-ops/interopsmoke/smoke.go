@@ -874,17 +874,27 @@ type reorgResult struct {
 func reportReorgResults(stderr io.Writer, results []reorgResult, total time.Duration) error {
 	var errs []error
 	reorged := 0
+	stalled := 0
 	chains := make(map[string]struct{})
 	tw := tabwriter.NewWriter(stderr, 0, 0, 2, ' ', 0)
 	fmt.Fprint(tw, "\n    DIRECTION\tCHAIN\tBLOCK\tINVALID TX\tRESULT\tELAPSED\n")
 	for _, r := range results {
 		chains[r.chain] = struct{}{}
-		status := "REORGED"
-		if r.err != nil {
+		var status string
+		switch {
+		case r.err == nil:
+			status = "REORGED"
+			reorged++
+		case errors.Is(r.err, errChainStalled):
+			// The replacement was observed, so the invalidation worked. Counting
+			// this as "not reorged" would point at the wrong component.
+			status = "REORGED, CHAIN STALLED"
+			reorged++
+			stalled++
+			errs = append(errs, fmt.Errorf("%s on %s: %w", r.dir, r.chain, r.err))
+		default:
 			status = "NOT REORGED"
 			errs = append(errs, fmt.Errorf("%s on %s: %w", r.dir, r.chain, r.err))
-		} else {
-			reorged++
 		}
 		fmt.Fprintf(tw, "    %s\t%s\t%d\t%s\t%s\t%s\n",
 			r.dir, r.chain, r.blockNum, r.txHash.TerminalString(), status, r.elapsed.Round(time.Second))
@@ -894,8 +904,13 @@ func reportReorgResults(stderr io.Writer, results []reorgResult, total time.Dura
 	if err := tw.Flush(); err != nil {
 		errs = append(errs, fmt.Errorf("flush summary table: %w", err))
 	}
-	fmt.Fprintf(stderr, "\n    %d/%d invalid txs reorged out across %d chain(s) in %s\n\n",
+	fmt.Fprintf(stderr, "\n    %d/%d invalid txs reorged out across %d chain(s) in %s\n",
 		reorged, len(results), len(chains), total.Round(time.Second))
+	if stalled > 0 {
+		fmt.Fprintf(stderr, "    %d block(s) were replaced correctly, but the chain then stopped producing blocks.\n", stalled)
+		fmt.Fprintf(stderr, "    Invalidation looks correct; the liveness of the chain afterwards does not.\n")
+	}
+	fmt.Fprintln(stderr)
 
 	return errors.Join(errs...)
 }
@@ -1292,10 +1307,60 @@ func waitForReorgedOut(ctx context.Context, stderr io.Writer, chain *remoteChain
 		time.Sleep(time.Second)
 	}
 
-	if err := waitForHeadAtLeast(ctx, chain, blockNum+1); err != nil {
+	if err := waitForHeadProgress(ctx, stderr, chain, blockNum+1, timeout); err != nil {
 		return err
 	}
 	return assertTxNotInBlock(ctx, chain, blockNum, txHash)
+}
+
+// errChainStalled marks a block that was correctly replaced on a chain that
+// then stopped producing blocks. The invalidation itself was right and the
+// chain's liveness is what broke; reporting both as "not reorged" hides which
+// component is at fault.
+var errChainStalled = errors.New("chain stopped producing blocks after the replacement")
+
+// waitForHeadProgress waits for the chain's head to reach target, reporting what
+// it is waiting for as it goes. It is used after a reorg has already been
+// observed, where a head that never advances means the chain wedged on the
+// replacement block rather than that the reorg failed.
+func waitForHeadProgress(ctx context.Context, stderr io.Writer, chain *remoteChain, target uint64, timeout time.Duration) error {
+	start := time.Now()
+	deadline := start.Add(timeout)
+	var head uint64
+	var haveHead bool
+	for attempt := 0; ; attempt++ {
+		elapsed := time.Since(start).Round(time.Second)
+		ref, err := chain.ethClient.BlockRefByLabel(ctx, eth.Unsafe)
+		if err == nil {
+			if ref.Number >= target {
+				fmt.Fprintf(stderr, "    [%s] Chain progressing again: head %d after %s\n", chain.name, ref.Number, elapsed)
+				return nil
+			}
+			// Log on the first attempt, every ten seconds, and whenever the head
+			// moves, so a chain inching forward looks different from a wedged one.
+			if attempt == 0 || attempt%10 == 0 || !haveHead || ref.Number != head {
+				fmt.Fprintf(stderr, "    [%s] Waiting for chain to resume building past the replaced block (%s/%s): head still %d, need %d\n",
+					chain.name, elapsed, timeout, ref.Number, target)
+			}
+			head, haveHead = ref.Number, true
+		} else if attempt == 0 || attempt%10 == 0 {
+			fmt.Fprintf(stderr, "    [%s] Waiting for chain to resume building (%s/%s): head lookup error: %v\n",
+				chain.name, elapsed, timeout, err)
+		}
+
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if time.Now().After(deadline) {
+			if !haveHead {
+				return fmt.Errorf("%w: %s head could not be read for %s after block %d was replaced",
+					errChainStalled, chain.name, timeout, target-1)
+			}
+			return fmt.Errorf("%w: %s head stuck at %d for %s after block %d was replaced",
+				errChainStalled, chain.name, head, timeout, target-1)
+		}
+		time.Sleep(time.Second)
+	}
 }
 
 func assertTxInBlock(ctx context.Context, chain *remoteChain, blockNum uint64, txHash common.Hash) error {
