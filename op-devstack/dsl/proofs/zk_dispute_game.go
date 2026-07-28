@@ -268,6 +268,13 @@ type ZKWithdrawal struct {
 	Timestamp *big.Int
 }
 
+// MaturesAt returns the first L1 timestamp at which this withdrawal can be
+// paid out under the given DelayedWETH delay (DelayedWETH.withdraw requires
+// `timestamp + delay <= block.timestamp`).
+func (w ZKWithdrawal) MaturesAt(delay *big.Int) uint64 {
+	return new(big.Int).Add(w.Timestamp, delay).Uint64() + 1
+}
+
 type delayedWETHBinding struct {
 	Withdrawals func(common.Address, common.Address) bindings.TypedCall[ZKWithdrawal] `sol:"withdrawals"`
 	Delay       func() bindings.TypedCall[*big.Int]                                   `sol:"delay"`

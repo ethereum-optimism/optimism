@@ -2,7 +2,6 @@ package zk
 
 import (
 	"math"
-	"math/big"
 	"testing"
 	"time"
 
@@ -89,7 +88,7 @@ func TestProposerClaimsBondAfterResolution(gt *testing.T) {
 	// DelayedWETH.withdraw, so "withdrawal fully drained and credit zeroed"
 	// is the deterministic claim-completion observable; a raw balance-growth
 	// check would race the live proposer bonding new games in this window.
-	advanceL1To(&sys.SingleChainInterop, uint64(new(big.Int).Add(withdrawal.Timestamp, weth.Delay()).Int64())+1)
+	advanceL1To(&sys.SingleChainInterop, withdrawal.MaturesAt(weth.Delay()))
 
 	t.Require().Eventuallyf(func() bool {
 		return weth.Withdrawal(game0.Address, proposerAddr).Amount.Sign() == 0 &&
