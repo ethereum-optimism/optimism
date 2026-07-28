@@ -104,6 +104,6 @@ func TestInteropDependencyWait(t *testing.T) {
 			Address:     predeploys.CrossL2InboxAddr,
 			StorageKeys: []common.Hash{{0x01}},
 		}})
-		require.ErrorContains(t, err, "parsing CrossL2Inbox access-list")
+		require.ErrorContains(t, err, "malformed CrossL2Inbox access-list")
 	})
 }

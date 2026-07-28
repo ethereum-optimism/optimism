@@ -150,11 +150,9 @@ func (u *EOA) Plan() txplan.Option {
 		txplan.WithRetrySubmission(elClient, 5, retry.Exponential()),
 		txplan.WithRetryInclusion(elClient, 5, retry.Exponential()),
 		txplan.WithBlockInclusionInfo(elClient),
-		// Must come after WithAgainstLatestBlock, which it wraps.
-		txintent.WithInteropDependencyWait(func(_ context.Context, minTime uint64) error {
-			u.el.WaitForTime(minTime)
-			return nil
-		}),
+		// Must come after WithAgainstLatestBlock, which it wraps. AwaitTime rather than
+		// WaitForTime: a stuck chain fails this tx, it does not fail the whole test.
+		txintent.WithInteropDependencyWait(u.el.AwaitTime),
 	)
 }
 

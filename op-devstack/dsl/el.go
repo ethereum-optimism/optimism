@@ -1,6 +1,7 @@
 package dsl
 
 import (
+	"context"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
@@ -11,6 +12,7 @@ import (
 type ELNode interface {
 	ChainID() eth.ChainID
 	WaitForTime(timestamp uint64) eth.BlockRef
+	AwaitTime(ctx context.Context, timestamp uint64) error
 	stackEL() stack.ELNode
 }
 
@@ -38,10 +40,19 @@ func (el *elNode) WaitForBlock() eth.BlockRef {
 }
 
 func (el *elNode) WaitForLabel(label eth.BlockLabel, predicate func(eth.BlockInfo) (bool, error)) eth.BlockInfo {
+	block, err := el.awaitLabel(el.ctx, label, predicate)
+	el.require.NoError(err, "Failed to find block")
+	return block
+}
+
+// awaitLabel is WaitForLabel for callers that must handle the failure themselves rather than fail
+// the test, e.g. a wait running inside a tx plan, where the caller treats a stuck chain as a
+// failure of that tx.
+func (el *elNode) awaitLabel(ctx context.Context, label eth.BlockLabel, predicate func(eth.BlockInfo) (bool, error)) (eth.BlockInfo, error) {
 	var block eth.BlockInfo
-	err := wait.For(el.ctx, 200*time.Millisecond, func() (bool, error) {
+	err := wait.For(ctx, 200*time.Millisecond, func() (bool, error) {
 		var err error
-		block, err = el.inner.EthClient().InfoByLabel(el.ctx, label)
+		block, err = el.inner.EthClient().InfoByLabel(ctx, label)
 		if err != nil {
 			return false, err
 		}
@@ -53,8 +64,7 @@ func (el *elNode) WaitForLabel(label eth.BlockLabel, predicate func(eth.BlockInf
 		}
 		return ok, err
 	})
-	el.require.NoError(err, "Failed to find block")
-	return block
+	return block, err
 }
 
 func (el *elNode) WaitForLabelRef(label eth.BlockLabel, predicate func(eth.BlockInfo) (bool, error)) eth.BlockRef {
@@ -110,9 +120,19 @@ func (el *elNode) waitForNextBlock(blocksFromNow uint64) eth.BlockRef {
 
 // WaitForTime waits until the chain has reached or surpassed the given timestamp.
 func (el *elNode) WaitForTime(timestamp uint64) eth.BlockRef {
-	return el.WaitForUnsafeRef(func(info eth.BlockInfo) (bool, error) {
+	return el.WaitForUnsafeRef(reachedTime(timestamp))
+}
+
+// AwaitTime is WaitForTime for callers that must handle the failure themselves. See awaitLabel.
+func (el *elNode) AwaitTime(ctx context.Context, timestamp uint64) error {
+	_, err := el.awaitLabel(ctx, eth.Unsafe, reachedTime(timestamp))
+	return err
+}
+
+func reachedTime(timestamp uint64) func(eth.BlockInfo) (bool, error) {
+	return func(info eth.BlockInfo) (bool, error) {
 		return info.Time() >= timestamp, nil
-	})
+	}
 }
 
 func (el *elNode) stackEL() stack.ELNode {

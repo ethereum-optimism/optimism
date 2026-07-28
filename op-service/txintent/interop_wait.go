@@ -59,7 +59,8 @@ func WithoutInteropDependencyWait() txplan.Option {
 func executedMessagesMinTime(accessList types.AccessList) (uint64, error) {
 	executed, err := messages.DecodeAccessList(accessList)
 	if err != nil {
-		return 0, fmt.Errorf("parsing CrossL2Inbox access-list: %w", err)
+		return 0, fmt.Errorf("tx executes a malformed CrossL2Inbox access-list (%w); "+
+			"if that is deliberate, add txintent.WithoutInteropDependencyWait()", err)
 	}
 	var latest uint64
 	for _, msg := range executed {
