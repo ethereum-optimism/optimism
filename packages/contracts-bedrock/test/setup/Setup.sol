@@ -57,6 +57,7 @@ import { IOperatorFeeVault } from "interfaces/L2/IOperatorFeeVault.sol";
 import { IGasPriceOracle } from "interfaces/L2/IGasPriceOracle.sol";
 import { IL1Block } from "interfaces/L2/IL1Block.sol";
 import { ISuperchainETHBridge } from "interfaces/L2/ISuperchainETHBridge.sol";
+import { ISuperchainTokenBridge } from "interfaces/L2/ISuperchainTokenBridge.sol";
 import { IETHLiquidity } from "interfaces/L2/IETHLiquidity.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -153,6 +154,7 @@ abstract contract Setup is FeatureFlags {
     IWETH98 weth = IWETH98(payable(Predeploys.WETH));
     ISuperchainETHBridge superchainETHBridge = ISuperchainETHBridge(payable(Predeploys.SUPERCHAIN_ETH_BRIDGE));
     IETHLiquidity ethLiquidity = IETHLiquidity(Predeploys.ETH_LIQUIDITY);
+    ISuperchainTokenBridge superchainTokenBridge = ISuperchainTokenBridge(Predeploys.SUPERCHAIN_TOKEN_BRIDGE);
     ILiquidityController liquidityController = ILiquidityController(Predeploys.LIQUIDITY_CONTROLLER);
     INativeAssetLiquidity nativeAssetLiquidity = INativeAssetLiquidity(Predeploys.NATIVE_ASSET_LIQUIDITY);
     IConditionalDeployer conditionalDeployer = IConditionalDeployer(Predeploys.CONDITIONAL_DEPLOYER);
