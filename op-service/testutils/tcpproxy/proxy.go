@@ -90,7 +90,7 @@ func (p *Proxy) handleConn(downConn net.Conn) {
 	addr := p.upstreamAddr
 	if addr == "" {
 		p.mu.Unlock()
-		p.lgr.Debug("upstream not set")
+		p.lgr.Error("upstream not set")
 		return
 	}
 
