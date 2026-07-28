@@ -1,7 +1,10 @@
 package sysgo
 
 import (
+	"fmt"
 	"net"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -49,11 +52,20 @@ func startZKProposer(
 	require.NoError(err, "prepare kona-sp1-proposer binary")
 	require.NotEmpty(execPath, "kona-sp1-proposer binary path resolved")
 
+	// The proposer loads its known prestate set from a TOML document (the
+	// vkeys.toml shape) via file:// or http(s)://. Devstack exercises the
+	// file:// path with a document holding the deployed vkey.
+	prestatesPath := filepath.Join(t.TempDir(), "prestates.toml")
+	require.NoError(
+		os.WriteFile(prestatesPath, fmt.Appendf(nil, "super-aggregation = %q\n", programVKey.Hex()), 0o644),
+		"write prestates document",
+	)
+
 	env := []string{
 		"L1_RPC=" + l1EL.UserRPC(),
 		"SUPERNODE_RPC=" + supernodeRPC,
 		"FACTORY_ADDRESS=" + factoryAddr.Hex(),
-		"PROGRAM_VKEY=" + programVKey.Hex(),
+		"PRESTATES_URL=file://" + prestatesPath,
 		"PRIVATE_KEY=" + hexutil.Encode(crypto.FromECDSA(proposerSecret)),
 		// Short cadence for devstack: propose every 6s off the safe head so
 		// acceptance tests observe games without waiting for finality.

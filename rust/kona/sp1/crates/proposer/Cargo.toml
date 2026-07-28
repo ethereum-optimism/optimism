@@ -41,6 +41,7 @@ strum.workspace = true
 strum_macros.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
+toml = { workspace = true, features = ["parse", "serde"] }
 jsonrpsee = { workspace = true, features = ["http-client"] }
 
 [[bin]]

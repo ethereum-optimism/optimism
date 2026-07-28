@@ -7797,6 +7797,7 @@ dependencies = [
  "strum",
  "strum_macros",
  "tokio",
+ "toml",
  "tracing",
 ]
 

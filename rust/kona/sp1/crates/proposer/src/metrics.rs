@@ -87,6 +87,13 @@ pub enum ProposerGauge {
         message = "Total number of metrics errors encountered by the proposer"
     )]
     MetricsError,
+    /// Total number of creation cycles skipped because the registered
+    /// prestate is not in the known set.
+    #[strum(
+        serialize = "kona_sp1_proposer_unknown_registered_prestate",
+        message = "Total number of creation cycles skipped on an unknown registered prestate"
+    )]
+    UnknownRegisteredPrestate,
 }
 
 impl MetricsGauge for ProposerGauge {}

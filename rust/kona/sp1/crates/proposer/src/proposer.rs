@@ -8,9 +8,9 @@
 //! intentionally absent (defend path, #21463).
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeSet, HashMap, HashSet},
     sync::{
-        Arc, OnceLock,
+        Arc,
         atomic::{AtomicU64, Ordering},
     },
     time::Duration,
@@ -26,10 +26,10 @@ use tokio::{sync::RwLock, time};
 
 use crate::{
     FactoryTrait, L1Provider, TX_REVERTED_PREFIX, TxErrorExt, ZK_GAME_TYPE,
-    config::ProposerConfig,
+    config::{ProposerConfig, load_prestates},
     contract::{
-        AnchorStateRegistry::AnchorStateRegistryInstance,
-        DelayedWETH::DelayedWETHInstance,
+        AnchorStateRegistry::{self, AnchorStateRegistryInstance},
+        DelayedWETH,
         DisputeGameFactory::{DisputeGameCreated, DisputeGameFactoryInstance},
         GameStatus, ProposalStatus, ZKDisputeGame, ZKGameArgs,
     },
@@ -71,33 +71,35 @@ pub enum TaskInfo {
     BondClaim,
 }
 
-/// Proposer identity for version tracking, foreign-game filtering, and
-/// hardfork safety. Replaces op-succinct's
-/// aggregationVkey/rangeVkeyCommitment/rollupConfigHash triplet: the ZK
-/// dispute game pins one absolute prestate (the super-aggregation program
-/// vkey) and a verifier address.
+/// Proposer identity for version tracking and startup logging. The known
+/// prestate set (which gates creation and, with the defend path, selects the
+/// proving program) lives on [`Proposer::prestates`] so it can be refreshed
+/// at runtime.
 #[derive(Clone, Debug)]
 pub struct ProposerIdentity {
     /// Crate version string.
     pub version: String,
-    /// Super-aggregation program verification key; must equal the game
-    /// implementation's `absolutePrestate()`.
-    pub program_vkey: B256,
 }
 
 impl ProposerIdentity {
     /// Creates a new `ProposerIdentity`.
-    pub fn new(program_vkey: B256) -> Self {
-        Self { version: env!("CARGO_PKG_VERSION").to_string(), program_vkey }
+    pub fn new() -> Self {
+        Self { version: env!("CARGO_PKG_VERSION").to_string() }
     }
 
-    /// Logs the proposer identity at startup.
-    pub fn log_startup_info(&self) {
+    /// Logs the proposer identity and known prestates at startup.
+    pub fn log_startup_info(&self, prestates: &BTreeSet<B256>) {
         tracing::info!(
             version = %self.version,
-            program_vkey = %self.program_vkey,
+            prestates = ?prestates.iter().map(|p| p.to_string()).collect::<Vec<_>>(),
             "proposer identity",
         );
+    }
+}
+
+impl Default for ProposerIdentity {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -127,15 +129,28 @@ pub struct Game {
     /// Whether the proposer should try to claim this game's bond next claim cycle.
     pub should_attempt_to_claim_bond: bool,
     /// The game implementation's `absolutePrestate()` (the program vkey).
+    /// Informational for the create path; the defend path selects the
+    /// proving program by it.
     pub absolute_prestate: B256,
+    /// The game's creator address (`gameCreator()`).
+    pub creator: Address,
+    /// The game's own `DelayedWETH` address, from its immutable args. Bond
+    /// reads and claims bind this address, not the currently registered one:
+    /// gameArgs can rotate across upgrades and each game holds its bond in
+    /// the WETH it was created with.
+    pub weth: Address,
+    /// The game's own `AnchorStateRegistry` address, from its immutable
+    /// args. Finality checks for this game bind this address.
+    pub anchor_state_registry: Address,
 }
 
 impl Game {
-    /// Returns true if this game's identity matches the proposer's (owned =
-    /// can resolve/claim). A mismatched prestate marks a foreign game from a
-    /// different release bundle (hardfork safety).
-    pub fn is_owned(&self, identity: &ProposerIdentity) -> bool {
-        self.absolute_prestate == identity.program_vkey
+    /// Returns true if the proposer created this game (owned = should
+    /// resolve and claim its bond). Ownership is creator-based, not
+    /// prestate-based: games created before a prestate rotation are still
+    /// ours to resolve and claim.
+    pub fn is_owned(&self, proposer_address: Address) -> bool {
+        self.creator == proposer_address
     }
 }
 
@@ -265,15 +280,6 @@ pub struct ProposerStateSnapshot {
     pub games: Vec<(U256, Address)>,
 }
 
-/// On-chain contract timing parameters.
-#[derive(Clone, Debug)]
-pub struct ContractParams {
-    /// Maximum duration allowed for challenging a game.
-    pub max_challenge_duration: u64,
-    /// Maximum duration allowed for proving after a challenge.
-    pub max_prove_duration: u64,
-}
-
 /// Core proposer service: syncs the on-chain game DAG, creates and defends games,
 /// resolves finished ones, and claims bonds.
 #[derive(Clone)]
@@ -283,19 +289,17 @@ where
 {
     /// Proposer configuration loaded at startup.
     pub config: ProposerConfig,
-    contract_params: OnceLock<ContractParams>,
     /// Shared transaction signer, serialized behind a lock.
     pub signer: SignerLock,
     /// L1 execution-layer provider used for contract reads and transactions.
     pub l1_provider: L1Provider,
     /// Supernode client used to fetch super roots and safe-head data.
     pub superroot_client: SuperrootClient,
-    /// `AnchorStateRegistry` contract instance tracking the anchor game.
-    pub anchor_state_registry: Arc<AnchorStateRegistryInstance<P>>,
     /// `DisputeGameFactory` contract instance used to create and enumerate games.
     pub factory: Arc<DisputeGameFactoryInstance<P>>,
-    /// `DelayedWETH` contract instance holding game bonds.
-    pub weth: Arc<DelayedWETHInstance<P>>,
+    /// Known prestate set loaded from `PRESTATES_URL`; refreshed on a miss
+    /// (see `ensure_prestate_known`). Gates game creation.
+    pub prestates: Arc<RwLock<BTreeSet<B256>>>,
     tasks: Arc<tokio::sync::Mutex<TaskMap>>,
     next_task_id: Arc<AtomicU64>,
     state: Arc<RwLock<ProposerState>>,
@@ -334,30 +338,29 @@ impl<P> Proposer<P>
 where
     P: Provider + Clone + Send + Sync + 'static,
 {
-    /// Creates a new proposer instance with the provided L1 provider with wallet and factory
-    /// contract instance.
+    /// Creates a new proposer instance with the provided signer and factory
+    /// contract instance. Loads the known prestate set from
+    /// `config.prestates_url`; startup fails when the document is
+    /// unreachable or empty.
     pub async fn new(
         config: ProposerConfig,
         signer: SignerLock,
-        anchor_state_registry: AnchorStateRegistryInstance<P>,
         factory: DisputeGameFactoryInstance<P>,
-        weth: DelayedWETHInstance<P>,
     ) -> Result<Self> {
-        let identity = ProposerIdentity::new(config.program_vkey);
-        identity.log_startup_info();
+        let identity = ProposerIdentity::new();
+        let prestates = load_prestates(&config.prestates_url).await?;
+        identity.log_startup_info(&prestates);
 
         let l1_provider = ProviderBuilder::default().connect_http(config.l1_rpc.clone());
         let superroot_client = SuperrootClient::new(&config.supernode_rpc)?;
 
         Ok(Self {
             config,
-            contract_params: OnceLock::new(),
             signer,
             l1_provider,
             superroot_client,
-            anchor_state_registry: Arc::new(anchor_state_registry),
             factory: Arc::new(factory),
-            weth: Arc::new(weth),
+            prestates: Arc::new(RwLock::new(prestates)),
             tasks: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
             next_task_id: Arc::new(AtomicU64::new(1)),
             state: Arc::new(RwLock::new(ProposerState::default())),
@@ -448,71 +451,55 @@ where
 
     /// Validates startup and initializes state.
     pub async fn validate_and_init(&self) -> Result<()> {
-        let (anchor_sequence_number, contract_params) = self.startup_validations().await?;
-        self.init_state(anchor_sequence_number, contract_params).await
+        let anchor_sequence_number = self.startup_validations().await?;
+        self.state.write().await.canonical_head_sequence_number = Some(anchor_sequence_number);
+        Ok(())
     }
 
     /// Runs one-time startup validations before the proposer begins normal operations.
-    /// Returns the validated anchor sequence number and contract params.
-    async fn startup_validations(&self) -> Result<(u64, ContractParams)> {
-        // Validate the registered game args (prestate, ASR, WETH) against config.
-        let game_args = self.factory.gameArgs(ZK_GAME_TYPE).call().await?;
-        let game_args = ZKGameArgs::decode(&game_args).with_context(|| {
-            format!("game type {} has no valid registered game args", ZK_GAME_TYPE)
-        })?;
-        anyhow::ensure!(
-            game_args.anchor_state_registry == *self.anchor_state_registry.address(),
-            "anchor state registry mismatch: game args have {}, configured {}",
-            game_args.anchor_state_registry,
-            self.anchor_state_registry.address(),
-        );
-        anyhow::ensure!(
-            game_args.weth == *self.weth.address(),
-            "DelayedWETH mismatch: game args have {}, configured {}",
-            game_args.weth,
-            self.weth.address(),
-        );
-        if game_args.absolute_prestate != self.identity.program_vkey {
-            // Not fatal: creation stays paused until the registered
-            // implementation matches (hardfork safety), but flag it loudly.
+    /// Returns the validated anchor sequence number.
+    async fn startup_validations(&self) -> Result<u64> {
+        // Validate the registered game args decode and flag an unknown prestate.
+        let game_args = self.registered_game_args(BlockId::latest()).await?;
+        if !self.prestates.read().await.contains(&game_args.absolute_prestate) {
+            // Not fatal: creation stays paused until the registered prestate
+            // appears in the PRESTATES_URL document, but flag it loudly.
             tracing::warn!(
                 registered = %game_args.absolute_prestate,
-                configured = %self.identity.program_vkey,
-                "registered game prestate does not match PROGRAM_VKEY; creation will pause"
+                "registered game prestate is not in the known prestate set; creation will pause"
             );
         }
 
-        // Fetch and validate the anchor root.
-        let anchor = self.anchor_state_registry.getAnchorRoot().call().await?;
+        // Fetch and validate the anchor root from the currently registered registry.
+        let registry =
+            AnchorStateRegistry::new(game_args.anchor_state_registry, self.l1_provider.clone());
+        let anchor = registry.getAnchorRoot().call().await?;
         anyhow::ensure!(
             anchor.root_ != B256::ZERO,
             "anchor state registry has no anchor root (game creation would revert)"
         );
-        let anchor_sequence_number: u64 =
-            anchor.l2SequenceNumber_.try_into().context("anchor sequence number exceeds u64")?;
-
-        // Contract params from the registered game args.
-        let contract_params = ContractParams {
-            max_challenge_duration: game_args.max_challenge_duration,
-            max_prove_duration: game_args.max_prove_duration,
-        };
-
-        Ok((anchor_sequence_number, contract_params))
+        anchor.l2SequenceNumber_.try_into().context("anchor sequence number exceeds u64")
     }
 
-    /// Initialize proposer state with the validated anchor sequence number and
-    /// contract params.
-    async fn init_state(
-        &self,
-        anchor_sequence_number: u64,
-        contract_params: ContractParams,
-    ) -> Result<()> {
-        self.state.write().await.canonical_head_sequence_number = Some(anchor_sequence_number);
-        self.contract_params
-            .set(contract_params)
-            .map_err(|_| anyhow::anyhow!("contract_params must not already be set"))?;
+    /// Fetches and decodes the currently registered game args at `block`.
+    ///
+    /// Read per use rather than pinned at startup: gameArgs can rotate across
+    /// upgrades, and the addresses inside (`AnchorStateRegistry`, `DelayedWETH`)
+    /// are only authoritative for games created under them. Interactions with
+    /// a specific game bind that game's own args instead (see `Game`).
+    async fn registered_game_args(&self, block: BlockId) -> Result<ZKGameArgs> {
+        let raw = self.factory.gameArgs(ZK_GAME_TYPE).block(block).call().await?;
+        ZKGameArgs::decode(&raw)
+            .with_context(|| format!("game type {ZK_GAME_TYPE} has no valid registered game args"))
+    }
 
-        Ok(())
+    /// Binds the currently registered `AnchorStateRegistry` at `block`.
+    async fn registered_anchor_state_registry(
+        &self,
+        block: BlockId,
+    ) -> Result<AnchorStateRegistryInstance<L1Provider>> {
+        let args = self.registered_game_args(block).await?;
+        Ok(AnchorStateRegistry::new(args.anchor_state_registry, self.l1_provider.clone()))
     }
 
     /// Synchronizes the proposer's cached view of the dispute-game tree with the on-chain state.
@@ -623,8 +610,13 @@ where
             return Ok(());
         };
 
-        let anchor_address =
-            self.anchor_state_registry.anchorGame().block(pinned_block).call().await?;
+        let anchor_address = self
+            .registered_anchor_state_registry(pinned_block)
+            .await?
+            .anchorGame()
+            .block(pinned_block)
+            .call()
+            .await?;
 
         let cursor = {
             let state = self.state.read().await;
@@ -685,7 +677,6 @@ where
                         break;
                     }
                 }
-                GameFetchResult::UnsupportedAnchorStateRegistry { .. } |
                 GameFetchResult::AlreadyExists => {}
                 GameFetchResult::InvalidGame { index } => {
                     invalid_game_ids.push(index);
@@ -740,7 +731,11 @@ where
         // 2. Synchronize the status of all cached games.
         let games = {
             let state = self.state.read().await;
-            state.games.values().map(|game| (game.index, game.address)).collect::<Vec<_>>()
+            state
+                .games
+                .values()
+                .map(|game| (game.index, game.address, game.weth, game.anchor_state_registry))
+                .collect::<Vec<_>>()
         };
 
         if !games.is_empty() {
@@ -762,7 +757,7 @@ where
 
             let mut actions = Vec::with_capacity(games.len());
 
-            for (index, game_address) in games {
+            for (index, game_address, game_weth, game_asr) in games {
                 let contract = ZKDisputeGame::new(game_address, self.l1_provider.clone());
                 let claim_data = contract.claimData().block(pinned_block).call().await?;
                 let status =
@@ -770,8 +765,10 @@ where
                 let deadline = claim_data.deadline;
                 let parent_index = claim_data.parentIndex;
 
-                let is_finalized = self
-                    .anchor_state_registry
+                // Bind the game's own registry: finality is defined by the
+                // registry the game was created under, which can differ from
+                // the currently registered one across upgrades.
+                let is_finalized = AnchorStateRegistry::new(game_asr, self.l1_provider.clone())
                     .isGameFinalized(game_address)
                     .block(pinned_block)
                     .call()
@@ -817,8 +814,10 @@ where
                     GameStatus::DefenderWins => {
                         let credit =
                             contract.credit(signer_address).block(pinned_block).call().await?;
-                        let withdrawal = self
-                            .weth
+                        // Bind the game's own DelayedWETH: its bond lives in
+                        // the WETH it was created with.
+                        let weth = DelayedWETH::new(game_weth, self.l1_provider.clone());
+                        let withdrawal = weth
                             .withdrawals(game_address, signer_address)
                             .block(pinned_block)
                             .call()
@@ -826,11 +825,7 @@ where
                         let withdrawal_amount = withdrawal.amount_;
                         let withdrawal_ts: u64 =
                             withdrawal.timestamp_.try_into().unwrap_or(u64::MAX);
-                        // Read per sync cycle rather than once at startup: while
-                        // the delay is immutable on a given DelayedWETH, the
-                        // registered contract can change across upgrades.
-                        let weth_delay: u64 = self
-                            .weth
+                        let weth_delay: u64 = weth
                             .delay()
                             .block(pinned_block)
                             .call()
@@ -959,8 +954,13 @@ where
 
     /// Synchronizes the anchor game from the registry.
     async fn sync_anchor_game(&self, pinned_block: BlockId) -> Result<()> {
-        let anchor_address =
-            self.anchor_state_registry.anchorGame().block(pinned_block).call().await?;
+        let anchor_address = self
+            .registered_anchor_state_registry(pinned_block)
+            .await?
+            .anchorGame()
+            .block(pinned_block)
+            .call()
+            .await?;
 
         let mut state = self.state.write().await;
 
@@ -1021,21 +1021,16 @@ where
         }
     }
 
-    /// Returns true if the registered game implementation's prestate matches
-    /// ours (safe to create games). Reads the factory's registered game args;
-    /// a mismatch means a hardfork/upgrade replaced the release bundle.
-    async fn registered_prestate_matches(&self) -> Result<bool> {
-        let args = self.factory.gameArgs(ZK_GAME_TYPE).call().await?;
-        let args = ZKGameArgs::decode(&args)?;
-        let matches = args.absolute_prestate == self.identity.program_vkey;
-        if !matches {
-            tracing::info!(
-                registered = %args.absolute_prestate,
-                configured = %self.identity.program_vkey,
-                "Registered prestate mismatch - skipping game creation (hardfork detected)"
-            );
-        }
-        Ok(matches)
+    /// Returns true if game creation may proceed for the currently registered
+    /// game implementation's prestate (see [`prestate_known_with_refresh`]).
+    async fn registered_prestate_known(&self) -> Result<bool> {
+        let args = self.registered_game_args(BlockId::latest()).await?;
+        Ok(prestate_known_with_refresh(
+            &self.prestates,
+            &self.config.prestates_url,
+            args.absolute_prestate,
+        )
+        .await)
     }
 
     /// Creates a new game with the given parameters.
@@ -1089,8 +1084,8 @@ where
             state
                 .games
                 .values()
-                // Only resolve owned games (prestate matches).
-                .filter(|game| game.is_owned(&self.identity))
+                // Only resolve owned games (created by this proposer).
+                .filter(|game| game.is_owned(self.signer.address()))
                 .filter(|game| game.should_attempt_to_resolve)
                 .cloned()
                 .collect::<Vec<_>>()
@@ -1166,8 +1161,8 @@ where
             state
                 .games
                 .values()
-                // Only claim bonds for owned games (vkeys match).
-                .filter(|game| game.is_owned(&self.identity))
+                // Only claim bonds for owned games (created by this proposer).
+                .filter(|game| game.is_owned(self.signer.address()))
                 .filter(|game| game.should_attempt_to_claim_bond)
                 .cloned()
                 .collect::<Vec<_>>()
@@ -1181,7 +1176,11 @@ where
             // submit a phase-2 payout before the WETH delay matures.
             let contract = ZKDisputeGame::new(game.address, self.l1_provider.clone());
             let credit = contract.credit(signer_address).call().await;
-            let withdrawal = self.weth.withdrawals(game.address, signer_address).call().await;
+            // Bind the game's own DelayedWETH: its bond lives in the WETH it
+            // was created with, which can differ from the currently
+            // registered one across upgrades.
+            let weth = DelayedWETH::new(game.weth, self.l1_provider.clone());
+            let withdrawal = weth.withdrawals(game.address, signer_address).call().await;
             if let (Ok(credit), Ok(withdrawal)) = (credit, withdrawal) {
                 if credit == U256::ZERO && withdrawal.amount_ == U256::ZERO {
                     tracing::info!(
@@ -1197,8 +1196,7 @@ where
                     // `timestamp + DELAY_SECONDS <= block.timestamp`; wall
                     // clock and L1 time diverge under devstack time travel
                     // (and can drift in production).
-                    let weth_delay: u64 = self
-                        .weth
+                    let weth_delay: u64 = weth
                         .delay()
                         .call()
                         .await?
@@ -1349,19 +1347,14 @@ where
 
         let contract = ZKDisputeGame::new(game_address, self.l1_provider.clone());
 
-        // Drop games with a different anchor state registry. During hardfork transitions,
-        // old ASR games must not enter the DAG or they can pollute canonical head selection.
+        // Capture the game's own immutable args: bond claims bind its WETH
+        // and finality checks bind its registry, which can differ from the
+        // currently registered ones across upgrades. Games under an older
+        // registry stay in the DAG; the factory re-validates parents at
+        // create time.
         let game_asr = contract.anchorStateRegistry().block(pinned_block).call().await?;
-        if game_asr != *self.anchor_state_registry.address() {
-            tracing::warn!(
-                game_index = %index,
-                ?game_address,
-                ?game_asr,
-                expected = ?self.anchor_state_registry.address(),
-                "Skipping game with different anchor state registry"
-            );
-            return Ok(GameFetchResult::UnsupportedAnchorStateRegistry { game_address });
-        }
+        let game_weth = contract.weth().block(pinned_block).call().await?;
+        let creator = contract.gameCreator().block(pinned_block).call().await?;
 
         let sequence_number: u64 = contract
             .l2SequenceNumber()
@@ -1455,10 +1448,13 @@ where
             should_attempt_to_resolve: false,
             should_attempt_to_claim_bond: false,
             absolute_prestate,
+            creator,
+            weth: game_weth,
+            anchor_state_registry: game_asr,
         };
 
-        if !game.is_owned(&self.identity) {
-            tracing::info!(game_index = %index, "Discovered foreign game (prestate mismatch) - tracking for DAG but not resolving/claiming");
+        if !game.is_owned(self.signer.address()) {
+            tracing::info!(game_index = %index, "Discovered game created by another proposer - tracking for DAG but not resolving/claiming");
         }
 
         let mut state = self.state.write().await;
@@ -1750,7 +1746,12 @@ where
     pub async fn should_create_game(&self) -> Result<(bool, u64, u32)> {
         // Check if our game type matches the current respected game type.
         // The proposer should only create games when its type is the respected type.
-        let respected_game_type = self.anchor_state_registry.respectedGameType().call().await?;
+        let respected_game_type = self
+            .registered_anchor_state_registry(BlockId::latest())
+            .await?
+            .respectedGameType()
+            .call()
+            .await?;
         if ZK_GAME_TYPE != respected_game_type {
             tracing::warn!(
                 proposer_game_type = ZK_GAME_TYPE,
@@ -1760,8 +1761,8 @@ where
             return Ok((false, 0, u32::MAX));
         }
 
-        // Skip creation if the registered prestate doesn't match (hardfork detected).
-        if !self.registered_prestate_matches().await? {
+        // Skip creation if the registered prestate is not in the known set.
+        if !self.registered_prestate_known().await? {
             return Ok((false, 0, u32::MAX));
         }
 
@@ -1866,11 +1867,6 @@ pub enum GameFetchResult {
     },
     /// Game type is unsupported
     UnsupportedType {
-        /// Address of the rejected game.
-        game_address: Address,
-    },
-    /// Game's anchor state registry does not match the configured registry
-    UnsupportedAnchorStateRegistry {
         /// Address of the rejected game.
         game_address: Address,
     },
@@ -2018,6 +2014,46 @@ pub fn withdrawal_matured(withdrawal_ts: u64, weth_delay: u64, l1_now: u64) -> b
         withdrawal_ts.checked_add(weth_delay).is_some_and(|deadline| l1_now >= deadline)
 }
 
+/// Policy for game creation when the registered prestate is not in the known
+/// set. Hard-pause (`false`) is the conservative default: never bond a game
+/// we may not be able to defend. Flip to `true` for warn-and-continue.
+pub const CREATE_ON_UNKNOWN_PRESTATE: bool = false;
+
+/// Returns true if game creation may proceed for `registered`, the currently
+/// registered game implementation's prestate.
+///
+/// On a miss the prestate set is re-fetched once from `url`: a hardfork that
+/// rotates the registered prestate only requires updating the document, not
+/// restarting the proposer. When the prestate is still unknown after the
+/// refresh, returns [`CREATE_ON_UNKNOWN_PRESTATE`].
+pub async fn prestate_known_with_refresh(
+    prestates: &RwLock<BTreeSet<B256>>,
+    url: &alloy_transport_http::reqwest::Url,
+    registered: B256,
+) -> bool {
+    if prestates.read().await.contains(&registered) {
+        return true;
+    }
+
+    match load_prestates(url).await {
+        Ok(fresh) => *prestates.write().await = fresh,
+        Err(e) => {
+            tracing::warn!(error = %e, "Failed to refresh prestates document on miss");
+        }
+    }
+    if prestates.read().await.contains(&registered) {
+        return true;
+    }
+
+    tracing::warn!(
+        registered = %registered,
+        "Registered prestate not in known set - skipping game creation \
+         (update the PRESTATES_URL document if this is a hardfork)"
+    );
+    ProposerGauge::UnknownRegisteredPrestate.increment(1.0);
+    CREATE_ON_UNKNOWN_PRESTATE
+}
+
 #[cfg(test)]
 mod tests {
     use super::{Game, ProposerState, next_proposal_timestamp};
@@ -2036,6 +2072,96 @@ mod tests {
             should_attempt_to_resolve: false,
             should_attempt_to_claim_bond: false,
             absolute_prestate: B256::ZERO,
+            creator: Address::ZERO,
+            weth: Address::ZERO,
+            anchor_state_registry: Address::ZERO,
+        }
+    }
+
+    mod ownership {
+        use super::*;
+
+        #[test]
+        fn owned_by_creator_regardless_of_prestate() {
+            // Rotation scenario: a game created before a prestate upgrade
+            // (its prestate differs from anything current) is still ours to
+            // resolve and claim.
+            let us = Address::left_padding_from(&[0xaa]);
+            let mut game = game_with(1, u32::MAX, 100);
+            game.creator = us;
+            game.absolute_prestate = B256::left_padding_from(&[0xde, 0xad]);
+            assert!(game.is_owned(us));
+        }
+
+        #[test]
+        fn foreign_creator_is_not_owned_even_with_matching_prestate() {
+            let us = Address::left_padding_from(&[0xaa]);
+            let mut game = game_with(1, u32::MAX, 100);
+            game.creator = Address::left_padding_from(&[0xbb]);
+            game.absolute_prestate = B256::ZERO;
+            assert!(!game.is_owned(us));
+        }
+    }
+
+    mod prestate_gate {
+        use super::super::prestate_known_with_refresh;
+        use alloy_primitives::B256;
+        use alloy_transport_http::reqwest::Url;
+        use std::collections::BTreeSet;
+        use tokio::sync::RwLock;
+
+        const HASH_A: &str = "0x0101010101010101010101010101010101010101010101010101010101010101";
+        const HASH_B: &str = "0x0202020202020202020202020202020202020202020202020202020202020202";
+
+        fn doc_url(name: &str, contents: &str) -> Url {
+            let path = std::env::temp_dir()
+                .join(format!("kona-sp1-gate-test-{}-{name}.toml", std::process::id()));
+            std::fs::write(&path, contents).unwrap();
+            Url::from_file_path(&path).unwrap()
+        }
+
+        #[tokio::test]
+        async fn known_prestate_passes_without_refresh() {
+            let a: B256 = HASH_A.parse().unwrap();
+            let set = RwLock::new(BTreeSet::from([a]));
+            // Deliberately unreadable URL: must not be consulted on a hit.
+            let url = Url::parse("file:///nonexistent/prestates.toml").unwrap();
+            assert!(prestate_known_with_refresh(&set, &url, a).await);
+        }
+
+        #[tokio::test]
+        async fn unknown_prestate_found_after_document_update() {
+            // Hardfork flow: the registered prestate rotates to B, the
+            // operator updates the document, and the gate self-heals without
+            // a restart.
+            let a: B256 = HASH_A.parse().unwrap();
+            let b: B256 = HASH_B.parse().unwrap();
+            let url = doc_url(
+                "updated",
+                &format!("super-aggregation = {HASH_A:?}\nnext-fork = {HASH_B:?}\n"),
+            );
+            let set = RwLock::new(BTreeSet::from([a]));
+            assert!(prestate_known_with_refresh(&set, &url, b).await);
+            assert!(set.read().await.contains(&b), "refresh must persist the new set");
+        }
+
+        #[tokio::test]
+        async fn unknown_prestate_hard_pauses() {
+            let a: B256 = HASH_A.parse().unwrap();
+            let b: B256 = HASH_B.parse().unwrap();
+            let url = doc_url("stale", &format!("super-aggregation = {HASH_A:?}\n"));
+            let set = RwLock::new(BTreeSet::from([a]));
+            assert!(!prestate_known_with_refresh(&set, &url, b).await);
+        }
+
+        #[tokio::test]
+        async fn unreachable_document_keeps_current_set_and_pauses() {
+            let a: B256 = HASH_A.parse().unwrap();
+            let b: B256 = HASH_B.parse().unwrap();
+            let url = Url::parse("file:///nonexistent/prestates.toml").unwrap();
+            let set = RwLock::new(BTreeSet::from([a]));
+            assert!(!prestate_known_with_refresh(&set, &url, b).await);
+            assert!(set.read().await.contains(&a), "failed refresh must not clear the set");
         }
     }
 

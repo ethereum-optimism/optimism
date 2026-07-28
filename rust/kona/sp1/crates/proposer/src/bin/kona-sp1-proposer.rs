@@ -12,9 +12,8 @@ use kona_sp1_host_utils::{
     metrics::{MetricsGauge, init_metrics},
 };
 use kona_sp1_proposer::{
-    ZK_GAME_TYPE,
     config::ProposerConfig,
-    contract::{AnchorStateRegistry, DelayedWETH, DisputeGameFactory, ZKGameArgs},
+    contract::DisputeGameFactory,
     metrics::ProposerGauge,
     proposer::Proposer,
     signer::{Signer, SignerLock},
@@ -28,15 +27,12 @@ async fn main() -> Result<()> {
     let signer = SignerLock::new(Signer::from_env().await?);
 
     let l1_provider = ProviderBuilder::default().connect_http(config.l1_rpc.clone());
-    let factory = DisputeGameFactory::new(config.factory_address, l1_provider.clone());
+    let factory = DisputeGameFactory::new(config.factory_address, l1_provider);
 
-    // Resolve the anchor state registry and DelayedWETH from the registered
-    // game args; a dedicated env var would only add a mismatch footgun.
-    let game_args_bytes = factory.gameArgs(ZK_GAME_TYPE).call().await?;
-    let game_args = ZKGameArgs::decode(&game_args_bytes)?;
-    let anchor_state_registry =
-        AnchorStateRegistry::new(game_args.anchor_state_registry, l1_provider.clone());
-    let weth = DelayedWETH::new(game_args.weth, l1_provider.clone());
+    // The AnchorStateRegistry and DelayedWETH are not pinned here: their
+    // addresses come from gameArgs, which can rotate across upgrades. The
+    // proposer binds the currently registered args per use and each game's
+    // own args for game-specific reads.
 
     // Metrics: bind before the readiness log so the advertised address is live.
     // A failed bind is a startup error, not a degraded mode.
@@ -49,7 +45,7 @@ async fn main() -> Result<()> {
         None
     };
 
-    let proposer = Proposer::new(config, signer, anchor_state_registry, factory, weth).await?;
+    let proposer = Proposer::new(config, signer, factory).await?;
 
     // STARTUP LOG CONTRACT: devstack readiness matches this exact message,
     // and reads `metrics_addr` from the same entry when metrics are enabled.
