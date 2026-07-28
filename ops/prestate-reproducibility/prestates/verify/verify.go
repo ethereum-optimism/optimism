@@ -46,6 +46,23 @@ func main() {
 		os.Exit(2)
 	}
 
+	// op-program prestates stay in the registry for posterity but are no longer
+	// rebuilt, so drop them from the expected set and only verify the kona types.
+	builtTypes := map[string]bool{"cannon64-kona": true, "cannon64-kona-interop": true}
+	for version, standardVersion := range expected.Prestates {
+		filtered := standardVersion[:0]
+		for _, prestate := range standardVersion {
+			if builtTypes[prestate.Type] {
+				filtered = append(filtered, prestate)
+			}
+		}
+		if len(filtered) == 0 {
+			delete(expected.Prestates, version)
+		} else {
+			expected.Prestates[version] = filtered
+		}
+	}
+
 	stringCompare := func(a, b string) int {
 		if a > b {
 			return 1

@@ -26,79 +26,6 @@ mkdir -p "${STATES_DIR}" "${LOGS_DIR}"
 
 cd "${WORKTREE_DIR}"
 
-# Legacy kona versions that were tagged in the old op-rs/kona repo before migration
-LEGACY_KONA_VERSIONS=(
-  "kona-client/v1.1.6"
-  "kona-client/v1.1.7"
-  "kona-client/v1.2.2"
-  "kona-client/v1.2.4"
-  "kona-client/v1.2.5"
-  "kona-client/v1.2.7"
-)
-LEGACY_KONA_REPO="https://github.com/op-rs/kona"
-LEGACY_KONA_DIR="${TMP_DIR}/kona-legacy"
-
-# Each attempt is time-bounded so a stalled clone fails and retries instead of
-# hanging silently until CI's no-output watchdog kills the job.
-function clone_legacy_kona() {
-  local version=$1
-  local log_file=$2
-  local attempt
-  for attempt in 1 2 3; do
-    if timeout 300 git clone -b "${version}" "${LEGACY_KONA_REPO}" kona >> "${log_file}" 2>&1; then
-      return 0
-    fi
-    rm -rf kona
-    echo "Clone attempt ${attempt}/3 of ${LEGACY_KONA_REPO} failed"
-    if ((attempt < 3)); then
-      sleep 5
-    fi
-  done
-  return 1
-}
-
-# Legacy kona prestates are built from the old op-rs/kona repo.
-function build_legacy_kona_prestate() {
-  local version=$1
-  local log_file=$2
-  local short_version="${version#*/v}"
-  echo "Building legacy kona version: ${version} Logs: ${log_file}"
-
-  mkdir -p "${LEGACY_KONA_DIR}"
-  cd "${LEGACY_KONA_DIR}"
-
-  if [[ -d kona ]]; then
-    cd kona
-    git checkout --force "${version}" > "${log_file}" 2>&1
-  else
-    clone_legacy_kona "${version}" "${log_file}"
-    cd kona
-  fi
-  # kona doesn't define a just dependency in its mise config.
-  # but the monorepo does and it should be preinstalled by now. So let's set up the just shim.
-  JUST_VERSION=$(cd "${WORKTREE_DIR}" && mise config get tools.just)
-  mise trust
-  mise use "just@${JUST_VERSION}" >> "${log_file}" 2>&1
-
-  cd docker/fpvm-prestates
-  rm -rf ../../prestate-artifacts-cannon
-  just cannon kona-client "${version}" "$(cat ../../.config/cannon_tag)" >> "${log_file}" 2>&1
-  local prestate_hash
-  prestate_hash=$(cat ../../prestate-artifacts-cannon/prestate-proof.json | jq -r .pre)
-  cp ../../prestate-artifacts-cannon/prestate.bin.gz "${STATES_DIR}/${prestate_hash}.bin.gz"
-  VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${short_version}\", \"hash\": \"${prestate_hash}\", \"type\": \"cannon64-kona\"}]")
-  echo "Built kona ${version}: ${prestate_hash}"
-
-  rm ../../prestate-artifacts-cannon/prestate-proof.json
-  just cannon kona-client-int "${version}" "$(cat ../../.config/cannon_tag)" >> "${log_file}" 2>&1
-  prestate_hash=$(cat ../../prestate-artifacts-cannon/prestate-proof.json | jq -r .pre)
-  cp ../../prestate-artifacts-cannon/prestate.bin.gz "${STATES_DIR}/${prestate_hash}.bin.gz"
-  VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${short_version}\", \"hash\": \"${prestate_hash}\", \"type\": \"cannon64-kona-interop\"}]")
-  echo "Built kona-interop ${version}: ${prestate_hash}"
-
-  cd "${WORKTREE_DIR}"
-}
-
 function build_prestates() {
   local version=$1
   local log_file=$2
@@ -109,8 +36,7 @@ function build_prestates() {
 
   if [ -f mise.toml ]; then
     echo "Install dependencies with mise" >> "${log_file}"
-    # Install only the host-side tools: go (for op-program), just (for kona), jq
-    # (for extracting hashes).
+    # Install only the host-side tools needed to build prestates and extract hashes.
     mise trust
     mise install -v -y go just jq >> "${log_file}" 2>&1
   fi
@@ -121,36 +47,6 @@ function build_prestates() {
     just reproducible-prestate >> "${log_file}" 2>&1
   else
     make reproducible-prestate >> "${log_file}" 2>&1
-  fi
-
-  if [[ "${version}" =~ ^op-program/v ]]; then
-    if [ -f "${BIN_DIR}/prestate-proof.json" ]; then
-      local hash
-      hash=$(jq -r .pre "${BIN_DIR}/prestate-proof.json")
-      if [ -f "${BIN_DIR}/prestate.bin.gz" ]; then
-        cp "${BIN_DIR}/prestate.bin.gz" "${STATES_DIR}/${hash}.bin.gz"
-      else
-        cp "${BIN_DIR}/prestate.json" "${STATES_DIR}/${hash}.json"
-      fi
-      VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${short_version}\", \"hash\": \"${hash}\", \"type\": \"cannon32\"}]")
-      echo "Built cannon32 ${version}: ${hash}"
-    fi
-
-    if [ -f "${BIN_DIR}/prestate-proof-mt64.json" ]; then
-      local hash
-      hash=$(jq -r .pre "${BIN_DIR}/prestate-proof-mt64.json")
-      cp "${BIN_DIR}/prestate-mt64.bin.gz" "${STATES_DIR}/${hash}.mt64.bin.gz"
-      VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${short_version}\", \"hash\": \"${hash}\", \"type\": \"cannon64\"}]")
-      echo "Built cannon64 ${version}: ${hash}"
-    fi
-
-    if [ -f "${BIN_DIR}/prestate-proof-interop.json" ]; then
-      local hash
-      hash=$(jq -r .pre "${BIN_DIR}/prestate-proof-interop.json")
-      cp "${BIN_DIR}/prestate-interop.bin.gz" "${STATES_DIR}/${hash}.interop.bin.gz"
-      VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${short_version}\", \"hash\": \"${hash}\", \"type\": \"interop\"}]")
-      echo "Built cannon-interop ${version}: ${hash}"
-    fi
   fi
 
   if [[ "${version}" =~ ^kona-client/v ]]; then
@@ -173,7 +69,7 @@ function build_prestates() {
 }
 
 VERSIONS_JSON="[]"
-readarray -t VERSIONS < <(git tag --list 'op-program/v*' 'kona-client/v*' --sort=taggerdate)
+readarray -t VERSIONS < <(git tag --list 'kona-client/v*' --sort=taggerdate)
 
 for i in "${!VERSIONS[@]}"; do
   tag="${VERSIONS[i]}"
@@ -181,22 +77,6 @@ for i in "${!VERSIONS[@]}"; do
 
   pushd .
   build_prestates "${tag}" "${log_file}"
-  popd
-  if [ "${CIRCLECI:-}" = "true" ]; then
-    if (((i + 1) % 10 == 0)); then
-      echo "Pruning docker build artifacts after ${i} builds"
-      docker system prune -f
-    fi
-  fi
-done
-
-# Build legacy kona prestates from the old op-rs/kona repo.
-for i in "${!LEGACY_KONA_VERSIONS[@]}"; do
-  tag="${LEGACY_KONA_VERSIONS[i]}"
-  log_file="${LOGS_DIR}/build-legacy-${tag//\//-}.txt"
-
-  pushd .
-  build_legacy_kona_prestate "${tag}" "${log_file}"
   popd
   if [ "${CIRCLECI:-}" = "true" ]; then
     if (((i + 1) % 10 == 0)); then
