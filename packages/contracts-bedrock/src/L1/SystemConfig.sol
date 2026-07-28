@@ -104,7 +104,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     ///         optimizations and improvements are made to the system at large.
     uint64 internal constant MAX_GAS_LIMIT = 500_000_000;
 
-    /// @notice Fixed L2 gas overhead. Ignored by op-node after Ecotone.
+    /// @notice Fixed L2 gas overhead. Ignored by op-node after Ecotone. No longer writable and no
+    ///         longer emitted in the FEE_SCALARS ConfigUpdate event; retained only so that existing
+    ///         offchain readers of the getter keep working.
     uint256 public overhead;
 
     /// @notice Dynamic L2 gas overhead. Used as part of the L2 fee calculation.
@@ -388,7 +390,10 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
 
         scalar = (uint256(0x01) << 248) | (uint256(_blobbasefeeScalar) << 32) | _basefeeScalar;
 
-        bytes memory data = abi.encode(overhead, scalar);
+        // op-node ignores the overhead after Ecotone, so a zero is emitted rather than the legacy
+        // `overhead` value. The event data is still expected to be 64 bytes long, so the word
+        // cannot simply be dropped.
+        bytes memory data = abi.encode(uint256(0), scalar);
         emit ConfigUpdate(VERSION, UpdateType.FEE_SCALARS, data);
     }
 

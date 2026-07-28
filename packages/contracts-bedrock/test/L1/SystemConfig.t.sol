@@ -398,17 +398,23 @@ contract SystemConfig_SetGasConfigEcotone_Test is SystemConfig_TestInit {
     }
 
     function testFuzz_setGasConfigEcotone_succeeds(uint32 _basefeeScalar, uint32 _blobbasefeeScalar) external {
+        // Seed the legacy `overhead` value so that the event assertion below proves the emitted
+        // overhead is hardcoded to zero rather than read from storage.
+        StorageSlot memory overheadSlot = ForgeArtifacts.getSlot("SystemConfig", "overhead");
+        vm.store(address(systemConfig), bytes32(overheadSlot.slot), bytes32(uint256(2100)));
+
         bytes32 encoded =
             ffi.encodeScalarEcotone({ _basefeeScalar: _basefeeScalar, _blobbasefeeScalar: _blobbasefeeScalar });
 
         vm.expectEmit(address(systemConfig));
-        emit ConfigUpdate(0, ISystemConfig.UpdateType.FEE_SCALARS, abi.encode(systemConfig.overhead(), encoded));
+        emit ConfigUpdate(0, ISystemConfig.UpdateType.FEE_SCALARS, abi.encode(uint256(0), encoded));
 
         vm.prank(systemConfig.owner());
         systemConfig.setGasConfigEcotone({ _basefeeScalar: _basefeeScalar, _blobbasefeeScalar: _blobbasefeeScalar });
         assertEq(systemConfig.basefeeScalar(), _basefeeScalar);
         assertEq(systemConfig.blobbasefeeScalar(), _blobbasefeeScalar);
         assertEq(systemConfig.scalar(), uint256(encoded));
+        assertEq(systemConfig.overhead(), 2100);
 
         (uint32 basefeeScalar, uint32 blobbbasefeeScalar) = ffi.decodeScalarEcotone(encoded);
         assertEq(uint256(basefeeScalar), uint256(_basefeeScalar));
