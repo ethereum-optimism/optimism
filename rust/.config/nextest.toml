@@ -1,0 +1,27 @@
+# Nextest configuration for the `rust/` workspace.
+
+[profile.default]
+# No test retries: a flaky test should fail loudly and get fixed, not be
+# retried away.
+# Flag tests slower than 30s and terminate any that hang past ~2 minutes.
+slow-timeout = { period = "30s", terminate-after = 4 }
+
+# Emit a JUnit report so CircleCI `store_test_results` can surface individual
+# test outcomes (written to `target/nextest/default/junit.xml`).
+[profile.default.junit]
+path = "junit.xml"
+
+# op-reth's EVM/state-conformance suites are legitimately slow; give them more
+# headroom before the slow-timeout terminates them.
+[[profile.default.overrides]]
+filter = "test(general_state_tests)"
+slow-timeout = { period = "1m", terminate-after = 10 }
+
+[[profile.default.overrides]]
+filter = "test(eest_fixtures)"
+slow-timeout = { period = "2m", terminate-after = 10 }
+
+# E2E tests using the testsuite framework from crates/e2e-test-utils.
+[[profile.default.overrides]]
+filter = "binary(e2e_testsuite)"
+slow-timeout = { period = "2m", terminate-after = 3 }

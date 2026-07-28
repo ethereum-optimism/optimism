@@ -273,6 +273,17 @@ jobs:
           working_directory: <<parameters.directory>>
           no_output_timeout: 40m
           command: just <<parameters.command>> <<parameters.flags>>
+      # Surface individual test results in the CircleCI UI, including on failure.
+      # nextest writes JUnit to <workspace>/target/nextest/default/junit.xml.
+      - store_test_results:
+          path: <<parameters.directory>>/target/nextest/default
+          when: always
+      # Raw JUnit as an artifact, for debugging when store_test_results reports 0
+      # results (see ethereum-optimism/optimism#19577).
+      - store_artifacts:
+          path: <<parameters.directory>>/target/nextest/default/junit.xml
+          destination: junit
+          when: always
       - rust-save-build-cache: *tests-cache-args
 
   # Cross-language differential test: runs the Go and Rust dumps of the Interop
