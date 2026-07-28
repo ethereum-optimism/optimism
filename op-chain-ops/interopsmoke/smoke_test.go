@@ -92,8 +92,7 @@ func TestFirstLogFrom(t *testing.T) {
 	}
 }
 
-// stubEthClient answers BlockRefByLabel from refs. Every other method panics on a nil interface,
-// which keeps the stub honest: waitForHead must not reach for anything else.
+// stubEthClient answers BlockRefByLabel from refs; every other method nil-panics.
 type stubEthClient struct {
 	apis.EthClient
 	refs func() (eth.BlockRef, error)

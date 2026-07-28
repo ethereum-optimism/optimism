@@ -30,8 +30,7 @@ func execTriggerAt(timestamp uint64) *ExecTrigger {
 	}
 }
 
-// waitRecorder returns the base plan options installing the dependency wait, and the timestamps
-// the tx waited for.
+// waitRecorder returns plan options installing the dependency wait, and what it waited for.
 func waitRecorder() ([]txplan.Option, *[]uint64) {
 	waited := new([]uint64)
 	return []txplan.Option{
@@ -47,8 +46,7 @@ func waitRecorder() ([]txplan.Option, *[]uint64) {
 	}, waited
 }
 
-// planAgainstBlock evaluates the AgainstBlock stage of an intent executing the given call,
-// and reports the timestamps the tx waited for.
+// planAgainstBlock evaluates the AgainstBlock stage of an intent executing call.
 func planAgainstBlock(t *testing.T, call Call, opts ...txplan.Option) []uint64 {
 	t.Helper()
 	base, waited := waitRecorder()
@@ -60,16 +58,16 @@ func planAgainstBlock(t *testing.T, call Call, opts ...txplan.Option) []uint64 {
 }
 
 func TestInteropDependencyWait(t *testing.T) {
-	t.Run("waits past the executed message", func(t *testing.T) {
-		require.Equal(t, []uint64{1001}, planAgainstBlock(t, execTriggerAt(1000)))
+	t.Run("waits for the executed message", func(t *testing.T) {
+		require.Equal(t, []uint64{1000}, planAgainstBlock(t, execTriggerAt(1000)))
 	})
 
-	t.Run("waits past the newest of several executed messages", func(t *testing.T) {
+	t.Run("waits for the newest of several executed messages", func(t *testing.T) {
 		multi := &MultiTrigger{
 			Emitter: predeploys.MultiCall3Addr,
 			Calls:   []Call{execTriggerAt(1000), execTriggerAt(1200), execTriggerAt(900)},
 		}
-		require.Equal(t, []uint64{1201}, planAgainstBlock(t, multi))
+		require.Equal(t, []uint64{1200}, planAgainstBlock(t, multi))
 	})
 
 	t.Run("does not wait when no message is executed", func(t *testing.T) {
@@ -82,8 +80,7 @@ func TestInteropDependencyWait(t *testing.T) {
 		require.Empty(t, waited)
 	})
 
-	// The interop load test builds exec txs as a plain tx with the access-list set by an Option
-	// applied after the plan, rather than as an intent.
+	// The interop load test sets the access-list with an Option applied after the plan.
 	t.Run("waits for an access-list set after the plan", func(t *testing.T) {
 		accessList, err := execTriggerAt(1000).AccessList()
 		require.NoError(t, err)
@@ -91,7 +88,7 @@ func TestInteropDependencyWait(t *testing.T) {
 		tx := txplan.NewPlannedTx(append(base, txplan.WithAccessList(accessList))...)
 		_, err = tx.AgainstBlock.Eval(context.Background())
 		require.NoError(t, err)
-		require.Equal(t, []uint64{1001}, *waited)
+		require.Equal(t, []uint64{1000}, *waited)
 	})
 
 	t.Run("ignores access-list entries of other contracts", func(t *testing.T) {

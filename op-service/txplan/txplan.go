@@ -65,14 +65,12 @@ type PlannedTx struct {
 	flags locks.RWMap[Flag, struct{}]
 }
 
-// Flag is an opaque marker one Option sets and another reads, so Options can coordinate
-// without knowing each other's arguments or the order they are applied in.
-// Flags are read when the tx is evaluated, so that order does not matter.
-// Use a zero-size unexported type from the package that owns the flag as its value,
-// so flags from different packages cannot collide.
+// Flag is an opaque marker one Option sets and another reads at eval time, letting Options
+// coordinate regardless of the order they are applied in.
+// Use an unexported zero-size type from the owning package so flags cannot collide.
 type Flag any
 
-// WithFlag sets a flag on the tx. See Flag.
+// WithFlag sets a flag on the tx.
 func WithFlag(f Flag) Option {
 	return func(tx *PlannedTx) {
 		tx.flags.Set(f, struct{}{})

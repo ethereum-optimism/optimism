@@ -571,8 +571,7 @@ func (p *SameTimestampPair) SubmitInit() *txplan.PlannedTx {
 // referencing this init. The test harness assigns deterministic nonces and
 // includes the signed tx directly.
 //
-// The init is not on chain yet, so there is nothing to wait for: the referenced block is one the
-// harness has not sequenced, and waiting for it would block the tx that produces it.
+// The init is not on chain yet: waiting for it would block the tx that produces it.
 func (p *SameTimestampPair) SubmitExecTo(executor *EOA) *txplan.PlannedTx {
 	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](
 		executor.Plan(), txintent.WithoutInteropDependencyWait())
@@ -590,7 +589,7 @@ func (p *SameTimestampPair) SubmitExecTo(executor *EOA) *txplan.PlannedTx {
 func (p *SameTimestampPair) SubmitInvalidExecTo(executor *EOA) *txplan.PlannedTx {
 	invalidMsg := MakeInvalidLogIndex(p.Message)
 
-	// See SubmitExecTo for why this does not wait for the referenced message.
+	// See SubmitExecTo for why there is nothing to wait for.
 	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](
 		executor.Plan(), txintent.WithoutInteropDependencyWait())
 	tx.Content.Set(&txintent.ExecTrigger{
@@ -646,7 +645,7 @@ func PrecomputeExecEventMessage(
 // Unlike SameTimestampPair.SubmitExecTo, this can reference any message including
 // precomputed exec event messages for exec-referencing-exec chains.
 //
-// See SubmitExecTo for why this does not wait for the referenced message.
+// See SubmitExecTo for why there is nothing to wait for.
 func SubmitExecForMessage(msg messages.Message, executor *EOA) *txplan.PlannedTx {
 	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](
 		executor.Plan(), txintent.WithoutInteropDependencyWait())

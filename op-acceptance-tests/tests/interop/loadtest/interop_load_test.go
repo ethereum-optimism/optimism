@@ -52,8 +52,7 @@ func planCall(t devtest.T, call txintent.Call) txplan.Option {
 
 func planExecMsg(t devtest.T, initMsg *messages.Message) txplan.Option {
 	t.Require().NotNil(initMsg)
-	// The EOA plan waits for the destination chain to build past initMsg before planning the tx:
-	// see txintent.WithInteropDependencyWait.
+	// The EOA plan waits for the chain to reach initMsg: see txintent.WithInteropDependencyWait.
 	return planCall(t, &txintent.ExecTrigger{
 		Executor: predeploys.CrossL2InboxAddr,
 		Msg:      *initMsg,

@@ -1276,9 +1276,8 @@ func waitForHeadAtLeast(ctx context.Context, chain *remoteChain, target uint64) 
 	})
 }
 
-// waitForHead polls the unsafe head of the chain until ready accepts it. A failure to read the head
-// is transient by assumption: these are live chains, so it is retried until the timeout, and only
-// reported if the head never became ready.
+// waitForHead polls the unsafe head until ready accepts it. A failed lookup is treated as
+// transient — these are live chains — and only reported if the head never becomes ready.
 func waitForHead(ctx context.Context, chain *remoteChain, want string, ready func(eth.BlockRef) bool) error {
 	deadline := time.Now().Add(smokeWaitTimeout)
 	for {
