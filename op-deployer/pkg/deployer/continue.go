@@ -319,6 +319,8 @@ func (r *continuationRunner) reverifyDeployedChain(
 	if chainState.Continuation == nil {
 		return fmt.Errorf("deployed chain %s has no continuation metadata", chainID.Hex())
 	}
+	// note: reverifying a deployed chain assumes no mutable configs were changed between runs
+	// and a chain config modification fails validation for the entire run
 	if err := verifyContinuationDeployment(
 		r.ctx,
 		r.l1Client,
@@ -495,11 +497,21 @@ func readContinuationStartNonce(
 	if err != nil {
 		return 0, err
 	}
-	if latest != pending {
+	switch {
+	case pending > latest:
 		return 0, fmt.Errorf(
-			"deployer nonce is already moving at continuation start: latest %d, pending %d",
+			"deployer %s has unconfirmed transactions (latest nonce %d, pending %d); "+
+				"wait for them to be mined, then rerun op-deployer continue",
+			deployer,
 			latest,
 			pending,
+		)
+	case pending < latest:
+		return 0, fmt.Errorf(
+			"deployer %s pending nonce %d is below latest nonce %d; the L1 RPC is serving inconsistent state",
+			deployer,
+			pending,
+			latest,
 		)
 	}
 	return latest, nil

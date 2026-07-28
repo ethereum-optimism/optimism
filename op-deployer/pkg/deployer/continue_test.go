@@ -401,13 +401,22 @@ func TestContinuationNonceOwnership(t *testing.T) {
 	require.EqualValues(t, 7, nonce)
 	require.NoError(t, requireContinuationNonce(t.Context(), client, common.Address{0x01}, nonce))
 
+	// An interrupted run left a deploy transaction unconfirmed.
 	client.pending = 8
 	_, err = readContinuationStartNonce(t.Context(), client, common.Address{0x01})
-	require.ErrorContains(t, err, "nonce is already moving")
+	require.ErrorContains(t, err, "has unconfirmed transactions")
+	require.ErrorContains(t, err, "rerun op-deployer continue")
 	require.ErrorContains(t, requireContinuationNonce(t.Context(), client, common.Address{0x01}, nonce), "unexpected deployer nonce movement")
 
 	client.latest = 8
 	require.ErrorContains(t, requireContinuationNonce(t.Context(), client, common.Address{0x01}, nonce), "unexpected deployer nonce movement")
+
+	// A pending nonce below the latest nonce means the RPC is inconsistent, not that a
+	// transaction is in flight, so it must not be reported as one.
+	client.latest, client.pending = 8, 7
+	_, err = readContinuationStartNonce(t.Context(), client, common.Address{0x01})
+	require.ErrorContains(t, err, "below latest nonce")
+	require.NotContains(t, err.Error(), "unconfirmed transactions")
 }
 
 type continuationBlockFetcherStub struct {
