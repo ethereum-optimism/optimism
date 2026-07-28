@@ -837,7 +837,7 @@ jobs:
       - rust-build:
           directory: rust
           profile: release
-          package: "kona-host kona-client kona-node"
+          package: "kona-host kona-client kona-node kona-sp1-proposer"
           save_cache: true
           fetch_workspace: true
       - persist_to_workspace:
