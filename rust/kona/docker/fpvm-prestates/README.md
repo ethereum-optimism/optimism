@@ -18,9 +18,6 @@ A single Docker build produces both supported variants:
 - `kona-client` into `rust/kona/prestate-artifacts-cannon`
 - `kona-client-int` into `rust/kona/prestate-artifacts-cannon-interop`
 
-The stripped-of-context MIPS ELFs are also exported to `rust/kona/prestate-elfs`
-for offline inspection. They are not an input to anything.
-
 ### Build reproducible prestate artifacts for custom chains
 
 To create a reproducible kona-client prestate build that supports custom or devnet chain configurations that are not in the superchain-registry:

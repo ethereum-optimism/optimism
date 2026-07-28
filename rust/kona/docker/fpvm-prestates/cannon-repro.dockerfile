@@ -128,6 +128,3 @@ FROM scratch AS export-stage
 # One directory per variant, named as the justfile's KONA_PRESTATE_VARIANTS
 # says, so `--output rust/kona` lands them where every consumer expects.
 COPY --from=prestate-build /app/out/ .
-# ELFs are exported outside prestate-artifacts-* so they stay out of the
-# CircleCI workspace; they exist for offline inspection (strings/objdump).
-COPY --from=prestate-build /app/elf/ ./prestate-elfs/

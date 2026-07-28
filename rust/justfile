@@ -628,8 +628,9 @@ build-kona-client-elf *VARIANTS:
       --locked \
       --profile release-client-lto
 
-# Copy the built kona-client ELFs into DEST. The Docker build needs this: it
-# builds into a cache mount, which does not survive the layer it is mounted in.
+# Copy the built kona-client ELFs into DEST. Only the Docker build needs this:
+# it builds into a cache mount, which does not survive the layer it is mounted
+# in, so the prestate stage cannot read the ELFs from the cargo target dir.
 stage-kona-client-elfs DEST:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -670,9 +671,6 @@ build-kona-prestates:
 
     echo "=== Building kona-client ELFs ==="
     just build-kona-client-elf
-    # Same location the Docker build exports to, so the ELFs are findable
-    # regardless of which build produced them.
-    just stage-kona-client-elfs "{{KONA_DIR}}/prestate-elfs"
 
     just generate-kona-prestates \
       "{{justfile_directory()}}/../cannon/bin/cannon" \
@@ -773,7 +771,7 @@ clean-kona-prestates:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    rm -rf "{{KONA_DIR}}/build" "{{KONA_DIR}}/prestate-elfs"
+    rm -rf "{{KONA_DIR}}/build"
     for pair in {{KONA_PRESTATE_VARIANTS}}; do
       rm -rf "{{KONA_DIR}}/${pair#*:}"
     done

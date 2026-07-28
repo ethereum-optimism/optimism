@@ -37,7 +37,7 @@ just cannon
 
 # Transform the MIPS kona client binary into the first VM state.
 # This outputs state.bin.gz (VM state) and meta.json (for debug symbols).
-./bin/cannon load-elf --type singlethreaded-2 --path=../rust/kona/prestate-elfs/kona-client
+./bin/cannon load-elf --type singlethreaded-2 --path=../rust/target/mips64-unknown-none/release-client-lto/kona-client
 
 # Run cannon emulator (with example inputs).
 # The kona host command is passed into cannon (after the --) and runs as a
