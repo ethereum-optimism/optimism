@@ -168,9 +168,22 @@ here. Treat items 1–4 as **blocking**.
    parameter-tag opener before any shell sees it, so bash here-strings (`<<<`) and
    heredocs (`<<EOF`) fail the whole continuation with `Unclosed '<<' tag` — and a
    continuation that fails to compile produces *no* workflows at all, so every
-   check silently disappears from the PR instead of going red. Escape as `\<<` if
-   you truly need the literal, or restructure to avoid it: `mapfile -t ARR <
-   <(cmd)` for a here-string, a temp file for a heredoc.
+   check silently disappears from the PR instead of going red. This bites shell
+   comments too: a comment merely *mentioning* the token fails compilation.
+   Escape as `\<<` if you truly need the literal, or restructure to avoid it —
+   but mind what the restructure costs:
+
+   ```sh
+   mapfile -t ARR < <(cmd)          # no '<<', but swallows cmd's exit status:
+                                    # a failing cmd reads as an empty array
+   TMP=$(mktemp); cmd > "$TMP"      # keeps set -e, and keeps the stream off the
+   mapfile -t ARR < "$TMP"          # loop body's stdin. Prefer this.
+   rm -f "$TMP"
+   (( ${#ARR[@]} > 0 )) || { echo "empty" >&2; exit 1; }
+   ```
+
+   Process substitution trades the `<<` bug for a swallowed-exit-status bug, so
+   assert on the result either way. For a heredoc, write the body to a temp file.
 
 ## General best practices
 
