@@ -15,6 +15,7 @@ type SyncEOA struct {
 	includer txinclude.Includer
 }
 
+// NewSyncEOA creates a SyncEOA whose nonce and concurrency behavior comes from includer.
 func NewSyncEOA(includer txinclude.Includer, plan txplan.Option) *SyncEOA {
 	return &SyncEOA{
 		plan:     plan,
