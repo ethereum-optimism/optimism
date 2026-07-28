@@ -14,7 +14,11 @@ import (
 	"io"
 	"math/rand"
 	"strings"
+	"sync"
+	"text/tabwriter"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -43,7 +47,7 @@ import (
 )
 
 const smokeWaitTimeout = 60 * time.Second
-const defaultReorgTimeout = 10 * time.Minute
+const defaultReorgTimeout = 20 * time.Minute
 
 const (
 	l2AURLFlagName            = "l2a-rpc"
@@ -51,7 +55,14 @@ const (
 	privateKeyFlagName        = "private-key"
 	invalidBlocksFlagName     = "blocks"
 	invalidTxPerBlockFlagName = "tx-per-block"
+	invalidDirectionFlagName  = "direction"
 	reorgTimeoutFlagName      = "reorg-timeout"
+)
+
+const (
+	directionAToB = "a-to-b"
+	directionBToA = "b-to-a"
+	directionBoth = "both"
 )
 
 // bridgeTimeout bounds a single A->B bridge (send, relay, and balance check).
@@ -114,6 +125,7 @@ type smokeEnv struct {
 	userB             *remoteUser
 	invalidBlocks     uint
 	invalidTxPerBlock uint
+	direction         string
 	reorgTimeout      time.Duration
 }
 
@@ -435,16 +447,39 @@ func Subcommands(envPrefix string) []*cli.Command {
 		},
 		{
 			Name:  "invalid-message",
-			Usage: "send an invalid executing message and verify it is reorged out",
+			Usage: "send invalid executing messages on both chains at once and verify they are reorged out",
 			Flags: append(flags,
-				&cli.UintFlag{Name: invalidBlocksFlagName, Usage: "Number of Chain B blocks containing invalid transactions.", Value: 1},
-				&cli.UintFlag{Name: invalidTxPerBlockFlagName, Usage: "Number of invalid transactions to land per Chain B block.", Value: 1},
-				&cli.DurationFlag{Name: reorgTimeoutFlagName, Usage: "Maximum time to wait for each invalid block to be reorged.", Value: defaultReorgTimeout},
+				&cli.UintFlag{
+					Name:    invalidBlocksFlagName,
+					Usage:   "Number of blocks per chain containing invalid transactions.",
+					EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_BLOCKS"),
+					Value:   1,
+				},
+				&cli.UintFlag{
+					Name:    invalidTxPerBlockFlagName,
+					Usage:   "Number of invalid transactions to land per block, on each chain.",
+					EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_TX_PER_BLOCK"),
+					Value:   1,
+				},
+				&cli.StringFlag{
+					Name: invalidDirectionFlagName,
+					Usage: fmt.Sprintf("Which invalid-message flows to run, named init-chain-to-exec-chain: %q (initiated on A, executed on B), %q (initiated on B, executed on A), or %q.",
+						directionAToB, directionBToA, directionBoth),
+					EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_DIRECTION"),
+					Value:   directionBoth,
+				},
+				&cli.DurationFlag{
+					Name:    reorgTimeoutFlagName,
+					Usage:   "Maximum time to wait for each invalid block to be reorged.",
+					EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_REORG_TIMEOUT"),
+					Value:   defaultReorgTimeout,
+				},
 			),
 			Action: func(cliCtx *cli.Context) error {
 				return withSmokeEnv(cliCtx, "Invalid Exec Message (reorg)", func(env *smokeEnv) error {
 					env.invalidBlocks = cliCtx.Uint(invalidBlocksFlagName)
 					env.invalidTxPerBlock = cliCtx.Uint(invalidTxPerBlockFlagName)
+					env.direction = cliCtx.String(invalidDirectionFlagName)
 					env.reorgTimeout = cliCtx.Duration(reorgTimeoutFlagName)
 					return smokeInvalidMessage(env)
 				})
@@ -456,6 +491,7 @@ func Subcommands(envPrefix string) []*cli.Command {
 func smokeAll(env *smokeEnv) error {
 	env.invalidBlocks = 1
 	env.invalidTxPerBlock = 1
+	env.direction = directionBoth
 	env.reorgTimeout = defaultReorgTimeout
 	tests := []struct {
 		name string
@@ -568,6 +604,30 @@ func smokeValidMessage(env *smokeEnv) error {
 	return nil
 }
 
+type invalidInclusion struct {
+	txHash, blockHash common.Hash
+	blockNum          uint64
+}
+
+// invalidDirection is one init-chain -> exec-chain pairing: init messages are
+// emitted on the init user's chain and the invalid executing messages land on
+// the exec user's chain.
+type invalidDirection struct {
+	name        string
+	initUser    *remoteUser
+	execUser    *remoteUser
+	rng         *rand.Rand
+	eventLogger common.Address
+	pending     []*initMessage
+	inclusions  []invalidInclusion
+}
+
+// smokeInvalidMessage lands invalid executing messages on both chains at the
+// same time by default: chain B executes messages initiated on chain A while
+// chain A executes messages initiated on chain B. Each phase runs the selected
+// directions concurrently, and since the directions use opposite chains within
+// a phase, only one goroutine ever sends on a given chain at a time. Set
+// env.direction to restrict the test to a single chain.
 func smokeInvalidMessage(env *smokeEnv) error {
 	if err := validateInvalidMessageOptions(env.invalidBlocks, env.invalidTxPerBlock); err != nil {
 		return err
@@ -575,51 +635,176 @@ func smokeInvalidMessage(env *smokeEnv) error {
 	if env.reorgTimeout <= 0 {
 		return fmt.Errorf("reorg-timeout must be greater than zero")
 	}
-	rng := rand.New(rand.NewSource(99))
+	stderr := &lockedWriter{w: env.stderr}
 
-	eventLogger, err := env.userA.deployEventLogger(env.ctx)
+	dirs, err := invalidDirections(env)
 	if err != nil {
-		return fmt.Errorf("deploy EventLogger: %w", err)
+		return err
 	}
 
-	type invalidInclusion struct {
-		txHash, blockHash common.Hash
-		blockNum          uint64
+	if err := eachDirection(dirs, func(d *invalidDirection) error {
+		eventLogger, err := d.initUser.deployEventLogger(env.ctx)
+		if err != nil {
+			return fmt.Errorf("%s: deploy EventLogger on %s: %w", d.name, d.initUser.chain.name, err)
+		}
+		d.eventLogger = eventLogger
+		return nil
+	}); err != nil {
+		return err
 	}
-	var inclusions []invalidInclusion
+
 	for block := uint(0); block < env.invalidBlocks; block++ {
-		initMessages := make([]*initMessage, 0, env.invalidTxPerBlock)
-		for tx := uint(0); tx < env.invalidTxPerBlock; tx++ {
-			initMsg, err := env.userA.sendRandomInitMessage(env.ctx, rng, eventLogger, 2, 10)
-			if err != nil {
-				return fmt.Errorf("send init message: %w", err)
+		if err := eachDirection(dirs, func(d *invalidDirection) error {
+			d.pending = make([]*initMessage, 0, env.invalidTxPerBlock)
+			for tx := uint(0); tx < env.invalidTxPerBlock; tx++ {
+				initMsg, err := d.initUser.sendRandomInitMessage(env.ctx, d.rng, d.eventLogger, 2, 10)
+				if err != nil {
+					return fmt.Errorf("%s: send init message: %w", d.name, err)
+				}
+				d.pending = append(d.pending, initMsg)
 			}
-			initMessages = append(initMessages, initMsg)
-		}
-		if _, err := waitForNextBlock(env.ctx, env.chainB); err != nil {
+			return nil
+		}); err != nil {
 			return err
 		}
-		for _, initMsg := range initMessages {
-			invalidExec, err := env.userB.sendInvalidExecMessage(env.ctx, initMsg)
-			if err != nil {
-				return fmt.Errorf("send invalid exec message: %w", err)
+
+		if err := eachDirection(dirs, func(d *invalidDirection) error {
+			execChain := d.execUser.chain
+			if _, err := waitForNextBlock(env.ctx, execChain); err != nil {
+				return err
 			}
-			if invalidExec.Receipt.Status != types.ReceiptStatusSuccessful {
-				return fmt.Errorf("invalid exec tx reverted before inclusion")
+			for _, initMsg := range d.pending {
+				invalidExec, err := d.execUser.sendInvalidExecMessage(env.ctx, initMsg)
+				if err != nil {
+					return fmt.Errorf("%s: send invalid exec message: %w", d.name, err)
+				}
+				if invalidExec.Receipt.Status != types.ReceiptStatusSuccessful {
+					return fmt.Errorf("%s: invalid exec tx reverted before inclusion", d.name)
+				}
+				inclusion := invalidInclusion{invalidExec.Receipt.TxHash, invalidExec.BlockHash(), invalidExec.BlockNumber()}
+				d.inclusions = append(d.inclusions, inclusion)
+				fmt.Fprintf(stderr, "    [%s] Invalid exec tx included on %s: %s\n", d.name, execChain.name, inclusion.txHash)
+				fmt.Fprintf(stderr, "    [%s] Invalid exec message landed on %s block %d (%s)\n", d.name, execChain.name, inclusion.blockNum, inclusion.blockHash)
 			}
-			inclusion := invalidInclusion{invalidExec.Receipt.TxHash, invalidExec.BlockHash(), invalidExec.BlockNumber()}
-			inclusions = append(inclusions, inclusion)
-			fmt.Fprintf(env.stderr, "    Invalid exec tx included on Chain B: %s\n", inclusion.txHash)
-			fmt.Fprintf(env.stderr, "    Invalid exec message landed on Chain B block %d (%s)\n", inclusion.blockNum, inclusion.blockHash)
-		}
-	}
-	for _, inclusion := range inclusions {
-		if err := waitForReorgedOut(env.ctx, env.stderr, env.chainB, inclusion.blockNum, inclusion.blockHash, inclusion.txHash, env.reorgTimeout); err != nil {
+			return nil
+		}); err != nil {
 			return err
 		}
-		fmt.Fprintf(env.stderr, "    Invalid tx reorged out on Chain B after block %d was replaced\n", inclusion.blockNum)
 	}
-	return nil
+
+	// Check every invalid block on every chain, and report all failures rather
+	// than stopping at the first one.
+	type reorgCheck struct {
+		dir       *invalidDirection
+		inclusion invalidInclusion
+	}
+	var checks []reorgCheck
+	for _, d := range dirs {
+		for _, inclusion := range d.inclusions {
+			checks = append(checks, reorgCheck{dir: d, inclusion: inclusion})
+		}
+	}
+
+	results := make([]reorgResult, len(checks))
+	var wg sync.WaitGroup
+	waitStart := time.Now()
+	for i, check := range checks {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			execChain := check.dir.execUser.chain
+			start := time.Now()
+			err := waitForReorgedOut(env.ctx, stderr, execChain, check.inclusion.blockNum, check.inclusion.blockHash, check.inclusion.txHash, env.reorgTimeout)
+			results[i] = reorgResult{
+				dir:      check.dir.name,
+				chain:    execChain.name,
+				blockNum: check.inclusion.blockNum,
+				txHash:   check.inclusion.txHash,
+				elapsed:  time.Since(start),
+				err:      err,
+			}
+		}()
+	}
+	wg.Wait()
+	return reportReorgResults(env.stderr, results, time.Since(waitStart))
+}
+
+type reorgResult struct {
+	dir      string
+	chain    string
+	blockNum uint64
+	txHash   common.Hash
+	elapsed  time.Duration
+	err      error
+}
+
+// reportReorgResults prints a per-block summary table and returns the joined
+// errors of every block that was not reorged out.
+func reportReorgResults(stderr io.Writer, results []reorgResult, total time.Duration) error {
+	var errs []error
+	reorged := 0
+	chains := make(map[string]struct{})
+	tw := tabwriter.NewWriter(stderr, 0, 0, 2, ' ', 0)
+	fmt.Fprint(tw, "\n    DIRECTION\tCHAIN\tBLOCK\tINVALID TX\tRESULT\tELAPSED\n")
+	for _, r := range results {
+		chains[r.chain] = struct{}{}
+		status := "REORGED"
+		if r.err != nil {
+			status = "NOT REORGED"
+			errs = append(errs, fmt.Errorf("%s on %s: %w", r.dir, r.chain, r.err))
+		} else {
+			reorged++
+		}
+		fmt.Fprintf(tw, "    %s\t%s\t%d\t%s\t%s\t%s\n",
+			r.dir, r.chain, r.blockNum, r.txHash.TerminalString(), status, r.elapsed.Round(time.Second))
+	}
+	// A flush failure only loses the table; the reorg failures still have to be
+	// reported, so it joins the errors rather than replacing them.
+	if err := tw.Flush(); err != nil {
+		errs = append(errs, fmt.Errorf("flush summary table: %w", err))
+	}
+	fmt.Fprintf(stderr, "\n    %d/%d invalid txs reorged out across %d chain(s) in %s\n\n",
+		reorged, len(results), len(chains), total.Round(time.Second))
+
+	return errors.Join(errs...)
+}
+
+func invalidDirections(env *smokeEnv) ([]*invalidDirection, error) {
+	aToB := &invalidDirection{name: "A->B", initUser: env.userA, execUser: env.userB, rng: rand.New(rand.NewSource(99))}
+	bToA := &invalidDirection{name: "B->A", initUser: env.userB, execUser: env.userA, rng: rand.New(rand.NewSource(100))}
+	switch env.direction {
+	case directionAToB:
+		return []*invalidDirection{aToB}, nil
+	case directionBToA:
+		return []*invalidDirection{bToA}, nil
+	case directionBoth, "":
+		return []*invalidDirection{aToB, bToA}, nil
+	default:
+		return nil, fmt.Errorf("unknown direction %q: want %q, %q or %q",
+			env.direction, directionAToB, directionBToA, directionBoth)
+	}
+}
+
+// eachDirection runs fn for every direction concurrently, returning the first error.
+func eachDirection(dirs []*invalidDirection, fn func(d *invalidDirection) error) error {
+	var group errgroup.Group
+	for _, d := range dirs {
+		group.Go(func() error { return fn(d) })
+	}
+	return group.Wait()
+}
+
+// lockedWriter serializes writes so concurrent directions do not interleave
+// mid-line output.
+type lockedWriter struct {
+	mu sync.Mutex
+	w  io.Writer
+}
+
+func (l *lockedWriter) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.w.Write(p)
 }
 
 func validateInvalidMessageOptions(blocks, txPerBlock uint) error {
@@ -681,25 +866,25 @@ func waitForHeadAtLeast(ctx context.Context, chain *remoteChain, target uint64) 
 }
 
 func waitForReorgedOut(ctx context.Context, stderr io.Writer, chain *remoteChain, blockNum uint64, oldHash, txHash common.Hash, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	replaced := false
+	start := time.Now()
+	deadline := start.Add(timeout)
 	for attempt := 0; ; attempt++ {
+		elapsed := time.Since(start).Round(time.Second)
 		currentBlock, err := chain.ethClient.BlockRefByNumber(ctx, blockNum)
 		if err == nil {
 			if currentBlock.Hash != oldHash {
-				fmt.Fprintf(stderr, "    Reorg detected at block %d: %s -> %s\n", blockNum, oldHash, currentBlock.Hash)
-				replaced = true
+				fmt.Fprintf(stderr, "    [%s] Reorg detected at block %d after %s: %s -> %s\n", chain.name, blockNum, elapsed, oldHash, currentBlock.Hash)
 				break
 			}
 			if attempt == 0 || attempt%10 == 0 {
-				fmt.Fprintf(stderr, "    Waiting for reorg at block %d: still %s\n", blockNum, currentBlock.Hash)
+				fmt.Fprintf(stderr, "    [%s] Waiting for reorg at block %d (%s/%s): still %s\n", chain.name, blockNum, elapsed, timeout, currentBlock.Hash)
 			}
 		} else if errors.Is(eth.MaybeAsNotFoundErr(err), ethereum.NotFound) {
 			if attempt == 0 || attempt%10 == 0 {
-				fmt.Fprintf(stderr, "    Waiting for reorg at block %d: block temporarily missing\n", blockNum)
+				fmt.Fprintf(stderr, "    [%s] Waiting for reorg at block %d (%s/%s): block temporarily missing\n", chain.name, blockNum, elapsed, timeout)
 			}
 		} else if attempt == 0 || attempt%10 == 0 {
-			fmt.Fprintf(stderr, "    Waiting for reorg at block %d: lookup error: %v\n", blockNum, err)
+			fmt.Fprintf(stderr, "    [%s] Waiting for reorg at block %d (%s/%s): lookup error: %v\n", chain.name, blockNum, elapsed, timeout, err)
 		}
 
 		if err := ctx.Err(); err != nil {
@@ -711,9 +896,6 @@ func waitForReorgedOut(ctx context.Context, stderr io.Writer, chain *remoteChain
 		time.Sleep(time.Second)
 	}
 
-	if !replaced {
-		return fmt.Errorf("invalid reorg state")
-	}
 	if err := waitForHeadAtLeast(ctx, chain, blockNum+1); err != nil {
 		return err
 	}
