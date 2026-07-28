@@ -2012,8 +2012,11 @@ jobs:
             echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_KONA_SP1_SUPER_RANGE_EXECUTOR=$BIN_DIR/kona-sp1-super-range-executor" >> "$BASH_ENV"
-            echo "export KONA_SP1_ELF_DIR=$ROOT_DIR/rust/kona/sp1/elf" >> "$BASH_ENV"
-            test -s "$ROOT_DIR/rust/kona/sp1/elf/vkeys.toml"
+            # KONA_SP1_ELF_DIR deliberately not set: acceptance tests run with
+            # stub prestate artifacts (the devstack deploys the mock verifier,
+            # so nothing consumes real ELF bytes until the proving path). This
+            # keeps these jobs off the slow kona-build-sp1-elfs critical path;
+            # kona-build-sp1-elfs is gated directly via ci-gate instead.
       - run:
           name: Configure L2 stack
           command: |
@@ -2631,8 +2634,10 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
-      # The ZK dispute-game acceptance tests consume the generated
-      # super-aggregation vkey from this job's workspace artifact.
+      # Gates that the SP1 guest ELFs build reproducibly. The acceptance tests
+      # no longer consume this job's workspace (they run with stub prestate
+      # artifacts against the mock verifier), so it is required directly by
+      # ci-gate rather than through them.
       - kona-build-sp1-elfs:
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -2693,7 +2698,6 @@ workflows:
             - rust-binaries-for-sysgo
             - go-binaries-for-sysgo
             - prep-go-modules
-            - kona-build-sp1-elfs
             # for the gitignored superchain-configs.zip op-acceptance-tests //go:embeds
             - prep-superchain
       # IN-MEMORY - kona/op-reth
@@ -2714,7 +2718,6 @@ workflows:
             - rust-binaries-for-sysgo
             - go-binaries-for-sysgo
             - prep-go-modules
-            - kona-build-sp1-elfs
             # for the gitignored superchain-configs.zip op-acceptance-tests //go:embeds
             - prep-superchain
       # Gate job - single stable job used as GitHub required status check for develop.
@@ -2731,6 +2734,7 @@ workflows:
             - go-tests-short: terminal
             - memory-all-opn-op-reth: terminal
             - memory-all-kona-op-reth: terminal
+            - kona-build-sp1-elfs: terminal
             # Go test/lint jobs previously fanned in via the bedrock-go-tests helper.
             - cannon-go-lint-and-test: terminal
             - check-generated-mocks-op-node: terminal

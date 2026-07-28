@@ -57,19 +57,19 @@ func startZKProposer(
 	// artifacts at PRESTATES_URL/<vkey>.agg.bin.gz and .range.bin.gz,
 	// mirroring op-challenger's --prestates-url convention. The aggregation
 	// vkey embeds the range program's vkey, so it keys both ELFs. Devstack
-	// publishes the real ELFs, gzipped, into a temp artifact directory and
-	// exercises the file:// path.
+	// publishes the real ELFs, gzipped, when KONA_SP1_ELF_DIR is set;
+	// otherwise stub bytes suffice, since the devstack deploys the mock
+	// verifier and the create path only loads artifacts without verifying
+	// them against the vkey. Either way the file:// path is exercised.
 	prestatesDir := t.TempDir()
 	elfDir := os.Getenv("KONA_SP1_ELF_DIR")
-	require.NotEmpty(elfDir, "KONA_SP1_ELF_DIR must be set to publish the prestate artifacts")
-	writePrestateArtifact(t,
-		filepath.Join(elfDir, "super-aggregation-elf"),
-		filepath.Join(prestatesDir, programVKey.Hex()+".agg.bin.gz"),
-	)
-	writePrestateArtifact(t,
-		filepath.Join(elfDir, "super-range-elf"),
-		filepath.Join(prestatesDir, programVKey.Hex()+".range.bin.gz"),
-	)
+	sources := map[string]func() (io.ReadCloser, error){
+		".agg.bin.gz":   elfSource(elfDir, "super-aggregation-elf"),
+		".range.bin.gz": elfSource(elfDir, "super-range-elf"),
+	}
+	for suffix, open := range sources {
+		writePrestateArtifact(t, open, filepath.Join(prestatesDir, programVKey.Hex()+suffix))
+	}
 
 	env := []string{
 		"L1_RPC=" + l1EL.UserRPC(),
@@ -153,12 +153,26 @@ func freeTCPPort(t devtest.T) int {
 	return port
 }
 
-// writePrestateArtifact gzips the program ELF at src into dst, one of the
+// elfSource returns an opener for the program ELF in elfDir, or for
+// deterministic stub bytes when elfDir is empty (no SP1 guest ELF build
+// available).
+func elfSource(elfDir, name string) func() (io.ReadCloser, error) {
+	if elfDir == "" {
+		return func() (io.ReadCloser, error) {
+			return io.NopCloser(strings.NewReader("stub " + name)), nil
+		}
+	}
+	return func() (io.ReadCloser, error) {
+		return os.Open(filepath.Join(elfDir, name))
+	}
+}
+
+// writePrestateArtifact gzips the program ELF from open into dst, one of the
 // `<vkey>.agg.bin.gz` / `<vkey>.range.bin.gz` artifacts the proposer's
 // prestate check looks for.
-func writePrestateArtifact(t devtest.T, src, dst string) {
+func writePrestateArtifact(t devtest.T, open func() (io.ReadCloser, error), dst string) {
 	require := t.Require()
-	in, err := os.Open(src)
+	in, err := open()
 	require.NoError(err, "open program ELF")
 	defer in.Close()
 	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
