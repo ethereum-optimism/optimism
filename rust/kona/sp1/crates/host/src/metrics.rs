@@ -10,7 +10,6 @@ use metrics::{describe_gauge, gauge};
 use metrics_exporter_prometheus::PrometheusBuilder;
 use metrics_process::Collector;
 use strum::{EnumMessage, IntoEnumIterator};
-use tracing::warn;
 
 /// Trait for metrics gauge that provides common functionality.
 pub trait MetricsGauge: Sized + IntoEnumIterator + EnumMessage + ToString {
@@ -44,16 +43,15 @@ pub trait MetricsGauge: Sized + IntoEnumIterator + EnumMessage + ToString {
     }
 }
 
-/// Initialize the metrics server on the given port.
-pub fn init_metrics(port: &u16) {
+/// Initialize the metrics server on the given port. Fails when the listener
+/// cannot be installed (e.g. the port is already bound).
+pub fn init_metrics(port: &u16) -> anyhow::Result<()> {
     let builder = PrometheusBuilder::new().with_http_listener(SocketAddr::new(
         IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
         port.to_owned(),
     ));
 
-    if let Err(e) = builder.install() {
-        warn!("Failed to start metrics server: {}. Will continue without metrics.", e);
-    }
+    builder.install().map_err(|e| anyhow::anyhow!("failed to start metrics server: {e}"))?;
 
     // Spawn a thread to collect process metrics.
     thread::spawn(move || {
@@ -65,4 +63,5 @@ pub fn init_metrics(port: &u16) {
             thread::sleep(Duration::from_millis(750));
         }
     });
+    Ok(())
 }
