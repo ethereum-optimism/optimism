@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"fmt"
+	"math"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
@@ -13,6 +14,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum/go-ethereum/common"
 )
+
+// OPChainDeploymentResult must be obtained from ExecuteOPChainDeployment.
+type OPChainDeploymentResult struct {
+	chainID     common.Hash
+	contracts   addresses.OpChainContracts
+	readback    opcm.ReadImplementationAddressesOutput
+	initialized bool
+}
 
 func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID common.Hash) error {
 	lgr := env.Logger.New("stage", "deploy-opchain")
@@ -27,22 +36,52 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 		return fmt.Errorf("failed to get chain intent: %w", err)
 	}
 
-	var dco opcm.DeployOPChainOutput
-	lgr.Info("deploying OP chain using local allocs", "id", chainID.Hex())
-
 	dci, err := makeDCI(intent, thisIntent, chainID, st)
 	if err != nil {
 		return fmt.Errorf("error making deploy OP chain input: %w", err)
 	}
 
+	result, err := ExecuteOPChainDeployment(env, st, chainID, dci)
+	if err != nil {
+		return err
+	}
+	// Record in memory. The stage runner persists state after its broadcast succeeds.
+	return RecordOPChainDeployment(st, result)
+}
+
+// ExecuteOPChainDeployment runs the deployment without recording state.
+// Script-host execution queues transactions. Forge broadcasts directly.
+func ExecuteOPChainDeployment(
+	env *Env,
+	st *state.State,
+	chainID common.Hash,
+	dci opcm.DeployOPChainInput,
+) (OPChainDeploymentResult, error) {
+	var result OPChainDeploymentResult
+	if dci.L2ChainId == nil {
+		return result, fmt.Errorf("deploy OP chain input has nil L2 chain ID; expected %s", chainID.Big())
+	}
+	if dci.L2ChainId.Cmp(chainID.Big()) != 0 {
+		return result, fmt.Errorf(
+			"deploy OP chain input L2 chain ID %s does not match requested chain ID %s",
+			dci.L2ChainId,
+			chainID.Big(),
+		)
+	}
+
+	lgr := env.Logger.New("stage", "deploy-opchain")
+	lgr.Info("deploying OP chain using local allocs", "id", chainID.Hex())
+
 	// We make sure that the deployer and OPCM are the same as the ones used in the dry-run, if any.
 	// Skip when the deployer is the placeholder, which means non-live strategies are being used.
 	if env.Deployer != standard.PlaceholderAddress {
 		if err := st.CheckL1PredictInputs(env.Deployer, dci.Opcm); err != nil {
-			return err
+			return result, err
 		}
 	}
 
+	var dco opcm.DeployOPChainOutput
+	var err error
 	if env.UseForge {
 		lgr.Info("using Forge for DeployOPChain")
 		forgeEnv := &opcm.ForgeEnv{
@@ -53,12 +92,12 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 		}
 		dco, err = opcm.DeployOPChainViaForge(forgeEnv, dci)
 		if err != nil {
-			return err
+			return result, err
 		}
 	} else {
 		dco, err = env.Scripts.DeployOPChain.Run(dci)
 		if err != nil {
-			return fmt.Errorf("error deploying OP chain: %w", err)
+			return result, fmt.Errorf("error deploying OP chain: %w", err)
 		}
 	}
 
@@ -83,41 +122,60 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 		}
 		impls, err = opcm.ReadImplementationAddressesViaForge(forgeEnv, readInput)
 		if err != nil {
-			return err
+			return result, err
 		}
 	} else {
 		readImplementations, err := opcm.NewReadImplementationAddressesScript(env.L1ScriptHost)
 		if err != nil {
-			return fmt.Errorf("failed to load ReadImplementationAddresses script: %w", err)
+			return result, fmt.Errorf("failed to load ReadImplementationAddresses script: %w", err)
 		}
 
 		impls, err = readImplementations.Run(readInput)
 		if err != nil {
-			return fmt.Errorf("failed to run ReadImplementationAddresses script: %w", err)
+			return result, fmt.Errorf("failed to run ReadImplementationAddresses script: %w", err)
 		}
 	}
 
-	st.SetChainContracts(chainID, chainContractsForDeploy(impls, dco), true)
+	return OPChainDeploymentResult{
+		chainID:     chainID,
+		contracts:   chainContractsForDeploy(impls, dco),
+		readback:    impls,
+		initialized: true,
+	}, nil
+}
 
-	st.ImplementationsDeployment.DelayedWethImpl = impls.DelayedWETH
-	st.ImplementationsDeployment.OptimismPortalImpl = impls.OptimismPortal
-	st.ImplementationsDeployment.EthLockboxImpl = impls.EthLockbox
-	st.ImplementationsDeployment.SystemConfigImpl = impls.SystemConfig
-	st.ImplementationsDeployment.AnchorStateRegistryImpl = impls.AnchorStateRegistry
-	st.ImplementationsDeployment.L1CrossDomainMessengerImpl = impls.L1CrossDomainMessenger
-	st.ImplementationsDeployment.L1Erc721BridgeImpl = impls.L1ERC721Bridge
-	st.ImplementationsDeployment.L1StandardBridgeImpl = impls.L1StandardBridge
-	st.ImplementationsDeployment.OptimismMintableErc20FactoryImpl = impls.OptimismMintableERC20Factory
-	st.ImplementationsDeployment.DisputeGameFactoryImpl = impls.DisputeGameFactory
-	st.ImplementationsDeployment.MipsImpl = impls.MipsSingleton
-	st.ImplementationsDeployment.PreimageOracleImpl = impls.PreimageOracleSingleton
-	st.ImplementationsDeployment.FaultDisputeGameImpl = impls.FaultDisputeGame
-	st.ImplementationsDeployment.PermissionedDisputeGameImpl = impls.PermissionedDisputeGame
-	st.ImplementationsDeployment.ZkDisputeGameImpl = impls.ZkDisputeGame
-	st.ImplementationsDeployment.OpcmStandardValidatorImpl = impls.OpcmStandardValidator
-	st.ImplementationsDeployment.SuperFaultDisputeGameImpl = impls.SuperFaultDisputeGame
-	st.ImplementationsDeployment.SuperPermissionedDisputeGameImpl = impls.SuperPermissionedDisputeGame
+// RecordOPChainDeployment updates in-memory state and is safe to repeat.
+func RecordOPChainDeployment(st *state.State, result OPChainDeploymentResult) error {
+	if !result.initialized {
+		return fmt.Errorf("cannot record an uninitialized OP chain deployment result")
+	}
 
+	st.SetChainContracts(result.chainID, result.contracts, true)
+
+	// Continuation deployments may reference an existing OPCM without carrying
+	// its implementation addresses in state. Full apply deployments do carry
+	// them, so refresh the recorded addresses only when that record exists.
+	if st.ImplementationsDeployment != nil {
+		impls := result.readback
+		st.ImplementationsDeployment.DelayedWethImpl = impls.DelayedWETH
+		st.ImplementationsDeployment.OptimismPortalImpl = impls.OptimismPortal
+		st.ImplementationsDeployment.EthLockboxImpl = impls.EthLockbox
+		st.ImplementationsDeployment.SystemConfigImpl = impls.SystemConfig
+		st.ImplementationsDeployment.AnchorStateRegistryImpl = impls.AnchorStateRegistry
+		st.ImplementationsDeployment.L1CrossDomainMessengerImpl = impls.L1CrossDomainMessenger
+		st.ImplementationsDeployment.L1Erc721BridgeImpl = impls.L1ERC721Bridge
+		st.ImplementationsDeployment.L1StandardBridgeImpl = impls.L1StandardBridge
+		st.ImplementationsDeployment.OptimismMintableErc20FactoryImpl = impls.OptimismMintableERC20Factory
+		st.ImplementationsDeployment.DisputeGameFactoryImpl = impls.DisputeGameFactory
+		st.ImplementationsDeployment.MipsImpl = impls.MipsSingleton
+		st.ImplementationsDeployment.PreimageOracleImpl = impls.PreimageOracleSingleton
+		st.ImplementationsDeployment.FaultDisputeGameImpl = impls.FaultDisputeGame
+		st.ImplementationsDeployment.PermissionedDisputeGameImpl = impls.PermissionedDisputeGame
+		st.ImplementationsDeployment.ZkDisputeGameImpl = impls.ZkDisputeGame
+		st.ImplementationsDeployment.OpcmStandardValidatorImpl = impls.OpcmStandardValidator
+		st.ImplementationsDeployment.SuperFaultDisputeGameImpl = impls.SuperFaultDisputeGame
+		st.ImplementationsDeployment.SuperPermissionedDisputeGameImpl = impls.SuperPermissionedDisputeGame
+	}
 	return nil
 }
 
@@ -139,19 +197,13 @@ func ResolveChainProofParams(intent *state.Intent, chain *state.ChainIntent) (st
 }
 
 // ResolvePreparedGameType returns the initial game type recorded by prepare after
-// verifying that the current intent still resolves to the same type.
-func ResolvePreparedGameType(intent *state.Intent, chain *state.ChainIntent, chainState *state.ChainState) (uint32, error) {
+// verifying that it matches the currently resolved game type.
+func ResolvePreparedGameType(chain *state.ChainIntent, chainState *state.ChainState, current uint32) (uint32, error) {
 	if chainState == nil || chainState.InitialGameType == nil {
 		return 0, fmt.Errorf("chain %s has no initial game type recorded by prepare; rerun op-deployer prepare", chain.ID.Hex())
 	}
 
-	proofParams, err := ResolveChainProofParams(intent, chain)
-	if err != nil {
-		return 0, fmt.Errorf("failed to resolve initial dispute game type for chain %s: %w", chain.ID.Hex(), err)
-	}
-
 	prepared := *chainState.InitialGameType
-	current := proofParams.DisputeGameType
 	if prepared != current {
 		return 0, fmt.Errorf(
 			"chain %s initial game type changed after prepare: prepared %s (%d), intent %s (%d); rerun op-deployer prepare",
@@ -226,6 +278,122 @@ func ResolveInitialDeployRequirements(gameType uint32) (InitialDeployRequirement
 	}
 }
 
+// BuildContinuationDCI builds deployment input from prepared state.
+func BuildContinuationDCI(intent *state.Intent, chainID common.Hash, st *state.State) (opcm.DeployOPChainInput, error) {
+	if st == nil || !st.Prepared {
+		return opcm.DeployOPChainInput{}, fmt.Errorf("state was not produced by op-deployer prepare. Run op-deployer prepare")
+	}
+	if st.Create2Salt == (common.Hash{}) {
+		return opcm.DeployOPChainInput{}, fmt.Errorf("prepared state has no CREATE2 salt. Rerun op-deployer prepare")
+	}
+	if st.L1PredictSenderAddress == nil || *st.L1PredictSenderAddress == (common.Address{}) {
+		return opcm.DeployOPChainInput{}, fmt.Errorf("prepared state has no predicted sender address. Rerun op-deployer prepare")
+	}
+	if st.L1PredictOPCMAddress == nil || *st.L1PredictOPCMAddress == (common.Address{}) {
+		return opcm.DeployOPChainInput{}, fmt.Errorf("prepared state has no predicted OPCM address. Rerun op-deployer prepare")
+	}
+	if intent == nil || intent.SuperchainConfigProxy == nil || *intent.SuperchainConfigProxy == (common.Address{}) {
+		return opcm.DeployOPChainInput{}, fmt.Errorf("intent.superchainConfigProxy must be set")
+	}
+
+	chainState, err := st.Chain(chainID)
+	if err != nil {
+		return opcm.DeployOPChainInput{}, fmt.Errorf(
+			"failed to get state prepared for chain %s: %w. Rerun op-deployer prepare",
+			chainID.Hex(),
+			err,
+		)
+	}
+	thisIntent, err := intent.Chain(chainID)
+	if err != nil {
+		return opcm.DeployOPChainInput{}, fmt.Errorf("failed to get chain intent: %w", err)
+	}
+
+	proofParams, err := ResolveChainProofParams(intent, thisIntent)
+	if err != nil {
+		return opcm.DeployOPChainInput{}, fmt.Errorf("error merging proof params from overrides: %w", err)
+	}
+
+	preparedGameType, err := ResolvePreparedGameType(thisIntent, chainState, proofParams.DisputeGameType)
+	if err != nil {
+		return opcm.DeployOPChainInput{}, err
+	}
+	requirements, err := ResolveInitialDeployRequirements(preparedGameType)
+	if err != nil {
+		return opcm.DeployOPChainInput{}, fmt.Errorf(
+			"chain %s has an invalid prepared game type: %w. Rerun op-deployer prepare",
+			chainID.Hex(),
+			err,
+		)
+	}
+
+	if requirements.RequiresPrestate {
+		if chainState.Prestate == (common.Hash{}) {
+			return opcm.DeployOPChainInput{}, fmt.Errorf(
+				"chain %s has no prestate committed. Run op-deployer prestate",
+				chainID.Hex(),
+			)
+		}
+		if chainState.Prestate == opcm.PermissionedCannonFallbackPrestatePlaceholder {
+			return opcm.DeployOPChainInput{}, fmt.Errorf(
+				"chain %s has the reserved permissioned prestate placeholder committed. Rerun op-deployer prestate",
+				chainID.Hex(),
+			)
+		}
+		if hasFaultGameAbsolutePrestateOverride(intent, thisIntent) &&
+			proofParams.DisputeAbsolutePrestate != chainState.Prestate {
+			return opcm.DeployOPChainInput{}, fmt.Errorf(
+				"chain %s faultGameAbsolutePrestate override differs from the committed prestate. Rerun op-deployer prestate",
+				chainID.Hex(),
+			)
+		}
+		proofParams.DisputeAbsolutePrestate = chainState.Prestate
+	}
+
+	startingAnchorRoot := opcm.DefaultStartingAnchorProposal()
+	if requirements.Permissionless {
+		if chainState.StartingAnchorRoot == nil || chainState.StartingAnchorRoot.Root == (common.Hash{}) {
+			return opcm.DeployOPChainInput{}, fmt.Errorf(
+				"chain %s has no valid starting anchor proposal committed. Rerun the proposal-producing stage",
+				chainID.Hex(),
+			)
+		}
+		if chainState.StartingAnchorRoot.Root == opcm.DefaultStartingAnchorRoot.Root {
+			return opcm.DeployOPChainInput{}, fmt.Errorf(
+				"chain %s has the permissioned starting anchor placeholder committed. Rerun the proposal-producing stage",
+				chainID.Hex(),
+			)
+		}
+		// The initial anchor must leave room for a strictly greater uint64 game sequence.
+		// The field is uint64-bounded, so equality is the only invalid value representable here.
+		if chainState.StartingAnchorRoot.L2SequenceNumber == math.MaxUint64 {
+			return opcm.DeployOPChainInput{}, fmt.Errorf(
+				"chain %s has a starting anchor sequence number that is too large. Rerun the proposal-producing stage",
+				chainID.Hex(),
+			)
+		}
+
+		startingAnchorRoot = opcm.Proposal{
+			Root: chainState.StartingAnchorRoot.Root,
+			L2SequenceNumber: new(big.Int).SetUint64(
+				uint64(chainState.StartingAnchorRoot.L2SequenceNumber),
+			),
+		}
+	}
+
+	return BuildDeployOPChainInput(
+		proofParams,
+		thisIntent.Roles,
+		*st.L1PredictOPCMAddress,
+		*intent.SuperchainConfigProxy,
+		chainID,
+		st.Create2Salt.String(),
+		thisIntent.GasLimit,
+		startingAnchorRoot,
+		thisIntent,
+	), nil
+}
+
 func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common.Hash, st *state.State) (opcm.DeployOPChainInput, error) {
 	proofParams, err := ResolveChainProofParams(intent, thisIntent)
 	if err != nil {
@@ -253,10 +421,7 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		chainID,
 		st.Create2Salt.String(),
 		thisIntent.GasLimit,
-		opcm.Proposal{
-			Root:             opcm.DefaultStartingAnchorRoot.Root,
-			L2SequenceNumber: new(big.Int),
-		},
+		opcm.DefaultStartingAnchorProposal(),
 		thisIntent,
 	), nil
 }

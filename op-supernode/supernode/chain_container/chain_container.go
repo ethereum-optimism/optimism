@@ -243,12 +243,11 @@ func NewChainContainer(
 		}
 	}
 	// Initialize the deny list for block invalidation
-	denyListPath := c.subPath("denylist")
-	if denyList, err := OpenDenyList(denyListPath); err != nil {
-		log.Error("failed to open deny list", "err", err)
-	} else {
-		c.denyList = denyList
+	denyList, err := OpenDenyList(c.subPath("denylist"))
+	if err != nil {
+		return nil, fmt.Errorf("failed to open deny list for chain %s: %w", chainID, err)
 	}
+	c.denyList = denyList
 	// Set up the interop engine controller. The connection is dialed lazily, so setup never
 	// blocks on or fails because of an unreachable L2 engine at startup -- the client connects
 	// on first use and reconnects on demand. This is what lets interop recover once the EL comes

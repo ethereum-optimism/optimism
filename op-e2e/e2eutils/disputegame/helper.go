@@ -192,6 +192,19 @@ func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string
 	return h.startOutputCannonGameOfType(ctx, l2Node, l2BlockNumber, rootClaim, cannonKonaGameType, opts...)
 }
 
+// SkipIfPermissionedGameNotRegistered skips the test unless the DisputeGameFactory has an
+// implementation for the legacy permissioned game type. Super root games replace it, so it is only
+// registered while the super root games migration is disabled.
+// TODO(#21662): Remove along with the permissioned game tests when super root games can no longer
+// be disabled.
+func (h *FactoryHelper) SkipIfPermissionedGameNotRegistered(ctx context.Context) {
+	impl, err := h.Factory.GameImpls(&bind.CallOpts{Context: ctx}, permissionedGameType)
+	h.Require.NoError(err, "failed to load permissioned game implementation")
+	if impl == (common.Address{}) {
+		h.T.Skip("permissioned game type is not registered, super root games are enabled")
+	}
+}
+
 func (h *FactoryHelper) StartPermissionedGame(ctx context.Context, l2Node string, l2BlockNumber uint64, rootClaim common.Hash, opts ...GameOpt) *OutputCannonGameHelper {
 	return h.startOutputCannonGameOfType(ctx, l2Node, l2BlockNumber, rootClaim, permissionedGameType, opts...)
 }

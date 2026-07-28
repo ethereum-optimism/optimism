@@ -6,9 +6,11 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
@@ -17,6 +19,10 @@ const (
 	zkChallengeDuration = 30 * time.Second
 	zkProveDuration     = 30 * time.Second
 	zkFinalityDelay     = 2 * time.Second
+
+	// zkUnsafeProposalLead places an "unsafe" proposal's timestamp a year beyond the safe head so the
+	// chain cannot reach it during the test, even on a CPU-starved CI runner.
+	zkUnsafeProposalLead = 365 * 24 * time.Hour
 )
 
 func loadSuperAggregationVKey(t devtest.T) common.Hash {
@@ -38,7 +44,10 @@ func loadSuperAggregationVKey(t devtest.T) common.Hash {
 	return vkey
 }
 
-func newSystem(t devtest.T) (*presets.SimpleInterop, common.Hash) {
+// newSystem builds a supernode-backed interop system with the ZK dispute game installed and an
+// honest op-challenger playing it, sourcing super roots from the supernode. Tests seed a game; the
+// challenger acts on it.
+func newSystem(t devtest.T) *presets.SimpleInterop {
 	vkey := loadSuperAggregationVKey(t)
 	zkCfg := sysgo.ZKDisputeGameConfig{
 		ProgramVKey:          vkey,
@@ -50,5 +59,14 @@ func newSystem(t devtest.T) (*presets.SimpleInterop, common.Hash) {
 		presets.WithTimeTravelEnabled(),
 		presets.WithDisputeGameFinalityDelaySeconds(uint64(zkFinalityDelay/time.Second)),
 		presets.WithDeployerOptions(sysgo.WithJovianAtGenesis),
-	), vkey
+	)
+}
+
+// zkChallengerAddress derives the honest challenger's address for the given L2 chain.
+func zkChallengerAddress(t devtest.T, chainID eth.ChainID) common.Address {
+	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
+	t.Require().NoError(err)
+	addr, err := keys.Address(devkeys.ChainOperatorKeys(chainID.ToBig())(devkeys.ChallengerRole))
+	t.Require().NoError(err)
+	return addr
 }

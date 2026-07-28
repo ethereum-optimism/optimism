@@ -9,7 +9,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
@@ -215,24 +214,9 @@ func ApplyPipeline(
 		return err
 	}
 
-	l1ArtifactsFS, err := artifacts.Download(ctx, intent.L1ContractsLocator, ioutil.BarProgressor(), opts.CacheDir)
+	bundle, err := artifacts.DownloadBundle(ctx, intent.L1ContractsLocator, intent.L2ContractsLocator, ioutil.BarProgressor(), opts.CacheDir)
 	if err != nil {
-		return fmt.Errorf("failed to download L1 artifacts: %w", err)
-	}
-
-	var l2ArtifactsFS foundry.StatDirFs
-	if intent.L1ContractsLocator.Equal(intent.L2ContractsLocator) {
-		l2ArtifactsFS = l1ArtifactsFS
-	} else {
-		l2ArtifactsFS, err = artifacts.Download(ctx, intent.L2ContractsLocator, ioutil.BarProgressor(), opts.CacheDir)
-		if err != nil {
-			return fmt.Errorf("failed to download L2 artifacts: %w", err)
-		}
-	}
-
-	bundle := pipeline.ArtifactsBundle{
-		L1: l1ArtifactsFS,
-		L2: l2ArtifactsFS,
+		return err
 	}
 
 	deployer := standard.PlaceholderAddress

@@ -33,6 +33,9 @@ func (v VMType) MipsVersion() uint64 {
 	}
 }
 
+// FaultGameAbsolutePrestateOverrideKey names the absolute prestate override.
+const FaultGameAbsolutePrestateOverrideKey = "faultGameAbsolutePrestate"
+
 type ChainProofParams struct {
 	DisputeGameType                         uint32      `json:"respectedGameType" toml:"respectedGameType"`
 	DisputeAbsolutePrestate                 common.Hash `json:"faultGameAbsolutePrestate" toml:"faultGameAbsolutePrestate"`

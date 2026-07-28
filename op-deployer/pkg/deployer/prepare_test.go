@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
@@ -148,16 +147,14 @@ func TestMakePredictionInput_GameTypeInputs(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                       string
-		gameType                   embedded.GameType
-		usesPredictionAnchor       bool
-		usesFixedCannonPlaceholder bool
+		name                 string
+		gameType             embedded.GameType
+		usesPredictionAnchor bool
 	}{
 		{
-			name:                       "CANNON_KONA",
-			gameType:                   embedded.GameTypeCannonKona,
-			usesPredictionAnchor:       true,
-			usesFixedCannonPlaceholder: true,
+			name:                 "CANNON_KONA",
+			gameType:             embedded.GameTypeCannonKona,
+			usesPredictionAnchor: true,
 		},
 		{
 			name:                 "SUPER_CANNON_KONA",
@@ -188,12 +185,13 @@ func TestMakePredictionInput_GameTypeInputs(t *testing.T) {
 				require.Equal(t, opcm.DefaultStartingAnchorRoot.Root, dci.StartingAnchorRoot.Root)
 			}
 
-			if tt.usesFixedCannonPlaceholder {
+			switch tt.gameType {
+			case embedded.GameTypeCannonKona:
 				require.Equal(t, opcm.PermissionedCannonFallbackPrestatePlaceholder, dci.CannonAbsolutePrestate)
 				require.NotEqual(t, dci.DisputeAbsolutePrestate, dci.CannonAbsolutePrestate)
-			} else if tt.gameType == embedded.GameTypeSuperCannonKona {
+			case embedded.GameTypeSuperCannonKona:
 				require.Zero(t, dci.CannonAbsolutePrestate)
-			} else {
+			default:
 				require.Equal(t, dci.DisputeAbsolutePrestate, dci.CannonAbsolutePrestate)
 			}
 		})
@@ -417,9 +415,9 @@ func TestCheckReservedOverrides(t *testing.T) {
 	})
 }
 
-// TestPredictionDryRun_Permissionless exercises the prediction dry-run end to end for a
-// permissionless chain: it deploys a superchain + OPCM onto anvil, then runs
-// the DeployOPChain script against a fork with the prediction input.
+// TestPredictionDryRun_Permissionless exercises the prediction dry-run end to end for the
+// permissionless super-root game type: it deploys a super-root OPCM onto anvil, then runs the
+// DeployOPChain script against a fork with the prediction input.
 func TestPredictionDryRun_Permissionless(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
@@ -502,17 +500,10 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 		salt             common.Hash
 	}{
 		{
-			name:     "CANNON_KONA",
-			gameType: embedded.GameTypeCannonKona,
-			chainID:  common.HexToHash("0x0300"),
-			salt:     common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901234"),
-		},
-		{
-			name:             "SUPER_CANNON_KONA",
-			gameType:         embedded.GameTypeSuperCannonKona,
-			devFeatureBitmap: devfeatures.SuperRootGamesMigrationFlag,
-			chainID:          common.HexToHash("0x0301"),
-			salt:             common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901235"),
+			name:     "SUPER_CANNON_KONA",
+			gameType: embedded.GameTypeSuperCannonKona,
+			chainID:  common.HexToHash("0x0301"),
+			salt:     common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901235"),
 		},
 	}
 
@@ -590,11 +581,19 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 	}
 }
 
-func TestPredictChains_ClearsOnlyRepredictedPrestates(t *testing.T) {
+func TestPredictChains_ClearsOnlyRepredictedPreparedInputs(t *testing.T) {
 	deployedID := common.HexToHash("0x0a")
 	freshID := common.HexToHash("0x0b")
 	deployedPrestate := common.HexToHash("0xfeed")
 	freshPrestate := common.HexToHash("0xbeef")
+	deployedStartingAnchorRoot := &state.StartingAnchorProposal{
+		Root:             common.HexToHash("0x1111"),
+		L2SequenceNumber: 1,
+	}
+	freshStartingAnchorRoot := &state.StartingAnchorProposal{
+		Root:             common.HexToHash("0x2222"),
+		L2SequenceNumber: 2,
+	}
 
 	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
 	superchainConfig := common.HexToAddress("0xbbbb000000000000000000000000000000000002")
@@ -622,11 +621,13 @@ func TestPredictChains_ClearsOnlyRepredictedPrestates(t *testing.T) {
 	deployed, err := st.Chain(deployedID)
 	require.NoError(t, err)
 	deployed.Prestate = deployedPrestate
+	deployed.StartingAnchorRoot = deployedStartingAnchorRoot
 	deployedInitialGameType := uint32(embedded.GameTypeSuperPermissioned)
 	deployed.InitialGameType = &deployedInitialGameType
 	fresh, err := st.Chain(freshID)
 	require.NoError(t, err)
 	fresh.Prestate = freshPrestate
+	fresh.StartingAnchorRoot = freshStartingAnchorRoot
 	freshInitialGameType := uint32(embedded.GameTypePermissionedCannon)
 	fresh.InitialGameType = &freshInitialGameType
 
@@ -667,12 +668,14 @@ func TestPredictChains_ClearsOnlyRepredictedPrestates(t *testing.T) {
 	require.True(t, *deployed.Deployed)
 	require.Equal(t, deployedContracts.SystemConfigProxy, deployed.SystemConfigProxy)
 	require.Equal(t, deployedPrestate, deployed.Prestate)
+	require.Equal(t, deployedStartingAnchorRoot, deployed.StartingAnchorRoot)
 	require.Equal(t, uint32(embedded.GameTypeSuperPermissioned), *deployed.InitialGameType)
 
 	require.NotNil(t, fresh.Deployed)
 	require.False(t, *fresh.Deployed)
 	require.Equal(t, common.HexToAddress("0xbeef"), fresh.SystemConfigProxy)
 	require.Zero(t, fresh.Prestate)
+	require.Nil(t, fresh.StartingAnchorRoot)
 	require.Equal(t, uint32(embedded.GameTypeCannonKona), *fresh.InitialGameType)
 	require.Equal(t, anchor, fresh.StartBlock, "fresh chain must have its anchor block pinned")
 	require.NotNil(t, fresh.GenesisTime, "fresh chain must have its genesis time committed")

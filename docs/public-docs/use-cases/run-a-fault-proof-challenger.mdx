@@ -3,7 +3,7 @@ title: Run a fault-proof challenger
 description: Stand up an op-challenger that defends your OP Stack chain, from bond budgeting and prestate selection through infrastructure, configuration, and monitoring.
 diataxis: how-to
 content-type: solution-guide
-last-reviewed: 2026-07-18
+last-reviewed: 2026-07-24
 ---
 
 This guide takes an operator who wants an honest challenger defending an OP
@@ -32,6 +32,11 @@ before operating anything, start with the
 investigating one specific game rather than running a standing service, use
 [monitoring tooling](/chain-operators/tools/chain-monitoring#dispute-mon).
 
+If you want this role staffed without running it yourself, or with OP Labs
+engineering supporting your team, see
+[OP Enterprise](https://optimism.io/op-enterprise?utm_source=docs&utm_medium=docs&utm_campaign=op-enterprise);
+this guide is the reference for what defending a chain involves either way.
+
 ## Before you start
 
 You should already have:
@@ -58,7 +63,7 @@ and resolves games so bonds pay out. Read the
     challenger.
 *   That the respected game type is `cannon-kona` (run with kona-host), and
     that the legacy `cannon` / op-program game type has reached
-    [end of support](/notices/op-geth-deprecation): op-program does not
+    [end of support](/notices/archive/op-geth-deprecation): op-program does not
     support the now-active Karst hardfork, so the kona variants are the only
     maintained option.
 

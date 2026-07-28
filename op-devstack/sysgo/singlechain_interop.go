@@ -78,3 +78,24 @@ func NewSingleChainInteropNoSupernodeSuperRootRuntimeWithConfig(t devtest.T, cfg
 		StartChallenger: true,
 	})
 }
+
+// NewSingleChainInteropNoSupernodeZKDisputeRuntimeWithConfig constructs a single-chain interop
+// world with no supernode, running an op-challenger that plays ZK dispute games sourcing super
+// roots directly from the op-node's superroot_atTimestamp endpoint. The primary op-node enables
+// its safe DB (required by superroot_atTimestamp).
+func NewSingleChainInteropNoSupernodeZKDisputeRuntimeWithConfig(t devtest.T, cfg PresetConfig) *SingleChainRuntime {
+	cfg = withSuperRootGamesAtGenesisDeployerFeatures(cfg)
+	cfg.DeployerOptions = append([]DeployerOption{
+		WithDevFeatureEnabled(devfeatures.ZKDisputeGameFlag),
+	}, cfg.DeployerOptions...)
+	// ZK games resolve only after the challenge/prove windows elapse, so time travel is required.
+	cfg.EnableTimeTravel = true
+	cfg.AddedGameTypes = append(cfg.AddedGameTypes, gameTypes.ZKDisputeGameType)
+	return newSingleChainRuntimeWithConfig(t, cfg, singleChainRuntimeSpec{
+		BuildWorld:      newSingleChainInteropWorldNoSupernode,
+		StartPrimary:    startDefaultSingleChainPrimary,
+		StartBatcher:    true,
+		StartProposer:   false,
+		StartChallenger: true,
+	})
+}

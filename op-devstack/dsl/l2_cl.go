@@ -588,6 +588,16 @@ func WithMinRequiredL2Block(blockNum uint64) func(opts *safeHeadDbMatchOpts) {
 	}
 }
 
+// SafeHeadDBFloor returns the oldest L2 safe-head block number recorded in this node's safe head
+// db. Prefer this over the live safe head when capturing a no-truncation baseline: the live safe
+// head advances per L2 block while the db resolves per L1 origin, so a live sample may not be
+// satisfiable by the db even without truncation.
+func (cl *L2CLNode) SafeHeadDBFloor() uint64 {
+	l1Block := cl.SyncStatus().CurrentL1.Number
+	cl.AwaitMinL1Processed(l1Block) // Ensure this block is fully processed before reading the safe head db
+	return safeHeadDBFloor(cl.t, l1Block, cl)
+}
+
 func (cl *L2CLNode) VerifySafeHeadDatabaseMatches(sourceOfTruth *L2CLNode, args ...func(opts *safeHeadDbMatchOpts)) {
 	opts := applyOpts(safeHeadDbMatchOpts{}, args...)
 	l1Block := cl.SyncStatus().CurrentL1.Number
