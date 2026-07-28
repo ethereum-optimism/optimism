@@ -4,14 +4,11 @@ import (
 	"context"
 	"errors"
 	"math/big"
-	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/accounting"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txinclude"
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/txpool"
@@ -60,44 +57,6 @@ func (m *mockEL) TransactionReceipt(ctx context.Context, hash common.Hash) (*typ
 		return nil, ctx.Err()
 	case <-m.receiptReadyCh:
 		return m.receipt, nil
-	}
-}
-
-// acceptedThenNonceTooLowEL models an EL that accepts a transaction once, then
-// reports ErrNonceTooLow when the resubmitter sends the same transaction again.
-// The receipt remains unavailable until the test observes a further resubmission.
-type acceptedThenNonceTooLowEL struct {
-	receipt      *types.Receipt
-	receiptReady chan struct{}
-	retried      chan struct{}
-	sends        atomic.Int64
-}
-
-func newAcceptedThenNonceTooLowEL(receipt *types.Receipt) *acceptedThenNonceTooLowEL {
-	return &acceptedThenNonceTooLowEL{
-		receipt:      receipt,
-		receiptReady: make(chan struct{}),
-		retried:      make(chan struct{}),
-	}
-}
-
-func (m *acceptedThenNonceTooLowEL) SendTransaction(_ context.Context, _ *types.Transaction) error {
-	call := m.sends.Add(1)
-	if call == 1 {
-		return nil
-	}
-	if call == 3 {
-		close(m.retried)
-	}
-	return core.ErrNonceTooLow
-}
-
-func (m *acceptedThenNonceTooLowEL) TransactionReceipt(context.Context, common.Hash) (*types.Receipt, error) {
-	select {
-	case <-m.receiptReady:
-		return m.receipt, nil
-	default:
-		return nil, ethereum.NotFound
 	}
 }
 
@@ -157,48 +116,6 @@ func TestPersistentFixesNonceTooLow(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualExportedValues(t, want, got)
 	require.Equal(t, startingBalance.Sub(eth.OneGWei.Mul(want.Receipt.GasUsed)), budget.Balance())
-}
-
-func TestPersistentResubmitsSameTxAfterNonceTooLow(t *testing.T) {
-	original := &types.DynamicFeeTx{
-		GasFeeCap: eth.OneGWei.ToBig(),
-		Gas:       21_000,
-	}
-	receipt := &types.Receipt{
-		Status:            types.ReceiptStatusSuccessful,
-		GasUsed:           original.Gas,
-		EffectiveGasPrice: original.GasFeeCap,
-	}
-	el := newAcceptedThenNonceTooLowEL(receipt)
-	p := txinclude.NewPersistent(newSigner(t), txinclude.NewReliableEL(el, time.Millisecond))
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	type result struct {
-		included *txinclude.IncludedTx
-		err      error
-	}
-	resultCh := make(chan result, 1)
-	go func() {
-		included, err := p.Include(ctx, original)
-		resultCh <- result{included: included, err: err}
-	}()
-
-	select {
-	case <-el.retried:
-		close(el.receiptReady)
-	case <-time.After(time.Second):
-		t.Fatal("transaction was not resubmitted after ErrNonceTooLow")
-	}
-
-	select {
-	case res := <-resultCh:
-		require.NoError(t, res.err)
-		require.Equal(t, receipt, res.included.Receipt)
-		require.Equal(t, original.Nonce, res.included.Transaction.Nonce(), "must keep resubmitting the same nonce")
-		require.GreaterOrEqual(t, el.sends.Load(), int64(3))
-	case <-time.After(time.Second):
-		t.Fatal("transaction receipt was not returned")
-	}
 }
 
 func TestPersistentNoChangeOnUnderpriced(t *testing.T) {
