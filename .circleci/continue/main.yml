@@ -2079,6 +2079,7 @@ jobs:
   cannon-prestate:
     machine:
       docker_layer_caching: true # we rely on this for faster builds, and actively warm it up for builds with common stages
+    resource_class: xlarge.gen2
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
