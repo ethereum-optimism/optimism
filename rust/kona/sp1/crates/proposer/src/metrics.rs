@@ -94,6 +94,13 @@ pub enum ProposerGauge {
         message = "Total number of creation cycles skipped on an unknown registered prestate"
     )]
     UnknownRegisteredPrestate,
+    /// Total number of games whose super-root data could not be fetched or
+    /// validated during sync (held as pending, re-checked next cycle).
+    #[strum(
+        serialize = "kona_sp1_proposer_super_root_unavailable",
+        message = "Total number of games whose super-root data was unavailable during sync"
+    )]
+    SuperRootUnavailable,
 }
 
 impl MetricsGauge for ProposerGauge {}

@@ -40,7 +40,7 @@ pub struct ProposerConfig {
 
     /// The supernode (or single-chain op-node) RPC URL serving
     /// `superroot_atTimestamp`.
-    pub supernode_rpc: String,
+    pub supernode_rpc: Url,
 
     /// The address of the `DisputeGameFactory` contract.
     pub factory_address: Address,
@@ -107,7 +107,10 @@ impl ProposerConfig {
                 .context("L1_RPC not set")?
                 .parse()
                 .map_err(|err| anyhow!("invalid L1_RPC: {err}"))?,
-            supernode_rpc: env::var("SUPERNODE_RPC").context("SUPERNODE_RPC not set")?,
+            supernode_rpc: env::var("SUPERNODE_RPC")
+                .context("SUPERNODE_RPC not set")?
+                .parse()
+                .map_err(|err| anyhow!("invalid SUPERNODE_RPC: {err}"))?,
             factory_address: env::var("FACTORY_ADDRESS")
                 .context("FACTORY_ADDRESS not set")?
                 .parse()

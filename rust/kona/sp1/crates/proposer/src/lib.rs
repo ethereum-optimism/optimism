@@ -46,10 +46,11 @@ where
     /// Fetches the latest game index.
     async fn fetch_latest_game_index(&self, block: BlockId) -> Result<Option<U256>>;
 
-    /// Fetches the game address by index.
+    /// Fetches the game address by index at the given block.
     async fn fetch_game_address_by_index(
         &self,
         game_index: U256,
+        block: BlockId,
     ) -> Result<alloy_primitives::Address>;
 }
 
@@ -74,8 +75,9 @@ where
     async fn fetch_game_address_by_index(
         &self,
         game_index: U256,
+        block: BlockId,
     ) -> Result<alloy_primitives::Address> {
-        let game = self.gameAtIndex(game_index).call().await?;
+        let game = self.gameAtIndex(game_index).block(block).call().await?;
         Ok(game.proxy_)
     }
 }
@@ -96,7 +98,8 @@ where
     if parent_index == u32::MAX {
         return Ok(true);
     }
-    let parent_address = factory.fetch_game_address_by_index(U256::from(parent_index)).await?;
+    let parent_address =
+        factory.fetch_game_address_by_index(U256::from(parent_index), pinned_block).await?;
     let parent = ZKDisputeGame::new(parent_address, factory.provider().clone());
     let status = parent.status().block(pinned_block).call().await?;
     let status = GameStatus::try_from(status).context("invalid parent game status")?;

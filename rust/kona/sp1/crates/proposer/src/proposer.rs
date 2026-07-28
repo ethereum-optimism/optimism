@@ -146,6 +146,12 @@ impl Game {
     /// resolve and claim its bond). Ownership is creator-based, not
     /// prestate-based: games created before a prestate rotation are still
     /// ours to resolve and claim.
+    ///
+    /// The defend path widens this: any game the proposer would prove when
+    /// challenged (its own games and their ancestors, since `prove()` is
+    /// permissionless and proving earns the challenger bond) is also a game
+    /// it must resolve and claim. That set is settled with the proving
+    /// logic (#21463).
     pub fn is_owned(&self, proposer_address: Address) -> bool {
         self.creator == proposer_address
     }
@@ -311,11 +317,12 @@ where
     /// Address of the most recently created game. Used to precisely identify
     /// the guarded game for `ChallengerWins` subtree removal.
     last_created_game_address: Arc<tokio::sync::Mutex<Address>>,
-    /// Games seen on-chain whose timestamps are not yet safe from this
-    /// node's view. Excluded from the DAG (and parent eligibility) but
-    /// re-validated each sync until data appears or a horizon expires -
-    /// unlike terminal invalidity, pending games must not be dropped by the
-    /// cursor (see `fetch_game`).
+    /// Games seen on-chain whose super-root data is not yet obtainable from
+    /// this node - the timestamp is not yet safe, or the query failed
+    /// (including permanently, e.g. timestamps predating the node's recorded
+    /// safe history). Excluded from the DAG (and parent eligibility) but
+    /// re-validated each sync - unlike terminal invalidity, pending games
+    /// must not be dropped by the cursor (see `fetch_game`).
     pending_games: Arc<RwLock<HashSet<U256>>>,
 }
 
@@ -346,7 +353,7 @@ where
         identity.log_startup_info(&config.prestates_url);
 
         let l1_provider = ProviderBuilder::default().connect_http(config.l1_rpc.clone());
-        let superroot_client = SuperrootClient::new(&config.supernode_rpc)?;
+        let superroot_client = SuperrootClient::new(config.supernode_rpc.as_str())?;
 
         Ok(Self {
             config,
@@ -1398,8 +1405,44 @@ where
         }
 
         // Validate the claim against the canonical super root at the game's timestamp.
-        let response = self.superroot_client.superroot_at_timestamp(sequence_number).await?;
-        match SuperrootClient::super_root_at(&response)? {
+        //
+        // A data-source failure here must not abort the factory walk: the
+        // super-root query has a permanent failure class (the supernode maps
+        // timestamps predating its recorded safe history to an error), so
+        // propagating it would stall the cursor forever behind a single
+        // un-fetchable game - a state one bonded spam game at anchor+1 could
+        // force. Hold the game as pending instead: it stays outside the DAG
+        // (never parent-eligible) and is re-checked each sync, bounded to one
+        // query per cycle.
+        let response = match self.superroot_client.superroot_at_timestamp(sequence_number).await {
+            Ok(response) => response,
+            Err(e) => {
+                tracing::warn!(
+                    game_index = %index,
+                    ?game_address,
+                    sequence_number,
+                    error = %e,
+                    "Super-root data unavailable for game; deferring validation"
+                );
+                ProposerGauge::SuperRootUnavailable.increment(1.0);
+                return Ok(GameFetchResult::Pending { index });
+            }
+        };
+        let super_root = match SuperrootClient::super_root_at(&response) {
+            Ok(super_root) => super_root,
+            Err(e) => {
+                tracing::warn!(
+                    game_index = %index,
+                    ?game_address,
+                    sequence_number,
+                    error = %e,
+                    "Super-root response failed validation for game; deferring"
+                );
+                ProposerGauge::SuperRootUnavailable.increment(1.0);
+                return Ok(GameFetchResult::Pending { index });
+            }
+        };
+        match super_root {
             None => {
                 // Not yet safe from this node's view. Far-future timestamps beyond
                 // the validation horizon are terminal (bonded spam); anything
