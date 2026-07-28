@@ -172,6 +172,11 @@ pub async fn load_prestate(base: &Url, prestate: B256) -> Result<PrestateProgram
     Ok(PrestatePrograms { aggregation_elf, range_elf })
 }
 
+/// Maximum time for fetching a single prestate artifact, matching
+/// op-challenger's prestate download timeout. Bounds the creation gate:
+/// a hung prestates server must not stall the proposer's schedule loop.
+const ARTIFACT_FETCH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+
 /// Fetches a single artifact and gunzips it.
 async fn fetch_artifact(url: &Url) -> Result<Vec<u8>> {
     let compressed = match url.scheme() {
@@ -182,7 +187,12 @@ async fn fetch_artifact(url: &Url) -> Result<Vec<u8>> {
             std::fs::read(&path)
                 .with_context(|| format!("failed to read prestate artifact {path:?}"))?
         }
-        "http" | "https" => reqwest::get(url.clone())
+        "http" | "https" => reqwest::Client::builder()
+            .timeout(ARTIFACT_FETCH_TIMEOUT)
+            .build()
+            .context("failed to build prestate artifact client")?
+            .get(url.clone())
+            .send()
             .await
             .with_context(|| format!("failed to fetch prestate artifact at {url}"))?
             .error_for_status()
