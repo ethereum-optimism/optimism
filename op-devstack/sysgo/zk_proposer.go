@@ -57,7 +57,7 @@ func startZKProposer(
 	// file:// path with a document holding the deployed vkey.
 	prestatesPath := filepath.Join(t.TempDir(), "prestates.toml")
 	require.NoError(
-		os.WriteFile(prestatesPath, fmt.Appendf(nil, "super-aggregation = %q\n", programVKey.Hex()), 0o644),
+		os.WriteFile(prestatesPath, fmt.Appendf(nil, "super-aggregation = %q\n", programVKey.Hex()), 0o600),
 		"write prestates document",
 	)
 
