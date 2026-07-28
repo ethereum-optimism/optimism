@@ -451,8 +451,25 @@ func (b *OPRBuilderNode) Stop() {
 		b.logger.Warn("OPRbuilderNode already stopped")
 		return
 	}
+	b.clearProxyUpstreams()
 	b.p.Require().NoError(b.sub.Stop(true))
 	b.sub = nil
+}
+
+// clearProxyUpstreams unsets the proxy upstreams. It must run before the
+// process is asked to stop: the process frees its OS-assigned ports early in
+// shutdown, and they may be rebound by another process, so a stale upstream
+// would silently cross-wire this node's endpoints to it. Callers must hold b.mu.
+func (b *OPRBuilderNode) clearProxyUpstreams() {
+	if b.rpcProxy != nil {
+		b.rpcProxy.ClearUpstream()
+	}
+	if b.authProxy != nil {
+		b.authProxy.ClearUpstream()
+	}
+	if b.wsProxy != nil {
+		b.wsProxy.ClearUpstream()
+	}
 }
 
 func (b *OPRBuilderNode) EngineRPC() string {

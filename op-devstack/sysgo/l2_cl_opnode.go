@@ -77,6 +77,7 @@ func (n *OpNode) Stop() {
 		n.logger.Warn("Op-node already stopped")
 		return
 	}
+	n.clearProxyUpstreams()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // force-quit
 	n.logger.Info("Closing op-node")
@@ -97,6 +98,7 @@ func (n *OpNode) StopControlled(ctx context.Context) error {
 		return nil
 	}
 	opNode := n.opNode
+	n.clearProxyUpstreams() // before Stop: the node frees its ports during shutdown
 	n.mu.Unlock()
 
 	err := opNode.Stop(ctx)
@@ -110,6 +112,16 @@ func (n *OpNode) StopControlled(ctx context.Context) error {
 		n.opNode = nil
 	}
 	return nil
+}
+
+// clearProxyUpstreams unsets the proxy upstreams. It must run before the
+// node is asked to stop: the node frees its OS-assigned ports early in
+// shutdown, and they may be rebound by another process, so a stale upstream
+// would silently cross-wire this node's endpoints to it. Callers must hold n.mu.
+func (n *OpNode) clearProxyUpstreams() {
+	if n.userProxy != nil {
+		n.userProxy.ClearUpstream()
+	}
 }
 
 func (n *OpNode) Running() bool {

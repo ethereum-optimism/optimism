@@ -359,6 +359,28 @@ Prefer binding port `0` in the service that will own the socket, then discover t
 
 **Examples:** [#21872](https://github.com/ethereum-optimism/optimism/pull/21872). **Lint:** no (cross-process lifecycle).
 
+### F16 — Proxy left pointing at a stopped process's address
+
+A long-lived proxy (stable endpoint across restarts) that keeps its upstream address after the owning process stops is the release side of the F15 TOCTOU family: the process frees its OS-assigned ports early in shutdown, and whichever process next binds the port silently receives the proxy's traffic — cross-wiring one node's endpoints to another. Clearing the upstream *after* the stop returns shrinks the window but does not close it, and error paths that return early skip the clear entirely.
+
+```go
+// BAD — ports are freed inside Stop(); the proxy forwards to a dead
+// (soon reusable) address until the clear runs, and never if Stop errors.
+err := n.sub.Stop(true)
+require.NoError(t, err)
+n.proxy.ClearUpstream()
+
+// GOOD — clear before initiating the stop; new dials are refused instead
+// of cross-wired, and established connections still drain.
+n.proxy.ClearUpstream()
+err := n.sub.Stop(true)
+require.NoError(t, err)
+```
+
+The invariant: a proxy's upstream is set if and only if the process that owns the address is alive and listening.
+
+**Examples:** [#22014](https://github.com/ethereum-optimism/optimism/pull/22014). **Lint:** no (cross-process lifecycle).
+
 ## Reviewer checklist
 
 When reviewing a PR that touches `op-acceptance-tests/` or `op-devstack/`, ask:
@@ -378,6 +400,7 @@ When reviewing a PR that touches `op-acceptance-tests/` or `op-devstack/`, ask:
 - [ ] **F13**: Concurrent transaction submissions sharing a nonce source?
 - [ ] **F14**: New `MarkFlaky` → linked C-flake issue and owner?
 - [ ] **F15**: Any code selecting a free port, closing the listener, then starting a service on that port?
+- [ ] **F16**: Any stop path for a process fronted by a long-lived proxy that does not clear the proxy upstream *before* initiating the stop?
 
 ## When a flake report comes in
 

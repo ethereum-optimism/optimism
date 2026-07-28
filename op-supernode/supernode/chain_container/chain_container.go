@@ -45,17 +45,6 @@ const (
 	// callers in adjacent packages (e.g. interop activity) can derive
 	// their own ctx deadlines from a single source of truth.
 	DefaultWaitReadyTimeout = 60 * time.Second
-
-	// vnRestartBackoffMin/vnRestartBackoffMax bound the exponential delay
-	// between virtual node restarts after fast failures, so a VN that fails
-	// at init (e.g. unreachable or mis-wired L2 endpoint) cannot hot-loop
-	// and flood the engine with dials.
-	vnRestartBackoffMin = 250 * time.Millisecond
-	vnRestartBackoffMax = 10 * time.Second
-	// vnFastFailureThreshold: a VN that ran at least this long before
-	// exiting is considered to have started successfully; its exit resets
-	// the restart backoff.
-	vnFastFailureThreshold = 30 * time.Second
 )
 
 // newEngineControllerFromConfig is the engine-controller constructor, overridable in tests.
@@ -379,7 +368,6 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 	if c.rpcRouter != nil {
 		c.rpcRouter.SetReadinessCheck(c.chainID.String(), c.IsRPCReady)
 	}
-	var restartDelay time.Duration
 	for {
 		// Refresh per-start derived fields
 		c.vncfg.SafeDBPath = c.subPath("safe_db")
@@ -431,7 +419,6 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 		}
 
 		// start the virtual node
-		started := time.Now()
 		err := vn.Start(ctx)
 		if err != nil {
 			c.log.Warn("virtual node exited with error", "vn_id", vn, "error", err)
@@ -457,24 +444,6 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 		if c.stop.Load() {
 			c.log.Info("chain container stop requested, stopping restart loop")
 			break
-		}
-
-		// Back off between restarts when the VN keeps failing fast, so a
-		// persistent init failure cannot hot-loop. A run that lasted past the
-		// threshold (or a deliberate stop, which returns nil) resets the delay.
-		if err != nil && time.Since(started) < vnFastFailureThreshold {
-			restartDelay = min(max(2*restartDelay, vnRestartBackoffMin), vnRestartBackoffMax)
-			c.log.Warn("virtual node failed fast, delaying restart", "delay", restartDelay)
-			select {
-			case <-ctx.Done():
-			case <-time.After(restartDelay):
-			}
-			if c.stop.Load() || ctx.Err() != nil {
-				c.log.Info("chain container stop requested during restart backoff, stopping restart loop")
-				break
-			}
-		} else {
-			restartDelay = 0
 		}
 
 		c.metrics.VNRestarts.WithLabelValues(c.chainID.String()).Inc()

@@ -163,8 +163,22 @@ func (r *RollupBoostNode) Stop() {
 		r.logger.Warn("rollup-boost already stopped")
 		return
 	}
+	r.clearProxyUpstreams()
 	r.p.Require().NoError(r.sub.Stop(true))
 	r.sub = nil
+}
+
+// clearProxyUpstreams unsets the proxy upstreams. It must run before the
+// process is asked to stop: the process frees its OS-assigned ports early in
+// shutdown, and they may be rebound by another process, so a stale upstream
+// would silently cross-wire this node's endpoints to it. Callers must hold r.mu.
+func (r *RollupBoostNode) clearProxyUpstreams() {
+	if r.rpcProxy != nil {
+		r.rpcProxy.ClearUpstream()
+	}
+	if r.wsProxy != nil {
+		r.wsProxy.ClearUpstream()
+	}
 }
 
 // RollupBoostConfig configures the rollup-boost process CLI and environment.

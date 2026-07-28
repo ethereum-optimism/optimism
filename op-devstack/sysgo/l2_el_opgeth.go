@@ -139,16 +139,17 @@ func (n *OpGeth) Stop() {
 		return
 	}
 	n.logger.Info("Closing op-geth", "name", n.name, "chain", n.l2Net.ChainID())
+	n.clearProxyUpstreams()
 	closeErr := n.l2Geth.Close()
 	n.logger.Info("Closed op-geth", "name", n.name, "chain", n.l2Net.ChainID(), "err", closeErr)
 	n.l2Geth = nil
-	n.clearProxyUpstreams()
 }
 
-// clearProxyUpstreams unsets the proxy upstreams after the node stopped.
-// The dead node's OS-assigned ports may be rebound by another node (e.g. a
-// different chain's EL restarting), and a stale upstream would silently
-// cross-wire this node's endpoints to it. Callers must hold n.mu.
+// clearProxyUpstreams unsets the proxy upstreams. It must run before the
+// node is asked to stop: the node frees its OS-assigned ports early in
+// shutdown, and they may be rebound by another node (e.g. a different
+// chain's EL restarting), so a stale upstream would silently cross-wire
+// this node's endpoints to it. Callers must hold n.mu.
 func (n *OpGeth) clearProxyUpstreams() {
 	if n.userProxy != nil {
 		n.userProxy.ClearUpstream()
@@ -169,19 +170,17 @@ func (n *OpGeth) StopControlled(ctx context.Context) error {
 		return nil
 	}
 	l2Geth := n.l2Geth
+	n.clearProxyUpstreams() // before Close: the node frees its ports inside Close
 	n.mu.Unlock()
 
-	if err := l2Geth.Close(); err != nil {
-		return err
-	}
+	err := l2Geth.Close()
 
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if n.l2Geth == l2Geth {
 		n.l2Geth = nil
-		n.clearProxyUpstreams()
 	}
-	return nil
+	return err
 }
 
 func (n *OpGeth) Running() bool {

@@ -103,6 +103,7 @@ func (k *KonaNode) Stop() {
 		k.p.Logger().Warn("kona-node already stopped")
 		return
 	}
+	k.clearProxyUpstreams()
 	err := k.sub.Stop(true)
 	k.p.Require().NoError(err, "Must stop")
 	k.sub = nil
@@ -118,11 +119,22 @@ func (k *KonaNode) StopControlled(ctx context.Context) error {
 	if k.sub == nil {
 		return nil
 	}
+	k.clearProxyUpstreams()
 	if err := k.sub.StopControlled(ctx, controlledInterruptWait, controlledKillWait); err != nil {
 		return err
 	}
 	k.sub = nil
 	return nil
+}
+
+// clearProxyUpstreams unsets the proxy upstreams. It must run before the
+// process is asked to stop: the process frees its OS-assigned ports early in
+// shutdown, and they may be rebound by another process, so a stale upstream
+// would silently cross-wire this node's endpoints to it. Callers must hold k.mu.
+func (k *KonaNode) clearProxyUpstreams() {
+	if k.userProxy != nil {
+		k.userProxy.ClearUpstream()
+	}
 }
 
 func (k *KonaNode) Running() bool {

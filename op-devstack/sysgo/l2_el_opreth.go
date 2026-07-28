@@ -221,16 +221,17 @@ func (n *OpReth) Stop() {
 		n.p.Logger().Warn("op-reth already stopped")
 		return
 	}
+	n.clearProxyUpstreams()
 	err := n.sub.Stop(true)
 	n.p.Require().NoError(err, "Must stop")
 	n.sub = nil
-	n.clearProxyUpstreams()
 }
 
-// clearProxyUpstreams unsets the proxy upstreams after the process stopped.
-// The dead process's OS-assigned ports may be rebound by another node (e.g.
-// a different chain's EL restarting), and a stale upstream would silently
-// cross-wire this node's endpoints to it. Callers must hold n.mu.
+// clearProxyUpstreams unsets the proxy upstreams. It must run before the
+// process is asked to stop: the process frees its OS-assigned ports early in
+// shutdown, and they may be rebound by another node (e.g. a different chain's
+// EL restarting), so a stale upstream would silently cross-wire this node's
+// endpoints to it. Callers must hold n.mu.
 func (n *OpReth) clearProxyUpstreams() {
 	if n.userProxy != nil {
 		n.userProxy.ClearUpstream()
@@ -250,11 +251,11 @@ func (n *OpReth) StopControlled(ctx context.Context) error {
 	if n.sub == nil {
 		return nil
 	}
+	n.clearProxyUpstreams()
 	if err := n.sub.StopControlled(ctx, controlledInterruptWait, controlledKillWait); err != nil {
 		return err
 	}
 	n.sub = nil
-	n.clearProxyUpstreams()
 	return nil
 }
 

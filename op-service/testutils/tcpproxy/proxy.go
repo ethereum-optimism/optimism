@@ -92,7 +92,9 @@ func (p *Proxy) handleConn(downConn net.Conn) {
 	addr := p.upstreamAddr
 	if addr == "" {
 		p.mu.Unlock()
-		p.lgr.Error("upstream not set")
+		// Debug, not Error: a cleared upstream is an expected steady state
+		// while the owning process is deliberately down (see ClearUpstream).
+		p.lgr.Debug("upstream not set")
 		return
 	}
 

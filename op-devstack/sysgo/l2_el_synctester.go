@@ -117,7 +117,16 @@ func (n *SyncTesterEL) Start() {
 }
 
 func (n *SyncTesterEL) Stop() {
-	// The SyncTesterEL is just a proxy, so there's nothing to stop
+	// The SyncTesterEL is just a proxy, so there is no process to stop. Still
+	// clear the upstreams so the proxies refuse connections while "stopped",
+	// instead of silently forwarding to whatever the addresses point at; the
+	// next Start re-points them.
+	if n.authProxy != nil {
+		n.authProxy.ClearUpstream()
+	}
+	if n.userProxy != nil {
+		n.userProxy.ClearUpstream()
+	}
 }
 
 func (n *SyncTesterEL) UserRPC() string {
