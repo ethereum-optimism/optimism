@@ -589,11 +589,16 @@ KONA_PRESTATE_VARIANTS := "kona-client:prestate-artifacts-cannon kona-client-int
 # the only place the table is split: every consumer, in this justfile and out,
 # reads these lines. A malformed entry fails here rather than downstream of an
 # `rm -rf` built from an empty field.
+#
+# Output is all-or-nothing: the whole table is validated before anything is
+# printed, so a consumer reading this through a pipe or process substitution —
+# where the exit status is not visible — can treat "no lines" as the only
+# failure mode, rather than silently acting on a truncated table.
 kona-prestate-variants:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    count=0
+    lines=()
     for pair in {{KONA_PRESTATE_VARIANTS}}; do
       variant="${pair%%:*}"
       dir="${pair#*:}"
@@ -601,10 +606,10 @@ kona-prestate-variants:
         echo "malformed KONA_PRESTATE_VARIANTS entry '${pair}', want '<cargo bin>:<artifacts dir>'" >&2
         exit 1
       fi
-      echo "${variant} ${dir}"
-      count=$((count + 1))
+      lines+=("${variant} ${dir}")
     done
-    (( count > 0 )) || { echo "KONA_PRESTATE_VARIANTS is empty" >&2; exit 1; }
+    (( ${#lines[@]} > 0 )) || { echo "KONA_PRESTATE_VARIANTS is empty" >&2; exit 1; }
+    printf '%s\n' "${lines[@]}"
 
 # Build the kona-client ELFs for the MIPS64 cannon target. Always builds every
 # variant: they are bins of the same package resolving to the same features, so

@@ -726,16 +726,23 @@ jobs:
             # array first: piping into `while` would swallow a failed/empty table
             # as a zero-upload success, and would hand the loop body's stdin to
             # gsutil.
-            VARIANTS=$(just kona-prestate-variants)
-            # -n before mapfile: a here-string of "" still yields one (empty)
-            # element, so the count alone would not catch an empty table.
-            [ -n "${VARIANTS}" ] || { echo "no prestate variants to publish" >&2; exit 1; }
-            mapfile -t ENTRIES <<<"${VARIANTS}"
+            #
+            # No bash here-strings or heredocs anywhere in a CircleCI command:
+            # a doubled left angle bracket opens a parameter tag before any
+            # shell sees it, and an unclosed one kills the whole continuation.
+            # Via a temp file rather than process substitution, so a failing
+            # just still fails the step instead of reading as an empty table.
+            VARIANTS_FILE=$(mktemp)
+            just kona-prestate-variants > "${VARIANTS_FILE}"
+            mapfile -t ENTRIES < "${VARIANTS_FILE}"
+            rm -f "${VARIANTS_FILE}"
             (( ${#ENTRIES[@]} > 0 )) || { echo "no prestate variants to publish" >&2; exit 1; }
 
             for ENTRY in "${ENTRIES[@]}"; do
-              read -r VARIANT DIR <<<"${ENTRY}"
-              [ -n "${DIR}" ] || { echo "empty artifacts dir for '${VARIANT}'" >&2; exit 1; }
+              VARIANT=${ENTRY%% *}
+              DIR=${ENTRY##* }
+              [ -n "${VARIANT}" ] && [ -n "${DIR}" ] && [ "${VARIANT}" != "${DIR}" ] || {
+                echo "malformed variant entry '${ENTRY}'" >&2; exit 1; }
               PRESTATE_HASH=$(jq -er .pre "kona/${DIR}/prestate-proof.json")
               echo "Publishing ${VARIANT} prestate ${PRESTATE_HASH}"
               OBJECT="${PRESTATE_HASH}"

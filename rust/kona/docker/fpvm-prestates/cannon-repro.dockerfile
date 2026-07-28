@@ -53,7 +53,7 @@ RUN mise trust && mise install rust go just jq
 
 # Rustup's cargo/rustc proxies go ahead of mise shims on PATH. Any
 # cargo call then resolves to the rustup proxy directly and respects
-# RUSTUP_TOOLCHAIN (set by build-kona-client-elf). If it went through
+# RUSTUP_TOOLCHAIN (set by build-kona-client-elfs). If it went through
 # the mise shim instead, mise would re-set RUSTUP_TOOLCHAIN to the
 # active rust from mise.toml (stable 1.95) and build the wrong
 # toolchain into the prestate.

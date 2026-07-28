@@ -153,6 +153,25 @@ here. Treat items 1–4 as **blocking**.
    Validation catches schema and missing-`requires:`-target errors, not semantics
    (items 1–6).
 
+   **`validate` is not enough — use `process` with pipeline parameters.** Jobs
+   reachable only from a `when: << pipeline.parameters.c-run_* >>` workflow are
+   skipped when the parameter is false, which is the default, so a job that fails
+   to compile validates clean. Process the merged config with the gated params
+   turned on:
+
+   ```sh
+   printf '{"c-run_release":true,"c-run_kona_publish_prestates":true}' > /tmp/pp.json
+   circleci config process --pipeline-parameters /tmp/pp.json /tmp/merged-config.yml
+   ```
+
+   **Never write `<<` inside a `command:`.** CircleCI 2.1 treats `<<` as a
+   parameter-tag opener before any shell sees it, so bash here-strings (`<<<`) and
+   heredocs (`<<EOF`) fail the whole continuation with `Unclosed '<<' tag` — and a
+   continuation that fails to compile produces *no* workflows at all, so every
+   check silently disappears from the PR instead of going red. Escape as `\<<` if
+   you truly need the literal, or restructure to avoid it: `mapfile -t ARR <
+   <(cmd)` for a here-string, a temp file for a heredoc.
+
 ## General best practices
 
 Repo is CircleCI-primary; GitHub Actions footprint is small but these apply there.
