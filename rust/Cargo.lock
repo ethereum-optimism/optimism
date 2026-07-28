@@ -1053,6 +1053,7 @@ version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "63ec265e5d65d725175f6ca7711c970824c90ef9c0d1f1973711d4150ee612dd"
 dependencies = [
+ "alloy-json-abi",
  "alloy-sol-macro-input",
  "const-hex",
  "heck",
@@ -1071,12 +1072,14 @@ version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "89bf01077f18650876cfa682eb1f949967b5cde03f1a51c955c469d2c9b4aa67"
 dependencies = [
+ "alloy-json-abi",
  "const-hex",
  "dunce",
  "heck",
  "macro-string",
  "proc-macro2",
  "quote",
+ "serde_json",
  "syn 2.0.117",
  "syn-solidity",
 ]
@@ -7774,6 +7777,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "kona-sp1-proposer"
+version = "0.1.0"
+dependencies = [
+ "alloy-consensus 2.1.1",
+ "alloy-contract",
+ "alloy-eips 2.1.1",
+ "alloy-network 2.1.1",
+ "alloy-primitives",
+ "alloy-provider",
+ "alloy-rpc-types-eth 2.1.1",
+ "alloy-signer 2.1.1",
+ "alloy-signer-local 2.1.1",
+ "alloy-sol-types",
+ "alloy-transport-http",
+ "anyhow",
+ "async-trait",
+ "flate2",
+ "jsonrpsee",
+ "kona-sp1-client-utils",
+ "kona-sp1-host-utils",
+ "kona-sp1-super-range-executor",
+ "serde",
+ "serde_json",
+ "strum",
+ "strum_macros",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "kona-sp1-range-executor"
 version = "0.0.1"
 dependencies = [
@@ -13478,6 +13511,7 @@ dependencies = [
  "eyre",
  "futures",
  "futures-util",
+ "jsonrpsee",
  "op-alloy-consensus",
  "op-alloy-network",
  "op-alloy-rpc-types-engine",
@@ -13513,6 +13547,7 @@ dependencies = [
  "reth-rpc",
  "reth-rpc-api",
  "reth-rpc-engine-api",
+ "reth-rpc-eth-api",
  "reth-rpc-eth-types",
  "reth-rpc-server-types",
  "reth-stages-types",

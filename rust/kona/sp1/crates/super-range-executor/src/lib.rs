@@ -644,7 +644,8 @@ fn ensure_chain_ids_match_super(chain_ids: &[u64], super_v1: &SuperV1, label: &s
     Ok(())
 }
 
-fn proof_from_super_v1(super_v1: &SuperV1) -> Result<SuperRootProof> {
+/// Converts a decoded `SuperV1` into the guest-side `SuperRootProof` type.
+pub fn proof_from_super_v1(super_v1: &SuperV1) -> Result<SuperRootProof> {
     let output_roots = super_v1
         .chains
         .iter()
@@ -787,6 +788,16 @@ where
 pub struct SuperRootAtTimestampResponse {
     /// Latest L1 block currently being processed by the supernode.
     pub current_l1: BlockId,
+    /// Highest cross-safe L2 timestamp across the dependency set (min over
+    /// chains). Zero when the serving node predates the field.
+    #[serde(default, rename = "safe_timestamp", deserialize_with = "deserialize_u64_or_hex")]
+    pub current_safe_timestamp: u64,
+    /// Highest local-safe L2 timestamp across the dependency set.
+    #[serde(default, rename = "local_safe_timestamp", deserialize_with = "deserialize_u64_or_hex")]
+    pub current_local_safe_timestamp: u64,
+    /// Highest finalized L2 timestamp across the dependency set.
+    #[serde(default, rename = "finalized_timestamp", deserialize_with = "deserialize_u64_or_hex")]
+    pub current_finalized_timestamp: u64,
     /// Optimistic outputs keyed by decimal or hex chain ID.
     #[serde(default)]
     pub optimistic_at_timestamp: BTreeMap<ChainId, OutputWithRequiredL1>,
@@ -1016,6 +1027,9 @@ mod tests {
         let super_root = hash_super_root_proof(&proof).expect("proof hashes");
         SuperRootAtTimestampResponse {
             current_l1: block(required_l1 + 1),
+            current_safe_timestamp: timestamp,
+            current_local_safe_timestamp: timestamp,
+            current_finalized_timestamp: timestamp,
             optimistic_at_timestamp,
             chain_ids: chain_ids.iter().copied().map(|id| ChainId(U256::from(id))).collect(),
             data: Some(SuperRootResponseData {
