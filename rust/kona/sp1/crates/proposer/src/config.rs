@@ -5,7 +5,7 @@
 //! provider settings) arrive with the defend path (#21463); challenger and
 //! forge-deploy configs are not ported.
 
-use std::{collections::BTreeSet, env, str::FromStr};
+use std::{env, str::FromStr};
 
 use alloy_primitives::{Address, B256};
 use alloy_transport_http::reqwest::{self, Url};
@@ -45,13 +45,19 @@ pub struct ProposerConfig {
     /// The address of the `DisputeGameFactory` contract.
     pub factory_address: Address,
 
-    /// URL of a TOML document mapping program names to 32-byte prestate
-    /// hashes (the `vkeys.toml` shape), accepting `file://` and `http(s)://`
-    /// URIs. The value set is the known prestates: game creation pauses when
-    /// the registered implementation's `absolutePrestate()` is not in the
-    /// set (see `ensure_prestate_known`), and the set is re-fetched on a
-    /// miss so a hardfork that registers a new prestate only requires
-    /// updating the document, not restarting the proposer.
+    /// Base URL of a prestate artifact directory, accepting `file://` and
+    /// `http(s)://` URIs. Each prestate is keyed by the game's
+    /// `absolutePrestate()` hash (the super-aggregation program vkey, which
+    /// embeds the super-range program vkey and therefore uniquely identifies
+    /// both) and maps to two program ELFs, following the op-challenger
+    /// `--prestates-url` convention:
+    /// - `<url>/<vkey>.agg.bin.gz` (super-aggregation program)
+    /// - `<url>/<vkey>.range.bin.gz` (super-range program)
+    ///
+    /// The create path only checks artifact existence (see
+    /// `prestate_available`): creation pauses when either artifact is
+    /// missing, since the proposer could not defend such a game once proving
+    /// lands. The defend path will load the ELFs from the same location.
     pub prestates_url: Url,
 
     /// Minimum spacing, in seconds of super-root timestamps, between the
@@ -120,49 +126,78 @@ impl ProposerConfig {
     }
 }
 
-/// Loads the known prestate set from `url` (`file://` or `http(s)://`).
+/// Artifact suffix for the super-aggregation program ELF.
+pub const AGGREGATION_ARTIFACT_SUFFIX: &str = ".agg.bin.gz";
+/// Artifact suffix for the super-range program ELF (whose vkey the
+/// aggregation program embeds).
+pub const RANGE_ARTIFACT_SUFFIX: &str = ".range.bin.gz";
+
+/// Returns the artifact URL for `prestate` with the given suffix under the
+/// `base` directory URL: `<base>/<prestate><suffix>`.
+pub fn prestate_artifact_url(base: &Url, prestate: B256, suffix: &str) -> Result<Url> {
+    let mut url = base.clone();
+    url.path_segments_mut()
+        .map_err(|()| anyhow!("PRESTATES_URL cannot be a base: {base}"))?
+        .pop_if_empty()
+        .push(&format!("{prestate}{suffix}"));
+    Ok(url)
+}
+
+/// The program ELFs a prestate resolves to: the super-aggregation program
+/// (whose vkey is the on-chain `absolutePrestate()`) and the super-range
+/// program (whose vkey the aggregation program embeds, making the prestate
+/// hash a unique key for both).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PrestatePrograms {
+    /// Decompressed super-aggregation program ELF.
+    pub aggregation_elf: Vec<u8>,
+    /// Decompressed super-range program ELF.
+    pub range_elf: Vec<u8>,
+}
+
+/// Loads and decompresses both program ELFs for `prestate` from `base`
+/// (`file://` reads the filesystem; `http(s)://` issues GET requests).
 ///
-/// The document is TOML mapping program names to 32-byte hex hashes; the
-/// value set is returned. Fails on unreachable documents, parse errors,
-/// invalid hashes, or an empty set - an empty set would silently pause
-/// creation forever.
-pub async fn load_prestates(url: &Url) -> Result<BTreeSet<B256>> {
-    let text = match url.scheme() {
+/// Fails when either artifact is missing, unreadable, or not valid gzip.
+/// The create path uses a successful load as the proof that games with this
+/// prestate are defendable; the defend path proves with the returned ELFs.
+/// Verifying that the aggregation ELF actually hashes to `prestate` requires
+/// an SP1 proving-key setup and lands with the proving logic.
+pub async fn load_prestate(base: &Url, prestate: B256) -> Result<PrestatePrograms> {
+    let aggregation_elf =
+        fetch_artifact(&prestate_artifact_url(base, prestate, AGGREGATION_ARTIFACT_SUFFIX)?)
+            .await?;
+    let range_elf =
+        fetch_artifact(&prestate_artifact_url(base, prestate, RANGE_ARTIFACT_SUFFIX)?).await?;
+    Ok(PrestatePrograms { aggregation_elf, range_elf })
+}
+
+/// Fetches a single artifact and gunzips it.
+async fn fetch_artifact(url: &Url) -> Result<Vec<u8>> {
+    let compressed = match url.scheme() {
         "file" => {
             let path = url
                 .to_file_path()
                 .map_err(|()| anyhow!("invalid file path in PRESTATES_URL: {url}"))?;
-            std::fs::read_to_string(&path)
-                .with_context(|| format!("failed to read prestates file {path:?}"))?
+            std::fs::read(&path)
+                .with_context(|| format!("failed to read prestate artifact {path:?}"))?
         }
         "http" | "https" => reqwest::get(url.clone())
             .await
-            .with_context(|| format!("failed to fetch prestates from {url}"))?
+            .with_context(|| format!("failed to fetch prestate artifact at {url}"))?
             .error_for_status()
-            .with_context(|| format!("prestates fetch returned an error status for {url}"))?
-            .text()
+            .with_context(|| format!("prestate artifact fetch failed for {url}"))?
+            .bytes()
             .await
-            .context("failed to read prestates response body")?,
+            .with_context(|| format!("failed to read prestate artifact body from {url}"))?
+            .to_vec(),
         other => bail!("unsupported PRESTATES_URL scheme {other} (expected file, http, or https)"),
     };
-    parse_prestates(&text)
-}
 
-/// Parses a TOML document of `name = "0x..."` entries into the prestate set.
-fn parse_prestates(text: &str) -> Result<BTreeSet<B256>> {
-    let table: std::collections::BTreeMap<String, String> =
-        toml::from_str(text).context("prestates document is not a TOML table of hash strings")?;
-    let mut prestates = BTreeSet::new();
-    for (name, raw) in &table {
-        let hash: B256 = raw
-            .parse()
-            .map_err(|err| anyhow!("prestate entry {name} is not a 32-byte hash: {err}"))?;
-        prestates.insert(hash);
-    }
-    if prestates.is_empty() {
-        bail!("prestates document contains no entries");
-    }
-    Ok(prestates)
+    let mut elf = Vec::new();
+    std::io::Read::read_to_end(&mut flate2::read::GzDecoder::new(compressed.as_slice()), &mut elf)
+        .with_context(|| format!("prestate artifact at {url} is not valid gzip"))?;
+    Ok(elf)
 }
 
 #[cfg(test)]
@@ -180,62 +215,83 @@ mod tests {
         use super::*;
 
         const HASH_A: &str = "0x0101010101010101010101010101010101010101010101010101010101010101";
-        const HASH_B: &str = "0x0202020202020202020202020202020202020202020202020202020202020202";
 
-        #[test]
-        fn parses_named_entries_into_value_set() {
-            let set = parse_prestates(&format!(
-                "super-aggregation = {HASH_A:?}\nnext-fork = {HASH_B:?}\n"
-            ))
-            .unwrap();
-            assert_eq!(set.len(), 2);
-            assert!(set.contains(&HASH_A.parse::<B256>().unwrap()));
-            assert!(set.contains(&HASH_B.parse::<B256>().unwrap()));
+        fn artifact_dir(name: &str) -> std::path::PathBuf {
+            let dir = std::env::temp_dir()
+                .join(format!("kona-sp1-prestates-test-{}-{name}", std::process::id()));
+            std::fs::create_dir_all(&dir).unwrap();
+            dir
+        }
+
+        fn write_artifact(dir: &std::path::Path, suffix: &str, contents: &[u8]) {
+            let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+            std::io::Write::write_all(&mut gz, contents).unwrap();
+            std::fs::write(dir.join(format!("{HASH_A}{suffix}")), gz.finish().unwrap()).unwrap();
+        }
+
+        fn write_artifacts(dir: &std::path::Path) {
+            write_artifact(dir, AGGREGATION_ARTIFACT_SUFFIX, b"aggregation-elf");
+            write_artifact(dir, RANGE_ARTIFACT_SUFFIX, b"range-elf");
         }
 
         #[test]
-        fn rejects_invalid_hash() {
-            assert!(parse_prestates("bad = \"0x1234\"\n").is_err());
-        }
-
-        #[test]
-        fn rejects_non_string_entry() {
-            assert!(parse_prestates("bad = 7\n").is_err());
-        }
-
-        #[test]
-        fn rejects_empty_document() {
-            // An empty set would silently pause creation forever.
-            assert!(parse_prestates("").is_err());
-        }
-
-        #[test]
-        fn rejects_non_toml() {
-            assert!(parse_prestates("{\"json\": true}").is_err());
+        fn artifact_url_follows_challenger_naming() {
+            let hash = HASH_A.parse::<B256>().unwrap();
+            let base = Url::parse("https://example.com/prestates").unwrap();
+            let url = prestate_artifact_url(&base, hash, AGGREGATION_ARTIFACT_SUFFIX).unwrap();
+            assert_eq!(url.as_str(), format!("https://example.com/prestates/{HASH_A}.agg.bin.gz"));
+            // A trailing slash on the base must not produce a double slash.
+            let base = Url::parse("https://example.com/prestates/").unwrap();
+            let url = prestate_artifact_url(&base, hash, RANGE_ARTIFACT_SUFFIX).unwrap();
+            assert_eq!(
+                url.as_str(),
+                format!("https://example.com/prestates/{HASH_A}.range.bin.gz")
+            );
         }
 
         #[tokio::test]
-        async fn loads_from_file_url() {
-            let path = std::env::temp_dir()
-                .join(format!("kona-sp1-prestates-test-{}.toml", std::process::id()));
-            std::fs::write(&path, format!("super-aggregation = {HASH_A:?}\n")).unwrap();
-            let url = Url::from_file_path(&path).unwrap();
-            let set = load_prestates(&url).await.unwrap();
-            std::fs::remove_file(&path).ok();
-            assert_eq!(set.len(), 1);
-            assert!(set.contains(&HASH_A.parse::<B256>().unwrap()));
+        async fn loads_and_decompresses_both_programs() {
+            let dir = artifact_dir("present");
+            write_artifacts(&dir);
+            let base = Url::from_directory_path(&dir).unwrap();
+            let programs = load_prestate(&base, HASH_A.parse::<B256>().unwrap()).await.unwrap();
+            assert_eq!(programs.aggregation_elf, b"aggregation-elf");
+            assert_eq!(programs.range_elf, b"range-elf");
         }
 
         #[tokio::test]
-        async fn missing_file_is_an_error() {
-            let url = Url::parse("file:///nonexistent/kona-sp1-prestates.toml").unwrap();
-            assert!(load_prestates(&url).await.is_err());
+        async fn missing_artifacts_fail_to_load() {
+            let dir = artifact_dir("missing");
+            let base = Url::from_directory_path(&dir).unwrap();
+            assert!(load_prestate(&base, HASH_A.parse::<B256>().unwrap()).await.is_err());
+        }
+
+        #[tokio::test]
+        async fn one_missing_artifact_fails_to_load() {
+            // Proving needs both programs: the aggregation ELF alone is not
+            // enough to defend a game.
+            let dir = artifact_dir("agg-only");
+            write_artifact(&dir, AGGREGATION_ARTIFACT_SUFFIX, b"aggregation-elf");
+            let base = Url::from_directory_path(&dir).unwrap();
+            assert!(load_prestate(&base, HASH_A.parse::<B256>().unwrap()).await.is_err());
+        }
+
+        #[tokio::test]
+        async fn corrupt_artifact_fails_to_load() {
+            // A truncated or non-gzip artifact must not count as a usable
+            // program.
+            let dir = artifact_dir("corrupt");
+            write_artifact(&dir, AGGREGATION_ARTIFACT_SUFFIX, b"aggregation-elf");
+            std::fs::write(dir.join(format!("{HASH_A}{RANGE_ARTIFACT_SUFFIX}")), b"not gzip")
+                .unwrap();
+            let base = Url::from_directory_path(&dir).unwrap();
+            assert!(load_prestate(&base, HASH_A.parse::<B256>().unwrap()).await.is_err());
         }
 
         #[tokio::test]
         async fn unsupported_scheme_is_an_error() {
-            let url = Url::parse("ftp://example.com/prestates.toml").unwrap();
-            assert!(load_prestates(&url).await.is_err());
+            let url = Url::parse("ftp://example.com/prestates").unwrap();
+            assert!(load_prestate(&url, HASH_A.parse::<B256>().unwrap()).await.is_err());
         }
     }
 }

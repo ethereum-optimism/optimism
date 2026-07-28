@@ -7791,6 +7791,7 @@ dependencies = [
  "alloy-transport-http",
  "anyhow",
  "async-trait",
+ "flate2",
  "jsonrpsee",
  "kona-sp1-client-utils",
  "kona-sp1-host-utils",
@@ -7800,7 +7801,6 @@ dependencies = [
  "strum",
  "strum_macros",
  "tokio",
- "toml",
  "tracing",
 ]
 

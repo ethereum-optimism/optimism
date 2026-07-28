@@ -1,7 +1,8 @@
 package sysgo
 
 import (
-	"fmt"
+	"compress/gzip"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -52,20 +53,29 @@ func startZKProposer(
 	require.NoError(err, "prepare kona-sp1-proposer binary")
 	require.NotEmpty(execPath, "kona-sp1-proposer binary path resolved")
 
-	// The proposer loads its known prestate set from a TOML document (the
-	// vkeys.toml shape) via file:// or http(s)://. Devstack exercises the
-	// file:// path with a document holding the deployed vkey.
-	prestatesPath := filepath.Join(t.TempDir(), "prestates.toml")
-	require.NoError(
-		os.WriteFile(prestatesPath, fmt.Appendf(nil, "super-aggregation = %q\n", programVKey.Hex()), 0o600),
-		"write prestates document",
+	// The proposer checks (and, with the defend path, loads) program
+	// artifacts at PRESTATES_URL/<vkey>.agg.bin.gz and .range.bin.gz,
+	// mirroring op-challenger's --prestates-url convention. The aggregation
+	// vkey embeds the range program's vkey, so it keys both ELFs. Devstack
+	// publishes the real ELFs, gzipped, into a temp artifact directory and
+	// exercises the file:// path.
+	prestatesDir := t.TempDir()
+	elfDir := os.Getenv("KONA_SP1_ELF_DIR")
+	require.NotEmpty(elfDir, "KONA_SP1_ELF_DIR must be set to publish the prestate artifacts")
+	writePrestateArtifact(t,
+		filepath.Join(elfDir, "super-aggregation-elf"),
+		filepath.Join(prestatesDir, programVKey.Hex()+".agg.bin.gz"),
+	)
+	writePrestateArtifact(t,
+		filepath.Join(elfDir, "super-range-elf"),
+		filepath.Join(prestatesDir, programVKey.Hex()+".range.bin.gz"),
 	)
 
 	env := []string{
 		"L1_RPC=" + l1EL.UserRPC(),
 		"SUPERNODE_RPC=" + supernodeRPC,
 		"FACTORY_ADDRESS=" + factoryAddr.Hex(),
-		"PRESTATES_URL=file://" + prestatesPath,
+		"PRESTATES_URL=file://" + prestatesDir,
 		"PRIVATE_KEY=" + hexutil.Encode(crypto.FromECDSA(proposerSecret)),
 		// Short cadence for devstack: propose every 6s off the safe head so
 		// acceptance tests observe games without waiting for finality.
@@ -141,4 +151,21 @@ func freeTCPPort(t devtest.T) int {
 	port := lis.Addr().(*net.TCPAddr).Port
 	t.Require().NoError(lis.Close())
 	return port
+}
+
+// writePrestateArtifact gzips the program ELF at src into dst, one of the
+// `<vkey>.agg.bin.gz` / `<vkey>.range.bin.gz` artifacts the proposer's
+// prestate check looks for.
+func writePrestateArtifact(t devtest.T, src, dst string) {
+	require := t.Require()
+	in, err := os.Open(src)
+	require.NoError(err, "open program ELF")
+	defer in.Close()
+	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	require.NoError(err, "create prestate artifact")
+	defer out.Close()
+	gz := gzip.NewWriter(out)
+	_, err = io.Copy(gz, in)
+	require.NoError(err, "gzip program ELF")
+	require.NoError(gz.Close(), "finalize prestate artifact")
 }

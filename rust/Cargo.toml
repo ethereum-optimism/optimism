@@ -605,6 +605,7 @@ brotli = { version = "8.0.2", default-features = false }
 # Floor at 5.0.1, which fixes a silently-dropped RFC 7932 §9.2 padding error
 # (dropbox/rust-brotli-decompressor#44) that otherwise diverges from op-node.
 brotli-decompressor = { version = "5.0.1", default-features = false }
+flate2 = "1.1.9"
 getrandom = "0.3.4"
 lz4 = "1.28.1"
 lz4_flex = { version = "0.12", default-features = false }

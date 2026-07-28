@@ -8,7 +8,7 @@
 //! intentionally absent (defend path, #21463).
 
 use std::{
-    collections::{BTreeSet, HashMap, HashSet},
+    collections::{HashMap, HashSet},
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering},
@@ -26,7 +26,7 @@ use tokio::{sync::RwLock, time};
 
 use crate::{
     FactoryTrait, L1Provider, TX_REVERTED_PREFIX, TxErrorExt, ZK_GAME_TYPE,
-    config::{ProposerConfig, load_prestates},
+    config::{PrestatePrograms, ProposerConfig, load_prestate},
     contract::{
         AnchorStateRegistry::{self, AnchorStateRegistryInstance},
         DelayedWETH,
@@ -71,10 +71,7 @@ pub enum TaskInfo {
     BondClaim,
 }
 
-/// Proposer identity for version tracking and startup logging. The known
-/// prestate set (which gates creation and, with the defend path, selects the
-/// proving program) lives on [`Proposer::prestates`] so it can be refreshed
-/// at runtime.
+/// Proposer identity for version tracking and startup logging.
 #[derive(Clone, Debug)]
 pub struct ProposerIdentity {
     /// Crate version string.
@@ -87,11 +84,11 @@ impl ProposerIdentity {
         Self { version: env!("CARGO_PKG_VERSION").to_string() }
     }
 
-    /// Logs the proposer identity and known prestates at startup.
-    pub fn log_startup_info(&self, prestates: &BTreeSet<B256>) {
+    /// Logs the proposer identity and prestate artifact source at startup.
+    pub fn log_startup_info(&self, prestates_url: &alloy_transport_http::reqwest::Url) {
         tracing::info!(
             version = %self.version,
-            prestates = ?prestates.iter().map(|p| p.to_string()).collect::<Vec<_>>(),
+            prestates_url = %prestates_url,
             "proposer identity",
         );
     }
@@ -297,9 +294,9 @@ where
     pub superroot_client: SuperrootClient,
     /// `DisputeGameFactory` contract instance used to create and enumerate games.
     pub factory: Arc<DisputeGameFactoryInstance<P>>,
-    /// Known prestate set loaded from `PRESTATES_URL`; refreshed on a miss
-    /// (see `ensure_prestate_known`). Gates game creation.
-    pub prestates: Arc<RwLock<BTreeSet<B256>>>,
+    /// Loaded prestate programs keyed by `absolutePrestate()` hash, fetched
+    /// from `PRESTATES_URL` on demand (see [`ensure_prestate_loaded`]).
+    pub prestates: Arc<RwLock<HashMap<B256, Arc<PrestatePrograms>>>>,
     tasks: Arc<tokio::sync::Mutex<TaskMap>>,
     next_task_id: Arc<AtomicU64>,
     state: Arc<RwLock<ProposerState>>,
@@ -339,17 +336,14 @@ where
     P: Provider + Clone + Send + Sync + 'static,
 {
     /// Creates a new proposer instance with the provided signer and factory
-    /// contract instance. Loads the known prestate set from
-    /// `config.prestates_url`; startup fails when the document is
-    /// unreachable or empty.
+    /// contract instance.
     pub async fn new(
         config: ProposerConfig,
         signer: SignerLock,
         factory: DisputeGameFactoryInstance<P>,
     ) -> Result<Self> {
         let identity = ProposerIdentity::new();
-        let prestates = load_prestates(&config.prestates_url).await?;
-        identity.log_startup_info(&prestates);
+        identity.log_startup_info(&config.prestates_url);
 
         let l1_provider = ProviderBuilder::default().connect_http(config.l1_rpc.clone());
         let superroot_client = SuperrootClient::new(&config.supernode_rpc)?;
@@ -360,7 +354,7 @@ where
             l1_provider,
             superroot_client,
             factory: Arc::new(factory),
-            prestates: Arc::new(RwLock::new(prestates)),
+            prestates: Arc::new(RwLock::new(HashMap::new())),
             tasks: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
             next_task_id: Arc::new(AtomicU64::new(1)),
             state: Arc::new(RwLock::new(ProposerState::default())),
@@ -459,14 +453,21 @@ where
     /// Runs one-time startup validations before the proposer begins normal operations.
     /// Returns the validated anchor sequence number.
     async fn startup_validations(&self) -> Result<u64> {
-        // Validate the registered game args decode and flag an unknown prestate.
+        // Validate the registered game args decode and load the registered
+        // prestate's programs.
         let game_args = self.registered_game_args(BlockId::latest()).await?;
-        if !self.prestates.read().await.contains(&game_args.absolute_prestate) {
-            // Not fatal: creation stays paused until the registered prestate
-            // appears in the PRESTATES_URL document, but flag it loudly.
+        if !ensure_prestate_loaded(
+            &self.prestates,
+            &self.config.prestates_url,
+            game_args.absolute_prestate,
+        )
+        .await
+        {
+            // Not fatal: creation stays paused until the artifacts appear
+            // under PRESTATES_URL (ensure_prestate_loaded logged why).
             tracing::warn!(
                 registered = %game_args.absolute_prestate,
-                "registered game prestate is not in the known prestate set; creation will pause"
+                "registered prestate programs unavailable; creation will pause"
             );
         }
 
@@ -1024,15 +1025,21 @@ where
     }
 
     /// Returns true if game creation may proceed for the currently registered
-    /// game implementation's prestate (see [`prestate_known_with_refresh`]).
+    /// game implementation's prestate (see [`ensure_prestate_loaded`]).
     async fn registered_prestate_known(&self) -> Result<bool> {
         let args = self.registered_game_args(BlockId::latest()).await?;
-        Ok(prestate_known_with_refresh(
+        Ok(ensure_prestate_loaded(
             &self.prestates,
             &self.config.prestates_url,
             args.absolute_prestate,
         )
         .await)
+    }
+
+    /// Returns the loaded program ELFs for `prestate`, if present in the
+    /// cache. The defend path proves with these.
+    pub async fn prestate_programs(&self, prestate: B256) -> Option<Arc<PrestatePrograms>> {
+        self.prestates.read().await.get(&prestate).cloned()
     }
 
     /// Creates a new game with the given parameters.
@@ -2020,44 +2027,49 @@ pub fn withdrawal_matured(withdrawal_ts: u64, weth_delay: u64, l1_now: u64) -> b
         withdrawal_ts.checked_add(weth_delay).is_some_and(|deadline| l1_now >= deadline)
 }
 
-/// Policy for game creation when the registered prestate is not in the known
-/// set. Hard-pause (`false`) is the conservative default: never bond a game
-/// we may not be able to defend. Flip to `true` for warn-and-continue.
+/// Policy for game creation when the registered prestate's programs cannot
+/// be loaded. Hard-pause (`false`) is the conservative default: never bond a
+/// game we could not defend. Flip to `true` for warn-and-continue.
 pub const CREATE_ON_UNKNOWN_PRESTATE: bool = false;
 
-/// Returns true if game creation may proceed for `registered`, the currently
-/// registered game implementation's prestate.
+/// Ensures the program ELFs for `registered` are loaded into `cache`,
+/// fetching them from `url` on a miss (see [`load_prestate`]). Returns
+/// whether game creation may proceed for that prestate.
 ///
-/// On a miss the prestate set is re-fetched once from `url`: a hardfork that
-/// rotates the registered prestate only requires updating the document, not
-/// restarting the proposer. When the prestate is still unknown after the
-/// refresh, returns [`CREATE_ON_UNKNOWN_PRESTATE`].
-pub async fn prestate_known_with_refresh(
-    prestates: &RwLock<BTreeSet<B256>>,
+/// The artifact directory is consulted live on every cache miss, so a
+/// hardfork that rotates the registered prestate only requires publishing
+/// the new program artifacts, not restarting the proposer. When loading
+/// fails, returns [`CREATE_ON_UNKNOWN_PRESTATE`].
+pub async fn ensure_prestate_loaded(
+    cache: &RwLock<HashMap<B256, Arc<PrestatePrograms>>>,
     url: &alloy_transport_http::reqwest::Url,
     registered: B256,
 ) -> bool {
-    if prestates.read().await.contains(&registered) {
+    if cache.read().await.contains_key(&registered) {
         return true;
     }
-
-    match load_prestates(url).await {
-        Ok(fresh) => *prestates.write().await = fresh,
+    match load_prestate(url, registered).await {
+        Ok(programs) => {
+            tracing::info!(
+                prestate = %registered,
+                aggregation_elf_bytes = programs.aggregation_elf.len(),
+                range_elf_bytes = programs.range_elf.len(),
+                "Loaded prestate programs"
+            );
+            cache.write().await.insert(registered, Arc::new(programs));
+            true
+        }
         Err(e) => {
-            tracing::warn!(error = %e, "Failed to refresh prestates document on miss");
+            tracing::warn!(
+                registered = %registered,
+                error = %e,
+                "Failed to load the registered prestate's programs - skipping game creation \
+                 (publish the artifacts under PRESTATES_URL if this is a hardfork)"
+            );
+            ProposerGauge::UnknownRegisteredPrestate.increment(1.0);
+            CREATE_ON_UNKNOWN_PRESTATE
         }
     }
-    if prestates.read().await.contains(&registered) {
-        return true;
-    }
-
-    tracing::warn!(
-        registered = %registered,
-        "Registered prestate not in known set - skipping game creation \
-         (update the PRESTATES_URL document if this is a hardfork)"
-    );
-    ProposerGauge::UnknownRegisteredPrestate.increment(1.0);
-    CREATE_ON_UNKNOWN_PRESTATE
 }
 
 #[cfg(test)]
@@ -2110,64 +2122,72 @@ mod tests {
     }
 
     mod prestate_gate {
-        use super::super::prestate_known_with_refresh;
+        use super::super::ensure_prestate_loaded;
+        use crate::config::PrestatePrograms;
         use alloy_primitives::B256;
         use alloy_transport_http::reqwest::Url;
-        use std::collections::BTreeSet;
+        use std::{collections::HashMap, sync::Arc};
         use tokio::sync::RwLock;
 
         const HASH_A: &str = "0x0101010101010101010101010101010101010101010101010101010101010101";
-        const HASH_B: &str = "0x0202020202020202020202020202020202020202020202020202020202020202";
 
-        fn doc_url(name: &str, contents: &str) -> Url {
-            let path = std::env::temp_dir()
-                .join(format!("kona-sp1-gate-test-{}-{name}.toml", std::process::id()));
-            std::fs::write(&path, contents).unwrap();
-            Url::from_file_path(&path).unwrap()
+        fn artifact_dir(name: &str) -> std::path::PathBuf {
+            let dir = std::env::temp_dir()
+                .join(format!("kona-sp1-gate-test-{}-{name}", std::process::id()));
+            std::fs::create_dir_all(&dir).unwrap();
+            dir
+        }
+
+        fn write_artifacts(dir: &std::path::Path) {
+            for s in [".agg.bin.gz", ".range.bin.gz"] {
+                let mut gz =
+                    flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+                std::io::Write::write_all(&mut gz, b"elf").unwrap();
+                std::fs::write(dir.join(format!("{HASH_A}{s}")), gz.finish().unwrap()).unwrap();
+            }
+        }
+
+        fn empty_cache() -> RwLock<HashMap<B256, Arc<PrestatePrograms>>> {
+            RwLock::new(HashMap::new())
         }
 
         #[tokio::test]
-        async fn known_prestate_passes_without_refresh() {
-            let a: B256 = HASH_A.parse().unwrap();
-            let set = RwLock::new(BTreeSet::from([a]));
-            // Deliberately unreadable URL: must not be consulted on a hit.
-            let url = Url::parse("file:///nonexistent/prestates.toml").unwrap();
-            assert!(prestate_known_with_refresh(&set, &url, a).await);
+        async fn loadable_programs_allow_creation_and_fill_cache() {
+            let dir = artifact_dir("available");
+            let hash: B256 = HASH_A.parse().unwrap();
+            write_artifacts(&dir);
+            let base = Url::from_directory_path(&dir).unwrap();
+            let cache = empty_cache();
+            assert!(ensure_prestate_loaded(&cache, &base, hash).await);
+            let programs = cache.read().await.get(&hash).cloned().expect("cached");
+            assert_eq!(programs.aggregation_elf, b"elf");
+            assert_eq!(programs.range_elf, b"elf");
+
+            // Cache hit: succeeds even if the directory disappears.
+            std::fs::remove_dir_all(&dir).unwrap();
+            assert!(ensure_prestate_loaded(&cache, &base, hash).await);
         }
 
         #[tokio::test]
-        async fn unknown_prestate_found_after_document_update() {
-            // Hardfork flow: the registered prestate rotates to B, the
-            // operator updates the document, and the gate self-heals without
-            // a restart.
-            let a: B256 = HASH_A.parse().unwrap();
-            let b: B256 = HASH_B.parse().unwrap();
-            let url = doc_url(
-                "updated",
-                &format!("super-aggregation = {HASH_A:?}\nnext-fork = {HASH_B:?}\n"),
-            );
-            let set = RwLock::new(BTreeSet::from([a]));
-            assert!(prestate_known_with_refresh(&set, &url, b).await);
-            assert!(set.read().await.contains(&b), "refresh must persist the new set");
+        async fn missing_programs_hard_pause() {
+            let dir = artifact_dir("pause");
+            let hash: B256 = HASH_A.parse().unwrap();
+            let base = Url::from_directory_path(&dir).unwrap();
+            let cache = empty_cache();
+            assert!(!ensure_prestate_loaded(&cache, &base, hash).await);
+            assert!(cache.read().await.is_empty(), "failed load must not populate the cache");
+
+            // Hardfork flow: publishing the artifacts self-heals the gate
+            // without a restart.
+            write_artifacts(&dir);
+            assert!(ensure_prestate_loaded(&cache, &base, hash).await);
         }
 
         #[tokio::test]
-        async fn unknown_prestate_hard_pauses() {
-            let a: B256 = HASH_A.parse().unwrap();
-            let b: B256 = HASH_B.parse().unwrap();
-            let url = doc_url("stale", &format!("super-aggregation = {HASH_A:?}\n"));
-            let set = RwLock::new(BTreeSet::from([a]));
-            assert!(!prestate_known_with_refresh(&set, &url, b).await);
-        }
-
-        #[tokio::test]
-        async fn unreachable_document_keeps_current_set_and_pauses() {
-            let a: B256 = HASH_A.parse().unwrap();
-            let b: B256 = HASH_B.parse().unwrap();
-            let url = Url::parse("file:///nonexistent/prestates.toml").unwrap();
-            let set = RwLock::new(BTreeSet::from([a]));
-            assert!(!prestate_known_with_refresh(&set, &url, b).await);
-            assert!(set.read().await.contains(&a), "failed refresh must not clear the set");
+        async fn failed_check_hard_pauses() {
+            let hash: B256 = HASH_A.parse().unwrap();
+            let base = Url::parse("ftp://example.com/prestates").unwrap();
+            assert!(!ensure_prestate_loaded(&empty_cache(), &base, hash).await);
         }
     }
 
