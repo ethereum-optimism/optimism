@@ -52,13 +52,15 @@ func (f *FunderEOA) ChainID() eth.ChainID {
 	return f.eoa.ChainID()
 }
 
-// AsFunder returns a funder for the same account bound to a different EL node on
-// the same chain. The returned funder tracks nonces independently, so do not fund
-// concurrently through both the original and the returned funder — create one and
-// share it.
+// AsFunder returns a view of the same funder bound to a different EL node on the
+// same chain. All views share the account's includer and nonce state, so they are
+// safe to use concurrently. Funded EOAs are created and observed through el;
+// funding transactions continue to use the original funder's EL.
 func (f *FunderEOA) AsFunder(el ELNode) *FunderEOA {
 	f.require.Equal(f.ChainID(), el.ChainID(), "funder EL must be on the same chain")
-	return NewFunderEOA(f.eoa.AsEL(el), f.wallet)
+	view := *f
+	view.eoa = f.eoa.AsEL(el)
+	return &view
 }
 
 // fund sends amount to addr, waiting for the funding tx to be included. It is safe
