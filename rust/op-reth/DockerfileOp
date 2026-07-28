@@ -49,10 +49,10 @@ RUN cargo auditable build --profile $BUILD_PROFILE --locked --bin op-reth --mani
 RUN ls -la /app/target/$BUILD_PROFILE/op-reth
 RUN cp /app/target/$BUILD_PROFILE/op-reth /app/op-reth
 
-FROM chainguard/wolfi-base:latest AS runtime
+FROM chainguard/wolfi-base:latest@sha256:02dab76bd852a70556b5b2002195c8a5fdab77d323c433bf6642aab080489795 AS runtime
 
 # apk has no built-in download retry; loop so a transient CDN drop doesn't flake CI (~5 min budget).
-RUN n=0; until apk add --no-cache ca-certificates openssl libstdc++ strace; do n=$((n+1)); [ "$n" -ge 15 ] && exit 1; echo "apk add retry $n/15 in 20s" >&2; sleep 20; done
+RUN n=0; until apk add --no-cache ca-certificates openssl libstdc++; do n=$((n+1)); [ "$n" -ge 15 ] && exit 1; echo "apk add retry $n/15 in 20s" >&2; sleep 20; done
 
 WORKDIR /app
 COPY --from=builder /app/op-reth /usr/local/bin/

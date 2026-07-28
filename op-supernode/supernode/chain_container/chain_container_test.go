@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"math/big"
 	"net/http"
+	"os"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -504,6 +505,26 @@ func TestChainContainer_EngineControllerSetupErrorFailsConstruction(t *testing.T
 
 	_, err := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
 	require.ErrorIs(t, err, setupErr)
+}
+
+// TestChainContainer_DenyListOpenErrorFailsConstruction verifies that a failure
+// to open the deny list aborts construction rather than being swallowed. The
+// deny list is what stops a node from adopting invalidated blocks as safe, so a
+// chain must not start unable to consult it.
+func TestChainContainer_DenyListOpenErrorFailsConstruction(t *testing.T) {
+	chainID := eth.ChainIDFromUInt64(420)
+	vncfg := createTestVNConfig() // no L2 endpoint, so construction reaches the deny list open
+	log := createTestLogger(t)
+	initOverload := &rollupNode.InitializationOverrides{}
+
+	// Point DataDir at a regular file so the deny list directory cannot be created.
+	dataDir := filepath.Join(t.TempDir(), "not-a-dir")
+	require.NoError(t, os.WriteFile(dataDir, []byte("x"), 0o600))
+	cfg := createTestCLIConfig(dataDir)
+
+	_, err := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "deny list")
 }
 
 func TestChainContainerIsRPCReady(t *testing.T) {
