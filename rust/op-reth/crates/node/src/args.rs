@@ -163,9 +163,12 @@ pub struct RollupArgs {
     #[arg(long = "rollup.enable-tx-conditional", default_value = "false")]
     pub enable_tx_conditional: bool,
 
-    /// Retain RPC-submitted transactions in the local pool after forwarding them.
-    #[arg(long = "rollup.txpool.enable-admission", default_value_t = false)]
-    pub enable_txpool_admission: bool,
+    /// Retain RPC-submitted transactions in the local pool after forwarding them
+    /// to the sequencer.
+    ///
+    /// This flag only has an effect when `rollup.sequencer` is present.
+    #[arg(long = "rollup.retain-forwarded-txs", default_value_t = false)]
+    pub retain_forwarded_txs: bool,
 
     /// Local operator opt-in for SDM `PostExec` production at process boot. The admin RPC
     /// (`admin_setOperatorSdmOptIn`) can still toggle it at runtime. Defaults to disabled.
@@ -296,7 +299,7 @@ impl Default for RollupArgs {
             compute_pending_block: false,
             discovery_v4: false,
             enable_tx_conditional: false,
-            enable_txpool_admission: false,
+            retain_forwarded_txs: false,
             operator_sdm_opt_in: false,
             interop_http: Vec::new(),
             interop_min_responses: None,
@@ -386,12 +389,11 @@ mod tests {
 
     #[test]
     fn test_parse_optimism_enable_txpool_admission() {
-        assert!(!RollupArgs::default().enable_txpool_admission);
+        assert!(!RollupArgs::default().retain_forwarded_txs);
 
-        let expected_args = RollupArgs { enable_txpool_admission: true, ..Default::default() };
+        let expected_args = RollupArgs { retain_forwarded_txs: true, ..Default::default() };
         let args =
-            CommandParser::<RollupArgs>::parse_from(["reth", "--rollup.txpool.enable-admission"])
-                .args;
+            CommandParser::<RollupArgs>::parse_from(["reth", "--rollup.retain-forwarded-txs"]).args;
         assert_eq!(args, expected_args);
     }
 

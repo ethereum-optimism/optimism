@@ -53,7 +53,7 @@ async fn test_admin_external_ip() -> eyre::Result<()> {
 }
 
 #[tokio::test]
-async fn test_forwarded_transaction_txpool_admission() -> eyre::Result<()> {
+async fn test_retain_forwarded_txs() -> eyre::Result<()> {
     reth_tracing::init_test_tracing();
 
     let genesis: Genesis = serde_json::from_str(include_str!("../assets/genesis.json"))?;
@@ -86,7 +86,7 @@ async fn test_forwarded_transaction_txpool_admission() -> eyre::Result<()> {
     let _server_handle = server.start(module);
 
     let exec = Runtime::test();
-    for enable_txpool_admission in [false, true] {
+    for retain_forwarded_txs in [false, true] {
         let mut network_args = NetworkArgs::default().with_unused_ports();
         network_args.discovery.discv5_port = Some(0);
         network_args.discovery.discv5_port_ipv6 = Some(0);
@@ -96,7 +96,7 @@ async fn test_forwarded_transaction_txpool_admission() -> eyre::Result<()> {
             .with_rpc(RpcServerArgs::default().with_unused_ports());
         let op_node = OpNode::new(RollupArgs {
             sequencer: Some(sequencer_url.clone()),
-            enable_txpool_admission,
+            retain_forwarded_txs,
             ..Default::default()
         });
 
@@ -107,8 +107,8 @@ async fn test_forwarded_transaction_txpool_admission() -> eyre::Result<()> {
             EthTransactions::send_raw_transaction(node.add_ons_handle.eth_api(), raw_tx.clone())
                 .await?;
         assert_eq!(forwarded_hash, tx_hash);
-        assert_eq!(node.pool.len(), usize::from(enable_txpool_admission));
-        assert_eq!(node.pool.get(&tx_hash).is_some(), enable_txpool_admission);
+        assert_eq!(node.pool.len(), usize::from(retain_forwarded_txs));
+        assert_eq!(node.pool.get(&tx_hash).is_some(), retain_forwarded_txs);
     }
 
     Ok(())
