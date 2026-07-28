@@ -253,10 +253,9 @@ cannon-prestates:
   cd rust && just build-kona-prestates
 
 # Verifies the reproducibility of released cannon prestates against the
-# superchain-registry standard prestates. Each tagged release (op-program/v*
-# and kona-client/v*) is rebuilt from its own checked-out source, so historical
-# op-program prestates are still checked even though op-program is no longer in
-# the tree.
+# superchain-registry standard prestates. Only kona-client/v* releases are
+# rebuilt and verified; op-program prestates remain in the registry but are no
+# longer re-validated.
 verify-reproducibility:
   rm -rf ops/prestate-reproducibility/temp/states
   ./ops/prestate-reproducibility/build-prestates.sh
