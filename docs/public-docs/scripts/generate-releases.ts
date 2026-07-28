@@ -272,6 +272,47 @@ function rewriteSpecsBlobLinks(text: string): string {
   );
 }
 
+// The Google Sheets fee/batcher parameter calculators historically linked from
+// release notes are no longer available (docs ruling, 2026-07-28: remove all
+// references to them). Rewrite any markdown link to those sheets to the
+// in-docs cost-tuning guidance so regenerated pages never reintroduce them.
+const RETIRED_CALCULATOR_SHEET_IDS = [
+  "1V3CWpeUzXv5Iopw8lBSS8tWoSzyR4PDDwV9cu2kKOrs",
+  "12VIiXHaVECG2RUunDSVJpn67IQp9NHFJqUsma2PndpE",
+];
+function rewriteRetiredCalculatorLinks(text: string): string {
+  return mapOutsideCodeBlocks(text, (part) => {
+    for (const id of RETIRED_CALCULATOR_SHEET_IDS) {
+      const re = new RegExp(
+        `\\[[^\\]]*\\]\\(https://docs\\.google\\.com/spreadsheets/d/${id}[^)]*\\)`,
+        "g",
+      );
+      part = part.replace(
+        re,
+        "[the Tune batcher costs guide](/use-cases/tune-batcher-costs)",
+      );
+    }
+    return part;
+  });
+}
+
+// The docs-site migration retired the /builders/* URL namespace; release
+// bodies written before the migration still link into it. Rewrite known
+// retired paths to their current root-relative equivalents (which the
+// dead-internal-link check in scripts/lint-link-policy.mjs validates).
+const RETIRED_DOCS_PATHS: Record<string, string> = {
+  "/builders/chain-operators/management/blobs":
+    "/chain-operators/guides/features/blobs",
+};
+function rewriteRetiredDocsLinks(text: string): string {
+  return mapOutsideCodeBlocks(text, (part) =>
+    part.replace(
+      /https:\/\/docs\.optimism\.io(\/[\w\-./]*)/g,
+      (m, p: string) => RETIRED_DOCS_PATHS[p] ?? m,
+    ),
+  );
+}
+
 // Release bodies also deliberately pin ethereum-optimism source links to the
 // commit or tag the release shipped with (registry configs, contract sources).
 // The docs link policy (op-stack/contribute/link-policy.mdx) requires an
@@ -340,6 +381,12 @@ function processBody(body: string | null): string {
 
   // Canonicalize specs-repo blob links to the rendered specs site
   out = rewriteSpecsBlobLinks(out);
+
+  // Replace links to the retired Google Sheets calculators with in-docs guidance
+  out = rewriteRetiredCalculatorLinks(out);
+
+  // Rewrite retired pre-migration docs.optimism.io paths to current pages
+  out = rewriteRetiredDocsLinks(out);
 
   // Badge remaining commit-/tag-pinned source links per the docs link policy
   out = badgePinnedSourceLinks(out);
