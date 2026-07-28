@@ -709,19 +709,30 @@ func TestVerifyContinuationDeploymentPermissionedAddressParity(t *testing.T) {
 }
 
 func TestDecodeContinuationGameArgsRejectsInvalidLengths(t *testing.T) {
+	// Derived from the layout constants so that changing one cannot leave this test
+	// asserting against a length the decoder no longer expects.
 	tests := []struct {
 		layout continuationGameArgsLayout
 		length int
 	}{
-		{continuationPermissionedGameArgs, 163},
-		{continuationPermissionedGameArgs, 165},
-		{continuationSuperPermissionedGameArgs, 39},
-		{continuationSuperPermissionedGameArgs, 41},
+		{continuationPermissionedGameArgs, continuationPermissionedGameArgsLength - 1},
+		{continuationPermissionedGameArgs, continuationPermissionedGameArgsLength + 1},
+		{continuationSuperPermissionedGameArgs, continuationSuperPermissionedGameArgsLength - 1},
+		{continuationSuperPermissionedGameArgs, continuationSuperPermissionedGameArgsLength + 1},
+		// LibGameArgs also defines a 124-byte permissionless form; the permissioned layout
+		// must not accept it.
+		{continuationPermissionedGameArgs, 124},
 	}
 	for _, test := range tests {
 		_, err := decodeContinuationGameArgs(make([]byte, test.length), test.layout)
-		require.Error(t, err)
+		require.ErrorContains(t, err, "game arguments have length")
 	}
+
+	_, err := decodeContinuationGameArgs(
+		make([]byte, continuationPermissionedGameArgsLength),
+		continuationSuperPermissionedGameArgs+1,
+	)
+	require.ErrorContains(t, err, "unknown continuation game argument layout")
 }
 
 func TestVerifyContinuationDeploymentFailures(t *testing.T) {

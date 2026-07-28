@@ -231,6 +231,9 @@ func verifyContinuationDeployment(
 	}
 	verifier.verifySystemConfig()
 	verifier.verifySuperchainConfig()
+	// Only verify using the validator on permissionless mode.
+	// The validator expects the permissionless game to exist,
+	// so it would always fail on a permissioned chain.
 	if mode.permissionless {
 		verifier.verifyStandardValidator()
 	}
@@ -635,6 +638,10 @@ func (v *continuationVerifier) verifyProxyAdminOwner() {
 }
 
 // Recheck persistent assertions from the deployment's ChainAssertions.sol.
+//
+// DeployOPChain.s.sol already runs those Solidity assertions through checkOutput, but
+// only inside the forked preflight simulation. The checks below also run against live L1.
+//
 // Deployment-only state cannot be verified during continuation. StandardValidator
 // covers permissionless implementation wiring; permissioned wiring is checked directly.
 func (v *continuationVerifier) verifyPersistentWiring(implementations *continuationOPCMImplementations) {
@@ -976,16 +983,23 @@ func readContinuationOPCMImplementations(
 	)
 }
 
+// These lengths mirror LibGameArgs in packages/contracts-bedrock/src/dispute/lib/LibGameArgs.sol.
+const (
+	continuationPermissionedGameArgsLength      = 164 // LibGameArgs.PERMISSIONED_ARGS_LENGTH
+	continuationSuperPermissionedGameArgsLength = 40  // LibGameArgs.SUPER_PERMISSIONED_ARGS_LENGTH
+)
+
 // These offsets mirror packages/contracts-bedrock/src/dispute/lib/LibGameArgs.sol.
 func decodeContinuationGameArgs(
 	gameArgs []byte,
 	layout continuationGameArgsLayout,
 ) (continuationGameArgs, error) {
 	if layout == continuationSuperPermissionedGameArgs {
-		if len(gameArgs) != 40 {
+		if len(gameArgs) != continuationSuperPermissionedGameArgsLength {
 			return continuationGameArgs{}, fmt.Errorf(
-				"configured super permissioned game arguments have length %d, expected 40",
+				"configured super permissioned game arguments have length %d, expected %d",
 				len(gameArgs),
+				continuationSuperPermissionedGameArgsLength,
 			)
 		}
 		return continuationGameArgs{
@@ -997,12 +1011,11 @@ func decodeContinuationGameArgs(
 	if layout != continuationPermissionedGameArgs {
 		return continuationGameArgs{}, fmt.Errorf("unknown continuation game argument layout %d", layout)
 	}
-	expectedLength := 164
-	if len(gameArgs) != expectedLength {
+	if len(gameArgs) != continuationPermissionedGameArgsLength {
 		return continuationGameArgs{}, fmt.Errorf(
 			"configured game arguments have length %d, expected %d",
 			len(gameArgs),
-			expectedLength,
+			continuationPermissionedGameArgsLength,
 		)
 	}
 
