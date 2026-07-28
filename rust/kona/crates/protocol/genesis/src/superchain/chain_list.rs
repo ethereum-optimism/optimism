@@ -97,15 +97,11 @@ pub struct SuperchainParent {
 
 impl SuperchainParent {
     /// Returns the chain ID for the parent superchain.
-    ///
-    /// `chain` identifies the superchain registry namespace, rather than the
-    /// L1 chain. Some superchains, such as `sepolia-devnet-2`, therefore have
-    /// an L2 chain ID here.
     pub fn chain_id(&self) -> u64 {
         match self.chain.as_ref() {
             "mainnet" => 1,
             "sepolia" => 11155111,
-            "sepolia-devnet-2" => 420130015,
+            "sepolia-devnet-2" => 11155111,
             _ => 10,
         }
     }
@@ -138,6 +134,6 @@ mod tests {
     #[test]
     fn chain_id_for_sepolia_devnet_2() {
         let parent = SuperchainParent { chain: "sepolia-devnet-2".into(), ..Default::default() };
-        assert_eq!(parent.chain_id(), 420130015);
+        assert_eq!(parent.chain_id(), 11155111);
     }
 }
