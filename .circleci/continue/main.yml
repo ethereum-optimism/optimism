@@ -2184,7 +2184,7 @@ jobs:
     resource_class: large.gen2
     steps:
       - utils/checkout-with-mise:
-          checkout-method: blobless
+          checkout-method: full
           enable-mise-cache: true
       # `just verify-reproducibility` runs `go run ...verify.go` on the host.
       - restore-go-mod-cache
