@@ -722,9 +722,21 @@ jobs:
             set -euo pipefail
             BRANCH_NAME=$(echo "<< pipeline.git.branch >>" | tr '/' '-')
             # Variant -> artifacts dir comes from the justfile so CI and the
-            # build can't disagree about where a variant landed.
-            just kona-prestate-variants | while read -r VARIANT DIR; do
-              PRESTATE_HASH=$(jq -r .pre "kona/${DIR}/prestate-proof.json")
+            # build can't disagree about where a variant landed. Read it into an
+            # array first: piping into `while` would swallow a failed/empty table
+            # as a zero-upload success, and would hand the loop body's stdin to
+            # gsutil.
+            VARIANTS=$(just kona-prestate-variants)
+            # -n before mapfile: a here-string of "" still yields one (empty)
+            # element, so the count alone would not catch an empty table.
+            [ -n "${VARIANTS}" ] || { echo "no prestate variants to publish" >&2; exit 1; }
+            mapfile -t ENTRIES <<<"${VARIANTS}"
+            (( ${#ENTRIES[@]} > 0 )) || { echo "no prestate variants to publish" >&2; exit 1; }
+
+            for ENTRY in "${ENTRIES[@]}"; do
+              read -r VARIANT DIR <<<"${ENTRY}"
+              [ -n "${DIR}" ] || { echo "empty artifacts dir for '${VARIANT}'" >&2; exit 1; }
+              PRESTATE_HASH=$(jq -er .pre "kona/${DIR}/prestate-proof.json")
               echo "Publishing ${VARIANT} prestate ${PRESTATE_HASH}"
               OBJECT="${PRESTATE_HASH}"
               if [ -n "<< pipeline.git.branch >>" ]; then
@@ -737,7 +749,7 @@ jobs:
               fi
               gsutil cp "kona/${DIR}/prestate.bin.gz" "gs://oplabs-network-data/proofs/kona/cannon/${OBJECT}.bin.gz"
             done
-            echo "Successfully published prestates artifacts to GCS"
+            echo "Successfully published ${#ENTRIES[@]} prestate artifacts to GCS"
       # No cache save: builds in Docker, host registry stays empty.
 
   required-rust-ci:

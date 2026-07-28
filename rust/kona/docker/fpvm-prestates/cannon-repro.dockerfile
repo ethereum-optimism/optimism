@@ -96,7 +96,7 @@ COPY --from=kona-custom-configs / /usr/local/kona-custom-configs
 ENV KONA_CUSTOM_CONFIGS=${KONA_CUSTOM_CONFIGS}
 
 # --- Layer 5: Build the kona-client ELFs ---
-# build-kona-client-elf sets CARGO_BUILD_TARGET to the corrected target spec
+# build-kona-client-elfs sets CARGO_BUILD_TARGET to the corrected target spec
 # from the source tree, overriding cannon-builder's baked-in spec. Every
 # variant is built in one cargo invocation so the shared dependency graph is
 # compiled once; stage-kona-client-elfs then lifts the ELFs out of the target
@@ -107,7 +107,7 @@ RUN --mount=type=cache,target=/root/.cargo/registry \
     if [ "$KONA_CUSTOM_CONFIGS" = "true" ]; then \
       export KONA_CUSTOM_CONFIGS_DIR=/usr/local/kona-custom-configs; \
     fi && \
-    just build-kona-client-elf && \
+    just build-kona-client-elfs && \
     just stage-kona-client-elfs /app/elf
 
 ################################################################
