@@ -58,6 +58,46 @@ OPCM now uses the `ProxyAdmin` that owns each target proxy and preserves the exi
 Calling `OPCM.upgrade()` for each member chain can therefore reapply the shared-contract portion of the upgrade without resetting games, anchors, withdrawal state, balances, or lockbox authorizations.
 This change does not migrate a chain into an Interop set.
 
+## Breaking Changes
+
+### Chain Operators
+
+Chain operators must coordinate the L1 contract cutover with the services that propose, challenge, and monitor Fault Proofs.
+
+* Switch `op-proposer` to the new Super Root RPC and game type at the contract cutover.
+* Configure `op-challenger` and `op-dispute-mon` to support Super Root Dispute Games while retaining the configuration needed to finish games already in progress.
+* For permissionless Fault Proofs, stage the reviewed `kona-client` Interop variant prestate before the cutover.
+* Update operational tooling that calls the removed `SystemConfig` functions.
+* For a chain in an existing Interop set, upgrade every member chain and validate both the per-chain and shared contracts.
+
+The [Fault Proof service changes](#prepare-fault-proof-services), [`SystemConfig` integration changes](#update-systemconfig-integrations), and [prestate workflow](#locate-or-build-the-absolute-prestate) are described below.
+
+### Node Operators
+
+Operators who run only `op-node` and an execution client do not need to configure a hardfork activation timestamp.
+Upgrade 20 has no L2 hardfork, and it does not require an `op-node` or `op-batcher` configuration change.
+If the node also provides a Super Root RPC to Fault Proof services, keep that endpoint reachable during and after the cutover.
+Node operators who also run `op-proposer`, `op-challenger`, or `op-dispute-mon` must follow the chain operator actions.
+
+### App Developers and Infrastructure Integrators
+
+Ordinary L2 contracts and transactions are not affected.
+Update an integration if it does any of the following:
+
+* Calls `SystemConfig.batchInbox()` or `SystemConfig.setGasConfig(uint256,uint256)`.
+* Decodes the first word of a `FEE_SCALARS` `ConfigUpdate` event as the current `overhead()` value.
+* Reads Dispute Game root claims directly and assumes the claim is an Output Root.
+
+For Super Root Dispute Games, direct Dispute Game integrations must recognize game types `5` and `9` and use `rootClaimByChainId(uint256)` to obtain the chain's Output Root.
+The `overhead()` getter remains available for compatibility but is deprecated.
+
+### Bridge Operators and Users
+
+Withdrawal proofs submitted before Upgrade 20 remain valid.
+Users do not need to re-prove them.
+Existing Output Root Dispute Games continue to resolve, and the `OptimismPortal` supports withdrawal proofs from both Output Root and Super Root Dispute Games.
+Bridge or withdrawal tooling that reads Dispute Game contracts directly must follow the app developer guidance above.
+
 ## Prepare Fault Proof services
 
 Use the following configuration changes when staging the Upgrade 20 component releases:
