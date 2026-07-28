@@ -11,6 +11,7 @@ import (
 	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
@@ -1198,6 +1199,32 @@ func TestPredictChains_StaleGenesisTime(t *testing.T) {
 		err := predictChains(lgr, intent, st, run, selectAnchor, safe, 600)
 		require.ErrorContains(t, err, "the deployment window has elapsed")
 	})
+}
+
+// TestPrepare_RejectsAppliedWorkdir checks that prepare refuses a workdir that already holds an
+// applied deployment.
+func TestPrepare_RejectsAppliedWorkdir(t *testing.T) {
+	_, _, dk := shared.DefaultPrivkey(t)
+	l1ChainID := big.NewInt(900)
+	loc, _ := testutil.LocalArtifacts(t)
+
+	intent, st := shared.NewIntent(t, l1ChainID, dk, uint256.NewInt(1), loc, loc, standard.GasLimit)
+
+	st.AppliedIntent = intent
+	st.SetChainContracts(intent.Chains[0].ID, addresses.OpChainContracts{}, true)
+	intent.Chains = append(intent.Chains, shared.NewChainIntent(t, dk, l1ChainID, uint256.NewInt(2), standard.GasLimit))
+
+	workdir := t.TempDir()
+	require.NoError(t, intent.WriteToFile(filepath.Join(workdir, "intent.toml")))
+	require.NoError(t, st.WriteToFile(filepath.Join(workdir, "state.json")))
+
+	err := Prepare(context.Background(), PrepareConfig{
+		Workdir:    workdir,
+		Logger:     testlog.Logger(t, slog.LevelWarn),
+		PrivateKey: testPrivKey,
+		L1RPCUrl:   testL1RPCUrl,
+	})
+	require.ErrorContains(t, err, "cannot be prepared")
 }
 
 // TestGenerateGenesisForChains_UsesPredictedAddressesAndPinnedGenesisTime verifies that L2

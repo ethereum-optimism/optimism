@@ -113,6 +113,11 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return err
 	}
 
+	// A state produced by the apply pipeline MUST NOT be prepared.
+	if err := st.CheckNotApplied(); err != nil {
+		return err
+	}
+
 	if err := checkReservedOverrides(intent, st); err != nil {
 		return err
 	}

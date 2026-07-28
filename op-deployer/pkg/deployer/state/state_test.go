@@ -230,6 +230,17 @@ func TestState_CheckNotPrepared(t *testing.T) {
 	})
 }
 
+func TestState_CheckNotApplied(t *testing.T) {
+	t.Run("non-applied state can be prepared", func(t *testing.T) {
+		require.NoError(t, (&State{}).CheckNotApplied())
+	})
+
+	t.Run("applied state cannot be prepared", func(t *testing.T) {
+		err := (&State{AppliedIntent: &Intent{}}).CheckNotApplied()
+		require.ErrorContains(t, err, "cannot be prepared")
+	})
+}
+
 func TestPreparedDeploymentClone(t *testing.T) {
 	l1Locator, err := artifacts.NewFileLocator("/tmp/l1-artifacts")
 	require.NoError(t, err)
