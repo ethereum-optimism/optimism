@@ -2071,9 +2071,18 @@ pub fn withdrawal_matured(withdrawal_ts: u64, weth_delay: u64, l1_now: u64) -> b
 }
 
 /// Policy for game creation when the registered prestate's programs cannot
-/// be loaded. Hard-pause (`false`) is the conservative default: never bond a
-/// game we could not defend. Flip to `true` for warn-and-continue.
-pub const CREATE_ON_UNKNOWN_PRESTATE: bool = false;
+/// be loaded.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnknownPrestatePolicy {
+    /// Skip creation until the programs become loadable. The conservative
+    /// default: never bond a game we could not defend.
+    Pause,
+    /// Warn and create anyway (liveness-first).
+    Continue,
+}
+
+/// The active policy.
+pub const UNKNOWN_PRESTATE_POLICY: UnknownPrestatePolicy = UnknownPrestatePolicy::Pause;
 
 /// Ensures the program ELFs for `registered` are loaded into `cache`,
 /// fetching them from `url` on a miss (see [`load_prestate`]). Returns
@@ -2082,7 +2091,7 @@ pub const CREATE_ON_UNKNOWN_PRESTATE: bool = false;
 /// The artifact directory is consulted live on every cache miss, so a
 /// hardfork that rotates the registered prestate only requires publishing
 /// the new program artifacts, not restarting the proposer. When loading
-/// fails, returns [`CREATE_ON_UNKNOWN_PRESTATE`].
+/// fails, the result follows [`UNKNOWN_PRESTATE_POLICY`].
 pub async fn ensure_prestate_loaded(
     cache: &RwLock<HashMap<B256, Arc<PrestatePrograms>>>,
     url: &alloy_transport_http::reqwest::Url,
@@ -2106,11 +2115,14 @@ pub async fn ensure_prestate_loaded(
             tracing::warn!(
                 registered = %registered,
                 error = %e,
-                "Failed to load the registered prestate's programs - skipping game creation \
+                "Failed to load the registered prestate's programs \
                  (publish the artifacts under PRESTATES_URL if this is a hardfork)"
             );
             ProposerGauge::UnknownRegisteredPrestate.increment(1.0);
-            CREATE_ON_UNKNOWN_PRESTATE
+            match UNKNOWN_PRESTATE_POLICY {
+                UnknownPrestatePolicy::Pause => false,
+                UnknownPrestatePolicy::Continue => true,
+            }
         }
     }
 }
