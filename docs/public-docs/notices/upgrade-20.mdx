@@ -1,0 +1,75 @@
+---
+title: Upgrade 20
+description: Prepare OP Stack fault-proof infrastructure for the proposed move from output-root dispute games to super-root dispute games.
+---
+
+Upgrade 20 is a proposed contracts-and-proofs upgrade for OP Stack chains. It moves fault proofs from output-root dispute games to super-root dispute games while preserving each chain's existing permission model.
+
+<Info>
+  Upgrade 20 does not include a hardfork. Release versions, prestate hashes, affected chains, and rollout dates are not final. Do not make production changes from this notice until it names reviewed release artifacts and an upgrade schedule.
+</Info>
+
+## What's included
+
+The proposed upgrade adds the following super-root dispute game types:
+
+* `SUPER_PERMISSIONED` (game type `5`) for chains that use permissioned fault proofs.
+* `SUPER_CANNON_KONA` (game type `9`) for chains that use permissionless fault proofs.
+
+A permissioned chain remains permissioned. A permissionless chain runs both super-root game types and uses `SUPER_CANNON_KONA` as its respected game type. Existing dispute games continue to resolve through their original game types.
+
+The upgrade keeps each chain's existing `AnchorStateRegistry` and `DisputeGameFactory`. It uses an `OPCM.upgrade` transaction rather than migrating the chain to a shared dispute-game setup.
+
+## Prepare fault-proof services
+
+Wait for this page to name the Upgrade 20 component releases before changing production services. Use the following configuration changes when staging those releases:
+
+| Component | Required change |
+| --- | --- |
+| `op-challenger` | Add `--superroot-rpc` (`OP_CHALLENGER_SUPERROOT_RPC`). On a permissionless chain, append `super-cannon-kona` to the existing `--game-types` (`OP_CHALLENGER_GAME_TYPES`) value and configure the reviewed kona-interop prestate. Keep the existing game types so the challenger can finish games already in progress. |
+| `op-dispute-mon` | Add `--superroot-rpc` (`OP_DISPUTE_MON_SUPERROOT_RPC`). Keep `--rollup-rpc` while output-root games remain in progress. |
+| `op-proposer` | Switch at the contract-upgrade cutover. Replace `--rollup-rpc` with `--superroot-rpcs` (`OP_PROPOSER_SUPERROOT_RPCS`) and set `OP_PROPOSER_GAME_TYPE=5` for a permissioned chain or `OP_PROPOSER_GAME_TYPE=9` for a permissionless chain. |
+| `op-node` and `op-batcher` | No configuration change is planned for the current scope. Upgrade 20 has no hardfork activation. |
+
+The super-root RPC must return a root for the chain or dependency set that the dispute game covers. For a single-chain upgrade, use the chain's op-node RPC endpoint or the chain-specific endpoint exposed by an op-supernode.
+
+## Locate or build the absolute prestate
+
+Permissionless chains need the Upgrade 20 `kona-client` interop-variant absolute prestate for `SUPER_CANNON_KONA`. Use the `kona-client-int` artifact even when interop is not scheduled for the chain.
+
+<Tabs>
+  <Tab title="Standard chain configuration">
+    Use the `cannon64-kona-interop` hash published for the Upgrade 20 release in [`standard-prestates.toml`](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml).
+
+    After this notice names the release tag, check it out, reproduce both Kona prestates, and read the interop hash:
+
+    ```bash
+    just reproducible-prestate-kona
+    jq -r .pre rust/kona/prestate-artifacts-cannon-interop/prestate-proof.json
+    ```
+
+    Confirm the output matches the published hash. Host the generated hash-named `.bin.gz` file on the prestate server used by `op-challenger`.
+  </Tab>
+
+  <Tab title="Custom chain configuration">
+    First, stage the chain data described in [Generating a custom kona-client absolute prestate](/chain-operators/tutorials/kona-custom-prestate). After this notice names the Upgrade 20 Kona release tag, check it out and build the interop variant with the same custom configuration:
+
+    ```bash
+    cd rust
+    KONA_CUSTOM_CONFIGS_DIR=/absolute/path/to/custom-configs \
+      just build-kona-reproducible-prestate-variant \
+      kona-client-int prestate-artifacts-cannon-interop
+    jq -r .pre kona/prestate-artifacts-cannon-interop/prestate-proof.json
+    ```
+
+    Rebuild from a clean checkout with the same inputs and confirm the hash is identical. Host the generated hash-named `.bin.gz` file at a URL reachable by every challenger that participates on the chain. A custom prestate hash is specific to its embedded chain configuration and does not appear in `standard-prestates.toml`.
+  </Tab>
+</Tabs>
+
+## Upgrade timing
+
+The affected-chain list, component versions, reviewed prestate hashes, and rollout dates will be added when they are final. Because Upgrade 20 has no hardfork, node operators do not need to configure an L2 activation timestamp.
+
+The [output-root to super-root upgrade runbook](/chain-operators/tutorials/upgrade-chain-to-super-roots) describes the onchain upgrade and cutover checks. The runbook is not yet approved for production use; do not follow it on a production chain while its warning remains.
+
+For support, [open an issue in the Optimism monorepo](https://github.com/ethereum-optimism/optimism/issues).
