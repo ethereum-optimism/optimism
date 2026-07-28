@@ -205,49 +205,14 @@ func (el *L2ELNode) ReachedFn(label eth.BlockLabel, target uint64, attempts int)
 func (el *L2ELNode) ReachedWithProgressFn(label, progressLabel eth.BlockLabel, target uint64, maxWait, stallTimeout time.Duration) CheckFunc {
 	return func() error {
 		logger := el.log.With("name", el.inner.Name(), "chain", el.ChainID(), "label", label, "progress_label", progressLabel, "target", target)
-		logger.Info("Expecting L2EL to reach (progress-aware)", "max_wait", maxWait, "stall_timeout", stallTimeout)
-
-		deadline := time.Now().Add(maxWait)
-		lastProgress := uint64(0)
-		if p, err := el.blockRefByLabel(progressLabel); err == nil {
-			lastProgress = p.Number
-		}
-		lastProgressTime := time.Now()
-
-		ticker := time.NewTicker(2 * time.Second)
-		defer ticker.Stop()
-
-		for {
-			if head, err := el.blockRefByLabel(label); err != nil {
-				logger.Warn("block-label lookup failed; will retry", "err", err)
-			} else if head.Number >= target {
-				logger.Info("L2EL advanced", "target", target)
-				return nil
-			}
-
-			now := time.Now()
-			if p, err := el.blockRefByLabel(progressLabel); err != nil {
-				logger.Warn("progress-label lookup failed; will retry", "err", err)
-			} else if p.Number > lastProgress {
-				lastProgress = p.Number
-				lastProgressTime = now
-			}
-
-			stalledFor := now.Sub(lastProgressTime)
-			logger.Info("L2EL sync status (progress-aware)", "progress", lastProgress, "stalled_for", stalledFor)
-			if stalledFor >= stallTimeout {
-				return fmt.Errorf("expected head for label=%s to advance to target=%d: %s progress stalled at %d for %s", label, target, progressLabel, lastProgress, stalledFor)
-			}
-			if now.After(deadline) {
-				return fmt.Errorf("expected head for label=%s to advance to target=%d: timeout after %s (progress at %d)", label, target, maxWait, lastProgress)
-			}
-
-			select {
-			case <-el.ctx.Done():
-				return el.ctx.Err()
-			case <-ticker.C:
+		headNum := func(l eth.BlockLabel) func() (uint64, error) {
+			return func() (uint64, error) {
+				ref, err := el.blockRefByLabel(l)
+				return ref.Number, err
 			}
 		}
+		return awaitHeadWithProgress(el.ctx, logger, headNum(label), headNum(progressLabel), target, maxWait, stallTimeout,
+			fmt.Sprintf("expected head for label=%s to advance to target=%d", label, target), string(progressLabel))
 	}
 }
 

@@ -322,49 +322,14 @@ func (cl *L2CLNode) ReachedFn(lvl safety.Level, target uint64, attempts int) Che
 func (cl *L2CLNode) ReachedWithProgressFn(lvl, progressLvl safety.Level, target uint64, maxWait, stallTimeout time.Duration) CheckFunc {
 	return func() error {
 		logger := cl.log.With("name", cl.inner.Name(), "chain", cl.ChainID(), "label", lvl, "progress_label", progressLvl, "target", target)
-		logger.Info("Expecting chain to reach (progress-aware)", "max_wait", maxWait, "stall_timeout", stallTimeout)
-
-		deadline := time.Now().Add(maxWait)
-		lastProgress := uint64(0)
-		if p, err := cl.headBlockRef(progressLvl); err == nil {
-			lastProgress = p.Number
-		}
-		lastProgressTime := time.Now()
-
-		ticker := time.NewTicker(2 * time.Second)
-		defer ticker.Stop()
-
-		for {
-			if head, err := cl.headBlockRef(lvl); err != nil {
-				logger.Warn("SyncStatus RPC failed; will retry", "err", err)
-			} else if head.Number >= target {
-				logger.Info("Chain advanced", "target", target)
-				return nil
-			}
-
-			now := time.Now()
-			if p, err := cl.headBlockRef(progressLvl); err != nil {
-				logger.Warn("progress-head lookup failed; will retry", "err", err)
-			} else if p.Number > lastProgress {
-				lastProgress = p.Number
-				lastProgressTime = now
-			}
-
-			stalledFor := now.Sub(lastProgressTime)
-			logger.Info("Chain sync status (progress-aware)", "progress", lastProgress, "stalled_for", stalledFor)
-			if stalledFor >= stallTimeout {
-				return fmt.Errorf("expected head to advance: %s: %s progress stalled at %d for %s", lvl, progressLvl, lastProgress, stalledFor)
-			}
-			if now.After(deadline) {
-				return fmt.Errorf("expected head to advance: %s: timeout after %s (progress at %d)", lvl, maxWait, lastProgress)
-			}
-
-			select {
-			case <-cl.ctx.Done():
-				return cl.ctx.Err()
-			case <-ticker.C:
+		headNum := func(l safety.Level) func() (uint64, error) {
+			return func() (uint64, error) {
+				ref, err := cl.headBlockRef(l)
+				return ref.Number, err
 			}
 		}
+		return awaitHeadWithProgress(cl.ctx, logger, headNum(lvl), headNum(progressLvl), target, maxWait, stallTimeout,
+			fmt.Sprintf("expected head to advance: %s", lvl), progressLvl.String())
 	}
 }
 
