@@ -22,6 +22,7 @@ import (
 
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/locks"
 	"github.com/ethereum-optimism/optimism/op-service/plan"
 )
 
@@ -60,6 +61,27 @@ type PlannedTx struct {
 	BlobFeeCap plan.Lazy[*uint256.Int]                 // resolves to nil if not a blob tx
 	BlobHashes plan.Lazy[[]common.Hash]                // resolves to nil if not a blob tx
 	Sidecar    plan.Lazy[*types.BlobTxSidecar]         // resolves to nil if not a blob tx
+
+	flags locks.RWMap[Flag, struct{}]
+}
+
+// Flag is an opaque marker one Option sets and another reads, so Options can coordinate
+// without knowing each other's arguments or the order they are applied in.
+// Flags are read when the tx is evaluated, so that order does not matter.
+// Use a zero-size unexported type from the package that owns the flag as its value,
+// so flags from different packages cannot collide.
+type Flag any
+
+// WithFlag sets a flag on the tx. See Flag.
+func WithFlag(f Flag) Option {
+	return func(tx *PlannedTx) {
+		tx.flags.Set(f, struct{}{})
+	}
+}
+
+// HasFlag returns whether the given flag was set on this tx.
+func (ptx *PlannedTx) HasFlag(f Flag) bool {
+	return ptx.flags.Has(f)
 }
 
 func (ptx *PlannedTx) String() string {

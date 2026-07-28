@@ -100,7 +100,6 @@ func TestReorgInitExecMsg(gt *testing.T) {
 		execTx.Content.DependOn(&initTx.Result)
 		// single event in tx so index is 0. ExecuteIndexed returns a lambda to transform InteropOutput to a new ExecTrigger
 		execTx.Content.Fn(txintent.ExecuteIndexed(predeploys.CrossL2InboxAddr, &initTx.Result, 0))
-		bob.WaitForInitMessages(&initTx.Result)
 		var err error
 		execReceipt, err = execTx.PlannedTx.Included.Eval(ctx)
 		require.NoError(t, err)

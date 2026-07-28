@@ -19,7 +19,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/accounting"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/plan"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txinclude"
@@ -51,44 +50,13 @@ func planCall(t devtest.T, call txintent.Call) txplan.Option {
 	return txplan.Combine(plan...)
 }
 
-type BlockRefByLabel interface {
-	BlockRefByLabel(context.Context, eth.BlockLabel) (eth.BlockRef, error)
-}
-
-func planExecMsg(t devtest.T, initMsg *messages.Message, blockTime time.Duration, el BlockRefByLabel) txplan.Option {
+func planExecMsg(t devtest.T, initMsg *messages.Message) txplan.Option {
 	t.Require().NotNil(initMsg)
-	return txplan.Combine(planCall(t, &txintent.ExecTrigger{
+	// The EOA plan waits for the destination chain to build past initMsg before planning the tx:
+	// see txintent.WithInteropDependencyWait.
+	return planCall(t, &txintent.ExecTrigger{
 		Executor: predeploys.CrossL2InboxAddr,
 		Msg:      *initMsg,
-	}), func(tx *txplan.PlannedTx) {
-		tx.AgainstBlock.Wrap(func(fn plan.Fn[eth.BlockInfo]) plan.Fn[eth.BlockInfo] {
-			// The tx is invalid until we know it will be included at a higher timestamp than any
-			// of the initiating messages, modulo reorgs. Wait to plan the relay tx against a
-			// target block until the timestamp elapses. NOTE: this should be `>=`, but the mempool
-			// filtering in op-geth currently uses the unsafe head's timestamp instead of the
-			// pending timestamp. See https://github.com/ethereum-optimism/op-geth/issues/603.
-			// TODO(16371): if every txintent.Call had a Plan() method, this Option could be
-			// included with ExecTrigger.
-			for {
-				ref, err := el.BlockRefByLabel(t.Ctx(), eth.Unsafe)
-				if err != nil {
-					return func(context.Context) (eth.BlockInfo, error) {
-						return nil, fmt.Errorf("get block ref by label: %w", err)
-					}
-				}
-				if ref.Time > initMsg.Identifier.Timestamp {
-					break
-				}
-				select {
-				case <-time.After(blockTime):
-				case <-t.Ctx().Done():
-					return func(context.Context) (eth.BlockInfo, error) {
-						return nil, t.Ctx().Err()
-					}
-				}
-			}
-			return fn
-		})
 	})
 }
 

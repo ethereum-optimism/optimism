@@ -283,7 +283,6 @@ func TestInitExecMultipleMsg(gt *testing.T) {
 	// Two events in tx so use every index
 	indexes := []int{0, 1}
 	txB.Content.Fn(txintent.ExecuteIndexeds(predeploys.MultiCall3Addr, predeploys.CrossL2InboxAddr, &txA.Result, indexes))
-	bob.WaitForInitMessages(&txA.Result)
 
 	receiptB, err := txB.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(err)
@@ -326,7 +325,6 @@ func TestExecSameMsgTwice(gt *testing.T) {
 	// Single event in tx so indexes are 0, 0
 	indexes := []int{0, 0}
 	txB.Content.Fn(txintent.ExecuteIndexeds(predeploys.MultiCall3Addr, predeploys.CrossL2InboxAddr, &txA.Result, indexes))
-	bob.WaitForInitMessages(&txA.Result)
 
 	receiptB, err := txB.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(err)
@@ -379,7 +377,6 @@ func TestExecDifferentTopicCount(gt *testing.T) {
 	// Five events in tx so use every index
 	indexes := []int{0, 1, 2, 3, 4}
 	txB.Content.Fn(txintent.ExecuteIndexeds(predeploys.MultiCall3Addr, predeploys.CrossL2InboxAddr, &txA.Result, indexes))
-	bob.WaitForInitMessages(&txA.Result)
 
 	receiptB, err := txB.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(err)
@@ -430,7 +427,6 @@ func TestExecMsgOpaqueData(gt *testing.T) {
 	// Two events in tx so use every index
 	indexes := []int{0, 1}
 	txB.Content.Fn(txintent.ExecuteIndexeds(predeploys.MultiCall3Addr, predeploys.CrossL2InboxAddr, &txA.Result, indexes))
-	bob.WaitForInitMessages(&txA.Result)
 
 	receiptB, err := txB.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(err)
@@ -479,7 +475,6 @@ func TestExecMsgDifferEventIndexInSingleTx(gt *testing.T) {
 	// first, random or last event of a tx.
 	indexes := []int{0, 1 + rng.Intn(eventCnt-1), eventCnt - 1}
 	txB.Content.Fn(txintent.ExecuteIndexeds(predeploys.MultiCall3Addr, predeploys.CrossL2InboxAddr, &txA.Result, indexes))
-	bob.WaitForInitMessages(&txA.Result)
 
 	receiptB, err := txB.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(err)
@@ -607,8 +602,11 @@ func TestExecMessageInvalidAttributes(gt *testing.T) {
 
 	for _, faults := range faultsLists {
 		logger.Info("Attempt to validate message with invalid attribute", "faults", faults)
-		// Intent to validate message on chain B
-		txC := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](chuck.Plan())
+		// Intent to validate message on chain B.
+		// The identifiers are fabricated, so their timestamps do not describe a block chain A will
+		// ever build. There is nothing to wait for, and randomTimestamp is unreachable.
+		txC := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](
+			chuck.Plan(), txintent.WithoutInteropDependencyWait())
 		txC.Content.DependOn(&txA.Result)
 
 		// Random select event index in tx for injecting faults
@@ -636,7 +634,6 @@ func TestExecMessageInvalidAttributes(gt *testing.T) {
 	// Three events in tx so use every index
 	indexes := []int{0, 1, 2}
 	txB.Content.Fn(txintent.ExecuteIndexeds(predeploys.MultiCall3Addr, predeploys.CrossL2InboxAddr, &txA.Result, indexes))
-	bob.WaitForInitMessages(&txA.Result)
 
 	receiptB, err := txB.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(err)
