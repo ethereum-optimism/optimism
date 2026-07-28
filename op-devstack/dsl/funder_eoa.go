@@ -106,7 +106,7 @@ func (f *FunderEOA) Fund(to *EOA, amount eth.ETH) eth.ETH {
 	current := to.balance()
 	f.fund(to.Address(), amount)
 	final := current.Add(amount)
-	to.WaitForBalance(final)
+	to.WaitForBalanceAtLeast(final)
 	return final
 }
 
@@ -115,7 +115,7 @@ func (f *FunderEOA) FundAtLeast(to *EOA, amount eth.ETH) eth.ETH {
 	current := to.balance()
 	if current.Lt(amount) {
 		f.fund(to.Address(), amount.Sub(current))
-		to.WaitForBalance(amount)
+		to.WaitForBalanceAtLeast(amount)
 		return amount
 	}
 	return current

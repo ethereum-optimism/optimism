@@ -260,9 +260,9 @@ func WithCommons(l1ChainID eth.ChainID) DeployerOption {
 
 		l1Config.WithL1ForkAtGenesis(forks.Prague) // activate pectra on L1
 
-		faucetFunderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
+		funderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
 		p.Require().NoError(err, "need funder addr")
-		l1Config.WithPrefundedAccount(faucetFunderAddr, *eth.BillionEther.ToU256())
+		l1Config.WithPrefundedAccount(funderAddr, *eth.BillionEther.ToU256())
 
 		// We use the L1 chain ID to identify the superchain-wide roles.
 		addrFor := intentbuilder.RoleToAddrProvider(p, keys, l1ChainID)
@@ -289,9 +289,9 @@ func WithPrefundedL2(l1ChainID, l2ChainID eth.ChainID) DeployerOption {
 		// l2configurator L1ProxyAdminOwner must be also populated
 		intentbuilder.WithDevkeyL1Roles(p, keys, l2Config, l1ChainID)
 		{
-			faucetFunderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
+			funderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
 			p.Require().NoError(err, "need funder addr")
-			l2Config.WithPrefundedAccount(faucetFunderAddr, *eth.BillionEther.ToU256())
+			l2Config.WithPrefundedAccount(funderAddr, *eth.BillionEther.ToU256())
 		}
 		{
 			addrFor := intentbuilder.RoleToAddrProvider(p, keys, l2ChainID)

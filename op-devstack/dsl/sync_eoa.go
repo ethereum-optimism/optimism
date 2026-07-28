@@ -6,16 +6,15 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
-// SyncEOA sends transactions from a single account through a txinclude.Includer,
-// which manages nonces and resubmission. Because the includer serializes nonce
-// assignment, many transactions can be submitted concurrently and each awaited to
-// inclusion. It underpins concurrent funding (see FunderEOA) and the load tests.
+// SyncEOA plans transactions for an account and submits them through a
+// txinclude.Includer. Nonce management, resubmission, and concurrency behavior
+// are provided by the supplied includer.
 type SyncEOA struct {
 	plan     txplan.Option
 	includer txinclude.Includer
 }
 
-// NewSyncEOA creates a SyncEOA whose nonce and concurrency behavior comes from includer.
+// NewSyncEOA creates a SyncEOA backed by includer.
 func NewSyncEOA(includer txinclude.Includer, plan txplan.Option) *SyncEOA {
 	return &SyncEOA{
 		plan:     plan,

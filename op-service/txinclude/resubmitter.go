@@ -112,8 +112,8 @@ func tryToRecognizeError(err error) error {
 }
 
 // SendTransaction implements Sender. It will continue resubmitting unless an error is hit
-// that the resubmitter considers unfixable with resubmissions alone (e.g., requiring modifications to tx)
-// See fatalErrs for the list of these errors.
+// that the resubmitter considers unfixable with resubmissions alone (e.g., requiring modifications to tx).
+// See fatalErrs for the list; ErrNonceTooLow remains retryable after a successful submission.
 func (r *Resubmitter) SendTransaction(ctx context.Context, tx *types.Transaction) error {
 	submitted := false
 	for {

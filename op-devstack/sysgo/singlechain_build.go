@@ -114,9 +114,9 @@ func applyConfigCommons(t devtest.T, keys devkeys.Keys, l1ChainID eth.ChainID, b
 	l1Config.WithTimestamp(l1StartTimestamp)
 	l1Config.WithL1ForkAtGenesis(forks.Prague)
 
-	faucetFunderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
+	funderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
 	t.Require().NoError(err, "need funder addr")
-	l1Config.WithPrefundedAccount(faucetFunderAddr, *eth.BillionEther.ToU256())
+	l1Config.WithPrefundedAccount(funderAddr, *eth.BillionEther.ToU256())
 
 	addrFor := intentbuilder.RoleToAddrProvider(t, keys, l1ChainID)
 	_, superCfg := builder.WithSuperchain()
@@ -132,9 +132,9 @@ func applyConfigPrefundedL2(t devtest.T, keys devkeys.Keys, l1ChainID, l2ChainID
 	intentbuilder.WithDevkeyL2Roles(t, keys, l2Config)
 	intentbuilder.WithDevkeyL1Roles(t, keys, l2Config, l1ChainID)
 
-	faucetFunderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
+	funderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
 	t.Require().NoError(err, "need funder addr")
-	l2Config.WithPrefundedAccount(faucetFunderAddr, *eth.BillionEther.ToU256())
+	l2Config.WithPrefundedAccount(funderAddr, *eth.BillionEther.ToU256())
 
 	addrFor := intentbuilder.RoleToAddrProvider(t, keys, l2ChainID)
 	l1Config := l2Config.L1Config()

@@ -234,8 +234,7 @@ func (u *EOA) WaitForBalance(v eth.ETH) {
 
 // WaitForBalanceAtLeast waits until the balance is at least v. Prefer this over
 // WaitForBalance when the caller only cares about a lower bound (e.g. funding):
-// an exact wait hangs forever if the wallet is over-funded, which happens when a
-// faucet request is retried and more than one funding tx lands.
+// an exact wait hangs forever if another credit raises the balance past the target.
 func (u *EOA) WaitForBalanceAtLeast(v eth.ETH) {
 	u.t.Require().Eventuallyf(func() bool {
 		return !u.balance().Lt(v)

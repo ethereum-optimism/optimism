@@ -51,21 +51,32 @@ func TestResubmitterSuccessfulTransaction(t *testing.T) {
 }
 
 func TestResubmitterRetriesNonceTooLowAfterSuccessfulSubmission(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	inner := &mockSender{
-		errs: []error{nil, core.ErrNonceTooLow, core.ErrNonceTooLow},
-		onSend: func(call uint64) {
-			if call == 3 {
-				cancel()
-			}
-		},
+	tests := []struct {
+		name        string
+		acceptedErr error
+	}{
+		{name: "submitted"},
+		{name: "already known", acceptedErr: txpool.ErrAlreadyKnown},
 	}
-	resubmitter := txinclude.NewResubmitter(inner, time.Millisecond)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			inner := &mockSender{
+				errs: []error{test.acceptedErr, core.ErrNonceTooLow, core.ErrNonceTooLow},
+				onSend: func(call uint64) {
+					if call == 3 {
+						cancel()
+					}
+				},
+			}
+			resubmitter := txinclude.NewResubmitter(inner, time.Millisecond)
 
-	err := resubmitter.SendTransaction(ctx, types.NewTx(&types.DynamicFeeTx{}))
-	require.ErrorIs(t, err, context.Canceled)
-	require.Equal(t, uint64(3), inner.calls)
+			err := resubmitter.SendTransaction(ctx, types.NewTx(&types.DynamicFeeTx{}))
+			require.ErrorIs(t, err, context.Canceled)
+			require.Equal(t, uint64(3), inner.calls)
+		})
+	}
 }
 
 func TestResubmitterFatalErrors(t *testing.T) {
