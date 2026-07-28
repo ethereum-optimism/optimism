@@ -179,7 +179,6 @@ var sepoliaDevnet2Cfg = rollup.Config{
 	FjordTime:              u64Ptr(0),
 	GraniteTime:            u64Ptr(0),
 	HoloceneTime:           u64Ptr(0),
-	PectraBlobScheduleTime: nil,
 	IsthmusTime:            u64Ptr(0),
 	JovianTime:             u64Ptr(0),
 	KarstTime:              u64Ptr(0),
