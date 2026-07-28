@@ -360,7 +360,7 @@ generate_challenger_prestate() {
 
     # The prestate commits to kona-client, the maintained fault proof program.
     # op-program has reached end-of-support and must not be used:
-    # https://docs.optimism.io/notices/op-geth-deprecation
+    # https://docs.optimism.io/notices/archive/op-geth-deprecation
     #
     # Because this chain is not in the public Superchain Registry, the build
     # must embed the chain configuration. Stage chainList.json and configs.json

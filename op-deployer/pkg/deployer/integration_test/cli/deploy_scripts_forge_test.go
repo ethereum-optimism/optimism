@@ -12,10 +12,10 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
@@ -40,8 +40,7 @@ func TestDeployScriptsForge(t *testing.T) {
 		embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
 		require.NoError(t, err)
 
-		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
-		require.NoError(t, err)
+		forgeClient := testutil.NewForgeClient(t, fmt.Sprintf("%v", embeddedArtifactsFS))
 
 		// Deploy AltDA using Forge wrapper function
 		forgeEnv := &opcm.ForgeEnv{
@@ -104,8 +103,7 @@ func TestDeployScriptsForge(t *testing.T) {
 		embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
 		require.NoError(t, err)
 
-		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
-		require.NoError(t, err)
+		forgeClient := testutil.NewForgeClient(t, fmt.Sprintf("%v", embeddedArtifactsFS))
 
 		// Deploy AlphabetVM using Forge wrapper function
 		forgeEnv := &opcm.ForgeEnv{
@@ -163,8 +161,7 @@ func TestDeployScriptsForge(t *testing.T) {
 		embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
 		require.NoError(t, err)
 
-		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
-		require.NoError(t, err)
+		forgeClient := testutil.NewForgeClient(t, fmt.Sprintf("%v", embeddedArtifactsFS))
 
 		// Deploy MIPS using Forge wrapper function
 		forgeEnv := &opcm.ForgeEnv{
@@ -221,8 +218,7 @@ func TestDeployScriptsForge(t *testing.T) {
 		embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
 		require.NoError(t, err)
 
-		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
-		require.NoError(t, err)
+		forgeClient := testutil.NewForgeClient(t, fmt.Sprintf("%v", embeddedArtifactsFS))
 
 		// Deploy DisputeGame using Forge wrapper function
 		forgeEnv := &opcm.ForgeEnv{
@@ -274,8 +270,7 @@ func TestDeployScriptsForge(t *testing.T) {
 		embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
 		require.NoError(t, err)
 
-		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
-		require.NoError(t, err)
+		forgeClient := testutil.NewForgeClient(t, fmt.Sprintf("%v", embeddedArtifactsFS))
 
 		// Read superchain deployment using Forge wrapper function
 		forgeEnv := &opcm.ForgeEnv{

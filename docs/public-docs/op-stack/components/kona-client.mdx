@@ -23,7 +23,7 @@ That determinism is what makes fault disputes resolvable. For dispute games,
 kona-client is compiled to a big-endian 64-bit MIPS (MIPS64) ELF binary and
 run inside the [cannon](/op-stack/components/cannon) FPVM; this pairing backs
 the `CANNON_KONA` dispute game (game type 8), the respected game type for
-permissionless fault proofs since [Upgrade 19](/notices/upgrade-19). Because
+permissionless fault proofs since [Upgrade 19](/notices/archive/upgrade-19). Because
 every honest participant computes the identical execution trace, a dispute
 can be bisected down to a single MIPS instruction and that one instruction
 proven on L1.
@@ -31,7 +31,7 @@ proven on L1.
 kona-client succeeded op-program, the Go fault proof program behind the
 legacy `CANNON` (game type 0) and `PERMISSIONED_CANNON` (game type 1) games;
 op-program has reached end of support (see
-[End of Support for op-geth and op-program](/notices/op-geth-deprecation)),
+[End of Support for op-geth and op-program](/notices/archive/op-geth-deprecation)),
 and the kona binaries are the maintained fault proof program today.
 
 **Who runs it:** nobody invokes it by hand in production.

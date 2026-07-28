@@ -43,11 +43,15 @@ import (
 )
 
 const smokeWaitTimeout = 60 * time.Second
+const defaultReorgTimeout = 10 * time.Minute
 
 const (
-	l2AURLFlagName     = "l2a-rpc"
-	l2BURLFlagName     = "l2b-rpc"
-	privateKeyFlagName = "private-key"
+	l2AURLFlagName            = "l2a-rpc"
+	l2BURLFlagName            = "l2b-rpc"
+	privateKeyFlagName        = "private-key"
+	invalidBlocksFlagName     = "blocks"
+	invalidTxPerBlockFlagName = "tx-per-block"
+	reorgTimeoutFlagName      = "reorg-timeout"
 )
 
 // bridgeTimeout bounds a single A->B bridge (send, relay, and balance check).
@@ -101,13 +105,16 @@ type execMessage struct {
 }
 
 type smokeEnv struct {
-	ctx    context.Context
-	stderr io.Writer
-	logger log.Logger
-	chainA *remoteChain
-	chainB *remoteChain
-	userA  *remoteUser
-	userB  *remoteUser
+	ctx               context.Context
+	stderr            io.Writer
+	logger            log.Logger
+	chainA            *remoteChain
+	chainB            *remoteChain
+	userA             *remoteUser
+	userB             *remoteUser
+	invalidBlocks     uint
+	invalidTxPerBlock uint
+	reorgTimeout      time.Duration
 }
 
 func (m *initMessage) BlockNumber() uint64 {
@@ -429,15 +436,27 @@ func Subcommands(envPrefix string) []*cli.Command {
 		{
 			Name:  "invalid-message",
 			Usage: "send an invalid executing message and verify it is reorged out",
-			Flags: flags,
+			Flags: append(flags,
+				&cli.UintFlag{Name: invalidBlocksFlagName, Usage: "Number of Chain B blocks containing invalid transactions.", Value: 1},
+				&cli.UintFlag{Name: invalidTxPerBlockFlagName, Usage: "Number of invalid transactions to land per Chain B block.", Value: 1},
+				&cli.DurationFlag{Name: reorgTimeoutFlagName, Usage: "Maximum time to wait for each invalid block to be reorged.", Value: defaultReorgTimeout},
+			),
 			Action: func(cliCtx *cli.Context) error {
-				return withSmokeEnv(cliCtx, "Invalid Exec Message (reorg)", smokeInvalidMessage)
+				return withSmokeEnv(cliCtx, "Invalid Exec Message (reorg)", func(env *smokeEnv) error {
+					env.invalidBlocks = cliCtx.Uint(invalidBlocksFlagName)
+					env.invalidTxPerBlock = cliCtx.Uint(invalidTxPerBlockFlagName)
+					env.reorgTimeout = cliCtx.Duration(reorgTimeoutFlagName)
+					return smokeInvalidMessage(env)
+				})
 			},
 		},
 	}
 }
 
 func smokeAll(env *smokeEnv) error {
+	env.invalidBlocks = 1
+	env.invalidTxPerBlock = 1
+	env.reorgTimeout = defaultReorgTimeout
 	tests := []struct {
 		name string
 		fn   func(env *smokeEnv) error
@@ -550,6 +569,12 @@ func smokeValidMessage(env *smokeEnv) error {
 }
 
 func smokeInvalidMessage(env *smokeEnv) error {
+	if err := validateInvalidMessageOptions(env.invalidBlocks, env.invalidTxPerBlock); err != nil {
+		return err
+	}
+	if env.reorgTimeout <= 0 {
+		return fmt.Errorf("reorg-timeout must be greater than zero")
+	}
 	rng := rand.New(rand.NewSource(99))
 
 	eventLogger, err := env.userA.deployEventLogger(env.ctx)
@@ -557,31 +582,50 @@ func smokeInvalidMessage(env *smokeEnv) error {
 		return fmt.Errorf("deploy EventLogger: %w", err)
 	}
 
-	initMsg, err := env.userA.sendRandomInitMessage(env.ctx, rng, eventLogger, 2, 10)
-	if err != nil {
-		return fmt.Errorf("send init message: %w", err)
+	type invalidInclusion struct {
+		txHash, blockHash common.Hash
+		blockNum          uint64
 	}
-	if _, err := waitForNextBlock(env.ctx, env.chainB); err != nil {
-		return err
+	var inclusions []invalidInclusion
+	for block := uint(0); block < env.invalidBlocks; block++ {
+		initMessages := make([]*initMessage, 0, env.invalidTxPerBlock)
+		for tx := uint(0); tx < env.invalidTxPerBlock; tx++ {
+			initMsg, err := env.userA.sendRandomInitMessage(env.ctx, rng, eventLogger, 2, 10)
+			if err != nil {
+				return fmt.Errorf("send init message: %w", err)
+			}
+			initMessages = append(initMessages, initMsg)
+		}
+		if _, err := waitForNextBlock(env.ctx, env.chainB); err != nil {
+			return err
+		}
+		for _, initMsg := range initMessages {
+			invalidExec, err := env.userB.sendInvalidExecMessage(env.ctx, initMsg)
+			if err != nil {
+				return fmt.Errorf("send invalid exec message: %w", err)
+			}
+			if invalidExec.Receipt.Status != types.ReceiptStatusSuccessful {
+				return fmt.Errorf("invalid exec tx reverted before inclusion")
+			}
+			inclusion := invalidInclusion{invalidExec.Receipt.TxHash, invalidExec.BlockHash(), invalidExec.BlockNumber()}
+			inclusions = append(inclusions, inclusion)
+			fmt.Fprintf(env.stderr, "    Invalid exec tx included on Chain B: %s\n", inclusion.txHash)
+			fmt.Fprintf(env.stderr, "    Invalid exec message landed on Chain B block %d (%s)\n", inclusion.blockNum, inclusion.blockHash)
+		}
 	}
+	for _, inclusion := range inclusions {
+		if err := waitForReorgedOut(env.ctx, env.stderr, env.chainB, inclusion.blockNum, inclusion.blockHash, inclusion.txHash, env.reorgTimeout); err != nil {
+			return err
+		}
+		fmt.Fprintf(env.stderr, "    Invalid tx reorged out on Chain B after block %d was replaced\n", inclusion.blockNum)
+	}
+	return nil
+}
 
-	invalidExec, err := env.userB.sendInvalidExecMessage(env.ctx, initMsg)
-	if err != nil {
-		return fmt.Errorf("send invalid exec message: %w", err)
+func validateInvalidMessageOptions(blocks, txPerBlock uint) error {
+	if blocks == 0 || txPerBlock == 0 {
+		return fmt.Errorf("blocks and tx-per-block must be greater than zero")
 	}
-	if invalidExec.Receipt.Status != types.ReceiptStatusSuccessful {
-		return fmt.Errorf("invalid exec tx reverted before inclusion")
-	}
-
-	invalidBlockNum := invalidExec.BlockNumber()
-	invalidBlockHash := invalidExec.BlockHash()
-	fmt.Fprintf(env.stderr, "    Invalid exec tx included: %s\n", invalidExec.Receipt.TxHash)
-	fmt.Fprintf(env.stderr, "    Invalid exec message landed in block %d (%s)\n", invalidBlockNum, invalidBlockHash)
-
-	if err := waitForReorgedOut(env.ctx, env.stderr, env.chainB, invalidBlockNum, invalidBlockHash, invalidExec.Receipt.TxHash); err != nil {
-		return err
-	}
-	fmt.Fprintf(env.stderr, "    Invalid tx was reorged out after block %d was replaced\n", invalidBlockNum)
 	return nil
 }
 
@@ -636,8 +680,8 @@ func waitForHeadAtLeast(ctx context.Context, chain *remoteChain, target uint64) 
 	}
 }
 
-func waitForReorgedOut(ctx context.Context, stderr io.Writer, chain *remoteChain, blockNum uint64, oldHash, txHash common.Hash) error {
-	deadline := time.Now().Add(smokeWaitTimeout)
+func waitForReorgedOut(ctx context.Context, stderr io.Writer, chain *remoteChain, blockNum uint64, oldHash, txHash common.Hash, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
 	replaced := false
 	for attempt := 0; ; attempt++ {
 		currentBlock, err := chain.ethClient.BlockRefByNumber(ctx, blockNum)

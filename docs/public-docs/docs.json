@@ -113,7 +113,7 @@
     },
     {
       "source": "/chain-operators/tools/op-deployer/usage/upgrade",
-      "destination": "/notices/op-deployer-upgrade-deprecation"
+      "destination": "/notices/archive/op-deployer-upgrade-deprecation"
     },
     {
       "source": "/chain-operators/tools/op-deployer/reference/custom-deployments",
@@ -129,7 +129,7 @@
     },
     {
       "source": "/pages/app-developers/starter-kit",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/app-developers/tools/data-and-dashboards",
@@ -185,7 +185,7 @@
     },
     {
       "source": "/builders/dapp-developers/quick-start",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/dapp-developers/creating-a-nft",
@@ -325,7 +325,7 @@
     },
     {
       "source": "/stack/interop/transfer-superchainERC20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/stack/interop/architecture",
@@ -365,7 +365,7 @@
     },
     {
       "source": "/stack/overview",
-      "destination": "/op-stack/protocol/getting-started"
+      "destination": "/op-stack/introduction/op-stack"
     },
     {
       "source": "/stack/explainer",
@@ -481,7 +481,7 @@
     },
     {
       "source": "/stack/interop/compatible-tokens",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/stack/interop/reading-logs",
@@ -501,11 +501,11 @@
     },
     {
       "source": "/stack/interop/superchain-erc20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/stack/interop/tutorials/transfer-superchainERC20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/stack/interop/tutorials/bridge-crosschain-eth",
@@ -521,7 +521,7 @@
     },
     {
       "source": "/stack/interop/tutorials/custom-superchain-erc20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/stack/interop/tutorials/relay-messages-cast",
@@ -541,7 +541,7 @@
     },
     {
       "source": "/stack/interop/tutorials/deploy-superchain-erc20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/stack/interop/predeploy",
@@ -589,7 +589,7 @@
     },
     {
       "source": "/app-developers/get-started",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/app-developers/interop",
@@ -597,7 +597,7 @@
     },
     {
       "source": "/app-developers/starter-kit",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/app-developers/testing-apps",
@@ -713,7 +713,7 @@
     },
     {
       "source": "/app-developers/tutorials/interop/deploy-superchain-erc20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/app-developers/tutorials/interop/event-contests",
@@ -733,7 +733,7 @@
     },
     {
       "source": "/app-developers/tutorials/interop/transfer-superchainERC20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/app-developers/tutorials/supersim",
@@ -809,11 +809,11 @@
     },
     {
       "source": "/get-started/interop",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/concepts/interoperability/interop",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/get-started/op-stack",
@@ -825,7 +825,7 @@
     },
     {
       "source": "/interop/compatible-tokens",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/interop/explainer",
@@ -877,15 +877,15 @@
     },
     {
       "source": "/interop/starter-kit",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/interop/superchain-erc20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/concepts/interoperability/superchain-erc20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/interop/superchain-eth-bridge",
@@ -925,11 +925,11 @@
     },
     {
       "source": "/interop/tutorials/custom-superchain-erc20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/interop/tutorials/deploy-superchain-erc20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/interop/tutorials/event-contests",
@@ -953,7 +953,7 @@
     },
     {
       "source": "/interop/tutorials/transfer-superchainERC20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/notices/blob-fee-bug",
@@ -1010,6 +1010,26 @@
     {
       "source": "/notices/upgrade-16a",
       "destination": "/notices/archive/upgrade-16a"
+    },
+    {
+      "source": "/notices/upgrade-19",
+      "destination": "/notices/archive/upgrade-19"
+    },
+    {
+      "source": "/notices/op-geth-deprecation",
+      "destination": "/notices/archive/op-geth-deprecation"
+    },
+    {
+      "source": "/notices/op-deployer-upgrade-deprecation",
+      "destination": "/notices/archive/op-deployer-upgrade-deprecation"
+    },
+    {
+      "source": "/notices/req-resp-cl-sync-deprecation",
+      "destination": "/notices/archive/req-resp-cl-sync-deprecation"
+    },
+    {
+      "source": "/notices/stake-based-priority-ordering",
+      "destination": "/notices/archive/stake-based-priority-ordering"
     },
     {
       "source": "/operators/chain-operators",
@@ -1361,7 +1381,7 @@
     },
     {
       "source": "/stack/getting-started",
-      "destination": "/op-stack/protocol/getting-started"
+      "destination": "/op-stack/introduction/op-stack"
     },
     {
       "source": "/stack/opcm",
@@ -1537,7 +1557,7 @@
     },
     {
       "source": "/superchain/standard-configuration",
-      "destination": "/chain-operators/reference/standard-configuration"
+      "destination": "/op-stack/protocol/superchain-registry"
     },
     {
       "source": "/chain-operators/reference/superchain-registry",
@@ -1761,7 +1781,7 @@
     },
     {
       "source": "/concepts/stack/getting-started",
-      "destination": "/op-stack/protocol/getting-started"
+      "destination": "/op-stack/introduction/op-stack"
     },
     {
       "source": "/concepts/stack/differences",
@@ -1901,27 +1921,27 @@
     },
     {
       "source": "/app-developers/quickstarts/starter-kit",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/app-developers/reference/tokens/compatible-tokens",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/app-developers/tutorials/tokens/custom-superchain-erc20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/app-developers/tutorials/tokens/deploy-superchain-erc20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/app-developers/tutorials/tokens/transfer-superchainERC20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/op-stack/interop/superchain-erc20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/superchain/introduction/superchain-explainer",
@@ -2534,6 +2554,18 @@
     {
       "source": "/rust/op-revm/index",
       "destination": "/app-developers/tools-sdks/op-revm"
+    },
+    {
+      "source": "/op-stack/interop/interop",
+      "destination": "/op-stack/interop/explainer"
+    },
+    {
+      "source": "/op-stack/protocol/getting-started",
+      "destination": "/op-stack/introduction/op-stack"
+    },
+    {
+      "source": "/chain-operators/reference/standard-configuration",
+      "destination": "/op-stack/protocol/superchain-registry"
     }
   ],
   "interaction": {
@@ -2542,14 +2574,15 @@
   "navigation": {
     "tabs": [
       {
-        "tab": "Chain Operators",
+        "tab": "Get Started",
         "groups": [
           {
-            "group": "Quickstart",
+            "group": "Get started",
             "pages": [
               "index",
               "ai-docs",
-              "chain-operators/quickstart"
+              "chain-operators/quickstart",
+              "/op-stack/reference/glossary"
             ]
           },
           {
@@ -2563,6 +2596,33 @@
               "use-cases/choose-your-node-stack"
             ]
           },
+          {
+            "group": "Contribute",
+            "pages": [
+              "/op-stack/contribute/index",
+              "/op-stack/contribute/content-guide",
+              "/op-stack/contribute/link-policy",
+              "/op-stack/contribute/curation-policy",
+              "/op-stack/contribute/learn-track-syllabus",
+              "/op-stack/contribute/style-guide",
+              {
+                "group": "Choose a content type",
+                "pages": [
+                  "/op-stack/contribute/choose-a-content-type",
+                  "/op-stack/contribute/solution-guide",
+                  "/op-stack/contribute/learning-unit",
+                  "/op-stack/contribute/curriculum-hub",
+                  "/op-stack/contribute/router-landing"
+                ]
+              },
+              "/op-stack/contribute/component-hub-template"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Chain Operators",
+        "groups": [
           {
             "group": "Guides",
             "pages": [
@@ -2700,7 +2760,6 @@
               "chain-operators/reference/challenger-configuration",
               "chain-operators/reference/opcm",
               "chain-operators/reference/rollup-deployment-configuration",
-              "chain-operators/reference/standard-configuration",
               "chain-operators/reference/fee-parameters",
               "chain-operators/reference/da-footprint"
             ]
@@ -3153,18 +3212,13 @@
         ]
       },
       {
-        "tab": "OP Stack",
+        "tab": "Protocol",
         "groups": [
           {
             "group": "Introduction",
             "pages": [
               "/op-stack/introduction/op-stack",
-              "/op-stack/introduction/fact-sheet"
-            ]
-          },
-          {
-            "group": "Learn the OP Stack",
-            "pages": [
+              "/op-stack/introduction/fact-sheet",
               "/op-stack/learn/index"
             ]
           },
@@ -3187,7 +3241,6 @@
             "pages": [
               "/op-stack/protocol/index",
               "/op-stack/protocol/overview",
-              "/op-stack/protocol/getting-started",
               "/op-stack/protocol/design-principles",
               "/op-stack/protocol/differences",
               "/op-stack/protocol/components",
@@ -3213,7 +3266,8 @@
               "/op-stack/protocol/smart-contracts",
               "/op-stack/protocol/privileged-roles",
               "/op-stack/protocol/blockspace-charter",
-              "/op-stack/protocol/superchain-registry"
+              "/op-stack/protocol/superchain-registry",
+              "/op-stack/research/block-time-research"
             ]
           },
           {
@@ -3322,47 +3376,13 @@
             ]
           },
           {
-            "group": "Research",
-            "pages": [
-              "/op-stack/research/block-time-research"
-            ]
-          },
-          {
             "group": "Interoperability",
             "pages": [
               "/op-stack/interop/index",
-              "/op-stack/interop/interop",
               "/op-stack/interop/explainer",
               "/op-stack/interop/supernode",
               "/op-stack/interop/reorg",
               "/op-stack/interop/superchain-eth-bridge"
-            ]
-          },
-          {
-            "group": "Reference",
-            "pages": [
-              "/op-stack/reference/glossary"
-            ]
-          },
-          {
-            "group": "Contribute",
-            "pages": [
-              "/op-stack/contribute/content-guide",
-              "/op-stack/contribute/link-policy",
-              "/op-stack/contribute/curation-policy",
-              "/op-stack/contribute/learn-track-syllabus",
-              "/op-stack/contribute/style-guide",
-              {
-                "group": "Choose a content type",
-                "pages": [
-                  "/op-stack/contribute/choose-a-content-type",
-                  "/op-stack/contribute/solution-guide",
-                  "/op-stack/contribute/learning-unit",
-                  "/op-stack/contribute/curriculum-hub",
-                  "/op-stack/contribute/router-landing"
-                ]
-              },
-              "/op-stack/contribute/component-hub-template"
             ]
           }
         ]
@@ -3391,10 +3411,10 @@
         ]
       },
       {
-        "tab": "How Optimism Evolves",
+        "tab": "Governance",
         "groups": [
           {
-            "group": "How Optimism Evolves",
+            "group": "Governance",
             "pages": [
               "governance/protocol-upgrades",
               "governance/capital-allocation",
@@ -3417,28 +3437,23 @@
               {
                 "group": "Network Upgrades",
                 "pages": [
-                  "notices/upgrade-19",
                   "notices/interop-prep"
-                ]
-              },
-              {
-                "group": "Deprecations",
-                "pages": [
-                  "notices/op-geth-deprecation",
-                  "notices/op-deployer-upgrade-deprecation",
-                  "notices/req-resp-cl-sync-deprecation"
                 ]
               },
               {
                 "group": "Operations",
                 "pages": [
-                  "notices/specialized-node-topology",
-                  "notices/stake-based-priority-ordering"
+                  "notices/specialized-node-topology"
                 ]
               },
               {
                 "group": "Archive",
                 "pages": [
+                  "notices/archive/upgrade-19",
+                  "notices/archive/op-geth-deprecation",
+                  "notices/archive/op-deployer-upgrade-deprecation",
+                  "notices/archive/req-resp-cl-sync-deprecation",
+                  "notices/archive/stake-based-priority-ordering",
                   "notices/archive/upgrade-18",
                   "notices/archive/upgrade-17",
                   "notices/archive/fusaka-notice",

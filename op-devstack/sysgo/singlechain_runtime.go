@@ -333,7 +333,7 @@ func startMinimalProposer(
 		PprofConfig:                  oppprof.CLIConfig{},
 		DGFAddress:                   l2Net.deployment.DisputeGameFactoryProxyAddr().Hex(),
 		ProposalInterval:             6 * time.Second,
-		DisputeGameType:              1,
+		DisputeGameType:              superPermissionedGameType,
 		ActiveSequencerCheckDuration: 5 * time.Second,
 		WaitNodeSync:                 false,
 	}
@@ -391,6 +391,11 @@ func startMinimalChallenger(
 
 	rollupCfgs := []*rollup.Config{l2Net.rollupCfg}
 	l2Geneses := []*core.Genesis{l2Net.genesis}
+	dependencySet, err := depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
+		l2Net.ChainID(): {},
+	})
+	require.NoError(err)
+
 	options := []sharedchallenger.Option{
 		sharedchallenger.WithFactoryAddress(l2Net.deployment.DisputeGameFactoryProxyAddr()),
 		sharedchallenger.WithPrivKey(challengerSecret),
@@ -404,7 +409,7 @@ func startMinimalChallenger(
 		superCannonKonaEnabled = superCannonKonaEnabled || gameType == gameTypes.SuperCannonKonaGameType
 		zkEnabled = zkEnabled || gameType == gameTypes.ZKDisputeGameType
 	}
-	require.False(cannonKonaEnabled && superCannonKonaEnabled, "minimal challenger cannot use Cannon Kona and Super Cannon Kona simultaneously")
+	require.False(cannonKonaEnabled && superCannonKonaEnabled, "minimal challenger cannot use legacy and interop Cannon Kona prestates simultaneously")
 	require.False(zkEnabled && (cannonKonaEnabled || superCannonKonaEnabled), "minimal challenger cannot use the ZK game alongside cannon-kona game types")
 	switch {
 	case zkEnabled:
@@ -415,17 +420,13 @@ func startMinimalChallenger(
 			sharedchallenger.WithSuperRootRPC(l2CL.UserRPC()),
 		)
 	case superCannonKonaEnabled:
-		dependencySet, err := depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
-			l2Net.ChainID(): {},
-		})
-		require.NoError(err)
 		options = append(options,
 			sharedchallenger.WithDepset(dependencySet),
 			sharedchallenger.WithCannonKonaInteropConfig(rollupCfgs, l1Net.genesis, l2Geneses),
 			sharedchallenger.WithSuperCannonKonaGameType(),
 			sharedchallenger.WithSuperRootRPC(l2CL.UserRPC()),
 		)
-	default:
+	case cannonKonaEnabled:
 		options = append(options,
 			sharedchallenger.WithCannonKonaConfig(rollupCfgs, l1Net.genesis, l2Geneses),
 			sharedchallenger.WithCannonKonaGameType(),
@@ -485,16 +486,8 @@ func applyMinimalGameTypeOptions(
 	}
 	l1ChainID := l1Net.ChainID()
 
-	// Filter out permissioned game type — it's always included by the V2 upgrade.
-	var filteredGameTypes []gameTypes.GameType
-	for _, gameType := range addedGameTypes {
-		if gameType == gameTypes.PermissionedGameType {
-			continue
-		}
-		filteredGameTypes = append(filteredGameTypes, gameType)
-	}
-	if len(filteredGameTypes) > 0 {
-		addGameTypesForRuntime(t, keys, filteredGameTypes, l1ChainID, l1EL.UserRPC(), l2Net, l2CL)
+	if len(addedGameTypes) > 0 {
+		addGameTypesForRuntime(t, keys, addedGameTypes, l1ChainID, l1EL.UserRPC(), l2Net, l2CL)
 	}
 	for _, gameType := range respectedGameTypes {
 		setRespectedGameTypeForRuntime(t, keys, gameType, l1ChainID, l1EL.UserRPC(), l2Net)

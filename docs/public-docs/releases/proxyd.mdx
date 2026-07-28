@@ -15,7 +15,18 @@ diataxis: reference
 
 **proxyd** is an RPC request router and proxy with method whitelisting, backend load balancing, automatic retries, and consensus state tracking across multiple backend nodes.
 
-<Update label="July 17, 2026" description="v4.29.1" tags={["Latest", "Stable"]}>
+<Update label="July 27, 2026" description="v4.30.0" tags={["Latest", "Stable"]}>
+
+## Changelog
+* 42098f9fc1e690cc1ff57f141cc88fbc434b8041 chore(docker): migrate infra Dockerfiles to Chainguard wolfi-base (#671)
+* 07357cbbfe95f815826b2f612821685b9bff6739 chore: bump vulnerable dependencies to remediate CVEs (Go, yarn, poetry) (#670)
+* 95d27e324eb6c558a269d051e7d34f746c8a87a5 proxyd: add per-RPC-call metrics for usage and error-rate SLO (#676)
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/infra/releases/tag/proxyd/v4.30.0)
+
+</Update>
+
+<Update label="July 17, 2026" description="v4.29.1" tags={["Stable"]}>
 
 ## Changelog
 * 1f4e368306dadfc7ccdee3e57e3a56107b235d36 fix(proxyd): fix tx_validation_middleware RPC error when failing close against a failing screening-service/provider (#669)
