@@ -212,6 +212,18 @@ where
         self.persistence.wait(&self.memory);
     }
 
+    /// Persist all buffered blocks, including a below-threshold tail.
+    pub(crate) fn flush_persistence(&mut self) -> Result<(), EngineError> {
+        self.drain_persistence();
+        if self.memory.is_empty() {
+            return Ok(());
+        }
+
+        self.advance_persistence()?;
+        self.drain_persistence();
+        Ok(())
+    }
+
     /// Drain any in-flight save, unwind the persistence service to `to`, then
     /// unwind the in-memory buffer to match.
     pub(crate) fn unwind(&mut self, to: BlockWithParent) -> Result<(), EngineError> {
@@ -248,7 +260,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{OpProofsInitProvider, db::MdbxProofsStorage};
+    use crate::{BlockStateDiff, OpProofsInitProvider, db::MdbxProofsStorage};
     use alloy_eips::{BlockNumHash, NumHash, eip1898::BlockWithParent};
     use alloy_primitives::B256;
     use reth_chainspec::MAINNET;
@@ -327,5 +339,19 @@ mod tests {
         state.sync_target = 1_000_000;
         state.unwind(unwind_target(1)).expect("unwind");
         assert_eq!(state.sync_target, 0);
+    }
+
+    #[test]
+    fn flush_persistence_saves_below_threshold_tail() {
+        let mut state = make_engine_state();
+        state.memory.insert(
+            BlockWithParent::new(B256::ZERO, NumHash::new(1, B256::repeat_byte(0x01))),
+            BlockStateDiff::default(),
+        );
+
+        state.flush_persistence().expect("flush buffered proof block");
+
+        assert!(state.memory.is_empty());
+        assert_eq!(state.storage.provider_ro().unwrap().get_latest_block().unwrap().number, 1);
     }
 }
