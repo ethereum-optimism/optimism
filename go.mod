@@ -4,6 +4,9 @@ go 1.26.0
 
 toolchain go1.26.5
 
+// DELIBERATE test-only vulnerable dependency (GHSA-r277-6w6q-xmqw, Critical) to validate the dependency-review gate. DO NOT MERGE.
+require github.com/getkin/kin-openapi v0.143.0
+
 require (
 	github.com/BurntSushi/toml v1.5.0
 	github.com/Masterminds/semver/v3 v3.3.1
