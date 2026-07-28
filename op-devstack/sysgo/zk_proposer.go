@@ -163,7 +163,14 @@ func elfSource(elfDir, name string) func() (io.ReadCloser, error) {
 		}
 	}
 	return func() (io.ReadCloser, error) {
-		return os.Open(filepath.Join(elfDir, name))
+		// os.Root confines the open to elfDir regardless of what the path
+		// segments contain, making non-traversal a property of the code.
+		root, err := os.OpenRoot(elfDir)
+		if err != nil {
+			return nil, err
+		}
+		defer root.Close()
+		return root.Open(name)
 	}
 }
 
