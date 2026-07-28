@@ -383,8 +383,8 @@ func predictChains(
 		if err != nil {
 			return fmt.Errorf("failed to clear prepared inputs for chain %s: %w", chain.ID.Hex(), err)
 		}
-		chainState.Prestate = common.Hash{}
-		chainState.StartingAnchorRoot = nil
+
+		chainState.ClearDerivedArtifacts()
 		gameType := dci.DisputeGameType
 		chainState.InitialGameType = &gameType
 
@@ -411,8 +411,7 @@ func predictChains(
 }
 
 // generateGenesisForChains builds each chain's L2 genesis allocs from the addresses and genesis
-// time predictChains just committed. Chains that already have allocs are skipped by GenerateL2Genesis's
-// own idempotency check.
+// time predictChains just committed.
 func generateGenesisForChains(pEnv *pipeline.Env, intent *state.Intent, bundle artifacts.Bundle, st *state.State) error {
 	for _, chain := range intent.Chains {
 		if err := pipeline.GenerateL2Genesis(pEnv, intent, bundle, st, chain.ID); err != nil {

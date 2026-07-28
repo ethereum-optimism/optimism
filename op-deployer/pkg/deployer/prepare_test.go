@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
@@ -625,16 +626,25 @@ func TestPredictChains_ClearsOnlyRepredictedPreparedInputs(t *testing.T) {
 	st.SetChainContracts(freshID, addresses.OpChainContracts{}, false)
 	deployed, err := st.Chain(deployedID)
 	require.NoError(t, err)
+	deployedGenesisBlockHash := common.HexToHash("0x3333")
+	freshGenesisBlockHash := common.HexToHash("0x4444")
+	deployedAllocs := &state.GzipData[foundry.ForgeAllocs]{Data: &foundry.ForgeAllocs{}}
+	freshAllocs := &state.GzipData[foundry.ForgeAllocs]{Data: &foundry.ForgeAllocs{}}
+
 	deployed.Prestate = deployedPrestate
 	deployed.StartingAnchorRoot = deployedStartingAnchorRoot
 	deployedInitialGameType := uint32(embedded.GameTypeSuperPermissioned)
 	deployed.InitialGameType = &deployedInitialGameType
+	deployed.Allocs = deployedAllocs
+	deployed.GenesisBlockHash = &deployedGenesisBlockHash
 	fresh, err := st.Chain(freshID)
 	require.NoError(t, err)
 	fresh.Prestate = freshPrestate
 	fresh.StartingAnchorRoot = freshStartingAnchorRoot
 	freshInitialGameType := uint32(embedded.GameTypePermissionedCannon)
 	fresh.InitialGameType = &freshInitialGameType
+	fresh.Allocs = freshAllocs
+	fresh.GenesisBlockHash = &freshGenesisBlockHash
 
 	var ran []common.Hash
 	run := func(in opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
@@ -675,12 +685,16 @@ func TestPredictChains_ClearsOnlyRepredictedPreparedInputs(t *testing.T) {
 	require.Equal(t, deployedPrestate, deployed.Prestate)
 	require.Equal(t, deployedStartingAnchorRoot, deployed.StartingAnchorRoot)
 	require.Equal(t, uint32(embedded.GameTypeSuperPermissioned), *deployed.InitialGameType)
+	require.Same(t, deployedAllocs, deployed.Allocs, "a deployed chain's allocs must remain untouched")
+	require.Equal(t, &deployedGenesisBlockHash, deployed.GenesisBlockHash)
 
 	require.NotNil(t, fresh.Deployed)
 	require.False(t, *fresh.Deployed)
 	require.Equal(t, common.HexToAddress("0xbeef"), fresh.SystemConfigProxy)
 	require.Zero(t, fresh.Prestate)
 	require.Nil(t, fresh.StartingAnchorRoot)
+	require.Nil(t, fresh.Allocs, "a re-predicted chain's allocs must be rebuilt")
+	require.Nil(t, fresh.GenesisBlockHash)
 	require.Equal(t, uint32(embedded.GameTypeCannonKona), *fresh.InitialGameType)
 	require.Equal(t, anchor, fresh.StartBlock, "fresh chain must have its anchor block pinned")
 	require.NotNil(t, fresh.GenesisTime, "fresh chain must have its genesis time committed")
@@ -1264,7 +1278,6 @@ func TestGenerateGenesisForChains_UsesPredictedAddressesAndPinnedGenesisTime(t *
 	require.Equal(t, uint64(genesisTime), l2Genesis.Timestamp,
 		"genesis header must carry the genesis time pinned at anchor selection")
 
-	// Check that re-running is idempotent.
 	allocsBefore := chainState.Allocs.Data
 	require.NoError(t, generateGenesisForChains(genesisEnv, intent, bundle, st))
 	chainStateAfter, err := st.Chain(chain.ID)
@@ -1289,4 +1302,88 @@ func TestGenerateGenesisForChains_UsesPredictedAddressesAndPinnedGenesisTime(t *
 	anchorBefore := *chainState.StartingAnchorRoot
 	require.NoError(t, computeGenesisOutputRootsForChains(genesisEnv, intent, st))
 	require.Equal(t, anchorBefore, *chainStateAfter.StartingAnchorRoot)
+}
+
+// A prepare re-run must rebuild the L2 genesis from the current intent.
+func TestPrepare_RepredictionRebuildsL2Genesis(t *testing.T) {
+	lgr := testlog.Logger(t, slog.LevelWarn)
+	_, pk, dk := shared.DefaultPrivkey(t)
+	deployer := crypto.PubkeyToAddress(pk.PublicKey)
+
+	l1ChainID := big.NewInt(900)
+	l2ChainID := uint256.NewInt(1)
+	loc, afacts := testutil.LocalArtifacts(t)
+
+	intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID, loc, loc, standard.GasLimit)
+	require.False(t, intent.FundDevAccounts, "the edit below must change the generated allocs")
+	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
+	superchainConfig := common.HexToAddress("0xbbbb000000000000000000000000000000000002")
+	intent.OPCMAddress = &opcmAddr
+	intent.SuperchainConfigProxy = &superchainConfig
+	st.Create2Salt = common.HexToHash("0x03")
+	chain := intent.Chains[0]
+
+	// Stable across both runs. The first five are the addresses the L2 genesis embeds.
+	predicted := opcm.DeployOPChainOutput{
+		L1CrossDomainMessengerProxy:        common.HexToAddress("0x1111111111111111111111111111111111111111"),
+		L1StandardBridgeProxy:              common.HexToAddress("0x2222222222222222222222222222222222222222"),
+		L1ERC721BridgeProxy:                common.HexToAddress("0x3333333333333333333333333333333333333333"),
+		SystemConfigProxy:                  common.HexToAddress("0x4444444444444444444444444444444444444444"),
+		OptimismPortalProxy:                common.HexToAddress("0x5555555555555555555555555555555555555555"),
+		OpChainProxyAdmin:                  common.Address{0x01},
+		AddressManager:                     common.Address{0x02},
+		OptimismMintableERC20FactoryProxy:  common.Address{0x03},
+		EthLockboxProxy:                    common.Address{0x04},
+		DisputeGameFactoryProxy:            common.Address{0x05},
+		AnchorStateRegistryProxy:           common.Address{0x06},
+		FaultDisputeGame:                   common.Address{0x07},
+		PermissionedDisputeGame:            common.Address{0x08},
+		DelayedWETHPermissionedGameProxy:   common.Address{0x09},
+		DelayedWETHPermissionlessGameProxy: common.Address{0x0a},
+	}
+
+	runs := 0
+	run := func(opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
+		runs++
+		return predicted, nil
+	}
+	anchor := &state.L1BlockRefJSON{Hash: common.HexToHash("0xa11c"), Number: 100, Time: 5000}
+	selectAnchor := func(*common.Hash) (*state.L1BlockRefJSON, error) {
+		return anchor, nil
+	}
+	const genesisTimeOffset = 600
+
+	genesisEnv := &pipeline.Env{Logger: lgr, Deployer: deployer}
+	bundle := artifacts.Bundle{L1: afacts, L2: afacts}
+	prepareOnce := func() *state.ChainState {
+		require.NoError(t, predictChains(lgr, intent, st, run, selectAnchor, anchor, genesisTimeOffset))
+		require.NoError(t, generateGenesisForChains(genesisEnv, intent, bundle, st))
+		require.NoError(t, computeGenesisOutputRootsForChains(genesisEnv, intent, st))
+		chainState, err := st.Chain(chain.ID)
+		require.NoError(t, err)
+		return chainState
+	}
+
+	chainState := prepareOnce()
+	require.NotNil(t, chainState.Allocs)
+	allocsBefore := chainState.Allocs.Data
+	accountsBefore := len(allocsBefore.Accounts)
+	genesisHashBefore := *chainState.GenesisBlockHash
+
+	// Edit an L2 input and re-run.
+	intent.FundDevAccounts = true
+	chainState = prepareOnce()
+
+	require.Equal(t, 2, runs, "both runs must re-predict the undeployed chain")
+	require.NotNil(t, chainState.Allocs)
+	require.NotSame(t, allocsBefore, chainState.Allocs.Data, "the re-run must rebuild allocs, not reuse them")
+	require.Greater(t, len(chainState.Allocs.Data.Accounts), accountsBefore,
+		"funded dev accounts must be present in the rebuilt allocs")
+	require.NotEqual(t, genesisHashBefore, *chainState.GenesisBlockHash,
+		"the committed genesis block hash must follow the rebuilt allocs")
+
+	// The pinned anchor commitment survives the rebuild.
+	require.Equal(t, anchor, chainState.StartBlock)
+	require.NotNil(t, chainState.GenesisTime)
+	require.EqualValues(t, uint64(anchor.Time)+genesisTimeOffset, *chainState.GenesisTime)
 }

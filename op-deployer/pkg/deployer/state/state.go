@@ -243,6 +243,15 @@ type ChainState struct {
 	GenesisBlockHash *common.Hash `json:"genesisBlockHash,omitempty"`
 }
 
+// ClearDerivedArtifacts clears every value derived from the chain's predicted L1
+// addresses.
+func (c *ChainState) ClearDerivedArtifacts() {
+	c.Prestate = common.Hash{}
+	c.StartingAnchorRoot = nil
+	c.Allocs = nil
+	c.GenesisBlockHash = nil
+}
+
 // IsChainDeployed reports whether the chain's addresses have been broadcast.
 // States from older pipelines have no flag and are treated as deployed, any
 // unknown chain is treated as not yet deployed.

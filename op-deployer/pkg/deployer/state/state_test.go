@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum/go-ethereum/common"
@@ -349,6 +350,43 @@ func TestState_IsChainDeployed(t *testing.T) {
 			require.Equal(t, tt.want, (&State{Chains: tt.chains}).IsChainDeployed(id))
 		})
 	}
+}
+
+func TestChainState_ClearDerivedArtifacts(t *testing.T) {
+	var contracts addresses.OpChainContracts
+	contracts.SystemConfigProxy = common.HexToAddress("0xbeef")
+	anchor := &L1BlockRefJSON{Hash: common.HexToHash("0xa11c"), Number: 100, Time: 5000}
+	genesisBlockHash := common.HexToHash("0x9999")
+
+	c := &ChainState{
+		ID:                 common.HexToHash("0x0a"),
+		OpChainContracts:   contracts,
+		Deployed:           ptr.New(false),
+		Prestate:           common.HexToHash("0x1234"),
+		StartingAnchorRoot: &StartingAnchorProposal{Root: common.HexToHash("0x5678"), L2SequenceNumber: 9},
+		InitialGameType:    ptr.New(uint32(8)),
+		Allocs:             &GzipData[foundry.ForgeAllocs]{Data: &foundry.ForgeAllocs{}},
+		StartBlock:         anchor,
+		GenesisTime:        ptr.New(hexutil.Uint64(5600)),
+		GenesisBlockHash:   &genesisBlockHash,
+	}
+
+	c.ClearDerivedArtifacts()
+
+	require.Zero(t, c.Prestate)
+	require.Nil(t, c.StartingAnchorRoot)
+	require.Nil(t, c.Allocs, "stale allocs must not survive a re-prediction")
+	require.Nil(t, c.GenesisBlockHash)
+
+	// The anchor commitment and other chain fields must remain the same
+	require.Equal(t, common.HexToHash("0x0a"), c.ID)
+	require.Equal(t, anchor, c.StartBlock)
+	require.NotNil(t, c.GenesisTime)
+	require.EqualValues(t, 5600, *c.GenesisTime)
+	require.Equal(t, common.HexToAddress("0xbeef"), c.SystemConfigProxy)
+	require.Equal(t, ptr.New(uint32(8)), c.InitialGameType)
+	require.NotNil(t, c.Deployed)
+	require.False(t, *c.Deployed)
 }
 
 func TestState_SetChainContracts(t *testing.T) {
