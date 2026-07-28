@@ -24,7 +24,7 @@ import (
 // TestChallengedValidProposalAnchors.
 func TestProposerChainsSecondZKGameOnFirst(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := newProposerSystem(t)
+	sys := newSystem(t)
 	factory := sys.DisputeGameFactory()
 	_, anchorSequence := sys.AnchorStateRegistry(sys.L2ChainA).AnchorRoot()
 
@@ -45,7 +45,7 @@ func TestProposerResolvesOwnUnchallengedGame(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	// The challenger resolves all games, not just those it challenges; disable
 	// it so this test proves the proposer alone drives resolution.
-	sys := newProposerSystem(t, presets.WithoutHonestChallenger())
+	sys := newSystem(t, presets.WithoutHonestChallenger())
 	factory := sys.DisputeGameFactory()
 
 	game0 := factory.WaitForZKGameAtIndex(0)
@@ -61,7 +61,7 @@ func TestProposerClaimsBondAfterResolution(gt *testing.T) {
 	// The challenger can resolve games and claim credit on the proposer's
 	// behalf; disable it so this test proves the proposer alone resolves,
 	// unlocks, and claims.
-	sys := newProposerSystem(t, presets.WithoutHonestChallenger())
+	sys := newSystem(t, presets.WithoutHonestChallenger())
 	factory := sys.DisputeGameFactory()
 	proposerAddr := zkProposerAddress(t, sys)
 	weth := factory.DelayedWETH(factory.ZKGameImpl().Args.Weth)

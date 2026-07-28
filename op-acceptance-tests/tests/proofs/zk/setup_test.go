@@ -44,20 +44,12 @@ func loadSuperAggregationVKey(t devtest.T) common.Hash {
 	return vkey
 }
 
-// newSystem builds a supernode-backed interop system with the ZK dispute game installed and an
-// honest op-challenger playing it, sourcing super roots from the supernode. Tests seed a game; the
-// challenger acts on it. The honest proposer is disabled so tests keep manual control over game
-// creation; use newProposerSystem to run the kona-sp1-proposer as well.
-func newSystem(t devtest.T) *presets.SimpleInterop {
-	vkey := loadSuperAggregationVKey(t)
-	opts := append(zkPresetOptions(vkey), presets.WithoutHonestProposer())
-	return presets.NewSimpleInterop(t, opts...)
-}
-
-// newProposerSystem builds the ZK proofs system with the kona-sp1-proposer
-// running against the ZK dispute game type (and, unless disabled via extra
-// options, the honest challenger).
-func newProposerSystem(t devtest.T, extra ...presets.Option) *presets.SimpleInterop {
+// newSystem builds a supernode-backed interop system with the ZK dispute game installed and both
+// honest actors running by default: the kona-sp1-proposer creating and resolving games, and the
+// op-challenger playing them, sourcing super roots from the supernode. Tests whose scenario
+// requires a missing actor disable it explicitly via presets.WithoutHonestProposer or
+// presets.WithoutHonestChallenger.
+func newSystem(t devtest.T, extra ...presets.Option) *presets.SimpleInterop {
 	vkey := loadSuperAggregationVKey(t)
 	return presets.NewSimpleInterop(t, append(zkPresetOptions(vkey), extra...)...)
 }
