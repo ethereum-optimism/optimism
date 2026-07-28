@@ -103,7 +103,7 @@ func (n *SuperNode) StopControlled(ctx context.Context) error {
 	}
 	sn := n.sn
 	cancel := n.cancel
-	n.clearProxyUpstreams() // before Stop: the supernode frees its ports during shutdown
+	n.clearProxyUpstreams()
 	n.mu.Unlock()
 
 	if cancel != nil {
@@ -149,10 +149,7 @@ func (n *SuperNode) stopLocked() {
 	n.sn = nil
 }
 
-// clearProxyUpstreams unsets the proxy upstreams. It must run before the
-// supernode is asked to stop: the supernode frees its OS-assigned ports early
-// in shutdown, and they may be rebound by another process, so a stale upstream
-// would silently cross-wire this node's endpoints to it. Callers must hold n.mu.
+// Callers must hold n.mu.
 func (n *SuperNode) clearProxyUpstreams() {
 	if n.httpProxy != nil {
 		n.httpProxy.ClearUpstream()

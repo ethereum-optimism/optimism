@@ -49,11 +49,8 @@ func roundTrip(t *testing.T, addr string) error {
 	return err
 }
 
-// TestProxyClearUpstream covers the port-reuse cross-wiring hazard: a proxy
-// whose upstream process has stopped must not keep piping connections to the
-// stale address, because the OS may reassign that port to an unrelated
-// process. Clearing the upstream on stop makes the proxy refuse connections
-// until the owning process restarts and re-points it.
+// TestProxyClearUpstream checks that a cleared proxy refuses connections
+// instead of forwarding to whatever rebinds the freed upstream port.
 func TestProxyClearUpstream(t *testing.T) {
 	lgr := testlog.Logger(t, log.LevelInfo)
 	p := New(lgr)
@@ -67,7 +64,6 @@ func TestProxyClearUpstream(t *testing.T) {
 	require.NoError(t, roundTrip(t, p.Addr()), "proxy must pipe to the live upstream")
 	<-acceptedA
 
-	// Upstream stops; its port is freed and may be rebound by anyone.
 	require.NoError(t, upstreamA.Close())
 	p.ClearUpstream()
 
@@ -83,7 +79,6 @@ func TestProxyClearUpstream(t *testing.T) {
 	case <-time.After(100 * time.Millisecond):
 	}
 
-	// Re-pointing the proxy restores service.
 	p.SetUpstream(upstreamB.Addr().String())
 	require.NoError(t, roundTrip(t, p.Addr()), "proxy must pipe again after SetUpstream")
 	<-acceptedB

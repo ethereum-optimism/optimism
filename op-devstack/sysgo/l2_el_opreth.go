@@ -212,8 +212,7 @@ func (n *OpReth) Start() {
 	n.authProxy.SetUpstream(ProxyAddr(n.p.Require(), authRPCAddr))
 }
 
-// Stop stops the op-reth node. The proxies stay up on their stable addresses;
-// the next Start re-points them at the new process's ports.
+// Stop stops the op-reth node.
 func (n *OpReth) Stop() {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -227,11 +226,7 @@ func (n *OpReth) Stop() {
 	n.sub = nil
 }
 
-// clearProxyUpstreams unsets the proxy upstreams. It must run before the
-// process is asked to stop: the process frees its OS-assigned ports early in
-// shutdown, and they may be rebound by another node (e.g. a different chain's
-// EL restarting), so a stale upstream would silently cross-wire this node's
-// endpoints to it. Callers must hold n.mu.
+// Callers must hold n.mu.
 func (n *OpReth) clearProxyUpstreams() {
 	if n.userProxy != nil {
 		n.userProxy.ClearUpstream()

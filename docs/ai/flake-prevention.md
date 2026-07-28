@@ -361,23 +361,22 @@ Prefer binding port `0` in the service that will own the socket, then discover t
 
 ### F16 — Proxy left pointing at a stopped process's address
 
-A long-lived proxy (stable endpoint across restarts) that keeps its upstream address after the owning process stops is the release side of the F15 TOCTOU family: the process frees its OS-assigned ports early in shutdown, and whichever process next binds the port silently receives the proxy's traffic — cross-wiring one node's endpoints to another. Clearing the upstream *after* the stop returns shrinks the window but does not close it, and error paths that return early skip the clear entirely.
+A long-lived proxy that keeps its upstream address after the owning process stops forwards traffic to a freed port, which the OS may hand to an unrelated process — silently cross-wiring one node's endpoints to another. Clear the upstream *before* initiating the stop: clearing afterwards shrinks the window but does not close it, and early-returning error paths skip it entirely.
 
 ```go
-// BAD — ports are freed inside Stop(); the proxy forwards to a dead
-// (soon reusable) address until the clear runs, and never if Stop errors.
+// BAD — Stop frees the ports; the proxy forwards to a stale address
+// until the clear runs, and never if Stop errors.
 err := n.sub.Stop(true)
 require.NoError(t, err)
 n.proxy.ClearUpstream()
 
-// GOOD — clear before initiating the stop; new dials are refused instead
-// of cross-wired, and established connections still drain.
+// GOOD — clear first; new dials are refused instead of cross-wired.
 n.proxy.ClearUpstream()
 err := n.sub.Stop(true)
 require.NoError(t, err)
 ```
 
-The invariant: a proxy's upstream is set if and only if the process that owns the address is alive and listening.
+Invariant: a proxy's upstream is set only while the process owning that address is alive and listening.
 
 **Examples:** [#22014](https://github.com/ethereum-optimism/optimism/pull/22014). **Lint:** no (cross-process lifecycle).
 

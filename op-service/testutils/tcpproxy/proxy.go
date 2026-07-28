@@ -44,9 +44,7 @@ func (p *Proxy) SetUpstream(addr string) {
 }
 
 // ClearUpstream unsets the upstream address; connections are refused until
-// SetUpstream is called again. Callers that stop the upstream process must
-// clear the upstream: the freed port may be rebound by an unrelated process,
-// and a stale address would silently pipe traffic to it.
+// SetUpstream is called again.
 func (p *Proxy) ClearUpstream() {
 	p.SetUpstream("")
 }
@@ -92,8 +90,6 @@ func (p *Proxy) handleConn(downConn net.Conn) {
 	addr := p.upstreamAddr
 	if addr == "" {
 		p.mu.Unlock()
-		// Debug, not Error: a cleared upstream is an expected steady state
-		// while the owning process is deliberately down (see ClearUpstream).
 		p.lgr.Debug("upstream not set")
 		return
 	}

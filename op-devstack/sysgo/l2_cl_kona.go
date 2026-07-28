@@ -127,10 +127,7 @@ func (k *KonaNode) StopControlled(ctx context.Context) error {
 	return nil
 }
 
-// clearProxyUpstreams unsets the proxy upstreams. It must run before the
-// process is asked to stop: the process frees its OS-assigned ports early in
-// shutdown, and they may be rebound by another process, so a stale upstream
-// would silently cross-wire this node's endpoints to it. Callers must hold k.mu.
+// Callers must hold k.mu.
 func (k *KonaNode) clearProxyUpstreams() {
 	if k.userProxy != nil {
 		k.userProxy.ClearUpstream()

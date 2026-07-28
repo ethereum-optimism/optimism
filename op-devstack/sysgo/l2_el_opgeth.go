@@ -145,11 +145,7 @@ func (n *OpGeth) Stop() {
 	n.l2Geth = nil
 }
 
-// clearProxyUpstreams unsets the proxy upstreams. It must run before the
-// node is asked to stop: the node frees its OS-assigned ports early in
-// shutdown, and they may be rebound by another node (e.g. a different
-// chain's EL restarting), so a stale upstream would silently cross-wire
-// this node's endpoints to it. Callers must hold n.mu.
+// Callers must hold n.mu.
 func (n *OpGeth) clearProxyUpstreams() {
 	if n.userProxy != nil {
 		n.userProxy.ClearUpstream()
@@ -170,7 +166,7 @@ func (n *OpGeth) StopControlled(ctx context.Context) error {
 		return nil
 	}
 	l2Geth := n.l2Geth
-	n.clearProxyUpstreams() // before Close: the node frees its ports inside Close
+	n.clearProxyUpstreams()
 	n.mu.Unlock()
 
 	err := l2Geth.Close()
