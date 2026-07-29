@@ -237,8 +237,7 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         Storage.setAddress(OPCM_SLOT, _addresses.opcm);
         _setStartBlock();
 
-        // TODO Remove this write and LEGACY_BATCH_INBOX_SLOT after U20, once all supported upgrade
-        // paths have passed through SystemConfig 4.0.0.
+        // TODO Remove this write and LEGACY_BATCH_INBOX_SLOT after U20.
         Storage.setAddress(LEGACY_BATCH_INBOX_SLOT, address(0));
 
         _setResourceConfig(_config);
