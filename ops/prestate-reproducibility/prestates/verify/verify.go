@@ -46,6 +46,23 @@ func main() {
 		os.Exit(2)
 	}
 
+	// op-program prestates stay in the registry for posterity but are no longer
+	// rebuilt, so exclude those types; every other type is still verified.
+	skippedTypes := map[string]bool{"cannon32": true, "cannon64": true, "interop": true}
+	for version, standardVersion := range expected.Prestates {
+		filtered := standardVersion[:0]
+		for _, prestate := range standardVersion {
+			if !skippedTypes[prestate.Type] {
+				filtered = append(filtered, prestate)
+			}
+		}
+		if len(filtered) == 0 {
+			delete(expected.Prestates, version)
+		} else {
+			expected.Prestates[version] = filtered
+		}
+	}
+
 	stringCompare := func(a, b string) int {
 		if a > b {
 			return 1

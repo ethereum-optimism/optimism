@@ -91,29 +91,30 @@ func TestL2MultipleTransactionsInSingleBlock(gt *testing.T) {
 	receipt0, err := tx0.Included.Eval(ctx)
 	require.NoError(t, err)
 	require.Equal(t, types.ReceiptStatusSuccessful, receipt0.Status)
-	t.Logf("Transaction 0 included in block %d", bigs.Uint64Strict(receipt0.BlockNumber))
+	receipt0Block := bigs.Uint64Strict(receipt0.BlockNumber)
+	t.Logf("Transaction 0 included in block %d", receipt0Block)
 
 	receipt1, err := tx1.Included.Eval(ctx)
 	require.NoError(t, err)
 	require.Equal(t, types.ReceiptStatusSuccessful, receipt1.Status)
-	t.Logf("Transaction 1 included in block %d", bigs.Uint64Strict(receipt1.BlockNumber))
+	receipt1Block := bigs.Uint64Strict(receipt1.BlockNumber)
+	t.Logf("Transaction 1 included in block %d", receipt1Block)
 
-	utils.WaitForProofsStoreBlock(t, sys.RethWithProofL2ELNode().Escape().L2EthClient(), bigs.Uint64Strict(receipt1.BlockNumber))
+	utils.WaitForProofsStoreBlock(t, sys.RethWithProofL2ELNode().Escape().L2EthClient(), max(receipt0Block, receipt1Block))
 	// Txns can land in the same or different blocks depending on timing.
-	if bigs.Uint64Strict(receipt0.BlockNumber) == bigs.Uint64Strict(receipt1.BlockNumber) {
-		t.Logf("Both transactions included in the same L2 block: %d", bigs.Uint64Strict(receipt0.BlockNumber))
+	if receipt0Block == receipt1Block {
+		t.Logf("Both transactions included in the same L2 block: %d", receipt0Block)
 
 		// Verify both proofs against the same block state root
-		utils.FetchAndVerifyProofs(t, sys, accounts[0].Address(), []common.Hash{}, bigs.Uint64Strict(receipt0.BlockNumber))
-		utils.FetchAndVerifyProofs(t, sys, accounts[1].Address(), []common.Hash{}, bigs.Uint64Strict(receipt0.BlockNumber))
+		utils.FetchAndVerifyProofs(t, sys, accounts[0].Address(), []common.Hash{}, receipt0Block)
+		utils.FetchAndVerifyProofs(t, sys, accounts[1].Address(), []common.Hash{}, receipt0Block)
 
 	} else {
-		t.Logf("Transactions in different blocks: %d and %d",
-			bigs.Uint64Strict(receipt0.BlockNumber), bigs.Uint64Strict(receipt1.BlockNumber))
+		t.Logf("Transactions in different blocks: %d and %d", receipt0Block, receipt1Block)
 
 		// Different blocks: verify each proof's merkle root matches its respective block's state root
-		utils.FetchAndVerifyProofs(t, sys, accounts[0].Address(), []common.Hash{}, bigs.Uint64Strict(receipt0.BlockNumber))
-		utils.FetchAndVerifyProofs(t, sys, accounts[1].Address(), []common.Hash{}, bigs.Uint64Strict(receipt1.BlockNumber))
+		utils.FetchAndVerifyProofs(t, sys, accounts[0].Address(), []common.Hash{}, receipt0Block)
+		utils.FetchAndVerifyProofs(t, sys, accounts[1].Address(), []common.Hash{}, receipt1Block)
 	}
 
 	t.Logf("Proof for account 0 and 1 verified successfully")

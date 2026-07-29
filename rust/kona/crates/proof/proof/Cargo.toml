@@ -57,9 +57,10 @@ ark-bls12-381.workspace = true
 tokio = { workspace = true, features = ["full"], optional = true }
 
 [dev-dependencies]
+alloy-eips = { workspace = true, features = ["kzg"] }
 tokio = { workspace = true, features = ["full"] }
 rstest.workspace = true
-rand.workspace = true
+rand = { workspace = true, features = ["thread_rng"] }
 c-kzg.workspace = true
 rayon.workspace = true
 

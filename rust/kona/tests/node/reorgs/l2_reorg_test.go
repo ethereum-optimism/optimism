@@ -24,7 +24,7 @@ func TestL2Reorg(gt *testing.T) {
 	sequencerCL := out.L2CLSequencerNodes()[0]
 	sequencerEL := out.L2ELSequencerNodes()[0]
 
-	funder := dsl.NewFunder(out.Wallet, out.Faucet, sequencerEL)
+	funder := out.Funder.AsFunder(sequencerEL)
 	// three EOAs for triggering transfers
 	alice := funder.NewFundedEOA(eth.OneHundredthEther)
 	bob := funder.NewFundedEOA(eth.OneHundredthEther)

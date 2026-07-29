@@ -14,7 +14,11 @@ import (
 	"io"
 	"math/rand"
 	"strings"
+	"sync"
+	"text/tabwriter"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -25,6 +29,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/interopbridge"
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
@@ -43,7 +48,7 @@ import (
 )
 
 const smokeWaitTimeout = 60 * time.Second
-const defaultReorgTimeout = 10 * time.Minute
+const defaultReorgTimeout = 20 * time.Minute
 
 const (
 	l2AURLFlagName            = "l2a-rpc"
@@ -51,7 +56,15 @@ const (
 	privateKeyFlagName        = "private-key"
 	invalidBlocksFlagName     = "blocks"
 	invalidTxPerBlockFlagName = "tx-per-block"
+	invalidDirectionFlagName  = "direction"
 	reorgTimeoutFlagName      = "reorg-timeout"
+	requireCascadeFlagName    = "require-cascade"
+)
+
+const (
+	directionAToB = "a-to-b"
+	directionBToA = "b-to-a"
+	directionBoth = "both"
 )
 
 // bridgeTimeout bounds a single A->B bridge (send, relay, and balance check).
@@ -104,6 +117,20 @@ type execMessage struct {
 	Receipt *types.Receipt
 }
 
+// sentMessage is a message sent through the L2ToL2CrossDomainMessenger.
+type sentMessage struct {
+	Tx      *txintent.IntentTx[*txintent.SendTrigger, *txintent.InteropOutput]
+	Receipt *types.Receipt
+}
+
+// relayedMessage is a relayMessage call on the L2ToL2CrossDomainMessenger. Its
+// receipt holds the logs emitted by the relayed call's target, which are
+// themselves initiating messages.
+type relayedMessage struct {
+	Tx      *txintent.IntentTx[*txintent.RelayTrigger, *txintent.InteropOutput]
+	Receipt *types.Receipt
+}
+
 type smokeEnv struct {
 	ctx               context.Context
 	stderr            io.Writer
@@ -114,7 +141,9 @@ type smokeEnv struct {
 	userB             *remoteUser
 	invalidBlocks     uint
 	invalidTxPerBlock uint
+	direction         string
 	reorgTimeout      time.Duration
+	requireCascade    bool
 }
 
 func (m *initMessage) BlockNumber() uint64 {
@@ -130,6 +159,14 @@ func (m *execMessage) BlockNumber() uint64 {
 }
 
 func (m *execMessage) BlockHash() common.Hash {
+	return m.Receipt.BlockHash
+}
+
+func (m *relayedMessage) BlockNumber() uint64 {
+	return bigs.Uint64Strict(m.Receipt.BlockNumber)
+}
+
+func (m *relayedMessage) BlockHash() common.Hash {
 	return m.Receipt.BlockHash
 }
 
@@ -243,6 +280,89 @@ func (u *remoteUser) sendInvalidExecMessage(ctx context.Context, initMsg *initMe
 		Tx:      tx,
 		Receipt: receipt,
 	}, nil
+}
+
+// sendMessage sends a cross-chain message via the L2ToL2CrossDomainMessenger.
+// When relayed on the destination chain, the messenger calls target with
+// calldata.
+func (u *remoteUser) sendMessage(ctx context.Context, dest eth.ChainID, target common.Address, calldata []byte) (*sentMessage, error) {
+	tx := txintent.NewIntent[*txintent.SendTrigger, *txintent.InteropOutput](u.plan())
+	tx.Content.Set(&txintent.SendTrigger{
+		Emitter:         predeploys.L2toL2CrossDomainMessengerAddr,
+		DestChainID:     dest,
+		Target:          target,
+		RelayedCalldata: calldata,
+	})
+	receipt, err := tx.PlannedTx.Included.Eval(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &sentMessage{Tx: tx, Receipt: receipt}, nil
+}
+
+// sendInvalidRelayMessage relays msg with a corrupted message identifier, so
+// the relay is an invalid executing message. The identifier's log index is
+// bumped past the real log, mirroring sendInvalidExecMessage. The payload is
+// left intact so the relay still executes and calls its target: invalidity is
+// enforced by block-level invalidation, not by the EVM.
+func (u *remoteUser) sendInvalidRelayMessage(ctx context.Context, msg *sentMessage) (*relayedMessage, error) {
+	result, err := msg.Tx.Result.Eval(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(result.Entries) == 0 {
+		return nil, fmt.Errorf("send tx produced no interop entries")
+	}
+	if len(msg.Receipt.Logs) == 0 {
+		return nil, fmt.Errorf("send tx produced no logs")
+	}
+
+	entryIdx := firstLogFrom(msg.Receipt.Logs, predeploys.L2toL2CrossDomainMessengerAddr)
+	if entryIdx < 0 || entryIdx >= len(result.Entries) {
+		return nil, fmt.Errorf("send tx produced no messenger entry")
+	}
+	entry := result.Entries[entryIdx]
+	entry.Identifier.LogIndex++
+	payload := messages.LogToMessagePayload(msg.Receipt.Logs[entryIdx])
+
+	tx := txintent.NewIntent[*txintent.RelayTrigger, *txintent.InteropOutput](u.plan())
+	tx.Content.DependOn(&msg.Tx.Result)
+	tx.Content.Fn(func(context.Context) (*txintent.RelayTrigger, error) {
+		return &txintent.RelayTrigger{
+			ExecTrigger: txintent.ExecTrigger{
+				Executor: predeploys.L2toL2CrossDomainMessengerAddr,
+				Msg:      entry,
+			},
+			Payload: payload,
+		}, nil
+	})
+
+	receipt, err := tx.PlannedTx.Included.Eval(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &relayedMessage{Tx: tx, Receipt: receipt}, nil
+}
+
+// execEntry sends an executing message for an already-known initiating message.
+func (u *remoteUser) execEntry(ctx context.Context, entry messages.Message) (*types.Receipt, error) {
+	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](u.plan())
+	tx.Content.Set(&txintent.ExecTrigger{
+		Executor: predeploys.CrossL2InboxAddr,
+		Msg:      entry,
+	})
+	return tx.PlannedTx.Included.Eval(ctx)
+}
+
+// firstLogFrom returns the index of the first log emitted by origin, or -1.
+// Entry indexes in an InteropOutput align one-to-one with receipt log indexes.
+func firstLogFrom(logs []*types.Log, origin common.Address) int {
+	for i, l := range logs {
+		if l.Address == origin {
+			return i
+		}
+	}
+	return -1
 }
 
 func newLogger(ctx context.Context, stderr io.Writer) log.Logger {
@@ -435,18 +555,65 @@ func Subcommands(envPrefix string) []*cli.Command {
 		},
 		{
 			Name:  "invalid-message",
-			Usage: "send an invalid executing message and verify it is reorged out",
+			Usage: "send invalid executing messages on both chains at once and verify they are reorged out",
 			Flags: append(flags,
-				&cli.UintFlag{Name: invalidBlocksFlagName, Usage: "Number of Chain B blocks containing invalid transactions.", Value: 1},
-				&cli.UintFlag{Name: invalidTxPerBlockFlagName, Usage: "Number of invalid transactions to land per Chain B block.", Value: 1},
-				&cli.DurationFlag{Name: reorgTimeoutFlagName, Usage: "Maximum time to wait for each invalid block to be reorged.", Value: defaultReorgTimeout},
+				&cli.UintFlag{
+					Name:    invalidBlocksFlagName,
+					Usage:   "Number of blocks per chain containing invalid transactions.",
+					EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_BLOCKS"),
+					Value:   1,
+				},
+				&cli.UintFlag{
+					Name:    invalidTxPerBlockFlagName,
+					Usage:   "Number of invalid transactions to land per block, on each chain.",
+					EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_TX_PER_BLOCK"),
+					Value:   1,
+				},
+				&cli.StringFlag{
+					Name: invalidDirectionFlagName,
+					Usage: fmt.Sprintf("Which invalid-message flows to run, named init-chain-to-exec-chain: %q (initiated on A, executed on B), %q (initiated on B, executed on A), or %q.",
+						directionAToB, directionBToA, directionBoth),
+					EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_DIRECTION"),
+					Value:   directionBoth,
+				},
+				&cli.DurationFlag{
+					Name:    reorgTimeoutFlagName,
+					Usage:   "Maximum time to wait for each invalid block to be reorged.",
+					EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_REORG_TIMEOUT"),
+					Value:   defaultReorgTimeout,
+				},
 			),
 			Action: func(cliCtx *cli.Context) error {
 				return withSmokeEnv(cliCtx, "Invalid Exec Message (reorg)", func(env *smokeEnv) error {
 					env.invalidBlocks = cliCtx.Uint(invalidBlocksFlagName)
 					env.invalidTxPerBlock = cliCtx.Uint(invalidTxPerBlockFlagName)
+					env.direction = cliCtx.String(invalidDirectionFlagName)
 					env.reorgTimeout = cliCtx.Duration(reorgTimeoutFlagName)
 					return smokeInvalidMessage(env)
+				})
+			},
+		},
+		{
+			Name:  "chained-invalid-message",
+			Usage: "chain a valid executing message to an invalid one and verify invalidation propagates",
+			Flags: append(flags,
+				&cli.DurationFlag{
+					Name:    reorgTimeoutFlagName,
+					Usage:   "Total time budget for the whole reorg cascade, shared across every block waited on.",
+					EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_REORG_TIMEOUT"),
+					Value:   defaultReorgTimeout,
+				},
+				&cli.BoolFlag{
+					Name:    requireCascadeFlagName,
+					Usage:   "Fail if Chain A included neither dependent message, since then transitive invalidation was never exercised.",
+					EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_REQUIRE_CASCADE"),
+				},
+			),
+			Action: func(cliCtx *cli.Context) error {
+				return withSmokeEnv(cliCtx, "Chained Invalid Exec Message (transitive reorg)", func(env *smokeEnv) error {
+					env.reorgTimeout = cliCtx.Duration(reorgTimeoutFlagName)
+					env.requireCascade = cliCtx.Bool(requireCascadeFlagName)
+					return smokeChainedInvalidMessage(env)
 				})
 			},
 		},
@@ -456,6 +623,7 @@ func Subcommands(envPrefix string) []*cli.Command {
 func smokeAll(env *smokeEnv) error {
 	env.invalidBlocks = 1
 	env.invalidTxPerBlock = 1
+	env.direction = directionBoth
 	env.reorgTimeout = defaultReorgTimeout
 	tests := []struct {
 		name string
@@ -466,6 +634,9 @@ func smokeAll(env *smokeEnv) error {
 		{"Cross-Chain ETH Bridge", smokeBridge},
 		{"Valid Exec Message", smokeValidMessage},
 		{"Invalid Exec Message (reorg)", smokeInvalidMessage},
+		// chained-invalid-message is deliberately not here: it waits on a second
+		// reorg cascade after this one, which would roughly double the worst-case
+		// runtime of `all`. Run it as its own subcommand.
 	}
 
 	var failed []string
@@ -568,6 +739,30 @@ func smokeValidMessage(env *smokeEnv) error {
 	return nil
 }
 
+type invalidInclusion struct {
+	txHash, blockHash common.Hash
+	blockNum          uint64
+}
+
+// invalidDirection is one init-chain -> exec-chain pairing: init messages are
+// emitted on the init user's chain and the invalid executing messages land on
+// the exec user's chain.
+type invalidDirection struct {
+	name        string
+	initUser    *remoteUser
+	execUser    *remoteUser
+	rng         *rand.Rand
+	eventLogger common.Address
+	pending     []*initMessage
+	inclusions  []invalidInclusion
+}
+
+// smokeInvalidMessage lands invalid executing messages on both chains at the
+// same time by default: chain B executes messages initiated on chain A while
+// chain A executes messages initiated on chain B. Each phase runs the selected
+// directions concurrently, and since the directions use opposite chains within
+// a phase, only one goroutine ever sends on a given chain at a time. Set
+// env.direction to restrict the test to a single chain.
 func smokeInvalidMessage(env *smokeEnv) error {
 	if err := validateInvalidMessageOptions(env.invalidBlocks, env.invalidTxPerBlock); err != nil {
 		return err
@@ -575,50 +770,456 @@ func smokeInvalidMessage(env *smokeEnv) error {
 	if env.reorgTimeout <= 0 {
 		return fmt.Errorf("reorg-timeout must be greater than zero")
 	}
-	rng := rand.New(rand.NewSource(99))
+	stderr := &lockedWriter{w: env.stderr}
 
-	eventLogger, err := env.userA.deployEventLogger(env.ctx)
+	dirs, err := invalidDirections(env)
 	if err != nil {
-		return fmt.Errorf("deploy EventLogger: %w", err)
+		return err
 	}
 
-	type invalidInclusion struct {
-		txHash, blockHash common.Hash
-		blockNum          uint64
+	if err := eachDirection(dirs, func(d *invalidDirection) error {
+		eventLogger, err := d.initUser.deployEventLogger(env.ctx)
+		if err != nil {
+			return fmt.Errorf("%s: deploy EventLogger on %s: %w", d.name, d.initUser.chain.name, err)
+		}
+		d.eventLogger = eventLogger
+		return nil
+	}); err != nil {
+		return err
 	}
-	var inclusions []invalidInclusion
+
 	for block := uint(0); block < env.invalidBlocks; block++ {
-		initMessages := make([]*initMessage, 0, env.invalidTxPerBlock)
-		for tx := uint(0); tx < env.invalidTxPerBlock; tx++ {
-			initMsg, err := env.userA.sendRandomInitMessage(env.ctx, rng, eventLogger, 2, 10)
-			if err != nil {
-				return fmt.Errorf("send init message: %w", err)
+		if err := eachDirection(dirs, func(d *invalidDirection) error {
+			d.pending = make([]*initMessage, 0, env.invalidTxPerBlock)
+			for tx := uint(0); tx < env.invalidTxPerBlock; tx++ {
+				initMsg, err := d.initUser.sendRandomInitMessage(env.ctx, d.rng, d.eventLogger, 2, 10)
+				if err != nil {
+					return fmt.Errorf("%s: send init message: %w", d.name, err)
+				}
+				d.pending = append(d.pending, initMsg)
 			}
-			initMessages = append(initMessages, initMsg)
-		}
-		if _, err := waitForNextBlock(env.ctx, env.chainB); err != nil {
+			return nil
+		}); err != nil {
 			return err
 		}
-		for _, initMsg := range initMessages {
-			invalidExec, err := env.userB.sendInvalidExecMessage(env.ctx, initMsg)
-			if err != nil {
-				return fmt.Errorf("send invalid exec message: %w", err)
+
+		if err := eachDirection(dirs, func(d *invalidDirection) error {
+			execChain := d.execUser.chain
+			if _, err := waitForNextBlock(env.ctx, execChain); err != nil {
+				return err
 			}
-			if invalidExec.Receipt.Status != types.ReceiptStatusSuccessful {
-				return fmt.Errorf("invalid exec tx reverted before inclusion")
+			for _, initMsg := range d.pending {
+				invalidExec, err := d.execUser.sendInvalidExecMessage(env.ctx, initMsg)
+				if err != nil {
+					return fmt.Errorf("%s: send invalid exec message: %w", d.name, err)
+				}
+				if invalidExec.Receipt.Status != types.ReceiptStatusSuccessful {
+					return fmt.Errorf("%s: invalid exec tx reverted before inclusion", d.name)
+				}
+				inclusion := invalidInclusion{invalidExec.Receipt.TxHash, invalidExec.BlockHash(), invalidExec.BlockNumber()}
+				d.inclusions = append(d.inclusions, inclusion)
+				fmt.Fprintf(stderr, "    [%s] Invalid exec tx included on %s: %s\n", d.name, execChain.name, inclusion.txHash)
+				fmt.Fprintf(stderr, "    [%s] Invalid exec message landed on %s block %d (%s)\n", d.name, execChain.name, inclusion.blockNum, inclusion.blockHash)
 			}
-			inclusion := invalidInclusion{invalidExec.Receipt.TxHash, invalidExec.BlockHash(), invalidExec.BlockNumber()}
-			inclusions = append(inclusions, inclusion)
-			fmt.Fprintf(env.stderr, "    Invalid exec tx included on Chain B: %s\n", inclusion.txHash)
-			fmt.Fprintf(env.stderr, "    Invalid exec message landed on Chain B block %d (%s)\n", inclusion.blockNum, inclusion.blockHash)
-		}
-	}
-	for _, inclusion := range inclusions {
-		if err := waitForReorgedOut(env.ctx, env.stderr, env.chainB, inclusion.blockNum, inclusion.blockHash, inclusion.txHash, env.reorgTimeout); err != nil {
+			return nil
+		}); err != nil {
 			return err
 		}
-		fmt.Fprintf(env.stderr, "    Invalid tx reorged out on Chain B after block %d was replaced\n", inclusion.blockNum)
 	}
+
+	// Check every invalid block on every chain, and report all failures rather
+	// than stopping at the first one.
+	type reorgCheck struct {
+		dir       *invalidDirection
+		inclusion invalidInclusion
+	}
+	var checks []reorgCheck
+	for _, d := range dirs {
+		for _, inclusion := range d.inclusions {
+			checks = append(checks, reorgCheck{dir: d, inclusion: inclusion})
+		}
+	}
+
+	results := make([]reorgResult, len(checks))
+	var wg sync.WaitGroup
+	waitStart := time.Now()
+	for i, check := range checks {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			execChain := check.dir.execUser.chain
+			start := time.Now()
+			err := waitForReorgedOut(env.ctx, stderr, execChain, check.inclusion.blockNum, check.inclusion.blockHash, check.inclusion.txHash, env.reorgTimeout)
+			results[i] = reorgResult{
+				dir:      check.dir.name,
+				chain:    execChain.name,
+				blockNum: check.inclusion.blockNum,
+				txHash:   check.inclusion.txHash,
+				elapsed:  time.Since(start),
+				err:      err,
+			}
+		}()
+	}
+	wg.Wait()
+	return reportReorgResults(env.stderr, results, time.Since(waitStart))
+}
+
+type reorgResult struct {
+	dir      string
+	chain    string
+	blockNum uint64
+	txHash   common.Hash
+	elapsed  time.Duration
+	err      error
+}
+
+// reportReorgResults prints a per-block summary table and returns the joined
+// errors of every block that was not reorged out.
+func reportReorgResults(stderr io.Writer, results []reorgResult, total time.Duration) error {
+	var errs []error
+	reorged := 0
+	stalled := 0
+	chains := make(map[string]struct{})
+	tw := tabwriter.NewWriter(stderr, 0, 0, 2, ' ', 0)
+	fmt.Fprint(tw, "\n    DIRECTION\tCHAIN\tBLOCK\tINVALID TX\tRESULT\tELAPSED\n")
+	for _, r := range results {
+		chains[r.chain] = struct{}{}
+		var status string
+		switch {
+		case r.err == nil:
+			status = "REORGED"
+			reorged++
+		case errors.Is(r.err, errChainStalled):
+			// The replacement was observed, so the invalidation worked. Counting
+			// this as "not reorged" would point at the wrong component.
+			status = "REORGED, CHAIN STALLED"
+			reorged++
+			stalled++
+			errs = append(errs, fmt.Errorf("%s on %s: %w", r.dir, r.chain, r.err))
+		default:
+			status = "NOT REORGED"
+			errs = append(errs, fmt.Errorf("%s on %s: %w", r.dir, r.chain, r.err))
+		}
+		fmt.Fprintf(tw, "    %s\t%s\t%d\t%s\t%s\t%s\n",
+			r.dir, r.chain, r.blockNum, r.txHash.TerminalString(), status, r.elapsed.Round(time.Second))
+	}
+	// A flush failure only loses the table; the reorg failures still have to be
+	// reported, so it joins the errors rather than replacing them.
+	if err := tw.Flush(); err != nil {
+		errs = append(errs, fmt.Errorf("flush summary table: %w", err))
+	}
+	fmt.Fprintf(stderr, "\n    %d/%d invalid txs reorged out across %d chain(s) in %s\n",
+		reorged, len(results), len(chains), total.Round(time.Second))
+	if stalled > 0 {
+		fmt.Fprintf(stderr, "    %d block(s) were replaced correctly, but the chain then stopped producing blocks.\n", stalled)
+		fmt.Fprintf(stderr, "    Invalidation looks correct; the liveness of the chain afterwards does not.\n")
+	}
+	fmt.Fprintln(stderr)
+
+	return errors.Join(errs...)
+}
+
+func invalidDirections(env *smokeEnv) ([]*invalidDirection, error) {
+	aToB := &invalidDirection{name: "A->B", initUser: env.userA, execUser: env.userB, rng: rand.New(rand.NewSource(99))}
+	bToA := &invalidDirection{name: "B->A", initUser: env.userB, execUser: env.userA, rng: rand.New(rand.NewSource(100))}
+	switch env.direction {
+	case directionAToB:
+		return []*invalidDirection{aToB}, nil
+	case directionBToA:
+		return []*invalidDirection{bToA}, nil
+	case directionBoth, "":
+		return []*invalidDirection{aToB, bToA}, nil
+	default:
+		return nil, fmt.Errorf("unknown direction %q: want %q, %q or %q",
+			env.direction, directionAToB, directionBToA, directionBoth)
+	}
+}
+
+// eachDirection runs fn for every direction concurrently, returning the first error.
+func eachDirection(dirs []*invalidDirection, fn func(d *invalidDirection) error) error {
+	var group errgroup.Group
+	for _, d := range dirs {
+		group.Go(func() error { return fn(d) })
+	}
+	return group.Wait()
+}
+
+// lockedWriter serializes writes so concurrent directions do not interleave
+// mid-line output.
+type lockedWriter struct {
+	mu sync.Mutex
+	w  io.Writer
+}
+
+func (l *lockedWriter) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.w.Write(p)
+}
+
+// smokeChainedInvalidMessage verifies that invalidation is transitive.
+//
+// Chain A sends a cross-chain message targeting an EventLogger on chain B.
+// Chain B relays it with a corrupted identifier, so the relay is invalid. The
+// relay still executes, calling EventLogger.emitLog, which emits a brand new
+// initiating message on chain B that exists only because the invalid relay ran.
+// Chain A then sends a well-formed executing message for that new message.
+//
+// When chain B's block is replaced for containing the invalid relay, the new
+// message disappears with it, so chain A's executing message must be reorged
+// out too, even though it was valid when sent.
+//
+// A control message that does not depend on the invalid block is checked to
+// still be present at the end, so that a node which simply discards a swathe of
+// recent chain A blocks does not pass.
+func smokeChainedInvalidMessage(env *smokeEnv) error {
+	if env.reorgTimeout <= 0 {
+		return fmt.Errorf("reorg-timeout must be greater than zero")
+	}
+	rng := rand.New(rand.NewSource(123))
+
+	eventLoggerB, err := env.userB.deployEventLogger(env.ctx)
+	if err != nil {
+		return fmt.Errorf("deploy EventLogger on Chain B: %w", err)
+	}
+
+	// Control arm: an ordinary Chain B -> Chain A message, emitted before the
+	// invalid relay so it cannot be part of the reorged lineage.
+	controlInit, err := env.userB.sendRandomInitMessage(env.ctx, rng, eventLoggerB, 2, 10)
+	if err != nil {
+		return fmt.Errorf("send control init message: %w", err)
+	}
+	controlOut, err := controlInit.Tx.Result.Eval(env.ctx)
+	if err != nil {
+		return fmt.Errorf("read control init entries: %w", err)
+	}
+	if len(controlOut.Entries) == 0 {
+		return fmt.Errorf("control init tx produced no interop entries")
+	}
+	if _, err := waitForNextBlock(env.ctx, env.chainA); err != nil {
+		return err
+	}
+	controlReceipt, err := env.userA.execEntry(env.ctx, controlOut.Entries[0])
+	if err != nil {
+		return fmt.Errorf("send control exec message: %w", err)
+	}
+	controlBlockNum := bigs.Uint64Strict(controlReceipt.BlockNumber)
+	controlBlockHash := controlReceipt.BlockHash
+	fmt.Fprintf(env.stderr, "    Control exec message landed on Chain A block %d (%s)\n", controlBlockNum, controlBlockHash)
+
+	// Force the control message into a strictly earlier Chain A block than the
+	// chained exec message. Sharing a block would make the cascade correctly
+	// reorg both, and the control assertion would misreport an over-reorg.
+	if err := waitForHeadAtLeast(env.ctx, env.chainA, controlBlockNum+1); err != nil {
+		return err
+	}
+
+	// Step 1: Chain A sends a message whose relayed call emits a log on Chain B.
+	topics := make([][32]byte, 2)
+	for i := range topics {
+		copy(topics[i][:], testutils.RandomData(rng, 32))
+	}
+	emitCalldata, err := (&txintent.InitTrigger{
+		Emitter:    eventLoggerB,
+		Topics:     topics,
+		OpaqueData: testutils.RandomData(rng, 10),
+	}).EncodeInput()
+	if err != nil {
+		return fmt.Errorf("encode emitLog calldata: %w", err)
+	}
+	sent, err := env.userA.sendMessage(env.ctx, env.chainB.chainID, eventLoggerB, emitCalldata)
+	if err != nil {
+		return fmt.Errorf("send cross-chain message on Chain A: %w", err)
+	}
+	fmt.Fprintf(env.stderr, "    Message sent on Chain A (block %d), target %s on Chain B\n",
+		bigs.Uint64Strict(sent.Receipt.BlockNumber), eventLoggerB)
+
+	// Step 2: Chain B relays it invalidly. The relay executes anyway and emits
+	// the bounced message.
+	if _, err := waitForNextBlock(env.ctx, env.chainB); err != nil {
+		return err
+	}
+	badRelay, err := env.userB.sendInvalidRelayMessage(env.ctx, sent)
+	if err != nil {
+		return fmt.Errorf("send invalid relay message: %w", err)
+	}
+	if badRelay.Receipt.Status != types.ReceiptStatusSuccessful {
+		return fmt.Errorf("invalid relay tx reverted before inclusion")
+	}
+	badBlockNum, badBlockHash := badRelay.BlockNumber(), badRelay.BlockHash()
+	fmt.Fprintf(env.stderr, "    Invalid relay landed on Chain B block %d (%s)\n", badBlockNum, badBlockHash)
+
+	bounceIdx := firstLogFrom(badRelay.Receipt.Logs, eventLoggerB)
+	if bounceIdx < 0 {
+		return fmt.Errorf("invalid relay emitted no log from EventLogger %s; the relayed call did not reach its target", eventLoggerB)
+	}
+	relayOut, err := badRelay.Tx.Result.Eval(env.ctx)
+	if err != nil {
+		return fmt.Errorf("read invalid relay entries: %w", err)
+	}
+	if len(relayOut.Entries) <= bounceIdx {
+		return fmt.Errorf("invalid relay entry %d missing, only have %d", bounceIdx, len(relayOut.Entries))
+	}
+	bounced := relayOut.Entries[bounceIdx]
+	fmt.Fprintf(env.stderr, "    Bounced message emitted on Chain B by the invalid relay (log index %d)\n", bounceIdx)
+
+	// Step 3: Chain A executes the bounced message, which depends on the invalid
+	// Chain B block directly. Well-formed and valid at send time; it only
+	// becomes invalid once that block goes.
+	direct, err := env.execDependentOnA(bounced, "Direct", badBlockNum, badBlockHash, controlBlockNum)
+	if err != nil {
+		return err
+	}
+
+	// Step 3b: a plain log emitted on a later Chain B block. That block is
+	// valid in itself and is reorged only because its ancestor is replaced, so
+	// a dependency on it exercises invalidation through the lineage rather than
+	// on the invalid block directly.
+	descendantInit, err := env.userB.sendRandomInitMessage(env.ctx, rng, eventLoggerB, 2, 10)
+	if err != nil {
+		return fmt.Errorf("send descendant init message: %w", err)
+	}
+	descendantBlockNum := descendantInit.BlockNumber()
+	if descendantBlockNum <= badBlockNum {
+		return fmt.Errorf("descendant init landed on Chain B block %d, which is not after the invalid block %d",
+			descendantBlockNum, badBlockNum)
+	}
+	descendantOut, err := descendantInit.Tx.Result.Eval(env.ctx)
+	if err != nil {
+		return fmt.Errorf("read descendant init entries: %w", err)
+	}
+	if len(descendantOut.Entries) == 0 {
+		return fmt.Errorf("descendant init tx produced no interop entries")
+	}
+	fmt.Fprintf(env.stderr, "    Descendant init message emitted on Chain B block %d (after invalid block %d)\n",
+		descendantBlockNum, badBlockNum)
+
+	if _, err := waitForNextBlock(env.ctx, env.chainA); err != nil {
+		return err
+	}
+	descendant, err := env.execDependentOnA(descendantOut.Entries[0], "Descendant", badBlockNum, badBlockHash, controlBlockNum)
+	if err != nil {
+		return err
+	}
+
+	// Wait for the invalid relay to be replaced even when neither dependent
+	// message was accepted. This confirms the invalidation itself happened
+	// before reporting that cascade coverage was not exercised.
+	cascadeDeadline := time.Now().Add(env.reorgTimeout)
+	if err := waitForReorgedOut(env.ctx, env.stderr, env.chainB, badBlockNum, badBlockHash, badRelay.Receipt.TxHash, time.Until(cascadeDeadline)); err != nil {
+		return fmt.Errorf("invalid relay was not reorged out of Chain B: %w", err)
+	}
+	fmt.Fprintf(env.stderr, "    Invalid relay reorged out on Chain B block %d\n", badBlockNum)
+
+	if direct == nil && descendant == nil {
+		fmt.Fprintf(env.stderr, "    Chain A included neither dependent message, so no cascade was needed (prevention, not cure).\n")
+		fmt.Fprintf(env.stderr, "    NOTE: transitive invalidation itself was NOT exercised by this run.\n")
+		if err := assertControlIntact(env, controlBlockNum, controlBlockHash, controlReceipt.TxHash); err != nil {
+			return err
+		}
+		if env.requireCascade {
+			return fmt.Errorf("no dependent message was included, so transitive invalidation was never exercised (--%s)", requireCascadeFlagName)
+		}
+		return nil
+	}
+
+	// Step 4: the invalid block goes, and the cascade must follow.
+	for _, arm := range []*dependentExec{direct, descendant} {
+		if arm == nil {
+			continue
+		}
+		if err := waitForReorgedOut(env.ctx, env.stderr, env.chainA, arm.blockNum, arm.blockHash, arm.txHash, time.Until(cascadeDeadline)); err != nil {
+			return fmt.Errorf("%s dependent message was not reorged out of Chain A; invalidation did not propagate: %w", arm.name, err)
+		}
+		fmt.Fprintf(env.stderr, "    %s dependent message reorged out on Chain A block %d (invalidation propagated)\n", arm.name, arm.blockNum)
+	}
+
+	return assertControlIntact(env, controlBlockNum, controlBlockHash, controlReceipt.TxHash)
+}
+
+// dependentExec is an executing message on Chain A that depends, directly or
+// through the block lineage, on the invalid Chain B block.
+type dependentExec struct {
+	name      string
+	blockNum  uint64
+	blockHash common.Hash
+	txHash    common.Hash
+}
+
+// execDependentOnA sends an executing message for entry on Chain A. A nil
+// result means the node refused it, which it may do while the source block is
+// not yet cross-unsafe. The invalid block never will be, so refusal is
+// prevention rather than cure and is not a failure, though it exercises none of
+// the cascade logic.
+//
+// A refusal is only credited as prevention if Chain A is still answering
+// afterwards. Otherwise the send failed for an unrelated reason - an unreachable
+// RPC, a nonce or gas problem - and reporting that as prevention would let a
+// broken run look like a pass.
+func (env *smokeEnv) execDependentOnA(entry messages.Message, name string, badBlockNum uint64, badBlockHash common.Hash, controlBlockNum uint64) (*dependentExec, error) {
+	if err := assertBlockUnchanged(env.ctx, env.chainB, badBlockNum, badBlockHash); err != nil {
+		return nil, err
+	}
+	receipt, err := env.userA.execEntry(env.ctx, entry)
+	if err != nil {
+		if _, headErr := env.chainA.ethClient.BlockRefByLabel(env.ctx, eth.Unsafe); headErr != nil {
+			return nil, fmt.Errorf("%s dependent message failed and Chain A is not answering, so the failure cannot be read as refusal: %w",
+				name, errors.Join(err, headErr))
+		}
+		if err := assertBlockUnchanged(env.ctx, env.chainB, badBlockNum, badBlockHash); err != nil {
+			return nil, err
+		}
+		fmt.Fprintf(env.stderr, "    Chain A refused the %s dependent message: %v\n", name, err)
+		return nil, nil
+	}
+	blockNum := bigs.Uint64Strict(receipt.BlockNumber)
+	if blockNum == controlBlockNum {
+		return nil, fmt.Errorf("%s dependent message shares Chain A block %d with the control message; cannot attribute a reorg",
+			name, blockNum)
+	}
+	fmt.Fprintf(env.stderr, "    %s dependent message landed on Chain A block %d (%s)\n", name, blockNum, receipt.BlockHash)
+	if err := assertBlockUnchanged(env.ctx, env.chainB, badBlockNum, badBlockHash); err != nil {
+		return nil, err
+	}
+	return &dependentExec{
+		name:      name,
+		blockNum:  blockNum,
+		blockHash: receipt.BlockHash,
+		txHash:    receipt.TxHash,
+	}, nil
+}
+
+// assertBlockUnchanged reports an inconclusive run if the block has already
+// been replaced. The chained test can only observe transitive invalidation if
+// the invalid block is still canonical while the dependent message is sent.
+func assertBlockUnchanged(ctx context.Context, chain *remoteChain, blockNum uint64, want common.Hash) error {
+	current, err := chain.ethClient.BlockRefByNumber(ctx, blockNum)
+	if err != nil {
+		return fmt.Errorf("fetch %s block %d: %w", chain.name, blockNum, err)
+	}
+	if current.Hash != want {
+		return fmt.Errorf("INCONCLUSIVE: %s block %d was already replaced (%s -> %s) before the dependent message was sent; rerun",
+			chain.name, blockNum, want, current.Hash)
+	}
+	return nil
+}
+
+// assertControlIntact checks that a message which does not depend on the
+// invalid block survived. Without this, a node that discards a swathe of recent
+// Chain A blocks would look correct.
+func assertControlIntact(env *smokeEnv, blockNum uint64, blockHash common.Hash, txHash common.Hash) error {
+	current, err := env.chainA.ethClient.BlockRefByNumber(env.ctx, blockNum)
+	if err != nil {
+		return fmt.Errorf("fetch control block %d on Chain A: %w", blockNum, err)
+	}
+	if current.Hash != blockHash {
+		return fmt.Errorf("control message's Chain A block %d was replaced (%s -> %s); invalidation over-reached",
+			blockNum, blockHash, current.Hash)
+	}
+	if err := assertTxInBlock(env.ctx, env.chainA, blockNum, txHash); err != nil {
+		return fmt.Errorf("control message did not survive: %w", err)
+	}
+	fmt.Fprintf(env.stderr, "    Control message still present on Chain A block %d\n", blockNum)
 	return nil
 }
 
@@ -681,25 +1282,25 @@ func waitForHeadAtLeast(ctx context.Context, chain *remoteChain, target uint64) 
 }
 
 func waitForReorgedOut(ctx context.Context, stderr io.Writer, chain *remoteChain, blockNum uint64, oldHash, txHash common.Hash, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	replaced := false
+	start := time.Now()
+	deadline := start.Add(timeout)
 	for attempt := 0; ; attempt++ {
+		elapsed := time.Since(start).Round(time.Second)
 		currentBlock, err := chain.ethClient.BlockRefByNumber(ctx, blockNum)
 		if err == nil {
 			if currentBlock.Hash != oldHash {
-				fmt.Fprintf(stderr, "    Reorg detected at block %d: %s -> %s\n", blockNum, oldHash, currentBlock.Hash)
-				replaced = true
+				fmt.Fprintf(stderr, "    [%s] Reorg detected at block %d after %s: %s -> %s\n", chain.name, blockNum, elapsed, oldHash, currentBlock.Hash)
 				break
 			}
 			if attempt == 0 || attempt%10 == 0 {
-				fmt.Fprintf(stderr, "    Waiting for reorg at block %d: still %s\n", blockNum, currentBlock.Hash)
+				fmt.Fprintf(stderr, "    [%s] Waiting for reorg at block %d (%s/%s): still %s\n", chain.name, blockNum, elapsed, timeout, currentBlock.Hash)
 			}
 		} else if errors.Is(eth.MaybeAsNotFoundErr(err), ethereum.NotFound) {
 			if attempt == 0 || attempt%10 == 0 {
-				fmt.Fprintf(stderr, "    Waiting for reorg at block %d: block temporarily missing\n", blockNum)
+				fmt.Fprintf(stderr, "    [%s] Waiting for reorg at block %d (%s/%s): block temporarily missing\n", chain.name, blockNum, elapsed, timeout)
 			}
 		} else if attempt == 0 || attempt%10 == 0 {
-			fmt.Fprintf(stderr, "    Waiting for reorg at block %d: lookup error: %v\n", blockNum, err)
+			fmt.Fprintf(stderr, "    [%s] Waiting for reorg at block %d (%s/%s): lookup error: %v\n", chain.name, blockNum, elapsed, timeout, err)
 		}
 
 		if err := ctx.Err(); err != nil {
@@ -711,13 +1312,60 @@ func waitForReorgedOut(ctx context.Context, stderr io.Writer, chain *remoteChain
 		time.Sleep(time.Second)
 	}
 
-	if !replaced {
-		return fmt.Errorf("invalid reorg state")
-	}
-	if err := waitForHeadAtLeast(ctx, chain, blockNum+1); err != nil {
+	if err := waitForHeadProgress(ctx, stderr, chain, blockNum+1, timeout); err != nil {
 		return err
 	}
 	return assertTxNotInBlock(ctx, chain, blockNum, txHash)
+}
+
+// errChainStalled marks a block that was correctly replaced on a chain that
+// then stopped producing blocks. The invalidation itself was right and the
+// chain's liveness is what broke; reporting both as "not reorged" hides which
+// component is at fault.
+var errChainStalled = errors.New("chain stopped producing blocks after the replacement")
+
+// waitForHeadProgress waits for the chain's head to reach target, reporting what
+// it is waiting for as it goes. It is used after a reorg has already been
+// observed, where a head that never advances means the chain wedged on the
+// replacement block rather than that the reorg failed.
+func waitForHeadProgress(ctx context.Context, stderr io.Writer, chain *remoteChain, target uint64, timeout time.Duration) error {
+	start := time.Now()
+	deadline := start.Add(timeout)
+	var head uint64
+	var haveHead bool
+	for attempt := 0; ; attempt++ {
+		elapsed := time.Since(start).Round(time.Second)
+		ref, err := chain.ethClient.BlockRefByLabel(ctx, eth.Unsafe)
+		if err == nil {
+			if ref.Number >= target {
+				fmt.Fprintf(stderr, "    [%s] Chain progressing again: head %d after %s\n", chain.name, ref.Number, elapsed)
+				return nil
+			}
+			// Log on the first attempt, every ten seconds, and whenever the head
+			// moves, so a chain inching forward looks different from a wedged one.
+			if attempt == 0 || attempt%10 == 0 || !haveHead || ref.Number != head {
+				fmt.Fprintf(stderr, "    [%s] Waiting for chain to resume building past the replaced block (%s/%s): head still %d, need %d\n",
+					chain.name, elapsed, timeout, ref.Number, target)
+			}
+			head, haveHead = ref.Number, true
+		} else if attempt == 0 || attempt%10 == 0 {
+			fmt.Fprintf(stderr, "    [%s] Waiting for chain to resume building (%s/%s): head lookup error: %v\n",
+				chain.name, elapsed, timeout, err)
+		}
+
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if time.Now().After(deadline) {
+			if !haveHead {
+				return fmt.Errorf("%w: %s head could not be read for %s after block %d was replaced",
+					errChainStalled, chain.name, timeout, target-1)
+			}
+			return fmt.Errorf("%w: %s head stuck at %d for %s after block %d was replaced",
+				errChainStalled, chain.name, head, timeout, target-1)
+		}
+		time.Sleep(time.Second)
+	}
 }
 
 func assertTxInBlock(ctx context.Context, chain *remoteChain, blockNum uint64, txHash common.Hash) error {

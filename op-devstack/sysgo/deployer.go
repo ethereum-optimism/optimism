@@ -1,6 +1,7 @@
 package sysgo
 
 import (
+	"crypto/ecdsa"
 	"math/big"
 	"path/filepath"
 	"slices"
@@ -33,6 +34,17 @@ import (
 
 // funderMnemonicIndex the funding account is not one of the 30 standard account, but still derived from a user-key.
 const funderMnemonicIndex = 10_000
+
+// FunderKey returns the private key of the genesis-prefunded funder account.
+// Every sysgo runtime prefunds this account at genesis (see the WithPrefundedAccount
+// calls in this package), so tests hand out funds from a prefunded EOA
+// (dsl.NewFunderEOA) rather than a hosted faucet service. Setup transactions
+// using this key must be included before NewFunderEOA snapshots its nonce; the
+// FunderEOA must own the key exclusively thereafter.
+func FunderKey(keys devkeys.Keys) (*ecdsa.PrivateKey, error) {
+	return keys.Secret(devkeys.UserKey(funderMnemonicIndex))
+}
+
 const devFeatureBitmapKey = "devFeatureBitmap"
 
 // proxyImplementationSlot is the EIP-1967 proxy implementation storage slot used
@@ -250,9 +262,9 @@ func WithCommons(l1ChainID eth.ChainID) DeployerOption {
 
 		l1Config.WithL1ForkAtGenesis(forks.Prague) // activate pectra on L1
 
-		faucetFunderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
+		funderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
 		p.Require().NoError(err, "need funder addr")
-		l1Config.WithPrefundedAccount(faucetFunderAddr, *eth.BillionEther.ToU256())
+		l1Config.WithPrefundedAccount(funderAddr, *eth.BillionEther.ToU256())
 
 		// We use the L1 chain ID to identify the superchain-wide roles.
 		addrFor := intentbuilder.RoleToAddrProvider(p, keys, l1ChainID)
@@ -279,9 +291,9 @@ func WithPrefundedL2(l1ChainID, l2ChainID eth.ChainID) DeployerOption {
 		// l2configurator L1ProxyAdminOwner must be also populated
 		intentbuilder.WithDevkeyL1Roles(p, keys, l2Config, l1ChainID)
 		{
-			faucetFunderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
+			funderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
 			p.Require().NoError(err, "need funder addr")
-			l2Config.WithPrefundedAccount(faucetFunderAddr, *eth.BillionEther.ToU256())
+			l2Config.WithPrefundedAccount(funderAddr, *eth.BillionEther.ToU256())
 		}
 		{
 			addrFor := intentbuilder.RoleToAddrProvider(p, keys, l2ChainID)
