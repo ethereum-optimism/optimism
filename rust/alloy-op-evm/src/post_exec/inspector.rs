@@ -416,20 +416,8 @@ where
         let caller = inputs.caller();
         self.observe_account_touch(caller, true);
 
-        // `CreateInputs::created_address` memoizes its result (`OnceCell`), and this hook runs
-        // *before* the create frame is initialized: `inspect_frame_init` dispatches
-        // `Inspector::create` through `frame_start` and only then calls `frame_init`, which is
-        // where revm computes `created_address(old_nonce)` (`revm-handler-41.0.0`
-        // `src/frame.rs:309`). So for `CreateScheme::Create` the nonce read below *seeds*
-        // that cell and revm reuses our value in place of its own `old_nonce` — it is
-        // load-bearing, not a fallback. It is correct because nothing mutates the caller
-        // nonce between this hook and `frame_init`, so both observe the same pre-bump
-        // value, and the caller is always already resident in `evm_state()` (loaded by
-        // `deduct_caller` for a top-level create, or as the executing frame's own account
-        // for an inner one) so `unwrap_or_default()` never fires. Do not collapse this to a
-        // constant nonce: the inspector runs only while producing, so a wrong address here
-        // would deploy the contract where no verifier expects it — a state-root split,
-        // not merely a wrong refund amount.
+        // This hook seeds the created-address cache before frame initialization. CREATE must use
+        // the caller's pre-bump nonce; a wrong value changes the deployed address.
         let created_address = match inputs.scheme() {
             CreateScheme::Create => {
                 let nonce = context
@@ -437,24 +425,15 @@ where
                     .evm_state()
                     .get(&caller)
                     .map(|account| account.info.nonce)
-                    .unwrap_or_default();
+                    .expect("create caller must be loaded before inspection");
                 inputs.created_address(nonce)
             }
-            // Nonce-independent: CREATE2 hashes the salt and init code, Custom carries the address
-            // outright. Enumerated rather than `_` so a future nonce-dependent scheme fails to
-            // compile here instead of silently seeding the cell with nonce 0.
+            // These schemes are nonce-independent. List them so new schemes require review.
             CreateScheme::Create2 { .. } | CreateScheme::Custom { .. } => inputs.created_address(0),
         };
 
-        // A creating tx never pays a cold-account surcharge for the address it creates, at any
-        // depth, so there is no cold->warm delta to rebate. `CREATE`/`CREATE2` are absent from
-        // EIP-2929's metered-opcode list (`BALANCE`, `EXTCODESIZE`/`COPY`/`HASH`, the `CALL`
-        // family, `SELFDESTRUCT`, `SLOAD`, `SSTORE`): the create path charges initcode, create and
-        // memory gas only. For a top-level CREATE the address is additionally the tx's intrinsic
-        // "to", pre-warmed at tx start and billed warm. Either way the address must not earn a
-        // warming rebate for the creating tx, even if an earlier tx warmed it. It is still recorded
-        // in `warmed_accounts` below, so a later tx that accesses it via a metered opcode
-        // (genuinely cold for that tx) still earns its rebate.
+        // CREATE and CREATE2 warm the created address without a cold-account surcharge, so the
+        // creating tx has no cold-to-warm delta to rebate. Keep recording it for later txs.
         self.current_tx.intrinsic_warm_accounts.insert(created_address);
         self.observe_account_touch(created_address, true);
         None

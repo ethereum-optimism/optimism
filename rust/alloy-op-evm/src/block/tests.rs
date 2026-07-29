@@ -845,16 +845,8 @@ mod sdm {
         );
     }
 
-    // Closes the max-input saturation gap the FMA flags under FM2. The settlement identity
-    // `sender_delta == beneficiary_delta + base_fee_delta + operator_fee_delta` must hold
-    // *exactly* at the arithmetic extremes a hostile producer can reach, so that no
-    // `saturating_mul`/`saturating_add` in the deltas path can mask a non-conserving delta and
-    // mint ETH. `refund` is bounded by `evm_gas_used` (u64) and prices by u128, so the widest
-    // product is ~2^192 — inside U256, and therefore never actually saturating.
-    //
-    // Only `effective_gas_price >= basefee` is exercised: below-basefee txs cannot reach
-    // settlement (revm rejects them upstream with GasPriceLessThanBasefee), and the
-    // `beneficiary_gas_price` saturating_sub relies on exactly that.
+    // Verify valid maximum-width inputs do not saturate settlement arithmetic. Transactions below
+    // base fee are rejected before settlement and are not exercised here.
     #[test]
     fn test_post_exec_settlement_conserves_value_at_arithmetic_extremes() {
         for base_fee in [0u64, 1, 1_000_000_000, u64::MAX] {
@@ -870,8 +862,7 @@ mod sdm {
                     let inputs =
                         format!("base_fee={base_fee}, refund={refund}, gas_price={gas_price}");
 
-                    // Each leg must equal its exact closed form: the conservation identity alone
-                    // would still hold if two legs clamped by offsetting amounts.
+                    // Check each leg; conservation alone can hide offsetting clamps.
                     let refund_u256 = U256::from(refund);
                     assert_eq!(
                         deltas.base_fee_balance_delta,
@@ -882,6 +873,11 @@ mod sdm {
                         deltas.beneficiary_balance_delta,
                         refund_u256 * U256::from(gas_price - u128::from(base_fee)),
                         "beneficiary leg must not saturate ({inputs})",
+                    );
+                    assert_eq!(
+                        deltas.operator_fee_balance_delta,
+                        refund_u256 * U256::from(5 * 100),
+                        "operator-fee leg must not saturate ({inputs})",
                     );
                     assert_eq!(
                         deltas.sender_balance_delta,
@@ -1065,15 +1061,8 @@ mod sdm {
         AccountInfo { code_hash, code: Some(Bytecode::new_raw(raw)), ..Default::default() }
     }
 
-    // An *inner* (depth > 0) CREATE/CREATE2 is not an EIP-2929 metered account access: revm's
-    // `create` instruction charges only create_cost + initcode + memory, never the 2600 cold
-    // account-access surcharge (EIP-2929 lists BALANCE/EXTCODE*/CALL*/SELFDESTRUCT/SLOAD/SSTORE —
-    // CREATE and CREATE2 are absent). The warming rebate is defined as the cold->warm delta
-    // (2600 - 100 = 2500) refunded when a tx paid cold for an address already warm in the block.
-    // A tx that never paid a cold surcharge is owed nothing, so an inner CREATE2 landing on an
-    // address an earlier tx warmed must NOT be rebated. The `create` hook previously suppressed
-    // this only for `top_level`, so the inner case claimed an unearned 2500 per creation; it now
-    // suppresses at any depth.
+    // CREATE and CREATE2 charge no cold-account surcharge, so an inner creation at an address
+    // warmed earlier in the block must not receive the 2,500-gas rebate.
     #[test]
     fn test_inner_create_address_is_not_rebated() {
         const BLOCK_GAS_LIMIT: u64 = 2_000_000;
@@ -1090,23 +1079,14 @@ mod sdm {
         fixture.db.insert_account(factory, create2_factory_account());
         let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
 
-        // tx0 warms `created` (as its intrinsic `to`), recording it in the block warming set.
+        // tx0 warms `created`; tx1 creates it through the factory.
         producer
             .execute_transaction(&legacy_tx(0, created))
             .expect("tx0 warms the create2 address");
-        // tx1 calls the factory, which CREATE2s at `created` from depth 1.
         let tx1_gas = producer
             .execute_transaction(&legacy_tx_with_gas(1, factory, 200_000))
             .expect("tx1 inner-creates at the warmed address")
             .tx_gas_used();
-
-        // Positive control: without it the negative assertion below would pass vacuously if the
-        // factory bytecode ever stopped creating. CREATE2 costs 32 000 on top of the 21 000
-        // intrinsic, so this gas floor is only reachable if the create frame actually ran.
-        assert!(
-            tx1_gas > 21_000 + 32_000,
-            "tx1 must have executed a CREATE2, but used only {tx1_gas} gas",
-        );
 
         let claimed =
             all_warming_events(&producer).into_iter().find(|event| event.address == created);
@@ -1116,21 +1096,20 @@ mod sdm {
              a cold EIP-2929 access for: {:#?}",
             producer.warming_events_by_tx,
         );
+
+        // Ensure the factory still executes CREATE2.
+        assert!(
+            tx1_gas > 21_000 + 32_000,
+            "tx1 must have executed a CREATE2, but used only {tx1_gas} gas",
+        );
     }
 
-    // A contract created by one tx must be warmed for a later tx that genuinely cold-accesses it,
-    // so the later tx earns its warming rebate. The `create` hook records the address via
-    // `CreateInputs::created_address`, whose `OnceCell` the hook *seeds*: it runs before revm's
-    // `frame_init` computes the same value, so revm reuses ours. Both read the identical pre-bump
-    // caller nonce, so the recorded address is the one the EVM deploys to — see the `create` hook
-    // for why that is load-bearing rather than a fallback. This guards the end-to-end property:
-    // created contract -> warmed -> later cold access rebated.
+    // A created address remains block-warm, allowing a later cold access to claim its rebate.
     #[test]
     fn test_created_contract_address_is_warmed_for_a_later_tx() {
         const BLOCK_GAS_LIMIT: u64 = 2_000_000;
 
-        // Probe the canonical address the CREATE produces (revm computes it from the pre-bump
-        // nonce). Sender and nonce match the real run below, so the address is identical.
+        // Probe the address produced by the same sender and nonce used below.
         let created = {
             let mut probe_fixture = SDMExecutorFixture::new(
                 DEFAULT_DA_FOOTPRINT_GAS_SCALAR,
@@ -1176,12 +1155,7 @@ mod sdm {
         assert_eq!(created_event.slot, None, "account rebate has no storage slot");
     }
 
-    // The inner-depth counterpart of the test above, and the other half of the inner-CREATE fix:
-    // suppressing the creating tx's rebate must not stop the created address from entering the
-    // *block* warming set. A later tx that genuinely cold-accesses an inner-created contract still
-    // earns its rebate — i.e. the fix drops only the unearned claim, not the warming record. A
-    // "simplification" deleting the `observe_account_touch` call in the `create` hook would pass
-    // every other test in this module but fail here.
+    // Suppressing an inner create's rebate must still leave the address warm for later txs.
     #[test]
     fn test_inner_created_contract_address_is_warmed_for_a_later_tx() {
         const BLOCK_GAS_LIMIT: u64 = 2_000_000;
