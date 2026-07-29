@@ -297,61 +297,22 @@ func TestValidateL1ChainID(t *testing.T) {
 
 func TestResolveSuperchainConfigProxy(t *testing.T) {
 	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
-	superCfg := common.HexToAddress("0xcccc000000000000000000000000000000000003")
-
-	// Stub JSON-RPC endpoint
-	var calls int
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var req struct {
-			ID     any               `json:"id"`
-			Method string            `json:"method"`
-			Params []json.RawMessage `json:"params"`
-		}
-		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
-		require.Equal(t, "eth_call", req.Method)
-
-		var msg struct {
-			To    *common.Address `json:"to"`
-			Data  hexutil.Bytes   `json:"data"`
-			Input hexutil.Bytes   `json:"input"`
-		}
-		require.NoError(t, json.Unmarshal(req.Params[0], &msg))
-		require.Equal(t, &opcmAddr, msg.To)
-		calldata := msg.Data
-		if len(calldata) == 0 {
-			calldata = msg.Input
-		}
-		require.Equal(t, crypto.Keccak256([]byte("superchainConfig()"))[:4], []byte(calldata))
-
-		calls++
-		w.Header().Set("Content-Type", "application/json")
-		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
-			"jsonrpc": "2.0",
-			"id":      req.ID,
-			"result":  common.BytesToHash(superCfg.Bytes()).Hex(),
-		}))
-	}))
-	defer srv.Close()
-
-	l1RPC, err := rpc.Dial(srv.URL)
-	require.NoError(t, err)
-	defer l1RPC.Close()
 
 	ctx := context.Background()
+	var l1RPC *rpc.Client
 
-	// Unset -> resolved from the OPCM in memory only.
+	// Unset -> rejected, naming the OPCM the intent pinned.
 	intent := &state.Intent{OPCMAddress: &opcmAddr}
-	require.NoError(t, resolveSuperchainConfigProxy(ctx, l1RPC, intent, opcmAddr))
-	require.NotNil(t, intent.SuperchainConfigProxy)
-	require.Equal(t, superCfg, *intent.SuperchainConfigProxy)
-	require.Equal(t, 1, calls)
+	err := resolveSuperchainConfigProxy(ctx, l1RPC, intent, opcmAddr)
+	require.ErrorContains(t, err, "intent.superchainConfigProxy must be set")
+	require.ErrorContains(t, err, opcmAddr.Hex())
+	require.Nil(t, intent.SuperchainConfigProxy)
 
-	// Already set -> left untouched without an RPC call.
+	// Already set -> left untouched.
 	pinned := common.HexToAddress("0xdddd000000000000000000000000000000000004")
 	intent = &state.Intent{OPCMAddress: &opcmAddr, SuperchainConfigProxy: &pinned}
 	require.NoError(t, resolveSuperchainConfigProxy(ctx, l1RPC, intent, opcmAddr))
 	require.Equal(t, pinned, *intent.SuperchainConfigProxy)
-	require.Equal(t, 1, calls)
 }
 
 func TestPrepareConfigCheck(t *testing.T) {

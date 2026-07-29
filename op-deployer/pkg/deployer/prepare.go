@@ -284,12 +284,7 @@ func resolveSuperchainConfigProxy(ctx context.Context, l1RPC *rpc.Client, intent
 	if intent.SuperchainConfigProxy != nil {
 		return nil
 	}
-	superCfgAddr, err := opcm.NewContract(opcmAddr, ethclient.NewClient(l1RPC)).SuperchainConfig(ctx)
-	if err != nil {
-		return fmt.Errorf("error resolving SuperchainConfig from OPCM at %s: %w", opcmAddr, err)
-	}
-	intent.SuperchainConfigProxy = &superCfgAddr
-	return nil
+	return fmt.Errorf("intent.superchainConfigProxy must be set to predict against an existing OPCM at %s", opcmAddr.Hex())
 }
 
 // predictChains predicts and records contract L1 addresses for undeployed chains.
