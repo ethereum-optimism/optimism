@@ -36,7 +36,7 @@ use crate::{
     },
     is_parent_resolved,
     metrics::ProposerGauge,
-    signer::SignerLock,
+    signer::{FeeCaps, SignerLock},
     superroot::{SuperrootClient, zk_extra_data},
 };
 
@@ -1069,6 +1069,14 @@ where
         self.prestates.programs(prestate).await
     }
 
+    /// Operator fee caps applied to every submitted transaction.
+    const fn fee_caps(&self) -> FeeCaps {
+        FeeCaps {
+            max_fee_per_gas: self.config.max_fee_per_gas,
+            max_priority_fee_per_gas: self.config.max_priority_fee_per_gas,
+        }
+    }
+
     /// Creates a new game with the given parameters.
     ///
     /// `root_claim`: the super-root hash we are proposing.
@@ -1089,6 +1097,7 @@ where
                 self.config.l1_rpc.clone(),
                 transaction_request,
                 self.config.tx_confirmation_timeout,
+                self.fee_caps(),
             )
             .await?;
 
@@ -1308,6 +1317,7 @@ where
                 self.config.l1_rpc.clone(),
                 transaction_request,
                 self.config.tx_confirmation_timeout,
+                self.fee_caps(),
             )
             .await?;
 
@@ -1340,6 +1350,7 @@ where
                 self.config.l1_rpc.clone(),
                 transaction_request,
                 self.config.tx_confirmation_timeout,
+                self.fee_caps(),
             )
             .await?;
 
@@ -1607,13 +1618,36 @@ where
                 // duplicate creation while the pinned cache hasn't caught up to this game.
                 self.last_created_game_l2_sequence_number.store(sequence_number, Ordering::Relaxed);
                 *self.last_created_game_address.lock().await = game_address;
+                ProposerGauge::GamesCreated.increment(1.0);
                 return Ok(());
             }
 
-            // An identical VALID game already exists (UUID collision). Advance the
-            // timestamp - bounded by the safety limit - and refetch a fresh super
-            // root (the proof embeds the timestamp). On reaching the bound, defer:
-            // the next sync adopts the existing game as canonical head.
+            // A game with identical parameters already exists (UUID
+            // collision). If WE created it - a previous create tx landed
+            // after its confirmation timed out, leaving the guard unarmed -
+            // adopt it instead of advancing the timestamp, which would bond
+            // a second game on the same parent. Only a third-party
+            // collision advances.
+            let existing_creator = ZKDisputeGame::new(existing_game, self.l1_provider.clone())
+                .gameCreator()
+                .call()
+                .await?;
+            if existing_creator == self.signer.address() {
+                tracing::info!(
+                    sequence_number,
+                    parent_game_index,
+                    game_address = ?existing_game,
+                    "Adopting own existing game after create-tx uncertainty"
+                );
+                self.last_created_game_l2_sequence_number.store(sequence_number, Ordering::Relaxed);
+                *self.last_created_game_address.lock().await = existing_game;
+                return Ok(());
+            }
+
+            // Third-party collision: advance the timestamp - bounded by the
+            // safety limit - and refetch a fresh super root (the proof
+            // embeds the timestamp). On reaching the bound, defer: the next
+            // sync adopts the existing game as canonical head.
             match advance_collision_timestamp(sequence_number, max_proposable) {
                 Some(next) => {
                     tracing::debug!(

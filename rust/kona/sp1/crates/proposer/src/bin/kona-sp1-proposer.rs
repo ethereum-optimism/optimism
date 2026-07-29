@@ -40,6 +40,8 @@ async fn main() -> Result<()> {
         metrics_port = config.metrics_port,
         sync_l1_confirmations = config.sync_l1_confirmations,
         tx_confirmation_timeout = config.tx_confirmation_timeout,
+        max_fee_per_gas = ?config.max_fee_per_gas,
+        max_priority_fee_per_gas = ?config.max_priority_fee_per_gas,
         "Resolved proposer configuration"
     );
     let signer = SignerLock::new(Signer::from_env().await?);

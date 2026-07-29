@@ -79,6 +79,14 @@ pub struct ProposerConfig {
     /// Maximum time (in seconds) to wait for an L1 transaction to reach the
     /// required confirmations before the watcher gives up.
     pub tx_confirmation_timeout: u64,
+
+    /// Optional cap, in wei, on the EIP-1559 max fee per gas the fee
+    /// estimator may set on submitted transactions. Unset = uncapped.
+    pub max_fee_per_gas: Option<u128>,
+
+    /// Optional cap, in wei, on the EIP-1559 max priority fee per gas the
+    /// fee estimator may set. Unset = uncapped.
+    pub max_priority_fee_per_gas: Option<u128>,
 }
 
 fn optional_env(name: &str) -> Option<String> {
@@ -92,10 +100,16 @@ fn parsed_env_or<T: FromStr>(name: &str, default: T) -> Result<T>
 where
     T::Err: std::fmt::Display,
 {
+    parsed_optional_env(name).map(|value| value.unwrap_or(default))
+}
+
+fn parsed_optional_env<T: FromStr>(name: &str) -> Result<Option<T>>
+where
+    T::Err: std::fmt::Display,
+{
     optional_env(name)
         .map(|value| value.parse::<T>().map_err(|err| anyhow!("invalid {name}: {err}")))
         .transpose()
-        .map(|value| value.unwrap_or(default))
 }
 
 impl ProposerConfig {
@@ -131,6 +145,8 @@ impl ProposerConfig {
             metrics_port: parsed_env_or("METRICS_PORT", 0u16)?,
             sync_l1_confirmations: parsed_env_or("SYNC_L1_CONFIRMATIONS", 0u64)?,
             tx_confirmation_timeout,
+            max_fee_per_gas: parsed_optional_env("MAX_FEE_PER_GAS")?,
+            max_priority_fee_per_gas: parsed_optional_env("MAX_PRIORITY_FEE_PER_GAS")?,
         })
     }
 }
