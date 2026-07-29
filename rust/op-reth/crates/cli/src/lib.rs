@@ -128,11 +128,21 @@ where
 {
     /// Returns the clap command with all `DENIED_ARGS` hidden from help output.
     pub fn command_with_denied_args_hidden() -> clap::Command {
-        let mut cmd = <Self as clap::CommandFactory>::command();
-        for (subcommand, arg_id, _) in DENIED_ARGS {
-            cmd = cmd.mut_subcommand(*subcommand, |sc| sc.mut_arg(*arg_id, |arg| arg.hide(true)));
-        }
-        cmd
+        // `mut_subcommand`/`mut_arg` move the modified entry to the end of help output, so use
+        // the order-preserving `mut_subcommands`/`mut_args` instead.
+        <Self as clap::CommandFactory>::command().mut_subcommands(|sc| {
+            let name = sc.get_name().to_string();
+            sc.mut_args(|arg| {
+                if DENIED_ARGS
+                    .iter()
+                    .any(|(sub, arg_id, _)| *sub == name && *arg_id == arg.get_id().as_str())
+                {
+                    arg.hide(true)
+                } else {
+                    arg
+                }
+            })
+        })
     }
 
     /// Parses the CLI from the process arguments, hiding `DENIED_ARGS` from help output and
