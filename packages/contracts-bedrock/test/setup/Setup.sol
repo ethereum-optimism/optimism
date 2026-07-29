@@ -27,6 +27,7 @@ import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Chains } from "scripts/libraries/Chains.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
@@ -60,6 +61,7 @@ import { ISuperchainETHBridge } from "interfaces/L2/ISuperchainETHBridge.sol";
 import { IETHLiquidity } from "interfaces/L2/IETHLiquidity.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
+import { IPauseSource } from "interfaces/universal/IPauseSource.sol";
 import { IWETH98 } from "interfaces/universal/IWETH98.sol";
 import { IGovernanceToken } from "interfaces/governance/IGovernanceToken.sol";
 import { ILegacyMessagePasser } from "interfaces/legacy/ILegacyMessagePasser.sol";
@@ -532,5 +534,14 @@ abstract contract Setup is FeatureFlags {
         labelPreinstall(Preinstalls.BeaconBlockRoots);
         labelPreinstall(Preinstalls.HistoryStorage);
         labelPreinstall(Preinstalls.CreateX);
+    }
+
+    /// @notice Returns the pause source that this chain's contracts are expected to point at. The
+    ///         ETHLockbox is the pause source whenever the chain uses one, because those contracts
+    ///         may be shared with other chains in an interop set.
+    function expectedPauseSource() internal view returns (IPauseSource) {
+        return isSysFeatureEnabled(Features.ETH_LOCKBOX)
+            ? IPauseSource(address(ethLockbox))
+            : IPauseSource(address(systemConfig));
     }
 }

@@ -306,7 +306,7 @@ library ChainAssertions {
         // Check that the contract is initialized
         DeployUtils.assertInitialized({ _contractAddress: address(_ethLockbox), _isProxy: false, _slot: 0, _offset: 0 });
 
-        require(address(_ethLockbox.systemConfig()) == address(0), "CHECK-ELB-50");
+        require(address(_ethLockbox.superchainConfig()) == address(0), "CHECK-ELB-50");
         require(_ethLockbox.authorizedPortals(_portal) == false, "CHECK-ELB-60");
     }
 

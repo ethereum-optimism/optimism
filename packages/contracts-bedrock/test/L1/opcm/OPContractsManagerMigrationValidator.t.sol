@@ -493,7 +493,7 @@ contract OPContractsManagerMigrationValidator_SCKDG_Test is OPContractsManagerMi
             abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()),
             abi.encode(standardValidator.l1PAOMultisig())
         );
-        vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.systemConfig, ()), abi.encode(chainContracts1.systemConfig));
+        vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.pauseSource, ()), abi.encode(sharedLockbox));
         vm.mockCall(badWeth, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(sharedProxyAdmin));
         assertEq("MIG-SCKDG-GARGS-30", _validateMigration(true));
     }
@@ -595,14 +595,18 @@ contract OPContractsManagerMigrationValidator_PerChain_Test is OPContractsManage
         assertEq("MIG-CHAIN-1-90", _validateMigration(true));
     }
 
-    /// @notice MIG-LOCKBOX-MISSING: Portal's ethLockbox is address(0).
+    /// @notice MIG-LOCKBOX-MISSING: Portal's ethLockbox is address(0). The shared ASR and
+    ///         DelayedWETH pause-source checks also fire, because the expected pause source is
+    ///         derived from the portal's lockbox and so resolves to address(0) too.
     function test_validate_lockboxMissing_succeeds() public {
         vm.mockCall(
             address(chainContracts1.optimismPortal),
             abi.encodeCall(IOptimismPortal2.ethLockbox, ()),
             abi.encode(address(0))
         );
-        assertEq("MIG-LOCKBOX-MISSING", _validateMigration(true));
+        assertEq(
+            "MIG-SPDG-ANCHORP-40,MIG-SCKDG-DWETH-50,MIG-SCKDG-ANCHORP-40,MIG-LOCKBOX-MISSING", _validateMigration(true)
+        );
     }
 
     /// @notice MIG-CHAIN-0-100: INTEROP feature not enabled.
@@ -615,14 +619,18 @@ contract OPContractsManagerMigrationValidator_PerChain_Test is OPContractsManage
         assertEq("MIG-CHAIN-0-100", _validateMigration(true));
     }
 
-    /// @notice MIG-CHAIN-0-110: ETH_LOCKBOX feature not enabled.
+    /// @notice MIG-CHAIN-0-110: ETH_LOCKBOX feature not enabled. The shared ASR and DelayedWETH
+    ///         pause-source checks also fire, because with the feature disabled the expected pause
+    ///         source falls back to the chain's own SystemConfig.
     function test_validate_chain0110EthLockboxNotEnabled_succeeds() public {
         vm.mockCall(
             address(chainContracts1.systemConfig),
             abi.encodeCall(ISystemConfig.isFeatureEnabled, (Features.ETH_LOCKBOX)),
             abi.encode(false)
         );
-        assertEq("MIG-CHAIN-0-110", _validateMigration(true));
+        assertEq(
+            "MIG-SPDG-ANCHORP-40,MIG-SCKDG-DWETH-50,MIG-SCKDG-ANCHORP-40,MIG-CHAIN-0-110", _validateMigration(true)
+        );
     }
 
     /// @notice MIG-CHAIN-1-120: Second chain's SystemConfig delayedWETH doesn't match shared WETH.

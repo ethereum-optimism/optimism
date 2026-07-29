@@ -2941,6 +2941,43 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         );
     }
 
+    /// @notice Tests that the shared contracts resolve their pause state and guardian through the
+    ///         shared ETHLockbox rather than through one member chain's SystemConfig, so that the
+    ///         reference is identical for every migrated chain.
+    function test_migrate_sharedContractsUseLockboxAsPauseSource_succeeds() public {
+        _enableEthLockboxes();
+        _doMigration(_getDefaultMigrateInput());
+
+        IOptimismPortal2 portal1 = IOptimismPortal2(payable(chainContracts1.systemConfig.optimismPortal()));
+        IOptimismPortal2 portal2 = IOptimismPortal2(payable(chainContracts2.systemConfig.optimismPortal()));
+
+        IETHLockbox sharedLockbox = portal1.ethLockbox();
+        IAnchorStateRegistry sharedASR = portal1.anchorStateRegistry();
+        IDelayedWETH sharedWETH = IDelayedWETH(payable(chainContracts1.systemConfig.delayedWETH()));
+
+        // The lockbox holds the SuperchainConfig directly and is its own pause identifier.
+        assertEq(address(sharedLockbox.superchainConfig()), address(superchainConfig), "lockbox superchain config");
+        assertEq(sharedLockbox.guardian(), superchainConfig.guardian(), "lockbox guardian");
+
+        // The shared contracts point at the lockbox, not at either chain's SystemConfig.
+        assertEq(address(sharedASR.pauseSource()), address(sharedLockbox), "ASR pause source");
+        assertEq(address(sharedWETH.pauseSource()), address(sharedLockbox), "DelayedWETH pause source");
+
+        // Both chains resolve the same shared contracts, so that single pause source is correct for
+        // every member of the set rather than only for the chain that supplied it.
+        assertEq(address(portal2.ethLockbox()), address(sharedLockbox), "chain 2 lockbox");
+        assertEq(address(portal2.anchorStateRegistry()), address(sharedASR), "chain 2 ASR");
+        assertEq(chainContracts2.systemConfig.delayedWETH(), address(sharedWETH), "chain 2 DelayedWETH");
+
+        // Pausing the shared lockbox pauses the shared contracts and both chains at once.
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(sharedLockbox));
+        assertTrue(sharedLockbox.paused(), "lockbox not paused");
+        assertTrue(sharedASR.paused(), "ASR not paused");
+        assertTrue(chainContracts1.systemConfig.paused(), "chain 1 not paused");
+        assertTrue(chainContracts2.systemConfig.paused(), "chain 2 not paused");
+    }
+
     /// @notice Tests that existing per-chain lockbox liquidity is swept into the shared lockbox.
     function test_migrate_sweepsExistingLockbox_succeeds() public {
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();

@@ -9,7 +9,7 @@ import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
-import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { IPauseSource } from "interfaces/universal/IPauseSource.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 /// @custom:proxied true
@@ -30,8 +30,8 @@ contract DelayedWETH is Initializable, ProxyAdminOwnedBase, ReinitializableBase,
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.5.1
-    string public constant version = "1.5.1";
+    /// @custom:semver 2.0.0
+    string public constant version = "2.0.0";
 
     /// @notice Returns a withdrawal request for the given address.
     mapping(address => mapping(address => WithdrawalRequest)) public withdrawals;
@@ -39,8 +39,10 @@ contract DelayedWETH is Initializable, ProxyAdminOwnedBase, ReinitializableBase,
     /// @notice Withdrawal delay in seconds.
     uint256 internal immutable DELAY_SECONDS;
 
-    /// @notice Address of the SystemConfig contract.
-    ISystemConfig public systemConfig;
+    /// @notice Address of the contract that resolves the pause state. Must have the same scope as
+    ///         this contract: the chain's SystemConfig when this contract serves a single chain, or
+    ///         the shared ETHLockbox when it is shared by an interop set.
+    IPauseSource public pauseSource;
 
     /// @param _delay The delay for withdrawals in seconds.
     constructor(uint256 _delay) ReinitializableBase(1) {
@@ -49,13 +51,13 @@ contract DelayedWETH is Initializable, ProxyAdminOwnedBase, ReinitializableBase,
     }
 
     /// @notice Initializes the contract.
-    /// @param _systemConfig Address of the SystemConfig contract.
-    function initialize(ISystemConfig _systemConfig) external reinitializer(initVersion()) {
+    /// @param _pauseSource Address of the pause source contract.
+    function initialize(IPauseSource _pauseSource) external reinitializer(initVersion()) {
         // Initialization transactions must come from the ProxyAdmin or its owner.
         _assertOnlyProxyAdminOrProxyAdminOwner();
 
         // Now perform initialization logic.
-        systemConfig = _systemConfig;
+        pauseSource = _pauseSource;
     }
 
     /// @notice Returns the withdrawal delay in seconds.
@@ -67,7 +69,7 @@ contract DelayedWETH is Initializable, ProxyAdminOwnedBase, ReinitializableBase,
     /// @notice Returns the SuperchainConfig contract.
     /// @return ISuperchainConfig The SuperchainConfig contract.
     function config() public view returns (ISuperchainConfig) {
-        return systemConfig.superchainConfig();
+        return pauseSource.superchainConfig();
     }
 
     /// @notice Unlocks withdrawals for the sender's account, after a time delay.
@@ -94,7 +96,7 @@ contract DelayedWETH is Initializable, ProxyAdminOwnedBase, ReinitializableBase,
     /// @param _guy Sub-account to withdraw from.
     /// @param _wad The amount of WETH to withdraw.
     function withdraw(address _guy, uint256 _wad) public {
-        require(!systemConfig.paused(), "DelayedWETH: contract is paused");
+        require(!pauseSource.paused(), "DelayedWETH: contract is paused");
         WithdrawalRequest storage wd = withdrawals[msg.sender][_guy];
         require(wd.amount >= _wad, "DelayedWETH: insufficient unlocked withdrawal");
         require(wd.timestamp > 0, "DelayedWETH: withdrawal not unlocked");

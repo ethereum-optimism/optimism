@@ -14,7 +14,7 @@ import "src/dispute/lib/Errors.sol";
 // Interfaces
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
-import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { IPauseSource } from "interfaces/universal/IPauseSource.sol";
 
 /// @title DelayedWETH_FallbackGasUser_Harness
 /// @notice Contract that burns gas in the fallback function.
@@ -72,8 +72,8 @@ contract DelayedWETH_Initialize_Test is DelayedWETH_TestInit {
     /// @notice Tests that initialization is successful.
     function test_initialize_succeeds() public view {
         assertEq(delayedWeth.proxyAdminOwner(), proxyAdminOwner);
-        assertEq(address(delayedWeth.systemConfig()), address(systemConfig));
-        assertEq(address(delayedWeth.config()), address(systemConfig.superchainConfig()));
+        assertEq(address(delayedWeth.pauseSource()), address(expectedPauseSource()));
+        assertEq(address(delayedWeth.config()), address(superchainConfig));
     }
 
     /// @notice Tests that the initializer value is correct. Trivial test for normal initialization
@@ -109,7 +109,7 @@ contract DelayedWETH_Initialize_Test is DelayedWETH_TestInit {
 
         // Call the `initialize` function with the sender.
         vm.prank(_sender);
-        delayedWeth.initialize(ISystemConfig(address(1234)));
+        delayedWeth.initialize(IPauseSource(address(1234)));
     }
 }
 

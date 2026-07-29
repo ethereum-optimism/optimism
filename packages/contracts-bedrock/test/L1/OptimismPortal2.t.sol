@@ -36,6 +36,7 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
+import { IPauseSource } from "interfaces/universal/IPauseSource.sol";
 
 abstract contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
     address depositor;
@@ -742,7 +743,9 @@ contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_Test
         if (_authorizePortal) portals[0] = IOptimismPortal(payable(address(optimismPortal2)));
 
         vm.prank(proxyAdminAddr);
-        Proxy(payable(newProxy)).upgradeToAndCall(impl, abi.encodeCall(IETHLockbox.initialize, (systemConfig, portals)));
+        Proxy(payable(newProxy)).upgradeToAndCall(
+            impl, abi.encodeCall(IETHLockbox.initialize, (superchainConfig, portals))
+        );
 
         lockbox_ = IETHLockbox(payable(newProxy));
     }
@@ -759,12 +762,15 @@ contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_Test
         Proposal memory startingAnchorRoot =
             Proposal({ root: Hash.wrap(keccak256("starting-anchor-root")), l2SequenceNumber: 1 });
 
+        // Resolved before the prank because reading it makes an external call.
+        IPauseSource pauseSource = expectedPauseSource();
+
         vm.prank(proxyAdminAddr);
         Proxy(payable(newProxy)).upgradeToAndCall(
             impl,
             abi.encodeCall(
                 IAnchorStateRegistry.initialize,
-                (systemConfig, disputeGameFactory, startingAnchorRoot, GameTypes.SUPER_PERMISSIONED)
+                (pauseSource, disputeGameFactory, startingAnchorRoot, GameTypes.SUPER_PERMISSIONED)
             )
         );
 

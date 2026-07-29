@@ -6,6 +6,7 @@ import { LibString } from "@solady/utils/LibString.sol";
 import { GameType, Claim, GameTypes, Hash } from "src/dispute/lib/Types.sol";
 import { Duration } from "src/dispute/lib/LibUDT.sol";
 import { Constants } from "src/libraries/Constants.sol";
+import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
@@ -22,6 +23,7 @@ import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
+import { IPauseSource } from "interfaces/universal/IPauseSource.sol";
 
 uint256 constant EXPECTED_MAX_GAME_DEPTH = 73;
 uint256 constant EXPECTED_SPLIT_DEPTH = 30;
@@ -124,6 +126,18 @@ contract StandardValidatorUtils {
         } else {
             errors_ = string.concat(_errors, ",", _message);
         }
+    }
+
+    /// @notice Returns the pause source that contracts belonging to this chain must point at. A
+    ///         chain using the ETHLockbox may share those contracts with other chains in an interop
+    ///         set, and the lockbox is the only reference that is identical for every member.
+    /// @param _sysCfg The SystemConfig of the chain being validated.
+    /// @return The expected pause source.
+    function expectedPauseSource(ISystemConfig _sysCfg) internal view returns (IPauseSource) {
+        if (!_sysCfg.isFeatureEnabled(Features.ETH_LOCKBOX)) {
+            return IPauseSource(address(_sysCfg));
+        }
+        return IPauseSource(address(IOptimismPortal2(payable(_sysCfg.optimismPortal())).ethLockbox()));
     }
 
     /// @notice Asserts that the SuperchainConfig contract is valid.
@@ -355,7 +369,9 @@ contract StandardValidatorUtils {
         _errors =
             internalRequire(_weth.proxyAdminOwner() == _l1PAOMultisig, string.concat(_errorPrefix, "-30"), _errors);
         _errors = internalRequire(_weth.delay() == _withdrawalDelaySeconds, string.concat(_errorPrefix, "-40"), _errors);
-        _errors = internalRequire(_weth.systemConfig() == _sysCfg, string.concat(_errorPrefix, "-50"), _errors);
+        _errors = internalRequire(
+            _weth.pauseSource() == expectedPauseSource(_sysCfg), string.concat(_errorPrefix, "-50"), _errors
+        );
         _errors = internalRequire(
             IProxyAdminOwnedBase(address(_weth)).proxyAdmin() == _admin, string.concat(_errorPrefix, "-60"), _errors
         );
@@ -390,7 +406,9 @@ contract StandardValidatorUtils {
         _errors = internalRequire(
             address(_asr.disputeGameFactory()) == address(_dgf), string.concat(_errorPrefix, "-30"), _errors
         );
-        _errors = internalRequire(_asr.systemConfig() == _sysCfg, string.concat(_errorPrefix, "-40"), _errors);
+        _errors = internalRequire(
+            _asr.pauseSource() == expectedPauseSource(_sysCfg), string.concat(_errorPrefix, "-40"), _errors
+        );
         _errors = internalRequire(
             IProxyAdminOwnedBase(address(_asr)).proxyAdmin() == _admin, string.concat(_errorPrefix, "-50"), _errors
         );

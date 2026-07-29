@@ -923,9 +923,9 @@ contract OPContractsManagerStandardValidator_ETHLockbox_Test is OPContractsManag
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
-    ///         ETHLockbox systemConfig is invalid.
-    function test_validate_ethLockboxInvalidSystemConfig_succeeds() public {
-        vm.mockCall(address(ethLockbox), abi.encodeCall(IETHLockbox.systemConfig, ()), abi.encode(address(0xbad)));
+    ///         ETHLockbox superchainConfig is invalid.
+    function test_validate_ethLockboxInvalidSuperchainConfig_succeeds() public {
+        vm.mockCall(address(ethLockbox), abi.encodeCall(IETHLockbox.superchainConfig, ()), abi.encode(address(0xbad)));
 
         if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
             assertEq("LOCKBOX-40", _validate(true));
@@ -1129,7 +1129,7 @@ contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
             abi.encode(Hash.wrap(bytes32(uint256(0x123))), uint256(123))
         );
         vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.disputeGameFactory, ()), abi.encode(dgf));
-        vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.systemConfig, ()), abi.encode(sysCfg));
+        vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.pauseSource, ()), abi.encode(expectedPauseSource()));
         vm.mockCall(badASR, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(proxyAdmin));
         vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.retirementTimestamp, ()), abi.encode(uint64(100)));
 
@@ -1155,7 +1155,7 @@ contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
         vm.mockCall(
             badWeth, abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(standardValidator.withdrawalDelaySeconds())
         );
-        vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.systemConfig, ()), abi.encode(sysCfg));
+        vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.pauseSource, ()), abi.encode(expectedPauseSource()));
         vm.mockCall(badWeth, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(proxyAdmin));
 
         assertEq("PDDG-DWETH-10,PDDG-DWETH-20", _validate(true));
@@ -1302,11 +1302,11 @@ contract OPContractsManagerStandardValidator_AnchorStateRegistry_Test is
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
-    ///         AnchorStateRegistry systemConfig is invalid.
-    function test_validate_anchorStateRegistryInvalidSystemConfig_succeeds() public {
+    ///         AnchorStateRegistry pauseSource is invalid.
+    function test_validate_anchorStateRegistryInvalidPauseSource_succeeds() public {
         vm.mockCall(
             address(anchorStateRegistry),
-            abi.encodeCall(IAnchorStateRegistry.systemConfig, ()),
+            abi.encodeCall(IAnchorStateRegistry.pauseSource, ()),
             abi.encode(address(0xbad))
         );
         assertEq("PDDG-ANCHORP-40,CKDG-ANCHORP-40", _validate(true));
@@ -1371,9 +1371,9 @@ contract OPContractsManagerStandardValidator_DelayedWETH_Test is OPContractsMana
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
-    ///         DelayedWETH systemConfig is invalid.
-    function test_validate_delayedWETHInvalidSystemConfig_succeeds() public {
-        vm.mockCall(address(delayedWeth), abi.encodeCall(IDelayedWETH.systemConfig, ()), abi.encode(address(0xbad)));
+    ///         DelayedWETH pauseSource is invalid.
+    function test_validate_delayedWETHInvalidPauseSource_succeeds() public {
+        vm.mockCall(address(delayedWeth), abi.encodeCall(IDelayedWETH.pauseSource, ()), abi.encode(address(0xbad)));
         assertEq("PDDG-DWETH-50,CKDG-DWETH-50", _validate(true));
     }
 
@@ -1488,7 +1488,7 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
             abi.encode(Hash.wrap(bytes32(uint256(0x123))), uint256(123))
         );
         vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.disputeGameFactory, ()), abi.encode(dgf));
-        vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.systemConfig, ()), abi.encode(sysCfg));
+        vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.pauseSource, ()), abi.encode(expectedPauseSource()));
         vm.mockCall(badASR, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(proxyAdmin));
         vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.retirementTimestamp, ()), abi.encode(uint64(100)));
     }
@@ -1517,7 +1517,7 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
         vm.mockCall(
             badWeth, abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(standardValidator.withdrawalDelaySeconds())
         );
-        vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.systemConfig, ()), abi.encode(sysCfg));
+        vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.pauseSource, ()), abi.encode(expectedPauseSource()));
         vm.mockCall(badWeth, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(proxyAdmin));
     }
 
@@ -1962,7 +1962,7 @@ contract OPContractsManagerStandardValidator_SuperPermissionedDisputeGame_Test i
             abi.encode(Hash.wrap(bytes32(uint256(0x123))), uint256(123))
         );
         vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.disputeGameFactory, ()), abi.encode(dgf));
-        vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.systemConfig, ()), abi.encode(sysCfg));
+        vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.pauseSource, ()), abi.encode(expectedPauseSource()));
         vm.mockCall(badASR, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(proxyAdmin));
         vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.retirementTimestamp, ()), abi.encode(uint64(100)));
 

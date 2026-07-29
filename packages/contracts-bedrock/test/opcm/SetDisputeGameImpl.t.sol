@@ -20,10 +20,10 @@ import { GameType, Proposal, Hash } from "src/dispute/lib/Types.sol";
 // Interfaces
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
-import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { IPauseSource } from "interfaces/universal/IPauseSource.sol";
 
 contract SetDisputeGameImplInput_Test is Test {
     SetDisputeGameImplInput input;
@@ -119,7 +119,7 @@ contract SetDisputeGameImpl_Test is Test {
             abi.encodeCall(
                 IAnchorStateRegistry.initialize,
                 (
-                    ISystemConfig(address(systemConfigProxy)),
+                    IPauseSource(address(systemConfigProxy)),
                     factory,
                     Proposal({ root: Hash.wrap(0), l2SequenceNumber: 0 }),
                     GameType.wrap(100)

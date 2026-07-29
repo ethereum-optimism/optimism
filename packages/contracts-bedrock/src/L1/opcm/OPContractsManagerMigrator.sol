@@ -20,6 +20,7 @@ import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPort
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
+import { IPauseSource } from "interfaces/universal/IPauseSource.sol";
 import { GameType, Proposal } from "src/dispute/lib/Types.sol";
 
 /// @title OPContractsManagerMigrator
@@ -184,10 +185,10 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         );
 
         // Reuse the existing DelayedWETH from chainSystemConfigs[0] rather than deploying a
-        // new one. The migrated chains share a SystemConfig, and by extension share its
-        // DelayedWETH. Deploying a new one would create a divergence — SystemConfig would
-        // still point to the old one, and future upgrades (which load DelayedWETH from
-        // SystemConfig) would reference a different DelayedWETH than the shared DGF games.
+        // new one. Every migrated chain's SystemConfig is repointed at this DelayedWETH below, so
+        // deploying a new one would create a divergence — chain 0's SystemConfig would still point
+        // to the old one, and future upgrades (which load DelayedWETH from SystemConfig) would
+        // reference a different DelayedWETH than the shared DGF games.
         IDelayedWETH delayedWETH = IDelayedWETH(payable(_input.chainSystemConfigs[0].delayedWETH()));
 
         // Separate context to avoid stack too deep (isolate the implementations variable).
@@ -195,16 +196,17 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
             // Grab the implementations.
             IOPContractsManagerContainer.Implementations memory impls = contractsContainer().implementations();
 
-            // Initialize the new ETHLockbox.
-            // NOTE: Shared contracts (ETHLockbox, AnchorStateRegistry, DelayedWETH) are
-            // intentionally initialized with chainSystemConfigs[0]. All chains are validated to
-            // share the same ProxyAdmin owner and SuperchainConfig, so the first chain's
-            // SystemConfig is used as the canonical governance reference for shared contracts.
+            // Initialize the new ETHLockbox. The lockbox is the pause source for every other
+            // shared contract, so it takes the SuperchainConfig directly and is its own pause
+            // identifier. All chains are validated to share the same SuperchainConfig, so reading
+            // it from the first chain is safe.
             _upgrade(
                 proxyDeployArgs.proxyAdmin,
                 address(ethLockbox),
                 impls.ethLockboxImpl,
-                abi.encodeCall(IETHLockbox.initialize, (_input.chainSystemConfigs[0], new IOptimismPortal[](0)))
+                abi.encodeCall(
+                    IETHLockbox.initialize, (_input.chainSystemConfigs[0].superchainConfig(), new IOptimismPortal[](0))
+                )
             );
 
             // Initialize the new DisputeGameFactory.
@@ -215,7 +217,18 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
                 abi.encodeCall(IDisputeGameFactory.initialize, (proxyDeployArgs.proxyAdmin.owner()))
             );
 
-            // Initialize the new AnchorStateRegistry.
+            // Repoint the shared DelayedWETH at the shared ETHLockbox. It currently resolves its
+            // pause state through chain 0's SystemConfig, which is a per-chain contract; the
+            // lockbox has the same scope as the set that shares this DelayedWETH.
+            _upgrade(
+                proxyDeployArgs.proxyAdmin,
+                address(delayedWETH),
+                impls.delayedWETHImpl,
+                abi.encodeCall(IDelayedWETH.initialize, (IPauseSource(address(ethLockbox))))
+            );
+
+            // Initialize the new AnchorStateRegistry against the shared ETHLockbox for the same
+            // reason.
             _upgrade(
                 proxyDeployArgs.proxyAdmin,
                 address(anchorStateRegistry),
@@ -223,7 +236,7 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
                 abi.encodeCall(
                     IAnchorStateRegistry.initialize,
                     (
-                        _input.chainSystemConfigs[0],
+                        IPauseSource(address(ethLockbox)),
                         disputeGameFactory,
                         _input.startingAnchorRoot,
                         _input.startingRespectedGameType
@@ -322,14 +335,22 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         IOPContractsManagerContainer.Implementations memory impls = contractsContainer().implementations();
 
         // Re-initialize the shared AnchorStateRegistry with the new respected game type and anchor
-        // root. _upgrade resets the initialized slot, re-seeding the anchor for the new game.
+        // root. _upgrade resets the initialized slot, re-seeding the anchor for the new game. The
+        // pause source is re-derived from the portal's shared ETHLockbox so that a set migrated by
+        // an older OPCM release, whose registry still points at chain 0's SystemConfig, is fixed up
+        // here too.
         _upgrade(
             sysCfg.proxyAdmin(),
             address(anchorStateRegistry),
             impls.anchorStateRegistryImpl,
             abi.encodeCall(
                 IAnchorStateRegistry.initialize,
-                (sysCfg, disputeGameFactory, _input.startingAnchorRoot, _input.startingRespectedGameType)
+                (
+                    IPauseSource(address(IOptimismPortal(payable(sysCfg.optimismPortal())).ethLockbox())),
+                    disputeGameFactory,
+                    _input.startingAnchorRoot,
+                    _input.startingRespectedGameType
+                )
             )
         );
 

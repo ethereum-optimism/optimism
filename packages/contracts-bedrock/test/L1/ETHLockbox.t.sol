@@ -53,9 +53,8 @@ contract ETHLockbox_Version_Test is ETHLockbox_TestInit {
 contract ETHLockbox_Initialize_Test is ETHLockbox_TestInit {
     /// @notice Tests the superchain config was correctly set during initialization.
     function test_initialize_succeeds() public view {
-        assertEq(address(ethLockbox.systemConfig().superchainConfig()), address(superchainConfig));
-        assertEq(ethLockbox.authorizedPortals(optimismPortal2), true);
         assertEq(address(ethLockbox.superchainConfig()), address(superchainConfig));
+        assertEq(ethLockbox.authorizedPortals(optimismPortal2), true);
     }
 
     /// @notice Tests that the initializer value is correct. Trivial test for normal initialization
@@ -92,14 +91,14 @@ contract ETHLockbox_Initialize_Test is ETHLockbox_TestInit {
         // Call the `initialize` function with the sender
         vm.prank(_sender);
         IOptimismPortal2[] memory _portals = new IOptimismPortal2[](1);
-        ethLockbox.initialize(systemConfig, _portals);
+        ethLockbox.initialize(superchainConfig, _portals);
     }
 
     /// @notice Tests it reverts when the contract is already initialized.
     function test_initialize_alreadyInitialized_reverts() public {
         vm.expectRevert("Initializable: contract is already initialized");
         IOptimismPortal2[] memory _portals = new IOptimismPortal2[](1);
-        ethLockbox.initialize(systemConfig, _portals);
+        ethLockbox.initialize(superchainConfig, _portals);
     }
 }
 

@@ -15,10 +15,10 @@
   },
   {
     "bytes": "20",
-    "label": "systemConfig",
+    "label": "pauseSource",
     "offset": 2,
     "slot": "0",
-    "type": "contract ISystemConfig"
+    "type": "contract IPauseSource"
   },
   {
     "bytes": "20",

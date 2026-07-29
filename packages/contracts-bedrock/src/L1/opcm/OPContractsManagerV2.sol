@@ -33,6 +33,7 @@ import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
 import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
+import { IPauseSource } from "interfaces/universal/IPauseSource.sol";
 
 /// @title OPContractsManagerV2
 /// @notice OPContractsManagerV2 is an enhanced version of OPContractsManager. OPContractsManagerV2
@@ -158,9 +159,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 7.2.3
+    /// @custom:semver 7.2.4
     function version() public pure returns (string memory) {
-        return "7.2.3";
+        return "7.2.4";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -868,6 +869,13 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             revert OPContractsManagerV2_InvalidEthLockbox();
         }
         IETHLockbox portalLockbox = isEthLockboxEnabled ? _cts.ethLockbox : IETHLockbox(address(0));
+
+        // Contracts that resolve their pause state must point at a pause source whose scope matches
+        // their own. A chain that uses an ETHLockbox may be sharing those contracts with the rest of
+        // an interop set, in which case the lockbox is the only reference that is correct for every
+        // member. Chains without a lockbox use their own SystemConfig.
+        IPauseSource pauseSource =
+            isEthLockboxEnabled ? IPauseSource(address(_cts.ethLockbox)) : IPauseSource(address(_cts.systemConfig));
         _upgrade(
             _cts.proxyAdmin,
             address(_cts.optimismPortal),
@@ -887,7 +895,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 _cts.proxyAdmin,
                 address(_cts.ethLockbox),
                 impls.ethLockboxImpl,
-                abi.encodeCall(IETHLockbox.initialize, (_cts.systemConfig, portals))
+                abi.encodeCall(IETHLockbox.initialize, (_cts.systemConfig.superchainConfig(), portals))
             );
         }
 
@@ -939,7 +947,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             _cts.proxyAdmin,
             address(_cts.delayedWETH),
             impls.delayedWETHImpl,
-            abi.encodeCall(IDelayedWETH.initialize, (_cts.systemConfig))
+            abi.encodeCall(IDelayedWETH.initialize, (pauseSource))
         );
 
         // Update the AnchorStateRegistry.
@@ -949,7 +957,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             impls.anchorStateRegistryImpl,
             abi.encodeCall(
                 IAnchorStateRegistry.initialize,
-                (_cts.systemConfig, _cts.disputeGameFactory, _cfg.startingAnchorRoot, _cfg.startingRespectedGameType)
+                (pauseSource, _cts.disputeGameFactory, _cfg.startingAnchorRoot, _cfg.startingRespectedGameType)
             )
         );
 

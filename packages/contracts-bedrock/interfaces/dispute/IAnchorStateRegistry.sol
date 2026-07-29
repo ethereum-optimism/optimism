@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
-import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { IPauseSource } from "interfaces/universal/IPauseSource.sol";
 import { GameType, Hash, Proposal } from "src/dispute/lib/Types.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
@@ -29,7 +29,7 @@ interface IAnchorStateRegistry is IProxyAdminOwnedBase {
     function disputeGameFinalityDelaySeconds() external view returns (uint256);
     function disputeGameFactory() external view returns (IDisputeGameFactory);
     function initialize(
-        ISystemConfig _systemConfig,
+        IPauseSource _pauseSource,
         IDisputeGameFactory _disputeGameFactory,
         Proposal memory _startingAnchorRoot,
         GameType _startingRespectedGameType
@@ -48,7 +48,7 @@ interface IAnchorStateRegistry is IProxyAdminOwnedBase {
     function retirementTimestamp() external view returns (uint64);
     function setAnchorState(IDisputeGame _game) external;
     function setRespectedGameType(GameType _gameType) external;
-    function systemConfig() external view returns (ISystemConfig);
+    function pauseSource() external view returns (IPauseSource);
     function updateRetirementTimestamp() external;
     function version() external view returns (string memory);
     function superchainConfig() external view returns (ISuperchainConfig);
