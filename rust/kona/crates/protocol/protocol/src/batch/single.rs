@@ -1,6 +1,8 @@
 //! This module contains the [`SingleBatch`] type.
 
-use crate::{BatchDropReason, BatchValidity, BlockInfo, L2BlockInfo};
+use crate::{
+    BatchDropReason, BatchValidity, BlockInfo, L2BlockInfo, batch::post_exec::check_post_exec_txs,
+};
 use alloc::vec::Vec;
 use alloy_eips::BlockNumHash;
 use alloy_primitives::{BlockHash, Bytes};
@@ -180,11 +182,22 @@ impl SingleBatch {
                 Ok(OpTxType::Eip7702) if !cfg.is_isthmus_active(self.timestamp) => {
                     return BatchValidity::Drop(BatchDropReason::Eip7702PreIsthmus);
                 }
-                Ok(OpTxType::PostExec) if !cfg.is_sdm_active(self.timestamp) => {
-                    return BatchValidity::Drop(BatchDropReason::PostExecPreLagoon);
-                }
                 _ => {}
             }
+        }
+
+        // The timestamp equality check above pins this batch to the block right after the safe
+        // head, so that is the block number a PostExec payload must be anchored to. (The
+        // parent-hash check does not add to this on the span-derived path: `BatchValidator`
+        // assigns `parent_hash` from the same parent immediately before calling us, so
+        // there it compares a value to itself.)
+        let post_exec_validity = check_post_exec_txs(
+            &self.transactions,
+            l2_safe_head.block_info.number + 1,
+            cfg.is_sdm_active(self.timestamp),
+        );
+        if !post_exec_validity.is_accept() {
+            return post_exec_validity;
         }
 
         BatchValidity::Accept
@@ -201,9 +214,7 @@ mod tests {
     use alloy_eips::eip2718::{Decodable2718, Encodable2718};
     use alloy_primitives::{Address, Sealed, Signature, TxKind, U256};
     use kona_genesis::HardForkConfig;
-    use op_alloy_consensus::{
-        OpTxEnvelope, POST_EXEC_PAYLOAD_VERSION, PostExecPayload, TxDeposit, TxPostExec,
-    };
+    use op_alloy_consensus::{OpTxEnvelope, SDMGasEntry, TxDeposit, build_post_exec_tx};
     use tracing::Level;
     use tracing_subscriber::layer::SubscriberExt;
 
@@ -534,13 +545,7 @@ mod tests {
     #[test]
     fn test_check_batch_drop_post_exec_pre_sdm() {
         let mut transactions = example_transactions();
-        let tx: OpTxEnvelope = TxPostExec::new(PostExecPayload {
-            version: POST_EXEC_PAYLOAD_VERSION,
-            block_number: 1,
-            gas_refund_entries: vec![],
-        })
-        .into();
-        transactions.push(tx.encoded_2718().into());
+        transactions.push(post_exec_tx_bytes(1, vec![]));
 
         let single_batch = SingleBatch {
             parent_hash: BlockHash::ZERO,
@@ -566,13 +571,7 @@ mod tests {
     #[test]
     fn test_check_batch_accept_post_exec_post_sdm() {
         let mut transactions = example_transactions();
-        let tx: OpTxEnvelope = TxPostExec::new(PostExecPayload {
-            version: POST_EXEC_PAYLOAD_VERSION,
-            block_number: 1,
-            gas_refund_entries: vec![],
-        })
-        .into();
-        transactions.push(tx.encoded_2718().into());
+        transactions.push(post_exec_tx_bytes(1, vec![]));
 
         let single_batch = SingleBatch {
             parent_hash: BlockHash::ZERO,
@@ -597,6 +596,128 @@ mod tests {
             single_batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &inclusion_block),
             BatchValidity::Accept
         );
+    }
+
+    /// Encodes a `PostExecPayload` as the canonical `0x7D || rlp(payload)` transaction bytes.
+    fn post_exec_tx_bytes(block_number: u64, entries: Vec<SDMGasEntry>) -> Bytes {
+        let tx: OpTxEnvelope = build_post_exec_tx(block_number, entries).into();
+        tx.encoded_2718().into()
+    }
+
+    /// Runs `check_batch` with SDM active over a batch building the block after the safe head.
+    /// The safe head is number 0, so the block under test — and therefore the block number a
+    /// `PostExec` payload must be anchored to — is 1.
+    fn check_post_exec_batch(transactions: Vec<Bytes>) -> BatchValidity {
+        let single_batch = SingleBatch {
+            parent_hash: BlockHash::ZERO,
+            epoch_num: 1,
+            epoch_hash: BlockHash::ZERO,
+            timestamp: 1,
+            transactions,
+        };
+        let cfg = RollupConfig {
+            max_sequencer_drift: 1,
+            hardforks: HardForkConfig { lagoon_time: Some(0), ..Default::default() },
+            ..Default::default()
+        };
+        let l1_blocks = vec![BlockInfo::default(), BlockInfo::default()];
+        let l2_safe_head = L2BlockInfo {
+            block_info: BlockInfo { timestamp: 1, ..Default::default() },
+            ..Default::default()
+        };
+        single_batch.check_batch(&cfg, &l1_blocks, l2_safe_head, &BlockInfo::default())
+    }
+
+    #[test]
+    fn test_check_batch_drop_multiple_post_exec_txs() {
+        let mut transactions = example_transactions();
+        transactions.push(post_exec_tx_bytes(1, vec![]));
+        transactions.push(post_exec_tx_bytes(1, vec![]));
+
+        assert_eq!(
+            check_post_exec_batch(transactions),
+            BatchValidity::Drop(BatchDropReason::MultiplePostExecTxs)
+        );
+    }
+
+    #[test]
+    fn test_check_batch_drop_post_exec_tx_not_last() {
+        let mut transactions = example_transactions();
+        transactions.insert(0, post_exec_tx_bytes(1, vec![]));
+
+        assert_eq!(
+            check_post_exec_batch(transactions),
+            BatchValidity::Drop(BatchDropReason::PostExecTxNotLast)
+        );
+    }
+
+    #[test]
+    fn test_check_batch_drop_post_exec_wrong_block_anchor() {
+        let mut transactions = example_transactions();
+        // The batch builds block 1; anchoring the payload to block 2 makes the block invalid at the
+        // execution layer.
+        transactions.push(post_exec_tx_bytes(2, vec![]));
+
+        assert_eq!(
+            check_post_exec_batch(transactions),
+            BatchValidity::Drop(BatchDropReason::PostExecPayloadBlockNumberMismatch)
+        );
+    }
+
+    #[test]
+    fn test_check_batch_drop_post_exec_undecodable_payload() {
+        let mut transactions = example_transactions();
+        // Valid RLP, but a two-element list: `block_number` would have to decode from a list
+        // header, so `PostExecPayload::from_rlp_bytes` rejects it.
+        transactions.push(Bytes::from(vec![0x7D, 0xc2, 0x01, 0xc0]));
+
+        assert_eq!(
+            check_post_exec_batch(transactions),
+            BatchValidity::Drop(BatchDropReason::PostExecPayloadInvalid)
+        );
+    }
+
+    #[test]
+    fn test_check_batch_drop_post_exec_duplicate_payload_entry() {
+        let mut transactions = example_transactions();
+        transactions.push(post_exec_tx_bytes(
+            1,
+            vec![
+                SDMGasEntry { index: 1, gas_refund: 2500 },
+                SDMGasEntry { index: 1, gas_refund: 2000 },
+            ],
+        ));
+
+        assert_eq!(
+            check_post_exec_batch(transactions),
+            BatchValidity::Drop(BatchDropReason::PostExecPayloadDuplicateEntry)
+        );
+    }
+
+    #[test]
+    fn test_check_batch_drop_post_exec_zero_refund_payload_entry() {
+        let mut transactions = example_transactions();
+        transactions.push(post_exec_tx_bytes(1, vec![SDMGasEntry { index: 1, gas_refund: 0 }]));
+
+        assert_eq!(
+            check_post_exec_batch(transactions),
+            BatchValidity::Drop(BatchDropReason::PostExecPayloadZeroRefund)
+        );
+    }
+
+    #[test]
+    fn test_check_batch_accept_trailing_post_exec_tx_with_entries() {
+        // Over-broadness control: a single trailing 0x7D with a well-formed payload anchored to the
+        // block under test must still be accepted.
+        //
+        // The entry index is block-global — it counts the deposits the pipeline prepends — so it is
+        // deliberately past index 0, which is always the L1-info deposit and which the executor
+        // would reject as targeting a deposit. Derivation cannot check that (it does not know the
+        // deposit count here), so this asserts derivation's verdict, not whole-block validity.
+        let mut transactions = example_transactions();
+        transactions.push(post_exec_tx_bytes(1, vec![SDMGasEntry { index: 3, gas_refund: 2500 }]));
+
+        assert_eq!(check_post_exec_batch(transactions), BatchValidity::Accept);
     }
 
     #[test]

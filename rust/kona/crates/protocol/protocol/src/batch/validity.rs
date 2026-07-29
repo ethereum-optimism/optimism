@@ -44,6 +44,18 @@ pub enum BatchDropReason {
     Eip7702PreIsthmus,
     /// `PostExec` transaction included before Lagoon activation.
     PostExecPreLagoon,
+    /// More than one `PostExec` transaction in a block.
+    MultiplePostExecTxs,
+    /// A `PostExec` transaction that is not the last transaction of its block.
+    PostExecTxNotLast,
+    /// A `PostExec` transaction whose payload does not decode.
+    PostExecPayloadInvalid,
+    /// A `PostExec` payload anchored to a block other than the one being derived.
+    PostExecPayloadBlockNumberMismatch,
+    /// A `PostExec` payload with two refund entries for the same transaction index.
+    PostExecPayloadDuplicateEntry,
+    /// A `PostExec` payload with a zero-refund entry.
+    PostExecPayloadZeroRefund,
     /// Non-empty batch in Jovian or Interop transition block.
     NonEmptyTransitionBlock,
 
@@ -96,6 +108,22 @@ impl core::fmt::Display for BatchDropReason {
             Self::DepositTransaction => write!(f, "batch contains deposit transaction"),
             Self::Eip7702PreIsthmus => write!(f, "EIP-7702 transaction before Isthmus activation"),
             Self::PostExecPreLagoon => write!(f, "PostExec transaction before Lagoon activation"),
+            Self::MultiplePostExecTxs => {
+                write!(f, "block contains more than one PostExec transaction")
+            }
+            Self::PostExecTxNotLast => {
+                write!(f, "PostExec transaction is not the last transaction of the block")
+            }
+            Self::PostExecPayloadInvalid => write!(f, "PostExec payload does not decode"),
+            Self::PostExecPayloadBlockNumberMismatch => {
+                write!(f, "PostExec payload is anchored to the wrong block")
+            }
+            Self::PostExecPayloadDuplicateEntry => {
+                write!(f, "PostExec payload has a duplicate refund entry index")
+            }
+            Self::PostExecPayloadZeroRefund => {
+                write!(f, "PostExec payload has a zero-refund entry")
+            }
             Self::NonEmptyTransitionBlock => write!(f, "non-empty batch in transition block"),
             Self::SpanBatchPreDelta => write!(f, "span batch received before Delta hard fork"),
             Self::SpanBatchNoNewBlocksPreHolocene => {
