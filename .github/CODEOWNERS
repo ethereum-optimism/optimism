@@ -24,8 +24,12 @@
 /docs/public-docs/  @ethereum-optimism/solutions
 
 # CI workflows
-/.github/workflows/ @ethereum-optimism/cloud-security
-/.github/actions/   @ethereum-optimism/cloud-security
 
 # Must come last to avoid being overridden
-/.github/CODEOWNERS  @ethereum-optimism/cloud-security
+
+/.github/workflows/     @ethereum-optimism/cloud-security
+/.github/actions/       @ethereum-optimism/cloud-security
+/renovate.json          @ethereum-optimism/cloud-security
+/.github/renovate.json  @ethereum-optimism/cloud-security
+/renovate.json5         @ethereum-optimism/cloud-security
+/.github/CODEOWNERS      @ethereum-optimism/cloud-security
