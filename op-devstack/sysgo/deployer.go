@@ -38,7 +38,9 @@ const funderMnemonicIndex = 10_000
 // FunderKey returns the private key of the genesis-prefunded funder account.
 // Every sysgo runtime prefunds this account at genesis (see the WithPrefundedAccount
 // calls in this package), so tests hand out funds from a prefunded EOA
-// (dsl.NewFunderEOA) rather than a hosted faucet service.
+// (dsl.NewFunderEOA) rather than a hosted faucet service. Setup transactions
+// using this key must be included before NewFunderEOA snapshots its nonce; the
+// FunderEOA must own the key exclusively thereafter.
 func FunderKey(keys devkeys.Keys) (*ecdsa.PrivateKey, error) {
 	return keys.Secret(devkeys.UserKey(funderMnemonicIndex))
 }
