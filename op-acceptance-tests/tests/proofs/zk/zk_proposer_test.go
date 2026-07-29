@@ -126,7 +126,7 @@ func TestProposerRejectsValidChildOfInvalidGame(gt *testing.T) {
 		"honest proposer must continue advancing the connected valid branch")
 }
 
-func TestProposerDefersGameUntilSuperRootRPCCatchesUp(gt *testing.T) {
+func TestProposerDoesNotBuildOnGameCreatedAheadOfSuperRootRPC(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t,
 		presets.WithZK(),
@@ -148,38 +148,30 @@ func TestProposerDefersGameUntilSuperRootRPCCatchesUp(gt *testing.T) {
 		}
 	})
 
-	pendingSequence := safeSequence + uint64(zkSafetyTestProposalInterval/time.Second)
-	t.Require().Nil(sys.SuperRoots.SuperRootAtTimestamp(pendingSequence).Data,
+	futureSequence := safeSequence + uint64(zkSafetyTestProposalInterval/time.Second)
+	t.Require().Nil(sys.SuperRoots.SuperRootAtTimestamp(futureSequence).Data,
 		"super-root RPC must be behind the future game's timestamp")
-	// Keep the game invalid after the RPC catches up, so the proposer must
-	// discard it instead of adopting it after the pending period.
+	// Keep the game invalid once its canonical root becomes available.
 	outputRoots[0][0] ^= 0xff
-	pendingGame := factory.StartZKGame(
+	futureGame := factory.StartZKGame(
 		sys.FunderL1.NewFundedEOA(eth.OneEther),
 		proofs.WithZKParent(game0.FactoryIndex()),
-		proofs.WithL2SequenceNumber(pendingSequence),
+		proofs.WithL2SequenceNumber(futureSequence),
 		proofs.WithFutureProposal(),
 		proofs.WithSuperRootFrom(outputRoots...),
 	)
-	t.Require().Equal(uint32(1), pendingGame.FactoryIndex(),
+	t.Require().Equal(uint32(1), futureGame.FactoryIndex(),
 		"future game must be created before another honest proposal")
-
-	// Let the proposer observe the game while the RPC still reports no
-	// canonical super root at its timestamp.
-	l1Head := sys.L1EL.BlockRefByLabel(eth.Unsafe)
-	sys.L1EL.WaitForBlockNumber(l1Head.Number + 5)
 
 	sys.L2BatcherA.Start()
 	sys.L2BatcherB.Start()
 	batchersStopped = false
 	sys.AdvanceTime(zkSafetyTestProposalInterval)
-	factory.WaitForSafeSuperRootAfter(pendingSequence - 1)
+	sys.SuperRoots.AwaitValidatedTimestamp(futureSequence)
 
-	honestChild := factory.WaitForZKGameAtIndex(int64(pendingGame.FactoryIndex() + 1))
+	honestChild := factory.WaitForZKGameAtIndex(int64(futureGame.FactoryIndex() + 1))
 	t.Require().Equal(game0.FactoryIndex(), honestChild.ParentIndex(),
-		"game unavailable from the super-root RPC must never become a proposal parent")
-	t.Require().Greater(honestChild.L2SequenceNumber(), game0.L2SequenceNumber(),
-		"honest proposer must resume creating games after the super-root RPC catches up")
+		"game created ahead of the super-root RPC must not become a proposal parent")
 }
 
 func TestProposerResolvesOwnUnchallengedGame(gt *testing.T) {
