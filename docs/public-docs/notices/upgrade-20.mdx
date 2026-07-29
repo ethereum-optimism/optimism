@@ -1,6 +1,21 @@
 ---
 title: Upgrade 20
 description: Prepare Fault Proof services and contract integrations for the Upgrade 20 move to Super Root Dispute Games.
+lang: en-US
+content_type: notice
+topic: upgrade-20
+personas:
+  - chain-operator
+  - node-operator
+  - app-developer
+  - partner
+categories:
+  - fault-proofs
+  - dispute-game
+  - contract-upgrades
+  - l1-contracts
+  - withdrawals
+is_imported_content: 'false'
 ---
 
 Upgrade 20 is an L1 smart contract upgrade for OP Stack chains.
@@ -87,9 +102,11 @@ Update an integration if it does any of the following:
 * Calls `SystemConfig.batchInbox()` or `SystemConfig.setGasConfig(uint256,uint256)`.
 * Decodes the first word of a `FEE_SCALARS` `ConfigUpdate` event as the current `overhead()` value.
 * Reads Dispute Game root claims directly and assumes the claim is an Output Root.
+* Uses an OP Stack SDK to check, prove, or finalize L2-to-L1 withdrawals.
 
 For Super Root Dispute Games, direct Dispute Game integrations must recognize game types `5` and `9` and use `rootClaimByChainId(uint256)` to obtain the chain's Output Root.
 The `overhead()` getter remains available for compatibility but is deprecated.
+Applications that use `viem/op-stack` for withdrawal proving must upgrade to `viem` `2.51.0` or later and follow the [withdrawal tooling changes](#update-withdrawal-tooling).
 
 ### Bridge Operators and Users
 
@@ -97,6 +114,7 @@ Withdrawal proofs submitted before Upgrade 20 remain valid.
 Users do not need to re-prove them.
 Existing Output Root Dispute Games continue to resolve, and the `OptimismPortal` supports withdrawal proofs from both Output Root and Super Root Dispute Games.
 Bridge or withdrawal tooling that reads Dispute Game contracts directly must follow the app developer guidance above.
+Tooling that delegates the withdrawal flow to an SDK must also use a version that supports Super Root Dispute Games.
 
 ## Prepare Fault Proof services
 
@@ -123,6 +141,44 @@ If your tooling reads or writes `SystemConfig` directly:
 * Read the batch inbox address from the chain's rollup configuration or its entry in the [Superchain Registry](https://github.com/ethereum-optimism/superchain-registry).
 * Replace `setGasConfig(uint256,uint256)` calls with [`setGasConfigEcotone(uint32,uint32)`](/chain-operators/reference/fee-parameters) for the base fee and blob base fee scalars.
 * If you decode `FEE_SCALARS` `ConfigUpdate` events, treat the first word as zero rather than the current value returned by `overhead()`.
+
+## Update withdrawal tooling
+
+Super Root Dispute Games anchor withdrawals by L2 timestamp instead of L2 block number, and their root claim contains a Super Root instead of the chain's Output Root.
+Application tooling that discovers a Dispute Game or builds a withdrawal proof must support both changes.
+
+| Tooling | Required change |
+| --- | --- |
+| [`viem/op-stack`](https://viem.sh/op-stack) | Use `viem` `2.51.0` or later. For prove-readiness calls, pass the initiating withdrawal block timestamp as `l2Timestamp`. Pass the `game` returned by `waitToProve` to `buildProveWithdrawal`; do not pass the legacy `output` value. |
+| [`@eth-optimism/viem`](https://github.com/ethereum-optimism/ecosystem/tree/main/packages/viem) and [`@eth-optimism/wagmi`](https://github.com/ethereum-optimism/ecosystem/tree/main/packages/wagmi) | Their current peer ranges accept a compatible `viem` release, and neither package implements the L1 withdrawal prove and finalize path. If an application uses their underlying `viem/op-stack` prove flow, make sure its lockfile resolves `viem` `2.51.0` or later and apply the same call changes. |
+| [`@eth-optimism/sdk`](https://www.npmjs.com/package/@eth-optimism/sdk) | The published `3.3.3` release does not support Super Root withdrawal discovery or proof construction. Migrate L2-to-L1 withdrawal status, prove, and finalize workflows to `viem` `2.51.0` or later, or implement the Super Root handling directly. |
+| `ethers`, wagmi, and other general EVM libraries | No library update is required for ordinary contract reads, writes, or L2 transactions. Update only custom withdrawal or Dispute Game code that makes the Output Root assumptions described above. |
+
+After the Upgrade 20 cutover, a `viem` withdrawal prove flow must read the timestamp of the L2 block that contains the initiating transaction:
+
+```js
+const receipt = await publicClientL2.getTransactionReceipt({
+  hash: withdrawalHash
+});
+const withdrawalBlock = await publicClientL2.getBlock({
+  blockNumber: receipt.blockNumber
+});
+
+const { game, withdrawal } = await publicClientL1.waitToProve({
+  receipt,
+  l2Timestamp: withdrawalBlock.timestamp,
+  targetChain: publicClientL2.chain
+});
+
+const proveArgs = await publicClientL2.buildProveWithdrawal({
+  game,
+  withdrawal
+});
+```
+
+Pass the same `l2Timestamp` when calling `getTimeToProve` or `getWithdrawalStatus` for a Super Root withdrawal.
+`waitToFinalize` and the finalization transaction do not require the timestamp.
+See the [`viem` Super Root withdrawal support release](https://github.com/wevm/viem/releases/tag/viem%402.51.0) for the upstream compatibility change.
 
 ## Locate or build the absolute prestate
 
@@ -167,5 +223,14 @@ Upgrade 20 is applied as an L1 contract upgrade and has no L2 hardfork activatio
 
 The [Output Root to Super Root upgrade runbook](/chain-operators/tutorials/upgrade-chain-to-super-roots) describes the onchain upgrade and cutover checks.
 For chains in an existing Interop set, include every member chain in the upgrade and verify both per-chain and shared contracts after execution.
+
+## Verify readiness
+
+Before the cutover:
+
+* Confirm `op-proposer`, `op-challenger`, and `op-dispute-mon` start with the staged Super Root configuration and can reach the configured Super Root RPC.
+* On a permissionless chain, reproduce the `kona-client` Interop variant prestate and confirm its hash matches the reviewed Upgrade 20 value.
+* Run integration tests that cover every direct `SystemConfig` call and every withdrawal or Dispute Game code path listed in this notice.
+* For an existing Interop set, include every member chain in the execution plan and prepare post-upgrade checks for the implementation and owner of each per-chain and shared proxy.
 
 For support, [open an issue in the Optimism monorepo](https://github.com/ethereum-optimism/optimism/issues).
