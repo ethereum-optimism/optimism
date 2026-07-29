@@ -10,7 +10,7 @@ arg: --log.stdout.format <FORMAT> [default: terminal] [possible: json, log-fmt, 
 arg: --log.stdout.filter <FILTER> [default: ] [global] help: The filter to use for logs written to stdout
 arg: --log.file.format <FORMAT> [default: terminal] [possible: json, log-fmt, terminal] [global] help: The format to use for logs written to the log file
 arg: --log.file.filter <FILTER> [default: debug] [global] help: The filter to use for logs written to the log file
-arg: --log.file.directory <PATH> [default: <CACHE_DIR>/logs] [global] help: The path to put log files in
+arg: --log.file.directory <PATH> [default: <PLATFORM_PATH>] [global] help: The path to put log files in
 arg: --log.file.name <NAME> [default: reth.log] [global] help: The prefix name of the log files
 arg: --log.file.max-size <SIZE> [default: 200] [global] help: The maximum size (in MB) of one log file
 arg: --log.file.max-files <COUNT> [global] help: The maximum amount of log files that will be stored. If set to 0, background file logging is disabled
@@ -90,7 +90,7 @@ arg: --net-if.experimental <IF_NAME> help: Name of network interface used to com
 arg: --tx-propagation-policy <TX_PROPAGATION_POLICY> [default: All] help: Transaction Propagation Policy
 arg: --tx-ingress-policy <TX_INGRESS_POLICY> [default: All] help: Transaction ingress policy
 arg: --disable-tx-gossip help: Disable transaction pool gossip
-arg: --tx-propagation-mode <PROPAGATION_MODE> [default: sqrt] help: Sets the transaction propagation mode by determining how new pending transactions are propagated to other peers in full
+arg: --tx-propagation-mode <PROPAGATION_MODE> [default: sqrt] help: Transaction propagation mode (sqrt, all, max:<number>)
 arg: --required-block-hashes <REQUIRED_BLOCK_HASHES> help: Comma separated list of required block hashes or block number=hash pairs. Peers that don't have these blocks will be filtered out. Format: hash or `block_number=hash` (e.g., 23115201=0x1234...)
 arg: --network-id <NETWORK_ID> help: Optional network ID to override the chain specification's network ID for P2P connections
 arg: --eth-max-message-size <BYTES> help: Maximum allowed ETH message size in bytes. Default is 10 MiB
@@ -105,7 +105,7 @@ arg: --http.corsdomain <HTTP_CORSDOMAIN> help: Http Corsdomain to allow request 
 arg: --ws [default: false] help: Enable the WS-RPC server
 arg: --ws.addr <WS_ADDR> [default: 127.0.0.1] help: Ws server address to listen on
 arg: --ws.port <WS_PORT> [default: 8546] help: Ws server port to listen on
-arg: --ws.origins <WS.ORIGINS> [aliases: ws.corsdomain] help: Origins from which to accept `WebSocket` requests
+arg: --ws.origins <ws.origins> [aliases: ws.corsdomain] help: Origins from which to accept `WebSocket` requests
 arg: --ws.api <WS_API> [possible: admin, debug, eth, net, trace, txpool, web3, rpc, reth, ots, flashbots, miner, mev, testing] help: Rpc Modules to be configured for the WS server
 arg: --ipcdisable [default: false] help: Disable the IPC-RPC server
 arg: --ipcpath <IPCPATH> [default: /tmp/reth.ipc] help: Filename for IPC socket/pipe within the datadir
@@ -144,7 +144,7 @@ arg: --rpc-cache.max-bals <MAX_BALS> [default: 1000] help: Max number of revm bl
 arg: --rpc-cache.max-concurrent-db-requests <MAX_CONCURRENT_DB_REQUESTS> [default: 512] help: Max number of concurrent database requests
 arg: --rpc-cache.max-cached-tx-hashes <MAX_CACHED_TX_HASHES> [default: 30000] help: Maximum number of transaction hashes to cache for transaction lookups
 arg: --gpo.blocks <BLOCKS> [default: 20] help: Number of recent blocks to check for gas price
-arg: --gpo.ignoreprice <IGNORE_PRICE> [default: 2] help: Gas Price below which gpo will ignore transactions
+arg: --gpo.ignoreprice <IGNORE_PRICE> [default: 0] help: Gas Price below which gpo will ignore transactions
 arg: --gpo.maxprice <MAX_PRICE> [default: 500000000000] help: Maximum transaction priority fee(or gasprice before London Fork) to be recommended by gpo
 arg: --gpo.percentile <PERCENTILE> [default: 60] help: The percentile of gas prices to use for the estimate
 arg: --gpo.default-suggested-fee <DEFAULT_SUGGESTED_FEE> help: The default gas price to use if there are no blocks to use
@@ -280,7 +280,6 @@ arg: --engine.suppress-persistence-during-build [default: false] help: Suppress 
 arg: --engine.disable-bal-parallel-execution [default: false] help: Disable BAL (Block Access List, EIP-7928) based parallel execution
 arg: --engine.disable-bal-parallel-state-root [default: false] help: Disable BAL-driven parallel state root computation. This is only valid together with `--engine.disable-bal-parallel-execution`
 arg: --engine.disable-bal-batch-io [default: false] help: Disable BAL (Block Access List) storage prefetch IO during prewarming. When set, BAL storage slots are not read into the execution cache
-arg: --engine.proof-jitter <PROOF_JITTER> help: Add random jitter before each proof computation (trie-debug only). Each proof worker sleeps for a random duration up to this value before starting work. Useful for stress-testing timing-sensitive proof logic
 arg: --era.enable [default: false] help: Enable import from ERA1 files
 arg: --era.path <ERA_PATH> help: The path to a directory for import.
 arg: --era.url <ERA_URL> help: The URL to a remote host where the ERA1 files are hosted.
@@ -301,13 +300,13 @@ arg: --jit.code-cache-bytes <CODE_CACHE_BYTES> [default: 1073741824] help: Maxim
 arg: --jit.idle-evict-duration <IDLE_EVICT_DURATION> [default: 1h] help: Duration after which a compiled program with no lookup hits is evicted
 arg: --jit.debug [default: false] help: Enable compiler debug dumps
 arg: --jit.blocking [default: false] [hidden] help: Blocking mode: synchronously JIT-compile every contract on first encounter. Intended for debugging only
-arg: --rollup.sequencer <SEQUENCER> help: Endpoint for the sequencer mempool (can be both HTTP and WS)
+arg: --rollup.sequencer <SEQUENCER> [aliases: rollup.sequencer-http, rollup.sequencer-ws] help: Endpoint for the sequencer mempool (can be both HTTP and WS)
 arg: --rollup.disable-tx-pool-gossip help: Disable transaction pool gossip
 arg: --rollup.compute-pending-block help: By default the pending block equals the latest block to save resources and not leak txs from the tx-pool, this flag enables computing of the pending block from the tx-pool instead
 arg: --rollup.discovery.v4 [default: false] help: enables discovery v4 if provided
 arg: --rollup.enable-tx-conditional [default: false] help: Enable transaction conditional support on sequencer
 arg: --rollup.retain-forwarded-txs [default: false] help: Retain RPC-submitted transactions in the local pool after forwarding them to the sequencer
-arg: --rollup.operator-sdm-opt-in <OPERATOR_SDM_OPT_IN> [env: OP_RETH_OPERATOR_SDM_OPT_IN] [default: false] help: Local operator opt-in for SDM `PostExec` production at process boot. The admin RPC (`admin_setOperatorSdmOptIn`) can still toggle it at runtime. Defaults to disabled
+arg: --rollup.operator-sdm-opt-in <OPERATOR_SDM_OPT_IN> [env: OP_RETH_OPERATOR_SDM_OPT_IN] [default: false] [possible: true, false] help: Local operator opt-in for SDM `PostExec` production at process boot. The admin RPC (`admin_setOperatorSdmOptIn`) can still toggle it at runtime. Defaults to disabled
 arg: --rollup.interop-http <INTEROP_HTTP_URL> help: HTTP endpoint(s) for the interop filter, used to validate the interop messages referenced by incoming transactions. Repeat the flag to configure multiple endpoints; each check is fanned out to all of them and combined by quorum agreement (see `--rollup.interop-min-responses`). When none are set, interop transaction validation is disabled: a node that builds blocks will then include transactions carrying invalid interop messages, producing invalid blocks. It is only safe to leave this unset on nodes that do not build blocks
 arg: --rollup.interop-min-responses <INTEROP_MIN_RESPONSES> help: Minimum number of definitive verdicts required to decide an interop check across the configured `--rollup.interop-http` endpoints. A transaction is accepted only when this many endpoints return a definitive verdict and all of them agree it is valid; if they disagree the transaction is rejected
 arg: --rollup.interop-safety-level <INTEROP_SAFETY_LEVEL> [default: CrossUnsafe] help: Safety level for interop filter validation
@@ -575,9 +574,11 @@ about: Deletes all table entries
 
 == op-reth db clear mdbx
 about: Deletes all database table entries
+arg: [positional: table] <TABLE> [required]
 
 == op-reth db clear static-file
 about: Deletes all static file segment entries
+arg: [positional: segment] <SEGMENT> [possible: headers, transactions, receipts, transaction-senders, account-change-sets, storage-change-sets] [required]
 
 == op-reth db repair-trie
 about: Verifies trie consistency and outputs any inconsistencies
@@ -613,7 +614,7 @@ about: Set storage settings in database
 
 == op-reth db settings set v2
 about: Enable or disable v2 storage layout
-arg: [positional: value] <VALUE>
+arg: [positional: value] <VALUE> [possible: true, false] [required]
 
 == op-reth db prune-checkpoints
 about: View or set prune checkpoints
@@ -631,6 +632,7 @@ arg: --mode <MODE> [possible: full, distance, before] [required] help: Prune mod
 arg: --mode-value <MODE_VALUE> help: Value for distance or before mode (required unless mode is full)
 
 == op-reth db stage-checkpoints
+about: `reth db stage-checkpoints` subcommand
 
 == op-reth db stage-checkpoints get
 about: Get stage checkpoint(s) from database
@@ -735,7 +737,7 @@ arg: --net-if.experimental <IF_NAME> help: Name of network interface used to com
 arg: --tx-propagation-policy <TX_PROPAGATION_POLICY> [default: All] help: Transaction Propagation Policy
 arg: --tx-ingress-policy <TX_INGRESS_POLICY> [default: All] help: Transaction ingress policy
 arg: --disable-tx-gossip help: Disable transaction pool gossip
-arg: --tx-propagation-mode <PROPAGATION_MODE> [default: sqrt] help: Sets the transaction propagation mode by determining how new pending transactions are propagated to other peers in full
+arg: --tx-propagation-mode <PROPAGATION_MODE> [default: sqrt] help: Transaction propagation mode (sqrt, all, max:<number>)
 arg: --required-block-hashes <REQUIRED_BLOCK_HASHES> help: Comma separated list of required block hashes or block number=hash pairs. Peers that don't have these blocks will be filtered out. Format: hash or `block_number=hash` (e.g., 23115201=0x1234...)
 arg: --network-id <NETWORK_ID> help: Optional network ID to override the chain specification's network ID for P2P connections
 arg: --eth-max-message-size <BYTES> help: Maximum allowed ETH message size in bytes. Default is 10 MiB
@@ -855,9 +857,11 @@ arg: --offline help: If this is enabled, then all stages except headers, bodies,
 
 == op-reth stage unwind to-block
 about: Unwinds the database from the latest block, until the given block number or hash has been reached, that block is not included
+arg: [positional: target] <TARGET> [required]
 
 == op-reth stage unwind num-blocks
 about: Unwinds the database from the latest block, until the given number of blocks have been reached
+arg: [positional: amount] <AMOUNT> [required]
 
 == op-reth p2p
 about: P2P Debugging utilities
@@ -907,7 +911,7 @@ arg: --net-if.experimental <IF_NAME> help: Name of network interface used to com
 arg: --tx-propagation-policy <TX_PROPAGATION_POLICY> [default: All] help: Transaction Propagation Policy
 arg: --tx-ingress-policy <TX_INGRESS_POLICY> [default: All] help: Transaction ingress policy
 arg: --disable-tx-gossip help: Disable transaction pool gossip
-arg: --tx-propagation-mode <PROPAGATION_MODE> [default: sqrt] help: Sets the transaction propagation mode by determining how new pending transactions are propagated to other peers in full
+arg: --tx-propagation-mode <PROPAGATION_MODE> [default: sqrt] help: Transaction propagation mode (sqrt, all, max:<number>)
 arg: --required-block-hashes <REQUIRED_BLOCK_HASHES> help: Comma separated list of required block hashes or block number=hash pairs. Peers that don't have these blocks will be filtered out. Format: hash or `block_number=hash` (e.g., 23115201=0x1234...)
 arg: --network-id <NETWORK_ID> help: Optional network ID to override the chain specification's network ID for P2P connections
 arg: --eth-max-message-size <BYTES> help: Maximum allowed ETH message size in bytes. Default is 10 MiB
@@ -966,7 +970,7 @@ arg: --net-if.experimental <IF_NAME> help: Name of network interface used to com
 arg: --tx-propagation-policy <TX_PROPAGATION_POLICY> [default: All] help: Transaction Propagation Policy
 arg: --tx-ingress-policy <TX_INGRESS_POLICY> [default: All] help: Transaction ingress policy
 arg: --disable-tx-gossip help: Disable transaction pool gossip
-arg: --tx-propagation-mode <PROPAGATION_MODE> [default: sqrt] help: Sets the transaction propagation mode by determining how new pending transactions are propagated to other peers in full
+arg: --tx-propagation-mode <PROPAGATION_MODE> [default: sqrt] help: Transaction propagation mode (sqrt, all, max:<number>)
 arg: --required-block-hashes <REQUIRED_BLOCK_HASHES> help: Comma separated list of required block hashes or block number=hash pairs. Peers that don't have these blocks will be filtered out. Format: hash or `block_number=hash` (e.g., 23115201=0x1234...)
 arg: --network-id <NETWORK_ID> help: Optional network ID to override the chain specification's network ID for P2P connections
 arg: --eth-max-message-size <BYTES> help: Maximum allowed ETH message size in bytes. Default is 10 MiB
@@ -981,6 +985,7 @@ arg: --chain <CHAIN_OR_PATH> [default: optimism] help: The chain this node is ru
 arg: [positional: id] <ID> [required] help: The block number or hash
 
 == op-reth p2p rlpx
+about: RLPx commands
 
 == op-reth p2p rlpx ping
 about: ping node
@@ -1098,8 +1103,8 @@ arg: --datadir.rocksdb <PATH> help: The absolute path to store `RocksDB` databas
 arg: --datadir.pprof-dumps <PATH> help: The absolute path to store pprof dumps in.
 arg: --config <FILE> help: The path to the configuration file to use
 arg: --chain <CHAIN_OR_PATH> [default: optimism] [global] help: The chain this node is running
-arg: --db.log-level <LOG_LEVEL> help: Database logging level. Levels higher than "notice" require a debug build
-arg: --db.exclusive <EXCLUSIVE> help: Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
+arg: --db.log-level <LOG_LEVEL> [possible: fatal, error, warn, notice, verbose, debug, trace, extra] help: Database logging level. Levels higher than "notice" require a debug build
+arg: --db.exclusive <EXCLUSIVE> [possible: true, false] help: Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
 arg: --db.max-size <MAX_SIZE> help: Maximum database size (e.g., 4TB, 8TB)
 arg: --db.page-size <PAGE_SIZE> help: Database page size (e.g., 4KB, 8KB, 16KB)
 arg: --db.growth-step <GROWTH_STEP> help: Database growth step (e.g., 4GB, 4KB)
@@ -1121,7 +1126,7 @@ arg: --proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION> [default:
 arg: --proofs-history.skip-backfill help: Skip the post-init backward backfill. By default, after the snapshot of the current chain state is captured the proof window is extended back by `--proofs-history.window` blocks using the snapshot-accelerated path. Set this flag to leave the window at `[latest, latest]` and run `op-proofs backfill` later instead. No effect on V1 storage (V1 does not support backfill)
 arg: --proofs-history.window <PROOFS_HISTORY_WINDOW> [default: 1296000] help: The window to span blocks for proofs history. Value is the number of blocks. Default is 1 month of blocks based on 2 seconds block time (`30 * 24 * 60 * 60 / 2 = 1_296_000`)
 arg: --proofs-history.backfill-batch-size <N> [default: 25] help: Number of blocks committed per MDBX write transaction (>= 1)
-arg: --proofs-history.use-snapshot <BOOL> [default: true] help: Use the trie-state snapshot to accelerate per-block reads during backfill. If no snapshot exists, one is bootstrapped at the current `earliest` before the backfill loop begins. Requires v2 storage
+arg: --proofs-history.use-snapshot <BOOL> [default: true] [possible: true, false] help: Use the trie-state snapshot to accelerate per-block reads during backfill. If no snapshot exists, one is bootstrapped at the current `earliest` before the backfill loop begins. Requires v2 storage
 
 == op-reth proofs backfill
 about: Backfill proofs history to an older earliest block
@@ -1131,8 +1136,8 @@ arg: --datadir.rocksdb <PATH> help: The absolute path to store `RocksDB` databas
 arg: --datadir.pprof-dumps <PATH> help: The absolute path to store pprof dumps in.
 arg: --config <FILE> help: The path to the configuration file to use
 arg: --chain <CHAIN_OR_PATH> [default: optimism] [global] help: The chain this node is running
-arg: --db.log-level <LOG_LEVEL> help: Database logging level. Levels higher than "notice" require a debug build
-arg: --db.exclusive <EXCLUSIVE> help: Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
+arg: --db.log-level <LOG_LEVEL> [possible: fatal, error, warn, notice, verbose, debug, trace, extra] help: Database logging level. Levels higher than "notice" require a debug build
+arg: --db.exclusive <EXCLUSIVE> [possible: true, false] help: Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
 arg: --db.max-size <MAX_SIZE> help: Maximum database size (e.g., 4TB, 8TB)
 arg: --db.page-size <PAGE_SIZE> help: Database page size (e.g., 4KB, 8KB, 16KB)
 arg: --db.growth-step <GROWTH_STEP> help: Database growth step (e.g., 4GB, 4KB)
@@ -1153,7 +1158,7 @@ arg: --proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH> help: Path to t
 arg: --proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION> [default: v1] [possible: v1, v2] help: Storage schema version. Must match the version used when starting the node
 arg: --proofs-history.window <PROOFS_HISTORY_WINDOW> [default: 1296000] help: The window to span blocks for proofs history. Value is the number of blocks. Default is 1 month of blocks based on 2 seconds block time (`30 * 24 * 60 * 60 / 2 = 1_296_000`)
 arg: --proofs-history.backfill-batch-size <N> [default: 25] help: Number of blocks committed per MDBX write transaction (>= 1)
-arg: --proofs-history.use-snapshot <BOOL> [default: true] help: Use the trie-state snapshot to accelerate per-block reads during backfill. If no snapshot exists, one is bootstrapped at the current `earliest` before the backfill loop begins. Requires v2 storage
+arg: --proofs-history.use-snapshot <BOOL> [default: true] [possible: true, false] help: Use the trie-state snapshot to accelerate per-block reads during backfill. If no snapshot exists, one is bootstrapped at the current `earliest` before the backfill loop begins. Requires v2 storage
 
 == op-reth proofs prune
 about: Prune old proof history to reclaim space
@@ -1163,8 +1168,8 @@ arg: --datadir.rocksdb <PATH> help: The absolute path to store `RocksDB` databas
 arg: --datadir.pprof-dumps <PATH> help: The absolute path to store pprof dumps in.
 arg: --config <FILE> help: The path to the configuration file to use
 arg: --chain <CHAIN_OR_PATH> [default: optimism] [global] help: The chain this node is running
-arg: --db.log-level <LOG_LEVEL> help: Database logging level. Levels higher than "notice" require a debug build
-arg: --db.exclusive <EXCLUSIVE> help: Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
+arg: --db.log-level <LOG_LEVEL> [possible: fatal, error, warn, notice, verbose, debug, trace, extra] help: Database logging level. Levels higher than "notice" require a debug build
+arg: --db.exclusive <EXCLUSIVE> [possible: true, false] help: Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
 arg: --db.max-size <MAX_SIZE> help: Maximum database size (e.g., 4TB, 8TB)
 arg: --db.page-size <PAGE_SIZE> help: Database page size (e.g., 4KB, 8KB, 16KB)
 arg: --db.growth-step <GROWTH_STEP> help: Database growth step (e.g., 4GB, 4KB)
@@ -1197,8 +1202,8 @@ arg: --datadir.rocksdb <PATH> help: The absolute path to store `RocksDB` databas
 arg: --datadir.pprof-dumps <PATH> help: The absolute path to store pprof dumps in.
 arg: --config <FILE> help: The path to the configuration file to use
 arg: --chain <CHAIN_OR_PATH> [default: optimism] [global] help: The chain this node is running
-arg: --db.log-level <LOG_LEVEL> help: Database logging level. Levels higher than "notice" require a debug build
-arg: --db.exclusive <EXCLUSIVE> help: Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
+arg: --db.log-level <LOG_LEVEL> [possible: fatal, error, warn, notice, verbose, debug, trace, extra] help: Database logging level. Levels higher than "notice" require a debug build
+arg: --db.exclusive <EXCLUSIVE> [possible: true, false] help: Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
 arg: --db.max-size <MAX_SIZE> help: Maximum database size (e.g., 4TB, 8TB)
 arg: --db.page-size <PAGE_SIZE> help: Database page size (e.g., 4KB, 8KB, 16KB)
 arg: --db.growth-step <GROWTH_STEP> help: Database growth step (e.g., 4GB, 4KB)
@@ -1227,8 +1232,8 @@ arg: --datadir.rocksdb <PATH> help: The absolute path to store `RocksDB` databas
 arg: --datadir.pprof-dumps <PATH> help: The absolute path to store pprof dumps in.
 arg: --config <FILE> help: The path to the configuration file to use
 arg: --chain <CHAIN_OR_PATH> [default: optimism] [global] help: The chain this node is running
-arg: --db.log-level <LOG_LEVEL> help: Database logging level. Levels higher than "notice" require a debug build
-arg: --db.exclusive <EXCLUSIVE> help: Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
+arg: --db.log-level <LOG_LEVEL> [possible: fatal, error, warn, notice, verbose, debug, trace, extra] help: Database logging level. Levels higher than "notice" require a debug build
+arg: --db.exclusive <EXCLUSIVE> [possible: true, false] help: Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
 arg: --db.max-size <MAX_SIZE> help: Maximum database size (e.g., 4TB, 8TB)
 arg: --db.page-size <PAGE_SIZE> help: Database page size (e.g., 4KB, 8KB, 16KB)
 arg: --db.growth-step <GROWTH_STEP> help: Database growth step (e.g., 4GB, 4KB)
@@ -1256,8 +1261,8 @@ arg: --datadir.rocksdb <PATH> help: The absolute path to store `RocksDB` databas
 arg: --datadir.pprof-dumps <PATH> help: The absolute path to store pprof dumps in.
 arg: --config <FILE> help: The path to the configuration file to use
 arg: --chain <CHAIN_OR_PATH> [default: optimism] [global] help: The chain this node is running
-arg: --db.log-level <LOG_LEVEL> help: Database logging level. Levels higher than "notice" require a debug build
-arg: --db.exclusive <EXCLUSIVE> help: Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
+arg: --db.log-level <LOG_LEVEL> [possible: fatal, error, warn, notice, verbose, debug, trace, extra] help: Database logging level. Levels higher than "notice" require a debug build
+arg: --db.exclusive <EXCLUSIVE> [possible: true, false] help: Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
 arg: --db.max-size <MAX_SIZE> help: Maximum database size (e.g., 4TB, 8TB)
 arg: --db.page-size <PAGE_SIZE> help: Database page size (e.g., 4KB, 8KB, 16KB)
 arg: --db.growth-step <GROWTH_STEP> help: Database growth step (e.g., 4GB, 4KB)
@@ -1277,3 +1282,4 @@ arg: --storage.v2 [default: true] help: Enable V2 (hot/cold) storage layout for 
 arg: --proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH> help: Path to the proofs-history storage DB. Defaults to `<reth-data-dir>/historical-proofs` (chain-namespaced via reth's `--datadir`)
 arg: --proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION> [default: v1] [possible: v1, v2] help: Storage schema version. Must match the version used when starting the node
 arg: --target <TARGET_BLOCK> [required] help: The target block number to unwind to
+
