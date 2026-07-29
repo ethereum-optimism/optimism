@@ -23,7 +23,10 @@ func newOpNodeSystem(t devtest.T) *presets.SingleChainInterop {
 // via extra options). It is returned as the shared *SingleChainInterop base so the same scenario
 // bodies run against either super-root source.
 func newSupernodeSystem(t devtest.T, extra ...presets.Option) *presets.SingleChainInterop {
-	sys := newSystem(t, extra...)
+	sys := presets.NewSimpleInterop(t,
+		presets.WithZK(),
+		presets.Combine(extra...),
+	)
 	return &sys.SingleChainInterop
 }
 

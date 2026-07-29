@@ -37,6 +37,7 @@ const (
 	optionKindInteropAtGenesis
 	optionKindSupernodeVNSequencerForBootstrap
 	optionKindZKDisputeGame
+	optionKindZKProposer
 )
 
 const allOptionKinds = optionKindDeployer |
@@ -64,7 +65,8 @@ const allOptionKinds = optionKindDeployer |
 	optionKindInteropActivationDelay |
 	optionKindInteropAtGenesis |
 	optionKindSupernodeVNSequencerForBootstrap |
-	optionKindZKDisputeGame
+	optionKindZKDisputeGame |
+	optionKindZKProposer
 
 var optionKindLabels = []struct {
 	kind  optionKinds
@@ -96,6 +98,7 @@ var optionKindLabels = []struct {
 	{kind: optionKindInteropAtGenesis, label: "interop at genesis"},
 	{kind: optionKindSupernodeVNSequencerForBootstrap, label: "supernode VN sequencer for bootstrap"},
 	{kind: optionKindZKDisputeGame, label: "ZK dispute game"},
+	{kind: optionKindZKProposer, label: "ZK proposer options"},
 }
 
 func (k optionKinds) String() string {
@@ -128,7 +131,15 @@ func collectSupportedPresetConfig(t devtest.T, presetName string, opts []Option,
 	if unsupported := unsupportedPresetOptionKinds(combined, supported); unsupported != 0 {
 		t.Require().FailNowf("%s does not support preset options: %s", presetName, unsupported)
 	}
+	t.Require().NoError(validatePresetConfig(cfg), "%s has invalid preset options", presetName)
 	return cfg, combined
+}
+
+func validatePresetConfig(cfg sysgo.PresetConfig) error {
+	if len(cfg.ZKProposerOptions) > 0 && cfg.ZKDisputeGame == nil {
+		return fmt.Errorf("ZK proposer options require WithZK")
+	}
+	return nil
 }
 
 const minimalPresetSupportedOptionKinds = optionKindDeployer |
@@ -174,6 +185,7 @@ const supernodeProofsPresetSupportedOptionKinds = optionKindDeployer |
 const twoL2SupernodeProofsPresetSupportedOptionKinds = supernodeProofsPresetSupportedOptionKinds |
 	optionKindPreGenesisSuperGame |
 	optionKindZKDisputeGame |
+	optionKindZKProposer |
 	optionKindSkipHonestChallenger
 
 const twoL2SupernodePresetSupportedOptionKinds = optionKindDeployer |

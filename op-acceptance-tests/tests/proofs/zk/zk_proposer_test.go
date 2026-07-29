@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/proofs"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -30,7 +31,7 @@ const (
 // TestChallengedValidProposalAnchors.
 func TestProposerChainsSecondZKGameOnFirst(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := newSystem(t)
+	sys := presets.NewSimpleInterop(t, presets.WithZK())
 	factory := sys.DisputeGameFactory()
 	_, anchorSequence := sys.AnchorStateRegistry(sys.L2ChainA).AnchorRoot()
 
@@ -49,10 +50,12 @@ func TestProposerChainsSecondZKGameOnFirst(gt *testing.T) {
 
 func TestProposerBuildsOnValidGameFromAnotherProposer(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	zkCfg := zkDisputeGameConfig(t)
-	zkCfg.MaxChallengeDuration = zkSafetyTestChallengeDuration
-	zkCfg.ProposalInterval = zkSafetyTestProposalInterval
-	sys := newSystemWithZKProposerConfig(t, zkCfg, presets.WithoutHonestChallenger())
+	sys := presets.NewSimpleInterop(t,
+		presets.WithZK(),
+		presets.WithZKChallengeDuration(zkSafetyTestChallengeDuration),
+		presets.WithoutHonestChallenger(),
+		presets.WithZKProposerOption(sysgo.WithZKProposalInterval(zkSafetyTestProposalInterval)),
+	)
 	factory := sys.DisputeGameFactory()
 
 	game0 := factory.WaitForZKGameAtIndex(0)
@@ -76,10 +79,12 @@ func TestProposerBuildsOnValidGameFromAnotherProposer(gt *testing.T) {
 
 func TestProposerDefersGameUntilSuperRootRPCCatchesUp(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	zkCfg := zkDisputeGameConfig(t)
-	zkCfg.MaxChallengeDuration = zkSafetyTestChallengeDuration
-	zkCfg.ProposalInterval = zkSafetyTestProposalInterval
-	sys := newSystemWithZKProposerConfig(t, zkCfg, presets.WithoutHonestChallenger())
+	sys := presets.NewSimpleInterop(t,
+		presets.WithZK(),
+		presets.WithZKChallengeDuration(zkSafetyTestChallengeDuration),
+		presets.WithoutHonestChallenger(),
+		presets.WithZKProposerOption(sysgo.WithZKProposalInterval(zkSafetyTestProposalInterval)),
+	)
 	factory := sys.DisputeGameFactory()
 
 	game0 := factory.WaitForZKGameAtIndex(0)
@@ -131,11 +136,13 @@ func TestProposerDefersGameUntilSuperRootRPCCatchesUp(gt *testing.T) {
 func TestProposerContinuesAfterUnconfirmedL1BlockReorg(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	const syncL1Confirmations = uint64(2)
-	zkCfg := zkDisputeGameConfig(t)
-	zkCfg.MaxChallengeDuration = zkSafetyTestChallengeDuration
-	zkCfg.ProposalInterval = zkSafetyTestProposalInterval
-	zkCfg.SyncL1Confirmations = syncL1Confirmations
-	sys := newSystemWithZKProposerConfig(t, zkCfg, presets.WithoutHonestChallenger())
+	sys := presets.NewSimpleInterop(t,
+		presets.WithZK(),
+		presets.WithZKChallengeDuration(zkSafetyTestChallengeDuration),
+		presets.WithoutHonestChallenger(),
+		presets.WithZKProposerOption(sysgo.WithZKProposalInterval(zkSafetyTestProposalInterval)),
+		presets.WithZKProposerOption(sysgo.WithZKSyncL1Confirmations(syncL1Confirmations)),
+	)
 	factory := sys.DisputeGameFactory()
 
 	game0 := factory.WaitForZKGameAtIndex(0)
@@ -184,7 +191,10 @@ func TestProposerResolvesOwnUnchallengedGame(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	// The challenger resolves all games, not just those it challenges; disable
 	// it so this test proves the proposer alone drives resolution.
-	sys := newSystem(t, presets.WithoutHonestChallenger())
+	sys := presets.NewSimpleInterop(t,
+		presets.WithZK(),
+		presets.WithoutHonestChallenger(),
+	)
 	factory := sys.DisputeGameFactory()
 
 	game0 := factory.WaitForZKGameAtIndex(0)
@@ -200,7 +210,10 @@ func TestProposerClaimsBondAfterResolution(gt *testing.T) {
 	// The challenger can resolve games and claim credit on the proposer's
 	// behalf; disable it so this test proves the proposer alone resolves,
 	// unlocks, and claims.
-	sys := newSystem(t, presets.WithoutHonestChallenger())
+	sys := presets.NewSimpleInterop(t,
+		presets.WithZK(),
+		presets.WithoutHonestChallenger(),
+	)
 	factory := sys.DisputeGameFactory()
 	proposerAddr := zkProposerAddress(t, sys)
 	weth := factory.DelayedWETH(factory.ZKGameImpl().Args.Weth)

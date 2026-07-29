@@ -4,8 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
@@ -42,6 +40,7 @@ func TestOptionKindsFromCompositeOptions(t *testing.T) {
 		require.Zero(t, WithGlobalL2CLOption(nil).optionKinds())
 		require.Zero(t, WithGlobalSyncTesterELOption(nil).optionKinds())
 		require.Zero(t, WithProposerOption(nil).optionKinds())
+		require.Zero(t, WithZKProposerOption(nil).optionKinds())
 		require.Zero(t, WithOPRBuilderOption(nil).optionKinds())
 		require.Zero(t, WithPreGenesisSuperGame().optionKinds())
 		require.Zero(t, AfterBuild(nil).optionKinds())
@@ -53,17 +52,35 @@ func TestWithLocalContractSourcesAt(t *testing.T) {
 	require.Equal(t, "/tmp/contracts-bedrock", cfg.LocalContractArtifactsPath)
 }
 
-func TestWithZKDisputeGame(t *testing.T) {
+func TestWithZK(t *testing.T) {
 	want := sysgo.ZKDisputeGameConfig{
-		ProgramVKey:          common.HexToHash("0x1234"),
 		MaxChallengeDuration: 30 * time.Second,
 		MaxProveDuration:     30 * time.Second,
-		ProposalInterval:     12 * time.Second,
-		SyncL1Confirmations:  2,
 	}
-	cfg, combined := collectPresetConfig([]Option{WithZKDisputeGame(want)})
-	require.Equal(t, optionKindZKDisputeGame, combined.optionKinds())
+	cfg, combined := collectPresetConfig([]Option{WithZK()})
+	require.Equal(t,
+		optionKindDeployer|optionKindTimeTravel|optionKindZKDisputeGame|optionKindZKProposer,
+		combined.optionKinds(),
+	)
 	require.Equal(t, &want, cfg.ZKDisputeGame)
+	require.Len(t, cfg.ZKProposerOptions, 1)
+	require.True(t, cfg.EnableTimeTravel)
+	require.Len(t, cfg.DeployerOptions, 2)
+}
+
+func TestWithZKChallengeDuration(t *testing.T) {
+	cfg, _ := collectPresetConfig([]Option{
+		WithZK(),
+		WithZKChallengeDuration(5 * time.Minute),
+	})
+	require.Equal(t, 5*time.Minute, cfg.ZKDisputeGame.MaxChallengeDuration)
+}
+
+func TestWithZKProposerOption(t *testing.T) {
+	opt := sysgo.WithZKProposalInterval(12 * time.Second)
+	cfg, combined := collectPresetConfig([]Option{WithZKProposerOption(opt)})
+	require.Equal(t, optionKindZKProposer, combined.optionKinds())
+	require.Len(t, cfg.ZKProposerOptions, 1)
 }
 
 func TestUnsupportedPresetOptionKinds(t *testing.T) {
@@ -119,16 +136,28 @@ func TestUnsupportedPresetOptionKinds(t *testing.T) {
 			want: 0,
 		},
 		{
-			name:      "two l2 supernode proofs accept ZK dispute game",
+			name:      "two l2 supernode proofs accept ZK",
 			supported: twoL2SupernodeProofsPresetSupportedOptionKinds,
-			opts:      WithZKDisputeGame(sysgo.ZKDisputeGameConfig{}),
+			opts:      WithZK(),
 			want:      0,
 		},
 		{
-			name:      "single chain supernode proofs reject ZK dispute game",
+			name:      "two l2 supernode proofs accept ZK proposer options",
+			supported: twoL2SupernodeProofsPresetSupportedOptionKinds,
+			opts:      WithZKProposerOption(sysgo.WithZKProposalInterval(time.Minute)),
+			want:      0,
+		},
+		{
+			name:      "single chain supernode proofs reject ZK",
 			supported: supernodeProofsPresetSupportedOptionKinds,
-			opts:      WithZKDisputeGame(sysgo.ZKDisputeGameConfig{}),
-			want:      optionKindZKDisputeGame,
+			opts:      WithZK(),
+			want:      optionKindZKDisputeGame | optionKindZKProposer,
+		},
+		{
+			name:      "single chain supernode proofs reject ZK proposer options",
+			supported: supernodeProofsPresetSupportedOptionKinds,
+			opts:      WithZKProposerOption(sysgo.WithZKProposalInterval(time.Minute)),
+			want:      optionKindZKProposer,
 		},
 		{
 			name:      "two l2 supernode rejects time travel",
@@ -158,4 +187,11 @@ func TestUnsupportedPresetOptionKinds(t *testing.T) {
 			require.Equal(t, tt.want, unsupportedPresetOptionKinds(tt.opts, tt.supported))
 		})
 	}
+}
+
+func TestValidatePresetConfigRejectsZKProposerOptionWithoutZK(t *testing.T) {
+	cfg, _ := collectPresetConfig([]Option{
+		WithZKProposerOption(sysgo.WithZKProposalInterval(time.Minute)),
+	})
+	require.EqualError(t, validatePresetConfig(cfg), "ZK proposer options require WithZK")
 }

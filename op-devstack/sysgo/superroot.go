@@ -315,6 +315,7 @@ func setInteropZKDisputeGameForRuntime(
 	l1EL L1ELNode,
 	startingAnchorRoot Proposal,
 	sharedDGF common.Address,
+	programVKey common.Hash,
 	cfg ZKDisputeGameConfig,
 ) {
 	require := t.Require()
@@ -336,7 +337,7 @@ func setInteropZKDisputeGameForRuntime(
 	require.NotEmpty(verifierCode, "ZK mock verifier must have deployed code")
 
 	gameArgs, err := encodeZKDisputeGameArgs(zkDisputeGameConfig{
-		AbsolutePrestate:     cfg.ProgramVKey,
+		AbsolutePrestate:     programVKey,
 		Verifier:             verifier,
 		MaxChallengeDuration: uint64(cfg.MaxChallengeDuration / time.Second),
 		MaxProveDuration:     uint64(cfg.MaxProveDuration / time.Second),

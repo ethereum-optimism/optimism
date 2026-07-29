@@ -2,6 +2,7 @@ package sysgo
 
 import (
 	"compress/gzip"
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -26,7 +28,80 @@ import (
 // emits once config validation, provider construction, and the metrics bind
 // have completed. When metrics are enabled the same entry carries a
 // `metrics_addr` field with the bound host:port.
-const zkProposerReadyMessage = "kona-sp1-proposer started"
+const (
+	zkProposerReadyMessage = "kona-sp1-proposer started"
+	konaSP1ELFDirEnv       = "KONA_SP1_ELF_DIR"
+)
+
+func loadZKProgramVKey(elfDir string) (common.Hash, error) {
+	if elfDir == "" {
+		return crypto.Keccak256Hash([]byte("kona-sp1-stub-super-aggregation-vkey")), nil
+	}
+
+	var vkeys map[string]string
+	if _, err := toml.DecodeFile(filepath.Join(elfDir, "vkeys.toml"), &vkeys); err != nil {
+		return common.Hash{}, fmt.Errorf("read Kona SP1 vkeys: %w", err)
+	}
+	raw, ok := vkeys["super-aggregation"]
+	if !ok {
+		return common.Hash{}, fmt.Errorf("vkeys.toml does not contain super-aggregation")
+	}
+	vkeyBytes, err := hexutil.Decode(raw)
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("decode super-aggregation vkey: %w", err)
+	}
+	if len(vkeyBytes) != common.HashLength {
+		return common.Hash{}, fmt.Errorf("super-aggregation vkey must encode exactly %d bytes", common.HashLength)
+	}
+	vkey := common.BytesToHash(vkeyBytes)
+	if vkey == (common.Hash{}) {
+		return common.Hash{}, fmt.Errorf("super-aggregation vkey must not be zero")
+	}
+	return vkey, nil
+}
+
+type zkProposerConfig struct {
+	ProposalInterval    *time.Duration
+	SyncL1Confirmations *uint64
+}
+
+// ZKProposerOption configures the kona-sp1-proposer process started by
+// devstack.
+type ZKProposerOption func(cfg *zkProposerConfig)
+
+// WithZKProposalInterval overrides the proposal interval passed to
+// kona-sp1-proposer.
+func WithZKProposalInterval(interval time.Duration) ZKProposerOption {
+	return func(cfg *zkProposerConfig) {
+		cfg.ProposalInterval = &interval
+	}
+}
+
+// WithZKSyncL1Confirmations overrides the L1 confirmation depth used by
+// kona-sp1-proposer when synchronizing games.
+func WithZKSyncL1Confirmations(confirmations uint64) ZKProposerOption {
+	return func(cfg *zkProposerConfig) {
+		cfg.SyncL1Confirmations = &confirmations
+	}
+}
+
+func newZKProposerConfig(opts ...ZKProposerOption) (zkProposerConfig, error) {
+	var cfg zkProposerConfig
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&cfg)
+		}
+	}
+	if cfg.ProposalInterval != nil {
+		if *cfg.ProposalInterval <= 0 {
+			return zkProposerConfig{}, fmt.Errorf("ZK proposer interval must be positive")
+		}
+		if *cfg.ProposalInterval%time.Second != 0 {
+			return zkProposerConfig{}, fmt.Errorf("ZK proposer interval must use whole seconds")
+		}
+	}
+	return cfg, nil
+}
 
 // startZKProposer launches the Rust kona-sp1-proposer binary against the ZK
 // dispute game type. Modeled on the kona-node launcher (l2_cl_kona.go), minus
@@ -39,10 +114,13 @@ func startZKProposer(
 	l1EL L1ELNode,
 	supernodeRPC string,
 	factoryAddr common.Address,
-	cfg ZKDisputeGameConfig,
+	programVKey common.Hash,
+	elfDir string,
+	proposerOpts ...ZKProposerOption,
 ) {
 	require := t.Require()
-	programVKey := cfg.ProgramVKey
+	cfg, err := newZKProposerConfig(proposerOpts...)
+	require.NoError(err, "invalid ZK proposer config")
 
 	proposerSecret, err := keys.Secret(devkeys.ProposerRole.Key(proposerChainID.ToBig()))
 	require.NoError(err, "need proposer key for ZK proposer")
@@ -64,7 +142,6 @@ func startZKProposer(
 	// verifier and the create path only loads artifacts without verifying
 	// them against the vkey. Either way the file:// path is exercised.
 	prestatesDir := t.TempDir()
-	elfDir := os.Getenv("KONA_SP1_ELF_DIR")
 	sources := map[string]func() (io.ReadCloser, error){
 		".agg.bin.gz":   elfSource(elfDir, "super-aggregation-elf"),
 		".range.bin.gz": elfSource(elfDir, "super-range-elf"),
@@ -79,11 +156,15 @@ func startZKProposer(
 		"FACTORY_ADDRESS=" + factoryAddr.Hex(),
 		"PRESTATES_URL=file://" + prestatesDir,
 		"PRIVATE_KEY=" + hexutil.Encode(crypto.FromECDSA(proposerSecret)),
-		"PROPOSAL_INTERVAL_SECONDS=" + strconv.FormatUint(uint64(cfg.ProposalInterval/time.Second), 10),
 		"PROPOSAL_SAFETY=safe",
-		"SYNC_L1_CONFIRMATIONS=" + strconv.FormatUint(cfg.SyncL1Confirmations, 10),
 		"FETCH_INTERVAL=2",
 		"LOG_FORMAT=json",
+	}
+	if cfg.ProposalInterval != nil {
+		env = append(env, "PROPOSAL_INTERVAL_SECONDS="+strconv.FormatUint(uint64(*cfg.ProposalInterval/time.Second), 10))
+	}
+	if cfg.SyncL1Confirmations != nil {
+		env = append(env, "SYNC_L1_CONFIRMATIONS="+strconv.FormatUint(*cfg.SyncL1Confirmations, 10))
 	}
 	// METRICS_PORT omitted (or 0) disables the metrics server entirely.
 	if areMetricsEnabled() {

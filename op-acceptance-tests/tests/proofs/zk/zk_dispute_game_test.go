@@ -16,8 +16,8 @@ import (
 
 func TestDeploymentUsesSuperAggregationVKey(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := newSystem(t)
-	vkey := loadSuperAggregationVKey(t)
+	sys := presets.NewSimpleInterop(t, presets.WithZK())
+	vkey := expectedSuperAggregationVKey(t)
 	factory := sys.DisputeGameFactory()
 
 	factory.VerifyGameImplAbsent(gameTypes.SuperCannonKonaGameType)
@@ -37,7 +37,7 @@ func TestDeploymentUsesSuperAggregationVKey(gt *testing.T) {
 
 func TestChallengedValidProposalAnchors(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := newSystem(t)
+	sys := presets.NewSimpleInterop(t, presets.WithZK())
 	factory := sys.DisputeGameFactory()
 	challenger, prover := fundedActors(sys)
 

@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -15,22 +13,15 @@ type PreGenesisSuperGameConfig struct {
 	ClaimedOutputs []eth.Bytes32
 }
 
-// ZKDisputeGameConfig configures the shared ZK dispute game and the
-// kona-sp1-proposer started for it after the interop migration. ProgramVKey
-// is the real SP1 super-aggregation vkey; devstack uses a mock verifier to
-// exercise the game lifecycle.
+// ZKDisputeGameConfig configures the shared ZK dispute game installed after
+// the interop migration. Devstack uses a mock verifier to exercise the game
+// lifecycle.
 type ZKDisputeGameConfig struct {
-	ProgramVKey          common.Hash
 	MaxChallengeDuration time.Duration
 	MaxProveDuration     time.Duration
-	ProposalInterval     time.Duration
-	SyncL1Confirmations  uint64
 }
 
 func (c ZKDisputeGameConfig) validate() error {
-	if c.ProgramVKey == (common.Hash{}) {
-		return fmt.Errorf("ZK program vkey must not be zero")
-	}
 	if c.MaxChallengeDuration <= 0 {
 		return fmt.Errorf("ZK maximum challenge duration must be positive")
 	}
@@ -42,12 +33,6 @@ func (c ZKDisputeGameConfig) validate() error {
 	}
 	if c.MaxProveDuration%time.Second != 0 {
 		return fmt.Errorf("ZK maximum prove duration must use whole seconds")
-	}
-	if c.ProposalInterval <= 0 {
-		return fmt.Errorf("ZK proposer interval must be positive")
-	}
-	if c.ProposalInterval%time.Second != 0 {
-		return fmt.Errorf("ZK proposer interval must use whole seconds")
 	}
 	return nil
 }
@@ -77,6 +62,7 @@ type PresetConfig struct {
 	InteropLogBackfillDepth time.Duration
 	PreGenesisSuperGame     *PreGenesisSuperGameConfig
 	ZKDisputeGame           *ZKDisputeGameConfig
+	ZKProposerOptions       []ZKProposerOption
 	// SkipHonestProposer skips starting op-proposer.
 	SkipHonestProposer bool
 	// SkipHonestChallenger skips starting the honest challenger.

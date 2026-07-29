@@ -1,6 +1,8 @@
 package presets
 
 import (
+	"time"
+
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
@@ -9,6 +11,13 @@ import (
 	ps "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
+)
+
+const (
+	defaultZKChallengeDuration = 30 * time.Second
+	defaultZKProveDuration     = 30 * time.Second
+	defaultZKProposalInterval  = 6 * time.Second
+	defaultZKFinalityDelay     = 2 * time.Second
 )
 
 type proofValidationTarget interface {
@@ -105,16 +114,39 @@ func WithDisputeGameFinalityDelaySeconds(seconds uint64) Option {
 	)
 }
 
-// WithZKDisputeGame installs a shared ZK dispute game after the interop
-// migration and starts the honest kona-sp1-proposer and op-challenger for it,
-// sourcing super roots from the supernode. The verifier remains a dev-only
-// mock, while the configured program vkey is the real SP1
-// super-aggregation vkey.
-func WithZKDisputeGame(zkCfg sysgo.ZKDisputeGameConfig) Option {
+// WithZK installs a shared ZK dispute game after the interop migration and
+// starts the honest kona-sp1-proposer and op-challenger for it, sourcing super
+// roots from the supernode. The SP1 super-aggregation vkey is loaded from
+// KONA_SP1_ELF_DIR when the system starts. It also enables the short timing
+// defaults used by devstack ZK tests.
+func WithZK() Option {
+	return Combine(
+		option{
+			kinds: optionKindZKDisputeGame,
+			applyFn: func(cfg *sysgo.PresetConfig) {
+				cfg.ZKDisputeGame = &sysgo.ZKDisputeGameConfig{
+					MaxChallengeDuration: defaultZKChallengeDuration,
+					MaxProveDuration:     defaultZKProveDuration,
+				}
+			},
+		},
+		WithZKProposerOption(sysgo.WithZKProposalInterval(defaultZKProposalInterval)),
+		WithTimeTravelEnabled(),
+		WithDisputeGameFinalityDelaySeconds(uint64(defaultZKFinalityDelay/time.Second)),
+		WithDeployerOptions(sysgo.WithJovianAtGenesis),
+	)
+}
+
+// WithZKChallengeDuration overrides the maximum challenge duration configured
+// by a preceding WithZK option.
+func WithZKChallengeDuration(duration time.Duration) Option {
 	return option{
 		kinds: optionKindZKDisputeGame,
 		applyFn: func(cfg *sysgo.PresetConfig) {
-			cfg.ZKDisputeGame = &zkCfg
+			if cfg.ZKDisputeGame == nil {
+				cfg.ZKDisputeGame = &sysgo.ZKDisputeGameConfig{}
+			}
+			cfg.ZKDisputeGame.MaxChallengeDuration = duration
 		},
 	}
 }
