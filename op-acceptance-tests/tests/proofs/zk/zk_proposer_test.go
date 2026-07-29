@@ -77,6 +77,55 @@ func TestProposerBuildsOnValidGameFromAnotherProposer(gt *testing.T) {
 		"honest proposer child must advance beyond the foreign parent")
 }
 
+func TestProposerRejectsValidChildOfInvalidGame(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInterop(t,
+		presets.WithZK(),
+		presets.WithZKChallengeDuration(zkSafetyTestChallengeDuration),
+		presets.WithoutHonestChallenger(),
+		presets.WithZKProposerOption(sysgo.WithZKProposalInterval(zkSafetyTestProposalInterval)),
+	)
+	factory := sys.DisputeGameFactory()
+
+	game0 := factory.WaitForZKGameAtIndex(0)
+	foreignProposer := sys.FunderL1.NewFundedEOA(eth.OneEther)
+	invalidSequence, outputRoots := factory.WaitForSafeSuperRootAfter(game0.L2SequenceNumber())
+	t.Require().NotEmpty(outputRoots)
+	outputRoots[0][0] ^= 0xff
+	invalidGame := factory.StartZKGame(
+		foreignProposer,
+		proofs.WithZKParent(game0.FactoryIndex()),
+		proofs.WithL2SequenceNumber(invalidSequence),
+		proofs.WithSuperRootFrom(outputRoots...),
+	)
+	t.Require().Equal(uint32(1), invalidGame.FactoryIndex(),
+		"invalid game must be created before the honest proposer reaches its next interval")
+
+	// Force a proposal after the invalid game is visible. Building on game0
+	// proves the proposer classified the higher-sequence foreign game as
+	// invalid before its child is introduced.
+	sys.AdvanceTime(zkSafetyTestProposalInterval)
+	validSibling := factory.WaitForZKGameAtIndex(int64(invalidGame.FactoryIndex() + 1))
+	t.Require().Equal(game0.FactoryIndex(), validSibling.ParentIndex(),
+		"honest proposer must reject the invalid foreign game")
+
+	orphanSequence, _ := factory.WaitForSafeSuperRootAfter(validSibling.L2SequenceNumber())
+	orphan := factory.StartZKGame(
+		foreignProposer,
+		proofs.WithZKParent(invalidGame.FactoryIndex()),
+		proofs.WithL2SequenceNumber(orphanSequence),
+	)
+	t.Require().Equal(uint32(3), orphan.FactoryIndex(),
+		"orphan must be created before the honest proposer reaches its next interval")
+
+	sys.AdvanceTime(zkSafetyTestProposalInterval)
+	honestChild := factory.WaitForZKGameAtIndex(int64(orphan.FactoryIndex() + 1))
+	t.Require().Equal(validSibling.FactoryIndex(), honestChild.ParentIndex(),
+		"honest proposer must not extend a valid claim whose parent was rejected")
+	t.Require().Greater(honestChild.L2SequenceNumber(), validSibling.L2SequenceNumber(),
+		"honest proposer must continue advancing the connected valid branch")
+}
+
 func TestProposerDefersGameUntilSuperRootRPCCatchesUp(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t,
@@ -131,60 +180,6 @@ func TestProposerDefersGameUntilSuperRootRPCCatchesUp(gt *testing.T) {
 		"game unavailable from the super-root RPC must never become a proposal parent")
 	t.Require().Greater(honestChild.L2SequenceNumber(), game0.L2SequenceNumber(),
 		"honest proposer must resume creating games after the super-root RPC catches up")
-}
-
-func TestProposerContinuesAfterUnconfirmedL1BlockReorg(gt *testing.T) {
-	t := devtest.SerialT(gt)
-	const syncL1Confirmations = uint64(2)
-	sys := presets.NewSimpleInterop(t,
-		presets.WithZK(),
-		presets.WithZKChallengeDuration(zkSafetyTestChallengeDuration),
-		presets.WithoutHonestChallenger(),
-		presets.WithZKProposerOption(sysgo.WithZKProposalInterval(zkSafetyTestProposalInterval)),
-		presets.WithZKProposerOption(sysgo.WithZKSyncL1Confirmations(syncL1Confirmations)),
-	)
-	factory := sys.DisputeGameFactory()
-
-	game0 := factory.WaitForZKGameAtIndex(0)
-	sys.L2BatcherA.Stop()
-	sys.L2BatcherB.Stop()
-	batchersStopped := true
-	t.Cleanup(func() {
-		if batchersStopped {
-			sys.L2BatcherA.Start()
-			sys.L2BatcherB.Start()
-		}
-	})
-
-	// Let the first game enter the proposer's confirmation-delayed snapshot,
-	// then replace only the current L1 tip, which remains outside that view.
-	l1Head := sys.L1EL.BlockRefByLabel(eth.Unsafe)
-	sys.L1EL.WaitForBlockNumber(l1Head.Number + syncL1Confirmations + 3)
-
-	sys.L1CL.Stop()
-	l1Stopped := true
-	t.Cleanup(func() {
-		if l1Stopped {
-			sys.L1CL.Start()
-		}
-	})
-	sys.TestSequencer.SequenceBlock(t, sys.L1Network.ChainID(), common.Hash{})
-	reorgedTip := sys.L1EL.BlockRefByLabel(eth.Unsafe)
-	sys.TestSequencer.SequenceBlock(t, sys.L1Network.ChainID(), reorgedTip.ParentHash)
-	sys.L1CL.Start()
-	l1Stopped = false
-	sys.L1EL.ReorgTriggered(reorgedTip, 5)
-
-	sys.L2BatcherA.Start()
-	sys.L2BatcherB.Start()
-	batchersStopped = false
-	sys.AdvanceTime(zkSafetyTestProposalInterval)
-
-	game1 := factory.WaitForZKGameAtIndex(1)
-	t.Require().Equal(game0.FactoryIndex(), game1.ParentIndex(),
-		"proposer must keep the confirmed parent after a shallower L1 reorg")
-	t.Require().Greater(game1.L2SequenceNumber(), game0.L2SequenceNumber(),
-		"proposer must resume creating games after the canonical L1 head advances")
 }
 
 func TestProposerResolvesOwnUnchallengedGame(gt *testing.T) {

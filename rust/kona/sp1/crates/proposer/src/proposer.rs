@@ -166,6 +166,7 @@ impl Game {
 /// - `cursor`: Highest factory index processed in the prior sync. Each incremental sync walks
 ///   backward from the latest index to this value, then sets it to the new latest index.
 /// - `games`: cached metadata for every tracked game keyed by index
+/// - `invalid_games`: factory indices whose claims or ancestry are known to be invalid
 #[derive(Default)]
 struct ProposerState {
     anchor_game: Option<Game>,
@@ -173,6 +174,7 @@ struct ProposerState {
     canonical_head_sequence_number: Option<u64>,
     cursor: Cursor,
     games: HashMap<U256, Game>,
+    invalid_games: HashSet<U256>,
 }
 
 impl ProposerState {
@@ -198,16 +200,22 @@ impl ProposerState {
         reachable
     }
 
-    /// Remove a game subtree from the cache.
-    ///
-    /// Used when a game is invalidated (i.e., `ChallengerWins`) and its entire subtree must be
-    /// dropped.
-    fn remove_subtree(&mut self, root_index: U256) {
-        tracing::info!(?root_index, "Removing subtree from cache");
-        for index in self.descendants_of(root_index) {
-            tracing::info!(?index, "Removing game from cache");
+    /// Mark a game and every cached descendant as terminally invalid, then
+    /// remove the subtree from the parent-eligible game cache.
+    fn invalidate_subtree(&mut self, root_index: U256) {
+        let invalid_subtree = self.descendants_of(root_index);
+        self.invalid_games.extend(invalid_subtree.iter().copied());
+        for index in invalid_subtree {
+            tracing::info!(?index, "Removing invalid game from cache");
             self.games.remove(&index);
         }
+    }
+
+    /// Reset factory-indexed sync progress and any terminal verdicts tied to
+    /// indices from the prior factory history.
+    fn reset_factory_cursor(&mut self) {
+        self.cursor = Cursor::none();
+        self.invalid_games.clear();
     }
 
     /// Selects the canonical head: the highest-L2-block game on the best valid chain.
@@ -614,7 +622,7 @@ where
             // No games at pinned block. Reset cursor so future sync cycles can discover
             // games once they become confirmed.
             let mut state = self.state.write().await;
-            state.cursor = Cursor::none();
+            state.reset_factory_cursor();
             return Ok(());
         };
 
@@ -627,7 +635,7 @@ where
             .await?;
 
         let cursor = {
-            let state = self.state.read().await;
+            let mut state = self.state.write().await;
             let current_cursor = state.cursor.clone();
 
             // This should never/rarely happen but in a case where the factory is redeployed/reset
@@ -639,6 +647,7 @@ where
                     current_cursor = %current_cursor,
                     "Factory reset suspected; resetting cursor to 0"
                 );
+                state.reset_factory_cursor();
                 Cursor::none()
             } else {
                 current_cursor
@@ -709,7 +718,7 @@ where
                     game_index = %idx,
                     "Removing invalid game and its subtree from cache"
                 );
-                state.remove_subtree(idx);
+                state.invalidate_subtree(idx);
             }
         }
 
@@ -728,6 +737,7 @@ where
                     GameFetchResult::Pending { .. } => {}
                     GameFetchResult::InvalidGame { index } => {
                         self.pending_games.write().await.remove(&index);
+                        self.state.write().await.invalidate_subtree(index);
                     }
                     _ => {
                         self.pending_games.write().await.remove(&idx);
@@ -953,7 +963,7 @@ where
                                 );
                             }
                         }
-                        state.remove_subtree(index);
+                        state.invalidate_subtree(index);
                     }
                 }
             }
@@ -1362,6 +1372,20 @@ where
         }
 
         let contract = ZKDisputeGame::new(game_address, self.l1_provider.clone());
+        let claim_data = contract.claimData().block(pinned_block).call().await?;
+        let parent_index = claim_data.parentIndex;
+
+        if parent_index != u32::MAX &&
+            self.state.read().await.invalid_games.contains(&U256::from(parent_index))
+        {
+            tracing::warn!(
+                game_index = %index,
+                ?game_address,
+                parent_index,
+                "Invalid game: parent belongs to a rejected game subtree"
+            );
+            return Ok(GameFetchResult::InvalidGame { index });
+        }
 
         // Capture the game's own immutable args: bond claims bind its WETH
         // and finality checks bind its registry, which can differ from the
@@ -1383,15 +1407,11 @@ where
         let was_respected =
             contract.wasRespectedGameTypeWhenCreated().block(pinned_block).call().await?;
         let status = GameStatus::try_from(contract.status().block(pinned_block).call().await?)?;
-        let claim_data = contract.claimData().block(pinned_block).call().await?;
         let absolute_prestate = contract.absolutePrestate().block(pinned_block).call().await?;
 
         // Enums are uint8 in the ABI; convert once at the read boundary.
-        let (parent_index, proposal_status, deadline) = (
-            claim_data.parentIndex,
-            ProposalStatus::try_from(claim_data.status)?,
-            claim_data.deadline,
-        );
+        let (proposal_status, deadline) =
+            (ProposalStatus::try_from(claim_data.status)?, claim_data.deadline);
 
         // Drop games whose type does not respect the expected type.
         if !was_respected {
@@ -2129,9 +2149,10 @@ pub async fn ensure_prestate_loaded(
 
 #[cfg(test)]
 mod tests {
-    use super::{Game, ProposerState, next_proposal_timestamp};
+    use super::{Cursor, Game, ProposerState, next_proposal_timestamp};
     use crate::contract::{GameStatus, ProposalStatus};
     use alloy_primitives::{Address, B256, U256};
+    use std::collections::HashSet;
 
     fn game_with(index: u64, parent_index: u32, l2_sequence_number: u64) -> Game {
         Game {
@@ -2252,6 +2273,39 @@ mod tests {
             anchor_game: anchor,
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn invalidating_game_remembers_entire_cached_subtree() {
+        let mut s = state(
+            vec![
+                game_with(0, u32::MAX, 100),
+                game_with(1, 0, 200),
+                game_with(2, 1, 300),
+                game_with(3, 0, 250),
+            ],
+            None,
+        );
+
+        s.invalidate_subtree(U256::from(1));
+
+        assert_eq!(s.invalid_games, HashSet::from([U256::from(1), U256::from(2)]));
+        assert!(s.games.contains_key(&U256::from(0)));
+        assert!(s.games.contains_key(&U256::from(3)));
+        assert!(!s.games.contains_key(&U256::from(1)));
+        assert!(!s.games.contains_key(&U256::from(2)));
+    }
+
+    #[test]
+    fn factory_cursor_reset_forgets_rejected_indices() {
+        let mut s = state(vec![game_with(0, u32::MAX, 100), game_with(1, 0, 200)], None);
+        s.cursor = Cursor::from(U256::from(1));
+        s.invalidate_subtree(U256::from(1));
+
+        s.reset_factory_cursor();
+
+        assert_eq!(s.cursor, Cursor::none());
+        assert!(s.invalid_games.is_empty());
     }
 
     mod canonical_head {
