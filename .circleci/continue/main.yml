@@ -387,7 +387,7 @@ commands:
               echo "apt-get update failed (attempt $i), retrying in 10s..." >&2
               sleep 10
             done
-            sudo -E apt-get install -y << parameters.extra_flags >> << parameters.packages >>
+            sudo -E apt-get -o Acquire::Retries=5 install -y << parameters.extra_flags >> << parameters.packages >>
 
   # Kona-specific commands
   install-zstd:
