@@ -232,7 +232,7 @@ func (f *DisputeGameFactory) WaitForGame() *FaultDisputeGame {
 	timedCtx, cancel := context.WithTimeout(f.t.Ctx(), 10*time.Minute)
 	defer cancel()
 	var lastReadErr error
-	err := wait.For(timedCtx, 5*time.Second, func() (bool, error) {
+	err := wait.For(timedCtx, time.Second, func() (bool, error) {
 		count, readErr := contractio.Read(f.dgf.GameCount(), timedCtx)
 		lastReadErr = readErr
 		if readErr != nil {
