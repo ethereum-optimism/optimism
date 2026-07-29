@@ -21,6 +21,7 @@ REPO="optimism"
 # Counter for issues that were not found and issues that are still open.
 NOT_FOUND_COUNT=0
 MISMATCH_COUNT=0
+NEAR_MISS_COUNT=0
 OPEN_COUNT=0
 CLOSED_COUNT=0
 declare -a OPEN_ISSUES
@@ -59,7 +60,7 @@ for arg in "$@"; do
 done
 
 # Use ripgrep to search for the pattern in all files within the repo
-todos=$(rg -o --with-filename -i -n -g '!ops/scripts/todo-checker.sh' -g '!packages/contracts-bedrock/lib' 'TODO\(([^)]+)\):? [^,;]*')
+todos=$(rg -o --with-filename -i -n -g '!ops/scripts/todo-checker.sh' -g '!packages/contracts-bedrock/lib' 'TODO\(([^)]+)\):?( [^,;]*)?')
 
 # Check each TODO comment in the repo
 IFS=$'\n' # Set Internal Field Separator to newline for iteration
@@ -69,7 +70,7 @@ for todo in $todos; do
   LINE_NUM=$(echo "$todo" | awk -F':' '{print $2}')
   ISSUE_REFERENCE=$(echo "$todo" | sed -n 's/.*TODO(\([^)]*\)).*/\1/p')
 
-  # Parse the format of the TODO comment. There are 3 supported formats (the colon is optional in all of them):
+  # Parse the format of the TODO comment. There are 3 supported formats (the colon and description are optional in all of them):
   # * TODO(<issue_number>): <description> (Default org & repo: "ethereum-optimism/monorepo")
   # * TODO(repo#<issue_number>): <description> (Default org "ethereum-optimism")
   # * TODO(org/repo#<issue_number>): <description>
@@ -137,6 +138,19 @@ for todo in $todos; do
   fi
 done
 
+# Near-miss scan: catch comments that clearly reference an issue but are malformed enough that the
+# pattern above misses them entirely (e.g. `TODO:(#123)`, `TODO (#123)`, `TODO[#123]`, `TODO: #123`).
+# A TODO/FIXME token followed closely by an issue-reference-looking token is flagged unless the line
+# already uses the parenthesized `TODO(<ref>)` form handled above. Bare TODOs with no issue reference
+# at all are intentionally not flagged.
+near_misses=$(rg --with-filename -i -n -g '!ops/scripts/todo-checker.sh' -g '!packages/contracts-bedrock/lib' '\b(TODO|FIXME)\b[^\w\n]{0,5}[\w./-]*#[0-9]+' | rg -v -i '\b(TODO|FIXME)\([^)]+\)')
+for near_miss in $near_misses; do
+  if $FAIL_INVALID_FMT || $VERBOSE; then
+    echo -e "${YELLOW}[Warning]${NC} Malformed TODO issue reference (expected \`TODO(<ref>): <description>\`): $near_miss"
+  fi
+  ((NEAR_MISS_COUNT++))
+done
+
 function printIssueTitle() {
   printf "\n${PURPLE}%-40s${NC} ${GREY}|${NC} ${GREEN}%-65s${NC} ${GREY}|${NC} ${YELLOW}%-40s${NC}\n" "Repository & Issue" "Title" "Location"
   echo -e "$GREY$(printf '%0.s-' {1..41})+$(printf '%0.s-' {1..67})+$(printf '%0.s-' {1..51})$NC"
@@ -167,6 +181,12 @@ if [[ $NOT_FOUND_COUNT -gt 0 ]]; then
 fi
 if [[ $MISMATCH_COUNT -gt 0 ]]; then
   echo -e "${RED}[Error]${NC} ${CYAN}$MISMATCH_COUNT${NC} TODOs did not match the expected pattern. Run with ${RED}\`--verbose\`${NC} to show details."
+  if $FAIL_INVALID_FMT; then
+    exit 1
+  fi
+fi
+if [[ $NEAR_MISS_COUNT -gt 0 ]]; then
+  echo -e "${RED}[Error]${NC} ${CYAN}$NEAR_MISS_COUNT${NC} TODOs reference an issue but are malformed. Run with ${RED}\`--verbose\`${NC} to show details."
   if $FAIL_INVALID_FMT; then
     exit 1
   fi
