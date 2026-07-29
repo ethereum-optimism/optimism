@@ -994,13 +994,82 @@ mod sdm {
         );
     }
 
+    /// Bytecode performing one inner `CREATE2` with empty init code and salt 0, at depth 1:
+    /// `PUSH1 0` x4 (salt, size, offset, value); `CREATE2`; `POP`; `STOP`.
+    fn create2_factory_account() -> AccountInfo {
+        let raw = Bytes::from_static(&[
+            0x60, 0x00, // PUSH1 0  (salt)
+            0x60, 0x00, // PUSH1 0  (size)
+            0x60, 0x00, // PUSH1 0  (offset)
+            0x60, 0x00, // PUSH1 0  (value)
+            0xf5, // CREATE2
+            0x50, // POP
+            0x00, // STOP
+        ]);
+        let code_hash = alloy_primitives::keccak256(&raw);
+        AccountInfo { code_hash, code: Some(Bytecode::new_raw(raw)), ..Default::default() }
+    }
+
+    // An *inner* (depth > 0) CREATE/CREATE2 is not an EIP-2929 metered account access: revm's
+    // `create` instruction charges only create_cost + initcode + memory, never the 2600 cold
+    // account-access surcharge (EIP-2929 lists BALANCE/EXTCODE*/CALL*/SELFDESTRUCT/SLOAD/SSTORE —
+    // CREATE and CREATE2 are absent). The warming rebate is defined as the cold->warm delta
+    // (2600 - 100 = 2500) refunded when a tx paid cold for an address already warm in the block.
+    // A tx that never paid a cold surcharge is owed nothing, so an inner CREATE2 landing on an
+    // address an earlier tx warmed must NOT be rebated. The `create` hook previously suppressed
+    // this only for `top_level`, so the inner case claimed an unearned 2500 per creation; it now
+    // suppresses at any depth.
+    #[test]
+    fn test_inner_create_address_is_not_rebated() {
+        const BLOCK_GAS_LIMIT: u64 = 2_000_000;
+
+        let factory = Address::from([0x7f; 20]);
+        // CREATE2 is nonce-independent: keccak256(0xff ++ factory ++ salt ++ keccak256(init_code)).
+        let created = factory.create2(B256::ZERO, alloy_primitives::keccak256([]));
+
+        let mut fixture = SDMExecutorFixture::new(
+            DEFAULT_DA_FOOTPRINT_GAS_SCALAR,
+            BLOCK_GAS_LIMIT,
+            JOVIAN_TIMESTAMP,
+        );
+        fixture.db.insert_account(factory, create2_factory_account());
+        let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
+
+        // tx0 warms `created` (as its intrinsic `to`), recording it in the block warming set.
+        producer
+            .execute_transaction(&legacy_tx(0, created))
+            .expect("tx0 warms the create2 address");
+        // tx1 calls the factory, which CREATE2s at `created` from depth 1.
+        let tx1_gas = producer
+            .execute_transaction(&legacy_tx_with_gas(1, factory, 200_000))
+            .expect("tx1 inner-creates at the warmed address")
+            .tx_gas_used();
+
+        // Positive control: without it the negative assertion below would pass vacuously if the
+        // factory bytecode ever stopped creating. CREATE2 costs 32 000 on top of the 21 000
+        // intrinsic, so this gas floor is only reachable if the create frame actually ran.
+        assert!(
+            tx1_gas > 21_000 + 32_000,
+            "tx1 must have executed a CREATE2, but used only {tx1_gas} gas",
+        );
+
+        let claimed =
+            all_warming_events(&producer).into_iter().find(|event| event.address == created);
+        assert!(
+            claimed.is_none(),
+            "a tx claimed a warming rebate for an inner-CREATE2 address ({created}) it never paid \
+             a cold EIP-2929 access for: {:#?}",
+            producer.warming_events_by_tx,
+        );
+    }
+
     // A contract created by one tx must be warmed for a later tx that genuinely cold-accesses it,
     // so the later tx earns its warming rebate. The `create` hook records the address via
-    // `CreateInputs::created_address`, which `revm` memoizes (`OnceCell`) from the canonical
-    // pre-bump nonce before the hook runs — so the address is always correct regardless of the
-    // nonce the inspector passes (this is why the "CREATE-address staleness" concern does not arise
-    // against the pinned revm). This guards the end-to-end property: created contract -> warmed ->
-    // later cold access rebated.
+    // `CreateInputs::created_address`, whose `OnceCell` the hook *seeds*: it runs before revm's
+    // `frame_init` computes the same value, so revm reuses ours. Both read the identical pre-bump
+    // caller nonce, so the recorded address is the one the EVM deploys to — see the `create` hook
+    // for why that is load-bearing rather than a fallback. This guards the end-to-end property:
+    // created contract -> warmed -> later cold access rebated.
     #[test]
     fn test_created_contract_address_is_warmed_for_a_later_tx() {
         const BLOCK_GAS_LIMIT: u64 = 2_000_000;
@@ -1047,6 +1116,48 @@ mod sdm {
             .find(|event| event.address == created)
             .expect("tx1 must earn a warming rebate for the contract created by tx0");
         assert_eq!(created_event.claiming_tx_index, 1, "rebate is claimed by tx1");
+        assert_eq!(created_event.first_warmed_by_tx_index, 0, "contract was warmed by tx0");
+        assert_eq!(created_event.amount, 2_500, "warm-account rebate amount");
+        assert_eq!(created_event.slot, None, "account rebate has no storage slot");
+    }
+
+    // The inner-depth counterpart of the test above, and the other half of the inner-CREATE fix:
+    // suppressing the creating tx's rebate must not stop the created address from entering the
+    // *block* warming set. A later tx that genuinely cold-accesses an inner-created contract still
+    // earns its rebate — i.e. the fix drops only the unearned claim, not the warming record. A
+    // "simplification" deleting the `observe_account_touch` call in the `create` hook would pass
+    // every other test in this module but fail here.
+    #[test]
+    fn test_inner_created_contract_address_is_warmed_for_a_later_tx() {
+        const BLOCK_GAS_LIMIT: u64 = 2_000_000;
+
+        let factory = Address::from([0x7f; 20]);
+        let created = factory.create2(B256::ZERO, alloy_primitives::keccak256([]));
+        let probe = Address::from([0x8c; 20]);
+
+        let mut fixture = SDMExecutorFixture::new(
+            DEFAULT_DA_FOOTPRINT_GAS_SCALAR,
+            BLOCK_GAS_LIMIT,
+            JOVIAN_TIMESTAMP,
+        );
+        fixture.db.insert_account(factory, create2_factory_account());
+        fixture.db.insert_account(probe, balance_probe_account(&[created]));
+        let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
+
+        // tx0 inner-creates at `created` and claims nothing for it (the fix), but must warm it.
+        producer
+            .execute_transaction(&legacy_tx_with_gas(0, factory, 200_000))
+            .expect("tx0 inner-creates the contract");
+        // tx1 cold-`BALANCE`-touches the inner-created contract through the probe.
+        producer
+            .execute_transaction(&legacy_tx(1, probe))
+            .expect("tx1 cold-touches the inner-created contract");
+
+        let created_event = all_warming_events(&producer)
+            .into_iter()
+            .find(|event| event.address == created)
+            .expect("tx1 must earn a warming rebate for the contract inner-created by tx0");
+        assert_eq!(created_event.claiming_tx_index, 1, "rebate is claimed by tx1, not tx0");
         assert_eq!(created_event.first_warmed_by_tx_index, 0, "contract was warmed by tx0");
         assert_eq!(created_event.amount, 2_500, "warm-account rebate amount");
         assert_eq!(created_event.slot, None, "account rebate has no storage slot");
