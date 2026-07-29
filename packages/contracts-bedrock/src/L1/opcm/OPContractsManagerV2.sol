@@ -1030,25 +1030,6 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         return _cts;
     }
 
-    /// @notice Resolves the SystemConfig that a proxy is already bound to, so an upgrade driven by
-    ///         one member of an interop set does not re-point the shared contracts (ETHLockbox,
-    ///         AnchorStateRegistry, DelayedWETH) at the caller's SystemConfig. migrate() binds
-    ///         those to the first member chain's SystemConfig. Per-chain contracts report the
-    ///         caller's own SystemConfig, so behavior is unchanged for them. Falls back to
-    ///         _default for a freshly-deployed proxy that can't report one yet. Ref: #21731.
-    /// @dev The contracts exposing systemConfig() share no common base interface, so the target is
-    ///      called low-level; IETHLockbox is only the source of the (identical) selector.
-    /// @param _default Fallback SystemConfig for not-yet-initialized proxies.
-    /// @param _target The proxy whose bound SystemConfig should be resolved.
-    /// @return The bound SystemConfig.
-    function _systemConfigFor(ISystemConfig _default, address _target) internal view returns (ISystemConfig) {
-        // eip150-safe
-        (bool success, bytes memory data) = _target.staticcall(abi.encodeCall(IETHLockbox.systemConfig, ()));
-        if (!success || data.length != 32) return _default;
-        ISystemConfig systemConfig = abi.decode(data, (ISystemConfig));
-        return address(systemConfig) == address(0) ? _default : systemConfig;
-    }
-
     /// @notice Helper for making the SystemConfig initializer arguments. This is the only
     ///         initializer that needs a helper function because we get stack-too-deep.
     /// @param _cfg The full config.

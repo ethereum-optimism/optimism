@@ -19,6 +19,8 @@ import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 /// @title OPContractsManagerUtils
 /// @notice OPContractsManagerUtils is a contract that provides utility functions for the OPContractsManager.
@@ -394,6 +396,26 @@ contract OPContractsManagerUtils {
             return address(admin_) == address(0) ? _defaultAdmin : admin_;
         } catch {
             return _defaultAdmin;
+        }
+    }
+
+    /// @notice Resolves the SystemConfig a proxy is already bound to, so an upgrade driven by one
+    ///         member of an interop set does not re-point the shared contracts (ETHLockbox,
+    ///         AnchorStateRegistry, DelayedWETH) at the caller's SystemConfig. migrate() binds those
+    ///         to the first member chain's SystemConfig. Per-chain contracts report the caller's own
+    ///         SystemConfig, so behavior is unchanged for them. Falls back to _default for a
+    ///         freshly-deployed proxy that can't report one yet. Ref: #21731.
+    /// @dev The contracts exposing systemConfig() share no common base interface; IETHLockbox is
+    ///      only the source of the (identical) selector.
+    /// @param _default Fallback SystemConfig for not-yet-initialized proxies.
+    /// @param _target The proxy whose bound SystemConfig should be resolved.
+    /// @return The bound SystemConfig.
+    function systemConfigFor(ISystemConfig _default, address _target) external view returns (ISystemConfig) {
+        // eip150-safe
+        try IETHLockbox(_target).systemConfig() returns (ISystemConfig systemConfig_) {
+            return address(systemConfig_) == address(0) ? _default : systemConfig_;
+        } catch {
+            return _default;
         }
     }
 
