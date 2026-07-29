@@ -359,6 +359,17 @@ func WithoutHonestProposer() Option {
 	}
 }
 
+// WithoutHonestChallenger skips starting the honest challenger. Used by tests
+// that must prove the proposer alone drives resolution and bond claiming.
+func WithoutHonestChallenger() Option {
+	return option{
+		kinds: optionKindSkipHonestChallenger,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.SkipHonestChallenger = true
+		},
+	}
+}
+
 // WithInteropAtGenesis activates the Interop hardfork at genesis on the L2 chain and provisions
 // a DependencySet for op-node startup without a supervisor. Required by presets that exercise
 // Interop-gated consensus features (e.g. SDM PostExec).

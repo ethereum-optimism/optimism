@@ -70,6 +70,8 @@ type PresetConfig struct {
 	ZKDisputeGame           *ZKDisputeGameConfig
 	// SkipHonestProposer skips starting op-proposer.
 	SkipHonestProposer bool
+	// SkipHonestChallenger skips starting the honest challenger.
+	SkipHonestChallenger bool
 	// SupernodeVerifierSyncMode overrides the supernode VN's sync mode when set.
 	SupernodeVerifierSyncMode *nodeSync.Mode
 	// InteropActivationDelaySeconds offsets Interop activation past genesis (0 = at genesis).

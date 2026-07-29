@@ -3,6 +3,7 @@ package proofs
 import (
 	"context"
 	"encoding/binary"
+	"fmt"
 	"math"
 	"math/big"
 	"net/url"
@@ -236,6 +237,24 @@ func (f *DisputeGameFactory) WaitForGame() *FaultDisputeGame {
 	}, time.Minute*10, time.Second*5)
 
 	return f.GameAtIndex(initialCount)
+}
+
+// WaitForZKGameAtIndex waits until the factory holds a ZK dispute game at the
+// given index, then returns that game.
+func (f *DisputeGameFactory) WaitForZKGameAtIndex(idx int64) *ZKGame {
+	f.require.GreaterOrEqual(idx, int64(0), "game index must not be negative")
+	f.require.Less(idx, int64(math.MaxUint32), "game index must fit in uint32")
+	f.t.Require().Eventually(func() bool {
+		gameCount := f.GameCount()
+		f.log.Info("Waiting for ZK game", "index", idx, "count", gameCount)
+		if gameCount <= idx {
+			return false
+		}
+		gameInfo := contract.Read(f.dgf.GameAtIndex(big.NewInt(idx)))
+		return gameTypes.GameType(gameInfo.GameType) == gameTypes.ZKDisputeGameType
+	}, 2*time.Minute, time.Second,
+		fmt.Sprintf("dispute game factory did not have a ZK game at index %d", idx))
+	return f.ZKGameAtIndex(uint32(idx))
 }
 
 func (f *DisputeGameFactory) StartSuperCannonKonaGame(eoa *dsl.EOA, opts ...GameOpt) *SuperFaultDisputeGame {

@@ -31,6 +31,7 @@ const (
 	optionKindInteropFilter
 	optionKindPreGenesisSuperGame
 	optionKindSkipHonestProposer
+	optionKindSkipHonestChallenger
 	optionKindSupernodeVerifierSyncMode
 	optionKindInteropActivationDelay
 	optionKindInteropAtGenesis
@@ -58,6 +59,7 @@ const allOptionKinds = optionKindDeployer |
 	optionKindInteropFilter |
 	optionKindPreGenesisSuperGame |
 	optionKindSkipHonestProposer |
+	optionKindSkipHonestChallenger |
 	optionKindSupernodeVerifierSyncMode |
 	optionKindInteropActivationDelay |
 	optionKindInteropAtGenesis |
@@ -88,6 +90,7 @@ var optionKindLabels = []struct {
 	{kind: optionKindInteropFilter, label: "interop filter"},
 	{kind: optionKindPreGenesisSuperGame, label: "pre-genesis super game"},
 	{kind: optionKindSkipHonestProposer, label: "skip honest proposer"},
+	{kind: optionKindSkipHonestChallenger, label: "skip honest challenger"},
 	{kind: optionKindSupernodeVerifierSyncMode, label: "supernode verifier sync mode"},
 	{kind: optionKindInteropActivationDelay, label: "interop activation delay"},
 	{kind: optionKindInteropAtGenesis, label: "interop at genesis"},
@@ -170,7 +173,8 @@ const supernodeProofsPresetSupportedOptionKinds = optionKindDeployer |
 
 const twoL2SupernodeProofsPresetSupportedOptionKinds = supernodeProofsPresetSupportedOptionKinds |
 	optionKindPreGenesisSuperGame |
-	optionKindZKDisputeGame
+	optionKindZKDisputeGame |
+	optionKindSkipHonestChallenger
 
 const twoL2SupernodePresetSupportedOptionKinds = optionKindDeployer |
 	optionKindL1EL

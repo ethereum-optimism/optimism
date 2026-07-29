@@ -317,9 +317,13 @@ func (u *remoteUser) sendInvalidRelayMessage(ctx context.Context, msg *sentMessa
 		return nil, fmt.Errorf("send tx produced no logs")
 	}
 
-	entry := result.Entries[0]
+	entryIdx := firstLogFrom(msg.Receipt.Logs, predeploys.L2toL2CrossDomainMessengerAddr)
+	if entryIdx < 0 || entryIdx >= len(result.Entries) {
+		return nil, fmt.Errorf("send tx produced no messenger entry")
+	}
+	entry := result.Entries[entryIdx]
 	entry.Identifier.LogIndex++
-	payload := messages.LogToMessagePayload(msg.Receipt.Logs[0])
+	payload := messages.LogToMessagePayload(msg.Receipt.Logs[entryIdx])
 
 	tx := txintent.NewIntent[*txintent.RelayTrigger, *txintent.InteropOutput](u.plan())
 	tx.Content.DependOn(&msg.Tx.Result)
@@ -350,9 +354,9 @@ func (u *remoteUser) execEntry(ctx context.Context, entry messages.Message) (*ty
 	return tx.PlannedTx.Included.Eval(ctx)
 }
 
-// firstEntryFrom returns the index of the first log emitted by origin, or -1.
+// firstLogFrom returns the index of the first log emitted by origin, or -1.
 // Entry indexes in an InteropOutput align one-to-one with receipt log indexes.
-func firstEntryFrom(logs []*types.Log, origin common.Address) int {
+func firstLogFrom(logs []*types.Log, origin common.Address) int {
 	for i, l := range logs {
 		if l.Address == origin {
 			return i
@@ -1045,7 +1049,7 @@ func smokeChainedInvalidMessage(env *smokeEnv) error {
 	badBlockNum, badBlockHash := badRelay.BlockNumber(), badRelay.BlockHash()
 	fmt.Fprintf(env.stderr, "    Invalid relay landed on Chain B block %d (%s)\n", badBlockNum, badBlockHash)
 
-	bounceIdx := firstEntryFrom(badRelay.Receipt.Logs, eventLoggerB)
+	bounceIdx := firstLogFrom(badRelay.Receipt.Logs, eventLoggerB)
 	if bounceIdx < 0 {
 		return fmt.Errorf("invalid relay emitted no log from EventLogger %s; the relayed call did not reach its target", eventLoggerB)
 	}
@@ -1098,6 +1102,15 @@ func smokeChainedInvalidMessage(env *smokeEnv) error {
 		return err
 	}
 
+	// Wait for the invalid relay to be replaced even when neither dependent
+	// message was accepted. This confirms the invalidation itself happened
+	// before reporting that cascade coverage was not exercised.
+	cascadeDeadline := time.Now().Add(env.reorgTimeout)
+	if err := waitForReorgedOut(env.ctx, env.stderr, env.chainB, badBlockNum, badBlockHash, badRelay.Receipt.TxHash, time.Until(cascadeDeadline)); err != nil {
+		return fmt.Errorf("invalid relay was not reorged out of Chain B: %w", err)
+	}
+	fmt.Fprintf(env.stderr, "    Invalid relay reorged out on Chain B block %d\n", badBlockNum)
+
 	if direct == nil && descendant == nil {
 		fmt.Fprintf(env.stderr, "    Chain A included neither dependent message, so no cascade was needed (prevention, not cure).\n")
 		fmt.Fprintf(env.stderr, "    NOTE: transitive invalidation itself was NOT exercised by this run.\n")
@@ -1110,15 +1123,7 @@ func smokeChainedInvalidMessage(env *smokeEnv) error {
 		return nil
 	}
 
-	// Step 4: the invalid block goes, and the cascade must follow. One budget
-	// covers every block waited on below, so a run cannot stretch to
-	// reorgTimeout per block.
-	cascadeDeadline := time.Now().Add(env.reorgTimeout)
-	if err := waitForReorgedOut(env.ctx, env.stderr, env.chainB, badBlockNum, badBlockHash, badRelay.Receipt.TxHash, time.Until(cascadeDeadline)); err != nil {
-		return fmt.Errorf("invalid relay was not reorged out of Chain B: %w", err)
-	}
-	fmt.Fprintf(env.stderr, "    Invalid relay reorged out on Chain B block %d\n", badBlockNum)
-
+	// Step 4: the invalid block goes, and the cascade must follow.
 	for _, arm := range []*dependentExec{direct, descendant} {
 		if arm == nil {
 			continue

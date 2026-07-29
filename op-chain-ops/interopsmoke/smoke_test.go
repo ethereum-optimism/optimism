@@ -62,7 +62,7 @@ func TestInvalidDirections(t *testing.T) {
 	}
 }
 
-func TestFirstEntryFrom(t *testing.T) {
+func TestFirstLogFrom(t *testing.T) {
 	messenger := common.HexToAddress("0x4200000000000000000000000000000000000023")
 	eventLogger := common.HexToAddress("0x1111111111111111111111111111111111111111")
 	logs := []*types.Log{
@@ -71,16 +71,16 @@ func TestFirstEntryFrom(t *testing.T) {
 		{Address: eventLogger},
 	}
 
-	if got := firstEntryFrom(logs, eventLogger); got != 1 {
+	if got := firstLogFrom(logs, eventLogger); got != 1 {
 		t.Fatalf("first log from EventLogger = %d, want 1", got)
 	}
-	if got := firstEntryFrom(logs, messenger); got != 0 {
+	if got := firstLogFrom(logs, messenger); got != 0 {
 		t.Fatalf("first log from messenger = %d, want 0", got)
 	}
-	if got := firstEntryFrom(logs, common.Address{}); got != -1 {
+	if got := firstLogFrom(logs, common.Address{}); got != -1 {
 		t.Fatalf("absent origin = %d, want -1", got)
 	}
-	if got := firstEntryFrom(nil, eventLogger); got != -1 {
+	if got := firstLogFrom(nil, eventLogger); got != -1 {
 		t.Fatalf("no logs = %d, want -1", got)
 	}
 }
