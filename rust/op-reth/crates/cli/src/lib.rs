@@ -105,12 +105,12 @@ const DENIED_ARGS: &[(&str, &str, &str)] = &[("node", "minimal", MINIMAL_REMOVED
 pub(crate) const MINIMAL_REMOVED_HELP: &str = "--minimal is not supported by op-reth and has been removed.\n\nIt prunes block bodies to a fixed 10,064-block window, which breaks op-node derivation\n(op-node reads the L1-info deposit transaction from historical block bodies).\n\nFor a pruned (non-archive) node, use the supported pruning recipe instead:\n  --prune.minimum-distance <BLOCKS>\n  --prune.receipts.distance <BLOCKS>\n  --prune.account-history.distance <BLOCKS>\n  --prune.storage-history.distance <BLOCKS>\nDo NOT prune block bodies.\n\nSee https://docs.optimism.io/node-operators/guides/management/archive-node#pruning-op-reth";
 
 impl Cli {
-    /// Parsers only the default CLI arguments, rejecting [`DENIED_ARGS`]
+    /// Parsers only the default CLI arguments, rejecting `DENIED_ARGS`
     pub fn parse_args() -> Self {
         Self::parse_with_denied_args()
     }
 
-    /// Parsers only the default CLI arguments from the given iterator, rejecting [`DENIED_ARGS`]
+    /// Parsers only the default CLI arguments from the given iterator, rejecting `DENIED_ARGS`
     pub fn try_parse_args_from<I, T>(itr: I) -> Result<Self, clap::error::Error>
     where
         I: IntoIterator<Item = T>,
@@ -126,7 +126,7 @@ where
     Ext: clap::Args + fmt::Debug,
     Rpc: RpcModuleValidator,
 {
-    /// Returns the clap command with all [`DENIED_ARGS`] hidden from help output.
+    /// Returns the clap command with all `DENIED_ARGS` hidden from help output.
     pub fn command_with_denied_args_hidden() -> clap::Command {
         let mut cmd = <Self as clap::CommandFactory>::command();
         for (subcommand, arg_id, _) in DENIED_ARGS {
@@ -135,7 +135,7 @@ where
         cmd
     }
 
-    /// Parses the CLI from the process arguments, hiding [`DENIED_ARGS`] from help output and
+    /// Parses the CLI from the process arguments, hiding `DENIED_ARGS` from help output and
     /// exiting with a hard error when one is used.
     ///
     /// This is the entrypoint used by the `op-reth` binary.
@@ -146,7 +146,7 @@ where
         }
     }
 
-    /// Parses the CLI from the given iterator, hiding [`DENIED_ARGS`] from help output and
+    /// Parses the CLI from the given iterator, hiding `DENIED_ARGS` from help output and
     /// returning a hard error when one is used.
     pub fn try_parse_with_denied_args_from<I, T>(itr: I) -> Result<Self, clap::error::Error>
     where
