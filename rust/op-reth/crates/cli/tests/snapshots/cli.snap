@@ -223,7 +223,7 @@ arg: --dev.block-time <BLOCK_TIME> [action: Set] [num-args: 1] [conflicts: --dev
 arg: --dev.payload-wait-time <PAYLOAD_WAIT_TIME> [action: Set] [num-args: 1] help: Time to wait after initiating payload building before resolving.
 arg: --dev.mnemonic <MNEMONIC> [action: Set] [num-args: 1] [default: test test test test test test test test test test test junk] [requires: [(IsPresent, "dev")]] help: Derive dev accounts from a fixed mnemonic instead of random ones.
 arg: --full [action: SetTrue] [num-args: 0] [default: false] [conflicts: --minimal] help: Run full node. Only the most recent [`MINIMUM_UNWIND_SAFE_DISTANCE`] block states are stored
-arg: --minimal [action: SetTrue] [num-args: 0] [default: false] [conflicts: --full] help: Run minimal storage mode with maximum pruning and smaller static files
+arg: --minimal [action: SetTrue] [num-args: 0] [default: false] [conflicts: --full] [hidden] help: Run minimal storage mode with maximum pruning and smaller static files
 arg: --prune.block-interval <BLOCK_INTERVAL> [action: Set] [num-args: 1] [aliases: block-interval] help: Minimum pruning interval measured in blocks
 arg: --prune.sender-recovery.full [action: SetTrue] [num-args: 0] [aliases: prune.senderrecovery.full] [conflicts: --prune.sender-recovery.before, --prune.sender-recovery.distance] help: Prunes all sender recovery data
 arg: --prune.sender-recovery.distance <BLOCKS> [action: Set] [num-args: 1] [aliases: prune.senderrecovery.distance] [conflicts: --prune.sender-recovery.before, --prune.sender-recovery.full] help: Prune sender recovery data before the `head-N` block number. In other words, keep last N + 1 blocks

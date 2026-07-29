@@ -23,7 +23,6 @@
 //! (the `rust-tests` `CircleCI` job), which enables it.
 #![cfg(feature = "dev")]
 
-use clap::CommandFactory;
 use reth_optimism_cli::{Cli, chainspec::OpChainSpecParser};
 use reth_optimism_node::args::RollupArgs;
 use std::{env, fmt::Write as _, fs, path::Path};
@@ -45,7 +44,9 @@ const MACHINE_SPECIFIC_DEFAULTS: &[&str] =
 
 #[test]
 fn cli_surface_snapshot() {
-    let cmd = Cli::<OpChainSpecParser, RollupArgs>::command();
+    // Same command construction as the binary: denied upstream args (e.g. --minimal) render as
+    // [hidden].
+    let cmd = Cli::<OpChainSpecParser, RollupArgs>::command_with_denied_args_hidden();
     let rendered = render_snapshot(&cmd);
 
     let path = Path::new(SNAPSHOT_PATH);

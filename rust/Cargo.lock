@@ -9501,7 +9501,6 @@ dependencies = [
 name = "op-reth"
 version = "1.11.3"
 dependencies = [
- "clap",
  "eyre",
  "op-version",
  "reth-cli-util",

@@ -78,6 +78,12 @@ where
 
         match self.cli.command {
             Commands::Node(command) => {
+                // Backstop for binaries that parse with plain clap and skip
+                // `Cli::parse_with_denied_args` (e.g. the vendored op-rbuilder).
+                if command.pruning.minimal {
+                    return Err(eyre!("{}", crate::MINIMAL_REMOVED_HELP));
+                }
+
                 // Validate RPC modules using the configured validator
                 if let Some(http_api) = &command.rpc.http_api {
                     Rpc::validate_selection(http_api, "http.api").map_err(|e| eyre!("{e}"))?;

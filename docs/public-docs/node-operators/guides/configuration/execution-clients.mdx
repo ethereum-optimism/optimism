@@ -38,7 +38,7 @@ The execution client provides the EVM runtime and transaction processing for you
 
     ### Pruning
 
-    op-reth defaults to an archive node. To reclaim disk, prune the state and receipt segments and keep block bodies. Body pruning (`--minimal` or `--prune.bodies.distance`) is unsupported and advised against. See [Pruning op-reth](/node-operators/guides/management/archive-node#pruning-op-reth).
+    op-reth defaults to an archive node. To reclaim disk, prune the state and receipt segments and keep block bodies. Body pruning is unsupported: op-reth rejects `--minimal` at startup, and `--prune.bodies.distance` is advised against. See [Pruning op-reth](/node-operators/guides/management/archive-node#pruning-op-reth).
 
     ### Complete reference
 
