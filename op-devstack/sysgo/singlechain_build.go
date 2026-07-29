@@ -231,7 +231,7 @@ func startL2ELNode(
 	return l2EL
 }
 
-func connectL2ELPeers(t devtest.T, logger log.Logger, initiatorRPC, acceptorRPC string, trusted bool) {
+func connectL2ELPeers(t devtest.T, logger log.Logger, initiatorRPC, acceptorRPC string) {
 	require := t.Require()
 	rpc1, err := dial.DialRPCClientWithTimeout(t.Ctx(), logger, initiatorRPC)
 	require.NoError(err, "failed to connect initiator EL RPC")
@@ -239,7 +239,7 @@ func connectL2ELPeers(t devtest.T, logger log.Logger, initiatorRPC, acceptorRPC 
 	rpc2, err := dial.DialRPCClientWithTimeout(t.Ctx(), logger, acceptorRPC)
 	require.NoError(err, "failed to connect acceptor EL RPC")
 	defer rpc2.Close()
-	ConnectP2P(t.Ctx(), require, rpc1, rpc2, trusted)
+	ConnectP2P(t.Ctx(), require, rpc1, rpc2)
 }
 
 func connectL2CLPeers(t devtest.T, logger log.Logger, l2CL1, l2CL2 L2CLNode) {

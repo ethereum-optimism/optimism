@@ -265,7 +265,7 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 				continue
 			}
 			connectL2CLPeers(t, t.Logger(), nodes[i].cl, nodes[j].cl)
-			connectL2ELPeers(t, t.Logger(), nodes[i].el.UserRPC(), nodes[j].el.UserRPC(), false)
+			connectL2ELPeers(t, t.Logger(), nodes[i].el.UserRPC(), nodes[j].el.UserRPC())
 		}
 	}
 
