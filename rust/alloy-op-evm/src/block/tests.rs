@@ -845,6 +845,61 @@ mod sdm {
         );
     }
 
+    // Closes the max-input saturation gap the FMA flags under FM2. The settlement identity
+    // `sender_delta == beneficiary_delta + base_fee_delta + operator_fee_delta` must hold
+    // *exactly* at the arithmetic extremes a hostile producer can reach, so that no
+    // `saturating_mul`/`saturating_add` in the deltas path can mask a non-conserving delta and
+    // mint ETH. `refund` is bounded by `evm_gas_used` (u64) and prices by u128, so the widest
+    // product is ~2^192 — inside U256, and therefore never actually saturating.
+    //
+    // Only `effective_gas_price >= basefee` is exercised: below-basefee txs cannot reach
+    // settlement (revm rejects them upstream with GasPriceLessThanBasefee), and the
+    // `beneficiary_gas_price` saturating_sub relies on exactly that.
+    #[test]
+    fn test_post_exec_settlement_conserves_value_at_arithmetic_extremes() {
+        for base_fee in [0u64, 1, 1_000_000_000, u64::MAX] {
+            let mut fixture = SDMExecutorFixture { base_fee, ..Default::default() };
+            let mut executor = fixture.executor();
+
+            for refund in [1u64, 21_000, u64::MAX / 2, u64::MAX] {
+                for gas_price in [u128::from(base_fee), u128::from(base_fee) + 1, u128::MAX] {
+                    let tx = legacy_tx_with_price(0, Address::from([0x11; 20]), 50_000, gas_price);
+                    let deltas = executor
+                        .post_exec_settlement_deltas(&tx, u64::MAX, refund, false, false)
+                        .expect("settlement deltas");
+                    let inputs =
+                        format!("base_fee={base_fee}, refund={refund}, gas_price={gas_price}");
+
+                    // Each leg must equal its exact closed form: the conservation identity alone
+                    // would still hold if two legs clamped by offsetting amounts.
+                    let refund_u256 = U256::from(refund);
+                    assert_eq!(
+                        deltas.base_fee_balance_delta,
+                        refund_u256 * U256::from(base_fee),
+                        "base-fee leg must not saturate ({inputs})",
+                    );
+                    assert_eq!(
+                        deltas.beneficiary_balance_delta,
+                        refund_u256 * U256::from(gas_price - u128::from(base_fee)),
+                        "beneficiary leg must not saturate ({inputs})",
+                    );
+                    assert_eq!(
+                        deltas.sender_balance_delta,
+                        refund_u256 * U256::from(gas_price) + deltas.operator_fee_balance_delta,
+                        "sender credit must not saturate ({inputs})",
+                    );
+                    assert_eq!(
+                        deltas.sender_balance_delta,
+                        deltas.beneficiary_balance_delta +
+                            deltas.base_fee_balance_delta +
+                            deltas.operator_fee_balance_delta,
+                        "settlement must conserve value ({inputs})",
+                    );
+                }
+            }
+        }
+    }
+
     // A settlement debit larger than a recipient's balance invalidates the block via
     // PostExecSettlementUnderflow rather than silently saturating — this is the guard against a
     // malformed/adversarial payload minting ETH out of an underfunded vault.
