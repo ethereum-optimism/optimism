@@ -2,6 +2,7 @@ package txinclude_test
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -50,20 +51,21 @@ func TestResubmitterSuccessfulTransaction(t *testing.T) {
 	}()
 }
 
-func TestResubmitterRetriesNonceTooLowAfterSuccessfulSubmission(t *testing.T) {
+func TestResubmitterRetriesNonceTooLowAfterPossiblySuccessfulSubmission(t *testing.T) {
 	tests := []struct {
-		name        string
-		acceptedErr error
+		name     string
+		firstErr error
 	}{
 		{name: "submitted"},
-		{name: "already known", acceptedErr: txpool.ErrAlreadyKnown},
+		{name: "already known", firstErr: txpool.ErrAlreadyKnown},
+		{name: "unknown error", firstErr: errors.New("ambiguous transport error")},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			inner := &mockSender{
-				errs: []error{test.acceptedErr, core.ErrNonceTooLow, core.ErrNonceTooLow},
+				errs: []error{test.firstErr, core.ErrNonceTooLow, core.ErrNonceTooLow},
 				onSend: func(call uint64) {
 					if call == 3 {
 						cancel()
