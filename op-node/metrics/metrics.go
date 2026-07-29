@@ -35,6 +35,8 @@ type Metricer interface {
 	SetSequencerState(active bool)
 	RecordPipelineReset()
 	RecordFollowSourceRequest(result string)
+	RecordFollowSourceReorg(action string)
+	RecordSuperAuthorityReorgSignal(reason string)
 	RecordSequencingError()
 	RecordPublishingError()
 	RecordDerivationError()
@@ -84,8 +86,10 @@ type Metrics struct {
 	L1SourceCache *metrics.CacheMetrics
 	L2SourceCache *metrics.CacheMetrics
 
-	L2FollowSourceCache  *metrics.CacheMetrics
-	FollowSourceRequests *prometheus.CounterVec
+	L2FollowSourceCache        *metrics.CacheMetrics
+	FollowSourceRequests       *prometheus.CounterVec
+	FollowSourceReorgs         *prometheus.CounterVec
+	SuperAuthorityReorgSignals *prometheus.CounterVec
 
 	DerivationIdle prometheus.Gauge
 
@@ -198,6 +202,8 @@ func NewMetrics(procName string, labels prometheus.Labels) *Metrics {
 			Name:      "follow_source_requests_total",
 			Help:      "Count of follow source requests by result",
 		}, []string{"result"}),
+		FollowSourceReorgs:         factory.NewCounterVec(prometheus.CounterOpts{Namespace: ns, Name: "follow_source_reorgs_total", Help: "Count of follow source reorg decisions by action"}, []string{"action"}),
+		SuperAuthorityReorgSignals: factory.NewCounterVec(prometheus.CounterOpts{Namespace: ns, Name: "super_authority_reorg_signals_total", Help: "Count of super authority reorg signals by reason"}, []string{"reason"}),
 
 		DerivationIdle: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
@@ -515,6 +521,14 @@ func (m *Metrics) RecordFollowSourceRequest(result string) {
 	m.FollowSourceRequests.WithLabelValues(result).Inc()
 }
 
+func (m *Metrics) RecordFollowSourceReorg(action string) {
+	m.FollowSourceReorgs.WithLabelValues(action).Inc()
+}
+
+func (m *Metrics) RecordSuperAuthorityReorgSignal(reason string) {
+	m.SuperAuthorityReorgSignals.WithLabelValues(reason).Inc()
+}
+
 func (m *Metrics) RecordSequencerReset() {
 	m.SequencerResets.Record()
 }
@@ -668,6 +682,12 @@ func (n *noopMetricer) RecordPipelineReset() {
 }
 
 func (n *noopMetricer) RecordFollowSourceRequest(result string) {
+}
+
+func (n *noopMetricer) RecordFollowSourceReorg(action string) {
+}
+
+func (n *noopMetricer) RecordSuperAuthorityReorgSignal(reason string) {
 }
 
 func (n *noopMetricer) RecordSequencingError() {
