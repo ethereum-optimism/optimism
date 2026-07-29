@@ -100,8 +100,7 @@ impl SuperchainParent {
     pub fn chain_id(&self) -> u64 {
         match self.chain.as_ref() {
             "mainnet" => 1,
-            "sepolia" => 11155111,
-            "sepolia-devnet-2" => 11155111,
+            "sepolia" | "sepolia-devnet-2" => 11155111,
             _ => 10,
         }
     }
