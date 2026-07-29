@@ -59,6 +59,13 @@ for arg in "$@"; do
   esac
 done
 
+# Without ripgrep the scans below silently come back empty and the script would pass having
+# checked nothing, so fail fast instead.
+if ! command -v rg &> /dev/null; then
+  echo -e "${RED}[Error]${NC} ripgrep (rg) is required but not installed." >&2
+  exit 1
+fi
+
 # Use ripgrep to search for the pattern in all files within the repo
 todos=$(rg -o --with-filename -i -n -g '!ops/scripts/todo-checker.sh' -g '!packages/contracts-bedrock/lib' 'TODO\(([^)]+)\):?( [^,;]*)?')
 
