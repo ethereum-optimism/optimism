@@ -8,6 +8,7 @@ import "github.com/prometheus/client_golang/prometheus"
 // NewSupernodeMetrics(), which creates functional counters not attached
 // to any scraped registry (safe for tests).
 type SupernodeMetrics struct {
+	Info                        *prometheus.GaugeVec
 	VNRestarts                  *prometheus.CounterVec
 	InteropTimestampsVerified   prometheus.Counter
 	InteropInvalidations        *prometheus.CounterVec
@@ -31,6 +32,11 @@ type SupernodeMetrics struct {
 func NewSupernodeMetrics() *SupernodeMetrics {
 	reg := prometheus.NewRegistry()
 	m := &SupernodeMetrics{
+		Info: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: "supernode",
+			Name:      "info",
+			Help:      "Supernode build information.",
+		}, []string{"version", "commit"}),
 		VNRestarts: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "supernode",
 			Name:      "virtual_node_restarts_total",
@@ -101,6 +107,7 @@ func NewSupernodeMetrics() *SupernodeMetrics {
 		registry: reg,
 	}
 	reg.MustRegister(
+		m.Info,
 		m.VNRestarts,
 		m.InteropTimestampsVerified,
 		m.InteropInvalidations,

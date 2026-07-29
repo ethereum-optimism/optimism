@@ -312,7 +312,7 @@ func (s *interopE2ESystem) prepareSupernode() (*supernode.Supernode, string) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	exitFn := context.CancelCauseFunc(func(err error) { s.t.Errorf("supernode critical error: %v", err) })
-	sn, err := supernode.New(ctx, logger, "op-e2e", exitFn, snCfg, vnCfgs)
+	sn, err := supernode.New(ctx, logger, "op-e2e", "", exitFn, snCfg, vnCfgs)
 	require.NoError(s.t, err, "failed to construct supernode")
 	require.NoError(s.t, sn.Start(ctx), "failed to start supernode")
 
