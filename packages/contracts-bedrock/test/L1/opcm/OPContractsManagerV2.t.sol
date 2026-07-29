@@ -330,14 +330,6 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
                 )
             })
         );
-
-        _pushPermittedProxyDeploymentInstruction();
-    }
-
-    function _pushPermittedProxyDeploymentInstruction() internal {
-        v2UpgradeInput.extraInstructions.push(
-            IOPContractsManagerUtils.ExtraInstruction({ key: "PermittedProxyDeployment", data: bytes("DelayedWETH") })
-        );
     }
 
     /// @notice Helper function that runs an OPCM V2 upgrade, asserts that the upgrade was successful,
@@ -929,8 +921,9 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         );
     }
 
-    /// @notice Tests that duplicate PermittedProxyDeployment instruction keys are allowed.
-    function test_upgrade_duplicatePermittedProxyDeploymentKeys_succeeds() public {
+    /// @notice Tests that duplicate PermittedProxyDeployment instruction keys are exempt from the
+    ///         duplicate instruction check, so validation carries on to the permission check.
+    function test_upgrade_duplicatePermittedProxyDeploymentKeys_reverts() public {
         delete v2UpgradeInput.extraInstructions;
         v2UpgradeInput.extraInstructions.push(
             IOPContractsManagerUtils.ExtraInstruction({
@@ -944,7 +937,18 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
                 data: bytes("DelayedWETH")
             })
         );
-        runCurrentUpgradeV2(chainPAO);
+
+        // This upgrade permits no proxy deployments, so the instructions are rejected by the
+        // permission check. Without the duplicate exemption the revert would instead be
+        // OPContractsManagerV2_DuplicateUpgradeInstruction.
+        // nosemgrep: sol-style-use-abi-encodecall
+        runCurrentUpgradeV2(
+            chainPAO,
+            abi.encodeWithSelector(
+                IOPContractsManagerV2.OPContractsManagerV2_InvalidUpgradeInstruction.selector,
+                Constants.PERMITTED_PROXY_DEPLOYMENT_KEY
+            )
+        );
     }
 
     /// @notice INVARIANT: Upgrades must always work when the system is paused.

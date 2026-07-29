@@ -346,19 +346,15 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
                 gameArgs: hex""
             });
 
-            // Migration needs 3 extra instructions: DelayedWETH proxy + anchor root + game type overrides.
-            extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](3);
+            // Migration needs 2 extra instructions: anchor root + game type overrides.
+            extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](2);
             extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
-                key: "PermittedProxyDeployment",
-                data: bytes("DelayedWETH")
-            });
-            extraInstructions[1] = IOPContractsManagerUtils.ExtraInstruction({
                 key: "overrides.cfg.startingAnchorRoot",
                 data: abi.encode(
                     Proposal({ root: Hash.wrap(keccak256("migrationAnchorRoot")), l2SequenceNumber: currentAnchorSeqNum + 1 })
                 )
             });
-            extraInstructions[2] = IOPContractsManagerUtils.ExtraInstruction({
+            extraInstructions[1] = IOPContractsManagerUtils.ExtraInstruction({
                 key: "overrides.cfg.startingRespectedGameType",
                 data: abi.encode(targetGameType)
             });
@@ -419,14 +415,8 @@ contract ForkL1Live is Deployer, StdAssertions, FeatureFlags {
                 gameArgs: hex""
             });
 
-            // Permit the upgrade to (re)deploy the DelayedWETH proxy if it is missing on the forked
-            // chain. The standard path deploys no other proxies (unlike the super-root migration path
-            // above), so this is the only PermittedProxyDeployment instruction it needs.
-            extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](1);
-            extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
-                key: "PermittedProxyDeployment",
-                data: bytes("DelayedWETH")
-            });
+            // The standard upgrade path deploys no proxies, so it needs no extra instructions.
+            extraInstructions = new IOPContractsManagerUtils.ExtraInstruction[](0);
         }
 
         vm.prank(_delegateCaller, true);
