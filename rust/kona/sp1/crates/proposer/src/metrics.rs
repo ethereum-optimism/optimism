@@ -101,6 +101,13 @@ pub enum ProposerGauge {
         message = "Total number of games whose super-root data was unavailable during sync"
     )]
     SuperRootUnavailable,
+    /// Total number of per-game sync failures (fetch or status read) that
+    /// were contained without aborting the sync cycle.
+    #[strum(
+        serialize = "kona_sp1_proposer_game_sync_error",
+        message = "Total number of contained per-game sync failures"
+    )]
+    GameSyncError,
 }
 
 impl MetricsGauge for ProposerGauge {}

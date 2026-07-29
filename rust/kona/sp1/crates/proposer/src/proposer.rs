@@ -308,7 +308,8 @@ where
     /// Games seen on-chain whose super-root data is not yet obtainable from
     /// this node - the timestamp is not yet safe, or the query failed
     /// (including permanently, e.g. timestamps predating the node's recorded
-    /// safe history). Excluded from the DAG (and parent eligibility) but
+    /// safe history) - and our own games whose claim contradicts the current
+    /// supernode answer. Excluded from the DAG (and parent eligibility) but
     /// re-validated each sync - unlike terminal invalidity, pending games
     /// must not be dropped by the cursor (see `fetch_game`).
     pending_games: Arc<RwLock<HashSet<U256>>>,
@@ -557,19 +558,20 @@ where
 
     /// Synchronizes the game cache.
     ///
-    /// 1. Load new games.
-    ///    - Incrementally fetch games from the factory, starting from the latest and working
-    ///      backwards to the oldest unprocessed game, stopping at games exceeding the maximum
-    ///      deadline lag from the anchor game (`MAX_GAME_DEADLINE_LAG`).
-    ///    - Games are validated (correct type, valid output root) before being added.
-    /// 2. Synchronize the status of all cached games.
-    ///    - Games are removed (along with their subtree) if their parent is not in the cache.
-    ///    - Games are marked for resolution if the parent is resolved, the game is over, and it's
-    ///      own game.
-    ///    - Games are marked for bond claim if they are finalized and there is credit to claim.
-    /// 3. Evict games from the cache.
-    ///    - Games that are finalized but there is no credit left to claim.
-    ///    - The entire subtree of a `ChallengerWins` game.
+    /// 1. Discover new games: walk the factory backwards from the latest game to the cursor,
+    ///    classifying each as valid / unsupported / invalid / pending, and stopping early once past
+    ///    the anchor's deadline-lag cutoff. A per-game fetch failure defers the remaining range to
+    ///    the next cycle (the cursor is not advanced past an incomplete walk).
+    /// 2. Remove invalid games and their subtrees.
+    /// 3. Re-validate pending games (timestamps not yet safe from this node's view, unavailable
+    ///    super-root data, or an own-game claim mismatch); entries still pending past the anchor's
+    ///    deadline-lag cutoff are evicted.
+    /// 4. Synchronize the status of all cached games and apply actions: mark own games for
+    ///    resolution (parent resolved in the defender's favor, game over), mark `DefenderWins`
+    ///    games for bond claiming (finalized with credit, or a matured withdrawal), remove finished
+    ///    games (keeping the anchor and the canonical head), and remove the entire subtree of a
+    ///    `ChallengerWins` game (resetting the duplicate-creation guard when the tracked game is
+    ///    inside it). Per-game read failures skip only that game for the cycle.
     pub async fn sync_games(&self, pinned_block: BlockId, pinned_timestamp: u64) -> Result<()> {
         let pinned_latest_index = self.factory.fetch_latest_game_index(pinned_block).await?;
 
@@ -616,13 +618,26 @@ where
         let mut invalid_game_ids = Vec::new();
         let mut newly_pending: Vec<U256> = Vec::new();
 
+        let mut walk_complete = true;
         loop {
             if index == cursor {
                 break;
             }
 
             let i = index.index().expect("must have an index here");
-            let fetch_result = self.fetch_game(i, pinned_block).await?;
+            let fetch_result = match self.fetch_game(i, pinned_block).await {
+                Ok(result) => result,
+                Err(e) => {
+                    tracing::warn!(
+                        game_index = %index,
+                        error = %e,
+                        "Game fetch failed; deferring the remaining range to the next sync cycle"
+                    );
+                    ProposerGauge::GameSyncError.increment(1.0);
+                    walk_complete = false;
+                    break;
+                }
+            };
 
             match fetch_result {
                 GameFetchResult::ValidGame { game_address, deadline } => {
@@ -633,7 +648,7 @@ where
 
                     // Once we know the anchor deadline, enforce the lag constraint.
                     if let Some(anchor_d) = anchor_deadline &&
-                        anchor_d.abs_diff(deadline) > MAX_GAME_DEADLINE_LAG
+                        beyond_deadline_lag(anchor_d, deadline)
                     {
                         tracing::debug!(
                             game_index = %index,
@@ -655,7 +670,7 @@ where
                 GameFetchResult::InvalidGame { index } => {
                     invalid_game_ids.push(index);
                 }
-                GameFetchResult::Pending { index } => {
+                GameFetchResult::Pending { index, .. } => {
                     newly_pending.push(index);
                 }
             }
@@ -663,7 +678,11 @@ where
             index.step_back();
         }
 
-        {
+        // Advance the cursor only after a complete walk so an aborted range
+        // is re-scanned next cycle instead of being skipped forever
+        // (re-walked processed games hit `AlreadyExists`, which is
+        // idempotent).
+        if walk_complete {
             let mut state = self.state.write().await;
             state.cursor = latest_index;
         }
@@ -689,14 +708,42 @@ where
                 pending.iter().copied().filter(|idx| !newly_pending.contains(idx)).collect()
             };
             self.pending_games.write().await.extend(newly_pending.iter().copied());
+            // Anchor deadline for the eviction cutoff: prefer the walk's
+            // observation this cycle, fall back to the cached anchor game.
+            // Neither known -> skip eviction this cycle (it is an
+            // optimization; nothing is lost by waiting).
+            let anchor_deadline_for_eviction = match anchor_deadline {
+                Some(deadline) => Some(deadline),
+                None => self.state.read().await.anchor_game.as_ref().map(|g| g.deadline),
+            };
             for idx in previously_pending {
-                match self.fetch_game(idx, pinned_block).await? {
-                    GameFetchResult::Pending { .. } => {}
-                    GameFetchResult::InvalidGame { index } => {
+                match self.fetch_game(idx, pinned_block).await {
+                    Ok(GameFetchResult::Pending { deadline, .. }) => {
+                        if let Some(anchor_d) = anchor_deadline_for_eviction &&
+                            pending_evictable(anchor_d, deadline)
+                        {
+                            tracing::warn!(
+                                game_index = %idx,
+                                game_deadline = deadline,
+                                anchor_deadline = anchor_d,
+                                "Evicting pending game whose deadline fell behind the anchor beyond the lag cutoff"
+                            );
+                            self.pending_games.write().await.remove(&idx);
+                        }
+                    }
+                    Ok(GameFetchResult::InvalidGame { index }) => {
                         self.pending_games.write().await.remove(&index);
                     }
-                    _ => {
+                    Ok(_) => {
                         self.pending_games.write().await.remove(&idx);
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            game_index = %idx,
+                            error = %e,
+                            "Pending game re-validation failed; retrying next cycle"
+                        );
+                        ProposerGauge::GameSyncError.increment(1.0);
                     }
                 }
             }
@@ -732,6 +779,7 @@ where
             let mut actions = Vec::with_capacity(games.len());
 
             for (index, game_address, game_weth, game_asr) in games {
+                let synced: Result<()> = async {
                 let contract = ZKDisputeGame::new(game_address, self.l1_provider.clone());
                 let claim_data = contract.claimData().block(pinned_block).call().await?;
                 // Enums are uint8 in the ABI; convert once at the read boundary.
@@ -871,6 +919,17 @@ where
                     GameStatus::ChallengerWins => {
                         actions.push(GameSyncAction::RemoveSubtree(index));
                     }
+                }
+                Ok(())
+                }
+                .await;
+                if let Err(e) = synced {
+                    tracing::warn!(
+                        game_index = %index,
+                        error = %e,
+                        "Game status sync failed; skipping this game for this cycle"
+                    );
+                    ProposerGauge::GameSyncError.increment(1.0);
                 }
             }
 
@@ -1302,10 +1361,12 @@ where
     /// Fetch game from the factory.
     ///
     /// Terminal drops: unsupported game type, mismatched anchor state
-    /// registry, disrespected game type at creation, or a claim contradicting
-    /// the canonical super root. A timestamp not yet safe from this node's
-    /// view yields `Pending` instead: excluded from the DAG but re-validated
-    /// on later syncs.
+    /// registry, disrespected game type at creation, or another proposer's
+    /// claim contradicting the canonical super root (our OWN game's claim
+    /// mismatch is held pending instead of terminally dropped, since bad
+    /// supernode data is the likelier cause). A timestamp not yet safe from
+    /// this node's view yields `Pending` instead: excluded from the DAG but
+    /// re-validated on later syncs.
     pub async fn fetch_game(&self, index: U256, pinned_block: BlockId) -> Result<GameFetchResult> {
         {
             let state = self.state.read().await;
@@ -1395,7 +1456,7 @@ where
                     "Super-root data unavailable for game; deferring validation"
                 );
                 ProposerGauge::SuperRootUnavailable.increment(1.0);
-                return Ok(GameFetchResult::Pending { index });
+                return Ok(GameFetchResult::Pending { index, deadline });
             }
         };
         let super_root = match SuperrootClient::super_root_at(&response, sequence_number) {
@@ -1409,7 +1470,7 @@ where
                     "Super-root response failed validation for game; deferring"
                 );
                 ProposerGauge::SuperRootUnavailable.increment(1.0);
-                return Ok(GameFetchResult::Pending { index });
+                return Ok(GameFetchResult::Pending { index, deadline });
             }
         };
         match super_root {
@@ -1436,9 +1497,28 @@ where
                     sequence_number,
                     "Game timestamp not yet safe from this node's view; deferring validation"
                 );
-                return Ok(GameFetchResult::Pending { index });
+                return Ok(GameFetchResult::Pending { index, deadline });
             }
             Some(super_root) if super_root.super_root != claim => {
+                if creator == self.signer.address() {
+                    // Our own game contradicting the supernode is far more
+                    // likely bad supernode data than a bad claim we
+                    // validated at creation. Hold it re-checkable instead of
+                    // terminally dropping it (and its subtree and our init
+                    // bond) on one wrong answer. The game is never
+                    // parent-eligible while pending; if the claim really is
+                    // bad the bond is lost on chain regardless, and the
+                    // pending entry ages out via the eviction cutoff once
+                    // its deadline falls behind the anchor.
+                    tracing::warn!(
+                        game_index = %index,
+                        ?game_address,
+                        ?claim,
+                        canonical_super_root = ?super_root.super_root,
+                        "Own game contradicts canonical super root; holding as pending"
+                    );
+                    return Ok(GameFetchResult::Pending { index, deadline });
+                }
                 tracing::warn!(
                     game_index = %index,
                     ?game_address,
@@ -1527,7 +1607,6 @@ where
                 // duplicate creation while the pinned cache hasn't caught up to this game.
                 self.last_created_game_l2_sequence_number.store(sequence_number, Ordering::Relaxed);
                 *self.last_created_game_address.lock().await = game_address;
-                ProposerGauge::GamesCreated.increment(1.0);
                 return Ok(());
             }
 
@@ -1737,6 +1816,72 @@ where
             return Ok(false);
         }
 
+        // A retired or blacklisted parent reverts child creation forever
+        // (ZKDisputeGame.initialize consults the registered registry's
+        // isGameBlacklisted/isGameRetired at create time; nothing at resolve
+        // time ever prunes such a parent). Check the chosen parent against
+        // the registry a new child would bind - the currently registered
+        // one, not the parent's own (they differ across ASR swaps) - and
+        // drop its subtree so head selection falls back next sync. Bare
+        // isGameProper would be wrong here: its paused() clause is true for
+        // every game during a superchain pause and would mass-evict the
+        // cache.
+        if parent_game_index != u32::MAX {
+            let parent_address = {
+                let state = self.state.read().await;
+                state.games.get(&U256::from(parent_game_index)).map(|game| game.address)
+            };
+            let Some(parent_address) = parent_address else {
+                // A non-MAX parent index that is absent from the cache is a
+                // dangling head reference (e.g. right after this block removed
+                // its subtree, before the next full sync re-picks the head).
+                // Creating against it would be exactly the doomed creation
+                // this check exists to prevent, so defer instead.
+                tracing::debug!(
+                    parent_index = parent_game_index,
+                    "Chosen parent not in cache (dangling head after subtree removal); deferring creation until the next sync"
+                );
+                return Ok(false);
+            };
+            let registry = self.registered_anchor_state_registry(BlockId::latest()).await?;
+            // Standing must be current, not pinned: retirement/blacklisting
+            // is retroactive and the child binds the registry at create time.
+            let blacklisted = registry.isGameBlacklisted(parent_address).call().await?;
+            let retired = registry.isGameRetired(parent_address).call().await?;
+            if blacklisted || retired {
+                tracing::warn!(
+                    parent_index = parent_game_index,
+                    ?parent_address,
+                    blacklisted,
+                    retired,
+                    "Chosen parent can no longer be built on; dropping its subtree"
+                );
+                let root_index = U256::from(parent_game_index);
+                let mut state = self.state.write().await;
+                // Mirror sync_games' RemoveSubtree handling: reset the
+                // duplicate-creation guard if the removed subtree contains
+                // the game it tracks (descendants_of includes the root).
+                let guarded_addr = *self.last_created_game_address.lock().await;
+                if guarded_addr != Address::ZERO {
+                    let guard_in_subtree = state
+                        .descendants_of(root_index)
+                        .iter()
+                        .any(|idx| state.games.get(idx).is_some_and(|g| g.address == guarded_addr));
+                    if guard_in_subtree {
+                        self.last_created_game_l2_sequence_number.store(0, Ordering::Relaxed);
+                        *self.last_created_game_address.lock().await = Address::ZERO;
+                        tracing::info!(
+                            ?guarded_addr,
+                            root_index = parent_game_index,
+                            "Reset creation guard: tracked game removed with a retired/blacklisted ancestor"
+                        );
+                    }
+                }
+                state.remove_subtree(root_index);
+                return Ok(false);
+            }
+        }
+
         let proposer = self.clone();
         let task_id = self.next_task_id.fetch_add(1, Ordering::Relaxed);
 
@@ -1910,6 +2055,9 @@ pub enum GameFetchResult {
     Pending {
         /// Factory index of the pending game.
         index: U256,
+        /// Claim deadline of the game (L1 timestamp, seconds), used by the
+        /// pending eviction cutoff.
+        deadline: u64,
     },
     /// Game was already present in the cache
     AlreadyExists,
@@ -2038,6 +2186,23 @@ pub fn bond_claim_action(
 pub fn withdrawal_matured(withdrawal_ts: u64, weth_delay: u64, l1_now: u64) -> bool {
     withdrawal_ts != 0 &&
         withdrawal_ts.checked_add(weth_delay).is_some_and(|deadline| l1_now >= deadline)
+}
+
+/// Returns whether a game deadline is beyond the maximum allowed lag from
+/// the anchor deadline (the walk stop condition and the pending-eviction
+/// cutoff share this rule).
+pub const fn beyond_deadline_lag(anchor_deadline: u64, game_deadline: u64) -> bool {
+    anchor_deadline.abs_diff(game_deadline) > MAX_GAME_DEADLINE_LAG
+}
+
+/// Returns whether a pending game may be evicted from re-validation: its
+/// deadline fell BEHIND the anchor deadline by more than the maximum lag.
+/// Deliberately one-sided, unlike [`beyond_deadline_lag`]: a game that far
+/// behind the anchor can never become parent-eligible, so nothing is lost by
+/// dropping it, while a game AHEAD of a stalled anchor is fresh (its
+/// challenge window is still open) and must stay re-checkable.
+pub const fn pending_evictable(anchor_deadline: u64, game_deadline: u64) -> bool {
+    game_deadline.saturating_add(MAX_GAME_DEADLINE_LAG) < anchor_deadline
 }
 
 /// Policy for game creation when the registered prestate's programs cannot
@@ -2441,6 +2606,34 @@ mod tests {
                 bond_claim_action(false, U256::ZERO, U256::from(1_000), 100, DELAY, 100 + DELAY),
                 BondClaimAction::Payout
             );
+        }
+    }
+
+    mod deadline_lag {
+        use super::super::{MAX_GAME_DEADLINE_LAG, beyond_deadline_lag, pending_evictable};
+
+        /// The walk cutoff is exclusive at the boundary and symmetric: a game
+        /// exactly `MAX_GAME_DEADLINE_LAG` away is still in; one second
+        /// beyond, in either direction, is out.
+        #[test]
+        fn cutoff_is_exclusive_at_the_boundary() {
+            assert!(!beyond_deadline_lag(1_000_000, 1_000_000));
+            assert!(!beyond_deadline_lag(1_000_000, 1_000_000 + MAX_GAME_DEADLINE_LAG));
+            assert!(beyond_deadline_lag(1_000_000, 1_000_000 + MAX_GAME_DEADLINE_LAG + 1));
+            assert!(beyond_deadline_lag(1_000_000 + MAX_GAME_DEADLINE_LAG + 1, 1_000_000));
+        }
+
+        /// Pending eviction is one-sided: a game behind the anchor beyond
+        /// the lag is evicted, one exactly at the lag is kept, and a game
+        /// ahead of a stalled anchor is never evicted no matter how far.
+        #[test]
+        fn eviction_only_fires_behind_the_anchor() {
+            let anchor = 1_000_000 + MAX_GAME_DEADLINE_LAG + 1;
+            assert!(pending_evictable(anchor, 1_000_000));
+            assert!(!pending_evictable(anchor - 1, 1_000_000));
+            assert!(!pending_evictable(1_000_000, 1_000_000));
+            assert!(!pending_evictable(1_000_000, 1_000_000 + MAX_GAME_DEADLINE_LAG + 1));
+            assert!(!pending_evictable(1_000_000, u64::MAX));
         }
     }
 

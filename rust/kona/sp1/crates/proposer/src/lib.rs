@@ -78,7 +78,16 @@ where
     }
 }
 
-/// Returns whether the parent game is resolved (not `InProgress`).
+/// Returns whether a parent game's status makes its children eligible for
+/// resolution: only `DefenderWins`. `ChallengerWins` parents are not
+/// resolution-eligible - sync removes their entire subtree instead, and
+/// resolving a child of a lost parent only wastes gas.
+pub const fn parent_status_resolves(status: GameStatus) -> bool {
+    matches!(status, GameStatus::DefenderWins)
+}
+
+/// Returns whether the parent game resolved in the defender's favor,
+/// making its children eligible for resolution.
 ///
 /// A `u32::MAX` parent index denotes an anchor-rooted game; the contract's
 /// `getParentGameStatus` treats it as `DefenderWins`, so it counts as
@@ -99,7 +108,7 @@ where
     let parent = ZKDisputeGame::new(parent_address, factory.provider().clone());
     let status = parent.status().block(pinned_block).call().await?;
     let status = GameStatus::try_from(status).context("invalid parent game status")?;
-    Ok(status != GameStatus::InProgress)
+    Ok(parent_status_resolves(status))
 }
 
 /// Prefix used for transaction revert errors.
@@ -119,7 +128,8 @@ impl TxErrorExt for anyhow::Error {
 
 #[cfg(test)]
 mod tests {
-    use super::{TX_REVERTED_PREFIX, TxErrorExt};
+    use super::{TX_REVERTED_PREFIX, TxErrorExt, parent_status_resolves};
+    use crate::contract::GameStatus;
 
     /// `is_revert` matches on the OUTERMOST rendering. Context added above a
     /// bail site defeats the prefix check - pinned here so any refactor of
@@ -132,5 +142,14 @@ mod tests {
         let wrapped = revert.context("submitting resolution");
         assert!(!wrapped.is_revert());
         assert!(!anyhow::anyhow!("other failure").is_revert());
+    }
+
+    /// Only `DefenderWins` parents make children resolution-eligible;
+    /// `ChallengerWins` subtrees are removed by sync instead.
+    #[test]
+    fn only_defender_wins_resolves_children() {
+        assert!(parent_status_resolves(GameStatus::DefenderWins));
+        assert!(!parent_status_resolves(GameStatus::InProgress));
+        assert!(!parent_status_resolves(GameStatus::ChallengerWins));
     }
 }
