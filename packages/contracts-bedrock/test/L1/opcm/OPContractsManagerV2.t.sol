@@ -3306,6 +3306,18 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             "shared DisputeGameFactory should be administered by the first chain's ProxyAdmin"
         );
 
+        // Sanity: the shared contracts are bound to the FIRST chain's SystemConfig, which is not
+        // the SystemConfig a chain-2 upgrade is driven by.
+        assertTrue(
+            address(chainContracts1.systemConfig) != address(chainContracts2.systemConfig),
+            "member chains should have distinct SystemConfigs"
+        );
+        assertEq(
+            address(sharedAsr.systemConfig()),
+            address(chainContracts1.systemConfig),
+            "shared AnchorStateRegistry should be bound to the first chain's SystemConfig"
+        );
+
         // The common ProxyAdmin owner owns both chains' ProxyAdmins.
         address pao = chainContracts1.proxyAdmin.owner();
         assertEq(chainContracts2.proxyAdmin.owner(), pao, "both ProxyAdmins should share an owner");
@@ -3336,6 +3348,32 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             EIP1967Helper.getImplementation(address(sharedWeth)),
             impls.delayedWETHImpl,
             "shared DelayedWETH not at target impl"
+        );
+
+        // Upgrading a non-first member must not re-point the shared contracts at that member's
+        // SystemConfig — they stay bound to the first chain's SystemConfig set up by migrate().
+        assertEq(
+            address(sharedAsr.systemConfig()),
+            address(chainContracts1.systemConfig),
+            "shared AnchorStateRegistry re-pointed to another chain's SystemConfig"
+        );
+        assertEq(
+            address(sharedLockbox.systemConfig()),
+            address(chainContracts1.systemConfig),
+            "shared ETHLockbox re-pointed to another chain's SystemConfig"
+        );
+        assertEq(
+            address(sharedWeth.systemConfig()),
+            address(chainContracts1.systemConfig),
+            "shared DelayedWETH re-pointed to another chain's SystemConfig"
+        );
+
+        // Per-chain contracts remain bound to their own chain's SystemConfig.
+        IOptimismPortal2 portal2 = IOptimismPortal2(payable(chainContracts2.systemConfig.optimismPortal()));
+        assertEq(
+            address(portal2.systemConfig()),
+            address(chainContracts2.systemConfig),
+            "chain 2 OptimismPortal should stay bound to chain 2's SystemConfig"
         );
     }
 }
