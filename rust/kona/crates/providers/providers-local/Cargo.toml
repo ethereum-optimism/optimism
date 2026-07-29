@@ -40,7 +40,7 @@ tokio = { workspace = true, features = ["sync"] }
 metrics = { workspace = true, optional = true }
 
 [dev-dependencies]
-tokio.workspace = true
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
 rstest.workspace = true
 
 [features]

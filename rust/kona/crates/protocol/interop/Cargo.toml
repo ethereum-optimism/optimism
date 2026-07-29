@@ -38,7 +38,14 @@ arbitrary = { workspace = true, features = ["derive"], optional = true }
 # Serde
 serde = { workspace = true, optional = true }
 
+# The self dev-dependency below enables this crate's own non-default features for
+# its standalone test build (`cargo test -p kona-interop`). cargo-udeps reports it
+# unused because it activates features rather than importing symbols, so ignore it.
+[package.metadata.cargo-udeps.ignore]
+development = ["kona-interop"]
+
 [dev-dependencies]
+kona-interop = { path = ".", features = ["std", "arbitrary"] }
 serde_json.workspace = true
 tokio = { workspace = true, features = ["full"] }
 alloy-primitives = { workspace = true, features = ["rlp", "arbitrary"] }
