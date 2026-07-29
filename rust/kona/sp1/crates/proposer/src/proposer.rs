@@ -1398,7 +1398,7 @@ where
                 return Ok(GameFetchResult::Pending { index });
             }
         };
-        let super_root = match SuperrootClient::super_root_at(&response) {
+        let super_root = match SuperrootClient::super_root_at(&response, sequence_number) {
             Ok(super_root) => super_root,
             Err(e) => {
                 tracing::warn!(
@@ -1500,7 +1500,8 @@ where
 
         loop {
             let response = self.superroot_client.superroot_at_timestamp(sequence_number).await?;
-            let Some(super_root) = SuperrootClient::super_root_at(&response)? else {
+            let Some(super_root) = SuperrootClient::super_root_at(&response, sequence_number)?
+            else {
                 // Transient: the chosen timestamp is not yet safe from this
                 // node's view. Bail and retry on a later tick.
                 bail!("no canonical super root at timestamp {sequence_number} yet");
@@ -2411,19 +2412,55 @@ mod tests {
             assert!(withdrawal_matured(100, DELAY, 100 + DELAY));
             assert!(!withdrawal_matured(u64::MAX, DELAY, u64::MAX));
         }
+
+        /// Unlock strictly precedes payout. The both-apply state is
+        /// on-chain-unreachable for a consistent read (claimCredit zeroes
+        /// credit atomically with the withdrawal-recording unlock); the test
+        /// pins the branch order that keeps it safe anyway.
+        #[test]
+        fn unlock_precedes_payout_when_both_apply() {
+            assert_eq!(
+                bond_claim_action(
+                    true,
+                    U256::from(1_000),
+                    U256::from(1_000),
+                    100,
+                    DELAY,
+                    100 + DELAY
+                ),
+                BondClaimAction::Unlock
+            );
+        }
+
+        /// Documents the branch order for an on-chain-unreachable state: a
+        /// recorded withdrawal implies a prior claimCredit, which required
+        /// finality - the function still pays out rather than waiting.
+        #[test]
+        fn unfinalized_matured_withdrawal_pays_out() {
+            assert_eq!(
+                bond_claim_action(false, U256::ZERO, U256::from(1_000), 100, DELAY, 100 + DELAY),
+                BondClaimAction::Payout
+            );
+        }
     }
 
     mod pending_games {
         use super::*;
 
-        /// `FlowGaps` #1 regression (state level): a pending game is not in the
-        /// DAG, so it can never be selected as canonical head / parent.
+        /// `FlowGaps` #1 regression (state level): pending games are kept out
+        /// of `state.games`, and that exclusion is what makes them
+        /// parent-ineligible - inserted, the far-future game would win head
+        /// selection.
         #[test]
         fn pending_games_are_not_parent_eligible() {
-            // Only the validated game is in the DAG; the far-future game at
-            // sequence 10_000 was classified pending and never inserted.
-            let s = state(vec![game_with(0, u32::MAX, 100)], None);
-            assert_eq!(s.select_canonical_head().unwrap().l2_sequence_number, 100);
+            let validated = game_with(0, u32::MAX, 100);
+            let far_future = game_with(1, u32::MAX, 10_000);
+
+            let without_pending = state(vec![validated.clone()], None);
+            assert_eq!(without_pending.select_canonical_head().unwrap().l2_sequence_number, 100);
+
+            let with_pending = state(vec![validated, far_future], None);
+            assert_eq!(with_pending.select_canonical_head().unwrap().l2_sequence_number, 10_000);
         }
     }
 }

@@ -168,6 +168,7 @@ mod tests {
         assert_eq!(ProposalStatus::UnchallengedAndValidProofProvided as u8, 2);
         assert_eq!(ProposalStatus::ChallengedAndValidProofProvided as u8, 3);
         assert_eq!(ProposalStatus::Resolved as u8, 4);
+        assert!(ProposalStatus::try_from(5).is_err());
     }
 
     /// Same test vectors as Go's `TestZKGameArgsPack`

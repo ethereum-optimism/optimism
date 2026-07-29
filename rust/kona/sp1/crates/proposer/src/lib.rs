@@ -116,3 +116,21 @@ impl TxErrorExt for anyhow::Error {
         self.to_string().starts_with(TX_REVERTED_PREFIX)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{TX_REVERTED_PREFIX, TxErrorExt};
+
+    /// `is_revert` matches on the OUTERMOST rendering. Context added above a
+    /// bail site defeats the prefix check - pinned here so any refactor of
+    /// `is_revert`'s matching (e.g. switching to `chain()` traversal) must
+    /// revisit this contract. Typed error lands with #22019.
+    #[test]
+    fn revert_detection_pins_prefix_rendering() {
+        let revert = anyhow::anyhow!("{TX_REVERTED_PREFIX} receipt");
+        assert!(revert.is_revert());
+        let wrapped = revert.context("submitting resolution");
+        assert!(!wrapped.is_revert());
+        assert!(!anyhow::anyhow!("other failure").is_revert());
+    }
+}
