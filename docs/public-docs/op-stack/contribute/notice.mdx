@@ -16,15 +16,17 @@ request.
 
 ## Composition
 
-A notice is an operational content type, not a fifth Diátaxis quadrant and
-not one of the composed documentation types. It uses the existing
-`content_type: notice` metadata key (with an underscore) and omits
-`diataxis:`.
+A notice is `diataxis: reference`: it gives readers authoritative facts
+about one change, including its scope, compatibility, timing, and affected
+versions. Put the executable migration procedure in a how-to guide or
+runbook and link it from the notice.
 
-The similarly named `content-type:` key (with a hyphen) is reserved for the
-four composed documentation types in
-[Choose a content type](/op-stack/contribute/choose-a-content-type). Do not
-use it for notices.
+The additional `content_type: notice` metadata key (with an underscore)
+marks the page's operational purpose and lifecycle. It is not a fifth
+Diátaxis quadrant or one of the composed documentation types. The similarly
+named `content-type:` key (with a hyphen) remains reserved for the four
+compositions in
+[Choose a content type](/op-stack/contribute/choose-a-content-type).
 
 ## Purpose
 
@@ -48,6 +50,7 @@ Every notice carries the metadata used by the notice index and site search:
 ---
 title: <Change or action>
 description: <One sentence naming the change and affected readers.>
+diataxis: reference
 lang: en-US
 content_type: notice
 topic: <unique-kebab-case-topic>
@@ -130,6 +133,7 @@ Copy this template to start a notice:
 ---
 title: <Change or action>
 description: <One sentence naming the change and affected readers.>
+diataxis: reference
 lang: en-US
 content_type: notice
 topic: <unique-kebab-case-topic>

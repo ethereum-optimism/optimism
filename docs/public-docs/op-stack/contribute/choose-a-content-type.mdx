@@ -1,6 +1,6 @@
 ---
 title: Choose a content type
-description: A maintainer-facing decision table for picking the right documentation or operational content type and its frontmatter.
+description: A maintainer-facing decision table for picking the right documentation type, composition, and operational metadata.
 diataxis: reference
 ---
 
@@ -15,7 +15,7 @@ Before choosing a type, check the
 [content guide](/op-stack/contribute/content-guide) that the content belongs
 on docs.optimism.io at all.
 
-## The taxonomy: four quadrants, four compositions, one operational type
+## The taxonomy: four quadrants, four compositions
 
 Documentation pages on docs.optimism.io carry a `diataxis:` frontmatter key
 with one of the four [Diátaxis](https://diataxis.fr/) quadrant values —
@@ -52,15 +52,16 @@ Rules that keep this an extension rather than a fork:
     composed types are declared only in page frontmatter, per the rows
     above.
 
-### Operational notice
+### Notice metadata
 
 A [notice](/op-stack/contribute/notice) is time-bound operational content
 for an upgrade, deprecation, or other change that requires readers to
-prepare. It is not a fifth Diátaxis quadrant and it is not a composition of
-the quadrants.
+prepare. Its dominant reader need is authoritative information about a
+specific change, so a notice carries `diataxis: reference`.
 
-Notices omit `diataxis:` and use the metadata key `content_type: notice`
-(with an underscore), which already exists in `keywords.config.yaml`. The
+The additional `content_type: notice` metadata key (with an underscore)
+marks the page's operational purpose and lifecycle for the notice index and
+site search. It does not create a fifth quadrant or composition. The
 `content-type:` key (with a hyphen) remains limited to the four composition
 values above.
 
