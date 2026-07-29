@@ -27,7 +27,7 @@ import (
 // buildPreparedWorkdir builds a fully "prepared" intent+state pair (predicted L1 addresses,
 // pinned anchor block/genesis time, generated L2 genesis allocs, computed output root) and
 // writes intent.toml + state.json to a fresh temp workdir, mirroring what op-deployer prepare
-// produces before apply/continue ever runs. Returns the workdir and the chain ID.
+// produces before continue ever runs. Returns the workdir and the chain ID.
 func buildPreparedWorkdir(t *testing.T) (string, common.Hash) {
 	t.Helper()
 
