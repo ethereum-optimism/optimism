@@ -1282,4 +1282,3 @@ arg: --storage.v2 [default: true] help: Enable V2 (hot/cold) storage layout for 
 arg: --proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH> help: Path to the proofs-history storage DB. Defaults to `<reth-data-dir>/historical-proofs` (chain-namespaced via reth's `--datadir`)
 arg: --proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION> [default: v1] [possible: v1, v2] help: Storage schema version. Must match the version used when starting the node
 arg: --target <TARGET_BLOCK> [required] help: The target block number to unwind to
-
