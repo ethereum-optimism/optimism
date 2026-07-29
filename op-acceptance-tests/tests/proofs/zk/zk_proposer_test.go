@@ -30,6 +30,9 @@ func TestProposerChainsSecondZKGameOnFirst(gt *testing.T) {
 	game0 := factory.WaitForZKGameAtIndex(0)
 	t.Require().Equal(uint32(math.MaxUint32), game0.ParentIndex(),
 		"first proposer game must be a root game using the max-uint32 parent sentinel")
+	// TODO(#22086): strengthen back to an anchor comparison by recording the
+	// anchor before the proposer starts, once the start-proposer-mid-test
+	// hook from #22105 is available (adopt whichever PR lands first).
 	// Not compared against the live anchor: with the always-on proposer the
 	// anchor may already have advanced past game0 by the time this test
 	// runs (the proposer-creates-beyond-the-anchor rule is unit-tested on
