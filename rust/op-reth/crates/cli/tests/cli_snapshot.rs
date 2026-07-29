@@ -20,7 +20,7 @@
 //!
 //! The test is gated on the `dev` feature because the `dev`-only `test-vectors` subcommand is
 //! part of the rendered surface. CI runs the workspace test suite with `--all-features`
-//! (the `rust-tests` CircleCI job), which enables it.
+//! (the `rust-tests` `CircleCI` job), which enables it.
 #![cfg(feature = "dev")]
 
 use clap::CommandFactory;
