@@ -58,6 +58,7 @@ func simpleInteropFromSupernodeProofsRuntime(t devtest.T, runtime *sysgo.MultiCh
 			FaucetA:          components.faucetA,
 			FaucetL1:         dsl.NewFaucet(newFaucetFrontendForChain(t, runtime.FaucetService, runtime.L1Network.ChainID())),
 			challengerConfig: runtime.L2ChallengerConfig,
+			startZKProposer:  func() { runtime.StartZKProposer(t) },
 		},
 		L2ChainB:   twoL2.L2B,
 		L2BatcherB: dsl.NewL2Batcher(components.l2BBatcher),
@@ -153,6 +154,7 @@ func singleChainInteropFromSupernodeProofsRuntime(t devtest.T, runtime *sysgo.Mu
 		FaucetA:          dsl.NewFaucet(faucetAFrontend),
 		FaucetL1:         dsl.NewFaucet(faucetL1Frontend),
 		challengerConfig: challengerCfg,
+		startZKProposer:  func() { runtime.StartZKProposer(t) },
 	}
 	out.l1Proposer = newL1ProposerEOA(t, runtime, l2ChainID, out.L1EL)
 	l1Network.AddFaucet(faucetL1Frontend)

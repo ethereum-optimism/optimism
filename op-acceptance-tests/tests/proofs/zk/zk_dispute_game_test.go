@@ -24,8 +24,8 @@ func TestDeploymentUsesSuperAggregationVKey(gt *testing.T) {
 	zk := factory.ZKGameImpl()
 	t.Require().NotEqual(common.Address{}, zk.Address)
 	t.Require().Equal(vkey, zk.Args.AbsolutePrestate)
-	t.Require().Equal(uint64(zkChallengeDuration/time.Second), zk.Args.MaxChallengeDuration)
-	t.Require().Equal(uint64(zkProveDuration/time.Second), zk.Args.MaxProveDuration)
+	t.Require().Equal(uint64(presets.DefaultZKChallengeDuration/time.Second), zk.Args.MaxChallengeDuration)
+	t.Require().Equal(uint64(presets.DefaultZKProveDuration/time.Second), zk.Args.MaxProveDuration)
 	t.Require().Positive(zk.Args.ChallengerBond.Sign())
 	t.Require().NotEqual(common.Address{}, zk.Args.AnchorStateRegistry)
 	t.Require().NotEqual(common.Address{}, zk.Args.Weth)
@@ -59,7 +59,7 @@ func TestChallengedValidProposalAnchors(gt *testing.T) {
 	// least this game's sequence (descendants can only anchor if this game
 	// resolved in the defender's favor).
 	game.WaitForGameStatus(gameTypes.GameStatusDefenderWon)
-	advanceL1To(&sys.SingleChainInterop, game.ResolvedAt()+uint64(zkFinalityDelay/time.Second)+1)
+	advanceL1To(&sys.SingleChainInterop, game.ResolvedAt()+uint64(presets.DefaultZKFinalityDelay/time.Second)+1)
 	sys.AnchorStateRegistry(sys.L2ChainA).WaitForAnchorRootAtLeast(game)
 }
 

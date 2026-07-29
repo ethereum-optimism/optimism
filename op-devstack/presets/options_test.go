@@ -54,8 +54,8 @@ func TestWithLocalContractSourcesAt(t *testing.T) {
 
 func TestWithZK(t *testing.T) {
 	want := sysgo.ZKDisputeGameConfig{
-		MaxChallengeDuration: 30 * time.Second,
-		MaxProveDuration:     30 * time.Second,
+		MaxChallengeDuration: 30 * time.Minute,
+		MaxProveDuration:     30 * time.Minute,
 	}
 	cfg, combined := collectPresetConfig([]Option{WithZK()})
 	require.Equal(t,

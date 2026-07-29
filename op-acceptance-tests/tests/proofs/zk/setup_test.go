@@ -15,10 +15,6 @@ import (
 )
 
 const (
-	zkChallengeDuration = 30 * time.Second
-	zkProveDuration     = 30 * time.Second
-	zkFinalityDelay     = 2 * time.Second
-
 	// zkUnsafeProposalLead places an "unsafe" proposal's timestamp a year beyond the safe head so the
 	// chain cannot reach it during the test, even on a CPU-starved CI runner.
 	zkUnsafeProposalLead = 365 * 24 * time.Hour

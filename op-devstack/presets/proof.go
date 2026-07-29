@@ -14,10 +14,10 @@ import (
 )
 
 const (
-	defaultZKChallengeDuration = 30 * time.Second
-	defaultZKProveDuration     = 30 * time.Second
-	defaultZKProposalInterval  = 6 * time.Second
-	defaultZKFinalityDelay     = 2 * time.Second
+	DefaultZKChallengeDuration = 30 * time.Minute
+	DefaultZKProveDuration     = 30 * time.Minute
+	DefaultZKProposalInterval  = 6 * time.Second
+	DefaultZKFinalityDelay     = 2 * time.Second
 )
 
 type proofValidationTarget interface {
@@ -117,22 +117,22 @@ func WithDisputeGameFinalityDelaySeconds(seconds uint64) Option {
 // WithZK installs a shared ZK dispute game after the interop migration and
 // starts the honest kona-sp1-proposer and op-challenger for it, sourcing super
 // roots from the supernode. The SP1 super-aggregation vkey is loaded from
-// KONA_SP1_ELF_DIR when the system starts. It also enables the short timing
-// defaults used by devstack ZK tests.
+// KONA_SP1_ELF_DIR when the system starts. It also enables time travel and the
+// timing defaults used by devstack ZK tests.
 func WithZK() Option {
 	return Combine(
 		option{
 			kinds: optionKindZKDisputeGame,
 			applyFn: func(cfg *sysgo.PresetConfig) {
 				cfg.ZKDisputeGame = &sysgo.ZKDisputeGameConfig{
-					MaxChallengeDuration: defaultZKChallengeDuration,
-					MaxProveDuration:     defaultZKProveDuration,
+					MaxChallengeDuration: DefaultZKChallengeDuration,
+					MaxProveDuration:     DefaultZKProveDuration,
 				}
 			},
 		},
-		WithZKProposerOption(sysgo.WithZKProposalInterval(defaultZKProposalInterval)),
+		WithZKProposerOption(sysgo.WithZKProposalInterval(DefaultZKProposalInterval)),
 		WithTimeTravelEnabled(),
-		WithDisputeGameFinalityDelaySeconds(uint64(defaultZKFinalityDelay/time.Second)),
+		WithDisputeGameFinalityDelaySeconds(uint64(DefaultZKFinalityDelay/time.Second)),
 		WithDeployerOptions(sysgo.WithJovianAtGenesis),
 	)
 }

@@ -43,6 +43,7 @@ type SingleChainInterop struct {
 
 	// May be nil if not using sysgo
 	challengerConfig *challengerConfig.Config
+	startZKProposer  func()
 }
 
 func (s *SingleChainInterop) L2Networks() []*dsl.L2Network {
@@ -63,6 +64,13 @@ func (s *SingleChainInterop) AnchorStateRegistry(l2Chain *dsl.L2Network) *dsl.An
 func (s *SingleChainInterop) AdvanceTime(amount time.Duration) {
 	s.T.Require().NotNil(s.timeTravel, "attempting to advance time on incompatible system")
 	s.L1EL.AdvanceTime(s.timeTravel, amount)
+}
+
+// StartZKProposer starts the kona-sp1-proposer after a system configured with
+// WithZK and WithoutHonestProposer has seeded its initial dispute games.
+func (s *SingleChainInterop) StartZKProposer() {
+	s.T.Require().NotNil(s.startZKProposer, "ZK proposer is not configured")
+	s.startZKProposer()
 }
 
 func (s *SingleChainInterop) proofValidationContext() (devtest.T, *dsl.L1ELNode, []*dsl.L2Network) {
