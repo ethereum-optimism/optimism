@@ -699,7 +699,7 @@ mod tests {
 
     #[test]
     fn test_check_batch_accept_trailing_post_exec_tx_with_entries() {
-        // Target validity is checked later because entry indices include prepended deposits.
+        // Targets require prepended deposits and are checked later.
         let mut transactions = example_transactions();
         transactions.push(post_exec_tx_bytes(1, vec![SDMGasEntry { index: 3, gas_refund: 2500 }]));
 

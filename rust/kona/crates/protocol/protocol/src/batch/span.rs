@@ -514,8 +514,7 @@ impl SpanBatch {
                 }
             }
 
-            // `i` includes skipped overlap, preserving the containing block number.
-            // Post-Holocene spans use the singular path; checking both avoids rule drift.
+            // `i` includes skipped overlap, preserving block numbering.
             let post_exec_validity = check_post_exec_txs(
                 &batch.transactions,
                 parent_block.block_info.number + 1 + i as u64,
@@ -2170,7 +2169,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_batch_accept_trailing_post_exec_tx() {
-        // Target validity is checked later because entry indices include prepended deposits.
+        // Targets require prepended deposits and are checked later.
         let transactions = vec![
             Bytes::copy_from_slice(&[EIP1559_TX_TYPE_ID]),
             post_exec_tx_bytes(42, vec![SDMGasEntry { index: 3, gas_refund: 2500 }]),

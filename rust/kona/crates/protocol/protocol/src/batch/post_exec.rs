@@ -1,8 +1,6 @@
-//! Validates `PostExec` (`0x7D`) transactions in sequencer batch data.
+//! `PostExec` (`0x7D`) validation for sequencer batches.
 //!
-//! This enforces rules decidable from batch data: activation, count, encoding, block anchor,
-//! position, and duplicate or zero-refund entries. Entry targets and bounds require the full block;
-//! the refund ceiling requires execution.
+//! Entry bounds and targets require a full block; refund limits require execution.
 
 use crate::{BatchDropReason, BatchValidity};
 use alloc::collections::BTreeSet;
@@ -10,8 +8,7 @@ use alloy_primitives::Bytes;
 use op_alloy_consensus::{POST_EXEC_TX_TYPE_ID, PostExecPayload};
 use tracing::warn;
 
-/// Applies the `PostExec` rules decidable from one block's batch transactions.
-/// `block_number` is the required payload anchor.
+/// Validates one block's `PostExec` transactions and payload anchor.
 pub(crate) fn check_post_exec_txs(
     transactions: &[Bytes],
     block_number: u64,
@@ -20,12 +17,12 @@ pub(crate) fn check_post_exec_txs(
     let mut post_exec_index: Option<usize> = None;
 
     for (index, tx) in transactions.iter().enumerate() {
-        // Legacy transactions begin with an RLP list header, so they cannot match `0x7D`.
+        // Legacy transactions cannot start with `0x7D`.
         if tx.first() != Some(&POST_EXEC_TX_TYPE_ID) {
             continue;
         }
 
-        // Match the EL by checking activation before decoding.
+        // Match EL validation order.
         if !sdm_active {
             warn!(
                 target: "batch_post_exec",
@@ -46,7 +43,7 @@ pub(crate) fn check_post_exec_txs(
         }
         post_exec_index = Some(index);
 
-        // Decode the exact `0x7D || rlp(payload)` encoding used by the EL.
+        // Decode bytes after the type byte.
         let payload = match PostExecPayload::from_rlp_bytes(&tx[1..]) {
             Ok(payload) => payload,
             Err(err) => {
@@ -92,7 +89,7 @@ pub(crate) fn check_post_exec_txs(
         }
     }
 
-    // Check position last so multiple PostExec transactions take precedence, matching the EL.
+    // Check position after count to match the EL.
     if let Some(index) = post_exec_index &&
         index != transactions.len() - 1
     {
