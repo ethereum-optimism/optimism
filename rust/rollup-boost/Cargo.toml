@@ -38,7 +38,7 @@ reth-optimism-payload-builder = { path = "../op-reth/crates/payload" }
 # Alloy libraries
 alloy-rpc-types-engine = { version = "2.1.1", default-features = false }
 alloy-rpc-types-eth = { version = "2.1.1", default-features = false }
-alloy-primitives = { version = "1.6.0", default-features = false, features = ["rand"] }
+alloy-primitives = { version = "1.6.1", default-features = false, features = ["rand"] }
 alloy-serde = { version = "2.1.1", default-features = false }
 alloy-eips = { version = "2.1.1", default-features = false }
 alloy-json-rpc = { version = "2.1.1", default-features = false }

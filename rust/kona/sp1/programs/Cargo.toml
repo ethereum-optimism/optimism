@@ -132,11 +132,11 @@ kona-sp1-range-vkeys = { path = "../crates/range-vkeys" }
 # build uses the SP1-patched substrate-bn backend for bn128.
 revm = { version = "41.0.0", default-features = false, features = ["bn"] }
 
-alloy-primitives = { version = "1.6.0", default-features = false, features = [
+alloy-primitives = { version = "1.6.1", default-features = false, features = [
   "map-foldhash",
 ] }
 alloy-chains = { version = "0.2.33", default-features = false }
-alloy-sol-types = { version = "1.6.0", default-features = false }
+alloy-sol-types = { version = "1.6.1", default-features = false }
 alloy-consensus = { version = "2.1.1", default-features = false }
 alloy-rlp = { version = "0.3.13", default-features = false }
 alloy-op-evm = { version = "0.32.0", path = "../../../alloy-op-evm", default-features = false }

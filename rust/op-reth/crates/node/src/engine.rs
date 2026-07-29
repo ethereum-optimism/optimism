@@ -19,7 +19,7 @@ use reth_optimism_payload_builder::{
     OpExecData, OpExecutionPayloadValidator, OpPayloadAttrs, OpPayloadTypes,
 };
 use reth_optimism_primitives::{L2_TO_L1_MESSAGE_PASSER_ADDRESS, OpBlock};
-use reth_primitives_traits::{Block, RecoveredBlock, SealedBlock, SignedTransaction};
+use reth_primitives_traits::{Block, RecoveredBlock, SealedBlock, SealedHeader, SignedTransaction};
 use reth_provider::{ProviderResult, StateProviderBox, StateProviderFactory};
 use reth_trie_common::{HashedPostState, KeyHasher};
 use std::{marker::PhantomData, sync::Arc};
@@ -130,6 +130,7 @@ where
         &self,
         state_updates: impl FnOnce() -> &'a HashedPostState,
         block: &RecoveredBlock<Self::Block>,
+        _parent_header: &SealedHeader<<Self::Block as Block>::Header>,
         parent_state: impl FnOnce() -> ProviderResult<StateProviderBox>,
     ) -> Result<(), InsertBlockErrorKind> {
         if self.chain_spec().is_isthmus_active_at_timestamp(block.timestamp()) {
@@ -528,6 +529,7 @@ mod test {
 
         let validator = OpEngineValidator::new::<KeccakKeyHasher>(OP_SEPOLIA.clone(), provider);
         let block = isthmus_block(unavailable_parent, B256::repeat_byte(0xab));
+        let parent_header = SealedHeader::seal_slow(Header::default());
         let hashed_state = HashedPostState::default();
         let result = <OpEngineValidator<_, OpTransactionSigned, _> as PayloadValidator<
             OpPayloadTypes,
@@ -535,6 +537,7 @@ mod test {
             &validator,
             || &hashed_state,
             &block,
+            &parent_header,
             || NoopProvider::default().latest(),
         );
 
