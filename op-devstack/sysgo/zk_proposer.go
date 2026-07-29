@@ -61,8 +61,7 @@ func loadZKProgramVKey(elfDir string) (common.Hash, error) {
 }
 
 type zkProposerConfig struct {
-	ProposalInterval    *time.Duration
-	SyncL1Confirmations *uint64
+	ProposalInterval *time.Duration
 }
 
 // ZKProposerOption configures the kona-sp1-proposer process started by
@@ -154,9 +153,6 @@ func startZKProposer(
 	}
 	if cfg.ProposalInterval != nil {
 		env = append(env, "PROPOSAL_INTERVAL_SECONDS="+strconv.FormatUint(uint64(*cfg.ProposalInterval/time.Second), 10))
-	}
-	if cfg.SyncL1Confirmations != nil {
-		env = append(env, "SYNC_L1_CONFIRMATIONS="+strconv.FormatUint(*cfg.SyncL1Confirmations, 10))
 	}
 	// METRICS_PORT omitted (or 0) disables the metrics server entirely.
 	if areMetricsEnabled() {

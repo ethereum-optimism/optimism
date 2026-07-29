@@ -48,7 +48,6 @@ func TestZKProposerOptions(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Equal(t, 12*time.Second, *cfg.ProposalInterval)
-	require.Equal(t, uint64(2), *cfg.SyncL1Confirmations)
 }
 
 func TestZKProposerConfigRejectsInvalidProposalInterval(t *testing.T) {
