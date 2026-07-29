@@ -169,6 +169,19 @@ main's CI actually validated.
    CI's `rust-fmt` gate. Also run the test suites of any vendored-workspace
    crate whose source you touched.
 
+9. Regenerate the CLI surface snapshot. Most reth bumps add, remove, or
+   re-default upstream CLI flags, and op-reth inherits them silently. The
+   snapshot test `rust/op-reth/crates/cli/tests/cli_snapshot.rs` fails on any
+   such change so it gets reviewed instead of shipped unnoticed. If the diff
+   is intentional, regenerate and commit the snapshot:
+
+   ```bash
+   UPDATE_SNAPSHOT=1 cargo nextest run -p reth-optimism-cli --all-features cli_surface_snapshot
+   ```
+
+   Review the snapshot diff like code: it is the operator-facing surface of
+   the node.
+
 ## Expect upstream churn beyond your target change
 
 A rev bump is rarely "just a rev change." Upstream reth iterates trait
