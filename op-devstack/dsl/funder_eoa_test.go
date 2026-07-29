@@ -116,11 +116,15 @@ func (c *funderTestEthClient) SendTransaction(ctx context.Context, tx *types.Tra
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	txHash := tx.Hash()
+	if _, submitted := c.receipts[txHash]; submitted {
+		return nil
+	}
 	c.transactions = append(c.transactions, tx)
 	to := *tx.To()
 	balance := copyBig(c.balances[to])
 	c.balances[to] = balance.Add(balance, tx.Value())
-	c.receipts[tx.Hash()] = &types.Receipt{Status: types.ReceiptStatusSuccessful, TxHash: tx.Hash()}
+	c.receipts[txHash] = &types.Receipt{Status: types.ReceiptStatusSuccessful, TxHash: txHash}
 	if len(c.transactions) == 2 {
 		close(c.receiptsReady)
 	}
