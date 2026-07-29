@@ -44,8 +44,7 @@ func TestLoadZKProgramVKey(t *testing.T) {
 
 func TestZKProposerOptions(t *testing.T) {
 	cfg, err := newZKProposerConfig(
-		WithZKProposalInterval(12*time.Second),
-		WithZKSyncL1Confirmations(2),
+		WithZKProposalInterval(12 * time.Second),
 	)
 	require.NoError(t, err)
 	require.Equal(t, 12*time.Second, *cfg.ProposalInterval)

@@ -77,14 +77,6 @@ func WithZKProposalInterval(interval time.Duration) ZKProposerOption {
 	}
 }
 
-// WithZKSyncL1Confirmations overrides the L1 confirmation depth used by
-// kona-sp1-proposer when synchronizing games.
-func WithZKSyncL1Confirmations(confirmations uint64) ZKProposerOption {
-	return func(cfg *zkProposerConfig) {
-		cfg.SyncL1Confirmations = &confirmations
-	}
-}
-
 func newZKProposerConfig(opts ...ZKProposerOption) (zkProposerConfig, error) {
 	var cfg zkProposerConfig
 	for _, opt := range opts {
