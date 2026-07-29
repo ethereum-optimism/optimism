@@ -186,11 +186,7 @@ impl SingleBatch {
             }
         }
 
-        // The timestamp equality check above pins this batch to the block right after the safe
-        // head, so that is the block number a PostExec payload must be anchored to. (The
-        // parent-hash check does not add to this on the span-derived path: `BatchValidator`
-        // assigns `parent_hash` from the same parent immediately before calling us, so
-        // there it compares a value to itself.)
+        // The timestamp check pins this batch to the block after the safe head.
         let post_exec_validity = check_post_exec_txs(
             &self.transactions,
             l2_safe_head.block_info.number + 1,
@@ -598,15 +594,13 @@ mod tests {
         );
     }
 
-    /// Encodes a `PostExecPayload` as the canonical `0x7D || rlp(payload)` transaction bytes.
+    /// Encodes canonical `0x7D || rlp(payload)` transaction bytes.
     fn post_exec_tx_bytes(block_number: u64, entries: Vec<SDMGasEntry>) -> Bytes {
         let tx: OpTxEnvelope = build_post_exec_tx(block_number, entries).into();
         tx.encoded_2718().into()
     }
 
-    /// Runs `check_batch` with SDM active over a batch building the block after the safe head.
-    /// The safe head is number 0, so the block under test — and therefore the block number a
-    /// `PostExec` payload must be anchored to — is 1.
+    /// Checks an SDM-active batch building block 1.
     fn check_post_exec_batch(transactions: Vec<Bytes>) -> BatchValidity {
         let single_batch = SingleBatch {
             parent_hash: BlockHash::ZERO,
@@ -654,8 +648,7 @@ mod tests {
     #[test]
     fn test_check_batch_drop_post_exec_wrong_block_anchor() {
         let mut transactions = example_transactions();
-        // The batch builds block 1; anchoring the payload to block 2 makes the block invalid at the
-        // execution layer.
+        // The batch builds block 1, but the payload claims block 2.
         transactions.push(post_exec_tx_bytes(2, vec![]));
 
         assert_eq!(
@@ -667,8 +660,7 @@ mod tests {
     #[test]
     fn test_check_batch_drop_post_exec_undecodable_payload() {
         let mut transactions = example_transactions();
-        // Valid RLP, but a two-element list: `block_number` would have to decode from a list
-        // header, so `PostExecPayload::from_rlp_bytes` rejects it.
+        // Valid RLP, but not a three-field PostExec payload.
         transactions.push(Bytes::from(vec![0x7D, 0xc2, 0x01, 0xc0]));
 
         assert_eq!(
@@ -707,13 +699,7 @@ mod tests {
 
     #[test]
     fn test_check_batch_accept_trailing_post_exec_tx_with_entries() {
-        // Over-broadness control: a single trailing 0x7D with a well-formed payload anchored to the
-        // block under test must still be accepted.
-        //
-        // The entry index is block-global — it counts the deposits the pipeline prepends — so it is
-        // deliberately past index 0, which is always the L1-info deposit and which the executor
-        // would reject as targeting a deposit. Derivation cannot check that (it does not know the
-        // deposit count here), so this asserts derivation's verdict, not whole-block validity.
+        // Target validity is checked later because entry indices include prepended deposits.
         let mut transactions = example_transactions();
         transactions.push(post_exec_tx_bytes(1, vec![SDMGasEntry { index: 3, gas_refund: 2500 }]));
 

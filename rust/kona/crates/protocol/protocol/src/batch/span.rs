@@ -514,16 +514,8 @@ impl SpanBatch {
                 }
             }
 
-            // The span's blocks are consecutive from the block after its parent, so block `i` is
-            // `parent_block + 1 + i` — the number its `PostExec` payload must be anchored to. `i`
-            // indexes `self.batches`, so it advances for the already-safe blocks the loop skips.
-            //
-            // Defense in depth for `PostExec`: this function is only reached pre-Holocene
-            // (`BatchProvider` muxes to `BatchValidator` once Holocene is active, and that
-            // validates a span's blocks one at a time through
-            // `SingleBatch::check_batch`), while SDM activates at Lagoon, far later.
-            // The live gate for span batches is therefore the singular path.
-            // Enforcing the rules here anyway keeps the two paths from drifting apart.
+            // `i` includes skipped overlap, preserving the containing block number.
+            // Post-Holocene spans use the singular path; checking both avoids rule drift.
             let post_exec_validity = check_post_exec_txs(
                 &batch.transactions,
                 parent_block.block_info.number + 1 + i as u64,
@@ -2128,21 +2120,13 @@ mod tests {
         );
     }
 
-    /// Encodes a `PostExecPayload` as the canonical `0x7D || rlp(payload)` transaction bytes.
+    /// Encodes canonical `0x7D || rlp(payload)` transaction bytes.
     fn post_exec_tx_bytes(block_number: u64, entries: Vec<SDMGasEntry>) -> Bytes {
         let tx: OpTxEnvelope = build_post_exec_tx(block_number, entries).into();
         tx.encoded_2718().into()
     }
 
-    /// Runs `check_batch` with SDM active over a one-block span whose parent is the safe head at
-    /// number 41, so the block under test — and therefore the number a `PostExec` payload must be
-    /// anchored to — is 42.
-    ///
-    /// Note this span is **not** overlapping (`starting_timestamp == next_timestamp`), so
-    /// `parent_block == l2_safe_head` and `parent + 1 + i`, `parent + 1` and `safe_head + 1` all
-    /// evaluate to 42. These cases therefore do not discriminate the span's block-number
-    /// arithmetic; `test_check_batch_drop_post_exec_wrong_block_anchor_in_second_block` pins
-    /// the `+ i` term.
+    /// Checks an SDM-active one-block span building block 42.
     async fn check_post_exec_span(transactions: Vec<Bytes>) -> BatchValidity {
         let cfg = RollupConfig {
             seq_window_size: 100,
@@ -2186,10 +2170,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_batch_accept_trailing_post_exec_tx() {
-        // Over-broadness control for the rows below: a single trailing 0x7D with a well-formed
-        // payload anchored to the block under test must still be accepted. The entry index is
-        // block-global and deliberately past 0 (the L1-info deposit) — see the single-batch
-        // equivalent for why derivation cannot check that either way.
+        // Target validity is checked later because entry indices include prepended deposits.
         let transactions = vec![
             Bytes::copy_from_slice(&[EIP1559_TX_TYPE_ID]),
             post_exec_tx_bytes(42, vec![SDMGasEntry { index: 3, gas_refund: 2500 }]),
@@ -2218,8 +2199,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_batch_drop_post_exec_wrong_block_anchor() {
-        // The span's only block is 42; anchoring the payload to 43 makes the block invalid at the
-        // execution layer.
+        // The span builds block 42, but the payload claims block 43.
         let transactions = vec![post_exec_tx_bytes(43, vec![])];
         assert_eq!(
             check_post_exec_span(transactions).await,
@@ -2227,15 +2207,7 @@ mod tests {
         );
     }
 
-    /// Pins the `+ i` term of the span's block-number arithmetic, which a one-block span cannot:
-    /// with the parent at 41, the second block is 43, so a payload anchored to 42 — the *first*
-    /// block's number — must be rejected. Dropping `+ i` would compute 42 and wrongly accept.
-    ///
-    /// What this still does not isolate is `parent_block` versus `l2_safe_head`, because they are
-    /// the same block whenever a span does not overlap the safe chain. Discriminating that
-    /// needs an overlapping span, which in turn needs a fetcher fixture carrying a valid
-    /// L1-info deposit transaction so the overlapped blocks survive
-    /// `L2BlockInfo::from_block_and_genesis`.
+    /// Verifies that the second span block anchors to `parent + 2`.
     #[tokio::test]
     async fn test_check_batch_drop_post_exec_wrong_block_anchor_in_second_block() {
         let cfg = RollupConfig {
