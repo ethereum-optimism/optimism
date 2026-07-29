@@ -359,7 +359,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // developers start working on the next release this will automatically become false so
         // even if the code is somehow forgotten it will not actually apply to the deployment. Make
         // sure to REMOVE the allowance once the upgrade is complete.
-        if (SemverComp.lt(_version(), "8.0.0")) {
+        if (SemverComp.lt(_version(), "9.0.0")) {
             // Unified DelayedWETH is being deployed for the first time.
             // TODO:(#18382): Remove this allowance after unified DelayedWETH is deployed.
             if (_isMatchingInstruction(_instruction, Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, "DelayedWETH")) {
