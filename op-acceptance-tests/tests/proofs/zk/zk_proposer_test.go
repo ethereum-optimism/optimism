@@ -10,7 +10,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/proofs"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
+)
+
+const (
+	zkSafetyTestProposalInterval  = time.Minute
+	zkSafetyTestChallengeDuration = 5 * time.Minute
 )
 
 // The live proposer keeps creating games while these tests run (including
@@ -39,6 +45,139 @@ func TestProposerChainsSecondZKGameOnFirst(gt *testing.T) {
 		"second proposer game must chain on the first game at factory index 0")
 	t.Require().Greater(game1.L2SequenceNumber(), game0.L2SequenceNumber(),
 		"second game must propose a sequence number beyond its parent")
+}
+
+func TestProposerBuildsOnValidGameFromAnotherProposer(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	zkCfg := zkDisputeGameConfig(t)
+	zkCfg.MaxChallengeDuration = zkSafetyTestChallengeDuration
+	zkCfg.ProposalInterval = zkSafetyTestProposalInterval
+	sys := newSystemWithZKProposerConfig(t, zkCfg, presets.WithoutHonestChallenger())
+	factory := sys.DisputeGameFactory()
+
+	game0 := factory.WaitForZKGameAtIndex(0)
+	foreignProposer := sys.FunderL1.NewFundedEOA(eth.OneEther)
+	foreignSequence, _ := factory.WaitForSafeSuperRootAfter(game0.L2SequenceNumber())
+	foreignGame := factory.StartZKGame(
+		foreignProposer,
+		proofs.WithZKParent(game0.FactoryIndex()),
+		proofs.WithL2SequenceNumber(foreignSequence),
+	)
+	t.Require().Equal(uint32(1), foreignGame.FactoryIndex(),
+		"foreign game must be created before the honest proposer reaches its next interval")
+
+	sys.AdvanceTime(zkSafetyTestProposalInterval)
+	honestChild := factory.WaitForZKGameAtIndex(int64(foreignGame.FactoryIndex() + 1))
+	t.Require().Equal(foreignGame.FactoryIndex(), honestChild.ParentIndex(),
+		"honest proposer must adopt a valid foreign game as its canonical parent")
+	t.Require().Greater(honestChild.L2SequenceNumber(), foreignGame.L2SequenceNumber(),
+		"honest proposer child must advance beyond the foreign parent")
+}
+
+func TestProposerDefersGameUntilSuperRootRPCCatchesUp(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	zkCfg := zkDisputeGameConfig(t)
+	zkCfg.MaxChallengeDuration = zkSafetyTestChallengeDuration
+	zkCfg.ProposalInterval = zkSafetyTestProposalInterval
+	sys := newSystemWithZKProposerConfig(t, zkCfg, presets.WithoutHonestChallenger())
+	factory := sys.DisputeGameFactory()
+
+	game0 := factory.WaitForZKGameAtIndex(0)
+	safeSequence, outputRoots := factory.WaitForSafeSuperRootAfter(game0.L2SequenceNumber())
+	sys.L2BatcherA.Stop()
+	sys.L2BatcherB.Stop()
+	batchersStopped := true
+	t.Cleanup(func() {
+		if batchersStopped {
+			sys.L2BatcherA.Start()
+			sys.L2BatcherB.Start()
+		}
+	})
+
+	pendingSequence := safeSequence + uint64(zkSafetyTestProposalInterval/time.Second)
+	t.Require().Nil(sys.SuperRoots.SuperRootAtTimestamp(pendingSequence).Data,
+		"super-root RPC must be behind the future game's timestamp")
+	// Keep the game invalid after the RPC catches up, so the proposer must
+	// discard it instead of adopting it after the pending period.
+	outputRoots[0][0] ^= 0xff
+	pendingGame := factory.StartZKGame(
+		sys.FunderL1.NewFundedEOA(eth.OneEther),
+		proofs.WithZKParent(game0.FactoryIndex()),
+		proofs.WithL2SequenceNumber(pendingSequence),
+		proofs.WithFutureProposal(),
+		proofs.WithSuperRootFrom(outputRoots...),
+	)
+	t.Require().Equal(uint32(1), pendingGame.FactoryIndex(),
+		"future game must be created before another honest proposal")
+
+	// Let the proposer observe the game while the RPC still reports no
+	// canonical super root at its timestamp.
+	l1Head := sys.L1EL.BlockRefByLabel(eth.Unsafe)
+	sys.L1EL.WaitForBlockNumber(l1Head.Number + 5)
+
+	sys.L2BatcherA.Start()
+	sys.L2BatcherB.Start()
+	batchersStopped = false
+	sys.AdvanceTime(zkSafetyTestProposalInterval)
+	factory.WaitForSafeSuperRootAfter(pendingSequence - 1)
+
+	honestChild := factory.WaitForZKGameAtIndex(int64(pendingGame.FactoryIndex() + 1))
+	t.Require().Equal(game0.FactoryIndex(), honestChild.ParentIndex(),
+		"game unavailable from the super-root RPC must never become a proposal parent")
+	t.Require().Greater(honestChild.L2SequenceNumber(), game0.L2SequenceNumber(),
+		"honest proposer must resume creating games after the super-root RPC catches up")
+}
+
+func TestProposerContinuesAfterUnconfirmedL1BlockReorg(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	const syncL1Confirmations = uint64(2)
+	zkCfg := zkDisputeGameConfig(t)
+	zkCfg.MaxChallengeDuration = zkSafetyTestChallengeDuration
+	zkCfg.ProposalInterval = zkSafetyTestProposalInterval
+	zkCfg.SyncL1Confirmations = syncL1Confirmations
+	sys := newSystemWithZKProposerConfig(t, zkCfg, presets.WithoutHonestChallenger())
+	factory := sys.DisputeGameFactory()
+
+	game0 := factory.WaitForZKGameAtIndex(0)
+	sys.L2BatcherA.Stop()
+	sys.L2BatcherB.Stop()
+	batchersStopped := true
+	t.Cleanup(func() {
+		if batchersStopped {
+			sys.L2BatcherA.Start()
+			sys.L2BatcherB.Start()
+		}
+	})
+
+	// Let the first game enter the proposer's confirmation-delayed snapshot,
+	// then replace only the current L1 tip, which remains outside that view.
+	l1Head := sys.L1EL.BlockRefByLabel(eth.Unsafe)
+	sys.L1EL.WaitForBlockNumber(l1Head.Number + syncL1Confirmations + 3)
+
+	sys.L1CL.Stop()
+	l1Stopped := true
+	t.Cleanup(func() {
+		if l1Stopped {
+			sys.L1CL.Start()
+		}
+	})
+	sys.TestSequencer.SequenceBlock(t, sys.L1Network.ChainID(), common.Hash{})
+	reorgedTip := sys.L1EL.BlockRefByLabel(eth.Unsafe)
+	sys.TestSequencer.SequenceBlock(t, sys.L1Network.ChainID(), reorgedTip.ParentHash)
+	sys.L1CL.Start()
+	l1Stopped = false
+	sys.L1EL.ReorgTriggered(reorgedTip, 5)
+
+	sys.L2BatcherA.Start()
+	sys.L2BatcherB.Start()
+	batchersStopped = false
+	sys.AdvanceTime(zkSafetyTestProposalInterval)
+
+	game1 := factory.WaitForZKGameAtIndex(1)
+	t.Require().Equal(game0.FactoryIndex(), game1.ParentIndex(),
+		"proposer must keep the confirmed parent after a shallower L1 reorg")
+	t.Require().Greater(game1.L2SequenceNumber(), game0.L2SequenceNumber(),
+		"proposer must resume creating games after the canonical L1 head advances")
 }
 
 func TestProposerResolvesOwnUnchallengedGame(gt *testing.T) {

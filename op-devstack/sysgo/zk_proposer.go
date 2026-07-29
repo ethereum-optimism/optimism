@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -38,9 +39,10 @@ func startZKProposer(
 	l1EL L1ELNode,
 	supernodeRPC string,
 	factoryAddr common.Address,
-	programVKey common.Hash,
+	cfg ZKDisputeGameConfig,
 ) {
 	require := t.Require()
+	programVKey := cfg.ProgramVKey
 
 	proposerSecret, err := keys.Secret(devkeys.ProposerRole.Key(proposerChainID.ToBig()))
 	require.NoError(err, "need proposer key for ZK proposer")
@@ -77,10 +79,9 @@ func startZKProposer(
 		"FACTORY_ADDRESS=" + factoryAddr.Hex(),
 		"PRESTATES_URL=file://" + prestatesDir,
 		"PRIVATE_KEY=" + hexutil.Encode(crypto.FromECDSA(proposerSecret)),
-		// Short cadence for devstack: propose every 6s off the safe head so
-		// acceptance tests observe games without waiting for finality.
-		"PROPOSAL_INTERVAL_SECONDS=6",
+		"PROPOSAL_INTERVAL_SECONDS=" + strconv.FormatUint(uint64(cfg.ProposalInterval/time.Second), 10),
 		"PROPOSAL_SAFETY=safe",
+		"SYNC_L1_CONFIRMATIONS=" + strconv.FormatUint(cfg.SyncL1Confirmations, 10),
 		"FETCH_INTERVAL=2",
 		"LOG_FORMAT=json",
 	}

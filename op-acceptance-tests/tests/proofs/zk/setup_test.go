@@ -58,16 +58,27 @@ func loadSuperAggregationVKey(t devtest.T) common.Hash {
 // requires a missing actor disable it explicitly via presets.WithoutHonestProposer or
 // presets.WithoutHonestChallenger.
 func newSystem(t devtest.T, extra ...presets.Option) *presets.SimpleInterop {
-	vkey := loadSuperAggregationVKey(t)
-	return presets.NewSimpleInterop(t, append(zkPresetOptions(vkey), extra...)...)
+	return newSystemWithZKProposerConfig(t, zkDisputeGameConfig(t), extra...)
 }
 
-func zkPresetOptions(vkey common.Hash) []presets.Option {
-	zkCfg := sysgo.ZKDisputeGameConfig{
-		ProgramVKey:          vkey,
+func newSystemWithZKProposerConfig(
+	t devtest.T,
+	zkCfg sysgo.ZKDisputeGameConfig,
+	extra ...presets.Option,
+) *presets.SimpleInterop {
+	return presets.NewSimpleInterop(t, append(zkPresetOptions(zkCfg), extra...)...)
+}
+
+func zkDisputeGameConfig(t devtest.T) sysgo.ZKDisputeGameConfig {
+	return sysgo.ZKDisputeGameConfig{
+		ProgramVKey:          loadSuperAggregationVKey(t),
 		MaxChallengeDuration: zkChallengeDuration,
 		MaxProveDuration:     zkProveDuration,
+		ProposalInterval:     6 * time.Second,
 	}
+}
+
+func zkPresetOptions(zkCfg sysgo.ZKDisputeGameConfig) []presets.Option {
 	return []presets.Option{
 		presets.WithZKDisputeGame(zkCfg),
 		presets.WithTimeTravelEnabled(),

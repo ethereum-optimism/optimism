@@ -58,6 +58,8 @@ func TestWithZKDisputeGame(t *testing.T) {
 		ProgramVKey:          common.HexToHash("0x1234"),
 		MaxChallengeDuration: 30 * time.Second,
 		MaxProveDuration:     30 * time.Second,
+		ProposalInterval:     12 * time.Second,
+		SyncL1Confirmations:  2,
 	}
 	cfg, combined := collectPresetConfig([]Option{WithZKDisputeGame(want)})
 	require.Equal(t, optionKindZKDisputeGame, combined.optionKinds())

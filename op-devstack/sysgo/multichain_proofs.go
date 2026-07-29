@@ -114,7 +114,7 @@ func attachSupernodeSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg Pre
 					runtime.L1EL,
 					runtime.Supernode.UserRPC(),
 					sharedDGF,
-					cfg.ZKDisputeGame.ProgramVKey,
+					*cfg.ZKDisputeGame,
 				)
 			}
 			return runtime
