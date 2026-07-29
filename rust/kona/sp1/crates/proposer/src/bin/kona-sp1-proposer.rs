@@ -25,10 +25,6 @@ async fn main() -> Result<()> {
 
     let config = ProposerConfig::from_env()?;
 
-    // Log the full resolved configuration once: every optional var silently
-    // defaults (a typo'd name or empty value is otherwise invisible), so
-    // this line is the only place misconfiguration can be seen. URLs are
-    // redacted: url::Url's Display serializes userinfo verbatim.
     tracing::info!(
         l1_rpc = %redacted_url(&config.l1_rpc),
         supernode_rpc = %redacted_url(&config.supernode_rpc),
