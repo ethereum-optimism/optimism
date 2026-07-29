@@ -1,0 +1,118 @@
+---
+title: Network upgrades
+description: The hardfork registry — activation times, governing specs, and minimum component versions for every OP Stack network upgrade.
+diataxis: reference
+---
+
+import HardforkSummary from "/snippets/generated/hardforks/summary.mdx"
+import { NormativeSpec } from "/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="Network upgrade activation"
+  title="Superchain upgrades specification"
+  href="https://specs.optimism.io/protocol/superchain-upgrades.html#activation-rules"
+  note="This registry records activation data and operational pointers; each upgrade's own specification, linked from its registry page, defines what it changes."
+/>
+
+This page is the index of the **hardfork registry**: every OP Stack hardfork
+has one permanent page recording its activation timestamps, governing
+specification, governance approval, and minimum component versions.
+Governance-approved [contract upgrades](#contract-upgrades) that carry no
+hardfork are listed separately below. Network upgrade names after Bedrock
+follow a geology theme based on the next letter of the English alphabet.
+
+The table below is generated from the registry pages' structured frontmatter
+and validated against the
+[superchain-registry](https://github.com/ethereum-optimism/superchain-registry) —
+it is never hand-edited. See
+[How this registry is maintained](#how-this-registry-is-maintained).
+
+## Activations
+
+Network upgrades activate by L2 block timestamp. Failing to upgrade your OP
+Stack software before the activation timestamp causes a chain divergence, and
+you will need to resync the chain. Operator action items for each upgrade are
+published in [Notices](/notices).
+
+<HardforkSummary />
+
+All of the above build on **Bedrock**, the
+[governance-approved](https://gov.optimism.io/t/final-upgrade-1-bedrock-protocol-upgrade-v2/5548)
+2023 re-genesis of OP Mainnet at block `105235063` (L2 timestamp `1686068903`)
+that the hardfork series starts from. Sepolia OP Stack chains launched on
+Bedrock directly.
+
+## Contract upgrades
+
+Not every governance-approved upgrade is a hardfork: hardforks activate by L2
+block timestamp on every chain, while contract upgrades ship as
+[op-contracts releases](/releases/op-contracts) and are executed on each
+chain's L1 contracts after governance approval. Contract-only upgrades have no
+activation timestamp, so they do not get hardfork registry pages — their
+permanent record is the op-contracts release history and the operator notice.
+
+| Upgrade | What it shipped | Operator notice | op-contracts release |
+| --- | --- | --- | --- |
+| Upgrade 18 | Cannon + Kona game type, Custom Gas Token v2, creator-pattern dispute game refactor | [Notice](/notices/archive/upgrade-18) | [`v6.0.0`](/releases/op-contracts) |
+| Upgrade 16a | Maintenance release superseding Upgrade 16 (removes unused interop withdrawal-proving code, adds feature toggles) | [Notice](/notices/archive/upgrade-16a) | [`v4.1.0`](/releases/op-contracts) |
+| Upgrade 16 | Interop-ready `OptimismPortal`, Stage 1 updates, Go 1.23 support in Cannon | [Notice](/notices/archive/upgrade-16) | [`v4.0.0`](/releases/op-contracts) |
+| Upgrade 14 | Multithreaded 64-bit Cannon (MT-Cannon) and Isthmus L1 contracts | [Notice](/notices/archive/upgrade-14) | [`v3.0.0`](/releases/op-contracts) |
+| Upgrade 13 | OP Contracts Manager (OPCM) and incident response improvements | [Notice](/notices/archive/upgrade-13) | [`v2.0.0`](/releases/op-contracts) |
+
+Hardfork-carrying upgrades (for example Upgrade 15 / Isthmus, Upgrade 17 /
+Jovian, Upgrade 19 / Karst) are listed in the
+[activations table](#activations) above and link to their notices from their
+registry pages.
+
+## Upgrade process
+
+Network upgrades follow this general process in which the features included in
+the upgrade are put into a release version cut from the `develop` branch and
+then the software is deployed on production networks.
+
+<Info>
+  "Baking" on a network means the node software has been deployed and is live.
+  Engineers take this time to observe the behavior of the software on
+  production networks.
+</Info>
+
+<Image src="/public/img/builders/node-operators/network-upgrades/node-software-release-timeline.png" alt="Node Software Release Timeline" width={0} height={0} sizes="100vw" style={{ width: '100%', height: 'auto' }} quality={100} />
+
+<Steps>
+  <Step title="Devnet">
+  *   `Devnet Upgrade Notice Period` is for core developers to upgrade the
+        node software on an internal devnet prior to the activation timestamp.
+    *   `Upgrade Activates on Devnet`
+    *   `Baking on Devnet`
+  </Step>
+
+  <Step title="Testnet">
+  *   `Testnet Upgrade Notice Period` is to allow testnet node operators to
+        upgrade the node software on testnet prior to the activation timestamp.
+    *   `Upgrade Activates on Testnet`
+    *   `Baking on Testnet`
+  </Step>
+
+  <Step title="Mainnet">
+  *   `Governance Voting Review Period` is when Optimism governance
+        reviews proposals, including network upgrade proposals.
+    *   `Governance Voting Period` is when Optimism governance
+        votes on proposals.
+    *   `Veto Period` is when the Citizens' House of the governance system can
+        veto a protocol upgrade that has been approved by the Token House.
+    *   `Cut Mainnet Release`
+    *   `Mainnet Upgrade Notice Period` is to allow mainnet node operators to
+        upgrade the node software on mainnet prior to the activation timestamp.
+    *   `Upgrade Activated`
+  </Step>
+</Steps>
+
+## How this registry is maintained
+
+Each hardfork page keeps its machine-readable facts (lifecycle, activation
+timestamps, spec link, minimum component versions) in structured frontmatter.
+`scripts/generate-hardforks.ts` validates that data against the
+superchain-registry and renders the activation tables — a frontmatter edit
+followed by regeneration is the only way to change an activation row. The
+schema is documented in
+[`scripts/hardfork-registry.md`](https://github.com/ethereum-optimism/optimism/blob/develop/docs/public-docs/scripts/hardfork-registry.md).

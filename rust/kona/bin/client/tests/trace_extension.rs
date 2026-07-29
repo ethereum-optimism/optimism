@@ -1,0 +1,127 @@
+use alloy_consensus::Header;
+use alloy_primitives::B256;
+use async_trait::async_trait;
+use kona_client::single::{FaultProofProgramError, run};
+use kona_preimage::{
+    HintWriterClient, L1_HEAD_KEY, L2_CHAIN_ID_KEY, L2_CLAIM_BLOCK_NUMBER_KEY, L2_CLAIM_KEY,
+    L2_OUTPUT_ROOT_KEY, PreimageKey, errors::PreimageOracleResult,
+};
+use std::{collections::HashMap, sync::Arc};
+use tokio::sync::Mutex;
+
+mod common;
+use common::MockOracle;
+
+#[derive(Clone, Debug, Default)]
+struct MockHintWriter {
+    _hints: Arc<Mutex<Vec<String>>>,
+}
+
+#[async_trait]
+impl HintWriterClient for MockHintWriter {
+    async fn write(&self, hint: &str) -> PreimageOracleResult<()> {
+        self._hints.lock().await.push(hint.to_string());
+        Ok(())
+    }
+}
+
+fn b256(fill: u8) -> B256 {
+    B256::from([fill; 32])
+}
+
+fn setup_preimages(
+    agreed_root: B256,
+    claimed_root: B256,
+    claimed_block_number: u64,
+    safe_head_hash: B256,
+    safe_head_number: u64,
+) -> HashMap<PreimageKey, Vec<u8>> {
+    let mut preimages = HashMap::new();
+
+    preimages.insert(PreimageKey::new_local(L1_HEAD_KEY.to()), b256(0x11).as_slice().to_vec());
+    preimages
+        .insert(PreimageKey::new_local(L2_OUTPUT_ROOT_KEY.to()), agreed_root.as_slice().to_vec());
+    preimages.insert(PreimageKey::new_local(L2_CLAIM_KEY.to()), claimed_root.as_slice().to_vec());
+    preimages.insert(
+        PreimageKey::new_local(L2_CLAIM_BLOCK_NUMBER_KEY.to()),
+        claimed_block_number.to_be_bytes().to_vec(),
+    );
+    preimages.insert(PreimageKey::new_local(L2_CHAIN_ID_KEY.to()), 10u64.to_be_bytes().to_vec());
+
+    // Output root preimage for `fetch_safe_head_hash(...)`. The safe head hash is read from
+    // bytes [96..128].
+    let mut output_root_preimage = [0u8; 128];
+    output_root_preimage[96..128].copy_from_slice(safe_head_hash.as_slice());
+    preimages.insert(PreimageKey::new_keccak256(*agreed_root), output_root_preimage.to_vec());
+
+    // L2 safe head header.
+    let header = Header { number: safe_head_number, ..Default::default() };
+    let header_rlp = alloy_rlp::encode(&header).to_vec();
+    preimages.insert(PreimageKey::new_keccak256(*safe_head_hash), header_rlp);
+
+    preimages
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn trace_extension_leaf_rejects_mismatched_output_root() {
+    let safe_head_number = 3;
+    let safe_head_hash = b256(0x22);
+    let agreed_root = b256(0xAA);
+    let claimed_root = b256(0xBB);
+
+    let oracle = MockOracle::from_preimages(setup_preimages(
+        agreed_root,
+        claimed_root,
+        safe_head_number,
+        safe_head_hash,
+        safe_head_number,
+    ));
+    let hints = MockHintWriter::default();
+
+    let err = run(oracle, hints).await.unwrap_err();
+    match err {
+        FaultProofProgramError::InvalidClaim(expected, actual) => {
+            assert_eq!(expected, agreed_root);
+            assert_eq!(actual, claimed_root);
+        }
+        other => panic!("unexpected error: {other:?}"),
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn trace_extension_leaf_accepts_matching_output_root() {
+    let safe_head_number = 3;
+    let safe_head_hash = b256(0x22);
+    let agreed_root = b256(0xAA);
+
+    let oracle = MockOracle::from_preimages(setup_preimages(
+        agreed_root,
+        agreed_root,
+        safe_head_number,
+        safe_head_hash,
+        safe_head_number,
+    ));
+    let hints = MockHintWriter::default();
+
+    run(oracle, hints).await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn does_not_short_circuit_on_root_match_at_different_block() {
+    let safe_head_number = 3;
+    let safe_head_hash = b256(0x22);
+    let agreed_root = b256(0xAA);
+
+    // With the historical bug (checking only `agreed_root == claimed_root`), this would
+    // incorrectly return `Ok(())` without attempting derivation.
+    let oracle = MockOracle::from_preimages(setup_preimages(
+        agreed_root,
+        agreed_root,
+        safe_head_number + 1,
+        safe_head_hash,
+        safe_head_number,
+    ));
+    let hints = MockHintWriter::default();
+
+    assert!(run(oracle, hints).await.is_err());
+}

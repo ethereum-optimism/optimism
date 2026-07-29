@@ -1,0 +1,20 @@
+# Separate config file to work around a semgrep --test bug: when this rule
+# lives in sol-rules.yaml alongside sol-safety-no-immutable-variables, the
+# test runner misattributes regex matches between the two rules' test files,
+# causing both tests to fail with "ruleid annotation with no YAML rule".
+# ie. the tests for one rule fail when tested against the other rule.
+rules:
+  - id: sol-safety-delegatecall-no-storage-variables
+    languages: [generic]
+    severity: ERROR
+    message: >-
+      Contracts that execute via DELEGATECALL must not declare storage variables. Storage variables
+      would collide with the caller's storage slots (e.g., _owner), potentially locking out admin
+      access permanently. Use immutable or constant instead.
+    pattern-regex: |
+      ^\s+(?!.*\b(?:function|event|error|modifier|constructor)\b)\S.*\b(?:public|internal|private)\b(?:(?!\bimmutable\b|\bconstant\b).)*;\s*$
+    paths:
+      include:
+        - packages/contracts-bedrock/src/L2/L2ContractsManager.sol
+        - packages/contracts-bedrock/src/L1/opcm/OPContractsManagerV2.sol
+        - packages/contracts-bedrock/src/L1/opcm/OPContractsManagerUtilsCaller.sol

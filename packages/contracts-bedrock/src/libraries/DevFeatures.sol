@@ -1,0 +1,70 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+/// @notice Library of constants representing development features. We use a 32 byte bitmap because
+///         it's easier to integrate with op-deployer. Note that users should typically set a
+///         single nibble to 1 and the rest to zero, which gives us 64 potential features, like:
+///         0x0000000000000000000000000000000000000000000000000000000000000001
+///         0x0000000000000000000000000000000000000000000000000000000000000010
+///         0x0000000000000000000000000000000000000000000000000000000000000100
+///         etc.
+///         We'll expand to using all available bits if we need more than 64 concurrent features.
+/// @dev ADDING A NEW DEV FEATURE:
+///      A dev feature is wired through several files. There is no compile-time link between them.
+///      Update every item below.
+///
+///        1. Add the new feature bit in this file. Do not reuse a retired value unless the reuse is
+///           intentional and reviewed.
+///        2. Add the matching Go flag in `op-core/devfeatures/devfeatures.go`. The Go value MUST
+///           match the Solidity value byte-for-byte.
+///        3. Add the env var reader in `packages/contracts-bedrock/scripts/libraries/Config.sol`.
+///        4. Wire the env var into the dev feature bitmap in
+///           `packages/contracts-bedrock/test/setup/FeatureFlags.sol`. Add the feature name there too.
+///        5. Add CI coverage in `.circleci/continue/main.yml` under the `&features_matrix` anchor.
+///           Add combination rows when this feature interacts with another feature. Document
+///           intentionally unsupported combinations near the matrix. Do not register dev features in
+///           `setup-features.system_features.default`.
+///
+///      For the parallel SYSTEM feature checklist, see
+///      packages/contracts-bedrock/src/libraries/Features.sol.
+library DevFeatures {
+    /// @notice The feature that enables the Interop migration functions on the OptimismPortal2 contract.
+    bytes32 public constant OPTIMISM_PORTAL_INTEROP =
+        bytes32(0x0000000000000000000000000000000000000000000000000000000000000001);
+
+    /// @notice The feature that enables deployment of V2 dispute game contracts.
+    /// @custom:legacy
+    /// This feature is no longer used, but is kept here for legacy reasons.
+    bytes32 public constant DEPLOY_V2_DISPUTE_GAMES =
+        bytes32(0x0000000000000000000000000000000000000000000000000000000000000100);
+
+    /// @notice The feature that enables the ZK dispute game system (ZKDisputeGame).
+    bytes32 public constant ZK_DISPUTE_GAME =
+        bytes32(0x0000000000000000000000000000000000000000000000000000000001000000);
+
+    /// @notice The feature that enables the super root games migration path in OPCM upgrade.
+    bytes32 public constant SUPER_ROOT_GAMES_MIGRATION =
+        bytes32(0x0000000000000000000000000000000000000000000000000000000010000000);
+
+    /// @notice Checks if a feature is enabled in a bitmap. Note that this function does not check
+    ///         that the input feature represents a single feature and the bitwise AND operation
+    ///         allows for multiple features to be enabled at once. Users should generally check
+    ///         for only a single feature at a time.
+    /// @param _bitmap The bitmap to check.
+    /// @param _feature The feature to check.
+    /// @return True if the feature is enabled, false otherwise.
+    function isDevFeatureEnabled(bytes32 _bitmap, bytes32 _feature) internal pure returns (bool) {
+        // SuperRootGamesMigration is enabled by default.
+        // TODO(#21662): remove with the broader SuperRootGamesMigration cleanup.
+        if (hasFlag(_feature, SUPER_ROOT_GAMES_MIGRATION)) return true;
+        return _feature != 0 && hasFlag(_bitmap, _feature);
+    }
+
+    /// @notice Checks if all bits of _flag are set in _features.
+    /// @param _features The bitmap to check against.
+    /// @param _flag The flag bits to look for.
+    /// @return True if all bits of _flag are set in _features, false otherwise.
+    function hasFlag(bytes32 _features, bytes32 _flag) internal pure returns (bool) {
+        return (_features & _flag) == _flag;
+    }
+}

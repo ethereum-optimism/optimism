@@ -1,0 +1,143 @@
+---
+title: Running an archive node
+description: Learn how to configure and run an archive node.
+diataxis: how-to
+---
+
+import OpGethEol from "/snippets/op-geth-eol.mdx"
+
+This guide shows you how to configure your node to run as an archive node. Archive nodes store the complete history of the blockchain, including all historical states.
+
+## Overview
+
+Archive nodes maintain the entire state history of the blockchain, allowing you to query any historical state at any block height. This is useful for:
+
+*   Block explorers that need to provide historical data
+*   Analytics and data analysis applications
+*   Services that need to query historical state
+*   Debugging and auditing purposes
+
+Archive nodes use execution-layer sync but configure the execution client to retain all historical state data instead of pruning it.
+
+<Info>
+Historical proofs are a lighter-weight alternative to a full archive node when you only need cryptographic state proofs (`eth_getProof`) at historical blocks — the typical case is withdrawal proving and fault proof workloads. If you need historical execution (`eth_call`, `debug_trace*`) or arbitrary historical state queries, you still need a full archive node. See the [historical proofs config](/node-operators/reference/op-reth-historical-proof-config).
+</Info>
+
+## Requirements
+
+*   **OP Mainnet**: Requires the [bedrock datadir](/node-operators/guides/management/snapshots)
+*   **Other OP Stack networks**: No datadir required
+*   **Storage**: Archive nodes require significantly more disk space than regular nodes (several terabytes for OP Mainnet)
+*   **Sync time**: Archive sync with execution-layer mode is faster than full block-by-block execution
+
+## Configuration
+
+Each section below shows the full set of flags needed on both `op-node` and your chosen execution client to run as an archive node. The `op-node` flag `--syncmode=execution-layer` is required in all cases and is not the default — it must be explicitly configured.
+
+### op-reth
+
+op-reth retains complete state when run without pruning flags, so the standard op-node + op-reth configuration already produces an archive node.
+
+Set on `op-node`:
+
+```shell
+--syncmode=execution-layer
+```
+
+Do not pass any `--prune.*` flags to op-reth for a complete archive node. If you don't need complete history and want to reclaim disk, see [Pruning op-reth](#pruning-op-reth) below.
+
+### Nethermind
+
+Set on `op-node`:
+
+```shell
+--syncmode=execution-layer
+```
+
+Enable archive mode on Nethermind using the archive network configuration:
+
+```shell
+--config op-mainnet_archive
+```
+
+<Info>
+  Replace `op-mainnet_archive` with the appropriate archive configuration for your network (e.g., `op-sepolia_archive` for OP Sepolia).
+</Info>
+
+### op-geth
+
+<OpGethEol />
+
+Set on `op-node`:
+
+```shell
+--syncmode=execution-layer
+```
+
+Set on `op-geth`:
+
+```shell
+--syncmode=full
+--gcmode=archive
+```
+
+<Info>
+  Both flags are not the default settings and must be explicitly configured. The `--syncmode=full` flag ensures every block is executed, and `--gcmode=archive` disables state pruning.
+</Info>
+
+## Pruning op-reth
+
+If you don't need a complete archive node, you can prune op-reth to reclaim disk. The recommended approach prunes state and receipts while keeping every block body.
+
+### Recommended: prune state and receipts, keep block bodies
+
+Prune the state and receipt segments and leave block bodies fully intact. Set the same depth on each:
+
+```shell
+--prune.minimum-distance=<depth>
+--prune.receipts.distance=<depth>
+--prune.account-history.distance=<depth>
+--prune.storage-history.distance=<depth>
+```
+
+Recommended `<depth>` (in blocks), matching production:
+
+*   **`22000`** for sequencer-side nodes — covers the 12h sequencing window (≈ 21,600 blocks at a 2s block time).
+*   **`1296000`** (~30 days at 2s) for nodes that need more history.
+
+### Pruning block bodies (unsupported)
+
+op-node's safe derivation reads the L1-info deposit transaction — the first transaction of every block — from the block body at the head placed [`--syncmode.offset-el-safe`](/node-operators/reference/op-node-config#syncmode-offset-el-safe) behind the tip, and possibly further if restoring a safedb. If that body has been pruned, EL sync fails with `l2 block is missing L1 info deposit tx`.
+
+Body pruning is therefore **not supported, and we advise against it** — you run it at your own risk, with no guarantees. It can be made to work if you know what you're doing, subject to one hard requirement: the retained body window must always cover the `--syncmode.offset-el-safe` range. Concretely, set [`--prune.bodies.distance`](/node-operators/op-reth/cli/op-reth/node) (in blocks) comfortably **greater than** the offset converted to blocks (the default `12h` ≈ 21,600 at a 2s block time), with margin for the block-time and offset you actually run. And if you restore a safedb, you also have to take the maximum distance to its head into account.
+
+Do not use `--minimal`: it prunes bodies to a fixed 10,064-block window, which is smaller than the default offset and cannot be widened independently.
+
+<Warning>
+  Body pruning is unsupported. If you enable it anyway, `--prune.bodies.distance` must always exceed `--syncmode.offset-el-safe` (in blocks), and additionally the distance to a restoring safedb's head, or execution-layer sync fails with `l2 block is missing L1 info deposit tx`. Prefer pruning only the state and receipt segments above.
+</Warning>
+
+## How archive sync works
+
+With execution-layer sync mode enabled:
+
+1. **Initial sync**: The node downloads block headers and data through the P2P network
+2. **Block execution**: The node executes every block in the chain to build the complete state history
+3. **State retention**: Unlike regular nodes, archive nodes never prune historical state data
+4. **Faster than legacy**: While still executing all blocks, this is faster than the legacy consensus-layer sync because block data is retrieved via P2P instead of being derived from L1
+
+## Storage considerations
+
+Archive nodes require substantial storage:
+
+*   **OP Mainnet**: Several terabytes and growing
+*   **Other networks**: Varies by network age and activity
+*   **Growth rate**: Storage requirements increase continuously as new blocks are added
+*   **Recommendation**: Use fast SSD storage for optimal performance
+
+## Next steps
+
+*   See the [sync modes reference](/node-operators/reference/consensus-layer-sync) for non-archive node sync configuration
+*   See the [Consensus Client Configuration](/node-operators/guides/configuration/consensus-clients) and [Execution Client Configuration](/node-operators/guides/configuration/execution-clients) guides for additional explanation or customization
+*   See the [Snapshots guide](/node-operators/guides/management/snapshots) for information about downloading the bedrock datadir
+*   If you experience difficulty at any stage of this process, please reach out to [developer support](https://github.com/ethereum-optimism/developers/discussions)

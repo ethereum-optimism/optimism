@@ -1,0 +1,30 @@
+root = true
+
+# defaults
+[*]
+charset = utf-8
+end_of_line = lf
+indent_size = 2
+indent_style = space
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.sol]
+indent_size = 4
+
+[*.go]
+indent_size = 4
+indent_style = tab
+
+[Makefile]
+indent_size = 2
+indent_style = tab
+
+# shell scripts
+[*.sh]
+shell_variant      = bash
+indent_style       = space
+indent_size        = 2
+binary_next_line   = true
+switch_case_indent = true
+space_redirects    = true

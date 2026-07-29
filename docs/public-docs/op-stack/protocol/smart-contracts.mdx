@@ -1,0 +1,234 @@
+---
+title: Smart Contract overview
+description: Learn about the smart contracts that make up the OP Stack.
+diataxis: explanation
+---
+
+import { NormativeSpec } from "/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="The OP Stack contract layer"
+  title="Optimism Overview specification"
+  href="https://specs.optimism.io/protocol/overview.html#architecture-overview"
+  note="This page is an orientation to the contracts and how they fit together; each contract's behavior and interface are defined in its spec section and its source."
+/>
+
+The OP Stack's onchain logic lives in two groups of smart contracts: the
+Layer 1 contracts deployed to Ethereum, and the Layer 2 predeploys that exist
+in every OP Stack chain's genesis state. This page explains what each group
+is for and routes you to the canonical definition of each contract. It does
+not restate interfaces, parameters, or per-release versions:
+
+*   **Behavior** is defined in the [OP Stack specifications](https://specs.optimism.io/?utm_source=op-docs&utm_medium=docs).
+*   **Source code** lives in [`packages/contracts-bedrock`](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock) in the monorepo, with generated interface documentation at [devdocs.optimism.io](https://devdocs.optimism.io/contracts-bedrock).
+*   **Deployed addresses** are on the [OP Mainnet addresses page](/op-mainnet/network-information/op-addresses), sourced from the [superchain-registry](https://github.com/ethereum-optimism/superchain-registry).
+
+## Layer 1 contracts
+
+The L1 contracts hold the chain's bridge liquidity, accept deposits, verify
+withdrawals, store the chain's configuration, and adjudicate output proposals
+through the fault proof system. The [Optimism Overview
+specification](https://specs.optimism.io/protocol/overview.html?utm_source=op-docs&utm_medium=docs#core-l1-smart-contracts)
+includes an architecture diagram showing how they connect.
+
+### Bridging and messaging
+
+Deposits enter the chain and withdrawals leave it through a layered stack:
+the `OptimismPortal` is the low-level deposit and withdrawal contract, the
+`L1CrossDomainMessenger` adds replayable message passing on top of it, and
+the token bridges sit on top of the messenger. Messages sent directly to the
+`OptimismPortal` are not replayable, so users and app developers should
+prefer the messenger or bridge interfaces.
+
+| Contract | Role | Normative spec |
+| --- | --- | --- |
+| `OptimismPortal` | Low-level deposit entry point and withdrawal exit; withdrawals are proven and finalized against dispute game results | [Deposits](https://specs.optimism.io/protocol/deposits.html?utm_source=op-docs&utm_medium=docs#deposit-contract), [Withdrawals](https://specs.optimism.io/protocol/withdrawals.html?utm_source=op-docs&utm_medium=docs#the-optimism-portal-contract), [OptimismPortal fault proof integration](https://specs.optimism.io/fault-proof/stage-one/optimism-portal.html?utm_source=op-docs&utm_medium=docs) |
+| `ETHLockbox` | Escrows the ETH deposited through authorized portals, so ETH liquidity can be managed and migrated as a unit | [ETH Lockbox](https://specs.optimism.io/interop/eth-lockbox.html?utm_source=op-docs&utm_medium=docs) |
+| `L1CrossDomainMessenger` | Replayable cross-domain message passing between L1 and L2; the recommended messaging interface | [Cross Domain Messengers](https://specs.optimism.io/protocol/messengers.html?utm_source=op-docs&utm_medium=docs) |
+| `L1StandardBridge` | ETH and ERC-20 bridging built on the messenger; escrows L1-native tokens | [Standard Bridges](https://specs.optimism.io/protocol/bridges.html?utm_source=op-docs&utm_medium=docs) |
+| `L1ERC721Bridge` | ERC-721 bridging built on the messenger; escrows L1-native NFTs | [Standard Bridges](https://specs.optimism.io/protocol/bridges.html?utm_source=op-docs&utm_medium=docs) |
+
+<Info>
+  The standard bridge is not intended to support every ERC-20 variant. Tokens
+  with transfer fees, rebasing logic, or blocklists may not work correctly.
+  See [Standard Bridge](/app-developers/guides/bridging/standard-bridge) for
+  guidance.
+</Info>
+
+### Chain configuration
+
+| Contract | Role | Normative spec |
+| --- | --- | --- |
+| `SystemConfig` | Per-chain configuration (batcher, gas, fee scalars) read by the derivation pipeline, plus the onchain registry of the chain's other contract addresses | [System Config](https://specs.optimism.io/protocol/system-config.html?utm_source=op-docs&utm_medium=docs) |
+| `SuperchainConfig` | Superchain-wide configuration and the Guardian's pause mechanism; pauses are scoped by an identifier and expire automatically | [Superchain Configuration](https://specs.optimism.io/protocol/superchain-config.html?utm_source=op-docs&utm_medium=docs) |
+
+### Proposals and fault proofs
+
+Claims about the L2 state are proposed and challenged permissionlessly
+through dispute games rather than trusted output submission. See the [fault
+proofs explainer](/op-stack/fault-proofs/explainer) for how the system works
+end to end.
+
+| Contract | Role | Normative spec |
+| --- | --- | --- |
+| `DisputeGameFactory` | Deploys and tracks dispute game instances; the entry point for proposing L2 state | [Dispute Game Interface](https://specs.optimism.io/fault-proof/stage-one/dispute-game-interface.html?utm_source=op-docs&utm_medium=docs#disputegamefactory-interface) |
+| `FaultDisputeGame` | Adjudicates a claim about L2 state through a bisection game backed by an onchain fault proof VM | [Fault Dispute Game](https://specs.optimism.io/fault-proof/stage-one/fault-dispute-game.html?utm_source=op-docs&utm_medium=docs) |
+| `PermissionedDisputeGame` | A `FaultDisputeGame` variant restricting participation to a designated proposer and challenger; used where stricter access control is required | [Fault Dispute Game](https://specs.optimism.io/fault-proof/stage-one/fault-dispute-game.html?utm_source=op-docs&utm_medium=docs) |
+| `AnchorStateRegistry` | Tracks anchor states (recent, unchallenged starting points for new games) and the validity of game results | [AnchorStateRegistry](https://specs.optimism.io/fault-proof/stage-one/anchor-state-registry.html?utm_source=op-docs&utm_medium=docs) |
+| `DelayedWETH` | Holds dispute bonds and delays payouts so bad resolutions can be caught before funds move | [Bond Incentives](https://specs.optimism.io/fault-proof/stage-one/bond-incentives.html?utm_source=op-docs&utm_medium=docs#delayedweth) |
+| `MIPS64` | Onchain fault proof VM: a big-endian, 64-bit, multithreaded MIPS emulator that executes a single disputed instruction step | [Cannon Fault Proof VM](https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs) |
+| `PreimageOracle` | Serves the preimages of hashed inputs that the fault proof VM reads during a disputed step | [Pre-image Oracle](https://specs.optimism.io/fault-proof/index.html?utm_source=op-docs&utm_medium=docs#pre-image-oracle) |
+
+### Legacy and deprecated contracts
+
+*   `AddressManager` is a legacy name-to-address registry from the pre-Bedrock
+    system. It survives only because the `L1CrossDomainMessenger` still sits
+    behind a legacy `ResolvedDelegateProxy` that resolves through it.
+*   `L2OutputOracle` was the trusted output proposal contract before fault
+    proofs. It is deprecated: output proposals are made through the
+    `DisputeGameFactory` instead, per the [L2 output root proposals
+    specification](https://specs.optimism.io/protocol/proposals.html?utm_source=op-docs&utm_medium=docs).
+*   `ProtocolVersions` signaled recommended and required protocol versions to
+    node operators. The contract has been removed from the OP Stack contracts;
+    the versioning scheme it exposed remains documented in the [Superchain
+    Upgrades specification](https://specs.optimism.io/protocol/superchain-upgrades.html?utm_source=op-docs&utm_medium=docs#protocol-version).
+
+### Upgrading the contracts
+
+L1 contracts are upgraded through the
+[OP Contracts Manager (OPCM)](/chain-operators/reference/opcm), which deploys
+and upgrades the L1 contracts as a versioned set. The
+[superchain-ops](/chain-operators/tutorials/l1-contract-upgrades/superchain-ops-guide)
+workflow drives OPCM under the hood and is the path for chains that require
+Security Council signing; other chains can call OPCM directly. `op-deployer`
+remains the tool for initial deployments, but its upgrade command is
+deprecated in favor of OPCM; see the
+[deprecation notice](/notices/archive/op-deployer-upgrade-deprecation).
+
+L2 predeploys are upgraded through the L2 Contract Manager (L2CM),
+introduced in [Upgrade 19](/notices/archive/upgrade-19). At a network upgrade, the
+consensus layer emits a network upgrade transaction that has the L2
+`ProxyAdmin` delegatecall the `L2ContractsManager` contract, which updates
+every predeploy implementation in a single atomic transaction, replacing the
+older practice of per-contract multisig transactions. See the
+[L2 Contract Manager feature page](/op-stack/features/l2-contract-manager)
+and the [L2 Upgrades specification](https://specs.optimism.io/protocol/l2-upgrades-1-execution.html?utm_source=op-docs&utm_medium=docs).
+
+### Contract releases
+
+Contracts are released as tagged monorepo releases named
+`op-contracts/vX.Y.Z`, following the documented
+[versioning policy](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/book/src/policies/versioning.md).
+This page does not track releases; use these sources instead:
+
+*   The [op-contracts release history](/releases/op-contracts) lists every
+    release with its notes, generated from the GitHub releases.
+*   The [superchain-registry standard versions](https://github.com/ethereum-optimism/superchain-registry/tree/main/validation/standard)
+    files record the exact contract versions and implementation addresses
+    that make up each standard release.
+*   The [network upgrades registry](/op-stack/protocol/network-upgrades) maps
+    each hardfork to its governance approval and required component versions.
+
+<Warning>
+  Releases tagged `v<semver>` without a component name (for example `v1.1.4`)
+  are Go code releases and do not include smart contracts. Only deploy
+  contracts from `op-contracts/vX.Y.Z` tags.
+</Warning>
+
+## Layer 2 contracts (predeploys)
+
+Predeploys are contracts placed at fixed, well-known addresses in the genesis
+state of every OP Stack chain. Unlike precompiles they are ordinary EVM
+contracts, which keeps them portable across client implementations and
+visible to standard tooling. Most live in the
+`0x4200000000000000000000000000000000000xxx` address namespace and sit behind
+proxies owned by the L2 `ProxyAdmin`.
+
+The [Predeploys specification](https://specs.optimism.io/protocol/predeploys.html?utm_source=op-docs&utm_medium=docs)
+is the canonical list: it maintains the full table of predeploy addresses,
+the upgrade each was introduced in, deprecation status, and whether each is
+proxied, along with the normative definition of each contract.
+
+### Bridging predeploys
+
+The L2 side mirrors the L1 bridging stack. The
+[`L2CrossDomainMessenger`](https://specs.optimism.io/protocol/predeploys.html?utm_source=op-docs&utm_medium=docs#l2crossdomainmessenger)
+is the recommended high-level messaging interface, the
+[`L2ToL1MessagePasser`](https://specs.optimism.io/protocol/withdrawals.html?utm_source=op-docs&utm_medium=docs#the-l2tol1messagepasser-contract)
+records withdrawal messages whose inclusion is later proven on L1, and the
+[`L2StandardBridge`](https://specs.optimism.io/protocol/predeploys.html?utm_source=op-docs&utm_medium=docs#l2standardbridge)
+and `L2ERC721Bridge` pair with their L1 counterparts. The
+[`OptimismMintableERC20Factory`](https://specs.optimism.io/protocol/predeploys.html?utm_source=op-docs&utm_medium=docs#optimismmintableerc20factory)
+and `OptimismMintableERC721Factory` permissionlessly create the L2 token
+contracts that the bridges mint and burn.
+
+<Info>
+  Do not bridge an ERC-721 that was originally deployed on an OP Stack chain
+  through the ERC-721 bridge; it only supports NFTs originally deployed on
+  L1.
+</Info>
+
+### Fee and system predeploys
+
+*   The [`GasPriceOracle`](https://specs.optimism.io/protocol/predeploys.html?utm_source=op-docs&utm_medium=docs#gaspriceoracle)
+    exposes the parameters and helper functions for estimating the data
+    availability portion of the transaction fee. The exact fee formula
+    changes across upgrades and is defined in the spec, not here; see
+    [transaction fees](/op-stack/transactions/fees) for the explanation.
+*   The [`L1Block`](https://specs.optimism.io/protocol/predeploys.html?utm_source=op-docs&utm_medium=docs#l1block)
+    predeploy exposes information about the latest known L1 block, written by
+    the protocol through a system deposit transaction.
+*   The fee vaults ([`SequencerFeeVault`](https://specs.optimism.io/protocol/predeploys.html?utm_source=op-docs&utm_medium=docs#sequencerfeevault),
+    [`BaseFeeVault`](https://specs.optimism.io/protocol/predeploys.html?utm_source=op-docs&utm_medium=docs#basefeevault),
+    [`L1FeeVault`](https://specs.optimism.io/protocol/predeploys.html?utm_source=op-docs&utm_medium=docs#l1feevault),
+    and, since the Isthmus upgrade, the
+    [`OperatorFeeVault`](https://specs.optimism.io/protocol/predeploys.html?utm_source=op-docs&utm_medium=docs#operator-fee-vault))
+    collect the components of the transaction fee for withdrawal to
+    configured recipients. See [fee vaults](/op-stack/transactions/fee-vaults)
+    for operational details.
+*   The [`ProxyAdmin`](https://specs.optimism.io/protocol/predeploys.html?utm_source=op-docs&utm_medium=docs#proxyadmin)
+    owns the proxies of the other predeploys and controls their upgrades.
+*   The [`BeaconBlockRoot`](https://specs.optimism.io/protocol/predeploys.html?utm_source=op-docs&utm_medium=docs#beacon-block-root)
+    contract ([EIP-4788](https://eips.ethereum.org/EIPS/eip-4788)) exposes L1
+    beacon block roots, available since the Ecotone upgrade.
+*   [`WETH9`](https://specs.optimism.io/protocol/predeploys.html?utm_source=op-docs&utm_medium=docs#weth9)
+    is the standard Wrapped Ether contract at a deterministic address.
+
+### GovernanceToken
+
+The [`GovernanceToken`](https://specs.optimism.io/protocol/predeploys.html?utm_source=op-docs&utm_medium=docs#governance-token)
+is the OP token used in Optimism governance, supporting voting and
+delegation. It is owned by a `MintManager` contract that enforces the token
+inflation schedule. See the [governance resources](/governance/resources)
+for how the token is used.
+
+### EAS (Ethereum Attestation Service)
+
+The [`EAS`](https://specs.optimism.io/protocol/predeploys.html?utm_source=op-docs&utm_medium=docs#eas)
+and [`SchemaRegistry`](https://specs.optimism.io/protocol/predeploys.html?utm_source=op-docs&utm_medium=docs#schemaregistry)
+predeploys implement the [Ethereum Attestation Service](https://attest.sh/)
+protocol, an open-source public good for issuing and managing onchain
+attestations. You can interact with EAS through the
+[EAS Scan UI](https://optimism.easscan.org/), the
+[EAS SDK](https://docs.attest.sh/docs/developer-tools/eas-sdk), or
+[directly onchain](https://github.com/ethereum-attestation-service/eas-contracts/blob/master/contracts/EAS.sol),
+and index attestations with the
+[EAS API](https://docs.attest.sh/docs/developer-tools/api) or the
+[open source indexer](https://github.com/ethereum-attestation-service/eas-indexing-service).
+See [attestations](/governance/eas-attestations) for how attestations are
+used in Optimism governance.
+
+### Deprecated predeploys
+
+The `LegacyMessagePasser`, `DeployerWhitelist`, `LegacyERC20ETH`, and
+`L1BlockNumber` contracts remain in state for backwards compatibility with
+the pre-Bedrock system but are deprecated and unused. Their addresses and
+history are in the
+[Predeploys specification](https://specs.optimism.io/protocol/predeploys.html?utm_source=op-docs&utm_medium=docs).
+
+## Next steps
+
+*   Read the [Optimism Overview specification](https://specs.optimism.io/protocol/overview.html?utm_source=op-docs&utm_medium=docs) for the architecture diagrams connecting these contracts.
+*   Browse the [contract source](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock) and the [generated contract reference](https://devdocs.optimism.io/contracts-bedrock).
+*   Look up [contract addresses on OP Mainnet](/op-mainnet/network-information/op-addresses).
+*   Learn how the [fault proof system](/op-stack/fault-proofs/explainer) uses the dispute contracts.

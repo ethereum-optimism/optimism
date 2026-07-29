@@ -1,0 +1,116 @@
+---
+title: Execution client configuration
+description: Configure op-reth as your OP Stack execution client and migrate off end-of-support op-geth.
+diataxis: how-to
+---
+
+import OpGethEol from "/snippets/op-geth-eol.mdx"
+
+The execution client provides the EVM runtime and transaction processing for your OP Stack node.
+
+<OpGethEol />
+
+<Info>
+  Always run your execution client and consensus client in a 1:1 configuration. Don't run multiple execution clients behind one consensus client, or vice versa.
+</Info>
+
+## Execution clients
+
+<Tabs>
+  <Tab title="op-reth">
+    [op-reth](https://github.com/paradigmxyz/reth) is a Rust-based execution client and the primary supported path for OP Stack nodes going forward.
+
+    ### Minimal configuration
+
+    ```bash
+    op-reth node \
+      --chain optimism \
+      --rollup.sequencer https://mainnet-sequencer.optimism.io \
+      --http \
+      --ws \
+      --authrpc.port 9551 \
+      --authrpc.jwtsecret /path/to/jwt.hex
+    ```
+
+    ### Historical proofs
+
+    Permissionless chains need ~28 days of historical state for withdrawal proving. Follow the [Running op-reth with Historical Proofs](/node-operators/tutorials/reth-historical-proofs) tutorial to set up the `--proofs-history` (v2) store on op-reth v2.2.3 or later.
+
+    ### Pruning
+
+    op-reth defaults to an archive node. To reclaim disk, prune the state and receipt segments and keep block bodies. Body pruning (`--minimal` or `--prune.bodies.distance`) is unsupported and advised against. See [Pruning op-reth](/node-operators/guides/management/archive-node#pruning-op-reth).
+
+    ### Complete reference
+
+    - [op-reth configuration reference](/node-operators/reference/op-reth-config)
+    - [op-reth historical proof configuration](/node-operators/reference/op-reth-historical-proof-config)
+    - [reth.rs documentation](https://reth.rs/run/opstack)
+  </Tab>
+
+  <Tab title="Nethermind">
+    [Nethermind](https://github.com/NethermindEth/nethermind) is a .NET-based alternative execution client.
+
+    ### Minimal configuration
+
+    ```bash
+    nethermind \
+      -c op-mainnet \
+      --data-dir path/to/data/dir \
+      --jsonrpc-jwtsecretfile path/to/jwt.hex
+    ```
+
+    ### Additional resources
+
+    - [Nethermind OP Stack documentation](https://docs.nethermind.io/get-started/running-node/l2-networks)
+    - [Nethermind configuration reference](https://docs.nethermind.io/fundamentals/configuration)
+  </Tab>
+</Tabs>
+
+## JWT secret
+
+The execution client and consensus client communicate over the Engine API using a shared JWT secret:
+
+```bash
+openssl rand -hex 32 > jwt-secret.txt
+```
+
+This file must be identical for both your execution client and your consensus client.
+
+## op-geth (legacy, end of support 2026-05-31)
+
+<OpGethEol />
+
+<Accordion title="op-geth configuration (legacy)">
+  [op-geth](https://github.com/ethereum-optimism/op-geth) is a minimal fork of go-ethereum optimized for the OP Stack.
+
+  <Info>
+    Although the Docker image is called `op-geth`, the actual binary is still named `geth` to minimize differences from go-ethereum. See the [op-geth diff viewer](https://op-geth.optimism.io/?utm_source=op-docs&utm_medium=docs) for details.
+  </Info>
+
+  ### Minimal configuration
+
+  ```bash
+  geth \
+    --datadir=/data/optimism \
+    --http \
+    --http.addr=0.0.0.0 \
+    --http.port=8545 \
+    --http.api=eth,net,web3 \
+    --authrpc.jwtsecret=/path/to/jwt-secret.txt \
+    --op-network=op-mainnet \
+    --rollup.sequencerhttp=https://mainnet-sequencer.optimism.io/ \
+    --rollup.disabletxpoolgossip
+  ```
+
+  Defaults: snap sync mode, no WebSocket server, no metrics.
+
+  ### OP Stack specific flags
+
+  - `--rollup.sequencerhttp`: HTTP endpoint of the sequencer for transaction submission
+  - `--rollup.disabletxpoolgossip`: Disables transaction pool gossip (for replica nodes)
+  - `--rollup.historicalrpc`: Enables historical RPC endpoint for upgraded networks (OP Mainnet pre-bedrock archive nodes)
+
+  ### Complete reference
+
+  The op-geth configuration reference has been retired; see the [op-reth configuration reference](/node-operators/reference/op-reth-config) for the equivalent op-reth flags.
+</Accordion>

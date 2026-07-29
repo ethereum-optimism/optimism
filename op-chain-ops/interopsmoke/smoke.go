@@ -1,0 +1,937 @@
+// Package interopsmoke implements interop smoke tests that run against the
+// RPCs of two live interoperable L2 chains: chain identity, ETH transfers,
+// cross-chain ETH bridging, and valid/invalid executing-message checks.
+//
+// It is exposed both as the standalone op-chain-ops/cmd/interop-smoke tool and
+// as the `smoke-interop` subcommand of op-up.
+package interopsmoke
+
+import (
+	"context"
+	"crypto/ecdsa"
+	"errors"
+	"fmt"
+	"io"
+	"math/rand"
+	"strings"
+	"sync"
+	"text/tabwriter"
+	"time"
+
+	"golang.org/x/sync/errgroup"
+
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/urfave/cli/v2"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/interopbridge"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	opclient "github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	"github.com/ethereum-optimism/optimism/op-service/txintent"
+	txIntentBindings "github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/txplan"
+)
+
+const smokeWaitTimeout = 60 * time.Second
+const defaultReorgTimeout = 20 * time.Minute
+
+const (
+	l2AURLFlagName            = "l2a-rpc"
+	l2BURLFlagName            = "l2b-rpc"
+	privateKeyFlagName        = "private-key"
+	invalidBlocksFlagName     = "blocks"
+	invalidTxPerBlockFlagName = "tx-per-block"
+	invalidDirectionFlagName  = "direction"
+	reorgTimeoutFlagName      = "reorg-timeout"
+)
+
+const (
+	directionAToB = "a-to-b"
+	directionBToA = "b-to-a"
+	directionBoth = "both"
+)
+
+// bridgeTimeout bounds a single A->B bridge (send, relay, and balance check).
+const bridgeTimeout = 2 * time.Minute
+
+func smokeFlags(envPrefix string) []cli.Flag {
+	return cliapp.ProtectFlags([]cli.Flag{
+		&cli.StringFlag{
+			Name:    l2AURLFlagName,
+			Usage:   "RPC URL for chain A.",
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_L2A_RPC"),
+			Value:   "http://localhost:8545",
+		},
+		&cli.StringFlag{
+			Name:    l2BURLFlagName,
+			Usage:   "RPC URL for chain B.",
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_L2B_RPC"),
+			Value:   "http://localhost:8546",
+		},
+		&cli.StringFlag{
+			Name:    privateKeyFlagName,
+			Usage:   "Private key to fund smoke-test transactions. If empty, uses the default dev key.",
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_PRIVATE_KEY"),
+		},
+	})
+}
+
+type remoteChain struct {
+	name      string
+	url       string
+	rpc       opclient.RPC
+	ethClient apis.EthClient
+	chainID   eth.ChainID
+}
+
+type remoteUser struct {
+	chain   *remoteChain
+	privKey *ecdsa.PrivateKey
+	address common.Address
+}
+
+type initMessage struct {
+	Tx      *txintent.IntentTx[*txintent.InitTrigger, *txintent.InteropOutput]
+	Receipt *types.Receipt
+}
+
+type execMessage struct {
+	Init    *initMessage
+	Tx      *txintent.IntentTx[*txintent.ExecTrigger, *txintent.InteropOutput]
+	Receipt *types.Receipt
+}
+
+type smokeEnv struct {
+	ctx               context.Context
+	stderr            io.Writer
+	logger            log.Logger
+	chainA            *remoteChain
+	chainB            *remoteChain
+	userA             *remoteUser
+	userB             *remoteUser
+	invalidBlocks     uint
+	invalidTxPerBlock uint
+	direction         string
+	reorgTimeout      time.Duration
+}
+
+func (m *initMessage) BlockNumber() uint64 {
+	return bigs.Uint64Strict(m.Receipt.BlockNumber)
+}
+
+func (m *initMessage) BlockHash() common.Hash {
+	return m.Receipt.BlockHash
+}
+
+func (m *execMessage) BlockNumber() uint64 {
+	return bigs.Uint64Strict(m.Receipt.BlockNumber)
+}
+
+func (m *execMessage) BlockHash() common.Hash {
+	return m.Receipt.BlockHash
+}
+
+func (u *remoteUser) plan() txplan.Option {
+	return txplan.Combine(
+		txplan.WithChainID(u.chain.ethClient),
+		txplan.WithPrivateKey(u.privKey),
+		txplan.WithPendingNonce(u.chain.ethClient),
+		txplan.WithAgainstLatestBlock(u.chain.ethClient),
+		txplan.WithEstimator(u.chain.ethClient, true),
+		txplan.WithRetrySubmission(u.chain.ethClient, 5, retry.Exponential()),
+		txplan.WithRetryInclusion(u.chain.ethClient, 5, retry.Exponential()),
+		txplan.WithBlockInclusionInfo(u.chain.ethClient),
+	)
+}
+
+func (u *remoteUser) transfer(ctx context.Context, to common.Address, amount eth.ETH) (*txplan.PlannedTx, error) {
+	tx := txplan.NewPlannedTx(
+		u.plan(),
+		txplan.WithTo(&to),
+		txplan.WithValue(amount),
+	)
+	_, err := tx.Success.Eval(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return tx, nil
+}
+
+func (u *remoteUser) deployEventLogger(ctx context.Context) (common.Address, error) {
+	tx := txplan.NewPlannedTx(u.plan(), txplan.WithData(common.FromHex(txIntentBindings.EventloggerBin)))
+	receipt, err := tx.Included.Eval(ctx)
+	if err != nil {
+		return common.Address{}, err
+	}
+	return receipt.ContractAddress, nil
+}
+
+func (u *remoteUser) sendRandomInitMessage(ctx context.Context, rng *rand.Rand, eventLogger common.Address, topicCount, dataLen int) (*initMessage, error) {
+	if topicCount > 4 {
+		topicCount = 4
+	}
+	if topicCount < 1 {
+		topicCount = 1
+	}
+	if dataLen < 1 {
+		dataLen = 1
+	}
+
+	topics := make([][32]byte, topicCount)
+	for i := range topics {
+		copy(topics[i][:], testutils.RandomData(rng, 32))
+	}
+
+	trigger := &txintent.InitTrigger{
+		Emitter:    eventLogger,
+		Topics:     topics,
+		OpaqueData: testutils.RandomData(rng, dataLen),
+	}
+	tx := txintent.NewIntent[*txintent.InitTrigger, *txintent.InteropOutput](u.plan())
+	tx.Content.Set(trigger)
+	receipt, err := tx.PlannedTx.Included.Eval(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &initMessage{Tx: tx, Receipt: receipt}, nil
+}
+
+func (u *remoteUser) sendExecMessage(ctx context.Context, initMsg *initMessage) (*execMessage, error) {
+	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](u.plan())
+	tx.Content.DependOn(&initMsg.Tx.Result)
+	tx.Content.Fn(txintent.ExecuteIndexed(predeploys.CrossL2InboxAddr, &initMsg.Tx.Result, 0))
+	receipt, err := tx.PlannedTx.Included.Eval(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &execMessage{
+		Init:    initMsg,
+		Tx:      tx,
+		Receipt: receipt,
+	}, nil
+}
+
+func (u *remoteUser) sendInvalidExecMessage(ctx context.Context, initMsg *initMessage) (*execMessage, error) {
+	result, err := initMsg.Tx.Result.Eval(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(result.Entries) == 0 {
+		return nil, fmt.Errorf("init tx produced no interop entries")
+	}
+
+	msg := result.Entries[0]
+	msg.Identifier.LogIndex++
+
+	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](u.plan())
+	tx.Content.DependOn(&initMsg.Tx.Result)
+	tx.Content.Fn(func(context.Context) (*txintent.ExecTrigger, error) {
+		return &txintent.ExecTrigger{
+			Executor: predeploys.CrossL2InboxAddr,
+			Msg:      msg,
+		}, nil
+	})
+
+	receipt, err := tx.PlannedTx.Included.Eval(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &execMessage{
+		Init:    initMsg,
+		Tx:      tx,
+		Receipt: receipt,
+	}, nil
+}
+
+func newLogger(ctx context.Context, stderr io.Writer) log.Logger {
+	logHandler := oplog.NewLogHandler(stderr, oplog.DefaultCLIConfig())
+	logHandler = logfilter.WrapFilterHandler(logHandler)
+	logHandler.(logfilter.FilterHandler).Set(logfilter.DefaultMute())
+	logHandler = logfilter.WrapContextHandler(logHandler)
+	logger := log.NewLogger(logHandler)
+	oplog.SetGlobalLogHandler(logHandler)
+	logger.SetContext(ctx)
+	return logger
+}
+
+func newSmokeEnv(ctx context.Context, stderr io.Writer, l2AURL, l2BURL, privateKey string) (*smokeEnv, func(), error) {
+	logger := newLogger(ctx, stderr)
+
+	chainA, err := connectRemoteChain(ctx, logger, "L2A", l2AURL)
+	if err != nil {
+		return nil, nil, err
+	}
+	chainB, err := connectRemoteChain(ctx, logger, "L2B", l2BURL)
+	if err != nil {
+		chainA.ethClient.Close()
+		return nil, nil, err
+	}
+
+	privKey, address, err := resolveSmokeKey(privateKey)
+	if err != nil {
+		chainA.ethClient.Close()
+		chainB.ethClient.Close()
+		return nil, nil, err
+	}
+
+	env := &smokeEnv{
+		ctx:    ctx,
+		stderr: stderr,
+		logger: logger,
+		chainA: chainA,
+		chainB: chainB,
+		userA:  &remoteUser{chain: chainA, privKey: privKey, address: address},
+		userB:  &remoteUser{chain: chainB, privKey: privKey, address: address},
+	}
+	cleanup := func() {
+		chainA.ethClient.Close()
+		chainB.ethClient.Close()
+	}
+	return env, cleanup, nil
+}
+
+func connectRemoteChain(ctx context.Context, logger log.Logger, name, url string) (*remoteChain, error) {
+	chainLogger := logger.New("chain", name, "rpc", url)
+	rpcCl, err := opclient.NewRPC(
+		ctx,
+		chainLogger,
+		url,
+		opclient.WithFixedDialBackoff(time.Second),
+		opclient.WithDialAttempts(5),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("dial %s RPC %s: %w", name, url, err)
+	}
+	ethCl, err := sources.NewEthClient(rpcCl, chainLogger, nil, sources.DefaultEthClientConfig(10))
+	if err != nil {
+		rpcCl.Close()
+		return nil, fmt.Errorf("create %s eth client: %w", name, err)
+	}
+	chainIDBig, err := ethCl.ChainID(ctx)
+	if err != nil {
+		ethCl.Close()
+		return nil, fmt.Errorf("fetch %s chain ID: %w", name, err)
+	}
+	return &remoteChain{
+		name:      name,
+		url:       url,
+		rpc:       rpcCl,
+		ethClient: ethCl,
+		chainID:   eth.ChainIDFromBig(chainIDBig),
+	}, nil
+}
+
+func defaultSmokeKey() (*ecdsa.PrivateKey, common.Address, error) {
+	hd, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
+	if err != nil {
+		return nil, common.Address{}, fmt.Errorf("new mnemonic dev keys: %w", err)
+	}
+	const funderIndex = 10_000
+	key := devkeys.UserKey(funderIndex)
+	privKey, err := hd.Secret(key)
+	if err != nil {
+		return nil, common.Address{}, fmt.Errorf("secret: %w", err)
+	}
+	address := crypto.PubkeyToAddress(privKey.PublicKey)
+	return privKey, address, nil
+}
+
+func resolveSmokeKey(privateKey string) (*ecdsa.PrivateKey, common.Address, error) {
+	if privateKey == "" {
+		return defaultSmokeKey()
+	}
+	privKey, err := crypto.HexToECDSA(strings.TrimPrefix(privateKey, "0x"))
+	if err != nil {
+		return nil, common.Address{}, fmt.Errorf("parse private key: %w", err)
+	}
+	return privKey, crypto.PubkeyToAddress(privKey.PublicKey), nil
+}
+
+func withSmokeEnv(cliCtx *cli.Context, name string, fn func(env *smokeEnv) error) error {
+	ctx := cliCtx.Context
+	stderr := cliCtx.App.ErrWriter
+	l2AURL := cliCtx.String(l2AURLFlagName)
+	l2BURL := cliCtx.String(l2BURLFlagName)
+	privateKey := cliCtx.String(privateKeyFlagName)
+
+	fmt.Fprintf(stderr, "\nSmoke: %s\n\n", name)
+
+	env, cleanup, err := newSmokeEnv(ctx, stderr, l2AURL, l2BURL, privateKey)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	fmt.Fprintf(stderr, "Chain A RPC: %s (chain ID %s)\n", env.chainA.url, env.chainA.chainID)
+	fmt.Fprintf(stderr, "Chain B RPC: %s (chain ID %s)\n", env.chainB.url, env.chainB.chainID)
+	fmt.Fprintf(stderr, "Smoke Sender Address: %s\n\n", env.userA.address)
+
+	if err := fn(env); err != nil {
+		fmt.Fprintf(stderr, "\nFAIL: %s (%v)\n", name, err)
+		return err
+	}
+	fmt.Fprintf(stderr, "\nPASS: %s\n", name)
+	return nil
+}
+
+// Command returns the `smoke-interop` command tree for embedding in a host
+// CLI such as op-up. envPrefix scopes the flag environment variables
+// (e.g. "OP_UP" -> OP_UP_SMOKE_L2A_RPC).
+func Command(envPrefix string) *cli.Command {
+	return &cli.Command{
+		Name:        "smoke-interop",
+		Usage:       "run interop smoke tests against remote chain RPCs",
+		Subcommands: Subcommands(envPrefix),
+	}
+}
+
+// Subcommands returns the individual smoke-test commands, for mounting at the
+// top level of a standalone CLI.
+func Subcommands(envPrefix string) []*cli.Command {
+	flags := smokeFlags(envPrefix)
+
+	return []*cli.Command{
+		{
+			Name:  "all",
+			Usage: "run all smoke tests sequentially",
+			Flags: flags,
+			Action: func(cliCtx *cli.Context) error {
+				return withSmokeEnv(cliCtx, "All Tests", smokeAll)
+			},
+		},
+		{
+			Name:  "identity",
+			Usage: "verify both chains have different chain IDs",
+			Flags: flags,
+			Action: func(cliCtx *cli.Context) error {
+				return withSmokeEnv(cliCtx, "Chain Identity", smokeIdentity)
+			},
+		},
+		{
+			Name:  "transfer",
+			Usage: "send ETH transfers on both chains",
+			Flags: flags,
+			Action: func(cliCtx *cli.Context) error {
+				return withSmokeEnv(cliCtx, "ETH Transfers", smokeTransfer)
+			},
+		},
+		{
+			Name:  "bridge",
+			Usage: "bridge ETH from chain A to chain B via SuperchainETHBridge",
+			Flags: flags,
+			Action: func(cliCtx *cli.Context) error {
+				return withSmokeEnv(cliCtx, "Cross-Chain ETH Bridge", smokeBridge)
+			},
+		},
+		{
+			Name:  "valid-message",
+			Usage: "send a valid executing message and verify it stays in-chain",
+			Flags: flags,
+			Action: func(cliCtx *cli.Context) error {
+				return withSmokeEnv(cliCtx, "Valid Exec Message", smokeValidMessage)
+			},
+		},
+		{
+			Name:  "invalid-message",
+			Usage: "send invalid executing messages on both chains at once and verify they are reorged out",
+			Flags: append(flags,
+				&cli.UintFlag{
+					Name:    invalidBlocksFlagName,
+					Usage:   "Number of blocks per chain containing invalid transactions.",
+					EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_BLOCKS"),
+					Value:   1,
+				},
+				&cli.UintFlag{
+					Name:    invalidTxPerBlockFlagName,
+					Usage:   "Number of invalid transactions to land per block, on each chain.",
+					EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_TX_PER_BLOCK"),
+					Value:   1,
+				},
+				&cli.StringFlag{
+					Name: invalidDirectionFlagName,
+					Usage: fmt.Sprintf("Which invalid-message flows to run, named init-chain-to-exec-chain: %q (initiated on A, executed on B), %q (initiated on B, executed on A), or %q.",
+						directionAToB, directionBToA, directionBoth),
+					EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_DIRECTION"),
+					Value:   directionBoth,
+				},
+				&cli.DurationFlag{
+					Name:    reorgTimeoutFlagName,
+					Usage:   "Maximum time to wait for each invalid block to be reorged.",
+					EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_REORG_TIMEOUT"),
+					Value:   defaultReorgTimeout,
+				},
+			),
+			Action: func(cliCtx *cli.Context) error {
+				return withSmokeEnv(cliCtx, "Invalid Exec Message (reorg)", func(env *smokeEnv) error {
+					env.invalidBlocks = cliCtx.Uint(invalidBlocksFlagName)
+					env.invalidTxPerBlock = cliCtx.Uint(invalidTxPerBlockFlagName)
+					env.direction = cliCtx.String(invalidDirectionFlagName)
+					env.reorgTimeout = cliCtx.Duration(reorgTimeoutFlagName)
+					return smokeInvalidMessage(env)
+				})
+			},
+		},
+	}
+}
+
+func smokeAll(env *smokeEnv) error {
+	env.invalidBlocks = 1
+	env.invalidTxPerBlock = 1
+	env.direction = directionBoth
+	env.reorgTimeout = defaultReorgTimeout
+	tests := []struct {
+		name string
+		fn   func(env *smokeEnv) error
+	}{
+		{"Chain Identity", smokeIdentity},
+		{"ETH Transfers", smokeTransfer},
+		{"Cross-Chain ETH Bridge", smokeBridge},
+		{"Valid Exec Message", smokeValidMessage},
+		{"Invalid Exec Message (reorg)", smokeInvalidMessage},
+	}
+
+	var failed []string
+	for _, test := range tests {
+		fmt.Fprintf(env.stderr, "--- %s\n", test.name)
+		if err := test.fn(env); err != nil {
+			fmt.Fprintf(env.stderr, "    FAIL: %v\n", err)
+			failed = append(failed, test.name)
+		} else {
+			fmt.Fprintf(env.stderr, "    PASS\n")
+		}
+	}
+
+	if len(failed) > 0 {
+		return fmt.Errorf("failed tests: %v", failed)
+	}
+	return nil
+}
+
+func smokeIdentity(env *smokeEnv) error {
+	if env.chainA.chainID == env.chainB.chainID {
+		return fmt.Errorf("chains have the same ID: %s", env.chainA.chainID)
+	}
+	fmt.Fprintf(env.stderr, "    Chain A: %s, Chain B: %s\n", env.chainA.chainID, env.chainB.chainID)
+	return nil
+}
+
+func smokeTransfer(env *smokeEnv) error {
+	recipientA := randomAddress()
+	if _, err := env.userA.transfer(env.ctx, recipientA, eth.OneHundredthEther); err != nil {
+		return fmt.Errorf("chain A transfer failed: %w", err)
+	}
+	if err := waitForBalance(env.ctx, env.chainA, recipientA, eth.OneHundredthEther); err != nil {
+		return err
+	}
+	fmt.Fprintf(env.stderr, "    Chain A transfer: OK\n")
+
+	recipientB := randomAddress()
+	if _, err := env.userB.transfer(env.ctx, recipientB, eth.OneHundredthEther); err != nil {
+		return fmt.Errorf("chain B transfer failed: %w", err)
+	}
+	if err := waitForBalance(env.ctx, env.chainB, recipientB, eth.OneHundredthEther); err != nil {
+		return err
+	}
+	fmt.Fprintf(env.stderr, "    Chain B transfer: OK\n")
+	return nil
+}
+
+func smokeBridge(env *smokeEnv) error {
+	ctx, cancel := context.WithTimeout(env.ctx, bridgeTimeout)
+	defer cancel()
+	return interopbridge.BridgeETH(ctx, env.logger, env.chainA.ethClient, env.chainB.ethClient,
+		env.chainB.chainID, env.userA.privKey, eth.OneHundredthEther, randomAddress())
+}
+
+func smokeValidMessage(env *smokeEnv) error {
+	rng := rand.New(rand.NewSource(42))
+
+	eventLogger, err := env.userA.deployEventLogger(env.ctx)
+	if err != nil {
+		return fmt.Errorf("deploy EventLogger: %w", err)
+	}
+
+	initMsg, err := env.userA.sendRandomInitMessage(env.ctx, rng, eventLogger, 2, 10)
+	if err != nil {
+		return fmt.Errorf("send init message: %w", err)
+	}
+	fmt.Fprintf(env.stderr, "    Init message sent on Chain A (block %d)\n", initMsg.BlockNumber())
+
+	if _, err := waitForNextBlock(env.ctx, env.chainB); err != nil {
+		return err
+	}
+	execMsg, err := env.userB.sendExecMessage(env.ctx, initMsg)
+	if err != nil {
+		return fmt.Errorf("send exec message: %w", err)
+	}
+	if execMsg.Receipt.Status != types.ReceiptStatusSuccessful {
+		return fmt.Errorf("exec tx reverted")
+	}
+
+	execBlockNum := execMsg.BlockNumber()
+	execBlockHash := execMsg.BlockHash()
+	fmt.Fprintf(env.stderr, "    Exec message sent on Chain B (block %d)\n", execBlockNum)
+
+	if err := waitForHeadAtLeast(env.ctx, env.chainB, execBlockNum+2); err != nil {
+		return err
+	}
+
+	currentBlock, err := env.chainB.ethClient.BlockRefByNumber(env.ctx, execBlockNum)
+	if err != nil {
+		return fmt.Errorf("fetch block %d: %w", execBlockNum, err)
+	}
+	if currentBlock.Hash != execBlockHash {
+		return fmt.Errorf("block was replaced: expected %s, got %s", execBlockHash, currentBlock.Hash)
+	}
+	if err := assertTxInBlock(env.ctx, env.chainB, execBlockNum, execMsg.Receipt.TxHash); err != nil {
+		return err
+	}
+	fmt.Fprintf(env.stderr, "    Block remained canonical after head advanced past it\n")
+	return nil
+}
+
+type invalidInclusion struct {
+	txHash, blockHash common.Hash
+	blockNum          uint64
+}
+
+// invalidDirection is one init-chain -> exec-chain pairing: init messages are
+// emitted on the init user's chain and the invalid executing messages land on
+// the exec user's chain.
+type invalidDirection struct {
+	name        string
+	initUser    *remoteUser
+	execUser    *remoteUser
+	rng         *rand.Rand
+	eventLogger common.Address
+	pending     []*initMessage
+	inclusions  []invalidInclusion
+}
+
+// smokeInvalidMessage lands invalid executing messages on both chains at the
+// same time by default: chain B executes messages initiated on chain A while
+// chain A executes messages initiated on chain B. Each phase runs the selected
+// directions concurrently, and since the directions use opposite chains within
+// a phase, only one goroutine ever sends on a given chain at a time. Set
+// env.direction to restrict the test to a single chain.
+func smokeInvalidMessage(env *smokeEnv) error {
+	if err := validateInvalidMessageOptions(env.invalidBlocks, env.invalidTxPerBlock); err != nil {
+		return err
+	}
+	if env.reorgTimeout <= 0 {
+		return fmt.Errorf("reorg-timeout must be greater than zero")
+	}
+	stderr := &lockedWriter{w: env.stderr}
+
+	dirs, err := invalidDirections(env)
+	if err != nil {
+		return err
+	}
+
+	if err := eachDirection(dirs, func(d *invalidDirection) error {
+		eventLogger, err := d.initUser.deployEventLogger(env.ctx)
+		if err != nil {
+			return fmt.Errorf("%s: deploy EventLogger on %s: %w", d.name, d.initUser.chain.name, err)
+		}
+		d.eventLogger = eventLogger
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	for block := uint(0); block < env.invalidBlocks; block++ {
+		if err := eachDirection(dirs, func(d *invalidDirection) error {
+			d.pending = make([]*initMessage, 0, env.invalidTxPerBlock)
+			for tx := uint(0); tx < env.invalidTxPerBlock; tx++ {
+				initMsg, err := d.initUser.sendRandomInitMessage(env.ctx, d.rng, d.eventLogger, 2, 10)
+				if err != nil {
+					return fmt.Errorf("%s: send init message: %w", d.name, err)
+				}
+				d.pending = append(d.pending, initMsg)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+
+		if err := eachDirection(dirs, func(d *invalidDirection) error {
+			execChain := d.execUser.chain
+			if _, err := waitForNextBlock(env.ctx, execChain); err != nil {
+				return err
+			}
+			for _, initMsg := range d.pending {
+				invalidExec, err := d.execUser.sendInvalidExecMessage(env.ctx, initMsg)
+				if err != nil {
+					return fmt.Errorf("%s: send invalid exec message: %w", d.name, err)
+				}
+				if invalidExec.Receipt.Status != types.ReceiptStatusSuccessful {
+					return fmt.Errorf("%s: invalid exec tx reverted before inclusion", d.name)
+				}
+				inclusion := invalidInclusion{invalidExec.Receipt.TxHash, invalidExec.BlockHash(), invalidExec.BlockNumber()}
+				d.inclusions = append(d.inclusions, inclusion)
+				fmt.Fprintf(stderr, "    [%s] Invalid exec tx included on %s: %s\n", d.name, execChain.name, inclusion.txHash)
+				fmt.Fprintf(stderr, "    [%s] Invalid exec message landed on %s block %d (%s)\n", d.name, execChain.name, inclusion.blockNum, inclusion.blockHash)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+	}
+
+	// Check every invalid block on every chain, and report all failures rather
+	// than stopping at the first one.
+	type reorgCheck struct {
+		dir       *invalidDirection
+		inclusion invalidInclusion
+	}
+	var checks []reorgCheck
+	for _, d := range dirs {
+		for _, inclusion := range d.inclusions {
+			checks = append(checks, reorgCheck{dir: d, inclusion: inclusion})
+		}
+	}
+
+	results := make([]reorgResult, len(checks))
+	var wg sync.WaitGroup
+	waitStart := time.Now()
+	for i, check := range checks {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			execChain := check.dir.execUser.chain
+			start := time.Now()
+			err := waitForReorgedOut(env.ctx, stderr, execChain, check.inclusion.blockNum, check.inclusion.blockHash, check.inclusion.txHash, env.reorgTimeout)
+			results[i] = reorgResult{
+				dir:      check.dir.name,
+				chain:    execChain.name,
+				blockNum: check.inclusion.blockNum,
+				txHash:   check.inclusion.txHash,
+				elapsed:  time.Since(start),
+				err:      err,
+			}
+		}()
+	}
+	wg.Wait()
+	return reportReorgResults(env.stderr, results, time.Since(waitStart))
+}
+
+type reorgResult struct {
+	dir      string
+	chain    string
+	blockNum uint64
+	txHash   common.Hash
+	elapsed  time.Duration
+	err      error
+}
+
+// reportReorgResults prints a per-block summary table and returns the joined
+// errors of every block that was not reorged out.
+func reportReorgResults(stderr io.Writer, results []reorgResult, total time.Duration) error {
+	var errs []error
+	reorged := 0
+	chains := make(map[string]struct{})
+	tw := tabwriter.NewWriter(stderr, 0, 0, 2, ' ', 0)
+	fmt.Fprint(tw, "\n    DIRECTION\tCHAIN\tBLOCK\tINVALID TX\tRESULT\tELAPSED\n")
+	for _, r := range results {
+		chains[r.chain] = struct{}{}
+		status := "REORGED"
+		if r.err != nil {
+			status = "NOT REORGED"
+			errs = append(errs, fmt.Errorf("%s on %s: %w", r.dir, r.chain, r.err))
+		} else {
+			reorged++
+		}
+		fmt.Fprintf(tw, "    %s\t%s\t%d\t%s\t%s\t%s\n",
+			r.dir, r.chain, r.blockNum, r.txHash.TerminalString(), status, r.elapsed.Round(time.Second))
+	}
+	// A flush failure only loses the table; the reorg failures still have to be
+	// reported, so it joins the errors rather than replacing them.
+	if err := tw.Flush(); err != nil {
+		errs = append(errs, fmt.Errorf("flush summary table: %w", err))
+	}
+	fmt.Fprintf(stderr, "\n    %d/%d invalid txs reorged out across %d chain(s) in %s\n\n",
+		reorged, len(results), len(chains), total.Round(time.Second))
+
+	return errors.Join(errs...)
+}
+
+func invalidDirections(env *smokeEnv) ([]*invalidDirection, error) {
+	aToB := &invalidDirection{name: "A->B", initUser: env.userA, execUser: env.userB, rng: rand.New(rand.NewSource(99))}
+	bToA := &invalidDirection{name: "B->A", initUser: env.userB, execUser: env.userA, rng: rand.New(rand.NewSource(100))}
+	switch env.direction {
+	case directionAToB:
+		return []*invalidDirection{aToB}, nil
+	case directionBToA:
+		return []*invalidDirection{bToA}, nil
+	case directionBoth, "":
+		return []*invalidDirection{aToB, bToA}, nil
+	default:
+		return nil, fmt.Errorf("unknown direction %q: want %q, %q or %q",
+			env.direction, directionAToB, directionBToA, directionBoth)
+	}
+}
+
+// eachDirection runs fn for every direction concurrently, returning the first error.
+func eachDirection(dirs []*invalidDirection, fn func(d *invalidDirection) error) error {
+	var group errgroup.Group
+	for _, d := range dirs {
+		group.Go(func() error { return fn(d) })
+	}
+	return group.Wait()
+}
+
+// lockedWriter serializes writes so concurrent directions do not interleave
+// mid-line output.
+type lockedWriter struct {
+	mu sync.Mutex
+	w  io.Writer
+}
+
+func (l *lockedWriter) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.w.Write(p)
+}
+
+func validateInvalidMessageOptions(blocks, txPerBlock uint) error {
+	if blocks == 0 || txPerBlock == 0 {
+		return fmt.Errorf("blocks and tx-per-block must be greater than zero")
+	}
+	return nil
+}
+
+func waitForBalance(ctx context.Context, chain *remoteChain, addr common.Address, want eth.ETH) error {
+	deadline := time.Now().Add(smokeWaitTimeout)
+	for {
+		balance, err := chain.ethClient.BalanceAt(ctx, addr, nil)
+		if err == nil && balance.Cmp(want.ToBig()) == 0 {
+			return nil
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if time.Now().After(deadline) {
+			if err != nil {
+				return fmt.Errorf("timed out waiting for balance on %s: %w", chain.name, err)
+			}
+			return fmt.Errorf("timed out waiting for %s balance on %s; got %s", addr, chain.name, eth.WeiBig(balance))
+		}
+		time.Sleep(time.Second)
+	}
+}
+
+func waitForNextBlock(ctx context.Context, chain *remoteChain) (eth.BlockRef, error) {
+	head, err := chain.ethClient.BlockRefByLabel(ctx, eth.Unsafe)
+	if err != nil {
+		return eth.BlockRef{}, fmt.Errorf("fetch latest block on %s: %w", chain.name, err)
+	}
+	if err := waitForHeadAtLeast(ctx, chain, head.Number+1); err != nil {
+		return eth.BlockRef{}, err
+	}
+	return chain.ethClient.BlockRefByLabel(ctx, eth.Unsafe)
+}
+
+func waitForHeadAtLeast(ctx context.Context, chain *remoteChain, target uint64) error {
+	deadline := time.Now().Add(smokeWaitTimeout)
+	for {
+		head, err := chain.ethClient.BlockRefByLabel(ctx, eth.Unsafe)
+		if err == nil && head.Number >= target {
+			return nil
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if time.Now().After(deadline) {
+			if err != nil {
+				return fmt.Errorf("timed out waiting for %s head >= %d: %w", chain.name, target, err)
+			}
+			return fmt.Errorf("timed out waiting for %s head >= %d; current head is %d", chain.name, target, head.Number)
+		}
+		time.Sleep(time.Second)
+	}
+}
+
+func waitForReorgedOut(ctx context.Context, stderr io.Writer, chain *remoteChain, blockNum uint64, oldHash, txHash common.Hash, timeout time.Duration) error {
+	start := time.Now()
+	deadline := start.Add(timeout)
+	for attempt := 0; ; attempt++ {
+		elapsed := time.Since(start).Round(time.Second)
+		currentBlock, err := chain.ethClient.BlockRefByNumber(ctx, blockNum)
+		if err == nil {
+			if currentBlock.Hash != oldHash {
+				fmt.Fprintf(stderr, "    [%s] Reorg detected at block %d after %s: %s -> %s\n", chain.name, blockNum, elapsed, oldHash, currentBlock.Hash)
+				break
+			}
+			if attempt == 0 || attempt%10 == 0 {
+				fmt.Fprintf(stderr, "    [%s] Waiting for reorg at block %d (%s/%s): still %s\n", chain.name, blockNum, elapsed, timeout, currentBlock.Hash)
+			}
+		} else if errors.Is(eth.MaybeAsNotFoundErr(err), ethereum.NotFound) {
+			if attempt == 0 || attempt%10 == 0 {
+				fmt.Fprintf(stderr, "    [%s] Waiting for reorg at block %d (%s/%s): block temporarily missing\n", chain.name, blockNum, elapsed, timeout)
+			}
+		} else if attempt == 0 || attempt%10 == 0 {
+			fmt.Fprintf(stderr, "    [%s] Waiting for reorg at block %d (%s/%s): lookup error: %v\n", chain.name, blockNum, elapsed, timeout, err)
+		}
+
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timed out waiting for block %d (%s) to be reorged out", blockNum, oldHash)
+		}
+		time.Sleep(time.Second)
+	}
+
+	if err := waitForHeadAtLeast(ctx, chain, blockNum+1); err != nil {
+		return err
+	}
+	return assertTxNotInBlock(ctx, chain, blockNum, txHash)
+}
+
+func assertTxInBlock(ctx context.Context, chain *remoteChain, blockNum uint64, txHash common.Hash) error {
+	_, txs, err := chain.ethClient.InfoAndTxsByNumber(ctx, blockNum)
+	if err != nil {
+		return fmt.Errorf("fetch block %d txs on %s: %w", blockNum, chain.name, err)
+	}
+	for _, tx := range txs {
+		if tx.Hash() == txHash {
+			return nil
+		}
+	}
+	return fmt.Errorf("tx %s not found in block %d on %s", txHash, blockNum, chain.name)
+}
+
+func assertTxNotInBlock(ctx context.Context, chain *remoteChain, blockNum uint64, txHash common.Hash) error {
+	_, txs, err := chain.ethClient.InfoAndTxsByNumber(ctx, blockNum)
+	if err != nil {
+		return fmt.Errorf("fetch block %d txs on %s: %w", blockNum, chain.name, err)
+	}
+	for _, tx := range txs {
+		if tx.Hash() == txHash {
+			return fmt.Errorf("tx %s still present in block %d on %s", txHash, blockNum, chain.name)
+		}
+	}
+	return nil
+}
+
+func randomAddress() common.Address {
+	privKey, err := crypto.GenerateKey()
+	if err != nil {
+		panic(err)
+	}
+	return crypto.PubkeyToAddress(privKey.PublicKey)
+}

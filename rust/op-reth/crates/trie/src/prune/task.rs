@@ -1,0 +1,61 @@
+use crate::{OpProofsStore, prune::OpProofStoragePruner};
+use reth_provider::BlockHashReader;
+use reth_tasks::shutdown::GracefulShutdown;
+use tokio::{
+    time,
+    time::{Duration, MissedTickBehavior},
+};
+use tracing::info;
+
+/// Periodic pruner task: constructs the pruner and runs it every interval.
+#[derive(Debug)]
+pub struct OpProofStoragePrunerTask<S, H> {
+    pruner: OpProofStoragePruner<S, H>,
+    min_block_interval: u64,
+    task_run_interval: Duration,
+}
+
+impl<S, H> OpProofStoragePrunerTask<S, H>
+where
+    S: OpProofsStore,
+    H: BlockHashReader,
+{
+    /// Initialize a new [`OpProofStoragePrunerTask`]
+    pub fn new(
+        store: S,
+        hash_reader: H,
+        min_block_interval: u64,
+        task_run_interval: Duration,
+    ) -> Self {
+        let pruner = OpProofStoragePruner::new(store, hash_reader, min_block_interval);
+        Self { pruner, min_block_interval, task_run_interval }
+    }
+
+    /// Run forever (until `cancel`), executing one prune pass per `task_run_interval`.
+    pub async fn run(self, mut signal: GracefulShutdown) {
+        info!(
+            target: "trie::prune::task",
+            min_block_interval = self.min_block_interval,
+            interval_secs = self.task_run_interval.as_secs(),
+            "Starting pruner task"
+        );
+
+        // Drive pruning with a periodic ticker
+        let mut interval = time::interval(self.task_run_interval);
+        interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
+
+        loop {
+            tokio::select! {
+                _ = &mut signal => {
+                    info!(target: "trie::prune::task", "Pruner task cancelled; exiting");
+                    break;
+                }
+                _ = interval.tick() => {
+                    self.pruner.run()
+                }
+            }
+        }
+
+        info!(target: "trie::prune::task", "Pruner task stopped");
+    }
+}

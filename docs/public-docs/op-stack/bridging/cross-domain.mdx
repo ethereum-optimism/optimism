@@ -1,0 +1,19 @@
+---
+title: Cross-Domain Overview
+description: An overview of the lifecycle of an OP Stack cross-chain transaction, linking the detailed explainers for deposits, transaction flow, and withdrawals.
+diataxis: explanation
+---
+
+Cross-domain communication in the OP Stack involves moving assets and messages between L1 and L2. Key components, such as the Standard Bridge, the cross-domain messenger contracts, and the `OptimismPortal`, ensure these transactions are executed securely and transparently. This page summarizes the lifecycle of a cross-chain transaction in three flows and links the detailed explainer for each: deposit flow, transaction flow, and withdrawal flow.
+
+## Deposit flow
+
+A *deposit* is any L2 transaction triggered by a transaction or event on L1. An L1 account or contract (often the L1 Standard Bridge) sends a message through the `L1CrossDomainMessenger`, which passes it to the `OptimismPortal` contract on L1. The portal emits a `TransactionDeposited` event, `op-node` derives a deposit transaction from that event, and the `L2CrossDomainMessenger` relays the call to its target on L2. For the step-by-step walkthrough, see [Deposit flow](/op-stack/bridging/deposit-flow).
+
+## Transaction flow
+
+Every L2 transaction has two requirements: its data must be written to L1 (done in compressed batches by `op-batcher`), and it must be executed by the execution client to update the L2 state, after which `op-proposer` posts a commitment to the resulting state to L1. For the step-by-step walkthrough, see [Transaction flow](/op-stack/transactions/transaction-flow); for when a transaction can be relied on as irreversible, see [Transaction finality](/op-stack/transactions/transaction-finality).
+
+## Withdrawal flow
+
+A *withdrawal* is a transaction sent from L2 back to L1. It requires three user transactions: a withdrawal initiating transaction on L2, recorded by the `L2ToL1MessagePasser`; a withdrawal proving transaction on L1, which proves the withdrawal against an output root; and, once the fault challenge period (7 days on mainnet, shorter on test networks) has passed, a withdrawal finalizing transaction on L1 that executes the withdrawal. For the step-by-step walkthrough, see [Withdrawal flow](/op-stack/bridging/withdrawal-flow).

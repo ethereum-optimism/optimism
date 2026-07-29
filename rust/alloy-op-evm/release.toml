@@ -1,0 +1,8 @@
+# Configuration file for [`cargo-release`](https://github.com/crate-ci/cargo-release)
+# See: https://github.com/crate-ci/cargo-release/blob/master/docs/reference.md
+
+allow-branch = ["develop"]
+sign-commit = true
+sign-tag = true
+pre-release-commit-message = "chore(alloy-op-evm): release {{version}}"
+tag-prefix = ""                                                         # tag only once instead of per every crate

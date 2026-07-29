@@ -1,0 +1,7 @@
+version: v2.8.0
+name: bin/op-golangci-lint
+plugins:
+  - module: 'github.com/ethereum-optimism/optimism'
+    import: 'github.com/ethereum-optimism/optimism/linter/analyzers/bigint'
+    path: ..
+

@@ -1,0 +1,107 @@
+[
+  {
+    "bytes": "8",
+    "label": "createdAt",
+    "offset": 0,
+    "slot": "0",
+    "type": "Timestamp"
+  },
+  {
+    "bytes": "8",
+    "label": "resolvedAt",
+    "offset": 8,
+    "slot": "0",
+    "type": "Timestamp"
+  },
+  {
+    "bytes": "1",
+    "label": "status",
+    "offset": 16,
+    "slot": "0",
+    "type": "enum GameStatus"
+  },
+  {
+    "bytes": "1",
+    "label": "initialized",
+    "offset": 17,
+    "slot": "0",
+    "type": "bool"
+  },
+  {
+    "bytes": "32",
+    "label": "claimData",
+    "offset": 0,
+    "slot": "1",
+    "type": "struct SuperFaultDisputeGame.ClaimData[]"
+  },
+  {
+    "bytes": "32",
+    "label": "normalModeCredit",
+    "offset": 0,
+    "slot": "2",
+    "type": "mapping(address => uint256)"
+  },
+  {
+    "bytes": "32",
+    "label": "claims",
+    "offset": 0,
+    "slot": "3",
+    "type": "mapping(Hash => bool)"
+  },
+  {
+    "bytes": "32",
+    "label": "subgames",
+    "offset": 0,
+    "slot": "4",
+    "type": "mapping(uint256 => uint256[])"
+  },
+  {
+    "bytes": "32",
+    "label": "resolvedSubgames",
+    "offset": 0,
+    "slot": "5",
+    "type": "mapping(uint256 => bool)"
+  },
+  {
+    "bytes": "32",
+    "label": "resolutionCheckpoints",
+    "offset": 0,
+    "slot": "6",
+    "type": "mapping(uint256 => struct SuperFaultDisputeGame.ResolutionCheckpoint)"
+  },
+  {
+    "bytes": "64",
+    "label": "startingProposal",
+    "offset": 0,
+    "slot": "7",
+    "type": "struct Proposal"
+  },
+  {
+    "bytes": "1",
+    "label": "wasRespectedGameTypeWhenCreated",
+    "offset": 0,
+    "slot": "9",
+    "type": "bool"
+  },
+  {
+    "bytes": "32",
+    "label": "refundModeCredit",
+    "offset": 0,
+    "slot": "10",
+    "type": "mapping(address => uint256)"
+  },
+  {
+    "bytes": "32",
+    "label": "hasUnlockedCredit",
+    "offset": 0,
+    "slot": "11",
+    "type": "mapping(address => bool)"
+  },
+  {
+    "bytes": "1",
+    "label": "bondDistributionMode",
+    "offset": 0,
+    "slot": "12",
+    "type": "enum BondDistributionMode"
+  }
+]

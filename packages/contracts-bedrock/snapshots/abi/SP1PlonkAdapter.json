@@ -1,0 +1,80 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "contract ISP1Verifier",
+        "name": "_sp1Verifier",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [],
+    "name": "sp1Verifier",
+    "outputs": [
+      {
+        "internalType": "contract ISP1Verifier",
+        "name": "sp1Verifier_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "verifierType",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "_programId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_publicValues",
+        "type": "bytes"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_proof",
+        "type": "bytes"
+      }
+    ],
+    "name": "verify",
+    "outputs": [],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "version",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "SP1PlonkAdapter_InvalidVerifier",
+    "type": "error"
+  }
+]

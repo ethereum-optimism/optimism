@@ -1,0 +1,33 @@
+<mxfile host="Electron" modified="2024-02-08T04:13:27.819Z" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/23.0.2 Chrome/120.0.6099.109 Electron/28.1.0 Safari/537.36" etag="EJJpiL-sQTrHVb8llYIS" version="23.0.2" type="device">
+  <diagram name="Page-1" id="WARVjsaKmCNdQWdLnp8i">
+    <mxGraphModel dx="744" dy="854" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="7RgnoINtOoKKFXGxspce-2" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;" parent="1" vertex="1">
+          <mxGeometry x="440" y="240" width="140" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="7RgnoINtOoKKFXGxspce-3" value="op-geth" style="whiteSpace=wrap;html=1;aspect=fixed;fillColor=#f8cecc;strokeColor=#b85450;" parent="1" vertex="1">
+          <mxGeometry x="470" y="395" width="80" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="7RgnoINtOoKKFXGxspce-4" value="op-node" style="whiteSpace=wrap;html=1;aspect=fixed;fillColor=#f8cecc;strokeColor=#b85450;" parent="1" vertex="1">
+          <mxGeometry x="470" y="255" width="80" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="7RgnoINtOoKKFXGxspce-5" value="" style="endArrow=classic;startArrow=classic;html=1;rounded=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;" parent="1" source="7RgnoINtOoKKFXGxspce-3" target="7RgnoINtOoKKFXGxspce-4" edge="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="540" y="385" as="sourcePoint" />
+            <mxPoint x="590" y="335" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="7RgnoINtOoKKFXGxspce-6" value="engine-api" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" parent="7RgnoINtOoKKFXGxspce-5" vertex="1" connectable="0">
+          <mxGeometry x="-0.1017" y="-1" relative="1" as="geometry">
+            <mxPoint x="-1" y="-3" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="7RgnoINtOoKKFXGxspce-9" value="non-sequencing&amp;nbsp; node" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" parent="1" vertex="1">
+          <mxGeometry x="462.5" y="480" width="95" height="30" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

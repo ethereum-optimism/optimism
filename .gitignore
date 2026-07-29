@@ -1,0 +1,69 @@
+.DS_Store
+node_modules
+results
+temp
+coverage.json
+**/lcov.info
+**/lcov-upgrade.info
+**/lcov-all.info
+
+# Rust files
+**/target
+
+yarn-error.log
+.yarn/*
+!.yarn/releases
+!.yarn/plugins
+.pnp.*
+
+dist
+artifacts
+cache
+
+!op-chain-ops/foundry/testdata/srcmaps/cache
+!op-chain-ops/foundry/testdata/srcmaps/artifacts
+
+!op-deployer/pkg/deployer/artifacts
+
+packages/contracts-bedrock/deployments/anvil
+
+# vim
+*.sw*
+
+# jetbrains
+.idea/
+
+.secrets
+.env
+.env*
+!.env.example
+!.envrc.example
+*.log
+
+.devnet*
+
+.claude/worktrees
+
+# Local AI planning docs (op-claude and similar agent tooling)
+.claude/plans
+
+# Ignore local fuzzing results
+**/testdata/fuzz/
+
+coverage.out
+
+__pycache__
+
+# Ignore echidna artifacts
+crytic-export
+
+# ignore local asdf config
+.tool-versions
+
+# Rust files
+**/target
+
+# Locally-built superchain bundles, generated from the superchain-registry submodule.
+# The binary archives are gitignored; only their .sha256 (and generated text) are committed.
+op-core/superchain/superchain-configs.zip
+rust/op-reth/crates/chainspec/res/superchain-configs.tar

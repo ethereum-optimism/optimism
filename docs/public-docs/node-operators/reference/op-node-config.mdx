@@ -1,0 +1,143 @@
+---
+title: op-node configuration options
+description: Complete reference for all op-node command-line flags and environment variables.
+diataxis: reference
+---
+
+import OpNodeFlags from '/snippets/generated/op-node-flags.mdx';
+
+This page catalogues every configuration option for the op-node, the consensus-layer
+(rollup node) client of an OP Stack chain.
+
+The flag tables below are generated directly from the op-node's flag
+definitions in the monorepo (`op-node/flags`) at the release tag named in the
+provenance line, and are regenerated when a new finalized release is
+published, so they cannot silently fall behind. Every flag can also be set
+through the environment variable listed next to it.
+
+For guidance on running a node — hardware, sync strategies, and monitoring —
+see the [node operator guides](/node-operators/tutorials/run-node-from-source).
+
+## Flags
+
+<OpNodeFlags />
+
+## Notes on selected flags
+
+### network and rollup.config
+
+In addition to the required flags above, the op-node must be told which chain
+it serves: set exactly one of `--network` (a chain bundled from the
+superchain-registry, e.g. `op-mainnet`) or `--rollup.config` (a rollup
+configuration file, for custom chains). Setting both, or neither, is a startup
+error.
+
+### l1.trustrpc
+
+<Info>
+  If you're running an Erigon Ethereum execution client for your L1 provider
+  you will need to include `--l1.trustrpc`. At the time of writing, Erigon
+  doesn't support the `eth_getProof` method that op-node prefers to use to
+  load L1 data for some processing. The trustrpc flag makes it use something
+  else that Erigon supports, but the op-node can't verify for correctness.
+</Info>
+
+### syncmode.offset-el-safe
+
+Only effective with `--syncmode=execution-layer`. After execution-layer sync
+completes, the safe and finalized heads are set to this duration behind the
+synced tip (converted to L2 blocks using the rollup block time). The default
+`12h` matches the OP Mainnet sequencing window.
+
+Setting this to `0` leaves safe and finalized at the synced tip. This is
+**not recommended and is dangerous**: the offset ensures the node does not
+label the EL-sync tip as safe/finalized until L1 has had time to confirm it.
+With `0`, an EL-sync tip that later turns out to be on a reorged
+(non-canonical) branch can be marked safe/finalized, and safe/finalized are
+not supposed to reorg. Fix a body-pruning mismatch by enlarging the EL's
+retained body window instead — see the warning below.
+
+<Warning>
+  op-node reads the L1-info deposit transaction from the block body at the
+  head placed this far behind the tip, so the execution client must retain
+  block bodies at least this far back. Body pruning (op-reth's `--minimal`
+  mode or `--prune.bodies.distance`) is unsupported; if you enable it anyway,
+  keep the retained body window comfortably larger than this offset (in
+  blocks), or EL sync fails with `l2 block is missing L1 info deposit tx`.
+  See [Pruning op-reth](/node-operators/guides/management/archive-node#pruning-op-reth).
+</Warning>
+
+### sequencer.l1-confs
+
+<Warning>
+  The maximum value for `sequencer.l1-confs` cannot exceed the sequencer
+  drift, currently set to 30 minutes (1800 seconds or 150 blocks). Setting a
+  value higher than this limit will prevent the sequencer from producing
+  blocks within the sequence window.
+</Warning>
+
+### verifier.l1-confs
+
+<Info>
+  While `verifier.l1-confs` has no strict limit, it's recommended to keep this
+  value within 12-13 minutes (typically 10-20 blocks) for optimal performance.
+  Exceeding this range may impact the verifier's data processing efficiency.
+</Info>
+
+### altda.*
+
+The `altda.*` flags configure Alt-DA mode, a Beta feature of the OP Stack.
+While it has received initial review from core contributors, it is still
+undergoing testing, and may have bugs or other issues. See the
+[Alt-DA mode guide](/chain-operators/guides/features/alt-da-mode-guide) for
+setup instructions.
+
+### interop.*
+
+The `interop.*` flags configure OP Stack interop networks. Interop is a highly
+experimental feature; the flags apply only to interop-enabled networks. Do not
+enable the interop RPC (`--interop.rpc.addr`) if you do not run a supervisor
+service.
+
+### version
+
+<Info>
+  Nodes built from source do not output the correct version numbers that are
+  reported on the GitHub release page.
+</Info>
+
+## Node log levels
+
+Node log levels determine the verbosity of log messages, allowing operators to filter messages based on importance and detail. The log levels for the `op-node` (used in Optimism)
+are as follows:
+
+1.  Silent (0): No log messages are displayed. This level is rarely used as it provides
+    no feedback on the node's status.
+
+2.  Error (1): Only error messages are displayed. Use this level to focus on critical
+    issues that need immediate attention.
+
+3.  Warn (2): Displays error messages and warnings. This level helps to identify
+    potential problems that might not be immediately critical but require attention.
+
+4.  Info (3): Displays error messages, warnings, and normal activity logs. This is the
+    default level and provides a balanced view of the node's operations without being too
+    verbose.
+
+5.  Debug (4): All info-level messages plus additional debugging information. Use this
+    level when troubleshooting issues or developing the node software.
+
+6.  Detail (5): The most verbose level, including detailed debugging information and
+    low-level system operations. This level generates a large amount of log data and is
+    typically used only for in-depth troubleshooting.
+
+To set the log level, use the `--log.level` flag when running the `op-node` command. For
+example, to set the log level to debug:
+
+```bash
+op-node --log.level=debug
+```
+
+By adjusting the log level, operators can control the amount and type of information that
+gets logged, helping to manage log data volume and focus on relevant details during
+different operational scenarios.

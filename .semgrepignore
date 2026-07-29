@@ -1,0 +1,28 @@
+# Common large paths
+node_modules/
+build/
+dist/
+vendor/
+.env/
+.venv/
+.tox/
+*.min.js
+
+# Semgrep rules folder
+.semgrep/
+
+# Semgrep-action log folder
+.semgrep_logs/
+
+# Test contracts the scripts folder
+op-chain-ops/script/testdata/scripts/
+
+# Op-alloy book theme (third-party mdbook assets)
+rust/op-alloy/book/
+
+# Op-reth test contracts (not production Solidity code)
+rust/op-reth/crates/tests/
+rust/op-reth/tests/
+
+# Public docs (example code, not production)
+docs/public-docs/

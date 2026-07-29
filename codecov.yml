@@ -1,0 +1,64 @@
+codecov:
+  require_ci_to_pass: false
+
+comment:
+  layout: "diff, flags, files"
+  behavior: default
+  require_changes: true
+  flags:
+    - contracts-bedrock-tests
+    - kona-unit
+
+ignore:
+  - "op-e2e"
+  - "**/*.t.sol"
+  - "packages/contracts-bedrock/test/**/*.sol"
+  - "packages/contracts-bedrock/scripts/**/*.sol"
+  - "packages/contracts-bedrock/src/vendor/**/*.sol"
+  - "packages/contracts-bedrock/src/interfaces/**/*.sol"
+  # Kona ignores
+  - "kona/examples/**/*"
+  - "kona/**/test_util*"
+  - "kona/**/noop.rs"
+
+coverage:
+  range: 80..100
+  round: down
+  precision: 1
+  status:
+    project:
+      default:
+        informational: true
+      # Kona unit tests
+      kona-unit:
+        threshold: 1%
+        informational: true
+    patch:
+      contracts:
+        base: auto
+        target: auto
+        threshold: 5%
+        informational: false
+        flags:
+          - contracts-bedrock-tests
+      # Kona patch coverage
+      kona-unit:
+        base: auto
+        target: auto
+        threshold: 5%
+        informational: true
+        only_pulls: true
+
+flag_management:
+  individual_flags:
+    - name: contracts-bedrock-tests
+      paths:
+        - packages/contracts-bedrock/src
+    # Kona flags
+    - name: kona-unit
+      paths:
+        - kona
+      statuses:
+        - type: project
+          target: auto
+          threshold: 5%

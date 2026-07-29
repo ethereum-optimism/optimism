@@ -1,0 +1,484 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.15;
+
+import { Script } from "forge-std/Script.sol";
+import { console2 as console } from "forge-std/console2.sol";
+import { stdJson } from "forge-std/StdJson.sol";
+import { Process } from "scripts/libraries/Process.sol";
+import { Config, Fork, ForkUtils } from "scripts/libraries/Config.sol";
+
+/// @title DeployConfig
+/// @notice Represents the configuration required to deploy the system. It is expected
+///         to read the file from JSON. A future improvement would be to have fallback
+///         values if they are not defined in the JSON themselves.
+contract DeployConfig is Script {
+    using stdJson for string;
+    using ForkUtils for Fork;
+
+    /// @notice Thrown when a config file cannot be read at the given path.
+    error UnableToReadConfigFile(string path);
+
+    /// @notice Represents an unset offset value, as opposed to 0, which denotes no-offset.
+    uint256 constant NULL_OFFSET = type(uint256).max;
+
+    string internal _json;
+
+    address public finalSystemOwner;
+    address public superchainConfigGuardian;
+    uint256 public l1ChainID;
+    uint256 public l2ChainID;
+    uint256 public l2GenesisDeltaTimeOffset;
+    uint256 public l2GenesisEcotoneTimeOffset;
+    uint256 public l2GenesisFjordTimeOffset;
+    uint256 public l2GenesisGraniteTimeOffset;
+    uint256 public l2GenesisHoloceneTimeOffset;
+    uint256 public l2GenesisJovianTimeOffset;
+    uint256 public l2GenesisKarstTimeOffset;
+    address public p2pSequencerAddress;
+    address public batchInboxAddress;
+    address public batchSenderAddress;
+    int256 internal _l2OutputOracleStartingTimestamp;
+    uint256 public l2OutputOracleStartingBlockNumber;
+    address public l2OutputOracleProposer;
+    address public l2OutputOracleChallenger;
+    bool public fundDevAccounts;
+    address public proxyAdminOwner;
+    address public baseFeeVaultRecipient;
+    uint256 public baseFeeVaultMinimumWithdrawalAmount;
+    uint256 public baseFeeVaultWithdrawalNetwork;
+    address public l1FeeVaultRecipient;
+    uint256 public l1FeeVaultMinimumWithdrawalAmount;
+    uint256 public l1FeeVaultWithdrawalNetwork;
+    address public sequencerFeeVaultRecipient;
+    uint256 public sequencerFeeVaultMinimumWithdrawalAmount;
+    uint256 public sequencerFeeVaultWithdrawalNetwork;
+    address public operatorFeeVaultRecipient;
+    uint256 public operatorFeeVaultMinimumWithdrawalAmount;
+    uint256 public operatorFeeVaultWithdrawalNetwork;
+    address public governanceTokenOwner;
+    uint256 public l2GenesisBlockGasLimit;
+    uint32 public basefeeScalar;
+    uint32 public blobbasefeeScalar;
+    bool public enableGovernance;
+    uint256 public faultGameAbsolutePrestate;
+    uint256 public faultGameGenesisBlock;
+    bytes32 public faultGameGenesisOutputRoot;
+    uint256 public faultGameMaxDepth;
+    uint256 public faultGameSplitDepth;
+    uint256 public faultGameClockExtension;
+    uint256 public faultGameMaxClockDuration;
+    uint256 public faultGameWithdrawalDelay;
+    uint256 public preimageOracleMinProposalSize;
+    uint256 public preimageOracleChallengePeriod;
+    uint256 public systemConfigStartBlock;
+    uint256 public proofMaturityDelaySeconds;
+    uint256 public disputeGameFinalityDelaySeconds;
+    uint256 public respectedGameType;
+    bool public useAltDA;
+    string public daCommitmentType;
+    uint256 public daChallengeWindow;
+    uint256 public daResolveWindow;
+    uint256 public daBondSize;
+    uint256 public daResolverRefundPercentage;
+
+    // Custom Gas Token Configuration
+    bool public useCustomGasToken;
+    string public gasPayingTokenName;
+    string public gasPayingTokenSymbol;
+    uint256 public nativeAssetLiquidityAmount;
+    address public liquidityControllerOwner;
+
+    // V2 Dispute Game Configuration
+    uint256 public faultGameV2MaxGameDepth;
+    uint256 public faultGameV2SplitDepth;
+    uint256 public faultGameV2ClockExtension;
+    uint256 public faultGameV2MaxClockDuration;
+
+    // ZK Dispute Game Configuration
+    uint256 public zkDisputeGameInitBond;
+    bytes32 public zkDisputeGameAbsolutePrestate;
+    address public zkDisputeGameVerifier;
+    uint256 public zkDisputeGameMaxChallengeDuration;
+    uint256 public zkDisputeGameMaxProveDuration;
+    uint256 public zkDisputeGameChallengerBond;
+
+    bool public useUpgradedFork;
+    bool public useInterop;
+    bytes32 public devFeatureBitmap;
+
+    function read(string memory _path) public {
+        // If no path provided, use hardcoded defaults only
+        if (bytes(_path).length == 0) {
+            console.log("DeployConfig: using hardcoded defaults (no config file)");
+            _initDefaults();
+            return;
+        }
+
+        // Try to read file, revert if not found
+        try vm.readFile(_path) returns (string memory data_) {
+            _json = data_;
+            console.log("DeployConfig: reading file %s", _path);
+        } catch {
+            revert UnableToReadConfigFile(_path);
+        }
+
+        // Read values from JSON, using _readOr with hardcoded defaults for optional fields
+        finalSystemOwner = stdJson.readAddress(_json, "$.finalSystemOwner");
+        superchainConfigGuardian = stdJson.readAddress(_json, "$.superchainConfigGuardian");
+        l1ChainID = stdJson.readUint(_json, "$.l1ChainID");
+        l2ChainID = stdJson.readUint(_json, "$.l2ChainID");
+
+        l2GenesisDeltaTimeOffset = _readOr(_json, "$.l2GenesisDeltaTimeOffset", NULL_OFFSET);
+        l2GenesisEcotoneTimeOffset = _readOr(_json, "$.l2GenesisEcotoneTimeOffset", NULL_OFFSET);
+        l2GenesisFjordTimeOffset = _readOr(_json, "$.l2GenesisFjordTimeOffset", NULL_OFFSET);
+        l2GenesisGraniteTimeOffset = _readOr(_json, "$.l2GenesisGraniteTimeOffset", NULL_OFFSET);
+        l2GenesisHoloceneTimeOffset = _readOr(_json, "$.l2GenesisHoloceneTimeOffset", NULL_OFFSET);
+        l2GenesisJovianTimeOffset = _readOr(_json, "$.l2GenesisJovianTimeOffset", NULL_OFFSET);
+        l2GenesisKarstTimeOffset = _readOr(_json, "$.l2GenesisKarstTimeOffset", NULL_OFFSET);
+
+        p2pSequencerAddress = stdJson.readAddress(_json, "$.p2pSequencerAddress");
+        batchInboxAddress = stdJson.readAddress(_json, "$.batchInboxAddress");
+        batchSenderAddress = stdJson.readAddress(_json, "$.batchSenderAddress");
+        _l2OutputOracleStartingTimestamp = stdJson.readInt(_json, "$.l2OutputOracleStartingTimestamp");
+        l2OutputOracleStartingBlockNumber = stdJson.readUint(_json, "$.l2OutputOracleStartingBlockNumber");
+        l2OutputOracleProposer = stdJson.readAddress(_json, "$.l2OutputOracleProposer");
+        l2OutputOracleChallenger = stdJson.readAddress(_json, "$.l2OutputOracleChallenger");
+        fundDevAccounts = _readOr(_json, "$.fundDevAccounts", false);
+        proxyAdminOwner = stdJson.readAddress(_json, "$.proxyAdminOwner");
+        baseFeeVaultRecipient = stdJson.readAddress(_json, "$.baseFeeVaultRecipient");
+        baseFeeVaultMinimumWithdrawalAmount = stdJson.readUint(_json, "$.baseFeeVaultMinimumWithdrawalAmount");
+        baseFeeVaultWithdrawalNetwork = stdJson.readUint(_json, "$.baseFeeVaultWithdrawalNetwork");
+        l1FeeVaultRecipient = stdJson.readAddress(_json, "$.l1FeeVaultRecipient");
+        l1FeeVaultMinimumWithdrawalAmount = stdJson.readUint(_json, "$.l1FeeVaultMinimumWithdrawalAmount");
+        l1FeeVaultWithdrawalNetwork = stdJson.readUint(_json, "$.l1FeeVaultWithdrawalNetwork");
+        sequencerFeeVaultRecipient = stdJson.readAddress(_json, "$.sequencerFeeVaultRecipient");
+        sequencerFeeVaultMinimumWithdrawalAmount = stdJson.readUint(_json, "$.sequencerFeeVaultMinimumWithdrawalAmount");
+        sequencerFeeVaultWithdrawalNetwork = stdJson.readUint(_json, "$.sequencerFeeVaultWithdrawalNetwork");
+        operatorFeeVaultRecipient = stdJson.readAddress(_json, "$.operatorFeeVaultRecipient");
+        operatorFeeVaultMinimumWithdrawalAmount = stdJson.readUint(_json, "$.operatorFeeVaultMinimumWithdrawalAmount");
+        operatorFeeVaultWithdrawalNetwork = stdJson.readUint(_json, "$.operatorFeeVaultWithdrawalNetwork");
+        governanceTokenOwner = stdJson.readAddress(_json, "$.governanceTokenOwner");
+        l2GenesisBlockGasLimit = stdJson.readUint(_json, "$.l2GenesisBlockGasLimit");
+        basefeeScalar = uint32(_readOr(_json, "$.gasPriceOracleBaseFeeScalar", uint256(1368)));
+        blobbasefeeScalar = uint32(_readOr(_json, "$.gasPriceOracleBlobBaseFeeScalar", uint256(810949)));
+        useCustomGasToken = _readOr(_json, "$.useCustomGasToken", false);
+        gasPayingTokenName = _json.readStringOr("$.gasPayingTokenName", "");
+        gasPayingTokenSymbol = _json.readStringOr("$.gasPayingTokenSymbol", "");
+        nativeAssetLiquidityAmount = _readOr(_json, "$.nativeAssetLiquidityAmount", uint256(0));
+        liquidityControllerOwner = _readOr(_json, "$.liquidityControllerOwner", finalSystemOwner);
+
+        enableGovernance = _readOr(_json, "$.enableGovernance", false);
+        systemConfigStartBlock = stdJson.readUint(_json, "$.systemConfigStartBlock");
+
+        proofMaturityDelaySeconds = _readOr(_json, "$.proofMaturityDelaySeconds", uint256(0));
+        disputeGameFinalityDelaySeconds = _readOr(_json, "$.disputeGameFinalityDelaySeconds", uint256(0));
+        respectedGameType = _readOr(_json, "$.respectedGameType", uint256(0));
+
+        faultGameAbsolutePrestate = stdJson.readUint(_json, "$.faultGameAbsolutePrestate");
+        faultGameMaxDepth = stdJson.readUint(_json, "$.faultGameMaxDepth");
+        faultGameSplitDepth = stdJson.readUint(_json, "$.faultGameSplitDepth");
+        faultGameClockExtension = stdJson.readUint(_json, "$.faultGameClockExtension");
+        faultGameMaxClockDuration = stdJson.readUint(_json, "$.faultGameMaxClockDuration");
+        faultGameGenesisBlock = stdJson.readUint(_json, "$.faultGameGenesisBlock");
+        faultGameGenesisOutputRoot = stdJson.readBytes32(_json, "$.faultGameGenesisOutputRoot");
+        faultGameWithdrawalDelay = stdJson.readUint(_json, "$.faultGameWithdrawalDelay");
+
+        preimageOracleMinProposalSize = stdJson.readUint(_json, "$.preimageOracleMinProposalSize");
+        preimageOracleChallengePeriod = stdJson.readUint(_json, "$.preimageOracleChallengePeriod");
+
+        useAltDA = _readOr(_json, "$.useAltDA", false);
+        daCommitmentType = _json.readStringOr("$.daCommitmentType", "KeccakCommitment");
+        daChallengeWindow = _readOr(_json, "$.daChallengeWindow", uint256(1000));
+        daResolveWindow = _readOr(_json, "$.daResolveWindow", uint256(1000));
+        daBondSize = _readOr(_json, "$.daBondSize", uint256(1000000000));
+        daResolverRefundPercentage = _readOr(_json, "$.daResolverRefundPercentage", uint256(0));
+
+        devFeatureBitmap = bytes32(_readOr(_json, "$.devFeatureBitmap", uint256(0)));
+        useInterop = _readOr(_json, "$.useInterop", false);
+        faultGameV2MaxGameDepth = _readOr(_json, "$.faultGameV2MaxGameDepth", uint256(73));
+        faultGameV2SplitDepth = _readOr(_json, "$.faultGameV2SplitDepth", uint256(30));
+        faultGameV2ClockExtension = _readOr(_json, "$.faultGameV2ClockExtension", uint256(10800));
+        faultGameV2MaxClockDuration = _readOr(_json, "$.faultGameV2MaxClockDuration", uint256(302400));
+
+        zkDisputeGameInitBond = _readOr(_json, "$.zkDisputeGameInitBond", uint256(1 ether));
+        zkDisputeGameAbsolutePrestate = bytes32(_readOr(_json, "$.zkDisputeGameAbsolutePrestate", uint256(0)));
+        zkDisputeGameVerifier = _readOr(_json, "$.zkDisputeGameVerifier", address(0));
+        zkDisputeGameMaxChallengeDuration = _readOr(_json, "$.zkDisputeGameMaxChallengeDuration", uint256(604800));
+        zkDisputeGameMaxProveDuration = _readOr(_json, "$.zkDisputeGameMaxProveDuration", uint256(259200));
+        zkDisputeGameChallengerBond = _readOr(_json, "$.zkDisputeGameChallengerBond", uint256(1 ether));
+    }
+
+    function fork() public view returns (Fork fork_) {
+        // let env var take precedence
+        fork_ = Config.fork();
+        if (fork_ == Fork.NONE) {
+            // Will revert if no deploy config can be found either.
+            fork_ = latestGenesisFork();
+            console.log("DeployConfig: using deploy config fork: %s", fork_.toString());
+        } else {
+            console.log("DeployConfig: using env var fork: %s", fork_.toString());
+        }
+    }
+
+    function l1StartingBlockTag() public returns (bytes32) {
+        try vm.parseJsonBytes32(_json, "$.l1StartingBlockTag") returns (bytes32 tag_) {
+            return tag_;
+        } catch {
+            try vm.parseJsonString(_json, "$.l1StartingBlockTag") returns (string memory tag_) {
+                return _getBlockByTag(tag_);
+            } catch {
+                try vm.parseJsonUint(_json, "$.l1StartingBlockTag") returns (uint256 tag_) {
+                    return _getBlockByTag(vm.toString(tag_));
+                } catch { }
+            }
+        }
+        revert(
+            "DeployConfig: l1StartingBlockTag must be a bytes32, string or uint256 or cannot fetch l1StartingBlockTag"
+        );
+    }
+
+    function l2OutputOracleStartingTimestamp() public returns (uint256) {
+        if (_l2OutputOracleStartingTimestamp < 0) {
+            bytes32 tag = l1StartingBlockTag();
+            string memory cmd = string.concat("cast block ", vm.toString(tag), " --json | jq .timestamp");
+            string memory res = Process.bash(cmd);
+            return stdJson.readUint(res, "");
+        }
+        return uint256(_l2OutputOracleStartingTimestamp);
+    }
+
+    /// @notice Allow the `useAltDA` config to be overridden in testing environments
+    function setUseAltDA(bool _useAltDA) public {
+        useAltDA = _useAltDA;
+    }
+
+    /// @notice Allow the `useInterop` config to be overridden in testing environments
+    function setUseInterop(bool _useInterop) public {
+        useInterop = _useInterop;
+    }
+
+    /// @notice Allow the `fundDevAccounts` config to be overridden.
+    function setFundDevAccounts(bool _fundDevAccounts) public {
+        fundDevAccounts = _fundDevAccounts;
+    }
+
+    /// @notice Allow the `devFeatureBitmap` config to be overridden in testing environments
+    function setDevFeatureBitmap(bytes32 _devFeatureBitmap) public {
+        devFeatureBitmap = _devFeatureBitmap;
+    }
+
+    /// @notice Allow the `useUpgradedFork` config to be overridden in testing environments
+    /// @dev When true, the forked system WILL be upgraded in setUp().
+    ///      When false, the forked system WILL NOT be upgraded in setUp().
+    ///      This function does nothing when not testing in a forked environment.
+    ///      Generally the only time you should call this function is if you want to
+    ///      call opcm.upgrade() in the test itself, rather than have the upgraded
+    ///      system be deployed in setUp().
+    function setUseUpgradedFork(bool _useUpgradedFork) public {
+        useUpgradedFork = _useUpgradedFork;
+    }
+
+    /// @notice Allow the `useCustomGasToken` config to be overridden in testing environments
+    function setUseCustomGasToken(bool _useCustomGasToken) public {
+        useCustomGasToken = _useCustomGasToken;
+    }
+
+    /// @notice Allow the `gasPayingTokenName` config to be overridden in testing environments
+    function setGasPayingTokenName(string memory _gasPayingTokenName) public {
+        gasPayingTokenName = _gasPayingTokenName;
+    }
+
+    /// @notice Allow the `gasPayingTokenSymbol` config to be overridden in testing environments
+    function setGasPayingTokenSymbol(string memory _gasPayingTokenSymbol) public {
+        gasPayingTokenSymbol = _gasPayingTokenSymbol;
+    }
+
+    /// @notice Allow the `nativeAssetLiquidityAmount` config to be overridden in testing environments
+    function setNativeAssetLiquidityAmount(uint256 _nativeAssetLiquidityAmount) public {
+        nativeAssetLiquidityAmount = _nativeAssetLiquidityAmount;
+    }
+
+    /// @notice Allow the `baseFeeVaultWithdrawalNetwork` config to be overridden in testing environments
+    function setBaseFeeVaultWithdrawalNetwork(uint256 _baseFeeVaultWithdrawalNetwork) public {
+        baseFeeVaultWithdrawalNetwork = _baseFeeVaultWithdrawalNetwork;
+    }
+
+    /// @notice Allow the `l1FeeVaultWithdrawalNetwork` config to be overridden in testing environments
+    function setL1FeeVaultWithdrawalNetwork(uint256 _l1FeeVaultWithdrawalNetwork) public {
+        l1FeeVaultWithdrawalNetwork = _l1FeeVaultWithdrawalNetwork;
+    }
+
+    /// @notice Allow the `sequencerFeeVaultWithdrawalNetwork` config to be overridden in testing environments
+    function setSequencerFeeVaultWithdrawalNetwork(uint256 _sequencerFeeVaultWithdrawalNetwork) public {
+        sequencerFeeVaultWithdrawalNetwork = _sequencerFeeVaultWithdrawalNetwork;
+    }
+
+    /// @notice Allow the `operatorFeeVaultWithdrawalNetwork` config to be overridden in testing environments
+    function setOperatorFeeVaultWithdrawalNetwork(uint256 _operatorFeeVaultWithdrawalNetwork) public {
+        operatorFeeVaultWithdrawalNetwork = _operatorFeeVaultWithdrawalNetwork;
+    }
+
+    /// @notice Initializes the config with hardcoded defaults. Used when no config file is provided
+    ///         or when the config file is not found. These values match what was previously in hardhat.json.
+    function _initDefaults() internal {
+        finalSystemOwner = 0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc;
+        superchainConfigGuardian = 0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc;
+        l1ChainID = 900;
+        l2ChainID = 901;
+        l2GenesisDeltaTimeOffset = 0;
+        l2GenesisEcotoneTimeOffset = 0;
+        l2GenesisFjordTimeOffset = 0;
+        l2GenesisGraniteTimeOffset = 0;
+        l2GenesisHoloceneTimeOffset = 0;
+        l2GenesisJovianTimeOffset = 0;
+        l2GenesisKarstTimeOffset = 0;
+        p2pSequencerAddress = 0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc;
+        batchInboxAddress = 0x00289C189bEE4E70334629f04Cd5eD602B6600eB;
+        batchSenderAddress = 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC;
+        _l2OutputOracleStartingTimestamp = 1;
+        l2OutputOracleStartingBlockNumber = 1;
+        l2OutputOracleProposer = 0x70997970C51812dc3A010C7d01b50e0d17dc79C8;
+        l2OutputOracleChallenger = 0x9BA6e03D8B90dE867373Db8cF1A58d2F7F006b3A;
+        fundDevAccounts = true;
+        proxyAdminOwner = 0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc;
+        baseFeeVaultRecipient = 0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc;
+        baseFeeVaultMinimumWithdrawalAmount = 10 ether;
+        baseFeeVaultWithdrawalNetwork = 0;
+        l1FeeVaultRecipient = 0x71bE63f3384f5fb98995898A86B02Fb2426c5788;
+        l1FeeVaultMinimumWithdrawalAmount = 10 ether;
+        l1FeeVaultWithdrawalNetwork = 0;
+        sequencerFeeVaultRecipient = 0xFABB0ac9d68B0B445fB7357272Ff202C5651694a;
+        sequencerFeeVaultMinimumWithdrawalAmount = 10 ether;
+        sequencerFeeVaultWithdrawalNetwork = 0;
+        operatorFeeVaultRecipient = 0x1CBd3b2770909D4e10f157cABC84C7264073C9Ec;
+        operatorFeeVaultMinimumWithdrawalAmount = 10 ether;
+        operatorFeeVaultWithdrawalNetwork = 0;
+        governanceTokenOwner = 0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc;
+        l2GenesisBlockGasLimit = 25_000_000;
+        basefeeScalar = 1368;
+        blobbasefeeScalar = 810949;
+        enableGovernance = true;
+        faultGameAbsolutePrestate = 0;
+        faultGameGenesisBlock = 0;
+        faultGameGenesisOutputRoot = 0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF;
+        faultGameMaxDepth = 73;
+        faultGameSplitDepth = 30;
+        faultGameClockExtension = 10800;
+        faultGameMaxClockDuration = 302400;
+        faultGameWithdrawalDelay = 302400;
+        preimageOracleMinProposalSize = 126000;
+        preimageOracleChallengePeriod = 86400;
+        systemConfigStartBlock = 0;
+        proofMaturityDelaySeconds = 604800;
+        disputeGameFinalityDelaySeconds = 302400;
+        respectedGameType = 0;
+        useAltDA = false;
+        daCommitmentType = "KeccakCommitment";
+        daChallengeWindow = 100;
+        daResolveWindow = 100;
+        daBondSize = 1000;
+        daResolverRefundPercentage = 50;
+        useCustomGasToken = false;
+        gasPayingTokenName = "";
+        gasPayingTokenSymbol = "";
+        nativeAssetLiquidityAmount = 0;
+        liquidityControllerOwner = 0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc;
+        faultGameV2MaxGameDepth = 73;
+        faultGameV2SplitDepth = 30;
+        faultGameV2ClockExtension = 10800;
+        faultGameV2MaxClockDuration = 302400;
+        zkDisputeGameInitBond = 1 ether;
+        zkDisputeGameMaxChallengeDuration = 604800;
+        zkDisputeGameMaxProveDuration = 259200;
+        zkDisputeGameChallengerBond = 1 ether;
+        useInterop = false;
+        useUpgradedFork = false;
+        devFeatureBitmap = bytes32(0);
+    }
+
+    function latestGenesisFork() internal view returns (Fork) {
+        if (l2GenesisKarstTimeOffset == 0) {
+            return Fork.KARST;
+        } else if (l2GenesisJovianTimeOffset == 0) {
+            return Fork.JOVIAN;
+        } else if (l2GenesisHoloceneTimeOffset == 0) {
+            return Fork.HOLOCENE;
+        } else if (l2GenesisGraniteTimeOffset == 0) {
+            return Fork.GRANITE;
+        } else if (l2GenesisFjordTimeOffset == 0) {
+            return Fork.FJORD;
+        } else if (l2GenesisEcotoneTimeOffset == 0) {
+            return Fork.ECOTONE;
+        } else if (l2GenesisDeltaTimeOffset == 0) {
+            return Fork.DELTA;
+        }
+        revert("DeployConfig: no supported fork active at genesis");
+    }
+
+    function _getBlockByTag(string memory _tag) internal returns (bytes32) {
+        string memory cmd = string.concat("cast block ", _tag, " --json | jq -r .hash");
+        bytes memory res = bytes(Process.bash(cmd));
+        return abi.decode(res, (bytes32));
+    }
+
+    function _readOr(string memory _jsonInp, string memory _key, bool _defaultValue) internal view returns (bool) {
+        return _jsonInp.readBoolOr(_key, _defaultValue);
+    }
+
+    function _readOr(
+        string memory _jsonInp,
+        string memory _key,
+        uint256 _defaultValue
+    )
+        internal
+        view
+        returns (uint256)
+    {
+        return (vm.keyExistsJson(_jsonInp, _key) && !_isNull(_json, _key)) ? _jsonInp.readUint(_key) : _defaultValue;
+    }
+
+    function _readOr(
+        string memory _jsonInp,
+        string memory _key,
+        address _defaultValue
+    )
+        internal
+        view
+        returns (address)
+    {
+        return _jsonInp.readAddressOr(_key, _defaultValue);
+    }
+
+    function _isNull(string memory _jsonInp, string memory _key) internal pure returns (bool) {
+        string memory value = _jsonInp.readString(_key);
+        return (keccak256(bytes(value)) == keccak256(bytes("null")));
+    }
+
+    function _readOr(
+        string memory _jsonInp,
+        string memory _key,
+        string memory _defaultValue
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        return _jsonInp.readStringOr(_key, _defaultValue);
+    }
+
+    function _readOr(string memory _jsonInp, string memory _key, int256 _defaultValue) internal view returns (int256) {
+        return (vm.keyExistsJson(_jsonInp, _key) && !_isNull(_json, _key)) ? _jsonInp.readInt(_key) : _defaultValue;
+    }
+
+    function _readOr(
+        string memory _jsonInp,
+        string memory _key,
+        bytes32 _defaultValue
+    )
+        internal
+        view
+        returns (bytes32)
+    {
+        return (vm.keyExistsJson(_jsonInp, _key) && !_isNull(_json, _key)) ? _jsonInp.readBytes32(_key) : _defaultValue;
+    }
+}

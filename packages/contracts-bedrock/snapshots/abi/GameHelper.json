@@ -1,0 +1,97 @@
+[
+  {
+    "stateMutability": "payable",
+    "type": "receive"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IDisputeGameFactory",
+        "name": "_dgf",
+        "type": "address"
+      },
+      {
+        "internalType": "GameType",
+        "name": "_gameType",
+        "type": "uint32"
+      },
+      {
+        "internalType": "Claim",
+        "name": "_rootClaim",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_extraData",
+        "type": "bytes"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "parentIdx",
+            "type": "uint256"
+          },
+          {
+            "internalType": "Claim",
+            "name": "claim",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bool",
+            "name": "attack",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct GameHelper.Move[]",
+        "name": "_moves",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "createGameWithClaims",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "gameAddr_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IFaultDisputeGame",
+        "name": "_game",
+        "type": "address"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "parentIdx",
+            "type": "uint256"
+          },
+          {
+            "internalType": "Claim",
+            "name": "claim",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bool",
+            "name": "attack",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct GameHelper.Move[]",
+        "name": "_moves",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "performMoves",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  }
+]

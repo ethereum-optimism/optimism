@@ -1,0 +1,37 @@
+[
+  {
+    "bytes": "8",
+    "label": "createdAt",
+    "offset": 0,
+    "slot": "0",
+    "type": "Timestamp"
+  },
+  {
+    "bytes": "8",
+    "label": "resolvedAt",
+    "offset": 8,
+    "slot": "0",
+    "type": "Timestamp"
+  },
+  {
+    "bytes": "1",
+    "label": "status",
+    "offset": 16,
+    "slot": "0",
+    "type": "enum GameStatus"
+  },
+  {
+    "bytes": "1",
+    "label": "wasRespectedGameTypeWhenCreated",
+    "offset": 17,
+    "slot": "0",
+    "type": "bool"
+  },
+  {
+    "bytes": "1",
+    "label": "initialized",
+    "offset": 18,
+    "slot": "0",
+    "type": "bool"
+  }
+]

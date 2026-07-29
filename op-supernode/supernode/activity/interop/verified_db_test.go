@@ -1,0 +1,492 @@
+package interop
+
+import (
+	"encoding/json"
+	"testing"
+
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/stretchr/testify/require"
+	bolt "go.etcd.io/bbolt"
+)
+
+func TestVerifiedDB_WriteAndRead(t *testing.T) {
+	// Create a temporary directory for the test database
+	dataDir := t.TempDir()
+
+	// Open the database
+	db, err := OpenVerifiedDB(dataDir)
+	require.NoError(t, err)
+	defer db.Close()
+
+	// Initially, there should be no last timestamp
+	lastTs, initialized := db.LastTimestamp()
+	require.False(t, initialized)
+	require.Equal(t, uint64(0), lastTs)
+	firstTs, initialized := db.FirstTimestamp()
+	require.False(t, initialized)
+	require.Equal(t, uint64(0), firstTs)
+
+	// Create test data
+	chainID1 := eth.ChainIDFromUInt64(10)
+	chainID2 := eth.ChainIDFromUInt64(8453)
+
+	result1 := VerifiedResult{
+		Timestamp: 1000,
+		L1Inclusion: eth.BlockID{
+			Hash:   common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111"),
+			Number: 100,
+		},
+		L2Heads: map[eth.ChainID]eth.BlockID{
+			chainID1: {
+				Hash:   common.HexToHash("0x2222222222222222222222222222222222222222222222222222222222222222"),
+				Number: 200,
+			},
+			chainID2: {
+				Hash:   common.HexToHash("0x3333333333333333333333333333333333333333333333333333333333333333"),
+				Number: 300,
+			},
+		},
+	}
+
+	// Write the first result
+	err = db.Commit(result1)
+	require.NoError(t, err)
+
+	// Verify the last timestamp was updated
+	lastTs, initialized = db.LastTimestamp()
+	require.True(t, initialized)
+	require.Equal(t, uint64(1000), lastTs)
+	firstTs, initialized = db.FirstTimestamp()
+	require.True(t, initialized)
+	require.Equal(t, uint64(1000), firstTs)
+
+	// Read it back
+	retrieved, err := db.Get(1000)
+	require.NoError(t, err)
+	require.Equal(t, result1.Timestamp, retrieved.Timestamp)
+	require.Equal(t, result1.L1Inclusion, retrieved.L1Inclusion)
+	require.Equal(t, len(result1.L2Heads), len(retrieved.L2Heads))
+	require.Equal(t, result1.L2Heads[chainID1], retrieved.L2Heads[chainID1])
+	require.Equal(t, result1.L2Heads[chainID2], retrieved.L2Heads[chainID2])
+
+	// Check Has returns true
+	has, err := db.Has(1000)
+	require.NoError(t, err)
+	require.True(t, has)
+
+	// Check Has returns false for non-existent timestamp
+	has, err = db.Has(999)
+	require.NoError(t, err)
+	require.False(t, has)
+
+	// Try to read non-existent timestamp
+	_, err = db.Get(999)
+	require.ErrorIs(t, err, ErrNotFound)
+}
+
+func TestVerifiedDB_SequentialCommits(t *testing.T) {
+	dataDir := t.TempDir()
+
+	db, err := OpenVerifiedDB(dataDir)
+	require.NoError(t, err)
+	defer db.Close()
+
+	chainID := eth.ChainIDFromUInt64(10)
+
+	// Commit first timestamp
+	err = db.Commit(VerifiedResult{
+		Timestamp:   100,
+		L1Inclusion: eth.BlockID{Hash: common.HexToHash("0x01"), Number: 1},
+		L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.HexToHash("0x02"), Number: 2}},
+	})
+	require.NoError(t, err)
+
+	// Commit next sequential timestamp should succeed
+	err = db.Commit(VerifiedResult{
+		Timestamp:   101,
+		L1Inclusion: eth.BlockID{Hash: common.HexToHash("0x03"), Number: 3},
+		L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.HexToHash("0x04"), Number: 4}},
+	})
+	require.NoError(t, err)
+
+	// Try to commit non-sequential timestamp (gap)
+	err = db.Commit(VerifiedResult{
+		Timestamp:   105,
+		L1Inclusion: eth.BlockID{Hash: common.HexToHash("0x05"), Number: 5},
+		L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.HexToHash("0x06"), Number: 6}},
+	})
+	require.ErrorIs(t, err, ErrNonSequential)
+
+	// Try to commit already committed timestamp
+	err = db.Commit(VerifiedResult{
+		Timestamp:   100,
+		L1Inclusion: eth.BlockID{Hash: common.HexToHash("0x07"), Number: 7},
+		L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.HexToHash("0x08"), Number: 8}},
+	})
+	require.ErrorIs(t, err, ErrAlreadyCommitted)
+
+	// Verify the database state is correct
+	lastTs, _ := db.LastTimestamp()
+	require.Equal(t, uint64(101), lastTs)
+}
+
+func TestVerifiedDB_Persistence(t *testing.T) {
+	dataDir := t.TempDir()
+	chainID := eth.ChainIDFromUInt64(42161)
+
+	// Open database and write some data
+	db, err := OpenVerifiedDB(dataDir)
+	require.NoError(t, err)
+
+	err = db.Commit(VerifiedResult{
+		Timestamp:   500,
+		L1Inclusion: eth.BlockID{Hash: common.HexToHash("0xaaaa"), Number: 50},
+		L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.HexToHash("0xbbbb"), Number: 100}},
+	})
+	require.NoError(t, err)
+
+	err = db.Commit(VerifiedResult{
+		Timestamp:   501,
+		L1Inclusion: eth.BlockID{Hash: common.HexToHash("0xcccc"), Number: 51},
+		L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.HexToHash("0xdddd"), Number: 101}},
+	})
+	require.NoError(t, err)
+
+	db.Close()
+
+	// Reopen database and verify data persisted
+	db2, err := OpenVerifiedDB(dataDir)
+	require.NoError(t, err)
+	defer db2.Close()
+
+	// Last timestamp should be restored
+	lastTs, initialized := db2.LastTimestamp()
+	require.True(t, initialized)
+	require.Equal(t, uint64(501), lastTs)
+	firstTs, initialized := db2.FirstTimestamp()
+	require.True(t, initialized)
+	require.Equal(t, uint64(500), firstTs)
+
+	// Data should be readable
+	result, err := db2.Get(500)
+	require.NoError(t, err)
+	require.Equal(t, uint64(500), result.Timestamp)
+	require.Equal(t, common.HexToHash("0xaaaa"), result.L1Inclusion.Hash)
+
+	result, err = db2.Get(501)
+	require.NoError(t, err)
+	require.Equal(t, uint64(501), result.Timestamp)
+
+	// Next commit should continue from last timestamp
+	err = db2.Commit(VerifiedResult{
+		Timestamp:   502,
+		L1Inclusion: eth.BlockID{Hash: common.HexToHash("0xeeee"), Number: 52},
+		L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.HexToHash("0xffff"), Number: 102}},
+	})
+	require.NoError(t, err)
+}
+
+func TestVerifiedDB_RewindTo(t *testing.T) {
+	t.Parallel()
+
+	t.Run("removes entries at and after timestamp", func(t *testing.T) {
+		t.Parallel()
+		dataDir := t.TempDir()
+
+		db, err := OpenVerifiedDB(dataDir)
+		require.NoError(t, err)
+		defer db.Close()
+
+		chainID := eth.ChainIDFromUInt64(10)
+
+		// Commit several timestamps
+		for ts := uint64(100); ts <= 105; ts++ {
+			err = db.Commit(VerifiedResult{
+				Timestamp:   ts,
+				L1Inclusion: eth.BlockID{Hash: common.BytesToHash([]byte{byte(ts)}), Number: ts},
+				L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.BytesToHash([]byte{byte(ts + 100)}), Number: ts}},
+			})
+			require.NoError(t, err)
+		}
+
+		// Verify all exist
+		lastTs, _ := db.LastTimestamp()
+		require.Equal(t, uint64(105), lastTs)
+
+		// Rewind to 103 (should remove 103, 104, 105)
+		deleted, err := db.Rewind(103)
+		require.NoError(t, err)
+		require.True(t, deleted)
+
+		// Verify 100, 101, 102 still exist
+		for ts := uint64(100); ts <= 102; ts++ {
+			has, err := db.Has(ts)
+			require.NoError(t, err)
+			require.True(t, has, "timestamp %d should still exist", ts)
+		}
+
+		// Verify 103, 104, 105 are gone
+		for ts := uint64(103); ts <= 105; ts++ {
+			has, err := db.Has(ts)
+			require.NoError(t, err)
+			require.False(t, has, "timestamp %d should be deleted", ts)
+		}
+
+		// Last timestamp should be updated to 102
+		lastTs, _ = db.LastTimestamp()
+		require.Equal(t, uint64(102), lastTs)
+		firstTs, ok := db.FirstTimestamp()
+		require.True(t, ok)
+		require.Equal(t, uint64(100), firstTs)
+	})
+
+	t.Run("returns false when no entries deleted", func(t *testing.T) {
+		t.Parallel()
+		dataDir := t.TempDir()
+
+		db, err := OpenVerifiedDB(dataDir)
+		require.NoError(t, err)
+		defer db.Close()
+
+		chainID := eth.ChainIDFromUInt64(10)
+
+		// Commit up to timestamp 100
+		for ts := uint64(98); ts <= 100; ts++ {
+			err = db.Commit(VerifiedResult{
+				Timestamp:   ts,
+				L1Inclusion: eth.BlockID{Hash: common.BytesToHash([]byte{byte(ts)}), Number: ts},
+				L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.BytesToHash([]byte{byte(ts + 100)}), Number: ts}},
+			})
+			require.NoError(t, err)
+		}
+
+		// Rewind to 200 (nothing to delete)
+		deleted, err := db.Rewind(200)
+		require.NoError(t, err)
+		require.False(t, deleted)
+
+		// All entries should still exist
+		lastTs, _ := db.LastTimestamp()
+		require.Equal(t, uint64(100), lastTs)
+	})
+
+	t.Run("rewind all entries", func(t *testing.T) {
+		t.Parallel()
+		dataDir := t.TempDir()
+
+		db, err := OpenVerifiedDB(dataDir)
+		require.NoError(t, err)
+		defer db.Close()
+
+		chainID := eth.ChainIDFromUInt64(10)
+
+		// Commit a few entries
+		for ts := uint64(100); ts <= 102; ts++ {
+			err = db.Commit(VerifiedResult{
+				Timestamp:   ts,
+				L1Inclusion: eth.BlockID{Hash: common.BytesToHash([]byte{byte(ts)}), Number: ts},
+				L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.BytesToHash([]byte{byte(ts + 100)}), Number: ts}},
+			})
+			require.NoError(t, err)
+		}
+
+		// Rewind to 0 (delete all)
+		deleted, err := db.Rewind(0)
+		require.NoError(t, err)
+		require.True(t, deleted)
+
+		// No entries should exist
+		for ts := uint64(100); ts <= 102; ts++ {
+			has, err := db.Has(ts)
+			require.NoError(t, err)
+			require.False(t, has)
+		}
+
+		// Last timestamp should be reset to uninitialized
+		_, initialized := db.LastTimestamp()
+		require.False(t, initialized)
+	})
+
+	t.Run("allows sequential commits after rewind", func(t *testing.T) {
+		t.Parallel()
+		dataDir := t.TempDir()
+
+		db, err := OpenVerifiedDB(dataDir)
+		require.NoError(t, err)
+		defer db.Close()
+
+		chainID := eth.ChainIDFromUInt64(10)
+
+		// Commit 100-105
+		for ts := uint64(100); ts <= 105; ts++ {
+			err = db.Commit(VerifiedResult{
+				Timestamp:   ts,
+				L1Inclusion: eth.BlockID{Hash: common.BytesToHash([]byte{byte(ts)}), Number: ts},
+				L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.BytesToHash([]byte{byte(ts + 100)}), Number: ts}},
+			})
+			require.NoError(t, err)
+		}
+
+		// Rewind to 103
+		_, err = db.Rewind(103)
+		require.NoError(t, err)
+
+		// Should be able to commit 103 again (sequential from 102)
+		err = db.Commit(VerifiedResult{
+			Timestamp:   103,
+			L1Inclusion: eth.BlockID{Hash: common.HexToHash("0xNEW"), Number: 103},
+			L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Hash: common.HexToHash("0xNEW2"), Number: 103}},
+		})
+		require.NoError(t, err)
+
+		// Verify new data
+		result, err := db.Get(103)
+		require.NoError(t, err)
+		require.Equal(t, common.HexToHash("0xNEW"), result.L1Inclusion.Hash)
+	})
+}
+
+func TestVerifiedDB_Commit_IdempotentReplay(t *testing.T) {
+	t.Parallel()
+
+	chainID := eth.ChainIDFromUInt64(10)
+	result := VerifiedResult{
+		Timestamp:   100,
+		L1Inclusion: eth.BlockID{Hash: common.HexToHash("0x01"), Number: 1},
+		L2Heads: map[eth.ChainID]eth.BlockID{
+			chainID: {Hash: common.HexToHash("0x02"), Number: 2},
+		},
+	}
+
+	t.Run("same struct replays cleanly", func(t *testing.T) {
+		t.Parallel()
+		db, err := OpenVerifiedDB(t.TempDir())
+		require.NoError(t, err)
+		defer db.Close()
+
+		require.NoError(t, db.Commit(result))
+		require.NoError(t, db.Commit(result))
+	})
+
+	t.Run("different struct at same timestamp is rejected", func(t *testing.T) {
+		t.Parallel()
+		db, err := OpenVerifiedDB(t.TempDir())
+		require.NoError(t, err)
+		defer db.Close()
+
+		require.NoError(t, db.Commit(result))
+
+		different := result
+		different.L1Inclusion.Number = 999
+		require.ErrorIs(t, db.Commit(different), ErrAlreadyCommitted)
+	})
+
+	t.Run("byte-divergent but struct-equal replays cleanly", func(t *testing.T) {
+		t.Parallel()
+		// Simulate the concern raised in review: after a crash, the stored JSON
+		// bytes may differ from a fresh Marshal of the same struct (e.g. Go
+		// version upgrade changed field layout). Commit must still recognise
+		// this as an idempotent replay, not ErrAlreadyCommitted.
+		db, err := OpenVerifiedDB(t.TempDir())
+		require.NoError(t, err)
+		defer db.Close()
+
+		require.NoError(t, db.Commit(result))
+
+		indented, err := json.MarshalIndent(result, "", "  ")
+		require.NoError(t, err)
+		canonical, err := json.Marshal(result)
+		require.NoError(t, err)
+		require.NotEqual(t, canonical, indented, "indented JSON should diverge from canonical bytes")
+
+		require.NoError(t, db.db.Update(func(tx *bolt.Tx) error {
+			return tx.Bucket(bucketName).Put(timestampToKey(result.Timestamp), indented)
+		}))
+
+		require.NoError(t, db.Commit(result))
+	})
+}
+
+func TestVerifiedDB_PendingTransition(t *testing.T) {
+	t.Parallel()
+
+	t.Run("set get clear round trip", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		vdb, err := OpenVerifiedDB(dir)
+		require.NoError(t, err)
+		defer vdb.Close()
+
+		// Initially empty
+		pending, err := vdb.GetPendingTransition()
+		require.NoError(t, err)
+		require.Nil(t, pending)
+
+		// Set pending
+		transition := PendingTransition{
+			Decision: DecisionInvalidate,
+			Result: &Result{
+				Timestamp:   42,
+				L1Inclusion: eth.BlockID{Hash: common.HexToHash("0x1111"), Number: 42},
+				InvalidHeads: map[eth.ChainID]InvalidHead{
+					eth.ChainIDFromUInt64(1): {
+						BlockID:                  eth.BlockID{Hash: common.HexToHash("0xaaaa"), Number: 100},
+						StateRoot:                eth.Bytes32(common.HexToHash("0xstate1")),
+						MessagePasserStorageRoot: eth.Bytes32(common.HexToHash("0xmsg1")),
+					},
+					eth.ChainIDFromUInt64(2): {
+						BlockID:                  eth.BlockID{Hash: common.HexToHash("0xbbbb"), Number: 200},
+						StateRoot:                eth.Bytes32(common.HexToHash("0xstate2")),
+						MessagePasserStorageRoot: eth.Bytes32(common.HexToHash("0xmsg2")),
+					},
+				},
+			},
+		}
+		require.NoError(t, vdb.SetPendingTransition(transition))
+
+		// Get pending
+		got, err := vdb.GetPendingTransition()
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		require.Equal(t, transition.Decision, got.Decision)
+		require.NotNil(t, got.Result)
+		require.Equal(t, transition.Result.Timestamp, got.Result.Timestamp)
+		require.Equal(t, transition.Result.InvalidHeads, got.Result.InvalidHeads)
+
+		// Clear
+		require.NoError(t, vdb.ClearPendingTransition())
+		got, err = vdb.GetPendingTransition()
+		require.NoError(t, err)
+		require.Nil(t, got)
+	})
+
+	t.Run("survives close and reopen", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+
+		// Write pending and close
+		vdb, err := OpenVerifiedDB(dir)
+		require.NoError(t, err)
+		transition := PendingTransition{
+			Decision: DecisionRewind,
+			Rewind: &RewindPlan{
+				RewindAtOrAfter: 99,
+			},
+		}
+		require.NoError(t, vdb.SetPendingTransition(transition))
+		require.NoError(t, vdb.Close())
+
+		// Reopen and verify
+		vdb2, err := OpenVerifiedDB(dir)
+		require.NoError(t, err)
+		defer vdb2.Close()
+
+		got, err := vdb2.GetPendingTransition()
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		require.Equal(t, transition.Decision, got.Decision)
+		require.NotNil(t, got.Rewind)
+		require.Equal(t, transition.Rewind.RewindAtOrAfter, got.Rewind.RewindAtOrAfter)
+	})
+}

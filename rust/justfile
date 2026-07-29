@@ -1,0 +1,742 @@
+set positional-arguments
+
+NIGHTLY := `grep -oE 'nightly-[0-9]{4}-[0-9]{2}-[0-9]{2}' ../mise.toml | head -1`
+
+# The SP1 guest programs live in a nested Cargo workspace (separate for SP1
+# crypto patch isolation), so fmt/clippy/tests must target its manifest explicitly.
+# Run from this directory so it shares rust/rustfmt.toml and rust/clippy.toml.
+SP1_GUEST_MANIFEST := "kona/sp1/programs/Cargo.toml"
+
+# Aliases
+alias t := test
+alias l := lint
+alias f := fmt-fix
+alias fmt := fmt-fix
+alias b := build
+
+# default recipe to display help information
+default:
+  @just --list
+
+############################### Toolchain ############################
+
+# Install the pinned nightly toolchain
+install-nightly:
+  rustup toolchain install {{NIGHTLY}} --component rustfmt --component rust-src
+
+############################### Build ###############################
+
+# Build the workspace
+build *args='':
+  cargo build --workspace {{args}}
+
+# Build the workspace, excluding example crates, with a fast compile-only profile by default
+build-no-examples *args='':
+  #!/usr/bin/env bash
+  set -euo pipefail
+
+  profile_args="--profile fast-build"
+  case " {{args}} " in
+    *" --release "*|*" --profile "*|*" --profile="*)
+      profile_args=""
+      ;;
+  esac
+
+  exclude_args=""
+  while IFS= read -r package; do
+    exclude_args="$exclude_args --exclude $package"
+  done < <(
+    cargo metadata --no-deps --format-version 1 \
+      | jq -r '.packages[] | select(.manifest_path | contains("/examples/")) | .name'
+  )
+
+  cargo build --workspace $profile_args $exclude_args {{args}}
+
+# Build the workspace in release mode
+build-release *args='':
+  cargo build --workspace --release {{args}}
+
+# Build the kona-sp1 crates under the host toolchain.
+build-sp1:
+  cargo build -p kona-sp1-host-utils -p kona-sp1-client-utils \
+    -p kona-sp1-ethereum-host-utils -p kona-sp1-ethereum-client-utils \
+    -p kona-sp1-elfs
+
+# Build kona-node
+build-kona-node:
+  cargo build --release --bin kona-node
+
+# Build kona-node in debug mode (faster compilation for local E2E test iteration)
+build-kona-node-debug:
+  cargo build --bin kona-node
+
+alias build-node := build-kona-node
+
+# Build op-reth
+build-op-reth:
+  cargo build --release --bin op-reth
+
+# Build op-reth in debug mode (faster compilation for local E2E test iteration)
+build-op-reth-debug:
+  cargo build --bin op-reth
+
+############################### Test ################################
+
+# Run all outer-workspace tests. SP1 guests require generated vkeys and are tested by CI after
+# their ELFs are built.
+test: test-unit test-docs
+
+# Run unit tests (excluding online tests)
+test-unit *args="-E '!test(test_online)'":
+  cargo nextest run --workspace --all-features {{args}}
+
+# Run online tests only
+test-online:
+  cargo nextest run --workspace --all-features -E 'test(test_online)'
+
+# Run doc tests
+test-docs:
+  cargo test --doc --workspace --locked --all-features
+
+# Run tests in the nested SP1 guest program workspace
+test-sp1-guest:
+  cargo test --manifest-path {{SP1_GUEST_MANIFEST}} --workspace --locked
+
+############################### Lint ################################
+
+# Run all lints for the outer workspace. SP1 guests require generated vkeys and are linted by CI
+# after their ELFs are built.
+lint: fmt-check lint-clippy lint-docs
+
+# Check formatting (requires nightly)
+fmt-check:
+  cargo +{{NIGHTLY}} fmt --all -- --check
+
+# Check formatting across both the main and SP1 guest workspaces. Shared by the
+# pre-push git hook and the rust-fmt CI job so the two can't drift.
+fmt-check-all: fmt-check fmt-check-sp1-guest
+
+# Fix formatting (requires nightly); also formats the SP1 guest workspace
+fmt-fix: fmt-fix-sp1-guest
+  cargo +{{NIGHTLY}} fmt --all
+
+# Run clippy
+lint-clippy:
+  cargo clippy --workspace --all-features --all-targets -- -D warnings
+
+# Lint-config + self-embed + lock + precompile-patch checks, fmt-check, and clippy for the SP1
+# guest program workspace. CI runs this after building the guest ELFs.
+lint-sp1-guest: check-no-self-embed check-sp1-guest-lints check-sp1-guest-lock check-sp1-guest-precompile-patches fmt-check-sp1-guest lint-clippy-sp1-guest
+
+# Verify the nested guest workspace uses the root workspace's lint configuration.
+[script('bash')]
+check-sp1-guest-lints:
+  set -euo pipefail
+  begin='# BEGIN SHARED WORKSPACE LINTS'
+  end='# END SHARED WORKSPACE LINTS'
+  root=Cargo.toml
+  guest={{SP1_GUEST_MANIFEST}}
+
+  for manifest in "$root" "$guest"; do
+    [[ $(grep -Fxc "$begin" "$manifest") == 1 ]] || {
+      echo "error: expected one '$begin' marker in rust/$manifest" >&2
+      exit 1
+    }
+    [[ $(grep -Fxc "$end" "$manifest") == 1 ]] || {
+      echo "error: expected one '$end' marker in rust/$manifest" >&2
+      exit 1
+    }
+    begin_line=$(grep -Fnx "$begin" "$manifest" | cut -d: -f1)
+    end_line=$(grep -Fnx "$end" "$manifest" | cut -d: -f1)
+    [[ "$begin_line" -lt "$end_line" ]] || {
+      echo "error: '$begin' must precede '$end' in rust/$manifest" >&2
+      exit 1
+    }
+  done
+
+  if ! diff -u \
+    --label rust/Cargo.toml \
+    --label rust/{{SP1_GUEST_MANIFEST}} \
+    <(sed -n "/^$begin$/,/^$end$/p" "$root") \
+    <(sed -n "/^$begin$/,/^$end$/p" "$guest"); then
+    echo "error: SP1 guest workspace lints differ from rust/Cargo.toml" >&2
+    echo "       Fix: run \`just fmt-fix\` from rust/." >&2
+    exit 1
+  fi
+
+[private]
+_sync-sp1-guest-lints:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  begin='# BEGIN SHARED WORKSPACE LINTS'
+  end='# END SHARED WORKSPACE LINTS'
+  root=Cargo.toml
+  guest={{SP1_GUEST_MANIFEST}}
+
+  for manifest in "$root" "$guest"; do
+    [[ $(grep -Fxc "$begin" "$manifest") == 1 ]] || {
+      echo "error: expected one '$begin' marker in rust/$manifest" >&2
+      exit 1
+    }
+    [[ $(grep -Fxc "$end" "$manifest") == 1 ]] || {
+      echo "error: expected one '$end' marker in rust/$manifest" >&2
+      exit 1
+    }
+    begin_line=$(grep -Fnx "$begin" "$manifest" | cut -d: -f1)
+    end_line=$(grep -Fnx "$end" "$manifest" | cut -d: -f1)
+    [[ "$begin_line" -lt "$end_line" ]] || {
+      echo "error: '$begin' must precede '$end' in rust/$manifest" >&2
+      exit 1
+    }
+  done
+
+  tmp=$(mktemp "${guest}.tmp.XXXXXX")
+  trap 'rm -f "$tmp"' EXIT
+  cp -p "$guest" "$tmp"
+
+  sed "/^$begin$/q" "$guest" | sed '$d' > "$tmp"
+  sed -n "/^$begin$/,/^$end$/p" "$root" >> "$tmp"
+  sed -n "/^$end$/,\$p" "$guest" | sed '1d' >> "$tmp"
+
+  if ! cmp -s "$tmp" "$guest"; then
+    mv "$tmp" "$guest"
+  fi
+
+check-no-self-embed:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  cd kona/sp1
+  # A leaf guest must not depend on the range-vkey crate: it would embed its own vkey
+  # (RANGE_VKEY = f(range ELF)), closing a build cycle. Only aggregation guests may depend on it.
+  # Direct-dep check only; no shared guest crate depends on range-vkeys today.
+  for f in programs/range/Cargo.toml programs/super-range/Cargo.toml; do
+    test -f "$f"
+    if grep -q kona-sp1-range-vkeys "$f"; then
+      echo "error: $f must not depend on kona-sp1-range-vkeys (build cycle)" >&2
+      exit 1
+    fi
+  done
+# Runs before the `--locked` clippy so a kona-only dependency change produces a
+# clear fix hint instead of cargo's cryptic "cannot update the lock file because
+# --locked was passed" error.
+# Verify the SP1 guest Cargo.lock is in sync with its manifests and path-deps
+[script('bash')]
+check-sp1-guest-lock:
+  if ! cargo metadata --manifest-path {{SP1_GUEST_MANIFEST}} --format-version 1 --locked >/dev/null 2>&1; then
+    echo "error: SP1 guest Cargo.lock (rust/kona/sp1/programs/Cargo.lock) is out of date." >&2
+    echo "       A rust/ kona crate's dependencies likely changed; the guest workspace" >&2
+    echo "       path-depends on those crates, so its separate lockfile needs refreshing." >&2
+    echo "       Fix: run \`just lock-sp1-guest\` from rust/ and commit the updated lockfile." >&2
+    exit 1
+  fi
+
+# Cargo only warns when a [patch.crates-io] entry is unused. Assert that every
+# crypto crate used by each guest program resolves exclusively to its SP1 fork.
+[script('bash')]
+check-sp1-guest-precompile-patches:
+  set -euo pipefail
+
+  common_patches=(
+    "sha2 RustCrypto-hashes"
+    "sha3 RustCrypto-hashes"
+    "crypto-bigint RustCrypto-bigint"
+    "k256 elliptic-curves"
+    "p256 elliptic-curves"
+  )
+
+  verify_program_patches() {
+    local program="$1"
+    shift
+
+    local dependency_tree
+    dependency_tree=$(cargo tree \
+      --manifest-path {{SP1_GUEST_MANIFEST}} \
+      --locked \
+      --package "$program" \
+      --edges normal \
+      --prefix none \
+      --format '{p}')
+
+    local patch package repository expected_source dependency found
+    for patch in "$@"; do
+      read -r package repository <<< "$patch"
+      expected_source="https://github.com/sp1-patches/${repository}?"
+      found=false
+
+      while IFS= read -r dependency; do
+        [[ "$dependency" == "$package v"* ]] || continue
+        found=true
+
+        if [[ "$dependency" != *"$expected_source"* ]]; then
+          echo "error: $program resolves an unpatched $package dependency:" >&2
+          echo "       $dependency" >&2
+          echo "       Expected every $package dependency to resolve from $expected_source" >&2
+          exit 1
+        fi
+      done <<< "$dependency_tree"
+
+      if [[ "$found" != true ]]; then
+        echo "error: $program does not resolve the expected $package dependency." >&2
+        exit 1
+      fi
+    done
+  }
+
+  # The range guests execute the L2 EVM, so they must also use the patched
+  # substrate-bn backend selected by revm's `bn` feature.
+  verify_program_patches kona-sp1-range "${common_patches[@]}" "substrate-bn bn"
+  verify_program_patches kona-sp1-super-range "${common_patches[@]}" "substrate-bn bn"
+
+  # Aggregation guests verify proofs but do not execute L2 EVM precompiles.
+  verify_program_patches kona-sp1-aggregation "${common_patches[@]}"
+  verify_program_patches kona-sp1-super-aggregation "${common_patches[@]}"
+
+# Resolves without --locked (minimal change), so it only touches entries that
+# actually moved rather than bumping unrelated guest deps.
+# Refresh the SP1 guest Cargo.lock after changing kona crates it depends on
+lock-sp1-guest:
+  cargo metadata --manifest-path {{SP1_GUEST_MANIFEST}} --format-version 1 >/dev/null
+
+fmt-check-sp1-guest: check-sp1-guest-lints
+  cargo +{{NIGHTLY}} fmt --manifest-path {{SP1_GUEST_MANIFEST}} --all -- --check
+
+fmt-fix-sp1-guest: _sync-sp1-guest-lints
+  cargo +{{NIGHTLY}} fmt --manifest-path {{SP1_GUEST_MANIFEST}} --all
+
+lint-clippy-sp1-guest:
+  cargo clippy --manifest-path {{SP1_GUEST_MANIFEST}} --workspace --all-features --all-targets --locked -- -D warnings
+
+# fmt-check + clippy + test the standalone range-vkeys crate (in neither workspace, so nothing
+# else covers it). Requires elf/vkeys.toml and is invoked only after the guest ELFs are built.
+check-range-vkeys:
+  cargo +{{NIGHTLY}} fmt --manifest-path kona/sp1/crates/range-vkeys/Cargo.toml --all -- --check
+  cargo clippy --manifest-path kona/sp1/crates/range-vkeys/Cargo.toml --all-targets --locked -- -D warnings
+  cargo test --manifest-path kona/sp1/crates/range-vkeys/Cargo.toml --locked
+
+# Lint Rust documentation
+lint-docs:
+  RUSTDOCFLAGS="--cfg docsrs -D warnings --show-type-layout --generate-link-to-definition -Zunstable-options" \
+    cargo +{{NIGHTLY}} doc --workspace --all-features --no-deps --document-private-items
+
+############################ Review #################################
+
+# Run the rust-code-reviewer agent over the current branch's Rust diff in an interactive session (latest opus, max effort). The agent reviews, asks which findings to apply, then applies them. Base auto-detects from upstream / origin/HEAD; override with `base=...`.
+[script('bash')]
+rust-review base='':
+  set -euo pipefail
+  command -v claude >/dev/null 2>&1 || { echo "claude CLI not found on PATH; install it before running rust-review." >&2; exit 1; }
+  base="{{base}}"
+  if [[ -z "$base" ]]; then
+    # Prefer origin/HEAD (the repo's default branch) so a pushed feature
+    # branch that tracks itself on origin doesn't end up diffing against
+    # HEAD. Fall back to @{upstream}, then origin/develop.
+    base=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null \
+           || git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null \
+           || echo origin/develop)
+  fi
+  head_ref=$(git rev-parse --abbrev-ref HEAD)
+  merge_base=$(git merge-base "$base" HEAD)
+  if git diff --quiet "$merge_base"..HEAD -- ':/rust/**'; then
+    echo "No Rust changes on $head_ref relative to $base; nothing to review."
+    exit 0
+  fi
+  prompt=$(cat <<EOF
+  Review the Rust changes on the current branch.
+
+  Branch: $head_ref
+  Base:   $base (merge-base $merge_base)
+
+  Inspect the diff with:
+    git diff $merge_base..HEAD -- ':/rust/**'
+
+  Follow your standard review process from .claude/agents/rust-code-reviewer.md,
+  including running the project's lint recipe (mise exec -- just l) from the
+  appropriate Rust workspace root before reading the diff. Report findings
+  scoped to the diff only.
+
+  After presenting the findings, use the AskUserQuestion tool to ask which
+  findings (if any) to apply, then apply only the selected ones.
+  EOF
+  )
+  eta=$(date -v +10M '+%H:%M' 2>/dev/null || date -d '+10 min' '+%H:%M')
+  echo "Reviewer starting with ETA before $eta.."
+  echo
+  start=$(date +%s)
+  trap 'rc=$?; end=$(date +%s); printf "\nReviewer ran for %dm %02ds (exit %d)\n" $(( (end - start) / 60 )) $(( (end - start) % 60 )) "$rc"' EXIT
+  claude \
+    --agent rust-code-reviewer \
+    --model opus \
+    --effort max \
+    "$prompt"
+  echo
+  echo "Please help us make our reviewer better by contributing to .claude/agents/rust-code-reviewer.md"
+
+############################ no_std #################################
+
+# Check no_std compatibility for proof, protocol, alloy, and op-alloy crates
+check-no-std:
+  #!/usr/bin/env bash
+  set -euo pipefail
+
+  no_std_packages=(
+    # proof crates
+    kona-executor
+    kona-mpt
+    kona-preimage
+    kona-proof
+    kona-proof-interop
+
+    # protocol crates
+    kona-genesis
+    kona-hardforks
+    kona-registry
+    kona-protocol
+    kona-derive
+    kona-driver
+    kona-interop
+
+    # utilities
+    kona-serde
+
+    # alloy
+    alloy-op-evm
+    alloy-op-hardforks
+
+    # op-alloy
+    op-alloy
+    op-alloy-consensus
+    op-alloy-rpc-types
+    op-alloy-rpc-types-engine
+  )
+
+  # We need to install the riscv32imac-unknown-none-elf target before starting to build the no-std crates.
+  rustup target add riscv32imac-unknown-none-elf
+
+  for package in "${no_std_packages[@]}"; do
+    echo "Checking no_std build for: $package"
+    cargo build -p "$package" --target riscv32imac-unknown-none-elf --no-default-features
+    echo "Successfully checked no_std build for: $package"
+  done
+
+########################### Benchmarks ##############################
+
+# Run benchmarks (compile only)
+bench:
+  cargo bench --no-run --workspace --features test-utils --exclude example-gossip --exclude example-discovery
+
+########################## Misc tools ###############################
+
+# Audit dependencies for licenses, advisories, and bans
+deny:
+  cargo deny --all-features check all
+
+# Check for unused dependencies (requires nightly + cargo-udeps)
+check-udeps:
+  cargo +{{NIGHTLY}} udeps --release --workspace --all-features --all-targets
+
+# Run cargo hack for feature powerset checking
+# shuffle: "true" to shuffle package order before partitioning (spreads heavy/light crates more evenly)
+# seed: deterministic seed for shuffle (all partition nodes must use the same seed)
+hack partition="" shuffle="false" seed="default":
+  #!/usr/bin/env bash
+  set -euo pipefail
+  if [ "{{partition}}" != "" ]; then
+    echo "Running cargo hack with partition {{partition}}"
+  else
+    echo "Running cargo hack without partition"
+  fi
+
+  PKG_FLAGS=""
+  if [ "{{shuffle}}" = "true" ]; then
+    PKGS=$(cargo metadata --no-deps --format-version 1 \
+      | jq -r '.packages[].name' \
+      | shuf --random-source=<(openssl enc -aes-256-ctr -pass "pass:{{seed}}" -nosalt </dev/zero 2>/dev/null))
+    PKG_FLAGS=$(echo "$PKGS" | sed 's/^/-p /' | tr '\n' ' ')
+    echo "Shuffled package order (seed={{seed}}): $PKGS"
+  fi
+
+  cargo hack check --each-feature --no-dev-deps $PKG_FLAGS {{ if partition != "" { "--partition " + partition } else { "" } }}
+
+########################### Release #################################
+
+# Release crates at the given version.
+# target: either "workspace" (releases every subdir under rust/ except op-reth,
+#         in dependency order) or one of the subdir names (op-alloy,
+#         alloy-op-hardforks, alloy-op-evm, op-revm, kona).
+# mode: "dry" (default, prints changes without applying) or "execute"
+# Extra args are forwarded to `cargo release`.
+# kona is split into two topologically-ordered batches to stay under the
+# crates.io "existing crates" rate limit of 30.
+# Example: just release workspace 1.0.0
+# Example: just release kona 1.0.0 execute
+# Example: just release op-alloy 1.0.0 execute --no-confirm
+release TARGET VERSION MODE="dry" *ARGS="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    if ! command -v cargo-release >/dev/null 2>&1; then
+      echo "cargo-release not found, installing..."
+      cargo install cargo-release
+    fi
+
+    case "{{MODE}}" in
+      dry)     EXTRA="" ;;
+      execute) EXTRA="--execute" ;;
+      *) echo "error: mode must be 'dry' or 'execute', got '{{MODE}}'" >&2; exit 1 ;;
+    esac
+
+    METADATA=$(cargo metadata --format-version=1 --no-deps)
+
+    # Hardcoded split for kona: 32 crates exceeds crates.io's "existing crates"
+    # rate limit of 30, so we publish in two topologically-ordered batches.
+    # When adding a new crate under rust/kona/, append it to whichever batch
+    # leaves both <= 30 (preserving topo order: deps before dependents).
+    KONA_BATCH_1="kona-genesis kona-macros kona-mpt kona-preimage kona-serde kona-sources kona-registry kona-std-fpvm kona-cli kona-peers kona-protocol kona-std-fpvm-proc kona-disc kona-engine kona-executor kona-hardforks"
+    KONA_BATCH_2="kona-interop example-discovery kona-gossip execution-fixture kona-derive kona-rpc kona-driver kona-providers-alloy kona-providers-local kona-proof kona-node-service kona-proof-interop example-gossip kona-node kona-client kona-host"
+
+    ACTUAL_KONA=$(echo "$METADATA" | jq -r '.packages[] | select((.manifest_path | contains("/rust/kona/")) and (.manifest_path | contains("/rust/kona/sp1/") | not)) | .name' | sort -u)
+    EXPECTED_KONA=$(echo "$KONA_BATCH_1 $KONA_BATCH_2" | tr ' ' '\n' | sort -u)
+    if [[ "$ACTUAL_KONA" != "$EXPECTED_KONA" ]]; then
+      echo "error: hardcoded kona batches don't match actual kona crates." >&2
+      echo "  diff (actual vs expected):" >&2
+      diff <(echo "$ACTUAL_KONA") <(echo "$EXPECTED_KONA") >&2 || true
+      echo "  Update KONA_BATCH_1/KONA_BATCH_2 in rust/justfile." >&2
+      exit 1
+    fi
+
+    # Release order is dependency-driven: foundational crates first, kona last.
+    ALL_SUBDIRS="op-alloy alloy-op-hardforks alloy-op-evm op-revm kona"
+
+    EXPECTED_SUBDIRS=$(echo "$ALL_SUBDIRS" | tr ' ' '\n' | sort -u)
+    ACTUAL_SUBDIRS=$(echo "$METADATA" \
+      | jq -r '.packages[].manifest_path' \
+      | sed -nE 's|.*/rust/([^/]+)/.*|\1|p' \
+      | grep -vx 'op-reth' \
+      | sort -u)
+    if [[ "$EXPECTED_SUBDIRS" != "$ACTUAL_SUBDIRS" ]]; then
+      echo "error: hardcoded ALL_SUBDIRS list doesn't match actual subdirs under rust/." >&2
+      echo "  diff (expected vs actual):" >&2
+      diff <(echo "$EXPECTED_SUBDIRS") <(echo "$ACTUAL_SUBDIRS") >&2 || true
+      echo "  Update ALL_SUBDIRS in rust/justfile." >&2
+      exit 1
+    fi
+
+    case "{{TARGET}}" in
+      workspace) SUBDIRS="$ALL_SUBDIRS" ;;
+      *)
+        if ! echo " $ALL_SUBDIRS " | grep -q " {{TARGET}} "; then
+          echo "error: unknown target '{{TARGET}}'. Must be 'workspace' or one of: $ALL_SUBDIRS" >&2
+          exit 1
+        fi
+        SUBDIRS="{{TARGET}}"
+        ;;
+    esac
+
+    run_release() {
+      local label="$1"; shift
+      local pkgs
+      pkgs=$(printf -- '-p %s ' "$@")
+      echo "=== $label → version {{VERSION}} (mode: {{MODE}}) ==="
+      printf '%s\n' "$@"
+      echo
+      cargo release {{VERSION}} $pkgs $EXTRA {{ARGS}}
+    }
+
+    for subdir in $SUBDIRS; do
+      if [[ "$subdir" == "kona" ]]; then
+        run_release "rust/kona/ batch 1/2" $KONA_BATCH_1
+        run_release "rust/kona/ batch 2/2" $KONA_BATCH_2
+      else
+        PKGS_LIST=$(echo "$METADATA" \
+          | jq -r --arg dir "/rust/$subdir/" \
+              '.packages[] | select(.manifest_path | contains($dir)) | .name' \
+          | sort -u)
+        [[ -z "$PKGS_LIST" ]] && continue
+        run_release "rust/$subdir/" $PKGS_LIST
+      fi
+    done
+
+######################### Documentation ################################
+
+DOCS_DIR := justfile_directory() / "docs"
+
+# Start the documentation development server
+docs-dev:
+    cd "{{DOCS_DIR}}" && just docs-dev
+
+# Build the documentation for production
+docs-build:
+    cd "{{DOCS_DIR}}" && just docs-build
+
+# Preview the built documentation
+docs-preview:
+    cd "{{DOCS_DIR}}" && just docs-preview
+
+######################### Kona Prestates ##############################
+
+KONA_DIR := justfile_directory() / "kona"
+MIPS64_TARGET_SPEC := justfile_directory() / "kona/docker/cannon/mips64-unknown-none.json"
+
+# Build kona-client for the MIPS64 cannon target
+build-kona-client-elf VARIANT:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    # Ensure nightly toolchain with rust-src is installed
+    just install-nightly
+
+    # Cross-compilation environment
+    export CC_mips64_unknown_none=mips64-linux-gnuabi64-gcc
+    export CXX_mips64_unknown_none=mips64-linux-gnuabi64-g++
+    export CARGO_TARGET_MIPS64_UNKNOWN_NONE_LINKER=mips64-linux-gnuabi64-gcc
+    export RUSTFLAGS="-Clink-arg=-e_start -Cllvm-args=-mno-check-zero-division"
+    export CARGO_BUILD_TARGET="{{MIPS64_TARGET_SPEC}}"
+    export RUSTUP_TOOLCHAIN="{{NIGHTLY}}"
+
+    # Custom configs support
+    if [[ -n "${KONA_CUSTOM_CONFIGS_DIR:-}" ]]; then
+      export KONA_CUSTOM_CONFIGS=true
+    fi
+
+    echo "Building kona-client ELF (variant: {{VARIANT}})..."
+    cargo build \
+      -Zbuild-std=core,alloc \
+      -Zjson-target-spec \
+      -p kona-client \
+      --bin {{VARIANT}} \
+      --locked \
+      --profile release-client-lto
+
+# Lint kona-std-fpvm for the MIPS64 cannon target
+lint-kona-cannon:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    just install-nightly
+
+    export CC_mips64_unknown_none=mips64-linux-gnuabi64-gcc
+    export CXX_mips64_unknown_none=mips64-linux-gnuabi64-g++
+    export CARGO_TARGET_MIPS64_UNKNOWN_NONE_LINKER=mips64-linux-gnuabi64-gcc
+    export RUSTFLAGS="-Clink-arg=-e_start -Cllvm-args=-mno-check-zero-division"
+    export CARGO_BUILD_TARGET="{{MIPS64_TARGET_SPEC}}"
+    export RUSTUP_TOOLCHAIN="{{NIGHTLY}}"
+
+    cargo clippy -p kona-std-fpvm --all-features -Zbuild-std=core,alloc -Zjson-target-spec -- -D warnings
+
+# Build all kona prestates (runs natively — use build-kona-reproducible-prestate for Docker)
+build-kona-prestates: build-kona-cannon-prestate build-kona-interop-prestate
+
+build-kona-cannon-prestate:
+    @just build-kona-prestate kona-client prestate-artifacts-cannon
+
+build-kona-interop-prestate:
+    @just build-kona-prestate kona-client-int prestate-artifacts-cannon-interop
+
+# Build a single kona prestate variant
+build-kona-prestate VARIANT OUTPUT_DIR:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    OUTPUT="{{KONA_DIR}}/{{OUTPUT_DIR}}"
+    mkdir -p "$OUTPUT"
+
+    echo "=== Building cannon ==="
+    # cannon/justfile imports ../justfiles/go.just which imports git.just.
+    # These relative imports resolve from cannon/'s directory, so we cd there
+    # and call just directly — NOT via rust/justfile delegation.
+    cd "{{justfile_directory()}}/../cannon"
+    just cannon
+    CANNON_BIN="$(pwd)/bin/cannon"
+
+    echo "=== Building kona-client ELF (variant: {{VARIANT}}) ==="
+    cd "{{justfile_directory()}}"
+    just build-kona-client-elf {{VARIANT}}
+
+    # Locate the built ELF
+    ELF="{{justfile_directory()}}/target/mips64-unknown-none/release-client-lto/{{VARIANT}}"
+
+    echo "=== Generating prestate ==="
+    "$CANNON_BIN" load-elf \
+      --path="$ELF" \
+      --out="$OUTPUT/prestate.bin.gz" \
+      --meta="$OUTPUT/meta.json" \
+      --type multithreaded64-5
+
+    "$CANNON_BIN" run \
+      --proof-at "=0" \
+      --stop-at "=1" \
+      --input "$OUTPUT/prestate.bin.gz" \
+      --meta "$OUTPUT/meta.json" \
+      --proof-fmt "$OUTPUT/%d.json" \
+      --output ""
+
+    mv "$OUTPUT/0.json" "$OUTPUT/prestate-proof.json"
+
+    # Copy with hash-based name for challenger lookup
+    HASH=$(jq -r .pre "$OUTPUT/prestate-proof.json")
+    cp "$OUTPUT/prestate.bin.gz" "$OUTPUT/${HASH}.bin.gz"
+    echo "Prestate for {{VARIANT}}: ${HASH}"
+
+# Build a single reproducible kona prestate variant via Docker.
+# Cannon is built from source as a stage within the Dockerfile.
+# Build context is the monorepo root.
+# Set KONA_CUSTOM_CONFIGS_DIR to bake custom chain configs into the prestate.
+build-kona-reproducible-prestate-variant VARIANT OUTPUT_DIR:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    MONOREPO_ROOT="{{justfile_directory()}}/.."
+    OUTPUT="{{KONA_DIR}}/{{OUTPUT_DIR}}"
+
+    # The Dockerfile always copies from the `kona-custom-configs` named build
+    # context, so point it at an empty temp dir when no configs are requested.
+    if [[ -n "${KONA_CUSTOM_CONFIGS_DIR:-}" ]]; then
+      if [[ ! -d "${KONA_CUSTOM_CONFIGS_DIR}" ]]; then
+        echo "KONA_CUSTOM_CONFIGS_DIR=${KONA_CUSTOM_CONFIGS_DIR} is not a directory" >&2
+        exit 1
+      fi
+      CUSTOM_CONFIGS_CONTEXT="${KONA_CUSTOM_CONFIGS_DIR}"
+      CUSTOM_CONFIGS_FLAG=true
+    else
+      CUSTOM_CONFIGS_CONTEXT=$(mktemp -d)
+      trap 'rm -rf "${CUSTOM_CONFIGS_CONTEXT}"' EXIT
+      CUSTOM_CONFIGS_FLAG=false
+    fi
+
+    docker build \
+      --platform linux/amd64 \
+      --build-arg VARIANT={{VARIANT}} \
+      --build-arg KONA_CUSTOM_CONFIGS="${CUSTOM_CONFIGS_FLAG}" \
+      --build-context kona-custom-configs="${CUSTOM_CONFIGS_CONTEXT}" \
+      --output "$OUTPUT" \
+      --progress plain \
+      -f "{{KONA_DIR}}/docker/fpvm-prestates/cannon-repro.dockerfile" \
+      "$MONOREPO_ROOT"
+
+    # Add hash-named copy for challenger lookup
+    HASH=$(jq -r .pre "$OUTPUT/prestate-proof.json")
+    cp "$OUTPUT/prestate.bin.gz" "$OUTPUT/${HASH}.bin.gz"
+    echo "Prestate for {{VARIANT}}: ${HASH}"
+
+# Build all reproducible kona prestates via Docker
+build-kona-reproducible-prestate:
+    @just build-kona-reproducible-prestate-variant kona-client prestate-artifacts-cannon
+    @just build-kona-reproducible-prestate-variant kona-client-int prestate-artifacts-cannon-interop
+
+output-kona-prestate-hash:
+    @echo "-------------------- Kona Prestates --------------------"
+    @echo ""
+    @echo "Cannon Absolute prestate hash:"
+    @jq -r .pre {{KONA_DIR}}/prestate-artifacts-cannon/prestate-proof.json
+    @echo ""
+    @echo "Cannon Interop Absolute prestate hash:"
+    @jq -r .pre {{KONA_DIR}}/prestate-artifacts-cannon-interop/prestate-proof.json
+    @echo ""
+
+reproducible-kona-prestate: build-kona-reproducible-prestate output-kona-prestate-hash
+
+clean-kona-prestates:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  rm -rf "{{KONA_DIR}}/build"
+  rm -rf "{{KONA_DIR}}/prestate-artifacts-cannon" "{{KONA_DIR}}/prestate-artifacts-cannon-interop"

@@ -1,0 +1,48 @@
+DOCKER_JUSTFILE := source_directory()
+
+_docker_arch:
+  #!/bin/bash
+  if [[ -z "$PLATFORMS" ]]; then
+    echo $(docker system info --format '{{"{{"}}.OSType{{"}}"}}/{{"{{"}}.Architecture{{"}}"}}')
+  else
+    echo "$PLATFORMS"
+  fi
+
+# Builds an application image from the local repository.
+build-local bin_name image_tag='kona:local' load_flag='':
+  #!/bin/bash
+  export BIN_TARGET="{{bin_name}}"
+  export DEFAULT_TAG="{{image_tag}}"
+  export PLATFORMS="$(just _docker_arch)"
+  export REPO_LOCATION="local"
+
+  LOAD_FLAG=""
+  if [[ "{{load_flag}}" == "load" ]]; then
+    LOAD_FLAG="--load"
+  fi
+
+  (cd {{DOCKER_JUSTFILE}}/../../../ && docker buildx bake \
+    --progress plain \
+    -f kona/docker/docker-bake.hcl \
+    $LOAD_FLAG \
+    generic)
+
+# Builds an application image from a remote revision.
+build-remote bin_name git_tag='' image_tag='kona:local':
+  #!/bin/bash
+  export BIN_TARGET="{{bin_name}}"
+  export DEFAULT_TAG="{{image_tag}}"
+  export PLATFORMS="$(just _docker_arch)"
+  export REPO_LOCATION="remote"
+
+  # If no git tag is provided, use `main`
+  if [[ -z "{{git_tag}}" ]]; then
+    export GIT_REF_NAME="main"
+  else
+    export GIT_REF_NAME="{{git_tag}}"
+  fi
+
+  (cd {{DOCKER_JUSTFILE}}/../../../ && docker buildx bake \
+    --progress plain \
+    -f kona/docker/docker-bake.hcl \
+    generic)

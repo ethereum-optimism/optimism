@@ -1,0 +1,1075 @@
+package sysgo
+
+import (
+	"context"
+	"encoding/hex"
+	"fmt"
+	"sort"
+	"strconv"
+	"time"
+
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
+	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
+	nutsstate "github.com/ethereum-optimism/optimism/op-core/nuts/state"
+	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
+	faucetConfig "github.com/ethereum-optimism/optimism/op-faucet/config"
+	"github.com/ethereum-optimism/optimism/op-faucet/faucet"
+	fconf "github.com/ethereum-optimism/optimism/op-faucet/faucet/backend/config"
+	ftypes "github.com/ethereum-optimism/optimism/op-faucet/faucet/backend/types"
+	opnodeconfig "github.com/ethereum-optimism/optimism/op-node/config"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/endpoint"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/oppprof"
+	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
+	snconfig "github.com/ethereum-optimism/optimism/op-supernode/config"
+	sequencerConfig "github.com/ethereum-optimism/optimism/op-test-sequencer/config"
+	testmetrics "github.com/ethereum-optimism/optimism/op-test-sequencer/metrics"
+	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer"
+	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work"
+	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/builders/fakepos"
+	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/builders/standardbuilder"
+	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/committers/noopcommitter"
+	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/committers/standardcommitter"
+	workconfig "github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/config"
+	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/publishers/nooppublisher"
+	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/publishers/standardpublisher"
+	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/sequencers/fullseq"
+	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/signers/localkey"
+	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/signers/noopsigner"
+	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
+)
+
+func NewTwoL2SupernodeRuntime(t devtest.T) *MultiChainRuntime {
+	runtime, _ := newTwoL2SupernodeRuntime(t, false, 0)
+	return runtime
+}
+
+func NewTwoL2SupernodeInteropRuntime(t devtest.T, delaySeconds uint64) *MultiChainRuntime {
+	return NewTwoL2SupernodeInteropRuntimeWithConfig(t, delaySeconds, PresetConfig{})
+}
+
+func NewTwoL2SupernodeInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, cfg PresetConfig) *MultiChainRuntime {
+	base, activationTime := newTwoL2SupernodeRuntimeWithConfig(t, true, delaySeconds, cfg)
+	chainA := base.Chains["l2a"]
+	chainB := base.Chains["l2b"]
+	t.Require().NotNil(chainA, "missing l2a supernode chain")
+	t.Require().NotNil(chainB, "missing l2b supernode chain")
+	attachTestSequencerToRuntime(t, base, "test-sequencer-2l2")
+
+	t.Logger().Info("configured supernode interop runtime",
+		"genesis_time", chainA.Network.rollupCfg.Genesis.L2Time,
+		"activation_time", activationTime,
+		"delay_seconds", delaySeconds,
+	)
+
+	base.DelaySeconds = delaySeconds
+	return base
+}
+
+func NewTwoL2SupernodeLightSequencerInteropRuntimeWithConfig(t devtest.T, delaySeconds uint64, cfg PresetConfig) *MultiChainRuntime {
+	base, activationTime := newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t, true, delaySeconds, cfg, false)
+	chainA := base.Chains["l2a"]
+	chainB := base.Chains["l2b"]
+	t.Require().NotNil(chainA, "missing l2a supernode chain")
+	t.Require().NotNil(chainB, "missing l2b supernode chain")
+	attachTestSequencerToRuntime(t, base, "test-sequencer-2l2-light-cl")
+
+	t.Logger().Info("configured supernode interop runtime with light CL sequencers",
+		"genesis_time", chainA.Network.rollupCfg.Genesis.L2Time,
+		"activation_time", activationTime,
+		"delay_seconds", delaySeconds,
+	)
+
+	base.DelaySeconds = delaySeconds
+	return base
+}
+
+func NewTwoL2SupernodeFollowL2RuntimeWithConfig(t devtest.T, delaySeconds uint64, cfg PresetConfig) *MultiChainRuntime {
+	runtime := NewTwoL2SupernodeInteropRuntimeWithConfig(t, delaySeconds, cfg)
+	addMultiChainFollowL2Node(t, runtime, "l2a", "follower")
+	addMultiChainFollowL2Node(t, runtime, "l2b", "follower")
+	return runtime
+}
+
+func newTwoL2SupernodeRuntime(t devtest.T, enableInterop bool, delaySeconds uint64) (*MultiChainRuntime, uint64) {
+	return newTwoL2SupernodeRuntimeWithConfig(t, enableInterop, delaySeconds, PresetConfig{})
+}
+
+func NewTwoL2SupernodeRuntimeWithConfig(t devtest.T, cfg PresetConfig) *MultiChainRuntime {
+	runtime, _ := newTwoL2SupernodeRuntimeWithConfig(t, false, 0, cfg)
+	return runtime
+}
+
+// startSupernodeEL starts an L2 EL node for the supernode runtime,
+// respecting DEVSTACK_L2EL_KIND (defaults to op-reth when unset).
+func startSupernodeEL(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [32]byte) L2ELNode {
+	return startL2ELForKey(t, l2Net, jwtPath, jwtSecret, "sequencer", NewELNodeIdentity(0))
+}
+
+// startSupernodeELWithInteropURL starts an L2 EL node with --rollup.interop-http
+// pointing at the given URL. Used by supernode interop presets to connect ELs
+// to the interop filter for tx pool validation.
+func startSupernodeELWithInteropURL(
+	t devtest.T,
+	l2Net *L2Network,
+	key string,
+	jwtPath string,
+	jwtSecret [32]byte,
+	interopURL string,
+) L2ELNode {
+	switch devstackL2ELKind() {
+	case MixedL2ELOpGeth:
+		cfg := DefaultL2ELConfig()
+		l2EL := &OpGeth{
+			name:          key,
+			p:             t,
+			logger:        t.Logger().New("component", "l2el-"+key),
+			l2Net:         l2Net,
+			jwtPath:       jwtPath,
+			jwtSecret:     jwtSecret,
+			supervisorRPC: interopURL,
+			cfg:           cfg,
+		}
+		l2EL.Start()
+		t.Cleanup(l2EL.Stop)
+		return l2EL
+	default: // op-reth
+		return startMixedOpRethNodeWithInteropURL(
+			t, l2Net, key, jwtPath, jwtSecret, nil, interopURL, "v1")
+	}
+}
+
+func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool, cfg PresetConfig) *MultiChainRuntime {
+	require := t.Require()
+
+	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
+	require.NoError(err, "failed to derive dev keys from mnemonic")
+
+	migration, l1Net, l2Net, depSet, _ := buildSingleChainWorldWithInteropAndState(t, keys, lagoonAtGenesis, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
+	validateSimpleInteropPresetConfig(t, cfg, l2Net)
+
+	jwtPath, jwtSecret := writeJWTSecret(t)
+	l1Clock := clock.SystemClock
+	var timeTravelClock *clock.AdvancingClock
+	if cfg.EnableTimeTravel {
+		timeTravelClock = clock.NewAdvancingClock()
+		l1Clock = timeTravelClock
+	}
+	l1EL, l1CL := startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
+	l2EL := startSupernodeEL(t, l2Net, jwtPath, jwtSecret)
+
+	var depSetStatic *depset.StaticConfigDependencySet
+	if depSet != nil {
+		cast, ok := depSet.(*depset.StaticConfigDependencySet)
+		require.True(ok, "expected static dependency set")
+		depSetStatic = cast
+	}
+
+	if cfg.MessageExpiryWindow != nil && depSetStatic != nil {
+		var overrideErr error
+		depSetStatic, overrideErr = depset.NewStaticConfigDependencySetWithMessageExpiryOverride(
+			depSetStatic.Dependencies(), *cfg.MessageExpiryWindow)
+		require.NoError(overrideErr, "failed to override message expiry window")
+	}
+
+	var interopActivationTimestamp *uint64
+	if lagoonAtGenesis {
+		ts := l2Net.rollupCfg.Genesis.L2Time
+		interopActivationTimestamp = &ts
+	}
+	supernode, l2CL := startSingleChainSharedSupernode(t, l1Net, l1EL, l1CL, l2Net, l2EL, depSetStatic, jwtSecret, interopActivationTimestamp, true, nodeSync.CLSync)
+	l2Batcher := startMinimalBatcher(t, keys, l2Net, l1EL, l2CL, l2EL, cfg.BatcherOptions...)
+	faucetService := startFaucets(t, keys, l1Net.ChainID(), l2Net.ChainID(), l1EL.UserRPC(), l2EL.UserRPC())
+
+	// Use the potentially-overridden depSetStatic if available.
+	var runtimeDepSet depset.DependencySet
+	if depSetStatic != nil {
+		runtimeDepSet = depSetStatic
+	} else {
+		runtimeDepSet = depSet
+	}
+
+	return &MultiChainRuntime{
+		Keys:          keys,
+		Migration:     migration,
+		DependencySet: runtimeDepSet,
+		L1Network:     l1Net,
+		L1EL:          l1EL,
+		L1CL:          l1CL,
+		Chains: map[string]*MultiChainNodeRuntime{
+			"l2a": {
+				Name:    "l2a",
+				Network: l2Net,
+				EL:      l2EL,
+				CL:      l2CL,
+				Batcher: l2Batcher,
+			},
+		},
+		Supernode:     supernode,
+		FaucetService: faucetService,
+		TimeTravel:    timeTravelClock,
+	}
+}
+
+func newTwoL2SupernodeRuntimeWithConfig(t devtest.T, enableInterop bool, delaySeconds uint64, cfg PresetConfig) (*MultiChainRuntime, uint64) {
+	return newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t, enableInterop, delaySeconds, cfg, true)
+}
+
+func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInterop bool, delaySeconds uint64, cfg PresetConfig, supernodeSequencerEnabled bool) (*MultiChainRuntime, uint64) {
+	require := t.Require()
+
+	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
+	require.NoError(err, "failed to derive dev keys from mnemonic")
+
+	wb, l1Net, l2ANet, l2BNet := buildTwoL2RuntimeWorld(t, keys, enableInterop, delaySeconds, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
+	migration := newInteropMigrationState(wb)
+	jwtPath, jwtSecret := writeJWTSecret(t)
+	l1Clock := clock.SystemClock
+	var timeTravelClock *clock.AdvancingClock
+	if cfg.EnableTimeTravel {
+		timeTravelClock = clock.NewAdvancingClock()
+		l1Clock = timeTravelClock
+	}
+	l1EL, l1CL := startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
+	if cfg.PreGenesisSuperGame != nil {
+		preparePreGenesisSuperGame(t, keys, wb, l1Net, l1EL, migration, cfg.PreGenesisSuperGame, l2ANet, l2BNet)
+	}
+
+	var l2AEL, l2BEL L2ELNode
+	var interopFilter *InteropFilter
+
+	if cfg.UseInteropFilter {
+		// Proxy pattern: allocate stable address before ELs start
+		filterProxy := tcpproxy.New(t.Logger().New("proxy", "interop-filter"))
+		require.NoError(filterProxy.Start())
+		t.Cleanup(func() { filterProxy.Close() })
+		filterRPC := "http://" + filterProxy.Addr()
+
+		// Start ELs with filter proxy URL
+		l2AEL = startSupernodeELWithInteropURL(t, l2ANet, "sequencer", jwtPath, jwtSecret, filterRPC)
+		l2BEL = startSupernodeELWithInteropURL(t, l2BNet, "sequencer", jwtPath, jwtSecret, filterRPC)
+
+		// Build rollup config map from L2 networks (Go structs, no file I/O)
+		rollupConfigs := map[eth.ChainID]*rollup.Config{
+			eth.ChainIDFromBig(l2ANet.RollupConfig().L2ChainID): l2ANet.RollupConfig(),
+			eth.ChainIDFromBig(l2BNet.RollupConfig().L2ChainID): l2BNet.RollupConfig(),
+		}
+
+		// Create and start interop filter in-process
+		interopFilter = startInteropFilter(t, "interop-filter",
+			[]string{l2AEL.UserRPC(), l2BEL.UserRPC()},
+			rollupConfigs)
+
+		// Connect proxy to the filter's actual RPC endpoint
+		filterProxy.SetUpstream(ProxyAddr(require, interopFilter.HTTPEndpoint()))
+	} else {
+		// No interop filter — ELs start without an interop filter URL (existing behavior)
+		l2AEL = startSupernodeEL(t, l2ANet, jwtPath, jwtSecret)
+		l2BEL = startSupernodeEL(t, l2BNet, jwtPath, jwtSecret)
+	}
+
+	var activationTime uint64
+	var interopActivationTimestamp *uint64
+	if enableInterop {
+		activationTime = l2ANet.rollupCfg.Genesis.L2Time + delaySeconds
+		interopActivationTimestamp = &activationTime
+	}
+
+	var depSet *depset.StaticConfigDependencySet
+	if wb.outFullCfgSet.DependencySet != nil {
+		cast, ok := wb.outFullCfgSet.DependencySet.(*depset.StaticConfigDependencySet)
+		require.True(ok, "expected static dependency set")
+		depSet = cast
+	}
+
+	if cfg.MessageExpiryWindow != nil && depSet != nil {
+		var err error
+		depSet, err = depset.NewStaticConfigDependencySetWithMessageExpiryOverride(
+			depSet.Dependencies(), *cfg.MessageExpiryWindow)
+		require.NoError(err, "failed to override message expiry window")
+	}
+
+	var runtimeDepSet depset.DependencySet
+	if depSet != nil {
+		runtimeDepSet = depSet
+	} else {
+		runtimeDepSet = wb.outFullCfgSet.DependencySet
+	}
+
+	supernode, supernodeL2ACL, supernodeL2BCL := startTwoL2SharedSupernode(
+		t,
+		l1Net,
+		l1EL,
+		l1CL,
+		l2ANet,
+		l2AEL,
+		l2BNet,
+		l2BEL,
+		depSet,
+		interopActivationTimestamp,
+		cfg.InteropLogBackfillDepth,
+		jwtSecret,
+		supernodeSequencerEnabled || cfg.SupernodeVNSequencerForBootstrap,
+	)
+
+	var l2ACL L2CLNode = supernodeL2ACL
+	var l2BCL L2CLNode = supernodeL2BCL
+	// supernode VN ELs (always distinct identity from any follow-mode sequencer EL).
+	supernodeL2AEL, supernodeL2BEL := l2AEL, l2BEL
+	// sequencer ELs default to the supernode ELs in virtual-sequencer mode;
+	// in light-sequencer mode each follow-mode sequencer gets its own EL.
+	seqL2AEL, seqL2BEL := l2AEL, l2BEL
+	if !supernodeSequencerEnabled {
+		// Production-faithful topology: each follow-mode sequencer runs its own
+		// EL, distinct from the supernode VN's EL, joined only by L1 and P2P.
+		seqL2AEL = startSequencerEL(t, l2ANet, jwtPath, jwtSecret, NewELNodeIdentity(0))
+		seqL2BEL = startSequencerEL(t, l2BNet, jwtPath, jwtSecret, NewELNodeIdentity(0))
+
+		// Light sequencers follow the supernode's safe head (production:
+		// kind=sequencer, lightNode=true, deps on op-supernode). They sequence
+		// unsafe blocks but disable L1 derivation, importing safe/finalized state
+		// from the supernode route and reorging onto its invalid-message
+		// replacements.
+		//
+		// When the supernode VN bootstraps + sequences, the light sequencers start
+		// stopped; a test hands off sequencing to them once they leave willStartEL.
+		lightSeqStopped := cfg.SupernodeVNSequencerForBootstrap
+		l2ACL = startL2CLNode(t, keys, l1Net, l2ANet, l1EL, l1CL, seqL2AEL, jwtSecret, l2CLNodeStartConfig{
+			Key:              "sequencer",
+			IsSequencer:      true,
+			NoDiscovery:      true,
+			EnableReqResp:    true,
+			DependencySet:    runtimeDepSet,
+			L2FollowSource:   supernodeL2ACL.UserRPC(),
+			L2CLOptions:      cfg.GlobalL2CLOptions,
+			SequencerStopped: lightSeqStopped,
+			// Follow-mode sequencers reorg onto the supernode's invalid-message
+			// replacement via EL sync.
+			SyncMode: nodeSync.ELSync,
+		})
+		l2BCL = startL2CLNode(t, keys, l1Net, l2BNet, l1EL, l1CL, seqL2BEL, jwtSecret, l2CLNodeStartConfig{
+			Key:              "sequencer",
+			IsSequencer:      true,
+			NoDiscovery:      true,
+			EnableReqResp:    true,
+			DependencySet:    runtimeDepSet,
+			L2FollowSource:   supernodeL2BCL.UserRPC(),
+			L2CLOptions:      cfg.GlobalL2CLOptions,
+			SequencerStopped: lightSeqStopped,
+			SyncMode:         nodeSync.ELSync,
+		})
+		// CL gossip: unsafe blocks (incl. the supernode's deposits-only
+		// replacement) propagate between the sequencer CLs and the VN CLs.
+		connectL2CLPeers(t, t.Logger(), l2ACL, supernodeL2ACL)
+		connectL2CLPeers(t, t.Logger(), l2BCL, supernodeL2BCL)
+		// EL P2P: block bodies sync between each sequencer EL and its paired
+		// supernode EL (required for the ELSync follow path).
+		connectL2ELPeers(t, t.Logger(), supernodeL2AEL.UserRPC(), seqL2AEL.UserRPC())
+		connectL2ELPeers(t, t.Logger(), supernodeL2BEL.UserRPC(), seqL2BEL.UserRPC())
+	}
+
+	// Batchers follow the active sequencer's CL + EL so the L1-derived safe chain stays
+	// contiguous (interop verification depends on the safe head advancing). In a VN-sequencer
+	// bootstrap the light CL is stopped + EL-syncing, so batch from the VN: it produces during
+	// bootstrap and tracks the light sequencers via gossip after handoff, keeping a gap-free
+	// batch stream across the switch.
+	batchACL, batchAEL := l2ACL, seqL2AEL
+	batchBCL, batchBEL := l2BCL, seqL2BEL
+	if cfg.SupernodeVNSequencerForBootstrap {
+		batchACL, batchAEL = supernodeL2ACL, supernodeL2AEL
+		batchBCL, batchBEL = supernodeL2BCL, supernodeL2BEL
+	}
+	l2ABatcher := startMinimalBatcher(t, keys, l2ANet, l1EL, batchACL, batchAEL, cfg.BatcherOptions...)
+	l2AProposer := startMinimalProposer(t, keys, l2ANet, l1EL, supernodeL2ACL)
+	l2BBatcher := startMinimalBatcher(t, keys, l2BNet, l1EL, batchBCL, batchBEL, cfg.BatcherOptions...)
+	l2BProposer := startMinimalProposer(t, keys, l2BNet, l1EL, supernodeL2BCL)
+
+	faucetService := startFaucetsForRPCs(t, keys, map[eth.ChainID]string{
+		l1Net.ChainID():  l1EL.UserRPC(),
+		l2ANet.ChainID(): seqL2AEL.UserRPC(),
+		l2BNet.ChainID(): seqL2BEL.UserRPC(),
+	})
+
+	// Wait for interop filter readiness now that the supernode and batchers are running.
+	// The filter needs blocks to be produced before its chain ingesters can backfill.
+	if interopFilter != nil {
+		interopFilter.WaitForReady(t, 120*time.Second)
+	}
+
+	return &MultiChainRuntime{
+		Keys:          keys,
+		Migration:     migration,
+		DependencySet: runtimeDepSet,
+		L1Network:     l1Net,
+		L1EL:          l1EL,
+		L1CL:          l1CL,
+		Chains: map[string]*MultiChainNodeRuntime{
+			"l2a": {
+				Name:        "l2a",
+				Network:     l2ANet,
+				EL:          seqL2AEL,
+				CL:          l2ACL,
+				SupernodeCL: supernodeL2ACL,
+				SupernodeEL: supernodeL2AEL,
+				Batcher:     l2ABatcher,
+				Proposer:    l2AProposer,
+			},
+			"l2b": {
+				Name:        "l2b",
+				Network:     l2BNet,
+				EL:          seqL2BEL,
+				CL:          l2BCL,
+				SupernodeCL: supernodeL2BCL,
+				SupernodeEL: supernodeL2BEL,
+				Batcher:     l2BBatcher,
+				Proposer:    l2BProposer,
+			},
+		},
+		Supernode:     supernode,
+		FaucetService: faucetService,
+		TimeTravel:    timeTravelClock,
+		InteropFilter: interopFilter,
+	}, activationTime
+}
+
+func buildTwoL2RuntimeWorld(t devtest.T, keys devkeys.Keys, enableInterop bool, delaySeconds uint64, localContractArtifactsPath string, deployerOpts ...DeployerOption) (*worldBuilder, *L1Network, *L2Network, *L2Network) {
+	wb := &worldBuilder{
+		p:       t,
+		logger:  t.Logger(),
+		require: t.Require(),
+		keys:    keys,
+		builder: intentbuilder.New(),
+	}
+
+	applyConfigLocalContractSources(t, keys, wb.builder, localContractArtifactsPath)
+	applyConfigCommons(t, keys, DefaultL1ID, wb.builder)
+	applyConfigPrefundedL2(t, keys, DefaultL1ID, DefaultL2AID, wb.builder)
+	applyConfigPrefundedL2(t, keys, DefaultL1ID, DefaultL2BID, wb.builder)
+	if enableInterop {
+		deployerOpts = append([]DeployerOption{
+			WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag),
+		}, deployerOpts...)
+		for _, l2Cfg := range wb.builder.L2s() {
+			if delaySeconds > 0 {
+				// Set all forks up to but not including Interop at genesis,
+				// then set Interop at offset so the L2 chain starts in a
+				// pre-interop state. This matches the supernode's
+				// InteropActivationTimestamp and allows testing the fork transition.
+				l2Cfg.WithForkAtGenesis(opforks.Karst)
+				l2Cfg.WithForkAtOffset(opforks.Lagoon, &delaySeconds)
+			} else {
+				l2Cfg.WithForkAtGenesis(opforks.Lagoon)
+			}
+		}
+		if delaySeconds > 0 {
+			// The chain starts pre-Lagoon (at Karst) and activates Lagoon at
+			// runtime via its frozen NUT bundle.
+			preForkAllocs, err := nutsstate.PreForkState(opforks.Lagoon)
+			t.Require().NoError(err, "need frozen pre-Lagoon predeploy state")
+			wb.preForkPredeployAllocs = preForkAllocs
+		}
+	}
+	applyConfigDeployerOptions(t, keys, wb.builder, deployerOpts)
+	wb.Build()
+
+	t.Require().Len(wb.l2Chains, 2, "expected exactly two L2 chains in TwoL2 world")
+	l1ID := eth.ChainIDFromUInt64(wb.output.AppliedIntent.L1ChainID)
+
+	l1Net := &L1Network{
+		name:      "l1",
+		chainID:   l1ID,
+		genesis:   wb.outL1Genesis,
+		blockTime: 6,
+	}
+
+	l2ANet := l2NetworkFromWorldBuilder(t, wb, l1ID, DefaultL2AID, keys)
+	l2BNet := l2NetworkFromWorldBuilder(t, wb, l1ID, DefaultL2BID, keys)
+
+	return wb, l1Net, l2ANet, l2BNet
+}
+
+func l2NetworkFromWorldBuilder(t devtest.T, wb *worldBuilder, l1ChainID, l2ChainID eth.ChainID, keys devkeys.Keys) *L2Network {
+	require := t.Require()
+
+	l2Genesis, ok := wb.outL2Genesis[l2ChainID]
+	require.Truef(ok, "missing L2 genesis for chain %s", l2ChainID)
+	l2RollupCfg, ok := wb.outL2RollupCfg[l2ChainID]
+	require.Truef(ok, "missing L2 rollup config for chain %s", l2ChainID)
+	l2Dep, ok := wb.outL2Deployment[l2ChainID]
+	require.Truef(ok, "missing L2 deployment for chain %s", l2ChainID)
+
+	return &L2Network{
+		name:       map[eth.ChainID]string{DefaultL2AID: "l2a", DefaultL2BID: "l2b"}[l2ChainID],
+		chainID:    l2ChainID,
+		l1ChainID:  l1ChainID,
+		genesis:    l2Genesis,
+		rollupCfg:  l2RollupCfg,
+		deployment: l2Dep,
+		opcmImpl:   wb.output.ImplementationsDeployment.OpcmV2Impl,
+		mipsImpl:   wb.output.ImplementationsDeployment.MipsImpl,
+		keys:       keys,
+	}
+}
+
+func addMultiChainFollowL2Node(t devtest.T, runtime *MultiChainRuntime, chainKey string, name string) *SingleChainNodeRuntime {
+	chain := runtime.Chains[chainKey]
+	t.Require().NotNil(chain, "missing %s runtime chain", chainKey)
+	t.Require().NotNil(chain.CL, "%s runtime chain missing CL follow source", chainKey)
+
+	jwtPath := chain.EL.JWTPath()
+	jwtSecret := readJWTSecretFromPath(t, jwtPath)
+	l2EL := startL2ELForKey(t, chain.Network, jwtPath, jwtSecret, name, NewELNodeIdentity(0))
+	l2CL := startL2CLNode(t, runtime.Keys, runtime.L1Network, chain.Network, runtime.L1EL, runtime.L1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
+		Key:            name,
+		IsSequencer:    false,
+		NoDiscovery:    true,
+		EnableReqResp:  false,
+		L2FollowSource: chain.CL.UserRPC(),
+		DependencySet:  runtime.DependencySet,
+		// Follow nodes catch up to their follow source via EL sync.
+		SyncMode: nodeSync.ELSync,
+	})
+
+	connectL2ELPeers(t, t.Logger(), chain.EL.UserRPC(), l2EL.UserRPC())
+	connectL2CLPeers(t, t.Logger(), chain.CL, l2CL)
+
+	node := &SingleChainNodeRuntime{
+		Name:        name,
+		IsSequencer: false,
+		EL:          l2EL,
+		CL:          l2CL,
+	}
+	if chain.Followers == nil {
+		chain.Followers = make(map[string]*SingleChainNodeRuntime)
+	}
+	chain.Followers[name] = node
+	return node
+}
+
+func startTwoL2SharedSupernode(
+	t devtest.T,
+	l1Net *L1Network,
+	l1EL *L1Geth,
+	l1CL *L1CLNode,
+	l2ANet *L2Network,
+	l2AEL L2ELNode,
+	l2BNet *L2Network,
+	l2BEL L2ELNode,
+	depSet *depset.StaticConfigDependencySet,
+	interopActivationTimestamp *uint64,
+	interopLogBackfillDepth time.Duration,
+	jwtSecret [32]byte,
+	sequencerEnabled bool,
+) (*SuperNode, *SuperNodeProxy, *SuperNodeProxy) {
+	require := t.Require()
+	logger := t.Logger().New("component", "supernode")
+	makeNodeCfg := func(l2Net *L2Network, l2EL L2ELNode) *opnodeconfig.Config {
+		var sequencerP2PKeyHex string
+		if sequencerEnabled {
+			p2pKey, err := l2Net.keys.Secret(devkeys.SequencerP2PRole.Key(l2Net.ChainID().ToBig()))
+			require.NoError(err, "need p2p key for supernode virtual sequencer")
+			sequencerP2PKeyHex = hex.EncodeToString(crypto.FromECDSA(p2pKey))
+		}
+		p2pConfig, p2pSignerSetup := newDevstackP2PConfig(
+			t,
+			logger.New("chain_id", l2Net.ChainID().String(), "component", "supernode-p2p"),
+			l2Net.rollupCfg.BlockTime,
+			false,
+			true,
+			sequencerP2PKeyHex,
+		)
+		cfg := &opnodeconfig.Config{
+			L1: &opnodeconfig.L1EndpointConfig{
+				L1NodeAddr:       l1EL.UserRPC(),
+				L1TrustRPC:       false,
+				L1RPCKind:        sources.RPCKindDebugGeth,
+				RateLimit:        0,
+				BatchSize:        20,
+				HttpPollInterval: time.Millisecond * 100,
+				MaxConcurrency:   10,
+				CacheSize:        0,
+			},
+			L1ChainConfig: l1Net.genesis.Config,
+			L2: &opnodeconfig.L2EndpointConfig{
+				L2EngineAddr:      l2EL.EngineRPC(),
+				L2EngineJWTSecret: jwtSecret,
+			},
+			DependencySet:                   depSet,
+			Beacon:                          &opnodeconfig.L1BeaconEndpointConfig{BeaconAddr: l1CL.beaconHTTPAddr},
+			Driver:                          driver.Config{SequencerEnabled: sequencerEnabled, SequencerConfDepth: 2},
+			Rollup:                          *l2Net.rollupCfg,
+			P2PSigner:                       p2pSignerSetup,
+			RPC:                             oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},
+			P2P:                             p2pConfig,
+			L1EpochPollInterval:             2 * time.Second,
+			RuntimeConfigReloadInterval:     0,
+			Sync:                            nodeSync.Config{SyncMode: nodeSync.CLSync},
+			ConfigPersistence:               opnodeconfig.DisabledConfigPersistence{},
+			Metrics:                         opmetrics.CLIConfig{},
+			Pprof:                           oppprof.CLIConfig{},
+			IgnoreMissingPectraBlobSchedule: false,
+			ExperimentalOPStackAPI:          true,
+		}
+		require.NoError(cfg.Check(), "invalid supernode op-node config for chain %s", l2Net.ChainID())
+		return cfg
+	}
+
+	vnCfgs := map[eth.ChainID]*opnodeconfig.Config{
+		l2ANet.ChainID(): makeNodeCfg(l2ANet, l2AEL),
+		l2BNet.ChainID(): makeNodeCfg(l2BNet, l2BEL),
+	}
+	chainIDs := []uint64{eth.EvilChainIDToUInt64(l2ANet.ChainID()), eth.EvilChainIDToUInt64(l2BNet.ChainID())}
+
+	snCfg := &snconfig.CLIConfig{
+		Chains:                     chainIDs,
+		DataDir:                    t.TempDirWithPrefix("supernode"),
+		L1NodeAddr:                 l1EL.UserRPC(),
+		L1HTTPPollInterval:         100 * time.Millisecond,
+		L1BeaconAddr:               l1CL.beaconHTTPAddr,
+		RPCConfig:                  oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},
+		InteropActivationTimestamp: interopActivationTimestamp,
+		InteropLogBackfillDepth:    interopLogBackfillDepth,
+	}
+
+	supernode := &SuperNode{
+		userRPC:      "",
+		p:            t,
+		logger:       logger,
+		chains:       []eth.ChainID{l2ANet.ChainID(), l2BNet.ChainID()},
+		l1UserRPC:    l1EL.UserRPC(),
+		l1BeaconAddr: l1CL.beaconHTTPAddr,
+		snCfg:        snCfg,
+		vnCfgs:       vnCfgs,
+	}
+	supernode.Start()
+	t.Cleanup(supernode.Stop)
+
+	base := supernode.UserRPC()
+	l2ARPC := base + "/" + strconv.FormatUint(eth.EvilChainIDToUInt64(l2ANet.ChainID()), 10)
+	l2BRPC := base + "/" + strconv.FormatUint(eth.EvilChainIDToUInt64(l2BNet.ChainID()), 10)
+
+	waitForSupernodeRoute(t, logger, l2ARPC)
+	waitForSupernodeRoute(t, logger, l2BRPC)
+
+	l2ACL := &SuperNodeProxy{
+		p:       t,
+		logger:  logger,
+		userRPC: l2ARPC,
+	}
+	l2BCL := &SuperNodeProxy{
+		p:       t,
+		logger:  logger,
+		userRPC: l2BRPC,
+	}
+
+	return supernode, l2ACL, l2BCL
+}
+
+func startSingleChainSharedSupernode(
+	t devtest.T,
+	l1Net *L1Network,
+	l1EL *L1Geth,
+	l1CL *L1CLNode,
+	l2Net *L2Network,
+	l2EL L2ELNode,
+	depSet *depset.StaticConfigDependencySet,
+	jwtSecret [32]byte,
+	interopActivationTimestamp *uint64,
+	sequencerEnabled bool,
+	verifierSyncMode nodeSync.Mode,
+) (*SuperNode, *SuperNodeProxy) {
+	require := t.Require()
+	logger := t.Logger().New("component", "supernode")
+	makeNodeCfg := func() *opnodeconfig.Config {
+		var sequencerP2PKeyHex string
+		if sequencerEnabled {
+			p2pKey, err := l2Net.keys.Secret(devkeys.SequencerP2PRole.Key(l2Net.ChainID().ToBig()))
+			require.NoError(err, "need p2p key for supernode virtual sequencer")
+			sequencerP2PKeyHex = hex.EncodeToString(crypto.FromECDSA(p2pKey))
+		}
+		p2pConfig, p2pSignerSetup := newDevstackP2PConfig(
+			t,
+			logger.New("chain_id", l2Net.ChainID().String(), "component", "supernode-p2p"),
+			l2Net.rollupCfg.BlockTime,
+			false,
+			true,
+			sequencerP2PKeyHex,
+		)
+		cfg := &opnodeconfig.Config{
+			L1: &opnodeconfig.L1EndpointConfig{
+				L1NodeAddr:       l1EL.UserRPC(),
+				L1TrustRPC:       false,
+				L1RPCKind:        sources.RPCKindDebugGeth,
+				RateLimit:        0,
+				BatchSize:        20,
+				HttpPollInterval: 100 * time.Millisecond,
+				MaxConcurrency:   10,
+				CacheSize:        0,
+			},
+			L1ChainConfig: l1Net.genesis.Config,
+			L2: &opnodeconfig.L2EndpointConfig{
+				L2EngineAddr:      l2EL.EngineRPC(),
+				L2EngineJWTSecret: jwtSecret,
+			},
+			DependencySet:                   depSet,
+			Beacon:                          &opnodeconfig.L1BeaconEndpointConfig{BeaconAddr: l1CL.beaconHTTPAddr},
+			Driver:                          driver.Config{SequencerEnabled: sequencerEnabled, SequencerConfDepth: 2},
+			Rollup:                          *l2Net.rollupCfg,
+			P2PSigner:                       p2pSignerSetup,
+			RPC:                             oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},
+			P2P:                             p2pConfig,
+			L1EpochPollInterval:             2 * time.Second,
+			Sync:                            nodeSync.Config{SyncMode: verifierSyncMode},
+			ConfigPersistence:               opnodeconfig.DisabledConfigPersistence{},
+			Metrics:                         opmetrics.CLIConfig{},
+			Pprof:                           oppprof.CLIConfig{},
+			ExperimentalOPStackAPI:          true,
+			IgnoreMissingPectraBlobSchedule: false,
+		}
+		require.NoError(cfg.Check(), "invalid supernode op-node config for chain %s", l2Net.ChainID())
+		return cfg
+	}
+
+	snCfg := &snconfig.CLIConfig{
+		Chains:                     []uint64{eth.EvilChainIDToUInt64(l2Net.ChainID())},
+		DataDir:                    t.TempDirWithPrefix("supernode"),
+		L1NodeAddr:                 l1EL.UserRPC(),
+		L1HTTPPollInterval:         100 * time.Millisecond,
+		L1BeaconAddr:               l1CL.beaconHTTPAddr,
+		RPCConfig:                  oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},
+		InteropActivationTimestamp: interopActivationTimestamp,
+	}
+
+	supernode := &SuperNode{
+		userRPC:      "",
+		p:            t,
+		logger:       logger,
+		chains:       []eth.ChainID{l2Net.ChainID()},
+		l1UserRPC:    l1EL.UserRPC(),
+		l1BeaconAddr: l1CL.beaconHTTPAddr,
+		snCfg:        snCfg,
+		vnCfgs: map[eth.ChainID]*opnodeconfig.Config{
+			l2Net.ChainID(): makeNodeCfg(),
+		},
+	}
+	supernode.Start()
+	t.Cleanup(supernode.Stop)
+
+	l2RPC := supernode.UserRPC() + "/" + strconv.FormatUint(eth.EvilChainIDToUInt64(l2Net.ChainID()), 10)
+	waitForSupernodeRoute(t, logger, l2RPC)
+
+	return supernode, &SuperNodeProxy{
+		p:       t,
+		logger:  logger,
+		userRPC: l2RPC,
+	}
+}
+
+func waitForSupernodeRoute(t devtest.T, logger log.Logger, rpcEndpoint string) {
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		if time.Now().After(deadline) {
+			t.Require().FailNowf("supernode route readiness", "timed out waiting for supernode route %s", rpcEndpoint)
+		}
+
+		rpcCl, err := client.NewRPC(t.Ctx(), logger, rpcEndpoint, client.WithLazyDial())
+		if err == nil {
+			var out any
+			callErr := rpcCl.CallContext(t.Ctx(), &out, "optimism_rollupConfig")
+			rpcCl.Close()
+			if callErr == nil {
+				return
+			}
+		}
+
+		time.Sleep(200 * time.Millisecond)
+	}
+}
+
+type l2TestSequencerTarget struct {
+	chainID eth.ChainID
+	l2EL    L2ELNode
+	l2CL    L2CLNode
+}
+
+func attachTestSequencerToRuntime(t devtest.T, runtime *MultiChainRuntime, testSequencerName string) {
+	t.Require().NotEmpty(runtime.Chains, "runtime must contain at least one chain")
+
+	chainKeys := make([]string, 0, len(runtime.Chains))
+	for key := range runtime.Chains {
+		chainKeys = append(chainKeys, key)
+	}
+	sort.Strings(chainKeys)
+
+	firstChain := runtime.Chains[chainKeys[0]]
+	t.Require().NotNil(firstChain, "missing runtime chain %s", chainKeys[0])
+	jwtPath := firstChain.EL.JWTPath()
+	jwtSecret := readJWTSecretFromPath(t, jwtPath)
+
+	targets := make([]l2TestSequencerTarget, 0, len(chainKeys))
+	for _, key := range chainKeys {
+		chain := runtime.Chains[key]
+		t.Require().NotNil(chain, "missing runtime chain %s", key)
+		targets = append(targets, l2TestSequencerTarget{
+			chainID: chain.Network.ChainID(),
+			l2EL:    chain.EL,
+			l2CL:    chain.CL,
+		})
+	}
+
+	testSequencer := startTestSequencerForL2Chains(
+		t,
+		runtime.Keys,
+		testSequencerName,
+		jwtPath,
+		jwtSecret,
+		runtime.L1Network,
+		runtime.L1EL,
+		runtime.L1CL,
+		targets,
+	)
+	runtime.TestSequencer = newTestSequencerRuntime(testSequencer, "")
+}
+
+func startTestSequencerForL2Chains(
+	t devtest.T,
+	keys devkeys.Keys,
+	testSequencerName string,
+	jwtPath string,
+	jwtSecret [32]byte,
+	l1Net *L1Network,
+	l1EL *L1Geth,
+	l1CL *L1CLNode,
+	targets []l2TestSequencerTarget,
+) *testSequencer {
+	require := t.Require()
+	logger := t.Logger().New("component", "test-sequencer")
+
+	require.NotEmpty(targets, "at least one L2 target is required")
+
+	l1ELClient, err := ethclient.DialContext(t.Ctx(), l1EL.UserRPC())
+	require.NoError(err, "failed to dial L1 EL RPC for test-sequencer")
+	t.Cleanup(l1ELClient.Close)
+
+	engineCl, err := dialEngine(t.Ctx(), l1EL.AuthRPC(), jwtSecret)
+	require.NoError(err, "failed to dial L1 engine API for test-sequencer")
+	t.Cleanup(func() {
+		engineCl.inner.Close()
+	})
+
+	l1ChainID := l1Net.ChainID()
+	bidL1 := seqtypes.BuilderID("test-l1-builder")
+	cidL1 := seqtypes.CommitterID("test-noop-committer")
+	sidL1 := seqtypes.SignerID("test-noop-signer")
+	pidL1 := seqtypes.PublisherID("test-noop-publisher")
+	seqIDL1 := seqtypes.SequencerID(fmt.Sprintf("test-seq-%s", l1ChainID))
+
+	ensemble := &workconfig.Ensemble{
+		Builders: map[seqtypes.BuilderID]*workconfig.BuilderEntry{
+			bidL1: {
+				L1: &fakepos.Config{
+					ChainConfig:       l1Net.genesis.Config,
+					EngineAPI:         engineCl,
+					Backend:           l1ELClient,
+					Beacon:            l1CL.beacon,
+					FinalizedDistance: 20,
+					SafeDistance:      10,
+					BlockTime:         6,
+				},
+			},
+		},
+		Signers: map[seqtypes.SignerID]*workconfig.SignerEntry{
+			sidL1: {
+				Noop: &noopsigner.Config{},
+			},
+		},
+		Committers: map[seqtypes.CommitterID]*workconfig.CommitterEntry{
+			cidL1: {
+				Noop: &noopcommitter.Config{},
+			},
+		},
+		Publishers: map[seqtypes.PublisherID]*workconfig.PublisherEntry{
+			pidL1: {
+				Noop: &nooppublisher.Config{},
+			},
+		},
+		Sequencers: map[seqtypes.SequencerID]*workconfig.SequencerEntry{
+			seqIDL1: {
+				Full: &fullseq.Config{
+					ChainID:   l1ChainID,
+					Builder:   bidL1,
+					Signer:    sidL1,
+					Committer: cidL1,
+					Publisher: pidL1,
+				},
+			},
+		},
+	}
+
+	sequencerIDs := map[eth.ChainID]seqtypes.SequencerID{
+		l1ChainID: seqIDL1,
+	}
+
+	for i, target := range targets {
+		suffix := ""
+		if len(targets) > 1 {
+			suffix = fmt.Sprintf("-%c", 'A'+i)
+		}
+
+		bid := seqtypes.BuilderID(fmt.Sprintf("test-standard-builder%s", suffix))
+		cid := seqtypes.CommitterID(fmt.Sprintf("test-standard-committer%s", suffix))
+		sid := seqtypes.SignerID(fmt.Sprintf("test-local-signer%s", suffix))
+		pid := seqtypes.PublisherID(fmt.Sprintf("test-standard-publisher%s", suffix))
+		seqID := seqtypes.SequencerID(fmt.Sprintf("test-seq-%s", target.chainID))
+
+		p2pKey, err := keys.Secret(devkeys.SequencerP2PRole.Key(target.chainID.ToBig()))
+		require.NoError(err, "need p2p key for test sequencer target %d", i)
+		rawKey := hexutil.Bytes(crypto.FromECDSA(p2pKey))
+
+		ensemble.Builders[bid] = &workconfig.BuilderEntry{
+			Standard: &standardbuilder.Config{
+				L1ChainConfig: l1Net.genesis.Config,
+				L1EL:          endpoint.MustRPC{Value: endpoint.HttpURL(l1EL.UserRPC())},
+				L2EL:          endpoint.MustRPC{Value: endpoint.HttpURL(target.l2EL.UserRPC())},
+				L2CL:          endpoint.MustRPC{Value: endpoint.HttpURL(target.l2CL.UserRPC())},
+			},
+		}
+		ensemble.Signers[sid] = &workconfig.SignerEntry{
+			LocalKey: &localkey.Config{RawKey: &rawKey, ChainID: target.chainID},
+		}
+		ensemble.Committers[cid] = &workconfig.CommitterEntry{
+			Standard: &standardcommitter.Config{RPC: endpoint.MustRPC{Value: endpoint.HttpURL(target.l2CL.UserRPC())}},
+		}
+		ensemble.Publishers[pid] = &workconfig.PublisherEntry{
+			Standard: &standardpublisher.Config{RPC: endpoint.MustRPC{Value: endpoint.HttpURL(target.l2CL.UserRPC())}},
+		}
+		ensemble.Sequencers[seqID] = &workconfig.SequencerEntry{
+			Full: &fullseq.Config{
+				ChainID:             target.chainID,
+				Builder:             bid,
+				Signer:              sid,
+				Committer:           cid,
+				Publisher:           pid,
+				SequencerConfDepth:  2,
+				SequencerEnabled:    true,
+				SequencerStopped:    false,
+				SequencerMaxSafeLag: 0,
+			},
+		}
+
+		sequencerIDs[target.chainID] = seqID
+	}
+
+	jobs := work.NewJobRegistry()
+	startedEnsemble, err := ensemble.Start(t.Ctx(), &work.StartOpts{
+		Log:     logger,
+		Metrics: &testmetrics.NoopMetrics{},
+		Jobs:    jobs,
+	})
+	require.NoError(err, "failed to start test-sequencer ensemble")
+
+	cfg := &sequencerConfig.Config{
+		MetricsConfig: opmetrics.CLIConfig{Enabled: false},
+		PprofConfig:   oppprof.CLIConfig{ListenEnabled: false},
+		LogConfig: oplog.CLIConfig{
+			Level:  log.LevelDebug,
+			Format: oplog.FormatText,
+		},
+		RPC: oprpc.CLIConfig{
+			ListenAddr:  "127.0.0.1",
+			ListenPort:  0,
+			EnableAdmin: true,
+		},
+		Ensemble:      startedEnsemble,
+		JWTSecretPath: jwtPath,
+		Version:       "dev",
+		MockRun:       false,
+	}
+
+	sq, err := sequencer.FromConfig(t.Ctx(), cfg, logger)
+	require.NoError(err, "failed to initialize test-sequencer service")
+	require.NoError(sq.Start(t.Ctx()), "failed to start test-sequencer service")
+
+	t.Cleanup(func() {
+		ctx, cancel := context.WithCancel(t.Ctx())
+		cancel()
+		logger.Info("Closing test-sequencer service")
+		closeErr := sq.Stop(ctx)
+		logger.Info("Closed test-sequencer service", "err", closeErr)
+	})
+
+	adminRPC := sq.RPC()
+	controlRPCs := make(map[eth.ChainID]string, len(sequencerIDs))
+	for chainID, seqID := range sequencerIDs {
+		controlRPCs[chainID] = adminRPC + "/sequencers/" + seqID.String()
+	}
+
+	return &testSequencer{
+		name:       testSequencerName,
+		adminRPC:   adminRPC,
+		jwtSecret:  jwtSecret,
+		controlRPC: controlRPCs,
+		service:    sq,
+	}
+}
+
+func startFaucetsForRPCs(t devtest.T, keys devkeys.Keys, chainRPCs map[eth.ChainID]string) *faucet.Service {
+	require := t.Require()
+	logger := t.Logger().New("component", "faucet")
+
+	funderKey, err := keys.Secret(devkeys.UserKey(funderMnemonicIndex))
+	require.NoError(err, "need faucet funder key")
+	funderKeyStr := hexutil.Encode(crypto.FromECDSA(funderKey))
+
+	faucets := make(map[ftypes.FaucetID]*fconf.FaucetEntry, len(chainRPCs))
+	for chainID, rpcURL := range chainRPCs {
+		faucetID := ftypes.FaucetID(fmt.Sprintf("dev-faucet-%s", chainID))
+		faucets[faucetID] = &fconf.FaucetEntry{
+			ELRPC:   endpoint.MustRPC{Value: endpoint.URL(rpcURL)},
+			ChainID: chainID,
+			TxCfg: fconf.TxManagerConfig{
+				PrivateKey: funderKeyStr,
+			},
+		}
+	}
+
+	cfg := &faucetConfig.Config{
+		RPC: oprpc.CLIConfig{
+			ListenAddr: "127.0.0.1",
+		},
+		Faucets: &fconf.Config{
+			Faucets: faucets,
+		},
+	}
+
+	srv, err := faucet.FromConfig(t.Ctx(), cfg, logger)
+	require.NoError(err, "failed to create faucet service")
+	require.NoError(srv.Start(t.Ctx()), "failed to start faucet service")
+
+	t.Cleanup(func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // force-close
+		logger.Info("Closing faucet service")
+		closeErr := srv.Stop(ctx)
+		logger.Info("Closed faucet service", "err", closeErr)
+	})
+
+	return srv
+}

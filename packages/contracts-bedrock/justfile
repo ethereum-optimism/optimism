@@ -1,0 +1,492 @@
+########################################################
+#                        INSTALL                       #
+########################################################
+
+# Installs dependencies.
+install:
+  forge install
+
+# Shows the status of the git submodules.
+dep-status:
+  git submodule status
+
+
+########################################################
+#                         BUILD                        #
+########################################################
+
+# Core forge build command.
+
+forge-build *ARGS:
+  forge build {{ARGS}}
+
+  @# Forge build compiles only the src/ graph; the scripts/ graph is compiled by `forge script`.
+  @# On the first invocation, `forge script` may compile a small set of dependencies.
+  @# To avoid paying this cost in every CI test, we pre‑warm the script cache once here.
+  @#
+  @# Notes:
+  @# - A single `forge script <any script> --skip-simulation` is sufficient to compile the script
+  @#   dependency graph into the cache. Subsequent `forge script` runs (including other scripts)
+  @#   will typically print "No files changed, compilation skipped".
+  @# - We pass `--skip "/**/test/**"` to keep tests out of the graph and suppress warnings.
+  @# - Providing a signature/args is not required for compilation; compilation happens before
+  @#   argument validation and before execution. We still use `--skip-simulation` to guarantee
+  @#   nothing runs in any case.
+  @forge script "scripts/deploy/Deploy.s.sol" \
+    --skip "/**/test/**" \
+    --sig "idonotexist()" \
+    --skip-simulation \
+    2>/dev/null || true
+
+# Developer build command (faster).
+forge-build-dev *ARGS:
+  FOUNDRY_PROFILE=lite forge build {{ARGS}}
+
+# Builds source contracts only.
+build-source:
+  forge build --skip "/**/test/**" --skip "/**/scripts/**"
+
+# Builds source contracts and scripts, skipping tests.
+build-no-tests:
+  forge build --skip "/**/test/**"
+
+# Builds the contracts.
+build *ARGS: lint-fix-no-fail
+  just forge-build {{ARGS}}
+
+# Builds the contracts (developer mode).
+build-dev *ARGS: lint-fix-no-fail
+  just forge-build-dev {{ARGS}}
+
+# Builds the go-ffi tool for contract tests. go-ffi links op-core/superchain, so build
+# its //go:embed'd (gitignored) bundle from the submodule first.
+build-go-ffi:
+  cd ../../ && just build-superchain-go
+  cd ./scripts/go-ffi && go build -buildvcs=false
+
+# Cleans build artifacts and deployments.
+clean:
+  rm -rf ./artifacts ./forge-artifacts ./cache ./scripts/go-ffi/go-ffi ./deployments/hardhat/*
+
+
+########################################################
+#                         TEST                         #
+########################################################
+
+# Runs standard contract tests.
+test *ARGS: build-go-ffi
+  #!/bin/bash
+  if [ -n "$JUNIT_TEST_PATH" ]; then
+    forge test {{ARGS}} --junit > "$JUNIT_TEST_PATH"
+  else
+    forge test {{ARGS}}
+  fi
+
+# Runs standard contract tests (developer mode).
+test-dev *ARGS: build-go-ffi
+  FOUNDRY_PROFILE=lite forge test {{ARGS}}
+
+# Default block number for the forked upgrade path.
+# Block numbers are calculated deterministically based on the current day.
+# The block is set to approximately 00:00 UTC of the current day.
+# This allows for consistent caching while automatically updating daily.
+#
+# Note: We use a recipe instead of top-level exports to avoid eager evaluation
+# of both chains' block numbers when only one is needed.
+
+# Calculates and prints the pinned block number for the current ETH_RPC_URL.
+# Uses the start of the current day (00:00 UTC) as the target timestamp.
+# Retries up to 3 times with a 5-second delay to handle transient RPC failures.
+print-pinned-block-number:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  # Calculate the start of the current day at 00:00 UTC
+  now=$(date -u +%s)
+  h=$(date -u +%H); m=$(date -u +%M); s=$(date -u +%S)
+  secs_since_midnight=$(( 10#$h * 3600 + 10#$m * 60 + 10#$s ))
+  today_midnight=$(( now - secs_since_midnight ))
+  delay=5
+  for attempt in 1 2 3; do
+    if cast find-block "$today_midnight" --rpc-url $ETH_RPC_URL; then
+      exit 0
+    fi
+    if [ "$attempt" -lt 3 ]; then
+      echo "Attempt $attempt failed, retrying in ${delay}s..." >&2
+      sleep "$delay"
+      delay=$(( delay * 2 ))
+    fi
+  done
+  echo "All attempts to fetch pinned block number failed" >&2
+  exit 1
+
+# Prepares the environment for upgrade path variant of contract tests and coverage.
+# Env Vars:
+# - ETH_RPC_URL must be set to a production (Sepolia or Mainnet) RPC URL.
+# - FORK_BLOCK_NUMBER can be set in the env, or else will fallback to the default block number.
+#   Reusing the default block number greatly speeds up the test execution time by caching the
+#   rpc call responses in ~/.foundry/cache/rpc. The default block will need to be updated
+#   when the L1 chain is upgraded.
+prepare-upgrade-env *ARGS : build-go-ffi
+  #!/bin/bash
+  set -euo pipefail
+  pinnedBlock=$(just print-pinned-block-number)
+  export FORK_BLOCK_NUMBER="${FORK_BLOCK_NUMBER:-$pinnedBlock}"
+  echo "Running upgrade tests at block $FORK_BLOCK_NUMBER"
+  export FORK_RPC_URL=$ETH_RPC_URL
+  export FOUNDRY_FORK_RETRIES=10
+  export FOUNDRY_FORK_RETRY_BACKOFF=1000
+  export FORK_TEST=true
+  {{ARGS}} \
+  --match-path "test/{L1,dispute,cannon}/**"
+
+# Runs upgrade path variant of contract tests.
+test-upgrade *ARGS:
+  #!/bin/bash
+  if [ -n "$JUNIT_TEST_PATH" ]; then
+    just prepare-upgrade-env "forge test {{ARGS}} --junit > \"$JUNIT_TEST_PATH\""
+  else
+    just prepare-upgrade-env "forge test {{ARGS}}"
+  fi
+
+test-upgrade-rerun *ARGS: build-go-ffi
+  just test-upgrade {{ARGS}} --rerun -vvvv
+
+# Starts a local anvil node with a mainnet fork and sends it to the background
+# Requires ETH_RPC_URL to be set to a production (Sepolia or Mainnet) RPC URL.
+anvil-fork:
+  anvil --fork-url $ETH_RPC_URL
+
+# Use anvil-fork in a separate terminal before running this command.
+# Helpful for debugging.
+test-upgrade-against-anvil *ARGS: build-go-ffi
+  #!/bin/bash
+  set -euo pipefail
+  pinnedBlock=$(just print-pinned-block-number)
+  echo "Running upgrade tests at block $pinnedBlock"
+  export FORK_BLOCK_NUMBER="${FORK_BLOCK_NUMBER:-$pinnedBlock}"
+  export FORK_RPC_URL=http://127.0.0.1:8545
+  export FORK_TEST=true
+  forge test {{ARGS}} \
+  --match-path "test/{L1,dispute,cannon}/**"
+
+# Runs standard contract tests with rerun flag.
+test-rerun: build-go-ffi
+  forge test --rerun -vvv
+
+# Runs standard contract tests with rerun flag (developer mode).
+test-dev-rerun: build-go-ffi
+  FOUNDRY_PROFILE=lite forge test --rerun -vvv
+
+# Run Kontrol tests and build all dependencies.
+test-kontrol: build-go-ffi build kontrol-summary-full test-kontrol-no-build
+
+# Run Kontrol tests without dependencies.
+test-kontrol-no-build:
+  ./test/kontrol/scripts/run-kontrol.sh script
+
+# Runs contract coverage.
+coverage: build-go-ffi
+  forge coverage
+
+# Runs contract coverage with lcov.
+coverage-lcov *ARGS: build-go-ffi
+  forge coverage {{ARGS}} --report lcov --report-file lcov.info
+
+# Runs upgrade path variant of contract coverage tests.
+coverage-upgrade *ARGS:
+  just prepare-upgrade-env "forge coverage {{ARGS}}"
+
+# Runs contract coverage with lcov.
+coverage-lcov-upgrade *ARGS: build-go-ffi
+  just coverage-upgrade {{ARGS}} --report lcov --report-file lcov-upgrade.info
+
+# Runs coverage-lcov and coverage-lcov-upgrade and merges their output files info one file
+coverage-lcov-all *ARGS:
+  just coverage-lcov {{ARGS}} && \
+  just coverage-lcov-upgrade --match-contract "OPContractsManager.*_Upgrade_Test" {{ARGS}} && \
+  lcov -a lcov.info -a lcov-upgrade.info -o lcov-all.info
+
+# Prepares the environment for L2 fork upgrade tests.
+# Env Vars:
+# - L2_FORK_RPC_URL must be set to an L2 RPC URL.
+# - L2_FORK_BLOCK_NUMBER can be set in the env to pin a block (defaults to latest).
+prepare-l2-upgrade-env *ARGS:
+  #!/bin/bash
+  set -euo pipefail
+  export L2_FORK_TEST=true
+  export FOUNDRY_FORK_RETRIES=10
+  export FOUNDRY_FORK_RETRY_BACKOFF=1000
+  {{ARGS}} \
+  --match-path "test/L2/fork/**"
+
+# Runs L2 fork upgrade tests.
+# Usage: L2_FORK_RPC_URL=<url> just test-l2-fork-upgrade [ARGS]
+test-l2-fork-upgrade *ARGS:
+  just prepare-l2-upgrade-env "just test {{ARGS}}"
+
+test-l2-fork-upgrade-rerun *ARGS:
+  just test-l2-fork-upgrade {{ARGS}} --rerun -vvvv
+
+# Prepares the environment for L2CM activation (betanet fork) tests.
+# Env Vars:
+# - L2_FORK_RPC_URL must be set to a post-Karst betanet L2 RPC URL.
+# - L2_BLOCK_BEFORE_FORK must be set to the block right before the fork
+# - L2_FORK_BLOCK_NUMBER optional: pin to a block after the activation block (defaults to latest).
+prepare-l2cm-activation-env *ARGS:
+  #!/bin/bash
+  set -euo pipefail
+  export L2_FORK_TEST=true
+  export L2CM_ACTIVATION_TEST=true
+  export FOUNDRY_FORK_RETRIES=10
+  export FOUNDRY_FORK_RETRY_BACKOFF=1000
+  {{ARGS}} \
+  --match-path "test/L2/betanet-fork/**"
+
+# Runs L2CM activation (betanet fork) tests.
+# Usage: L2_FORK_RPC_URL=<url> L2_BLOCK_BEFORE_FORK=<block> NUT_BUNDLE_PATH=<path> just test-l2cm-activation-test [ARGS]
+test-l2cm-activation-test *ARGS:
+  just prepare-l2cm-activation-env "just test {{ARGS}}"
+
+test-l2cm-activation-test-rerun *ARGS:
+  just test-l2cm-activation-test {{ARGS}} --rerun -vvvv
+
+# Runs L2 operations after a fork activation, such as verifying predeploys.
+post-fork-ops *ARGS:
+  ./scripts/post-fork-ops/verify-predeploys.sh {{ARGS}}
+
+########################################################
+#                        DEPLOY                        #
+########################################################
+
+# Generates the L2 genesis state.
+genesis:
+  forge script scripts/L2Genesis.s.sol:L2Genesis --sig 'runWithStateDump()'
+
+# Generates the Network Upgrade Transaction (NUT) bundle.
+# NOTE: be very careful about renaming this command, it's used in the CI check-nut-locks job,
+# which expects this command to be available in historical commits.
+generate-nut-bundle: build-no-tests
+  @forge script scripts/upgrade/GenerateNUTBundle.s.sol:GenerateNUTBundle --sig 'run()' > /dev/null
+
+########################################################
+#                       SNAPSHOTS                      #
+########################################################
+
+# Generates default Kontrol summary.
+kontrol-summary:
+  ./test/kontrol/scripts/make-summary-deployment.sh
+
+# Generates fault proofs Kontrol summary.
+kontrol-summary-fp:
+  KONTROL_FP_DEPLOYMENT=true ./test/kontrol/scripts/make-summary-deployment.sh
+
+# Generates all Kontrol summaries (default and FP).
+kontrol-summary-full: kontrol-summary kontrol-summary-fp
+
+# Generates ABI snapshots for contracts.
+snapshots-abi-storage-no-build:
+  go run ./scripts/autogen/generate-snapshots .
+
+# Generates ABI snapshots for contracts.
+snapshots-abi-storage: build-source snapshots-abi-storage-no-build
+
+# Updates the snapshots/semver-lock.json file without building contracts.
+semver-lock-no-build:
+  go run scripts/autogen/generate-semver-lock/main.go
+
+# Updates the snapshots/semver-lock.json file.
+semver-lock: build-source semver-lock-no-build
+
+# Generates core snapshots without building contracts.
+snapshots-no-build: snapshots-abi-storage-no-build semver-lock-no-build
+
+# Builds contracts and then generates core snapshots.
+snapshots: build-source snapshots-no-build
+
+
+########################################################
+#                        CHECKS                        #
+########################################################
+
+# Checks if the snapshots are up to date without building.
+snapshots-check-no-build: snapshots-no-build
+
+# Checks if the snapshots are up to date.
+snapshots-check: build snapshots-check-no-build
+
+# Checks interface correctness without building.
+interfaces-check-no-build:
+  go run ./scripts/checks/interfaces
+
+
+# Checks that all interfaces are appropriately named and accurately reflect the corresponding
+# contract that they're meant to represent. We run "clean" before building because leftover
+# artifacts can cause the script to detect issues incorrectly.
+interfaces-check: clean build interfaces-check-no-build
+
+# Checks that all upgrade/initialize functions have proper reinitializer modifiers.
+reinitializer-check: build-source reinitializer-check-no-build
+
+# Checks that all upgrade/initialize functions have proper reinitializer modifiers.
+# Does not build contracts.
+reinitializer-check-no-build:
+  go run ./scripts/checks/reinitializer
+
+# Checks that the size of the contracts is within the limit.
+size-check:
+  forge build --sizes --skip "/**/test/**" --skip "/**/scripts/**"
+
+# Checks that any contracts with a modified semver lock also have a modified semver version.
+# Does not build contracts.
+semver-diff-check-no-build:
+  ./scripts/checks/check-semver-diff.sh
+
+# Checks that any contracts with a modified semver lock also have a modified semver version.
+semver-diff-check: build semver-diff-check-no-build
+
+# Checks that the semgrep tests are valid.
+semgrep-test-validity-check:
+  forge fmt ../../.semgrep/tests/sol-rules.t.sol --check
+
+# Validates forge test conventions and structure. Does not build contracts.
+lint-forge-tests-check-no-build:
+  go run ./scripts/checks/test-validation
+
+# Validates forge test conventions and structure.
+lint-forge-tests-check: build lint-forge-tests-check-no-build
+
+# Checks that contracts are properly linted.
+lint-check:
+  forge fmt --check
+
+# Updates the selectors for the contracts
+update-selectors:
+  forge selectors up --all
+
+# Checks for unused imports in Solidity contracts. Does not build contracts.
+unused-imports-check-no-build:
+  go run ./scripts/checks/unused-imports
+
+# Checks for unused imports in Solidity contracts.
+unused-imports-check: build unused-imports-check-no-build
+
+# Checks that contracts use strict pragma versions. Does not build contracts.
+strict-pragma-check-no-build:
+  go run ./scripts/checks/strict-pragma
+
+# Checks that contracts use strict pragma versions.
+strict-pragma-check: build strict-pragma-check-no-build
+
+# Checks that the semver of contracts are valid. Does not build contracts.
+valid-semver-check-no-build:
+  go run ./scripts/checks/valid-semver-check/main.go
+
+# Checks that the semver of contracts are valid.
+valid-semver-check: build valid-semver-check-no-build
+
+# Checks that spacer variables are correctly inserted without building.
+validate-spacers-no-build:
+  go run ./scripts/checks/spacers
+
+# Checks that spacer variables are correctly inserted.
+validate-spacers: build validate-spacers-no-build
+
+# Checks that the Kontrol summary dummy files have not been modified.
+# If you have changed the summary files deliberately, update the hashes in the script.
+# Use `openssl dgst -sha256` to generate the hash for a file.
+check-kontrol-summaries-unchanged:
+  ./scripts/checks/check-kontrol-summaries-unchanged.sh
+
+# Checks that the Network Upgrade Transaction (NUT) bundle is up to date.
+# Assumes contracts are already built.
+nut-bundle-check-no-build:
+  @forge script scripts/upgrade/GenerateNUTBundle.s.sol:GenerateNUTBundle --sig 'run()' > /dev/null
+  git diff --exit-code snapshots/upgrades/current-upgrade-bundle.json
+
+# Checks that the Network Upgrade Transaction (NUT) bundle is up to date.
+nut-bundle-check: build-no-tests nut-bundle-check-no-build
+
+# Runs semgrep on the contracts.
+semgrep:
+  cd ../../ && semgrep scan --config .semgrep/rules/ ./packages/contracts-bedrock
+
+# Runs semgrep tests.
+semgrep-test:
+  cd ../../ && semgrep scan --test --config .semgrep/rules/ .semgrep/tests/
+
+# Runs all checks.
+check:
+  @just semgrep-test-validity-check \
+  semgrep \
+  lint-check \
+  snapshots-check-no-build \
+  nut-bundle-check-no-build \
+  unused-imports-check-no-build \
+  strict-pragma-check-no-build \
+  valid-semver-check-no-build \
+  semver-diff-check-no-build \
+  validate-spacers-no-build \
+  reinitializer-check-no-build \
+  interfaces-check-no-build \
+  lint-forge-tests-check-no-build
+
+########################################################
+#                      DEV TOOLS                       #
+########################################################
+
+# Alias for pr.
+pre-commit *ARGS:
+  just pr {{ARGS}}
+
+# Alias for pr.
+pre-pr *ARGS:
+  just pr {{ARGS}}
+
+twrap:
+    #!/usr/bin/env sh
+    if [ -z "$WRAP_DISABLED" ]; then
+        tput rmam
+        export WRAP_DISABLED=1
+        echo "Terminal line wrapping disabled"
+    else
+        tput smam
+        unset WRAP_DISABLED
+        echo "Terminal line wrapping enabled"
+    fi
+
+# Fixes linting errors.
+lint-fix:
+  forge fmt
+
+# Fixes linting errors but doesn't fail if there are syntax errors. Useful for build command
+# because the output of forge fmt can sometimes be difficult to understand but if there's a syntax
+# error the build will fail anyway and provide more context about what's wrong.
+lint-fix-no-fail:
+  forge fmt || true
+
+# Fixes linting errors and checks that the code is correctly formatted.
+lint: lint-fix lint-check
+
+
+########################################################
+#                 PARALLEL CHECK RUNNER                #
+########################################################
+
+# Runs checks in parallel with smart build caching.
+# Handles builds automatically and caches results for faster subsequent runs.
+# Use -run to run specific checks, -list to see available checks.
+# Examples:
+#   just check-fast                       # Run all checks with caching
+#   just check-fast -run lint             # Run only lint check
+#   just check-fast -no-build             # Skip checks that require builds
+#   just check-fast -list                 # List available checks
+#   just check-fast -verbose              # Show output for all checks
+#   just check-fast -no-cache             # Disable build caching
+#   just check-fast -clean                # Clean artifacts before each build
+#   just check-fast -config path/to/file  # Use custom checks.yaml
+check-fast *ARGS:
+  go run ./scripts/check-runner -config checks.yaml {{ARGS}}
+
+# Alias for check-fast.
+pr *ARGS:
+  just check-fast {{ARGS}}

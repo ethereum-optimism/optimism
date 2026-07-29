@@ -1,0 +1,28 @@
+[package]
+name = "op-alloy-rpc-jsonrpsee"
+description = "Optimism RPC Client"
+
+version = "2.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage = "https://github.com/ethereum-optimism/optimism"
+authors = ["Alloy Contributors"]
+repository = "https://github.com/ethereum-optimism/optimism"
+exclude = ["benches/", "tests/"]
+
+[lints]
+workspace = true
+
+[dependencies]
+# Alloy
+alloy-primitives = { workspace = true, features = ["serde"] }
+
+# rpc
+jsonrpsee.workspace = true
+
+[features]
+client = [
+    "jsonrpsee/client",
+    "jsonrpsee/async-client",
+]

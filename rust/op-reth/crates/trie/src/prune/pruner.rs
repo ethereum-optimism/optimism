@@ -1,0 +1,683 @@
+#[cfg(feature = "metrics")]
+use crate::prune::metrics::Metrics;
+use crate::{
+    OpProofsProviderRO, OpProofsProviderRw, OpProofsStorageError, OpProofsStore,
+    prune::error::{OpProofStoragePrunerResult, PrunerError, PrunerOutput},
+};
+
+use alloy_eips::{BlockNumHash, eip1898::BlockWithParent};
+use reth_provider::BlockHashReader;
+use std::cmp;
+use tokio::time::Instant;
+use tracing::{debug, error, info, trace};
+
+/// Default batch size for pruning operations.
+const DEFAULT_PRUNE_BATCH_SIZE: u64 = 50;
+
+/// Prunes the proof storage by calling `prune_earliest_state` on the storage provider.
+#[derive(Debug)]
+pub struct OpProofStoragePruner<S, H> {
+    /// Storage backend for the prune
+    store: S,
+    /// Reader to fetch block hash by block number
+    block_hash_reader: H,
+    /// Keep at least these many recent blocks
+    min_block_interval: u64,
+    /// Maximum number of blocks to prune in one database transaction
+    prune_batch_size: u64,
+    // TODO: add timeout - Maximum time for one pruner run. If `None`, no timeout.
+    #[doc(hidden)]
+    #[cfg(feature = "metrics")]
+    metrics: Metrics,
+}
+
+impl<S, H> OpProofStoragePruner<S, H> {
+    /// Create a new pruner.
+    pub fn new(store: S, block_hash_reader: H, min_block_interval: u64) -> Self {
+        Self {
+            store,
+            block_hash_reader,
+            min_block_interval,
+            prune_batch_size: DEFAULT_PRUNE_BATCH_SIZE,
+            #[cfg(feature = "metrics")]
+            metrics: Metrics::default(),
+        }
+    }
+
+    /// Set the batch size for pruning operations. The pruner will prune
+    /// at most this many blocks in one database transaction.
+    pub const fn with_batch_size(mut self, prune_batch_size: u64) -> Self {
+        self.prune_batch_size = prune_batch_size;
+        self
+    }
+}
+
+impl<S, H> OpProofStoragePruner<S, H>
+where
+    S: OpProofsStore,
+    H: BlockHashReader,
+{
+    fn run_inner(&self) -> OpProofStoragePrunerResult {
+        let provider_ro = self.store.provider_ro()?;
+        let Some((earliest_block, target_earliest_block, mut prune_output)) =
+            self.resolve_prune_range(&provider_ro)?
+        else {
+            return Ok(PrunerOutput::default());
+        };
+        // Drop the read-only provider before starting write transactions
+        drop(provider_ro);
+
+        info!(
+            target: "trie::prune::pruner",
+            from_block = earliest_block,
+            to_block = target_earliest_block,
+            "Starting pruning proof storage",
+        );
+
+        // Prune in batches, committing each batch separately to avoid
+        // holding a large write transaction for the entire prune window.
+        let mut current_earliest_block = earliest_block;
+        while current_earliest_block < target_earliest_block {
+            let batch_end_block =
+                cmp::min(current_earliest_block + self.prune_batch_size, target_earliest_block);
+
+            let provider_rw = self.store.provider_rw()?;
+            let batch_output = self.prune_batch_on_provider(
+                &provider_rw,
+                current_earliest_block,
+                batch_end_block,
+            )?;
+            provider_rw.commit()?;
+
+            prune_output.extend_ref(batch_output);
+            current_earliest_block = batch_end_block;
+        }
+
+        Ok(prune_output)
+    }
+
+    /// Prune proof storage using the given write provider, without committing.
+    ///
+    /// This allows callers to batch pruning with other write operations (e.g., storing
+    /// new block updates) in a single database transaction. The caller is responsible
+    /// for committing the transaction.
+    pub fn prune_with_provider<RW: OpProofsProviderRw>(
+        &self,
+        provider_rw: &RW,
+    ) -> OpProofStoragePrunerResult {
+        let Some((earliest_block, target_earliest_block, mut prune_output)) =
+            self.resolve_prune_range(provider_rw)?
+        else {
+            debug!(target: "trie::prune::pruner", "Nothing to prune in the given range");
+            return Ok(PrunerOutput::default());
+        };
+
+        info!(
+            target: "trie::prune::pruner",
+            from_block = earliest_block,
+            to_block = target_earliest_block,
+            "Starting pruning proof storage (in-tx)",
+        );
+
+        let mut current_earliest_block = earliest_block;
+        while current_earliest_block < target_earliest_block {
+            let batch_end_block =
+                cmp::min(current_earliest_block + self.prune_batch_size, target_earliest_block);
+
+            let batch_output =
+                self.prune_batch_on_provider(provider_rw, current_earliest_block, batch_end_block)?;
+
+            prune_output.extend_ref(batch_output);
+            current_earliest_block = batch_end_block;
+        }
+
+        Ok(prune_output)
+    }
+
+    /// Resolve the prune range from the given provider.
+    ///
+    /// Returns `None` if there is nothing to prune (storage empty or window not exceeded).
+    fn resolve_prune_range<P: OpProofsProviderRO>(
+        &self,
+        provider: &P,
+    ) -> Result<Option<(u64, u64, PrunerOutput)>, PrunerError> {
+        let window = match provider.get_proof_window() {
+            Ok(w) => w,
+            Err(OpProofsStorageError::NoBlocksFound) => {
+                trace!(target: "trie::prune::pruner", "Proof storage is empty");
+                return Ok(None);
+            }
+            Err(err) => return Err(err.into()),
+        };
+        let (latest_block, earliest_block) = (window.latest.number, window.earliest.number);
+        if latest_block.saturating_sub(earliest_block) <= self.min_block_interval {
+            trace!(target: "trie::prune::pruner", "Nothing to prune");
+            return Ok(None);
+        }
+        let target_earliest_block = latest_block - self.min_block_interval;
+        let prune_output = PrunerOutput {
+            start_block: earliest_block,
+            end_block: target_earliest_block,
+            ..Default::default()
+        };
+        Ok(Some((earliest_block, target_earliest_block, prune_output)))
+    }
+
+    /// Execute a single prune batch on the given write provider without committing.
+    fn prune_batch_on_provider<RW: OpProofsProviderRw>(
+        &self,
+        provider_rw: &RW,
+        start_block: u64,
+        end_block: u64,
+    ) -> Result<PrunerOutput, PrunerError> {
+        let batch_start_time = Instant::now();
+
+        let new_earliest_block_hash = self
+            .block_hash_reader
+            .block_hash(end_block)
+            .inspect_err(|err| {
+                error!(
+                    target: "trie::prune::pruner",
+                    block = end_block,
+                    ?err,
+                    "Failed to fetch block hash for new earliest block during pruning"
+                )
+            })?
+            .ok_or(PrunerError::BlockNotFound(end_block))?;
+
+        let parent_block_num = end_block - 1;
+        let parent_block_hash = self
+            .block_hash_reader
+            .block_hash(parent_block_num)
+            .inspect_err(|err| {
+                error!(
+                    target: "trie::prune::pruner",
+                    block = parent_block_num,
+                    ?err,
+                    "Failed to fetch block hash for parent block during pruning"
+                )
+            })?
+            .ok_or(PrunerError::BlockNotFound(parent_block_num))?;
+
+        let block_with_parent = BlockWithParent {
+            parent: parent_block_hash,
+            block: BlockNumHash { number: end_block, hash: new_earliest_block_hash },
+        };
+
+        let write_counts = provider_rw.prune_earliest_state(block_with_parent)?;
+
+        let duration = batch_start_time.elapsed();
+        let batch_output = PrunerOutput { duration, start_block, end_block, write_counts };
+
+        #[cfg(feature = "metrics")]
+        self.metrics.record_prune_result(batch_output.clone());
+
+        info!(
+            target: "trie::prune::pruner",
+            ?batch_output,
+            "Finished pruning batch of proof storage",
+        );
+        Ok(batch_output)
+    }
+
+    /// Run the pruner
+    pub fn run(&self) {
+        let res = self.run_inner();
+        if let Err(e) = res {
+            error!(target: "trie::prune::pruner", err=%e, "Pruner failed");
+            return;
+        }
+        info!(target: "trie::prune::pruner", result = %res.unwrap(), "Finished pruning proof storage");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{BlockStateDiff, OpProofsInitProvider, OpProofsStorage, db::MdbxProofsStorage};
+    use alloy_eips::{BlockHashOrNumber, BlockNumHash, NumHash};
+    use alloy_primitives::{B256, BlockNumber, U256};
+    use mockall::mock;
+    use reth_primitives_traits::Account;
+    use reth_storage_errors::provider::ProviderResult;
+    use reth_trie::{
+        BranchNodeCompact, HashedPostState, HashedStorage, Nibbles,
+        hashed_cursor::HashedCursor,
+        trie_cursor::TrieCursor,
+        updates::{StorageTrieUpdates, TrieUpdates, TrieUpdatesSorted},
+    };
+    use std::sync::Arc;
+    use tempfile::TempDir;
+
+    mock! (
+        #[derive(Debug)]
+        pub BlockHashReader {}
+
+        impl BlockHashReader for BlockHashReader {
+            fn block_hash(&self, number: BlockNumber) -> ProviderResult<Option<B256>>;
+
+            fn convert_block_hash(
+                &self,
+                _hash_or_number: BlockHashOrNumber,
+            ) -> ProviderResult<Option<B256>>;
+
+            fn canonical_hashes_range(
+                &self,
+                _start: BlockNumber,
+                _end: BlockNumber,
+            ) -> ProviderResult<Vec<B256>>;
+        }
+    );
+
+    fn b256(n: u64) -> B256 {
+        use alloy_primitives::keccak256;
+        keccak256(n.to_be_bytes())
+    }
+
+    /// Build a block-with-parent for number `n` with deterministic hash.
+    fn block(n: u64, parent: B256) -> BlockWithParent {
+        BlockWithParent::new(parent, NumHash::new(n, b256(n)))
+    }
+
+    #[tokio::test]
+    async fn run_inner_and_and_verify_updated_state() {
+        // --- env/store ---
+        let dir = TempDir::new().unwrap();
+        let store = Arc::new(MdbxProofsStorage::new(dir.path()).expect("env"));
+
+        {
+            let init = store.initialization_provider().expect("init");
+            init.set_initial_state_anchor(BlockNumHash { number: 0, hash: B256::ZERO })
+                .expect("anchor");
+            init.commit_initial_state().expect("commit init");
+            OpProofsInitProvider::commit(init).expect("commit");
+        }
+
+        // --- entities ---
+        // accounts
+        let a1 = B256::from([0xA1; 32]);
+        let a2 = B256::from([0xA2; 32]);
+        let a3 = B256::from([0xA3; 32]); // introduced later
+
+        // one storage address with 3 slots
+        let stor_addr = B256::from([0x10; 32]);
+        let s1 = B256::from([0xB1; 32]);
+        let s2 = B256::from([0xB2; 32]);
+        let s3 = B256::from([0xB3; 32]);
+
+        // account-trie paths (p1 gets removed by block 3; p2 remains; p3 added later)
+        let p1 = Nibbles::from_nibbles_unchecked([0x01, 0x02]);
+        let p2 = Nibbles::from_nibbles_unchecked([0x03, 0x04]);
+        let p3 = Nibbles::from_nibbles_unchecked([0x05, 0x06]);
+
+        let node_p1 = BranchNodeCompact::new(0b1, 0, 0, vec![], Some(B256::from([0x11; 32])));
+        let node_p2 = BranchNodeCompact::new(0b10, 0, 0, vec![], Some(B256::from([0x22; 32])));
+        let node_p3 = BranchNodeCompact::new(0b11, 0, 0, vec![], Some(B256::from([0x33; 32])));
+
+        // storage-trie paths (st1 removed by block 3; st2 remains; st3 added later)
+        let st1 = Nibbles::from_nibbles_unchecked([0x0A]);
+        let st2 = Nibbles::from_nibbles_unchecked([0x0B]);
+        let st3 = Nibbles::from_nibbles_unchecked([0x0C]);
+
+        let node_st2 = BranchNodeCompact::new(0b101, 0, 0, vec![], Some(B256::from([0x44; 32])));
+        let node_st3 = BranchNodeCompact::new(0b110, 0, 0, vec![], Some(B256::from([0x55; 32])));
+
+        // --- write 5 blocks manually ---
+        let mut parent = B256::ZERO;
+
+        // Block 1: add a1,a2; s1=100, s2=200; add p1, st1
+        {
+            let b1 = block(1, parent);
+
+            let mut d_trie_updates = TrieUpdates::default();
+            let mut d_post_state = HashedPostState::default();
+
+            d_post_state.accounts.insert(
+                a1,
+                Some(Account { nonce: 1, balance: U256::from(1_001), ..Default::default() }),
+            );
+            d_post_state.accounts.insert(
+                a2,
+                Some(Account { nonce: 1, balance: U256::from(1_002), ..Default::default() }),
+            );
+
+            let mut hs = HashedStorage::default();
+            hs.storage.insert(s1, U256::from(100));
+            hs.storage.insert(s2, U256::from(200));
+            d_post_state.storages.insert(stor_addr, hs);
+
+            d_trie_updates.account_nodes.insert(p1, node_p1);
+            let e = d_trie_updates.storage_tries.entry(stor_addr).or_default();
+            e.storage_nodes.insert(st1, BranchNodeCompact::default());
+
+            let d = BlockStateDiff {
+                sorted_post_state: d_post_state.into_sorted(),
+                sorted_trie_updates: d_trie_updates.into_sorted(),
+            };
+            let provider = store.provider_rw().expect("provider_rw");
+            provider.store_trie_updates(b1, d).expect("b1");
+            OpProofsProviderRw::commit(provider).expect("commit");
+            parent = b256(1);
+        }
+
+        // Block 2: update a2; add a3; s2=220, s3=300; add p2, st2
+        {
+            let b2 = block(2, parent);
+
+            let mut d_trie_updates = TrieUpdates::default();
+            let mut d_post_state = HashedPostState::default();
+
+            d_post_state.accounts.insert(
+                a2,
+                Some(Account { nonce: 2, balance: U256::from(2_002), ..Default::default() }),
+            );
+            d_post_state.accounts.insert(
+                a3,
+                Some(Account { nonce: 1, balance: U256::from(1_003), ..Default::default() }),
+            );
+
+            let mut hs = HashedStorage::default();
+            hs.storage.insert(s2, U256::from(220));
+            hs.storage.insert(s3, U256::from(300));
+            d_post_state.storages.insert(stor_addr, hs);
+
+            d_trie_updates.account_nodes.insert(p2, node_p2.clone());
+            let e = d_trie_updates.storage_tries.entry(stor_addr).or_default();
+            e.storage_nodes.insert(st2, node_st2.clone());
+
+            let d = BlockStateDiff {
+                sorted_post_state: d_post_state.into_sorted(),
+                sorted_trie_updates: d_trie_updates.into_sorted(),
+            };
+            let provider = store.provider_rw().expect("provider_rw");
+            provider.store_trie_updates(b2, d).expect("b2");
+            OpProofsProviderRw::commit(provider).expect("commit");
+            parent = b256(2);
+        }
+
+        // Block 3: delete a1; leave a2,a3; remove p1; remove st1 (storage-trie)
+        {
+            let b3 = block(3, parent);
+
+            let mut d_trie_updates = TrieUpdates::default();
+            let mut d_post_state = HashedPostState::default();
+
+            // delete a1, keep a2 & a3 values unchanged for this block
+            d_post_state.accounts.insert(a1, None);
+
+            // remove account trie node p1
+            d_trie_updates.removed_nodes.insert(p1);
+
+            // remove storage-trie node st1
+            let mut st_upd = StorageTrieUpdates::default();
+            st_upd.removed_nodes.insert(st1);
+            d_trie_updates.storage_tries.insert(stor_addr, st_upd);
+
+            let d = BlockStateDiff {
+                sorted_post_state: d_post_state.into_sorted(),
+                sorted_trie_updates: d_trie_updates.into_sorted(),
+            };
+            let provider = store.provider_rw().expect("provider_rw");
+            provider.store_trie_updates(b3, d).expect("b3");
+            OpProofsProviderRw::commit(provider).expect("commit");
+            parent = b256(3);
+        }
+
+        // Block 4 (kept): update a2; s1=140; add p3, st3
+        {
+            let b4 = block(4, parent);
+
+            let mut d_trie_updates = TrieUpdates::default();
+            let mut d_post_state = HashedPostState::default();
+
+            d_post_state.accounts.insert(
+                a2,
+                Some(Account { nonce: 3, balance: U256::from(3_002), ..Default::default() }),
+            );
+
+            let mut hs = HashedStorage::default();
+            hs.storage.insert(s1, U256::from(140));
+            d_post_state.storages.insert(stor_addr, hs);
+            d_trie_updates.account_nodes.insert(p3, node_p3.clone());
+            let e = d_trie_updates.storage_tries.entry(stor_addr).or_default();
+            e.storage_nodes.insert(st3, node_st3.clone());
+
+            let d = BlockStateDiff {
+                sorted_post_state: d_post_state.into_sorted(),
+                sorted_trie_updates: d_trie_updates.into_sorted(),
+            };
+            let provider = store.provider_rw().expect("provider_rw");
+            provider.store_trie_updates(b4, d).expect("b4");
+            OpProofsProviderRw::commit(provider).expect("commit");
+            parent = b256(4);
+        }
+
+        // Block 5 (kept): update a3; s3=330
+        {
+            let b5 = block(5, parent);
+
+            let mut d_post_state = HashedPostState::default();
+
+            d_post_state.accounts.insert(
+                a3,
+                Some(Account { nonce: 2, balance: U256::from(2_003), ..Default::default() }),
+            );
+
+            let mut hs = HashedStorage::default();
+            hs.storage.insert(s3, U256::from(330));
+            d_post_state.storages.insert(stor_addr, hs);
+
+            let d = BlockStateDiff {
+                sorted_post_state: d_post_state.into_sorted(),
+                sorted_trie_updates: TrieUpdatesSorted::default(),
+            };
+            let provider = store.provider_rw().expect("provider_rw");
+            provider.store_trie_updates(b5, d).expect("b5");
+            OpProofsProviderRw::commit(provider).expect("commit");
+        }
+
+        // sanity: earliest=0, latest=5
+        {
+            let provider = store.provider_ro().expect("provider_ro");
+            let e = provider.get_earliest_block().expect("earliest");
+            let l = provider.get_latest_block().expect("latest");
+            assert_eq!(e.number, 0);
+            assert_eq!(l.number, 5);
+        }
+
+        // --- prune: remove the first 3 blocks, keep 4 and 5
+        // new_earliest = 5-1 = 4
+        let mut block_hash_reader = MockBlockHashReader::new();
+        block_hash_reader
+            .expect_block_hash()
+            .withf(move |block_num| *block_num == 4)
+            .returning(move |_| Ok(Some(b256(4))));
+
+        block_hash_reader
+            .expect_block_hash()
+            .withf(move |block_num| *block_num == 3)
+            .returning(move |_| Ok(Some(b256(3))));
+
+        let pruner = OpProofStoragePruner::new(store.clone(), block_hash_reader, 1);
+        let out = pruner.run_inner().expect("pruner ok");
+        assert_eq!(out.start_block, 0);
+        assert_eq!(out.end_block, 4, "pruned up to 4 (inclusive); new earliest is 4");
+
+        // proof window moved: earliest=4, latest=5
+        {
+            let provider = store.provider_ro().expect("provider_ro");
+            let e = provider.get_earliest_block().expect("earliest");
+            let l = provider.get_latest_block().expect("latest");
+            assert_eq!(e, NumHash::new(4, b256(4)));
+            assert_eq!(l, NumHash::new(5, b256(5)));
+        }
+
+        // --- DB checks
+        let provider = store.provider_ro().expect("provider_ro");
+        let mut acc_cur = provider.account_hashed_cursor(4).expect("acc cur");
+        let mut stor_cur = provider.storage_hashed_cursor(stor_addr, 4).expect("stor cur");
+        let mut acc_trie_cur = provider.account_trie_cursor(4).expect("acc trie cur");
+        let mut stor_trie_cur = provider.storage_trie_cursor(stor_addr, 4).expect("stor trie cur");
+
+        // Check these histories have been removed
+        let pruned_hashed_account = a1;
+        let pruned_trie_accounts = p1;
+        let pruned_trie_storage = st1;
+
+        assert_ne!(
+            acc_cur.seek(pruned_hashed_account).expect("seek").unwrap().0,
+            pruned_hashed_account,
+            "deleted account must not exist in earliest snapshot"
+        );
+        assert_ne!(
+            acc_trie_cur.seek(pruned_trie_accounts).expect("seek").unwrap().0,
+            pruned_trie_accounts,
+            "deleted account trie must not exist in earliest snapshot"
+        );
+        assert_ne!(
+            stor_trie_cur.seek(pruned_trie_storage).expect("seek").unwrap().0,
+            pruned_trie_storage,
+            "deleted storage trie must not exist in earliest snapshot"
+        );
+
+        // Check these histories have been updated - till block 4
+        let updated_hashed_accounts = vec![
+            (a2, Account { nonce: 3, balance: U256::from(3_002), ..Default::default() }), /* block 4 */
+            (a3, Account { nonce: 1, balance: U256::from(1_003), ..Default::default() }), /* block 2 */
+        ];
+        let updated_hashed_storage = vec![
+            (s1, U256::from(140)), // block 4
+            (s2, U256::from(220)), // block 2
+            (s3, U256::from(300)), // block 2
+        ];
+        let updated_trie_accounts = vec![
+            (p2, node_p2), // block 2
+            (p3, node_p3), // block 4
+        ];
+        let updated_trie_storage = vec![
+            (st2, node_st2), // block 2
+            (st3, node_st3), // block 4
+        ];
+
+        for (key, val) in updated_hashed_accounts {
+            let (k, vv) = acc_cur.seek(key).expect("seek").unwrap();
+            assert_eq!(key, k, "key must exist");
+            assert_eq!(val, vv, "value must be updated");
+        }
+
+        for (key, val) in updated_hashed_storage {
+            let (k, vv) = stor_cur.seek(key).expect("seek").unwrap();
+            assert_eq!(key, k, "key must exist");
+            assert_eq!(val, vv, "value must be updated");
+        }
+
+        for (key, val) in updated_trie_accounts {
+            let (k, vv) = acc_trie_cur.seek(key).expect("seek").unwrap();
+            assert_eq!(key, k, "key must exist");
+            assert_eq!(val, vv, "value must be updated");
+        }
+        for (key, val) in updated_trie_storage {
+            let (k, vv) = stor_trie_cur.seek(key).expect("seek").unwrap();
+            assert_eq!(key, k, "key must exist");
+            assert_eq!(val, vv, "value must be updated");
+        }
+    }
+
+    // Both latest and earliest blocks are None -> early return default; DB untouched.
+    #[tokio::test]
+    async fn run_inner_where_latest_block_is_none() {
+        let dir = TempDir::new().unwrap();
+        let store: OpProofsStorage<Arc<MdbxProofsStorage>> =
+            OpProofsStorage::from(Arc::new(MdbxProofsStorage::new(dir.path()).expect("env")));
+
+        {
+            let provider = store.provider_ro().unwrap();
+            let earliest = provider.get_earliest_block();
+            let latest = provider.get_latest_block();
+            println!("{:?} {:?}", earliest, latest);
+            assert!(matches!(earliest, Err(OpProofsStorageError::NoBlocksFound)));
+            assert!(matches!(latest, Err(OpProofsStorageError::NoBlocksFound)));
+        }
+
+        let block_hash_reader = MockBlockHashReader::new();
+        let pruner = OpProofStoragePruner::new(store, block_hash_reader, 10);
+        let out = pruner.run_inner().expect("ok");
+        assert_eq!(out, PrunerOutput::default(), "should early-return default output");
+    }
+
+    // When only earliest is set (and latest is absent), latest falls back to earliest.
+    // This yields interval=0, so pruning should no-op.
+    #[tokio::test]
+    async fn run_inner_earliest_none_real_db() {
+        let dir = TempDir::new().unwrap();
+        let store: OpProofsStorage<Arc<MdbxProofsStorage>> =
+            OpProofsStorage::from(Arc::new(MdbxProofsStorage::new(dir.path()).expect("env")));
+
+        // Bootstrap the chain anchor via the init flow; commit_initial_state sets both
+        // earliest and latest.
+        {
+            let init = store.initialization_provider().expect("init");
+            init.set_initial_state_anchor(BlockNumHash { number: 3, hash: b256(3) })
+                .expect("anchor");
+            init.commit_initial_state().expect("commit init");
+            OpProofsInitProvider::commit(init).expect("commit");
+        }
+
+        {
+            let provider = store.provider_ro().unwrap();
+            let earliest = provider.get_earliest_block().unwrap();
+            let latest = provider.get_latest_block().unwrap();
+            assert_eq!(earliest.number, 3);
+            assert_eq!(latest.number, 3, "commit_initial_state bootstraps both anchors");
+        }
+
+        let block_hash_reader = MockBlockHashReader::new();
+        let pruner = OpProofStoragePruner::new(store, block_hash_reader, 1);
+        let out = pruner.run_inner().expect("ok");
+        assert_eq!(out, PrunerOutput::default(), "should early-return default output");
+    }
+
+    // interval < min_block_interval -> "Nothing to prune" path; default output.
+    #[tokio::test]
+    async fn run_inner_interval_too_small_real_db() {
+        use crate::BlockStateDiff;
+
+        let dir = TempDir::new().unwrap();
+        let store: OpProofsStorage<Arc<MdbxProofsStorage>> =
+            OpProofsStorage::from(Arc::new(MdbxProofsStorage::new(dir.path()).expect("env")));
+
+        // Bootstrap earliest=4 via the init flow.
+        let earliest_num = 4u64;
+        let h4 = b256(4);
+        {
+            let init = store.initialization_provider().expect("init");
+            init.set_initial_state_anchor(BlockNumHash { number: earliest_num, hash: h4 })
+                .expect("anchor");
+            init.commit_initial_state().expect("commit init");
+            OpProofsInitProvider::commit(init).expect("commit");
+        }
+
+        // Set latest=5 by storing block 5.
+        {
+            let provider = store.provider_rw().expect("provider_rw");
+            let b5 = block(5, h4);
+            provider.store_trie_updates(b5, BlockStateDiff::default()).expect("store b5");
+            OpProofsProviderRw::commit(provider).expect("commit");
+        }
+
+        // Sanity: earliest=4, latest=5 => interval=1
+        {
+            let provider = store.provider_ro().unwrap();
+            let e = provider.get_earliest_block().unwrap();
+            let l = provider.get_latest_block().unwrap();
+            assert_eq!(e.number, 4);
+            assert_eq!(l.number, 5);
+        }
+
+        // Require min_block_interval=2 (or greater) so interval < min
+        let block_hash_reader = MockBlockHashReader::new();
+        let pruner = OpProofStoragePruner::new(store, block_hash_reader, 2);
+        let out = pruner.run_inner().expect("ok");
+        assert_eq!(out, PrunerOutput::default(), "no pruning should occur");
+    }
+}

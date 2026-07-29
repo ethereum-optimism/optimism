@@ -1,0 +1,292 @@
+---
+title: 'Fault proof VM: MIPS64.sol'
+description: Learn about the `MIPS64.sol` smart contract that works as part of Optimism's Fault Proof Virtual Machine.
+diataxis: explanation
+---
+
+import { NormativeSpec } from "/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="The onchain FPVM behavior implemented by MIPS64.sol"
+  title="multithreaded Cannon fault proof VM specification"
+  href="https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html"
+  note="This page tours the contract implementation; it does not restate the spec."
+/>
+
+The [`MIPS64.sol`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/cannon/MIPS64.sol) smart contract is an onchain implementation of a big-endian virtual machine (VM) that encompasses the 64-bit MIPS64 Release 1 (MIPS64r1) Instruction Set Architecture (ISA), extended with multithreading support.
+It is the counterpart to the off-chain `mipsevm` Go implementation of the same ISA, and together the onchain and off-chain VM implementations make up [Cannon](/op-stack/fault-proofs/cannon),
+Optimism's Fault Proof Virtual Machine (FPVM). Cannon is an instance of an FPVM that can be used as part of the Dispute Game for any OP Stack blockchain.
+The Dispute Game itself is modular, allowing for any FPVM to be used in a dispute; however, Cannon is Optimism's default FPVM, and `MIPS64.sol` is its onchain component.
+The multithreaded 64-bit generation of Cannon is also referred to as MTCannon, and its behavior is specified in the [Cannon FPVM specification](https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs).
+
+## From 32 bits to 64 bits
+
+Cannon's onchain FPVM contract was originally `MIPS.sol`, a single-threaded implementation of the 32-bit MIPS32 ISA
+(see the version at the [`op-contracts/v1.6.0`](https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/cannon/MIPS.sol) tag, as of `op-contracts/v1.6.0`).
+Multithreading was first added to Cannon on the 32-bit architecture: the `multithreaded` state version in
+[`version.go`](https://github.com/ethereum-optimism/optimism/blob/develop/cannon/mipsevm/versions/version.go) precedes the 64-bit `multithreaded64` versions, and it had a matching `MIPS2.sol` contract.
+That 32-bit multithreaded generation never became the production onchain FPVM, though: the
+[standard versions](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-versions-mainnet.toml) in the superchain-registry
+move directly from the single-threaded 32-bit `MIPS.sol` (last shipped as contract version `1.3.0`, through the `op-contracts/v2.x` releases)
+to the multithreaded 64-bit `MIPS64.sol` (contract version `1.0.0` in `op-contracts/v3.0.0`, where the registry notes that the MIPS semver was reset because "MIPS is now MIPS64").
+For the deployed onchain contract, the move from 32 bits to 64 bits therefore came with the transition to multithreaded Cannon.
+`MIPS.sol` and `MIPS2.sol` have since been removed from the Optimism monorepo, and `MIPS64.sol` is the maintained onchain FPVM contract.
+The rest of this page describes `MIPS64.sol`.
+
+## Control flow
+
+The `FaultDisputeGame.sol` contract interacts with `MIPS64.sol`, and `MIPS64.sol` in turn calls into `PreimageOracle.sol`. `MIPS64.sol` is only called at the max depth of the game when someone needs to call [`step`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol#L362) (as of `2783f688`); the dispute game reaches the VM through the generic `IBigStepper` interface, so any FPVM implementing that interface can back a dispute game.
+`FaultDisputeGame.sol` is the deployed instance of a Fault Dispute Game for an active dispute, and `PreimageOracle.sol` stores Pre-images.
+
+*   Pre-images contain data from both L1 and L2, which includes information such as block headers, transactions, receipts, world state nodes, and more. Pre-images are used as the inputs to the derivation process used to calculate the true L2 state, and subsequently the true L2 state is used to resolve a dispute game.
+*   A Fault Dispute Game, at a high-level, will effectively determine what L2 state is currently agreed-upon, and move through L2 state until the first disagreed-upon state is found. How the Pre-images are determined and populated into the `PreimageOracle.sol` contract is out-of-scope for this reference document on the `MIPS64.sol` contract, as that contract only consumes Pre-images that have already been populated by the off-chain Cannon implementation.
+
+The `MIPS64.sol` contract is called by a running instance of a dispute game (i.e. by a `FaultDisputeGame.sol` contract), and is only called once a dispute game reaches a leaf node in the state transition tree that is currently being disputed.
+A leaf node represents a single MIPS instruction (in the case that we're using Cannon as the FPVM) that can then be run onchain. Given a Pre-image, which is the previously agreed-upon L2 state up until this instruction, and the instruction
+state to run in the `MIPS64.sol` contract, the fault dispute game can determine the true post state (or Post-image). This true post state will then be used to determine the outcome of the fault dispute game by comparing the disputed post-state
+at the leaf node with the post-state proposed by the disputer.
+
+## Contract state
+
+The `MIPS64.sol` contract contains only two immutable variables: the address of the `PreimageOracle.sol` contract, and the Cannon state version it implements.
+The [constructor](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/MIPS64.sol#L94) (as of `2783f688`) accepts only state version `8`, the `multithreaded64-5` version defined in
+[`version.go`](https://github.com/ethereum-optimism/optimism/blob/develop/cannon/mipsevm/versions/version.go), which is the current default state version of the off-chain Cannon implementation.
+Otherwise, the contract is stateless, meaning that all state related to playing a MIPS instruction onchain comes from either the `FaultDisputeGame.sol` instance, or the `PreimageOracle.sol`.
+Having a stateless `MIPS64.sol` contract means that it can be used by any fault dispute game that is using the Cannon FPVM; the `MIPS64.sol` contract does not need to be re-deployed per fault dispute game instance.
+Subsequently, any fault dispute game that is using the same `MIPS64.sol` contract will also share the same `PreimageOracle.sol` contract.
+Note that the `PreimageOracle.sol` contract is stateful, but how state is stored in the contract and differentiated between different fault dispute game instances is out-of-scope for this document.
+
+While the `MIPS64.sol` contract is stateless, meaning it does not store state in the contract directly, the contract does require up to 4 different types of witness data in order to perform a single MIPS instruction onchain:
+
+*   Packed VM execution state
+*   A thread state witness
+*   Memory proofs
+*   Pre-images
+
+The Pre-images have already been discussed above, so we will discuss the packed VM execution state, the thread state witness, and the memory proofs.
+As a final note on Pre-images during onchain execution, it is entirely possible that the `MIPS64.sol` contract never runs a MIPS instruction onchain that requires the contract to read from `PreimageOracle.sol`.
+There is no requirement to read from the `PreimageOracle.sol` during instruction execution, but that doesn't mean the `PreimageOracle.sol` contract is not being used.
+The Pre-image information that has been read in previous off-chain instructions leading up to the execution of a single instruction onchain may still reside in the constructed VM memory.
+Thus, even when the instruction run onchain does not explicitly read from `PreimageOracle.sol`, Pre-image data may still influence the merkle root that represents the VM's memory.
+
+### Packed VM execution state
+
+In order to execute a MIPS instruction onchain, the `MIPS64.sol` contract needs to know important state information such as the memory root, the Pre-image read position, and the multithreading bookkeeping described below.
+More specifically, a tightly-packed 188-byte `State` struct contains all the relevant global VM state. This struct is passed to the contract from the `FaultDisputeGame.sol` contract when it invokes the `step` function in `MIPS64.sol` (which in-turn executes a single MIPS instruction onchain).
+The following information is stored in the `State` struct. See the [code reference](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/MIPS64.sol#L50) (as of `2783f688`) and the [Cannon FPVM specification](https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs#state) for details:
+
+1.  `memRoot` - The merkle root hash of the binary merkle tree that represents the MIPS VM's monolithic 64-bit memory space.
+2.  `preimageKey` - Key that uniquely identifies the Pre-image data to be read (if applicable) from the `PreimageOracle.sol` contract.
+3.  `preimageOffset` - Each Pre-image read from the oracle returns up to 32 bytes, however the word size for 64-bit MIPS is 8 bytes. Therefore, at most 8 bytes from a Pre-image will be read during a read syscall. The `preimageOffset` serves as the offset into the Pre-image being read, so that an instruction can continue reading a Pre-image up to 8 bytes at a time.
+4.  `heap` - Pointer to the most recent memory allocation returned via the `mmap` syscall.
+5.  `llReservationStatus` - Status of the current Load Linked / Store Conditional memory reservation: `0` when there is no reservation, `1` for a 32-bit (`ll`/`sc`) reservation, and `2` for a 64-bit (`lld`/`scd`) reservation.
+6.  `llAddress` - The virtual address reserved by the last `ll` or `lld` instruction, or `0` when there is no active reservation.
+7.  `llOwnerThread` - The id of the thread that owns the current memory reservation, or `0` when there is no active reservation.
+8.  `exitCode` - `uint8` value that represents the UNIX exit status code of the VM.
+9.  `exited` - Boolean that indicates whether the VM has exited or not.
+10. `step` - Counts the total number of instructions that have been executed.
+11. `stepsSinceLastContextSwitch` - Counts the instructions executed on the current thread since the last context switch, used to force thread preemption after the scheduling quantum.
+12. `traverseRight` - Boolean that indicates whether the VM is currently traversing the right thread stack (see below).
+13. `leftThreadStack` - Hash commitment to the contents of the left thread stack.
+14. `rightThreadStack` - Hash commitment to the contents of the right thread stack.
+15. `nextThreadID` - The id to assign to the next thread created via the `clone` syscall.
+
+Note that the per-thread execution state (`pc`, `nextPC`, `lo`, `hi`, and the 32 general purpose registers) is no longer part of the top-level `State` struct: it lives in the thread state, described next.
+
+### Thread state and thread stacks
+
+`MIPS64.sol` supports multithreading, so the VM tracks a set of threads and executes one instruction at a time on the currently active thread.
+Each thread is described by a packed 298-byte [`ThreadState`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/MIPS64.sol#L28) (as of `2783f688`) struct containing:
+
+1.  `threadID` - A unique thread identifier.
+2.  `exitCode` - The thread's exit status code.
+3.  `exited` - Boolean that indicates whether the thread has exited.
+4.  `pc` - The program counter, which points to the memory location that contains the MIPS instruction to execute onchain.
+5.  `nextPC` - The next program counter. Note that the next instruction may not be `pc + 4` in the event of a branch or jump instruction; `nextPC` effectively implements the [branch delay slot](https://en.wikipedia.org/wiki/MIPS_architecture#cpu_instructions) of the MIPS ISA.
+6.  `lo` - Special purpose register that stores the low-order bits from certain multiplication and division instructions (or special move instructions that store into this register).
+7.  `hi` - Special purpose register that stores the high-order bits from certain multiplication and division instructions (or special move instructions that store into this register).
+8.  `registers` - Array of 32, 64-bit values that represent the general purpose registers of the MIPS ISA.
+
+Rather than storing every thread in the packed VM state, the VM commits to its threads using two stacks of thread states (a left stack and a right stack), each represented by a single `bytes32` "hash onion" commitment: an empty stack is `keccak256(bytes32(0) ++ bytes32(0))`, and pushing a thread hashes the current commitment together with the thread's hash.
+The VM traverses the two stacks left-to-right and then right-to-left to visit every thread, as described in the [thread stack hashing](https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs#thread-stack-hashing) and [multithreading](https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs#multithreading) sections of the specification.
+Because of this construction, a `step` call only needs a witness for the currently active thread: the packed `ThreadState` plus the inner commitment of the rest of the active stack.
+Threads are scheduled cooperatively (via syscalls such as `sched_yield`, `nanosleep`, and `futex` waits) and preemptively: once `stepsSinceLastContextSwitch` reaches the scheduling quantum of 100,000 steps ([`SCHED_QUANTUM`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/libraries/MIPS64Syscalls.sol#L126), as of `2783f688`), the VM forces a context switch instead of executing another instruction on the same thread.
+
+### State hash
+
+The state hash is the `bytes32` value returned to the active Fault Dispute Game upon the completion of a single MIPS instruction in the `MIPS64.sol` contract.
+The hash is derived by taking the `keccak256` of the packed 188-byte VM execution `State` struct, then replacing the first byte of the hash with a value that represents the status of the VM.
+This value is derived from the `exitCode` and `exited` values, and can be:
+
+*   Valid (0)
+*   Invalid (1)
+*   Panic (2) or
+*   Unfinished (3)
+
+The reason for adding the VM status to the state hash is to communicate to the dispute game whether the VM determined the proposed output root was valid or not.
+This in turn prevents a user from disputing an output root during a dispute game, while providing the state hash from a cannon trace that actually proves the output root is valid.
+
+### Memory proofs
+
+Using a 64-bit ISA means that the total size of the address space (assuming no virtual address space) is `2^64` bytes. Additionally, the `MIPS64.sol` contract is stateless, so it does not store the MIPS memory in contract storage. The primary reason for this is because having to load the entire memory into the `MIPS64.sol` contract in order to execute a single instruction onchain is prohibitively expensive. Additionally, the entire memory would need to be loaded per fault proof game, requiring multiple instances of the `MIPS64.sol` contract. Therefore, in order to optimize the amount of data that needs to be provided per onchain instruction execution while still maintaining integrity over the entire 64-bit address space, Optimism has converted the memory into a binary merkle tree.
+
+The binary merkle tree (i.e. hash tree) used to store the memory of the MIPS VM has leaf values that are 32 bytes and has a fixed depth of 59 levels. This in turn allows the binary merkle tree to span the full 64-bit address space: `2^59 * 32 = 2^64` (See [memory proofs](https://github.com/ethereum-optimism/optimism/blob/develop/cannon/docs/README.md#memory-proofs) in the Cannon overview for more details). In order to ensure the integrity of the entire address space each time memory is read or written to, one or more memory proofs are provided by the `FaultDisputeGame.sol` contract each time a MIPS instruction is executed onchain in `MIPS64.sol`. A memory proof consists of the current leaf value and 59 sibling nodes (60, 32-byte values in total, per [`MEM_PROOF_LEAF_COUNT`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/libraries/MIPS64Memory.sol#L9), as of `2783f688`), where the sibling nodes are the `keccak256` hash of its own child nodes. Using the leaf value, its 59 sibling nodes, and the memory address converted to its binary representation as a guide (0 or 1 tells the order to concatenate left and right values), we can calculate a merkle root. This merkle root should be exactly the same as the merkle root stored in the VM execution `State` struct.
+
+Reading to memory and writing to memory work similarly, both involve calculating the merkle root. In the case of a memory write, `MIPS64.sol` must take care to verify that the provided proof for the memory location to write to is correct. Additionally, writing to memory will change the merkle root stored in the VM execution `State` struct.
+
+### State calculation
+
+While the `MIPS64.sol` contract may only execute a single instruction onchain, the off-chain Cannon implementation executes all prerequisite MIPS instructions for all state transitions in the disputed L2 state. These transitions are required to reach the disputed instruction that will be executed onchain. This ensures that the MIPS instruction executed onchain has the correct VM state and necessary Pre-images stored in the `PreimageOracle.sol` contract to generate the true post-state that can be used to resolve the dispute game.
+
+## Functions
+
+The single-instruction interpreter is split between the `MIPS64.sol` contract, which owns the state and thread handling, and a set of libraries under
+[`src/cannon/libraries`](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/cannon/libraries): `MIPS64Memory.sol` (memory proofs), `MIPS64Instructions.sol` (the core instruction interpreter), `MIPS64Syscalls.sol` (syscall handling), `MIPS64State.sol`, and `MIPS64Arch.sol`.
+
+### oracle
+
+The external view [`oracle`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/MIPS64.sol#L105) (as of `2783f688`) function is a getter function that returns the PreimageOracle address cast as a `IPreimageOracle` interface.
+
+### stateVersion
+
+The external view [`stateVersion`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/MIPS64.sol#L111) (as of `2783f688`) function returns the Cannon state version implemented by the deployed contract, which identifies the specific state transition rules it applies.
+
+### step
+
+The public [`step`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/MIPS64.sol#L126) (as of `2783f688`) function is the top-level call that executes a single MIPS instruction. This function will be called by an active dispute game in order to determine the true post state given a pre state and a MIPS instruction to run. It takes three arguments: the packed `State` witness (`_stateData`), the proof data (`_proof`, containing the thread witness followed by one or more memory proofs), and a `_localContext` value used to localize Pre-image keys per dispute game. At a high-level, the function (via the internal [`doStep`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/MIPS64.sol#L150) function, as of `2783f688`) performs the following steps:
+
+1.  Verifies and unpacks the `stateData` variable into the VM execution `State` struct (in memory), and unpacks and validates the thread witness against the active thread stack commitment.
+2.  If the active thread has exited, pops it from the thread stack; if the scheduling quantum has been exceeded, preempts the thread. In either case this consumes the step without executing an instruction.
+3.  Otherwise, reads the instruction located at the active thread's program counter (`pc`) using the first memory proof.
+4.  Interprets and executes the MIPS instruction according to the MIPS specification, dispatching syscalls and Load Linked / Store Conditional instructions to their dedicated handlers.
+5.  Writes results to registers or memory (if applicable), updates the active thread's commitment on the thread stack, and returns the new state hash.
+
+The contract also asserts a post-state invariant: the active thread stack must never end up empty after a step.
+
+### handleSyscall
+
+The internal [`handleSyscall`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/MIPS64.sol#L399) (as of `2783f688`) function handles the syscall MIPS instruction, with the heavy lifting implemented in [`MIPS64Syscalls.sol`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/cannon/libraries/MIPS64Syscalls.sol). Syscall numbers follow the Linux MIPS64 n64 ABI (e.g. `read` is `5000` and `write` is `5001`). Only a subset of syscalls is implemented with real behavior, mimicking the Linux manual pages where applicable:
+
+*   Pre-image communication: `read` and `write` (discussed below).
+*   Memory management: `mmap` (bump allocation from the `heap` pointer with a fixed heap limit) and `brk` (returns a fixed program break).
+*   Thread management: `clone` (creates a new thread sharing memory but with its own stack pointer and registers), `exit` (exits the current thread; exits the VM when it is the last thread), `exit_group` (exits the VM), `gettid`, `sched_yield` and `nanosleep` (yield the current thread), and `futex` wait/wake operations used for thread synchronization.
+*   Miscellaneous: `fcntl` (file descriptor flags only), `clock_gettime` (derives a deterministic clock from the step counter), `getpid`, `getrandom` (fills memory with deterministic pseudorandom bytes derived from the step counter), and `eventfd2` (non-blocking mode only).
+
+A further list of known but irrelevant syscalls (e.g. `munmap`, `mprotect`, signal and timer related calls) is treated as a no-op, returning 0 without any side effects; see the [noop syscalls](https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs#noop-syscalls) list in the specification.
+Unlike the original 32-bit `MIPS.sol`, which silently returned 0 for anything it did not recognize, `MIPS64.sol` reverts on unrecognized syscall numbers so that unexpected program behavior cannot go unnoticed.
+
+#### syscall read
+
+When given file descriptor 5 as the target of the read syscall, [`handleSysRead`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/libraries/MIPS64Syscalls.sol#L251) (as of `2783f688`) will call the `PreimageOracle.sol` contract to read up to 32 bytes of Pre-image data at the current location determined by the `preimageKey` stored in the VM execution `State` struct (localizing the key with the `_localContext` when it is a local key). Once the Pre-image fragment has been read, the function will then determine the number of bytes to read (up to 8 bytes) and the location in memory to store the bytes. The number of bytes read may be any value between 1 and 8, depending on the alignment of the offset in the returned Pre-image and the alignment of the memory position to write the data to.
+
+#### syscall write
+
+When given the file descriptor 6 as the target of the write syscall, [`handleSysWrite`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/libraries/MIPS64Syscalls.sol#L339) (as of `2783f688`) will not call the `PreimageOracle.sol` contract to write a new Pre-image. Only the off-chain Cannon implementation writes to the `PreimageOracle.sol` contract. Instead, the function computes the new value of the `preimageKey` given the bytes (up to 8) that would be written to the `PreimageOracle.sol` contract. Additionally, the function resets the `preimageOffset` to 0. It is expected that the off-chain Cannon implementation has already written the data to the `PreimageOracle.sol` contract at the location of the newly-derived `preimageKey`.
+
+### handleRMWOps
+
+The internal [`handleRMWOps`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/MIPS64.sol#L304) (as of `2783f688`) function handles the atomic read-modify-write instruction pairs: Load Linked / Store Conditional Word (`ll`/`sc`) and their doubleword variants (`lld`/`scd`). A load linked instruction records a reservation (`llReservationStatus`, `llAddress`, `llOwnerThread`) in the VM state; the matching store conditional succeeds only if that reservation is still intact for the calling thread, which is how the VM emulates atomic memory operations across threads. Any write to the reserved address clears the reservation.
+
+### Thread stack management
+
+A group of internal functions maintains the two thread stack commitments as threads are created, preempted, and exited:
+[`preemptThread`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/MIPS64.sol#L810) moves the active thread to the other stack (flipping the traversal direction when a stack empties), [`pushThread`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/MIPS64.sol#L837) and [`popThread`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/MIPS64.sol#L847) add and remove threads, and [`validateCalldataThreadWitness`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/MIPS64.sol#L921) verifies that the thread witness provided in calldata matches the active stack commitment (all as of `2783f688`).
+
+### outputState
+
+The internal [`outputState`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/MIPS64.sol#L727) (as of `2783f688`) function computes the `keccak256` hash of all values in the VM execution `State` struct, and then masks the first byte of the hash with the current status of the VM as derived from the `exitCode` and `exited` values. Despite the complexity of the function (due to the use of assembly), the implementation is effectively tightly packing all the variables in the `State` struct together, then taking the `keccak256` of the packed bytes.
+
+### Instruction execution: MIPS64Instructions.sol
+
+The core interpreter lives in [`MIPS64Instructions.sol`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/cannon/libraries/MIPS64Instructions.sol):
+
+*   [`getInstructionDetails`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/libraries/MIPS64Instructions.sol#L60) (as of `2783f688`) reads the 32-bit instruction at `pc` (instructions remain 4 bytes wide on MIPS64) using the first memory proof and splits out the opcode and function fields.
+*   [`execMipsCoreStepLogic`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/libraries/MIPS64Instructions.sol#L86) (as of `2783f688`) fetches register operands, dispatches jumps, branches, and HI/LO instructions, executes the instruction, and stores the result.
+*   [`executeMipsInstruction`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/libraries/MIPS64Instructions.sol#L239) (as of `2783f688`) computes ALU results and memory load/store values. Invalid or unsupported instructions cause a revert.
+*   [`handleBranch`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/libraries/MIPS64Instructions.sol#L641) (as of `2783f688`) handles the branch opcodes and conforms to the MIPS specification for the instructions.
+*   [`handleHiLo`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/libraries/MIPS64Instructions.sol#L718) (as of `2783f688`) handles the multiplication, division, and move opcodes that interact with the `hi` and `lo` registers, including the doubleword variants (`dmult`, `dmultu`, `ddiv`, `ddivu`) and doubleword variable shifts.
+*   [`handleJump`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/libraries/MIPS64Instructions.sol#L838) (as of `2783f688`) handles J-type opcodes and conforms to the MIPS specification for the instructions.
+*   [`handleRd`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/libraries/MIPS64Instructions.sol#L862) (as of `2783f688`) handles storing a value into a specified register, with a conditional flag that determines whether the value is stored or not.
+*   [`signExtend`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/libraries/MIPS64Instructions.sol#L625) (as of `2783f688`) performs sign-extension on a `uint64` value given the number of bits that currently represents the value, following the typical procedure for [sign-extension of signed values](https://en.wikipedia.org/wiki/Two%27s_complement#Sign_extension) represented using two's complement. On MIPS64, 32-bit arithmetic results are sign-extended to 64 bits, so this helper is used pervasively.
+
+### Memory access: MIPS64Memory.sol
+
+*   The internal pure [`readMem`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/libraries/MIPS64Memory.sol#L17) (as of `2783f688`) function is a helper function that, given an 8-byte-aligned 64-bit address and the offset of a memory proof in calldata, validates the leaf node using the memory proof and then returns the specific 8-byte value to read. Note that a leaf node is 32 bytes, so at most `readMem` will only read 8 bytes due to the 64-bit MIPS architecture. The validation given a leaf node and its 59 sibling nodes follows the standard logic for verifying inclusion in a merkle tree. The address is used as the path in order to determine the order for hashing two nodes together. Once the top of the tree has been reached, and the merkle root calculated, the calculated root is checked against the merkle root stored in the VM execution `State` struct. It is up to subsequent logic (see `selectSubWord` in `MIPS64Instructions.sol`) to pick the correct sub-word position within an 8-byte word for unaligned or sub-word reads.
+*   The internal pure [`writeMem`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/libraries/MIPS64Memory.sol#L93) (as of `2783f688`) function is a helper function that, given an 8-byte-aligned 64-bit address, the offset of a memory proof in calldata, and a 64-bit value to write, calculates the new merkle root of the VM's memory. Calculating the new merkle root follows the same logic as in the `readMem` function, except that the new value replaces the leaf's targeted 8 bytes. Note that `writeMem` does not verify the proof used to calculate the new merkle root.
+
+<Info>
+  It is **critically important** that the memory proof being used is verified beforehand, by calling the `readMem` function or the [`isValidProof`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/libraries/MIPS64Memory.sol#L144) (as of `2783f688`) helper, against the same address.
+</Info>
+
+### Step calldata layout
+
+The [`memoryProofOffset`](https://github.com/ethereum-optimism/optimism/blob/2783f688c503f1b10fc2e08056818ab5185044a0/packages/contracts-bedrock/src/cannon/libraries/MIPS64Memory.sol#L153) (as of `2783f688`) function handles calculating the offset in calldata to the start of a memory proof given an index, and `doStep` hardcodes and asserts the expected offsets of the `step` arguments. The `step` calldata is encoded using the [Solidity ABI encoding specification](https://docs.soliditylang.org/en/develop/abi-spec.html) and laid out as follows:
+
+| Offset (bytes) | Num. Bytes      | Contents                                                                                                                                                     |
+| --------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0               | 4               | Function selector                                                                                                                                            |
+| 4               | 32              | Offset to the first dynamic bytes argument, `_stateData`                                                                                                     |
+| 36              | 32              | Offset to the second dynamic bytes argument, `_proof`                                                                                                        |
+| 68              | 32              | `_localContext`, the local key context for the Pre-image oracle                                                                                              |
+| 100             | 32              | Length of `_stateData`                                                                                                                                       |
+| 132             | 192             | The packed 188-byte VM execution `State` struct, padded to a multiple of 32 bytes                                                                            |
+| 324             | 32              | Length of `_proof`                                                                                                                                           |
+| 356             | 298             | The packed `ThreadState` of the active thread (the thread witness)                                                                                           |
+| 654             | 32              | The inner commitment of the rest of the active thread stack                                                                                                  |
+| 686             | 60 \* 32 = 1920 | The first memory proof (required), used to read the instruction at `pc`: the leaf value followed by 59 sibling nodes                                         |
+| 2606            | 60 \* 32 = 1920 | Further memory proofs as needed: one for a load/store or syscall memory access, and a second one for the two-word memory write performed by `clock_gettime` |
+
+## Common bitwise operation use cases
+
+1.  Isolating certain bits from a number can be done using the & operator (and(x,y) in Yul), this is also known as generating a bitmask.
+2.  Combining bits from two numbers together can be done using the | operator (or(x, y) in Yul).
+3.  Modulo arithmetic can be expressed using the following bitwise operation: `x % y = x & (y - 1), ex. x % 4 = x & 3.` Note this is only equivalent for unsigned integers.
+4.  Multiplication using a value with a base of 2 can be expressed using the following bitwise operation: `x * y = x << z, where y = 2^z`
+    Ex. `x * 8 = x << 3, where 8 = 2^3`
+
+## Table of supported MIPS instructions
+
+`MIPS64.sol` supports the MIPS32 instruction set previously covered by `MIPS.sol` (arithmetic, logical, shift, branch, jump, load/store, conditional move, HI/LO, `syscall`, and `sync` instructions), executed with 64-bit registers where 32-bit word operations sign-extend their results, plus the MIPS64 doubleword instructions. The authoritative decode logic is [`MIPS64Instructions.sol`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/cannon/libraries/MIPS64Instructions.sol). The doubleword instructions added relative to the 32-bit VM are:
+
+| Instruction Name                                        | Opcode Num. | Funct Num. |
+| ------------------------------------------------------- | ----------- | ---------- |
+| DADD (Doubleword Add)                                   | 0x00        | 0x2C       |
+| DADDU (Doubleword Add Unsigned)                         | 0x00        | 0x2D       |
+| DADDI (Doubleword Add Immediate)                        | 0x18        | -          |
+| DADDIU (Doubleword Add Immediate Unsigned)              | 0x19        | -          |
+| DSUB (Doubleword Subtract)                              | 0x00        | 0x2E       |
+| DSUBU (Doubleword Subtract Unsigned)                    | 0x00        | 0x2F       |
+| DMULT (Doubleword Multiply)                             | 0x00        | 0x1C       |
+| DMULTU (Doubleword Multiply Unsigned)                   | 0x00        | 0x1D       |
+| DDIV (Doubleword Divide)                                | 0x00        | 0x1E       |
+| DDIVU (Doubleword Divide Unsigned)                      | 0x00        | 0x1F       |
+| DSLL (Doubleword Shift Left Logical)                    | 0x00        | 0x38       |
+| DSRL (Doubleword Shift Right Logical)                   | 0x00        | 0x3A       |
+| DSRA (Doubleword Shift Right Arithmetic)                | 0x00        | 0x3B       |
+| DSLL32 (Doubleword Shift Left Logical Plus 32)          | 0x00        | 0x3C       |
+| DSRL32 (Doubleword Shift Right Logical Plus 32)         | 0x00        | 0x3E       |
+| DSRA32 (Doubleword Shift Right Arithmetic Plus 32)      | 0x00        | 0x3F       |
+| DSLLV (Doubleword Shift Left Logical Variable)          | 0x00        | 0x14       |
+| DSRLV (Doubleword Shift Right Logical Variable)         | 0x00        | 0x16       |
+| DSRAV (Doubleword Shift Right Arithmetic Variable)      | 0x00        | 0x17       |
+| DCLZ (Count Leading Zeros in Doubleword)                | 0x1C        | 0x24       |
+| DCLO (Count Leading Ones in Doubleword)                 | 0x1C        | 0x25       |
+| LD (Load Doubleword)                                    | 0x37        | -          |
+| SD (Store Doubleword)                                   | 0x3F        | -          |
+| LDL (Load Doubleword Left)                              | 0x1A        | -          |
+| LDR (Load Doubleword Right)                             | 0x1B        | -          |
+| SDL (Store Doubleword Left)                             | 0x2C        | -          |
+| SDR (Store Doubleword Right)                            | 0x2D        | -          |
+| LWU (Load Word Unsigned)                                | 0x27        | -          |
+| LLD (Load Linked Doubleword)                            | 0x34        | -          |
+| SCD (Store Conditional Doubleword)                      | 0x3C        | -          |
+
+## Further reading
+
+*   [Cannon Overview](https://github.com/ethereum-optimism/optimism/blob/develop/cannon/docs/README.md)
+*   [Cannon FPVM Specification](https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs)
+*   [MIPS IV ISA Specification](https://www.cs.cmu.edu/afs/cs/academic/class/15740-f97/public/doc/mips-isa.pdf)
+*   [MIPS Assembly Wiki Book](https://en.wikibooks.org/wiki/MIPS_Assembly)
+*   [Linux MIPS n64 syscall numbers](https://github.com/torvalds/linux/blob/master/arch/mips/kernel/syscalls/syscall_n64.tbl)
+*   [Yul Instructions](https://docs.soliditylang.org/en/latest/yul.html#evm-dialect)
+*   [Solidity ABI Encoding Specification](https://docs.soliditylang.org/en/develop/abi-spec.html)

@@ -1,0 +1,52 @@
+package derive
+
+import (
+	"errors"
+	"fmt"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
+
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
+)
+
+// UserDeposits transforms the L2 block-height and L1 receipts into the transaction inputs for a full L2 block
+func UserDeposits(receipts []*types.Receipt, depositContractAddr common.Address) ([]*optypes.DepositTx, error) {
+	var out []*optypes.DepositTx
+	var result error
+	for i, rec := range receipts {
+		if rec.Status != types.ReceiptStatusSuccessful {
+			continue
+		}
+		for j, log := range rec.Logs {
+			if log.Address == depositContractAddr && len(log.Topics) > 0 && log.Topics[0] == DepositEventABIHash {
+				dep, err := UnmarshalDepositLogEvent(log)
+				if err != nil {
+					result = errors.Join(result, fmt.Errorf("malformatted L1 deposit log in receipt %d, log %d: %w", i, j, err))
+				} else {
+					out = append(out, dep)
+				}
+			}
+		}
+	}
+	return out, result
+}
+
+func DeriveDeposits(receipts []*types.Receipt, depositContractAddr common.Address) ([]hexutil.Bytes, error) {
+	var result error
+	userDeposits, err := UserDeposits(receipts, depositContractAddr)
+	if err != nil {
+		result = errors.Join(result, err)
+	}
+	encodedTxs := make([]hexutil.Bytes, 0, len(userDeposits))
+	for i, tx := range userDeposits {
+		opaqueTx, err := tx.MarshalBinary()
+		if err != nil {
+			result = errors.Join(result, fmt.Errorf("failed to encode user tx %d", i))
+		} else {
+			encodedTxs = append(encodedTxs, opaqueTx)
+		}
+	}
+	return encodedTxs, result
+}

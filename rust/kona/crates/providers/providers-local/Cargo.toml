@@ -1,0 +1,48 @@
+[package]
+name = "kona-providers-local"
+version = "0.1.0"
+description = "Local buffered provider for caching and reorg handling"
+
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Kona
+kona-derive.workspace = true
+kona-genesis.workspace = true
+kona-protocol.workspace = true
+kona-macros.workspace = true
+
+# Alloy
+alloy-consensus.workspace = true
+alloy-eips.workspace = true
+alloy-primitives.workspace = true
+
+# Op Alloy
+op-alloy-consensus.workspace = true
+
+# Standard library
+async-trait.workspace = true
+lru.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["sync"] }
+
+# `metrics` feature
+metrics = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio.workspace = true
+rstest.workspace = true
+
+[features]
+default = []
+metrics = [ "dep:metrics", "kona-derive/metrics" ]

@@ -1,0 +1,160 @@
+---
+title: "Run Kona Node as a Binary"
+description: "Run the kona-node binary against an op-reth execution client, from starting both clients to watching the node sync."
+diataxis: how-to
+---
+
+<Note>
+If you haven't already built the `kona-node` binary, head over to the
+[Installation](/node-operators/kona-node/install/overview) guide.
+</Note>
+
+`kona-node` is an L2 consensus client (also called a "rollup node").
+This means that the node is a _consensus_-layer client, which needs
+a corresponding execution-layer client in order to sync and follow
+the L2 chain. A number of L2 execution layer clients are available,
+since the OP Stack uses a minimal diff approach to L1 execution
+clients, including [`op-reth`][op-reth] and [`op-geth`][op-geth].
+
+This section will illustrate running the `kona-node` with an instance
+of [`op-reth`][op-reth].
+
+Out of the box, the `kona-node` can be used for any `OP Stack` chain
+that is part of the [`superchain-registry`][scr]. In order to use an
+out-of-band `OP Stack` chain, for example a new devnet, you'll need
+to specify the rollup config using the custom `--l2-config-file`
+cli flag. See [rollup configuration loading](/node-operators/kona-node/configuration#rollup-configuration-loading)
+for details.
+
+<Info>
+This tutorial walks through running the `kona-node` as
+a binary. To use docker, head over to the
+[Docker Guide](/node-operators/kona-node/run/docker) which uses a `docker-compose`
+setup provided by `kona`. The `docker-compose` setup
+automatically bootstraps the `kona-node` with `op-reth`,
+provisioning grafana dashboards and a default Prometheus
+configuration. It is encouraged to follow the
+[Docker Guide](/node-operators/kona-node/run/docker) to avoid misconfigurations.
+</Info>
+
+The `kona-node` requires a few CLI flags.
+
+- `--l1-eth-rpc <L1_ETH_RPC>`
+  URL of the L1 execution client RPC API.
+- `--l1-beacon <L1_BEACON>`
+  URL of the L1 beacon API.
+- `--l2-engine-rpc <L2_ENGINE_RPC>`
+  URL of the engine API endpoint of an L2 execution client.
+
+The L2 engine RPC points to the execution layer client's engine API,
+[`op-reth`][op-reth].
+
+An L1 beacon endpoint and rpc endpoint are also required to
+fetch the L1 chain data that the L2 chain is derived from.
+
+First, start an instance of [`op-reth`][op-reth]. The
+[`op-reth` docs][op-reth-docs] provide very detailed instructions
+for running `op-reth` nodes for OP Stack chains (L2). For this
+demo, we'll use `base`, but any other OP Stack chain will do.
+
+```
+op-reth node \
+    --chain base \
+    --rollup.sequencer-http https://mainnet-sequencer.base.org \
+    --http \
+    --ws \
+    --authrpc.port 9551 \
+    --authrpc.jwtsecret /path/to/jwt.hex
+```
+
+Kona has a `generate-jwt` justfile target that can be used to
+create the `jwt.hex` file. Run `just generate-jwt`.
+
+
+<Info>
+The JWT token file path passed into `--authrpc.jwtsecret`
+**MUST** be the same as the one passed into the `kona-node`.
+
+This JWT token is how the `op-reth` client authenticates
+requests made by the `kona-node` to the engine rpc.
+
+By default, the `kona-node` will attempt to read a JWT token
+from a `jwt.hex` file in the local directory. If it cannot
+find one, it will create a JWT token in a new `jwt.hex` file.
+
+To specify the path to the file that contains the JWT token,
+pass the file path into the `--l2.jwt-secret` CLI flag or
+use the `KONA_NODE_L2_ENGINE_AUTH` environment variable.
+</Info>
+
+Then, run the `kona-node` using Base's chain id - `8453`.
+
+```
+kona-node node \
+    --chain 8453 \
+    --l1-eth-rpc <L1_RPC_URL> \
+    --l1-beacon <L1_BEACON_URL> \
+    --l2-engine-rpc http://127.0.0.1:9551 \
+```
+
+That's it! Your node should connect to P2P and start syncing
+quickly.
+
+<Note>
+By default, `kona-node` trusts its RPC providers and doesn't perform
+additional verification, which is suitable for local nodes. When
+pointing the node at public RPC endpoints, follow
+[configure RPC trust](/node-operators/kona-node/run/rpc-trust) to enable
+block hash verification.
+</Note>
+
+
+#### What to Expect
+
+Now, when the `kona-node` starts up, it should immediately spin up
+the P2P stack. It will begin discovering valid peers on the network
+with the same chain id (base - `8453`) and OP Stack enr key "opstack".
+When valid peers are discovered, they are sent to the libp2p swarm
+which attempts to connect to them and listen for block gossip.
+
+Depending on the chain, and the P2P network topology, it may take
+longer for the `kona-node` to establish a strong set of peers and
+begin receiving block gossip. For larger, more mature chains like
+OP Mainnet and Base, peer discovery should happen quickly via the
+chain's P2P bootnodes.
+
+Once the first unsafe L2 payload attributes (block) is received
+from peers in the libp2p swarm, it is sent off to the `kona-node`'s
+engine actor which will kick off execution layer sync on the
+`op-reth` execution client. When this happens, the `op-reth` logs
+will start to show that it is fetching past L2 blocks to sync the
+chain to tip.
+
+Once EL sync is finished, `kona-node`'s derivation actor will
+kick off the derivation pipeline and begin deriving the L2 chain.
+All the while, the P2P stack is separately receiving unsafe L2
+blocks from the chain's sequencer, and sending them off to the
+engine actor to insert into the chain.
+
+
+#### Next Steps
+
+- The node's default ports, default behavior, and every available CLI
+  flag - including the sequencer and supervisor flag sets - are
+  catalogued in the [Kona node CLI reference](/node-operators/kona-node/configuration).
+- To adjust log verbosity or set up metrics dashboards, see
+  [Monitoring](/node-operators/kona-node/monitoring).
+- To learn more about running a `kona-node` using docker, check
+  out the [docker guide](/node-operators/kona-node/run/docker).
+
+
+[scr]: https://github.com/ethereum-optimism/superchain-registry/tree/main
+
+[op-reth-docs]: https://reth.rs/run/opstack
+
+[op-reth]: https://github.com/paradigmxyz/reth/blob/main/crates/optimism/bin/src/main.rs
+[op-geth]: https://github.com/ethereum-optimism/op-geth
+
+[buildx]: https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/docker
+[packages]: https://github.com/orgs/op-rs/packages?repo_name=kona
+[pdocs]: https://github.com/ethereum-optimism/optimism/pkgs/container/kona%2Fkona-node/446969659?tag=latest

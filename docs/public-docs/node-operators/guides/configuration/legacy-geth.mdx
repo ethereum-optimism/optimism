@@ -1,0 +1,116 @@
+---
+title: Legacy Geth configuration
+description: Learn how to configure Legacy Geth for serving historical execution traces on upgraded OP Stack networks.
+diataxis: how-to
+---
+
+import OpGethEol from "/snippets/op-geth-eol.mdx"
+
+Legacy Geth (`l2geth`) is the old pre-Bedrock OVM client running against a preconfigured data directory.
+It is required only for upgraded networks like OP Mainnet to serve execution traces and chain data from before the Bedrock upgrade.
+If you're running a node that had a chain genesis after the Bedrock upgrade, you do not need Legacy Geth.
+
+<Info>
+Legacy Geth (`l2geth`) is the pre-Bedrock OVM client and is unrelated to op-geth's deprecation. l2geth is required on OP Mainnet archive nodes regardless of which post-Bedrock execution client you run (op-reth or op-geth).
+</Info>
+
+<Info>
+If you need state proofs for post-Bedrock blocks (for example, for withdrawal proving), see the [historical proofs config](/node-operators/reference/op-reth-historical-proof-config) — that's a different feature.
+</Info>
+
+## Do you need Legacy Geth?
+
+op-reth routes RPC requests that target pre-Bedrock blocks to Legacy Geth.
+This includes *historical execution* — methods that need to execute pre-Bedrock transactions, such as `eth_call` and the `debug_trace*` methods — as well as reads of pre-Bedrock block and transaction data, such as `eth_getBlockByNumber` and `eth_getTransactionReceipt`.
+op-reth serves everything post-Bedrock directly.
+If you do not need any RPC access to pre-Bedrock blocks, then you do not need to run Legacy Geth at all.
+
+For the exact list of RPC methods routed to Legacy Geth, see the [Legacy Geth configuration reference](/node-operators/reference/legacy-geth-config#rpc-methods-routed-to-legacy-geth).
+
+## Setup
+
+### 1. Download the preconfigured data directory
+
+Download and extract the Legacy Geth data directory, which is available at [datadirs.optimism.io](https://datadirs.optimism.io).
+
+```bash
+# Download the data directory
+curl -o legacy-geth-datadir.tar -sL <URL-to-legacy-datadir>
+
+# Extract it
+tar -xvf legacy-geth-datadir.tar -C /data/legacy-geth
+```
+
+### 2. Configure Legacy Geth
+
+Run Legacy Geth with the minimum required configuration:
+
+```bash
+USING_OVM=true \
+  ETH1_SYNC_SERVICE_ENABLE=false \
+  RPC_API=eth,rollup,net,web3,debug \
+  RPC_ADDR=0.0.0.0 \
+  RPC_CORS_DOMAIN=* \
+  RPC_ENABLE=true \
+  RPC_PORT=8545 \
+  RPC_VHOSTS=* \
+  geth --datadir /data/legacy-geth
+```
+
+<Warning>
+It is imperative that you specify the `USING_OVM=true` environment variable.
+Failing to specify this will cause `l2geth` to return invalid execution traces or panic at startup.
+</Warning>
+
+The full set of environment variables Legacy Geth accepts, with defaults, is catalogued in the [Legacy Geth configuration reference](/node-operators/reference/legacy-geth-config#environment-variables).
+
+### 3. Configure your execution client to route to Legacy Geth
+
+Point your execution client at Legacy Geth with the `--rollup.historicalrpc` flag; op-reth and op-geth accept the same flag (see the [routing-flag reference](/node-operators/reference/legacy-geth-config#execution-client-routing-flag)).
+
+<Tabs>
+  <Tab title="op-reth">
+    ```bash
+    op-reth node \
+      --datadir=/data/optimism \
+      --rollup.historicalrpc=http://localhost:8545 \
+      # ... other flags
+    ```
+  </Tab>
+
+  <Tab title="op-geth">
+    <OpGethEol />
+
+    ```bash
+    geth \
+      --datadir=/data/optimism \
+      --rollup.historicalrpc=http://localhost:8545 \
+      # ... other flags
+    ```
+  </Tab>
+</Tabs>
+
+## Troubleshooting
+
+<Warning>
+  `l2geth` is based on an old version of geth where trace functionality is unstable. 
+  It is no longer maintained and will not be updated.
+</Warning>
+
+### Legacy Geth won't start
+
+**Problem**: `l2geth` panics or returns errors on startup
+
+**Solution**: Ensure `USING_OVM=true` is set in your environment variables
+
+### Invalid execution traces
+
+**Problem**: Legacy Geth returns invalid or incorrect trace data
+
+**Solution**: Verify that `USING_OVM=true` is set and the data directory is complete and uncorrupted
+
+### Execution client not routing to Legacy Geth
+
+**Problem**: Historical execution requests are not being routed to Legacy Geth
+
+**Solution**: Check that `--rollup.historicalrpc` is set on your execution client (op-reth or op-geth) with the correct URL to Legacy Geth

@@ -1,0 +1,97 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.15;
+
+import { IProxy } from "interfaces/universal/IProxy.sol";
+import { Script } from "forge-std/Script.sol";
+import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
+import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
+import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
+import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
+import { IStaticL1ChugSplashProxy } from "interfaces/legacy/IL1ChugSplashProxy.sol";
+
+contract ReadImplementationAddresses is Script {
+    struct Input {
+        address addressManager;
+        address l1ERC721BridgeProxy;
+        address systemConfigProxy;
+        address optimismMintableERC20FactoryProxy;
+        address l1StandardBridgeProxy;
+        address optimismPortalProxy;
+        address disputeGameFactoryProxy;
+        address opcm;
+    }
+
+    struct Output {
+        address delayedWETH;
+        address optimismPortal;
+        address ethLockbox;
+        address systemConfig;
+        address anchorStateRegistry;
+        address l1CrossDomainMessenger;
+        address l1ERC721Bridge;
+        address l1StandardBridge;
+        address optimismMintableERC20Factory;
+        address disputeGameFactory;
+        address mipsSingleton;
+        address preimageOracleSingleton;
+        address faultDisputeGame;
+        address permissionedDisputeGame;
+        address superFaultDisputeGame;
+        address superPermissionedDisputeGame;
+        address zkDisputeGame;
+        address opcmStandardValidator;
+        address opcmInteropMigrator;
+    }
+
+    function run(Input memory _input) public returns (Output memory output_) {
+        // Get implementations from EIP-1967 proxies
+        output_.optimismPortal = getEIP1967Impl(_input.optimismPortalProxy);
+        output_.systemConfig = getEIP1967Impl(_input.systemConfigProxy);
+        output_.l1ERC721Bridge = getEIP1967Impl(_input.l1ERC721BridgeProxy);
+        output_.optimismMintableERC20Factory = getEIP1967Impl(_input.optimismMintableERC20FactoryProxy);
+        output_.disputeGameFactory = getEIP1967Impl(_input.disputeGameFactoryProxy);
+
+        // Get L1StandardBridge implementation (uses different proxy type)
+        vm.prank(address(0));
+        output_.l1StandardBridge = IStaticL1ChugSplashProxy(_input.l1StandardBridgeProxy).getImplementation();
+
+        require(address(_input.opcm).code.length > 0, "ReadImplementationAddresses: OPCM address has no code");
+        IOPContractsManagerV2 opcmV2 = IOPContractsManagerV2(_input.opcm);
+
+        output_.opcmInteropMigrator = address(opcmV2.opcmMigrator());
+        output_.opcmStandardValidator = address(opcmV2.opcmStandardValidator());
+
+        IOPContractsManagerContainer.Implementations memory impls = opcmV2.implementations();
+        output_.mipsSingleton = impls.mipsImpl;
+        output_.delayedWETH = impls.delayedWETHImpl;
+        output_.ethLockbox = impls.ethLockboxImpl;
+        output_.anchorStateRegistry = impls.anchorStateRegistryImpl;
+        output_.faultDisputeGame = impls.faultDisputeGameImpl;
+        output_.permissionedDisputeGame = impls.permissionedDisputeGameImpl;
+        output_.superFaultDisputeGame = impls.superFaultDisputeGameImpl;
+        output_.superPermissionedDisputeGame = impls.superPermissionedDisputeGameImpl;
+        output_.zkDisputeGame = impls.zkDisputeGameImpl;
+
+        // Get L1CrossDomainMessenger from AddressManager
+        IAddressManager am = IAddressManager(_input.addressManager);
+        output_.l1CrossDomainMessenger = am.getAddress("OVM_L1CrossDomainMessenger");
+
+        // Get PreimageOracle from MIPS singleton
+        output_.preimageOracleSingleton = address(IMIPS64(output_.mipsSingleton).oracle());
+    }
+
+    function runWithBytes(bytes memory _input) public returns (bytes memory) {
+        Input memory input = abi.decode(_input, (Input));
+        Output memory output = run(input);
+        return abi.encode(output);
+    }
+
+    /// @notice Gets the implementation address from an EIP-1967 proxy
+    /// @param _proxy The proxy address to read from
+    /// @return impl_ The implementation address
+    function getEIP1967Impl(address _proxy) private returns (address impl_) {
+        IProxy proxy = IProxy(payable(_proxy));
+        vm.prank(address(0));
+        impl_ = proxy.implementation();
+    }
+}

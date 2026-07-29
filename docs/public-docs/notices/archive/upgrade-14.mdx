@@ -1,0 +1,93 @@
+---
+title: Upgrade 14 MT-Cannon and Isthmus L1 Contracts
+description: Learn how to prepare for upgrade 14 breaking changes.
+---
+
+<Info>
+  Upgrade execution timelines are being publicly tracked in this [release management project board](https://github.com/orgs/ethereum-optimism/projects/117/views/12) and are subject to change. Here are the following expected timelines:
+
+  *   OP Sepolia, Ink Sepolia, and Minato Sepolia upgrades are targeting **April 9th, 2025**.
+  *   OP Mainnet, Soneium Mainnet, Ink Mainnet are expected to execute Upgrade 14 on **April 25th, 2025**.
+  *   Other Optimism governed chains' upgrades will be tracked in the release management project board.
+</Info>
+
+This page outlines changes related to the Upgrade 14 network upgrade for chain operators, node operators, and users of OP Stack chains. The upgrade proposal is available [here](https://gov.optimism.io/t/upgrade-proposal-14-isthmus-l1-contracts-mt-cannon/9796) and the governance vote is available [here](https://vote.optimism.io/?utm_source=op-docs&utm_medium=docs).
+
+If you experience difficulty at any stage of this process, please reach out to developer support.
+
+## What's included in Upgrade 14
+
+Upgrade 14 contains two main components:
+
+*   **MT-Cannon**: An upgrade to the fault proof VM that supports the MIPS-64 instruction set and multi-threaded programs, removing memory constraints for the fault proof program.
+*   **Operator Fee**: Introduction of the first phase of a mechanism addressing challenges in accurately pricing user fees when chains employ ZK proving, alt-DA, and custom gas tokens.
+
+## Technical details
+
+### MT-Cannon
+
+MT-Cannon is an upgrade to [Cannon](/op-stack/fault-proofs/cannon), the [fault proof VM](/op-stack/fault-proofs/fp-components#fault-proof-virtual-machine) that supports the MIPS-64 instruction set and multi-threaded programs, removing memory constraints for the fault proof program.
+
+Key changes:
+
+*   The emulated CPU architecture is now MIPS64 instead of MIPS32
+    *   Registers now hold 64-bit values
+    *   Memory address space is dramatically expanded
+    *   New 64-bit specific instructions added for operations on 64-bit values
+*   Supports reading 8 bytes of data at a time from the pre-image oracle instead of 4
+*   Multithreading support
+    *   Concurrency via multitasking
+    *   VM now tracks ThreadState objects for each thread
+    *   Thread-safe memory access enabled by Load Linked Word (ll) and Store Conditional Word (sc) instructions
+    *   Extended syscall support for multi-threading
+*   Improved exception handling for unrecognized syscalls
+
+After this upgrade, the on-chain implementation of the fault proof VM will be [DeployMIPS.s.sol](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/cannon/MIPS64.sol) instead of [MIPS.s.sol](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/scripts/deploy/DeployMIPS.s.sol).
+### Operator Fee
+
+This introduces two new rollup operator configured scalars:
+
+*   `operatorFeeScalar`
+*   `operatorFeeConstant`
+
+These parameters are factored into the fee calculation as follows:
+
+```
+operatorFee = operatorFeeConstant + operatorFeeScalar * gasUsed / 1e6
+
+totalFee = operatorFee + gasUsed * (baseFee + priorityFee) + l1Fee
+```
+
+The scalars will be updated via the SystemConfig L1 contract. A new fee vault, the OperatorFeeVault, will store the operator fee. While this feature is included in the upgrade, it is disabled by default and will be enabled in a future hardfork.
+
+### Absolute Prestate
+
+Beginning with this upgrade, op-program absolute prestates will now use the "cannon64" variant. This upgrade includes [the absolute prestate for op-program 1.5.1-rc.1, which is `0x03ee2917da962ec266b091f4b62121dc9682bb0db534633707325339f99ee405`](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml).
+
+## For chain operators
+
+If this proposal is accepted, multisig ceremonies will be coordinated to execute upgrade transactions. The following transactions will be executed on the respective chains: `OP Mainnet`, `Soneium Mainnet`, `Ink Mainnet`, `Base Mainnet`, `Unichain Mainnet`, `Mode Mainnet`, `Zora Mainnet`, `Arena Z Mainnet`, `Swell Mainnet`, and `Metal Mainnet`. Depending on the current state of the chain the execution times will vary. If your Optimism governed chain is not in this list, please reach out to OP Labs Solutions Engineering to coordinate your upgrade.
+
+For chain operators running fault-proof infrastructure, ensure you are running up-to-date versions of the following:
+
+*   op-challenger: `op-challenger/v1.3.3` (preferred) or at least `op-challenger/v1.3.1`
+*   op-dispute-mon: `op-dispute-mon/v1.4.0`
+
+## For node operators
+
+Node operators should ensure they are running an up-to-date version of op-node that can handle new events emitted from the `SystemConfig` contract:
+
+*   op-node: `op-node/v1.12.2`
+
+## Audit reports
+
+The code for Upgrade 14 has undergone multiple audits:
+
+*   **Spearbit**: Completed an audit of MT-Cannon. Details available [here](https://github.com/ethereum-optimism/optimism/blob/develop/docs/security-reviews/2025_01-MT-Cannon-Spearbit.pdf).
+*   **Coinbase Protocol Security**: Completed an audit of MT-Cannon. Details available [here](https://github.com/ethereum-optimism/optimism/blob/develop/docs/security-reviews/2025_01-MT-Cannon-Base.pdf).
+
+## Emergency cancellation
+
+If a critical security issue is discovered before upgrading, OP Labs will collaborate with the community to extensively communicate that the upgrade will no longer occur. The Optimism Foundation and Security Council will work to coordinate an emergency cancellation.
+
+For more detailed information, please refer to the full upgrade proposal or reach out to developer support.

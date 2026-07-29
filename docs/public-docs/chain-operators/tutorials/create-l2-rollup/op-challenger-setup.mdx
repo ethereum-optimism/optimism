@@ -1,0 +1,284 @@
+---
+title: Spin up challenger
+description: Learn how to configure challenger for your OP Stack chain.
+diataxis: tutorial
+---
+
+import OpChallengerAbout from '/snippets/op-challenger-about.mdx';
+import OpChallengerDockerIntro from '/snippets/op-challenger-docker-intro.mdx';
+import OpChallengerDisputeMon from '/snippets/op-challenger-dispute-mon.mdx';
+import OpEnterpriseCallout from '/snippets/op-enterprise-callout.mdx';
+
+After you have spun up your sequencer, batcher, and proposer, the final step is to configure a challenger to monitor and respond to disputes.
+
+<Info>
+  **Step 5 of 5**: This tutorial is designed to be followed step-by-step.
+  Each step builds on the previous one, and this is the last part of the tutorial.
+</Info>
+
+<Info>
+  **Automated Setup Available**
+
+  For a complete working setup with all components including automated prestate generation, check out the [automated approach](https://github.com/ethereum-optimism/optimism/tree/develop/docs/public-docs/create-l2-rollup-example/) in the code directory.
+</Info>
+
+<OpChallengerAbout />
+
+## Prerequisites
+
+### Essential requirements
+
+Complete these prerequisites before wiring up the challenger:
+
+<Steps>
+<Step title="Deploy OP Stack chain with fault proofs enabled">
+
+<Expandable title="Generate absolute prestate (Required)">
+
+The challenger needs the absolute prestate to participate in dispute games. The prestate is the on-chain commitment to a specific build of `kona-client`, the maintained fault proof program. (`op-program`, which previously filled this role, has reached end-of-support; see [End of Support for op-geth and op-program](/notices/archive/op-geth-deprecation).) Here's how to generate it:
+
+1.  **Clone and checkout the correct version**:
+    ```bash
+    git clone https://github.com/ethereum-optimism/optimism.git
+    cd optimism
+    git checkout kona-node/v1.6.1  # Use the latest release
+    ```
+
+2.  **Stage your chain configuration**:
+
+    Because your chain is not in the public Superchain Registry, the prestate build must embed your chain's configuration. Create the two staging files (`chainList.json` and `configs.json`) from your `rollup.json`, L2 genesis, and `op-deployer` state by following [Generating a custom kona-client absolute prestate](/chain-operators/tutorials/kona-custom-prestate), then point the build at them:
+
+    ```bash
+    # Assuming you're in rollup/challenger/optimism directory
+    export KONA_CUSTOM_CONFIGS_DIR="$PWD/rust/kona/crates/protocol/registry/etc/custom-configs/<YOUR-CHAIN-NAME>"
+    ```
+
+3.  **Generate the prestate**:
+    ```bash
+    just reproducible-prestate-kona
+    jq -r .pre rust/kona/prestate-artifacts-cannon/prestate-proof.json
+    ```
+    The build runs in Docker and writes artifacts to `rust/kona/prestate-artifacts-cannon/`, including a preimage file named by its hash (`0x<PRESTATE_HASH>.bin.gz`). The hash printed by the `jq` command is your chain's absolute prestate.
+
+4.  **Verify your chain is embedded in the prestate**:
+    ```bash
+    gunzip -c rust/kona/prestate-artifacts-cannon/prestate.bin.gz | strings | grep "<YOUR-CHAIN-NAME>"
+    ```
+    Zero matches means the custom configuration was not merged (the build silently produces the standard prestate instead); see the [custom prestate tutorial](/chain-operators/tutorials/kona-custom-prestate) for troubleshooting.
+
+<Info>
+  *   Keep the `0x<PRESTATE_HASH>.bin.gz` file accessible - you'll need it for the challenger setup
+  *   For Superchain registry chains, you can find official `cannon64-kona` prestates in the [registry](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml)
+</Info>
+</Expandable>
+</Step>
+
+<Step title="Set up required infrastructure access">
+
+Your sequencer stack from the previous steps already provides the L2 endpoints the challenger needs (op-reth and op-node). In addition, the challenger needs:
+
+*   An L1 RPC endpoint for your settlement layer (Sepolia in this tutorial)
+*   An L1 beacon API endpoint, used to fetch blobs
+</Step>
+
+<Step title="Prepare configuration files">
+
+*   `0x<PRESTATE_HASH>.bin.gz` - The absolute prestate preimage file generated in step 1
+*   `rollup.json` - Rollup configuration file from the `op-deployer` guide
+</Step>
+</Steps>
+
+## Software installation
+
+For challenger deployment, we recommend using Docker as it provides a consistent and isolated environment. Building from source is also available for more advanced users.
+
+<Tabs>
+
+    <Tab title="Use docker">
+    ### Docker Setup
+
+    <OpChallengerDockerIntro />
+
+    <Steps>
+    <Step title="Create challenger directory">
+    
+    ```bash
+    # Create your challenger directory inside rollup
+    cd ../    # Go back to rollup directory if you're in proposer
+    mkdir challenger
+    cd challenger
+    ```
+    </Step>
+
+    <Step title="Create environment file">
+
+    <Info>
+      **OP Stack Standard Variables**
+
+      The challenger uses OP Stack standard environment variables following the OP Stack conventions. These are prefixed with `OP_CHALLENGER_` for challenger-specific settings.
+    </Info>
+
+    ```bash
+    # Create .env file with your actual values
+    cat > .env << 'EOF'
+    # Core configuration (required)
+    OP_CHALLENGER_L1_RPC_URL=https://sepolia.infura.io/v3/YOUR_ACTUAL_INFURA_KEY
+    OP_CHALLENGER_L1_BEACON_URL=https://ethereum-sepolia-beacon-api.publicnode.com
+    OP_CHALLENGER_PRIVATE_KEY=YOUR_ACTUAL_PRIVATE_KEY
+
+    # L2 Configuration - Replace with your actual node endpoints  
+    OP_CHALLENGER_L2_ETH_RPC=http://op-reth:8545
+    OP_CHALLENGER_ROLLUP_RPC=http://op-node:8547
+
+    # OP Stack challenger configuration (optional - defaults provided)
+    OP_CHALLENGER_GAME_FACTORY_ADDRESS=YOUR_GAME_FACTORY_ADDRESS
+    OP_CHALLENGER_CANNON_KONA_L2_GENESIS=/workspace/genesis.json
+    OP_CHALLENGER_CANNON_KONA_ROLLUP_CONFIG=/workspace/rollup.json
+
+
+    # Prestate configuration - Replace with the file from 'just reproducible-prestate-kona'
+    OP_CHALLENGER_CANNON_KONA_PRESTATE=/workspace/${PRESTATE_HASH}.bin.gz
+    EOF
+    ```
+
+    **Important:** Replace every `YOUR_ACTUAL_*` placeholder with the real values from your deployment.
+    </Step>
+
+    <Step title="Set up Docker Compose">
+
+    Define the challenger service in a `docker-compose.yml`. It mounts several important files:
+    *   `prestate-proof.json` and `${PRESTATE_HASH}.bin.gz`: Prestate files required for dispute games (the PRESTATE_HASH comes from running `just reproducible-prestate-kona`), replace `PRESTATE_HASH` with the actual hash
+
+    ```yaml
+    
+    services:
+      challenger:
+        image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:v1.9.4
+        user: "1000"
+        volumes:
+          - ./challenger-data:/data
+          - ./rollup.json:/workspace/rollup.json:ro
+          - ./genesis-l2.json:/workspace/genesis-l2.json:ro
+          - ./prestate-proof.json:/workspace/prestate-proof.json:ro
+          - ./${PRESTATE_HASH}.bin.gz:/workspace/${PRESTATE_HASH}.bin.gz:ro
+        command: >
+          op-challenger run-trace
+          --trace-type=cannon-kona
+          --datadir=/data
+          --log.level=info
+          --log.format=json
+        restart: unless-stopped
+        networks:
+          - sequencer-node_default
+
+    networks:
+      sequencer-node_default:
+        external: false
+
+
+    ```
+    </Step>
+
+    <Step title="Launch the challenger">
+
+    Start the challenger service and follow its logs:
+
+    ```bash
+    # Start the challenger service
+    docker-compose up -d
+
+    # View logs
+    docker-compose logs -f challenger
+    ```
+    </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="Build from source">
+
+    The generic build-from-source walkthrough lives in the "Build from source" tab of the
+    [challenger configuration guide](/chain-operators/guides/configuration/op-challenger-config-guide#software-installation):
+    it covers picking the release, building `op-challenger`, Cannon, and `kona-host`,
+    verifying the binaries, the environment file, and the startup script. Follow it end
+    to end, then adapt it to this tutorial series as follows:
+
+    *   **Workspace**: create the working directory as `rollup/challenger`, next to the
+        `deployer`, `sequencer`, `batcher`, and `proposer` directories from the previous
+        steps. With the monorepo checkout at `rollup/optimism`, the binaries are then
+        reachable from the startup script as `../../optimism/op-challenger/bin/op-challenger`
+        and `CANNON_BIN=../../optimism/cannon/bin/cannon`.
+    *   **kona-host**: build it in the checkout you generated the prestate from in the
+        prerequisites (`kona-node/v1.6.1`), so the server matches your chain's absolute
+        prestate, and point `CANNON_KONA_SERVER` at the resulting binary.
+    *   **Configuration files**: copy `rollup.json` and `genesis-l2.json` from the
+        op-deployer step into `rollup/challenger`, set `CANNON_ROLLUP_CONFIG=./rollup.json`
+        and `CANNON_L2_GENESIS=./genesis-l2.json` (the guide's startup script passes these
+        to `--cannon-kona-rollup-config` and `--cannon-kona-l2-genesis`), and set
+        `CANNON_KONA_PRESTATE=./0x<PRESTATE_HASH>.bin.gz`, the preimage file generated
+        in the prerequisites.
+    *   **Trace type and wallet**: this chain is not in the superchain-registry, so keep
+        `GAME_FACTORY_ADDRESS` explicit, use `--trace-type cannon-kona`, and sign with the
+        funded private key you used for the other components (`--private-key` instead of
+        the guide's mnemonic example).
+  </Tab>
+  </Tabs>
+
+
+### Monitoring with op-dispute-mon
+
+<OpChallengerDisputeMon />
+
+## Congratulations
+
+You've successfully completed the entire L2 rollup testnet tutorial! Your rollup is now fully operational with all components running:
+
+*   **op-deployer** - L1 contracts deployed
+*   **Sequencer** - Processing transactions
+*   **Batcher** - Publishing data to L1
+*   **Proposer** - Submitting state roots
+*   **Challenger** - Monitoring disputes
+
+## Connect your wallet to your chain
+
+You now have a fully functioning OP Stack Rollup with a Sequencer node running on `http://localhost:8545`. You can connect your wallet to this chain the same way you'd connect your wallet to any other EVM chain.
+
+## Get ETH on your chain
+
+Once you've connected your wallet, you'll probably notice that you don't have any ETH to pay for gas on your chain.
+
+The easiest way to deposit Sepolia ETH into your chain is to send ETH directly to the `L1StandardBridge` contract.
+
+### Get the L1StandardBridge address
+
+The `L1StandardBridge` proxy address can be found in your deployment state file. To get it, run:
+
+```bash
+# From your project root
+jq -r .l1StandardBridgeProxyAddress <PATH_TO_YOUR_OP_DEPLOYER_FOLDER>/.deployer/state.json
+```
+
+This will output the `L1StandardBridge` proxy address that you should use for deposits. Make sure to use the proxy address, not the implementation address.
+
+### Deposit ETH to your L2
+
+Once you have the `L1StandardBridge` address, send a small amount of Sepolia ETH (0.1 or less) to that address from the wallet you want to use on L2.
+This will trigger a deposit that will mint ETH into your wallet on L2.
+
+<Info>
+  It may take up to 5 minutes for the ETH to appear in your wallet on L2.
+  This delay is due to the time needed for the deposit transaction to be processed and finalized.
+</Info>
+
+## See your rollup in action
+
+You can interact with your Rollup the same way you'd interact with any other EVM chain.
+Send some transactions, deploy some contracts, and see what happens!
+
+You now have a working testnet. Here is what the distance to production looks like:
+
+<OpEnterpriseCallout />
+
+## Need Help?
+
+*   **OP Challenger Explainer**: [Fault Proofs Overview](/op-stack/fault-proofs/challenger)
+*   **Technical Specs**: [Honest Challenger Specification](https://specs.optimism.io/fault-proof/stage-one/honest-challenger-fdg.html)

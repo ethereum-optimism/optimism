@@ -1,0 +1,32 @@
+---
+title: Span Batches
+description: Learn what span batches are and how they reduce the batch submission overhead of OP Stack chains.
+diataxis: explanation
+---
+
+Span batches are a batch format, introduced in the Delta network upgrade, that encodes a span of consecutive L2 blocks in a single batch.
+They reduce the overhead of posting L2 data to L1, which lowers data availability costs — especially for sparse, low-throughput chains where fixed per-block overhead dominates the submitted data.
+
+## Why span batches exist
+
+Before Delta, the only batch format was the singular batch: one batch per L2 block.
+Every block — including empty blocks on a quiet chain — carried its own batch overhead to L1.
+
+A span batch instead represents a whole span of consecutive L2 blocks in a more efficient encoding, while preserving the same consistency checks as singular batch data.
+That makes the marginal cost of including an additional (especially empty) block in the submitted data small.
+The full format is defined in the [span batches specification](https://specs.optimism.io/protocol/delta/span-batches.html?utm_source=op-docs&utm_medium=docs).
+
+## How span batches are used
+
+Span batches are opt-in for the chain operator: the `op-batcher` selects the batch format with its `--batch-type` flag (`0` for singular batches, the default; `1` for span batches).
+On the verification side, the `op-node` derivation pipeline accepts span batches only once Delta is active on the chain — it drops any span batch whose L1 origin predates Delta activation.
+Singular batches remain valid after Delta, so a chain can switch between the two formats at any time.
+
+To turn span batches on for your chain, follow the how-to guide: [Enable span batches](/chain-operators/guides/features/enable-span-batches).
+
+## Links to related pages
+
+*   [Enable span batches](/chain-operators/guides/features/enable-span-batches)
+*   [Configure the batcher](/chain-operators/guides/configuration/batcher)
+*   [Span Batches Specification](https://specs.optimism.io/protocol/delta/span-batches.html?utm_source=op-docs&utm_medium=docs)
+*   [Span Batch Design Docs](https://op-tip.notion.site/Span-Batch-Design-Docs-b85e599a47774dcdb8171cc84cab2476)

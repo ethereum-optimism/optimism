@@ -1,0 +1,191 @@
+package pipeline
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+
+	"github.com/ethereum/go-ethereum/common"
+)
+
+func IsSupportedStateVersion(version int) bool {
+	return version == 1
+}
+
+func ValidateInputs(intent *state.Intent, st *state.State) error {
+	if err := intent.Check(); err != nil {
+		return err
+	}
+	if !IsSupportedStateVersion(st.Version) {
+		return fmt.Errorf("unsupported state version: %d", st.Version)
+	}
+	return nil
+}
+
+func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *state.State) error {
+	lgr := env.Logger.New("stage", "init", "strategy", "live")
+	lgr.Info("initializing pipeline")
+
+	if err := initCommonChecks(intent, st); err != nil {
+		return err
+	}
+
+	hasPredeployedOPCM := intent.OPCMAddress != nil
+	hasSuperchainConfigProxy := intent.SuperchainConfigProxy != nil
+
+	if hasPredeployedOPCM || hasSuperchainConfigProxy {
+		if intent.SuperchainRoles != nil {
+			return fmt.Errorf("cannot set superchain roles when using predeployed OPCM or SuperchainConfig")
+		}
+
+		opcmAddr := common.Address{}
+		if hasPredeployedOPCM {
+			opcmAddr = *intent.OPCMAddress
+		}
+
+		superchainConfigAddr := common.Address{}
+		if hasSuperchainConfigProxy {
+			superchainConfigAddr = *intent.SuperchainConfigProxy
+		}
+
+		// If only an OPCM address is provided, resolve SuperchainConfigProxy from it on-chain.
+		if superchainConfigAddr == (common.Address{}) && opcmAddr != (common.Address{}) {
+			opcmContract := opcm.NewContract(opcmAddr, env.L1Client)
+			resolved, err := opcmContract.SuperchainConfig(ctx)
+			if err != nil {
+				return fmt.Errorf("error resolving SuperchainConfig from OPCM at %s: %w", opcmAddr, err)
+			}
+			superchainConfigAddr = resolved
+		}
+		superDeployment, superRoles, err := PopulateSuperchainState(env, opcmAddr, superchainConfigAddr)
+		if err != nil {
+			return fmt.Errorf("error populating superchain state: %w", err)
+		}
+		st.SuperchainDeployment = superDeployment
+		st.SuperchainRoles = superRoles
+
+		if hasPredeployedOPCM && st.ImplementationsDeployment == nil {
+			st.ImplementationsDeployment = &addresses.ImplementationsContracts{
+				OpcmV2Impl: opcmAddr,
+			}
+		}
+	}
+
+	l1ChainID, err := env.L1Client.ChainID(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get L1 chain ID: %w", err)
+	}
+
+	if l1ChainID.Cmp(intent.L1ChainIDBig()) != 0 {
+		return fmt.Errorf("l1 chain ID mismatch: got %d, expected %d", l1ChainID, intent.L1ChainID)
+	}
+
+	deployerCode, err := env.L1Client.CodeAt(ctx, script.DeterministicDeployerAddress, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get deployer code: %w", err)
+	}
+	if len(deployerCode) == 0 {
+		return fmt.Errorf("deterministic deployer is not deployed on this chain - please deploy it first")
+	}
+
+	// If the state has never been applied, we don't need to perform
+	// any additional checks.
+	if st.AppliedIntent == nil {
+		return nil
+	}
+
+	// If the state has been applied, we need to check if any immutable
+	// fields have changed.
+	if st.AppliedIntent.L1ChainID != intent.L1ChainID {
+		return immutableErr("L1ChainID", st.AppliedIntent.L1ChainID, intent.L1ChainID)
+	}
+
+	if st.AppliedIntent.FundDevAccounts != intent.FundDevAccounts {
+		return immutableErr("fundDevAccounts", st.AppliedIntent.FundDevAccounts, intent.FundDevAccounts)
+	}
+
+	// TODO: validate individual
+
+	return nil
+}
+
+func initCommonChecks(intent *state.Intent, st *state.State) error {
+	// Ensure the state version is supported.
+	if !IsSupportedStateVersion(st.Version) {
+		return fmt.Errorf("unsupported state version: %d", st.Version)
+	}
+
+	if err := st.EnsureCreate2Salt(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func InitGenesisStrategy(env *Env, intent *state.Intent, st *state.State) error {
+	lgr := env.Logger.New("stage", "init", "strategy", "genesis")
+	lgr.Info("initializing pipeline")
+
+	if err := initCommonChecks(intent, st); err != nil {
+		return err
+	}
+
+	if intent.SuperchainRoles == nil {
+		return fmt.Errorf("superchain roles must be set for genesis strategy")
+	}
+
+	// Mostly a stub for now.
+
+	return nil
+}
+
+func immutableErr(field string, was, is any) error {
+	return fmt.Errorf("%s is immutable: was %v, is %v", field, was, is)
+}
+
+func PopulateSuperchainState(env *Env, opcmAddr common.Address, superchainConfigProxy common.Address) (*addresses.SuperchainContracts, *addresses.SuperchainRoles, error) {
+	input := opcm.ReadSuperchainDeploymentInput{
+		SuperchainConfigProxy: superchainConfigProxy,
+	}
+
+	var out opcm.ReadSuperchainDeploymentOutput
+	var err error
+
+	if env.UseForge {
+		forgeEnv := &opcm.ForgeEnv{
+			Client:   env.ForgeClient,
+			Context:  env.Context,
+			L1RPCUrl: env.L1RPCUrl,
+		}
+		out, err = opcm.ReadSuperchainDeploymentViaForge(forgeEnv, input)
+		if err != nil {
+			return nil, nil, err
+		}
+	} else {
+		readScript, err := opcm.NewReadSuperchainDeploymentScript(env.L1ScriptHost)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error generating read superchain deployment script: %w", err)
+		}
+
+		out, err = readScript.Run(input)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error reading superchain deployment: %w", err)
+		}
+	}
+
+	deployment := &addresses.SuperchainContracts{
+		SuperchainProxyAdminImpl: out.SuperchainProxyAdmin,
+		SuperchainConfigProxy:    out.SuperchainConfigProxy,
+		SuperchainConfigImpl:     out.SuperchainConfigImpl,
+	}
+	roles := &addresses.SuperchainRoles{
+		SuperchainProxyAdminOwner: out.SuperchainProxyAdminOwner,
+		SuperchainGuardian:        out.Guardian,
+	}
+	return deployment, roles, nil
+}

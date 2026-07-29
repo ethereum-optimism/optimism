@@ -1,0 +1,67 @@
+---
+title: Node Operator Overview
+description: Learn about running nodes on OP Stack networks.
+diataxis: explanation
+---
+
+## Overview
+
+This section of the documentation is dedicated to node operators who want to learn about configuring and running nodes on OP Stack networks.
+Because the OP Stack is an open-source, modular, and extensible stack, there are many different clients, configurations, and requirements depending on your goals and the specific network you're targeting.
+The information provided in this section covers standard configurations and features on the OP Stack.
+
+## Why Run a Node?
+
+Running your own node gives you the benefit of trustless verification, enhanced privacy, and gives you local access to the blockchain.
+However, it also requires time and resources to set up and maintain.
+So you should consider your goals and use cases before deciding to run a node because there are many third-party RPC providers available.
+
+## System requirements
+
+Before you start, check that your machine can handle the network and node type you're targeting.
+Requirements scale with both:
+
+*   **RAM:** 16GB is the suggested minimum for an OP Mainnet node.
+*   **CPU:** A reasonably modern CPU.
+*   **Disk:** An SSD, sized to the network and node type. A full OP Mainnet node needs hundreds of gigabytes and grows steadily; an archive node needs multiple terabytes and grows much faster, so use an NVMe SSD for archive nodes.
+
+Test networks are far lighter than OP Mainnet: an OP Sepolia full node syncs into tens of gigabytes rather than hundreds.
+If you're setting up for the first time, start on OP Sepolia to validate your setup before committing OP Mainnet-scale disk.
+
+For the current OP Mainnet storage figures and their growth rates, see the [hardware requirements](/node-operators/tutorials/run-node-from-source#hardware-requirements) in the from-source tutorial.
+
+## Node Architecture
+
+Regardless of which OP Stack network you're running a node for, all nodes share the same fundamental two-client architecture: a consensus client (rollup node, either [op-node](/op-stack/components/op-node) or [kona-node](/op-stack/components/kona-node)) paired with an execution client ([op-reth](/op-stack/components/op-reth)), communicating via the Engine API with JWT authentication.
+Nodes that follow every chain in an [interop](/op-stack/interop/explainer) dependency set run [op-supernode](/op-stack/interop/supernode) as the consensus layer instead.
+See the [architecture reference](/node-operators/reference/architecture/architecture) for how the components fit together and the current client support matrix.
+
+## Node Types
+
+Different node types serve different purposes:
+
+* **Full node**: keeps a complete copy of the blockchain, validates all transactions and blocks, and participates on the P2P network.
+* **Archive node**: additionally retains all historical state for every block.
+  On OP Mainnet, archive nodes need to restore from a [database snapshot](/op-mainnet/network-information/snapshots) before syncing.
+* **Sequencer node**: can be a full or archive node, but it can create new L2 blocks.
+
+## Network upgrades
+
+Network upgrades on OP Stack networks are generally [activated by timestamps](/op-stack/protocol/network-upgrades#activations).
+Failing to upgrade your node before the activation timestamp causes a chain divergence that requires a resync, so follow the [node upgrade process](/op-stack/protocol/network-upgrades#upgrade-process) to stay on the canonical chain.
+
+## Stay up to date
+
+Upgrade announcements, deprecations, and other changes that affect node operators are published on the [Network Notices](/notices) page.
+
+## Next steps
+
+*   [**Run a node with Docker**](/node-operators/tutorials/node-from-docker): recommended path; uses the official op-reth + op-node images.
+*   [**Build and run a node from source**](/node-operators/tutorials/run-node-from-source): covers op-reth and Nethermind.
+*   [**Run op-reth with historical proofs**](/node-operators/tutorials/reth-historical-proofs): configure op-reth's proofs-history store for permissionless withdrawal proving.
+*   [**Consensus client configuration**](/node-operators/guides/configuration/consensus-clients): working base configuration and recommended flags for the rollup node.
+*   [**Execution client configuration**](/node-operators/guides/configuration/execution-clients): working base configuration and recommended flags for the execution client.
+*   [**Supernode configuration**](/node-operators/guides/configuration/supernode): recommended settings and a starter configuration for running op-supernode in an interop dependency set.
+*   [**Node metrics and monitoring**](/node-operators/guides/monitoring/metrics): keep tabs on your node once it's running.
+*   [**Node troubleshooting**](/node-operators/guides/troubleshooting): help with common problems.
+*   [**Architecture reference**](/node-operators/reference/architecture/architecture): deeper detail on the two-client architecture.

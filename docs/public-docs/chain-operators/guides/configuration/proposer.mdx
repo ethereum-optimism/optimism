@@ -1,0 +1,50 @@
+---
+title: Proposer Configuration
+description: Reference for the op-proposer configuration options and the proposer policy constraints.
+diataxis: reference
+---
+
+import OpProposerFlags from '/snippets/generated/op-proposer-flags.mdx';
+
+This page lists all configuration options for op-proposer. The op-proposer posts
+output roots (proposals) to L1, making them available for verifiers. Withdrawals to L1 must reference an output root.
+If the chain is running permissioned fault proofs, only the [designated proposer](/op-stack/protocol/privileged-roles) can submit output roots.
+With [permissionless fault proofs](/op-stack/fault-proofs/explainer), anyone can make a proposal.
+
+## Proposer policy
+
+The proposer policy defines high-level constraints and responsibilities regarding how L2 output roots are posted to L1. Below are the [standard guidelines](/op-stack/protocol/superchain-registry#what-is-a-standard-chain) for configuring the proposer within the OP Stack.
+
+| Parameter        | Description                                                                         | Administrator  | Requirement                                                | Notes                                                           |
+| ---------------- | ----------------------------------------------------------------------------------- | -------------- | ---------------------------------------------------------- | --------------------------------------------------------------- |
+| Output Frequency | Defines how frequently L2 output roots are submitted to L1 (via the output oracle). | L1 Proxy Admin | **43,200 L2 blocks** (24 hours at 2s block times) or lower | It cannot be set to 0 (there must be some cadence for outputs). |
+
+### Example configuration
+
+```
+OP_PROPOSER_L1_ETH_RPC: YOUR_L1_RPC_URL_HERE
+OP_PROPOSER_ROLLUP_RPC: YOUR_CHAINS_RPC_URL_HERE
+OP_PROPOSER_GAME_FACTORY_ADDRESS: YOUR_CHAINS_GAME_FACTORY_ADDRESS_HERE
+OP_PROPOSER_PROPOSAL_INTERVAL: 5h
+OP_PROPOSER_WAIT_NODE_SYNC: true
+OP_PROPOSER_ALLOW_NON_FINALIZED: "false"
+OP_PROPOSER_POLL_INTERVAL: "20s"
+OP_PROPOSER_NUM_CONFIRMATIONS: "1"
+OP_PROPOSER_SAFE_ABORT_NONCE_TOO_LOW_COUNT: "3"
+OP_PROPOSER_RESUBMISSION_TIMEOUT: "30s"
+OP_PROPOSER_METRICS_ENABLED: "true"
+OP_PROPOSER_METRICS_ADDR: 0.0.0.0
+OP_PROPOSER_METRICS_PORT: 7300
+```
+
+Higher throughput chains can decrease the `proposal-interval` to allow users submit withdrawals more often.
+
+## Flags
+
+The flag tables below are generated directly from the op-proposer's flag
+definitions in the monorepo (`op-proposer/flags`) at the release tag named in
+the provenance line, and are regenerated when a new finalized release is
+published, so they cannot silently fall behind. Every flag can also be set
+through the environment variable listed next to it.
+
+<OpProposerFlags />

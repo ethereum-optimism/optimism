@@ -1,0 +1,47 @@
+FROM golang:1.26.5-alpine3.23 AS builder
+
+# Enforce that builds use the committed go.mod/go.sum exactly and never
+# silently mutate them. Fails the build if the lockfile is out of date.
+ENV GOFLAGS=-mod=readonly
+
+# Install just from GitHub releases to match the version pinned in mise.toml.
+# The Alpine package is too old and doesn't support the [script] attribute
+# used in testdata justfiles.
+# apk has no built-in download retry; loop so a transient CDN drop doesn't flake CI (~5 min budget).
+RUN n=0; until apk add --no-cache bash curl; do n=$((n+1)); [ "$n" -ge 15 ] && exit 1; echo "apk add retry $n/15 in 20s" >&2; sleep 20; done && \
+    curl -sSf --retry 5 --retry-all-errors --retry-delay 2 https://just.systems/install.sh | bash -s -- --to /usr/local/bin --tag 1.46.0
+
+COPY ./go.mod /app/go.mod
+COPY ./go.sum /app/go.sum
+
+WORKDIR /app
+
+RUN echo "go mod cache: $(go env GOMODCACHE)"
+RUN echo "go build cache: $(go env GOCACHE)"
+
+# go mod download has no built-in retry; loop so a transient module proxy drop doesn't flake CI.
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build n=0; until go mod download; do n=$((n+1)); [ "$n" -ge 5 ] && exit 1; echo "go mod download retry $n/5 in 10s" >&2; sleep 10; done
+
+COPY . /app
+
+# We avoid copying the full .git dir into the build for just some metadata.
+# Instead, specify:
+# --build-arg GIT_COMMIT=$(git rev-parse HEAD)
+# --build-arg GIT_DATE=$(git show -s --format='%ct')
+ARG GIT_COMMIT
+ARG GIT_DATE
+
+ARG TARGETOS TARGETARCH
+
+FROM --platform=$BUILDPLATFORM us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon:v1.6.0 AS cannon-multithreaded64-5
+
+FROM --platform=$BUILDPLATFORM builder AS cannon-verify
+COPY --from=cannon-multithreaded64-5 /usr/local/bin/cannon /usr/local/bin/cannon-multithreaded64-5
+
+# Check cannon-multithreaded64-5
+# verify the latest multithreaded VM behavior against multithreaded64-5
+RUN cd cannon && OTHER_CANNON=/usr/local/bin/cannon-multithreaded64-5 just diff-cannon multithreaded64-5
+RUN --mount=type=cache,target=/root/.cache/go-build cd cannon && \
+ OTHER_CANNON=/usr/local/bin/cannon-multithreaded64-5 \
+ GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE \
+ just diff-cannon multithreaded64-5

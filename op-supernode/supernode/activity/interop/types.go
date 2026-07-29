@@ -1,0 +1,82 @@
+package interop
+
+import (
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+)
+
+// VerifiedResult represents the verified state at a specific timestamp.
+// It contains the L1 inclusion block from which the L2 heads were included,
+// and a map of each chain's L2 head at that timestamp.
+type VerifiedResult struct {
+	Timestamp   uint64                      `json:"timestamp"`
+	L1Inclusion eth.BlockID                 `json:"l1Inclusion"`
+	L2Heads     map[eth.ChainID]eth.BlockID `json:"l2Heads"`
+}
+
+// InvalidHead pairs a block identifier with the output preimage fields needed
+// for optimistic root computation in the superroot API. The full OutputV0 can
+// be reconstructed on demand via OutputV0() since BlockHash is already in BlockID.
+type InvalidHead struct {
+	eth.BlockID
+	StateRoot                eth.Bytes32 `json:"stateRoot"`
+	MessagePasserStorageRoot eth.Bytes32 `json:"messagePasserStorageRoot"`
+}
+
+// Result represents the result of interop validation at a specific timestamp given current data.
+// it contains all the same information as VerifiedResult, but also contains a list of invalid heads.
+type Result struct {
+	Timestamp    uint64                      `json:"timestamp"`
+	L1Inclusion  eth.BlockID                 `json:"l1Inclusion"`
+	L2Heads      map[eth.ChainID]eth.BlockID `json:"l2Heads"`
+	InvalidHeads map[eth.ChainID]InvalidHead `json:"invalidHeads"`
+}
+
+// PendingTransition is the generic write-ahead-log entry for an effectful
+// interop decision. Recovery and steady-state both use the same apply path.
+//
+// Phase 2 keeps this intentionally small:
+// - advance/invalidate carry their Result directly
+// - rewind carries the accepted frontier to rewind from
+// Later phases can expand this into a richer explicit transition plan.
+//
+// InvalidationParentPayloads is populated only for DecisionInvalidate transitions. It carries
+// the canonical parent payload (height-1) for each invalidated chain, captured at build time
+// and used at apply time to drive the rewind. Storing the full payload means a crash mid-rewind
+// can be recovered without consulting the live EL — the canonical block may already have been
+// pruned by the EL once it left the canonical chain.
+type PendingTransition struct {
+	Decision                   Decision                                      `json:"decision"`
+	Result                     *Result                                       `json:"result,omitempty"`
+	Rewind                     *RewindPlan                                   `json:"rewind,omitempty"`
+	InvalidationParentPayloads map[eth.ChainID]*eth.ExecutionPayloadEnvelope `json:"invalidationParentPayloads,omitempty"`
+}
+
+// RewindPlan is the explicit rewind transition persisted in the WAL.
+// It captures the target verified frontier and engine reset decision so recovery
+// can apply the same rewind path without recomputing it from live state.
+//
+// TargetPayloads carries the canonical payload at each chain's rewind target, captured at
+// build time. The apply path uses it to drive the engine rewind without consulting the live
+// EL — see the InvalidationParentPayloads comment on PendingTransition for the rationale.
+type RewindPlan struct {
+	RewindAtOrAfter  uint64                                        `json:"rewindAtOrAfter"`
+	ResetAllChainsTo *uint64                                       `json:"resetAllChainsTo,omitempty"`
+	TargetHeads      map[eth.ChainID]eth.BlockID                   `json:"targetHeads,omitempty"`
+	TargetPayloads   map[eth.ChainID]*eth.ExecutionPayloadEnvelope `json:"targetPayloads,omitempty"`
+}
+
+func (r *Result) IsValid() bool {
+	return len(r.InvalidHeads) == 0
+}
+
+func (r *Result) IsEmpty() bool {
+	return r.L1Inclusion == (eth.BlockID{}) && len(r.L2Heads) == 0 && len(r.InvalidHeads) == 0
+}
+
+func (r *Result) ToVerifiedResult() VerifiedResult {
+	return VerifiedResult{
+		Timestamp:   r.Timestamp,
+		L1Inclusion: r.L1Inclusion,
+		L2Heads:     r.L2Heads,
+	}
+}

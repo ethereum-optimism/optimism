@@ -1,0 +1,14 @@
+set positional-arguments
+
+# default recipe to display help information
+default:
+  @just --list
+
+# Generate file bindings
+bind:
+  KONA_SYNC_SUPERCHAIN=true cargo build
+
+# Ensure the `superchain-registry` git submodule is initialized (delegates to the
+# single root recipe that encapsulates the correct scoped, shallow update).
+source:
+  cd "$(git rev-parse --show-toplevel)" && just update-superchain-registry-submodule

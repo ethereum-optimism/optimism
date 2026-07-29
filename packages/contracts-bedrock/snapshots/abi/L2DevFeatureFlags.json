@@ -1,0 +1,65 @@
+[
+  {
+    "inputs": [],
+    "name": "devFeatureBitmap",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "bitmap_",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "_feature",
+        "type": "bytes32"
+      }
+    ],
+    "name": "isDevFeatureEnabled",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "enabled_",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "_bitmap",
+        "type": "bytes32"
+      }
+    ],
+    "name": "setDevFeatureBitmap",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "version",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "L2DevFeatureFlags_Unauthorized",
+    "type": "error"
+  }
+]

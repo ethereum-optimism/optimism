@@ -1,0 +1,148 @@
+//! Command that unwinds the OP proofs storage to a specific block number.
+
+use alloy_consensus::{BlockHeader, EMPTY_ROOT_HASH};
+use clap::Parser;
+use reth_cli::chainspec::ChainSpecParser;
+use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, EnvironmentArgs};
+use reth_node_core::version::version_metadata;
+use reth_optimism_chainspec::OpChainSpec;
+use reth_optimism_node::args::{ProofsHistoryStorageArgs, ProofsStorageVersion};
+use reth_optimism_primitives::OpPrimitives;
+use reth_optimism_trie::{
+    OpProofsProviderRO, OpProofsProviderRw, OpProofsStorageError, OpProofsStore,
+    db::{MdbxProofsStorage, MdbxProofsStorageV2},
+};
+use reth_primitives_traits::BlockBody;
+use reth_provider::{BlockReader, TransactionVariant};
+use std::sync::Arc;
+use tracing::{info, warn};
+
+/// Unwinds the proofs storage to a specific block number.
+///
+/// This command removes all proof history and state updates after the target block number.
+#[derive(Debug, Parser)]
+pub struct UnwindCommand<C: ChainSpecParser> {
+    #[command(flatten)]
+    env: EnvironmentArgs<C>,
+
+    /// Shared proofs-history storage flags (storage path + version).
+    #[command(flatten)]
+    pub history: ProofsHistoryStorageArgs,
+
+    /// The target block number to unwind to.
+    ///
+    /// All history *after* this block will be removed.
+    #[arg(long, value_name = "TARGET_BLOCK")]
+    pub target: u64,
+}
+
+impl<C: ChainSpecParser> UnwindCommand<C> {
+    /// Validates that the target block number is within a valid range for unwinding.
+    fn validate_unwind_range<Store: OpProofsStore>(&self, storage: Store) -> eyre::Result<bool> {
+        let provider_ro = storage.provider_ro()?;
+        let window = match provider_ro.get_proof_window() {
+            Ok(w) => w,
+            Err(OpProofsStorageError::NoBlocksFound) => {
+                warn!(target: "reth::cli", "No blocks found in proofs storage. Nothing to unwind.");
+                return Ok(false);
+            }
+            Err(err) => return Err(err.into()),
+        };
+
+        if self.target <= window.earliest.number {
+            warn!(target: "reth::cli", unwind_target = ?self.target, earliest = window.earliest.number, "Target block is less than the earliest block in proofs storage. Nothing to unwind.");
+            return Ok(false);
+        }
+
+        if self.target > window.latest.number {
+            warn!(target: "reth::cli", unwind_target = ?self.target, latest = window.latest.number, "Target block is not less than the latest block in proofs storage. Nothing to unwind.");
+            return Ok(false);
+        }
+
+        Ok(true)
+    }
+}
+
+impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> UnwindCommand<C> {
+    /// Execute [`UnwindCommand`].
+    pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec, Primitives = OpPrimitives>>(
+        self,
+        runtime: reth_tasks::Runtime,
+    ) -> eyre::Result<()> {
+        info!(target: "reth::cli", "reth {} starting", version_metadata().short_version);
+
+        // Initialize the environment with read-only access. We use `RoInconsistent` to skip the
+        // static-file/database consistency check.
+        let Environment { provider_factory, data_dir, .. } =
+            self.env.init::<N>(AccessRights::RoInconsistent, runtime)?;
+        let storage_path = self.history.resolve_storage_path(data_dir.as_ref());
+        info!(target: "reth::cli", "Unwinding OP proofs storage at: {:?}", storage_path);
+
+        match self.history.storage_version {
+            ProofsStorageVersion::V1 => {
+                let storage: Arc<MdbxProofsStorage> = Arc::new(
+                    MdbxProofsStorage::new(&storage_path)
+                        .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
+                );
+                self.run_unwind(storage, &provider_factory)?;
+            }
+            ProofsStorageVersion::V2 => {
+                let storage: Arc<MdbxProofsStorageV2> = Arc::new(
+                    MdbxProofsStorageV2::new(&storage_path)
+                        .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorageV2: {e}"))?,
+                );
+                self.run_unwind(storage, &provider_factory)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate the unwind range and unwind the proofs storage to the target block.
+    fn run_unwind<S, F>(&self, storage: S, provider_factory: &F) -> eyre::Result<()>
+    where
+        S: OpProofsStore + Clone,
+        F: BlockReader,
+    {
+        // Validate that the target block is within a valid range for unwinding
+        if !self.validate_unwind_range(storage.clone())? {
+            return Ok(());
+        }
+
+        // Get the target block from the main database
+        let block = provider_factory
+            .recovered_block(self.target.into(), TransactionVariant::NoHash)?
+            .ok_or_else(|| {
+                eyre::eyre!("Target block {} not found in the main database", self.target)
+            })?;
+
+        // Refuse to unwind when reth has pruned the target block's body. The unwind itself
+        // would technically succeed (we only need `block_with_parent()`), but re-backfilling
+        // afterward is impossible on the same node, so the operator would be left without a
+        // way to resume from this point. Fail fast with a clear remediation instead.
+        if block.header().transactions_root() != EMPTY_ROOT_HASH &&
+            block.body().transactions().is_empty()
+        {
+            return Err(eyre::eyre!(
+                "Target block {} body has been pruned by reth; refusing to unwind because \
+                 re-backfilling from here is not possible until reth is re-synced without \
+                 body pruning.",
+                self.target
+            ));
+        }
+
+        info!(target: "reth::cli", block_number = block.number(), block_hash = %block.hash(), "Unwinding to target block");
+        let provider_rw = storage.provider_rw()?;
+        provider_rw.unwind_history(block.block_with_parent())?;
+        provider_rw.commit()?;
+
+        Ok(())
+    }
+}
+
+impl<C: ChainSpecParser> UnwindCommand<C> {
+    /// Returns the underlying chain being used to run this command
+    pub const fn chain_spec(&self) -> Option<&Arc<C::ChainSpec>> {
+        Some(&self.env.chain)
+    }
+}

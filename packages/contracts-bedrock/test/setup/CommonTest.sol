@@ -1,0 +1,236 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+// Testing
+import { Test } from "test/setup/Test.sol";
+import { Setup } from "test/setup/Setup.sol";
+import { Events } from "test/setup/Events.sol";
+import { FFIInterface } from "test/setup/FFIInterface.sol";
+
+// Scripts
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+
+// Contracts
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+
+// Libraries
+import { Config } from "scripts/libraries/Config.sol";
+import { console } from "forge-std/console.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
+
+// Interfaces
+import { IOptimismMintableERC20Full } from "interfaces/universal/IOptimismMintableERC20Full.sol";
+import { ILegacyMintableERC20Full } from "interfaces/legacy/ILegacyMintableERC20Full.sol";
+
+/// @title CommonTest
+/// @dev An extension to `Test` that sets up the optimism smart contracts.
+abstract contract CommonTest is Test, Setup, Events {
+    address alice;
+    address bob;
+
+    /// @notice The default initial bond value for dispute games.
+    uint256 constant DEFAULT_DISPUTE_GAME_INIT_BOND = 0.08 ether;
+
+    FFIInterface constant ffi = FFIInterface(address(uint160(uint256(keccak256(abi.encode("optimism.ffi"))))));
+
+    bool useAltDAOverride;
+    bool useInteropOverride;
+    bool useCustomGasToken;
+
+    /// @dev This value is only used in forked tests. During forked tests, the default is to perform the upgrade before
+    ///      running the tests.
+    ///      This value should only be set to false in forked tests which are specifically testing the upgrade path
+    ///      itself, rather than simply ensuring that the tests pass after the upgrade.
+    bool useUpgradedFork = true;
+
+    ERC20 L1Token;
+    ERC20 BadL1Token;
+    IOptimismMintableERC20Full L2Token;
+    ILegacyMintableERC20Full LegacyL2Token;
+    ERC20 NativeL2Token;
+
+    function setUp() public virtual override {
+        // Setup.setup() may switch the tests over to a newly forked network. Therefore
+        // state modifying cheatcodes must be run after Setup.setup(), otherwise the
+        // changes will not be persisted into the new network.
+        Setup.setUp();
+
+        // Set the code for 0xbeefcafe to a single non-zero byte. We use this address as a signal
+        // that something is running in the testing environment and not production, useful for
+        // forked tests.
+        vm.etch(address(0xbeefcafe), bytes(hex"01"));
+
+        alice = makeAddr("alice");
+        bob = makeAddr("bob");
+        vm.deal(alice, 10000 ether);
+        vm.deal(bob, 10000 ether);
+
+        // Override the config after the deploy script initialized the config
+        if (useAltDAOverride) {
+            deploy.cfg().setUseAltDA(true);
+        }
+        if (useUpgradedFork) {
+            deploy.cfg().setUseUpgradedFork(true);
+        }
+        if (Config.sysFeatureCustomGasToken()) {
+            console.log("CommonTest: enabling custom gas token");
+            deploy.cfg().setUseCustomGasToken(true);
+            deploy.cfg().setGasPayingTokenName("Custom Gas Token");
+            deploy.cfg().setGasPayingTokenSymbol("CGT");
+            deploy.cfg().setNativeAssetLiquidityAmount(type(uint248).max);
+            deploy.cfg().setBaseFeeVaultWithdrawalNetwork(1);
+            deploy.cfg().setL1FeeVaultWithdrawalNetwork(1);
+            deploy.cfg().setSequencerFeeVaultWithdrawalNetwork(1);
+            deploy.cfg().setOperatorFeeVaultWithdrawalNetwork(1);
+        }
+
+        if (useInteropOverride) {
+            console.log("CommonTest: enabling interop");
+            devFeatureBitmap |= DevFeatures.OPTIMISM_PORTAL_INTEROP;
+            deploy.cfg().setUseInterop(true);
+        }
+
+        // Sync the bitmap to deploy config after overrides
+        deploy.cfg().setDevFeatureBitmap(devFeatureBitmap);
+
+        if (isL1ForkTest()) {
+            // Skip any test suite which uses a nonstandard configuration.
+            if (useAltDAOverride || useInteropOverride) {
+                vm.skip(true);
+            }
+        } else {
+            // Modifying these values on a fork test causes issues.
+            vm.warp(deploy.cfg().l2OutputOracleStartingTimestamp() + 1);
+            vm.roll(deploy.cfg().l2OutputOracleStartingBlockNumber() + 1);
+            vm.fee(1 gwei);
+        }
+
+        vm.etch(address(ffi), vm.getDeployedCode("FFIInterface.sol:FFIInterface"));
+        vm.allowCheatcodes(address(ffi));
+        vm.label(address(ffi), "FFIInterface");
+
+        // Exclude contracts for the invariant tests
+        excludeContract(address(ffi));
+        excludeContract(address(deploy));
+        excludeContract(address(deploy.cfg()));
+
+        if (isL2ForkTest()) {
+            Setup.L2Fork();
+            return;
+        }
+
+        Setup.L1();
+
+        if (!isL1ForkTest()) {
+            Setup.L2();
+        }
+
+        bridgeInitializerSetUp();
+    }
+
+    function bridgeInitializerSetUp() public {
+        L1Token = new ERC20("Native L1 Token", "L1T");
+
+        LegacyL2Token = ILegacyMintableERC20Full(
+            DeployUtils.create1({
+                _name: "LegacyMintableERC20",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(
+                        ILegacyMintableERC20Full.__constructor__,
+                        (
+                            address(l2StandardBridge),
+                            address(L1Token),
+                            string.concat("LegacyL2-", L1Token.name()),
+                            string.concat("LegacyL2-", L1Token.symbol())
+                        )
+                    )
+                )
+            })
+        );
+        vm.label(address(LegacyL2Token), "LegacyMintableERC20");
+
+        if (isL1ForkTest()) {
+            console.log("CommonTest: fork test detected, skipping L2 setup");
+            L2Token = IOptimismMintableERC20Full(makeAddr("L2Token"));
+        } else {
+            // Deploy the L2 ERC20 now
+            L2Token = IOptimismMintableERC20Full(
+                l2OptimismMintableERC20Factory.createStandardL2Token(
+                    address(L1Token),
+                    string(abi.encodePacked("L2-", L1Token.name())),
+                    string(abi.encodePacked("L2-", L1Token.symbol()))
+                )
+            );
+        }
+
+        NativeL2Token = new ERC20("Native L2 Token", "L2T");
+
+        BadL1Token = ERC20(
+            l1OptimismMintableERC20Factory.createStandardL2Token(
+                address(1),
+                string(abi.encodePacked("L1-", NativeL2Token.name())),
+                string(abi.encodePacked("L1-", NativeL2Token.symbol()))
+            )
+        );
+
+        console.log("CommonTest: SetUp complete!");
+    }
+
+    /// @dev Helper function that wraps `TransactionDeposited` event.
+    ///      The magic `0` is the version.
+    function emitTransactionDeposited(
+        address _from,
+        address _to,
+        uint256 _mint,
+        uint256 _value,
+        uint64 _gasLimit,
+        bool _isCreation,
+        bytes memory _data
+    )
+        internal
+    {
+        emit TransactionDeposited(_from, _to, 0, abi.encodePacked(_mint, _value, _gasLimit, _isCreation, _data));
+    }
+
+    /// @dev Checks if the system has already been deployed, based off of the heuristic that alice and bob have not been
+    ///      set by the `setUp` function yet.
+    function _checkNotDeployed(string memory _feature) internal view {
+        if (alice != address(0) && bob != address(0)) {
+            revert(
+                string.concat("CommonTest: Cannot enable ", _feature, " after deployment. Consider overriding `setUp`.")
+            );
+        }
+        console.log("CommonTest: enabling", _feature);
+    }
+
+    /// @dev Enables alternative data availability mode for testing
+    function enableAltDA() public {
+        _checkNotDeployed("altda");
+        useAltDAOverride = true;
+    }
+
+    /// @dev Enables interoperability mode for testing
+    function enableInterop() public {
+        _checkNotDeployed("interop");
+        useInteropOverride = true;
+    }
+
+    /// @dev Disables upgrade mode for testing. By default the fork testing env will be upgraded to the latest
+    ///      implementation. This can be used to disable the upgrade which, is useful for tests targeting the upgrade
+    ///      process itself.
+    function disableUpgradedFork() public {
+        _checkNotDeployed("non-upgraded fork");
+
+        useUpgradedFork = false;
+    }
+
+    /// @dev Helper function to setup a prank for delegatecall.
+    /// @param _caller The address to prank as the caller.
+    function prankDelegateCall(address _caller) internal {
+        // Foundry fails with "cannot `prank` delegate call from an EOA" if empty
+        if (_caller.code.length == 0) {
+            vm.etch(_caller, hex"00");
+        }
+        vm.prank(_caller, true);
+    }
+}

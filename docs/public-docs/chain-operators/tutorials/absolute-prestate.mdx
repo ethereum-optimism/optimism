@@ -1,0 +1,63 @@
+---
+title: "Generating absolute prestate and preimage files"
+description: "Generate, verify, and configure the kona-client absolute prestate for permissionless fault proofs."
+diataxis: how-to
+---
+
+# Overview
+
+The absolute prestate is the on-chain commitment to a specific build of `kona-client`. The matching preimage (a gzipped binary) is what `op-challenger` runs at dispute time. This guide is the minimal reproducer.
+
+<Info>
+  As of [Upgrade 19](/notices/archive/upgrade-19), `CANNON_KONA` (game type `8`) is the respected game type for permissionless fault proofs. If your chain is not yet in the public Superchain Registry, follow [Generating a custom kona-client absolute prestate](/chain-operators/tutorials/kona-custom-prestate) instead.
+</Info>
+
+## Prerequisites
+
+- [Docker](https://docs.docker.com/engine/install/) running
+- [`just`](https://github.com/casey/just) installed
+
+## Generate and verify the prestate
+
+<Steps>
+  <Step title="Check out the release tag">
+    ```bash
+    git clone https://github.com/ethereum-optimism/optimism.git
+    cd optimism
+    git checkout kona-node/v<VERSION>
+    ```
+  </Step>
+
+  <Step title="Build the prestate">
+    ```bash
+    just reproducible-prestate-kona
+    ```
+
+    The build runs in Docker and writes artifacts to `rust/kona/prestate-artifacts-cannon/`.
+  </Step>
+
+  <Step title="Read and verify the hash">
+    ```bash
+    jq -r .pre rust/kona/prestate-artifacts-cannon/prestate-proof.json
+    ```
+
+    Match the printed hash against the `cannon64-kona` entry for your release tag in [`standard-prestates.toml`](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml). A match confirms your build environment is honest.
+  </Step>
+</Steps>
+
+## Configure op-challenger
+
+Upload the hash-named file `rust/kona/prestate-artifacts-cannon/0x<HASH>.bin.gz` (produced by the build) to a location reachable by your `op-challenger` instances, then add the kona-specific env vars to your existing challenger config:
+
+```bash
+OP_CHALLENGER_TRACE_TYPE=cannon-kona,permissioned
+OP_CHALLENGER_CANNON_KONA_PRESTATES_URL=<HTTP_URL_PATH_TO_PRESTATES>
+```
+
+The challenger appends `/0x<hash>.bin.gz` to `*_PRESTATES_URL` to resolve the right binary per dispute. Your existing `OP_CHALLENGER_ROLLUP_CONFIG`, `OP_CHALLENGER_L2_GENESIS`, and `OP_CHALLENGER_GAME_FACTORY_ADDRESS` continue to apply unchanged.
+
+## Next Steps
+
+- [Generating a custom kona-client absolute prestate](/chain-operators/tutorials/kona-custom-prestate) — for chains not yet in the Superchain Registry.
+- [Migrating to permissionless fault proofs](/chain-operators/tutorials/migrating-permissionless).
+- [Fault proofs explainer](/op-stack/fault-proofs/explainer).

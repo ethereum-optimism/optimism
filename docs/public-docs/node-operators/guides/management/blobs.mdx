@@ -1,0 +1,39 @@
+---
+title: Using blobs
+description: Configure op-node to fetch L1 batcher blob data, including blobs older than the beacon retention window.
+diataxis: how-to
+---
+
+OP Stack rollups post batch data to L1 as [EIP-4844 blobs](https://eips.ethereum.org/EIPS/eip-4844). To retrieve this data, `op-node` requires access to an L1 beacon endpoint. Run your own beacon node ([Lighthouse](https://lighthouse-book.sigmaprime.io/run_a_node.html), Lodestar, Nimbus, Prysm, or Teku) or use a third-party service like [QuickNode](https://www.quicknode.com/docs/ethereum/eth-v1-beacon-genesis).
+
+Pass the beacon endpoint to op-node:
+
+```shell
+--l1.beacon value                                                      ($OP_NODE_L1_BEACON)
+          HTTP endpoint Address of L1 Beacon-node.
+```
+
+## Configuring a blob archiver
+
+Standard beacon nodes prune blobs after 18 days. If your node is synced within the last 18 days and stays online, the default beacon endpoint is sufficient. You need a blob archiver if either of these is true:
+
+*   You're syncing a new node from a snapshot or genesis older than 18 days
+*   Your node has been offline for more than 18 days
+
+Pass one or more fallback endpoints to op-node:
+
+```shell
+--l1.beacon-fallbacks value                                            ($OP_NODE_L1_BEACON_FALLBACKS)
+          Addresses of L1 Beacon-API compatible HTTP fallback endpoints. Used to fetch blob sidecars
+          not available at the l1.beacon (e.g. expired blobs).
+```
+
+<Info>
+  `--l1.beacon-fallbacks` was previously called `--l1.beacon-archiver`. The old name still works as an alias, and so does the legacy env var `$OP_NODE_L1_BEACON_ARCHIVER`.
+</Info>
+
+Choose one of these options for the archiver endpoint:
+
+*   **Option 1 — Run a beacon node with blob pruning disabled.** For Lighthouse, set `--prune-blobs=false` and point `--l1.beacon-fallbacks` at it.
+*   **Option 2 — Run a dedicated blob archiver service** such as [base-org/blob-archiver](https://github.com/base-org/blob-archiver), and point `--l1.beacon-fallbacks` at its API endpoint. Lighter weight than running a full no-prune beacon node.
+*   **Option 3 — Use a third-party blob-archiver service.** Useful if you don't want to operate any beacon infrastructure.

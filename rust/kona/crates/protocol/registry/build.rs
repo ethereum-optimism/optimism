@@ -1,0 +1,443 @@
+//! Build script that generates a `configs.json` file from the configs.
+
+use std::{
+    collections::{BTreeMap, BTreeSet, btree_map::Entry},
+    env, fs,
+    path::{Path, PathBuf},
+};
+
+use kona_genesis::{
+    Chain, ChainConfig, ChainList, DependencySet, InteropConfig, Superchain, SuperchainConfig,
+    Superchains, aggregate_clusters,
+};
+use serde::de::DeserializeOwned;
+
+fn main() {
+    let manifest_dir = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
+    let committed_etc_dir = manifest_dir.join("etc");
+
+    // The three committed snapshots under `etc/` are `include_str!`d at compile time,
+    // but `include_str!` does not register file dependencies with cargo. Declare them
+    // here so a hand-edit or `KONA_SYNC_SUPERCHAIN=true` regeneration busts the
+    // cache instead of silently reusing a stale compilation of `lib.rs`.
+    for file in ["chainList.json", "configs.json", "depsets.json"] {
+        println!("cargo:rerun-if-changed={}", committed_etc_dir.join(file).display());
+    }
+
+    // If the `KONA_SYNC_SUPERCHAIN` environment variable is _not_ set, then return early.
+    // The committed `etc/depsets.json` snapshot is the authoritative input in this
+    // mode; do not touch it. (Custom-config merges, if enabled, additively layer
+    // on top of the committed snapshot.)
+    let custom_configs_dir = custom_configs_dir();
+    let kona_bind: bool = matches!(env::var("KONA_SYNC_SUPERCHAIN").as_deref(), Ok("1" | "true"));
+    println!("cargo:rerun-if-env-changed=KONA_SYNC_SUPERCHAIN");
+    if !kona_bind {
+        let etc_dir = prepare_etc_dir(&committed_etc_dir, custom_configs_dir.is_some());
+        println!("cargo:rustc-env=KONA_REGISTRY_DIR={}", etc_dir.display());
+        merge_custom_configs(custom_configs_dir.as_deref(), &etc_dir);
+        return;
+    }
+
+    let chain_list_path = committed_etc_dir.join("chainList.json");
+    let configs_path = committed_etc_dir.join("configs.json");
+    let depsets_path = committed_etc_dir.join("depsets.json");
+
+    // Reset the embedded depsets to the empty list before re-deriving from the
+    // superchain-registry submodule, so the content is deterministic for the configured
+    // inputs and never carries stale entries from a prior build.
+    write_depsets(&depsets_path, &[]);
+
+    // Resolve the monorepo root via `git rev-parse --show-toplevel` so we don't
+    // depend on this crate's location inside the workspace.
+    let repo_root = std::process::Command::new("git")
+        .args(["rev-parse", "--show-toplevel"])
+        .output()
+        .expect("failed to run `git rev-parse --show-toplevel`");
+    assert!(repo_root.status.success(), "`git rev-parse --show-toplevel` failed");
+    let repo_root = String::from_utf8(repo_root.stdout).unwrap();
+    let repo_root = repo_root.trim_end();
+
+    // The `superchain-registry` submodule lives at the monorepo root.
+    let superchain_registry = format!("{repo_root}/superchain-registry");
+    assert!(
+        std::path::Path::new(&superchain_registry).exists(),
+        "Git Submodule missing. Please run `just update-superchain-registry-submodule` \
+         from the repo root to initialize it."
+    );
+
+    // Copy the `superchain-registry/chainList.json` file into the embedded registry snapshot.
+    let chain_list = format!("{superchain_registry}/chainList.json");
+    fs::copy(chain_list, &chain_list_path).unwrap();
+
+    // Get the `superchain-registry/superchain/configs` directory`
+    let configs_dir = format!("{superchain_registry}/superchain/configs");
+    let configs = std::fs::read_dir(configs_dir).unwrap();
+
+    // Get all the directories in the `configs` directory
+    let mut superchains = Superchains::default();
+    for config in configs {
+        let config = config.unwrap();
+        let config_path = config.path();
+        let superchain_name = config.file_name().into_string().unwrap();
+        let mut superchain =
+            Superchain { name: superchain_name, chains: Vec::new(), ..Default::default() };
+        if config_path.is_dir() {
+            let config_files = std::fs::read_dir(&config_path).unwrap();
+            for config_file in config_files {
+                let config_file = config_file.unwrap();
+                let config_file_path = config_file.path();
+
+                // Read the `superchain.toml` as the `SuperchainConfig`
+                let config_file_name = config_file.file_name().into_string().unwrap();
+                if config_file_name == "superchain.toml" {
+                    let config = std::fs::read_to_string(config_file_path).unwrap();
+                    let config: SuperchainConfig = toml::from_str(&config).unwrap();
+                    superchain.config = config;
+                    continue;
+                }
+
+                // Read the config file as a `ChainConfig`. ChainConfig rejects unknown fields, so a
+                // registry key promoted into the config that ChainConfig does not yet model fails
+                // here rather than being silently dropped.
+                let config = std::fs::read_to_string(config_file_path).unwrap();
+                let config: ChainConfig = toml::from_str(&config).unwrap_or_else(|e| {
+                    panic!(
+                        "failed to parse superchain-registry chain config {config_file_name}: {e}"
+                    )
+                });
+                superchain.chains.push(config);
+            }
+            superchains.superchains.push(superchain);
+        }
+    }
+
+    // Sort the superchains by name.
+    superchains.superchains.sort_by_key(|a| a.name.clone());
+
+    // For each superchain, sort the list of chains by chain id.
+    for superchain in &mut superchains.superchains {
+        superchain.chains.sort_by_key(|a| a.chain_id);
+    }
+
+    fs::write(&configs_path, serde_json::to_string_pretty(&superchains).unwrap()).unwrap();
+
+    // Aggregate per-cluster `DependencySet`s from each chain's `[interop]` block and
+    // overwrite the embedded depsets with the resulting list.
+    let interop_chains: Vec<(u64, &InteropConfig)> = superchains
+        .superchains
+        .iter()
+        .flat_map(|sc| sc.chains.iter())
+        .filter_map(|c| c.interop.as_ref().map(|i| (c.chain_id, i)))
+        .collect();
+    let depsets = aggregate_clusters(interop_chains.iter().map(|(id, cfg)| (*id, *cfg)))
+        .unwrap_or_else(|e| {
+            panic!("failed to aggregate interop clusters from superchain configs: {e}")
+        });
+    write_depsets(&depsets_path, &depsets);
+
+    let etc_dir = prepare_etc_dir(&committed_etc_dir, custom_configs_dir.is_some());
+    println!("cargo:rustc-env=KONA_REGISTRY_DIR={}", etc_dir.display());
+    merge_custom_configs(custom_configs_dir.as_deref(), &etc_dir);
+}
+
+fn custom_configs_dir() -> Option<PathBuf> {
+    println!("cargo:rerun-if-env-changed=KONA_CUSTOM_CONFIGS");
+    println!("cargo:rerun-if-env-changed=KONA_CUSTOM_CONFIGS_DIR");
+    println!("cargo:rerun-if-env-changed=CARGO_CFG_KONA_CUSTOM_CONFIGS");
+    println!("cargo:rerun-if-env-changed=CARGO_CFG_KONA_CUSTOM_CONFIGS_DIR");
+    println!("cargo:rerun-if-env-changed=KONA_CUSTOM_CONFIGS_TEST");
+    println!("cargo:rustc-check-cfg=cfg(kona_custom_configs, values(\"true\"))");
+
+    let enabled = env::var("KONA_CUSTOM_CONFIGS").is_ok_and(|value| value == "true") ||
+        env::var("CARGO_CFG_KONA_CUSTOM_CONFIGS").is_ok_and(|value| value == "true");
+    if !enabled {
+        return None;
+    }
+
+    let custom_configs_dir = env::var_os("KONA_CUSTOM_CONFIGS_DIR")
+        .or_else(|| env::var_os("CARGO_CFG_KONA_CUSTOM_CONFIGS_DIR"))
+        .map(PathBuf::from)
+        .expect(
+            "KONA_CUSTOM_CONFIGS_DIR or --cfg kona_custom_configs_dir=\"...\" must be set when \
+             custom configs are enabled",
+        );
+    assert!(
+        custom_configs_dir.exists(),
+        "KONA_CUSTOM_CONFIGS_DIR or --cfg kona_custom_configs_dir=\"...\" points to {}, which \
+         does not exist",
+        custom_configs_dir.display()
+    );
+    Some(custom_configs_dir)
+}
+
+fn prepare_etc_dir(committed_etc_dir: &Path, use_scratch: bool) -> PathBuf {
+    if !use_scratch {
+        return committed_etc_dir.to_path_buf();
+    }
+
+    let scratch_etc_dir = PathBuf::from(env::var_os("OUT_DIR").unwrap()).join("registry-etc");
+    if scratch_etc_dir.exists() {
+        fs::remove_dir_all(&scratch_etc_dir).unwrap();
+    }
+    fs::create_dir_all(&scratch_etc_dir).unwrap();
+    for file in ["chainList.json", "configs.json", "depsets.json"] {
+        fs::copy(committed_etc_dir.join(file), scratch_etc_dir.join(file)).unwrap();
+    }
+    scratch_etc_dir
+}
+
+fn merge_custom_configs(custom_configs_dir: Option<&Path>, etc_dir: &Path) {
+    let Some(custom_configs_dir) = custom_configs_dir else {
+        return;
+    };
+
+    let custom_chain_list_path = custom_configs_dir.join("chainList.json");
+    let custom_configs_path = custom_configs_dir.join("configs.json");
+
+    println!("cargo:rerun-if-changed={}", custom_chain_list_path.display());
+    println!("cargo:rerun-if-changed={}", custom_configs_path.display());
+
+    let target_chain_list = etc_dir.join("chainList.json");
+    let target_superchains = etc_dir.join("configs.json");
+    let target_depsets = etc_dir.join("depsets.json");
+
+    validate_chain_configs(&custom_chain_list_path, &custom_configs_path);
+
+    merge_chain_list(&custom_chain_list_path, &target_chain_list);
+    merge_superchain_configs(&custom_configs_path, &target_superchains);
+    merge_custom_depsets(custom_configs_dir, &target_depsets);
+    validate_chain_configs(&target_chain_list, &target_superchains);
+    validate_depsets(&target_depsets, &target_chain_list);
+}
+
+fn merge_chain_list(custom_path: &Path, target_path: &Path) {
+    assert!(custom_path.exists(), "Custom chain list {} does not exist", custom_path.display());
+    assert!(target_path.exists(), "Target chain list {} does not exist", target_path.display());
+
+    let mut merged_chain_list: ChainList = read_json(target_path);
+    let custom_chain_list: ChainList = read_json(custom_path);
+
+    let mut chains_by_id: BTreeMap<u64, Chain> = BTreeMap::new();
+    let mut identifiers: BTreeMap<String, Chain> = BTreeMap::new();
+
+    for chain in &merged_chain_list.chains {
+        let ident_key = chain.identifier.to_ascii_lowercase();
+        identifiers.insert(ident_key, chain.clone());
+        chains_by_id.insert(chain.chain_id, chain.clone());
+    }
+    // preserve ordering of chains in etc/chainList.json
+    for chain in &custom_chain_list.chains {
+        let ident_key = chain.identifier.to_ascii_lowercase();
+        if let Some(existing_chain) = identifiers.get(&ident_key) {
+            if existing_chain == chain {
+                continue;
+            }
+            panic!(
+                "Chain identifier `{}` in {} already exists in the registry with a different config",
+                chain.identifier,
+                custom_path.display()
+            );
+        }
+        if let Some(existing_chain) = chains_by_id.get(&chain.chain_id) {
+            if existing_chain == chain {
+                continue;
+            }
+            panic!(
+                "Chain id {} in {} already exists in the registry with a different config for identifier `{}`",
+                chain.chain_id,
+                custom_path.display(),
+                existing_chain.identifier
+            );
+        }
+        identifiers.insert(ident_key, chain.clone());
+        chains_by_id.insert(chain.chain_id, chain.clone());
+        merged_chain_list.chains.push(chain.clone());
+    }
+
+    write_pretty_json(target_path, &merged_chain_list);
+}
+
+fn merge_superchain_configs(custom_path: &Path, target_path: &Path) {
+    assert!(custom_path.exists(), "Custom configs {} does not exist", custom_path.display());
+    assert!(target_path.exists(), "Target configs {} does not exist", target_path.display());
+
+    let mut superchains: BTreeMap<String, Superchain> = read_json::<Superchains>(target_path)
+        .superchains
+        .into_iter()
+        .map(|sc| (sc.name.clone(), sc))
+        .collect();
+
+    let custom_superchains: Superchains = read_json(custom_path);
+
+    for custom in custom_superchains.superchains {
+        match superchains.entry(custom.name.clone()) {
+            Entry::Occupied(mut entry) => {
+                println!(
+                    "cargo:warning=debug: merging custom chains {}: [{}]",
+                    custom.name,
+                    custom.chains.iter().map(|c| c.name.as_str()).collect::<Vec<_>>().join(",")
+                );
+                let existing = entry.get_mut();
+                *existing = merge_superchain_entry(std::mem::take(existing), custom);
+            }
+            Entry::Vacant(entry) => {
+                println!(
+                    "cargo:warning=debug: inserting new custom chain {}: [{}]",
+                    custom.name,
+                    custom.chains.iter().map(|c| c.name.as_str()).collect::<Vec<_>>().join(",")
+                );
+                entry.insert(custom);
+            }
+        }
+    }
+
+    let mut merged: Vec<Superchain> = superchains.into_values().collect();
+    merged.sort_by_key(|a| a.name.clone());
+    for superchain in &mut merged {
+        superchain.chains.sort_by_key(|a| a.chain_id);
+    }
+
+    let merged = Superchains { superchains: merged };
+    write_pretty_json(target_path, &merged);
+}
+
+/// Merges the custom chains to the chains in the superchain-registry, panicking on conflicts
+fn merge_superchain_entry(base: Superchain, custom: Superchain) -> Superchain {
+    let mut merged = base;
+
+    // maintain the ordering of chains in base
+    let mut chain_map: BTreeMap<u64, ChainConfig> =
+        merged.chains.clone().into_iter().map(|chain| (chain.chain_id, chain)).collect();
+    for chain in custom.chains {
+        if let Some(existing_config) = chain_map.get(&chain.chain_id) {
+            if existing_config == &chain {
+                continue;
+            }
+            panic!(
+                "conflict merging superchain `{}`: chain id {} has differing configs",
+                merged.name, chain.chain_id
+            );
+        }
+        chain_map.insert(chain.chain_id, chain.clone());
+        merged.chains.push(chain.clone());
+    }
+    merged
+}
+
+fn validate_chain_configs(chain_list_path: &Path, superchains_path: &Path) {
+    if !chain_list_path.exists() || !superchains_path.exists() {
+        return;
+    }
+
+    let chain_list: ChainList = read_json(chain_list_path);
+    let superchains: Superchains = read_json(superchains_path);
+
+    let mut list_chain_ids = BTreeSet::new();
+    for chain in &chain_list.chains {
+        assert!(
+            list_chain_ids.insert(chain.chain_id),
+            "Duplicate chain id {} (identifier `{}`) detected in {}",
+            chain.chain_id,
+            chain.identifier,
+            chain_list_path.display()
+        );
+    }
+
+    let mut config_chain_ids = BTreeSet::new();
+    for superchain in &superchains.superchains {
+        for chain in &superchain.chains {
+            assert!(
+                config_chain_ids.insert(chain.chain_id),
+                "Duplicate chain id {} detected across superchain configs in {}",
+                chain.chain_id,
+                superchains_path.display()
+            );
+        }
+    }
+
+    for chain_id in &config_chain_ids {
+        assert!(
+            list_chain_ids.contains(chain_id),
+            "Chain id {} present in {} but missing from {}",
+            chain_id,
+            superchains_path.display(),
+            chain_list_path.display()
+        );
+    }
+
+    for chain in chain_list.chains {
+        assert!(
+            config_chain_ids.contains(&chain.chain_id),
+            "Chain `{}` (chain id {}) present in {} but missing from {}",
+            chain.identifier,
+            chain.chain_id,
+            chain_list_path.display(),
+            superchains_path.display()
+        );
+    }
+}
+
+fn read_json<T: DeserializeOwned>(path: &Path) -> T {
+    let contents = fs::read_to_string(path)
+        .unwrap_or_else(|e| panic!("Failed to read {}: {e}", path.display()));
+    serde_json::from_str(&contents)
+        .unwrap_or_else(|e| panic!("Failed to parse {}: {e}", path.display()))
+}
+
+fn write_pretty_json<T: serde::Serialize>(path: &Path, value: &T) {
+    fs::write(
+        path,
+        serde_json::to_string_pretty(value)
+            .unwrap_or_else(|e| panic!("Failed to serialize {}: {e}", path.display())),
+    )
+    .unwrap_or_else(|e| panic!("Failed to write {}: {e}", path.display()));
+}
+
+fn write_depsets(target: &Path, depsets: &[DependencySet]) {
+    let json = serde_json::to_string_pretty(depsets)
+        .unwrap_or_else(|e| panic!("Failed to serialize {}: {e}", target.display()));
+    fs::write(target, json).unwrap_or_else(|e| panic!("Failed to write {}: {e}", target.display()));
+}
+
+fn merge_custom_depsets(custom_dir: &Path, target: &Path) {
+    let path = custom_dir.join("depsets.json");
+    println!("cargo:rerun-if-changed={}", path.display());
+    if !path.exists() {
+        return;
+    }
+    let custom: Vec<DependencySet> = read_json(&path);
+    let mut existing: Vec<DependencySet> = read_json(target);
+    for new_ds in custom {
+        for existing_ds in &existing {
+            let collisions: Vec<u64> = new_ds
+                .dependencies
+                .keys()
+                .filter(|k| existing_ds.dependencies.contains_key(k))
+                .copied()
+                .collect();
+            assert!(
+                collisions.is_empty() || existing_ds == &new_ds,
+                "Custom depset overlaps existing cluster on chain ids {collisions:?} but the cluster contents differ"
+            );
+        }
+        if !existing.iter().any(|d| d == &new_ds) {
+            existing.push(new_ds);
+        }
+    }
+    write_depsets(target, &existing);
+}
+
+fn validate_depsets(target: &Path, chain_list_path: &Path) {
+    let depsets: Vec<DependencySet> = read_json(target);
+    let chain_list: ChainList = read_json(chain_list_path);
+    let known: BTreeSet<u64> = chain_list.chains.iter().map(|c| c.chain_id).collect();
+    for ds in &depsets {
+        for id in ds.dependencies.keys() {
+            assert!(
+                known.contains(id),
+                "Depset references chain id {id} which is not in {}",
+                chain_list_path.display()
+            );
+        }
+    }
+}

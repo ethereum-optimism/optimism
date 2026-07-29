@@ -1,0 +1,29 @@
+---
+title: Releases
+description: Reference for where to find OP Deployer releases and how each OP Deployer version maps to a supported contract release.
+diataxis: reference
+---
+
+## Latest Releases
+
+The latest version of OP Deployer is always available at [releases](https://github.com/ethereum-optimism/optimism/releases?q=op-deployer&expanded=true). You should search for `op-deployer` to
+exclude other packages.
+
+## Versioning
+
+For all releases after `v0.0.11`, each minor version of OP Deployer will support a single release of the
+governance-approved smart contracts. If you want to deploy an earlier version of the contracts (which may be
+dangerous!), you should use an earlier version of OP Deployer. This setup allows our smart contract developers to make
+breaking changes on `develop`, while still allowing new chains to be deployed and upgraded using production-ready smart
+contracts.
+
+If you deploy from an HTTPS or file [locator](/chain-operators/tools/op-deployer/reference/artifacts-locators), the deployment behavior will match the
+contract's tag. For example, if version `v0.2.0` supports `v2.0.0` then the deployment will work as if you were
+deploying `op-contracts/v2.0.0`. Typically, errors like `unknown selector: <some hex>` imply that you're using the wrong
+version of OP Deployer for your contract artifacts. If this happens, we recommend trying different versions until you
+get one that works. Note that this workflow is **not recommended** for production chains.
+
+## Contributor Workflows
+
+Step-by-step procedures for backporting fixes onto earlier OP Deployer versions and adding support for new contract
+versions live in [Release Workflows](/chain-operators/tools/op-deployer/usage/release-workflows).

@@ -1,0 +1,88 @@
+---
+title: OP Conductor
+description: Understand how op-conductor keeps an OP Stack sequencer highly available, the guarantees it provides, and how its Raft-based design works.
+diataxis: explanation
+---
+
+This page explains what the `op-conductor` service is and how it works at a
+high level. To add it to an existing network, follow the
+[setup guide](/chain-operators/tools/op-conductor/setup). For the full flag and
+RPC catalogue, see the
+[configuration and RPC reference](/chain-operators/tools/op-conductor/reference).
+
+## Enhancing sequencer reliability and availability
+
+The [op-conductor](https://github.com/ethereum-optimism/optimism/tree/develop/op-conductor)
+is an auxiliary service designed to enhance the reliability and availability of
+a sequencer within high-availability setups. By minimizing the risks
+associated with a single point of failure, the op-conductor ensures that the
+sequencer remains operational and responsive.
+
+### Assumptions
+
+It is important to note that the `op-conductor` does not incorporate Byzantine
+fault tolerance (BFT). This means the system operates under the assumption that
+all participating nodes are honest and act correctly.
+
+### Summary of guarantees
+
+The design of the `op-conductor` provides the following guarantees:
+
+*   **No Unsafe Reorgs**
+*   **No Unsafe Head Stall During Network Partition**
+*   **100% Uptime with No More Than 1 Node Failure**
+
+## Design
+
+![op-conductor.](/public/img/builders/chain-operators/op-conductor.svg) 
+
+**On a high level, `op-conductor` serves the following functions:**
+
+### Raft consensus layer participation
+
+*   **Leader determination:** Participates in the Raft consensus algorithm to
+    determine the leader among sequencers.
+*   **State management:** Stores the latest unsafe block ensuring consistency
+    across the system.
+
+### RPC request handling
+
+*   **Admin RPC:** Provides administrative RPCs for manual recovery scenarios,
+    including, but not limited to: stopping the leadership vote and removing itself
+    from the cluster.
+*   **Health RPC:** Offers health RPCs for the `op-node` to determine whether it
+    should allow the publishing of transactions and unsafe blocks.
+
+### Sequencer health monitoring
+
+*   Continuously monitors the health of the sequencer (op-node) to ensure
+    optimal performance and reliability.
+
+### Control loop management
+
+*   Implements a control loop to manage the status of the sequencer (op-node),
+    including starting and stopping operations based on different scenarios and
+    health checks.
+
+## Conductor state transition
+
+The following is a state machine diagram of how the op-conductor manages the
+sequencers Raft consensus.
+
+![op-conductor-state-transition.](/public/img/builders/chain-operators/op-conductor-state-transition.svg)
+
+**Helpful tips:** To better understand the graph, focus on one node at a time,
+understand what can be transitioned to this current state and how it can
+transition to other states. This way you could understand how we handle the
+state transitions.
+
+## Next steps
+
+*   Follow the [setup guide](/chain-operators/tools/op-conductor/setup) to add
+    op-conductor to an existing multi-sequencer network without downtime.
+*   Look up flags and admin RPCs in the
+    [configuration and RPC reference](/chain-operators/tools/op-conductor/reference).
+*   Checkout [op-conductor-mon](https://github.com/ethereum-optimism/infra):
+    which monitors multiple op-conductor instances and provides a unified interface
+    for reporting metrics.
+*   Get familiar with [op-conductor-ops](https://github.com/ethereum-optimism/infra/tree/main/op-conductor-ops) to interact with op-conductor.

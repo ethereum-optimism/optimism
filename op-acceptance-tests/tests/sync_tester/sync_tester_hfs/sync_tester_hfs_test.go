@@ -1,0 +1,95 @@
+package sync_tester_hfs
+
+import (
+	"testing"
+
+	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	"github.com/ethereum-optimism/optimism/op-core/forks"
+	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
+)
+
+func ptrToUint64(v uint64) *uint64 {
+	return &v
+}
+
+func simpleWithSyncTesterOpts() []presets.Option {
+	return []presets.Option{
+		presets.WithDeployerOptions(sysgo.WithHardforkSequentialActivation(forks.Bedrock, forks.Jovian, ptrToUint64(6))),
+		presets.WithGlobalL2CLOption(sysgo.L2CLOptionFn(func(_ devtest.T, id sysgo.ComponentTarget, cfg *sysgo.L2CLConfig) {
+			cfg.NoDiscovery = true
+		})),
+		presets.WithBatcherOption(func(id sysgo.ComponentTarget, cfg *bss.CLIConfig) {
+			// For supporting pre-delta batches
+			cfg.BatchType = derive.SingularBatchType
+			// For supporting pre-Fjord batches
+			cfg.CompressionAlgo = derive.Zlib
+		}),
+	}
+}
+
+func TestSyncTesterHardforks(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	// Example error with op-reth:
+	//
+	// assertions.go:387:             ERROR[03-31|10:08:04.055]
+	// assertions.go:387:             	Error Trace:	/optimism/op-devstack/dsl/check.go:26
+	// assertions.go:387:             	            				/optimism/op-acceptance-tests/tests/sync_tester/sync_tester_hfs/sync_tester_hfs_test.go:54
+	// assertions.go:387:             	Error:      	Received unexpected error:
+	// assertions.go:387:             	            	operation failed permanently after 42 attempts: expected head to advance: unsafe
+	// assertions.go:387:             	Test:       	TestSyncTesterHardforks
+	sysgo.SkipOnOpReth(t, "not supported")
+
+	sys := presets.NewSimpleWithSyncTester(t, simpleWithSyncTesterOpts()...)
+	require := t.Require()
+	logger := t.Logger()
+
+	// Check the L2CL passed configured hardforks
+	jovianTime := sys.L2Chain.Escape().ChainConfig().JovianTime
+	require.NotNil(jovianTime, "jovian must be activated")
+
+	// Hardforks will be activated from Bedrock to Jovian, 10 hardforks with 6 second time delta between.
+	// 6 * 10 = 60s, so we need at least 30 (60 / 2 + 1) L2 blocks with block time 2 to make the CL experience scheduled hardforks.
+	targetNum := 32
+
+	// Unsafe advancement: NewPayload -> ForkchoiceUpdated(no attr)
+	dsl.CheckAll(t,
+		sys.L2CL.AdvancedFn(safety.LocalUnsafe, uint64(targetNum), targetNum+10),
+		sys.L2CL2.AdvancedFn(safety.LocalUnsafe, uint64(targetNum), targetNum+10),
+	)
+
+	current := sys.L2CL2.HeadBlockRef(safety.LocalUnsafe)
+	require.Greater(current.Time, *jovianTime, "must pass jovian block")
+	// Check block hash state from L2CL2 which was synced using the sync tester
+	require.Equal(sys.L2EL.BlockRefByNumber(current.Number).Hash, current.Hash, "hash mismatch")
+	logger.Info("Advancement using CLP2P done", "head", sys.L2EL.UnsafeHead())
+
+	// Disconnect CLP2P to solely rely on derivation
+	sys.L2CL2.DisconnectPeer(sys.L2CL)
+	sys.L2CL.DisconnectPeer(sys.L2CL2)
+	sys.L2CL2.Stop()
+	// Resync starting from genesis
+	sys.SyncTester.ResetAllSessions()
+	sys.SyncTesterL2EL.UnsafeHead().NumEqualTo(0)
+
+	// Wait until safe head reached Jovian
+	sys.L2CL.Reached(safety.LocalSafe, current.Number, 20)
+
+	// Check safe head advancement can solely rely on derivation reaching Jovian
+	// Safe advancement: ForkchoiceUpdated(with attr) -> GetPayload -> NewPayload -> ForkchoiceUpdated(no attr)
+	sys.L2CL2.Start()
+	sys.L2CL2.Reached(safety.LocalSafe, current.Number, 20)
+	sys.SyncTesterL2EL.Reached(eth.Safe, current.Number, 10)
+
+	current = sys.L2CL2.HeadBlockRef(safety.LocalSafe)
+	require.Greater(current.Time, *jovianTime, "must pass jovian block")
+	// Check block hash state from L2CL2 which was synced using the sync tester
+	require.Equal(sys.L2EL.BlockRefByNumber(current.Number).Hash, current.Hash, "hash mismatch")
+	logger.Info("Advancement using derivation done", "head", sys.L2EL.UnsafeHead())
+}

@@ -1,0 +1,872 @@
+package filter
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"github.com/ethereum/go-ethereum/common"
+	gethTypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/op-interop-filter/metrics"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop/raftwallogdb"
+
+	"github.com/ethereum-optimism/optimism/op-core/interop"
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+)
+
+// progressLogInterval is how often to log ingestion progress.
+const progressLogInterval = 10 * time.Second
+
+// EthClient defines the interface for fetching block and receipt data.
+// This allows for dependency injection in tests.
+type EthClient interface {
+	InfoByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, error)
+	InfoByNumber(ctx context.Context, number uint64) (eth.BlockInfo, error)
+	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, gethTypes.Receipts, error)
+	Close()
+}
+
+type blockFetch struct {
+	blockNum  uint64
+	blockInfo eth.BlockInfo
+	receipts  gethTypes.Receipts
+	err       error
+}
+
+// LogsDBChainIngester handles block ingestion and log storage for a single chain.
+// It uses an RPC client to fetch blocks and a logsdb database for storage.
+type LogsDBChainIngester struct {
+	log     log.Logger
+	metrics metrics.Metricer
+	chainID eth.ChainID
+
+	rpcClient        client.RPC
+	ethClient        EthClient
+	logsDB           LogsDB
+	dataDir          string
+	startTimestamp   uint64        // Timestamp at which we report Ready (typically now)
+	backfillDuration time.Duration // How far back to start ingestion from startTimestamp
+	pollInterval     time.Duration
+	rollupCfg        *rollup.Config // Rollup config for block number calculation
+	fetchConcurrency int
+
+	stopped atomic.Bool
+
+	errorState atomic.Pointer[IngesterError]
+
+	// onFailsafeChange, if set, is invoked after the error state changes so the
+	// backend can refresh the failsafe metric. Set once before Start.
+	onFailsafeChange func()
+
+	earliestIngestedBlock    atomic.Uint64
+	earliestIngestedBlockSet atomic.Bool
+
+	ctx    context.Context
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
+	mu     sync.RWMutex
+
+	pendingRewindResumeFrom    uint64
+	pendingRewindResumeFromSet bool
+}
+
+// NewLogsDBChainIngester creates a new LogsDBChainIngester for the given chain.
+// startTimestamp is when we report Ready() = true (typically now).
+// backfillDuration is how far back from startTimestamp to begin ingestion.
+func NewLogsDBChainIngester(
+	parentCtx context.Context,
+	logger log.Logger,
+	m metrics.Metricer,
+	chainID eth.ChainID,
+	rpcURL string,
+	dataDir string,
+	startTimestamp uint64,
+	backfillDuration time.Duration,
+	pollInterval time.Duration,
+	rollupCfg *rollup.Config,
+	rpcConcurrency int,
+	fetchConcurrency int,
+) (*LogsDBChainIngester, error) {
+	ctx, cancel := context.WithCancel(parentCtx)
+
+	logger = logger.New("chain", chainID)
+
+	rpcClient, err := client.NewRPC(ctx, logger, rpcURL)
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("failed to create RPC client for chain %s: %w", chainID, err)
+	}
+
+	ethClient, err := sources.NewEthClient(
+		rpcClient,
+		logger,
+		nil,
+		&sources.EthClientConfig{
+			ReceiptsCacheSize:     1000,
+			TransactionsCacheSize: 1000,
+			HeadersCacheSize:      1000,
+			PayloadsCacheSize:     100,
+			MaxRequestsPerBatch:   20,
+			MaxConcurrentRequests: rpcConcurrency,
+			TrustRPC:              false,
+			MustBePostMerge:       true,
+			RPCProviderKind:       sources.RPCKindStandard,
+		},
+	)
+	if err != nil {
+		rpcClient.Close()
+		cancel()
+		return nil, fmt.Errorf("failed to create eth client for chain %s: %w", chainID, err)
+	}
+
+	return &LogsDBChainIngester{
+		log:              logger,
+		metrics:          m,
+		chainID:          chainID,
+		rpcClient:        rpcClient,
+		ethClient:        ethClient,
+		dataDir:          dataDir,
+		startTimestamp:   startTimestamp,
+		backfillDuration: backfillDuration,
+		pollInterval:     pollInterval,
+		rollupCfg:        rollupCfg,
+		fetchConcurrency: fetchConcurrency,
+		ctx:              ctx,
+		cancel:           cancel,
+	}, nil
+}
+
+// Start begins block ingestion
+func (c *LogsDBChainIngester) Start() error {
+	c.log.Info("Starting chain ingester")
+
+	if err := c.initLogsDB(); err != nil {
+		return fmt.Errorf("failed to init logs DB: %w", err)
+	}
+
+	c.wg.Add(1)
+	go c.runIngestion()
+
+	return nil
+}
+
+// Stop gracefully stops the chain ingester
+func (c *LogsDBChainIngester) Stop() error {
+	if !c.stopped.CompareAndSwap(false, true) {
+		return nil
+	}
+	c.log.Info("Stopping chain ingester")
+	c.cancel()
+	c.wg.Wait()
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.logsDB != nil {
+		if err := c.logsDB.Close(); err != nil {
+			return fmt.Errorf("failed to close logs DB: %w", err)
+		}
+	}
+
+	if c.ethClient != nil {
+		c.ethClient.Close()
+	}
+	if c.rpcClient != nil {
+		c.rpcClient.Close()
+	}
+
+	return nil
+}
+
+// Ready returns true if we've ingested up to at least the start timestamp.
+func (c *LogsDBChainIngester) Ready() bool {
+	latestTs, ok := c.LatestTimestamp()
+	if !ok {
+		return false
+	}
+	return latestTs >= c.startTimestamp
+}
+
+// SetError sets the error state, logs the error, and records metrics.
+func (c *LogsDBChainIngester) SetError(reason IngesterErrorReason, msg string) {
+	err := &IngesterError{
+		Reason:  reason,
+		Message: msg,
+	}
+	c.errorState.Store(err)
+	c.log.Error("Ingester halted", "reason", reason.String(), "msg", msg)
+
+	chainIDUint64, _ := c.chainID.Uint64()
+	if reason == ErrorReorg || reason == ErrorConflict {
+		c.metrics.RecordReorgDetected(chainIDUint64)
+	}
+
+	if c.onFailsafeChange != nil {
+		c.onFailsafeChange()
+	}
+}
+
+// SetOnFailsafeChange registers a callback invoked after the error state
+// changes. Used by the backend to keep the failsafe metric in sync.
+func (c *LogsDBChainIngester) SetOnFailsafeChange(fn func()) {
+	c.onFailsafeChange = fn
+}
+
+// Error returns the current error state, or nil if no error.
+func (c *LogsDBChainIngester) Error() *IngesterError {
+	return c.errorState.Load()
+}
+
+// ClearError clears the error state.
+func (c *LogsDBChainIngester) ClearError() {
+	c.errorState.Store(nil)
+	c.log.Info("Ingester error state cleared")
+
+	if c.onFailsafeChange != nil {
+		c.onFailsafeChange()
+	}
+}
+
+// Contains checks if a log exists in the database
+func (c *LogsDBChainIngester) Contains(query messages.ContainsQuery) (messages.BlockSeal, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.logsDB == nil {
+		c.log.Warn("Contains called but logs DB not initialized")
+		return messages.BlockSeal{}, interop.ErrUninitialized
+	}
+
+	return c.logsDB.Contains(query)
+}
+
+// LatestBlock returns the latest sealed block
+func (c *LogsDBChainIngester) LatestBlock() (eth.BlockID, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.logsDB == nil {
+		return eth.BlockID{}, false
+	}
+
+	return c.logsDB.LatestSealedBlock()
+}
+
+// BlockHashAt returns the hash of the sealed block at the given height.
+func (c *LogsDBChainIngester) BlockHashAt(blockNum uint64) (common.Hash, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.logsDB == nil {
+		return common.Hash{}, false
+	}
+
+	seal, err := c.logsDB.FindSealedBlock(blockNum)
+	if err != nil {
+		return common.Hash{}, false
+	}
+
+	return seal.Hash, true
+}
+
+// BlockHashByNumber returns the sealed block hash at the given height.
+func (c *LogsDBChainIngester) BlockHashByNumber(blockNum uint64) (common.Hash, bool) {
+	return c.BlockHashAt(blockNum)
+}
+
+// LatestTimestamp returns the timestamp of the latest sealed block
+func (c *LogsDBChainIngester) LatestTimestamp() (uint64, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.logsDB == nil {
+		return 0, false
+	}
+
+	latestBlock, ok := c.logsDB.LatestSealedBlock()
+	if !ok {
+		return 0, false
+	}
+
+	seal, err := c.logsDB.FindSealedBlock(latestBlock.Number)
+	if err != nil {
+		return 0, false
+	}
+
+	return seal.Timestamp, true
+}
+
+// GetExecMsgsAtTimestamp returns executing messages with the given inclusion timestamp.
+func (c *LogsDBChainIngester) GetExecMsgsAtTimestamp(timestamp uint64) ([]IncludedMessage, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.logsDB == nil {
+		c.log.Warn("GetExecMsgsAtTimestamp called but logs DB not initialized")
+		return nil, interop.ErrUninitialized
+	}
+
+	blockNum, err := c.rollupCfg.TargetBlockNumber(timestamp)
+	if err != nil {
+		return nil, nil
+	}
+
+	latestBlock, ok := c.logsDB.LatestSealedBlock()
+	if !ok || blockNum > latestBlock.Number {
+		return nil, nil
+	}
+
+	if !c.earliestIngestedBlockSet.Load() {
+		// We have not yet ingested any block with log data. Backfill is in progress
+		// (or hasn't started); we must not silently report "no executing messages".
+		return nil, interop.ErrUninitialized
+	}
+	if blockNum < c.earliestIngestedBlock.Load() {
+		return nil, nil
+	}
+
+	ref, _, execMsgs, err := c.logsDB.OpenBlock(blockNum)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open block %d: %w", blockNum, err)
+	}
+
+	if ref.Time != timestamp {
+		return nil, nil
+	}
+
+	var results []IncludedMessage
+	for _, msg := range execMsgs {
+		results = append(results, IncludedMessage{
+			ExecutingMessage:   msg,
+			InclusionBlockNum:  blockNum,
+			InclusionTimestamp: ref.Time,
+		})
+	}
+
+	return results, nil
+}
+
+// findAndSetEarliestBlock determines the earliest queryable block on resume.
+// The first sealed block is the earliest block with log data — it is sealed
+// directly with its receipts, not as a separate anchor checkpoint.
+func (c *LogsDBChainIngester) findAndSetEarliestBlock() error {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	first, err := c.logsDB.FirstSealedBlock()
+	if err != nil {
+		return fmt.Errorf("failed to find first sealed block in DB: %w", err)
+	}
+
+	c.earliestIngestedBlock.Store(first.Number)
+	c.earliestIngestedBlockSet.Store(true)
+	c.log.Info("Found earliest block in DB", "block", first.Number)
+	return nil
+}
+
+// calculateStartingBlock returns the block number where ingestion should start,
+// calculated from startTimestamp and backfillDuration.
+func (c *LogsDBChainIngester) calculateStartingBlock() uint64 {
+	backfillSeconds := uint64(c.backfillDuration.Seconds())
+	if c.startTimestamp < backfillSeconds {
+		// Backfill reaches before epoch 0; start from genesis
+		return c.rollupCfg.Genesis.L2.Number
+	}
+	backfillTimestamp := c.startTimestamp - backfillSeconds
+
+	startingBlock, err := c.rollupCfg.TargetBlockNumber(backfillTimestamp)
+	if err != nil {
+		// Timestamp is before genesis, start from genesis block
+		return c.rollupCfg.Genesis.L2.Number
+	}
+	return startingBlock
+}
+
+func (c *LogsDBChainIngester) initLogsDB() error {
+	var dbDir string
+	if c.dataDir != "" {
+		dbDir = filepath.Join(c.dataDir, fmt.Sprintf("chain-%s", c.chainID))
+		if err := os.MkdirAll(dbDir, 0755); err != nil {
+			return fmt.Errorf("failed to create chain directory: %w", err)
+		}
+	} else {
+		tempDir, err := os.MkdirTemp("", fmt.Sprintf("interop-filter-chain-%s-*", c.chainID))
+		if err != nil {
+			return fmt.Errorf("failed to create temp directory: %w", err)
+		}
+		dbDir = tempDir
+		c.log.Warn("Using temporary directory for logs DB", "path", dbDir)
+	}
+
+	db, err := raftwallogdb.Open(dbDir, c.chainID)
+	if err != nil {
+		return fmt.Errorf("failed to open logs DB: %w", err)
+	}
+
+	c.mu.Lock()
+	c.logsDB = db
+	c.mu.Unlock()
+
+	c.log.Info("Initialized logs DB", "path", dbDir)
+	return nil
+}
+
+func (c *LogsDBChainIngester) runIngestion() {
+	defer c.wg.Done()
+
+	// One-time setup: determine starting block and next block to ingest
+	nextBlock, err := c.initIngestion()
+	if err != nil {
+		// Application context was canceled (e.g., during shutdown).
+		if errors.Is(err, context.Canceled) {
+			c.log.Info("Ingestion init canceled")
+			return
+		}
+		c.log.Error("Failed to initialize ingestion", "err", err)
+		return
+	}
+
+	// Track progress for logging
+	lastLogTime := clock.SystemClock.Now()
+
+	// Use ticker for polling interval
+	ticker := time.NewTicker(c.pollInterval)
+	defer ticker.Stop()
+
+	// Unified ingestion loop - no concept of "backfill" vs "live"
+	for {
+		select {
+		case <-c.ctx.Done():
+			return
+		case <-ticker.C:
+		}
+
+		nextBlock = c.applyPendingRewind(nextBlock)
+
+		// Skip if in error state
+		if c.Error() != nil {
+			continue
+		}
+
+		head, err := c.ethClient.InfoByLabel(c.ctx, eth.Unsafe)
+		if err != nil {
+			// Application context was canceled (e.g., during shutdown).
+			if errors.Is(err, context.Canceled) {
+				return
+			}
+			c.log.Error("Failed to get head", "err", err)
+			continue
+		}
+
+		// Record chain tip and lag metrics
+		chainIDUint64, _ := c.chainID.Uint64()
+		c.metrics.RecordChainTip(chainIDUint64, head.NumberU64())
+		if nextBlock > 0 {
+			ingestedHead := nextBlock - 1
+			if head.NumberU64() > ingestedHead {
+				c.metrics.RecordTipLagBlocks(chainIDUint64, head.NumberU64()-ingestedHead)
+			} else {
+				c.metrics.RecordTipLagBlocks(chainIDUint64, 0)
+			}
+			if ts, ok := c.LatestTimestamp(); ok {
+				c.metrics.RecordIngestionLagSeconds(chainIDUint64, clock.SystemClock.Since(time.Unix(int64(ts), 0)).Seconds())
+			}
+		}
+
+		// Reorg detection: if head moved behind our progress, check hash
+		if head.NumberU64() < nextBlock {
+			c.log.Info("Chain head is behind ingestion progress, waiting for node to catch up",
+				"head", head.NumberU64(),
+				"next_block", nextBlock,
+			)
+			if err := c.checkReorg(head); err != nil {
+				continue
+			}
+		}
+
+		if nextBlock <= head.NumberU64() {
+			var err error
+			nextBlock, lastLogTime, err = c.ingestBlockRange(nextBlock, head.NumberU64(), lastLogTime)
+			if err != nil {
+				// Application context was canceled (e.g., during shutdown).
+				if errors.Is(err, context.Canceled) {
+					return
+				}
+				c.log.Error("Failed to ingest blocks", "block", nextBlock, "err", err)
+			}
+		}
+		// Caught up to head, will wait for next ticker tick
+	}
+}
+
+func (c *LogsDBChainIngester) applyPendingRewind(current uint64) uint64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if !c.pendingRewindResumeFromSet {
+		return current
+	}
+	nextBlock := c.pendingRewindResumeFrom
+	c.pendingRewindResumeFrom = 0
+	c.pendingRewindResumeFromSet = false
+	c.log.Info("Applied pending rewind", "resume_from", nextBlock)
+	return nextBlock
+}
+
+// initIngestion performs one-time setup and returns the first block to ingest.
+func (c *LogsDBChainIngester) initIngestion() (uint64, error) {
+	head, err := c.ethClient.InfoByLabel(c.ctx, eth.Unsafe)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get current head: %w", err)
+	}
+	c.log.Info("Current chain head", "block", head.NumberU64(), "hash", head.Hash())
+
+	startingBlock := c.calculateStartingBlock()
+
+	// Clamp to head if needed
+	if startingBlock > head.NumberU64() {
+		startingBlock = head.NumberU64()
+	}
+
+	// Guard against underflow: genesis block has no parent to seal
+	if startingBlock == 0 {
+		startingBlock = 1
+		c.log.Info("Starting from block 1 (genesis has no parent to seal)")
+	}
+
+	c.log.Info("Determined starting block", "block", startingBlock, "startTimestamp", c.startTimestamp)
+
+	// Check if we have existing data to resume from
+	c.mu.RLock()
+	latestSealed, hasSealed := c.logsDB.LatestSealedBlock()
+	c.mu.RUnlock()
+
+	if hasSealed {
+		// Resume from existing DB
+		nextBlock := latestSealed.Number + 1
+		c.log.Info("Resuming from existing DB", "lastSealed", latestSealed.Number, "resumeFrom", nextBlock)
+
+		if !c.earliestIngestedBlockSet.Load() {
+			if err := c.findAndSetEarliestBlock(); err != nil {
+				return 0, fmt.Errorf("failed to determine earliest ingested block: %w", err)
+			}
+		}
+
+		return nextBlock, nil
+	}
+
+	c.log.Info("Starting fresh ingestion",
+		"from", startingBlock,
+		"to", head.NumberU64(),
+		"blocks", head.NumberU64()-startingBlock+1)
+
+	return startingBlock, nil
+}
+
+// checkReorg checks if a reorg occurred when head moves behind our progress.
+func (c *LogsDBChainIngester) checkReorg(head eth.BlockInfo) error {
+	headNum := head.NumberU64()
+
+	// If head is before our earliest block, we can't verify - this is expected
+	if c.earliestIngestedBlockSet.Load() && headNum < c.earliestIngestedBlock.Load() {
+		c.log.Debug("Head before our earliest block, can't verify",
+			"head", headNum, "earliest", c.earliestIngestedBlock.Load())
+		return nil
+	}
+
+	dbHash, ok := c.BlockHashAt(headNum)
+	if !ok {
+		// We should have this block but can't get it - unexpected
+		c.log.Error("Failed to get block hash for reorg verification", "block", headNum)
+		return nil
+	}
+
+	if dbHash == head.Hash() {
+		c.log.Debug("Head temporarily behind, same hash - skipping", "head", headNum)
+		return nil
+	}
+
+	// Hash mismatch = reorg
+	c.log.Warn("Detected reorg: different block at same height",
+		"height", headNum, "db_hash", dbHash, "head_hash", head.Hash())
+	c.SetError(ErrorReorg, fmt.Sprintf("reorg at height %d: db has %s, chain has %s",
+		headNum, dbHash, head.Hash()))
+	return fmt.Errorf("reorg detected")
+}
+
+// RewindToFinalized rewinds durable logs DB state to the finalized block, then
+// requests that the ingestion loop resume from the following block.
+func (c *LogsDBChainIngester) RewindToFinalized(ctx context.Context) (eth.BlockID, uint64, error) {
+	target := eth.BlockLabel(eth.Finalized)
+	targetInfo, err := c.ethClient.InfoByLabel(ctx, target)
+	if err != nil {
+		return eth.BlockID{}, 0, fmt.Errorf("failed to get %s block: %w", target, err)
+	}
+	targetID := eth.BlockID{Hash: targetInfo.Hash(), Number: targetInfo.NumberU64()}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.logsDB == nil {
+		return eth.BlockID{}, 0, interop.ErrUninitialized
+	}
+
+	// Recovery is intentionally fail-closed: finalized should already be in
+	// logsDB. If it is missing or mismatched, leave failsafe enabled instead of
+	// searching backwards for a common ancestor.
+	storedSeal, err := c.logsDB.FindSealedBlock(targetID.Number)
+	if err != nil {
+		return eth.BlockID{}, 0, fmt.Errorf("failed to find finalized block %d in logs DB: %w", targetID.Number, err)
+	}
+	if storedSeal.Hash != targetID.Hash {
+		return eth.BlockID{}, 0, fmt.Errorf("finalized block %d hash mismatch: db has %s, chain has %s: %w",
+			targetID.Number, storedSeal.Hash, targetID.Hash, interop.ErrConflict)
+	}
+
+	if err := c.logsDB.Rewind(targetID); err != nil {
+		return eth.BlockID{}, 0, fmt.Errorf("failed to rewind logs DB to finalized block %s: %w", targetID, err)
+	}
+
+	c.pendingRewindResumeFrom = targetID.Number + 1
+	c.pendingRewindResumeFromSet = true
+	c.log.Info("Rewound logs DB to finalized", "block", targetID.Number, "hash", targetID.Hash)
+	return targetID, targetInfo.Time(), nil
+}
+
+func (c *LogsDBChainIngester) ingestBlock(blockNum uint64) error {
+	_, _, err := c.ingestBlockRange(blockNum, blockNum, clock.SystemClock.Now())
+	return err
+}
+
+func (c *LogsDBChainIngester) ingestBlockRange(startBlock, endBlock uint64, lastLogTime time.Time) (uint64, time.Time, error) {
+	if errState := c.Error(); errState != nil {
+		return startBlock, lastLogTime, errState
+	}
+	if startBlock > endBlock {
+		return startBlock, lastLogTime, nil
+	}
+
+	total := endBlock - startBlock + 1
+	concurrency := uint64(c.fetchConcurrency)
+	if concurrency == 0 {
+		return startBlock, lastLogTime, errors.New("fetch-concurrency must be positive")
+	}
+	if concurrency > total {
+		concurrency = total
+	}
+
+	rangeCtx, cancel := context.WithCancel(c.ctx)
+	defer cancel()
+
+	slots := make([]chan blockFetch, concurrency)
+	for i := range slots {
+		slots[i] = make(chan blockFetch, 1)
+	}
+
+	startFetch := func(blockNum uint64) {
+		slot := slots[blockNum%concurrency]
+		go func() {
+			// Resolve the number to a hash first, then fetch receipts by hash so
+			// the receipts are pinned to the block identity we are about to write.
+			blockInfo, err := c.ethClient.InfoByNumber(rangeCtx, blockNum)
+			var receipts gethTypes.Receipts
+			if err != nil {
+				err = fmt.Errorf("fetch block info: %w", err)
+			} else {
+				_, receipts, err = c.ethClient.FetchReceipts(rangeCtx, blockInfo.Hash())
+				if err != nil {
+					err = fmt.Errorf("fetch block receipts: %w", err)
+				}
+			}
+			select {
+			case slot <- blockFetch{blockNum: blockNum, blockInfo: blockInfo, receipts: receipts, err: err}:
+			case <-rangeCtx.Done():
+			}
+		}()
+	}
+
+	nextFetch := startBlock
+	for i := uint64(0); i < concurrency; i++ {
+		startFetch(nextFetch)
+		nextFetch++
+	}
+
+	for blockNum := startBlock; blockNum <= endBlock; blockNum++ {
+		var fetched blockFetch
+		select {
+		case <-rangeCtx.Done():
+			return blockNum, lastLogTime, rangeCtx.Err()
+		case fetched = <-slots[blockNum%concurrency]:
+		}
+
+		if fetched.blockNum != blockNum {
+			return blockNum, lastLogTime, fmt.Errorf("expected fetched block %d but got %d", blockNum, fetched.blockNum)
+		}
+		if fetched.err != nil {
+			return blockNum, lastLogTime, fmt.Errorf("failed to fetch block %d: %w", blockNum, fetched.err)
+		}
+		if nextFetch <= endBlock {
+			startFetch(nextFetch)
+			nextFetch++
+		}
+		if err := c.writeFetchedBlock(fetched); err != nil {
+			return blockNum, lastLogTime, err
+		}
+		if c.Error() != nil {
+			return blockNum + 1, lastLogTime, nil
+		}
+		if clock.SystemClock.Since(lastLogTime) > progressLogInterval {
+			c.recordIngestionProgress(blockNum, endBlock)
+			lastLogTime = clock.SystemClock.Now()
+		}
+	}
+
+	return endBlock + 1, lastLogTime, nil
+}
+
+func (c *LogsDBChainIngester) writeFetchedBlock(fetched blockFetch) error {
+	if errState := c.Error(); errState != nil {
+		return errState
+	}
+
+	blockInfo := fetched.blockInfo
+	blockNum := fetched.blockNum
+	blockID := eth.BlockID{Hash: blockInfo.Hash(), Number: blockInfo.NumberU64()}
+
+	c.mu.RLock()
+	latestBlock, hasLatest := c.logsDB.LatestSealedBlock()
+	c.mu.RUnlock()
+
+	// Always verify parent hash when we have a previous block
+	if hasLatest {
+		// We should always be ingesting the next sequential block
+		if blockNum != latestBlock.Number+1 {
+			return fmt.Errorf("expected to ingest block %d but got %d", latestBlock.Number+1, blockNum)
+		}
+		// Parent hash of new block must match our latest sealed block
+		if blockInfo.ParentHash() != latestBlock.Hash {
+			c.log.Warn("Detected reorg: parent hash mismatch",
+				"block", blockNum,
+				"expected_parent", latestBlock.Hash,
+				"actual_parent", blockInfo.ParentHash())
+			c.SetError(ErrorReorg, fmt.Sprintf("parent hash mismatch at block %d", blockNum))
+			return c.Error()
+		}
+	}
+
+	logCount, err := c.processBlockLogs(blockInfo, blockID, fetched.receipts, blockNum)
+	if err != nil {
+		if errors.Is(err, interop.ErrConflict) {
+			c.SetError(ErrorConflict, fmt.Sprintf("database conflict at block %d", blockNum))
+			return c.Error()
+		}
+		if errors.Is(err, interop.ErrDataCorruption) {
+			c.SetError(ErrorDataCorruption, fmt.Sprintf("data corruption at block %d: %v", blockNum, err))
+			return c.Error()
+		}
+		if errors.Is(err, ErrInvalidLog) {
+			c.SetError(ErrorInvalidExecutingMessage, fmt.Sprintf("invalid log at block %d: %v", blockNum, err))
+			return c.Error()
+		}
+		return err
+	}
+
+	chainIDUint64, _ := c.chainID.Uint64()
+	c.metrics.RecordChainHead(chainIDUint64, blockNum)
+	c.metrics.RecordBlocksSealed(chainIDUint64, 1)
+	c.metrics.RecordLogsAdded(chainIDUint64, int64(logCount))
+
+	c.log.Info("Ingested block",
+		"block", blockNum,
+		"hash", blockID.Hash,
+		"timestamp", blockInfo.Time(),
+		"ingested_at", time.Now().UTC(),
+		"logs", logCount)
+
+	// Set earliest block on first successful ingestion (fresh start case).
+	// On restart, findAndSetEarliestBlock handles this instead.
+	if !c.earliestIngestedBlockSet.Load() {
+		c.earliestIngestedBlock.Store(blockNum)
+		c.earliestIngestedBlockSet.Store(true)
+	}
+
+	return nil
+}
+
+func (c *LogsDBChainIngester) recordIngestionProgress(blockNum, head uint64) {
+	startingBlock := c.calculateStartingBlock()
+	if blockNum <= startingBlock {
+		earliest := c.earliestIngestedBlock.Load()
+		progress := float64(blockNum-earliest+1) / float64(startingBlock-earliest+1)
+		c.log.Info("Ingestion progress",
+			"block", blockNum,
+			"target", startingBlock,
+			"progress", fmt.Sprintf("%.0f%%", progress*100))
+		chainIDUint64, _ := c.chainID.Uint64()
+		c.metrics.RecordBackfillProgress(chainIDUint64, progress)
+	} else {
+		c.log.Debug("Ingestion progress", "block", blockNum, "head", head)
+	}
+}
+
+func (c *LogsDBChainIngester) processBlockLogs(blockInfo eth.BlockInfo, blockID eth.BlockID,
+	receipts gethTypes.Receipts, blockNum uint64) (uint32, error) {
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	var logIndex uint32
+
+	parentBlock := eth.BlockID{Hash: blockInfo.ParentHash(), Number: blockNum - 1}
+	if blockNum == 0 {
+		parentBlock = eth.BlockID{}
+	}
+
+	for _, receipt := range receipts {
+		for _, l := range receipt.Logs {
+			logHash := messages.LogToLogHash(l)
+
+			execMsg, err := messages.DecodeExecutingMessageLog(l)
+			if err != nil {
+				return 0, fmt.Errorf("invalid log %d in block %d: %w: %w", l.Index, blockNum, ErrInvalidLog, err)
+			}
+
+			if execMsg != nil {
+				c.log.Debug("Found executing message in block",
+					"block", blockNum,
+					"log_index", logIndex,
+					"src_chain", execMsg.ChainID,
+					"src_block", execMsg.BlockNum,
+					"src_log_index", execMsg.LogIdx,
+					"src_timestamp", execMsg.Timestamp,
+				)
+			}
+
+			if err := c.logsDB.AddLog(logHash, parentBlock, logIndex, execMsg); err != nil {
+				return 0, fmt.Errorf("failed to add log: %w", err)
+			}
+			logIndex++
+		}
+	}
+
+	if err := c.logsDB.SealBlock(blockInfo.ParentHash(), blockID, blockInfo.Time()); err != nil {
+		return 0, fmt.Errorf("failed to seal block: %w", err)
+	}
+
+	return logIndex, nil
+}
+
+// Ensure LogsDBChainIngester implements ChainIngester
+var _ ChainIngester = (*LogsDBChainIngester)(nil)

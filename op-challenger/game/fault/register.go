@@ -1,0 +1,125 @@
+package fault
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/ethereum-optimism/optimism/op-challenger/config"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/client"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/claims"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
+	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
+)
+
+type CloseFunc func()
+
+type Registry interface {
+	RegisterGameType(gameType gameTypes.GameType, creator scheduler.PlayerCreator)
+	RegisterBondContract(gameType gameTypes.GameType, creator claims.BondContractCreator)
+}
+
+func RegisterBondContracts(ctx context.Context, m metrics.Metricer, registry Registry, caller *batching.MultiCaller) {
+	creator := func(game gameTypes.GameMetadata) (claims.BondContract, error) {
+		return contracts.NewFaultDisputeGameContract(ctx, m, game.Proxy, caller)
+	}
+	for _, gameType := range []gameTypes.GameType{
+		gameTypes.AlphabetGameType,
+		gameTypes.CannonGameType,
+		gameTypes.CannonKonaGameType,
+		gameTypes.PermissionedGameType,
+		gameTypes.FastGameType,
+		gameTypes.SuperCannonKonaGameType,
+	} {
+		registry.RegisterBondContract(gameType, creator)
+	}
+	registry.RegisterBondContract(gameTypes.SuperPermissionedGameType,
+		func(game gameTypes.GameMetadata) (claims.BondContract, error) {
+			return contracts.NewSuperPermissionedDisputeGameContract(m, game.Proxy, caller), nil
+		})
+}
+
+type OracleRegistry interface {
+	RegisterOracle(oracle keccakTypes.LargePreimageOracle)
+}
+
+type PrestateSource interface {
+	// PrestatePath returns the path to the prestate file to use for the game.
+	// The provided prestateHash may be used to differentiate between different states but no guarantee is made that
+	// the returned prestate matches the supplied hash.
+	PrestatePath(ctx context.Context, prestateHash common.Hash) (string, error)
+}
+
+func RegisterGameTypes(
+	ctx context.Context,
+	systemClock clock.Clock,
+	l1Clock faultTypes.ClockReader,
+	logger log.Logger,
+	m metrics.Metricer,
+	cfg *config.Config,
+	registry Registry,
+	oracles OracleRegistry,
+	txSender TxSender,
+	gameFactory *contracts.DisputeGameFactoryContract,
+	clients *client.Provider,
+	selective bool,
+	claimants []common.Address,
+) error {
+	var registerTasks []*RegisterTask
+	if cfg.GameTypeEnabled(gameTypes.CannonGameType) {
+		l2HeaderSource, rollupClient, syncValidator, err := clients.SingleChainClients()
+		if err != nil {
+			return err
+		}
+		registerTasks = append(registerTasks, NewCannonRegisterTask(gameTypes.CannonGameType, cfg, m, vm.NewOpProgramServerExecutor(logger), l2HeaderSource, rollupClient, syncValidator))
+	}
+	if cfg.GameTypeEnabled(gameTypes.CannonKonaGameType) {
+		l2HeaderSource, rollupClient, syncValidator, err := clients.SingleChainClients()
+		if err != nil {
+			return err
+		}
+		registerTasks = append(registerTasks, NewCannonKonaRegisterTask(gameTypes.CannonKonaGameType, cfg, m, vm.NewKonaExecutor(), l2HeaderSource, rollupClient, syncValidator))
+	}
+	if cfg.GameTypeEnabled(gameTypes.SuperCannonKonaGameType) {
+		superNodeProvider, syncValidator, err := clients.SuperchainClients()
+		if err != nil {
+			return err
+		}
+		registerTasks = append(registerTasks, NewSuperCannonKonaRegisterTask(gameTypes.SuperCannonKonaGameType, cfg, m, vm.NewKonaSuperExecutor(), superNodeProvider, syncValidator))
+	}
+	if cfg.GameTypeEnabled(gameTypes.PermissionedGameType) {
+		l2HeaderSource, rollupClient, syncValidator, err := clients.SingleChainClients()
+		if err != nil {
+			return err
+		}
+		registerTasks = append(registerTasks, NewCannonRegisterTask(gameTypes.PermissionedGameType, cfg, m, vm.NewOpProgramServerExecutor(logger), l2HeaderSource, rollupClient, syncValidator))
+	}
+	if cfg.GameTypeEnabled(gameTypes.FastGameType) {
+		l2HeaderSource, rollupClient, syncValidator, err := clients.SingleChainClients()
+		if err != nil {
+			return err
+		}
+		registerTasks = append(registerTasks, NewAlphabetRegisterTask(gameTypes.FastGameType, l2HeaderSource, rollupClient, syncValidator))
+	}
+	if cfg.GameTypeEnabled(gameTypes.AlphabetGameType) {
+		l2HeaderSource, rollupClient, syncValidator, err := clients.SingleChainClients()
+		if err != nil {
+			return err
+		}
+		registerTasks = append(registerTasks, NewAlphabetRegisterTask(gameTypes.AlphabetGameType, l2HeaderSource, rollupClient, syncValidator))
+	}
+	for _, task := range registerTasks {
+		if err := task.Register(ctx, registry, oracles, systemClock, l1Clock, logger, m, txSender, gameFactory, clients.MultiCaller(), clients.L1Client(), selective, claimants, cfg.ResponseDelay, cfg.ResponseDelayAfter); err != nil {
+			return fmt.Errorf("failed to register %v game type: %w", task.gameType, err)
+		}
+	}
+	return nil
+}

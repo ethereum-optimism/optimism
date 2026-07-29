@@ -1,0 +1,16 @@
+[package]
+name = "execution-fixture"
+version = "0.0.0"
+publish = false
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+url.workspace = true
+tracing.workspace = true
+kona-cli.workspace = true
+kona-executor = { workspace = true, features = ["test-utils"] }
+clap = { workspace = true, features = ["derive", "env"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }

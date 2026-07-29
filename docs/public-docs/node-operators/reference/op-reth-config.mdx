@@ -1,0 +1,27 @@
+---
+title: op-reth configuration options
+description: Where to find the op-reth CLI reference, and how op-reth pairs with op-node.
+diataxis: reference
+---
+
+op-reth's flag reference lives in one place: the
+[op-reth CLI reference](/node-operators/op-reth/cli/overview), imported into these docs
+from the op-reth source tree and versioned with it. Start there for the
+command taxonomy and configuration model, or jump straight to the
+[`op-reth node` flag listing](/node-operators/op-reth/cli/op-reth/node) for the full
+`--help` output of the command node operators run.
+
+This page previously carried a hand-maintained copy of the op-reth flag
+catalog, pinned to an old release; it has been retired in favor of the single
+imported surface above so the flag facts cannot drift between two pages.
+
+<Info>
+  **op-reth is the recommended execution client for new OP Stack deployments.** op-node's `--l2.enginekind` flag defaults to `reth`, so no extra engine-kind configuration is needed when pairing the two; set it explicitly only when running a different execution client (`geth` or `erigon`). See the [op-node configuration options](/node-operators/reference/op-node-config) page for the engine-side flags.
+</Info>
+
+## Related references
+
+*   [op-reth JSON-RPC reference](/node-operators/reference/op-reth-json-rpc)
+*   [op-reth historical proofs configuration](/node-operators/reference/op-reth-historical-proof-config)
+*   [Building an archive node / pruning op-reth](/node-operators/guides/management/archive-node)
+*   Upstream cross-reference: [Reth CLI documentation](https://reth.rs/cli/reth.html)

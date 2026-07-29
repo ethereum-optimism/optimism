@@ -1,0 +1,784 @@
+package sysgo
+
+import (
+	"context"
+	"encoding/hex"
+	"encoding/json"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
+	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
+	"github.com/ethereum-optimism/optimism/op-faucet/faucet"
+	"github.com/ethereum-optimism/optimism/op-service/endpoint"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/oppprof"
+	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	sequencerConfig "github.com/ethereum-optimism/optimism/op-test-sequencer/config"
+	testmetrics "github.com/ethereum-optimism/optimism/op-test-sequencer/metrics"
+	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer"
+	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work"
+	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/builders/fakepos"
+	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/builders/standardbuilder"
+	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/committers/noopcommitter"
+	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/committers/standardcommitter"
+	workconfig "github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/config"
+	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/publishers/nooppublisher"
+	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/publishers/standardpublisher"
+	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/sequencers/fullseq"
+	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/signers/localkey"
+	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/signers/noopsigner"
+	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
+)
+
+type MixedL2ELKind string
+
+const (
+	MixedL2ELOpGeth   MixedL2ELKind = "op-geth"
+	MixedL2ELOpReth   MixedL2ELKind = "op-reth"
+	MixedL2ELOpRethV2 MixedL2ELKind = "op-reth-proof-v2"
+	MixedOpRbuilder   MixedL2ELKind = "op-rbuilder"
+)
+
+type MixedL2CLKind string
+
+const (
+	MixedL2CLOpNode MixedL2CLKind = "op-node"
+	MixedL2CLKona   MixedL2CLKind = "kona-node"
+)
+
+// SkipOnOpGeth skips the test when the L2 execution layer is op-geth
+func SkipOnOpGeth(t devtest.T, reason string) {
+	if devstackL2ELKind() == MixedL2ELOpGeth {
+		t.Skipf("skipping on op-geth: %s", reason)
+	}
+}
+
+// SkipOnOpReth skips the test when the L2 execution layer is op-reth
+func SkipOnOpReth(t devtest.T, reason string) {
+	if devstackL2ELKind() == MixedL2ELOpReth {
+		t.Skipf("skipping on op-reth: %s", reason)
+	}
+}
+
+// IsOpRbuilder reports whether the L2 execution layer is op-rbuilder
+// (DEVSTACK_L2EL_KIND=op-rbuilder).
+func IsOpRbuilder() bool {
+	return devstackL2ELKind() == MixedOpRbuilder
+}
+
+// SkipOnKonaNode skips the test when the L2 consensus layer is kona-node
+func SkipOnKonaNode(t devtest.T, reason string) {
+	if devstackL2CLKind() == MixedL2CLKona {
+		t.Skipf("skipping on kona-node: %s", reason)
+	}
+}
+
+func FlakyOnOpReth(t devtest.T, reason string) {
+	if devstackL2ELKind() == MixedL2ELOpReth {
+		t.MarkFlaky(reason)
+	}
+}
+
+func FlakyOnKonaNode(t devtest.T, reason string) {
+	if devstackL2CLKind() == MixedL2CLKona {
+		t.MarkFlaky(reason)
+	}
+}
+
+// devstackL2ELKind returns the L2 EL kind requested via the DEVSTACK_L2EL_KIND
+// environment variable. Returns the empty string when the variable is unset,
+// meaning "use the runtime's default".
+func devstackL2ELKind() MixedL2ELKind {
+	return MixedL2ELKind(os.Getenv("DEVSTACK_L2EL_KIND"))
+}
+
+// devstackL2CLKind returns the L2 CL kind requested via the DEVSTACK_L2CL_KIND
+// environment variable. Returns the empty string when the variable is unset,
+// meaning "use the runtime's default".
+func devstackL2CLKind() MixedL2CLKind {
+	return MixedL2CLKind(os.Getenv("DEVSTACK_L2CL_KIND"))
+}
+
+// ResolveMixedL2CLKind returns the L2 CL kind requested via DEVSTACK_L2CL_KIND,
+// defaulting to op-node when the variable is unset. Tests that build explicit
+// MixedSingleChainNodeSpec lists use this so they honor the same env-driven CL
+// selection as the higher-level single-chain presets (see startL2CLForKey).
+func ResolveMixedL2CLKind() MixedL2CLKind {
+	if kind := devstackL2CLKind(); kind != "" {
+		return kind
+	}
+	return MixedL2CLOpNode
+}
+
+type MixedSingleChainNodeSpec struct {
+	ELKey       string
+	CLKey       string
+	ELKind      MixedL2ELKind
+	CLKind      MixedL2CLKind
+	IsSequencer bool
+	// IsolateFromL2P2P keeps this node off the L2 CL/EL P2P mesh: it is never peered with the
+	// other nodes, so it receives no gossiped or req-resp'd unsafe blocks and must advance purely
+	// by deriving from L1. Used to exercise the derivation/force-build path (FCU-with-attributes)
+	// rather than the consolidation path. Defaults to false (fully peered).
+	IsolateFromL2P2P bool
+	// OpRethOpts are per-node op-reth options applied AFTER the shared cfg.OpRethOptions, only to
+	// this node's EL. Use for options that must not reach every node — e.g. a per-node binary
+	// override (OpRethWithBinary) or a flag a single node should receive while its peers reject it.
+	// Ignored for non-op-reth EL kinds.
+	OpRethOpts []OpRethOption
+}
+
+type MixedSingleChainPresetConfig struct {
+	NodeSpecs                  []MixedSingleChainNodeSpec
+	WithTestSequencer          bool
+	TestSequencerName          string
+	LocalContractArtifactsPath string
+	DeployerOptions            []DeployerOption
+	BatcherOptions             []BatcherOption
+	OpRethOptions              []OpRethOption
+	// InteropAtGenesis activates the Interop hardfork at genesis on the L2 chain and provides
+	// the resulting dependency set to op-node CL startup. Required by any test that exercises
+	// Interop-gated consensus features (e.g. SDM PostExec) without a supervisor.
+	InteropAtGenesis bool
+}
+
+type mixedSingleChainNode struct {
+	spec MixedSingleChainNodeSpec
+	el   L2ELNode
+	cl   L2CLNode
+}
+
+type MixedSingleChainRuntime struct {
+	L1Network     *L1Network
+	L1EL          *L1Geth
+	L1CL          *L1CLNode
+	L2Network     *L2Network
+	Nodes         []MixedSingleChainNodeRefs
+	L2Batcher     *L2Batcher
+	FaucetService *faucet.Service
+	TestSequencer *TestSequencerRuntime
+}
+
+type MixedSingleChainNodeRefs struct {
+	Spec MixedSingleChainNodeSpec
+	EL   L2ELNode
+	CL   L2CLNode
+}
+
+type mixedNoopMetricsRegistrar struct{}
+
+func (mixedNoopMetricsRegistrar) RegisterL2MetricsTargets(_ string, _ ...PrometheusMetricsTarget) {
+}
+
+func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *MixedSingleChainRuntime {
+	require := t.Require()
+	require.NotEmpty(cfg.NodeSpecs, "mixed runtime requires at least one L2 node spec")
+
+	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
+	require.NoError(err, "failed to derive dev keys from mnemonic")
+
+	var l1Net *L1Network
+	var l2Net *L2Network
+	var depSet coredepset.DependencySet
+	if cfg.InteropAtGenesis {
+		l1Net, l2Net, depSet, _ = buildSingleChainWorldWithInterop(t, keys, true, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
+	} else {
+		l1Net, l2Net = buildSingleChainWorld(t, keys, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
+	}
+	jwtPath, jwtSecret := writeJWTSecret(t)
+	l1EL, l1CL := startInProcessL1(t, l1Net, jwtPath)
+
+	metricsRegistrar := mixedNoopMetricsRegistrar{}
+
+	nodes := make([]mixedSingleChainNode, 0, len(cfg.NodeSpecs))
+	for _, spec := range cfg.NodeSpecs {
+		identity := NewELNodeIdentity(0)
+
+		// Shared options first, then this node's per-spec options (so a per-node flag can
+		// override or extend the shared set without leaking to other nodes).
+		nodeOpRethOpts := append(append([]OpRethOption{}, cfg.OpRethOptions...), spec.OpRethOpts...)
+
+		var el L2ELNode
+		switch spec.ELKind {
+		case MixedL2ELOpGeth:
+			el = startL2ELNode(t, l2Net, jwtPath, jwtSecret, spec.ELKey, identity)
+		case MixedL2ELOpReth:
+			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, "v1", nodeOpRethOpts...)
+		case MixedL2ELOpRethV2:
+			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, "v2", nodeOpRethOpts...)
+		default:
+			require.FailNowf("unsupported EL kind", "unsupported mixed EL kind %q", spec.ELKind)
+		}
+
+		var cl L2CLNode
+		switch spec.CLKind {
+		case MixedL2CLOpNode:
+			cl = startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, el, jwtSecret, l2CLNodeStartConfig{
+				Key:           spec.CLKey,
+				IsSequencer:   spec.IsSequencer,
+				NoDiscovery:   true,
+				EnableReqResp: true,
+				DependencySet: depSet,
+			})
+		case MixedL2CLKona:
+			cl = startMixedKonaNode(
+				t,
+				keys,
+				l1Net,
+				l2Net,
+				l1EL,
+				l1CL,
+				el,
+				spec.CLKey,
+				spec.ELKey,
+				spec.IsSequencer,
+				depSet,
+			)
+		default:
+			require.FailNowf("unsupported CL kind", "unsupported mixed CL kind %q", spec.CLKind)
+		}
+
+		nodes = append(nodes, mixedSingleChainNode{
+			spec: spec,
+			el:   el,
+			cl:   cl,
+		})
+	}
+
+	for i := range nodes {
+		for j := range i {
+			// Skip peering any pair involving an isolated node, so it stays off the L2 P2P mesh
+			// and can only learn the chain by deriving it from L1.
+			if nodes[i].spec.IsolateFromL2P2P || nodes[j].spec.IsolateFromL2P2P {
+				continue
+			}
+			connectL2CLPeers(t, t.Logger(), nodes[i].cl, nodes[j].cl)
+			connectL2ELPeers(t, t.Logger(), nodes[i].el.UserRPC(), nodes[j].el.UserRPC())
+		}
+	}
+
+	var sequencerNode *mixedSingleChainNode
+	for i := range nodes {
+		if nodes[i].spec.IsSequencer {
+			sequencerNode = &nodes[i]
+			break
+		}
+	}
+	require.NotNil(sequencerNode, "mixed runtime requires at least one sequencer node")
+
+	l2Batcher := startMinimalBatcher(t, keys, l2Net, l1EL, sequencerNode.cl, sequencerNode.el, cfg.BatcherOptions...)
+	faucetService := startFaucets(t, keys, l1Net.ChainID(), l2Net.ChainID(), l1EL.UserRPC(), sequencerNode.el.UserRPC())
+
+	var testSequencer *testSequencer
+	if cfg.WithTestSequencer {
+		testSequencerName := cfg.TestSequencerName
+		if testSequencerName == "" {
+			testSequencerName = "test-sequencer"
+		}
+		testSequencer = startTestSequencerForRPCs(
+			t,
+			keys,
+			testSequencerName,
+			jwtPath,
+			jwtSecret,
+			l1Net,
+			l1EL,
+			l1CL,
+			l2Net.ChainID(),
+			sequencerNode.el.UserRPC(),
+			sequencerNode.cl.UserRPC(),
+		)
+	}
+
+	return &MixedSingleChainRuntime{
+		L1Network:     l1Net,
+		L1EL:          l1EL,
+		L1CL:          l1CL,
+		L2Network:     l2Net,
+		Nodes:         mixedNodeRefs(nodes),
+		L2Batcher:     l2Batcher,
+		FaucetService: faucetService,
+		TestSequencer: newTestSequencerRuntime(testSequencer, cfg.TestSequencerName),
+	}
+}
+
+func mixedNodeRefs(nodes []mixedSingleChainNode) []MixedSingleChainNodeRefs {
+	out := make([]MixedSingleChainNodeRefs, 0, len(nodes))
+	for _, node := range nodes {
+		out = append(out, MixedSingleChainNodeRefs{
+			Spec: node.spec,
+			EL:   node.el,
+			CL:   node.cl,
+		})
+	}
+	return out
+}
+
+// buildMixedOpRethNode constructs an OpReth node without starting it.
+func buildMixedOpRethNode(
+	t devtest.T,
+	l2Net *L2Network,
+	key string,
+	jwtPath string,
+	jwtSecret [32]byte,
+	metricsRegistrar L2MetricsRegistrar,
+	storageVersion string,
+	opts ...OpRethOption,
+) *OpReth {
+	tempDir := t.TempDirWithPrefix("l2-el-" + NewComponentTarget(key, l2Net.ChainID()).String())
+
+	data, err := json.Marshal(l2Net.genesis)
+	t.Require().NoError(err, "must json-encode genesis")
+	chainConfigPath := filepath.Join(tempDir, "genesis.json")
+	t.Require().NoError(os.WriteFile(chainConfigPath, data, 0o640), "must write genesis file")
+
+	dataDirPath := filepath.Join(tempDir, "data")
+	t.Require().NoError(os.MkdirAll(dataDirPath, 0o755), "must create datadir")
+
+	logDirPath := filepath.Join(tempDir, "logs")
+	t.Require().NoError(os.MkdirAll(logDirPath, 0o755), "must create logs dir")
+
+	tempP2PPath := filepath.Join(tempDir, "p2pkey.txt")
+
+	// Apply options before resolving the binary so OpRethWithBinary can select a CLI-compatible
+	// superset binary. cfg.ExtraArgs is appended to the CLI further below.
+	opRethCfg := DefaultOpRethConfig()
+	OpRethOptionBundle(opts).Apply(t, NewComponentTarget(key, l2Net.ChainID()), opRethCfg)
+	elBinary := opRethCfg.Binary
+	if elBinary == "" {
+		elBinary = "op-reth"
+	}
+
+	execPath, err := rustbin.Spec{
+		SrcDir:  "rust",
+		Package: elBinary,
+		Binary:  elBinary,
+	}.EnsureExists(t.Ctx(), t.Logger())
+	t.Require().NoError(err, "%s binary not available (build with 'just build-rust-release', set RUST_JIT_BUILD=1, or set RUST_BINARY_PATH_<NAME> for a binary built from another repo)", elBinary)
+
+	args := []string{
+		"node",
+		"--addr=127.0.0.1",
+		"--authrpc.addr=127.0.0.1",
+		"--authrpc.jwtsecret=" + jwtPath,
+		"--authrpc.port=0",
+		"--builder.deadline=2",
+		"--builder.interval=100ms",
+		"--chain=" + chainConfigPath,
+		"--color=never",
+		"--datadir=" + dataDirPath,
+		"--disable-discovery",
+		"--http",
+		"--http.api=admin,debug,eth,net,trace,txpool,web3,rpc,reth,miner",
+		"--http.addr=127.0.0.1",
+		"--http.port=0",
+		"--ipcdisable",
+		"--log.file.directory=" + logDirPath,
+		"--log.stdout.format=json",
+		"--nat=none",
+		"--p2p-secret-key=" + tempP2PPath,
+		"--port=0",
+		"--txpool.minimum-priority-fee=1",
+		"--txpool.nolocals",
+		"--with-unused-ports",
+		"--ws",
+		"--ws.api=admin,debug,eth,net,trace,txpool,web3,rpc,reth,miner",
+		"--ws.addr=127.0.0.1",
+		"--ws.port=0",
+		"-vvvv",
+	}
+
+	if areMetricsEnabled() {
+		args = append(args, "--metrics=127.0.0.1:0")
+	}
+
+	initArgs := []string{
+		"init",
+		"--datadir=" + dataDirPath,
+		"--chain=" + chainConfigPath,
+	}
+	err = exec.Command(execPath, initArgs...).Run()
+	t.Require().NoError(err, "must init op-reth node")
+
+	if !opRethCfg.DisableProofsHistory {
+		proofHistoryDir := filepath.Join(tempDir, "proof-history")
+
+		initProofsArgs := []string{
+			"proofs",
+			"init",
+			"--datadir=" + dataDirPath,
+			"--chain=" + chainConfigPath,
+			"--proofs-history.storage-path=" + proofHistoryDir,
+			"--proofs-history.storage-version=" + storageVersion,
+		}
+		// `op-proofs init` now runs snapshot-accelerated backfill by default,
+		// which V1 storage does not support — the command rejects v1 + backfill
+		// upfront. Opt out explicitly when targeting v1.
+		if storageVersion == "v1" {
+			initProofsArgs = append(initProofsArgs, "--proofs-history.skip-backfill")
+		}
+		initOut, initErr := exec.Command(execPath, initProofsArgs...).CombinedOutput()
+		t.Require().NoError(initErr, "must init op-reth proof history: %s", string(initOut))
+
+		args = append(
+			args,
+			"--proofs-history",
+			"--proofs-history.window=10000",
+			"--proofs-history.storage-path="+proofHistoryDir,
+			"--proofs-history.storage-version="+storageVersion,
+		)
+	}
+
+	args = append(args, opRethCfg.ExtraArgs...)
+
+	return &OpReth{
+		name:               key,
+		chainID:            l2Net.ChainID(),
+		jwtPath:            jwtPath,
+		jwtSecret:          jwtSecret,
+		authRPC:            "",
+		userRPC:            "",
+		execPath:           execPath,
+		args:               args,
+		env:                []string{},
+		p:                  t,
+		l2MetricsRegistrar: metricsRegistrar,
+	}
+}
+
+func startMixedOpRethNode(
+	t devtest.T,
+	l2Net *L2Network,
+	key string,
+	jwtPath string,
+	jwtSecret [32]byte,
+	metricsRegistrar L2MetricsRegistrar,
+	storageVersion string,
+	opts ...OpRethOption,
+) *OpReth {
+	node := buildMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, metricsRegistrar, storageVersion, opts...)
+	t.Logger().Info("Starting op-reth", "name", key, "chain", l2Net.ChainID())
+	node.Start()
+	t.Cleanup(node.Stop)
+	t.Logger().Info("op-reth is ready", "name", key, "chain", l2Net.ChainID(), "userRPC", node.userRPC, "authRPC", node.authRPC)
+	return node
+}
+
+// startMixedOpRethNodeWithInteropURL builds and starts an OpReth node
+// with --rollup.interop-http pointing at the given URL.
+func startMixedOpRethNodeWithInteropURL(
+	t devtest.T,
+	l2Net *L2Network,
+	key string,
+	jwtPath string,
+	jwtSecret [32]byte,
+	metricsRegistrar L2MetricsRegistrar,
+	interopURL string,
+	storageVersion string,
+	opts ...OpRethOption,
+) *OpReth {
+	opts = append(opts, OpRethWithInteropURL(interopURL))
+	node := buildMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, metricsRegistrar, storageVersion, opts...)
+	t.Logger().Info("Starting op-reth with interop filter URL",
+		"name", key, "chain", l2Net.ChainID(), "interopURL", interopURL)
+	node.Start()
+	t.Cleanup(node.Stop)
+	t.Logger().Info("op-reth is ready", "name", key, "chain", l2Net.ChainID(), "userRPC", node.userRPC, "authRPC", node.authRPC)
+	return node
+}
+
+func startMixedKonaNode(
+	t devtest.T,
+	keys devkeys.Keys,
+	l1Net *L1Network,
+	l2Net *L2Network,
+	l1EL L1ELNode,
+	l1CL *L1CLNode,
+	l2EL L2ELNode,
+	clKey string,
+	elKey string,
+	isSequencer bool,
+	depSet coredepset.DependencySet,
+) *KonaNode {
+	tempKonaDir := t.TempDirWithPrefix("l2-cl-kona-" + NewComponentTarget(clKey, l2Net.ChainID()).String())
+
+	tempP2PPath := filepath.Join(tempKonaDir, "p2pkey.txt")
+
+	tempRollupCfgPath := filepath.Join(tempKonaDir, "rollup.json")
+	rollupCfgData, err := json.Marshal(l2Net.rollupCfg)
+	t.Require().NoError(err, "must write rollup config")
+	t.Require().NoError(os.WriteFile(tempRollupCfgPath, rollupCfgData, 0o640))
+
+	tempL1CfgPath := filepath.Join(tempKonaDir, "l1-chain-config.json")
+	l1CfgData, err := json.Marshal(l1Net.genesis.Config)
+	t.Require().NoError(err, "must write l1 chain config")
+	t.Require().NoError(os.WriteFile(tempL1CfgPath, l1CfgData, 0o640))
+
+	envVars := []string{
+		"KONA_NODE_L1_ETH_RPC=" + l1EL.UserRPC(),
+		"KONA_NODE_L1_BEACON=" + l1CL.beaconHTTPAddr,
+		"KONA_NODE_L2_ENGINE_RPC=" + strings.ReplaceAll(l2EL.EngineRPC(), "ws://", "http://"),
+		"KONA_NODE_L2_ENGINE_AUTH=" + l2EL.JWTPath(),
+		"KONA_NODE_ROLLUP_CONFIG=" + tempRollupCfgPath,
+		"KONA_NODE_L1_CHAIN_CONFIG=" + tempL1CfgPath,
+		"KONA_NODE_P2P_PRIV_PATH=" + tempP2PPath,
+		propagateEnvVarOrDefault("KONA_NODE_P2P_NO_DISCOVERY", "true"),
+		propagateEnvVarOrDefault("KONA_NODE_RPC_ADDR", "127.0.0.1"),
+		propagateEnvVarOrDefault("KONA_NODE_RPC_PORT", "0"),
+		propagateEnvVarOrDefault("KONA_NODE_RPC_WS_ENABLED", "true"),
+		// Acceptance tests drive the sequencer via the admin API (StartSequencer, etc.), which
+		// kona only registers when admin is enabled. op-node's devstack node enables it too.
+		propagateEnvVarOrDefault("KONA_NODE_RPC_ENABLE_ADMIN", "true"),
+		propagateEnvVarOrDefault("KONA_LOG_LEVEL", "3"),
+		propagateEnvVarOrDefault("KONA_LOG_STDOUT_FORMAT", "json"),
+		propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_IP", "127.0.0.1"),
+		propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_TCP_PORT", "0"),
+		propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_UDP_PORT", "0"),
+	}
+
+	// When Interop/Lagoon is scheduled, kona-node refuses to start without an interop
+	// dependency set (to avoid silent state divergence at activation). Mirror the depset
+	// op-node receives by serializing it to JSON — the format matches what kona expects.
+	if depSet != nil {
+		depSetData, err := json.Marshal(depSet)
+		t.Require().NoError(err, "must marshal interop dependency set")
+		tempDepSetPath := filepath.Join(tempKonaDir, "interop-depset.json")
+		t.Require().NoError(os.WriteFile(tempDepSetPath, depSetData, 0o640), "must write interop dependency set")
+		envVars = append(envVars, "KONA_NODE_INTEROP_DEPENDENCY_SET="+tempDepSetPath)
+	}
+
+	if isSequencer {
+		p2pKey, err := keys.Secret(devkeys.SequencerP2PRole.Key(l2Net.ChainID().ToBig()))
+		t.Require().NoError(err, "need p2p key for sequencer")
+		p2pKeyHex := "0x" + hex.EncodeToString(crypto.FromECDSA(p2pKey))
+		tempSeqKeyPath := filepath.Join(tempKonaDir, "p2p-sequencer.txt")
+		t.Require().NoError(os.WriteFile(tempSeqKeyPath, []byte(p2pKeyHex), 0o640))
+		envVars = append(envVars,
+			"KONA_NODE_P2P_SEQUENCER_KEY_PATH="+tempSeqKeyPath,
+			"KONA_NODE_SEQUENCER_L1_CONFS=2",
+			"KONA_NODE_MODE=Sequencer",
+		)
+	} else {
+		envVars = append(envVars, "KONA_NODE_MODE=Validator")
+	}
+
+	execPath, err := rustbin.Spec{
+		SrcDir:  "rust/kona",
+		Package: "kona-node",
+		Binary:  "kona-node",
+	}.EnsureExists(t.Ctx(), t.Logger())
+	t.Require().NoError(err, "prepare kona-node binary")
+	t.Require().NotEmpty(execPath, "kona-node binary path resolved")
+
+	k := &KonaNode{
+		name:     clKey,
+		chainID:  l2Net.ChainID(),
+		userRPC:  "",
+		execPath: execPath,
+		args:     []string{"node"},
+		env:      envVars,
+		p:        t,
+	}
+	t.Logger().Info("Starting kona-node", "name", clKey, "chain", l2Net.ChainID(), "el", elKey)
+	k.Start()
+	t.Cleanup(k.Stop)
+	t.Logger().Info("Kona-node is up", "name", clKey, "chain", l2Net.ChainID(), "rpc", k.UserRPC())
+	return k
+}
+
+func startTestSequencerForRPCs(
+	t devtest.T,
+	keys devkeys.Keys,
+	testSequencerName string,
+	jwtPath string,
+	jwtSecret [32]byte,
+	l1Net *L1Network,
+	l1EL *L1Geth,
+	l1CL *L1CLNode,
+	l2ChainID eth.ChainID,
+	l2ELRPC string,
+	l2CLRPC string,
+) *testSequencer {
+	require := t.Require()
+	logger := t.Logger().New("component", "test-sequencer")
+
+	l1ELClient, err := ethclient.DialContext(t.Ctx(), l1EL.UserRPC())
+	require.NoError(err, "failed to dial L1 EL RPC for test-sequencer")
+	t.Cleanup(l1ELClient.Close)
+
+	engineCl, err := dialEngine(t.Ctx(), l1EL.AuthRPC(), jwtSecret)
+	require.NoError(err, "failed to dial L1 engine API for test-sequencer")
+	t.Cleanup(func() {
+		engineCl.inner.Close()
+	})
+
+	l1ChainID := l1Net.ChainID()
+
+	bidL1 := seqtypes.BuilderID("test-l1-builder")
+	cidL1 := seqtypes.CommitterID("test-noop-committer")
+	sidL1 := seqtypes.SignerID("test-noop-signer")
+	pidL1 := seqtypes.PublisherID("test-noop-publisher")
+	seqIDL1 := seqtypes.SequencerID("test-seq-" + l1ChainID.String())
+
+	ensemble := &workconfig.Ensemble{
+		Builders: map[seqtypes.BuilderID]*workconfig.BuilderEntry{
+			bidL1: {
+				L1: &fakepos.Config{
+					ChainConfig:       l1Net.genesis.Config,
+					EngineAPI:         engineCl,
+					Backend:           l1ELClient,
+					Beacon:            l1CL.beacon,
+					FinalizedDistance: 20,
+					SafeDistance:      10,
+					BlockTime:         6,
+				},
+			},
+		},
+		Signers: map[seqtypes.SignerID]*workconfig.SignerEntry{
+			sidL1: {Noop: &noopsigner.Config{}},
+		},
+		Committers: map[seqtypes.CommitterID]*workconfig.CommitterEntry{
+			cidL1: {Noop: &noopcommitter.Config{}},
+		},
+		Publishers: map[seqtypes.PublisherID]*workconfig.PublisherEntry{
+			pidL1: {Noop: &nooppublisher.Config{}},
+		},
+		Sequencers: map[seqtypes.SequencerID]*workconfig.SequencerEntry{
+			seqIDL1: {
+				Full: &fullseq.Config{
+					ChainID:   l1ChainID,
+					Builder:   bidL1,
+					Signer:    sidL1,
+					Committer: cidL1,
+					Publisher: pidL1,
+				},
+			},
+		},
+	}
+
+	bidL2 := seqtypes.BuilderID("test-standard-builder")
+	cidL2 := seqtypes.CommitterID("test-standard-committer")
+	sidL2 := seqtypes.SignerID("test-local-signer")
+	pidL2 := seqtypes.PublisherID("test-standard-publisher")
+	seqIDL2 := seqtypes.SequencerID("test-seq-" + l2ChainID.String())
+
+	p2pKey, err := keys.Secret(devkeys.SequencerP2PRole.Key(l2ChainID.ToBig()))
+	require.NoError(err, "need p2p key for test sequencer")
+	rawKey := hexutil.Bytes(crypto.FromECDSA(p2pKey))
+
+	ensemble.Builders[bidL2] = &workconfig.BuilderEntry{
+		Standard: &standardbuilder.Config{
+			L1ChainConfig: l1Net.genesis.Config,
+			L1EL: endpoint.MustRPC{
+				Value: endpoint.HttpURL(l1EL.UserRPC()),
+			},
+			L2EL: endpoint.MustRPC{
+				Value: endpoint.HttpURL(l2ELRPC),
+			},
+			L2CL: endpoint.MustRPC{
+				Value: endpoint.HttpURL(l2CLRPC),
+			},
+		},
+	}
+	ensemble.Signers[sidL2] = &workconfig.SignerEntry{
+		LocalKey: &localkey.Config{
+			RawKey:  &rawKey,
+			ChainID: l2ChainID,
+		},
+	}
+	ensemble.Committers[cidL2] = &workconfig.CommitterEntry{
+		Standard: &standardcommitter.Config{
+			RPC: endpoint.MustRPC{
+				Value: endpoint.HttpURL(l2CLRPC),
+			},
+		},
+	}
+	ensemble.Publishers[pidL2] = &workconfig.PublisherEntry{
+		Standard: &standardpublisher.Config{
+			RPC: endpoint.MustRPC{
+				Value: endpoint.HttpURL(l2CLRPC),
+			},
+		},
+	}
+	ensemble.Sequencers[seqIDL2] = &workconfig.SequencerEntry{
+		Full: &fullseq.Config{
+			ChainID:             l2ChainID,
+			Builder:             bidL2,
+			Signer:              sidL2,
+			Committer:           cidL2,
+			Publisher:           pidL2,
+			SequencerConfDepth:  2,
+			SequencerEnabled:    true,
+			SequencerStopped:    false,
+			SequencerMaxSafeLag: 0,
+		},
+	}
+
+	jobs := work.NewJobRegistry()
+	startedEnsemble, err := ensemble.Start(t.Ctx(), &work.StartOpts{
+		Log:     logger,
+		Metrics: &testmetrics.NoopMetrics{},
+		Jobs:    jobs,
+	})
+	require.NoError(err, "failed to start test-sequencer ensemble")
+
+	cfg := &sequencerConfig.Config{
+		MetricsConfig: opmetrics.CLIConfig{
+			Enabled: false,
+		},
+		PprofConfig: oppprof.CLIConfig{
+			ListenEnabled: false,
+		},
+		LogConfig: oplog.CLIConfig{
+			Level:  log.LevelDebug,
+			Format: oplog.FormatText,
+		},
+		RPC: oprpc.CLIConfig{
+			ListenAddr:  "127.0.0.1",
+			ListenPort:  0,
+			EnableAdmin: true,
+		},
+		Ensemble:      startedEnsemble,
+		JWTSecretPath: jwtPath,
+		Version:       "dev",
+		MockRun:       false,
+	}
+
+	sq, err := sequencer.FromConfig(t.Ctx(), cfg, logger)
+	require.NoError(err, "failed to initialize test-sequencer service")
+	require.NoError(sq.Start(t.Ctx()), "failed to start test-sequencer service")
+
+	t.Cleanup(func() {
+		ctx, cancel := context.WithCancel(t.Ctx())
+		cancel()
+		logger.Info("Closing test-sequencer service")
+		closeErr := sq.Stop(ctx)
+		logger.Info("Closed test-sequencer service", "err", closeErr)
+	})
+
+	adminRPC := sq.RPC()
+	controlRPCs := map[eth.ChainID]string{
+		l1ChainID: adminRPC + "/sequencers/" + seqIDL1.String(),
+		l2ChainID: adminRPC + "/sequencers/" + seqIDL2.String(),
+	}
+
+	return &testSequencer{
+		name:       testSequencerName,
+		adminRPC:   adminRPC,
+		jwtSecret:  jwtSecret,
+		controlRPC: controlRPCs,
+		service:    sq,
+	}
+}

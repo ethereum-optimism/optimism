@@ -1,0 +1,13 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "address payable",
+        "name": "_recipient",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "payable",
+    "type": "constructor"
+  }
+]

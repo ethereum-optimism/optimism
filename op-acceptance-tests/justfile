@@ -1,0 +1,177 @@
+REPO_ROOT := `realpath ..`  # path to the root of the optimism monorepo
+
+# Default recipe - runs acceptance tests
+default:
+    @just acceptance-test
+
+# Build all dependencies for local acceptance test runs. Skipped in CI where jobs handle this.
+build-deps:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ -n "${CIRCLECI:-}" ]]; then exit 0; fi
+
+    echo "Building contracts (local build)..."
+    cd {{REPO_ROOT}}
+    echo " - Installing mise..."
+    mise install
+    cd packages/contracts-bedrock
+    echo " - Installing contracts..."
+    just install
+    echo " - Forge build..."
+    just build-no-tests
+    cd {{REPO_ROOT}}
+
+    echo "Building cannon dependencies..."
+    cd {{REPO_ROOT}}
+    just cannon-prestates
+
+    echo "Building Rust binaries (kona-node, kona-host, op-reth, op-rbuilder, rollup-boost)..."
+    cd {{REPO_ROOT}}
+    just build-rust-release
+
+# Run specific acceptance tests. Builds dependencies first, then passes all arguments to go test.
+# Defaults `-count=1` and `-timeout 30m` are applied only when not already set in args,
+# so callers can override either (e.g. `just test -count=10 -run TestFoo ./...`).
+# Examples:
+#   just test ./op-acceptance-tests/tests/base/...
+#   just test -run TestMyTest ./op-acceptance-tests/tests/base/
+#   just test -count=10 -run TestMyTest ./op-acceptance-tests/tests/base/
+[positional-arguments]
+test *args: build-deps
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{REPO_ROOT}}
+    flags=()
+    case " $* " in
+        *" -count="*|*" -count "*) ;;
+        *) flags+=(-count=1) ;;
+    esac
+    case " $* " in
+        *" -timeout="*|*" -timeout "*) ;;
+        *) flags+=(-timeout 30m) ;;
+    esac
+    exec go test "${flags[@]}" "$@"
+
+# Run acceptance tests
+acceptance-test:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo -e "DEVNET: in-memory\n"
+
+    LOG_LEVEL="$(echo "${LOG_LEVEL:-info}" | grep -E '^(debug|info|warn|error)$' || echo 'info')"
+    echo "LOG_LEVEL: $LOG_LEVEL"
+
+    CPU_COUNT=""
+    if command -v nproc >/dev/null 2>&1; then
+        CPU_COUNT="$(nproc)"
+    elif command -v getconf >/dev/null 2>&1; then
+        CPU_COUNT="$(getconf _NPROCESSORS_ONLN)"
+    elif command -v sysctl >/dev/null 2>&1; then
+        CPU_COUNT="$(sysctl -n hw.ncpu)"
+    fi
+    if [[ -z "$CPU_COUNT" || "$CPU_COUNT" -lt 1 ]]; then
+        CPU_COUNT=1
+    fi
+
+    # Each ParallelT acceptance test spins its own full devstack (L1 geth +
+    # op-node + op-reth/op-geth + batcher + proposer + challenger), so the real
+    # cost driver is concurrent ParallelT goroutines, bounded by -p * -parallel.
+    # The previous unbounded default (-p = CPU_COUNT ~= 20, -parallel = ~10)
+    # saturated CPU+RAM and triggered mass "context deadline exceeded" failures
+    # across the runner — see ethereum-optimism/optimism#20966.
+    #
+    # Collapse to a single concurrency axis: -parallel=1 disables intra-package
+    # parallelism so each package binary runs one test at a time, and -p directly
+    # caps concurrent test devstacks across the runner. 12 is well under the
+    # observed ~30-effective-devstack crash threshold and lands wall time near
+    # the pre-cap baseline.
+    DEFAULT_JOBS=12
+    DEFAULT_TEST_PARALLEL=1
+
+    JOBS="${ACCEPTANCE_TEST_JOBS:-$DEFAULT_JOBS}"
+    TEST_PARALLEL="${ACCEPTANCE_TEST_PARALLEL:-$DEFAULT_TEST_PARALLEL}"
+    TEST_TIMEOUT="${ACCEPTANCE_TEST_TIMEOUT:-30m}"
+    echo "CPU COUNT: $CPU_COUNT"
+    echo "PACKAGE JOBS: $JOBS"
+    echo "TEST PARALLELISM: $TEST_PARALLEL"
+    echo "PACKAGE TIMEOUT: $TEST_TIMEOUT"
+
+    cd {{REPO_ROOT}}
+    if ! command -v gotestsum >/dev/null; then
+        echo "error: gotestsum is required for acceptance-test runs." >&2
+        exit 1
+    fi
+
+    LOG_ROOT="{{REPO_ROOT}}/op-acceptance-tests/logs"
+    RESULTS_DIR="{{REPO_ROOT}}/op-acceptance-tests/results"
+    mkdir -p "$LOG_ROOT" "$RESULTS_DIR"
+    LOG_DIR="$LOG_ROOT/testrun-$(date -u +%Y%m%d-%H%M%S)"
+    mkdir -p "$LOG_DIR/failed"
+    rm -f "$RESULTS_DIR/results.xml"
+
+    FLAKY_REPORT="$LOG_DIR/flaky-tests.txt"
+    if command -v rg >/dev/null 2>&1; then
+        rg -n "MarkFlaky\\(" ./op-acceptance-tests/tests > "$FLAKY_REPORT" || true
+    else
+        grep -RIn "MarkFlaky(" ./op-acceptance-tests/tests > "$FLAKY_REPORT" || true
+    fi
+
+    TEST_PACKAGES=("./op-acceptance-tests/tests/...")
+
+    # CircleCI test-level splitting: when running under `parallelism: N > 1`,
+    # split the test set across CIRCLE_NODE_TOTAL nodes using historical timings
+    # so each node runs a balanced subset. Falls back to running everything when
+    # CIRCLE_NODE_TOTAL is unset (local runs, single-node CI).
+    RUN_FLAG=""
+    JUNIT_FILE="$RESULTS_DIR/results.xml"
+    JSON_FILE="$LOG_DIR/raw_go_events.log"
+    if [ -n "${CIRCLE_NODE_TOTAL:-}" ] && [ "$CIRCLE_NODE_TOTAL" -gt 1 ]; then
+        NODE_INDEX=${CIRCLE_NODE_INDEX:-0}
+        NODE_TOTAL=${CIRCLE_NODE_TOTAL:-1}
+
+        go test -list '^Test' "${TEST_PACKAGES[@]}" 2>/dev/null | grep -E '^Test' > /tmp/tests.txt
+
+        TOTAL_TESTS=$(wc -l < /tmp/tests.txt | tr -d ' ')
+        if [ "$TOTAL_TESTS" -eq 0 ]; then
+            echo "ERROR: no tests found in packages: ${TEST_PACKAGES[*]}"
+            exit 1
+        fi
+        echo "Found $TOTAL_TESTS tests to split across $NODE_TOTAL nodes"
+
+        circleci tests split --split-by=timings --timings-type=testname /tmp/tests.txt > /tmp/tests_shard.txt
+
+        SHARD_COUNT=$(wc -l < /tmp/tests_shard.txt | tr -d ' ')
+        echo "Node $NODE_INDEX/$NODE_TOTAL running $SHARD_COUNT tests:"
+        cat /tmp/tests_shard.txt
+
+        if [ "$SHARD_COUNT" -eq 0 ]; then
+            echo "No tests assigned to this node, skipping."
+            exit 0
+        fi
+
+        RUN_FLAG="-run=^($(paste -sd '|' /tmp/tests_shard.txt))$"
+        JUNIT_FILE="$RESULTS_DIR/results-${NODE_INDEX}.xml"
+        JSON_FILE="$LOG_DIR/raw_go_events-${NODE_INDEX}.log"
+    fi
+
+    set +e
+    LOG_LEVEL="${LOG_LEVEL}" {{REPO_ROOT}}/ops/scripts/gotestsum-split.sh \
+        --format testname \
+        --junitfile "$JUNIT_FILE" \
+        --jsonfile "$JSON_FILE" \
+        -- \
+        -count=1 \
+        -p "${JOBS}" \
+        -parallel "${TEST_PARALLEL}" \
+        -timeout "${TEST_TIMEOUT}" \
+        ${RUN_FLAG:+"$RUN_FLAG"} \
+        "${TEST_PACKAGES[@]}" \
+        2>&1 | tee "$LOG_DIR/all.log"
+    TEST_STATUS=${PIPESTATUS[0]}
+    set -e
+
+    cp "$LOG_DIR/all.log" "$LOG_DIR/summary.log"
+    exit "$TEST_STATUS"
+
+clean:
+    rm -rf tests/interop/loadtest/artifacts

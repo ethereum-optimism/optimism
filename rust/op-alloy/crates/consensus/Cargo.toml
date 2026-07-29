@@ -1,0 +1,109 @@
+[package]
+name = "op-alloy-consensus"
+description = "Optimism alloy consensus types"
+
+version = "2.0.0"
+edition.workspace = true
+rust-version.workspace = true
+authors = ["Alloy Contributors"]
+license.workspace = true
+homepage = "https://github.com/ethereum-optimism/optimism"
+repository = "https://github.com/ethereum-optimism/optimism"
+exclude = ["benches/", "tests/"]
+
+[lints]
+workspace = true
+
+[dependencies]
+# Alloy
+alloy-rlp.workspace = true
+alloy-eips.workspace = true
+alloy-consensus.workspace = true
+alloy-primitives = { workspace = true, features = ["rlp"] }
+
+# compat
+alloy-network = { workspace = true, optional = true }
+alloy-rpc-types-eth = { workspace = true, optional = true }
+
+# misc
+thiserror.workspace = true
+derive_more = { workspace = true, features = ["display"] }
+
+# arbitrary
+arbitrary = { workspace = true, features = ["derive"], optional = true }
+
+# serde
+serde_with = { workspace = true, optional = true }
+alloy-serde = { workspace = true, optional = true }
+serde = { workspace = true, features = ["derive"], optional = true }
+
+# reth-core / reth-codec
+reth-codecs = { workspace = true, optional = true }
+reth-codecs-derive = { workspace = true, optional = true }
+reth-zstd-compressors = { workspace = true, optional = true }
+bytes = { workspace = true, optional = true }
+modular-bitfield = { workspace = true, optional = true }
+
+[dev-dependencies]
+rand.workspace = true
+bincode = { workspace = true }
+serde_json.workspace = true
+alloy-signer.workspace = true
+arbitrary = { workspace = true, features = ["derive"] }
+alloy-primitives = { workspace = true, features = ["rand", "arbitrary"] }
+
+[features]
+default = ["std"]
+std = [
+	"alloy-eips/std",
+	"alloy-consensus/std",
+	"derive_more/std",
+	"alloy-primitives/std",
+	"alloy-rlp/std",
+	"alloy-rpc-types-eth?/std",
+	"alloy-serde?/std",
+	"serde?/std",
+	"serde_with?/std",
+	"thiserror/std",
+	"bytes?/std",
+	"reth-codecs?/std",
+	"reth-zstd-compressors?/std"
+]
+alloy-compat = ["serde", "dep:alloy-network", "dep:alloy-rpc-types-eth"]
+reth-core = []
+reth-codec = [
+	"dep:reth-codecs",
+	"dep:reth-codecs-derive",
+	"dep:reth-zstd-compressors",
+	"dep:bytes",
+	"dep:modular-bitfield",
+]
+k256 = ["alloy-primitives/k256", "alloy-consensus/k256"]
+kzg = ["alloy-eips/kzg", "alloy-consensus/kzg", "std"]
+arbitrary = [
+	"std",
+	"dep:arbitrary",
+	"alloy-consensus/arbitrary",
+	"alloy-eips/arbitrary",
+	"alloy-primitives/rand",
+	"alloy-primitives/arbitrary",
+	"alloy-rpc-types-eth?/arbitrary",
+	"alloy-serde?/arbitrary",
+	"reth-codecs?/arbitrary",
+]
+serde = [
+	"dep:serde",
+	"dep:alloy-serde",
+	"alloy-primitives/serde",
+	"alloy-consensus/serde",
+	"alloy-eips/serde",
+	"alloy-rpc-types-eth?/serde",
+	"bytes?/serde",
+	"reth-codecs?/serde",
+]
+serde-bincode-compat = [
+	"serde_with",
+	"alloy-consensus/serde-bincode-compat",
+	"alloy-eips/serde-bincode-compat",
+	"alloy-rpc-types-eth?/serde-bincode-compat"
+]

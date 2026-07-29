@@ -1,0 +1,1312 @@
+//! OP-Reth chain specs.
+
+#![doc(
+    html_logo_url = "https://raw.githubusercontent.com/paradigmxyz/reth/main/assets/reth-docs.png",
+    html_favicon_url = "https://avatars0.githubusercontent.com/u/97369466?s=256",
+    issue_tracker_base_url = "https://github.com/paradigmxyz/reth/issues/"
+)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(not(test), warn(unused_crate_dependencies))]
+#![cfg_attr(not(feature = "std"), no_std)]
+
+// About the provided chain specs from `res/superchain-configs.tar`:
+// The provided `OpChainSpec` structs are built from config files read from
+// `superchain-configs.tar`. This `superchain-configs.tar` file contains the chain configs and
+// genesis files for all chains. It is created by the `fetch_superchain_config.sh` script in
+// the `res` directory. Where all configs are where initial loaded from
+// <https://github.com/ethereum-optimism/superchain-registry>. See the script for more details.
+//
+// The file is a tar archive containing the following files:
+// - `genesis/<environment>/<chain_name>.json.zz`: The genesis file compressed with deflate. It
+//   contains the initial accounts, etc.
+// - `configs/<environment>/<chain_name>.json`: The chain metadata file containing the chain id,
+//   hard forks, etc.
+//
+// For example, for `UNICHAIN_MAINNET`, the `genesis/mainnet/unichain.json.zz` and
+// `configs/mainnet/unichain.json` is loaded and combined into the `OpChainSpec` struct.
+// See `read_superchain_genesis` in `configs.rs` for more details.
+//
+// To update the chain specs, run the `fetch_superchain_config.sh` script in the `res` directory.
+// This will fetch the latest chain configs from the superchain registry and create a new
+// `superchain-configs.tar` file. See the script for more details.
+
+extern crate alloc;
+
+mod basefee;
+mod bootnodes;
+mod dev;
+
+#[cfg(feature = "superchain-configs")]
+mod superchain;
+#[cfg(feature = "superchain-configs")]
+pub use superchain::*;
+
+pub use basefee::*;
+pub use dev::OP_DEV;
+
+/// Re-export for convenience
+pub use reth_optimism_forks::*;
+
+use alloc::{boxed::Box, vec, vec::Vec};
+use alloy_chains::{Chain, NamedChain};
+use alloy_consensus::{BlockHeader, Header, proofs::storage_root_unhashed};
+use alloy_eips::eip7840::BlobParams;
+use alloy_genesis::Genesis;
+use alloy_hardforks::Hardfork;
+use alloy_primitives::{B256, U256, b256};
+use derive_more::{Constructor, Deref, From, Into};
+use reth_chainspec::{
+    BaseFeeParams, BaseFeeParamsKind, ChainSpec, ChainSpecBuilder, DepositContract,
+    DisplayHardforks, EthChainSpec, EthereumHardforks, ForkFilter, ForkId, Hardforks, Head,
+};
+use reth_ethereum_forks::{ChainHardforks, EthereumHardfork, ForkCondition};
+use reth_network_peers::NodeRecord;
+use reth_optimism_primitives::L2_TO_L1_MESSAGE_PASSER_ADDRESS;
+use reth_primitives_traits::{SealedHeader, sync::LazyLock};
+
+/// Chain spec builder for a OP stack chain.
+#[derive(Debug, Default, From)]
+pub struct OpChainSpecBuilder {
+    /// [`ChainSpecBuilder`]
+    inner: ChainSpecBuilder,
+}
+
+impl OpChainSpecBuilder {
+    /// Construct a new builder from the optimism mainnet chain spec.
+    #[cfg(feature = "superchain-configs")]
+    pub fn optimism_mainnet() -> Self {
+        let mut inner =
+            ChainSpecBuilder::default().chain(OP_MAINNET.chain).genesis(OP_MAINNET.genesis.clone());
+        let forks = OP_MAINNET.hardforks.clone();
+        inner = inner.with_forks(forks);
+
+        Self { inner }
+    }
+
+    /// Construct a new builder from the optimism sepolia chain spec.
+    ///
+    /// Unlike [`Self::optimism_mainnet`], OP Sepolia is Bedrock-from-genesis (all forks activate at
+    /// block 0), which makes it the right base for tests that launch a node from a block-0 genesis.
+    #[cfg(feature = "superchain-configs")]
+    pub fn optimism_sepolia() -> Self {
+        let mut inner =
+            ChainSpecBuilder::default().chain(OP_SEPOLIA.chain).genesis(OP_SEPOLIA.genesis.clone());
+        let forks = OP_SEPOLIA.hardforks.clone();
+        inner = inner.with_forks(forks);
+
+        Self { inner }
+    }
+}
+
+impl OpChainSpecBuilder {
+    /// Set the chain ID
+    pub fn chain(mut self, chain: Chain) -> Self {
+        self.inner = self.inner.chain(chain);
+        self
+    }
+
+    /// Set the genesis block.
+    pub fn genesis(mut self, genesis: Genesis) -> Self {
+        self.inner = self.inner.genesis(genesis);
+        self
+    }
+
+    /// Add the given fork with the given activation condition to the spec.
+    pub fn with_fork<H: Hardfork>(mut self, fork: H, condition: ForkCondition) -> Self {
+        self.inner = self.inner.with_fork(fork, condition);
+        self
+    }
+
+    /// Add the given forks with the given activation condition to the spec.
+    pub fn with_forks(mut self, forks: ChainHardforks) -> Self {
+        self.inner = self.inner.with_forks(forks);
+        self
+    }
+
+    /// Remove the given fork from the spec.
+    pub fn without_fork(mut self, fork: OpHardfork) -> Self {
+        self.inner = self.inner.without_fork(fork);
+        self
+    }
+
+    /// Enable Bedrock at genesis
+    pub fn bedrock_activated(mut self) -> Self {
+        self.inner = self.inner.paris_activated();
+        self.inner = self.inner.with_fork(OpHardfork::Bedrock, ForkCondition::Block(0));
+        self
+    }
+
+    /// Enable the given timestamp-activated OP fork, and the L1 fork it activates if any, at
+    /// genesis. Bedrock is handled by [`Self::bedrock_activated`] instead: it activates by
+    /// block number, and its implied L1 fork (Paris) needs a TTD condition rather than the
+    /// `Timestamp(0)` used here.
+    fn op_fork_activated(mut self, fork: OpHardfork) -> Self {
+        if let Some(l1_fork) = fork.activates_l1_fork() {
+            self.inner = self.inner.with_fork(l1_fork, ForkCondition::Timestamp(0));
+        }
+        self.inner = self.inner.with_fork(fork, ForkCondition::Timestamp(0));
+        self
+    }
+
+    /// Enable Regolith at genesis
+    pub fn regolith_activated(self) -> Self {
+        self.bedrock_activated().op_fork_activated(OpHardfork::Regolith)
+    }
+
+    /// Enable Canyon at genesis
+    pub fn canyon_activated(self) -> Self {
+        self.regolith_activated().op_fork_activated(OpHardfork::Canyon)
+    }
+
+    /// Enable Ecotone at genesis
+    pub fn ecotone_activated(self) -> Self {
+        self.canyon_activated().op_fork_activated(OpHardfork::Ecotone)
+    }
+
+    /// Enable Fjord at genesis
+    pub fn fjord_activated(self) -> Self {
+        self.ecotone_activated().op_fork_activated(OpHardfork::Fjord)
+    }
+
+    /// Enable Granite at genesis
+    pub fn granite_activated(self) -> Self {
+        self.fjord_activated().op_fork_activated(OpHardfork::Granite)
+    }
+
+    /// Enable Holocene at genesis
+    pub fn holocene_activated(self) -> Self {
+        self.granite_activated().op_fork_activated(OpHardfork::Holocene)
+    }
+
+    /// Enable Isthmus at genesis
+    pub fn isthmus_activated(self) -> Self {
+        self.holocene_activated().op_fork_activated(OpHardfork::Isthmus)
+    }
+
+    /// Enable Jovian at genesis
+    pub fn jovian_activated(self) -> Self {
+        self.isthmus_activated().op_fork_activated(OpHardfork::Jovian)
+    }
+
+    /// Enable Karst at genesis
+    pub fn karst_activated(self) -> Self {
+        self.jovian_activated().op_fork_activated(OpHardfork::Karst)
+    }
+
+    /// Enable Lagoon at genesis
+    pub fn lagoon_activated(self) -> Self {
+        self.karst_activated().op_fork_activated(OpHardfork::Lagoon)
+    }
+
+    /// Build the resulting [`OpChainSpec`].
+    ///
+    /// # Panics
+    ///
+    /// This function panics if the chain ID and genesis is not set ([`Self::chain`] and
+    /// [`Self::genesis`])
+    pub fn build(self) -> OpChainSpec {
+        let mut inner = self.inner.build();
+        inner.genesis_header = make_op_sealed_genesis_header(&inner.genesis, &inner.hardforks);
+
+        OpChainSpec { inner }
+    }
+}
+
+/// OP stack chain spec type.
+#[derive(Debug, Clone, Deref, Into, Constructor, PartialEq, Eq)]
+pub struct OpChainSpec {
+    /// [`ChainSpec`].
+    pub inner: ChainSpec,
+}
+
+impl OpChainSpec {
+    /// Converts the given [`Genesis`] into a [`OpChainSpec`].
+    pub fn from_genesis(genesis: Genesis) -> Self {
+        genesis.into()
+    }
+}
+
+impl EthChainSpec for OpChainSpec {
+    type Header = Header;
+
+    fn chain(&self) -> Chain {
+        self.inner.chain()
+    }
+
+    fn base_fee_params_at_timestamp(&self, timestamp: u64) -> BaseFeeParams {
+        self.inner.base_fee_params_at_timestamp(timestamp)
+    }
+
+    fn blob_params_at_timestamp(&self, timestamp: u64) -> Option<BlobParams> {
+        self.inner.blob_params_at_timestamp(timestamp)
+    }
+
+    fn deposit_contract(&self) -> Option<&DepositContract> {
+        self.inner.deposit_contract()
+    }
+
+    fn genesis_hash(&self) -> B256 {
+        self.inner.genesis_hash()
+    }
+
+    fn prune_delete_limit(&self) -> usize {
+        self.inner.prune_delete_limit()
+    }
+
+    fn display_hardforks(&self) -> Box<dyn core::fmt::Display> {
+        // filter only op hardforks
+        let op_forks = self.inner.hardforks.forks_iter().filter(|(fork, _)| {
+            !EthereumHardfork::VARIANTS.iter().any(|h| h.name() == (*fork).name())
+        });
+
+        Box::new(DisplayHardforks::new(op_forks))
+    }
+
+    fn genesis_header(&self) -> &Self::Header {
+        self.inner.genesis_header()
+    }
+
+    fn genesis(&self) -> &Genesis {
+        self.inner.genesis()
+    }
+
+    fn bootnodes(&self) -> Option<Vec<NodeRecord>> {
+        let chain = self.inner.chain;
+        if chain.is_optimism() {
+            let testnet = chain.named().is_some_and(|n| n.is_testnet());
+            return Some(if testnet {
+                bootnodes::op_testnet_nodes()
+            } else {
+                bootnodes::op_nodes()
+            });
+        }
+        self.inner.bootnodes()
+    }
+
+    fn is_optimism(&self) -> bool {
+        true
+    }
+
+    fn final_paris_total_difficulty(&self) -> Option<U256> {
+        self.inner.final_paris_total_difficulty()
+    }
+
+    fn next_block_base_fee(&self, parent: &Header, target_timestamp: u64) -> Option<u64> {
+        if self.is_jovian_active_at_timestamp(parent.timestamp()) {
+            compute_jovian_base_fee(parent).ok()
+        } else if self.is_holocene_active_at_timestamp(parent.timestamp()) {
+            decode_holocene_base_fee(parent).ok()
+        } else {
+            self.inner.next_block_base_fee(parent, target_timestamp)
+        }
+    }
+}
+
+impl Hardforks for OpChainSpec {
+    fn fork<H: Hardfork>(&self, fork: H) -> ForkCondition {
+        self.inner.fork(fork)
+    }
+
+    fn forks_iter(&self) -> impl Iterator<Item = (&dyn Hardfork, ForkCondition)> {
+        self.inner.forks_iter()
+    }
+
+    fn fork_id(&self, head: &Head) -> ForkId {
+        self.inner.fork_id(head)
+    }
+
+    fn latest_fork_id(&self) -> ForkId {
+        self.inner.latest_fork_id()
+    }
+
+    fn fork_filter(&self, head: Head) -> ForkFilter {
+        self.inner.fork_filter(head)
+    }
+}
+
+impl EthereumHardforks for OpChainSpec {
+    fn ethereum_fork_activation(&self, fork: EthereumHardfork) -> ForkCondition {
+        self.fork(fork)
+    }
+}
+
+impl OpHardforks for OpChainSpec {
+    fn op_fork_activation(&self, fork: OpHardfork) -> ForkCondition {
+        self.fork(fork)
+    }
+}
+
+/// OP Mainnet's genesis is the Bedrock transition block (105235063), whose state was imported
+/// from a trusted snapshot rather than constructed from a genesis allocation. Its header hash
+/// therefore can't be recomputed from the genesis state and is pinned here, mirroring op-geth's
+/// expected-hash override in `core/superchain.go`.
+const OP_MAINNET_GENESIS_HASH: B256 =
+    b256!("0x7ca38a1916c42007829c55e69d3e9a73265554b586a499015373241b8a3fa48b");
+
+impl From<Genesis> for OpChainSpec {
+    fn from(genesis: Genesis) -> Self {
+        use reth_optimism_forks::OpHardfork;
+        let optimism_genesis_info = OpGenesisInfo::extract_from(&genesis);
+        let genesis_info =
+            optimism_genesis_info.optimism_chain_info.genesis_info.unwrap_or_default();
+
+        // Block-based hardforks
+        let hardfork_opts = [
+            (EthereumHardfork::Frontier.boxed(), Some(0)),
+            (EthereumHardfork::Homestead.boxed(), genesis.config.homestead_block),
+            (EthereumHardfork::Tangerine.boxed(), genesis.config.eip150_block),
+            (EthereumHardfork::SpuriousDragon.boxed(), genesis.config.eip155_block),
+            (EthereumHardfork::Byzantium.boxed(), genesis.config.byzantium_block),
+            (EthereumHardfork::Constantinople.boxed(), genesis.config.constantinople_block),
+            (EthereumHardfork::Petersburg.boxed(), genesis.config.petersburg_block),
+            (EthereumHardfork::Istanbul.boxed(), genesis.config.istanbul_block),
+            (EthereumHardfork::MuirGlacier.boxed(), genesis.config.muir_glacier_block),
+            (EthereumHardfork::Berlin.boxed(), genesis.config.berlin_block),
+            (EthereumHardfork::London.boxed(), genesis.config.london_block),
+            (EthereumHardfork::ArrowGlacier.boxed(), genesis.config.arrow_glacier_block),
+            (EthereumHardfork::GrayGlacier.boxed(), genesis.config.gray_glacier_block),
+            (OpHardfork::Bedrock.boxed(), genesis_info.bedrock_block),
+        ];
+        let mut block_hardforks = hardfork_opts
+            .into_iter()
+            .filter_map(|(hardfork, opt)| opt.map(|block| (hardfork, ForkCondition::Block(block))))
+            .collect::<Vec<_>>();
+
+        // We set the paris hardfork for OP networks to zero
+        block_hardforks.push((
+            EthereumHardfork::Paris.boxed(),
+            ForkCondition::TTD {
+                activation_block_number: 0,
+                total_difficulty: U256::ZERO,
+                fork_block: genesis.config.merge_netsplit_block,
+            },
+        ));
+
+        // Time-based hardforks
+        let op_time_hardfork_opts = [
+            (OpHardfork::Regolith, genesis_info.regolith_time),
+            (OpHardfork::Canyon, genesis_info.canyon_time),
+            (OpHardfork::Ecotone, genesis_info.ecotone_time),
+            (OpHardfork::Fjord, genesis_info.fjord_time),
+            (OpHardfork::Granite, genesis_info.granite_time),
+            (OpHardfork::Holocene, genesis_info.holocene_time),
+            (OpHardfork::Isthmus, genesis_info.isthmus_time),
+            (OpHardfork::Jovian, genesis_info.jovian_time),
+            (OpHardfork::Karst, genesis_info.karst_time),
+            (OpHardfork::Lagoon, genesis_info.lagoon_time),
+        ];
+
+        // `Hardfork::boxed` borrows, so it can't box the iterator-local copies below.
+        fn boxed(fork: impl Hardfork + 'static) -> Box<dyn Hardfork> {
+            Box::new(fork)
+        }
+
+        // An OP hardfork's implied L1 hardfork activates at the OP fork's timestamp.
+        let l1_time_hardfork_opts = op_time_hardfork_opts.iter().filter_map(|(op_fork, time)| {
+            op_fork.activates_l1_fork().map(|l1_fork| (boxed(l1_fork), *time))
+        });
+
+        let mut time_hardforks = l1_time_hardfork_opts
+            .chain(op_time_hardfork_opts.iter().map(|(op_fork, time)| (boxed(*op_fork), *time)))
+            .filter_map(|(hardfork, opt)| {
+                opt.map(|time| (hardfork, ForkCondition::Timestamp(time)))
+            })
+            .collect::<Vec<_>>();
+
+        block_hardforks.append(&mut time_hardforks);
+
+        // Order the collected forks by the canonical OP hardfork sequence.
+        let mut ordered_hardforks = Vec::with_capacity(block_hardforks.len());
+        for hardfork in OP_HARDFORK_ORDER {
+            if let Some(pos) = block_hardforks.iter().position(|(e, _)| e.name() == hardfork.name())
+            {
+                ordered_hardforks.push(block_hardforks.remove(pos));
+            }
+        }
+
+        // append the remaining unknown hardforks to ensure we don't filter any out
+        ordered_hardforks.append(&mut block_hardforks);
+
+        let hardforks = ChainHardforks::new(ordered_hardforks);
+        let genesis_header = make_op_sealed_genesis_header(&genesis, &hardforks);
+
+        Self {
+            inner: ChainSpec {
+                chain: genesis.config.chain_id.into(),
+                genesis_header,
+                genesis,
+                hardforks,
+                // We assume no OP network merges, and set the paris block and total difficulty to
+                // zero
+                paris_block_and_final_difficulty: Some((0, U256::ZERO)),
+                base_fee_params: optimism_genesis_info.base_fee_params,
+                ..Default::default()
+            },
+        }
+    }
+}
+
+impl From<ChainSpec> for OpChainSpec {
+    fn from(value: ChainSpec) -> Self {
+        Self { inner: value }
+    }
+}
+
+#[derive(Default, Debug)]
+struct OpGenesisInfo {
+    optimism_chain_info: op_alloy_rpc_types::OpChainInfo,
+    base_fee_params: BaseFeeParamsKind,
+}
+
+impl OpGenesisInfo {
+    fn extract_from(genesis: &Genesis) -> Self {
+        let mut info = Self {
+            optimism_chain_info: op_alloy_rpc_types::OpChainInfo::extract_from(
+                &genesis.config.extra_fields,
+            )
+            .unwrap_or_default(),
+            ..Default::default()
+        };
+        if let Some(optimism_base_fee_info) = &info.optimism_chain_info.base_fee_info &&
+            let (Some(elasticity), Some(denominator)) = (
+                optimism_base_fee_info.eip1559_elasticity,
+                optimism_base_fee_info.eip1559_denominator,
+            )
+        {
+            let base_fee_params = optimism_base_fee_info.eip1559_denominator_canyon.map_or_else(
+                || BaseFeeParams::new(denominator as u128, elasticity as u128).into(),
+                |canyon_denominator| {
+                    BaseFeeParamsKind::Variable(
+                        vec![
+                            (
+                                EthereumHardfork::London.boxed(),
+                                BaseFeeParams::new(denominator as u128, elasticity as u128),
+                            ),
+                            (
+                                OpHardfork::Canyon.boxed(),
+                                BaseFeeParams::new(canyon_denominator as u128, elasticity as u128),
+                            ),
+                        ]
+                        .into(),
+                    )
+                },
+            );
+
+            info.base_fee_params = base_fee_params;
+        }
+
+        info
+    }
+}
+
+/// Helper method building a [`Header`] given [`Genesis`] and [`ChainHardforks`].
+pub fn make_op_genesis_header(genesis: &Genesis, hardforks: &ChainHardforks) -> Header {
+    let mut header = reth_chainspec::make_genesis_header(genesis, hardforks);
+
+    // If Isthmus is active, overwrite the withdrawals root with the storage root of predeploy
+    // `L2ToL1MessagePasser.sol`
+    if hardforks.fork(OpHardfork::Isthmus).active_at_timestamp(header.timestamp) &&
+        let Some(predeploy) = genesis.alloc.get(&L2_TO_L1_MESSAGE_PASSER_ADDRESS) &&
+        let Some(storage) = &predeploy.storage
+    {
+        header.withdrawals_root = Some(storage_root_unhashed(storage.iter().filter_map(
+            |(k, v)| {
+                if v.is_zero() { None } else { Some((*k, (*v).into())) }
+            },
+        )));
+    }
+
+    header
+}
+
+/// Builds the sealed genesis header for an OP chain.
+///
+/// OP Mainnet's Bedrock genesis header can't be recomputed from genesis state (see
+/// [`OP_MAINNET_GENESIS_HASH`]), so its hash is pinned; every other chain's header is sealed by
+/// computing its hash. This is the single place that applies the OP Mainnet pin, so all genesis
+/// construction paths agree.
+pub(crate) fn make_op_sealed_genesis_header(
+    genesis: &Genesis,
+    hardforks: &ChainHardforks,
+) -> SealedHeader {
+    let header = make_op_genesis_header(genesis, hardforks);
+    if genesis.config.chain_id == NamedChain::Optimism as u64 {
+        SealedHeader::new(header, OP_MAINNET_GENESIS_HASH)
+    } else {
+        SealedHeader::seal_slow(header)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::string::{String, ToString};
+    use alloy_genesis::{ChainConfig, Genesis};
+    use alloy_op_hardforks::{OP_MAINNET_JOVIAN_TIMESTAMP, OP_SEPOLIA_JOVIAN_TIMESTAMP};
+    use alloy_primitives::b256;
+    use reth_chainspec::{BaseFeeParams, BaseFeeParamsKind, test_fork_ids};
+    use reth_ethereum_forks::{EthereumHardfork, ForkCondition, ForkHash, ForkId, Head};
+    use reth_optimism_forks::{OpHardfork, OpHardforks};
+
+    use crate::*;
+
+    #[test]
+    fn test_storage_root_consistency() {
+        use alloy_primitives::{B256, U256};
+        use core::str::FromStr;
+
+        let k1 =
+            B256::from_str("0x0000000000000000000000000000000000000000000000000000000000000001")
+                .unwrap();
+        let v1 =
+            U256::from_str("0x0000000000000000000000000000000000000000000000000000000000000000")
+                .unwrap();
+        let k2 =
+            B256::from_str("0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc")
+                .unwrap();
+        let v2 =
+            U256::from_str("0x000000000000000000000000c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d30016")
+                .unwrap();
+        let k3 =
+            B256::from_str("0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103")
+                .unwrap();
+        let v3 =
+            U256::from_str("0x0000000000000000000000004200000000000000000000000000000000000018")
+                .unwrap();
+        let origin_root =
+            B256::from_str("0x5d5ba3a8093ede3901ad7a569edfb7b9aecafa54730ba0bf069147cbcc00e345")
+                .unwrap();
+        let expected_root =
+            B256::from_str("0x8ed4baae3a927be3dea54996b4d5899f8c01e7594bf50b17dc1e741388ce3d12")
+                .unwrap();
+
+        let storage_origin = vec![(k1, v1), (k2, v2), (k3, v3)];
+        let storage_fix = vec![(k2, v2), (k3, v3)];
+        let root_origin = storage_root_unhashed(storage_origin);
+        let root_fix = storage_root_unhashed(storage_fix);
+        assert_ne!(root_origin, root_fix);
+        assert_eq!(root_origin, origin_root);
+        assert_eq!(root_fix, expected_root);
+    }
+
+    #[test]
+    fn op_sepolia_forkids() {
+        test_fork_ids(
+            &OP_SEPOLIA,
+            &[
+                (
+                    Head { number: 0, ..Default::default() },
+                    ForkId { hash: ForkHash([0x67, 0xa4, 0x03, 0x28]), next: 1699981200 },
+                ),
+                (
+                    Head { number: 0, timestamp: 1699981199, ..Default::default() },
+                    ForkId { hash: ForkHash([0x67, 0xa4, 0x03, 0x28]), next: 1699981200 },
+                ),
+                (
+                    Head { number: 0, timestamp: 1699981200, ..Default::default() },
+                    ForkId { hash: ForkHash([0xa4, 0x8d, 0x6a, 0x00]), next: 1708534800 },
+                ),
+                (
+                    Head { number: 0, timestamp: 1708534799, ..Default::default() },
+                    ForkId { hash: ForkHash([0xa4, 0x8d, 0x6a, 0x00]), next: 1708534800 },
+                ),
+                (
+                    Head { number: 0, timestamp: 1708534800, ..Default::default() },
+                    ForkId { hash: ForkHash([0xcc, 0x17, 0xc7, 0xeb]), next: 1716998400 },
+                ),
+                (
+                    Head { number: 0, timestamp: 1716998399, ..Default::default() },
+                    ForkId { hash: ForkHash([0xcc, 0x17, 0xc7, 0xeb]), next: 1716998400 },
+                ),
+                (
+                    Head { number: 0, timestamp: 1716998400, ..Default::default() },
+                    ForkId { hash: ForkHash([0x54, 0x0a, 0x8c, 0x5d]), next: 1723478400 },
+                ),
+                (
+                    Head { number: 0, timestamp: 1723478399, ..Default::default() },
+                    ForkId { hash: ForkHash([0x54, 0x0a, 0x8c, 0x5d]), next: 1723478400 },
+                ),
+                (
+                    Head { number: 0, timestamp: 1723478400, ..Default::default() },
+                    ForkId { hash: ForkHash([0x75, 0xde, 0xa4, 0x1e]), next: 1732633200 },
+                ),
+                (
+                    Head { number: 0, timestamp: 1732633200, ..Default::default() },
+                    ForkId { hash: ForkHash([0x4a, 0x1c, 0x79, 0x2e]), next: 1744905600 },
+                ),
+                // Isthmus
+                (
+                    Head { number: 0, timestamp: 1744905600, ..Default::default() },
+                    ForkId {
+                        hash: ForkHash([0x6c, 0x62, 0x5e, 0xe1]),
+                        next: OP_SEPOLIA_JOVIAN_TIMESTAMP,
+                    },
+                ),
+                // Jovian
+                (
+                    Head {
+                        number: 0,
+                        timestamp: OP_SEPOLIA_JOVIAN_TIMESTAMP,
+                        ..Default::default()
+                    },
+                    OP_SEPOLIA.hardfork_fork_id(OpHardfork::Jovian).unwrap(),
+                ),
+            ],
+        );
+    }
+
+    #[test]
+    fn op_mainnet_forkids() {
+        let op_mainnet = OpChainSpecBuilder::optimism_mainnet().build();
+        test_fork_ids(
+            &op_mainnet,
+            &[
+                (
+                    Head { number: 0, ..Default::default() },
+                    ForkId { hash: ForkHash([0xca, 0xf5, 0x17, 0xed]), next: 3950000 },
+                ),
+                // London
+                (
+                    Head { number: 105235063, ..Default::default() },
+                    ForkId { hash: ForkHash([0xe3, 0x39, 0x8d, 0x7c]), next: 1704992401 },
+                ),
+                // Bedrock
+                (
+                    Head { number: 105235063, ..Default::default() },
+                    ForkId { hash: ForkHash([0xe3, 0x39, 0x8d, 0x7c]), next: 1704992401 },
+                ),
+                // Shanghai
+                (
+                    Head { number: 105235063, timestamp: 1704992401, ..Default::default() },
+                    ForkId { hash: ForkHash([0xbd, 0xd4, 0xfd, 0xb2]), next: 1710374401 },
+                ),
+                // OP activation timestamps
+                // https://specs.optimism.io/protocol/superchain-upgrades.html#activation-timestamps
+                // Canyon
+                (
+                    Head { number: 105235063, timestamp: 1704992401, ..Default::default() },
+                    ForkId { hash: ForkHash([0xbd, 0xd4, 0xfd, 0xb2]), next: 1710374401 },
+                ),
+                // Ecotone
+                (
+                    Head { number: 105235063, timestamp: 1710374401, ..Default::default() },
+                    ForkId { hash: ForkHash([0x19, 0xda, 0x4c, 0x52]), next: 1720627201 },
+                ),
+                // Fjord
+                (
+                    Head { number: 105235063, timestamp: 1720627201, ..Default::default() },
+                    ForkId { hash: ForkHash([0x49, 0xfb, 0xfe, 0x1e]), next: 1726070401 },
+                ),
+                // Granite
+                (
+                    Head { number: 105235063, timestamp: 1726070401, ..Default::default() },
+                    ForkId { hash: ForkHash([0x44, 0x70, 0x4c, 0xde]), next: 1736445601 },
+                ),
+                // Holocene
+                (
+                    Head { number: 105235063, timestamp: 1736445601, ..Default::default() },
+                    ForkId { hash: ForkHash([0x2b, 0xd9, 0x3d, 0xc8]), next: 1746806401 },
+                ),
+                // Isthmus
+                (
+                    Head { number: 105235063, timestamp: 1746806401, ..Default::default() },
+                    ForkId {
+                        hash: ForkHash([0x37, 0xbe, 0x75, 0x8f]),
+                        next: OP_MAINNET_JOVIAN_TIMESTAMP,
+                    },
+                ),
+                // Jovian
+                (
+                    Head {
+                        number: 105235063,
+                        timestamp: OP_MAINNET_JOVIAN_TIMESTAMP,
+                        ..Default::default()
+                    },
+                    OP_MAINNET.hardfork_fork_id(OpHardfork::Jovian).unwrap(),
+                ),
+            ],
+        );
+    }
+
+    #[test]
+    fn op_sepolia_genesis() {
+        let genesis = OP_SEPOLIA.genesis_header();
+        assert_eq!(
+            genesis.hash_slow(),
+            b256!("0x102de6ffb001480cc9b8b548fd05c34cd4f46ae4aa91759393db90ea0409887d")
+        );
+        let base_fee = OP_SEPOLIA.next_block_base_fee(genesis, genesis.timestamp).unwrap();
+        // <https://optimism-sepolia.blockscout.com/block/1>
+        assert_eq!(base_fee, 980000000);
+    }
+
+    #[test]
+    fn op_mainnet_genesis() {
+        // OP Mainnet's Bedrock genesis header can't be recomputed from genesis state, so the
+        // registry path pins its hash (`OP_MAINNET_GENESIS_HASH`). `genesis_hash` returns the
+        // pinned value; `hash_slow` would recompute the wrong one.
+        assert_eq!(
+            OP_MAINNET.genesis_hash(),
+            b256!("0x7ca38a1916c42007829c55e69d3e9a73265554b586a499015373241b8a3fa48b")
+        );
+    }
+
+    #[test]
+    fn is_bedrock_active() {
+        let op_mainnet = OpChainSpecBuilder::optimism_mainnet().build();
+        assert!(!op_mainnet.is_bedrock_active_at_block(1))
+    }
+
+    /// Each `*_activated()` builder helper must activate the L1 (Ethereum) hardfork its OP fork
+    /// implies, exactly as the genesis `From<Genesis>` conversion does. Guards against a future
+    /// fork silently shipping without its L1 fork — the gap that left Isthmus without Prague.
+    #[test]
+    fn builder_activated_specs_match_genesis_l1_forks() {
+        // Builder spec with every OP fork (through Lagoon) active at genesis.
+        let builder_spec = OpChainSpecBuilder::optimism_mainnet().lagoon_activated().build();
+
+        // Equivalent genesis: every OP fork active at timestamp 0. `From<Genesis>` derives the
+        // implied L1 forks (Shanghai/Cancun/Prague/Osaka) from these OP timestamps.
+        let geth_genesis = r#"
+        {
+            "config": {
+                "chainId": 10,
+                "homesteadBlock": 0,
+                "eip150Block": 0,
+                "eip155Block": 0,
+                "eip158Block": 0,
+                "byzantiumBlock": 0,
+                "constantinopleBlock": 0,
+                "petersburgBlock": 0,
+                "istanbulBlock": 0,
+                "muirGlacierBlock": 0,
+                "berlinBlock": 0,
+                "londonBlock": 0,
+                "arrowGlacierBlock": 0,
+                "grayGlacierBlock": 0,
+                "mergeNetsplitBlock": 0,
+                "bedrockBlock": 0,
+                "regolithTime": 0,
+                "canyonTime": 0,
+                "ecotoneTime": 0,
+                "fjordTime": 0,
+                "graniteTime": 0,
+                "holoceneTime": 0,
+                "isthmusTime": 0,
+                "jovianTime": 0,
+                "karstTime": 0,
+                "lagoonTime": 0,
+                "terminalTotalDifficulty": 0,
+                "terminalTotalDifficultyPassed": true,
+                "optimism": {
+                    "eip1559Elasticity": 6,
+                    "eip1559Denominator": 50
+                }
+            }
+        }
+        "#;
+        let genesis: Genesis = serde_json::from_str(geth_genesis).unwrap();
+        let genesis_spec = OpChainSpec::from_genesis(genesis);
+
+        // Builder- and genesis-built specs must agree on every OP fork and the L1 fork it implies.
+        macro_rules! assert_parity {
+            ($fork:expr) => {
+                assert_eq!(
+                    builder_spec.hardforks.get($fork),
+                    genesis_spec.hardforks.get($fork),
+                    "builder vs genesis disagree on {:?}",
+                    $fork
+                );
+            };
+        }
+
+        assert_parity!(OpHardfork::Regolith);
+        assert_parity!(OpHardfork::Canyon);
+        assert_parity!(EthereumHardfork::Shanghai);
+        assert_parity!(OpHardfork::Ecotone);
+        assert_parity!(EthereumHardfork::Cancun);
+        assert_parity!(OpHardfork::Fjord);
+        assert_parity!(OpHardfork::Granite);
+        assert_parity!(OpHardfork::Holocene);
+        assert_parity!(OpHardfork::Isthmus);
+        assert_parity!(EthereumHardfork::Prague);
+        assert_parity!(OpHardfork::Jovian);
+        assert_parity!(OpHardfork::Karst);
+        assert_parity!(EthereumHardfork::Osaka);
+        assert_parity!(OpHardfork::Lagoon);
+
+        // Pin the invariant directly on the builder spec: every implied L1 fork is active at
+        // genesis.
+        assert_eq!(
+            builder_spec.hardforks.get(EthereumHardfork::Shanghai),
+            Some(ForkCondition::Timestamp(0))
+        );
+        assert_eq!(
+            builder_spec.hardforks.get(EthereumHardfork::Cancun),
+            Some(ForkCondition::Timestamp(0))
+        );
+        assert_eq!(
+            builder_spec.hardforks.get(EthereumHardfork::Prague),
+            Some(ForkCondition::Timestamp(0))
+        );
+        assert_eq!(
+            builder_spec.hardforks.get(EthereumHardfork::Osaka),
+            Some(ForkCondition::Timestamp(0))
+        );
+    }
+
+    #[test]
+    fn parse_optimism_hardforks() {
+        let geth_genesis = r#"
+    {
+      "config": {
+        "bedrockBlock": 10,
+        "regolithTime": 20,
+        "canyonTime": 30,
+        "ecotoneTime": 40,
+        "fjordTime": 50,
+        "graniteTime": 51,
+        "holoceneTime": 52,
+        "isthmusTime": 53,
+        "optimism": {
+          "eip1559Elasticity": 60,
+          "eip1559Denominator": 70
+        }
+      }
+    }
+    "#;
+        let genesis: Genesis = serde_json::from_str(geth_genesis).unwrap();
+
+        let actual_bedrock_block = genesis.config.extra_fields.get("bedrockBlock");
+        assert_eq!(actual_bedrock_block, Some(serde_json::Value::from(10)).as_ref());
+        let actual_regolith_timestamp = genesis.config.extra_fields.get("regolithTime");
+        assert_eq!(actual_regolith_timestamp, Some(serde_json::Value::from(20)).as_ref());
+        let actual_canyon_timestamp = genesis.config.extra_fields.get("canyonTime");
+        assert_eq!(actual_canyon_timestamp, Some(serde_json::Value::from(30)).as_ref());
+        let actual_ecotone_timestamp = genesis.config.extra_fields.get("ecotoneTime");
+        assert_eq!(actual_ecotone_timestamp, Some(serde_json::Value::from(40)).as_ref());
+        let actual_fjord_timestamp = genesis.config.extra_fields.get("fjordTime");
+        assert_eq!(actual_fjord_timestamp, Some(serde_json::Value::from(50)).as_ref());
+        let actual_granite_timestamp = genesis.config.extra_fields.get("graniteTime");
+        assert_eq!(actual_granite_timestamp, Some(serde_json::Value::from(51)).as_ref());
+        let actual_holocene_timestamp = genesis.config.extra_fields.get("holoceneTime");
+        assert_eq!(actual_holocene_timestamp, Some(serde_json::Value::from(52)).as_ref());
+        let actual_isthmus_timestamp = genesis.config.extra_fields.get("isthmusTime");
+        assert_eq!(actual_isthmus_timestamp, Some(serde_json::Value::from(53)).as_ref());
+
+        let optimism_object = genesis.config.extra_fields.get("optimism").unwrap();
+        assert_eq!(
+            optimism_object,
+            &serde_json::json!({
+                "eip1559Elasticity": 60,
+                "eip1559Denominator": 70,
+            })
+        );
+
+        let chain_spec: OpChainSpec = genesis.into();
+
+        assert_eq!(
+            chain_spec.base_fee_params,
+            BaseFeeParamsKind::Constant(BaseFeeParams::new(70, 60))
+        );
+
+        assert!(!chain_spec.is_fork_active_at_block(OpHardfork::Bedrock, 0));
+        assert!(!chain_spec.is_fork_active_at_timestamp(OpHardfork::Regolith, 0));
+        assert!(!chain_spec.is_fork_active_at_timestamp(OpHardfork::Canyon, 0));
+        assert!(!chain_spec.is_fork_active_at_timestamp(OpHardfork::Ecotone, 0));
+        assert!(!chain_spec.is_fork_active_at_timestamp(OpHardfork::Fjord, 0));
+        assert!(!chain_spec.is_fork_active_at_timestamp(OpHardfork::Granite, 0));
+        assert!(!chain_spec.is_fork_active_at_timestamp(OpHardfork::Holocene, 0));
+
+        assert!(chain_spec.is_fork_active_at_block(OpHardfork::Bedrock, 10));
+        assert!(chain_spec.is_fork_active_at_timestamp(OpHardfork::Regolith, 20));
+        assert!(chain_spec.is_fork_active_at_timestamp(OpHardfork::Canyon, 30));
+        assert!(chain_spec.is_fork_active_at_timestamp(OpHardfork::Ecotone, 40));
+        assert!(chain_spec.is_fork_active_at_timestamp(OpHardfork::Fjord, 50));
+        assert!(chain_spec.is_fork_active_at_timestamp(OpHardfork::Granite, 51));
+        assert!(chain_spec.is_fork_active_at_timestamp(OpHardfork::Holocene, 52));
+    }
+
+    #[test]
+    fn parse_optimism_hardforks_variable_base_fee_params() {
+        let geth_genesis = r#"
+    {
+      "config": {
+        "bedrockBlock": 10,
+        "regolithTime": 20,
+        "canyonTime": 30,
+        "ecotoneTime": 40,
+        "fjordTime": 50,
+        "graniteTime": 51,
+        "holoceneTime": 52,
+        "isthmusTime": 53,
+        "optimism": {
+          "eip1559Elasticity": 60,
+          "eip1559Denominator": 70,
+          "eip1559DenominatorCanyon": 80
+        }
+      }
+    }
+    "#;
+        let genesis: Genesis = serde_json::from_str(geth_genesis).unwrap();
+
+        let actual_bedrock_block = genesis.config.extra_fields.get("bedrockBlock");
+        assert_eq!(actual_bedrock_block, Some(serde_json::Value::from(10)).as_ref());
+        let actual_regolith_timestamp = genesis.config.extra_fields.get("regolithTime");
+        assert_eq!(actual_regolith_timestamp, Some(serde_json::Value::from(20)).as_ref());
+        let actual_canyon_timestamp = genesis.config.extra_fields.get("canyonTime");
+        assert_eq!(actual_canyon_timestamp, Some(serde_json::Value::from(30)).as_ref());
+        let actual_ecotone_timestamp = genesis.config.extra_fields.get("ecotoneTime");
+        assert_eq!(actual_ecotone_timestamp, Some(serde_json::Value::from(40)).as_ref());
+        let actual_fjord_timestamp = genesis.config.extra_fields.get("fjordTime");
+        assert_eq!(actual_fjord_timestamp, Some(serde_json::Value::from(50)).as_ref());
+        let actual_granite_timestamp = genesis.config.extra_fields.get("graniteTime");
+        assert_eq!(actual_granite_timestamp, Some(serde_json::Value::from(51)).as_ref());
+        let actual_holocene_timestamp = genesis.config.extra_fields.get("holoceneTime");
+        assert_eq!(actual_holocene_timestamp, Some(serde_json::Value::from(52)).as_ref());
+        let actual_isthmus_timestamp = genesis.config.extra_fields.get("isthmusTime");
+        assert_eq!(actual_isthmus_timestamp, Some(serde_json::Value::from(53)).as_ref());
+
+        let optimism_object = genesis.config.extra_fields.get("optimism").unwrap();
+        assert_eq!(
+            optimism_object,
+            &serde_json::json!({
+                "eip1559Elasticity": 60,
+                "eip1559Denominator": 70,
+                "eip1559DenominatorCanyon": 80
+            })
+        );
+
+        let chain_spec: OpChainSpec = genesis.into();
+
+        assert_eq!(
+            chain_spec.base_fee_params,
+            BaseFeeParamsKind::Variable(
+                vec![
+                    (EthereumHardfork::London.boxed(), BaseFeeParams::new(70, 60)),
+                    (OpHardfork::Canyon.boxed(), BaseFeeParams::new(80, 60)),
+                ]
+                .into()
+            )
+        );
+
+        assert!(!chain_spec.is_fork_active_at_block(OpHardfork::Bedrock, 0));
+        assert!(!chain_spec.is_fork_active_at_timestamp(OpHardfork::Regolith, 0));
+        assert!(!chain_spec.is_fork_active_at_timestamp(OpHardfork::Canyon, 0));
+        assert!(!chain_spec.is_fork_active_at_timestamp(OpHardfork::Ecotone, 0));
+        assert!(!chain_spec.is_fork_active_at_timestamp(OpHardfork::Fjord, 0));
+        assert!(!chain_spec.is_fork_active_at_timestamp(OpHardfork::Granite, 0));
+        assert!(!chain_spec.is_fork_active_at_timestamp(OpHardfork::Holocene, 0));
+
+        assert!(chain_spec.is_fork_active_at_block(OpHardfork::Bedrock, 10));
+        assert!(chain_spec.is_fork_active_at_timestamp(OpHardfork::Regolith, 20));
+        assert!(chain_spec.is_fork_active_at_timestamp(OpHardfork::Canyon, 30));
+        assert!(chain_spec.is_fork_active_at_timestamp(OpHardfork::Ecotone, 40));
+        assert!(chain_spec.is_fork_active_at_timestamp(OpHardfork::Fjord, 50));
+        assert!(chain_spec.is_fork_active_at_timestamp(OpHardfork::Granite, 51));
+        assert!(chain_spec.is_fork_active_at_timestamp(OpHardfork::Holocene, 52));
+    }
+
+    #[test]
+    fn parse_genesis_optimism_with_variable_base_fee_params() {
+        use op_alloy_rpc_types::OpBaseFeeInfo;
+
+        let geth_genesis = r#"
+    {
+      "config": {
+        "chainId": 8453,
+        "homesteadBlock": 0,
+        "eip150Block": 0,
+        "eip155Block": 0,
+        "eip158Block": 0,
+        "byzantiumBlock": 0,
+        "constantinopleBlock": 0,
+        "petersburgBlock": 0,
+        "istanbulBlock": 0,
+        "muirGlacierBlock": 0,
+        "berlinBlock": 0,
+        "londonBlock": 0,
+        "arrowGlacierBlock": 0,
+        "grayGlacierBlock": 0,
+        "mergeNetsplitBlock": 0,
+        "bedrockBlock": 0,
+        "regolithTime": 15,
+        "terminalTotalDifficulty": 0,
+        "terminalTotalDifficultyPassed": true,
+        "optimism": {
+          "eip1559Elasticity": 6,
+          "eip1559Denominator": 50
+        }
+      }
+    }
+    "#;
+        let genesis: Genesis = serde_json::from_str(geth_genesis).unwrap();
+        let chainspec = OpChainSpec::from(genesis.clone());
+
+        let actual_chain_id = genesis.config.chain_id;
+        assert_eq!(actual_chain_id, 8453);
+
+        assert_eq!(
+            chainspec.hardforks.get(EthereumHardfork::Istanbul),
+            Some(ForkCondition::Block(0))
+        );
+
+        let actual_bedrock_block = genesis.config.extra_fields.get("bedrockBlock");
+        assert_eq!(actual_bedrock_block, Some(serde_json::Value::from(0)).as_ref());
+        let actual_canyon_timestamp = genesis.config.extra_fields.get("canyonTime");
+        assert_eq!(actual_canyon_timestamp, None);
+
+        assert!(genesis.config.terminal_total_difficulty_passed);
+
+        let optimism_object = genesis.config.extra_fields.get("optimism").unwrap();
+        let optimism_base_fee_info =
+            serde_json::from_value::<OpBaseFeeInfo>(optimism_object.clone()).unwrap();
+
+        assert_eq!(
+            optimism_base_fee_info,
+            OpBaseFeeInfo {
+                eip1559_elasticity: Some(6),
+                eip1559_denominator: Some(50),
+                eip1559_denominator_canyon: None,
+            }
+        );
+        assert_eq!(
+            chainspec.base_fee_params,
+            BaseFeeParamsKind::Constant(BaseFeeParams {
+                max_change_denominator: 50,
+                elasticity_multiplier: 6,
+            })
+        );
+
+        assert!(chainspec.is_fork_active_at_block(OpHardfork::Bedrock, 0));
+
+        assert!(chainspec.is_fork_active_at_timestamp(OpHardfork::Regolith, 20));
+    }
+
+    #[test]
+    fn test_fork_order_optimism_mainnet() {
+        use reth_optimism_forks::OpHardfork;
+
+        let genesis = Genesis {
+            config: ChainConfig {
+                chain_id: 0,
+                homestead_block: Some(0),
+                dao_fork_block: Some(0),
+                dao_fork_support: false,
+                eip150_block: Some(0),
+                eip155_block: Some(0),
+                eip158_block: Some(0),
+                byzantium_block: Some(0),
+                constantinople_block: Some(0),
+                petersburg_block: Some(0),
+                istanbul_block: Some(0),
+                muir_glacier_block: Some(0),
+                berlin_block: Some(0),
+                london_block: Some(0),
+                arrow_glacier_block: Some(0),
+                gray_glacier_block: Some(0),
+                merge_netsplit_block: Some(0),
+                shanghai_time: Some(0),
+                cancun_time: Some(0),
+                prague_time: Some(0),
+                terminal_total_difficulty: Some(U256::ZERO),
+                extra_fields: [
+                    (String::from("bedrockBlock"), 0.into()),
+                    (String::from("regolithTime"), 0.into()),
+                    (String::from("canyonTime"), 0.into()),
+                    (String::from("ecotoneTime"), 0.into()),
+                    (String::from("fjordTime"), 0.into()),
+                    (String::from("graniteTime"), 0.into()),
+                    (String::from("holoceneTime"), 0.into()),
+                    (String::from("isthmusTime"), 0.into()),
+                    (String::from("jovianTime"), 0.into()),
+                ]
+                .into_iter()
+                .collect(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let chain_spec: OpChainSpec = genesis.into();
+
+        let hardforks: Vec<_> = chain_spec.hardforks.forks_iter().map(|(h, _)| h).collect();
+        let expected_hardforks = vec![
+            EthereumHardfork::Frontier.boxed(),
+            EthereumHardfork::Homestead.boxed(),
+            EthereumHardfork::Tangerine.boxed(),
+            EthereumHardfork::SpuriousDragon.boxed(),
+            EthereumHardfork::Byzantium.boxed(),
+            EthereumHardfork::Constantinople.boxed(),
+            EthereumHardfork::Petersburg.boxed(),
+            EthereumHardfork::Istanbul.boxed(),
+            EthereumHardfork::MuirGlacier.boxed(),
+            EthereumHardfork::Berlin.boxed(),
+            EthereumHardfork::London.boxed(),
+            EthereumHardfork::ArrowGlacier.boxed(),
+            EthereumHardfork::GrayGlacier.boxed(),
+            EthereumHardfork::Paris.boxed(),
+            OpHardfork::Bedrock.boxed(),
+            OpHardfork::Regolith.boxed(),
+            EthereumHardfork::Shanghai.boxed(),
+            OpHardfork::Canyon.boxed(),
+            EthereumHardfork::Cancun.boxed(),
+            OpHardfork::Ecotone.boxed(),
+            OpHardfork::Fjord.boxed(),
+            OpHardfork::Granite.boxed(),
+            OpHardfork::Holocene.boxed(),
+            EthereumHardfork::Prague.boxed(),
+            OpHardfork::Isthmus.boxed(),
+            OpHardfork::Jovian.boxed(),
+            // OpHardfork::Lagoon.boxed(),
+        ];
+
+        for (expected, actual) in expected_hardforks.iter().zip(hardforks.iter()) {
+            assert_eq!(&**expected, &**actual);
+        }
+        assert_eq!(expected_hardforks.len(), hardforks.len());
+    }
+
+    #[test]
+    fn json_genesis() {
+        let geth_genesis = r#"
+{
+    "config": {
+        "chainId": 1301,
+        "homesteadBlock": 0,
+        "eip150Block": 0,
+        "eip155Block": 0,
+        "eip158Block": 0,
+        "byzantiumBlock": 0,
+        "constantinopleBlock": 0,
+        "petersburgBlock": 0,
+        "istanbulBlock": 0,
+        "muirGlacierBlock": 0,
+        "berlinBlock": 0,
+        "londonBlock": 0,
+        "arrowGlacierBlock": 0,
+        "grayGlacierBlock": 0,
+        "mergeNetsplitBlock": 0,
+        "shanghaiTime": 0,
+        "cancunTime": 0,
+        "bedrockBlock": 0,
+        "regolithTime": 0,
+        "canyonTime": 0,
+        "ecotoneTime": 0,
+        "fjordTime": 0,
+        "graniteTime": 0,
+        "holoceneTime": 1732633200,
+        "terminalTotalDifficulty": 0,
+        "terminalTotalDifficultyPassed": true,
+        "optimism": {
+            "eip1559Elasticity": 6,
+            "eip1559Denominator": 50,
+            "eip1559DenominatorCanyon": 250
+        }
+    },
+    "nonce": "0x0",
+    "timestamp": "0x66edad4c",
+    "extraData": "0x424544524f434b",
+    "gasLimit": "0x1c9c380",
+    "difficulty": "0x0",
+    "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "coinbase": "0x4200000000000000000000000000000000000011",
+    "alloc": {},
+    "number": "0x0",
+    "gasUsed": "0x0",
+    "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "baseFeePerGas": "0x3b9aca00",
+    "excessBlobGas": "0x0",
+    "blobGasUsed": "0x0"
+}
+        "#;
+
+        let genesis: Genesis = serde_json::from_str(geth_genesis).unwrap();
+        let chainspec = OpChainSpec::from_genesis(genesis);
+        assert!(chainspec.is_holocene_active_at_timestamp(1732633200));
+    }
+
+    #[test]
+    fn json_genesis_mapped_l1_timestamps() {
+        let geth_genesis = r#"
+{
+    "config": {
+        "chainId": 1301,
+        "homesteadBlock": 0,
+        "eip150Block": 0,
+        "eip155Block": 0,
+        "eip158Block": 0,
+        "byzantiumBlock": 0,
+        "constantinopleBlock": 0,
+        "petersburgBlock": 0,
+        "istanbulBlock": 0,
+        "muirGlacierBlock": 0,
+        "berlinBlock": 0,
+        "londonBlock": 0,
+        "arrowGlacierBlock": 0,
+        "grayGlacierBlock": 0,
+        "mergeNetsplitBlock": 0,
+        "bedrockBlock": 0,
+        "regolithTime": 0,
+        "canyonTime": 0,
+        "ecotoneTime": 1712633200,
+        "fjordTime": 0,
+        "graniteTime": 0,
+        "holoceneTime": 1732633200,
+        "isthmusTime": 1742633200,
+        "terminalTotalDifficulty": 0,
+        "terminalTotalDifficultyPassed": true,
+        "optimism": {
+            "eip1559Elasticity": 6,
+            "eip1559Denominator": 50,
+            "eip1559DenominatorCanyon": 250
+        }
+    },
+    "nonce": "0x0",
+    "timestamp": "0x66edad4c",
+    "extraData": "0x424544524f434b",
+    "gasLimit": "0x1c9c380",
+    "difficulty": "0x0",
+    "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "coinbase": "0x4200000000000000000000000000000000000011",
+    "alloc": {},
+    "number": "0x0",
+    "gasUsed": "0x0",
+    "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "baseFeePerGas": "0x3b9aca00",
+    "excessBlobGas": "0x0",
+    "blobGasUsed": "0x0"
+}
+        "#;
+
+        let genesis: Genesis = serde_json::from_str(geth_genesis).unwrap();
+        let chainspec = OpChainSpec::from_genesis(genesis);
+        assert!(chainspec.is_holocene_active_at_timestamp(1732633200));
+
+        assert!(chainspec.is_shanghai_active_at_timestamp(0));
+        assert!(chainspec.is_canyon_active_at_timestamp(0));
+
+        assert!(chainspec.is_ecotone_active_at_timestamp(1712633200));
+        assert!(chainspec.is_cancun_active_at_timestamp(1712633200));
+
+        assert!(chainspec.is_prague_active_at_timestamp(1742633200));
+        assert!(chainspec.is_isthmus_active_at_timestamp(1742633200));
+    }
+
+    #[test]
+    fn display_hardorks() {
+        let content = OP_MAINNET.display_hardforks().to_string();
+        for eth_hf in EthereumHardfork::VARIANTS {
+            assert!(!content.contains(eth_hf.name()));
+        }
+    }
+
+    // Mainnets get the 11-enode pool, sepolias the 8-enode pool.
+    #[cfg(feature = "superchain-configs")]
+    #[test]
+    fn op_stack_default_bootnodes() {
+        assert_eq!(OP_MAINNET.bootnodes().expect("op-mainnet bootnodes").len(), 11);
+        assert_eq!(UNICHAIN_MAINNET.bootnodes().expect("unichain-mainnet bootnodes").len(), 11);
+        assert_eq!(OP_SEPOLIA.bootnodes().expect("op-sepolia bootnodes").len(), 8);
+        assert_eq!(UNICHAIN_SEPOLIA.bootnodes().expect("unichain-sepolia bootnodes").len(), 8);
+    }
+}

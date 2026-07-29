@@ -1,0 +1,59 @@
+[package]
+name = "kona-hardforks"
+version = "0.4.5"
+description = "Consensus hardfork types for the OP Stack"
+
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+exclude.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Workspace
+kona-genesis.workspace = true
+
+# Alloy
+alloy-eips.workspace = true
+alloy-primitives = { workspace = true, features = ["rlp"] }
+
+# OP Alloy
+op-alloy-consensus.workspace = true
+
+# Caching for build-script-generated NUT bundle constructors. The `race`
+# feature enables `once_cell::race::OnceBox`, which is lock-free and works
+# on `no_std` targets without a critical-section implementation.
+once_cell = { workspace = true, features = ["race"] }
+
+[build-dependencies]
+anyhow.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+
+[dev-dependencies]
+alloy-primitives = { workspace = true, features = ["rand", "arbitrary"] }
+anyhow.workspace = true
+revm.workspace = true
+op-revm.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+
+[features]
+default = []
+std = [
+	"alloy-eips/std",
+	"alloy-primitives/std",
+	"anyhow/std",
+	"kona-genesis/std",
+	"once_cell/std",
+	"op-alloy-consensus/std",
+	"serde/std",
+	"serde_json/std",
+]
+k256 = [ "alloy-primitives/k256", "op-alloy-consensus/k256" ]
+kzg = [ "alloy-eips/kzg", "op-alloy-consensus/kzg", "std" ]

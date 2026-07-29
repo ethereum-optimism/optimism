@@ -1,0 +1,141 @@
+# default recipe to display help information
+default:
+  @just --list
+
+# Check for unused dependencies in the crate graph.
+check-udeps:
+  cargo +nightly udeps --workspace --lib --examples --tests --benches --all-features --locked
+
+# Run unit tests with optional edge storage feature
+test edge='':
+  #!/usr/bin/env bash
+  set -euo pipefail
+  RUST_BACKTRACE=1 cargo nextest run \
+    --features "asm-keccak {{edge}}" --locked \
+    --workspace \
+    --no-tests=warn \
+    -E "!kind(test) and not binary(e2e_testsuite) and not test(test_online)"
+
+# Run integration tests for reth-optimism-node
+test-integration:
+  RUST_BACKTRACE=1 cargo nextest run --locked -p reth-optimism-node
+
+# Build all examples
+examples:
+  cargo build --examples --locked
+
+# Regenerate the reth-optimism-chainspec superchain archive
+# (res/superchain-configs.tar + .sha256) and chain_specs.rs from the
+# superchain-registry submodule. The repo-root `just sync-superchain-rust` runs
+# this for op-reth.
+sync-superchain: update-superchain-registry-submodule
+  OP_RETH_SYNC_SUPERCHAIN=1 cargo build -p reth-optimism-chainspec --features superchain-configs
+
+# Initialize/update the superchain-registry submodule (delegates to the root recipe
+# that encapsulates the correct scoped, shallow update).
+update-superchain-registry-submodule:
+  cd "$(git rev-parse --show-toplevel)" && just update-superchain-registry-submodule
+
+# Run unit tests
+test-unit:
+  cargo install cargo-nextest --locked
+  cargo nextest run --locked --workspace --features 'jemalloc-prof' -E 'kind(lib)' -E 'kind(bin)' -E 'kind(proc-macro)'
+
+# Run unit tests with coverage
+cov-unit:
+  rm -f lcov.info
+  cargo llvm-cov nextest --lcov --output-path lcov.info --locked --workspace --features 'jemalloc-prof' -E 'kind(lib)' -E 'kind(bin)' -E 'kind(proc-macro)'
+
+# Generate an HTML coverage report and open it in the browser
+cov-report-html: cov-unit
+  cargo llvm-cov report --html
+  open target/llvm-cov/html/index.html
+
+# Format Rust code with nightly
+fmt:
+  cargo +nightly fmt
+
+# Run clippy lints
+clippy:
+  cargo +nightly clippy \
+    --workspace \
+    --lib \
+    --examples \
+    --tests \
+    --benches \
+    --all-features \
+    -- -D warnings
+
+# Check for typos in the codebase
+lint-typos:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  if ! command -v typos &> /dev/null; then
+    echo "typos not found. Please install it by running: cargo install typos-cli"
+    echo "See: https://github.com/crate-ci/typos"
+    exit 1
+  fi
+  typos
+
+# Lint and format TOML files with dprint
+lint-toml:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  if ! command -v dprint &> /dev/null; then
+    echo "dprint not found. Please install it by running: cargo install --locked dprint"
+    echo "See: https://github.com/dprint/dprint"
+    exit 1
+  fi
+  dprint fmt
+
+# Run all linters (fmt, clippy, typos, toml)
+lint: fmt clippy lint-typos lint-toml
+
+# Run clippy with auto-fix
+clippy-fix:
+  cargo +nightly clippy \
+    --workspace \
+    --lib \
+    --examples \
+    --tests \
+    --benches \
+    --all-features \
+    --fix \
+    --allow-staged \
+    --allow-dirty \
+    -- -D warnings
+
+# Run clippy fix and format
+fix-lint: clippy-fix fmt
+
+# Generate Rust documentation
+rustdocs:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  RUSTDOCFLAGS="\
+    --cfg docsrs \
+    --show-type-layout \
+    --generate-link-to-definition \
+    --enable-index-page -Zunstable-options -D warnings" \
+    cargo +nightly doc \
+    --document-private-items
+
+# Run cargo tests across the workspace
+cargo-test:
+  cargo test \
+    --workspace \
+    --bin "op-reth" \
+    --lib --examples \
+    --tests \
+    --benches \
+    --all-features
+
+# Run documentation tests
+test-doc:
+  cargo test --doc --workspace --all-features
+
+# Run all tests (cargo + doc)
+test-all: cargo-test test-doc
+
+# Run lints, docs, and all tests
+pr: lint rustdocs test-all

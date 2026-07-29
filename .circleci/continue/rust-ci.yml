@@ -1,0 +1,1026 @@
+version: 2.1
+
+# Unified Rust CI Configuration
+# This file contains all Rust CI commands, parameterized jobs, crate-specific jobs, and workflows.
+
+orbs:
+  utils: ethereum-optimism/circleci-utils@1.0.27
+  gcp-cli: circleci/gcp-cli@3.0.1
+
+parameters:
+  c-default_docker_image:
+    type: string
+    default: cimg/base:2026.03
+  c-rust_base_image:
+    type: string
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-base-clang@sha256:873a6709dd48d7706b0baee139300f18ab7babf4a66f982b2383fe51ce2e5489
+  c-base_image:
+    type: string
+    default: default
+  # Workflow activation flags (set by compute-workflow-conditions.sh)
+  c-run_rust_ci:
+    type: boolean
+    default: false
+  c-run_rust_ci_gate_short:
+    type: boolean
+    default: false
+  c-run_kona_publish_prestates:
+    type: boolean
+    default: false
+
+# ============================================================================
+# JOBS
+# ============================================================================
+jobs:
+  # --------------------------------------------------------------------------
+  # Shared parameterized jobs (reusable templates)
+  # --------------------------------------------------------------------------
+
+  # Shared format check job
+  rust-ci-fmt:
+    parameters:
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+      command:
+        description: "Format check command to run"
+        type: string
+        default: "just fmt-check"
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: medium.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache:
+          directory: <<parameters.directory>>
+          init_superchain_submodule: false
+      - run:
+          name: Check formatting
+          working_directory: <<parameters.directory>>
+          command: <<parameters.command>>
+      # No cache save: downloads no crates.
+
+  # Shared clippy lint job
+  rust-ci-clippy:
+    parameters:
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+      command:
+        description: "Clippy command to run"
+        type: string
+        default: "cargo clippy --workspace --all-targets --all-features"
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: medium.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &clippy-cache-args
+          directory: <<parameters.directory>>
+          features: "all"
+      - run:
+          name: Run clippy
+          working_directory: <<parameters.directory>>
+          no_output_timeout: 30m
+          environment:
+            RUSTFLAGS: -Dwarnings
+          command: <<parameters.command>>
+      - rust-save-build-cache: *clippy-cache-args
+
+  # Shared cargo deny job
+  rust-ci-deny:
+    parameters:
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+      command:
+        description: "Cargo deny command to run"
+        type: string
+        default: "cargo deny check"
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: medium.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache:
+          directory: <<parameters.directory>>
+          init_superchain_submodule: false
+      - run:
+          name: Run cargo deny
+          working_directory: <<parameters.directory>>
+          command: <<parameters.command>>
+      # No cache save: downloads no crates (index/advisory DB only).
+      # rust-deny only runs on develop (see workflow filter); on failure, ping
+      # @protocol-oncall in Slack since it gates post-merge, not the PR.
+      - notify-failures-on-develop:
+          mentions: "@protocol-oncall"
+
+  # Shared zepter feature propagation job
+  rust-ci-zepter:
+    parameters:
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+      command:
+        description: "Zepter command to run"
+        type: string
+        default: "zepter run check"
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: medium.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache:
+          directory: <<parameters.directory>>
+          init_superchain_submodule: false
+      - run:
+          name: Check feature propagation
+          working_directory: <<parameters.directory>>
+          command: <<parameters.command>>
+      # No cache save: downloads no crates.
+
+  # Shared typos check job
+  rust-ci-typos:
+    parameters:
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: medium.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache:
+          directory: <<parameters.directory>>
+          init_superchain_submodule: false
+      - run:
+          name: Check for typos
+          working_directory: <<parameters.directory>>
+          command: typos
+      # No cache save: downloads no crates.
+
+  # Shared no_std compatibility check job
+  rust-ci-check-no-std:
+    parameters:
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+      command:
+        description: "Command to run for no_std check"
+        type: string
+        default: "just check-no-std"
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: medium.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &no-std-cache-args
+          directory: <<parameters.directory>>
+          init_superchain_submodule: false
+      - run:
+          name: Check no_std compatibility
+          working_directory: <<parameters.directory>>
+          no_output_timeout: 30m
+          command: <<parameters.command>>
+      - rust-save-build-cache: *no-std-cache-args
+
+  # Shared documentation build job
+  rust-ci-docs:
+    parameters:
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+      command:
+        description: "Doc build command to run"
+        type: string
+        default: "just lint-docs"
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: xlarge.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &docs-cache-args
+          directory: <<parameters.directory>>
+          features: "all"
+      - run:
+          name: Build documentation
+          working_directory: <<parameters.directory>>
+          no_output_timeout: 30m
+          command: <<parameters.command>>
+      - rust-save-build-cache: *docs-cache-args
+
+  # Shared doc test job
+  rust-ci-doctest:
+    parameters:
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+      command:
+        description: "Doc test command to run"
+        type: string
+        default: "just test-docs"
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: 2xlarge.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &doctest-cache-args
+          directory: <<parameters.directory>>
+      - run:
+          name: Run doc tests
+          working_directory: <<parameters.directory>>
+          no_output_timeout: 30m
+          command: <<parameters.command>>
+      - rust-save-build-cache: *doctest-cache-args
+
+  # Shared cargo tests job
+  rust-ci-cargo-tests:
+    parameters:
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+      command:
+        description: "Just recipe to run (e.g. test, test-integration)"
+        type: string
+        default: "test"
+      flags:
+        description: "Flags passed to just command (e.g. --all-features, --no-default-features)"
+        type: string
+        default: ""
+      cache_profile:
+        description: "Build profile for caching"
+        type: string
+        default: "release"
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: 2xlarge.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &tests-cache-args
+          directory: <<parameters.directory>>
+          profile: <<parameters.cache_profile>>
+      - run:
+          name: Run cargo tests
+          working_directory: <<parameters.directory>>
+          no_output_timeout: 40m
+          command: just <<parameters.command>> <<parameters.flags>>
+      # Surface individual test results in the CircleCI UI, including on failure.
+      # nextest writes JUnit to <workspace>/target/nextest/default/junit.xml.
+      - store_test_results:
+          path: <<parameters.directory>>/target/nextest/default
+          when: always
+      # Raw JUnit as an artifact, for debugging when store_test_results reports 0
+      # results (see ethereum-optimism/optimism#19577).
+      - store_artifacts:
+          path: <<parameters.directory>>/target/nextest/default/junit.xml
+          destination: junit
+          when: always
+      - rust-save-build-cache: *tests-cache-args
+
+  # Cross-language differential test: runs the Go and Rust dumps of the Interop
+  # activation deposits and asserts byte-identical stdout.
+  interop-deposits-go-rust-diff:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: medium.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &interop-diff-cache-args
+          directory: rust
+          profile: debug
+      # The diff script runs `go run ./op-node/cmd/interop-deposits-dump`, so it
+      # builds Go code. Restore the shared Go module cache to avoid a cold
+      # `go mod download` (slow, and a per-pipeline proxy.golang.org flake risk).
+      - restore-go-mod-cache
+      # Build the superchain-configs.zip the Go dumper //go:embeds (no prep-superchain job here).
+      - run:
+          name: Build superchain bundle
+          command: just build-superchain-go
+      - run:
+          name: Cross-language Interop activation diff
+          command: |
+            bash ops/scripts/test-interop-deposits-diff.sh
+      - rust-save-build-cache: *interop-diff-cache-args
+
+  # Shared unused dependencies check job
+  rust-ci-udeps:
+    parameters:
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+      command:
+        description: "Command to run for unused dependency check"
+        type: string
+        default: "just check-udeps"
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: medium.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &udeps-cache-args
+          directory: <<parameters.directory>>
+          profile: "release"
+      - run:
+          name: Check unused dependencies
+          working_directory: <<parameters.directory>>
+          no_output_timeout: 40m
+          command: <<parameters.command>>
+      - rust-save-build-cache: *udeps-cache-args
+
+  # Lint + test job for vendored Rust workspaces that live as subdirectories
+  # of `rust/` (op-rbuilder, rollup-boost). Mirrors what upstream gates on in
+  # GitHub Actions: lint (fmt + clippy) and test against the vendored Cargo
+  # workspace. Optional pre-step + apt packages cover upstream-specific needs
+  # like building a test helper binary or installing native deps.
+  rust-vendored-checks:
+    parameters:
+      directory:
+        description: "Directory containing the vendored Cargo workspace"
+        type: string
+      apt_packages:
+        description: "Space-separated apt packages to install before building (e.g. native deps for sys crates)."
+        type: string
+        default: ""
+      pre_command:
+        description: "Optional command to run before lint/test (e.g. build a tester helper binary). Runs in <directory>."
+        type: string
+        default: ""
+      lint_command:
+        description: "Lint command to run (in <directory>)."
+        type: string
+        default: "make lint"
+      test_command:
+        description: "Test command to run (in <directory>)."
+        type: string
+        default: "make test"
+      resource_class:
+        description: "CircleCI resource class for the job runner."
+        type: string
+        default: "xlarge"
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: <<parameters.resource_class>>
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - when:
+          condition: <<parameters.apt_packages>>
+          steps:
+            - apt-install:
+                packages: <<parameters.apt_packages>>
+                extra_flags: "--no-install-recommends"
+      - rust-prepare-and-restore-cache: &vendored-checks-cache-args
+          directory: <<parameters.directory>>
+      - when:
+          condition: <<parameters.pre_command>>
+          steps:
+            - run:
+                name: Pre-check setup
+                working_directory: <<parameters.directory>>
+                no_output_timeout: 30m
+                command: <<parameters.pre_command>>
+      - run:
+          name: Lint
+          working_directory: <<parameters.directory>>
+          no_output_timeout: 20m
+          command: <<parameters.lint_command>>
+      - run:
+          name: Test
+          working_directory: <<parameters.directory>>
+          no_output_timeout: 40m
+          environment:
+            TESTS_TEMP_DIR: /tmp/rust-vendored-tests
+          command: |
+            mkdir -p "$TESTS_TEMP_DIR"
+            <<parameters.test_command>>
+      - rust-save-build-cache: *vendored-checks-cache-args
+
+  # Shared cargo hack build job (cross-compile targets like WASM)
+  rust-ci-cargo-hack-build:
+    parameters:
+      directory:
+        description: "Directory containing the Cargo workspace"
+        type: string
+      target:
+        description: "Target architecture to build for (e.g. wasm32-unknown-unknown)"
+        type: string
+      flags:
+        description: "Flags appended to cargo hack build --target <target>"
+        type: string
+        default: "--workspace"
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: medium.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &hack-build-cache-args
+          directory: <<parameters.directory>>
+      - run:
+          name: Build for <<parameters.target>>
+          working_directory: <<parameters.directory>>
+          no_output_timeout: 40m
+          command: rustup target add <<parameters.target>> && cargo hack build --target <<parameters.target>> <<parameters.flags>>
+      - rust-save-build-cache: *hack-build-cache-args
+
+  # Shared cargo hack job
+  rust-ci-cargo-hack:
+    parameters:
+      parallelism:
+        description: "Number of parallel nodes (adds --partition automatically when > 1)"
+        type: integer
+        default: 1
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: xlarge.gen2
+    parallelism: <<parameters.parallelism>>
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache: &hack-cache-args
+          directory: rust
+          features: "all"
+      - run:
+          name: Run cargo hack
+          working_directory: rust
+          no_output_timeout: 60m
+          command: |
+            PARTITION_FLAG=""
+            if [ "$CIRCLE_NODE_TOTAL" -gt 1 ]; then
+              PARTITION_FLAG="$((CIRCLE_NODE_INDEX + 1))/$CIRCLE_NODE_TOTAL"
+            fi
+            just hack "$PARTITION_FLAG" "true" "$CIRCLE_WORKFLOW_ID"
+      - rust-save-build-cache: *hack-cache-args
+
+  # --------------------------------------------------------------------------
+  # OP-Reth crate-specific jobs
+  # --------------------------------------------------------------------------
+
+  # OP-Reth compact codec backwards compatibility
+  op-reth-compact-codec:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    # This job frequently gets killed for smaller resource_class
+    resource_class: xlarge.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache:
+          directory: rust
+          profile: debug
+      - run:
+          name: Generate compact vectors from base
+          command: |
+            # Use develop as the base branch
+            BASE_BRANCH="develop"
+            SUPERCHAIN_TAR="rust/op-reth/crates/chainspec/res/superchain-configs.tar"
+
+            # `git checkout` switches between base and PR without touching the superchain-registry
+            # submodule working tree or the gitignored res/superchain-configs.tar. op-reth
+            # chainspec's build.rs (superchain-configs is a hard dep of the op-reth bin) regenerates
+            # that tar from the submodule and validates it against the committed .sha256, so on a PR
+            # that bumps the submodule it panics on a base-vs-PR mismatch. After each checkout,
+            # re-sync the submodule to the checked-out pin and drop the stale tar so build.rs
+            # regenerates it from the now-current submodule.
+            sync_superchain() {
+              just update-superchain-registry-submodule
+              rm -f "$SUPERCHAIN_TAR"
+            }
+
+            # Save current state
+            git stash || true
+            git fetch origin $BASE_BRANCH
+            git checkout origin/$BASE_BRANCH
+            sync_superchain
+
+            # Generate vectors on base
+            cargo run --bin op-reth --features "dev" --manifest-path rust/op-reth/bin/Cargo.toml -- test-vectors compact --write
+
+            # Return to PR branch
+            git checkout -
+            sync_superchain
+            git stash pop || true
+      - run:
+          name: Read compact vectors on PR branch
+          command: |
+            cargo run --bin op-reth --features "dev" --manifest-path rust/op-reth/bin/Cargo.toml -- test-vectors compact --read
+      # No cache save: single-package build, partial registry.
+
+  # --------------------------------------------------------------------------
+  # Kona crate-specific jobs
+  # --------------------------------------------------------------------------
+
+  # Kona Host Client Offline Runs
+  kona-host-client-offline:
+    parameters:
+    machine:
+      image: <<pipeline.parameters.c-base_image>>
+      docker_layer_caching: true
+    resource_class: xlarge.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - install-zstd
+      - apt-install:
+          packages: "clang llvm-dev libclang-dev"
+          extra_flags: "--no-install-recommends"
+      - rust-prepare
+      - run:
+          name: Build cannon
+          command: |
+            cd cannon && just cannon
+            sudo mv ./bin/cannon /usr/local/bin/
+      - run:
+          name: Set run environment
+          command: |
+            echo 'export BLOCK_NUMBER=42427365' >> $BASH_ENV
+            echo 'export L2_CLAIM=0xaaf7cb1725cb9766899cbd78866270d8561e79b91c00be5c53adb7699e0e7715' >> $BASH_ENV
+            echo 'export L2_OUTPUT_ROOT=0xac90a2e8cfee33ecb47b73f3e83f9aa18ff7ecf28bc8d34b2de857919e50b6c6' >> $BASH_ENV
+            echo 'export L2_HEAD=0xc5fa07d52e83f7a2e68de356e7a7bfc9306a9b28666ec6c9cc6e4f8e1b268278' >> $BASH_ENV
+            echo 'export L1_HEAD=0xab33322985684f2c6fbcf375bdcb69cc0f10547e58cb5a7b889172ee9ea77aef' >> $BASH_ENV
+            echo 'export L2_CHAIN_ID=11155420' >> $BASH_ENV
+      - run:
+          name: Run host + client offline
+          working_directory: rust/kona/bin/client
+          no_output_timeout: 40m
+          command: |
+            # Pre-create the workspace target dir as the circleci user. Without
+            # this, `just build-cannon-client` (invoked inside run-client-cannon-offline)
+            # runs Docker as root and creates `rust/target/` with root ownership,
+            # which then breaks the subsequent native `cargo build --bin kona-host`
+            # with EACCES when it tries to create `target/debug`.
+            mkdir -p ../../../target
+            just run-client-cannon-offline \
+              $BLOCK_NUMBER \
+              $L2_CLAIM \
+              $L2_OUTPUT_ROOT \
+              $L2_HEAD \
+              $L1_HEAD \
+              $L2_CHAIN_ID
+
+  # Kona Rust CI - Lint (cannon target)
+  kona-cargo-lint:
+    parameters:
+      target:
+        description: The lint target (native, cannon)
+        type: string
+    machine:
+      image: <<pipeline.parameters.c-base_image>>
+      docker_layer_caching: true
+    resource_class: xlarge.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - apt-install:
+          packages: "clang llvm-dev libclang-dev"
+          extra_flags: "--no-install-recommends"
+      - rust-prepare-and-restore-cache:
+          directory: rust
+          features: "all"
+      - run:
+          name: Run fmt + lint for <<parameters.target>>
+          working_directory: rust/kona
+          no_output_timeout: 40m
+          command: |
+            just lint-<<parameters.target>>
+
+  # Kona Build FPVM targets
+  kona-build-fpvm:
+    parameters:
+      target:
+        description: The build target (cannon-client)
+        type: string
+    machine:
+      image: <<pipeline.parameters.c-base_image>>
+      docker_layer_caching: true
+    resource_class: xlarge.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - apt-install:
+          packages: "clang llvm-dev libclang-dev"
+          extra_flags: "--no-install-recommends"
+      - rust-prepare
+      - run:
+          name: Build <<parameters.target>>
+          working_directory: rust/kona
+          no_output_timeout: 40m
+          command: |
+            just build-<<parameters.target>>
+
+  # Verifies that the committed `etc/{chainList,configs,depsets}.json` snapshots
+  # in `kona-registry` match what `KONA_SYNC_SUPERCHAIN=true cargo build -p kona-registry`
+  # would regenerate from the current `superchain-registry` submodule. Catches
+  # drift between submodule and snapshot — i.e. someone bumped the submodule
+  # without refreshing the snapshots, or hand-edited the snapshots, or refreshed
+  # only some of the three coupled files.
+  kona-registry-snapshot-check:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: medium.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache:
+          directory: rust
+      - run:
+          name: Regenerate kona-registry snapshots
+          working_directory: rust/kona
+          environment:
+            KONA_SYNC_SUPERCHAIN: "true"
+          command: cargo build -p kona-registry
+      - run:
+          name: Assert committed snapshots match regenerated output
+          command: |
+            if ! git diff --exit-code -- \
+                rust/kona/crates/protocol/registry/etc/; then
+              echo
+              echo "kona-registry etc/ snapshots are out of sync with the"
+              echo "superchain-registry submodule. Run:"
+              echo
+              echo "  KONA_SYNC_SUPERCHAIN=true cargo build -p kona-registry"
+              echo
+              echo "from rust/kona and commit the resulting changes to"
+              echo "rust/kona/crates/protocol/registry/etc/."
+              exit 1
+            fi
+      # No cache save: single-package build, partial registry.
+
+  # Verifies that op-reth's committed superchain-configs.tar.sha256 and the
+  # generated chain_specs.rs match what `OP_RETH_SYNC_SUPERCHAIN=1 cargo build -p
+  # reth-optimism-chainspec --features superchain-configs` regenerates from the
+  # current superchain-registry submodule (the tar itself is gitignored). Catches
+  # a submodule bump without a refresh, or a hand-edited chain_specs.rs.
+  op-reth-superchain-snapshot-check:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: large.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - rust-prepare-and-restore-cache:
+          directory: rust
+      - run:
+          name: Regenerate op-reth superchain archive
+          working_directory: rust
+          environment:
+            OP_RETH_SYNC_SUPERCHAIN: "1"
+          command: cargo build -p reth-optimism-chainspec --features superchain-configs
+      - run:
+          name: Assert committed sha + chain_specs match regenerated output
+          command: |
+            if ! git diff --exit-code -- \
+                rust/op-reth/crates/chainspec/res/superchain-configs.tar.sha256 \
+                rust/op-reth/crates/chainspec/src/superchain/chain_specs.rs; then
+              echo
+              echo "op-reth superchain artifacts are out of sync with the"
+              echo "superchain-registry submodule. Run:"
+              echo
+              echo "  just sync-superchain-rust"
+              echo
+              echo "and commit the updated res/superchain-configs.tar.sha256 and"
+              echo "src/superchain/chain_specs.rs."
+              exit 1
+            fi
+      # No cache save: single-package build, partial registry.
+
+  # Kona Publish Prestate Artifacts
+  kona-publish-prestate-artifacts:
+    parameters:
+      kind:
+        description: The kind of prestate (cannon)
+        type: string
+        default: "cannon"
+      version:
+        description: The version to build (kona-client, kona-client-int)
+        type: string
+    machine:
+      image: <<pipeline.parameters.c-base_image>>
+      docker_layer_caching: true
+    resource_class: xlarge.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - apt-install:
+          packages: "clang llvm-dev libclang-dev"
+          extra_flags: "--no-install-recommends"
+      # No sccache here: the prestate is built reproducibly in Docker
+      # (just build-kona-reproducible-prestate-variant), so the host never
+      # compiles and the job doesn't need the sccache-gcs-optimism context. That
+      # context also defines GCP_SERVICE_ACCOUNT_EMAIL, which would otherwise
+      # shadow the oplabs-network-data publisher SA used by the upload below.
+      - rust-prepare-and-restore-cache:
+          directory: rust
+          profile: release
+          enable_sccache: false
+      - gcp-cli/install
+      - gcp-oidc-authenticate:
+          gcp_cred_config_file_path: /tmp/gcp_cred_config.json
+          oidc_token_file_path: /tmp/oidc_token.json
+      - run:
+          name: Generate prestate artifacts
+          working_directory: rust
+          no_output_timeout: 60m
+          command: |
+            just build-kona-reproducible-prestate-variant "<<parameters.version>>" "prestate-artifacts-<<parameters.kind>>"
+
+      - run:
+          name: Upload prestates to GCS
+          working_directory: rust/kona
+          command: |
+            PRESTATE_HASH=$(jq -r .pre ./prestate-artifacts-<<parameters.kind>>/prestate-proof.json)
+            BRANCH_NAME=$(echo "<< pipeline.git.branch >>" | tr '/' '-')
+            echo "Publishing ${PRESTATE_HASH} as ${BRANCH_NAME}"
+            if [ -n "<< pipeline.git.branch >>" ]; then
+              echo "Publishing commit hash data"
+              INFO_FILE=$(mktemp)
+              (echo "Commit=<< pipeline.git.revision >>" && echo "Prestate: ${PRESTATE_HASH}") > "${INFO_FILE}"
+              gsutil cp "${INFO_FILE}" "gs://oplabs-network-data/proofs/kona/<<parameters.kind>>/${BRANCH_NAME}-<<parameters.version>>.bin.gz.txt"
+              rm "${INFO_FILE}"
+              PRESTATE_HASH="${BRANCH_NAME}-<<parameters.version>>"
+            fi
+            gsutil cp ./prestate-artifacts-<<parameters.kind>>/prestate.bin.gz "gs://oplabs-network-data/proofs/kona/<<parameters.kind>>/${PRESTATE_HASH}.bin.gz"
+            echo "Successfully published prestates artifacts to GCS"
+      # No cache save: builds in Docker, host registry stays empty.
+
+  required-rust-ci:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    parameters:
+      always-succeed:
+        description: Force always succeed (skip API gate)
+        type: boolean
+        default: false
+    steps:
+      - utils/ci-gate:
+          always-succeed: << parameters.always-succeed >>
+
+# ============================================================================
+# WORKFLOWS
+# ============================================================================
+workflows:
+  # ==========================================================================
+  # Unified Rust CI workflow
+  # Runs on rust path changes or manual dispatch with rust_ci_dispatch=true
+  # ==========================================================================
+  rust-ci:
+    when: << pipeline.parameters.c-run_rust_ci >>
+    jobs:
+      # -----------------------------------------------------------------------
+      # Workspace-level jobs (replacing per-crate duplicates)
+      # -----------------------------------------------------------------------
+      - rust-ci-fmt:
+          name: rust-fmt
+          directory: rust
+          context: &rust-ci-context
+            - circleci-repo-readonly-authenticated-github-token
+            # GCP Workload Identity coords + reader SA + bucket for the sccache
+            # GCS compile cache (rust-sccache-setup). Restricted to this project.
+            - sccache-gcs-optimism
+
+      - rust-ci-clippy:
+          name: rust-clippy
+          directory: rust
+          command: "cargo clippy --workspace --all-targets --all-features --locked"
+          context: *rust-ci-context
+
+      - rust-ci-deny:
+          name: rust-deny
+          directory: rust
+          command: "just deny"
+          context: *rust-ci-context
+          # cargo-deny (advisory/license/ban audit) only gates develop, not
+          # PRs/branches. It is intentionally not part of required-rust-ci.
+          filters:
+            branches:
+              only: develop
+
+      - rust-ci-typos:
+          name: rust-typos
+          directory: rust
+          context: *rust-ci-context
+
+      - rust-ci-zepter:
+          name: rust-zepter
+          directory: rust
+          context: *rust-ci-context
+
+      - rust-ci-cargo-tests:
+          name: rust-tests
+          directory: rust
+          context: *rust-ci-context
+
+      - interop-deposits-go-rust-diff:
+          name: interop-deposits-diff
+          context: *rust-ci-context
+
+      - rust-ci-doctest:
+          name: rust-doctest
+          directory: rust
+          context: *rust-ci-context
+
+      - rust-ci-docs:
+          name: rust-docs
+          directory: rust
+          context: *rust-ci-context
+
+      - rust-ci-udeps:
+          name: rust-udeps
+          directory: rust
+          context: *rust-ci-context
+
+      - rust-ci-cargo-hack:
+          name: rust-cargo-hack
+          parallelism: 6
+          context: *rust-ci-context
+
+      - rust-build-binary:
+          name: rust-build
+          directory: rust
+          context: *rust-ci-context
+
+      - rust-build-binary:
+          name: rust-build-release
+          directory: rust
+          profile: release
+          context: *rust-ci-context
+
+      # -----------------------------------------------------------------------
+      # Unified cross-compilation jobs
+      # -----------------------------------------------------------------------
+      - rust-ci-check-no-std:
+          name: rust-check-no-std
+          directory: rust
+          command: |
+            just check-no-std
+          context: *rust-ci-context
+
+      - rust-ci-cargo-hack-build:
+          name: rust-wasm-unknown
+          directory: rust
+          target: wasm32-unknown-unknown
+          flags: "-p op-alloy-consensus -p op-alloy-rpc-types -p op-alloy-rpc-types-engine -p alloy-op-evm --no-default-features"
+          context: *rust-ci-context
+
+      - rust-ci-cargo-hack-build:
+          name: rust-wasm-wasi
+          directory: rust
+          target: wasm32-wasip1
+          flags: "-p op-alloy-consensus -p op-alloy-rpc-types-engine -p alloy-op-evm"
+          context: *rust-ci-context
+
+      # -----------------------------------------------------------------------
+      # OP-Reth crate-specific jobs
+      # -----------------------------------------------------------------------
+      - op-reth-compact-codec:
+          context: *rust-ci-context
+
+      - rust-ci-cargo-tests:
+          name: op-reth-integration-tests
+          directory: rust
+          command: "--justfile op-reth/justfile test-integration"
+          cache_profile: debug
+          context: *rust-ci-context
+
+      # -----------------------------------------------------------------------
+      # Kona crate-specific jobs (lint, FPVM builds, host-client offline)
+      # -----------------------------------------------------------------------
+      - kona-cargo-lint:
+          name: kona-lint-cannon
+          target: "cannon"
+          context: *rust-ci-context
+
+      - kona-build-fpvm:
+          name: kona-build-fpvm-cannon-client
+          target: "cannon-client"
+          context: *rust-ci-context
+
+      - kona-host-client-offline:
+          name: kona-host-client-offline-cannon
+          context: *rust-ci-context
+
+      # Vendored Rust workspaces (op-rbuilder, rollup-boost).
+      # Mirrors upstream's lint + test gates.
+      - rust-vendored-checks:
+          name: op-rbuilder-checks
+          directory: rust/op-rbuilder
+          # libsqlite3 (db), libtss2 (tdx-quote-provider); upstream installs both.
+          apt_packages: "libsqlite3-dev libtss2-dev"
+          # Match upstream's pre-compile of the tester helper + main binary.
+          pre_command: |
+            make tester
+            cargo build -p op-rbuilder --bin op-rbuilder
+          lint_command: "make lint"
+          # nextest's process-per-test isolation keeps RSS bounded; the
+          # single-process `cargo test --lib` form OOMs on 2xlarge.
+          # `--no-default-features --features jemalloc` drops `docker-tests`
+          # (testcontainers needs /var/run/docker.sock, not exposed here).
+          test_command: |
+            cargo nextest run --workspace --test-threads=4 --retries 2 \
+              --no-default-features --features jemalloc
+          resource_class: "2xlarge"
+          context: *rust-ci-context
+
+      - rust-vendored-checks:
+          name: rollup-boost-checks
+          directory: rust/rollup-boost
+          lint_command: "make lint"
+          # `--no-default-features` drops `docker-tests` (no docker socket here).
+          test_command: |
+            cargo build --bin rollup-boost
+            cargo test --workspace --verbose --no-default-features
+          context: *rust-ci-context
+
+      - kona-registry-snapshot-check:
+          context: *rust-ci-context
+
+      - op-reth-superchain-snapshot-check:
+          context: *rust-ci-context
+
+      # -----------------------------------------------------------------------
+      # Required gate — fans in on required Rust CI jobs
+      # -----------------------------------------------------------------------
+      - required-rust-ci:
+          requires:
+            - rust-fmt: terminal
+            - rust-clippy: terminal
+            - rust-typos: terminal
+            - rust-zepter: terminal
+            - rust-tests: terminal
+            - interop-deposits-diff: terminal
+            - rust-doctest: terminal
+            - rust-docs: terminal
+            - rust-udeps: terminal
+            - rust-cargo-hack: terminal
+            - rust-build: terminal
+            - rust-build-release: terminal
+            - rust-check-no-std: terminal
+            - rust-wasm-unknown: terminal
+            - rust-wasm-wasi: terminal
+            - op-reth-compact-codec: terminal
+            - op-reth-integration-tests: terminal
+            - kona-lint-cannon: terminal
+            - kona-build-fpvm-cannon-client: terminal
+            - kona-host-client-offline-cannon: terminal
+            - op-rbuilder-checks: terminal
+            - rollup-boost-checks: terminal
+            - kona-registry-snapshot-check: terminal
+            - op-reth-superchain-snapshot-check: terminal
+          context:
+            - circleci-api-token
+  # =====================================
+
+  # ==========================================================================
+  # Required Rust CI gate (skip) — runs when no rust changes and no dispatch.
+  # This path must complete quickly (e.g., docs-only PRs), so it should avoid
+  # expensive Rust build/test work while still satisfying required check names.
+  # ==========================================================================
+  rust-ci-gate-short:
+    when: << pipeline.parameters.c-run_rust_ci_gate_short >>
+    jobs:
+      - required-rust-ci:
+          always-succeed: true
+          context:
+            - circleci-api-token
+
+  # Kona publish prestate artifacts - on push to develop
+  kona-publish-prestates:
+    when: << pipeline.parameters.c-run_kona_publish_prestates >>
+    jobs:
+      - kona-publish-prestate-artifacts:
+          name: kona-publish-<<matrix.version>>
+          matrix:
+            parameters:
+              version: ["kona-client", "kona-client-int"]
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - oplabs-network-optimism-io-bucket
+
+  # Kona publish prestate artifacts - on kona-client/v* tag push
+  kona-publish-prestates-on-tag:
+    when: << pipeline.parameters.c-run_release >>
+    jobs:
+      - kona-publish-prestate-artifacts:
+          name: kona-publish-<<matrix.version>>
+          matrix:
+            parameters:
+              version: ["kona-client", "kona-client-int"]
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - oplabs-network-optimism-io-bucket
+          filters:
+            tags:
+              only: /^kona-client\/v.*/
+            branches:
+              ignore: /.*/

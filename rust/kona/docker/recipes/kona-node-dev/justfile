@@ -1,0 +1,69 @@
+# print actions
+default:
+	@just -l
+
+# initialize project
+init: && update build-kona-node build-op-reth (create-docker-network "stf-net") up
+	-git clone https://github.com/op-rs/kona.git kona-node/kona
+	-git clone https://github.com/paradigmxyz/reth op-reth/reth
+	-./generate-jwt.sh
+
+# update submodules
+update: && build-kona-node build-op-reth
+	git -C kona-node/kona submodule update --init --remote
+	git -C op-reth/reth submodule update --init --remote
+
+# checkout kona dev branch
+checkout BRANCH="main":
+	git -C kona-node/kona checkout {{BRANCH}}
+
+# pull latest commits
+pull:
+	git -C kona-node/kona pull
+
+# run node (show logs)
+up DETACH="" ENV="publicnode.env":
+	docker compose --env-file={{ENV}} up {{ DETACH }}
+
+# run node (no logs)
+upd: (up "--detach")
+
+# take node down
+down ENV="publicnode.env": #rmi
+	docker compose --env-file={{ENV}} down
+
+# remove images to force rebuild
+rmi:
+	docker image ls "*-op-rs-op-sepolia-*" --format="{{ "{{" }}.Repository{{ "}}" }}" | xargs -r docker rmi -f
+
+restart: down up
+
+restart-with-main: down (checkout "main") (reset-and-build) up
+
+create-docker-network NETWORK="stf-net":
+	-docker network create {{NETWORK}}
+
+setup-ubuntu:
+	-which apt && sudo apt install just git rustup make clang
+	-rustup install nightly
+
+start: stop up
+
+stop: down rmi
+
+reset-git:
+	#!/bin/bash
+	(cd kona-node/kona && (git pull origin "$(git branch --show-current)" || true) && git reset --hard "origin/$(git branch --show-current)")
+
+# build kona
+build-kona-node: rmi
+	#!/bin/bash
+	(cd kona-node/kona && cargo build --bin kona-node --release)
+
+# build reth
+build-op-reth:
+	#!/bin/bash
+	(cd op-reth/reth && cargo build --release)
+
+reset-and-build: reset-git build-kona-node
+

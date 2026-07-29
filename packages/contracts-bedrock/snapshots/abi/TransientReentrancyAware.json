@@ -1,0 +1,12 @@
+[
+  {
+    "inputs": [],
+    "name": "NotEntered",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ReentrantCall",
+    "type": "error"
+  }
+]

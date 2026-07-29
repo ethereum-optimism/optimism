@@ -1,0 +1,191 @@
+services:
+  # Sequencer (op-reth + op-node)
+  op-node:
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:v1.19.3
+    container_name: op-node
+    volumes:
+      - ./sequencer:/workspace
+    working_dir: /workspace
+    env_file:
+      - .env
+    ports:
+      - "8547:8547"
+      - "9222:9222"
+    # --p2p.disable is for local devnets only. Remove that flag for production
+    # deployments. (Inside the folded command string below, "#" would be passed
+    # to op-node as an argument, not treated as a comment.)
+    command: >
+      op-node
+      --l1=${L1_RPC_URL}
+      --l1.beacon=${L1_BEACON_URL}
+      --l2=http://op-reth:8551
+      --l2.jwt-secret=/workspace/jwt.txt
+      --l2.enginekind=reth
+      --rollup.config=/workspace/rollup.json
+      --sequencer.enabled=true
+      --sequencer.stopped=false
+      --sequencer.max-safe-lag=3600
+      --verifier.l1-confs=4
+      --p2p.disable
+      --rpc.addr=0.0.0.0
+      --rpc.port=8547
+      --rpc.enable-admin
+      --log.level=info
+      --log.format=json
+    depends_on:
+      - op-reth
+    healthcheck:
+      test: ["CMD", "wget", "--post-data={\"jsonrpc\":\"2.0\",\"method\":\"optimism_syncStatus\",\"params\":[],\"id\":1}", "--header=Content-Type: application/json", "--quiet", "--tries=1", "--timeout=10", "--output-document=-", "http://localhost:8547"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+
+  op-reth:
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-reth:v2.4.0
+    container_name: op-reth
+    volumes:
+      - ./sequencer:/workspace
+      - op_reth_data:/workspace/op-reth-data
+    working_dir: /workspace
+    env_file:
+      - .env
+    ports:
+      - "8545:8545"
+      - "8546:8546"
+      - "8551:8551"
+    # op-reth initializes its database from the chain spec on first startup;
+    # no separate `init` step is needed.
+    command: >
+      node
+      --chain=/workspace/genesis.json
+      --datadir=/workspace/op-reth-data
+      --http
+      --http.addr=0.0.0.0
+      --http.port=8545
+      --http.corsdomain=*
+      --http.api=admin,debug,eth,net,txpool,web3
+      --ws
+      --ws.addr=0.0.0.0
+      --ws.port=8546
+      --ws.origins=*
+      --ws.api=admin,debug,eth,net,txpool,web3
+      --authrpc.addr=0.0.0.0
+      --authrpc.port=8551
+      --authrpc.jwtsecret=/workspace/jwt.txt
+      --rollup.disable-tx-pool-gossip
+      --builder.deadline=2
+      --builder.interval=100ms
+
+
+  # Batcher
+  batcher:
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-batcher:v1.16.11
+    container_name: op-batcher
+    volumes:
+      - ./batcher:/workspace
+    working_dir: /workspace
+    env_file:
+      - ./batcher/.env
+      - .env
+    environment:
+      - OP_BATCHER_L1_ETH_RPC=${L1_RPC_URL}
+      - OP_BATCHER_PRIVATE_KEY=${PRIVATE_KEY}
+    command: >
+      op-batcher
+      --rpc.addr=0.0.0.0
+      --rpc.port=8548
+      --rpc.enable-admin
+      --max-channel-duration=1
+      --data-availability-type=calldata
+      --resubmission-timeout=30s
+      --log.level=info
+      --log.format=json
+    depends_on:
+      op-node:
+        condition: service_healthy
+
+  # Proposer
+  proposer:
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-proposer:v1.16.3
+    container_name: op-proposer
+    volumes:
+      - ./proposer:/workspace
+    working_dir: /workspace
+    env_file:
+      - ./proposer/.env
+      - .env
+    environment:
+      - OP_PROPOSER_L1_ETH_RPC=${L1_RPC_URL}
+      - OP_PROPOSER_PRIVATE_KEY=${PRIVATE_KEY}
+    command: >
+      op-proposer
+      --rpc.port=8560
+      --rollup-rpc=http://op-node:8547
+      --allow-non-finalized=true
+      --wait-node-sync=true
+      --log.level=info
+      --log.format=json
+    depends_on:
+      op-node:
+        condition: service_healthy
+
+  # Challenger
+  challenger:
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:v1.9.3
+    container_name: op-challenger
+    volumes:
+      - ./challenger:/workspace
+    working_dir: /workspace
+    env_file:
+      - ./challenger/.env
+      - .env
+    environment:
+      - OP_CHALLENGER_L1_ETH_RPC=${L1_RPC_URL}
+      - OP_CHALLENGER_L1_BEACON=${L1_BEACON_URL}
+      - OP_CHALLENGER_PRIVATE_KEY=${PRIVATE_KEY}
+    command: >
+      op-challenger run-trace
+      --trace-type=cannon-kona
+      --cannon-kona-l2-genesis=/workspace/genesis.json
+      --cannon-kona-rollup-config=/workspace/rollup.json
+      --l2-eth-rpc=http://op-reth:8545
+      --rollup-rpc=http://op-node:8547
+      --datadir=/workspace/data
+      --log.level=info
+      --log.format=json
+    depends_on:
+      op-node:
+        condition: service_healthy
+
+  # Dispute Monitor
+  dispute-mon:
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-dispute-mon:v1.5.2
+    container_name: dispute-mon
+    volumes:
+      - ./dispute-mon:/workspace
+    working_dir: /workspace
+    ports:
+      - "7300:7300"
+    env_file:
+      - ./dispute-mon/.env
+      - .env
+    environment:
+      - OP_DISPUTE_MON_L1_ETH_RPC=${L1_RPC_URL}
+      - OP_DISPUTE_MON_ROLLUP_RPC=${ROLLUP_RPC}
+      - OP_DISPUTE_MON_HONEST_ACTORS=${PROPOSER_ADDRESS},${CHALLENGER_ADDRESS}
+      - OP_DISPUTE_MON_GAME_FACTORY_ADDRESS=${GAME_FACTORY_ADDRESS}
+      - OP_DISPUTE_MON_MONITOR_INTERVAL=10s
+      - OP_DISPUTE_MON_NETWORK=op-sepolia
+      - OP_DISPUTE_MON_LOG_LEVEL=debug
+      - OP_DISPUTE_MON_LOG_FORMAT=logfmt
+      - OP_DISPUTE_MON_METRICS_ADDR=0.0.0.0
+      - OP_DISPUTE_MON_METRICS_ENABLED=true
+      - OP_DISPUTE_MON_METRICS_PORT=7300
+    depends_on:
+      op-node:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  op_reth_data:

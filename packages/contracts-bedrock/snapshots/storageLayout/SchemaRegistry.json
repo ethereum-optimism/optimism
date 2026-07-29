@@ -1,0 +1,16 @@
+[
+  {
+    "bytes": "32",
+    "label": "_registry",
+    "offset": 0,
+    "slot": "0",
+    "type": "mapping(bytes32 => struct SchemaRecord)"
+  },
+  {
+    "bytes": "1568",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "1",
+    "type": "uint256[49]"
+  }
+]

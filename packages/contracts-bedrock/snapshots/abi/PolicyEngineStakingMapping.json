@@ -1,0 +1,39 @@
+[
+  {
+    "inputs": [],
+    "name": "PE_DATA_SLOT",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "peData",
+    "outputs": [
+      {
+        "internalType": "uint128",
+        "name": "effectiveStake",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint128",
+        "name": "lastUpdate",
+        "type": "uint128"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

@@ -1,0 +1,13 @@
+{
+  "toml": {
+    "useTabs": false,
+    "cargo.applyConventions": false,
+    "indentWidth": 4
+  },
+  "includes": [
+    "**/*.toml"
+  ],
+  "plugins": [
+    "https://plugins.dprint.dev/toml-0.6.4.wasm"
+  ]
+}
