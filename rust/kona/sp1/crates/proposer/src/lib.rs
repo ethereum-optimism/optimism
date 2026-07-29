@@ -25,10 +25,6 @@ use crate::contract::{DisputeGameFactory::DisputeGameFactoryInstance, GameStatus
 /// The L1 provider type used throughout the proposer (a plain alloy root provider).
 pub type L1Provider = RootProvider;
 
-/// Number of L1 confirmations required before a transaction is considered included.
-pub const NUM_CONFIRMATIONS: u64 = 3;
-/// Maximum time, in seconds, to wait for an L1 transaction receipt.
-pub const TIMEOUT_SECONDS: u64 = 60;
 /// The dispute game type this proposer plays. Game type 10 is reserved as the
 /// ZK dispute game type for all OP Stack networks; not configurable to avoid
 /// misconfiguration.

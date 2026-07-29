@@ -12,7 +12,6 @@
 use alloy_primitives::U256;
 use alloy_sol_types::sol;
 use anyhow::{Error, anyhow};
-use serde::{Deserialize, Serialize};
 
 sol!(
     #[allow(missing_docs)]
@@ -49,7 +48,7 @@ sol!(
 /// Proposal lifecycle status, mirroring ZKDisputeGame.sol `ProposalStatus`.
 /// Hand-written: enums are `uint8` in the ABI, so the variant order is pinned
 /// against the contract source (and by `proposal_status_values_match_zk_dispute_game_sol`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum ProposalStatus {
     /// No challenge has been made against the proposal.
@@ -81,7 +80,7 @@ impl TryFrom<u8> for ProposalStatus {
 
 /// Game resolution status, mirroring
 /// `packages/contracts-bedrock/src/dispute/lib/Types.sol` `GameStatus`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum GameStatus {
     /// The game is in progress and awaiting resolution.

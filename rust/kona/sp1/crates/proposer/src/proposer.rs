@@ -20,6 +20,7 @@ use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_primitives::{Address, B256, U256};
 use alloy_provider::{Provider, ProviderBuilder};
 use alloy_sol_types::SolEvent;
+use alloy_transport_http::reqwest::Url;
 use anyhow::{Context, Result, bail};
 use kona_sp1_host_utils::metrics::MetricsGauge;
 use tokio::{sync::RwLock, time};
@@ -85,10 +86,10 @@ impl ProposerIdentity {
     }
 
     /// Logs the proposer identity and prestate artifact source at startup.
-    pub fn log_startup_info(&self, prestates_url: &alloy_transport_http::reqwest::Url) {
+    pub fn log_startup_info(&self, prestates_url: &Url) {
         tracing::info!(
             version = %self.version,
-            prestates_url = %prestates_url,
+            prestates_url = %crate::config::redacted_url(prestates_url),
             "proposer identity",
         );
     }
@@ -105,7 +106,7 @@ impl Default for ProposerIdentity {
 /// Games form a directed acyclic graph where each game builds upon a parent game, extending the
 /// chain with a new proposed output root. The proposer tracks these games to determine when to
 /// propose new games, defend existing ones, resolve completed games and claim bonds.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug)]
 pub struct Game {
     /// Index of the game in the `DisputeGameFactory`.
     pub index: U256,
@@ -270,19 +271,6 @@ impl ProposerState {
     }
 }
 
-/// Snapshot of the proposer's cached state for testing and monitoring.
-#[derive(Clone, Debug)]
-pub struct ProposerStateSnapshot {
-    /// Factory index of the anchor game, if one is set.
-    pub anchor_index: Option<U256>,
-    /// Factory index of the current canonical head game, if any.
-    pub canonical_head_index: Option<U256>,
-    /// Super-root timestamp of the canonical head (0 when no head exists).
-    pub canonical_head_sequence_number: u64,
-    /// Cached games as `(factory index, game address)` pairs.
-    pub games: Vec<(U256, Address)>,
-}
-
 /// Core proposer service: syncs the on-chain game DAG, creates and defends games,
 /// resolves finished ones, and claims bonds.
 #[derive(Clone)]
@@ -300,9 +288,9 @@ where
     pub superroot_client: SuperrootClient,
     /// `DisputeGameFactory` contract instance used to create and enumerate games.
     pub factory: Arc<DisputeGameFactoryInstance<P>>,
-    /// Loaded prestate programs keyed by `absolutePrestate()` hash, fetched
-    /// from `PRESTATES_URL` on demand (see [`ensure_prestate_loaded`]).
-    pub prestates: Arc<RwLock<HashMap<B256, Arc<PrestatePrograms>>>>,
+    /// Prestate program cache: loaded ELFs keyed by `absolutePrestate()`
+    /// hash, fetched from `PRESTATES_URL` on demand (see [`PrestateCache`]).
+    pub prestates: Arc<PrestateCache>,
     tasks: Arc<tokio::sync::Mutex<TaskMap>>,
     next_task_id: Arc<AtomicU64>,
     state: Arc<RwLock<ProposerState>>,
@@ -355,13 +343,14 @@ where
         let l1_provider = ProviderBuilder::default().connect_http(config.l1_rpc.clone());
         let superroot_client = SuperrootClient::new(config.supernode_rpc.as_str())?;
 
+        let prestates = Arc::new(PrestateCache::new(config.prestates_url.clone()));
         Ok(Self {
             config,
             signer,
             l1_provider,
             superroot_client,
             factory: Arc::new(factory),
-            prestates: Arc::new(RwLock::new(HashMap::new())),
+            prestates,
             tasks: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
             next_task_id: Arc::new(AtomicU64::new(1)),
             state: Arc::new(RwLock::new(ProposerState::default())),
@@ -371,25 +360,6 @@ where
             last_created_game_address: Arc::new(tokio::sync::Mutex::new(Address::ZERO)),
             pending_games: Arc::new(RwLock::new(HashSet::new())),
         })
-    }
-
-    /// Returns a lightweight snapshot of the proposer's cached state.
-    pub async fn state_snapshot(&self) -> ProposerStateSnapshot {
-        let state = self.state.read().await;
-        ProposerStateSnapshot {
-            anchor_index: state.anchor_game.as_ref().map(|game| game.index),
-            canonical_head_index: state.canonical_head_index,
-            canonical_head_sequence_number: state
-                .canonical_head_sequence_number
-                .unwrap_or_default(),
-            games: state.games.values().map(|game| (game.index, game.address)).collect(),
-        }
-    }
-
-    /// Returns a copy of a game's full internal state for testing.
-    pub async fn get_game(&self, index: U256) -> Option<Game> {
-        let state = self.state.read().await;
-        state.games.get(&index).cloned()
     }
 
     /// Runs the proposer indefinitely.
@@ -439,6 +409,7 @@ where
                     } else {
                         tracing::warn!(
                             attempt = retry_count,
+                            error = %e,
                             "Startup validations still pending, retrying..."
                         );
                     }
@@ -463,15 +434,9 @@ where
         // Validate the registered game args decode and load the registered
         // prestate's programs.
         let game_args = self.registered_game_args(BlockId::latest()).await?;
-        if !ensure_prestate_loaded(
-            &self.prestates,
-            &self.config.prestates_url,
-            game_args.absolute_prestate,
-        )
-        .await
-        {
+        if !self.prestates.ensure_loaded(game_args.absolute_prestate).await {
             // Not fatal: creation stays paused until the artifacts appear
-            // under PRESTATES_URL (ensure_prestate_loaded logged why).
+            // under PRESTATES_URL (PrestateCache::ensure_loaded logged why).
             tracing::warn!(
                 registered = %game_args.absolute_prestate,
                 "registered prestate programs unavailable; creation will pause"
@@ -482,11 +447,12 @@ where
         let registry =
             AnchorStateRegistry::new(game_args.anchor_state_registry, self.l1_provider.clone());
         let anchor = registry.getAnchorRoot().call().await?;
+        let (anchor_root, anchor_sequence_number) = (anchor._0, anchor._1);
         anyhow::ensure!(
-            anchor._0 != B256::ZERO,
+            anchor_root != B256::ZERO,
             "anchor state registry has no anchor root (game creation would revert)"
         );
-        anchor._1.try_into().context("anchor sequence number exceeds u64")
+        anchor_sequence_number.try_into().context("anchor sequence number exceeds u64")
     }
 
     /// Fetches and decodes the currently registered game args at `block`.
@@ -1032,21 +998,16 @@ where
     }
 
     /// Returns true if game creation may proceed for the currently registered
-    /// game implementation's prestate (see [`ensure_prestate_loaded`]).
+    /// game implementation's prestate (see [`PrestateCache::ensure_loaded`]).
     async fn registered_prestate_known(&self) -> Result<bool> {
         let args = self.registered_game_args(BlockId::latest()).await?;
-        Ok(ensure_prestate_loaded(
-            &self.prestates,
-            &self.config.prestates_url,
-            args.absolute_prestate,
-        )
-        .await)
+        Ok(self.prestates.ensure_loaded(args.absolute_prestate).await)
     }
 
     /// Returns the loaded program ELFs for `prestate`, if present in the
     /// cache. The defend path proves with these.
     pub async fn prestate_programs(&self, prestate: B256) -> Option<Arc<PrestatePrograms>> {
-        self.prestates.read().await.get(&prestate).cloned()
+        self.prestates.programs(prestate).await
     }
 
     /// Creates a new game with the given parameters.
@@ -1197,8 +1158,13 @@ where
             // registered one across upgrades.
             let weth = DelayedWETH::new(game.weth, self.l1_provider.clone());
             let withdrawal = weth.withdrawals(game.address, signer_address).call().await;
-            if let (Ok(credit), Ok(withdrawal)) = (credit, withdrawal) {
-                if credit == U256::ZERO && withdrawal.amount == U256::ZERO {
+            let mut is_payout = false;
+            if let (Ok(credit), Ok(withdrawal)) = (&credit, &withdrawal) {
+                // Phase 2 = credit already unlocked (zero) with a recorded
+                // withdrawal; only a successful payout claims the bond - the
+                // phase-1 unlock is bookkeeping and must not count.
+                is_payout = *credit == U256::ZERO && withdrawal.amount > U256::ZERO;
+                if *credit == U256::ZERO && withdrawal.amount == U256::ZERO {
                     tracing::info!(
                         game_index = %game.index,
                         game_address = ?game.address,
@@ -1206,7 +1172,7 @@ where
                     );
                     continue;
                 }
-                if credit == U256::ZERO && withdrawal.amount > U256::ZERO {
+                if *credit == U256::ZERO && withdrawal.amount > U256::ZERO {
                     // Phase 2: only submit once the WETH delay has elapsed in
                     // CHAIN time. DelayedWETH enforces
                     // `timestamp + DELAY_SECONDS <= block.timestamp`; wall
@@ -1263,7 +1229,11 @@ where
                 continue;
             }
 
-            ProposerGauge::GamesBondsClaimed.increment(1.0);
+            // If the pre-flight reads failed we cannot know the phase; skip
+            // the count (under-count in a degraded state, never a double-count).
+            if is_payout {
+                ProposerGauge::GamesBondsClaimed.increment(1.0);
+            }
         }
 
         Ok(())
@@ -1556,6 +1526,7 @@ where
                 // duplicate creation while the pinned cache hasn't caught up to this game.
                 self.last_created_game_l2_sequence_number.store(sequence_number, Ordering::Relaxed);
                 *self.last_created_game_address.lock().await = game_address;
+                ProposerGauge::GamesCreated.increment(1.0);
                 return Ok(());
             }
 
@@ -1775,8 +1746,6 @@ where
                 tracing::warn!("Failed to handle game creation: {:?}", e);
                 return Err(e);
             }
-
-            ProposerGauge::GamesCreated.increment(1.0);
 
             Ok(())
         });
@@ -2084,46 +2053,63 @@ pub enum UnknownPrestatePolicy {
 /// The active policy.
 pub const UNKNOWN_PRESTATE_POLICY: UnknownPrestatePolicy = UnknownPrestatePolicy::Pause;
 
-/// Ensures the program ELFs for `registered` are loaded into `cache`,
-/// fetching them from `url` on a miss (see [`load_prestate`]). Returns
-/// whether game creation may proceed for that prestate.
+/// Prestate program cache: loaded ELFs keyed by `absolutePrestate()` hash,
+/// fetched from the base `PRESTATES_URL` on demand.
 ///
 /// The artifact directory is consulted live on every cache miss, so a
 /// hardfork that rotates the registered prestate only requires publishing
-/// the new program artifacts, not restarting the proposer. When loading
-/// fails, the result follows [`UNKNOWN_PRESTATE_POLICY`].
-pub async fn ensure_prestate_loaded(
-    cache: &RwLock<HashMap<B256, Arc<PrestatePrograms>>>,
-    url: &alloy_transport_http::reqwest::Url,
-    registered: B256,
-) -> bool {
-    if cache.read().await.contains_key(&registered) {
-        return true;
+/// the new program artifacts, not restarting the proposer.
+#[derive(Debug)]
+pub struct PrestateCache {
+    programs: RwLock<HashMap<B256, Arc<PrestatePrograms>>>,
+    url: Url,
+}
+
+impl PrestateCache {
+    /// Creates an empty cache backed by `url`.
+    pub fn new(url: Url) -> Self {
+        Self { programs: RwLock::new(HashMap::new()), url }
     }
-    match load_prestate(url, registered).await {
-        Ok(programs) => {
-            tracing::info!(
-                prestate = %registered,
-                aggregation_elf_bytes = programs.aggregation_elf.len(),
-                range_elf_bytes = programs.range_elf.len(),
-                "Loaded prestate programs"
-            );
-            cache.write().await.insert(registered, Arc::new(programs));
-            true
+
+    /// Ensures the program ELFs for `registered` are loaded, fetching them
+    /// on a miss (see [`load_prestate`]). Returns whether game creation may
+    /// proceed for that prestate. When loading fails, the result follows
+    /// [`UNKNOWN_PRESTATE_POLICY`].
+    pub async fn ensure_loaded(&self, registered: B256) -> bool {
+        if self.programs.read().await.contains_key(&registered) {
+            return true;
         }
-        Err(e) => {
-            tracing::warn!(
-                registered = %registered,
-                error = %e,
-                "Failed to load the registered prestate's programs \
-                 (publish the artifacts under PRESTATES_URL if this is a hardfork)"
-            );
-            ProposerGauge::UnknownRegisteredPrestate.increment(1.0);
-            match UNKNOWN_PRESTATE_POLICY {
-                UnknownPrestatePolicy::Pause => false,
-                UnknownPrestatePolicy::Continue => true,
+        match load_prestate(&self.url, registered).await {
+            Ok(programs) => {
+                tracing::info!(
+                    prestate = %registered,
+                    aggregation_elf_bytes = programs.aggregation_elf.len(),
+                    range_elf_bytes = programs.range_elf.len(),
+                    "Loaded prestate programs"
+                );
+                self.programs.write().await.insert(registered, Arc::new(programs));
+                true
+            }
+            Err(e) => {
+                tracing::warn!(
+                    registered = %registered,
+                    error = %e,
+                    "Failed to load the registered prestate's programs \
+                     (publish the artifacts under PRESTATES_URL if this is a hardfork)"
+                );
+                ProposerGauge::UnknownRegisteredPrestate.increment(1.0);
+                match UNKNOWN_PRESTATE_POLICY {
+                    UnknownPrestatePolicy::Pause => false,
+                    UnknownPrestatePolicy::Continue => true,
+                }
             }
         }
+    }
+
+    /// The loaded programs for `prestate`, if present. The defend path
+    /// proves with these.
+    pub async fn programs(&self, prestate: B256) -> Option<Arc<PrestatePrograms>> {
+        self.programs.read().await.get(&prestate).cloned()
     }
 }
 
@@ -2177,12 +2163,9 @@ mod tests {
     }
 
     mod prestate_gate {
-        use super::super::ensure_prestate_loaded;
-        use crate::config::PrestatePrograms;
+        use super::super::PrestateCache;
         use alloy_primitives::B256;
         use alloy_transport_http::reqwest::Url;
-        use std::{collections::HashMap, sync::Arc};
-        use tokio::sync::RwLock;
 
         const HASH_A: &str = "0x0101010101010101010101010101010101010101010101010101010101010101";
 
@@ -2202,25 +2185,21 @@ mod tests {
             }
         }
 
-        fn empty_cache() -> RwLock<HashMap<B256, Arc<PrestatePrograms>>> {
-            RwLock::new(HashMap::new())
-        }
-
         #[tokio::test]
         async fn loadable_programs_allow_creation_and_fill_cache() {
             let dir = artifact_dir("available");
             let hash: B256 = HASH_A.parse().unwrap();
             write_artifacts(&dir);
             let base = Url::from_directory_path(&dir).unwrap();
-            let cache = empty_cache();
-            assert!(ensure_prestate_loaded(&cache, &base, hash).await);
-            let programs = cache.read().await.get(&hash).cloned().expect("cached");
+            let cache = PrestateCache::new(base);
+            assert!(cache.ensure_loaded(hash).await);
+            let programs = cache.programs(hash).await.expect("cached");
             assert_eq!(programs.aggregation_elf, b"elf");
             assert_eq!(programs.range_elf, b"elf");
 
             // Cache hit: succeeds even if the directory disappears.
             std::fs::remove_dir_all(&dir).unwrap();
-            assert!(ensure_prestate_loaded(&cache, &base, hash).await);
+            assert!(cache.ensure_loaded(hash).await);
         }
 
         #[tokio::test]
@@ -2228,21 +2207,24 @@ mod tests {
             let dir = artifact_dir("pause");
             let hash: B256 = HASH_A.parse().unwrap();
             let base = Url::from_directory_path(&dir).unwrap();
-            let cache = empty_cache();
-            assert!(!ensure_prestate_loaded(&cache, &base, hash).await);
-            assert!(cache.read().await.is_empty(), "failed load must not populate the cache");
+            let cache = PrestateCache::new(base);
+            assert!(!cache.ensure_loaded(hash).await);
+            assert!(
+                cache.programs(hash).await.is_none(),
+                "failed load must not populate the cache"
+            );
 
             // Hardfork flow: publishing the artifacts self-heals the gate
             // without a restart.
             write_artifacts(&dir);
-            assert!(ensure_prestate_loaded(&cache, &base, hash).await);
+            assert!(cache.ensure_loaded(hash).await);
         }
 
         #[tokio::test]
         async fn failed_check_hard_pauses() {
             let hash: B256 = HASH_A.parse().unwrap();
             let base = Url::parse("ftp://example.com/prestates").unwrap();
-            assert!(!ensure_prestate_loaded(&empty_cache(), &base, hash).await);
+            assert!(!PrestateCache::new(base).ensure_loaded(hash).await);
         }
     }
 

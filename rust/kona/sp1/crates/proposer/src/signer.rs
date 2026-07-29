@@ -10,7 +10,7 @@ use std::{str::FromStr, sync::Arc};
 use alloy_consensus::TxEnvelope;
 use alloy_eips::Decodable2718;
 use alloy_network::{Ethereum, EthereumWallet, TransactionBuilder};
-use alloy_primitives::{Address, Bytes, TxKind};
+use alloy_primitives::{Address, Bytes};
 use alloy_provider::{Provider, ProviderBuilder, Web3Signer};
 use alloy_rpc_types_eth::{TransactionReceipt, TransactionRequest};
 use alloy_signer_local::PrivateKeySigner;
@@ -20,8 +20,6 @@ use tokio::{sync::Mutex, time::Duration};
 
 /// Number of L1 confirmations required before a transaction is considered included.
 pub const NUM_CONFIRMATIONS: u64 = 3;
-/// Default time, in seconds, to wait for an L1 transaction receipt.
-pub const TIMEOUT_SECONDS: u64 = 60;
 
 #[derive(Clone, Debug)]
 /// The type of signer to use for signing transactions.
@@ -55,22 +53,48 @@ impl Signer {
 
     /// Builds a signer from the environment: `SIGNER_URL` + `SIGNER_ADDRESS` selects
     /// [`Signer::Web3Signer`], otherwise `PRIVATE_KEY` selects [`Signer::LocalSigner`].
+    /// Setting only one of `SIGNER_URL` / `SIGNER_ADDRESS` is an error rather than a
+    /// silent fallback to the local key.
     pub async fn from_env() -> Result<Self> {
-        if let (Ok(signer_url_str), Ok(signer_address_str)) =
-            (std::env::var("SIGNER_URL"), std::env::var("SIGNER_ADDRESS"))
-        {
-            let signer_url = Url::parse(&signer_url_str).context("Failed to parse SIGNER_URL")?;
-            let signer_address =
-                Address::from_str(&signer_address_str).context("Failed to parse SIGNER_ADDRESS")?;
-            Ok(Self::new_web3_signer(signer_url, signer_address))
-        } else if let Ok(private_key_str) = std::env::var("PRIVATE_KEY") {
-            Self::new_local_signer(&private_key_str)
-        } else {
-            anyhow::bail!(
-                "None of the required signer configurations are set in environment:\n\
-                - For Web3Signer: SIGNER_URL and SIGNER_ADDRESS\n\
-                - For Local: PRIVATE_KEY"
-            )
+        let signer_url = std::env::var("SIGNER_URL").ok();
+        let signer_address = std::env::var("SIGNER_ADDRESS").ok();
+        match (signer_url, signer_address) {
+            (Some(url), Some(address)) => {
+                let signer_url = Url::parse(&url).context("Failed to parse SIGNER_URL")?;
+                let signer_address =
+                    Address::from_str(&address).context("Failed to parse SIGNER_ADDRESS")?;
+                tracing::info!(
+                    url = %crate::config::redacted_url(&signer_url),
+                    address = %signer_address,
+                    "Using Web3Signer (SIGNER_URL + SIGNER_ADDRESS)"
+                );
+                Ok(Self::new_web3_signer(signer_url, signer_address))
+            }
+            (Some(_), None) => {
+                anyhow::bail!(
+                    "SIGNER_URL is set but SIGNER_ADDRESS is not; set both to use the Web3Signer"
+                )
+            }
+            (None, Some(_)) => {
+                anyhow::bail!(
+                    "SIGNER_ADDRESS is set but SIGNER_URL is not; set both to use the Web3Signer"
+                )
+            }
+            (None, None) => {
+                let private_key_str = std::env::var("PRIVATE_KEY").map_err(|_| {
+                    anyhow::anyhow!(
+                        "None of the required signer configurations are set in environment:\n\
+                        - For Web3Signer: SIGNER_URL and SIGNER_ADDRESS\n\
+                        - For Local: PRIVATE_KEY"
+                    )
+                })?;
+                let signer = Self::new_local_signer(&private_key_str)?;
+                tracing::info!(
+                    address = %signer.address(),
+                    "Using local private-key signer (PRIVATE_KEY)"
+                );
+                Ok(signer)
+            }
         }
     }
 
@@ -123,11 +147,12 @@ impl Signer {
 
                 // Ensure the request has a `from` address so the wallet filler can sign it.
                 transaction_request.set_from(private_key.address());
-                if transaction_request.to.is_none() {
-                    // Anvil's wallet filler insists on a `to` field even for
-                    // deployments. Mark the request as contract creation so it can be signed.
-                    transaction_request.to = Some(TxKind::Create);
-                }
+                // The proposer never deploys contracts; a request without a
+                // `to` address is a bug upstream of the signer.
+                anyhow::ensure!(
+                    transaction_request.to.is_some(),
+                    "transaction request has no `to` address"
+                );
 
                 let receipt = provider
                     .send_transaction(transaction_request)
