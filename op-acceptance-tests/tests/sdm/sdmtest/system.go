@@ -28,7 +28,7 @@ type RethSystem struct {
 	L2ELVerifier *dsl.L2ELNode
 	L2CLVerifier *dsl.L2CLNode
 	L2Batcher    *dsl.L2Batcher
-	FunderL2     *dsl.Funder
+	FunderL2     *dsl.FunderEOA
 }
 
 // FinishRethSystem wraps a built MixedSingleChainRuntime in DSL frontends, derives the verifier
@@ -55,7 +55,6 @@ func FinishRethSystem(t devtest.T, runtime *sysgo.MixedSingleChainRuntime, optIn
 	t.Require().NotNil(verifierEL, "missing SDM verifier EL node")
 	t.Require().NotNil(verifierCL, "missing SDM verifier CL node")
 
-	wallet := dsl.NewRandomHDWallet(t, 30)
 	sys := &RethSystem{
 		L1EL:         frontends.L1EL,
 		L2EL:         frontends.L2Network.PrimaryEL(),
@@ -64,7 +63,7 @@ func FinishRethSystem(t devtest.T, runtime *sysgo.MixedSingleChainRuntime, optIn
 		L2ELVerifier: verifierEL,
 		L2CLVerifier: verifierCL,
 		L2Batcher:    frontends.L2Batcher,
-		FunderL2:     dsl.NewFunder(wallet, frontends.FaucetL2, frontends.L2Network.PrimaryEL()),
+		FunderL2:     frontends.FunderL2,
 	}
 
 	// Local PostExec production requires the sequencer's op-reth to be opted in via
