@@ -285,8 +285,8 @@ func GPODefaultParams(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 // TestGPOParamsChangeEcotone tests that the fee scalars can be updated with setGasConfigEcotone,
 // and that the L1 data fee charged to an L2 transaction is applied correctly before, during and
 // after the L2 chain adopts the L1 origin carrying the update. This is the Ecotone counterpart of
-// GPODefaultParams: it is not parameterized over batch type, because Ecotone implies Delta and so
-// the singular-batch case is unreachable.
+// GPODefaultParams. It is not parameterized over batch type because the batch variant does not add
+// coverage for this scenario.
 func TestGPOParamsChangeEcotone(gt *testing.T) {
 	t := actionsHelpers.NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, actionsHelpers.DefaultRollupTestParams())
@@ -352,9 +352,10 @@ func TestGPOParamsChangeEcotone(gt *testing.T) {
 	require.NoError(t, err)
 	sysCfg, err := derive.PayloadToSystemConfig(sd.RollupCfg, envelope.ExecutionPayload)
 	require.NoError(t, err)
-	// Compare the scalars rather than the whole config: `initialize` calls `_setGasConfigEcotone`,
-	// so the derived config is already on the versioned scalar encoding with a zeroed overhead,
-	// while `Genesis.SystemConfig` still carries the pre-Ecotone encoding from the deploy config.
+	// Compare the scalars rather than the whole config: `PayloadToSystemConfig` converts the
+	// post-Ecotone L1 info fields to version-1 scalar encoding, and the Ecotone format omits the
+	// legacy overhead. `Genesis.SystemConfig` still carries the pre-Ecotone encoding from the
+	// deploy config.
 	require.Equal(t, eth.Bytes32(eth.EncodeScalar(genesisScalars)), sysCfg.Scalar, "still have the genesis fee scalars before we adopt the L1 block with GPO change")
 
 	// Now alice makes another transaction, which gets included in the same block that adopts the L1 origin with GPO change
