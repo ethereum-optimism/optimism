@@ -124,14 +124,7 @@ fn evm_env_for_op(
     chain_id: ChainId,
 ) -> EvmEnv<OpSpecId> {
     let spec = spec_by_timestamp_after_bedrock(&chain_spec, input.timestamp);
-    let mut cfg_env = CfgEnv::new().with_chain_id(chain_id).with_spec_and_mainnet_gas_params(spec);
-
-    // TODO(21583): remove this workaround once we vendor a reth revision containing
-    // paradigmxyz/reth#25612. Keep the eth_estimateGas EIP-7825/Karst regression test;
-    // upstream should make the estimate path use the effective tx gas cap directly.
-    if spec.into_eth_spec().is_enabled_in(SpecId::OSAKA) {
-        cfg_env.tx_gas_limit_cap = Some(revm::primitives::eip7825::TX_GAS_LIMIT_CAP);
-    }
+    let cfg_env = CfgEnv::new().with_chain_id(chain_id).with_spec_and_mainnet_gas_params(spec);
 
     let blob_excess_gas_and_price = spec
         .into_eth_spec()
@@ -421,20 +414,31 @@ mod tests {
         assert!(OpSpecId::INTEROP.into_eth_spec() >= OpSpecId::KARST.into_eth_spec());
     }
 
+    /// The EIP-7825 tx gas limit cap must apply from Osaka-based forks (Karst) onward via revm's
+    /// effective cap, without the env builder overriding the raw config field (the estimate path
+    /// uses the effective cap directly since paradigmxyz/reth#25612; see issue #21583).
     #[test]
-    fn osaka_forks_set_tx_gas_limit_cap() {
+    fn osaka_forks_effective_tx_gas_limit_cap() {
+        use revm::context_interface::Cfg;
+
         for (idx, (fork, op_spec)) in FORK_CHRONOLOGY.iter().enumerate() {
             let chain = cumulative_hardforks(idx);
             let header = Header { timestamp: 1, gas_limit: 60_000_000, ..Default::default() };
             let env = evm_env_for_op_block(&header, &chain, 10);
 
-            let expected = op_spec
-                .into_eth_spec()
-                .is_enabled_in(SpecId::OSAKA)
-                .then_some(revm::primitives::eip7825::TX_GAS_LIMIT_CAP);
             assert_eq!(
-                env.cfg_env.tx_gas_limit_cap, expected,
-                "with forks active up to {fork:?} ({op_spec:?}), tx_gas_limit_cap mismatch",
+                env.cfg_env.tx_gas_limit_cap, None,
+                "with forks active up to {fork:?} ({op_spec:?}), the raw cap must stay unset",
+            );
+            let expected = if op_spec.into_eth_spec().is_enabled_in(SpecId::OSAKA) {
+                revm::primitives::eip7825::TX_GAS_LIMIT_CAP
+            } else {
+                u64::MAX
+            };
+            assert_eq!(
+                env.cfg_env.tx_gas_limit_cap(),
+                expected,
+                "with forks active up to {fork:?} ({op_spec:?}), effective tx_gas_limit_cap mismatch",
             );
         }
     }
