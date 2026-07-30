@@ -273,11 +273,14 @@ impl ProposerState {
 
 /// An unresolved game creation: the exact bytes of a `create` whose
 /// confirmation timed out, so the transaction may still land. While a
-/// record is set, the proposer retries THIS uuid instead of proposing at
-/// fresh timestamps; the factory's dedup on (gameType, rootClaim,
-/// extraData) then guarantees at most one game can ever result, no matter
-/// which transaction lands. In-memory only: a restart with a create in
-/// flight keeps the pre-existing documented double-submit-once risk.
+/// record is set, new proposals are held; each tick the factory is
+/// checked for the uuid (adopting our landed game) and the record clears
+/// once the signer's pool holds no transactions, i.e. nothing of ours can
+/// land anymore. The hold plus the factory's dedup on (gameType,
+/// rootClaim, extraData) keep a stuck-then-included original from being
+/// joined by a sibling at a fresh timestamp. In-memory only: a restart
+/// with a create in flight keeps the pre-existing documented
+/// double-submit-once risk.
 #[derive(Clone, Debug)]
 struct InFlightCreation {
     /// Root claim of the unresolved create.
@@ -1655,9 +1658,9 @@ where
                     "Creating game"
                 );
                 // Record the exact bytes before sending: if confirmation
-                // times out the tx may still land, and the record pins the
-                // UUID so later ticks retry THIS creation instead of
-                // proposing a sibling at a fresh timestamp.
+                // times out the tx may still land, and the record holds
+                // proposals until it is adopted or provably dead instead
+                // of proposing a sibling at a fresh timestamp.
                 *self.in_flight_creation.lock().await = Some(InFlightCreation {
                     root_claim: super_root.super_root,
                     extra_data: extra_data.clone(),
@@ -1740,17 +1743,19 @@ where
     /// Looks the recorded uuid up on the factory first: if the game exists
     /// and is ours, adopt it (arm the duplicate-creation guard); if it is
     /// another proposer's, the uuid is spent and no duplicate is possible.
-    /// Otherwise resend the exact recorded bytes: the factory dedups
-    /// identical parameters, so at most one create with this uuid ever
-    /// succeeds. A landed revert of the resend is final chain state with
-    /// exactly two causes, disambiguated by re-running the lookup: the uuid
-    /// was created between our lookup and the resend's inclusion
-    /// (`GameAlreadyExists`; games are never deleted, so the lookup now
-    /// finds it and the record resolves by adoption), or the cause is
-    /// permanent (retired/blacklisted/ChallengerWins parent, behind
-    /// anchor), in which case a still-floating original would revert
-    /// identically and the record is cleared. Transport errors and fresh
-    /// timeouts keep the record for the next tick.
+    /// Otherwise consult the signer's pool: while the pending transaction
+    /// count exceeds the latest, something of ours is still floating and
+    /// may land, so the record is kept and proposals stay held. Once the
+    /// pool drains, nothing of ours can land anymore - the original was
+    /// mined (the lookup above adopts it) or dropped - so the record
+    /// clears and normal proposals resume next tick through
+    /// `should_create_game`'s checks.
+    ///
+    /// The pool view is this node's: a transaction evicted here but alive
+    /// in another pool can land after the clear. That residual re-creates
+    /// the sibling scenario this record exists to narrow, which is benign
+    /// and self-healing - the sibling is a valid own game whose bond is
+    /// recovered by the normal resolution and claiming flow.
     async fn resolve_in_flight_creation(&self) -> Result<()> {
         let Some(record) = self.in_flight_creation.lock().await.clone() else {
             return Ok(());
@@ -1760,39 +1765,28 @@ where
             return Ok(());
         }
 
+        let signer_address = self.signer.address();
+        let pending_nonce =
+            self.l1_provider.get_transaction_count(signer_address).pending().await?;
+        let latest_nonce = self.l1_provider.get_transaction_count(signer_address).latest().await?;
+        if pending_nonce > latest_nonce {
+            tracing::info!(
+                sequence_number = record.sequence_number,
+                parent_game_index = record.parent_game_index,
+                pending_nonce,
+                latest_nonce,
+                "In-flight transaction still in the pool; holding proposals"
+            );
+            return Ok(());
+        }
+
         tracing::info!(
             sequence_number = record.sequence_number,
             parent_game_index = record.parent_game_index,
-            "Retrying unresolved game creation with its recorded uuid"
+            "In-flight creation left the pool without landing; clearing the record"
         );
-        match self.create_game(record.root_claim, record.extra_data.clone()).await {
-            Ok(game_address) => {
-                self.last_created_game_l2_sequence_number
-                    .store(record.sequence_number, Ordering::Relaxed);
-                *self.last_created_game_address.lock().await = game_address;
-                ProposerGauge::GamesCreated.increment(1.0);
-                *self.in_flight_creation.lock().await = None;
-                Ok(())
-            }
-            Err(e) if e.is_revert() => {
-                // The uuid may have been created between the lookup above
-                // and this resend's inclusion, making it revert with
-                // GameAlreadyExists; re-running the lookup disambiguates
-                // that from the permanent causes and adopts the game
-                // instead of dropping the record unresolved.
-                if self.try_adopt_recorded_uuid(&record).await? {
-                    return Ok(());
-                }
-                tracing::warn!(
-                    sequence_number = record.sequence_number,
-                    error = %e,
-                    "In-flight creation retry reverted (permanent cause); clearing the record"
-                );
-                *self.in_flight_creation.lock().await = None;
-                Ok(())
-            }
-            Err(e) => Err(e),
-        }
+        *self.in_flight_creation.lock().await = None;
+        Ok(())
     }
 
     /// Resolves the record when its uuid already exists on the factory:
@@ -2013,8 +2007,8 @@ where
     /// - Ok(false): No work needed (proposal interval not elapsed or no finalized blocks)
     /// - Err: Actual error occurred during task spawning
     async fn spawn_game_creation_task(&self) -> Result<bool> {
-        // An unresolved create takes precedence over new proposals: retry
-        // its exact uuid until the factory adjudicates, so a
+        // An unresolved create takes precedence over new proposals: hold
+        // them until its uuid is adopted or provably dead, so a
         // stuck-then-included original can never be joined by a sibling at
         // a fresh timestamp.
         let in_flight_sequence_number =
