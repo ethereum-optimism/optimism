@@ -12,7 +12,7 @@ use kona_sp1_host_utils::{
     metrics::{MetricsGauge, init_metrics},
 };
 use kona_sp1_proposer::{
-    config::ProposerConfig,
+    config::{ProposerConfig, redacted_url},
     contract::DisputeGameFactory,
     metrics::ProposerGauge,
     proposer::Proposer,
@@ -24,6 +24,22 @@ async fn main() -> Result<()> {
     setup_logger();
 
     let config = ProposerConfig::from_env()?;
+
+    tracing::info!(
+        l1_rpc = %redacted_url(&config.l1_rpc),
+        supernode_rpc = %redacted_url(&config.supernode_rpc),
+        factory_address = %config.factory_address,
+        prestates_url = %redacted_url(&config.prestates_url),
+        proposal_interval_seconds = config.proposal_interval_seconds,
+        proposal_safety = ?config.proposal_safety,
+        fetch_interval = config.fetch_interval,
+        metrics_port = config.metrics_port,
+        sync_l1_confirmations = config.sync_l1_confirmations,
+        tx_confirmation_timeout = config.tx_confirmation_timeout,
+        max_fee_per_gas = ?config.max_fee_per_gas,
+        max_priority_fee_per_gas = ?config.max_priority_fee_per_gas,
+        "Resolved proposer configuration"
+    );
     let signer = SignerLock::new(Signer::from_env().await?);
 
     let l1_provider = ProviderBuilder::default().connect_http(config.l1_rpc.clone());

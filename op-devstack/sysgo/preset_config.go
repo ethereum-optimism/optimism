@@ -63,7 +63,7 @@ type PresetConfig struct {
 	PreGenesisSuperGame     *PreGenesisSuperGameConfig
 	ZKDisputeGame           *ZKDisputeGameConfig
 	ZKProposerOptions       []ZKProposerOption
-	// SkipHonestProposer skips starting op-proposer.
+	// SkipHonestProposer skips starting the honest proposer (op-proposer, or kona-sp1-proposer for the ZK preset).
 	SkipHonestProposer bool
 	// SkipHonestChallenger skips starting the honest challenger.
 	SkipHonestChallenger bool

@@ -305,6 +305,34 @@ func (cl *L2CLNode) ReachedFn(lvl safety.Level, target uint64, attempts int) Che
 	}
 }
 
+// ReachedWithProgressFn waits for the head at lvl to reach target, but instead
+// of a fixed attempt budget it distinguishes a self-recovering slowdown from a
+// genuinely stuck pipeline. It succeeds as soon as lvl reaches target. It fails
+// when either:
+//   - progressLvl (a strictly more-live head, e.g. LocalUnsafe) has not advanced
+//     for stallTimeout — the node is genuinely wedged, not merely slow; or
+//   - the overall maxWait elapses.
+//
+// This is the "reach a target" analogue of MatchedWithProgressFn. Use it for a
+// catch-up wait whose target head is gated by a pipeline that can transiently
+// stall under load (e.g. CrossSafe catching up after interop resumes, where the
+// EL can be briefly starved) without masking a permanent hang: as long as the
+// chain keeps producing blocks the budget stays generous, but a chain that stops
+// advancing entirely fails fast. Polls every 2s.
+func (cl *L2CLNode) ReachedWithProgressFn(lvl, progressLvl safety.Level, target uint64, maxWait, stallTimeout time.Duration) CheckFunc {
+	return func() error {
+		logger := cl.log.With("name", cl.inner.Name(), "chain", cl.ChainID(), "label", lvl, "progress_label", progressLvl, "target", target)
+		headNum := func(l safety.Level) func() (uint64, error) {
+			return func() (uint64, error) {
+				ref, err := cl.headBlockRef(l)
+				return ref.Number, err
+			}
+		}
+		return awaitHeadWithProgress(cl.ctx, logger, headNum(lvl), headNum(progressLvl), target, maxWait, stallTimeout,
+			fmt.Sprintf("expected head to advance: %s", lvl), progressLvl.String())
+	}
+}
+
 // ReachedRefFn is same as Reached, but has an additional check to ensure that the block referenced is not reorged
 // Composable with other lambdas to wait in parallel
 func (cl *L2CLNode) ReachedRefFn(lvl safety.Level, target eth.BlockID, attempts int) CheckFunc {

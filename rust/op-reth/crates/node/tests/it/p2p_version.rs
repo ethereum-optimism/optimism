@@ -15,6 +15,10 @@ const EXPECTED_ETH_VERSION: u64 = 69;
 
 #[tokio::test]
 async fn peers_negotiate_eth_69() -> eyre::Result<()> {
+    // This test intermittently segfaults during teardown, after the body below has
+    // passed (ethereum-optimism/optimism#20973). The handler outlives the body, so it
+    // reports the faulting thread and stack when that happens.
+    crate::crash_backtrace::install();
     reth_tracing::init_test_tracing();
 
     let (nodes, _wallet) = setup(2).await?;

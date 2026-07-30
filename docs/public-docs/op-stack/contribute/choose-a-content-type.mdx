@@ -1,6 +1,6 @@
 ---
 title: Choose a content type
-description: A maintainer-facing decision table for picking the right content type, and how the composed types extend the diataxis frontmatter taxonomy.
+description: A maintainer-facing decision table for picking the right documentation type, composition, and operational metadata.
 diataxis: reference
 ---
 
@@ -17,11 +17,12 @@ on docs.optimism.io at all.
 
 ## The taxonomy: four quadrants, four compositions
 
-Every page on docs.optimism.io carries a `diataxis:` frontmatter key with one
-of the four [Diátaxis](https://diataxis.fr/) quadrant values — `tutorial`,
-`how-to`, `reference`, or `explanation`. That taxonomy is complete and does
-not grow: the composed types below are **compositions of the quadrants, not
-new quadrants**, and they never appear as `diataxis:` values.
+Documentation pages on docs.optimism.io carry a `diataxis:` frontmatter key
+with one of the four [Diátaxis](https://diataxis.fr/) quadrant values —
+`tutorial`, `how-to`, `reference`, or `explanation`. That taxonomy is
+complete and does not grow: the composed types below are **compositions of
+the quadrants, not new quadrants**, and they never appear as `diataxis:`
+values.
 
 A composed type is declared with a second, optional frontmatter key,
 `content-type:`, carried *alongside* `diataxis:`. It takes exactly four
@@ -47,8 +48,34 @@ Rules that keep this an extension rather than a fork:
     review.
 *   **Pages of the four base types don't carry `content-type:` at all.** An
     ordinary how-to is just `diataxis: how-to`.
-*   **`keywords.config.yaml` is not extended.** The composed types are
-    declared only in page frontmatter, per the rows above.
+*   **`keywords.config.yaml` is not extended for composed types.** The
+    composed types are declared only in page frontmatter, per the rows
+    above.
+
+### Notice metadata
+
+A [notice](/op-stack/contribute/notice) is time-bound operational content
+for an upgrade, deprecation, or other change that requires readers to
+prepare. Its dominant reader need is authoritative information about a
+specific change, so a notice carries `diataxis: reference`.
+
+The additional `content_type: notice` metadata key (with an underscore)
+marks the page's operational purpose and lifecycle for the notice index and
+site search. It does not create a fifth quadrant or composition. The
+`content-type:` key (with a hyphen) remains limited to the four composition
+values above.
+
+Use a notice when the page must answer all of these questions:
+
+*   What is changing and why?
+*   Which personas are affected, and what breaks or remains compatible for
+    each one?
+*   What must each affected reader do before the cutover?
+*   When and how does the change take effect?
+
+After the change is complete, archive the notice and move durable facts into
+the relevant guide, reference, or
+[network upgrade registry](/op-stack/protocol/network-upgrades).
 
 ## How-to guide vs. tutorial vs. solution guide
 
@@ -115,7 +142,8 @@ would gain learning-unit framing inside a track without being rewritten).
     [solution guide](/op-stack/contribute/solution-guide),
     [learning unit](/op-stack/contribute/learning-unit),
     [curriculum hub](/op-stack/contribute/curriculum-hub),
-    [router/landing](/op-stack/contribute/router-landing).
+    [router/landing](/op-stack/contribute/router-landing), or
+    [notice](/op-stack/contribute/notice).
 *   For the four base quadrants, the
     [style guide's content types section](https://github.com/ethereum-optimism/optimism/blob/develop/docs/public-docs/STYLE_GUIDE.md#content-types)
     remains the reference.

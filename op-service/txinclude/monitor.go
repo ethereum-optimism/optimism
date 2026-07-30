@@ -30,7 +30,8 @@ func NewMonitor(inner ReceiptGetter, blockTime time.Duration) *Monitor {
 
 var transientErrs = []error{
 	ethereum.NotFound,
-	errors.New("transaction indexing in progress"), // Not exported from geth.
+	errors.New("transaction indexing in progress"),    // Alternate spelling retained for compatibility.
+	errors.New("transaction indexing is in progress"), // op-geth wording (not exported).
 }
 
 func (m *Monitor) TransactionReceipt(ctx context.Context, hash common.Hash) (*types.Receipt, error) {

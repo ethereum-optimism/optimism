@@ -181,19 +181,21 @@ func attachSuperChallengerAndProposer(
 	// The honest challenger for interop super games runs the super-cannon-kona trace regardless of the
 	// proposed game type; proposerGameType configures only the proposer below. SuperPermissioned, for
 	// example, resolves at initialization and is never challenged here.
-	challenger := startInteropChallenger(
-		t,
-		runtime.Keys,
-		runtime.L1Network,
-		runtime.L1EL,
-		runtime.L1CL,
-		runtime.DependencySet,
-		runtime.Supernode.UserRPC(),
-		nets,
-		els,
-		gameTypes.SuperCannonKonaGameType,
-	)
-	runtime.L2ChallengerConfig = challenger.Config()
+	if !cfg.SkipHonestChallenger {
+		challenger := startInteropChallenger(
+			t,
+			runtime.Keys,
+			runtime.L1Network,
+			runtime.L1EL,
+			runtime.L1CL,
+			runtime.DependencySet,
+			runtime.Supernode.UserRPC(),
+			nets,
+			els,
+			gameTypes.SuperCannonKonaGameType,
+		)
+		runtime.L2ChallengerConfig = challenger.Config()
+	}
 
 	if !cfg.SkipHonestProposer {
 		proposerOpts := append([]ProposerOption{

@@ -1,5 +1,7 @@
 #![allow(missing_docs)]
 
+mod crash_backtrace;
+
 mod builder;
 
 mod custom_pool;

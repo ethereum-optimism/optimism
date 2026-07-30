@@ -1,0 +1,180 @@
+---
+title: Supernode setup
+description: Stand up op-supernode end to end - build the binary, wire each chain's engine API, start the process, and verify every chain is syncing.
+diataxis: how-to
+audit-source:
+  - op-supernode/README.md
+  - op-supernode/justfile
+  - op-supernode/flags/flags.go
+  - op-supernode/cmd/main.go
+  - op-supernode/supernode/supernode.go
+  - op-supernode/supernode/resources/rpc_router.go
+  - op-supernode/supernode/resources/metrics_fan_in.go
+  - op-supernode/supernode/activity/heartbeat/heartbeat.go
+  - op-supernode/supernode/activity/supernode/supernode.go
+---
+
+<Info>
+  op-supernode is in active development.
+  This page tracks the [op-supernode/v0.2.2-rc.8](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv0.2.2-rc.8) release candidate and the procedure may evolve before the stable release.
+  For background on what op-supernode is and why it exists, see the [supernode explainer](/op-stack/interop/supernode).
+</Info>
+
+This guide stands up a single op-supernode process from scratch: build the binary, wire each chain's execution client over the engine API, start the process, and verify that every chain in the dependency set is syncing.
+At the end, one op-supernode acts as the consensus layer for every chain it hosts, replacing a separate op-node per chain.
+
+This page covers getting to a running, verified process.
+For recommended production settings (beacon archiver fallbacks, execution-client retention, Light CL fleets, and HA pools), continue with the [supernode configuration guide](/node-operators/guides/configuration/supernode).
+Every flag used below is catalogued in the [op-supernode configuration reference](/node-operators/reference/op-supernode-config).
+
+## Before you start
+
+You need:
+
+*   **One execution client per chain.** Each chain in the dependency set needs its own execution client with the engine API (authrpc) enabled; one execution client cannot back two chains. See the [execution client configuration guide](/node-operators/guides/configuration/execution-clients) for client options, and the [run a node from source tutorial](/node-operators/tutorials/run-node-from-source) for a full execution-client walkthrough.
+*   **L1 endpoints.** An L1 JSON-RPC endpoint with the `eth` namespace enabled and an L1 beacon-node HTTP endpoint, shared by every chain. A beacon archiver fallback is strongly recommended; see [configuring a blob archiver](/node-operators/guides/management/blobs#configuring-a-blob-archiver).
+*   **The chain IDs of every chain the supernode will host.** For chains in op-node's built-in network registry (for example `op-sepolia`, `unichain-sepolia`), the network name is enough. For any other chain, you need a rollup configuration JSON file per chain.
+
+## Build op-supernode
+
+The binary is built from the Optimism Monorepo.
+The build environment is managed through [mise](https://mise.jdx.dev/), which installs the toolchains needed to build the monorepo; see [`mise.toml`](https://github.com/ethereum-optimism/optimism/blob/develop/mise.toml) at the monorepo root.
+
+<Steps>
+  <Step title="Clone the monorepo and check out the release tag">
+    ```bash
+    git clone https://github.com/ethereum-optimism/optimism.git
+    cd optimism
+    git checkout op-supernode/v0.2.2-rc.8
+    ```
+  </Step>
+
+  <Step title="Build the binary">
+    ```bash
+    cd op-supernode
+    just op-supernode
+    ```
+
+    The binary is written to `op-supernode/bin/op-supernode`.
+  </Step>
+
+  <Step title="Confirm the build">
+    ```bash
+    ./bin/op-supernode --version
+    ```
+
+    <Info>
+      The flag set is generated dynamically from the `--chains` list, so to inspect the full help output for your chains, run `./bin/op-supernode --chains=<chainIDs> --help`.
+    </Info>
+  </Step>
+</Steps>
+
+## Create the JWT secret and wire the engine API
+
+Each chain's virtual node authenticates to that chain's execution client over the engine API using a shared JWT secret.
+
+<Steps>
+  <Step title="Generate the secret">
+    ```bash
+    openssl rand -hex 32 > jwt-secret.txt
+    ```
+  </Step>
+
+  <Step title="Start each execution client with the secret">
+    Start every chain's execution client with its authrpc listening and pointed at the same secret file; for op-reth, `--authrpc.jwtsecret=<path>`.
+    Start the execution clients before the supernode; they simply won't receive blocks until the supernode connects.
+  </Step>
+
+  <Step title="Note the engine-API endpoint of each execution client">
+    You will pass each chain's engine-API endpoint (port `8551` by convention) to the supernode as `--vn.<chainID>.l2` in the next section.
+    The supernode side of the secret is a single `--vn.all.l2.jwt-secret=<path>` flag when every execution client shares one secret; use the per-chain `--vn.<chainID>.l2.jwt-secret` form only when a client needs its own.
+  </Step>
+</Steps>
+
+## Start op-supernode
+
+Start the supernode with the list of chain IDs, the shared L1 endpoints, and each chain's network identity and engine-API endpoint.
+The example below hosts OP Sepolia (chain ID `11155420`) and Unichain Sepolia (chain ID `1301`) with op-reth execution clients.
+Fill in the placeholders, and add or remove the per-chain `--vn.<chainID>.*` groups to match your dependency set.
+
+```bash
+./bin/op-supernode \
+  --chains=11155420,1301 \
+  --data-dir=/var/lib/op-supernode \
+  --l1=<your-l1-eth-rpc> \
+  --l1.beacon=<your-l1-beacon-rpc> \
+  --l1.beacon-fallbacks=<your-l1-beacon-archiver-rpc> \
+  --vn.all.l2.jwt-secret=./jwt-secret.txt \
+  --vn.11155420.network=op-sepolia \
+  --vn.11155420.l2=http://op-sepolia-el:8551 \
+  --vn.11155420.l2.enginekind=reth \
+  --vn.1301.network=unichain-sepolia \
+  --vn.1301.l2=http://unichain-sepolia-el:8551 \
+  --vn.1301.l2.enginekind=reth \
+  --metrics.enabled=true
+```
+
+A few notes on the flags:
+
+*   For a chain that is not in op-node's built-in network registry, replace `--vn.<chainID>.network` with `--vn.<chainID>.rollup.config=<path-to-rollup-config.json>`.
+*   The `--vn.<chainID>.l2.enginekind=reth` lines tell the supernode the execution client is op-reth; the default is `geth`, so drop them if you run op-geth.
+*   P2P is enabled by default, with each virtual node's listen port chosen dynamically to avoid collisions. Set `--disable-p2p=true` when other nodes in your topology handle unsafe-head gossip; see [pair op-supernode with a Light CL fleet](/node-operators/guides/configuration/supernode#pair-op-supernode-with-a-light-cl-fleet).
+*   The JSON-RPC server listens on `0.0.0.0:8545` by default (`--rpc.addr` / `--rpc.port`). Like the op-node RPC, it is not meant to be exposed to the public internet.
+*   Every flag has an environment-variable equivalent (`OP_SUPERNODE_*`). The [configuration guide's example configuration](/node-operators/guides/configuration/supernode#example-configuration) shows the same kind of setup in environment-variable form, and the [configuration reference](/node-operators/reference/op-supernode-config) lists the exact name for every flag.
+
+## Verify the supernode is working
+
+<Steps>
+  <Step title="Watch the logs">
+    The heartbeat activity logs a `heartbeat` message every 10 seconds as a basic sign that the process is alive and its activities are running.
+  </Step>
+
+  <Step title="Check liveness over RPC">
+    The `heartbeat_check` method at the RPC root returns a random hex value as a sign of life:
+
+    ```bash
+    curl -X POST -H "Content-Type: application/json" \
+      --data '{"jsonrpc":"2.0","method":"heartbeat_check","params":[],"id":1}' \
+      http://localhost:8545/
+    ```
+  </Step>
+
+  <Step title="Check aggregate sync status">
+    The `supernode_syncStatus` method at the RPC root returns the per-chain op-node sync status for every hosted chain, plus dependency-set-wide fields: the chain IDs, the highest fully derived and verified L1 block, and the safe, local-safe, and finalized L2 timestamps across the set.
+
+    ```bash
+    curl -X POST -H "Content-Type: application/json" \
+      --data '{"jsonrpc":"2.0","method":"supernode_syncStatus","params":[],"id":1}' \
+      http://localhost:8545/
+    ```
+
+    Confirm that every chain ID you configured appears in the response and that the reported heads advance between calls.
+  </Step>
+
+  <Step title="Check an individual chain">
+    Each chain's full op-node RPC surface is mounted under a `/<chainID>/` path prefix on the same server, so any [op-node JSON-RPC method](/node-operators/reference/op-node-json-rpc#optimism_syncstatus) works per chain:
+
+    ```bash
+    curl -X POST -H "Content-Type: application/json" \
+      --data '{"jsonrpc":"2.0","method":"optimism_syncStatus","params":[],"id":1}' \
+      http://localhost:8545/11155420/
+    ```
+
+    A chain's endpoint becomes available once its chain container has started; requests to a chain ID that is not configured return `404 Not Found`.
+  </Step>
+
+  <Step title="Check metrics">
+    With `--metrics.enabled=true`, every chain's metrics are fanned into a single Prometheus endpoint at `/metrics` on the metrics port (default `7300`), labeled per chain:
+
+    ```bash
+    curl http://localhost:7300/metrics
+    ```
+  </Step>
+</Steps>
+
+## Next steps
+
+*   Harden the deployment with the [supernode configuration guide](/node-operators/guides/configuration/supernode): beacon archiver fallbacks, execution-client retention for backfill, Light CL fleets, and HA pools behind a consensus-aware proxyd.
+*   Look up any flag in the [op-supernode configuration reference](/node-operators/reference/op-supernode-config).
+*   Read the [supernode explainer](/op-stack/interop/supernode) for what op-supernode is and why it exists.
+*   Read the [interop prep notice](/notices/interop-prep) for the node-operator action checklist for the OP Sepolia and Unichain Sepolia activation.

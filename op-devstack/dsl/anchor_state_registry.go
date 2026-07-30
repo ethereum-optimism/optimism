@@ -60,8 +60,10 @@ func NewAnchorStateRegistry(t devtest.T, l2Network *L2Network, l1EL *L1ELNode) *
 }
 
 func (a *AnchorStateRegistry) WaitForAnchorRootAtLeast(game interface {
+	RootClaimValue() common.Hash
 	L2SequenceNumber() uint64
 }) {
+	expectedRoot := game.RootClaimValue()
 	expectedSequence := new(big.Int).SetUint64(game.L2SequenceNumber())
 
 	a.require.Eventually(func() bool {
@@ -71,6 +73,14 @@ func (a *AnchorStateRegistry) WaitForAnchorRootAtLeast(game interface {
 			return false
 		}
 		a.log.Info("Observed anchor root", "root", anchor.Root, "l2SequenceNumber", anchor.L2SequenceNumber)
-		return anchor.L2SequenceNumber.Cmp(expectedSequence) >= 0
-	}, 2*time.Minute, 5*time.Second, "AnchorStateRegistry did not advance to the expected game sequence")
+		switch anchor.L2SequenceNumber.Cmp(expectedSequence) {
+		case 0:
+			// Anchored exactly at the game's height: it must be this game's root.
+			return anchor.Root == expectedRoot
+		case 1:
+			return true
+		default:
+			return false
+		}
+	}, 2*time.Minute, 5*time.Second, "AnchorStateRegistry did not anchor at or beyond the game sequence (an equal-height anchor must match the game's root)")
 }

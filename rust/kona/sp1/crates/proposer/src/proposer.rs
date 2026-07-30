@@ -20,6 +20,7 @@ use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_primitives::{Address, B256, U256};
 use alloy_provider::{Provider, ProviderBuilder};
 use alloy_sol_types::SolEvent;
+use alloy_transport_http::reqwest::Url;
 use anyhow::{Context, Result, bail};
 use kona_sp1_host_utils::metrics::MetricsGauge;
 use tokio::{sync::RwLock, time};
@@ -35,7 +36,7 @@ use crate::{
     },
     is_parent_resolved,
     metrics::ProposerGauge,
-    signer::SignerLock,
+    signer::{FeeCaps, SignerLock},
     superroot::{SuperrootClient, zk_extra_data},
 };
 
@@ -85,10 +86,10 @@ impl ProposerIdentity {
     }
 
     /// Logs the proposer identity and prestate artifact source at startup.
-    pub fn log_startup_info(&self, prestates_url: &alloy_transport_http::reqwest::Url) {
+    pub fn log_startup_info(&self, prestates_url: &Url) {
         tracing::info!(
             version = %self.version,
-            prestates_url = %prestates_url,
+            prestates_url = %crate::config::redacted_url(prestates_url),
             "proposer identity",
         );
     }
@@ -105,7 +106,7 @@ impl Default for ProposerIdentity {
 /// Games form a directed acyclic graph where each game builds upon a parent game, extending the
 /// chain with a new proposed output root. The proposer tracks these games to determine when to
 /// propose new games, defend existing ones, resolve completed games and claim bonds.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug)]
 pub struct Game {
     /// Index of the game in the `DisputeGameFactory`.
     pub index: U256,
@@ -280,17 +281,26 @@ impl ProposerState {
     }
 }
 
-/// Snapshot of the proposer's cached state for testing and monitoring.
+/// An unresolved game creation: the exact bytes of a `create` whose
+/// confirmation timed out, so the transaction may still land. While a
+/// record is set, new proposals are held; each tick the factory is
+/// checked for the uuid (adopting our landed game) and the record clears
+/// once the signer's pool holds no transactions, i.e. nothing of ours can
+/// land anymore. The hold plus the factory's dedup on (gameType,
+/// rootClaim, extraData) keep a stuck-then-included original from being
+/// joined by a sibling at a fresh timestamp. In-memory only: a restart
+/// with a create in flight keeps the pre-existing documented
+/// double-submit-once risk.
 #[derive(Clone, Debug)]
-pub struct ProposerStateSnapshot {
-    /// Factory index of the anchor game, if one is set.
-    pub anchor_index: Option<U256>,
-    /// Factory index of the current canonical head game, if any.
-    pub canonical_head_index: Option<U256>,
-    /// Super-root timestamp of the canonical head (0 when no head exists).
-    pub canonical_head_sequence_number: u64,
-    /// Cached games as `(factory index, game address)` pairs.
-    pub games: Vec<(U256, Address)>,
+struct InFlightCreation {
+    /// Root claim of the unresolved create.
+    root_claim: B256,
+    /// Exact extraData bytes sent (pins parent, timestamp, and proof).
+    extra_data: Vec<u8>,
+    /// Super-root timestamp of the unresolved create (guard arming).
+    sequence_number: u64,
+    /// Parent game index, for logging.
+    parent_game_index: u32,
 }
 
 /// Core proposer service: syncs the on-chain game DAG, creates and defends games,
@@ -310,9 +320,9 @@ where
     pub superroot_client: SuperrootClient,
     /// `DisputeGameFactory` contract instance used to create and enumerate games.
     pub factory: Arc<DisputeGameFactoryInstance<P>>,
-    /// Loaded prestate programs keyed by `absolutePrestate()` hash, fetched
-    /// from `PRESTATES_URL` on demand (see [`ensure_prestate_loaded`]).
-    pub prestates: Arc<RwLock<HashMap<B256, Arc<PrestatePrograms>>>>,
+    /// Prestate program cache: loaded ELFs keyed by `absolutePrestate()`
+    /// hash, fetched from `PRESTATES_URL` on demand (see [`PrestateCache`]).
+    pub prestates: Arc<PrestateCache>,
     tasks: Arc<tokio::sync::Mutex<TaskMap>>,
     next_task_id: Arc<AtomicU64>,
     state: Arc<RwLock<ProposerState>>,
@@ -327,10 +337,14 @@ where
     /// Address of the most recently created game. Used to precisely identify
     /// the guarded game for `ChallengerWins` subtree removal.
     last_created_game_address: Arc<tokio::sync::Mutex<Address>>,
+    /// Exact bytes of a create whose confirmation timed out and whose fate
+    /// is unknown (see [`InFlightCreation`]).
+    in_flight_creation: Arc<tokio::sync::Mutex<Option<InFlightCreation>>>,
     /// Games seen on-chain whose super-root data is not yet obtainable from
     /// this node - the timestamp is not yet safe, or the query failed
     /// (including permanently, e.g. timestamps predating the node's recorded
-    /// safe history). Excluded from the DAG (and parent eligibility) but
+    /// safe history) - and our own games whose claim contradicts the current
+    /// supernode answer. Excluded from the DAG (and parent eligibility) but
     /// re-validated each sync - unlike terminal invalidity, pending games
     /// must not be dropped by the cursor (see `fetch_game`).
     pending_games: Arc<RwLock<HashSet<U256>>>,
@@ -365,13 +379,14 @@ where
         let l1_provider = ProviderBuilder::default().connect_http(config.l1_rpc.clone());
         let superroot_client = SuperrootClient::new(config.supernode_rpc.as_str())?;
 
+        let prestates = Arc::new(PrestateCache::new(config.prestates_url.clone()));
         Ok(Self {
             config,
             signer,
             l1_provider,
             superroot_client,
             factory: Arc::new(factory),
-            prestates: Arc::new(RwLock::new(HashMap::new())),
+            prestates,
             tasks: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
             next_task_id: Arc::new(AtomicU64::new(1)),
             state: Arc::new(RwLock::new(ProposerState::default())),
@@ -379,27 +394,9 @@ where
             last_synced_l1_block: Arc::new(AtomicU64::new(0)),
             last_created_game_l2_sequence_number: Arc::new(AtomicU64::new(0)),
             last_created_game_address: Arc::new(tokio::sync::Mutex::new(Address::ZERO)),
+            in_flight_creation: Arc::new(tokio::sync::Mutex::new(None)),
             pending_games: Arc::new(RwLock::new(HashSet::new())),
         })
-    }
-
-    /// Returns a lightweight snapshot of the proposer's cached state.
-    pub async fn state_snapshot(&self) -> ProposerStateSnapshot {
-        let state = self.state.read().await;
-        ProposerStateSnapshot {
-            anchor_index: state.anchor_game.as_ref().map(|game| game.index),
-            canonical_head_index: state.canonical_head_index,
-            canonical_head_sequence_number: state
-                .canonical_head_sequence_number
-                .unwrap_or_default(),
-            games: state.games.values().map(|game| (game.index, game.address)).collect(),
-        }
-    }
-
-    /// Returns a copy of a game's full internal state for testing.
-    pub async fn get_game(&self, index: U256) -> Option<Game> {
-        let state = self.state.read().await;
-        state.games.get(&index).cloned()
     }
 
     /// Runs the proposer indefinitely.
@@ -449,6 +446,7 @@ where
                     } else {
                         tracing::warn!(
                             attempt = retry_count,
+                            error = %e,
                             "Startup validations still pending, retrying..."
                         );
                     }
@@ -473,15 +471,9 @@ where
         // Validate the registered game args decode and load the registered
         // prestate's programs.
         let game_args = self.registered_game_args(BlockId::latest()).await?;
-        if !ensure_prestate_loaded(
-            &self.prestates,
-            &self.config.prestates_url,
-            game_args.absolute_prestate,
-        )
-        .await
-        {
+        if !self.prestates.ensure_loaded(game_args.absolute_prestate).await {
             // Not fatal: creation stays paused until the artifacts appear
-            // under PRESTATES_URL (ensure_prestate_loaded logged why).
+            // under PRESTATES_URL (PrestateCache::ensure_loaded logged why).
             tracing::warn!(
                 registered = %game_args.absolute_prestate,
                 "registered prestate programs unavailable; creation will pause"
@@ -492,11 +484,12 @@ where
         let registry =
             AnchorStateRegistry::new(game_args.anchor_state_registry, self.l1_provider.clone());
         let anchor = registry.getAnchorRoot().call().await?;
+        let (anchor_root, anchor_sequence_number) = (anchor._0, anchor._1);
         anyhow::ensure!(
-            anchor._0 != B256::ZERO,
+            anchor_root != B256::ZERO,
             "anchor state registry has no anchor root (game creation would revert)"
         );
-        anchor._1.try_into().context("anchor sequence number exceeds u64")
+        anchor_sequence_number.try_into().context("anchor sequence number exceeds u64")
     }
 
     /// Fetches and decodes the currently registered game args at `block`.
@@ -601,21 +594,24 @@ where
 
     /// Synchronizes the game cache.
     ///
-    /// 1. Load new games.
-    ///    - Incrementally fetch games from the factory, starting from the latest and working
-    ///      backwards to the oldest unprocessed game, stopping at games exceeding the maximum
-    ///      deadline lag from the anchor game (`MAX_GAME_DEADLINE_LAG`).
-    ///    - Games are validated (correct type, valid output root) before being added.
-    /// 2. Synchronize the status of all cached games.
-    ///    - Games are removed (along with their subtree) if their parent is not in the cache.
-    ///    - Games are marked for resolution if the parent is resolved, the game is over, and it's
-    ///      own game.
-    ///    - Games are marked for bond claim if they are finalized and there is credit to claim.
-    /// 3. Evict games from the cache.
-    ///    - Games that are finalized but there is no credit left to claim.
-    ///    - The entire subtree of a `ChallengerWins` game.
+    /// 1. Discover new games: walk the factory backwards from the latest game to the cursor,
+    ///    classifying each as valid / unsupported / invalid / pending, and stopping early once past
+    ///    the anchor's deadline-lag cutoff. A fetch failure aborts the sync cycle (the cursor is
+    ///    not advanced, so the range is re-walked next cycle).
+    /// 2. Remove invalid games and their subtrees.
+    /// 3. Re-validate pending games (timestamps not yet safe from this node's view, unavailable
+    ///    super-root data, or an own-game claim mismatch); entries still pending past the anchor's
+    ///    deadline-lag cutoff are evicted.
+    /// 4. Synchronize the status of all cached games and apply actions: mark own games for
+    ///    resolution (parent resolved in the defender's favor, game over), mark `DefenderWins`
+    ///    games for bond claiming (finalized with credit, or a matured withdrawal), remove finished
+    ///    games (keeping the anchor and the canonical head), and remove the entire subtree of a
+    ///    `ChallengerWins` game (resetting the duplicate-creation guard when the tracked game is
+    ///    inside it). Per-game read failures skip only that game for the cycle.
     pub async fn sync_games(&self, pinned_block: BlockId, pinned_timestamp: u64) -> Result<()> {
         let pinned_latest_index = self.factory.fetch_latest_game_index(pinned_block).await?;
+        ProposerGauge::FactoryLatestGameIndex
+            .set(pinned_latest_index.map_or(-1.0, |i| i.to::<u64>() as f64));
 
         // 1. Load new games.
         let latest_index = if let Some(index) = pinned_latest_index {
@@ -628,6 +624,7 @@ where
                 state.reset_factory_cache();
             }
             self.pending_games.write().await.clear();
+            ProposerGauge::SyncCursor.set(-1.0);
             return Ok(());
         };
 
@@ -674,7 +671,24 @@ where
             }
 
             let i = index.index().expect("must have an index here");
-            let fetch_result = self.fetch_game(i, pinned_block).await?;
+            let fetch_result = match self.fetch_game(i, pinned_block).await {
+                Ok(result) => result,
+                Err(e) => {
+                    // A failed fetch aborts the whole cycle: acting on a
+                    // partially discovered topology could select a parent
+                    // whose unfetched ancestry is invalid. The cursor stays
+                    // put so the range is re-walked next cycle; persistent
+                    // failure is visible via the warn, the game_sync_error
+                    // counter, and a flat sync cursor.
+                    tracing::warn!(
+                        game_index = %index,
+                        error = %e,
+                        "Game fetch failed; aborting the sync cycle"
+                    );
+                    ProposerGauge::GameSyncError.increment(1.0);
+                    return Err(e);
+                }
+            };
 
             match fetch_result {
                 GameFetchResult::ValidGame { game_address, deadline } => {
@@ -685,7 +699,7 @@ where
 
                     // Once we know the anchor deadline, enforce the lag constraint.
                     if let Some(anchor_d) = anchor_deadline &&
-                        anchor_d.abs_diff(deadline) > MAX_GAME_DEADLINE_LAG
+                        beyond_deadline_lag(anchor_d, deadline)
                     {
                         tracing::debug!(
                             game_index = %index,
@@ -707,7 +721,7 @@ where
                 GameFetchResult::InvalidGame { index } => {
                     invalid_game_ids.push(index);
                 }
-                GameFetchResult::Pending { index } => {
+                GameFetchResult::Pending { index, .. } => {
                     newly_pending.push(index);
                 }
             }
@@ -715,6 +729,10 @@ where
             index.step_back();
         }
 
+        // The loop only completes on a full walk (a fetch failure returns
+        // above), so the cursor advance is unconditional; re-walked
+        // processed games hit `AlreadyExists`, which is idempotent.
+        ProposerGauge::SyncCursor.set(latest_index.index().map_or(-1.0, |i| i.to::<u64>() as f64));
         {
             let mut state = self.state.write().await;
             state.cursor = latest_index;
@@ -741,15 +759,48 @@ where
                 pending.iter().copied().filter(|idx| !newly_pending.contains(idx)).collect()
             };
             self.pending_games.write().await.extend(newly_pending.iter().copied());
+            // Anchor deadline for the eviction cutoff: prefer the walk's
+            // observation this cycle, fall back to the cached anchor game.
+            // Neither known -> skip eviction this cycle (it is an
+            // optimization; nothing is lost by waiting).
+            let anchor_deadline_for_eviction = match anchor_deadline {
+                Some(deadline) => Some(deadline),
+                None => self.state.read().await.anchor_game.as_ref().map(|g| g.deadline),
+            };
             for idx in previously_pending {
-                match self.fetch_game(idx, pinned_block).await? {
-                    GameFetchResult::Pending { .. } => {}
-                    GameFetchResult::InvalidGame { index } => {
+                match self.fetch_game(idx, pinned_block).await {
+                    Ok(GameFetchResult::Pending { deadline, .. }) => {
+                        // TODO(#21463): exempt owned games and their
+                        // ancestors (foreign ancestors included) from this
+                        // eviction once the defend path widens ownership; an
+                        // evicted own game currently loses resolution/bond
+                        // tracking until a restart after the supernode heals.
+                        if let Some(anchor_d) = anchor_deadline_for_eviction &&
+                            pending_evictable(anchor_d, deadline)
+                        {
+                            tracing::warn!(
+                                game_index = %idx,
+                                game_deadline = deadline,
+                                anchor_deadline = anchor_d,
+                                "Evicting pending game whose deadline fell behind the anchor beyond the lag cutoff"
+                            );
+                            self.pending_games.write().await.remove(&idx);
+                        }
+                    }
+                    Ok(GameFetchResult::InvalidGame { index }) => {
                         self.pending_games.write().await.remove(&index);
                         self.state.write().await.invalidate_subtree(index);
                     }
-                    _ => {
+                    Ok(_) => {
                         self.pending_games.write().await.remove(&idx);
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            game_index = %idx,
+                            error = %e,
+                            "Pending game re-validation failed; retrying next cycle"
+                        );
+                        ProposerGauge::GameSyncError.increment(1.0);
                     }
                 }
             }
@@ -785,6 +836,7 @@ where
             let mut actions = Vec::with_capacity(games.len());
 
             for (index, game_address, game_weth, game_asr) in games {
+                let synced: Result<()> = async {
                 let contract = ZKDisputeGame::new(game_address, self.l1_provider.clone());
                 let claim_data = contract.claimData().block(pinned_block).call().await?;
                 // Enums are uint8 in the ABI; convert once at the read boundary.
@@ -925,6 +977,17 @@ where
                         actions.push(GameSyncAction::RemoveSubtree(index));
                     }
                 }
+                Ok(())
+                }
+                .await;
+                if let Err(e) = synced {
+                    tracing::warn!(
+                        game_index = %index,
+                        error = %e,
+                        "Game status sync failed; skipping this game for this cycle"
+                    );
+                    ProposerGauge::GameSyncError.increment(1.0);
+                }
             }
 
             let mut state = self.state.write().await;
@@ -1051,21 +1114,24 @@ where
     }
 
     /// Returns true if game creation may proceed for the currently registered
-    /// game implementation's prestate (see [`ensure_prestate_loaded`]).
+    /// game implementation's prestate (see [`PrestateCache::ensure_loaded`]).
     async fn registered_prestate_known(&self) -> Result<bool> {
         let args = self.registered_game_args(BlockId::latest()).await?;
-        Ok(ensure_prestate_loaded(
-            &self.prestates,
-            &self.config.prestates_url,
-            args.absolute_prestate,
-        )
-        .await)
+        Ok(self.prestates.ensure_loaded(args.absolute_prestate).await)
     }
 
     /// Returns the loaded program ELFs for `prestate`, if present in the
     /// cache. The defend path proves with these.
     pub async fn prestate_programs(&self, prestate: B256) -> Option<Arc<PrestatePrograms>> {
-        self.prestates.read().await.get(&prestate).cloned()
+        self.prestates.programs(prestate).await
+    }
+
+    /// Operator fee caps applied to every submitted transaction.
+    const fn fee_caps(&self) -> FeeCaps {
+        FeeCaps {
+            max_fee_per_gas: self.config.max_fee_per_gas,
+            max_priority_fee_per_gas: self.config.max_priority_fee_per_gas,
+        }
     }
 
     /// Creates a new game with the given parameters.
@@ -1088,6 +1154,7 @@ where
                 self.config.l1_rpc.clone(),
                 transaction_request,
                 self.config.tx_confirmation_timeout,
+                self.fee_caps(),
             )
             .await?;
 
@@ -1216,8 +1283,13 @@ where
             // registered one across upgrades.
             let weth = DelayedWETH::new(game.weth, self.l1_provider.clone());
             let withdrawal = weth.withdrawals(game.address, signer_address).call().await;
-            if let (Ok(credit), Ok(withdrawal)) = (credit, withdrawal) {
-                if credit == U256::ZERO && withdrawal.amount == U256::ZERO {
+            let mut is_payout = false;
+            if let (Ok(credit), Ok(withdrawal)) = (&credit, &withdrawal) {
+                // Phase 2 = credit already unlocked (zero) with a recorded
+                // withdrawal; only a successful payout claims the bond - the
+                // phase-1 unlock is bookkeeping and must not count.
+                is_payout = *credit == U256::ZERO && withdrawal.amount > U256::ZERO;
+                if *credit == U256::ZERO && withdrawal.amount == U256::ZERO {
                     tracing::info!(
                         game_index = %game.index,
                         game_address = ?game.address,
@@ -1225,7 +1297,7 @@ where
                     );
                     continue;
                 }
-                if credit == U256::ZERO && withdrawal.amount > U256::ZERO {
+                if *credit == U256::ZERO && withdrawal.amount > U256::ZERO {
                     // Phase 2: only submit once the WETH delay has elapsed in
                     // CHAIN time. DelayedWETH enforces
                     // `timestamp + DELAY_SECONDS <= block.timestamp`; wall
@@ -1282,7 +1354,11 @@ where
                 continue;
             }
 
-            ProposerGauge::GamesBondsClaimed.increment(1.0);
+            // If the pre-flight reads failed we cannot know the phase; skip
+            // the count (under-count in a degraded state, never a double-count).
+            if is_payout {
+                ProposerGauge::GamesBondsClaimed.increment(1.0);
+            }
         }
 
         Ok(())
@@ -1298,6 +1374,7 @@ where
                 self.config.l1_rpc.clone(),
                 transaction_request,
                 self.config.tx_confirmation_timeout,
+                self.fee_caps(),
             )
             .await?;
 
@@ -1330,6 +1407,7 @@ where
                 self.config.l1_rpc.clone(),
                 transaction_request,
                 self.config.tx_confirmation_timeout,
+                self.fee_caps(),
             )
             .await?;
 
@@ -1351,10 +1429,13 @@ where
     /// Fetch game from the factory.
     ///
     /// Terminal drops: unsupported game type, mismatched anchor state
-    /// registry, disrespected game type at creation, or a claim contradicting
-    /// the canonical super root. A timestamp not yet safe from this node's
-    /// view yields `Pending` instead: excluded from the DAG but re-validated
-    /// on later syncs.
+    /// registry, disrespected game type at creation, an `l2SequenceNumber`
+    /// exceeding `u64`, or another proposer's
+    /// claim contradicting the canonical super root (our OWN game's claim
+    /// mismatch is held pending instead of terminally dropped, since bad
+    /// supernode data is the likelier cause). A timestamp not yet safe from
+    /// this node's view yields `Pending` instead: excluded from the DAG but
+    /// re-validated on later syncs.
     pub async fn fetch_game(&self, index: U256, pinned_block: BlockId) -> Result<GameFetchResult> {
         {
             let state = self.state.read().await;
@@ -1405,13 +1486,19 @@ where
         let game_weth = contract.weth().block(pinned_block).call().await?;
         let creator = contract.gameCreator().block(pinned_block).call().await?;
 
-        let sequence_number: u64 = contract
-            .l2SequenceNumber()
-            .block(pinned_block)
-            .call()
-            .await?
-            .try_into()
-            .context("game sequence number exceeds u64")?;
+        let sequence_number = contract.l2SequenceNumber().block(pinned_block).call().await?;
+        // Unreachable for games created through the current contract (the
+        // field is sourced from an 8-byte extraData slot), kept as a
+        // classification rather than an error so a malformed game can never
+        // wedge the walk: only transient errors may bubble from discovery.
+        let Ok(sequence_number) = u64::try_from(sequence_number) else {
+            tracing::warn!(
+                game_index = %index,
+                ?game_address,
+                "Invalid game: l2SequenceNumber exceeds u64"
+            );
+            return Ok(GameFetchResult::InvalidGame { index });
+        };
         let claim = contract.rootClaim().block(pinned_block).call().await?;
         let was_respected =
             contract.wasRespectedGameTypeWhenCreated().block(pinned_block).call().await?;
@@ -1454,10 +1541,10 @@ where
                     "Super-root data unavailable for game; deferring validation"
                 );
                 ProposerGauge::SuperRootUnavailable.increment(1.0);
-                return Ok(GameFetchResult::Pending { index });
+                return Ok(GameFetchResult::Pending { index, deadline });
             }
         };
-        let super_root = match SuperrootClient::super_root_at(&response) {
+        let super_root = match SuperrootClient::super_root_at(&response, sequence_number) {
             Ok(super_root) => super_root,
             Err(e) => {
                 tracing::warn!(
@@ -1468,7 +1555,7 @@ where
                     "Super-root response failed validation for game; deferring"
                 );
                 ProposerGauge::SuperRootUnavailable.increment(1.0);
-                return Ok(GameFetchResult::Pending { index });
+                return Ok(GameFetchResult::Pending { index, deadline });
             }
         };
         match super_root {
@@ -1495,9 +1582,28 @@ where
                     sequence_number,
                     "Game timestamp not yet safe from this node's view; deferring validation"
                 );
-                return Ok(GameFetchResult::Pending { index });
+                return Ok(GameFetchResult::Pending { index, deadline });
             }
             Some(super_root) if super_root.super_root != claim => {
+                if creator == self.signer.address() {
+                    // Our own game contradicting the supernode is far more
+                    // likely bad supernode data than a bad claim we
+                    // validated at creation. Hold it re-checkable instead of
+                    // terminally dropping it (and its subtree and our init
+                    // bond) on one wrong answer. The game is never
+                    // parent-eligible while pending; if the claim really is
+                    // bad the bond is lost on chain regardless, and the
+                    // pending entry ages out via the eviction cutoff once
+                    // its deadline falls behind the anchor.
+                    tracing::warn!(
+                        game_index = %index,
+                        ?game_address,
+                        ?claim,
+                        canonical_super_root = ?super_root.super_root,
+                        "Own game contradicts canonical super root; holding as pending"
+                    );
+                    return Ok(GameFetchResult::Pending { index, deadline });
+                }
                 tracing::warn!(
                     game_index = %index,
                     ?game_address,
@@ -1559,7 +1665,8 @@ where
 
         loop {
             let response = self.superroot_client.superroot_at_timestamp(sequence_number).await?;
-            let Some(super_root) = SuperrootClient::super_root_at(&response)? else {
+            let Some(super_root) = SuperrootClient::super_root_at(&response, sequence_number)?
+            else {
                 // Transient: the chosen timestamp is not yet safe from this
                 // node's view. Bail and retry on a later tick.
                 bail!("no canonical super root at timestamp {sequence_number} yet");
@@ -1579,19 +1686,66 @@ where
                     root_claim = %super_root.super_root,
                     "Creating game"
                 );
-                let game_address = self.create_game(super_root.super_root, extra_data).await?;
+                // Record the exact bytes before sending: if confirmation
+                // times out the tx may still land, and the record holds
+                // proposals until it is adopted or provably dead instead
+                // of proposing a sibling at a fresh timestamp.
+                *self.in_flight_creation.lock().await = Some(InFlightCreation {
+                    root_claim: super_root.super_root,
+                    extra_data: extra_data.clone(),
+                    sequence_number,
+                    parent_game_index,
+                });
+                match self.create_game(super_root.super_root, extra_data).await {
+                    Ok(game_address) => {
+                        *self.in_flight_creation.lock().await = None;
 
-                // Record the sequence number and address so should_create_game() skips
-                // duplicate creation while the pinned cache hasn't caught up to this game.
+                        // Record the sequence number and address so should_create_game() skips
+                        // duplicate creation while the pinned cache hasn't caught up to this
+                        // game.
+                        self.last_created_game_l2_sequence_number
+                            .store(sequence_number, Ordering::Relaxed);
+                        *self.last_created_game_address.lock().await = game_address;
+                        ProposerGauge::GamesCreated.increment(1.0);
+                        return Ok(());
+                    }
+                    Err(e) => {
+                        if e.is_revert() {
+                            // A landed revert consumed the transaction: nothing is in
+                            // flight, so there is no uuid to pin.
+                            *self.in_flight_creation.lock().await = None;
+                        }
+                        return Err(e);
+                    }
+                }
+            }
+
+            // A game with identical parameters already exists (UUID
+            // collision). If WE created it - a previous create tx landed
+            // after its confirmation timed out, leaving the guard unarmed -
+            // adopt it instead of advancing the timestamp, which would bond
+            // a second game on the same parent. Only a third-party
+            // collision advances.
+            let existing_creator = ZKDisputeGame::new(existing_game, self.l1_provider.clone())
+                .gameCreator()
+                .call()
+                .await?;
+            if existing_creator == self.signer.address() {
+                tracing::info!(
+                    sequence_number,
+                    parent_game_index,
+                    game_address = ?existing_game,
+                    "Adopting own existing game after create-tx uncertainty"
+                );
                 self.last_created_game_l2_sequence_number.store(sequence_number, Ordering::Relaxed);
-                *self.last_created_game_address.lock().await = game_address;
+                *self.last_created_game_address.lock().await = existing_game;
                 return Ok(());
             }
 
-            // An identical VALID game already exists (UUID collision). Advance the
-            // timestamp - bounded by the safety limit - and refetch a fresh super
-            // root (the proof embeds the timestamp). On reaching the bound, defer:
-            // the next sync adopts the existing game as canonical head.
+            // Third-party collision: advance the timestamp - bounded by the
+            // safety limit - and refetch a fresh super root (the proof
+            // embeds the timestamp). On reaching the bound, defer: the next
+            // sync adopts the existing game as canonical head.
             match advance_collision_timestamp(sequence_number, max_proposable) {
                 Some(next) => {
                     tracing::debug!(
@@ -1611,6 +1765,101 @@ where
                 }
             }
         }
+    }
+
+    /// Resolves an in-flight creation left by a confirmation timeout.
+    ///
+    /// Looks the recorded uuid up on the factory first: if the game exists
+    /// and is ours, adopt it (arm the duplicate-creation guard); if it is
+    /// another proposer's, the uuid is spent and no duplicate is possible.
+    /// Otherwise consult the signer's pool: while the pending transaction
+    /// count exceeds the latest, something of ours is still floating and
+    /// may land, so the record is kept and proposals stay held. Once the
+    /// pool drains, nothing of ours can land anymore - the original was
+    /// mined (the lookup above adopts it) or dropped - so the record
+    /// clears and normal proposals resume next tick through
+    /// `should_create_game`'s checks.
+    ///
+    /// The pool view is this node's: a transaction evicted here but alive
+    /// in another pool can land after the clear. That residual re-creates
+    /// the sibling scenario this record exists to narrow, which is benign
+    /// and self-healing - the sibling is a valid own game whose bond is
+    /// recovered by the normal resolution and claiming flow.
+    async fn resolve_in_flight_creation(&self) -> Result<()> {
+        let Some(record) = self.in_flight_creation.lock().await.clone() else {
+            return Ok(());
+        };
+
+        if self.try_adopt_recorded_uuid(&record).await? {
+            return Ok(());
+        }
+
+        let signer_address = self.signer.address();
+        let pending_nonce =
+            self.l1_provider.get_transaction_count(signer_address).pending().await?;
+        let latest_nonce = self.l1_provider.get_transaction_count(signer_address).latest().await?;
+        if pending_nonce > latest_nonce {
+            tracing::info!(
+                sequence_number = record.sequence_number,
+                parent_game_index = record.parent_game_index,
+                pending_nonce,
+                latest_nonce,
+                "In-flight transaction still in the pool; holding proposals"
+            );
+            return Ok(());
+        }
+
+        tracing::info!(
+            sequence_number = record.sequence_number,
+            parent_game_index = record.parent_game_index,
+            "In-flight creation left the pool without landing; clearing the record"
+        );
+        *self.in_flight_creation.lock().await = None;
+        Ok(())
+    }
+
+    /// Resolves the record when its uuid already exists on the factory:
+    /// our own game is adopted (duplicate-creation guard armed), a foreign
+    /// copy spends the uuid either way. Returns whether the record was
+    /// resolved. Read errors keep the record and bubble (retried next
+    /// tick).
+    async fn try_adopt_recorded_uuid(&self, record: &InFlightCreation) -> Result<bool> {
+        let existing_game = self
+            .factory
+            .games(ZK_GAME_TYPE, record.root_claim, record.extra_data.clone().into())
+            .call()
+            .await?
+            .proxy_;
+        if existing_game == Address::ZERO {
+            return Ok(false);
+        }
+
+        let existing_creator = ZKDisputeGame::new(existing_game, self.l1_provider.clone())
+            .gameCreator()
+            .call()
+            .await?;
+        if existing_creator == self.signer.address() {
+            // Our stuck create landed after all: adopt it. Not counted
+            // in GamesCreated, consistent with the collision-adoption
+            // path (accepted under-count).
+            tracing::info!(
+                sequence_number = record.sequence_number,
+                parent_game_index = record.parent_game_index,
+                game_address = ?existing_game,
+                "Adopting in-flight game that landed after its confirmation timeout"
+            );
+            self.last_created_game_l2_sequence_number
+                .store(record.sequence_number, Ordering::Relaxed);
+            *self.last_created_game_address.lock().await = existing_game;
+        } else {
+            tracing::info!(
+                sequence_number = record.sequence_number,
+                game_address = ?existing_game,
+                "In-flight uuid was created by another proposer; no duplicate possible"
+            );
+        }
+        *self.in_flight_creation.lock().await = None;
+        Ok(true)
     }
 
     /// Fetch the proposer metrics.
@@ -1787,11 +2036,107 @@ where
     /// - Ok(false): No work needed (proposal interval not elapsed or no finalized blocks)
     /// - Err: Actual error occurred during task spawning
     async fn spawn_game_creation_task(&self) -> Result<bool> {
+        // An unresolved create takes precedence over new proposals: hold
+        // them until its uuid is adopted or provably dead, so a
+        // stuck-then-included original can never be joined by a sibling at
+        // a fresh timestamp.
+        let in_flight_sequence_number =
+            self.in_flight_creation.lock().await.as_ref().map(|record| record.sequence_number);
+        if let Some(sequence_number) = in_flight_sequence_number {
+            let proposer = self.clone();
+            let task_id = self.next_task_id.fetch_add(1, Ordering::Relaxed);
+
+            let handle = tokio::spawn(async move {
+                if let Err(e) = proposer.resolve_in_flight_creation().await {
+                    tracing::warn!("Failed to resolve in-flight game creation: {:?}", e);
+                    return Err(e);
+                }
+
+                Ok(())
+            });
+
+            let task_info = TaskInfo::GameCreation { sequence_number };
+
+            self.tasks.lock().await.insert(task_id, (handle, task_info));
+            tracing::info!(
+                "Spawned in-flight creation resolution task {} for sequence number {}",
+                task_id,
+                sequence_number
+            );
+            return Ok(true);
+        }
+
         // First check if we should create a game
         let (should_create, next_sequence_number, parent_game_index) =
             self.should_create_game().await?;
         if !should_create {
             return Ok(false);
+        }
+
+        // A retired or blacklisted parent reverts child creation forever
+        // (ZKDisputeGame.initialize consults the registered registry's
+        // isGameBlacklisted/isGameRetired at create time; nothing at resolve
+        // time ever prunes such a parent). Check the chosen parent against
+        // the registry a new child would bind - the currently registered
+        // one, not the parent's own (they differ across ASR swaps) - and
+        // drop its subtree so head selection falls back next sync. Bare
+        // isGameProper would be wrong here: its paused() clause is true for
+        // every game during a superchain pause and would mass-evict the
+        // cache.
+        if parent_game_index != u32::MAX {
+            let parent_address = {
+                let state = self.state.read().await;
+                state.games.get(&U256::from(parent_game_index)).map(|game| game.address)
+            };
+            let Some(parent_address) = parent_address else {
+                // A non-MAX parent index that is absent from the cache is a
+                // dangling head reference (e.g. right after this block removed
+                // its subtree, before the next full sync re-picks the head).
+                // Creating against it would be exactly the doomed creation
+                // this check exists to prevent, so defer instead.
+                tracing::debug!(
+                    parent_index = parent_game_index,
+                    "Chosen parent not in cache (dangling head after subtree removal); deferring creation until the next sync"
+                );
+                return Ok(false);
+            };
+            let registry = self.registered_anchor_state_registry(BlockId::latest()).await?;
+            // Standing must be current, not pinned: retirement/blacklisting
+            // is retroactive and the child binds the registry at create time.
+            let blacklisted = registry.isGameBlacklisted(parent_address).call().await?;
+            let retired = registry.isGameRetired(parent_address).call().await?;
+            if blacklisted || retired {
+                tracing::warn!(
+                    parent_index = parent_game_index,
+                    ?parent_address,
+                    blacklisted,
+                    retired,
+                    "Chosen parent can no longer be built on; dropping its subtree"
+                );
+                let root_index = U256::from(parent_game_index);
+                let mut state = self.state.write().await;
+                // Mirror sync_games' RemoveSubtree handling: reset the
+                // duplicate-creation guard if the removed subtree contains
+                // the game it tracks (descendants_of includes the root).
+                let guarded_addr = *self.last_created_game_address.lock().await;
+                if guarded_addr != Address::ZERO {
+                    let guard_in_subtree = state
+                        .descendants_of(root_index)
+                        .iter()
+                        .any(|idx| state.games.get(idx).is_some_and(|g| g.address == guarded_addr));
+                    if guard_in_subtree {
+                        self.last_created_game_l2_sequence_number.store(0, Ordering::Relaxed);
+                        *self.last_created_game_address.lock().await = Address::ZERO;
+                        tracing::info!(
+                            ?guarded_addr,
+                            root_index = parent_game_index,
+                            "Reset creation guard: tracked game removed with a retired/blacklisted ancestor"
+                        );
+                    }
+                }
+                state.invalidate_subtree(root_index);
+                return Ok(false);
+            }
         }
 
         let proposer = self.clone();
@@ -1804,8 +2149,6 @@ where
                 tracing::warn!("Failed to handle game creation: {:?}", e);
                 return Err(e);
             }
-
-            ProposerGauge::GamesCreated.increment(1.0);
 
             Ok(())
         });
@@ -1969,6 +2312,9 @@ pub enum GameFetchResult {
     Pending {
         /// Factory index of the pending game.
         index: U256,
+        /// Claim deadline of the game (L1 timestamp, seconds), used by the
+        /// pending eviction cutoff.
+        deadline: u64,
     },
     /// Game was already present in the cache
     AlreadyExists,
@@ -2099,6 +2445,23 @@ pub fn withdrawal_matured(withdrawal_ts: u64, weth_delay: u64, l1_now: u64) -> b
         withdrawal_ts.checked_add(weth_delay).is_some_and(|deadline| l1_now >= deadline)
 }
 
+/// Returns whether a game deadline is beyond the maximum allowed lag from
+/// the anchor deadline (the walk stop condition and the pending-eviction
+/// cutoff share this rule).
+pub const fn beyond_deadline_lag(anchor_deadline: u64, game_deadline: u64) -> bool {
+    anchor_deadline.abs_diff(game_deadline) > MAX_GAME_DEADLINE_LAG
+}
+
+/// Returns whether a pending game may be evicted from re-validation: its
+/// deadline fell BEHIND the anchor deadline by more than the maximum lag.
+/// Deliberately one-sided, unlike [`beyond_deadline_lag`]: a game that far
+/// behind the anchor can never become parent-eligible, so nothing is lost by
+/// dropping it, while a game AHEAD of a stalled anchor is fresh (its
+/// challenge window is still open) and must stay re-checkable.
+pub const fn pending_evictable(anchor_deadline: u64, game_deadline: u64) -> bool {
+    game_deadline.saturating_add(MAX_GAME_DEADLINE_LAG) < anchor_deadline
+}
+
 /// Policy for game creation when the registered prestate's programs cannot
 /// be loaded.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2113,46 +2476,63 @@ pub enum UnknownPrestatePolicy {
 /// The active policy.
 pub const UNKNOWN_PRESTATE_POLICY: UnknownPrestatePolicy = UnknownPrestatePolicy::Pause;
 
-/// Ensures the program ELFs for `registered` are loaded into `cache`,
-/// fetching them from `url` on a miss (see [`load_prestate`]). Returns
-/// whether game creation may proceed for that prestate.
+/// Prestate program cache: loaded ELFs keyed by `absolutePrestate()` hash,
+/// fetched from the base `PRESTATES_URL` on demand.
 ///
 /// The artifact directory is consulted live on every cache miss, so a
 /// hardfork that rotates the registered prestate only requires publishing
-/// the new program artifacts, not restarting the proposer. When loading
-/// fails, the result follows [`UNKNOWN_PRESTATE_POLICY`].
-pub async fn ensure_prestate_loaded(
-    cache: &RwLock<HashMap<B256, Arc<PrestatePrograms>>>,
-    url: &alloy_transport_http::reqwest::Url,
-    registered: B256,
-) -> bool {
-    if cache.read().await.contains_key(&registered) {
-        return true;
+/// the new program artifacts, not restarting the proposer.
+#[derive(Debug)]
+pub struct PrestateCache {
+    programs: RwLock<HashMap<B256, Arc<PrestatePrograms>>>,
+    url: Url,
+}
+
+impl PrestateCache {
+    /// Creates an empty cache backed by `url`.
+    pub fn new(url: Url) -> Self {
+        Self { programs: RwLock::new(HashMap::new()), url }
     }
-    match load_prestate(url, registered).await {
-        Ok(programs) => {
-            tracing::info!(
-                prestate = %registered,
-                aggregation_elf_bytes = programs.aggregation_elf.len(),
-                range_elf_bytes = programs.range_elf.len(),
-                "Loaded prestate programs"
-            );
-            cache.write().await.insert(registered, Arc::new(programs));
-            true
+
+    /// Ensures the program ELFs for `registered` are loaded, fetching them
+    /// on a miss (see [`load_prestate`]). Returns whether game creation may
+    /// proceed for that prestate. When loading fails, the result follows
+    /// [`UNKNOWN_PRESTATE_POLICY`].
+    pub async fn ensure_loaded(&self, registered: B256) -> bool {
+        if self.programs.read().await.contains_key(&registered) {
+            return true;
         }
-        Err(e) => {
-            tracing::warn!(
-                registered = %registered,
-                error = %e,
-                "Failed to load the registered prestate's programs \
-                 (publish the artifacts under PRESTATES_URL if this is a hardfork)"
-            );
-            ProposerGauge::UnknownRegisteredPrestate.increment(1.0);
-            match UNKNOWN_PRESTATE_POLICY {
-                UnknownPrestatePolicy::Pause => false,
-                UnknownPrestatePolicy::Continue => true,
+        match load_prestate(&self.url, registered).await {
+            Ok(programs) => {
+                tracing::info!(
+                    prestate = %registered,
+                    aggregation_elf_bytes = programs.aggregation_elf.len(),
+                    range_elf_bytes = programs.range_elf.len(),
+                    "Loaded prestate programs"
+                );
+                self.programs.write().await.insert(registered, Arc::new(programs));
+                true
+            }
+            Err(e) => {
+                tracing::warn!(
+                    registered = %registered,
+                    error = %e,
+                    "Failed to load the registered prestate's programs \
+                     (publish the artifacts under PRESTATES_URL if this is a hardfork)"
+                );
+                ProposerGauge::UnknownRegisteredPrestate.increment(1.0);
+                match UNKNOWN_PRESTATE_POLICY {
+                    UnknownPrestatePolicy::Pause => false,
+                    UnknownPrestatePolicy::Continue => true,
+                }
             }
         }
+    }
+
+    /// The loaded programs for `prestate`, if present. The defend path
+    /// proves with these.
+    pub async fn programs(&self, prestate: B256) -> Option<Arc<PrestatePrograms>> {
+        self.programs.read().await.get(&prestate).cloned()
     }
 }
 
@@ -2207,12 +2587,9 @@ mod tests {
     }
 
     mod prestate_gate {
-        use super::super::ensure_prestate_loaded;
-        use crate::config::PrestatePrograms;
+        use super::super::PrestateCache;
         use alloy_primitives::B256;
         use alloy_transport_http::reqwest::Url;
-        use std::{collections::HashMap, sync::Arc};
-        use tokio::sync::RwLock;
 
         const HASH_A: &str = "0x0101010101010101010101010101010101010101010101010101010101010101";
 
@@ -2232,25 +2609,21 @@ mod tests {
             }
         }
 
-        fn empty_cache() -> RwLock<HashMap<B256, Arc<PrestatePrograms>>> {
-            RwLock::new(HashMap::new())
-        }
-
         #[tokio::test]
         async fn loadable_programs_allow_creation_and_fill_cache() {
             let dir = artifact_dir("available");
             let hash: B256 = HASH_A.parse().unwrap();
             write_artifacts(&dir);
             let base = Url::from_directory_path(&dir).unwrap();
-            let cache = empty_cache();
-            assert!(ensure_prestate_loaded(&cache, &base, hash).await);
-            let programs = cache.read().await.get(&hash).cloned().expect("cached");
+            let cache = PrestateCache::new(base);
+            assert!(cache.ensure_loaded(hash).await);
+            let programs = cache.programs(hash).await.expect("cached");
             assert_eq!(programs.aggregation_elf, b"elf");
             assert_eq!(programs.range_elf, b"elf");
 
             // Cache hit: succeeds even if the directory disappears.
             std::fs::remove_dir_all(&dir).unwrap();
-            assert!(ensure_prestate_loaded(&cache, &base, hash).await);
+            assert!(cache.ensure_loaded(hash).await);
         }
 
         #[tokio::test]
@@ -2258,21 +2631,24 @@ mod tests {
             let dir = artifact_dir("pause");
             let hash: B256 = HASH_A.parse().unwrap();
             let base = Url::from_directory_path(&dir).unwrap();
-            let cache = empty_cache();
-            assert!(!ensure_prestate_loaded(&cache, &base, hash).await);
-            assert!(cache.read().await.is_empty(), "failed load must not populate the cache");
+            let cache = PrestateCache::new(base);
+            assert!(!cache.ensure_loaded(hash).await);
+            assert!(
+                cache.programs(hash).await.is_none(),
+                "failed load must not populate the cache"
+            );
 
             // Hardfork flow: publishing the artifacts self-heals the gate
             // without a restart.
             write_artifacts(&dir);
-            assert!(ensure_prestate_loaded(&cache, &base, hash).await);
+            assert!(cache.ensure_loaded(hash).await);
         }
 
         #[tokio::test]
         async fn failed_check_hard_pauses() {
             let hash: B256 = HASH_A.parse().unwrap();
             let base = Url::parse("ftp://example.com/prestates").unwrap();
-            assert!(!ensure_prestate_loaded(&empty_cache(), &base, hash).await);
+            assert!(!PrestateCache::new(base).ensure_loaded(hash).await);
         }
     }
 
@@ -2499,19 +2875,83 @@ mod tests {
             assert!(withdrawal_matured(100, DELAY, 100 + DELAY));
             assert!(!withdrawal_matured(u64::MAX, DELAY, u64::MAX));
         }
+
+        /// Unlock strictly precedes payout. The both-apply state is
+        /// on-chain-unreachable for a consistent read (claimCredit zeroes
+        /// credit atomically with the withdrawal-recording unlock); the test
+        /// pins the branch order that keeps it safe anyway.
+        #[test]
+        fn unlock_precedes_payout_when_both_apply() {
+            assert_eq!(
+                bond_claim_action(
+                    true,
+                    U256::from(1_000),
+                    U256::from(1_000),
+                    100,
+                    DELAY,
+                    100 + DELAY
+                ),
+                BondClaimAction::Unlock
+            );
+        }
+
+        /// Documents the branch order for an on-chain-unreachable state: a
+        /// recorded withdrawal implies a prior claimCredit, which required
+        /// finality - the function still pays out rather than waiting.
+        #[test]
+        fn unfinalized_matured_withdrawal_pays_out() {
+            assert_eq!(
+                bond_claim_action(false, U256::ZERO, U256::from(1_000), 100, DELAY, 100 + DELAY),
+                BondClaimAction::Payout
+            );
+        }
+    }
+
+    mod deadline_lag {
+        use super::super::{MAX_GAME_DEADLINE_LAG, beyond_deadline_lag, pending_evictable};
+
+        /// The walk cutoff is exclusive at the boundary and symmetric: a game
+        /// exactly `MAX_GAME_DEADLINE_LAG` away is still in; one second
+        /// beyond, in either direction, is out.
+        #[test]
+        fn cutoff_is_exclusive_at_the_boundary() {
+            assert!(!beyond_deadline_lag(1_000_000, 1_000_000));
+            assert!(!beyond_deadline_lag(1_000_000, 1_000_000 + MAX_GAME_DEADLINE_LAG));
+            assert!(beyond_deadline_lag(1_000_000, 1_000_000 + MAX_GAME_DEADLINE_LAG + 1));
+            assert!(beyond_deadline_lag(1_000_000 + MAX_GAME_DEADLINE_LAG + 1, 1_000_000));
+        }
+
+        /// Pending eviction is one-sided: a game behind the anchor beyond
+        /// the lag is evicted, one exactly at the lag is kept, and a game
+        /// ahead of a stalled anchor is never evicted no matter how far.
+        #[test]
+        fn eviction_only_fires_behind_the_anchor() {
+            let anchor = 1_000_000 + MAX_GAME_DEADLINE_LAG + 1;
+            assert!(pending_evictable(anchor, 1_000_000));
+            assert!(!pending_evictable(anchor - 1, 1_000_000));
+            assert!(!pending_evictable(1_000_000, 1_000_000));
+            assert!(!pending_evictable(1_000_000, 1_000_000 + MAX_GAME_DEADLINE_LAG + 1));
+            assert!(!pending_evictable(1_000_000, u64::MAX));
+        }
     }
 
     mod pending_games {
         use super::*;
 
-        /// `FlowGaps` #1 regression (state level): a pending game is not in the
-        /// DAG, so it can never be selected as canonical head / parent.
+        /// `FlowGaps` #1 regression (state level): pending games are kept out
+        /// of `state.games`, and that exclusion is what makes them
+        /// parent-ineligible - inserted, the far-future game would win head
+        /// selection.
         #[test]
         fn pending_games_are_not_parent_eligible() {
-            // Only the validated game is in the DAG; the far-future game at
-            // sequence 10_000 was classified pending and never inserted.
-            let s = state(vec![game_with(0, u32::MAX, 100)], None);
-            assert_eq!(s.select_canonical_head().unwrap().l2_sequence_number, 100);
+            let validated = game_with(0, u32::MAX, 100);
+            let far_future = game_with(1, u32::MAX, 10_000);
+
+            let without_pending = state(vec![validated.clone()], None);
+            assert_eq!(without_pending.select_canonical_head().unwrap().l2_sequence_number, 100);
+
+            let with_pending = state(vec![validated, far_future], None);
+            assert_eq!(with_pending.select_canonical_head().unwrap().l2_sequence_number, 10_000);
         }
     }
 }

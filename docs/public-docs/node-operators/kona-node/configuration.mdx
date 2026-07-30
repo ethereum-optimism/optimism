@@ -4,6 +4,8 @@ description: "Reference for all kona-node CLI flags and environment variables, g
 diataxis: reference
 ---
 
+import KonaNodePorts from "/snippets/kona-node-ports.mdx"
+
 This document lists all CLI flags for the `kona-node node` subcommand, grouped by category. All flags can be provided as command-line arguments or via environment variables.
 
 <Note>
@@ -12,14 +14,7 @@ For more details on each flag, see the inline help (`kona-node node --help`) or 
 
 ## Default Ports
 
-| Service         | Default Port | Flag/Env                                 |
-|-----------------|--------------|------------------------------------------|
-| RPC HTTP        | 9545         | `--port` / `KONA_NODE_RPC_PORT`      |
-| RPC WebSocket   | 9545         | (same as HTTP, enabled with `--rpc.ws-enabled`) |
-| P2P TCP         | 9222         | `--p2p.listen.tcp` / `KONA_NODE_P2P_LISTEN_TCP_PORT` |
-| P2P UDP         | 9223         | `--p2p.listen.udp` / `KONA_NODE_P2P_LISTEN_UDP_PORT` |
-| Supervisor RPC  | 9333         | `--supervisor.port` / `KONA_NODE_SEQUENCER_PORT`     |
-| Conductor RPC   | 8547         | `--conductor.rpc` / `KONA_NODE_CONDUCTOR_RPC`        |
+<KonaNodePorts />
 
 ## Core Node Arguments
 

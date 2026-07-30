@@ -4,7 +4,6 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -25,9 +24,8 @@ import (
 )
 
 // zkProposerReadyMessage is the structured tracing message kona-sp1-proposer
-// emits once config validation, provider construction, and the metrics bind
-// have completed. When metrics are enabled the same entry carries a
-// `metrics_addr` field with the bound host:port.
+// emits once config validation and provider construction have completed; the
+// launcher matches it to detect startup.
 const (
 	zkProposerReadyMessage = "kona-sp1-proposer started"
 	konaSP1ELFDirEnv       = "KONA_SP1_ELF_DIR"
@@ -154,10 +152,6 @@ func startZKProposer(
 	if cfg.ProposalInterval != nil {
 		env = append(env, "PROPOSAL_INTERVAL_SECONDS="+strconv.FormatUint(uint64(*cfg.ProposalInterval/time.Second), 10))
 	}
-	// METRICS_PORT omitted (or 0) disables the metrics server entirely.
-	if areMetricsEnabled() {
-		env = append(env, "METRICS_PORT="+strconv.Itoa(freeTCPPort(t)))
-	}
 
 	logOut := logpipe.ToLoggerWithMinLevel(t.Logger().New("component", "kona-sp1-proposer", "src", "stdout"), log.LevelWarn)
 	logErr := logpipe.ToLoggerWithMinLevel(t.Logger().New("component", "kona-sp1-proposer", "src", "stderr"), log.LevelWarn)
@@ -187,12 +181,11 @@ func startZKProposer(
 
 	// Wait for the startup line, but fail fast if the process exits first
 	// (e.g. a crash on boot) rather than blocking until the test times out.
-	var started logpipe.LogEntry
 	select {
-	case started = <-startedChan:
+	case <-startedChan:
 	case <-sub.Exited():
 		select {
-		case started = <-startedChan:
+		case <-startedChan:
 		default:
 			require.FailNow("kona-sp1-proposer exited before its startup line was emitted")
 		}
@@ -200,27 +193,7 @@ func startZKProposer(
 		require.NoError(t.Ctx().Err(), "need kona-sp1-proposer startup")
 	}
 
-	if areMetricsEnabled() {
-		metricsAddr, ok := started.FieldValue("metrics_addr").(string)
-		require.True(ok, "kona-sp1-proposer startup line must include metrics_addr when metrics are enabled")
-		host, port, err := net.SplitHostPort(metricsAddr)
-		require.NoError(err, "invalid metrics_addr in startup line: %s", metricsAddr)
-		target := NewPrometheusMetricsTarget(host, port, false)
-		t.Logger().Info("kona-sp1-proposer metrics endpoint ready", "target", target)
-	}
-
 	t.Logger().Info("kona-sp1-proposer is up", "chain", proposerChainID, "factory", factoryAddr)
-}
-
-// freeTCPPort reserves an OS-assigned TCP port and releases it for immediate
-// reuse by the subprocess. The proposer takes its metrics port via env, so it
-// cannot self-assign with port 0 (0 means metrics disabled).
-func freeTCPPort(t devtest.T) int {
-	lis, err := net.Listen("tcp", "127.0.0.1:0")
-	t.Require().NoError(err, "reserve metrics port")
-	port := lis.Addr().(*net.TCPAddr).Port
-	t.Require().NoError(lis.Close())
-	return port
 }
 
 // elfSource returns an opener for the program ELF in elfDir, or for

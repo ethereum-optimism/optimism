@@ -18,6 +18,9 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
+import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 /// @title OPContractsManagerUtils
 /// @notice OPContractsManagerUtils is a contract that provides utility functions for the OPContractsManager.
@@ -298,7 +301,7 @@ contract OPContractsManagerUtils {
     }
 
     /// @notice Upgrades a contract by resetting the initialized slot and calling the initializer.
-    /// @param _proxyAdmin The proxy admin of the contract.
+    /// @param _proxyAdmin Fallback ProxyAdmin, used when the target can't report its own.
     /// @param _target The target of the contract.
     /// @param _implementation The implementation of the contract.
     /// @param _data The data to call the initializer with.
@@ -314,6 +317,13 @@ contract OPContractsManagerUtils {
     )
         external
     {
+        // Route the upgrade through the ProxyAdmin that actually administers the target rather
+        // than assuming the caller's. After an interop migration a chain set shares an ETHLockbox,
+        // DisputeGameFactory, AnchorStateRegistry and DelayedWETH that are all administered by the
+        // first chain's ProxyAdmin, so an upgrade driven by any other member would otherwise
+        // revert on the shared contracts' proxy admin-slot check. Ref: #21731.
+        _proxyAdmin = _adminFor(_proxyAdmin, _target);
+
         // Check to make sure that we're not downgrading. Downgrades aren't inherently dangerous
         // but we also don't test for them so we don't really know if a specific downgrade will be
         // dangerous or not. It's easier to just revert instead.
@@ -371,6 +381,42 @@ contract OPContractsManagerUtils {
         // No v5 state was written, so restore the real implementation. A plain upgrade (not
         // upgradeAndCall) leaves the initializer state from above intact and does not re-run it.
         _proxyAdmin.upgrade(payable(_target), _implementation);
+    }
+
+    /// @notice Resolves the ProxyAdmin that administers a proxy from its self-reported admin
+    ///         (ProxyAdminOwnedBase), so upgrades route correctly when a chain set spans distinct
+    ///         ProxyAdmins. Falls back to _defaultAdmin for a freshly-deployed proxy that can't
+    ///         report one yet, which is always administered by the ProxyAdmin that deployed it.
+    /// @param _defaultAdmin Fallback ProxyAdmin for not-yet-initialized proxies.
+    /// @param _target The proxy whose administering ProxyAdmin should be resolved.
+    /// @return The administering ProxyAdmin.
+    function _adminFor(IProxyAdmin _defaultAdmin, address _target) internal view returns (IProxyAdmin) {
+        // eip150-safe
+        try IProxyAdminOwnedBase(_target).proxyAdmin() returns (IProxyAdmin admin_) {
+            return address(admin_) == address(0) ? _defaultAdmin : admin_;
+        } catch {
+            return _defaultAdmin;
+        }
+    }
+
+    /// @notice Resolves the SystemConfig a proxy is already bound to, so an upgrade driven by one
+    ///         member of an interop set does not re-point the shared contracts (ETHLockbox,
+    ///         AnchorStateRegistry, DelayedWETH) at the caller's SystemConfig. migrate() binds those
+    ///         to the first member chain's SystemConfig. Per-chain contracts report the caller's own
+    ///         SystemConfig, so behavior is unchanged for them. Falls back to _default for a
+    ///         freshly-deployed proxy that can't report one yet. Ref: #21731.
+    /// @dev The contracts exposing systemConfig() share no common base interface; IETHLockbox is
+    ///      only the source of the (identical) selector.
+    /// @param _default Fallback SystemConfig for not-yet-initialized proxies.
+    /// @param _target The proxy whose bound SystemConfig should be resolved.
+    /// @return The bound SystemConfig.
+    function systemConfigFor(ISystemConfig _default, address _target) external view returns (ISystemConfig) {
+        // eip150-safe
+        try IETHLockbox(_target).systemConfig() returns (ISystemConfig systemConfig_) {
+            return address(systemConfig_) == address(0) ? _default : systemConfig_;
+        } catch {
+            return _default;
+        }
     }
 
     /// @notice Returns the implementations for the contracts.

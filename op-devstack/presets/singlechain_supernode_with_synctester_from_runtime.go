@@ -43,13 +43,6 @@ func singleSupernodeWithSyncTesterFromRuntime(t devtest.T, runtime *sysgo.MultiC
 	l2Net.AddL2CLNode(seqCL)
 	l2Net.AddL2Batcher(seqBatcher)
 
-	faucetL1Front := newFaucetFrontendForChain(t, runtime.FaucetService, l1ChainID)
-	faucetL2Front := newFaucetFrontendForChain(t, runtime.FaucetService, l2ChainID)
-	l1Network.AddFaucet(faucetL1Front)
-	l2Net.AddFaucet(faucetL2Front)
-	faucetL1 := dsl.NewFaucet(faucetL1Front)
-	faucetL2 := dsl.NewFaucet(faucetL2Front)
-
 	// Sync-tester frontends.
 	syncTesterName, syncTesterRPC, ok := runtime.SyncTester.Service.DefaultEndpoint(l2ChainID)
 	require.Truef(ok, "missing sync tester for chain %s", l2ChainID)
@@ -91,11 +84,9 @@ func singleSupernodeWithSyncTesterFromRuntime(t devtest.T, runtime *sysgo.MultiC
 		L2EL:       seqELDSL,
 		L2CL:       seqCLDSL,
 		Wallet:     dsl.NewRandomHDWallet(t, 30),
-		FaucetL1:   faucetL1,
-		FaucetL2:   faucetL2,
 	}
-	minimal.FunderL1 = dsl.NewFunder(minimal.Wallet, minimal.FaucetL1, minimal.L1EL)
-	minimal.FunderL2 = dsl.NewFunder(minimal.Wallet, minimal.FaucetL2, minimal.L2EL)
+	minimal.FunderL1 = newFunderEOA(t, runtime.Keys, minimal.L1EL, minimal.Wallet)
+	minimal.FunderL2 = newFunderEOA(t, runtime.Keys, minimal.L2EL, minimal.Wallet)
 
 	genesisTime := chain.Network.RollupConfig().Genesis.L2Time
 	preset := &SingleSupernodeWithSyncTester{

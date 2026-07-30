@@ -327,11 +327,9 @@ func (o *BlobTipOracle) SuggestBlobTipCap(ctx context.Context, maxBlocks int, pe
 
 	// Collect blob fee caps from recent blocks (only from cache, no RPC calls)
 	var tips []*big.Int
-	startBlock := latestBlockNum
-	if startBlock >= uint64(maxBlocks) {
-		startBlock -= uint64(maxBlocks)
-	} else {
-		startBlock = 0
+	var startBlock uint64
+	if latestBlockNum >= uint64(maxBlocks) {
+		startBlock = latestBlockNum - uint64(maxBlocks) + 1
 	}
 
 	for blockNum := startBlock; blockNum <= latestBlockNum; blockNum++ {

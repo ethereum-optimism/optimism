@@ -131,7 +131,7 @@ func NewMinimalWithConductorsRuntimeWithConfig(t devtest.T, cfg PresetConfig) *S
 }
 
 func connectSingleChainNodes(t devtest.T, sourceEL L2ELNode, sourceCL L2CLNode, target *SingleChainNodeRuntime) {
-	connectL2ELPeers(t, t.Logger(), sourceEL.UserRPC(), target.EL.UserRPC(), false)
+	connectL2ELPeers(t, t.Logger(), sourceEL.UserRPC(), target.EL.UserRPC())
 	connectSingleChainCLPeer(t, sourceCL, target.CL)
 }
 

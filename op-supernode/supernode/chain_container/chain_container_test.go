@@ -325,7 +325,7 @@ func mustNewChainContainer(
 	metrics *resources.SupernodeMetrics,
 ) InteropChain {
 	t.Helper()
-	container, err := NewChainContainer(chainID, vncfg, log, cfg, initOverload, rpcHandler, rpcRouter, addMetricsRegistry, metrics)
+	container, err := NewChainContainer(chainID, vncfg, log, cfg, initOverload, rpcHandler, rpcRouter, addMetricsRegistry, metrics, "test")
 	require.NoError(t, err)
 	return container
 }
@@ -392,7 +392,7 @@ func TestChainContainer_Constructor(t *testing.T) {
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
-		require.Equal(t, virtualNodeVersion, impl.appVersion)
+		require.Equal(t, "test", impl.appVersion)
 	})
 
 	t.Run("subPath combines DataDir, chainID, and path correctly", func(t *testing.T) {
@@ -503,7 +503,7 @@ func TestChainContainer_EngineControllerSetupErrorFailsConstruction(t *testing.T
 	}
 	t.Cleanup(func() { newEngineControllerFromConfig = prevSetup })
 
-	_, err := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+	_, err := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil, "test")
 	require.ErrorIs(t, err, setupErr)
 }
 
@@ -522,7 +522,7 @@ func TestChainContainer_DenyListOpenErrorFailsConstruction(t *testing.T) {
 	require.NoError(t, os.WriteFile(dataDir, []byte("x"), 0o600))
 	cfg := createTestCLIConfig(dataDir)
 
-	_, err := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+	_, err := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil, "test")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "deny list")
 }
@@ -886,6 +886,54 @@ func TestChainContainer_RewindEngine(t *testing.T) {
 		mockVN.mu.Unlock()
 
 		require.False(t, c.pause.Load(), "Container should be resumed after rewind")
+	})
+
+	t.Run("records rewind duration", func(t *testing.T) {
+		mockVN := newMockVirtualNode()
+		mockEngine := newMockEngineController()
+		mockEngine.rewindFunc = func(ctx context.Context, target *eth.ExecutionPayloadEnvelope) error {
+			mockVN.setState(virtual_node.VNStateRunning)
+			return nil
+		}
+		metrics := resources.NewSupernodeMetrics()
+		chainID := eth.ChainIDFromUInt64(420)
+		c := &simpleChainContainer{
+			chainID: chainID,
+			log:     createTestLogger(t),
+			engine:  mockEngine,
+			vn:      mockVN,
+			metrics: metrics,
+		}
+
+		require.NoError(t, c.RewindEngine(context.Background(), makeTarget(12345), eth.BlockRef{}))
+
+		observer := metrics.ChainRewindDuration.WithLabelValues(chainID.String())
+		histogram, ok := observer.(prometheus.Metric)
+		require.True(t, ok)
+		var metric dto.Metric
+		require.NoError(t, histogram.Write(&metric))
+		require.Equal(t, uint64(1), metric.GetHistogram().GetSampleCount())
+	})
+
+	t.Run("records engine rewind failure", func(t *testing.T) {
+		metrics := resources.NewSupernodeMetrics()
+		chainID := eth.ChainIDFromUInt64(420)
+		c := &simpleChainContainer{
+			chainID: chainID,
+			log:     createTestLogger(t),
+			engine: &mockEngineController{
+				rewindErr: engine_controller.ErrRewindTargetMismatch,
+			},
+			vn:      newMockVirtualNode(),
+			metrics: metrics,
+		}
+
+		err := c.RewindEngine(context.Background(), makeTarget(12345), eth.BlockRef{})
+		require.ErrorIs(t, err, engine_controller.ErrRewindTargetMismatch)
+
+		var metric dto.Metric
+		require.NoError(t, metrics.ChainRewindFailures.WithLabelValues(chainID.String(), "engine_rewind").Write(&metric))
+		require.Equal(t, float64(1), metric.GetCounter().GetValue())
 	})
 
 	t.Run("rejects nil target without touching the engine", func(t *testing.T) {

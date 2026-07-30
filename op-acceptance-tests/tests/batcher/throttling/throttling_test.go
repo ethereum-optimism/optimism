@@ -75,7 +75,7 @@ func TestDABlockThrottling(gt *testing.T) {
 
 func spamTxs(sys *presets.Minimal) {
 	l2BlockTime := time.Duration(sys.L2Chain.Escape().RollupConfig().BlockTime) * time.Second
-	eoas := loadtest.FundEOAs(sys.T, eth.HundredEther, 50, l2BlockTime, sys.L2EL, sys.Wallet, sys.FaucetL2)
+	eoas := loadtest.FundEOAs(sys.T, eth.HundredEther, 50, l2BlockTime, sys.L2EL, sys.Wallet, sys.FunderL2)
 	eoasRR := loadtest.NewRoundRobin(eoas)
 	spammer := loadtest.SpammerFunc(func(t devtest.T) error {
 		_, err := eoasRR.Get().Include(t, txplan.WithTo(&predeploys.L1BlockAddr), txplan.WithData(make([]byte, 0)), txplan.WithGasLimit(70_000))
