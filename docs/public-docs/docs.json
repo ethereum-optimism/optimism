@@ -1989,11 +1989,19 @@
     },
     {
       "source": "/rust/kona/node/install/binaries",
-      "destination": "/node-operators/kona-node/install/binaries"
+      "destination": "/node-operators/kona-node/run/binary"
     },
     {
       "source": "/rust/kona/node/install/docker",
-      "destination": "/node-operators/kona-node/install/docker"
+      "destination": "/node-operators/kona-node/run/docker"
+    },
+    {
+      "source": "/node-operators/kona-node/install/binaries",
+      "destination": "/node-operators/kona-node/run/binary"
+    },
+    {
+      "source": "/node-operators/kona-node/install/docker",
+      "destination": "/node-operators/kona-node/run/docker"
     },
     {
       "source": "/rust/kona/node/install/source",
@@ -2828,8 +2836,6 @@
                 "group": "Installation",
                 "pages": [
                   "node-operators/kona-node/install/overview",
-                  "node-operators/kona-node/install/binaries",
-                  "node-operators/kona-node/install/docker",
                   "node-operators/kona-node/install/source"
                 ]
               },
