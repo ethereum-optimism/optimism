@@ -2,10 +2,23 @@
   Standing "Running this in production" callout: the shared OP Enterprise
   steering snippet for chain-operator decision points.
 
-  Usage:
+  Usage (default include - the full Info callout):
     import OpEnterpriseCallout from "/snippets/op-enterprise-callout.mdx"
 
     <OpEnterpriseCallout />
+
+  Usage (named export - the body copy alone, for composing into another
+  wrapper such as a Card; pass linked={false} when the wrapper is itself
+  a link, so no nested anchor is rendered):
+    import { OpEnterpriseCalloutBody } from "/snippets/op-enterprise-callout.mdx"
+
+    <OpEnterpriseCalloutBody linked={false} />
+
+  Consumers:
+    - chain-operators/quickstart.mdx (default include)
+    - chain-operators/tutorials/create-l2-rollup/op-challenger-setup.mdx (default include)
+    - chain-operators/guides/management/best-practices.mdx (default include)
+    - use-cases/index.mdx (OpEnterpriseCalloutBody, inside a Card)
 
   Placement rules: chain-operator decision moments only (quickstart end,
   create-l2-rollup completion, best-practices). Never inside step sequences
@@ -17,8 +30,26 @@
   factual clause must stay re-derivable from a published docs page.
 */}
 
+export const OpEnterpriseCalloutBody = ({ linked = true }) => (
+  <p>
+    A production chain is a 24/7 operation: a HA sequencer
+    cluster, sound withdrawal system, consistent L1 endpoints, secured hot
+    keys, and robust operations. If
+    you'd rather not run it yourself, or want OP Labs engineering behind the
+    parts you do run,{" "}
+    {linked ? (
+      <a href="https://optimism.io/op-enterprise?utm_source=docs&utm_medium=docs&utm_campaign=op-enterprise">
+        OP Enterprise
+      </a>
+    ) : (
+      "OP Enterprise"
+    )}{" "}
+    offers fully managed and supported self-managed options.
+  </p>
+);
+
 <Info>
   **Running this in production**
 
-  A production chain is a 24/7 operation: a high-availability sequencer cluster, a sound withdrawal system, consistent L1 endpoints, secured hot keys, and a standing upgrade calendar. These docs cover all of it. If you'd rather not run it yourself, or want OP Labs engineering behind the parts you do run, [OP Enterprise](https://optimism.io/op-enterprise?utm_source=docs&utm_medium=docs&utm_campaign=op-enterprise) offers fully managed and supported self-managed options. 
+  <OpEnterpriseCalloutBody />
 </Info>
