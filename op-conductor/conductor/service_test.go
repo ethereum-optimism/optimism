@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	clientmocks "github.com/ethereum-optimism/optimism/op-conductor/client/mocks"
@@ -25,6 +26,7 @@ import (
 	healthmocks "github.com/ethereum-optimism/optimism/op-conductor/health/mocks"
 	"github.com/ethereum-optimism/optimism/op-conductor/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -122,6 +124,12 @@ func (s *OpConductorTestSuite) SetupTest() {
 	conductor, err := NewOpConductor(s.ctx, &s.cfg, s.log, s.metrics, s.version, s.ctrl, s.cons, s.hmon)
 	s.NoError(err)
 	conductor.retryBackoff = func() time.Duration { return 0 } // disable retry backoff for tests
+	// Poll for op-node adopting a posted payload quickly, and give up quickly, so tests that
+	// exercise a node which never catches up do not wait on the production timeout.
+	conductor.unsafeHeadCatchUpInterval = time.Millisecond
+	conductor.startSequencerRetryInterval = time.Millisecond
+	conductor.unsafeHeadCatchUpTimeout = 50 * time.Millisecond
+	conductor.unhealthyUnsafeHeadCatchUpTimeout = 50 * time.Millisecond
 	s.conductor = conductor
 
 	s.healthUpdateCh = make(chan error, 1)
@@ -141,6 +149,14 @@ func (s *OpConductorTestSuite) TearDownTest() {
 	s.cons.EXPECT().Shutdown().Return(nil)
 
 	if s.syncEnabled {
+		// Drop the retry the last failing action queued. Teardown hands the loop exactly one turn
+		// and then relies on it being inside loopAction's select when Stop cancels shutdownCtx: a
+		// pending action consumes that turn instead, leaving the loop parked on the next hand-off
+		// while Stop waits for it to exit.
+		select {
+		case <-s.conductor.actionCh:
+		default:
+		}
 		s.wg.Add(1)
 		s.next <- struct{}{}
 	}
@@ -295,7 +311,8 @@ func (s *OpConductorTestSuite) TestScenario1() {
 		active:  false,
 	}
 
-	// unsafe in consensus is different than unsafe in node.
+	// unsafe in consensus is 2 blocks ahead of unsafe in node, and consensus no longer retains
+	// the missing payloads, so op-node cannot be brought up to the consensus head here.
 	mockPayload := &eth.ExecutionPayloadEnvelope{
 		ExecutionPayload: &eth.ExecutionPayload{
 			BlockNumber: 3,
@@ -308,7 +325,9 @@ func (s *OpConductorTestSuite) TestScenario1() {
 	}
 	s.cons.EXPECT().TransferLeader().Return(nil)
 	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload, nil).Times(1)
-	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil).Times(1)
+	s.cons.EXPECT().UnsafePayloadsAfter(uint64(1)).Return(nil).Times(1)
+	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil)
+	s.ctrl.EXPECT().PostUnsafePayload(mock.Anything, mockPayload).Return(nil).Times(1)
 
 	// become leader
 	s.updateLeaderStatusAndExecuteAction(true)
@@ -324,6 +343,7 @@ func (s *OpConductorTestSuite) TestScenario1() {
 		active:  false,
 	}, s.conductor.prevState)
 	s.cons.AssertNumberOfCalls(s.T(), "TransferLeader", 1)
+	s.ctrl.AssertNotCalled(s.T(), "StartSequencer", mock.Anything, mock.Anything)
 }
 
 // In this test, we have a follower that is not healthy and not sequencing, it becomes leader through election.
@@ -438,9 +458,9 @@ func (s *OpConductorTestSuite) TestScenario4() {
 		InfoHash: [32]byte{2, 3, 4},
 	}
 	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload, nil).Times(1)
+	s.cons.EXPECT().UnsafePayloadsAfter(uint64(1)).Return([]*eth.ExecutionPayloadEnvelope{mockPayload}).Times(1)
 	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil).Times(1)
 	s.ctrl.EXPECT().PostUnsafePayload(mock.Anything, mockPayload).Return(errors.New("simulated PostUnsafePayload failure")).Times(1)
-	s.ctrl.EXPECT().StartSequencer(mock.Anything, mockBlockInfo.InfoHash).Return(nil).Times(1)
 
 	s.updateLeaderStatusAndExecuteAction(true)
 
@@ -453,10 +473,12 @@ func (s *OpConductorTestSuite) TestScenario4() {
 	s.ctrl.AssertNumberOfCalls(s.T(), "PostUnsafePayload", 1)
 	s.ctrl.AssertNotCalled(s.T(), "StartSequencer", mock.Anything, mock.Anything)
 
+	// The post succeeds on retry, and the sequencer is only started once op-node reports it has
+	// adopted the posted head: starting at a head op-node has not adopted is rejected by op-node.
+	node := newFakeOpNode(mockBlockInfo.InfoNum, mockBlockInfo.InfoHash)
 	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload, nil).Times(1)
-	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil).Times(1)
-	s.ctrl.EXPECT().PostUnsafePayload(mock.Anything, mockPayload).Return(nil).Times(1)
-	s.ctrl.EXPECT().StartSequencer(mock.Anything, mockPayload.ExecutionPayload.BlockHash).Return(nil).Times(1)
+	s.cons.EXPECT().UnsafePayloadsAfter(uint64(1)).Return([]*eth.ExecutionPayloadEnvelope{mockPayload}).Times(1)
+	s.expectOpNode(node)
 
 	s.executeAction()
 
@@ -465,9 +487,10 @@ func (s *OpConductorTestSuite) TestScenario4() {
 	s.True(s.conductor.healthy.Load())
 	s.True(s.conductor.seqActive.Load())
 	s.cons.AssertNumberOfCalls(s.T(), "LatestUnsafePayload", 2)
-	s.ctrl.AssertNumberOfCalls(s.T(), "LatestUnsafeBlock", 2)
+	s.ctrl.AssertNumberOfCalls(s.T(), "LatestUnsafeBlock", 3)
 	s.ctrl.AssertNumberOfCalls(s.T(), "PostUnsafePayload", 2)
 	s.ctrl.AssertNumberOfCalls(s.T(), "StartSequencer", 1)
+	s.True(node.started, "op-node must have accepted the start at the head it adopted")
 }
 
 // In this test, we have a follower that is healthy and not sequencing, we send a unhealthy update to it and expect it to stay as follower and not start sequencing.
@@ -798,14 +821,10 @@ func (s *OpConductorTestSuite) TestFailureAndRetry4() {
 			BlockHash:   [32]byte{4, 5, 6},
 		},
 	}
-	mockBlockInfo := &testutils.MockBlockInfo{
-		InfoNum:  1,
-		InfoHash: [32]byte{1, 2, 3},
-	}
-	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload, nil).Times(2)
-	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil).Times(2)
-	s.ctrl.EXPECT().PostUnsafePayload(mock.Anything, mockPayload).Return(nil).Times(1)
-	s.ctrl.EXPECT().StartSequencer(mock.Anything, mockPayload.ExecutionPayload.BlockHash).Return(nil).Times(1)
+	node := newFakeOpNode(1, [32]byte{1, 2, 3})
+	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload, nil)
+	s.cons.EXPECT().UnsafePayloadsAfter(uint64(1)).Return([]*eth.ExecutionPayloadEnvelope{mockPayload})
+	s.expectOpNode(node)
 
 	s.updateLeaderStatusAndExecuteAction(true)
 
@@ -818,9 +837,12 @@ func (s *OpConductorTestSuite) TestFailureAndRetry4() {
 		active:  false,
 	}, s.conductor.prevState)
 	s.cons.AssertNumberOfCalls(s.T(), "LatestUnsafePayload", 1)
-	s.ctrl.AssertNumberOfCalls(s.T(), "LatestUnsafeBlock", 1)
+	// Two reads: the initial comparison against consensus, then the poll that observes op-node
+	// adopting the posted payload.
+	s.ctrl.AssertNumberOfCalls(s.T(), "LatestUnsafeBlock", 2)
 	s.ctrl.AssertNumberOfCalls(s.T(), "PostUnsafePayload", 1)
 	s.ctrl.AssertNumberOfCalls(s.T(), "StartSequencer", 1)
+	s.Equal(uint64(2), node.head.InfoNum)
 
 	s.log.Info("4. stay unhealthy for a bit while catching up")
 	s.updateHealthStatusAndExecuteAction(health.ErrSequencerNotHealthy)
@@ -1186,4 +1208,486 @@ func (s *OpConductorTestSuite) TestRollupBoostPartialFailure() {
 	// Verify the expected actions were taken
 	s.ctrl.AssertNumberOfCalls(s.T(), "StopSequencer", 1)
 	s.cons.AssertNumberOfCalls(s.T(), "TransferLeader", 1)
+}
+
+// fakeOpNode models the two op-node behaviours that a conductor handing over sequencing has to
+// respect: a posted payload is not adopted the instant PostUnsafePayload returns, and op-node
+// refuses to start sequencing at a head it has not adopted.
+//
+// Adoption advances on any interaction with op-node other than a post, so a conductor that waits
+// converges however it chooses to observe op-node, but one that starts sequencing straight after
+// posting does not.
+type fakeOpNode struct {
+	head    *testutils.MockBlockInfo
+	pending []*eth.ExecutionPayloadEnvelope
+	started bool
+	// adoptPerInteraction is how many posted payloads op-node adopts per interaction: 0 models a
+	// node that never catches up, and more than 1 a node that can step over the head the
+	// conductor is waiting for between two observations.
+	adoptPerInteraction int
+	// startLag rejects this many starts at the already-adopted head, modelling op-node's
+	// sequencer learning the head from a forkchoice update that trails the execution client.
+	startLag int
+}
+
+func newFakeOpNode(number uint64, hash common.Hash) *fakeOpNode {
+	return &fakeOpNode{
+		head:                &testutils.MockBlockInfo{InfoNum: number, InfoHash: hash},
+		adoptPerInteraction: 1,
+	}
+}
+
+func (n *fakeOpNode) adopt() {
+	for range n.adoptPerInteraction {
+		if len(n.pending) == 0 || uint64(n.pending[0].ExecutionPayload.BlockNumber) != n.head.InfoNum+1 {
+			return
+		}
+		next := n.pending[0]
+		n.pending = n.pending[1:]
+		n.head = &testutils.MockBlockInfo{
+			InfoNum:  uint64(next.ExecutionPayload.BlockNumber),
+			InfoHash: next.ExecutionPayload.BlockHash,
+		}
+	}
+}
+
+func (n *fakeOpNode) latestUnsafeBlock(context.Context) (eth.BlockInfo, error) {
+	n.adopt()
+	return n.head, nil
+}
+
+func (n *fakeOpNode) postUnsafePayload(_ context.Context, payload *eth.ExecutionPayloadEnvelope) error {
+	n.pending = append(n.pending, payload)
+	return nil
+}
+
+func (n *fakeOpNode) startSequencer(_ context.Context, head common.Hash) error {
+	n.adopt()
+	sequencerHead := n.head
+	if n.startLag > 0 {
+		n.startLag--
+		sequencerHead = &testutils.MockBlockInfo{InfoNum: n.head.InfoNum - 1, InfoHash: common.HexToHash("0x5741e")}
+	}
+	if head != sequencerHead.InfoHash {
+		// Mirrors sequencing.Sequencer.Start, which compares against the head it has adopted.
+		return fmt.Errorf("%w: head %s:%d, received %s", driver.ErrUnsafeHeadMismatch, sequencerHead.InfoHash, sequencerHead.InfoNum, head)
+	}
+	n.started = true
+	return nil
+}
+
+func (s *OpConductorTestSuite) expectOpNode(node *fakeOpNode) {
+	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).RunAndReturn(node.latestUnsafeBlock)
+	s.ctrl.EXPECT().PostUnsafePayload(mock.Anything, mock.Anything).RunAndReturn(node.postUnsafePayload)
+	s.ctrl.EXPECT().StartSequencer(mock.Anything, mock.Anything).RunAndReturn(node.startSequencer)
+}
+
+func unsafePayload(number uint64) *eth.ExecutionPayloadEnvelope {
+	return &eth.ExecutionPayloadEnvelope{
+		ExecutionPayload: &eth.ExecutionPayload{
+			BlockNumber: eth.Uint64Quantity(number),
+			Timestamp:   hexutil.Uint64(time.Now().Unix()),
+			BlockHash:   common.BigToHash(new(big.Int).SetUint64(number)),
+		},
+	}
+}
+
+// A new leader whose op-node is one block behind must not be told to start sequencing until
+// op-node has actually adopted the payload the conductor just posted. Starting straight after
+// PostUnsafePayload loses the race and costs a full action retry backoff, which is what leaves
+// the sequencer idle long enough to have to build several blocks at once when it does start.
+func (s *OpConductorTestSuite) TestStartSequencerWaitsForPostedPayloadToBeAdopted() {
+	s.enableSynchronization()
+
+	consensusHead := unsafePayload(12)
+	node := newFakeOpNode(11, unsafePayload(11).ExecutionPayload.BlockHash)
+	s.cons.EXPECT().LatestUnsafePayload().Return(consensusHead, nil)
+	s.cons.EXPECT().UnsafePayloadsAfter(uint64(11)).Return([]*eth.ExecutionPayloadEnvelope{consensusHead})
+	s.expectOpNode(node)
+
+	s.updateLeaderStatusAndExecuteAction(true)
+
+	s.True(s.conductor.seqActive.Load(), "sequencing must be active after a single action")
+	s.True(node.started)
+	s.Equal(uint64(12), node.head.InfoNum)
+	s.ctrl.AssertNumberOfCalls(s.T(), "StartSequencer", 1)
+}
+
+// A new leader two or more blocks behind the consensus unsafe head used to be unrecoverable: the
+// payload post was skipped, startSequencer returned unsafe head mismatch, and the action loop
+// re-queued the identical failing action forever with no sequencer anywhere in the cluster.
+// Consensus retains the payloads, so they are replayed and the leader converges.
+func (s *OpConductorTestSuite) TestStartSequencerRecoversFromMultiBlockGap() {
+	s.enableSynchronization()
+
+	missing := []*eth.ExecutionPayloadEnvelope{unsafePayload(13), unsafePayload(14)}
+	node := newFakeOpNode(12, unsafePayload(12).ExecutionPayload.BlockHash)
+	s.cons.EXPECT().LatestUnsafePayload().Return(missing[1], nil)
+	s.cons.EXPECT().UnsafePayloadsAfter(uint64(12)).Return(missing)
+	s.expectOpNode(node)
+
+	s.updateLeaderStatusAndExecuteAction(true)
+
+	s.True(s.conductor.seqActive.Load(), "sequencing must be active after a single action")
+	s.True(node.started)
+	s.Equal(uint64(14), node.head.InfoNum)
+	s.ctrl.AssertNumberOfCalls(s.T(), "PostUnsafePayload", 2)
+	s.ctrl.AssertNumberOfCalls(s.T(), "StartSequencer", 1)
+}
+
+// The execution client reporting the consensus unsafe head is not proof that op-node's sequencer
+// can start there: it learns the adopted head from a forkchoice update that can trail by an event
+// hop. That rejection must be retried in place, not turned into an action retry that idles the
+// cluster for a randomised backoff.
+func (s *OpConductorTestSuite) TestStartSequencerRetriesWhileOpNodeSequencerTrailsTheEL() {
+	s.enableSynchronization()
+
+	consensusHead := unsafePayload(12)
+	node := newFakeOpNode(12, consensusHead.ExecutionPayload.BlockHash)
+	node.startLag = 2
+	s.cons.EXPECT().LatestUnsafePayload().Return(consensusHead, nil)
+	s.expectOpNode(node)
+
+	s.updateLeaderStatusAndExecuteAction(true)
+
+	s.True(s.conductor.seqActive.Load(), "sequencing must be active after a single action")
+	s.True(node.started)
+	s.ctrl.AssertNumberOfCalls(s.T(), "StartSequencer", 3)
+	s.ctrl.AssertNotCalled(s.T(), "PostUnsafePayload", mock.Anything, mock.Anything)
+}
+
+// When the local op-node cannot be brought up to the consensus unsafe head at all, the cluster
+// must still converge on one sequencer. A healthy leader that keeps failing to start hands
+// leadership to a member that may be caught up instead of retrying itself forever.
+func (s *OpConductorTestSuite) TestStartSequencerTransfersLeadershipWhenItCannotConverge() {
+	s.enableSynchronization()
+
+	consensusHead := unsafePayload(14)
+	node := newFakeOpNode(12, unsafePayload(12).ExecutionPayload.BlockHash)
+	node.adoptPerInteraction = 0 // op-node never adopts what it is sent
+	s.cons.EXPECT().LatestUnsafePayload().Return(consensusHead, nil)
+	s.cons.EXPECT().UnsafePayloadsAfter(uint64(12)).Return([]*eth.ExecutionPayloadEnvelope{unsafePayload(13), consensusHead})
+	s.expectOpNode(node)
+	s.cons.EXPECT().TransferLeader().Return(nil).Times(1)
+
+	s.updateLeaderStatusAndExecuteAction(true)
+	s.False(s.conductor.seqActive.Load())
+	s.True(s.conductor.leader.Load(), "must not give up leadership on the first failure")
+
+	for range maxFailedStarts - 1 {
+		s.executeAction()
+	}
+
+	s.False(s.conductor.leader.Load(), "leadership must be handed over once the leader cannot start")
+	s.False(s.conductor.seqActive.Load())
+	s.cons.AssertNumberOfCalls(s.T(), "TransferLeader", 1)
+	s.False(node.started)
+}
+
+// A transfer that fails must be retried on the next action. Zeroing the failed-start counter
+// before the transfer left a leader that could not hand over needing another maxFailedStarts
+// failed starts, and so several more block times with no sequencer in the cluster, before trying
+// again.
+func (s *OpConductorTestSuite) TestStartSequencerRetriesLeadershipTransferAfterItFails() {
+	s.enableSynchronization()
+
+	consensusHead := unsafePayload(14)
+	node := newFakeOpNode(13, unsafePayload(13).ExecutionPayload.BlockHash)
+	node.adoptPerInteraction = 0
+	s.cons.EXPECT().LatestUnsafePayload().Return(consensusHead, nil)
+	s.cons.EXPECT().UnsafePayloadsAfter(uint64(13)).Return([]*eth.ExecutionPayloadEnvelope{consensusHead})
+	s.expectOpNode(node)
+	s.cons.EXPECT().TransferLeader().Return(errors.New("no healthy voter to transfer to")).Times(1)
+
+	s.updateLeaderStatusAndExecuteAction(true)
+	for range maxFailedStarts - 1 {
+		s.executeAction()
+	}
+	s.cons.AssertNumberOfCalls(s.T(), "TransferLeader", 1)
+	s.True(s.conductor.leader.Load(), "a failed transfer leaves this server the leader")
+
+	s.cons.EXPECT().TransferLeader().Return(nil).Times(1)
+	s.executeAction()
+
+	s.cons.AssertNumberOfCalls(s.T(), "TransferLeader", 2)
+	s.False(s.conductor.leader.Load())
+}
+
+// allowLeadershipTransfer permits TransferLeader and reports whether it was called, so that a
+// regression fails on an assertion rather than on an unexpected mock call.
+func (s *OpConductorTestSuite) allowLeadershipTransfer() *bool {
+	transferred := new(bool)
+	s.cons.EXPECT().TransferLeader().RunAndReturn(func() error {
+		*transferred = true
+		return nil
+	}).Maybe()
+	return transferred
+}
+
+// retryFailingActions drives the action loop the given number of times, which only works while
+// every action keeps failing and so keeps queueing the next one. It aborts as soon as leadership is
+// transferred: that is the assertion, and it is also the point past which a successful action would
+// leave the next iteration with nothing to run.
+func (s *OpConductorTestSuite) retryFailingActions(transferred *bool, actions int) {
+	for range actions {
+		s.Require().False(*transferred, "leadership must not be transferred")
+		s.executeAction()
+	}
+	s.Require().False(*transferred, "leadership must not be transferred")
+}
+
+// op-node being level with or ahead of the head consensus committed is not a local problem: a
+// sealed block reaches consensus before it is gossiped, so nothing can put one member's op-node
+// ahead of consensus without putting every member's there. Round-robin transfer would then cycle
+// the whole cluster, each member sequencer-less in turn, so this retries in place instead.
+func (s *OpConductorTestSuite) TestStartSequencerDoesNotTransferLeadershipWhenNodeIsAheadOfConsensus() {
+	s.enableSynchronization()
+
+	consensusHead := unsafePayload(14)
+	node := newFakeOpNode(15, unsafePayload(15).ExecutionPayload.BlockHash)
+	s.cons.EXPECT().LatestUnsafePayload().Return(consensusHead, nil)
+	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).RunAndReturn(node.latestUnsafeBlock)
+	transferred := s.allowLeadershipTransfer()
+
+	s.updateLeaderStatusAndExecuteAction(true)
+	s.retryFailingActions(transferred, 2*maxFailedStarts)
+
+	s.False(s.conductor.seqActive.Load())
+	s.True(s.conductor.leader.Load(), "leadership must stay put: every member sees the same thing")
+	s.ctrl.AssertNotCalled(s.T(), "PostUnsafePayload", mock.Anything, mock.Anything)
+	s.ctrl.AssertNotCalled(s.T(), "StartSequencer", mock.Anything, mock.Anything)
+}
+
+// A cluster that has committed nothing to consensus yet — freshly bootstrapped, or re-bootstrapped
+// — is in the same state on every member, so handing leadership over cannot help and only costs
+// the cluster a sequencer-less window per member.
+func (s *OpConductorTestSuite) TestStartSequencerDoesNotTransferLeadershipWithoutAConsensusHead() {
+	s.enableSynchronization()
+
+	s.cons.EXPECT().LatestUnsafePayload().Return(nil, nil)
+	transferred := s.allowLeadershipTransfer()
+
+	s.updateLeaderStatusAndExecuteAction(true)
+	s.retryFailingActions(transferred, 2*maxFailedStarts)
+
+	s.False(s.conductor.seqActive.Load())
+	s.True(s.conductor.leader.Load())
+}
+
+// A start abandoned because this conductor is shutting down must not hand leadership over on its
+// way out.
+func (s *OpConductorTestSuite) TestStartSequencerDoesNotTransferLeadershipOnCancelledContext() {
+	s.enableSynchronization()
+
+	s.cons.EXPECT().LatestUnsafePayload().Return(unsafePayload(14), nil)
+	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(nil, context.Canceled)
+	transferred := s.allowLeadershipTransfer()
+
+	s.updateLeaderStatusAndExecuteAction(true)
+	s.retryFailingActions(transferred, 2*maxFailedStarts)
+
+	s.False(s.conductor.seqActive.Load())
+	s.True(s.conductor.leader.Load())
+}
+
+// The retained history is read without a raft barrier while the consensus head comes from a
+// barrier read, so it can already run past the head this attempt is waiting for. Posting past the
+// target steps op-node's head over it, and the wait compares hashes exactly, so it would then
+// never see a match.
+func (s *OpConductorTestSuite) TestStartSequencerDoesNotReplayPastTheConsensusHead() {
+	s.enableSynchronization()
+
+	consensusHead := unsafePayload(13)
+	node := newFakeOpNode(11, unsafePayload(11).ExecutionPayload.BlockHash)
+	node.adoptPerInteraction = 3 // op-node can adopt everything it holds between two reads
+	s.cons.EXPECT().LatestUnsafePayload().Return(consensusHead, nil)
+	s.cons.EXPECT().UnsafePayloadsAfter(uint64(11)).Return([]*eth.ExecutionPayloadEnvelope{
+		unsafePayload(12), consensusHead, unsafePayload(14),
+	})
+	s.expectOpNode(node)
+
+	s.updateLeaderStatusAndExecuteAction(true)
+
+	s.True(s.conductor.seqActive.Load(), "sequencing must be active after a single action")
+	s.True(node.started)
+	s.Equal(uint64(13), node.head.InfoNum, "op-node must not be pushed past the head being waited for")
+	s.ctrl.AssertNumberOfCalls(s.T(), "PostUnsafePayload", 2)
+}
+
+// The payloads are already posted and the window still has time left, so one failed head read must
+// not abandon the attempt — let alone count towards handing leadership over.
+func (s *OpConductorTestSuite) TestStartSequencerToleratesATransientHeadReadFailure() {
+	s.enableSynchronization()
+
+	consensusHead := unsafePayload(12)
+	node := newFakeOpNode(11, unsafePayload(11).ExecutionPayload.BlockHash)
+	s.cons.EXPECT().LatestUnsafePayload().Return(consensusHead, nil)
+	s.cons.EXPECT().UnsafePayloadsAfter(uint64(11)).Return([]*eth.ExecutionPayloadEnvelope{consensusHead})
+	s.ctrl.EXPECT().PostUnsafePayload(mock.Anything, mock.Anything).RunAndReturn(node.postUnsafePayload)
+	s.ctrl.EXPECT().StartSequencer(mock.Anything, mock.Anything).RunAndReturn(node.startSequencer)
+
+	reads := 0
+	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).RunAndReturn(func(ctx context.Context) (eth.BlockInfo, error) {
+		reads++
+		if reads == 2 {
+			return nil, errors.New("simulated EL read failure")
+		}
+		return node.latestUnsafeBlock(ctx)
+	})
+
+	s.updateLeaderStatusAndExecuteAction(true)
+
+	s.True(s.conductor.seqActive.Load(), "one failed read must not abandon the attempt")
+	s.True(node.started)
+	s.cons.AssertNotCalled(s.T(), "TransferLeader")
+}
+
+// A start rejected because op-node's sequencer has not caught up with its execution client is
+// retried on its own, slower interval: StartSequencer calls back into this conductor and then takes
+// the sequencer's own lock, so it must not be hammered at the rate of a cheap head read.
+func (s *OpConductorTestSuite) TestStartSequencerRetryUsesItsOwnInterval() {
+	s.enableSynchronization()
+
+	s.conductor.unsafeHeadCatchUpInterval = 0
+	s.conductor.startSequencerRetryInterval = 20 * time.Millisecond
+	s.conductor.unsafeHeadCatchUpTimeout = 5 * time.Second
+
+	consensusHead := unsafePayload(12)
+	node := newFakeOpNode(12, consensusHead.ExecutionPayload.BlockHash)
+	node.startLag = 3
+	s.cons.EXPECT().LatestUnsafePayload().Return(consensusHead, nil)
+	s.expectOpNode(node)
+
+	start := time.Now()
+	s.updateLeaderStatusAndExecuteAction(true)
+
+	s.True(s.conductor.seqActive.Load())
+	s.GreaterOrEqual(time.Since(start), 3*s.conductor.startSequencerRetryInterval,
+		"each rejected start must wait the start-retry interval, not the head-poll interval")
+	s.ctrl.AssertNumberOfCalls(s.T(), "StartSequencer", 4)
+}
+
+// An unhealthy leader's fallback is to hand leadership over, and its own op-node is the likely
+// reason a catch-up is slow, so it must not sit on the single action loop for the budget a healthy
+// leader would spend waiting on it.
+func (s *OpConductorTestSuite) TestStartSequencerBudgetsAnUnhealthyLeaderTighter() {
+	s.enableSynchronization() // leaves the action loop parked, so this drives startSequencer itself
+
+	s.conductor.unsafeHeadCatchUpTimeout = time.Minute
+	s.conductor.unhealthyUnsafeHeadCatchUpTimeout = 20 * time.Millisecond
+
+	consensusHead := unsafePayload(14)
+	node := newFakeOpNode(13, unsafePayload(13).ExecutionPayload.BlockHash)
+	node.adoptPerInteraction = 0 // op-node never adopts what it is sent
+	s.cons.EXPECT().LatestUnsafePayload().Return(consensusHead, nil)
+	s.cons.EXPECT().UnsafePayloadsAfter(uint64(13)).Return([]*eth.ExecutionPayloadEnvelope{consensusHead})
+	s.expectOpNode(node)
+
+	s.conductor.healthy.Store(false)
+	start := time.Now()
+	err := s.conductor.startSequencer()
+	elapsed := time.Since(start)
+
+	s.ErrorIs(err, ErrUnsafeHeadMismatch)
+	s.Less(elapsed, 10*time.Second, "an unhealthy leader must not wait out the healthy budget")
+	s.GreaterOrEqual(elapsed, s.conductor.unhealthyUnsafeHeadCatchUpTimeout/2,
+		"but it must still give op-node its own budget")
+}
+
+// Catching up and getting the start accepted are two halves of the same wait and must share one
+// budget: action() is a single loop, so two budgets in a row is twice as long with leadership and
+// health updates queued behind it.
+func (s *OpConductorTestSuite) TestStartSequencerSharesOneBudgetWithTheCatchUp() {
+	s.enableSynchronization() // leaves the action loop parked, so this drives startSequencer itself
+
+	const budget = 400 * time.Millisecond
+	s.conductor.unsafeHeadCatchUpTimeout = budget
+	s.conductor.unsafeHeadCatchUpInterval = 5 * time.Millisecond
+	s.conductor.startSequencerRetryInterval = 5 * time.Millisecond
+
+	consensusHead := unsafePayload(12)
+	behind := &testutils.MockBlockInfo{InfoNum: 11, InfoHash: unsafePayload(11).ExecutionPayload.BlockHash}
+	caughtUp := &testutils.MockBlockInfo{InfoNum: 12, InfoHash: consensusHead.ExecutionPayload.BlockHash}
+	// op-node's execution client spends most of the budget adopting the payload, and op-node's
+	// sequencer never catches up with it afterwards. The start gets what is left of the budget.
+	adopted := time.Now().Add(280 * time.Millisecond)
+
+	s.cons.EXPECT().LatestUnsafePayload().Return(consensusHead, nil)
+	s.cons.EXPECT().UnsafePayloadsAfter(uint64(11)).Return([]*eth.ExecutionPayloadEnvelope{consensusHead})
+	s.ctrl.EXPECT().PostUnsafePayload(mock.Anything, mock.Anything).Return(nil)
+	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).RunAndReturn(func(context.Context) (eth.BlockInfo, error) {
+		if time.Now().Before(adopted) {
+			return behind, nil
+		}
+		return caughtUp, nil
+	})
+	s.ctrl.EXPECT().StartSequencer(mock.Anything, mock.Anything).
+		Return(fmt.Errorf("%w: head 11, received 12", driver.ErrUnsafeHeadMismatch))
+
+	start := time.Now()
+	err := s.conductor.startSequencer()
+
+	s.ErrorIs(err, ErrUnsafeHeadMismatch)
+	s.Less(time.Since(start), budget+budget/8, "catch-up and start must share one budget, not take one each")
+}
+
+// The select guards honour shutdownCtx but an RPC in flight does not, and startSequencer makes
+// dozens of them, so the attempt needs a deadline of its own or an unresponsive op-node wedges the
+// action loop.
+func (s *OpConductorTestSuite) TestStartSequencerBoundsItsRPCs() {
+	s.enableSynchronization() // leaves the action loop parked, so this drives startSequencer itself
+
+	s.conductor.unsafeHeadCatchUpTimeout = 50 * time.Millisecond
+	s.cons.EXPECT().LatestUnsafePayload().Return(unsafePayload(12), nil)
+	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).RunAndReturn(func(ctx context.Context) (eth.BlockInfo, error) {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	})
+
+	done := make(chan error, 1)
+	go func() { done <- s.conductor.startSequencer() }()
+
+	select {
+	case err := <-done:
+		s.ErrorIs(err, context.DeadlineExceeded)
+	case <-time.After(30 * time.Second):
+		s.Fail("startSequencer left an RPC unbounded")
+	}
+}
+
+// Those RPCs also have to be cancellable, so Stop() cannot block behind one: stopSequencer already
+// passes shutdownCtx for the same reason, and issue #22094's other half is an unbounded shutdown.
+//
+// Outside the suite: cancelling shutdownCtx retires the control loop, which the suite's action
+// synchronisation needs alive.
+func TestStartSequencerRPCsFollowShutdown(t *testing.T) {
+	cfg := mockConfig(t)
+	ctrl := &clientmocks.SequencerControl{}
+	cons := &consensusmocks.Consensus{}
+	cons.EXPECT().ServerID().Return("SequencerA").Maybe()
+	cons.EXPECT().LatestUnsafePayload().Return(unsafePayload(12), nil)
+	ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).RunAndReturn(func(ctx context.Context) (eth.BlockInfo, error) {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	})
+
+	oc, err := NewOpConductor(context.Background(), &cfg, testlog.Logger(t, log.LevelDebug),
+		&metrics.NoopMetricsImpl{}, "v0.0.1", ctrl, cons, &healthmocks.HealthMonitor{})
+	require.NoError(t, err)
+	// Start() would also bring up the RPC server and the control loop; only the shutdown context
+	// matters here.
+	oc.shutdownCtx, oc.shutdownCancel = context.WithCancel(context.Background())
+	oc.healthy.Store(true)
+	oc.unsafeHeadCatchUpTimeout = time.Hour
+
+	done := make(chan error, 1)
+	go func() { done <- oc.startSequencer() }()
+	oc.shutdownCancel()
+
+	select {
+	case err := <-done:
+		require.ErrorIs(t, err, context.Canceled)
+	case <-time.After(30 * time.Second):
+		require.Fail(t, "startSequencer did not derive its context from shutdownCtx")
+	}
 }

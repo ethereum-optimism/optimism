@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/hashicorp/raft"
@@ -39,6 +40,38 @@ var (
 	ErrPauseTimeout       = errors.New("timeout to pause conductor")
 	ErrUnsafeHeadMismatch = errors.New("unsafe head mismatch")
 	ErrNoUnsafeHead       = errors.New("no unsafe head")
+	// ErrNodeAheadOfConsensus is returned when the local op-node's unsafe head is level with or
+	// ahead of the head consensus committed. Unlike ErrUnsafeHeadMismatch this is not something
+	// the local node can be caught up out of, and it is not local either, so it must not escalate
+	// to a leadership transfer. See catchUpUnsafeHead.
+	ErrNodeAheadOfConsensus = errors.New("op-node unsafe head is not behind consensus unsafe head")
+)
+
+const (
+	// defaultUnsafeHeadCatchUpTimeout bounds a whole attempt at starting sequencing: bringing the
+	// local op-node up to the unsafe head consensus committed, and getting op-node's sequencer to
+	// accept a start at it. It is generous enough to cover replaying a few payloads plus whatever
+	// op-node needs to insert them, and short enough that a node which genuinely cannot catch up
+	// releases leadership promptly. action() is a single loop, so this is also how long a
+	// leadership or health update can be left queued behind an attempt.
+	defaultUnsafeHeadCatchUpTimeout = 2 * time.Second
+	// defaultUnhealthyUnsafeHeadCatchUpTimeout is the same budget for a leader that is already
+	// unhealthy. Waiting is worth much less there: that leader's fallback is to hand leadership
+	// over, and its own op-node is the likely reason the catch-up is slow in the first place.
+	defaultUnhealthyUnsafeHeadCatchUpTimeout = 500 * time.Millisecond
+	// defaultUnsafeHeadCatchUpInterval is how often op-node's unsafe head is re-read while
+	// waiting for it to adopt the consensus unsafe head. The read is cheap.
+	defaultUnsafeHeadCatchUpInterval = 25 * time.Millisecond
+	// defaultStartSequencerRetryInterval is how often a start that op-node rejected because its
+	// sequencer has not caught up with its execution client yet is retried. Much slower than the
+	// head read: StartSequencer calls back into this conductor for leadership and then takes the
+	// sequencer's own lock, which is also held while building blocks, so it is not something to
+	// hammer while waiting for it.
+	defaultStartSequencerRetryInterval = 200 * time.Millisecond
+	// maxFailedStarts is how many consecutive failures to bring the local op-node up to the
+	// consensus unsafe head a healthy leader tolerates before handing leadership to another
+	// member.
+	maxFailedStarts = 3
 )
 
 // New creates a new OpConductor instance.
@@ -62,19 +95,23 @@ func NewOpConductor(
 	}
 
 	oc := &OpConductor{
-		log:          log,
-		version:      version,
-		cfg:          cfg,
-		metrics:      m,
-		pauseCh:      make(chan struct{}),
-		pauseDoneCh:  make(chan struct{}),
-		resumeCh:     make(chan struct{}),
-		resumeDoneCh: make(chan struct{}),
-		actionCh:     make(chan struct{}, 1),
-		ctrl:         ctrl,
-		cons:         cons,
-		hmon:         hmon,
-		retryBackoff: func() time.Duration { return time.Duration(rand.Intn(2000)) * time.Millisecond },
+		log:                               log,
+		version:                           version,
+		cfg:                               cfg,
+		metrics:                           m,
+		pauseCh:                           make(chan struct{}),
+		pauseDoneCh:                       make(chan struct{}),
+		resumeCh:                          make(chan struct{}),
+		resumeDoneCh:                      make(chan struct{}),
+		actionCh:                          make(chan struct{}, 1),
+		ctrl:                              ctrl,
+		cons:                              cons,
+		hmon:                              hmon,
+		retryBackoff:                      func() time.Duration { return time.Duration(rand.Intn(2000)) * time.Millisecond },
+		unsafeHeadCatchUpTimeout:          defaultUnsafeHeadCatchUpTimeout,
+		unhealthyUnsafeHeadCatchUpTimeout: defaultUnhealthyUnsafeHeadCatchUpTimeout,
+		unsafeHeadCatchUpInterval:         defaultUnsafeHeadCatchUpInterval,
+		startSequencerRetryInterval:       defaultStartSequencerRetryInterval,
 	}
 	oc.loopActionFn = oc.loopAction
 
@@ -368,6 +405,10 @@ type OpConductor struct {
 	healthy        atomic.Bool
 	hcerr          error // error from health check
 	prevState      *state
+	// failedStarts counts consecutive failures to start sequencing while this server is a
+	// healthy leader. Retrying the same failing start forever would leave the cluster with no
+	// sequencer at all, so past a threshold leadership is handed to another member instead.
+	failedStarts int
 
 	healthUpdateCh <-chan error
 	leaderUpdateCh <-chan bool
@@ -388,6 +429,16 @@ type OpConductor struct {
 	metricsServer *httputil.HTTPServer
 
 	retryBackoff func() time.Duration
+
+	// unsafeHeadCatchUpTimeout bounds a whole startSequencer attempt, and
+	// unhealthyUnsafeHeadCatchUpTimeout does the same for a leader that is already unhealthy.
+	unsafeHeadCatchUpTimeout          time.Duration
+	unhealthyUnsafeHeadCatchUpTimeout time.Duration
+	// unsafeHeadCatchUpInterval is how often op-node's unsafe head is re-read while waiting for
+	// it to adopt a posted payload; startSequencerRetryInterval is how often the start itself is
+	// re-attempted while op-node's sequencer trails its execution client.
+	unsafeHeadCatchUpInterval   time.Duration
+	startSequencerRetryInterval time.Duration
 
 	flashblocksHandler ws.FlashblockHandler
 }
@@ -790,8 +841,37 @@ func (oc *OpConductor) action() {
 	case status.leader && status.healthy && !status.active:
 		// start sequencer
 		err = oc.startSequencer()
+		if err == nil {
+			oc.failedStarts = 0
+			break
+		}
+		// A healthy leader whose own op-node cannot be brought up to the head consensus committed
+		// leaves the whole cluster without a sequencer, and retrying the identical action makes no
+		// progress on its own: only that op-node catching up can, and it may never. Give it a
+		// bounded number of attempts, then hand leadership to a member that may already be caught
+		// up.
+		//
+		// Only that condition escalates. Every other start failure is either transient or the same
+		// on every member — nothing committed to consensus yet, a degraded raft barrier, an RPC
+		// blip, this conductor shutting down — and churning leadership through the cluster then
+		// costs a sequencer-less window per member without fixing anything.
+		if !isLocalCatchUpFailure(err) {
+			break
+		}
+		oc.failedStarts++
+		if oc.failedStarts < maxFailedStarts {
+			break
+		}
+		oc.log.Error("failed to start sequencer repeatedly, transferring leadership instead",
+			"server", oc.cons.ServerID(), "attempts", oc.failedStarts, "err", err)
+		if err = oc.transferLeader(); err == nil {
+			oc.failedStarts = 0
+		}
+		// A failed transfer leaves the counter at the threshold so the next action retries the
+		// transfer straight away, rather than needing maxFailedStarts more failed starts first.
 	case status.leader && status.healthy && status.active:
 		// normal leader, do nothing
+		oc.failedStarts = 0
 	}
 
 	oc.log.Debug("exiting action with status and error", "status", status, "err", err)
@@ -965,44 +1045,182 @@ func (oc *OpConductor) stopSequencer() error {
 	return nil
 }
 
-func (oc *OpConductor) startSequencer() error {
-	ctx := context.Background()
+// isLocalCatchUpFailure reports whether err means this member's own op-node could not be brought
+// up to the unsafe head consensus committed. That is the only start failure another member might
+// not share, and so the only one worth moving leadership for.
+func isLocalCatchUpFailure(err error) bool {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+	return errors.Is(err, ErrUnsafeHeadMismatch)
+}
 
-	// When starting sequencer, we need to make sure that the current node has the latest unsafe head from the consensus protocol
-	// If not, then we wait for the unsafe head to catch up or gossip it to op-node manually from op-conductor.
+// startSequencer starts sequencing on the local op-node at the unsafe head consensus has
+// committed, first bringing op-node up to that head if it is behind.
+//
+// op-node only starts sequencing from a head it has already adopted, and adopting a posted
+// payload is asynchronous, so the catch-up is waited out here rather than by returning an error
+// into action's randomised retry backoff. That backoff is what used to leave the incoming
+// sequencer idle for up to two seconds and then have to build several blocks back to back,
+// which is exactly what strands the next leader behind the consensus unsafe head.
+func (oc *OpConductor) startSequencer() error {
+	// Catching up and getting the start accepted are two halves of the same wait, so they share
+	// one budget: action() is a single loop, and blocking it for two budgets in a row would queue
+	// leadership and health updates behind an attempt for twice as long.
+	budget := oc.unsafeHeadCatchUpTimeout
+	if !oc.healthy.Load() {
+		budget = oc.unhealthyUnsafeHeadCatchUpTimeout
+	}
+	// The RPCs get the whole budget while the waiting stops short of it, so the attempt fails with
+	// the heads involved rather than with a bare context deadline. A deadline is what bounds this:
+	// the select guards below honour shutdownCtx, but an RPC in flight does not, and startSequencer
+	// now makes dozens of them, so without one Stop() could block behind an unresponsive op-node.
+	ctx, cancel := context.WithTimeout(oc.shutdownCtx, budget)
+	defer cancel()
+	deadline := time.Now().Add(budget - budget/4)
+
 	unsafeInCons, unsafeInNode, err := oc.compareUnsafeHead(ctx)
-	// if there's a mismatch, try to post the unsafe head to op-node
-	if errors.Is(err, ErrUnsafeHeadMismatch) && uint64(unsafeInCons.ExecutionPayload.BlockNumber)-unsafeInNode.NumberU64() == 1 {
-		// tries to post the unsafe head to op-node when head is only 1 block behind (most likely due to gossip delay)
-		oc.log.Debug(
-			"posting unsafe head to op-node",
-			"consensus_num", uint64(unsafeInCons.ExecutionPayload.BlockNumber),
-			"consensus_hash", unsafeInCons.ExecutionPayload.BlockHash.Hex(),
-			"node_num", unsafeInNode.NumberU64(),
-			"node_hash", unsafeInNode.Hash().Hex(),
-		)
-		if err := oc.ctrl.PostUnsafePayload(ctx, unsafeInCons); err != nil {
-			oc.log.Error("failed to post unsafe head payload envelope to op-node", "err", err)
+	switch {
+	case errors.Is(err, ErrUnsafeHeadMismatch):
+		if err := oc.catchUpUnsafeHead(ctx, deadline, unsafeInCons, unsafeInNode); err != nil {
 			return err
 		}
-	} else if err != nil {
+	case err != nil:
 		return err
 	}
 
 	oc.log.Info("starting sequencer", "server", oc.cons.ServerID(), "leader", oc.leader.Load(), "healthy", oc.healthy.Load(), "active", oc.seqActive.Load())
-	err = oc.ctrl.StartSequencer(ctx, unsafeInCons.ExecutionPayload.BlockHash)
-	if err != nil {
-		// cannot directly compare using Errors.Is because the error is returned from an JSON RPC server which lost its type.
-		if !strings.Contains(err.Error(), driver.ErrSequencerAlreadyStarted.Error()) {
-			return fmt.Errorf("failed to start sequencer: %w", err)
-		} else {
-			oc.log.Warn("sequencer already started.", "err", err)
-		}
+	if err := oc.startSequencerAt(ctx, deadline, unsafeInCons.ExecutionPayload.BlockHash); err != nil {
+		return err
 	}
-	oc.metrics.RecordStartSequencer(err == nil)
 
 	oc.seqActive.Store(true)
 	return nil
+}
+
+// startSequencerAt asks op-node to start sequencing at head, which op-node only accepts once it
+// has adopted that head.
+//
+// op-node's sequencer tracks the adopted head from an asynchronous forkchoice update, so it can
+// still trail the execution client that catchUpUnsafeHead observed already holding head. That
+// rejection is retried until deadline: returning it instead would cost a full randomised action
+// backoff and leave the cluster with no sequencer for whole block times.
+func (oc *OpConductor) startSequencerAt(ctx context.Context, deadline time.Time, head common.Hash) error {
+	for {
+		err := oc.ctrl.StartSequencer(ctx, head)
+		// cannot directly compare using errors.Is because the error is returned from a JSON RPC server which lost its type.
+		if err != nil && strings.Contains(err.Error(), driver.ErrUnsafeHeadMismatch.Error()) {
+			if !time.Now().Before(deadline) {
+				// Tagged as a catch-up failure: op-node still refusing the head consensus
+				// committed after the whole budget is local to this member, so a leader that
+				// keeps landing here should hand over rather than retry itself forever.
+				return fmt.Errorf("%w: op-node would not start sequencing at %s in time: %w",
+					ErrUnsafeHeadMismatch, head, err)
+			}
+			oc.log.Warn("op-node has not adopted the head to sequence from yet, retrying", "head", head, "err", err)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(oc.startSequencerRetryInterval):
+			}
+			continue
+		}
+
+		oc.metrics.RecordStartSequencer(err == nil)
+		if err != nil {
+			if !strings.Contains(err.Error(), driver.ErrSequencerAlreadyStarted.Error()) {
+				return fmt.Errorf("failed to start sequencer: %w", err)
+			}
+			oc.log.Warn("sequencer already started.", "err", err)
+		}
+		return nil
+	}
+}
+
+// catchUpUnsafeHead brings the local op-node's unsafe head up to the head consensus committed,
+// and returns nil only once op-node reports it has actually adopted that head. Callers may not
+// start sequencing on any weaker signal: op-node rejects a start at a head it does not hold, and
+// starting anywhere else would orphan blocks consensus has already committed.
+//
+// Every cluster member applies every committed payload, so the payloads op-node is missing are
+// replayed straight from consensus instead of waiting for p2p gossip or L1 derivation.
+//
+// When the retained history no longer reaches back to op-node's head there is nothing to replay,
+// and all this can do is post the consensus head on its own. op-node queues a non-adjacent
+// payload and fills the gap itself, but that fill is driven by a ticker at 2 * BlockTime
+// (op-node/rollup/driver/driver.go), which outlasts this budget: the attempt is expected to time
+// out, and on a healthy leader for the retries to end in a leadership transfer. That is the right
+// outcome for a gap that wide — it is a sync problem, and another member is likely caught up
+// already — but it is a fallback, not a recovery path.
+func (oc *OpConductor) catchUpUnsafeHead(ctx context.Context, deadline time.Time, unsafeInCons *eth.ExecutionPayloadEnvelope, unsafeInNode eth.BlockInfo) error {
+	target := uint64(unsafeInCons.ExecutionPayload.BlockNumber)
+	nodeNum := unsafeInNode.NumberU64()
+	if nodeNum >= target {
+		// op-node is level with or ahead of the head consensus committed, on a different branch.
+		// Replaying payloads cannot resolve that, and neither can moving leadership: op-node
+		// commits a sealed block to consensus before it gossips it (Sequencer.onBuildSealed), so
+		// gossip cannot put one member's op-node ahead of consensus. Every reachable cause is
+		// cluster-wide — a stale or re-bootstrapped FSM, or every op-node advancing past a wedged
+		// FSM via L1 derivation — and round-robin transfer would then cycle the whole cluster,
+		// each member without a sequencer in turn. Retry in place and make it visible instead.
+		return fmt.Errorf("%w: op-node unsafe head %d (%s), consensus unsafe head %d (%s)",
+			ErrNodeAheadOfConsensus, nodeNum, unsafeInNode.Hash(), target, unsafeInCons.ExecutionPayload.BlockHash)
+	}
+
+	missing := oc.cons.UnsafePayloadsAfter(nodeNum)
+	// UnsafePayloadsAfter reads the FSM without a barrier while unsafeInCons came from a barrier
+	// read, so a payload applied between the two puts history past the target. Posting past it
+	// would step op-node's head over the head this attempt waits for, and the wait compares
+	// hashes exactly, so it would then time out reporting a head it had already passed.
+	for i, payload := range missing {
+		if uint64(payload.ExecutionPayload.BlockNumber) > target {
+			missing = missing[:i]
+			break
+		}
+	}
+	if len(missing) == 0 {
+		missing = []*eth.ExecutionPayloadEnvelope{unsafeInCons}
+	}
+	oc.log.Info("posting unsafe payloads to op-node",
+		"consensus_num", target,
+		"consensus_hash", unsafeInCons.ExecutionPayload.BlockHash,
+		"node_num", nodeNum,
+		"node_hash", unsafeInNode.Hash(),
+		"payloads", len(missing),
+	)
+	for _, payload := range missing {
+		if err := oc.ctrl.PostUnsafePayload(ctx, payload); err != nil {
+			return fmt.Errorf("failed to post unsafe payload %d to op-node: %w", uint64(payload.ExecutionPayload.BlockNumber), err)
+		}
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(oc.unsafeHeadCatchUpInterval):
+		}
+
+		latest, err := oc.ctrl.LatestUnsafeBlock(ctx)
+		if err != nil {
+			// The payloads are posted and the window still has time left, so a single failed read
+			// is no reason to abandon the attempt, let alone to count it towards a leadership
+			// transfer.
+			if time.Now().Before(deadline) {
+				oc.log.Warn("failed to read op-node unsafe head while catching up, retrying", "target", target, "err", err)
+				continue
+			}
+			return fmt.Errorf("failed to get latest unsafe block from EL while catching up to consensus unsafe head %d: %w", target, err)
+		}
+		if latest.Hash() == unsafeInCons.ExecutionPayload.BlockHash {
+			oc.log.Info("op-node caught up to consensus unsafe head", "num", target, "hash", latest.Hash())
+			return nil
+		}
+		if !time.Now().Before(deadline) {
+			return fmt.Errorf("%w: op-node did not adopt consensus unsafe head %d (%s) in time, op-node unsafe head is %d (%s)",
+				ErrUnsafeHeadMismatch, target, unsafeInCons.ExecutionPayload.BlockHash, latest.NumberU64(), latest.Hash())
+		}
+	}
 }
 
 func (oc *OpConductor) compareUnsafeHead(ctx context.Context) (*eth.ExecutionPayloadEnvelope, eth.BlockInfo, error) {

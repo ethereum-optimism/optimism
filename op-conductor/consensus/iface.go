@@ -74,6 +74,11 @@ type Consensus interface {
 	CommitUnsafePayload(payload *eth.ExecutionPayloadEnvelope) error
 	// LatestUnsafePayload returns the latest unsafe payload from FSM in a strongly consistent fashion.
 	LatestUnsafePayload() (*eth.ExecutionPayloadEnvelope, error)
+	// UnsafePayloadsAfter returns the committed unsafe payloads with a block number greater than
+	// number, each the parent of the next up to the latest unsafe payload. It returns nil when the
+	// retained history no longer reaches back that far, for example after a restart. The retained
+	// payloads are a local cache rather than replicated state.
+	UnsafePayloadsAfter(number uint64) []*eth.ExecutionPayloadEnvelope
 
 	// Shutdown shuts down the consensus protocol client.
 	Shutdown() error

@@ -6,4 +6,5 @@ import "github.com/ethereum-optimism/optimism/op-node/rollup/sequencing"
 var (
 	ErrSequencerAlreadyStarted = sequencing.ErrSequencerAlreadyStarted
 	ErrSequencerAlreadyStopped = sequencing.ErrSequencerAlreadyStopped
+	ErrUnsafeHeadMismatch      = sequencing.ErrUnsafeHeadMismatch
 )

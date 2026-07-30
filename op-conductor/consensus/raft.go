@@ -328,6 +328,12 @@ func (rc *RaftConsensus) LatestUnsafePayload() (*eth.ExecutionPayloadEnvelope, e
 	return rc.unsafeTracker.UnsafeHead(), nil
 }
 
+// UnsafePayloadsAfter implements Consensus. It reads local FSM state without a barrier, so
+// pair it with LatestUnsafePayload when the range has to line up with a consistent read.
+func (rc *RaftConsensus) UnsafePayloadsAfter(number uint64) []*eth.ExecutionPayloadEnvelope {
+	return rc.unsafeTracker.UnsafePayloadsAfter(number)
+}
+
 // ClusterMembership implements Consensus, it returns the current cluster membership configuration.
 func (rc *RaftConsensus) ClusterMembership() (*ClusterMembership, error) {
 	var future raft.ConfigurationFuture

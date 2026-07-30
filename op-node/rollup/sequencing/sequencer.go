@@ -27,6 +27,10 @@ const defaultSealingDuration = 50 * time.Millisecond
 var (
 	ErrSequencerAlreadyStarted = errors.New("sequencer already running")
 	ErrSequencerAlreadyStopped = errors.New("sequencer not running")
+	// ErrUnsafeHeadMismatch is returned by Start when sequencing is requested at a head the
+	// sequencer has not adopted. It is retryable: the head is tracked from an asynchronous
+	// forkchoice update, so a head the execution client already holds can arrive a moment later.
+	ErrUnsafeHeadMismatch = errors.New("block hash does not match")
 )
 
 type L1OriginSelectorIface interface {
@@ -692,7 +696,7 @@ func (d *Sequencer) Start(ctx context.Context, head common.Hash) error {
 		return fmt.Errorf("no prestate, cannot determine if sequencer start at %s is safe", head)
 	}
 	if head != d.latestHead.Hash {
-		return fmt.Errorf("block hash does not match: head %s, received %s", d.latestHead, head)
+		return fmt.Errorf("%w: head %s, received %s", ErrUnsafeHeadMismatch, d.latestHead, head)
 	}
 	return d.forceStart()
 }

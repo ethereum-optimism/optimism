@@ -735,3 +735,50 @@ func (_c *Consensus_TransferLeaderTo_Call) RunAndReturn(run func(id string, addr
 	_c.Call.Return(run)
 	return _c
 }
+
+// UnsafePayloadsAfter provides a mock function for the type Consensus
+func (_mock *Consensus) UnsafePayloadsAfter(number uint64) []*eth.ExecutionPayloadEnvelope {
+	ret := _mock.Called(number)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UnsafePayloadsAfter")
+	}
+
+	var r0 []*eth.ExecutionPayloadEnvelope
+	if returnFunc, ok := ret.Get(0).(func(uint64) []*eth.ExecutionPayloadEnvelope); ok {
+		r0 = returnFunc(number)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*eth.ExecutionPayloadEnvelope)
+		}
+	}
+	return r0
+}
+
+// Consensus_UnsafePayloadsAfter_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UnsafePayloadsAfter'
+type Consensus_UnsafePayloadsAfter_Call struct {
+	*mock.Call
+}
+
+// UnsafePayloadsAfter is a helper method to define mock.On call
+//   - number
+func (_e *Consensus_Expecter) UnsafePayloadsAfter(number interface{}) *Consensus_UnsafePayloadsAfter_Call {
+	return &Consensus_UnsafePayloadsAfter_Call{Call: _e.mock.On("UnsafePayloadsAfter", number)}
+}
+
+func (_c *Consensus_UnsafePayloadsAfter_Call) Run(run func(number uint64)) *Consensus_UnsafePayloadsAfter_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(uint64))
+	})
+	return _c
+}
+
+func (_c *Consensus_UnsafePayloadsAfter_Call) Return(executionPayloadEnvelopes []*eth.ExecutionPayloadEnvelope) *Consensus_UnsafePayloadsAfter_Call {
+	_c.Call.Return(executionPayloadEnvelopes)
+	return _c
+}
+
+func (_c *Consensus_UnsafePayloadsAfter_Call) RunAndReturn(run func(number uint64) []*eth.ExecutionPayloadEnvelope) *Consensus_UnsafePayloadsAfter_Call {
+	_c.Call.Return(run)
+	return _c
+}
