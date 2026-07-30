@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
@@ -55,7 +56,7 @@ func TestSafeHeadAdvancesAcrossGlamsterdam(gt *testing.T) {
 	waitForHalfFullBlock(t, sys.L2EL, eth.Safe, threshold, "post-Glamsterdam")
 }
 
-func TestGlamsterdamP2P(gt *testing.T) {
+func TestGlamsterdamP2PUnsafeBlockBecomesSafe(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSingleChainMultiNode(t,
 		glamsterdamL1Geth(t),
@@ -88,8 +89,19 @@ func TestGlamsterdamP2P(gt *testing.T) {
 		sys.L2EL.ReachedFn(eth.Safe, target, 120),
 		sys.L2ELB.ReachedFn(eth.Safe, target, 120),
 	)
+	t.Require().NoError(sys.L2CLB.MatchedFn(sys.L2CL, safety.CrossSafe, 30)(),
+		"sequencer and verifier must match after the P2P block becomes safe")
 	t.Require().Equal(sequencerBlock.ID(), sys.L2EL.BlockRefByNumber(target).ID())
 	t.Require().Equal(sequencerBlock.ID(), sys.L2ELB.BlockRefByNumber(target).ID())
+
+	stoppedUnsafeHash := sys.L2CL.StopSequencer()
+	t.Require().NoError(sys.L2CLB.MatchedFn(sys.L2CL, safety.LocalUnsafe, 30)(),
+		"verifier must catch up to the sequencer's final unsafe head")
+	sequencerUnsafe := sys.L2EL.BlockRefByLabel(eth.Unsafe)
+	verifierUnsafe := sys.L2ELB.BlockRefByLabel(eth.Unsafe)
+	t.Require().Equal(stoppedUnsafeHash, sequencerUnsafe.Hash)
+	t.Require().Equal(sequencerUnsafe.ID(), verifierUnsafe.ID(),
+		"sequencer and verifier must finish on the same unsafe chain")
 }
 
 func waitForHalfFullBlock(t devtest.T, el *dsl.L2ELNode, label eth.BlockLabel, threshold uint64, phase string) {
