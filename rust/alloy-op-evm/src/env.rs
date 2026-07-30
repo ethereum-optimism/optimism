@@ -240,11 +240,13 @@ mod tests {
         }
     }
 
-    /// The `BLOBBASEFEE` opcode must always be 1 on the OP Stack. Post-Jovian the header's
-    /// `blobGasUsed` carries the block's DA footprint, which must not influence the blob env. The
-    /// footprint here is from op-mainnet block 152635937.
-    #[test]
-    fn evm_env_for_op_next_block_pins_blob_gasprice_to_one() {
+    /// The `BLOBBASEFEE` opcode must always be 1 on the OP Stack from Ecotone onward. Post-Jovian
+    /// the header's `blobGasUsed` carries the block's DA footprint, which must not influence the
+    /// blob env. The footprint here is from op-mainnet block 152635937.
+    #[test_case::test_case(FakeHardfork::jovian(); "Jovian")]
+    #[test_case::test_case(FakeHardfork::isthmus(); "Isthmus")]
+    #[test_case::test_case(FakeHardfork::ecotone(); "Ecotone")]
+    fn evm_env_for_op_next_block_pins_blob_gasprice_to_one(fork: FakeHardfork) {
         let parent_header = Header {
             number: 100,
             timestamp: 1_000_000,
@@ -265,14 +267,14 @@ mod tests {
                 slot_number: None,
             },
             1_000_000_000,
-            FakeHardfork::isthmus(),
+            fork,
             10,
         );
 
         let blob = evm_env
             .block_env
             .blob_excess_gas_and_price
-            .expect("blob env should be present for Isthmus");
+            .expect("blob env should be present from Ecotone onward");
         assert_eq!(
             blob.blob_gasprice, 1,
             "BLOBBASEFEE must be pinned to 1 on the OP Stack regardless of the parent DA footprint"
