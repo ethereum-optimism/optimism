@@ -19,6 +19,11 @@ import (
 
 const defaultTimeout = 5 * time.Second
 
+// defaultShutdownTimeout bounds each stage of Shutdown. raft.Shutdown() only resolves once
+// raft's own goroutines have exited and has no deadline of its own, so a member that has lost
+// quorum can keep it pending indefinitely.
+const defaultShutdownTimeout = 10 * time.Second
+
 var _ Consensus = (*RaftConsensus)(nil)
 
 // RaftConsensus implements Consensus using raft protocol.
@@ -35,6 +40,13 @@ type RaftConsensus struct {
 	advertisedAddr string
 
 	unsafeTracker *unsafeHeadTracker
+
+	// shutdownTimeout bounds how long Shutdown waits for raft, and then for raft again after
+	// the transport has been closed to unblock it.
+	shutdownTimeout time.Duration
+	// shutdownRaft is rc.r.Shutdown. It is a field so that Shutdown does not have to trust raft
+	// to ever come back, and so tests can exercise the case where it does not.
+	shutdownRaft func() raft.Future
 }
 
 type RaftConsensusConfig struct {
@@ -181,12 +193,14 @@ func NewRaftConsensus(log log.Logger, cfg *RaftConsensusConfig) (*RaftConsensus,
 	}
 
 	return &RaftConsensus{
-		log:           log,
-		r:             r,
-		serverID:      raft.ServerID(cfg.ServerID),
-		unsafeTracker: fsm,
-		rollupCfg:     cfg.RollupCfg,
-		transport:     transport,
+		log:             log,
+		r:               r,
+		serverID:        raft.ServerID(cfg.ServerID),
+		unsafeTracker:   fsm,
+		rollupCfg:       cfg.RollupCfg,
+		transport:       transport,
+		shutdownTimeout: defaultShutdownTimeout,
+		shutdownRaft:    r.Shutdown,
 	}, err
 }
 
@@ -293,12 +307,54 @@ func (rc *RaftConsensus) TransferLeaderTo(id string, addr string) error {
 }
 
 // Shutdown implements Consensus, it shuts down the consensus protocol client.
+//
+// raft.Shutdown() returns a future whose Error() blocks in waitShutdown() until raft's internal
+// goroutines have exited, with no deadline of its own, so a member that has lost quorum can leave
+// it pending for as long as the process lives. Callers shut their components down in sequence, so
+// blocking here strands everything after it: in CI this held a whole test binary for 19 minutes
+// until the package timeout killed it.
+//
+// raft does close the transport itself, but only once waitShutdown has returned
+// (hashicorp/raft future.go shutdownFuture.Error), which is precisely what is stuck. So when we
+// give up we close it ourselves: that drops the listener and any in-flight peer connections
+// raft's goroutines may be waiting on, which also gives raft a second chance to unwind.
+// NetworkTransport.Close is idempotent, so raft closing it again later is harmless.
 func (rc *RaftConsensus) Shutdown() error {
-	if err := rc.r.Shutdown().Error(); err != nil {
-		rc.log.Error("failed to shutdown raft", "err", err)
-		return err
+	stopped := make(chan error, 1)
+	go func() {
+		stopped <- rc.shutdownRaft().Error()
+	}()
+
+	err, ok := awaitShutdown(stopped, rc.shutdownTimeout)
+	if !ok {
+		rc.log.Warn("raft is taking too long to shut down, closing transport to unblock it",
+			"waited", rc.shutdownTimeout)
+		// NetworkTransport.Close only ever returns nil.
+		_ = rc.transport.Close()
+
+		if err, ok = awaitShutdown(stopped, rc.shutdownTimeout); !ok {
+			err = fmt.Errorf("raft did not shut down within %s", 2*rc.shutdownTimeout)
+		}
 	}
-	return nil
+
+	if err != nil {
+		rc.log.Error("failed to shutdown raft", "err", err)
+	}
+	return err
+}
+
+// awaitShutdown reports whether stopped produced a result within timeout, along with whatever
+// error it carried.
+func awaitShutdown(stopped <-chan error, timeout time.Duration) (err error, ok bool) {
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	select {
+	case err := <-stopped:
+		return err, true
+	case <-timer.C:
+		return nil, false
+	}
 }
 
 // CommitUnsafePayload implements Consensus, it commits latest unsafe payload to the cluster FSM in a strongly consistent fashion.
