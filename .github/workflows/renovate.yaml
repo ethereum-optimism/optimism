@@ -1,52 +1,25 @@
 name: Renovate
 
-# Self-hosted Renovate: runs the Renovate engine inside our own GitHub Actions.
-# Execution and credentials stay in our infra (no third-party write access).
-# CVE-only policy lives in renovate.json at the repo root.
-
 on:
   schedule:
     - cron: "0 6 * * *" # daily 06:00 UTC
   workflow_dispatch:
     inputs:
       logLevel:
-        description: "Renovate log level"
+        description: "Renovate log level (debug|info|warn)."
+        type: string
         default: "info"
-        type: choice
-        options: [debug, info, warn]
       dryRun:
-        description: "Dry run (no PRs)"
-        default: false
+        description: "Dry run (no PRs)."
         type: boolean
-
-permissions:
-  contents: read
-
-concurrency:
-  group: renovate
-  cancel-in-progress: false
+        default: false
 
 jobs:
   renovate:
-    runs-on: ubuntu-latest
-    steps:
-      # Mint a short-lived installation token for the org-owned Renovate GitHub App.
-      # Bot identity, no PAT to rotate. PRs opened with this token DO trigger CI
-      # (unlike GITHUB_TOKEN, whose PRs are skipped by GitHub loop-prevention).
-      - name: Generate Renovate App token
-        id: app-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          app-id: ${{ secrets.RENOVATE_APP_ID }}
-          private-key: ${{ secrets.RENOVATE_APP_PRIVATE_KEY }}
-
-      - name: Renovate
-        uses: renovatebot/github-action@3064367f740a1a91cca218698a63902689cce200 # v46.1.20
-        with:
-          token: ${{ steps.app-token.outputs.token }}
-        env:
-          RENOVATE_REPOSITORIES: "ethereum-optimism/optimism"
-          RENOVATE_ONBOARDING: "false"
-          RENOVATE_REQUIRE_CONFIG: "required"
-          LOG_LEVEL: ${{ inputs.logLevel || 'info' }}
-          RENOVATE_DRY_RUN: ${{ inputs.dryRun && 'full' || null }}
+    uses: ethereum-optimism/factory/.github/workflows/renovate.yaml@0e7698dcc639d694b5751e7168918aab481a0767
+    permissions:
+      contents: read
+    secrets: inherit
+    with:
+      logLevel: ${{ inputs.logLevel || 'info' }}
+      dryRun: ${{ inputs.dryRun || false }}

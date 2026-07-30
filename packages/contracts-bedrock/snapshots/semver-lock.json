@@ -36,8 +36,8 @@
     "sourceCodeHash": "0x2650f2af1df017387e1f1aa6273decc4c46dd4f3ac7f0910c6f0edc92aef4747"
   },
   "src/L1/opcm/OPContractsManagerV2.sol:OPContractsManagerV2": {
-    "initCodeHash": "0x0a6a9baa9913e6feb0c0d1606f037c22205cbe83e709de3c9ca0ba03a0301037",
-    "sourceCodeHash": "0xf37254fcca4a499b6487c6fc5fba880ef2dbd785cea505321deee5fcb28c4d06"
+    "initCodeHash": "0x103326138105481c4c6a9788d9094d4433a3785cdcedfc3db3992b3867dcd8bc",
+    "sourceCodeHash": "0xa161ec6c2e739fc834b66d57d2b0871cda3b843ec090abcd400cd7873fd67818"
   },
   "src/L2/BaseFeeVault.sol:BaseFeeVault": {
     "initCodeHash": "0x18650c65fa6f23fefc6f0c5fff605f12be99fce0bfbcbc0644403138e4c8bb12",
@@ -48,8 +48,8 @@
     "sourceCodeHash": "0x7c83a95f65cfd963af0caf90579e8f8544e3f883a48bc803720ec251c72aeffe"
   },
   "src/L2/CrossL2Inbox.sol:CrossL2Inbox": {
-    "initCodeHash": "0x56f868e561c4abe539043f98b16aad9305479e68fd03ece2233249b0c73a24ea",
-    "sourceCodeHash": "0x7c6d362a69a480a06a079542a7fd2ce48cb1dd80d6b9043fba60218569371349"
+    "initCodeHash": "0x5f3a52829abafd34cae760e053927a44a1ec58f8f7e6380a9723632288d84d8c",
+    "sourceCodeHash": "0xb9ac578e4f6f2f9a528603d57242c49b32146b459113ccb3f50f4112d036cddb"
   },
   "src/L2/ETHLiquidity.sol:ETHLiquidity": {
     "initCodeHash": "0x3c32ddabff34450afd940aa8cf852783576c3ae2d453b66386c3ed3baa0d7a57",
@@ -72,8 +72,8 @@
     "sourceCodeHash": "0x8876e106997cbaa64501bba7e5aa1fd8931873b8acef9f34f9d1ec2676df97d6"
   },
   "src/L2/L2ContractsManager.sol:L2ContractsManager": {
-    "initCodeHash": "0xbddf0e30ab0a7b264b0c0fb400f386a8c68937ca260ae4fee824c7fa52ff854d",
-    "sourceCodeHash": "0x4e53c2c11bf9a4b28eae56281dfd1ffed45fd8521c67d34c7bd3cf4f1030ad8a"
+    "initCodeHash": "0x0d508f194491490f3b1391ea21c155ed4f2de5b1c276e1a3f21012257a8827e1",
+    "sourceCodeHash": "0xe5180c12d21e9bf68059f02f71dff5209690b7fb8e95ba33605a11a83caf083b"
   },
   "src/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger": {
     "initCodeHash": "0x76784e1bc7abe615094033f3eb16d3a6bd5caf28c2717377a3dd25e6825228f3",

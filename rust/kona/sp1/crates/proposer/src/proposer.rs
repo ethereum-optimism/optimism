@@ -308,6 +308,27 @@ impl ProposerState {
     }
 }
 
+/// An unresolved game creation: the exact bytes of a `create` whose
+/// confirmation timed out, so the transaction may still land. While a
+/// record is set, new proposals are held; each tick the factory is
+/// checked for the uuid (adopting our landed game) and the record clears
+/// once the signer's pool holds no transactions, i.e. nothing of ours can
+/// land anymore. The hold plus the factory's dedup on (gameType,
+/// rootClaim, extraData) keep a stuck-then-included original from being
+/// joined by a sibling at a fresh timestamp. In-memory only: a restart
+/// with a create in flight keeps the pre-existing documented
+/// double-submit-once risk.
+#[derive(Clone, Debug)]
+struct InFlightCreation {
+    /// Root claim of the unresolved create.
+    root_claim: B256,
+    /// Exact extraData bytes sent (pins parent, timestamp, and proof).
+    extra_data: Vec<u8>,
+    /// Super-root timestamp of the unresolved create (guard arming).
+    sequence_number: u64,
+    /// Parent game index, for logging.
+    parent_game_index: u32,
+}
 /// Core proposer service: syncs the on-chain game DAG, creates and defends games,
 /// resolves finished ones, and claims bonds.
 #[derive(Clone)]
@@ -342,6 +363,9 @@ where
     /// Address of the most recently created game. Used to precisely identify
     /// the guarded game for `ChallengerWins` subtree removal.
     last_created_game_address: Arc<tokio::sync::Mutex<Address>>,
+    /// Exact bytes of a create whose confirmation timed out and whose fate
+    /// is unknown (see [`InFlightCreation`]).
+    in_flight_creation: Arc<tokio::sync::Mutex<Option<InFlightCreation>>>,
     /// Games seen on-chain whose super-root data is not yet obtainable from
     /// this node - the timestamp is not yet safe, or the query failed
     /// (including permanently, e.g. timestamps predating the node's recorded
@@ -419,6 +443,7 @@ where
             last_synced_l1_block: Arc::new(AtomicU64::new(0)),
             last_created_game_l2_sequence_number: Arc::new(AtomicU64::new(0)),
             last_created_game_address: Arc::new(tokio::sync::Mutex::new(Address::ZERO)),
+            in_flight_creation: Arc::new(tokio::sync::Mutex::new(None)),
             pending_games: Arc::new(RwLock::new(HashSet::new())),
             proof_provider,
             host_inputs,
@@ -629,8 +654,8 @@ where
     ///
     /// 1. Discover new games: walk the factory backwards from the latest game to the cursor,
     ///    classifying each as valid / unsupported / invalid / pending, and stopping early once past
-    ///    the anchor's deadline-lag cutoff. A per-game fetch failure defers the remaining range to
-    ///    the next cycle (the cursor is not advanced past an incomplete walk).
+    ///    the anchor's deadline-lag cutoff. A fetch failure aborts the sync cycle (the cursor is
+    ///    not advanced, so the range is re-walked next cycle).
     /// 2. Remove invalid games and their subtrees.
     /// 3. Re-validate pending games (timestamps not yet safe from this node's view, unavailable
     ///    super-root data, or an own-game claim mismatch); entries still pending past the anchor's
@@ -643,6 +668,8 @@ where
     ///    inside it). Per-game read failures skip only that game for the cycle.
     pub async fn sync_games(&self, pinned_block: BlockId, pinned_timestamp: u64) -> Result<()> {
         let pinned_latest_index = self.factory.fetch_latest_game_index(pinned_block).await?;
+        ProposerGauge::FactoryLatestGameIndex
+            .set(pinned_latest_index.map_or(-1.0, |i| i.to::<u64>() as f64));
 
         // 1. Load new games.
         let latest_index = if let Some(index) = pinned_latest_index {
@@ -652,6 +679,7 @@ where
             // games once they become confirmed.
             let mut state = self.state.write().await;
             state.cursor = Cursor::none();
+            ProposerGauge::SyncCursor.set(-1.0);
             return Ok(());
         };
 
@@ -686,8 +714,6 @@ where
         let mut anchor_deadline: Option<u64> = None;
         let mut invalid_game_ids = Vec::new();
         let mut newly_pending: Vec<U256> = Vec::new();
-
-        let mut walk_complete = true;
         loop {
             if index == cursor {
                 break;
@@ -697,14 +723,19 @@ where
             let fetch_result = match self.fetch_game(i, pinned_block).await {
                 Ok(result) => result,
                 Err(e) => {
+                    // A failed fetch aborts the whole cycle: acting on a
+                    // partially discovered topology could select a parent
+                    // whose unfetched ancestry is invalid. The cursor stays
+                    // put so the range is re-walked next cycle; persistent
+                    // failure is visible via the warn, the game_sync_error
+                    // counter, and a flat sync cursor.
                     tracing::warn!(
                         game_index = %index,
                         error = %e,
-                        "Game fetch failed; deferring the remaining range to the next sync cycle"
+                        "Game fetch failed; aborting the sync cycle"
                     );
                     ProposerGauge::GameSyncError.increment(1.0);
-                    walk_complete = false;
-                    break;
+                    return Err(e);
                 }
             };
 
@@ -747,11 +778,11 @@ where
             index.step_back();
         }
 
-        // Advance the cursor only after a complete walk so an aborted range
-        // is re-scanned next cycle instead of being skipped forever
-        // (re-walked processed games hit `AlreadyExists`, which is
-        // idempotent).
-        if walk_complete {
+        // The loop only completes on a full walk (a fetch failure returns
+        // above), so the cursor advance is unconditional; re-walked
+        // processed games hit `AlreadyExists`, which is idempotent.
+        ProposerGauge::SyncCursor.set(latest_index.index().map_or(-1.0, |i| i.to::<u64>() as f64));
+        {
             let mut state = self.state.write().await;
             state.cursor = latest_index;
         }
@@ -787,8 +818,23 @@ where
             };
             for idx in previously_pending {
                 match self.fetch_game(idx, pinned_block).await {
-                    Ok(GameFetchResult::Pending { deadline, .. }) => {
-                        if let Some(anchor_d) = anchor_deadline_for_eviction &&
+                    Ok(GameFetchResult::Pending { deadline, prestate, .. }) => {
+                        // Owned games (prestate in the usable set) are
+                        // exempt from eviction: an evicted own game loses
+                        // defense, resolution, and bond tracking until a
+                        // restart after the supernode heals. The
+                        // ensure_loaded attempt is bounded by the
+                        // negative-cache window for unknown prestates.
+                        let owned = {
+                            let _ = self.prestates.ensure_loaded(prestate).await;
+                            self.prestates.known_prestates().await.contains(&prestate)
+                        };
+                        if owned {
+                            tracing::debug!(
+                                game_index = %idx,
+                                "Keeping pending owned game re-checkable (eviction exempt)"
+                            );
+                        } else if let Some(anchor_d) = anchor_deadline_for_eviction &&
                             pending_evictable(anchor_d, deadline)
                         {
                             tracing::warn!(
@@ -1462,7 +1508,8 @@ where
     /// Fetch game from the factory.
     ///
     /// Terminal drops: unsupported game type, mismatched anchor state
-    /// registry, disrespected game type at creation, or another proposer's
+    /// registry, disrespected game type at creation, an `l2SequenceNumber`
+    /// exceeding `u64`, or another proposer's
     /// claim contradicting the canonical super root (our OWN game's claim
     /// mismatch is held pending instead of terminally dropped, since bad
     /// supernode data is the likelier cause). A timestamp not yet safe from
@@ -1504,13 +1551,19 @@ where
         let game_weth = contract.weth().block(pinned_block).call().await?;
         let creator = contract.gameCreator().block(pinned_block).call().await?;
 
-        let sequence_number: u64 = contract
-            .l2SequenceNumber()
-            .block(pinned_block)
-            .call()
-            .await?
-            .try_into()
-            .context("game sequence number exceeds u64")?;
+        let sequence_number = contract.l2SequenceNumber().block(pinned_block).call().await?;
+        // Unreachable for games created through the current contract (the
+        // field is sourced from an 8-byte extraData slot), kept as a
+        // classification rather than an error so a malformed game can never
+        // wedge the walk: only transient errors may bubble from discovery.
+        let Ok(sequence_number) = u64::try_from(sequence_number) else {
+            tracing::warn!(
+                game_index = %index,
+                ?game_address,
+                "Invalid game: l2SequenceNumber exceeds u64"
+            );
+            return Ok(GameFetchResult::InvalidGame { index });
+        };
         let claim = contract.rootClaim().block(pinned_block).call().await?;
         let was_respected =
             contract.wasRespectedGameTypeWhenCreated().block(pinned_block).call().await?;
@@ -1557,7 +1610,11 @@ where
                     "Super-root data unavailable for game; deferring validation"
                 );
                 ProposerGauge::SuperRootUnavailable.increment(1.0);
-                return Ok(GameFetchResult::Pending { index, deadline });
+                return Ok(GameFetchResult::Pending {
+                    index,
+                    deadline,
+                    prestate: absolute_prestate,
+                });
             }
         };
         let super_root = match SuperrootClient::super_root_at(&response, sequence_number) {
@@ -1571,7 +1628,11 @@ where
                     "Super-root response failed validation for game; deferring"
                 );
                 ProposerGauge::SuperRootUnavailable.increment(1.0);
-                return Ok(GameFetchResult::Pending { index, deadline });
+                return Ok(GameFetchResult::Pending {
+                    index,
+                    deadline,
+                    prestate: absolute_prestate,
+                });
             }
         };
         match super_root {
@@ -1598,7 +1659,11 @@ where
                     sequence_number,
                     "Game timestamp not yet safe from this node's view; deferring validation"
                 );
-                return Ok(GameFetchResult::Pending { index, deadline });
+                return Ok(GameFetchResult::Pending {
+                    index,
+                    deadline,
+                    prestate: absolute_prestate,
+                });
             }
             Some(super_root) if super_root.super_root != claim => {
                 if creator == self.signer.address() {
@@ -1618,7 +1683,11 @@ where
                         canonical_super_root = ?super_root.super_root,
                         "Own game contradicts canonical super root; holding as pending"
                     );
-                    return Ok(GameFetchResult::Pending { index, deadline });
+                    return Ok(GameFetchResult::Pending {
+                        index,
+                        deadline,
+                        prestate: absolute_prestate,
+                    });
                 }
                 tracing::warn!(
                     game_index = %index,
@@ -1706,14 +1775,38 @@ where
                     root_claim = %super_root.super_root,
                     "Creating game"
                 );
-                let game_address = self.create_game(super_root.super_root, extra_data).await?;
+                // Record the exact bytes before sending: if confirmation
+                // times out the tx may still land, and the record holds
+                // proposals until it is adopted or provably dead instead
+                // of proposing a sibling at a fresh timestamp.
+                *self.in_flight_creation.lock().await = Some(InFlightCreation {
+                    root_claim: super_root.super_root,
+                    extra_data: extra_data.clone(),
+                    sequence_number,
+                    parent_game_index,
+                });
+                match self.create_game(super_root.super_root, extra_data).await {
+                    Ok(game_address) => {
+                        *self.in_flight_creation.lock().await = None;
 
-                // Record the sequence number and address so should_create_game() skips
-                // duplicate creation while the pinned cache hasn't caught up to this game.
-                self.last_created_game_l2_sequence_number.store(sequence_number, Ordering::Relaxed);
-                *self.last_created_game_address.lock().await = game_address;
-                ProposerGauge::GamesCreated.increment(1.0);
-                return Ok(());
+                        // Record the sequence number and address so should_create_game() skips
+                        // duplicate creation while the pinned cache hasn't caught up to this
+                        // game.
+                        self.last_created_game_l2_sequence_number
+                            .store(sequence_number, Ordering::Relaxed);
+                        *self.last_created_game_address.lock().await = game_address;
+                        ProposerGauge::GamesCreated.increment(1.0);
+                        return Ok(());
+                    }
+                    Err(e) => {
+                        if e.is_revert() {
+                            // A landed revert consumed the transaction: nothing is in
+                            // flight, so there is no uuid to pin.
+                            *self.in_flight_creation.lock().await = None;
+                        }
+                        return Err(e);
+                    }
+                }
             }
 
             // A game with identical parameters already exists (UUID
@@ -1737,7 +1830,6 @@ where
                 *self.last_created_game_address.lock().await = existing_game;
                 return Ok(());
             }
-
             // Third-party collision: advance the timestamp - bounded by the
             // safety limit - and refetch a fresh super root (the proof
             // embeds the timestamp). On reaching the bound, defer: the next
@@ -1761,6 +1853,101 @@ where
                 }
             }
         }
+    }
+
+    /// Resolves an in-flight creation left by a confirmation timeout.
+    ///
+    /// Looks the recorded uuid up on the factory first: if the game exists
+    /// and is ours, adopt it (arm the duplicate-creation guard); if it is
+    /// another proposer's, the uuid is spent and no duplicate is possible.
+    /// Otherwise consult the signer's pool: while the pending transaction
+    /// count exceeds the latest, something of ours is still floating and
+    /// may land, so the record is kept and proposals stay held. Once the
+    /// pool drains, nothing of ours can land anymore - the original was
+    /// mined (the lookup above adopts it) or dropped - so the record
+    /// clears and normal proposals resume next tick through
+    /// `should_create_game`'s checks.
+    ///
+    /// The pool view is this node's: a transaction evicted here but alive
+    /// in another pool can land after the clear. That residual re-creates
+    /// the sibling scenario this record exists to narrow, which is benign
+    /// and self-healing - the sibling is a valid own game whose bond is
+    /// recovered by the normal resolution and claiming flow.
+    async fn resolve_in_flight_creation(&self) -> Result<()> {
+        let Some(record) = self.in_flight_creation.lock().await.clone() else {
+            return Ok(());
+        };
+
+        if self.try_adopt_recorded_uuid(&record).await? {
+            return Ok(());
+        }
+
+        let signer_address = self.signer.address();
+        let pending_nonce =
+            self.l1_provider.get_transaction_count(signer_address).pending().await?;
+        let latest_nonce = self.l1_provider.get_transaction_count(signer_address).latest().await?;
+        if pending_nonce > latest_nonce {
+            tracing::info!(
+                sequence_number = record.sequence_number,
+                parent_game_index = record.parent_game_index,
+                pending_nonce,
+                latest_nonce,
+                "In-flight transaction still in the pool; holding proposals"
+            );
+            return Ok(());
+        }
+
+        tracing::info!(
+            sequence_number = record.sequence_number,
+            parent_game_index = record.parent_game_index,
+            "In-flight creation left the pool without landing; clearing the record"
+        );
+        *self.in_flight_creation.lock().await = None;
+        Ok(())
+    }
+
+    /// Resolves the record when its uuid already exists on the factory:
+    /// our own game is adopted (duplicate-creation guard armed), a foreign
+    /// copy spends the uuid either way. Returns whether the record was
+    /// resolved. Read errors keep the record and bubble (retried next
+    /// tick).
+    async fn try_adopt_recorded_uuid(&self, record: &InFlightCreation) -> Result<bool> {
+        let existing_game = self
+            .factory
+            .games(ZK_GAME_TYPE, record.root_claim, record.extra_data.clone().into())
+            .call()
+            .await?
+            .proxy_;
+        if existing_game == Address::ZERO {
+            return Ok(false);
+        }
+
+        let existing_creator = ZKDisputeGame::new(existing_game, self.l1_provider.clone())
+            .gameCreator()
+            .call()
+            .await?;
+        if existing_creator == self.signer.address() {
+            // Our stuck create landed after all: adopt it. Not counted
+            // in GamesCreated, consistent with the collision-adoption
+            // path (accepted under-count).
+            tracing::info!(
+                sequence_number = record.sequence_number,
+                parent_game_index = record.parent_game_index,
+                game_address = ?existing_game,
+                "Adopting in-flight game that landed after its confirmation timeout"
+            );
+            self.last_created_game_l2_sequence_number
+                .store(record.sequence_number, Ordering::Relaxed);
+            *self.last_created_game_address.lock().await = existing_game;
+        } else {
+            tracing::info!(
+                sequence_number = record.sequence_number,
+                game_address = ?existing_game,
+                "In-flight uuid was created by another proposer; no duplicate possible"
+            );
+        }
+        *self.in_flight_creation.lock().await = None;
+        Ok(true)
     }
 
     /// Fetch the proposer metrics.
@@ -1949,6 +2136,36 @@ where
     /// - Ok(false): No work needed (proposal interval not elapsed or no finalized blocks)
     /// - Err: Actual error occurred during task spawning
     async fn spawn_game_creation_task(&self) -> Result<bool> {
+        // An unresolved create takes precedence over new proposals: hold
+        // them until its uuid is adopted or provably dead, so a
+        // stuck-then-included original can never be joined by a sibling at
+        // a fresh timestamp.
+        let in_flight_sequence_number =
+            self.in_flight_creation.lock().await.as_ref().map(|record| record.sequence_number);
+        if let Some(sequence_number) = in_flight_sequence_number {
+            let proposer = self.clone();
+            let task_id = self.next_task_id.fetch_add(1, Ordering::Relaxed);
+
+            let handle = tokio::spawn(async move {
+                if let Err(e) = proposer.resolve_in_flight_creation().await {
+                    tracing::warn!("Failed to resolve in-flight game creation: {:?}", e);
+                    return Err(e);
+                }
+
+                Ok(())
+            });
+
+            let task_info = TaskInfo::GameCreation { sequence_number };
+
+            self.tasks.lock().await.insert(task_id, (handle, task_info));
+            tracing::info!(
+                "Spawned in-flight creation resolution task {} for sequence number {}",
+                task_id,
+                sequence_number
+            );
+            return Ok(true);
+        }
+
         // First check if we should create a game
         let (should_create, next_sequence_number, parent_game_index) =
             self.should_create_game().await?;
@@ -2572,6 +2789,9 @@ pub enum GameFetchResult {
         /// Claim deadline of the game (L1 timestamp, seconds), used by the
         /// pending eviction cutoff.
         deadline: u64,
+        /// The game's `absolutePrestate()`: owned (usable-prestate) games
+        /// are exempt from pending eviction.
+        prestate: B256,
     },
     /// Game was already present in the cache
     AlreadyExists,

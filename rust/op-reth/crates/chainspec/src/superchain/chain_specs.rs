@@ -54,6 +54,5 @@ create_superchain_specs!(
     ("unichain", "sepolia"),
     ("worldchain", "sepolia"),
     ("zora", "sepolia"),
-    ("oplabs-devnet-0", "sepolia-dev-0"),
     ("sepolia-devnet-2", "sepolia-devnet-2"),
 );

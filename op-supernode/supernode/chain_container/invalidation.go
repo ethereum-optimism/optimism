@@ -416,8 +416,9 @@ func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint6
 	// invalidated block is removed: the WAL-captured parent at height-1.
 	validParent := parentPayload.ExecutionPayload.ID()
 	c.log.Info("added block to deny list",
+		"chainID", c.chainID,
 		"invalidatedBlock", eth.BlockID{Hash: payloadHash, Number: height},
-		"rewindToValidParent", validParent,
+		"lastValidParentBlock", validParent,
 		"decisionTimestamp", decisionTimestamp,
 	)
 
@@ -453,20 +454,30 @@ func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint6
 		return false, fmt.Errorf("failed to get current block at height %d: %w", height, err)
 	}
 
+	rewindFrom, rewindFromErr := c.engine.L2BlockRefByLabel(ctx, eth.Unsafe)
 	c.log.Warn("initiating rewind after block invalidation",
+		"chainID", c.chainID,
 		"invalidatedBlock", eth.BlockID{Hash: payloadHash, Number: height},
-		"rewindToValidParent", validParent,
+		"lastValidParentBlock", validParent,
 	)
 
 	if err := c.RewindEngine(ctx, parentPayload, invalidatedBlock); err != nil {
 		return false, fmt.Errorf("failed to rewind engine: %w", err)
 	}
 
-	priorTimestamp := uint64(parentPayload.ExecutionPayload.Timestamp)
-	c.log.Info("rewind completed after block invalidation",
-		"invalidatedHeight", height,
-		"rewindToTimestamp", priorTimestamp,
-	)
+	completionFields := []interface{}{
+		"chainID", c.chainID,
+		"invalidatedBlock", eth.BlockID{Hash: payloadHash, Number: height},
+		"lastValidParentBlock", validParent,
+		"rewindTargetBlock", validParent,
+	}
+	if rewindFromErr == nil && rewindFrom.Number >= validParent.Number {
+		completionFields = append(completionFields,
+			"rewindFromBlock", rewindFrom.ID(),
+			"rewindDepthBlocks", rewindFrom.Number-validParent.Number,
+		)
+	}
+	c.log.Info("chain rewind completed", completionFields...)
 
 	// Record rewind depth: invalidated block was at `height`, rewound to height-1.
 	if c.metrics != nil {

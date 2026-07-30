@@ -1,13 +1,16 @@
 # Nextest configuration for the `rust/` workspace.
 
 [profile.default]
-# No test retries: a flaky test should fail loudly and get fixed, not be
-# retried away.
+# No test retries by default: a flaky test should fail loudly and get fixed, not
+# be retried away. The sole exception is the eth69 teardown-SIGSEGV override at the
+# bottom of this file (#20973) — a narrowly-scoped stopgap for a crash that happens
+# *after* the test has already passed.
 # Flag tests slower than 30s and terminate any that hang past ~2 minutes.
 slow-timeout = { period = "30s", terminate-after = 4 }
 
-# Emit a JUnit report so CircleCI `store_test_results` can surface individual
-# test outcomes (written to `target/nextest/default/junit.xml`).
+# Emit a JUnit report so CircleCI `store_test_results` can surface individual test
+# outcomes (written to `target/nextest/default/junit.xml`). The cargo-test job also
+# greps it for a `<flakyFailure>` to detect the eth69 retry below and alert Slack.
 [profile.default.junit]
 path = "junit.xml"
 
@@ -25,3 +28,24 @@ slow-timeout = { period = "2m", terminate-after = 10 }
 [[profile.default.overrides]]
 filter = "binary(e2e_testsuite)"
 slow-timeout = { period = "2m", terminate-after = 3 }
+
+# `p2p_version::peers_negotiate_eth_69` intermittently dies with SIGSEGV *after* its body
+# has passed — the assertions succeed and nextest prints `test result: ok`, then the binary
+# segfaults during teardown, failing the run purely on the signal exit and ejecting unrelated
+# PRs from the merge queue. Retrying is sound *because* the crash is teardown-only: nextest
+# reruns in a fresh process, re-establishing every assertion rather than papering over a
+# failure. This deliberately contradicts the no-retries policy above — it is a stopgap for
+# an unresolved crash tracked in #20973; remove it once that is fixed.
+#
+# The retry turns the red job green, so the cargo-test CI job greps this JUnit report for the
+# `<flakyFailure>` and pings Slack (CircleCI does not parse that element, so its Tests tab and
+# Insights stay blind — the detection is ours).
+#
+# `test(=exact)`, not `binary_id(...)`: nextest validates override filters against the whole
+# workspace binary namespace, so a future crate/binary rename would hard-error every run in
+# `rust/`; the exact-match predicate degrades to a no-op instead. The `=` is load-bearing —
+# bare `test(...)` is a substring match, so a sibling like `peers_negotiate_eth_69_disconnect`
+# would silently inherit the retry.
+[[profile.default.overrides]]
+filter = 'test(=p2p_version::peers_negotiate_eth_69)'
+retries = 2

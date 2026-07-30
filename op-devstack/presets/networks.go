@@ -63,7 +63,6 @@ type presetNetworkBase struct {
 	chainCfg *params.ChainConfig
 	chainID  eth.ChainID
 
-	faucets     []*faucetFrontend
 	syncTesters []*syncTesterFrontend
 }
 
@@ -73,17 +72,6 @@ func (n *presetNetworkBase) ChainID() eth.ChainID {
 
 func (n *presetNetworkBase) ChainConfig() *params.ChainConfig {
 	return n.chainCfg
-}
-
-func (n *presetNetworkBase) Faucets() []stack.Faucet {
-	return mapSlice(sortByNameFunc(n.faucets), func(v *faucetFrontend) stack.Faucet { return v })
-}
-
-func (n *presetNetworkBase) AddFaucet(v *faucetFrontend) {
-	n.require().Equal(n.chainID, v.ChainID(), "faucet %s must be on chain %s", v.Name(), n.chainID)
-	_, exists := componentByName(n.faucets, v.Name())
-	n.require().False(exists, "faucet %s must not already exist", v.Name())
-	n.faucets = append(n.faucets, v)
 }
 
 func (n *presetNetworkBase) SyncTesters() []stack.SyncTester {

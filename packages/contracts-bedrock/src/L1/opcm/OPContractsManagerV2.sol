@@ -158,9 +158,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 7.2.3
+    /// @custom:semver 7.2.4
     function version() public pure returns (string memory) {
-        return "7.2.3";
+        return "7.2.4";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -887,7 +887,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 _cts.proxyAdmin,
                 address(_cts.ethLockbox),
                 impls.ethLockboxImpl,
-                abi.encodeCall(IETHLockbox.initialize, (_cts.systemConfig, portals))
+                abi.encodeCall(
+                    IETHLockbox.initialize, (_systemConfigFor(_cts.systemConfig, address(_cts.ethLockbox)), portals)
+                )
             );
         }
 
@@ -939,7 +941,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             _cts.proxyAdmin,
             address(_cts.delayedWETH),
             impls.delayedWETHImpl,
-            abi.encodeCall(IDelayedWETH.initialize, (_cts.systemConfig))
+            abi.encodeCall(IDelayedWETH.initialize, (_systemConfigFor(_cts.systemConfig, address(_cts.delayedWETH))))
         );
 
         // Update the AnchorStateRegistry.
@@ -949,7 +951,12 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             impls.anchorStateRegistryImpl,
             abi.encodeCall(
                 IAnchorStateRegistry.initialize,
-                (_cts.systemConfig, _cts.disputeGameFactory, _cfg.startingAnchorRoot, _cfg.startingRespectedGameType)
+                (
+                    _systemConfigFor(_cts.systemConfig, address(_cts.anchorStateRegistry)),
+                    _cts.disputeGameFactory,
+                    _cfg.startingAnchorRoot,
+                    _cfg.startingRespectedGameType
+                )
             )
         );
 

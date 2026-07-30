@@ -117,10 +117,16 @@ pub struct ProposerConfig {
 
     /// Optional cap, in wei, on the EIP-1559 max fee per gas the fee
     /// estimator may set on submitted transactions. Unset = uncapped.
+    /// A cap below prevailing fees delays inclusion until fees decay; for a
+    /// deadline-driven actor that can cost far more than it saves. Leave
+    /// unset unless a specific need exists.
     pub max_fee_per_gas: Option<u128>,
 
     /// Optional cap, in wei, on the EIP-1559 max priority fee per gas the
-    /// fee estimator may set. Unset = uncapped.
+    /// fee estimator may set. Unset = uncapped. A cap below prevailing
+    /// fees delays inclusion until fees decay; for a deadline-driven actor
+    /// that can cost far more than it saves. Leave unset unless a specific
+    /// need exists.
     pub max_priority_fee_per_gas: Option<u128>,
 
     /// Which proof provider defends challenged games.
@@ -197,7 +203,6 @@ impl ProposerConfig {
             .parse::<ProofProviderKind>()?;
         let l2_rpcs = parse_url_list(&env::var("L2_RPCS").context("L2_RPCS not set")?)
             .context("invalid L2_RPCS")?;
-
         Ok(Self {
             l1_rpc: env::var("L1_RPC")
                 .context("L1_RPC not set")?
@@ -427,7 +432,6 @@ impl FromStr for RangeSplitCount {
         Self::new(count)
     }
 }
-
 /// Artifact suffix for the super-aggregation program ELF.
 pub const AGGREGATION_ARTIFACT_SUFFIX: &str = ".agg.bin.gz";
 /// Artifact suffix for the super-range program ELF (whose vkey the

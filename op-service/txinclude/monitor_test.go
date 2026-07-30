@@ -40,7 +40,11 @@ func TestMonitorReceiptFound(t *testing.T) {
 
 func TestMonitorTransientError(t *testing.T) {
 	inner := &mockReceiptGetter{
-		errs:    []error{ethereum.NotFound},
+		errs: []error{
+			ethereum.NotFound,
+			errors.New("transaction indexing in progress"),
+			errors.New("transaction indexing is in progress"),
+		},
 		receipt: &types.Receipt{},
 	}
 	receipt, err := NewMonitor(inner, time.Millisecond).TransactionReceipt(context.Background(), inner.receipt.TxHash)
