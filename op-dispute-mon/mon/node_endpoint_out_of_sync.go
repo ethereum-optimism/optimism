@@ -21,7 +21,7 @@ func NewNodeEndpointOutOfSyncMonitor(logger log.Logger, metrics NodeEndpointOutO
 	}
 }
 
-func (m *NodeEndpointOutOfSyncMonitor) CheckNodeEndpointOutOfSync(games []*types.EnrichedGameData) {
+func (m *NodeEndpointOutOfSyncMonitor) CheckNodeEndpointOutOfSync(games []*types.CommonGameData) {
 	totalOutOfSync := 0
 
 	for _, game := range games {

@@ -8,7 +8,7 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
@@ -19,149 +19,94 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	mockErr = errors.New("mock error")
-)
+var mockErr = errors.New("mock error")
 
-func TestMonitor_MonitorGames(t *testing.T) {
-	t.Parallel()
-
-	t.Run("FailedFetchHeadBlock", func(t *testing.T) {
-		monitor, _, _, _ := setupMonitorTest(t)
+func TestMonitorMonitorGames(t *testing.T) {
+	t.Run("failed fetch head block", func(t *testing.T) {
+		monitor, _, _, _, _ := setupMonitorTest(t)
 		boom := errors.New("boom")
-		monitor.fetchHeadBlock = func(ctx context.Context) (eth.L1BlockRef, error) {
+		monitor.fetchHeadBlock = func(context.Context) (eth.L1BlockRef, error) {
 			return eth.L1BlockRef{}, boom
 		}
-		err := monitor.monitorGames()
-		require.ErrorIs(t, err, boom)
+		require.ErrorIs(t, monitor.monitorGames(), boom)
 	})
 
-	t.Run("MonitorsWithNoGames", func(t *testing.T) {
-		monitor, factory, forecast, monitors := setupMonitorTest(t)
-		factory.games = []*monTypes.EnrichedGameData{}
-		err := monitor.monitorGames()
-		require.NoError(t, err)
-		require.Equal(t, 1, forecast.Calls())
-		for _, m := range monitors {
-			require.Equal(t, 1, m.calls)
+	t.Run("routes sealed variants", func(t *testing.T) {
+		monitor, extractor, forecast, commonMonitor, faultMonitor := setupMonitorTest(t)
+		extractor.games = []monTypes.EnrichedGame{
+			faultGame(gameTypes.GameStatusInProgress, true),
+			&monTypes.ZKGameData{CommonGameData: commonGame(
+				gameTypes.ZKDisputeGameType, gameTypes.GameStatusInProgress, true,
+			)},
+			&monTypes.SuperPermissionedGameData{CommonGameData: commonGame(
+				gameTypes.SuperPermissionedGameType, gameTypes.GameStatusDefenderWon, true,
+			)},
 		}
+
+		require.NoError(t, monitor.monitorGames())
+		require.Equal(t, 1, forecast.Calls())
+		require.Equal(t, 3, commonMonitor.gameCount)
+		require.Equal(t, 1, faultMonitor.gameCount)
 	})
 
-	t.Run("MonitorsMultipleGames", func(t *testing.T) {
-		monitor, factory, forecast, monitors := setupMonitorTest(t)
-		factory.games = []*monTypes.EnrichedGameData{{}, {}, {}}
-		err := monitor.monitorGames()
-		require.NoError(t, err)
+	t.Run("empty cycle still calls all consumers", func(t *testing.T) {
+		monitor, _, forecast, commonMonitor, faultMonitor := setupMonitorTest(t)
+		require.NoError(t, monitor.monitorGames())
 		require.Equal(t, 1, forecast.Calls())
-		for _, m := range monitors {
-			require.Equal(t, 1, m.calls)
-		}
+		require.Equal(t, 1, commonMonitor.calls)
+		require.Equal(t, 1, faultMonitor.calls)
 	})
 }
 
-func TestMonitor_StartMonitoring(t *testing.T) {
-	t.Run("MonitorsGames", func(t *testing.T) {
-		addr1 := common.Address{0xaa}
-		addr2 := common.Address{0xbb}
-		monitor, factory, forecaster, _ := setupMonitorTest(t)
-		factory.games = []*monTypes.EnrichedGameData{newEnrichedGameData(addr1, 9999), newEnrichedGameData(addr2, 9999)}
-		factory.maxSuccess = len(factory.games) // Only allow two successful fetches
+func TestPartitionGamesOnlyReturnsFaultVariantsToFaultMonitors(t *testing.T) {
+	fault := faultGame(gameTypes.GameStatusInProgress, true)
+	zk := &monTypes.ZKGameData{CommonGameData: commonGame(
+		gameTypes.ZKDisputeGameType, gameTypes.GameStatusInProgress, true,
+	)}
+	superPermissioned := &monTypes.SuperPermissionedGameData{CommonGameData: commonGame(
+		gameTypes.SuperPermissionedGameType, gameTypes.GameStatusDefenderWon, true,
+	)}
+
+	commonGames, faultGames := partitionGames([]monTypes.EnrichedGame{fault, zk, superPermissioned})
+	require.Len(t, commonGames, 3)
+	require.Equal(t, []*monTypes.FaultGameData{fault}, faultGames)
+}
+
+func TestMonitorStartAndStop(t *testing.T) {
+	t.Run("monitors until extraction fails", func(t *testing.T) {
+		monitor, extractor, forecast, _, _ := setupMonitorTest(t)
+		extractor.games = []monTypes.EnrichedGame{faultGame(gameTypes.GameStatusInProgress, true)}
+		extractor.maxSuccess = 2
 
 		monitor.StartMonitoring()
 		require.Eventually(t, func() bool {
-			return forecaster.Calls() >= 2
-		}, time.Second, 50*time.Millisecond)
+			return forecast.Calls() >= 2
+		}, time.Second, 20*time.Millisecond)
 		require.NoError(t, monitor.StopMonitoring(stopContext(t)))
-		require.Equal(t, len(factory.games), forecaster.Calls()) // Each game's status is recorded twice
+		require.Equal(t, 2, forecast.Calls())
 	})
 
-	t.Run("FailsToFetchGames", func(t *testing.T) {
-		monitor, factory, forecaster, _ := setupMonitorTest(t)
-		factory.fetchErr = errors.New("boom")
+	t.Run("failed extraction is not forecast", func(t *testing.T) {
+		monitor, extractor, forecast, _, _ := setupMonitorTest(t)
+		extractor.fetchErr = errors.New("boom")
 
 		monitor.StartMonitoring()
 		require.Eventually(t, func() bool {
-			return factory.Calls() > 0
-		}, time.Second, 50*time.Millisecond)
+			return extractor.Calls() > 0
+		}, time.Second, 20*time.Millisecond)
 		require.NoError(t, monitor.StopMonitoring(stopContext(t)))
-		require.Equal(t, 0, forecaster.Calls())
+		require.Zero(t, forecast.Calls())
 	})
 
-	t.Run("WaitsForInFlightMonitor", func(t *testing.T) {
-		synctest.Test(t, func(t *testing.T) {
-			monitor, _, _, _ := setupMonitorTest(t)
-			monitor.clock.(*clock.AdvancingClock).Stop()
-			cl := clock.NewDeterministicClock(time.Unix(0, 0))
-			monitor.clock = cl
-			entered := make(chan struct{}, 1)
-			release := make(chan struct{})
-			var fetchReturned atomic.Bool
-			monitor.fetchHeadBlock = func(context.Context) (eth.L1BlockRef, error) {
-				select {
-				case entered <- struct{}{}:
-				default:
-				}
-				<-release
-				fetchReturned.Store(true)
-				return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
-			}
-
-			monitor.StartMonitoring()
-			synctest.Wait()
-			cl.AdvanceTime(monitor.monitorInterval)
-			synctest.Wait()
-			select {
-			case <-entered:
-			default:
-				t.Fatal("monitor did not start fetching the head block")
-			}
-
-			stopReturned := make(chan error, 1)
-			go func() {
-				stopReturned <- monitor.StopMonitoring(stopContext(t))
-			}()
-			synctest.Wait()
-
-			select {
-			case <-monitor.done:
-			default:
-				t.Fatal("monitor stop was not signaled")
-			}
-			select {
-			case <-stopReturned:
-				t.Fatal("monitor stop returned while a monitor operation was still in flight")
-			default:
-			}
-
-			close(release)
-			synctest.Wait()
-			require.True(t, fetchReturned.Load(), "in-flight monitor operation did not complete")
-			require.NoError(t, <-stopReturned, "monitor stop did not complete successfully")
-		})
+	t.Run("stops before start", func(t *testing.T) {
+		monitor, _, _, _, _ := setupMonitorTest(t)
+		require.NoError(t, monitor.StopMonitoring(stopContext(t)))
+		require.NoError(t, monitor.StopMonitoring(stopContext(t)))
 	})
 
-	t.Run("StopsBeforeStart", func(t *testing.T) {
+	t.Run("waits for in-flight monitor", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			monitor, _, _, _ := setupMonitorTest(t)
-			monitor.clock.(*clock.AdvancingClock).Stop()
-			stopReturned := make(chan error, 1)
-			go func() {
-				stopReturned <- monitor.StopMonitoring(stopContext(t))
-			}()
-			synctest.Wait()
-			select {
-			case err := <-stopReturned:
-				require.NoError(t, err)
-			default:
-				t.Fatal("monitor stop blocked before monitoring started")
-			}
-			require.NoError(t, monitor.StopMonitoring(stopContext(t)), "second stop should be idempotent")
-		})
-	})
-
-	t.Run("HonorsStopContext", func(t *testing.T) {
-		synctest.Test(t, func(t *testing.T) {
-			monitor, _, _, _ := setupMonitorTest(t)
+			monitor, _, _, _, _ := setupMonitorTest(t)
 			monitor.clock.(*clock.AdvancingClock).Stop()
 			cl := clock.NewDeterministicClock(time.Unix(0, 0))
 			monitor.clock = cl
@@ -177,11 +122,43 @@ func TestMonitor_StartMonitoring(t *testing.T) {
 			synctest.Wait()
 			cl.AdvanceTime(monitor.monitorInterval)
 			synctest.Wait()
+			require.NotEmpty(t, entered)
+
+			stopped := make(chan error, 1)
+			go func() {
+				stopped <- monitor.StopMonitoring(stopContext(t))
+			}()
+			synctest.Wait()
 			select {
-			case <-entered:
+			case <-stopped:
+				t.Fatal("stop returned before in-flight monitoring completed")
 			default:
-				t.Fatal("monitor did not start fetching the head block")
 			}
+			close(release)
+			synctest.Wait()
+			require.NoError(t, <-stopped)
+		})
+	})
+
+	t.Run("honors stop context", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			monitor, _, _, _, _ := setupMonitorTest(t)
+			monitor.clock.(*clock.AdvancingClock).Stop()
+			cl := clock.NewDeterministicClock(time.Unix(0, 0))
+			monitor.clock = cl
+			entered := make(chan struct{}, 1)
+			release := make(chan struct{})
+			monitor.fetchHeadBlock = func(context.Context) (eth.L1BlockRef, error) {
+				entered <- struct{}{}
+				<-release
+				return eth.L1BlockRef{}, nil
+			}
+
+			monitor.StartMonitoring()
+			synctest.Wait()
+			cl.AdvanceTime(monitor.monitorInterval)
+			synctest.Wait()
+			require.NotEmpty(t, entered)
 
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
@@ -194,6 +171,18 @@ func TestMonitor_StartMonitoring(t *testing.T) {
 	})
 }
 
+func TestServiceStopStopsMonitoring(t *testing.T) {
+	monitor, _, _, _, _ := setupMonitorTest(t)
+	service := &Service{logger: monitor.logger, monitor: monitor}
+	require.NoError(t, service.Start(context.Background()))
+	require.NoError(t, service.Stop(stopContext(t)))
+	select {
+	case <-monitor.done:
+	default:
+		t.Fatal("service stop did not stop the game monitor")
+	}
+}
+
 func stopContext(t *testing.T) context.Context {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
@@ -201,42 +190,52 @@ func stopContext(t *testing.T) context.Context {
 	return ctx
 }
 
-func newEnrichedGameData(proxy common.Address, timestamp uint64) *monTypes.EnrichedGameData {
-	return &monTypes.EnrichedGameData{
-		GameMetadata: types.GameMetadata{
-			Proxy:     proxy,
-			Timestamp: timestamp,
-		},
-		Status: types.GameStatusInProgress,
-	}
-}
-
-func setupMonitorTest(t *testing.T) (*gameMonitor, *mockExtractor, *mockForecast, []*mockMonitor) {
+func setupMonitorTest(t *testing.T) (*gameMonitor, *mockExtractor, *mockForecast, *mockCommonMonitor, *mockFaultMonitor) {
 	logger := testlog.Logger(t, log.LvlDebug)
-	fetchHeadBlock := func(ctx context.Context) (eth.L1BlockRef, error) {
-		return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
-	}
-	monitorInterval := 100 * time.Millisecond
 	cl := clock.NewAdvancingClock()
 	cl.Start()
+	t.Cleanup(cl.Stop)
 	extractor := &mockExtractor{}
 	forecast := &mockForecast{}
-	monitor1 := &mockMonitor{}
-	monitor2 := &mockMonitor{}
-	monitor3 := &mockMonitor{}
-	monitor := newGameMonitor(context.Background(), logger, cl, metrics.NoopMetrics, monitorInterval, 10*time.Second, fetchHeadBlock,
-		extractor.Extract, forecast.Forecast, noopAnchorStateCheck, monitor1.Check, monitor2.Check, monitor3.Check)
-	return monitor, extractor, forecast, []*mockMonitor{monitor1, monitor2, monitor3}
+	commonMonitor := &mockCommonMonitor{}
+	faultMonitor := &mockFaultMonitor{}
+	monitor := newGameMonitor(
+		context.Background(),
+		logger,
+		cl,
+		metrics.NoopMetrics,
+		100*time.Millisecond,
+		10*time.Second,
+		func(context.Context) (eth.L1BlockRef, error) {
+			return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
+		},
+		extractor.Extract,
+		forecast.Forecast,
+		func(context.Context, common.Hash, []*monTypes.CommonGameData) {},
+		[]CommonMonitor{commonMonitor.Check},
+		[]FaultMonitor{faultMonitor.Check},
+	)
+	return monitor, extractor, forecast, commonMonitor, faultMonitor
 }
 
-func noopAnchorStateCheck(_ context.Context, _ common.Hash, _ []*monTypes.EnrichedGameData) {}
-
-type mockMonitor struct {
-	calls int
+type mockCommonMonitor struct {
+	calls     int
+	gameCount int
 }
 
-func (m *mockMonitor) Check(games []*monTypes.EnrichedGameData) {
+func (m *mockCommonMonitor) Check(games []*monTypes.CommonGameData) {
 	m.calls++
+	m.gameCount = len(games)
+}
+
+type mockFaultMonitor struct {
+	calls     int
+	gameCount int
+}
+
+func (m *mockFaultMonitor) Check(games []*monTypes.FaultGameData) {
+	m.calls++
+	m.gameCount = len(games)
 }
 
 type mockForecast struct {
@@ -247,7 +246,7 @@ func (m *mockForecast) Calls() int {
 	return int(m.calls.Load())
 }
 
-func (m *mockForecast) Forecast(_ []*monTypes.EnrichedGameData, _, _ int) {
+func (m *mockForecast) Forecast([]monTypes.EnrichedGame, int, int) {
 	m.calls.Add(1)
 }
 
@@ -255,16 +254,12 @@ type mockExtractor struct {
 	fetchErr     error
 	calls        atomic.Int64
 	maxSuccess   int
-	games        []*monTypes.EnrichedGameData
+	games        []monTypes.EnrichedGame
 	ignoredCount int
 	failedCount  int
 }
 
-func (m *mockExtractor) Extract(
-	_ context.Context,
-	_ common.Hash,
-	_ uint64,
-) ([]*monTypes.EnrichedGameData, int, int, error) {
+func (m *mockExtractor) Extract(context.Context, common.Hash, uint64) ([]monTypes.EnrichedGame, int, int, error) {
 	calls := int(m.calls.Add(1))
 	if m.fetchErr != nil {
 		return nil, 0, 0, m.fetchErr
@@ -277,494 +272,4 @@ func (m *mockExtractor) Extract(
 
 func (m *mockExtractor) Calls() int {
 	return int(m.calls.Load())
-}
-
-func TestMonitor_NodeEndpointErrorsMonitorIntegration(t *testing.T) {
-	t.Parallel()
-
-	t.Run("NodeEndpointErrorsMonitorCalledWithGamesData", func(t *testing.T) {
-		logger := testlog.Logger(t, log.LvlDebug)
-		fetchHeadBlock := func(ctx context.Context) (eth.L1BlockRef, error) {
-			return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
-		}
-		monitorInterval := 100 * time.Millisecond
-		cl := clock.NewAdvancingClock()
-		cl.Start()
-
-		// Create games with endpoint errors
-		games := []*monTypes.EnrichedGameData{
-			{
-				GameMetadata: types.GameMetadata{Proxy: common.Address{0x11}},
-				NodeEndpointErrors: map[string]bool{
-					"endpoint_1": true,
-					"endpoint_2": true,
-				},
-			},
-			{
-				GameMetadata: types.GameMetadata{Proxy: common.Address{0x22}},
-				NodeEndpointErrors: map[string]bool{
-					"endpoint_2": true, // Overlapping with first game
-					"endpoint_3": true,
-				},
-			},
-		}
-
-		extractor := &mockExtractor{games: games}
-		forecast := &mockForecast{}
-		nodeEndpointErrorsMetrics := &stubNodeEndpointErrorsMetrics{}
-		nodeEndpointErrorsMonitor := NewNodeEndpointErrorsMonitor(logger, nodeEndpointErrorsMetrics)
-
-		monitor := newGameMonitor(context.Background(), logger, cl, metrics.NoopMetrics, monitorInterval, 10*time.Second, fetchHeadBlock,
-			extractor.Extract, forecast.Forecast, noopAnchorStateCheck, nodeEndpointErrorsMonitor.CheckNodeEndpointErrors)
-
-		err := monitor.monitorGames()
-		require.NoError(t, err)
-
-		// Verify that NodeEndpointErrorsMonitor was called and recorded the correct count
-		// Should count unique endpoints: endpoint_1, endpoint_2, endpoint_3 = 3 total
-		require.Equal(t, 3, nodeEndpointErrorsMetrics.recordedCount)
-	})
-}
-
-func TestMonitor_NodeEndpointErrorCountMonitorIntegration(t *testing.T) {
-	t.Parallel()
-
-	t.Run("NodeEndpointErrorCountMonitorCalledWithGamesData", func(t *testing.T) {
-		logger := testlog.Logger(t, log.LvlDebug)
-		fetchHeadBlock := func(ctx context.Context) (eth.L1BlockRef, error) {
-			return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
-		}
-		monitorInterval := 100 * time.Millisecond
-		cl := clock.NewAdvancingClock()
-		cl.Start()
-
-		// Create games with endpoint error counts
-		games := []*monTypes.EnrichedGameData{
-			{
-				GameMetadata:           types.GameMetadata{Proxy: common.Address{0x11}},
-				NodeEndpointErrorCount: 5, // First game has 5 errors
-			},
-			{
-				GameMetadata:           types.GameMetadata{Proxy: common.Address{0x22}},
-				NodeEndpointErrorCount: 3, // Second game has 3 errors
-			},
-			{
-				GameMetadata:           types.GameMetadata{Proxy: common.Address{0x33}},
-				NodeEndpointErrorCount: 0, // Third game has no errors
-			},
-		}
-
-		extractor := &mockExtractor{games: games}
-		forecast := &mockForecast{}
-		nodeEndpointErrorCountMetrics := &mockNodeEndpointErrorCountMetrics{}
-		nodeEndpointErrorCountMonitor := NewNodeEndpointErrorCountMonitor(logger, nodeEndpointErrorCountMetrics)
-
-		monitor := newGameMonitor(context.Background(), logger, cl, metrics.NoopMetrics, monitorInterval, 10*time.Second, fetchHeadBlock,
-			extractor.Extract, forecast.Forecast, noopAnchorStateCheck, nodeEndpointErrorCountMonitor.CheckNodeEndpointErrorCount)
-
-		err := monitor.monitorGames()
-		require.NoError(t, err)
-
-		// Verify that NodeEndpointErrorCountMonitor was called and recorded the correct total
-		// Should sum all error counts: 5 + 3 + 0 = 8 total errors
-		require.Equal(t, 8, nodeEndpointErrorCountMetrics.recordedCount)
-	})
-}
-
-// mockNodeEndpointErrorCountMetrics for integration test
-type mockNodeEndpointErrorCountMetrics struct {
-	recordedCount int
-}
-
-func (m *mockNodeEndpointErrorCountMetrics) RecordNodeEndpointErrorCount(count int) {
-	m.recordedCount = count
-}
-
-func TestMonitor_MixedAvailabilityMonitorIntegration(t *testing.T) {
-	t.Parallel()
-
-	t.Run("MixedAvailabilityMonitorCalledWithGamesData", func(t *testing.T) {
-		logger := testlog.Logger(t, log.LvlDebug)
-		fetchHeadBlock := func(ctx context.Context) (eth.L1BlockRef, error) {
-			return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
-		}
-		monitorInterval := 100 * time.Millisecond
-		cl := clock.NewAdvancingClock()
-		cl.Start()
-
-		// Create games with mixed availability scenarios
-		games := []*monTypes.EnrichedGameData{
-			{
-				GameMetadata:              types.GameMetadata{Proxy: common.Address{0x11}},
-				NodeEndpointTotalCount:    3,
-				NodeEndpointNotFoundCount: 1, // Mixed availability: some found, some not found
-				NodeEndpointErrorCount:    0,
-			},
-			{
-				GameMetadata:              types.GameMetadata{Proxy: common.Address{0x22}},
-				NodeEndpointTotalCount:    2,
-				NodeEndpointNotFoundCount: 2, // All endpoints not found - not mixed availability
-				NodeEndpointErrorCount:    0,
-			},
-			{
-				GameMetadata:              types.GameMetadata{Proxy: common.Address{0x33}},
-				NodeEndpointTotalCount:    4,
-				NodeEndpointNotFoundCount: 2, // Mixed availability: some found, some not found
-				NodeEndpointErrorCount:    0,
-			},
-			{
-				GameMetadata:              types.GameMetadata{Proxy: common.Address{0x44}},
-				NodeEndpointTotalCount:    3,
-				NodeEndpointNotFoundCount: 0, // All endpoints found - not mixed availability
-				NodeEndpointErrorCount:    0,
-			},
-		}
-
-		extractor := &mockExtractor{games: games}
-		forecast := &mockForecast{}
-		mixedAvailabilityMetrics := &mockMixedAvailabilityMetrics{}
-		mixedAvailabilityMonitor := NewMixedAvailability(logger, mixedAvailabilityMetrics)
-
-		monitor := newGameMonitor(context.Background(), logger, cl, metrics.NoopMetrics, monitorInterval, 10*time.Second, fetchHeadBlock,
-			extractor.Extract, forecast.Forecast, noopAnchorStateCheck, mixedAvailabilityMonitor.CheckMixedAvailability)
-
-		err := monitor.monitorGames()
-		require.NoError(t, err)
-
-		// Verify that MixedAvailabilityMonitor was called and recorded the correct count
-		// Should count games with mixed availability: game 0x11 and 0x33 = 2 total
-		require.Equal(t, 2, mixedAvailabilityMetrics.recordedCount)
-	})
-}
-
-// mockMixedAvailabilityMetrics for integration test
-type mockMixedAvailabilityMetrics struct {
-	recordedCount int
-}
-
-func (m *mockMixedAvailabilityMetrics) RecordMixedAvailabilityGames(count int) {
-	m.recordedCount = count
-}
-
-func TestMonitor_MixedSafetyMonitorIntegration(t *testing.T) {
-	t.Parallel()
-
-	t.Run("MixedSafetyMonitorCalledWithGamesData", func(t *testing.T) {
-		logger := testlog.Logger(t, log.LvlDebug)
-		fetchHeadBlock := func(ctx context.Context) (eth.L1BlockRef, error) {
-			return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
-		}
-		monitorInterval := 100 * time.Millisecond
-		cl := clock.NewAdvancingClock()
-		cl.Start()
-
-		// Create games with mixed safety scenarios
-		games := []*monTypes.EnrichedGameData{
-			{
-				GameMetadata:            types.GameMetadata{Proxy: common.Address{0x11}},
-				NodeEndpointSafeCount:   2, // Mixed safety: some safe, some unsafe
-				NodeEndpointUnsafeCount: 1,
-			},
-			{
-				GameMetadata:            types.GameMetadata{Proxy: common.Address{0x22}},
-				NodeEndpointSafeCount:   3, // All endpoints safe - not mixed safety
-				NodeEndpointUnsafeCount: 0,
-			},
-			{
-				GameMetadata:            types.GameMetadata{Proxy: common.Address{0x33}},
-				NodeEndpointSafeCount:   1, // Mixed safety: some safe, some unsafe
-				NodeEndpointUnsafeCount: 4,
-			},
-			{
-				GameMetadata:            types.GameMetadata{Proxy: common.Address{0x44}},
-				NodeEndpointSafeCount:   0, // All endpoints unsafe - not mixed safety
-				NodeEndpointUnsafeCount: 2,
-			},
-			{
-				GameMetadata:            types.GameMetadata{Proxy: common.Address{0x55}},
-				NodeEndpointSafeCount:   0, // No safety checks performed - not mixed safety
-				NodeEndpointUnsafeCount: 0,
-			},
-		}
-
-		extractor := &mockExtractor{games: games}
-		forecast := &mockForecast{}
-		mixedSafetyMetrics := &mockMixedSafetyMetrics{}
-		mixedSafetyMonitor := NewMixedSafetyMonitor(logger, mixedSafetyMetrics)
-
-		monitor := newGameMonitor(context.Background(), logger, cl, metrics.NoopMetrics, monitorInterval, 10*time.Second, fetchHeadBlock,
-			extractor.Extract, forecast.Forecast, noopAnchorStateCheck, mixedSafetyMonitor.CheckMixedSafety)
-
-		err := monitor.monitorGames()
-		require.NoError(t, err)
-
-		// Verify that MixedSafetyMonitor was called and recorded the correct count
-		// Should count games with mixed safety: game 0x11 and 0x33 = 2 total
-		require.Equal(t, 2, mixedSafetyMetrics.recordedCount)
-	})
-
-	t.Run("OnlyGamesWithMixedSafetyAreCounted", func(t *testing.T) {
-		logger := testlog.Logger(t, log.LvlDebug)
-		fetchHeadBlock := func(ctx context.Context) (eth.L1BlockRef, error) {
-			return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
-		}
-		monitorInterval := 100 * time.Millisecond
-		cl := clock.NewAdvancingClock()
-		cl.Start()
-
-		// Create games without mixed safety
-		games := []*monTypes.EnrichedGameData{
-			{
-				GameMetadata:            types.GameMetadata{Proxy: common.Address{0x11}},
-				NodeEndpointSafeCount:   5, // All safe
-				NodeEndpointUnsafeCount: 0,
-			},
-			{
-				GameMetadata:            types.GameMetadata{Proxy: common.Address{0x22}},
-				NodeEndpointSafeCount:   0, // All unsafe
-				NodeEndpointUnsafeCount: 3,
-			},
-			{
-				GameMetadata:            types.GameMetadata{Proxy: common.Address{0x33}},
-				NodeEndpointSafeCount:   0, // No checks performed
-				NodeEndpointUnsafeCount: 0,
-			},
-		}
-
-		extractor := &mockExtractor{games: games}
-		forecast := &mockForecast{}
-		mixedSafetyMetrics := &mockMixedSafetyMetrics{}
-		mixedSafetyMonitor := NewMixedSafetyMonitor(logger, mixedSafetyMetrics)
-
-		monitor := newGameMonitor(context.Background(), logger, cl, metrics.NoopMetrics, monitorInterval, 10*time.Second, fetchHeadBlock,
-			extractor.Extract, forecast.Forecast, noopAnchorStateCheck, mixedSafetyMonitor.CheckMixedSafety)
-
-		err := monitor.monitorGames()
-		require.NoError(t, err)
-
-		// Verify that no games were counted as having mixed safety
-		require.Equal(t, 0, mixedSafetyMetrics.recordedCount)
-	})
-
-	t.Run("EdgeCaseMinimalMixedSafety", func(t *testing.T) {
-		logger := testlog.Logger(t, log.LvlDebug)
-		fetchHeadBlock := func(ctx context.Context) (eth.L1BlockRef, error) {
-			return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
-		}
-		monitorInterval := 100 * time.Millisecond
-		cl := clock.NewAdvancingClock()
-		cl.Start()
-
-		// Create a game with minimal mixed safety (1 safe, 1 unsafe)
-		games := []*monTypes.EnrichedGameData{
-			{
-				GameMetadata:            types.GameMetadata{Proxy: common.Address{0x11}},
-				NodeEndpointSafeCount:   1, // Minimal mixed safety
-				NodeEndpointUnsafeCount: 1,
-			},
-		}
-
-		extractor := &mockExtractor{games: games}
-		forecast := &mockForecast{}
-		mixedSafetyMetrics := &mockMixedSafetyMetrics{}
-		mixedSafetyMonitor := NewMixedSafetyMonitor(logger, mixedSafetyMetrics)
-
-		monitor := newGameMonitor(context.Background(), logger, cl, metrics.NoopMetrics, monitorInterval, 10*time.Second, fetchHeadBlock,
-			extractor.Extract, forecast.Forecast, noopAnchorStateCheck, mixedSafetyMonitor.CheckMixedSafety)
-
-		err := monitor.monitorGames()
-		require.NoError(t, err)
-
-		// Verify that the minimal mixed safety case is counted
-		require.Equal(t, 1, mixedSafetyMetrics.recordedCount)
-	})
-}
-
-// mockMixedSafetyMetrics for integration test
-type mockMixedSafetyMetrics struct {
-	recordedCount int
-}
-
-func (m *mockMixedSafetyMetrics) RecordMixedSafetyGames(count int) {
-	m.recordedCount = count
-}
-
-func TestMonitor_DifferentOutputRootMonitorIntegration(t *testing.T) {
-	t.Parallel()
-
-	t.Run("DifferentOutputRootMonitorCalledWithGamesData", func(t *testing.T) {
-		logger := testlog.Logger(t, log.LvlDebug)
-		fetchHeadBlock := func(ctx context.Context) (eth.L1BlockRef, error) {
-			return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
-		}
-		monitorInterval := 100 * time.Millisecond
-		cl := clock.NewAdvancingClock()
-		cl.Start()
-
-		// Create games with different output root scenarios
-		games := []*monTypes.EnrichedGameData{
-			{
-				GameMetadata:               types.GameMetadata{Proxy: common.Address{0x11}},
-				NodeEndpointDifferentRoots: true, // Has different output roots
-			},
-			{
-				GameMetadata:               types.GameMetadata{Proxy: common.Address{0x22}},
-				NodeEndpointDifferentRoots: false, // No disagreement
-			},
-			{
-				GameMetadata:               types.GameMetadata{Proxy: common.Address{0x33}},
-				NodeEndpointDifferentRoots: true, // Has different output roots
-			},
-			{
-				GameMetadata:               types.GameMetadata{Proxy: common.Address{0x44}},
-				NodeEndpointDifferentRoots: false, // No disagreement
-			},
-		}
-
-		extractor := &mockExtractor{games: games}
-		forecast := &mockForecast{}
-		differentOutputRootMetrics := &mockDifferentOutputRootMetrics{}
-		differentOutputRootMonitor := NewDifferentRootMonitor(logger, differentOutputRootMetrics)
-
-		monitor := newGameMonitor(context.Background(), logger, cl, metrics.NoopMetrics, monitorInterval, 10*time.Second, fetchHeadBlock,
-			extractor.Extract, forecast.Forecast, noopAnchorStateCheck, differentOutputRootMonitor.CheckDifferentRoots)
-
-		err := monitor.monitorGames()
-		require.NoError(t, err)
-
-		// Verify that DifferentOutputRootMonitor was called and recorded the correct count
-		// Should count games with different output roots: game 0x11 and 0x33 = 2 total
-		require.Equal(t, 2, differentOutputRootMetrics.recordedCount)
-	})
-
-	t.Run("OnlyGamesWithDifferentOutputRootsAreCounted", func(t *testing.T) {
-		logger := testlog.Logger(t, log.LvlDebug)
-		fetchHeadBlock := func(ctx context.Context) (eth.L1BlockRef, error) {
-			return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
-		}
-		monitorInterval := 100 * time.Millisecond
-		cl := clock.NewAdvancingClock()
-		cl.Start()
-
-		// Create games without different output roots
-		games := []*monTypes.EnrichedGameData{
-			{
-				GameMetadata:               types.GameMetadata{Proxy: common.Address{0x11}},
-				NodeEndpointDifferentRoots: false, // No disagreement
-			},
-			{
-				GameMetadata:               types.GameMetadata{Proxy: common.Address{0x22}},
-				NodeEndpointDifferentRoots: false, // No disagreement
-			},
-			{
-				GameMetadata:               types.GameMetadata{Proxy: common.Address{0x33}},
-				NodeEndpointDifferentRoots: false, // No disagreement
-			},
-		}
-
-		extractor := &mockExtractor{games: games}
-		forecast := &mockForecast{}
-		differentOutputRootMetrics := &mockDifferentOutputRootMetrics{}
-		differentOutputRootMonitor := NewDifferentRootMonitor(logger, differentOutputRootMetrics)
-
-		monitor := newGameMonitor(context.Background(), logger, cl, metrics.NoopMetrics, monitorInterval, 10*time.Second, fetchHeadBlock,
-			extractor.Extract, forecast.Forecast, noopAnchorStateCheck, differentOutputRootMonitor.CheckDifferentRoots)
-
-		err := monitor.monitorGames()
-		require.NoError(t, err)
-
-		// Verify that no games were counted as having different output roots
-		require.Equal(t, 0, differentOutputRootMetrics.recordedCount)
-	})
-
-	t.Run("AllGamesHaveDifferentOutputRoots", func(t *testing.T) {
-		logger := testlog.Logger(t, log.LvlDebug)
-		fetchHeadBlock := func(ctx context.Context) (eth.L1BlockRef, error) {
-			return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
-		}
-		monitorInterval := 100 * time.Millisecond
-		cl := clock.NewAdvancingClock()
-		cl.Start()
-
-		// Create games where all have different output roots
-		games := []*monTypes.EnrichedGameData{
-			{
-				GameMetadata:               types.GameMetadata{Proxy: common.Address{0x11}},
-				NodeEndpointDifferentRoots: true,
-			},
-			{
-				GameMetadata:               types.GameMetadata{Proxy: common.Address{0x22}},
-				NodeEndpointDifferentRoots: true,
-			},
-			{
-				GameMetadata:               types.GameMetadata{Proxy: common.Address{0x33}},
-				NodeEndpointDifferentRoots: true,
-			},
-		}
-
-		extractor := &mockExtractor{games: games}
-		forecast := &mockForecast{}
-		differentOutputRootMetrics := &mockDifferentOutputRootMetrics{}
-		differentOutputRootMonitor := NewDifferentRootMonitor(logger, differentOutputRootMetrics)
-
-		monitor := newGameMonitor(context.Background(), logger, cl, metrics.NoopMetrics, monitorInterval, 10*time.Second, fetchHeadBlock,
-			extractor.Extract, forecast.Forecast, noopAnchorStateCheck, differentOutputRootMonitor.CheckDifferentRoots)
-
-		err := monitor.monitorGames()
-		require.NoError(t, err)
-
-		// Verify that all games were counted
-		require.Equal(t, 3, differentOutputRootMetrics.recordedCount)
-	})
-
-	t.Run("EmptyGamesListReturnsZero", func(t *testing.T) {
-		logger := testlog.Logger(t, log.LvlDebug)
-		fetchHeadBlock := func(ctx context.Context) (eth.L1BlockRef, error) {
-			return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
-		}
-		monitorInterval := 100 * time.Millisecond
-		cl := clock.NewAdvancingClock()
-		cl.Start()
-
-		// Create empty games list
-		games := []*monTypes.EnrichedGameData{}
-
-		extractor := &mockExtractor{games: games}
-		forecast := &mockForecast{}
-		differentOutputRootMetrics := &mockDifferentOutputRootMetrics{}
-		differentOutputRootMonitor := NewDifferentRootMonitor(logger, differentOutputRootMetrics)
-
-		monitor := newGameMonitor(context.Background(), logger, cl, metrics.NoopMetrics, monitorInterval, 10*time.Second, fetchHeadBlock,
-			extractor.Extract, forecast.Forecast, noopAnchorStateCheck, differentOutputRootMonitor.CheckDifferentRoots)
-
-		err := monitor.monitorGames()
-		require.NoError(t, err)
-
-		// Verify that count is zero
-		require.Equal(t, 0, differentOutputRootMetrics.recordedCount)
-	})
-}
-
-// mockDifferentOutputRootMetrics for integration test
-type mockDifferentOutputRootMetrics struct {
-	recordedCount int
-}
-
-func (m *mockDifferentOutputRootMetrics) RecordDifferentRootGames(count int) {
-	m.recordedCount = count
-}
-
-func TestServiceStopStopsMonitoring(t *testing.T) {
-	monitor, _, _, _ := setupMonitorTest(t)
-	service := &Service{logger: monitor.logger, monitor: monitor}
-
-	require.NoError(t, service.Start(context.Background()))
-	require.NoError(t, service.Stop(stopContext(t)))
-
-	select {
-	case <-monitor.done:
-		// The monitor loop was stopped.
-	default:
-		t.Fatal("service stop did not stop the game monitor")
-	}
 }

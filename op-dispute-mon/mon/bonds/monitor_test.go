@@ -26,14 +26,14 @@ func TestCheckBonds(t *testing.T) {
 	weth1Balance := big.NewInt(4200)
 	weth2 := common.Address{0x2b}
 	weth2Balance := big.NewInt(10) // Insufficient
-	game1 := &monTypes.EnrichedGameData{
+	game1 := &monTypes.FaultGameData{
 		Credits: map[common.Address]*big.Int{
 			common.Address{0x01}: big.NewInt(2),
 		},
 		WETHContract:  weth1,
 		ETHCollateral: weth1Balance,
 	}
-	game2 := &monTypes.EnrichedGameData{
+	game2 := &monTypes.FaultGameData{
 		Credits: map[common.Address]*big.Int{
 			common.Address{0x01}: big.NewInt(46),
 		},
@@ -42,7 +42,7 @@ func TestCheckBonds(t *testing.T) {
 	}
 
 	bonds, metrics, logs := setupBondMetricsTest(t)
-	bonds.CheckBonds([]*monTypes.EnrichedGameData{game1, game2})
+	bonds.CheckBonds([]*monTypes.FaultGameData{game1, game2})
 
 	require.Len(t, metrics.recorded, 2)
 	require.Contains(t, metrics.recorded, weth1)
@@ -61,20 +61,6 @@ func TestCheckBonds(t *testing.T) {
 	require.Nil(t, logs.FindLog(testlog.NewAttributesFilter("delayedWETH", weth1.Hex())))
 }
 
-func TestCheckBondsSkipsSuperPermissioned(t *testing.T) {
-	bonds, metrics, _ := setupBondMetricsTest(t)
-	game := &monTypes.EnrichedGameData{
-		GameMetadata: gameTypes.GameMetadata{
-			GameType: uint32(gameTypes.SuperPermissionedGameType),
-		},
-	}
-
-	require.NotPanics(t, func() {
-		bonds.CheckBonds([]*monTypes.EnrichedGameData{game})
-	})
-	require.Empty(t, metrics.recorded)
-}
-
 func TestCheckRecipientCredit(t *testing.T) {
 	addr1 := common.Address{0x11, 0xaa}
 	addr2 := common.Address{0x22, 0xbb}
@@ -82,12 +68,14 @@ func TestCheckRecipientCredit(t *testing.T) {
 	addr4 := common.Address{0x4d}
 	notRootPosition := types.NewPositionFromGIndex(big.NewInt(2))
 	// Game has not reached max duration
-	game1 := &monTypes.EnrichedGameData{
+	game1 := &monTypes.FaultGameData{
 		MaxClockDuration: 50000,
 		WETHDelay:        30 * time.Minute,
-		GameMetadata: gameTypes.GameMetadata{
-			Proxy:     common.Address{0x11},
-			Timestamp: uint64(frozen.Unix()),
+		CommonGameData: monTypes.CommonGameData{
+			GameMetadata: gameTypes.GameMetadata{
+				Proxy:     common.Address{0x11},
+				Timestamp: uint64(frozen.Unix()),
+			},
 		},
 		Claims: []monTypes.EnrichedClaim{
 			{ // Expect 10 credits for addr1
@@ -155,12 +143,14 @@ func TestCheckRecipientCredit(t *testing.T) {
 		ETHCollateral: big.NewInt(6000),
 	}
 	// Max duration has been reached
-	game2 := &monTypes.EnrichedGameData{
+	game2 := &monTypes.FaultGameData{
 		MaxClockDuration: 5,
 		WETHDelay:        5 * time.Second,
-		GameMetadata: gameTypes.GameMetadata{
-			Proxy:     common.Address{0x22},
-			Timestamp: uint64(frozen.Unix()) - 11,
+		CommonGameData: monTypes.CommonGameData{
+			GameMetadata: gameTypes.GameMetadata{
+				Proxy:     common.Address{0x22},
+				Timestamp: uint64(frozen.Unix()) - 11,
+			},
 		},
 		Claims: []monTypes.EnrichedClaim{
 			{ // Expect 11 credits for addr1
@@ -230,12 +220,14 @@ func TestCheckRecipientCredit(t *testing.T) {
 	}
 
 	// Game has not reached max duration
-	game3 := &monTypes.EnrichedGameData{
+	game3 := &monTypes.FaultGameData{
 		MaxClockDuration: 50000,
 		WETHDelay:        10 * time.Hour,
-		GameMetadata: gameTypes.GameMetadata{
-			Proxy:     common.Address{0x33},
-			Timestamp: uint64(frozen.Unix()) - 11,
+		CommonGameData: monTypes.CommonGameData{
+			GameMetadata: gameTypes.GameMetadata{
+				Proxy:     common.Address{0x33},
+				Timestamp: uint64(frozen.Unix()) - 11,
+			},
 		},
 		Claims: []monTypes.EnrichedClaim{
 			{ // Expect 9 credits for addr1
@@ -284,12 +276,14 @@ func TestCheckRecipientCredit(t *testing.T) {
 	}
 
 	// Game has not reached max duration
-	game4 := &monTypes.EnrichedGameData{
+	game4 := &monTypes.FaultGameData{
 		MaxClockDuration: 10,
 		WETHDelay:        10 * time.Second,
-		GameMetadata: gameTypes.GameMetadata{
-			Proxy:     common.Address{0x44},
-			Timestamp: uint64(frozen.Unix()) - 22,
+		CommonGameData: monTypes.CommonGameData{
+			GameMetadata: gameTypes.GameMetadata{
+				Proxy:     common.Address{0x44},
+				Timestamp: uint64(frozen.Unix()) - 22,
+			},
 		},
 		BlockNumberChallenged: true,
 		BlockNumberChallenger: addr1,
@@ -341,7 +335,7 @@ func TestCheckRecipientCredit(t *testing.T) {
 	}
 
 	bonds, m, logs := setupBondMetricsTest(t)
-	bonds.CheckBonds([]*monTypes.EnrichedGameData{game1, game2, game3, game4})
+	bonds.CheckBonds([]*monTypes.FaultGameData{game1, game2, game3, game4})
 
 	require.Len(t, m.credits, 6)
 	require.Contains(t, m.credits, metrics.CreditBelowWithdrawable)

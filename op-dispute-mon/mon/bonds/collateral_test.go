@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
@@ -17,7 +16,7 @@ func TestCalculateRequiredCollateral(t *testing.T) {
 	weth1Balance := big.NewInt(4200)
 	weth2 := common.Address{0x2b}
 	weth2Balance := big.NewInt(6000)
-	game1 := &monTypes.EnrichedGameData{
+	game1 := &monTypes.FaultGameData{
 		Claims: []monTypes.EnrichedClaim{
 			{
 				Claim: types.Claim{
@@ -55,7 +54,7 @@ func TestCalculateRequiredCollateral(t *testing.T) {
 		WETHContract:  weth1,
 		ETHCollateral: weth1Balance,
 	}
-	game2 := &monTypes.EnrichedGameData{
+	game2 := &monTypes.FaultGameData{
 		Claims: []monTypes.EnrichedClaim{
 			{
 				Claim: types.Claim{
@@ -93,7 +92,7 @@ func TestCalculateRequiredCollateral(t *testing.T) {
 		WETHContract:  weth1,
 		ETHCollateral: weth1Balance,
 	}
-	game3 := &monTypes.EnrichedGameData{
+	game3 := &monTypes.FaultGameData{
 		Claims: []monTypes.EnrichedClaim{
 			{
 				Claim: types.Claim{
@@ -111,7 +110,7 @@ func TestCalculateRequiredCollateral(t *testing.T) {
 		WETHContract:  weth2,
 		ETHCollateral: weth2Balance,
 	}
-	actual := CalculateRequiredCollateral([]*monTypes.EnrichedGameData{game1, game2, game3})
+	actual := CalculateRequiredCollateral([]*monTypes.FaultGameData{game1, game2, game3})
 	require.Len(t, actual, 2)
 	require.Contains(t, actual, weth1)
 	require.Contains(t, actual, weth2)
@@ -119,15 +118,4 @@ func TestCalculateRequiredCollateral(t *testing.T) {
 	require.Equal(t, bigs.Uint64Strict(actual[weth1].Actual), bigs.Uint64Strict(weth1Balance))
 	require.Equal(t, bigs.Uint64Strict(actual[weth2].Required), uint64(23+46))
 	require.Equal(t, bigs.Uint64Strict(actual[weth2].Actual), bigs.Uint64Strict(weth2Balance))
-}
-
-func TestCalculateRequiredCollateralSkipsSuperPermissioned(t *testing.T) {
-	actual := CalculateRequiredCollateral([]*monTypes.EnrichedGameData{
-		{
-			GameMetadata: gameTypes.GameMetadata{
-				GameType: uint32(gameTypes.SuperPermissionedGameType),
-			},
-		},
-	})
-	require.Empty(t, actual)
 }

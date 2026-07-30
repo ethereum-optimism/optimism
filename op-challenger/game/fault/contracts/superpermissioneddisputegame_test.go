@@ -6,10 +6,8 @@ import (
 	"math"
 	"math/big"
 	"testing"
-	"time"
 
 	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
-	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
@@ -158,59 +156,6 @@ func TestSuperPermissionedGame_GetAnchorStateRegistry(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, superPermissionedASRAddr, actual)
-}
-
-func TestSuperPermissionedGame_GetAllClaims(t *testing.T) {
-	_, game := setupSuperPermissionedDisputeGameTest(t)
-	claims, err := game.GetAllClaims(context.Background(), rpcblock.Latest)
-	require.NoError(t, err)
-	require.Nil(t, claims)
-}
-
-func TestSuperPermissionedGame_IsResolved(t *testing.T) {
-	_, game := setupSuperPermissionedDisputeGameTest(t)
-	resolved, err := game.IsResolved(context.Background(), rpcblock.Latest, faultTypes.Claim{}, faultTypes.Claim{})
-	require.NoError(t, err)
-	require.Equal(t, []bool{false, false}, resolved)
-}
-
-func TestSuperPermissionedGame_GetWithdrawals(t *testing.T) {
-	_, game := setupSuperPermissionedDisputeGameTest(t)
-	recipients := []common.Address{{0x01}, {0x02}}
-	withdrawals, err := game.GetWithdrawals(context.Background(), rpcblock.Latest, recipients...)
-	require.NoError(t, err)
-	require.Len(t, withdrawals, len(recipients))
-	for _, withdrawal := range withdrawals {
-		require.Zero(t, withdrawal.Amount.Sign())
-		require.Zero(t, withdrawal.Timestamp.Sign())
-	}
-}
-
-func TestSuperPermissionedGame_GetCredits(t *testing.T) {
-	_, game := setupSuperPermissionedDisputeGameTest(t)
-	recipients := []common.Address{{0x01}, {0x02}, {0x03}}
-	credits, err := game.GetCredits(context.Background(), rpcblock.Latest, recipients...)
-	require.NoError(t, err)
-	require.Len(t, credits, len(recipients))
-	for _, credit := range credits {
-		require.Zero(t, credit.Sign())
-	}
-}
-
-func TestSuperPermissionedGame_GetBondDistributionMode(t *testing.T) {
-	_, game := setupSuperPermissionedDisputeGameTest(t)
-	mode, err := game.GetBondDistributionMode(context.Background(), rpcblock.Latest)
-	require.NoError(t, err)
-	require.Equal(t, faultTypes.UndecidedDistributionMode, mode)
-}
-
-func TestSuperPermissionedGame_GetBalanceAndDelay(t *testing.T) {
-	_, game := setupSuperPermissionedDisputeGameTest(t)
-	balance, delay, addr, err := game.GetBalanceAndDelay(context.Background(), rpcblock.Latest)
-	require.NoError(t, err)
-	require.Zero(t, balance.Sign())
-	require.Equal(t, time.Duration(0), delay)
-	require.Equal(t, common.Address{}, addr)
 }
 
 func setupSuperPermissionedDisputeGameTest(t *testing.T) (*batchingTest.AbiBasedRpc, *SuperPermissionedDisputeGameContract) {

@@ -17,7 +17,7 @@ func TestUpdateTimeMonitor_NoGames(t *testing.T) {
 	require.Equal(t, cl.Now(), m.oldestUpdateTime)
 
 	cl.AdvanceTime(time.Minute)
-	monitor.CheckUpdateTimes([]*types.EnrichedGameData{})
+	monitor.CheckUpdateTimes([]*types.CommonGameData{})
 	require.Equal(t, cl.Now(), m.oldestUpdateTime)
 }
 
@@ -25,7 +25,7 @@ func TestUpdateTimeMonitor_ReportsOldestUpdateTime(t *testing.T) {
 	m := &mockUpdateTimeMetrics{}
 	cl := clock.NewDeterministicClock(time.UnixMilli(45892))
 	monitor := NewUpdateTimeMonitor(cl, m)
-	monitor.CheckUpdateTimes([]*types.EnrichedGameData{
+	monitor.CheckUpdateTimes([]*types.CommonGameData{
 		{LastUpdateTime: time.UnixMilli(4)},
 		{LastUpdateTime: time.UnixMilli(3)},
 		{LastUpdateTime: time.UnixMilli(7)},

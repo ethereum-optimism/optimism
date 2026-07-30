@@ -119,8 +119,13 @@ func (f *DisputeGameFactoryContract) GetGame(ctx context.Context, idx uint64, bl
 }
 
 func (f *DisputeGameFactoryContract) GetGameStatus(ctx context.Context, idx uint64) (gameTypes.GameStatus, error) {
+	return f.GetGameStatusAtBlock(ctx, idx, rpcblock.Latest)
+}
+
+// GetGameStatusAtBlock returns a game's status from a snapshot pinned to block.
+func (f *DisputeGameFactoryContract) GetGameStatusAtBlock(ctx context.Context, idx uint64, block rpcblock.Block) (gameTypes.GameStatus, error) {
 	defer f.metrics.StartContractRequest("GetGameStatus")()
-	game, err := f.GetGame(ctx, idx, rpcblock.Latest)
+	game, err := f.GetGame(ctx, idx, block)
 	if err != nil {
 		return 0, fmt.Errorf("failed to load game status: %w", err)
 	}
@@ -129,7 +134,11 @@ func (f *DisputeGameFactoryContract) GetGameStatus(ctx context.Context, idx uint
 	if err != nil {
 		return 0, fmt.Errorf("failed to create contract bindings for game %s: %w", game.Proxy, err)
 	}
-	return gameContract.GetStatus(ctx)
+	metadata, err := gameContract.GetMetadata(ctx, block)
+	if err != nil {
+		return 0, fmt.Errorf("failed to load game status from game %s: %w", game.Proxy, err)
+	}
+	return metadata.Status, nil
 }
 
 func (f *DisputeGameFactoryContract) getGameImpl(ctx context.Context, gameType gameTypes.GameType) (common.Address, error) {

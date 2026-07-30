@@ -14,11 +14,23 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type ForecastResolution func(games []*types.EnrichedGameData, ignoredCount, failedCount int)
-type AnchorStateCheck func(ctx context.Context, blockHash common.Hash, games []*types.EnrichedGameData)
-type Monitor func(games []*types.EnrichedGameData)
+// ForecastResolution records forecasts for all enriched game variants.
+type ForecastResolution func(games []types.EnrichedGame, ignoredCount, failedCount int)
+
+// AnchorStateCheck checks anchor state shared by every game kind.
+type AnchorStateCheck func(ctx context.Context, blockHash common.Hash, games []*types.CommonGameData)
+
+// CommonMonitor checks fields shared by every game kind.
+type CommonMonitor func(games []*types.CommonGameData)
+
+// FaultMonitor checks fields that exist only on fault games.
+type FaultMonitor func(games []*types.FaultGameData)
+
+// HeadBlockFetcher returns the L1 snapshot used for a monitor cycle.
 type HeadBlockFetcher func(ctx context.Context) (eth.L1BlockRef, error)
-type Extract func(ctx context.Context, blockHash common.Hash, minTimestamp uint64) ([]*types.EnrichedGameData, int, int, error)
+
+// Extract creates enriched game snapshots pinned to an L1 block.
+type Extract func(ctx context.Context, blockHash common.Hash, minTimestamp uint64) ([]types.EnrichedGame, int, int, error)
 
 type MonitorMetrics interface {
 	RecordMonitorDuration(dur time.Duration)
@@ -41,7 +53,8 @@ type gameMonitor struct {
 
 	forecast         ForecastResolution
 	checkAnchorState AnchorStateCheck
-	monitors         []Monitor
+	commonMonitors   []CommonMonitor
+	faultMonitors    []FaultMonitor
 	extract          Extract
 	fetchHeadBlock   HeadBlockFetcher
 }
@@ -57,7 +70,9 @@ func newGameMonitor(
 	extract Extract,
 	forecast ForecastResolution,
 	checkAnchorState AnchorStateCheck,
-	monitors ...Monitor) *gameMonitor {
+	commonMonitors []CommonMonitor,
+	faultMonitors []FaultMonitor,
+) *gameMonitor {
 	return &gameMonitor{
 		logger:           logger,
 		clock:            cl,
@@ -69,7 +84,8 @@ func newGameMonitor(
 		gameWindow:       gameWindow,
 		forecast:         forecast,
 		checkAnchorState: checkAnchorState,
-		monitors:         monitors,
+		commonMonitors:   commonMonitors,
+		faultMonitors:    faultMonitors,
 		extract:          extract,
 		fetchHeadBlock:   fetchHeadBlock,
 	}
@@ -87,10 +103,14 @@ func (m *gameMonitor) monitorGames() error {
 	if err != nil {
 		return fmt.Errorf("failed to load games: %w", err)
 	}
+	commonGames, faultGames := partitionGames(enrichedGames)
 	m.forecast(enrichedGames, ignored, failed)
-	m.checkAnchorState(m.ctx, headBlock.Hash, enrichedGames)
-	for _, monitor := range m.monitors {
-		monitor(enrichedGames)
+	m.checkAnchorState(m.ctx, headBlock.Hash, commonGames)
+	for _, monitor := range m.commonMonitors {
+		monitor(commonGames)
+	}
+	for _, monitor := range m.faultMonitors {
+		monitor(faultGames)
 	}
 	timeTaken := m.clock.Since(start)
 	m.metrics.RecordMonitorDuration(timeTaken)
@@ -102,6 +122,18 @@ func (m *gameMonitor) monitorGames() error {
 		"ignored", ignored,
 		"failed", failed)
 	return nil
+}
+
+func partitionGames(games []types.EnrichedGame) ([]*types.CommonGameData, []*types.FaultGameData) {
+	commonGames := make([]*types.CommonGameData, 0, len(games))
+	faultGames := make([]*types.FaultGameData, 0, len(games))
+	for _, game := range games {
+		commonGames = append(commonGames, game.Common())
+		if faultGame, ok := game.(*types.FaultGameData); ok {
+			faultGames = append(faultGames, faultGame)
+		}
+	}
+	return commonGames, faultGames
 }
 
 func (m *gameMonitor) loop() {

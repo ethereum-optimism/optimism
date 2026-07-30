@@ -8,11 +8,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestEnrichedGameData_UsesOutputRoots(t *testing.T) {
+func TestCommonGameData_UsesOutputRoots(t *testing.T) {
 	for _, gameType := range outputRootGameTypes {
 		gameType := gameType
 		t.Run(fmt.Sprintf("GameType-%v", gameType), func(t *testing.T) {
-			data := EnrichedGameData{
+			data := CommonGameData{
 				GameMetadata: types.GameMetadata{GameType: uint32(gameType)},
 			}
 			require.True(t, data.UsesOutputRoots())
@@ -23,7 +23,7 @@ func TestEnrichedGameData_UsesOutputRoots(t *testing.T) {
 	for _, gameType := range nonOutputRootTypes {
 		gameType := gameType
 		t.Run(fmt.Sprintf("GameType-%v", gameType), func(t *testing.T) {
-			data := EnrichedGameData{
+			data := CommonGameData{
 				GameMetadata: types.GameMetadata{GameType: gameType},
 			}
 			require.False(t, data.UsesOutputRoots())
@@ -31,12 +31,12 @@ func TestEnrichedGameData_UsesOutputRoots(t *testing.T) {
 	}
 }
 
-func TestEnrichedGameData_NodeEndpointErrorCountInitialization(t *testing.T) {
-	data := EnrichedGameData{}
+func TestCommonGameData_NodeEndpointErrorCountInitialization(t *testing.T) {
+	data := CommonGameData{}
 	require.Equal(t, 0, data.NodeEndpointErrorCount, "NodeEndpointErrorCount should default to 0")
 }
 
-func TestEnrichedGameData_HasMixedAvailability(t *testing.T) {
+func TestCommonGameData_HasMixedAvailability(t *testing.T) {
 	tests := []struct {
 		name                      string
 		nodeEndpointTotalCount    int
@@ -104,7 +104,7 @@ func TestEnrichedGameData_HasMixedAvailability(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			data := EnrichedGameData{
+			data := CommonGameData{
 				NodeEndpointTotalCount:    test.nodeEndpointTotalCount,
 				NodeEndpointErrorCount:    test.nodeEndpointErrorCount,
 				NodeEndpointNotFoundCount: test.nodeEndpointNotFoundCount,
@@ -115,7 +115,7 @@ func TestEnrichedGameData_HasMixedAvailability(t *testing.T) {
 	}
 }
 
-func TestEnrichedGameData_HasMixedSafety(t *testing.T) {
+func TestCommonGameData_HasMixedSafety(t *testing.T) {
 	tests := []struct {
 		name                    string
 		nodeEndpointSafeCount   int
@@ -168,7 +168,7 @@ func TestEnrichedGameData_HasMixedSafety(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			data := EnrichedGameData{
+			data := CommonGameData{
 				NodeEndpointSafeCount:   test.nodeEndpointSafeCount,
 				NodeEndpointUnsafeCount: test.nodeEndpointUnsafeCount,
 			}
@@ -180,7 +180,7 @@ func TestEnrichedGameData_HasMixedSafety(t *testing.T) {
 func TestAllSupportedLifecycleGameTypesAreOutputOrSuperRootType(t *testing.T) {
 	for _, gameType := range types.SupportedLifecycleGameTypes {
 		t.Run(gameType.String(), func(t *testing.T) {
-			data := EnrichedGameData{
+			data := CommonGameData{
 				GameMetadata: types.GameMetadata{
 					GameType: uint32(gameType),
 				},

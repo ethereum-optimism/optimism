@@ -10,7 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-var _ Enricher = (*L1HeadBlockNumEnricher)(nil)
+var _ CommonEnricher = (*L1HeadBlockNumEnricher)(nil)
 
 type BlockFetcher interface {
 	L1BlockRefByHash(ctx context.Context, block common.Hash) (eth.L1BlockRef, error)
@@ -24,7 +24,7 @@ func NewL1HeadBlockNumEnricher(client BlockFetcher) *L1HeadBlockNumEnricher {
 	return &L1HeadBlockNumEnricher{client: client}
 }
 
-func (e *L1HeadBlockNumEnricher) Enrich(ctx context.Context, _ rpcblock.Block, _ GameCaller, game *monTypes.EnrichedGameData) error {
+func (e *L1HeadBlockNumEnricher) Enrich(ctx context.Context, _ rpcblock.Block, _ GameCaller, game *monTypes.CommonGameData) error {
 	header, err := e.client.L1BlockRefByHash(ctx, game.L1Head)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve header for L1 head block %v: %w", game.L1Head, err)

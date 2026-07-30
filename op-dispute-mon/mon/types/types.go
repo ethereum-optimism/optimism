@@ -38,18 +38,22 @@ type EnrichedClaim struct {
 	Resolved bool
 }
 
-type EnrichedGameData struct {
+// EnrichedGame is a complete, pinned snapshot of a supported dispute game.
+// Implementations are sealed so every game kind is handled explicitly.
+type EnrichedGame interface {
+	Common() *CommonGameData
+	enrichedGame()
+}
+
+// CommonGameData contains fields shared by every supported game kind.
+type CommonGameData struct {
 	types.GameMetadata
-	LastUpdateTime        time.Time
-	L1Head                common.Hash
-	L1HeadNum             uint64
-	L2SequenceNumber      uint64
-	RootClaim             common.Hash
-	Status                types.GameStatus
-	MaxClockDuration      uint64
-	BlockNumberChallenged bool
-	BlockNumberChallenger common.Address
-	Claims                []EnrichedClaim
+	LastUpdateTime   time.Time
+	L1Head           common.Hash
+	L1HeadNum        uint64
+	L2SequenceNumber uint64
+	RootClaim        common.Hash
+	Status           types.GameStatus
 
 	// AnchorStateRegistry is the address of the AnchorStateRegistry this game builds on.
 	// Zero if the game's contract version does not expose it.
@@ -57,29 +61,6 @@ type EnrichedGameData struct {
 
 	AgreeWithClaim    bool
 	ExpectedRootClaim common.Hash
-
-	// Recipients maps addresses to true if they are a bond recipient in the game.
-	Recipients map[common.Address]bool
-
-	// Credits records the paid out bonds for the game, keyed by recipient.
-	Credits map[common.Address]*big.Int
-
-	BondDistributionMode faultTypes.BondDistributionMode
-
-	// WithdrawalRequests maps recipients with withdrawal requests in DelayedWETH for this game.
-	WithdrawalRequests map[common.Address]*contracts.WithdrawalRequest
-
-	// WETHContract is the address of the DelayedWETH contract used by this game
-	// The contract is potentially shared by multiple games.
-	WETHContract common.Address
-
-	// WETHDelay is the delay applied before credits can be withdrawn.
-	WETHDelay time.Duration
-
-	// ETHCollateral is the ETH balance of the (potentially shared) WETHContract
-	// This ETH balance will be used to pay out any bonds required by the games
-	// that use the same DelayedWETH contract.
-	ETHCollateral *big.Int
 
 	// NodeEndpointErrors stores endpoint IDs that returned errors other than "not found" for this game.
 	NodeEndpointErrors map[string]bool
@@ -107,25 +88,81 @@ type EnrichedGameData struct {
 	NodeEndpointDifferentRoots bool
 }
 
+// FaultGameData contains claims, bonds, withdrawals, and challenge state for a fault game.
+type FaultGameData struct {
+	CommonGameData
+
+	MaxClockDuration      uint64
+	BlockNumberChallenged bool
+	BlockNumberChallenger common.Address
+	Claims                []EnrichedClaim
+
+	// Recipients maps addresses to true if they are a bond recipient in the game.
+	Recipients map[common.Address]bool
+
+	// Credits records the paid out bonds for the game, keyed by recipient.
+	Credits map[common.Address]*big.Int
+
+	BondDistributionMode faultTypes.BondDistributionMode
+
+	// WithdrawalRequests maps recipients with withdrawal requests in DelayedWETH for this game.
+	WithdrawalRequests map[common.Address]*contracts.WithdrawalRequest
+
+	// WETHContract is the address of the DelayedWETH contract used by this game
+	// The contract is potentially shared by multiple games.
+	WETHContract common.Address
+
+	// WETHDelay is the delay applied before credits can be withdrawn.
+	WETHDelay time.Duration
+
+	// ETHCollateral is the ETH balance of the (potentially shared) WETHContract
+	// This ETH balance will be used to pay out any bonds required by the games
+	// that use the same DelayedWETH contract.
+	ETHCollateral *big.Int
+}
+
+// ZKGameData contains proposal and parent state for a ZK dispute game.
+type ZKGameData struct {
+	CommonGameData
+
+	ParentIndex    uint32
+	HasParent      bool
+	ParentStatus   types.GameStatus
+	ProposalStatus contracts.ProposalStatus
+}
+
+// SuperPermissionedGameData is the common snapshot of a SuperPermissioned game.
+type SuperPermissionedGameData struct {
+	CommonGameData
+}
+
+func (g *FaultGameData) Common() *CommonGameData             { return &g.CommonGameData }
+func (g *ZKGameData) Common() *CommonGameData                { return &g.CommonGameData }
+func (g *SuperPermissionedGameData) Common() *CommonGameData { return &g.CommonGameData }
+
+func (*FaultGameData) enrichedGame()             {}
+func (*ZKGameData) enrichedGame()                {}
+func (*SuperPermissionedGameData) enrichedGame() {}
+
 // UsesOutputRoots returns true if the game type is one of the known types that use output roots as proposals.
-func (g EnrichedGameData) UsesOutputRoots() bool {
+func (g CommonGameData) UsesOutputRoots() bool {
 	return slices.Contains(outputRootGameTypes, types.GameType(g.GameType))
 }
 
 // HasMixedAvailability returns true if some endpoints returned "not found" while others succeeded
 // for this game. This indicates inconsistent block availability across the node network.
-func (g EnrichedGameData) HasMixedAvailability() bool {
+func (g CommonGameData) HasMixedAvailability() bool {
 	if g.NodeEndpointTotalCount == 0 {
 		return false
 	}
 
-	successfulEndpoints := g.NodeEndpointTotalCount - g.NodeEndpointErrorCount - g.NodeEndpointNotFoundCount
+	successfulEndpoints := g.NodeEndpointTotalCount - g.NodeEndpointErrorCount - g.NodeEndpointNotFoundCount - g.NodeEndpointOutOfSyncCount
 	return g.NodeEndpointNotFoundCount > 0 && successfulEndpoints > 0
 }
 
 // HasMixedSafety returns true if some endpoints reported the root as safe and others as unsafe
 // for this game. This indicates inconsistent safety assessment across the node network.
-func (g EnrichedGameData) HasMixedSafety() bool {
+func (g CommonGameData) HasMixedSafety() bool {
 	return g.NodeEndpointSafeCount > 0 && g.NodeEndpointUnsafeCount > 0
 }
 

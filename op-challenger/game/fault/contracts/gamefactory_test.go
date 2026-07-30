@@ -136,24 +136,72 @@ func TestLoadGame(t *testing.T) {
 
 func TestGetGameStatus(t *testing.T) {
 	for _, version := range factoryVersions {
-		t.Run(version.String(), func(t *testing.T) {
-			stubRpc, factory := setupDisputeGameFactoryTest(t, version)
-			game0 := gameTypes.GameMetadata{
-				Index:     0,
-				GameType:  0,
-				Timestamp: 1234,
-				Proxy:     common.Address{0xaa},
-			}
-			expectGetGame(stubRpc, 0, rpcblock.Latest, game0)
-			stubRpc.AddContract(game0.Proxy, snapshots.LoadFaultDisputeGameABI())
-			expectedStatus := gameTypes.GameStatusChallengerWon
-			stubRpc.SetResponse(game0.Proxy, methodVersion, rpcblock.Latest, nil, []interface{}{versLatest})
-			stubRpc.SetResponse(game0.Proxy, methodStatus, rpcblock.Latest, nil, []interface{}{expectedStatus})
-			actual, err := factory.GetGameStatus(context.Background(), 0)
-			require.NoError(t, err)
-			require.Equal(t, expectedStatus, actual)
-		})
+		for _, test := range []struct {
+			name  string
+			block rpcblock.Block
+			call  func(*DisputeGameFactoryContract) (gameTypes.GameStatus, error)
+		}{
+			{
+				name:  "latest wrapper",
+				block: rpcblock.Latest,
+				call: func(factory *DisputeGameFactoryContract) (gameTypes.GameStatus, error) {
+					return factory.GetGameStatus(context.Background(), 0)
+				},
+			},
+			{
+				name:  "pinned block",
+				block: rpcblock.ByNumber(123),
+				call: func(factory *DisputeGameFactoryContract) (gameTypes.GameStatus, error) {
+					return factory.GetGameStatusAtBlock(context.Background(), 0, rpcblock.ByNumber(123))
+				},
+			},
+		} {
+			t.Run(version.String()+"/"+test.name, func(t *testing.T) {
+				stubRpc, factory := setupDisputeGameFactoryTest(t, version)
+				game0 := gameTypes.GameMetadata{
+					Index:     0,
+					GameType:  0,
+					Timestamp: 1234,
+					Proxy:     common.Address{0xaa},
+				}
+				expectGetGame(stubRpc, 0, test.block, game0)
+				stubRpc.AddContract(game0.Proxy, snapshots.LoadFaultDisputeGameABI())
+				expectedStatus := gameTypes.GameStatusChallengerWon
+				stubRpc.SetResponse(game0.Proxy, methodVersion, rpcblock.Latest, nil, []interface{}{versLatest})
+				stubRpc.SetResponse(game0.Proxy, methodL1Head, test.block, nil, []interface{}{common.Hash{0x01}})
+				stubRpc.SetResponse(game0.Proxy, methodL2BlockNumber, test.block, nil, []interface{}{big.NewInt(1)})
+				stubRpc.SetResponse(game0.Proxy, methodRootClaim, test.block, nil, []interface{}{common.Hash{0x02}})
+				stubRpc.SetResponse(game0.Proxy, methodStatus, test.block, nil, []interface{}{expectedStatus})
+				actual, err := test.call(factory)
+				require.NoError(t, err)
+				require.Equal(t, expectedStatus, actual)
+			})
+		}
 	}
+}
+
+func TestGetZKGameStatusAtPinnedBlock(t *testing.T) {
+	stubRpc, factory := setupDisputeGameFactoryTest(t, factoryVersions[len(factoryVersions)-1])
+	block := rpcblock.ByNumber(123)
+	game := gameTypes.GameMetadata{
+		Index:     77,
+		GameType:  uint32(gameTypes.ZKDisputeGameType),
+		Timestamp: 1234,
+		Proxy:     common.Address{0xaa},
+	}
+	expectGetGame(stubRpc, int(game.Index), block, game)
+	stubRpc.AddContract(game.Proxy, snapshots.LoadZKDisputeGameABI())
+	stubRpc.SetResponse(game.Proxy, methodVersion, rpcblock.Latest, nil, []interface{}{versZKLatest})
+	stubRpc.SetResponse(game.Proxy, methodGameType, rpcblock.Latest, nil, []interface{}{uint32(gameTypes.ZKDisputeGameType)})
+	stubRpc.SetResponse(game.Proxy, methodL1Head, block, nil, []interface{}{common.Hash{0x01}})
+	stubRpc.SetResponse(game.Proxy, methodL2SequenceNumber, block, nil, []interface{}{big.NewInt(1)})
+	stubRpc.SetResponse(game.Proxy, methodRootClaim, block, nil, []interface{}{common.Hash{0x02}})
+	expectedStatus := gameTypes.GameStatusChallengerWon
+	stubRpc.SetResponse(game.Proxy, methodStatus, block, nil, []interface{}{expectedStatus})
+
+	actual, err := factory.GetGameStatusAtBlock(context.Background(), game.Index, block)
+	require.NoError(t, err)
+	require.Equal(t, expectedStatus, actual)
 }
 
 func TestGetAllGames(t *testing.T) {

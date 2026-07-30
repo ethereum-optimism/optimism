@@ -50,6 +50,7 @@ type ZKClaimData struct {
 }
 
 type zkDisputeGameBinding struct {
+	L1Head               func() bindings.TypedCall[common.Hash]            `sol:"l1Head"`
 	RootClaim            func() bindings.TypedCall[common.Hash]            `sol:"rootClaim"`
 	L2SequenceNumber     func() bindings.TypedCall[*big.Int]               `sol:"l2SequenceNumber"`
 	ParentIndex          func() bindings.TypedCall[uint32]                 `sol:"parentIndex"`
@@ -72,6 +73,7 @@ type zkDisputeGameBinding struct {
 type ZKGame struct {
 	t            devtest.T
 	require      *require.Assertions
+	ethClient    apis.EthClient
 	contract     *zkDisputeGameBinding
 	Address      common.Address
 	factoryIndex uint32
@@ -83,7 +85,7 @@ func newZKGame(t devtest.T, require *require.Assertions, client apis.EthClient, 
 		bindings.WithTo(addr),
 		bindings.WithTest(t),
 	)
-	return &ZKGame{t: t, require: require, contract: &game, Address: addr}
+	return &ZKGame{t: t, require: require, ethClient: client, contract: &game, Address: addr}
 }
 
 func (g *ZKGame) withFactoryIndex(index uint32) *ZKGame {
@@ -97,6 +99,36 @@ func (g *ZKGame) FactoryIndex() uint32 {
 
 func (g *ZKGame) RootClaimValue() common.Hash {
 	return contract.Read(g.contract.RootClaim())
+}
+
+// AwaitRootSourcePastL1Head waits until source has fully processed the L1 snapshot
+// pinned by this game.
+func (g *ZKGame) AwaitRootSourcePastL1Head(source dsl.SuperRootSource) {
+	g.t.Logf("Waiting for the root source to process past the L1 head of ZK game %v", g.Address)
+	ctx, cancel := context.WithTimeout(g.t.Ctx(), defaultTimeout)
+	defer cancel()
+
+	var target uint64
+	var lastReadErr error
+	err := wait.For(ctx, time.Second, func() (bool, error) {
+		l1Head, err := contractio.Read(g.contract.L1Head(), ctx)
+		if err != nil {
+			lastReadErr = err
+			g.t.Logf("ZK game %v L1 head unavailable: %v", g.Address, err)
+			return false, nil
+		}
+		block, err := g.ethClient.BlockRefByHash(ctx, l1Head)
+		if err != nil {
+			lastReadErr = err
+			g.t.Logf("ZK game %v L1 head block %v unavailable: %v", g.Address, l1Head, err)
+			return false, nil
+		}
+		target = block.Number
+		lastReadErr = nil
+		return true, nil
+	})
+	g.require.NoErrorf(err, "could not resolve the L1 head of ZK game %v; last read error: %v", g.Address, lastReadErr)
+	source.AwaitFullyProcessedL1(target)
 }
 
 func (g *ZKGame) L2SequenceNumber() uint64 {

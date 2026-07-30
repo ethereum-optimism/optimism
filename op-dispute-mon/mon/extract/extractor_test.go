@@ -147,7 +147,7 @@ func TestExtractor_Extract(t *testing.T) {
 		require.Zero(t, failed)
 		require.Len(t, enriched, 1)
 		require.Equal(t, 1, enricher1.calls)
-		require.Equal(t, enriched[0].Proxy, common.Address{0xaa})
+		require.Equal(t, enriched[0].Common().Proxy, common.Address{0xaa})
 		require.NotNil(t, logs.FindLog(
 			testlog.NewLevelFilter(log.LevelWarn),
 			testlog.NewMessageFilter("Ignoring game"),
@@ -156,7 +156,7 @@ func TestExtractor_Extract(t *testing.T) {
 
 	t.Run("UseCachedValueOnFailure", func(t *testing.T) {
 		enricher := &mockEnricher{
-			action: func(game *monTypes.EnrichedGameData) error {
+			action: func(game *monTypes.CommonGameData) error {
 				game.Status = gameTypes.GameStatusDefenderWon
 				return nil
 			},
@@ -176,12 +176,12 @@ func TestExtractor_Extract(t *testing.T) {
 		firstUpdateTime := cl.Now()
 		// All results should have current LastUpdateTime
 		for _, data := range enriched {
-			require.Equal(t, firstUpdateTime, data.LastUpdateTime)
+			require.Equal(t, firstUpdateTime, data.Common().LastUpdateTime)
 		}
 
 		cl.AdvanceTime(2 * time.Minute)
 		secondUpdateTime := cl.Now()
-		enricher.action = func(game *monTypes.EnrichedGameData) error {
+		enricher.action = func(game *monTypes.CommonGameData) error {
 			if game.Proxy == gameA {
 				return errors.New("boom")
 			}
@@ -197,9 +197,9 @@ func TestExtractor_Extract(t *testing.T) {
 		require.Len(t, enriched, 2)
 		require.Equal(t, 4, enricher.calls)
 		// The returned games are not in a fixed order, create a map to look up the game we need to assert
-		actual := make(map[common.Address]*monTypes.EnrichedGameData)
+		actual := make(map[common.Address]*monTypes.CommonGameData)
 		for _, data := range enriched {
-			actual[data.Proxy] = data
+			actual[data.Common().Proxy] = data.Common()
 		}
 		require.Contains(t, actual, gameA)
 		require.Contains(t, actual, gameB)
@@ -226,7 +226,7 @@ func verifyLogs(t *testing.T, logs *testlog.CapturingHandler, createErr, metadat
 	require.Len(t, l, durationErr)
 }
 
-func setupExtractorTest(t *testing.T, enrichers ...Enricher) (*Extractor, *mockGameCallerCreator, *mockGameFetcher, *testlog.CapturingHandler, *clock.DeterministicClock) {
+func setupExtractorTest(t *testing.T, enrichers ...CommonEnricher) (*Extractor, *mockGameCallerCreator, *mockGameFetcher, *testlog.CapturingHandler, *clock.DeterministicClock) {
 	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
 	games := &mockGameFetcher{}
 	caller := &mockGameCaller{rootClaim: mockRootClaim}
@@ -237,9 +237,12 @@ func setupExtractorTest(t *testing.T, enrichers ...Enricher) (*Extractor, *mockG
 		cl,
 		creator.CreateGameCaller,
 		games.FetchGames,
+		nil,
 		ignoredGames,
 		5,
-		enrichers...,
+		enrichers,
+		nil,
+		nil,
 	)
 	return extractor, creator, games, capturedLogs, cl
 }
@@ -392,7 +395,7 @@ func TestExtractor_EnrichGameInitializesRollupEndpointErrorCount(t *testing.T) {
 	require.Zero(t, ignored)
 	require.Zero(t, failed)
 	require.Len(t, enriched, 1)
-	require.Equal(t, 0, enriched[0].NodeEndpointErrorCount, "NodeEndpointErrorCount should be initialized to 0")
+	require.Equal(t, 0, enriched[0].Common().NodeEndpointErrorCount, "NodeEndpointErrorCount should be initialized to 0")
 }
 
 func TestExtractor_EnrichGameInitializesRollupEndpointOutOfSyncCount(t *testing.T) {
@@ -403,16 +406,16 @@ func TestExtractor_EnrichGameInitializesRollupEndpointOutOfSyncCount(t *testing.
 	require.Zero(t, ignored)
 	require.Zero(t, failed)
 	require.Len(t, enriched, 1)
-	require.Equal(t, 0, enriched[0].NodeEndpointOutOfSyncCount, "NodeEndpointOutOfSyncCount should be initialized to 0")
+	require.Equal(t, 0, enriched[0].Common().NodeEndpointOutOfSyncCount, "NodeEndpointOutOfSyncCount should be initialized to 0")
 }
 
 type mockEnricher struct {
 	err    error
 	calls  int
-	action func(game *monTypes.EnrichedGameData) error
+	action func(game *monTypes.CommonGameData) error
 }
 
-func (m *mockEnricher) Enrich(_ context.Context, _ rpcblock.Block, _ GameCaller, game *monTypes.EnrichedGameData) error {
+func (m *mockEnricher) Enrich(_ context.Context, _ rpcblock.Block, _ GameCaller, game *monTypes.CommonGameData) error {
 	m.calls++
 	if m.action != nil {
 		return m.action(game)

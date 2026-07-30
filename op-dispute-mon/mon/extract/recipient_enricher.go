@@ -8,7 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-var _ Enricher = (*RecipientEnricher)(nil)
+var _ FaultEnricher = (*RecipientEnricher)(nil)
 
 type RecipientEnricher struct{}
 
@@ -16,7 +16,7 @@ func NewRecipientEnricher() *RecipientEnricher {
 	return &RecipientEnricher{}
 }
 
-func (w *RecipientEnricher) Enrich(_ context.Context, _ rpcblock.Block, _ GameCaller, game *monTypes.EnrichedGameData) error {
+func (w *RecipientEnricher) Enrich(_ context.Context, _ rpcblock.Block, _ FaultGameCaller, game *monTypes.FaultGameData) error {
 	recipients := make(map[common.Address]bool)
 	for _, claim := range game.Claims {
 		if claim.CounteredBy != (common.Address{}) {

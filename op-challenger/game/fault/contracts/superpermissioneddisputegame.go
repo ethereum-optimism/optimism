@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"math"
 	"math/big"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
-	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
@@ -94,59 +92,6 @@ func (g *SuperPermissionedDisputeGameContract) GetAnchorStateRegistry(
 		return common.Address{}, fmt.Errorf("failed to retrieve anchor state registry: %w", err)
 	}
 	return result.GetAddress(0), nil
-}
-
-func (g *SuperPermissionedDisputeGameContract) GetAllClaims(
-	context.Context,
-	rpcblock.Block,
-) ([]faultTypes.Claim, error) {
-	return nil, nil
-}
-
-func (g *SuperPermissionedDisputeGameContract) IsResolved(
-	_ context.Context,
-	_ rpcblock.Block,
-	claims ...faultTypes.Claim,
-) ([]bool, error) {
-	return make([]bool, len(claims)), nil
-}
-
-func (g *SuperPermissionedDisputeGameContract) GetWithdrawals(
-	_ context.Context,
-	_ rpcblock.Block,
-	recipients ...common.Address,
-) ([]*WithdrawalRequest, error) {
-	withdrawals := make([]*WithdrawalRequest, len(recipients))
-	for i := range withdrawals {
-		withdrawals[i] = &WithdrawalRequest{Timestamp: new(big.Int), Amount: new(big.Int)}
-	}
-	return withdrawals, nil
-}
-
-func (g *SuperPermissionedDisputeGameContract) GetCredits(
-	_ context.Context,
-	_ rpcblock.Block,
-	recipients ...common.Address,
-) ([]*big.Int, error) {
-	credits := make([]*big.Int, len(recipients))
-	for i := range credits {
-		credits[i] = new(big.Int)
-	}
-	return credits, nil
-}
-
-func (g *SuperPermissionedDisputeGameContract) GetBondDistributionMode(
-	context.Context,
-	rpcblock.Block,
-) (faultTypes.BondDistributionMode, error) {
-	return faultTypes.UndecidedDistributionMode, nil
-}
-
-func (g *SuperPermissionedDisputeGameContract) GetBalanceAndDelay(
-	context.Context,
-	rpcblock.Block,
-) (*big.Int, time.Duration, common.Address, error) {
-	return new(big.Int), 0, common.Address{}, nil
 }
 
 func (g *SuperPermissionedDisputeGameContract) GetCredit(

@@ -24,13 +24,30 @@ type GameCallerMetrics interface {
 }
 
 type GameCaller interface {
-	GetWithdrawals(context.Context, rpcblock.Block, ...common.Address) ([]*contracts.WithdrawalRequest, error)
-	GetExtendedMetadata(context.Context, rpcblock.Block) (contracts.GameMetadata, error)
-	GetAllClaims(context.Context, rpcblock.Block) ([]faultTypes.Claim, error)
 	GetAnchorStateRegistry(context.Context, rpcblock.Block) (common.Address, error)
+}
+
+// MetadataCaller exposes metadata shared by fault and SuperPermissioned games.
+type MetadataCaller interface {
+	GetExtendedMetadata(context.Context, rpcblock.Block) (contracts.GameMetadata, error)
+}
+
+// FaultGameCaller exposes RPCs used only to enrich fault games.
+type FaultGameCaller interface {
+	GameCaller
+	MetadataCaller
+	GetWithdrawals(context.Context, rpcblock.Block, ...common.Address) ([]*contracts.WithdrawalRequest, error)
+	GetAllClaims(context.Context, rpcblock.Block) ([]faultTypes.Claim, error)
 	BondCaller
 	BalanceCaller
 	ClaimCaller
+}
+
+// ZKGameCaller exposes the generic and challenger views of a ZK game.
+type ZKGameCaller interface {
+	GameCaller
+	GetMetadata(context.Context, rpcblock.Block) (contracts.GenericGameMetadata, error)
+	GetChallengerMetadata(context.Context, rpcblock.Block) (contracts.ChallengerMetadata, error)
 }
 
 type GameCallerCreator struct {
@@ -56,6 +73,13 @@ func (g *GameCallerCreator) CreateContract(ctx context.Context, game gameTypes.G
 		fdg := contracts.NewSuperPermissionedDisputeGameContract(g.m, game.Proxy, g.caller)
 		g.cache.Add(game.Proxy, fdg)
 		return fdg, nil
+	case gameTypes.ZKDisputeGameType:
+		zk, err := contracts.NewZKDisputeGameContract(g.m, game.Proxy, g.caller)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create zk dispute game contract: %w", err)
+		}
+		g.cache.Add(game.Proxy, zk)
+		return zk, nil
 	case gameTypes.CannonGameType,
 		gameTypes.PermissionedGameType,
 		gameTypes.CannonKonaGameType,

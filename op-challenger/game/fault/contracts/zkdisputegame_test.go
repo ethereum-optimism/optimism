@@ -131,6 +131,31 @@ func TestZKGetMetadata(t *testing.T) {
 	}
 }
 
+func TestProposalStatusFromUint8(t *testing.T) {
+	for value := uint8(ProposalStatusUnchallenged); value <= uint8(ProposalStatusResolved); value++ {
+		status, err := ProposalStatusFromUint8(value)
+		require.NoError(t, err)
+		require.Equal(t, ProposalStatus(value), status)
+	}
+	status, err := ProposalStatusFromUint8(uint8(ProposalStatusResolved) + 1)
+	require.ErrorContains(t, err, "invalid proposal status")
+	require.Equal(t, ProposalStatusUnchallenged, status)
+}
+
+func TestZKGetAnchorStateRegistryAtPinnedBlock(t *testing.T) {
+	for _, version := range zkVersions {
+		t.Run(version.String(), func(t *testing.T) {
+			stubRpc, contract := setupZKDisputeGameTest(t, version)
+			block := rpcblock.ByNumber(889)
+			expected := common.Address{0xab}
+			stubRpc.SetResponse(zkGameAddr, methodAnchorStateRegistry, block, nil, []interface{}{expected})
+			actual, err := contract.GetAnchorStateRegistry(context.Background(), block)
+			require.NoError(t, err)
+			require.Equal(t, expected, actual)
+		})
+	}
+}
+
 func TestZKGetGameRange(t *testing.T) {
 	for _, version := range zkVersions {
 		version := version

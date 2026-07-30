@@ -26,6 +26,15 @@ const (
 	ProposalStatusResolved
 )
 
+// ProposalStatusFromUint8 converts a contract status value to a checked ProposalStatus.
+func ProposalStatusFromUint8(value uint8) (ProposalStatus, error) {
+	status := ProposalStatus(value)
+	if status > ProposalStatusResolved {
+		return 0, fmt.Errorf("invalid proposal status: %d", value)
+	}
+	return status, nil
+}
+
 func (p ProposalStatus) String() string {
 	switch p {
 	case ProposalStatusUnchallenged:
@@ -63,6 +72,7 @@ type ZKDisputeGameContract interface {
 	ChallengeTx(ctx context.Context) (txmgr.TxCandidate, error)
 	GetProposal(ctx context.Context) (common.Hash, uint64, error)
 	GetChallengerMetadata(ctx context.Context, block rpcblock.Block) (ChallengerMetadata, error)
+	GetAnchorStateRegistry(ctx context.Context, block rpcblock.Block) (common.Address, error)
 	IsClosed(ctx context.Context) (bool, error)
 	GetCredit(ctx context.Context, recipient common.Address) (*big.Int, gameTypes.GameStatus, error)
 	ClaimCreditTx(ctx context.Context, recipient common.Address) (txmgr.TxCandidate, error)
@@ -237,7 +247,10 @@ func (g *ZKDisputeGameContractLatest) GetChallengerMetadata(ctx context.Context,
 	if len(results) != 2 {
 		return ChallengerMetadata{}, fmt.Errorf("expected 2 results but got %v", len(results))
 	}
-	data := g.decodeClaimData(results[0])
+	data, err := g.decodeClaimData(results[0])
+	if err != nil {
+		return ChallengerMetadata{}, err
+	}
 	l2SeqNum := getBlockNumber(results[1], 0)
 	return ChallengerMetadata{
 		ParentIndex:      data.ParentIndex,
@@ -246,6 +259,15 @@ func (g *ZKDisputeGameContractLatest) GetChallengerMetadata(ctx context.Context,
 		L2SequenceNumber: l2SeqNum,
 		Deadline:         time.Unix(int64(data.Deadline), 0),
 	}, nil
+}
+
+func (g *ZKDisputeGameContractLatest) GetAnchorStateRegistry(ctx context.Context, block rpcblock.Block) (common.Address, error) {
+	defer g.metrics.StartContractRequest("GetAnchorStateRegistry")()
+	result, err := g.multiCaller.SingleCall(ctx, block, g.contract.Call(methodAnchorStateRegistry))
+	if err != nil {
+		return common.Address{}, fmt.Errorf("failed to retrieve anchor state registry: %w", err)
+	}
+	return result.GetAddress(0), nil
 }
 
 func (g *ZKDisputeGameContractLatest) ChallengeTx(ctx context.Context) (txmgr.TxCandidate, error) {
@@ -304,21 +326,24 @@ func (g *ZKDisputeGameContractLatest) resolveCall() *batching.ContractCall {
 	return g.contract.Call(methodResolve)
 }
 
-func (g *ZKDisputeGameContractLatest) decodeClaimData(result *batching.CallResult) claimData {
+func (g *ZKDisputeGameContractLatest) decodeClaimData(result *batching.CallResult) (claimData, error) {
 	parentIndex := result.GetUint32(0)
-	status := result.GetUint8(1)
+	status, err := ProposalStatusFromUint8(result.GetUint8(1))
+	if err != nil {
+		return claimData{}, err
+	}
 	challenger := result.GetAddress(2)
 	prover := result.GetAddress(3)
 	deadline := result.GetUint64(4)
 	claim := result.GetHash(5)
 	return claimData{
 		ParentIndex: parentIndex,
-		Status:      ProposalStatus(status),
+		Status:      status,
 		Challenger:  challenger,
 		Prover:      prover,
 		Deadline:    deadline,
 		Claim:       claim,
-	}
+	}, nil
 }
 
 var _ DisputeGameContract = (*ZKDisputeGameContractLatest)(nil)

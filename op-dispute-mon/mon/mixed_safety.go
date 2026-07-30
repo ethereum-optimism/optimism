@@ -21,7 +21,7 @@ func NewMixedSafetyMonitor(logger log.Logger, metrics MixedSafetyMetrics) *Mixed
 	}
 }
 
-func (m *MixedSafetyMonitor) CheckMixedSafety(games []*types.EnrichedGameData) {
+func (m *MixedSafetyMonitor) CheckMixedSafety(games []*types.CommonGameData) {
 	count := 0
 	for _, game := range games {
 		if game.HasMixedSafety() {

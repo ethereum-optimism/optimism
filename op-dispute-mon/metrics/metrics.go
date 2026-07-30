@@ -8,6 +8,7 @@ import (
 	"time"
 
 	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -66,6 +67,13 @@ const (
 	AgreeChallengerWins
 	DisagreeChallengerWins
 )
+
+// GameAgreementKey identifies one bounded agreement metric series.
+type GameAgreementKey struct {
+	GameType gameTypes.GameType
+	Status   GameAgreementStatus
+	Correct  bool
+}
 
 type ClaimStatus struct {
 	resolved     bool
@@ -171,7 +179,7 @@ type Metricer interface {
 
 	RecordOutputFetchTime(timestamp float64)
 
-	RecordGameAgreement(status GameAgreementStatus, count int)
+	RecordGameAgreements(counts map[GameAgreementKey]int)
 
 	RecordLatestValidProposalL2Block(latestValid uint64)
 
@@ -367,6 +375,7 @@ func NewMetrics() *Metrics {
 			Name:      "games_agreement",
 			Help:      "Number of games broken down by whether the result agrees with the reference node",
 		}, []string{
+			"game_type",
 			"status",
 			"completion",
 			"result_correctness",
@@ -583,8 +592,15 @@ func (m *Metrics) RecordOldestGameUpdateTime(t time.Time) {
 	m.oldestGameUpdateTime.Set(float64(t.Unix()))
 }
 
-func (m *Metrics) RecordGameAgreement(status GameAgreementStatus, count int) {
-	m.gamesAgreement.WithLabelValues(labelValuesFor(status)...).Set(float64(count))
+func (m *Metrics) RecordGameAgreements(counts map[GameAgreementKey]int) {
+	for _, gameType := range gameTypes.SupportedLifecycleGameTypes {
+		for status := AgreeChallengerAhead; status <= DisagreeChallengerWins; status++ {
+			for _, correctness := range []bool{false, true} {
+				key := GameAgreementKey{GameType: gameType, Status: status, Correct: correctness}
+				m.gamesAgreement.WithLabelValues(labelValuesFor(key)...).Set(float64(counts[key]))
+			}
+		}
+	}
 }
 
 func (m *Metrics) RecordLatestValidProposalL2Block(latestValid uint64) {
@@ -655,50 +671,44 @@ func (m *Metrics) RecordL2Challenges(agreement bool, count int) {
 	m.l2Challenges.WithLabelValues(agree).Set(float64(count))
 }
 
-const (
-	inProgress = true
-	correct    = true
-	agree      = true
-)
-
-func labelValuesFor(status GameAgreementStatus) []string {
-	asStrings := func(status string, inProgress, correct, agree bool) []string {
+func labelValuesFor(key GameAgreementKey) []string {
+	asStrings := func(status string, inProgress, agree bool) []string {
 		inProgressStr := "in_progress"
 		if !inProgress {
 			inProgressStr = "complete"
 		}
 		correctStr := "correct"
-		if !correct {
+		if !key.Correct {
 			correctStr = "incorrect"
 		}
 		agreeStr := "agree"
 		if !agree {
 			agreeStr = "disagree"
 		}
-		return []string{status, inProgressStr, correctStr, agreeStr}
+		return []string{key.GameType.String(), status, inProgressStr, correctStr, agreeStr}
 	}
-	switch status {
+	switch key.Status {
 	case AgreeChallengerAhead:
-		return asStrings("agree_challenger_ahead", inProgress, !correct, agree)
+		return asStrings("agree_challenger_ahead", true, true)
 	case DisagreeChallengerAhead:
-		return asStrings("disagree_challenger_ahead", inProgress, correct, !agree)
+		return asStrings("disagree_challenger_ahead", true, false)
 	case AgreeDefenderAhead:
-		return asStrings("agree_defender_ahead", inProgress, correct, agree)
+		return asStrings("agree_defender_ahead", true, true)
 	case DisagreeDefenderAhead:
-		return asStrings("disagree_defender_ahead", inProgress, !correct, !agree)
+		return asStrings("disagree_defender_ahead", true, false)
 
 	// Completed
 	case AgreeDefenderWins:
-		return asStrings("agree_defender_wins", !inProgress, correct, agree)
+		return asStrings("agree_defender_wins", false, true)
 	case DisagreeDefenderWins:
-		return asStrings("disagree_defender_wins", !inProgress, !correct, !agree)
+		return asStrings("disagree_defender_wins", false, false)
 	case AgreeChallengerWins:
-		return asStrings("agree_challenger_wins", !inProgress, !correct, agree)
+		return asStrings("agree_challenger_wins", false, true)
 	case DisagreeChallengerWins:
-		return asStrings("disagree_challenger_wins", !inProgress, correct, !agree)
+		return asStrings("disagree_challenger_wins", false, false)
 
 	default:
-		panic(fmt.Errorf("unknown game agreement status: %v", status))
+		panic(fmt.Errorf("unknown game agreement status: %v", key.Status))
 	}
 }
 

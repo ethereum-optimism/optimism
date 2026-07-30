@@ -33,7 +33,7 @@ func NewBonds(logger log.Logger, metrics BondMetrics, clock RClock) *Bonds {
 	}
 }
 
-func (b *Bonds) CheckBonds(games []*types.EnrichedGameData) {
+func (b *Bonds) CheckBonds(games []*types.FaultGameData) {
 	data := CalculateRequiredCollateral(games)
 	for addr, collateral := range data {
 		if collateral.Required.Cmp(collateral.Actual) > 0 {
@@ -45,7 +45,7 @@ func (b *Bonds) CheckBonds(games []*types.EnrichedGameData) {
 	b.checkCredits(games)
 }
 
-func (b *Bonds) checkCredits(games []*types.EnrichedGameData) {
+func (b *Bonds) checkCredits(games []*types.FaultGameData) {
 	creditMetrics := make(map[metrics.CreditExpectation]int)
 
 	for _, game := range games {
