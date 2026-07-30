@@ -85,13 +85,13 @@ func attachSupernodeSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg Pre
 				sharedDGF,
 				*cfg.ZKDisputeGame,
 			)
+			nets := make([]*L2Network, 0, len(chains))
+			els := make([]L2ELNode, 0, len(chains))
+			for _, chain := range chains {
+				nets = append(nets, chain.Network)
+				els = append(els, chain.EL)
+			}
 			if !cfg.SkipHonestChallenger {
-				nets := make([]*L2Network, 0, len(chains))
-				els := make([]L2ELNode, 0, len(chains))
-				for _, chain := range chains {
-					nets = append(nets, chain.Network)
-					els = append(els, chain.EL)
-				}
 				challenger := startInteropChallenger(
 					t,
 					runtime.Keys,
@@ -111,8 +111,13 @@ func attachSupernodeSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg Pre
 					t,
 					runtime.Keys,
 					proofChain.Network.ChainID(),
+					runtime.L1Network,
 					runtime.L1EL,
+					runtime.L1CL,
+					runtime.DependencySet,
 					runtime.Supernode.UserRPC(),
+					nets,
+					els,
 					sharedDGF,
 					cfg.ZKDisputeGame.ProgramVKey,
 				)

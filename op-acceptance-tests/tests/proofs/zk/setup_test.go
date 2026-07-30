@@ -18,8 +18,12 @@ import (
 
 const (
 	zkChallengeDuration = 30 * time.Second
-	zkProveDuration     = 30 * time.Second
-	zkFinalityDelay     = 2 * time.Second
+	// The defend flow does real work inside the prove window on CI runners
+	// (superroot fetches, witness collection over both chains, tx queueing),
+	// and an expiry mid-defense resolves CHALLENGER_WINS irreversibly, so the
+	// window is generous. Time-traveled expiries keep the wall cost flat.
+	zkProveDuration = 120 * time.Second
+	zkFinalityDelay = 2 * time.Second
 
 	// zkUnsafeProposalLead places an "unsafe" proposal's timestamp a year beyond the safe head so the
 	// chain cannot reach it during the test, even on a CPU-starved CI runner.

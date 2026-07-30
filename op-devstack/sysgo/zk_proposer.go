@@ -2,6 +2,8 @@ package sysgo
 
 import (
 	"compress/gzip"
+	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -13,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -32,8 +35,13 @@ func startZKProposer(
 	t devtest.T,
 	keys devkeys.Keys,
 	proposerChainID eth.ChainID,
+	l1Net *L1Network,
 	l1EL L1ELNode,
+	l1CL *L1CLNode,
+	depSet depset.DependencySet,
 	supernodeRPC string,
+	l2Nets []*L2Network,
+	l2ELs []L2ELNode,
 	factoryAddr common.Address,
 	programVKey common.Hash,
 ) {
@@ -50,14 +58,14 @@ func startZKProposer(
 	require.NoError(err, "prepare kona-sp1-proposer binary")
 	require.NotEmpty(execPath, "kona-sp1-proposer binary path resolved")
 
-	// The proposer checks (and, with the defend path, loads) program
-	// artifacts at PRESTATES_URL/<vkey>.agg.bin.gz and .range.bin.gz,
-	// mirroring op-challenger's --prestates-url convention. The aggregation
-	// vkey embeds the range program's vkey, so it keys both ELFs. Devstack
-	// publishes the real ELFs, gzipped, when KONA_SP1_ELF_DIR is set;
-	// otherwise stub bytes suffice, since the devstack deploys the mock
-	// verifier and the create path only loads artifacts without verifying
-	// them against the vkey. Either way the file:// path is exercised.
+	// The proposer checks and loads program artifacts at
+	// PRESTATES_URL/<vkey>.agg.bin.gz and .range.bin.gz, mirroring
+	// op-challenger's --prestates-url convention. The aggregation vkey embeds
+	// the range program's vkey, so it keys both ELFs. Devstack publishes the
+	// real ELFs, gzipped, when KONA_SP1_ELF_DIR is set; otherwise stub bytes
+	// suffice, since the devstack deploys the mock verifier and the mock
+	// proof provider never executes the ELFs and skips vkey verification.
+	// Either way the file:// path is exercised.
 	prestatesDir := t.TempDir()
 	elfDir := os.Getenv("KONA_SP1_ELF_DIR")
 	sources := map[string]func() (io.ReadCloser, error){
@@ -68,12 +76,50 @@ func startZKProposer(
 		writePrestateArtifact(t, open, filepath.Join(prestatesDir, programVKey.Hex()+suffix))
 	}
 
+	// The defend path collects derivation witnesses through the interop host,
+	// which needs the L1 beacon, every L2 EL, and the rollup/depset/L1 chain
+	// configs. Materialize the config files with the same inline
+	// marshal+WriteFile the kona-node launcher uses (startMixedKonaNode),
+	// with per-chain rollup-<chainID>.json naming as in the shared
+	// challenger's VM config.
+	require.Len(l2ELs, len(l2Nets), "need matching L2 ELs for the ZK proposer")
+	configDir := t.TempDir()
+	l2RPCs := make([]string, len(l2ELs))
+	rollupPaths := make([]string, len(l2Nets))
+	for i, l2Net := range l2Nets {
+		l2RPCs[i] = l2ELs[i].UserRPC()
+		rollupData, err := json.Marshal(l2Net.rollupCfg)
+		require.NoError(err, "must marshal rollup config")
+		rollupPath := filepath.Join(configDir, fmt.Sprintf("rollup-%v.json", l2Net.ChainID()))
+		require.NoError(os.WriteFile(rollupPath, rollupData, 0o640), "must write rollup config")
+		rollupPaths[i] = rollupPath
+	}
+
+	l1CfgPath := filepath.Join(configDir, "l1-chain-config.json")
+	l1CfgData, err := json.Marshal(l1Net.genesis.Config)
+	require.NoError(err, "must marshal l1 chain config")
+	require.NoError(os.WriteFile(l1CfgPath, l1CfgData, 0o640), "must write l1 chain config")
+
+	depSetPath := filepath.Join(configDir, "interop-depset.json")
+	depSetData, err := json.Marshal(depSet)
+	require.NoError(err, "must marshal interop dependency set")
+	require.NoError(os.WriteFile(depSetPath, depSetData, 0o640), "must write interop dependency set")
+
 	env := []string{
 		"L1_RPC=" + l1EL.UserRPC(),
 		"SUPERNODE_RPC=" + supernodeRPC,
 		"FACTORY_ADDRESS=" + factoryAddr.Hex(),
 		"PRESTATES_URL=file://" + prestatesDir,
 		"PRIVATE_KEY=" + hexutil.Encode(crypto.FromECDSA(proposerSecret)),
+		// The mock provider skips SP1 proving but still runs the full witness
+		// pipeline against these endpoints and configs.
+		"PROOF_PROVIDER=mock",
+		"L1_BEACON_RPC=" + l1CL.beaconHTTPAddr,
+		// Order-irrelevant: kona-host keys L2 providers by queried eth_chainId.
+		"L2_RPCS=" + strings.Join(l2RPCs, ","),
+		"ROLLUP_CONFIG_PATHS=" + strings.Join(rollupPaths, ","),
+		"L1_CONFIG_PATH=" + l1CfgPath,
+		"DEPENDENCY_SET_PATH=" + depSetPath,
 		// Short cadence for devstack: propose every 6s off the safe head so
 		// acceptance tests observe games without waiting for finality.
 		"PROPOSAL_INTERVAL_SECONDS=6",

@@ -143,12 +143,6 @@ func (g *ZKGame) Challenge(challenger *dsl.EOA) ZKClaimData {
 	return claim
 }
 
-func (g *ZKGame) Prove(prover *dsl.EOA, proof []byte) ZKClaimData {
-	receipt := contract.Write(prover, g.contract.Prove(proof), txplan.WithGasRatio(2))
-	g.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
-	return g.ClaimData()
-}
-
 func (g *ZKGame) Resolve(eoa *dsl.EOA) gameTypes.GameStatus {
 	receipt := contract.Write(eoa, g.contract.Resolve(), txplan.WithGasRatio(2))
 	g.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
