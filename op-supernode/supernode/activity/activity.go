@@ -62,6 +62,7 @@ type VerificationActivity interface {
 	// VerifiedBlockAtL1 returns the latest verified L2 block whose data was
 	// derived from or before the supplied L1 block. Return shape matches
 	// LatestVerifiedL2Block: an empty BlockID with non-zero ts is a cap, not a
-	// failure.
+	// failure. A zero l1Block is an error ("L1 view unknown yet"), not a cap —
+	// callers must hold their previous value.
 	VerifiedBlockAtL1(chainID eth.ChainID, l1Block eth.L1BlockRef) (eth.BlockID, uint64, error)
 }

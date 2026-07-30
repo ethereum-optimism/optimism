@@ -2824,27 +2824,33 @@ func TestResetIsNoOp(t *testing.T) {
 // =============================================================================
 
 func TestVerifiedBlockAtL1(t *testing.T) {
-	t.Run("zero l1Block returns empty immediately", func(t *testing.T) {
+	t.Run("zero l1Block returns error, not the activation anchor", func(t *testing.T) {
 		h := newInteropTestHarness(t).
 			WithChain(10, nil).
 			Build()
+		chainID := h.Mock(10).id
 
-		// Commit some verified results so the DB is non-empty
-		for ts := uint64(100); ts <= 110; ts++ {
+		// The verifier is healthy and has verified results past activation —
+		// this is NOT a cold-start / nothing-verified situation.
+		for ts := uint64(1100); ts <= 1110; ts++ {
 			err := h.commitVerified(VerifiedResult{
 				Timestamp:   ts,
 				L1Inclusion: eth.BlockID{Number: ts + 1000},
-				L2Heads:     map[eth.ChainID]eth.BlockID{h.Mock(10).id: {Number: ts}},
+				L2Heads:     map[eth.ChainID]eth.BlockID{chainID: {Number: ts}},
 			})
 			require.NoError(t, err)
 		}
 
-		blockID, ts, err := h.interop.VerifiedBlockAtL1(h.Mock(10).id, eth.L1BlockRef{})
-		require.NoError(t, err)
+		// A fresh virtual node's SyncStatus carries FinalizedL1 == eth.L1BlockRef{}
+		// until the first L1 finality poll fires. That means "L1 finality view
+		// unknown", not "nothing verified": it must surface as an error so
+		// FinalizedL2Head holds the previous value, rather than mapping to the
+		// activation-anchor cap and publishing the anchor as the finalized head
+		// (issue #22127).
+		blockID, ts, err := h.interop.VerifiedBlockAtL1(chainID, eth.L1BlockRef{})
+		require.ErrorIs(t, err, ErrNotStarted)
 		require.Equal(t, eth.BlockID{}, blockID)
-		// Empty result returns the pre-activation cap (activationTimestamp-1)
-		// so the caller can resolve the canonical L2 anchor block.
-		require.Equal(t, h.interop.activationTimestamp-1, ts)
+		require.Equal(t, uint64(0), ts)
 	})
 
 	t.Run("non-zero l1Block finds matching entry", func(t *testing.T) {

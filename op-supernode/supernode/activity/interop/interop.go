@@ -1316,10 +1316,16 @@ func (i *Interop) LatestVerifiedL2Block(chainID eth.ChainID) (eth.BlockID, uint6
 // VerifiedBlockAtL1 returns the latest verified L2 block for chainID whose
 // L1 inclusion is at or below l1Block. (empty, capTimestamp, nil) means no
 // match — capTimestamp is the pre-activation anchor for the caller to resolve.
-// A non-nil error means verifiedDB could not be read.
+// A zero l1Block returns an error: the caller's L1 finality view is unknown,
+// which must not be conflated with "nothing verified".
+// A non-nil error means verifiedDB could not be read or l1Block is unusable.
 func (i *Interop) VerifiedBlockAtL1(chainID eth.ChainID, l1Block eth.L1BlockRef) (eth.BlockID, uint64, error) {
 	if l1Block == (eth.L1BlockRef{}) {
-		return eth.BlockID{}, i.activationCap(), nil
+		// A zero L1 ref means the caller has no L1 finality view yet (e.g. a
+		// fresh virtual node before its first L1EpochPollInterval poll), NOT
+		// that nothing is verified. Surface it as an error so FinalizedL2Head
+		// holds the previous value instead of publishing the activation anchor.
+		return eth.BlockID{}, 0, fmt.Errorf("%w: L1 finalized block not yet known", ErrNotStarted)
 	}
 
 	lastTs, ok := i.verifiedDB.LastTimestamp()
