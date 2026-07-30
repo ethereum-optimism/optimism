@@ -2790,6 +2790,7 @@
                 "pages": [
                   "node-operators/guides/configuration/consensus-clients",
                   "node-operators/guides/configuration/execution-clients",
+                  "node-operators/guides/configuration/supernode-setup",
                   "node-operators/guides/configuration/supernode"
                 ]
               },
