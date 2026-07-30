@@ -141,13 +141,16 @@ contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
         assertNotEq(systemConfig.l2ChainId(), 0);
     }
 
-    /// @notice Tests that initialization clears the legacy batch inbox slot.
-    function test_initialize_clearsLegacyBatchInboxSlot_succeeds() external {
-        bytes32 slot = bytes32(uint256(keccak256("systemconfig.batchinbox")) - 1);
+    /// @notice Tests that initialization clears legacy state.
+    function test_initialize_clearsLegacyState_succeeds() external {
+        bytes32 batchInboxSlot = bytes32(uint256(keccak256("systemconfig.batchinbox")) - 1);
+        StorageSlot memory overheadSlot = ForgeArtifacts.getSlot("SystemConfig", "overhead");
 
-        // Seed the slot with a non-zero value so a no-op `initialize` cannot pass this test.
-        vm.store(address(systemConfig), slot, bytes32(uint256(uint160(address(0xbadbad)))));
-        assertEq(vm.load(address(systemConfig), slot), bytes32(uint256(uint160(address(0xbadbad)))));
+        // Seed the values so a no-op `initialize` cannot pass this test.
+        vm.store(address(systemConfig), batchInboxSlot, bytes32(uint256(uint160(address(0xbadbad)))));
+        vm.store(address(systemConfig), bytes32(overheadSlot.slot), bytes32(uint256(2100)));
+        assertEq(vm.load(address(systemConfig), batchInboxSlot), bytes32(uint256(uint160(address(0xbadbad)))));
+        assertEq(systemConfig.overhead(), 2100);
 
         vm.store(address(systemConfig), bytes32(0), bytes32(0));
         ISystemConfig.Addresses memory addresses = systemConfig.getAddresses();
@@ -168,7 +171,8 @@ contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
             _superchainConfig: superchainConfig
         });
 
-        assertEq(vm.load(address(systemConfig), slot), bytes32(0));
+        assertEq(vm.load(address(systemConfig), batchInboxSlot), bytes32(0));
+        assertEq(systemConfig.overhead(), 0);
     }
 
     /// @notice Tests that initialization reverts if the gas limit is too low.
