@@ -121,7 +121,8 @@ func Test_makeDCI_OpcmAddress(t *testing.T) {
 			if got.Opcm != tt.expectedOpcm {
 				t.Errorf("makeDCI() Opcm = %v, want %v", got.Opcm, tt.expectedOpcm)
 			}
-			require.Equal(t, standard.DisputeAbsolutePrestate, got.CannonAbsolutePrestate)
+			// The standard deploy selects SUPER_PERMISSIONED, which installs no CANNON_KONA fallback.
+			require.Equal(t, common.Hash{}, got.CannonAbsolutePrestate)
 			require.Equal(t, opcm.DefaultStartingAnchorRoot.Root, got.StartingAnchorRoot.Root)
 			require.Equal(t, common.Big0, got.StartingAnchorRoot.L2SequenceNumber)
 		})
@@ -246,11 +247,6 @@ func Test_makeDCI_RejectsInvalidInitialGameTypeBeforePermissionlessHandling(t *t
 			name:     "CANNON",
 			gameType: uint32(embedded.GameTypeCannon),
 			wantErr:  "unsupported initial dispute game type 0",
-		},
-		{
-			name:     "SUPER_PERMISSIONED",
-			gameType: uint32(embedded.GameTypeSuperPermissioned),
-			wantErr:  "derived fallback and is not an initial-deploy selector",
 		},
 		{
 			name:     "ZK_DISPUTE_GAME",
@@ -533,14 +529,6 @@ func TestBuildContinuationDCI_FailClosedGates(t *testing.T) {
 				st.Chains[0].InitialGameType = ptr.New(unknownGameType)
 			},
 			wantErrors: []string{"unsupported initial dispute game type 999", "op-deployer prepare"},
-		},
-		{
-			name: "gate 8 rejects SUPER_PERMISSIONED selector",
-			mutate: func(_ *state.Intent, chain *state.ChainIntent, st *state.State) {
-				chain.DeployOverrides["respectedGameType"] = embedded.GameTypeSuperPermissioned
-				st.Chains[0].InitialGameType = ptr.New(uint32(embedded.GameTypeSuperPermissioned))
-			},
-			wantErrors: []string{"derived fallback and is not an initial-deploy selector", "op-deployer prepare"},
 		},
 		{
 			name: "gate 9 requires committed prestate",
@@ -859,7 +847,7 @@ func TestResolveInitialDeployRequirements(t *testing.T) {
 		{
 			name:     "SUPER_PERMISSIONED",
 			gameType: uint32(embedded.GameTypeSuperPermissioned),
-			wantErr:  "SUPER_PERMISSIONED (5) is a derived fallback and is not an initial-deploy selector",
+			want:     InitialDeployRequirements{},
 		},
 		{
 			name:     "CANNON_KONA",

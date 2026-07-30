@@ -121,7 +121,7 @@ func TestPrestateWorkflowFromPrepareChains(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, predicted[permissionedID], permissioned.SystemConfigProxy)
 			require.Zero(t, permissioned.Prestate)
-			require.Equal(t, uint32(embedded.GameTypePermissionedCannon), *permissioned.InitialGameType)
+			require.Equal(t, standard.DisputeGameType, *permissioned.InitialGameType)
 
 			permissionless, err := persisted.Chain(permissionlessID)
 			require.NoError(t, err)
