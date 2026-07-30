@@ -421,7 +421,7 @@ library Predeploys {
         // feature. Both gates mirror the full condition checked in L2Genesis.
         records_[15] = PredeployRecord({
             proxy: CROSS_L2_INBOX,
-            variants: _variants("CrossL2Inbox", "CrossL2Inbox.sol:CrossL2Inbox", 668_000),
+            variants: _variants("CrossL2Inbox", "CrossL2Inbox.sol:CrossL2Inbox", 685_000),
             devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
             isCustomGasToken: false,
             isInterop: true,

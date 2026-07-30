@@ -45,11 +45,6 @@ func singleChainInteropNoSupernodeFromRuntime(t devtest.T, runtime *sysgo.Single
 		l2Chain.AddL2Challenger(newPresetL2Challenger(t, "main", l2ChainID, challengerCfg))
 	}
 
-	faucetL1Frontend := newFaucetFrontendForChain(t, runtime.FaucetService, l1ChainID)
-	faucetAFrontend := newFaucetFrontendForChain(t, runtime.FaucetService, l2ChainID)
-	l1Network.AddFaucet(faucetL1Frontend)
-	l2Chain.AddFaucet(faucetAFrontend)
-
 	l1ELDSL := dsl.NewL1ELNode(l1EL)
 	l1CLDSL := dsl.NewL1CLNode(l1CL)
 	l2ELDSL := dsl.NewL2ELNode(l2EL)
@@ -68,11 +63,9 @@ func singleChainInteropNoSupernodeFromRuntime(t devtest.T, runtime *sysgo.Single
 		L2ELA:            l2ELDSL,
 		L2CLA:            l2CLDSL,
 		Wallet:           dsl.NewRandomHDWallet(t, 30),
-		FaucetA:          dsl.NewFaucet(faucetAFrontend),
-		FaucetL1:         dsl.NewFaucet(faucetL1Frontend),
 		challengerConfig: challengerCfg,
 	}
-	out.FunderL1 = dsl.NewFunder(out.Wallet, out.FaucetL1, out.L1EL)
-	out.FunderA = dsl.NewFunder(out.Wallet, out.FaucetA, out.L2ELA)
+	out.FunderL1 = newFunderEOA(t, runtime.Keys, out.L1EL, out.Wallet)
+	out.FunderA = newFunderEOA(t, runtime.Keys, out.L2ELA, out.Wallet)
 	return out
 }

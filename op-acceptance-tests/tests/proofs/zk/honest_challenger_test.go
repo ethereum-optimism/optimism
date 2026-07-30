@@ -19,22 +19,19 @@ func newOpNodeSystem(t devtest.T) *presets.SingleChainInterop {
 }
 
 // newSupernodeSystem starts a supernode-backed interop system whose honest op-challenger sources
-// super roots from the supernode. It is returned as the shared *SingleChainInterop base so the same
-// scenario bodies run against either super-root source.
-func newSupernodeSystem(t devtest.T) *presets.SingleChainInterop {
-	sys := newSystem(t)
+// super roots from the supernode (with the honest kona-sp1-proposer also running unless disabled
+// via extra options). It is returned as the shared *SingleChainInterop base so the same scenario
+// bodies run against either super-root source.
+func newSupernodeSystem(t devtest.T, extra ...presets.Option) *presets.SingleChainInterop {
+	sys := newSystem(t, extra...)
 	return &sys.SingleChainInterop
 }
 
-// honestChallengerResolvesValidProposal seeds a valid super-root proposal and lets the challenge
+// honestChallengerResolvesValidProposal takes a valid super-root proposal and lets the challenge
 // window expire. The honest challenger must recognize it as valid and not challenge, so the game
 // resolves DEFENDER_WINS. It returns the resolved game so lifecycle tests can assert what follows
 // (e.g. anchoring).
-func honestChallengerResolvesValidProposal(t devtest.T, sys *presets.SingleChainInterop) *proofs.ZKGame {
-	factory := sys.DisputeGameFactory()
-	proposer := sys.FunderL1.NewFundedEOA(eth.OneEther)
-	// TODO(#21463): Let the kona-sp1 proposer create the valid proposal.
-	game := factory.StartZKGame(proposer)
+func honestChallengerResolvesValidProposal(t devtest.T, sys *presets.SingleChainInterop, game *proofs.ZKGame) *proofs.ZKGame {
 	advanceL1To(sys, game.ClaimData().Deadline+1)
 	game.WaitForGameStatus(gameTypes.GameStatusDefenderWon)
 	return game
@@ -97,15 +94,21 @@ func honestChallengerBeatsUnsafeProposal(t devtest.T, sys *presets.SingleChainIn
 func TestZK_HonestChallenger_ValidProposal_DefenderWins(gt *testing.T) {
 	gt.Run("op-node", func(gt *testing.T) {
 		t := devtest.SerialT(gt)
-		honestChallengerResolvesValidProposal(t, newOpNodeSystem(t))
+		sys := newOpNodeSystem(t)
+		// The op-node preset runs no kona-sp1-proposer; seed the proposal manually.
+		game := sys.DisputeGameFactory().StartZKGame(sys.FunderL1.NewFundedEOA(eth.OneEther))
+		honestChallengerResolvesValidProposal(t, sys, game)
 	})
 	gt.Run("supernode", func(gt *testing.T) {
 		t := devtest.SerialT(gt)
 		sys := newSupernodeSystem(t)
-		game := honestChallengerResolvesValidProposal(t, sys)
-		// The unchallenged valid proposal anchors once the finality delay elapses.
+		// The honest proposer creates the valid root proposal.
+		game := honestChallengerResolvesValidProposal(t, sys, sys.DisputeGameFactory().WaitForZKGameAtIndex(0))
+		// The unchallenged valid proposal anchors once the finality delay
+		// elapses. The live proposer keeps anchoring later games, so assert
+		// the anchor reached at least this game's sequence.
 		advanceL1To(sys, game.ResolvedAt()+uint64(zkFinalityDelay/time.Second)+1)
-		sys.AnchorStateRegistry(sys.L2ChainA).WaitForAnchorRoot(game)
+		sys.AnchorStateRegistry(sys.L2ChainA).WaitForAnchorRootAtLeast(game)
 	})
 }
 
@@ -121,7 +124,9 @@ func TestZK_HonestChallenger_InvalidProposal_ChallengerWins(gt *testing.T) {
 	})
 	gt.Run("supernode", func(gt *testing.T) {
 		t := devtest.SerialT(gt)
-		sys := newSupernodeSystem(t)
+		// This subtest asserts the anchor never moves, so no honest proposer:
+		// its valid proposals would legitimately advance the anchor.
+		sys := newSupernodeSystem(t, presets.WithoutHonestProposer())
 		registry := sys.AnchorStateRegistry(sys.L2ChainA)
 		anchorRoot, anchorSequence := registry.AnchorRoot()
 

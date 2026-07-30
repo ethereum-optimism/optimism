@@ -12,9 +12,6 @@ type twoL2RuntimeComponents struct {
 
 	l2ABatcher *l2BatcherFrontend
 	l2BBatcher *l2BatcherFrontend
-
-	faucetA *dsl.Faucet
-	faucetB *dsl.Faucet
 }
 
 func twoL2SupernodeFromRuntime(t devtest.T, runtime *sysgo.MultiChainRuntime) *TwoL2 {
@@ -71,13 +68,6 @@ func twoL2FromRuntime(t devtest.T, runtime *sysgo.MultiChainRuntime) (*TwoL2, *t
 	l2B.AddL2CLNode(l2BCL)
 	l2B.AddL2Batcher(l2BBatcher)
 
-	faucetAFrontend := newFaucetFrontendForChain(t, runtime.FaucetService, l2AChainID)
-	faucetBFrontend := newFaucetFrontendForChain(t, runtime.FaucetService, l2BChainID)
-	l2A.AddFaucet(faucetAFrontend)
-	l2B.AddFaucet(faucetBFrontend)
-	faucetA := dsl.NewFaucet(faucetAFrontend)
-	faucetB := dsl.NewFaucet(faucetBFrontend)
-
 	l1ELDSL := dsl.NewL1ELNode(l1EL)
 	l1CLDSL := dsl.NewL1CLNode(l1CL)
 	l2AELDSL := dsl.NewL2ELNode(l2AEL)
@@ -101,8 +91,6 @@ func twoL2FromRuntime(t devtest.T, runtime *sysgo.MultiChainRuntime) (*TwoL2, *t
 		l2BEL:      l2BEL,
 		l2ABatcher: l2ABatcher,
 		l2BBatcher: l2BBatcher,
-		faucetA:    faucetA,
-		faucetB:    faucetB,
 	}
 }
 
@@ -163,8 +151,6 @@ func twoL2SupernodeInteropFromRuntime(t devtest.T, runtime *sysgo.MultiChainRunt
 		L2BSupernodeEL:        dsl.NewL2ELNode(l2BSupernodeEL),
 		L2BatcherA:            dsl.NewL2Batcher(components.l2ABatcher),
 		L2BatcherB:            dsl.NewL2Batcher(components.l2BBatcher),
-		FaucetA:               components.faucetA,
-		FaucetB:               components.faucetB,
 		Wallet:                dsl.NewRandomHDWallet(t, 30),
 		GenesisTime:           genesisTime,
 		InteropActivationTime: genesisTime + runtime.DelaySeconds,
@@ -172,8 +158,8 @@ func twoL2SupernodeInteropFromRuntime(t devtest.T, runtime *sysgo.MultiChainRunt
 		InteropFilter:         runtime.InteropFilter,
 		timeTravel:            runtime.TimeTravel,
 	}
-	preset.FunderA = dsl.NewFunder(preset.Wallet, preset.FaucetA, preset.L2ELA)
-	preset.FunderB = dsl.NewFunder(preset.Wallet, preset.FaucetB, preset.L2ELB)
+	preset.FunderA = newFunderEOA(t, runtime.Keys, preset.L2ELA, preset.Wallet)
+	preset.FunderB = newFunderEOA(t, runtime.Keys, preset.L2ELB, preset.Wallet)
 	return preset
 }
 

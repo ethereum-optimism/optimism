@@ -41,7 +41,14 @@ serde = { workspace = true, optional = true }
 # `tabled` feature
 tabled = { workspace = true, features = ["derive"], optional = true }
 
+# The self dev-dependency below enables this crate's own non-default features for
+# its standalone test build (`cargo test -p kona-genesis`). cargo-udeps reports it
+# unused because it activates features rather than importing symbols, so ignore it.
+[package.metadata.cargo-udeps.ignore]
+development = ["kona-genesis"]
+
 [dev-dependencies]
+kona-genesis = { path = ".", features = ["std", "serde"] }
 toml = { workspace = true, features = ["parse", "serde"] }
 rand = { workspace = true, features = ["thread_rng"] }
 serde_json.workspace = true

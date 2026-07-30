@@ -98,7 +98,7 @@ strum.workspace = true
 [dev-dependencies]
 alloy-op-hardforks.workspace = true
 alloy-genesis.workspace = true
-reth-optimism-chainspec.workspace = true
+reth-optimism-chainspec = { workspace = true, features = ["superchain-configs"] }
 rstest.workspace = true
 
 [features]

@@ -39,30 +39,33 @@ func TestChallengedValidProposalAnchors(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := newSystem(t)
 	factory := sys.DisputeGameFactory()
-	proposer, challenger, prover := fundedActors(sys)
+	challenger, prover := fundedActors(sys)
 
-	// TODO(#21463): Let the kona-sp1 proposer create the valid proposal.
-	game := factory.StartZKGame(proposer)
+	// The honest proposer creates the valid root proposal.
+	game := factory.WaitForZKGameAtIndex(0)
 	t.Require().Equal(uint32(math.MaxUint32), game.ParentIndex())
 	t.Require().Equal(proofs.ZKProposalUnchallenged, game.ProposalStatus())
 
 	// A third party grief-challenges the valid proposal; the honest challenger does not challenge it.
 	challengedClaim := game.Challenge(challenger)
 	t.Require().Equal(challenger.Address(), challengedClaim.Challenger)
-	// TODO(#21414): Submit the proof via a real/mock proposer once it is updated.
+	// TODO(#21463): Submit the proof via the kona-sp1-proposer once the defend path lands.
 	provedClaim := game.Prove(prover, []byte("mock-sp1-super-aggregation-proof"))
 	t.Require().Equal(proofs.ZKProposalChallengedAndValidProofProvided, proofs.ZKProposalStatus(provedClaim.Status))
 	t.Require().Equal(prover.Address(), provedClaim.Prover)
 
-	// The honest challenger resolves the proven-valid proposal and closes it, anchoring the root.
+	// The proven-valid proposal resolves and anchors. The live proposer keeps
+	// chaining and anchoring later games, so assert the anchor reached at
+	// least this game's sequence (descendants can only anchor if this game
+	// resolved in the defender's favor).
 	game.WaitForGameStatus(gameTypes.GameStatusDefenderWon)
 	advanceL1To(&sys.SingleChainInterop, game.ResolvedAt()+uint64(zkFinalityDelay/time.Second)+1)
-	sys.AnchorStateRegistry(sys.L2ChainA).WaitForAnchorRoot(game)
+	sys.AnchorStateRegistry(sys.L2ChainA).WaitForAnchorRootAtLeast(game)
 }
 
-func fundedActors(sys *presets.SimpleInterop) (*dsl.EOA, *dsl.EOA, *dsl.EOA) {
-	actors := sys.FunderL1.NewFundedEOAs(3, eth.OneEther)
-	return actors[0], actors[1], actors[2]
+func fundedActors(sys *presets.SimpleInterop) (*dsl.EOA, *dsl.EOA) {
+	actors := sys.FunderL1.NewFundedEOAs(2, eth.OneEther)
+	return actors[0], actors[1]
 }
 
 func advanceL1To(sys *presets.SingleChainInterop, timestamp uint64) {
