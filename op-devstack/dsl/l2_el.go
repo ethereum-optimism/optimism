@@ -194,6 +194,28 @@ func (el *L2ELNode) ReachedFn(label eth.BlockLabel, target uint64, attempts int)
 	}
 }
 
+// ReachedWithProgressFn is the progress-aware analogue of ReachedFn: it waits
+// for the head at label to reach target, tolerating a self-recovering slowdown
+// while failing fast on a genuinely stuck node. It succeeds when label reaches
+// target, and fails when either progressLabel (a strictly more-live label, e.g.
+// eth.Unsafe) has not advanced for stallTimeout, or the overall maxWait elapses.
+// Use it for a catch-up wait whose target head is gated by a pipeline that can
+// transiently stall under load (e.g. the EL safe label catching up after interop
+// resumes). Polls every 2s. See L2CLNode.ReachedWithProgressFn.
+func (el *L2ELNode) ReachedWithProgressFn(label, progressLabel eth.BlockLabel, target uint64, maxWait, stallTimeout time.Duration) CheckFunc {
+	return func() error {
+		logger := el.log.With("name", el.inner.Name(), "chain", el.ChainID(), "label", label, "progress_label", progressLabel, "target", target)
+		headNum := func(l eth.BlockLabel) func() (uint64, error) {
+			return func() (uint64, error) {
+				ref, err := el.blockRefByLabel(l)
+				return ref.Number, err
+			}
+		}
+		return awaitHeadWithProgress(el.ctx, logger, headNum(label), headNum(progressLabel), target, maxWait, stallTimeout,
+			fmt.Sprintf("expected head for label=%s to advance to target=%d", label, target), string(progressLabel))
+	}
+}
+
 func (el *L2ELNode) BlockRefByNumber(num uint64) eth.L2BlockRef {
 	ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
 	defer cancel()
