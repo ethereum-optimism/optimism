@@ -10,7 +10,7 @@ import (
 )
 
 type ForecastMetrics interface {
-	RecordGameAgreements(counts map[metrics.GameAgreementKey]int)
+	RecordGameAgreements(counts map[metrics.GameAgreementStatus]int)
 	RecordLatestValidProposalL2Block(validL2Block uint64)
 	RecordLatestProposals(validTimestamp, invalidTimestamp uint64)
 	RecordIgnoredGames(count int)
@@ -18,7 +18,7 @@ type ForecastMetrics interface {
 }
 
 type forecastBatch struct {
-	GameAgreements map[metrics.GameAgreementKey]int
+	GameAgreements map[metrics.GameAgreementStatus]int
 
 	LatestValidProposalL2Block uint64
 	LatestInvalidProposal      uint64
@@ -38,7 +38,7 @@ func NewForecast(logger log.Logger, metrics ForecastMetrics) *Forecast {
 }
 
 func (f *Forecast) Forecast(games []monTypes.EnrichedGame, ignoredCount, failedCount int) {
-	batch := forecastBatch{GameAgreements: make(map[metrics.GameAgreementKey]int)}
+	batch := forecastBatch{GameAgreements: make(map[metrics.GameAgreementStatus]int)}
 	for _, game := range games {
 		f.forecastGame(game, &batch)
 	}
@@ -58,9 +58,10 @@ func (f *Forecast) recordBatch(batch forecastBatch, ignoredCount, failedCount in
 func (f *Forecast) forecastGame(game monTypes.EnrichedGame, batch *forecastBatch) {
 	common := game.Common()
 	agreement := common.AgreeWithClaim
-	expectedResult := expectedGameResult(game)
+	expectedResult := types.GameStatusDefenderWon
 
 	if !agreement {
+		expectedResult = types.GameStatusChallengerWon
 		if batch.LatestInvalidProposal < common.Timestamp {
 			batch.LatestInvalidProposal = common.Timestamp
 		}
@@ -86,12 +87,7 @@ func (f *Forecast) forecastGame(game monTypes.EnrichedGame, batch *forecastBatch
 	}
 
 	status := agreementStatus(agreement, actualResult, inProgress)
-	key := metrics.GameAgreementKey{
-		GameType: types.GameType(common.GameType),
-		Status:   status,
-		Correct:  actualResult == expectedResult,
-	}
-	batch.GameAgreements[key]++
+	batch.GameAgreements[status]++
 
 	if inProgress {
 		if actualResult != expectedResult {
@@ -104,17 +100,6 @@ func (f *Forecast) forecastGame(game monTypes.EnrichedGame, batch *forecastBatch
 				"rootClaim", common.RootClaim, "expected", common.ExpectedRootClaim)
 		}
 	}
-}
-
-func expectedGameResult(game monTypes.EnrichedGame) types.GameStatus {
-	if zkGame, ok := game.(*monTypes.ZKGameData); ok &&
-		zkGame.HasParent && zkGame.ParentStatus == types.GameStatusChallengerWon {
-		return types.GameStatusChallengerWon
-	}
-	if game.Common().AgreeWithClaim {
-		return types.GameStatusDefenderWon
-	}
-	return types.GameStatusChallengerWon
 }
 
 func (f *Forecast) forecastInProgressGame(game monTypes.EnrichedGame) types.GameStatus {

@@ -21,8 +21,8 @@ func TestZKDisputeMonitorValidInProgressProposal(gt *testing.T) {
 	monitor.VerifyState(
 		disputemon.GameCount(gameTypes.ZKDisputeGameType, 1),
 		disputemon.FailedGames(0),
-		disputemon.AgreedRootsForGameType(gameTypes.ZKDisputeGameType, 1),
-		disputemon.CorrectDefenderAhead(gameTypes.ZKDisputeGameType, 1),
+		disputemon.AgreedRoots(1),
+		disputemon.CorrectDefenderAhead(1),
 	)
 }
 
@@ -47,8 +47,8 @@ func TestZKDisputeMonitorInvalidChallengedInProgressProposal(gt *testing.T) {
 	monitor.VerifyState(
 		disputemon.GameCount(gameTypes.ZKDisputeGameType, 1),
 		disputemon.FailedGames(0),
-		disputemon.DisagreedRootsForGameType(gameTypes.ZKDisputeGameType, 1),
-		disputemon.CorrectChallengerAhead(gameTypes.ZKDisputeGameType, 1),
+		disputemon.DisagreedRoots(1),
+		disputemon.CorrectChallengerAhead(1),
 	)
 }
 
@@ -66,8 +66,8 @@ func TestZKDisputeMonitorValidTerminalProposalAfterDeadline(gt *testing.T) {
 	monitor.VerifyState(
 		disputemon.GameCount(gameTypes.ZKDisputeGameType, 1),
 		disputemon.FailedGames(0),
-		disputemon.AgreedRootsForGameType(gameTypes.ZKDisputeGameType, 1),
-		disputemon.CorrectDefenderWins(gameTypes.ZKDisputeGameType, 1),
+		disputemon.AgreedRoots(1),
+		disputemon.CorrectDefenderWins(1),
 	)
 }
 
@@ -95,25 +95,25 @@ func TestZKDisputeMonitorCanonicalChildOfInvalidParent(gt *testing.T) {
 	monitor.VerifyState(
 		disputemon.GameCount(gameTypes.ZKDisputeGameType, 2),
 		disputemon.FailedGames(0),
-		disputemon.AgreedRootsForGameType(gameTypes.ZKDisputeGameType, 1),
-		disputemon.DisagreedRootsForGameType(gameTypes.ZKDisputeGameType, 1),
-		disputemon.CorrectDefenderAhead(gameTypes.ZKDisputeGameType, 1),
-		disputemon.CorrectChallengerAhead(gameTypes.ZKDisputeGameType, 1),
+		disputemon.AgreedRoots(1),
+		disputemon.DisagreedRoots(1),
+		disputemon.CorrectDefenderAhead(1),
+		disputemon.CorrectChallengerAhead(1),
 	)
 
 	advanceL1To(&sys.SingleChainInterop, parent.ClaimData().Deadline+1)
 	t.Require().Equal(gameTypes.GameStatusChallengerWon, parent.Resolve(resolver))
 	monitor.VerifyState(
 		disputemon.FailedGames(0),
-		disputemon.CorrectChallengerWins(gameTypes.ZKDisputeGameType, 1),
-		disputemon.CorrectAgreeChallengerAhead(gameTypes.ZKDisputeGameType, 1),
+		disputemon.CorrectChallengerWins(1),
+		disputemon.IncorrectChallengerAhead(1),
 	)
 
 	t.Require().Equal(gameTypes.GameStatusChallengerWon, child.Resolve(resolver))
 	monitor.VerifyState(
 		disputemon.FailedGames(0),
-		disputemon.CorrectChallengerWins(gameTypes.ZKDisputeGameType, 1),
-		disputemon.CorrectAgreeChallengerWins(gameTypes.ZKDisputeGameType, 1),
+		disputemon.CorrectChallengerWins(1),
+		disputemon.IncorrectChallengerWins(1),
 	)
 }
 

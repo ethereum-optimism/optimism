@@ -20,10 +20,9 @@ var mockRootClaim = common.Hash{0x11}
 
 func TestForecastFaultGamesUnchanged(t *testing.T) {
 	tests := []struct {
-		name    string
-		game    *monTypes.FaultGameData
-		status  metrics.GameAgreementStatus
-		correct bool
+		name   string
+		game   *monTypes.FaultGameData
+		status metrics.GameAgreementStatus
 	}{
 		{
 			name:   "agree challenger won",
@@ -31,16 +30,14 @@ func TestForecastFaultGamesUnchanged(t *testing.T) {
 			status: metrics.AgreeChallengerWins,
 		},
 		{
-			name:    "disagree challenger won",
-			game:    faultGame(gameTypes.GameStatusChallengerWon, false),
-			status:  metrics.DisagreeChallengerWins,
-			correct: true,
+			name:   "disagree challenger won",
+			game:   faultGame(gameTypes.GameStatusChallengerWon, false),
+			status: metrics.DisagreeChallengerWins,
 		},
 		{
-			name:    "agree defender won",
-			game:    faultGame(gameTypes.GameStatusDefenderWon, true),
-			status:  metrics.AgreeDefenderWins,
-			correct: true,
+			name:   "agree defender won",
+			game:   faultGame(gameTypes.GameStatusDefenderWon, true),
+			status: metrics.AgreeDefenderWins,
 		},
 		{
 			name:   "disagree defender won",
@@ -63,8 +60,7 @@ func TestForecastFaultGamesUnchanged(t *testing.T) {
 				game.Claims = createDeepClaimList()[:1]
 				return game
 			}(),
-			status:  metrics.AgreeDefenderAhead,
-			correct: true,
+			status: metrics.AgreeDefenderAhead,
 		},
 		{
 			name: "fault tree challenger ahead",
@@ -73,8 +69,7 @@ func TestForecastFaultGamesUnchanged(t *testing.T) {
 				game.Claims = createDeepClaimList()[:2]
 				return game
 			}(),
-			status:  metrics.DisagreeChallengerAhead,
-			correct: true,
+			status: metrics.DisagreeChallengerAhead,
 		},
 		{
 			name: "fault tree defender ahead while disagreeing",
@@ -91,12 +86,7 @@ func TestForecastFaultGamesUnchanged(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			forecast, metricer := setupForecastTest(t)
 			forecast.Forecast([]monTypes.EnrichedGame{test.game}, 0, 0)
-			key := metrics.GameAgreementKey{
-				GameType: gameTypes.CannonGameType,
-				Status:   test.status,
-				Correct:  test.correct,
-			}
-			require.Equal(t, map[metrics.GameAgreementKey]int{key: 1}, metricer.gameAgreements)
+			require.Equal(t, map[metrics.GameAgreementStatus]int{test.status: 1}, metricer.gameAgreements)
 		})
 	}
 }
@@ -107,12 +97,11 @@ func TestForecastSuperPermissionedGamesUnchanged(t *testing.T) {
 		status  gameTypes.GameStatus
 		agree   bool
 		outcome metrics.GameAgreementStatus
-		correct bool
 	}{
-		{"agree terminal", gameTypes.GameStatusDefenderWon, true, metrics.AgreeDefenderWins, true},
-		{"disagree terminal", gameTypes.GameStatusDefenderWon, false, metrics.DisagreeDefenderWins, false},
-		{"agree in progress", gameTypes.GameStatusInProgress, true, metrics.AgreeChallengerAhead, false},
-		{"disagree in progress", gameTypes.GameStatusInProgress, false, metrics.DisagreeDefenderAhead, false},
+		{"agree terminal", gameTypes.GameStatusDefenderWon, true, metrics.AgreeDefenderWins},
+		{"disagree terminal", gameTypes.GameStatusDefenderWon, false, metrics.DisagreeDefenderWins},
+		{"agree in progress", gameTypes.GameStatusInProgress, true, metrics.AgreeChallengerAhead},
+		{"disagree in progress", gameTypes.GameStatusInProgress, false, metrics.DisagreeDefenderAhead},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -121,12 +110,7 @@ func TestForecastSuperPermissionedGamesUnchanged(t *testing.T) {
 				gameTypes.SuperPermissionedGameType, test.status, test.agree,
 			)}
 			forecast.Forecast([]monTypes.EnrichedGame{game}, 0, 0)
-			key := metrics.GameAgreementKey{
-				GameType: gameTypes.SuperPermissionedGameType,
-				Status:   test.outcome,
-				Correct:  test.correct,
-			}
-			require.Equal(t, map[metrics.GameAgreementKey]int{key: 1}, metricer.gameAgreements)
+			require.Equal(t, map[metrics.GameAgreementStatus]int{test.outcome: 1}, metricer.gameAgreements)
 		})
 	}
 }
@@ -167,21 +151,12 @@ func TestForecastZKInProgressDecisionTable(t *testing.T) {
 						ProposalStatus: proposal,
 					}
 					actual := proposalResult
-					expected := gameTypes.GameStatusChallengerWon
-					if agree {
-						expected = gameTypes.GameStatusDefenderWon
-					}
 					if parent.hasParent && parent.status == gameTypes.GameStatusChallengerWon {
 						actual = gameTypes.GameStatusChallengerWon
-						expected = gameTypes.GameStatusChallengerWon
 					}
 					forecast.Forecast([]monTypes.EnrichedGame{game}, 0, 0)
-					key := metrics.GameAgreementKey{
-						GameType: gameTypes.ZKDisputeGameType,
-						Status:   agreementStatus(agree, actual, true),
-						Correct:  actual == expected,
-					}
-					require.Equal(t, map[metrics.GameAgreementKey]int{key: 1}, metricer.gameAgreements)
+					status := agreementStatus(agree, actual, true)
+					require.Equal(t, map[metrics.GameAgreementStatus]int{status: 1}, metricer.gameAgreements)
 				})
 			}
 		}
@@ -211,19 +186,8 @@ func TestForecastZKTerminalUsesActualResult(t *testing.T) {
 						ProposalStatus: contracts.ProposalStatusResolved,
 					}
 					forecast.Forecast([]monTypes.EnrichedGame{game}, 0, 0)
-					expected := gameTypes.GameStatusChallengerWon
-					if agree {
-						expected = gameTypes.GameStatusDefenderWon
-					}
-					if parent.hasParent && parent.status == gameTypes.GameStatusChallengerWon {
-						expected = gameTypes.GameStatusChallengerWon
-					}
-					key := metrics.GameAgreementKey{
-						GameType: gameTypes.ZKDisputeGameType,
-						Status:   agreementStatus(agree, status, false),
-						Correct:  status == expected,
-					}
-					require.Equal(t, map[metrics.GameAgreementKey]int{key: 1}, metricer.gameAgreements)
+					agreement := agreementStatus(agree, status, false)
+					require.Equal(t, map[metrics.GameAgreementStatus]int{agreement: 1}, metricer.gameAgreements)
 				})
 			}
 		}
@@ -240,28 +204,22 @@ func TestForecastZKParentResolutionTransition(t *testing.T) {
 	}
 
 	forecast.Forecast([]monTypes.EnrichedGame{game}, 0, 0)
-	require.Equal(t, map[metrics.GameAgreementKey]int{{
-		GameType: gameTypes.ZKDisputeGameType,
-		Status:   metrics.AgreeDefenderAhead,
-		Correct:  true,
-	}: 1}, metricer.gameAgreements)
+	require.Equal(t, map[metrics.GameAgreementStatus]int{
+		metrics.AgreeDefenderAhead: 1,
+	}, metricer.gameAgreements)
 
 	game.ParentStatus = gameTypes.GameStatusChallengerWon
 	forecast.Forecast([]monTypes.EnrichedGame{game}, 0, 0)
-	require.Equal(t, map[metrics.GameAgreementKey]int{{
-		GameType: gameTypes.ZKDisputeGameType,
-		Status:   metrics.AgreeChallengerAhead,
-		Correct:  true,
-	}: 1}, metricer.gameAgreements)
+	require.Equal(t, map[metrics.GameAgreementStatus]int{
+		metrics.AgreeChallengerAhead: 1,
+	}, metricer.gameAgreements)
 
 	game.Status = gameTypes.GameStatusChallengerWon
 	game.ProposalStatus = contracts.ProposalStatusResolved
 	forecast.Forecast([]monTypes.EnrichedGame{game}, 0, 0)
-	require.Equal(t, map[metrics.GameAgreementKey]int{{
-		GameType: gameTypes.ZKDisputeGameType,
-		Status:   metrics.AgreeChallengerWins,
-		Correct:  true,
-	}: 1}, metricer.gameAgreements)
+	require.Equal(t, map[metrics.GameAgreementStatus]int{
+		metrics.AgreeChallengerWins: 1,
+	}, metricer.gameAgreements)
 }
 
 func TestForecastZKInvalidParentOverridesCanonicalChild(t *testing.T) {
@@ -273,12 +231,9 @@ func TestForecastZKInvalidParentOverridesCanonicalChild(t *testing.T) {
 		ProposalStatus: contracts.ProposalStatusUnchallenged,
 	}
 	forecast.Forecast([]monTypes.EnrichedGame{game}, 0, 0)
-	key := metrics.GameAgreementKey{
-		GameType: gameTypes.ZKDisputeGameType,
-		Status:   metrics.AgreeChallengerAhead,
-		Correct:  true,
-	}
-	require.Equal(t, map[metrics.GameAgreementKey]int{key: 1}, metricer.gameAgreements)
+	require.Equal(t, map[metrics.GameAgreementStatus]int{
+		metrics.AgreeChallengerAhead: 1,
+	}, metricer.gameAgreements)
 }
 
 func TestForecastLatestProposalMetrics(t *testing.T) {
@@ -315,20 +270,18 @@ func TestForecastAggregatesMultipleGames(t *testing.T) {
 	forecast, metricer := setupForecastTest(t)
 	forecast.Forecast([]monTypes.EnrichedGame{
 		faultGame(gameTypes.GameStatusDefenderWon, true),
-		faultGame(gameTypes.GameStatusDefenderWon, true),
+		&monTypes.ZKGameData{
+			CommonGameData: commonGame(gameTypes.ZKDisputeGameType, gameTypes.GameStatusDefenderWon, true),
+			ProposalStatus: contracts.ProposalStatusResolved,
+		},
+		&monTypes.SuperPermissionedGameData{
+			CommonGameData: commonGame(gameTypes.SuperPermissionedGameType, gameTypes.GameStatusDefenderWon, true),
+		},
 		faultGame(gameTypes.GameStatusChallengerWon, false),
 	}, 3, 4)
-	require.Equal(t, map[metrics.GameAgreementKey]int{
-		{
-			GameType: gameTypes.CannonGameType,
-			Status:   metrics.AgreeDefenderWins,
-			Correct:  true,
-		}: 2,
-		{
-			GameType: gameTypes.CannonGameType,
-			Status:   metrics.DisagreeChallengerWins,
-			Correct:  true,
-		}: 1,
+	require.Equal(t, map[metrics.GameAgreementStatus]int{
+		metrics.AgreeDefenderWins:      3,
+		metrics.DisagreeChallengerWins: 1,
 	}, metricer.gameAgreements)
 	require.Equal(t, 3, metricer.ignoredGames)
 	require.Equal(t, 4, metricer.failedGames)
@@ -435,7 +388,7 @@ func setupForecastTest(t *testing.T) (*Forecast, *mockForecastMetrics) {
 }
 
 type mockForecastMetrics struct {
-	gameAgreements             map[metrics.GameAgreementKey]int
+	gameAgreements             map[metrics.GameAgreementStatus]int
 	ignoredGames               int
 	latestValidProposalL2Block uint64
 	latestInvalidProposal      uint64
@@ -447,7 +400,7 @@ func (m *mockForecastMetrics) RecordFailedGames(count int) {
 	m.failedGames = count
 }
 
-func (m *mockForecastMetrics) RecordGameAgreements(counts map[metrics.GameAgreementKey]int) {
+func (m *mockForecastMetrics) RecordGameAgreements(counts map[metrics.GameAgreementStatus]int) {
 	m.gameAgreements = counts
 }
 

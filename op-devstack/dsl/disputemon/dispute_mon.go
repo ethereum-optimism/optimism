@@ -86,16 +86,6 @@ func DisagreedRoots(expected int) StateExpectation {
 	}
 }
 
-// AgreedRootsForGameType expects the number of agreeing games of a specific type.
-func AgreedRootsForGameType(gameType gameTypes.GameType, expected int) StateExpectation {
-	return rootAgreementForGameType(gameType, "agree", expected)
-}
-
-// DisagreedRootsForGameType expects the number of disagreeing games of a specific type.
-func DisagreedRootsForGameType(gameType gameTypes.GameType, expected int) StateExpectation {
-	return rootAgreementForGameType(gameType, "disagree", expected)
-}
-
 func InvalidProposalObserved(game interface{ CreatedAt() uint64 }) StateExpectation {
 	return StateExpectation{
 		check: devtestmetrics.GaugeEquals(
@@ -107,9 +97,8 @@ func InvalidProposalObserved(game interface{ CreatedAt() uint64 }) StateExpectat
 }
 
 // IncorrectDefenderAhead expects live games where an incorrect claim's defender is ahead.
-func IncorrectDefenderAhead(gameType gameTypes.GameType, expected int) StateExpectation {
+func IncorrectDefenderAhead(expected int) StateExpectation {
 	return gameAgreement(
-		gameType,
 		"disagree_defender_ahead",
 		"in_progress",
 		"incorrect",
@@ -119,9 +108,8 @@ func IncorrectDefenderAhead(gameType gameTypes.GameType, expected int) StateExpe
 }
 
 // IncorrectDefenderWins expects completed games where an incorrect claim's defender won.
-func IncorrectDefenderWins(gameType gameTypes.GameType, expected int) StateExpectation {
+func IncorrectDefenderWins(expected int) StateExpectation {
 	return gameAgreement(
-		gameType,
 		"disagree_defender_wins",
 		"complete",
 		"incorrect",
@@ -131,9 +119,8 @@ func IncorrectDefenderWins(gameType gameTypes.GameType, expected int) StateExpec
 }
 
 // CorrectChallengerWins expects completed games where disagreement correctly predicted a challenger win.
-func CorrectChallengerWins(gameType gameTypes.GameType, expected int) StateExpectation {
+func CorrectChallengerWins(expected int) StateExpectation {
 	return gameAgreement(
-		gameType,
 		"disagree_challenger_wins",
 		"complete",
 		"correct",
@@ -143,28 +130,28 @@ func CorrectChallengerWins(gameType gameTypes.GameType, expected int) StateExpec
 }
 
 // CorrectDefenderAhead expects live games where agreement correctly predicts the defender is ahead.
-func CorrectDefenderAhead(gameType gameTypes.GameType, expected int) StateExpectation {
-	return gameAgreement(gameType, "agree_defender_ahead", "in_progress", "correct", "agree", expected)
+func CorrectDefenderAhead(expected int) StateExpectation {
+	return gameAgreement("agree_defender_ahead", "in_progress", "correct", "agree", expected)
 }
 
 // CorrectDefenderWins expects completed games where agreement correctly predicted a defender win.
-func CorrectDefenderWins(gameType gameTypes.GameType, expected int) StateExpectation {
-	return gameAgreement(gameType, "agree_defender_wins", "complete", "correct", "agree", expected)
+func CorrectDefenderWins(expected int) StateExpectation {
+	return gameAgreement("agree_defender_wins", "complete", "correct", "agree", expected)
 }
 
 // CorrectChallengerAhead expects live games where disagreement correctly predicts the challenger is ahead.
-func CorrectChallengerAhead(gameType gameTypes.GameType, expected int) StateExpectation {
-	return gameAgreement(gameType, "disagree_challenger_ahead", "in_progress", "correct", "disagree", expected)
+func CorrectChallengerAhead(expected int) StateExpectation {
+	return gameAgreement("disagree_challenger_ahead", "in_progress", "correct", "disagree", expected)
 }
 
-// CorrectAgreeChallengerAhead expects live games where agreement and parent invalidity make the challenger ahead.
-func CorrectAgreeChallengerAhead(gameType gameTypes.GameType, expected int) StateExpectation {
-	return gameAgreement(gameType, "agree_challenger_ahead", "in_progress", "correct", "agree", expected)
+// IncorrectChallengerAhead expects live games where agreement incorrectly predicted a challenger loss.
+func IncorrectChallengerAhead(expected int) StateExpectation {
+	return gameAgreement("agree_challenger_ahead", "in_progress", "incorrect", "agree", expected)
 }
 
-// CorrectAgreeChallengerWins expects completed games where agreement and parent invalidity produce a challenger win.
-func CorrectAgreeChallengerWins(gameType gameTypes.GameType, expected int) StateExpectation {
-	return gameAgreement(gameType, "agree_challenger_wins", "complete", "correct", "agree", expected)
+// IncorrectChallengerWins expects completed games where agreement incorrectly predicted a challenger loss.
+func IncorrectChallengerWins(expected int) StateExpectation {
+	return gameAgreement("agree_challenger_wins", "complete", "incorrect", "agree", expected)
 }
 
 func CompletedBeforeMaxDuration(expected int) StateExpectation {
@@ -346,25 +333,11 @@ func claimCount(labels map[string]string, expected int) StateExpectation {
 	}
 }
 
-func rootAgreementForGameType(gameType gameTypes.GameType, agreement string, expected int) StateExpectation {
-	return StateExpectation{
-		check: devtestmetrics.GaugeSumEquals(
-			"op_dispute_mon_games_agreement",
-			map[string]string{
-				"game_type":      gameType.String(),
-				"root_agreement": agreement,
-			},
-			float64(expected),
-		),
-	}
-}
-
-func gameAgreement(gameType gameTypes.GameType, status string, completion string, resultCorrectness string, rootAgreement string, expected int) StateExpectation {
+func gameAgreement(status string, completion string, resultCorrectness string, rootAgreement string, expected int) StateExpectation {
 	return StateExpectation{
 		check: devtestmetrics.GaugeEquals(
 			"op_dispute_mon_games_agreement",
 			map[string]string{
-				"game_type":          gameType.String(),
 				"status":             status,
 				"completion":         completion,
 				"result_correctness": resultCorrectness,

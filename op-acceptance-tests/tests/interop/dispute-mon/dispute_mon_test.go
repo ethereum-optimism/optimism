@@ -43,7 +43,7 @@ func TestDisputeMonitorForecastsInvalidProposalForChallenger(gt *testing.T) {
 	mon.VerifyState(
 		disputemon.GameCount(gameTypes.CannonKonaGameType, 1),
 		disputemon.FailedGames(0),
-		disputemon.IncorrectDefenderAhead(gameTypes.CannonKonaGameType, 1),
+		disputemon.IncorrectDefenderAhead(1),
 		disputemon.InvalidProposalObserved(game),
 	)
 }
@@ -61,7 +61,7 @@ func TestDisputeMonitorReportsIncorrectResolvedGame(gt *testing.T) {
 	mon.VerifyState(
 		disputemon.GameCount(gameTypes.SuperPermissionedGameType, 1),
 		disputemon.FailedGames(0),
-		disputemon.IncorrectDefenderWins(gameTypes.SuperPermissionedGameType, 1),
+		disputemon.IncorrectDefenderWins(1),
 		disputemon.InvalidProposalObserved(game),
 	)
 }
@@ -175,6 +175,6 @@ func TestDisputeMonitorReportsHonestActorLoss(gt *testing.T) {
 		disputemon.GameCount(gameTypes.CannonKonaGameType, 1),
 		disputemon.HonestActorInvalidClaims(proposer.Address(), 1),
 		disputemon.HonestActorLostBonds(proposer.Address(), rootBond),
-		disputemon.CorrectChallengerWins(gameTypes.CannonKonaGameType, 1),
+		disputemon.CorrectChallengerWins(1),
 	)
 }
