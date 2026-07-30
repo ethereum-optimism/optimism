@@ -38,7 +38,7 @@ If you want to use a network that isn't included by default, you can add it to V
 
 ## Create a demo project
 
-<TutorialSetupNodeProject lib="Viem" folder="bridge-eth" packages="viem" />
+<TutorialSetupNodeProject lib="Viem" folder="bridge-eth" packages="viem@^2.51.0" />
 
 ## Get ETH on Sepolia
 
@@ -66,7 +66,7 @@ You need to import some dependencies into your Node REPL session.
 const { createPublicClient, http, createWalletClient, parseEther, formatEther } = require('viem');
 const { sepolia, optimismSepolia } = require('viem/chains');
 const { privateKeyToAccount } = require('viem/accounts');
-const { getL2TransactionHashes, publicActionsL1, publicActionsL2, walletActionsL1, walletActionsL2 } = require('viem/op-stack');
+const { getL2TransactionHashes, publicActionsL1, publicActionsL2, walletActionsL1, walletActionsL2, isSuperGameType } = require('viem/op-stack');
 ```
 
   </Step>
@@ -217,7 +217,7 @@ console.log('Deposit completed successfully!');
 const { createPublicClient, http, createWalletClient, parseEther, formatEther } = require('viem');
 const { sepolia, optimismSepolia } = require('viem/chains');
 const { privateKeyToAccount } = require('viem/accounts');
-const { getL2TransactionHashes, publicActionsL1, publicActionsL2, walletActionsL1, walletActionsL2 } = require('viem/op-stack');
+const { getL2TransactionHashes, publicActionsL1, publicActionsL2, walletActionsL1, walletActionsL2, isSuperGameType } = require('viem/op-stack');
 
 const PRIVATE_KEY = process.env.TUTORIAL_PRIVATE_KEY;
 const account = privateKeyToAccount(PRIVATE_KEY);
@@ -315,6 +315,23 @@ console.log(`Withdrawal transaction hash on L2: ${withdrawalHash}`);
 
           ```js
 const withdrawalReceipt = await publicClientL2.waitForTransactionReceipt({ hash: withdrawalHash });
+const withdrawalBlock = await publicClientL2.getBlock({
+blockNumber: withdrawalReceipt.blockNumber
+});
+const respectedGameType = await publicClientL1.readContract({
+abi: [{
+inputs: [],
+name: 'respectedGameType',
+outputs: [{ type: 'uint32' }],
+stateMutability: 'view',
+type: 'function'
+}],
+address: publicClientL2.chain.contracts.portal[publicClientL1.chain.id].address,
+functionName: 'respectedGameType'
+});
+const proveContext = isSuperGameType(Number(respectedGameType))
+? { l2Timestamp: withdrawalBlock.timestamp }
+: {};
 console.log('L2 transaction confirmed:', withdrawalReceipt);
 ```
 
@@ -324,7 +341,8 @@ console.log('L2 transaction confirmed:', withdrawalReceipt);
           Next, is to prove to the bridge on L1 that the withdrawal happened on L2. To achieve that, you first need to wait until the withdrawal is ready to prove.
 
           ```js
-const { output, withdrawal } = await publicClientL1.waitToProve({
+const { game, withdrawal } = await publicClientL1.waitToProve({
+...proveContext,
 receipt: withdrawalReceipt,
 targetChain: walletClientL2.chain
 });
@@ -334,7 +352,7 @@ targetChain: walletClientL2.chain
 
           ```js
 const proveArgs = await publicClientL2.buildProveWithdrawal({
-output,
+game,
 withdrawal,
 });
 ```
@@ -404,15 +422,33 @@ const withdrawalHash = await walletClientL2.initiateWithdrawal(withdrawalArgs);
 console.log(`Withdrawal transaction hash on L2: ${withdrawalHash}`);
 
 const withdrawalReceipt = await publicClientL2.waitForTransactionReceipt({ hash: withdrawalHash });
+const withdrawalBlock = await publicClientL2.getBlock({
+blockNumber: withdrawalReceipt.blockNumber
+});
+const respectedGameType = await publicClientL1.readContract({
+abi: [{
+inputs: [],
+name: 'respectedGameType',
+outputs: [{ type: 'uint32' }],
+stateMutability: 'view',
+type: 'function'
+}],
+address: publicClientL2.chain.contracts.portal[publicClientL1.chain.id].address,
+functionName: 'respectedGameType'
+});
+const proveContext = isSuperGameType(Number(respectedGameType))
+? { l2Timestamp: withdrawalBlock.timestamp }
+: {};
 console.log('L2 transaction confirmed:', withdrawalReceipt);
 
-const { output, withdrawal } = await publicClientL1.waitToProve({
+const { game, withdrawal } = await publicClientL1.waitToProve({
+...proveContext,
 receipt: withdrawalReceipt,
 targetChain: walletClientL2.chain
 });
 
 const proveArgs = await publicClientL2.buildProveWithdrawal({
-output,
+game,
 withdrawal,
 });
 
@@ -444,6 +480,7 @@ Recommend checking with [getWithdrawalStatus](https://viem.sh/op-stack/actions/g
 
     ```js
     const status = await publicClientL1.getWithdrawalStatus({
+    ...proveContext,
     receipt: withdrawalReceipt,
     targetChain: walletClientL2.chain
     })

@@ -3438,6 +3438,7 @@
               {
                 "group": "Network Upgrades",
                 "pages": [
+                  "notices/upgrade-20",
                   "notices/interop-prep"
                 ]
               },
