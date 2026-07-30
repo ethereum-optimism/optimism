@@ -279,9 +279,9 @@ impl ProposerState {
                 .games
                 .values()
                 .filter(|g| {
-                    !reachable.contains(&g.index)
-                        && g.l2_sequence_number > anchor.l2_sequence_number
-                        && (g.parent_index == u32::MAX || g.parent_index < anchor.parent_index)
+                    !reachable.contains(&g.index) &&
+                        g.l2_sequence_number > anchor.l2_sequence_number &&
+                        (g.parent_index == u32::MAX || g.parent_index < anchor.parent_index)
                 })
                 .map(|g| g.index)
                 .collect();
@@ -716,8 +716,8 @@ where
                     }
 
                     // Once we know the anchor deadline, enforce the lag constraint.
-                    if let Some(anchor_d) = anchor_deadline
-                        && beyond_deadline_lag(anchor_d, deadline)
+                    if let Some(anchor_d) = anchor_deadline &&
+                        beyond_deadline_lag(anchor_d, deadline)
                     {
                         tracing::debug!(
                             game_index = %index,
@@ -788,8 +788,8 @@ where
             for idx in previously_pending {
                 match self.fetch_game(idx, pinned_block).await {
                     Ok(GameFetchResult::Pending { deadline, .. }) => {
-                        if let Some(anchor_d) = anchor_deadline_for_eviction
-                            && pending_evictable(anchor_d, deadline)
+                        if let Some(anchor_d) = anchor_deadline_for_eviction &&
+                            pending_evictable(anchor_d, deadline)
                         {
                             tracing::warn!(
                                 game_index = %idx,
@@ -1580,8 +1580,8 @@ where
                 // the validation horizon are terminal (bonded spam); anything
                 // nearer is pending and re-validated next sync.
                 let local_safe = response.current_local_safe_timestamp;
-                if local_safe > 0
-                    && sequence_number > local_safe.saturating_add(MAX_GAME_DEADLINE_LAG)
+                if local_safe > 0 &&
+                    sequence_number > local_safe.saturating_add(MAX_GAME_DEADLINE_LAG)
                 {
                     tracing::warn!(
                         game_index = %index,
@@ -2261,9 +2261,9 @@ where
         match contract.claimData().call().await {
             Ok(claim_data) => match ProposalStatus::try_from(claim_data.status) {
                 Ok(
-                    ProposalStatus::UnchallengedAndValidProofProvided
-                    | ProposalStatus::ChallengedAndValidProofProvided
-                    | ProposalStatus::Resolved,
+                    ProposalStatus::UnchallengedAndValidProofProvided |
+                    ProposalStatus::ChallengedAndValidProofProvided |
+                    ProposalStatus::Resolved,
                 ) => {
                     tracing::info!(
                         ?game_address,
@@ -2698,8 +2698,8 @@ pub fn bond_claim_action(
 /// Returns whether a recorded `DelayedWETH` withdrawal has matured at the
 /// given L1 timestamp.
 pub fn withdrawal_matured(withdrawal_ts: u64, weth_delay: u64, l1_now: u64) -> bool {
-    withdrawal_ts != 0
-        && withdrawal_ts.checked_add(weth_delay).is_some_and(|deadline| l1_now >= deadline)
+    withdrawal_ts != 0 &&
+        withdrawal_ts.checked_add(weth_delay).is_some_and(|deadline| l1_now >= deadline)
 }
 
 /// Returns whether a game deadline is beyond the maximum allowed lag from
@@ -2842,8 +2842,8 @@ impl PrestateCache {
             UnknownPrestatePolicy::Pause => false,
             UnknownPrestatePolicy::Continue => true,
         };
-        if let Some(last_attempt) = self.misses.read().await.get(&prestate)
-            && last_attempt.elapsed() < self.unknown_retry
+        if let Some(last_attempt) = self.misses.read().await.get(&prestate) &&
+            last_attempt.elapsed() < self.unknown_retry
         {
             return unknown;
         }
