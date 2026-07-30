@@ -7068,7 +7068,6 @@ dependencies = [
  "arbitrary",
  "derive_more 2.1.1",
  "kona-genesis",
- "op-revm",
  "rand 0.9.4",
  "serde",
  "serde_json",
