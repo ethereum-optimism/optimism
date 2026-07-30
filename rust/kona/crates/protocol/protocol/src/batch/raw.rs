@@ -140,4 +140,32 @@ mod test {
         raw_span_batch.encode(&mut encoding_buf).unwrap();
         assert_eq!(encoding_buf, raw_span_batch_hex);
     }
+
+    /// Re-encodes a real op-node span batch with a non-minimally encoded `block_count`, leaving
+    /// every other field untouched — the batch a byzantine batcher would publish to split
+    /// derivation. op-node decodes it to the same batch as the minimal encoding, so kona must too.
+    /// `TestSpanBatchNonMinimalBlockCount` runs the same scenario against op-node, on its own
+    /// batch — unlike the field-level vectors, the bytes here are not shared between the suites.
+    #[test]
+    fn test_decode_raw_span_batch_non_minimal_block_count() {
+        let raw_span_batch_hex = include_bytes!("./testdata/raw_batch.hex");
+        let expected = RawSpanBatch::decode(&mut raw_span_batch_hex.as_slice()).unwrap();
+
+        let mut varint_buf = [0u8; 10];
+        let minimal =
+            unsigned_varint::encode::u64(expected.payload.block_count, &mut varint_buf).to_vec();
+        let (last, head) = minimal.split_last().unwrap();
+
+        let mut buf = Vec::new();
+        expected.prefix.encode_prefix(&mut buf);
+        buf.extend_from_slice(head);
+        buf.push(last | 0x80); // mark the final byte as continuing…
+        buf.push(0x00); // …into a redundant zero terminator
+        expected.payload.encode_origin_bits(&mut buf).unwrap();
+        expected.payload.encode_block_tx_counts(&mut buf);
+        expected.payload.encode_txs(&mut buf).unwrap();
+
+        assert_ne!(buf, raw_span_batch_hex, "block_count must be re-encoded");
+        assert_eq!(RawSpanBatch::decode(&mut buf.as_slice()).unwrap(), expected);
+    }
 }
