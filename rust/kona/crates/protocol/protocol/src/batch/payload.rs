@@ -195,10 +195,7 @@ mod tests {
         assert_eq!(payload.block_tx_counts, vec![2, 2]);
     }
 
-    // `block_count` and `block_tx_count` are protobuf Base128 varints, which op-node decodes
-    // with Go's `binary.ReadUvarint`. Kona must accept exactly the encodings op-node accepts, or
-    // a batcher can fork the two derivations with a re-encoded field. Vectors are shared with
-    // `op-node/rollup/derive/span_batch_test.go`.
+    // Conformance vectors for the accept-set documented in `batch::varint`.
 
     #[test]
     fn test_decode_block_count_non_minimal() {

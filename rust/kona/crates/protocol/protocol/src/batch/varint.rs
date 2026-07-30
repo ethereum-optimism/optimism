@@ -9,6 +9,10 @@
 //!
 //! Note that `unsigned-varint` implements a *different* varint family — the minimal-only
 //! multiformats encoding — so it rejects the non-minimal encodings this format permits.
+//!
+//! The accept-set is pinned per field by conformance vectors in the `prefix`, `payload` and
+//! `transactions` test modules, shared byte for byte with
+//! `op-node/rollup/derive/span_batch_test.go`.
 
 /// Maximum number of bytes in the Base128 varint encoding of a `u64`.
 const MAX_VARINT_LEN_64: usize = 10;

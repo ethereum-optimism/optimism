@@ -109,11 +109,8 @@ mod test {
         assert_eq!(result, Err(SpanBatchError::Decoding(SpanDecodingError::ParentCheck)));
     }
 
-    // Span-batch `uvarint` fields are protobuf Base128 varints, which op-node decodes with Go's
-    // `binary.ReadUvarint`. Kona must accept exactly the encodings op-node accepts: any
-    // disagreement on batcher-controlled bytes forks the two derivations on identical L1 data.
-    // `rel_timestamp` is unbounded, so it exercises the full accepted range. The vectors are
-    // shared with `op-node/rollup/derive/span_batch_test.go`.
+    // Conformance vectors for the accept-set documented in `batch::varint`.
+    // `rel_timestamp` is unbounded, so it exercises the full accepted value range.
 
     #[test]
     fn test_decode_rel_timestamp_non_minimal() {
