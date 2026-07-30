@@ -72,6 +72,40 @@ pub struct RunConfig {
     pub dependency_set_path: Option<PathBuf>,
 }
 
+impl RunConfig {
+    /// Extracts the deployment-scoped host endpoints and config paths.
+    pub fn host_inputs(&self) -> HostInputs {
+        HostInputs {
+            l1_node_address: self.l1_node_address.clone(),
+            l1_beacon_address: self.l1_beacon_address.clone(),
+            l2_node_addresses: self.l2_node_addresses.clone(),
+            rollup_config_paths: self.rollup_config_paths.clone(),
+            l1_config_path: self.l1_config_path.clone(),
+            dependency_set_path: self.dependency_set_path.clone(),
+        }
+    }
+}
+
+/// Deployment-scoped endpoints and config files needed to build an [`InteropHost`].
+///
+/// These fields are fixed per deployment; the per-span facts (L1 head, agreed pre-state,
+/// claimed post-state, claimed timestamp) are passed to [`build_interop_host`] separately.
+#[derive(Clone, Debug)]
+pub struct HostInputs {
+    /// L1 execution JSON-RPC endpoint.
+    pub l1_node_address: String,
+    /// L1 beacon API endpoint.
+    pub l1_beacon_address: String,
+    /// L2 execution JSON-RPC endpoints.
+    pub l2_node_addresses: Vec<String>,
+    /// Optional rollup config JSON files passed through to `InteropHost`.
+    pub rollup_config_paths: Option<Vec<PathBuf>>,
+    /// Optional L1 config JSON file passed through to `InteropHost`.
+    pub l1_config_path: Option<PathBuf>,
+    /// Optional dependency-set JSON file passed through to `InteropHost`.
+    pub dependency_set_path: Option<PathBuf>,
+}
+
 /// Verdict from executing the SP1 guest.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Verdict {
@@ -90,9 +124,9 @@ pub struct SynthesizedExecution {
     pub consolidation_inputs: SuperConsolidationInputs,
     /// Preimages that must be available before host hinting can discover the rest of the witness.
     pub preloaded_preimages: Vec<(PreimageKey, Vec<u8>)>,
-    /// The current response's super-root hash, used as the host post-state claim.
+    /// The span-end super-root hash, used as the host post-state claim.
     pub current_super_root: B256,
-    /// The previous super-root proof, encoded as the host agreed pre-state.
+    /// The pre-span super-root proof, encoded as the host agreed pre-state.
     pub previous_super_root_proof_bytes: Vec<u8>,
 }
 
@@ -117,15 +151,19 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
     let current = fetch_superroot_at_timestamp(&client, config.end_timestamp).await?;
     let l1_head_number = fetch_l1_head_number(&config.l1_node_address, config.l1_head).await?;
 
-    let synthesized = synthesize_execution(
-        config.end_timestamp,
+    let span = TimestampSpan::new(config.end_timestamp, config.end_timestamp)
+        .context("failed to build single-timestamp span")?;
+    let synthesized =
+        synthesize_execution(span, config.l1_head, l1_head_number, &[previous, current])
+            .context("failed to synthesize super-range inputs")?;
+    let host_inputs = config.host_inputs();
+    let range_host = build_interop_host(
+        &host_inputs,
         config.l1_head,
-        l1_head_number,
-        &previous,
-        &current,
-    )
-    .context("failed to synthesize super-range inputs")?;
-    let range_host = build_interop_host(&config, &synthesized)?;
+        &synthesized.previous_super_root_proof_bytes,
+        synthesized.current_super_root,
+        config.end_timestamp,
+    )?;
     let (range_witness, native_range_outputs) = collect_range_witness(
         range_host,
         &synthesized.range_inputs,
@@ -159,7 +197,13 @@ pub async fn run(config: RunConfig) -> Result<Verdict> {
 
     ensure_range_outputs_match_inputs(&replayed_range_outputs, &synthesized.range_inputs)?;
 
-    let consolidation_host = build_interop_host(&config, &synthesized)?;
+    let consolidation_host = build_interop_host(
+        &host_inputs,
+        config.l1_head,
+        &synthesized.previous_super_root_proof_bytes,
+        synthesized.current_super_root,
+        config.end_timestamp,
+    )?;
     let (consolidation_witness, native_consolidation_outputs) = collect_consolidation_witness(
         consolidation_host,
         &synthesized.consolidation_inputs,
@@ -215,89 +259,102 @@ pub async fn fetch_superroot_at_timestamp(
         .with_context(|| format!("superroot_atTimestamp({timestamp}) failed"))
 }
 
-/// Builds one-timestamp super-range inputs from adjacent supernode responses.
+/// Builds span-shaped super-range inputs from consecutive supernode responses.
+///
+/// `responses[i]` must be the verified `superroot_atTimestamp` response for timestamp
+/// `span.start - 1 + i`, so the slice covers `span.start - 1..=span.end` and holds
+/// `span.end - span.start + 2` entries. The pre-span response supplies the agreed
+/// super-root proof; every span response contributes one claimed transition per chain.
 pub fn synthesize_execution(
-    end_timestamp: u64,
+    span: TimestampSpan,
     l1_head: B256,
     l1_head_number: u64,
-    previous: &SuperRootAtTimestampResponse,
-    current: &SuperRootAtTimestampResponse,
+    responses: &[SuperRootAtTimestampResponse],
 ) -> Result<SynthesizedExecution> {
-    let previous_timestamp = end_timestamp
-        .checked_sub(1)
-        .ok_or_else(|| anyhow!("end timestamp 0 has no previous super-root timestamp"))?;
-    let previous_data = previous
-        .data
-        .as_ref()
-        .ok_or_else(|| anyhow!("previous superroot_atTimestamp response has no data"))?;
-    let current_data = current
-        .data
-        .as_ref()
-        .ok_or_else(|| anyhow!("current superroot_atTimestamp response has no data"))?;
-
+    span.validate()?;
+    let first_timestamp = span.start.checked_sub(1).ok_or_else(|| {
+        anyhow!("span starting at timestamp 0 has no previous super-root timestamp")
+    })?;
+    let timestamp_count = usize::try_from(span.end - span.start)
+        .ok()
+        .and_then(|count| count.checked_add(1))
+        .ok_or_else(|| anyhow!("span {}..={} has too many timestamps", span.start, span.end))?;
     ensure!(
-        previous_data.super_v1.timestamp == previous_timestamp,
-        "previous super-root timestamp {} does not match expected {previous_timestamp}",
-        previous_data.super_v1.timestamp,
-    );
-    ensure!(
-        current_data.super_v1.timestamp == end_timestamp,
-        "current super-root timestamp {} does not match expected {end_timestamp}",
-        current_data.super_v1.timestamp,
+        responses.len() == timestamp_count + 1,
+        "span {}..={} requires {} responses, got {}",
+        span.start,
+        span.end,
+        timestamp_count + 1,
+        responses.len(),
     );
 
-    let chain_ids = response_chain_ids(current)?;
-    ensure_chain_ids_match_super(&chain_ids, &previous_data.super_v1, "previous")?;
-    ensure_chain_ids_match_super(&chain_ids, &current_data.super_v1, "current")?;
+    let chain_ids = response_chain_ids(&responses[timestamp_count])?;
 
-    let previous_proof = proof_from_super_v1(&previous_data.super_v1)?;
-    let previous_super_root = hash_super_root_proof(&previous_proof)?;
-    ensure!(
-        previous_super_root == previous_data.super_root,
-        "previous super-root proof hashes to {previous_super_root}, response reports {}",
-        previous_data.super_root,
-    );
-
-    let current_proof = proof_from_super_v1(&current_data.super_v1)?;
-    let current_super_root = hash_super_root_proof(&current_proof)?;
-    ensure!(
-        current_super_root == current_data.super_root,
-        "current super-root proof hashes to {current_super_root}, response reports {}",
-        current_data.super_root,
-    );
-
+    let mut proofs = Vec::with_capacity(responses.len());
+    let mut super_roots = Vec::with_capacity(responses.len());
     let mut preloaded_preimages = Vec::new();
-    preload_super_root_proof(&mut preloaded_preimages, &previous_proof)?;
-    preload_super_root_proof(&mut preloaded_preimages, &current_proof)?;
+    for (offset, response) in responses.iter().enumerate() {
+        let expected_timestamp = first_timestamp + offset as u64;
+        let data = response.data.as_ref().ok_or_else(|| {
+            anyhow!("superroot_atTimestamp response for timestamp {expected_timestamp} has no data")
+        })?;
+        ensure!(
+            data.super_v1.timestamp == expected_timestamp,
+            "super-root timestamp {} does not match expected {expected_timestamp}",
+            data.super_v1.timestamp,
+        );
+        ensure_chain_ids_match_super(
+            &chain_ids,
+            &data.super_v1,
+            &format!("timestamp {expected_timestamp}"),
+        )?;
 
-    let mut claimed_transitions = Vec::with_capacity(chain_ids.len());
-    for &chain_id in &chain_ids {
-        let current_output = output_entry(current, chain_id, "current")?;
-        ensure_required_l1_within_head(current_output.required_l1, l1_head_number, chain_id)?;
-        let (current_root, current_preimage) =
-            checked_output_preimage(current_output, chain_id, "current")?;
-        preloaded_preimages.push((PreimageKey::new_keccak256(*current_root), current_preimage));
-
-        claimed_transitions.push(SuperRangeTransition {
-            timestamp: end_timestamp,
-            optimistic_block: SuperOptimisticBlock {
-                chain_id: U256::from(chain_id),
-                block_hash: current_output
-                    .output
-                    .as_ref()
-                    .expect("checked output exists")
-                    .block_hash,
-                output_root: current_root,
-            },
-        });
+        let proof = proof_from_super_v1(&data.super_v1)?;
+        let super_root = hash_super_root_proof(&proof)?;
+        ensure!(
+            super_root == data.super_root,
+            "super-root proof for timestamp {expected_timestamp} hashes to {super_root}, response reports {}",
+            data.super_root,
+        );
+        preload_super_root_proof(&mut preloaded_preimages, &proof)?;
+        proofs.push(proof);
+        super_roots.push(super_root);
     }
 
+    let mut claimed_transitions =
+        Vec::with_capacity(timestamp_count.saturating_mul(chain_ids.len()));
+    for (offset, response) in responses[1..].iter().enumerate() {
+        let timestamp = span.start + offset as u64;
+        let label = format!("timestamp {timestamp}");
+        for &chain_id in &chain_ids {
+            let claimed_output = output_entry(response, chain_id, &label)?;
+            ensure_required_l1_within_head(claimed_output.required_l1, l1_head_number, chain_id)?;
+            let (claimed_root, claimed_preimage) =
+                checked_output_preimage(claimed_output, chain_id, &label)?;
+            preloaded_preimages.push((PreimageKey::new_keccak256(*claimed_root), claimed_preimage));
+
+            claimed_transitions.push(SuperRangeTransition {
+                timestamp,
+                optimistic_block: SuperOptimisticBlock {
+                    chain_id: U256::from(chain_id),
+                    block_hash: claimed_output
+                        .output
+                        .as_ref()
+                        .expect("checked output exists")
+                        .block_hash,
+                    output_root: claimed_root,
+                },
+            });
+        }
+    }
+
+    let previous_label = format!("timestamp {first_timestamp}");
     for &chain_id in &chain_ids {
-        let previous_output = output_entry(previous, chain_id, "previous")?;
+        let previous_output = output_entry(&responses[0], chain_id, &previous_label)?;
         ensure_required_l1_within_head(previous_output.required_l1, l1_head_number, chain_id)?;
         let (previous_root, previous_preimage) =
-            checked_output_preimage(previous_output, chain_id, "previous")?;
-        let proof_root = previous_proof
+            checked_output_preimage(previous_output, chain_id, &previous_label)?;
+        let proof_root = proofs[0]
             .super_root
             .output_roots
             .iter()
@@ -312,34 +369,33 @@ pub fn synthesize_execution(
     }
 
     let range_inputs = SuperRangeInputs {
-        span: TimestampSpan::new(end_timestamp, end_timestamp)?,
+        span,
         l1_head,
         chain_ids: chain_ids.iter().copied().map(U256::from).collect(),
-        previous_super_root_proofs: vec![previous_proof.clone()],
+        previous_super_root_proofs: proofs[..timestamp_count].to_vec(),
         claimed_transitions,
     };
     range_inputs.validate()?;
 
-    let consolidation_inputs = SuperConsolidationInputs {
-        span: TimestampSpan::new(end_timestamp, end_timestamp)?,
-        previous_super_root,
-        transitions: vec![SuperConsolidationTransitionInput {
-            optimistic_blocks: range_inputs
-                .claimed_transitions
-                .iter()
-                .map(|transition| transition.optimistic_block)
-                .collect(),
-            claimed_super_root_proof: current_proof,
-        }],
-    };
+    let transitions = range_inputs
+        .claimed_transitions
+        .chunks_exact(chain_ids.len())
+        .zip(proofs[1..].iter().cloned())
+        .map(|(chunk, claimed_super_root_proof)| SuperConsolidationTransitionInput {
+            optimistic_blocks: chunk.iter().map(|transition| transition.optimistic_block).collect(),
+            claimed_super_root_proof,
+        })
+        .collect();
+    let consolidation_inputs =
+        SuperConsolidationInputs { span, previous_super_root: super_roots[0], transitions };
     consolidation_inputs.validate()?;
 
     Ok(SynthesizedExecution {
         range_inputs,
         consolidation_inputs,
         preloaded_preimages,
-        current_super_root,
-        previous_super_root_proof_bytes: encode_super_root_proof(&previous_proof)?,
+        current_super_root: super_roots[timestamp_count],
+        previous_super_root_proof_bytes: encode_super_root_proof(&proofs[0])?,
     })
 }
 
@@ -510,7 +566,8 @@ fn ensure_consolidation_outputs_match_inputs(
     Ok(())
 }
 
-async fn collect_range_witness(
+/// Collects a range-mode witness and the natively computed range outputs.
+pub async fn collect_range_witness(
     host: InteropHost,
     inputs: &SuperRangeInputs,
     preloaded_preimages: &[(PreimageKey, Vec<u8>)],
@@ -522,7 +579,8 @@ async fn collect_range_witness(
     .await
 }
 
-async fn collect_consolidation_witness(
+/// Collects a consolidation-mode witness and the natively computed consolidation outputs.
+pub async fn collect_consolidation_witness(
     host: InteropHost,
     inputs: &SuperConsolidationInputs,
     preloaded_preimages: &[(PreimageKey, Vec<u8>)],
@@ -534,7 +592,11 @@ async fn collect_consolidation_witness(
     .await
 }
 
-async fn collect_witness<T, F, Fut>(
+/// Collects a replayable witness by running `run_native` against a hint-serving host.
+///
+/// Preloaded preimages seed the oracle before host hinting; the returned witness bundles
+/// every preimage and blob the native pass touched, alongside the native outputs.
+pub async fn collect_witness<T, F, Fut>(
     preloaded_preimages: &[(PreimageKey, Vec<u8>)],
     host: InteropHost,
     run_native: F,
@@ -584,30 +646,39 @@ where
     Ok((witness, native_outputs))
 }
 
-fn build_interop_host(
-    config: &RunConfig,
-    synthesized: &SynthesizedExecution,
+/// Builds the `InteropHost` for one span execution.
+///
+/// Deployment-scoped endpoints come from `inputs`; the remaining arguments are the per-span
+/// facts: the trusted L1 head, the encoded agreed pre-state super-root proof, the claimed
+/// post-state super root, and the claimed (span-end) timestamp.
+pub fn build_interop_host(
+    inputs: &HostInputs,
+    l1_head: B256,
+    agreed_pre_state: &[u8],
+    claimed_post_state: B256,
+    claimed_timestamp: u64,
 ) -> Result<InteropHost> {
-    ensure!(!config.l2_node_addresses.is_empty(), "at least one L2 node address is required",);
+    ensure!(!inputs.l2_node_addresses.is_empty(), "at least one L2 node address is required",);
     Ok(InteropHost {
-        l1_head: config.l1_head,
-        agreed_l2_pre_state: Bytes::from(synthesized.previous_super_root_proof_bytes.clone()),
-        claimed_l2_post_state: synthesized.current_super_root,
-        claimed_l2_timestamp: config.end_timestamp,
-        l2_node_addresses: Some(config.l2_node_addresses.clone()),
-        l1_node_address: Some(config.l1_node_address.clone()),
-        l1_beacon_address: Some(config.l1_beacon_address.clone()),
+        l1_head,
+        agreed_l2_pre_state: Bytes::from(agreed_pre_state.to_vec()),
+        claimed_l2_post_state: claimed_post_state,
+        claimed_l2_timestamp: claimed_timestamp,
+        l2_node_addresses: Some(inputs.l2_node_addresses.clone()),
+        l1_node_address: Some(inputs.l1_node_address.clone()),
+        l1_beacon_address: Some(inputs.l1_beacon_address.clone()),
         data_dir: None,
         data_format: DataFormat::Directory,
         native: false,
         server: true,
-        rollup_config_paths: config.rollup_config_paths.clone(),
-        l1_config_path: config.l1_config_path.clone(),
-        dependency_set_path: config.dependency_set_path.clone(),
+        rollup_config_paths: inputs.rollup_config_paths.clone(),
+        l1_config_path: inputs.l1_config_path.clone(),
+        dependency_set_path: inputs.dependency_set_path.clone(),
     })
 }
 
-async fn fetch_l1_head_number(l1_node_address: &str, l1_head: B256) -> Result<u64> {
+/// Fetches the block number of `l1_head` from the given L1 execution endpoint.
+pub async fn fetch_l1_head_number(l1_node_address: &str, l1_head: B256) -> Result<u64> {
     let client = HttpClientBuilder::default()
         .build(l1_node_address)
         .with_context(|| format!("failed to connect to L1 node {l1_node_address}"))?;
@@ -717,13 +788,15 @@ fn ensure_strictly_increasing_u64s(values: &[u64], label: &str) -> Result<()> {
     Ok(())
 }
 
+/// Preimage oracle that serves seeded preimages before falling back to the wrapped host oracle.
 #[derive(Clone)]
-struct SeededOracle<P> {
+pub struct SeededOracle<P> {
     inner: P,
     seeds: Arc<PreimageStore>,
 }
 
-type SeededOracleBase =
+/// The concrete seeded oracle used when collecting witnesses over a native host channel.
+pub type SeededOracleBase =
     SeededOracle<CachingOracle<OracleReader<NativeChannel>, HintWriter<NativeChannel>>>;
 
 impl<P> SeededOracle<P> {
@@ -1013,10 +1086,19 @@ mod tests {
         chain_ids: &[u64],
         required_l1: u64,
     ) -> SuperRootAtTimestampResponse {
+        response_with_block_hash(timestamp, chain_ids, required_l1, |chain_id| b256(chain_id as u8))
+    }
+
+    fn response_with_block_hash(
+        timestamp: u64,
+        chain_ids: &[u64],
+        required_l1: u64,
+        block_hash: impl Fn(u64) -> B256,
+    ) -> SuperRootAtTimestampResponse {
         let mut optimistic_at_timestamp = BTreeMap::new();
         let mut chains = Vec::new();
         for &chain_id in chain_ids {
-            let entry = output_entry(b256(chain_id as u8), required_l1);
+            let entry = output_entry(block_hash(chain_id), required_l1);
             optimistic_at_timestamp.insert(ChainId(U256::from(chain_id)), entry.clone());
             chains.push(ChainIdAndOutput {
                 chain_id: ChainId(U256::from(chain_id)),
@@ -1046,8 +1128,13 @@ mod tests {
         let previous = response(100, &[10, 20], 7);
         let current = response(101, &[10, 20], 8);
 
-        let synthesized =
-            synthesize_execution(101, b256(0xaa), 8, &previous, &current).expect("synthesizes");
+        let synthesized = synthesize_execution(
+            TimestampSpan::new(101, 101).unwrap(),
+            b256(0xaa),
+            8,
+            &[previous, current],
+        )
+        .expect("synthesizes");
 
         assert_eq!(synthesized.range_inputs.span, TimestampSpan { start: 101, end: 101 });
         assert_eq!(synthesized.range_inputs.chain_ids, vec![U256::from(10), U256::from(20)]);
@@ -1075,8 +1162,13 @@ mod tests {
         let replacement_shaped = output_entry(b256(0xfe), 8);
         current.optimistic_at_timestamp.insert(ChainId(U256::from(20)), replacement_shaped.clone());
 
-        let synthesized =
-            synthesize_execution(101, b256(0xaa), 8, &previous, &current).expect("synthesizes");
+        let synthesized = synthesize_execution(
+            TimestampSpan::new(101, 101).unwrap(),
+            b256(0xaa),
+            8,
+            &[previous, current.clone()],
+        )
+        .expect("synthesizes");
 
         assert_eq!(
             synthesized.range_inputs.claimed_transitions[1].optimistic_block.output_root,
@@ -1105,7 +1197,13 @@ mod tests {
         let previous = response(100, &[10, 20], 7);
         let current = response(101, &[20, 10], 8);
 
-        let err = synthesize_execution(101, b256(0xaa), 8, &previous, &current).unwrap_err();
+        let err = synthesize_execution(
+            TimestampSpan::new(101, 101).unwrap(),
+            b256(0xaa),
+            8,
+            &[previous, current],
+        )
+        .unwrap_err();
 
         assert!(err.to_string().contains("strictly increasing"));
     }
@@ -1116,7 +1214,13 @@ mod tests {
         let mut current = response(101, &[10, 20], 8);
         current.optimistic_at_timestamp.remove(&ChainId(U256::from(20)));
 
-        let err = synthesize_execution(101, b256(0xaa), 8, &previous, &current).unwrap_err();
+        let err = synthesize_execution(
+            TimestampSpan::new(101, 101).unwrap(),
+            b256(0xaa),
+            8,
+            &[previous, current],
+        )
+        .unwrap_err();
 
         assert!(err.to_string().contains("missing optimistic output for chain 20"));
     }
@@ -1126,9 +1230,171 @@ mod tests {
         let previous = response(100, &[10, 20], 7);
         let current = response(101, &[10, 20], 9);
 
-        let err = synthesize_execution(101, b256(0xaa), 8, &previous, &current).unwrap_err();
+        let err = synthesize_execution(
+            TimestampSpan::new(101, 101).unwrap(),
+            b256(0xaa),
+            8,
+            &[previous, current],
+        )
+        .unwrap_err();
 
         assert!(err.to_string().contains("after supplied L1 head"));
+    }
+
+    #[test]
+    fn synthesize_execution_span_multi_ts() {
+        let chain_ids = [10u64, 20];
+        let responses: Vec<_> = (100u64..=103)
+            .map(|timestamp| {
+                response_with_block_hash(timestamp, &chain_ids, 8, |chain_id| {
+                    b256(chain_id as u8 ^ timestamp as u8)
+                })
+            })
+            .collect();
+        let span = TimestampSpan::new(101, 103).unwrap();
+
+        let synthesized =
+            synthesize_execution(span, b256(0xaa), 8, &responses).expect("synthesizes");
+
+        // `previous_super_root_proofs[i]` is the proof for `span.start + i - 1`.
+        assert_eq!(synthesized.range_inputs.span, span);
+        assert_eq!(synthesized.range_inputs.previous_super_root_proofs.len(), 3);
+        for (offset, proof) in
+            synthesized.range_inputs.previous_super_root_proofs.iter().enumerate()
+        {
+            assert_eq!(proof.super_root.timestamp, 100 + offset as u64);
+            assert_eq!(
+                *proof,
+                proof_from_super_v1(&responses[offset].data.as_ref().unwrap().super_v1).unwrap(),
+            );
+        }
+
+        // One claimed transition per (timestamp, chain), timestamp-major and chain-minor.
+        let transitions = &synthesized.range_inputs.claimed_transitions;
+        assert_eq!(transitions.len(), 6);
+        for (index, transition) in transitions.iter().enumerate() {
+            let timestamp = 101 + (index / 2) as u64;
+            let chain_id = chain_ids[index % 2];
+            assert_eq!(transition.timestamp, timestamp);
+            assert_eq!(transition.optimistic_block.chain_id, U256::from(chain_id));
+            let expected = &responses[(timestamp - 100) as usize].optimistic_at_timestamp
+                [&ChainId(U256::from(chain_id))];
+            assert_eq!(transition.optimistic_block.output_root, expected.output_root);
+            assert_eq!(
+                transition.optimistic_block.block_hash,
+                expected.output.as_ref().unwrap().block_hash,
+            );
+        }
+
+        // Consolidation covers every timestamp with the verified super-root claims.
+        assert_eq!(synthesized.consolidation_inputs.span, span);
+        assert_eq!(
+            synthesized.consolidation_inputs.previous_super_root,
+            responses[0].data.as_ref().unwrap().super_root,
+        );
+        assert_eq!(synthesized.consolidation_inputs.transitions.len(), 3);
+        for (offset, transition) in synthesized.consolidation_inputs.transitions.iter().enumerate()
+        {
+            assert_eq!(
+                transition.claimed_super_root_proof.super_root.timestamp,
+                101 + offset as u64,
+            );
+            assert_eq!(
+                transition.optimistic_blocks,
+                transitions[offset * 2..(offset + 1) * 2]
+                    .iter()
+                    .map(|transition| transition.optimistic_block)
+                    .collect::<Vec<_>>(),
+            );
+        }
+
+        // Preloading covers every super-root proof and every optimistic output root in the span.
+        let preloaded: std::collections::HashSet<_> =
+            synthesized.preloaded_preimages.iter().map(|(key, _)| *key).collect();
+        for response in &responses {
+            let data = response.data.as_ref().unwrap();
+            assert!(preloaded.contains(&PreimageKey::new_keccak256(*data.super_root)));
+            for entry in response.optimistic_at_timestamp.values() {
+                assert!(preloaded.contains(&PreimageKey::new_keccak256(*entry.output_root)));
+            }
+        }
+        assert_eq!(synthesized.preloaded_preimages.len(), 12);
+        assert_eq!(synthesized.current_super_root, responses[3].data.as_ref().unwrap().super_root,);
+    }
+
+    #[test]
+    fn synthesize_execution_single_ts_unchanged() {
+        let previous = response(100, &[10, 20], 7);
+        let current = response(101, &[10, 20], 8);
+        let previous_proof =
+            proof_from_super_v1(&previous.data.as_ref().unwrap().super_v1).unwrap();
+        let current_proof = proof_from_super_v1(&current.data.as_ref().unwrap().super_v1).unwrap();
+
+        let synthesized = synthesize_execution(
+            TimestampSpan::new(101, 101).unwrap(),
+            b256(0xaa),
+            8,
+            &[previous.clone(), current.clone()],
+        )
+        .expect("synthesizes");
+
+        // Pin the exact bundle the pre-span single-timestamp function produced on this fixture,
+        // including preimage preload order: both proofs, then current outputs, then previous.
+        let expected_transitions: Vec<_> = [10u64, 20]
+            .iter()
+            .map(|&chain_id| {
+                let entry = &current.optimistic_at_timestamp[&ChainId(U256::from(chain_id))];
+                SuperRangeTransition {
+                    timestamp: 101,
+                    optimistic_block: SuperOptimisticBlock {
+                        chain_id: U256::from(chain_id),
+                        block_hash: entry.output.as_ref().unwrap().block_hash,
+                        output_root: entry.output_root,
+                    },
+                }
+            })
+            .collect();
+        let mut expected_preimages = Vec::new();
+        for proof in [&previous_proof, &current_proof] {
+            expected_preimages.push((
+                PreimageKey::new_keccak256(*hash_super_root_proof(proof).unwrap()),
+                encode_super_root_proof(proof).unwrap(),
+            ));
+        }
+        for response in [&current, &previous] {
+            for &chain_id in &[10u64, 20] {
+                let entry = &response.optimistic_at_timestamp[&ChainId(U256::from(chain_id))];
+                expected_preimages.push((
+                    PreimageKey::new_keccak256(*entry.output_root),
+                    entry.output.as_ref().unwrap().marshal(),
+                ));
+            }
+        }
+        let expected = SynthesizedExecution {
+            range_inputs: SuperRangeInputs {
+                span: TimestampSpan::new(101, 101).unwrap(),
+                l1_head: b256(0xaa),
+                chain_ids: vec![U256::from(10), U256::from(20)],
+                previous_super_root_proofs: vec![previous_proof.clone()],
+                claimed_transitions: expected_transitions.clone(),
+            },
+            consolidation_inputs: SuperConsolidationInputs {
+                span: TimestampSpan::new(101, 101).unwrap(),
+                previous_super_root: previous.data.as_ref().unwrap().super_root,
+                transitions: vec![SuperConsolidationTransitionInput {
+                    optimistic_blocks: expected_transitions
+                        .iter()
+                        .map(|transition| transition.optimistic_block)
+                        .collect(),
+                    claimed_super_root_proof: current_proof,
+                }],
+            },
+            preloaded_preimages: expected_preimages,
+            current_super_root: current.data.as_ref().unwrap().super_root,
+            previous_super_root_proof_bytes: encode_super_root_proof(&previous_proof).unwrap(),
+        };
+
+        assert_eq!(synthesized, expected);
     }
 
     #[test]
@@ -1187,8 +1453,13 @@ mod tests {
     fn stdin_and_public_values_round_trip_range_outputs() {
         let previous = response(100, &[10], 7);
         let current = response(101, &[10], 8);
-        let synthesized =
-            synthesize_execution(101, b256(0xaa), 8, &previous, &current).expect("synthesizes");
+        let synthesized = synthesize_execution(
+            TimestampSpan::new(101, 101).unwrap(),
+            b256(0xaa),
+            8,
+            &[previous, current],
+        )
+        .expect("synthesizes");
         let witness = DefaultWitnessData::default();
 
         let _stdin =
