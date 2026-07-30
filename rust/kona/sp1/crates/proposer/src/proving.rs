@@ -104,7 +104,7 @@ pub fn is_unprovable(err: &anyhow::Error) -> bool {
 /// endpoints must match the game's on-chain roots and the claim must be
 /// derivable under the game's L1 head, else the game is permanently
 /// [`GameUnprovable`] - but ONLY when the verdict comes from a trusted
-/// response (see [`response_trusted`]): the supernode serves stale data
+/// response (`current_l1 >= verified_required_l1`): the supernode serves stale data
 /// mid-rewind, and a permanent verdict from an untrusted answer would burn
 /// an honest game's bond over a transient reorg window.
 pub async fn fetch_span_responses(
