@@ -560,8 +560,8 @@ where
     ///
     /// 1. Discover new games: walk the factory backwards from the latest game to the cursor,
     ///    classifying each as valid / unsupported / invalid / pending, and stopping early once past
-    ///    the anchor's deadline-lag cutoff. A per-game fetch failure defers the remaining range to
-    ///    the next cycle (the cursor is not advanced past an incomplete walk).
+    ///    the anchor's deadline-lag cutoff. A fetch failure aborts the sync cycle (the cursor is
+    ///    not advanced, so the range is re-walked next cycle).
     /// 2. Remove invalid games and their subtrees.
     /// 3. Re-validate pending games (timestamps not yet safe from this node's view, unavailable
     ///    super-root data, or an own-game claim mismatch); entries still pending past the anchor's
@@ -574,6 +574,8 @@ where
     ///    inside it). Per-game read failures skip only that game for the cycle.
     pub async fn sync_games(&self, pinned_block: BlockId, pinned_timestamp: u64) -> Result<()> {
         let pinned_latest_index = self.factory.fetch_latest_game_index(pinned_block).await?;
+        ProposerGauge::FactoryLatestGameIndex
+            .set(pinned_latest_index.map_or(-1.0, |i| i.to::<u64>() as f64));
 
         // 1. Load new games.
         let latest_index = if let Some(index) = pinned_latest_index {
@@ -583,6 +585,7 @@ where
             // games once they become confirmed.
             let mut state = self.state.write().await;
             state.cursor = Cursor::none();
+            ProposerGauge::SyncCursor.set(-1.0);
             return Ok(());
         };
 
@@ -618,7 +621,6 @@ where
         let mut invalid_game_ids = Vec::new();
         let mut newly_pending: Vec<U256> = Vec::new();
 
-        let mut walk_complete = true;
         loop {
             if index == cursor {
                 break;
@@ -628,14 +630,19 @@ where
             let fetch_result = match self.fetch_game(i, pinned_block).await {
                 Ok(result) => result,
                 Err(e) => {
+                    // A failed fetch aborts the whole cycle: acting on a
+                    // partially discovered topology could select a parent
+                    // whose unfetched ancestry is invalid. The cursor stays
+                    // put so the range is re-walked next cycle; persistent
+                    // failure is visible via the warn, the game_sync_error
+                    // counter, and a flat sync cursor.
                     tracing::warn!(
                         game_index = %index,
                         error = %e,
-                        "Game fetch failed; deferring the remaining range to the next sync cycle"
+                        "Game fetch failed; aborting the sync cycle"
                     );
                     ProposerGauge::GameSyncError.increment(1.0);
-                    walk_complete = false;
-                    break;
+                    return Err(e);
                 }
             };
 
@@ -678,11 +685,11 @@ where
             index.step_back();
         }
 
-        // Advance the cursor only after a complete walk so an aborted range
-        // is re-scanned next cycle instead of being skipped forever
-        // (re-walked processed games hit `AlreadyExists`, which is
-        // idempotent).
-        if walk_complete {
+        // The loop only completes on a full walk (a fetch failure returns
+        // above), so the cursor advance is unconditional; re-walked
+        // processed games hit `AlreadyExists`, which is idempotent.
+        ProposerGauge::SyncCursor.set(latest_index.index().map_or(-1.0, |i| i.to::<u64>() as f64));
+        {
             let mut state = self.state.write().await;
             state.cursor = latest_index;
         }
@@ -1372,7 +1379,8 @@ where
     /// Fetch game from the factory.
     ///
     /// Terminal drops: unsupported game type, mismatched anchor state
-    /// registry, disrespected game type at creation, or another proposer's
+    /// registry, disrespected game type at creation, an `l2SequenceNumber`
+    /// exceeding `u64`, or another proposer's
     /// claim contradicting the canonical super root (our OWN game's claim
     /// mismatch is held pending instead of terminally dropped, since bad
     /// supernode data is the likelier cause). A timestamp not yet safe from
@@ -1414,13 +1422,19 @@ where
         let game_weth = contract.weth().block(pinned_block).call().await?;
         let creator = contract.gameCreator().block(pinned_block).call().await?;
 
-        let sequence_number: u64 = contract
-            .l2SequenceNumber()
-            .block(pinned_block)
-            .call()
-            .await?
-            .try_into()
-            .context("game sequence number exceeds u64")?;
+        let sequence_number = contract.l2SequenceNumber().block(pinned_block).call().await?;
+        // Unreachable for games created through the current contract (the
+        // field is sourced from an 8-byte extraData slot), kept as a
+        // classification rather than an error so a malformed game can never
+        // wedge the walk: only transient errors may bubble from discovery.
+        let Ok(sequence_number) = u64::try_from(sequence_number) else {
+            tracing::warn!(
+                game_index = %index,
+                ?game_address,
+                "Invalid game: l2SequenceNumber exceeds u64"
+            );
+            return Ok(GameFetchResult::InvalidGame { index });
+        };
         let claim = contract.rootClaim().block(pinned_block).call().await?;
         let was_respected =
             contract.wasRespectedGameTypeWhenCreated().block(pinned_block).call().await?;
