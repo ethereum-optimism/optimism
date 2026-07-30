@@ -325,7 +325,7 @@ func mustNewChainContainer(
 	metrics *resources.SupernodeMetrics,
 ) InteropChain {
 	t.Helper()
-	container, err := NewChainContainer(chainID, vncfg, log, cfg, initOverload, rpcHandler, rpcRouter, addMetricsRegistry, metrics)
+	container, err := NewChainContainer(chainID, vncfg, log, cfg, initOverload, rpcHandler, rpcRouter, addMetricsRegistry, metrics, "test")
 	require.NoError(t, err)
 	return container
 }
@@ -392,7 +392,7 @@ func TestChainContainer_Constructor(t *testing.T) {
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
-		require.Equal(t, virtualNodeVersion, impl.appVersion)
+		require.Equal(t, "test", impl.appVersion)
 	})
 
 	t.Run("subPath combines DataDir, chainID, and path correctly", func(t *testing.T) {
@@ -503,7 +503,7 @@ func TestChainContainer_EngineControllerSetupErrorFailsConstruction(t *testing.T
 	}
 	t.Cleanup(func() { newEngineControllerFromConfig = prevSetup })
 
-	_, err := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+	_, err := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil, "test")
 	require.ErrorIs(t, err, setupErr)
 }
 
@@ -522,7 +522,7 @@ func TestChainContainer_DenyListOpenErrorFailsConstruction(t *testing.T) {
 	require.NoError(t, os.WriteFile(dataDir, []byte("x"), 0o600))
 	cfg := createTestCLIConfig(dataDir)
 
-	_, err := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil)
+	_, err := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil, nil, "test")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "deny list")
 }

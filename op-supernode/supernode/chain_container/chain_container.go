@@ -30,8 +30,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const virtualNodeVersion = "0.1.0"
-
 const (
 	// defaultWaitReadyPoll is the polling interval used by
 	// simpleChainContainer.WaitReady. Matches the RPC router's
@@ -216,6 +214,7 @@ func NewChainContainer(
 	rpcRouter RPCRouterGate,
 	addMetricsRegistry func(key string, g prometheus.Gatherer),
 	metrics *resources.SupernodeMetrics,
+	appVersion string,
 ) (InteropChain, error) {
 	if metrics == nil {
 		metrics = resources.NewSupernodeMetrics()
@@ -230,7 +229,7 @@ func NewChainContainer(
 		rpcHandler:         rpcHandler,
 		rpcRouter:          rpcRouter,
 		addMetricsRegistry: addMetricsRegistry,
-		appVersion:         virtualNodeVersion,
+		appVersion:         appVersion,
 		virtualNodeFactory: defaultVirtualNodeFactory,
 		metrics:            metrics,
 	}
