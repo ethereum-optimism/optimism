@@ -136,6 +136,9 @@ func collectSupportedPresetConfig(t devtest.T, presetName string, opts []Option,
 }
 
 func validatePresetConfig(cfg sysgo.PresetConfig) error {
+	if cfg.ZKDisputeGame != nil && cfg.ZKDisputeGame.MaxProveDuration == 0 {
+		return fmt.Errorf("WithZKChallengeDuration requires a preceding WithZK")
+	}
 	if len(cfg.ZKProposerOptions) > 0 && cfg.ZKDisputeGame == nil {
 		return fmt.Errorf("ZK proposer options require WithZK")
 	}

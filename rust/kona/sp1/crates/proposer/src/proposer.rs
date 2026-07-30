@@ -211,14 +211,16 @@ impl ProposerState {
         }
     }
 
-    /// Reset factory-indexed sync progress and any terminal verdicts tied to
-    /// indices from the prior factory history.
-    fn reset_factory_cursor(&mut self) {
+    /// Drop all cached state tied to the prior factory history
+    fn reset_factory_cache(&mut self) {
+        self.anchor_game = None;
+        self.canonical_head_index = None;
         self.cursor = Cursor::none();
+        self.games.clear();
         self.invalid_games.clear();
     }
 
-    /// Selects the canonical head: the highest-L2-block game on the best valid chain.
+    /// Selects the canonical head: the highest-L2-timestamp game on the best valid chain.
     ///
     /// With no anchor, the head is simply the highest game in the cache. With an anchor, the head
     /// is the highest descendant of the anchor, unless a higher chain branches off earlier
@@ -619,10 +621,13 @@ where
         let latest_index = if let Some(index) = pinned_latest_index {
             Cursor::from(index)
         } else {
-            // No games at pinned block. Reset cursor so future sync cycles can discover
-            // games once they become confirmed.
-            let mut state = self.state.write().await;
-            state.reset_factory_cursor();
+            // No games at the pinned block. Drop index-keyed caches so future
+            // cycles cannot reuse entries from a prior factory history.
+            {
+                let mut state = self.state.write().await;
+                state.reset_factory_cache();
+            }
+            self.pending_games.write().await.clear();
             return Ok(());
         };
 
@@ -634,7 +639,7 @@ where
             .call()
             .await?;
 
-        let cursor = {
+        let (cursor, factory_reset) = {
             let mut state = self.state.write().await;
             let current_cursor = state.cursor.clone();
 
@@ -647,12 +652,16 @@ where
                     current_cursor = %current_cursor,
                     "Factory reset suspected; resetting cursor to 0"
                 );
-                state.reset_factory_cursor();
-                Cursor::none()
+                state.reset_factory_cache();
+                (Cursor::none(), true)
             } else {
-                current_cursor
+                (current_cursor, false)
             }
         };
+
+        if factory_reset {
+            self.pending_games.write().await.clear();
+        }
 
         let mut index = latest_index.clone();
         let mut anchor_deadline: Option<u64> = None;
@@ -2297,15 +2306,22 @@ mod tests {
     }
 
     #[test]
-    fn factory_cursor_reset_forgets_rejected_indices() {
-        let mut s = state(vec![game_with(0, u32::MAX, 100), game_with(1, 0, 200)], None);
+    fn factory_cache_reset_forgets_prior_history() {
+        let anchor = game_with(0, u32::MAX, 100);
+        let mut s = state(vec![anchor.clone(), game_with(1, 0, 200)], Some(anchor));
         s.cursor = Cursor::from(U256::from(1));
-        s.invalidate_subtree(U256::from(1));
+        s.canonical_head_index = Some(U256::from(1));
+        s.canonical_head_sequence_number = Some(200);
+        s.invalid_games.insert(U256::from(1));
 
-        s.reset_factory_cursor();
+        s.reset_factory_cache();
 
         assert_eq!(s.cursor, Cursor::none());
+        assert!(s.games.is_empty());
         assert!(s.invalid_games.is_empty());
+        assert!(s.anchor_game.is_none());
+        assert!(s.canonical_head_index.is_none());
+        assert_eq!(s.canonical_head_sequence_number, Some(200));
     }
 
     mod canonical_head {
