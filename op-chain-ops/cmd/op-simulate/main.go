@@ -12,8 +12,6 @@ import (
 	"runtime/pprof"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-service/superutil"
-
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/triedb"
 	"github.com/holiman/uint256"
@@ -35,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	"github.com/ethereum-optimism/optimism/op-core/superchain"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
@@ -184,9 +183,9 @@ func fetchChainConfig(ctx context.Context, cl *rpc.Client) (*params.ChainConfig,
 	// if we recognize the chain ID, we can get the chain config
 	id := (*big.Int)(&idResult)
 	if id.IsUint64() {
-		cfg, err := superutil.LoadOPStackChainConfigFromChainID(bigs.Uint64Strict(id))
+		cfg, err := superchain.LoadOpChainConfig(bigs.Uint64Strict(id))
 		if err == nil {
-			return cfg, nil
+			return cfg.GethChainConfig(), nil
 		}
 		// ignore error, try to fetch chain config in full
 	}

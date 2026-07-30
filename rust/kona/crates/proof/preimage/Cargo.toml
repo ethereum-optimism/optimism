@@ -30,7 +30,14 @@ rkyv = { workspace = true, optional = true }
 # `serde` feature dependencies
 serde = { workspace = true, optional = true, features = ["derive"] }
 
+# The self dev-dependency below enables this crate's own non-default features for
+# its standalone test build (`cargo test -p kona-preimage`). cargo-udeps reports it
+# unused because it activates features rather than importing symbols, so ignore it.
+[package.metadata.cargo-udeps.ignore]
+development = ["kona-preimage"]
+
 [dev-dependencies]
+kona-preimage = { path = ".", features = ["std"] }
 tokio = { workspace = true, features = ["full"] }
 sha2.workspace = true
 

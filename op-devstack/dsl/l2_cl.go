@@ -305,6 +305,34 @@ func (cl *L2CLNode) ReachedFn(lvl safety.Level, target uint64, attempts int) Che
 	}
 }
 
+// ReachedWithProgressFn waits for the head at lvl to reach target, but instead
+// of a fixed attempt budget it distinguishes a self-recovering slowdown from a
+// genuinely stuck pipeline. It succeeds as soon as lvl reaches target. It fails
+// when either:
+//   - progressLvl (a strictly more-live head, e.g. LocalUnsafe) has not advanced
+//     for stallTimeout — the node is genuinely wedged, not merely slow; or
+//   - the overall maxWait elapses.
+//
+// This is the "reach a target" analogue of MatchedWithProgressFn. Use it for a
+// catch-up wait whose target head is gated by a pipeline that can transiently
+// stall under load (e.g. CrossSafe catching up after interop resumes, where the
+// EL can be briefly starved) without masking a permanent hang: as long as the
+// chain keeps producing blocks the budget stays generous, but a chain that stops
+// advancing entirely fails fast. Polls every 2s.
+func (cl *L2CLNode) ReachedWithProgressFn(lvl, progressLvl safety.Level, target uint64, maxWait, stallTimeout time.Duration) CheckFunc {
+	return func() error {
+		logger := cl.log.With("name", cl.inner.Name(), "chain", cl.ChainID(), "label", lvl, "progress_label", progressLvl, "target", target)
+		headNum := func(l safety.Level) func() (uint64, error) {
+			return func() (uint64, error) {
+				ref, err := cl.headBlockRef(l)
+				return ref.Number, err
+			}
+		}
+		return awaitHeadWithProgress(cl.ctx, logger, headNum(lvl), headNum(progressLvl), target, maxWait, stallTimeout,
+			fmt.Sprintf("expected head to advance: %s", lvl), progressLvl.String())
+	}
+}
+
 // ReachedRefFn is same as Reached, but has an additional check to ensure that the block referenced is not reorged
 // Composable with other lambdas to wait in parallel
 func (cl *L2CLNode) ReachedRefFn(lvl safety.Level, target eth.BlockID, attempts int) CheckFunc {
@@ -586,6 +614,16 @@ func WithMinRequiredL2Block(blockNum uint64) func(opts *safeHeadDbMatchOpts) {
 	return func(opts *safeHeadDbMatchOpts) {
 		opts.minRequiredL2Block = &blockNum
 	}
+}
+
+// SafeHeadDBFloor returns the oldest L2 safe-head block number recorded in this node's safe head
+// db. Prefer this over the live safe head when capturing a no-truncation baseline: the live safe
+// head advances per L2 block while the db resolves per L1 origin, so a live sample may not be
+// satisfiable by the db even without truncation.
+func (cl *L2CLNode) SafeHeadDBFloor() uint64 {
+	l1Block := cl.SyncStatus().CurrentL1.Number
+	cl.AwaitMinL1Processed(l1Block) // Ensure this block is fully processed before reading the safe head db
+	return safeHeadDBFloor(cl.t, l1Block, cl)
 }
 
 func (cl *L2CLNode) VerifySafeHeadDatabaseMatches(sourceOfTruth *L2CLNode, args ...func(opts *safeHeadDbMatchOpts)) {

@@ -1,5 +1,10 @@
 // Package params holds the OP-Stack-specific chain configuration types. Consumers
 // import it as opparams.
+//
+// This package must stay free of op-core/superchain, which embeds the generated
+// registry bundle: packages that only need config types (notably op-node/rollup)
+// must not pull the bundle into their build closure. The registry-backed loading
+// lives in op-core/superchain, which imports this package one-way.
 package params
 
 import (
@@ -56,7 +61,7 @@ type ChainConfig struct {
 	IsthmusTime  *uint64  `json:"isthmusTime,omitempty"`  // Isthmus switch time (nil = no fork, 0 = already on optimism isthmus)
 	JovianTime   *uint64  `json:"jovianTime,omitempty"`   // Jovian switch time (nil = no fork, 0 = already on optimism jovian)
 	KarstTime    *uint64  `json:"karstTime,omitempty"`    // Karst switch time (nil = no fork, 0 = already on optimism karst)
-	InteropTime  *uint64  `json:"interopTime,omitempty"`  // Interop switch time (nil = no fork, 0 = already on optimism interop)
+	LagoonTime   *uint64  `json:"lagoonTime,omitempty"`   // Lagoon switch time (nil = no fork, 0 = already on optimism lagoon)
 }
 
 // ActivationTime returns the activation timestamp of the given timestamp-based
@@ -70,8 +75,8 @@ type ChainConfig struct {
 // which has no field for them.
 func (c *ChainConfig) ActivationTime(fork forks.Name) *uint64 {
 	switch fork {
-	case forks.Lagoon: // the Interop fork is named Lagoon in the forks package
-		return c.InteropTime
+	case forks.Lagoon:
+		return c.LagoonTime
 	case forks.Karst:
 		return c.KarstTime
 	case forks.Jovian:
@@ -101,7 +106,7 @@ func (c *ChainConfig) ActivationTime(fork forks.Name) *uint64 {
 func (c *ChainConfig) SetActivationTime(fork forks.Name, timestamp *uint64) {
 	switch fork {
 	case forks.Lagoon:
-		c.InteropTime = timestamp
+		c.LagoonTime = timestamp
 	case forks.Karst:
 		c.KarstTime = timestamp
 	case forks.Jovian:
@@ -159,8 +164,8 @@ func (c *ChainConfig) IsJovian(time uint64) bool { return c.IsForkActive(forks.J
 // IsKarst returns whether the Karst fork is active at the given timestamp.
 func (c *ChainConfig) IsKarst(time uint64) bool { return c.IsForkActive(forks.Karst, time) }
 
-// IsInterop returns whether the Interop fork is active at the given timestamp.
-func (c *ChainConfig) IsInterop(time uint64) bool { return c.IsForkActive(forks.Lagoon, time) }
+// IsLagoon returns whether the Lagoon fork is active at the given timestamp.
+func (c *ChainConfig) IsLagoon(time uint64) bool { return c.IsForkActive(forks.Lagoon, time) }
 
 // IsBedrock returns whether num is at or after the Bedrock fork block.
 func (c *ChainConfig) IsBedrock(num *big.Int) bool {

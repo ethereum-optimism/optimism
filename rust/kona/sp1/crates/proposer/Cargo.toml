@@ -1,0 +1,49 @@
+[package]
+name = "kona-sp1-proposer"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+rust-version.workspace = true
+description = "Proposer service for the super-root ZK dispute game, derived from op-succinct's fault-proof proposer"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+# workspace (kona-sp1)
+kona-sp1-client-utils.workspace = true
+kona-sp1-host-utils.workspace = true
+kona-sp1-super-range-executor.workspace = true
+
+# alloy
+alloy-consensus.workspace = true
+alloy-eips.workspace = true
+alloy-network.workspace = true
+alloy-primitives = { workspace = true, features = ["serde"] }
+alloy-provider = { workspace = true, features = ["reqwest"] }
+alloy-rpc-types-eth.workspace = true
+alloy-signer.workspace = true
+alloy-signer-local.workspace = true
+alloy-sol-types = { workspace = true, features = ["json"] }
+alloy-transport-http.workspace = true
+alloy-contract.workspace = true
+
+# general
+anyhow.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+strum.workspace = true
+strum_macros.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tracing.workspace = true
+flate2.workspace = true
+jsonrpsee = { workspace = true, features = ["http-client"] }
+
+[[bin]]
+name = "kona-sp1-proposer"
+path = "src/bin/kona-sp1-proposer.rs"

@@ -6,7 +6,7 @@
 #
 # Based on https://depot.dev/blog/rust-dockerfile-best-practices
 #
-FROM rust:1.94 AS base
+FROM rust:1.95 AS base
 
 ARG FEATURES
 ARG RELEASE=true
@@ -62,6 +62,9 @@ WORKDIR /workspace/rollup-boost
 # Default binary filename
 ARG SERVICE_NAME="rollup-boost"
 COPY --from=monorepo-rust . /workspace/
+# op-reth's chainspec build.rs regenerates its gitignored superchain archive from
+# the submodule; provide the subset it reads at /superchain-registry.
+COPY --from=superchain-registry superchain /superchain-registry/superchain
 COPY --from=planner /workspace/rollup-boost/recipe.json recipe.json
 
 RUN --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
@@ -82,10 +85,8 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 #
 # Runtime container
 #
-FROM debian:trixie-slim
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+FROM chainguard/wolfi-base:latest@sha256:02dab76bd852a70556b5b2002195c8a5fdab77d323c433bf6642aab080489795
+RUN attempt=1; delay=1; until apk add --no-cache ca-certificates-bundle ca-certificates busybox glibc libgcc libstdc++ openssl; do [ "$attempt" -ge 11 ] && exit 1; echo "apk add attempt $attempt/11 failed; retrying in ${delay}s" >&2; sleep "$delay"; attempt=$((attempt+1)); delay=$((delay*2)); [ "$delay" -le 60 ] || delay=60; done
 WORKDIR /app
 
 ARG SERVICE_NAME

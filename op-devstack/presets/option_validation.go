@@ -31,10 +31,12 @@ const (
 	optionKindInteropFilter
 	optionKindPreGenesisSuperGame
 	optionKindSkipHonestProposer
+	optionKindSkipHonestChallenger
 	optionKindSupernodeVerifierSyncMode
 	optionKindInteropActivationDelay
 	optionKindInteropAtGenesis
 	optionKindSupernodeVNSequencerForBootstrap
+	optionKindZKDisputeGame
 )
 
 const allOptionKinds = optionKindDeployer |
@@ -57,10 +59,12 @@ const allOptionKinds = optionKindDeployer |
 	optionKindInteropFilter |
 	optionKindPreGenesisSuperGame |
 	optionKindSkipHonestProposer |
+	optionKindSkipHonestChallenger |
 	optionKindSupernodeVerifierSyncMode |
 	optionKindInteropActivationDelay |
 	optionKindInteropAtGenesis |
-	optionKindSupernodeVNSequencerForBootstrap
+	optionKindSupernodeVNSequencerForBootstrap |
+	optionKindZKDisputeGame
 
 var optionKindLabels = []struct {
 	kind  optionKinds
@@ -86,10 +90,12 @@ var optionKindLabels = []struct {
 	{kind: optionKindInteropFilter, label: "interop filter"},
 	{kind: optionKindPreGenesisSuperGame, label: "pre-genesis super game"},
 	{kind: optionKindSkipHonestProposer, label: "skip honest proposer"},
+	{kind: optionKindSkipHonestChallenger, label: "skip honest challenger"},
 	{kind: optionKindSupernodeVerifierSyncMode, label: "supernode verifier sync mode"},
 	{kind: optionKindInteropActivationDelay, label: "interop activation delay"},
 	{kind: optionKindInteropAtGenesis, label: "interop at genesis"},
 	{kind: optionKindSupernodeVNSequencerForBootstrap, label: "supernode VN sequencer for bootstrap"},
+	{kind: optionKindZKDisputeGame, label: "ZK dispute game"},
 }
 
 func (k optionKinds) String() string {
@@ -134,7 +140,8 @@ const minimalPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindRespectedGameType |
 	optionKindTimeTravel |
 	optionKindAfterBuild |
-	optionKindProofValidation
+	optionKindProofValidation |
+	optionKindSkipHonestProposer
 
 const minimalWithConductorsPresetSupportedOptionKinds = minimalPresetSupportedOptionKinds
 
@@ -165,7 +172,9 @@ const supernodeProofsPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindSkipHonestProposer
 
 const twoL2SupernodeProofsPresetSupportedOptionKinds = supernodeProofsPresetSupportedOptionKinds |
-	optionKindPreGenesisSuperGame
+	optionKindPreGenesisSuperGame |
+	optionKindZKDisputeGame |
+	optionKindSkipHonestChallenger
 
 const twoL2SupernodePresetSupportedOptionKinds = optionKindDeployer |
 	optionKindL1EL
@@ -178,6 +187,13 @@ const twoL2SupernodeInteropPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindInteropFilter |
 	optionKindPreGenesisSuperGame |
 	optionKindSupernodeVNSequencerForBootstrap
+
+// twoL2SupernodeLightSequencerPresetSupportedOptionKinds additionally accepts
+// L2 CL options: the light-sequencer runtime is the only two-L2 supernode
+// variant that wires GlobalL2CLOptions (to the light sequencer CLs), so the
+// option is accepted here and nowhere else to avoid a silent no-op.
+const twoL2SupernodeLightSequencerPresetSupportedOptionKinds = twoL2SupernodeInteropPresetSupportedOptionKinds |
+	optionKindGlobalL2CL
 
 const singleChainWithFlashblocksPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindOPRBuilder |

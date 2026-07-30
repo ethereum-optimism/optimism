@@ -156,8 +156,6 @@ pub enum InteropHostError {
 impl InteropHost {
     /// Starts the [`InteropHost`] application.
     pub async fn start(self) -> Result<(), InteropHostError> {
-        self.require_dependency_set_if_interop_scheduled()?;
-
         if self.server {
             let hint = FileChannel::new(FileDescriptor::HintRead, FileDescriptor::HintWrite);
             let preimage =
@@ -181,7 +179,7 @@ impl InteropHost {
     }
 
     /// Starts the preimage server, communicating with the client over the provided channels.
-    async fn start_server<C>(
+    pub async fn start_server<C>(
         &self,
         hint: C,
         preimage: C,
@@ -189,6 +187,8 @@ impl InteropHost {
     where
         C: Channel + Send + Sync + 'static,
     {
+        self.require_dependency_set_if_interop_scheduled()?;
+
         let kv_store = self.create_key_value_store()?;
 
         let task_handle = if self.is_offline() {
@@ -386,7 +386,7 @@ mod tests {
     use alloy_primitives::b256;
     use kona_genesis::HardForkConfig;
 
-    fn rollup_config_with_interop_time(lagoon_time: Option<u64>) -> RollupConfig {
+    fn rollup_config_with_lagoon_time(lagoon_time: Option<u64>) -> RollupConfig {
         RollupConfig {
             hardforks: HardForkConfig { lagoon_time, ..Default::default() },
             ..Default::default()
@@ -396,7 +396,7 @@ mod tests {
     #[test]
     fn test_require_dependency_set_interop_scheduled_without_depset() {
         let configs: BTreeMap<u64, RollupConfig> =
-            BTreeMap::from([(10u64, rollup_config_with_interop_time(Some(42)))]);
+            BTreeMap::from([(10u64, rollup_config_with_lagoon_time(Some(42)))]);
 
         let err = require_dependency_set_for_configs(&configs, &None).unwrap_err();
         match err {
@@ -411,7 +411,7 @@ mod tests {
     #[test]
     fn test_require_dependency_set_interop_scheduled_with_depset() {
         let configs: BTreeMap<u64, RollupConfig> =
-            BTreeMap::from([(10u64, rollup_config_with_interop_time(Some(42)))]);
+            BTreeMap::from([(10u64, rollup_config_with_lagoon_time(Some(42)))]);
         let depset = Some(PathBuf::from("/tmp/depset.json"));
 
         assert!(require_dependency_set_for_configs(&configs, &depset).is_ok());
@@ -420,9 +420,38 @@ mod tests {
     #[test]
     fn test_require_dependency_set_no_interop_no_depset() {
         let configs: BTreeMap<u64, RollupConfig> =
-            BTreeMap::from([(10u64, rollup_config_with_interop_time(None))]);
+            BTreeMap::from([(10u64, rollup_config_with_lagoon_time(None))]);
 
         assert!(require_dependency_set_for_configs(&configs, &None).is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_start_server_requires_dependency_set_when_interop_scheduled() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let rollup_config_path = temp_dir.path().join("rollup.json");
+        std::fs::write(
+            &rollup_config_path,
+            serde_json::to_string(&rollup_config_with_lagoon_time(Some(42))).unwrap(),
+        )
+        .unwrap();
+
+        let host = InteropHost {
+            server: true,
+            rollup_config_paths: Some(vec![rollup_config_path]),
+            ..Default::default()
+        };
+        let hint = BidirectionalChannel::new().unwrap();
+        let preimage = BidirectionalChannel::new().unwrap();
+
+        let err = host.start_server(hint.host, preimage.host).await.unwrap_err();
+
+        match err {
+            InteropHostError::InteropWithoutDependencySet { chain_id, lagoon_time } => {
+                assert_eq!(chain_id, 0);
+                assert_eq!(lagoon_time, Some(42));
+            }
+            other => panic!("expected InteropWithoutDependencySet, got {other:?}"),
+        }
     }
 
     #[test]

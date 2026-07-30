@@ -331,24 +331,15 @@ library Config {
         return vm.envOr("DEV_FEATURE__OPTIMISM_PORTAL_INTEROP", false);
     }
 
-    /// @notice Returns true if the development feature l2cm is enabled.
-    function devFeatureL2CM() internal view returns (bool) {
-        return vm.envOr("DEV_FEATURE__L2CM", false);
-    }
-
     /// @notice Returns true if the development feature ZK_DISPUTE_GAME is enabled.
     function devFeatureZkDisputeGame() internal view returns (bool) {
         return vm.envOr("DEV_FEATURE__ZK_DISPUTE_GAME", false);
     }
 
-    /// @notice Returns true if the development feature cannon_kona is enabled.
-    function devFeatureCannonKona() internal view returns (bool) {
-        return vm.envOr("DEV_FEATURE__CANNON_KONA", false);
-    }
-
     /// @notice Returns true if the development feature super root games migration is enabled.
-    function devFeatureSuperRootGamesMigration() internal view returns (bool) {
-        return vm.envOr("DEV_FEATURE__SUPER_ROOT_GAMES_MIGRATION", false);
+    /// @dev Defaults to true: SUPER_ROOT_GAMES_MIGRATION is the default OPCM migration codepath. See TODO(#21662).
+    function devFeatureSuperRootGamesMigration() internal pure returns (bool) {
+        return true;
     }
 
     /// @notice Returns true if the system feature custom_gas_token is enabled.

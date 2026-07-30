@@ -294,7 +294,7 @@ library Predeploys {
         });
         records_[3] = PredeployRecord({
             proxy: SEQUENCER_FEE_WALLET,
-            variants: _variants("SequencerFeeVault", "SequencerFeeVault.sol:SequencerFeeVault", 1_506_000),
+            variants: _variants("SequencerFeeVault", "SequencerFeeVault.sol:SequencerFeeVault", 1_800_000),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,
@@ -372,7 +372,7 @@ library Predeploys {
         });
         records_[10] = PredeployRecord({
             proxy: BASE_FEE_VAULT,
-            variants: _variants("BaseFeeVault", "BaseFeeVault.sol:BaseFeeVault", 1_503_000),
+            variants: _variants("BaseFeeVault", "BaseFeeVault.sol:BaseFeeVault", 1_800_000),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,
@@ -381,7 +381,7 @@ library Predeploys {
         });
         records_[11] = PredeployRecord({
             proxy: L1_FEE_VAULT,
-            variants: _variants("L1FeeVault", "L1FeeVault.sol:L1FeeVault", 260_550),
+            variants: _variants("L1FeeVault", "L1FeeVault.sol:L1FeeVault", 1_800_000),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,
@@ -390,7 +390,7 @@ library Predeploys {
         });
         records_[12] = PredeployRecord({
             proxy: OPERATOR_FEE_VAULT,
-            variants: _variants("OperatorFeeVault", "OperatorFeeVault.sol:OperatorFeeVault", 1_504_000),
+            variants: _variants("OperatorFeeVault", "OperatorFeeVault.sol:OperatorFeeVault", 1_800_000),
             devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,
@@ -421,7 +421,7 @@ library Predeploys {
         // feature. Both gates mirror the full condition checked in L2Genesis.
         records_[15] = PredeployRecord({
             proxy: CROSS_L2_INBOX,
-            variants: _variants("CrossL2Inbox", "CrossL2Inbox.sol:CrossL2Inbox", 668_000),
+            variants: _variants("CrossL2Inbox", "CrossL2Inbox.sol:CrossL2Inbox", 685_000),
             devFeatureGate: DevFeatures.OPTIMISM_PORTAL_INTEROP,
             isCustomGasToken: false,
             isInterop: true,
@@ -480,7 +480,7 @@ library Predeploys {
         records_[21] = PredeployRecord({
             proxy: CONDITIONAL_DEPLOYER,
             variants: _variants("ConditionalDeployer", "ConditionalDeployer.sol:ConditionalDeployer", 600_000),
-            devFeatureGate: DevFeatures.L2CM,
+            devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,
             isProxied: true,
@@ -488,8 +488,8 @@ library Predeploys {
         });
         records_[22] = PredeployRecord({
             proxy: L2_DEV_FEATURE_FLAGS,
-            variants: _variants("L2DevFeatureFlags", "L2DevFeatureFlags.sol:L2DevFeatureFlags", 328_228),
-            devFeatureGate: DevFeatures.L2CM,
+            variants: _variants("L2DevFeatureFlags", "L2DevFeatureFlags.sol:L2DevFeatureFlags", 332_000),
+            devFeatureGate: bytes32(0),
             isCustomGasToken: false,
             isInterop: false,
             isProxied: true,

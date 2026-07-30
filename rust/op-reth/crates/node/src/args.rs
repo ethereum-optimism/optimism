@@ -4,6 +4,7 @@
 
 use clap::builder::ArgPredicate;
 use op_alloy_consensus::interop::SafetyLevel;
+use reth_optimism_trie::DEFAULT_BACKFILL_BATCH_SIZE;
 use std::path::PathBuf;
 use url::Url;
 
@@ -80,6 +81,57 @@ impl Default for ProofsHistoryWindowArg {
     }
 }
 
+/// Validate `--proofs-history.backfill-batch-size`. Must be `>= 1`; no upper cap — operators
+/// can tune above the default when their environment supports it.
+pub fn parse_backfill_batch_size(raw: &str) -> Result<usize, String> {
+    let n: usize = raw.parse().map_err(|e| format!("not a non-negative integer: {e}"))?;
+    if n >= 1 { Ok(n) } else { Err("must be >= 1".to_string()) }
+}
+
+/// Shared backfill args. Used by `op-proofs backfill` (explicit) and `op-proofs init`
+/// (implicit post-init backfill) so the flag names, defaults, and parsers stay in sync.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::Args)]
+pub struct ProofsHistoryBackfillArgs {
+    /// Number of blocks committed per MDBX write transaction (>= 1).
+    ///
+    /// Larger N amortizes commit/fsync; trade-off is higher peak RSS
+    /// and up to N blocks of progress lost on crash. Very large N can
+    /// also exceed MDBX's per-tx dirty-page ceiling on storage-heavy
+    /// blocks — the batch fails cleanly (whole tx rolls back) and can
+    /// be retried with a lower value. Default 25 measured ~2.6×
+    /// throughput vs K=1 on op-mainnet — the sweet spot on the K
+    /// sweep before dirty-page pressure starts slowing cursor reads.
+    #[arg(
+        long = "proofs-history.backfill-batch-size",
+        value_name = "N",
+        default_value_t = DEFAULT_BACKFILL_BATCH_SIZE,
+        value_parser = parse_backfill_batch_size,
+    )]
+    pub backfill_batch_size: usize,
+
+    /// Use the trie-state snapshot to accelerate per-block reads during
+    /// backfill. If no snapshot exists, one is bootstrapped at the current
+    /// `earliest` before the backfill loop begins. Requires v2 storage.
+    ///
+    /// Defaults to `true`. Pass `--proofs-history.use-snapshot false` to
+    /// force the non-snapshot path (per-block reads via the reth DB).
+    #[arg(
+        long = "proofs-history.use-snapshot",
+        value_name = "BOOL",
+        default_value_t = true,
+        default_missing_value = "true",
+        num_args = 0..=1,
+        action = clap::ArgAction::Set,
+    )]
+    pub use_snapshot: bool,
+}
+
+impl Default for ProofsHistoryBackfillArgs {
+    fn default() -> Self {
+        Self { backfill_batch_size: DEFAULT_BACKFILL_BATCH_SIZE, use_snapshot: true }
+    }
+}
+
 /// Parameters for rollup configuration
 #[derive(Debug, Clone, PartialEq, Eq, clap::Args)]
 #[command(next_help_heading = "Rollup")]
@@ -110,6 +162,23 @@ pub struct RollupArgs {
     /// Enable transaction conditional support on sequencer
     #[arg(long = "rollup.enable-tx-conditional", default_value = "false")]
     pub enable_tx_conditional: bool,
+
+    /// Retain RPC-submitted transactions in the local pool after forwarding them
+    /// to the sequencer.
+    ///
+    /// This flag only has an effect when `rollup.sequencer` is present.
+    #[arg(long = "rollup.retain-forwarded-txs", default_value_t = false)]
+    pub retain_forwarded_txs: bool,
+
+    /// Local operator opt-in for SDM `PostExec` production at process boot. The admin RPC
+    /// (`admin_setOperatorSdmOptIn`) can still toggle it at runtime. Defaults to disabled.
+    #[arg(
+        long = "rollup.operator-sdm-opt-in",
+        env = "OP_RETH_OPERATOR_SDM_OPT_IN",
+        action = clap::ArgAction::Set,
+        default_value_t = false
+    )]
+    pub operator_sdm_opt_in: bool,
 
     /// HTTP endpoint(s) for the interop filter, used to validate the interop messages referenced
     /// by incoming transactions. Repeat the flag to configure multiple endpoints; each check is
@@ -230,6 +299,8 @@ impl Default for RollupArgs {
             compute_pending_block: false,
             discovery_v4: false,
             enable_tx_conditional: false,
+            retain_forwarded_txs: false,
+            operator_sdm_opt_in: false,
             interop_http: Vec::new(),
             interop_min_responses: None,
             interop_safety_level: SafetyLevel::CrossUnsafe,
@@ -317,6 +388,16 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_optimism_enable_txpool_admission() {
+        assert!(!RollupArgs::default().retain_forwarded_txs);
+
+        let expected_args = RollupArgs { retain_forwarded_txs: true, ..Default::default() };
+        let args =
+            CommandParser::<RollupArgs>::parse_from(["reth", "--rollup.retain-forwarded-txs"]).args;
+        assert_eq!(args, expected_args);
+    }
+
+    #[test]
     fn test_parse_interop_multiple_endpoints() {
         let expected_args = RollupArgs {
             interop_http: vec!["http://a:1".into(), "http://b:2".into(), "http://c:3".into()],
@@ -349,6 +430,32 @@ mod tests {
         ])
         .args;
         assert_eq!(args, expected_args);
+    }
+
+    #[test]
+    fn test_parse_optimism_operator_sdm_opt_in() {
+        let expected_args = RollupArgs { operator_sdm_opt_in: true, ..Default::default() };
+        let args = CommandParser::<RollupArgs>::parse_from([
+            "reth",
+            "--rollup.operator-sdm-opt-in",
+            "true",
+        ])
+        .args;
+        assert_eq!(args, expected_args);
+    }
+
+    /// The opt-in is also configurable via the `OP_RETH_OPERATOR_SDM_OPT_IN` environment variable.
+    /// Asserted through clap's arg metadata rather than by setting the variable in the process,
+    /// which would race with the other `RollupArgs` parse tests running in parallel.
+    #[test]
+    fn test_operator_sdm_opt_in_is_bound_to_env_var() {
+        use clap::CommandFactory;
+        let command = CommandParser::<RollupArgs>::command();
+        let arg = command
+            .get_arguments()
+            .find(|arg| arg.get_id().as_str() == "operator_sdm_opt_in")
+            .expect("operator_sdm_opt_in arg should exist");
+        assert_eq!(arg.get_env(), Some(std::ffi::OsStr::new("OP_RETH_OPERATOR_SDM_OPT_IN")));
     }
 
     #[test]

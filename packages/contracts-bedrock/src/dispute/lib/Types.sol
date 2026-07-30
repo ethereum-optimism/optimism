@@ -66,8 +66,8 @@ library GameTypes {
     /// @notice A dispute game type that uses the cannon vm (Super Roots).
     GameType internal constant SUPER_CANNON = GameType.wrap(4);
 
-    /// @notice A dispute game type that uses the permissioned cannon vm (Super Roots).
-    GameType internal constant SUPER_PERMISSIONED_CANNON = GameType.wrap(5);
+    /// @notice A permissioned dispute game type for Super Roots.
+    GameType internal constant SUPER_PERMISSIONED = GameType.wrap(5);
 
     /// @notice A dispute game type that uses OP Succinct
     GameType internal constant OP_SUCCINCT = GameType.wrap(6);
@@ -81,7 +81,7 @@ library GameTypes {
     /// @notice A dispute game type that uses the cannon vm with Kona (Super Roots).
     GameType internal constant SUPER_CANNON_KONA = GameType.wrap(9);
 
-    /// @notice A dispute game type that uses optimistic + ZK proofs for dispute resolution.
+    /// @notice A dispute game type that uses optimistic + ZK proofs for dispute resolution (Super Roots).
     GameType internal constant ZK_DISPUTE_GAME = GameType.wrap(10);
 
     /// @notice A dispute game type with short game duration for testing withdrawals.
@@ -98,8 +98,8 @@ library GameTypes {
     /// @notice Returns true if the game type uses super roots.
     function isSuperGame(GameType _gameType) internal pure returns (bool) {
         uint32 raw = _gameType.raw();
-        return raw == SUPER_CANNON.raw() || raw == SUPER_PERMISSIONED_CANNON.raw() || raw == SUPER_ASTERISC_KONA.raw()
-            || raw == SUPER_CANNON_KONA.raw();
+        return raw == SUPER_CANNON.raw() || raw == SUPER_PERMISSIONED.raw() || raw == SUPER_ASTERISC_KONA.raw()
+            || raw == SUPER_CANNON_KONA.raw() || raw == ZK_DISPUTE_GAME.raw();
     }
 }
 

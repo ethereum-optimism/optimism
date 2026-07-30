@@ -231,10 +231,35 @@ impl WsConnect for WsConnector {
     type Sink = WsSink;
 
     async fn connect(&mut self, ws_url: Url) -> eyre::Result<(WsSink, WsStream)> {
+        ensure_crypto_provider();
+
         let (stream, _response) = connect_async(ws_url.as_str()).await?;
 
         Ok(stream.split())
     }
+}
+
+/// Installs a process-level rustls [`CryptoProvider`] for `wss://` (TLS) connections.
+///
+/// `rustls` cannot automatically select a provider when more than one is present in the
+/// dependency graph (both `aws-lc-rs` and `ring` are), so it panics on the first TLS handshake
+/// unless a default has been installed. We install the `aws-lc-rs` provider once, but only if no
+/// other component already installed one, so this stays idempotent and non-clobbering.
+///
+/// `aws-lc-rs` is chosen over `ring` because it is the provider most likely to have already been
+/// installed by an upstream dependency (`rustls-webpki` and others pull it in). Since
+/// [`install_default`] is process-global and first-wins, matching `aws-lc-rs` minimizes the chance
+/// this lazy install races with and disagrees with whatever a dependency installed first.
+///
+/// [`CryptoProvider`]: rustls::crypto::CryptoProvider
+/// [`install_default`]: rustls::crypto::CryptoProvider::install_default
+fn ensure_crypto_provider() {
+    static INIT: std::sync::LazyLock<()> = std::sync::LazyLock::new(|| {
+        if rustls::crypto::CryptoProvider::get_default().is_none() {
+            let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+        }
+    });
+    std::sync::LazyLock::force(&INIT);
 }
 
 #[cfg(test)]
@@ -247,6 +272,30 @@ mod tests {
         Error,
         protocol::frame::{Frame, coding::CloseCode},
     };
+
+    #[test]
+    fn ensure_crypto_provider_installs_a_default() {
+        ensure_crypto_provider();
+        assert!(
+            rustls::crypto::CryptoProvider::get_default().is_some(),
+            "a process-level CryptoProvider should be installed after the call"
+        );
+    }
+
+    #[test]
+    fn ensure_crypto_provider_is_idempotent() {
+        // Must not panic on repeated calls, and the installed provider must not change.
+        ensure_crypto_provider();
+        let first = rustls::crypto::CryptoProvider::get_default();
+        for _ in 0..5 {
+            ensure_crypto_provider();
+        }
+        let after = rustls::crypto::CryptoProvider::get_default();
+        assert!(
+            std::ptr::eq(first.unwrap(), after.unwrap()),
+            "repeated calls must not replace the provider"
+        );
+    }
 
     /// A `FakeConnector` creates [`FakeStream`].
     ///

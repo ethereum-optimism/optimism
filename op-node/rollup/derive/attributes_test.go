@@ -11,12 +11,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
@@ -489,9 +489,9 @@ func TestPreparePayloadAttributes(t *testing.T) {
 	})
 }
 
-func encodeDeposits(deposits []*types.DepositTx) (out []eth.Data, err error) {
+func encodeDeposits(deposits []*optypes.DepositTx) (out []eth.Data, err error) {
 	for i, tx := range deposits {
-		opaqueTx, err := types.NewTx(tx).MarshalBinary()
+		opaqueTx, err := tx.MarshalBinary()
 		if err != nil {
 			return nil, fmt.Errorf("bad deposit %d: %w", i, err)
 		}

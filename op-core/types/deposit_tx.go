@@ -10,11 +10,12 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
 // DepositTxType is the EIP-2718 type byte of OP Stack deposit transactions.
-const DepositTxType = byte(0x7E)
+const DepositTxType = 0x7E
 
 // DepositTx is an OP Stack deposit transaction, derived from L1 (or generated
 // for network upgrades) rather than signed by a user. Its canonical encoding is
@@ -47,6 +48,18 @@ func (d *DepositTx) MarshalBinary() ([]byte, error) {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+// Hash returns the transaction hash: the keccak-256 hash of the canonical
+// EIP-2718 encoding. A well-formed deposit cannot fail to encode, so an encoding
+// error is unreachable and panics; this keeps the signature free of an error
+// return, matching how a transaction hash is used at call sites.
+func (d *DepositTx) Hash() common.Hash {
+	raw, err := d.MarshalBinary()
+	if err != nil {
+		panic(err)
+	}
+	return crypto.Keccak256Hash(raw)
 }
 
 // UnmarshalDepositTx decodes a deposit transaction from its EIP-2718 encoding.

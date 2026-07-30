@@ -9,14 +9,17 @@ import (
 )
 
 // PostExecTxType is the EIP-2718 type byte of OP Stack post-execution transactions.
-const PostExecTxType = byte(0x7D)
+const PostExecTxType = 0x7D
 
 // PostExecTx is a synthetic, unsigned OP Stack transaction used to carry
 // post-execution metadata in SDM blocks. Its canonical encoding is
 // PostExecTxType || Data, where Data is appended verbatim with no outer RLP
 // envelope, matching op-geth's types.PostExecTx wire format. Data is itself an
 // RLP-encoded payload, but op-geth (and this type) treat it as opaque bytes and
-// never parse it.
+// never parse it. NB: the Rust side (op-alloy TxPostExec) parses and validates
+// the payload on decode — malformed payload bytes are accepted here but
+// rejected there, a Go-lenient/Rust-strict wire-acceptance divergence inherited
+// from op-geth's design.
 type PostExecTx struct {
 	Data []byte
 }

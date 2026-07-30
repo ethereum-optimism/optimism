@@ -182,6 +182,7 @@ impl ExecutorTestFixtureCreator {
                 withdrawals: Default::default(),
                 suggested_fee_recipient: executing_header.beneficiary,
                 slot_number: Default::default(),
+                target_gas_limit: None,
             },
             gas_limit: Some(executing_header.gas_limit),
             transactions: Some(encoded_executing_transactions),

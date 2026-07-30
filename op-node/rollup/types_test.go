@@ -15,11 +15,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -56,6 +58,11 @@ func randConfig() *Config {
 		BatchInboxAddress:      randAddr(),
 		DepositContractAddress: randAddr(),
 		L1SystemConfigAddress:  randAddr(),
+		ChainOpConfig: &opparams.OptimismConfig{
+			EIP1559Elasticity:        6,
+			EIP1559Denominator:       50,
+			EIP1559DenominatorCanyon: ptr.New(uint64(250)),
+		},
 	}
 }
 
@@ -68,30 +75,33 @@ func TestConfigJSON(t *testing.T) {
 	assert.Equal(t, &roundTripped, config)
 }
 
-func TestConfigUnmarshalLegacyInteropTimeAlias(t *testing.T) {
-	// Mirrors the Rust HardForkConfig `#[serde(alias = "interop_time")]` behavior so
-	// rollup configs written against the pre-rename schema still activate Lagoon.
-	t.Run("legacy interop_time promotes to LagoonTime when lagoon_time absent", func(t *testing.T) {
-		data := []byte(`{"interop_time": 42}`)
-		var cfg Config
-		require.NoError(t, json.Unmarshal(data, &cfg))
-		require.NotNil(t, cfg.LagoonTime, "legacy interop_time must populate LagoonTime")
-		require.Equal(t, uint64(42), *cfg.LagoonTime)
-	})
+// TestConfigChainOpConfigJSONWireFormat pins the on-the-wire serialization of the
+// ChainOpConfig field. Its type moved from op-geth's params.OptimismConfig to
+// op-core/params.OptimismConfig; the JSON must remain byte-for-byte identical.
+func TestConfigChainOpConfigJSONWireFormat(t *testing.T) {
+	config := randConfig()
+	config.ChainOpConfig = &opparams.OptimismConfig{
+		EIP1559Elasticity:        6,
+		EIP1559Denominator:       50,
+		EIP1559DenominatorCanyon: ptr.New(uint64(250)),
+	}
+	data, err := json.Marshal(config)
+	require.NoError(t, err)
+	require.Contains(t, string(data),
+		`"chain_op_config":{"eip1559Elasticity":6,"eip1559Denominator":50,"eip1559DenominatorCanyon":250}`)
 
-	t.Run("canonical lagoon_time wins when both keys are present", func(t *testing.T) {
-		data := []byte(`{"interop_time": 42, "lagoon_time": 7}`)
-		var cfg Config
-		require.NoError(t, json.Unmarshal(data, &cfg))
-		require.NotNil(t, cfg.LagoonTime)
-		require.Equal(t, uint64(7), *cfg.LagoonTime, "canonical lagoon_time must take precedence")
-	})
+	// The optional canyon denominator is omitted when unset (omitempty).
+	config.ChainOpConfig.EIP1559DenominatorCanyon = nil
+	data, err = json.Marshal(config)
+	require.NoError(t, err)
+	require.Contains(t, string(data),
+		`"chain_op_config":{"eip1559Elasticity":6,"eip1559Denominator":50}`)
 
-	t.Run("neither key leaves LagoonTime nil", func(t *testing.T) {
-		var cfg Config
-		require.NoError(t, json.Unmarshal([]byte(`{}`), &cfg))
-		require.Nil(t, cfg.LagoonTime)
-	})
+	// The field is dropped entirely when nil (omitempty).
+	config.ChainOpConfig = nil
+	data, err = json.Marshal(config)
+	require.NoError(t, err)
+	require.NotContains(t, string(data), "chain_op_config")
 }
 
 type mockL1Client struct {
@@ -404,6 +414,7 @@ func TestActivations(t *testing.T) {
 type mockL2Client struct {
 	chainID *big.Int
 	Hash    common.Hash
+	err     error
 }
 
 func (m *mockL2Client) ChainID(context.Context) (*big.Int, error) {
@@ -411,11 +422,21 @@ func (m *mockL2Client) ChainID(context.Context) (*big.Int, error) {
 }
 
 func (m *mockL2Client) L2BlockRefByNumber(ctx context.Context, number uint64) (eth.L2BlockRef, error) {
+	if m.err != nil {
+		return eth.L2BlockRef{}, m.err
+	}
 	return eth.L2BlockRef{
 		Hash:   m.Hash,
 		Number: 100,
 	}, nil
 }
+
+// historyPrunedRPCError implements rpc.Error with the EIP-4444 history-pruned error code,
+// matching what an execution engine with history expiry returns for an expired block.
+type historyPrunedRPCError struct{}
+
+func (historyPrunedRPCError) Error() string  { return "pruned history unavailable" }
+func (historyPrunedRPCError) ErrorCode() int { return historyPrunedErrCode }
 
 func TestValidateL2Config(t *testing.T) {
 	config := randConfig()
@@ -423,7 +444,7 @@ func TestValidateL2Config(t *testing.T) {
 	config.Genesis.L2.Number = 100
 	config.Genesis.L2.Hash = [32]byte{0x01}
 	mockClient := mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
-	err := config.ValidateL2Config(context.TODO(), &mockClient, false)
+	err := config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient, false)
 	assert.NoError(t, err)
 }
 
@@ -433,10 +454,10 @@ func TestValidateL2ConfigInvalidChainIdFails(t *testing.T) {
 	config.Genesis.L2.Number = 100
 	config.Genesis.L2.Hash = [32]byte{0x01}
 	mockClient := mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
-	err := config.ValidateL2Config(context.TODO(), &mockClient, false)
+	err := config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient, false)
 	assert.Error(t, err)
 	config.L2ChainID = big.NewInt(99)
-	err = config.ValidateL2Config(context.TODO(), &mockClient, false)
+	err = config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient, false)
 	assert.Error(t, err)
 }
 
@@ -446,10 +467,10 @@ func TestValidateL2ConfigInvalidGenesisHashFails(t *testing.T) {
 	config.Genesis.L2.Number = 100
 	config.Genesis.L2.Hash = [32]byte{0x00}
 	mockClient := mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
-	err := config.ValidateL2Config(context.TODO(), &mockClient, false)
+	err := config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient, false)
 	assert.Error(t, err)
 	config.Genesis.L2.Hash = [32]byte{0x02}
-	err = config.ValidateL2Config(context.TODO(), &mockClient, false)
+	err = config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient, false)
 	assert.Error(t, err)
 }
 
@@ -459,10 +480,10 @@ func TestValidateL2ConfigInvalidGenesisHashSkippedWhenRequested(t *testing.T) {
 	config.Genesis.L2.Number = 100
 	config.Genesis.L2.Hash = [32]byte{0x00}
 	mockClient := mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
-	err := config.ValidateL2Config(context.TODO(), &mockClient, true)
+	err := config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient, true)
 	assert.NoError(t, err)
 	config.Genesis.L2.Hash = [32]byte{0x02}
-	err = config.ValidateL2Config(context.TODO(), &mockClient, true)
+	err = config.ValidateL2Config(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient, true)
 	assert.NoError(t, err)
 }
 
@@ -482,13 +503,29 @@ func TestCheckL2BlockRefByNumber(t *testing.T) {
 	config.Genesis.L2.Number = 100
 	config.Genesis.L2.Hash = [32]byte{0x01}
 	mockClient := mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
-	err := config.CheckL2GenesisBlockHash(context.TODO(), &mockClient)
+	err := config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient)
 	assert.NoError(t, err)
 	mockClient.Hash = common.Hash{0x02}
-	err = config.CheckL2GenesisBlockHash(context.TODO(), &mockClient)
+	err = config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient)
 	assert.Error(t, err)
 	mockClient.Hash = common.Hash{0x00}
-	err = config.CheckL2GenesisBlockHash(context.TODO(), &mockClient)
+	err = config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient)
+	assert.Error(t, err)
+
+	// A history-pruned execution engine can no longer serve the genesis block; the configured
+	// genesis hash is authoritative, so the check is skipped rather than failing.
+	mockClient = mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}, err: historyPrunedRPCError{}}
+	err = config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient)
+	assert.NoError(t, err)
+
+	// A NotFound result is likewise tolerated.
+	mockClient = mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}, err: ethereum.NotFound}
+	err = config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient)
+	assert.NoError(t, err)
+
+	// Any other fetch error still fails the check.
+	mockClient = mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}, err: errors.New("connection refused")}
+	err = config.CheckL2GenesisBlockHash(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient)
 	assert.Error(t, err)
 }
 

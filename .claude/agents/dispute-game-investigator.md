@@ -20,7 +20,7 @@ The full methodology lives in **[docs/ai/dispute-game-investigation.md](../../do
 3. Establish the canonical output root with `op-chain-ops` `check-output-root` /
    `check-super-root` (EL-only, work against public nodes).
 4. Classify every claim correct-vs-invalid via the trace-index/clamping math.
-5. Diagnose the responsible op-node with `op-challenger/scripts/game-proposal-outputs.sh`
+5. Diagnose the responsible op-node with `op-challenger game-proposal-outputs`
    (output root + safe head at each game's `l1Head`) and `check-game-block-hashes.sh`;
    check each load-balancer backend individually.
 6. Explain uncountered invalid claims via the honest-actor algorithm

@@ -1,6 +1,7 @@
 package sysgo
 
 import (
+	"context"
 	"strconv"
 	"strings"
 	"sync"
@@ -141,4 +142,35 @@ func (n *OpGeth) Stop() {
 	closeErr := n.l2Geth.Close()
 	n.logger.Info("Closed op-geth", "name", n.name, "chain", n.l2Net.ChainID(), "err", closeErr)
 	n.l2Geth = nil
+}
+
+func (n *OpGeth) StartControlled(ctx context.Context) error {
+	return runControlStart(ctx, n.Running, n.Start)
+}
+
+func (n *OpGeth) StopControlled(ctx context.Context) error {
+	n.mu.Lock()
+	if n.l2Geth == nil {
+		n.mu.Unlock()
+		return nil
+	}
+	l2Geth := n.l2Geth
+	n.mu.Unlock()
+
+	if err := l2Geth.Close(); err != nil {
+		return err
+	}
+
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.l2Geth == l2Geth {
+		n.l2Geth = nil
+	}
+	return nil
+}
+
+func (n *OpGeth) Running() bool {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.l2Geth != nil
 }

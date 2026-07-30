@@ -253,3 +253,9 @@ func TestCLIApplyMissingState(t *testing.T) {
 		"--workdir", workDir,
 	}, nil, "failed to read state file")
 }
+
+func TestManageHelpDoesNotIncludeMigrate(t *testing.T) {
+	runner := NewCLITestRunner(t)
+	output := runner.ExpectSuccess(t, []string{"manage", "--help"}, nil)
+	require.NotContains(t, output, "migrate")
+}

@@ -49,6 +49,10 @@ contract L2ContractsManager_FunctionsExposer_Harness is L2ContractsManager {
 contract L2ContractsManager_Upgrade_Test is CommonTest {
     error ImplNotFound(string name);
 
+    /// @notice OZ v5 ERC-7201 Initializable namespaced slot.
+    bytes32 internal constant INITIALIZABLE_SLOT_OZ_V5 =
+        0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00;
+
     L2ContractsManager_FunctionsExposer_Harness internal l2cm;
     L2ContractsManagerTypes.ImplRecord[] internal _implRecords;
 
@@ -87,8 +91,6 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         super.setUp();
         _loadImplementations();
         _deployL2CM();
-
-        skipIfDevFeatureDisabled(DevFeatures.L2CM);
     }
 
     /// @notice Looks up an implementation address by name in _implRecords.
@@ -418,6 +420,104 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         // Calling upgrade() directly should revert with OnlyDelegatecall error
         vm.expectRevert(L2ContractsManager.L2ContractsManager_OnlyDelegatecall.selector);
         l2cm.upgrade();
+    }
+
+    /// @notice Tests that calling deploy() directly on the implementation reverts; it must be delegatecalled.
+    function test_deploy_whenCalledDirectly_reverts() public {
+        L2ContractsManagerTypes.FullConfig memory config = _defaultDeployConfig();
+        vm.expectRevert(L2ContractsManager.L2ContractsManager_OnlyDelegatecall.selector);
+        l2cm.deploy(config);
+    }
+
+    /// @notice Tests that deploy() initializes the predeploys when routed through the L2ProxyAdmin proxy.
+    function test_deploy_succeeds() public {
+        L2ContractsManagerTypes.FullConfig memory config = _defaultDeployConfig();
+
+        _executeDeploy(l2cm, config);
+
+        Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
+
+        // Every touched proxy now points at its resolved implementation.
+        for (uint256 i = 0; i < records.length; i++) {
+            if (!_isDeployTouched(records[i], config)) continue;
+            string memory name = Predeploys.resolveVariant(records[i], config.isCustomGasToken).name;
+            assertEq(
+                EIP1967Helper.getImplementation(records[i].proxy),
+                _findImplByName(name),
+                string.concat(name, " not deployed")
+            );
+        }
+
+        // The initializer ran with the supplied config.
+        assertEq(
+            address(ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).otherMessenger()),
+            address(config.crossDomainMessenger.otherMessenger),
+            "L2CrossDomainMessenger.otherMessenger not initialized"
+        );
+    }
+
+    /// @notice Builds a default (non-CGT, non-interop) deploy configuration.
+    function _defaultDeployConfig() internal returns (L2ContractsManagerTypes.FullConfig memory) {
+        return _deployConfig(false, false);
+    }
+
+    /// @notice Builds a deploy configuration for the given feature combo.
+    function _deployConfig(
+        bool _cgt,
+        bool _interop
+    )
+        internal
+        returns (L2ContractsManagerTypes.FullConfig memory config_)
+    {
+        config_.crossDomainMessenger.otherMessenger = ICrossDomainMessenger(makeAddr("otherMessenger"));
+        config_.standardBridge.otherBridge = IStandardBridge(payable(makeAddr("otherBridge")));
+        config_.erc721Bridge.otherBridge = IERC721Bridge(makeAddr("otherERC721Bridge"));
+        config_.mintableERC20Factory.bridge = makeAddr("erc20FactoryBridge");
+        config_.mintableERC721Factory.bridge = makeAddr("erc721FactoryBridge");
+        config_.mintableERC721Factory.remoteChainID = 1;
+        L2ContractsManagerTypes.FeeVaultConfig memory vault = L2ContractsManagerTypes.FeeVaultConfig({
+            recipient: makeAddr("feeRecipient"),
+            minWithdrawalAmount: 1 ether,
+            withdrawalNetwork: Types.WithdrawalNetwork.L2
+        });
+        config_.sequencerFeeVault = vault;
+        config_.baseFeeVault = vault;
+        config_.l1FeeVault = vault;
+        config_.operatorFeeVault = vault;
+        config_.liquidityController = L2ContractsManagerTypes.LiquidityControllerConfig({
+            owner: makeAddr("liquidityControllerOwner"),
+            gasPayingTokenName: "Custom",
+            gasPayingTokenSymbol: "CGT"
+        });
+        config_.isCustomGasToken = _cgt;
+        config_.isInterop = _interop;
+    }
+
+    /// @notice Runs deploy() the way genesis does.
+    function _executeDeploy(L2ContractsManager _l2cm, L2ContractsManagerTypes.FullConfig memory _config) internal {
+        Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
+        for (uint256 i = 0; i < records.length; i++) {
+            if (!_requiresInit(records[i].proxy)) continue;
+            vm.store(records[i].proxy, bytes32(0), bytes32(0));
+            vm.store(records[i].proxy, bytes32(uint256(1)), bytes32(0));
+            vm.store(records[i].proxy, INITIALIZABLE_SLOT_OZ_V5, bytes32(0));
+        }
+        EIP1967Helper.setImplementation(Predeploys.PROXY_ADMIN, address(_l2cm));
+        L2ContractsManager(Predeploys.PROXY_ADMIN).deploy(_config);
+    }
+
+    /// @notice Gates-only predicate matching the set of records deploy() touches for a config.
+    function _isDeployTouched(
+        Predeploys.PredeployRecord memory _record,
+        L2ContractsManagerTypes.FullConfig memory _config
+    )
+        internal
+        pure
+        returns (bool)
+    {
+        if (_record.isCustomGasToken && !_config.isCustomGasToken) return false;
+        if (_record.isInterop && !_config.isInterop) return false;
+        return true;
     }
 
     /// @notice Tests that fee vault configurations with non-default values are preserved after upgrade.
@@ -906,6 +1006,59 @@ contract L2ContractsManager_Upgrade_Coverage_Test is L2ContractsManager_Upgrade_
         assertGt(expectedCalls, 0, "no CGT predeploys expected");
 
         _executeUpgrade();
+    }
+}
+
+/// @title L2ContractsManager_Deploy_Coverage_Test
+/// @notice Verifies that deploy() touches exactly the registry records gated in for each feature
+///         combo. Unlike the upgrade-mode coverage, the touched set is derived purely from the config
+///         flags (gates-only, no live proxy/code inspection), matching how genesis runs deploy().
+contract L2ContractsManager_Deploy_Coverage_Test is L2ContractsManager_Upgrade_Test {
+    /// @notice Asserts deploy(config) calls upgrade on exactly the gates-only touched set: every gated-in
+    ///         record receives its call (failing if missed) and every gated-out record receives none
+    ///         (failing if touched).
+    function _assertDeployTouchesExactly(L2ContractsManagerTypes.FullConfig memory _config) internal {
+        Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
+
+        // Register expectations before routing: the init-clear and setImplementation in _executeDeploy are
+        // vm.store writes (no calls), so the only upgradeTo/upgradeToAndCall calls come from deploy() itself.
+        for (uint256 i = 0; i < records.length; i++) {
+            address proxy = records[i].proxy;
+            if (_isDeployTouched(records[i], _config)) {
+                // Call shape comes from whether the proxy is initialized, not a registry field.
+                if (_requiresInit(proxy)) {
+                    vm.expectCall(proxy, abi.encodePacked(IProxy.upgradeToAndCall.selector));
+                } else {
+                    vm.expectCall(proxy, abi.encodePacked(IProxy.upgradeTo.selector));
+                }
+            } else {
+                // A gated-out record must not be touched by either call path.
+                vm.expectCall(proxy, abi.encodePacked(IProxy.upgradeTo.selector), 0);
+                vm.expectCall(proxy, abi.encodePacked(IProxy.upgradeToAndCall.selector), 0);
+            }
+        }
+
+        _executeDeploy(l2cm, _config);
+    }
+
+    /// @notice Default combo: no custom gas token, no interop.
+    function test_deployTouchedSet_default_succeeds() public {
+        _assertDeployTouchesExactly(_deployConfig(false, false));
+    }
+
+    /// @notice Custom gas token combo: NativeAssetLiquidity and LiquidityController are gated in.
+    function test_deployTouchedSet_cgt_succeeds() public {
+        _assertDeployTouchesExactly(_deployConfig(true, false));
+    }
+
+    /// @notice Interop combo: CrossL2Inbox, L2ToL2CrossDomainMessenger, SuperchainETHBridge, ETHLiquidity gated in.
+    function test_deployTouchedSet_interop_succeeds() public {
+        _assertDeployTouchesExactly(_deployConfig(false, true));
+    }
+
+    /// @notice Custom gas token and interop combined: both feature sets are gated in.
+    function test_deployTouchedSet_cgtAndInterop_succeeds() public {
+        _assertDeployTouchesExactly(_deployConfig(true, true));
     }
 }
 

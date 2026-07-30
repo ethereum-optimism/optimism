@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"math/rand"
 
-	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
@@ -17,8 +16,9 @@ import (
 
 // IntraBlockTestCase describes a single intra-block scenario.
 type IntraBlockTestCase struct {
-	Name     string
-	BuildTxs func(s *intraBlockSetup) (txsA, txsB []*txplan.PlannedTx)
+	Name              string
+	ExpectReplacement bool
+	BuildTxs          func(s *intraBlockSetup) (txsA, txsB []*txplan.PlannedTx)
 }
 
 // intraBlockSetup holds shared state for building same-timestamp transactions.
@@ -47,7 +47,7 @@ func (s *intraBlockSetup) prepareInitB(logIdx uint32) *dsl.SameTimestampPair {
 // It builds one block per chain at the same timestamp with the given transaction
 // set, waits for the supernode to validate and replace invalid blocks, then
 // verifies the consolidation transition via kona and the challenger trace provider.
-func RunIntraBlockConsolidationTest(t devtest.T, sys *presets.SimpleInterop, tc *IntraBlockTestCase) {
+func RunIntraBlockConsolidationTest(t devtest.T, sys *presets.SimpleInterop, tc *IntraBlockTestCase, runners ...ProofRunner) {
 	t.Require().NotNil(sys.SuperRoots, "supernode is required for this test")
 	t.Require().NotNil(sys.TestSequencer, "test sequencer is required for same-timestamp block building")
 
@@ -65,7 +65,7 @@ func RunIntraBlockConsolidationTest(t devtest.T, sys *presets.SimpleInterop, tc 
 	// --- Sync chains and prepare for same-timestamp block building -----------
 	sys.L2ChainB.CatchUpTo(sys.L2ChainA)
 	sys.L2ChainA.CatchUpTo(sys.L2ChainB)
-	sys.SuperRoots.EnsureInteropPaused(sys.L2CLA, sys.L2CLB, 10)
+	sys.Supernode().EnsureInteropPaused(sys.L2CLA, sys.L2CLB, 10)
 
 	sys.L2CLA.StopSequencer()
 	sys.L2CLB.StopSequencer()
@@ -139,7 +139,7 @@ func RunIntraBlockConsolidationTest(t devtest.T, sys *presets.SimpleInterop, tc 
 	sys.TestSequencer.SequenceBlockWithTxs(t, sys.L2ChainB.ChainID(), unsafeB.Hash, rawTxsB)
 
 	// --- Resume interop and wait for validation ------------------------------
-	sys.SuperRoots.ResumeInterop()
+	sys.Supernode().ResumeInterop()
 	sys.SuperRoots.AwaitValidatedTimestamp(nextTimestamp)
 
 	endTimestamp := nextTimestamp
@@ -195,19 +195,11 @@ func RunIntraBlockConsolidationTest(t devtest.T, sys *presets.SimpleInterop, tc 
 		})
 	}
 
-	challengerCfg := sys.L2ChainA.Escape().L2Challengers()[0].Config()
-	gameDepth := sys.DisputeGameFactory().GameImpl(gameTypes.SuperCannonKonaGameType).SplitDepth()
-
-	for _, test := range tests {
-		t.Run(test.Name+"-fpp", func(t devtest.T) {
-			runKonaInteropProgram(t, challengerCfg.CannonKona, test.L1Head.Hash,
-				test.AgreedClaim, crypto.Keccak256Hash(test.DisputedClaim),
-				test.ClaimTimestamp, test.ExpectValid)
-		})
-		t.Run(test.Name+"-challenger", func(t devtest.T) {
-			runChallengerProviderTest(t, queryAPI, gameDepth, startTimestamp, test.ClaimTimestamp, test)
-		})
-	}
+	runScenarioProofs(t, sys, &scenarioProofData{
+		fpvmTransitions:    tests,
+		fpvmStartTimestamp: startTimestamp,
+		zkCheckpoint:       newZKCheckpointForRunners(t, sys, endTimestamp, tc.ExpectReplacement, runners),
+	}, runners...)
 }
 
 // IntraBlockCases returns all intra-block test scenarios.
@@ -219,7 +211,8 @@ func IntraBlockCases() []*IntraBlockTestCase {
 			// Init(A) + valid Exec(B→A) on chain A,
 			// Init(B) + invalid Exec(A→B) on chain B.
 			// Chain B is invalid (bad exec), chain A is transitively invalid.
-			Name: "CascadeInvalid",
+			Name:              "CascadeInvalid",
+			ExpectReplacement: true,
 			BuildTxs: func(s *intraBlockSetup) ([]*txplan.PlannedTx, []*txplan.PlannedTx) {
 				pairA := s.prepareInitA(0)
 				pairB := s.prepareInitB(0)
@@ -231,7 +224,8 @@ func IntraBlockCases() []*IntraBlockTestCase {
 			// Same as CascadeInvalid but with chains swapped.
 			// Init(A) + invalid Exec(B→A) on chain A,
 			// Init(B) + valid Exec(A→B) on chain B.
-			Name: "SwapCascadeInvalid",
+			Name:              "SwapCascadeInvalid",
+			ExpectReplacement: true,
 			BuildTxs: func(s *intraBlockSetup) ([]*txplan.PlannedTx, []*txplan.PlannedTx) {
 				pairA := s.prepareInitA(0)
 				pairB := s.prepareInitB(0)
@@ -257,7 +251,8 @@ func IntraBlockCases() []*IntraBlockTestCase {
 			// ExecA references a fabricated init at B's position (wrong origin),
 			// ExecB references ExecA's ExecutingMessage event.
 			// Both are invalid: ExecA references wrong origin, ExecB depends on invalid ExecA.
-			Name: "CyclicDependencyInvalid",
+			Name:              "CyclicDependencyInvalid",
+			ExpectReplacement: true,
 			BuildTxs: func(s *intraBlockSetup) ([]*txplan.PlannedTx, []*txplan.PlannedTx) {
 				// Fabricate a pending init message at ExecB's expected position.
 				// ExecA will reference this, but the actual log at (chainB, blockNumB, logIdx=0)
@@ -337,7 +332,8 @@ func IntraBlockCases() []*IntraBlockTestCase {
 		},
 		{
 			// Same-chain invalid: Init + invalid Exec on chain A, empty chain B.
-			Name: "SameChainInvalid",
+			Name:              "SameChainInvalid",
+			ExpectReplacement: true,
 			BuildTxs: func(s *intraBlockSetup) ([]*txplan.PlannedTx, []*txplan.PlannedTx) {
 				pair := s.prepareInitA(0)
 				return []*txplan.PlannedTx{pair.SubmitInit(), pair.SubmitInvalidExecTo(s.alice)},

@@ -6,8 +6,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -80,7 +80,7 @@ func interopSetFeatureTx() (hexutil.Bytes, error) {
 	data = append(data, featureBytes[:]...)
 
 	addr := predeploys.L1BlockAddr
-	return types.NewTx(&types.DepositTx{
+	return (&optypes.DepositTx{
 		SourceHash:          interopSetFeatureSource.SourceHash(),
 		From:                L1InfoDepositerAddress,
 		To:                  &addr,
@@ -98,7 +98,7 @@ func interopSetFeatureTx() (hexutil.Bytes, error) {
 func interopETHLiquidityFundingTx() (hexutil.Bytes, error) {
 	addr := predeploys.ETHLiquidityAddr
 	amount := InteropETHLiquidityFundingAmount()
-	return types.NewTx(&types.DepositTx{
+	return (&optypes.DepositTx{
 		SourceHash:          interopETHLiquidityFundSrc.SourceHash(),
 		From:                L1InfoDepositerAddress,
 		To:                  &addr,

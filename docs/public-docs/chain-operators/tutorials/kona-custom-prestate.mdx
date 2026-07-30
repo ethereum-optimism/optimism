@@ -1,6 +1,7 @@
 ---
 title: "Generating a custom kona-client absolute prestate"
 description: "How to build a kona-client absolute prestate that embeds a chain configuration not yet in the public Superchain Registry."
+diataxis: how-to
 ---
 
 # Overview
@@ -280,5 +281,6 @@ The compiled `kona-client` binary embeds the merged registry via `include_str!()
 
 ## Next Steps
 
-- [Upgrade 19 notice](/notices/upgrade-19) — the `cannon-kona` game type promotion and reference build commands for the standard prestate.
-- [Generating absolute prestate and preimage files](/chain-operators/tutorials/absolute-prestate) — the equivalent tutorial for `op-program` (cannon, game type 1), kept for chains still running that game type.
+- [Upgrade 19 notice](/notices/archive/upgrade-19) — the `cannon-kona` game type promotion and reference build commands for the standard prestate.
+- [Generating absolute prestate and preimage files](/chain-operators/tutorials/absolute-prestate): the standard `kona-client` prestate flow for chains in the Superchain Registry.
+- [Generating an op-program absolute prestate (archived)](/chain-operators/tutorials/archive/op-program-prestate): the legacy `op-program` flow, kept only for resolving in-flight `CANNON` (game type `0`) disputes created before [Upgrade 19](/notices/archive/upgrade-19). `op-program` has reached end-of-support; see [End of Support for op-geth and op-program](/notices/archive/op-geth-deprecation).

@@ -39,14 +39,14 @@ func TestGetDepset(t *testing.T) {
 		require.Contains(t, err.Error(), "unknown chain ID")
 	})
 
-	t.Run("nil InteropTime", func(t *testing.T) {
+	t.Run("nil LagoonTime", func(t *testing.T) {
 		mockChain := &Chain{
 			Name:    "test",
 			Network: "test",
 			config: &ChainConfig{
 				ChainID: 42,
 				Hardforks: HardforkConfig{
-					InteropTime: nil,
+					LagoonTime: nil,
 				},
 			},
 		}
@@ -70,7 +70,7 @@ func TestGetDepset(t *testing.T) {
 	})
 
 	t.Run("nil Interop creates default depset", func(t *testing.T) {
-		// Create mock chain with InteropTime but nil Interop
+		// Create mock chain with LagoonTime but nil Interop
 		activationTime := uint64(1234567890)
 		mockChain := &Chain{
 			Name:    "test",
@@ -78,7 +78,7 @@ func TestGetDepset(t *testing.T) {
 			config: &ChainConfig{
 				ChainID: 42,
 				Hardforks: HardforkConfig{
-					InteropTime: &activationTime,
+					LagoonTime: &activationTime,
 				},
 				Interop: nil,
 			},
@@ -111,7 +111,7 @@ func TestGetDepset(t *testing.T) {
 			config: &ChainConfig{
 				ChainID: 42,
 				Hardforks: HardforkConfig{
-					InteropTime: &activationTime,
+					LagoonTime: &activationTime,
 				},
 				Interop: &Interop{
 					Dependencies: map[string]Dependency{

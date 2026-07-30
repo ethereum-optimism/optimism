@@ -9,7 +9,7 @@ library LibGameArgs {
     uint256 public constant PERMISSIONLESS_ARGS_LENGTH = 124;
     uint256 public constant PERMISSIONED_ARGS_LENGTH = 164;
     uint256 public constant SUPER_PERMISSIONED_ARGS_LENGTH = 40;
-    uint256 public constant ZK_ARGS_LENGTH = 172;
+    uint256 public constant ZK_ARGS_LENGTH = 140;
 
     /// @notice Struct representing the game arguments.
     struct GameArgs {
@@ -31,7 +31,6 @@ library LibGameArgs {
         uint256 challengerBond;
         address anchorStateRegistry;
         address weth;
-        uint256 l2ChainId;
     }
 
     /// @notice Struct representing the simplified super permissioned game arguments.
@@ -156,7 +155,6 @@ library LibGameArgs {
     ///           [68-99]  challengerBond (uint256)
     ///           [100-119] anchorStateRegistry (address)
     ///           [120-139] weth (address)
-    ///           [140-171] l2ChainId (uint256)
     function decodeZK(bytes memory _args) internal pure returns (ZKGameArgs memory decoded_) {
         if (_args.length != ZK_ARGS_LENGTH) revert InvalidGameArgsLength();
 
@@ -167,11 +165,10 @@ library LibGameArgs {
         uint256 challengerBond;
         address anchorStateRegistry;
         address weth;
-        uint256 l2ChainId;
 
         assembly {
             // skip length prefix
-            let base := add(_args, 0x20)
+            let base := add(_args, 32)
             absolutePrestate := mload(base)
             verifier := shr(96, mload(add(base, 32)))
             maxChallengeDuration := shr(192, mload(add(base, 52)))
@@ -179,7 +176,6 @@ library LibGameArgs {
             challengerBond := mload(add(base, 68))
             anchorStateRegistry := shr(96, mload(add(base, 100)))
             weth := shr(96, mload(add(base, 120)))
-            l2ChainId := mload(add(base, 140))
         }
 
         decoded_ = ZKGameArgs({
@@ -189,8 +185,7 @@ library LibGameArgs {
             maxProveDuration: maxProveDuration,
             challengerBond: challengerBond,
             anchorStateRegistry: anchorStateRegistry,
-            weth: weth,
-            l2ChainId: l2ChainId
+            weth: weth
         });
     }
 }

@@ -20,6 +20,7 @@ use reth_node_api::PayloadBuilderError;
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_evm::{
     ConfigurePostExecEvm, OpEvmConfig, OpNextBlockEnvAttributes, PostExecExecutorExt, PostExecMode,
+    WarmingState,
 };
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_node::OpPayloadBuilderAttributes;
@@ -31,18 +32,14 @@ use reth_optimism_primitives::{OpReceipt, OpTransactionSigned};
 use reth_optimism_txpool::{
     conditional::MaybeConditionalTransaction,
     estimated_da_size::DataAvailabilitySized,
-    interop::{MaybeInteropTransaction, is_valid_interop},
+    interop::{InteropFailsafe, MaybeInteropTransaction, is_interop_tx, is_valid_interop},
 };
 use reth_payload_builder::PayloadId;
 use reth_primitives_traits::{InMemorySize, SealedHeader, SignedTransaction};
 use reth_revm::{State, context::Block};
 use reth_transaction_pool::{BestTransactionsAttributes, PoolTransaction};
 use revm::interpreter::as_u64_saturated;
-use std::{
-    ops::DerefMut,
-    sync::{Arc, atomic::Ordering},
-    time::Instant,
-};
+use std::{ops::DerefMut, sync::Arc, time::Instant};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, trace};
 
@@ -50,7 +47,7 @@ use crate::{
     gas_limiter::AddressGasLimiter,
     metrics::OpRBuilderMetrics,
     primitives::reth::{ExecutionInfo, TxnExecutionResult},
-    sdm_admin::SdmPostExecOptInFlag,
+    sdm_admin::OperatorSdmOptIn,
     traits::PayloadTxsBounds,
     tx::MaybeRevertingTransaction,
     tx_signer::Signer,
@@ -101,11 +98,11 @@ where
 pub(super) fn compute_post_exec_mode(
     evm_config: &OpEvmConfig,
     timestamp: u64,
-    opt_in: &SdmPostExecOptInFlag,
+    opt_in: &OperatorSdmOptIn,
 ) -> PostExecMode {
     let protocol_active = evm_config.is_sdm_active_at_timestamp(timestamp);
-    let operator_opted_in = opt_in.load(Ordering::Acquire);
-    if protocol_active && operator_opted_in {
+    let operator_sdm_opt_in = opt_in.enabled();
+    if protocol_active && operator_sdm_opt_in {
         PostExecMode::Produce
     } else {
         PostExecMode::Disabled
@@ -166,6 +163,8 @@ pub struct OpPayloadBuilderCtx<ExtraCtx: Debug + Default = ()> {
     /// fallback block, each flashblock, canonical replay — observes the same decision even if
     /// the admin RPC flips the operator opt-in mid-block.
     pub post_exec_mode: PostExecMode,
+    /// Interop failsafe gate shared with the txpool interop filter.
+    pub interop_failsafe: InteropFailsafe,
 }
 
 impl<ExtraCtx: Debug + Default> OpPayloadBuilderCtx<ExtraCtx> {
@@ -346,7 +345,7 @@ impl<ExtraCtx: Debug + Default> OpPayloadBuilderCtx<ExtraCtx> {
     ) -> Result<
         impl BlockBuilder<
             Primitives = reth_optimism_primitives::OpPrimitives,
-            Executor: PostExecExecutorExt
+            Executor: PostExecExecutorExt<Snapshot = WarmingState>
                           + AlloyBlockExecutor<
                 Transaction = OpTransactionSigned,
                 Receipt = OpReceipt,
@@ -490,6 +489,7 @@ impl<ExtraCtx: Debug + Default> OpPayloadBuilderCtx<ExtraCtx> {
             number: self.block_number(),
             timestamp: self.attributes().timestamp(),
         };
+        let interop_failsafe_active = self.interop_failsafe.enabled();
 
         while let Some(tx) = best_txs.next(()) {
             let interop = tx.interop_deadline();
@@ -529,19 +529,6 @@ impl<ExtraCtx: Debug + Default> OpPayloadBuilderCtx<ExtraCtx> {
                 continue;
             }
 
-            // TODO: remove this condition and feature once we are comfortable enabling interop for everything
-            if cfg!(feature = "interop") {
-                // We skip invalid cross chain txs, they would be removed on the next block update in
-                // the maintenance job
-                if let Some(interop) = interop
-                    && !is_valid_interop(interop, self.config.attributes.timestamp())
-                {
-                    log_txn(TxnExecutionResult::InteropFailed);
-                    best_txs.mark_invalid(tx.signer(), tx.nonce());
-                    continue;
-                }
-            }
-
             // ensure we still have capacity for this transaction
             if let Err(result) = info.is_tx_over_limits(
                 tx_da_size,
@@ -563,6 +550,22 @@ impl<ExtraCtx: Debug + Default> OpPayloadBuilderCtx<ExtraCtx> {
             // A sequencer's block should never contain blob or deposit transactions from the pool.
             if tx.is_eip4844() || tx.is_deposit() {
                 log_txn(TxnExecutionResult::SequencerTransaction);
+                best_txs.mark_invalid(tx.signer(), tx.nonce());
+                continue;
+            }
+
+            if interop_failsafe_active && is_interop_tx(&*tx) {
+                log_txn(TxnExecutionResult::InteropFailed);
+                best_txs.mark_invalid(tx.signer(), tx.nonce());
+                continue;
+            }
+
+            // We skip invalid cross chain txs, they would be removed on the next block update in
+            // the maintenance job
+            if let Some(interop) = interop
+                && !is_valid_interop(interop, self.config.attributes.timestamp())
+            {
+                log_txn(TxnExecutionResult::InteropFailed);
                 best_txs.mark_invalid(tx.signer(), tx.nonce());
                 continue;
             }
@@ -712,5 +715,353 @@ impl<ExtraCtx: Debug + Default> OpPayloadBuilderCtx<ExtraCtx> {
             bundles_reverted = num_bundles_reverted,
         );
         Ok(None)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{gas_limiter::args::GasLimiterArgs, tx::FBPooledTransaction};
+    use alloy_consensus::{
+        Header, SignableTransaction, TxEip1559,
+        transaction::{Recovered, TxHashRef},
+    };
+    use alloy_eips::eip2930::{AccessList, AccessListItem};
+    use alloy_primitives::{Address, B256, Bytes, Signature, TxHash, TxKind, U256};
+    use reth_evm::ConfigureEvm;
+    use reth_optimism_chainspec::{OpChainSpec, OpChainSpecBuilder};
+    use reth_optimism_txpool::{OpPooledTransaction, interop_filter::CROSS_L2_INBOX_ADDRESS};
+    use reth_payload_util::PayloadTransactionsFixed;
+    use reth_primitives_traits::{Account, SealedHeader};
+    use reth_revm::{database::StateProviderDatabase, db::State, test_utils::StateProviderTest};
+    use reth_transaction_pool::PoolTransaction;
+
+    fn pooled_tx(
+        nonce: u64,
+        signer: Address,
+        recipient: Address,
+        access_list: AccessList,
+    ) -> FBPooledTransaction {
+        let tx: OpTransactionSigned = TxEip1559 {
+            chain_id: 10,
+            nonce,
+            gas_limit: 100_000,
+            max_fee_per_gas: 20_000_000_000,
+            max_priority_fee_per_gas: 1,
+            to: TxKind::Call(recipient),
+            value: U256::ZERO,
+            access_list,
+            ..Default::default()
+        }
+        .into_signed(Signature::test_signature())
+        .into();
+        let encoded_len = tx.encode_2718_len();
+
+        FBPooledTransaction {
+            inner: OpPooledTransaction::new(Recovered::new_unchecked(tx, signer), encoded_len),
+            reverted_hashes: None,
+            flashblock_number_min: None,
+            flashblock_number_max: None,
+        }
+    }
+
+    fn normal_pooled_tx(nonce: u64, signer: Address, recipient: Address) -> FBPooledTransaction {
+        pooled_tx(nonce, signer, recipient, AccessList::default())
+    }
+
+    fn interop_pooled_tx(nonce: u64, signer: Address, recipient: Address) -> FBPooledTransaction {
+        pooled_tx(
+            nonce,
+            signer,
+            recipient,
+            AccessList(vec![AccessListItem {
+                address: CROSS_L2_INBOX_ADDRESS,
+                storage_keys: vec![B256::ZERO],
+            }]),
+        )
+    }
+
+    fn payload_builder_ctx(
+        chain_spec: Arc<OpChainSpec>,
+        gas_limit: u64,
+        interop_failsafe: InteropFailsafe,
+        post_exec_mode: PostExecMode,
+    ) -> OpPayloadBuilderCtx {
+        let parent = SealedHeader::seal_slow(Header {
+            gas_limit,
+            number: 0,
+            timestamp: 0,
+            ..Default::default()
+        });
+        let attributes = OpPayloadBuilderAttributes {
+            timestamp: 1,
+            gas_limit: Some(gas_limit),
+            ..Default::default()
+        };
+        let block_env_attributes = OpNextBlockEnvAttributes {
+            timestamp: attributes.timestamp(),
+            suggested_fee_recipient: attributes.suggested_fee_recipient(),
+            prev_randao: attributes.prev_randao(),
+            gas_limit: attributes.gas_limit.unwrap_or(parent.gas_limit),
+            parent_beacon_block_root: attributes.parent_beacon_block_root(),
+            extra_data: Default::default(),
+        };
+        let evm_config = OpEvmConfig::optimism(chain_spec.clone());
+        let evm_env = evm_config
+            .next_evm_env(&parent, &block_env_attributes)
+            .expect("next evm env can be created");
+
+        OpPayloadBuilderCtx {
+            evm_config,
+            da_config: Default::default(),
+            gas_limit_config: Default::default(),
+            chain_spec,
+            config: PayloadConfig {
+                parent_header: Arc::new(parent),
+                parent_block_info: None,
+                payload_id: attributes.id,
+                attributes,
+            },
+            evm_env,
+            block_env_attributes,
+            cancel: Default::default(),
+            builder_signer: None,
+            metrics: Default::default(),
+            extra_ctx: (),
+            max_gas_per_txn: None,
+            address_gas_limiter: AddressGasLimiter::new(GasLimiterArgs::default()),
+            post_exec_mode,
+            interop_failsafe,
+        }
+    }
+
+    fn run_execute_best_transactions(
+        ctx: OpPayloadBuilderCtx,
+        signer: Address,
+        txs: Vec<FBPooledTransaction>,
+    ) -> Vec<TxHash> {
+        let mut state_provider = StateProviderTest::default();
+        state_provider.insert_account(
+            signer,
+            Account {
+                balance: U256::MAX,
+                ..Default::default()
+            },
+            None,
+            Default::default(),
+        );
+
+        let mut best_txs = PayloadTransactionsFixed::new(txs);
+        let mut db = State::builder()
+            .with_database(StateProviderDatabase::new(&state_provider))
+            .with_bundle_update()
+            .build();
+        let mut builder = ctx
+            .block_builder_for_next_block(&mut db)
+            .expect("block builder can be created");
+        let mut info: ExecutionInfo = ExecutionInfo::default();
+
+        assert!(
+            ctx.execute_best_transactions(
+                &mut info,
+                &mut builder,
+                &mut best_txs,
+                ctx.block_gas_limit(),
+                None,
+                None,
+            )
+            .expect("best transactions execute")
+            .is_none()
+        );
+
+        info.executed_transactions
+            .iter()
+            .map(TxHashRef::tx_hash)
+            .copied()
+            .collect()
+    }
+
+    #[test]
+    fn execute_best_transactions_excludes_interop_txs_when_failsafe_active() {
+        let signer = Address::repeat_byte(0x11);
+        let normal = normal_pooled_tx(0, signer, Address::repeat_byte(0x22));
+        let interop = interop_pooled_tx(1, signer, Address::repeat_byte(0x33));
+        let normal_hash = *normal.hash();
+        let interop_hash = *interop.hash();
+
+        let gas_limit = 1_000_000;
+        let chain_spec = Arc::new(
+            OpChainSpecBuilder::optimism_mainnet()
+                .regolith_activated()
+                .build(),
+        );
+        let failsafe = InteropFailsafe::default();
+        let build = |failsafe: &InteropFailsafe| {
+            run_execute_best_transactions(
+                payload_builder_ctx(
+                    chain_spec.clone(),
+                    gas_limit,
+                    failsafe.clone(),
+                    PostExecMode::Disabled,
+                ),
+                signer,
+                vec![normal.clone(), interop.clone()],
+            )
+        };
+
+        failsafe.set(false);
+        assert_eq!(build(&failsafe), vec![normal_hash, interop_hash]);
+
+        failsafe.set(true);
+        assert_eq!(build(&failsafe), vec![normal_hash]);
+
+        failsafe.set(false);
+        assert_eq!(build(&failsafe), vec![normal_hash, interop_hash]);
+    }
+
+    /// Runs the tx-selection loop in Produce mode over probe tx `B` (which does a `BALANCE` on
+    /// `leak`), optionally preceded by a failing tx `A` from `leak` that the loop attempts, sees
+    /// rejected, and skips. `leak_account`/`leak_code` pick the validation error `A` fails with,
+    /// after its sender has been loaded and warmed. Returns the block's pre-refund EVM gas, which
+    /// for `B`'s account access is 2600 cold or 100 warm — so a warm-set leak from the skipped `A`
+    /// shows up as ~2500 gas less.
+    fn warm_set_leak_loop_evm_gas(
+        chain_spec: Arc<OpChainSpec>,
+        gas_limit: u64,
+        leak_account: Account,
+        leak_code: Option<Bytes>,
+        include_failing_a: bool,
+    ) -> u64 {
+        let leak = Address::repeat_byte(0xAA);
+        let probe_sender = Address::repeat_byte(0xBB);
+        let probe_contract = Address::repeat_byte(0xCC);
+
+        // Probe runtime: PUSH20 <leak>; BALANCE; POP; STOP.
+        let mut probe_code = vec![0x73u8];
+        probe_code.extend_from_slice(leak.as_slice());
+        probe_code.extend_from_slice(&[0x31, 0x50, 0x00]);
+
+        let mut state_provider = StateProviderTest::default();
+        state_provider.insert_account(leak, leak_account, leak_code, Default::default());
+        state_provider.insert_account(
+            probe_sender,
+            Account {
+                balance: U256::MAX,
+                ..Default::default()
+            },
+            None,
+            Default::default(),
+        );
+        state_provider.insert_account(
+            probe_contract,
+            Account {
+                balance: U256::ZERO,
+                ..Default::default()
+            },
+            Some(Bytes::from(probe_code)),
+            Default::default(),
+        );
+
+        let mut txs = Vec::new();
+        if include_failing_a {
+            txs.push(normal_pooled_tx(0, leak, probe_sender));
+        }
+        txs.push(normal_pooled_tx(0, probe_sender, probe_contract));
+
+        let ctx = payload_builder_ctx(
+            chain_spec,
+            gas_limit,
+            InteropFailsafe::default(),
+            PostExecMode::Produce,
+        );
+        let mut best_txs = PayloadTransactionsFixed::new(txs);
+        let mut db = State::builder()
+            .with_database(StateProviderDatabase::new(&state_provider))
+            .with_bundle_update()
+            .build();
+        let mut builder = ctx
+            .block_builder_for_next_block(&mut db)
+            .expect("block builder can be created");
+        let mut info: ExecutionInfo = ExecutionInfo::default();
+
+        assert!(
+            ctx.execute_best_transactions(
+                &mut info,
+                &mut builder,
+                &mut best_txs,
+                ctx.block_gas_limit(),
+                None,
+                None,
+            )
+            .expect("best transactions execute")
+            .is_none()
+        );
+
+        info.cumulative_evm_gas_used
+    }
+
+    /// op-rbuilder mirror of the alloy-op-evm warm-leak regression. In SDM Produce mode the
+    /// selection loop skips a failed candidate `A` (NonceTooLow) but must not leave `A`'s sender
+    /// EIP-2929-warm for a later included tx `B`. If it does, the builder bills `B` a warm access
+    /// for a tx that never entered the block, diverging from a validator that never executed `A`
+    /// — a builder-vs-validator gas mismatch that rejects the block. Equal pre-refund EVM gas for
+    /// `B` with vs without the skipped `A` means no divergence.
+    ///
+    /// Fails against an op-revm whose `catch_error` does not discard the journal on non-deposit
+    /// errors; passes once it does.
+    #[test]
+    fn skipped_failed_tx_does_not_warm_later_tx_in_produce_mode() {
+        // `leak` at nonce 5, so its nonce-0 tx `A` is rejected NonceTooLow after being warmed.
+        let leak_account = Account {
+            nonce: 5,
+            balance: U256::MAX,
+            ..Default::default()
+        };
+        assert_no_warm_set_leak_divergence(leak_account, None);
+    }
+
+    #[test]
+    fn skipped_eip3607_failed_tx_does_not_warm_later_tx_in_produce_mode() {
+        // `leak` carries code, so its tx `A` is rejected by EIP-3607 (contract may not originate a
+        // tx) rather than by a nonce check — still after its sender is loaded and warmed.
+        let leak_account = Account {
+            balance: U256::MAX,
+            ..Default::default()
+        };
+        assert_no_warm_set_leak_divergence(leak_account, Some(Bytes::from_static(&[0x00]))); // STOP
+    }
+
+    /// Asserts the selection loop bills probe tx `B` the same pre-refund EVM gas whether or not a
+    /// failing tx `A` (from `leak`) was attempted and skipped before it. A difference means the
+    /// skipped `A` left its sender warm, so the builder would diverge from a validator that never
+    /// ran `A` — a block-rejecting gas mismatch. Fails against an op-revm whose `catch_error` does
+    /// not discard the journal on non-deposit errors; passes once it does.
+    fn assert_no_warm_set_leak_divergence(leak_account: Account, leak_code: Option<Bytes>) {
+        let gas_limit = 1_000_000;
+        // Lagoon-active spec: SDM's protocol gate (`compute_post_exec_mode`) requires it, so the
+        // forced Produce mode below runs on a fork combination that can occur in production.
+        let chain_spec = Arc::new(
+            OpChainSpecBuilder::optimism_mainnet()
+                .lagoon_activated()
+                .build(),
+        );
+
+        let with_failing_a = warm_set_leak_loop_evm_gas(
+            chain_spec.clone(),
+            gas_limit,
+            leak_account,
+            leak_code.clone(),
+            true,
+        );
+        let without =
+            warm_set_leak_loop_evm_gas(chain_spec, gas_limit, leak_account, leak_code, false);
+
+        assert_eq!(
+            without,
+            with_failing_a,
+            "a skipped failed candidate warmed a later included tx: {}-gas builder-vs-validator \
+             EVM-gas divergence",
+            without.abs_diff(with_failing_a),
+        );
     }
 }

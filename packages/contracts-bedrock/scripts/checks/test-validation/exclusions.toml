@@ -25,6 +25,7 @@ src_validation = [
     "test/dispute/lib/LibGameId.t.sol",                       # Tests library utilities
     "test/libraries/DeployUtils.t.sol",                       # Tests library utilities - no direct src counterpart
     "test/setup/DeployVariations.t.sol",                      # Tests deployment variations
+    "test/setup/DisputeGames.t.sol",                          # Tests a test-only library (test/setup/DisputeGames.sol)
     "test/setup/PastNUTBundles.t.sol",                        # Tests a test-only library (test/setup/PastNUTBundles.sol)
     "test/universal/BenchmarkTest.t.sol",                     # Performance benchmarking tests
     "test/universal/ExtendedPause.t.sol",                     # Tests extended functionality
@@ -34,6 +35,7 @@ src_validation = [
     "test/L2/betanet-fork/L2VerifyBetanetForkUpgrade.t.sol",  # Tests L2 betanet fork upgrade workflow - no src counterpart
     "test/L2/L2GenesisForkUpgrade.t.sol",                     # Tests L2 genesis fork upgrade workflow
     "test/dispute/zk/ZKDisputeGameIntegration.t.sol",         # Integration tests for ZK dispute game lifecycle
+    "test/dispute/zk/ZKDisputeGameSuperMigration.t.sol",      # Integration tests for ZK dispute game super migration
 ]
 
 # PATHS EXCLUDED FROM CONTRACT NAME FILE PATH VALIDATION:
@@ -86,6 +88,7 @@ function_name_validation = [
     "test/safe/SafeSigners.t.sol",                             # Function name validation issues
     "test/libraries/Predeploys.t.sol",                         # Function 'uncategorizedInterop' doesn't exist in library
     "test/libraries/TransientContext.t.sol",                   # Function 'reentrantAware' doesn't exist in library
+    "test/dispute/lib/Types.t.sol",                            # isSuperGame is in GameTypes (dispute/lib/Types.sol); artifact lookup by basename resolves to src/libraries/Types.sol's Types library
 ]
 
 [excluded_tests]
@@ -100,4 +103,5 @@ contracts = [
     "Constants_Test",                           # Invalid naming pattern - doesn't specify function or Uncategorized
     "LivenessModule2_TestUtils",                # Test utils library in LivenessModule2 test file
     "L1Block_SetCustomGasToken_Test",           # Custom gas token tests hosted in the L1Block test file
+    "Types_IsSuperGame_Test",                   # Tests library GameTypes; Types.sol basename collides with src/libraries/Types.sol
 ]

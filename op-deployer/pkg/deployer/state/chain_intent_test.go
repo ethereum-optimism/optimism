@@ -2,6 +2,8 @@ package state
 
 import (
 	"math/big"
+	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -30,6 +32,14 @@ func validBaseChainIntent() *ChainIntent {
 		SequencerFeeVaultRecipient: common.HexToAddress("0x0A"),
 		OperatorFeeVaultRecipient:  common.HexToAddress("0x0B"),
 	}
+}
+
+func TestFaultGameAbsolutePrestateOverrideKeyMatchesJSONTag(t *testing.T) {
+	field, ok := reflect.TypeFor[ChainProofParams]().FieldByName("DisputeAbsolutePrestate")
+	require.True(t, ok)
+
+	jsonName, _, _ := strings.Cut(field.Tag.Get("json"), ",")
+	require.Equal(t, FaultGameAbsolutePrestateOverrideKey, jsonName)
 }
 
 func TestChainIntentCheck_ZKDisputeGame(t *testing.T) {

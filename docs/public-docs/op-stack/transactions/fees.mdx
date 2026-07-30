@@ -1,6 +1,7 @@
 ---
 title: Transaction fees on OP Mainnet
 description: Learn how transaction fees work on OP Mainnet.
+diataxis: explanation
 ---
 
 <Info>
@@ -9,6 +10,15 @@ description: Learn how transaction fees work on OP Mainnet.
   As a result, transactions on Optimism may behave differently from the mainnet regarding gas usage and fee estimation.
   For a detailed comparison of gas limits between Optimism and Ethereum, see the [Differences between Ethereum and OP Stack Chains](/op-stack/protocol/differences).
 </Info>
+
+<Info>
+  **Learn the OP Stack — stop 7 of 13.**
+  You know how a transaction moves through the stack. This page adds what
+  that journey costs: the components of an OP Stack transaction fee and
+  what determines each one. When you're done, continue to
+  [Deposit flow](/op-stack/bridging/deposit-flow).
+</Info>
+
 OP Mainnet is designed to be [EVM equivalent](https://web.archive.org/web/20231127160757/https://medium.com/ethereum-optimism/introducing-evm-equivalence-5c2021deb306), which means it reuses the same Ethereum code you're already familiar with and behaves as much like Ethereum as possible.
 However, transaction fees on all Layer 2 systems need to diverge from Ethereum to some extent for a number of reasons.
 This page provides a detailed look at exactly how transaction fees work on OP Mainnet so you can properly account for them in your application.
@@ -67,7 +77,7 @@ If transaction speed is important to your application, you may want to set a hig
 The [`eth_maxPriorityFeePerGas`](https://docs.alchemy.com/reference/eth-maxpriorityfeepergas) RPC method can be used to estimate a priority fee that will get your transaction included quickly.
 
 <Info>
-OP Mainnet is running a time-boxed experiment in **stake-based priority ordering**. While the experiment is active, priority fee is no longer the sole factor in transaction ordering — stake held in the `PolicyEngineStaking` contract also influences inclusion order. See the [stake-based priority ordering notice](/notices/stake-based-priority-ordering) and the [Governance Proposal](https://gov.optimism.io/t/upgrade-proposal-stake-based-priority-ordering-experiment/10655) for details.
+OP Mainnet is running a time-boxed experiment in **stake-based priority ordering**. While the experiment is active, priority fee is no longer the sole factor in transaction ordering — stake held in the `PolicyEngineStaking` contract also influences inclusion order. See the [stake-based priority ordering notice](/notices/archive/stake-based-priority-ordering) and the [Governance Proposal](https://gov.optimism.io/t/upgrade-proposal-stake-based-priority-ordering-experiment/10655) for details.
 </Info>
 
 ## L1 data fee
@@ -112,7 +122,7 @@ the L1 Data Fee are generally quite small and should not impact the average tran
 
 Prior to the Ecotone upgrade, the L1 Data Fee is calculated based on the following parameters:
 
-*   The **signed** transaction, serialized according to [the standard Ethereum transaction RLP encoding](https://github.com/ethereum-optimism/op-geth/blob/11a890f1ee0348a17687149abc72f394f9faa5ce/core/types/transaction.go#L131-L141).
+*   The **signed** transaction, serialized according to [the standard Ethereum transaction RLP encoding](https://github.com/ethereum-optimism/op-geth/blob/optimism/core/types/transaction.go#L141-L151).
 *   The current Ethereum base fee  (trustlessly relayed from Ethereum).
 *   A fixed overhead cost for publishing a transaction (currently set to 188 gas).
 *   A dynamic overhead cost which scales with the size of the transaction (currently set to 0.684).
@@ -148,7 +158,7 @@ The pricing function changes with Ecotone upgrade because of the introduction of
 post transaction batches to the L1 using blobs instead of through L1 calldata. This updated
 function uses the following parameters:
 
-*   The **signed** transaction serialized according to [the standard Ethereum transaction RLP encoding](https://github.com/ethereum-optimism/op-geth/blob/11a890f1ee0348a17687149abc72f394f9faa5ce/core/types/transaction.go#L131-L141).
+*   The **signed** transaction serialized according to [the standard Ethereum transaction RLP encoding](https://github.com/ethereum-optimism/op-geth/blob/optimism/core/types/transaction.go#L141-L151).
 *   The current Ethereum base fee and/or blob base fee (trustlessly relayed from Ethereum).
 *   Two new scalar parameters that independently scale the **base fee** and **blob base fee**.
 

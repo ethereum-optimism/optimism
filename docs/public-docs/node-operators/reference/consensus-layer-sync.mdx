@@ -1,6 +1,7 @@
 ---
 title: Consensus-layer sync
 description: Learn about the consensus-layer sync mode.
+diataxis: explanation
 ---
 
 This page documents the consensus-layer sync mode, which is the default sync method for op-node but not the recommended approach for most node operators.
@@ -21,7 +22,7 @@ This sync mode might be preferred in the following scenarios:
 *   **Debugging and research**: Analyzing how blocks are derived from L1 data
 
 <Warning>
-  Consensus-layer sync is significantly slower than execution-layer sync (snap sync). For most node operators, [snap sync](/node-operators/guides/management/snap-sync) is the recommended approach for faster synchronization.
+  Consensus-layer sync is significantly slower than execution-layer sync (snap sync). For most node operators, snap sync is the recommended approach for faster synchronization.
 </Warning>
 
 ## Configuration
@@ -95,7 +96,6 @@ This approach ensures that every block is derived from L1 and independently veri
 
 ## Next steps
 
-*   See the [Snap Sync guide](/node-operators/guides/management/snap-sync) for the recommended fast sync method
 *   See the [Archive Node guide](/node-operators/guides/management/archive-node) for running an archive node
 *   See the [Consensus Client Configuration](/node-operators/guides/configuration/consensus-clients) and [Execution Client Configuration](/node-operators/guides/configuration/execution-clients) guides for additional explanation or customization
 *   If you experience difficulty at any stage of this process, please reach out to [developer support](https://github.com/ethereum-optimism/developers/discussions)

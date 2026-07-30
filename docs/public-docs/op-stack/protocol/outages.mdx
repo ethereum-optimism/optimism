@@ -1,7 +1,17 @@
 ---
 title: Sequencer outages
 description: Learn what happens if the Sequencer goes down and how you can be prepared.
+diataxis: explanation
 ---
+
+import { NormativeSpec } from "/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="Bypassing the sequencer with deposit transactions"
+  title="deposits specification"
+  href="https://specs.optimism.io/protocol/deposits.html#user-deposited-transactions"
+  note="This page explains outage types and mitigations; it does not restate the spec."
+/>
 
 All OP Stack chains have a Sequencer that can receive, order, and publish L2 transactions to L1.
 Like any software system, a Sequencer could potentially become unavailable for any number of different reasons.
@@ -12,7 +22,7 @@ Sequencer outages can broadly be categorized into two different types:
 1.  **Sequencer Downtime Outages** occur when the Sequencer is entirely unable to receive and/or process L2 transactions from users. Outages of this type will appear to users as a complete inability to submit transactions to the Sequencer.
 1.  **Transaction Submission Outages** occur when the Sequencer is still able to receive and process L2 transactions from users but is unable to publish these transactions to L1. Outages of this type generally do not impact users unless they remain unresolved for an extended period of time.
 
-Both outage types can be circumvented by submitting transactions directly to the [`OptimismPortal`](https://github.com/ethereum-optimism/optimism/blob/111f3f3a3a2881899662e53e0f1b2f845b188a38/packages/contracts-bedrock/src/L1/OptimismPortal.sol#L209) contract on L1 with certain important caveats.
+Both outage types can be circumvented by submitting transactions directly to the [`OptimismPortal`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OptimismPortal2.sol#L684) contract on L1 with certain important caveats.
 Keep reading to learn more about these potential outages and how to handle them.
 
 ## Sequencer downtime outages
@@ -31,7 +41,7 @@ Users may observe that the network appears to be "stuck" at a particular block h
 
 ### Mitigation
 
-Users can always bypass the Sequencer by sending L2 transactions directly to the [`OptimismPortal`](https://github.com/ethereum-optimism/optimism/blob/111f3f3a3a2881899662e53e0f1b2f845b188a38/packages/contracts-bedrock/src/L1/OptimismPortal.sol#L209) contract on L1.
+Users can always bypass the Sequencer by sending L2 transactions directly to the [`OptimismPortal`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OptimismPortal2.sol#L684) contract on L1.
 Refer to the [Bypassing the Sequencer](#bypassing-the-sequencer) section below for more information about this functionality.
 
 ## Transaction submission outages
@@ -54,13 +64,13 @@ This can appear to users as a large change in the expected state of the L2 chain
 
 ### Mitigation
 
-Users can always bypass the Sequencer by sending L2 transactions directly to the [`OptimismPortal`](https://github.com/ethereum-optimism/optimism/blob/111f3f3a3a2881899662e53e0f1b2f845b188a38/packages/contracts-bedrock/src/L1/OptimismPortal.sol#L209) contract on L1.
+Users can always bypass the Sequencer by sending L2 transactions directly to the [`OptimismPortal`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OptimismPortal2.sol#L684) contract on L1.
 Refer to the [Bypassing the Sequencer](#bypassing-the-sequencer) section for more information about this functionality.
 
 ## Bypassing the sequencer
 
 A core security goal of OP Stack chains is that the Sequencer should not be able to prevent users from submitting transactions to the L2 chain.
-Users of OP Stack chains can always bypass the sequencer and include transactions in the L2 chain by sending their L2 transactions directly to the [`OptimismPortal`](https://github.com/ethereum-optimism/optimism/blob/111f3f3a3a2881899662e53e0f1b2f845b188a38/packages/contracts-bedrock/src/L1/OptimismPortal.sol#L209) contract on L1.
+Users of OP Stack chains can always bypass the sequencer and include transactions in the L2 chain by sending their L2 transactions directly to the [`OptimismPortal`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OptimismPortal2.sol#L684) contract on L1.
 
 ### About the OptimismPortal
 

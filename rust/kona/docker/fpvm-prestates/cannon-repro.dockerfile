@@ -9,9 +9,11 @@
 #              Build Cannon from local monorepo                #
 ################################################################
 
-FROM golang:1.24.13-alpine3.22 AS cannon-build
+FROM golang:1.26.4-alpine3.22 AS cannon-build
 
-RUN apk add --no-cache bash just
+# apk has no built-in download retry; loop so a transient CDN drop doesn't flake CI (~5 min budget).
+# Retrying the identical apk add does not affect the reproducible cannon/prestate output.
+RUN n=0; until apk add --no-cache bash just; do n=$((n+1)); [ "$n" -ge 15 ] && exit 1; echo "apk add retry $n/15 in 20s" >&2; sleep 20; done
 
 COPY go.mod go.sum /app/
 COPY cannon/ /app/cannon/
@@ -34,7 +36,7 @@ ARG VARIANT=kona-client
 
 # --- Layer 1: mise + pinned toolchains ---
 # mise's rust plugin bootstraps rustup at a pinned version and installs
-# every rust entry from mise.toml (stable 1.94 + the dated nightly).
+# every rust entry from mise.toml (stable 1.95 + the dated nightly).
 # All artifacts come from pinned sources — no `curl | sh` from an
 # unpinned URL in the reproducible build path.
 COPY ops/scripts/install_mise.sh /tmp/install_mise.sh
@@ -55,7 +57,7 @@ RUN mise trust && mise install rust go just jq
 # cargo call then resolves to the rustup proxy directly and respects
 # RUSTUP_TOOLCHAIN (set by build-kona-client-elf). If it went through
 # the mise shim instead, mise would re-set RUSTUP_TOOLCHAIN to the
-# active rust from mise.toml (stable 1.94) and build the wrong
+# active rust from mise.toml (stable 1.95) and build the wrong
 # toolchain into the prestate.
 ENV PATH="/root/.cargo/bin:/root/.local/share/mise/shims:${PATH}"
 ENV MISE_GLOBAL_CONFIG_FILE="/app/mise.toml"
@@ -74,6 +76,7 @@ COPY rust/op-alloy/ /app/rust/op-alloy/
 COPY rust/alloy-op-evm/ /app/rust/alloy-op-evm/
 COPY rust/alloy-op-hardforks/ /app/rust/alloy-op-hardforks/
 COPY rust/op-revm/ /app/rust/op-revm/
+COPY rust/op-version/ /app/rust/op-version/
 # op-reth, revm-ee-tests, and op-reth-test-engine are workspace members but
 # not kona-client dependencies. We need their Cargo.toml files so the
 # workspace resolves.

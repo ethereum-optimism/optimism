@@ -13,8 +13,8 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/params"
 
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -88,7 +88,7 @@ func TestInteropMessageFormatEdgeCases(t *testing.T) {
 		{
 			name: "Empty Topics",
 			log: &ethTypes.Log{
-				Address: params.InteropCrossL2InboxAddress,
+				Address: predeploys.CrossL2InboxAddr,
 				Topics:  []common.Hash{},
 				Data:    make([]byte, 32*5),
 			},
@@ -97,7 +97,7 @@ func TestInteropMessageFormatEdgeCases(t *testing.T) {
 		{
 			name: "Wrong Event Topic",
 			log: &ethTypes.Log{
-				Address: params.InteropCrossL2InboxAddress,
+				Address: predeploys.CrossL2InboxAddr,
 				Topics: []common.Hash{
 					common.BytesToHash([]byte("wrong topic")),
 					common.BytesToHash([]byte("payloadHash")),
@@ -109,7 +109,7 @@ func TestInteropMessageFormatEdgeCases(t *testing.T) {
 		{
 			name: "Missing PayloadHash Topic",
 			log: &ethTypes.Log{
-				Address: params.InteropCrossL2InboxAddress,
+				Address: predeploys.CrossL2InboxAddr,
 				Topics: []common.Hash{
 					common.BytesToHash(ExecutingMessageEventTopic[:]),
 				},
@@ -120,7 +120,7 @@ func TestInteropMessageFormatEdgeCases(t *testing.T) {
 		{
 			name: "Too Many Topics",
 			log: &ethTypes.Log{
-				Address: params.InteropCrossL2InboxAddress,
+				Address: predeploys.CrossL2InboxAddr,
 				Topics: []common.Hash{
 					common.BytesToHash(ExecutingMessageEventTopic[:]),
 					common.BytesToHash([]byte("payloadHash")),
@@ -133,7 +133,7 @@ func TestInteropMessageFormatEdgeCases(t *testing.T) {
 		{
 			name: "Data Too Short",
 			log: &ethTypes.Log{
-				Address: params.InteropCrossL2InboxAddress,
+				Address: predeploys.CrossL2InboxAddr,
 				Topics: []common.Hash{
 					common.BytesToHash(ExecutingMessageEventTopic[:]),
 					common.BytesToHash([]byte("payloadHash")),
@@ -145,7 +145,7 @@ func TestInteropMessageFormatEdgeCases(t *testing.T) {
 		{
 			name: "Data Too Long",
 			log: &ethTypes.Log{
-				Address: params.InteropCrossL2InboxAddress,
+				Address: predeploys.CrossL2InboxAddr,
 				Topics: []common.Hash{
 					common.BytesToHash(ExecutingMessageEventTopic[:]),
 					common.BytesToHash([]byte("payloadHash")),
@@ -157,7 +157,7 @@ func TestInteropMessageFormatEdgeCases(t *testing.T) {
 		{
 			name: "Invalid Address Padding",
 			log: &ethTypes.Log{
-				Address: params.InteropCrossL2InboxAddress,
+				Address: predeploys.CrossL2InboxAddr,
 				Topics: []common.Hash{
 					common.BytesToHash(ExecutingMessageEventTopic[:]),
 					common.BytesToHash([]byte("payloadHash")),
@@ -173,7 +173,7 @@ func TestInteropMessageFormatEdgeCases(t *testing.T) {
 		{
 			name: "Invalid Block Number Padding",
 			log: &ethTypes.Log{
-				Address: params.InteropCrossL2InboxAddress,
+				Address: predeploys.CrossL2InboxAddr,
 				Topics: []common.Hash{
 					common.BytesToHash(ExecutingMessageEventTopic[:]),
 					common.BytesToHash([]byte("payloadHash")),

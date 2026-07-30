@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/params"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -230,7 +231,7 @@ func BlockToSingularBatch(rollupCfg *rollup.Config, block *types.Block) (*Singul
 
 	opaqueTxs := make([]hexutil.Bytes, 0, len(block.Transactions()))
 	for i, tx := range block.Transactions() {
-		if tx.Type() == types.DepositTxType {
+		if tx.Type() == optypes.DepositTxType {
 			continue
 		}
 		otx, err := tx.MarshalBinary()
@@ -241,7 +242,7 @@ func BlockToSingularBatch(rollupCfg *rollup.Config, block *types.Block) (*Singul
 	}
 
 	l1InfoTx := block.Transactions()[0]
-	if l1InfoTx.Type() != types.DepositTxType {
+	if l1InfoTx.Type() != optypes.DepositTxType {
 		return nil, nil, ErrNotDepositTx
 	}
 	l1Info, err := L1BlockInfoFromBytes(rollupCfg, block.Time(), l1InfoTx.Data())

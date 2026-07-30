@@ -7,6 +7,10 @@
     "light": "#FF0420",
     "dark": "#FF0420"
   },
+  "thumbnails": {
+    "appearance": "dark",
+    "background": "/public/img/og-background.svg"
+  },
   "favicon": "/public/favicon.png",
   "metadata": {
     "apple-touch-icon": "/public/apple-touch-icon.png"
@@ -28,7 +32,8 @@
     "options": [
       "copy",
       "chatgpt",
-      "claude"
+      "claude",
+      "mcp"
     ]
   },
   "customCSS": [
@@ -55,6 +60,46 @@
   },
   "redirects": [
     {
+      "source": "/ai/docs-for-agents",
+      "destination": "/ai-docs"
+    },
+    {
+      "source": "/ai/mcp-setup",
+      "destination": "/ai-docs"
+    },
+    {
+      "source": "/ai/prompt-library",
+      "destination": "/ai-docs"
+    },
+    {
+      "source": "/node-operators/reference/op-geth-config",
+      "destination": "/node-operators/reference/op-reth-config"
+    },
+    {
+      "source": "/node-operators/reference/op-geth-json-rpc",
+      "destination": "/node-operators/reference/op-reth-json-rpc"
+    },
+    {
+      "source": "/node-operators/tutorials/node-from-docker-simple-optimism-node",
+      "destination": "/node-operators/tutorials/node-from-docker"
+    },
+    {
+      "source": "/node-operators/guides/management/snap-sync",
+      "destination": "/node-operators/reference/consensus-layer-sync"
+    },
+    {
+      "source": "/node-operators/reference/features/snap-sync",
+      "destination": "/node-operators/reference/consensus-layer-sync"
+    },
+    {
+      "source": "/rust/op-reth/cli/cli",
+      "destination": "/node-operators/op-reth/cli/overview"
+    },
+    {
+      "source": "/chain-operators/reference/architecture",
+      "destination": "/chain-operators/guides/management/network-architecture"
+    },
+    {
       "source": "/stack/interop/op-supervisor",
       "destination": "/op-stack/interop/explainer"
     },
@@ -68,43 +113,47 @@
     },
     {
       "source": "/chain-operators/tools/op-deployer/usage/upgrade",
-      "destination": "/notices/op-deployer-upgrade-deprecation"
+      "destination": "/notices/archive/op-deployer-upgrade-deprecation"
+    },
+    {
+      "source": "/chain-operators/tools/op-deployer/reference/custom-deployments",
+      "destination": "/chain-operators/tools/op-deployer/usage/custom-deployments"
     },
     {
       "source": "/pages/app-developers/get-started",
-      "destination": "/interop/get-started"
+      "destination": "/app-developers/guides/interoperability/get-started"
     },
     {
       "source": "/pages/app-developers/interop",
-      "destination": "/interop/explainer"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/pages/app-developers/starter-kit",
-      "destination": "/interop/starter-kit"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/app-developers/tools/data-and-dashboards",
-      "destination": "/app-developers/tools/data-and-dashboards/overview"
+      "destination": "/app-developers/tools/data/data-and-dashboards"
     },
     {
       "source": "/builders",
-      "destination": "/interop/get-started"
+      "destination": "/app-developers/guides/interoperability/get-started"
     },
     {
       "source": "/builders/dapp-developers",
-      "destination": "/app-developers"
+      "destination": "/app-developers/guides/building-apps"
     },
     {
       "source": "/builders/chain-operators",
-      "destination": "/operators/chain-operators"
+      "destination": "/"
     },
     {
       "source": "/builders/node-operators",
-      "destination": "/operators/node-operators"
+      "destination": "/node-operators/overview"
     },
     {
       "source": "/builders/tools/rpc-providers",
-      "destination": "/app-developers/tools/connect/rpc-providers"
+      "destination": "/app-developers/reference/rpc-providers"
     },
     {
       "source": "/builders/tools/block-explorers",
@@ -112,39 +161,39 @@
     },
     {
       "source": "/builders/tools/faucets",
-      "destination": "/app-developers/tools/build/faucets"
+      "destination": "/app-developers/tools/faucets"
     },
     {
       "source": "/builders/tools/oracles",
-      "destination": "/app-developers/tools/build/oracles"
+      "destination": "/app-developers/tools/data/oracles"
     },
     {
       "source": "/builders/tools/nft-tools",
-      "destination": "/app-developers/tools/"
+      "destination": "/app-developers/guides/building-apps"
     },
     {
       "source": "/builders/tools/account-abstraction",
-      "destination": "/app-developers/tools/build/account-abstraction"
+      "destination": "/app-developers/tools/account-abstraction"
     },
     {
       "source": "/builders/tools/analytics-tools",
-      "destination": "/app-developers/tools/build/analytics-tools"
+      "destination": "/app-developers/tools/data/analytics-tools"
     },
     {
       "source": "/builders/dapp-developers/dapp-developer-overview",
-      "destination": "/interop/get-started"
+      "destination": "/app-developers/guides/interoperability/get-started"
     },
     {
       "source": "/builders/dapp-developers/quick-start",
-      "destination": "/interop/starter-kit"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/dapp-developers/creating-a-nft",
-      "destination": "/app-developers/tools/"
+      "destination": "/app-developers/tutorials/deploy-a-contract"
     },
     {
       "source": "/builders/dapp-developers/tutorials/first-contract",
-      "destination": "/interop/get-started"
+      "destination": "/app-developers/guides/interoperability/get-started"
     },
     {
       "source": "/builders/dapp-developers/tutorials/cross-dom-bridge-eth",
@@ -172,35 +221,35 @@
     },
     {
       "source": "/builders/dapp-developers/bridging/basics",
-      "destination": "/app-developers/bridging/basics"
+      "destination": "/app-developers/guides/bridging/basics"
     },
     {
       "source": "/builders/dapp-developers/bridging/messaging",
-      "destination": "/app-developers/bridging/messaging"
+      "destination": "/app-developers/guides/bridging/messaging"
     },
     {
       "source": "/builders/dapp-developers/bridging/standard-bridge",
-      "destination": "/app-developers/bridging/standard-bridge"
+      "destination": "/app-developers/guides/bridging/standard-bridge"
     },
     {
       "source": "/builders/dapp-developers/bridging/custom-bridge",
-      "destination": "/app-developers/bridging/custom-bridge"
+      "destination": "/app-developers/guides/bridging/custom-bridge"
     },
     {
       "source": "/builders/dapp-developers/contracts/account-abstraction",
-      "destination": "/app-developers/tools/build/account-abstraction"
+      "destination": "/app-developers/tools/account-abstraction"
     },
     {
       "source": "/builders/dapp-developers/contracts/cheap-dapp",
-      "destination": "/app-developers/contracts/optimization"
+      "destination": "/app-developers/guides/transactions/estimates"
     },
     {
       "source": "/builders/dapp-developers/contracts/compatibility",
-      "destination": "/app-developers/contracts/compatibility"
+      "destination": "/op-stack/protocol/differences"
     },
     {
       "source": "/builders/dapp-developers/contracts/system-contracts",
-      "destination": "/app-developers/contracts/system-contracts"
+      "destination": "/op-stack/protocol/smart-contracts"
     },
     {
       "source": "/builders/chain-operators/overview",
@@ -208,15 +257,15 @@
     },
     {
       "source": "/builders/chain-operators/configuration/batcher",
-      "destination": "/operators/chain-operators/configuration/batcher"
+      "destination": "/chain-operators/guides/configuration/batcher"
     },
     {
       "source": "/builders/chain-operators/management/operations",
-      "destination": "/operators/chain-operators/management/operations"
+      "destination": "/chain-operators/guides/management/operations"
     },
     {
       "source": "/builders/chain-operators/tools/proxyd",
-      "destination": "/operators/chain-operators/tools/proxyd"
+      "destination": "/chain-operators/tools/proxyd"
     },
     {
       "source": "/operators/chain-operators/features/flashblocks",
@@ -232,31 +281,31 @@
     },
     {
       "source": "/builders/chain-operators/tools/chain-monitoring",
-      "destination": "/operators/chain-operators/tools/chain-monitoring"
+      "destination": "/chain-operators/tools/chain-monitoring"
     },
     {
       "source": "/builders/chain-operators/tools/explorer",
-      "destination": "/operators/chain-operators/tools/explorer"
+      "destination": "/chain-operators/tools/explorer"
     },
     {
       "source": "/builders/node-operators/overview",
-      "destination": "/operators/node-operators/rollup-node"
+      "destination": "/node-operators/overview"
     },
     {
       "source": "/builders/node-operators/management/snapshots",
-      "destination": "/operators/node-operators/management/snapshots"
+      "destination": "/op-mainnet/network-information/snapshots"
     },
     {
       "source": "/builders/node-operators/management/metrics",
-      "destination": "/operators/node-operators/management/metrics"
+      "destination": "/node-operators/guides/monitoring/metrics"
     },
     {
       "source": "/operators/node-operators/tutorials/mainnet",
-      "destination": "/operators/node-operators/tutorials/run-node-from-source"
+      "destination": "/node-operators/tutorials/run-node-from-source"
     },
     {
       "source": "/operators/node-operators/tutorials/testnet",
-      "destination": "/operators/node-operators/tutorials/run-node-from-source"
+      "destination": "/node-operators/tutorials/run-node-from-source"
     },
     {
       "source": "/stack/dev-net",
@@ -264,47 +313,47 @@
     },
     {
       "source": "/stack/protocol/deposit-flow",
-      "destination": "/stack/transactions/deposit-flow"
+      "destination": "/op-stack/bridging/deposit-flow"
     },
     {
       "source": "/stack/protocol/transaction-flow",
-      "destination": "/stack/transactions/transaction-flow"
+      "destination": "/op-stack/transactions/transaction-flow"
     },
     {
       "source": "/stack/protocol/withdrawal-flow",
-      "destination": "/stack/transactions/withdrawal-flow"
+      "destination": "/op-stack/bridging/withdrawal-flow"
     },
     {
       "source": "/stack/interop/transfer-superchainERC20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/stack/interop/architecture",
-      "destination": "/stack/interop/explainer#interoperability-architecture"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/stack/interop/cross-chain-message",
-      "destination": "/stack/interop/explainer#how-messages-get-from-one-chain-to-the-other"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/stack/interop/cross-chain/contract-calls",
-      "destination": "/stack/interop/tutorials/contract-calls"
+      "destination": "/app-developers/tutorials/interoperability/contract-calls"
     },
     {
       "source": "/stack/interop/cross-chain/event-contests",
-      "destination": "/stack/interop/tutorials/event-contests"
+      "destination": "/app-developers/tutorials/interoperability/event-contests"
     },
     {
       "source": "/stack/interop/cross-chain/event-reads",
-      "destination": "/stack/interop/tutorials/event-reads"
+      "destination": "/app-developers/tutorials/interoperability/event-reads"
     },
     {
       "source": "/stack/interop/cross-chain/security",
-      "destination": "/stack/interop/interop-security"
+      "destination": "/op-stack/security/interop-security"
     },
     {
       "source": "/stack/interop/cross-chain",
-      "destination": "/stack/interop"
+      "destination": "/app-developers/guides/interoperability/get-started"
     },
     {
       "source": "/audit-reports/1",
@@ -316,7 +365,7 @@
     },
     {
       "source": "/stack/overview",
-      "destination": "/op-stack/protocol/getting-started"
+      "destination": "/op-stack/introduction/op-stack"
     },
     {
       "source": "/stack/explainer",
@@ -324,7 +373,7 @@
     },
     {
       "source": "/stack/beta-features/custom-gas-token",
-      "destination": "/notices/custom-gas-tokens-deprecation"
+      "destination": "/op-stack/features/custom-gas-token"
     },
     {
       "source": "/tokenlist",
@@ -348,7 +397,7 @@
     },
     {
       "source": "/chain/getting-started",
-      "destination": "/app-developers/building-apps"
+      "destination": "/app-developers/guides/building-apps"
     },
     {
       "source": "/chain/security/privileged-roles",
@@ -356,47 +405,47 @@
     },
     {
       "source": "/chain/differences",
-      "destination": "/stack/differences"
+      "destination": "/op-stack/protocol/differences"
     },
     {
       "source": "/operators/chain-operators/features/custom-gas-token",
-      "destination": "/notices/custom-gas-tokens-deprecation"
+      "destination": "/chain-operators/guides/features/custom-gas-token-guide"
     },
     {
       "source": "/identity/optimist-profile",
-      "destination": "/governance/gov-faq"
+      "destination": "/governance/attestation-schemas"
     },
     {
       "source": "/chain/identity/optimist-profile",
-      "destination": "/governance/gov-faq"
+      "destination": "/governance/attestation-schemas"
     },
     {
       "source": "/app-developers/tools/overview",
-      "destination": "/app-developers/tools"
+      "destination": "/app-developers/guides/building-apps"
     },
     {
       "source": "/app-developers/tools/ecosystem-overview",
-      "destination": "/app-developers/tools/"
+      "destination": "/app-developers/guides/building-apps"
     },
     {
       "source": "/resources/glossary",
-      "destination": "/connect/resources/glossary"
+      "destination": "/op-stack/reference/glossary"
     },
     {
       "source": "/app-developers/app-developers/bridging/messaging",
-      "destination": "/app-developers/bridging/messaging"
+      "destination": "/app-developers/guides/bridging/messaging"
     },
     {
       "source": "/app-developers/app-developers/bridging/standard-bridge",
-      "destination": "/app-developers/bridging/standard-bridge"
+      "destination": "/app-developers/guides/bridging/standard-bridge"
     },
     {
       "source": "/app-developers/app-developers/transactions/fees",
-      "destination": "/app-developers/transactions/fees"
+      "destination": "/op-stack/transactions/fees"
     },
     {
       "source": "/app-developers/app-developers/bridging/basics",
-      "destination": "/app-developers/bridging/basics"
+      "destination": "/app-developers/guides/bridging/basics"
     },
     {
       "source": "/builders/notices/granite-changes",
@@ -408,115 +457,115 @@
     },
     {
       "source": "/builders/notices/ecotone-changes",
-      "destination": "/stack/transactions/fees#ecotone"
+      "destination": "/op-stack/transactions/fees"
     },
     {
       "source": "/get-started/design-principles",
-      "destination": "/stack/design-principles"
+      "destination": "/op-stack/protocol/design-principles"
     },
     {
       "source": "/stack/interop/tools",
-      "destination": "/interop/tools"
+      "destination": "/app-developers/tools/supersim"
     },
     {
       "source": "/stack/interop/tools/supersim",
-      "destination": "/interop/tools/supersim"
+      "destination": "/app-developers/tools/supersim"
     },
     {
       "source": "/stack/interop/tools/devnet",
-      "destination": "/interop/tools/devnet"
+      "destination": "/app-developers/guides/building-apps"
     },
     {
       "source": "/stack/interop/tools/rc-alpha",
-      "destination": "/interop/tools/rc-alpha"
+      "destination": "/app-developers/guides/interoperability/get-started"
     },
     {
       "source": "/stack/interop/compatible-tokens",
-      "destination": "/interop/compatible-tokens"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/stack/interop/reading-logs",
-      "destination": "/interop/reading-logs"
+      "destination": "/app-developers/guides/interoperability/reading-logs"
     },
     {
       "source": "/stack/interop/message-passing",
-      "destination": "/interop/message-passing"
+      "destination": "/app-developers/guides/interoperability/message-passing"
     },
     {
       "source": "/stack/interop/tutorials",
-      "destination": "/interop/tutorials"
+      "destination": "/app-developers/guides/building-apps"
     },
     {
       "source": "/stack/interop/reorg",
-      "destination": "/interop/reorg"
+      "destination": "/op-stack/interop/reorg"
     },
     {
       "source": "/stack/interop/superchain-erc20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/stack/interop/tutorials/transfer-superchainERC20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/stack/interop/tutorials/bridge-crosschain-eth",
-      "destination": "/interop/tutorials/bridge-crosschain-eth"
+      "destination": "/app-developers/tutorials/bridging/bridge-crosschain-eth"
     },
     {
       "source": "/stack/interop/tutorials/event-reads",
-      "destination": "/interop/tutorials/event-reads"
+      "destination": "/app-developers/tutorials/interoperability/event-reads"
     },
     {
       "source": "/stack/interop/tutorials/message-passing",
-      "destination": "/interop/tutorials/message-passing"
+      "destination": "/app-developers/tutorials/interoperability/message-passing"
     },
     {
       "source": "/stack/interop/tutorials/custom-superchain-erc20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/stack/interop/tutorials/relay-messages-cast",
-      "destination": "/interop/tutorials/relay-messages-cast"
+      "destination": "/app-developers/tutorials/interoperability/manual-relay"
     },
     {
       "source": "/stack/interop/tutorials/contract-calls",
-      "destination": "/interop/tutorials/contract-calls"
+      "destination": "/app-developers/tutorials/interoperability/contract-calls"
     },
     {
       "source": "/stack/interop/tutorials/event-contests",
-      "destination": "/interop/tutorials/event-contests"
+      "destination": "/app-developers/tutorials/interoperability/event-contests"
     },
     {
       "source": "/stack/interop/tutorials/relay-messages-viem",
-      "destination": "/interop/tutorials/relay-messages-viem"
+      "destination": "/app-developers/tutorials/interoperability/manual-relay"
     },
     {
       "source": "/stack/interop/tutorials/deploy-superchain-erc20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/stack/interop/predeploy",
-      "destination": "/interop/predeploy"
+      "destination": "/app-developers/reference/contracts/interop/predeploy"
     },
     {
       "source": "/stack/interop/explainer",
-      "destination": "/interop/explainer"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/stack/interop/interop-security",
-      "destination": "/interop/interop-security"
+      "destination": "/op-stack/security/interop-security"
     },
     {
       "source": "/stack/interop/superchain-weth",
-      "destination": "/interop/superchain-eth-bridge"
+      "destination": "/op-stack/interop/superchain-eth-bridge"
     },
     {
       "source": "/interop/superchain-weth",
-      "destination": "/interop/superchain-eth-bridge"
+      "destination": "/op-stack/interop/superchain-eth-bridge"
     },
     {
       "source": "/stack/interop",
-      "destination": "/interop/get-started"
+      "destination": "/app-developers/guides/interoperability/get-started"
     },
     {
       "source": "/app-developers/bridging/basics",
@@ -540,15 +589,15 @@
     },
     {
       "source": "/app-developers/get-started",
-      "destination": "/app-developers/quickstarts/get-started"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/app-developers/interop",
-      "destination": "/app-developers/guides/interop"
+      "destination": "/app-developers/guides/interoperability/get-started"
     },
     {
       "source": "/app-developers/starter-kit",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/app-developers/testing-apps",
@@ -556,11 +605,11 @@
     },
     {
       "source": "/app-developers/tools/build",
-      "destination": "/app-developers/build"
+      "destination": "/app-developers/guides/building-apps"
     },
     {
       "source": "/app-developers/tools/build/account-abstraction",
-      "destination": "/app-developers/tools/wallets/account-abstraction"
+      "destination": "/app-developers/tools/account-abstraction"
     },
     {
       "source": "/app-developers/tools/build/analytics-tools",
@@ -576,7 +625,7 @@
     },
     {
       "source": "/app-developers/tools/build/ecosystem-overview",
-      "destination": "/app-developers/tools/"
+      "destination": "/app-developers/guides/building-apps"
     },
     {
       "source": "/app-developers/tools/build/faucets",
@@ -588,11 +637,11 @@
     },
     {
       "source": "/app-developers/tools/build/nft-tools",
-      "destination": "/app-developers/tools/"
+      "destination": "/app-developers/guides/building-apps"
     },
     {
       "source": "/app-developers/tools/tools",
-      "destination": "/app-developers/tools/"
+      "destination": "/app-developers/guides/building-apps"
     },
     {
       "source": "/app-developers/tools/build/oracles",
@@ -600,7 +649,7 @@
     },
     {
       "source": "/app-developers/tools/connect",
-      "destination": "/app-developers/guides/connect"
+      "destination": "/op-mainnet/network-information/connecting-to-op"
     },
     {
       "source": "/app-developers/tools/connect/networks",
@@ -620,7 +669,7 @@
     },
     {
       "source": "/app-developers/transactions",
-      "destination": "/app-developers/guides/transactions"
+      "destination": "/app-developers/guides/transactions/estimates"
     },
     {
       "source": "/app-developers/transactions/estimates",
@@ -655,10 +704,6 @@
       "destination": "/app-developers/guides/interoperability/message-expiration"
     },
     {
-      "source": "/app-developers/quickstarts/get-started",
-      "destination": "/op-stack/interop/interop"
-    },
-    {
       "source": "/app-developers/tutorials/interop/bridge-crosschain-eth",
       "destination": "/app-developers/tutorials/bridging/bridge-crosschain-eth"
     },
@@ -668,7 +713,7 @@
     },
     {
       "source": "/app-developers/tutorials/interop/deploy-superchain-erc20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/app-developers/tutorials/interop/event-contests",
@@ -680,23 +725,23 @@
     },
     {
       "source": "/app-developers/tutorials/interop/relay-messages-cast",
-      "destination": "/app-developers/tutorials/tools/relay-messages-cast"
+      "destination": "/app-developers/tutorials/interoperability/manual-relay"
     },
     {
       "source": "/app-developers/tutorials/interop/relay-messages-viem",
-      "destination": "/app-developers/tutorials/tools/relay-messages-viem"
+      "destination": "/app-developers/tutorials/interoperability/manual-relay"
     },
     {
       "source": "/app-developers/tutorials/interop/transfer-superchainERC20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/app-developers/tutorials/supersim",
-      "destination": "/app-developers/tutorials/development/supersim"
+      "destination": "/app-developers/tutorials/development/supersim/first-steps"
     },
     {
       "source": "/app-developers/tutorials/supersim/chain-env",
-      "destination": "/app-developers/reference/tools/supersim/chain-env"
+      "destination": "/app-developers/reference/tools/supersim/chain-a"
     },
     {
       "source": "/app-developers/tutorials/supersim/chain-env/chain-a",
@@ -716,7 +761,7 @@
     },
     {
       "source": "/app-developers/tutorials/supersim/getting-started",
-      "destination": "/app-developers/tutorials/development/supersim/getting-started"
+      "destination": "/app-developers/tutorials/development/supersim/first-steps"
     },
     {
       "source": "/app-developers/tutorials/supersim/getting-started/first-steps",
@@ -728,7 +773,7 @@
     },
     {
       "source": "/app-developers/tutorials/supersim/reference",
-      "destination": "/app-developers/reference/tools/reference"
+      "destination": "/app-developers/reference/tools/supersim/chain-a"
     },
     {
       "source": "/app-developers/tutorials/supersim/reference/fork",
@@ -740,7 +785,7 @@
     },
     {
       "source": "/connect/contribute",
-      "destination": "/reference/contribute/contribute"
+      "destination": "https://github.com/ethereum-optimism/optimism/blob/develop/docs/public-docs/DOCS_CONTRIBUTING.md"
     },
     {
       "source": "/connect/contribute/docs-contribute",
@@ -752,27 +797,27 @@
     },
     {
       "source": "/connect/contribute/style-guide",
-      "destination": "https://github.com/ethereum-optimism/optimism/blob/develop/docs/public-docs/STYLE_GUIDE.md"
+      "destination": "/op-stack/contribute/style-guide"
     },
     {
       "source": "/reference/contribute/style-guide",
-      "destination": "https://github.com/ethereum-optimism/optimism/blob/develop/docs/public-docs/STYLE_GUIDE.md"
+      "destination": "/op-stack/contribute/style-guide"
     },
     {
       "source": "/connect/resources",
-      "destination": "/resources"
+      "destination": "/"
     },
     {
       "source": "/get-started/interop",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/concepts/interoperability/interop",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/get-started/op-stack",
-      "destination": "/concepts/stack/op-stack"
+      "destination": "/op-stack/introduction/op-stack"
     },
     {
       "source": "/get-started/superchain",
@@ -780,7 +825,7 @@
     },
     {
       "source": "/interop/compatible-tokens",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/interop/explainer",
@@ -816,7 +861,11 @@
     },
     {
       "source": "/interop/estimate-costs",
-      "destination": "/app-developers/guides/interoperability/estimate-costs"
+      "destination": "/app-developers/guides/interoperability/message-passing"
+    },
+    {
+      "source": "/app-developers/guides/interoperability/estimate-costs",
+      "destination": "/app-developers/guides/interoperability/message-passing"
     },
     {
       "source": "/interop/reorg",
@@ -828,15 +877,15 @@
     },
     {
       "source": "/interop/starter-kit",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/interop/superchain-erc20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/concepts/interoperability/superchain-erc20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/interop/superchain-eth-bridge",
@@ -848,23 +897,23 @@
     },
     {
       "source": "/interop/tools",
-      "destination": "/app-developers/tools/tools"
+      "destination": "/app-developers/tools/supersim"
     },
     {
       "source": "/interop/tools/devnet",
-      "destination": "/app-developers/tools/testing/devnet"
+      "destination": "/app-developers/guides/building-apps"
     },
     {
       "source": "/interop/tools/rc-alpha",
-      "destination": "/app-developers/tools/development/rc-alpha"
+      "destination": "/app-developers/guides/interoperability/get-started"
     },
     {
       "source": "/interop/tools/supersim",
-      "destination": "/app-developers/tools/development/supersim"
+      "destination": "/app-developers/tools/supersim"
     },
     {
       "source": "/interop/tutorials",
-      "destination": "/app-developers/tutorials/tutorials"
+      "destination": "/app-developers/guides/building-apps"
     },
     {
       "source": "/interop/tutorials/bridge-crosschain-eth",
@@ -876,11 +925,11 @@
     },
     {
       "source": "/interop/tutorials/custom-superchain-erc20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/interop/tutorials/deploy-superchain-erc20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/interop/tutorials/event-contests",
@@ -896,15 +945,15 @@
     },
     {
       "source": "/interop/tutorials/relay-messages-cast",
-      "destination": "/app-developers/tutorials/interoperability/relay-messages-cast"
+      "destination": "/app-developers/tutorials/interoperability/manual-relay"
     },
     {
       "source": "/interop/tutorials/relay-messages-viem",
-      "destination": "/app-developers/tutorials/interoperability/relay-messages-viem"
+      "destination": "/app-developers/tutorials/interoperability/manual-relay"
     },
     {
       "source": "/interop/tutorials/transfer-superchainERC20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/notices/blob-fee-bug",
@@ -912,7 +961,7 @@
     },
     {
       "source": "/notices/custom-gas-tokens-deprecation",
-      "destination": "/notices/archive/custom-gas-tokens-deprecation"
+      "destination": "/op-stack/features/custom-gas-token"
     },
     {
       "source": "/notices/holocene-changes",
@@ -924,7 +973,7 @@
     },
     {
       "source": "/notices/sdk-deprecation",
-      "destination": "/notices/archive/sdk-deprecation"
+      "destination": "/notices"
     },
     {
       "source": "/notices/superchain-withdrawal-pause-test",
@@ -963,16 +1012,36 @@
       "destination": "/notices/archive/upgrade-16a"
     },
     {
+      "source": "/notices/upgrade-19",
+      "destination": "/notices/archive/upgrade-19"
+    },
+    {
+      "source": "/notices/op-geth-deprecation",
+      "destination": "/notices/archive/op-geth-deprecation"
+    },
+    {
+      "source": "/notices/op-deployer-upgrade-deprecation",
+      "destination": "/notices/archive/op-deployer-upgrade-deprecation"
+    },
+    {
+      "source": "/notices/req-resp-cl-sync-deprecation",
+      "destination": "/notices/archive/req-resp-cl-sync-deprecation"
+    },
+    {
+      "source": "/notices/stake-based-priority-ordering",
+      "destination": "/notices/archive/stake-based-priority-ordering"
+    },
+    {
       "source": "/operators/chain-operators",
-      "destination": "/chain-operators"
+      "destination": "/"
     },
     {
       "source": "/operators/chain-operators/architecture",
-      "destination": "/chain-operators/reference/architecture"
+      "destination": "/chain-operators/guides/management/network-architecture"
     },
     {
       "source": "/operators/chain-operators/configuration",
-      "destination": "/chain-operators/guides/configuration"
+      "destination": "/chain-operators/guides/configuration/getting-started"
     },
     {
       "source": "/operators/chain-operators/configuration/batcher",
@@ -980,7 +1049,7 @@
     },
     {
       "source": "/operators/chain-operators/configuration/overview",
-      "destination": "/chain-operators/guides/configuration/overview"
+      "destination": "/chain-operators/guides/configuration/getting-started"
     },
     {
       "source": "/operators/chain-operators/configuration/proposer",
@@ -988,27 +1057,31 @@
     },
     {
       "source": "/operators/chain-operators/configuration/rollup",
-      "destination": "/chain-operators/guides/configuration/rollup"
+      "destination": "/chain-operators/reference/rollup-deployment-configuration"
+    },
+    {
+      "source": "/chain-operators/guides/configuration/rollup",
+      "destination": "/chain-operators/reference/rollup-deployment-configuration"
     },
     {
       "source": "/operators/chain-operators/deploy",
-      "destination": "/chain-operators/guides/deploy"
+      "destination": "/chain-operators/tutorials/create-l2-rollup/create-l2-rollup"
     },
     {
       "source": "/operators/chain-operators/deploy/genesis",
-      "destination": "/chain-operators/guides/deployment/genesis"
+      "destination": "/chain-operators/tools/op-deployer/overview"
     },
     {
       "source": "/operators/chain-operators/deploy/overview",
-      "destination": "/chain-operators/guides/deployment/overview"
+      "destination": "/chain-operators/tutorials/create-l2-rollup/create-l2-rollup"
     },
     {
       "source": "/operators/chain-operators/deploy/smart-contracts",
-      "destination": "/chain-operators/guides/deployment/smart-contracts"
+      "destination": "/chain-operators/tutorials/create-l2-rollup/op-deployer-setup"
     },
     {
       "source": "/operators/chain-operators/features",
-      "destination": "/chain-operators/reference/features"
+      "destination": "/chain-operators/guides/features/custom-gas-token-guide"
     },
     {
       "source": "/operators/chain-operators/features/alt-da-mode",
@@ -1024,7 +1097,7 @@
     },
     {
       "source": "/operators/chain-operators/features/preinstalls",
-      "destination": "/chain-operators/reference/features/preinstalls"
+      "destination": "/op-stack/features/preinstalls"
     },
     {
       "source": "/operators/chain-operators/features/span-batches",
@@ -1036,15 +1109,15 @@
     },
     {
       "source": "/operators/chain-operators/management",
-      "destination": "/chain-operators/guides/management"
+      "destination": "/chain-operators/guides/management/best-practices"
     },
     {
       "source": "/operators/chain-operators/management/best-practices",
-      "destination": "/chain-operators/guides/best-practices"
+      "destination": "/chain-operators/guides/management/best-practices"
     },
     {
       "source": "/operators/chain-operators/management/blobs",
-      "destination": "/chain-operators/guides/management/blobs"
+      "destination": "/chain-operators/guides/features/blobs"
     },
     {
       "source": "/operators/chain-operators/management/key-management",
@@ -1060,7 +1133,7 @@
     },
     {
       "source": "/operators/chain-operators/management/troubleshooting",
-      "destination": "/chain-operators/guides/troubleshooting"
+      "destination": "/chain-operators/guides/management/troubleshooting"
     },
     {
       "source": "/operators/chain-operators/self-hosted",
@@ -1068,7 +1141,7 @@
     },
     {
       "source": "/operators/chain-operators/tools",
-      "destination": "/chain-operators/tools"
+      "destination": "/chain-operators/tools/chain-monitoring"
     },
     {
       "source": "/operators/chain-operators/tools/chain-monitoring",
@@ -1080,11 +1153,11 @@
     },
     {
       "source": "/operators/chain-operators/tools/fee-calculator",
-      "destination": "/chain-operators/tools/fee-calculator"
+      "destination": "/op-stack/transactions/fees"
     },
     {
       "source": "/operators/chain-operators/tools/op-challenger",
-      "destination": "/chain-operators/tools/op-challenger"
+      "destination": "/chain-operators/guides/configuration/op-challenger-config-guide"
     },
     {
       "source": "/operators/chain-operators/tools/op-conductor",
@@ -1092,7 +1165,7 @@
     },
     {
       "source": "/operators/chain-operators/tools/op-deployer",
-      "destination": "/chain-operators/tools/op-deployer"
+      "destination": "/chain-operators/tools/op-deployer/overview"
     },
     {
       "source": "/operators/chain-operators/tools/op-txproxy",
@@ -1104,7 +1177,7 @@
     },
     {
       "source": "/operators/chain-operators/tutorials",
-      "destination": "/chain-operators/tutorials"
+      "destination": "/chain-operators/tutorials/create-l2-rollup/create-l2-rollup"
     },
     {
       "source": "/operators/chain-operators/tutorials/adding-derivation-attributes",
@@ -1120,7 +1193,7 @@
     },
     {
       "source": "/operators/chain-operators/tutorials/create-l2-rollup",
-      "destination": "/chain-operators/tutorials/create-l2-rollup"
+      "destination": "/chain-operators/tutorials/create-l2-rollup/create-l2-rollup"
     },
     {
       "source": "/operators/chain-operators/tutorials/dispute-games",
@@ -1140,7 +1213,7 @@
     },
     {
       "source": "/operators/node-operators",
-      "destination": "/node-operators"
+      "destination": "/node-operators/overview"
     },
     {
       "source": "/operators/node-operators/architecture",
@@ -1148,7 +1221,7 @@
     },
     {
       "source": "/operators/node-operators/configuration",
-      "destination": "/node-operators/guides/configuration"
+      "destination": "/node-operators/guides/configuration/consensus-clients"
     },
     {
       "source": "/operators/node-operators/configuration/base-config",
@@ -1172,11 +1245,11 @@
     },
     {
       "source": "/operators/node-operators/management",
-      "destination": "/node-operators/guides/management"
+      "destination": "/node-operators/guides/management/archive-node"
     },
     {
       "source": "/operators/node-operators/management/blobs",
-      "destination": "/chain-operators/guides/management/blobs"
+      "destination": "/node-operators/guides/management/blobs"
     },
     {
       "source": "/operators/node-operators/management/metrics",
@@ -1184,15 +1257,19 @@
     },
     {
       "source": "/operators/node-operators/management/regenesis-history",
-      "destination": "/node-operators/guides/management/regenesis-history"
+      "destination": "/op-mainnet/pre-bedrock-history/regenesis-history"
+    },
+    {
+      "source": "/node-operators/guides/management/regenesis-history",
+      "destination": "/op-mainnet/pre-bedrock-history/regenesis-history"
     },
     {
       "source": "/operators/node-operators/management/snap-sync",
-      "destination": "/node-operators/guides/management/snap-sync"
+      "destination": "/node-operators/reference/consensus-layer-sync"
     },
     {
       "source": "/operators/node-operators/management/snapshots",
-      "destination": "/node-operators/guides/management/snapshots"
+      "destination": "/op-mainnet/network-information/snapshots"
     },
     {
       "source": "/operators/node-operators/management/troubleshooting",
@@ -1208,15 +1285,23 @@
     },
     {
       "source": "/operators/node-operators/releases",
-      "destination": "/node-operators/reference/releases"
+      "destination": "/releases"
     },
     {
       "source": "/operators/node-operators/rollup-node",
-      "destination": "/node-operators/reference/architecture/rollup-node"
+      "destination": "/node-operators/overview"
+    },
+    {
+      "source": "/node-operators/reference/architecture/rollup-node",
+      "destination": "/node-operators/overview"
+    },
+    {
+      "source": "/node-operators/guides/running-a-node",
+      "destination": "/node-operators/overview"
     },
     {
       "source": "/operators/node-operators/tutorials",
-      "destination": "/node-operators/tutorials"
+      "destination": "/node-operators/tutorials/node-from-docker"
     },
     {
       "source": "/operators/node-operators/tutorials/node-from-docker",
@@ -1236,7 +1321,7 @@
     },
     {
       "source": "/stack/beta-features",
-      "destination": "/concepts/stack/beta-features"
+      "destination": "/op-stack/features/flashblocks"
     },
     {
       "source": "/stack/beta-features/alt-da-mode",
@@ -1248,11 +1333,11 @@
     },
     {
       "source": "/stack/differences",
-      "destination": "/concepts/stack/differences"
+      "destination": "/op-stack/protocol/differences"
     },
     {
       "source": "/stack/differences?utm_source=op-docs&utm_medium=docs",
-      "destination": "/concepts/stack/differences?utm_source=op-docs&utm_medium=docs"
+      "destination": "/op-stack/protocol/differences"
     },
     {
       "source": "/stack/fact-sheet",
@@ -1260,7 +1345,7 @@
     },
     {
       "source": "/stack/fault-proofs",
-      "destination": "/concepts/architecture/fault-proofs"
+      "destination": "/op-stack/fault-proofs/explainer"
     },
     {
       "source": "/stack/fault-proofs/cannon",
@@ -1288,7 +1373,7 @@
     },
     {
       "source": "/stack/features",
-      "destination": "/concepts/stack/features"
+      "destination": "/op-stack/features/flashblocks"
     },
     {
       "source": "/stack/features/send-raw-transaction-conditional",
@@ -1296,7 +1381,7 @@
     },
     {
       "source": "/stack/getting-started",
-      "destination": "/concepts/stack/getting-started"
+      "destination": "/op-stack/introduction/op-stack"
     },
     {
       "source": "/stack/opcm",
@@ -1308,7 +1393,7 @@
     },
     {
       "source": "/stack/research",
-      "destination": "/concepts/research"
+      "destination": "/op-stack/research/block-time-research"
     },
     {
       "source": "/stack/research/block-time-research",
@@ -1320,7 +1405,7 @@
     },
     {
       "source": "/stack/rollup",
-      "destination": "/concepts/architecture/rollup"
+      "destination": "/op-stack/protocol/overview"
     },
     {
       "source": "/stack/rollup/derivation-pipeline",
@@ -1340,11 +1425,11 @@
     },
     {
       "source": "/stack/rollup/overview",
-      "destination": "/concepts/architecture/rollup/overview"
+      "destination": "/op-stack/protocol/overview"
     },
     {
       "source": "/stack/security",
-      "destination": "/concepts/security"
+      "destination": "/op-stack/security/security-policy"
     },
     {
       "source": "/stack/security/audits-report",
@@ -1368,7 +1453,7 @@
     },
     {
       "source": "/stack/security/security-policy",
-      "destination": "/concepts/security/security-policy"
+      "destination": "/op-stack/security/security-policy"
     },
     {
       "source": "/stack/smart-contracts",
@@ -1380,7 +1465,7 @@
     },
     {
       "source": "/stack/transactions",
-      "destination": "/concepts/transactions"
+      "destination": "/op-stack/transactions/transaction-flow"
     },
     {
       "source": "/stack/transactions/cross-domain",
@@ -1408,11 +1493,15 @@
     },
     {
       "source": "/concepts/transactions/flashblocks",
-      "destination": "/op-stack/transactions/flashblocks"
+      "destination": "/op-stack/features/flashblocks"
     },
     {
       "source": "/stack/transactions/flashblocks",
-      "destination": "/op-stack/transactions/flashblocks"
+      "destination": "/op-stack/features/flashblocks"
+    },
+    {
+      "source": "/op-stack/transactions/flashblocks",
+      "destination": "/op-stack/features/flashblocks"
     },
     {
       "source": "/concepts/transactions/forced-transaction",
@@ -1440,11 +1529,11 @@
     },
     {
       "source": "/stack/transactions/withdrawal-flow",
-      "destination": "/op-stack/protocol/bridging/withdrawal-flow"
+      "destination": "/op-stack/bridging/withdrawal-flow"
     },
     {
       "source": "/concepts/transactions/withdrawal-flow",
-      "destination": "/op-stack/protocol/bridging/withdrawal-flow"
+      "destination": "/op-stack/bridging/withdrawal-flow"
     },
     {
       "source": "/superchain/addresses",
@@ -1468,7 +1557,7 @@
     },
     {
       "source": "/superchain/standard-configuration",
-      "destination": "/chain-operators/reference/standard-configuration"
+      "destination": "/op-stack/protocol/superchain-registry"
     },
     {
       "source": "/chain-operators/reference/superchain-registry",
@@ -1496,7 +1585,7 @@
     },
     {
       "source": "/app-developers/guides/connect",
-      "destination": "/reference/networks"
+      "destination": "/op-mainnet/network-information/connecting-to-op"
     },
     {
       "source": "/developers/testing/public-devnets",
@@ -1528,7 +1617,7 @@
     },
     {
       "source": "/node-operators/guides/configuration/execution-config#configuration-options-reference",
-      "destination": "/node-operators/reference/op-geth-config"
+      "destination": "/node-operators/reference/op-reth-config"
     },
     {
       "source": "/node-operators/guides/configuration/execution-config",
@@ -1636,23 +1725,27 @@
     },
     {
       "source": "/operators/chain-operators/tutorials/create-l2-rollup/op-geth-setup",
-      "destination": "chain-operators/tutorials/create-l2-rollup/op-geth-setup"
+      "destination": "/chain-operators/tutorials/create-l2-rollup/op-reth-setup"
+    },
+    {
+      "source": "/chain-operators/tutorials/create-l2-rollup/op-geth-setup",
+      "destination": "/chain-operators/tutorials/create-l2-rollup/op-reth-setup"
     },
     {
       "source": "/operators/chain-operators/tutorials/create-l2-rollup/op-deployer-setup",
-      "destination": "chain-operators/tutorials/create-l2-rollup/op-deployer-setup"
+      "destination": "/chain-operators/tutorials/create-l2-rollup/op-deployer-setup"
     },
     {
       "source": "/operators/chain-operators/tutorials/create-l2-rollup/op-proposer-setup",
-      "destination": "chain-operators/tutorials/create-l2-rollup/op-proposer-setup"
+      "destination": "/chain-operators/tutorials/create-l2-rollup/op-proposer-setup"
     },
     {
       "source": "/operators/chain-operators/tutorials/create-l2-rollup/op-batcher-setup",
-      "destination": "chain-operators/tutorials/create-l2-rollup/op-batcher-setup"
+      "destination": "/chain-operators/tutorials/create-l2-rollup/op-batcher-setup"
     },
     {
       "source": "/operators/chain-operators/deploy/sequencer-node",
-      "destination": "/chain-operators/guides/deployment/sequencer-node"
+      "destination": "/chain-operators/tutorials/create-l2-rollup/op-reth-setup"
     },
     {
       "source": "/app-developers/tools/testing/devnet",
@@ -1688,7 +1781,7 @@
     },
     {
       "source": "/concepts/stack/getting-started",
-      "destination": "/op-stack/protocol/getting-started"
+      "destination": "/op-stack/introduction/op-stack"
     },
     {
       "source": "/concepts/stack/differences",
@@ -1715,28 +1808,28 @@
       "destination": "/op-stack/fault-proofs/fp-security"
     },
     {
-      "source": "chain-operators/guides/deployment/overview",
-      "destination": "/"
+      "source": "/chain-operators/guides/deployment/overview",
+      "destination": "/chain-operators/tutorials/create-l2-rollup/create-l2-rollup"
     },
     {
       "source": "/chain-operators/guides/deployment/smart-contracts",
-      "destination": "/chain-operators/tutorials/op-deployer-setup"
+      "destination": "/chain-operators/tutorials/create-l2-rollup/op-deployer-setup"
     },
     {
       "source": "/chain-operators/guides/deployment/genesis",
-      "destination": "/chain-operators/tools/op-deployer"
+      "destination": "/chain-operators/tools/op-deployer/overview"
     },
     {
       "source": "/chain-operators/guides/deployment/sequencer-node",
-      "destination": "/chain-operators/tutorials/op-geth-setup"
+      "destination": "/chain-operators/tutorials/create-l2-rollup/op-reth-setup"
     },
     {
       "source": "/chain-operators/guides/deployment/spin-batcher",
-      "destination": "/chain-operators/tutorials/op-batcher-setup"
+      "destination": "/chain-operators/tutorials/create-l2-rollup/op-batcher-setup"
     },
     {
       "source": "/chain-operators/guides/deployment/proposer-setup-guide",
-      "destination": "/chain-operators/tutorials/op-proposer-setup"
+      "destination": "/chain-operators/tutorials/create-l2-rollup/op-proposer-setup"
     },
     {
       "source": "/chain-operators/reference/features/flashblocks/chain-operators",
@@ -1767,12 +1860,12 @@
       "destination": "/op-stack/protocol/components"
     },
     {
-      "source": "chain-operators/guides/management/blobs",
-      "destination": "chain-operators/guides/features/blobs"
+      "source": "/chain-operators/guides/management/blobs",
+      "destination": "/chain-operators/guides/features/blobs"
     },
     {
-      "source": "chain-operators/guides/management/snap-sync",
-      "destination": "chain-operators/guides/features/snap-sync"
+      "source": "/chain-operators/guides/management/snap-sync",
+      "destination": "/chain-operators/guides/features/snap-sync"
     },
     {
       "source": "/chain-operators/tools/fee-calculator",
@@ -1780,14 +1873,14 @@
     },
     {
       "source": "/chain-operators/tools/op-challenger",
-      "destination": "chain-operators/guides/configuration/op-challenger-config-guide"
+      "destination": "/chain-operators/guides/configuration/op-challenger-config-guide"
     },
     {
       "source": "/app-developers/tools/data-and-dashboards/overview",
       "destination": "/app-developers/tools/data/data-and-dashboards"
     },
     {
-      "source": "app-developers/tools/data-and-dashboards/data-glossary",
+      "source": "/app-developers/tools/data-and-dashboards/data-glossary",
       "destination": "/app-developers/tools/data/data-glossary"
     },
     {
@@ -1828,27 +1921,27 @@
     },
     {
       "source": "/app-developers/quickstarts/starter-kit",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/app-developers/reference/tokens/compatible-tokens",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/app-developers/tutorials/tokens/custom-superchain-erc20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/app-developers/tutorials/tokens/deploy-superchain-erc20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/app-developers/tutorials/tokens/transfer-superchainERC20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/op-stack/interop/superchain-erc20",
-      "destination": "/op-stack/interop/interop"
+      "destination": "/op-stack/interop/explainer"
     },
     {
       "source": "/superchain/introduction/superchain-explainer",
@@ -1867,8 +1960,612 @@
       "destination": "/op-stack/protocol/blockspace-charter"
     },
     {
+      "source": "/rust/kona/run",
+      "destination": "/node-operators/kona-node/run/overview"
+    },
+    {
+      "source": "/rust/kona/sdk/fpp-dev/io",
+      "destination": "/op-stack/fault-proofs/kona/fpp-dev/intro"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/settings/set/receipts_in_static_files",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/receipts"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/settings/set/transaction_senders_in_static_files",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/transaction_senders"
+    },
+    {
       "source": "/app-developers/guides/superchain",
       "destination": "/op-stack/introduction/op-stack"
+    },
+    {
+      "source": "/rust/kona/node/requirements",
+      "destination": "/node-operators/kona-node/requirements"
+    },
+    {
+      "source": "/rust/kona/node/install/overview",
+      "destination": "/node-operators/kona-node/install/overview"
+    },
+    {
+      "source": "/rust/kona/node/install/binaries",
+      "destination": "/node-operators/kona-node/install/binaries"
+    },
+    {
+      "source": "/rust/kona/node/install/docker",
+      "destination": "/node-operators/kona-node/install/docker"
+    },
+    {
+      "source": "/rust/kona/node/install/source",
+      "destination": "/node-operators/kona-node/install/source"
+    },
+    {
+      "source": "/rust/kona/node/run/overview",
+      "destination": "/node-operators/kona-node/run/overview"
+    },
+    {
+      "source": "/rust/kona/node/run/binary",
+      "destination": "/node-operators/kona-node/run/binary"
+    },
+    {
+      "source": "/rust/kona/node/run/docker",
+      "destination": "/node-operators/kona-node/run/docker"
+    },
+    {
+      "source": "/rust/kona/node/run/mechanics",
+      "destination": "/node-operators/kona-node/run/mechanics"
+    },
+    {
+      "source": "/rust/kona/node/run/rpc-trust",
+      "destination": "/node-operators/kona-node/run/rpc-trust"
+    },
+    {
+      "source": "/rust/kona/node/run/sequencer",
+      "destination": "/node-operators/kona-node/run/sequencer"
+    },
+    {
+      "source": "/rust/kona/node/rpc/overview",
+      "destination": "/node-operators/kona-node/rpc/overview"
+    },
+    {
+      "source": "/rust/kona/node/rpc/p2p",
+      "destination": "/node-operators/kona-node/rpc/p2p"
+    },
+    {
+      "source": "/rust/kona/node/rpc/rollup",
+      "destination": "/node-operators/kona-node/rpc/rollup"
+    },
+    {
+      "source": "/rust/kona/node/rpc/admin",
+      "destination": "/node-operators/kona-node/rpc/admin"
+    },
+    {
+      "source": "/rust/kona/node/configuration",
+      "destination": "/node-operators/kona-node/configuration"
+    },
+    {
+      "source": "/rust/kona/node/monitoring",
+      "destination": "/node-operators/kona-node/monitoring"
+    },
+    {
+      "source": "/rust/kona/node/subcommands",
+      "destination": "/node-operators/kona-node/subcommands"
+    },
+    {
+      "source": "/rust/kona/node/faq/overview",
+      "destination": "/node-operators/kona-node/faq/overview"
+    },
+    {
+      "source": "/rust/kona/node/faq/ports",
+      "destination": "/node-operators/kona-node/faq/ports"
+    },
+    {
+      "source": "/rust/kona/node/faq/profiling",
+      "destination": "/node-operators/kona-node/faq/profiling"
+    },
+    {
+      "source": "/rust/op-reth",
+      "destination": "/node-operators/op-reth/index"
+    },
+    {
+      "source": "/rust/op-reth/index",
+      "destination": "/node-operators/op-reth/index"
+    },
+    {
+      "source": "/rust/op-reth/run/opstack",
+      "destination": "/node-operators/op-reth/run/opstack"
+    },
+    {
+      "source": "/rust/op-reth/run/faq/sync-op-mainnet",
+      "destination": "/node-operators/op-reth/run/faq/sync-op-mainnet"
+    },
+    {
+      "source": "/rust/op-reth/cli/overview",
+      "destination": "/node-operators/op-reth/cli/overview"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth",
+      "destination": "/node-operators/op-reth/cli/op-reth"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/node",
+      "destination": "/node-operators/op-reth/cli/op-reth/node"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/init",
+      "destination": "/node-operators/op-reth/cli/op-reth/init"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/init-state",
+      "destination": "/node-operators/op-reth/cli/op-reth/init-state"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/import-op",
+      "destination": "/node-operators/op-reth/cli/op-reth/import-op"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/import-receipts-op",
+      "destination": "/node-operators/op-reth/cli/op-reth/import-receipts-op"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/dump-genesis",
+      "destination": "/node-operators/op-reth/cli/op-reth/dump-genesis"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db",
+      "destination": "/node-operators/op-reth/cli/op-reth/db"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/stats",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/stats"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/list",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/list"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/checksum",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/checksum"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/checksum/mdbx",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/checksum/mdbx"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/checksum/static-file",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/checksum/static-file"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/diff",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/diff"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/get",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/get"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/get/mdbx",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/get/mdbx"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/get/static-file",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/get/static-file"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/drop",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/drop"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/clear",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/clear"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/clear/mdbx",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/clear/mdbx"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/clear/static-file",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/clear/static-file"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/repair-trie",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/repair-trie"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/static-file-header",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/static-file-header"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/static-file-header/block",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/static-file-header/block"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/static-file-header/path",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/static-file-header/path"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/version",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/version"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/path",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/path"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/settings",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/settings/get",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/get"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/settings/set",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/settings/set/receipts",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/receipts"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/settings/set/transaction_senders",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/transaction_senders"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/settings/set/account_changesets",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/account_changesets"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/settings/set/storages_history",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/storages_history"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/settings/set/transaction_hash_numbers",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/transaction_hash_numbers"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/settings/set/account_history",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/account_history"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/settings/set/storage_changesets",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/storage_changesets"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/db/account-storage",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/account-storage"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/stage",
+      "destination": "/node-operators/op-reth/cli/op-reth/stage"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/stage/run",
+      "destination": "/node-operators/op-reth/cli/op-reth/stage/run"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/stage/drop",
+      "destination": "/node-operators/op-reth/cli/op-reth/stage/drop"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/stage/dump",
+      "destination": "/node-operators/op-reth/cli/op-reth/stage/dump"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/stage/dump/execution",
+      "destination": "/node-operators/op-reth/cli/op-reth/stage/dump/execution"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/stage/dump/storage-hashing",
+      "destination": "/node-operators/op-reth/cli/op-reth/stage/dump/storage-hashing"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/stage/dump/account-hashing",
+      "destination": "/node-operators/op-reth/cli/op-reth/stage/dump/account-hashing"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/stage/dump/merkle",
+      "destination": "/node-operators/op-reth/cli/op-reth/stage/dump/merkle"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/stage/unwind",
+      "destination": "/node-operators/op-reth/cli/op-reth/stage/unwind"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/stage/unwind/to-block",
+      "destination": "/node-operators/op-reth/cli/op-reth/stage/unwind/to-block"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/stage/unwind/num-blocks",
+      "destination": "/node-operators/op-reth/cli/op-reth/stage/unwind/num-blocks"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/p2p",
+      "destination": "/node-operators/op-reth/cli/op-reth/p2p"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/p2p/header",
+      "destination": "/node-operators/op-reth/cli/op-reth/p2p/header"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/p2p/body",
+      "destination": "/node-operators/op-reth/cli/op-reth/p2p/body"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/p2p/rlpx",
+      "destination": "/node-operators/op-reth/cli/op-reth/p2p/rlpx"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/p2p/rlpx/ping",
+      "destination": "/node-operators/op-reth/cli/op-reth/p2p/rlpx/ping"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/p2p/bootnode",
+      "destination": "/node-operators/op-reth/cli/op-reth/p2p/bootnode"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/config",
+      "destination": "/node-operators/op-reth/cli/op-reth/config"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/prune",
+      "destination": "/node-operators/op-reth/cli/op-reth/prune"
+    },
+    {
+      "source": "/rust/op-reth/cli/op-reth/re-execute",
+      "destination": "/node-operators/op-reth/cli/op-reth/re-execute"
+    },
+    {
+      "source": "/rust/kona/node/design/intro",
+      "destination": "/node-operators/kona-node/design/intro"
+    },
+    {
+      "source": "/rust/kona/node/design/derivation",
+      "destination": "/node-operators/kona-node/design/derivation"
+    },
+    {
+      "source": "/rust/kona/node/design/engine",
+      "destination": "/node-operators/kona-node/design/engine"
+    },
+    {
+      "source": "/rust/kona/node/design/p2p",
+      "destination": "/node-operators/kona-node/design/p2p"
+    },
+    {
+      "source": "/rust/kona/node/design/sequencer",
+      "destination": "/node-operators/kona-node/design/sequencer"
+    },
+    {
+      "source": "/rust/kona/sdk/fpp-dev/intro",
+      "destination": "/op-stack/fault-proofs/kona/fpp-dev/intro"
+    },
+    {
+      "source": "/rust/kona/sdk/fpp-dev/env",
+      "destination": "/op-stack/fault-proofs/kona/fpp-dev/env"
+    },
+    {
+      "source": "/rust/kona/sdk/fpp-dev/targets",
+      "destination": "/op-stack/fault-proofs/kona/fpp-dev/targets"
+    },
+    {
+      "source": "/rust/kona/sdk/fpp-dev/prologue",
+      "destination": "/op-stack/fault-proofs/kona/fpp-dev/prologue"
+    },
+    {
+      "source": "/rust/kona/sdk/fpp-dev/execution",
+      "destination": "/op-stack/fault-proofs/kona/fpp-dev/execution"
+    },
+    {
+      "source": "/rust/kona/sdk/fpp-dev/epilogue",
+      "destination": "/op-stack/fault-proofs/kona/fpp-dev/epilogue"
+    },
+    {
+      "source": "/rust/kona/sdk/proof/intro",
+      "destination": "/op-stack/fault-proofs/kona/proof/intro"
+    },
+    {
+      "source": "/rust/kona/sdk/proof/stf",
+      "destination": "/op-stack/fault-proofs/kona/proof/stf"
+    },
+    {
+      "source": "/rust/kona/sdk/proof/fpvm-backend",
+      "destination": "/op-stack/fault-proofs/kona/proof/fpvm-backend"
+    },
+    {
+      "source": "/rust/kona/sdk/proof/custom-backend",
+      "destination": "/op-stack/fault-proofs/kona/proof/custom-backend"
+    },
+    {
+      "source": "/rust/kona/sdk/proof/exec-ext",
+      "destination": "/op-stack/fault-proofs/kona/proof/exec-ext"
+    },
+    {
+      "source": "/rust/kona/intro/overview",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona"
+    },
+    {
+      "source": "/rust/kona/intro/why",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona"
+    },
+    {
+      "source": "/rust/kona/intro/contributing",
+      "destination": "https://github.com/ethereum-optimism/optimism/blob/develop/CONTRIBUTING.md"
+    },
+    {
+      "source": "/rust/kona/intro/lore",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona"
+    },
+    {
+      "source": "/rust/kona/glossary",
+      "destination": "https://specs.optimism.io/glossary.html"
+    },
+    {
+      "source": "/rust/kona/rfc/active/intro",
+      "destination": "https://github.com/ethereum-optimism/design-docs"
+    },
+    {
+      "source": "/rust/kona/rfc/archived/monorepo",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona"
+    },
+    {
+      "source": "/rust/kona/rfc/archived/umbrellas",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona"
+    },
+    {
+      "source": "/rust/kona/sdk/overview",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona"
+    },
+    {
+      "source": "/rust/kona/sdk/examples/intro",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/examples"
+    },
+    {
+      "source": "/rust/kona/sdk/examples/load-a-rollup-config",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/examples"
+    },
+    {
+      "source": "/rust/kona/sdk/examples/frames-to-batch",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/examples"
+    },
+    {
+      "source": "/rust/kona/sdk/examples/new-l1-block-info-tx-hardfork",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/examples"
+    },
+    {
+      "source": "/rust/kona/sdk/examples/executor-test-fixtures",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/examples"
+    },
+    {
+      "source": "/rust/kona/sdk/examples/p2p-peer-scoring",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/examples"
+    },
+    {
+      "source": "/rust/kona/sdk/examples/custom-derivation-pipeline",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/examples"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/intro",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/registry",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/registry"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/interop",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/interop"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/hardforks",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/hardforks"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/derive/intro",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/derive"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/derive/providers",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/derive"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/derive/stages",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/derive"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/derive/signaling",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/derive"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/genesis/intro",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/genesis"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/genesis/rollup-config",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/genesis"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/genesis/system-config",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/genesis"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/protocol/intro",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/protocol"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/protocol/block-info",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/protocol"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/protocol/l2-block-info",
+      "destination": "https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/protocol"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/protocol/frames",
+      "destination": "https://specs.optimism.io/protocol/derivation.html#frame-format"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/protocol/channels",
+      "destination": "https://specs.optimism.io/protocol/derivation.html#channel-format"
+    },
+    {
+      "source": "/rust/kona/sdk/protocol/protocol/batches",
+      "destination": "https://specs.optimism.io/protocol/derivation.html#batch-format"
+    },
+    {
+      "source": "/rust",
+      "destination": "/op-stack/components/index"
+    },
+    {
+      "source": "/rust/index",
+      "destination": "/op-stack/components/index"
+    },
+    {
+      "source": "/rust/op-alloy/intro",
+      "destination": "/app-developers/tools-sdks/op-alloy/intro"
+    },
+    {
+      "source": "/rust/op-alloy/starting",
+      "destination": "/app-developers/tools-sdks/op-alloy/starting"
+    },
+    {
+      "source": "/rust/op-alloy/building",
+      "destination": "/app-developers/tools-sdks/op-alloy/building/index"
+    },
+    {
+      "source": "/rust/op-alloy/building/index",
+      "destination": "/app-developers/tools-sdks/op-alloy/building/index"
+    },
+    {
+      "source": "/rust/op-alloy/building/consensus",
+      "destination": "/app-developers/tools-sdks/op-alloy/building/consensus"
+    },
+    {
+      "source": "/rust/op-alloy/building/engine",
+      "destination": "/app-developers/tools-sdks/op-alloy/building/engine"
+    },
+    {
+      "source": "/rust/op-alloy/glossary",
+      "destination": "/app-developers/tools-sdks/op-alloy/glossary"
+    },
+    {
+      "source": "/rust/op-revm",
+      "destination": "/app-developers/tools-sdks/op-revm"
+    },
+    {
+      "source": "/rust/op-revm/index",
+      "destination": "/app-developers/tools-sdks/op-revm"
+    },
+    {
+      "source": "/op-stack/interop/interop",
+      "destination": "/op-stack/interop/explainer"
+    },
+    {
+      "source": "/op-stack/protocol/getting-started",
+      "destination": "/op-stack/introduction/op-stack"
+    },
+    {
+      "source": "/chain-operators/reference/standard-configuration",
+      "destination": "/op-stack/protocol/superchain-registry"
     }
   ],
   "interaction": {
@@ -1877,14 +2574,56 @@
   "navigation": {
     "tabs": [
       {
-        "tab": "Chain Operators",
+        "tab": "Get Started",
         "groups": [
           {
-            "group": "Quickstart",
+            "group": "Get started",
             "pages": [
-              "index"
+              "index",
+              "ai-docs",
+              "chain-operators/quickstart",
+              "/op-stack/reference/glossary"
             ]
           },
+          {
+            "group": "Use cases",
+            "pages": [
+              "use-cases/index",
+              "use-cases/tune-batcher-costs",
+              "use-cases/run-a-fault-proof-challenger",
+              "use-cases/implement-a-custom-deposit-flow",
+              "use-cases/launch-a-chain-with-fault-proofs-and-ha-sequencing",
+              "use-cases/choose-your-node-stack"
+            ]
+          },
+          {
+            "group": "Contribute",
+            "pages": [
+              "/op-stack/contribute/index",
+              "/op-stack/contribute/content-guide",
+              "/op-stack/contribute/link-policy",
+              "/op-stack/contribute/curation-policy",
+              "/op-stack/contribute/learn-track-syllabus",
+              "/op-stack/contribute/style-guide",
+              {
+                "group": "Choose a content type",
+                "pages": [
+                  "/op-stack/contribute/choose-a-content-type",
+                  "/op-stack/contribute/solution-guide",
+                  "/op-stack/contribute/learning-unit",
+                  "/op-stack/contribute/curriculum-hub",
+                  "/op-stack/contribute/router-landing",
+                  "/op-stack/contribute/notice"
+                ]
+              },
+              "/op-stack/contribute/component-hub-template"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Chain Operators",
+        "groups": [
           {
             "group": "Guides",
             "pages": [
@@ -1894,7 +2633,6 @@
                   "chain-operators/guides/configuration/getting-started",
                   "chain-operators/guides/configuration/batcher",
                   "chain-operators/guides/configuration/proposer",
-                  "chain-operators/guides/configuration/rollup",
                   "chain-operators/guides/configuration/op-challenger-config-guide"
                 ]
               },
@@ -1908,13 +2646,15 @@
                   "chain-operators/guides/features/setting-da-footprint",
                   "chain-operators/guides/features/flashblocks-guide",
                   "chain-operators/guides/features/alt-da-mode-guide",
-                  "chain-operators/guides/features/blobs"
+                  "chain-operators/guides/features/blobs",
+                  "chain-operators/guides/features/enable-span-batches"
                 ]
               },
               {
                 "group": "Management",
                 "pages": [
                   "chain-operators/guides/management/best-practices",
+                  "chain-operators/guides/management/network-architecture",
                   "chain-operators/guides/management/gas-target-limit",
                   "chain-operators/guides/management/key-management",
                   "chain-operators/guides/management/operations",
@@ -1922,7 +2662,8 @@
                   "chain-operators/guides/management/fee-vaults",
                   "chain-operators/guides/management/troubleshooting"
                 ]
-              }
+              },
+              "chain-operators/guides/join-superchain-registry"
             ]
           },
           {
@@ -1933,10 +2674,11 @@
                 "pages": [
                   "chain-operators/tutorials/create-l2-rollup/create-l2-rollup",
                   "chain-operators/tutorials/create-l2-rollup/op-deployer-setup",
-                  "chain-operators/tutorials/create-l2-rollup/op-geth-setup",
+                  "chain-operators/tutorials/create-l2-rollup/op-reth-setup",
                   "chain-operators/tutorials/create-l2-rollup/op-batcher-setup",
                   "chain-operators/tutorials/create-l2-rollup/op-proposer-setup",
-                  "chain-operators/tutorials/create-l2-rollup/op-challenger-setup"
+                  "chain-operators/tutorials/create-l2-rollup/op-challenger-setup",
+                  "chain-operators/tutorials/create-l2-rollup/code-setup"
                 ]
               },
               {
@@ -1965,7 +2707,14 @@
             "pages": [
               "chain-operators/tools/chain-monitoring",
               "chain-operators/tools/explorer",
-              "chain-operators/tools/op-conductor",
+              {
+                "group": "OP Conductor",
+                "pages": [
+                  "chain-operators/tools/op-conductor",
+                  "chain-operators/tools/op-conductor/setup",
+                  "chain-operators/tools/op-conductor/reference"
+                ]
+              },
               {
                 "group": "OP Deployer",
                 "pages": [
@@ -1977,7 +2726,9 @@
                       "chain-operators/tools/op-deployer/usage/bootstrap",
                       "chain-operators/tools/op-deployer/usage/init",
                       "chain-operators/tools/op-deployer/usage/apply",
-                      "chain-operators/tools/op-deployer/usage/verify"
+                      "chain-operators/tools/op-deployer/usage/verify",
+                      "chain-operators/tools/op-deployer/usage/custom-deployments",
+                      "chain-operators/tools/op-deployer/usage/release-workflows"
                     ]
                   },
                   "chain-operators/tools/op-deployer/known-limitations",
@@ -1993,8 +2744,7 @@
                         ]
                       },
                       "chain-operators/tools/op-deployer/reference/artifacts-locators",
-                      "chain-operators/tools/op-deployer/reference/releases",
-                      "chain-operators/tools/op-deployer/reference/custom-deployments"
+                      "chain-operators/tools/op-deployer/reference/releases"
                     ]
                   }
                 ]
@@ -2007,9 +2757,12 @@
           {
             "group": "Reference",
             "pages": [
-              "chain-operators/reference/architecture",
+              "chain-operators/reference/batcher-configuration",
+              "chain-operators/reference/challenger-configuration",
               "chain-operators/reference/opcm",
-              "chain-operators/reference/standard-configuration"
+              "chain-operators/reference/rollup-deployment-configuration",
+              "chain-operators/reference/fee-parameters",
+              "chain-operators/reference/da-footprint"
             ]
           },
           {
@@ -2038,6 +2791,7 @@
                 "pages": [
                   "node-operators/guides/configuration/consensus-clients",
                   "node-operators/guides/configuration/execution-clients",
+                  "node-operators/guides/configuration/supernode-setup",
                   "node-operators/guides/configuration/supernode"
                 ]
               },
@@ -2046,7 +2800,7 @@
                 "pages": [
                   "node-operators/guides/management/archive-node",
                   "node-operators/guides/management/blobs",
-                  "node-operators/guides/management/regenesis-history"
+                  "node-operators/guides/management/restore-from-snapshot"
                 ]
               },
               {
@@ -2067,30 +2821,224 @@
             ]
           },
           {
+            "group": "Kona Node",
+            "pages": [
+              "node-operators/kona-node/requirements",
+              {
+                "group": "Installation",
+                "pages": [
+                  "node-operators/kona-node/install/overview",
+                  "node-operators/kona-node/install/binaries",
+                  "node-operators/kona-node/install/docker",
+                  "node-operators/kona-node/install/source"
+                ]
+              },
+              {
+                "group": "Run a Node",
+                "pages": [
+                  "node-operators/kona-node/run/overview",
+                  "node-operators/kona-node/run/binary",
+                  "node-operators/kona-node/run/docker",
+                  "node-operators/kona-node/run/mechanics",
+                  "node-operators/kona-node/run/rpc-trust",
+                  "node-operators/kona-node/run/sequencer"
+                ]
+              },
+              {
+                "group": "JSON-RPC Reference",
+                "pages": [
+                  "node-operators/kona-node/rpc/overview",
+                  "node-operators/kona-node/rpc/p2p",
+                  "node-operators/kona-node/rpc/rollup",
+                  "node-operators/kona-node/rpc/admin"
+                ]
+              },
+              "node-operators/kona-node/configuration",
+              "node-operators/kona-node/monitoring",
+              "node-operators/kona-node/subcommands",
+              {
+                "group": "FAQ",
+                "pages": [
+                  "node-operators/kona-node/faq/overview",
+                  "node-operators/kona-node/faq/ports",
+                  "node-operators/kona-node/faq/profiling"
+                ]
+              },
+              {
+                "group": "Design",
+                "pages": [
+                  "node-operators/kona-node/design/intro",
+                  "node-operators/kona-node/design/derivation",
+                  "node-operators/kona-node/design/engine",
+                  "node-operators/kona-node/design/p2p",
+                  "node-operators/kona-node/design/sequencer"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "op-reth",
+            "pages": [
+              "node-operators/op-reth/index",
+              {
+                "group": "Run a Node",
+                "pages": [
+                  "node-operators/op-reth/run/opstack",
+                  {
+                    "group": "FAQ",
+                    "pages": [
+                      "node-operators/op-reth/run/faq/sync-op-mainnet"
+                    ]
+                  }
+                ]
+              },
+              {
+                "group": "CLI Reference",
+                "pages": [
+                  "node-operators/op-reth/cli/overview",
+                  {
+                    "group": "op-reth",
+                    "pages": [
+                      "node-operators/op-reth/cli/op-reth",
+                      "node-operators/op-reth/cli/op-reth/node",
+                      "node-operators/op-reth/cli/op-reth/init",
+                      "node-operators/op-reth/cli/op-reth/init-state",
+                      "node-operators/op-reth/cli/op-reth/import-op",
+                      "node-operators/op-reth/cli/op-reth/import-receipts-op",
+                      "node-operators/op-reth/cli/op-reth/dump-genesis",
+                      {
+                        "group": "op-reth db",
+                        "pages": [
+                          "node-operators/op-reth/cli/op-reth/db",
+                          "node-operators/op-reth/cli/op-reth/db/stats",
+                          "node-operators/op-reth/cli/op-reth/db/list",
+                          {
+                            "group": "op-reth db checksum",
+                            "pages": [
+                              "node-operators/op-reth/cli/op-reth/db/checksum",
+                              "node-operators/op-reth/cli/op-reth/db/checksum/mdbx",
+                              "node-operators/op-reth/cli/op-reth/db/checksum/static-file"
+                            ]
+                          },
+                          "node-operators/op-reth/cli/op-reth/db/diff",
+                          {
+                            "group": "op-reth db get",
+                            "pages": [
+                              "node-operators/op-reth/cli/op-reth/db/get",
+                              "node-operators/op-reth/cli/op-reth/db/get/mdbx",
+                              "node-operators/op-reth/cli/op-reth/db/get/static-file"
+                            ]
+                          },
+                          "node-operators/op-reth/cli/op-reth/db/drop",
+                          {
+                            "group": "op-reth db clear",
+                            "pages": [
+                              "node-operators/op-reth/cli/op-reth/db/clear",
+                              "node-operators/op-reth/cli/op-reth/db/clear/mdbx",
+                              "node-operators/op-reth/cli/op-reth/db/clear/static-file"
+                            ]
+                          },
+                          "node-operators/op-reth/cli/op-reth/db/repair-trie",
+                          {
+                            "group": "op-reth db static-file-header",
+                            "pages": [
+                              "node-operators/op-reth/cli/op-reth/db/static-file-header",
+                              "node-operators/op-reth/cli/op-reth/db/static-file-header/block",
+                              "node-operators/op-reth/cli/op-reth/db/static-file-header/path"
+                            ]
+                          },
+                          "node-operators/op-reth/cli/op-reth/db/version",
+                          "node-operators/op-reth/cli/op-reth/db/path",
+                          {
+                            "group": "op-reth db settings",
+                            "pages": [
+                              "node-operators/op-reth/cli/op-reth/db/settings",
+                              "node-operators/op-reth/cli/op-reth/db/settings/get",
+                              {
+                                "group": "op-reth db settings set",
+                                "pages": [
+                                  "node-operators/op-reth/cli/op-reth/db/settings/set",
+                                  "node-operators/op-reth/cli/op-reth/db/settings/set/receipts",
+                                  "node-operators/op-reth/cli/op-reth/db/settings/set/transaction_senders",
+                                  "node-operators/op-reth/cli/op-reth/db/settings/set/account_changesets",
+                                  "node-operators/op-reth/cli/op-reth/db/settings/set/storages_history",
+                                  "node-operators/op-reth/cli/op-reth/db/settings/set/transaction_hash_numbers",
+                                  "node-operators/op-reth/cli/op-reth/db/settings/set/account_history",
+                                  "node-operators/op-reth/cli/op-reth/db/settings/set/storage_changesets"
+                                ]
+                              }
+                            ]
+                          },
+                          "node-operators/op-reth/cli/op-reth/db/account-storage"
+                        ]
+                      },
+                      {
+                        "group": "op-reth stage",
+                        "pages": [
+                          "node-operators/op-reth/cli/op-reth/stage",
+                          "node-operators/op-reth/cli/op-reth/stage/run",
+                          "node-operators/op-reth/cli/op-reth/stage/drop",
+                          {
+                            "group": "op-reth stage dump",
+                            "pages": [
+                              "node-operators/op-reth/cli/op-reth/stage/dump",
+                              "node-operators/op-reth/cli/op-reth/stage/dump/execution",
+                              "node-operators/op-reth/cli/op-reth/stage/dump/storage-hashing",
+                              "node-operators/op-reth/cli/op-reth/stage/dump/account-hashing",
+                              "node-operators/op-reth/cli/op-reth/stage/dump/merkle"
+                            ]
+                          },
+                          {
+                            "group": "op-reth stage unwind",
+                            "pages": [
+                              "node-operators/op-reth/cli/op-reth/stage/unwind",
+                              "node-operators/op-reth/cli/op-reth/stage/unwind/to-block",
+                              "node-operators/op-reth/cli/op-reth/stage/unwind/num-blocks"
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "group": "op-reth p2p",
+                        "pages": [
+                          "node-operators/op-reth/cli/op-reth/p2p",
+                          "node-operators/op-reth/cli/op-reth/p2p/header",
+                          "node-operators/op-reth/cli/op-reth/p2p/body",
+                          {
+                            "group": "op-reth p2p rlpx",
+                            "pages": [
+                              "node-operators/op-reth/cli/op-reth/p2p/rlpx",
+                              "node-operators/op-reth/cli/op-reth/p2p/rlpx/ping"
+                            ]
+                          },
+                          "node-operators/op-reth/cli/op-reth/p2p/bootnode"
+                        ]
+                      },
+                      "node-operators/op-reth/cli/op-reth/config",
+                      "node-operators/op-reth/cli/op-reth/prune",
+                      "node-operators/op-reth/cli/op-reth/re-execute"
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
             "group": "Reference",
             "pages": [
               {
                 "group": "Architecture",
                 "pages": [
-                  "node-operators/reference/architecture/architecture",
-                  "node-operators/reference/architecture/rollup-node"
+                  "node-operators/reference/architecture/architecture"
                 ]
               },
               "node-operators/reference/op-node-config",
               "node-operators/reference/op-node-json-rpc",
+              "node-operators/reference/op-supernode-config",
               "node-operators/reference/op-reth-config",
               "node-operators/reference/op-reth-json-rpc",
               "node-operators/reference/op-reth-historical-proof-config",
               "node-operators/reference/consensus-layer-sync"
-            ]
-          },
-          {
-            "group": "Archive",
-            "pages": [
-              "node-operators/reference/op-geth-config",
-              "node-operators/reference/op-geth-json-rpc",
-              "node-operators/guides/management/snap-sync",
-              "node-operators/reference/features/snap-sync"
             ]
           }
         ]
@@ -2101,6 +3049,7 @@
           {
             "group": "Quickstarts",
             "pages": [
+              "app-developers/quickstarts/get-started",
               "app-developers/quickstarts/actions"
             ]
           },
@@ -2109,12 +3058,14 @@
             "pages": [
               "app-developers/guides/building-apps",
               "app-developers/guides/testing-apps",
-              "app-developers/guides/configuring-actions"
+              "app-developers/guides/configuring-actions",
+              "app-developers/guides/connect-wallet-to-actions"
             ]
           },
           {
             "group": "Tutorials",
             "pages": [
+              "app-developers/tutorials/deploy-a-contract",
               {
                 "group": "Bridging",
                 "pages": [
@@ -2124,7 +3075,8 @@
                   "app-developers/tutorials/bridging/standard-bridge-standard-token",
                   "app-developers/tutorials/bridging/cross-dom-bridge-eth",
                   "app-developers/tutorials/bridging/bridge-crosschain-eth",
-                  "app-developers/tutorials/bridging/deposit-transactions"
+                  "app-developers/tutorials/bridging/deposit-transactions",
+                  "app-developers/tutorials/bridging/replay-failed-deposit"
                 ]
               },
               {
@@ -2160,7 +3112,8 @@
               "app-developers/guides/bridging/basics",
               "app-developers/guides/bridging/custom-bridge",
               "app-developers/guides/bridging/messaging",
-              "app-developers/guides/bridging/standard-bridge"
+              "app-developers/guides/bridging/standard-bridge",
+              "app-developers/guides/bridging/verify-bridged-tokens"
             ]
           },
           {
@@ -2169,8 +3122,7 @@
               "app-developers/guides/interoperability/get-started",
               "app-developers/guides/interoperability/message-passing",
               "app-developers/guides/interoperability/reading-logs",
-              "app-developers/guides/interoperability/message-expiration",
-              "app-developers/guides/interoperability/estimate-costs"
+              "app-developers/guides/interoperability/message-expiration"
             ]
           },
           {
@@ -2178,14 +3130,34 @@
             "pages": [
               "app-developers/guides/transactions/estimates",
               "app-developers/guides/transactions/flashblocks-and-gas-usage",
+              "app-developers/guides/transactions/integrating-flashblocks",
               "app-developers/guides/transactions/parameters",
               "app-developers/guides/transactions/statuses",
               "app-developers/guides/transactions/troubleshooting"
             ]
           },
           {
-            "group": "Tools",
+            "group": "Tools & SDKs",
             "pages": [
+              "app-developers/tools-sdks/support-matrix",
+              "app-developers/tools-sdks/listing-criteria",
+              {
+                "group": "op-alloy",
+                "pages": [
+                  "app-developers/tools-sdks/op-alloy/intro",
+                  "app-developers/tools-sdks/op-alloy/starting",
+                  {
+                    "group": "Building",
+                    "pages": [
+                      "app-developers/tools-sdks/op-alloy/building/index",
+                      "app-developers/tools-sdks/op-alloy/building/consensus",
+                      "app-developers/tools-sdks/op-alloy/building/engine"
+                    ]
+                  },
+                  "app-developers/tools-sdks/op-alloy/glossary"
+                ]
+              },
+              "app-developers/tools-sdks/op-revm",
               "app-developers/tools/faucets",
               "app-developers/tools/block-explorers",
               {
@@ -2242,13 +3214,14 @@
         ]
       },
       {
-        "tab": "OP Stack",
+        "tab": "Protocol",
         "groups": [
           {
             "group": "Introduction",
             "pages": [
               "/op-stack/introduction/op-stack",
-              "/op-stack/introduction/fact-sheet"
+              "/op-stack/introduction/fact-sheet",
+              "/op-stack/learn/index"
             ]
           },
           {
@@ -2260,24 +3233,82 @@
               "/op-stack/features/span-batches",
               "/op-stack/features/send-raw-transaction-conditional",
               "/op-stack/features/l2-contract-manager",
-              "/op-stack/features/osaka-on-l2"
+              "/op-stack/features/osaka-on-l2",
+              "/op-stack/features/preinstalls",
+              "/op-stack/features/experimental/alt-da-mode"
             ]
           },
           {
             "group": "Protocol Information",
             "pages": [
+              "/op-stack/protocol/index",
               "/op-stack/protocol/overview",
-              "/op-stack/protocol/getting-started",
               "/op-stack/protocol/design-principles",
               "/op-stack/protocol/differences",
               "/op-stack/protocol/components",
               "/op-stack/protocol/derivation-pipeline",
               "/op-stack/protocol/outages",
-              "/op-stack/protocol/network-upgrades",
+              {
+                "group": "Network Upgrades",
+                "pages": [
+                  "/op-stack/protocol/network-upgrades",
+                  "/op-stack/protocol/hardforks/lagoon",
+                  "/op-stack/protocol/hardforks/karst",
+                  "/op-stack/protocol/hardforks/jovian",
+                  "/op-stack/protocol/hardforks/isthmus",
+                  "/op-stack/protocol/hardforks/holocene",
+                  "/op-stack/protocol/hardforks/granite",
+                  "/op-stack/protocol/hardforks/fjord",
+                  "/op-stack/protocol/hardforks/ecotone",
+                  "/op-stack/protocol/hardforks/delta",
+                  "/op-stack/protocol/hardforks/canyon",
+                  "/op-stack/protocol/hardforks/regolith"
+                ]
+              },
               "/op-stack/protocol/smart-contracts",
               "/op-stack/protocol/privileged-roles",
               "/op-stack/protocol/blockspace-charter",
-              "/op-stack/protocol/superchain-registry"
+              "/op-stack/protocol/superchain-registry",
+              "/op-stack/research/block-time-research"
+            ]
+          },
+          {
+            "group": "Stack Components",
+            "pages": [
+              "/op-stack/components/index",
+              {
+                "group": "Sequencing",
+                "pages": [
+                  "/op-stack/components/op-batcher",
+                  "/op-stack/components/op-conductor"
+                ]
+              },
+              {
+                "group": "Derivation & Execution",
+                "pages": [
+                  "/op-stack/components/op-node",
+                  "/op-stack/components/kona-node",
+                  "/op-stack/components/op-reth"
+                ]
+              },
+              {
+                "group": "Settlement & Proofs",
+                "pages": [
+                  "/op-stack/components/op-proposer",
+                  "/op-stack/components/op-challenger",
+                  "/op-stack/components/cannon",
+                  "/op-stack/components/kona-client",
+                  "/op-stack/components/kona-host",
+                  "/op-stack/components/op-contracts"
+                ]
+              },
+              {
+                "group": "Deployment & Infrastructure",
+                "pages": [
+                  "/op-stack/components/op-deployer",
+                  "/op-stack/components/proxyd"
+                ]
+              }
             ]
           },
           {
@@ -2293,7 +3324,6 @@
             "pages": [
               "/op-stack/transactions/fees",
               "/op-stack/transactions/fee-vaults",
-              "/op-stack/transactions/flashblocks",
               "/op-stack/transactions/forced-transaction",
               "/op-stack/transactions/transaction-finality",
               "/op-stack/transactions/transaction-flow"
@@ -2302,12 +3332,39 @@
           {
             "group": "Fault Proofs",
             "pages": [
+              "op-stack/fault-proofs/index",
               "op-stack/fault-proofs/explainer",
               "/op-stack/fault-proofs/fp-security",
               "op-stack/fault-proofs/fp-components",
               "op-stack/fault-proofs/cannon",
               "op-stack/fault-proofs/mips",
-              "op-stack/fault-proofs/challenger"
+              "op-stack/fault-proofs/challenger",
+              {
+                "group": "Kona",
+                "pages": [
+                  {
+                    "group": "Fault Proof Program Development",
+                    "pages": [
+                      "op-stack/fault-proofs/kona/fpp-dev/intro",
+                      "op-stack/fault-proofs/kona/fpp-dev/env",
+                      "op-stack/fault-proofs/kona/fpp-dev/targets",
+                      "op-stack/fault-proofs/kona/fpp-dev/prologue",
+                      "op-stack/fault-proofs/kona/fpp-dev/execution",
+                      "op-stack/fault-proofs/kona/fpp-dev/epilogue"
+                    ]
+                  },
+                  {
+                    "group": "Proof SDK",
+                    "pages": [
+                      "op-stack/fault-proofs/kona/proof/intro",
+                      "op-stack/fault-proofs/kona/proof/stf",
+                      "op-stack/fault-proofs/kona/proof/fpvm-backend",
+                      "op-stack/fault-proofs/kona/proof/custom-backend",
+                      "op-stack/fault-proofs/kona/proof/exec-ext"
+                    ]
+                  }
+                ]
+              }
             ]
           },
           {
@@ -2321,25 +3378,13 @@
             ]
           },
           {
-            "group": "Research",
-            "pages": [
-              "/op-stack/research/block-time-research"
-            ]
-          },
-          {
             "group": "Interoperability",
             "pages": [
-              "/op-stack/interop/interop",
+              "/op-stack/interop/index",
               "/op-stack/interop/explainer",
               "/op-stack/interop/supernode",
               "/op-stack/interop/reorg",
               "/op-stack/interop/superchain-eth-bridge"
-            ]
-          },
-          {
-            "group": "Reference",
-            "pages": [
-              "/op-stack/reference/glossary"
             ]
           }
         ]
@@ -2359,20 +3404,26 @@
           {
             "group": "Pre-Bedrock History",
             "pages": [
-              "node-operators/guides/configuration/legacy-geth"
+              "node-operators/guides/configuration/legacy-geth",
+              "node-operators/reference/legacy-geth-config",
+              "op-mainnet/pre-bedrock-history/regenesis-history",
+              "op-mainnet/pre-bedrock-history/lost-pre-regenesis-data"
             ]
           }
         ]
       },
       {
-        "tab": "How Optimism Evolves",
+        "tab": "Governance",
         "groups": [
           {
-            "group": "How Optimism Evolves",
+            "group": "Governance",
             "pages": [
               "governance/protocol-upgrades",
               "governance/capital-allocation",
               "governance/evolution-and-experimentation",
+              "governance/eas-attestations",
+              "governance/attestation-schemas",
+              "governance/resources",
               "governance/gov-faq"
             ]
           }
@@ -2385,16 +3436,27 @@
             "group": "Network Notices",
             "pages": [
               "notices/index",
-              "notices/interop-prep",
-              "notices/upgrade-19",
-              "notices/specialized-node-topology",
-              "notices/stake-based-priority-ordering",
-              "notices/req-resp-cl-sync-deprecation",
-              "notices/op-geth-deprecation",
-              "notices/op-deployer-upgrade-deprecation",
+              {
+                "group": "Network Upgrades",
+                "pages": [
+                  "notices/upgrade-20",
+                  "notices/interop-prep"
+                ]
+              },
+              {
+                "group": "Operations",
+                "pages": [
+                  "notices/specialized-node-topology"
+                ]
+              },
               {
                 "group": "Archive",
                 "pages": [
+                  "notices/archive/upgrade-19",
+                  "notices/archive/op-geth-deprecation",
+                  "notices/archive/op-deployer-upgrade-deprecation",
+                  "notices/archive/req-resp-cl-sync-deprecation",
+                  "notices/archive/stake-based-priority-ordering",
                   "notices/archive/upgrade-18",
                   "notices/archive/upgrade-17",
                   "notices/archive/fusaka-notice",
@@ -2444,342 +3506,6 @@
                   "releases/op-acceptor"
                 ]
               }
-            ]
-          }
-        ]
-      },
-      {
-        "tab": "Rust",
-        "groups": [
-          {
-            "group": "Overview",
-            "pages": [
-              "rust/index"
-            ]
-          },
-          {
-            "group": "Kona - Introduction",
-            "pages": [
-              "rust/kona/intro/overview",
-              "rust/kona/intro/why",
-              "rust/kona/intro/contributing",
-              "rust/kona/intro/lore"
-            ]
-          },
-          {
-            "group": "Kona - Kona for Node Operators",
-            "pages": [
-              "rust/kona/node/requirements",
-              {
-                "group": "Installation",
-                "pages": [
-                  "rust/kona/node/install/overview",
-                  "rust/kona/node/install/binaries",
-                  "rust/kona/node/install/docker",
-                  "rust/kona/node/install/source"
-                ]
-              },
-              {
-                "group": "Run a Node",
-                "pages": [
-                  "rust/kona/node/run/overview",
-                  "rust/kona/node/run/binary",
-                  "rust/kona/node/run/docker",
-                  "rust/kona/node/run/mechanics"
-                ]
-              },
-              {
-                "group": "JSON-RPC Reference",
-                "pages": [
-                  "rust/kona/node/rpc/overview",
-                  "rust/kona/node/rpc/p2p",
-                  "rust/kona/node/rpc/rollup",
-                  "rust/kona/node/rpc/admin"
-                ]
-              },
-              "rust/kona/node/configuration",
-              "rust/kona/node/monitoring",
-              "rust/kona/node/subcommands",
-              {
-                "group": "FAQ",
-                "pages": [
-                  "rust/kona/node/faq/overview",
-                  "rust/kona/node/faq/ports",
-                  "rust/kona/node/faq/profiling"
-                ]
-              }
-            ]
-          },
-          {
-            "group": "Kona - Kona as a Library",
-            "pages": [
-              "rust/kona/sdk/overview",
-              {
-                "group": "Node SDK",
-                "pages": [
-                  "rust/kona/node/design/intro",
-                  "rust/kona/node/design/derivation",
-                  "rust/kona/node/design/engine",
-                  "rust/kona/node/design/p2p",
-                  "rust/kona/node/design/sequencer"
-                ]
-              },
-              {
-                "group": "Proof SDK",
-                "pages": [
-                  "rust/kona/sdk/proof/intro",
-                  "rust/kona/sdk/proof/fpvm-backend",
-                  "rust/kona/sdk/proof/custom-backend",
-                  "rust/kona/sdk/proof/exec-ext"
-                ]
-              },
-              {
-                "group": "Fault Proof Program Development",
-                "pages": [
-                  "rust/kona/sdk/fpp-dev/intro",
-                  "rust/kona/sdk/fpp-dev/env",
-                  "rust/kona/sdk/fpp-dev/targets",
-                  "rust/kona/sdk/fpp-dev/prologue",
-                  "rust/kona/sdk/fpp-dev/execution",
-                  "rust/kona/sdk/fpp-dev/epilogue"
-                ]
-              },
-              {
-                "group": "Protocol Libraries",
-                "pages": [
-                  "rust/kona/sdk/protocol/intro",
-                  "rust/kona/sdk/protocol/registry",
-                  "rust/kona/sdk/protocol/interop",
-                  "rust/kona/sdk/protocol/hardforks",
-                  {
-                    "group": "Derivation",
-                    "pages": [
-                      "rust/kona/sdk/protocol/derive/intro",
-                      "rust/kona/sdk/protocol/derive/providers",
-                      "rust/kona/sdk/protocol/derive/stages",
-                      "rust/kona/sdk/protocol/derive/signaling"
-                    ]
-                  },
-                  {
-                    "group": "Genesis",
-                    "pages": [
-                      "rust/kona/sdk/protocol/genesis/intro",
-                      "rust/kona/sdk/protocol/genesis/rollup-config",
-                      "rust/kona/sdk/protocol/genesis/system-config"
-                    ]
-                  },
-                  {
-                    "group": "Protocol",
-                    "pages": [
-                      "rust/kona/sdk/protocol/protocol/intro",
-                      "rust/kona/sdk/protocol/protocol/block-info",
-                      "rust/kona/sdk/protocol/protocol/l2-block-info",
-                      "rust/kona/sdk/protocol/protocol/frames",
-                      "rust/kona/sdk/protocol/protocol/channels",
-                      "rust/kona/sdk/protocol/protocol/batches"
-                    ]
-                  }
-                ]
-              },
-              {
-                "group": "Examples",
-                "pages": [
-                  "rust/kona/sdk/examples/intro",
-                  "rust/kona/sdk/examples/load-a-rollup-config",
-                  "rust/kona/sdk/examples/frames-to-batch",
-                  "rust/kona/sdk/examples/new-l1-block-info-tx-hardfork",
-                  "rust/kona/sdk/examples/executor-test-fixtures",
-                  "rust/kona/sdk/examples/p2p-peer-scoring",
-                  "rust/kona/sdk/examples/custom-derivation-pipeline"
-                ]
-              }
-            ]
-          },
-          {
-            "group": "Kona - RFC",
-            "pages": [
-              "rust/kona/rfc/active/intro",
-              {
-                "group": "Archived RFCs",
-                "pages": [
-                  "rust/kona/rfc/archived/umbrellas",
-                  "rust/kona/rfc/archived/monorepo"
-                ]
-              }
-            ]
-          },
-          {
-            "group": "op-reth - Introduction",
-            "pages": [
-              "rust/op-reth/index"
-            ]
-          },
-          {
-            "group": "op-reth - Running op-reth",
-            "pages": [
-              "rust/op-reth/run/opstack",
-              {
-                "group": "FAQ",
-                "pages": [
-                  "rust/op-reth/run/faq/sync-op-mainnet"
-                ]
-              }
-            ]
-          },
-          {
-            "group": "op-reth - CLI Reference",
-            "pages": [
-              "rust/op-reth/cli/op-reth",
-              {
-                "group": "op-reth",
-                "pages": [
-                  "rust/op-reth/cli/op-reth",
-                  "rust/op-reth/cli/op-reth/node",
-                  "rust/op-reth/cli/op-reth/init",
-                  "rust/op-reth/cli/op-reth/init-state",
-                  "rust/op-reth/cli/op-reth/import-op",
-                  "rust/op-reth/cli/op-reth/import-receipts-op",
-                  "rust/op-reth/cli/op-reth/dump-genesis",
-                  {
-                    "group": "op-reth db",
-                    "pages": [
-                      "rust/op-reth/cli/op-reth/db",
-                      "rust/op-reth/cli/op-reth/db/stats",
-                      "rust/op-reth/cli/op-reth/db/list",
-                      {
-                        "group": "op-reth db checksum",
-                        "pages": [
-                          "rust/op-reth/cli/op-reth/db/checksum",
-                          "rust/op-reth/cli/op-reth/db/checksum/mdbx",
-                          "rust/op-reth/cli/op-reth/db/checksum/static-file"
-                        ]
-                      },
-                      "rust/op-reth/cli/op-reth/db/diff",
-                      {
-                        "group": "op-reth db get",
-                        "pages": [
-                          "rust/op-reth/cli/op-reth/db/get",
-                          "rust/op-reth/cli/op-reth/db/get/mdbx",
-                          "rust/op-reth/cli/op-reth/db/get/static-file"
-                        ]
-                      },
-                      "rust/op-reth/cli/op-reth/db/drop",
-                      {
-                        "group": "op-reth db clear",
-                        "pages": [
-                          "rust/op-reth/cli/op-reth/db/clear",
-                          "rust/op-reth/cli/op-reth/db/clear/mdbx",
-                          "rust/op-reth/cli/op-reth/db/clear/static-file"
-                        ]
-                      },
-                      "rust/op-reth/cli/op-reth/db/repair-trie",
-                      {
-                        "group": "op-reth db static-file-header",
-                        "pages": [
-                          "rust/op-reth/cli/op-reth/db/static-file-header",
-                          "rust/op-reth/cli/op-reth/db/static-file-header/block",
-                          "rust/op-reth/cli/op-reth/db/static-file-header/path"
-                        ]
-                      },
-                      "rust/op-reth/cli/op-reth/db/version",
-                      "rust/op-reth/cli/op-reth/db/path",
-                      {
-                        "group": "op-reth db settings",
-                        "pages": [
-                          "rust/op-reth/cli/op-reth/db/settings",
-                          "rust/op-reth/cli/op-reth/db/settings/get",
-                          {
-                            "group": "op-reth db settings set",
-                            "pages": [
-                              "rust/op-reth/cli/op-reth/db/settings/set",
-                              "rust/op-reth/cli/op-reth/db/settings/set/receipts",
-                              "rust/op-reth/cli/op-reth/db/settings/set/transaction_senders",
-                              "rust/op-reth/cli/op-reth/db/settings/set/account_changesets",
-                              "rust/op-reth/cli/op-reth/db/settings/set/storages_history",
-                              "rust/op-reth/cli/op-reth/db/settings/set/transaction_hash_numbers",
-                              "rust/op-reth/cli/op-reth/db/settings/set/account_history",
-                              "rust/op-reth/cli/op-reth/db/settings/set/storage_changesets"
-                            ]
-                          }
-                        ]
-                      },
-                      "rust/op-reth/cli/op-reth/db/account-storage"
-                    ]
-                  },
-                  {
-                    "group": "op-reth stage",
-                    "pages": [
-                      "rust/op-reth/cli/op-reth/stage",
-                      "rust/op-reth/cli/op-reth/stage/run",
-                      "rust/op-reth/cli/op-reth/stage/drop",
-                      {
-                        "group": "op-reth stage dump",
-                        "pages": [
-                          "rust/op-reth/cli/op-reth/stage/dump",
-                          "rust/op-reth/cli/op-reth/stage/dump/execution",
-                          "rust/op-reth/cli/op-reth/stage/dump/storage-hashing",
-                          "rust/op-reth/cli/op-reth/stage/dump/account-hashing",
-                          "rust/op-reth/cli/op-reth/stage/dump/merkle"
-                        ]
-                      },
-                      {
-                        "group": "op-reth stage unwind",
-                        "pages": [
-                          "rust/op-reth/cli/op-reth/stage/unwind",
-                          "rust/op-reth/cli/op-reth/stage/unwind/to-block",
-                          "rust/op-reth/cli/op-reth/stage/unwind/num-blocks"
-                        ]
-                      }
-                    ]
-                  },
-                  {
-                    "group": "op-reth p2p",
-                    "pages": [
-                      "rust/op-reth/cli/op-reth/p2p",
-                      "rust/op-reth/cli/op-reth/p2p/header",
-                      "rust/op-reth/cli/op-reth/p2p/body",
-                      {
-                        "group": "op-reth p2p rlpx",
-                        "pages": [
-                          "rust/op-reth/cli/op-reth/p2p/rlpx",
-                          "rust/op-reth/cli/op-reth/p2p/rlpx/ping"
-                        ]
-                      },
-                      "rust/op-reth/cli/op-reth/p2p/bootnode"
-                    ]
-                  },
-                  "rust/op-reth/cli/op-reth/config",
-                  "rust/op-reth/cli/op-reth/prune",
-                  "rust/op-reth/cli/op-reth/re-execute"
-                ]
-              }
-            ]
-          },
-          {
-            "group": "op-alloy - Introduction",
-            "pages": [
-              "rust/op-alloy/intro",
-              "rust/op-alloy/starting"
-            ]
-          },
-          {
-            "group": "op-alloy - Building",
-            "pages": [
-              "rust/op-alloy/building/index",
-              "rust/op-alloy/building/consensus",
-              "rust/op-alloy/building/engine"
-            ]
-          },
-          {
-            "group": "op-alloy - Reference",
-            "pages": [
-              "rust/op-alloy/glossary"
-            ]
-          },
-          {
-            "group": "op-revm",
-            "pages": [
-              "rust/op-revm/index"
             ]
           }
         ]

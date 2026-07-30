@@ -307,6 +307,9 @@ target "kona-node" {
     REPO_LOCATION = "local"
     BIN_TARGET = "kona-node"
     BUILD_PROFILE = "release"
+    GIT_VERSION = "${GIT_VERSION}"
+    GIT_COMMIT = "${GIT_COMMIT}"
+    GIT_DATE = "${GIT_DATE}"
   }
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/kona-node:${tag}"]
@@ -345,9 +348,17 @@ target "kona-client" {
 target "op-reth" {
   dockerfile = "op-reth/DockerfileOp"
   context = "rust"
+  # The chainspec build.rs reads the superchain-registry submodule (at the repo
+  # root, outside the "rust" context); expose it as a named context so the
+  # Dockerfile can COPY the subset it needs.
+  contexts = {
+    superchain-registry = "superchain-registry"
+  }
   args = {
     BUILD_PROFILE = "maxperf"
-    FEATURES = ""
+    GIT_VERSION = "${GIT_VERSION}"
+    GIT_COMMIT = "${GIT_COMMIT}"
+    GIT_DATE = "${GIT_DATE}"
   }
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-reth:${tag}"]
@@ -363,6 +374,9 @@ target "op-rbuilder" {
   context = "rust/op-rbuilder"
   contexts = {
     monorepo-rust = "rust"
+    # op-reth's chainspec build.rs (pulled in via monorepo-rust) regenerates its
+    # gitignored superchain archive from this submodule; see the Dockerfile COPY.
+    superchain-registry = "superchain-registry"
   }
   args = {
     RBUILDER_BIN = "op-rbuilder"
@@ -378,6 +392,9 @@ target "rollup-boost" {
   context = "rust/rollup-boost"
   contexts = {
     monorepo-rust = "rust"
+    # op-reth's chainspec build.rs (pulled in via monorepo-rust) regenerates its
+    # gitignored superchain archive from this submodule; see the Dockerfile COPY.
+    superchain-registry = "superchain-registry"
   }
   args = {
     SERVICE_NAME = "rollup-boost"

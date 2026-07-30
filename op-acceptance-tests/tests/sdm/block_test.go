@@ -3,6 +3,7 @@ package sdm
 import (
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sdm/sdmtest"
 	sdmpkg "github.com/ethereum-optimism/optimism/op-chain-ops/pkg/sdm"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
@@ -14,122 +15,21 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
-// submitTxWithoutWait sends a transaction to the mempool without waiting for inclusion.
-// Returns the PlannedTx whose Included field can be evaluated later.
-// The caller must provide a nonce to avoid the default PendingNonce lookup racing between txs.
-func submitTxWithoutWait(
-	t devtest.T,
-	alice *dsl.EOA,
-	nonce uint64,
-	opts ...txplan.Option,
-) *txplan.PlannedTx {
-	combined := append([]txplan.Option{
-		alice.Plan(),
-		txplan.WithNonce(nonce),
-	}, opts...)
-	ptx := txplan.NewPlannedTx(combined...)
-	_, err := ptx.Submitted.Eval(t.Ctx())
-	t.Require().NoError(err, "failed to submit tx with nonce %d", nonce)
-	return ptx
-}
-
-type includedTx struct {
-	receipt  *types.Receipt
-	blockNum uint64
-}
-
-func mustFindRepeatedSlotBlock(
-	t devtest.T,
-	sys *sdmRethSystem,
-	minUserTxs int,
-	maxAttempts int,
-) (*sdmpkg.RPCBlock, []includedTx, uint64) {
-	l := t.Logger()
-
-	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		alice := sys.FunderL2.NewFundedEOA(eth.OneEther)
-		stateBloatAddr := deployContract(t, alice, sdmpkg.StateBloatBin)
-
-		const batchSize = 50
-		const slotCount = 20
-		startNonce := alice.PendingNonce()
-		plannedTxs := make([]*txplan.PlannedTx, 0, batchSize)
-
-		l.Info("Submitting repeated-slot workload",
-			"attempt", attempt,
-			"alice", alice.Address(),
-			"contract", stateBloatAddr,
-			"startNonce", startNonce,
-			"batchSize", batchSize,
-			"slotCount", slotCount)
-
-		for i := 0; i < batchSize; i++ {
-			nonce := startNonce + uint64(i)
-			plannedTxs = append(plannedTxs, submitTxWithoutWait(
-				t,
-				alice,
-				nonce,
-				txplan.WithTo(addrPtr(stateBloatAddr)),
-				txplan.WithData(sdmpkg.EncodeRun(slotCount)),
-				txplan.WithGasLimit(1_000_000),
-			))
-		}
-
-		blockTxs := make(map[uint64][]includedTx)
-		for i, ptx := range plannedTxs {
-			receipt, err := ptx.Included.Eval(t.Ctx())
-			t.Require().NoError(err, "attempt %d tx %d: failed to get receipt", attempt, i)
-			t.Require().Equal(types.ReceiptStatusSuccessful, receipt.Status,
-				"attempt %d tx %d: must succeed", attempt, i)
-
-			itx := includedTx{receipt: receipt, blockNum: bigs.Uint64Strict(receipt.BlockNumber)}
-			blockTxs[itx.blockNum] = append(blockTxs[itx.blockNum], itx)
-		}
-
-		var targetBlockNum uint64
-		var targetIncluded []includedTx
-		for blockNum, txs := range blockTxs {
-			if len(txs) > len(targetIncluded) {
-				targetBlockNum = blockNum
-				targetIncluded = txs
-			}
-		}
-		if len(targetIncluded) < minUserTxs {
-			l.Warn("Repeated-slot workload did not produce a dense-enough block",
-				"attempt", attempt,
-				"requiredUserTxs", minUserTxs,
-				"bestUserTxs", len(targetIncluded),
-				"bestBlock", targetBlockNum)
-			continue
-		}
-
-		block := getBlockWithTxs(t, sys.L2EL, targetBlockNum)
-		t.Require().Greater(len(block.Transactions), 0, "block must have at least one transaction")
-		t.Require().Equal(uint64(types.DepositTxType), uint64(block.Transactions[0].Type),
-			"position 0 must be a deposit tx (L1 info)")
-		return block, targetIncluded, targetBlockNum
-	}
-
-	t.Require().FailNowf("repeated-slot workload failed",
-		"no block with at least %d user txs found after %d attempts", minUserTxs, maxAttempts)
-	return nil, nil, 0
-}
-
 func TestSDMDisabledNoRefunds(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := newSDMRethSystem(t, false)
-	verifyOpReth(t, sys.L2EL)
+	sdmtest.VerifyOpReth(t, sys.L2EL)
 
-	block, included, targetBlockNum := mustFindRepeatedSlotBlock(t, sys, 2, 3)
+	block, included, targetBlockNum := sdmtest.MustFindRepeatedSlotBlock(t, sys, 2, 3)
 	t.Require().GreaterOrEqual(len(included), 2, "target block must contain multiple user txs")
 
-	postExecTx, _ := findPostExecTransaction(block)
+	postExecTx, _ := sdmpkg.FindPostExecTransaction(block)
 	t.Require().Nil(postExecTx, "SDM-disabled sequencer must not include a post-exec tx")
 
-	for _, itx := range included {
-		refund, present := getOPGasRefund(t, sys.L2EL, itx.receipt.TxHash)
+	for _, receipt := range included {
+		refund, present := getOPGasRefund(t, sys.L2EL, receipt.TxHash)
 		t.Require().False(present, "legacy block %d tx %s must not expose opGasRefund",
-			targetBlockNum, itx.receipt.TxHash)
+			targetBlockNum, receipt.TxHash)
 		t.Require().Zero(refund, "absent opGasRefund must decode to zero")
 	}
 }
@@ -137,13 +37,16 @@ func TestSDMDisabledNoRefunds(gt *testing.T) {
 func TestSDMEnabledPayloadAndReplayMatch(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := newSDMRethSystem(t, true)
-	verifyOpReth(t, sys.L2EL)
+	sdmtest.VerifyOpReth(t, sys.L2EL)
 
-	block, included, targetBlockNum := mustFindRepeatedSlotBlock(t, sys, 2, 3)
-	postExecTx, postExecPos := findPostExecTransaction(block)
+	block, included, targetBlockNum := sdmtest.MustFindRepeatedSlotBlock(t, sys, 2, 3)
+	postExecTx, postExecPos := sdmpkg.FindPostExecTransaction(block)
 	t.Require().NotNil(postExecTx, "SDM-enabled sequencer must include a post-exec tx")
 	t.Require().Greater(len(postExecTx.Input), 0, "post-exec tx input must not be empty")
 	t.Require().Equal(uint64(sdmpkg.SDMTxType), uint64(postExecTx.Type), "post-exec tx type must be 0x7D")
+
+	// Tx-hash parity: op-reth must serve and index under the canonical keccak256(0x7D || Data) hash.
+	assertPostExecTxHashIsCanonical(t, sys.L2EL, postExecTx)
 
 	payload, err := sdmpkg.DecodePayload(postExecTx.Input)
 	t.Require().NoError(err, "post-exec payload must decode")
@@ -152,9 +55,9 @@ func TestSDMEnabledPayloadAndReplayMatch(gt *testing.T) {
 
 	receiptByHash := make(map[common.Hash]*types.Receipt, len(included))
 	hasNonZeroReceiptRefund := false
-	for _, itx := range included {
-		receiptByHash[itx.receipt.TxHash] = itx.receipt
-		refund, _ := getOPGasRefund(t, sys.L2EL, itx.receipt.TxHash)
+	for _, receipt := range included {
+		receiptByHash[receipt.TxHash] = receipt
+		refund, _ := getOPGasRefund(t, sys.L2EL, receipt.TxHash)
 		if refund > 0 {
 			hasNonZeroReceiptRefund = true
 		}
@@ -173,7 +76,7 @@ func TestSDMEnabledPayloadAndReplayMatch(gt *testing.T) {
 			"payload refund must match receipt opGasRefund for tx index %d", entry.Index)
 	}
 
-	replay := replayBlockWithSDM(t, sys.L2EL, targetBlockNum)
+	replay := sdmtest.ReplayBlockWithSDM(t, sys.L2EL, targetBlockNum)
 	t.Require().Equal(targetBlockNum, replay.BlockNum, "replay must target the selected block")
 	t.Require().Equal(block.Hash, replay.BlockHash, "replay block hash must match source block")
 	t.Require().True(replay.PostExecTxPresent, "replay must report the post-exec tx in the source block")
@@ -285,19 +188,19 @@ func TestSDMPostExecBlockDerivesAndChainProgresses(gt *testing.T) {
 }
 
 func testSDMPostExecBlockDerivesAndChainProgresses(t devtest.T, batchType string, singular bool) {
-	var sys *sdmRethSystem
+	var sys *sdmtest.RethSystem
 	if singular {
 		sys = newSDMRethSystemWithBatcherOptions(t, true, withSingularBatcher)
 	} else {
 		// Use the default SpanBatch path to verify post-exec txs derive after batching.
 		sys = newSDMRethSystem(t, true)
 	}
-	verifyOpReth(t, sys.L2EL)
-	verifyOpReth(t, sys.L2ELVerifier)
+	sdmtest.VerifyOpReth(t, sys.L2EL)
+	sdmtest.VerifyOpReth(t, sys.L2ELVerifier)
 
-	block, included, targetBlockNum := mustFindRepeatedSlotBlock(t, sys, 2, 3)
+	block, included, targetBlockNum := sdmtest.MustFindRepeatedSlotBlock(t, sys, 2, 3)
 	t.Require().NotEmpty(included, "target block must include workload transactions")
-	postExecTx, postExecPos := findPostExecTransaction(block)
+	postExecTx, postExecPos := sdmpkg.FindPostExecTransaction(block)
 	t.Require().NotNil(postExecTx, "SDM-enabled sequencer must include a post-exec tx before batching")
 	t.Require().Greater(len(postExecTx.Input), 0, "post-exec tx input must not be empty")
 
@@ -310,7 +213,7 @@ func testSDMPostExecBlockDerivesAndChainProgresses(t devtest.T, batchType string
 	alice := sys.FunderL2.NewFundedEOA(eth.OneEther)
 	sentinel := txplan.NewPlannedTx(
 		alice.Plan(),
-		txplan.WithTo(addrPtr(common.HexToAddress("0x000000000000000000000000000000000000dEaD"))),
+		txplan.WithTo(sdmtest.AddrPtr(common.HexToAddress("0x000000000000000000000000000000000000dEaD"))),
 		txplan.WithValue(eth.OneHundredthEther),
 	)
 	sentinelReceipt, err := sentinel.Included.Eval(t.Ctx())
@@ -421,14 +324,14 @@ func testSDMPostExecBlockDerivesAndChainProgresses(t devtest.T, batchType string
 func TestSDMPostExecBlockDerivesOnIsolatedVerifier(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := newSDMRethSystemWithIsolatedVerifier(t)
-	verifyOpReth(t, sys.L2EL)
-	verifyOpReth(t, sys.L2ELVerifier)
+	sdmtest.VerifyOpReth(t, sys.L2EL)
+	sdmtest.VerifyOpReth(t, sys.L2ELVerifier)
 
 	// Produce a PostExec block on the sequencer, plus a sentinel after it so derivation must carry
 	// the verifier past the PostExec block to succeed.
-	block, included, targetBlockNum := mustFindRepeatedSlotBlock(t, sys, 2, 3)
+	block, included, targetBlockNum := sdmtest.MustFindRepeatedSlotBlock(t, sys, 2, 3)
 	t.Require().NotEmpty(included, "target block must include workload transactions")
-	postExecTx, _ := findPostExecTransaction(block)
+	postExecTx, _ := sdmpkg.FindPostExecTransaction(block)
 	t.Require().NotNil(postExecTx, "SDM-enabled sequencer must include a post-exec tx before batching")
 	payload, err := sdmpkg.DecodePayload(postExecTx.Input)
 	t.Require().NoError(err, "post-exec payload must decode")
@@ -441,7 +344,7 @@ func TestSDMPostExecBlockDerivesOnIsolatedVerifier(gt *testing.T) {
 	alice := sys.FunderL2.NewFundedEOA(eth.OneEther)
 	sentinel := txplan.NewPlannedTx(
 		alice.Plan(),
-		txplan.WithTo(addrPtr(common.HexToAddress("0x000000000000000000000000000000000000dEaD"))),
+		txplan.WithTo(sdmtest.AddrPtr(common.HexToAddress("0x000000000000000000000000000000000000dEaD"))),
 		txplan.WithValue(eth.OneHundredthEther),
 	)
 	sentinelReceipt, err := sentinel.Included.Eval(t.Ctx())
@@ -491,7 +394,7 @@ func TestSDMPostExecBlockDerivesOnIsolatedVerifier(gt *testing.T) {
 func TestSDMStorageRefundBreakdown(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := newSDMRethSystem(t, true)
-	verifyOpReth(t, sys.L2EL)
+	sdmtest.VerifyOpReth(t, sys.L2EL)
 
 	const (
 		sameSlotTouches = 100
@@ -501,39 +404,39 @@ func TestSDMStorageRefundBreakdown(gt *testing.T) {
 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		alice := sys.FunderL2.NewFundedEOA(eth.OneEther)
-		contract := deployContract(t, alice, slotTouchBin)
+		contract := sdmtest.DeployContract(t, alice, slotTouchBin)
 		startNonce := alice.PendingNonce()
 
 		planned := []*txplan.PlannedTx{
-			submitTxWithoutWait(
+			sdmtest.SubmitTxWithoutWait(
 				t,
 				alice,
 				startNonce,
-				txplan.WithTo(addrPtr(contract)),
+				txplan.WithTo(sdmtest.AddrPtr(contract)),
 				txplan.WithData(encodeHitSameSlot(1)),
 				txplan.WithGasLimit(300_000),
 			),
-			submitTxWithoutWait(
+			sdmtest.SubmitTxWithoutWait(
 				t,
 				alice,
 				startNonce+1,
-				txplan.WithTo(addrPtr(contract)),
+				txplan.WithTo(sdmtest.AddrPtr(contract)),
 				txplan.WithData(encodeHitSameSlot(sameSlotTouches)),
 				txplan.WithGasLimit(1_500_000),
 			),
-			submitTxWithoutWait(
+			sdmtest.SubmitTxWithoutWait(
 				t,
 				alice,
 				startNonce+2,
-				txplan.WithTo(addrPtr(contract)),
+				txplan.WithTo(sdmtest.AddrPtr(contract)),
 				txplan.WithData(encodeHitManySlots(manySlotTouches)),
 				txplan.WithGasLimit(3_000_000),
 			),
-			submitTxWithoutWait(
+			sdmtest.SubmitTxWithoutWait(
 				t,
 				alice,
 				startNonce+3,
-				txplan.WithTo(addrPtr(contract)),
+				txplan.WithTo(sdmtest.AddrPtr(contract)),
 				txplan.WithData(encodeHitManySlots(manySlotTouches)),
 				txplan.WithGasLimit(3_000_000),
 			),
@@ -564,7 +467,7 @@ func TestSDMStorageRefundBreakdown(gt *testing.T) {
 
 		sameRefund, sameRefundPresent := getOPGasRefund(t, sys.L2EL, receipts[1].TxHash)
 		t.Require().True(sameRefundPresent, "SDM receipt must expose opGasRefund for repeated same-slot tx")
-		sameReplay := replayBlockWithSDM(t, sys.L2EL, sameClaimBlock)
+		sameReplay := sdmtest.ReplayBlockWithSDM(t, sys.L2EL, sameClaimBlock)
 		sameTx := mustFindReplayTxByHash(t, sameReplay, receipts[1].TxHash)
 		t.Require().Equal(sameRefund, sameTx.OPGasRefundReplay,
 			"replay refund must match receipt refund for repeated same-slot tx")
@@ -587,7 +490,7 @@ func TestSDMStorageRefundBreakdown(gt *testing.T) {
 
 		manyRefund, manyRefundPresent := getOPGasRefund(t, sys.L2EL, receipts[3].TxHash)
 		t.Require().True(manyRefundPresent, "SDM receipt must expose opGasRefund for many-slot tx")
-		manyReplay := replayBlockWithSDM(t, sys.L2EL, manyClaimBlock)
+		manyReplay := sdmtest.ReplayBlockWithSDM(t, sys.L2EL, manyClaimBlock)
 		manyTx := mustFindReplayTxByHash(t, manyReplay, receipts[3].TxHash)
 		t.Require().Equal(manyRefund, manyTx.OPGasRefundReplay,
 			"replay refund must match receipt refund for many-slot tx")
@@ -633,14 +536,14 @@ func TestSDMMixedWorkloadSmoke(gt *testing.T) {
 	sys := newSDMRethSystem(t, true)
 	l := t.Logger()
 
-	clientVersion := verifyOpReth(t, sys.L2EL)
+	clientVersion := sdmtest.VerifyOpReth(t, sys.L2EL)
 	l.Info("Verified op-reth", "version", clientVersion)
 
 	alice := sys.FunderL2.NewFundedEOA(eth.OneEther)
 	bob := sys.FunderL2.NewFundedEOA(eth.ZeroWei)
 
-	computeHeavyAddr := deployContract(t, alice, computeHeavyBin)
-	stateBloatAddr := deployContract(t, alice, sdmpkg.StateBloatBin)
+	computeHeavyAddr := sdmtest.DeployContract(t, alice, computeHeavyBin)
+	stateBloatAddr := sdmtest.DeployContract(t, alice, sdmpkg.StateBloatBin)
 	eventLoggerAddr := alice.DeployEventLogger()
 	l.Info("Deployed contracts",
 		"computeHeavy", computeHeavyAddr,
@@ -660,14 +563,14 @@ func TestSDMMixedWorkloadSmoke(gt *testing.T) {
 		{
 			name: "eoa_transfer",
 			opts: []txplan.Option{
-				txplan.WithTo(addrPtr(bob.Address())),
+				txplan.WithTo(sdmtest.AddrPtr(bob.Address())),
 				txplan.WithValue(eth.OneHundredthEther),
 			},
 		},
 		{
 			name: "compute_heavy",
 			opts: []txplan.Option{
-				txplan.WithTo(addrPtr(computeHeavyAddr)),
+				txplan.WithTo(sdmtest.AddrPtr(computeHeavyAddr)),
 				txplan.WithData(sdmpkg.EncodeRun(200)),
 				txplan.WithGasLimit(200_000),
 			},
@@ -675,7 +578,7 @@ func TestSDMMixedWorkloadSmoke(gt *testing.T) {
 		{
 			name: "event_emitter",
 			opts: []txplan.Option{
-				txplan.WithTo(addrPtr(eventLoggerAddr)),
+				txplan.WithTo(sdmtest.AddrPtr(eventLoggerAddr)),
 				txplan.WithData(encodeEmitLog(3, 64)),
 				txplan.WithGasLimit(200_000),
 			},
@@ -683,7 +586,7 @@ func TestSDMMixedWorkloadSmoke(gt *testing.T) {
 		{
 			name: "state_bloat",
 			opts: []txplan.Option{
-				txplan.WithTo(addrPtr(stateBloatAddr)),
+				txplan.WithTo(sdmtest.AddrPtr(stateBloatAddr)),
 				txplan.WithData(sdmpkg.EncodeRun(20)),
 				txplan.WithGasLimit(500_000),
 			},
@@ -691,7 +594,7 @@ func TestSDMMixedWorkloadSmoke(gt *testing.T) {
 		{
 			name: "compute_heavy_2",
 			opts: []txplan.Option{
-				txplan.WithTo(addrPtr(computeHeavyAddr)),
+				txplan.WithTo(sdmtest.AddrPtr(computeHeavyAddr)),
 				txplan.WithData(sdmpkg.EncodeRun(200)),
 				txplan.WithGasLimit(200_000),
 			},
@@ -699,7 +602,7 @@ func TestSDMMixedWorkloadSmoke(gt *testing.T) {
 		{
 			name: "event_emitter_2",
 			opts: []txplan.Option{
-				txplan.WithTo(addrPtr(eventLoggerAddr)),
+				txplan.WithTo(sdmtest.AddrPtr(eventLoggerAddr)),
 				txplan.WithData(encodeEmitLog(3, 64)),
 				txplan.WithGasLimit(200_000),
 			},
@@ -707,7 +610,7 @@ func TestSDMMixedWorkloadSmoke(gt *testing.T) {
 		{
 			name: "state_bloat_2",
 			opts: []txplan.Option{
-				txplan.WithTo(addrPtr(stateBloatAddr)),
+				txplan.WithTo(sdmtest.AddrPtr(stateBloatAddr)),
 				txplan.WithData(sdmpkg.EncodeRun(20)),
 				txplan.WithGasLimit(500_000),
 			},
@@ -715,7 +618,7 @@ func TestSDMMixedWorkloadSmoke(gt *testing.T) {
 		{
 			name: "eoa_transfer_2",
 			opts: []txplan.Option{
-				txplan.WithTo(addrPtr(bob.Address())),
+				txplan.WithTo(sdmtest.AddrPtr(bob.Address())),
 				txplan.WithValue(eth.OneHundredthEther),
 			},
 		},
@@ -726,7 +629,7 @@ func TestSDMMixedWorkloadSmoke(gt *testing.T) {
 
 	for i, cat := range categories {
 		nonce := startNonce + uint64(i)
-		ptx := submitTxWithoutWait(t, alice, nonce, cat.opts...)
+		ptx := sdmtest.SubmitTxWithoutWait(t, alice, nonce, cat.opts...)
 		batch = append(batch, batchEntry{category: cat.name, ptx: ptx})
 		l.Info("Submitted", "category", cat.name, "nonce", nonce)
 	}
@@ -765,8 +668,8 @@ func TestSDMMixedWorkloadSmoke(gt *testing.T) {
 		l.Info("Multi-tx block found — inspecting for SDM tx",
 			"block", maxBlockNum, "txCount", maxInBlock)
 
-		block := getBlockWithTxs(t, sys.L2EL, maxBlockNum)
-		postExecTx, postExecPos := findPostExecTransaction(block)
+		block := sdmtest.GetBlockWithTxs(t, sys.L2EL, maxBlockNum)
+		postExecTx, postExecPos := sdmpkg.FindPostExecTransaction(block)
 		if postExecTx != nil {
 			l.Info("Post-exec transaction present in multi-category block!",
 				"block", maxBlockNum,
@@ -779,8 +682,4 @@ func TestSDMMixedWorkloadSmoke(gt *testing.T) {
 	} else {
 		l.Warn("All txs landed in separate blocks — no cross-tx warming possible")
 	}
-}
-
-func addrPtr(addr common.Address) *common.Address {
-	return &addr
 }

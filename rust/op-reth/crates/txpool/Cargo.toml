@@ -47,6 +47,7 @@ reth-metrics.workspace = true
 metrics.workspace = true
 
 # misc
+async-trait.workspace = true
 c-kzg.workspace = true
 derive_more.workspace = true
 futures-util.workspace = true
@@ -57,9 +58,14 @@ thiserror.workspace = true
 tokio = { workspace = true, features = ["time"] }
 
 [dev-dependencies]
-reth-optimism-chainspec.workspace = true
+reth-optimism-chainspec = { workspace = true, features = ["superchain-configs"] }
+# Enables reth-optimism-primitives' Compact impls for the standalone test build; the
+# test-utils dev-deps below exercise codec paths that need them, and reth-codec is no
+# longer pulled in by default features (it became opt-in upstream).
+reth-optimism-primitives = { workspace = true, features = ["reth-codec"] }
 reth-provider = { workspace = true, features = ["test-utils"] }
 reth-transaction-pool = { workspace = true, features = ["test-utils"] }
+rstest.workspace = true
 tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros"] }
 # Mock JSON-RPC server for interop filter client tests. jsonrpsee-server is already a workspace
 # dependency used by kona's RPC actor, so this reuses an in-tree, maintained server rather than

@@ -53,7 +53,7 @@ func (g *GameCallerCreator) CreateContract(ctx context.Context, game gameTypes.G
 	}
 	switch gameTypes.GameType(game.GameType) {
 	case gameTypes.SuperPermissionedGameType:
-		fdg := NewSuperPermissionedGameCaller(g.m, game.Proxy, g.caller)
+		fdg := contracts.NewSuperPermissionedDisputeGameContract(g.m, game.Proxy, g.caller)
 		g.cache.Add(game.Proxy, fdg)
 		return fdg, nil
 	case gameTypes.CannonGameType,

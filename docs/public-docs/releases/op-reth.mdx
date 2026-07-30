@@ -3,6 +3,7 @@ title: "op-reth Releases"
 sidebarTitle: "op-reth"
 description: "Release history for op-reth. OP Stack execution layer built on Reth."
 rss: true
+diataxis: reference
 ---
 
 {/*
@@ -14,14 +15,68 @@ rss: true
 
 **op-reth** is the OP Stack execution layer (EL) built on [Reth](https://reth.rs), a modular, high-performance Rust Ethereum node. It is the recommended execution client for OP Stack chains, replacing op-geth.
 
-<Update label="June 5, 2026" description="v2.3.1" tags={["Latest", "Stable"]}>
+<Update label="July 20, 2026" description="v2.4.0" tags={["Latest", "Stable"]}>
+
+> [!NOTE]
+> **Optional upgrade.** New extension points: `OpPoolBuilder` transaction ordering and validator are now injectable ([#21531](https://github.com/ethereum-optimism/optimism/pull/21531)), and `op-alloy-network` makes its reqwest dependency opt-in ([#21175](https://github.com/ethereum-optimism/optimism/pull/21175)). Also fixes Prometheus metric-bucket draining in the op-proofs CLI ([#21596](https://github.com/ethereum-optimism/optimism/pull/21596)). No consensus or operator-facing behavior changes.
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth/v2.4.0)
+
+</Update>
+
+<Update label="June 26, 2026" description="v2.3.3" tags={["Stable"]}>
+
+> [!Warning]
+> **This is a mandatory release for all node operators.** It includes the [Mainnet](https://github.com/ethereum-optimism/superchain-registry/blob/c90d86d2ed13541f16daf5ce8707c688723ca039/superchain/configs/mainnet/op.toml#L24) timestamps for the Karst hardfork. (as of `c90d86d`)
+>
+> The following Mainnet chains will activate on **1783526401 (Wed Jul 8 2026 16:00:01 UTC)**, pending governance approval: op, ink, zora, mode, lisk, metal, unichain, soneium, ethernity, tbn
+>
+> **Reminder:** op-geth has reached [end of support](https://docs.optimism.io/notices/op-geth-deprecation), so you must be running op-reth to support the karst activation. For more details on this network upgrade see our [notice page](https://docs.optimism.io/notices/upgrade-19).
+
+> [!IMPORTANT]
+> **Operators must use op-node/v1.19.1+ with this release.** Prior versions of op-node will not work with this version of op-reth after Karst due to a new engine API method (`getPayloadV5`) used after Karst. See the [notice page](https://docs.optimism.io/notices/upgrade-19) for more details about recommended versions (including flashblocks components).
+
+op-reth can now load OP Sepolia and OP Mainnet timestamps from the superchain registry. If you are a node operator for either of those chains, you do not need to specify a custom genesis file with the `--chain` flag.
+
+> [!CAUTION]
+> **Mandatory upgrade.** Fixes eth_estimateGas after the Karst hardfork.
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth/v2.3.3)
+
+</Update>
+
+<Update label="June 26, 2026" description="v2.3.2" tags={["Stable"]}>
+
+### Please use [op-reth v2.3.3](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth%2Fv2.3.3) instead. It contains a bug fix for `eth_estimateGas`.
+
+----
+
+> [!Warning]
+> **This is a mandatory release for all node operators.** It includes the [Mainnet](https://github.com/ethereum-optimism/superchain-registry/blob/c90d86d2ed13541f16daf5ce8707c688723ca039/superchain/configs/mainnet/op.toml#L24) timestamps for the Karst hardfork. (as of `c90d86d`)
+>
+> The following Mainnet chains will activate on **1783526401 (Wed Jul 8 2026 16:00:01 UTC)**, pending governance approval: op, ink, zora, mode, lisk, metal, unichain, soneium, ethernity, tbn
+>
+> **Reminder:** op-geth has reached [end of support](https://docs.optimism.io/notices/op-geth-deprecation), so you must be running op-reth to support the karst activation. For more details on this network upgrade see our [notice page](https://docs.optimism.io/notices/upgrade-19).
+
+> [!IMPORTANT]
+> **Operators must use op-node/v1.19.1+ with this release.** Prior versions of op-node will not work with this version of op-reth after Karst due to a new engine API method (`getPayloadV5`) used after Karst. See the [notice page](https://docs.optimism.io/notices/upgrade-19) for more details about recommended versions (including flashblocks components).
+
+op-reth can now load OP Sepolia and OP Mainnet timestamps from the superchain registry. If you are a node operator for either of those chains, you do not need to specify a custom genesis file with the `--chain` flag.
+
+**Update**: we are aware of an issue impacting calls to `eth_estimateGas` after Karst has activated. We have a fix that will be released in op-reth/v2.3.3 prior to mainnet activation. The [notice page](https://docs.optimism.io/notices/upgrade-19#for-app-developers) has more details.
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth/v2.3.2)
+
+</Update>
+
+<Update label="June 5, 2026" description="v2.3.1" tags={["Stable"]}>
 
 > [!IMPORTANT]
 >
 > This release fixes a deadlock bug that would cause a node to stall, and supersedes the v2.2.5 and v2.3.0 releases.
 
 > [!WARNING]
-> This is a mandatory release for all node operators. It includes [Sepolia](https://github.com/ethereum-optimism/superchain-registry/blob/c90d86d2ed13541f16daf5ce8707c688723ca039/superchain/configs/sepolia/op.toml#L25) and [Mainnet](https://github.com/ethereum-optimism/superchain-registry/blob/c90d86d2ed13541f16daf5ce8707c688723ca039/superchain/configs/mainnet/op.toml#L24) timestamps for the Karst hardfork. 
+> This is a mandatory release for all node operators. It includes [Sepolia](https://github.com/ethereum-optimism/superchain-registry/blob/c90d86d2ed13541f16daf5ce8707c688723ca039/superchain/configs/sepolia/op.toml#L25) and [Mainnet](https://github.com/ethereum-optimism/superchain-registry/blob/c90d86d2ed13541f16daf5ce8707c688723ca039/superchain/configs/mainnet/op.toml#L24) timestamps for the Karst hardfork.  (as of `c90d86d`)
 >
 > **Operators must upgrade before the scheduled hard fork times.**
 >
@@ -30,6 +85,11 @@ rss: true
 > The following Mainnet chains will optimistically activate on **`1783526401` (Wed Jul 8 2026 16:00:01 UTC)**, pending governance approval: op, ink, zora, mode, lisk, metal, unichain, soneium, ethernity, tbn
 >
 > **Reminder**: op-geth has reached [end of support](https://docs.optimism.io/notices/op-geth-deprecation), so you must be running op-reth to support the karst activation. For more details on this network upgrade see our [notice page](https://docs.optimism.io/notices/upgrade-19).
+
+**OP Sepolia:**
+* Due to a bug in op-reth, the Karst activation timestamp is **not** loaded from the Superchain Registry for `op-sepolia` and `op`. You must configure it manually by providing a genesis file passed via `--chain `. Download the pre-built genesis file and pass it directly — do not edit the file. 
+* [Download genesis.json](https://storage.googleapis.com/oplabs-opc-artifacts/chains/op-sepolia/genesis-karst.json).
+* The genesis file must **not** include an `osakaTime` field. The pre-built file linked above is compatible with `op-reth v2.3.1` as-is. Both the SCR loading bug and this restriction will be fixed in a following op-reth release so this won't be necessary for OP Mainnet.
 
 [View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth/v2.3.1)
 

@@ -8,7 +8,6 @@ import (
 	"math/big"
 	"os"
 	"path"
-	"sort"
 	"strings"
 	"time"
 
@@ -24,11 +23,15 @@ import (
 	w3eth "github.com/lmittmann/w3/module/eth"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/delegatecallproxy"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
@@ -53,6 +56,35 @@ type MigrateInputV2 struct {
 	DisputeGameConfigs        []DisputeGameConfigV2
 	StartingAnchorRoot        Proposal
 	StartingRespectedGameType uint32
+}
+
+type zkDisputeGameConfig struct {
+	AbsolutePrestate     common.Hash
+	Verifier             common.Address
+	MaxChallengeDuration uint64
+	MaxProveDuration     uint64
+	ChallengerBond       *big.Int
+}
+
+var zkGameArgsEncoder = w3.MustNewFunc(
+	"dummy((bytes32 absolutePrestate,address verifier,uint64 maxChallengeDuration,uint64 maxProveDuration,uint256 challengerBond))",
+	"",
+)
+
+var setInteropDisputeGamesFn = w3.MustNewFunc(
+	"setInteropDisputeGames((address[] chainSystemConfigs,(bool enabled,uint256 initBond,uint32 gameType,bytes gameArgs)[] disputeGameConfigs,(bytes32 root,uint256 l2SequenceNumber) startingAnchorRoot,uint32 startingRespectedGameType))",
+	"",
+)
+
+func encodeZKDisputeGameArgs(cfg zkDisputeGameConfig) ([]byte, error) {
+	data, err := zkGameArgsEncoder.EncodeArgs(&cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode ZK game arguments: %w", err)
+	}
+	if len(data) < 4 {
+		return nil, fmt.Errorf("failed to encode ZK game arguments: data too short")
+	}
+	return data[4:], nil
 }
 
 func deployDelegateCallProxy(t devtest.CommonT, transactOpts *bind.TransactOpts, client *ethclient.Client, owner common.Address) (common.Address, *delegatecallproxy.Delegatecallproxy) {
@@ -149,49 +181,30 @@ func awaitSuperrootTime(t devtest.T, cls ...L2CLNode) uint64 {
 }
 
 func getSupernodeSuperRoot(t devtest.T, supernode *SuperNode, timestamp uint64) eth.Bytes32 {
-	client, err := dial.DialSuperNodeClientWithTimeout(t.Ctx(), t.Logger(), supernode.UserRPC())
+	return getSuperRoot(t, supernode.UserRPC(), timestamp)
+}
+
+func getSuperRoot(t devtest.T, endpoint string, timestamp uint64) eth.Bytes32 {
+	client, err := dial.DialSuperNodeClientWithTimeout(t.Ctx(), t.Logger(), endpoint)
 	t.Require().NoError(err)
 
+	var superRoot eth.Bytes32
 	ctx, cancel := context.WithTimeout(t.Ctx(), 2*time.Minute)
 	err = wait.For(ctx, time.Second, func() (bool, error) {
 		resp, err := client.SuperRootAtTimestamp(ctx, timestamp)
 		if err != nil {
 			t.Logf("DEBUG: Failed to get super root at timestamp %d: err: %v", timestamp, err)
-			return false, err
+			return false, nil
 		}
-		return resp.Data != nil, nil
+		if resp.Data == nil {
+			return false, nil
+		}
+		superRoot = resp.Data.SuperRoot
+		return true, nil
 	})
 	cancel()
-	t.Require().NoError(err, "waiting for supernode superroot to be ready failed")
-
-	resp, err := client.SuperRootAtTimestamp(t.Ctx(), timestamp)
-	t.Require().NoError(err, "super root at timestamp failed")
-	t.Require().NotNil(resp.Data, "super root data must be present")
-	return resp.Data.SuperRoot
-}
-
-func migrateSuperRoots(
-	t devtest.T,
-	keys devkeys.Keys,
-	migration *interopMigrationState,
-	l1ChainID eth.ChainID,
-	l1EL L1ELNode,
-	superRoot eth.Bytes32,
-	superrootTime uint64,
-	primaryL2 eth.ChainID,
-) common.Address {
-	return migrateSuperRootsWithProposal(
-		t,
-		keys,
-		migration,
-		l1ChainID,
-		l1EL,
-		Proposal{
-			Root:             common.Hash(superRoot),
-			L2SequenceNumber: new(big.Int).SetUint64(superrootTime),
-		},
-		primaryL2,
-	)
+	t.Require().NoError(err, "waiting for superroot to be ready failed")
+	return superRoot
 }
 
 func migrateSuperRootsWithProposal(
@@ -220,18 +233,7 @@ func migrateSuperRootsWithProposal(
 	proposer, err := keys.Address(permissionedChainOps(devkeys.ProposerRole))
 	require.NoError(err, "must have configured proposer")
 
-	// Migrator requires chainSystemConfigs sorted ascending by l2ChainId.
-	sortedChainIDs := make([]eth.ChainID, 0, len(migration.l2Deployments))
-	for chainID := range migration.l2Deployments {
-		sortedChainIDs = append(sortedChainIDs, chainID)
-	}
-	sort.Slice(sortedChainIDs, func(i, j int) bool {
-		return sortedChainIDs[i].Cmp(sortedChainIDs[j]) < 0
-	})
-	chainSystemConfigs := make([]common.Address, 0, len(sortedChainIDs))
-	for _, chainID := range sortedChainIDs {
-		chainSystemConfigs = append(chainSystemConfigs, migration.l2Deployments[chainID].SystemConfigProxyAddr())
-	}
+	chainSystemConfigs := sortedChainSystemConfigs(migration)
 
 	// Use the v2 migrator ABI directly (v1 OPCM is deleted, bindings are stale)
 	migratorABI, err := OPContractsManagerMigratorABI()
@@ -249,7 +251,7 @@ func migrateSuperRootsWithProposal(
 			{
 				Enabled:  true,
 				InitBond: new(big.Int),
-				GameType: superPermissionedCannonGameType,
+				GameType: superPermissionedGameType,
 				GameArgs: superPermissionedGameArgs,
 			},
 			{
@@ -281,7 +283,7 @@ func migrateSuperRootsWithProposal(
 			require.Equal(sharedDGF, addr, "dispute game factory address is not the same for all deployments")
 		}
 	}
-	require.NotEmpty(getSuperGameImpl(t, w3Client, sharedDGF))
+	require.NotEmpty(getGameImpl(t, w3Client, sharedDGF, superCannonKonaGameType))
 
 	for chainID, l2Deployment := range migration.l2Deployments {
 		l2Deployment.disputeGameFactoryProxy = sharedDGF
@@ -289,6 +291,76 @@ func migrateSuperRootsWithProposal(
 	}
 	t.Log("Interop migration complete")
 	return sharedDGF
+}
+
+func sortedChainSystemConfigs(migration *interopMigrationState) []common.Address {
+	// Migrator requires chainSystemConfigs sorted ascending by l2ChainId.
+	sortedChainIDs := make([]eth.ChainID, 0, len(migration.l2Deployments))
+	for chainID := range migration.l2Deployments {
+		sortedChainIDs = append(sortedChainIDs, chainID)
+	}
+	eth.SortChainID(sortedChainIDs)
+	chainSystemConfigs := make([]common.Address, 0, len(sortedChainIDs))
+	for _, chainID := range sortedChainIDs {
+		chainSystemConfigs = append(chainSystemConfigs, migration.l2Deployments[chainID].SystemConfigProxyAddr())
+	}
+	return chainSystemConfigs
+}
+
+func setInteropZKDisputeGameForRuntime(
+	t devtest.T,
+	keys devkeys.Keys,
+	migration *interopMigrationState,
+	l1ChainID eth.ChainID,
+	l1EL L1ELNode,
+	startingAnchorRoot Proposal,
+	sharedDGF common.Address,
+	cfg ZKDisputeGameConfig,
+) {
+	require := t.Require()
+	require.NoError(cfg.validate())
+
+	rpcClient, err := rpc.DialContext(t.Ctx(), l1EL.UserRPC())
+	require.NoError(err)
+	defer rpcClient.Close()
+	client := ethclient.NewClient(rpcClient)
+	w3Client := w3.NewClient(rpcClient)
+
+	_, l1PAOKey := resolveL1ProxyAdminOwner(t, keys, l1ChainID)
+	artifactsFS, err := artifacts.Download(t.Ctx(), LocalArtifacts(t), ioutil.NoopProgressor(), t.TempDir())
+	require.NoError(err, "failed to load local contract artifacts")
+	verifier, err := deployer.DeployZKMockVerifier(t.Ctx(), client, l1PAOKey, artifactsFS)
+	require.NoError(err, "failed to deploy ZK mock verifier")
+	verifierCode, err := client.CodeAt(t.Ctx(), verifier, nil)
+	require.NoError(err, "failed to load ZK mock verifier code")
+	require.NotEmpty(verifierCode, "ZK mock verifier must have deployed code")
+
+	gameArgs, err := encodeZKDisputeGameArgs(zkDisputeGameConfig{
+		AbsolutePrestate:     cfg.ProgramVKey,
+		Verifier:             verifier,
+		MaxChallengeDuration: uint64(cfg.MaxChallengeDuration / time.Second),
+		MaxProveDuration:     uint64(cfg.MaxProveDuration / time.Second),
+		ChallengerBond:       new(big.Int).Set(defaultInitBond),
+	})
+	require.NoError(err)
+
+	input := MigrateInputV2{
+		ChainSystemConfigs: sortedChainSystemConfigs(migration),
+		DisputeGameConfigs: []DisputeGameConfigV2{
+			{Enabled: false, InitBond: new(big.Int), GameType: superCannonKonaGameType},
+			{Enabled: true, InitBond: new(big.Int).Set(defaultInitBond), GameType: uint32(gameTypes.ZKDisputeGameType), GameArgs: gameArgs},
+		},
+		StartingAnchorRoot:        startingAnchorRoot,
+		StartingRespectedGameType: uint32(gameTypes.ZKDisputeGameType),
+	}
+	callData, err := setInteropDisputeGamesFn.EncodeArgs(&input)
+	require.NoError(err, "failed to encode ZK dispute game swap")
+
+	t.Log("Installing shared ZK dispute game via SetCode delegatecall")
+	delegateCallWithSetCode(t, l1PAOKey, client, migration.opcmImpl, callData)
+
+	require.Equal(common.Address{}, getGameImpl(t, w3Client, sharedDGF, superCannonKonaGameType), "retired super game must be disabled")
+	require.NotEqual(common.Address{}, getGameImpl(t, w3Client, sharedDGF, uint32(gameTypes.ZKDisputeGameType)), "ZK dispute game must be installed")
 }
 
 func getCannonKonaAbsolutePrestate(t devtest.CommonT) common.Hash {
@@ -310,8 +382,8 @@ func getAbsolutePrestate(t devtest.CommonT, prestatePath string) common.Hash {
 }
 
 const (
-	superPermissionedCannonGameType = 5
-	superCannonKonaGameType         = 9
+	superPermissionedGameType = 5
+	superCannonKonaGameType   = 9
 )
 
 var (
@@ -334,9 +406,9 @@ func getDisputeGameFactory(t devtest.CommonT, client *w3.Client, portal common.A
 	return addr
 }
 
-func getSuperGameImpl(t devtest.CommonT, client *w3.Client, dgf common.Address) common.Address {
+func getGameImpl(t devtest.CommonT, client *w3.Client, dgf common.Address, gameType uint32) common.Address {
 	var addr common.Address
-	err := client.Call(w3eth.CallFunc(dgf, gameImplsFn, uint32(superCannonKonaGameType)).Returns(&addr))
+	err := client.Call(w3eth.CallFunc(dgf, gameImplsFn, gameType).Returns(&addr))
 	t.Require().NoError(err)
 	return addr
 }

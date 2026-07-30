@@ -4,15 +4,17 @@
 # Called once per type with a mode argument:
 #   collect-params.sh str        — emit all c-* env vars as JSON strings
 #   collect-params.sh bool       — emit all c-* env vars as JSON booleans (normalizes 0/1)
-#   collect-params.sh detect     — treat c-* env var values as ERE patterns; true iff ANY changed file matches
-#   collect-params.sh detect_all — treat c-* env var values as ERE patterns; true iff EVERY changed file matches (and there is at least one)
+#   collect-params.sh detect     — match routing.yml change_patterns.any against changed files; c-<name> true iff ANY file matches
+#   collect-params.sh detect_all — match routing.yml change_patterns.all against changed files; c-<name> true iff EVERY file matches (and there is at least one)
 #
+# str/bool read c-* env vars (CircleCI pipeline params). detect/detect_all read
+# their ERE patterns from routing.yml so the patterns are declarative data.
 # Each invocation appends to /tmp/pipeline-parameters.json.
-# Env vars whose name starts with c- are processed; all others are ignored.
 set -euo pipefail
 
-MODE="${1:?Usage: collect-params.sh <str|bool|detect>}"
+MODE="${1:?Usage: collect-params.sh <str|bool|detect|detect_all>}"
 OUTPUT="/tmp/pipeline-parameters.json"
+ROUTING="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/routing.yml"
 
 [ -f "${OUTPUT}" ] || echo '{}' > "${OUTPUT}"
 
@@ -40,14 +42,17 @@ case "${MODE}" in
     ;;
 
   detect|detect_all)
+    [[ "${MODE}" == "detect_all" ]] && section=".change_patterns.all" || section=".change_patterns.any"
+
     CHANGED=$(git diff --name-only "origin/${BASE_REVISION}...HEAD" 2>/dev/null \
       || git diff --name-only HEAD~1 HEAD || true)
     echo "=== Changed files ==="
     echo "${CHANGED:-<none>}"
     echo "====================="
 
-    while IFS='=' read -r key pattern; do
-      [[ "${key}" == c-* ]] || continue
+    while IFS= read -r name; do
+      [[ -n "${name}" ]] || continue
+      pattern=$(yq -r "${section}.\"${name}\"" "${ROUTING}")
       if [ -z "${CHANGED}" ]; then
         result=false
       elif [[ "${MODE}" == "detect_all" ]]; then
@@ -65,13 +70,13 @@ case "${MODE}" in
           result=false
         fi
       fi
-      json=$(echo "${json}" | jq --argjson v "${result}" '. + {"'"${key}"'": $v}')
-      echo "  [${MODE}] ${key} = ${result}  (pattern: ${pattern})"
-    done < <(env | sort)
+      json=$(echo "${json}" | jq --argjson v "${result}" '. + {"c-'"${name}"'": $v}')
+      echo "  [${MODE}] c-${name} = ${result}  (pattern: ${pattern})"
+    done < <(yq -r "${section} | keys | .[]" "${ROUTING}")
     ;;
 
   *)
-    echo "ERROR: Unknown mode '${MODE}'. Use str, bool, or detect." >&2
+    echo "ERROR: Unknown mode '${MODE}'. Use str, bool, detect, or detect_all." >&2
     exit 1
     ;;
 esac

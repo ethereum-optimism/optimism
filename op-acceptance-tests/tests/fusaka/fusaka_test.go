@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/loadtest"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -126,7 +127,7 @@ func spamBlobs(t devtest.T, sys *presets.Minimal) {
 	eoa := sys.FunderL1.NewFundedEOA(eth.OneTenthEther)
 	signer := txinclude.NewPkSigner(eoa.Key().Priv(), sys.L1Network.ChainID().ToBig())
 	l1ETHClient := sys.L1EL.EthClient()
-	syncEOA := loadtest.NewSyncEOA(txinclude.NewPersistent(signer, struct {
+	syncEOA := dsl.NewSyncEOA(txinclude.NewPersistent(signer, struct {
 		*txinclude.Monitor
 		*txinclude.Resubmitter
 	}{

@@ -1,31 +1,20 @@
 //! Seed the slot-preimage database during state-dump import.
 //!
-//! reth's V2 storage layout (`--storage.v2`, hashed state as the canonical state
-//! representation) keeps storage under `HashedStorages` (keyed by `keccak256(slot)`).
-//! For pre-Cancun blocks, `SELFDESTRUCT` wipes storage, and the execution stage must
-//! rewrite the storage-changeset reverts using *plain* slot keys. To recover a plain
-//! key from its hash it consults an auxiliary MDBX database at `<datadir>/db/preimage`,
-//! populated only while executing blocks (see reth
-//! `crates/stages/stages/src/stages/execution/slot_preimages.rs`).
+//! Storage V2 stores each contract storage slot under its hash rather than its original slot
+//! number. Before Ecotone, `SELFDESTRUCT` can delete every slot in a contract, and reth needs the
+//! original slot numbers to create undo records.
 //!
-//! A state-dump import (`init-state --without-ovm`, i.e. the OP Mainnet Bedrock bootstrap)
-//! writes hashed storage directly and never populates that preimage DB. Any contract whose
-//! storage came only from the imported snapshot and is later self-destructed in a pre-Ecotone
-//! block then fails the execution stage with `missing slot preimage for 0x… (addr=0x…)`.
+//! Normally reth learns these slot numbers while executing blocks. `init-state --without-ovm`
+//! imports the OP Mainnet Bedrock snapshot without executing the earlier blocks, so that lookup
+//! information is missing for storage from the snapshot.
 //!
-//! This module closes that gap: it re-reads the dump (which carries plain slot keys) and seeds
-//! `keccak256(slot) → slot` for every imported slot, so the execution stage can resolve them.
-//! The preimage DB is address-independent and reth deletes it once Ecotone (Cancun) activates.
-//!
-//! NOTE: the MDBX env layout below is replicated from reth's private `SlotPreimages::open` /
-//! `insert_preimages` at rev `9384bc53d8c0c77e59cac83fdaaf3b372c6d2216` (v2.3.0). It must stay
-//! byte-compatible with that code; revisit on every reth bump until an upstream helper exists.
+//! This module rereads the state dump and records `keccak256(slot) → slot` for every imported
+//! storage slot. This allows reth to process `SELFDESTRUCT` until Ecotone, after which the lookup
+//! database is no longer needed.
 
 use alloy_genesis::GenesisAccount;
 use alloy_primitives::{Address, B256, keccak256};
-use reth_db::mdbx::{
-    DatabaseFlags, Environment, EnvironmentFlags, Geometry, Mode, PageSize, SyncMode, WriteFlags,
-};
+use reth_stages::stages::slot_preimages::SlotPreimages;
 use serde::Deserialize;
 use std::{
     io::{BufRead, BufReader},
@@ -36,9 +25,9 @@ use tracing::info;
 /// Number of preimage entries to accumulate before flushing a write transaction.
 const FLUSH_THRESHOLD: usize = 1_000_000;
 
-/// A single account as laid out in the state-dump file. Mirrors reth's private
-/// `GenesisAccountWithAddress`; only the storage map is used here, but `address` must be
-/// present for the flattened deserialization to match the dump format.
+/// An account entry from the state dump. This mirrors reth's private
+/// `GenesisAccountWithAddress`; the address is part of each entry but is not needed when
+/// collecting slot keys.
 #[derive(Deserialize)]
 struct DumpAccount {
     #[serde(flatten)]
@@ -47,72 +36,17 @@ struct DumpAccount {
     address: Address,
 }
 
-/// Opens (creating if necessary) the slot-preimage MDBX environment at `path`.
-///
-/// Replicates reth's `SlotPreimages::open` so the execution stage can reopen the env later.
-fn open_env(path: &Path) -> eyre::Result<Environment> {
-    const GIGABYTE: usize = 1024 * 1024 * 1024;
-    const TERABYTE: usize = GIGABYTE * 1024;
-
-    // Subdir mode (`no_sub_dir = false`) treats `path` as a directory holding `mdbx.dat`.
-    // Unlike upstream (which only ever opens this env from the execution stage, after the
-    // datadir exists), we may be the first to touch it during `init-state`, so create the
-    // directory here. This does not affect the on-disk MDBX format.
-    std::fs::create_dir_all(path)?;
-
-    let mut builder = Environment::builder();
-    builder.set_max_dbs(1);
-    let os_page_size = page_size::get().clamp(4096, 0x10000);
-    builder.set_geometry(Geometry {
-        size: Some(0..(8 * TERABYTE)),
-        growth_step: Some(4 * GIGABYTE as isize),
-        shrink_threshold: Some(0),
-        page_size: Some(PageSize::Set(os_page_size)),
-    });
-    builder.write_map();
-    builder.set_flags(EnvironmentFlags {
-        no_sub_dir: false,
-        no_rdahead: true,
-        mode: Mode::ReadWrite { sync_mode: SyncMode::Durable },
-        ..Default::default()
-    });
-
-    let env = builder.open(path).map_err(|e| {
-        eyre::eyre!("failed to open slot-preimage MDBX env at {}: {e}", path.display())
-    })?;
-
-    // Ensure the unnamed default DB exists.
-    {
-        let tx = env.begin_rw_txn()?;
-        let _db = tx.create_db(None, DatabaseFlags::empty())?;
-        tx.commit()?;
-    }
-
-    Ok(env)
-}
-
-/// Batch-inserts `hashed_slot → plain_slot` entries, skipping keys already present, and
-/// clears `batch` on success so the caller can keep reusing the same allocation.
-fn flush(env: &Environment, batch: &mut Vec<(B256, B256)>) -> eyre::Result<()> {
+/// Sorts and inserts a batch of `hashed_slot → plain_slot` entries, then clears it for reuse.
+/// [`SlotPreimages::insert_preimages`] skips entries already in the database.
+fn flush(preimages: &SlotPreimages, batch: &mut Vec<(B256, B256)>) -> eyre::Result<()> {
     if batch.is_empty() {
         return Ok(());
     }
 
-    // Sorted inserts hit MDBX's append fast path.
+    // Sorting improves MDBX cursor locality.
     batch.sort_unstable_by_key(|(hashed, _)| *hashed);
 
-    let tx = env.begin_rw_txn()?;
-    let db = tx.open_db(None)?;
-    let mut cursor = tx.cursor(db.dbi())?;
-
-    for (hashed_slot, plain_slot) in batch.iter() {
-        if cursor.set_key::<[u8; 32], [u8; 32]>(hashed_slot.as_slice())?.is_some() {
-            continue;
-        }
-        cursor.put(hashed_slot.as_slice(), plain_slot.as_slice(), WriteFlags::empty())?;
-    }
-
-    tx.commit()?;
+    preimages.insert_preimages(batch)?;
     batch.clear();
     Ok(())
 }
@@ -124,7 +58,9 @@ fn flush(env: &Environment, batch: &mut Vec<(B256, B256)>) -> eyre::Result<()> {
 pub(crate) fn seed_slot_preimages(preimage_dir: &Path, dump_path: &Path) -> eyre::Result<()> {
     info!(target: "reth::cli", path = %preimage_dir.display(), "Seeding slot preimages from state dump");
 
-    let env = open_env(preimage_dir)?;
+    // `SlotPreimages::open` uses MDBX subdirectory mode and expects the directory to exist.
+    std::fs::create_dir_all(preimage_dir)?;
+    let preimages = SlotPreimages::open(preimage_dir)?;
     let mut reader = BufReader::new(reth_fs_util::open(dump_path)?);
 
     // First line is the state root; the remaining lines are accounts.
@@ -142,12 +78,12 @@ pub(crate) fn seed_slot_preimages(preimage_dir: &Path, dump_path: &Path) -> eyre
             batch.push((keccak256(slot), *slot));
             total_slots += 1;
             if batch.len() >= FLUSH_THRESHOLD {
-                flush(&env, &mut batch)?;
+                flush(&preimages, &mut batch)?;
                 info!(target: "reth::cli", total_slots, "Seeding slot preimages...");
             }
         }
     }
-    flush(&env, &mut batch)?;
+    flush(&preimages, &mut batch)?;
 
     info!(target: "reth::cli", total_slots, "Slot preimages seeded");
     Ok(())
@@ -194,16 +130,15 @@ mod tests {
 
         seed_slot_preimages(&preimage_dir, &dump_path).unwrap();
 
-        // Reopen the env and confirm `keccak256(slot) → slot` for every imported slot.
-        let env = open_env(&preimage_dir).unwrap();
-        let tx = env.begin_ro_txn().unwrap();
-        let dbi = tx.open_db(None).unwrap().dbi();
+        // Reopen the store and confirm `keccak256(slot) → slot` for every imported slot.
+        let preimages = SlotPreimages::open(&preimage_dir).unwrap();
+        let reader = preimages.reader().unwrap();
         for s in [slot_a, slot_b] {
-            let got: Option<[u8; 32]> = tx.get(dbi, keccak256(s).as_ref()).unwrap();
-            assert_eq!(got, Some(s.0), "missing/incorrect preimage for {s:?}");
+            let got = reader.get(&keccak256(s)).unwrap();
+            assert_eq!(got, Some(s), "missing/incorrect preimage for {s:?}");
         }
         // A slot that was never imported must be absent.
-        let absent: Option<[u8; 32]> = tx.get(dbi, keccak256(slot(999)).as_ref()).unwrap();
+        let absent = reader.get(&keccak256(slot(999))).unwrap();
         assert!(absent.is_none(), "unexpected preimage for non-imported slot");
     }
 
@@ -224,10 +159,9 @@ mod tests {
         seed_slot_preimages(&preimage_dir, &dump_path).unwrap();
         seed_slot_preimages(&preimage_dir, &dump_path).unwrap();
 
-        let env = open_env(&preimage_dir).unwrap();
-        let tx = env.begin_ro_txn().unwrap();
-        let dbi = tx.open_db(None).unwrap().dbi();
-        let got: Option<[u8; 32]> = tx.get(dbi, keccak256(slot(1)).as_ref()).unwrap();
-        assert_eq!(got, Some(slot(1).0));
+        let preimages = SlotPreimages::open(&preimage_dir).unwrap();
+        let reader = preimages.reader().unwrap();
+        let got = reader.get(&keccak256(slot(1))).unwrap();
+        assert_eq!(got, Some(slot(1)));
     }
 }

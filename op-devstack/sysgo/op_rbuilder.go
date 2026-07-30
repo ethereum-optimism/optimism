@@ -168,7 +168,7 @@ func (cfg *OPRBuilderNodeConfig) LaunchSpec(p devtest.CommonT) (args []string, e
 		key := strings.TrimPrefix(cfg.P2PNodeKeyHex, "0x")
 		_, err := hex.DecodeString(key)
 		p.Require().NoError(err, "decode p2p node key")
-		keyPath := filepath.Join(p.TempDir(), "oprbuilder-nodekey")
+		keyPath := filepath.Join(p.TempDirWithPrefix("op-rbuilder"), "oprbuilder-nodekey")
 		p.Require().NoError(os.WriteFile(keyPath, []byte(key), 0o600), "write p2p node key")
 		args = append(args, "--p2p-secret-key", keyPath)
 	}

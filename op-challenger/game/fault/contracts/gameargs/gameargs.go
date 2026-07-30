@@ -14,7 +14,7 @@ import (
 const (
 	PermissionlessArgsLength = 124
 	PermissionedArgsLength   = 164
-	ZKArgsLength             = 172
+	ZKArgsLength             = 140
 )
 
 var (
@@ -51,7 +51,7 @@ func (g GameArgs) PackPermissioned() []byte {
 }
 
 // ZKGameArgs holds the arguments for a ZK dispute game, matching the packed layout
-// defined in LibGameArgs.sol (ZK_ARGS_LENGTH = 172 bytes).
+// defined in LibGameArgs.sol (ZK_ARGS_LENGTH = 140 bytes).
 type ZKGameArgs struct {
 	AbsolutePrestate     common.Hash
 	Verifier             common.Address
@@ -60,13 +60,11 @@ type ZKGameArgs struct {
 	ChallengerBond       *big.Int
 	AnchorStateRegistry  common.Address
 	Weth                 common.Address
-	L2ChainID            *big.Int
 }
 
-// Pack encodes the ZK game args using abi.encodePacked layout (172 bytes).
+// Pack encodes the ZK game args using abi.encodePacked layout (140 bytes).
 // Layout: absolutePrestate(32) + verifier(20) + maxChallengeDuration(8) +
-// maxProveDuration(8) + challengerBond(32) + anchorStateRegistry(20) +
-// weth(20) + l2ChainId(32)
+// maxProveDuration(8) + challengerBond(32) + anchorStateRegistry(20) + weth(20)
 func (z ZKGameArgs) Pack() []byte {
 	dur1 := make([]byte, 8)
 	binary.BigEndian.PutUint64(dur1, z.MaxChallengeDuration)
@@ -74,8 +72,6 @@ func (z ZKGameArgs) Pack() []byte {
 	binary.BigEndian.PutUint64(dur2, z.MaxProveDuration)
 	bond := make([]byte, 32)
 	z.ChallengerBond.FillBytes(bond)
-	chainID := make([]byte, 32)
-	z.L2ChainID.FillBytes(chainID)
 	return slices.Concat(
 		z.AbsolutePrestate[:],
 		z.Verifier[:],
@@ -84,7 +80,6 @@ func (z ZKGameArgs) Pack() []byte {
 		bond,
 		z.AnchorStateRegistry[:],
 		z.Weth[:],
-		chainID,
 	)
 }
 
@@ -106,4 +101,21 @@ func Parse(args []byte) (GameArgs, error) {
 		output.Challenger = common.BytesToAddress(args[144:164])
 	}
 	return output, nil
+}
+
+// ParseZK decodes the packed ZK game args layout produced by Pack (and
+// LibGameArgs.sol's ZK_ARGS_LENGTH = 140 byte encoding).
+func ParseZK(args []byte) (ZKGameArgs, error) {
+	if len(args) != ZKArgsLength {
+		return ZKGameArgs{}, fmt.Errorf("%w: invalid length (%v)", ErrInvalidGameArgs, len(args))
+	}
+	return ZKGameArgs{
+		AbsolutePrestate:     common.BytesToHash(args[0:32]),
+		Verifier:             common.BytesToAddress(args[32:52]),
+		MaxChallengeDuration: binary.BigEndian.Uint64(args[52:60]),
+		MaxProveDuration:     binary.BigEndian.Uint64(args[60:68]),
+		ChallengerBond:       new(big.Int).SetBytes(args[68:100]),
+		AnchorStateRegistry:  common.BytesToAddress(args[100:120]),
+		Weth:                 common.BytesToAddress(args[120:140]),
+	}, nil
 }

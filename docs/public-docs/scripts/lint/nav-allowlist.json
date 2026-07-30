@@ -1,0 +1,10 @@
+{
+  "$comment": "Allowlist for validate-nav.ts. Every entry needs a reason string. Entries here are either deliberately hidden pages or pre-existing violations grandfathered when the guardrail was introduced (tracked in ethereum-optimism/solutions#955); the grandfathered set only shrinks — new violations always fail CI.",
+  "orphans": [
+    {
+      "path": "chain-operators/guides/features/sequencer-defined-metering",
+      "reason": "Deliberately hidden (frontmatter hidden: true): documents Sequencer Defined Metering, which is not yet live (expected with the Lagoon hardfork). Add to the Chain Operators > Guides > Features nav group when the feature ships."
+    }
+  ],
+  "duplicateNavEntries": []
+}

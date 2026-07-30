@@ -331,6 +331,7 @@ where
             max_gas_per_txn: self.config.max_gas_per_txn,
             address_gas_limiter: self.address_gas_limiter.clone(),
             post_exec_mode,
+            interop_failsafe: self.config.interop_failsafe.clone(),
         })
     }
 
@@ -375,7 +376,7 @@ where
         let post_exec_mode = compute_post_exec_mode(
             &self.evm_config,
             timestamp,
-            &self.config.sdm_post_exec_opt_in,
+            &self.config.operator_sdm_opt_in,
         );
         let ctx = self
             .get_op_payload_builder_ctx(
@@ -444,7 +445,7 @@ where
             info.extra.post_exec_entries = post_exec_entries;
             // Carry the base block's warming provenance (deposits + builder tx) into the first
             // flashblock executor; subsequent flashblocks chain off this in build_next_flashblock.
-            info.extra.warming_state = builder.executor().warming_state();
+            info.extra.warming_state = builder.executor().refund_snapshot();
 
             (info, payload, fb_payload)
         };
@@ -688,7 +689,7 @@ where
     where
         Builder:
             reth_evm::execute::BlockBuilder<Primitives = reth_optimism_primitives::OpPrimitives>,
-        Builder::Executor: PostExecExecutorExt
+        Builder::Executor: PostExecExecutorExt<Snapshot = WarmingState>
             + AlloyBlockExecutor<
                 Transaction = OpTransactionSigned,
                 Receipt = OpReceipt,
@@ -705,7 +706,7 @@ where
         // from op-reth's single canonical pass. Recaptured after the build below.
         builder
             .executor_mut()
-            .seed_warming_state(core::mem::take(&mut info.extra.warming_state));
+            .seed_refund_snapshot(core::mem::take(&mut info.extra.warming_state));
         let mut target_gas_for_batch = ctx.extra_ctx.target_gas_for_batch;
         let mut target_da_for_batch = ctx.extra_ctx.target_da_for_batch;
         let mut target_da_footprint_for_batch = ctx.extra_ctx.target_da_footprint_for_batch;
@@ -855,7 +856,7 @@ where
             Ok((new_payload, mut fb_payload)) => {
                 info.extra.post_exec_entries = post_exec_entries;
                 // Carry this flashblock's accumulated warming provenance into the next flashblock.
-                info.extra.warming_state = builder.executor().warming_state();
+                info.extra.warming_state = builder.executor().refund_snapshot();
                 fb_payload.index = flashblock_index;
                 fb_payload.base = None;
 
@@ -1230,7 +1231,7 @@ fn execute_pre_steps<'a, DB, ExtraCtx>(
     (
         impl reth_evm::execute::BlockBuilder<
             Primitives = reth_optimism_primitives::OpPrimitives,
-            Executor: PostExecExecutorExt
+            Executor: PostExecExecutorExt<Snapshot = WarmingState>
                           + AlloyBlockExecutor<
                 Evm: alloy_evm::Evm<DB: core::ops::DerefMut<Target = State<DB>>>,
                 Result: PreRefundGasUsed,
@@ -1441,6 +1442,7 @@ where
         execution_output: Arc::new(execution_output),
         hashed_state: Arc::new(hashed_state),
         trie_updates: Arc::new(trie_output),
+        changed_paths: None,
     };
     debug!(target: "payload_builder", message = "Executed block created");
 

@@ -98,7 +98,25 @@ library DisputeGames {
         revert DisputeGames_UnsupportedGameArg(_gameArg);
     }
 
+    function permissionedGameType(IDisputeGameFactory _dgf) internal view returns (GameType gameType_) {
+        if (address(_dgf.gameImpls(GameTypes.SUPER_PERMISSIONED)) != address(0)) {
+            return GameTypes.SUPER_PERMISSIONED;
+        }
+        return GameTypes.PERMISSIONED_CANNON;
+    }
+
+    function permissionlessGameType(IDisputeGameFactory _dgf) internal view returns (GameType gameType_) {
+        if (address(_dgf.gameImpls(GameTypes.SUPER_CANNON_KONA)) != address(0)) {
+            return GameTypes.SUPER_CANNON_KONA;
+        }
+        return GameTypes.CANNON_KONA;
+    }
+
     function permissionedGameChallenger(IDisputeGameFactory _dgf) internal view returns (address challenger_) {
+        if (address(_dgf.gameImpls(GameTypes.SUPER_PERMISSIONED)) != address(0)) {
+            return address(0);
+        }
+
         GameType gameType = GameTypes.PERMISSIONED_CANNON;
         (bool gameArgsExist, bytes memory gameArgsData) = _getGameArgs(_dgf, gameType);
         if (gameArgsExist) {
@@ -110,6 +128,12 @@ library DisputeGames {
     }
 
     function permissionedGameProposer(IDisputeGameFactory _dgf) internal view returns (address proposer_) {
+        if (address(_dgf.gameImpls(GameTypes.SUPER_PERMISSIONED)) != address(0)) {
+            LibGameArgs.SuperPermissionedGameArgs memory gameArgs =
+                LibGameArgs.decodeSuperPermissioned(_dgf.gameArgs(GameTypes.SUPER_PERMISSIONED));
+            return gameArgs.proposer;
+        }
+
         GameType gameType = GameTypes.PERMISSIONED_CANNON;
         (bool gameArgsExist, bytes memory gameArgsData) = _getGameArgs(_dgf, gameType);
         if (gameArgsExist) {
@@ -120,19 +144,13 @@ library DisputeGames {
         }
     }
 
-    function superPermissionedGameProposer(IDisputeGameFactory _dgf) internal view returns (address proposer_) {
-        LibGameArgs.SuperPermissionedGameArgs memory gameArgs =
-            LibGameArgs.decodeSuperPermissioned(_dgf.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON));
-        proposer_ = gameArgs.proposer;
-    }
-
     function superPermissionedGameAnchorStateRegistry(IDisputeGameFactory _dgf)
         internal
         view
         returns (address anchorStateRegistry_)
     {
         LibGameArgs.SuperPermissionedGameArgs memory gameArgs =
-            LibGameArgs.decodeSuperPermissioned(_dgf.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON));
+            LibGameArgs.decodeSuperPermissioned(_dgf.gameArgs(GameTypes.SUPER_PERMISSIONED));
         anchorStateRegistry_ = gameArgs.anchorStateRegistry;
     }
 
@@ -164,6 +182,28 @@ library DisputeGames {
         }
     }
 
+    /// @notice Returns the live init bond for a registered game, or the default.
+    /// @param _dgf Dispute game factory.
+    /// @param _gameType Game type.
+    /// @param _defaultInitBond Fallback bond.
+    /// @return Init bond for upgrade config.
+    function permissionlessGameInitBondForUpgrade(
+        IDisputeGameFactory _dgf,
+        GameType _gameType,
+        uint256 _defaultInitBond
+    )
+        internal
+        view
+        returns (uint256)
+    {
+        // Forks can retain bonds for game types with no implementation.
+        if (address(_dgf.gameImpls(_gameType)) == address(0)) {
+            return _defaultInitBond;
+        }
+        uint256 initBond = _dgf.initBonds(_gameType);
+        return initBond == 0 ? _defaultInitBond : initBond;
+    }
+
     function mockGameImplPrestate(IDisputeGameFactory _dgf, GameType _gameType, bytes32 _prestate) internal {
         bytes memory value = abi.encodePacked(_prestate);
         _mockGameArg(_dgf, _gameType, GameArg.PRESTATE, value);
@@ -187,12 +227,6 @@ library DisputeGames {
     function mockGameImplL2ChainId(IDisputeGameFactory _dgf, GameType _gameType, uint256 _chainId) internal {
         bytes memory value = abi.encodePacked(_chainId);
         _mockGameArg(_dgf, _gameType, GameArg.L2_CHAIN_ID, value);
-    }
-
-    /// @notice Mocks the l2ChainId in a ZK dispute game's packed args (offset 140).
-    ///         ZK game args have a different layout than LibGameArgs, so a dedicated helper is needed.
-    function mockZKGameImplL2ChainId(IDisputeGameFactory _dgf, GameType _gameType, uint256 _chainId) internal {
-        mockZKGameArg(_dgf, _gameType, 140, abi.encodePacked(_chainId));
     }
 
     /// @notice Overwrites an arbitrary byte range in a ZK dispute game's packed args.
@@ -222,25 +256,25 @@ library DisputeGames {
     }
 
     function mockSuperPermissionedGameProposer(IDisputeGameFactory _dgf, address _proposer) internal {
-        bytes memory gameArgsData = _dgf.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON);
+        bytes memory gameArgsData = _dgf.gameArgs(GameTypes.SUPER_PERMISSIONED);
         LibGameArgs.SuperPermissionedGameArgs memory gameArgs = LibGameArgs.decodeSuperPermissioned(gameArgsData);
         gameArgs.proposer = _proposer;
 
         vm.mockCall(
             address(_dgf),
-            abi.encodeCall(IDisputeGameFactory.gameArgs, (GameTypes.SUPER_PERMISSIONED_CANNON)),
+            abi.encodeCall(IDisputeGameFactory.gameArgs, (GameTypes.SUPER_PERMISSIONED)),
             abi.encode(LibGameArgs.encodeSuperPermissioned(gameArgs))
         );
     }
 
     function mockSuperPermissionedGameASR(IDisputeGameFactory _dgf, address _asr) internal {
-        bytes memory gameArgsData = _dgf.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON);
+        bytes memory gameArgsData = _dgf.gameArgs(GameTypes.SUPER_PERMISSIONED);
         LibGameArgs.SuperPermissionedGameArgs memory gameArgs = LibGameArgs.decodeSuperPermissioned(gameArgsData);
         gameArgs.anchorStateRegistry = _asr;
 
         vm.mockCall(
             address(_dgf),
-            abi.encodeCall(IDisputeGameFactory.gameArgs, (GameTypes.SUPER_PERMISSIONED_CANNON)),
+            abi.encodeCall(IDisputeGameFactory.gameArgs, (GameTypes.SUPER_PERMISSIONED)),
             abi.encode(LibGameArgs.encodeSuperPermissioned(gameArgs))
         );
     }

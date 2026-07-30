@@ -14,6 +14,8 @@ pub mod app;
 pub mod chainspec;
 /// Optimism CLI commands.
 pub mod commands;
+/// Optimism CLI metrics.
+pub mod metrics;
 /// Module with a codec for reading and encoding receipts in files.
 ///
 /// Enables decoding and encoding `OpGethReceipt` type. See <https://github.com/testinprod-io/op-geth/pull/1>.

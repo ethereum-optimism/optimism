@@ -30,8 +30,7 @@ func startFlashblocksSingleChainPrimary(
 	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, sequencerIdentity, cfg.OpRethOptions...)
 	l2Builder := startBuilderEL(t, world.L2Network, jwtPath, builderIdentity, cfg.OPRBuilderOptions...)
 
-	connectL2ELPeers(t, logger, l2EL.UserRPC(), l2Builder.UserRPC(), false)
-	connectL2ELPeers(t, logger, l2Builder.UserRPC(), l2EL.UserRPC(), true)
+	connectL2ELPeers(t, logger, l2EL.UserRPC(), l2Builder.UserRPC())
 
 	rollupBoost := startRollupBoostNode(t, world.L2Network.ChainID(), l2EL, l2Builder)
 	var l2CL L2CLNode
@@ -41,7 +40,6 @@ func startFlashblocksSingleChainPrimary(
 			IsSequencer:   true,
 			NoDiscovery:   true,
 			EnableReqResp: true,
-			UseReqResp:    true,
 			DependencySet: world.Interop.DependencySet,
 		})
 	} else {
@@ -77,7 +75,7 @@ func startBuilderEL(t devtest.T, l2Net *L2Network, jwtPath string, identity *ELN
 
 	data, err := json.Marshal(l2Net.genesis)
 	require.NoError(err, "must json-encode L2 genesis")
-	chainConfigPath := filepath.Join(t.TempDir(), "op-rbuilder-genesis.json")
+	chainConfigPath := filepath.Join(t.TempDirWithPrefix("op-rbuilder"), "op-rbuilder-genesis.json")
 	require.NoError(os.WriteFile(chainConfigPath, data, 0o644), "must write op-rbuilder genesis file")
 
 	cfg := DefaultOPRbuilderNodeConfig()

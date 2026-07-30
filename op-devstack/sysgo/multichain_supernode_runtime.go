@@ -17,12 +17,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
+	nutsstate "github.com/ethereum-optimism/optimism/op-core/nuts/state"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
-	faucetConfig "github.com/ethereum-optimism/optimism/op-faucet/config"
-	"github.com/ethereum-optimism/optimism/op-faucet/faucet"
-	fconf "github.com/ethereum-optimism/optimism/op-faucet/faucet/backend/config"
-	ftypes "github.com/ethereum-optimism/optimism/op-faucet/faucet/backend/types"
 	opnodeconfig "github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
@@ -195,7 +192,6 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool,
 	}
 	supernode, l2CL := startSingleChainSharedSupernode(t, l1Net, l1EL, l1CL, l2Net, l2EL, depSetStatic, jwtSecret, interopActivationTimestamp, true, nodeSync.CLSync)
 	l2Batcher := startMinimalBatcher(t, keys, l2Net, l1EL, l2CL, l2EL, cfg.BatcherOptions...)
-	faucetService := startFaucets(t, keys, l1Net.ChainID(), l2Net.ChainID(), l1EL.UserRPC(), l2EL.UserRPC())
 
 	// Use the potentially-overridden depSetStatic if available.
 	var runtimeDepSet depset.DependencySet
@@ -221,9 +217,8 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool,
 				Batcher: l2Batcher,
 			},
 		},
-		Supernode:     supernode,
-		FaucetService: faucetService,
-		TimeTravel:    timeTravelClock,
+		Supernode:  supernode,
+		TimeTravel: timeTravelClock,
 	}
 }
 
@@ -355,7 +350,6 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 			IsSequencer:      true,
 			NoDiscovery:      true,
 			EnableReqResp:    true,
-			UseReqResp:       false,
 			DependencySet:    runtimeDepSet,
 			L2FollowSource:   supernodeL2ACL.UserRPC(),
 			L2CLOptions:      cfg.GlobalL2CLOptions,
@@ -369,7 +363,6 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 			IsSequencer:      true,
 			NoDiscovery:      true,
 			EnableReqResp:    true,
-			UseReqResp:       false,
 			DependencySet:    runtimeDepSet,
 			L2FollowSource:   supernodeL2BCL.UserRPC(),
 			L2CLOptions:      cfg.GlobalL2CLOptions,
@@ -382,8 +375,8 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 		connectL2CLPeers(t, t.Logger(), l2BCL, supernodeL2BCL)
 		// EL P2P: block bodies sync between each sequencer EL and its paired
 		// supernode EL (required for the ELSync follow path).
-		connectL2ELPeers(t, t.Logger(), supernodeL2AEL.UserRPC(), seqL2AEL.UserRPC(), false)
-		connectL2ELPeers(t, t.Logger(), supernodeL2BEL.UserRPC(), seqL2BEL.UserRPC(), false)
+		connectL2ELPeers(t, t.Logger(), supernodeL2AEL.UserRPC(), seqL2AEL.UserRPC())
+		connectL2ELPeers(t, t.Logger(), supernodeL2BEL.UserRPC(), seqL2BEL.UserRPC())
 	}
 
 	// Batchers follow the active sequencer's CL + EL so the L1-derived safe chain stays
@@ -401,12 +394,6 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 	l2AProposer := startMinimalProposer(t, keys, l2ANet, l1EL, supernodeL2ACL)
 	l2BBatcher := startMinimalBatcher(t, keys, l2BNet, l1EL, batchBCL, batchBEL, cfg.BatcherOptions...)
 	l2BProposer := startMinimalProposer(t, keys, l2BNet, l1EL, supernodeL2BCL)
-
-	faucetService := startFaucetsForRPCs(t, keys, map[eth.ChainID]string{
-		l1Net.ChainID():  l1EL.UserRPC(),
-		l2ANet.ChainID(): seqL2AEL.UserRPC(),
-		l2BNet.ChainID(): seqL2BEL.UserRPC(),
-	})
 
 	// Wait for interop filter readiness now that the supernode and batchers are running.
 	// The filter needs blocks to be produced before its chain ingesters can backfill.
@@ -444,7 +431,6 @@ func newTwoL2SupernodeRuntimeWithConfigAndSequencerMode(t devtest.T, enableInter
 			},
 		},
 		Supernode:     supernode,
-		FaucetService: faucetService,
 		TimeTravel:    timeTravelClock,
 		InteropFilter: interopFilter,
 	}, activationTime
@@ -478,6 +464,13 @@ func buildTwoL2RuntimeWorld(t devtest.T, keys devkeys.Keys, enableInterop bool, 
 			} else {
 				l2Cfg.WithForkAtGenesis(opforks.Lagoon)
 			}
+		}
+		if delaySeconds > 0 {
+			// The chain starts pre-Lagoon (at Karst) and activates Lagoon at
+			// runtime via its frozen NUT bundle.
+			preForkAllocs, err := nutsstate.PreForkState(opforks.Lagoon)
+			t.Require().NoError(err, "need frozen pre-Lagoon predeploy state")
+			wb.preForkPredeployAllocs = preForkAllocs
 		}
 	}
 	applyConfigDeployerOptions(t, keys, wb.builder, deployerOpts)
@@ -535,14 +528,13 @@ func addMultiChainFollowL2Node(t devtest.T, runtime *MultiChainRuntime, chainKey
 		IsSequencer:    false,
 		NoDiscovery:    true,
 		EnableReqResp:  false,
-		UseReqResp:     false,
 		L2FollowSource: chain.CL.UserRPC(),
 		DependencySet:  runtime.DependencySet,
 		// Follow nodes catch up to their follow source via EL sync.
 		SyncMode: nodeSync.ELSync,
 	})
 
-	connectL2ELPeers(t, t.Logger(), chain.EL.UserRPC(), l2EL.UserRPC(), false)
+	connectL2ELPeers(t, t.Logger(), chain.EL.UserRPC(), l2EL.UserRPC())
 	connectL2CLPeers(t, t.Logger(), chain.CL, l2CL)
 
 	node := &SingleChainNodeRuntime{
@@ -615,7 +607,7 @@ func startTwoL2SharedSupernode(
 			P2P:                             p2pConfig,
 			L1EpochPollInterval:             2 * time.Second,
 			RuntimeConfigReloadInterval:     0,
-			Sync:                            nodeSync.Config{SyncMode: nodeSync.CLSync, SyncModeReqResp: true},
+			Sync:                            nodeSync.Config{SyncMode: nodeSync.CLSync},
 			ConfigPersistence:               opnodeconfig.DisabledConfigPersistence{},
 			Metrics:                         opmetrics.CLIConfig{},
 			Pprof:                           oppprof.CLIConfig{},
@@ -634,7 +626,7 @@ func startTwoL2SharedSupernode(
 
 	snCfg := &snconfig.CLIConfig{
 		Chains:                     chainIDs,
-		DataDir:                    t.TempDir(),
+		DataDir:                    t.TempDirWithPrefix("supernode"),
 		L1NodeAddr:                 l1EL.UserRPC(),
 		L1HTTPPollInterval:         100 * time.Millisecond,
 		L1BeaconAddr:               l1CL.beaconHTTPAddr,
@@ -731,7 +723,7 @@ func startSingleChainSharedSupernode(
 			RPC:                             oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},
 			P2P:                             p2pConfig,
 			L1EpochPollInterval:             2 * time.Second,
-			Sync:                            nodeSync.Config{SyncMode: verifierSyncMode, SyncModeReqResp: true},
+			Sync:                            nodeSync.Config{SyncMode: verifierSyncMode},
 			ConfigPersistence:               opnodeconfig.DisabledConfigPersistence{},
 			Metrics:                         opmetrics.CLIConfig{},
 			Pprof:                           oppprof.CLIConfig{},
@@ -744,7 +736,7 @@ func startSingleChainSharedSupernode(
 
 	snCfg := &snconfig.CLIConfig{
 		Chains:                     []uint64{eth.EvilChainIDToUInt64(l2Net.ChainID())},
-		DataDir:                    t.TempDir(),
+		DataDir:                    t.TempDirWithPrefix("supernode"),
 		L1NodeAddr:                 l1EL.UserRPC(),
 		L1HTTPPollInterval:         100 * time.Millisecond,
 		L1BeaconAddr:               l1CL.beaconHTTPAddr,
@@ -1023,48 +1015,4 @@ func startTestSequencerForL2Chains(
 		controlRPC: controlRPCs,
 		service:    sq,
 	}
-}
-
-func startFaucetsForRPCs(t devtest.T, keys devkeys.Keys, chainRPCs map[eth.ChainID]string) *faucet.Service {
-	require := t.Require()
-	logger := t.Logger().New("component", "faucet")
-
-	funderKey, err := keys.Secret(devkeys.UserKey(funderMnemonicIndex))
-	require.NoError(err, "need faucet funder key")
-	funderKeyStr := hexutil.Encode(crypto.FromECDSA(funderKey))
-
-	faucets := make(map[ftypes.FaucetID]*fconf.FaucetEntry, len(chainRPCs))
-	for chainID, rpcURL := range chainRPCs {
-		faucetID := ftypes.FaucetID(fmt.Sprintf("dev-faucet-%s", chainID))
-		faucets[faucetID] = &fconf.FaucetEntry{
-			ELRPC:   endpoint.MustRPC{Value: endpoint.URL(rpcURL)},
-			ChainID: chainID,
-			TxCfg: fconf.TxManagerConfig{
-				PrivateKey: funderKeyStr,
-			},
-		}
-	}
-
-	cfg := &faucetConfig.Config{
-		RPC: oprpc.CLIConfig{
-			ListenAddr: "127.0.0.1",
-		},
-		Faucets: &fconf.Config{
-			Faucets: faucets,
-		},
-	}
-
-	srv, err := faucet.FromConfig(t.Ctx(), cfg, logger)
-	require.NoError(err, "failed to create faucet service")
-	require.NoError(srv.Start(t.Ctx()), "failed to start faucet service")
-
-	t.Cleanup(func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel() // force-close
-		logger.Info("Closing faucet service")
-		closeErr := srv.Stop(ctx)
-		logger.Info("Closed faucet service", "err", closeErr)
-	})
-
-	return srv
 }

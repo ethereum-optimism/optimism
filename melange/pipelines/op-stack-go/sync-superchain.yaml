@@ -1,0 +1,31 @@
+name: Build op-core/superchain/superchain-configs.zip before Go compiles.
+
+# op-core/superchain //go:embeds a gitignored superchain-configs.zip. Without it,
+# any Go binary that transitively links the package fails at compile time with
+# "pattern superchain-configs.zip: no matching files found".
+#
+# Mirrors optimism ops/docker/op-stack-go/Dockerfile (RUN sync-superchain.sh)
+# and `just build-superchain-go`: init the superchain-registry submodule, then
+# regenerate the zip and verify against the committed .sha256.
+
+needs:
+  packages:
+    - bash
+    - git
+    - jq
+    - yq
+    - zip
+
+inputs:
+  submodule-path:
+    description: superchain-registry submodule path, relative to the source root
+    default: superchain-registry
+  sync-script:
+    description: sync-superchain.sh path, relative to the source root
+    default: op-core/superchain/sync-superchain.sh
+
+pipeline:
+  - runs: |
+      set -euo pipefail
+      git submodule update --init --depth 1 "${{inputs.submodule-path}}"
+      bash "${{inputs.sync-script}}"

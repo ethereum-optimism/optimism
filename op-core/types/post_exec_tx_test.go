@@ -5,7 +5,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 )
@@ -32,6 +34,25 @@ func TestPostExecTxMarshalBinaryDifferential(t *testing.T) {
 
 		require.Equal(t, theirs, ours)
 	}
+}
+
+// TestPostExecTxHashGoldenVector pins the cross-client post-exec (0x7D) tx hash: op-geth and
+// op-reth must agree on keccak256(0x7D || Data), the canonical EIP-2718 rule. data is op-alloy's
+// build_post_exec_tx(42, [{3,7}]); opRethTxHash is the value op-alloy pins for TxPostExec::tx_hash.
+// Guards the op-geth hash fix against regression when the op-geth pin moves (old op-geth returned
+// keccak256(0x7D || RLP([Data]))).
+func TestPostExecTxHashGoldenVector(t *testing.T) {
+	data := hexutil.MustDecode("0xc6012ac3c20307")
+	const opRethTxHash = "0xcbc64a9665039744307b562634bf760d96f3bed235fecd9e09a1f1276a1823c7"
+
+	gethHash := gethtypes.NewTx(&gethtypes.PostExecTx{Data: data}).Hash()
+	require.Equal(t, opRethTxHash, gethHash.Hex(),
+		"op-geth post-exec tx hash must match op-reth (op-alloy TxPostExec::tx_hash)")
+
+	// The shared value is exactly keccak256 of the canonical encoding op-core produces.
+	canonical, err := (&optypes.PostExecTx{Data: data}).MarshalBinary()
+	require.NoError(t, err)
+	require.Equal(t, gethHash, crypto.Keccak256Hash(canonical))
 }
 
 func TestUnmarshalPostExecTxRoundTrip(t *testing.T) {

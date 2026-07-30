@@ -2,12 +2,15 @@ package stack
 
 import (
 	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop"
 )
 
 type Supernode interface {
 	Common
+	ClientRPC() client.RPC
 	QueryAPI() apis.SupernodeQueryAPI
+	UserRPC() string
 }
 
 // SupernodeTestControl is the integration-test surface on a running

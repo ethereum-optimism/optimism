@@ -12,9 +12,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-
-	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
@@ -34,9 +33,12 @@ type Env struct {
 	Scripts      *opcm.Scripts
 	ForgeClient  *forge.Client
 	UseForge     bool
-	L1RPCUrl     string
-	PrivateKey   string
-	Context      context.Context
+	// AllowUnoptimizedContracts permits contract artifacts that exceed the EIP-170 code-size limit.
+	// It is only enabled for genesis-mode deployments, which execute scripts against an in-memory host.
+	AllowUnoptimizedContracts bool
+	L1RPCUrl                  string
+	PrivateKey                string
+	Context                   context.Context
 }
 
 type StateWriter interface {
@@ -84,12 +86,7 @@ func WriteState(workdir string, st *state.State) error {
 	return st.WriteToFile(statePath)
 }
 
-type ArtifactsBundle struct {
-	L1 foundry.StatDirFs
-	L2 foundry.StatDirFs
-}
-
-type Stage func(ctx context.Context, env *Env, bundle ArtifactsBundle, intent *state.Intent, st *state.State) error
+type Stage func(ctx context.Context, env *Env, bundle artifacts.Bundle, intent *state.Intent, st *state.State) error
 
 func RenderGenesisAndRollup(globalState *state.State, chainID common.Hash, useGlobalIntent *state.Intent) (*core.Genesis, *rollup.Config, error) {
 	if useGlobalIntent == nil && globalState.AppliedIntent == nil {

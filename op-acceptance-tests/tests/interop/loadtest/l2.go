@@ -33,32 +33,11 @@ func (p *RoundRobin[T]) Get() T {
 	return p.items[next]
 }
 
-type SyncEOA struct {
-	plan     txplan.Option
-	includer txinclude.Includer
-}
-
-func NewSyncEOA(includer txinclude.Includer, plan txplan.Option) *SyncEOA {
-	return &SyncEOA{
-		plan:     plan,
-		includer: includer,
-	}
-}
-
-// Include attempts to include the transaction specified by opts.
-func (eoa *SyncEOA) Include(t devtest.T, opts ...txplan.Option) (*txinclude.IncludedTx, error) {
-	unsigned, err := txplan.NewPlannedTx(eoa.plan, txplan.Combine(opts...)).Unsigned.Eval(t.Ctx())
-	if err != nil {
-		return nil, err
-	}
-	return eoa.includer.Include(t.Ctx(), unsigned)
-}
-
 type L2 struct {
 	Config      *params.ChainConfig
 	BlockTime   time.Duration
 	EL          *dsl.L2ELNode
-	EOAs        *RoundRobin[*SyncEOA]
+	EOAs        *RoundRobin[*dsl.SyncEOA]
 	EventLogger common.Address
 	Wallet      *dsl.HDWallet
 }
@@ -87,17 +66,22 @@ type FundableEL interface {
 	EthClient() apis.EthClient
 }
 
-func FundEOAs(t devtest.T, budget eth.ETH, numAccounts uint64, blockTime time.Duration, el FundableEL, wallet *dsl.HDWallet, faucet *dsl.Faucet) []*SyncEOA {
-	t.Require().Equal(faucet.Escape().ChainID(), el.ChainID())
+func FundEOAs(t devtest.T, budget eth.ETH, numAccounts uint64, blockTime time.Duration, el FundableEL, wallet *dsl.HDWallet, funder *dsl.FunderEOA) []*dsl.SyncEOA {
+	t.Require().Equal(funder.ChainID(), el.ChainID())
 
-	// Fund a lot of spammer EOAs. The funder provided by the devstack isn't very reliable when
-	// funding lots of different accounts. We fund one account from the faucet and then use that
-	// account to fund all the others.
+	// Reserve every funding tx's worst-case fee on top of the budget so the mempool's cumulative
+	// pending-cost check passes regardless of base fee; the generous cap is free since only the
+	// base fee is paid.
+	fundingFeeCap := eth.GWei(10_000)
+	funderBudget := budget.Add(fundingFeeCap.Mul(params.TxGas).Mul(numAccounts))
+
+	// Fund a lot of spammer EOAs. Funding lots of different accounts directly is slow, so we fund
+	// one account from the prefunded funder and then use that account to fund all the others.
 	spammerELClient := txinclude.NewReliableEL(el.EthClient(), blockTime)
-	funderEOA := newSyncEOA(dsl.NewFunder(wallet, faucet, el).NewFundedEOA(budget), spammerELClient)
-	budget = budget.Sub(budget.Div(50)) // Reserve 2% of the balance for gas.
+	funderEOA := newSyncEOA(funder.NewFundedEOA(funderBudget), spammerELClient)
+
 	ethPerAccount := budget.Div(numAccounts)
-	var eoas []*SyncEOA
+	var eoas []*dsl.SyncEOA
 	var mu sync.Mutex
 	var wgEOA sync.WaitGroup
 	for range numAccounts {
@@ -107,7 +91,8 @@ func FundEOAs(t devtest.T, budget eth.ETH, numAccounts uint64, blockTime time.Du
 
 			eoa := wallet.NewEOA(el)
 			addr := eoa.Address()
-			_, err := funderEOA.Include(t, txplan.WithTo(&addr), txplan.WithValue(ethPerAccount))
+			_, err := funderEOA.Include(t, txplan.WithTo(&addr), txplan.WithValue(ethPerAccount),
+				txplan.WithGasLimit(params.TxGas), txplan.WithGasFeeCap(fundingFeeCap.ToBig()))
 			t.Require().NoError(err)
 
 			mu.Lock()
@@ -120,8 +105,8 @@ func FundEOAs(t devtest.T, budget eth.ETH, numAccounts uint64, blockTime time.Du
 	return eoas
 }
 
-func newSyncEOA(eoa *dsl.EOA, el txinclude.EL) *SyncEOA {
+func newSyncEOA(eoa *dsl.EOA, el txinclude.EL) *dsl.SyncEOA {
 	signer := txinclude.NewPkSigner(eoa.Key().Priv(), eoa.ChainID().ToBig())
 	const maxConcurrentTxs = 16 // Reth's mempool limits the number of txs per account to 16.
-	return NewSyncEOA(txinclude.NewLimit(txinclude.NewPersistent(signer, el), maxConcurrentTxs), eoa.Plan())
+	return dsl.NewSyncEOA(txinclude.NewLimit(txinclude.NewPersistent(signer, el), maxConcurrentTxs), eoa.Plan())
 }

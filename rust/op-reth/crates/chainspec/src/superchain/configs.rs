@@ -49,9 +49,9 @@ pub(crate) fn read_superchain_genesis(
     // Load the genesis file.
     let mut genesis: Genesis = serde_json::from_slice(&genesis_file)?;
 
-    // The "config" field is stripped (see fetch_superchain_config.sh) from the genesis file
-    // because it is not always populated. For that reason, we read the config from the chain
-    // metadata file. See: https://github.com/ethereum-optimism/superchain-registry/issues/901
+    // The "config" field is stripped (see build.rs) from the genesis file because it is
+    // not always populated. For that reason, we read the config from the chain metadata
+    // file. See: https://github.com/ethereum-optimism/superchain-registry/issues/901
     genesis.config =
         to_genesis_chain_config(&read_superchain_metadata(name, environment, &archive)?);
 

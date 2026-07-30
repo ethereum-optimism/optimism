@@ -30,8 +30,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const virtualNodeVersion = "0.1.0"
-
 const (
 	// defaultWaitReadyPoll is the polling interval used by
 	// simpleChainContainer.WaitReady. Matches the RPC router's
@@ -216,6 +214,7 @@ func NewChainContainer(
 	rpcRouter RPCRouterGate,
 	addMetricsRegistry func(key string, g prometheus.Gatherer),
 	metrics *resources.SupernodeMetrics,
+	appVersion string,
 ) (InteropChain, error) {
 	if metrics == nil {
 		metrics = resources.NewSupernodeMetrics()
@@ -230,7 +229,7 @@ func NewChainContainer(
 		rpcHandler:         rpcHandler,
 		rpcRouter:          rpcRouter,
 		addMetricsRegistry: addMetricsRegistry,
-		appVersion:         virtualNodeVersion,
+		appVersion:         appVersion,
 		virtualNodeFactory: defaultVirtualNodeFactory,
 		metrics:            metrics,
 	}
@@ -243,12 +242,11 @@ func NewChainContainer(
 		}
 	}
 	// Initialize the deny list for block invalidation
-	denyListPath := c.subPath("denylist")
-	if denyList, err := OpenDenyList(denyListPath); err != nil {
-		log.Error("failed to open deny list", "err", err)
-	} else {
-		c.denyList = denyList
+	denyList, err := OpenDenyList(c.subPath("denylist"))
+	if err != nil {
+		return nil, fmt.Errorf("failed to open deny list for chain %s: %w", chainID, err)
 	}
+	c.denyList = denyList
 	// Set up the interop engine controller. The connection is dialed lazily, so setup never
 	// blocks on or fails because of an unreachable L2 engine at startup -- the client connects
 	// on first use and reconnects on demand. This is what lets interop recover once the EL comes
@@ -752,23 +750,38 @@ func (c *simpleChainContainer) RewindEngine(ctx context.Context, target *eth.Exe
 	if target == nil || target.ExecutionPayload == nil {
 		return engine_controller.ErrRewindNilTarget
 	}
+	start := time.Now()
+	if c.metrics != nil {
+		defer func() {
+			c.metrics.ChainRewindDuration.WithLabelValues(c.chainID.String()).Observe(time.Since(start).Seconds())
+		}()
+	}
+	recordFailure := func(stage string) {
+		if c.metrics != nil {
+			c.metrics.ChainRewindFailures.WithLabelValues(c.chainID.String(), stage).Inc()
+		}
+	}
 	timestamp := uint64(target.ExecutionPayload.Timestamp)
 	if !c.resetting.CompareAndSwap(false, true) {
+		recordFailure("setup")
 		return fmt.Errorf("reset already in progress")
 	}
 	defer c.resetting.Store(false)
 
 	vn := c.getVN()
 	if vn == nil {
+		recordFailure("setup")
 		return fmt.Errorf("virtual node not initialized")
 	}
 	if c.engine == nil {
+		recordFailure("setup")
 		return fmt.Errorf("engine not initialized")
 	}
 
 	// Pause the container to stop it restarting the vn when we kill it
 	err := c.Pause(ctx)
 	if err != nil {
+		recordFailure("pause")
 		return err
 	}
 	// Always resume the container on return, even if we exit early due to context cancellation
@@ -780,6 +793,7 @@ func (c *simpleChainContainer) RewindEngine(ctx context.Context, target *eth.Exe
 	// stop the vn
 	err = vn.Stop(ctx)
 	if err != nil {
+		recordFailure("stop_vn")
 		return err
 	}
 	c.log.Info("chain_container/RewindEngine: stopped vn")
@@ -789,6 +803,7 @@ retryLoop:
 		err = c.engine.Rewind(ctx, target)
 		switch {
 		case isCriticalRewindError(err):
+			recordFailure("engine_rewind")
 			c.log.Error("chain_container/RewindEngine: critical error", "err", err)
 			return err
 		case err == nil:
@@ -805,6 +820,7 @@ retryLoop:
 			c.log.Error("chain_container/RewindEngine: temporary error", "err", err)
 			select {
 			case <-ctx.Done():
+				recordFailure("engine_rewind")
 				return ctx.Err()
 			case <-time.After(time.Second):
 			}
@@ -819,6 +835,7 @@ retryLoop:
 	// resume the chain container to trigger a new vn to be started
 	err = c.Resume(ctx)
 	if err != nil {
+		recordFailure("resume")
 		return err
 	}
 
@@ -828,6 +845,7 @@ retryLoop:
 	// that window 503s on the router gate. Symmetric with the post-Resume
 	// barrier in interop.applyPendingTransition.
 	if err := c.WaitReady(ctx); err != nil {
+		recordFailure("wait_ready")
 		return fmt.Errorf("RewindEngine: VN not ready after resume: %w", err)
 	}
 	c.log.Info("chain_container/RewindEngine: resumed container, VN ready")

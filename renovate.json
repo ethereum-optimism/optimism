@@ -1,0 +1,21 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["github>ethereum-optimism/factory:renovate-config"],
+  "packageRules": [
+    {
+      "description": "Group version-locked OpenTelemetry deps (Rust crates + Go modules) so coupled versions bump together in one buildable PR.",
+      "matchPackageNames": ["/^opentelemetry/", "/^tracing-opentelemetry$/", "/^go\\.opentelemetry\\.io\\//"],
+      "groupName": "opentelemetry"
+    },
+    {
+      "description": "Group Alloy crates so coupled versions bump together.",
+      "matchPackageNames": ["/^alloy/", "/^op-alloy/"],
+      "groupName": "alloy"
+    },
+    {
+      "description": "Group libp2p crates so coupled versions bump together.",
+      "matchPackageNames": ["/^libp2p/"],
+      "groupName": "libp2p"
+    }
+  ]
+}

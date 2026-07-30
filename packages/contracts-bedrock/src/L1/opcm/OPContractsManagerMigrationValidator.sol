@@ -205,7 +205,7 @@ contract OPContractsManagerMigrationValidator {
     }
 
     /// @notice Validates the shape of the shared DGF — correct game types registered/unregistered.
-    ///         Post-migration interop requires SUPER_PERMISSIONED_CANNON and SUPER_CANNON_KONA
+    ///         Post-migration interop requires SUPER_PERMISSIONED and SUPER_CANNON_KONA
     ///         registered; all legacy game types (CANNON, PERMISSIONED_CANNON, CANNON_KONA,
     ///         SUPER_CANNON) unregistered.
     function assertValidSharedDGFShape(
@@ -216,9 +216,8 @@ contract OPContractsManagerMigrationValidator {
         view
         returns (string memory)
     {
-        _errors = internalRequire(
-            address(_dgf.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON)) != address(0), "MIG-DGF-10", _errors
-        );
+        _errors =
+            internalRequire(address(_dgf.gameImpls(GameTypes.SUPER_PERMISSIONED)) != address(0), "MIG-DGF-10", _errors);
         _errors =
             internalRequire(address(_dgf.gameImpls(GameTypes.SUPER_CANNON_KONA)) != address(0), "MIG-DGF-20", _errors);
         _errors = internalRequire(address(_dgf.gameImpls(GameTypes.CANNON)) == address(0), "MIG-DGF-30", _errors);
@@ -267,10 +266,10 @@ contract OPContractsManagerMigrationValidator {
         returns (string memory)
     {
         // If game impl is address(0), skip — already caught by shape checks.
-        address gameImplAddr = address(_p.dgf.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON));
+        address gameImplAddr = address(_p.dgf.gameImpls(GameTypes.SUPER_PERMISSIONED));
         if (gameImplAddr == address(0)) return _errors;
 
-        bytes memory gameArgsBytes = _p.dgf.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON);
+        bytes memory gameArgsBytes = _p.dgf.gameArgs(GameTypes.SUPER_PERMISSIONED);
         bool argsOk = LibGameArgs.isValidSuperPermissionedArgs(gameArgsBytes);
         _errors = internalRequire(argsOk, string.concat(_p.prefix, "-GARGS-10"), _errors);
         if (!argsOk) return _errors;
@@ -502,7 +501,7 @@ contract OPContractsManagerMigrationValidator {
                     _errors
                 );
                 _errors = internalRequire(
-                    address(perChainDGF.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON)) == address(0),
+                    address(perChainDGF.gameImpls(GameTypes.SUPER_PERMISSIONED)) == address(0),
                     string.concat("MIG-CHAIN-", idx, "-60"),
                     _errors
                 );

@@ -111,22 +111,47 @@ func tryToRecognizeError(err error) error {
 	return err
 }
 
+func isRecognizedError(err error) bool {
+	for _, recognizedErr := range recognizedErrs {
+		if errors.Is(err, recognizedErr) {
+			return true
+		}
+	}
+	return false
+}
+
 // SendTransaction implements Sender. It will continue resubmitting unless an error is hit
-// that the resubmitter considers unfixable with resubmissions alone (e.g., requiring modifications to tx)
-// See fatalErrs for the list of these errors.
+// that the resubmitter considers unfixable with resubmissions alone (e.g., requiring modifications to tx).
+// See fatalErrs for the list; ErrNonceTooLow remains retryable after a possibly successful submission.
 func (r *Resubmitter) SendTransaction(ctx context.Context, tx *types.Transaction) error {
+	submissionMayHaveSucceeded := false
 	for {
 		err := tryToRecognizeError(r.inner.SendTransaction(ctx, tx))
 		r.cfg.observer.SubmissionError(err)
 
-		for _, fatalErr := range fatalErrs {
-			if errors.Is(err, fatalErr) {
-				return err
+		accepted := err == nil || errors.Is(err, txpool.ErrAlreadyKnown)
+		unknown := err != nil && !isRecognizedError(err)
+		if accepted || unknown {
+			// An unknown error may be a transport failure after the EL accepted the
+			// transaction, so its outcome must be treated as ambiguous.
+			submissionMayHaveSucceeded = true
+		}
+		// Some ELs may return ErrNonceTooLow instead of ErrAlreadyKnown when a
+		// previously submitted transaction is still pending or has just been mined.
+		// Keep resubmitting the same signed transaction if an earlier submission
+		// succeeded or had an ambiguous outcome. An initial ErrNonceTooLow remains fatal.
+		nonceTooLowAfterPossibleSubmission := submissionMayHaveSucceeded && errors.Is(err, core.ErrNonceTooLow)
+
+		if !nonceTooLowAfterPossibleSubmission {
+			for _, fatalErr := range fatalErrs {
+				if errors.Is(err, fatalErr) {
+					return err
+				}
 			}
 		}
 
 		var resubmitDelay time.Duration
-		if err == nil || errors.Is(err, txpool.ErrAlreadyKnown) {
+		if accepted || nonceTooLowAfterPossibleSubmission {
 			// Resubmit after three blocks after successful inclusion in the mempool.
 			// The transaction could be evicted for some reason, so we'll continue to resubmit
 			// to make sure it stays in the mempool.

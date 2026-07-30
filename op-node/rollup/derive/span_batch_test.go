@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
@@ -486,7 +487,7 @@ func TestSpanBatchReadTxData(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			rng := rand.New(rand.NewSource(int64(0x109550 + i)))
 			chainID := new(big.Int).SetUint64(rng.Uint64())
-			signer := types.NewIsthmusSigner(chainID)
+			signer := types.NewPragueSigner(chainID)
 			if !testCase.protected {
 				signer = types.HomesteadSigner{}
 			}
@@ -518,7 +519,7 @@ func TestSpanBatchReadPostExecTxData(t *testing.T) {
 	r := bytes.NewReader(rawTx)
 	txData, txType, err := ReadTxData(r)
 	require.NoError(t, err)
-	require.Equal(t, int(types.PostExecTxType), txType)
+	require.Equal(t, optypes.PostExecTxType, txType)
 	require.Equal(t, rawTx, txData)
 }
 
@@ -530,6 +531,33 @@ func TestSpanBatchReadTxDataInvalid(t *testing.T) {
 	r := bytes.NewReader(dummy)
 	_, _, err = ReadTxData(r)
 	require.ErrorContains(t, err, "tx RLP prefix type must be list")
+}
+
+// TestSpanBatchReadTxDataLeadingZero locks op-node's decode of the shared conformance vector
+// [00 c3 80 80 80]: a valid legacy span-batch tx (an RLP list of value, gas_price, data) with a
+// 0x00 EIP-2718 type byte prepended. ReadTxData preserves the prefix, and the typed decoder rejects
+// it as unsupported. Kona must reach the same verdict, or the two derivations fork on identical L1
+// bytes.
+func TestSpanBatchReadTxDataLeadingZero(t *testing.T) {
+	payload := []byte{0xc3, 0x80, 0x80, 0x80}
+	prefixed := append([]byte{0x00}, payload...)
+
+	// The unprefixed payload is a valid legacy tx.
+	var legacy spanBatchTx
+	require.NoError(t, legacy.UnmarshalBinary(payload))
+	require.Equal(t, uint8(types.LegacyTxType), legacy.Type())
+
+	// ReadTxData keeps the leading 0x00 and reports legacy type.
+	r := bytes.NewReader(prefixed)
+	txData, txType, err := ReadTxData(r)
+	require.NoError(t, err)
+	require.Equal(t, int(types.LegacyTxType), txType)
+	require.Equal(t, prefixed, txData)
+
+	// The kept 0x00 is not a supported typed-tx envelope, so the element (and thus the batch) is
+	// rejected.
+	var sbtx spanBatchTx
+	require.ErrorIs(t, sbtx.UnmarshalBinary(txData), types.ErrTxTypeNotSupported)
 }
 
 func TestSpanBatchMaxTxData(t *testing.T) {

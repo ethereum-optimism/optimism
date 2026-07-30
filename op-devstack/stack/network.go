@@ -16,7 +16,5 @@ type Network interface {
 
 	ChainConfig() *params.ChainConfig
 
-	Faucets() []Faucet
-
 	SyncTesters() []SyncTester
 }

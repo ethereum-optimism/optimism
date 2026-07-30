@@ -86,7 +86,6 @@ func NewSimpleWithSyncTesterRuntimeWithConfig(t devtest.T, cfg PresetConfig) *Si
 		IsSequencer:   false,
 		NoDiscovery:   true,
 		EnableReqResp: true,
-		UseReqResp:    true,
 		L2CLOptions:   cfg.GlobalL2CLOptions,
 	})
 	node := newSingleChainNodeRuntime("verifier", false, syncTesterEL, l2CL2)
@@ -132,7 +131,7 @@ func NewMinimalWithConductorsRuntimeWithConfig(t devtest.T, cfg PresetConfig) *S
 }
 
 func connectSingleChainNodes(t devtest.T, sourceEL L2ELNode, sourceCL L2CLNode, target *SingleChainNodeRuntime) {
-	connectL2ELPeers(t, t.Logger(), sourceEL.UserRPC(), target.EL.UserRPC(), false)
+	connectL2ELPeers(t, t.Logger(), sourceEL.UserRPC(), target.EL.UserRPC())
 	connectSingleChainCLPeer(t, sourceCL, target.CL)
 }
 
@@ -266,7 +265,7 @@ func startConductorNode(
 		ConsensusPort:           0,
 		ConsensusAdvertisedAddr: "",
 		RaftServerID:            serverID,
-		RaftStorageDir:          filepath.Join(t.TempDir(), "raft"),
+		RaftStorageDir:          filepath.Join(t.TempDirWithPrefix("op-conductor-"+NewComponentTarget(conductorName, l2Net.ChainID()).String()), "raft"),
 		RaftBootstrap:           bootstrap,
 		RaftSnapshotInterval:    120 * time.Second,
 		RaftSnapshotThreshold:   8192,

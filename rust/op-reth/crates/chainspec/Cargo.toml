@@ -20,7 +20,7 @@ reth-network-peers.workspace = true
 
 # op-reth
 reth-optimism-forks.workspace = true
-reth-optimism-primitives = { workspace = true, features = ["serde", "reth-codec"] }
+reth-optimism-primitives = { workspace = true, features = ["serde"] }
 
 # ethereum
 alloy-chains.workspace = true
@@ -46,12 +46,34 @@ paste = { workspace = true, optional = true }
 thiserror = { workspace = true, optional = true }
 op-alloy-consensus.workspace = true
 
+# The self dev-dependency below enables this crate's own non-default features for
+# its standalone test build (`cargo test -p reth-optimism-chainspec`). cargo-udeps
+# reports it unused because it activates features rather than importing symbols, so
+# ignore it.
+[package.metadata.cargo-udeps.ignore]
+development = ["reth-optimism-chainspec"]
+
 [dev-dependencies]
+reth-optimism-chainspec = { path = ".", features = ["superchain-configs"] }
 reth-chainspec = { workspace = true, features = ["test-utils"] }
 alloy-op-hardforks.workspace = true
 
+[build-dependencies]
+# Used by build.rs to generate superchain-configs.tar from the submodule.
+toml = { workspace = true, features = ["parse", "serde"] }
+serde_json = { workspace = true, features = ["std"] }
+zstd.workspace = true
+miniz_oxide = { workspace = true, features = ["with-alloc"] }
+sha2 = { workspace = true, features = ["std"] }
+tar.workspace = true
+
 [features]
-default = ["std"]
+default = ["std", "reth-codec"]
+# Enables `reth-optimism-primitives`' reth-codec (Compact DB codec / zstd compression).
+# On by default to preserve existing behavior; type-only consumers (e.g. zkVM targets) can
+# set `default-features = false` to avoid the native `zstd-sys` C build, which this crate
+# does not need (it has no Compact/zstd usage of its own).
+reth-codec = ["reth-optimism-primitives/reth-codec"]
 superchain-configs = ["miniz_oxide", "paste", "tar-no-std", "thiserror", "dep:serde"]
 std = [
     "alloy-chains/std",
@@ -72,6 +94,8 @@ std = [
     "miniz_oxide?/std",
     "thiserror?/std",
     "op-alloy-consensus/std",
+    "sha2/std",
+    "toml/std",
 ]
 serde = [
     "alloy-chains/serde",
@@ -87,4 +111,5 @@ serde = [
     "reth-primitives-traits/serde",
     "op-alloy-consensus/serde",
     "alloy-op-hardforks/serde",
+    "toml/serde",
 ]
