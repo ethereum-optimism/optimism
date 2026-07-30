@@ -726,6 +726,11 @@ where
             for idx in previously_pending {
                 match self.fetch_game(idx, pinned_block).await {
                     Ok(GameFetchResult::Pending { deadline, .. }) => {
+                        // TODO(#21463): exempt owned games and their
+                        // ancestors (foreign ancestors included) from this
+                        // eviction once the defend path widens ownership; an
+                        // evicted own game currently loses resolution/bond
+                        // tracking until a restart after the supernode heals.
                         if let Some(anchor_d) = anchor_deadline_for_eviction &&
                             pending_evictable(anchor_d, deadline)
                         {
