@@ -68,7 +68,9 @@ func ValidateInteropDepSetMatchesIntent(chains []*state.ChainIntent, prepared *d
 	sortChainIDs(added)
 	sortChainIDs(removed)
 	return fmt.Errorf(
-		"intent chain set does not match prepared chain set: added chain IDs %s; removed chain IDs %s; rerun op-deployer prepare",
+		"intent chain set does not match prepared chain set: added chain IDs %s; removed chain IDs %s; "+
+			"the prepared set determines the committed prestate and, for super-root games, every chain's starting anchor; "+
+			"rerun op-deployer prepare",
 		formatChainIDs(added),
 		formatChainIDs(removed),
 	)
