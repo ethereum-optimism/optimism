@@ -243,6 +243,8 @@ mod tests {
     /// The `BLOBBASEFEE` opcode must always be 1 on the OP Stack from Ecotone onward. Post-Jovian
     /// the header's `blobGasUsed` carries the block's DA footprint, which must not influence the
     /// blob env. The footprint here is from op-mainnet block 152635937.
+    #[test_case::test_case(FakeHardfork::lagoon(); "Lagoon")]
+    #[test_case::test_case(FakeHardfork::karst(); "Karst")]
     #[test_case::test_case(FakeHardfork::jovian(); "Jovian")]
     #[test_case::test_case(FakeHardfork::isthmus(); "Isthmus")]
     #[test_case::test_case(FakeHardfork::ecotone(); "Ecotone")]

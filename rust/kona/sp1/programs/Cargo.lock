@@ -1663,7 +1663,6 @@ dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
  "derive_more",
- "op-revm",
  "serde",
  "thiserror",
 ]
