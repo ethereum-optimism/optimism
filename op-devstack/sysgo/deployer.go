@@ -86,8 +86,6 @@ func WithDefaultBPOBlobSchedule(_ devtest.T, _ devkeys.Keys, builder intentbuild
 // parseL1Fork accepts Ethereum upgrade names and their geth execution-layer names.
 func parseL1Fork(value string) (forks.Fork, error) {
 	fork, ok := map[string]forks.Fork{
-		"dencun": forks.Cancun,
-		"cancun": forks.Cancun,
 		"pectra": forks.Prague,
 		"prague": forks.Prague,
 		"fusaka": forks.Osaka,
@@ -280,7 +278,7 @@ func WithCommons(l1ChainID eth.ChainID) DeployerOption {
 		l1Config.WithTimestamp(l1StartTimestamp)
 
 		l1Fork := forks.Prague // activate Pectra on L1 by default
-		if value := os.Getenv(DevstackL1ForkEnvVar); value != "" {
+		if value, ok := os.LookupEnv(DevstackL1ForkEnvVar); ok {
 			var err error
 			l1Fork, err = parseL1Fork(value)
 			p.Require().NoError(err, "invalid %s", DevstackL1ForkEnvVar)

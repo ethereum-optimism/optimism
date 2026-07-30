@@ -73,8 +73,6 @@ func TestWithLocalContractSourcesAt(t *testing.T) {
 
 func TestParseL1Fork(t *testing.T) {
 	tests := map[string]forks.Fork{
-		"dencun": forks.Cancun,
-		"cancun": forks.Cancun,
 		"pectra": forks.Prague,
 		"prague": forks.Prague,
 		"fusaka": forks.Osaka,
@@ -88,7 +86,7 @@ func TestParseL1Fork(t *testing.T) {
 		})
 	}
 
-	for _, input := range []string{"frontier", "Fusaka", " osaka ", "bpo-1"} {
+	for _, input := range []string{"", "dencun", "cancun", "frontier", "Fusaka", " osaka ", "bpo-1"} {
 		t.Run("reject "+input, func(t *testing.T) {
 			_, err := parseL1Fork(input)
 			require.EqualError(t, err, `unsupported L1 fork "`+input+`"`)
@@ -97,19 +95,37 @@ func TestParseL1Fork(t *testing.T) {
 }
 
 func TestDevstackL1ForkEnv(t *testing.T) {
-	t.Setenv(DevstackL1ForkEnvVar, "fusaka")
-	builder := newValidIntentBuilder()
-	builder.WithL1ContractsLocator(artifacts.EmbeddedLocator)
-	builder.WithL2ContractsLocator(artifacts.EmbeddedLocator)
-	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
-	require.NoError(t, err)
+	tests := map[string]bool{
+		"pectra": false,
+		"prague": false,
+		"fusaka": true,
+		"osaka":  true,
+	}
+	for input, osakaAtGenesis := range tests {
+		t.Run(input, func(t *testing.T) {
+			t.Setenv(DevstackL1ForkEnvVar, input)
+			builder := newValidIntentBuilder()
+			builder.WithL1ContractsLocator(artifacts.EmbeddedLocator)
+			builder.WithL2ContractsLocator(artifacts.EmbeddedLocator)
+			keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
+			require.NoError(t, err)
 
-	applyConfigCommons(devtest.SerialT(t), keys, DefaultL1ID, builder)
+			applyConfigCommons(devtest.SerialT(t), keys, DefaultL1ID, builder)
 
-	intent, err := builder.Build()
-	require.NoError(t, err)
-	require.NotNil(t, intent.L1DevGenesisParams.OsakaTimeOffset)
-	require.Zero(t, *intent.L1DevGenesisParams.OsakaTimeOffset)
+			intent, err := builder.Build()
+			require.NoError(t, err)
+			require.NotNil(t, intent.L1DevGenesisParams.PragueTimeOffset)
+			require.Zero(t, *intent.L1DevGenesisParams.PragueTimeOffset)
+			if osakaAtGenesis {
+				require.NotNil(t, intent.L1DevGenesisParams.OsakaTimeOffset)
+				require.Zero(t, *intent.L1DevGenesisParams.OsakaTimeOffset)
+			} else {
+				require.Nil(t, intent.L1DevGenesisParams.OsakaTimeOffset)
+			}
+			require.Nil(t, intent.L1DevGenesisParams.BPO1TimeOffset)
+			require.Nil(t, intent.L1DevGenesisParams.BPO2TimeOffset)
+		})
+	}
 }
 
 func TestDeployerOptionsOverrideDevstackL1Fork(t *testing.T) {
