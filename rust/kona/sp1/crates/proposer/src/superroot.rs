@@ -61,11 +61,21 @@ impl SuperrootClient {
 
     /// Extracts and verifies the canonical super-root material from a
     /// response, or `None` when the timestamp is not yet safe (`data`
-    /// absent).
-    pub fn super_root_at(response: &SuperRootAtTimestampResponse) -> Result<Option<SuperRootAt>> {
+    /// absent). Present data must be for the requested timestamp and hash
+    /// to the response's reported super root.
+    pub fn super_root_at(
+        response: &SuperRootAtTimestampResponse,
+        expected_timestamp: u64,
+    ) -> Result<Option<SuperRootAt>> {
         let Some(data) = &response.data else {
             return Ok(None);
         };
+        if data.super_v1.timestamp != expected_timestamp {
+            return Err(anyhow!(
+                "supernode returned super root for timestamp {} but {expected_timestamp} was requested",
+                data.super_v1.timestamp
+            ));
+        }
         let proof = proof_from_super_v1(&data.super_v1)?;
         let proof_bytes = encode_super_root_proof(&proof)
             .map_err(|err| anyhow!("failed to encode super-root proof: {err:?}"))?;
@@ -91,6 +101,9 @@ pub fn zk_extra_data(parent_index: u32, super_root_proof: &[u8]) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
+    use alloy_primitives::U256;
+    use kona_sp1_super_range_executor::{BlockId, ChainId, ChainIdAndOutput, SuperV1};
+
     use super::*;
 
     #[test]
@@ -99,5 +112,68 @@ mod tests {
         assert_eq!(zk_extra_data(1, &[0xbe, 0xef]), vec![0x00, 0x00, 0x00, 0x01, 0xbe, 0xef]);
         assert_eq!(zk_extra_data(u32::MAX, &[0x01]), vec![0xff, 0xff, 0xff, 0xff, 0x01]);
         assert_eq!(zk_extra_data(0x01020304, &[]), vec![0x01, 0x02, 0x03, 0x04]);
+    }
+
+    /// One-character cross-wiring of the safe/finalized fields is a bug
+    /// nothing in CI catches: Finalized is the production default while
+    /// devstack runs Safe.
+    #[test]
+    fn max_proposable_selects_safety_field() {
+        let response = SuperRootAtTimestampResponse {
+            current_l1: BlockId::default(),
+            current_safe_timestamp: 10,
+            current_local_safe_timestamp: 11,
+            current_finalized_timestamp: 5,
+            optimistic_at_timestamp: Default::default(),
+            chain_ids: vec![],
+            data: None,
+        };
+        assert_eq!(SuperrootClient::max_proposable_timestamp(&response, ProposalSafety::Safe), 10);
+        assert_eq!(
+            SuperrootClient::max_proposable_timestamp(&response, ProposalSafety::Finalized),
+            5
+        );
+    }
+
+    /// A self-consistent response: the reported super root is computed from
+    /// the proof preimage, so only the timestamp check can fail.
+    fn response_at(timestamp: u64) -> SuperRootAtTimestampResponse {
+        let super_v1 = SuperV1 {
+            timestamp,
+            chains: vec![ChainIdAndOutput {
+                chain_id: ChainId(U256::from(10)),
+                output: B256::repeat_byte(0xab),
+            }],
+        };
+        let proof = proof_from_super_v1(&super_v1).unwrap();
+        let super_root = B256::from(*hash_super_root_proof(&proof).unwrap());
+        SuperRootAtTimestampResponse {
+            current_l1: BlockId::default(),
+            current_safe_timestamp: timestamp,
+            current_local_safe_timestamp: timestamp,
+            current_finalized_timestamp: timestamp,
+            optimistic_at_timestamp: Default::default(),
+            chain_ids: vec![ChainId(U256::from(10))],
+            data: Some(SuperRootResponseData {
+                verified_required_l1: BlockId::default(),
+                super_v1,
+                super_root,
+            }),
+        }
+    }
+
+    #[test]
+    fn super_root_at_verifies_requested_timestamp() {
+        let response = response_at(101);
+        assert!(SuperrootClient::super_root_at(&response, 101).unwrap().is_some());
+        let err = SuperrootClient::super_root_at(&response, 102).unwrap_err();
+        assert!(err.to_string().contains("102 was requested"));
+    }
+
+    #[test]
+    fn super_root_at_absent_data_is_none() {
+        let mut response = response_at(101);
+        response.data = None;
+        assert!(SuperrootClient::super_root_at(&response, 101).unwrap().is_none());
     }
 }

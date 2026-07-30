@@ -101,6 +101,29 @@ pub enum ProposerGauge {
         message = "Total number of games whose super-root data was unavailable during sync"
     )]
     SuperRootUnavailable,
+    /// Total number of per-game sync failures. A discovery (fetch) failure
+    /// aborts the sync cycle; status-read failures are contained to the
+    /// affected game.
+    #[strum(
+        serialize = "kona_sp1_proposer_game_sync_error",
+        message = "Total number of per-game sync failures"
+    )]
+    GameSyncError,
+    /// Highest factory index processed by the sync walk (-1 before the
+    /// first complete walk). A flat value while the factory's latest index
+    /// grows means discovery is stuck (see `game_sync_error`).
+    #[strum(
+        serialize = "kona_sp1_proposer_sync_cursor",
+        message = "Highest factory index processed by the sync walk (-1 when unset)"
+    )]
+    SyncCursor,
+    /// Latest game index observed on the factory at the pinned block (-1
+    /// when the factory has no games).
+    #[strum(
+        serialize = "kona_sp1_proposer_factory_latest_game_index",
+        message = "Latest game index on the factory at the pinned block (-1 when empty)"
+    )]
+    FactoryLatestGameIndex,
 }
 
 impl MetricsGauge for ProposerGauge {}

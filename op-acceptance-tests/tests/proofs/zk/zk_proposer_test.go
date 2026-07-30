@@ -19,20 +19,26 @@ import (
 
 // TestProposerChainsSecondZKGameOnFirst covers the create path end to end: the
 // proposer's first game is a well-formed root game (max-uint32 parent sentinel,
-// sequence number beyond the anchor) and its second game chains on the first.
+// non-zero sequence number) and its second game chains on the first.
 // Broader root-game lifecycle behavior (challenge, prove, anchor) is covered by
 // TestChallengedValidProposalAnchors.
 func TestProposerChainsSecondZKGameOnFirst(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := newSystem(t)
 	factory := sys.DisputeGameFactory()
-	_, anchorSequence := sys.AnchorStateRegistry(sys.L2ChainA).AnchorRoot()
 
 	game0 := factory.WaitForZKGameAtIndex(0)
 	t.Require().Equal(uint32(math.MaxUint32), game0.ParentIndex(),
 		"first proposer game must be a root game using the max-uint32 parent sentinel")
-	t.Require().Greater(game0.L2SequenceNumber(), anchorSequence,
-		"root game must propose a sequence number beyond the anchor")
+	// TODO(#22086): strengthen back to an anchor comparison by recording the
+	// anchor before the proposer starts, once the start-proposer-mid-test
+	// hook from #22105 is available (adopt whichever PR lands first).
+	// Not compared against the live anchor: with the always-on proposer the
+	// anchor may already have advanced past game0 by the time this test
+	// runs (the proposer-creates-beyond-the-anchor rule is unit-tested on
+	// the Rust side in proposal_timing).
+	t.Require().NotZero(game0.L2SequenceNumber(),
+		"root game must carry a super-root timestamp")
 
 	game1 := factory.WaitForZKGameAtIndex(1)
 	t.Require().Equal(uint32(0), game1.ParentIndex(),

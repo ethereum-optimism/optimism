@@ -79,6 +79,20 @@ pub struct ProposerConfig {
     /// Maximum time (in seconds) to wait for an L1 transaction to reach the
     /// required confirmations before the watcher gives up.
     pub tx_confirmation_timeout: u64,
+
+    /// Optional cap, in wei, on the EIP-1559 max fee per gas the fee
+    /// estimator may set on submitted transactions. Unset = uncapped.
+    /// A cap below prevailing fees delays inclusion until fees decay; for a
+    /// deadline-driven actor that can cost far more than it saves. Leave
+    /// unset unless a specific need exists.
+    pub max_fee_per_gas: Option<u128>,
+
+    /// Optional cap, in wei, on the EIP-1559 max priority fee per gas the
+    /// fee estimator may set. Unset = uncapped. A cap below prevailing
+    /// fees delays inclusion until fees decay; for a deadline-driven actor
+    /// that can cost far more than it saves. Leave unset unless a specific
+    /// need exists.
+    pub max_priority_fee_per_gas: Option<u128>,
 }
 
 fn optional_env(name: &str) -> Option<String> {
@@ -92,16 +106,28 @@ fn parsed_env_or<T: FromStr>(name: &str, default: T) -> Result<T>
 where
     T::Err: std::fmt::Display,
 {
+    parsed_optional_env(name).map(|value| value.unwrap_or(default))
+}
+
+fn parsed_optional_env<T: FromStr>(name: &str) -> Result<Option<T>>
+where
+    T::Err: std::fmt::Display,
+{
     optional_env(name)
         .map(|value| value.parse::<T>().map_err(|err| anyhow!("invalid {name}: {err}")))
         .transpose()
-        .map(|value| value.unwrap_or(default))
 }
 
 impl ProposerConfig {
     /// Parses the configuration from environment variables, applying defaults
     /// for optional settings and failing on missing or invalid required ones.
     pub fn from_env() -> Result<Self> {
+        let tx_confirmation_timeout = parsed_env_or("TX_CONFIRMATION_TIMEOUT", 60u64)?;
+        anyhow::ensure!(
+            tx_confirmation_timeout > 0,
+            "TX_CONFIRMATION_TIMEOUT must be positive (0 would time out every transaction immediately)"
+        );
+
         Ok(Self {
             l1_rpc: env::var("L1_RPC")
                 .context("L1_RPC not set")?
@@ -124,9 +150,19 @@ impl ProposerConfig {
             fetch_interval: parsed_env_or("FETCH_INTERVAL", 30u64)?,
             metrics_port: parsed_env_or("METRICS_PORT", 0u16)?,
             sync_l1_confirmations: parsed_env_or("SYNC_L1_CONFIRMATIONS", 0u64)?,
-            tx_confirmation_timeout: parsed_env_or("TX_CONFIRMATION_TIMEOUT", 60u64)?,
+            tx_confirmation_timeout,
+            max_fee_per_gas: parsed_optional_env("MAX_FEE_PER_GAS")?,
+            max_priority_fee_per_gas: parsed_optional_env("MAX_PRIORITY_FEE_PER_GAS")?,
         })
     }
+}
+
+/// Renders a URL for logging with any userinfo stripped.
+pub fn redacted_url(url: &Url) -> String {
+    let mut url = url.clone();
+    let _ = url.set_username("");
+    let _ = url.set_password(None);
+    url.to_string()
 }
 
 /// Artifact suffix for the super-aggregation program ELF.
@@ -187,7 +223,8 @@ async fn fetch_artifact(url: &Url) -> Result<Vec<u8>> {
             let path = url
                 .to_file_path()
                 .map_err(|()| anyhow!("invalid file path in PRESTATES_URL: {url}"))?;
-            std::fs::read(&path)
+            tokio::fs::read(&path)
+                .await
                 .with_context(|| format!("failed to read prestate artifact {path:?}"))?
         }
         "http" | "https" => reqwest::Client::builder()
@@ -222,6 +259,20 @@ mod tests {
         assert_eq!(ProposalSafety::from_str("safe").unwrap(), ProposalSafety::Safe);
         assert_eq!(ProposalSafety::from_str("Finalized").unwrap(), ProposalSafety::Finalized);
         assert!(ProposalSafety::from_str("latest").is_err());
+    }
+
+    #[test]
+    fn redacted_url_strips_userinfo() {
+        let url: Url = "https://user:secret@rpc.example.com/key".parse().unwrap();
+        assert_eq!(redacted_url(&url), "https://rpc.example.com/key");
+        let plain: Url = "http://127.0.0.1:8545/".parse().unwrap();
+        assert_eq!(redacted_url(&plain), "http://127.0.0.1:8545/");
+        // file:// URLs cannot carry userinfo: set_username/set_password return
+        // Err, which redacted_url ignores. This pins that choice (panicking on
+        // Err would break file:// PRESTATES_URL) and that the URL renders
+        // unchanged.
+        let file: Url = "file:///data/prestates".parse().unwrap();
+        assert_eq!(redacted_url(&file), "file:///data/prestates");
     }
 
     mod prestates {
