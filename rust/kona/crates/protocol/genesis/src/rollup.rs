@@ -167,7 +167,7 @@ impl RollupConfig {
     /// The active [`op_revm::OpSpecId`] for the executor.
     pub fn spec_id(&self, timestamp: u64) -> op_revm::OpSpecId {
         if self.is_lagoon_active(timestamp) {
-            op_revm::OpSpecId::INTEROP
+            op_revm::OpSpecId::LAGOON
         } else if self.is_karst_active(timestamp) {
             op_revm::OpSpecId::KARST
         } else if self.is_jovian_active(timestamp) {
@@ -560,7 +560,7 @@ mod tests {
         config.hardforks.karst_time = Some(80);
         assert_eq!(config.spec_id(80), op_revm::OpSpecId::KARST);
         config.hardforks.lagoon_time = Some(90);
-        assert_eq!(config.spec_id(90), op_revm::OpSpecId::INTEROP);
+        assert_eq!(config.spec_id(90), op_revm::OpSpecId::LAGOON);
     }
 
     #[test]
