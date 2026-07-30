@@ -776,7 +776,13 @@ mod sdm {
 
         let tx = legacy_tx_with_price(0, Address::from([0x11; 20]), DEFAULT_GAS_LIMIT, GAS_PRICE);
         let deltas = executor
-            .post_exec_settlement_deltas(&tx, EVM_GAS_USED, REFUND, false, false)
+            .post_exec_settlement_deltas(
+                &tx,
+                EVM_GAS_USED,
+                REFUND,
+                /* is_deposit */ false,
+                /* is_post_exec */ false,
+            )
             .expect("settlement deltas computed");
 
         let refund = U256::from(REFUND);
@@ -827,20 +833,37 @@ mod sdm {
         // Deposit: warms state for later txs but is never refunded.
         assert!(
             is_no_op(
-                executor.post_exec_settlement_deltas(&tx, 50_000, 1_000, true, false).unwrap()
+                executor
+                    .post_exec_settlement_deltas(
+                        &tx, /* evm_gas_used */ 50_000, /* post_exec_refund */ 1_000,
+                        /* is_deposit */ true, /* is_post_exec */ false,
+                    )
+                    .unwrap()
             ),
             "deposits never settle a refund",
         );
         // The post-exec (0x7D) tx itself never claims.
         assert!(
             is_no_op(
-                executor.post_exec_settlement_deltas(&tx, 50_000, 1_000, false, true).unwrap()
+                executor
+                    .post_exec_settlement_deltas(
+                        &tx, /* evm_gas_used */ 50_000, /* post_exec_refund */ 1_000,
+                        /* is_deposit */ false, /* is_post_exec */ true,
+                    )
+                    .unwrap()
             ),
             "the post-exec tx never settles a refund",
         );
         // Zero refund: nothing to settle.
         assert!(
-            is_no_op(executor.post_exec_settlement_deltas(&tx, 50_000, 0, false, false).unwrap()),
+            is_no_op(
+                executor
+                    .post_exec_settlement_deltas(
+                        &tx, /* evm_gas_used */ 50_000, /* post_exec_refund */ 0,
+                        /* is_deposit */ false, /* is_post_exec */ false,
+                    )
+                    .unwrap()
+            ),
             "a zero refund produces no settlement",
         );
     }
@@ -857,7 +880,13 @@ mod sdm {
                 for gas_price in [u128::from(base_fee), u128::from(base_fee) + 1, u128::MAX] {
                     let tx = legacy_tx_with_price(0, Address::from([0x11; 20]), 50_000, gas_price);
                     let deltas = executor
-                        .post_exec_settlement_deltas(&tx, u64::MAX, refund, false, false)
+                        .post_exec_settlement_deltas(
+                            &tx,
+                            /* evm_gas_used */ u64::MAX,
+                            /* post_exec_refund */ refund,
+                            /* is_deposit */ false,
+                            /* is_post_exec */ false,
+                        )
                         .expect("settlement deltas");
                     let inputs =
                         format!("base_fee={base_fee}, refund={refund}, gas_price={gas_price}");

@@ -162,6 +162,14 @@ pub struct WarmingState {
 }
 
 /// Lightweight inspector that computes post-exec block-warming refunds.
+///
+/// # Known imprecision
+///
+/// The per-transaction sets (`touched_accounts` / `touched_slots`) are not journal-revert-aware: an
+/// access made inside a frame that later reverts still counts as touched for the rest of the
+/// transaction, so a subsequent genuine cold access in that same transaction is denied its rebate.
+/// That is an under-refund — it over-charges the sender and never over-debits a fee vault — so it
+/// is safe to leave as-is. See also the pre-frame-init note on the `create` hook below.
 #[derive(Debug, Clone, Default)]
 pub struct SDMWarmingInspector {
     warmed_accounts: BTreeMap<Address, u64>,
@@ -435,6 +443,16 @@ where
         // CREATE and CREATE2 warm the created address without a cold-account surcharge, so the
         // creating tx has no cold-to-warm delta to rebate. Keep recording it for later txs.
         self.current_tx.intrinsic_warm_accounts.insert(created_address);
+        // This runs before `make_create_frame` does its own checks. On an early failure there
+        // (depth limit, insufficient balance, nonce overflow) revm returns before
+        // `journal.load_account(created_address)`, so it never warms the address — yet the
+        // block-warm set now says it is warm, and a later tx that genuinely cold-accesses
+        // it claims a rebate it did not earn. Left as-is deliberately: producer and
+        // verifier agree, the failing path sinks the 32,000-gas CREATE charge (only the
+        // EIP-8037 state-gas component is returned), and the address must derive from an
+        // account the attacker already controls — so it costs at least 32,000 gas to shift
+        // at most 2,500. A real fix gates on `create_end` and has to decide what
+        // to do about `CreateCollision`, which warms the address but reports none.
         self.observe_account_touch(created_address, true);
         None
     }
