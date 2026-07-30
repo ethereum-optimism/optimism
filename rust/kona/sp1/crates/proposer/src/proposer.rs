@@ -271,6 +271,25 @@ impl ProposerState {
     }
 }
 
+/// An unresolved game creation: the exact bytes of a `create` whose
+/// confirmation timed out, so the transaction may still land. While a
+/// record is set, the proposer retries THIS uuid instead of proposing at
+/// fresh timestamps; the factory's dedup on (gameType, rootClaim,
+/// extraData) then guarantees at most one game can ever result, no matter
+/// which transaction lands. In-memory only: a restart with a create in
+/// flight keeps the pre-existing documented double-submit-once risk.
+#[derive(Clone, Debug)]
+struct InFlightCreation {
+    /// Root claim of the unresolved create.
+    root_claim: B256,
+    /// Exact extraData bytes sent (pins parent, timestamp, and proof).
+    extra_data: Vec<u8>,
+    /// Super-root timestamp of the unresolved create (guard arming).
+    sequence_number: u64,
+    /// Parent game index, for logging.
+    parent_game_index: u32,
+}
+
 /// Core proposer service: syncs the on-chain game DAG, creates and defends games,
 /// resolves finished ones, and claims bonds.
 #[derive(Clone)]
@@ -305,6 +324,9 @@ where
     /// Address of the most recently created game. Used to precisely identify
     /// the guarded game for `ChallengerWins` subtree removal.
     last_created_game_address: Arc<tokio::sync::Mutex<Address>>,
+    /// Exact bytes of a create whose confirmation timed out and whose fate
+    /// is unknown (see [`InFlightCreation`]).
+    in_flight_creation: Arc<tokio::sync::Mutex<Option<InFlightCreation>>>,
     /// Games seen on-chain whose super-root data is not yet obtainable from
     /// this node - the timestamp is not yet safe, or the query failed
     /// (including permanently, e.g. timestamps predating the node's recorded
@@ -359,6 +381,7 @@ where
             last_synced_l1_block: Arc::new(AtomicU64::new(0)),
             last_created_game_l2_sequence_number: Arc::new(AtomicU64::new(0)),
             last_created_game_address: Arc::new(tokio::sync::Mutex::new(Address::ZERO)),
+            in_flight_creation: Arc::new(tokio::sync::Mutex::new(None)),
             pending_games: Arc::new(RwLock::new(HashSet::new())),
         })
     }
@@ -1631,14 +1654,38 @@ where
                     root_claim = %super_root.super_root,
                     "Creating game"
                 );
-                let game_address = self.create_game(super_root.super_root, extra_data).await?;
+                // Record the exact bytes before sending: if confirmation
+                // times out the tx may still land, and the record pins the
+                // UUID so later ticks retry THIS creation instead of
+                // proposing a sibling at a fresh timestamp.
+                *self.in_flight_creation.lock().await = Some(InFlightCreation {
+                    root_claim: super_root.super_root,
+                    extra_data: extra_data.clone(),
+                    sequence_number,
+                    parent_game_index,
+                });
+                match self.create_game(super_root.super_root, extra_data).await {
+                    Ok(game_address) => {
+                        *self.in_flight_creation.lock().await = None;
 
-                // Record the sequence number and address so should_create_game() skips
-                // duplicate creation while the pinned cache hasn't caught up to this game.
-                self.last_created_game_l2_sequence_number.store(sequence_number, Ordering::Relaxed);
-                *self.last_created_game_address.lock().await = game_address;
-                ProposerGauge::GamesCreated.increment(1.0);
-                return Ok(());
+                        // Record the sequence number and address so should_create_game() skips
+                        // duplicate creation while the pinned cache hasn't caught up to this
+                        // game.
+                        self.last_created_game_l2_sequence_number
+                            .store(sequence_number, Ordering::Relaxed);
+                        *self.last_created_game_address.lock().await = game_address;
+                        ProposerGauge::GamesCreated.increment(1.0);
+                        return Ok(());
+                    }
+                    Err(e) => {
+                        if e.is_revert() {
+                            // A landed revert consumed the transaction: nothing is in
+                            // flight, so there is no uuid to pin.
+                            *self.in_flight_creation.lock().await = None;
+                        }
+                        return Err(e);
+                    }
+                }
             }
 
             // A game with identical parameters already exists (UUID
@@ -1685,6 +1732,86 @@ where
                     return Ok(());
                 }
             }
+        }
+    }
+
+    /// Resolves an in-flight creation left by a confirmation timeout.
+    ///
+    /// Looks the recorded uuid up on the factory first: if the game exists
+    /// and is ours, adopt it (arm the duplicate-creation guard); if it is
+    /// another proposer's, the uuid is spent and no duplicate is possible.
+    /// Otherwise resend the exact recorded bytes: the factory dedups
+    /// identical parameters, so at most one create with this uuid ever
+    /// succeeds. A landed revert clears the record - the pre-send lookup
+    /// rules out `GameAlreadyExists`, and every other create-revert cause
+    /// is permanent (retired/blacklisted/ChallengerWins parent, behind
+    /// anchor), so a still-floating original would revert identically.
+    /// Transport errors and fresh timeouts keep the record for the next
+    /// tick.
+    async fn resolve_in_flight_creation(&self) -> Result<()> {
+        let Some(record) = self.in_flight_creation.lock().await.clone() else {
+            return Ok(());
+        };
+
+        let existing_game = self
+            .factory
+            .games(ZK_GAME_TYPE, record.root_claim, record.extra_data.clone().into())
+            .call()
+            .await?
+            .proxy_;
+        if existing_game != Address::ZERO {
+            let existing_creator = ZKDisputeGame::new(existing_game, self.l1_provider.clone())
+                .gameCreator()
+                .call()
+                .await?;
+            if existing_creator == self.signer.address() {
+                // Our stuck create landed after all: adopt it. Not counted
+                // in GamesCreated, consistent with the collision-adoption
+                // path (accepted under-count).
+                tracing::info!(
+                    sequence_number = record.sequence_number,
+                    parent_game_index = record.parent_game_index,
+                    game_address = ?existing_game,
+                    "Adopting in-flight game that landed after its confirmation timeout"
+                );
+                self.last_created_game_l2_sequence_number
+                    .store(record.sequence_number, Ordering::Relaxed);
+                *self.last_created_game_address.lock().await = existing_game;
+            } else {
+                tracing::info!(
+                    sequence_number = record.sequence_number,
+                    game_address = ?existing_game,
+                    "In-flight uuid was created by another proposer; no duplicate possible"
+                );
+            }
+            *self.in_flight_creation.lock().await = None;
+            return Ok(());
+        }
+
+        tracing::info!(
+            sequence_number = record.sequence_number,
+            parent_game_index = record.parent_game_index,
+            "Retrying unresolved game creation with its recorded uuid"
+        );
+        match self.create_game(record.root_claim, record.extra_data.clone()).await {
+            Ok(game_address) => {
+                self.last_created_game_l2_sequence_number
+                    .store(record.sequence_number, Ordering::Relaxed);
+                *self.last_created_game_address.lock().await = game_address;
+                ProposerGauge::GamesCreated.increment(1.0);
+                *self.in_flight_creation.lock().await = None;
+                Ok(())
+            }
+            Err(e) if e.is_revert() => {
+                tracing::warn!(
+                    sequence_number = record.sequence_number,
+                    error = %e,
+                    "In-flight creation retry reverted (permanent cause); clearing the record"
+                );
+                *self.in_flight_creation.lock().await = None;
+                Ok(())
+            }
+            Err(e) => Err(e),
         }
     }
 
@@ -1862,6 +1989,36 @@ where
     /// - Ok(false): No work needed (proposal interval not elapsed or no finalized blocks)
     /// - Err: Actual error occurred during task spawning
     async fn spawn_game_creation_task(&self) -> Result<bool> {
+        // An unresolved create takes precedence over new proposals: retry
+        // its exact uuid until the factory adjudicates, so a
+        // stuck-then-included original can never be joined by a sibling at
+        // a fresh timestamp.
+        let in_flight_sequence_number =
+            self.in_flight_creation.lock().await.as_ref().map(|record| record.sequence_number);
+        if let Some(sequence_number) = in_flight_sequence_number {
+            let proposer = self.clone();
+            let task_id = self.next_task_id.fetch_add(1, Ordering::Relaxed);
+
+            let handle = tokio::spawn(async move {
+                if let Err(e) = proposer.resolve_in_flight_creation().await {
+                    tracing::warn!("Failed to resolve in-flight game creation: {:?}", e);
+                    return Err(e);
+                }
+
+                Ok(())
+            });
+
+            let task_info = TaskInfo::GameCreation { sequence_number };
+
+            self.tasks.lock().await.insert(task_id, (handle, task_info));
+            tracing::info!(
+                "Spawned in-flight creation resolution task {} for sequence number {}",
+                task_id,
+                sequence_number
+            );
+            return Ok(true);
+        }
+
         // First check if we should create a game
         let (should_create, next_sequence_number, parent_game_index) =
             self.should_create_game().await?;
