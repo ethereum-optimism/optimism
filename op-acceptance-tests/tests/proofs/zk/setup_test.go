@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 const (
@@ -25,10 +26,17 @@ const (
 	zkUnsafeProposalLead = 365 * 24 * time.Hour
 )
 
+// loadSuperAggregationVKey returns the super-aggregation program vkey used as
+// the deployed game's absolute prestate. When KONA_SP1_ELF_DIR is set it is
+// read from the real vkeys.toml; otherwise a deterministic stub is used - the
+// devstack deploys the mock verifier, so nothing validates the vkey against a
+// real program, and the proposer launcher stubs the matching artifacts (see
+// startZKProposer). This keeps the acceptance tests runnable without the SP1
+// guest ELF build.
 func loadSuperAggregationVKey(t devtest.T) common.Hash {
 	elfDir := os.Getenv("KONA_SP1_ELF_DIR")
 	if elfDir == "" {
-		t.Skip("KONA_SP1_ELF_DIR is not set; build the Kona SP1 ELF artifacts before running ZK acceptance tests")
+		return crypto.Keccak256Hash([]byte("kona-sp1-stub-super-aggregation-vkey"))
 	}
 
 	var vkeys map[string]string
@@ -44,22 +52,28 @@ func loadSuperAggregationVKey(t devtest.T) common.Hash {
 	return vkey
 }
 
-// newSystem builds a supernode-backed interop system with the ZK dispute game installed and an
-// honest op-challenger playing it, sourcing super roots from the supernode. Tests seed a game; the
-// challenger acts on it.
-func newSystem(t devtest.T) *presets.SimpleInterop {
+// newSystem builds a supernode-backed interop system with the ZK dispute game installed and both
+// honest actors running by default: the kona-sp1-proposer creating and resolving games, and the
+// op-challenger playing them, sourcing super roots from the supernode. Tests whose scenario
+// requires a missing actor disable it explicitly via presets.WithoutHonestProposer or
+// presets.WithoutHonestChallenger.
+func newSystem(t devtest.T, extra ...presets.Option) *presets.SimpleInterop {
 	vkey := loadSuperAggregationVKey(t)
+	return presets.NewSimpleInterop(t, append(zkPresetOptions(vkey), extra...)...)
+}
+
+func zkPresetOptions(vkey common.Hash) []presets.Option {
 	zkCfg := sysgo.ZKDisputeGameConfig{
 		ProgramVKey:          vkey,
 		MaxChallengeDuration: zkChallengeDuration,
 		MaxProveDuration:     zkProveDuration,
 	}
-	return presets.NewSimpleInterop(t,
+	return []presets.Option{
 		presets.WithZKDisputeGame(zkCfg),
 		presets.WithTimeTravelEnabled(),
-		presets.WithDisputeGameFinalityDelaySeconds(uint64(zkFinalityDelay/time.Second)),
+		presets.WithDisputeGameFinalityDelaySeconds(uint64(zkFinalityDelay / time.Second)),
 		presets.WithDeployerOptions(sysgo.WithJovianAtGenesis),
-	)
+	}
 }
 
 // zkChallengerAddress derives the honest challenger's address for the given L2 chain.

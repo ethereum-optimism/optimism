@@ -42,13 +42,6 @@ func minimalFromRuntime(t devtest.T, runtime *sysgo.SingleChainRuntime) *Minimal
 		l2Chain.AddL2Challenger(newPresetL2Challenger(t, "main", l2ChainID, challengerCfg))
 	}
 
-	faucetL1Frontend := newFaucetFrontendForChain(t, runtime.FaucetService, l1ChainID)
-	faucetL2Frontend := newFaucetFrontendForChain(t, runtime.FaucetService, l2ChainID)
-	l1Network.AddFaucet(faucetL1Frontend)
-	l2Chain.AddFaucet(faucetL2Frontend)
-	faucetL1 := dsl.NewFaucet(faucetL1Frontend)
-	faucetL2 := dsl.NewFaucet(faucetL2Frontend)
-
 	l1ELDSL := dsl.NewL1ELNode(l1EL)
 	l1CLDSL := dsl.NewL1CLNode(l1CL)
 	l2ELDSL := dsl.NewL2ELNode(l2EL)
@@ -66,11 +59,9 @@ func minimalFromRuntime(t devtest.T, runtime *sysgo.SingleChainRuntime) *Minimal
 		L2EL:             l2ELDSL,
 		L2CL:             l2CLDSL,
 		Wallet:           dsl.NewRandomHDWallet(t, 30), // Random for test isolation
-		FaucetL1:         faucetL1,
-		FaucetL2:         faucetL2,
 		challengerConfig: challengerCfg,
 	}
-	out.FunderL1 = dsl.NewFunder(out.Wallet, out.FaucetL1, out.L1EL)
-	out.FunderL2 = dsl.NewFunder(out.Wallet, out.FaucetL2, out.L2EL)
+	out.FunderL1 = newFunderEOA(t, runtime.Keys, out.L1EL, out.Wallet)
+	out.FunderL2 = newFunderEOA(t, runtime.Keys, out.L2EL, out.Wallet)
 	return out
 }

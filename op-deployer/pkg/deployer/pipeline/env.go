@@ -108,6 +108,10 @@ func RenderGenesisAndRollup(globalState *state.State, chainID common.Hash, useGl
 		return nil, nil, fmt.Errorf("failed to get chain ID %s: %w", chainID.String(), err)
 	}
 
+	if chainState.StartBlock == nil {
+		return nil, nil, fmt.Errorf("chain %s has no pinned start block - run op-deployer prepare first", chainID.Hex())
+	}
+
 	l2Allocs := chainState.Allocs.Data
 	config, err := state.CombineDeployConfig(
 		globalIntent,
@@ -125,6 +129,14 @@ func RenderGenesisAndRollup(globalState *state.State, chainID common.Hash, useGl
 	}
 	l2GenesisBlock := l2GenesisBuilt.ToBlock()
 
+	// Cross-check against the hash prepare committed.
+	if chainState.GenesisBlockHash != nil && l2GenesisBlock.Hash() != *chainState.GenesisBlockHash {
+		return nil, nil, fmt.Errorf(
+			"chain %s: rendered genesis block hash %s does not match the committed GenesisBlockHash %s from prepare; rerun op-deployer prepare",
+			chainID.Hex(), l2GenesisBlock.Hash(), *chainState.GenesisBlockHash,
+		)
+	}
+
 	rollupConfig, err := config.RollupConfig(
 		chainState.StartBlock.ToBlockRef(),
 		l2GenesisBlock.Hash(),
@@ -139,4 +151,19 @@ func RenderGenesisAndRollup(globalState *state.State, chainID common.Hash, useGl
 	}
 
 	return l2GenesisBuilt, rollupConfig, nil
+}
+
+// ResolveRenderIntent returns the intent to use when rendering derived artifacts for a chain.
+// Applied state always uses the frozen AppliedIntent snapshot, so rendered
+// artifacts match what was actually broadcast on-chain. Prepared uses the snapshot
+// stored in PreparedDeployment.
+func ResolveRenderIntent(workdir string, globalState *state.State) (*state.Intent, error) {
+	if globalState.AppliedIntent != nil {
+		return globalState.AppliedIntent, nil
+	}
+	if globalState.PreparedDeployment == nil {
+		return nil, fmt.Errorf("chain state is neither prepared nor applied - run op-deployer prepare or apply")
+	}
+
+	return globalState.PreparedDeployment.Intent, nil
 }

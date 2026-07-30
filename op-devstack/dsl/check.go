@@ -162,6 +162,62 @@ func MatchedWithProgressFn(baseNode, refNode SyncStatusProvider, log log.Logger,
 	}
 }
 
+// awaitHeadWithProgress waits for headFn to reach target, distinguishing a
+// self-recovering slowdown from a genuinely stuck chain. It succeeds as soon as
+// headFn reaches target. It fails when either progressFn (a strictly more-live
+// head) has not advanced for stallTimeout — the chain is genuinely wedged, not
+// merely slow — or the overall maxWait elapses. Lookup errors are logged and
+// retried, bounded by the same cutoffs. Polls every 2s.
+//
+// failPrefix opens both failure messages; progressName names the progress head
+// in the stall message. Backs the ReachedWithProgressFn methods of L2CLNode and
+// L2ELNode.
+func awaitHeadWithProgress(ctx context.Context, logger log.Logger, headFn, progressFn func() (uint64, error), target uint64, maxWait, stallTimeout time.Duration, failPrefix, progressName string) error {
+	logger.Info("Expecting head to reach (progress-aware)", "max_wait", maxWait, "stall_timeout", stallTimeout)
+
+	deadline := time.Now().Add(maxWait)
+	lastProgress := uint64(0)
+	if p, err := progressFn(); err == nil {
+		lastProgress = p
+	}
+	lastProgressTime := time.Now()
+
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		if head, err := headFn(); err != nil {
+			logger.Warn("head lookup failed; will retry", "err", err)
+		} else if head >= target {
+			logger.Info("Head advanced", "target", target)
+			return nil
+		}
+
+		now := time.Now()
+		if p, err := progressFn(); err != nil {
+			logger.Warn("progress-head lookup failed; will retry", "err", err)
+		} else if p > lastProgress {
+			lastProgress = p
+			lastProgressTime = now
+		}
+
+		stalledFor := now.Sub(lastProgressTime)
+		logger.Info("Head sync status (progress-aware)", "progress", lastProgress, "stalled_for", stalledFor)
+		if stalledFor >= stallTimeout {
+			return fmt.Errorf("%s: %s progress stalled at %d for %s", failPrefix, progressName, lastProgress, stalledFor)
+		}
+		if now.After(deadline) {
+			return fmt.Errorf("%s: timeout after %s (progress at %d)", failPrefix, maxWait, lastProgress)
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
 // maxInSyncGap is the largest difference (in blocks) between two node heads
 // that InSyncFn will tolerate while still considering the nodes in sync. If
 // the heads are further apart than this the slower node has not caught up yet.

@@ -162,6 +162,14 @@ pub struct WarmingState {
 }
 
 /// Lightweight inspector that computes post-exec block-warming refunds.
+///
+/// # Known imprecision
+///
+/// The per-transaction sets (`touched_accounts` / `touched_slots`) are not journal-revert-aware: an
+/// access made inside a frame that later reverts still counts as touched for the rest of the
+/// transaction, so a subsequent genuine cold access in that same transaction is denied its rebate.
+/// That is an under-refund — it over-charges the sender and never over-debits a fee vault — so it
+/// is safe to leave as-is. See also the pre-frame-init note on the `create` hook below.
 #[derive(Debug, Clone, Default)]
 pub struct SDMWarmingInspector {
     warmed_accounts: BTreeMap<Address, u64>,
@@ -416,11 +424,8 @@ where
         let caller = inputs.caller();
         self.observe_account_touch(caller, true);
 
-        // `CreateInputs::created_address` memoizes its result (`OnceCell`): the canonical create
-        // frame computes and caches the address from the *pre-bump* creator nonce before this hook
-        // runs, so the value below is the correct created address regardless of the nonce we pass.
-        // The journal-nonce read is only a best-effort fallback for the (currently unreached) case
-        // where the cache is not yet populated; it cannot make the recorded address stale.
+        // This hook seeds the created-address cache before frame initialization. CREATE must use
+        // the caller's pre-bump nonce; a wrong value changes the deployed address.
         let created_address = match inputs.scheme() {
             CreateScheme::Create => {
                 let nonce = context
@@ -428,21 +433,26 @@ where
                     .evm_state()
                     .get(&caller)
                     .map(|account| account.info.nonce)
-                    .unwrap_or_default();
+                    .expect("create caller must be loaded before inspection");
                 inputs.created_address(nonce)
             }
-            _ => inputs.created_address(0),
+            // These schemes are nonce-independent. List them so new schemes require review.
+            CreateScheme::Create2 { .. } | CreateScheme::Custom { .. } => inputs.created_address(0),
         };
 
-        // For a top-level CREATE transaction the created-contract address is the tx's intrinsic
-        // "to" under EIP-2929: it is pre-warmed at tx start, billed warm, never cold. Like a Call
-        // target it must not earn a warming rebate, even if an earlier tx warmed the address. It is
-        // still recorded in `warmed_accounts`, so a later tx that accesses it via a normal opcode
-        // (genuinely cold for that tx) still earns its rebate. Inner (depth > 0) creations are
-        // ordinary execution-time touches and keep claiming.
-        if top_level {
-            self.current_tx.intrinsic_warm_accounts.insert(created_address);
-        }
+        // CREATE and CREATE2 warm the created address without a cold-account surcharge, so the
+        // creating tx has no cold-to-warm delta to rebate. Keep recording it for later txs.
+        self.current_tx.intrinsic_warm_accounts.insert(created_address);
+        // This runs before `make_create_frame` does its own checks. On an early failure there
+        // (depth limit, insufficient balance, nonce overflow) revm returns before
+        // `journal.load_account(created_address)`, so it never warms the address — yet the
+        // block-warm set now says it is warm, and a later tx that genuinely cold-accesses
+        // it claims a rebate it did not earn. Left as-is deliberately: producer and
+        // verifier agree, the failing path sinks the 32,000-gas CREATE charge (only the
+        // EIP-8037 state-gas component is returned), and the address must derive from an
+        // account the attacker already controls — so it costs at least 32,000 gas to shift
+        // at most 2,500. A real fix gates on `create_end` and has to decide what
+        // to do about `CreateCollision`, which warms the address but reports none.
         self.observe_account_touch(created_address, true);
         None
     }

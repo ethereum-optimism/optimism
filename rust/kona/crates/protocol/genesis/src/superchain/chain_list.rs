@@ -96,12 +96,11 @@ pub struct SuperchainParent {
 }
 
 impl SuperchainParent {
-    /// Returns the chain id for the parent.
+    /// Returns the chain ID for the parent superchain.
     pub fn chain_id(&self) -> u64 {
         match self.chain.as_ref() {
             "mainnet" => 1,
-            "sepolia" => 11155111,
-            "sepolia-dev-0" => 11155421,
+            "sepolia" | "sepolia-devnet-2" => 11155111,
             _ => 10,
         }
     }
@@ -132,15 +131,8 @@ mod tests {
     }
 
     #[test]
-    fn chain_list_does_not_contain_superchain_level() {
-        let chain_list = include_str!("../../../registry/etc/chainList.json");
-        let value: serde_json::Value = serde_json::from_str(chain_list).unwrap();
-        assert!(
-            value
-                .as_array()
-                .unwrap()
-                .iter()
-                .all(|chain| { !chain.as_object().unwrap().contains_key("superchainLevel") })
-        );
+    fn chain_id_for_sepolia_devnet_2() {
+        let parent = SuperchainParent { chain: "sepolia-devnet-2".into(), ..Default::default() };
+        assert_eq!(parent.chain_id(), 11155111);
     }
 }

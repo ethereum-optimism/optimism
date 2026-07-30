@@ -45,7 +45,8 @@ The distinction:
     first-class OP Stack support in the core library: extend any viem client
     with `publicActionsL2()` (and friends) imported from `viem/op-stack` to get
     deposits, withdrawals, and L1 gas estimation. If a feature is available
-    here, this is its production home.
+    here, this is its production home. Super Root withdrawal proving requires
+    `viem` `2.51.0` or later.
 *   **Reach for [`@eth-optimism/viem`](https://github.com/ethereum-optimism/ecosystem/tree/main/packages/viem)
     when you need what viem does not have yet.** The package's stated goal is
     to upstream as much as possible into viem itself; until then it is the

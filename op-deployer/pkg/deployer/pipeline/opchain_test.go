@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
@@ -923,12 +922,25 @@ func TestValidateInitialGameTypeSet(t *testing.T) {
 			gameTypes: []uint32{uint32(embedded.GameTypeSuperCannonKona), uint32(embedded.GameTypeSuperCannonKona)},
 		},
 		{
+			name:      "all PERMISSIONED_CANNON",
+			gameTypes: []uint32{uint32(embedded.GameTypePermissionedCannon), uint32(embedded.GameTypePermissionedCannon)},
+		},
+		{
+			// These two need opposite settings of the OPCM's SUPER_ROOT_GAMES_MIGRATION bit.
 			name: "mixed",
 			gameTypes: []uint32{
 				uint32(embedded.GameTypeCannonKona),
 				uint32(embedded.GameTypeSuperCannonKona),
 			},
 			wantErr: "an intent cannot mix CANNON_KONA and SUPER_CANNON_KONA initial games",
+		},
+		{
+			// Allowed: the OPCM bit promotes the permissioned chain to SUPER_PERMISSIONED.
+			name: "PERMISSIONED_CANNON alongside SUPER_CANNON_KONA",
+			gameTypes: []uint32{
+				uint32(embedded.GameTypePermissionedCannon),
+				uint32(embedded.GameTypeSuperCannonKona),
+			},
 		},
 	}
 
@@ -940,6 +952,25 @@ func TestValidateInitialGameTypeSet(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
+		})
+	}
+}
+
+func TestIsSuperGameType(t *testing.T) {
+	tests := []struct {
+		name     string
+		gameType embedded.GameType
+		expected bool
+	}{
+		{name: "SUPER_CANNON_KONA", gameType: embedded.GameTypeSuperCannonKona, expected: true},
+		{name: "CANNON_KONA", gameType: embedded.GameTypeCannonKona, expected: false},
+		{name: "PERMISSIONED_CANNON", gameType: embedded.GameTypePermissionedCannon, expected: false},
+		{name: "SUPER_PERMISSIONED", gameType: embedded.GameTypeSuperPermissioned, expected: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, IsSuperGameType(uint32(tt.gameType)))
 		})
 	}
 }
@@ -1036,8 +1067,7 @@ func TestDeployOPChain_WithForge(t *testing.T) {
 	embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
 	require.NoError(t, err)
 
-	forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
-	require.NoError(t, err)
+	forgeClient := testutil.NewForgeClient(t, fmt.Sprintf("%v", embeddedArtifactsFS))
 
 	_, afacts := testutil.LocalArtifacts(t)
 	lgr := testlog.Logger(t, slog.LevelInfo)

@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	"github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	"github.com/ethereum-optimism/optimism/op-proposer/proposer/source"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
@@ -39,6 +40,7 @@ type ProposerCfg struct {
 	AllowNonFinalized      bool
 	AllocType              config.AllocType
 	ChainID                eth.ChainID
+	Clock                  clock.Clock
 }
 
 type L2Proposer struct {
@@ -50,7 +52,6 @@ type L2Proposer struct {
 	address                common.Address
 	privKey                *ecdsa.PrivateKey
 	lastTx                 common.Hash
-	allocType              config.AllocType
 }
 
 type fakeTxMgr struct {
@@ -102,12 +103,13 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 		DisputeGameType:        cfg.DisputeGameType,
 		AllowNonFinalized:      cfg.AllowNonFinalized,
 	}
-	t.Cleanup(proposalSource.Close)
 
+	t.Cleanup(proposalSource.Close)
 	driverSetup := proposer.DriverSetup{
 		Log:            log,
 		Metr:           metrics.NoopMetrics,
 		Cfg:            proposerConfig,
+		Clock:          cfg.Clock,
 		Txmgr:          fakeTxMgr{from: crypto.PubkeyToAddress(cfg.ProposerKey.PublicKey), chainID: cfg.ChainID},
 		L1Client:       l1,
 		Multicaller:    batching.NewMultiCaller(l1.Client(), batching.DefaultBatchSize),
@@ -118,7 +120,6 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 	require.NoError(t, err)
 
 	address := crypto.PubkeyToAddress(cfg.ProposerKey.PublicKey)
-
 	disputeGameFactory, err := bindings.NewDisputeGameFactoryCaller(*cfg.DisputeGameFactoryAddr, l1)
 	require.NoError(t, err)
 
@@ -130,7 +131,6 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 		disputeGameFactoryAddr: cfg.DisputeGameFactoryAddr,
 		address:                address,
 		privKey:                cfg.ProposerKey,
-		allocType:              cfg.AllocType,
 	}
 }
 
@@ -192,16 +192,16 @@ func estimateGasPending(ctx context.Context, ec *ethclient.Client, msg ethereum.
 func (p *L2Proposer) fetchNextOutput(t Testing) (source.Proposal, bool, error) {
 	output, shouldPropose, err := p.driver.FetchDGFOutput(t.Ctx())
 	if err != nil || !shouldPropose {
-		return source.Proposal{}, false, err
+		return output, shouldPropose, err
 	}
-	game, err := p.disputeGameFactory.Games(&bind.CallOpts{}, p.driver.Cfg.DisputeGameType, output.Root, output.ExtraData())
+
+	game, err := p.disputeGameFactory.Games(&bind.CallOpts{Context: t.Ctx()}, p.driver.Cfg.DisputeGameType, output.Root, output.ExtraData())
 	if err != nil {
 		return source.Proposal{}, false, err
 	}
 	if game.Timestamp != 0 {
 		return source.Proposal{}, false, nil
 	}
-
 	return output, true, nil
 }
 

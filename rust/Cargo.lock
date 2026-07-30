@@ -1053,6 +1053,7 @@ version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "63ec265e5d65d725175f6ca7711c970824c90ef9c0d1f1973711d4150ee612dd"
 dependencies = [
+ "alloy-json-abi",
  "alloy-sol-macro-input",
  "const-hex",
  "heck",
@@ -1071,12 +1072,14 @@ version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "89bf01077f18650876cfa682eb1f949967b5cde03f1a51c955c469d2c9b4aa67"
 dependencies = [
+ "alloy-json-abi",
  "const-hex",
  "dunce",
  "heck",
  "macro-string",
  "proc-macro2",
  "quote",
+ "serde_json",
  "syn 2.0.117",
  "syn-solidity",
 ]
@@ -3981,7 +3984,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ab67060fc6b8ef687992d439ca0fa36e7ed17e9a0b16b25b601e8757df720de"
 dependencies = [
  "data-encoding",
- "syn 2.0.117",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -5305,11 +5308,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0de51e6874e94e7bf76d726fc5d13ba782deca734ff60d5bb2fb2607c7406555"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "r-efi 6.0.0",
  "rand_core 0.10.1",
  "wasip2",
  "wasip3",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -7062,7 +7067,7 @@ dependencies = [
  "alloy-sol-types",
  "arbitrary",
  "derive_more 2.1.1",
- "op-revm",
+ "kona-genesis",
  "rand 0.9.4",
  "serde",
  "serde_json",
@@ -7192,6 +7197,7 @@ dependencies = [
  "async-trait",
  "derive_more 2.1.1",
  "kona-genesis",
+ "kona-interop",
  "kona-protocol",
  "kona-registry",
  "op-alloy-consensus",
@@ -7377,6 +7383,7 @@ dependencies = [
  "alloy-primitives",
  "async-channel",
  "async-trait",
+ "kona-preimage",
  "rkyv",
  "serde",
  "sha2 0.10.9",
@@ -7482,6 +7489,7 @@ dependencies = [
  "derive_more 2.1.1",
  "kona-genesis",
  "kona-hardforks",
+ "kona-protocol",
  "kona-registry",
  "miniz_oxide 0.9.1",
  "op-alloy-consensus",
@@ -7769,6 +7777,33 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber 0.3.23",
+]
+
+[[package]]
+name = "kona-sp1-proposer"
+version = "0.1.0"
+dependencies = [
+ "alloy-consensus 2.1.1",
+ "alloy-contract",
+ "alloy-eips 2.1.1",
+ "alloy-network 2.1.1",
+ "alloy-primitives",
+ "alloy-provider",
+ "alloy-rpc-types-eth 2.1.1",
+ "alloy-signer-local 2.1.1",
+ "alloy-sol-types",
+ "alloy-transport-http",
+ "anyhow",
+ "async-trait",
+ "flate2",
+ "jsonrpsee",
+ "kona-sp1-client-utils",
+ "kona-sp1-host-utils",
+ "kona-sp1-super-range-executor",
+ "strum",
+ "strum_macros",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -10878,15 +10913,16 @@ dependencies = [
 
 [[package]]
 name = "quinn-proto"
-version = "0.11.14"
+version = "0.11.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "434b42fec591c96ef50e21e886936e66d3cc3f737104fdb9b737c40ffb94c098"
+checksum = "2f4bfc015262b9df63c8845072ce59068853ff5872180c2ce2f13038b970e560"
 dependencies = [
  "aws-lc-rs",
  "bytes",
- "getrandom 0.3.4",
+ "getrandom 0.4.2",
  "lru-slab",
- "rand 0.9.4",
+ "rand 0.10.1",
+ "rand_pcg",
  "ring",
  "rustc-hash",
  "rustls",
@@ -11026,6 +11062,15 @@ name = "rand_core"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69"
+
+[[package]]
+name = "rand_pcg"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "caa0f4137e1c0a72f4c651489402276c8e8e1cf081f3b0ba156d2cbeef09e86a"
+dependencies = [
+ "rand_core 0.10.1",
+]
 
 [[package]]
 name = "rand_xorshift"
@@ -13233,6 +13278,7 @@ dependencies = [
  "reth-chainspec",
  "reth-ethereum-forks",
  "reth-network-peers",
+ "reth-optimism-chainspec",
  "reth-optimism-forks",
  "reth-optimism-primitives",
  "reth-primitives-traits",
@@ -13466,6 +13512,8 @@ dependencies = [
  "eyre",
  "futures",
  "futures-util",
+ "jsonrpsee",
+ "libc",
  "op-alloy-consensus",
  "op-alloy-network",
  "op-alloy-rpc-types-engine",
@@ -13501,6 +13549,7 @@ dependencies = [
  "reth-rpc",
  "reth-rpc-api",
  "reth-rpc-engine-api",
+ "reth-rpc-eth-api",
  "reth-rpc-eth-types",
  "reth-rpc-server-types",
  "reth-stages-types",
@@ -18343,7 +18392,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c5f7c95348f20c1c913d72157b3c6dee6ea3e30b3d19502c5a7f6d3f160dacbf"
 dependencies = [
  "cc",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]

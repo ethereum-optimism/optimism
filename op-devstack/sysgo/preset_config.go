@@ -68,8 +68,10 @@ type PresetConfig struct {
 	InteropLogBackfillDepth time.Duration
 	PreGenesisSuperGame     *PreGenesisSuperGameConfig
 	ZKDisputeGame           *ZKDisputeGameConfig
-	// SkipHonestProposer skips starting op-proposer.
+	// SkipHonestProposer skips starting the honest proposer (op-proposer, or kona-sp1-proposer for the ZK preset).
 	SkipHonestProposer bool
+	// SkipHonestChallenger skips starting the honest challenger.
+	SkipHonestChallenger bool
 	// SupernodeVerifierSyncMode overrides the supernode VN's sync mode when set.
 	SupernodeVerifierSyncMode *nodeSync.Mode
 	// InteropActivationDelaySeconds offsets Interop activation past genesis (0 = at genesis).

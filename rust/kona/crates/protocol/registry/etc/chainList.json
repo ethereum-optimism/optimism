@@ -925,26 +925,6 @@
     }
   },
   {
-    "name": "OP Labs Sepolia devnet 0",
-    "identifier": "sepolia-dev-0/oplabs-devnet-0",
-    "chainId": 11155421,
-    "rpc": [
-      ""
-    ],
-    "explorers": [
-      ""
-    ],
-    "governedByOptimism": true,
-    "dataAvailabilityType": "eth-da",
-    "parent": {
-      "type": "L2",
-      "chain": "sepolia-dev-0"
-    },
-    "faultProofs": {
-      "status": "permissionless"
-    }
-  },
-  {
     "name": "Boba Mainnet",
     "identifier": "mainnet/boba",
     "chainId": 288,

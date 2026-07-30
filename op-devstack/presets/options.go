@@ -349,12 +349,23 @@ func WithInteropLogBackfillDepth(d time.Duration) Option {
 	}
 }
 
-// WithoutHonestProposer skips starting op-proposer.
+// WithoutHonestProposer skips starting the honest proposer (op-proposer, or kona-sp1-proposer for the ZK preset).
 func WithoutHonestProposer() Option {
 	return option{
 		kinds: optionKindSkipHonestProposer,
 		applyFn: func(cfg *sysgo.PresetConfig) {
 			cfg.SkipHonestProposer = true
+		},
+	}
+}
+
+// WithoutHonestChallenger skips starting the honest challenger. Used by tests
+// that must prove the proposer alone drives resolution and bond claiming.
+func WithoutHonestChallenger() Option {
+	return option{
+		kinds: optionKindSkipHonestChallenger,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.SkipHonestChallenger = true
 		},
 	}
 }

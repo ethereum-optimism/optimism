@@ -10,11 +10,13 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum"
@@ -22,6 +24,16 @@ import (
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 )
+
+type staleParentEngine struct {
+	testutils.MockEngine
+	buildAttempts int
+}
+
+func (e *staleParentEngine) ForkchoiceUpdate(context.Context, *eth.ForkchoiceState, *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
+	e.buildAttempts++
+	return nil, eth.InputError{Inner: errors.New("missing parent header"), Code: eth.InvalidPayloadAttributes}
+}
 
 func TestInvalidPayloadDropsHead(t *testing.T) {
 	emitter := &testutils.MockEmitter{}
@@ -42,6 +54,45 @@ func TestInvalidPayloadDropsHead(t *testing.T) {
 	// Mark it invalid; it should be dropped if it matches the queue head
 	ec.OnEvent(context.Background(), PayloadInvalidEvent{Envelope: payload})
 	require.Nil(t, ec.unsafePayloads.Peek())
+}
+
+func TestBuildStartRejectsStaleSequencerParent(t *testing.T) {
+	staleParent := eth.L2BlockRef{Hash: common.Hash{0x40}, Number: 40, Time: 80}
+	currentUnsafe := eth.L2BlockRef{Hash: common.Hash{0x41}, Number: 41, Time: 82}
+	safe := eth.L2BlockRef{Hash: common.Hash{0x38}, Number: 38, Time: 76}
+	finalized := eth.L2BlockRef{Hash: common.Hash{0x01}, Number: 1, Time: 2}
+	attributes := &derive.AttributesWithParent{
+		Attributes: &eth.PayloadAttributes{
+			Timestamp:    eth.Uint64Quantity(82),
+			Transactions: []eth.Data{{optypes.DepositTxType}},
+			NoTxPool:     true,
+		},
+		Parent: staleParent,
+	}
+
+	var emitted []event.Event
+	emitter := event.EmitterFunc(func(_ context.Context, ev event.Event) {
+		emitted = append(emitted, ev)
+	})
+	engine := &staleParentEngine{}
+	ec := NewEngineController(context.Background(), engine, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{}, &testutils.MockL1Source{}, emitter, nil)
+	ec.SetUnsafeHead(currentUnsafe)
+	ec.SetLocalSafeHead(safe)
+	ec.SetFinalizedHead(finalized)
+
+	ec.OnEvent(context.Background(), BuildStartEvent{Attributes: attributes})
+	for _, ev := range emitted {
+		if invalid, ok := ev.(BuildInvalidEvent); ok {
+			ec.OnEvent(context.Background(), invalid)
+		}
+	}
+
+	require.Zero(t, engine.buildAttempts, "must not ask the engine to build on an orphaned parent")
+	require.Equal(t, []event.Event{ForkchoiceUpdateEvent{
+		UnsafeL2Head:    currentUnsafe,
+		SafeL2Head:      safe,
+		FinalizedL2Head: finalized,
+	}}, emitted)
 }
 
 // buildSimpleCfgAndPayload creates a minimal rollup config and a valid payload (A1) on top of A0.
