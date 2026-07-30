@@ -238,6 +238,32 @@ type InitialDeployRequirements struct {
 	RequiresPrestate bool
 }
 
+// IsSuperGameType reports whether the given dispute game type is SUPER_CANNON_KONA.
+// SUPER_PERMISSIONED is deliberately excluded as it's a derived fallback and
+// can never appear here as a chain's resolved DisputeGameType.
+func IsSuperGameType(gameType uint32) bool {
+	return embedded.GameType(gameType) == embedded.GameTypeSuperCannonKona
+}
+
+// DeploymentUsesSuperRoots reports whether the starting anchors are SuperV1 roots over the
+// dependency set rather than per-chain output roots. Deployed chains are ignored, their
+// games being fixed on L1.
+func DeploymentUsesSuperRoots(intent *state.Intent, st *state.State) (bool, error) {
+	for _, chain := range intent.Chains {
+		if st.IsChainDeployed(chain.ID) {
+			continue
+		}
+		proofParams, err := ResolveChainProofParams(intent, chain)
+		if err != nil {
+			return false, fmt.Errorf("failed to resolve proof params for chain %s: %w", chain.ID.Hex(), err)
+		}
+		if IsSuperGameType(proofParams.DisputeGameType) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // ValidateInitialGameTypeSet rejects a mix of CANNON_KONA and
 // SUPER_CANNON_KONA initial games.
 func ValidateInitialGameTypeSet(gameTypes []uint32) error {

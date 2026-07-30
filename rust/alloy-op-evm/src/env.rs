@@ -239,6 +239,53 @@ mod tests {
         }
     }
 
+    /// The `BLOBBASEFEE` opcode must always be 1 on the OP Stack from Ecotone onward. Post-Jovian
+    /// the header's `blobGasUsed` carries the block's DA footprint, which must not influence the
+    /// blob env. The footprint here is from op-mainnet block 152635937.
+    #[test_case::test_case(FakeHardfork::lagoon(); "Lagoon")]
+    #[test_case::test_case(FakeHardfork::karst(); "Karst")]
+    #[test_case::test_case(FakeHardfork::jovian(); "Jovian")]
+    #[test_case::test_case(FakeHardfork::isthmus(); "Isthmus")]
+    #[test_case::test_case(FakeHardfork::ecotone(); "Ecotone")]
+    fn evm_env_for_op_next_block_pins_blob_gasprice_to_one(fork: FakeHardfork) {
+        let parent_header = Header {
+            number: 100,
+            timestamp: 1_000_000,
+            gas_limit: 60_000_000,
+            base_fee_per_gas: Some(1_000_000_000),
+            blob_gas_used: Some(30_406_400),
+            excess_blob_gas: Some(0),
+            ..Default::default()
+        };
+
+        let evm_env = evm_env_for_op_next_block(
+            &parent_header,
+            NextEvmEnvAttributes {
+                timestamp: parent_header.timestamp + 2,
+                suggested_fee_recipient: Default::default(),
+                prev_randao: Default::default(),
+                gas_limit: parent_header.gas_limit,
+                slot_number: None,
+            },
+            1_000_000_000,
+            fork,
+            10,
+        );
+
+        let blob = evm_env
+            .block_env
+            .blob_excess_gas_and_price
+            .expect("blob env should be present from Ecotone onward");
+        assert_eq!(
+            blob.blob_gasprice, 1,
+            "BLOBBASEFEE must be pinned to 1 on the OP Stack regardless of the parent DA footprint"
+        );
+        assert_eq!(
+            blob.excess_blob_gas, 0,
+            "excess blob gas must be pinned to 0 regardless of the parent DA footprint"
+        );
+    }
+
     #[test_case::test_case(FakeHardfork::karst(), OpSpecId::KARST; "Karst")]
     #[test_case::test_case(FakeHardfork::lagoon(), OpSpecId::LAGOON; "Lagoon")]
     #[test_case::test_case(FakeHardfork::jovian(), OpSpecId::JOVIAN; "Jovian")]
