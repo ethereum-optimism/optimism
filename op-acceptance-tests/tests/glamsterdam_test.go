@@ -66,8 +66,7 @@ func TestSafeHeadsAdvanceAcrossGlamsterdam(gt *testing.T) {
 }
 
 func glamsterdamL1Geth(t devtest.T) presets.Option {
-	const gethTool = "go:github.com/ethereum/go-ethereum/cmd/geth@0c8cefdf344e263b94cd80bcc8a002c63f3b4ed1"
-	out, err := exec.CommandContext(t.Ctx(), "mise", "x", gethTool, "--", "which", "geth").Output()
+	out, err := exec.CommandContext(t.Ctx(), "mise", "which", "geth").Output()
 	t.Require().NoError(err, "resolve mise-installed Glamsterdam geth")
 	return presets.WithL1Geth(strings.TrimSpace(string(out)))
 }
