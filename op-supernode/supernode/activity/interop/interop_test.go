@@ -116,6 +116,7 @@ func (h *interopTestHarness) Build() *interopTestHarness {
 			h.interop.verificationStartTimestamp = h.activationTime
 		}
 		h.interop.initialized.Store(true)
+		h.interop.backfillCompleted.Store(true)
 		h.t.Cleanup(func() { _ = h.interop.Stop(context.Background()) })
 	}
 	return h
@@ -2882,10 +2883,12 @@ func TestVerifiedBlockAtL1(t *testing.T) {
 		require.Equal(t, uint64(1005), ts)
 	})
 
-	t.Run("empty DB returns empty without error", func(t *testing.T) {
+	t.Run("empty DB on activation bootstrap returns the anchor cap", func(t *testing.T) {
 		h := newInteropTestHarness(t).
 			WithChain(10, nil).
 			Build()
+		// Genuine activation bootstrap: cold start chose its origin at activation.
+		h.interop.verificationStartTimestamp = h.interop.activationTimestamp
 
 		l1Block := eth.L1BlockRef{Hash: common.Hash{0x01}, Number: 1000, Time: 999}
 		blockID, ts, err := h.interop.VerifiedBlockAtL1(h.Mock(10).id, l1Block)
@@ -2893,6 +2896,24 @@ func TestVerifiedBlockAtL1(t *testing.T) {
 		require.Equal(t, eth.BlockID{}, blockID)
 		// Empty DB returns the pre-activation cap (activationTimestamp-1).
 		require.Equal(t, h.interop.activationTimestamp-1, ts)
+	})
+
+	t.Run("empty DB with origin past activation returns error, not the anchor", func(t *testing.T) {
+		h := newInteropTestHarness(t).
+			WithChain(10, nil).
+			Build()
+		// The harness models a cold start whose origin is past activation
+		// (verificationStartTimestamp = activation+1): the chain has history
+		// this verifier never covered — e.g. a restart that lost the datadir.
+		// The anchor cap would regress consumers far past it, so the empty DB
+		// must surface as hold-previous instead.
+		require.Greater(t, h.interop.verificationStartTimestamp, h.interop.activationTimestamp)
+
+		l1Block := eth.L1BlockRef{Hash: common.Hash{0x01}, Number: 1000, Time: 999}
+		blockID, ts, err := h.interop.VerifiedBlockAtL1(h.Mock(10).id, l1Block)
+		require.ErrorIs(t, err, ErrNotStarted)
+		require.Equal(t, eth.BlockID{}, blockID)
+		require.Equal(t, uint64(0), ts)
 	})
 
 	t.Run("closed verifiedDB surfaces error", func(t *testing.T) {
