@@ -188,13 +188,6 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed to read superchain deployment: %w", err)
 	}
-	if superDeployment.SuperchainConfigProxy != *intent.SuperchainConfigProxy {
-		return fmt.Errorf(
-			"superchain config proxy mismatch: read %s, intent %s",
-			superDeployment.SuperchainConfigProxy,
-			*intent.SuperchainConfigProxy,
-		)
-	}
 	st.SuperchainDeployment = superDeployment
 	st.SuperchainRoles = superRoles
 
