@@ -561,7 +561,6 @@ dependencies = [
  "op-alloy",
  "op-revm",
  "revm",
- "test-case",
  "thiserror 2.0.18",
 ]
 
