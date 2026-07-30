@@ -2776,7 +2776,6 @@ workflows:
             parameters:
               l1_fork: &acceptance_l1_forks
                 - fusaka
-                - glamsterdam
           l2_el_kind: op-reth
           parallelism: 8
           acceptance_test_jobs: "8"
@@ -2829,9 +2828,7 @@ workflows:
             - semgrep-test: terminal
             - go-tests: terminal
             - memory-all-opn-op-reth-fusaka: terminal
-            - memory-all-opn-op-reth-glamsterdam: terminal
             - memory-all-kona-op-reth-fusaka: terminal
-            - memory-all-kona-op-reth-glamsterdam: terminal
             - kona-build-sp1-elfs: terminal
             # Go test/lint jobs previously fanned in via the bedrock-go-tests helper.
             - cannon-go-lint-and-test: terminal
