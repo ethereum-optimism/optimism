@@ -39,7 +39,7 @@ The canonical list lives in the [`GameTypes` library](https://github.com/ethereu
 Notes:
 
 *   A game type is only playable on a chain after the `DisputeGameFactory` owner registers an implementation for it (`setImplementation`); the owner also sets the bond required to create games of that type (`setInitBond`).
-*   The **respected game type** — the game type whose results the system accepts for withdrawals and anchor state updates — is stored in the `AnchorStateRegistry` and can be changed by the Guardian via `setRespectedGameType`.
+*   The **respected game type** (the game type whose results the system accepts for withdrawals and anchor state updates) is stored in the `AnchorStateRegistry` and can be changed by the Guardian via `setRespectedGameType`.
 *   `op-deployer` deploys new standard chains with the permissioned game (type `1`) as the initial game type.
 
 ## Core contracts
@@ -113,7 +113,7 @@ Each side of a fault dispute game plays against a chess clock:
 *   **Creating a game** requires the initialization bond for that game type: `DisputeGameFactory.initBonds(gameType)`, set per chain by the factory owner.
 *   **Every move** (attack or defend) requires a bond of exactly `getRequiredBond(position)`. Bonds scale exponentially with depth: with the constants in `FaultDisputeGame` (an assumed 200 gwei base fee, scaling from 400,000 gas at depth 0 to 300,000,000 gas at `maxGameDepth`), this is 0.08 ETH for a claim at depth 0, rising to 60 ETH at the maximum depth.
 *   Bonds are held in the game's `DelayedWETH` contract and paid out only after the game resolves and is finalized, and after the `DelayedWETH` unlock delay passes.
-*   **Distribution mode:** when a game closes it selects a `BondDistributionMode`. A proper game (created by the `DisputeGameFactory`, not blacklisted, and not retired) distributes bonds normally — the bond of every successfully countered claim is paid to the countering party, and uncontested claims are refunded. An improper game enters refund mode and returns every bond to its original depositor.
+*   **Distribution mode:** when a game closes it selects a `BondDistributionMode`. A proper game (created by the `DisputeGameFactory`, not blacklisted, and not retired) distributes bonds normally: the bond of every successfully countered claim is paid to the countering party, and uncontested claims are refunded. An improper game enters refund mode and returns every bond to its original depositor.
 
 ## Game statuses
 
