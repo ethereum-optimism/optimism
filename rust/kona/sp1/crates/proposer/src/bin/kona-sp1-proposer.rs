@@ -10,12 +10,14 @@ use anyhow::Result;
 use kona_sp1_host_utils::{
     logger::setup_logger,
     metrics::{MetricsGauge, init_metrics},
+    network::{build_network_prover_from_env, determine_network_mode},
 };
 use kona_sp1_proposer::{
-    config::{ProposerConfig, redacted_url},
+    config::{ProofProviderKind, ProposerConfig, redacted_url},
     contract::DisputeGameFactory,
     metrics::ProposerGauge,
     proposer::Proposer,
+    prover::{MockProofProvider, NetworkProofProvider, ProofProvider},
     signer::{Signer, SignerLock},
 };
 
@@ -38,8 +40,48 @@ async fn main() -> Result<()> {
         tx_confirmation_timeout = config.tx_confirmation_timeout,
         max_fee_per_gas = ?config.max_fee_per_gas,
         max_priority_fee_per_gas = ?config.max_priority_fee_per_gas,
+        proof_provider = ?config.proof_provider,
+        l1_beacon_rpc = %redacted_url(&config.l1_beacon_rpc),
+        l2_rpcs = %config
+            .l2_rpcs
+            .iter()
+            .map(redacted_url)
+            .collect::<Vec<_>>()
+            .join(","),
+        rollup_config_paths = ?config.rollup_config_paths,
+        l1_config_path = ?config.l1_config_path,
+        dependency_set_path = ?config.dependency_set_path,
+        range_split_count = ?config.range_split_count,
+        max_concurrent_range_proofs = %config.max_concurrent_range_proofs,
+        max_concurrent_defense_tasks = config.max_concurrent_defense_tasks,
         "Resolved proposer configuration"
     );
+
+    // Construct the proof provider. NETWORK_PRIVATE_KEY is read only here,
+    // and only in network mode; mock deployments need no SPN credentials.
+    let proof_provider = match config.proof_provider {
+        ProofProviderKind::Network => {
+            let provider_config = config.proof_provider_config.clone();
+            let network_mode = determine_network_mode(
+                provider_config.range_proof_strategy,
+                provider_config.agg_proof_strategy,
+            )?;
+            let prover =
+                build_network_prover_from_env(provider_config.range_proof_strategy).await?;
+            ProofProvider::Network(NetworkProofProvider::new(
+                Arc::new(prover),
+                provider_config,
+                network_mode,
+            ))
+        }
+        ProofProviderKind::Mock => {
+            tracing::warn!(
+                "mock proof provider: prestate artifacts are not verified against on-chain \
+                 prestates and submitted proofs are placeholder bytes (dev deployments only)"
+            );
+            ProofProvider::Mock(MockProofProvider)
+        }
+    };
     let signer = SignerLock::new(Signer::from_env().await?);
 
     let l1_provider = ProviderBuilder::default().connect_http(config.l1_rpc.clone());
@@ -61,7 +103,7 @@ async fn main() -> Result<()> {
         None
     };
 
-    let proposer = Proposer::new(config, signer, factory).await?;
+    let proposer = Proposer::new(config, signer, factory, proof_provider).await?;
 
     // STARTUP LOG CONTRACT: devstack readiness matches this exact message,
     // and reads `metrics_addr` from the same entry when metrics are enabled.

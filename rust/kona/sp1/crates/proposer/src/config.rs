@@ -1,15 +1,23 @@
 //! Environment-driven proposer configuration.
 //!
 //! Trimmed from op-succinct's `fault-proof/src/config.rs` (@ 13716c2c):
-//! proving/defense knobs (mock mode, fast finality, range splitting, proof
-//! provider settings) arrive with the defend path (#21463); challenger and
-//! forge-deploy configs are not ported.
+//! proof-provider selection, SP1 network knobs, and range splitting are
+//! ported here with the defend path; fast finality is tracked in #22112;
+//! cluster proving, restart recovery, and the challenger and forge-deploy
+//! configs are deliberately not ported (see PR #21463 for the ledger).
 
-use std::{env, str::FromStr};
+use std::{
+    env,
+    num::{NonZeroU8, NonZeroUsize},
+    path::PathBuf,
+    str::FromStr,
+};
 
 use alloy_primitives::{Address, B256};
 use alloy_transport_http::reqwest::{self, Url};
 use anyhow::{Context, Result, anyhow, bail};
+use kona_sp1_host_utils::network::parse_fulfillment_strategy;
+use sp1_sdk::{SP1ProofMode, network::FulfillmentStrategy};
 
 /// Safety level gating how far proposals may advance.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -28,6 +36,32 @@ impl FromStr for ProposalSafety {
             "safe" => Ok(Self::Safe),
             "finalized" => Ok(Self::Finalized),
             other => bail!("invalid PROPOSAL_SAFETY: {other} (expected safe|finalized)"),
+        }
+    }
+}
+
+/// Which proof provider drives the defend path.
+///
+/// There is no default: deployments state explicitly whether they buy real
+/// SP1 proofs or run the ELF-free mock pipeline.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProofProviderKind {
+    /// Real SP1 proving via the Succinct Prover Network.
+    Network,
+    /// Native-core execution with placeholder proof bytes. Only a deployment
+    /// whose game verifier accepts arbitrary bytes (devstack's mock
+    /// verifier) can resolve games proven this way.
+    Mock,
+}
+
+impl FromStr for ProofProviderKind {
+    type Err = anyhow::Error;
+
+    fn from_str(value: &str) -> Result<Self> {
+        match value.to_ascii_lowercase().as_str() {
+            "network" => Ok(Self::Network),
+            "mock" => Ok(Self::Mock),
+            other => bail!("invalid PROOF_PROVIDER: {other} (expected network|mock)"),
         }
     }
 }
@@ -54,10 +88,11 @@ pub struct ProposerConfig {
     /// - `<url>/<vkey>.agg.bin.gz` (super-aggregation program)
     /// - `<url>/<vkey>.range.bin.gz` (super-range program)
     ///
-    /// The create path only checks artifact existence (see
-    /// `prestate_available`): creation pauses when either artifact is
-    /// missing, since the proposer could not defend such a game once proving
-    /// lands. The defend path will load the ELFs from the same location.
+    /// The create path checks artifact availability (creation pauses when
+    /// either artifact is missing, since the proposer could not defend such
+    /// a game); the defend path loads the ELFs from the same location and,
+    /// in network mode, verifies the aggregation ELF hashes to the prestate
+    /// during proving-key setup.
     pub prestates_url: Url,
 
     /// Minimum spacing, in seconds of super-root timestamps, between the
@@ -87,6 +122,41 @@ pub struct ProposerConfig {
     /// Optional cap, in wei, on the EIP-1559 max priority fee per gas the
     /// fee estimator may set. Unset = uncapped.
     pub max_priority_fee_per_gas: Option<u128>,
+
+    /// Which proof provider defends challenged games.
+    pub proof_provider: ProofProviderKind,
+
+    /// The L1 beacon API URL serving blob sidecars for derivation witnesses.
+    pub l1_beacon_rpc: Url,
+
+    /// L2 execution-layer RPC URLs, one per chain in the dependency set.
+    /// Order is irrelevant: hosts are keyed by their reported chain id.
+    pub l2_rpcs: Vec<Url>,
+
+    /// Optional rollup config files, one per chain (comma-separated env).
+    /// Absent = kona-host falls back to the superchain registry, matching
+    /// the super-range executor CLI.
+    pub rollup_config_paths: Option<Vec<PathBuf>>,
+
+    /// Optional L1 chain config file. Absent = superchain-registry fallback.
+    pub l1_config_path: Option<PathBuf>,
+
+    /// Optional dependency-set config file. Absent = superchain-registry
+    /// fallback. The env name matches the executor's `DEPENDENCY_SET_PATH`.
+    pub dependency_set_path: Option<PathBuf>,
+
+    /// How many chunks a defended timestamp span is partitioned into.
+    pub range_split_count: RangeSplitCount,
+
+    /// Maximum concurrent child (range/consolidation) proofs within one
+    /// game's defense.
+    pub max_concurrent_range_proofs: NonZeroUsize,
+
+    /// Maximum number of games being defended concurrently.
+    pub max_concurrent_defense_tasks: u64,
+
+    /// SP1 proof-provider settings (timeouts, strategies, limits, prices).
+    pub proof_provider_config: ProofProviderConfig,
 }
 
 fn optional_env(name: &str) -> Option<String> {
@@ -122,6 +192,12 @@ impl ProposerConfig {
             "TX_CONFIRMATION_TIMEOUT must be positive (0 would time out every transaction immediately)"
         );
 
+        let proof_provider = env::var("PROOF_PROVIDER")
+            .context("PROOF_PROVIDER not set (expected network|mock; there is no default)")?
+            .parse::<ProofProviderKind>()?;
+        let l2_rpcs = parse_url_list(&env::var("L2_RPCS").context("L2_RPCS not set")?)
+            .context("invalid L2_RPCS")?;
+
         Ok(Self {
             l1_rpc: env::var("L1_RPC")
                 .context("L1_RPC not set")?
@@ -147,6 +223,23 @@ impl ProposerConfig {
             tx_confirmation_timeout,
             max_fee_per_gas: parsed_optional_env("MAX_FEE_PER_GAS")?,
             max_priority_fee_per_gas: parsed_optional_env("MAX_PRIORITY_FEE_PER_GAS")?,
+            proof_provider,
+            l1_beacon_rpc: env::var("L1_BEACON_RPC")
+                .context("L1_BEACON_RPC not set")?
+                .parse()
+                .map_err(|err| anyhow!("invalid L1_BEACON_RPC: {err}"))?,
+            l2_rpcs,
+            rollup_config_paths: optional_env("ROLLUP_CONFIG_PATHS")
+                .map(|list| list.split(',').map(|path| PathBuf::from(path.trim())).collect()),
+            l1_config_path: optional_env("L1_CONFIG_PATH").map(PathBuf::from),
+            dependency_set_path: optional_env("DEPENDENCY_SET_PATH").map(PathBuf::from),
+            range_split_count: parsed_env_or("RANGE_SPLIT_COUNT", RangeSplitCount::one())?,
+            max_concurrent_range_proofs: parsed_env_or(
+                "MAX_CONCURRENT_RANGE_PROOFS",
+                NonZeroUsize::MIN,
+            )?,
+            max_concurrent_defense_tasks: parsed_env_or("MAX_CONCURRENT_DEFENSE_TASKS", 8u64)?,
+            proof_provider_config: ProofProviderConfig::from_env()?,
         })
     }
 }
@@ -157,6 +250,182 @@ pub fn redacted_url(url: &Url) -> String {
     let _ = url.set_username("");
     let _ = url.set_password(None);
     url.to_string()
+}
+
+/// Parses a comma-separated list of URLs, requiring at least one entry.
+fn parse_url_list(value: &str) -> Result<Vec<Url>> {
+    let urls = value
+        .split(',')
+        .map(str::trim)
+        .filter(|entry| !entry.is_empty())
+        .map(|entry| entry.parse::<Url>().map_err(|err| anyhow!("invalid URL {entry}: {err}")))
+        .collect::<Result<Vec<_>>>()?;
+    anyhow::ensure!(!urls.is_empty(), "expected at least one URL");
+    Ok(urls)
+}
+
+/// Default SP1 request cycle/gas limit (one trillion), matching upstream.
+const DEFAULT_PROOF_LIMIT: u64 = 1_000_000_000_000;
+
+/// SP1 proof-provider settings (timeouts, strategies, limits, prices).
+///
+/// Parsed unconditionally with upstream op-succinct's defaults; none of the
+/// entries is required or secret, so mock deployments need to set none of
+/// them. `NETWORK_PRIVATE_KEY` is deliberately NOT part of this struct: it
+/// is read only when the network provider is constructed.
+#[derive(Debug, Clone)]
+pub struct ProofProviderConfig {
+    /// Overall per-proof timeout in seconds: the server-side deadline for
+    /// proof requests and the client-side maximum wait.
+    pub timeout: u64,
+    /// Timeout in seconds for individual network API calls (calls exceeding
+    /// it are retried).
+    pub network_calls_timeout: u64,
+    /// Cancel requests still unassigned past `created_at + auction_timeout`
+    /// seconds (mainnet auctions only).
+    pub auction_timeout: u64,
+    /// Fulfillment strategy for super-range proofs.
+    pub range_proof_strategy: FulfillmentStrategy,
+    /// Fulfillment strategy for the aggregation proof.
+    pub agg_proof_strategy: FulfillmentStrategy,
+    /// On-chain proof mode for the aggregation proof.
+    pub agg_proof_mode: SP1ProofMode,
+    /// Cycle limit for super-range proof requests.
+    pub range_cycle_limit: u64,
+    /// Gas limit for super-range proof requests.
+    pub range_gas_limit: u64,
+    /// Cycle limit for the aggregation proof request.
+    pub agg_cycle_limit: u64,
+    /// Gas limit for the aggregation proof request.
+    pub agg_gas_limit: u64,
+    /// Maximum price per proving gas unit.
+    pub max_price_per_pgu: u64,
+    /// Minimum auction period in seconds.
+    pub min_auction_period: u64,
+}
+
+impl ProofProviderConfig {
+    /// Parses the provider settings from environment variables, applying
+    /// upstream op-succinct's defaults throughout.
+    pub fn from_env() -> Result<Self> {
+        Ok(Self {
+            timeout: parsed_env_or("SP1_TIMEOUT_SECONDS", 14_400u64)?,
+            network_calls_timeout: parsed_env_or("NETWORK_CALLS_TIMEOUT", 15u64)?,
+            auction_timeout: parsed_env_or("AUCTION_TIMEOUT", 60u64)?,
+            range_proof_strategy: parse_fulfillment_strategy(
+                env::var("RANGE_PROOF_STRATEGY").unwrap_or_else(|_| "reserved".to_string()),
+            )?,
+            agg_proof_strategy: parse_fulfillment_strategy(
+                env::var("AGG_PROOF_STRATEGY").unwrap_or_else(|_| "reserved".to_string()),
+            )?,
+            agg_proof_mode: parse_agg_proof_mode(
+                &env::var("AGG_PROOF_MODE").unwrap_or_else(|_| "plonk".to_string()),
+            )?,
+            range_cycle_limit: parsed_env_or("RANGE_CYCLE_LIMIT", DEFAULT_PROOF_LIMIT)?,
+            range_gas_limit: parsed_env_or("RANGE_GAS_LIMIT", DEFAULT_PROOF_LIMIT)?,
+            agg_cycle_limit: parsed_env_or("AGG_CYCLE_LIMIT", DEFAULT_PROOF_LIMIT)?,
+            agg_gas_limit: parsed_env_or("AGG_GAS_LIMIT", DEFAULT_PROOF_LIMIT)?,
+            max_price_per_pgu: parsed_env_or("MAX_PRICE_PER_PGU", 300_000_000u64)?,
+            min_auction_period: parsed_env_or("MIN_AUCTION_PERIOD", 1u64)?,
+        })
+    }
+}
+
+/// Parses the aggregation proof mode. Unlike upstream (which treats any
+/// non-groth16 value as plonk), unknown values are rejected: a typo here
+/// must not silently buy the wrong on-chain proof kind.
+fn parse_agg_proof_mode(value: &str) -> Result<SP1ProofMode> {
+    match value.to_ascii_lowercase().as_str() {
+        "plonk" => Ok(SP1ProofMode::Plonk),
+        "groth16" => Ok(SP1ProofMode::Groth16),
+        other => bail!("invalid AGG_PROOF_MODE: {other} (expected plonk|groth16)"),
+    }
+}
+
+/// How many chunks a defended timestamp span is partitioned into
+/// (1-16 inclusive). Ported from upstream op-succinct's `RangeSplitCount`;
+/// the unit here is super-root timestamps, not L2 blocks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct RangeSplitCount(NonZeroU8);
+
+impl RangeSplitCount {
+    /// Maximum number of chunks.
+    pub const MAX: u8 = 16;
+
+    /// Creates a new `RangeSplitCount`, rejecting 0 and values above
+    /// [`Self::MAX`].
+    pub fn new(count: u8) -> Result<Self> {
+        if count == 0 || count > Self::MAX {
+            bail!("range splits must be between 1 and {}, got {count}", Self::MAX);
+        }
+        let count =
+            NonZeroU8::new(count).ok_or_else(|| anyhow!("range splits must be non zero"))?;
+        Ok(Self(count))
+    }
+
+    /// Returns a `RangeSplitCount` of one.
+    pub const fn one() -> Self {
+        Self(NonZeroU8::MIN)
+    }
+
+    /// Converts to `usize`.
+    pub const fn to_usize(self) -> usize {
+        self.0.get() as usize
+    }
+
+    /// Splits a timestamp span into up to `count` contiguous, non-empty
+    /// chunks for proving.
+    ///
+    /// Each tuple `(start, end)` is a proving chunk where `start` is the
+    /// agreed timestamp (already-proven checkpoint) and `end` is the claimed
+    /// timestamp (included in the proof).
+    ///
+    /// - Errors if `start >= end`.
+    /// - Caps the number of produced chunks at the span length.
+    /// - Uses ceil division for even chunks; may yield fewer than requested (e.g. 9 timestamps / 4
+    ///   -> step 3 -> 3 chunks).
+    /// - Returned chunks exactly cover `(start, end]` with no gaps or overlaps.
+    pub fn split(&self, start: u64, end: u64) -> Result<Vec<(u64, u64)>> {
+        let total = end.checked_sub(start).ok_or_else(|| {
+            anyhow!("end timestamp {end} is not greater than start timestamp {start}")
+        })?;
+        if total == 0 {
+            bail!("start timestamp equals end timestamp ({start}); nothing to prove");
+        }
+
+        let splits = self.to_usize();
+        if splits == 1 {
+            return Ok(vec![(start, end)]);
+        }
+
+        // Never split into more chunks than there are timestamps.
+        let segments = splits.min(total as usize);
+        let mut ranges = Vec::with_capacity(segments);
+        let step = total.div_ceil(segments as u64);
+
+        let mut cur = start;
+        for _ in 0..segments {
+            if cur >= end {
+                break;
+            }
+            let next = cur.saturating_add(step).min(end);
+            ranges.push((cur, next));
+            cur = next;
+        }
+
+        Ok(ranges)
+    }
+}
+
+impl FromStr for RangeSplitCount {
+    type Err = anyhow::Error;
+
+    fn from_str(value: &str) -> Result<Self> {
+        let count = value
+            .parse::<u8>()
+            .map_err(|err| anyhow!("invalid range split count {value}: {err}"))?;
+        Self::new(count)
+    }
 }
 
 /// Artifact suffix for the super-aggregation program ELF.
@@ -194,8 +463,9 @@ pub struct PrestatePrograms {
 /// Fails when either artifact is missing, unreadable, or not valid gzip.
 /// The create path uses a successful load as the proof that games with this
 /// prestate are defendable; the defend path proves with the returned ELFs.
-/// Verifying that the aggregation ELF actually hashes to `prestate` requires
-/// an SP1 proving-key setup and lands with the proving logic.
+/// In network mode, `PrestateCache::proof_keys` later verifies during SP1
+/// proving-key setup that the aggregation ELF actually hashes to `prestate`;
+/// mock mode never executes the artifacts and skips that check.
 pub async fn load_prestate(base: &Url, prestate: B256) -> Result<PrestatePrograms> {
     let aggregation_elf =
         fetch_artifact(&prestate_artifact_url(base, prestate, AGGREGATION_ARTIFACT_SUFFIX)?)
@@ -350,6 +620,108 @@ mod tests {
         async fn unsupported_scheme_is_an_error() {
             let url = Url::parse("ftp://example.com/prestates").unwrap();
             assert!(load_prestate(&url, HASH_A.parse::<B256>().unwrap()).await.is_err());
+        }
+    }
+
+    mod proving_config {
+        use super::*;
+
+        #[test]
+        fn proof_provider_kind_parse_rejects_unknown() {
+            assert_eq!(ProofProviderKind::from_str("network").unwrap(), ProofProviderKind::Network);
+            assert_eq!(ProofProviderKind::from_str("Mock").unwrap(), ProofProviderKind::Mock);
+            assert!(ProofProviderKind::from_str("cluster").is_err());
+            assert!(ProofProviderKind::from_str("").is_err());
+        }
+
+        #[test]
+        fn l2_rpcs_parses_comma_list() {
+            let urls = parse_url_list("http://a:1, http://b:2/").unwrap();
+            assert_eq!(urls.len(), 2);
+            assert_eq!(urls[1].as_str(), "http://b:2/");
+            assert!(parse_url_list("").is_err());
+            assert!(parse_url_list(" , ").is_err());
+            assert!(parse_url_list("not a url").is_err());
+        }
+
+        #[test]
+        fn agg_proof_mode_rejects_unknown() {
+            assert!(matches!(parse_agg_proof_mode("plonk").unwrap(), SP1ProofMode::Plonk));
+            assert!(matches!(parse_agg_proof_mode("Groth16").unwrap(), SP1ProofMode::Groth16));
+            // Upstream silently maps unknown values to plonk; we reject:
+            // a typo must not buy the wrong on-chain proof kind.
+            assert!(parse_agg_proof_mode("core").is_err());
+        }
+
+        #[test]
+        fn range_split_bounds() {
+            assert!(RangeSplitCount::new(0).is_err());
+            assert!(RangeSplitCount::new(17).is_err());
+            assert_eq!(RangeSplitCount::one().to_usize(), 1);
+            assert_eq!(RangeSplitCount::new(16).unwrap().to_usize(), 16);
+        }
+
+        #[test]
+        fn range_split_chunks() {
+            // Single split covers the whole span.
+            assert_eq!(RangeSplitCount::one().split(100, 700).unwrap(), vec![(100, 700)]);
+            // Ceil division may yield fewer chunks than requested:
+            // 9 timestamps / 4 -> step 3 -> 3 chunks.
+            assert_eq!(
+                RangeSplitCount::new(4).unwrap().split(0, 9).unwrap(),
+                vec![(0, 3), (3, 6), (6, 9)]
+            );
+            // Chunk count caps at the span length.
+            assert_eq!(
+                RangeSplitCount::new(16).unwrap().split(0, 4).unwrap(),
+                vec![(0, 1), (1, 2), (2, 3), (3, 4)]
+            );
+            // Chunks exactly cover (start, end] with no gaps or overlaps.
+            let chunks = RangeSplitCount::new(7).unwrap().split(10, 55).unwrap();
+            assert_eq!(chunks.first().unwrap().0, 10);
+            assert_eq!(chunks.last().unwrap().1, 55);
+            for pair in chunks.windows(2) {
+                assert_eq!(pair[0].1, pair[1].0);
+            }
+            // Degenerate spans are rejected.
+            assert!(RangeSplitCount::one().split(5, 5).is_err());
+            assert!(RangeSplitCount::one().split(6, 5).is_err());
+        }
+
+        /// `from_env` requires the new defend-path variables. Safe under
+        /// nextest's process-per-test model; env mutation is `unsafe` on
+        /// edition 2024.
+        #[test]
+        fn from_env_requires_defend_path_vars() {
+            unsafe {
+                env::set_var("L1_RPC", "http://127.0.0.1:8545");
+                env::set_var("SUPERNODE_RPC", "http://127.0.0.1:9545");
+                env::set_var("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
+                env::set_var("PRESTATES_URL", "file:///tmp/prestates");
+            }
+
+            // PROOF_PROVIDER has no default.
+            let err = ProposerConfig::from_env().unwrap_err().to_string();
+            assert!(err.contains("PROOF_PROVIDER"), "unexpected error: {err}");
+
+            unsafe { env::set_var("PROOF_PROVIDER", "mock") };
+            let err = ProposerConfig::from_env().unwrap_err().to_string();
+            assert!(err.contains("L2_RPCS"), "unexpected error: {err}");
+
+            unsafe { env::set_var("L2_RPCS", "http://127.0.0.1:8646,http://127.0.0.1:8647") };
+            let err = ProposerConfig::from_env().unwrap_err().to_string();
+            assert!(err.contains("L1_BEACON_RPC"), "unexpected error: {err}");
+
+            // Mock mode requires no NETWORK_* variables: with the witness
+            // endpoints present, parsing succeeds without SPN credentials.
+            unsafe { env::set_var("L1_BEACON_RPC", "http://127.0.0.1:5052") };
+            let config = ProposerConfig::from_env().unwrap();
+            assert_eq!(config.proof_provider, ProofProviderKind::Mock);
+            assert_eq!(config.l2_rpcs.len(), 2);
+            assert!(config.rollup_config_paths.is_none());
+            assert_eq!(config.range_split_count, RangeSplitCount::one());
+            assert_eq!(config.max_concurrent_defense_tasks, 8);
+            assert_eq!(config.proof_provider_config.timeout, 14_400);
         }
     }
 }

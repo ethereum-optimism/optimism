@@ -3,14 +3,17 @@
 //! Derived from op-succinct's fault-proof proposer
 //! (succinctlabs/op-succinct `fault-proof` crate @ 13716c2c), adapted for the
 //! monorepo `ZKDisputeGame`: super-root claims sourced from a supernode,
-//! `parentIndex || superRootProof` extraData, vkey-based identity, and
-//! two-phase `DelayedWETH` bond claiming. Proving/defense is intentionally
-//! absent here; it arrives with the defend path (#21463).
+//! `parentIndex || superRootProof` extraData, prestate-based ownership, and
+//! two-phase `DelayedWETH` bond claiming. The defend path (#21463) proves
+//! challenged games in the owned set: witness collection and native output
+//! computation in [`proving`], SP1 proof providers in [`prover`].
 
 pub mod config;
 pub mod contract;
 pub mod metrics;
 pub mod proposer;
+pub mod prover;
+pub mod proving;
 pub mod signer;
 pub mod superroot;
 

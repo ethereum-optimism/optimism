@@ -33,6 +33,14 @@ Supporting libraries for the SP1 fault proof system:
 - **`host`**: Host utilities for witness generation, proof orchestration, and preimage serving
 - **`range-vkeys`**: Compile-time range and super-range guest verification keys, embedded from
   generated `elf/vkeys.toml` and used only by the aggregation guests
+- **`proposer`**: The `kona-sp1-proposer` service: creates super-root ZK dispute games,
+  defends challenged ones with SP1 super-aggregation proofs, resolves finished games, and
+  claims bonds (see the Proposer section below)
+- **`super-range-executor`**: Witness synthesis and execution engine for the super-root
+  programs; used as a library by the proposer and as the `kona-sp1-super-range-executor`
+  validity-checker binary in acceptance tests
+- **`range-executor`**: Host binary running the single-chain `range` guest in SP1 execute
+  mode for action tests
 
 ### ELF Binaries (`elf/`)
 
@@ -105,6 +113,95 @@ The SP1 integration follows the same fault proof workflow as the native Kona imp
 1. **Range Proof Generation**: The `range` program executes state transitions for a block range in the zkVM, producing a validity proof
 2. **Proof Aggregation**: The `aggregation` program combines multiple range proofs into a single proof for efficient on-chain verification
 3. **On-chain Verification**: Proofs are submitted to the dispute game contract and verified on L1
+
+## Proposer (`kona-sp1-proposer`)
+
+The proposer service (ported from op-succinct's fault-proof proposer) plays the
+super-root `ZKDisputeGame` (game type 10) end to end:
+
+1. **Create**: proposes the supernode's canonical super root on a fixed interval
+   (`proposer.rs` creation scheduling).
+2. **Defend**: when a game in the owned set is challenged, fetches the span's super
+   roots, collects witnesses through the kona `InteropHost`
+   (`super-range-executor` library), obtains SP1 proofs (`prover.rs` providers,
+   `proving.rs` pipeline), and submits `prove()`.
+3. **Resolve and claim**: resolves finished games and claims bonds (including the
+   challenger bond earned by proving).
+
+### Ownership (which games it defends)
+
+Ownership is prestate-based (option A, ethereum-optimism/optimism#22111): the
+proposer proves, resolves, and claims every game whose `absolutePrestate()`
+artifacts it can load, regardless of creator. The three sets are the same set.
+Games whose prestate is unknown are skipped with the
+`kona_sp1_proposer_unknown_prestate_challenged` gauge as the alarm.
+
+**Operational requirement**: rotated-out prestate artifacts must remain published
+under `PRESTATES_URL` for as long as games created under them can be live, or the
+proposer loses the ability to defend, resolve, and claim those games.
+
+### Proof providers
+
+- `PROOF_PROVIDER=network`: real SP1 proving via the Succinct Prover Network.
+  Proving keys are set up per prestate on first use, and the aggregation
+  verifying key must hash to the on-chain prestate (mismatches poison the
+  prestate and remove its games from the owned set).
+- `PROOF_PROVIDER=mock`: dev-only. Runs the full pipeline natively (witness
+  collection computes the real range/consolidation outputs and the aggregation
+  inputs are validated), then submits placeholder proof bytes. Only a deployment
+  with a mock game verifier (devstack) accepts them. No ELFs, no SPN credentials.
+
+### Restart behavior
+
+There is no in-flight proof-request recovery (upstream parity): the task map is
+in-memory, and a restart re-detects still-challenged games and re-requests their
+proofs from scratch. A pre-flight check prevents duplicate `prove()` submissions.
+
+### Operator alarms
+
+`kona_sp1_proposer_game_proving_error` and
+`kona_sp1_proposer_proving_timeout_error` are spend alarms in network mode: every
+emergent retry after a post-proving failure (for example a misrouted
+`AGG_PROOF_MODE` vs the on-chain verifier, or fee caps below basefee) re-purchases
+the full proof set until the prove deadline expires. A sustained non-zero rate
+means money burning, not a transient. `kona_sp1_proposer_game_unprovable` counts
+games given up as permanently unprovable (kept in-memory until restart).
+
+### Environment
+
+Required:
+
+| Variable | Purpose |
+|---|---|
+| `L1_RPC` | L1 execution RPC |
+| `SUPERNODE_RPC` | supernode (or single-chain op-node) RPC serving `superroot_atTimestamp` |
+| `FACTORY_ADDRESS` | `DisputeGameFactory` address |
+| `PRESTATES_URL` | prestate artifact directory (`<vkey>.agg.bin.gz` + `<vkey>.range.bin.gz`) |
+| `PROOF_PROVIDER` | `network` or `mock`; no default |
+| `L1_BEACON_RPC` | L1 beacon API (blob sidecars for derivation witnesses) |
+| `L2_RPCS` | comma-separated L2 EL RPCs, one per chain (order-irrelevant) |
+| `PRIVATE_KEY` or `SIGNER_URL`+`SIGNER_ADDRESS` | L1 transaction signer |
+
+Optional (defaults in parentheses):
+
+| Variable | Purpose |
+|---|---|
+| `ROLLUP_CONFIG_PATHS`, `L1_CONFIG_PATH`, `DEPENDENCY_SET_PATH` | chain config files; absent = superchain-registry fallback, matching the executor CLI |
+| `PROPOSAL_INTERVAL_SECONDS` (3600), `PROPOSAL_SAFETY` (finalized), `FETCH_INTERVAL` (30) | proposal cadence |
+| `METRICS_PORT` (0 = disabled), `SYNC_L1_CONFIRMATIONS` (0), `TX_CONFIRMATION_TIMEOUT` (60) | operations |
+| `MAX_FEE_PER_GAS`, `MAX_PRIORITY_FEE_PER_GAS` | L1 fee caps in wei (unset = uncapped) |
+| `RANGE_SPLIT_COUNT` (1, max 16) | chunks a defended span is split into |
+| `MAX_CONCURRENT_RANGE_PROOFS` (1) | child-proof concurrency within one game |
+| `MAX_CONCURRENT_DEFENSE_TASKS` (8) | games defended concurrently |
+| `NETWORK_PRIVATE_KEY` (network mode; `USE_KMS_REQUESTER` for AWS KMS) | SPN requester key |
+| `RANGE_PROOF_STRATEGY`, `AGG_PROOF_STRATEGY` (reserved) | SPN fulfillment strategies |
+| `AGG_PROOF_MODE` (plonk) | on-chain proof kind, `plonk` or `groth16` |
+| `SP1_TIMEOUT_SECONDS` (14400), `NETWORK_CALLS_TIMEOUT` (15), `AUCTION_TIMEOUT` (60) | SPN timeouts |
+| `RANGE_CYCLE_LIMIT`, `RANGE_GAS_LIMIT`, `AGG_CYCLE_LIMIT`, `AGG_GAS_LIMIT` (1e12) | SPN request limits |
+| `MAX_PRICE_PER_PGU` (3e8), `MIN_AUCTION_PERIOD` (1) | SPN pricing |
+
+Fast finality (proving at creation) is tracked in
+ethereum-optimism/optimism#22112.
 
 ## Building
 

@@ -1,9 +1,9 @@
 //! Prometheus gauge definitions for the proposer.
 //!
 //! Trimmed from op-succinct's `fault-proof/src/prometheus.rs` (@ 13716c2c):
-//! proving/defense gauges arrive with the defend path (#21463); the
-//! challenger gauges are not ported (op-challenger owns that role). Gauge
-//! names are renamed `kona_sp1_proposer_*` and speak super-root sequence
+//! the challenger gauges are not ported (op-challenger owns that role), and
+//! the emulator cycle/gas and backup gauges are dropped with their features.
+//! Gauge names are renamed `kona_sp1_proposer_*` and speak super-root sequence
 //! numbers instead of L2 block numbers.
 
 use kona_sp1_host_utils::metrics::MetricsGauge;
@@ -94,11 +94,12 @@ pub enum ProposerGauge {
         message = "Total number of creation cycles skipped on an unknown registered prestate"
     )]
     UnknownRegisteredPrestate,
-    /// Total number of games whose super-root data could not be fetched or
-    /// validated during sync (held as pending, re-checked next cycle).
+    /// Total number of times a game's super-root data could not be fetched
+    /// or validated, either during sync (game held as pending) or during a
+    /// defense task (task fails and retries next cycle).
     #[strum(
         serialize = "kona_sp1_proposer_super_root_unavailable",
-        message = "Total number of games whose super-root data was unavailable during sync"
+        message = "Total number of times a game's super-root data was unavailable (sync or defense)"
     )]
     SuperRootUnavailable,
     /// Total number of per-game sync failures (fetch or status read) that
@@ -108,6 +109,90 @@ pub enum ProposerGauge {
         message = "Total number of contained per-game sync failures"
     )]
     GameSyncError,
+    // Defense metrics
+    /// Total number of games proven by the proposer.
+    #[strum(
+        serialize = "kona_sp1_proposer_games_proven",
+        message = "Total number of games proven by the proposer"
+    )]
+    GamesProven,
+    /// Total number of defense proving tasks spawned.
+    #[strum(
+        serialize = "kona_sp1_proposer_games_defense_spawned",
+        message = "Total number of defense proving tasks spawned"
+    )]
+    GamesDefenseSpawned,
+    /// Duration of the most recent successful game proving run, in seconds.
+    #[strum(
+        serialize = "kona_sp1_proposer_proving_duration_seconds",
+        message = "Duration of the most recent successful game proving run in seconds"
+    )]
+    ProvingDurationSeconds,
+    /// Total number of times a prove deadline was observed approaching
+    /// (within half of `maxProveDuration`).
+    #[strum(
+        serialize = "kona_sp1_proposer_deadline_approaching",
+        message = "Total number of approaching-deadline observations"
+    )]
+    DeadlineApproaching,
+    // Defense error metrics. In network mode a persistently failing game
+    // re-purchases its full proof set on every retry until the prove
+    // deadline expires: a sustained non-zero rate on these gauges is a
+    // spend alarm, not a transient.
+    /// Total number of game proving task failures.
+    #[strum(
+        serialize = "kona_sp1_proposer_game_proving_error",
+        message = "Total number of game proving task failures"
+    )]
+    GameProvingError,
+    /// Total number of proof requests abandoned after exceeding the overall
+    /// proving timeout.
+    #[strum(
+        serialize = "kona_sp1_proposer_proving_timeout_error",
+        message = "Total number of proof requests that exceeded the proving timeout"
+    )]
+    ProvingTimeoutError,
+    /// Total number of proof requests cancelled because no prover picked
+    /// them up within the auction timeout (mainnet only).
+    #[strum(
+        serialize = "kona_sp1_proposer_auction_timeout_error",
+        message = "Total number of proof requests cancelled on auction timeout"
+    )]
+    AuctionTimeoutError,
+    /// Total number of proof requests that exceeded their server-side
+    /// deadline.
+    #[strum(
+        serialize = "kona_sp1_proposer_deadline_exceeded_error",
+        message = "Total number of proof requests past their server-side deadline"
+    )]
+    DeadlineExceededError,
+    /// Total number of SP1 network API calls that hit the per-call timeout.
+    #[strum(
+        serialize = "kona_sp1_proposer_network_call_timeout",
+        message = "Total number of SP1 network API call timeouts"
+    )]
+    NetworkCallTimeout,
+    /// Total number of challenged games skipped because their prestate is
+    /// unknown (artifacts not loadable) or poisoned.
+    #[strum(
+        serialize = "kona_sp1_proposer_unknown_prestate_challenged",
+        message = "Total number of challenged games with an unknown or poisoned prestate"
+    )]
+    UnknownPrestateChallenged,
+    /// Total number of prestates whose aggregation ELF failed verification
+    /// against the on-chain prestate hash during proving-key setup.
+    #[strum(
+        serialize = "kona_sp1_proposer_prestate_vkey_mismatch",
+        message = "Total number of prestates failing vkey verification"
+    )]
+    PrestateVkeyMismatch,
+    /// Total number of games found permanently unprovable (claim data
+    /// diverged or required L1 beyond the game's L1 head).
+    #[strum(
+        serialize = "kona_sp1_proposer_game_unprovable",
+        message = "Total number of permanently unprovable games"
+    )]
+    GameUnprovable,
 }
 
 impl MetricsGauge for ProposerGauge {}
