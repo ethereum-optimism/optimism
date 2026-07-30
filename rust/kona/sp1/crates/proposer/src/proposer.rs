@@ -1742,49 +1742,21 @@ where
     /// another proposer's, the uuid is spent and no duplicate is possible.
     /// Otherwise resend the exact recorded bytes: the factory dedups
     /// identical parameters, so at most one create with this uuid ever
-    /// succeeds. A landed revert clears the record - the pre-send lookup
-    /// rules out `GameAlreadyExists`, and every other create-revert cause
-    /// is permanent (retired/blacklisted/ChallengerWins parent, behind
-    /// anchor), so a still-floating original would revert identically.
-    /// Transport errors and fresh timeouts keep the record for the next
-    /// tick.
+    /// succeeds. A landed revert of the resend is final chain state with
+    /// exactly two causes, disambiguated by re-running the lookup: the uuid
+    /// was created between our lookup and the resend's inclusion
+    /// (`GameAlreadyExists`; games are never deleted, so the lookup now
+    /// finds it and the record resolves by adoption), or the cause is
+    /// permanent (retired/blacklisted/ChallengerWins parent, behind
+    /// anchor), in which case a still-floating original would revert
+    /// identically and the record is cleared. Transport errors and fresh
+    /// timeouts keep the record for the next tick.
     async fn resolve_in_flight_creation(&self) -> Result<()> {
         let Some(record) = self.in_flight_creation.lock().await.clone() else {
             return Ok(());
         };
 
-        let existing_game = self
-            .factory
-            .games(ZK_GAME_TYPE, record.root_claim, record.extra_data.clone().into())
-            .call()
-            .await?
-            .proxy_;
-        if existing_game != Address::ZERO {
-            let existing_creator = ZKDisputeGame::new(existing_game, self.l1_provider.clone())
-                .gameCreator()
-                .call()
-                .await?;
-            if existing_creator == self.signer.address() {
-                // Our stuck create landed after all: adopt it. Not counted
-                // in GamesCreated, consistent with the collision-adoption
-                // path (accepted under-count).
-                tracing::info!(
-                    sequence_number = record.sequence_number,
-                    parent_game_index = record.parent_game_index,
-                    game_address = ?existing_game,
-                    "Adopting in-flight game that landed after its confirmation timeout"
-                );
-                self.last_created_game_l2_sequence_number
-                    .store(record.sequence_number, Ordering::Relaxed);
-                *self.last_created_game_address.lock().await = existing_game;
-            } else {
-                tracing::info!(
-                    sequence_number = record.sequence_number,
-                    game_address = ?existing_game,
-                    "In-flight uuid was created by another proposer; no duplicate possible"
-                );
-            }
-            *self.in_flight_creation.lock().await = None;
+        if self.try_adopt_recorded_uuid(&record).await? {
             return Ok(());
         }
 
@@ -1803,6 +1775,14 @@ where
                 Ok(())
             }
             Err(e) if e.is_revert() => {
+                // The uuid may have been created between the lookup above
+                // and this resend's inclusion, making it revert with
+                // GameAlreadyExists; re-running the lookup disambiguates
+                // that from the permanent causes and adopts the game
+                // instead of dropping the record unresolved.
+                if self.try_adopt_recorded_uuid(&record).await? {
+                    return Ok(());
+                }
                 tracing::warn!(
                     sequence_number = record.sequence_number,
                     error = %e,
@@ -1813,6 +1793,50 @@ where
             }
             Err(e) => Err(e),
         }
+    }
+
+    /// Resolves the record when its uuid already exists on the factory:
+    /// our own game is adopted (duplicate-creation guard armed), a foreign
+    /// copy spends the uuid either way. Returns whether the record was
+    /// resolved. Read errors keep the record and bubble (retried next
+    /// tick).
+    async fn try_adopt_recorded_uuid(&self, record: &InFlightCreation) -> Result<bool> {
+        let existing_game = self
+            .factory
+            .games(ZK_GAME_TYPE, record.root_claim, record.extra_data.clone().into())
+            .call()
+            .await?
+            .proxy_;
+        if existing_game == Address::ZERO {
+            return Ok(false);
+        }
+
+        let existing_creator = ZKDisputeGame::new(existing_game, self.l1_provider.clone())
+            .gameCreator()
+            .call()
+            .await?;
+        if existing_creator == self.signer.address() {
+            // Our stuck create landed after all: adopt it. Not counted
+            // in GamesCreated, consistent with the collision-adoption
+            // path (accepted under-count).
+            tracing::info!(
+                sequence_number = record.sequence_number,
+                parent_game_index = record.parent_game_index,
+                game_address = ?existing_game,
+                "Adopting in-flight game that landed after its confirmation timeout"
+            );
+            self.last_created_game_l2_sequence_number
+                .store(record.sequence_number, Ordering::Relaxed);
+            *self.last_created_game_address.lock().await = existing_game;
+        } else {
+            tracing::info!(
+                sequence_number = record.sequence_number,
+                game_address = ?existing_game,
+                "In-flight uuid was created by another proposer; no duplicate possible"
+            );
+        }
+        *self.in_flight_creation.lock().await = None;
+        Ok(true)
     }
 
     /// Fetch the proposer metrics.
