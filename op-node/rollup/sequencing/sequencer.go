@@ -124,6 +124,15 @@ type Sequencer struct {
 	nextAction   time.Time
 	nextActionOK bool
 
+	// nextActionSignal wakes the driver event loop when nextAction/nextActionOK change
+	// outside of that loop, i.e. from the admin_startSequencer/admin_stopSequencer RPC
+	// handlers. Every other mutation happens while the driver loop is processing events,
+	// so the loop re-reads the schedule on its next iteration regardless.
+	//
+	// Buffered with capacity 1, and only ever sent to without blocking: the driver reads
+	// the whole schedule via NextAction, so pending signals coalesce harmlessly.
+	nextActionSignal chan struct{}
+
 	latest       BuildingState
 	latestSealed eth.L2BlockRef
 	latestHead   eth.L2BlockRef
@@ -164,6 +173,7 @@ func NewSequencer(driverCtx context.Context, log log.Logger, rollupCfg *rollup.C
 		eng:              eng,
 		timeNow:          time.Now,
 		toBlockRef:       derive.PayloadToBlockRef,
+		nextActionSignal: make(chan struct{}, 1),
 	}
 }
 
@@ -666,6 +676,25 @@ func (d *Sequencer) NextAction() (t time.Time, ok bool) {
 	return d.nextAction, d.nextActionOK
 }
 
+// NextActionChanged returns a channel that is signalled when the sequencer schedule
+// changed outside of the driver's event processing. The driver event loop selects on
+// it, so that a start or stop is planned immediately rather than at whatever unrelated
+// wakeup happens to come next.
+func (d *Sequencer) NextActionChanged() <-chan struct{} {
+	return d.nextActionSignal
+}
+
+// signalNextAction wakes the driver event loop so that it re-plans the sequencer timer.
+// It must be called with d.l held, and after mutating nextAction/nextActionOK: the
+// driver reads that state under the same lock, so it cannot read the old schedule and
+// then miss this signal.
+func (d *Sequencer) signalNextAction() {
+	select {
+	case d.nextActionSignal <- struct{}{}:
+	default: // a wakeup is already pending, and the driver re-reads the full schedule
+	}
+}
+
 func (d *Sequencer) Active() bool {
 	return d.active.Load()
 }
@@ -745,6 +774,10 @@ func (d *Sequencer) forceStart() error {
 	d.nextAction = d.timeNow()
 	d.active.Store(true)
 	d.metrics.SetSequencerState(true)
+	// Arming nextAction is not enough: the driver event loop is blocked in its select,
+	// and will not re-plan until something wakes it. Without this the first block is
+	// delayed until an unrelated wakeup (L1 head poll, unsafe-gap tick, derivation step).
+	d.signalNextAction()
 	d.log.Info("Sequencer has been started", "next action", d.nextAction)
 	return nil
 }
@@ -802,6 +835,9 @@ func (d *Sequencer) Stop(ctx context.Context) (common.Hash, error) {
 	d.stalledByMaxSafeLag = false
 	d.active.Store(false)
 	d.metrics.SetSequencerState(false)
+	// Wake the driver loop so it disarms its sequencer timer, rather than leaving it
+	// armed to fire a stale sequencer action later.
+	d.signalNextAction()
 	d.log.Info("Sequencer has been stopped")
 	return d.latestHead.Hash, nil
 }

@@ -241,6 +241,9 @@ func (s *Driver) eventLoop() {
 				s.log.Info("Sequencer paused until new events")
 			}
 			sequencerCh = nil
+			// Forget the disarmed deadline, so that re-arming on the very same instant
+			// still resets the timer instead of hitting the equality check below.
+			prevTime = time.Time{}
 			return
 		}
 		// avoid unnecessary timer resets
@@ -317,6 +320,9 @@ func (s *Driver) eventLoop() {
 		select {
 		case <-sequencerCh:
 			s.emitter.Emit(s.driverCtx, sequencing.SequencerActionEvent{})
+		case <-s.sequencer.NextActionChanged():
+			// The sequencer was started or stopped outside of the event loop.
+			// Looping around re-plans the sequencer timer.
 		case <-unsafeGapTicker.C:
 			// Check if there is a gap in the current unsafe payload queue.
 			ctx, cancel := context.WithTimeout(s.driverCtx, time.Second*2)

@@ -24,6 +24,12 @@ func (ds DisabledSequencer) NextAction() (t time.Time, ok bool) {
 	return time.Time{}, false
 }
 
+// NextActionChanged never fires: a nil channel blocks forever, so the driver's select
+// case for it is inert.
+func (ds DisabledSequencer) NextActionChanged() <-chan struct{} {
+	return nil
+}
+
 func (ds DisabledSequencer) Active() bool {
 	return false
 }

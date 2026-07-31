@@ -740,6 +740,96 @@ func TestSequencerL1TemporaryErrorEvent(t *testing.T) {
 	require.True(t, ok1 == ok2 && sealTargetTime2.After(sealTargetTime1))
 }
 
+// TestSequencerSignalsNextActionOnStartAndStop pins the wakeup the driver event loop
+// relies on. Start and Stop mutate the schedule from an RPC goroutine while the loop is
+// blocked in its select; without the signal the loop keeps the stale plan until some
+// unrelated wakeup happens to come along.
+func TestSequencerSignalsNextActionOnStartAndStop(t *testing.T) {
+	logger := testlog.Logger(t, log.LevelError)
+	seq, deps := createSequencer(logger)
+	testClock := clock.NewSimpleClock()
+	seq.timeNow = testClock.Now
+	testClock.SetTime(30000)
+	emitter := &testutils.MockEmitter{}
+	seq.AttachEmitter(emitter)
+
+	testCtx := context.Background()
+	require.NoError(t, seq.Init(testCtx, false))
+	emitter.AssertExpectations(t)
+	require.False(t, seq.Active())
+	requireNoScheduleSignal(t, seq, "initialising as stopped does not change the schedule")
+
+	head := eth.L2BlockRef{
+		Hash:   common.Hash{0x22},
+		Number: 100,
+		Time:   uint64(testClock.Now().Unix()),
+	}
+	seq.OnEvent(testCtx, engine.ForkchoiceUpdateEvent{UnsafeL2Head: head})
+	emitter.AssertExpectations(t)
+	requireNoScheduleSignal(t, seq, "event-driven updates need no signal: the driver loop re-plans on its next iteration")
+
+	deps.conductor.leader = true
+	require.NoError(t, seq.Start(testCtx, head.Hash))
+	_, ok := seq.NextAction()
+	require.True(t, ok, "start arms an action")
+	requireScheduleSignal(t, seq, "start must wake the driver loop")
+
+	// Not the leader anymore, so Stop does not wait for the head to catch up.
+	deps.conductor.leader = false
+	_, err := seq.Stop(testCtx)
+	require.NoError(t, err)
+	_, ok = seq.NextAction()
+	require.False(t, ok, "stop disarms the action")
+	requireScheduleSignal(t, seq, "stop must wake the driver loop, so it drops its armed timer")
+}
+
+// TestSequencerScheduleSignalCoalesces documents why the signal cannot block the RPC
+// goroutine: it is a capacity-1 channel written to without blocking, so repeated
+// schedule changes collapse into a single pending wakeup.
+func TestSequencerScheduleSignalCoalesces(t *testing.T) {
+	logger := testlog.Logger(t, log.LevelError)
+	seq, deps := createSequencer(logger)
+	testClock := clock.NewSimpleClock()
+	seq.timeNow = testClock.Now
+	testClock.SetTime(30000)
+	seq.AttachEmitter(&testutils.MockEmitter{})
+
+	testCtx := context.Background()
+	require.NoError(t, seq.Init(testCtx, false))
+	head := eth.L2BlockRef{Hash: common.Hash{0x22}, Number: 100, Time: uint64(testClock.Now().Unix())}
+	seq.OnEvent(testCtx, engine.ForkchoiceUpdateEvent{UnsafeL2Head: head})
+
+	deps.conductor.leader = true
+	for range 10 {
+		require.NoError(t, seq.Start(testCtx, head.Hash))
+		deps.conductor.leader = false
+		_, err := seq.Stop(testCtx)
+		require.NoError(t, err)
+		deps.conductor.leader = true
+	}
+
+	requireScheduleSignal(t, seq, "a wakeup is pending")
+	requireNoScheduleSignal(t, seq, "signals coalesce into a single pending wakeup")
+}
+
+func requireScheduleSignal(t *testing.T, seq *Sequencer, msg string) {
+	t.Helper()
+	select {
+	case <-seq.NextActionChanged():
+	default:
+		t.Fatal(msg)
+	}
+}
+
+func requireNoScheduleSignal(t *testing.T, seq *Sequencer, msg string) {
+	t.Helper()
+	select {
+	case <-seq.NextActionChanged():
+		t.Fatal(msg)
+	default:
+	}
+}
+
 type sequencerTestDeps struct {
 	cfg              *rollup.Config
 	attribBuilder    *FakeAttributesBuilder
