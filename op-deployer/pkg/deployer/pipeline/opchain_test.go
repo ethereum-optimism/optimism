@@ -953,6 +953,11 @@ func TestBuildDeployOPChainInputCannonAbsolutePrestate(t *testing.T) {
 			gameType: embedded.GameTypeSuperCannonKona,
 			want:     common.Hash{},
 		},
+		{
+			name:     "SUPER_PERMISSIONED leaves unread field zero",
+			gameType: embedded.GameTypeSuperPermissioned,
+			want:     common.Hash{},
+		},
 	}
 
 	for _, tt := range tests {

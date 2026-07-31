@@ -301,7 +301,7 @@ contract DeployOPChain is Script {
     /// @param _opcm The OPCM to check.
     /// @return Whether SUPER_ROOT_GAMES_MIGRATION is enabled.
     function _isSuperRootEnabled(IOPContractsManagerV2 _opcm) internal view returns (bool) {
-        return DevFeatures.isDevFeatureEnabled(_opcm.devFeatureBitmap(), DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        return _opcm.isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
     }
 
     /// @notice Creates a game config, clearing its bond and arguments when disabled.
