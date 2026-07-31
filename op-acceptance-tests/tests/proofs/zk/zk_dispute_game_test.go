@@ -1,7 +1,13 @@
 package zk
 
 import (
+	"bufio"
+	"fmt"
 	"math"
+	"net"
+	"net/http"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/proofs"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -113,6 +120,159 @@ func TestProposerDefendsForeignValidGame(gt *testing.T) {
 
 	advanceL1To(&sys.SingleChainInterop, withdrawal.MaturesAt(weth.Delay()))
 	game.WaitForClaimedCredit(proposerAddr)
+}
+
+// TestProposerIgnoresInvalidChallengedGame pins the defense boundary: the
+// proposer defends only games whose claims re-derive against its supernode.
+// A foreign proposal with a corrupted output root is challenged, and the
+// proposer must never submit a proof for it - even though the game carries
+// the prestate it can prove - so the challenge wins at the deadline by
+// forfeit.
+func TestProposerIgnoresInvalidChallengedGame(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	// The honest challenger would race the test's own challenge; disable it
+	// so the scenario stays deterministic.
+	sys := presets.NewSimpleInterop(t, presets.WithZK(), presets.WithoutHonestChallenger())
+	factory := sys.DisputeGameFactory()
+	creator, challenger := fundedActors(sys)
+
+	// The honest proposer is live before the invalid game exists.
+	factory.WaitForZKGameAtIndex(0)
+
+	// A foreign EOA proposes a corrupted super root at an already-safe
+	// timestamp (the honest-challenger invalid-proposal recipe), and a
+	// second EOA challenges it.
+	_, anchorSequence := sys.AnchorStateRegistry(sys.L2ChainA).AnchorRoot()
+	timestamp, outputRoots := factory.WaitForSafeSuperRootAfter(anchorSequence)
+	t.Require().NotEmpty(outputRoots)
+	outputRoots[0][0] ^= 0xff
+	game := factory.StartZKGame(creator,
+		proofs.WithL2SequenceNumber(timestamp),
+		proofs.WithSuperRootFrom(outputRoots...),
+	)
+	game.Challenge(challenger)
+
+	// Hold the game inside its prove window long enough for many defense
+	// scan cycles (FETCH_INTERVAL=2s) and several full proving pipelines
+	// (the valid foreign game in TestProposerDefendsForeignValidGame is
+	// proven well within this bound). The proposer must never touch it.
+	t.Require().Never(func() bool {
+		claim := game.ClaimData()
+		return proofs.ZKProposalStatus(claim.Status) != proofs.ZKProposalChallenged ||
+			claim.Prover != (common.Address{})
+	}, 2*time.Minute, 2*time.Second, "proposer must not defend an invalid game")
+
+	// With no proof by the deadline, the challenger wins by forfeit.
+	// Resolution is permissionless; the test resolves since the honest
+	// challenger is disabled and the proposer does not own the game.
+	advanceL1To(&sys.SingleChainInterop, game.ClaimData().Deadline+1)
+	game.Resolve(challenger)
+	t.Require().Equal(gameTypes.GameStatusChallengerWon, game.GameStatus())
+	t.Require().Equal(common.Address{}, game.ClaimData().Prover,
+		"an invalid game must never be proven by the proposer")
+}
+
+// TestProposerDefendsMultipleChallengedGamesConcurrently challenges two
+// foreign valid games back to back: both must be proven by the proposer,
+// and the proving must run in parallel, not one game per pipeline.
+// Parallelism is witnessed through the proposer's own
+// games_defense_spawned metric: it must reach two while NEITHER game is
+// proven yet, i.e. both defense tasks were live concurrently. Proof
+// LANDING times are deliberately not compared: prove transactions queue
+// behind the proposer's 6s-cadence creation transactions on the signer
+// lock (held through confirmation), which quantizes landings by multiples
+// of the L1 block time regardless of proving concurrency.
+func TestProposerDefendsMultipleChallengedGamesConcurrently(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	metricsPort := freeTCPPort(t)
+	// The honest challenger resolves games and claims credit on the
+	// proposer's behalf; disable it so proof submission is attributable to
+	// the proposer alone.
+	sys := presets.NewSimpleInterop(t,
+		presets.WithZK(),
+		presets.WithZKProposerOption(sysgo.WithZKMetricsPort(metricsPort)),
+		presets.WithoutHonestChallenger(),
+	)
+	factory := sys.DisputeGameFactory()
+	proposerAddr := zkProposerAddress(t, sys)
+	creator, challenger := fundedActors(sys)
+
+	// Two foreign valid games at adjacent off-grid timestamps (an on-grid
+	// game would collide with the proposer's own creations on the factory
+	// UUID).
+	proposerGame := factory.WaitForZKGameAtIndex(0)
+	timestampA := proposerGame.L2SequenceNumber() + 1
+	timestampB := proposerGame.L2SequenceNumber() + 2
+	factory.WaitForSafeSuperRootAfter(timestampB)
+	gameA := factory.StartZKGame(creator, proofs.WithL2SequenceNumber(timestampA))
+	gameB := factory.StartZKGame(creator, proofs.WithL2SequenceNumber(timestampB))
+
+	// Both Challenge calls wait for their receipts, so both games are
+	// challenged on-chain from here.
+	gameA.Challenge(challenger)
+	gameB.Challenge(challenger)
+
+	// Both proofs must land, and at some point BEFORE the first proof both
+	// defense tasks must have been spawned (the defense scan caps at
+	// MAX_CONCURRENT_DEFENSE_TASKS=8, so nothing throttles two games).
+	metricsURL := fmt.Sprintf("http://127.0.0.1:%d/metrics", metricsPort)
+	const spawnedMetric = "kona_sp1_proposer_games_defense_spawned"
+	sawConcurrentDefense := false
+	provenA, provenB := false, false
+	pollDeadline := time.Now().Add(10 * time.Minute)
+	for (!provenA || !provenB) && time.Now().Before(pollDeadline) {
+		provenA = provenA ||
+			gameA.ProposalStatus() == proofs.ZKProposalChallengedAndValidProofProvided
+		provenB = provenB ||
+			gameB.ProposalStatus() == proofs.ZKProposalChallengedAndValidProofProvided
+		if !provenA && !provenB && scrapeMetric(metricsURL, spawnedMetric) >= 2 {
+			sawConcurrentDefense = true
+		}
+		time.Sleep(time.Second)
+	}
+	t.Require().True(provenA, "game A was not proven in time")
+	t.Require().True(provenB, "game B was not proven in time")
+	t.Require().Equal(proposerAddr, gameA.ClaimData().Prover)
+	t.Require().Equal(proposerAddr, gameB.ClaimData().Prover)
+	t.Require().True(sawConcurrentDefense,
+		"both defense tasks must be spawned before either proof lands (parallel proving)")
+}
+
+// freeTCPPort reserves an ephemeral localhost port and releases it for the
+// component under test to bind.
+func freeTCPPort(t devtest.T) uint16 {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	t.Require().NoError(err, "reserve an ephemeral port")
+	defer listener.Close()
+	return uint16(listener.Addr().(*net.TCPAddr).Port)
+}
+
+// scrapeMetric fetches a Prometheus exposition page and returns the value of
+// the first sample whose name starts with name (0 when the endpoint or the
+// sample is not there yet, so callers can poll).
+func scrapeMetric(url, name string) float64 {
+	resp, err := http.Get(url)
+	if err != nil {
+		return 0
+	}
+	defer resp.Body.Close()
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.HasPrefix(line, name) {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		value, err := strconv.ParseFloat(fields[len(fields)-1], 64)
+		if err != nil {
+			continue
+		}
+		return value
+	}
+	return 0
 }
 
 func fundedActors(sys *presets.SimpleInterop) (*dsl.EOA, *dsl.EOA) {
