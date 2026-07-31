@@ -1065,7 +1065,7 @@
     },
     {
       "source": "/operators/chain-operators/deploy",
-      "destination": "/chain-operators/tutorials/create-l2-rollup/create-l2-rollup"
+      "destination": "/chain-operators/tutorials/create-l2-rollup"
     },
     {
       "source": "/operators/chain-operators/deploy/genesis",
@@ -1073,7 +1073,7 @@
     },
     {
       "source": "/operators/chain-operators/deploy/overview",
-      "destination": "/chain-operators/tutorials/create-l2-rollup/create-l2-rollup"
+      "destination": "/chain-operators/tutorials/create-l2-rollup"
     },
     {
       "source": "/operators/chain-operators/deploy/smart-contracts",
@@ -1177,7 +1177,7 @@
     },
     {
       "source": "/operators/chain-operators/tutorials",
-      "destination": "/chain-operators/tutorials/create-l2-rollup/create-l2-rollup"
+      "destination": "/chain-operators/tutorials/create-l2-rollup"
     },
     {
       "source": "/operators/chain-operators/tutorials/adding-derivation-attributes",
@@ -1193,7 +1193,7 @@
     },
     {
       "source": "/operators/chain-operators/tutorials/create-l2-rollup",
-      "destination": "/chain-operators/tutorials/create-l2-rollup/create-l2-rollup"
+      "destination": "/chain-operators/tutorials/create-l2-rollup"
     },
     {
       "source": "/operators/chain-operators/tutorials/dispute-games",
@@ -1217,7 +1217,7 @@
     },
     {
       "source": "/operators/node-operators/architecture",
-      "destination": "/node-operators/reference/architecture/architecture"
+      "destination": "/node-operators/reference/architecture"
     },
     {
       "source": "/operators/node-operators/configuration",
@@ -1294,6 +1294,10 @@
     {
       "source": "/node-operators/reference/architecture/rollup-node",
       "destination": "/node-operators/overview"
+    },
+    {
+      "source": "/node-operators/reference/architecture/architecture",
+      "destination": "/node-operators/reference/architecture"
     },
     {
       "source": "/node-operators/guides/running-a-node",
@@ -1732,6 +1736,10 @@
       "destination": "/chain-operators/tutorials/create-l2-rollup/op-reth-setup"
     },
     {
+      "source": "/chain-operators/tutorials/create-l2-rollup/create-l2-rollup",
+      "destination": "/chain-operators/tutorials/create-l2-rollup"
+    },
+    {
       "source": "/operators/chain-operators/tutorials/create-l2-rollup/op-deployer-setup",
       "destination": "/chain-operators/tutorials/create-l2-rollup/op-deployer-setup"
     },
@@ -1809,7 +1817,7 @@
     },
     {
       "source": "/chain-operators/guides/deployment/overview",
-      "destination": "/chain-operators/tutorials/create-l2-rollup/create-l2-rollup"
+      "destination": "/chain-operators/tutorials/create-l2-rollup"
     },
     {
       "source": "/chain-operators/guides/deployment/smart-contracts",
@@ -2553,7 +2561,11 @@
     },
     {
       "source": "/rust/op-alloy/glossary",
-      "destination": "/app-developers/tools-sdks/op-alloy/glossary"
+      "destination": "/op-stack/reference/glossary"
+    },
+    {
+      "source": "/app-developers/tools-sdks/op-alloy/glossary",
+      "destination": "/op-stack/reference/glossary"
     },
     {
       "source": "/rust/op-revm",
@@ -2680,7 +2692,7 @@
               {
                 "group": "Create L2 Rollup",
                 "pages": [
-                  "chain-operators/tutorials/create-l2-rollup/create-l2-rollup",
+                  "chain-operators/tutorials/create-l2-rollup/index",
                   "chain-operators/tutorials/create-l2-rollup/op-deployer-setup",
                   "chain-operators/tutorials/create-l2-rollup/op-reth-setup",
                   "chain-operators/tutorials/create-l2-rollup/op-batcher-setup",
@@ -3035,7 +3047,7 @@
               {
                 "group": "Architecture",
                 "pages": [
-                  "node-operators/reference/architecture/architecture"
+                  "node-operators/reference/architecture/index"
                 ]
               },
               "node-operators/reference/op-node-config",
@@ -3159,8 +3171,7 @@
                       "app-developers/tools-sdks/op-alloy/building/consensus",
                       "app-developers/tools-sdks/op-alloy/building/engine"
                     ]
-                  },
-                  "app-developers/tools-sdks/op-alloy/glossary"
+                  }
                 ]
               },
               "app-developers/tools-sdks/op-revm",
