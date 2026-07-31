@@ -226,8 +226,10 @@ where
             self.maybe_start_save();
         }
 
-        debug!(target: "trie::engine::runner", "Collector engine shutting down, draining in-flight persist");
-        self.state.drain_persistence();
+        debug!(target: "trie::engine::runner", "Collector engine shutting down, flushing buffered state");
+        if let Err(err) = self.state.flush_persistence() {
+            error!(target: "trie::engine::runner", ?err, "Failed to flush buffered state on shutdown");
+        }
         debug!(target: "trie::engine::runner", "Collector engine stopped");
     }
 }

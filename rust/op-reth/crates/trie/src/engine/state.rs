@@ -212,6 +212,18 @@ where
         self.persistence.wait(&self.memory);
     }
 
+    /// Persist all buffered blocks, including a below-threshold tail.
+    pub(crate) fn flush_persistence(&mut self) -> Result<(), EngineError> {
+        self.drain_persistence();
+        if self.memory.is_empty() {
+            return Ok(());
+        }
+
+        self.advance_persistence()?;
+        self.drain_persistence();
+        Ok(())
+    }
+
     /// Drain any in-flight save, unwind the persistence service to `to`, then
     /// unwind the in-memory buffer to match.
     pub(crate) fn unwind(&mut self, to: BlockWithParent) -> Result<(), EngineError> {

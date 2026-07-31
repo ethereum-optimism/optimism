@@ -12,8 +12,8 @@ use reth_evm::{ConfigureEvm, execute::Executor};
 use reth_evm_ethereum::EthEvmConfig;
 use reth_node_api::{NodePrimitives, NodeTypesWithDB};
 use reth_optimism_trie::{
-    MdbxProofsStorage, MdbxProofsStorageV2, OpProofStoragePruner, OpProofsStorage, OpProofsStore,
-    RethTrieStorageLayout,
+    MdbxProofsStorage, MdbxProofsStorageV2, OpProofStoragePruner, OpProofsProviderRO,
+    OpProofsStorage, OpProofsStore, RethTrieStorageLayout,
     engine::{EngineError, EngineHandle},
     initialize::InitializationJob,
 };
@@ -444,7 +444,11 @@ where
         storage.clone(),
     )?;
 
-    // Generate a second block normally
+    // The scenario's engine has shut down, so its below-threshold block must now be persisted.
+    let latest = storage.provider_ro()?.get_latest_block()?;
+    assert_eq!(latest.number, 1);
+
+    // Generate a second block normally.
     let blockchain_db = BlockchainProvider::new(provider_factory.clone()).unwrap();
     let pruner = OpProofStoragePruner::new(storage.clone(), blockchain_db.clone(), 1000);
     let engine_handle = EngineHandle::spawn(
@@ -454,11 +458,11 @@ where
         pruner,
     );
 
-    // Create the next block — sequential after genesis so the parent hash check passes
-    // and execution runs, allowing us to verify the state root mismatch path.
+    // Create the next block after the persisted tip so the parent check passes and execution runs,
+    // allowing us to verify the state root mismatch path.
     let mut nonce_counter = 0;
-    let last_block_hash = chain_spec.genesis_hash();
-    let next_number = 1;
+    let last_block_hash = latest.hash;
+    let next_number = latest.number + 1;
 
     let mut block = create_block_from_spec(
         &BlockSpec::new(vec![]),
