@@ -135,6 +135,8 @@ type smokeEnv struct {
 	ctx               context.Context
 	stderr            io.Writer
 	logger            log.Logger
+	chains            []*remoteChain
+	users             []*remoteUser
 	chainA            *remoteChain
 	chainB            *remoteChain
 	userA             *remoteUser
@@ -144,6 +146,11 @@ type smokeEnv struct {
 	direction         string
 	reorgTimeout      time.Duration
 	requireCascade    bool
+}
+
+type chainPair struct {
+	name               string
+	initUser, execUser *remoteUser
 }
 
 func (m *initMessage) BlockNumber() uint64 {
@@ -376,38 +383,48 @@ func newLogger(ctx context.Context, stderr io.Writer) log.Logger {
 	return logger
 }
 
-func newSmokeEnv(ctx context.Context, stderr io.Writer, l2AURL, l2BURL, privateKey string) (*smokeEnv, func(), error) {
+func newSmokeEnv(ctx context.Context, stderr io.Writer, l2URLs []string, privateKey string) (*smokeEnv, func(), error) {
 	logger := newLogger(ctx, stderr)
 
-	chainA, err := connectRemoteChain(ctx, logger, "L2A", l2AURL)
-	if err != nil {
-		return nil, nil, err
-	}
-	chainB, err := connectRemoteChain(ctx, logger, "L2B", l2BURL)
-	if err != nil {
-		chainA.ethClient.Close()
-		return nil, nil, err
+	chains := make([]*remoteChain, 0, len(l2URLs))
+	for i, l2URL := range l2URLs {
+		chain, err := connectRemoteChain(ctx, logger, fmt.Sprintf("L2%c", 'A'+i), l2URL)
+		if err != nil {
+			for _, connectedChain := range chains {
+				connectedChain.ethClient.Close()
+			}
+			return nil, nil, err
+		}
+		chains = append(chains, chain)
 	}
 
 	privKey, address, err := resolveSmokeKey(privateKey)
 	if err != nil {
-		chainA.ethClient.Close()
-		chainB.ethClient.Close()
+		for _, chain := range chains {
+			chain.ethClient.Close()
+		}
 		return nil, nil, err
+	}
+	users := make([]*remoteUser, 0, len(chains))
+	for _, chain := range chains {
+		users = append(users, &remoteUser{chain: chain, privKey: privKey, address: address})
 	}
 
 	env := &smokeEnv{
 		ctx:    ctx,
 		stderr: stderr,
 		logger: logger,
-		chainA: chainA,
-		chainB: chainB,
-		userA:  &remoteUser{chain: chainA, privKey: privKey, address: address},
-		userB:  &remoteUser{chain: chainB, privKey: privKey, address: address},
+		chains: chains,
+		users:  users,
+		chainA: chains[0],
+		chainB: chains[1],
+		userA:  users[0],
+		userB:  users[1],
 	}
 	cleanup := func() {
-		chainA.ethClient.Close()
-		chainB.ethClient.Close()
+		for _, chain := range chains {
+			chain.ethClient.Close()
+		}
 	}
 	return env, cleanup, nil
 }
@@ -478,7 +495,7 @@ func withSmokeEnv(cliCtx *cli.Context, name string, fn func(env *smokeEnv) error
 
 	fmt.Fprintf(stderr, "\nSmoke: %s\n\n", name)
 
-	env, cleanup, err := newSmokeEnv(ctx, stderr, l2AURL, l2BURL, privateKey)
+	env, cleanup, err := newSmokeEnv(ctx, stderr, []string{l2AURL, l2BURL}, privateKey)
 	if err != nil {
 		return err
 	}
@@ -933,6 +950,26 @@ func invalidDirections(env *smokeEnv) ([]*invalidDirection, error) {
 		return nil, fmt.Errorf("unknown direction %q: want %q, %q or %q",
 			env.direction, directionAToB, directionBToA, directionBoth)
 	}
+}
+
+func orderedPairs(env *smokeEnv) ([]chainPair, error) {
+	if len(env.users) < 2 {
+		return nil, fmt.Errorf("at least two L2 RPC URLs are required")
+	}
+	var pairs []chainPair
+	for i, initUser := range env.users {
+		for j, execUser := range env.users {
+			if i == j {
+				continue
+			}
+			pairs = append(pairs, chainPair{
+				name:     fmt.Sprintf("%s->%s", strings.TrimPrefix(initUser.chain.name, "L2"), strings.TrimPrefix(execUser.chain.name, "L2")),
+				initUser: initUser,
+				execUser: execUser,
+			})
+		}
+	}
+	return pairs, nil
 }
 
 // eachDirection runs fn for every direction concurrently, returning the first error.

@@ -62,6 +62,45 @@ func TestInvalidDirections(t *testing.T) {
 	}
 }
 
+func TestOrderedPairs(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		chainNames []string
+		want       []string
+	}{
+		{
+			name:       "two chains",
+			chainNames: []string{"L2A", "L2B"},
+			want:       []string{"A->B", "B->A"},
+		},
+		{
+			name:       "three chains",
+			chainNames: []string{"L2A", "L2B", "L2C"},
+			want:       []string{"A->B", "A->C", "B->A", "B->C", "C->A", "C->B"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			env := &smokeEnv{}
+			for _, name := range tc.chainNames {
+				env.users = append(env.users, &remoteUser{chain: &remoteChain{name: name}})
+			}
+
+			pairs, err := orderedPairs(env)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(pairs) != len(tc.want) {
+				t.Fatalf("got %d pairs, want %d", len(pairs), len(tc.want))
+			}
+			for i, want := range tc.want {
+				if pairs[i].name != want {
+					t.Fatalf("pair %d = %s, want %s", i, pairs[i].name, want)
+				}
+			}
+		})
+	}
+}
+
 func TestFirstLogFrom(t *testing.T) {
 	messenger := common.HexToAddress("0x4200000000000000000000000000000000000023")
 	eventLogger := common.HexToAddress("0x1111111111111111111111111111111111111111")
