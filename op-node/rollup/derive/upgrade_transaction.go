@@ -155,14 +155,23 @@ func UpgradeTransactions(fork forks.Name) ([]hexutil.Bytes, uint64, error) {
 	return txs, bundle.totalGas(), nil
 }
 
-// UpgradeGas returns the total gas budget of a fork's NUT bundle: the extra gas
-// added to the fork's activation block gas limit so the upgrade transactions do
-// not need to fit within the regular block gas limit. It reports the same value
-// as UpgradeTransactions without building the deposit transactions.
+// UpgradeGas returns the gas added to a fork's activation block gas limit so its upgrade
+// transactions do not need to fit within the regular block gas limit.
+//
+// For Lagoon this exceeds the NUT bundle's own total: it also reserves gas for the setFeature and
+// ETHLiquidity funding wrappers, which only a multi-chain activation emits (see
+// InteropActivationUpgradeTransactions). The reservation is unconditional because the system config
+// reconstructed from the activation block must subtract the same amount again for the next block,
+// and that path sees only the rollup config and a timestamp — never the dependency set. A
+// single-chain activation therefore carries the wrapper gas as unused headroom in that one block.
 func UpgradeGas(fork forks.Name) (uint64, error) {
 	bundle, err := nutBundleForFork(fork)
 	if err != nil {
 		return 0, err
 	}
-	return bundle.totalGas(), nil
+	gas := bundle.totalGas()
+	if fork == forks.Lagoon {
+		gas += interopSetFeatureGas + interopETHLiquidityFundGas
+	}
+	return gas, nil
 }

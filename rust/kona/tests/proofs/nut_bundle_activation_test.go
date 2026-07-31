@@ -152,10 +152,16 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 	// more block and confirm its gas limit drops back to the pre-activation
 	// value — a regression would leak the upgrade gas onto every block after the
 	// activation block.
+	//
+	// The bump is UpgradeGas(fork), not the bundle's own total: Lagoon additionally reserves gas
+	// for the wrapper deposits that only a multi-chain activation emits, so this single-chain
+	// activation block carries that reservation as unused headroom.
+	upgradeGas, err := derive.UpgradeGas(fork)
+	require.NoError(t, err, "read upgrade gas for %s", fork)
 	env.Sequencer.ActL2EmptyBlock(t)
 	postActivation := engine.L2Chain().CurrentHeader()
 	preActivation := engine.L2Chain().GetHeaderByNumber(bigs.Uint64Strict(actHeader.Number) - 1)
-	require.Equal(t, preActivation.GasLimit+expectedGas, actHeader.GasLimit,
+	require.Equal(t, preActivation.GasLimit+upgradeGas, actHeader.GasLimit,
 		"activation block gas limit must be the pre-activation limit plus the one-time upgrade gas")
 	require.Equal(t, preActivation.GasLimit, postActivation.GasLimit,
 		"upgrade gas must not persist past the %s activation block", fork)

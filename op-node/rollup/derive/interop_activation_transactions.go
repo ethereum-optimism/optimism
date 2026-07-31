@@ -31,17 +31,24 @@ var (
 	interopETHLiquidityFundData = crypto.Keccak256([]byte("fund()"))[:4]
 )
 
-// InteropActivationUpgradeTransactions returns the Interop activation deposits.
-// The NUT bundle always executes. The setFeature and ETHLiquidity funding
-// wrappers execute only when activateInteropContracts is true.
+// InteropActivationUpgradeTransactions returns the Interop activation deposits and the gas to add
+// to the activation block's gas limit. The NUT bundle always executes. The setFeature and
+// ETHLiquidity funding wrappers execute only when activateInteropContracts is true.
+//
+// The gas is UpgradeGas(forks.Lagoon) either way — it always covers the wrappers, even when they
+// are not emitted, so that the amount is independent of the dependency set. See UpgradeGas.
 func InteropActivationUpgradeTransactions(activateInteropContracts bool) ([]hexutil.Bytes, uint64, error) {
-	bundleTxs, bundleGas, err := UpgradeTransactions(forks.Lagoon)
+	bundleTxs, _, err := UpgradeTransactions(forks.Lagoon)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to load interop NUT bundle: %w", err)
 	}
+	upgradeGas, err := UpgradeGas(forks.Lagoon)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to read interop upgrade gas: %w", err)
+	}
 
 	if !activateInteropContracts {
-		return bundleTxs, bundleGas, nil
+		return bundleTxs, upgradeGas, nil
 	}
 
 	setFeatureTx, err := interopSetFeatureTx()
@@ -57,7 +64,7 @@ func InteropActivationUpgradeTransactions(activateInteropContracts bool) ([]hexu
 	txs = append(txs, setFeatureTx)
 	txs = append(txs, bundleTxs...)
 	txs = append(txs, fundingTx)
-	return txs, interopSetFeatureGas + bundleGas + interopETHLiquidityFundGas, nil
+	return txs, upgradeGas, nil
 }
 
 // InteropETHLiquidityFundingAmount returns the bootstrap liquidity minted into the

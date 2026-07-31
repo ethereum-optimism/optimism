@@ -212,7 +212,9 @@ where
             upgrade_transactions.append(
                 &mut Hardforks::LAGOON.txs_for_activation(activate_interop_contracts).collect(),
             );
-            upgrade_gas += Hardforks::LAGOON.upgrade_gas_for_activation(activate_interop_contracts);
+            // The gas reservation does not vary with the dependency set, only the tx set does.
+            // See Hardforks::LAGOON::upgrade_gas.
+            upgrade_gas += Hardforks::LAGOON.upgrade_gas();
         }
 
         // Build and encode the L1 info transaction for the current payload.
@@ -791,6 +793,26 @@ mod tests {
     // op-node/rollup/derive/attributes.go.
     // ---------------------------------------------------------------------------
 
+    /// Hardforks through Karst active at 50 and Lagoon at 102. Everything before Lagoon must
+    /// already be active at the parent block: a fork left unscheduled activates at the same block
+    /// as Lagoon and adds its own upgrade gas on top.
+    fn hardforks_lagoon_at_102() -> HardForkConfig {
+        HardForkConfig {
+            regolith_time: Some(50),
+            canyon_time: Some(50),
+            delta_time: Some(50),
+            ecotone_time: Some(50),
+            fjord_time: Some(50),
+            granite_time: Some(50),
+            holocene_time: Some(50),
+            isthmus_time: Some(50),
+            jovian_time: Some(50),
+            karst_time: Some(50),
+            lagoon_time: Some(102),
+            ..Default::default()
+        }
+    }
+
     fn build_interop_dep_set(chain_count: usize) -> Arc<DependencySet> {
         use alloc::collections::BTreeMap;
         use kona_interop::ChainDependency;
@@ -809,20 +831,7 @@ mod tests {
         let timestamp = 100;
         let cfg = Arc::new(RollupConfig {
             block_time,
-            hardforks: HardForkConfig {
-                regolith_time: Some(50),
-                canyon_time: Some(50),
-                delta_time: Some(50),
-                ecotone_time: Some(50),
-                fjord_time: Some(50),
-                granite_time: Some(50),
-                holocene_time: Some(50),
-                isthmus_time: Some(50),
-                jovian_time: Some(50),
-                karst_time: Some(50),
-                lagoon_time: Some(102),
-                ..Default::default()
-            },
+            hardforks: hardforks_lagoon_at_102(),
             ..Default::default()
         });
         let l1_cfg = Arc::new(L1Config::sepolia().into());
@@ -860,20 +869,7 @@ mod tests {
         let timestamp = 100;
         let cfg = Arc::new(RollupConfig {
             block_time,
-            hardforks: HardForkConfig {
-                regolith_time: Some(50),
-                canyon_time: Some(50),
-                delta_time: Some(50),
-                ecotone_time: Some(50),
-                fjord_time: Some(50),
-                granite_time: Some(50),
-                holocene_time: Some(50),
-                isthmus_time: Some(50),
-                jovian_time: Some(50),
-                karst_time: Some(50),
-                lagoon_time: Some(102),
-                ..Default::default()
-            },
+            hardforks: hardforks_lagoon_at_102(),
             ..Default::default()
         });
         let l1_cfg = Arc::new(L1Config::sepolia().into());
@@ -901,6 +897,54 @@ mod tests {
         let payload = builder.prepare_payload_attributes(l2_parent, epoch).await.unwrap();
         // 1 L1InfoTx + 30 interop txs (1 setFeature + 28 bundle + 1 ETHLiquidity funding).
         assert_eq!(payload.transactions.unwrap().len(), 1 + 30);
+    }
+
+    /// The Lagoon activation block reserves the same upgrade gas for every dependency-set size.
+    ///
+    /// The system-config reconstruction subtracts [`Hardforks::LAGOON::upgrade_gas`] again at the
+    /// next block, and it cannot see the dependency set — so an amount that varied with the
+    /// dependency set would leave the reconstructed gas limit wrong for one of the two cases.
+    #[tokio::test]
+    async fn test_interop_activation_gas_is_independent_of_dependency_set() {
+        for chain_count in [1, 2] {
+            let block_time = 2;
+            let timestamp = 100;
+            let cfg = Arc::new(RollupConfig {
+                block_time,
+                hardforks: hardforks_lagoon_at_102(),
+                ..Default::default()
+            });
+            let l1_cfg = Arc::new(L1Config::sepolia().into());
+            let l2_number = 1;
+            let sys_config = SystemConfig::default();
+            let mut fetcher = TestSystemConfigL2Fetcher::default();
+            fetcher.insert(B256::ZERO, sys_config);
+            let mut provider = TestChainProvider::default();
+            let header = Header { timestamp, ..Default::default() };
+            let hash = header.hash_slow();
+            provider.insert_header(hash, header);
+            let dep_set = build_interop_dep_set(chain_count);
+            let mut builder =
+                StatefulAttributesBuilder::new(cfg, l1_cfg, fetcher, provider, Some(dep_set));
+            let epoch = BlockNumHash { hash, number: l2_number };
+            let l2_parent = L2BlockInfo {
+                block_info: BlockInfo {
+                    hash: B256::ZERO,
+                    number: l2_number,
+                    timestamp,
+                    parent_hash: hash,
+                },
+                l1_origin: BlockNumHash { hash, number: l2_number },
+                seq_num: 0,
+            };
+            let payload = builder.prepare_payload_attributes(l2_parent, epoch).await.unwrap();
+            assert_eq!(
+                payload.gas_limit,
+                Some(sys_config.gas_limit + Hardforks::LAGOON.upgrade_gas()),
+                "dependency set of {chain_count} chain(s): activation-block gas limit must add the \
+                 canonical Lagoon upgrade gas"
+            );
+        }
     }
 
     /// Constructor panics fast when interop is scheduled but no dependency set was provided.
