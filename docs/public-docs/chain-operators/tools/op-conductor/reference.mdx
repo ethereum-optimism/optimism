@@ -5,6 +5,7 @@ diataxis: reference
 ---
 
 import OpConductorFlags from '/snippets/generated/op-conductor-flags.mdx';
+import { ConfigReferencePreamble } from '/snippets/config-reference-preamble.mdx';
 
 This page catalogues op-conductor's configuration options and its admin RPC
 methods. For how the service works, see
@@ -13,11 +14,7 @@ network, follow the [setup guide](/chain-operators/tools/op-conductor/setup).
 
 ## Configuration options
 
-The flag tables below are generated directly from op-conductor's flag
-definitions in the monorepo (`op-conductor/flags`) at the release tag named in
-the provenance line, and are regenerated when a new finalized release is
-published, so they cannot silently fall behind. Every flag can also be set
-through the environment variable listed next to it.
+<ConfigReferencePreamble component="op-conductor" />
 
 <OpConductorFlags />
 

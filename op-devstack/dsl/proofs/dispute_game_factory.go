@@ -39,6 +39,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
@@ -228,14 +229,53 @@ func (f *DisputeGameFactory) GameArgs(gameType gameTypes.GameType) []byte {
 
 func (f *DisputeGameFactory) WaitForGame() *FaultDisputeGame {
 	initialCount := f.GameCount()
-	f.t.Require().Eventually(func() bool {
-		gameCount := f.GameCount()
-		check := gameCount > initialCount
+	timedCtx, cancel := context.WithTimeout(f.t.Ctx(), 10*time.Minute)
+	defer cancel()
+	var lastReadErr error
+	err := wait.For(timedCtx, time.Second, func() (bool, error) {
+		count, readErr := contractio.Read(f.dgf.GameCount(), timedCtx)
+		lastReadErr = readErr
+		if readErr != nil {
+			f.log.Debug("Game count unavailable while waiting for new game", "current", initialCount, "err", readErr)
+			return false, nil
+		}
+		gameCount := count.Int64()
 		f.t.Logf("waiting for new game. current=%d new=%d", initialCount, gameCount)
-		return check
-	}, time.Minute*10, time.Second*5)
-
+		return gameCount > initialCount, nil
+	})
+	f.require.NoErrorf(err, "dispute game factory did not create a new game beyond count %d; last read error: %v", initialCount, lastReadErr)
 	return f.GameAtIndex(initialCount)
+}
+
+// WaitForZKGameAtIndex waits until the factory holds a ZK dispute game at the
+// given index, then returns that game.
+func (f *DisputeGameFactory) WaitForZKGameAtIndex(idx int64) *ZKGame {
+	f.require.GreaterOrEqual(idx, int64(0), "game index must not be negative")
+	f.require.Less(idx, int64(math.MaxUint32), "game index must fit in uint32")
+	timedCtx, cancel := context.WithTimeout(f.t.Ctx(), 2*time.Minute)
+	defer cancel()
+	var lastReadErr error
+	err := wait.For(timedCtx, time.Second, func() (bool, error) {
+		count, readErr := contractio.Read(f.dgf.GameCount(), timedCtx)
+		lastReadErr = readErr
+		if readErr != nil {
+			f.log.Debug("Game count unavailable while waiting for ZK game", "index", idx, "err", readErr)
+			return false, nil
+		}
+		f.log.Info("Waiting for ZK game", "index", idx, "count", count)
+		if count.Int64() <= idx {
+			return false, nil
+		}
+		gameInfo, readErr := contractio.Read(f.dgf.GameAtIndex(big.NewInt(idx)), timedCtx)
+		lastReadErr = readErr
+		if readErr != nil {
+			f.log.Debug("Game info unavailable while waiting for ZK game", "index", idx, "err", readErr)
+			return false, nil
+		}
+		return gameTypes.GameType(gameInfo.GameType) == gameTypes.ZKDisputeGameType, nil
+	})
+	f.require.NoErrorf(err, "dispute game factory did not have a ZK game at index %d; last read error: %v", idx, lastReadErr)
+	return f.ZKGameAtIndex(uint32(idx))
 }
 
 func (f *DisputeGameFactory) StartSuperCannonKonaGame(eoa *dsl.EOA, opts ...GameOpt) *SuperFaultDisputeGame {
@@ -341,17 +381,17 @@ func (f *DisputeGameFactory) startSuperGameOfType(eoa *dsl.EOA, gameType gameTyp
 
 func (f *DisputeGameFactory) createSuperGameExtraData(timestamp uint64, cfg *GameCfg) []byte {
 	f.require.NotNil(f.superNode, "super node is required create super games")
-	var resp eth.SuperRootAtTimestampResponse
+	// A future proposal commits to a timestamp the node has not reached, so no super root exists there
+	// yet. Model it by stamping the current safe super root's dependency set at the requested timestamp.
+	queryTimestamp := timestamp
 	if cfg.allowFuture {
-		var err error
-		resp, err = f.superNode.QueryAPI().SuperRootAtTimestamp(f.t.Ctx(), timestamp)
-		f.require.NoError(err, "Failed to fetch super root at timestamp")
-	} else {
-		resp = f.awaitMinVerifiedTimestamp(timestamp)
+		queryTimestamp = f.safeTimestamp()
 	}
-	f.require.NotNil(resp.Data, "Super root data must be present at timestamp %v", timestamp)
+	resp := f.awaitMinVerifiedTimestamp(queryTimestamp)
+	f.require.NotNil(resp.Data, "Super root data must be present at timestamp %v", queryTimestamp)
 	superV1, ok := resp.Data.Super.(*eth.SuperV1)
 	f.require.Truef(ok, "unsupported super type %T", resp.Data.Super)
+	superV1.Timestamp = timestamp
 	if len(cfg.superOutputRoots) != 0 {
 		f.require.Len(cfg.superOutputRoots, len(superV1.Chains), "Super output roots length mismatch")
 		for i := range superV1.Chains {

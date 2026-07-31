@@ -55,23 +55,18 @@ func simpleInteropFromSupernodeProofsRuntime(t devtest.T, runtime *sysgo.MultiCh
 			L2ELA:            dsl.NewL2ELNode(components.l2AEL),
 			L2CLA:            twoL2.L2ACL,
 			Wallet:           dsl.NewRandomHDWallet(t, 30),
-			FaucetA:          components.faucetA,
-			FaucetL1:         dsl.NewFaucet(newFaucetFrontendForChain(t, runtime.FaucetService, runtime.L1Network.ChainID())),
 			challengerConfig: runtime.L2ChallengerConfig,
+			startZKProposer:  func() { runtime.StartZKProposer(t) },
 		},
 		L2ChainB:   twoL2.L2B,
 		L2BatcherB: dsl.NewL2Batcher(components.l2BBatcher),
 		L2ELB:      dsl.NewL2ELNode(components.l2BEL),
 		L2CLB:      twoL2.L2BCL,
-		FaucetB:    components.faucetB,
 	}
 	out.l1Proposer = newL1ProposerEOA(t, runtime, chainA.Network.ChainID(), out.L1EL)
-	out.FunderL1 = dsl.NewFunder(out.Wallet, out.FaucetL1, out.L1EL)
-	out.FunderA = dsl.NewFunder(out.Wallet, out.FaucetA, out.L2ELA)
-	out.FunderB = dsl.NewFunder(out.Wallet, out.FaucetB, out.L2ELB)
-	l1Net, ok := out.L1Network.Escape().(*presetL1Network)
-	t.Require().True(ok, "expected preset L1 network")
-	l1Net.AddFaucet(out.FaucetL1.Escape().(*faucetFrontend))
+	out.FunderL1 = newFunderEOA(t, runtime.Keys, out.L1EL, out.Wallet)
+	out.FunderA = newFunderEOA(t, runtime.Keys, out.L2ELA, out.Wallet)
+	out.FunderB = newFunderEOA(t, runtime.Keys, out.L2ELB, out.Wallet)
 
 	attachChallenger(t, out.L2ChainA, "main", chainA.Network.ChainID(), out.challengerConfig)
 	attachChallenger(t, out.L2ChainB, "main", chainB.Network.ChainID(), out.challengerConfig)
@@ -133,8 +128,6 @@ func singleChainInteropFromSupernodeProofsRuntime(t devtest.T, runtime *sysgo.Mu
 	l1CLDSL := dsl.NewL1CLNode(l1CL)
 	l2ELDSL := dsl.NewL2ELNode(l2EL)
 	l2CLDSL := dsl.NewL2CLNode(l2CL)
-	faucetAFrontend := newFaucetFrontendForChain(t, runtime.FaucetService, l2ChainID)
-	faucetL1Frontend := newFaucetFrontendForChain(t, runtime.FaucetService, l1ChainID)
 
 	out := &SingleChainInterop{
 		Log:              t.Logger(),
@@ -150,14 +143,11 @@ func singleChainInteropFromSupernodeProofsRuntime(t devtest.T, runtime *sysgo.Mu
 		L2ELA:            l2ELDSL,
 		L2CLA:            l2CLDSL,
 		Wallet:           dsl.NewRandomHDWallet(t, 30),
-		FaucetA:          dsl.NewFaucet(faucetAFrontend),
-		FaucetL1:         dsl.NewFaucet(faucetL1Frontend),
 		challengerConfig: challengerCfg,
+		startZKProposer:  func() { runtime.StartZKProposer(t) },
 	}
 	out.l1Proposer = newL1ProposerEOA(t, runtime, l2ChainID, out.L1EL)
-	l1Network.AddFaucet(faucetL1Frontend)
-	l2Chain.AddFaucet(faucetAFrontend)
-	out.FunderL1 = dsl.NewFunder(out.Wallet, out.FaucetL1, out.L1EL)
-	out.FunderA = dsl.NewFunder(out.Wallet, out.FaucetA, out.L2ELA)
+	out.FunderL1 = newFunderEOA(t, runtime.Keys, out.L1EL, out.Wallet)
+	out.FunderA = newFunderEOA(t, runtime.Keys, out.L2ELA, out.Wallet)
 	return out
 }

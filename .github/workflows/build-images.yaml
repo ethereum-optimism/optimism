@@ -53,7 +53,7 @@ jobs:
           ref: ${{ github.event_name == 'schedule' && 'develop' || '' }}
       - name: Plan
         id: plan
-        uses: ethereum-optimism/factory/actions/plan@25fa2ff591f9b4801d3dcadffd2b76ec2340cf8a
+        uses: ethereum-optimism/factory/actions/plan@0e7698dcc639d694b5751e7168918aab481a0767
         with:
           config: .github/images.json
       - name: Compute cross-platform check sub-matrices
@@ -104,7 +104,7 @@ jobs:
       fail-fast: true
       matrix:
         include: ${{ fromJson(needs.plan.outputs.matrix_json) }}
-    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@25fa2ff591f9b4801d3dcadffd2b76ec2340cf8a
+    uses: ethereum-optimism/factory/.github/workflows/docker.yaml@0e7698dcc639d694b5751e7168918aab481a0767
     with:
       mode: ${{ matrix.mode }}
       image_name: ${{ matrix.image_name }}

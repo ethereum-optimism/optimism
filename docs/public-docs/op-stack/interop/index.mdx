@@ -11,29 +11,28 @@ last-reviewed: 2026-07-22
 OP Stack interoperability is a set of protocols that lets OP Stack chains
 read each other's state, so a network of chains can feel like a single
 blockchain: ETH and ERC-20 tokens move between chains by native minting and
-burning, and contracts can compose with events from other chains at
-low latency.
+burning, contracts can compose with events from other chains at low
+latency, and applications that need it can scale horizontally across
+multiple chains.
 
 Interop is in active development and is being rolled out iteratively, so
 read these materials as a picture of where the stack is going and what you
 can already build against, not as a finished production system. Start with
-the short introduction, then work through the mechanism pages in order:
-they build from the message-passing model up to reorg safety and the
-runtime that enforces it. The tutorials let you try everything on local or
-devnet chains, and the spec is the normative definition throughout.
+the explainer, then work through the mechanism pages in order: they build
+from the message-passing model up to reorg safety and the runtime that
+enforces it. The tutorials let you try everything on local or devnet
+chains, and the spec is the normative definition throughout.
 
 ## Start here
 
-*   [OP Stack Interoperability](/op-stack/interop/interop): read this first
-    for what interop enables (native asset transfers, cross-chain
-    composability, horizontal scalability) and where to start building.
+*   [OP Stack interoperability explainer](/op-stack/interop/explainer): read
+    this first for what interop enables (native asset transfers, cross-chain
+    composability, horizontal scalability) and the architecture end to end,
+    covering initiating and executing messages, access-list validation,
+    block safety levels, and dependency sets and clusters.
 
 ## Go deeper
 
-*   [OP Stack interoperability explainer](/op-stack/interop/explainer): the
-    architecture end to end, covering initiating and executing messages,
-    access-list validation, block safety levels, and dependency sets and
-    clusters.
 *   [Interop message passing overview](/app-developers/guides/interoperability/message-passing):
     the messaging lifecycle at contract level, from the low-level
     `CrossL2Inbox` to the `L2ToL2CrossDomainMessenger` most apps use.
@@ -58,6 +57,9 @@ devnet chains, and the spec is the normative definition throughout.
 *   [Build interoperable apps on OP Stack devnet](/app-developers/guides/interoperability/get-started):
     pick a development environment (local Supersim or the interop devnet)
     and start deploying.
+*   [Supersim](/app-developers/tools/supersim): the local development
+    environment that simulates a multi-chain OP Stack setup for building
+    and testing cross-chain applications.
 *   [Interop message passing tutorial](/app-developers/tutorials/interoperability/message-passing):
     build a cross-chain message passing system with the
     `L2ToL2CrossDomainMessenger` contract.

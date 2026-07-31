@@ -161,6 +161,11 @@
   },
   {
     "inputs": [],
+    "name": "CrossL2Inbox_NoExecutingDeposits",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "LogIndexTooHigh",
     "type": "error"
   },

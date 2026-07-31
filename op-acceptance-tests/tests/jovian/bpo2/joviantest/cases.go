@@ -230,7 +230,7 @@ func RunDAFootprint(gt *testing.T, setup SetupFn) {
 			}
 			env.expectL1BlockDAFootprintGasScalar(t, tc.expected)
 
-			jovian.SpamCalldata(t, l2BlockTime, sys.L2EL, sys.Wallet, sys.FaucetL2)
+			jovian.SpamCalldata(t, l2BlockTime, sys.L2EL, sys.Wallet, sys.FunderL2)
 
 			rollupCfg := sys.L2Chain.Escape().RollupConfig()
 			gasTarget := rollupCfg.Genesis.SystemConfig.GasLimit / rollupCfg.ChainOpConfig.EIP1559Elasticity

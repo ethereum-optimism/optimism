@@ -36,13 +36,12 @@ type SingleChainInterop struct {
 
 	Wallet *dsl.HDWallet
 
-	FaucetA  *dsl.Faucet
-	FaucetL1 *dsl.Faucet
-	FunderL1 *dsl.Funder
-	FunderA  *dsl.Funder
+	FunderL1 *dsl.FunderEOA
+	FunderA  *dsl.FunderEOA
 
 	// May be nil if not using sysgo
 	challengerConfig *challengerConfig.Config
+	startZKProposer  func()
 }
 
 func (s *SingleChainInterop) L2Networks() []*dsl.L2Network {
@@ -65,6 +64,13 @@ func (s *SingleChainInterop) AdvanceTime(amount time.Duration) {
 	s.L1EL.AdvanceTime(s.timeTravel, amount)
 }
 
+// StartZKProposer starts the kona-sp1-proposer after a system configured with
+// WithZK and WithoutHonestProposer has seeded its initial dispute games.
+func (s *SingleChainInterop) StartZKProposer() {
+	s.T.Require().NotNil(s.startZKProposer, "ZK proposer is not configured")
+	s.startZKProposer()
+}
+
 func (s *SingleChainInterop) proofValidationContext() (devtest.T, *dsl.L1ELNode, []*dsl.L2Network) {
 	return s.T, s.L1EL, []*dsl.L2Network{s.L2ChainA}
 }
@@ -77,8 +83,7 @@ type SimpleInterop struct {
 	L2ELB      *dsl.L2ELNode
 	L2CLB      *dsl.L2CLNode
 
-	FaucetB *dsl.Faucet
-	FunderB *dsl.Funder
+	FunderB *dsl.FunderEOA
 }
 
 func (s *SimpleInterop) L2Networks() []*dsl.L2Network {
@@ -139,6 +144,15 @@ func NewSingleChainInteropIsthmusSuper(t devtest.T, opts ...Option) *SingleChain
 func NewSingleChainInteropNoSupernode(t devtest.T, opts ...Option) *SingleChainInterop {
 	presetCfg, _ := collectSupportedPresetConfig(t, "NewSingleChainInteropNoSupernode", opts, 0)
 	return singleChainInteropNoSupernodeFromRuntime(t, sysgo.NewSingleChainInteropNoSupernodeSuperRootRuntimeWithConfig(t, presetCfg))
+}
+
+// NewSingleChainInteropNoSupernodeZKDispute creates a fresh SingleChainInterop target whose super
+// roots are served by the single op-node's superroot_atTimestamp endpoint (no op-supernode),
+// running an op-challenger that plays ZK dispute games against that op-node source. This exercises
+// the "op-node as super root RPC" path for the ZK game end-to-end.
+func NewSingleChainInteropNoSupernodeZKDispute(t devtest.T, opts ...Option) *SingleChainInterop {
+	presetCfg, _ := collectSupportedPresetConfig(t, "NewSingleChainInteropNoSupernodeZKDispute", opts, 0)
+	return singleChainInteropNoSupernodeFromRuntime(t, sysgo.NewSingleChainInteropNoSupernodeZKDisputeRuntimeWithConfig(t, presetCfg))
 }
 
 // NewSingleChainInteropSuperRootAtGenesis creates a fresh SingleChainInterop

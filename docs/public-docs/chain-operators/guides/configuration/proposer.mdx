@@ -5,6 +5,7 @@ diataxis: reference
 ---
 
 import OpProposerFlags from '/snippets/generated/op-proposer-flags.mdx';
+import { ConfigReferencePreamble } from '/snippets/config-reference-preamble.mdx';
 
 This page lists all configuration options for op-proposer. The op-proposer posts
 output roots (proposals) to L1, making them available for verifiers. Withdrawals to L1 must reference an output root.
@@ -13,7 +14,7 @@ With [permissionless fault proofs](/op-stack/fault-proofs/explainer), anyone can
 
 ## Proposer policy
 
-The proposer policy defines high-level constraints and responsibilities regarding how L2 output roots are posted to L1. Below are the [standard guidelines](/chain-operators/reference/standard-configuration) for configuring the proposer within the OP Stack.
+The proposer policy defines high-level constraints and responsibilities regarding how L2 output roots are posted to L1. Below are the [standard guidelines](/op-stack/protocol/superchain-registry#what-is-a-standard-chain) for configuring the proposer within the OP Stack.
 
 | Parameter        | Description                                                                         | Administrator  | Requirement                                                | Notes                                                           |
 | ---------------- | ----------------------------------------------------------------------------------- | -------------- | ---------------------------------------------------------- | --------------------------------------------------------------- |
@@ -41,10 +42,6 @@ Higher throughput chains can decrease the `proposal-interval` to allow users sub
 
 ## Flags
 
-The flag tables below are generated directly from the op-proposer's flag
-definitions in the monorepo (`op-proposer/flags`) at the release tag named in
-the provenance line, and are regenerated when a new finalized release is
-published, so they cannot silently fall behind. Every flag can also be set
-through the environment variable listed next to it.
+<ConfigReferencePreamble component="op-proposer" />
 
 <OpProposerFlags />

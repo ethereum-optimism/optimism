@@ -122,7 +122,7 @@ You'll do this by sending two transactions on Sepolia, one proving transaction a
     mkdir cross-dom
     cd cross-dom
     pnpm init
-    pnpm add viem
+    pnpm add viem@^2.51.0
     ```
   </Step>
 
@@ -141,7 +141,7 @@ You'll do this by sending two transactions on Sepolia, one proving transaction a
     ```js
     const { createPublicClient, http, createWalletClient } = require('viem');
     const { optimismSepolia, sepolia } = require('viem/chains');
-    const { publicActionsL1, publicActionsL2, walletActionsL1, walletActionsL2, getWithdrawals } = require('viem/op-stack');
+    const { publicActionsL1, publicActionsL2, walletActionsL1, walletActionsL2, getWithdrawals, isSuperGameType } = require('viem/op-stack');
     const { privateKeyToAccount } = require('viem/accounts');
 
     const l1Provider = createPublicClient({
@@ -171,22 +171,41 @@ You'll do this by sending two transactions on Sepolia, one proving transaction a
     const receipt = await l2Provider.getTransactionReceipt({
       hash: process.env.TUTORIAL_TRANSACTION_HASH
     });
+    const withdrawalBlock = await l2Provider.getBlock({
+      blockNumber: receipt.blockNumber
+    });
+    const respectedGameType = await l1Provider.readContract({
+      abi: [{
+        inputs: [],
+        name: 'respectedGameType',
+        outputs: [{ type: 'uint32' }],
+        stateMutability: 'view',
+        type: 'function'
+      }],
+      address: l2Provider.chain.contracts.portal[l1Provider.chain.id].address,
+      functionName: 'respectedGameType'
+    });
+    const proveContext = isSuperGameType(Number(respectedGameType))
+      ? { l2Timestamp: withdrawalBlock.timestamp }
+      : {};
 
     console.log('Waiting for message to be provable...');
     await l1Provider.getWithdrawalStatus({
+      ...proveContext,
       receipt,
       targetChain: l2Provider.chain
     });
 
     console.log('Proving message...');
-    const { output, withdrawal } = await l1Provider.waitToProve({
+    const { game, withdrawal } = await l1Provider.waitToProve({
+      ...proveContext,
       receipt,
       targetChain: l2Provider.chain
     });
 
     const proveArgs = await l2Provider.buildProveWithdrawal({
       account,
-      output,
+      game,
       withdrawal
     });
 

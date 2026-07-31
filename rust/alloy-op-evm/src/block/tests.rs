@@ -776,7 +776,13 @@ mod sdm {
 
         let tx = legacy_tx_with_price(0, Address::from([0x11; 20]), DEFAULT_GAS_LIMIT, GAS_PRICE);
         let deltas = executor
-            .post_exec_settlement_deltas(&tx, EVM_GAS_USED, REFUND, false, false)
+            .post_exec_settlement_deltas(
+                &tx,
+                EVM_GAS_USED,
+                REFUND,
+                /* is_deposit */ false,
+                /* is_post_exec */ false,
+            )
             .expect("settlement deltas computed");
 
         let refund = U256::from(REFUND);
@@ -827,22 +833,96 @@ mod sdm {
         // Deposit: warms state for later txs but is never refunded.
         assert!(
             is_no_op(
-                executor.post_exec_settlement_deltas(&tx, 50_000, 1_000, true, false).unwrap()
+                executor
+                    .post_exec_settlement_deltas(
+                        &tx, /* evm_gas_used */ 50_000, /* post_exec_refund */ 1_000,
+                        /* is_deposit */ true, /* is_post_exec */ false,
+                    )
+                    .unwrap()
             ),
             "deposits never settle a refund",
         );
         // The post-exec (0x7D) tx itself never claims.
         assert!(
             is_no_op(
-                executor.post_exec_settlement_deltas(&tx, 50_000, 1_000, false, true).unwrap()
+                executor
+                    .post_exec_settlement_deltas(
+                        &tx, /* evm_gas_used */ 50_000, /* post_exec_refund */ 1_000,
+                        /* is_deposit */ false, /* is_post_exec */ true,
+                    )
+                    .unwrap()
             ),
             "the post-exec tx never settles a refund",
         );
         // Zero refund: nothing to settle.
         assert!(
-            is_no_op(executor.post_exec_settlement_deltas(&tx, 50_000, 0, false, false).unwrap()),
+            is_no_op(
+                executor
+                    .post_exec_settlement_deltas(
+                        &tx, /* evm_gas_used */ 50_000, /* post_exec_refund */ 0,
+                        /* is_deposit */ false, /* is_post_exec */ false,
+                    )
+                    .unwrap()
+            ),
             "a zero refund produces no settlement",
         );
+    }
+
+    // Verify valid maximum-width inputs do not saturate settlement arithmetic. Transactions below
+    // base fee are rejected before settlement and are not exercised here.
+    #[test]
+    fn test_post_exec_settlement_conserves_value_at_arithmetic_extremes() {
+        for base_fee in [0u64, 1, 1_000_000_000, u64::MAX] {
+            let mut fixture = SDMExecutorFixture { base_fee, ..Default::default() };
+            let mut executor = fixture.executor();
+
+            for refund in [1u64, 21_000, u64::MAX / 2, u64::MAX] {
+                for gas_price in [u128::from(base_fee), u128::from(base_fee) + 1, u128::MAX] {
+                    let tx = legacy_tx_with_price(0, Address::from([0x11; 20]), 50_000, gas_price);
+                    let deltas = executor
+                        .post_exec_settlement_deltas(
+                            &tx,
+                            /* evm_gas_used */ u64::MAX,
+                            /* post_exec_refund */ refund,
+                            /* is_deposit */ false,
+                            /* is_post_exec */ false,
+                        )
+                        .expect("settlement deltas");
+                    let inputs =
+                        format!("base_fee={base_fee}, refund={refund}, gas_price={gas_price}");
+
+                    // Check each leg; conservation alone can hide offsetting clamps.
+                    let refund_u256 = U256::from(refund);
+                    assert_eq!(
+                        deltas.base_fee_balance_delta,
+                        refund_u256 * U256::from(base_fee),
+                        "base-fee leg must not saturate ({inputs})",
+                    );
+                    assert_eq!(
+                        deltas.beneficiary_balance_delta,
+                        refund_u256 * U256::from(gas_price - u128::from(base_fee)),
+                        "beneficiary leg must not saturate ({inputs})",
+                    );
+                    assert_eq!(
+                        deltas.operator_fee_balance_delta,
+                        refund_u256 * U256::from(5 * 100),
+                        "operator-fee leg must not saturate ({inputs})",
+                    );
+                    assert_eq!(
+                        deltas.sender_balance_delta,
+                        refund_u256 * U256::from(gas_price) + deltas.operator_fee_balance_delta,
+                        "sender credit must not saturate ({inputs})",
+                    );
+                    assert_eq!(
+                        deltas.sender_balance_delta,
+                        deltas.beneficiary_balance_delta +
+                            deltas.base_fee_balance_delta +
+                            deltas.operator_fee_balance_delta,
+                        "settlement must conserve value ({inputs})",
+                    );
+                }
+            }
+        }
     }
 
     // A settlement debit larger than a recipient's balance invalidates the block via
@@ -994,19 +1074,71 @@ mod sdm {
         );
     }
 
-    // A contract created by one tx must be warmed for a later tx that genuinely cold-accesses it,
-    // so the later tx earns its warming rebate. The `create` hook records the address via
-    // `CreateInputs::created_address`, which `revm` memoizes (`OnceCell`) from the canonical
-    // pre-bump nonce before the hook runs — so the address is always correct regardless of the
-    // nonce the inspector passes (this is why the "CREATE-address staleness" concern does not arise
-    // against the pinned revm). This guards the end-to-end property: created contract -> warmed ->
-    // later cold access rebated.
+    /// Bytecode performing one inner `CREATE2` with empty init code and salt 0, at depth 1:
+    /// `PUSH1 0` x4 (salt, size, offset, value); `CREATE2`; `POP`; `STOP`.
+    fn create2_factory_account() -> AccountInfo {
+        let raw = Bytes::from_static(&[
+            0x60, 0x00, // PUSH1 0  (salt)
+            0x60, 0x00, // PUSH1 0  (size)
+            0x60, 0x00, // PUSH1 0  (offset)
+            0x60, 0x00, // PUSH1 0  (value)
+            0xf5, // CREATE2
+            0x50, // POP
+            0x00, // STOP
+        ]);
+        let code_hash = alloy_primitives::keccak256(&raw);
+        AccountInfo { code_hash, code: Some(Bytecode::new_raw(raw)), ..Default::default() }
+    }
+
+    // CREATE and CREATE2 charge no cold-account surcharge, so an inner creation at an address
+    // warmed earlier in the block must not receive the 2,500-gas rebate.
+    #[test]
+    fn test_inner_create_address_is_not_rebated() {
+        const BLOCK_GAS_LIMIT: u64 = 2_000_000;
+
+        let factory = Address::from([0x7f; 20]);
+        // CREATE2 is nonce-independent: keccak256(0xff ++ factory ++ salt ++ keccak256(init_code)).
+        let created = factory.create2(B256::ZERO, alloy_primitives::keccak256([]));
+
+        let mut fixture = SDMExecutorFixture::new(
+            DEFAULT_DA_FOOTPRINT_GAS_SCALAR,
+            BLOCK_GAS_LIMIT,
+            JOVIAN_TIMESTAMP,
+        );
+        fixture.db.insert_account(factory, create2_factory_account());
+        let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
+
+        // tx0 warms `created`; tx1 creates it through the factory.
+        producer
+            .execute_transaction(&legacy_tx(0, created))
+            .expect("tx0 warms the create2 address");
+        let tx1_gas = producer
+            .execute_transaction(&legacy_tx_with_gas(1, factory, 200_000))
+            .expect("tx1 inner-creates at the warmed address")
+            .tx_gas_used();
+
+        let claimed =
+            all_warming_events(&producer).into_iter().find(|event| event.address == created);
+        assert!(
+            claimed.is_none(),
+            "a tx claimed a warming rebate for an inner-CREATE2 address ({created}) it never paid \
+             a cold EIP-2929 access for: {:#?}",
+            producer.warming_events_by_tx,
+        );
+
+        // Ensure the factory still executes CREATE2.
+        assert!(
+            tx1_gas > 21_000 + 32_000,
+            "tx1 must have executed a CREATE2, but used only {tx1_gas} gas",
+        );
+    }
+
+    // A created address remains block-warm, allowing a later cold access to claim its rebate.
     #[test]
     fn test_created_contract_address_is_warmed_for_a_later_tx() {
         const BLOCK_GAS_LIMIT: u64 = 2_000_000;
 
-        // Probe the canonical address the CREATE produces (revm computes it from the pre-bump
-        // nonce). Sender and nonce match the real run below, so the address is identical.
+        // Probe the address produced by the same sender and nonce used below.
         let created = {
             let mut probe_fixture = SDMExecutorFixture::new(
                 DEFAULT_DA_FOOTPRINT_GAS_SCALAR,
@@ -1047,6 +1179,43 @@ mod sdm {
             .find(|event| event.address == created)
             .expect("tx1 must earn a warming rebate for the contract created by tx0");
         assert_eq!(created_event.claiming_tx_index, 1, "rebate is claimed by tx1");
+        assert_eq!(created_event.first_warmed_by_tx_index, 0, "contract was warmed by tx0");
+        assert_eq!(created_event.amount, 2_500, "warm-account rebate amount");
+        assert_eq!(created_event.slot, None, "account rebate has no storage slot");
+    }
+
+    // Suppressing an inner create's rebate must still leave the address warm for later txs.
+    #[test]
+    fn test_inner_created_contract_address_is_warmed_for_a_later_tx() {
+        const BLOCK_GAS_LIMIT: u64 = 2_000_000;
+
+        let factory = Address::from([0x7f; 20]);
+        let created = factory.create2(B256::ZERO, alloy_primitives::keccak256([]));
+        let probe = Address::from([0x8c; 20]);
+
+        let mut fixture = SDMExecutorFixture::new(
+            DEFAULT_DA_FOOTPRINT_GAS_SCALAR,
+            BLOCK_GAS_LIMIT,
+            JOVIAN_TIMESTAMP,
+        );
+        fixture.db.insert_account(factory, create2_factory_account());
+        fixture.db.insert_account(probe, balance_probe_account(&[created]));
+        let mut producer = fixture.executor_with_post_exec_mode(PostExecMode::Produce);
+
+        // tx0 inner-creates at `created` and claims nothing for it (the fix), but must warm it.
+        producer
+            .execute_transaction(&legacy_tx_with_gas(0, factory, 200_000))
+            .expect("tx0 inner-creates the contract");
+        // tx1 cold-`BALANCE`-touches the inner-created contract through the probe.
+        producer
+            .execute_transaction(&legacy_tx(1, probe))
+            .expect("tx1 cold-touches the inner-created contract");
+
+        let created_event = all_warming_events(&producer)
+            .into_iter()
+            .find(|event| event.address == created)
+            .expect("tx1 must earn a warming rebate for the contract inner-created by tx0");
+        assert_eq!(created_event.claiming_tx_index, 1, "rebate is claimed by tx1, not tx0");
         assert_eq!(created_event.first_warmed_by_tx_index, 0, "contract was warmed by tx0");
         assert_eq!(created_event.amount, 2_500, "warm-account rebate amount");
         assert_eq!(created_event.slot, None, "account rebate has no storage slot");

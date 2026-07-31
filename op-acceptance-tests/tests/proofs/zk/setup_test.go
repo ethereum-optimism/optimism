@@ -6,23 +6,31 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 const (
-	zkChallengeDuration = 30 * time.Second
-	zkProveDuration     = 30 * time.Second
-	zkFinalityDelay     = 2 * time.Second
+	// zkUnsafeProposalLead places an "unsafe" proposal's timestamp a year beyond the safe head so the
+	// chain cannot reach it during the test, even on a CPU-starved CI runner.
+	zkUnsafeProposalLead = 365 * 24 * time.Hour
 )
 
-func loadSuperAggregationVKey(t devtest.T) common.Hash {
+// expectedSuperAggregationVKey returns the super-aggregation program vkey used as
+// the deployed game's absolute prestate. When KONA_SP1_ELF_DIR is set it is
+// read from the real vkeys.toml; otherwise a deterministic stub is used - the
+// devstack deploys the mock verifier, so nothing validates the vkey against a
+// real program, and the proposer launcher stubs the matching artifacts (see
+// startZKProposer). This keeps the acceptance tests runnable without the SP1
+// guest ELF build.
+func expectedSuperAggregationVKey(t devtest.T) common.Hash {
 	elfDir := os.Getenv("KONA_SP1_ELF_DIR")
 	if elfDir == "" {
-		t.Skip("KONA_SP1_ELF_DIR is not set; build the Kona SP1 ELF artifacts before running ZK acceptance tests")
+		return crypto.Keccak256Hash([]byte("kona-sp1-stub-super-aggregation-vkey"))
 	}
 
 	var vkeys map[string]string
@@ -38,17 +46,11 @@ func loadSuperAggregationVKey(t devtest.T) common.Hash {
 	return vkey
 }
 
-func newSystem(t devtest.T) (*presets.SimpleInterop, common.Hash) {
-	vkey := loadSuperAggregationVKey(t)
-	zkCfg := sysgo.ZKDisputeGameConfig{
-		ProgramVKey:          vkey,
-		MaxChallengeDuration: zkChallengeDuration,
-		MaxProveDuration:     zkProveDuration,
-	}
-	return presets.NewSimpleInterop(t,
-		presets.WithZKDisputeGame(zkCfg),
-		presets.WithTimeTravelEnabled(),
-		presets.WithDisputeGameFinalityDelaySeconds(uint64(zkFinalityDelay/time.Second)),
-		presets.WithDeployerOptions(sysgo.WithJovianAtGenesis),
-	), vkey
+// zkChallengerAddress derives the honest challenger's address for the given L2 chain.
+func zkChallengerAddress(t devtest.T, chainID eth.ChainID) common.Address {
+	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
+	t.Require().NoError(err)
+	addr, err := keys.Address(devkeys.ChainOperatorKeys(chainID.ToBig())(devkeys.ChallengerRole))
+	t.Require().NoError(err)
+	return addr
 }

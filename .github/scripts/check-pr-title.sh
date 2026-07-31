@@ -45,16 +45,17 @@ if [[ -z "${description// /}" ]]; then
   fail "empty description"
 fi
 
-scope_list_regex='^[a-z0-9][a-z0-9._/-]*(,[a-z0-9][a-z0-9._/-]*)*$'
+scope_list_regex='^[a-zA-Z0-9][a-zA-Z0-9._/-]*(,[a-zA-Z0-9][a-zA-Z0-9._/-]*)*$'
 if [[ ! "${prefix}" =~ ${scope_list_regex} ]]; then
-  fail "scope '${prefix}' must be lowercase component names ([a-z0-9._/-]), comma-separated without spaces; 'type(scope):' is not accepted"
+  fail "scope '${prefix}' must be component names ([a-zA-Z0-9._/-]), comma-separated without spaces; 'type(scope):' is not accepted"
 fi
 
 conventional_types=(build chore feat fix perf refactor revert style test upkeep)
 IFS=',' read -ra scopes <<<"${prefix}"
 for scope in "${scopes[@]}"; do
+  scope_lc="${scope,,}"
   for conventional_type in "${conventional_types[@]}"; do
-    if [[ "${scope}" == "${conventional_type}" ]]; then
+    if [[ "${scope_lc}" == "${conventional_type}" ]]; then
       fail "'${scope}' is a Conventional Commits type, not a scope — name the component or area the change touches instead"
     fi
   done

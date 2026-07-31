@@ -1,8 +1,9 @@
 package proofs
 
 import (
-	"encoding/binary"
+	"context"
 	"math/big"
+	"time"
 
 	challengerContracts "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
@@ -11,10 +12,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -47,24 +50,27 @@ type ZKClaimData struct {
 }
 
 type zkDisputeGameBinding struct {
-	RootClaim            func() bindings.TypedCall[common.Hash] `sol:"rootClaim"`
-	L2SequenceNumber     func() bindings.TypedCall[*big.Int]    `sol:"l2SequenceNumber"`
-	ParentIndex          func() bindings.TypedCall[uint32]      `sol:"parentIndex"`
-	Status               func() bindings.TypedCall[uint8]       `sol:"status"`
-	ClaimData            func() bindings.TypedCall[ZKClaimData] `sol:"claimData"`
-	ChallengerBond       func() bindings.TypedCall[*big.Int]    `sol:"challengerBond"`
-	GameOver             func() bindings.TypedCall[bool]        `sol:"gameOver"`
-	ResolvedAt           func() bindings.TypedCall[uint64]      `sol:"resolvedAt"`
-	BondDistributionMode func() bindings.TypedCall[uint8]       `sol:"bondDistributionMode"`
-	Challenge            func() bindings.TypedCall[uint8]       `sol:"challenge"`
-	Prove                func([]byte) bindings.TypedCall[uint8] `sol:"prove"`
-	Resolve              func() bindings.TypedCall[uint8]       `sol:"resolve"`
-	CloseGame            func() bindings.TypedCall[any]         `sol:"closeGame"`
+	RootClaim            func() bindings.TypedCall[common.Hash]            `sol:"rootClaim"`
+	L2SequenceNumber     func() bindings.TypedCall[*big.Int]               `sol:"l2SequenceNumber"`
+	ParentIndex          func() bindings.TypedCall[uint32]                 `sol:"parentIndex"`
+	Status               func() bindings.TypedCall[uint8]                  `sol:"status"`
+	ClaimData            func() bindings.TypedCall[ZKClaimData]            `sol:"claimData"`
+	ChallengerBond       func() bindings.TypedCall[*big.Int]               `sol:"challengerBond"`
+	GameOver             func() bindings.TypedCall[bool]                   `sol:"gameOver"`
+	ResolvedAt           func() bindings.TypedCall[uint64]                 `sol:"resolvedAt"`
+	BondDistributionMode func() bindings.TypedCall[uint8]                  `sol:"bondDistributionMode"`
+	Challenge            func() bindings.TypedCall[uint8]                  `sol:"challenge"`
+	Prove                func([]byte) bindings.TypedCall[uint8]            `sol:"prove"`
+	Resolve              func() bindings.TypedCall[uint8]                  `sol:"resolve"`
+	CloseGame            func() bindings.TypedCall[any]                    `sol:"closeGame"`
+	Credit               func(common.Address) bindings.TypedCall[*big.Int] `sol:"credit"`
+	ClaimCredit          func(common.Address) bindings.TypedCall[any]      `sol:"claimCredit"`
 }
 
 // ZKGame is a deployed ZK dispute-game instance. It exposes the contract calls
 // used to exercise the game lifecycle in acceptance tests.
 type ZKGame struct {
+	t            devtest.T
 	require      *require.Assertions
 	contract     *zkDisputeGameBinding
 	Address      common.Address
@@ -77,7 +83,7 @@ func newZKGame(t devtest.T, require *require.Assertions, client apis.EthClient, 
 		bindings.WithTo(addr),
 		bindings.WithTest(t),
 	)
-	return &ZKGame{require: require, contract: &game, Address: addr}
+	return &ZKGame{t: t, require: require, contract: &game, Address: addr}
 }
 
 func (g *ZKGame) withFactoryIndex(index uint32) *ZKGame {
@@ -157,35 +163,146 @@ func (g *ZKGame) Close(eoa *dsl.EOA) {
 	g.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
 }
 
+func (g *ZKGame) Credit(recipient common.Address) eth.ETH {
+	return eth.WeiBig(contract.Read(g.contract.Credit(recipient)))
+}
+
+func (g *ZKGame) ClaimCredit(eoa *dsl.EOA, recipient common.Address) {
+	receipt := contract.Write(eoa, g.contract.ClaimCredit(recipient), txplan.WithGasRatio(2))
+	g.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
+}
+
+// WaitForGameStatus polls the game status until it reaches expected or the timeout elapses.
+func (g *ZKGame) WaitForGameStatus(expected gameTypes.GameStatus) {
+	g.t.Logf("Waiting for zk game %v to have status %v", g.Address, expected)
+	timedCtx, cancel := context.WithTimeout(g.t.Ctx(), defaultTimeout)
+	defer cancel()
+
+	var actual gameTypes.GameStatus
+	var lastReadErr error
+	err := wait.For(timedCtx, time.Second, func() (bool, error) {
+		var raw uint8
+		raw, lastReadErr = contractio.Read(g.contract.Status(), timedCtx)
+		if lastReadErr != nil {
+			g.t.Logf("Zk game %v status unavailable while waiting for %v: %v", g.Address, expected, lastReadErr)
+			return false, nil
+		}
+		actual = gameTypes.GameStatus(raw)
+		g.t.Logf("Zk game %v has status %v, waiting for %v", g.Address, actual, expected)
+		return actual == expected, nil
+	})
+	g.require.NoErrorf(err, "zk game %v status mismatch: expected %s, got %s; last read error: %v", g.Address, expected, actual, lastReadErr)
+}
+
+// WaitForClaimedCredit waits until the game has distributed bonds (NormalDistributionMode) and the
+// recipient has no unclaimed credit remaining, i.e. the honest challenger closed the game and claimed.
+func (g *ZKGame) WaitForClaimedCredit(recipient common.Address) {
+	g.t.Logf("Waiting for zk game %v to distribute bonds and for %v to claim its credit", g.Address, recipient)
+	timedCtx, cancel := context.WithTimeout(g.t.Ctx(), defaultTimeout)
+	defer cancel()
+
+	var lastReadErr error
+	err := wait.For(timedCtx, time.Second, func() (bool, error) {
+		var mode uint8
+		mode, lastReadErr = contractio.Read(g.contract.BondDistributionMode(), timedCtx)
+		if lastReadErr != nil {
+			g.t.Logf("Zk game %v bond distribution mode unavailable while waiting for %v to claim its credit: %v", g.Address, recipient, lastReadErr)
+			return false, nil
+		}
+		if challengerTypes.BondDistributionMode(mode) != challengerTypes.NormalDistributionMode {
+			g.t.Logf("Zk game %v not yet closed (bond distribution mode %v)", g.Address, mode)
+			return false, nil
+		}
+		var credit *big.Int
+		credit, lastReadErr = contractio.Read(g.contract.Credit(recipient), timedCtx)
+		if lastReadErr != nil {
+			g.t.Logf("Zk game %v credit for %v unavailable while waiting to claim: %v", g.Address, recipient, lastReadErr)
+			return false, nil
+		}
+		g.t.Logf("Zk game %v closed, %v unclaimed credit %v", g.Address, recipient, credit)
+		return credit.Sign() == 0, nil
+	})
+	g.require.NoErrorf(err, "challenger %v did not claim its credit for zk game %v; last read error: %v", recipient, g.Address, lastReadErr)
+}
+
+// WaitForProposalStatus polls the proposal status until it reaches expected or the timeout elapses.
+func (g *ZKGame) WaitForProposalStatus(expected ZKProposalStatus) {
+	g.t.Logf("Waiting for zk game %v proposal to have status %v", g.Address, expected)
+	timedCtx, cancel := context.WithTimeout(g.t.Ctx(), defaultTimeout)
+	defer cancel()
+
+	var actual ZKProposalStatus
+	var lastReadErr error
+	err := wait.For(timedCtx, time.Second, func() (bool, error) {
+		var claim ZKClaimData
+		claim, lastReadErr = contractio.Read(g.contract.ClaimData(), timedCtx)
+		if lastReadErr != nil {
+			g.t.Logf("Zk game %v proposal status unavailable while waiting for %v: %v", g.Address, expected, lastReadErr)
+			return false, nil
+		}
+		actual = ZKProposalStatus(claim.Status)
+		g.t.Logf("Zk game %v proposal has status %v, waiting for %v", g.Address, actual, expected)
+		return actual == expected, nil
+	})
+	g.require.NoErrorf(err, "zk game %v proposal status mismatch: expected %v, got %v; last read error: %v", g.Address, expected, actual, lastReadErr)
+}
+
 // ZKGameImpl returns the ZK dispute game implementation address and its parsed
 // constructor args from the DisputeGameFactory.
 func (f *DisputeGameFactory) ZKGameImpl() *ZKDisputeGame {
 	impl := f.GameImpl(gameTypes.ZKDisputeGameType)
 	raw := f.GameArgs(gameTypes.ZKDisputeGameType)
-	f.require.Len(raw, gameargs.ZKArgsLength, "ZK game args must be exactly %d bytes", gameargs.ZKArgsLength)
-
-	var prestate common.Hash
-	copy(prestate[:], raw[0:32])
-
-	var verifier common.Address
-	copy(verifier[:], raw[32:52])
-
-	var asr common.Address
-	copy(asr[:], raw[100:120])
-
-	var weth common.Address
-	copy(weth[:], raw[120:140])
+	args, err := gameargs.ParseZK(raw)
+	f.require.NoError(err, "failed to parse ZK game args")
 
 	return &ZKDisputeGame{
 		Address: impl.Address,
-		Args: gameargs.ZKGameArgs{
-			AbsolutePrestate:     prestate,
-			Verifier:             verifier,
-			MaxChallengeDuration: binary.BigEndian.Uint64(raw[52:60]),
-			MaxProveDuration:     binary.BigEndian.Uint64(raw[60:68]),
-			ChallengerBond:       new(big.Int).SetBytes(raw[68:100]),
-			AnchorStateRegistry:  asr,
-			Weth:                 weth,
-		},
+		Args:    args,
 	}
+}
+
+// ZKWithdrawal mirrors DelayedWETH's WithdrawalRequest struct
+// (amount, timestamp), as returned by the public withdrawals mapping getter.
+type ZKWithdrawal struct {
+	Amount    *big.Int
+	Timestamp *big.Int
+}
+
+// MaturesAt returns the first L1 timestamp at which this withdrawal can be
+// paid out under the given DelayedWETH delay (DelayedWETH.withdraw requires
+// `timestamp + delay <= block.timestamp`).
+func (w ZKWithdrawal) MaturesAt(delay *big.Int) uint64 {
+	return bigs.Uint64Strict(new(big.Int).Add(w.Timestamp, delay))
+}
+
+type delayedWETHBinding struct {
+	Withdrawals func(common.Address, common.Address) bindings.TypedCall[ZKWithdrawal] `sol:"withdrawals"`
+	Delay       func() bindings.TypedCall[*big.Int]                                   `sol:"delay"`
+}
+
+// DelayedWETH exposes the minimal DelayedWETH read surface needed to observe
+// two-phase bond claiming (unlock, then withdraw after the delay).
+type DelayedWETH struct {
+	contract *delayedWETHBinding
+}
+
+// DelayedWETH binds the DelayedWETH contract at addr (e.g. the ZK game
+// implementation's weth arg) using the factory's L1 client.
+func (f *DisputeGameFactory) DelayedWETH(addr common.Address) *DelayedWETH {
+	weth := bindings.NewBindings[delayedWETHBinding](
+		bindings.WithClient(f.ethClient),
+		bindings.WithTo(addr),
+		bindings.WithTest(f.t),
+	)
+	return &DelayedWETH{contract: &weth}
+}
+
+// Withdrawal returns the pending withdrawal request the game holds for recipient.
+func (w *DelayedWETH) Withdrawal(game, recipient common.Address) ZKWithdrawal {
+	return contract.Read(w.contract.Withdrawals(game, recipient))
+}
+
+// Delay returns the withdrawal delay in seconds.
+func (w *DelayedWETH) Delay() *big.Int {
+	return contract.Read(w.contract.Delay())
 }

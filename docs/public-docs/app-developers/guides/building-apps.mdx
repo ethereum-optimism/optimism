@@ -4,6 +4,8 @@ description: Learn the basics of building apps on OP Stack chains.
 diataxis: explanation
 ---
 
+import OpEnterpriseAppsCallout from '/snippets/op-enterprise-apps-callout.mdx';
+
 This guide explains the basics of OP Stack development.
 OP Stack chains are [EVM equivalent](https://web.archive.org/web/20231127160757/https://medium.com/ethereum-optimism/introducing-evm-equivalence-5c2021deb306), meaning they run a slightly modified version of the same `geth` you run on mainnet.
 Therefore, the differences between OP Stack development and Ethereum development are minor.
@@ -50,6 +52,8 @@ After you are done with that development, debug your decentralized application l
 This lets you debug parts that are OP Stack chains specific such as calls to bridges to transfer ETH or tokens between layers.
 
 Only when you have a version that works well on a test network should you deploy to the production network, where every transaction has a cost.
+
+<OpEnterpriseAppsCallout />
 
 ### Contract source verification
 

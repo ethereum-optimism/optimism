@@ -5,6 +5,9 @@ description: Upgrade an OP Stack chain from output-root dispute games to super-r
 diataxis: how-to
 ---
 
+import RunbookToolVersions from "/snippets/runbook-tool-versions.mdx"
+import { SuperchainOpsPrereqs } from "/snippets/superchain-ops-prereqs.mdx"
+
 # Upgrading a Chain From Output Roots to Super Roots
 
 <Warning>This guide depends on the interop feature, which is still in development. Do not follow it on production chains.</Warning>
@@ -19,19 +22,11 @@ Looking to switch from permissioned to permissionless fault proofs? See [Migrati
 
 ## Before You Begin
 
-You should be familiar with running `superchain-ops` upgrade tasks, signing through the standard signing workflow, and operating `op-proposer`, `op-challenger`, and `op-dispute-mon`. See [Upgrade using superchain-ops](/chain-operators/tutorials/l1-contract-upgrades/superchain-ops-guide) for the signing workflow.
+<SuperchainOpsPrereqs />
 
 ### Required tooling
 
-The versions below are the ones the optimism repo's `mise.toml` pins; older versions of `cast` in particular may not parse the function-selector syntax used in this runbook.
-
-| Tool | Minimum version |
-| --- | --- |
-| `foundry` (`cast`, `forge`) | `1.2.3` |
-| `just` | `1.46.0` |
-| `jq` | `1.7.1` |
-| `go` | `1.24.13` |
-| `curl` | any |
+<RunbookToolVersions />
 
 You also need a checkout of the [optimism monorepo](https://github.com/ethereum-optimism/optimism) to run [`op-fetcher`](https://github.com/ethereum-optimism/optimism/tree/develop/op-fetcher) (used in the next step).
 
@@ -84,7 +79,7 @@ Read the values you need from `chain.json`:
 
 Before you change any configuration:
 
-* **Confirm the template injects `overrides.cfg.startingAnchorRoot`.** Open `superchain-ops/src/template/OPCMUpgradeV800.sol` and check `_buildExtraInstructions`. As of writing it only injects `overrides.cfg.startingRespectedGameType` and `PermittedProxyDeployment`. Without an `overrides.cfg.startingAnchorRoot` override, OPCM falls back to the existing on-chain `startingAnchorRoot`, which on a pre-upgrade chain is an output-root-shaped value with a block-number `l2SequenceNumber` — not a valid super-root anchor. The template must be extended to read a starting super-root anchor from TOML and add it as a third extra instruction. Fix the template before continuing.
+* **Confirm the template's extra instructions.** Open `superchain-ops/src/template/OPCMUpgradeV800.sol` and check `_buildExtraInstructions`. As of writing it injects `overrides.cfg.startingRespectedGameType` and `PermittedProxyDeployment`. Both need attention before continuing. `PermittedProxyDeployment` must be dropped: OPCM `8.0.0` permits no proxy deployments during an upgrade, because the unified `DelayedWETH` shipped with the 7.x OPCM, so the instruction now reverts with `OPContractsManagerV2_InvalidUpgradeInstruction`. An `overrides.cfg.startingAnchorRoot` override must be added: without it, OPCM falls back to the existing on-chain `startingAnchorRoot`, which on a pre-upgrade chain is an output-root-shaped value with a block-number `l2SequenceNumber` — not a valid super-root anchor. The template must be extended to read a starting super-root anchor from TOML and add it as an extra instruction. Fix the template before continuing.
 * **Confirm the RPC endpoint returns a single-chain super root.** Either the chain's op-node RPC endpoint or an op-supernode `/<chainID>/` endpoint can be used. Do not use a multi-chain op-supernode root endpoint; it computes roots across its full dependency set.
 * **Verify the single-chain RPC endpoint is healthy.** For an op-node or namespaced op-supernode endpoint, confirm it reports a recent finalized L2 head and can produce the corresponding super root:
 

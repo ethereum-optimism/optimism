@@ -73,7 +73,7 @@ func (n *SuperNode) startLocked() {
 
 	ctx, cancel := context.WithCancel(n.p.Ctx())
 	exitFn := func(err error) { n.p.Errorf("supernode critical error: %v", err) }
-	sn, err := supernode.New(ctx, n.logger, "devstack", exitFn, n.snCfg, n.vnCfgs)
+	sn, err := supernode.New(ctx, n.logger, "devstack", "", exitFn, n.snCfg, n.vnCfgs)
 	n.p.Require().NoError(err, "supernode failed to create")
 	n.sn = sn
 	n.cancel = cancel
