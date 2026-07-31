@@ -29,19 +29,6 @@ abstract contract OPContractsManagerUtilsCaller {
         opcmUtils = _utils;
     }
 
-    /// @notice Maps an L2 chain ID to an L1 batch inbox address as defined by the standard
-    ///         configuration's convention. This convention is
-    ///         `versionByte || keccak256(bytes32(chainId))[:19]`, where || denotes concatenation,
-    ///         versionByte is 0x00, and chainId is a uint256.
-    ///         https://specs.optimism.io/protocol/configurability.html#consensus-parameters
-    /// @param _l2ChainId The L2 chain ID to map to an L1 batch inbox address.
-    /// @return Chain ID mapped to an L1 batch inbox address.
-    function _chainIdToBatchInboxAddress(uint256 _l2ChainId) internal view returns (address) {
-        return abi.decode(
-            _staticcall(abi.encodeCall(IOPContractsManagerUtils.chainIdToBatchInboxAddress, (_l2ChainId))), (address)
-        );
-    }
-
     /// @notice Helper for computing a salt for a contract deployment.
     /// @param _l2ChainId The L2 chain ID of the chain being deployed to.
     /// @param _saltMixer The salt mixer to use for the deployment.

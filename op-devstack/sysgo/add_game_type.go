@@ -144,7 +144,6 @@ func addGameTypesForRuntime(
 			Key:  "overrides.cfg.startingRespectedGameType",
 			Data: encodeStartingRespectedGameType(t, superPermissionedGameType),
 		},
-		{Key: "PermittedProxyDeployment", Data: []byte("DelayedWETH")},
 	}
 
 	// Download the contracts artifacts once; reused for the mock verifier deploy and the upgrade.

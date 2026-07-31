@@ -1065,7 +1065,7 @@
     },
     {
       "source": "/operators/chain-operators/deploy",
-      "destination": "/chain-operators/tutorials/create-l2-rollup/create-l2-rollup"
+      "destination": "/chain-operators/tutorials/create-l2-rollup"
     },
     {
       "source": "/operators/chain-operators/deploy/genesis",
@@ -1073,7 +1073,7 @@
     },
     {
       "source": "/operators/chain-operators/deploy/overview",
-      "destination": "/chain-operators/tutorials/create-l2-rollup/create-l2-rollup"
+      "destination": "/chain-operators/tutorials/create-l2-rollup"
     },
     {
       "source": "/operators/chain-operators/deploy/smart-contracts",
@@ -1177,7 +1177,7 @@
     },
     {
       "source": "/operators/chain-operators/tutorials",
-      "destination": "/chain-operators/tutorials/create-l2-rollup/create-l2-rollup"
+      "destination": "/chain-operators/tutorials/create-l2-rollup"
     },
     {
       "source": "/operators/chain-operators/tutorials/adding-derivation-attributes",
@@ -1193,7 +1193,7 @@
     },
     {
       "source": "/operators/chain-operators/tutorials/create-l2-rollup",
-      "destination": "/chain-operators/tutorials/create-l2-rollup/create-l2-rollup"
+      "destination": "/chain-operators/tutorials/create-l2-rollup"
     },
     {
       "source": "/operators/chain-operators/tutorials/dispute-games",
@@ -1217,7 +1217,7 @@
     },
     {
       "source": "/operators/node-operators/architecture",
-      "destination": "/node-operators/reference/architecture/architecture"
+      "destination": "/node-operators/reference/architecture"
     },
     {
       "source": "/operators/node-operators/configuration",
@@ -1294,6 +1294,10 @@
     {
       "source": "/node-operators/reference/architecture/rollup-node",
       "destination": "/node-operators/overview"
+    },
+    {
+      "source": "/node-operators/reference/architecture/architecture",
+      "destination": "/node-operators/reference/architecture"
     },
     {
       "source": "/node-operators/guides/running-a-node",
@@ -1732,6 +1736,10 @@
       "destination": "/chain-operators/tutorials/create-l2-rollup/op-reth-setup"
     },
     {
+      "source": "/chain-operators/tutorials/create-l2-rollup/create-l2-rollup",
+      "destination": "/chain-operators/tutorials/create-l2-rollup"
+    },
+    {
       "source": "/operators/chain-operators/tutorials/create-l2-rollup/op-deployer-setup",
       "destination": "/chain-operators/tutorials/create-l2-rollup/op-deployer-setup"
     },
@@ -1809,7 +1817,7 @@
     },
     {
       "source": "/chain-operators/guides/deployment/overview",
-      "destination": "/chain-operators/tutorials/create-l2-rollup/create-l2-rollup"
+      "destination": "/chain-operators/tutorials/create-l2-rollup"
     },
     {
       "source": "/chain-operators/guides/deployment/smart-contracts",
@@ -2553,7 +2561,11 @@
     },
     {
       "source": "/rust/op-alloy/glossary",
-      "destination": "/app-developers/tools-sdks/op-alloy/glossary"
+      "destination": "/op-stack/reference/glossary"
+    },
+    {
+      "source": "/app-developers/tools-sdks/op-alloy/glossary",
+      "destination": "/op-stack/reference/glossary"
     },
     {
       "source": "/rust/op-revm",
@@ -2680,7 +2692,7 @@
               {
                 "group": "Create L2 Rollup",
                 "pages": [
-                  "chain-operators/tutorials/create-l2-rollup/create-l2-rollup",
+                  "chain-operators/tutorials/create-l2-rollup/index",
                   "chain-operators/tutorials/create-l2-rollup/op-deployer-setup",
                   "chain-operators/tutorials/create-l2-rollup/op-reth-setup",
                   "chain-operators/tutorials/create-l2-rollup/op-batcher-setup",
@@ -2786,7 +2798,7 @@
         "tab": "Node Operators",
         "groups": [
           {
-            "group": "Getting Started",
+            "group": "Get started",
             "pages": [
               "node-operators/overview"
             ]
@@ -2829,77 +2841,100 @@
             ]
           },
           {
-            "group": "Kona Node",
+            "group": "Clients",
             "pages": [
-              "node-operators/kona-node/requirements",
               {
-                "group": "Installation",
+                "group": "Kona Node",
                 "pages": [
-                  "node-operators/kona-node/install/overview",
-                  "node-operators/kona-node/install/source"
-                ]
-              },
-              {
-                "group": "Run a Node",
-                "pages": [
-                  "node-operators/kona-node/run/overview",
-                  "node-operators/kona-node/run/binary",
-                  "node-operators/kona-node/run/docker",
-                  "node-operators/kona-node/run/mechanics",
-                  "node-operators/kona-node/run/rpc-trust",
-                  "node-operators/kona-node/run/sequencer"
-                ]
-              },
-              {
-                "group": "JSON-RPC Reference",
-                "pages": [
-                  "node-operators/kona-node/rpc/overview",
-                  "node-operators/kona-node/rpc/p2p",
-                  "node-operators/kona-node/rpc/rollup",
-                  "node-operators/kona-node/rpc/admin"
-                ]
-              },
-              "node-operators/kona-node/configuration",
-              "node-operators/kona-node/monitoring",
-              "node-operators/kona-node/subcommands",
-              {
-                "group": "FAQ",
-                "pages": [
-                  "node-operators/kona-node/faq/overview",
-                  "node-operators/kona-node/faq/ports",
-                  "node-operators/kona-node/faq/profiling"
-                ]
-              },
-              {
-                "group": "Design",
-                "pages": [
-                  "node-operators/kona-node/design/intro",
-                  "node-operators/kona-node/design/derivation",
-                  "node-operators/kona-node/design/engine",
-                  "node-operators/kona-node/design/p2p",
-                  "node-operators/kona-node/design/sequencer"
-                ]
-              }
-            ]
-          },
-          {
-            "group": "op-reth",
-            "pages": [
-              "node-operators/op-reth/index",
-              {
-                "group": "Run a Node",
-                "pages": [
-                  "node-operators/op-reth/run/opstack",
+                  "node-operators/kona-node/requirements",
+                  {
+                    "group": "Installation",
+                    "pages": [
+                      "node-operators/kona-node/install/overview",
+                      "node-operators/kona-node/install/source"
+                    ]
+                  },
+                  {
+                    "group": "Run a Node",
+                    "pages": [
+                      "node-operators/kona-node/run/overview",
+                      "node-operators/kona-node/run/binary",
+                      "node-operators/kona-node/run/docker",
+                      "node-operators/kona-node/run/mechanics",
+                      "node-operators/kona-node/run/rpc-trust",
+                      "node-operators/kona-node/run/sequencer"
+                    ]
+                  },
+                  {
+                    "group": "JSON-RPC Reference",
+                    "pages": [
+                      "node-operators/kona-node/rpc/overview",
+                      "node-operators/kona-node/rpc/p2p",
+                      "node-operators/kona-node/rpc/rollup",
+                      "node-operators/kona-node/rpc/admin"
+                    ]
+                  },
+                  "node-operators/kona-node/configuration",
+                  "node-operators/kona-node/monitoring",
+                  "node-operators/kona-node/subcommands",
                   {
                     "group": "FAQ",
                     "pages": [
-                      "node-operators/op-reth/run/faq/sync-op-mainnet"
+                      "node-operators/kona-node/faq/overview",
+                      "node-operators/kona-node/faq/ports",
+                      "node-operators/kona-node/faq/profiling"
+                    ]
+                  },
+                  {
+                    "group": "Design",
+                    "pages": [
+                      "node-operators/kona-node/design/intro",
+                      "node-operators/kona-node/design/derivation",
+                      "node-operators/kona-node/design/engine",
+                      "node-operators/kona-node/design/p2p",
+                      "node-operators/kona-node/design/sequencer"
                     ]
                   }
                 ]
               },
               {
-                "group": "CLI Reference",
+                "group": "op-reth",
+                "pages": [
+                  "node-operators/op-reth/index",
+                  {
+                    "group": "Run a Node",
+                    "pages": [
+                      "node-operators/op-reth/run/opstack",
+                      {
+                        "group": "FAQ",
+                        "pages": [
+                          "node-operators/op-reth/run/faq/sync-op-mainnet"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": [
+              {
+                "group": "Architecture",
+                "pages": [
+                  "node-operators/reference/architecture/index"
+                ]
+              },
+              "node-operators/reference/op-node-config",
+              "node-operators/reference/op-node-json-rpc",
+              "node-operators/reference/op-supernode-config",
+              "node-operators/reference/op-reth-config",
+              "node-operators/reference/op-reth-json-rpc",
+              "node-operators/reference/op-reth-historical-proof-config",
+              "node-operators/reference/consensus-layer-sync",
+              {
+                "group": "op-reth CLI reference",
                 "pages": [
                   "node-operators/op-reth/cli/overview",
                   {
@@ -3028,24 +3063,6 @@
                 ]
               }
             ]
-          },
-          {
-            "group": "Reference",
-            "pages": [
-              {
-                "group": "Architecture",
-                "pages": [
-                  "node-operators/reference/architecture/architecture"
-                ]
-              },
-              "node-operators/reference/op-node-config",
-              "node-operators/reference/op-node-json-rpc",
-              "node-operators/reference/op-supernode-config",
-              "node-operators/reference/op-reth-config",
-              "node-operators/reference/op-reth-json-rpc",
-              "node-operators/reference/op-reth-historical-proof-config",
-              "node-operators/reference/consensus-layer-sync"
-            ]
           }
         ]
       },
@@ -3159,8 +3176,7 @@
                       "app-developers/tools-sdks/op-alloy/building/consensus",
                       "app-developers/tools-sdks/op-alloy/building/engine"
                     ]
-                  },
-                  "app-developers/tools-sdks/op-alloy/glossary"
+                  }
                 ]
               },
               "app-developers/tools-sdks/op-revm",

@@ -761,14 +761,6 @@ jobs:
 
   # Kona Publish Prestate Artifacts
   kona-publish-prestate-artifacts:
-    parameters:
-      kind:
-        description: The kind of prestate (cannon)
-        type: string
-        default: "cannon"
-      version:
-        description: The version to build (kona-client, kona-client-int)
-        type: string
     machine:
       image: <<pipeline.parameters.c-base_image>>
       docker_layer_caching: true
@@ -779,11 +771,11 @@ jobs:
       - apt-install:
           packages: "clang llvm-dev libclang-dev"
           extra_flags: "--no-install-recommends"
-      # No sccache here: the prestate is built reproducibly in Docker
-      # (just build-kona-reproducible-prestate-variant), so the host never
-      # compiles and the job doesn't need the sccache-gcs-optimism context. That
-      # context also defines GCP_SERVICE_ACCOUNT_EMAIL, which would otherwise
-      # shadow the oplabs-network-data publisher SA used by the upload below.
+      # No sccache here: the prestates are built reproducibly in Docker
+      # (just build-kona-reproducible-prestate), so the host never compiles and
+      # the job doesn't need the sccache-gcs-optimism context. That context also
+      # defines GCP_SERVICE_ACCOUNT_EMAIL, which would otherwise shadow the
+      # oplabs-network-data publisher SA used by the upload below.
       - rust-prepare-and-restore-cache:
           directory: rust
           profile: release
@@ -796,26 +788,52 @@ jobs:
           name: Generate prestate artifacts
           working_directory: rust
           no_output_timeout: 60m
-          command: |
-            just build-kona-reproducible-prestate-variant "<<parameters.version>>" "prestate-artifacts-<<parameters.kind>>"
+          command: just build-kona-reproducible-prestate
 
       - run:
           name: Upload prestates to GCS
-          working_directory: rust/kona
+          working_directory: rust
           command: |
-            PRESTATE_HASH=$(jq -r .pre ./prestate-artifacts-<<parameters.kind>>/prestate-proof.json)
+            set -euo pipefail
             BRANCH_NAME=$(echo "<< pipeline.git.branch >>" | tr '/' '-')
-            echo "Publishing ${PRESTATE_HASH} as ${BRANCH_NAME}"
-            if [ -n "<< pipeline.git.branch >>" ]; then
-              echo "Publishing commit hash data"
-              INFO_FILE=$(mktemp)
-              (echo "Commit=<< pipeline.git.revision >>" && echo "Prestate: ${PRESTATE_HASH}") > "${INFO_FILE}"
-              gsutil cp "${INFO_FILE}" "gs://oplabs-network-data/proofs/kona/<<parameters.kind>>/${BRANCH_NAME}-<<parameters.version>>.bin.gz.txt"
-              rm "${INFO_FILE}"
-              PRESTATE_HASH="${BRANCH_NAME}-<<parameters.version>>"
-            fi
-            gsutil cp ./prestate-artifacts-<<parameters.kind>>/prestate.bin.gz "gs://oplabs-network-data/proofs/kona/<<parameters.kind>>/${PRESTATE_HASH}.bin.gz"
-            echo "Successfully published prestates artifacts to GCS"
+            # Variant -> artifacts dir comes from the justfile so CI and the
+            # build can't disagree about where a variant landed. Read it into an
+            # array first: piping into `while` would swallow a failed/empty table
+            # as a zero-upload success, and would hand the loop body's stdin to
+            # gsutil. Accumulated with `while read` rather than `mapfile` to keep
+            # one idiom with the justfile, which also runs on macOS bash 3.2.
+            #
+            # No bash here-strings or heredocs anywhere in a CircleCI command:
+            # a doubled left angle bracket opens a parameter tag before any
+            # shell sees it, and an unclosed one kills the whole continuation.
+            # Via a temp file rather than process substitution, so a failing
+            # just still fails the step instead of reading as an empty table.
+            VARIANTS_FILE=$(mktemp)
+            just kona-prestate-variants > "${VARIANTS_FILE}"
+            ENTRIES=()
+            while IFS= read -r ENTRY; do ENTRIES+=("${ENTRY}"); done < "${VARIANTS_FILE}"
+            rm -f "${VARIANTS_FILE}"
+            (( ${#ENTRIES[@]} > 0 )) || { echo "no prestate variants to publish" >&2; exit 1; }
+
+            for ENTRY in "${ENTRIES[@]}"; do
+              VARIANT=${ENTRY%% *}
+              DIR=${ENTRY##* }
+              [ -n "${VARIANT}" ] && [ -n "${DIR}" ] && [ "${VARIANT}" != "${DIR}" ] || {
+                echo "malformed variant entry '${ENTRY}'" >&2; exit 1; }
+              PRESTATE_HASH=$(jq -er .pre "kona/${DIR}/prestate-proof.json")
+              echo "Publishing ${VARIANT} prestate ${PRESTATE_HASH}"
+              OBJECT="${PRESTATE_HASH}"
+              if [ -n "<< pipeline.git.branch >>" ]; then
+                echo "Publishing commit hash data"
+                INFO_FILE=$(mktemp)
+                (echo "Commit=<< pipeline.git.revision >>" && echo "Prestate: ${PRESTATE_HASH}") > "${INFO_FILE}"
+                gsutil cp "${INFO_FILE}" "gs://oplabs-network-data/proofs/kona/cannon/${BRANCH_NAME}-${VARIANT}.bin.gz.txt"
+                rm "${INFO_FILE}"
+                OBJECT="${BRANCH_NAME}-${VARIANT}"
+              fi
+              gsutil cp "kona/${DIR}/prestate.bin.gz" "gs://oplabs-network-data/proofs/kona/cannon/${OBJECT}.bin.gz"
+            done
+            echo "Successfully published ${#ENTRIES[@]} prestate artifacts to GCS"
       # No cache save: builds in Docker, host registry stays empty.
 
   required-rust-ci:
@@ -1073,10 +1091,6 @@ workflows:
     when: << pipeline.parameters.c-run_kona_publish_prestates >>
     jobs:
       - kona-publish-prestate-artifacts:
-          name: kona-publish-<<matrix.version>>
-          matrix:
-            parameters:
-              version: ["kona-client", "kona-client-int"]
           context:
             - circleci-repo-readonly-authenticated-github-token
             - oplabs-network-optimism-io-bucket
@@ -1086,10 +1100,6 @@ workflows:
     when: << pipeline.parameters.c-run_release >>
     jobs:
       - kona-publish-prestate-artifacts:
-          name: kona-publish-<<matrix.version>>
-          matrix:
-            parameters:
-              version: ["kona-client", "kona-client-int"]
           context:
             - circleci-repo-readonly-authenticated-github-token
             - oplabs-network-optimism-io-bucket

@@ -42,7 +42,7 @@ func (t *sendETHTrigger) AccessList() (types.AccessList, error) {
 
 func newPostGenesisSupernodeInterop(t devtest.T) *presets.TwoL2SupernodeInterop {
 	return presets.NewTwoL2SupernodeInterop(t, postGenesisInteropActivationDelay,
-		presets.WithSuggestedInteropActivationOffset(postGenesisInteropActivationDelay),
+		presets.WithSuggestedLagoonActivationOffset(postGenesisInteropActivationDelay),
 	)
 }
 

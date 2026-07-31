@@ -16,16 +16,16 @@ import (
 
 func TestDeploymentUsesSuperAggregationVKey(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := newSystem(t)
-	vkey := loadSuperAggregationVKey(t)
+	sys := presets.NewSimpleInterop(t, presets.WithZK())
+	vkey := expectedSuperAggregationVKey(t)
 	factory := sys.DisputeGameFactory()
 
 	factory.VerifyGameImplAbsent(gameTypes.SuperCannonKonaGameType)
 	zk := factory.ZKGameImpl()
 	t.Require().NotEqual(common.Address{}, zk.Address)
 	t.Require().Equal(vkey, zk.Args.AbsolutePrestate)
-	t.Require().Equal(uint64(zkChallengeDuration/time.Second), zk.Args.MaxChallengeDuration)
-	t.Require().Equal(uint64(zkProveDuration/time.Second), zk.Args.MaxProveDuration)
+	t.Require().Equal(uint64(presets.DefaultZKChallengeDuration/time.Second), zk.Args.MaxChallengeDuration)
+	t.Require().Equal(uint64(presets.DefaultZKProveDuration/time.Second), zk.Args.MaxProveDuration)
 	t.Require().Positive(zk.Args.ChallengerBond.Sign())
 	t.Require().NotEqual(common.Address{}, zk.Args.AnchorStateRegistry)
 	t.Require().NotEqual(common.Address{}, zk.Args.Weth)
@@ -37,7 +37,7 @@ func TestDeploymentUsesSuperAggregationVKey(gt *testing.T) {
 
 func TestChallengedValidProposalAnchors(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := newSystem(t)
+	sys := presets.NewSimpleInterop(t, presets.WithZK())
 	factory := sys.DisputeGameFactory()
 	challenger, _ := fundedActors(sys)
 
@@ -60,7 +60,7 @@ func TestChallengedValidProposalAnchors(gt *testing.T) {
 	// least this game's sequence (descendants can only anchor if this game
 	// resolved in the defender's favor).
 	game.WaitForGameStatus(gameTypes.GameStatusDefenderWon)
-	advanceL1To(&sys.SingleChainInterop, game.ResolvedAt()+uint64(zkFinalityDelay/time.Second)+1)
+	advanceL1To(&sys.SingleChainInterop, game.ResolvedAt()+uint64(presets.DefaultZKFinalityDelay/time.Second)+1)
 	sys.AnchorStateRegistry(sys.L2ChainA).WaitForAnchorRootAtLeast(game)
 }
 
@@ -72,7 +72,7 @@ func TestProposerDefendsForeignValidGame(gt *testing.T) {
 	// The honest challenger resolves games and claims credit on the
 	// proposer's behalf; disable it so every assertion below binds to the
 	// proposer.
-	sys := newSystem(t, presets.WithoutHonestChallenger())
+	sys := presets.NewSimpleInterop(t, presets.WithZK(), presets.WithoutHonestChallenger())
 	factory := sys.DisputeGameFactory()
 	proposerAddr := zkProposerAddress(t, sys)
 	weth := factory.DelayedWETH(factory.ZKGameImpl().Args.Weth)
@@ -98,7 +98,7 @@ func TestProposerDefendsForeignValidGame(gt *testing.T) {
 	game.WaitForProposalStatus(proofs.ZKProposalChallengedAndValidProofProvided)
 	t.Require().Equal(proposerAddr, game.ClaimData().Prover)
 	game.WaitForGameStatus(gameTypes.GameStatusDefenderWon)
-	advanceL1To(&sys.SingleChainInterop, game.ResolvedAt()+uint64(zkFinalityDelay/time.Second)+1)
+	advanceL1To(&sys.SingleChainInterop, game.ResolvedAt()+uint64(presets.DefaultZKFinalityDelay/time.Second)+1)
 
 	// The proposer's claim task unlocks its prover credit - the challenger's
 	// bond - into DelayedWETH. Asserting the unlocked amount is race-free:

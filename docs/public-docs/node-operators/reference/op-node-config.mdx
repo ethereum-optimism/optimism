@@ -5,15 +5,12 @@ diataxis: reference
 ---
 
 import OpNodeFlags from '/snippets/generated/op-node-flags.mdx';
+import { ConfigReferencePreamble } from '/snippets/config-reference-preamble.mdx';
 
 This page catalogues every configuration option for the op-node, the consensus-layer
 (rollup node) client of an OP Stack chain.
 
-The flag tables below are generated directly from the op-node's flag
-definitions in the monorepo (`op-node/flags`) at the release tag named in the
-provenance line, and are regenerated when a new finalized release is
-published, so they cannot silently fall behind. Every flag can also be set
-through the environment variable listed next to it.
+<ConfigReferencePreamble component="op-node" />
 
 For guidance on running a node — hardware, sync strategies, and monitoring —
 see the [node operator guides](/node-operators/tutorials/run-node-from-source).

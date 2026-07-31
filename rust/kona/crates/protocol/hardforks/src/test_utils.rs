@@ -22,7 +22,7 @@ pub(crate) fn check_deployment_code(
     expected_code_hash: B256,
 ) {
     let ctx = Context::op()
-        .with_cfg(CfgEnv::new_with_spec(OpSpecId::INTEROP))
+        .with_cfg(CfgEnv::new_with_spec(OpSpecId::LAGOON))
         .modify_tx_chained(|tx| {
             // Deposit + OP meta
             tx.deposit = DepositTransactionParts {

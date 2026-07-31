@@ -168,7 +168,6 @@ func TestManageAddGameTypeV2_Integration(t *testing.T) {
 			ExtraInstructions: []embedded.ExtraInstruction{
 				{Key: "overrides.cfg.startingAnchorRoot", Data: startingAnchorRoot},
 				{Key: "overrides.cfg.startingRespectedGameType", Data: startingRespectedGameType},
-				{Key: "PermittedProxyDeployment", Data: []byte("DelayedWETH")},
 			},
 		},
 	}

@@ -3,6 +3,7 @@ package sysgo
 import (
 	"context"
 	"math/big"
+	"os"
 	"runtime"
 	"sort"
 	"time"
@@ -75,6 +76,9 @@ func attachSupernodeSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg Pre
 		}
 		sharedDGF := migrateSuperRootsWithProposal(t, runtime.Keys, runtime.Migration, runtime.L1Network.ChainID(), runtime.L1EL, startingAnchor, proofChain.Network.ChainID())
 		if cfg.ZKDisputeGame != nil {
+			elfDir := os.Getenv(konaSP1ELFDirEnv)
+			programVKey, err := loadZKProgramVKey(elfDir)
+			t.Require().NoError(err, "load Kona SP1 super-aggregation vkey")
 			setInteropZKDisputeGameForRuntime(
 				t,
 				runtime.Keys,
@@ -83,6 +87,7 @@ func attachSupernodeSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg Pre
 				runtime.L1EL,
 				startingAnchor,
 				sharedDGF,
+				programVKey,
 				*cfg.ZKDisputeGame,
 			)
 			nets := make([]*L2Network, 0, len(chains))
@@ -106,7 +111,7 @@ func attachSupernodeSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg Pre
 				)
 				runtime.L2ChallengerConfig = challenger.Config()
 			}
-			if !cfg.SkipHonestProposer {
+			runtime.startZKProposerFn = func() {
 				startZKProposer(
 					t,
 					runtime.Keys,
@@ -119,8 +124,13 @@ func attachSupernodeSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg Pre
 					nets,
 					els,
 					sharedDGF,
-					cfg.ZKDisputeGame.ProgramVKey,
+					programVKey,
+					elfDir,
+					cfg.ZKProposerOptions...,
 				)
+			}
+			if !cfg.SkipHonestProposer {
+				runtime.StartZKProposer(t)
 			}
 			return runtime
 		}

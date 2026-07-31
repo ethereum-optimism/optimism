@@ -6,19 +6,6 @@
   },
   {
     "inputs": [],
-    "name": "BATCH_INBOX_SLOT",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "DELAYED_WETH_SLOT",
     "outputs": [
       {
@@ -155,19 +142,6 @@
         "internalType": "uint32",
         "name": "",
         "type": "uint32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "batchInbox",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "addr_",
-        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -421,11 +395,6 @@
         "internalType": "struct IResourceMetering.ResourceConfig",
         "name": "_config",
         "type": "tuple"
-      },
-      {
-        "internalType": "address",
-        "name": "_batchInbox",
-        "type": "address"
       },
       {
         "components": [
@@ -887,24 +856,6 @@
       }
     ],
     "name": "setFeature",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "_overhead",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_scalar",
-        "type": "uint256"
-      }
-    ],
-    "name": "setGasConfig",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

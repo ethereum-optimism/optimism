@@ -1078,12 +1078,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 								GameType: embedded.GameTypeZKDisputeGame,
 							},
 						},
-						ExtraInstructions: []embedded.ExtraInstruction{
-							{
-								Key:  "PermittedProxyDeployment",
-								Data: []byte("DelayedWETH"),
-							},
-						},
+						ExtraInstructions: []embedded.ExtraInstruction{},
 					},
 				}
 

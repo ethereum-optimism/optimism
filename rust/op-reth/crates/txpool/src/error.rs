@@ -8,7 +8,7 @@ pub enum InvalidCrossTx {
     /// Errors produced by interop filter validation.
     #[error(transparent)]
     ValidationError(#[from] InteropTxValidatorError),
-    /// Error cause by cross chain tx during not active interop hardfork
+    /// Error caused by a cross chain tx before the Lagoon hardfork (interop activation) is active
     #[error("cross chain tx is invalid before interop")]
     CrossChainTxPreInterop,
     /// Rejected because failsafe mode is active — all interop txs are blocked.

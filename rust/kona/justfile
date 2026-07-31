@@ -132,9 +132,10 @@ build-native *args='':
   #!/usr/bin/env bash
   cargo build --workspace $@
 
-# Build `kona-client` for the `cannon` target using the reproducible build environment.
-# The bind mount of {{KONA_ROOT}}/../.. exposes the monorepo at /workdir, so the
-# kona-hardforks build script's ancestor walk for op-core/nuts/bundles succeeds.
+# Build the `kona-client` ELFs for the `cannon` target using the reproducible
+# build environment. The bind mount of {{KONA_ROOT}}/../.. exposes the monorepo
+# at /workdir, so the kona-hardforks build script's ancestor walk for
+# op-core/nuts/bundles succeeds.
 build-cannon-client: build-kona-env
   #!/usr/bin/env bash
   set -euo pipefail
@@ -142,7 +143,7 @@ build-cannon-client: build-kona-env
     -v {{KONA_ROOT}}/../..:/workdir \
     -w /workdir/rust \
     kona-cannon-env:local \
-    just build-kona-client-elf kona-client
+    just build-kona-client-elfs
 
 
 # Check for unused dependencies in the crate graph.

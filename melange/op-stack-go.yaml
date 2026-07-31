@@ -54,7 +54,7 @@ subpackages:
           go-package: go-1.26
           # /usr/local/bin, where upstream's images install binaries.
           prefix: usr/local
-          ldflags: -s -w -X main.GitCommit=$(git rev-parse HEAD 2>/dev/null || echo unknown) -X main.GitDate=$(git show -s --format=%ct 2>/dev/null || echo 0)
+          ldflags: -s -w -X main.GitCommit=${GIT_COMMIT:-unknown} -X main.GitDate=${GIT_DATE:-0} -X github.com/ethereum-optimism/optimism/op-node/version.Version=${GIT_VERSION:-v0.0.0} -X github.com/ethereum-optimism/optimism/op-node/version.Meta=$(if [ -n "${GIT_VERSION}" ]; then printf ""; else printf "dev"; fi)
       - uses: strip
 
   - name: op-batcher
@@ -68,7 +68,7 @@ subpackages:
           go-package: go-1.26
           # /usr/local/bin, where upstream's images install binaries.
           prefix: usr/local
-          ldflags: -s -w -X main.GitCommit=$(git rev-parse HEAD 2>/dev/null || echo unknown) -X main.GitDate=$(git show -s --format=%ct 2>/dev/null || echo 0)
+          ldflags: -s -w -X main.GitCommit=${GIT_COMMIT:-unknown} -X main.GitDate=${GIT_DATE:-0} -X main.Version=${GIT_VERSION:-v0.0.0}
       - uses: strip
 
   - name: op-proposer
@@ -82,7 +82,7 @@ subpackages:
           go-package: go-1.26
           # /usr/local/bin, where upstream's images install binaries.
           prefix: usr/local
-          ldflags: -s -w -X main.GitCommit=$(git rev-parse HEAD 2>/dev/null || echo unknown) -X main.GitDate=$(git show -s --format=%ct 2>/dev/null || echo 0)
+          ldflags: -s -w -X main.GitCommit=${GIT_COMMIT:-unknown} -X main.GitDate=${GIT_DATE:-0} -X main.Version=${GIT_VERSION:-v0.0.0}
       - uses: strip
 
   - name: op-conductor
@@ -96,7 +96,7 @@ subpackages:
           go-package: go-1.26
           # /usr/local/bin, where upstream's images install binaries.
           prefix: usr/local
-          ldflags: -s -w -X main.GitCommit=$(git rev-parse HEAD 2>/dev/null || echo unknown) -X main.GitDate=$(git show -s --format=%ct 2>/dev/null || echo 0)
+          ldflags: -s -w -X main.GitCommit=${GIT_COMMIT:-unknown} -X main.GitDate=${GIT_DATE:-0} -X main.Version=${GIT_VERSION:-v0.0.1}
       - uses: strip
 
   - name: op-challenger
@@ -110,7 +110,7 @@ subpackages:
           go-package: go-1.26
           # /usr/local/bin, where upstream's images install binaries.
           prefix: usr/local
-          ldflags: -s -w -X main.GitCommit=$(git rev-parse HEAD 2>/dev/null || echo unknown) -X main.GitDate=$(git show -s --format=%ct 2>/dev/null || echo 0)
+          ldflags: -s -w -X main.GitCommit=${GIT_COMMIT:-unknown} -X main.GitDate=${GIT_DATE:-0} -X github.com/ethereum-optimism/optimism/op-challenger/version.Version=${GIT_VERSION:-v0.1.0} -X github.com/ethereum-optimism/optimism/op-challenger/version.Meta=$(if [ -n "${GIT_VERSION}" ]; then printf ""; else printf "dev"; fi)
       - uses: strip
 
   - name: op-dispute-mon
@@ -124,7 +124,7 @@ subpackages:
           go-package: go-1.26
           # /usr/local/bin, where upstream's images install binaries.
           prefix: usr/local
-          ldflags: -s -w -X main.GitCommit=$(git rev-parse HEAD 2>/dev/null || echo unknown) -X main.GitDate=$(git show -s --format=%ct 2>/dev/null || echo 0)
+          ldflags: -s -w -X main.GitCommit=${GIT_COMMIT:-unknown} -X main.GitDate=${GIT_DATE:-0} -X github.com/ethereum-optimism/optimism/op-dispute-mon/version.Version=${GIT_VERSION:-v0.0.0} -X github.com/ethereum-optimism/optimism/op-dispute-mon/version.Meta=$(if [ -n "${GIT_VERSION}" ]; then printf ""; else printf "dev"; fi)
       - uses: strip
 
   - name: op-dripper
@@ -138,7 +138,7 @@ subpackages:
           go-package: go-1.26
           # /usr/local/bin, where upstream's images install binaries.
           prefix: usr/local
-          ldflags: -s -w -X main.GitCommit=$(git rev-parse HEAD 2>/dev/null || echo unknown) -X main.GitDate=$(git show -s --format=%ct 2>/dev/null || echo 0)
+          ldflags: -s -w -X main.GitCommit=${GIT_COMMIT:-unknown} -X main.GitDate=${GIT_DATE:-0} -X main.Version=${GIT_VERSION:-v0.0.0}
       - uses: strip
 
   - name: op-faucet
@@ -152,7 +152,7 @@ subpackages:
           go-package: go-1.26
           # /usr/local/bin, where upstream's images install binaries.
           prefix: usr/local
-          ldflags: -s -w -X main.GitCommit=$(git rev-parse HEAD 2>/dev/null || echo unknown) -X main.GitDate=$(git show -s --format=%ct 2>/dev/null || echo 0)
+          ldflags: -s -w -X main.GitCommit=${GIT_COMMIT:-unknown} -X main.GitDate=${GIT_DATE:-0} -X main.Version=${GIT_VERSION:-v0.0.0}
       - uses: strip
 
   - name: op-interop-filter
@@ -166,7 +166,7 @@ subpackages:
           go-package: go-1.26
           # /usr/local/bin, where upstream's images install binaries.
           prefix: usr/local
-          ldflags: -s -w -X main.GitCommit=$(git rev-parse HEAD 2>/dev/null || echo unknown) -X main.GitDate=$(git show -s --format=%ct 2>/dev/null || echo 0)
+          ldflags: -s -w -X main.GitCommit=${GIT_COMMIT:-unknown} -X main.GitDate=${GIT_DATE:-0} -X main.Version=${GIT_VERSION:-v0.0.0}
       - uses: strip
 
   - name: op-interop-mon
@@ -180,7 +180,7 @@ subpackages:
           go-package: go-1.26
           # /usr/local/bin, where upstream's images install binaries.
           prefix: usr/local
-          ldflags: -s -w -X main.GitCommit=$(git rev-parse HEAD 2>/dev/null || echo unknown) -X main.GitDate=$(git show -s --format=%ct 2>/dev/null || echo 0)
+          ldflags: -s -w -X main.GitCommit=${GIT_COMMIT:-unknown} -X main.GitDate=${GIT_DATE:-0} -X main.Version=${GIT_VERSION:-v0.0.0}
       - uses: strip
 
   - name: op-supernode
@@ -194,7 +194,7 @@ subpackages:
           go-package: go-1.26
           # /usr/local/bin, where upstream's images install binaries.
           prefix: usr/local
-          ldflags: -s -w -X main.GitCommit=$(git rev-parse HEAD 2>/dev/null || echo unknown) -X main.GitDate=$(git show -s --format=%ct 2>/dev/null || echo 0)
+          ldflags: -s -w -X main.GitCommit=${GIT_COMMIT:-unknown} -X main.GitDate=${GIT_DATE:-0} -X main.Version=${GIT_VERSION:-v0.1.1}
       - uses: strip
 
   - name: op-test-sequencer
@@ -208,7 +208,7 @@ subpackages:
           go-package: go-1.26
           # /usr/local/bin, where upstream's images install binaries.
           prefix: usr/local
-          ldflags: -s -w -X main.GitCommit=$(git rev-parse HEAD 2>/dev/null || echo unknown) -X main.GitDate=$(git show -s --format=%ct 2>/dev/null || echo 0)
+          ldflags: -s -w -X main.GitCommit=${GIT_COMMIT:-unknown} -X main.GitDate=${GIT_DATE:-0} -X main.Version=${GIT_VERSION:-v0.0.0}
       - uses: strip
 
   - name: da-server
@@ -222,5 +222,5 @@ subpackages:
           go-package: go-1.26
           # /usr/local/bin, where upstream's images install binaries.
           prefix: usr/local
-          ldflags: -s -w -X main.GitCommit=$(git rev-parse HEAD 2>/dev/null || echo unknown) -X main.GitDate=$(git show -s --format=%ct 2>/dev/null || echo 0)
+          ldflags: -s -w -X main.GitCommit=${GIT_COMMIT:-unknown} -X main.GitDate=${GIT_DATE:-0} -X main.Version=${GIT_VERSION:-v0.0.0}
       - uses: strip
