@@ -43,6 +43,6 @@ pipeline:
       go-package: go-1.26
       # /usr/local/bin, where upstream's images install binaries.
       prefix: usr/local
-      ldflags: -s -w -X github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/version.GitCommit=$(git rev-parse HEAD 2>/dev/null || echo unknown) -X github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/version.GitDate=$(git show -s --format=%ct 2>/dev/null || echo 0)
+      ldflags: -s -w -X github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/version.GitCommit=${GIT_COMMIT:-unknown} -X github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/version.GitDate=${GIT_DATE:-0} -X github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/version.Version=${GIT_VERSION:-v0.0.0} -X github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/version.Meta=$(if [ -n "${GIT_VERSION}" ]; then printf ""; else printf "dev"; fi)
 
   - uses: strip
