@@ -63,6 +63,8 @@ Some subdirectories have their own CLAUDE.md with domain-specific conventions. R
 - `rust/` — read before working in that area; links to [docs/ai/rust-dev.md](docs/ai/rust-dev.md)
 - `packages/contracts-bedrock/` — read before working in that area; links to [docs/ai/contract-dev.md](docs/ai/contract-dev.md)
 - `op-acceptance-tests/` — read before working in that area; links to [docs/ai/acceptance-tests.md](docs/ai/acceptance-tests.md)
+- `op-node/rollup/derive/` — read before working in that area; links to [docs/ai/derivation.md](docs/ai/derivation.md)
+- `rust/kona/crates/protocol/` — read before working in that area; links to [docs/ai/derivation.md](docs/ai/derivation.md)
 - `.circleci/` and `.github/` — read before editing CI config; links to [docs/ai/ci-config-review.md](docs/ai/ci-config-review.md)
 
 ## Additional Documentation
