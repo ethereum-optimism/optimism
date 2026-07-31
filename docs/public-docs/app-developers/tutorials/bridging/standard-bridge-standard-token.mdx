@@ -1,14 +1,16 @@
 ---
-title: Bridge tokens with the Standard Bridge
-description: Learn how to bridge a standard or custom ERC-20 token from Ethereum to an OP Stack chain using the Standard Bridge.
+title: Create an L2 token for the Standard Bridge
+description: Learn how to create a standard or custom L2 representation of an L1 ERC-20 token that works with the Standard Bridge on an OP Stack chain.
 diataxis: tutorial
 ---
 
 import TutorialSetupWalletAndFunds, { TutorialFaucets } from '/snippets/tutorial-setup-wallet-and-funds.mdx';
 import StandardBridgeTokenWarning from '/snippets/standard-bridge-token-warning.mdx';
 
-In this tutorial, you'll learn how to bridge an ERC-20 token from Ethereum to an OP Stack chain using the Standard Bridge system.
+In this tutorial, you'll create an L2 representation of an L1 ERC-20 token that works with the Standard Bridge system on an OP Stack chain.
 This tutorial is meant for developers who already have an existing ERC-20 token on Ethereum and want to create a bridged representation of that token on layer 2.
+By the end, you'll have an L2 token contract deployed on OP Sepolia that the Standard Bridge can mint and burn.
+This tutorial does not cover the bridging itself: once your L2 token exists, follow [Bridging ERC-20 tokens with viem](./cross-dom-bridge-erc20) to move tokens between L1 and L2.
 
 The Standard Bridge supports two kinds of L2 tokens, and this tutorial covers both:
 
