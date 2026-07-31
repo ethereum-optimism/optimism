@@ -34,9 +34,8 @@ This Fault Proofs upgrade moves the OP Stack closer to technical decentralizatio
 *   allowing users to trigger withdrawals from L2 to L1 without the need for a trusted third party
 *   introducing a modular fault proof design that can easily integrate additional proving mechanisms
 
-Although the fault proof game is permissionless, the Optimism Security Council acting as the Guardian role provides a backstop in case of a failure in the fault proof game.
-Each proposal must wait for a delay period during which the Guardian can prevent invalid proposals from being used to withdraw ETH or tokens through a number of safety hatches.
-The Guardian can also choose to shift the system to use a PermissionedDisputeGame, in which only specific `PROPOSER` and `CHALLENGER` roles can submit and challenge proposals.
+Although the fault proof game is permissionless, the Optimism Security Council acting as the [Guardian](/op-stack/protocol/privileged-roles#guardian) role provides a backstop in case of a failure in the fault proof game.
+The Guardian's safety hatches, including the delay period on proposals and the ability to fall back to a permissioned game, are described in the [OP Stack security model](/op-stack/security/faq-sec-model#fault-proofs).
 
 ## Permissionless proposals
 
