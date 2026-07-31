@@ -15,7 +15,9 @@ RUN apt-get -o Acquire::Retries=8 update && apt-get -o Acquire::Retries=8 instal
   ca-certificates \
   libssl-dev \
   clang \
-  pkg-config
+  pkg-config \
+  protobuf-compiler \
+  libprotobuf-dev
 
 # Install rust
 ENV RUST_VERSION=1.95
