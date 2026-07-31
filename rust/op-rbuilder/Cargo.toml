@@ -114,18 +114,18 @@ reth-optimism-rpc = { path = "../op-reth/crates/rpc/", features = [
     "client",
 ] }
 
-revm = { version = "41.0.0", default-features = false, features = ["portable"] }
-revm-inspectors = "0.41.0"
+revm = { version = "42.0.1", default-features = false, features = ["portable"] }
+revm-inspectors = "0.42.0"
 op-revm = { version = "20.0.0", path = "../op-revm/", default-features = false }
-revm-bytecode = { version = "41.0.0", default-features = false }
-revm-database = { version = "41.0.0", default-features = false }
-revm-state = { version = "41.0.0", default-features = false }
-revm-primitives = { version = "41.0.0", default-features = false }
-revm-interpreter = { version = "41.0.0", default-features = false }
-revm-inspector = { version = "41.0.0", default-features = false }
-revm-context = { version = "41.0.0", default-features = false }
-revm-context-interface = { version = "41.0.0", default-features = false }
-revm-database-interface = { version = "41.0.0", default-features = false }
+revm-bytecode = { version = "42.0.1", default-features = false }
+revm-database = { version = "42.0.1", default-features = false }
+revm-state = { version = "42.0.1", default-features = false }
+revm-primitives = { version = "42.0.1", default-features = false }
+revm-interpreter = { version = "42.0.1", default-features = false }
+revm-inspector = { version = "42.0.1", default-features = false }
+revm-context = { version = "42.0.1", default-features = false }
+revm-context-interface = { version = "42.0.1", default-features = false }
+revm-database-interface = { version = "42.0.1", default-features = false }
 
 ethereum_ssz_derive = "0.9.0"
 ethereum_ssz = "0.9.0"
@@ -138,7 +138,7 @@ alloy-rlp = { version = "0.3.16", default-features = false, features = [
 ] }
 alloy-chains = { version = "0.2.33", default-features = false }
 alloy-contract = { version = "2.1.1", default-features = false }
-alloy-evm = { version = "0.37.0", default-features = false }
+alloy-evm = { version = "0.38.0", default-features = false }
 alloy-provider = { version = "2.1.1", features = [
     "reqwest",
     "debug-api",
