@@ -62,6 +62,7 @@ func loadZKProgramVKey(elfDir string) (common.Hash, error) {
 
 type zkProposerConfig struct {
 	ProposalInterval *time.Duration
+	FastFinality     bool
 }
 
 // ZKProposerOption configures the kona-sp1-proposer process started by
@@ -73,6 +74,14 @@ type ZKProposerOption func(cfg *zkProposerConfig)
 func WithZKProposalInterval(interval time.Duration) ZKProposerOption {
 	return func(cfg *zkProposerConfig) {
 		cfg.ProposalInterval = &interval
+	}
+}
+
+// WithZKFastFinality makes the proposer prove every game it owns while it
+// is still unchallenged (FAST_FINALITY_MODE=true).
+func WithZKFastFinality() ZKProposerOption {
+	return func(cfg *zkProposerConfig) {
+		cfg.FastFinality = true
 	}
 }
 
@@ -196,6 +205,9 @@ func startZKProposer(
 	}
 	if cfg.ProposalInterval != nil {
 		env = append(env, "PROPOSAL_INTERVAL_SECONDS="+strconv.FormatUint(uint64(*cfg.ProposalInterval/time.Second), 10))
+	}
+	if cfg.FastFinality {
+		env = append(env, "FAST_FINALITY_MODE=true")
 	}
 
 	logOut := logpipe.ToLoggerWithMinLevel(t.Logger().New("component", "kona-sp1-proposer", "src", "stdout"), log.LevelWarn)

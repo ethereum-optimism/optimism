@@ -1,10 +1,10 @@
 //! Environment-driven proposer configuration.
 //!
 //! Trimmed from op-succinct's `fault-proof/src/config.rs` (@ 13716c2c):
-//! proof-provider selection, SP1 network knobs, and range splitting are
-//! ported here with the defend path; fast finality is tracked in #22112;
-//! cluster proving, restart recovery, and the challenger and forge-deploy
-//! configs are deliberately not ported (see PR #21463 for the ledger).
+//! proof-provider selection, SP1 network knobs, range splitting, and the
+//! fast finality knobs are ported; cluster proving, restart recovery, and
+//! the challenger and forge-deploy configs are deliberately not ported
+//! (see PR #21463 for the ledger).
 
 use std::{
     env,
@@ -161,6 +161,15 @@ pub struct ProposerConfig {
     /// Maximum number of games being defended concurrently.
     pub max_concurrent_defense_tasks: u64,
 
+    /// Prove every owned game while it is still unchallenged (fast finality).
+    /// A proven game resolves as soon as its parent does, without waiting out
+    /// `maxChallengeDuration`. Trades proof spend for finality latency.
+    pub fast_finality_mode: bool,
+
+    /// Total in-flight proving tasks (defense included) allowed before game
+    /// creation pauses in fast finality mode.
+    pub fast_finality_proving_limit: u64,
+
     /// SP1 proof-provider settings (timeouts, strategies, limits, prices).
     pub proof_provider_config: ProofProviderConfig,
 }
@@ -196,6 +205,13 @@ impl ProposerConfig {
         anyhow::ensure!(
             tx_confirmation_timeout > 0,
             "TX_CONFIRMATION_TIMEOUT must be positive (0 would time out every transaction immediately)"
+        );
+
+        let fast_finality_mode = parsed_env_or("FAST_FINALITY_MODE", false)?;
+        let fast_finality_proving_limit = parsed_env_or("FAST_FINALITY_PROVING_LIMIT", 1u64)?;
+        anyhow::ensure!(
+            !fast_finality_mode || fast_finality_proving_limit > 0,
+            "FAST_FINALITY_PROVING_LIMIT must be positive when FAST_FINALITY_MODE is enabled"
         );
 
         let proof_provider = env::var("PROOF_PROVIDER")
@@ -244,6 +260,8 @@ impl ProposerConfig {
                 NonZeroUsize::MIN,
             )?,
             max_concurrent_defense_tasks: parsed_env_or("MAX_CONCURRENT_DEFENSE_TASKS", 8u64)?,
+            fast_finality_mode,
+            fast_finality_proving_limit,
             proof_provider_config: ProofProviderConfig::from_env()?,
         })
     }
@@ -725,7 +743,41 @@ mod tests {
             assert!(config.rollup_config_paths.is_none());
             assert_eq!(config.range_split_count, RangeSplitCount::one());
             assert_eq!(config.max_concurrent_defense_tasks, 8);
+            assert!(!config.fast_finality_mode);
+            assert_eq!(config.fast_finality_proving_limit, 1);
             assert_eq!(config.proof_provider_config.timeout, 14_400);
+        }
+
+        /// Fast finality knobs: parse, defaults, and the limit-zero guard.
+        /// Safe under nextest's process-per-test model; env mutation is
+        /// `unsafe` on edition 2024.
+        #[test]
+        fn fast_finality_env_parsing() {
+            // Both error arms fire before any required variable is read.
+            unsafe { env::set_var("FAST_FINALITY_MODE", "notabool") };
+            let err = ProposerConfig::from_env().unwrap_err().to_string();
+            assert!(err.contains("FAST_FINALITY_MODE"), "unexpected error: {err}");
+
+            unsafe {
+                env::set_var("FAST_FINALITY_MODE", "true");
+                env::set_var("FAST_FINALITY_PROVING_LIMIT", "0");
+            }
+            let err = ProposerConfig::from_env().unwrap_err().to_string();
+            assert!(err.contains("FAST_FINALITY_PROVING_LIMIT"), "unexpected error: {err}");
+
+            unsafe {
+                env::set_var("FAST_FINALITY_PROVING_LIMIT", "3");
+                env::set_var("L1_RPC", "http://127.0.0.1:8545");
+                env::set_var("SUPERNODE_RPC", "http://127.0.0.1:9545");
+                env::set_var("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
+                env::set_var("PRESTATES_URL", "file:///tmp/prestates");
+                env::set_var("PROOF_PROVIDER", "mock");
+                env::set_var("L2_RPCS", "http://127.0.0.1:8646");
+                env::set_var("L1_BEACON_RPC", "http://127.0.0.1:5052");
+            }
+            let config = ProposerConfig::from_env().unwrap();
+            assert!(config.fast_finality_mode);
+            assert_eq!(config.fast_finality_proving_limit, 3);
         }
     }
 }

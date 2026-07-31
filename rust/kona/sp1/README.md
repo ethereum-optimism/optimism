@@ -124,7 +124,8 @@ super-root `ZKDisputeGame` (game type 10) end to end:
 2. **Defend**: when a game in the owned set is challenged, fetches the span's super
    roots, collects witnesses through the kona `InteropHost`
    (`super-range-executor` library), obtains SP1 proofs (`prover.rs` providers,
-   `proving.rs` pipeline), and submits `prove()`.
+   `proving.rs` pipeline), and submits `prove()`. In fast finality mode the same
+   pipeline also proves owned games while they are still unchallenged.
 3. **Resolve and claim**: resolves finished games and claims bonds (including the
    challenger bond earned by proving).
 
@@ -156,6 +157,8 @@ proposer loses the ability to defend, resolve, and claim those games.
 There is no in-flight proof-request recovery (upstream parity): the task map is
 in-memory, and a restart re-detects still-challenged games and re-requests their
 proofs from scratch. A pre-flight check prevents duplicate `prove()` submissions.
+In fast finality mode the per-tick scan likewise re-detects unproven owned
+unchallenged games and re-spawns their proving.
 
 ### Operator alarms
 
@@ -163,9 +166,13 @@ proofs from scratch. A pre-flight check prevents duplicate `prove()` submissions
 `kona_sp1_proposer_proving_timeout_error` are spend alarms in network mode: every
 emergent retry after a post-proving failure (for example a misrouted
 `AGG_PROOF_MODE` vs the on-chain verifier, or fee caps below basefee) re-purchases
-the full proof set until the prove deadline expires. A sustained non-zero rate
+the full proof set until the game's deadline expires (the prove deadline for
+defense, the challenge deadline for fast finality). A sustained non-zero rate
 means money burning, not a transient. `kona_sp1_proposer_game_unprovable` counts
-games given up as permanently unprovable (kept in-memory until restart).
+games given up as permanently unprovable (kept in-memory until restart). A
+proving task that never completes holds its capacity slot and its game's dedup
+slot (blocking a later defense of that game): watch
+`kona_sp1_proposer_proving_duration_seconds` and the per-tick task-stats log.
 
 ### Environment
 
@@ -193,6 +200,8 @@ Optional (defaults in parentheses):
 | `RANGE_SPLIT_COUNT` (1, max 16) | chunks a defended span is split into |
 | `MAX_CONCURRENT_RANGE_PROOFS` (1) | child-proof concurrency within one game |
 | `MAX_CONCURRENT_DEFENSE_TASKS` (8) | games defended concurrently |
+| `FAST_FINALITY_MODE` (false) | prove owned games while unchallenged |
+| `FAST_FINALITY_PROVING_LIMIT` (1) | total in-flight proving tasks (defense included) before creation pauses |
 | `NETWORK_PRIVATE_KEY` (network mode; `USE_KMS_REQUESTER` for AWS KMS) | SPN requester key |
 | `RANGE_PROOF_STRATEGY`, `AGG_PROOF_STRATEGY` (reserved) | SPN fulfillment strategies |
 | `AGG_PROOF_MODE` (plonk) | on-chain proof kind, `plonk` or `groth16` |
@@ -200,8 +209,32 @@ Optional (defaults in parentheses):
 | `RANGE_CYCLE_LIMIT`, `RANGE_GAS_LIMIT`, `AGG_CYCLE_LIMIT`, `AGG_GAS_LIMIT` (1e12) | SPN request limits |
 | `MAX_PRICE_PER_PGU` (3e8), `MIN_AUCTION_PERIOD` (1) | SPN pricing |
 
-Fast finality (proving at creation) is tracked in
-ethereum-optimism/optimism#22112.
+### Fast finality
+
+With `FAST_FINALITY_MODE=true` the proposer proves every owned game while it is
+still unchallenged, spawned by the per-tick scan one fetch interval after
+creation. A proven game is over immediately, so it resolves as soon as its
+parent does instead of waiting out `maxChallengeDuration`: proof spend traded
+for finality latency. Off by default.
+
+Spend framing: in network mode this proves every owned game. At a one-hour
+proposal interval that is a baseline of 24 aggregation proofs per day; the
+default `FAST_FINALITY_PROVING_LIMIT=1` serializes them. Ownership is
+prestate-based (see above), so an unchallenged foreign game with a known
+prestate is proven at this proposer's expense (there is no bond upside for
+proving unchallenged games), and multiple proposers sharing prestates duplicate
+proof spend: run one fast-finality proposer per prestate set. Enabling the mode
+on a chain with an existing unchallenged backlog proves the whole owned backlog.
+
+Concurrency interaction:
+
+| Situation | Effect |
+|---|---|
+| active proving tasks (defense + fast finality) >= limit | no new fast-finality proving; game creation paused this tick |
+| defense tasks alone >= limit | same: defense load pauses creation (upstream parity) |
+| fast-finality tasks in flight | never count against `MAX_CONCURRENT_DEFENSE_TASKS` |
+| game challenged while a fast-finality proof is in flight | the proof stays valid; per-game dedup prevents a second task |
+| a fast-finality proof keeps failing at the limit | creation stays paused until it succeeds or is classified unprovable; watch `kona_sp1_proposer_game_proving_error` |
 
 ## Building
 
