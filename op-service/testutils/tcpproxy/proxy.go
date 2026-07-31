@@ -23,12 +23,20 @@ type Proxy struct {
 	lgr          log.Logger
 	upstreamAddr string
 	stopped      atomic.Bool
+	ctx          context.Context // set by Start, cancelled by Close to abort in-flight upstream dials
+	cancel       context.CancelFunc
+	// dial is the upstream dial function; injectable for tests.
+	dial func(ctx context.Context, addr string) (net.Conn, error)
 }
 
 func New(lgr log.Logger) *Proxy {
+	var d net.Dialer
 	return &Proxy{
 		conns: make(map[net.Conn]struct{}),
 		lgr:   lgr,
+		dial: func(ctx context.Context, addr string) (net.Conn, error) {
+			return d.DialContext(ctx, "tcp", addr)
+		},
 	}
 }
 
@@ -49,6 +57,7 @@ func (p *Proxy) Start() error {
 		return fmt.Errorf("could not listen: %w", err)
 	}
 	p.lis = lis
+	p.ctx, p.cancel = context.WithCancel(context.Background())
 	p.lgr.Info("proxy listening", "addr", lis.Addr().String())
 
 	p.wg.Add(1)
@@ -92,15 +101,14 @@ func (p *Proxy) handleConn(downConn net.Conn) {
 	}
 
 	// Dial outside the lock: a slow or unresponsive upstream dial must not
-	// stall other accepted connections, SetUpstream, or Close. Bound each
-	// attempt individually — net.Dial is not cancelled by the retry context,
-	// so a single unanswered SYN would otherwise consume the whole budget.
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// stall other accepted connections, SetUpstream, or Close. Each attempt is
+	// individually bounded (a single unanswered SYN must not consume the whole
+	// budget) and parented on the proxy lifecycle context so Close aborts it.
+	ctx, cancel := context.WithTimeout(p.ctx, 10*time.Second)
 	upConn, err := retry.Do(ctx, 3, retry.Exponential(), func() (net.Conn, error) {
 		attemptCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()
-		var d net.Dialer
-		return d.DialContext(attemptCtx, "tcp", addr)
+		return p.dial(attemptCtx, addr)
 	})
 	cancel()
 	if err != nil {
@@ -149,6 +157,7 @@ func (p *Proxy) handleConn(downConn net.Conn) {
 func (p *Proxy) Close() error {
 	p.lgr.Info("closing proxy", "addr", p.lis.Addr().String())
 	p.stopped.Store(true)
+	p.cancel()
 	p.lis.Close()
 
 	// Close all tracked connections under the lock. handleConn checks

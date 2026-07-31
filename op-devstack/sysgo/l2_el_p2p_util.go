@@ -2,7 +2,9 @@ package sysgo
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
 	"os"
 	"slices"
 	"strings"
@@ -76,24 +78,46 @@ func ConnectP2P(ctx context.Context, require *testreq.Assertions, initiator RpcC
 // port and typically succeeds). Only attempt timeouts are retried; any other
 // error still fails fast.
 func forPeerList(ctx context.Context, node RpcCaller, cond func([]peer) bool) error {
-	var lastErr error
-	err := wait.For(ctx, time.Second, func() (bool, error) {
-		attemptCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	return pollPeerList(ctx, node, time.Second, 5*time.Second, cond)
+}
+
+// pollPeerList is forPeerList with the poll interval and per-attempt timeout
+// made explicit for tests.
+func pollPeerList(ctx context.Context, node RpcCaller, interval, attemptTimeout time.Duration, cond func([]peer) bool) error {
+	var lastTimeout error
+	err := wait.For(ctx, interval, func() (bool, error) {
+		attemptCtx, cancel := context.WithTimeout(ctx, attemptTimeout)
 		defer cancel()
 		var peers []peer
 		if err := node.CallContext(attemptCtx, &peers, "admin_peers"); err != nil {
-			if attemptCtx.Err() != nil && ctx.Err() == nil {
-				lastErr = err
+			// Retry only genuine attempt timeouts: the per-attempt deadline must
+			// have expired while the outer budget is still live, and the error
+			// itself must be a timeout — the RPC client can return an unrelated
+			// error while the attempt deadline happens to be expired, and that
+			// must still fail fast.
+			if attemptCtx.Err() != nil && ctx.Err() == nil && isTimeout(err) {
+				lastTimeout = err
 				return false, nil
 			}
 			return false, err
 		}
 		return cond(peers), nil
 	})
-	if err != nil && lastErr != nil {
-		err = fmt.Errorf("%w (last admin_peers attempt error: %w)", err, lastErr)
+	// Surface the retained attempt timeout only when polling ended because the
+	// outer budget expired; any other terminal error is returned unchanged so
+	// it is not misclassified as a timeout.
+	if lastTimeout != nil && errors.Is(err, context.DeadlineExceeded) {
+		err = fmt.Errorf("%w (last admin_peers attempt error: %w)", err, lastTimeout)
 	}
 	return err
+}
+
+func isTimeout(err error) bool {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	var netErr net.Error
+	return errors.As(err, &netErr) && netErr.Timeout()
 }
 
 // DisconnectP2P disconnects a p2p peer connection between node1 and node2.
