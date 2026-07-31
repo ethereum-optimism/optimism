@@ -92,8 +92,8 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @notice Storage slot that the OPCM address is stored at.
     bytes32 public constant OPCM_SLOT = bytes32(uint256(keccak256("systemconfig.opcm")) - 1);
 
-    /// @notice Storage slot that the batch inbox address is stored at.
-    bytes32 public constant BATCH_INBOX_SLOT = bytes32(uint256(keccak256("systemconfig.batchinbox")) - 1);
+    /// @notice Legacy slot for the batch inbox address, which lives only in the rollup config.
+    bytes32 internal constant LEGACY_BATCH_INBOX_SLOT = bytes32(uint256(keccak256("systemconfig.batchinbox")) - 1);
 
     /// @notice Storage slot for block at which the op-node can start searching for logs from.
     bytes32 public constant START_BLOCK_SLOT = bytes32(uint256(keccak256("systemconfig.startBlock")) - 1);
@@ -103,8 +103,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     ///         optimizations and improvements are made to the system at large.
     uint64 internal constant MAX_GAS_LIMIT = 500_000_000;
 
-    /// @notice Fixed L2 gas overhead. Used as part of the L2 fee calculation.
-    ///         Deprecated since the Ecotone network upgrade
+    /// @notice Fixed L2 gas overhead. Ignored by op-node after Ecotone.
+    /// @custom:deprecated No longer writable, and `setGasConfigEcotone` emits zero in its place.
+    ///                    Retained so offchain readers of the getter keep working.
     uint256 public overhead;
 
     /// @notice Dynamic L2 gas overhead. Used as part of the L2 fee calculation.
@@ -174,9 +175,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     error SystemConfig_InvalidFeatureState();
 
     /// @notice Semantic version.
-    /// @custom:semver 3.14.2
+    /// @custom:semver 4.0.0
     function version() public pure virtual returns (string memory) {
-        return "3.14.2";
+        return "4.0.0";
     }
 
     /// @notice Constructs the SystemConfig contract.
@@ -196,8 +197,6 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @param _gasLimit          Initial gas limit.
     /// @param _unsafeBlockSigner Initial unsafe block signer address.
     /// @param _config            Initial ResourceConfig.
-    /// @param _batchInbox        Batch inbox address. An identifier for the op-node to find
-    ///                           canonical data.
     /// @param _addresses         Set of L1 contract addresses. These should be the proxies.
     /// @param _l2ChainId         The L2 chain ID that this SystemConfig configures.
     /// @param _superchainConfig  The SuperchainConfig contract address.
@@ -209,7 +208,6 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         uint64 _gasLimit,
         address _unsafeBlockSigner,
         IResourceMetering.ResourceConfig memory _config,
-        address _batchInbox,
         SystemConfig.Addresses memory _addresses,
         uint256 _l2ChainId,
         ISuperchainConfig _superchainConfig
@@ -230,7 +228,6 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         _setGasLimit(_gasLimit);
 
         Storage.setAddress(UNSAFE_BLOCK_SIGNER_SLOT, _unsafeBlockSigner);
-        Storage.setAddress(BATCH_INBOX_SLOT, _batchInbox);
         Storage.setAddress(L1_CROSS_DOMAIN_MESSENGER_SLOT, _addresses.l1CrossDomainMessenger);
         Storage.setAddress(L1_ERC_721_BRIDGE_SLOT, _addresses.l1ERC721Bridge);
         Storage.setAddress(L1_STANDARD_BRIDGE_SLOT, _addresses.l1StandardBridge);
@@ -239,6 +236,10 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         Storage.setAddress(DELAYED_WETH_SLOT, _addresses.delayedWETH);
         Storage.setAddress(OPCM_SLOT, _addresses.opcm);
         _setStartBlock();
+
+        // TODO(#22141): Remove these writes and LEGACY_BATCH_INBOX_SLOT after U20.
+        overhead = 0;
+        Storage.setAddress(LEGACY_BATCH_INBOX_SLOT, address(0));
 
         _setResourceConfig(_config);
 
@@ -331,11 +332,6 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         });
     }
 
-    /// @notice Getter for the BatchInbox address.
-    function batchInbox() external view returns (address addr_) {
-        addr_ = Storage.getAddress(BATCH_INBOX_SLOT);
-    }
-
     /// @notice Getter for the StartBlock number.
     function startBlock() external view returns (uint256 startBlock_) {
         startBlock_ = Storage.getUint(START_BLOCK_SLOT);
@@ -377,27 +373,6 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         emit ConfigUpdate(VERSION, UpdateType.BATCHER, data);
     }
 
-    /// @notice Updates gas config. Can only be called by the owner.
-    ///         Deprecated in favor of setGasConfigEcotone since the Ecotone upgrade.
-    /// @param _overhead New overhead value.
-    /// @param _scalar   New scalar value.
-    function setGasConfig(uint256 _overhead, uint256 _scalar) external onlyOwner {
-        _setGasConfig(_overhead, _scalar);
-    }
-
-    /// @notice Internal function for updating the gas config.
-    /// @param _overhead New overhead value.
-    /// @param _scalar   New scalar value.
-    function _setGasConfig(uint256 _overhead, uint256 _scalar) internal {
-        require((uint256(0xff) << 248) & _scalar == 0, "SystemConfig: scalar exceeds max.");
-
-        overhead = _overhead;
-        scalar = _scalar;
-
-        bytes memory data = abi.encode(_overhead, _scalar);
-        emit ConfigUpdate(VERSION, UpdateType.FEE_SCALARS, data);
-    }
-
     /// @notice Updates gas config as of the Ecotone upgrade. Can only be called by the owner.
     /// @param _basefeeScalar     New basefeeScalar value.
     /// @param _blobbasefeeScalar New blobbasefeeScalar value.
@@ -414,7 +389,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
 
         scalar = (uint256(0x01) << 248) | (uint256(_blobbasefeeScalar) << 32) | _basefeeScalar;
 
-        bytes memory data = abi.encode(overhead, scalar);
+        // Emit zero for the deprecated overhead, which op-node ignores after Ecotone. The word
+        // stays because consumers expect 64 bytes of event data.
+        bytes memory data = abi.encode(uint256(0), scalar);
         emit ConfigUpdate(VERSION, UpdateType.FEE_SCALARS, data);
     }
 

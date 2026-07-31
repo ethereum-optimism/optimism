@@ -195,7 +195,6 @@ contract SetDisputeGameImpl_Test is Test {
                     systemTxMaxGas: 1_000_000,
                     maximumBaseFee: type(uint128).max
                 }),
-                address(2),
                 SystemConfig.Addresses({
                     l1CrossDomainMessenger: address(3),
                     l1ERC721Bridge: address(4),
