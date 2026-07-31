@@ -63,6 +63,7 @@ func loadZKProgramVKey(elfDir string) (common.Hash, error) {
 type zkProposerConfig struct {
 	ProposalInterval *time.Duration
 	FastFinality     bool
+	MetricsPort      *uint16
 }
 
 // ZKProposerOption configures the kona-sp1-proposer process started by
@@ -82,6 +83,15 @@ func WithZKProposalInterval(interval time.Duration) ZKProposerOption {
 func WithZKFastFinality() ZKProposerOption {
 	return func(cfg *zkProposerConfig) {
 		cfg.FastFinality = true
+	}
+}
+
+// WithZKMetricsPort exposes the proposer's Prometheus metrics on the given
+// local port (0 keeps metrics disabled, the default). Tests use this to
+// observe internal counters, e.g. concurrent defense-task spawning.
+func WithZKMetricsPort(port uint16) ZKProposerOption {
+	return func(cfg *zkProposerConfig) {
+		cfg.MetricsPort = &port
 	}
 }
 
@@ -208,6 +218,9 @@ func startZKProposer(
 	}
 	if cfg.FastFinality {
 		env = append(env, "FAST_FINALITY_MODE=true")
+	}
+	if cfg.MetricsPort != nil {
+		env = append(env, "METRICS_PORT="+strconv.FormatUint(uint64(*cfg.MetricsPort), 10))
 	}
 
 	logOut := logpipe.ToLoggerWithMinLevel(t.Logger().New("component", "kona-sp1-proposer", "src", "stdout"), log.LevelWarn)

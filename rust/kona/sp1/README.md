@@ -131,7 +131,7 @@ super-root `ZKDisputeGame` (game type 10) end to end:
 
 ### Ownership (which games it defends)
 
-Ownership is prestate-based (option A, ethereum-optimism/optimism#22111): the
+Ownership is prestate-based: the
 proposer proves, resolves, and claims every game whose `absolutePrestate()`
 artifacts it can load, regardless of creator. The three sets are the same set.
 Games whose prestate is unknown are skipped with the
@@ -146,7 +146,9 @@ proposer loses the ability to defend, resolve, and claim those games.
 - `PROOF_PROVIDER=network`: real SP1 proving via the Succinct Prover Network.
   Proving keys are set up per prestate on first use, and the aggregation
   verifying key must hash to the on-chain prestate (mismatches poison the
-  prestate and remove its games from the owned set).
+  prestate and remove its games from the owned set). The registered prestate's
+  keys are verified BEFORE any game is created on it, so the proposer never
+  bonds a game it has not proven it can defend.
 - `PROOF_PROVIDER=mock`: dev-only. Runs the full pipeline natively (witness
   collection computes the real range/consolidation outputs and the aggregation
   inputs are validated), then submits placeholder proof bytes. Only a deployment
@@ -199,7 +201,7 @@ Optional (defaults in parentheses):
 | `MAX_FEE_PER_GAS`, `MAX_PRIORITY_FEE_PER_GAS` | L1 fee caps in wei (unset = uncapped) |
 | `RANGE_SPLIT_COUNT` (1, max 16) | chunks a defended span is split into |
 | `MAX_CONCURRENT_RANGE_PROOFS` (1) | child-proof concurrency within one game |
-| `MAX_CONCURRENT_DEFENSE_TASKS` (8) | games defended concurrently |
+| `MAX_CONCURRENT_DEFENSE_TASKS` (8) | games defended concurrently (must be >= 1) |
 | `FAST_FINALITY_MODE` (false) | prove owned games while unchallenged |
 | `FAST_FINALITY_PROVING_LIMIT` (1) | total in-flight proving tasks (defense included) before creation pauses |
 | `NETWORK_PRIVATE_KEY` (network mode; `USE_KMS_REQUESTER` for AWS KMS) | SPN requester key |
