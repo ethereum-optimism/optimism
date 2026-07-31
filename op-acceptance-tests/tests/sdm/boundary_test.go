@@ -27,7 +27,7 @@ const boundaryInteropOffset uint64 = 30
 func TestSDMActivatesAtInteropBoundary(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	offset := boundaryInteropOffset
-	sys := newSDMRethSystemWithInteropOffset(t, &offset)
+	sys := newSDMRethSystemWithLagoonOffset(t, &offset)
 	sdmtest.VerifyOpReth(t, sys.L2EL)
 
 	t.Require().False(sys.L2Network.IsForkActive(forks.Lagoon),
