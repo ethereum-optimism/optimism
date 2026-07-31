@@ -111,6 +111,15 @@ func (g *ZKGame) ClaimData() ZKClaimData {
 	return contract.Read(g.contract.ClaimData())
 }
 
+// TryClaimData reads the game's claim data, returning read errors instead of
+// failing the test. Hand-rolled poll loops that must tolerate transient RPC
+// failures under CI contention use this; direct assertions use ClaimData.
+func (g *ZKGame) TryClaimData() (ZKClaimData, error) {
+	ctx, cancel := context.WithTimeout(g.t.Ctx(), 15*time.Second)
+	defer cancel()
+	return contractio.Read(g.contract.ClaimData(), ctx)
+}
+
 func (g *ZKGame) ProposalStatus() ZKProposalStatus {
 	return ZKProposalStatus(g.ClaimData().Status)
 }

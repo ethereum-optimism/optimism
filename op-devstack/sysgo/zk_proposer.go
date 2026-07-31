@@ -207,9 +207,15 @@ func startZKProposer(
 	if cfg.ProposalInterval != nil {
 		env = append(env, "PROPOSAL_INTERVAL_SECONDS="+strconv.FormatUint(uint64(*cfg.ProposalInterval/time.Second), 10))
 	}
+	// Always pin METRICS_PORT: the child inherits the host environment, and
+	// an inherited value (op-succinct deployments export this exact name)
+	// would otherwise reach every devstack proposer and collide across
+	// parallel systems. 0 keeps metrics disabled.
+	metricsPort := uint16(0)
 	if cfg.MetricsPort != nil {
-		env = append(env, "METRICS_PORT="+strconv.FormatUint(uint64(*cfg.MetricsPort), 10))
+		metricsPort = *cfg.MetricsPort
 	}
+	env = append(env, "METRICS_PORT="+strconv.FormatUint(uint64(metricsPort), 10))
 
 	logOut := logpipe.ToLoggerWithMinLevel(t.Logger().New("component", "kona-sp1-proposer", "src", "stdout"), log.LevelWarn)
 	logErr := logpipe.ToLoggerWithMinLevel(t.Logger().New("component", "kona-sp1-proposer", "src", "stderr"), log.LevelWarn)

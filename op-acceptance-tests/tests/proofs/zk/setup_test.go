@@ -15,7 +15,6 @@ import (
 )
 
 const (
-
 	// zkUnsafeProposalLead places an "unsafe" proposal's timestamp a year beyond the safe head so the
 	// chain cannot reach it during the test, even on a CPU-starved CI runner.
 	zkUnsafeProposalLead = 365 * 24 * time.Hour

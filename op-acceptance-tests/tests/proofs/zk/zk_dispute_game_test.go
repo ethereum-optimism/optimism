@@ -156,11 +156,18 @@ func TestProposerIgnoresInvalidChallengedGame(gt *testing.T) {
 	// scan cycles (FETCH_INTERVAL=2s) and several full proving pipelines
 	// (the valid foreign game in TestProposerDefendsForeignValidGame is
 	// proven well within this bound). The proposer must never touch it.
-	t.Require().Never(func() bool {
-		claim := game.ClaimData()
-		return proofs.ZKProposalStatus(claim.Status) != proofs.ZKProposalChallenged ||
-			claim.Prover != (common.Address{})
-	}, 2*time.Minute, 2*time.Second, "proposer must not defend an invalid game")
+	// Transient read errors are tolerated (CI contention); any status or
+	// prover change fails immediately.
+	holdUntil := time.Now().Add(2 * time.Minute)
+	for time.Now().Before(holdUntil) {
+		if claim, err := game.TryClaimData(); err == nil {
+			t.Require().Equal(proofs.ZKProposalChallenged, proofs.ZKProposalStatus(claim.Status),
+				"proposer must not defend an invalid game")
+			t.Require().Equal(common.Address{}, claim.Prover,
+				"proposer must not prove an invalid game")
+		}
+		time.Sleep(2 * time.Second)
+	}
 
 	// With no proof by the deadline, the challenger wins by forfeit.
 	// Resolution is permissionless; the test resolves since the honest
@@ -213,29 +220,44 @@ func TestProposerDefendsMultipleChallengedGamesConcurrently(gt *testing.T) {
 	gameB.Challenge(challenger)
 
 	// Both proofs must land, and at some point BEFORE the first proof both
-	// defense tasks must have been spawned (the defense scan caps at
-	// MAX_CONCURRENT_DEFENSE_TASKS=8, so nothing throttles two games).
+	// defense tasks must have been spawned with none failed (the defense
+	// scan caps at MAX_CONCURRENT_DEFENSE_TASKS=8, so nothing throttles two
+	// games). The prover field is permanent once set, so the latch cannot
+	// miss a proven game that resolves between polls; reads tolerate
+	// transient RPC errors.
 	metricsURL := fmt.Sprintf("http://127.0.0.1:%d/metrics", metricsPort)
 	const spawnedMetric = "kona_sp1_proposer_games_defense_spawned"
+	const provingErrorMetric = "kona_sp1_proposer_game_proving_error"
 	sawConcurrentDefense := false
-	provenA, provenB := false, false
+	var proverA, proverB common.Address
 	pollDeadline := time.Now().Add(10 * time.Minute)
-	for (!provenA || !provenB) && time.Now().Before(pollDeadline) {
-		provenA = provenA ||
-			gameA.ProposalStatus() == proofs.ZKProposalChallengedAndValidProofProvided
-		provenB = provenB ||
-			gameB.ProposalStatus() == proofs.ZKProposalChallengedAndValidProofProvided
-		if !provenA && !provenB && scrapeMetric(metricsURL, spawnedMetric) >= 2 {
+	for (proverA == common.Address{} || proverB == common.Address{}) && time.Now().Before(pollDeadline) {
+		if (proverA == common.Address{}) {
+			if claim, err := gameA.TryClaimData(); err == nil {
+				proverA = claim.Prover
+			}
+		}
+		if (proverB == common.Address{}) {
+			if claim, err := gameB.TryClaimData(); err == nil {
+				proverB = claim.Prover
+			}
+		}
+		// Concurrency witness: two defense tasks spawned, zero failures,
+		// and neither proof landed yet - both pipelines are live at once.
+		// A spawn counter alone could conflate a failed-and-respawned
+		// single game with concurrency; the zero-error conjunct closes
+		// that hole.
+		if (proverA == common.Address{}) && (proverB == common.Address{}) &&
+			scrapeMetric(metricsURL, spawnedMetric) >= 2 &&
+			scrapeMetric(metricsURL, provingErrorMetric) == 0 {
 			sawConcurrentDefense = true
 		}
 		time.Sleep(time.Second)
 	}
-	t.Require().True(provenA, "game A was not proven in time")
-	t.Require().True(provenB, "game B was not proven in time")
-	t.Require().Equal(proposerAddr, gameA.ClaimData().Prover)
-	t.Require().Equal(proposerAddr, gameB.ClaimData().Prover)
+	t.Require().Equal(proposerAddr, proverA, "game A was not proven by the proposer in time")
+	t.Require().Equal(proposerAddr, proverB, "game B was not proven by the proposer in time")
 	t.Require().True(sawConcurrentDefense,
-		"both defense tasks must be spawned before either proof lands (parallel proving)")
+		"both defense tasks must be live before either proof lands (parallel proving)")
 }
 
 // freeTCPPort reserves an ephemeral localhost port and releases it for the
@@ -251,7 +273,8 @@ func freeTCPPort(t devtest.T) uint16 {
 // the first sample whose name starts with name (0 when the endpoint or the
 // sample is not there yet, so callers can poll).
 func scrapeMetric(url, name string) float64 {
-	resp, err := http.Get(url)
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get(url)
 	if err != nil {
 		return 0
 	}
