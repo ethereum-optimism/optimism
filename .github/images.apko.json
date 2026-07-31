@@ -301,6 +301,19 @@
       ],
       "smoke_test": "kona-client --help"
     },
+    "kona-sp1-proposer": {
+      "type": "rust",
+      "needs_melange": [
+        "op-stack-rust"
+      ],
+      "paths": [
+        "rust/**"
+      ],
+      "nexus_paths": [
+        "apko/kona-sp1-proposer.yaml"
+      ],
+      "smoke_test": "kona-sp1-proposer --version"
+    },
     "op-reth": {
       "type": "rust",
       "verify_version": true,
