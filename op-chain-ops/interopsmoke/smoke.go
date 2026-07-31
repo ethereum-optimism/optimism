@@ -1,5 +1,5 @@
 // Package interopsmoke implements interop smoke tests that run against the
-// RPCs of two live interoperable L2 chains: chain identity, ETH transfers,
+// RPCs of live interoperable L2 chains: chain identity, ETH transfers,
 // cross-chain ETH bridging, and valid/invalid executing-message checks.
 //
 // It is exposed both as the standalone op-chain-ops/cmd/interop-smoke tool and
@@ -17,8 +17,6 @@ import (
 	"sync"
 	"text/tabwriter"
 	"time"
-
-	"golang.org/x/sync/errgroup"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -55,18 +53,11 @@ const (
 	privateKeyFlagName        = "private-key"
 	invalidBlocksFlagName     = "blocks"
 	invalidTxPerBlockFlagName = "tx-per-block"
-	invalidDirectionFlagName  = "direction"
 	reorgTimeoutFlagName      = "reorg-timeout"
 	requireCascadeFlagName    = "require-cascade"
 )
 
-const (
-	directionAToB = "a-to-b"
-	directionBToA = "b-to-a"
-	directionBoth = "both"
-)
-
-// bridgeTimeout bounds a single A->B bridge (send, relay, and balance check).
+// bridgeTimeout bounds a single cross-chain bridge (send, relay, and balance check).
 const bridgeTimeout = 2 * time.Minute
 
 func smokeFlags(envPrefix string) []cli.Flag {
@@ -135,7 +126,6 @@ type smokeEnv struct {
 	userB             *remoteUser
 	invalidBlocks     uint
 	invalidTxPerBlock uint
-	direction         string
 	reorgTimeout      time.Duration
 	requireCascade    bool
 }
@@ -392,6 +382,12 @@ func newSmokeEnv(ctx context.Context, stderr io.Writer, l2URLs []string, private
 		}
 		chains = append(chains, chain)
 	}
+	if err := validateChainIDs(&smokeEnv{chains: chains}); err != nil {
+		for _, chain := range chains {
+			chain.ethClient.Close()
+		}
+		return nil, nil, err
+	}
 
 	privKey, address, err := resolveSmokeKey(privateKey)
 	if err != nil {
@@ -427,6 +423,18 @@ func newSmokeEnv(ctx context.Context, stderr io.Writer, l2URLs []string, private
 func validateL2URLs(l2URLs []string) error {
 	if len(l2URLs) < 2 {
 		return fmt.Errorf("at least two L2 RPC URLs are required")
+	}
+	return nil
+}
+
+func validateChainIDs(env *smokeEnv) error {
+	chainNames := make(map[string]string, len(env.chains))
+	for _, chain := range env.chains {
+		chainID := chain.chainID.String()
+		if previous, ok := chainNames[chainID]; ok {
+			return fmt.Errorf("%s and %s have the same chain ID: %s", previous, chain.name, chainID)
+		}
+		chainNames[chainID] = chain.name
 	}
 	return nil
 }
@@ -542,7 +550,7 @@ func Subcommands(envPrefix string) []*cli.Command {
 		},
 		{
 			Name:  "identity",
-			Usage: "verify both chains have different chain IDs",
+			Usage: "verify every chain has a unique chain ID",
 			Flags: flags,
 			Action: func(cliCtx *cli.Context) error {
 				return withSmokeEnv(cliCtx, "Chain Identity", smokeIdentity)
@@ -550,7 +558,7 @@ func Subcommands(envPrefix string) []*cli.Command {
 		},
 		{
 			Name:  "transfer",
-			Usage: "send ETH transfers on both chains",
+			Usage: "send an ETH transfer on every chain",
 			Flags: flags,
 			Action: func(cliCtx *cli.Context) error {
 				return withSmokeEnv(cliCtx, "ETH Transfers", smokeTransfer)
@@ -558,7 +566,7 @@ func Subcommands(envPrefix string) []*cli.Command {
 		},
 		{
 			Name:  "bridge",
-			Usage: "bridge ETH from chain A to chain B via SuperchainETHBridge",
+			Usage: "bridge ETH over every ordered chain pair via SuperchainETHBridge",
 			Flags: flags,
 			Action: func(cliCtx *cli.Context) error {
 				return withSmokeEnv(cliCtx, "Cross-Chain ETH Bridge", smokeBridge)
@@ -566,7 +574,7 @@ func Subcommands(envPrefix string) []*cli.Command {
 		},
 		{
 			Name:  "valid-message",
-			Usage: "send a valid executing message and verify it stays in-chain",
+			Usage: "send a valid executing message over every ordered chain pair and verify it stays in-chain",
 			Flags: flags,
 			Action: func(cliCtx *cli.Context) error {
 				return withSmokeEnv(cliCtx, "Valid Exec Message", smokeValidMessage)
@@ -574,7 +582,7 @@ func Subcommands(envPrefix string) []*cli.Command {
 		},
 		{
 			Name:  "invalid-message",
-			Usage: "send invalid executing messages on both chains at once and verify they are reorged out",
+			Usage: "send invalid executing messages over every ordered chain pair and verify they are reorged out",
 			Flags: append(flags,
 				&cli.UintFlag{
 					Name:    invalidBlocksFlagName,
@@ -588,13 +596,6 @@ func Subcommands(envPrefix string) []*cli.Command {
 					EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_TX_PER_BLOCK"),
 					Value:   1,
 				},
-				&cli.StringFlag{
-					Name: invalidDirectionFlagName,
-					Usage: fmt.Sprintf("Which invalid-message flows to run, named init-chain-to-exec-chain: %q (initiated on A, executed on B), %q (initiated on B, executed on A), or %q.",
-						directionAToB, directionBToA, directionBoth),
-					EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_DIRECTION"),
-					Value:   directionBoth,
-				},
 				&cli.DurationFlag{
 					Name:    reorgTimeoutFlagName,
 					Usage:   "Maximum time to wait for each invalid block to be reorged.",
@@ -606,7 +607,6 @@ func Subcommands(envPrefix string) []*cli.Command {
 				return withSmokeEnv(cliCtx, "Invalid Exec Message (reorg)", func(env *smokeEnv) error {
 					env.invalidBlocks = cliCtx.Uint(invalidBlocksFlagName)
 					env.invalidTxPerBlock = cliCtx.Uint(invalidTxPerBlockFlagName)
-					env.direction = cliCtx.String(invalidDirectionFlagName)
 					env.reorgTimeout = cliCtx.Duration(reorgTimeoutFlagName)
 					return smokeInvalidMessage(env)
 				})
@@ -642,7 +642,6 @@ func Subcommands(envPrefix string) []*cli.Command {
 func smokeAll(env *smokeEnv) error {
 	env.invalidBlocks = 1
 	env.invalidTxPerBlock = 1
-	env.direction = directionBoth
 	env.reorgTimeout = defaultReorgTimeout
 	tests := []struct {
 		name string
@@ -676,85 +675,102 @@ func smokeAll(env *smokeEnv) error {
 }
 
 func smokeIdentity(env *smokeEnv) error {
-	if env.chainA.chainID == env.chainB.chainID {
-		return fmt.Errorf("chains have the same ID: %s", env.chainA.chainID)
+	if err := validateChainIDs(env); err != nil {
+		return err
 	}
-	fmt.Fprintf(env.stderr, "    Chain A: %s, Chain B: %s\n", env.chainA.chainID, env.chainB.chainID)
+	for _, chain := range env.chains {
+		fmt.Fprintf(env.stderr, "    %s: %s\n", chain.name, chain.chainID)
+	}
 	return nil
 }
 
 func smokeTransfer(env *smokeEnv) error {
-	recipientA := randomAddress()
-	if _, err := env.userA.transfer(env.ctx, recipientA, eth.OneHundredthEther); err != nil {
-		return fmt.Errorf("chain A transfer failed: %w", err)
+	for _, user := range env.users {
+		recipient := randomAddress()
+		if _, err := user.transfer(env.ctx, recipient, eth.OneHundredthEther); err != nil {
+			return fmt.Errorf("%s transfer failed: %w", user.chain.name, err)
+		}
+		if err := waitForBalance(env.ctx, user.chain, recipient, eth.OneHundredthEther); err != nil {
+			return err
+		}
+		fmt.Fprintf(env.stderr, "    %s transfer: OK\n", user.chain.name)
 	}
-	if err := waitForBalance(env.ctx, env.chainA, recipientA, eth.OneHundredthEther); err != nil {
-		return err
-	}
-	fmt.Fprintf(env.stderr, "    Chain A transfer: OK\n")
-
-	recipientB := randomAddress()
-	if _, err := env.userB.transfer(env.ctx, recipientB, eth.OneHundredthEther); err != nil {
-		return fmt.Errorf("chain B transfer failed: %w", err)
-	}
-	if err := waitForBalance(env.ctx, env.chainB, recipientB, eth.OneHundredthEther); err != nil {
-		return err
-	}
-	fmt.Fprintf(env.stderr, "    Chain B transfer: OK\n")
 	return nil
 }
 
 func smokeBridge(env *smokeEnv) error {
-	ctx, cancel := context.WithTimeout(env.ctx, bridgeTimeout)
-	defer cancel()
-	return interopbridge.BridgeETH(ctx, env.logger, env.chainA.ethClient, env.chainB.ethClient,
-		env.chainB.chainID, env.userA.privKey, eth.OneHundredthEther, randomAddress())
+	pairs, err := orderedPairs(env)
+	if err != nil {
+		return err
+	}
+	for _, pair := range pairs {
+		ctx, cancel := context.WithTimeout(env.ctx, bridgeTimeout)
+		err := interopbridge.BridgeETH(ctx, env.logger, pair.initUser.chain.ethClient, pair.execUser.chain.ethClient,
+			pair.execUser.chain.chainID, pair.initUser.privKey, eth.OneHundredthEther, randomAddress())
+		cancel()
+		if err != nil {
+			return fmt.Errorf("%s bridge failed: %w", pair.name, err)
+		}
+		fmt.Fprintf(env.stderr, "    [%s] Bridge: OK\n", pair.name)
+	}
+	return nil
 }
 
 func smokeValidMessage(env *smokeEnv) error {
-	rng := rand.New(rand.NewSource(42))
-
-	eventLogger, err := env.userA.deployEventLogger(env.ctx)
+	pairs, err := orderedPairs(env)
 	if err != nil {
-		return fmt.Errorf("deploy EventLogger: %w", err)
-	}
-
-	initMsg, err := env.userA.sendRandomInitMessage(env.ctx, rng, eventLogger, 2, 10)
-	if err != nil {
-		return fmt.Errorf("send init message: %w", err)
-	}
-	fmt.Fprintf(env.stderr, "    Init message sent on Chain A (block %d)\n", initMsg.BlockNumber())
-
-	if _, err := waitForNextBlock(env.ctx, env.chainB); err != nil {
 		return err
 	}
-	execMsg, err := env.userB.sendExecMessage(env.ctx, initMsg)
+	for i, pair := range pairs {
+		if err := smokeValidMessagePair(env, pair, rand.New(rand.NewSource(int64(42+i)))); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func smokeValidMessagePair(env *smokeEnv, pair chainPair, rng *rand.Rand) error {
+	eventLogger, err := pair.initUser.deployEventLogger(env.ctx)
 	if err != nil {
-		return fmt.Errorf("send exec message: %w", err)
+		return fmt.Errorf("%s: deploy EventLogger on %s: %w", pair.name, pair.initUser.chain.name, err)
+	}
+
+	initMsg, err := pair.initUser.sendRandomInitMessage(env.ctx, rng, eventLogger, 2, 10)
+	if err != nil {
+		return fmt.Errorf("%s: send init message: %w", pair.name, err)
+	}
+	fmt.Fprintf(env.stderr, "    [%s] Init message sent on %s (block %d)\n", pair.name, pair.initUser.chain.name, initMsg.BlockNumber())
+
+	if _, err := waitForNextBlock(env.ctx, pair.execUser.chain); err != nil {
+		return fmt.Errorf("%s: wait for %s block: %w", pair.name, pair.execUser.chain.name, err)
+	}
+	execMsg, err := pair.execUser.sendExecMessage(env.ctx, initMsg)
+	if err != nil {
+		return fmt.Errorf("%s: send exec message: %w", pair.name, err)
 	}
 	if execMsg.Receipt.Status != types.ReceiptStatusSuccessful {
-		return fmt.Errorf("exec tx reverted")
+		return fmt.Errorf("%s: exec tx reverted", pair.name)
 	}
 
 	execBlockNum := execMsg.BlockNumber()
 	execBlockHash := execMsg.BlockHash()
-	fmt.Fprintf(env.stderr, "    Exec message sent on Chain B (block %d)\n", execBlockNum)
+	fmt.Fprintf(env.stderr, "    [%s] Exec message sent on %s (block %d)\n", pair.name, pair.execUser.chain.name, execBlockNum)
 
-	if err := waitForHeadAtLeast(env.ctx, env.chainB, execBlockNum+2); err != nil {
-		return err
+	if err := waitForHeadAtLeast(env.ctx, pair.execUser.chain, execBlockNum+2); err != nil {
+		return fmt.Errorf("%s: wait for %s head: %w", pair.name, pair.execUser.chain.name, err)
 	}
 
-	currentBlock, err := env.chainB.ethClient.BlockRefByNumber(env.ctx, execBlockNum)
+	currentBlock, err := pair.execUser.chain.ethClient.BlockRefByNumber(env.ctx, execBlockNum)
 	if err != nil {
-		return fmt.Errorf("fetch block %d: %w", execBlockNum, err)
+		return fmt.Errorf("%s: fetch %s block %d: %w", pair.name, pair.execUser.chain.name, execBlockNum, err)
 	}
 	if currentBlock.Hash != execBlockHash {
-		return fmt.Errorf("block was replaced: expected %s, got %s", execBlockHash, currentBlock.Hash)
+		return fmt.Errorf("%s: %s block was replaced: expected %s, got %s", pair.name, pair.execUser.chain.name, execBlockHash, currentBlock.Hash)
 	}
-	if err := assertTxInBlock(env.ctx, env.chainB, execBlockNum, execMsg.Receipt.TxHash); err != nil {
-		return err
+	if err := assertTxInBlock(env.ctx, pair.execUser.chain, execBlockNum, execMsg.Receipt.TxHash); err != nil {
+		return fmt.Errorf("%s: %w", pair.name, err)
 	}
-	fmt.Fprintf(env.stderr, "    Block remained canonical after head advanced past it\n")
+	fmt.Fprintf(env.stderr, "    [%s] %s block remained canonical after head advanced past it\n", pair.name, pair.execUser.chain.name)
 	return nil
 }
 
@@ -776,12 +792,9 @@ type invalidDirection struct {
 	inclusions  []invalidInclusion
 }
 
-// smokeInvalidMessage lands invalid executing messages on both chains at the
-// same time by default: chain B executes messages initiated on chain A while
-// chain A executes messages initiated on chain B. Each phase runs the selected
-// directions concurrently, and since the directions use opposite chains within
-// a phase, only one goroutine ever sends on a given chain at a time. Set
-// env.direction to restrict the test to a single chain.
+// smokeInvalidMessage lands invalid executing messages for every ordered chain
+// pair. Each phase is serial because multiple pairs may send from the same
+// source chain.
 func smokeInvalidMessage(env *smokeEnv) error {
 	if err := validateInvalidMessageOptions(env.invalidBlocks, env.invalidTxPerBlock); err != nil {
 		return err
@@ -939,19 +952,20 @@ func reportReorgResults(stderr io.Writer, results []reorgResult, total time.Dura
 }
 
 func invalidDirections(env *smokeEnv) ([]*invalidDirection, error) {
-	aToB := &invalidDirection{name: "A->B", initUser: env.userA, execUser: env.userB, rng: rand.New(rand.NewSource(99))}
-	bToA := &invalidDirection{name: "B->A", initUser: env.userB, execUser: env.userA, rng: rand.New(rand.NewSource(100))}
-	switch env.direction {
-	case directionAToB:
-		return []*invalidDirection{aToB}, nil
-	case directionBToA:
-		return []*invalidDirection{bToA}, nil
-	case directionBoth, "":
-		return []*invalidDirection{aToB, bToA}, nil
-	default:
-		return nil, fmt.Errorf("unknown direction %q: want %q, %q or %q",
-			env.direction, directionAToB, directionBToA, directionBoth)
+	pairs, err := orderedPairs(env)
+	if err != nil {
+		return nil, err
 	}
+	dirs := make([]*invalidDirection, 0, len(pairs))
+	for i, pair := range pairs {
+		dirs = append(dirs, &invalidDirection{
+			name:     pair.name,
+			initUser: pair.initUser,
+			execUser: pair.execUser,
+			rng:      rand.New(rand.NewSource(int64(99 + i))),
+		})
+	}
+	return dirs, nil
 }
 
 func orderedPairs(env *smokeEnv) ([]chainPair, error) {
@@ -974,13 +988,14 @@ func orderedPairs(env *smokeEnv) ([]chainPair, error) {
 	return pairs, nil
 }
 
-// eachDirection runs fn for every direction concurrently, returning the first error.
+// eachDirection runs fn for every direction serially, returning the first error.
 func eachDirection(dirs []*invalidDirection, fn func(d *invalidDirection) error) error {
-	var group errgroup.Group
 	for _, d := range dirs {
-		group.Go(func() error { return fn(d) })
+		if err := fn(d); err != nil {
+			return err
+		}
 	}
-	return group.Wait()
+	return nil
 }
 
 // lockedWriter serializes writes so concurrent directions do not interleave
