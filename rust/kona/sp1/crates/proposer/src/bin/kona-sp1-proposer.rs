@@ -93,10 +93,13 @@ async fn main() -> Result<()> {
     // own args for game-specific reads.
 
     // Metrics: bind before the readiness log so the advertised address is live.
-    // A failed bind is a startup error, not a degraded mode.
+    // A failed bind is a startup error, not a degraded mode. The recorder
+    // must be installed (init_metrics) BEFORE register_all: describe_gauge!
+    // calls dispatched to the pre-install no-op recorder are silently
+    // dropped, which would strip every HELP line from the exposition.
     let metrics_addr = if config.metrics_port != 0 {
-        ProposerGauge::register_all();
         init_metrics(&config.metrics_port)?;
+        ProposerGauge::register_all();
         ProposerGauge::init_all();
         Some(format!("0.0.0.0:{}", config.metrics_port))
     } else {
@@ -105,8 +108,7 @@ async fn main() -> Result<()> {
 
     let proposer = Proposer::new(config, signer, factory, proof_provider).await?;
 
-    // STARTUP LOG CONTRACT: devstack readiness matches this exact message,
-    // and reads `metrics_addr` from the same entry when metrics are enabled.
+    // STARTUP LOG CONTRACT: devstack readiness matches this exact message.
     // Emitted before the chain-dependent init retry loop on purpose - a
     // supernode that is still deriving must not stall process readiness.
     match &metrics_addr {

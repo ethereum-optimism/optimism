@@ -317,10 +317,28 @@ impl ProofProviderConfig {
     /// Parses the provider settings from environment variables, applying
     /// upstream op-succinct's defaults throughout.
     pub fn from_env() -> Result<Self> {
+        let timeout = parsed_env_or("SP1_TIMEOUT_SECONDS", 14_400u64)?;
+        anyhow::ensure!(
+            timeout > 0,
+            "SP1_TIMEOUT_SECONDS must be positive: 0 would abandon every proof request at its \
+             first poll, right after paying to submit it"
+        );
+        let network_calls_timeout = parsed_env_or("NETWORK_CALLS_TIMEOUT", 15u64)?;
+        anyhow::ensure!(
+            network_calls_timeout > 0,
+            "NETWORK_CALLS_TIMEOUT must be positive: 0 would time out every SPN call before any \
+             I/O completes"
+        );
+        let auction_timeout = parsed_env_or("AUCTION_TIMEOUT", 60u64)?;
+        anyhow::ensure!(
+            auction_timeout > 0,
+            "AUCTION_TIMEOUT must be positive: 0 would cancel every mainnet request by its second \
+             poll"
+        );
         Ok(Self {
-            timeout: parsed_env_or("SP1_TIMEOUT_SECONDS", 14_400u64)?,
-            network_calls_timeout: parsed_env_or("NETWORK_CALLS_TIMEOUT", 15u64)?,
-            auction_timeout: parsed_env_or("AUCTION_TIMEOUT", 60u64)?,
+            timeout,
+            network_calls_timeout,
+            auction_timeout,
             range_proof_strategy: parse_fulfillment_strategy(
                 env::var("RANGE_PROOF_STRATEGY").unwrap_or_else(|_| "reserved".to_string()),
             )?,
@@ -447,7 +465,7 @@ pub const RANGE_ARTIFACT_SUFFIX: &str = ".range.bin.gz";
 pub fn prestate_artifact_url(base: &Url, prestate: B256, suffix: &str) -> Result<Url> {
     let mut url = base.clone();
     url.path_segments_mut()
-        .map_err(|()| anyhow!("PRESTATES_URL cannot be a base: {base}"))?
+        .map_err(|()| anyhow!("PRESTATES_URL cannot be a base: {}", redacted_url(base)))?
         .pop_if_empty()
         .push(&format!("{prestate}{suffix}"));
     Ok(url)
@@ -506,19 +524,21 @@ async fn fetch_artifact(url: &Url) -> Result<Vec<u8>> {
             .get(url.clone())
             .send()
             .await
-            .with_context(|| format!("failed to fetch prestate artifact at {url}"))?
+            .with_context(|| format!("failed to fetch prestate artifact at {}", redacted_url(url)))?
             .error_for_status()
-            .with_context(|| format!("prestate artifact fetch failed for {url}"))?
+            .with_context(|| format!("prestate artifact fetch failed for {}", redacted_url(url)))?
             .bytes()
             .await
-            .with_context(|| format!("failed to read prestate artifact body from {url}"))?
+            .with_context(|| {
+                format!("failed to read prestate artifact body from {}", redacted_url(url))
+            })?
             .to_vec(),
         other => bail!("unsupported PRESTATES_URL scheme {other} (expected file, http, or https)"),
     };
 
     let mut elf = Vec::new();
     std::io::Read::read_to_end(&mut flate2::read::GzDecoder::new(compressed.as_slice()), &mut elf)
-        .with_context(|| format!("prestate artifact at {url} is not valid gzip"))?;
+        .with_context(|| format!("prestate artifact at {} is not valid gzip", redacted_url(url)))?;
     Ok(elf)
 }
 
@@ -749,6 +769,28 @@ mod tests {
             }
             let err = ProposerConfig::from_env().unwrap_err().to_string();
             assert!(err.contains("MAX_CONCURRENT_DEFENSE_TASKS"), "unexpected error: {err}");
+        }
+
+        /// Zero SPN timeouts are configuration errors, not degraded modes:
+        /// each would spin or abandon paid work at the first poll. Safe
+        /// under nextest's process-per-test model.
+        #[test]
+        fn zero_spn_timeouts_are_rejected() {
+            unsafe {
+                env::set_var("L1_RPC", "http://127.0.0.1:8545");
+                env::set_var("SUPERNODE_RPC", "http://127.0.0.1:9545");
+                env::set_var("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
+                env::set_var("PRESTATES_URL", "file:///tmp/prestates");
+                env::set_var("PROOF_PROVIDER", "mock");
+                env::set_var("L2_RPCS", "http://127.0.0.1:8646");
+                env::set_var("L1_BEACON_RPC", "http://127.0.0.1:5052");
+            }
+            for var in ["SP1_TIMEOUT_SECONDS", "NETWORK_CALLS_TIMEOUT", "AUCTION_TIMEOUT"] {
+                unsafe { env::set_var(var, "0") };
+                let err = ProposerConfig::from_env().unwrap_err().to_string();
+                assert!(err.contains(var), "expected {var} rejection, got: {err}");
+                unsafe { env::remove_var(var) };
+            }
         }
     }
 }

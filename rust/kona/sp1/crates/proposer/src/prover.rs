@@ -315,22 +315,29 @@ impl NetworkProofProvider {
                 }
             }
 
-            // Get request details for the auction check; retry on transient
-            // failures.
-            let request_details = match self
-                .network_call_with_timeout(
-                    self.prover.get_proof_request(proof_id),
-                    "get_proof_request",
-                    proof_id,
-                )
-                .await
-            {
-                Ok(result) => result,
-                Err(err) => {
-                    tracing::warn!(proof_id = %proof_id, error = %err, "get_proof_request failed, retrying...");
-                    sleep(Duration::from_secs(PROOF_STATUS_POLL_INTERVAL)).await;
-                    continue;
+            // Request details feed only the auction check, which is
+            // meaningful on mainnet alone: skip the call entirely elsewhere
+            // so a failing details endpoint cannot starve the deadline
+            // check below, and reserved-strategy polling costs one RPC per
+            // iteration instead of two. Retry transient failures.
+            let request_details = if is_mainnet {
+                match self
+                    .network_call_with_timeout(
+                        self.prover.get_proof_request(proof_id),
+                        "get_proof_request",
+                        proof_id,
+                    )
+                    .await
+                {
+                    Ok(result) => result,
+                    Err(err) => {
+                        tracing::warn!(proof_id = %proof_id, error = %err, "get_proof_request failed, retrying...");
+                        sleep(Duration::from_secs(PROOF_STATUS_POLL_INTERVAL)).await;
+                        continue;
+                    }
                 }
+            } else {
+                None
             };
 
             let current_time = current_timestamp();
