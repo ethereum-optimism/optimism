@@ -27,7 +27,12 @@ func GenesisCLI(cliCtx *cli.Context) error {
 		return fmt.Errorf("failed to read intent: %w", err)
 	}
 
-	l2Genesis, _, err := pipeline.RenderGenesisAndRollup(globalState, cfg.ChainID, nil)
+	intent, err := pipeline.ResolveRenderIntent(cfg.Workdir, globalState)
+	if err != nil {
+		return err
+	}
+
+	l2Genesis, _, err := pipeline.RenderGenesisAndRollup(globalState, cfg.ChainID, intent)
 	if err != nil {
 		return fmt.Errorf("failed to generate genesis block: %w", err)
 	}

@@ -55,6 +55,9 @@ func TestValidateInteropDepSetMatchesIntent(t *testing.T) {
 	chainC := common.HexToHash("0x03")
 	chainD := common.HexToHash("0x04")
 
+	const driftTail = "; the prepared set determines the committed prestate and, " +
+		"for super-root games, every chain's starting anchor; rerun op-deployer prepare"
+
 	tests := []struct {
 		name        string
 		intentIDs   []common.Hash
@@ -83,13 +86,13 @@ func TestValidateInteropDepSetMatchesIntent(t *testing.T) {
 			name:        "added chain",
 			intentIDs:   []common.Hash{chainA, chainB},
 			preparedIDs: []common.Hash{chainA},
-			wantErr:     "intent chain set does not match prepared chain set: added chain IDs [" + chainB.Hex() + "]; removed chain IDs []; rerun op-deployer prepare",
+			wantErr:     "intent chain set does not match prepared chain set: added chain IDs [" + chainB.Hex() + "]; removed chain IDs []" + driftTail,
 		},
 		{
 			name:        "removed chain",
 			intentIDs:   []common.Hash{chainA},
 			preparedIDs: []common.Hash{chainA, chainB},
-			wantErr:     "intent chain set does not match prepared chain set: added chain IDs []; removed chain IDs [" + chainB.Hex() + "]; rerun op-deployer prepare",
+			wantErr:     "intent chain set does not match prepared chain set: added chain IDs []; removed chain IDs [" + chainB.Hex() + "]" + driftTail,
 		},
 		{
 			name:        "added and removed chains are sorted",
@@ -97,7 +100,7 @@ func TestValidateInteropDepSetMatchesIntent(t *testing.T) {
 			preparedIDs: []common.Hash{chainC, chainA},
 			wantErr: "intent chain set does not match prepared chain set: added chain IDs [" +
 				chainB.Hex() + ", " + chainD.Hex() + "]; removed chain IDs [" +
-				chainA.Hex() + ", " + chainC.Hex() + "]; rerun op-deployer prepare",
+				chainA.Hex() + ", " + chainC.Hex() + "]" + driftTail,
 		},
 	}
 

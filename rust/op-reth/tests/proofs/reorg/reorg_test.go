@@ -1,6 +1,7 @@
 package reorg
 
 import (
+	"context"
 	"math/big"
 	"testing"
 	"time"
@@ -170,8 +171,11 @@ func TestReorgUsingAccountProof(gt *testing.T) {
 	latestBlock := sys.L2Chain.WaitForBlock()
 	utils.WaitForProofsStoreBlock(t, sys.RethWithProofL2ELNode().Escape().L2EthClient(), latestBlock.Number)
 
-	// verify that the L2A validator has reorged and reached the latest block
-	err := wait.For(t.Ctx(), 2*time.Second, func() (bool, error) {
+	// verify that the L2A validator has reorged and reached the latest block. Bounded so a
+	// validator that never converges fails here instead of consuming the package timeout.
+	reorgCtx, cancelReorg := context.WithTimeout(t.Ctx(), 5*time.Minute)
+	defer cancelReorg()
+	err := wait.For(reorgCtx, 2*time.Second, func() (bool, error) {
 		blockRef, err := sys.L2ELValidatorNode().Escape().EthClient().BlockRefByNumber(ctx, latestBlock.Number)
 		if err != nil {
 			// this could happen if the validator is still syncing after reorg

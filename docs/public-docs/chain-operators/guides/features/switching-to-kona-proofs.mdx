@@ -5,7 +5,7 @@ diataxis: how-to
 ---
 
 <Info>
-  [Upgrade 18](/notices/archive/upgrade-18) (approved by Optimism Governance) introduced `CANNON_KONA` (8) as an available game type alongside `CANNON` (0). [Upgrade 19](/notices/upgrade-19) promotes `CANNON_KONA` to the **respected game type** for chains managed by the Optimism Security Council — meaning it is applied automatically as part of the onchain upgrade. Non-managed chains that want to switch must follow this guide.
+  [Upgrade 18](/notices/archive/upgrade-18) (approved by Optimism Governance) introduced `CANNON_KONA` (8) as an available game type alongside `CANNON` (0). [Upgrade 19](/notices/archive/upgrade-19) promotes `CANNON_KONA` to the **respected game type** for chains managed by the Optimism Security Council — meaning it is applied automatically as part of the onchain upgrade. Non-managed chains that want to switch must follow this guide.
 </Info>
 
 ## Overview
@@ -17,7 +17,7 @@ diataxis: how-to
 | `cannonPrestate`        | Bytes32 | Set               | Set                    | Must be a valid `cannon64` prestate hash            |
 | `cannonKonaPrestate`    | Bytes32 | Set               | Set                    | Must be a valid `cannon64-kona` prestate hash       |
 
-Kona proofs use the `kona-client` fault proof program, which is a combination of `kona-node` and `op-reth`. It replaces `op-program` (a combination of `op-node` and `op-geth`), which has reached end-of-support and does not support the Karst hardfork. See [End of Support for op-geth and op-program](/notices/op-geth-deprecation). Both programs:
+Kona proofs use the `kona-client` fault proof program, which is a combination of `kona-node` and `op-reth`. It replaces `op-program` (a combination of `op-node` and `op-geth`), which has reached end-of-support and does not support the Karst hardfork. See [End of Support for op-geth and op-program](/notices/archive/op-geth-deprecation). Both programs:
 
 - Use Cannon as the FPVM, and  
 - Are used by the same dispute game implementation (`FaultDisputeGame.sol`).

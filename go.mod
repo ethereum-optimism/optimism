@@ -82,7 +82,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	golang.org/x/exp v0.0.0-20250606033433-dcc06ee1d476 // indirect
 	golang.org/x/telemetry v0.0.0-20260625142307-59b4966ccb57 // indirect
-	golang.org/x/text v0.38.0 // indirect
+	golang.org/x/text v0.39.0 // indirect
 )
 
 require (
@@ -210,8 +210,8 @@ require (
 	github.com/prometheus/common v0.64.0
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
-	github.com/quic-go/quic-go v0.59.1 // indirect
-	github.com/quic-go/webtransport-go v0.10.0 // indirect
+	github.com/quic-go/quic-go v0.60.0 // indirect
+	github.com/quic-go/webtransport-go v0.11.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/rs/cors v1.11.0 // indirect

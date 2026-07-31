@@ -1,6 +1,7 @@
 //! This module contains the [`SpanBatchTransactions`] type and logic for encoding and decoding
 //! transactions in a span batch.
 
+use super::varint::read_uvarint;
 use crate::{
     MAX_SPAN_BATCH_ELEMENTS, SpanBatchBits, SpanBatchError, SpanBatchPostExecTransactionData,
     SpanBatchTransactionData, SpanDecodingError,
@@ -313,8 +314,8 @@ impl SpanBatchTransactions {
     pub fn decode_tx_nonces(&mut self, r: &mut &[u8]) -> Result<(), SpanBatchError> {
         let mut nonces = Vec::with_capacity(self.total_block_tx_count as usize);
         for _ in 0..self.total_block_tx_count {
-            let (nonce, remaining) = unsigned_varint::decode::u64(r)
-                .map_err(|_| SpanBatchError::Decoding(SpanDecodingError::TxNonces))?;
+            let (nonce, remaining) =
+                read_uvarint(r).ok_or(SpanBatchError::Decoding(SpanDecodingError::TxNonces))?;
             nonces.push(nonce);
             *r = remaining;
         }
@@ -326,8 +327,8 @@ impl SpanBatchTransactions {
     pub fn decode_tx_gases(&mut self, r: &mut &[u8]) -> Result<(), SpanBatchError> {
         let mut gases = Vec::with_capacity(self.total_block_tx_count as usize);
         for _ in 0..self.total_block_tx_count {
-            let (gas, remaining) = unsigned_varint::decode::u64(r)
-                .map_err(|_| SpanBatchError::Decoding(SpanDecodingError::TxGases))?;
+            let (gas, remaining) =
+                read_uvarint(r).ok_or(SpanBatchError::Decoding(SpanDecodingError::TxGases))?;
             gases.push(gas);
             *r = remaining;
         }
@@ -523,6 +524,46 @@ mod tests {
     fn test_decode_tx_gases_truncated() {
         let mut txs = SpanBatchTransactions { total_block_tx_count: 1, ..Default::default() };
         let result = txs.decode_tx_gases(&mut [].as_slice());
+        assert_eq!(result, Err(SpanBatchError::Decoding(SpanDecodingError::TxGases)));
+    }
+
+    // Conformance vectors for the accept-set documented in `batch::varint`.
+
+    #[test]
+    fn test_decode_tx_nonces_non_minimal() {
+        let mut txs = SpanBatchTransactions { total_block_tx_count: 1, ..Default::default() };
+        // `1` with a redundant trailing zero byte; the minimal form is `[0x01]`.
+        let buf = [0x81, 0x00];
+        let mut r = buf.as_slice();
+        txs.decode_tx_nonces(&mut r).unwrap();
+        assert_eq!(txs.tx_nonces, vec![1]);
+        assert!(r.is_empty(), "both bytes must be consumed");
+    }
+
+    #[test]
+    fn test_decode_tx_nonces_overflow_ten_byte_terminator() {
+        let mut txs = SpanBatchTransactions { total_block_tx_count: 1, ..Default::default() };
+        // The tenth byte terminates the varint but sets bits above 63.
+        let buf = [0x81, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x02];
+        let result = txs.decode_tx_nonces(&mut buf.as_slice());
+        assert_eq!(result, Err(SpanBatchError::Decoding(SpanDecodingError::TxNonces)));
+    }
+
+    #[test]
+    fn test_decode_tx_gases_non_minimal() {
+        let mut txs = SpanBatchTransactions { total_block_tx_count: 1, ..Default::default() };
+        let buf = [0x81, 0x00];
+        let mut r = buf.as_slice();
+        txs.decode_tx_gases(&mut r).unwrap();
+        assert_eq!(txs.tx_gases, vec![1]);
+        assert!(r.is_empty(), "both bytes must be consumed");
+    }
+
+    #[test]
+    fn test_decode_tx_gases_overflow_ten_byte_terminator() {
+        let mut txs = SpanBatchTransactions { total_block_tx_count: 1, ..Default::default() };
+        let buf = [0x81, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x02];
+        let result = txs.decode_tx_gases(&mut buf.as_slice());
         assert_eq!(result, Err(SpanBatchError::Decoding(SpanDecodingError::TxGases)));
     }
 

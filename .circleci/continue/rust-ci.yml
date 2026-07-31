@@ -273,6 +273,65 @@ jobs:
           working_directory: <<parameters.directory>>
           no_output_timeout: 40m
           command: just <<parameters.command>> <<parameters.flags>>
+      # Surface individual test results in the CircleCI UI, including on failure.
+      # nextest writes JUnit to <workspace>/target/nextest/default/junit.xml.
+      - store_test_results:
+          path: <<parameters.directory>>/target/nextest/default
+          when: always
+      # Raw JUnit as an artifact, for debugging when store_test_results reports 0
+      # results (see ethereum-optimism/optimism#19577).
+      - store_artifacts:
+          path: <<parameters.directory>>/target/nextest/default/junit.xml
+          destination: junit
+          when: always
+      # A retried flake (e.g. the eth69 teardown SIGSEGV, #20973) passes on rerun and
+      # leaves the job GREEN, so nothing else surfaces it — CircleCI does not parse
+      # nextest's <flakyFailure> element, so store_test_results/Insights stay blind. Detect
+      # it ourselves and ping Slack. Every occurrence is a rare, precious data point (the
+      # crash has never reproduced locally), so alert on every branch, not just develop —
+      # a stack lost on a PR run is a stack lost. Fork PRs get no SLACK_ACCESS_TOKEN and
+      # self-skip. Only tests with a retry override can emit <flakyFailure>, so today this
+      # fires only for the one tracked flake. This step must never fail the job (the retry
+      # passing is the whole point).
+      - run:
+          name: Alert Slack on a flaky retry
+          when: always
+          working_directory: <<parameters.directory>>
+          command: |
+            junit="target/nextest/default/junit.xml"
+            # Split the missing-file and no-flake cases: if the path ever drifts (profile
+            # or target-dir change) the alert must announce it's broken, not look healthy.
+            if [ ! -f "$junit" ]; then
+              echo "junit report not found at $junit — flake alerting is broken, fix the path"; exit 0
+            fi
+            # Match <flaky, covering both <flakyFailure> (test abort/failure, e.g. the SIGSEGV)
+            # and <flakyError> (exec error / timeout, if the teardown bug ever hangs); still
+            # ignores <rerunFailure> (all attempts failed → the job is already red).
+            if ! grep -q '<flaky' "$junit"; then
+              echo "no flaky retries recorded"; exit 0
+            fi
+            if [ -z "${SLACK_ACCESS_TOKEN:-}" ]; then
+              echo "flaky retry detected but SLACK_ACCESS_TOKEN is unset; cannot notify"; exit 0
+            fi
+            # testcase name precedes its <flaky...> child; collect the distinct ones. The
+            # `|| true` keeps a tool hiccup from failing the job (the step's whole contract).
+            tests=$(awk -F'"' '/<testcase /{n=$2} /<flaky/{print n}' "$junit" | sort -u | paste -sd, - || true)
+            [ -n "$tests" ] || tests="unknown"
+            text=":rotating_light: <@U04J4QNR84S> <@U09HDPERU78> nextest flaky retry on job $CIRCLE_JOB (branch ${CIRCLE_BRANCH:-?}): $tests passed only after a crash/failed attempt (likely the #20973 teardown SIGSEGV). Backtrace is in the junit artifact: $CIRCLE_BUILD_URL"
+            # <@U04J4QNR84S> = @seb, <@U09HDPERU78> = @einar. Form-encode the body
+            # (--data-urlencode) instead of hand-building JSON: $CIRCLE_BRANCH is
+            # user-controlled and a git ref may contain " or \, which would break the JSON.
+            # Bearer token via a stdin header (-H @-) keeps it out of the process table.
+            # Slack returns HTTP 200 with {"ok":false,...} on auth/channel errors, which -sf
+            # would miss, so check "ok" explicitly. This must never fail the job.
+            resp=$(printf 'Authorization: Bearer %s\n' "$SLACK_ACCESS_TOKEN" \
+              | curl -s --max-time 30 -H @- https://slack.com/api/chat.postMessage \
+                  --data-urlencode "channel=C03N11M0BBN" \
+                  --data-urlencode "text=$text" \
+                  --data-urlencode "unfurl_links=false") || resp='{"ok":false,"error":"curl transport failure"}'
+            echo "slack response: $resp"
+            echo "$resp" | grep -q '"ok":true' || echo "SLACK POST FAILED (non-fatal) — check token/channel/mentions"
+            exit 0
       - rust-save-build-cache: *tests-cache-args
 
   # Cross-language differential test: runs the Go and Rust dumps of the Interop
@@ -450,6 +509,22 @@ jobs:
               PARTITION_FLAG="$((CIRCLE_NODE_INDEX + 1))/$CIRCLE_NODE_TOTAL"
             fi
             just hack "$PARTITION_FLAG" "true" "$CIRCLE_WORKFLOW_ID"
+      # Check each crate's test targets in isolation with default features. The
+      # lib-only `hack` step above never compiles test code, so a crate whose
+      # tests rely on a feature only enabled via workspace feature unification
+      # passes the workspace test build yet fails when built alone. This step
+      # catches that class (whether the missing feature is a dependency's or the
+      # crate's own).
+      - run:
+          name: Run cargo hack (test targets)
+          working_directory: rust
+          no_output_timeout: 60m
+          command: |
+            PARTITION_FLAG=""
+            if [ "$CIRCLE_NODE_TOTAL" -gt 1 ]; then
+              PARTITION_FLAG="$((CIRCLE_NODE_INDEX + 1))/$CIRCLE_NODE_TOTAL"
+            fi
+            just hack-tests-default "$PARTITION_FLAG" "true" "$CIRCLE_WORKFLOW_ID"
       - rust-save-build-cache: *hack-cache-args
 
   # --------------------------------------------------------------------------
@@ -686,14 +761,6 @@ jobs:
 
   # Kona Publish Prestate Artifacts
   kona-publish-prestate-artifacts:
-    parameters:
-      kind:
-        description: The kind of prestate (cannon)
-        type: string
-        default: "cannon"
-      version:
-        description: The version to build (kona-client, kona-client-int)
-        type: string
     machine:
       image: <<pipeline.parameters.c-base_image>>
       docker_layer_caching: true
@@ -704,11 +771,11 @@ jobs:
       - apt-install:
           packages: "clang llvm-dev libclang-dev"
           extra_flags: "--no-install-recommends"
-      # No sccache here: the prestate is built reproducibly in Docker
-      # (just build-kona-reproducible-prestate-variant), so the host never
-      # compiles and the job doesn't need the sccache-gcs-optimism context. That
-      # context also defines GCP_SERVICE_ACCOUNT_EMAIL, which would otherwise
-      # shadow the oplabs-network-data publisher SA used by the upload below.
+      # No sccache here: the prestates are built reproducibly in Docker
+      # (just build-kona-reproducible-prestate), so the host never compiles and
+      # the job doesn't need the sccache-gcs-optimism context. That context also
+      # defines GCP_SERVICE_ACCOUNT_EMAIL, which would otherwise shadow the
+      # oplabs-network-data publisher SA used by the upload below.
       - rust-prepare-and-restore-cache:
           directory: rust
           profile: release
@@ -721,26 +788,52 @@ jobs:
           name: Generate prestate artifacts
           working_directory: rust
           no_output_timeout: 60m
-          command: |
-            just build-kona-reproducible-prestate-variant "<<parameters.version>>" "prestate-artifacts-<<parameters.kind>>"
+          command: just build-kona-reproducible-prestate
 
       - run:
           name: Upload prestates to GCS
-          working_directory: rust/kona
+          working_directory: rust
           command: |
-            PRESTATE_HASH=$(jq -r .pre ./prestate-artifacts-<<parameters.kind>>/prestate-proof.json)
+            set -euo pipefail
             BRANCH_NAME=$(echo "<< pipeline.git.branch >>" | tr '/' '-')
-            echo "Publishing ${PRESTATE_HASH} as ${BRANCH_NAME}"
-            if [ -n "<< pipeline.git.branch >>" ]; then
-              echo "Publishing commit hash data"
-              INFO_FILE=$(mktemp)
-              (echo "Commit=<< pipeline.git.revision >>" && echo "Prestate: ${PRESTATE_HASH}") > "${INFO_FILE}"
-              gsutil cp "${INFO_FILE}" "gs://oplabs-network-data/proofs/kona/<<parameters.kind>>/${BRANCH_NAME}-<<parameters.version>>.bin.gz.txt"
-              rm "${INFO_FILE}"
-              PRESTATE_HASH="${BRANCH_NAME}-<<parameters.version>>"
-            fi
-            gsutil cp ./prestate-artifacts-<<parameters.kind>>/prestate.bin.gz "gs://oplabs-network-data/proofs/kona/<<parameters.kind>>/${PRESTATE_HASH}.bin.gz"
-            echo "Successfully published prestates artifacts to GCS"
+            # Variant -> artifacts dir comes from the justfile so CI and the
+            # build can't disagree about where a variant landed. Read it into an
+            # array first: piping into `while` would swallow a failed/empty table
+            # as a zero-upload success, and would hand the loop body's stdin to
+            # gsutil. Accumulated with `while read` rather than `mapfile` to keep
+            # one idiom with the justfile, which also runs on macOS bash 3.2.
+            #
+            # No bash here-strings or heredocs anywhere in a CircleCI command:
+            # a doubled left angle bracket opens a parameter tag before any
+            # shell sees it, and an unclosed one kills the whole continuation.
+            # Via a temp file rather than process substitution, so a failing
+            # just still fails the step instead of reading as an empty table.
+            VARIANTS_FILE=$(mktemp)
+            just kona-prestate-variants > "${VARIANTS_FILE}"
+            ENTRIES=()
+            while IFS= read -r ENTRY; do ENTRIES+=("${ENTRY}"); done < "${VARIANTS_FILE}"
+            rm -f "${VARIANTS_FILE}"
+            (( ${#ENTRIES[@]} > 0 )) || { echo "no prestate variants to publish" >&2; exit 1; }
+
+            for ENTRY in "${ENTRIES[@]}"; do
+              VARIANT=${ENTRY%% *}
+              DIR=${ENTRY##* }
+              [ -n "${VARIANT}" ] && [ -n "${DIR}" ] && [ "${VARIANT}" != "${DIR}" ] || {
+                echo "malformed variant entry '${ENTRY}'" >&2; exit 1; }
+              PRESTATE_HASH=$(jq -er .pre "kona/${DIR}/prestate-proof.json")
+              echo "Publishing ${VARIANT} prestate ${PRESTATE_HASH}"
+              OBJECT="${PRESTATE_HASH}"
+              if [ -n "<< pipeline.git.branch >>" ]; then
+                echo "Publishing commit hash data"
+                INFO_FILE=$(mktemp)
+                (echo "Commit=<< pipeline.git.revision >>" && echo "Prestate: ${PRESTATE_HASH}") > "${INFO_FILE}"
+                gsutil cp "${INFO_FILE}" "gs://oplabs-network-data/proofs/kona/cannon/${BRANCH_NAME}-${VARIANT}.bin.gz.txt"
+                rm "${INFO_FILE}"
+                OBJECT="${BRANCH_NAME}-${VARIANT}"
+              fi
+              gsutil cp "kona/${DIR}/prestate.bin.gz" "gs://oplabs-network-data/proofs/kona/cannon/${OBJECT}.bin.gz"
+            done
+            echo "Successfully published ${#ENTRIES[@]} prestate artifacts to GCS"
       # No cache save: builds in Docker, host registry stays empty.
 
   required-rust-ci:
@@ -788,7 +881,15 @@ workflows:
           name: rust-deny
           directory: rust
           command: "just deny"
-          context: *rust-ci-context
+          # Not the shared *rust-ci-context anchor: this job and the two cargo-test jobs
+          # below additionally need the `slack` context (SLACK_ACCESS_TOKEN) — rust-deny to
+          # ping @protocol-oncall on a develop failure (below), the test jobs for the
+          # flaky-retry alert. Scoped to just these three; the 20+ lint/build jobs on
+          # *rust-ci-context have no business holding a Slack bot token.
+          context: &rust-ci-context-slack
+            - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
+            - slack
           # cargo-deny (advisory/license/ban audit) only gates develop, not
           # PRs/branches. It is intentionally not part of required-rust-ci.
           filters:
@@ -808,7 +909,8 @@ workflows:
       - rust-ci-cargo-tests:
           name: rust-tests
           directory: rust
-          context: *rust-ci-context
+          # Adds the `slack` context for the flaky-retry alert step (anchor on rust-deny).
+          context: *rust-ci-context-slack
 
       - interop-deposits-go-rust-diff:
           name: interop-deposits-diff
@@ -880,7 +982,8 @@ workflows:
           directory: rust
           command: "--justfile op-reth/justfile test-integration"
           cache_profile: debug
-          context: *rust-ci-context
+          # Adds the `slack` context for the flaky-retry alert step (anchor on rust-deny).
+          context: *rust-ci-context-slack
 
       # -----------------------------------------------------------------------
       # Kona crate-specific jobs (lint, FPVM builds, host-client offline)
@@ -988,10 +1091,6 @@ workflows:
     when: << pipeline.parameters.c-run_kona_publish_prestates >>
     jobs:
       - kona-publish-prestate-artifacts:
-          name: kona-publish-<<matrix.version>>
-          matrix:
-            parameters:
-              version: ["kona-client", "kona-client-int"]
           context:
             - circleci-repo-readonly-authenticated-github-token
             - oplabs-network-optimism-io-bucket
@@ -1001,10 +1100,6 @@ workflows:
     when: << pipeline.parameters.c-run_release >>
     jobs:
       - kona-publish-prestate-artifacts:
-          name: kona-publish-<<matrix.version>>
-          matrix:
-            parameters:
-              version: ["kona-client", "kona-client-int"]
           context:
             - circleci-repo-readonly-authenticated-github-token
             - oplabs-network-optimism-io-bucket

@@ -1,0 +1,31 @@
+{/*
+  Standing "Running your app in production" callout: the shared OP Enterprise
+  steering snippet for application-developer decision points. Sibling of the
+  chain-operator snippet (op-enterprise-callout.mdx), never a reuse of it:
+  the audiences differ, and app developers are never shown
+  sequencer-operations copy.
+
+  Usage:
+    import OpEnterpriseAppsCallout from "/snippets/op-enterprise-apps-callout.mdx"
+
+    <OpEnterpriseAppsCallout />
+
+  Placement rules: app-developer decision moments only (app-developer
+  quickstart end, building-apps test-to-production fork, deploy-a-contract
+  next steps). Never inside step sequences or reference pages, and never in
+  chain-operator or node-operator journeys.
+
+  Copy rules: Info styling only, never Warning. No product digits: no uptime
+  percentages, response times, request volumes, or tier names; the product
+  page carries its own numbers. No partner names or partner figures. The
+  offering sentence below is the chain-graduation fallback variant; the
+  application-facing offering framing may only replace it after human
+  verification against the live optimism.io pages, recorded in the PR body.
+  Every factual clause must stay re-derivable from a published docs page.
+*/}
+
+<Info>
+  **Running your app in production**
+
+  A production application depends on infrastructure your team does not run: RPC endpoints that hold up under real traffic (the public endpoints are rate-limited and not built for production), bridges your users rely on, and a chain whose operator keeps sequencing, upgrades, and incident response going around the clock. These docs cover building and testing. If your application is growing toward dedicated blockspace of its own, [OP Enterprise](https://optimism.io/op-enterprise?utm_source=docs&utm_medium=docs&utm_campaign=op-enterprise) offers managed and supported paths to running a chain. These docs stay the reference for what you build either way. OP Enterprise is Optimism's managed offering.
+</Info>

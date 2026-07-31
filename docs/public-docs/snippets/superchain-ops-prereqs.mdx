@@ -1,0 +1,36 @@
+{/*
+  Shared "Before You Begin" familiarity block for the superchain-ops runbooks.
+  Future runbooks import this snippet instead of copying the paragraph
+  (duplication census clusters T16/S6).
+
+  Hand-maintained; not generated.
+
+  Usage:
+    import { SuperchainOpsPrereqs } from "/snippets/superchain-ops-prereqs.mdx"
+
+    <SuperchainOpsPrereqs />
+    <SuperchainOpsPrereqs scope="for both chains" />
+
+  Props:
+    scope - optional. A trailing phrase appended to the list of services the
+            reader must know how to operate, for example "for both chains" on
+            a runbook that spans two chains. Omit it for single-chain runbooks.
+
+  Consumer pages (keep this list in sync):
+    chain-operators/tutorials/merge-shared-dispute-game.mdx
+    chain-operators/tutorials/upgrade-chain-to-super-roots.mdx
+*/}
+
+export const SuperchainOpsPrereqs = ({ scope }) => (
+  <p>
+    You should be familiar with running <code>superchain-ops</code> upgrade
+    tasks, signing through the standard signing workflow, and operating{" "}
+    <code>op-proposer</code>, <code>op-challenger</code>, and{" "}
+    <code>op-dispute-mon</code>
+    {scope ? ` ${scope}` : ""}. See{" "}
+    <a href="/chain-operators/tutorials/l1-contract-upgrades/superchain-ops-guide">
+      Upgrade using superchain-ops
+    </a>{" "}
+    for the signing workflow.
+  </p>
+);

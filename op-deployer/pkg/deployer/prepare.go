@@ -113,6 +113,11 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return err
 	}
 
+	// A state produced by the apply pipeline MUST NOT be prepared.
+	if err := st.CheckNotApplied(); err != nil {
+		return err
+	}
+
 	if err := checkReservedOverrides(intent, st); err != nil {
 		return err
 	}
@@ -200,6 +205,17 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return fmt.Errorf("failed to freeze prepared deployment: %w", err)
 	}
 
+	// Build L2 genesis from the addresses and genesis time just committed.
+	genesisEnv := &pipeline.Env{Logger: cfg.Logger, Deployer: deployer}
+	if err := generateGenesisForChains(genesisEnv, intent, bundle, st); err != nil {
+		return err
+	}
+
+	// Compute the real genesis output root from that same genesis.
+	if err := computeGenesisOutputRootsForChains(genesisEnv, intent, st); err != nil {
+		return err
+	}
+
 	if err := pipeline.WriteState(cfg.Workdir, st); err != nil {
 		return fmt.Errorf("failed to write state: %w", err)
 	}
@@ -264,12 +280,7 @@ func resolveSuperchainConfigProxy(ctx context.Context, l1RPC *rpc.Client, intent
 	if intent.SuperchainConfigProxy != nil {
 		return nil
 	}
-	superCfgAddr, err := opcm.NewContract(opcmAddr, ethclient.NewClient(l1RPC)).SuperchainConfig(ctx)
-	if err != nil {
-		return fmt.Errorf("error resolving SuperchainConfig from OPCM at %s: %w", opcmAddr, err)
-	}
-	intent.SuperchainConfigProxy = &superCfgAddr
-	return nil
+	return fmt.Errorf("intent.superchainConfigProxy must be set to predict against an existing OPCM at %s", opcmAddr.Hex())
 }
 
 // predictChains predicts and records contract L1 addresses for undeployed chains.
@@ -363,8 +374,8 @@ func predictChains(
 		if err != nil {
 			return fmt.Errorf("failed to clear prepared inputs for chain %s: %w", chain.ID.Hex(), err)
 		}
-		chainState.Prestate = common.Hash{}
-		chainState.StartingAnchorRoot = nil
+
+		chainState.ClearDerivedArtifacts()
 		gameType := dci.DisputeGameType
 		chainState.InitialGameType = &gameType
 
@@ -387,6 +398,26 @@ func predictChains(
 		)
 	}
 
+	return nil
+}
+
+// generateGenesisForChains builds each chain's L2 genesis allocs from the addresses and genesis
+// time predictChains just committed.
+func generateGenesisForChains(pEnv *pipeline.Env, intent *state.Intent, bundle artifacts.Bundle, st *state.State) error {
+	for _, chain := range intent.Chains {
+		if err := pipeline.GenerateL2Genesis(pEnv, intent, bundle, st, chain.ID); err != nil {
+			return fmt.Errorf("failed to generate L2 genesis for chain %s: %w", chain.ID.Hex(), err)
+		}
+	}
+	return nil
+}
+
+// computeGenesisOutputRootsForChains computes and persists every chain's genesis block hash and
+// starting anchor proposal from the L2 genesis generateGenesisForChains just built.
+func computeGenesisOutputRootsForChains(pEnv *pipeline.Env, intent *state.Intent, st *state.State) error {
+	if err := pipeline.ComputeGenesisOutputRoots(pEnv, intent, st); err != nil {
+		return fmt.Errorf("failed to compute genesis output roots: %w", err)
+	}
 	return nil
 }
 

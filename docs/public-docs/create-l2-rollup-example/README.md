@@ -1,6 +1,6 @@
 # Create L2 Rollup - Code Example
 
-This directory contains the complete working implementation that accompanies the [Create L2 Rollup tutorial](/chain-operators/tutorials/create-l2-rollup/create-l2-rollup). It provides automated deployment of an OP Stack L2 rollup testnet using official published Docker images.
+This directory contains the complete working implementation that accompanies the [Create L2 Rollup tutorial](/chain-operators/tutorials/create-l2-rollup). It provides automated deployment of an OP Stack L2 rollup testnet using official published Docker images.
 
 ## Overview
 
@@ -109,7 +109,7 @@ The `.env` file will be automatically loaded by Docker Compose.
 
 ## Manual Setup (Alternative)
 
-For detailed manual setup instructions, see the [Create L2 Rollup tutorial](/chain-operators/tutorials/create-l2-rollup/create-l2-rollup). The tutorial provides step-by-step guidance for setting up each component individually if you prefer not to use the automated approach.
+For detailed manual setup instructions, see the [Create L2 Rollup tutorial](/chain-operators/tutorials/create-l2-rollup). The tutorial provides step-by-step guidance for setting up each component individually if you prefer not to use the automated approach.
 
 ## Directory Structure
 
@@ -255,7 +255,7 @@ make up
 
 ## About This Code
 
-This code example accompanies the [Create L2 Rollup tutorial](/chain-operators/tutorials/create-l2-rollup/create-l2-rollup) in the Optimism documentation. It provides a complete, working implementation that demonstrates the concepts covered in the tutorial.
+This code example accompanies the [Create L2 Rollup tutorial](/chain-operators/tutorials/create-l2-rollup) in the Optimism documentation. It provides a complete, working implementation that demonstrates the concepts covered in the tutorial.
 
 ## Contributing
 

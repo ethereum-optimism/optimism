@@ -237,26 +237,25 @@ op-interop-filter:
 cannon:
   cd cannon && just cannon
 
-# Builds reproducible prestate for kona.
+# Builds the reproducible kona prestates (all variants).
 reproducible-prestate-kona:
   cd rust && just build-kona-reproducible-prestate
 
-# Builds the reproducible kona prestate and prints its hash.
+# Builds the reproducible kona prestates and prints their hashes.
 [script('bash')]
 reproducible-prestate:
   set -euo pipefail
   (cd rust && just build-kona-reproducible-prestate)
   (cd rust && just output-kona-prestate-hash)
 
-# Builds the cannon prestate.
+# Builds the kona prestates natively (hashes will not match release builds).
 cannon-prestates:
   cd rust && just build-kona-prestates
 
 # Verifies the reproducibility of released cannon prestates against the
-# superchain-registry standard prestates. Each tagged release (op-program/v*
-# and kona-client/v*) is rebuilt from its own checked-out source, so historical
-# op-program prestates are still checked even though op-program is no longer in
-# the tree.
+# superchain-registry standard prestates. Only kona-client/v* releases are
+# rebuilt and verified; op-program prestates remain in the registry but are no
+# longer re-validated.
 verify-reproducibility:
   rm -rf ops/prestate-reproducibility/temp/states
   ./ops/prestate-reproducibility/build-prestates.sh

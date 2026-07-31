@@ -52,7 +52,7 @@ where
             OpSpecId::GRANITE | OpSpecId::HOLOCENE => granite(),
             OpSpecId::ISTHMUS => isthmus(),
             OpSpecId::JOVIAN => jovian(),
-            OpSpecId::KARST | OpSpecId::INTEROP => karst(),
+            OpSpecId::KARST | OpSpecId::LAGOON => karst(),
         };
 
         let accelerated_precompiles = match spec {
@@ -63,7 +63,7 @@ where
             OpSpecId::GRANITE | OpSpecId::HOLOCENE => accelerated_granite::<H, O>(),
             OpSpecId::ISTHMUS => accelerated_isthmus::<H, O>(),
             OpSpecId::JOVIAN => accelerated_jovian::<H, O>(),
-            OpSpecId::KARST | OpSpecId::INTEROP => accelerated_karst::<H, O>(),
+            OpSpecId::KARST | OpSpecId::LAGOON => accelerated_karst::<H, O>(),
         };
 
         Self {
@@ -577,8 +577,8 @@ mod test {
             hint_writer.clone(),
             oracle_reader.clone(),
         );
-        let interop_provider = OpFpvmPrecompiles::new_with_spec(
-            OpSpecId::INTEROP,
+        let lagoon_provider = OpFpvmPrecompiles::new_with_spec(
+            OpSpecId::LAGOON,
             hint_writer.clone(),
             oracle_reader.clone(),
         );
@@ -605,9 +605,9 @@ mod test {
             addrs.sort();
             addrs
         };
-        let interop_addrs: Vec<_> = {
+        let lagoon_addrs: Vec<_> = {
             let mut addrs: Vec<_> =
-                interop_provider.accelerated_precompiles.keys().copied().collect();
+                lagoon_provider.accelerated_precompiles.keys().copied().collect();
             addrs.sort();
             addrs
         };
@@ -616,8 +616,8 @@ mod test {
             "KARST should accelerate the same addresses as JOVIAN (functions may differ)"
         );
         assert_eq!(
-            karst_addrs, interop_addrs,
-            "INTEROP should accelerate the same addresses as KARST (functions may differ)"
+            karst_addrs, lagoon_addrs,
+            "LAGOON should accelerate the same addresses as KARST (functions may differ)"
         );
 
         // Verify the non-accelerated precompile sets point to the correct static instances.
@@ -634,8 +634,8 @@ mod test {
             "KARST should use karst() precompiles"
         );
         assert!(
-            core::ptr::eq(interop_provider.inner.precompiles, karst()),
-            "INTEROP should use karst() precompiles"
+            core::ptr::eq(lagoon_provider.inner.precompiles, karst()),
+            "LAGOON should use karst() precompiles"
         );
     }
 

@@ -13,7 +13,7 @@ Cannon is built from the local monorepo source.
 just reproducible-prestate-kona
 ```
 
-This builds both supported variants:
+A single Docker build produces both supported variants:
 
 - `kona-client` into `rust/kona/prestate-artifacts-cannon`
 - `kona-client-int` into `rust/kona/prestate-artifacts-cannon-interop`
@@ -24,6 +24,5 @@ To create a reproducible kona-client prestate build that supports custom or devn
 
 ```sh
 cd rust
-KONA_CUSTOM_CONFIGS_DIR=<custom_config_dir> \
-  just build-kona-reproducible-prestate-variant <kona-client|kona-client-int> <artifacts_output_dir>
+KONA_CUSTOM_CONFIGS_DIR=<custom_config_dir> just build-kona-reproducible-prestate
 ```

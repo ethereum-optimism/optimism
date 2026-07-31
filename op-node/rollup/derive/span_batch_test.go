@@ -2,6 +2,7 @@ package derive
 
 import (
 	"bytes"
+	"encoding/binary"
 	"math"
 	"math/big"
 	"math/rand"
@@ -558,6 +559,80 @@ func TestSpanBatchReadTxDataLeadingZero(t *testing.T) {
 	// rejected.
 	var sbtx spanBatchTx
 	require.ErrorIs(t, sbtx.UnmarshalBinary(txData), types.ErrTxTypeNotSupported)
+}
+
+// TestSpanBatchUvarintConformance locks op-node's span-batch `uvarint` decoding — Go's
+// binary.ReadUvarint — against the vectors shared with kona's decoder in
+// rust/kona/crates/protocol/protocol/src/batch/varint.rs. Span-batch uvarints are protobuf Base128
+// varints, so a non-minimal encoding is valid and decodes to the same value as its minimal form.
+// Kona must reach the same verdict on every vector, or a batcher can split the two derivations with
+// a re-encoded field.
+func TestSpanBatchUvarintConformance(t *testing.T) {
+	cases := []struct {
+		name    string
+		encoded []byte
+		value   uint64
+		wantErr bool
+	}{
+		{"minimal", []byte{0x01}, 1, false},
+		{"non-minimal", []byte{0x81, 0x00}, 1, false},
+		{"non-minimal, multi-byte", []byte{0x81, 0x80, 0x80, 0x00}, 1, false},
+		{"ten-byte, zero terminator", []byte{0x81, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x00}, 1, false},
+		{"ten-byte, bit-63 terminator", []byte{0x81, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x01}, 1 | 1<<63, false},
+		{"max uint64", []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01}, math.MaxUint64, false},
+		{"terminator above bit 63", []byte{0x81, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x02}, 0, true},
+		{"never terminates", bytes.Repeat([]byte{0x80}, 10), 0, true},
+		{"terminates past max width", append(bytes.Repeat([]byte{0x80}, 10), 0x01), 0, true},
+		{"truncated", []byte{0x81}, 0, true},
+		{"empty", []byte{}, 0, true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// relTimestamp is unbounded, so it exercises the full accepted value range.
+			var prefix spanBatchPrefix
+			r := bytes.NewReader(tc.encoded)
+			err := prefix.decodeRelTimestamp(r)
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.value, prefix.relTimestamp)
+			require.Zero(t, r.Len(), "varint must be fully consumed")
+		})
+	}
+}
+
+// nonMinimalUvarint encodes v as a Base128 varint with one redundant trailing zero byte. Only valid
+// for values whose minimal encoding is shorter than binary.MaxVarintLen64.
+func nonMinimalUvarint(t *testing.T, v uint64) []byte {
+	encoded := binary.AppendUvarint(nil, v)
+	require.Less(t, len(encoded), binary.MaxVarintLen64)
+	encoded[len(encoded)-1] |= 0x80
+	return append(encoded, 0x00)
+}
+
+// TestSpanBatchNonMinimalBlockCount decodes a whole span batch whose blockCount is encoded
+// non-minimally, with every other field untouched — the batch a byzantine batcher would publish.
+// op-node derives exactly the batch the minimal encoding would have produced, and kona must too.
+func TestSpanBatchNonMinimalBlockCount(t *testing.T) {
+	rng := rand.New(rand.NewSource(0x5ea6a71))
+	chainID := big.NewInt(rng.Int63n(1000))
+	rawSpanBatch := RandomRawSpanBatch(rng, chainID)
+
+	var buf bytes.Buffer
+	require.NoError(t, rawSpanBatch.encodePrefix(&buf))
+	_, err := buf.Write(nonMinimalUvarint(t, rawSpanBatch.blockCount))
+	require.NoError(t, err)
+	require.NoError(t, rawSpanBatch.encodeOriginBits(&buf))
+	require.NoError(t, rawSpanBatch.encodeBlockTxCounts(&buf))
+	require.NoError(t, rawSpanBatch.encodeTxs(&buf))
+
+	var sb RawSpanBatch
+	require.NoError(t, sb.decode(bytes.NewReader(buf.Bytes())))
+	require.NoError(t, sb.txs.recoverV(chainID))
+	requireEqual(t, rawSpanBatch, &sb)
 }
 
 func TestSpanBatchMaxTxData(t *testing.T) {

@@ -102,3 +102,20 @@ func Parse(args []byte) (GameArgs, error) {
 	}
 	return output, nil
 }
+
+// ParseZK decodes the packed ZK game args layout produced by Pack (and
+// LibGameArgs.sol's ZK_ARGS_LENGTH = 140 byte encoding).
+func ParseZK(args []byte) (ZKGameArgs, error) {
+	if len(args) != ZKArgsLength {
+		return ZKGameArgs{}, fmt.Errorf("%w: invalid length (%v)", ErrInvalidGameArgs, len(args))
+	}
+	return ZKGameArgs{
+		AbsolutePrestate:     common.BytesToHash(args[0:32]),
+		Verifier:             common.BytesToAddress(args[32:52]),
+		MaxChallengeDuration: binary.BigEndian.Uint64(args[52:60]),
+		MaxProveDuration:     binary.BigEndian.Uint64(args[60:68]),
+		ChallengerBond:       new(big.Int).SetBytes(args[68:100]),
+		AnchorStateRegistry:  common.BytesToAddress(args[100:120]),
+		Weth:                 common.BytesToAddress(args[120:140]),
+	}, nil
+}

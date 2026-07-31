@@ -5,6 +5,7 @@ diataxis: tutorial
 ---
 
 import { TutorialFaucets } from '/snippets/tutorial-setup-wallet-and-funds.mdx';
+import StandardBridgeTokenWarning from '/snippets/standard-bridge-token-warning.mdx';
 
 In this tutorial, you'll learn how to bridge a custom ERC-20 token from Ethereum to an OP Stack chain using the Standard Bridge system.
 This tutorial is meant for developers who already have an existing ERC-20 token on Ethereum and want to create a bridged representation of that token on OP Mainnet.
@@ -13,9 +14,7 @@ This tutorial explains how you can create a custom token that conforms to the [`
 A custom token allows you to do things like trigger extra logic whenever a token is deposited.
 If you don't need extra functionality like this, consider following the tutorial on [Bridging Your Standard ERC-20 Token Using the Standard Bridge](./standard-bridge-standard-token) instead.
 
-<Info>
-  The Standard Bridge **does not** support [**fee on transfer tokens**](https://github.com/d-xo/weird-erc20#fee-on-transfer) or [**rebasing tokens**](https://github.com/d-xo/weird-erc20#balance-modifications-outside-of-transfers-rebasingairdrops) because they can cause bridge accounting errors.
-</Info>
+<StandardBridgeTokenWarning />
 
 ## About OptimismMintableERC20s
 

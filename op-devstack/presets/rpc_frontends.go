@@ -547,31 +547,6 @@ func (r *conductorFrontend) RpcAPI() conductorRpc.API {
 	return r.api
 }
 
-type faucetFrontend struct {
-	presetCommon
-	chainID eth.ChainID
-	client  *sources.FaucetClient
-}
-
-var _ stack.Faucet = (*faucetFrontend)(nil)
-
-func newPresetFaucet(t devtest.T, name string, chainID eth.ChainID, rpcCl opclient.RPC) *faucetFrontend {
-	t = t.WithCtx(stack.ContextWithChainID(t.Ctx(), chainID))
-	return &faucetFrontend{
-		presetCommon: newPresetCommon(t, name),
-		chainID:      chainID,
-		client:       sources.NewFaucetClient(rpcCl),
-	}
-}
-
-func (r *faucetFrontend) ChainID() eth.ChainID {
-	return r.chainID
-}
-
-func (r *faucetFrontend) API() apis.Faucet {
-	return r.client
-}
-
 type testSequencerFrontend struct {
 	presetCommon
 	api      apis.TestSequencerAPI

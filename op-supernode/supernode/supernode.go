@@ -55,7 +55,7 @@ type Supernode struct {
 	rpcAddr string
 }
 
-func New(ctx context.Context, log gethlog.Logger, version string, requestStop context.CancelCauseFunc, cfg *config.CLIConfig, vnCfgs map[eth.ChainID]*opnodecfg.Config) (*Supernode, error) {
+func New(ctx context.Context, log gethlog.Logger, version string, commit string, requestStop context.CancelCauseFunc, cfg *config.CLIConfig, vnCfgs map[eth.ChainID]*opnodecfg.Config) (*Supernode, error) {
 	s := &Supernode{log: log, version: version, requestStop: requestStop, cfg: cfg, chains: make(map[eth.ChainID]cc.InteropChain)}
 
 	// Initialize L1 client
@@ -78,6 +78,7 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 	// Build metrics router; attach per-chain registries later
 	s.metricsFanIn = resources.NewMetricsFanIn(len(cfg.Chains))
 	s.supernodeMetrics = resources.NewSupernodeMetrics()
+	s.supernodeMetrics.Info.WithLabelValues(version, commit).Set(1)
 	s.metricsFanIn.AddGatherer(s.supernodeMetrics.Registry())
 	for _, id := range cfg.Chains {
 		chainID := eth.ChainIDFromUInt64(id)
@@ -90,7 +91,7 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 			log.Error("missing virtual node config for chain", "chain", id)
 			continue
 		}
-		container, err := cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverrides, nil, s.rpcRouter, s.metricsFanIn.SetMetricsRegistry, s.supernodeMetrics)
+		container, err := cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverrides, nil, s.rpcRouter, s.metricsFanIn.SetMetricsRegistry, s.supernodeMetrics, version)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create chain container for chain %s: %w", chainID, err)
 		}

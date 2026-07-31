@@ -2,26 +2,32 @@ package txinclude_test
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/txinclude"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
 
 type mockSender struct {
-	errs  []error
-	calls uint64
-	txs   []*types.Transaction
+	errs   []error
+	calls  uint64
+	txs    []*types.Transaction
+	onSend func(uint64)
 }
 
 func (m *mockSender) SendTransaction(ctx context.Context, tx *types.Transaction) error {
 	call := m.calls
 	m.calls++
 	m.txs = append(m.txs, tx)
+	if m.onSend != nil {
+		m.onSend(m.calls)
+	}
 	if call < uint64(len(m.errs)) {
 		return m.errs[call]
 	}
@@ -45,10 +51,40 @@ func TestResubmitterSuccessfulTransaction(t *testing.T) {
 	}()
 }
 
+func TestResubmitterRetriesNonceTooLowAfterPossiblySuccessfulSubmission(t *testing.T) {
+	tests := []struct {
+		name     string
+		firstErr error
+	}{
+		{name: "submitted"},
+		{name: "already known", firstErr: txpool.ErrAlreadyKnown},
+		{name: "unknown error", firstErr: errors.New("ambiguous transport error")},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			inner := &mockSender{
+				errs: []error{test.firstErr, core.ErrNonceTooLow, core.ErrNonceTooLow},
+				onSend: func(call uint64) {
+					if call == 3 {
+						cancel()
+					}
+				},
+			}
+			resubmitter := txinclude.NewResubmitter(inner, time.Millisecond)
+
+			err := resubmitter.SendTransaction(ctx, types.NewTx(&types.DynamicFeeTx{}))
+			require.ErrorIs(t, err, context.Canceled)
+			require.Equal(t, uint64(3), inner.calls)
+		})
+	}
+}
+
 func TestResubmitterFatalErrors(t *testing.T) {
 	inner := &mockSender{
-		// Just test a subset of them.
-		errs: []error{txpool.ErrInvalidSender, txpool.ErrReplaceUnderpriced, txpool.ErrGasLimit},
+		// Just test a subset of them, including an initial ErrNonceTooLow.
+		errs: []error{core.ErrNonceTooLow, txpool.ErrInvalidSender, txpool.ErrReplaceUnderpriced, txpool.ErrGasLimit},
 	}
 	resubmitter := txinclude.NewResubmitter(inner, time.Millisecond)
 	for _, want := range inner.errs {

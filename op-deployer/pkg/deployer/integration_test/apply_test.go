@@ -504,7 +504,7 @@ func TestContinuationDeploymentUsesPreparedInputs(t *testing.T) {
 		intent, _ := shared.NewIntent(t, l1ChainID, dk, l2ChainID, loc, loc, testCustomGasLimit)
 		intent.SuperchainConfigProxy = &superchainConfigProxy
 		intent.Chains[0].DeployOverrides = map[string]any{
-			"respectedGameType": embedded.GameTypeCannonKona,
+			"respectedGameType": embedded.GameTypeSuperCannonKona,
 		}
 
 		st := &state.State{
@@ -521,7 +521,7 @@ func TestContinuationDeploymentUsesPreparedInputs(t *testing.T) {
 		st.SetChainContracts(chainID, addresses.OpChainContracts{}, false)
 		chainState, err := st.Chain(chainID)
 		require.NoError(t, err)
-		gameType := uint32(embedded.GameTypeCannonKona)
+		gameType := uint32(embedded.GameTypeSuperCannonKona)
 		chainState.InitialGameType = &gameType
 		chainState.Prestate = committedPrestate
 		chainState.StartingAnchorRoot = committedAnchor
@@ -578,9 +578,9 @@ func TestContinuationDeploymentUsesPreparedInputs(t *testing.T) {
 		require.NotZero(t, implementation)
 		return implementation
 	}
-	cannonKonaImpl := readGameImpl(embedded.GameTypeCannonKona)
-	permissionedCannonImpl := readGameImpl(embedded.GameTypePermissionedCannon)
-	require.NotEqual(t, cannonKonaImpl, permissionedCannonImpl)
+	superCannonKonaImpl := readGameImpl(embedded.GameTypeSuperCannonKona)
+	superPermissionedImpl := readGameImpl(embedded.GameTypeSuperPermissioned)
+	require.NotEqual(t, superCannonKonaImpl, superPermissionedImpl)
 
 	gameArgs := w3.MustNewFunc("gameArgs(uint32)", "bytes")
 	readAbsolutePrestate := func(gameType embedded.GameType) common.Hash {
@@ -593,12 +593,7 @@ func TestContinuationDeploymentUsesPreparedInputs(t *testing.T) {
 		require.GreaterOrEqual(t, len(args), common.HashLength)
 		return common.BytesToHash(args[:common.HashLength])
 	}
-	require.Equal(t, committedPrestate, readAbsolutePrestate(embedded.GameTypeCannonKona))
-	require.Equal(
-		t,
-		opcm.PermissionedCannonFallbackPrestatePlaceholder,
-		readAbsolutePrestate(embedded.GameTypePermissionedCannon),
-	)
+	require.Equal(t, committedPrestate, readAbsolutePrestate(embedded.GameTypeSuperCannonKona))
 
 	getStartingAnchorRoot := w3.MustNewFunc(
 		"getStartingAnchorRoot()",
@@ -624,7 +619,7 @@ func TestContinuationDeploymentUsesPreparedInputs(t *testing.T) {
 	require.NoError(t, err)
 	var actualGameType uint32
 	require.NoError(t, respectedGameType.DecodeReturns(ret, &actualGameType))
-	require.Equal(t, uint32(embedded.GameTypeCannonKona), actualGameType)
+	require.Equal(t, uint32(embedded.GameTypeSuperCannonKona), actualGameType)
 
 	t.Run("missing committed prestate", func(t *testing.T) {
 		_, st, chainID := newContinuationInputs(t, uint256.NewInt(3))
@@ -1086,12 +1081,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 								GameType: embedded.GameTypeZKDisputeGame,
 							},
 						},
-						ExtraInstructions: []embedded.ExtraInstruction{
-							{
-								Key:  "PermittedProxyDeployment",
-								Data: []byte("DelayedWETH"),
-							},
-						},
+						ExtraInstructions: []embedded.ExtraInstruction{},
 					},
 				}
 

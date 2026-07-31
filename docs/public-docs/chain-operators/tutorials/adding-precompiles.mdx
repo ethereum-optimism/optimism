@@ -4,11 +4,9 @@ description: Learn how to run an EVM with a new precompile for OP Stack chain op
 diataxis: tutorial
 ---
 
-<Info>
-  OP Stack Hacks are explicitly things that you can do with the OP Stack that are *not* currently intended for production use.
+import OpStackHacksWarning from "/snippets/op-stack-hacks-warning.mdx"
 
-  OP Stack Hacks are not for the faint of heart. You will not be able to receive significant developer support for OP Stack Hacks — be prepared to get your hands dirty and to work without support.
-</Info>
+<OpStackHacksWarning />
 
 One possible use of OP Stack is to run an EVM with a new precompile for operations to speed up calculations that are not currently supported. In this tutorial, you'll make a simple precompile that returns a constant value if it's called with four or less bytes, or an error if it is called with more than that.
 

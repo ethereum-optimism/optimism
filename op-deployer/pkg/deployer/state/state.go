@@ -113,6 +113,15 @@ func (s *State) CheckNotPrepared() error {
 	return nil
 }
 
+// CheckNotApplied returns an error if the state was produced by the apply
+// pipeline.
+func (s *State) CheckNotApplied() error {
+	if s.AppliedIntent != nil {
+		return fmt.Errorf("state was produced by the apply pipeline and cannot be prepared")
+	}
+	return nil
+}
+
 // EnsureCreate2Salt generates a random CREATE2 salt if one has not been set yet.
 // If a salt has been already set then it is preserved.
 func (s *State) EnsureCreate2Salt() error {
@@ -222,6 +231,20 @@ type ChainState struct {
 	GenesisTime *hexutil.Uint64 `json:"genesisTime,omitempty"`
 
 	Continuation *ContinuationState `json:"continuation,omitempty"`
+
+	// GenesisBlockHash is the L2 genesis block hash computed from Allocs, the combined deploy
+	// config, and the pinned StartBlock/GenesisTime. Used by post-deploy validation to confirm
+	// on-chain seeding matches the predicted genesis.
+	GenesisBlockHash *common.Hash `json:"genesisBlockHash,omitempty"`
+}
+
+// ClearDerivedArtifacts clears every value derived from the chain's predicted L1
+// addresses.
+func (c *ChainState) ClearDerivedArtifacts() {
+	c.Prestate = common.Hash{}
+	c.StartingAnchorRoot = nil
+	c.Allocs = nil
+	c.GenesisBlockHash = nil
 }
 
 // IsChainDeployed reports whether the chain's addresses have been broadcast.

@@ -131,6 +131,60 @@ func TestScriptCaller(t *testing.T) {
 	}, out)
 }
 
+// stubBinary writes an executable shell script and returns it as a Binary.
+func stubBinary(t *testing.T, script string) Binary {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "stub-forge")
+	require.NoError(t, os.WriteFile(p, []byte("#!/bin/sh\n"+script+"\n"), 0o755))
+	return StaticBinary(p)
+}
+
+// TestClient_TimeoutUnblocksHungCommand reproduces the CI hang shape: a forge
+// that never finishes (here: sleeps) while a child process keeps the output
+// pipes open even after the parent is killed. Without Client.Timeout the call
+// blocks until the process exits on its own; without cmd.WaitDelay it blocks
+// on the pipe drain even after the kill.
+func TestClient_TimeoutUnblocksHungCommand(t *testing.T) {
+	oldDelay := waitDelay
+	waitDelay = time.Second
+	t.Cleanup(func() { waitDelay = oldDelay })
+
+	cl := NewClient(stubBinary(t, "sleep 60 &\nexec sleep 60"))
+	cl.Stdout = io.Discard
+	cl.Stderr = io.Discard
+	cl.Timeout = 500 * time.Millisecond
+
+	start := time.Now()
+	err := cl.Build(context.Background())
+	require.Error(t, err)
+	require.Less(t, time.Since(start), 10*time.Second)
+}
+
+func TestClient_SlowBroadcast(t *testing.T) {
+	tests := []struct {
+		name     string
+		slow     bool
+		opts     []string
+		wantSlow bool
+	}{
+		{name: "broadcast with slow", slow: true, opts: []string{"--broadcast"}, wantSlow: true},
+		{name: "read-only with slow", slow: true, opts: nil, wantSlow: false},
+		{name: "broadcast without slow", slow: false, opts: []string{"--broadcast"}, wantSlow: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cl := NewClient(stubBinary(t, `echo "$@"`))
+			cl.Stdout = io.Discard
+			cl.SlowBroadcast = tt.slow
+
+			out, err := cl.RunScript(context.Background(), "Script.s.sol", "run()", nil, tt.opts...)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantSlow, strings.Contains(out, "--slow"))
+		})
+	}
+}
+
 func copyDir(src, dst string) error {
 	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
 		if err != nil {

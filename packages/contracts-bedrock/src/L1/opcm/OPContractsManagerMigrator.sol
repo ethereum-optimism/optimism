@@ -434,7 +434,6 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
                 _systemConfig.gasLimit(),
                 _systemConfig.unsafeBlockSigner(),
                 _systemConfig.resourceConfig(),
-                _systemConfig.batchInbox(),
                 _addrs,
                 _systemConfig.l2ChainId(),
                 _systemConfig.superchainConfig()

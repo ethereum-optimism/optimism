@@ -257,7 +257,6 @@ where
             attrs.payload_attributes.timestamp,
         )?;
         let evm_env = self.evm_env(
-            self.config.spec_id(attrs.payload_attributes.timestamp),
             self.trie_db.parent_block_header(),
             &attrs,
             &base_fee_params,

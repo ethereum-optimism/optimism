@@ -111,8 +111,6 @@ func NewSingleSupernodeWithSyncTesterRuntimeWithConfig(t devtest.T, cfg PresetCo
 	// (the two-L2 supernode runtime does the same for verifier-mode VNs).
 	connectL2CLPeers(t, t.Logger(), l2CL, supernodeProxy)
 
-	faucetService := startFaucets(t, keys, l1Net.ChainID(), l2Net.ChainID(), l1EL.UserRPC(), l2EL.UserRPC())
-
 	var runtimeDepSet depset.DependencySet
 	if depSetStatic != nil {
 		runtimeDepSet = depSetStatic
@@ -137,10 +135,9 @@ func NewSingleSupernodeWithSyncTesterRuntimeWithConfig(t devtest.T, cfg PresetCo
 				Batcher:     l2Batcher,
 			},
 		},
-		Supernode:     supernode,
-		FaucetService: faucetService,
-		TimeTravel:    timeTravelClock,
-		DelaySeconds:  delaySeconds,
+		Supernode:    supernode,
+		TimeTravel:   timeTravelClock,
+		DelaySeconds: delaySeconds,
 		SyncTester: &SyncTesterRuntime{
 			Service: syncTester,
 			EL:      syncTesterEL,
