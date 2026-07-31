@@ -478,7 +478,7 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 		},
 		{
 			name:     "L2_CHAIN_ID_1337",
-			gameType: embedded.GameTypeCannonKona,
+			gameType: embedded.GameTypeSuperCannonKona,
 			// The script host defaults to chain ID 1337. This remains a valid L2 chain ID
 			// because the fork context must use the actual, non-1337 Anvil L1 chain ID.
 			chainID: common.HexToHash("0x0539"),

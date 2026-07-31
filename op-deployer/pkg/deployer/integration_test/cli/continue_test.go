@@ -163,7 +163,7 @@ func newContinueCLIFixture(t *testing.T) *continueCLIFixture {
 	intent.SuperchainRoles = nil
 	intent.OPCMAddress = &impls.OpcmV2
 	intent.SuperchainConfigProxy = &bstrap.SuperchainConfigProxy
-	intent.Chains[0].DeployOverrides = map[string]any{"respectedGameType": embedded.GameTypeCannonKona}
+	intent.Chains[0].DeployOverrides = map[string]any{"respectedGameType": embedded.GameTypeSuperCannonKona}
 	preparedWorkdir := t.TempDir()
 	require.NoError(t, intent.WriteToFile(filepath.Join(preparedWorkdir, "intent.toml")))
 	require.NoError(t, pipeline.WriteState(preparedWorkdir, st))
