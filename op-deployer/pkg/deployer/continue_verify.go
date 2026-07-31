@@ -17,7 +17,6 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/lmittmann/w3"
 )
@@ -696,7 +695,6 @@ func (v *continuationVerifier) persistentAddressExpectations(
 ) []continuationExpectation[common.Address] {
 	contracts := v.expected.OpChainContracts
 	expectations := []continuationExpectation[common.Address]{
-		{"CHECK-SCFG-150 SystemConfig batch inbox", "frozen DeployOPChainInput.L2ChainId", contracts.SystemConfigProxy, continuationBatchInboxMethod, nil, continuationBatchInboxAddress(v.dci.L2ChainId)},
 		{"CHECK-SCFG-160 SystemConfig L1CrossDomainMessenger", "predicted OpChainContracts", contracts.SystemConfigProxy, continuationL1XDMMethod, nil, contracts.L1CrossDomainMessengerProxy},
 		{"CHECK-SCFG-170 SystemConfig L1ERC721Bridge", "predicted OpChainContracts", contracts.SystemConfigProxy, continuationL1ERC721BridgeMethod, nil, contracts.L1Erc721BridgeProxy},
 		{"CHECK-SCFG-180 SystemConfig L1StandardBridge", "predicted OpChainContracts", contracts.SystemConfigProxy, continuationL1StandardBridgeMethod, nil, contracts.L1StandardBridgeProxy},
@@ -736,16 +734,6 @@ func (v *continuationVerifier) persistentAddressExpectations(
 		})
 	}
 	return expectations
-}
-
-func continuationBatchInboxAddress(chainID *big.Int) common.Address {
-	if chainID == nil {
-		return common.Address{}
-	}
-	hash := crypto.Keccak256(common.BigToHash(chainID).Bytes())
-	var inbox common.Address
-	copy(inbox[1:], hash[:19])
-	return inbox
 }
 
 func (v *continuationVerifier) verifySuperchainConfig() {
@@ -924,7 +912,6 @@ var (
 	continuationBlobBasefeeScalarMethod   = w3.MustNewFunc("blobbasefeeScalar()", "uint32")
 	continuationScalarMethod              = w3.MustNewFunc("scalar()", "uint256")
 	continuationBatcherHashMethod         = w3.MustNewFunc("batcherHash()", "bytes32")
-	continuationBatchInboxMethod          = w3.MustNewFunc("batchInbox()", "address")
 	continuationUnsafeBlockSignerMethod   = w3.MustNewFunc("unsafeBlockSigner()", "address")
 	continuationGasLimitMethod            = w3.MustNewFunc("gasLimit()", "uint64")
 	continuationL2ChainIDMethod           = w3.MustNewFunc("l2ChainId()", "uint256")

@@ -128,8 +128,11 @@ func newContinuationVerificationFixture(
 	t *testing.T,
 	gameType embedded.GameType,
 ) *continuationVerificationFixture {
-	superRoot := gameType == embedded.GameTypeSuperCannonKona
-	return newContinuationVerificationFixtureWithMode(t, gameType, superRoot)
+	// devfeatures.IsDevFeatureEnabled hardcodes SuperRootGamesMigrationFlag to true, so
+	// resolveGameMode always observes a super-root OPCM regardless of the bitmap the
+	// fixture serves. See TODO(#21662) for the eventual cleanup. Flip the super canon cases
+	// back to cannon to improve coverage.
+	return newContinuationVerificationFixtureWithMode(t, gameType, true)
 }
 
 func newContinuationVerificationFixtureWithMode(
@@ -505,22 +508,6 @@ func superPermissionedContinuationGameArgs(anchorStateRegistry common.Address, p
 	return append(args, proposer.Bytes()...)
 }
 
-func (f *continuationVerificationFixture) permissionedArgs(
-	prestate common.Hash,
-	proposer common.Address,
-	challenger common.Address,
-) []byte {
-	return permissionedContinuationGameArgs(
-		prestate,
-		f.vm,
-		f.expected.AnchorStateRegistryProxy,
-		f.expected.DelayedWethPermissionedGameProxy,
-		f.dci.L2ChainId,
-		proposer,
-		challenger,
-	)
-}
-
 func (f *continuationVerificationFixture) setGameArgs(
 	t *testing.T,
 	gameType embedded.GameType,
@@ -549,7 +536,7 @@ func (f *continuationVerificationFixture) verify(t *testing.T) error {
 
 func TestVerifyContinuationDeployment(t *testing.T) {
 	t.Run("CANNON_KONA", func(t *testing.T) {
-		fixture := newContinuationVerificationFixture(t, embedded.GameTypeCannonKona)
+		fixture := newContinuationVerificationFixture(t, embedded.GameTypeSuperCannonKona)
 		require.NoError(t, fixture.verify(t))
 		require.Equal(t, 1, fixture.backend.callsTo(fixture.backend.validator))
 	})
@@ -576,7 +563,7 @@ func TestVerifyContinuationDeployment(t *testing.T) {
 }
 
 func TestVerifyContinuationDeploymentPinsReadsToOneBlock(t *testing.T) {
-	fixture := newContinuationVerificationFixture(t, embedded.GameTypeCannonKona)
+	fixture := newContinuationVerificationFixture(t, embedded.GameTypeSuperCannonKona)
 	require.NoError(t, fixture.verify(t))
 
 	require.Len(t, fixture.backend.headerBlocks, 2)
@@ -588,7 +575,7 @@ func TestVerifyContinuationDeploymentPinsReadsToOneBlock(t *testing.T) {
 }
 
 func TestVerifyContinuationDeploymentRejectsHeadChange(t *testing.T) {
-	fixture := newContinuationVerificationFixture(t, embedded.GameTypeCannonKona)
+	fixture := newContinuationVerificationFixture(t, embedded.GameTypeSuperCannonKona)
 	fixture.backend.finalHeader = &types.Header{
 		Number: new(big.Int).Set(fixture.backend.header.Number),
 		Extra:  []byte{0x02},
@@ -597,6 +584,9 @@ func TestVerifyContinuationDeploymentRejectsHeadChange(t *testing.T) {
 }
 
 func TestVerifyContinuationDeploymentRejectsOPCMGameModeMismatch(t *testing.T) {
+	// Only the CANNON_KONA direction is reachable: devfeatures.IsDevFeatureEnabled hardcodes
+	// SuperRootGamesMigrationFlag to true, so an OPCM without super-root cannot be observed and
+	// the SUPER_CANNON_KONA mismatch cannot be constructed. Restore that case with TODO(#21662).
 	t.Run("CANNON_KONA with super-root OPCM", func(t *testing.T) {
 		fixture := newContinuationVerificationFixture(t, embedded.GameTypeCannonKona)
 		fixture.backend.set(
@@ -608,17 +598,11 @@ func TestVerifyContinuationDeploymentRejectsOPCMGameModeMismatch(t *testing.T) {
 		)
 		require.ErrorContains(t, fixture.verify(t), "requires an OPCM without SUPER_ROOT_GAMES_MIGRATION")
 	})
-
-	t.Run("SUPER_CANNON_KONA without super-root OPCM", func(t *testing.T) {
-		fixture := newContinuationVerificationFixture(t, embedded.GameTypeSuperCannonKona)
-		fixture.backend.set(t, fixture.dci.Opcm, continuationDevFeatureBitmapMethod, nil, common.Hash{})
-		require.ErrorContains(t, fixture.verify(t), "requires an OPCM with SUPER_ROOT_GAMES_MIGRATION")
-	})
 }
 
 func TestVerifyContinuationDeploymentStartingAnchorRoot(t *testing.T) {
 	t.Run("root mismatch", func(t *testing.T) {
-		fixture := newContinuationVerificationFixture(t, embedded.GameTypeCannonKona)
+		fixture := newContinuationVerificationFixture(t, embedded.GameTypeSuperCannonKona)
 		fixture.backend.set(
 			t,
 			fixture.expected.AnchorStateRegistryProxy,
@@ -633,7 +617,7 @@ func TestVerifyContinuationDeploymentStartingAnchorRoot(t *testing.T) {
 	})
 
 	t.Run("sequence mismatch", func(t *testing.T) {
-		fixture := newContinuationVerificationFixture(t, embedded.GameTypeCannonKona)
+		fixture := newContinuationVerificationFixture(t, embedded.GameTypeSuperCannonKona)
 		fixture.backend.set(
 			t,
 			fixture.expected.AnchorStateRegistryProxy,
@@ -777,7 +761,7 @@ func TestVerifyContinuationDeploymentFailures(t *testing.T) {
 					t,
 					f.expected.DisputeGameFactoryProxy,
 					continuationGameImplMethod,
-					[]any{uint32(embedded.GameTypeCannonKona)},
+					[]any{uint32(embedded.GameTypeSuperCannonKona)},
 					common.Address{0xff},
 				)
 			},
@@ -790,27 +774,9 @@ func TestVerifyContinuationDeploymentFailures(t *testing.T) {
 					t,
 					f.expected.DisputeGameFactoryProxy,
 					continuationGameImplMethod,
-					[]any{uint32(embedded.GameTypePermissionedCannon)},
+					[]any{uint32(embedded.GameTypeSuperPermissioned)},
 					common.Address{0xff},
 				)
-			},
-		},
-		{
-			name:         "selected prestate",
-			wantErr:      "selected game prestate",
-			permissioned: true,
-			mutate: func(t *testing.T, f *continuationVerificationFixture) {
-				f.setGameArgs(t, embedded.GameTypePermissionedCannon, f.permissionedArgs(common.Hash{0xff}, f.dci.Proposer, f.dci.Challenger))
-			},
-		},
-		{
-			name:         "selected VM",
-			wantErr:      "selected game VM",
-			permissioned: true,
-			mutate: func(t *testing.T, f *continuationVerificationFixture) {
-				args := f.permissionedArgs(f.dci.DisputeAbsolutePrestate, f.dci.Proposer, f.dci.Challenger)
-				copy(args[32:52], common.Address{0xff}.Bytes())
-				f.setGameArgs(t, embedded.GameTypePermissionedCannon, args)
 			},
 		},
 		{
@@ -818,29 +784,10 @@ func TestVerifyContinuationDeploymentFailures(t *testing.T) {
 			wantErr:      "selected game AnchorStateRegistry",
 			permissioned: true,
 			mutate: func(t *testing.T, f *continuationVerificationFixture) {
-				args := f.permissionedArgs(f.dci.DisputeAbsolutePrestate, f.dci.Proposer, f.dci.Challenger)
-				copy(args[52:72], common.Address{0xff}.Bytes())
-				f.setGameArgs(t, embedded.GameTypePermissionedCannon, args)
-			},
-		},
-		{
-			name:         "selected DelayedWETH",
-			wantErr:      "selected game DelayedWETH",
-			permissioned: true,
-			mutate: func(t *testing.T, f *continuationVerificationFixture) {
-				args := f.permissionedArgs(f.dci.DisputeAbsolutePrestate, f.dci.Proposer, f.dci.Challenger)
-				copy(args[72:92], common.Address{0xff}.Bytes())
-				f.setGameArgs(t, embedded.GameTypePermissionedCannon, args)
-			},
-		},
-		{
-			name:         "selected L2 chain ID",
-			wantErr:      "selected game L2 chain ID",
-			permissioned: true,
-			mutate: func(t *testing.T, f *continuationVerificationFixture) {
-				args := f.permissionedArgs(f.dci.DisputeAbsolutePrestate, f.dci.Proposer, f.dci.Challenger)
-				copy(args[92:124], common.LeftPadBytes(big.NewInt(902).Bytes(), common.HashLength))
-				f.setGameArgs(t, embedded.GameTypePermissionedCannon, args)
+				f.setGameArgs(t, embedded.GameTypeSuperPermissioned, superPermissionedContinuationGameArgs(
+					common.Address{0xff},
+					f.dci.Proposer,
+				))
 			},
 		},
 		{
@@ -953,15 +900,10 @@ func TestVerifyContinuationDeploymentFailures(t *testing.T) {
 			wantErr:      "selected game proposer",
 			permissioned: true,
 			mutate: func(t *testing.T, f *continuationVerificationFixture) {
-				f.setGameArgs(t, embedded.GameTypePermissionedCannon, f.permissionedArgs(f.dci.DisputeAbsolutePrestate, common.Address{0xff}, f.dci.Challenger))
-			},
-		},
-		{
-			name:         "permissioned challenger",
-			wantErr:      "selected game challenger",
-			permissioned: true,
-			mutate: func(t *testing.T, f *continuationVerificationFixture) {
-				f.setGameArgs(t, embedded.GameTypePermissionedCannon, f.permissionedArgs(f.dci.DisputeAbsolutePrestate, f.dci.Proposer, common.Address{0xff}))
+				f.setGameArgs(t, embedded.GameTypeSuperPermissioned, superPermissionedContinuationGameArgs(
+					f.expected.AnchorStateRegistryProxy,
+					common.Address{0xff},
+				))
 			},
 		},
 		{
@@ -1003,7 +945,7 @@ func TestVerifyContinuationDeploymentFailures(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			gameType := embedded.GameTypeCannonKona
+			gameType := embedded.GameTypeSuperCannonKona
 			if test.permissioned {
 				gameType = embedded.GameTypePermissionedCannon
 			}

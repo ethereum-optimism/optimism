@@ -96,7 +96,7 @@ func TestEndToEndContinuePreparedChain(t *testing.T) {
 
 func testContinuePermissionless(t *testing.T) {
 	t.Helper()
-	env := newContinuationEnv(t, embedded.GameTypeCannonKona)
+	env := newContinuationEnv(t, embedded.GameTypeSuperCannonKona)
 	env.preparedChain.Prestate = common.HexToHash("0x1234")
 	env.preparedChain.StartingAnchorRoot = &state.StartingAnchorProposal{
 		Root:             common.HexToHash("0x5678"),
@@ -169,7 +169,7 @@ func testContinuePermissionlessWithCustomRoles(t *testing.T) {
 	customChallenger := common.Address{0xa2}
 	env := newContinuationEnvWithIntentMutator(
 		t,
-		[]embedded.GameType{embedded.GameTypeCannonKona},
+		[]embedded.GameType{embedded.GameTypeSuperCannonKona},
 		common.Hash{},
 		func(intent *state.Intent) {
 			roles := &intent.Chains[0].Roles
@@ -189,7 +189,7 @@ func testContinuePermissionlessWithCustomRoles(t *testing.T) {
 
 func testContinueRejectsPrestateOverrideDrift(t *testing.T) {
 	t.Helper()
-	env := newContinuationEnv(t, embedded.GameTypeCannonKona)
+	env := newContinuationEnv(t, embedded.GameTypeSuperCannonKona)
 	prestateA := common.HexToHash("0x1234")
 	env.intent.Chains[0].DeployOverrides[state.FaultGameAbsolutePrestateOverrideKey] = prestateA
 	require.NoError(t, env.intent.WriteToFile(filepath.Join(env.workdir, "intent.toml")))
@@ -257,7 +257,7 @@ func testContinuePermissionedSuperRoot(t *testing.T) {
 
 func testContinueLiveValidationFailure(t *testing.T) {
 	t.Helper()
-	env := newContinuationEnv(t, embedded.GameTypeCannonKona)
+	env := newContinuationEnv(t, embedded.GameTypeSuperCannonKona)
 	env.preparedChain.Prestate = common.HexToHash("0x1234")
 	env.preparedChain.StartingAnchorRoot = &state.StartingAnchorProposal{
 		Root:             common.HexToHash("0x5678"),
@@ -330,7 +330,7 @@ func testContinuePostCheckpointReorg(t *testing.T) {
 
 func testContinuePartialDeployment(t *testing.T) {
 	t.Helper()
-	env := newContinuationEnv(t, embedded.GameTypeCannonKona)
+	env := newContinuationEnv(t, embedded.GameTypeSuperCannonKona)
 	env.preparedChain.Prestate = common.HexToHash("0x1234")
 	env.preparedChain.StartingAnchorRoot = &state.StartingAnchorProposal{
 		Root:             common.HexToHash("0x5678"),
@@ -350,7 +350,7 @@ func testContinueMultiChainGlobalPreflight(t *testing.T) {
 	t.Helper()
 	env := newContinuationEnvForGameTypes(t, []embedded.GameType{
 		embedded.GameTypePermissionedCannon,
-		embedded.GameTypeCannonKona,
+		embedded.GameTypeSuperCannonKona,
 	})
 	permissionless := env.preparedChains[1]
 	setPermissionlessContinuationInputs(permissionless, 2)
@@ -393,7 +393,7 @@ func testContinueMultiChainLiveValidationFailure(t *testing.T) {
 	t.Helper()
 	env := newContinuationEnvForGameTypes(t, []embedded.GameType{
 		embedded.GameTypePermissionedCannon,
-		embedded.GameTypeCannonKona,
+		embedded.GameTypeSuperCannonKona,
 	})
 	setPermissionlessContinuationInputs(env.preparedChains[1], 2)
 	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
@@ -434,7 +434,7 @@ func testContinueMultiChainLiveValidationFailure(t *testing.T) {
 func testContinueMultiChainSequentialValidation(t *testing.T) {
 	t.Helper()
 	env := newContinuationEnvForGameTypes(t, []embedded.GameType{
-		embedded.GameTypeCannonKona,
+		embedded.GameTypeSuperCannonKona,
 		embedded.GameTypePermissionedCannon,
 	})
 	setPermissionlessContinuationInputs(env.preparedChains[0], 1)
