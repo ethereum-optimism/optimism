@@ -106,15 +106,6 @@ impl Lagoon {
             Bytes::from(encoded)
         })
     }
-
-    /// Returns the additional gas required by the Interop activation transactions.
-    pub fn upgrade_gas_for_activation(&self, activate_interop_contracts: bool) -> u64 {
-        let mut gas = interop_nut_bundle().total_gas();
-        if activate_interop_contracts {
-            gas += SET_FEATURE_GAS + ETH_LIQUIDITY_FUND_GAS;
-        }
-        gas
-    }
 }
 
 impl Hardfork for Lagoon {
@@ -122,8 +113,15 @@ impl Hardfork for Lagoon {
         self.txs_for_activation(true)
     }
 
+    /// Returns the gas added to the Interop activation block's gas limit.
+    ///
+    /// This always covers the `setFeature` and `ETHLiquidity` funding wrappers, even for a
+    /// single-chain activation that does not emit them. The system config reconstructed from the
+    /// activation block subtracts the same amount again for the next block, and that path never
+    /// sees the dependency set — so the reservation must not vary with it. A single-chain
+    /// activation carries the wrapper gas as unused headroom in that one block.
     fn upgrade_gas(&self) -> u64 {
-        self.upgrade_gas_for_activation(true)
+        interop_nut_bundle().total_gas() + SET_FEATURE_GAS + ETH_LIQUIDITY_FUND_GAS
     }
 }
 
@@ -161,11 +159,10 @@ mod tests {
 
     #[test]
     fn upgrade_gas_sums_all_three_pieces() {
+        // The wrappers are reserved unconditionally, so a single-chain activation emits only the
+        // bundle's deposits but still reserves gas for the wrappers it skips.
         let bundle_gas = interop_nut_bundle().total_gas();
-        let lagoon = Lagoon {};
-        let total = lagoon.upgrade_gas_for_activation(true);
-        assert_eq!(total, SET_FEATURE_GAS + bundle_gas + ETH_LIQUIDITY_FUND_GAS);
-        assert_eq!(lagoon.upgrade_gas_for_activation(false), bundle_gas);
+        assert_eq!(Lagoon {}.upgrade_gas(), bundle_gas + SET_FEATURE_GAS + ETH_LIQUIDITY_FUND_GAS);
     }
 
     #[test]
