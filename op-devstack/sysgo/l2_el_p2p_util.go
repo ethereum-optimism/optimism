@@ -2,6 +2,7 @@ package sysgo
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"slices"
 	"strings"
@@ -59,17 +60,40 @@ func ConnectP2P(ctx context.Context, require *testreq.Assertions, initiator RpcC
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	err = wait.For(ctx, time.Second, func() (bool, error) {
-		var peers []peer
-		if err := initiator.CallContext(ctx, &peers, "admin_peers"); err != nil {
-			return false, err
-		}
+	err = forPeerList(ctx, initiator, func(peers []peer) bool {
 		return slices.ContainsFunc(peers, func(p peer) bool {
 			peerID := strings.TrimPrefix(strings.ToLower(p.ID), "0x")
 			return peerID == strings.ToLower(expectedID)
-		}), nil
+		})
 	})
 	require.NoError(err, "The peer was not connected")
+}
+
+// forPeerList polls admin_peers on node until cond holds for the returned peer
+// list. Each poll is individually time-bounded so that a single stalled call —
+// e.g. the RPC client re-dialing a connection the kernel never answers — cannot
+// consume the entire polling budget (a fresh attempt dials from a new source
+// port and typically succeeds). Only attempt timeouts are retried; any other
+// error still fails fast.
+func forPeerList(ctx context.Context, node RpcCaller, cond func([]peer) bool) error {
+	var lastErr error
+	err := wait.For(ctx, time.Second, func() (bool, error) {
+		attemptCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		var peers []peer
+		if err := node.CallContext(attemptCtx, &peers, "admin_peers"); err != nil {
+			if attemptCtx.Err() != nil && ctx.Err() == nil {
+				lastErr = err
+				return false, nil
+			}
+			return false, err
+		}
+		return cond(peers), nil
+	})
+	if err != nil && lastErr != nil {
+		err = fmt.Errorf("%w (last admin_peers attempt error: %w)", err, lastErr)
+	}
+	return err
 }
 
 // DisconnectP2P disconnects a p2p peer connection between node1 and node2.
@@ -106,15 +130,11 @@ func DisconnectP2P(ctx context.Context, require *testreq.Assertions, initiator R
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	err = wait.For(ctx, time.Second, func() (bool, error) {
-		var peers []peer
-		if err := initiator.CallContext(ctx, &peers, "admin_peers"); err != nil {
-			return false, err
-		}
+	err = forPeerList(ctx, initiator, func(peers []peer) bool {
 		return !slices.ContainsFunc(peers, func(p peer) bool {
 			peerID := strings.TrimPrefix(strings.ToLower(p.ID), "0x")
 			return peerID == strings.ToLower(expectedID)
-		}), nil
+		})
 	})
 	require.NoError(err, "The peer was not removed")
 }

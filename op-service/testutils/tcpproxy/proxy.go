@@ -58,6 +58,9 @@ func (p *Proxy) Start() error {
 		for {
 			downConn, err := p.lis.Accept()
 			if p.stopped.Load() {
+				if err == nil {
+					downConn.Close()
+				}
 				p.lgr.Info("accept loop exiting: proxy stopped")
 				return
 			}
@@ -82,23 +85,31 @@ func (p *Proxy) handleConn(downConn net.Conn) {
 
 	p.mu.Lock()
 	addr := p.upstreamAddr
+	p.mu.Unlock()
 	if addr == "" {
-		p.mu.Unlock()
 		p.lgr.Error("upstream not set")
 		return
 	}
 
+	// Dial outside the lock: a slow or unresponsive upstream dial must not
+	// stall other accepted connections, SetUpstream, or Close. Bound each
+	// attempt individually — net.Dial is not cancelled by the retry context,
+	// so a single unanswered SYN would otherwise consume the whole budget.
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	upConn, err := retry.Do(ctx, 3, retry.Exponential(), func() (net.Conn, error) {
-		return net.Dial("tcp", addr)
+		attemptCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		defer cancel()
+		var d net.Dialer
+		return d.DialContext(attemptCtx, "tcp", addr)
 	})
 	cancel()
 	if err != nil {
-		p.mu.Unlock()
 		p.lgr.Error("failed to dial upstream", "err", err)
 		return
 	}
 	defer upConn.Close()
+
+	p.mu.Lock()
 	if p.stopped.Load() {
 		p.mu.Unlock()
 		return
