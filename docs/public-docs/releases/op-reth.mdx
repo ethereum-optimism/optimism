@@ -15,7 +15,29 @@ diataxis: reference
 
 **op-reth** is the OP Stack execution layer (EL) built on [Reth](https://reth.rs), a modular, high-performance Rust Ethereum node. It is the recommended execution client for OP Stack chains, replacing op-geth.
 
-<Update label="July 20, 2026" description="v2.4.0" tags={["Latest", "Stable"]}>
+<Update label="July 31, 2026" description="v2.4.1" tags={["Latest", "Stable"]}>
+
+> [!CAUTION]
+> **Breaking change — forwarded txpool admission is now opt-in** ([#22053](https://github.com/ethereum-optimism/optimism/pull/22053)).
+> Nodes that relied on forwarded transactions being admitted to the pool must now enable this explicitly, or they will silently stop accepting them.
+
+> [!CAUTION]
+> The historical proofs v1 database format will be deprecated by Aug 31st. Start migrating all your proof nodes to the new v2 format (it is also much more efficient) by regenerating the proofs db at v2 for the required block range.
+
+> [!CAUTION]
+> The `import-op` + `import-receipts-op` commands will be deprecated by Aug 31st. If you need continued support for these, please reach out to us.
+
+> [!IMPORTANT]
+> Two further transaction-pool admission changes affect which transactions are accepted:
+> L1-info deposit gas is now reserved in the pool gas limit for op-geth parity ([#21548](https://github.com/ethereum-optimism/optimism/pull/21548)),
+> and the Isthmus operator fee is reserved in the pool balance check ([#21609](https://github.com/ethereum-optimism/optimism/pull/21609)).
+> Secure (`wss://`) flashblocks endpoints now work — previously any `wss://` flashblocks URL panicked on the first TLS handshake ([#21898](https://github.com/ethereum-optimism/optimism/pull/21898)).
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth/v2.4.1)
+
+</Update>
+
+<Update label="July 20, 2026" description="v2.4.0" tags={["Stable"]}>
 
 > [!NOTE]
 > **Optional upgrade.** New extension points: `OpPoolBuilder` transaction ordering and validator are now injectable ([#21531](https://github.com/ethereum-optimism/optimism/pull/21531)), and `op-alloy-network` makes its reqwest dependency opt-in ([#21175](https://github.com/ethereum-optimism/optimism/pull/21175)). Also fixes Prometheus metric-bucket draining in the op-proofs CLI ([#21596](https://github.com/ethereum-optimism/optimism/pull/21596)). No consensus or operator-facing behavior changes.
