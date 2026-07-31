@@ -158,9 +158,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 7.2.5
+    /// @custom:semver 8.0.0
     function version() public pure returns (string memory) {
-        return "7.2.5";
+        return "8.0.0";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -359,13 +359,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // developers start working on the next release this will automatically become false so
         // even if the code is somehow forgotten it will not actually apply to the deployment. Make
         // sure to REMOVE the allowance once the upgrade is complete.
-        if (SemverComp.lt(_version(), "8.0.0")) {
-            // Unified DelayedWETH is being deployed for the first time.
-            // TODO:(#18382): Remove this allowance after unified DelayedWETH is deployed.
-            if (_isMatchingInstruction(_instruction, Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, "DelayedWETH")) {
-                return true;
-            }
-
+        if (SemverComp.lt(_version(), "9.0.0")) {
             // Super root games migration requires overriding anchor root.
             if (isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
                 if (_isMatchingInstructionByKey(_instruction, "overrides.cfg.startingAnchorRoot")) return true;
