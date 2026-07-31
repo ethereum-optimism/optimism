@@ -153,6 +153,44 @@ here. Treat items 1–4 as **blocking**.
    Validation catches schema and missing-`requires:`-target errors, not semantics
    (items 1–6).
 
+   **`validate` is not enough — use `process` with pipeline parameters.** Jobs
+   reachable only from a `when: << pipeline.parameters.c-run_* >>` workflow are
+   skipped when the parameter is false, which is the default, so a job that fails
+   to compile validates clean. Process the merged config with the gated params
+   turned on:
+
+   ```sh
+   printf '{"c-run_release":true,"c-run_kona_publish_prestates":true}' > /tmp/pp.json
+   circleci config process --pipeline-parameters /tmp/pp.json /tmp/merged-config.yml
+   ```
+
+   **Never write `<<` inside a `command:`.** CircleCI 2.1 treats `<<` as a
+   parameter-tag opener before any shell sees it, so bash here-strings (`<<<`) and
+   heredocs (`<<EOF`) fail the whole continuation with `Unclosed '<<' tag` — and a
+   continuation that fails to compile produces *no* workflows at all, so every
+   check silently disappears from the PR instead of going red. This bites shell
+   comments too: a comment merely *mentioning* the token fails compilation.
+   Escape as `\<<` if you truly need the literal, or restructure to avoid it —
+   but mind what the restructure costs:
+
+   ```sh
+   ARR=(); while IFS= read -r L; do ARR+=("$L"); done < <(cmd)
+                                    # no '<<', but swallows cmd's exit status:
+                                    # a failing cmd reads as an empty array
+   TMP=$(mktemp); cmd > "$TMP"      # keeps set -e, and keeps the stream off the
+   ARR=(); while IFS= read -r L; do ARR+=("$L"); done < "$TMP"   # Prefer this.
+   rm -f "$TMP"
+   (( ${#ARR[@]} > 0 )) || { echo "empty" >&2; exit 1; }
+   ```
+
+   Process substitution trades the `<<` bug for a swallowed-exit-status bug, so
+   assert on the result either way. For a heredoc, write the body to a temp file.
+
+   Read the lines with `while read`, not `mapfile`: `mapfile` is a bash 4
+   builtin, and macOS ships bash 3.2, so any snippet copied from a CI command
+   into a justfile recipe would break local runs. Same for the rest of bash 4
+   (`declare -A`, `${var^^}`, `local -n`).
+
 ## General best practices
 
 Repo is CircleCI-primary; GitHub Actions footprint is small but these apply there.
