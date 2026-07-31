@@ -31,7 +31,6 @@ Utils:
 ```text
 cmd/
 ├── check-derivation              - Check that transactions can be confirmed and safety can be consolidated
-├── check-fjord                   - Fjord network upgrade check library, used by op-e2e (CLI removed)
 ├── check-prestate                - Checks a fault proof absolute prestate's chain compatibility. e.g: go run cmd/check-prestate --prestate-hash <HASH>
 ├── deposit-hash                  - Determine the L2 deposit tx hash, based on log event(s) emitted by a L1 tx.
 ├── interop-smoke                 - Interop smoke tests against two live chain RPCs: ETH bridging, valid/invalid executing messages.
