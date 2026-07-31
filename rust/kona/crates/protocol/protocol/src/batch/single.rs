@@ -1,12 +1,11 @@
 //! This module contains the [`SingleBatch`] type.
 
-use crate::{BatchDropReason, BatchValidity, BlockInfo, L2BlockInfo};
+use crate::{BatchDropReason, BatchValidity, BlockInfo, L2BlockInfo, batch::check_sequencer_txs};
 use alloc::vec::Vec;
 use alloy_eips::BlockNumHash;
 use alloy_primitives::{BlockHash, Bytes};
 use alloy_rlp::{RlpDecodable, RlpEncodable};
 use kona_genesis::RollupConfig;
-use op_alloy_consensus::OpTxType;
 use tracing::warn;
 
 /// Represents a single batch: a single encoded L2 block
@@ -167,27 +166,7 @@ impl SingleBatch {
         }
 
         // We can do this check earlier, but it's intensive so we do it last for the sad-path.
-        for tx in &self.transactions {
-            let Some(first_byte) = tx.as_ref().first().copied() else {
-                return BatchValidity::Drop(BatchDropReason::EmptyTransaction);
-            };
-            // A leading byte that doesn't decode to a typed transaction (e.g. a legacy RLP
-            // list header) isn't one of the restricted types, so it falls through to `Accept`.
-            match OpTxType::try_from(first_byte) {
-                Ok(OpTxType::Deposit) => {
-                    return BatchValidity::Drop(BatchDropReason::DepositTransaction);
-                }
-                Ok(OpTxType::Eip7702) if !cfg.is_isthmus_active(self.timestamp) => {
-                    return BatchValidity::Drop(BatchDropReason::Eip7702PreIsthmus);
-                }
-                Ok(OpTxType::PostExec) if !cfg.is_sdm_active(self.timestamp) => {
-                    return BatchValidity::Drop(BatchDropReason::PostExecPreLagoon);
-                }
-                _ => {}
-            }
-        }
-
-        BatchValidity::Accept
+        check_sequencer_txs(cfg, &self.transactions, self.timestamp)
     }
 }
 

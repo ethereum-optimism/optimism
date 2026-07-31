@@ -9,13 +9,12 @@ use alloc::vec::Vec;
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::FixedBytes;
 use kona_genesis::RollupConfig;
-use op_alloy_consensus::OpTxType;
 use tracing::{info, warn};
 
 use crate::{
     BatchDropReason, BatchValidationProvider, BatchValidity, BlockInfo, L2BlockInfo, RawSpanBatch,
     SingleBatch, SpanBatchBits, SpanBatchElement, SpanBatchError, SpanBatchPayload,
-    SpanBatchPrefix, SpanBatchTransactions,
+    SpanBatchPrefix, SpanBatchTransactions, batch::check_sequencer_txs,
 };
 
 /// Container for the inputs required to build a span of L2 blocks in derived form.
@@ -485,37 +484,12 @@ impl SpanBatch {
                 }
             }
 
-            // Check that the transactions are not empty and do not contain any deposits.
-            for (i, tx) in batch.transactions.iter().enumerate() {
-                let Some(first_byte) = tx.as_ref().first().copied() else {
-                    warn!(
-                        target: "batch_span",
-                        "transaction data must not be empty, but found empty tx, tx_index: {}",
-                        i
-                    );
-                    return BatchValidity::Drop(BatchDropReason::EmptyTransaction);
-                };
-                // A leading byte that doesn't decode to a typed transaction (e.g. a legacy RLP
-                // list header) isn't one of the restricted types, so it falls through to `Accept`.
-                match OpTxType::try_from(first_byte) {
-                    Ok(OpTxType::Deposit) => {
-                        warn!(
-                            target: "batch_span",
-                            "sequencers may not embed any deposits into batch data, but found tx that has one, tx_index: {}",
-                            i
-                        );
-                        return BatchValidity::Drop(BatchDropReason::DepositTransaction);
-                    }
-                    Ok(OpTxType::Eip7702) if !cfg.is_isthmus_active(batch.timestamp) => {
-                        warn!(target: "batch_span", "EIP-7702 transactions are not supported pre-isthmus. tx_index: {}", i);
-                        return BatchValidity::Drop(BatchDropReason::Eip7702PreIsthmus);
-                    }
-                    Ok(OpTxType::PostExec) if !cfg.is_sdm_active(batch.timestamp) => {
-                        warn!(target: "batch_span", "PostExec transactions are not supported pre-Lagoon. tx_index: {}", i);
-                        return BatchValidity::Drop(BatchDropReason::PostExecPreLagoon);
-                    }
-                    _ => {}
-                }
+            // Apply the per-tx sequencer rules against this block's own timestamp, not the span's
+            // starting one: a span can straddle a fork boundary, so the activation-gated types
+            // differ from element to element.
+            let validity = check_sequencer_txs(cfg, &batch.transactions, batch_timestamp);
+            if !validity.is_accept() {
+                return validity;
             }
         }
 
@@ -759,7 +733,7 @@ mod tests {
     use alloy_eips::BlockNumHash;
     use alloy_primitives::{B256, Bytes, b256};
     use kona_genesis::{ChainGenesis, HardForkConfig};
-    use op_alloy_consensus::{OpBlock, POST_EXEC_TX_TYPE_ID};
+    use op_alloy_consensus::{OpBlock, OpTxType, POST_EXEC_TX_TYPE_ID};
     use tracing::Level;
     use tracing_subscriber::layer::SubscriberExt;
 

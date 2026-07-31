@@ -74,6 +74,9 @@ pub use validity::{BatchDropReason, BatchValidity};
 mod single;
 pub use single::SingleBatch;
 
+mod sequencer_txs;
+pub(crate) use sequencer_txs::check_sequencer_txs;
+
 mod tx_data;
 pub use tx_data::{
     SpanBatchEip1559TransactionData, SpanBatchEip2930TransactionData,
