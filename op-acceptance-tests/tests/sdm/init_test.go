@@ -16,9 +16,9 @@ func newSDMRethSystem(t devtest.T, sdmEnabled bool) *sdmtest.RethSystem {
 }
 
 func newSDMRethSystemWithBatcherOptions(t devtest.T, sdmEnabled bool, batcherOpts ...sysgo.BatcherOption) *sdmtest.RethSystem {
-	// SDM rides the Interop hardfork: enabling Interop at genesis turns SDM on across
+	// SDM rides the Lagoon hardfork: enabling Lagoon at genesis turns SDM on across
 	// op-node derivation, op-reth execution, and the op-rbuilder payload builder. The
-	// runtime also provisions a DependencySet for op-node, required whenever Interop is
+	// runtime also provisions a DependencySet for op-node, required whenever Lagoon is
 	// scheduled, even in single-chain setups without a supervisor.
 	return buildSDMRethSystem(t, sdmEnabled, false, nil, batcherOpts...)
 }
@@ -53,8 +53,8 @@ func newSDMRethSystemWithInteropOffset(
 	var deployerOpts []sysgo.DeployerOption
 	if interopOffset != nil {
 		offset := *interopOffset
-		// Take the InteropAtGenesis path so the runtime builds an Interop
-		// dependency set for op-node; then override the Interop fork offset
+		// Take the InteropAtGenesis path so the runtime builds an interop
+		// dependency set for op-node; then override the Lagoon fork offset
 		// to schedule activation in the future rather than at genesis.
 		deployerOpts = append(deployerOpts, func(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
 			for _, l2Cfg := range builder.L2s() {
