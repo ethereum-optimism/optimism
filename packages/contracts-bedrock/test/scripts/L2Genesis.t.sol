@@ -7,14 +7,19 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Scripts
 import { L2Genesis } from "scripts/L2Genesis.s.sol";
-import { LATEST_FORK } from "scripts/libraries/Config.sol";
+import { Fork, LATEST_FORK } from "scripts/libraries/Config.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
-import { ISuperchainRevSharesCalculator } from "interfaces/L2/ISuperchainRevSharesCalculator.sol";
+import { IL1Block } from "interfaces/L2/IL1Block.sol";
+import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
+import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
+import { IERC721Bridge } from "interfaces/universal/IERC721Bridge.sol";
+import { IL2DevFeatureFlags } from "interfaces/L2/IL2DevFeatureFlags.sol";
 import { ISequencerFeeVault } from "interfaces/L2/ISequencerFeeVault.sol";
 import { IBaseFeeVault } from "interfaces/L2/IBaseFeeVault.sol";
 import { IL1FeeVault } from "interfaces/L2/IL1FeeVault.sol";
@@ -24,12 +29,8 @@ import { IOptimismMintableERC721Factory } from "interfaces/L2/IOptimismMintableE
 import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
 import { IGovernanceToken } from "interfaces/governance/IGovernanceToken.sol";
 import { IGasPriceOracle } from "interfaces/L2/IGasPriceOracle.sol";
-import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
-import { IL1Withdrawer } from "interfaces/L2/IL1Withdrawer.sol";
-import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
 import { INativeAssetLiquidity } from "interfaces/L2/INativeAssetLiquidity.sol";
-import { Types } from "src/libraries/Types.sol";
 
 /// @title L2Genesis_TestInit
 /// @notice Reusable test initialization for `L2Genesis` tests.
@@ -53,6 +54,10 @@ abstract contract L2Genesis_TestInit is Test {
         assertEq(
             IL2ProxyAdmin(proxyAdminImpl).owner(), address(0), "ProxyAdmin implementation owner should match expected"
         );
+
+        // The proxy admin owner must not leak into the genesis state dump. The pranked `create`
+        // calls in setEAS() and setGovernanceToken() bump its nonce, which L2Genesis must reset.
+        assertEq(vm.getNonce(input.opChainProxyAdminOwner), 0, "ProxyAdmin owner nonce should be reset to zero");
     }
 
     function testPredeploys() internal view {
@@ -89,7 +94,7 @@ abstract contract L2Genesis_TestInit is Test {
         assertGt(Predeploys.GOVERNANCE_TOKEN.code.length, 0);
     }
 
-    function testVaultsWithoutRevenueShare() internal view {
+    function testVaults() internal view {
         IBaseFeeVault baseFeeVault = IBaseFeeVault(payable(Predeploys.BASE_FEE_VAULT));
         IL1FeeVault l1FeeVault = IL1FeeVault(payable(Predeploys.L1_FEE_VAULT));
         ISequencerFeeVault sequencerFeeVault = ISequencerFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET));
@@ -124,41 +129,6 @@ abstract contract L2Genesis_TestInit is Test {
         assertEq(uint8(operatorFeeVault.withdrawalNetwork()), uint8(input.operatorFeeVaultWithdrawalNetwork));
     }
 
-    function testVaultsWithRevenueShare() internal view {
-        IFeeVault baseFeeVault = IFeeVault(payable(Predeploys.BASE_FEE_VAULT));
-        IFeeVault l1FeeVault = IFeeVault(payable(Predeploys.L1_FEE_VAULT));
-        IFeeVault sequencerFeeVault = IFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET));
-        IFeeVault operatorFeeVault = IFeeVault(payable(Predeploys.OPERATOR_FEE_VAULT));
-
-        assertEq(baseFeeVault.recipient(), Predeploys.FEE_SPLITTER);
-        assertEq(baseFeeVault.RECIPIENT(), Predeploys.FEE_SPLITTER);
-        assertEq(baseFeeVault.MIN_WITHDRAWAL_AMOUNT(), 0);
-        assertEq(baseFeeVault.minWithdrawalAmount(), 0);
-        assertEq(uint8(baseFeeVault.WITHDRAWAL_NETWORK()), uint8(Types.WithdrawalNetwork.L2));
-        assertEq(uint8(baseFeeVault.withdrawalNetwork()), uint8(Types.WithdrawalNetwork.L2));
-
-        assertEq(l1FeeVault.RECIPIENT(), Predeploys.FEE_SPLITTER);
-        assertEq(l1FeeVault.recipient(), Predeploys.FEE_SPLITTER);
-        assertEq(l1FeeVault.MIN_WITHDRAWAL_AMOUNT(), 0);
-        assertEq(l1FeeVault.minWithdrawalAmount(), 0);
-        assertEq(uint8(l1FeeVault.WITHDRAWAL_NETWORK()), uint8(Types.WithdrawalNetwork.L2));
-        assertEq(uint8(l1FeeVault.withdrawalNetwork()), uint8(Types.WithdrawalNetwork.L2));
-
-        assertEq(sequencerFeeVault.RECIPIENT(), Predeploys.FEE_SPLITTER);
-        assertEq(sequencerFeeVault.recipient(), Predeploys.FEE_SPLITTER);
-        assertEq(sequencerFeeVault.MIN_WITHDRAWAL_AMOUNT(), 0);
-        assertEq(sequencerFeeVault.minWithdrawalAmount(), 0);
-        assertEq(uint8(sequencerFeeVault.WITHDRAWAL_NETWORK()), uint8(Types.WithdrawalNetwork.L2));
-        assertEq(uint8(sequencerFeeVault.withdrawalNetwork()), uint8(Types.WithdrawalNetwork.L2));
-
-        assertEq(operatorFeeVault.RECIPIENT(), Predeploys.FEE_SPLITTER);
-        assertEq(operatorFeeVault.recipient(), Predeploys.FEE_SPLITTER);
-        assertEq(operatorFeeVault.MIN_WITHDRAWAL_AMOUNT(), 0);
-        assertEq(operatorFeeVault.minWithdrawalAmount(), 0);
-        assertEq(uint8(operatorFeeVault.WITHDRAWAL_NETWORK()), uint8(Types.WithdrawalNetwork.L2));
-        assertEq(uint8(operatorFeeVault.withdrawalNetwork()), uint8(Types.WithdrawalNetwork.L2));
-    }
-
     function testGovernance() internal view {
         IGovernanceToken token = IGovernanceToken(payable(Predeploys.GOVERNANCE_TOKEN));
 
@@ -190,26 +160,6 @@ abstract contract L2Genesis_TestInit is Test {
         assertEq(gasPriceOracle.isIsthmus(), true);
     }
 
-    function testFeeSplitter() internal view {
-        // Only test if revenue share is enabled
-        if (!input.useRevenueShare) return;
-
-        // Check that the shares calculator and fee disbursement interval are set on the fee splitter
-        IFeeSplitter feeSplitter = IFeeSplitter(payable(Predeploys.FEE_SPLITTER));
-        assertEq(feeSplitter.feeDisbursementInterval(), 1 days);
-
-        ISuperchainRevSharesCalculator superchainRevSharesCalculator =
-            ISuperchainRevSharesCalculator(address(feeSplitter.sharesCalculator()));
-        // Check that the superchain rev shares calculator is properly set
-        assertEq(superchainRevSharesCalculator.remainderRecipient(), input.chainFeesRecipient);
-
-        // Check the L1Withdrawer is properly set
-        IL1Withdrawer l1Withdrawer = IL1Withdrawer(superchainRevSharesCalculator.shareRecipient());
-        assertEq(l1Withdrawer.minWithdrawalAmount(), 2 ether);
-        assertEq(l1Withdrawer.recipient(), input.l1FeesDepositor);
-        assertEq(l1Withdrawer.withdrawalGasLimit(), 800_000);
-    }
-
     function testCGT() internal view {
         // Test LiquidityController deployment
         ILiquidityController controller = ILiquidityController(Predeploys.LIQUIDITY_CONTROLLER);
@@ -224,6 +174,88 @@ abstract contract L2Genesis_TestInit is Test {
         // Verify predeploys have code
         assertGt(Predeploys.LIQUIDITY_CONTROLLER.code.length, 0);
         assertGt(Predeploys.NATIVE_ASSET_LIQUIDITY.code.length, 0);
+    }
+
+    /// @notice Runs genesis and asserts the L2CM deploy path produced the correct state.
+    function runGenesisAndAssertL2CM() internal {
+        genesis.run(input);
+
+        assertL2CMProxyImplementations();
+        assertL2CMInitializedStorage();
+        assertNoTemporaryL2CMResidue(genesis.temporaryL2CMAddress());
+    }
+
+    /// @notice Mirrors L2Genesis._isGenesisInteropEnabled for the current input.
+    function isGenesisInteropEnabled() internal view returns (bool) {
+        return input.useInterop && input.fork >= uint256(Fork.INTEROP)
+            && DevFeatures.isDevFeatureEnabled(input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP);
+    }
+
+    /// @notice Asserts every upgradeable proxy points at its code-namespace implementation (or is
+    ///         untouched when gated off), and that the admin was restored to the canonical ProxyAdmin.
+    function assertL2CMProxyImplementations() internal view {
+        Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
+        bool isInterop = isGenesisInteropEnabled();
+
+        for (uint256 i = 0; i < records.length; i++) {
+            address proxy = records[i].proxy;
+            string memory name = Predeploys.implName(records[i]);
+            bool disabledCGT = records[i].isCustomGasToken && !input.useCustomGasToken;
+            bool disabledInterop = records[i].isInterop && !isInterop;
+
+            assertEq(EIP1967Helper.getAdmin(proxy), Predeploys.PROXY_ADMIN, string.concat(name, " admin mismatch"));
+
+            if (disabledCGT || disabledInterop) {
+                assertEq(
+                    EIP1967Helper.getImplementation(proxy), address(0), string.concat(name, " impl should be unset")
+                );
+                continue;
+            }
+
+            address expectedImpl = Predeploys.predeployToCodeNamespace(proxy);
+            assertEq(EIP1967Helper.getImplementation(proxy), expectedImpl, string.concat(name, " impl mismatch"));
+            assertGt(expectedImpl.code.length, 0, string.concat(name, " impl missing code"));
+        }
+    }
+
+    /// @notice Asserts the initialized storage matches the prior (direct-init) genesis behavior.
+    function assertL2CMInitializedStorage() internal view {
+        assertEq(
+            address(ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).otherMessenger()),
+            input.l1CrossDomainMessengerProxy,
+            "L2CrossDomainMessenger otherMessenger mismatch"
+        );
+        assertEq(
+            address(IStandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).otherBridge()),
+            input.l1StandardBridgeProxy,
+            "L2StandardBridge otherBridge mismatch"
+        );
+        assertEq(
+            address(IERC721Bridge(Predeploys.L2_ERC721_BRIDGE).otherBridge()),
+            input.l1ERC721BridgeProxy,
+            "L2ERC721Bridge otherBridge mismatch"
+        );
+
+        // Reuses the prior genesis assertions for factories and fee vaults.
+        testFactories();
+        testVaults();
+
+        assertEq(
+            IL2DevFeatureFlags(Predeploys.L2_DEV_FEATURE_FLAGS).devFeatureBitmap(),
+            input.devFeatureBitmap,
+            "L2DevFeatureFlags bitmap mismatch"
+        );
+
+        if (input.useCustomGasToken) {
+            testCGT();
+        }
+    }
+
+    /// @notice Asserts the throwaway L2ContractsManager left no residue in the genesis state.
+    function assertNoTemporaryL2CMResidue(address _temporaryL2CM) internal view {
+        assertEq(_temporaryL2CM.code.length, 0, "temporary L2CM code residue");
+        assertEq(vm.getNonce(_temporaryL2CM), 0, "temporary L2CM nonce residue");
+        assertEq(_temporaryL2CM.balance, 0, "temporary L2CM balance residue");
     }
 }
 
@@ -256,9 +288,6 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
             fork: uint256(LATEST_FORK),
             enableGovernance: true,
             fundDevAccounts: true,
-            useRevenueShare: true,
-            chainFeesRecipient: address(0x000000000000000000000000000000000000000b),
-            l1FeesDepositor: address(0x000000000000000000000000000000000000000C),
             useCustomGasToken: false,
             useInterop: false,
             gasPayingTokenName: "",
@@ -270,123 +299,20 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
     }
 
     function test_run_succeeds() external {
-        genesis.run(input);
+        runGenesisAndAssertL2CM();
 
         testProxyAdmin();
         testPredeploys();
-        testVaultsWithRevenueShare();
+        testVaults();
         testGovernance();
         testFactories();
         testForks();
-        testFeeSplitter();
-    }
-
-    function test_run_withoutRevenueShare_succeeds() external {
-        input.useRevenueShare = false;
-        genesis.run(input);
-
-        testProxyAdmin();
-        testPredeploys();
-        testVaultsWithoutRevenueShare();
-        testGovernance();
-        testFactories();
-        testForks();
-
-        // Test that FeeSplitter is initialized with address(0) when revenue share is disabled
-        IFeeSplitter feeSplitter = IFeeSplitter(payable(Predeploys.FEE_SPLITTER));
-        assertEq(address(feeSplitter.sharesCalculator()), address(0), "sharesCalculator should be zero address");
-        assertEq(feeSplitter.feeDisbursementInterval(), 1 days, "feeDisbursementInterval should be 1 day");
-    }
-
-    function test_runWithRevenueShare_zeroChainFeesRecipient_reverts() external {
-        input.useRevenueShare = true;
-        input.chainFeesRecipient = address(0);
-
-        vm.expectRevert(L2Genesis.L2Genesis_ChainFeesRecipientCannotBeZero.selector);
-        genesis.run(input);
-    }
-
-    function test_runWithRevenueShare_zeroL1FeesDepositor_reverts() external {
-        input.useRevenueShare = true;
-        input.l1FeesDepositor = address(0);
-
-        vm.expectRevert(L2Genesis.L2Genesis_L1FeesDepositorCannotBeZero.selector);
-        genesis.run(input);
-    }
-
-    function test_runWithRevenueShare_misconfiguredVaults_reverts() external {
-        // Misconfigured base fee vault
-        vm.mockCall(Predeploys.BASE_FEE_VAULT, abi.encodeCall(IFeeVault.recipient, ()), abi.encode(address(0)));
-
-        vm.expectRevert(L2Genesis.L2Genesis_MisconfiguredBaseFeeVault.selector);
-        genesis.run(input);
-
-        vm.clearMockedCalls();
-        vm.mockCall(
-            Predeploys.BASE_FEE_VAULT,
-            abi.encodeCall(IFeeVault.withdrawalNetwork, ()),
-            abi.encode(Types.WithdrawalNetwork.L1)
-        );
-
-        vm.expectRevert(L2Genesis.L2Genesis_MisconfiguredBaseFeeVault.selector);
-        genesis.run(input);
-
-        // Misconfigured l1 fee vault
-        vm.clearMockedCalls();
-        vm.mockCall(Predeploys.L1_FEE_VAULT, abi.encodeCall(IFeeVault.recipient, ()), abi.encode(address(0)));
-
-        vm.expectRevert(L2Genesis.L2Genesis_MisconfiguredL1FeeVault.selector);
-        genesis.run(input);
-
-        vm.clearMockedCalls();
-        vm.mockCall(
-            Predeploys.L1_FEE_VAULT,
-            abi.encodeCall(IFeeVault.withdrawalNetwork, ()),
-            abi.encode(Types.WithdrawalNetwork.L1)
-        );
-
-        vm.expectRevert(L2Genesis.L2Genesis_MisconfiguredL1FeeVault.selector);
-        genesis.run(input);
-
-        // Misconfigured sequencer fee vault
-        vm.clearMockedCalls();
-        vm.mockCall(Predeploys.SEQUENCER_FEE_WALLET, abi.encodeCall(IFeeVault.recipient, ()), abi.encode(address(0)));
-
-        vm.expectRevert(L2Genesis.L2Genesis_MisconfiguredSequencerFeeVault.selector);
-        genesis.run(input);
-
-        vm.clearMockedCalls();
-        vm.mockCall(
-            Predeploys.SEQUENCER_FEE_WALLET,
-            abi.encodeCall(IFeeVault.withdrawalNetwork, ()),
-            abi.encode(Types.WithdrawalNetwork.L1)
-        );
-
-        vm.expectRevert(L2Genesis.L2Genesis_MisconfiguredSequencerFeeVault.selector);
-        genesis.run(input);
-
-        // Misconfigured operator fee vault
-        vm.clearMockedCalls();
-        vm.mockCall(Predeploys.OPERATOR_FEE_VAULT, abi.encodeCall(IFeeVault.recipient, ()), abi.encode(address(0)));
-
-        vm.expectRevert(L2Genesis.L2Genesis_MisconfiguredOperatorFeeVault.selector);
-        genesis.run(input);
-
-        vm.clearMockedCalls();
-        vm.mockCall(
-            Predeploys.OPERATOR_FEE_VAULT,
-            abi.encodeCall(IFeeVault.withdrawalNetwork, ()),
-            abi.encode(Types.WithdrawalNetwork.L1)
-        );
-
-        vm.expectRevert(L2Genesis.L2Genesis_MisconfiguredOperatorFeeVault.selector);
-        genesis.run(input);
     }
 
     /// @notice Helper function to configure input for interop enabled tests.
     function _setInputInteropEnabled() internal {
         input.useInterop = true;
-        input.devFeatureBitmap = bytes32(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+        input.devFeatureBitmap |= DevFeatures.OPTIMISM_PORTAL_INTEROP;
     }
 
     /// @notice Asserts that the interop predeploys are present in genesis.
@@ -402,11 +328,10 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
 
         testProxyAdmin();
         testPredeploys();
-        testVaultsWithRevenueShare();
+        testVaults();
         testGovernance();
         testFactories();
         testForks();
-        testFeeSplitter();
         testInterop();
     }
 
@@ -415,18 +340,17 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
         input.useCustomGasToken = true;
         input.gasPayingTokenName = "Custom Gas Token";
         input.gasPayingTokenSymbol = "CGT";
-        input.useRevenueShare = false;
     }
 
     /// @notice Tests that the run function succeeds when CGT is enabled.
     /// @dev Tests that LiquidityController and NativeAssetLiquidity are deployed.
     function test_run_cgt_succeeds() external {
         _setInputCGTEnabled();
-        genesis.run(input);
+        runGenesisAndAssertL2CM();
 
         testProxyAdmin();
         testPredeploys();
-        testVaultsWithoutRevenueShare();
+        testVaults();
         testGovernance();
         testFactories();
         testForks();
@@ -465,25 +389,113 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
         genesis.run(input);
     }
 
-    /// @notice Tests that enabling both CGT and revenue share reverts.
-    function test_cgt_revenueShare_reverts() external {
-        _setInputCGTEnabled();
-        input.useRevenueShare = true;
-        vm.expectRevert("FeeVault: custom gas token and revenue share cannot be enabled together");
-        genesis.run(input);
-    }
-
-    /// @notice Tests that enabling l2cm succeeds.
-    function test_run_l2cm_succeeds() external {
-        input.devFeatureBitmap |= DevFeatures.L2CM;
-        genesis.run(input);
+    /// @notice Tests the L2CM genesis path with interop predeploys active at genesis.
+    function test_run_l2cmInteropAtGenesis_succeeds() external {
+        _setInputInteropEnabled();
+        input.fork = uint256(Fork.INTEROP);
+        runGenesisAndAssertL2CM();
 
         testProxyAdmin();
         testPredeploys();
-        testVaultsWithRevenueShare();
+        testVaults();
         testGovernance();
         testFactories();
         testForks();
-        testFeeSplitter();
+        testInterop();
+    }
+
+    /// @notice Tests that L2CM skips interop predeploys when interop is scheduled after genesis.
+    function test_run_l2cmInteropScheduledNotActive_succeeds() external {
+        uint256 snap = vm.snapshotState();
+        for (uint256 f = uint256(Fork.DELTA); f < uint256(Fork.INTEROP); f++) {
+            // `f` is a stack local so it survives the revert; `input` is reset and rebuilt each iteration.
+            input.fork = f;
+            _setInputInteropEnabled();
+            runGenesisAndAssertL2CM();
+
+            assertEq(
+                IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP),
+                false,
+                "INTEROP runtime flag must not be set at genesis when fork < INTEROP"
+            );
+
+            vm.revertToState(snap);
+        }
+    }
+
+    /// @notice Tests the L2CM genesis path with both CGT and interop active.
+    function test_run_l2cmCgtAndInteropAtGenesis_succeeds() external {
+        _setInputCGTEnabled();
+        _setInputInteropEnabled();
+        input.fork = uint256(Fork.INTEROP);
+        runGenesisAndAssertL2CM();
+
+        testProxyAdmin();
+        testPredeploys();
+        testVaults();
+        testGovernance();
+        testFactories();
+        testForks();
+        testCGT();
+        testInterop();
+    }
+
+    /// @notice Tests that run reverts when useInterop is true but the OPTIMISM_PORTAL_INTEROP dev bit is not set.
+    function test_run_useInteropWithoutDevBit_reverts() external {
+        input.useInterop = true;
+        // devFeatureBitmap left at 0 — OPTIMISM_PORTAL_INTEROP bit not set
+        vm.expectRevert("L2Genesis: useInterop and OPTIMISM_PORTAL_INTEROP devFeature bit must agree");
+        genesis.run(input);
+    }
+
+    /// @notice Tests that run reverts when the OPTIMISM_PORTAL_INTEROP dev bit is set but useInterop is false.
+    function test_run_devBitWithoutUseInterop_reverts() external {
+        input.useInterop = false;
+        input.devFeatureBitmap = bytes32(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+        vm.expectRevert("L2Genesis: useInterop and OPTIMISM_PORTAL_INTEROP devFeature bit must agree");
+        genesis.run(input);
+    }
+
+    /// @notice Tests that when interop is scheduled for a later fork (genesis fork < INTEROP),
+    ///         the runtime INTEROP feature flag on L1Block is NOT set at genesis. The flag will
+    ///         instead be flipped at the activation block by op-node's setFeature deposit wrapper.
+    function test_setL1Block_interopScheduledNotActive_succeeds() external {
+        _setInputInteropEnabled();
+        input.fork = uint256(Fork.ISTHMUS);
+        genesis.run(input);
+
+        assertEq(
+            IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP),
+            false,
+            "INTEROP runtime flag must not be set at genesis when fork < INTEROP"
+        );
+    }
+
+    /// @notice Tests that when a chain is born at or beyond the Interop fork, the runtime INTEROP
+    ///         feature flag on L1Block IS set at genesis.
+    function test_setL1Block_interopAtGenesis_succeeds() external {
+        _setInputInteropEnabled();
+        input.fork = uint256(Fork.INTEROP);
+        genesis.run(input);
+
+        assertEq(
+            IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP),
+            true,
+            "INTEROP runtime flag must be set at genesis when fork >= INTEROP"
+        );
+    }
+
+    /// @notice Sanity check: with useInterop disabled and fork < INTEROP, the runtime INTEROP flag
+    ///         is unset.
+    function test_setL1Block_interopDisabled_succeeds() external {
+        input.useInterop = false;
+        input.fork = uint256(Fork.ISTHMUS);
+        genesis.run(input);
+
+        assertEq(
+            IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP),
+            false,
+            "INTEROP runtime flag must not be set when useInterop is false"
+        );
     }
 }

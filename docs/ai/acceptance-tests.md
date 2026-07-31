@@ -1,6 +1,6 @@
-# Acceptance Tests
+# Running Acceptance Tests
 
-Guidance for AI agents building and running acceptance tests in the Optimism monorepo. See [dev-workflow.md](dev-workflow.md) for tool versions and general workflow.
+Guidance for AI agents building and running acceptance tests in the Optimism monorepo. For guidance on *writing* new tests — DSL patterns, naming, what to avoid — see [writing-acceptance-tests.md](writing-acceptance-tests.md). See [dev-workflow.md](dev-workflow.md) for tool versions and general workflow.
 
 ## What Are Acceptance Tests?
 
@@ -46,15 +46,25 @@ RUST_JIT_BUILD=1 cd op-acceptance-tests && mise exec -- just acceptance-test bas
 
 This runs only packages listed in `gates/base.txt`.
 
-### Kona Reproducible Prestate
+### Kona Prestate
 
-Some tests (e.g. superfaultproofs, interop fault proofs) require a reproducible kona prestate. This is **not** handled by `build-deps` or `RUST_JIT_BUILD`:
+Some tests (e.g. superfaultproofs, interop fault proofs) require a kona prestate. This is **not** handled by `build-deps` or `RUST_JIT_BUILD`. There are two ways to build it:
+
+**Reproducible build** (preferred when Docker is available):
 
 ```bash
 mise exec -- just reproducible-prestate-kona
 ```
 
-**Requires Docker.** If Docker is not available in your environment, ask the user to run this command for you.
+This produces a prestate whose hash matches CI/release builds. It works on any host with Docker installed.
+
+**Native build** (fallback when Docker is not available):
+
+```bash
+cd rust && mise exec -- just build-kona-prestates
+```
+
+Only works on **Linux** with the **MIPS cross-compile toolchain** installed. The produced hash will not match release builds, so this is only suitable for local test runs where the hash doesn't need to match a deployed release. If neither Docker nor the MIPS toolchain is available, ask the user to build the prestate for you.
 
 ## What `build-deps` Does
 
@@ -62,7 +72,7 @@ The `just build-deps` target (called automatically by `just test` and `just acce
 
 1. **mise** — `mise install` (ensures gotestsum, forge, etc. are available)
 2. **Contracts** — `cd packages/contracts-bedrock && just install && just build-no-tests`
-3. **Cannon prestates** — `just cannon-prestates` (builds cannon, op-program, and prestate artifacts)
+3. **Cannon prestates** — `just cannon-prestates` (builds the kona prestate artifacts)
 4. **Rust binaries** — `just build-rust-release` (kona-node, op-rbuilder, rollup-boost)
 
 You can also run `just build-deps` directly to pre-build without running tests.

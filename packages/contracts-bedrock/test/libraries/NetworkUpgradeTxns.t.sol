@@ -127,12 +127,27 @@ contract NetworkUpgradeTxns_SerializeTxn_Test is NetworkUpgradeTxns_TestInit {
 /// @title NetworkUpgradeTxns_WriteArtifact_Test
 /// @notice Tests the `writeArtifact` function.
 contract NetworkUpgradeTxns_WriteArtifact_Test is NetworkUpgradeTxns_TestInit {
+    /// @notice External wrapper so vm.expectRevert can catch the revert from the internal library call.
+    function _callReadArtifact(string memory _path) external view {
+        NetworkUpgradeTxns.readArtifact(_path);
+    }
+
     /// @notice Test writeArtifact with empty array
     function test_writeArtifact_emptyArray_succeeds() public {
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns = new NetworkUpgradeTxns.NetworkUpgradeTxn[](0);
         string memory outputPath = "deployments/nut-test-empty.json";
         NetworkUpgradeTxns.BundleMetadata memory metadata = NetworkUpgradeTxns.BundleMetadata({ version: "" });
         NetworkUpgradeTxns.writeArtifact(txns, metadata, outputPath);
+    }
+
+    /// @notice Test that readArtifact reverts when the bundle version is not BUNDLE_VERSION.
+    function test_readArtifact_unsupportedVersion_reverts() public {
+        string memory path = "deployments/nut-test-bad-version.json";
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns = new NetworkUpgradeTxns.NetworkUpgradeTxn[](0);
+        NetworkUpgradeTxns.writeArtifact(txns, NetworkUpgradeTxns.BundleMetadata({ version: "2.0.0" }), path);
+
+        vm.expectRevert("NetworkUpgradeTxns: unsupported bundle version: 2.0.0");
+        this._callReadArtifact(path);
     }
 
     /// @notice Test writeArtifact creates valid JSON file

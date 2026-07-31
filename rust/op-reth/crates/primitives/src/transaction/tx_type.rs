@@ -3,7 +3,7 @@
 #[cfg(test)]
 mod tests {
     use alloy_consensus::constants::EIP7702_TX_TYPE_ID;
-    use op_alloy_consensus::{DEPOSIT_TX_TYPE_ID, OpTxType};
+    use op_alloy_consensus::{DEPOSIT_TX_TYPE_ID, OpTxType, POST_EXEC_TX_TYPE_ID};
     use reth_codecs::{Compact, txtype::*};
     use rstest::rstest;
 
@@ -13,6 +13,7 @@ mod tests {
     #[case(OpTxType::Eip1559, COMPACT_IDENTIFIER_EIP1559, vec![])]
     #[case(OpTxType::Eip7702, COMPACT_EXTENDED_IDENTIFIER_FLAG, vec![EIP7702_TX_TYPE_ID])]
     #[case(OpTxType::Deposit, COMPACT_EXTENDED_IDENTIFIER_FLAG, vec![DEPOSIT_TX_TYPE_ID])]
+    #[case(OpTxType::PostExec, COMPACT_EXTENDED_IDENTIFIER_FLAG, vec![POST_EXEC_TX_TYPE_ID])]
     fn test_txtype_to_compact(
         #[case] tx_type: OpTxType,
         #[case] expected_identifier: usize,
@@ -34,6 +35,7 @@ mod tests {
     #[case(OpTxType::Eip1559, COMPACT_IDENTIFIER_EIP1559, vec![])]
     #[case(OpTxType::Eip7702, COMPACT_EXTENDED_IDENTIFIER_FLAG, vec![EIP7702_TX_TYPE_ID])]
     #[case(OpTxType::Deposit, COMPACT_EXTENDED_IDENTIFIER_FLAG, vec![DEPOSIT_TX_TYPE_ID])]
+    #[case(OpTxType::PostExec, COMPACT_EXTENDED_IDENTIFIER_FLAG, vec![POST_EXEC_TX_TYPE_ID])]
     fn test_txtype_from_compact(
         #[case] expected_type: OpTxType,
         #[case] identifier: usize,

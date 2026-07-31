@@ -14,11 +14,13 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/plan"
 )
@@ -225,7 +227,7 @@ func WithEstimator(cl Estimator, invalidateOnNewBlock bool) Option {
 			msg := ethereum.CallMsg{
 				From:       tx.Sender.Value(),
 				To:         tx.To.Value(),
-				Gas:        0, // infinite gas, will be estimated
+				Gas:        params.MaxTxGas, // max gas, will be estimated
 				GasPrice:   nil,
 				GasFeeCap:  tx.GasFeeCap.Value(),
 				GasTipCap:  tx.GasTipCap.Value(),
@@ -259,10 +261,34 @@ func WithTransactionSubmitter(cl TransactionSubmitter) Option {
 
 func WithRetrySubmission(cl TransactionSubmitter, maxAttempts int, strategy retry.Strategy) Option {
 	return func(tx *PlannedTx) {
-		tx.Submitted.DependOn(&tx.Signed)
+		// Intentionally no DependOn(&tx.Signed) here.
+		//
+		// The Lazy DAG evaluates a node's fn while holding read-locks on all of
+		// its upstream dependencies. If tx.Submitted declared tx.Signed as an
+		// upstream dep, the fn would run with tx.Signed's mutex read-locked.
+		// Calling tx.Signed.Eval or tx.Nonce.Invalidate (which cascades down to
+		// tx.Submitted) from inside that fn would then deadlock trying to
+		// acquire those same mutexes. Instead we hold no upstream locks and
+		// drive the full eval+submit cycle ourselves on each retry attempt.
 		tx.Submitted.Fn(func(ctx context.Context) (struct{}, error) {
 			return struct{}{}, retry.Do0(ctx, maxAttempts, strategy, func() error {
-				return cl.SendTransaction(ctx, tx.Signed.Value())
+				// Evaluate (or re-evaluate after a nonce-too-low invalidation)
+				// the signed transaction. No upstream locks are held here, so
+				// Eval acquires the necessary mutexes safely.
+				signed, err := tx.Signed.Eval(ctx)
+				if err != nil {
+					return fmt.Errorf("re-evaluating signed tx: %w", err)
+				}
+				err = cl.SendTransaction(ctx, signed)
+				// If the nonce is stale (e.g. a deposit tx on L2 advanced the
+				// account nonce before we fetched it), invalidate the Nonce node
+				// so it is re-fetched on the next attempt. Because Nonce is
+				// upstream of Unsigned which is upstream of Signed, invalidating
+				// Nonce cascades through the whole signing pipeline.
+				if errors.Is(err, core.ErrNonceTooLow) {
+					tx.Nonce.Invalidate()
+				}
+				return err
 			})
 		})
 	}
@@ -364,8 +390,6 @@ func WithReader(cl Reader) Option {
 		tx.Read.DependOn(
 			&tx.Sender,
 			&tx.To,
-			&tx.GasFeeCap,
-			&tx.GasTipCap,
 			&tx.Value,
 			&tx.Data,
 			&tx.AccessList,
@@ -377,8 +401,8 @@ func WithReader(cl Reader) Option {
 				To:         tx.To.Value(),
 				Gas:        0, // auto estimated by the node
 				GasPrice:   nil,
-				GasFeeCap:  tx.GasFeeCap.Value(),
-				GasTipCap:  tx.GasTipCap.Value(),
+				GasFeeCap:  nil,
+				GasTipCap:  nil,
 				Value:      tx.Value.Value(),
 				Data:       tx.Data.Value(),
 				AccessList: tx.AccessList.Value(),
@@ -571,7 +595,7 @@ func (tx *PlannedTx) Defaults() {
 				R:          nil,
 				S:          nil,
 			}, nil
-		case types.DepositTxType:
+		case optypes.DepositTxType:
 			return nil, errors.New("deposit tx not supported")
 		default:
 			return nil, fmt.Errorf("unrecognized tx type: %d", tx.Type.Value())

@@ -9,10 +9,9 @@ use crate::{
 };
 use alloy_primitives::{B256, U256};
 use reth_db::{
-    Database, DatabaseEnv, DatabaseError,
+    DatabaseError,
     cursor::{DbCursorRO, DbDupCursorRO},
     table::{DupSort, Table},
-    transaction::DbTx,
 };
 use reth_primitives_traits::Account;
 use reth_trie::{
@@ -20,9 +19,6 @@ use reth_trie::{
     trie_cursor::{TrieCursor, TrieStorageCursor},
 };
 use reth_trie_common::{BranchNodeCompact, Nibbles, StoredNibbles};
-
-/// Generic alias for dup cursor for T
-pub(crate) type Dup<'tx, T> = <<DatabaseEnv as Database>::TX as DbTx>::DupCursor<T>;
 
 /// Iterates versioned dup-sorted rows and returns the latest value (<= `max_block_number`),
 /// skipping tombstones.
@@ -171,7 +167,7 @@ impl<
 
 impl<Cursor> TrieCursor for MdbxTrieCursor<AccountTrieHistory, Cursor>
 where
-    Cursor: DbCursorRO<AccountTrieHistory> + DbDupCursorRO<AccountTrieHistory> + Send + Sync,
+    Cursor: DbCursorRO<AccountTrieHistory> + DbDupCursorRO<AccountTrieHistory> + Send,
 {
     fn seek_exact(
         &mut self,
@@ -208,7 +204,7 @@ where
 
 impl<Cursor> TrieCursor for MdbxTrieCursor<StorageTrieHistory, Cursor>
 where
-    Cursor: DbCursorRO<StorageTrieHistory> + DbDupCursorRO<StorageTrieHistory> + Send + Sync,
+    Cursor: DbCursorRO<StorageTrieHistory> + DbDupCursorRO<StorageTrieHistory> + Send,
 {
     fn seek_exact(
         &mut self,
@@ -270,7 +266,7 @@ where
 
 impl<Cursor> TrieStorageCursor for MdbxTrieCursor<StorageTrieHistory, Cursor>
 where
-    Cursor: DbCursorRO<StorageTrieHistory> + DbDupCursorRO<StorageTrieHistory> + Send + Sync,
+    Cursor: DbCursorRO<StorageTrieHistory> + DbDupCursorRO<StorageTrieHistory> + Send,
 {
     fn set_hashed_address(&mut self, hashed_address: B256) {
         self.hashed_address = Some(hashed_address);
@@ -286,7 +282,7 @@ pub struct MdbxStorageCursor<Cursor> {
 
 impl<Cursor> MdbxStorageCursor<Cursor>
 where
-    Cursor: DbCursorRO<HashedStorageHistory> + DbDupCursorRO<HashedStorageHistory> + Send + Sync,
+    Cursor: DbCursorRO<HashedStorageHistory> + DbDupCursorRO<HashedStorageHistory> + Send,
 {
     ///  Initializes new [`MdbxStorageCursor`]
     pub const fn new(cursor: Cursor, block_number: u64, hashed_address: B256) -> Self {
@@ -296,7 +292,7 @@ where
 
 impl<Cursor> HashedCursor for MdbxStorageCursor<Cursor>
 where
-    Cursor: DbCursorRO<HashedStorageHistory> + DbDupCursorRO<HashedStorageHistory> + Send + Sync,
+    Cursor: DbCursorRO<HashedStorageHistory> + DbDupCursorRO<HashedStorageHistory> + Send,
 {
     type Value = U256;
 
@@ -356,7 +352,10 @@ where
     }
 }
 
-impl HashedStorageCursor for MdbxStorageCursor<Dup<'_, HashedStorageHistory>> {
+impl<Cursor> HashedStorageCursor for MdbxStorageCursor<Cursor>
+where
+    Cursor: DbCursorRO<HashedStorageHistory> + DbDupCursorRO<HashedStorageHistory> + Send,
+{
     fn is_storage_empty(&mut self) -> Result<bool, DatabaseError> {
         Ok(self.seek(B256::ZERO)?.is_none())
     }
@@ -374,7 +373,7 @@ pub struct MdbxAccountCursor<Cursor> {
 
 impl<Cursor> MdbxAccountCursor<Cursor>
 where
-    Cursor: DbCursorRO<HashedAccountHistory> + DbDupCursorRO<HashedAccountHistory> + Send + Sync,
+    Cursor: DbCursorRO<HashedAccountHistory> + DbDupCursorRO<HashedAccountHistory> + Send,
 {
     /// Initializes new `MdbxAccountCursor`
     pub const fn new(cursor: Cursor, block_number: u64) -> Self {
@@ -384,7 +383,7 @@ where
 
 impl<Cursor> HashedCursor for MdbxAccountCursor<Cursor>
 where
-    Cursor: DbCursorRO<HashedAccountHistory> + DbDupCursorRO<HashedAccountHistory> + Send + Sync,
+    Cursor: DbCursorRO<HashedAccountHistory> + DbDupCursorRO<HashedAccountHistory> + Send,
 {
     type Value = Account;
 
@@ -406,14 +405,15 @@ mod tests {
     use super::*;
     use crate::db::{StorageValue, models};
     use reth_db::{
-        DatabaseEnv,
+        Database, DatabaseEnv,
         mdbx::{DatabaseArguments, init_db_for},
     };
     use reth_db_api::{
-        Database,
         cursor::DbDupCursorRW,
         transaction::{DbTx, DbTxMut},
     };
+
+    type Dup<'tx, T> = <<DatabaseEnv as Database>::TX as DbTx>::DupCursor<T>;
     use reth_trie::{BranchNodeCompact, Nibbles, StoredNibbles};
     use tempfile::TempDir;
 

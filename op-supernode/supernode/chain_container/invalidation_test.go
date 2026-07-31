@@ -2,13 +2,16 @@ package chain_container
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"sync"
 	"testing"
 
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	gethlog "github.com/ethereum/go-ethereum/log"
@@ -294,6 +297,7 @@ func TestDenyList_GetDeniedHashes(t *testing.T) {
 // mockEngineForInvalidation implements engine_controller.EngineController for invalidation tests
 type mockEngineForInvalidation struct {
 	blockRef        eth.L2BlockRef
+	blockRefErr     error
 	rewindCalled    bool
 	rewindTimestamp uint64
 }
@@ -302,10 +306,24 @@ func (m *mockEngineForInvalidation) OutputV0AtBlockNumber(ctx context.Context, n
 	return nil, nil
 }
 
-func (m *mockEngineForInvalidation) RewindToTimestamp(ctx context.Context, timestamp uint64) error {
+func (m *mockEngineForInvalidation) OutputV0ByBlockHash(ctx context.Context, blockHash common.Hash) (*eth.OutputV0, error) {
+	return nil, nil
+}
+
+func (m *mockEngineForInvalidation) Rewind(ctx context.Context, target *eth.ExecutionPayloadEnvelope) error {
 	m.rewindCalled = true
-	m.rewindTimestamp = timestamp
+	if target != nil && target.ExecutionPayload != nil {
+		m.rewindTimestamp = uint64(target.ExecutionPayload.Timestamp)
+	}
 	return nil
+}
+
+func (m *mockEngineForInvalidation) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
+	return nil, nil
+}
+
+func (m *mockEngineForInvalidation) PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error) {
+	return nil, nil
 }
 
 func (m *mockEngineForInvalidation) FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error) {
@@ -317,7 +335,11 @@ func (m *mockEngineForInvalidation) Close() error {
 }
 
 func (m *mockEngineForInvalidation) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
-	return m.blockRef, nil
+	return m.blockRef, m.blockRefErr
+}
+
+func (m *mockEngineForInvalidation) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error) {
+	return eth.L2BlockRef{}, nil
 }
 
 // mockVNForInvalidation implements virtual_node.VirtualNode for invalidation tests
@@ -327,6 +349,9 @@ type mockVNForInvalidation struct {
 
 func (m *mockVNForInvalidation) Start(ctx context.Context) error { return nil }
 func (m *mockVNForInvalidation) Stop(ctx context.Context) error  { return m.stopErr }
+func (m *mockVNForInvalidation) State() virtual_node.VNState {
+	return virtual_node.VNStateRunning
+}
 func (m *mockVNForInvalidation) LatestSafe(ctx context.Context) (eth.BlockID, error) {
 	return eth.BlockID{}, nil
 }
@@ -335,6 +360,9 @@ func (m *mockVNForInvalidation) SafeHeadAtL1(ctx context.Context, l1BlockNum uin
 }
 func (m *mockVNForInvalidation) L1AtSafeHead(ctx context.Context, target eth.BlockID) (eth.BlockID, error) {
 	return eth.BlockID{}, nil
+}
+func (m *mockVNForInvalidation) FirstSafeHeadEntry(ctx context.Context) (eth.BlockID, eth.BlockID, error) {
+	return eth.BlockID{}, eth.BlockID{}, nil
 }
 func (m *mockVNForInvalidation) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 	return &eth.SyncStatus{}, nil
@@ -348,13 +376,22 @@ func TestInvalidateBlock(t *testing.T) {
 	genesisTime := uint64(1000)
 	blockTime := uint64(2)
 
+	makeParentPayload := func(parentNum, parentTime uint64, parentHash common.Hash) *eth.ExecutionPayloadEnvelope {
+		return &eth.ExecutionPayloadEnvelope{
+			ExecutionPayload: &eth.ExecutionPayload{
+				BlockNumber: eth.Uint64Quantity(parentNum),
+				Timestamp:   eth.Uint64Quantity(parentTime),
+				BlockHash:   parentHash,
+			},
+		}
+	}
+
 	tests := []struct {
 		name             string
 		genesisBlock     uint64
 		height           uint64
 		payloadHash      common.Hash
 		currentBlockHash common.Hash
-		engineAvailable  bool
 		expectRewind     bool
 		expectRewindTs   uint64
 	}{
@@ -364,7 +401,6 @@ func TestInvalidateBlock(t *testing.T) {
 			height:           5,
 			payloadHash:      common.HexToHash("0xdead"),
 			currentBlockHash: common.HexToHash("0xdead"), // Same hash
-			engineAvailable:  true,
 			expectRewind:     true,
 			expectRewindTs:   genesisTime + (4 * blockTime), // height-1 timestamp
 		},
@@ -374,16 +410,7 @@ func TestInvalidateBlock(t *testing.T) {
 			height:           5,
 			payloadHash:      common.HexToHash("0xdead"),
 			currentBlockHash: common.HexToHash("0xbeef"), // Different hash
-			engineAvailable:  true,
 			expectRewind:     false,
-		},
-		{
-			name:            "engine unavailable adds to denylist only",
-			genesisBlock:    0,
-			height:          5,
-			payloadHash:     common.HexToHash("0xdead"),
-			engineAvailable: false,
-			expectRewind:    false,
 		},
 		{
 			name:             "rewind to height-1 timestamp calculated correctly",
@@ -391,7 +418,6 @@ func TestInvalidateBlock(t *testing.T) {
 			height:           10,
 			payloadHash:      common.HexToHash("0xabcd"),
 			currentBlockHash: common.HexToHash("0xabcd"),
-			engineAvailable:  true,
 			expectRewind:     true,
 			expectRewindTs:   genesisTime + (9 * blockTime), // height 9
 		},
@@ -401,7 +427,6 @@ func TestInvalidateBlock(t *testing.T) {
 			height:           105,
 			payloadHash:      common.HexToHash("0xcafe"),
 			currentBlockHash: common.HexToHash("0xcafe"),
-			engineAvailable:  true,
 			expectRewind:     true,
 			expectRewindTs:   genesisTime + (4 * blockTime), // block 104 relative to genesis block 100
 		},
@@ -422,7 +447,7 @@ func TestInvalidateBlock(t *testing.T) {
 		}
 
 		ctx := context.Background()
-		rewound, err := c.InvalidateBlock(ctx, 0, common.HexToHash("0xgenesis"), 0, eth.Bytes32{}, eth.Bytes32{})
+		rewound, err := c.InvalidateBlock(ctx, 0, common.HexToHash("0xgenesis"), 0, eth.Bytes32{}, eth.Bytes32{}, makeParentPayload(0, 0, common.Hash{}))
 
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "cannot invalidate genesis block")
@@ -434,7 +459,113 @@ func TestInvalidateBlock(t *testing.T) {
 		require.False(t, found, "genesis block should not be added to denylist")
 	})
 
-	t.Run("missing rollup config returns error before rewind", func(t *testing.T) {
+	t.Run("missing engine returns error and persists denylist entry", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+
+		dl, err := OpenDenyList(filepath.Join(dir, "denylist"))
+		require.NoError(t, err)
+		defer dl.Close()
+
+		c := &simpleChainContainer{
+			denyList: dl,
+			log:      testLogger(),
+			vn:       &mockVNForInvalidation{},
+		}
+
+		hash := common.HexToHash("0xdead")
+		rewound, err := c.InvalidateBlock(context.Background(), 5, hash, 0, eth.Bytes32{}, eth.Bytes32{}, makeParentPayload(4, 0, common.Hash{0xaa}))
+
+		require.Error(t, err)
+		require.ErrorIs(t, err, engine_controller.ErrNoEngineClient)
+		require.False(t, rewound)
+
+		found, err := dl.Contains(5, hash)
+		require.NoError(t, err)
+		require.True(t, found, "denylist entry must persist so rewind can retry on restart")
+	})
+
+	t.Run("nil parent payload returns error", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		dl, err := OpenDenyList(filepath.Join(dir, "denylist"))
+		require.NoError(t, err)
+		defer dl.Close()
+
+		c := &simpleChainContainer{
+			denyList: dl,
+			log:      testLogger(),
+			engine:   &mockEngineForInvalidation{},
+			vn:       &mockVNForInvalidation{},
+		}
+
+		hash := common.HexToHash("0xdead")
+		rewound, err := c.InvalidateBlock(context.Background(), 5, hash, 0, eth.Bytes32{}, eth.Bytes32{}, nil)
+		require.ErrorIs(t, err, engine_controller.ErrRewindNilTarget)
+		require.False(t, rewound)
+	})
+
+	t.Run("L2BlockRefByNumber failure returns error and persists denylist entry", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+
+		dl, err := OpenDenyList(filepath.Join(dir, "denylist"))
+		require.NoError(t, err)
+		defer dl.Close()
+
+		fetchErr := errors.New("transient RPC failure")
+		mockEng := &mockEngineForInvalidation{blockRefErr: fetchErr}
+
+		c := &simpleChainContainer{
+			denyList: dl,
+			log:      testLogger(),
+			engine:   mockEng,
+			vn:       &mockVNForInvalidation{},
+		}
+
+		hash := common.HexToHash("0xdead")
+		rewound, err := c.InvalidateBlock(context.Background(), 5, hash, 0, eth.Bytes32{}, eth.Bytes32{}, makeParentPayload(4, 0, common.Hash{0xaa}))
+
+		require.Error(t, err)
+		require.ErrorIs(t, err, fetchErr)
+		require.False(t, rewound)
+		require.False(t, mockEng.rewindCalled, "rewind should not be attempted when current block lookup fails")
+
+		found, err := dl.Contains(5, hash)
+		require.NoError(t, err)
+		require.True(t, found, "hash should be in denylist even when current block lookup fails")
+	})
+
+	t.Run("L2BlockRefByNumber returns NotFound still drives rewind to handle partial recovery", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+
+		dl, err := OpenDenyList(filepath.Join(dir, "denylist"))
+		require.NoError(t, err)
+		defer dl.Close()
+
+		mockEng := &mockEngineForInvalidation{blockRefErr: ethereum.NotFound}
+
+		c := &simpleChainContainer{
+			denyList: dl,
+			log:      testLogger(),
+			engine:   mockEng,
+			vn:       &mockVNForInvalidation{},
+		}
+
+		hash := common.HexToHash("0xdead")
+		rewound, err := c.InvalidateBlock(context.Background(), 5, hash, 0, eth.Bytes32{}, eth.Bytes32{}, makeParentPayload(4, 0, common.Hash{0xaa}))
+
+		require.NoError(t, err)
+		require.True(t, rewound, "rewind must be attempted: a prior crashed attempt may have left a synthetic block at this height")
+		require.True(t, mockEng.rewindCalled)
+
+		found, err := dl.Contains(5, hash)
+		require.NoError(t, err)
+		require.True(t, found)
+	})
+
+	t.Run("parent payload number mismatch returns error", func(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()
 
@@ -453,13 +584,13 @@ func TestInvalidateBlock(t *testing.T) {
 			vn:       &mockVNForInvalidation{},
 		}
 
-		rewound, err := c.InvalidateBlock(context.Background(), 5, common.HexToHash("0xdead"), 0, eth.Bytes32{}, eth.Bytes32{})
-
+		// parent payload claims block number 99 but height=5 expects parent at 4
+		rewound, err := c.InvalidateBlock(context.Background(), 5, common.HexToHash("0xdead"), 0,
+			eth.Bytes32{}, eth.Bytes32{}, makeParentPayload(99, 0, common.Hash{0xaa}))
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "failed to compute rewind timestamp")
-		require.Contains(t, err.Error(), "rollup config not available")
+		require.Contains(t, err.Error(), "parent payload block number")
 		require.False(t, rewound)
-		require.False(t, mockEng.rewindCalled, "rewind should not be attempted without rollup config")
+		require.False(t, mockEng.rewindCalled, "rewind should not be attempted with a mismatched parent payload")
 	})
 
 	for _, tt := range tests {
@@ -472,9 +603,10 @@ func TestInvalidateBlock(t *testing.T) {
 			require.NoError(t, err)
 			defer dl.Close()
 
-			// Create mock engine
+			parentHash := common.Hash{0x01, byte(tt.height)}
+			// Create mock engine — set ParentHash on the BlockRef so it matches the parent payload.
 			mockEng := &mockEngineForInvalidation{
-				blockRef: eth.L2BlockRef{Hash: tt.currentBlockHash},
+				blockRef: eth.L2BlockRef{Hash: tt.currentBlockHash, ParentHash: parentHash},
 			}
 
 			// Create container with minimal config
@@ -488,9 +620,7 @@ func TestInvalidateBlock(t *testing.T) {
 			c.vncfg.Rollup.Genesis.L2.Number = tt.genesisBlock
 			c.vncfg.Rollup.BlockTime = blockTime
 
-			if tt.engineAvailable {
-				c.engine = mockEng
-			}
+			c.engine = mockEng
 
 			testStateRoot := eth.Bytes32(common.HexToHash("0xstate"))
 			testMsgPasserRoot := eth.Bytes32(common.HexToHash("0xmsgpasser"))
@@ -500,14 +630,15 @@ func TestInvalidateBlock(t *testing.T) {
 				BlockHash:                tt.payloadHash,
 			}
 
+			parentPayload := makeParentPayload(tt.height-1, tt.expectRewindTs, parentHash)
 			ctx := context.Background()
-			rewound, err := c.InvalidateBlock(ctx, tt.height, tt.payloadHash, 0, testStateRoot, testMsgPasserRoot)
+			rewound, err := c.InvalidateBlock(ctx, tt.height, tt.payloadHash, 0, testStateRoot, testMsgPasserRoot, parentPayload)
 			require.NoError(t, err)
 
 			// Verify rewind behavior
 			require.Equal(t, tt.expectRewind, rewound, "rewind triggered mismatch")
 
-			if tt.expectRewind && tt.engineAvailable {
+			if tt.expectRewind {
 				require.True(t, mockEng.rewindCalled, "RewindToTimestamp should have been called")
 				require.Equal(t, tt.expectRewindTs, mockEng.rewindTimestamp, "rewind timestamp mismatch")
 			}
@@ -740,6 +871,26 @@ func TestDenyList_PruneAtOrAfterTimestamp(t *testing.T) {
 	require.Empty(t, records200)
 }
 
+func TestDenyList_HasDeniedAtOrAfterTimestamp(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	dl, err := OpenDenyList(dir)
+	require.NoError(t, err)
+	defer dl.Close()
+
+	require.NoError(t, dl.Add(100, common.HexToHash("0xaaaa"), 10, eth.Bytes32{}, eth.Bytes32{}))
+	require.NoError(t, dl.Add(50, common.HexToHash("0xbbbb"), 12, eth.Bytes32{}, eth.Bytes32{}))
+	require.NoError(t, dl.Add(25, common.HexToHash("0xcccc"), 9, eth.Bytes32{}, eth.Bytes32{}))
+
+	ok, err := dl.HasDeniedAtOrAfterTimestamp(11)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	ok, err = dl.HasDeniedAtOrAfterTimestamp(13)
+	require.NoError(t, err)
+	require.False(t, ok)
+}
+
 func TestDenyList_GetOutputV0(t *testing.T) {
 	t.Parallel()
 
@@ -938,4 +1089,34 @@ func TestDenyList_GetDeniedRecords_IncludesRoots(t *testing.T) {
 	require.Equal(t, out2.StateRoot, recordMap[hash2].StateRoot)
 	require.Equal(t, out2.MessagePasserStorageRoot, recordMap[hash2].MessagePasserStorageRoot)
 	require.Equal(t, uint64(11), recordMap[hash2].DecisionTimestamp)
+}
+
+func TestDenyList_MaxDeniedHeight(t *testing.T) {
+	t.Parallel()
+
+	dl, err := OpenDenyList(t.TempDir())
+	require.NoError(t, err)
+	defer dl.Close()
+
+	_, any, err := dl.MaxDeniedHeight()
+	require.NoError(t, err)
+	require.False(t, any, "empty deny list has no max height")
+
+	require.NoError(t, dl.Add(100, common.HexToHash("0xaaaa"), 10, eth.Bytes32{}, eth.Bytes32{}))
+	require.NoError(t, dl.Add(500, common.HexToHash("0xbbbb"), 20, eth.Bytes32{}, eth.Bytes32{}))
+	require.NoError(t, dl.Add(300, common.HexToHash("0xcccc"), 30, eth.Bytes32{}, eth.Bytes32{}))
+
+	maxHeight, any, err := dl.MaxDeniedHeight()
+	require.NoError(t, err)
+	require.True(t, any)
+	require.Equal(t, uint64(500), maxHeight)
+
+	// Pruning the highest entries lowers the max.
+	removed, err := dl.PruneAtOrAfterTimestamp(20)
+	require.NoError(t, err)
+	require.Len(t, removed, 2)
+	maxHeight, any, err = dl.MaxDeniedHeight()
+	require.NoError(t, err)
+	require.True(t, any)
+	require.Equal(t, uint64(100), maxHeight)
 }

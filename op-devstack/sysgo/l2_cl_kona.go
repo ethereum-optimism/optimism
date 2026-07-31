@@ -1,15 +1,12 @@
 package sysgo
 
 import (
-	"fmt"
-	"net/url"
-	"strings"
+	"context"
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/logpipe"
-	"github.com/ethereum-optimism/optimism/op-service/tasks"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -20,9 +17,7 @@ type KonaNode struct {
 	name    string
 	chainID eth.ChainID
 
-	userRPC          string
-	interopEndpoint  string // warning: currently not fully supported
-	interopJwtSecret eth.Bytes32
+	userRPC string
 
 	userProxy *tcpproxy.Proxy
 
@@ -34,8 +29,6 @@ type KonaNode struct {
 	p devtest.T
 
 	sub *SubProcess
-
-	l2MetricsRegistrar L2MetricsRegistrar
 }
 
 func (k *KonaNode) Start() {
@@ -61,24 +54,10 @@ func (k *KonaNode) Start() {
 	logOut := logpipe.ToLoggerWithMinLevel(k.p.Logger().New("component", "kona-node", "src", "stdout"), log.LevelWarn)
 	logErr := logpipe.ToLoggerWithMinLevel(k.p.Logger().New("component", "kona-node", "src", "stderr"), log.LevelWarn)
 	userRPCChan := make(chan string, 1)
-	defer close(userRPCChan)
-
-	metricsTargetChan := make(chan PrometheusMetricsTarget, 1)
-	defer close(metricsTargetChan)
 
 	onLogEntry := func(e logpipe.LogEntry) {
-		msg := e.LogMessage()
-		if msg == "RPC server bound to address" {
+		if e.LogMessage() == "RPC server bound to address" {
 			userRPCChan <- "http://" + e.FieldValue("addr").(string)
-		} else if metricsUrl, found := strings.CutPrefix(msg, "Serving metrics at: "); found {
-			// Matching messages like "Serving metrics at: http://0.0.0.0:9091"
-			if !strings.HasPrefix(metricsUrl, "http") {
-				metricsUrl = fmt.Sprintf("http://%s", metricsUrl)
-			}
-			parsedUrl, err := url.Parse(metricsUrl)
-			k.p.Require().NoError(err, "invalid metrics url output to logs", "log", msg)
-			k.p.Require().NotEmpty(parsedUrl.Port(), "empty port in logged metrics url", "log", msg)
-			metricsTargetChan <- NewPrometheusMetricsTarget(parsedUrl.Hostname(), parsedUrl.Port(), false)
 		}
 	}
 	stdOutLogs := logpipe.LogCallback(func(line []byte) {
@@ -95,13 +74,21 @@ func (k *KonaNode) Start() {
 	err := k.sub.Start(k.execPath, k.args, k.env)
 	k.p.Require().NoError(err, "Must start")
 
+	// Wait for kona-node to log its RPC address, but fail fast if the process exits first
+	// (e.g. a crash on boot) rather than blocking on the context until the test times out.
 	var userRPCAddr string
-	k.p.Require().NoError(tasks.Await(k.p.Ctx(), userRPCChan, &userRPCAddr), "need user RPC")
-
-	if areMetricsEnabled() {
-		var metricsTarget PrometheusMetricsTarget
-		k.p.Require().NoError(tasks.Await(k.p.Ctx(), metricsTargetChan, &metricsTarget), "need metrics endpoint")
-		k.l2MetricsRegistrar.RegisterL2MetricsTargets(k.name, metricsTarget)
+	select {
+	case userRPCAddr = <-userRPCChan:
+	case <-k.sub.Exited():
+		// Re-check the RPC channel in case the address was logged in the same instant the
+		// process exited; otherwise the process died before becoming ready.
+		select {
+		case userRPCAddr = <-userRPCChan:
+		default:
+			k.p.Require().FailNow("kona-node exited before its RPC server became ready")
+		}
+	case <-k.p.Ctx().Done():
+		k.p.Require().NoError(k.p.Ctx().Err(), "need user RPC")
 	}
 
 	k.userProxy.SetUpstream(ProxyAddr(k.p.Require(), userRPCAddr))
@@ -121,12 +108,31 @@ func (k *KonaNode) Stop() {
 	k.sub = nil
 }
 
-func (k *KonaNode) UserRPC() string {
-	return k.userRPC
+func (k *KonaNode) StartControlled(ctx context.Context) error {
+	return runControlStart(ctx, k.Running, k.Start)
 }
 
-func (k *KonaNode) InteropRPC() (endpoint string, jwtSecret eth.Bytes32) {
-	return k.interopEndpoint, k.interopJwtSecret
+func (k *KonaNode) StopControlled(ctx context.Context) error {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if k.sub == nil {
+		return nil
+	}
+	if err := k.sub.StopControlled(ctx, controlledInterruptWait, controlledKillWait); err != nil {
+		return err
+	}
+	k.sub = nil
+	return nil
+}
+
+func (k *KonaNode) Running() bool {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	return k.sub != nil
+}
+
+func (k *KonaNode) UserRPC() string {
+	return k.userRPC
 }
 
 var _ L2CLNode = (*KonaNode)(nil)

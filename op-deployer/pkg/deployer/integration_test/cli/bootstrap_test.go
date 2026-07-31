@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
@@ -31,7 +30,6 @@ func TestCLIBootstrap(t *testing.T) {
 
 	// Get addresses for required roles
 	superchainProxyAdminOwner := shared.AddrFor(t, dk, devkeys.L1ProxyAdminOwnerRole.Key(l1ChainIDBig))
-	protocolVersionsOwner := shared.AddrFor(t, dk, devkeys.SuperchainDeployerKey.Key(l1ChainIDBig))
 	guardian := shared.AddrFor(t, dk, devkeys.SuperchainConfigGuardianKey.Key(l1ChainIDBig))
 	challenger := shared.AddrFor(t, dk, devkeys.ChallengerRole.Key(l1ChainIDBig))
 
@@ -46,51 +44,10 @@ func TestCLIBootstrap(t *testing.T) {
 			"bootstrap", "superchain",
 			"--outfile", superchainOutputFile,
 			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
-			"--protocol-versions-owner", protocolVersionsOwner.Hex(),
 			"--guardian", guardian.Hex(),
 		}, nil)
 
 		t.Logf("Bootstrap superchain output:\n%s", output)
-
-		// Verify output file was created
-		require.FileExists(t, superchainOutputFile)
-
-		// Parse and validate the output
-		var superchainOutput opcm.DeploySuperchainOutput
-		data, err := os.ReadFile(superchainOutputFile)
-		require.NoError(t, err)
-		err = json.Unmarshal(data, &superchainOutput)
-		require.NoError(t, err)
-		require.NoError(t, addresses.CheckNoZeroAddresses(superchainOutput))
-	})
-
-	t.Run("bootstrap superchain with custom protocol versions", func(t *testing.T) {
-		runner := NewCLITestRunnerWithNetwork(t)
-		workDir := runner.GetWorkDir()
-
-		superchainOutputFile := filepath.Join(workDir, "bootstrap_superchain_custom.json")
-
-		// Use a custom protocol version - create v1.0.0 with custom build
-		customVersion := params.ProtocolVersionV0{
-			Build:      [8]byte{0, 0, 0, 0, 0, 0, 0, 1},
-			Major:      1,
-			Minor:      0,
-			Patch:      0,
-			PreRelease: 0,
-		}.Encode()
-
-		// Run bootstrap superchain command with custom versions
-		output := runner.ExpectSuccessWithNetwork(t, []string{
-			"bootstrap", "superchain",
-			"--outfile", superchainOutputFile,
-			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
-			"--protocol-versions-owner", protocolVersionsOwner.Hex(),
-			"--guardian", guardian.Hex(),
-			"--required-protocol-version", common.Hash(customVersion).Hex(),
-			"--recommended-protocol-version", common.Hash(customVersion).Hex(),
-		}, nil)
-
-		t.Logf("Bootstrap superchain (custom protocol versions) output:\n%s", output)
 
 		// Verify output file was created
 		require.FileExists(t, superchainOutputFile)
@@ -115,7 +72,6 @@ func TestCLIBootstrap(t *testing.T) {
 			"bootstrap", "superchain",
 			"--outfile", superchainOutputFile,
 			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
-			"--protocol-versions-owner", protocolVersionsOwner.Hex(),
 			"--guardian", guardian.Hex(),
 			"--paused",
 		}, nil)
@@ -144,7 +100,6 @@ func TestCLIBootstrap(t *testing.T) {
 			"bootstrap", "superchain",
 			"--outfile", superchainOutputFile,
 			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
-			"--protocol-versions-owner", protocolVersionsOwner.Hex(),
 			"--guardian", guardian.Hex(),
 		}, nil)
 
@@ -163,7 +118,6 @@ func TestCLIBootstrap(t *testing.T) {
 			"bootstrap", "implementations",
 			"--outfile", implsOutputFile,
 			"--mips-version", strconv.Itoa(int(standard.MIPSVersion)),
-			"--protocol-versions-proxy", superchainOutput.ProtocolVersionsProxy.Hex(),
 			"--superchain-config-proxy", superchainOutput.SuperchainConfigProxy.Hex(),
 			"--l1-proxy-admin-owner", superchainProxyAdminOwner.Hex(), // Use proxy admin owner as upgrade controller
 			"--superchain-proxy-admin", superchainOutput.SuperchainProxyAdmin.Hex(),
@@ -198,6 +152,5 @@ func TestCLIBootstrap(t *testing.T) {
 		require.NotEqual(t, common.Address{}, implsOutput.DisputeGameFactoryImpl, "DisputeGameFactoryImpl should be set")
 		require.NotEqual(t, common.Address{}, implsOutput.AnchorStateRegistryImpl, "AnchorStateRegistryImpl should be set")
 		require.NotEqual(t, common.Address{}, implsOutput.SuperchainConfigImpl, "SuperchainConfigImpl should be set")
-		require.NotEqual(t, common.Address{}, implsOutput.ProtocolVersionsImpl, "ProtocolVersionsImpl should be set")
 	})
 }

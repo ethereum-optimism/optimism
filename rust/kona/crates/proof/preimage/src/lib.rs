@@ -17,8 +17,19 @@ pub mod errors;
 mod key;
 pub use key::{PreimageKey, PreimageKeyType};
 
+mod local_keys;
+pub use local_keys::{
+    DEPENDENCY_SET_KEY, L1_CONFIG_KEY, L1_HEAD_KEY, L2_CHAIN_ID_KEY, L2_CLAIM_BLOCK_NUMBER_KEY,
+    L2_CLAIM_KEY, L2_OUTPUT_ROOT_KEY, L2_ROLLUP_CONFIG_KEY,
+};
+
 mod oracle;
 pub use oracle::{OracleReader, OracleServer};
+
+#[cfg(feature = "verify")]
+mod verifier;
+#[cfg(feature = "verify")]
+pub use verifier::{VerifyingPreimageFetcher, verify_preimage};
 
 mod hint;
 pub use hint::{HintReader, HintWriter};

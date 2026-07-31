@@ -10,7 +10,6 @@ import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.so
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
@@ -26,7 +25,6 @@ abstract contract SystemConfig_TestInit is CommonTest {
 
     bytes32 public constant EXAMPLE_FEATURE = "EXAMPLE_FEATURE";
 
-    address batchInbox;
     address owner;
     bytes32 batcherHash;
     uint64 gasLimit;
@@ -38,7 +36,6 @@ abstract contract SystemConfig_TestInit is CommonTest {
 
     function setUp() public virtual override {
         super.setUp();
-        batchInbox = deploy.cfg().batchInboxAddress();
         owner = deploy.cfg().finalSystemOwner();
         basefeeScalar = deploy.cfg().basefeeScalar();
         blobbasefeeScalar = deploy.cfg().blobbasefeeScalar();
@@ -82,7 +79,6 @@ contract SystemConfig_Constructor_Test is SystemConfig_TestInit {
         assertEq(actual.systemTxMaxGas, 0);
         assertEq(actual.maximumBaseFee, 0);
         assertEq(impl.startBlock(), type(uint256).max);
-        assertEq(address(impl.batchInbox()), address(0));
         // Check addresses
         assertEq(address(impl.l1CrossDomainMessenger()), address(0));
         assertEq(address(impl.l1ERC721Bridge()), address(0));
@@ -102,13 +98,9 @@ contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
     }
 
     function test_initialize_interopFlag_succeeds() external view {
-        if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
-            /// if devfeature flag is on, check in system config is on
-            assertTrue(systemConfig.isFeatureEnabled(Features.INTEROP));
-        } else {
-            /// if dev feature flag is off, check system config is off
-            assertFalse(systemConfig.isFeatureEnabled(Features.INTEROP));
-        }
+        // The dev feature only makes interop code available. Runtime INTEROP activation is handled
+        // by OPContractsManagerMigrator so initialization does not enable the SystemConfig feature.
+        assertFalse(systemConfig.isFeatureEnabled(Features.INTEROP));
     }
 
     /// @notice Tests that initialization sets the correct values.
@@ -133,7 +125,6 @@ contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
         // Depends on start block being set to 0 in `initialize`
         uint256 cfgStartBlock = deploy.cfg().systemConfigStartBlock();
         assertEq(systemConfig.startBlock(), (cfgStartBlock == 0 ? block.number : cfgStartBlock));
-        assertEq(address(systemConfig.batchInbox()), address(batchInbox));
 
         // Check address getters both for the single contract getter and the struct getter
         ISystemConfig.Addresses memory addrs = systemConfig.getAddresses();
@@ -148,6 +139,40 @@ contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
         assertEq(address(systemConfig.optimismMintableERC20Factory()), address(optimismMintableERC20Factory));
         assertEq(addrs.optimismMintableERC20Factory, address(optimismMintableERC20Factory));
         assertNotEq(systemConfig.l2ChainId(), 0);
+    }
+
+    /// @notice Tests that initialization clears legacy state.
+    function test_initialize_clearsLegacyState_succeeds() external {
+        bytes32 batchInboxSlot = bytes32(uint256(keccak256("systemconfig.batchinbox")) - 1);
+        StorageSlot memory overheadSlot = ForgeArtifacts.getSlot("SystemConfig", "overhead");
+
+        // Seed the values so a no-op `initialize` cannot pass this test.
+        vm.store(address(systemConfig), batchInboxSlot, bytes32(uint256(uint160(address(0xbadbad)))));
+        vm.store(address(systemConfig), bytes32(overheadSlot.slot), bytes32(uint256(2100)));
+        assertEq(vm.load(address(systemConfig), batchInboxSlot), bytes32(uint256(uint160(address(0xbadbad)))));
+        assertEq(systemConfig.overhead(), 2100);
+
+        vm.store(address(systemConfig), bytes32(0), bytes32(0));
+        ISystemConfig.Addresses memory addresses = systemConfig.getAddresses();
+        uint256 l2ChainId = systemConfig.l2ChainId();
+        ISuperchainConfig superchainConfig = systemConfig.superchainConfig();
+        address admin = address(uint160(uint256(vm.load(address(systemConfig), Constants.PROXY_OWNER_ADDRESS))));
+        vm.prank(admin);
+        systemConfig.initialize({
+            _owner: owner,
+            _basefeeScalar: basefeeScalar,
+            _blobbasefeeScalar: blobbasefeeScalar,
+            _batcherHash: batcherHash,
+            _gasLimit: gasLimit,
+            _unsafeBlockSigner: unsafeBlockSigner,
+            _config: Constants.DEFAULT_RESOURCE_CONFIG(),
+            _addresses: addresses,
+            _l2ChainId: l2ChainId,
+            _superchainConfig: superchainConfig
+        });
+
+        assertEq(vm.load(address(systemConfig), batchInboxSlot), bytes32(0));
+        assertEq(systemConfig.overhead(), 0);
     }
 
     /// @notice Tests that initialization reverts if the gas limit is too low.
@@ -169,7 +194,6 @@ contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
             _gasLimit: minimumGasLimit - 1,
             _unsafeBlockSigner: address(1),
             _config: Constants.DEFAULT_RESOURCE_CONFIG(),
-            _batchInbox: address(0),
             _addresses: ISystemConfig.Addresses({
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
@@ -227,7 +251,6 @@ contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
             _gasLimit: minimumGasLimit - 1,
             _unsafeBlockSigner: address(1),
             _config: Constants.DEFAULT_RESOURCE_CONFIG(),
-            _batchInbox: address(0),
             _addresses: ISystemConfig.Addresses({
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
@@ -263,7 +286,6 @@ contract SystemConfig_StartBlock_Test is SystemConfig_TestInit {
             _gasLimit: gasLimit,
             _unsafeBlockSigner: address(1),
             _config: Constants.DEFAULT_RESOURCE_CONFIG(),
-            _batchInbox: address(0),
             _addresses: ISystemConfig.Addresses({
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
@@ -279,8 +301,8 @@ contract SystemConfig_StartBlock_Test is SystemConfig_TestInit {
         assertEq(systemConfig.startBlock(), block.number);
     }
 
-    /// @notice Tests that startBlock is not updated when it's not zero.
-    function test_startBlock_update_fails() external {
+    /// @notice Tests that initialization preserves a non-zero start block.
+    function test_initialize_preservesStartBlock_succeeds() external {
         // Wipe out the initialized slot so the proxy can be initialized again
         vm.store(address(systemConfig), bytes32(0), bytes32(0));
         // Set slot startBlock to non-zero value 1
@@ -296,7 +318,6 @@ contract SystemConfig_StartBlock_Test is SystemConfig_TestInit {
             _gasLimit: gasLimit,
             _unsafeBlockSigner: address(1),
             _config: Constants.DEFAULT_RESOURCE_CONFIG(),
-            _batchInbox: address(0),
             _addresses: ISystemConfig.Addresses({
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
@@ -371,36 +392,6 @@ contract SystemConfig_SetBatcherHash_Test is SystemConfig_TestInit {
     }
 }
 
-/// @title SystemConfig_SetGasConfig_Test
-/// @notice Test contract for SystemConfig `setGasConfig` function.
-contract SystemConfig_SetGasConfig_Test is SystemConfig_TestInit {
-    /// @notice Tests that `setGasConfig` reverts if the caller is not the owner.
-    function test_setGasConfig_notOwner_reverts() external {
-        vm.expectRevert("Ownable: caller is not the owner");
-        systemConfig.setGasConfig(0, 0);
-    }
-
-    /// @notice Ensures that `setGasConfig` reverts if version byte is set.
-    function test_setGasConfig_badValues_reverts() external {
-        vm.prank(systemConfig.owner());
-        vm.expectRevert("SystemConfig: scalar exceeds max.");
-        systemConfig.setGasConfig({ _overhead: 0, _scalar: type(uint256).max });
-    }
-
-    /// @notice Tests that `setGasConfig` updates the overhead and scalar successfully.
-    function testFuzz_setGasConfig_succeeds(uint256 newOverhead, uint256 newScalar) external {
-        // always zero out most significant byte
-        newScalar = (newScalar << 16) >> 16;
-        vm.expectEmit(address(systemConfig));
-        emit ConfigUpdate(0, ISystemConfig.UpdateType.FEE_SCALARS, abi.encode(newOverhead, newScalar));
-
-        vm.prank(systemConfig.owner());
-        systemConfig.setGasConfig(newOverhead, newScalar);
-        assertEq(systemConfig.overhead(), newOverhead);
-        assertEq(systemConfig.scalar(), newScalar);
-    }
-}
-
 /// @title SystemConfig_SetGasConfigEcotone_Test
 /// @notice Test contract for SystemConfig `setGasConfigEcotone` function.
 contract SystemConfig_SetGasConfigEcotone_Test is SystemConfig_TestInit {
@@ -411,17 +402,22 @@ contract SystemConfig_SetGasConfigEcotone_Test is SystemConfig_TestInit {
     }
 
     function testFuzz_setGasConfigEcotone_succeeds(uint32 _basefeeScalar, uint32 _blobbasefeeScalar) external {
+        // Seed `overhead` so the event assertion proves the emitted zero is hardcoded, not read.
+        StorageSlot memory overheadSlot = ForgeArtifacts.getSlot("SystemConfig", "overhead");
+        vm.store(address(systemConfig), bytes32(overheadSlot.slot), bytes32(uint256(2100)));
+
         bytes32 encoded =
             ffi.encodeScalarEcotone({ _basefeeScalar: _basefeeScalar, _blobbasefeeScalar: _blobbasefeeScalar });
 
         vm.expectEmit(address(systemConfig));
-        emit ConfigUpdate(0, ISystemConfig.UpdateType.FEE_SCALARS, abi.encode(systemConfig.overhead(), encoded));
+        emit ConfigUpdate(0, ISystemConfig.UpdateType.FEE_SCALARS, abi.encode(uint256(0), encoded));
 
         vm.prank(systemConfig.owner());
         systemConfig.setGasConfigEcotone({ _basefeeScalar: _basefeeScalar, _blobbasefeeScalar: _blobbasefeeScalar });
         assertEq(systemConfig.basefeeScalar(), _basefeeScalar);
         assertEq(systemConfig.blobbasefeeScalar(), _blobbasefeeScalar);
         assertEq(systemConfig.scalar(), uint256(encoded));
+        assertEq(systemConfig.overhead(), 2100);
 
         (uint32 basefeeScalar, uint32 blobbbasefeeScalar) = ffi.decodeScalarEcotone(encoded);
         assertEq(uint256(basefeeScalar), uint256(_basefeeScalar));
@@ -613,7 +609,6 @@ contract SystemConfig_SetResourceConfig_Test is SystemConfig_TestInit {
             _gasLimit: gasLimit,
             _unsafeBlockSigner: address(0),
             _config: config,
-            _batchInbox: address(0),
             _addresses: ISystemConfig.Addresses({
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),

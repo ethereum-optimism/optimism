@@ -2,6 +2,8 @@ package filter
 
 import (
 	"context"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,7 +13,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-interop-filter/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 // Test constants
@@ -60,8 +64,8 @@ func newTestCrossValidator(chains map[eth.ChainID]ChainIngester, expiryWindow ui
 }
 
 // makeAccess creates a test access entry
-func makeAccess(chainID, timestamp, blockNum uint64, logIdx uint32, checksum types.MessageChecksum) types.Access {
-	return types.Access{
+func makeAccess(chainID, timestamp, blockNum uint64, logIdx uint32, checksum messages.MessageChecksum) messages.Access {
+	return messages.Access{
 		ChainID:     eth.ChainIDFromUInt64(chainID),
 		Timestamp:   timestamp,
 		BlockNumber: blockNum,
@@ -71,8 +75,8 @@ func makeAccess(chainID, timestamp, blockNum uint64, logIdx uint32, checksum typ
 }
 
 // makeExecDescriptor creates a test executing descriptor
-func makeExecDescriptor(chainID, timestamp, timeout uint64) types.ExecutingDescriptor {
-	return types.ExecutingDescriptor{
+func makeExecDescriptor(chainID, timestamp, timeout uint64) messages.ExecutingDescriptor {
+	return messages.ExecutingDescriptor{
 		ChainID:   eth.ChainIDFromUInt64(chainID),
 		Timestamp: timestamp,
 		Timeout:   timeout,
@@ -82,36 +86,6 @@ func makeExecDescriptor(chainID, timestamp, timeout uint64) types.ExecutingDescr
 // =============================================================================
 // Backend Failsafe Tests
 // =============================================================================
-
-func TestBackend_Failsafe_ManualEnabled(t *testing.T) {
-	backend, _ := newTestBackendWithMockChain(testChainA)
-
-	// Initially not enabled
-	require.False(t, backend.FailsafeEnabled())
-
-	// Enable manually
-	backend.SetFailsafeEnabled(true)
-	require.True(t, backend.FailsafeEnabled())
-
-	// Disable
-	backend.SetFailsafeEnabled(false)
-	require.False(t, backend.FailsafeEnabled())
-}
-
-func TestBackend_Failsafe_ChainError(t *testing.T) {
-	backend, mock := newTestBackendWithMockChain(testChainA)
-
-	// Initially not enabled
-	require.False(t, backend.FailsafeEnabled())
-
-	// Chain error enables failsafe
-	mock.SetError(ErrorReorg, "reorg detected")
-	require.True(t, backend.FailsafeEnabled())
-
-	// Clearing error disables failsafe
-	mock.ClearError()
-	require.False(t, backend.FailsafeEnabled())
-}
 
 func TestBackend_Failsafe_CrossValidatorError(t *testing.T) {
 	mock := newMockChainIngester()
@@ -138,12 +112,12 @@ func TestBackend_Failsafe_CrossValidatorError(t *testing.T) {
 
 	// Add an invalid exec message at timestamp 101 (which we'll validate next)
 	mock.AddExecMsg(IncludedMessage{
-		ExecutingMessage: &types.ExecutingMessage{
+		ExecutingMessage: &messages.ExecutingMessage{
 			ChainID:   eth.ChainIDFromUInt64(testChainA),
 			BlockNum:  999, // Non-existent
 			LogIdx:    0,
 			Timestamp: 50,
-			Checksum:  types.MessageChecksum{0xFF},
+			Checksum:  messages.MessageChecksum{0xFF},
 		},
 		InclusionBlockNum:  10,
 		InclusionTimestamp: 101, // Will be validated when advancing from 100 to 101
@@ -173,9 +147,18 @@ func TestBackend_Failsafe_AllClear(t *testing.T) {
 	require.False(t, backend.FailsafeEnabled())
 }
 
-// =============================================================================
-// Backend Ready State Tests
-// =============================================================================
+func TestBackend_ReorgRecovery_NoErrorIsNotResolvable(t *testing.T) {
+	mock := newMockChainIngester()
+	chains := map[eth.ChainID]ChainIngester{
+		eth.ChainIDFromUInt64(testChainA): mock,
+	}
+	backend := NewBackend(context.Background(), BackendParams{Logger: testlog.Logger(t, log.LevelCrit), Metrics: metrics.NoopMetrics, Chains: chains, CrossValidator: &mockCrossValidator{}})
+
+	_, _, err := backend.recoverChainReorg(context.Background(), eth.ChainIDFromUInt64(testChainA), mock)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "no ingester error")
+	require.Equal(t, 0, mock.rewindToFinalizedCount)
+}
 
 func TestBackend_Ready(t *testing.T) {
 	// No chains = not ready
@@ -191,36 +174,122 @@ func TestBackend_Ready(t *testing.T) {
 	require.False(t, backend.Ready(), "should not be ready when chains are not ready")
 }
 
-// =============================================================================
-// Backend CheckAccessList Tests
-// =============================================================================
-
-func TestBackend_CheckAccessList(t *testing.T) {
-	// Failsafe enabled returns error
-	backend, _ := newTestBackendWithMockChain(testChainA)
-	backend.SetFailsafeEnabled(true)
-	err := backend.CheckAccessList(context.Background(), nil, types.LocalUnsafe, makeExecDescriptor(testChainA, 100, 0))
-	require.ErrorIs(t, err, types.ErrFailsafeEnabled)
-
-	// Not ready returns error
-	backend = newTestBackend() // No chains = not ready
-	err = backend.CheckAccessList(context.Background(), nil, types.LocalUnsafe, makeExecDescriptor(testChainA, 100, 0))
-	require.ErrorIs(t, err, types.ErrUninitialized)
-
-	// Unsupported safety level returns error
+func TestBackend_CheckAccessList_SupportLegacyCheckAccessListFormat(t *testing.T) {
 	backend, mock := newTestBackendWithMockChain(testChainA)
+	backend.legacyCheckAccessListFormat = true
 	mock.SetReady(true)
-	err = backend.CheckAccessList(context.Background(), nil, types.Finalized, makeExecDescriptor(testChainA, 100, 0))
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "unsupported safety level")
-
-	// Unknown executing chain returns error
 	mock.SetLatestTimestamp(200)
-	unknownChainID := uint64(999)
-	err = backend.CheckAccessList(context.Background(), nil, types.LocalUnsafe, makeExecDescriptor(unknownChainID, 150, 0))
-	require.ErrorIs(t, err, types.ErrUnknownChain)
 
-	// LocalUnsafe with empty access list passes
-	err = backend.CheckAccessList(context.Background(), nil, types.LocalUnsafe, makeExecDescriptor(testChainA, 150, 0))
+	err := backend.CheckAccessList(context.Background(), nil, safety.LocalUnsafe, makeExecDescriptor(0, 150, 0))
 	require.NoError(t, err)
+}
+
+// =============================================================================
+// Failsafe reason logging
+// =============================================================================
+
+func TestFailsafeReasonDetail(t *testing.T) {
+	chain900 := eth.ChainIDFromUInt64(900)
+	chain1000 := eth.ChainIDFromUInt64(1000)
+
+	tests := []struct {
+		name      string
+		manual    bool
+		chainErrs map[eth.ChainID]*IngesterError
+		cvErr     *ValidatorError
+		want      string
+	}{
+		{
+			name: "none active",
+			want: failsafeReasonNone,
+		},
+		{
+			name:   "manual only",
+			manual: true,
+			want:   "manual override",
+		},
+		{
+			name:      "chain error includes reason and message",
+			chainErrs: map[eth.ChainID]*IngesterError{chain900: {Reason: ErrorReorg, Message: "parent hash mismatch at block 175901"}},
+			want:      "chain[900] reorg: parent hash mismatch at block 175901",
+		},
+		{
+			name:  "cross-validation includes message",
+			cvErr: &ValidatorError{Message: "invalid executing message at ts 42"},
+			want:  "cross-validation: invalid executing message at ts 42",
+		},
+		{
+			name:      "combined sources joined with semicolons",
+			manual:    true,
+			chainErrs: map[eth.ChainID]*IngesterError{chain900: {Reason: ErrorConflict, Message: "db conflict"}},
+			cvErr:     &ValidatorError{Message: "validation failed"},
+			want:      "manual override; chain[900] conflict: db conflict; cross-validation: validation failed",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, failsafeReasonDetail(tt.manual, tt.chainErrs, tt.cvErr))
+		})
+	}
+
+	t.Run("chains ordered numerically not lexicographically", func(t *testing.T) {
+		errs := map[eth.ChainID]*IngesterError{
+			chain1000: {Reason: ErrorReorg, Message: "r1000"},
+			chain900:  {Reason: ErrorReorg, Message: "r900"},
+		}
+		got := failsafeReasonDetail(false, errs, nil)
+		require.Less(t, strings.Index(got, "chain[900]"), strings.Index(got, "chain[1000]"),
+			"chains must be ordered numerically, got %q", got)
+	})
+}
+
+func TestBackend_FailsafeHeartbeat_LogsReasonWhileActive(t *testing.T) {
+	logger, logs := testlog.CaptureLogger(t, log.LevelInfo)
+	mock := newMockChainIngester()
+	b := NewBackend(context.Background(), BackendParams{
+		Logger:         logger,
+		Metrics:        metrics.NoopMetrics,
+		Chains:         map[eth.ChainID]ChainIngester{eth.ChainIDFromUInt64(testChainA): mock},
+		CrossValidator: &mockCrossValidator{},
+	})
+
+	const heartbeatMsg = "Failsafe still active"
+
+	// Not in failsafe -> heartbeat is silent.
+	b.logFailsafeIfActive()
+	require.Nil(t, logs.FindLog(testlog.NewMessageFilter(heartbeatMsg)),
+		"heartbeat must not log when failsafe is inactive")
+
+	// In failsafe -> heartbeat logs the reason and the underlying "why" at Warn.
+	mock.SetError(ErrorReorg, "parent hash mismatch at block 175901")
+	b.logFailsafeIfActive()
+	rec := logs.FindLog(testlog.NewMessageFilter(heartbeatMsg), testlog.NewLevelFilter(slog.LevelWarn))
+	require.NotNil(t, rec, "heartbeat must log at Warn while failsafe is active")
+	require.Contains(t, rec.AttrValue("reasons"), "reorg")
+	require.Contains(t, rec.AttrValue("detail"), "parent hash mismatch at block 175901")
+
+	// Cleared -> heartbeat goes silent again.
+	logs.Clear()
+	mock.ClearError()
+	b.logFailsafeIfActive()
+	require.Nil(t, logs.FindLog(testlog.NewMessageFilter(heartbeatMsg)),
+		"heartbeat must stop once failsafe clears")
+}
+
+func TestBackend_FailsafeLogInterval_Configured(t *testing.T) {
+	newBackend := func(interval time.Duration) *Backend {
+		return NewBackend(context.Background(), BackendParams{
+			Logger:              testlog.Logger(t, log.LevelError),
+			Metrics:             metrics.NoopMetrics,
+			Chains:              map[eth.ChainID]ChainIngester{},
+			CrossValidator:      &mockCrossValidator{},
+			FailsafeLogInterval: interval,
+		})
+	}
+
+	// Configured interval is honored.
+	require.Equal(t, 15*time.Second, newBackend(15*time.Second).failsafeLogInterval)
+
+	// Unset (zero) falls back to the default — guards against time.NewTicker(0) panicking.
+	require.Equal(t, defaultFailsafeLogInterval, newBackend(0).failsafeLogInterval)
 }

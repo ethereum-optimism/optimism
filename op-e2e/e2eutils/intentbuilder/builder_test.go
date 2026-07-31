@@ -32,7 +32,6 @@ func TestBuilder(t *testing.T) {
 	superchainConfig.WithSuperchainConfigProxy(superchainConfigProxyAddr)
 	superchainConfig.WithProxyAdminOwner(common.HexToAddress("0xaaaa"))
 	superchainConfig.WithGuardian(common.HexToAddress("0xbbbb"))
-	superchainConfig.WithProtocolVersionsOwner(common.HexToAddress("0xcccc"))
 	superchainConfig.WithChallenger(common.HexToAddress("0xdddd"))
 
 	// Configure L1
@@ -78,9 +77,6 @@ func TestBuilder(t *testing.T) {
 	// Test ContractsConfigurator methods
 	l2Config.WithL1ContractsLocator("http://l1.example.com")
 	l2Config.WithL2ContractsLocator("http://l2.example.com")
-
-	// Test RevenueShareConfigurator methods
-	l2Config.WithRevenueShare(true, common.HexToAddress("0x4444"))
 
 	// Test L2VaultsConfigurator methods
 	baseFeeRecipient := common.HexToAddress("0x1111")
@@ -135,7 +131,6 @@ func TestBuilder(t *testing.T) {
 		SuperchainRoles: &addresses.SuperchainRoles{
 			SuperchainProxyAdminOwner: common.HexToAddress("0xaaaa"),
 			SuperchainGuardian:        common.HexToAddress("0xbbbb"),
-			ProtocolVersionsOwner:     common.HexToAddress("0xcccc"),
 			Challenger:                common.HexToAddress("0xdddd"),
 		},
 		L1DevGenesisParams: &l1Params,
@@ -190,14 +185,18 @@ func TestBuilder(t *testing.T) {
 					"l2GenesisGraniteTimeOffset":  hexutil.Uint64(0),
 					"l2GenesisHoloceneTimeOffset": hexutil.Uint64(0),
 					"l2GenesisIsthmusTimeOffset":  hexutil.Uint64(isthmusOffset),
+					// Forks after the genesis fork are explicitly deactivated
+					// with a null override so they don't fall back to the
+					// deployer's default hardfork schedule.
+					"l2GenesisJovianTimeOffset": (*hexutil.Uint64)(nil),
+					"l2GenesisKarstTimeOffset":  (*hexutil.Uint64)(nil),
+					"l2GenesisLagoonTimeOffset": (*hexutil.Uint64)(nil),
 				},
 				L2DevGenesisParams: &state.L2DevGenesisParams{
 					Prefund: map[common.Address]*hexutil.U256{
 						bob: (*hexutil.U256)(bobFunds),
 					},
 				},
-				UseRevenueShare:    true,
-				ChainFeesRecipient: common.HexToAddress("0x4444"),
 			},
 		},
 	}
@@ -209,4 +208,20 @@ func TestBuilder(t *testing.T) {
 	require.NoError(t, err)
 
 	require.JSONEq(t, string(expectedJSON), string(actualJSON))
+}
+
+// TestWithForkAtGenesisBedrock is a regression guard: WithForkAtGenesis(Bedrock)
+// is the genesis baseline used by sysgo.WithHardforkSequentialActivation. Bedrock
+// has no schedulable time offset, so it must not panic, and must deactivate every
+// scheduleable fork with an explicit nil override.
+func TestWithForkAtGenesisBedrock(t *testing.T) {
+	b, l2 := New().WithL2(eth.ChainIDFromUInt64(420))
+	require.NotPanics(t, func() { l2.WithForkAtGenesis(opforks.Bedrock) })
+
+	overrides := b.(*intentBuilder).intent.Chains[0].DeployOverrides
+	require.Contains(t, overrides, "l2GenesisRegolithTimeOffset")
+	require.Contains(t, overrides, "l2GenesisLagoonTimeOffset")
+	for k, v := range overrides {
+		require.Nil(t, v, "fork override %s should be deactivated at Bedrock genesis", k)
+	}
 }

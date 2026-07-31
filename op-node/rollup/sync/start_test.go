@@ -3,6 +3,7 @@ package sync
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -337,5 +338,141 @@ func TestFindSyncStart(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.Name, testCase.Run)
+	}
+}
+
+func TestDurationToBlocks(t *testing.T) {
+	tests := []struct {
+		name   string
+		offset time.Duration
+		bt     uint64
+		want   uint64
+	}{
+		{"zero offset", 0, 2, 0},
+		{"negative treated as zero", -time.Hour, 2, 0},
+		{"zero block time", time.Hour, 0, 0},
+		{"ceil BT=2 offset=3s -> 2", 3 * time.Second, 2, 2},
+		{"exact BT=2 offset=4s -> 2", 4 * time.Second, 2, 2},
+		{"ceil BT=4 offset=15s -> 4", 15 * time.Second, 4, 4},
+		{"exact BT=4 offset=16s -> 4", 16 * time.Second, 4, 4},
+		{"sub-second offset truncates", 500 * time.Millisecond, 1, 0},
+		{"12h with 2s blocks", 12 * time.Hour, 2, 21600},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, DurationToBlocks(tt.offset, tt.bt))
+		})
+	}
+}
+
+func TestOffsetBlockNum(t *testing.T) {
+	tests := []struct {
+		name    string
+		offset  time.Duration
+		bt      uint64
+		head    uint64
+		genesis uint64
+		want    uint64
+	}{
+		{"zero offset returns head", 0, 2, 100, 0, 100},
+		{"head at genesis returns genesis", 10 * time.Second, 2, 0, 0, 0},
+		{"head below genesis returns head", 10 * time.Second, 2, 5, 10, 5},
+		{"normal retraction", 10 * time.Second, 2, 100, 0, 95},
+		{"clamps to genesis", 1000 * time.Hour, 2, 10, 0, 0},
+		{"non-zero genesis clamp", 10 * time.Second, 2, 15, 10, 10},
+		{"ceil retraction BT=4 offset=15s", 15 * time.Second, 4, 100, 0, 96},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, OffsetBlockNum(tt.offset, tt.bt, tt.head, tt.genesis))
+		})
+	}
+}
+
+type errTestFetch struct{}
+
+func (errTestFetch) Error() string { return "test fetch error" }
+
+var _ L2Chain = (*testutils.MockL2Client)(nil)
+
+func TestL2HeadsForELSyncWithOffset(t *testing.T) {
+	ctx := context.Background()
+	genesis := eth.BlockID{Hash: common.Hash{'g'}, Number: 0}
+	b0 := eth.L2BlockRef{Hash: genesis.Hash, Number: 0, ParentHash: common.Hash{}}
+	b1 := eth.L2BlockRef{Hash: common.Hash{'1'}, Number: 1, ParentHash: b0.Hash}
+	b3 := eth.L2BlockRef{Hash: common.Hash{'3'}, Number: 3, ParentHash: common.Hash{'2'}}
+	bt := uint64(2)
+
+	cfg := &rollup.Config{
+		Genesis:   rollup.Genesis{L2: genesis},
+		BlockTime: bt,
+	}
+
+	tests := []struct {
+		name     string
+		tip      eth.L2BlockRef
+		offset   time.Duration
+		stub     func(m *testutils.MockL2Client)
+		wantSafe eth.L2BlockRef
+		wantErr  bool
+	}{
+		{
+			name:     "zero offset returns tip as safe",
+			tip:      b3,
+			offset:   0,
+			stub:     func(m *testutils.MockL2Client) {},
+			wantSafe: b3,
+		},
+		{
+			name:     "tip at genesis returns tip",
+			tip:      b0,
+			offset:   100 * time.Hour,
+			stub:     func(m *testutils.MockL2Client) {},
+			wantSafe: b0,
+		},
+		{
+			name:   "retracts by ceil(offset/bt)",
+			tip:    b3,
+			offset: 4 * time.Second,
+			stub: func(m *testutils.MockL2Client) {
+				m.ExpectL2BlockRefByNumber(1, b1, nil)
+			},
+			wantSafe: b1,
+		},
+		{
+			name:   "large offset clamps to genesis",
+			tip:    b1,
+			offset: 1000 * time.Hour,
+			stub: func(m *testutils.MockL2Client) {
+				m.ExpectL2BlockRefByNumber(0, b0, nil)
+			},
+			wantSafe: b0,
+		},
+		{
+			name:   "fetch error propagates",
+			tip:    b3,
+			offset: 3 * time.Second,
+			stub: func(m *testutils.MockL2Client) {
+				m.ExpectL2BlockRefByNumber(1, eth.L2BlockRef{}, errTestFetch{})
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &testutils.MockL2Client{}
+			tt.stub(m)
+			syncCfg := &Config{OffsetELSafe: tt.offset}
+			result, err := L2HeadsForELSyncWithOffset(ctx, cfg, m, syncCfg, tt.tip)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.tip, result.Unsafe, "unsafe head should always be the tip")
+			require.Equal(t, tt.wantSafe, result.Safe, "safe head")
+			require.Equal(t, tt.wantSafe, result.Finalized, "finalized head")
+		})
 	}
 }

@@ -10,6 +10,8 @@ extend-exclude = [
     "op-revm/CHANGELOG.md",
     "op-reth/crates/storage/libmdbx-rs/mdbx-sys/libmdbx",
     "op-reth/testing/ef-tests",
+    "op-rbuilder",
+    "rollup-boost",
 ]
 
 [default]
@@ -112,3 +114,6 @@ ONL = "ONL"
 Iy = "Iy"
 Pn = "Pn"
 BA = "BA"
+
+# op-e2e Go identifiers (kona/tests/proofs action tests)
+dfault = "dfault"

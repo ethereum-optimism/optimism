@@ -17,7 +17,6 @@ import (
 
 // TestInteropMon is testing that the op-interop-mon metrics are correctly collected
 func TestInteropMon(gt *testing.T) {
-	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
 	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 
@@ -35,7 +34,7 @@ func TestInteropMon(gt *testing.T) {
 		MetricsConfig: opmetrics.CLIConfig{
 			Enabled: true,
 		},
-	}, clients, []monitor.FailsafeClient{}, t.Logger())
+	}, clients, t.Logger())
 	t.Require().NoError(err)
 	require.NoError(im.Start(t.Ctx()))
 

@@ -20,17 +20,16 @@ var outputRootGameTypes = []types.GameType{
 	types.AsteriscKonaGameType,
 	types.OPSuccinctGameType,
 	types.CannonKonaGameType,
-	types.ZKDisputeGameType,
 	types.FastGameType,
 	types.AlphabetGameType,
 	types.KailuaGameType,
 }
 
 var superRootGameTypes = []types.GameType{
-	types.SuperCannonGameType,
 	types.SuperPermissionedGameType,
 	types.SuperAsteriscKonaGameType,
 	types.SuperCannonKonaGameType,
+	types.ZKDisputeGameType,
 }
 
 // EnrichedClaim extends the faultTypes.Claim with additional context.
@@ -51,6 +50,10 @@ type EnrichedGameData struct {
 	BlockNumberChallenged bool
 	BlockNumberChallenger common.Address
 	Claims                []EnrichedClaim
+
+	// AnchorStateRegistry is the address of the AnchorStateRegistry this game builds on.
+	// Zero if the game's contract version does not expose it.
+	AnchorStateRegistry common.Address
 
 	AgreeWithClaim    bool
 	ExpectedRootClaim common.Hash

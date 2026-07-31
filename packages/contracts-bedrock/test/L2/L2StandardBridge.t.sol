@@ -337,7 +337,7 @@ contract L2StandardBridge_Withdraw_Test is L2StandardBridge_TestInit {
         l2StandardBridge.withdraw{ value: 100 }(address(L2Token), 100, 1, hex"");
     }
 
-    /// @notice Tests that the legacy `withdraw` interface on the L2StandardBridge sucessfully
+    /// @notice Tests that the legacy `withdraw` interface on the L2StandardBridge successfully
     ///         initiates a withdrawal.
     function test_withdraw_ether_succeeds() external {
         skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);

@@ -1,8 +1,11 @@
 ---
 title: Bridging your custom ERC-20 token using the Standard Bridge
 description: Learn how to bridge your custom ERC-20 token using the standard bridge.
+diataxis: tutorial
 ---
 
+import { TutorialFaucets } from '/snippets/tutorial-setup-wallet-and-funds.mdx';
+import StandardBridgeTokenWarning from '/snippets/standard-bridge-token-warning.mdx';
 
 In this tutorial, you'll learn how to bridge a custom ERC-20 token from Ethereum to an OP Stack chain using the Standard Bridge system.
 This tutorial is meant for developers who already have an existing ERC-20 token on Ethereum and want to create a bridged representation of that token on OP Mainnet.
@@ -11,9 +14,7 @@ This tutorial explains how you can create a custom token that conforms to the [`
 A custom token allows you to do things like trigger extra logic whenever a token is deposited.
 If you don't need extra functionality like this, consider following the tutorial on [Bridging Your Standard ERC-20 Token Using the Standard Bridge](./standard-bridge-standard-token) instead.
 
-<Info>
-  The Standard Bridge **does not** support [**fee on transfer tokens**](https://github.com/d-xo/weird-erc20#fee-on-transfer) or [**rebasing tokens**](https://github.com/d-xo/weird-erc20#balance-modifications-outside-of-transfers-rebasingairdrops) because they can cause bridge accounting errors.
-</Info>
+<StandardBridgeTokenWarning />
 
 ## About OptimismMintableERC20s
 
@@ -32,10 +33,7 @@ This tutorial will show you how to create a custom token that implements this in
 This tutorial explains how to create a bridged ERC-20 token on OP Sepolia.
 You will need to get some ETH on both of these testnets.
 
-<Info>
-  You can use [this faucet](https://sepoliafaucet.com/) to get ETH on Sepolia.
-  You can use the [Superchain Faucet](https://console.optimism.io/faucet?utm_source=op-docs\&utm_medium=docs) to get ETH on OP Sepolia.
-</Info>
+<TutorialFaucets />
 
 ## Add OP Sepolia to your wallet
 
@@ -269,7 +267,7 @@ contract MyCustomL2Token is IOptimismMintableERC20, ILegacyMintableERC20, ERC20,
   </Step>
   <Step title="Review the example contract">
 
-  Take a moment to review the example contract. It's closely based on the official [`OptimismMintableERC20`](https://github.com/ethereum-optimism/optimism/blob/v1.12.2/packages/contracts-bedrock/src/universal/OptimismMintableERC20.sol) contract with one key modification:
+  Take a moment to review the example contract. It's closely based on the official [`OptimismMintableERC20`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/universal/OptimismMintableERC20.sol) contract with one key modification:
 
   The `burn` function has been modified to always revert, making it impossible to withdraw tokens back to L1.
 

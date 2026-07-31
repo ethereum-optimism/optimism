@@ -37,9 +37,14 @@ pub struct OverrideArgs {
     /// setting.
     #[arg(long, env = "KONA_NODE_OVERRIDE_PECTRA_BLOB_SCHEDULE")]
     pub pectra_blob_schedule_override: Option<u64>,
-    /// Manually specify the timestamp for the Interop fork, overriding the bundled setting.
-    #[arg(long, env = "KONA_NODE_OVERRIDE_INTEROP")]
-    pub interop_override: Option<u64>,
+    /// Manually specify the timestamp for the Lagoon fork, overriding the bundled setting.
+    #[arg(long, env = "KONA_NODE_OVERRIDE_LAGOON")]
+    pub lagoon_override: Option<u64>,
+    /// Manually set `keep_karst_upgrade_gas`, overriding the bundled setting. When true, the Karst
+    /// activation block's one-time upgrade gas is kept on every later block (for chains that
+    /// activated Karst with the leak baked into their history).
+    #[arg(long, env = "KONA_NODE_OVERRIDE_KEEP_KARST_UPGRADE_GAS")]
+    pub keep_karst_upgrade_gas_override: Option<bool>,
 }
 
 impl Default for OverrideArgs {
@@ -71,7 +76,10 @@ impl OverrideArgs {
             isthmus_time: self.isthmus_override.map(Some).unwrap_or(config.hardforks.isthmus_time),
             jovian_time: self.jovian_override.map(Some).unwrap_or(config.hardforks.jovian_time),
             karst_time: self.karst_override.map(Some).unwrap_or(config.hardforks.karst_time),
-            interop_time: self.interop_override.map(Some).unwrap_or(config.hardforks.interop_time),
+            keep_karst_upgrade_gas: self
+                .keep_karst_upgrade_gas_override
+                .unwrap_or(config.hardforks.keep_karst_upgrade_gas),
+            lagoon_time: self.lagoon_override.map(Some).unwrap_or(config.hardforks.lagoon_time),
         };
         RollupConfig { hardforks, ..config }
     }
@@ -114,8 +122,10 @@ mod tests {
             "1745000001",
             "--karst-override",
             "1750000000",
-            "--interop-override",
+            "--lagoon-override",
             "1755000000",
+            "--keep-karst-upgrade-gas-override",
+            "true",
         ]);
         let config = RollupConfig::default();
         let updated_config = args.override_flags.apply(config);
@@ -133,7 +143,8 @@ mod tests {
                 isthmus_time: Some(1740000000),
                 jovian_time: Some(1745000001),
                 karst_time: Some(1750000000),
-                interop_time: Some(1755000000),
+                keep_karst_upgrade_gas: true,
+                lagoon_time: Some(1755000000),
             }
         );
     }
@@ -167,7 +178,8 @@ mod tests {
                 isthmus_override: None,
                 jovian_override: None,
                 karst_override: None,
-                interop_override: None,
+                lagoon_override: None,
+                keep_karst_upgrade_gas_override: None,
             }
         );
         // Sanity check that the default impl matches the expected default values.

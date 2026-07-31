@@ -16,8 +16,8 @@ pub use batch::{
     MAX_SPAN_BATCH_ELEMENTS, RawSpanBatch, SINGLE_BATCH_TYPE, SPAN_BATCH_TYPE, SingleBatch,
     SpanBatch, SpanBatchBits, SpanBatchEip1559TransactionData, SpanBatchEip2930TransactionData,
     SpanBatchEip7702TransactionData, SpanBatchElement, SpanBatchError,
-    SpanBatchLegacyTransactionData, SpanBatchPayload, SpanBatchPrefix, SpanBatchTransactionData,
-    SpanBatchTransactions, SpanDecodingError,
+    SpanBatchLegacyTransactionData, SpanBatchPayload, SpanBatchPostExecTransactionData,
+    SpanBatchPrefix, SpanBatchTransactionData, SpanBatchTransactions, SpanDecodingError,
 };
 
 mod brotli;
@@ -37,17 +37,21 @@ pub use block::{BlockInfo, FromBlockError, L2BlockInfo};
 
 mod frame;
 pub use frame::{
-    DERIVATION_VERSION_0, FRAME_OVERHEAD, Frame, FrameDecodingError, FrameParseError, MAX_FRAME_LEN,
+    BASE_FRAME_LEN, DERIVATION_VERSION_0, FRAME_OVERHEAD, Frame, FrameDecodingError,
+    FrameParseError, MAX_FRAME_LEN,
 };
 
 mod utils;
-pub use utils::{read_tx_data, to_system_config};
+pub use utils::{to_system_config, upgrade_gas};
 
 mod channel;
 pub use channel::{
     CHANNEL_ID_LENGTH, Channel, ChannelError, ChannelId, FJORD_MAX_RLP_BYTES_PER_CHANNEL,
     MAX_RLP_BYTES_PER_CHANNEL,
 };
+
+mod ordered_channel;
+pub use ordered_channel::{OrderedChannel, ReadError};
 
 mod deposits;
 pub use deposits::{
@@ -64,8 +68,7 @@ pub use info::{
     L1BlockInfoJovianBaseFields, L1BlockInfoJovianFields, L1BlockInfoTx,
 };
 
-mod predeploys;
-pub use predeploys::Predeploys;
+pub use kona_genesis::Predeploys;
 
 mod output_root;
 pub use output_root::OutputRoot;

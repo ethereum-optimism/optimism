@@ -322,7 +322,6 @@ func testSequencerChaosWithSeed(t *testing.T, seed int64) {
 	require.NoError(t, seq.Init(context.Background(), true))
 	require.NoError(t, ex.Drain(), "initial forkchoice update etc. completes")
 
-	// TODO(#16917): direct call used now; no ForkchoiceRequestEvent expected
 	// Provide initial forkchoice so the sequencer has a prestate to build on
 	testEm.Emit(context.Background(), engine.ForkchoiceUpdateEvent{
 		UnsafeL2Head:    genesisRef,

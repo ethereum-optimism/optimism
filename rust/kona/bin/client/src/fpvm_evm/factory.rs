@@ -2,13 +2,15 @@
 
 use super::{precompiles::OpFpvmPrecompiles, tx::FpvmOpTx};
 use alloy_evm::{Database, EvmEnv, EvmFactory};
-use alloy_op_evm::{OpEvm, OpTxError};
+use alloy_op_evm::{
+    OpEvm, OpEvmContext, OpTx, OpTxError,
+    post_exec::{PostExecEvmFactoryHooks, PostExecExecutedTx, PostExecTxContext, WarmingState},
+};
 use kona_preimage::{HintWriterClient, PreimageOracleClient};
-use op_revm::{DefaultOp, OpContext, OpEvm as RevmOpEvm, OpHaltReason, OpSpecId};
+use op_revm::{L1BlockInfo, OpBuilder, OpHaltReason, OpSpecId, OpTransaction};
 use revm::{
-    Context, Inspector,
-    context::{BlockEnv, Evm as RevmEvm, FrameStack, result::EVMError},
-    handler::instructions::EthInstructions,
+    Context, Inspector, MainContext,
+    context::{BlockEnv, CfgEnv, DBErrorMarker, result::EVMError},
     inspector::NoOpInspector,
 };
 
@@ -42,16 +44,56 @@ where
     }
 }
 
+impl<H, O> PostExecEvmFactoryHooks for FpvmOpEvmFactory<H, O>
+where
+    H: HintWriterClient + Clone + Send + Sync + 'static,
+    O: PreimageOracleClient + Clone + Send + Sync + 'static,
+{
+    type Snapshot = WarmingState;
+
+    fn begin_post_exec_tx<DB, I>(evm: &mut Self::Evm<DB, I>, ctx: PostExecTxContext)
+    where
+        DB: Database,
+        I: Inspector<Self::Context<DB>>,
+    {
+        evm.begin_post_exec_tx(ctx);
+    }
+
+    fn take_last_post_exec_tx_result<DB, I>(evm: &mut Self::Evm<DB, I>) -> PostExecExecutedTx
+    where
+        DB: Database,
+        I: Inspector<Self::Context<DB>>,
+    {
+        evm.take_last_post_exec_tx_result()
+    }
+
+    fn refund_snapshot<DB, I>(evm: &Self::Evm<DB, I>) -> Self::Snapshot
+    where
+        DB: Database,
+        I: Inspector<Self::Context<DB>>,
+    {
+        evm.refund_snapshot()
+    }
+
+    fn seed_refund_snapshot<DB, I>(evm: &mut Self::Evm<DB, I>, state: Self::Snapshot)
+    where
+        DB: Database,
+        I: Inspector<Self::Context<DB>>,
+    {
+        evm.seed_refund_snapshot(state);
+    }
+}
+
 impl<H, O> EvmFactory for FpvmOpEvmFactory<H, O>
 where
     H: HintWriterClient + Clone + Send + Sync + 'static,
     O: PreimageOracleClient + Clone + Send + Sync + 'static,
 {
-    type Evm<DB: Database, I: Inspector<OpContext<DB>>> =
+    type Evm<DB: Database, I: Inspector<OpEvmContext<DB>>> =
         OpEvm<DB, I, OpFpvmPrecompiles<H, O>, FpvmOpTx>;
-    type Context<DB: Database> = OpContext<DB>;
+    type Context<DB: Database> = OpEvmContext<DB>;
     type Tx = FpvmOpTx;
-    type Error<DBError: core::error::Error + Send + Sync + 'static> = EVMError<DBError, OpTxError>;
+    type Error<DBError: DBErrorMarker> = EVMError<DBError, OpTxError>;
     type HaltReason = OpHaltReason;
     type Spec = OpSpecId;
     type Precompiles = OpFpvmPrecompiles<H, O>;
@@ -63,18 +105,19 @@ where
         input: EvmEnv<OpSpecId>,
     ) -> Self::Evm<DB, NoOpInspector> {
         let spec_id = *input.spec_id();
-        let ctx = Context::op().with_db(db).with_block(input.block_env).with_cfg(input.cfg_env);
-        let revm_evm = RevmOpEvm(RevmEvm {
-            ctx,
-            inspector: NoOpInspector {},
-            instruction: EthInstructions::new_mainnet_with_spec(spec_id.into()),
-            precompiles: OpFpvmPrecompiles::new_with_spec(
+        let revm_evm = Context::mainnet()
+            .with_tx(OpTx(OpTransaction::builder().build_fill()))
+            .with_cfg(CfgEnv::new_with_spec(OpSpecId::BEDROCK))
+            .with_chain(L1BlockInfo::default())
+            .with_db(db)
+            .with_block(input.block_env)
+            .with_cfg(input.cfg_env)
+            .build_op_with_inspector(NoOpInspector {})
+            .with_precompiles(OpFpvmPrecompiles::new_with_spec(
                 spec_id,
                 self.hint_writer.clone(),
                 self.oracle_reader.clone(),
-            ),
-            frame_stack: FrameStack::new(),
-        });
+            ));
 
         OpEvm::new(revm_evm, false)
     }
@@ -86,18 +129,19 @@ where
         inspector: I,
     ) -> Self::Evm<DB, I> {
         let spec_id = *input.spec_id();
-        let ctx = Context::op().with_db(db).with_block(input.block_env).with_cfg(input.cfg_env);
-        let revm_evm = RevmOpEvm(RevmEvm {
-            ctx,
-            inspector,
-            instruction: EthInstructions::new_mainnet_with_spec(spec_id.into()),
-            precompiles: OpFpvmPrecompiles::new_with_spec(
+        let revm_evm = Context::mainnet()
+            .with_tx(OpTx(OpTransaction::builder().build_fill()))
+            .with_cfg(CfgEnv::new_with_spec(OpSpecId::BEDROCK))
+            .with_chain(L1BlockInfo::default())
+            .with_db(db)
+            .with_block(input.block_env)
+            .with_cfg(input.cfg_env)
+            .build_op_with_inspector(inspector)
+            .with_precompiles(OpFpvmPrecompiles::new_with_spec(
                 spec_id,
                 self.hint_writer.clone(),
                 self.oracle_reader.clone(),
-            ),
-            frame_stack: FrameStack::new(),
-        });
+            ));
 
         OpEvm::new(revm_evm, true)
     }

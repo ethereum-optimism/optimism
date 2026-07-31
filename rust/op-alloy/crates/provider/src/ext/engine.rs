@@ -8,7 +8,7 @@ use alloy_rpc_types_engine::{
 use alloy_transport::{Transport, TransportResult};
 use op_alloy_rpc_types_engine::{
     OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4, OpExecutionPayloadV4,
-    OpPayloadAttributes, ProtocolVersion,
+    OpPayloadAttributes,
 };
 
 /// Extension trait that gives access to Optimism engine API RPC methods.
@@ -133,6 +133,17 @@ pub trait OpEngineApi<N, T> {
         payload_id: PayloadId,
     ) -> TransportResult<OpExecutionPayloadEnvelopeV4>;
 
+    /// This function will return the execution payload for the Osaka hardfork (Karst on the OP
+    /// Stack) via `engine_getPayloadV5`.
+    ///
+    /// OP modifications:
+    /// - the response type is the V4-shaped [`OpExecutionPayloadEnvelopeV4`]; Osaka does not add
+    ///   new payload fields on the OP Stack, it only bumps the engine method version.
+    async fn get_payload_v5(
+        &self,
+        payload_id: PayloadId,
+    ) -> TransportResult<OpExecutionPayloadEnvelopeV4>;
+
     /// Returns the execution payload bodies by the given hash.
     ///
     /// See also <https://github.com/ethereum/execution-apis/blob/6452a6b194d7db269bf1dbd087a267251d3cc7f8/src/engine/shanghai.md#engine_getpayloadbodiesbyhashv1>
@@ -169,18 +180,6 @@ pub trait OpEngineApi<N, T> {
         &self,
         client_version: ClientVersionV1,
     ) -> TransportResult<Vec<ClientVersionV1>>;
-
-    /// Optional extension to the Engine API.
-    ///
-    /// Signals superchain information to the Engine: V1 signals which protocol version is
-    /// recommended and required.
-    ///
-    /// See : <https://specs.optimism.io/protocol/exec-engine.html#engine_signalsuperchainv1>
-    async fn signal_superchain_v1(
-        &self,
-        recommended: ProtocolVersion,
-        required: ProtocolVersion,
-    ) -> TransportResult<ProtocolVersion>;
 
     /// Returns the list of Engine API methods supported by the execution layer client software.
     ///
@@ -278,6 +277,13 @@ where
         self.client().request("engine_getPayloadV4", (payload_id,)).await
     }
 
+    async fn get_payload_v5(
+        &self,
+        payload_id: PayloadId,
+    ) -> TransportResult<OpExecutionPayloadEnvelopeV4> {
+        self.client().request("engine_getPayloadV5", (payload_id,)).await
+    }
+
     async fn get_payload_bodies_by_hash_v1(
         &self,
         block_hashes: Vec<BlockHash>,
@@ -298,15 +304,6 @@ where
         client_version: ClientVersionV1,
     ) -> TransportResult<Vec<ClientVersionV1>> {
         self.client().request("engine_getClientVersionV1", (client_version,)).await
-    }
-
-    async fn signal_superchain_v1(
-        &self,
-        recommended: ProtocolVersion,
-        required: ProtocolVersion,
-    ) -> TransportResult<ProtocolVersion> {
-        let signal = op_alloy_rpc_types_engine::SuperchainSignal { recommended, required };
-        self.client().request("engine_signalSuperchainV1", (signal,)).await
     }
 
     async fn exchange_capabilities(

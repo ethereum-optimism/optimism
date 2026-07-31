@@ -34,7 +34,7 @@ contract MyContract {
 You can use an interface:
 
 ```solidity
-import "./interfaces/IComplexContract.sol";`
+import "./interfaces/IComplexContract.sol";
 
 contract MyContract {
     IComplexContract public complexContract;
@@ -173,7 +173,7 @@ values. You may need to manually fix these issues or CI will complain.
 
 To check if all interfaces match their source contracts:
 
-- Run `just interface-check` or `just interface-check-no-build`
+- Run `just interfaces-check` or `just interfaces-check-no-build`
 
 These commands will compare the ABIs of your interfaces with their corresponding source contracts and report any discrepancies.
 

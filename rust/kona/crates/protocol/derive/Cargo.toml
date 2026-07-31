@@ -18,6 +18,7 @@ kona-macros.workspace = true
 kona-genesis.workspace = true
 kona-protocol.workspace = true
 kona-hardforks.workspace = true
+kona-interop.workspace = true
 
 # Alloy
 alloy-eips.workspace = true
@@ -64,6 +65,7 @@ serde = [
 	"alloy-rpc-types-engine/serde",
 	"dep:serde",
 	"kona-genesis/serde",
+	"kona-interop/serde",
 	"kona-protocol/serde",
 	"op-alloy-consensus/serde",
 	"op-alloy-rpc-types-engine/serde",
@@ -72,5 +74,6 @@ serde = [
 test-utils = [
 	"dep:spin",
 	"dep:tracing-subscriber",
+	"kona-interop/test-utils",
 	"kona-protocol/test-utils",
 ]

@@ -69,6 +69,55 @@ To manually trigger a nightly build:
 gh workflow run "Build and Publish Nightly Docker Images"
 ```
 
+## Building Kona Prestates
+
+### Reproducible Build (Docker — recommended for releases)
+
+```bash
+# From repo root
+just reproducible-prestate-kona
+```
+
+### Native Build (Linux — for development)
+
+#### Prerequisites
+
+Managed by mise (`mise install` from repo root): rustup, stable Rust, the pinned
+dated nightly, Go, just, jq. Both toolchains come from `mise.toml`.
+
+`just install-nightly` then adds the `rust-src` component to the nightly (needed
+for `-Zbuild-std`); `mise.toml` only pulls `rustfmt`.
+
+**MIPS64 cross-compilation toolchain (manual, apt only):**
+
+```bash
+sudo apt install g++-mips64-linux-gnuabi64 libc6-dev-mips64-cross binutils-mips64-linux-gnuabi64
+```
+
+macOS: use the Docker path (`just reproducible-prestate-kona`).
+
+#### Build
+
+```bash
+cd rust
+just build-kona-prestates
+```
+
+#### Custom Configs
+
+```bash
+export KONA_CUSTOM_CONFIGS_DIR=/path/to/custom/configs
+cd rust
+just build-kona-prestates
+```
+
+### cannon-builder Image
+
+The `cannon-builder` Docker image contains only apt-level MIPS64 cross-compilation
+packages. The prestate Dockerfile installs mise on top, and mise pulls Rust (stable
++ nightly), Go, just, and jq from `mise.toml`. The image only needs to be rebuilt
+when the cross-compilation toolchain packages change (rare).
+
 ## Cutting a Release (for maintainers / forks)
 
 To cut a release of the docker image for any of the targets, cut a new annotated tag for the target like so:

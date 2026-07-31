@@ -158,10 +158,18 @@ func (f *FaultDisputeGameContract080) DefendTx(ctx context.Context, parent types
 	return f.txWithBond(ctx, parent.Position.Defend(), call)
 }
 
+func (f *FaultDisputeGameContract080) IsClosed(ctx context.Context) (bool, error) {
+	return isLegacyGameClosed(ctx, f)
+}
+
 func (f *FaultDisputeGameContract080) GetBondDistributionMode(ctx context.Context, block rpcblock.Block) (types.BondDistributionMode, error) {
 	return types.LegacyDistributionMode, nil
 }
 
 func (f *FaultDisputeGameContract080) CloseGameTx(ctx context.Context) (txmgr.TxCandidate, error) {
 	return txmgr.TxCandidate{}, ErrCloseGameNotSupported
+}
+
+func (f *FaultDisputeGameContract080) GetAnchorStateRegistry(_ context.Context, _ rpcblock.Block) (common.Address, error) {
+	return common.Address{}, ErrAnchorStateRegistryNotSupported
 }

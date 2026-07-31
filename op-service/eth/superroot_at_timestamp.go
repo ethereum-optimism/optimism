@@ -52,7 +52,10 @@ func (d *SuperRootResponseData) UnmarshalJSON(input []byte) error {
 
 // AtTimestampResponse is the response superroot_atTimestamp
 type SuperRootAtTimestampResponse struct {
-	// CurrentL1 is the highest L1 block that has been fully derived and verified by all chains.
+	// CurrentL1 is the L1 block currently being processed by the slowest L1
+	// processor in the supernode. Every L1 block strictly below CurrentL1.Number
+	// has been fully processed; data at CurrentL1 itself may still be incomplete.
+	// Consumers gating on "L1[≤X] is fully processed" must require CurrentL1.Number > X.
 	CurrentL1 BlockID `json:"current_l1"`
 
 	// CurrentSafeTimestamp is the highest L2 timestamp that is safe across the dependency set at the CurrentL1.

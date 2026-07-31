@@ -16,7 +16,7 @@ contract FaucetHelper {
     /// @notice Keeps track of current nonce to generate new nonces for each drip.
     uint256 public currentNonce;
 
-    /// @notice Returns a bytes32 nonce that should change everytime. In practice, people should use
+    /// @notice Returns a bytes32 nonce that should change every time. In practice, people should use
     ///         pseudorandom nonces.
     /// @return Nonce that should be used as part of drip parameters.
     function consumeNonce() public returns (bytes32) {

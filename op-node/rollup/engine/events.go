@@ -3,7 +3,6 @@ package engine
 import (
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -106,16 +105,6 @@ func (ev FinalizedUpdateEvent) String() string {
 	return "finalized-update"
 }
 
-// InteropInvalidateBlockEvent is emitted when a block needs to be invalidated, and a replacement is needed.
-type InteropInvalidateBlockEvent struct {
-	Invalidated eth.BlockRef
-	Attributes  *derive.AttributesWithParent
-}
-
-func (ev InteropInvalidateBlockEvent) String() string {
-	return "interop-invalidate-block"
-}
-
 // InteropReplacedBlockEvent is emitted when a replacement is done.
 type InteropReplacedBlockEvent struct {
 	Ref      eth.BlockRef
@@ -130,7 +119,7 @@ type ResetEngineControl interface {
 	SetUnsafeHead(eth.L2BlockRef)
 	SetCrossUnsafeHead(ref eth.L2BlockRef)
 	SetLocalSafeHead(ref eth.L2BlockRef)
-	SetSafeHead(eth.L2BlockRef)
+	SetDeprecatedSafeHead(eth.L2BlockRef)
 	SetFinalizedHead(eth.L2BlockRef)
 	SetBackupUnsafeL2Head(block eth.L2BlockRef, triggerReorg bool)
 	SetPendingSafeL2Head(eth.L2BlockRef)
@@ -147,7 +136,7 @@ func ForceEngineReset(ec ResetEngineControl, localUnsafe, crossUnsafe, localSafe
 	ec.SetPendingSafeL2Head(localSafe)
 
 	// "safe" in RPC terms is cross-safe
-	ec.SetSafeHead(crossSafe)
+	ec.SetDeprecatedSafeHead(crossSafe)
 
 	// finalized head
 	ec.SetFinalizedHead(finalized)

@@ -7,7 +7,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 func TestFollowSource_HeadsDivergeThenConverge(gt *testing.T) {
@@ -35,12 +37,12 @@ func TestFollowSource_HeadsDivergeThenConverge(gt *testing.T) {
 		{name: "B", source: sys.L2BCL, follower: sys.L2BFollowCL},
 	}
 
-	// Initial sanity: followers are aligned with upstream on both local-safe and cross-safe.
+	// Initial sanity: each follower is in sync with its upstream on local-safe and cross-safe.
 	initialChecks := make([]dsl.CheckFunc, 0, len(chains)*2)
 	for _, chain := range chains {
 		initialChecks = append(initialChecks,
-			chain.follower.MatchedFn(chain.source, types.LocalSafe, 20),
-			chain.follower.MatchedFn(chain.source, types.CrossSafe, 20),
+			chain.follower.InSyncFn(chain.source, safety.LocalSafe, 20),
+			chain.follower.InSyncFn(chain.source, safety.CrossSafe, 20),
 		)
 	}
 	dsl.CheckAll(t, initialChecks...)
@@ -103,24 +105,48 @@ func TestFollowSource_HeadsDivergeThenConverge(gt *testing.T) {
 		return true
 	}, 2*time.Minute, 2*time.Second, "expected unsafe > local-safe > cross-safe with unsafe advancing on source and follower")
 
-	// Core follow-source checks: follower must match source unsafe, local-safe, and cross-safe independently.
+	// Core follow-source checks: follower must converge with source on unsafe, local-safe, and cross-safe independently.
 	divergenceChecks := make([]dsl.CheckFunc, 0, len(chains)*3)
 	for _, chain := range chains {
 		divergenceChecks = append(divergenceChecks,
-			chain.follower.MatchedFn(chain.source, types.LocalUnsafe, 20),
-			chain.follower.MatchedFn(chain.source, types.LocalSafe, 20),
-			chain.follower.MatchedFn(chain.source, types.CrossSafe, 20),
+			chain.follower.InSyncFn(chain.source, safety.LocalUnsafe, 20),
+			chain.follower.InSyncFn(chain.source, safety.LocalSafe, 20),
+			chain.follower.InSyncFn(chain.source, safety.CrossSafe, 20),
 		)
 	}
 	dsl.CheckAll(t, divergenceChecks...)
 
 	// Freeze new block production so interop can catch cross-safe up to local-safe.
+	//
+	// Cross-safe only commits at timestamps where every chain has a local-safe
+	// block, so the chains must end at the same unsafe-head timestamp before
+	// ResumeInterop. StopSequencer is async between chains, so the chain stopped
+	// second can seal an extra block. Use the test sequencer to deterministically
+	// level the trailing chain back up to the leader.
 	sys.L2ACL.StopSequencer()
 	sys.L2BCL.StopSequencer()
 	t.Cleanup(func() {
 		sys.L2ACL.StartSequencer()
 		sys.L2BCL.StartSequencer()
 	})
+
+	for range 10 {
+		unsafeA := sys.L2ELA.BlockRefByLabel(eth.Unsafe)
+		unsafeB := sys.L2ELB.BlockRefByLabel(eth.Unsafe)
+		if unsafeA.Time == unsafeB.Time {
+			break
+		}
+		if unsafeA.Time < unsafeB.Time {
+			sys.TestSequencer.SequenceBlock(t, sys.L2A.ChainID(), unsafeA.Hash)
+		} else {
+			sys.TestSequencer.SequenceBlock(t, sys.L2B.ChainID(), unsafeB.Hash)
+		}
+	}
+	unsafeA := sys.L2ELA.BlockRefByLabel(eth.Unsafe)
+	unsafeB := sys.L2ELB.BlockRefByLabel(eth.Unsafe)
+	require.Equalf(unsafeA.Time, unsafeB.Time,
+		"chains must be at same unsafe timestamp before ResumeInterop; got A=%d B=%d",
+		unsafeA.Time, unsafeB.Time)
 
 	sys.Supernode.ResumeInterop()
 
@@ -134,13 +160,13 @@ func TestFollowSource_HeadsDivergeThenConverge(gt *testing.T) {
 		return true
 	}, 3*time.Minute, 2*time.Second, "expected local-safe and cross-safe to converge on followers")
 
-	// Final sanity: follower and source converge to the same unsafe, local-safe, and cross-safe heads.
+	// Final sanity: follower and source converge on the same canonical chain at unsafe, local-safe, and cross-safe.
 	finalChecks := make([]dsl.CheckFunc, 0, len(chains)*3)
 	for _, chain := range chains {
 		finalChecks = append(finalChecks,
-			chain.follower.MatchedFn(chain.source, types.LocalUnsafe, 20),
-			chain.follower.MatchedFn(chain.source, types.LocalSafe, 20),
-			chain.follower.MatchedFn(chain.source, types.CrossSafe, 20),
+			chain.follower.InSyncFn(chain.source, safety.LocalUnsafe, 20),
+			chain.follower.InSyncFn(chain.source, safety.LocalSafe, 20),
+			chain.follower.InSyncFn(chain.source, safety.CrossSafe, 20),
 		)
 	}
 	dsl.CheckAll(t, finalChecks...)

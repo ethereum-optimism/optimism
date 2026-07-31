@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -125,7 +126,9 @@ func (hdr *RPCHeader) CreateGethHeader() *types.Header {
 	}
 }
 
-func (hdr *RPCHeader) Info(trustCache bool, mustBePostMerge bool) (eth.BlockInfo, error) {
+// Header runs trust/post-merge verification on the RPC-provided header and
+// returns the underlying *types.Header.
+func (hdr *RPCHeader) Header(trustCache bool, mustBePostMerge bool) (*types.Header, error) {
 	if mustBePostMerge {
 		if err := hdr.checkPostMerge(); err != nil {
 			return nil, err
@@ -136,7 +139,15 @@ func (hdr *RPCHeader) Info(trustCache bool, mustBePostMerge bool) (eth.BlockInfo
 			return nil, fmt.Errorf("failed to verify block hash: computed %s but RPC said %s", computed, hdr.Hash)
 		}
 	}
-	return eth.HeaderBlockInfoTrusted(hdr.Hash, hdr.CreateGethHeader()), nil
+	return hdr.CreateGethHeader(), nil
+}
+
+func (hdr *RPCHeader) Info(trustCache bool, mustBePostMerge bool) (eth.BlockInfo, error) {
+	header, err := hdr.Header(trustCache, mustBePostMerge)
+	if err != nil {
+		return nil, err
+	}
+	return eth.HeaderBlockInfoTrusted(hdr.Hash, header), nil
 }
 
 func (hdr *RPCHeader) BlockID() eth.BlockID {
@@ -168,7 +179,7 @@ func (block *RPCBlock) Verify() error {
 	// Withdrawals validation is different between L1 and L2.
 	// It is possible to determine that it is an L2 block if the first transaction is a deposit.
 	// The genesis block does not have transactions, but does have a known fee-recipient predeploy address.
-	isL2 := (len(block.Transactions) > 0 && block.Transactions[0].IsDepositTx()) ||
+	isL2 := (len(block.Transactions) > 0 && optypes.IsDepositTx(block.Transactions[0])) ||
 		(block.Number == 0 && block.Coinbase == predeploys.SequencerFeeVaultAddr)
 	if isL2 {
 		if err := block.validateL2Withdrawals(block.Withdrawals, block.WithdrawalsRoot); err != nil {

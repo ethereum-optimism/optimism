@@ -265,6 +265,19 @@ contract LiquidityController_Burn_Test is LiquidityController_TestInit {
 /// @title LiquidityController_Initialize_Test
 /// @notice Tests the `initialize` function of the `LiquidityController` contract.
 contract LiquidityController_Initialize_Test is LiquidityController_TestInit {
+    /// @notice Tests that initialize accepts address(0) as owner, preserving a renounced ownership
+    ///         state that L2CM may replay back into initialize() during upgrades.
+    function test_initialize_withZeroOwner_succeeds() public {
+        // Clear the initialized slot.
+        vm.store(address(liquidityController), bytes32(0), bytes32(0));
+
+        vm.prank(proxyAdminOwner);
+        vm.expectEmit(true, true, true, true);
+        emit OwnershipTransferred(proxyAdminOwner, address(0));
+        liquidityController.initialize(address(0), "Test Token", "TEST");
+        assertEq(liquidityController.owner(), address(0));
+    }
+
     /// @notice Tests that calling initialize on the implementation contract reverts.
     function testFuzz_initialize_implementation_reverts(address _owner) public {
         vm.assume(_owner != address(0));

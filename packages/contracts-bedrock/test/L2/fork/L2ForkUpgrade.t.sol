@@ -3,21 +3,24 @@ pragma solidity 0.8.15;
 
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
+import { PastNUTBundles } from "test/setup/PastNUTBundles.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { console } from "forge-std/console.sol";
 
 // Scripts
+import { Config } from "scripts/libraries/Config.sol";
 import { ExecuteNUTBundle } from "scripts/upgrade/ExecuteNUTBundle.s.sol";
 import { GenerateNUTBundle } from "scripts/upgrade/GenerateNUTBundle.s.sol";
 import { UpgradeUtils } from "scripts/libraries/UpgradeUtils.sol";
 
 // Libraries
+import { LibString } from "@solady/utils/LibString.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { Constants } from "src/libraries/Constants.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
 import { Types } from "src/libraries/Types.sol";
 import { NetworkUpgradeTxns } from "src/libraries/NetworkUpgradeTxns.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 // Interfaces
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
@@ -29,8 +32,9 @@ import { IERC721Bridge } from "interfaces/universal/IERC721Bridge.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
-import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
-import { ISharesCalculator } from "interfaces/L2/ISharesCalculator.sol";
+import { IL1Block } from "interfaces/L2/IL1Block.sol";
+import { IL1BlockCGT } from "interfaces/L2/IL1BlockCGT.sol";
+import { Features } from "src/libraries/Features.sol";
 
 /// @title L2ForkUpgrade_TestInit
 /// @notice Reusable test initialization for L2 fork upgrade tests.
@@ -42,6 +46,12 @@ contract L2ForkUpgrade_TestInit is CommonTest {
     /// @notice Script used for bundle generation.
     GenerateNUTBundle generateScript;
 
+    /// @notice Fork name for the current generated NUT bundle.
+    string internal currentFork;
+
+    /// @dev Cache from `generateScript.buildOutput()` to avoid re-reading the artifact during parallel fork setup.
+    NetworkUpgradeTxns.NetworkUpgradeTxn[] internal currentBundleTxns;
+
     /// @notice Common state
     CommonState commonState;
 
@@ -51,25 +61,74 @@ contract L2ForkUpgrade_TestInit is CommonTest {
         bool isCustomGasToken;
     }
 
+    /// @notice Struct to capture predeploy state for comparison.
+    struct PredeployState {
+        address predeploy;
+        string version;
+    }
+
     function setUp() public virtual override {
         super.setUp();
 
         // Skip if not L2 fork test
         skipIfNotL2ForkTest("L2ForkUpgrade: not a fork test");
 
-        // Skip if L2CM dev feature is not enabled
-        skipIfDevFeatureDisabled(DevFeatures.L2CM);
+        if (!Config.l2CMActivationTest()) {
+            // Initialize scripts
+            executeScript = new ExecuteNUTBundle();
+            generateScript = new GenerateNUTBundle();
+            // Build bundle without rewriting the tracked NUT snapshot.
+            GenerateNUTBundle.Output memory output = generateScript.buildOutput();
+            currentFork = output.fork;
+            delete currentBundleTxns;
+            for (uint256 i = 0; i < output.txns.length; i++) {
+                currentBundleTxns.push(output.txns[i]);
+            }
 
-        // Initialize scripts
-        executeScript = new ExecuteNUTBundle();
-        generateScript = new GenerateNUTBundle();
-
-        // Generate bundle
-        generateScript.run();
-
+            // Apply prior committed NUT bundles so chains missing earlier upgrades match the
+            // predeploy state the current bundle expects (e.g. Karst L2CM on a not-yet-Karst chain).
+            PastNUTBundles.applyPastBundles(output.txns, executeScript);
+        }
         // Capture feature flags
         commonState.isInteropEnabled = forkL2Live.isInteropEnabled();
         commonState.isCustomGasToken = forkL2Live.isCustomGasToken();
+    }
+
+    /// @notice Executes the current generated NUT bundle with any fork-specific wrappers.
+    ///         No-op when the bundle has already been applied to the forked chain.
+    function _executeCurrentBundle() internal virtual {
+        if (_isCurrentBundleAlreadyApplied()) return;
+        PastNUTBundles.ForkWrappers memory w = PastNUTBundles.wrappersForFork(currentFork);
+        PastNUTBundles.executeWithWrappers(executeScript, w.pre, _currentBundleTxns(), w.post);
+    }
+
+    /// @notice Returns true when the current bundle has already been applied to the forked chain.
+    function _isCurrentBundleAlreadyApplied() internal view returns (bool) {
+        address l2cm = PastNUTBundles.extractL2CM(_currentBundleTxns(), Constants.CURRENT_BUNDLE_PATH);
+        return PastNUTBundles.isBundleApplied(l2cm);
+    }
+
+    /// @notice Copies the cached current bundle transactions from storage to memory.
+    function _currentBundleTxns() internal view returns (NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns_) {
+        uint256 len = currentBundleTxns.length;
+        txns_ = new NetworkUpgradeTxns.NetworkUpgradeTxn[](len);
+        for (uint256 i = 0; i < len; i++) {
+            txns_[i] = currentBundleTxns[i];
+        }
+    }
+
+    /// @notice Returns the expected implementation addresses for a list of predeploys.
+    /// @param _predeploys The list of predeploys.
+    /// @return expectedImpls_ The expected implementation addresses.
+    function _getExpectedImpls(PredeployState[] memory _predeploys)
+        internal
+        view
+        returns (address[] memory expectedImpls_)
+    {
+        expectedImpls_ = new address[](_predeploys.length);
+        for (uint256 i = 0; i < _predeploys.length; i++) {
+            expectedImpls_[i] = _getExpectedImplementation(_predeploys[i].predeploy);
+        }
     }
 
     /// @notice Returns true if a predeploy is a feature predeploy and is disabled.
@@ -92,31 +151,54 @@ contract L2ForkUpgrade_TestInit is CommonTest {
         return false;
     }
 
-    /// @notice Helper to get the expected implementation address for a predeploy.
-    /// @dev Handles feature-specific implementations (CGT variants).
-    /// @param _predeploy The predeploy address.
-    /// @param _name The predeploy name.
-    /// @return expectedImpl_ The expected implementation address.
-    function _getExpectedImplementation(
-        address _predeploy,
-        string memory _name
-    )
-        internal
-        view
-        returns (address expectedImpl_)
-    {
-        // Handle feature-specific implementations
-        if (_predeploy == Predeploys.L1_BLOCK_ATTRIBUTES) {
-            // L1Block uses CGT variant on custom gas token networks
-            string memory implName = commonState.isCustomGasToken ? "L1BlockCGT" : "L1Block";
-            (expectedImpl_,,,) = generateScript.implementationConfigs(implName);
-        } else if (_predeploy == Predeploys.L2_TO_L1_MESSAGE_PASSER) {
-            // L2ToL1MessagePasser uses CGT variant on custom gas token networks
-            string memory implName = commonState.isCustomGasToken ? "L2ToL1MessagePasserCGT" : "L2ToL1MessagePasser";
-            (expectedImpl_,,,) = generateScript.implementationConfigs(implName);
-        } else {
-            // Standard implementation lookup
-            (expectedImpl_,,,) = generateScript.implementationConfigs(_name);
+    /// @notice Returns the expected implementation address for a predeploy.
+    function _getExpectedImplementation(address _predeploy) internal view returns (address expectedImpl_) {
+        Predeploys.PredeployRecord[] memory records = Predeploys.getAllRecords();
+        for (uint256 i = 0; i < records.length; i++) {
+            if (records[i].proxy == _predeploy) {
+                return _findImplByName(Predeploys.resolveVariant(records[i], commonState.isCustomGasToken).name);
+            }
+        }
+        revert("L2ForkUpgrade: unmapped predeploy");
+    }
+
+    /// @notice Helper to find an implementation address by name.
+    /// @param _name The name of the implementation to find.
+    /// @return expectedImpl_ The implementation address.
+    function _findImplByName(string memory _name) internal view virtual returns (address expectedImpl_) {
+        expectedImpl_ = generateScript.findImplByName(_name);
+    }
+
+    /// @notice Returns the active proxied predeploys with their pre-upgrade versions.
+    /// @dev Uses getUpgradeableRecords() which already filters non-proxied and deprecated records.
+    ///      Feature-gated predeploys disabled for the current chain config are also excluded.
+    ///      Disabled predeploys must be excluded before calling _getVersion: their proxy has an
+    ///      implementation slot pointing to a code namespace with no code, so the delegatecall
+    ///      returns empty bytes and Solidity's ABI decoder for `string` fails outside try/catch.
+    function _getPreUpgradePredeploys() internal view returns (PredeployState[] memory predeploys_) {
+        Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
+        uint256 count = 0;
+        for (uint256 i = 0; i < records.length; i++) {
+            if (_isFeaturePredeployAndDisabled(records[i].proxy)) continue;
+            count++;
+        }
+
+        predeploys_ = new PredeployState[](count);
+        uint256 j = 0;
+        for (uint256 i = 0; i < records.length; i++) {
+            if (_isFeaturePredeployAndDisabled(records[i].proxy)) continue;
+            predeploys_[j].predeploy = records[i].proxy;
+            predeploys_[j].version = _getVersion(records[i].proxy);
+            j++;
+        }
+    }
+
+    /// @notice Helper to get version string from a contract. Returns "0.0.0" if not available.
+    function _getVersion(address _contract) internal view returns (string memory) {
+        try ISemver(_contract).version() returns (string memory ver_) {
+            return ver_;
+        } catch {
+            return "0.0.0";
         }
     }
 }
@@ -124,12 +206,6 @@ contract L2ForkUpgrade_TestInit is CommonTest {
 /// @title L2ForkUpgrade_Versions_Test
 /// @notice Tests that all predeploy versions are updated after the L2 fork upgrade.
 contract L2ForkUpgrade_Versions_Test is L2ForkUpgrade_TestInit {
-    /// @notice Struct to capture predeploy state for comparison.
-    struct PredeployState {
-        address predeploy;
-        string version;
-    }
-
     /// @notice Struct to capture pre-upgrade version state for comparison.
     struct PreUpgradeVersionState {
         // Predeploy versions
@@ -138,11 +214,14 @@ contract L2ForkUpgrade_Versions_Test is L2ForkUpgrade_TestInit {
 
     /// @notice Tests that all predeploy versions are updated after upgrade.
     function test_l2ForkUpgrade_versionsUpdated_succeeds() public {
+        // Skip if running with an unoptimized Foundry profile
+        skipIfUnoptimized();
+
         // Capture pre-upgrade version state
         PreUpgradeVersionState memory preState = _capturePreUpgradeVersionState();
 
         // Execute bundle on forked L2
-        executeScript.execute();
+        _executeCurrentBundle();
 
         // Verify all versions were updated
         _verifyAllVersionsUpdated(preState);
@@ -157,16 +236,6 @@ contract L2ForkUpgrade_Versions_Test is L2ForkUpgrade_TestInit {
     function _verifyAllVersionsUpdated(PreUpgradeVersionState memory _preState) internal view {
         uint256 length = _preState.preUpgradePredeploys.length;
         for (uint256 i = 0; i < length; i++) {
-            if (_isFeaturePredeployAndDisabled(_preState.preUpgradePredeploys[i].predeploy)) {
-                console.log(
-                    "Skipping feature predeploy and disabled: ",
-                    Predeploys.getName(_preState.preUpgradePredeploys[i].predeploy)
-                );
-                console.log("isCustomGasToken: ", commonState.isCustomGasToken);
-                console.log("isInteropEnabled: ", commonState.isInteropEnabled);
-                continue;
-            }
-
             string memory newVersion = _getVersion(_preState.preUpgradePredeploys[i].predeploy);
             string memory oldVersion = _preState.preUpgradePredeploys[i].version;
             assertTrue(
@@ -180,24 +249,6 @@ contract L2ForkUpgrade_Versions_Test is L2ForkUpgrade_TestInit {
                     newVersion
                 )
             );
-        }
-    }
-
-    /// @notice Helper to get pre-upgrade predeploy state.
-    function _getPreUpgradePredeploys() internal view returns (PredeployState[] memory predeploys_) {
-        predeploys_ = new PredeployState[](Predeploys.getUpgradeablePredeploys().length);
-        for (uint256 i = 0; i < Predeploys.getUpgradeablePredeploys().length; i++) {
-            predeploys_[i].predeploy = Predeploys.getUpgradeablePredeploys()[i];
-            predeploys_[i].version = _getVersion(Predeploys.getUpgradeablePredeploys()[i]);
-        }
-    }
-
-    /// @notice Helper to get version string from a contract. Returns "0.0.0" if not available.
-    function _getVersion(address _contract) internal view returns (string memory) {
-        try ISemver(_contract).version() returns (string memory ver_) {
-            return ver_;
-        } catch {
-            return "0.0.0";
         }
     }
 }
@@ -218,8 +269,9 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
         address liquidityControllerOwner;
         string liquidityControllerGasPayingTokenName;
         string liquidityControllerGasPayingTokenSymbol;
-        // FeeSplitter configuration
-        address feeSplitterSharesCalculator;
+        // L1Block feature state
+        string l1BlockGasPayingTokenName;
+        string l1BlockGasPayingTokenSymbol;
         // Fee vault configuration
         address sequencerFeeVaultRecipient;
         uint256 sequencerFeeVaultMinWithdrawal;
@@ -239,11 +291,14 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
 
     /// @notice Tests that all initialization configurations are preserved after upgrade.
     function test_l2ForkUpgrade_initializationPreserved_succeeds() public {
+        // Skip if running with an unoptimized Foundry profile
+        skipIfUnoptimized();
+
         // Capture pre-upgrade initialization state
         PreUpgradeInitializationState memory preState = _capturePreUpgradeInitializationState();
 
         // Execute bundle on forked L2
-        executeScript.execute();
+        _executeCurrentBundle();
 
         // Verify initialization state was preserved
         _verifyInitializationState(preState);
@@ -274,16 +329,9 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
             state_.liquidityControllerOwner = liquidityController.owner();
             state_.liquidityControllerGasPayingTokenName = liquidityController.gasPayingTokenName();
             state_.liquidityControllerGasPayingTokenSymbol = liquidityController.gasPayingTokenSymbol();
-        }
-
-        // Capture FeeSplitter configuration
-        // eip150-safe
-        try IFeeSplitter(payable(Predeploys.FEE_SPLITTER)).sharesCalculator() returns (
-            ISharesCalculator sharesCalculator_
-        ) {
-            state_.feeSplitterSharesCalculator = address(sharesCalculator_);
-        } catch {
-            state_.feeSplitterSharesCalculator = address(0);
+            // Capture L1Block gas paying token metadata for post-upgrade verification.
+            state_.l1BlockGasPayingTokenName = IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingTokenName();
+            state_.l1BlockGasPayingTokenSymbol = IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingTokenSymbol();
         }
 
         // Capture fee vault configuration
@@ -344,8 +392,8 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
         _verifyFeeVaultConfigurations(_preState);
         _verifyFactoryConfigurations(_preState);
         _verifyLiquidityControllerConfiguration(_preState);
-        _verifyFeeSplitterConfiguration(_preState);
         _verifyProxyAdminOwnership(_preState);
+        _verifyL1BlockFeatureState(_preState);
 
         // OpenZeppelin v4 Initializable contracts - slot varies by contract
         _verifyOZv4Initialization(Predeploys.L2_CROSS_DOMAIN_MESSENGER, bytes32(0), 20, "L2CrossDomainMessenger");
@@ -357,8 +405,6 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
         _verifyOZv4Initialization(
             Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY, bytes32(uint256(1)), 0, "OptimismMintableERC721Factory"
         );
-        _verifyOZv4Initialization(Predeploys.FEE_SPLITTER, bytes32(0), 0, "FeeSplitter");
-
         // LiquidityController (only on custom gas token networks)
         if (commonState.isCustomGasToken) {
             _verifyOZv4Initialization(Predeploys.LIQUIDITY_CONTROLLER, bytes32(0), 0, "LiquidityController");
@@ -508,15 +554,6 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
         );
     }
 
-    /// @notice Verifies that FeeSplitter configuration was preserved.
-    function _verifyFeeSplitterConfiguration(PreUpgradeInitializationState memory _preState) internal view {
-        assertEq(
-            address(IFeeSplitter(payable(Predeploys.FEE_SPLITTER)).sharesCalculator()),
-            _preState.feeSplitterSharesCalculator,
-            "FeeSplitter.sharesCalculator not preserved"
-        );
-    }
-
     /// @notice Verifies that ProxyAdmin ownership was preserved.
     function _verifyProxyAdminOwnership(PreUpgradeInitializationState memory _preState) internal view {
         assertEq(
@@ -524,6 +561,33 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
             _preState.proxyAdminOwner,
             "ProxyAdmin ownership should be preserved"
         );
+    }
+
+    /// @notice Verifies that L1Block feature flags match the expected post-upgrade state.
+    ///         Catches regressions where the setFeature migration step is missing or reordered.
+    function _verifyL1BlockFeatureState(PreUpgradeInitializationState memory _preState) internal view {
+        if (commonState.isCustomGasToken) {
+            assertTrue(
+                IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).isCustomGasToken(),
+                "L1Block.isCustomGasToken() must be true after upgrade on CGT chains"
+            );
+            assertEq(
+                IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingTokenName(),
+                _preState.l1BlockGasPayingTokenName,
+                "L1Block.gasPayingTokenName() not preserved after upgrade"
+            );
+            assertEq(
+                IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingTokenSymbol(),
+                _preState.l1BlockGasPayingTokenSymbol,
+                "L1Block.gasPayingTokenSymbol() not preserved after upgrade"
+            );
+        }
+        if (commonState.isInteropEnabled) {
+            assertTrue(
+                IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP),
+                "L1Block.isFeatureEnabled(INTEROP) must be true after upgrade on interop chains"
+            );
+        }
     }
 
     /// @notice Helper to verify OpenZeppelin v4 initialization state.
@@ -584,26 +648,36 @@ contract L2ForkUpgrade_Implementations_Test is L2ForkUpgrade_TestInit {
     bytes32 internal constant IMPLEMENTATION_SLOT = bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1);
 
     /// @notice Tests that all predeploy implementations match expected addresses and have code.
-    function test_l2ForkUpgrade_implementationsMatch_succeeds() public {
-        // Execute upgrade
-        executeScript.execute();
+    function test_l2ForkUpgrade_implementationsMatch_succeeds() public virtual {
+        // Skip if running with an unoptimized Foundry profile
+        skipIfUnoptimized();
 
-        // Get all upgradeable predeploys
-        address[] memory predeploys = Predeploys.getUpgradeablePredeploys();
+        // Execute bundle on forked L2
+        _executeCurrentBundle();
+
+        // Get active predeploys (non-proxied and disabled feature predeploys already filtered out)
+        PredeployState[] memory predeploys = _getPreUpgradePredeploys();
+        address[] memory expectedImpls = _getExpectedImpls(predeploys);
 
         // Verify each predeploy's implementation
-        for (uint256 i = 0; i < predeploys.length; i++) {
-            address predeploy = predeploys[i];
+        _verifyImplementations(predeploys, expectedImpls);
+    }
 
-            if (_isFeaturePredeployAndDisabled(predeploy)) {
-                continue;
-            }
+    function _verifyImplementations(
+        PredeployState[] memory _predeploys,
+        address[] memory _expectedImpls
+    )
+        internal
+        view
+    {
+        for (uint256 i = 0; i < _predeploys.length; i++) {
+            address predeploy = _predeploys[i].predeploy;
 
             // Get predeploy name
             string memory name = Predeploys.getName(predeploy);
 
             // Get expected implementation from config
-            address expectedImpl = _getExpectedImplementation(predeploy, name);
+            address expectedImpl = _expectedImpls[i];
 
             // Get actual implementation from proxy
             address actualImpl = address(uint160(uint256(vm.load(predeploy, IMPLEMENTATION_SLOT))));
@@ -633,25 +707,48 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
     bytes32 internal constant UPGRADED_EVENT_TOPIC = 0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b;
 
     /// @notice Tests that all predeploy proxies emit the Upgraded event with correct implementation.
-    function test_l2ForkUpgrade_upgradeEventsEmitted_succeeds() public {
+    function test_l2ForkUpgrade_upgradeEventsEmitted_succeeds() public virtual {
+        // Skip if running with an unoptimized Foundry profile
+        skipIfUnoptimized();
+
         // Get StorageSetter implementation to filter out intermediate upgrade events
-        (address storageSetterImpl,,,) = generateScript.implementationConfigs("StorageSetter");
+        address storageSetterImpl = _findImplByName("StorageSetter");
+
+        // Skip when the bundle is already applied: Upgraded events are historical and cannot be
+        // replayed via vm.recordLogs()
+        if (_isCurrentBundleAlreadyApplied()) {
+            vm.skip(true);
+            return;
+        }
 
         // Start recording logs
         vm.recordLogs();
 
         // Execute upgrade bundle
-        executeScript.execute();
+        _executeCurrentBundle();
 
         // Get all recorded logs
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
         // Get all upgradeable predeploys
-        address[] memory predeploys = Predeploys.getUpgradeablePredeploys();
+        PredeployState[] memory predeploys = _getPreUpgradePredeploys();
+        address[] memory expectedImpls = _getExpectedImpls(predeploys);
 
         // Verify each predeploy emitted the Upgraded event
-        for (uint256 i = 0; i < predeploys.length; i++) {
-            address predeploy = predeploys[i];
+        _verifyEvents(predeploys, logs, expectedImpls, storageSetterImpl);
+    }
+
+    function _verifyEvents(
+        PredeployState[] memory _predeploys,
+        Vm.Log[] memory _logs,
+        address[] memory _expectedImpls,
+        address _storageSetterImpl
+    )
+        internal
+        view
+    {
+        for (uint256 i = 0; i < _predeploys.length; i++) {
+            address predeploy = _predeploys[i].predeploy;
 
             if (_isFeaturePredeployAndDisabled(predeploy)) {
                 continue;
@@ -661,21 +758,21 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
             string memory name = Predeploys.getName(predeploy);
 
             // Get expected implementation from config
-            address expectedImpl = _getExpectedImplementation(predeploy, name);
+            address expectedImpl = _expectedImpls[i];
 
             // Find the Upgraded event for this predeploy (skip StorageSetter events)
             bool foundEvent = false;
-            for (uint256 j = 0; j < logs.length; j++) {
+            for (uint256 j = 0; j < _logs.length; j++) {
                 // Check if this log is an Upgraded event from the current predeploy
                 if (
-                    logs[j].emitter == predeploy && logs[j].topics.length > 0
-                        && logs[j].topics[0] == UPGRADED_EVENT_TOPIC
+                    _logs[j].emitter == predeploy && _logs[j].topics.length > 0
+                        && _logs[j].topics[0] == UPGRADED_EVENT_TOPIC
                 ) {
                     // Decode the implementation address from the event
-                    address emittedImpl = address(uint160(uint256(logs[j].topics[1])));
+                    address emittedImpl = address(uint160(uint256(_logs[j].topics[1])));
 
                     // Skip StorageSetter upgrade events (intermediate step for initializable contracts)
-                    if (emittedImpl == storageSetterImpl) {
+                    if (emittedImpl == _storageSetterImpl) {
                         continue;
                     }
 
@@ -699,7 +796,7 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
 }
 
 /// @title L2ForkUpgrade_GasProfile_Test
-/// @notice Gas profiling test that measures actual gas consumption for each transaction in the upgrade bundle.
+/// @notice Gas profiling tests for the NUT bundle upgrade transactions.
 contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
     /// @notice Gas measurement for a single transaction.
     struct GasMeasurement {
@@ -711,113 +808,238 @@ contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
         uint256 efficiency; // gasUsed * 100 / gasLimit (percentage)
     }
 
-    /// @notice Safety margin multiplier (150% = 1.5x).
-    uint256 internal constant SAFETY_MARGIN_MULTIPLIER = 150;
-    uint256 internal constant PERCENTAGE_DENOMINATOR = 100;
-
-    /// @notice Tests gas consumption for all transactions and generates a report.
-    function test_l2ForkUpgrade_gasProfile_succeeds() public {
-        // Read the bundle
-        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns =
-            NetworkUpgradeTxns.readArtifact(Constants.CURRENT_BUNDLE_PATH);
-
-        console.log(repeat("=", 100));
-        console.log("GAS PROFILING REPORT");
-        console.log(repeat("=", 100));
+    function _logReportHeader(string memory _title, uint256 _count) internal pure {
+        console.log(LibString.repeat("=", 100));
+        console.log(_title);
+        console.log(LibString.repeat("=", 100));
         console.log("");
-        console.log("Total transactions:", txns.length);
+        console.log("Total transactions:", _count);
         console.log("");
+    }
 
-        // Store measurements
-        GasMeasurement[] memory measurements = new GasMeasurement[](txns.length);
-        uint256 totalGasUsed = 0;
-        uint256 totalGasLimit = 0;
-
-        // Execute and measure each transaction
-        for (uint256 i = 0; i < txns.length; i++) {
-            NetworkUpgradeTxns.NetworkUpgradeTxn memory txn = txns[i];
-
-            // Ensure sender has sufficient balance
-            vm.deal(txn.from, 100 ether);
-
-            // Measure gas
-            uint256 gasBefore = gasleft();
-            vm.prank(txn.from);
-            (bool success, bytes memory returnData) = txn.to.call{ gas: txn.gasLimit }(txn.data);
-            uint256 gasAfter = gasleft();
-
-            require(
-                success,
-                string.concat("Transaction failed: ", txn.intent, " - ", UpgradeUtils.getRevertReason(returnData))
-            );
-
-            // Calculate gas used (including overhead)
-            uint64 gasUsed = uint64(gasBefore - gasAfter);
-            uint64 recommendedLimit = uint64((uint256(gasUsed) * SAFETY_MARGIN_MULTIPLIER) / PERCENTAGE_DENOMINATOR);
-            uint256 efficiency = (uint256(gasUsed) * 100) / uint256(txn.gasLimit);
-
-            // Store measurement
-            measurements[i] = GasMeasurement({
-                index: i,
-                intent: txn.intent,
-                gasUsed: gasUsed,
-                gasLimit: txn.gasLimit,
-                recommendedLimit: recommendedLimit,
-                efficiency: efficiency
-            });
-
-            totalGasUsed += gasUsed;
-            totalGasLimit += txn.gasLimit;
-
-            // Print individual transaction report
-            console.log("[%s/%s] %s", i + 1, txns.length, txn.intent);
-            console.log("  Gas Used:         %s", gasUsed);
-            console.log("  Current Limit:    %s", txn.gasLimit);
-            console.log("  Recommended:      %s (1.5x actual)", recommendedLimit);
-            console.log("  Efficiency:       %s%%", efficiency);
-            console.log("");
+    /// @param _recommendedLimit Pass 0 to omit the recommended line.
+    function _logTxnGas(
+        uint256 _i,
+        uint256 _total,
+        string memory _intent,
+        uint64 _intrinsicGas,
+        uint64 _bodyGasUsed,
+        uint64 _gasUsed,
+        uint64 _gasLimit,
+        uint64 _recommendedLimit
+    )
+        internal
+        pure
+    {
+        console.log("[%s/%s] %s", _i + 1, _total, _intent);
+        console.log("  Intrinsic Gas:  %s", _intrinsicGas);
+        console.log("  Body Gas:       %s", _bodyGasUsed);
+        console.log("  Total Gas Used: %s", _gasUsed);
+        console.log("  Current Limit:  %s", _gasLimit);
+        if (_recommendedLimit > 0) {
+            console.log("  Recommended:    %s (1.5x)", _recommendedLimit);
         }
+        console.log("  Efficiency:     %s%%", (uint256(_gasUsed) * 100) / uint256(_gasLimit));
+        console.log("");
+    }
 
-        // Print summary
-        console.log(repeat("=", 100));
+    function _logReportSummary(uint256 _totalGasUsed, uint256 _totalGasLimit) internal pure {
+        console.log(LibString.repeat("=", 100));
         console.log("SUMMARY");
-        console.log(repeat("=", 100));
-        console.log("Total Gas Used:       %s", totalGasUsed);
-        console.log("Total Gas Limit:      %s", totalGasLimit);
-        if (totalGasLimit > 0) {
-            console.log("Overall Efficiency:   %s%%", (totalGasUsed * 100) / totalGasLimit);
-        } else {
-            console.log("Overall Efficiency:   N/A (no transactions)");
+        console.log(LibString.repeat("=", 100));
+        console.log("Total Gas Used:     %s", _totalGasUsed);
+        console.log("Total Gas Limit:    %s", _totalGasLimit);
+        if (_totalGasLimit > 0) {
+            console.log("Overall Efficiency: %s%%", (_totalGasUsed * 100) / _totalGasLimit);
         }
-        console.log("");
+    }
 
-        // Print transactions that need adjustment (efficiency < 50% or > 90%)
+    function _logAdjustments(GasMeasurement[] memory _measurements) internal pure {
+        console.log("");
         console.log("TRANSACTIONS NEEDING ADJUSTMENT:");
-        console.log(repeat("-", 100));
+        console.log(LibString.repeat("-", 100));
         bool foundAdjustments = false;
-        for (uint256 i = 0; i < measurements.length; i++) {
-            if (measurements[i].efficiency < 50 || measurements[i].efficiency > 90) {
+        for (uint256 i = 0; i < _measurements.length; i++) {
+            if (_measurements[i].efficiency < 50 || _measurements[i].efficiency > 90) {
                 foundAdjustments = true;
-                console.log("[%s] %s", measurements[i].index + 1, measurements[i].intent);
-                console.log("  Current: %s | Used: %s", measurements[i].gasLimit, measurements[i].gasUsed);
+                console.log("[%s] %s", _measurements[i].index + 1, _measurements[i].intent);
+                console.log("  Current: %s | Used: %s", _measurements[i].gasLimit, _measurements[i].gasUsed);
                 console.log(
-                    "  Recommended: %s | Efficiency: %s%%", measurements[i].recommendedLimit, measurements[i].efficiency
+                    "  Recommended: %s | Efficiency: %s%%",
+                    _measurements[i].recommendedLimit,
+                    _measurements[i].efficiency
                 );
             }
         }
         if (!foundAdjustments) {
             console.log("All transactions have acceptable efficiency (50-90%)");
         }
-        console.log(repeat("=", 100));
+        console.log(LibString.repeat("=", 100));
     }
 
-    /// @notice Helper function to repeat a string.
-    /// @param _str The string to repeat.
-    /// @param _count The number of times to repeat.
-    /// @return repeated_ The repeated string.
-    function repeat(string memory _str, uint256 _count) internal pure returns (string memory repeated_) {
-        for (uint256 i = 0; i < _count; i++) {
-            repeated_ = string.concat(repeated_, _str);
+    /// @notice Builds a GasMeasurement from raw body/intrinsic gas and logs the transaction line.
+    /// @dev Emulates op-geth's post-execution EIP-7623 floor: receipt.gasUsed = max(exec, floor).
+    ///      Without this, forge reports execution gas while op-geth reports the floor when it binds
+    ///      (e.g. ConditionalDeployer collision paths), making the two diverge by up to 67k gas.
+    /// @param _i Transaction index (0-based).
+    /// @param _total Total number of transactions.
+    /// @param _txn The NUT bundle transaction.
+    /// @param _intrinsicGas Intrinsic gas for this transaction.
+    /// @param _bodyGasUsed Body gas consumed (net of refunds, callee frame only).
+    /// @param _showRecommended Whether to show the recommended limit in the log line.
+    function _buildMeasurement(
+        uint256 _i,
+        uint256 _total,
+        NetworkUpgradeTxns.NetworkUpgradeTxn memory _txn,
+        uint64 _intrinsicGas,
+        uint64 _bodyGasUsed,
+        bool _showRecommended
+    )
+        internal
+        pure
+        returns (GasMeasurement memory measurement_)
+    {
+        uint64 floorGas = UpgradeUtils.computeFloorDataGas(_txn.data);
+        uint64 gasUsed = _intrinsicGas + _bodyGasUsed > floorGas ? _intrinsicGas + _bodyGasUsed : floorGas;
+        measurement_ = GasMeasurement({
+            index: _i,
+            intent: _txn.intent,
+            gasUsed: gasUsed,
+            gasLimit: _txn.gasLimit,
+            recommendedLimit: UpgradeUtils.computeRecommendedGasLimit(_intrinsicGas, _bodyGasUsed, floorGas),
+            efficiency: (uint256(gasUsed) * 100) / uint256(_txn.gasLimit)
+        });
+        _logTxnGas(
+            _i,
+            _total,
+            _txn.intent,
+            _intrinsicGas,
+            _bodyGasUsed,
+            gasUsed,
+            _txn.gasLimit,
+            _showRecommended ? measurement_.recommendedLimit : 0
+        );
+    }
+
+    /// @notice Gas profiling test for the NUT bundle upgrade transactions using manual intrinsic gas deduction.
+    function test_l2ForkUpgrade_gasProfile_succeeds() public {
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns = _currentBundleTxns();
+
+        _logReportHeader("GAS PROFILING REPORT", txns.length);
+
+        GasMeasurement[] memory measurements = new GasMeasurement[](txns.length);
+        uint256 totalGasUsed = 0;
+        uint256 totalGasLimit = 0;
+
+        for (uint256 i = 0; i < txns.length; i++) {
+            NetworkUpgradeTxns.NetworkUpgradeTxn memory txn = txns[i];
+
+            (bool success, bytes memory returnData, uint64 bodyGasUsed, uint64 intrinsicGas) =
+                executeScript.executeSingle(txn);
+
+            require(
+                success,
+                string.concat("Transaction failed: ", txn.intent, " - ", UpgradeUtils.getRevertReason(returnData))
+            );
+
+            measurements[i] = _buildMeasurement(i, txns.length, txn, intrinsicGas, bodyGasUsed, true);
+            // This tests is not the final production reference for the gas limit, but this assertion should also pass
+            // because in isolated mode the gas is higher.
+            assertGe(
+                txn.gasLimit,
+                measurements[i].recommendedLimit,
+                string.concat("Bundle gas limit must exceed 1.5x max(intrinsic+body, EIP-7623 floor) for ", txn.intent)
+            );
+            totalGasUsed += measurements[i].gasUsed;
+            totalGasLimit += measurements[i].gasLimit;
         }
+
+        _logReportSummary(totalGasUsed, totalGasLimit);
+        _logAdjustments(measurements);
+    }
+
+    /// @notice Gas profiling test for the NUT bundle upgrade transactions using foundry test isolation.
+    /// forge-config: default.isolate = true
+    function test_l2ForkUpgrade_isolatedGas_succeeds() public {
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns = _currentBundleTxns();
+
+        _logReportHeader("ISOLATED GAS REPORT", txns.length);
+
+        GasMeasurement[] memory measurements = new GasMeasurement[](txns.length);
+        uint256 totalGasUsed = 0;
+        uint256 totalGasLimit = 0;
+
+        for (uint256 i = 0; i < txns.length; i++) {
+            NetworkUpgradeTxns.NetworkUpgradeTxn memory txn = txns[i];
+
+            uint64 intrinsicGas = UpgradeUtils.computeIntrinsicGas(txn.data);
+
+            vm.deal(txn.from, 100 ether);
+            vm.prank(txn.from);
+
+            // Forward gasLimit - 21_000 so that transact_inner() sets tx.gas_limit =
+            // (gasLimit - 21_000) + 21_000 = gasLimit, and after revm deducts full intrinsic
+            // (21_000 + calldata_costs) the body receives gasLimit - 21_000 - calldata_costs —
+            // exactly what op-geth gives it in production.
+            uint256 gasBefore = gasleft();
+            (bool success, bytes memory returnData) = txn.to.call{ gas: txn.gasLimit - 21_000 }(txn.data);
+
+            // gasleft() delta is used (not vm.lastCallGas()) because in isolated mode,
+            // transact_inner() records result_gas.used() (= intrinsic + body − refunds)
+            // against the forwarded gas_limit, so gas.remaining() =
+            // forwarded − (intrinsic + body − refunds), and gasleft() delta =
+            // intrinsic + body − refunds = production total.
+            uint64 gasUsed = uint64(gasBefore - gasleft());
+            uint64 bodyGasUsed = gasUsed > intrinsicGas ? gasUsed - intrinsicGas : 0;
+
+            require(
+                success,
+                string.concat(
+                    "IsolatedGas: transaction failed [",
+                    vm.toString(i + 1),
+                    "/",
+                    vm.toString(txns.length),
+                    "] ",
+                    txn.intent,
+                    " - ",
+                    UpgradeUtils.getRevertReason(returnData)
+                )
+            );
+
+            measurements[i] = _buildMeasurement(i, txns.length, txn, intrinsicGas, bodyGasUsed, true);
+
+            // Verify the gas limit exceeds the recommended limit for the transaction.
+            // We take the isolated mode measurement because each transaction has a separate EVM context, and
+            // the called contracts start with cold storage.
+            assertGe(
+                txn.gasLimit,
+                measurements[i].recommendedLimit,
+                string.concat("Bundle gas limit must exceed 1.5x max(intrinsic+body, EIP-7623 floor) for ", txn.intent)
+            );
+
+            totalGasUsed += measurements[i].gasUsed;
+            totalGasLimit += measurements[i].gasLimit;
+        }
+
+        _logReportSummary(totalGasUsed, totalGasLimit);
+        _logAdjustments(measurements);
+    }
+}
+
+/// @title L2ForkUpgrade_DeterministicDeploymentProxy_Test
+/// @notice Sanity check that the forked L2 has the deterministic deployment proxy preinstall.
+contract L2ForkUpgrade_DeterministicDeploymentProxy_Test is CommonTest {
+    function setUp() public virtual override {
+        super.setUp();
+        skipIfNotL2ForkTest("L2ForkUpgrade: deterministic deployer test requires L2 fork");
+    }
+
+    /// @notice Arachnid's proxy must be deployed at the canonical address on forked L2 state.
+    function test_l2ForkUpgrade_deterministicDeploymentProxyExistence_succeeds() external view {
+        address proxy = Preinstalls.DeterministicDeploymentProxy;
+        assertNotEq(proxy.code.length, 0, "DeterministicDeploymentProxy must have code");
+        assertEq(
+            proxy.code, Preinstalls.DeterministicDeploymentProxyCode, "unexpected DeterministicDeploymentProxy bytecode"
+        );
     }
 }

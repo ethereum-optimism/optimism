@@ -6,8 +6,5 @@ import (
 )
 
 func newSimpleInteropPreinterop(t devtest.T) *presets.SimpleInterop {
-	return presets.NewSimpleInteropIsthmusSuper(
-		t,
-		presets.WithChallengerCannonKonaEnabled(),
-	)
+	return presets.NewSimpleInteropIsthmusSuper(t)
 }

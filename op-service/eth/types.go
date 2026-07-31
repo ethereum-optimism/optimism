@@ -16,9 +16,10 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/holiman/uint256"
+
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 )
 
 type ErrorCode int
@@ -435,10 +436,17 @@ func (envelope *ExecutionPayloadEnvelope) CheckBlockHash() (actual common.Hash, 
 	return blockHash, blockHash == payload.BlockHash
 }
 
+// HardforkConfig reports whether the OP-Stack hardforks relevant to payload conversion are active
+// at a given L2 block timestamp. It is satisfied by rollup.Config.
+type HardforkConfig interface {
+	IsCanyon(timestamp uint64) bool
+	IsIsthmus(timestamp uint64) bool
+}
+
 // BlockAsPayload converts a [*types.Block] to an [ExecutionPayload]. It can only be used to convert
 // OP-Stack blocks, as it follows Canyon and Isthmus rules to set the Withdrawals and
 // WithdrawalsRoot fields.
-func BlockAsPayload(bl *types.Block, config *params.ChainConfig) (*ExecutionPayload, error) {
+func BlockAsPayload(bl *types.Block, config HardforkConfig) (*ExecutionPayload, error) {
 	baseFee, overflow := uint256.FromBig(bl.BaseFee())
 	if overflow {
 		return nil, fmt.Errorf("invalid base fee in block: %s", bl.BaseFee())
@@ -486,7 +494,7 @@ func BlockAsPayload(bl *types.Block, config *params.ChainConfig) (*ExecutionPayl
 	return payload, nil
 }
 
-func BlockAsPayloadEnv(bl *types.Block, config *params.ChainConfig) (*ExecutionPayloadEnvelope, error) {
+func BlockAsPayloadEnv(bl *types.Block, config HardforkConfig) (*ExecutionPayloadEnvelope, error) {
 	payload, err := BlockAsPayload(bl, config)
 	if err != nil {
 		return nil, err
@@ -527,7 +535,7 @@ type PayloadAttributes struct {
 // type. Empty transactions are also considered non-Deposit transactions.
 func (a *PayloadAttributes) IsDepositsOnly() bool {
 	for _, tx := range a.Transactions {
-		if len(tx) == 0 || tx[0] != types.DepositTxType {
+		if len(tx) == 0 || tx[0] != optypes.DepositTxType {
 			return false
 		}
 	}
@@ -540,7 +548,7 @@ func (a *PayloadAttributes) WithDepositsOnly() *PayloadAttributes {
 	clone := *a
 	depositTxs := make([]Data, 0, len(a.Transactions))
 	for _, tx := range a.Transactions {
-		if len(tx) > 0 && tx[0] == types.DepositTxType {
+		if len(tx) > 0 && tx[0] == optypes.DepositTxType {
 			depositTxs = append(depositTxs, tx)
 		}
 	}
@@ -807,6 +815,7 @@ const (
 	GetPayloadV2 EngineAPIMethod = "engine_getPayloadV2"
 	GetPayloadV3 EngineAPIMethod = "engine_getPayloadV3"
 	GetPayloadV4 EngineAPIMethod = "engine_getPayloadV4"
+	GetPayloadV5 EngineAPIMethod = "engine_getPayloadV5"
 )
 
 // StorageKey is a marshaling utility for hex-encoded storage keys, which can have leading 0s and are

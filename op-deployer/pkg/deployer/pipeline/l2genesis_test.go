@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
@@ -15,8 +16,7 @@ import (
 )
 
 func TestBuildDevFeatureBitmap(t *testing.T) {
-	// TODO(#19151): Replace the hex literal with deployer.OptimismPortalInteropDevFlag when import cycles are fixed.
-	interopBit := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
+	interopBit := devfeatures.OptimismPortalInteropFlag
 
 	tests := []struct {
 		name       string
@@ -138,8 +138,7 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 					"operatorFeeVaultWithdrawalNetwork":        "remote",
 					"enableGovernance":                         true,
 					"governanceTokenOwner":                     "0x1111111111111111111111111111111111111111",
-					"l2GenesisInteropTimeOffset":               "0x1234",
-					"chainFeesRecipient":                       "0x0000000000000000000000000000000000005678",
+					"l2GenesisLagoonTimeOffset":                "0x1234",
 				},
 			},
 			chainIntent: &state.ChainIntent{},
@@ -159,7 +158,7 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 			},
 			expectedSchedule: func() *genesis.UpgradeScheduleDeployConfig {
 				sched := standard.DefaultHardforkSchedule()
-				sched.L2GenesisInteropTimeOffset = op_service.U64UtilPtr(0x1234)
+				sched.L2GenesisLagoonTimeOffset = op_service.U64UtilPtr(0x1234)
 				return sched
 			},
 		},
@@ -183,7 +182,7 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 					"operatorFeeVaultWithdrawalNetwork":        "remote",
 					"enableGovernance":                         true,
 					"governanceTokenOwner":                     "0x1111111111111111111111111111111111111111",
-					"l2GenesisInteropTimeOffset":               "0x1234",
+					"l2GenesisLagoonTimeOffset":                "0x1234",
 				},
 			},
 			expectError: false,
@@ -202,7 +201,7 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 			},
 			expectedSchedule: func() *genesis.UpgradeScheduleDeployConfig {
 				sched := standard.DefaultHardforkSchedule()
-				sched.L2GenesisInteropTimeOffset = op_service.U64UtilPtr(0x1234)
+				sched.L2GenesisLagoonTimeOffset = op_service.U64UtilPtr(0x1234)
 				return sched
 			},
 		},
@@ -211,7 +210,7 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 			intent: &state.Intent{
 				L1ContractsLocator: &artifacts.Locator{},
 				GlobalDeployOverrides: map[string]any{
-					"l2GenesisInteropTimeOffset": "0x0",
+					"l2GenesisLagoonTimeOffset": "0x0",
 				},
 			},
 			chainIntent:       &state.ChainIntent{},
@@ -219,7 +218,7 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 			expectedOverrides: defaultOverrides(),
 			expectedSchedule: func() *genesis.UpgradeScheduleDeployConfig {
 				schedule := standard.DefaultHardforkSchedule()
-				schedule.L2GenesisInteropTimeOffset = op_service.U64UtilPtr(0)
+				schedule.L2GenesisLagoonTimeOffset = op_service.U64UtilPtr(0)
 				return schedule
 			},
 		},

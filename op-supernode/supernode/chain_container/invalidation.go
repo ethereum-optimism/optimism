@@ -4,12 +4,15 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	bolt "go.etcd.io/bbolt"
 )
@@ -74,6 +77,26 @@ func OpenDenyList(dataDir string) (*DenyList, error) {
 	}
 
 	return &DenyList{db: db}, nil
+}
+
+// MaxDeniedHeight returns the highest denied block height, and whether any
+// denial exists (genesis cannot be denied, so 0 means none). A read error is
+// returned rather than reported as "no denials", so the caller can decide how
+// to treat it and log it.
+func (d *DenyList) MaxDeniedHeight() (uint64, bool, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	var maxHeight uint64
+	err := d.db.View(func(tx *bolt.Tx) error {
+		if k, _ := tx.Bucket(denyListBucketName).Cursor().Last(); k != nil {
+			maxHeight = binary.BigEndian.Uint64(k)
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, false, fmt.Errorf("failed to read max denied height: %w", err)
+	}
+	return maxHeight, maxHeight != 0, nil
 }
 
 // heightToKey converts a block height to a big-endian byte key.
@@ -276,6 +299,34 @@ func (d *DenyList) GetDeniedRecords(height uint64) ([]DenyRecord, error) {
 	return records, err
 }
 
+// HasDeniedAtOrAfterTimestamp returns true if any denied payload has
+// DecisionTimestamp >= timestamp.
+func (d *DenyList) HasDeniedAtOrAfterTimestamp(timestamp uint64) (bool, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	var found bool
+	err := d.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(denyListBucketName)
+		c := b.Cursor()
+
+		for _, v := c.First(); v != nil; _, v = c.Next() {
+			records, err := decodeDenyRecords(v)
+			if err != nil {
+				return err
+			}
+			for _, r := range records {
+				if r.DecisionTimestamp >= timestamp {
+					found = true
+					return nil
+				}
+			}
+		}
+		return nil
+	})
+	return found, err
+}
+
 // PruneAtOrAfterTimestamp iterates all keys in the bucket, decodes records,
 // removes any where DecisionTimestamp >= timestamp, re-encodes remaining.
 // Returns map of removed hashes by height.
@@ -331,15 +382,14 @@ func (d *DenyList) Close() error {
 	return d.db.Close()
 }
 
-// InvalidateBlock adds a block to the deny list and triggers a rewind if the chain
-// currently uses that block at the specified height.
-// WARNING: this should only be called by interop transition application.
-// Other callers risk triggering chain rewinds outside the interop WAL model.
-// TODO(#19561): remove this footgun by moving reorg-triggering operations behind a
-// smaller interop-owned interface.
-// Returns true if a rewind was triggered, false otherwise.
-// Note: Genesis block (height=0) cannot be invalidated as there is no prior block to rewind to.
-func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) (bool, error) {
+// InvalidateBlock is part of the InteropChain interface — callers must hold
+// that wider interface (only interop transition application does) to invoke it.
+// Adds a block to the deny list and triggers a rewind to parentPayload if the
+// chain currently uses the invalidated block (or has partial rewind state) at
+// the specified height. parentPayload is the WAL-captured canonical payload at
+// height-1. Returns true if a rewind was triggered. Genesis (height=0) cannot
+// be invalidated.
+func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32, parentPayload *eth.ExecutionPayloadEnvelope) (bool, error) {
 	if c.denyList == nil {
 		return false, fmt.Errorf("deny list not initialized")
 	}
@@ -349,58 +399,90 @@ func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint6
 		return false, fmt.Errorf("cannot invalidate genesis block (height=0)")
 	}
 
+	if parentPayload == nil || parentPayload.ExecutionPayload == nil {
+		return false, fmt.Errorf("invalidate block at height %d: %w", height, engine_controller.ErrRewindNilTarget)
+	}
+	if expectedParentNumber := height - 1; uint64(parentPayload.ExecutionPayload.BlockNumber) != expectedParentNumber {
+		return false, fmt.Errorf("invalidate block at height %d: parent payload block number %d does not match expected %d",
+			height, uint64(parentPayload.ExecutionPayload.BlockNumber), expectedParentNumber)
+	}
+
 	// Add to deny list with the output preimage fields
 	if err := c.denyList.Add(height, payloadHash, decisionTimestamp, stateRoot, messagePasserStorageRoot); err != nil {
 		return false, fmt.Errorf("failed to add block to deny list: %w", err)
 	}
 
+	// validParent is the canonical block the chain must sit on once the
+	// invalidated block is removed: the WAL-captured parent at height-1.
+	validParent := parentPayload.ExecutionPayload.ID()
 	c.log.Info("added block to deny list",
-		"height", height,
-		"payloadHash", payloadHash,
+		"chainID", c.chainID,
+		"invalidatedBlock", eth.BlockID{Hash: payloadHash, Number: height},
+		"lastValidParentBlock", validParent,
+		"decisionTimestamp", decisionTimestamp,
 	)
 
-	// Check if the current chain uses this block at this height
+	if c.metrics != nil {
+		c.metrics.DenyListEntries.WithLabelValues(c.chainID.String()).Inc()
+	}
+
+	// Errors here propagate so the caller preserves the pending transition for
+	// retry on restart; the deny list entry above is already durable.
 	if c.engine == nil {
-		c.log.Warn("engine not initialized, cannot check current block")
-		return false, nil
+		return false, fmt.Errorf("cannot check current block at height %d: %w", height, engine_controller.ErrNoEngineClient)
 	}
 
+	// Only skip the rewind when the engine reports a block at this height that is not the
+	// invalidated one. A NotFound result is not safe to skip: a prior crashed attempt may
+	// have left the synthetic block at this height with no canonical entry visible by
+	// number, and we need to drive the rewind to completion.
+	var invalidatedBlock eth.BlockRef
 	currentBlock, err := c.engine.L2BlockRefByNumber(ctx, height)
-	if err != nil {
-		c.log.Warn("failed to get current block at height", "height", height, "err", err)
-		return false, nil
+	switch {
+	case err == nil:
+		if currentBlock.Hash != payloadHash {
+			c.log.Info("current block differs from invalidated block, no rewind needed",
+				"height", height, "currentHash", currentBlock.Hash, "invalidatedHash", payloadHash)
+			return false, nil
+		}
+		invalidatedBlock = currentBlock.BlockRef()
+	case errors.Is(err, ethereum.NotFound):
+		c.log.Warn("no canonical block at invalidated height; assuming partial rewind state and retrying",
+			"height", height, "payloadHash", payloadHash)
+		invalidatedBlock = eth.BlockRef{Number: height, Hash: payloadHash}
+	default:
+		return false, fmt.Errorf("failed to get current block at height %d: %w", height, err)
 	}
 
-	// Compare the current block hash with the invalidated hash
-	if currentBlock.Hash != payloadHash {
-		c.log.Info("current block differs from invalidated block, no rewind needed",
-			"height", height,
-			"currentHash", currentBlock.Hash,
-			"invalidatedHash", payloadHash,
-		)
-		return false, nil
-	}
-
-	c.log.Warn("current block matches invalidated block, initiating rewind",
-		"height", height,
-		"hash", payloadHash,
+	rewindFrom, rewindFromErr := c.engine.L2BlockRefByLabel(ctx, eth.Unsafe)
+	c.log.Warn("initiating rewind after block invalidation",
+		"chainID", c.chainID,
+		"invalidatedBlock", eth.BlockID{Hash: payloadHash, Number: height},
+		"lastValidParentBlock", validParent,
 	)
 
-	invalidatedBlock := currentBlock.BlockRef()
-
-	// Rewind to the prior block's timestamp
-	priorTimestamp, err := c.blockNumberToTimestamp(height - 1)
-	if err != nil {
-		return false, fmt.Errorf("failed to compute rewind timestamp: %w", err)
-	}
-	if err := c.RewindEngine(ctx, priorTimestamp, invalidatedBlock); err != nil {
+	if err := c.RewindEngine(ctx, parentPayload, invalidatedBlock); err != nil {
 		return false, fmt.Errorf("failed to rewind engine: %w", err)
 	}
 
-	c.log.Info("rewind completed after block invalidation",
-		"invalidatedHeight", height,
-		"rewindToTimestamp", priorTimestamp,
-	)
+	completionFields := []interface{}{
+		"chainID", c.chainID,
+		"invalidatedBlock", eth.BlockID{Hash: payloadHash, Number: height},
+		"lastValidParentBlock", validParent,
+		"rewindTargetBlock", validParent,
+	}
+	if rewindFromErr == nil && rewindFrom.Number >= validParent.Number {
+		completionFields = append(completionFields,
+			"rewindFromBlock", rewindFrom.ID(),
+			"rewindDepthBlocks", rewindFrom.Number-validParent.Number,
+		)
+	}
+	c.log.Info("chain rewind completed", completionFields...)
+
+	// Record rewind depth: invalidated block was at `height`, rewound to height-1.
+	if c.metrics != nil {
+		c.metrics.ChainRewindDepthBlocks.WithLabelValues(c.chainID.String()).Observe(1)
+	}
 
 	return true, nil
 }
@@ -409,5 +491,19 @@ func (c *simpleChainContainer) PruneDeniedAtOrAfterTimestamp(timestamp uint64) (
 	if c.denyList == nil {
 		return nil, fmt.Errorf("deny list not initialized")
 	}
-	return c.denyList.PruneAtOrAfterTimestamp(timestamp)
+	removed, err := c.denyList.PruneAtOrAfterTimestamp(timestamp)
+	if err == nil && len(removed) > 0 {
+		c.log.Info("pruned deny list entries whose decision basis was reorged out",
+			"decisionTimestamp", timestamp,
+			"removed", removed,
+		)
+	}
+	return removed, err
+}
+
+func (c *simpleChainContainer) HasDeniedAtOrAfterTimestamp(timestamp uint64) (bool, error) {
+	if c.denyList == nil {
+		return false, fmt.Errorf("deny list not initialized")
+	}
+	return c.denyList.HasDeniedAtOrAfterTimestamp(timestamp)
 }

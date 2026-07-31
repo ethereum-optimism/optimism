@@ -59,6 +59,16 @@ func (id L2BlockRef) BlockRef() BlockRef {
 	}
 }
 
+func L2BlockRefAdvances(current, candidate L2BlockRef) bool {
+	if candidate == (L2BlockRef{}) {
+		return false
+	}
+	if current == (L2BlockRef{}) {
+		return true
+	}
+	return candidate.Number > current.Number
+}
+
 type L1BlockRef struct {
 	Hash       common.Hash `json:"hash"`
 	Number     uint64      `json:"number"`

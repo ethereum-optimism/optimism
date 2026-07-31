@@ -14,18 +14,19 @@
 !/op-conductor
 !/op-node
 !/op-preimage
-!/op-program
 !/op-proposer
 !/op-service
 !/op-supervisor
 !/op-supernode
 !/op-interop-filter
 !/op-test-sequencer
-!/op-validator
 !/op-wheel
 !/op-alt-da
 !/op-faucet
 !/op-interop-mon
+# op-stack-go services embed op-core/superchain/superchain-configs.zip, regenerated
+# in the build from this submodule's data (the zip itself is gitignored).
+!/superchain-registry/superchain
 !/rust
 # Exclude large rust build artifacts
 rust/target

@@ -44,7 +44,10 @@ func NewL2Genesis(config *DeployConfig, l1StartHeader *eth.BlockRef) (*core.Gene
 		eip1559Elasticity = 10
 	}
 
-	l1StartTime := l1StartHeader.Time
+	l2GenesisTime, err := config.L2GenesisTime(l1StartHeader.Time)
+	if err != nil {
+		return nil, err
+	}
 
 	optimismChainConfig := params.ChainConfig{
 		ChainID:                 new(big.Int).SetUint64(config.L2ChainID),
@@ -66,19 +69,19 @@ func NewL2Genesis(config *DeployConfig, l1StartHeader *eth.BlockRef) (*core.Gene
 		MergeNetsplitBlock:      big.NewInt(0),
 		TerminalTotalDifficulty: big.NewInt(0),
 		BedrockBlock:            new(big.Int).SetUint64(uint64(config.L2GenesisBlockNumber)),
-		RegolithTime:            config.RegolithTime(l1StartTime),
-		CanyonTime:              config.CanyonTime(l1StartTime),
-		ShanghaiTime:            config.CanyonTime(l1StartTime),
-		CancunTime:              config.EcotoneTime(l1StartTime),
-		EcotoneTime:             config.EcotoneTime(l1StartTime),
-		FjordTime:               config.FjordTime(l1StartTime),
-		GraniteTime:             config.GraniteTime(l1StartTime),
-		HoloceneTime:            config.HoloceneTime(l1StartTime),
-		IsthmusTime:             config.IsthmusTime(l1StartTime),
-		JovianTime:              config.JovianTime(l1StartTime),
-		KarstTime:               config.KarstTime(l1StartTime),
-		PragueTime:              config.IsthmusTime(l1StartTime),
-		InteropTime:             config.InteropTime(l1StartTime),
+		RegolithTime:            config.RegolithTime(l2GenesisTime),
+		CanyonTime:              config.CanyonTime(l2GenesisTime),
+		ShanghaiTime:            config.CanyonTime(l2GenesisTime),
+		CancunTime:              config.EcotoneTime(l2GenesisTime),
+		EcotoneTime:             config.EcotoneTime(l2GenesisTime),
+		FjordTime:               config.FjordTime(l2GenesisTime),
+		GraniteTime:             config.GraniteTime(l2GenesisTime),
+		HoloceneTime:            config.HoloceneTime(l2GenesisTime),
+		IsthmusTime:             config.IsthmusTime(l2GenesisTime),
+		JovianTime:              config.JovianTime(l2GenesisTime),
+		KarstTime:               config.KarstTime(l2GenesisTime),
+		PragueTime:              config.IsthmusTime(l2GenesisTime),
+		LagoonTime:              config.LagoonTime(l2GenesisTime),
 		Optimism: &params.OptimismConfig{
 			EIP1559Denominator:       eip1559Denom,
 			EIP1559Elasticity:        eip1559Elasticity,
@@ -102,7 +105,7 @@ func NewL2Genesis(config *DeployConfig, l1StartHeader *eth.BlockRef) (*core.Gene
 	genesis := &core.Genesis{
 		Config:     &optimismChainConfig,
 		Nonce:      uint64(config.L2GenesisBlockNonce),
-		Timestamp:  l1StartTime,
+		Timestamp:  l2GenesisTime,
 		GasLimit:   uint64(gasLimit),
 		Difficulty: difficulty.ToInt(),
 		Mixhash:    config.L2GenesisBlockMixHash,

@@ -78,12 +78,14 @@ interface IOPContractsManagerV2 {
 
     error OPContractsManagerV2_InvalidGameConfigs();
     error OPContractsManagerV2_InvalidUpgradeInput();
+    error OPContractsManagerV2_InvalidEthLockbox();
     error OPContractsManagerV2_SuperchainConfigNeedsUpgrade();
     error OPContractsManagerV2_InvalidUpgradeInstruction(string _key);
     error OPContractsManagerV2_DuplicateUpgradeInstruction(string _key);
     error OPContractsManagerV2_OnlyDelegateCall();
     error OPContractsManagerV2_CannotUpgradeToCustomGasToken();
     error OPContractsManagerV2_InvalidUpgradeSequence(string _lastVersion, string _thisVersion);
+    error OPContractsManagerV2_ZeroGameImplementation(GameType _gameType);
     error IdentityPrecompileCallFailed();
     error ReservedBitsSet();
     error BytesArrayTooLong();
@@ -129,6 +131,11 @@ interface IOPContractsManagerV2 {
     /// @notice Migrates one or more OP Stack chains to use the Super Root dispute games and shared
     ///         dispute game contracts.
     function migrate(IOPContractsManagerMigrator.MigrateInput calldata _input) external;
+
+    /// @notice Re-points the shared dispute games of an already-interop set to a new respected
+    ///         super game (general across super game types; current use case is the transition to a
+    ///         shared super ZKDisputeGame).
+    function setInteropDisputeGames(IOPContractsManagerMigrator.MigrateInput calldata _input) external;
 
     /// @notice Returns whether a development feature is enabled.
     function isDevFeatureEnabled(bytes32 _feature) external view returns (bool);

@@ -13,6 +13,7 @@ use alloy_rpc_types_engine::PayloadAttributes;
 use async_trait::async_trait;
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_hardforks::{Hardfork, Hardforks};
+use kona_interop::DependencySet;
 use kona_protocol::{
     DEPOSIT_EVENT_ABI_HASH, L1BlockInfoTx, L2BlockInfo, Predeploys, decode_deposit,
 };
@@ -33,6 +34,9 @@ where
     config_fetcher: L2P,
     /// The L1 receipts fetcher.
     receipts_fetcher: L1P,
+    /// Optional interop dependency set. Required when interop is scheduled for the
+    /// chain (`rollup_cfg.hardforks.lagoon_time.is_some()`); ignored otherwise.
+    dependency_set: Option<Arc<DependencySet>>,
 }
 
 impl<L1P, L2P> StatefulAttributesBuilder<L1P, L2P>
@@ -40,18 +44,35 @@ where
     L1P: ChainProvider + Debug,
     L2P: L2ChainProvider + Debug,
 {
-    /// Create a new [`StatefulAttributesBuilder`] with the given epoch.
-    pub const fn new(
+    /// Create a new [`StatefulAttributesBuilder`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if `rcfg.hardforks.lagoon_time.is_some() && dependency_set.is_none()`.
+    /// A chain that has interop scheduled must have a dependency set provided,
+    /// otherwise the builder would silently diverge from op-node on interop
+    /// activation (emitting different number of upgrade transactions, or the wrong
+    /// ordering). See issue #19311.
+    pub fn new(
         rcfg: Arc<RollupConfig>,
         l1_cfg: Arc<L1ChainConfig>,
         sys_cfg_fetcher: L2P,
         receipts: L1P,
+        dependency_set: Option<Arc<DependencySet>>,
     ) -> Self {
+        assert!(
+            !(rcfg.hardforks.lagoon_time.is_some() && dependency_set.is_none()),
+            "StatefulAttributesBuilder: interop is scheduled for this chain \
+             (lagoon_time = {:?}) but no DependencySet was provided. \
+             This would silently diverge from op-node on interop activation.",
+            rcfg.hardforks.lagoon_time,
+        );
         Self {
             rollup_cfg: rcfg,
             l1_cfg,
             config_fetcher: sys_cfg_fetcher,
             receipts_fetcher: receipts,
+            dependency_set,
         }
     }
 }
@@ -165,15 +186,33 @@ where
         {
             upgrade_transactions.append(&mut Hardforks::JOVIAN.txs().collect());
         }
+        // Starting with Karst, upgrade transactions carry their own gas budget that is
+        // added to the block gas limit at the fork activation block.
+        let mut upgrade_gas: u64 = 0;
         if self.rollup_cfg.is_karst_active(next_l2_time) &&
             !self.rollup_cfg.is_karst_active(l2_parent.block_info.timestamp)
         {
             upgrade_transactions.append(&mut Hardforks::KARST.txs().collect());
+            upgrade_gas += Hardforks::KARST.upgrade_gas();
         }
         if self.rollup_cfg.is_interop_active(next_l2_time) &&
             !self.rollup_cfg.is_interop_active(l2_parent.block_info.timestamp)
         {
-            upgrade_transactions.append(&mut Hardforks::INTEROP.txs().collect());
+            // The Interop NUT bundle executes on all chains. The setFeature and
+            // ETHLiquidity funding wrappers only execute for chains in a multi-chain
+            // dependency set, which signals the L2ContractsManager to activate
+            // Interop-specific contracts. Matches op-node's gate at
+            // op-node/rollup/derive/attributes.go.
+            // `dependency_set` is guaranteed Some(_) here because the constructor
+            // panics when lagoon_time.is_some() && dependency_set.is_none().
+            let dependency_set = self.dependency_set.as_ref().expect(
+                "dependency_set must be Some when interop is active — constructor invariant",
+            );
+            let activate_interop_contracts = dependency_set.dependencies.len() > 1;
+            upgrade_transactions.append(
+                &mut Hardforks::LAGOON.txs_for_activation(activate_interop_contracts).collect(),
+            );
+            upgrade_gas += Hardforks::LAGOON.upgrade_gas_for_activation(activate_interop_contracts);
         }
 
         // Build and encode the L1 info transaction for the current payload.
@@ -212,12 +251,14 @@ where
                 parent_beacon_block_root: parent_beacon_root,
                 withdrawals,
                 slot_number: None,
+                target_gas_limit: None,
             },
             transactions: Some(txs),
             no_tx_pool: Some(true),
-            gas_limit: Some(u64::from_be_bytes(
-                alloy_primitives::U64::from(sys_config.gas_limit).to_be_bytes(),
-            )),
+            gas_limit: Some(
+                u64::from_be_bytes(alloy_primitives::U64::from(sys_config.gas_limit).to_be_bytes()) +
+                    upgrade_gas,
+            ),
             eip_1559_params: sys_config.eip_1559_params(
                 &self.rollup_cfg,
                 l2_parent.block_info.timestamp,
@@ -387,7 +428,7 @@ mod tests {
         let header = Header::default();
         let hash = header.hash_slow();
         provider.insert_header(hash, header);
-        let mut builder = StatefulAttributesBuilder::new(cfg, l1_cfg, fetcher, provider);
+        let mut builder = StatefulAttributesBuilder::new(cfg, l1_cfg, fetcher, provider, None);
         let epoch = BlockNumHash { hash, number: l2_number };
         let l2_parent = L2BlockInfo {
             block_info: BlockInfo { hash: B256::ZERO, number: l2_number, ..Default::default() },
@@ -413,7 +454,7 @@ mod tests {
         let header = Header::default();
         let hash = header.hash_slow();
         provider.insert_header(hash, header);
-        let mut builder = StatefulAttributesBuilder::new(cfg, l1_cfg, fetcher, provider);
+        let mut builder = StatefulAttributesBuilder::new(cfg, l1_cfg, fetcher, provider, None);
         let epoch = BlockNumHash { hash, number: l2_number };
         let l2_parent = L2BlockInfo {
             block_info: BlockInfo { hash: B256::ZERO, number: l2_number, ..Default::default() },
@@ -440,7 +481,7 @@ mod tests {
         let header = Header { timestamp, ..Default::default() };
         let hash = header.hash_slow();
         provider.insert_header(hash, header);
-        let mut builder = StatefulAttributesBuilder::new(cfg, l1_cfg, fetcher, provider);
+        let mut builder = StatefulAttributesBuilder::new(cfg, l1_cfg, fetcher, provider, None);
         let epoch = BlockNumHash { hash, number: l2_number };
         let l2_parent = L2BlockInfo {
             block_info: BlockInfo { hash: B256::ZERO, number: l2_number, ..Default::default() },
@@ -473,7 +514,7 @@ mod tests {
         let prev_randao = header.mix_hash;
         let hash = header.hash_slow();
         provider.insert_header(hash, header);
-        let mut builder = StatefulAttributesBuilder::new(cfg, l1_cfg, fetcher, provider);
+        let mut builder = StatefulAttributesBuilder::new(cfg, l1_cfg, fetcher, provider, None);
         let epoch = BlockNumHash { hash, number: l2_number };
         let l2_parent = L2BlockInfo {
             block_info: BlockInfo {
@@ -495,6 +536,7 @@ mod tests {
                 parent_beacon_block_root: None,
                 withdrawals: None,
                 slot_number: None,
+                target_gas_limit: None,
             },
             transactions: payload.transactions.clone(),
             no_tx_pool: Some(true),
@@ -526,7 +568,7 @@ mod tests {
         let prev_randao = header.mix_hash;
         let hash = header.hash_slow();
         provider.insert_header(hash, header);
-        let mut builder = StatefulAttributesBuilder::new(cfg, l1_cfg, fetcher, provider);
+        let mut builder = StatefulAttributesBuilder::new(cfg, l1_cfg, fetcher, provider, None);
         let epoch = BlockNumHash { hash, number: l2_number };
         let l2_parent = L2BlockInfo {
             block_info: BlockInfo {
@@ -548,6 +590,7 @@ mod tests {
                 parent_beacon_block_root: None,
                 withdrawals: Some(Vec::default()),
                 slot_number: None,
+                target_gas_limit: None,
             },
             transactions: payload.transactions.clone(),
             no_tx_pool: Some(true),
@@ -580,7 +623,7 @@ mod tests {
         let prev_randao = header.mix_hash;
         let hash = header.hash_slow();
         provider.insert_header(hash, header);
-        let mut builder = StatefulAttributesBuilder::new(cfg, l1_cfg, fetcher, provider);
+        let mut builder = StatefulAttributesBuilder::new(cfg, l1_cfg, fetcher, provider, None);
         let epoch = BlockNumHash { hash, number: l2_number };
         let l2_parent = L2BlockInfo {
             block_info: BlockInfo {
@@ -602,6 +645,7 @@ mod tests {
                 parent_beacon_block_root,
                 withdrawals: Some(vec![]),
                 slot_number: None,
+                target_gas_limit: None,
             },
             transactions: payload.transactions.clone(),
             no_tx_pool: Some(true),
@@ -633,7 +677,7 @@ mod tests {
         let prev_randao = header.mix_hash;
         let hash = header.hash_slow();
         provider.insert_header(hash, header);
-        let mut builder = StatefulAttributesBuilder::new(cfg, l1_cfg, fetcher, provider);
+        let mut builder = StatefulAttributesBuilder::new(cfg, l1_cfg, fetcher, provider, None);
         let epoch = BlockNumHash { hash, number: l2_number };
         let l2_parent = L2BlockInfo {
             block_info: BlockInfo {
@@ -655,6 +699,7 @@ mod tests {
                 parent_beacon_block_root: Some(B256::ZERO),
                 withdrawals: Some(vec![]),
                 slot_number: None,
+                target_gas_limit: None,
             },
             transactions: payload.transactions.clone(),
             no_tx_pool: Some(true),
@@ -715,7 +760,8 @@ mod tests {
         let mut fetcher = TestSystemConfigL2Fetcher::default();
         fetcher.insert(l2_number, SystemConfig::default());
 
-        let mut builder = StatefulAttributesBuilder::new(cfg.clone(), l1_cfg, fetcher, provider);
+        let mut builder =
+            StatefulAttributesBuilder::new(cfg.clone(), l1_cfg, fetcher, provider, None);
         let epoch = BlockNumHash { hash: epoch_hash, number: 1 };
         let l2_parent = L2BlockInfo {
             block_info: BlockInfo {
@@ -735,5 +781,139 @@ mod tests {
             "system config update failure should be non-fatal, got: {:?}",
             result.unwrap_err()
         );
+    }
+
+    // ---------------------------------------------------------------------------
+    // Interop activation gating tests
+    //
+    // The Interop bundle executes for all chains. Multi-chain dependency sets
+    // additionally emit the setFeature and ETHLiquidity funding wrappers. Go reference:
+    // op-node/rollup/derive/attributes.go.
+    // ---------------------------------------------------------------------------
+
+    fn build_interop_dep_set(chain_count: usize) -> Arc<DependencySet> {
+        use alloc::collections::BTreeMap;
+        use kona_interop::ChainDependency;
+        // `ChainDependency` is zero-sized today; the set's cardinality is what
+        // gates the CrossL2Inbox predeploy pair, not the values.
+        #[allow(clippy::zero_sized_map_values)]
+        let dependencies =
+            (1..=chain_count as u64).map(|id| (id, ChainDependency {})).collect::<BTreeMap<_, _>>();
+        Arc::new(DependencySet { dependencies, override_message_expiry_window: None })
+    }
+
+    /// Interop-activated, single-chain `dep-set` → bundle txs only.
+    #[tokio::test]
+    async fn test_prepare_payload_with_interop_single_chain() {
+        let block_time = 2;
+        let timestamp = 100;
+        let cfg = Arc::new(RollupConfig {
+            block_time,
+            hardforks: HardForkConfig {
+                regolith_time: Some(50),
+                canyon_time: Some(50),
+                delta_time: Some(50),
+                ecotone_time: Some(50),
+                fjord_time: Some(50),
+                granite_time: Some(50),
+                holocene_time: Some(50),
+                isthmus_time: Some(50),
+                jovian_time: Some(50),
+                karst_time: Some(50),
+                lagoon_time: Some(102),
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+        let l1_cfg = Arc::new(L1Config::sepolia().into());
+        let l2_number = 1;
+        let mut fetcher = TestSystemConfigL2Fetcher::default();
+        fetcher.insert(l2_number, SystemConfig::default());
+        let mut provider = TestChainProvider::default();
+        let header = Header { timestamp, ..Default::default() };
+        let hash = header.hash_slow();
+        provider.insert_header(hash, header);
+        let dep_set = build_interop_dep_set(1);
+        let mut builder =
+            StatefulAttributesBuilder::new(cfg, l1_cfg, fetcher, provider, Some(dep_set));
+        let epoch = BlockNumHash { hash, number: l2_number };
+        let l2_parent = L2BlockInfo {
+            block_info: BlockInfo {
+                hash: B256::ZERO,
+                number: l2_number,
+                timestamp,
+                parent_hash: hash,
+            },
+            l1_origin: BlockNumHash { hash, number: l2_number },
+            seq_num: 0,
+        };
+        let payload = builder.prepare_payload_attributes(l2_parent, epoch).await.unwrap();
+        // 1 L1InfoTx + 28 bundle txs. Single-chain superchains skip only the
+        // setFeature and ETHLiquidity funding wrappers.
+        assert_eq!(payload.transactions.unwrap().len(), 1 + 28);
+    }
+
+    /// Interop-activated, multi-chain `dep-set` → full bundle wrapped with setFeature + funding.
+    #[tokio::test]
+    async fn test_prepare_payload_with_interop_multi_chain() {
+        let block_time = 2;
+        let timestamp = 100;
+        let cfg = Arc::new(RollupConfig {
+            block_time,
+            hardforks: HardForkConfig {
+                regolith_time: Some(50),
+                canyon_time: Some(50),
+                delta_time: Some(50),
+                ecotone_time: Some(50),
+                fjord_time: Some(50),
+                granite_time: Some(50),
+                holocene_time: Some(50),
+                isthmus_time: Some(50),
+                jovian_time: Some(50),
+                karst_time: Some(50),
+                lagoon_time: Some(102),
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+        let l1_cfg = Arc::new(L1Config::sepolia().into());
+        let l2_number = 1;
+        let mut fetcher = TestSystemConfigL2Fetcher::default();
+        fetcher.insert(l2_number, SystemConfig::default());
+        let mut provider = TestChainProvider::default();
+        let header = Header { timestamp, ..Default::default() };
+        let hash = header.hash_slow();
+        provider.insert_header(hash, header);
+        let dep_set = build_interop_dep_set(2);
+        let mut builder =
+            StatefulAttributesBuilder::new(cfg, l1_cfg, fetcher, provider, Some(dep_set));
+        let epoch = BlockNumHash { hash, number: l2_number };
+        let l2_parent = L2BlockInfo {
+            block_info: BlockInfo {
+                hash: B256::ZERO,
+                number: l2_number,
+                timestamp,
+                parent_hash: hash,
+            },
+            l1_origin: BlockNumHash { hash, number: l2_number },
+            seq_num: 0,
+        };
+        let payload = builder.prepare_payload_attributes(l2_parent, epoch).await.unwrap();
+        // 1 L1InfoTx + 30 interop txs (1 setFeature + 28 bundle + 1 ETHLiquidity funding).
+        assert_eq!(payload.transactions.unwrap().len(), 1 + 30);
+    }
+
+    /// Constructor panics fast when interop is scheduled but no dependency set was provided.
+    #[test]
+    #[should_panic(expected = "no DependencySet was provided")]
+    fn test_stateful_builder_new_panics_when_interop_scheduled_without_dependency_set() {
+        let cfg = Arc::new(RollupConfig {
+            hardforks: HardForkConfig { lagoon_time: Some(100), ..Default::default() },
+            ..Default::default()
+        });
+        let l1_cfg = Arc::new(L1Config::sepolia().into());
+        let fetcher = TestSystemConfigL2Fetcher::default();
+        let provider = TestChainProvider::default();
+        let _builder = StatefulAttributesBuilder::new(cfg, l1_cfg, fetcher, provider, None);
     }
 }

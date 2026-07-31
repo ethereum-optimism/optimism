@@ -1,6 +1,8 @@
 package gameargs
 
 import (
+	"encoding/binary"
+	"math/big"
 	"math/rand"
 	"testing"
 
@@ -48,6 +50,66 @@ func TestParse(t *testing.T) {
 		expected := fullGameArgs()
 		input := expected.PackPermissioned()
 		actual, err := Parse(input)
+		require.NoError(t, err)
+		require.Equal(t, expected, actual)
+	})
+}
+
+func TestZKGameArgsPack(t *testing.T) {
+	prestate := common.HexToHash("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+	verifier := common.HexToAddress("0x1111111111111111111111111111111111111111")
+	asr := common.HexToAddress("0x2222222222222222222222222222222222222222")
+	weth := common.HexToAddress("0x3333333333333333333333333333333333333333")
+	bond := big.NewInt(1e18)
+
+	got := ZKGameArgs{
+		AbsolutePrestate:     prestate,
+		Verifier:             verifier,
+		MaxChallengeDuration: 3600,
+		MaxProveDuration:     7200,
+		ChallengerBond:       bond,
+		AnchorStateRegistry:  asr,
+		Weth:                 weth,
+	}.Pack()
+
+	require.Len(t, got, ZKArgsLength)
+	require.Equal(t, prestate[:], got[0:32])
+	require.Equal(t, verifier[:], got[32:52])
+	require.Equal(t, uint64(3600), binary.BigEndian.Uint64(got[52:60]))
+	require.Equal(t, uint64(7200), binary.BigEndian.Uint64(got[60:68]))
+	require.Equal(t, bond, new(big.Int).SetBytes(got[68:100]))
+	require.Equal(t, asr[:], got[100:120])
+	require.Equal(t, weth[:], got[120:140])
+}
+
+func TestParseZK(t *testing.T) {
+	t.Run("Invalid-ZeroLength", func(t *testing.T) {
+		_, err := ParseZK([]byte{})
+		require.ErrorIs(t, err, ErrInvalidGameArgs)
+	})
+
+	t.Run("Invalid-TooShort", func(t *testing.T) {
+		_, err := ParseZK(make([]byte, ZKArgsLength-1))
+		require.ErrorIs(t, err, ErrInvalidGameArgs)
+	})
+
+	t.Run("Invalid-TooLong", func(t *testing.T) {
+		_, err := ParseZK(make([]byte, ZKArgsLength+1))
+		require.ErrorIs(t, err, ErrInvalidGameArgs)
+	})
+
+	t.Run("Valid-RoundTrip", func(t *testing.T) {
+		rng := rand.New(rand.NewSource(1))
+		expected := ZKGameArgs{
+			AbsolutePrestate:     testutils.RandomHash(rng),
+			Verifier:             testutils.RandomAddress(rng),
+			MaxChallengeDuration: 3600,
+			MaxProveDuration:     7200,
+			ChallengerBond:       big.NewInt(1e18),
+			AnchorStateRegistry:  testutils.RandomAddress(rng),
+			Weth:                 testutils.RandomAddress(rng),
+		}
+		actual, err := ParseZK(expected.Pack())
 		require.NoError(t, err)
 		require.Equal(t, expected, actual)
 	})

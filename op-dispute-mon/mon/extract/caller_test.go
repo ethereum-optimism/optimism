@@ -47,10 +47,6 @@ func TestMetadataCreator_CreateContract(t *testing.T) {
 			game: types.GameMetadata{GameType: uint32(types.FastGameType), Proxy: fdgAddr},
 		},
 		{
-			name: "validSuperCannonGameType",
-			game: types.GameMetadata{GameType: uint32(types.SuperCannonGameType), Proxy: fdgAddr},
-		},
-		{
 			name: "validSuperPermissionedGameType",
 			game: types.GameMetadata{GameType: uint32(types.SuperPermissionedGameType), Proxy: fdgAddr},
 		},
@@ -88,15 +84,17 @@ func TestMetadataCreator_CreateContract(t *testing.T) {
 
 func setupMetadataLoaderTest(t *testing.T, gameType uint32) (*batching.MultiCaller, *mockCacheMetrics) {
 	fdgAbi := snapshots.LoadFaultDisputeGameABI()
-	if gameType == uint32(types.SuperPermissionedGameType) ||
-		gameType == uint32(types.SuperCannonGameType) ||
-		gameType == uint32(types.SuperCannonKonaGameType) {
+	if gameType == uint32(types.SuperPermissionedGameType) {
+		fdgAbi = snapshots.LoadSuperPermissionedDisputeGameABI()
+	} else if gameType == uint32(types.SuperCannonKonaGameType) {
 		fdgAbi = snapshots.LoadSuperFaultDisputeGameABI()
 	}
 	stubRpc := batchingTest.NewAbiBasedRpc(t, fdgAddr, fdgAbi)
 	caller := batching.NewMultiCaller(stubRpc, batching.DefaultBatchSize)
-	stubRpc.SetResponse(fdgAddr, "version", rpcblock.Latest, nil, []interface{}{"0.18.0"})
-	stubRpc.SetResponse(fdgAddr, "gameType", rpcblock.Latest, nil, []interface{}{gameType})
+	if gameType != uint32(types.SuperPermissionedGameType) {
+		stubRpc.SetResponse(fdgAddr, "version", rpcblock.Latest, nil, []interface{}{"0.18.0"})
+		stubRpc.SetResponse(fdgAddr, "gameType", rpcblock.Latest, nil, []interface{}{gameType})
+	}
 	return caller, &mockCacheMetrics{}
 }
 

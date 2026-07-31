@@ -6,21 +6,18 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/params"
 )
 
+// DeploySuperchainInput must mirror the Solidity DeploySuperchain.s.sol input
+// struct exactly — script ABI matching is checked at load time.
 type DeploySuperchainInput struct {
-	Guardian                   common.Address         `toml:"guardian"`
-	ProtocolVersionsOwner      common.Address         `toml:"protocolVersionsOwner"`
-	SuperchainProxyAdminOwner  common.Address         `toml:"superchainProxyAdminOwner"`
-	Paused                     bool                   `toml:"paused"`
-	RecommendedProtocolVersion params.ProtocolVersion `toml:"recommendedProtocolVersion"`
-	RequiredProtocolVersion    params.ProtocolVersion `toml:"requiredProtocolVersion"`
+	Guardian                  common.Address `toml:"guardian"`
+	SuperchainProxyAdminOwner common.Address `toml:"superchainProxyAdminOwner"`
+	Paused                    bool           `toml:"paused"`
 }
 
+// DeploySuperchainOutput must mirror DeploySuperchain.s.sol's output struct.
 type DeploySuperchainOutput struct {
-	ProtocolVersionsImpl  common.Address `json:"protocolVersionsImplAddress"`
-	ProtocolVersionsProxy common.Address `json:"protocolVersionsProxyAddress"`
 	SuperchainConfigImpl  common.Address `json:"superchainConfigImplAddress"`
 	SuperchainConfigProxy common.Address `json:"superchainConfigProxyAddress"`
 	SuperchainProxyAdmin  common.Address `json:"proxyAdminAddress"`

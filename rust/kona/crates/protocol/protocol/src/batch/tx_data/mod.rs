@@ -1,7 +1,7 @@
 //! Contains all the Span Batch Transaction Data types.
 
 mod wrapper;
-pub use wrapper::SpanBatchTransactionData;
+pub use wrapper::{SpanBatchPostExecTransactionData, SpanBatchTransactionData};
 
 mod legacy;
 pub use legacy::SpanBatchLegacyTransactionData;

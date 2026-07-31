@@ -7,6 +7,7 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
 import { Fork } from "scripts/libraries/Config.sol";
 import { Features } from "src/libraries/Features.sol";
@@ -19,16 +20,15 @@ abstract contract Predeploys_TestInit is CommonTest {
     /// Internal helpers
     //////////////////////////////////////////////////////
 
-    /// @notice Returns true if the address is a predeploy that has a different code in the
-    ///         interop mode.
-    function _interopCodeDiffer(address _addr) internal pure returns (bool) {
-        return _addr == Predeploys.L1_BLOCK_ATTRIBUTES || _addr == Predeploys.L2_STANDARD_BRIDGE;
-    }
-
-    /// @notice Returns true if the address is a predeploy that has a different code in the
-    ///         custom gas token mode.
+    /// @notice Returns true if the predeploy has a custom gas token implementation variant.
     function _customGasTokenCodeDiffer(address _addr) internal pure returns (bool) {
-        return _addr == Predeploys.L1_BLOCK_ATTRIBUTES || _addr == Predeploys.L2_TO_L1_MESSAGE_PASSER;
+        Predeploys.PredeployRecord[] memory records = Predeploys.getAllRecords();
+        for (uint256 i = 0; i < records.length; i++) {
+            if (records[i].proxy == _addr && records[i].variants.length > uint256(Predeploys.VariantKind.CGT)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /// @notice Returns true if the account is not meant to be in the L2 genesis anymore.
@@ -40,8 +40,7 @@ abstract contract Predeploys_TestInit is CommonTest {
     ///         These contracts have _initialized in the regular storage layout.
     function _isInitializableV4(address _addr) internal pure returns (bool) {
         return _addr == Predeploys.L2_CROSS_DOMAIN_MESSENGER || _addr == Predeploys.L2_STANDARD_BRIDGE
-            || _addr == Predeploys.L2_ERC721_BRIDGE || _addr == Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY
-            || _addr == Predeploys.FEE_SPLITTER;
+            || _addr == Predeploys.L2_ERC721_BRIDGE || _addr == Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY;
     }
 
     /// @notice Returns true if the predeploy is initializable and uses OpenZeppelin v5 namespaced storage (EIP-7201).
@@ -57,12 +56,33 @@ abstract contract Predeploys_TestInit is CommonTest {
             || _addr == Predeploys.GOVERNANCE_TOKEN;
     }
 
+    /// @notice Returns true if the record's feature gates are satisfied for the given fork/flags.
+    function _isRecordActive(
+        Predeploys.PredeployRecord memory _r,
+        Fork _fork,
+        bool _isCustomGasToken,
+        bool _isInterop
+    )
+        internal
+        view
+        returns (bool)
+    {
+        if (_r.devFeatureGate != bytes32(0) && !DevFeatures.isDevFeatureEnabled(devFeatureBitmap, _r.devFeatureGate)) {
+            return false;
+        }
+        if (_r.isInterop) {
+            return _isInterop && uint256(_fork) >= uint256(Fork.INTEROP);
+        }
+        if (_r.isCustomGasToken) return _isCustomGasToken;
+        return true;
+    }
+
     /// @notice Internal test function for predeploys validation across different forks.
     function _test_predeploys(Fork _fork, bool _isCustomGasToken, bool _isInterop) internal {
         uint256 count = 2048;
         uint160 prefix = uint160(0x420) << 148;
 
-        bytes memory proxyCode = vm.getDeployedCode("Proxy.sol:Proxy");
+        bytes memory proxyCode = DeployUtils.getDeployedCode("Proxy");
 
         for (uint256 i = 0; i < count; i++) {
             address addr = address(prefix | uint160(i));
@@ -90,7 +110,7 @@ abstract contract Predeploys_TestInit is CommonTest {
             string memory cname = Predeploys.getName(addr);
             assertNotEq(cname, "", "must have a name");
 
-            bytes memory supposedCode = vm.getDeployedCode(string.concat(cname, ".sol:", cname));
+            bytes memory supposedCode = DeployUtils.getDeployedCode(cname);
             assertNotEq(supposedCode.length, 0, "must have supposed code");
 
             if (proxied == false) {
@@ -110,7 +130,7 @@ abstract contract Predeploys_TestInit is CommonTest {
                 string.concat("Implementation mismatch for ", vm.toString(addr))
             );
             assertNotEq(implAddr.code.length, 0, "predeploy implementation account must have code");
-            if (!_usesImmutables(addr) && !_interopCodeDiffer(addr) && !_customGasTokenCodeDiffer(addr)) {
+            if (!_usesImmutables(addr) && !_customGasTokenCodeDiffer(addr)) {
                 // can't check bytecode if it's modified with immutables in genesis.
                 assertEq(implAddr.code, supposedCode, "proxy implementation contract should match contract source");
             }
@@ -153,6 +173,17 @@ contract Predeploys_PredeployToCodeNamespace_Test is Predeploys_TestInit {
     }
 }
 
+/// @title Predeploys_GetName_Test
+/// @notice Tests the `getName` function of the `Predeploys` library.
+contract Predeploys_GetName_Test is Predeploys_TestInit {
+    /// @notice Tests that for addresses with CGT variants which share their proxy address with a primary
+    ///         record getName always return the primary name.
+    function test_getName_forVariantProxy_succeeds() external pure {
+        assertEq(Predeploys.getName(Predeploys.L1_BLOCK_ATTRIBUTES), "L1Block");
+        assertEq(Predeploys.getName(Predeploys.L2_TO_L1_MESSAGE_PASSER), "L2ToL1MessagePasser");
+    }
+}
+
 /// @title Predeploys_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `Predeploys` contract
 ///         or are testing multiple functions at once.
@@ -169,12 +200,43 @@ contract Predeploys_Uncategorized_Test is Predeploys_TestInit {
         skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
         _test_predeploys(Fork.ISTHMUS, true, false);
     }
+}
 
-    /// @notice Tests that the predeploy addresses are set correctly. They have code
-    ///         and the proxied accounts have the correct admin. Using l2cm.
-    function test_predeploys_l2cm_succeeds() external {
-        skipIfDevFeatureDisabled(DevFeatures.L2CM);
-        _test_predeploys(Fork.ISTHMUS, false, false);
+/// @title Predeploys_GetAllRecords_Test
+/// @notice Tests ordering invariants of the `getAllRecords` return value.
+contract Predeploys_GetAllRecords_Test is Predeploys_TestInit {
+    /// @notice Test that once a non-proxied record appears at index i, every subsequent record j > i must
+    ///         also be non-proxied or deprecated.
+    function test_getAllRecords_nonProxiedRecordsAtEnd_succeeds() external pure {
+        Predeploys.PredeployRecord[] memory records = Predeploys.getAllRecords();
+        bool seenNonProxied = false;
+        for (uint256 i = 0; i < records.length; i++) {
+            if (!records[i].isProxied) seenNonProxied = true;
+            if (seenNonProxied) {
+                assertTrue(
+                    !records[i].isProxied || records[i].isDeprecated,
+                    string.concat(Predeploys.implName(records[i]), ": proxied record appears after non-proxied record")
+                );
+            }
+        }
+    }
+
+    /// @notice Test that once a deprecated record appears at index i, every subsequent record j > i must
+    ///         also be deprecated.
+    function test_getAllRecords_deprecatedRecordsAtEnd_succeeds() external pure {
+        Predeploys.PredeployRecord[] memory records = Predeploys.getAllRecords();
+        bool seenDeprecated = false;
+        for (uint256 i = 0; i < records.length; i++) {
+            if (records[i].isDeprecated) seenDeprecated = true;
+            if (seenDeprecated) {
+                assertTrue(
+                    records[i].isDeprecated,
+                    string.concat(
+                        Predeploys.implName(records[i]), ": non-deprecated record appears after deprecated record"
+                    )
+                );
+            }
+        }
     }
 }
 

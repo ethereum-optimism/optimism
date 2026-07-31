@@ -1,9 +1,15 @@
 //! Node builder setup tests.
 
-use alloy_op_evm::OpTxError;
+use alloy_op_evm::{
+    OpEvmContext, OpTxError,
+    post_exec::{
+        PostExecEvmFactoryAdapter, PostExecEvmFactoryHooks, PostExecExecutedTx, PostExecTxContext,
+        WarmingState,
+    },
+};
 use alloy_primitives::{Bytes, address};
 use core::marker::PhantomData;
-use op_revm::{OpContext, OpHaltReason, OpSpecId, precompiles::OpPrecompiles};
+use op_revm::{OpHaltReason, OpSpecId, precompiles::OpPrecompiles};
 use reth_db::test_utils::create_test_rw_db;
 use reth_evm::{Database, Evm, EvmEnv, EvmFactory, precompiles::PrecompilesMap};
 use reth_node_api::{FullNodeComponents, NodeTypesWithDBAdapter};
@@ -11,14 +17,14 @@ use reth_node_builder::{
     BuilderContext, FullNodeTypes, Node, NodeBuilder, NodeConfig, NodeTypes,
     components::ExecutorBuilder,
 };
-use reth_optimism_chainspec::{BASE_MAINNET, OP_SEPOLIA, OpChainSpec};
+use reth_optimism_chainspec::{OP_MAINNET, OP_SEPOLIA, OpChainSpec};
 use reth_optimism_evm::{OpBlockExecutorFactory, OpEvm, OpEvmFactory, OpRethReceiptBuilder, OpTx};
 use reth_optimism_node::{OpEvmConfig, OpExecutorBuilder, OpNode, args::RollupArgs};
 use reth_optimism_primitives::OpPrimitives;
 use reth_provider::providers::BlockchainProvider;
 use revm::{
     Inspector,
-    context::{BlockEnv, ContextTr},
+    context::{BlockEnv, ContextTr, DBErrorMarker},
     context_interface::result::EVMError,
     inspector::NoOpInspector,
     interpreter::interpreter::EthInterpreter,
@@ -29,7 +35,7 @@ use std::sync::OnceLock;
 #[test]
 fn test_basic_setup() {
     // parse CLI -> config
-    let config = NodeConfig::new(BASE_MAINNET.clone());
+    let config = NodeConfig::new(OP_MAINNET.clone());
     let db = create_test_rw_db();
     let args = RollupArgs::default();
     let op_node = OpNode::new(args);
@@ -72,7 +78,9 @@ fn test_setup_custom_precompiles() {
                 let precompile = Precompile::new(
                     PrecompileId::custom("custom"),
                     address!("0x0000000000000000000000000000000000756e69"),
-                    |_, _| PrecompileResult::Ok(PrecompileOutput::new(0, Bytes::new())),
+                    |_, _, reservoir| {
+                        PrecompileResult::Ok(PrecompileOutput::new(0, Bytes::new(), reservoir))
+                    },
                 );
                 precompiles.extend([precompile]);
                 precompiles
@@ -85,11 +93,11 @@ fn test_setup_custom_precompiles() {
     struct UniEvmFactory;
 
     impl EvmFactory for UniEvmFactory {
-        type Evm<DB: Database, I: Inspector<OpContext<DB>>> = OpEvm<DB, I, Self::Precompiles, OpTx>;
-        type Context<DB: Database> = OpContext<DB>;
+        type Evm<DB: Database, I: Inspector<OpEvmContext<DB>>> =
+            OpEvm<DB, I, Self::Precompiles, OpTx>;
+        type Context<DB: Database> = OpEvmContext<DB>;
         type Tx = OpTx;
-        type Error<DBError: core::error::Error + Send + Sync + 'static> =
-            EVMError<DBError, OpTxError>;
+        type Error<DBError: DBErrorMarker> = EVMError<DBError, OpTxError>;
         type HaltReason = OpHaltReason;
         type Spec = OpSpecId;
         type BlockEnv = BlockEnv;
@@ -123,7 +131,48 @@ fn test_setup_custom_precompiles() {
         }
     }
 
+    impl PostExecEvmFactoryHooks for UniEvmFactory {
+        type Snapshot = WarmingState;
+
+        fn begin_post_exec_tx<DB, I>(evm: &mut Self::Evm<DB, I>, ctx: PostExecTxContext)
+        where
+            DB: Database,
+            I: Inspector<Self::Context<DB>>,
+        {
+            evm.begin_post_exec_tx(ctx);
+        }
+
+        fn take_last_post_exec_tx_result<DB, I>(evm: &mut Self::Evm<DB, I>) -> PostExecExecutedTx
+        where
+            DB: Database,
+            I: Inspector<Self::Context<DB>>,
+        {
+            evm.take_last_post_exec_tx_result()
+        }
+
+        fn refund_snapshot<DB, I>(evm: &Self::Evm<DB, I>) -> Self::Snapshot
+        where
+            DB: Database,
+            I: Inspector<Self::Context<DB>>,
+        {
+            evm.refund_snapshot()
+        }
+
+        fn seed_refund_snapshot<DB, I>(evm: &mut Self::Evm<DB, I>, state: Self::Snapshot)
+        where
+            DB: Database,
+            I: Inspector<Self::Context<DB>>,
+        {
+            evm.seed_refund_snapshot(state);
+        }
+    }
+
     /// Unichain executor builder.
+    ///
+    /// This is a type-level/builder-plumbing test for downstream OP Stack chains that need to
+    /// customize the EVM executor, for example to add chain-specific precompiles. `check_launch`
+    /// does not execute a block or call the custom precompile; it verifies that a custom executor
+    /// builder, custom EVM factory, and OP node components compose into a launchable node config.
     struct UniExecutorBuilder;
 
     impl<Node> ExecutorBuilder<Node> for UniExecutorBuilder
@@ -134,7 +183,7 @@ fn test_setup_custom_precompiles() {
             OpChainSpec,
             <Node::Types as NodeTypes>::Primitives,
             OpRethReceiptBuilder,
-            UniEvmFactory,
+            PostExecEvmFactoryAdapter<UniEvmFactory>,
         >;
 
         async fn build_evm(self, ctx: &BuilderContext<Node>) -> eyre::Result<Self::EVM> {
@@ -143,7 +192,7 @@ fn test_setup_custom_precompiles() {
             let uni_executor_factory = OpBlockExecutorFactory::new(
                 *executor_factory.receipt_builder(),
                 ctx.chain_spec(),
-                UniEvmFactory,
+                PostExecEvmFactoryAdapter::new(UniEvmFactory),
             );
             let uni_evm_config = OpEvmConfig {
                 executor_factory: uni_executor_factory,

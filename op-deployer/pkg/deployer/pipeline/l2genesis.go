@@ -5,12 +5,15 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
@@ -41,7 +44,7 @@ type cgtConfig struct {
 	LiquidityControllerOwner   common.Address
 }
 
-func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, st *state.State, chainID common.Hash) error {
+func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle artifacts.Bundle, st *state.State, chainID common.Hash) error {
 	lgr := pEnv.Logger.New("stage", "generate-l2-genesis")
 
 	thisIntent, err := intent.Chain(chainID)
@@ -61,11 +64,16 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 
 	lgr.Info("generating L2 genesis", "id", chainID.Hex())
 
+	hostOpts := []script.HostOption{}
+	if pEnv.AllowUnoptimizedContracts {
+		hostOpts = append(hostOpts, script.WithNoMaxCodeSize())
+	}
 	host, err := env.DefaultScriptHost(
 		broadcaster.NoopBroadcaster(),
 		pEnv.Logger,
 		pEnv.Deployer,
 		bundle.L2,
+		hostOpts...,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create L2 script host: %w", err)
@@ -112,9 +120,6 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 		Fork:                                     big.NewInt(schedule.SolidityForkNumber(1)),
 		EnableGovernance:                         overrides.EnableGovernance,
 		FundDevAccounts:                          overrides.FundDevAccounts,
-		UseRevenueShare:                          thisIntent.UseRevenueShare,
-		ChainFeesRecipient:                       thisIntent.ChainFeesRecipient,
-		L1FeesDepositor:                          standard.L1FeesDepositor,
 		// Custom Gas Token (CGT) configuration from intent
 		UseCustomGasToken:          cgt.UseCustomGasToken,
 		GasPayingTokenName:         cgt.GasPayingTokenName,
@@ -132,6 +137,15 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 	dump, err := host.StateDump()
 	if err != nil {
 		return fmt.Errorf("failed to dump state: %w", err)
+	}
+
+	if err := genesis.CheckL2GenesisAllocs(dump, genesis.CheckL2AllocsOpts{
+		FundDevAccounts: overrides.FundDevAccounts,
+		// Tagged L2Genesis artifacts predating the #21339 prank nonce reset leave the
+		// proxy admin owner with a bumped nonce, so allow it as a plain EOA.
+		AllowedEOAs: []common.Address{thisIntent.Roles.L2ProxyAdminOwner},
+	}); err != nil {
+		return fmt.Errorf("L2 genesis allocs failed validation: %w", err)
 	}
 
 	thisChainState.Allocs = &state.GzipData[foundry.ForgeAllocs]{
@@ -214,9 +228,7 @@ func buildDevFeatureBitmap(intent *state.Intent) (common.Hash, error) {
 		devFeatureBitmap = common.HexToHash(v)
 	}
 
-	// TODO(#19151): Replace the hex literal with deployer.OptimismPortalInteropDevFlag when import cycles are fixed.
-	interopFeatureFlag := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
-	interopBitEnabled := isDevFeatureEnabled(devFeatureBitmap, interopFeatureFlag)
+	interopBitEnabled := devfeatures.IsDevFeatureEnabled(devFeatureBitmap, devfeatures.OptimismPortalInteropFlag)
 
 	if intent.UseInterop != interopBitEnabled {
 		return common.Hash{}, fmt.Errorf("interop feature in devFeatureBitmap does not match the UseInterop intent flag")

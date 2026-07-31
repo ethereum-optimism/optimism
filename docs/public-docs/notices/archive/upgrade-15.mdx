@@ -30,7 +30,7 @@ In addition to this, the L1 smart contract upgrades in [upgrade 14](/notices/arc
 
 ### For permissionless fault proof enabled chains
 
-Chains running permissionless fault proofs will need to deploy new dispute game contracts with new absolute prestates. The new 64 bit version of cannon will be utilized moving forward. The Sepolia Superchain, will utilize [op-program/v1.6.0-2](https://github.com/ethereum-optimism/optimism/tree/op-program/v1.6.0-rc.2). The following permissionless fault proof Sepolia chains are: `Base Sepolia`, `Ink Sepolia`, and `OP Sepolia`.
+Chains running permissionless fault proofs will need to deploy new dispute game contracts with new absolute prestates. The new 64 bit version of cannon will be utilized moving forward. The Sepolia Superchain, will utilize [op-program/v1.6.0-2](https://github.com/ethereum-optimism/optimism/tree/op-program/v1.6.0-rc.2) (as of `op-program/v1.6.0-rc.2`). The following permissionless fault proof Sepolia chains are: `Base Sepolia`, `Ink Sepolia`, and `OP Sepolia`.
 
 <Steps>
   <Step title="Verify the new absolute prestate">
@@ -38,11 +38,11 @@ Chains running permissionless fault proofs will need to deploy new dispute game 
       As of upgrade 14, the 64 bit multi-threaded version of cannon is utilized.
     </Info>
   
-    The absolute prestate is generated with the [op-program/v1.6.0-rc.2](https://github.com/ethereum-optimism/optimism/tree/op-program/v1.6.0-rc.2). You can use this new absolute prestate (`0x03682932cec7ce0a3874b19675a6bbc923054a7b321efc7d3835187b172494b6`) for the following chains:
+    The absolute prestate is generated with the [op-program/v1.6.0-rc.2](https://github.com/ethereum-optimism/optimism/tree/op-program/v1.6.0-rc.2) (as of `op-program/v1.6.0-rc.2`). You can use this new absolute prestate (`0x03682932cec7ce0a3874b19675a6bbc923054a7b321efc7d3835187b172494b6`) for the following chains:
   
     *   Sepolia: Base, Creator Chain, OP, Metal, Mode, Zora, Ethernity, Unichain, Ink, and Minato (Soneium)
   
-    You can verify this absolute prestate by running the following [command](https://github.com/ethereum-optimism/optimism/blob/d6fb90dd489e39efa206b55200766ccc075c1d9b/Makefile#L130-L132) in the root of the monorepo on the `op-program/v1.6.0-rc.2` tag:
+    You can verify this absolute prestate by running the following [command](https://github.com/ethereum-optimism/optimism/blob/d6fb90dd489e39efa206b55200766ccc075c1d9b/Makefile#L130-L132) (as of `d6fb90d`) in the root of the monorepo on the `op-program/v1.6.0-rc.2` tag:
   
     ```shell
     make reproducible-prestate

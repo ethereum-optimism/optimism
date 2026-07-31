@@ -17,6 +17,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
@@ -65,6 +66,115 @@ func TestRegolithTimeAsOffset(t *testing.T) {
 		},
 	}
 	require.Equal(t, uint64(1500+5000), *config.RegolithTime(5000))
+}
+
+func TestL2GenesisTime(t *testing.T) {
+	t.Run("defaults to the L1 start time when unset", func(t *testing.T) {
+		config := &DeployConfig{}
+		got, err := config.L2GenesisTime(5000)
+		require.NoError(t, err)
+		require.Equal(t, uint64(5000), got)
+	})
+
+	t.Run("returns the explicit timestamp when set", func(t *testing.T) {
+		override := hexutil.Uint64(9000)
+		config := &DeployConfig{L2InitializationConfig: L2InitializationConfig{
+			L2GenesisBlockDeployConfig: L2GenesisBlockDeployConfig{L2GenesisBlockTimestamp: &override},
+		}}
+		got, err := config.L2GenesisTime(5000)
+		require.NoError(t, err)
+		require.Equal(t, uint64(9000), got)
+	})
+
+	t.Run("equal to the L1 start time is accepted", func(t *testing.T) {
+		override := hexutil.Uint64(5000)
+		config := &DeployConfig{L2InitializationConfig: L2InitializationConfig{
+			L2GenesisBlockDeployConfig: L2GenesisBlockDeployConfig{L2GenesisBlockTimestamp: &override},
+		}}
+		got, err := config.L2GenesisTime(5000)
+		require.NoError(t, err)
+		require.Equal(t, uint64(5000), got)
+	})
+
+	t.Run("below the L1 start time is rejected", func(t *testing.T) {
+		override := hexutil.Uint64(4999)
+		config := &DeployConfig{L2InitializationConfig: L2InitializationConfig{
+			L2GenesisBlockDeployConfig: L2GenesisBlockDeployConfig{L2GenesisBlockTimestamp: &override},
+		}}
+		_, err := config.L2GenesisTime(5000)
+		require.ErrorIs(t, err, ErrInvalidDeployConfig)
+	})
+}
+
+func TestNewL2Genesis_TimestampOverride(t *testing.T) {
+	regolithOffset := hexutil.Uint64(1500)
+	makeConfig := func(timestamp *hexutil.Uint64) *DeployConfig {
+		return &DeployConfig{L2InitializationConfig: L2InitializationConfig{
+			L2CoreDeployConfig:          L2CoreDeployConfig{L2ChainID: 1234},
+			L2GenesisBlockDeployConfig:  L2GenesisBlockDeployConfig{L2GenesisBlockTimestamp: timestamp},
+			UpgradeScheduleDeployConfig: UpgradeScheduleDeployConfig{L2GenesisRegolithTimeOffset: &regolithOffset},
+		}}
+	}
+	l1Start := &eth.BlockRef{Time: 5000}
+
+	t.Run("unset uses the L1 start time", func(t *testing.T) {
+		genesis, err := NewL2Genesis(makeConfig(nil), l1Start)
+		require.NoError(t, err)
+		require.Equal(t, uint64(5000), genesis.Timestamp)
+		require.Equal(t, uint64(5000+1500), *genesis.Config.RegolithTime)
+	})
+
+	t.Run("override sets the genesis timestamp", func(t *testing.T) {
+		override := hexutil.Uint64(9000)
+		genesis, err := NewL2Genesis(makeConfig(&override), l1Start)
+		require.NoError(t, err)
+		require.Equal(t, uint64(9000), genesis.Timestamp)
+		require.Equal(t, uint64(9000+1500), *genesis.Config.RegolithTime)
+	})
+
+	t.Run("override below the L1 start time errors", func(t *testing.T) {
+		override := hexutil.Uint64(4999)
+		_, err := NewL2Genesis(makeConfig(&override), l1Start)
+		require.ErrorIs(t, err, ErrInvalidDeployConfig)
+	})
+}
+
+func TestRollupConfig_TimestampOverride(t *testing.T) {
+	regolithOffset := hexutil.Uint64(1500)
+	makeConfig := func(timestamp *hexutil.Uint64) *DeployConfig {
+		return &DeployConfig{
+			L2InitializationConfig: L2InitializationConfig{
+				L2GenesisBlockDeployConfig:  L2GenesisBlockDeployConfig{L2GenesisBlockTimestamp: timestamp},
+				UpgradeScheduleDeployConfig: UpgradeScheduleDeployConfig{L2GenesisRegolithTimeOffset: &regolithOffset},
+			},
+			L1DependenciesConfig: L1DependenciesConfig{
+				SystemConfigProxy:   common.HexToAddress("0x01"),
+				OptimismPortalProxy: common.HexToAddress("0x02"),
+			},
+		}
+	}
+	l1Start := &eth.BlockRef{Hash: common.HexToHash("0xaa"), Number: 100, Time: 5000}
+
+	t.Run("unset uses the L1 start time", func(t *testing.T) {
+		cfg, err := makeConfig(nil).RollupConfig(l1Start, common.HexToHash("0xbb"), 0)
+		require.NoError(t, err)
+		require.Equal(t, uint64(5000), cfg.Genesis.L2Time)
+		require.Equal(t, uint64(5000+1500), *cfg.RegolithTime)
+	})
+
+	t.Run("override sets L2Time", func(t *testing.T) {
+		override := hexutil.Uint64(9000)
+		cfg, err := makeConfig(&override).RollupConfig(l1Start, common.HexToHash("0xbb"), 0)
+		require.NoError(t, err)
+		require.Equal(t, uint64(9000), cfg.Genesis.L2Time)
+		require.Equal(t, uint64(9000+1500), *cfg.RegolithTime)
+	})
+
+	t.Run("override below the L1 start time errors", func(t *testing.T) {
+		override := hexutil.Uint64(4999)
+		_, err := makeConfig(&override).RollupConfig(l1Start, common.HexToHash("0xbb"), 0)
+		require.ErrorIs(t, err, ErrInvalidDeployConfig)
+	})
 }
 
 func TestCanyonTimeZero(t *testing.T) {
@@ -142,8 +252,6 @@ func TestL1Deployments(t *testing.T) {
 	require.NotEqual(t, deployments.ProxyAdmin, common.Address{})
 	require.NotEqual(t, deployments.SystemConfig, common.Address{})
 	require.NotEqual(t, deployments.SystemConfigProxy, common.Address{})
-	require.NotEqual(t, deployments.ProtocolVersions, common.Address{})
-	require.NotEqual(t, deployments.ProtocolVersionsProxy, common.Address{})
 
 	require.Equal(t, "AddressManager", deployments.GetName(deployments.AddressManager))
 	require.Equal(t, "OptimismPortalProxy", deployments.GetName(deployments.OptimismPortalProxy))
@@ -210,7 +318,7 @@ func TestUpgradeScheduleDeployConfig_SolidityForkNumber(t *testing.T) {
 		{forks.Isthmus, 6},
 		{forks.Jovian, 7},
 		{forks.Karst, 8},
-		{forks.Interop, 9},
+		{forks.Lagoon, 9},
 	}
 	for _, tt := range tests {
 		var d UpgradeScheduleDeployConfig

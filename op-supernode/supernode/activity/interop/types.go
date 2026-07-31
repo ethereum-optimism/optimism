@@ -36,22 +36,33 @@ type Result struct {
 //
 // Phase 2 keeps this intentionally small:
 // - advance/invalidate carry their Result directly
-// - rewind carries the accepted timestamp to rewind from
+// - rewind carries the accepted frontier to rewind from
 // Later phases can expand this into a richer explicit transition plan.
+//
+// InvalidationParentPayloads is populated only for DecisionInvalidate transitions. It carries
+// the canonical parent payload (height-1) for each invalidated chain, captured at build time
+// and used at apply time to drive the rewind. Storing the full payload means a crash mid-rewind
+// can be recovered without consulting the live EL — the canonical block may already have been
+// pruned by the EL once it left the canonical chain.
 type PendingTransition struct {
-	Decision Decision    `json:"decision"`
-	Result   *Result     `json:"result,omitempty"`
-	Rewind   *RewindPlan `json:"rewind,omitempty"`
+	Decision                   Decision                                      `json:"decision"`
+	Result                     *Result                                       `json:"result,omitempty"`
+	Rewind                     *RewindPlan                                   `json:"rewind,omitempty"`
+	InvalidationParentPayloads map[eth.ChainID]*eth.ExecutionPayloadEnvelope `json:"invalidationParentPayloads,omitempty"`
 }
 
 // RewindPlan is the explicit rewind transition persisted in the WAL.
-// It captures the target verified frontier and per-chain logsDB target heads so
-// recovery can apply the same rewind path without recomputing it from live
-// state.
+// It captures the target verified frontier and engine reset decision so recovery
+// can apply the same rewind path without recomputing it from live state.
+//
+// TargetPayloads carries the canonical payload at each chain's rewind target, captured at
+// build time. The apply path uses it to drive the engine rewind without consulting the live
+// EL — see the InvalidationParentPayloads comment on PendingTransition for the rationale.
 type RewindPlan struct {
-	RewindAtOrAfter  uint64                      `json:"rewindAtOrAfter"`
-	ResetAllChainsTo *uint64                     `json:"resetAllChainsTo,omitempty"`
-	TargetHeads      map[eth.ChainID]eth.BlockID `json:"targetHeads,omitempty"`
+	RewindAtOrAfter  uint64                                        `json:"rewindAtOrAfter"`
+	ResetAllChainsTo *uint64                                       `json:"resetAllChainsTo,omitempty"`
+	TargetHeads      map[eth.ChainID]eth.BlockID                   `json:"targetHeads,omitempty"`
+	TargetPayloads   map[eth.ChainID]*eth.ExecutionPayloadEnvelope `json:"targetPayloads,omitempty"`
 }
 
 func (r *Result) IsValid() bool {

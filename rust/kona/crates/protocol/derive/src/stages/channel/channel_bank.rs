@@ -533,7 +533,7 @@ mod tests {
 
         let configs: [RollupConfig; 2] = [
             kona_registry::ROLLUP_CONFIGS.get(&10).cloned().unwrap(),
-            kona_registry::ROLLUP_CONFIGS.get(&8453).cloned().unwrap(),
+            kona_registry::ROLLUP_CONFIGS.get(&11155420).cloned().unwrap(),
         ];
 
         for cfg in configs {

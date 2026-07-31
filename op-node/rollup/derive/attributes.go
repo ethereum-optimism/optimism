@@ -42,8 +42,8 @@ type FetchingAttributesBuilder struct {
 }
 
 func NewFetchingAttributesBuilder(rollupCfg *rollup.Config, l1ChainConfig *params.ChainConfig, depSet DependencySet, l1 L1ReceiptsFetcher, l2 SystemConfigL2Fetcher) *FetchingAttributesBuilder {
-	if rollupCfg.InteropTime != nil && depSet == nil {
-		panic("FetchingAttributesBuilder requires a dependency set when interop fork is scheduled")
+	if rollupCfg.LagoonTime != nil && depSet == nil {
+		panic("FetchingAttributesBuilder requires a dependency set when Lagoon fork is scheduled")
 	}
 	return &FetchingAttributesBuilder{
 		rollupCfg:     rollupCfg,
@@ -158,7 +158,7 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 	// additional gas is allocated to the upgrade block so that upgrade transactions
 	// don't need to fit within the system tx gas limit.
 	var upgradeGas uint64
-	if ba.rollupCfg.IsKarstActivationBlock(nextL2Time) {
+	if ba.rollupCfg.IsL2CMActivationBlock(nextL2Time) {
 		nutTxs, nutGas, err := UpgradeTransactions(forks.Karst)
 		if err != nil {
 			return nil, NewCriticalError(fmt.Errorf("failed to build karst network upgrade txs: %w", err))
@@ -167,21 +167,17 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		upgradeGas += nutGas
 	}
 
-	// TODO(#19239): migrate Interop to NUT bundle and add its gas to upgradeGas.
 	if ba.rollupCfg.IsInteropActivationBlock(nextL2Time) {
-		interop, err := InteropNetworkUpgradeTransactions()
+		// The Interop NUT bundle executes on all chains. The setFeature and
+		// ETHLiquidity funding wrappers only execute for chains in a multi-chain
+		// dependency set, which signals the L2ContractsManager to activate
+		// Interop-specific contracts.
+		interopTxs, interopGas, err := InteropActivationUpgradeTransactions(len(ba.depSet.Chains()) > 1)
 		if err != nil {
-			return nil, NewCriticalError(fmt.Errorf("failed to build interop network upgrade txs: %w", err))
+			return nil, NewCriticalError(err)
 		}
-		upgradeTxs = append(upgradeTxs, interop...)
-
-		if len(ba.depSet.Chains()) > 1 {
-			txs, err := InteropActivateCrossL2InboxTransactions()
-			if err != nil {
-				return nil, NewCriticalError(fmt.Errorf("failed to build interop cross l2 inbox txs: %w", err))
-			}
-			upgradeTxs = append(upgradeTxs, txs...)
-		}
+		upgradeTxs = append(upgradeTxs, interopTxs...)
+		upgradeGas += interopGas
 	}
 
 	l1InfoTx, err := L1InfoDepositBytes(ba.rollupCfg, ba.l1ChainConfig, sysConfig, seqNumber, l1Info, nextL2Time)

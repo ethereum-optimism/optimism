@@ -35,7 +35,7 @@ fuzz:
 	printf "%s\n" \
 		"FuzzL1InfoBedrockRoundTrip" \
 		"FuzzL1InfoEcotoneRoundTrip" \
-		"FuzzL1InfoAgainstContract" \
+		"FuzzL1InfoBedrockAgainstContract" \
 		"FuzzUnmarshallLogEvent" \
 		"FuzzParseFrames" \
 		"FuzzFrameUnmarshalBinary" \

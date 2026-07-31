@@ -197,6 +197,10 @@ type Metricer interface {
 
 	RecordOldestGameUpdateTime(t time.Time)
 
+	RecordGameTypes(gameTypeCounts map[string]int)
+
+	RecordAnchorStateL2SequenceNumber(anchorStateRegistry common.Address, l2SequenceNumber uint64)
+
 	caching.Metrics
 	contractMetrics.ContractMetricer
 	opmetrics.RPCMetricer
@@ -234,12 +238,13 @@ type Metrics struct {
 	lastOutputFetch      prometheus.Gauge
 	oldestGameUpdateTime prometheus.Gauge
 
-	gamesAgreement             prometheus.GaugeVec
-	latestValidProposalL2Block prometheus.Gauge
-	latestProposals            prometheus.GaugeVec
-	ignoredGames               prometheus.Gauge
-	failedGames                prometheus.Gauge
-	l2Challenges               prometheus.GaugeVec
+	gamesAgreement              prometheus.GaugeVec
+	latestValidProposalL2Block  prometheus.Gauge
+	latestProposals             prometheus.GaugeVec
+	anchorStateL2SequenceNumber prometheus.GaugeVec
+	ignoredGames                prometheus.Gauge
+	failedGames                 prometheus.Gauge
+	l2Challenges                prometheus.GaugeVec
 
 	requiredCollateral         prometheus.GaugeVec
 	availableCollateral        prometheus.GaugeVec
@@ -249,6 +254,7 @@ type Metrics struct {
 	mixedAvailabilityGames     prometheus.Gauge
 	mixedSafetyGames           prometheus.Gauge
 	differentRootGames         prometheus.Gauge
+	gameTypes                  prometheus.GaugeVec
 }
 
 func (m *Metrics) Registry() *prometheus.Registry {
@@ -371,6 +377,14 @@ func NewMetrics() *Metrics {
 			Name:      "latest_valid_proposal_l2_block",
 			Help:      "L2 block number proposed by the latest game with a valid root claim",
 		}),
+		anchorStateL2SequenceNumber: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "anchor_state_l2_sequence_number",
+			Help:      "L2 sequence number of the current anchor state in the AnchorStateRegistry",
+		}, []string{
+			// Address of the AnchorStateRegistry. A small, controlled set (typically one per chain).
+			"anchor_state_registry",
+		}),
 		latestProposals: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
 			Name:      "latest_proposal",
@@ -445,6 +459,13 @@ func NewMetrics() *Metrics {
 			Namespace: Namespace,
 			Name:      "different_root_games",
 			Help:      "Number of games where nodes returned different roots (output roots for FaultDisputeGame, super roots for SuperFaultDisputeGame) in the last update cycle",
+		}),
+		gameTypes: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "games",
+			Help:      "Number of games in the monitoring window broken down by game type",
+		}, []string{
+			"game_type",
 		}),
 	}
 }
@@ -575,6 +596,10 @@ func (m *Metrics) RecordLatestProposals(latestValid, latestInvalid uint64) {
 	m.latestProposals.WithLabelValues("disagree").Set(float64(latestInvalid))
 }
 
+func (m *Metrics) RecordAnchorStateL2SequenceNumber(anchorStateRegistry common.Address, l2SequenceNumber uint64) {
+	m.anchorStateL2SequenceNumber.WithLabelValues(anchorStateRegistry.Hex()).Set(float64(l2SequenceNumber))
+}
+
 func (m *Metrics) RecordIgnoredGames(count int) {
 	m.ignoredGames.Set(float64(count))
 }
@@ -674,6 +699,12 @@ func labelValuesFor(status GameAgreementStatus) []string {
 
 	default:
 		panic(fmt.Errorf("unknown game agreement status: %v", status))
+	}
+}
+
+func (m *Metrics) RecordGameTypes(gameTypeCounts map[string]int) {
+	for gameType, count := range gameTypeCounts {
+		m.gameTypes.WithLabelValues(gameType).Set(float64(count))
 	}
 }
 

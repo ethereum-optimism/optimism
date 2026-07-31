@@ -10,6 +10,9 @@ import { DeploySaferSafes } from "scripts/deploy/DeploySaferSafes.s.sol";
 // Interfaces
 import { ISaferSafes } from "interfaces/safe/ISaferSafes.sol";
 
+// Libraries
+import { SemverComp } from "src/libraries/SemverComp.sol";
+
 /// @title DeploySaferSafes_Test
 /// @notice Tests for the DeploySaferSafes script.
 contract DeploySaferSafes_Test is Test {
@@ -30,8 +33,8 @@ contract DeploySaferSafes_Test is Test {
         // Verify the contract has code.
         assertGt(address(output.saferSafesSingleton).code.length, 0, "SaferSafes has no code");
 
-        // Verify the version is correct.
-        assertEq(output.saferSafesSingleton.version(), "1.10.1", "SaferSafes version mismatch");
+        // Verify the version is parseable semver.
+        SemverComp.parse(output.saferSafesSingleton.version());
     }
 
     /// @notice Tests that the deployment is deterministic and reuses addresses.
@@ -55,6 +58,16 @@ contract DeploySaferSafes_Test is Test {
         deploySaferSafes.assertValidOutput(output);
     }
 
+    /// @notice Tests that assertValidOutput accepts any parseable semver.
+    function test_assertValidOutput_otherSemverVersion_succeeds() public {
+        MockSaferSafes mockSaferSafes = new MockSaferSafes("0.0.0");
+
+        DeploySaferSafes.Output memory output;
+        output.saferSafesSingleton = ISaferSafes(address(mockSaferSafes));
+
+        deploySaferSafes.assertValidOutput(output);
+    }
+
     /// @notice Tests that assertValidOutput reverts when the address is zero.
     function test_assertValidOutput_zeroAddress_reverts() public {
         DeploySaferSafes.Output memory output;
@@ -74,15 +87,15 @@ contract DeploySaferSafes_Test is Test {
         deploySaferSafes.assertValidOutput(output);
     }
 
-    /// @notice Tests that assertValidOutput reverts when the version is incorrect.
-    function test_assertValidOutput_wrongVersion_reverts() public {
-        // Deploy a mock contract with a different version.
-        MockSaferSafes mockSaferSafes = new MockSaferSafes();
+    /// @notice Tests that assertValidOutput reverts when the version is invalid.
+    function test_assertValidOutput_invalidVersion_reverts() public {
+        // Deploy a mock contract with an invalid version.
+        MockSaferSafes mockSaferSafes = new MockSaferSafes("invalid");
 
         DeploySaferSafes.Output memory output;
         output.saferSafesSingleton = ISaferSafes(address(mockSaferSafes));
 
-        vm.expectRevert("DeploySaferSafes: unexpected version");
+        vm.expectRevert(SemverComp.SemverComp_InvalidSemverParts.selector);
         deploySaferSafes.assertValidOutput(output);
     }
 
@@ -123,18 +136,20 @@ contract DeploySaferSafes_Test is Test {
 
         string memory version = output.saferSafesSingleton.version();
 
-        // Verify the version is not empty.
-        assertTrue(bytes(version).length > 0, "Version should not be empty");
-
-        // Verify the version matches the expected format.
-        assertEq(version, "1.10.1", "Version should be 1.10.1");
+        SemverComp.parse(version);
     }
 }
 
 /// @title MockSaferSafes
-/// @notice A mock SaferSafes contract with a different version for testing.
+/// @notice A mock SaferSafes contract with a configurable version for testing.
 contract MockSaferSafes {
-    function version() external pure returns (string memory) {
-        return "0.0.0";
+    string internal version_;
+
+    constructor(string memory _version) {
+        version_ = _version;
+    }
+
+    function version() external view returns (string memory) {
+        return version_;
     }
 }

@@ -18,6 +18,28 @@ func TestNewIntentStandard_producesZeroPAOs(t *testing.T) {
 	require.Equal(t, common.Address{}, intent.Chains[0].Roles.L2ProxyAdminOwner, "L2ProxyAdminOwner should be zero - user must specify manually")
 }
 
+func TestIntentClone(t *testing.T) {
+	intent, err := NewIntentStandard(11155111, []common.Hash{common.HexToHash("0x336")})
+	require.NoError(t, err)
+	setChainRolesForStandard(&intent)
+	proxy := common.HexToAddress("0x11")
+	intent.SuperchainConfigProxy = &proxy
+	intent.GlobalDeployOverrides = map[string]any{"faultGameMaxDepth": float64(73)}
+
+	clone, err := intent.Clone()
+	require.NoError(t, err)
+	require.Equal(t, &intent, clone)
+
+	// Mutating the clone's pointers, slices, and maps must not reach back into the original.
+	*clone.SuperchainConfigProxy = common.HexToAddress("0x22")
+	clone.Chains[0].Roles.Challenger = common.HexToAddress("0x33")
+	clone.GlobalDeployOverrides["faultGameMaxDepth"] = float64(1)
+
+	require.Equal(t, common.HexToAddress("0x11"), proxy)
+	require.NotEqual(t, common.HexToAddress("0x33"), intent.Chains[0].Roles.Challenger)
+	require.Equal(t, float64(73), intent.GlobalDeployOverrides["faultGameMaxDepth"])
+}
+
 func TestValidateStandardValues(t *testing.T) {
 	intent, err := NewIntentStandard(11155111, []common.Hash{common.HexToHash("0x336")})
 	require.NoError(t, err)
@@ -32,9 +54,6 @@ func TestValidateStandardValues(t *testing.T) {
 	require.ErrorIs(t, err, ErrFeeVaultZeroAddress)
 
 	setFeeAddresses(&intent)
-	err = intent.Check()
-	require.Error(t, err)
-	require.ErrorIs(t, err, ErrRevenueShareZeroAddress)
 
 	tests := []struct {
 		name    string
@@ -110,14 +129,6 @@ func TestValidateStandardValues(t *testing.T) {
 			ErrIncompatibleValue,
 		},
 		{
-			"RevenueShare",
-			func(intent *Intent) {
-				intent.Chains[0].UseRevenueShare = true
-				intent.Chains[0].ChainFeesRecipient = common.Address{}
-			},
-			ErrRevenueShareZeroAddress,
-		},
-		{
 			"UseInterop",
 			func(intent *Intent) {
 				intent.UseInterop = true
@@ -131,7 +142,6 @@ func TestValidateStandardValues(t *testing.T) {
 			require.NoError(t, err)
 			setChainRolesForStandard(&intent)
 			setFeeAddresses(&intent)
-			setRevenueShare(&intent)
 
 			tt.mutator(&intent)
 
@@ -169,10 +179,6 @@ func TestValidateCustomValues(t *testing.T) {
 	err = intent.Check()
 	require.NoError(t, err)
 
-	setRevenueShare(&intent)
-	err = intent.Check()
-	require.NoError(t, err)
-
 	setCustomGasToken(&intent)
 	err = intent.Check()
 	require.NoError(t, err)
@@ -200,14 +206,6 @@ func TestValidateCustomValues(t *testing.T) {
 				intent.SuperchainRoles = nil
 			},
 			ErrIncompatibleValue,
-		},
-		{
-			"zero address for revenue share chain fees recipient when enabled",
-			func(intent *Intent) {
-				intent.Chains[0].UseRevenueShare = true
-				intent.Chains[0].ChainFeesRecipient = common.Address{}
-			},
-			ErrRevenueShareZeroAddress,
 		},
 		{
 			"empty custom gas token name when enabled",
@@ -253,7 +251,6 @@ func TestValidateCustomValues(t *testing.T) {
 func setSuperchainRoles(intent *Intent) {
 	intent.SuperchainRoles = &addresses.SuperchainRoles{
 		SuperchainProxyAdminOwner: common.HexToAddress("0xa"),
-		ProtocolVersionsOwner:     common.HexToAddress("0xb"),
 		SuperchainGuardian:        common.HexToAddress("0xc"),
 		Challenger:                common.HexToAddress("0xd"),
 	}
@@ -298,11 +295,6 @@ func setFeeAddresses(intent *Intent) {
 	intent.Chains[0].L1FeeVaultRecipient = common.HexToAddress("0x09")
 	intent.Chains[0].SequencerFeeVaultRecipient = common.HexToAddress("0x0A")
 	intent.Chains[0].OperatorFeeVaultRecipient = common.HexToAddress("0x0B")
-}
-
-func setRevenueShare(intent *Intent) {
-	intent.Chains[0].UseRevenueShare = true
-	intent.Chains[0].ChainFeesRecipient = common.HexToAddress("0x0C")
 }
 
 func setCustomGasToken(intent *Intent) {

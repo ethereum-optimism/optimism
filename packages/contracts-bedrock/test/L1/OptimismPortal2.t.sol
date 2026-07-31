@@ -31,6 +31,7 @@ import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPort
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 
 import { IProxy } from "interfaces/universal/IProxy.sol";
+import { Proxy } from "src/universal/Proxy.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
@@ -189,6 +190,16 @@ abstract contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
         // If the recipient address has no code, store STOP so we don't get reverts.
         if (address(_lockbox).code.length == 0) {
             vm.etch(address(_lockbox), hex"00");
+        }
+    }
+
+    /// @notice Enables the runtime interop features used by portal migration methods.
+    function forceEnableInterop() public {
+        forceEnableLockbox(address(ethLockbox));
+
+        if (!isSysFeatureEnabled(Features.INTEROP)) {
+            vm.prank(address(proxyAdmin));
+            systemConfig.setFeature(Features.INTEROP, true);
         }
     }
 
@@ -672,10 +683,11 @@ contract OptimismPortal2_DonateETH_Test is OptimismPortal2_TestInit {
 
 /// @title OptimismPortal2_MigrateLiquidity_Test
 /// @notice Test contract for OptimismPortal2 `migrateLiquidity` function.
-contract OptimismPortal2_MigrateLiquidity_Test is CommonTest {
+contract OptimismPortal2_MigrateLiquidity_Test is OptimismPortal2_TestInit {
     function setUp() public virtual override {
         super.setUp();
         skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+        forceEnableInterop();
     }
 
     /// @notice Tests the liquidity migration from the portal to the lockbox reverts if not called
@@ -714,6 +726,49 @@ contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_Test
     function setUp() public override {
         super.setUp();
         skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+        forceEnableInterop();
+    }
+
+    /// @notice Deploys a fresh ETHLockbox proxy pointed at the same implementation as the existing
+    ///         `ethLockbox` and initializes it with `optimismPortal2` optionally authorized.
+    function _deployLockbox(bool _authorizePortal) internal returns (IETHLockbox lockbox_) {
+        address proxyAdminAddr = address(proxyAdmin);
+
+        vm.prank(proxyAdminAddr);
+        address impl = Proxy(payable(address(ethLockbox))).implementation();
+
+        address newProxy = address(new Proxy(proxyAdminAddr));
+        IOptimismPortal[] memory portals = new IOptimismPortal[](_authorizePortal ? 1 : 0);
+        if (_authorizePortal) portals[0] = IOptimismPortal(payable(address(optimismPortal2)));
+
+        vm.prank(proxyAdminAddr);
+        Proxy(payable(newProxy)).upgradeToAndCall(impl, abi.encodeCall(IETHLockbox.initialize, (systemConfig, portals)));
+
+        lockbox_ = IETHLockbox(payable(newProxy));
+    }
+
+    /// @notice Deploys a fresh AnchorStateRegistry proxy pointed at the same implementation as the
+    ///         existing `anchorStateRegistry` and initializes it with a dummy anchor root.
+    function _deployAnchorStateRegistry() internal returns (IAnchorStateRegistry registry_) {
+        address proxyAdminAddr = address(proxyAdmin);
+
+        vm.prank(proxyAdminAddr);
+        address impl = Proxy(payable(address(anchorStateRegistry))).implementation();
+
+        address newProxy = address(new Proxy(proxyAdminAddr));
+        Proposal memory startingAnchorRoot =
+            Proposal({ root: Hash.wrap(keccak256("starting-anchor-root")), l2SequenceNumber: 1 });
+
+        vm.prank(proxyAdminAddr);
+        Proxy(payable(newProxy)).upgradeToAndCall(
+            impl,
+            abi.encodeCall(
+                IAnchorStateRegistry.initialize,
+                (systemConfig, disputeGameFactory, startingAnchorRoot, GameTypes.SUPER_PERMISSIONED)
+            )
+        );
+
+        registry_ = IAnchorStateRegistry(newProxy);
     }
 
     /// @notice Tests that `migrateToSharedDisputeGame` reverts if the caller is not the proxy admin
@@ -744,31 +799,60 @@ contract OptimismPortal2_migrateToSharedDisputeGame_Test is OptimismPortal2_Test
         optimismPortal2.migrateToSharedDisputeGame(IETHLockbox(_newLockbox), newAnchorStateRegistry);
     }
 
-    /// @notice Tests that `migrateToSharedDisputeGame` updates the ETHLockbox contract, updates the
-    ///         AnchorStateRegistry, and sets the superRootsActive flag to true.
-    /// @param _newLockbox The new ETHLockbox to migrate to.
-    /// @param _newAnchorStateRegistry The new AnchorStateRegistry to migrate to.
-    function testFuzz_migrateToSharedDisputeGame_succeeds(
-        address _newLockbox,
-        address _newAnchorStateRegistry
-    )
-        external
-    {
+    /// @notice Tests that `migrateToSharedDisputeGame` reverts when the new lockbox is the zero
+    ///         address.
+    function test_migrateToSharedDisputeGame_zeroLockbox_reverts() external {
+        address caller = optimismPortal2.proxyAdminOwner();
+        IAnchorStateRegistry registry = _deployAnchorStateRegistry();
+        vm.expectRevert(IOptimismPortal.OptimismPortal_ZeroAddress.selector);
+        vm.prank(caller);
+        optimismPortal2.migrateToSharedDisputeGame(IETHLockbox(address(0)), registry);
+    }
+
+    /// @notice Tests that `migrateToSharedDisputeGame` reverts when the new registry is the zero
+    ///         address.
+    function test_migrateToSharedDisputeGame_zeroRegistry_reverts() external {
+        address caller = optimismPortal2.proxyAdminOwner();
+        IETHLockbox lockbox = _deployLockbox({ _authorizePortal: true });
+        vm.expectRevert(IOptimismPortal.OptimismPortal_ZeroAddress.selector);
+        vm.prank(caller);
+        optimismPortal2.migrateToSharedDisputeGame(lockbox, IAnchorStateRegistry(address(0)));
+    }
+
+    /// @notice Tests that `migrateToSharedDisputeGame` reverts when the new lockbox has not
+    ///         authorized this portal.
+    function test_migrateToSharedDisputeGame_lockboxNotAuthorizingPortal_reverts() external {
+        address caller = optimismPortal2.proxyAdminOwner();
+        IETHLockbox lockbox = _deployLockbox({ _authorizePortal: false });
+        IAnchorStateRegistry registry = _deployAnchorStateRegistry();
+
+        vm.expectRevert(IOptimismPortal.OptimismPortal_LockboxNotAuthorizedForPortal.selector);
+        vm.prank(caller);
+        optimismPortal2.migrateToSharedDisputeGame(lockbox, registry);
+    }
+
+    /// @notice Tests that `migrateToSharedDisputeGame` updates the ETHLockbox and
+    ///         AnchorStateRegistry references on the portal when given real, freshly-deployed and
+    ///         initialized lockbox + registry proxies (mirroring the OPCM migrator setup).
+    function test_migrateToSharedDisputeGame_succeeds() external {
         address oldLockbox = address(optimismPortal2.ethLockbox());
         address oldAnchorStateRegistry = address(optimismPortal2.anchorStateRegistry());
-        vm.assume(_newLockbox != oldLockbox);
-        vm.assume(_newAnchorStateRegistry != oldAnchorStateRegistry);
 
-        vm.expectEmit(address(optimismPortal2));
-        emit PortalMigrated(oldLockbox, _newLockbox, oldAnchorStateRegistry, _newAnchorStateRegistry);
-
-        vm.prank(optimismPortal2.proxyAdminOwner());
-        optimismPortal2.migrateToSharedDisputeGame(
-            IETHLockbox(_newLockbox), IAnchorStateRegistry(_newAnchorStateRegistry)
+        IETHLockbox newLockbox = _deployLockbox({ _authorizePortal: true });
+        IAnchorStateRegistry newAnchorStateRegistry = _deployAnchorStateRegistry();
+        assertTrue(
+            newLockbox.authorizedPortals(IOptimismPortal(payable(address(optimismPortal2)))),
+            "test setup: portal not authorized on new lockbox"
         );
 
-        assertEq(address(optimismPortal2.ethLockbox()), _newLockbox);
-        assertEq(address(optimismPortal2.anchorStateRegistry()), _newAnchorStateRegistry);
+        vm.expectEmit(address(optimismPortal2));
+        emit PortalMigrated(oldLockbox, address(newLockbox), oldAnchorStateRegistry, address(newAnchorStateRegistry));
+
+        vm.prank(optimismPortal2.proxyAdminOwner());
+        optimismPortal2.migrateToSharedDisputeGame(newLockbox, newAnchorStateRegistry);
+
+        assertEq(address(optimismPortal2.ethLockbox()), address(newLockbox));
+        assertEq(address(optimismPortal2.anchorStateRegistry()), address(newAnchorStateRegistry));
         assertTrue(systemConfig.isFeatureEnabled(Features.INTEROP));
     }
 
@@ -1016,19 +1100,8 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
             _withdrawalProof: _withdrawalProof
         });
 
-        // Create a new game.
-        IDisputeGame newGame = disputeGameFactory.create{
-            value: disputeGameFactory.initBonds(optimismPortal2.respectedGameType())
-        }(GameType.wrap(0), Claim.wrap(_outputRoot), abi.encode(_proposedBlockNumber + 1));
-
-        // In super mode, the new game's type differs from the respected type, so mock this.
-        if (DisputeGames.isSuperGame(respectedGameType)) {
-            vm.mockCall(
-                address(newGame),
-                abi.encodeCall(IFaultDisputeGame.wasRespectedGameTypeWhenCreated, ()),
-                abi.encode(true)
-            );
-        }
+        // Create a new game with the current respected type.
+        IDisputeGame newGame = _createDisputeGame(respectedGameType, _outputRoot, _proposedBlockNumber + 1);
 
         // Update the respected game type to 0xbeef.
         vm.prank(optimismPortal2.guardian());

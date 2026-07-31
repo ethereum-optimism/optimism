@@ -5,7 +5,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	node_utils "github.com/ethereum-optimism/optimism/rust/kona/tests/node/utils"
 )
 
@@ -21,8 +22,8 @@ func TestL2SafeSync(gt *testing.T) {
 	checkFuns := make([]dsl.CheckFunc, 0, 2*len(nodes))
 
 	for _, node := range nodes {
-		checkFuns = append(checkFuns, node.ReachedFn(types.LocalSafe, 20, 40))
-		checkFuns = append(checkFuns, node_utils.MatchedWithinRange(t, node, sequencer, 5, types.LocalSafe, 100))
+		checkFuns = append(checkFuns, node.ReachedFn(safety.LocalSafe, 20, 40))
+		checkFuns = append(checkFuns, node_utils.MatchedWithinRange(t, node, sequencer, 5, safety.LocalSafe, 100))
 	}
 
 	dsl.CheckAll(t, checkFuns...)
@@ -39,7 +40,7 @@ func TestL2UnsafeSync(gt *testing.T) {
 	checkFuns := make([]dsl.CheckFunc, 0, len(nodes))
 
 	for _, node := range nodes {
-		checkFuns = append(checkFuns, node.ReachedFn(types.LocalUnsafe, 40, 80))
+		checkFuns = append(checkFuns, node.ReachedFn(safety.LocalUnsafe, 40, 80))
 	}
 
 	dsl.CheckAll(t, checkFuns...)
@@ -57,7 +58,7 @@ func TestL2FinalizedSync(gt *testing.T) {
 	checkFuns := make([]dsl.CheckFunc, 0, len(nodes))
 
 	for _, node := range nodes {
-		checkFuns = append(checkFuns, node.ReachedFn(types.Finalized, 10, 600))
+		checkFuns = append(checkFuns, node.ReachedFn(safety.Finalized, 10, 600))
 	}
 
 	dsl.CheckAll(t, checkFuns...)

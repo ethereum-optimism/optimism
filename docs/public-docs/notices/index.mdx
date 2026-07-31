@@ -1,0 +1,45 @@
+---
+title: "Network Notices"
+sidebarTitle: "Overview"
+description: "Active upgrade notices, deprecations, and network change announcements for OP Stack operators."
+---
+
+{/*
+  MAINTENANCE: Keep this page in sync with the "Network Notices" group in docs.json.
+  When a notice is activated: add a card here (under the matching heading) AND add
+  the page to the matching docs.json nav subgroup.
+  When a notice is archived: remove its card here AND move the page to
+  notices/archive/ in docs.json.
+  Notices are transient operator action items. The permanent record of every
+  network upgrade lives in the hardfork registry
+  (/op-stack/protocol/network-upgrades) — when archiving an upgrade notice,
+  check that the registry page for its hardfork is up to date.
+*/}
+
+Notices are time-bound action items for application developers, node operators, and chain operators: upcoming
+network upgrades, deprecations, and operational changes. Each hardfork also
+has a permanent entry in the
+[hardfork registry](/op-stack/protocol/network-upgrades) recording its
+activation times, governing spec, and minimum component versions, and
+contract-only upgrades are listed in the registry's
+[contract upgrades table](/op-stack/protocol/network-upgrades#contract-upgrades) —
+notices are archived after activation, registry pages are forever.
+
+## Network upgrades
+
+<CardGroup cols={1}>
+  <Card title="Upgrade 20" href="/notices/upgrade-20" icon="circle-info" horizontal>
+    Prepare Fault Proof services for Super Root Dispute Games and other maintenance smart contract upgrades
+  </Card>
+  <Card title="Interop Activation Prep" href="/notices/interop-prep" icon="circle-info" horizontal>
+    OP Sepolia and Unichain Sepolia interop activation preparation
+  </Card>
+</CardGroup>
+
+## Operations
+
+<CardGroup cols={1}>
+  <Card title="Specialized Node Topology" href="/notices/specialized-node-topology" icon="circle-info" horizontal>
+    Guidance for Supernode and Light CL node topology
+  </Card>
+</CardGroup>

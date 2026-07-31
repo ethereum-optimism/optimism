@@ -1,5 +1,6 @@
 //! Errors for the `kona-preimage` crate.
 
+use crate::{PreimageKey, PreimageKeyType};
 use alloc::string::String;
 use thiserror::Error;
 
@@ -17,6 +18,12 @@ pub enum PreimageOracleError {
     /// Key not found.
     #[error("Key not found.")]
     KeyNotFound,
+    /// The preimage returned by the fetcher does not hash to the requested key.
+    #[error("Incorrect preimage data: hash does not match requested key {0}.")]
+    IncorrectData(PreimageKey),
+    /// The verifier was asked to verify a key type it does not support.
+    #[error("Unsupported preimage key type: {0:?}.")]
+    UnsupportedKeyType(PreimageKeyType),
     /// Timeout while waiting for preimage.
     #[error("Timeout while waiting for preimage.")]
     Timeout,

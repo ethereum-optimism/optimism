@@ -9,6 +9,9 @@
 
 extern crate alloc;
 
+#[cfg(feature = "arbitrary")]
+use arbitrary as _;
+
 mod genesis;
 pub use genesis::{OpBaseFeeInfo, OpChainInfo, OpGenesisInfo};
 

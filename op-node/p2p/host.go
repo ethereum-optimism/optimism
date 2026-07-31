@@ -18,10 +18,11 @@ import (
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
-	"github.com/libp2p/go-libp2p/core/sec/insecure"
 	basichost "github.com/libp2p/go-libp2p/p2p/host/basic"
 	"github.com/libp2p/go-libp2p/p2p/muxer/yamux"
+	"github.com/libp2p/go-libp2p/p2p/net/swarm"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
+	"github.com/libp2p/go-libp2p/p2p/security/insecure"
 	"github.com/libp2p/go-libp2p/p2p/security/noise"
 	tls "github.com/libp2p/go-libp2p/p2p/security/tls"
 	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
@@ -48,7 +49,6 @@ type ExtraHostFeatures interface {
 	ConnectionGater() gating.BlockingConnectionGater
 	ConnectionManager() connmgr.ConnManager
 	IsStatic(peerID peer.ID) bool
-	SyncOnlyReqToStatic() bool
 }
 
 type extraHost struct {
@@ -63,8 +63,6 @@ type extraHost struct {
 	pinging *PingService
 
 	quitC chan struct{}
-
-	syncOnlyReqToStatic bool
 }
 
 func (e *extraHost) ConnectionGater() gating.BlockingConnectionGater {
@@ -78,10 +76,6 @@ func (e *extraHost) ConnectionManager() connmgr.ConnManager {
 func (e *extraHost) IsStatic(peerID peer.ID) bool {
 	_, exists := e.staticPeerIDs[peerID]
 	return exists
-}
-
-func (e *extraHost) SyncOnlyReqToStatic() bool {
-	return e.syncOnlyReqToStatic
 }
 
 func (e *extraHost) Close() error {
@@ -229,7 +223,7 @@ func (conf *Config) Host(log log.Logger, reporter metrics.Reporter, metrics Host
 		//libp2p.ResourceManager(nil), // TODO use resource manager interface to manage resources per peer better.
 		libp2p.Peerstore(ps),
 		libp2p.BandwidthReporter(reporter), // may be nil if disabled
-		libp2p.MultiaddrResolver(madns.DefaultResolver),
+		libp2p.MultiaddrResolver(swarm.ResolverFromMaDNS{Resolver: madns.DefaultResolver}),
 		// Ping is a small built-in libp2p protocol that helps us check/debug latency between peers.
 		libp2p.Ping(true),
 	}
@@ -267,13 +261,12 @@ func (conf *Config) Host(log log.Logger, reporter metrics.Reporter, metrics Host
 	}
 
 	out := &extraHost{
-		Host:                h,
-		connMgr:             connMngr,
-		log:                 log,
-		staticPeers:         staticPeers,
-		staticPeerIDs:       staticPeerIDs,
-		quitC:               make(chan struct{}),
-		syncOnlyReqToStatic: conf.SyncOnlyReqToStatic,
+		Host:          h,
+		connMgr:       connMngr,
+		log:           log,
+		staticPeers:   staticPeers,
+		staticPeerIDs: staticPeerIDs,
+		quitC:         make(chan struct{}),
 	}
 
 	if conf.EnablePingService {

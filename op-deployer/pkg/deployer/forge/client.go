@@ -10,8 +10,16 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
+	"time"
 )
+
+// waitDelay bounds how long execCmd waits for the output pipes to close after
+// forge exits or its context is canceled, so a killed forge whose children
+// still hold the pipes cannot block Wait forever. Variable to allow tests to
+// shorten it.
+var waitDelay = 30 * time.Second
 
 var (
 	versionRegexp = regexp.MustCompile(`(?i)forge version: (.*)\ncommit sha: ([a-f0-9]+)\n`)
@@ -28,6 +36,12 @@ type Client struct {
 	Stdout io.Writer
 	Stderr io.Writer
 	Wd     string
+	// Timeout bounds each forge invocation. Zero means no limit.
+	Timeout time.Duration
+	// SlowBroadcast adds --slow to broadcast script runs, sending transactions
+	// sequentially so forge never waits on a receipt for a transaction that
+	// raced an in-flight one out of the node's pool.
+	SlowBroadcast bool
 }
 
 func NewStandardClient(workdir string) (*Client, error) {
@@ -117,6 +131,9 @@ func (c *Client) RunScript(ctx context.Context, script string, sig string, args 
 	buf := new(bytes.Buffer)
 	cliOpts := []string{"script"}
 	cliOpts = append(cliOpts, opts...)
+	if c.SlowBroadcast && slices.Contains(opts, "--broadcast") {
+		cliOpts = append(cliOpts, "--slow")
+	}
 	cliOpts = append(cliOpts, "--sig", sig, script, "0x"+hex.EncodeToString(args))
 	if err := c.execCmd(ctx, buf, io.Discard, cliOpts...); err != nil {
 		return "", fmt.Errorf("failed to execute forge script: %w", err)
@@ -135,11 +152,18 @@ func (c *Client) VerifyContract(ctx context.Context, opts ...string) (string, er
 }
 
 func (c *Client) execCmd(ctx context.Context, stdout io.Writer, stderr io.Writer, args ...string) error {
+	if c.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, c.Timeout)
+		defer cancel()
+	}
+
 	if err := c.Binary.Ensure(ctx); err != nil {
 		return fmt.Errorf("failed to ensure binary: %w", err)
 	}
 
 	cmd := exec.CommandContext(ctx, c.Binary.Path(), args...)
+	cmd.WaitDelay = waitDelay
 	cStdout := c.Stdout
 	if cStdout == nil {
 		cStdout = os.Stdout

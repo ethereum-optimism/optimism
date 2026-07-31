@@ -95,14 +95,14 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
     event BalanceChanged(address account, uint256 balance);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.1
-    string public constant version = "1.0.1";
+    /// @custom:semver 1.0.2
+    string public constant version = "1.0.2";
 
     /// @notice The fixed cost of resolving a challenge.
     /// @dev The value is estimated by measuring the cost of resolving with `bytes(0)`
     uint256 public constant fixedResolutionCost = 72925;
 
-    /// @notice The variable cost of resolving a callenge per byte scaled by the variableResolutionCostPrecision.
+    /// @notice The variable cost of resolving a challenge per byte scaled by the variableResolutionCostPrecision.
     /// @dev upper limit; The value is estimated by measuring the cost of resolving with variable size data where each
     /// byte is non-zero.
     uint256 public constant variableResolutionCost = 16640;
@@ -421,7 +421,7 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
         _resolvedChallenge.lockedBond = 0;
     }
 
-    /// @notice Unlock the bond associated wth an expired challenge.
+    /// @notice Unlock the bond associated with an expired challenge.
     /// @dev The function reverts if the challenge is not expired.
     ///      If the expiration is successful, the challenger's bond is unlocked.
     /// @param _challengedBlockNumber The block number at which the commitment was made.

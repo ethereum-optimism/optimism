@@ -18,13 +18,13 @@ import (
 // This test uses a single-chain setup, so only L2ToL2CrossDomainMessenger is deployed.
 func TestInteropContractsDeployed(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewMinimalInteropNoSupervisor(t)
+	sys := presets.NewMinimalInteropNoSupernode(t)
 	require := t.Require()
 	logger := t.Logger()
 
 	// Wait for interop activation - for interop at genesis this is block 0,
 	// but the upgrade transactions run in the first block
-	activationBlock := sys.L2Chain.AwaitActivation(t, forks.Interop)
+	activationBlock := sys.L2Chain.AwaitActivation(t, forks.Lagoon)
 	logger.Info("interop activated", "block", activationBlock.Number, "hash", activationBlock.Hash)
 
 	client := sys.L2EL.Escape().L2EthClient()
@@ -50,14 +50,25 @@ func TestInteropContractsDeployed(gt *testing.T) {
 // correctly when interop is active but no supervisor is running.
 func TestLocalFinalityWithoutSupervisor(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewMinimalInteropNoSupervisor(t)
+	sys := presets.NewMinimalInteropNoSupernode(t)
 	require := t.Require()
 	logger := t.Logger()
 
 	targetBlocks := uint64(5)
 
-	for i := 0; i < 30; i++ {
-		time.Sleep(time.Second * 2)
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+	deadline := time.NewTimer(time.Minute)
+	defer deadline.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+		case <-deadline.C:
+			require.Failf("local finality did not advance", "Expected unsafe >= %d and safe >= %d", targetBlocks, targetBlocks-2)
+		case <-t.Ctx().Done():
+			require.NoError(t.Ctx().Err())
+		}
 
 		status := sys.L2CL.SyncStatus()
 		require.NotNil(status)
@@ -72,13 +83,9 @@ func TestLocalFinalityWithoutSupervisor(gt *testing.T) {
 		// - UnsafeL2 should advance (sequencer producing blocks)
 		// - SafeL2 should advance (after batches submitted to L1)
 
-		if status.UnsafeL2.Number >= targetBlocks &&
-			status.SafeL2.Number >= targetBlocks-2 {
+		if status.UnsafeL2.Number >= targetBlocks && status.SafeL2.Number >= targetBlocks-2 {
 			logger.Info("local finality working without supervisor!")
 			return
 		}
 	}
-
-	gt.Errorf("Expected unsafe >= %d and safe >= %d", targetBlocks, targetBlocks-2)
-	gt.FailNow()
 }

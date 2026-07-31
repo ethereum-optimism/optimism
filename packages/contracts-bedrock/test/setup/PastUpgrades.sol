@@ -35,6 +35,7 @@ library PastUpgrades {
     /// @notice Dummy prestates used for testing (actual values don't matter for upgrade tests)
     bytes32 internal constant DUMMY_CANNON_PRESTATE = keccak256("CANNON");
     bytes32 internal constant DUMMY_CANNON_KONA_PRESTATE = keccak256("CANNON_KONA");
+    bytes32 internal constant DUMMY_ZK_PRESTATE = keccak256("ZK");
 
     /// @notice Struct representing an OPCM from the registry (returned by FFI).
     ///         Note: releaseVersion is NOT the OPCM semver - query opcm.version() on-chain for that.
@@ -225,27 +226,27 @@ library PastUpgrades {
             )
         });
 
-        // SUPER_CANNON (disabled)
+        // SUPER_PERMISSIONED (disabled)
         disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
-            gameType: GameTypes.SUPER_CANNON,
-            gameArgs: hex""
-        });
-
-        // SUPER_PERMISSIONED_CANNON (disabled)
-        disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+            gameType: GameTypes.SUPER_PERMISSIONED,
             gameArgs: hex""
         });
 
         // SUPER_CANNON_KONA (disabled)
-        disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
+        disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: false,
             initBond: 0,
             gameType: GameTypes.SUPER_CANNON_KONA,
+            gameArgs: hex""
+        });
+
+        // ZK_DISPUTE_GAME — always disabled, registered separately via deployer pipeline
+        disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.ZK_DISPUTE_GAME,
             gameArgs: hex""
         });
 

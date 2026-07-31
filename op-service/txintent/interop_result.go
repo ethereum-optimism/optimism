@@ -4,19 +4,18 @@ import (
 	"context"
 	"fmt"
 
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/plan"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 var _ Result = (*InteropOutput)(nil)
 
 type InteropOutput struct {
-	Entries []suptypes.Message
+	Entries []messages.Message
 }
 
 func (i *InteropOutput) Init() Result {
@@ -26,8 +25,8 @@ func (i *InteropOutput) Init() Result {
 // FromReceipt creates Messages from receipt and block included, to prepare validating messages
 func (i *InteropOutput) FromReceipt(ctx context.Context, rec *types.Receipt, includedIn eth.BlockRef, chainID eth.ChainID) error {
 	for _, logEvent := range rec.Logs {
-		payload := suptypes.LogToMessagePayload(logEvent)
-		id := suptypes.Identifier{
+		payload := messages.LogToMessagePayload(logEvent)
+		id := messages.Identifier{
 			Origin:      logEvent.Address,
 			BlockNumber: logEvent.BlockNumber,
 			LogIndex:    uint32(logEvent.Index),
@@ -35,7 +34,7 @@ func (i *InteropOutput) FromReceipt(ctx context.Context, rec *types.Receipt, inc
 			ChainID:     chainID,
 		}
 		payloadHash := crypto.Keccak256Hash(payload)
-		i.Entries = append(i.Entries, suptypes.Message{
+		i.Entries = append(i.Entries, messages.Message{
 			Identifier:  id,
 			PayloadHash: payloadHash,
 		})
@@ -85,7 +84,7 @@ func RelayIndexed(executor common.Address, events *plan.Lazy[*InteropOutput], re
 			return nil, fmt.Errorf("invalid log index: %d, only have %d events", index, x)
 		}
 		msg := events.Value().Entries[index]
-		payload := suptypes.LogToMessagePayload(receipt.Value().Logs[index])
+		payload := messages.LogToMessagePayload(receipt.Value().Logs[index])
 		payloadHash := crypto.Keccak256Hash(payload)
 		if msg.PayloadHash != payloadHash {
 			return nil, fmt.Errorf("payload hash does not match, want %s but got %s", msg.PayloadHash.Hex(), payloadHash.Hex())

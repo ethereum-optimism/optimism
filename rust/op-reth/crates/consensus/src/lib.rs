@@ -15,7 +15,7 @@ use alloc::{format, sync::Arc};
 use alloy_consensus::{
     BlockHeader as _, EMPTY_OMMER_ROOT_HASH, constants::MAXIMUM_EXTRA_DATA_SIZE,
 };
-use alloy_primitives::B64;
+use alloy_primitives::{B64, B256};
 use core::fmt::Debug;
 use reth_chainspec::EthChainSpec;
 use reth_consensus::{Consensus, ConsensusError, FullConsensus, HeaderValidator, ReceiptRootBloom};
@@ -80,6 +80,7 @@ where
         block: &RecoveredBlock<N::Block>,
         result: &BlockExecutionResult<N::Receipt>,
         receipt_root_bloom: Option<ReceiptRootBloom>,
+        _block_access_list_hash: Option<B256>,
     ) -> Result<(), ConsensusError> {
         validate_block_post_execution(block.header(), &self.chain_spec, result, receipt_root_bloom)
     }
@@ -119,7 +120,7 @@ where
         // Check empty shanghai-withdrawals
         if self.chain_spec.is_canyon_active_at_timestamp(block.timestamp()) {
             canyon::ensure_empty_shanghai_withdrawals(block.body()).map_err(|err| {
-                ConsensusError::Other(format!("failed to verify block {}: {err}", block.number()))
+                ConsensusError::msg(format!("failed to verify block {}: {err}", block.number()))
             })?
         } else {
             return Ok(());
@@ -139,7 +140,7 @@ where
         if self.chain_spec.is_isthmus_active_at_timestamp(block.timestamp()) {
             // storage root of withdrawals pre-deploy is verified post-execution
             isthmus::ensure_withdrawals_storage_root_is_some(block.header()).map_err(|err| {
-                ConsensusError::Other(format!("failed to verify block {}: {err}", block.number()))
+                ConsensusError::msg(format!("failed to verify block {}: {err}", block.number()))
             })?
         } else {
             // canyon is active, else would have returned already
@@ -413,6 +414,7 @@ mod tests {
             &block,
             &result,
             None,
+            None,
         );
 
         // validate blob, it should pass blob gas used validation
@@ -482,6 +484,7 @@ mod tests {
             &beacon_consensus,
             &block,
             &result,
+            None,
             None,
         );
 

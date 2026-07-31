@@ -28,8 +28,37 @@ interface IOPContractsManagerMigrator {
     /// @notice Thrown when the starting respected game type is not a valid super game type.
     error OPContractsManagerMigrator_InvalidStartingRespectedGameType();
 
+    /// @notice Thrown when attempting to migrate a CGT chain.
+    error OPContractsManagerMigrator_CustomGasTokenNotSupported();
+
+    /// @notice Thrown when the chainSystemConfigs array is empty.
+    error OPContractsManagerMigrator_NoChains();
+
     /// @notice Thrown when the OPTIMISM_PORTAL_INTEROP dev feature is not enabled.
     error OPContractsManagerMigrator_InteropNotEnabled();
+
+    /// @notice Thrown when a chain is paused before migration mutates its portal.
+    error OPContractsManagerMigrator_SystemPaused();
+
+    /// @notice Thrown when a chain's SystemConfig reports an l2ChainId of zero.
+    error OPContractsManagerMigrator_ZeroL2ChainId();
+
+    /// @notice Thrown when two chains share the same l2ChainId.
+    error OPContractsManagerMigrator_DuplicateL2ChainId();
+
+    /// @notice Thrown when chainSystemConfigs are not provided in ascending order by l2ChainId.
+    error OPContractsManagerMigrator_ChainIdsNotAscending();
+
+    /// @notice Thrown when the ZK_DISPUTE_GAME dev feature is not enabled.
+    error OPContractsManagerMigrator_ZKDisputeGameNotEnabled();
+
+    /// @notice Thrown when the supplied chains do not all share the same AnchorStateRegistry, i.e.
+    ///         they are not a single already-interop set.
+    error OPContractsManagerMigrator_NotSharedInteropSet();
+
+    /// @notice Thrown when the new respected game type does not resolve to a registered
+    ///         implementation on the shared DisputeGameFactory after the dispute games are swapped.
+    error OPContractsManagerMigrator_RespectedGameTypeNotRegistered();
 
     /// @notice Returns the container of blueprint and implementation contract addresses.
     function contractsContainer() external view returns (IOPContractsManagerContainer);
@@ -41,6 +70,11 @@ interface IOPContractsManagerMigrator {
     ///         dispute game contracts.
     /// @param _input The input parameters for the migration.
     function migrate(MigrateInput calldata _input) external;
+
+    /// @notice Re-points the shared dispute games of an already-interop set to a new respected
+    ///         super game.
+    /// @param _input The input parameters for the dispute game re-point.
+    function setInteropDisputeGames(MigrateInput calldata _input) external;
 
     function __constructor__(IOPContractsManagerUtils _utils) external;
 }

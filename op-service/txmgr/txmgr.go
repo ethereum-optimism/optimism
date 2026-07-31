@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/holiman/uint256"
 
@@ -489,6 +490,7 @@ func (m *SimpleTxManager) estimateOrValidateCandidateTxGas(ctx context.Context, 
 	}
 	// If the gas limit is set, we can use that as the gas
 	if candidate.GasLimit == 0 {
+		callMsg.Gas = params.MaxTxGas
 		gas, err := m.backend.EstimateGas(ctx, callMsg)
 		if err != nil {
 			return 0, fmt.Errorf("failed to estimate gas: %w", errutil.TryAddRevertReason(err))
@@ -866,6 +868,9 @@ func (m *SimpleTxManager) waitForTx(ctx context.Context, tx *types.Transaction, 
 	// Poll for the transaction to be ready & then send the result to receiptChan
 	receipt, err := m.waitMined(ctx, tx, sendState)
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return
+		}
 		// this will happen if the tx was successfully replaced by a tx with bumped fees
 		m.txLogger(tx, true).Info("Transaction receipt not found", "err", err)
 		return

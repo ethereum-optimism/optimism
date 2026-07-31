@@ -19,6 +19,11 @@ pub struct RpcArgs {
     #[arg(long = "rpc.no-restart", default_value = "false", env = "KONA_NODE_RPC_NO_RESTART")]
     pub no_restart: bool,
     /// RPC listening address.
+    ///
+    /// Defaults to `0.0.0.0`: the node is released as a Docker image, where binding `127.0.0.1`
+    /// makes the RPC unreachable from outside the container. Privileged methods are not exposed
+    /// by this alone — the admin API is registered only with `--rpc.enable-admin` — but operators
+    /// placing the node on an untrusted network should still firewall the port.
     #[arg(long = "rpc.addr", default_value = "0.0.0.0", env = "KONA_NODE_RPC_ADDR")]
     pub listen_addr: IpAddr,
     /// RPC listening port.
@@ -83,5 +88,16 @@ mod tests {
         let mut expected = RpcArgs::default();
         mutate(&mut expected);
         assert_eq!(cli, expected);
+    }
+
+    #[test]
+    fn rpc_addr_defaults_to_all_interfaces() {
+        // 0.0.0.0 is intentional: released as a Docker image, where 127.0.0.1 is unreachable.
+        assert_eq!(RpcArgs::default().listen_addr, IpAddr::V4(Ipv4Addr::UNSPECIFIED));
+    }
+
+    #[test]
+    fn admin_api_disabled_by_default() {
+        assert!(!RpcArgs::default().enable_admin);
     }
 }

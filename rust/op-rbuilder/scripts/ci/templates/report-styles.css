@@ -1,0 +1,83 @@
+body {
+    background-color: white;
+    max-width: 1200px;
+    margin: auto;
+}
+
+.container {
+    margin: 2em 4em;
+}
+
+.header,
+.content,
+.footer {
+    margin: 2em 0em;
+}
+
+.content ul {
+    font-size: large;
+}
+
+.footer {
+    font-size: small;
+}
+
+h1,
+h2,
+h3 {
+    font-weight: 300;
+}
+
+h2 {
+    font-size: 36px;
+}
+
+h3 {
+    font-size: 24px;
+}
+
+hr {
+    border: 0;
+    height: 1px;
+    background: #AAA;
+}
+
+.head-infos {
+    font-size: 0.9em;
+}
+
+.head-infos tt {
+    font-size: 1.1em;
+}
+
+/*
+ * Report
+ */
+.stats {
+    width: 80%;
+    margin: auto;
+    display: flex;
+}
+
+.additional_stats {
+    flex: 0 0 60%
+}
+
+.additional_plots {
+    flex: 1
+}
+
+.explanation {
+    margin-top: 4em;
+    margin-bottom: 6em;
+    color: #444;
+    font-size: small;
+}
+
+th.ci-bound {
+    opacity: 0.6
+}
+
+td.ci-bound {
+    opacity: 0.5
+}

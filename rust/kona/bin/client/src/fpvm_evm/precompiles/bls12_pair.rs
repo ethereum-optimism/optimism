@@ -10,7 +10,7 @@ use crate::fpvm_evm::precompiles::utils::precompile_run;
 use alloc::string::ToString;
 use kona_preimage::{HintWriterClient, PreimageOracleClient};
 use revm::precompile::{
-    PrecompileError, PrecompileOutput, PrecompileResult, bls12_381,
+    EthPrecompileOutput, EthPrecompileResult, PrecompileHalt, bls12_381,
     bls12_381_const::{PAIRING_INPUT_LENGTH, PAIRING_MULTIPLIER_BASE, PAIRING_OFFSET_BASE},
 };
 
@@ -26,7 +26,7 @@ pub(crate) fn fpvm_bls12_pairing<H, O>(
     gas_limit: u64,
     hint_writer: &H,
     oracle_reader: &O,
-) -> PrecompileResult
+) -> EthPrecompileResult
 where
     H: HintWriterClient + Send + Sync,
     O: PreimageOracleClient + Send + Sync,
@@ -34,14 +34,14 @@ where
     let input_len = input.len();
 
     if input_len > BLS12_MAX_PAIRING_SIZE_ISTHMUS {
-        return Err(PrecompileError::Other(
+        return Err(PrecompileHalt::Other(
             alloc::format!("Pairing input length must be at most {BLS12_MAX_PAIRING_SIZE_ISTHMUS}")
                 .into(),
         ));
     }
 
     if !input_len.is_multiple_of(PAIRING_INPUT_LENGTH) {
-        return Err(PrecompileError::Other(
+        return Err(PrecompileHalt::Other(
             alloc::format!(
                 "Pairing input length should be multiple of {PAIRING_INPUT_LENGTH}, was {input_len}"
             )
@@ -52,7 +52,7 @@ where
     let k = input_len / PAIRING_INPUT_LENGTH;
     let required_gas: u64 = PAIRING_MULTIPLIER_BASE * k as u64 + PAIRING_OFFSET_BASE;
     if required_gas > gas_limit {
-        return Err(PrecompileError::OutOfGas);
+        return Err(PrecompileHalt::OutOfGas);
     }
 
     let precompile = bls12_381::pairing::PRECOMPILE;
@@ -62,9 +62,9 @@ where
         oracle_reader,
         &[precompile.address().as_slice(), &required_gas.to_be_bytes(), input]
     })
-    .map_err(|e| PrecompileError::Other(e.to_string().into()))?;
+    .map_err(|e| PrecompileHalt::Other(e.to_string().into()))?;
 
-    Ok(PrecompileOutput::new(required_gas, result_data.into()))
+    Ok(EthPrecompileOutput::new(required_gas, result_data.into()))
 }
 
 /// Performs an FPVM-accelerated BLS12-381 pairing check after the Jovian Hardfork.
@@ -73,13 +73,13 @@ pub(crate) fn fpvm_bls12_pairing_jovian<H, O>(
     gas_limit: u64,
     hint_writer: &H,
     oracle_reader: &O,
-) -> PrecompileResult
+) -> EthPrecompileResult
 where
     H: HintWriterClient + Send + Sync,
     O: PreimageOracleClient + Send + Sync,
 {
     if input.len() > BLS12_MAX_PAIRING_SIZE_JOVIAN {
-        return Err(PrecompileError::Other(
+        return Err(PrecompileHalt::Other(
             alloc::format!("Pairing input length must be at most {BLS12_MAX_PAIRING_SIZE_JOVIAN}")
                 .into(),
         ));
@@ -132,7 +132,7 @@ mod test {
                 oracle_reader,
             )
             .unwrap_err();
-            assert!(matches!(accelerated_result, PrecompileError::Other(_)));
+            assert!(matches!(accelerated_result, PrecompileHalt::Other(_)));
         })
         .await;
     }
@@ -143,7 +143,7 @@ mod test {
             let accelerated_result =
                 fpvm_bls12_pairing(&[0u8; PAIRING_INPUT_LENGTH - 1], 0, hint_writer, oracle_reader)
                     .unwrap_err();
-            assert!(matches!(accelerated_result, PrecompileError::Other(_)));
+            assert!(matches!(accelerated_result, PrecompileHalt::Other(_)));
         })
         .await;
     }
@@ -154,7 +154,7 @@ mod test {
             let accelerated_result =
                 fpvm_bls12_pairing(&[0u8; PAIRING_INPUT_LENGTH], 0, hint_writer, oracle_reader)
                     .unwrap_err();
-            assert!(matches!(accelerated_result, PrecompileError::OutOfGas));
+            assert!(matches!(accelerated_result, PrecompileHalt::OutOfGas));
         })
         .await;
     }
@@ -185,7 +185,7 @@ mod test {
             let accelerated_result =
                 fpvm_bls12_pairing_jovian(&input, u64::MAX, hint_writer, oracle_reader)
                     .unwrap_err();
-            assert!(matches!(accelerated_result, PrecompileError::Other(_)));
+            assert!(matches!(accelerated_result, PrecompileHalt::Other(_)));
         })
         .await;
     }

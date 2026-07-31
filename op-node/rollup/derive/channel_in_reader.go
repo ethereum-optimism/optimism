@@ -114,7 +114,7 @@ func (cr *ChannelInReader) NextBatch(ctx context.Context) (Batch, error) {
 			cr.log.Warn("dropping span batch before Delta activation", "origin", origin)
 			return nil, NotEnoughData
 		}
-		batch.Batch, err = DeriveSpanBatch(batchData, cr.cfg.BlockTime, cr.cfg.Genesis.L2Time, cr.cfg.L2ChainID)
+		batch.Batch, err = DeriveSpanBatch(batchData, cr.cfg)
 		if err != nil {
 			if errors.Is(err, ErrCritical) {
 				return nil, err

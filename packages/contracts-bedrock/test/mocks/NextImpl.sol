@@ -14,7 +14,7 @@ contract NextImpl is Initializable {
     bytes32 public constant slot21Init = bytes32(hex"1337");
 
     function initialize(uint8 _init) public reinitializer(_init) {
-        // Slot21 is unused by an of our upgradeable contracts.
+        // Slot21 is unused by any of our upgradeable contracts.
         // This is used to verify that we can access this value after an upgrade.
         slot21 = slot21Init;
     }

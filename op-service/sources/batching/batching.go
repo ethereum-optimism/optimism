@@ -8,8 +8,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/hashicorp/go-multierror"
-
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -149,7 +147,7 @@ func (ibc *IterativeBatchCall[K, V]) Fetch(ctx context.Context) error {
 	var result error
 	for _, elem := range batch {
 		if elem.Error != nil {
-			result = multierror.Append(result, elem.Error)
+			result = errors.Join(result, elem.Error)
 			elem.Error = nil // reset, we'll try this element again
 			ibc.scheduled <- elem
 			continue

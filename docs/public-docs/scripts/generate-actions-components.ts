@@ -14,6 +14,7 @@ const ACTIONS_COMPONENTS: Record<string, string> = {
   WalletNamespace: "src/wallet/core/namespace/WalletNamespace.ts",
   Wallet: "src/wallet/core/wallets/abstract/Wallet.ts",
   WalletLendNamespace: "src/lend/namespaces/WalletLendNamespace.ts",
+  WalletSwapNamespace: "src/swap/namespaces/WalletSwapNamespace.ts",
 };
 
 // SDK metadata
@@ -24,14 +25,16 @@ const SDK_PACKAGE_NAME = "@eth-optimism/actions-sdk";
 const LOCAL_SDK_PATH = path.join(
   process.cwd(),
   "..",
+  "..",
+  "..",
   "actions",
   "packages",
-  "sdk"
+  "sdk",
 );
 const NODE_MODULES_SDK_PATH = path.join(
   process.cwd(),
   "node_modules",
-  SDK_PACKAGE_NAME
+  SDK_PACKAGE_NAME,
 );
 const OUTPUT_DIR = path.join(process.cwd(), "snippets", "actions");
 
@@ -50,7 +53,7 @@ async function main() {
 
   // Process each component
   const components: ComponentConfig[] = Object.entries(ACTIONS_COMPONENTS).map(
-    ([className, sourcePath]) => ({ className, sourcePath })
+    ([className, sourcePath]) => ({ className, sourcePath }),
   );
 
   console.log("Generating component docs from SDK:");

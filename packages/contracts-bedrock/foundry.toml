@@ -19,21 +19,22 @@ optimizer_runs = 999999
 # entire build directory.
 additional_compiler_profiles = [
   { name = "dispute", optimizer_runs = 5000 },
+  { name = "validator", optimizer_runs = 200 },
 ]
 compilation_restrictions = [
   { paths = "src/dispute/FaultDisputeGame.sol", optimizer_runs = 5000 },
   { paths = "src/dispute/PermissionedDisputeGame.sol", optimizer_runs = 5000 },
   { paths = "src/dispute/SuperFaultDisputeGame.sol", optimizer_runs = 5000 },
   { paths = "src/dispute/SuperPermissionedDisputeGame.sol", optimizer_runs = 5000 },
-  { paths = "src/L1/OPContractsManagerStandardValidator.sol", optimizer_runs = 5000 },
+  { paths = "src/L1/OPContractsManagerStandardValidator.sol", optimizer_runs = 200 },
   { paths = "src/L1/opcm/OPContractsManagerV2.sol", optimizer_runs = 5000 },
   { paths = "src/L1/opcm/OPContractsManagerContainer.sol", optimizer_runs = 5000 },
   { paths = "src/L1/opcm/OPContractsManagerMigrator.sol", optimizer_runs = 5000 },
   { paths = "src/L1/opcm/OPContractsManagerUtils.sol", optimizer_runs = 5000 },
   { paths = "src/L1/opcm/OPContractsManagerUtilsCaller.sol", optimizer_runs = 5000 },
   { paths = "src/L1/OptimismPortal2.sol", optimizer_runs = 5000 },
-  { paths = "src/L1/ProtocolVersions.sol", optimizer_runs = 5000 },
-  { paths = "src/universal/StorageSetter.sol", optimizer_runs = 5000 }
+  { paths = "src/universal/StorageSetter.sol", optimizer_runs = 5000 },
+  { paths = "src/L2/L2ContractsManager.sol", optimizer_runs = 5000 }
 ]
 
 extra_output = ['devdoc', 'userdoc', 'metadata', 'storageLayout']
@@ -48,7 +49,6 @@ remappings = [
   '@rari-capital/solmate/=lib/solmate',
   '@lib-keccak/=lib/lib-keccak/contracts/lib',
   '@solady/=lib/solady/src',
-  '@solady-v0.0.245/=lib/solady-v0.0.245/src',
   'forge-std/=lib/forge-std/src',
   'ds-test/=lib/forge-std/lib/ds-test/src',
   'safe-contracts/=lib/safe-contracts/contracts',
@@ -66,9 +66,10 @@ fs_permissions = [
   { access='read-write', path='./.testdata/' },
   { access='read', path='./kout-deployment' },
   { access='read', path='./test/fixtures' },
-  { access='read', path='./lib/superchain-registry/superchain/configs/' },
-  { access='read', path='./lib/superchain-registry/superchain/extra/' },
-  { access='read', path='./lib/superchain-registry/validation/standard/' },
+  { access='read', path='../../superchain-registry/superchain/configs/' },
+  { access='read', path='../../superchain-registry/superchain/extra/' },
+  { access='read', path='../../superchain-registry/validation/standard/' },
+  { access='read', path='../../op-core/nuts/' },
 ]
 
 # 5159 = selfdestruct deprecation
@@ -145,8 +146,8 @@ compilation_restrictions = [
   { paths = "src/L1/opcm/OPContractsManagerUtils.sol", optimizer_runs = 0 },
   { paths = "src/L1/opcm/OPContractsManagerUtilsCaller.sol", optimizer_runs = 0 },
   { paths = "src/L1/OptimismPortal2.sol", optimizer_runs = 0 },
-  { paths = "src/L1/ProtocolVersions.sol", optimizer_runs = 0 },
-  { paths = "src/universal/StorageSetter.sol", optimizer_runs = 0 }
+  { paths = "src/universal/StorageSetter.sol", optimizer_runs = 0 },
+  { paths = "src/L2/L2ContractsManager.sol", optimizer_runs = 0 }
 ]
 
 [profile.ciheavy.fuzz]
@@ -186,8 +187,8 @@ compilation_restrictions = [
   { paths = "src/L1/opcm/OPContractsManagerUtils.sol", optimizer_runs = 0 },
   { paths = "src/L1/opcm/OPContractsManagerUtilsCaller.sol", optimizer_runs = 0 },
   { paths = "src/L1/OptimismPortal2.sol", optimizer_runs = 0 },
-  { paths = "src/L1/ProtocolVersions.sol", optimizer_runs = 0 },
-  { paths = "src/universal/StorageSetter.sol", optimizer_runs = 0 }
+  { paths = "src/universal/StorageSetter.sol", optimizer_runs = 0 },
+  { paths = "src/L2/L2ContractsManager.sol", optimizer_runs = 0 }
 ]
 
 [profile.liteci.fuzz]
@@ -222,8 +223,8 @@ compilation_restrictions = [
   { paths = "src/L1/opcm/OPContractsManagerUtils.sol", optimizer_runs = 0 },
   { paths = "src/L1/opcm/OPContractsManagerUtilsCaller.sol", optimizer_runs = 0 },
   { paths = "src/L1/OptimismPortal2.sol", optimizer_runs = 0 },
-  { paths = "src/L1/ProtocolVersions.sol", optimizer_runs = 0 },
-  { paths = "src/universal/StorageSetter.sol", optimizer_runs = 0 }
+  { paths = "src/universal/StorageSetter.sol", optimizer_runs = 0 },
+  { paths = "src/L2/L2ContractsManager.sol", optimizer_runs = 0 }
 ]
 
 [profile.lite.fuzz]

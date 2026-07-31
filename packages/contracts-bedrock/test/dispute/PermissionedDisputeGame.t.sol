@@ -38,7 +38,7 @@ abstract contract PermissionedDisputeGame_TestInit is DisputeGameFactory_TestIni
     /// @notice The root claim of the game.
     Claim internal rootClaim;
     /// @notice An arbitrary root claim for testing.
-    Claim internal arbitaryRootClaim = Claim.wrap(bytes32(uint256(123)));
+    Claim internal arbitraryRootClaim = Claim.wrap(bytes32(uint256(123)));
     /// @notice Minimum bond value that covers all possible moves.
     uint256 internal constant MIN_BOND = 50 ether;
 
@@ -328,7 +328,7 @@ contract PermissionedDisputeGame_Uncategorized_Test is PermissionedDisputeGame_T
     /// @notice Tests that the proposer can create a permissioned dispute game.
     function test_createGame_proposer_succeeds() public {
         vm.prank(PROPOSER, PROPOSER);
-        disputeGameFactory.create{ value: initBond }(GAME_TYPE, arbitaryRootClaim, abi.encode(validL2BlockNumber));
+        disputeGameFactory.create{ value: initBond }(GAME_TYPE, arbitraryRootClaim, abi.encode(validL2BlockNumber));
     }
 
     /// @notice Tests that the permissioned game cannot be created by the challenger.
@@ -336,7 +336,7 @@ contract PermissionedDisputeGame_Uncategorized_Test is PermissionedDisputeGame_T
         vm.deal(CHALLENGER, initBond);
         vm.prank(CHALLENGER, CHALLENGER);
         vm.expectRevert(BadAuth.selector);
-        disputeGameFactory.create{ value: initBond }(GAME_TYPE, arbitaryRootClaim, abi.encode(validL2BlockNumber));
+        disputeGameFactory.create{ value: initBond }(GAME_TYPE, arbitraryRootClaim, abi.encode(validL2BlockNumber));
     }
 
     /// @notice Tests that the permissioned game cannot be created by any address other than the
@@ -347,7 +347,7 @@ contract PermissionedDisputeGame_Uncategorized_Test is PermissionedDisputeGame_T
         vm.deal(_p, initBond);
         vm.prank(_p, _p);
         vm.expectRevert(BadAuth.selector);
-        disputeGameFactory.create{ value: initBond }(GAME_TYPE, arbitaryRootClaim, abi.encode(validL2BlockNumber));
+        disputeGameFactory.create{ value: initBond }(GAME_TYPE, arbitraryRootClaim, abi.encode(validL2BlockNumber));
     }
 
     /// @notice Tests that the challenger can participate in a permissioned dispute game.

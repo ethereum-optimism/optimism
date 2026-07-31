@@ -3,6 +3,7 @@ package bonds
 import (
 	"math/big"
 
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -21,6 +22,9 @@ type Collateral struct {
 func CalculateRequiredCollateral(games []*monTypes.EnrichedGameData) map[common.Address]Collateral {
 	result := make(map[common.Address]Collateral)
 	for _, game := range games {
+		if gameTypes.GameType(game.GameType) == gameTypes.SuperPermissionedGameType {
+			continue
+		}
 		collateral, ok := result[game.WETHContract]
 		if !ok {
 			collateral = Collateral{

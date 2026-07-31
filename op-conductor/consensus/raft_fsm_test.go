@@ -2,6 +2,7 @@ package consensus
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"testing"
 
@@ -10,7 +11,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/hashicorp/raft"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -86,7 +86,7 @@ func NewMockReadCloser(data *eth.ExecutionPayloadEnvelope) (*mockReadCloser, err
 
 	var buf bytes.Buffer
 	if _, err := data.MarshalSSZ(&buf); err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal execution payload envelope")
+		return nil, fmt.Errorf("failed to unmarshal execution payload envelope: %w", err)
 	}
 	mrc.buffer = buf.Bytes()
 

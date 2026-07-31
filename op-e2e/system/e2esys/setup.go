@@ -6,10 +6,12 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"maps"
 	"math/big"
 	"net"
 	"os"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"sync/atomic"
@@ -18,7 +20,6 @@ import (
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 
 	ds "github.com/ipfs/go-datastore"
 	dsSync "github.com/ipfs/go-datastore/sync"
@@ -34,7 +35,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
@@ -46,13 +46,15 @@ import (
 	batcherCfg "github.com/ethereum-optimism/optimism/op-batcher/config"
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
+	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
-	shared "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/config/secrets"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/batcher"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/blobstore"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/el"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/opnode"
@@ -67,7 +69,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -80,7 +81,6 @@ import (
 	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
 
 const (
@@ -96,6 +96,7 @@ var (
 
 type SystemConfigOpts struct {
 	AllocType config.AllocType
+	L2ELKind  services.ELKind
 }
 
 type SystemConfigOpt func(s *SystemConfigOpts)
@@ -106,9 +107,17 @@ func WithAllocType(allocType config.AllocType) SystemConfigOpt {
 	}
 }
 
+// WithL2ELKind pins the L2 execution-layer backend (op-geth or op-reth).
+func WithL2ELKind(kind services.ELKind) SystemConfigOpt {
+	return func(s *SystemConfigOpts) {
+		s.L2ELKind = kind
+	}
+}
+
 func DefaultSystemConfig(t testing.TB, opts ...SystemConfigOpt) SystemConfig {
 	sco := &SystemConfigOpts{
 		AllocType: config.DefaultAllocType,
+		L2ELKind:  services.DefaultELKind(),
 	}
 	for _, opt := range opts {
 		opt(sco)
@@ -145,6 +154,7 @@ func DefaultSystemConfig(t testing.TB, opts ...SystemConfigOpt) SystemConfig {
 		L1FinalizedDistance:    8, // Short, for faster tests.
 		BlobsPath:              t.TempDir(),
 		AllocType:              sco.AllocType,
+		L2ELKind:               sco.L2ELKind,
 		Nodes: map[string]*config2.Config{
 			RoleSeq: {
 				Driver: driver.Config{
@@ -158,7 +168,6 @@ func DefaultSystemConfig(t testing.TB, opts ...SystemConfigOpt) SystemConfig {
 					ListenPort:  0,
 					EnableAdmin: true,
 				},
-				InteropConfig:               &interop.Config{},
 				L1EpochPollInterval:         time.Second * 2,
 				RuntimeConfigReloadInterval: time.Minute * 10,
 				ConfigPersistence:           &config2.DisabledConfigPersistence{},
@@ -175,7 +184,6 @@ func DefaultSystemConfig(t testing.TB, opts ...SystemConfigOpt) SystemConfig {
 					ListenPort:  0,
 					EnableAdmin: true,
 				},
-				InteropConfig:               &interop.Config{},
 				L1EpochPollInterval:         time.Second * 4,
 				RuntimeConfigReloadInterval: time.Minute * 10,
 				ConfigPersistence:           &config2.DisabledConfigPersistence{},
@@ -361,6 +369,9 @@ type SystemConfig struct {
 	SupportL1TimeTravel bool
 
 	AllocType config.AllocType
+
+	// L2ELKind selects the L2 execution-layer backend (op-geth or op-reth).
+	L2ELKind services.ELKind
 }
 
 type System struct {
@@ -399,21 +410,12 @@ type System struct {
 	clients map[string]*ethclient.Client
 }
 
-func (sys *System) PrestateVariant() shared.PrestateVariant {
-	switch sys.AllocType() {
-	case config.AllocTypeMTCannonNext:
-		return shared.MTCannonNextVariant
-	default:
-		return shared.MTCannonVariant
-	}
-}
-
 func (sys *System) DisputeGameFactoryAddr() common.Address {
 	return sys.L1Deployments().DisputeGameFactoryProxy
 }
 
-func (sys *System) SupervisorClient() *sources.SupervisorClient {
-	sys.t.Fatal("supervisor client is not available for single chain system")
+func (sys *System) SupernodeClient() *sources.SuperNodeClient {
+	sys.t.Fatal("supernode client is not available for single chain system")
 	return nil
 }
 
@@ -448,8 +450,8 @@ func (sys *System) L2NodeEndpoints() []endpoint.RPC {
 	return []endpoint.RPC{sys.NodeEndpoint("sequencer")}
 }
 
-func (sys *System) SupervisorEndpoint() endpoint.RPC {
-	sys.t.Fatalf("supervisor endpoint is not supported for pre-interop System")
+func (sys *System) SupernodeEndpoint() endpoint.RPC {
+	sys.t.Fatalf("supernode endpoint is not supported for pre-interop System")
 	return nil
 }
 
@@ -607,6 +609,12 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 	if err != nil {
 		return nil, err
 	}
+	if cfg.AllocType != config.AllocTypeFastGame {
+		sequencerCfg := cfg.Nodes[RoleSeq]
+		if sequencerCfg != nil && sequencerCfg.SafeDBPath == "" {
+			sequencerCfg.SafeDBPath = t.TempDir()
+		}
+	}
 
 	sys := &System{
 		t:             t,
@@ -621,7 +629,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 
 	clk := clock.SystemClock
 	if cfg.SupportL1TimeTravel {
-		sys.TimeTravelClock = clock.NewAdvancingClock(100 * time.Millisecond)
+		sys.TimeTravelClock = clock.NewAdvancingClock()
 		clk = sys.TimeTravelClock
 	}
 
@@ -692,6 +700,11 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 		}
 	}
 
+	l2GenesisTime, err := cfg.DeployConfig.L2GenesisTime(l1Block.Time())
+	if err != nil {
+		return nil, err
+	}
+
 	makeRollupConfig := func() rollup.Config {
 		return rollup.Config{
 			Genesis: rollup.Genesis{
@@ -703,33 +716,32 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 					Hash:   l2Genesis.ToBlock().Hash(),
 					Number: 0,
 				},
-				L2Time:       uint64(cfg.DeployConfig.L1GenesisBlockTimestamp),
+				L2Time:       l2GenesisTime,
 				SystemConfig: e2eutils.SystemConfigFromDeployConfig(cfg.DeployConfig),
 			},
-			BlockTime:               cfg.DeployConfig.L2BlockTime,
-			MaxSequencerDrift:       cfg.DeployConfig.MaxSequencerDrift,
-			SeqWindowSize:           cfg.DeployConfig.SequencerWindowSize,
-			ChannelTimeoutBedrock:   cfg.DeployConfig.ChannelTimeoutBedrock,
-			L1ChainID:               cfg.L1ChainIDBig(),
-			L2ChainID:               cfg.L2ChainIDBig(),
-			BatchInboxAddress:       cfg.DeployConfig.BatchInboxAddress,
-			DepositContractAddress:  cfg.DeployConfig.OptimismPortalProxy,
-			L1SystemConfigAddress:   cfg.DeployConfig.SystemConfigProxy,
-			RegolithTime:            cfg.DeployConfig.RegolithTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
-			CanyonTime:              cfg.DeployConfig.CanyonTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
-			DeltaTime:               cfg.DeployConfig.DeltaTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
-			EcotoneTime:             cfg.DeployConfig.EcotoneTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
-			FjordTime:               cfg.DeployConfig.FjordTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
-			GraniteTime:             cfg.DeployConfig.GraniteTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
-			HoloceneTime:            cfg.DeployConfig.HoloceneTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
-			PectraBlobScheduleTime:  cfg.DeployConfig.PectraBlobScheduleTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
-			IsthmusTime:             cfg.DeployConfig.IsthmusTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
-			JovianTime:              cfg.DeployConfig.JovianTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
-			KarstTime:               cfg.DeployConfig.KarstTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
-			InteropTime:             cfg.DeployConfig.InteropTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
-			ProtocolVersionsAddress: cfg.L1Deployments.ProtocolVersionsProxy,
-			AltDAConfig:             rollupAltDAConfig,
-			ChainOpConfig: &params.OptimismConfig{
+			BlockTime:              cfg.DeployConfig.L2BlockTime,
+			MaxSequencerDrift:      cfg.DeployConfig.MaxSequencerDrift,
+			SeqWindowSize:          cfg.DeployConfig.SequencerWindowSize,
+			ChannelTimeoutBedrock:  cfg.DeployConfig.ChannelTimeoutBedrock,
+			L1ChainID:              cfg.L1ChainIDBig(),
+			L2ChainID:              cfg.L2ChainIDBig(),
+			BatchInboxAddress:      cfg.DeployConfig.BatchInboxAddress,
+			DepositContractAddress: cfg.DeployConfig.OptimismPortalProxy,
+			L1SystemConfigAddress:  cfg.DeployConfig.SystemConfigProxy,
+			RegolithTime:           cfg.DeployConfig.RegolithTime(l2GenesisTime),
+			CanyonTime:             cfg.DeployConfig.CanyonTime(l2GenesisTime),
+			DeltaTime:              cfg.DeployConfig.DeltaTime(l2GenesisTime),
+			EcotoneTime:            cfg.DeployConfig.EcotoneTime(l2GenesisTime),
+			FjordTime:              cfg.DeployConfig.FjordTime(l2GenesisTime),
+			GraniteTime:            cfg.DeployConfig.GraniteTime(l2GenesisTime),
+			HoloceneTime:           cfg.DeployConfig.HoloceneTime(l2GenesisTime),
+			PectraBlobScheduleTime: cfg.DeployConfig.PectraBlobScheduleTime(l2GenesisTime),
+			IsthmusTime:            cfg.DeployConfig.IsthmusTime(l2GenesisTime),
+			JovianTime:             cfg.DeployConfig.JovianTime(l2GenesisTime),
+			KarstTime:              cfg.DeployConfig.KarstTime(l2GenesisTime),
+			LagoonTime:             cfg.DeployConfig.LagoonTime(l2GenesisTime),
+			AltDAConfig:            rollupAltDAConfig,
+			ChainOpConfig: &opparams.OptimismConfig{
 				EIP1559Elasticity:        cfg.DeployConfig.EIP1559Elasticity,
 				EIP1559Denominator:       cfg.DeployConfig.EIP1559Denominator,
 				EIP1559DenominatorCanyon: &cfg.DeployConfig.EIP1559DenominatorCanyon,
@@ -774,8 +786,8 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 		return nil, fmt.Errorf("l1 never came up: %w", err)
 	}
 
-	// Ordered such that the Sequencer is initialized first. Setup this way so that
-	// the `RollupSequencerHTTP` GethOption can be supplied to any sentry nodes.
+	// Ordered such that the Sequencer is initialized first, so its RPC URL can be
+	// supplied as the sequencer-forwarding target to any sentry nodes.
 	l2Nodes := []string{RoleSeq}
 	for name := range cfg.Nodes {
 		if name == RoleSeq {
@@ -785,23 +797,29 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 	}
 
 	for _, name := range l2Nodes {
-		var ethClient services.EthInstance
+		var sequencerHTTP string
 		if name != RoleSeq && !cfg.DisableTxForwarder {
-			cfg.GethOptions[name] = append(cfg.GethOptions[name], func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error {
-				ethCfg.RollupSequencerHTTP = sys.EthInstances[RoleSeq].UserRPC().RPC()
-				return nil
-			})
+			sequencerHTTP = sys.EthInstances[RoleSeq].UserRPC().RPC()
 		}
 
-		l2Geth, err := geth.InitL2(name, l2Genesis, cfg.JWTFilePath, cfg.GethOptions[name]...)
+		nodeLogger := cfg.Loggers[name]
+		if nodeLogger == nil {
+			nodeLogger = sysLogger.New("role", name)
+		}
+
+		ethClient, err := el.InitL2(context.Background(), el.L2Config{
+			Kind:          cfg.L2ELKind,
+			Name:          name,
+			Genesis:       l2Genesis,
+			JWTPath:       cfg.JWTFilePath,
+			Logger:        nodeLogger,
+			SequencerHTTP: sequencerHTTP,
+			DataDir:       t.TempDir(),
+			GethOptions:   cfg.GethOptions[name],
+		})
 		if err != nil {
 			return nil, err
 		}
-		if err := l2Geth.Node.Start(); err != nil {
-			return nil, err
-		}
-
-		ethClient = l2Geth
 
 		sys.EthInstances[name] = ethClient
 	}
@@ -871,7 +889,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 	// Rollup nodes
 
 	// Ensure we are looping through the nodes in alphabetical order
-	ks := maps.Keys(cfg.Nodes)
+	ks := slices.Collect(maps.Keys(cfg.Nodes))
 	// Sort strings in ascending alphabetical order
 	sort.Strings(ks)
 
@@ -934,13 +952,19 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 	}
 
 	// L2Output Submitter
-	respectedGameType := gameTypes.PermissionedGameType
+	respectedGameType := gameTypes.SuperPermissionedGameType
+	rollupRPC := ""
+	var superRootRPCs []string
 	if cfg.AllocType == config.AllocTypeFastGame {
 		respectedGameType = gameTypes.FastGameType
+		rollupRPC = sys.RollupNodes[RoleSeq].UserRPC().RPC()
+	} else {
+		superRootRPCs = []string{sys.RollupNodes[RoleSeq].UserRPC().RPC()}
 	}
 	proposerCLIConfig := &l2os.CLIConfig{
 		L1EthRpc:          sys.EthInstances[RoleL1].UserRPC().RPC(),
-		RollupRpc:         sys.RollupNodes[RoleSeq].UserRPC().RPC(),
+		RollupRpc:         rollupRPC,
+		SuperRootRpcs:     superRootRPCs,
 		DGFAddress:        config.L1Deployments(cfg.AllocType).DisputeGameFactoryProxy.Hex(),
 		ProposalInterval:  6 * time.Second,
 		DisputeGameType:   uint32(respectedGameType),

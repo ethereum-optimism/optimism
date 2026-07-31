@@ -1,0 +1,142 @@
+---
+title: Supernode configuration
+description: Learn how to configure op-supernode to run every chain in an interop dependency set in one process.
+diataxis: how-to
+audit-source:
+  - op-supernode/flags/flags.go
+  - op-supernode/flags/virtual_flags.go
+  - op-supernode/cmd/main.go
+  - op-supernode/supernode/supernode.go
+  - op-supernode/supernode/activity/interop/interop.go
+  - op-supernode/README.md
+---
+
+<Info>
+  op-supernode is in active development.
+  This page tracks the [op-supernode/v0.2.2-rc.8](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv0.2.2-rc.8) release candidate and the recommendations may evolve before the stable release.
+  For background on what op-supernode is and why it exists, see the [supernode explainer](/op-stack/interop/supernode).
+</Info>
+
+This guide covers the recommended settings and a starter configuration for op-supernode.
+op-supernode runs every chain in an interop dependency set together as virtual nodes inside one process, sharing the L1 client and beacon-chain plumbing across them.
+For the end-to-end procedure to stand up a supernode from scratch (build, engine-API wiring, start, verify), see the [supernode setup guide](/node-operators/guides/configuration/supernode-setup).
+For the complete per-flag catalogue, see the [op-supernode configuration reference](/node-operators/reference/op-supernode-config).
+
+## Recommendations
+
+### Share the JWT secret across virtual nodes with `--vn.all.l2.jwt-secret`
+
+<Info>
+  Each chain's virtual node needs the JWT secret to authenticate with its execution client over the Engine API.
+  When every chain in the dependency set uses the same secret, set it once at the supernode level and let every virtual node inherit it.
+</Info>
+
+To share a single JWT secret across every virtual node, set `--vn.all.l2.jwt-secret=<path>` (or `OP_SUPERNODE_VN_ALL_L2_ENGINE_AUTH`) at the supernode level.
+This avoids repeating the per-chain `--vn.<chainID>.l2.jwt-secret` line for every chain in `--chains`.
+Reserve the per-chain form for the case where one chain's execution client needs a different secret; the [configuration reference](/node-operators/reference/op-supernode-config) documents both forms.
+
+### Configure a beacon archiver fallback with `--l1.beacon-fallbacks`
+
+<Warning>
+  Ethereum beacon nodes prune blob sidecars after roughly 18 days.
+  Without an archive fallback configured, a supernode that has been offline past the prune window cannot fetch the blobs it needs to derive missed L1 blocks, and chain containers will stall at the gap.
+</Warning>
+
+Configure `--l1.beacon-fallbacks` (or `OP_SUPERNODE_L1_BEACON_FALLBACKS`) with one or more beacon-API-compatible archive endpoints.
+Set them up from the start — once a primary beacon prunes a blob the supernode needs, only an archiver can recover it.
+The shared beacon client uses the fallbacks transparently when the primary beacon node returns 404 for an expired blob.
+
+For options on what to point `--l1.beacon-fallbacks` at — running your own non-pruning beacon, running `blob-archiver`, or using a third-party service — see the [blob archiver guide](/node-operators/guides/management/blobs#configure-a-blob-archiver).
+
+### Configure EL retention for supernode backfill
+
+<Info>
+  The supernode reads historical block and receipt data from each chain's execution client to backfill initiating-message logs after restarts or extended downtime.
+  ELs that aggressively prune receipts will break the backfill path.
+</Info>
+
+Configure each EL to retain at least 7 days of block and receipt history.
+A full archive is not required — see the [op-reth configuration reference](/node-operators/reference/op-reth-config) for the granular `--prune.*` flags that let you keep block and receipt history without enabling transaction indexing or world-state history.
+
+If you also run op-challenger for permissionless fault proofs, the same ELs additionally need historical proofs enabled — see [Running op-reth with Historical Proofs](/node-operators/tutorials/reth-historical-proofs).
+
+### Pair op-supernode with a Light CL fleet
+
+For operators running more than a handful of nodes, the deployable pattern is to concentrate the expensive multi-chain derivation work on supernodes and run the rest of the fleet as op-node or kona-node instances in Light CL mode.
+Each supernode (or HA pool of supernodes) acts as the safe source for a fleet of Light CLs.
+The fleet points at the supernode's `optimism_syncStatus` RPC over the `--l2.follow.source` flag and inherits its safe and finalized view, while keeping its own unsafe-head progression over P2P.
+Larger operators often run several such supernode-plus-fleet groups for blast-radius isolation, regional placement, or staged rollouts.
+
+See the [specialized op-node topology notice](/notices/specialized-node-topology) for the fleet side of this pattern, and the [supernode explainer](/op-stack/interop/supernode#op-supernode-and-light-cl) for the architecture overview.
+
+Set `--disable-p2p=true` on the supernode when the fleet handles unsafe-head P2P gossip on its own.
+Leave P2P enabled (the default) when the supernode is the only node in the topology.
+
+### Run an HA pool of supernodes behind a consensus-aware proxyd
+
+For production reliability, OP Labs recommends running an **HA pool of at least three op-supernode instances** and fronting them with a [consensus-aware `proxyd`](/chain-operators/tools/proxyd#consensus-awareness) configured with the `consensus_aware_consensus_layer` routing strategy.
+Point the Light CL fleet's `--l2.follow.source` at the proxyd endpoint rather than at a single supernode.
+This hides individual supernode failures or reorgs from the Light CL fleet and lets the supernode tier roll between releases without downtime.
+
+An individual supernode going down inside the HA pool is masked by `proxyd` — Light CLs continue following the surviving instances.
+If the entire supernode tier becomes unreachable, Light CLs keep advancing the unsafe chain over P2P gossip and resume safe-head tracking automatically once the tier is restored.
+
+A single op-supernode is acceptable for evaluation, but treat it as a single point of failure for safe-head progression on every chain it hosts.
+
+## Example configuration
+
+This is a minimum viable configuration for an op-supernode acting as a verifier across OP Sepolia and Unichain Sepolia.
+The example uses environment variables; pass the equivalent `--flag` arguments instead if that fits your deployment better.
+Fill in the placeholders before starting the binary.
+
+<Info>
+  The example below assumes a two-chain dependency set of OP Sepolia (chain ID `11155420`) and Unichain Sepolia (chain ID `1301`).
+  For a different dependency set, replace the chain IDs in `OP_SUPERNODE_CHAINS` and add or remove the matching `OP_SUPERNODE_VN_<CHAINID>_NETWORK` and `OP_SUPERNODE_VN_<CHAINID>_L2_ENGINE_RPC` pairs for each chain.
+</Info>
+
+```yaml
+# Dependency set and storage
+OP_SUPERNODE_CHAINS: "11155420,1301"          # OP Sepolia + Unichain Sepolia
+OP_SUPERNODE_DATA_DIR: /var/lib/op-supernode  # default is ./datadir
+
+# Shared L1 access
+OP_SUPERNODE_L1_ETH_RPC: <your-l1-eth-rpc>
+OP_SUPERNODE_L1_BEACON: <your-l1-beacon-rpc>
+OP_SUPERNODE_L1_BEACON_FALLBACKS: <your-l1-beacon-archiver-rpc>
+
+# Shared JWT secret for every virtual node's engine connection
+OP_SUPERNODE_VN_ALL_L2_ENGINE_AUTH: /etc/op/jwt-secret.txt
+
+# Per-chain: chain identity, engine RPC, and engine kind (reth when the chain's EL is op-reth)
+OP_SUPERNODE_VN_11155420_NETWORK: op-sepolia
+OP_SUPERNODE_VN_11155420_L2_ENGINE_RPC: <op-sepolia-engine-rpc>
+OP_SUPERNODE_VN_11155420_L2_ENGINE_KIND: reth
+OP_SUPERNODE_VN_1301_NETWORK: unichain-sepolia
+OP_SUPERNODE_VN_1301_L2_ENGINE_RPC: <unichain-sepolia-engine-rpc>
+OP_SUPERNODE_VN_1301_L2_ENGINE_KIND: reth
+
+# Top-level JSON-RPC server (per-chain namespaces under /<chainID>/)
+OP_SUPERNODE_RPC_ADDR: 0.0.0.0
+OP_SUPERNODE_RPC_PORT: "8545"
+
+# Observability
+OP_SUPERNODE_LOG_LEVEL: info
+OP_SUPERNODE_METRICS_ENABLED: "true"
+OP_SUPERNODE_METRICS_ADDR: 0.0.0.0
+OP_SUPERNODE_METRICS_PORT: "7300"
+```
+
+For chains that are not in op-node's built-in network registry, replace `--vn.<chainID>.network` with `--vn.<chainID>.rollup.config=<path-to-rollup-config.json>`.
+
+Every flag in the example — and everything else the binary accepts, including P2P, interop verification, JSON-RPC, logging, and metrics options — is catalogued with syntax, examples, and environment-variable names in the [op-supernode configuration reference](/node-operators/reference/op-supernode-config).
+
+## Where to go next
+
+* Follow the [supernode setup guide](/node-operators/guides/configuration/supernode-setup) to stand up a supernode from scratch.
+* Read the [op-supernode configuration reference](/node-operators/reference/op-supernode-config) for the complete flag and environment-variable catalogue.
+* Read the [interop prep notice](/notices/interop-prep) for the node-operator action checklist for the OP Sepolia and Unichain Sepolia activation.
+* Read the [supernode explainer](/op-stack/interop/supernode) for what op-supernode is and why it exists.
+* Read the [specialized op-node topology notice](/notices/specialized-node-topology) for the operator-facing pattern of running Light CL fleets that follow a supernode safe source.
+* Read the [interop explainer](/op-stack/interop/explainer) for how cross-chain messaging works at the protocol level.
+* Read the [op-node configuration reference](/node-operators/reference/op-node-config) for the full set of flags available under the `--vn.*` namespace.
+* See the [op-supernode source](https://github.com/ethereum-optimism/optimism/tree/develop/op-supernode) in the monorepo for implementation detail.

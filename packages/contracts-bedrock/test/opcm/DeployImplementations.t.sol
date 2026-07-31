@@ -14,7 +14,6 @@ import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 
@@ -32,16 +31,14 @@ contract DeployImplementations_Test is Test, FeatureFlags {
     uint256 proofMaturityDelaySeconds = 400;
     uint256 disputeGameFinalityDelaySeconds = 500;
     ISuperchainConfig superchainConfigProxy = ISuperchainConfig(makeAddr("superchainConfigProxy"));
-    IProtocolVersions protocolVersionsProxy = IProtocolVersions(makeAddr("protocolVersionsProxy"));
     IProxyAdmin superchainProxyAdmin = IProxyAdmin(makeAddr("superchainProxyAdmin"));
     address l1ProxyAdminOwner = makeAddr("l1ProxyAdminOwner");
     address challenger = makeAddr("challenger");
 
     function setUp() public virtual {
         resolveFeaturesFromEnv();
-        // We'll need to store some code on these two addresses so that the deployment script checks pass
+        // We'll need to store some code on this address so that the deployment script checks pass
         vm.etch(address(superchainConfigProxy), hex"01");
-        vm.etch(address(protocolVersionsProxy), hex"01");
 
         deployImplementations = new DeployImplementations();
     }
@@ -111,28 +108,6 @@ contract DeployImplementations_Test is Test, FeatureFlags {
                 output.superFaultDisputeGameImpl.maxClockDuration().raw(),
                 302400,
                 "SuperFaultDisputeGame maxClockDuration incorrect"
-            );
-
-            // Validate constructor args for SuperPermissionedDisputeGame
-            assertEq(
-                output.superPermissionedDisputeGameImpl.maxGameDepth(),
-                73,
-                "SuperPermissionedDisputeGame maxGameDepth incorrect"
-            );
-            assertEq(
-                output.superPermissionedDisputeGameImpl.splitDepth(),
-                30,
-                "SuperPermissionedDisputeGame splitDepth incorrect"
-            );
-            assertEq(
-                output.superPermissionedDisputeGameImpl.clockExtension().raw(),
-                10800,
-                "SuperPermissionedDisputeGame clockExtension incorrect"
-            );
-            assertEq(
-                output.superPermissionedDisputeGameImpl.maxClockDuration().raw(),
-                302400,
-                "SuperPermissionedDisputeGame maxClockDuration incorrect"
             );
         } else {
             assertEq(
@@ -240,7 +215,6 @@ contract DeployImplementations_Test is Test, FeatureFlags {
             _faultGameV2ClockExtension, // faultGameV2ClockExtension (bounded)
             _faultGameV2MaxClockDuration, // faultGameV2MaxClockDuration (bounded)
             superchainConfigProxy,
-            protocolVersionsProxy,
             superchainProxyAdmin,
             l1ProxyAdminOwner,
             challenger
@@ -315,25 +289,6 @@ contract DeployImplementations_Test is Test, FeatureFlags {
                 output.superFaultDisputeGameImpl.maxClockDuration().raw(),
                 uint64(_faultGameV2MaxClockDuration),
                 "SuperDG maxClockDuration"
-            );
-
-            assertEq(
-                output.superPermissionedDisputeGameImpl.maxGameDepth(),
-                _faultGameV2MaxGameDepth,
-                "PSuperDG maxGameDepth"
-            );
-            assertEq(
-                output.superPermissionedDisputeGameImpl.splitDepth(), _faultGameV2SplitDepth, "PSuperDG splitDepth"
-            );
-            assertEq(
-                output.superPermissionedDisputeGameImpl.clockExtension().raw(),
-                uint64(_faultGameV2ClockExtension),
-                "PSuperDG clockExtension"
-            );
-            assertEq(
-                output.superPermissionedDisputeGameImpl.maxClockDuration().raw(),
-                uint64(_faultGameV2MaxClockDuration),
-                "PSuperDG maxClockDuration"
             );
         } else {
             assertEq(address(output.superFaultDisputeGameImpl), address(0), "super game should be null when disabled");
@@ -450,11 +405,6 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         deployImplementations.run(input);
 
         input = defaultInput();
-        input.protocolVersionsProxy = IProtocolVersions(address(0));
-        vm.expectRevert("DeployImplementations: protocolVersionsProxy not set");
-        deployImplementations.run(input);
-
-        input = defaultInput();
         input.superchainProxyAdmin = IProxyAdmin(address(0));
         vm.expectRevert("DeployImplementations: superchainProxyAdmin not set");
         deployImplementations.run(input);
@@ -539,7 +489,6 @@ contract DeployImplementations_Test is Test, FeatureFlags {
             10800, // faultGameV2ClockExtension
             302400, // faultGameV2MaxClockDuration
             superchainConfigProxy,
-            protocolVersionsProxy,
             superchainProxyAdmin,
             l1ProxyAdminOwner,
             challenger

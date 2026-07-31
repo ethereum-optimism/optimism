@@ -3,7 +3,7 @@
 The Smart Contract Versioning and Release Process closely follows a true [semver](https://semver.org) for both individual contracts and monorepo releases.
 However, there are some changes to accommodate the unique nature of smart contract development and governance cycles.
 
-There are five parts to the versioning and release process:
+There are four main parts to the versioning and release process:
 
 - [Semver Rules](#semver-rules): Follows the rules defined in the [style guide](../contributing/style-guide.md#versioning) for when to bump major, minor, and patch versions in individual contracts.
 - [Individual Contract Versioning](#individual-contract-versioning): The versioning scheme for individual contracts and includes beta, release candidate, and feature tags.
@@ -12,8 +12,8 @@ There are five parts to the versioning and release process:
   - [Additional Release Candidates](#additional-release-candidates): How to handle additional release candidates after an initial `op-contracts/vX.Y.Z-rc.1` release.
 
 > [!NOTE]
-> The rules described in this document must be enforced manually.
-> Ideally, a check can be added to CI to enforce the conventions defined here, but this is not currently implemented.
+> Some release-process conventions described in this document must be enforced manually.
+> Individual contract semver validity and semver lock consistency are enforced by CI checks.
 
 ## Semver Rules
 

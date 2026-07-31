@@ -5,7 +5,6 @@ import { Types } from "src/libraries/Types.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
 import { IERC721Bridge } from "interfaces/universal/IERC721Bridge.sol";
-import { ISharesCalculator } from "interfaces/L2/ISharesCalculator.sol";
 
 /// @title L2ContractsManagerTypes
 /// @notice Type definitions for L2ContractsManager upgrade operations.
@@ -50,11 +49,6 @@ library L2ContractsManagerTypes {
         string gasPayingTokenSymbol;
     }
 
-    /// @notice Configuration for FeeSplitter.
-    struct FeeSplitterConfig {
-        ISharesCalculator sharesCalculator;
-    }
-
     /// @notice Full network-specific configuration gathered from existing predeploys.
     ///         These values are read before upgrade and passed to initializers after.
     struct FullConfig {
@@ -68,39 +62,13 @@ library L2ContractsManagerTypes {
         FeeVaultConfig l1FeeVault;
         FeeVaultConfig operatorFeeVault;
         LiquidityControllerConfig liquidityController;
-        FeeSplitterConfig feeSplitter;
         bool isCustomGasToken;
         bool isInterop;
     }
 
-    /// @notice The current implementation addresses for the L2 predeploys.
-    struct Implementations {
-        address storageSetterImpl;
-        address l2CrossDomainMessengerImpl;
-        address gasPriceOracleImpl;
-        address l2StandardBridgeImpl;
-        address sequencerFeeWalletImpl;
-        address optimismMintableERC20FactoryImpl;
-        address l2ERC721BridgeImpl;
-        address l1BlockImpl;
-        address l1BlockCGTImpl;
-        address l2ToL1MessagePasserImpl;
-        address l2ToL1MessagePasserCGTImpl;
-        address optimismMintableERC721FactoryImpl;
-        address proxyAdminImpl;
-        address baseFeeVaultImpl;
-        address l1FeeVaultImpl;
-        address operatorFeeVaultImpl;
-        address schemaRegistryImpl;
-        address easImpl;
-        address crossL2InboxImpl;
-        address l2ToL2CrossDomainMessengerImpl;
-        address superchainETHBridgeImpl;
-        address ethLiquidityImpl;
-        address nativeAssetLiquidityImpl;
-        address liquidityControllerImpl;
-        address feeSplitterImpl;
-        address conditionalDeployerImpl;
-        address l2DevFeatureFlagsImpl;
+    /// @notice A name -> implementation address pair used as L2ContractsManager constructor input.
+    struct ImplRecord {
+        string name;
+        address impl;
     }
 }

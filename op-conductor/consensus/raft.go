@@ -2,6 +2,7 @@ package consensus
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -11,7 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/hashicorp/raft"
 	boltdb "github.com/hashicorp/raft-boltdb/v2"
-	"github.com/pkg/errors"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -136,7 +136,7 @@ func NewRaftConsensus(log log.Logger, cfg *RaftConsensusConfig) (*RaftConsensus,
 	// When advertiseAddr == nil, the transport will use the local address that it is bound to.
 	transport, err := raft.NewTCPTransportWithLogger(bindAddr, advertiseAddr, maxConnPool, timeout, rc.Logger)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create raft tcp transport")
+		return nil, fmt.Errorf("failed to create raft tcp transport: %w", err)
 	}
 	log.Info("Raft server network transport is up", "addr", transport.LocalAddr())
 
@@ -145,7 +145,7 @@ func NewRaftConsensus(log log.Logger, cfg *RaftConsensusConfig) (*RaftConsensus,
 	r, err := raft.NewRaft(rc, fsm, logStore, stableStore, snapshotStore, transport)
 	if err != nil {
 		log.Error("failed to create raft", "err", err)
-		return nil, errors.Wrap(err, "failed to create raft")
+		return nil, fmt.Errorf("failed to create raft: %w", err)
 	}
 
 	// If bootstrap = true, start raft in bootstrap mode, this will allow the current node to elect itself as leader when there's no other participants
@@ -175,7 +175,7 @@ func NewRaftConsensus(log log.Logger, cfg *RaftConsensusConfig) (*RaftConsensus,
 			if errors.Is(err, raft.ErrCantBootstrap) {
 				log.Warn("Raft cluster already exists, skipping bootstrap")
 			} else {
-				return nil, errors.Wrap(err, "failed to bootstrap raft cluster")
+				return nil, fmt.Errorf("failed to bootstrap raft cluster: %w", err)
 			}
 		}
 	}
@@ -307,12 +307,12 @@ func (rc *RaftConsensus) CommitUnsafePayload(payload *eth.ExecutionPayloadEnvelo
 
 	var buf bytes.Buffer
 	if _, err := payload.MarshalSSZ(&buf); err != nil {
-		return errors.Wrap(err, "failed to marshal payload envelope")
+		return fmt.Errorf("failed to marshal payload envelope: %w", err)
 	}
 
 	f := rc.r.Apply(buf.Bytes(), defaultTimeout)
 	if err := f.Error(); err != nil {
-		return errors.Wrap(err, "failed to apply payload envelope")
+		return fmt.Errorf("failed to apply payload envelope: %w", err)
 	}
 	rc.log.Debug("unsafe payload committed", "number", uint64(payload.ExecutionPayload.BlockNumber), "hash", payload.ExecutionPayload.BlockHash.Hex())
 
@@ -322,7 +322,7 @@ func (rc *RaftConsensus) CommitUnsafePayload(payload *eth.ExecutionPayloadEnvelo
 // LatestUnsafePayload implements Consensus, it returns the latest unsafe payload from FSM in a strongly consistent fashion.
 func (rc *RaftConsensus) LatestUnsafePayload() (*eth.ExecutionPayloadEnvelope, error) {
 	if err := rc.r.Barrier(defaultTimeout).Error(); err != nil {
-		return nil, errors.Wrap(err, "failed to apply barrier")
+		return nil, fmt.Errorf("failed to apply barrier: %w", err)
 	}
 
 	return rc.unsafeTracker.UnsafeHead(), nil

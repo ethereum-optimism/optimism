@@ -35,7 +35,6 @@ abstract contract CommonTest is Test, Setup, Events {
 
     bool useAltDAOverride;
     bool useInteropOverride;
-    bool useRevenueShareOverride;
     bool useCustomGasToken;
 
     /// @dev This value is only used in forked tests. During forked tests, the default is to perform the upgrade before
@@ -43,10 +42,6 @@ abstract contract CommonTest is Test, Setup, Events {
     ///      This value should only be set to false in forked tests which are specifically testing the upgrade path
     ///      itself, rather than simply ensuring that the tests pass after the upgrade.
     bool useUpgradedFork = true;
-
-    // Needed for testing purposes to check the contracts were properly deployed and setup.
-    address chainFeesRecipient = makeAddr("chainFeesRecipient");
-    address l1FeesDepositor = makeAddr("l1FeesDepositor");
 
     ERC20 L1Token;
     ERC20 BadL1Token;
@@ -74,17 +69,6 @@ abstract contract CommonTest is Test, Setup, Events {
         if (useAltDAOverride) {
             deploy.cfg().setUseAltDA(true);
         }
-        if (useRevenueShareOverride) {
-            // Revenue share is not supported when custom gas token is enabled
-            if (Config.sysFeatureCustomGasToken()) {
-                vm.skip(true);
-            }
-
-            console.log("CommonTest: enabling revenue share");
-            deploy.cfg().setUseRevenueShare(true);
-            deploy.cfg().setChainFeesRecipient(chainFeesRecipient);
-            deploy.cfg().setL1FeesDepositor(l1FeesDepositor);
-        }
         if (useUpgradedFork) {
             deploy.cfg().setUseUpgradedFork(true);
         }
@@ -98,11 +82,6 @@ abstract contract CommonTest is Test, Setup, Events {
             deploy.cfg().setL1FeeVaultWithdrawalNetwork(1);
             deploy.cfg().setSequencerFeeVaultWithdrawalNetwork(1);
             deploy.cfg().setOperatorFeeVaultWithdrawalNetwork(1);
-        }
-
-        if (Config.devFeatureL2CM()) {
-            console.log("CommonTest: enabling l2cm");
-            devFeatureBitmap |= DevFeatures.L2CM;
         }
 
         if (useInteropOverride) {
@@ -234,12 +213,6 @@ abstract contract CommonTest is Test, Setup, Events {
     function enableInterop() public {
         _checkNotDeployed("interop");
         useInteropOverride = true;
-    }
-
-    /// @dev Enables revenue sharing mode for testing
-    function enableRevenueShare() public {
-        _checkNotDeployed("revenue share");
-        useRevenueShareOverride = true;
     }
 
     /// @dev Disables upgrade mode for testing. By default the fork testing env will be upgraded to the latest

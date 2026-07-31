@@ -17,7 +17,7 @@ const (
 	Isthmus  Name = "isthmus"
 	Jovian   Name = "jovian"
 	Karst    Name = "karst"
-	Interop  Name = "interop"
+	Lagoon   Name = "lagoon"
 	// ADD NEW MAINLINE FORKS TO [All] BELOW!
 
 	// Optional Forks - not part of mainline
@@ -39,7 +39,7 @@ var All = []Name{
 	Isthmus,
 	Jovian,
 	Karst,
-	Interop,
+	Lagoon,
 	// ADD NEW MAINLINE FORKS HERE!
 }
 
@@ -62,16 +62,22 @@ func From(start Name) []Name {
 	panic(fmt.Sprintf("invalid fork: %s", start))
 }
 
-var next = func() map[Name]Name {
-	m := make(map[Name]Name, len(All))
+var next, prev = func() (map[Name]Name, map[Name]Name) {
+	n := make(map[Name]Name, len(All))
+	p := make(map[Name]Name, len(All))
 	for i, f := range All {
 		if i == len(All)-1 {
-			m[f] = None
-			break
+			n[f] = None
+		} else {
+			n[f] = All[i+1]
 		}
-		m[f] = All[i+1]
+		if i == 0 {
+			p[f] = None
+		} else {
+			p[f] = All[i-1]
+		}
 	}
-	return m
+	return n, p
 }()
 
 // IsValid returns true if the provided fork is a known fork.
@@ -82,3 +88,6 @@ func IsValid(f Name) bool {
 
 // Next returns the fork that follows the provided fork, or None if it is the last.
 func Next(f Name) Name { return next[f] }
+
+// Prev returns the fork that precedes the provided fork, or None if it is the first.
+func Prev(f Name) Name { return prev[f] }

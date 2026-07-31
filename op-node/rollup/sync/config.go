@@ -1,8 +1,10 @@
 package sync
 
 import (
+	"errors"
 	"fmt"
 	"strings"
+	"time"
 )
 
 type Mode int
@@ -63,8 +65,7 @@ func (m *Mode) Clone() any {
 
 type Config struct {
 	// SyncMode is defined above.
-	SyncMode        Mode `json:"syncmode"`
-	SyncModeReqResp bool `json:"syncmode_reqresp"`
+	SyncMode Mode `json:"syncmode"`
 
 	// SkipSyncStartCheck skip the sanity check of consistency of L1 origins of the unsafe L2 blocks when determining the sync-starting point.
 	// This defers the L1-origin verification, and is recommended to use in when utilizing --syncmode=execution-layer on op-node and --syncmode=snap on op-geth
@@ -77,6 +78,20 @@ type Config struct {
 
 	L2FollowSourceEndpoint string `json:"l2_follow_source_endpoint"`
 	NeedInitialResetEngine bool   `json:"need_initial_reset_engine"`
+
+	// OffsetELSafe retracts safe and finalized from the EL-sync tip by floor(OffsetELSafe / L2BlockTime) blocks.
+	// Zero disables (safe and finalized stay at the synced tip when EL sync completes).
+	OffsetELSafe time.Duration `json:"offset_el_safe,omitempty"`
+}
+
+func (c *Config) Check() error {
+	if c == nil {
+		return nil
+	}
+	if c.OffsetELSafe < 0 {
+		return errors.New("sync.offset-el-safe must be >= 0")
+	}
+	return nil
 }
 
 func (c *Config) FollowSourceEnabled() bool {

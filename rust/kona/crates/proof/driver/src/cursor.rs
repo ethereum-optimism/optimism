@@ -165,6 +165,7 @@ impl PipelineCursor {
         if self.tips.len() >= self.capacity {
             let key = self.origins.pop_front().unwrap();
             self.tips.remove(&key);
+            self.origin_infos.remove(&key);
         }
 
         self.origin = origin;
@@ -225,5 +226,53 @@ impl PipelineCursor {
                 (l2_known_tip.clone(), self.origin_infos[last_l1_known_tip])
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn mock_block_info(number: u64) -> BlockInfo {
+        BlockInfo { number, hash: B256::ZERO, parent_hash: B256::ZERO, timestamp: number }
+    }
+
+    fn mock_tip() -> TipCursor {
+        TipCursor::new(
+            L2BlockInfo::default(),
+            Sealed::new_unchecked(Header::default(), B256::ZERO),
+            B256::ZERO,
+        )
+    }
+
+    #[test]
+    fn advance_evicts_origin_infos_when_full() {
+        let channel_timeout = 2;
+        let origin = mock_block_info(0);
+        let mut cursor = PipelineCursor::new(channel_timeout, origin);
+        let capacity = cursor.capacity; // channel_timeout + 5 = 7
+
+        // Advance well past capacity to trigger many evictions.
+        let total_advances = capacity * 3;
+        for i in 1..=total_advances {
+            cursor.advance(mock_block_info(i as u64), mock_tip());
+        }
+
+        // origin_infos must be bounded. Without the fix, it would contain
+        // total_advances + 1 entries (one from new() plus one per advance).
+        // With the fix, evicted keys are removed from origin_infos too.
+        assert!(
+            cursor.origin_infos.len() <= capacity + 1,
+            "origin_infos has {} entries but should be bounded near capacity ({}); \
+             entries are not being evicted",
+            cursor.origin_infos.len(),
+            capacity,
+        );
+
+        // Verify that old block numbers were actually removed.
+        assert!(
+            !cursor.origin_infos.contains_key(&1),
+            "origin_infos must evict old entries to prevent unbounded memory growth"
+        );
     }
 }

@@ -67,7 +67,7 @@ pub struct OpProofsHashedAccountCursor<C>(pub C);
 
 impl<C> HashedCursor for OpProofsHashedAccountCursor<C>
 where
-    C: HashedCursor<Value = Account> + Send + Sync,
+    C: HashedCursor<Value = Account> + Send,
 {
     type Value = Account;
 
@@ -93,7 +93,7 @@ pub struct OpProofsHashedStorageCursor<C>(pub C);
 
 impl<C> HashedCursor for OpProofsHashedStorageCursor<C>
 where
-    C: HashedCursor<Value = U256> + Send + Sync,
+    C: HashedCursor<Value = U256> + Send,
 {
     type Value = U256;
 
@@ -115,7 +115,7 @@ where
 
 impl<C> HashedStorageCursor for OpProofsHashedStorageCursor<C>
 where
-    C: HashedStorageCursor<Value = U256> + Send + Sync,
+    C: HashedStorageCursor<Value = U256> + Send,
 {
     #[inline]
     fn is_storage_empty(&mut self) -> Result<bool, DatabaseError> {

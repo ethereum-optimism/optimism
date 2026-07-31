@@ -199,3 +199,48 @@ func TestPendingInvalidation_JSONRoundTrip(t *testing.T) {
 	require.Equal(t, original.StateRoot, decoded.StateRoot)
 	require.Equal(t, original.MessagePasserStorageRoot, decoded.MessagePasserStorageRoot)
 }
+
+func TestDecision_JSONRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		decision Decision
+		wantJSON string
+	}{
+		{DecisionWait, `"wait"`},
+		{DecisionAdvance, `"advance"`},
+		{DecisionInvalidate, `"invalidate"`},
+		{DecisionRewind, `"rewind"`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.decision.String(), func(t *testing.T) {
+			data, err := json.Marshal(tc.decision)
+			require.NoError(t, err)
+			require.JSONEq(t, tc.wantJSON, string(data))
+
+			var decoded Decision
+			require.NoError(t, json.Unmarshal(data, &decoded))
+			require.Equal(t, tc.decision, decoded)
+		})
+	}
+}
+
+func TestDecision_JSONRejectsInvalid(t *testing.T) {
+	t.Parallel()
+
+	t.Run("marshal unknown value", func(t *testing.T) {
+		_, err := json.Marshal(Decision(99))
+		require.Error(t, err)
+	})
+
+	t.Run("unmarshal unknown string", func(t *testing.T) {
+		var d Decision
+		require.Error(t, json.Unmarshal([]byte(`"nope"`), &d))
+	})
+
+	t.Run("unmarshal non-string", func(t *testing.T) {
+		var d Decision
+		require.Error(t, json.Unmarshal([]byte(`2`), &d))
+	})
+}

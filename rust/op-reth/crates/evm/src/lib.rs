@@ -13,13 +13,16 @@ extern crate alloc;
 
 use alloc::sync::Arc;
 use alloy_consensus::{BlockHeader, Header};
-use alloy_evm::{EvmFactory, FromRecoveredTx, FromTxWithEncoded};
+use alloy_evm::{EvmFactory, FromRecoveredTx, FromTxWithEncoded, block::BlockExecutorFactory};
 use alloy_op_evm::{
     block::{OpTxEnv, receipt_builder::OpReceiptBuilder},
     evm_env_for_op_block, evm_env_for_op_next_block,
 };
 use core::fmt::Debug;
-use op_alloy_consensus::EIP1559ParamError;
+use op_alloy_consensus::{
+    EIP1559ParamError, OpTransaction as OpConsensusTransaction,
+    parse_post_exec_payload_from_transactions,
+};
 use op_revm::OpSpecId;
 use reth_chainspec::EthChainSpec;
 use reth_evm::{ConfigureEvm, EvmEnv, eth::NextEvmEnvAttributes, precompiles::PrecompilesMap};
@@ -63,7 +66,14 @@ pub use error::{L1BlockInfoError, OpBlockExecutionError};
 pub mod tx;
 pub use tx::OpTx;
 
-pub use alloy_op_evm::{OpBlockExecutionCtx, OpBlockExecutorFactory, OpEvm, OpEvmFactory};
+pub use alloy_op_evm::{
+    OpBlockExecutionCtx, OpBlockExecutorFactory, OpEvm, OpEvmFactory, PostExecMode,
+    PreRefundGasUsed,
+    post_exec::{PostExecExecutorExt, WarmingRefundEvent, WarmingRefundKind, WarmingState},
+};
+
+mod post_exec_ext;
+pub use post_exec_ext::*;
 
 /// Optimism-related EVM configuration.
 #[derive(Debug)]
@@ -93,26 +103,62 @@ impl<ChainSpec, N: NodePrimitives, R: Clone, EvmFactory: Clone> Clone
     }
 }
 
-impl<ChainSpec: OpHardforks> OpEvmConfig<ChainSpec> {
+impl<ChainSpec: EthChainSpec<Header = Header> + OpHardforks> OpEvmConfig<ChainSpec> {
     /// Creates a new [`OpEvmConfig`] with the given chain spec for OP chains.
     pub fn optimism(chain_spec: Arc<ChainSpec>) -> Self {
         Self::new(chain_spec, OpRethReceiptBuilder::default())
     }
 }
 
-impl<ChainSpec: OpHardforks, N: NodePrimitives, R> OpEvmConfig<ChainSpec, N, R> {
-    /// Creates a new [`OpEvmConfig`] with the given chain spec.
-    pub fn new(chain_spec: Arc<ChainSpec>, receipt_builder: R) -> Self {
+impl<ChainSpec, N: NodePrimitives, R, EvmFactory> OpEvmConfig<ChainSpec, N, R, EvmFactory> {
+    /// Creates a new [`OpEvmConfig`] with an explicit EVM factory.
+    pub fn new_with_evm_factory(
+        chain_spec: Arc<ChainSpec>,
+        receipt_builder: R,
+        evm_factory: EvmFactory,
+    ) -> Self {
         Self {
             block_assembler: OpBlockAssembler::new(chain_spec.clone()),
-            executor_factory: OpBlockExecutorFactory::new(
-                receipt_builder,
-                chain_spec,
-                OpEvmFactory::<OpTx>::default(),
-            ),
+            executor_factory: OpBlockExecutorFactory::new(receipt_builder, chain_spec, evm_factory),
             _pd: core::marker::PhantomData,
         }
     }
+}
+
+impl<ChainSpec: EthChainSpec<Header = Header> + OpHardforks, N: NodePrimitives, R>
+    OpEvmConfig<ChainSpec, N, R>
+{
+    /// Creates a new [`OpEvmConfig`] with the given chain spec.
+    pub fn new(chain_spec: Arc<ChainSpec>, receipt_builder: R) -> Self {
+        Self::new_with_evm_factory(chain_spec, receipt_builder, OpEvmFactory::<OpTx>::default())
+    }
+}
+
+/// Returns true when SDM post-exec transactions are consensus-active at `timestamp`.
+///
+/// Defers to the hardfork where SDM is activated, matching op-node's `IsSDM` and kona's
+/// `is_sdm_active`.
+///
+/// Single source of truth for the SDM protocol gate: call sites holding only a chain spec should
+/// route through this rather than calling the underlying fork accessor directly.
+pub fn is_sdm_active_at_timestamp(chain_spec: &impl OpHardforks, timestamp: u64) -> bool {
+    chain_spec.is_lagoon_active_at_timestamp(timestamp)
+}
+
+fn post_exec_mode_from_transactions<'a, I, T>(
+    transactions: I,
+    block_number: u64,
+    sdm_active: bool,
+) -> Result<PostExecMode, EIP1559ParamError>
+where
+    I: IntoIterator<Item = &'a T>,
+    T: OpConsensusTransaction + 'a,
+{
+    parse_post_exec_payload_from_transactions(transactions, block_number, sdm_active)
+        .map_err(|_| EIP1559ParamError::InvalidPostExecPayload)
+        .map(|parsed| {
+            parsed.map_or_else(PostExecMode::default, |parsed| PostExecMode::Verify(parsed.payload))
+        })
 }
 
 impl<ChainSpec, N, R, EvmFactory> OpEvmConfig<ChainSpec, N, R, EvmFactory>
@@ -123,6 +169,48 @@ where
     /// Returns the chain spec associated with this configuration.
     pub const fn chain_spec(&self) -> &Arc<ChainSpec> {
         self.executor_factory.spec()
+    }
+
+    /// Returns true when SDM post-exec transactions are consensus-active at `timestamp`.
+    ///
+    /// See the free [`is_sdm_active_at_timestamp`] function, which this delegates to.
+    pub fn is_sdm_active_at_timestamp(&self, timestamp: u64) -> bool {
+        crate::is_sdm_active_at_timestamp(self.chain_spec(), timestamp)
+    }
+
+    /// Builds a block execution context with an optional post-exec mode override.
+    pub fn context_for_block_with_post_exec_mode(
+        &self,
+        block: &SealedBlock<N::Block>,
+        post_exec_mode: Option<PostExecMode>,
+    ) -> OpBlockExecutionCtx {
+        OpBlockExecutionCtx {
+            parent_hash: block.header().parent_hash(),
+            // No parent header on this path to detect fork-activation blocks, so the executor's
+            // check is skipped; the derivation layer enforces the rule instead.
+            no_user_tx_activation_block: false,
+            parent_beacon_block_root: block.header().parent_beacon_block_root(),
+            extra_data: block.header().extra_data().clone(),
+            post_exec_mode: post_exec_mode.unwrap_or_default(),
+        }
+    }
+
+    /// Builds a next-block execution context with the provided post-exec mode.
+    pub fn context_for_next_block_with_post_exec_mode(
+        &self,
+        parent: &SealedHeader<N::BlockHeader>,
+        attributes: OpNextBlockEnvAttributes,
+        post_exec_mode: PostExecMode,
+    ) -> OpBlockExecutionCtx {
+        OpBlockExecutionCtx {
+            parent_hash: parent.hash(),
+            no_user_tx_activation_block: self
+                .chain_spec()
+                .is_no_user_tx_activation_block(parent.timestamp(), attributes.timestamp),
+            parent_beacon_block_root: attributes.parent_beacon_block_root,
+            extra_data: attributes.extra_data,
+            post_exec_mode,
+        }
     }
 }
 
@@ -137,7 +225,11 @@ where
             Block = alloy_consensus::Block<R::Transaction>,
         >,
     OpTx: FromRecoveredTx<N::SignedTx> + FromTxWithEncoded<N::SignedTx>,
-    R: OpReceiptBuilder<Receipt: DepositReceipt, Transaction: SignedTransaction>,
+    N::SignedTx: OpConsensusTransaction,
+    R: OpReceiptBuilder<
+            Receipt: DepositReceipt,
+            Transaction: SignedTransaction + OpConsensusTransaction,
+        >,
     EvmF: EvmFactory<
             Tx: FromRecoveredTx<R::Transaction>
                     + FromTxWithEncoded<R::Transaction>
@@ -147,6 +239,12 @@ where
             Spec = OpSpecId,
             BlockEnv = BlockEnv,
         > + Debug,
+    OpBlockExecutorFactory<R, Arc<ChainSpec>, EvmF>: for<'a> BlockExecutorFactory<
+            EvmFactory = EvmF,
+            ExecutionCtx<'a> = OpBlockExecutionCtx,
+            Transaction = R::Transaction,
+            Receipt = R::Receipt,
+        >,
     Self: Send + Sync + Unpin + Clone + 'static,
 {
     type Primitives = N;
@@ -179,6 +277,7 @@ where
                 suggested_fee_recipient: attributes.suggested_fee_recipient,
                 prev_randao: attributes.prev_randao,
                 gas_limit: attributes.gas_limit,
+                slot_number: None,
             },
             self.chain_spec().next_block_base_fee(parent, attributes.timestamp).unwrap_or_default(),
             self.chain_spec(),
@@ -190,11 +289,13 @@ where
         &self,
         block: &'_ SealedBlock<N::Block>,
     ) -> Result<OpBlockExecutionCtx, Self::Error> {
-        Ok(OpBlockExecutionCtx {
-            parent_hash: block.header().parent_hash(),
-            parent_beacon_block_root: block.header().parent_beacon_block_root(),
-            extra_data: block.header().extra_data().clone(),
-        })
+        let post_exec_mode = post_exec_mode_from_transactions(
+            block.body().transactions(),
+            block.header().number(),
+            self.is_sdm_active_at_timestamp(block.header().timestamp()),
+        )?;
+
+        Ok(self.context_for_block_with_post_exec_mode(block, Some(post_exec_mode)))
     }
 
     fn context_for_next_block(
@@ -202,11 +303,11 @@ where
         parent: &SealedHeader<N::BlockHeader>,
         attributes: Self::NextBlockEnvCtx,
     ) -> Result<OpBlockExecutionCtx, Self::Error> {
-        Ok(OpBlockExecutionCtx {
-            parent_hash: parent.hash(),
-            parent_beacon_block_root: attributes.parent_beacon_block_root,
-            extra_data: attributes.extra_data,
-        })
+        Ok(self.context_for_next_block_with_post_exec_mode(
+            parent,
+            attributes,
+            PostExecMode::default(),
+        ))
     }
 }
 
@@ -222,7 +323,11 @@ where
             Block = alloy_consensus::Block<R::Transaction>,
         >,
     OpTx: FromRecoveredTx<N::SignedTx> + FromTxWithEncoded<N::SignedTx>,
-    R: OpReceiptBuilder<Receipt: DepositReceipt, Transaction: SignedTransaction>,
+    N::SignedTx: Decodable2718 + OpConsensusTransaction,
+    R: OpReceiptBuilder<
+            Receipt: DepositReceipt,
+            Transaction: SignedTransaction + OpConsensusTransaction,
+        >,
     Self: Send + Sync + Unpin + Clone + 'static,
 {
     fn evm_env_for_payload(
@@ -268,10 +373,27 @@ where
         &self,
         payload: &'a OpExecutionData,
     ) -> Result<ExecutionCtxFor<'a, Self>, Self::Error> {
+        let transactions = payload
+            .payload
+            .transactions()
+            .iter()
+            .map(|encoded| TxTy::<Self::Primitives>::decode_2718_exact(encoded.as_ref()))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|_| EIP1559ParamError::InvalidPostExecPayload)?;
+        let post_exec_mode = post_exec_mode_from_transactions(
+            transactions.iter(),
+            payload.payload.block_number(),
+            self.is_sdm_active_at_timestamp(payload.payload.timestamp()),
+        )?;
+
         Ok(OpBlockExecutionCtx {
             parent_hash: payload.parent_hash(),
+            // No parent header on this path to detect fork-activation blocks, so the executor's
+            // check is skipped; the derivation layer enforces the rule instead.
+            no_user_tx_activation_block: false,
             parent_beacon_block_root: payload.sidecar.parent_beacon_block_root(),
             extra_data: payload.payload.as_v1().extra_data.clone(),
+            post_exec_mode,
         })
     }
 
@@ -295,22 +417,23 @@ where
 mod tests {
     use super::*;
     use alloc::collections::BTreeMap;
-    use alloy_consensus::{Header, Receipt};
+    use alloy_consensus::{Block, BlockBody, Header, Receipt, Sealable};
     use alloy_eips::eip7685::Requests;
     use alloy_genesis::Genesis;
     use alloy_primitives::{
         Address, B256, LogData, bytes,
         map::{AddressMap, B256Map, HashMap},
     };
+    use op_alloy_consensus::{SDMGasEntry, build_post_exec_tx};
     use op_revm::OpSpecId;
     use reth_chainspec::ChainSpec;
     use reth_evm::execute::ProviderError;
     use reth_execution_types::{
         AccountRevertInit, BundleStateInit, Chain, ExecutionOutcome, RevertsInit,
     };
-    use reth_optimism_chainspec::{BASE_MAINNET, OpChainSpec};
-    use reth_optimism_primitives::{OpBlock, OpPrimitives, OpReceipt};
-    use reth_primitives_traits::{Account, RecoveredBlock};
+    use reth_optimism_chainspec::{OP_MAINNET, OpChainSpec, OpChainSpecBuilder};
+    use reth_optimism_primitives::{OpBlock, OpPrimitives, OpReceipt, OpTransactionSigned};
+    use reth_primitives_traits::{Account, RecoveredBlock, SealedBlock};
     use revm::{
         database::{BundleState, CacheDB},
         database_interface::EmptyDBTyped,
@@ -321,7 +444,90 @@ mod tests {
     use std::sync::Arc;
 
     fn test_evm_config() -> OpEvmConfig {
-        OpEvmConfig::optimism(BASE_MAINNET.clone())
+        OpEvmConfig::optimism(OP_MAINNET.clone())
+    }
+
+    fn lagoon_at_timestamp_chain_spec(activation: u64) -> Arc<OpChainSpec> {
+        Arc::new(
+            OpChainSpecBuilder::default()
+                .chain(10.into())
+                .genesis(Genesis::default())
+                .with_fork(
+                    reth_optimism_forks::OpHardfork::Lagoon,
+                    reth_chainspec::ForkCondition::Timestamp(activation),
+                )
+                .build(),
+        )
+    }
+
+    #[test]
+    fn sdm_rides_lagoon_activation() {
+        // SDM follows Lagoon: inactive before activation, active at and after it.
+        let evm_config = OpEvmConfig::optimism(lagoon_at_timestamp_chain_spec(100));
+
+        assert!(!evm_config.is_sdm_active_at_timestamp(0));
+        assert!(!evm_config.is_sdm_active_at_timestamp(99));
+        assert!(evm_config.is_sdm_active_at_timestamp(100));
+        assert!(evm_config.is_sdm_active_at_timestamp(101));
+        assert!(evm_config.is_sdm_active_at_timestamp(u64::MAX));
+    }
+
+    #[test]
+    fn sdm_inactive_without_lagoon_schedule() {
+        // Without a Lagoon schedule, SDM never activates — even at far-future timestamps.
+        let chain_spec = Arc::new(
+            OpChainSpecBuilder::default().chain(10.into()).genesis(Genesis::default()).build(),
+        );
+        let evm_config = OpEvmConfig::optimism(chain_spec);
+
+        assert!(!evm_config.is_sdm_active_at_timestamp(0));
+        assert!(!evm_config.chain_spec().is_lagoon_active_at_timestamp(u64::MAX));
+        assert!(!evm_config.is_sdm_active_at_timestamp(u64::MAX));
+    }
+
+    fn block_with_post_exec_tx(
+        number: u64,
+        timestamp: u64,
+        tx_block_number: u64,
+    ) -> SealedBlock<OpBlock> {
+        SealedBlock::new_unhashed(Block::<OpTransactionSigned> {
+            header: Header { number, timestamp, ..Default::default() },
+            body: BlockBody {
+                transactions: vec![OpTransactionSigned::PostExec(
+                    build_post_exec_tx(
+                        tx_block_number,
+                        vec![SDMGasEntry { index: 0, gas_refund: 1 }],
+                    )
+                    .seal_slow(),
+                )],
+                ..Default::default()
+            },
+        })
+    }
+
+    // Covers Interop-driven SDM activation for imported blocks: pre-Interop blocks reject 0x7d,
+    // Lagoon-active blocks enter Verify mode, and malformed payload anchors are rejected.
+    #[test]
+    fn context_for_block_applies_sdm_post_exec_mode() {
+        let disabled_err = test_evm_config()
+            .context_for_block(&block_with_post_exec_tx(7, 123, 7))
+            .expect_err("SDM disabled rejects 0x7d");
+        assert!(matches!(disabled_err, EIP1559ParamError::InvalidPostExecPayload));
+
+        let evm_config = OpEvmConfig::optimism(lagoon_at_timestamp_chain_spec(0));
+        let ctx = evm_config
+            .context_for_block(&block_with_post_exec_tx(7, 123, 7))
+            .expect("SDM-enabled block parses");
+        let PostExecMode::Verify(payload) = ctx.post_exec_mode else {
+            panic!("expected Verify mode");
+        };
+        assert_eq!(payload.block_number, 7);
+        assert_eq!(payload.gas_refund_entries, vec![SDMGasEntry { index: 0, gas_refund: 1 }]);
+
+        let mismatch_err = evm_config
+            .context_for_block(&block_with_post_exec_tx(7, 123, 8))
+            .expect_err("payload block number mismatch is invalid");
+        assert!(matches!(mismatch_err, EIP1559ParamError::InvalidPostExecPayload));
     }
 
     #[test]

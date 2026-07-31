@@ -1,0 +1,143 @@
+default:
+  @just --list
+
+SP1_TAG := "v6.3.1"
+
+# Build the range-executor host binary, used by the SP1 execute action tests to run the range guest
+# in SP1 execute mode. The binary loads the range guest ELF at runtime, so build the ELFs before
+# running it (build-elfs).
+build-range-executor:
+    cd ../.. && cargo build -p kona-sp1-range-executor --release
+
+# Build the super-range-executor host binary, used by acceptance smoke tests to run the
+# super-range guest in SP1 execute mode. The binary loads the guest ELF at runtime, so build the
+# ELFs first (build-elfs) and set KONA_SP1_ELF_DIR before running it without --native-core.
+build-super-range-executor:
+    cd ../.. && cargo build -p kona-sp1-super-range-executor --release
+
+# Build all ELF files.
+# ELF builds use the nested guest workspace with SP1 precompile-patched crypto,
+# including substrate-bn for bn128 through revm-precompile's `bn` feature.
+build-elfs:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    m=elf/vkeys.toml
+    just _vkeys-header > "$m"
+    just build-range-elfs
+    just _append-vkey range "$m"
+    just build-super-range-elf
+    just _append-vkey super-range "$m"
+    just build-agg-elf
+    just _append-vkey aggregation "$m"
+    just build-super-aggregation-elf
+    just _append-vkey super-aggregation "$m"
+
+# Build ELF files for range programs.
+# Does not update elf/vkeys.toml; prefer build-elfs.
+[private]
+build-range-elfs:
+    @just _build-elf range docker
+
+# Build ELF file for aggregation program.
+# Does not update elf/vkeys.toml; prefer build-elfs.
+[private]
+build-agg-elf:
+    @just _build-elf aggregation docker
+
+# Build ELF file for the unified super-root range/consolidation program.
+# Does not update elf/vkeys.toml; prefer build-elfs.
+[private]
+build-super-range-elf:
+    @just _build-elf super-range docker
+
+# Build ELF file for the super-aggregation program.
+# Does not update elf/vkeys.toml; prefer build-elfs.
+[private]
+build-super-aggregation-elf:
+    @just _build-elf super-aggregation docker
+
+# Install the native Succinct toolchain for non-Docker builds.
+install-sp1-toolchain:
+    cargo prove install-toolchain
+
+[private]
+_build-elf NAME MODE:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    root="$(cd "{{justfile_directory()}}/../../.." && pwd)"
+    staged_configs=""
+
+    cleanup() {
+      if [[ -n "$staged_configs" ]]; then
+        rm -rf "$staged_configs"
+      fi
+    }
+    trap cleanup EXIT
+
+    if [[ -n "${KONA_CUSTOM_CONFIGS_DIR:-}" ]]; then
+      custom_configs_dir="$(realpath "$KONA_CUSTOM_CONFIGS_DIR")"
+      for file in chainList.json configs.json depsets.json; do
+        [[ -f "${custom_configs_dir}/${file}" ]] || {
+          echo "ERROR: missing ${custom_configs_dir}/${file}" >&2
+          exit 1
+        }
+      done
+
+      if [[ "{{MODE}}" == "docker" ]]; then
+        mkdir -p "${root}/target"
+        staged_configs="$(mktemp -d "${root}/target/sp1-custom-configs.XXXXXX")"
+        cp "${custom_configs_dir}/chainList.json" "${staged_configs}/"
+        cp "${custom_configs_dir}/configs.json" "${staged_configs}/"
+        cp "${custom_configs_dir}/depsets.json" "${staged_configs}/"
+        docker_configs_dir="/root/program/${staged_configs#"${root}/"}"
+      else
+        export KONA_CUSTOM_CONFIGS=true
+        export KONA_CUSTOM_CONFIGS_DIR="$custom_configs_dir"
+      fi
+    fi
+
+    # --locked appears to be a no-op in upstream cargo-prove (regenerates the lock anyway).
+    args=(--locked --ignore-rust-version --elf-name "{{NAME}}-elf" --workspace-directory "$root" --output-directory "{{justfile_directory()}}/elf")
+    if [[ "{{MODE}}" == "docker" ]]; then
+      mkdir -p "{{justfile_directory()}}/programs/target/elf-compilation/docker"
+      args=(--docker --tag "{{SP1_TAG}}" "${args[@]}")
+      if [[ -n "${docker_configs_dir:-}" ]]; then
+        args+=(
+          --rustflags=--cfg
+          '--rustflags=kona_custom_configs="true"'
+          --rustflags=--cfg
+          "--rustflags=kona_custom_configs_dir=\"${docker_configs_dir}\""
+        )
+      fi
+    fi
+
+    cd "{{justfile_directory()}}/programs/{{NAME}}"
+    cargo prove build "${args[@]}"
+
+[private]
+_vkeys-header:
+    #!/usr/bin/env bash
+    echo '# Generated SP1 guest verification-key hashes (bytes32).'
+    echo '# Regenerate on linux/amd64 via "just build-elfs".'
+    echo 'sp1_toolchain_tag = "{{SP1_TAG}}"'
+    echo ''
+
+[private]
+_append-vkey NAME MANIFEST:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    hash=$(SP1_PROVER=cpu cargo prove vkey --elf "elf/{{NAME}}-elf" | grep -oE '0x[0-9a-fA-F]{64}' || true)
+    [ -n "$hash" ] || { echo "ERROR: no bytes32 vkey parsed for {{NAME}}-elf" >&2; exit 1; }
+    echo "{{NAME}} = \"${hash}\"" >> "{{MANIFEST}}"
+
+# Build all ELFs natively for fast local iteration.
+build-elfs-native:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    m=elf/vkeys.toml
+    just _vkeys-header > "$m"
+    for name in range super-range aggregation super-aggregation; do
+      just _build-elf "${name}" native
+      just _append-vkey "${name}" "$m"
+    done

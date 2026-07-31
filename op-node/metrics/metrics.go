@@ -9,9 +9,9 @@ import (
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	ophttp "github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
-	"github.com/ethereum/go-ethereum/params"
 
 	pb "github.com/libp2p/go-libp2p-pubsub/pb"
 	libp2pmetrics "github.com/libp2p/go-libp2p/core/metrics"
@@ -29,10 +29,12 @@ const Namespace = "op_node"
 
 type Metricer interface {
 	RecordInfo(version string)
+	RecordHardforkActivationTimes(cfg *rollup.Config)
 	RecordUp()
 	SetDerivationIdle(status bool)
 	SetSequencerState(active bool)
 	RecordPipelineReset()
+	RecordFollowSourceRequest(result string)
 	RecordSequencingError()
 	RecordPublishingError()
 	RecordDerivationError()
@@ -64,27 +66,26 @@ type Metricer interface {
 	RecordFrame()
 	// P2P Metrics
 	SetPeerScores(allScores []store.PeerScores)
-	ClientPayloadByNumberEvent(num uint64, resultCode byte, duration time.Duration)
 	ServerPayloadByNumberEvent(num uint64, resultCode byte, duration time.Duration)
-	PayloadsQuarantineSize(n int)
 	RecordPeerUnban()
 	RecordIPUnban()
 	RecordDial(allow bool)
 	RecordAccept(allow bool)
-	ReportProtocolVersions(local, engine, recommended, required params.ProtocolVersion)
 }
 
 // Metrics tracks all the metrics for the op-node.
 type Metrics struct {
-	Info *prometheus.GaugeVec
-	Up   prometheus.Gauge
+	Info                   *prometheus.GaugeVec
+	Up                     prometheus.Gauge
+	HardforkActivationTime *prometheus.GaugeVec
 
 	metrics.RPCMetrics
 
 	L1SourceCache *metrics.CacheMetrics
 	L2SourceCache *metrics.CacheMetrics
 
-	L2FollowSourceCache *metrics.CacheMetrics
+	L2FollowSourceCache  *metrics.CacheMetrics
+	FollowSourceRequests *prometheus.CounterVec
 
 	DerivationIdle prometheus.Gauge
 
@@ -102,8 +103,6 @@ type Metrics struct {
 	P2PReqDurationSeconds *prometheus.HistogramVec
 	P2PReqTotal           *prometheus.CounterVec
 	P2PPayloadByNumber    *prometheus.GaugeVec
-
-	PayloadsQuarantineTotal prometheus.Gauge
 
 	SequencerInconsistentL1Origin *metrics.Event
 	SequencerResets               *metrics.Event
@@ -145,12 +144,6 @@ type Metrics struct {
 
 	ChannelInputBytes prometheus.Counter
 
-	// Protocol version reporting
-	// Delta = params.ProtocolVersionComparison
-	ProtocolVersionDelta *prometheus.GaugeVec
-	// ProtocolVersions is pseudo-metric to report the exact protocol version info
-	ProtocolVersions *prometheus.GaugeVec
-
 	registry *prometheus.Registry
 	factory  metrics.Factory
 }
@@ -188,6 +181,11 @@ func NewMetrics(procName string, labels prometheus.Labels) *Metrics {
 			Name:      "up",
 			Help:      "1 if the op node has finished starting up",
 		}),
+		HardforkActivationTime: factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "hardfork_activation_timestamp",
+			Help:      "Configured hardfork activation timestamp by fork",
+		}, []string{"chain_id", "fork", "activation_basis"}),
 
 		RPCMetrics: metrics.MakeRPCMetrics(ns, factory),
 
@@ -195,6 +193,11 @@ func NewMetrics(procName string, labels prometheus.Labels) *Metrics {
 		L2SourceCache: metrics.NewCacheMetrics(factory, ns, "l2_source_cache", "L2 Source cache"),
 
 		L2FollowSourceCache: metrics.NewCacheMetrics(factory, ns, "l2_follow_source_cache", "L2 Follow source cache"),
+		FollowSourceRequests: factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "follow_source_requests_total",
+			Help:      "Count of follow source requests by result",
+		}, []string{"result"}),
 
 		DerivationIdle: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
@@ -344,12 +347,6 @@ func NewMetrics(procName string, labels prometheus.Labels) *Metrics {
 		}, []string{
 			"p2p_role", // "client" or "server"
 		}),
-		PayloadsQuarantineTotal: factory.NewGauge(prometheus.GaugeOpts{
-			Namespace: ns,
-			Subsystem: "p2p",
-			Name:      "payloads_quarantine_total",
-			Help:      "number of unverified execution payloads buffered in quarantine",
-		}),
 
 		L1RequestDurationSeconds: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: ns,
@@ -384,24 +381,6 @@ func NewMetrics(procName string, labels prometheus.Labels) *Metrics {
 			Help:      "Number of sequencer block sealing jobs",
 		}),
 
-		ProtocolVersionDelta: factory.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: ns,
-			Name:      "protocol_version_delta",
-			Help:      "Difference between local and global protocol version, and execution-engine, per type of version",
-		}, []string{
-			"type",
-		}),
-		ProtocolVersions: factory.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: ns,
-			Name:      "protocol_versions",
-			Help:      "Pseudo-metric tracking recommended and required protocol version info",
-		}, []string{
-			"local",
-			"engine",
-			"recommended",
-			"required",
-		}),
-
 		AltDAMetrics: altda.MakeMetrics(ns, factory),
 
 		registry: registry,
@@ -431,6 +410,38 @@ func (m *Metrics) SetPeerScores(allScores []store.PeerScores) {
 // config info for the opnode.
 func (m *Metrics) RecordInfo(version string) {
 	m.Info.WithLabelValues(version).Set(1)
+}
+
+func (m *Metrics) RecordHardforkActivationTimes(cfg *rollup.Config) {
+	chainID := ""
+	if cfg.L2ChainID != nil {
+		chainID = cfg.L2ChainID.String()
+	}
+
+	record := func(fork string, ts *uint64, basis string) {
+		if ts == nil {
+			return
+		}
+		m.HardforkActivationTime.WithLabelValues(chainID, fork, basis).Set(float64(*ts))
+	}
+
+	record("regolith", cfg.RegolithTime, "l2_timestamp")
+	record("canyon", cfg.CanyonTime, "l2_timestamp")
+	record("delta", cfg.DeltaTime, "l2_timestamp")
+	record("ecotone", cfg.EcotoneTime, "l2_timestamp")
+	record("fjord", cfg.FjordTime, "l2_timestamp")
+	record("granite", cfg.GraniteTime, "l2_timestamp")
+	record("holocene", cfg.HoloceneTime, "l2_timestamp")
+	record("isthmus", cfg.IsthmusTime, "l2_timestamp")
+	record("jovian", cfg.JovianTime, "l2_timestamp")
+	record("karst", cfg.KarstTime, "l2_timestamp")
+	record("lagoon", cfg.LagoonTime, "l2_timestamp")
+	record("pectra_blob_schedule", cfg.PectraBlobScheduleTime, "l1_origin_timestamp")
+	if cfg.KeepKarstUpgradeGas && cfg.KarstTime != nil {
+		// Behavioral opt-out flag, not a scheduled fork: reported only when set, valued at the
+		// Karst activation time it modifies. Absence of the series means the flag is unset.
+		record("keep_karst_upgrade_gas", cfg.KarstTime, "l2_timestamp")
+	}
 }
 
 // RecordUp sets the up metric to 1.
@@ -498,6 +509,10 @@ func (m *Metrics) RecordSequencerInconsistentL1Origin(from eth.BlockID, to eth.B
 	m.SequencerInconsistentL1Origin.Record()
 	m.RecordRef("l1_origin", "inconsistent_from", from.Number, 0, from.Hash)
 	m.RecordRef("l1_origin", "inconsistent_to", to.Number, 0, to.Hash)
+}
+
+func (m *Metrics) RecordFollowSourceRequest(result string) {
+	m.FollowSourceRequests.WithLabelValues(result).Inc()
 }
 
 func (m *Metrics) RecordSequencerReset() {
@@ -580,25 +595,11 @@ func (m *Metrics) Document() []metrics.DocumentedMetric {
 	return m.factory.Document()
 }
 
-func (m *Metrics) ClientPayloadByNumberEvent(num uint64, resultCode byte, duration time.Duration) {
-	if resultCode > 4 { // summarize all high codes to reduce metrics overhead
-		resultCode = 5
-	}
-	code := strconv.FormatUint(uint64(resultCode), 10)
-	m.P2PReqTotal.WithLabelValues("client", "payload_by_number", code).Inc()
-	m.P2PReqDurationSeconds.WithLabelValues("client", "payload_by_number", code).Observe(float64(duration) / float64(time.Second))
-	m.P2PPayloadByNumber.WithLabelValues("client").Set(float64(num))
-}
-
 func (m *Metrics) ServerPayloadByNumberEvent(num uint64, resultCode byte, duration time.Duration) {
 	code := strconv.FormatUint(uint64(resultCode), 10)
 	m.P2PReqTotal.WithLabelValues("server", "payload_by_number", code).Inc()
 	m.P2PReqDurationSeconds.WithLabelValues("server", "payload_by_number", code).Observe(float64(duration) / float64(time.Second))
 	m.P2PPayloadByNumber.WithLabelValues("server").Set(float64(num))
-}
-
-func (m *Metrics) PayloadsQuarantineSize(n int) {
-	m.PayloadsQuarantineTotal.Set(float64(n))
 }
 
 func (m *Metrics) RecordChannelInputBytes(inputCompressedBytes int) {
@@ -640,13 +641,6 @@ func (m *Metrics) RecordAccept(allow bool) {
 		m.Accepts.WithLabelValues("false").Inc()
 	}
 }
-func (m *Metrics) ReportProtocolVersions(local, engine, recommended, required params.ProtocolVersion) {
-	m.ProtocolVersionDelta.WithLabelValues("local_recommended").Set(float64(local.Compare(recommended)))
-	m.ProtocolVersionDelta.WithLabelValues("local_required").Set(float64(local.Compare(required)))
-	m.ProtocolVersionDelta.WithLabelValues("engine_recommended").Set(float64(engine.Compare(recommended)))
-	m.ProtocolVersionDelta.WithLabelValues("engine_required").Set(float64(engine.Compare(required)))
-	m.ProtocolVersions.WithLabelValues(local.String(), engine.String(), recommended.String(), required.String()).Set(1)
-}
 
 type noopMetricer struct {
 	metrics.NoopRPCMetrics
@@ -656,6 +650,9 @@ type noopMetricer struct {
 var NoopMetrics Metricer = new(noopMetricer)
 
 func (n *noopMetricer) RecordInfo(version string) {
+}
+
+func (n *noopMetricer) RecordHardforkActivationTimes(cfg *rollup.Config) {
 }
 
 func (n *noopMetricer) RecordUp() {
@@ -668,6 +665,9 @@ func (m *noopMetricer) SetSequencerState(active bool) {
 }
 
 func (n *noopMetricer) RecordPipelineReset() {
+}
+
+func (n *noopMetricer) RecordFollowSourceRequest(result string) {
 }
 
 func (n *noopMetricer) RecordSequencingError() {
@@ -740,13 +740,7 @@ func (n *noopMetricer) Document() []metrics.DocumentedMetric {
 	return nil
 }
 
-func (n *noopMetricer) ClientPayloadByNumberEvent(num uint64, resultCode byte, duration time.Duration) {
-}
-
 func (n *noopMetricer) ServerPayloadByNumberEvent(num uint64, resultCode byte, duration time.Duration) {
-}
-
-func (n *noopMetricer) PayloadsQuarantineSize(int) {
 }
 
 func (n *noopMetricer) RecordChannelInputBytes(int) {
@@ -771,6 +765,4 @@ func (n *noopMetricer) RecordDial(allow bool) {
 }
 
 func (n *noopMetricer) RecordAccept(allow bool) {
-}
-func (n *noopMetricer) ReportProtocolVersions(local, engine, recommended, required params.ProtocolVersion) {
 }

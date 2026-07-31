@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/claims"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/alphabet"
@@ -52,12 +51,8 @@ type RegisterTask struct {
 		poststateBlock uint64) (*trace.Accessor, error)
 }
 
-func NewSuperCannonRegisterTask(gameType gameTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor, rootProvider *sources.SupervisorClient, superNodeProvider *sources.SuperNodeClient, syncValidator gameTypes.SyncValidator) *RegisterTask {
-	return newSuperCannonVMRegisterTaskWithConfig(gameType, cfg, m, serverExecutor, rootProvider, superNodeProvider, syncValidator, cfg.Cannon, cfg.CannonAbsolutePreStateBaseURL, cfg.CannonAbsolutePreState)
-}
-
-func NewSuperCannonKonaRegisterTask(gameType gameTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor, rootProvider *sources.SupervisorClient, superNodeProvider *sources.SuperNodeClient, syncValidator gameTypes.SyncValidator) *RegisterTask {
-	return newSuperCannonVMRegisterTaskWithConfig(gameType, cfg, m, serverExecutor, rootProvider, superNodeProvider, syncValidator, cfg.CannonKona, cfg.CannonKonaAbsolutePreStateBaseURL, cfg.CannonKonaAbsolutePreState)
+func NewSuperCannonKonaRegisterTask(gameType gameTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor, superNodeProvider *sources.SuperNodeClient, syncValidator gameTypes.SyncValidator) *RegisterTask {
+	return newSuperCannonVMRegisterTaskWithConfig(gameType, cfg, m, serverExecutor, superNodeProvider, syncValidator, cfg.CannonKona, cfg.CannonKonaAbsolutePreStateBaseURL, cfg.CannonKonaAbsolutePreState)
 }
 
 func newSuperCannonVMRegisterTaskWithConfig(
@@ -65,7 +60,6 @@ func newSuperCannonVMRegisterTaskWithConfig(
 	cfg *config.Config,
 	m caching.Metrics,
 	serverExecutor vm.OracleServerExecutor,
-	rootProvider *sources.SupervisorClient,
 	superNodeProvider *sources.SuperNodeClient,
 	syncValidator gameTypes.SyncValidator,
 	vmCfg vm.Config,
@@ -74,14 +68,10 @@ func newSuperCannonVMRegisterTaskWithConfig(
 ) *RegisterTask {
 	stateConverter := cannon.NewStateConverter(vmCfg)
 	return &RegisterTask{
-		gameType:               gameType,
-		syncValidator:          syncValidator,
-		skipPrestateValidation: gameType == gameTypes.SuperPermissionedGameType,
+		gameType:      gameType,
+		syncValidator: syncValidator,
 		getTopPrestateProvider: func(ctx context.Context, prestateTimestamp uint64) (faultTypes.PrestateProvider, error) {
-			if superNodeProvider != nil {
-				return super.NewSuperNodePrestateProvider(superNodeProvider, prestateTimestamp), nil
-			}
-			return super.NewSuperRootPrestateProvider(rootProvider, prestateTimestamp), nil
+			return super.NewSuperNodePrestateProvider(superNodeProvider, prestateTimestamp), nil
 		},
 		getBottomPrestateProvider: cachePrestates(
 			gameType,
@@ -105,7 +95,7 @@ func newSuperCannonVMRegisterTaskWithConfig(
 			poststateBlock uint64) (*trace.Accessor, error) {
 			provider := vmPrestateProvider.(*vm.PrestateProvider)
 			preimagePrestateProvider := prestateProvider.(super.PreimagePrestateProvider)
-			return super.NewSuperCannonTraceAccessor(logger, m, vmCfg, serverExecutor, preimagePrestateProvider, rootProvider, superNodeProvider, superNodeProvider != nil, provider.PrestatePath(), dir, l1Head, splitDepth, prestateBlock, poststateBlock)
+			return super.NewSuperCannonTraceAccessor(logger, m, vmCfg, serverExecutor, preimagePrestateProvider, superNodeProvider, provider.PrestatePath(), dir, l1Head, splitDepth, prestateBlock, poststateBlock)
 		},
 	}
 }
@@ -130,18 +120,21 @@ func newCannonVMRegisterTaskWithConfig(
 	preStateBaseURL *url.URL,
 	preState string,
 ) *RegisterTask {
-	stateConverter := cannon.NewStateConverter(cfg.Cannon)
-	return &RegisterTask{
-		gameType:      gameType,
-		syncValidator: syncValidator,
-		// Don't validate the absolute prestate or genesis output root for permissioned games
-		// Only trusted actors participate in these games so they aren't expected to reach the step() call and
-		// are often configured without valid prestates but the challenger should still resolve the games.
-		skipPrestateValidation: gameType == gameTypes.PermissionedGameType,
-		getTopPrestateProvider: func(ctx context.Context, prestateBlock uint64) (faultTypes.PrestateProvider, error) {
-			return outputs.NewPrestateProvider(rollupClient, prestateBlock), nil
-		},
-		getBottomPrestateProvider: cachePrestates(
+	stateConverter := cannon.NewStateConverter(vmCfg)
+	// Don't validate the absolute prestate or genesis output root for permissioned games
+	// Only trusted actors participate in these games so they aren't expected to reach the step() call and
+	// are often configured without valid prestates but the challenger should still resolve the games.
+	skipPrestateValidation := gameType.IsPermissioned()
+	var getBottomPrestateProvider func(ctx context.Context, prestateHash common.Hash) (faultTypes.PrestateProvider, error)
+	if skipPrestateValidation {
+		// Permissioned games never reach step() so their VM prestate is never actually used. Since they
+		// are often configured with a placeholder prestate that isn't published (e.g. when using
+		// --prestates-url), don't attempt to load the prestate at all and use an empty placeholder provider.
+		getBottomPrestateProvider = func(_ context.Context, _ common.Hash) (faultTypes.PrestateProvider, error) {
+			return vm.NewPrestateProvider("", stateConverter), nil
+		}
+	} else {
+		getBottomPrestateProvider = cachePrestates(
 			gameType,
 			stateConverter,
 			m,
@@ -150,7 +143,16 @@ func newCannonVMRegisterTaskWithConfig(
 			filepath.Join(cfg.Datadir, vmCfg.VmType.String()+"-prestates"),
 			func(ctx context.Context, path string) faultTypes.PrestateProvider {
 				return vm.NewPrestateProvider(path, stateConverter)
-			}),
+			})
+	}
+	return &RegisterTask{
+		gameType:               gameType,
+		syncValidator:          syncValidator,
+		skipPrestateValidation: skipPrestateValidation,
+		getTopPrestateProvider: func(ctx context.Context, prestateBlock uint64) (faultTypes.PrestateProvider, error) {
+			return outputs.NewPrestateProvider(rollupClient, prestateBlock), nil
+		},
+		getBottomPrestateProvider: getBottomPrestateProvider,
 		newTraceAccessor: func(
 			logger log.Logger,
 			m metrics.Metricer,
@@ -291,10 +293,6 @@ func (e *RegisterTask) Register(
 	}
 	registry.RegisterGameType(e.gameType, playerCreator)
 
-	contractCreator := func(game gameTypes.GameMetadata) (claims.BondContract, error) {
-		return contracts.NewFaultDisputeGameContract(ctx, m, game.Proxy, caller)
-	}
-	registry.RegisterBondContract(e.gameType, contractCreator)
 	return nil
 }
 

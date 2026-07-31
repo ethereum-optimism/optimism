@@ -10,12 +10,6 @@ type L1Deployment struct {
 }
 
 type Implementations struct {
-	Opcm                             common.Address `json:"OPCM"`
-	OpcmContractsContainer           common.Address `json:"OPCMContractsContainer"`
-	OpcmGameTypeAdder                common.Address `json:"OPCMGameTypeAdder"`
-	OpcmDeployer                     common.Address `json:"OPCMDeployer"`
-	OpcmUpgrader                     common.Address `json:"OPCMUpgrader"`
-	OpcmInteropMigrator              common.Address `json:"OPCMInteropMigrator"`
 	OpcmStandardValidator            common.Address `json:"OPCMStandardValidator"`
 	OpcmUtils                        common.Address `json:"OPCMUtils"`
 	OpcmMigrator                     common.Address `json:"OPCMMigrator"`
@@ -34,11 +28,11 @@ type Implementations struct {
 	DisputeGameFactoryImpl           common.Address `json:"DisputeGameFactoryImpl"`
 	AnchorStateRegistryImpl          common.Address `json:"AnchorStateRegistryImpl"`
 	SuperchainConfigImpl             common.Address `json:"SuperchainConfigImpl"`
-	ProtocolVersionsImpl             common.Address `json:"ProtocolVersionsImpl"`
 	FaultDisputeGameImpl             common.Address `json:"FaultDisputeGameImpl"`
 	PermissionedDisputeGameImpl      common.Address `json:"PermissionedDisputeGameImpl"`
 	SuperFaultDisputeGameImpl        common.Address `json:"SuperFaultDisputeGameImpl"`
 	SuperPermissionedDisputeGameImpl common.Address `json:"SuperPermissionedDisputeGameImpl"`
+	ZkDisputeGameImpl                common.Address `json:"ZkDisputeGameImpl"`
 	StorageSetterImpl                common.Address `json:"StorageSetterImpl"`
 }
 
@@ -46,9 +40,6 @@ type SuperchainDeployment struct {
 	Implementations
 
 	ProxyAdmin common.Address `json:"ProxyAdmin"`
-
-	ProtocolVersions      common.Address `json:"ProtocolVersions"`
-	ProtocolVersionsProxy common.Address `json:"ProtocolVersionsProxy"`
 
 	SuperchainConfig      common.Address `json:"SuperchainConfig"`
 	SuperchainConfigProxy common.Address `json:"SuperchainConfigProxy"`

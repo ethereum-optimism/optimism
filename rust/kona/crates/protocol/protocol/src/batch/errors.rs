@@ -9,6 +9,9 @@ pub enum SpanBatchError {
     /// The bit field is too long
     #[error("The bit field is too long")]
     BitfieldTooLong,
+    /// The bit field is shorter than the declared bit length
+    #[error("The bit field is shorter than the declared bit length")]
+    BitfieldTooShort,
     /// Empty Span Batch
     #[error("Empty span batch")]
     EmptySpanBatch,
@@ -75,6 +78,9 @@ pub enum SpanDecodingError {
     /// Failed to decode transaction nonces
     #[error("Failed to decode transaction nonces")]
     TxNonces,
+    /// Failed to decode transaction gas limits
+    #[error("Failed to decode transaction gas limits")]
+    TxGases,
     /// Mismatch in length between the transaction type and signature arrays in a span batch
     /// transaction payload.
     #[error("Mismatch in length between the transaction type and signature arrays")]

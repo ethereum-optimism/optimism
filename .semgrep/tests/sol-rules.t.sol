@@ -741,14 +741,8 @@ contract SemgrepTest__sol_safety_use_deployutils_getcode {
         // ok: sol-safety-use-deployutils-getcode
         DeployUtils.getCode("AddressManager");
 
-        // ok: sol-safety-use-deployutils-getcode
-        DeployUtils.getCode("FeeSplitter.sol:FeeSplitter");
-
         // ruleid: sol-safety-use-deployutils-getcode
         vm.getCode("ProxyAdmin");
-
-        // ruleid: sol-safety-use-deployutils-getcode
-        vm.getCode("FeeSplitter.sol:FeeSplitter");
 
         // ruleid: sol-safety-use-deployutils-getcode
         vm.getCode(string.concat(cname, ".sol:", cname));

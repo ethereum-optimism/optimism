@@ -1,0 +1,48 @@
+package:
+  name: op-deployer
+  version: "0.0.0"
+  epoch: 0
+  description: op-deployer — OP Stack deployment tool
+  copyright:
+    - license: MIT
+
+environment:
+  contents:
+    keyring:
+      - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+    repositories:
+      - https://packages.wolfi.dev/os
+    packages:
+      - busybox
+      - ca-certificates-bundle
+      - bash
+      - curl
+      - go-1.26
+      - git
+      - jq
+      - yq
+      - zip
+  environment:
+    CGO_ENABLED: "0"
+
+pipeline:
+  - uses: op-stack-go/sync-superchain
+
+  - uses: op-deployer/install-forge
+
+  # Compile contracts-bedrock and pack the artifacts op-deployer embeds via
+  # //go:embed — must exist before `go build`, or `op-deployer apply` fails at
+  # runtime with "artifacts.tzst: file does not exist".
+  - uses: op-deployer/embed-artifacts
+
+  - uses: go/build
+    with:
+      modroot: .
+      packages: ./op-deployer/cmd/op-deployer
+      output: op-deployer
+      go-package: go-1.26
+      # /usr/local/bin, where upstream's images install binaries.
+      prefix: usr/local
+      ldflags: -s -w -X github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/version.GitCommit=$(git rev-parse HEAD 2>/dev/null || echo unknown) -X github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/version.GitDate=$(git show -s --format=%ct 2>/dev/null || echo 0)
+
+  - uses: strip

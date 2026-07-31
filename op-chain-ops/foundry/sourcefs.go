@@ -5,11 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
-
-	"golang.org/x/exp/maps"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/srcmap"
 )
@@ -122,7 +122,7 @@ func (s *SourceMapFS) ReadSourceIDs(path string, contract string, compilerVersio
 			return nil, errors.New("no known build, unspecified compiler version")
 		}
 		if len(byCompilerVersion) > 1 {
-			return nil, fmt.Errorf("no compiler version specified, and more than one option: %s", strings.Join(maps.Keys(byCompilerVersion), ", "))
+			return nil, fmt.Errorf("no compiler version specified, and more than one option: %s", strings.Join(slices.Collect(maps.Keys(byCompilerVersion)), ", "))
 		}
 		// select the only remaining entry
 		for _, v := range byCompilerVersion {
@@ -140,7 +140,7 @@ func (s *SourceMapFS) ReadSourceIDs(path string, contract string, compilerVersio
 			return nil, errors.New("no known build, unspecified profile")
 		}
 		if len(byProfile) > 1 {
-			return nil, fmt.Errorf("no profile specified, and more than one option: %s", strings.Join(maps.Keys(byProfile), ", "))
+			return nil, fmt.Errorf("no profile specified, and more than one option: %s", strings.Join(slices.Collect(maps.Keys(byProfile)), ", "))
 		}
 		// select the only remaining entry
 		for _, v := range byProfile {

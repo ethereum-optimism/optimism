@@ -21,6 +21,7 @@ kona-macros.workspace = true
 kona-genesis.workspace = true
 kona-protocol.workspace = true
 kona-derive.workspace = true
+kona-interop.workspace = true
 
 # Alloy
 alloy-serde.workspace = true

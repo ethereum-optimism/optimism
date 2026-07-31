@@ -13,7 +13,7 @@ import (
 )
 
 func TestNewDeployImplementationsScript(t *testing.T) {
-	deployDependencies := func(host *script.Host) (proxyAdminAddress common.Address, proxyAddress common.Address, protocolVersionsAddress common.Address) {
+	deployDependencies := func(host *script.Host) (proxyAdminAddress common.Address, proxyAddress common.Address) {
 		proxyAdminArtifact, err := host.Artifacts().ReadArtifact("ProxyAdmin.sol", "ProxyAdmin")
 		require.NoError(t, err)
 
@@ -33,17 +33,7 @@ func TestNewDeployImplementationsScript(t *testing.T) {
 		proxyAddress, err = host.Create(addresses.ScriptDeployer, append(proxyArtifact.Bytecode.Object, encodedProxy...))
 		require.NoError(t, err)
 
-		// Then we get ProtocolVersions deployed
-		protocolVersionsArtifact, err := host.Artifacts().ReadArtifact("ProtocolVersions.sol", "ProtocolVersions")
-		require.NoError(t, err)
-
-		encodedProtocolVersions, err := protocolVersionsArtifact.ABI.Pack("")
-		require.NoError(t, err)
-
-		protocolVersionsAddress, err = host.Create(addresses.ScriptDeployer, append(protocolVersionsArtifact.Bytecode.Object, encodedProtocolVersions...))
-		require.NoError(t, err)
-
-		return proxyAdminAddress, proxyAddress, protocolVersionsAddress
+		return proxyAdminAddress, proxyAddress
 	}
 
 	t.Run("should not fail with current version of DeployImplementations contract", func(t *testing.T) {
@@ -51,7 +41,7 @@ func TestNewDeployImplementationsScript(t *testing.T) {
 		host1 := createTestHost(t)
 
 		// We'll need some contracts already deployed for this to work
-		proxyAdminAddress, proxyAddress, protocolVersionsAddress := deployDependencies(host1)
+		proxyAdminAddress, proxyAddress := deployDependencies(host1)
 
 		deployImplementations, err := NewDeployImplementationsScript(host1)
 		require.NoError(t, err)
@@ -71,7 +61,6 @@ func TestNewDeployImplementationsScript(t *testing.T) {
 			FaultGameV2ClockExtension:       big.NewInt(10800),
 			FaultGameV2MaxClockDuration:     big.NewInt(302400),
 			SuperchainConfigProxy:           proxyAddress,
-			ProtocolVersionsProxy:           protocolVersionsAddress,
 			SuperchainProxyAdmin:            proxyAdminAddress,
 			L1ProxyAdminOwner:               common.BigToAddress(big.NewInt(13)),
 			Challenger:                      common.BigToAddress(big.NewInt(14)),

@@ -9,11 +9,11 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-core/superchain"
 	"github.com/ethereum-optimism/optimism/op-service/flags"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/superchain"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
@@ -40,7 +40,6 @@ var (
 	faultDisputeVMs = []gameTypes.GameType{
 		gameTypes.CannonGameType,
 		gameTypes.CannonKonaGameType,
-		gameTypes.SuperCannonGameType,
 		gameTypes.SuperCannonKonaGameType,
 	}
 	// Required Flags
@@ -64,10 +63,11 @@ var (
 		Usage:   "Address of L1 Beacon API endpoint to use",
 		EnvVars: prefixEnvVars("L1_BEACON"),
 	}
-	SuperNodeRpcFlag = &cli.StringFlag{
-		Name:    "supernode-rpc",
-		Usage:   "Provider URL for supernode roots",
-		EnvVars: prefixEnvVars("SUPERNODE_RPC"),
+	SuperRootRpcFlag = &cli.StringFlag{
+		Name:    "superroot-rpc",
+		Aliases: []string{"supernode-rpc"},
+		Usage:   "HTTP provider URL for a super root RPC source (op-supernode for interop; op-node for single-chain). Must cover the full dependency set, else correct proposals won't match and the challenger over-challenges.",
+		EnvVars: prefixEnvVars("SUPERROOT_RPC", "SUPERNODE_RPC"),
 	}
 	RollupRpcFlag = &cli.StringFlag{
 		Name:    "rollup-rpc",
@@ -93,9 +93,9 @@ var (
 	GameTypesFlag = &cli.StringSliceFlag{
 		Name:    "game-types",
 		Aliases: []string{"trace-type"}, // For backwards compatibility
-		Usage:   "The game types to support. Valid options: " + openum.EnumStringer(gameTypes.SupportedGameTypes),
+		Usage:   "The game types to support. Valid options: " + openum.EnumStringer(gameTypes.PlayableGameTypes),
 		EnvVars: prefixEnvVars("GAME_TYPES", "TRACE_TYPE"),
-		Value:   cli.NewStringSlice(gameTypes.CannonGameType.String(), gameTypes.CannonKonaGameType.String()),
+		Value:   cli.NewStringSlice(gameTypes.CannonKonaGameType.String()),
 	}
 	DatadirFlag = &cli.StringFlag{
 		Name:    "datadir",
@@ -231,15 +231,6 @@ var (
 		Value:   false,
 		Hidden:  true,
 	}
-	CannonKonaExperimentalWitnessEndpointFlag = &cli.BoolFlag{
-		Name: "cannon-kona-experimental-witness-endpoint",
-		Usage: "Enable experimental witness endpoint for Kona interop. " +
-			"Uses debug_executePayload RPC to collect execution witnesses, " +
-			"reducing proof generation time by avoiding re-execution. " +
-			"Requires op-reth or execution client started with " +
-			"--proofs-history enabled to provide debug_executePayload support.",
-		EnvVars: prefixEnvVars("CANNON_KONA_EXPERIMENTAL_WITNESS_ENDPOINT"),
-	}
 	GameWindowFlag = &cli.DurationFlag{
 		Name: "game-window",
 		Usage: "The time window which the challenger will look for games to progress and claim bonds. " +
@@ -248,8 +239,9 @@ var (
 		Value:   config.DefaultGameWindow,
 	}
 	SelectiveClaimResolutionFlag = &cli.BoolFlag{
-		Name:    "selective-claim-resolution",
-		Usage:   "Only resolve claims for the configured claimants",
+		Name: "selective-claim-resolution",
+		Usage: "Only resolve claims for the configured claimants and claim their non-zero credit; " +
+			"disables lifecycle-only game close and anchor update transactions",
 		EnvVars: prefixEnvVars("SELECTIVE_CLAIM_RESOLUTION"),
 	}
 	UnsafeAllowInvalidPrestate = &cli.BoolFlag{
@@ -287,7 +279,7 @@ var optionalFlags = []cli.Flag{
 	FactoryAddressFlag,
 	GameTypesFlag,
 	MaxConcurrencyFlag,
-	SuperNodeRpcFlag,
+	SuperRootRpcFlag,
 	L2EthRpcFlag,
 	L2ExperimentalEthRpcFlag,
 	MaxPendingTransactionsFlag,
@@ -304,7 +296,6 @@ var optionalFlags = []cli.Flag{
 	CannonKonaServerFlag,
 	CannonKonaPreStateFlag,
 	CannonKonaL2CustomFlag,
-	CannonKonaExperimentalWitnessEndpointFlag,
 	GameWindowFlag,
 	SelectiveClaimResolutionFlag,
 	UnsafeAllowInvalidPrestate,
@@ -336,7 +327,19 @@ func checkOutputProviderFlags(ctx *cli.Context) error {
 	return nil
 }
 
-func CheckCannonBaseFlags(ctx *cli.Context) error {
+func checkSuperRootProviderFlags(ctx *cli.Context) error {
+	if !ctx.IsSet(SuperRootRpcFlag.Name) {
+		return fmt.Errorf("flag %v is required", SuperRootRpcFlag.Name)
+	}
+	return nil
+}
+
+func CheckCannonBaseFlags(ctx *cli.Context, enabledTypes []gameTypes.GameType) error {
+	// Permissioned games never reach step() so do not run op-program or load the
+	// absolute prestate; both are only required when an enabled game type can reach step().
+	canReachStep := slices.ContainsFunc(enabledTypes, func(t gameTypes.GameType) bool {
+		return slices.Contains(gameTypes.CannonFamilyGameTypes, t) && !t.IsPermissioned()
+	})
 	if ctx.IsSet(flags.NetworkFlagName) &&
 		(RollupConfigFlag.IsSet(ctx, gameTypes.CannonGameType) || L2GenesisFlag.IsSet(ctx, gameTypes.CannonGameType) || L1GenesisFlag.IsSet(ctx, gameTypes.CannonGameType) || ctx.Bool(CannonL2CustomFlag.Name)) {
 		return fmt.Errorf("flag %v can not be used with %v, %v, %v or %v",
@@ -349,36 +352,18 @@ func CheckCannonBaseFlags(ctx *cli.Context) error {
 	if !ctx.IsSet(CannonBinFlag.Name) {
 		return fmt.Errorf("flag %s is required", CannonBinFlag.Name)
 	}
-	if !ctx.IsSet(CannonServerFlag.Name) {
+	if canReachStep && !ctx.IsSet(CannonServerFlag.Name) {
 		return fmt.Errorf("flag %s is required", CannonServerFlag.Name)
 	}
-	if !PreStatesURLFlag.IsSet(ctx, gameTypes.CannonGameType) && !ctx.IsSet(CannonPreStateFlag.Name) {
+	if canReachStep && !PreStatesURLFlag.IsSet(ctx, gameTypes.CannonGameType) && !ctx.IsSet(CannonPreStateFlag.Name) {
 		return fmt.Errorf("flag %s or %s is required", PreStatesURLFlag.EitherFlagName(gameTypes.CannonGameType), CannonPreStateFlag.Name)
 	}
 	return nil
 }
 
-func CheckSuperCannonFlags(ctx *cli.Context) error {
-	if !ctx.IsSet(SuperNodeRpcFlag.Name) {
-		return fmt.Errorf("flag %v is required", SuperNodeRpcFlag.Name)
-	}
-	if !ctx.IsSet(flags.NetworkFlagName) &&
-		!(RollupConfigFlag.IsSet(ctx, gameTypes.CannonGameType) && L2GenesisFlag.IsSet(ctx, gameTypes.CannonGameType) && DepsetConfigFlag.IsSet(ctx, gameTypes.CannonGameType)) {
-		return fmt.Errorf("flag %v or %v, %v and %v is required",
-			flags.NetworkFlagName,
-			RollupConfigFlag.EitherFlagName(gameTypes.CannonGameType),
-			L2GenesisFlag.EitherFlagName(gameTypes.CannonGameType),
-			DepsetConfigFlag.EitherFlagName(gameTypes.CannonGameType))
-	}
-	if err := CheckCannonBaseFlags(ctx); err != nil {
-		return err
-	}
-	return nil
-}
-
 func CheckSuperCannonKonaFlags(ctx *cli.Context) error {
-	if !ctx.IsSet(SuperNodeRpcFlag.Name) {
-		return fmt.Errorf("flag %v is required", SuperNodeRpcFlag.Name)
+	if !ctx.IsSet(SuperRootRpcFlag.Name) {
+		return fmt.Errorf("flag %v is required", SuperRootRpcFlag.Name)
 	}
 	if !ctx.IsSet(flags.NetworkFlagName) &&
 		!(RollupConfigFlag.IsSet(ctx, gameTypes.CannonKonaGameType) && L2GenesisFlag.IsSet(ctx, gameTypes.CannonKonaGameType) && DepsetConfigFlag.IsSet(ctx, gameTypes.CannonKonaGameType)) {
@@ -391,10 +376,16 @@ func CheckSuperCannonKonaFlags(ctx *cli.Context) error {
 	if err := CheckCannonKonaBaseFlags(ctx, gameTypes.CannonKonaGameType); err != nil {
 		return err
 	}
+	if !ctx.IsSet(CannonKonaServerFlag.Name) {
+		return fmt.Errorf("flag %s is required", CannonKonaServerFlag.Name)
+	}
+	if !PreStatesURLFlag.IsSet(ctx, gameTypes.CannonKonaGameType) && !ctx.IsSet(CannonKonaPreStateFlag.Name) {
+		return fmt.Errorf("flag %s or %s is required", PreStatesURLFlag.EitherFlagName(gameTypes.CannonKonaGameType), CannonKonaPreStateFlag.Name)
+	}
 	return nil
 }
 
-func CheckCannonFlags(ctx *cli.Context) error {
+func CheckCannonFlags(ctx *cli.Context, enabledTypes []gameTypes.GameType) error {
 	if err := checkOutputProviderFlags(ctx); err != nil {
 		return err
 	}
@@ -403,7 +394,7 @@ func CheckCannonFlags(ctx *cli.Context) error {
 		return fmt.Errorf("flag %v or %v and %v is required",
 			flags.NetworkFlagName, RollupConfigFlag.EitherFlagName(gameTypes.CannonGameType), L2GenesisFlag.EitherFlagName(gameTypes.CannonGameType))
 	}
-	if err := CheckCannonBaseFlags(ctx); err != nil {
+	if err := CheckCannonBaseFlags(ctx, enabledTypes); err != nil {
 		return err
 	}
 	return nil
@@ -454,27 +445,27 @@ func CheckRequired(ctx *cli.Context, types []gameTypes.GameType) error {
 	for _, gameType := range types {
 		switch gameType {
 		case gameTypes.CannonGameType, gameTypes.PermissionedGameType:
-			if err := CheckCannonFlags(ctx); err != nil {
+			if err := CheckCannonFlags(ctx, types); err != nil {
 				return err
 			}
 		case gameTypes.CannonKonaGameType:
 			if err := CheckCannonKonaFlags(ctx); err != nil {
 				return err
 			}
-		case gameTypes.SuperCannonGameType, gameTypes.SuperPermissionedGameType:
-			if err := CheckSuperCannonFlags(ctx); err != nil {
-				return err
-			}
 		case gameTypes.SuperCannonKonaGameType:
 			if err := CheckSuperCannonKonaFlags(ctx); err != nil {
 				return err
 			}
-		case gameTypes.ZKDisputeGameType, gameTypes.AlphabetGameType, gameTypes.FastGameType:
+		case gameTypes.ZKDisputeGameType:
+			if err := checkSuperRootProviderFlags(ctx); err != nil {
+				return err
+			}
+		case gameTypes.AlphabetGameType, gameTypes.FastGameType:
 			if err := checkOutputProviderFlags(ctx); err != nil {
 				return err
 			}
 		default:
-			return fmt.Errorf("invalid game type %v. must be one of %v", gameType, gameTypes.SupportedGameTypes)
+			return fmt.Errorf("invalid game type %v. must be one of %v", gameType, gameTypes.PlayableGameTypes)
 		}
 	}
 	return nil
@@ -483,7 +474,7 @@ func CheckRequired(ctx *cli.Context, types []gameTypes.GameType) error {
 func parseGameTypes(ctx *cli.Context) ([]gameTypes.GameType, error) {
 	var result []gameTypes.GameType
 	for _, typeName := range ctx.StringSlice(GameTypesFlag.Name) {
-		gameType, err := gameTypes.SupportedGameTypeFromString(typeName)
+		gameType, err := gameTypes.PlayableGameTypeFromString(typeName)
 		if err != nil {
 			return nil, err
 		}
@@ -623,7 +614,7 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 		MinUpdateInterval:       ctx.Duration(MinUpdateInterval.Name),
 		AdditionalBondClaimants: claimants,
 		RollupRpc:               ctx.String(RollupRpcFlag.Name),
-		SuperRPC:                ctx.String(SuperNodeRpcFlag.Name),
+		SuperRootRPC:            ctx.String(SuperRootRpcFlag.Name),
 		Cannon: vm.Config{
 			VmType:            gameTypes.CannonGameType,
 			L1:                l1EthRpc,
@@ -646,24 +637,23 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 		CannonAbsolutePreState:        ctx.String(CannonPreStateFlag.Name),
 		CannonAbsolutePreStateBaseURL: cannonPreStatesURL,
 		CannonKona: vm.Config{
-			VmType:                            gameTypes.CannonKonaGameType,
-			L1:                                l1EthRpc,
-			L1Beacon:                          l1Beacon,
-			L2s:                               l2Rpcs,
-			L2Experimental:                    l2Experimental,
-			VmBin:                             ctx.String(CannonBinFlag.Name),
-			Server:                            ctx.String(CannonKonaServerFlag.Name),
-			Networks:                          networks,
-			L2Custom:                          ctx.Bool(CannonKonaL2CustomFlag.Name),
-			RollupConfigPaths:                 RollupConfigFlag.StringSlice(ctx, gameTypes.CannonKonaGameType),
-			L1GenesisPath:                     L1GenesisFlag.String(ctx, gameTypes.CannonKonaGameType),
-			L2GenesisPaths:                    L2GenesisFlag.StringSlice(ctx, gameTypes.CannonKonaGameType),
-			DepsetConfigPath:                  DepsetConfigFlag.String(ctx, gameTypes.CannonKonaGameType),
-			SnapshotFreq:                      ctx.Uint(CannonSnapshotFreqFlag.Name),
-			InfoFreq:                          ctx.Uint(CannonInfoFreqFlag.Name),
-			DebugInfo:                         true,
-			BinarySnapshots:                   true,
-			EnableExperimentalWitnessEndpoint: ctx.Bool(CannonKonaExperimentalWitnessEndpointFlag.Name),
+			VmType:            gameTypes.CannonKonaGameType,
+			L1:                l1EthRpc,
+			L1Beacon:          l1Beacon,
+			L2s:               l2Rpcs,
+			L2Experimental:    l2Experimental,
+			VmBin:             ctx.String(CannonBinFlag.Name),
+			Server:            ctx.String(CannonKonaServerFlag.Name),
+			Networks:          networks,
+			L2Custom:          ctx.Bool(CannonKonaL2CustomFlag.Name),
+			RollupConfigPaths: RollupConfigFlag.StringSlice(ctx, gameTypes.CannonKonaGameType),
+			L1GenesisPath:     L1GenesisFlag.String(ctx, gameTypes.CannonKonaGameType),
+			L2GenesisPaths:    L2GenesisFlag.StringSlice(ctx, gameTypes.CannonKonaGameType),
+			DepsetConfigPath:  DepsetConfigFlag.String(ctx, gameTypes.CannonKonaGameType),
+			SnapshotFreq:      ctx.Uint(CannonSnapshotFreqFlag.Name),
+			InfoFreq:          ctx.Uint(CannonInfoFreqFlag.Name),
+			DebugInfo:         true,
+			BinarySnapshots:   true,
 		},
 		CannonKonaAbsolutePreState:        ctx.String(CannonKonaPreStateFlag.Name),
 		CannonKonaAbsolutePreStateBaseURL: cannonKonaPreStatesURL,

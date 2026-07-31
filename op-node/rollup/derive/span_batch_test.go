@@ -2,6 +2,7 @@ package derive
 
 import (
 	"bytes"
+	"encoding/binary"
 	"math"
 	"math/big"
 	"math/rand"
@@ -11,9 +12,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
@@ -485,7 +488,7 @@ func TestSpanBatchReadTxData(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			rng := rand.New(rand.NewSource(int64(0x109550 + i)))
 			chainID := new(big.Int).SetUint64(rng.Uint64())
-			signer := types.NewIsthmusSigner(chainID)
+			signer := types.NewPragueSigner(chainID)
 			if !testCase.protected {
 				signer = types.HomesteadSigner{}
 			}
@@ -501,13 +504,24 @@ func TestSpanBatchReadTxData(t *testing.T) {
 			}
 
 			for txIdx := 0; txIdx < testCase.trials; txIdx++ {
-				r := bytes.NewReader(rawTxs[i])
+				r := bytes.NewReader(rawTxs[txIdx])
 				_, txType, err := ReadTxData(r)
 				require.NoError(t, err)
-				assert.Equal(t, int(txs[i].Type()), txType)
+				assert.Equal(t, int(txs[txIdx].Type()), txType)
 			}
 		})
 	}
+}
+
+func TestSpanBatchReadPostExecTxData(t *testing.T) {
+	rawTx, err := testPostExecTx().MarshalBinary()
+	require.NoError(t, err)
+
+	r := bytes.NewReader(rawTx)
+	txData, txType, err := ReadTxData(r)
+	require.NoError(t, err)
+	require.Equal(t, optypes.PostExecTxType, txType)
+	require.Equal(t, rawTx, txData)
 }
 
 func TestSpanBatchReadTxDataInvalid(t *testing.T) {
@@ -518,6 +532,107 @@ func TestSpanBatchReadTxDataInvalid(t *testing.T) {
 	r := bytes.NewReader(dummy)
 	_, _, err = ReadTxData(r)
 	require.ErrorContains(t, err, "tx RLP prefix type must be list")
+}
+
+// TestSpanBatchReadTxDataLeadingZero locks op-node's decode of the shared conformance vector
+// [00 c3 80 80 80]: a valid legacy span-batch tx (an RLP list of value, gas_price, data) with a
+// 0x00 EIP-2718 type byte prepended. ReadTxData preserves the prefix, and the typed decoder rejects
+// it as unsupported. Kona must reach the same verdict, or the two derivations fork on identical L1
+// bytes.
+func TestSpanBatchReadTxDataLeadingZero(t *testing.T) {
+	payload := []byte{0xc3, 0x80, 0x80, 0x80}
+	prefixed := append([]byte{0x00}, payload...)
+
+	// The unprefixed payload is a valid legacy tx.
+	var legacy spanBatchTx
+	require.NoError(t, legacy.UnmarshalBinary(payload))
+	require.Equal(t, uint8(types.LegacyTxType), legacy.Type())
+
+	// ReadTxData keeps the leading 0x00 and reports legacy type.
+	r := bytes.NewReader(prefixed)
+	txData, txType, err := ReadTxData(r)
+	require.NoError(t, err)
+	require.Equal(t, int(types.LegacyTxType), txType)
+	require.Equal(t, prefixed, txData)
+
+	// The kept 0x00 is not a supported typed-tx envelope, so the element (and thus the batch) is
+	// rejected.
+	var sbtx spanBatchTx
+	require.ErrorIs(t, sbtx.UnmarshalBinary(txData), types.ErrTxTypeNotSupported)
+}
+
+// TestSpanBatchUvarintConformance locks op-node's span-batch `uvarint` decoding — Go's
+// binary.ReadUvarint — against the vectors shared with kona's decoder in
+// rust/kona/crates/protocol/protocol/src/batch/varint.rs. Span-batch uvarints are protobuf Base128
+// varints, so a non-minimal encoding is valid and decodes to the same value as its minimal form.
+// Kona must reach the same verdict on every vector, or a batcher can split the two derivations with
+// a re-encoded field.
+func TestSpanBatchUvarintConformance(t *testing.T) {
+	cases := []struct {
+		name    string
+		encoded []byte
+		value   uint64
+		wantErr bool
+	}{
+		{"minimal", []byte{0x01}, 1, false},
+		{"non-minimal", []byte{0x81, 0x00}, 1, false},
+		{"non-minimal, multi-byte", []byte{0x81, 0x80, 0x80, 0x00}, 1, false},
+		{"ten-byte, zero terminator", []byte{0x81, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x00}, 1, false},
+		{"ten-byte, bit-63 terminator", []byte{0x81, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x01}, 1 | 1<<63, false},
+		{"max uint64", []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01}, math.MaxUint64, false},
+		{"terminator above bit 63", []byte{0x81, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x02}, 0, true},
+		{"never terminates", bytes.Repeat([]byte{0x80}, 10), 0, true},
+		{"terminates past max width", append(bytes.Repeat([]byte{0x80}, 10), 0x01), 0, true},
+		{"truncated", []byte{0x81}, 0, true},
+		{"empty", []byte{}, 0, true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// relTimestamp is unbounded, so it exercises the full accepted value range.
+			var prefix spanBatchPrefix
+			r := bytes.NewReader(tc.encoded)
+			err := prefix.decodeRelTimestamp(r)
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.value, prefix.relTimestamp)
+			require.Zero(t, r.Len(), "varint must be fully consumed")
+		})
+	}
+}
+
+// nonMinimalUvarint encodes v as a Base128 varint with one redundant trailing zero byte. Only valid
+// for values whose minimal encoding is shorter than binary.MaxVarintLen64.
+func nonMinimalUvarint(t *testing.T, v uint64) []byte {
+	encoded := binary.AppendUvarint(nil, v)
+	require.Less(t, len(encoded), binary.MaxVarintLen64)
+	encoded[len(encoded)-1] |= 0x80
+	return append(encoded, 0x00)
+}
+
+// TestSpanBatchNonMinimalBlockCount decodes a whole span batch whose blockCount is encoded
+// non-minimally, with every other field untouched — the batch a byzantine batcher would publish.
+// op-node derives exactly the batch the minimal encoding would have produced, and kona must too.
+func TestSpanBatchNonMinimalBlockCount(t *testing.T) {
+	rng := rand.New(rand.NewSource(0x5ea6a71))
+	chainID := big.NewInt(rng.Int63n(1000))
+	rawSpanBatch := RandomRawSpanBatch(rng, chainID)
+
+	var buf bytes.Buffer
+	require.NoError(t, rawSpanBatch.encodePrefix(&buf))
+	_, err := buf.Write(nonMinimalUvarint(t, rawSpanBatch.blockCount))
+	require.NoError(t, err)
+	require.NoError(t, rawSpanBatch.encodeOriginBits(&buf))
+	require.NoError(t, rawSpanBatch.encodeBlockTxCounts(&buf))
+	require.NoError(t, rawSpanBatch.encodeTxs(&buf))
+
+	var sb RawSpanBatch
+	require.NoError(t, sb.decode(bytes.NewReader(buf.Bytes())))
+	require.NoError(t, sb.txs.recoverV(chainID))
+	requireEqual(t, rawSpanBatch, &sb)
 }
 
 func TestSpanBatchMaxTxData(t *testing.T) {
@@ -602,4 +717,50 @@ func TestSpanBatchTotalBlockTxCountNotOverflow(t *testing.T) {
 	err = sb.decodeTxs(r)
 
 	require.ErrorIs(t, err, ErrTooBigSpanBatchSize)
+}
+
+// TestDeriveSpanBatchSDMGate verifies that DeriveSpanBatch rejects PostExec
+// transactions when SDM is not active and accepts them once it is.
+func TestDeriveSpanBatchSDMGate(t *testing.T) {
+	chainID := big.NewInt(901)
+	const (
+		genesisTime = uint64(100)
+		blockTime   = uint64(2)
+		blockTS     = genesisTime + blockTime
+	)
+
+	rawPostExecTx, err := testPostExecTx().MarshalBinary()
+	require.NoError(t, err)
+
+	singular := &SingularBatch{
+		ParentHash:   common.Hash{0x01},
+		EpochNum:     1,
+		EpochHash:    common.Hash{0x02},
+		Timestamp:    blockTS,
+		Transactions: []hexutil.Bytes{rawPostExecTx},
+	}
+	sb := NewSpanBatch(genesisTime, chainID)
+	require.NoError(t, sb.AppendSingularBatch(singular, 0))
+	rawSb, err := sb.ToRawSpanBatch()
+	require.NoError(t, err)
+	bd := NewBatchData(rawSb)
+
+	disabled := &rollup.Config{
+		Genesis:   rollup.Genesis{L2Time: genesisTime},
+		BlockTime: blockTime,
+		L2ChainID: chainID,
+	}
+	_, err = DeriveSpanBatch(bd, disabled)
+	require.ErrorContains(t, err, "PostExec tx")
+
+	sdmTime := blockTS
+	enabled := &rollup.Config{
+		Genesis:    rollup.Genesis{L2Time: genesisTime},
+		BlockTime:  blockTime,
+		L2ChainID:  chainID,
+		LagoonTime: &sdmTime,
+	}
+	derived, err := DeriveSpanBatch(bd, enabled)
+	require.NoError(t, err)
+	require.Equal(t, 1, derived.GetBlockCount())
 }

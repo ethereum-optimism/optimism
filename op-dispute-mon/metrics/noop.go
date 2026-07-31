@@ -65,3 +65,7 @@ func (*NoopMetricsImpl) RecordMixedAvailabilityGames(_ int) {}
 func (*NoopMetricsImpl) RecordMixedSafetyGames(_ int) {}
 
 func (*NoopMetricsImpl) RecordDifferentRootGames(_ int) {}
+
+func (*NoopMetricsImpl) RecordGameTypes(_ map[string]int) {}
+
+func (*NoopMetricsImpl) RecordAnchorStateL2SequenceNumber(_ common.Address, _ uint64) {}

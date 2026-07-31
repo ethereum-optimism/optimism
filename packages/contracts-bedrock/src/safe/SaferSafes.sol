@@ -26,13 +26,13 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 ///      compatibility restrictions in the LivenessModule2 and TimelockGuard contracts.
 contract SaferSafes is LivenessModule2, TimelockGuard, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 1.10.1
-    string public constant version = "1.10.1";
+    /// @custom:semver 1.10.2
+    string public constant version = "1.10.2";
 
     /// @notice Error for when the liveness response period is insufficient.
     error SaferSafes_InsufficientLivenessResponsePeriod();
 
-    /// @notice Internal helper function which can be overriden in a child contract to check if the
+    /// @notice Internal helper function which can be overridden in a child contract to check if the
     ///         guard's configuration is valid in the context of other extensions that are enabled
     ///         on the Safe. This function acts as a FREI-PI invariant check to ensure the
     ///         resulting config is valid, it MUST be called at the end of any configuration

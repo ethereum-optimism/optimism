@@ -1,0 +1,57 @@
+FEATURES := env("FEATURES", "")
+DOCKER_IMAGE_NAME := env("DOCKER_IMAGE_NAME", "op-rbuilder")
+DOCKER_IMAGE_EXTRA_TAGS := env("DOCKER_IMAGE_EXTRA_TAGS", "rbuilder")
+DOCKER_PLATFORM := env("DOCKER_PLATFORM", "linux/amd64")
+RBUILDER_BIN := env("RBUILDER_BIN", "op-rbuilder")
+
+# Build a local op-rbuilder Docker image
+[script('bash')]
+docker-image-rbuilder:
+  set -euo pipefail
+  tag_args=(--tag "{{DOCKER_IMAGE_NAME}}")
+  if [ -n "{{DOCKER_IMAGE_EXTRA_TAGS}}" ]; then
+    for tag in {{DOCKER_IMAGE_EXTRA_TAGS}}; do
+      tag_args+=(--tag "$tag")
+    done
+  fi
+  docker buildx build --load \
+    --platform "{{DOCKER_PLATFORM}}" \
+    --target rbuilder-runtime \
+    --build-arg FEATURES="{{FEATURES}}" \
+    --build-arg RBUILDER_BIN="{{RBUILDER_BIN}}" \
+    --build-context monorepo-rust=.. \
+    "${tag_args[@]}" \
+    .
+
+# Run the linters
+lint:
+  cargo +nightly fmt -- --check
+  cargo +nightly clippy --all-features -- -D warnings
+
+# Build and run op-rbuilder in playground mode for testing
+run-playground:
+  cargo build --bin op-rbuilder -p op-rbuilder
+  ./target/debug/op-rbuilder node --builder.playground
+
+# Run the complete test suite (genesis generation, build, and tests)
+run-tests:
+  just generate-test-genesis
+  just build-op-rbuilder
+  just run-tests-op-rbuilder
+
+# Download `op-reth` binary
+download-op-reth:
+  ./scripts/ci/download-op-reth.sh
+
+# Generate a genesis file (for tests)
+generate-test-genesis:
+  cargo run -p op-rbuilder --features="testing" --bin tester -- genesis --output genesis.json
+
+
+# Build the op-rbuilder binary
+build-op-rbuilder:
+  cargo build -p op-rbuilder --bin op-rbuilder
+
+# Run the integration tests
+run-tests-op-rbuilder:
+  PATH=$PATH:$(pwd) cargo test --package op-rbuilder --lib

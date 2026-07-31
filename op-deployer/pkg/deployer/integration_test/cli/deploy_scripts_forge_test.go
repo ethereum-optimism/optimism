@@ -12,10 +12,10 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
@@ -30,7 +30,6 @@ func TestDeployScriptsForge(t *testing.T) {
 	require.NoError(t, err)
 
 	superchainProxyAdminOwner := shared.AddrFor(t, dk, devkeys.L1ProxyAdminOwnerRole.Key(l1ChainIDBig))
-	protocolVersionsOwner := shared.AddrFor(t, dk, devkeys.SuperchainDeployerKey.Key(l1ChainIDBig))
 	guardian := shared.AddrFor(t, dk, devkeys.SuperchainConfigGuardianKey.Key(l1ChainIDBig))
 	challenger := shared.AddrFor(t, dk, devkeys.ChallengerRole.Key(l1ChainIDBig))
 
@@ -41,8 +40,7 @@ func TestDeployScriptsForge(t *testing.T) {
 		embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
 		require.NoError(t, err)
 
-		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
-		require.NoError(t, err)
+		forgeClient := testutil.NewForgeClient(t, fmt.Sprintf("%v", embeddedArtifactsFS))
 
 		// Deploy AltDA using Forge wrapper function
 		forgeEnv := &opcm.ForgeEnv{
@@ -73,7 +71,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"bootstrap", "superchain",
 			"--outfile", superchainOutputFile,
 			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
-			"--protocol-versions-owner", protocolVersionsOwner.Hex(),
 			"--guardian", guardian.Hex(),
 			"--use-forge",
 		}, nil)
@@ -89,7 +86,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"bootstrap", "implementations",
 			"--outfile", implsOutputFile,
 			"--mips-version", strconv.Itoa(int(standard.MIPSVersion)),
-			"--protocol-versions-proxy", superchainOutput.ProtocolVersionsProxy.Hex(),
 			"--superchain-config-proxy", superchainOutput.SuperchainConfigProxy.Hex(),
 			"--l1-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
 			"--superchain-proxy-admin", superchainOutput.SuperchainProxyAdmin.Hex(),
@@ -107,8 +103,7 @@ func TestDeployScriptsForge(t *testing.T) {
 		embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
 		require.NoError(t, err)
 
-		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
-		require.NoError(t, err)
+		forgeClient := testutil.NewForgeClient(t, fmt.Sprintf("%v", embeddedArtifactsFS))
 
 		// Deploy AlphabetVM using Forge wrapper function
 		forgeEnv := &opcm.ForgeEnv{
@@ -134,7 +129,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"bootstrap", "superchain",
 			"--outfile", superchainOutputFile,
 			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
-			"--protocol-versions-owner", protocolVersionsOwner.Hex(),
 			"--guardian", guardian.Hex(),
 			"--use-forge",
 		}, nil)
@@ -150,7 +144,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"bootstrap", "implementations",
 			"--outfile", implsOutputFile,
 			"--mips-version", strconv.Itoa(int(standard.MIPSVersion)),
-			"--protocol-versions-proxy", superchainOutput.ProtocolVersionsProxy.Hex(),
 			"--superchain-config-proxy", superchainOutput.SuperchainConfigProxy.Hex(),
 			"--l1-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
 			"--superchain-proxy-admin", superchainOutput.SuperchainProxyAdmin.Hex(),
@@ -168,8 +161,7 @@ func TestDeployScriptsForge(t *testing.T) {
 		embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
 		require.NoError(t, err)
 
-		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
-		require.NoError(t, err)
+		forgeClient := testutil.NewForgeClient(t, fmt.Sprintf("%v", embeddedArtifactsFS))
 
 		// Deploy MIPS using Forge wrapper function
 		forgeEnv := &opcm.ForgeEnv{
@@ -194,7 +186,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"bootstrap", "superchain",
 			"--outfile", superchainOutputFile,
 			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
-			"--protocol-versions-owner", protocolVersionsOwner.Hex(),
 			"--guardian", guardian.Hex(),
 			"--use-forge",
 		}, nil)
@@ -210,7 +201,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"bootstrap", "implementations",
 			"--outfile", implsOutputFile,
 			"--mips-version", strconv.Itoa(int(standard.MIPSVersion)),
-			"--protocol-versions-proxy", superchainOutput.ProtocolVersionsProxy.Hex(),
 			"--superchain-config-proxy", superchainOutput.SuperchainConfigProxy.Hex(),
 			"--l1-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
 			"--superchain-proxy-admin", superchainOutput.SuperchainProxyAdmin.Hex(),
@@ -228,8 +218,7 @@ func TestDeployScriptsForge(t *testing.T) {
 		embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
 		require.NoError(t, err)
 
-		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
-		require.NoError(t, err)
+		forgeClient := testutil.NewForgeClient(t, fmt.Sprintf("%v", embeddedArtifactsFS))
 
 		// Deploy DisputeGame using Forge wrapper function
 		forgeEnv := &opcm.ForgeEnv{
@@ -267,7 +256,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"bootstrap", "superchain",
 			"--outfile", superchainOutputFile,
 			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
-			"--protocol-versions-owner", protocolVersionsOwner.Hex(),
 			"--guardian", guardian.Hex(),
 			"--use-forge",
 		}, nil)
@@ -282,8 +270,7 @@ func TestDeployScriptsForge(t *testing.T) {
 		embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
 		require.NoError(t, err)
 
-		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
-		require.NoError(t, err)
+		forgeClient := testutil.NewForgeClient(t, fmt.Sprintf("%v", embeddedArtifactsFS))
 
 		// Read superchain deployment using Forge wrapper function
 		forgeEnv := &opcm.ForgeEnv{

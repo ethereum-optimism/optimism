@@ -29,7 +29,7 @@ var (
 	validDatadir                          = "/tmp/data"
 	validL2Rpc                            = "http://localhost:9545"
 	validRollupRpc                        = "http://localhost:8555"
-	validSuperRpc                         = "http://localhost/super"
+	validSuperRootRpc                     = "http://localhost/super"
 
 	nonExistingFile = "path/to/nonexistent/file"
 
@@ -40,14 +40,7 @@ var (
 )
 
 var singleCannonGameTypes = []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.PermissionedGameType}
-var superCannonGameTypes = []gameTypes.GameType{gameTypes.SuperCannonGameType, gameTypes.SuperPermissionedGameType}
-var allCannonGameTypes []gameTypes.GameType
 var cannonKonaGameTypes = []gameTypes.GameType{gameTypes.CannonKonaGameType, gameTypes.SuperCannonKonaGameType}
-
-func init() {
-	allCannonGameTypes = append(allCannonGameTypes, singleCannonGameTypes...)
-	allCannonGameTypes = append(allCannonGameTypes, superCannonGameTypes...)
-}
 
 func ensureExists(path string) error {
 	_, err := os.Stat(path)
@@ -63,11 +56,6 @@ func ensureExists(path string) error {
 		return err
 	}
 	return file.Close()
-}
-
-func applyValidConfigForSuperCannon(t *testing.T, cfg *Config) {
-	cfg.SuperRPC = validSuperRpc
-	applyValidConfigForCannon(t, cfg)
 }
 
 func applyValidConfigForCannon(t *testing.T, cfg *Config) {
@@ -99,19 +87,16 @@ func applyValidConfigForCannonKona(t *testing.T, cfg *Config) {
 }
 
 func applyValidConfigForSuperCannonKona(t *testing.T, cfg *Config) {
-	cfg.SuperRPC = validSuperRpc
+	cfg.SuperRootRPC = validSuperRootRpc
 	applyValidConfigForCannonKona(t, cfg)
 }
 
 func applyValidConfigForZKDisputeGame(cfg *Config) {
-	cfg.RollupRpc = validRollupRpc
+	cfg.SuperRootRPC = validSuperRootRpc
 }
 
 func validConfig(t *testing.T, gameType gameTypes.GameType) Config {
 	cfg := NewConfig(validGameFactoryAddress, validL1EthRpc, validL1BeaconUrl, validRollupRpc, validL2Rpc, validDatadir, gameType)
-	if gameType == gameTypes.SuperCannonGameType || gameType == gameTypes.SuperPermissionedGameType {
-		applyValidConfigForSuperCannon(t, &cfg)
-	}
 	if gameType == gameTypes.CannonGameType || gameType == gameTypes.PermissionedGameType {
 		applyValidConfigForCannon(t, &cfg)
 	}
@@ -137,7 +122,7 @@ func validConfigWithNoNetworks(t *testing.T, gameType gameTypes.GameType) Config
 		cfg.L1GenesisPath = "bar.json"
 		cfg.DepsetConfigPath = "foo.json"
 	}
-	if slices.Contains(allCannonGameTypes, gameType) {
+	if slices.Contains(singleCannonGameTypes, gameType) {
 		mutateVmConfig(&cfg.Cannon)
 	}
 	if slices.Contains(cannonKonaGameTypes, gameType) {
@@ -148,7 +133,7 @@ func validConfigWithNoNetworks(t *testing.T, gameType gameTypes.GameType) Config
 
 // TestValidConfigIsValid checks that the config provided by validConfig is actually valid
 func TestValidConfigIsValid(t *testing.T) {
-	for _, gameType := range gameTypes.SupportedGameTypes {
+	for _, gameType := range gameTypes.PlayableGameTypes {
 		gameType := gameType
 		t.Run(gameType.String(), func(t *testing.T) {
 			err := validConfig(t, gameType).Check()
@@ -202,7 +187,7 @@ func TestGameAllowlistNotRequired(t *testing.T) {
 }
 
 func TestCannonRequiredArgs(t *testing.T) {
-	for _, gameType := range allCannonGameTypes {
+	for _, gameType := range singleCannonGameTypes {
 		gameType := gameType
 
 		t.Run(fmt.Sprintf("TestCannonBinRequired-%v", gameType), func(t *testing.T) {
@@ -214,14 +199,24 @@ func TestCannonRequiredArgs(t *testing.T) {
 		t.Run(fmt.Sprintf("TestCannonServerRequired-%v", gameType), func(t *testing.T) {
 			config := validConfig(t, gameType)
 			config.Cannon.Server = ""
-			require.ErrorIs(t, config.Check(), vm.ErrMissingServer)
+			if gameType == gameTypes.PermissionedGameType {
+				// The permissioned game never reaches step() so does not run op-program.
+				require.NoError(t, config.Check())
+			} else {
+				require.ErrorIs(t, config.Check(), vm.ErrMissingServer)
+			}
 		})
 
 		t.Run(fmt.Sprintf("TestCannonAbsolutePreStateOrBaseURLRequired-%v", gameType), func(t *testing.T) {
 			config := validConfig(t, gameType)
 			config.CannonAbsolutePreState = ""
 			config.CannonAbsolutePreStateBaseURL = nil
-			require.ErrorIs(t, config.Check(), ErrMissingCannonAbsolutePreState)
+			if gameType == gameTypes.PermissionedGameType {
+				// The permissioned game never loads the VM prestate.
+				require.NoError(t, config.Check())
+			} else {
+				require.ErrorIs(t, config.Check(), ErrMissingCannonAbsolutePreState)
+			}
 		})
 
 		t.Run(fmt.Sprintf("TestCannonAbsolutePreState-%v", gameType), func(t *testing.T) {
@@ -320,9 +315,42 @@ func TestCannonRequiredArgs(t *testing.T) {
 		t.Run(fmt.Sprintf("TestServerExists-%v", gameType), func(t *testing.T) {
 			cfg := validConfig(t, gameType)
 			cfg.Cannon.Server = nonExistingFile
-			require.ErrorIs(t, cfg.Check(), vm.ErrMissingServer)
+			if gameType == gameTypes.PermissionedGameType {
+				// The permissioned game never reaches step() so does not run op-program.
+				require.NoError(t, cfg.Check())
+			} else {
+				require.ErrorIs(t, cfg.Check(), vm.ErrMissingServer)
+			}
 		})
 	}
+}
+
+// The op-program server is still required when both the cannon and permissioned game types
+// are enabled, because the cannon game runs op-program even though the permissioned game does not.
+func TestCannonServerRequiredWhenCannonAndPermissionedBothEnabled(t *testing.T) {
+	t.Run("ServerEmpty", func(t *testing.T) {
+		config := validConfig(t, gameTypes.CannonGameType)
+		config.GameTypes = []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.PermissionedGameType}
+		config.Cannon.Server = ""
+		require.ErrorIs(t, config.Check(), vm.ErrMissingServer)
+	})
+
+	t.Run("ServerMissing", func(t *testing.T) {
+		config := validConfig(t, gameTypes.CannonGameType)
+		config.GameTypes = []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.PermissionedGameType}
+		config.Cannon.Server = nonExistingFile
+		require.ErrorIs(t, config.Check(), vm.ErrMissingServer)
+	})
+}
+
+// The absolute prestate is still required when both the cannon and permissioned game types
+// are enabled, because the cannon game loads it even though the permissioned game does not.
+func TestCannonAbsolutePreStateRequiredWhenCannonAndPermissionedBothEnabled(t *testing.T) {
+	config := validConfig(t, gameTypes.CannonGameType)
+	config.GameTypes = []gameTypes.GameType{gameTypes.CannonGameType, gameTypes.PermissionedGameType}
+	config.CannonAbsolutePreState = ""
+	config.CannonAbsolutePreStateBaseURL = nil
+	require.ErrorIs(t, config.Check(), ErrMissingCannonAbsolutePreState)
 }
 
 func TestCannonKonaRequiredArgs(t *testing.T) {
@@ -450,14 +478,14 @@ func TestCannonKonaRequiredArgs(t *testing.T) {
 }
 
 func TestDepsetConfig(t *testing.T) {
-	for _, gameType := range superCannonGameTypes {
+	for _, gameType := range []gameTypes.GameType{gameTypes.SuperCannonKonaGameType} {
 		gameType := gameType
-		t.Run(fmt.Sprintf("TestCannonNetworkOrDepsetConfigRequired-%v", gameType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("TestCannonKonaNetworkOrDepsetConfigRequired-%v", gameType), func(t *testing.T) {
 			cfg := validConfig(t, gameType)
-			cfg.Cannon.Networks = nil
-			cfg.Cannon.RollupConfigPaths = []string{"foo.json"}
-			cfg.Cannon.L2GenesisPaths = []string{"genesis.json"}
-			cfg.Cannon.DepsetConfigPath = ""
+			cfg.CannonKona.Networks = nil
+			cfg.CannonKona.RollupConfigPaths = []string{"foo.json"}
+			cfg.CannonKona.L2GenesisPaths = []string{"genesis.json"}
+			cfg.CannonKona.DepsetConfigPath = ""
 			require.ErrorIs(t, cfg.Check(), ErrMissingDepsetConfig)
 		})
 	}
@@ -503,9 +531,9 @@ func TestHttpPollInterval(t *testing.T) {
 }
 
 func TestRollupRpcRequired(t *testing.T) {
-	for _, gameType := range gameTypes.SupportedGameTypes {
+	for _, gameType := range gameTypes.PlayableGameTypes {
 		gameType := gameType
-		if gameType == gameTypes.SuperCannonGameType || gameType == gameTypes.SuperPermissionedGameType || gameType == gameTypes.SuperCannonKonaGameType {
+		if gameType == gameTypes.SuperCannonKonaGameType || gameType == gameTypes.ZKDisputeGameType {
 			continue
 		}
 		t.Run(gameType.String(), func(t *testing.T) {
@@ -517,18 +545,6 @@ func TestRollupRpcRequired(t *testing.T) {
 }
 
 func TestRollupRpcNotRequiredForInterop(t *testing.T) {
-	t.Run("SuperCannon", func(t *testing.T) {
-		config := validConfig(t, gameTypes.SuperCannonGameType)
-		config.RollupRpc = ""
-		require.NoError(t, config.Check())
-	})
-
-	t.Run("SuperPermissioned", func(t *testing.T) {
-		config := validConfig(t, gameTypes.SuperPermissionedGameType)
-		config.RollupRpc = ""
-		require.NoError(t, config.Check())
-	})
-
 	t.Run("SuperCannonKona", func(t *testing.T) {
 		config := validConfig(t, gameTypes.SuperCannonKonaGameType)
 		config.RollupRpc = ""
@@ -536,23 +552,30 @@ func TestRollupRpcNotRequiredForInterop(t *testing.T) {
 	})
 }
 
-func TestSuperRpc(t *testing.T) {
-	for _, gameType := range gameTypes.SupportedGameTypes {
+func TestSuperRootRpc(t *testing.T) {
+	for _, gameType := range gameTypes.PlayableGameTypes {
 		gameType := gameType
-		if gameType == gameTypes.SuperCannonGameType || gameType == gameTypes.SuperPermissionedGameType || gameType == gameTypes.SuperCannonKonaGameType {
+		if gameType == gameTypes.SuperCannonKonaGameType || gameType == gameTypes.ZKDisputeGameType {
 			t.Run("RequiredFor"+gameType.String(), func(t *testing.T) {
 				config := validConfig(t, gameType)
-				config.SuperRPC = ""
-				require.ErrorIs(t, config.Check(), ErrMissingSuperRpc)
+				config.SuperRootRPC = ""
+				require.ErrorIs(t, config.Check(), ErrMissingSuperRootRpc)
+				require.EqualError(t, config.Check(), "missing super root RPC URL")
 			})
 		} else {
 			t.Run("NotRequiredFor"+gameType.String(), func(t *testing.T) {
 				config := validConfig(t, gameType)
-				config.SuperRPC = ""
+				config.SuperRootRPC = ""
 				require.NoError(t, config.Check())
 			})
 		}
 	}
+}
+
+func TestSuperPermissionedGameTypeUnsupported(t *testing.T) {
+	config := validConfig(t, gameTypes.CannonGameType)
+	config.GameTypes = []gameTypes.GameType{gameTypes.SuperPermissionedGameType}
+	require.ErrorIs(t, config.Check(), gameTypes.ErrUnknownGameType)
 }
 
 func TestRequireConfigForMultipleGameTypesForCannon(t *testing.T) {

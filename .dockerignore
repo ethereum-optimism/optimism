@@ -1,6 +1,13 @@
 .github
 .vscode
 
+# The .git dir (~2GB with submodules) is never COPY'd by any build using this
+# context (e.g. the kona reproducible-prestate build). Excluding it keeps that
+# multi-GB tree out of the build context transfer. Builds that need git metadata
+# pass it via GIT_COMMIT/GIT_DATE build args instead.
+.git
+**/.git
+
 .env
 .envrc
 **/.env
@@ -11,3 +18,5 @@ build/_workspace
 build/bin
 build/_bin
 tests/testdata
+
+rust/target

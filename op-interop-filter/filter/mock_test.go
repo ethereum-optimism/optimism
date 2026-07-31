@@ -13,7 +13,10 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	"github.com/ethereum-optimism/optimism/op-core/interop"
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 // mockChainIngester is an in-memory implementation of ChainIngester for testing.
@@ -22,7 +25,7 @@ type mockChainIngester struct {
 	mu sync.RWMutex
 
 	// Logs stored by their identifying query
-	logs map[logKey]types.BlockSeal
+	logs map[logKey]messages.BlockSeal
 
 	// Blocks keyed by block number
 	blocks map[uint64]eth.BlockID
@@ -36,6 +39,9 @@ type mockChainIngester struct {
 	latestBlock           eth.BlockID
 	latestTimestamp       uint64
 	earliestIngestedBlock uint64
+
+	rewindToFinalizedErr   error
+	rewindToFinalizedCount int
 }
 
 // logKey uniquely identifies a log entry
@@ -43,13 +49,13 @@ type logKey struct {
 	Timestamp uint64
 	BlockNum  uint64
 	LogIdx    uint32
-	Checksum  types.MessageChecksum
+	Checksum  messages.MessageChecksum
 }
 
 // newMockChainIngester creates a new in-memory chain ingester.
 func newMockChainIngester() *mockChainIngester {
 	return &mockChainIngester{
-		logs:     make(map[logKey]types.BlockSeal),
+		logs:     make(map[logKey]messages.BlockSeal),
 		blocks:   make(map[uint64]eth.BlockID),
 		execMsgs: make([]IncludedMessage, 0),
 		ready:    true, // Default to ready for simple tests
@@ -63,7 +69,7 @@ func (m *mockChainIngester) Start() error { return nil }
 func (m *mockChainIngester) Stop() error { return nil }
 
 // AddLog adds a log entry to the ingester.
-func (m *mockChainIngester) AddLog(timestamp, blockNum uint64, logIdx uint32, checksum types.MessageChecksum, seal types.BlockSeal) {
+func (m *mockChainIngester) AddLog(timestamp, blockNum uint64, logIdx uint32, checksum messages.MessageChecksum, seal messages.BlockSeal) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -122,7 +128,7 @@ func (m *mockChainIngester) SetReady(ready bool) {
 }
 
 // Contains implements ChainIngester.
-func (m *mockChainIngester) Contains(query types.ContainsQuery) (types.BlockSeal, error) {
+func (m *mockChainIngester) Contains(query messages.ContainsQuery) (messages.BlockSeal, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -135,7 +141,7 @@ func (m *mockChainIngester) Contains(query types.ContainsQuery) (types.BlockSeal
 
 	seal, ok := m.logs[key]
 	if !ok {
-		return types.BlockSeal{}, types.ErrConflict
+		return messages.BlockSeal{}, interop.ErrConflict
 	}
 	return seal, nil
 }
@@ -219,6 +225,17 @@ func (m *mockChainIngester) ClearError() {
 	m.err = nil
 }
 
+// RewindToFinalized implements ChainIngester.
+func (m *mockChainIngester) RewindToFinalized(ctx context.Context) (eth.BlockID, uint64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.rewindToFinalizedCount++
+	if m.rewindToFinalizedErr != nil {
+		return eth.BlockID{}, 0, m.rewindToFinalizedErr
+	}
+	return m.latestBlock, m.latestTimestamp, nil
+}
+
 // SetLatestTimestamp sets the latest ingested timestamp (for testing).
 func (m *mockChainIngester) SetLatestTimestamp(ts uint64) {
 	m.mu.Lock()
@@ -244,15 +261,21 @@ var _ ChainIngester = (*mockChainIngester)(nil)
 type mockCrossValidator struct {
 	validateErr error
 	errState    *ValidatorError
+	resetTs     uint64
+	resetOK     bool
 }
 
 func (m *mockCrossValidator) Start() error { return nil }
 func (m *mockCrossValidator) Stop() error  { return nil }
-func (m *mockCrossValidator) ValidateAccessEntry(access types.Access, minSafety types.SafetyLevel, execDescriptor types.ExecutingDescriptor) error {
+func (m *mockCrossValidator) ValidateAccessEntry(access messages.Access, minSafety safety.Level, execDescriptor messages.ExecutingDescriptor) error {
 	return m.validateErr
 }
 func (m *mockCrossValidator) CrossValidatedTimestamp() (uint64, bool) { return 0, false }
 func (m *mockCrossValidator) Error() *ValidatorError                  { return m.errState }
+func (m *mockCrossValidator) ResetCrossValidatedTimestamp(timestamp uint64) {
+	m.resetTs = timestamp
+	m.resetOK = true
+}
 
 // SetError sets the error state for the mock validator.
 func (m *mockCrossValidator) SetError(msg string) {
@@ -371,6 +394,14 @@ func (m *MockEthClient) SetHeadBlock(block eth.BlockInfo) {
 	m.blocksByLabel[eth.Unsafe] = block
 }
 
+// SetLabelBlock sets a block for the given label.
+func (m *MockEthClient) SetLabelBlock(label eth.BlockLabel, block eth.BlockInfo) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.blocksByLabel[label] = block
+}
+
 // SetInfoByNumberErr sets an error to return from InfoByNumber.
 func (m *MockEthClient) SetInfoByNumberErr(err error) {
 	m.mu.Lock()
@@ -451,10 +482,9 @@ func (b *mockBlockInfo) ExcessBlobGas() *uint64                     { return nil
 func (b *mockBlockInfo) BlobGasUsed() *uint64                       { return nil }
 func (b *mockBlockInfo) ParentBeaconRoot() *common.Hash             { return nil }
 func (b *mockBlockInfo) WithdrawalsRoot() *common.Hash              { return nil }
+func (b *mockBlockInfo) Extra() []byte                              { return nil }
 func (b *mockBlockInfo) ID() eth.BlockID                            { return eth.BlockID{Hash: b.hash, Number: b.number} }
 func (b *mockBlockInfo) MixDigest() common.Hash                     { return common.Hash{} }
-func (b *mockBlockInfo) HeaderRLP() ([]byte, error)                 { return nil, nil }
-func (b *mockBlockInfo) Header() *gethTypes.Header                  { return nil }
 
 // LoadCapturedData loads captured test data from a JSON file
 func LoadCapturedData(path string) (*CapturedData, error) {

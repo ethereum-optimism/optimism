@@ -17,8 +17,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/rlp"
 )
 
 type minBaseFeeEnv struct {
@@ -93,23 +91,13 @@ func (mbf *minBaseFeeEnv) waitForMinBaseFeeConfigChangeOnL2(t devtest.T, expecte
 			return false
 		}
 
-		// Get header RLP and decode to access Extra field
-		headerRLP, err := info.HeaderRLP()
-		if err != nil {
+		extra := info.Extra()
+		if len(extra) != 17 {
 			return false
 		}
 
-		var header types.Header
-		if err := rlp.DecodeBytes(headerRLP, &header); err != nil {
-			return false
-		}
-
-		if len(header.Extra) != 17 {
-			return false
-		}
-
-		got := binary.BigEndian.Uint64(header.Extra[9:])
-		actualBlockExtraData = header.Extra
+		got := binary.BigEndian.Uint64(extra[9:])
+		actualBlockExtraData = extra
 		return got == expected
 	}, 2*time.Minute, 5*time.Second, "L2 min base fee in block header did not sync within timeout")
 

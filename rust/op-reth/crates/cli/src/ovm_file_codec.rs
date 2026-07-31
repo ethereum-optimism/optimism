@@ -14,7 +14,7 @@ use alloy_primitives::{
 };
 use alloy_rlp::{Decodable, Error as RlpError, RlpDecodable};
 use derive_more::{AsRef, Deref};
-use op_alloy_consensus::{OpTxType, OpTypedTransaction, TxDeposit};
+use op_alloy_consensus::{OpTxType, OpTypedTransaction, TxDeposit, TxPostExec};
 use reth_downloaders::file_client::FileClientError;
 use serde::{Deserialize, Serialize};
 use tokio_util::codec::Decoder;
@@ -248,6 +248,7 @@ impl Encodable2718 for OvmTransactionSigned {
                 set_code_tx.eip2718_encoded_length(&self.signature)
             }
             OpTypedTransaction::Deposit(deposit_tx) => deposit_tx.eip2718_encoded_length(),
+            OpTypedTransaction::PostExec(post_exec_tx) => post_exec_tx.eip2718_encoded_length(),
         }
     }
 
@@ -275,6 +276,10 @@ impl Decodable2718 for OvmTransactionSigned {
             OpTxType::Deposit => Ok(Self::from_transaction_and_signature(
                 OpTypedTransaction::Deposit(TxDeposit::rlp_decode(buf)?),
                 TxDeposit::signature(),
+            )),
+            OpTxType::PostExec => Ok(Self::from_transaction_and_signature(
+                OpTypedTransaction::PostExec(TxPostExec::decode_2718(buf)?),
+                TxPostExec::signature(),
             )),
         }
     }

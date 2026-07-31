@@ -42,6 +42,11 @@ packages/contracts-bedrock/deployments/anvil
 
 .devnet*
 
+.claude/worktrees
+
+# Local AI planning docs (op-claude and similar agent tooling)
+.claude/plans
+
 # Ignore local fuzzing results
 **/testdata/fuzz/
 
@@ -57,3 +62,8 @@ crytic-export
 
 # Rust files
 **/target
+
+# Locally-built superchain bundles, generated from the superchain-registry submodule.
+# The binary archives are gitignored; only their .sha256 (and generated text) are committed.
+op-core/superchain/superchain-configs.zip
+rust/op-reth/crates/chainspec/res/superchain-configs.tar

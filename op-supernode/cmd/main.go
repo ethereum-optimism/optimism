@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
@@ -79,13 +78,12 @@ func main() {
 			return nil, fmt.Errorf("failed to create virtual node configs: %w", err)
 		}
 
-		// Populate config with interop activation timestamp from CLI context if set
-		// Only set the pointer if the flag is explicitly provided by the user
-		// If not set, leave as nil to disable interop
+		// Populate config with an explicit CLI or env override if one is set.
+		// Otherwise the supernode will derive interop activation from the loaded rollup configs.
 		if cliCtx != nil && cliCtx.IsSet(interop.InteropActivationTimestampFlag.Name) {
 			ts := cliCtx.Uint64(interop.InteropActivationTimestampFlag.Name)
 			cfg.InteropActivationTimestamp = &ts
-			l.Info("interop activation timestamp set from CLI", "timestamp", ts)
+			l.Info("interop activation timestamp override set", "timestamp", ts)
 		}
 
 		// Create the supernode, supplying the logger, version, and close function
@@ -94,6 +92,7 @@ func main() {
 		sn, err := supernode.New(ctx,
 			l,
 			Version,
+			GitCommit,
 			close,
 			cfg,
 			vnCfgs)
@@ -128,37 +127,32 @@ func createVirtualNodeConfigs(cliCtx *cli.Context, cfg *config.CLIConfig, l log.
 		// Based on the top level L1 and Beacon addresses
 		vcli.WithStringOverride(opnodeflags.L1NodeAddr.Name, cfg.L1NodeAddr)
 		vcli.WithStringOverride(opnodeflags.BeaconAddr.Name, cfg.L1BeaconAddr)
+
+		// Warn if the user set any supernode-owned flags at the VN level.
+		// These flags control shared resources (e.g. L1 client) that the
+		// supernode manages -- per-VN values are silently ignored.
+		warnSupernodeOwnedFlags(vcli, chainID, l)
+
 		cfg, err := opnode.NewConfig(vcli, l)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create virtual node config: %w", err)
 		}
 		vnCfgs[eth.ChainIDFromUInt64(chainID)] = cfg
 	}
+	if err := applySupernodeDependencySet(cfg, vnCfgs); err != nil {
+		return nil, err
+	}
 	return vnCfgs, nil
 }
 
-func withNoP2P(vcli *flags.VirtualCLI) error {
-	vcli.WithBoolOverride(opnodeflags.DisableP2PName, true)
-	vcli.WithStringOverride(opnodeflags.P2PPrivPathName, "")
-	vcli.WithStringOverride(opnodeflags.PeerstorePathName, "")
-	vcli.WithStringOverride(opnodeflags.DiscoveryPathName, "")
-	vcli.WithUintOverride(opnodeflags.ListenTCPPortName, 0)
-	vcli.WithUintOverride(opnodeflags.ListenUDPPortName, 0)
-	return nil
-}
-
-func withNamespacedP2P(vcli *flags.VirtualCLI, datadir string, namespace string) error {
-	// Configure per-VN P2P using namespaced DataDir and dynamic ports
-	p2pDir := filepath.Join(datadir, namespace, "p2p")
-	// Ensure per-VN p2p directory exists for key and databases
-	if err := os.MkdirAll(p2pDir, 0o700); err != nil {
-		return fmt.Errorf("failed creating p2p dir for chain %s: %w", namespace, err)
+// warnSupernodeOwnedFlags logs a warning for each flag in SupernodeOwnedFlags
+// that was set at the vn.all.* or vn.<id>.* level. These flags have no effect
+// because the supernode owns the underlying resource.
+func warnSupernodeOwnedFlags(vcli *flags.VirtualCLI, chainID uint64, l log.Logger) {
+	for _, name := range flags.SupernodeOwnedFlags {
+		if vcli.IsSet(name) {
+			l.Warn("virtual node flag is ignored -- supernode owns this resource; use the supernode-level flag instead",
+				"flag", name, "chain", chainID)
+		}
 	}
-	vcli.WithStringOverride(opnodeflags.P2PPrivPathName, filepath.Join(p2pDir, "opnode_p2p_priv.txt"))
-	vcli.WithStringOverride(opnodeflags.PeerstorePathName, filepath.Join(p2pDir, "peerstore_db"))
-	vcli.WithStringOverride(opnodeflags.DiscoveryPathName, filepath.Join(p2pDir, "discovery_db"))
-	// Force dynamic TCP/UDP listen ports to avoid collisions
-	vcli.WithUintOverride(opnodeflags.ListenTCPPortName, 0)
-	vcli.WithUintOverride(opnodeflags.ListenUDPPortName, 0)
-	return nil
 }

@@ -18,7 +18,7 @@ import (
 
 func TestNewRunnerSetsTimeout(t *testing.T) {
 	timeout := 5 * time.Minute
-	r := NewRunner(nil, nil, nil, timeout)
+	r := NewRunner(nil, nil, nil, timeout, false)
 	require.Equal(t, timeout, r.vmTimeout)
 }
 

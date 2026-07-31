@@ -2,12 +2,14 @@ package status
 
 import (
 	"context"
+	"math/rand"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
@@ -50,4 +52,28 @@ func TestStatus(t *testing.T) {
 	require.Zero(t, status.SafeL2.Number)
 	require.Zero(t, status.UnsafeL2.Number)
 	require.Zero(t, status.CurrentL1.Number)
+}
+
+func TestForkchoiceUpdateSeedsLocalSafeWithGenesisSafe(t *testing.T) {
+	rng := rand.New(rand.NewSource(20295))
+	l1Origin := testutils.RandomBlockRef(rng)
+	genesis := eth.L2BlockRef{
+		Hash:           testutils.RandomHash(rng),
+		Number:         0,
+		Time:           l1Origin.Time,
+		L1Origin:       l1Origin.ID(),
+		SequenceNumber: 0,
+	}
+
+	tracker := NewStatusTracker(testlog.Logger(t, log.LevelDebug), NoopMetrics{})
+	tracker.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
+		UnsafeL2Head:    genesis,
+		SafeL2Head:      genesis,
+		FinalizedL2Head: genesis,
+	})
+
+	status := tracker.SyncStatus()
+	require.Equal(t, genesis, status.SafeL2)
+	require.Equal(t, genesis, status.LocalSafeL2)
+	require.Equal(t, genesis, status.FinalizedL2)
 }

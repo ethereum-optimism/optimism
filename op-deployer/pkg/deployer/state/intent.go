@@ -1,6 +1,7 @@
 package state
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -188,11 +189,6 @@ func (c *Intent) validateStandardValues() error {
 		if len(chain.AdditionalDisputeGames) > 0 {
 			return fmt.Errorf("%w: chainId=%s additionalDisputeGames must be nil", ErrNonStandardValue, chain.ID)
 		}
-		if chain.UseRevenueShare {
-			if chain.ChainFeesRecipient == emptyAddress {
-				return fmt.Errorf("%w: chainId=%s", ErrRevenueShareZeroAddress, chain.ID)
-			}
-		}
 		if chain.IsCustomGasTokenEnabled() {
 			return fmt.Errorf("%w: chainId=%s custom gas token must be disabled for standard chains", ErrNonStandardValue, chain.ID)
 		}
@@ -229,14 +225,9 @@ func GetStandardSuperchainRoles(l1ChainId uint64) (*addresses.SuperchainRoles, e
 	if err != nil {
 		return nil, fmt.Errorf("error getting guardian address: %w", err)
 	}
-	protocolVersionsOwner, err := standard.ProtocolVersionsOwner(l1ChainId)
-	if err != nil {
-		return nil, fmt.Errorf("error getting protocol versions owner: %w", err)
-	}
 
 	superchainRoles := &addresses.SuperchainRoles{
 		SuperchainProxyAdminOwner: proxyAdminOwner,
-		ProtocolVersionsOwner:     protocolVersionsOwner,
 		SuperchainGuardian:        guardian,
 	}
 
@@ -286,6 +277,19 @@ func (c *Intent) Chain(id common.Hash) (*ChainIntent, error) {
 
 func (c *Intent) WriteToFile(path string) error {
 	return jsonutil.WriteTOML(c, ioutil.ToAtomicFile(path, 0o755))
+}
+
+// Clone returns a deep copy of the intent, detached from the receiver's pointers.
+func (c *Intent) Clone() (*Intent, error) {
+	data, err := json.Marshal(c)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode intent: %w", err)
+	}
+	var clone Intent
+	if err := json.Unmarshal(data, &clone); err != nil {
+		return nil, fmt.Errorf("failed to decode intent: %w", err)
+	}
+	return &clone, nil
 }
 
 func (c *Intent) checkL1Prod() error {
@@ -388,7 +392,6 @@ func NewIntentStandard(l1ChainId uint64, l2ChainIds []common.Hash) (Intent, erro
 				L1ProxyAdminOwner: common.Address{}, // Must be specified manually in intent.toml
 				L2ProxyAdminOwner: common.Address{}, // Must be specified manually in intent.toml
 			},
-			UseRevenueShare: standard.UseRevenueShare,
 			// CustomGasToken defaults to disabled (all fields nil/empty)
 			CustomGasToken: CustomGasToken{},
 		})

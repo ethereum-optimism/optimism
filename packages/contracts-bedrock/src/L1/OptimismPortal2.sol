@@ -26,6 +26,7 @@ import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol"
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 /// @custom:proxied true
@@ -142,6 +143,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         IAnchorStateRegistry newAnchorStateRegistry
     );
 
+    /// @notice Migrates the total ETH balance to the ETHLockbox.
+    event ETHMigrated(address indexed lockbox, uint256 balance);
+
     /// @notice Emitted when a transaction is deposited from L1 to L2. The parameters of this event
     ///         are read by the rollup node and used to derive deposit transactions on L2.
     /// @param from       Address that triggered the deposit transaction.
@@ -179,9 +183,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
     /// @notice Thrown when the portal is paused.
     error OptimismPortal_CallPaused();
-
-    /// @notice Migrates the total ETH balance to the ETHLockbox.
-    event ETHMigrated(address indexed lockbox, uint256 balance);
 
     /// @notice Thrown when a CGT withdrawal is not allowed.
     error OptimismPortal_NotAllowedOnCGTMode();
@@ -233,10 +234,16 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Thrown when ETHLockbox is set/unset incorrectly depending on the feature flag.
     error OptimismPortal_InvalidLockboxState();
 
+    /// @notice Thrown when migrateToSharedDisputeGame is called with a zero address.
+    error OptimismPortal_ZeroAddress();
+
+    /// @notice Thrown when the new lockbox has not authorized this portal.
+    error OptimismPortal_LockboxNotAuthorizedForPortal();
+
     /// @notice Semantic version.
-    /// @custom:semver 5.6.0
+    /// @custom:semver 5.8.0
     function version() public pure virtual returns (string memory) {
-        return "5.6.0";
+        return "5.8.0";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
@@ -522,6 +529,16 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // accidentally misused.
         if (anchorStateRegistry == _newAnchorStateRegistry) {
             revert OptimismPortal_MigratingToSameRegistry();
+        }
+
+        // Defense-in-depth: reject obvious operator footguns. The ProxyAdmin owner is fully
+        // trusted (can upgrade the portal), but these checks make it harder to brick the portal by
+        // installing zero / non-contract / unauthorized / mis-wired addresses.
+        if (address(_newLockbox) == address(0) || address(_newAnchorStateRegistry) == address(0)) {
+            revert OptimismPortal_ZeroAddress();
+        }
+        if (!_newLockbox.authorizedPortals(IOptimismPortal2(payable(address(this))))) {
+            revert OptimismPortal_LockboxNotAuthorizedForPortal();
         }
 
         // Update the ETHLockbox.

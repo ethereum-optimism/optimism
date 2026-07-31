@@ -76,7 +76,7 @@ library Bytes {
     }
 
     /// @notice Slices a byte array with a given starting index up to the end of the original byte
-    ///         array. Returns a new array rathern than a pointer to the original.
+    ///         array. Returns a new array rather than a pointer to the original.
     /// @param _bytes Byte array to slice.
     /// @param _start Starting index of the slice.
     /// @return Slice of the input byte array.

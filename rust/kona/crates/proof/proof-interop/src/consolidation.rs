@@ -1,20 +1,24 @@
 //! Interop dependency resolution and consolidation logic.
 
-use crate::{BootInfo, OptimisticBlock, OracleInteropProvider, PreState};
+use crate::{BootInfo, OptimisticBlock, OracleInteropProvider, PreState, TransitionState};
 use alloc::{collections::BTreeSet, vec::Vec};
 use alloy_consensus::{Header, Sealed};
-use alloy_evm::{EvmFactory, FromRecoveredTx, FromTxWithEncoded};
-use alloy_op_evm::block::OpTxEnv;
-use alloy_primitives::Sealable;
+use alloy_evm::{EvmFactory, FromRecoveredTx, FromTxWithEncoded, block::BlockExecutorFactory};
+use alloy_op_evm::{
+    OpBlockExecutionCtx, OpBlockExecutorFactory,
+    block::{OpAlloyReceiptBuilder, OpTxEnv},
+};
+use alloy_primitives::{B256, Sealable};
 use alloy_rpc_types_engine::PayloadAttributes;
 use core::fmt::Debug;
 use kona_executor::{Eip1559ValidationError, ExecutorError, StatelessL2Builder};
+use kona_genesis::RollupConfig;
 use kona_interop::{MessageGraph, MessageGraphError};
 use kona_mpt::OrderedListWalker;
 use kona_preimage::CommsClient;
 use kona_proof::{errors::OracleProviderError, l2::OracleL2ChainProvider};
 use kona_registry::{HashMap, ROLLUP_CONFIGS};
-use op_alloy_consensus::{OpTxEnvelope, OpTxType};
+use op_alloy_consensus::{OpReceiptEnvelope, OpTxEnvelope, OpTxType};
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use op_revm::OpSpecId;
 use revm::context::BlockEnv;
@@ -49,6 +53,12 @@ where
     Evm: EvmFactory<Spec = OpSpecId, BlockEnv = BlockEnv> + Send + Sync + Debug + Clone + 'static,
     <Evm as EvmFactory>::Tx:
         FromTxWithEncoded<OpTxEnvelope> + FromRecoveredTx<OpTxEnvelope> + OpTxEnv,
+    OpBlockExecutorFactory<OpAlloyReceiptBuilder, RollupConfig, Evm>: for<'b> BlockExecutorFactory<
+            EvmFactory = Evm,
+            ExecutionCtx<'b> = OpBlockExecutionCtx,
+            Transaction = OpTxEnvelope,
+            Receipt = OpReceiptEnvelope,
+        >,
 {
     /// Creates a new [`SuperchainConsolidator`] with the given providers and [Header]s.
     ///
@@ -81,8 +91,13 @@ where
                     info!(target: "superchain_consolidator", "Superchain consolidation complete");
                     return Ok(());
                 }
-                Err(ConsolidationError::MessageGraph(MessageGraphError::InvalidMessages(_))) => {
-                    // If invalid messages are still present in the graph, continue the loop.
+                Err(ConsolidationError::MessageGraph(
+                    MessageGraphError::InvalidMessages(_) |
+                    MessageGraphError::CyclicDependency { .. },
+                )) => {
+                    // If invalid messages or cyclic dependencies are found, continue the loop.
+                    // The affected chains have been replaced with deposit-only blocks by
+                    // consolidate_once, so the next iteration will exclude them.
                 }
                 Err(e) => {
                     error!(target: "superchain_consolidator", "Error consolidating superchain: {:?}", e);
@@ -118,16 +133,25 @@ where
             &heads_to_check,
             &self.interop_provider,
             &self.boot_info.rollup_configs,
+            &self.boot_info.dependency_set,
             self.boot_info.dependency_set.get_message_expiry_window(),
         )
         .await?;
 
-        // Attempt to resolve the message graph. If there were any invalid messages found, we must
-        // initiate a re-execution of the original block, with only deposit transactions.
-        if let Err(MessageGraphError::InvalidMessages(invalid_chains)) = graph.resolve().await {
-            self.re_execute_deposit_only(&invalid_chains.keys().copied().collect::<Vec<_>>())
-                .await?;
-            return Err(MessageGraphError::InvalidMessages(invalid_chains).into());
+        // Attempt to resolve the message graph. If there were any invalid messages or cyclic
+        // dependencies found, re-execute the affected chains with deposit-only transactions.
+        match graph.resolve().await {
+            Err(MessageGraphError::InvalidMessages(invalid_chains)) => {
+                self.re_execute_deposit_only(&invalid_chains.keys().copied().collect::<Vec<_>>())
+                    .await?;
+                return Err(MessageGraphError::InvalidMessages(invalid_chains).into());
+            }
+            Err(MessageGraphError::CyclicDependency { chain_ids }) => {
+                self.re_execute_deposit_only(&chain_ids).await?;
+                return Err(MessageGraphError::CyclicDependency { chain_ids }.into());
+            }
+            Err(e) => return Err(e.into()),
+            Ok(()) => {}
         }
 
         Ok(())
@@ -178,11 +202,8 @@ where
             else {
                 return Err(ConsolidationError::InvalidPreStateVariant);
             };
-            let original_optimistic_block = transition_state
-                .pending_progress
-                .iter_mut()
-                .find(|block| block.block_hash == header.hash())
-                .ok_or(MessageGraphError::EmptyDependencySet)?;
+            let original_optimistic_block =
+                pending_block_for_chain(transition_state, *chain_id, header.hash())?;
 
             // Filter out all transactions that are not deposits.
             let transactions = transactions
@@ -199,6 +220,7 @@ where
                     withdrawals: Default::default(),
                     parent_beacon_block_root: header.parent_beacon_block_root,
                     slot_number: Default::default(),
+                    target_gas_limit: None,
                 },
                 transactions: Some(transactions),
                 no_tx_pool: Some(true),
@@ -237,6 +259,7 @@ where
             let mut executor = StatelessL2Builder::new(
                 rollup_config,
                 self.evm_factory.clone(),
+                OpAlloyReceiptBuilder::default(),
                 l2_provider.clone(),
                 l2_provider.clone(),
                 parent_header.seal_slow(),
@@ -259,6 +282,34 @@ where
     }
 }
 
+/// Returns the pending block positionally associated with `chain_id`, after verifying that it
+/// matches the chain-keyed local-safe header.
+fn pending_block_for_chain(
+    transition_state: &mut TransitionState,
+    chain_id: u64,
+    expected_block_hash: B256,
+) -> Result<&mut OptimisticBlock, ConsolidationError> {
+    let pending_block = transition_state
+        .pre_state
+        .output_roots
+        .iter()
+        .zip(transition_state.pending_progress.iter_mut())
+        .find_map(|(pre_state_output, pending_block)| {
+            (pre_state_output.chain_id == chain_id).then_some(pending_block)
+        })
+        .ok_or(ConsolidationError::MissingPendingBlock(chain_id))?;
+
+    if pending_block.block_hash != expected_block_hash {
+        return Err(ConsolidationError::PendingBlockHashMismatch {
+            chain_id,
+            expected: expected_block_hash,
+            actual: pending_block.block_hash,
+        });
+    }
+
+    Ok(pending_block)
+}
+
 /// An error type for the [`SuperchainConsolidator`] struct.
 #[derive(Debug, Error)]
 pub enum ConsolidationError {
@@ -271,6 +322,21 @@ pub enum ConsolidationError {
     /// Missing a local L2 chain provider.
     #[error("Missing local L2 chain provider for chain ID {0}")]
     MissingLocalProvider(u64),
+    /// Missing pending progress for a chain.
+    #[error("Missing pending progress for chain ID {0}")]
+    MissingPendingBlock(u64),
+    /// The positionally associated pending block does not match the chain-keyed local-safe header.
+    #[error(
+        "Pending block hash {actual} for chain ID {chain_id} does not match local-safe block {expected}"
+    )]
+    PendingBlockHashMismatch {
+        /// Chain ID of the pending block.
+        chain_id: u64,
+        /// Block hash from the chain-keyed local-safe header.
+        expected: B256,
+        /// Block hash from the positionally associated pending progress.
+        actual: B256,
+    },
     /// An error occurred during consolidation.
     #[error(transparent)]
     MessageGraph(#[from] MessageGraphError<OracleProviderError>),
@@ -280,4 +346,98 @@ pub enum ConsolidationError {
     /// An error occurred during RLP decoding.
     #[error(transparent)]
     OracleProvider(#[from] OracleProviderError),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::TRANSITION_STATE_MAX_STEPS;
+    use alloy_primitives::B256;
+    use kona_interop::{OutputRootWithChain, SuperRoot};
+
+    #[test]
+    fn pending_block_selection_uses_chain_position_when_hashes_match() {
+        let shared_block_hash = B256::from([0x11; 32]);
+        let first_output_root = B256::from([0x21; 32]);
+        let second_output_root = B256::from([0x22; 32]);
+        let replacement_output_root = B256::from([0x33; 32]);
+        let mut transition_state = TransitionState::new(
+            SuperRoot::new(
+                100,
+                alloc::vec![
+                    OutputRootWithChain::new(10, B256::from([0x01; 32])),
+                    OutputRootWithChain::new(20, B256::from([0x02; 32])),
+                ],
+            ),
+            alloc::vec![
+                OptimisticBlock::new(shared_block_hash, first_output_root),
+                OptimisticBlock::new(shared_block_hash, second_output_root),
+            ],
+            TRANSITION_STATE_MAX_STEPS,
+        );
+
+        let selected =
+            pending_block_for_chain(&mut transition_state, 20, shared_block_hash).unwrap();
+        selected.output_root = replacement_output_root;
+
+        assert_eq!(transition_state.pending_progress[0].output_root, first_output_root);
+        assert_eq!(transition_state.pending_progress[1].output_root, replacement_output_root);
+    }
+
+    #[test]
+    fn pending_block_selection_rejects_header_hash_mismatch() {
+        let pending_block_hash = B256::from([0x11; 32]);
+        let local_safe_block_hash = B256::from([0x22; 32]);
+        let mut transition_state = TransitionState::new(
+            SuperRoot::new(100, alloc::vec![OutputRootWithChain::new(10, B256::from([0x01; 32]))]),
+            alloc::vec![OptimisticBlock::new(pending_block_hash, B256::from([0x02; 32]))],
+            TRANSITION_STATE_MAX_STEPS,
+        );
+
+        let err =
+            pending_block_for_chain(&mut transition_state, 10, local_safe_block_hash).unwrap_err();
+
+        assert!(matches!(
+            err,
+            ConsolidationError::PendingBlockHashMismatch {
+                chain_id: 10,
+                expected,
+                actual,
+            } if expected == local_safe_block_hash && actual == pending_block_hash
+        ));
+    }
+
+    #[test]
+    fn pending_block_selection_rejects_missing_chain() {
+        let block_hash = B256::from([0x11; 32]);
+        let mut transition_state = TransitionState::new(
+            SuperRoot::new(100, alloc::vec![OutputRootWithChain::new(10, B256::from([0x01; 32]))]),
+            alloc::vec![OptimisticBlock::new(block_hash, B256::from([0x02; 32]))],
+            TRANSITION_STATE_MAX_STEPS,
+        );
+
+        let err = pending_block_for_chain(&mut transition_state, 20, block_hash).unwrap_err();
+
+        assert!(matches!(err, ConsolidationError::MissingPendingBlock(20)));
+    }
+
+    #[test]
+    fn pending_block_selection_rejects_truncated_pending_progress() {
+        let block_hash = B256::from([0x11; 32]);
+        let mut transition_state = TransitionState::new(
+            SuperRoot::new(
+                100,
+                alloc::vec![
+                    OutputRootWithChain::new(10, B256::from([0x01; 32])),
+                    OutputRootWithChain::new(20, B256::from([0x02; 32])),
+                ],
+            ),
+            alloc::vec![OptimisticBlock::new(block_hash, B256::from([0x03; 32]))],
+            TRANSITION_STATE_MAX_STEPS,
+        );
+
+        let err = pending_block_for_chain(&mut transition_state, 20, block_hash).unwrap_err();
+
+        assert!(matches!(err, ConsolidationError::MissingPendingBlock(20)));
+    }
 }

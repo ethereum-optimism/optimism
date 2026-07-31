@@ -16,8 +16,8 @@ import (
 )
 
 type mockCC struct {
-	status      *eth.SyncStatus
-	verifierL1s []eth.BlockID
+	status     *eth.SyncStatus
+	verifierL1 *eth.BlockID
 
 	verifiedErr   error
 	outputErr     error
@@ -29,10 +29,16 @@ func (m *mockCC) Stop(ctx context.Context) error           { return nil }
 func (m *mockCC) Pause(ctx context.Context) error          { return nil }
 func (m *mockCC) Resume(ctx context.Context) error         { return nil }
 func (m *mockCC) PauseAndStopVN(ctx context.Context) error { return nil }
+func (m *mockCC) ELFinalizedHead(ctx context.Context) (eth.L2BlockRef, error) {
+	return eth.L2BlockRef{}, nil
+}
 
 func (m *mockCC) RegisterVerifier(v activity.VerificationActivity) {}
-func (m *mockCC) VerifierCurrentL1s() []eth.BlockID {
-	return m.verifierL1s
+func (m *mockCC) VerifierCurrentL1() (eth.BlockID, bool) {
+	if m.verifierL1 == nil {
+		return eth.BlockID{}, false
+	}
+	return *m.verifierL1, true
 }
 
 func (m *mockCC) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
@@ -57,18 +63,11 @@ func (m *mockCC) L1AtSafeHead(ctx context.Context, l2 eth.BlockID) (eth.BlockID,
 	return eth.BlockID{}, nil
 }
 
-func (m *mockCC) VerifiedAt(ctx context.Context, ts uint64) (eth.BlockID, eth.BlockID, error) {
-	if m.verifiedErr != nil {
-		return eth.BlockID{}, eth.BlockID{}, m.verifiedErr
-	}
-	return eth.BlockID{}, eth.BlockID{}, nil
-}
-
 func (m *mockCC) OptimisticAt(ctx context.Context, ts uint64) (eth.BlockID, eth.BlockID, error) {
 	return eth.BlockID{}, eth.BlockID{}, nil
 }
 
-func (m *mockCC) OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error) {
+func (m *mockCC) OutputRootAtL2BlockHash(ctx context.Context, blockHash common.Hash) (eth.Bytes32, error) {
 	if m.outputErr != nil {
 		return eth.Bytes32{}, m.outputErr
 	}
@@ -79,10 +78,6 @@ func (m *mockCC) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*e
 	return &eth.OutputV0{}, nil
 }
 
-func (m *mockCC) RewindEngine(ctx context.Context, timestamp uint64, invalidatedBlock eth.BlockRef) error {
-	return nil
-}
-
 func (m *mockCC) L1ForL2(ctx context.Context, l2Block eth.BlockID) (eth.BlockID, error) {
 	return eth.BlockID{}, nil
 }
@@ -91,15 +86,20 @@ func (m *mockCC) FetchReceipts(ctx context.Context, blockID eth.BlockID) (eth.Bl
 	return nil, nil, nil
 }
 
+func (m *mockCC) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
+	return nil, nil
+}
+
+func (m *mockCC) PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error) {
+	return nil, nil
+}
+
 func (m *mockCC) ID() eth.ChainID {
 	return eth.ChainIDFromUInt64(10)
 }
 
 func (m *mockCC) BlockTime() uint64 { return 1 }
 
-func (m *mockCC) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32) (bool, error) {
-	return false, nil
-}
 func (m *mockCC) OutputV0AtBlockNumber(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error) {
 	return &eth.OutputV0{}, nil
 }
@@ -116,6 +116,18 @@ func (m *mockCC) PruneDeniedAtOrAfterTimestamp(timestamp uint64) (map[uint64][]c
 }
 
 func (m *mockCC) SetResetCallback(cb cc.ResetCallback) {}
+
+func (m *mockCC) TimestampToBlockNumber(ctx context.Context, ts uint64) (uint64, error) {
+	return ts, nil
+}
+
+func (m *mockCC) BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (uint64, error) {
+	return 0, nil
+}
+
+func (m *mockCC) FirstSafeHeadTimestamp(ctx context.Context) (uint64, error) {
+	return 0, cc.ErrSafeDBNotReady
+}
 
 var _ cc.ChainContainer = (*mockCC)(nil)
 
@@ -196,18 +208,13 @@ func TestSupernode_SyncStatus_UsesMinimumVerifierCurrentL1(t *testing.T) {
 			status: &eth.SyncStatus{
 				CurrentL1: eth.L1BlockRef{Number: 200, Hash: common.Hash{0x11}},
 			},
-			verifierL1s: []eth.BlockID{
-				{Number: 150, Hash: common.Hash{0x33}},
-				{Number: 175, Hash: common.Hash{0x44}},
-			},
+			verifierL1: &eth.BlockID{Number: 150, Hash: common.Hash{0x33}},
 		},
 		eth.ChainIDFromUInt64(11): &mockCC{
 			status: &eth.SyncStatus{
 				CurrentL1: eth.L1BlockRef{Number: 180, Hash: common.Hash{0x22}},
 			},
-			verifierL1s: []eth.BlockID{
-				{Number: 190, Hash: common.Hash{0x55}},
-			},
+			verifierL1: &eth.BlockID{Number: 190, Hash: common.Hash{0x55}},
 		},
 	}
 	s := New(gethlog.New(), chains)

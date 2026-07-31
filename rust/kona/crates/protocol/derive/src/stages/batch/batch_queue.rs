@@ -484,7 +484,7 @@ mod tests {
         let file_contents = &(&*file_contents)[..file_contents.len() - 1];
         let data = alloy_primitives::hex::decode(file_contents).unwrap();
         let bytes: alloy_primitives::Bytes = data.into();
-        BatchReader::new(bytes, MAX_RLP_BYTES_PER_CHANNEL_FJORD as usize)
+        BatchReader::new(bytes, MAX_RLP_BYTES_PER_CHANNEL_FJORD as usize, 0)
     }
 
     #[test]

@@ -55,10 +55,10 @@ error BondTransferFailed();
 /// @notice Thrown when the value of the exited boolean is not 0 or 1.
 error InvalidExitedValue();
 
-/// @notice Thrown when reading an invalid memory
+/// @notice Thrown when reading an invalid memory proof.
 error InvalidMemoryProof();
 
-/// @notice Thrown when the second memory location is invalid
+/// @notice Thrown when the second memory location is invalid.
 error InvalidSecondMemoryProof();
 
 /// @notice Thrown when an RMW instruction is expected, but a different instruction is provided.

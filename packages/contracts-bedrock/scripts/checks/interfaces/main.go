@@ -21,9 +21,6 @@ var excludeContracts = []string{
 	"ERC777TokensRecipient", "Guard", "IProxy", "Vm", "VmSafe", "IMulticall3",
 	"IERC721TokenReceiver", "IProxyCreationCallback", "IBeacon", "IEIP712",
 
-	// Generic interfaces
-	"IHasSuperchainConfig",
-
 	// EAS
 	"IEAS", "ISchemaResolver", "ISchemaRegistry",
 
@@ -50,7 +47,7 @@ var excludeSourceContracts = []string{
 	"TransferOnion", "AssetReceiver", "AdminFaucetAuthModule", "CheckSecrets", "CheckBalanceLow", "CheckTrue", "Drippie", "Transactor", "Faucet",
 
 	// OPCM sub-contracts that don't have their own interfaces
-	"OPContractsManagerStandardValidator",
+	"OPContractsManagerStandardValidator", "OPContractsManagerUtilsCaller",
 
 	// FIXME
 	"WETH", "MIPS64",

@@ -2,37 +2,40 @@ package msg
 
 import (
 	"testing"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/stretchr/testify/require"
 )
 
-// TestInteropSystemSupervisor tests that the supervisor can provide finalized L1 block information
-func TestInteropSystemSupervisor(gt *testing.T) {
-	gt.Skip("Skipping Interop Acceptance Test")
+// TestInteropSystemSupernode tests that the supernode's CL nodes track finalized L1 block information
+func TestInteropSystemSupernode(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewSimpleInterop(t)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 
 	// First ensure L1 network is online and has blocks
-	t.Log("Waiting for L1 network to be online...")
 	sys.L1Network.WaitForOnline()
-	t.Log("L1 network is online")
-
-	t.Log("Waiting for initial L1 block...")
 	initialBlock := sys.L1Network.WaitForBlock()
-	t.Log("Got initial L1 block", "block", initialBlock)
+	t.Logger().Info("Got initial L1 block", "block", initialBlock)
 
-	// Wait for finalization (this may take some time)
-	t.Log("Waiting for L1 block finalization...")
+	// Wait for L1 finalization
 	finalizedBlock := sys.L1Network.WaitForFinalization()
-	t.Log("L1 block finalized", "block", finalizedBlock)
+	t.Logger().Info("L1 block finalized", "block", finalizedBlock)
 
-	// Get the finalized L1 block from the supervisor
-	t.Log("Querying supervisor for finalized L1 block...")
-	block, err := sys.Supervisor.Escape().QueryAPI().FinalizedL1(t.Ctx())
-	t.Require().NoError(err, "Failed to get finalized block from supervisor")
+	// Wait for each CL node to observe the finalized L1 block.
+	// The CL may lag behind the L1 EL, so poll until it catches up.
+	require.Eventually(t, func() bool {
+		ss := sys.L2ACL.SyncStatus()
+		return ss.FinalizedL1.Number >= finalizedBlock.Number
+	}, 30*time.Second, 2*time.Second,
+		"Chain A CL should observe finalized L1 block %d", finalizedBlock.Number)
+	t.Logger().Info("Chain A finalized L1", "block", sys.L2ACL.SyncStatus().FinalizedL1)
 
-	// If we get here, the supervisor has finalized L1 block information
-	t.Require().NotNil(block, "Supervisor returned nil finalized block")
-	t.Log("Successfully got finalized L1 block from supervisor", "block", block)
+	require.Eventually(t, func() bool {
+		ss := sys.L2BCL.SyncStatus()
+		return ss.FinalizedL1.Number >= finalizedBlock.Number
+	}, 30*time.Second, 2*time.Second,
+		"Chain B CL should observe finalized L1 block %d", finalizedBlock.Number)
+	t.Logger().Info("Chain B finalized L1", "block", sys.L2BCL.SyncStatus().FinalizedL1)
 }

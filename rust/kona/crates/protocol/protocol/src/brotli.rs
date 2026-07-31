@@ -2,7 +2,7 @@
 
 use alloc::{vec, vec::Vec};
 use alloc_no_stdlib::*;
-use brotli::{BrotliResult, *};
+use brotli_decompressor::{BrotliResult, *};
 use core::ops;
 
 /// A brotli decompression error.
@@ -14,7 +14,7 @@ pub enum BrotliDecompressionError {
 }
 
 /// Decompresses the given bytes data using the Brotli decompressor implemented
-/// in the [`brotli`](https://crates.io/crates/brotli) crate.
+/// in the [`brotli-decompressor`](https://crates.io/crates/brotli-decompressor) crate.
 #[allow(clippy::large_stack_frames)]
 pub fn decompress_brotli(
     data: &[u8],
@@ -44,7 +44,7 @@ pub fn decompress_brotli(
     // Per spec, if decompressed data exceeds the limit, the output is truncated
     // to max_rlp_bytes_per_channel bytes (not rejected).
     loop {
-        let result = brotli::BrotliDecompressStream(
+        let result = brotli_decompressor::BrotliDecompressStream(
             &mut available_in,
             &mut input_offset,
             data,
@@ -56,12 +56,21 @@ pub fn decompress_brotli(
         );
         let old_len = output.len();
 
+        // `NeedsMoreOutput` means the buffer is full (`available_out == 0`).
+        // `NeedsMoreInput` is normally raised when input is exhausted while
+        // there's still output space — but when `available_in` and
+        // `available_out` both reach 0 in the same call, brotli returns
+        // `NeedsMoreInput` with priority, even though it could produce more
+        // output given more buffer space. Treat both cases identically: at the
+        // size cap, stop (spec truncation); otherwise grow the buffer and
+        // continue.
         match result {
-            // Buffer was already grown to the limit on a previous iteration, but the decompressor
-            // filled it and still has more to produce: stop per spec.
-            BrotliResult::NeedsMoreOutput if old_len >= max_rlp_bytes_per_channel => break,
-            // Enlarge output buffer to continue decompression.
-            BrotliResult::NeedsMoreOutput => {
+            BrotliResult::NeedsMoreOutput | BrotliResult::NeedsMoreInput
+                if available_out == 0 && old_len >= max_rlp_bytes_per_channel =>
+            {
+                break;
+            }
+            BrotliResult::NeedsMoreOutput | BrotliResult::NeedsMoreInput if available_out == 0 => {
                 let new_len = core::cmp::min((old_len * 2).max(1), max_rlp_bytes_per_channel);
                 output.resize(new_len, 0);
                 available_out += new_len - old_len;
@@ -70,8 +79,8 @@ pub fn decompress_brotli(
             _ if written == 0 => {
                 return Err(BrotliDecompressionError::DecompressionFailed(result));
             }
-            // Success, NeedsMoreInput or ResultFailure with some output written: return partial
-            // data.
+            // Success, NeedsMoreInput with output space remaining, or
+            // ResultFailure with some bytes written: return what we have.
             _ => break,
         }
     }
@@ -133,6 +142,66 @@ mod test {
     }
 
     #[test]
+    fn test_decompress_truncated_matches_streaming_reader() {
+        // Regression test for a buffer-exhaustion bug where `decompress_brotli`
+        // returned fewer output bytes than the underlying brotli decoder could
+        // produce.
+        //
+        // When `available_in` and `available_out` reach 0 in the same iteration,
+        // `BrotliDecompressStream` returns `NeedsMoreInput` (priority over
+        // `NeedsMoreOutput`). The previous loop treated that as "done" without
+        // first growing the output buffer, so brotli never got a chance to flush
+        // bytes it could have produced from internal state. Go's
+        // `brotli.NewReader` doesn't have this issue (its own bufio indirection
+        // re-reads and provides more output space on the next call), so the bug
+        // manifested as a Go vs Rust derivation divergence on truncated brotli
+        // channels.
+        //
+        // Compare kona's output to the brotli crate's high-level Reader API on a
+        // truncated stream: the byte counts must match.
+        use std::io::Read;
+
+        let data: Vec<u8> = (0..2000).map(|i| ((i * 7) % 256) as u8).collect();
+        let compressed = {
+            let params = brotli::enc::BrotliEncoderParams::default();
+            let mut output = alloc::vec::Vec::new();
+            let mut input = &data[..];
+            brotli::BrotliCompress(&mut input, &mut output, &params).unwrap();
+            output
+        };
+        assert!(compressed.len() < data.len(), "brotli should compress this");
+
+        // Sweep truncations across the compressed stream. The bug only fires when
+        // brotli's output fills the (input-sized) initial buffer at the moment
+        // input is exhausted, so we need to try multiple offsets to find one
+        // that triggers it.
+        let mut any_partial = false;
+        for trunc_len in (1..compressed.len()).step_by(3) {
+            let truncated = &compressed[..trunc_len];
+
+            // Reference: the brotli crate's high-level Reader on the same input.
+            // It writes partial bytes to the output Vec even when it ultimately
+            // surfaces an error — that's the canonical "streaming decoder"
+            // output, matching Go's brotli.NewReader byte-for-byte.
+            let mut reader_out = alloc::vec::Vec::new();
+            let mut reader = brotli::Decompressor::new(truncated, 4096);
+            let _ = reader.read_to_end(&mut reader_out);
+
+            let kona_out = decompress_brotli(truncated, MAX_RLP_BYTES_PER_CHANNEL_FJORD as usize)
+                .unwrap_or_default();
+
+            if !reader_out.is_empty() {
+                any_partial = true;
+            }
+            assert_eq!(
+                kona_out, reader_out,
+                "decompress_brotli must match the streaming Reader at truncation len {trunc_len}",
+            );
+        }
+        assert!(any_partial, "test fixture should produce at least one non-empty partial decode");
+    }
+
+    #[test]
     fn test_brotli_buffer_doubling_regression() {
         // Regression test for the buffer-doubling bug: the old code doubled the
         // output buffer and rejected if the doubled size exceeded the limit,
@@ -159,5 +228,58 @@ mod test {
         let result = decompress_brotli(&compressed, data.len() + 1);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), data);
+    }
+
+    #[test]
+    fn test_brotli_rejects_padding_2_corruption() {
+        // Regression test for a consensus-divergence vector fixed upstream in
+        // brotli-decompressor v5.0.1 (dropbox/rust-brotli-decompressor#44).
+        //
+        // RFC 7932 §9.2 requires the unused bits in the final byte of a brotli
+        // stream to be zero. A missing `break` in the decoder's
+        // BROTLI_STATE_METABLOCK_DONE arm let the resulting PADDING_2 error fall
+        // through into BROTLI_STATE_DONE, where WriteRingBuffer overwrote it with
+        // SUCCESS — so corrupt streams decoded as `Ok` with the (uncorrupted)
+        // plaintext. The C reference (libbrotlidec) and Go (andybalholm/brotli,
+        // used by op-node) both reject these as PADDING_2, so the buggy Rust
+        // behavior was a Go vs Rust derivation divergence: op-node rejects the
+        // channel while kona would have accepted it.
+        //
+        // With the fix the decoder returns `ResultFailure` with zero bytes
+        // written, which `decompress_brotli` surfaces as an error. The vectors
+        // below are the same ones used by the upstream test in #44.
+
+        // Valid encoding of "the quick brown fox jumps over the lazy dog twice
+        // for redundancy and length" produced by libbrotlidec at quality 5.
+        let valid: &[u8] = &[
+            0x1b, 0x4a, 0x00, 0x00, 0xc4, 0xf4, 0xa4, 0x69, 0xbd, 0x79, 0x25, 0x2d, 0x22, 0xb4,
+            0x52, 0xea, 0x83, 0x0d, 0x38, 0x70, 0x68, 0xb2, 0x71, 0xc0, 0x41, 0x76, 0x1e, 0x36,
+            0xc6, 0xce, 0x13, 0x84, 0xe8, 0x36, 0xf2, 0x2a, 0x0c, 0xe7, 0x89, 0x68, 0x7a, 0x04,
+            0x49, 0x2f, 0xaa, 0xf7, 0x31, 0xa1, 0x9b, 0x0d, 0x48, 0xb7, 0xf0, 0x1f, 0x48, 0x33,
+            0x42, 0xa5, 0x9c, 0x31, 0x26, 0x97, 0xa9, 0xc6, 0xbe, 0x67, 0x85, 0x52, 0x02,
+        ];
+        let limit = MAX_RLP_BYTES_PER_CHANNEL_FJORD as usize;
+
+        // Sanity: the unmodified stream decodes successfully.
+        let decompressed = decompress_brotli(valid, limit).expect("valid stream must decode");
+        assert_eq!(
+            decompressed,
+            b"the quick brown fox jumps over the lazy dog twice for redundancy and length",
+        );
+
+        // Each bit flip drives the decoder into an end-of-stream state that
+        // violates the RFC 7932 §9.2 byte-alignment padding rule. A
+        // spec-conformant decoder must reject all of them; v5.0.0 accepted them.
+        for &(offset, xor) in &[(13usize, 0x01u8), (23, 0x01), (33, 0x55)] {
+            let mut corrupt = valid.to_vec();
+            corrupt[offset] ^= xor;
+
+            let result = decompress_brotli(&corrupt, limit);
+            assert!(
+                matches!(result, Err(BrotliDecompressionError::DecompressionFailed(_))),
+                "padding-bit corruption at offset {offset} xor {xor:#x} must be rejected, \
+                 got {result:?}",
+            );
+        }
     }
 }

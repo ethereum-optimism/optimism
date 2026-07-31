@@ -19,6 +19,9 @@ pub struct OpTransactionReceipt {
     /// L1 block info of the transaction.
     #[serde(flatten)]
     pub l1_block_info: L1BlockInfo,
+    /// Per-transaction gas refund from post-exec block-level warming.
+    #[serde(default, skip_serializing_if = "Option::is_none", with = "alloy_serde::quantity::opt")]
+    pub op_gas_refund: Option<u64>,
 }
 
 impl alloy_network_primitives::ReceiptResponse for OpTransactionReceipt {
@@ -87,6 +90,9 @@ pub struct OpTransactionReceiptFields {
     /// L1 block info.
     #[serde(flatten)]
     pub l1_block_info: L1BlockInfo,
+    /// Per-transaction gas refund from post-exec block-level warming.
+    #[serde(default, skip_serializing_if = "Option::is_none", with = "alloy_serde::quantity::opt")]
+    pub op_gas_refund: Option<u64>,
     /* --------------------------------------- Regolith --------------------------------------- */
     /// Deposit nonce for deposit transactions.
     ///
@@ -229,6 +235,9 @@ impl From<OpTransactionReceipt> for OpReceiptEnvelope<alloy_primitives::Log> {
             OpReceiptEnvelope::Eip2930(receipt) => Self::Eip2930(convert_standard_receipt(receipt)),
             OpReceiptEnvelope::Eip1559(receipt) => Self::Eip1559(convert_standard_receipt(receipt)),
             OpReceiptEnvelope::Eip7702(receipt) => Self::Eip7702(convert_standard_receipt(receipt)),
+            OpReceiptEnvelope::PostExec(receipt) => {
+                Self::PostExec(convert_standard_receipt(receipt))
+            }
             OpReceiptEnvelope::Deposit(OpDepositReceiptWithBloom { logs_bloom, receipt }) => {
                 let consensus_logs = receipt.inner.logs.into_iter().map(|log| log.inner).collect();
                 let consensus_receipt = OpDepositReceiptWithBloom {

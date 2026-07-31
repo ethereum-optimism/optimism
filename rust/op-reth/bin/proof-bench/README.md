@@ -17,7 +17,7 @@ This tool is part of the `op-reth` workspace. You can run it directly using Carg
 
 ```bash
 # Build and run directly
-cargo run -p reth-proof-bench -- --help
+cargo run -p op-reth-proof-bench -- --help
 ```
 
 ## Usage
@@ -27,7 +27,7 @@ cargo run -p reth-proof-bench -- --help
 Benchmark 100 blocks from block `10,000,000` to `10,000,100` against a local node:
 
 ```bash
-cargo run --release -p reth-proof-bench -- \
+cargo run --release -p op-reth-proof-bench -- \
   --rpc http://localhost:8545 \
   --from 10000000 \
   --to 10000100
@@ -38,7 +38,7 @@ cargo run --release -p reth-proof-bench -- \
 Stress test a remote node with higher concurrency:
 
 ```bash
-cargo run --release -p reth-proof-bench -- \
+cargo run --release -p op-reth-proof-bench -- \
   --rpc http://remote-node:8545 \
   --from 4000000 \
   --to 4100000 \

@@ -23,11 +23,12 @@ type L1BeaconEndpointSetup interface {
 }
 
 type L1BeaconEndpointConfig struct {
-	BeaconAddr             string   // Address of L1 User Beacon-API endpoint to use (beacon namespace required)
-	BeaconHeader           string   // Optional HTTP header for all requests to L1 Beacon
-	BeaconFallbackAddrs    []string // Addresses of L1 Beacon-API fallback endpoints (only for blob sidecars retrieval)
-	BeaconCheckIgnore      bool     // When false, halt startup if the beacon version endpoint fails
-	BeaconFetchAllSidecars bool     // Whether to fetch all blob sidecars and filter locally
+	BeaconAddr                 string   // Address of L1 User Beacon-API endpoint to use (beacon namespace required)
+	BeaconHeader               string   // Optional HTTP header for all requests to L1 Beacon
+	BeaconFallbackAddrs        []string // Addresses of L1 Beacon-API fallback endpoints (only for blob sidecars retrieval)
+	BeaconCheckIgnore          bool     // When false, halt startup if the beacon version endpoint fails
+	BeaconFetchAllSidecars     bool     // Whether to fetch all blob sidecars and filter locally
+	BeaconSlotDurationOverride uint64   // When non-zero, bypasses the beacon /eth/v1/config/spec fetch and uses this value as SECONDS_PER_SLOT
 }
 
 var _ L1BeaconEndpointSetup = (*L1BeaconEndpointConfig)(nil)
@@ -42,13 +43,18 @@ func (cfg *L1BeaconEndpointConfig) Setup(ctx context.Context, log log.Logger) (c
 		opts = append(opts, client.WithHeader(hdr))
 	}
 
+	var beaconOpts []sources.BeaconHTTPClientOption
+	if cfg.BeaconSlotDurationOverride != 0 {
+		beaconOpts = append(beaconOpts, sources.WithSlotDurationOverride(cfg.BeaconSlotDurationOverride))
+	}
+
 	for _, addr := range cfg.BeaconFallbackAddrs {
 		b := client.NewBasicHTTPClient(addr, log)
-		fb = append(fb, sources.NewBeaconHTTPClient(b))
+		fb = append(fb, sources.NewBeaconHTTPClient(b, beaconOpts...))
 	}
 
 	a := client.NewBasicHTTPClient(cfg.BeaconAddr, log, opts...)
-	return sources.NewBeaconHTTPClient(a), fb, nil
+	return sources.NewBeaconHTTPClient(a, beaconOpts...), fb, nil
 }
 
 func (cfg *L1BeaconEndpointConfig) Check() error {

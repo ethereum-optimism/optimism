@@ -39,6 +39,7 @@ thiserror.workspace = true
 reth-optimism-chainspec.workspace = true
 
 [dev-dependencies]
+reth-optimism-chainspec = { workspace = true, features = ["superchain-configs"] }
 reth-provider = { workspace = true, features = ["test-utils"] }
 reth-db-common.workspace = true
 reth-revm.workspace = true

@@ -59,6 +59,10 @@ func (c *Claim) Claimant() common.Address {
 	return c.claim.Claimant
 }
 
+func (c *Claim) CounteredBy() common.Address {
+	return c.game.claimAtIndex(c.Index).CounteredBy
+}
+
 func (c *Claim) Depth() types.Depth {
 	return c.claim.Depth()
 }

@@ -1,0 +1,99 @@
+---
+title: Learn track syllabus
+description: The governance artifact for the "Learn the OP Stack" track, including its scope contract, curriculum owner, stop list with rationale, design rules, and changelog.
+diataxis: reference
+---
+
+This page is the syllabus for the
+[Learn the OP Stack](/op-stack/learn/index) track: the maintainer-facing
+record of what the track covers, why each stop sits where it does, who owns
+the curriculum, and how the track changes. The reader-facing front door is
+the [track index](/op-stack/learn/index); this page exists so the track has
+an owner and a change history instead of drifting, following the MDN
+curriculum pattern of a published syllabus with its own changelog.
+
+## Scope contract
+
+The track takes a reader **from newcomer to comfortable**. A finisher has
+deployed a test chain, followed a transaction from submission to finality on
+Ethereum, moved assets in both directions between layers, and run a node,
+and knows where the deeper material lives. Exhaustive detail is out of
+scope by design: depth lives in the reference sections and the
+[OP Stack specifications](https://specs.optimism.io/), and the track exits
+to them.
+
+This sentence is the governance model. A proposed stop that adds depth
+rather than progression fails the scope test, however good the page is;
+route it through the "After the track" exits on the index instead.
+
+## Ownership
+
+*   **Curriculum owner:** Matthew Cruz
+    ([@sbvegan](https://github.com/sbvegan)).
+*   The owner arbitrates scope questions, reviews any change to the stop
+    list or its order, and is the named reviewer when the track index comes
+    up in the [curation sweep](/op-stack/contribute/curation-policy)
+    (learning-track indexes sweep on the 180-day interval).
+*   A syllabus change merged without the owner's review is reverted on
+    sight, not debated after the fact.
+
+## The syllabus
+
+Thirteen stops: three concept blocks punctuated by three hands-on projects,
+so each block of ideas is consolidated by using it. Stops are existing
+pages; the track adds only a framing note per stop, per the
+[learning unit contract](/op-stack/contribute/learning-unit).
+
+| Stop | Page | Kind | What it adds at this position |
+| ---- | ---- | ---- | ----------------------------- |
+| 1 | [The OP Stack](/op-stack/introduction/op-stack) | Concept | The mental model: what the stack is, what it powers, what you can build. |
+| 2 | [Design philosophy & principles](/op-stack/protocol/design-principles) | Concept | Why the stack is shaped the way it is; vocabulary the rest of the docs assume. |
+| 3 | [Differences from Ethereum](/op-stack/protocol/differences) | Concept | Grounds "EVM equivalent" before any hands-on work; prevents false transfer from Ethereum experience. |
+| 4 | [OP Stack components](/op-stack/protocol/components) | Concept | Names the layers and modules the learner is about to deploy in project 1. |
+| 5 | [Creating your own L2 rollup testnet](/chain-operators/tutorials/create-l2-rollup) | Project | Consolidates part 1: deploy a rollup testnet with op-deployer and start each component just named. |
+| 6 | [Transaction flow](/op-stack/transactions/transaction-flow) | Concept | Reinterprets the components the learner just ran as stages in one transaction's life. |
+| 7 | [Transaction fees on OP Mainnet](/op-stack/transactions/fees) | Concept | The fee components of a transaction; the economic consequence of the flow in stop 6. |
+| 8 | [Deposit flow](/op-stack/bridging/deposit-flow) | Concept | First direction of cross-layer movement: L1-triggered L2 transactions. |
+| 9 | [Withdrawal flow](/op-stack/bridging/withdrawal-flow) | Concept | Second direction: the initiate, prove, finalize sequence, and why it exists. |
+| 10 | [Submitting transactions from L1](/app-developers/tutorials/bridging/cross-dom-bridge-eth) | Project | Consolidates part 2: walk a deposit and a withdrawal from code with Viem. |
+| 11 | [Fault proofs explainer](/op-stack/fault-proofs/explainer) | Concept | Why the withdrawal the learner just proved can be trusted: permissionless proposals and challenges. |
+| 12 | [OP Stack interoperability explainer](/op-stack/interop/explainer) | Concept | Where the stack is going: a network of chains that feels like a single blockchain. |
+| 13 | [Running a node with Docker](/node-operators/tutorials/node-from-docker) | Capstone project | Ends the track operating real infrastructure: run a node on a live network with the official images. |
+
+## Design rules
+
+1.  **Stops are existing pages, never forks.** A stop that needs rewording
+    gets an issue filed against the page, not a track-local copy. The only
+    track-owned artifacts are the [index](/op-stack/learn/index), this
+    syllabus, and the framing notes.
+2.  **Framing notes follow the
+    [learning unit contract](/op-stack/contribute/learning-unit)** (framing
+    header form): track name, stop position, one sentence of arrival
+    context, one sentence of what the stop adds, link to the next stop.
+    Nothing else on the page changes.
+3.  **Cap: 15 stops.** Past that the track has stopped being linear and
+    started being a second navigation; split material into the "After the
+    track" exits instead.
+4.  **Projects are spaced, not appended.** Each concept block ends in a
+    hands-on stop that uses it (Rust Book cadence). A resequencing that
+    leaves two projects adjacent or a concept block unconsolidated needs
+    the owner's explicit sign-off.
+5.  **Resequencing procedure:** update the index, renumber every affected
+    framing note ("stop N of M"), verify every next-stop link, and add a
+    changelog entry below. Position lives only in framing notes and the
+    index, never in page titles, so stops can move without retitling.
+6.  **Every change lands with a changelog entry.** The changelog is the
+    curriculum's memory; an entry states what changed and why, one line
+    each.
+
+## Changelog
+
+| Date | Change |
+| ---- | ------ |
+| 2026-07-21 | Initial syllabus: 13 stops (three concept blocks, three projects: deploy a chain, bridge both directions, run a node). Curriculum owner: Matthew Cruz ([@sbvegan](https://github.com/sbvegan)). |
+
+## Next steps
+
+*   Reader-facing front door: [Learn the OP Stack](/op-stack/learn/index).
+*   Framing-note contract: [learning unit](/op-stack/contribute/learning-unit).
+*   Review cadence: [curation review policy](/op-stack/contribute/curation-policy).

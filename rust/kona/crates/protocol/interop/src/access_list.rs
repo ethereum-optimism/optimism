@@ -1,6 +1,6 @@
 use alloy_eips::eip2930::AccessListItem;
 use alloy_primitives::B256;
-use kona_protocol::Predeploys;
+use kona_genesis::Predeploys;
 
 /// Parses [`AccessListItem`]s to inbox entries.
 ///

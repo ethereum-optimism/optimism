@@ -1,8 +1,11 @@
 package presets
 
 import (
+	"time"
+
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -152,6 +155,27 @@ func WithGlobalL2CLOption(opt sysgo.L2CLOption) Option {
 	}
 }
 
+// WithSupernodeVerifierSyncMode overrides the supernode VN's sync mode.
+func WithSupernodeVerifierSyncMode(mode nodeSync.Mode) Option {
+	return option{
+		kinds: optionKindSupernodeVerifierSyncMode,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			m := mode
+			cfg.SupernodeVerifierSyncMode = &m
+		},
+	}
+}
+
+// WithInteropActivationDelay sets the Interop activation offset past genesis.
+func WithInteropActivationDelay(delaySeconds uint64) Option {
+	return option{
+		kinds: optionKindInteropActivationDelay,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.InteropActivationDelaySeconds = delaySeconds
+		},
+	}
+}
+
 func WithGlobalSyncTesterELOption(opt sysgo.SyncTesterELOption) Option {
 	var kinds optionKinds
 	if opt != nil {
@@ -194,6 +218,22 @@ func WithProposerOption(opt sysgo.ProposerOption) Option {
 	}
 }
 
+func WithZKProposerOption(opt sysgo.ZKProposerOption) Option {
+	var kinds optionKinds
+	if opt != nil {
+		kinds = optionKindZKProposer
+	}
+	return option{
+		kinds: kinds,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			if opt == nil {
+				return
+			}
+			cfg.ZKProposerOptions = append(cfg.ZKProposerOptions, opt)
+		},
+	}
+}
+
 func WithOPRBuilderOption(opt sysgo.OPRBuilderNodeOption) Option {
 	var kinds optionKinds
 	if opt != nil {
@@ -206,6 +246,22 @@ func WithOPRBuilderOption(opt sysgo.OPRBuilderNodeOption) Option {
 				return
 			}
 			cfg.OPRBuilderOptions = append(cfg.OPRBuilderOptions, opt)
+		},
+	}
+}
+
+func WithOpRethOption(opt sysgo.OpRethOption) Option {
+	var kinds optionKinds
+	if opt != nil {
+		kinds = optionKindOpReth
+	}
+	return option{
+		kinds: kinds,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			if opt == nil {
+				return
+			}
+			cfg.OpRethOptions = append(cfg.OpRethOptions, opt)
 		},
 	}
 }
@@ -224,25 +280,6 @@ func WithRespectedGameTypeOverride(gameType gameTypes.GameType) Option {
 		kinds: optionKindRespectedGameType,
 		applyFn: func(cfg *sysgo.PresetConfig) {
 			cfg.RespectedGameTypes = append(cfg.RespectedGameTypes, gameType)
-		},
-	}
-}
-
-func WithCannonKonaGameTypeAdded() Option {
-	return option{
-		kinds: optionKindAddedGameType | optionKindChallengerCannonKona,
-		applyFn: func(cfg *sysgo.PresetConfig) {
-			cfg.EnableCannonKonaForChall = true
-			cfg.AddedGameTypes = append(cfg.AddedGameTypes, gameTypes.CannonKonaGameType)
-		},
-	}
-}
-
-func WithChallengerCannonKonaEnabled() Option {
-	return option{
-		kinds: optionKindChallengerCannonKona,
-		applyFn: func(cfg *sysgo.PresetConfig) {
-			cfg.EnableCannonKonaForChall = true
 		},
 	}
 }
@@ -266,6 +303,17 @@ func WithMaxSequencingWindow(max uint64) Option {
 	}
 }
 
+// WithInteropFilter enables the in-process op-interop-filter for EL transaction
+// validation. Only supported on supernode interop presets.
+func WithInteropFilter() Option {
+	return option{
+		kinds: optionKindInteropFilter,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.UseInteropFilter = true
+		},
+	}
+}
+
 func WithRequireInteropNotAtGenesis() Option {
 	return option{
 		kinds: optionKindRequireInteropNotAtGen,
@@ -275,9 +323,113 @@ func WithRequireInteropNotAtGenesis() Option {
 	}
 }
 
+// WithMessageExpiryWindow configures the message expiry window (in seconds)
+// used by the dependency set. This controls how long cross-chain messages
+// remain valid before they expire.
+func WithMessageExpiryWindow(window uint64) Option {
+	return option{
+		kinds: optionKindMessageExpiryWindow,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			v := window
+			cfg.MessageExpiryWindow = &v
+		},
+	}
+}
+
 // WithL2BlockTimes configures per-chain L2 block times via the deployer.
 // The blockTimes map keys are L2 chain IDs and values are the desired block
 // time in seconds for that chain.
 func WithL2BlockTimes(blockTimes map[eth.ChainID]uint64) Option {
 	return WithDeployerOptions(sysgo.WithL2BlockTimes(blockTimes))
+}
+
+// WithUniformL2BlockTimes configures the same L2 block time (in seconds) on
+// every configured L2 chain via the deployer.
+func WithUniformL2BlockTimes(seconds uint64) Option {
+	return WithDeployerOptions(sysgo.WithUniformL2BlockTimes(seconds))
+}
+
+// WithInteropLogBackfillDepth configures the supernode to pre-ingest
+// initiating-message logs backward from the tip by the given duration at
+// startup. Zero disables backfill (the default).
+func WithInteropLogBackfillDepth(d time.Duration) Option {
+	var kinds optionKinds
+	if d > 0 {
+		kinds = optionKindInteropLogBackfill
+	}
+	return option{
+		kinds: kinds,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.InteropLogBackfillDepth = d
+		},
+	}
+}
+
+// WithoutHonestProposer skips starting the honest proposer (op-proposer, or kona-sp1-proposer for the ZK preset).
+func WithoutHonestProposer() Option {
+	return option{
+		kinds: optionKindSkipHonestProposer,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.SkipHonestProposer = true
+		},
+	}
+}
+
+// WithoutHonestChallenger skips starting the honest challenger. Used by tests
+// that must prove the proposer alone drives resolution and bond claiming.
+func WithoutHonestChallenger() Option {
+	return option{
+		kinds: optionKindSkipHonestChallenger,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.SkipHonestChallenger = true
+		},
+	}
+}
+
+// WithInteropAtGenesis activates the Interop hardfork at genesis on the L2 chain and provisions
+// a DependencySet for op-node startup without a supervisor. Required by presets that exercise
+// Interop-gated consensus features (e.g. SDM PostExec).
+func WithInteropAtGenesis() Option {
+	return option{
+		kinds: optionKindInteropAtGenesis,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.InteropAtGenesis = true
+		},
+	}
+}
+
+// WithSupernodeVNSequencerForBootstrap enables sequencing on the supernode VN of
+// the light-sequencer supernode interop preset and starts the light follow-mode
+// ELSync sequencers stopped, so the VN can bootstrap the chain the light sequencers
+// EL-sync from. Pair with the system's BootstrapLightSequencersViaVNHandoff method,
+// which drives the bootstrap and hands sequencing off to the light sequencers (#21164).
+func WithSupernodeVNSequencerForBootstrap() Option {
+	return option{
+		kinds: optionKindSupernodeVNSequencerForBootstrap,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.SupernodeVNSequencerForBootstrap = true
+		},
+	}
+}
+
+// WithPreGenesisSuperGame seeds one invalid super dispute game before the
+// rollup start block so tests can exercise supernode/challenger behaviour
+// when a game's L1 head predates rollup genesis. The claimed outputs follow
+// the preset chain order (`l2a`, `l2b` for two-chain presets).
+func WithPreGenesisSuperGame(claimedOutputs ...eth.Bytes32) Option {
+	var kinds optionKinds
+	if len(claimedOutputs) > 0 {
+		kinds = optionKindPreGenesisSuperGame
+	}
+	return option{
+		kinds: kinds,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			if len(claimedOutputs) == 0 {
+				return
+			}
+			cfg.PreGenesisSuperGame = &sysgo.PreGenesisSuperGameConfig{
+				ClaimedOutputs: append([]eth.Bytes32(nil), claimedOutputs...),
+			}
+		},
+	}
 }

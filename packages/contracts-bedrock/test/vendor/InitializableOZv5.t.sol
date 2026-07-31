@@ -14,7 +14,6 @@ import { Initializable } from "@openzeppelin/contracts-v5/proxy/utils/Initializa
 import { Types } from "src/libraries/Types.sol";
 
 // Interfaces
-import { IOptimismSuperchainERC20 } from "interfaces/L2/IOptimismSuperchainERC20.sol";
 import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 
 /// @title InitializerOZv5_Test
@@ -40,19 +39,6 @@ contract InitializerOZv5_Test is Test {
     function setUp() public {
         // Initialize the `contracts` array with the addresses of the contracts to test and the
         // calldata used to initialize them
-
-        // OptimismSuperchainERC20
-        contracts.push(
-            InitializeableContract({
-                target: address(
-                    DeployUtils.create1({
-                        _name: "OptimismSuperchainERC20",
-                        _args: DeployUtils.encodeConstructor(abi.encodeCall(IOptimismSuperchainERC20.__constructor__, ()))
-                    })
-                ),
-                initCalldata: abi.encodeCall(IOptimismSuperchainERC20.initialize, (address(0), "", "", 18))
-            })
-        );
 
         // BaseFeeVault
         contracts.push(

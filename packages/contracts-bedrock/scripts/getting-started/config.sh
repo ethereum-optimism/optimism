@@ -116,9 +116,9 @@ if [ -n "${HOLOCENE_TIME_OFFSET}" ]; then
   append_with_default "l2GenesisHoloceneTimeOffset" "HOLOCENE_TIME_OFFSET" "0x0"
 fi
 
-# Activate the interop fork
-if [ -n "${INTEROP_TIME_OFFSET}" ]; then
-  append_with_default "l2GenesisInteropTimeOffset" "INTEROP_TIME_OFFSET" "0x0"
+# Activate the Lagoon fork
+if [ -n "${LAGOON_TIME_OFFSET}" ]; then
+  append_with_default "l2GenesisLagoonTimeOffset" "LAGOON_TIME_OFFSET" "0x0"
 fi
 
 # Already forked updates
@@ -131,9 +131,6 @@ append_with_default "l2GenesisCanyonTimeOffset" "CANYON_TIME_OFFSET" "0x0"
 # Continue generating the config file
 cat << EOL >> tmp_config.json
   "systemConfigStartBlock": 0,
-
-  "requiredProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000",
-  "recommendedProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000",
 
   "faultGameAbsolutePrestate": "0x03c7ae758795765c6664a5d39bf63841c71ff191e9189522bad8ebff5d4eca98",
   "faultGameMaxDepth": 44,

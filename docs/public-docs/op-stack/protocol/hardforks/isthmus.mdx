@@ -1,0 +1,54 @@
+---
+title: Isthmus
+description: Hardfork registry entry for the Isthmus network upgrade, which brought L1's Pectra upgrade to the OP Stack and added the operator fee.
+diataxis: reference
+hardfork_name: isthmus
+hardfork_lifecycle: active
+hardfork_spec: https://specs.optimism.io/protocol/isthmus/overview.html
+hardfork_activation_mainnet: 1746806401
+hardfork_activation_sepolia: 1744905600
+hardfork_governance: https://vote.optimism.io/proposals/8705916809146420472067303211131851783087744913535435360574720946039078686841
+hardfork_notice: /notices/archive/upgrade-15
+hardfork_upgrade_number: 15
+hardfork_min_versions:
+  - op-node v1.13.2
+  - op-geth v1.101503.4
+  - op-batcher v1.12.0
+  - op-challenger v1.4.0
+hardfork_min_versions_source: "[Upgrade 15 notice](/notices/archive/upgrade-15)"
+---
+
+import IsthmusFacts from "/snippets/generated/hardforks/isthmus.mdx"
+import { NormativeSpec } from "/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="This upgrade"
+  title="Isthmus specification"
+  href="https://specs.optimism.io/protocol/isthmus/overview.html"
+  note="This page records activation data and operational pointers; it does not restate the spec."
+/>
+
+Isthmus brought Ethereum's Pectra upgrade to the OP Stack and introduced the
+operator fee.
+
+<IsthmusFacts />
+
+## What changed
+
+Per the [spec overview](https://specs.optimism.io/protocol/isthmus/overview.html):
+
+*   Pectra EIPs on L2, including
+    [EIP-7702](https://eips.ethereum.org/EIPS/eip-7702) (set EOA account code),
+    [EIP-2537](https://eips.ethereum.org/EIPS/eip-2537) (BLS12-381
+    precompiles), [EIP-2935](https://eips.ethereum.org/EIPS/eip-2935)
+    (historical block hashes in state), and
+    [EIP-7623](https://eips.ethereum.org/EIPS/eip-7623) (increased calldata
+    cost). The [EIP-7002](https://eips.ethereum.org/EIPS/eip-7002) and
+    [EIP-7251](https://eips.ethereum.org/EIPS/eip-7251) predeploy contracts and
+    syscalls are not adopted by the OP Stack.
+*   `L2ToL1MessagePasser` storage root in the block header.
+*   [Operator fee](https://specs.optimism.io/protocol/isthmus/exec-engine.html#operator-fee).
+*   Smart contracts: predeploy, L1 block attributes, and `SystemConfig` updates.
+
+The [Upgrade 15 notice](/notices/archive/upgrade-15) covers the operator steps
+that accompanied activation.

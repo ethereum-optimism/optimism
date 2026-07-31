@@ -1,10 +1,11 @@
 ---
 title: Making crosschain contract calls (ping pong)
-description: Learn how to make crosschain contract calls using ping pong.
+description: Understand how the CrossChainPingPong example contract uses the L2ToL2CrossDomainMessenger to make crosschain contract calls, and the design choices behind it.
+diataxis: explanation
 ---
 
 <Info>OP Stack interop is in active development. Some features may be experimental.</Info>
-This guide walks through the `CrossChainPingPong.sol` contract, focusing on high level design and steps to integrating the `L2ToL2CrossChainMessenger` contract. For more info, view the [source code](https://github.com/ethereum-optimism/supersim/blob/main/contracts/src/pingpong/CrossChainPingPong.sol).
+This page explains the design of the `CrossChainPingPong.sol` example contract and how it integrates the `L2ToL2CrossDomainMessenger` to make crosschain contract calls. For more info, view the [source code](https://github.com/ethereum-optimism/supersim/blob/main/contracts/src/pingpong/CrossChainPingPong.sol).
 
 ## High level overview
 

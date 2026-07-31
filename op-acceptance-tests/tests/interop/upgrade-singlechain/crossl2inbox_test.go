@@ -16,13 +16,12 @@ import (
 )
 
 func TestPostInbox(gt *testing.T) {
-	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
 	offset := uint64(30)
 	sys := presets.NewSingleChainInterop(t, presets.WithDeployerOptions(
 		func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
 			for _, l2Cfg := range builder.L2s() {
-				l2Cfg.WithForkAtOffset(forks.Interop, &offset)
+				l2Cfg.WithForkAtOffset(forks.Lagoon, &offset)
 			}
 		},
 	))
@@ -30,7 +29,7 @@ func TestPostInbox(gt *testing.T) {
 		require := t.Require()
 		el := net.PrimaryEL()
 
-		activationBlock := net.AwaitActivation(t, forks.Interop)
+		activationBlock := net.AwaitActivation(t, forks.Lagoon)
 		require.NotZero(activationBlock, "must not activate interop at genesis")
 
 		pre := activationBlock.Number - 1

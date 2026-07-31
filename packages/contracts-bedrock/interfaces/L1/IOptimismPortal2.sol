@@ -37,6 +37,8 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     error OptimismPortal_Unproven();
     error OptimismPortal_InvalidInteropState();
     error OptimismPortal_InvalidLockboxState();
+    error OptimismPortal_ZeroAddress();
+    error OptimismPortal_LockboxNotAuthorizedForPortal();
     error OutOfGas();
     error UnexpectedList();
     error UnexpectedString();

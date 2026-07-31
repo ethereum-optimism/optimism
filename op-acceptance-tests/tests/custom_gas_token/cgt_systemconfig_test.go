@@ -3,7 +3,6 @@ package custom_gas_token
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 
@@ -26,7 +25,7 @@ func TestCGT_SystemConfigFlagOnL1(gt *testing.T) {
 	systemConfigFunc := w3.MustNewFunc("systemConfig()", "address")
 	isCustomGasTokenFunc := w3.MustNewFunc("isCustomGasToken()", "bool")
 
-	ctx, cancel := context.WithTimeout(t.Ctx(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Ctx(), cgtCallTimeout)
 	defer cancel()
 
 	// Resolve SystemConfig via Portal.systemConfig()
@@ -70,7 +69,7 @@ func TestCGT_SystemConfigFeatureFlag(gt *testing.T) {
 	l1c := sys.L1EL.EthClient()
 	portal := sys.L2Chain.DepositContractAddr()
 
-	ctx, cancel := context.WithTimeout(t.Ctx(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Ctx(), cgtCallTimeout)
 	defer cancel()
 
 	// Resolve SystemConfig via Portal.systemConfig()

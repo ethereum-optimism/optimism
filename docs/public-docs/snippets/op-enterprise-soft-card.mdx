@@ -1,0 +1,30 @@
+{/*
+  Standing "Launching a chain for your organization?" soft card: the shared
+  OP Enterprise CTA for docs-wide landing pages, where the reader has not
+  yet chosen a role. Softer than the chain-operator callout
+  (op-enterprise-callout.mdx): it invites a comparison instead of steering
+  a decision moment.
+
+  Usage:
+    import OpEnterpriseSoftCard from "/snippets/op-enterprise-soft-card.mdx"
+
+    <OpEnterpriseSoftCard />
+
+  Consumers:
+    - index.mdx ("Ready to go further?")
+    - op-stack/introduction/op-stack.mdx ("Ready to build your chain?")
+
+  Placement rules: closing CTA on landing/orientation pages only, rendered
+  as a standalone Card outside any CardGroup. Never inside step sequences,
+  reference pages, or role-specific journeys (those use the audience
+  callout snippets instead).
+
+  Copy rules: no product digits: no uptime percentages, response times,
+  support hours, request volumes, tier names, or time-to-production
+  figures; the product page carries its own numbers. Every factual clause
+  must stay re-derivable from a published docs page.
+*/}
+
+<Card title="Launching a chain for your organization?" icon="building" href="https://optimism.io/op-enterprise?utm_source=docs&utm_medium=docs&utm_campaign=op-enterprise">
+  Compare running the stack yourself with OP Enterprise's managed and supported options. Either way, these docs are the reference for what your chain runs.
+</Card>

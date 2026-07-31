@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 // Contracts
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
+import { ProxyAdminOwnedBase } from "src/universal/ProxyAdminOwnedBase.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -16,7 +17,7 @@ import { IOptimismERC20Factory } from "interfaces/L2/IOptimismERC20Factory.sol";
 ///         contracts on the network it's deployed to. Simplifies the deployment process for users
 ///         who may be less familiar with deploying smart contracts. Designed to be backwards
 ///         compatible with the older StandardL2ERC20Factory contract.
-contract OptimismMintableERC20Factory is ISemver, Initializable, IOptimismERC20Factory {
+contract OptimismMintableERC20Factory is ProxyAdminOwnedBase, ISemver, Initializable, IOptimismERC20Factory {
     /// @custom:spacer OptimismMintableERC20Factory's initializer slot spacing
     /// @notice Spacer to avoid packing into the initializer slot
     bytes30 private spacer_0_2_30;
@@ -51,8 +52,8 @@ contract OptimismMintableERC20Factory is ISemver, Initializable, IOptimismERC20F
     ///         the OptimismMintableERC20 token contract since this contract
     ///         is responsible for deploying OptimismMintableERC20 contracts.
     /// @notice Semantic version.
-    /// @custom:semver 1.10.2
-    string public constant version = "1.10.2";
+    /// @custom:semver 1.11.0
+    string public constant version = "1.11.0";
 
     /// @notice Constructs the OptimismMintableERC20Factory contract.
     constructor() {
@@ -62,6 +63,7 @@ contract OptimismMintableERC20Factory is ISemver, Initializable, IOptimismERC20F
     /// @notice Initializes the contract.
     /// @param _bridge Address of the StandardBridge on this chain.
     function initialize(address _bridge) external initializer {
+        _assertOnlyProxyAdminOrProxyAdminOwner();
         bridge = _bridge;
     }
 

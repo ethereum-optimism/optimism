@@ -1,6 +1,6 @@
 # Development Workflow
 
-Common workflow guidance for AI agents working in the Optimism monorepo. Language-specific details are in [go-dev.md](go-dev.md) and [rust-dev.md](rust-dev.md). For end-to-end testing, see [acceptance-tests.md](acceptance-tests.md).
+Common workflow guidance for AI agents working in the Optimism monorepo. Language-specific details are in [go-dev.md](go-dev.md) and [rust-dev.md](rust-dev.md). For running acceptance tests, see [acceptance-tests.md](acceptance-tests.md); for writing new ones, see [writing-acceptance-tests.md](writing-acceptance-tests.md).
 
 ## Tool Versions
 
@@ -15,6 +15,17 @@ Run `mise install` to install all pinned tools (just, gotestsum, forge, etc.). A
 ```bash
 mise exec -- just <target>
 ```
+
+Then install the git hooks (once per clone — the setting is shared across all of a
+clone's worktrees):
+
+```bash
+mise exec -- just install-git-hooks
+```
+
+This points `core.hooksPath` at `.githooks/`. The `pre-push` hook blocks pushing
+unformatted Rust (mirroring CI's `rust-fmt` gate), so run it before you push any
+Rust change.
 
 ## Build System
 
@@ -32,7 +43,7 @@ After running language-specific commit checks (lint, test):
    git rebase origin/develop
    ```
 
-3. **Follow PR guidelines** — see `docs/handbook/pr-guidelines.md`.
+3. **Follow PR guidelines** — see `docs/handbook/pr-guidelines.md`. Keep the PR description brief — include only what isn't obvious from the diff.
 
 ## CI
 

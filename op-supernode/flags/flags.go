@@ -2,6 +2,7 @@ package flags
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/urfave/cli/v2"
 
@@ -13,7 +14,10 @@ import (
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 )
 
-const EnvVarPrefix = "OP_SUPERNODE"
+const (
+	EnvVarPrefix              = "OP_SUPERNODE"
+	DefaultL1HTTPPollInterval = 12 * time.Second
+)
 
 func prefixEnvVars(name string) []string {
 	return opservice.PrefixEnvVar(EnvVarPrefix, name)
@@ -51,12 +55,24 @@ var (
 		Usage:   "Addresses of L1 Beacon-API compatible HTTP fallback endpoints. Used to fetch blob sidecars not available at the l1.beacon (e.g. expired blobs).",
 		EnvVars: append(prefixEnvVars("L1_BEACON_FALLBACKS"), prefixEnvVars("L1_BEACON_ARCHIVER")...),
 	}
+	L1HTTPPollInterval = &cli.DurationFlag{
+		Name:    "l1.http-poll-interval",
+		Usage:   "Polling interval for the shared L1 HTTP RPC subscription. This controls the supernode's own L1 client; virtual node l1.http-poll-interval flags are ignored.",
+		EnvVars: prefixEnvVars("L1_HTTP_POLL_INTERVAL"),
+		Value:   DefaultL1HTTPPollInterval,
+	}
 	DisableP2P = &cli.BoolFlag{
 		Name:     "disable-p2p",
 		Usage:    "Disable P2P for all chains. Affects configuration handed to virtual nodes.",
 		EnvVars:  prefixEnvVars("DISABLE_P2P"),
 		Value:    false,
 		Required: false,
+	}
+	DependencySet = &cli.PathFlag{
+		Name:      "dependency-set",
+		Usage:     "Dependency-set configuration shared by all chains, point at JSON file. Overrides the registry fallback and any per-VN interop.dependency-set flag.",
+		EnvVars:   prefixEnvVars("DEPENDENCY_SET"),
+		TakesFile: true,
 	}
 )
 
@@ -66,7 +82,9 @@ var requiredFlags = []cli.Flag{
 }
 
 var optionalFlags = []cli.Flag{
+	L1HTTPPollInterval,
 	DisableP2P,
+	DependencySet,
 }
 
 // activityFlags holds flags registered by activity packages via RegisterActivityFlags.
@@ -92,6 +110,17 @@ func init() {
 }
 
 var Flags []cli.Flag
+
+// SupernodeOwnedFlags lists op-node flag names whose resources are owned by the
+// supernode (e.g. the shared L1 client) rather than individual virtual nodes.
+// Setting these at the vn.all.* or vn.<id>.* level has no effect because the
+// supernode injects pre-built resources via InitializationOverrides.
+//
+// Extend this list when new shared resources are added to the supernode.
+var SupernodeOwnedFlags = []string{
+	opnodeflags.L1HTTPPollInterval.Name,   // "l1.http-poll-interval"
+	opnodeflags.InteropDependencySet.Name, // "interop.dependency-set"
+}
 
 func CheckRequired(ctx *cli.Context) error {
 	for _, f := range requiredFlags {

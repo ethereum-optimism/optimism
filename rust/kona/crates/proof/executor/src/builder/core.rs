@@ -7,18 +7,20 @@
 use crate::{ExecutorError, ExecutorResult, TrieDB, TrieDBError, TrieDBProvider};
 use alloc::{string::ToString, vec::Vec};
 use alloy_consensus::{Header, Sealed, crypto::RecoveryError};
+use alloy_eips::Encodable2718;
 use alloy_evm::{
-    EvmFactory, FromRecoveredTx, FromTxWithEncoded,
+    EvmFactory, FromRecoveredTx, FromTxWithEncoded, RecoveredTx,
     block::{BlockExecutionResult, BlockExecutor, BlockExecutorFactory},
 };
 use alloy_op_evm::{
-    OpBlockExecutionCtx, OpBlockExecutorFactory,
-    block::{OpAlloyReceiptBuilder, OpTxEnv},
+    OpBlockExecutionCtx, OpBlockExecutorFactory, PostExecMode,
+    block::{OpTxEnv, receipt_builder::OpReceiptBuilder},
 };
+use alloy_op_hardforks::OpHardforks;
 use core::fmt::Debug;
 use kona_genesis::RollupConfig;
 use kona_mpt::TrieHinter;
-use op_alloy_consensus::{OpReceiptEnvelope, OpTxEnvelope};
+use op_alloy_consensus::{OpTxEnvelope, parse_post_exec_payload_from_transactions};
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use op_revm::OpSpecId;
 use revm::{
@@ -72,8 +74,11 @@ use revm::{
 /// * `P` - Trie database provider implementing [`TrieDBProvider`]
 /// * `H` - Trie hinter implementing [`TrieHinter`] for state access optimization
 /// * `Evm` - EVM factory implementing [`EvmFactory`] for execution environment creation
+/// * `R` - Receipt builder implementing [`OpReceiptBuilder`]. OP Stack callers pass
+///   `OpAlloyReceiptBuilder`; chains that produce non-`OpReceiptEnvelope` receipts (e.g. Celo's
+///   CIP-64 receipt) plug in their own builder.
 #[derive(Debug)]
-pub struct StatelessL2Builder<'a, P, H, Evm>
+pub struct StatelessL2Builder<'a, P, H, Evm, R>
 where
     P: TrieDBProvider,
     H: TrieHinter,
@@ -96,16 +101,27 @@ where
     /// This factory creates specialized OP Stack execution environments that
     /// understand OP-specific transaction types, system calls, and state
     /// management required for proper L2 block execution.
-    pub(crate) factory: OpBlockExecutorFactory<OpAlloyReceiptBuilder, RollupConfig, Evm>,
+    pub(crate) factory: OpBlockExecutorFactory<R, RollupConfig, Evm>,
+    /// Test-only override for SDM activation while the fork is not yet scheduled.
+    #[cfg(any(test, feature = "test-utils"))]
+    pub(crate) sdm_active_override: Option<bool>,
 }
 
-impl<'a, P, H, Evm> StatelessL2Builder<'a, P, H, Evm>
+impl<'a, P, H, Evm, R> StatelessL2Builder<'a, P, H, Evm, R>
 where
     P: TrieDBProvider + Debug,
     H: TrieHinter + Debug,
     Evm: EvmFactory<Spec = OpSpecId, BlockEnv = BlockEnv> + 'static,
     <Evm as EvmFactory>::Tx:
         FromTxWithEncoded<OpTxEnvelope> + FromRecoveredTx<OpTxEnvelope> + OpTxEnv,
+    R: OpReceiptBuilder<Transaction = OpTxEnvelope> + 'static,
+    R::Receipt: Encodable2718,
+    OpBlockExecutorFactory<R, RollupConfig, Evm>: for<'b> BlockExecutorFactory<
+            EvmFactory = Evm,
+            ExecutionCtx<'b> = OpBlockExecutionCtx,
+            Transaction = OpTxEnvelope,
+            Receipt = R::Receipt,
+        >,
 {
     /// Creates a new stateless L2 block builder instance.
     ///
@@ -115,6 +131,7 @@ where
     /// # Arguments
     /// * `config` - Rollup configuration with chain parameters and activation heights
     /// * `evm_factory` - EVM factory for creating execution environments
+    /// * `receipt_builder` - Receipt builder selecting the receipt envelope shape
     /// * `provider` - Trie database provider for state access
     /// * `hinter` - Trie hinter for optimizing state access patterns
     /// * `parent_header` - Sealed header of the parent block to build upon
@@ -127,6 +144,7 @@ where
     /// let builder = StatelessL2Builder::new(
     ///     &rollup_config,
     ///     evm_factory,
+    ///     receipt_builder,
     ///     trie_provider,
     ///     trie_hinter,
     ///     parent_header,
@@ -135,17 +153,36 @@ where
     pub fn new(
         config: &'a RollupConfig,
         evm_factory: Evm,
+        receipt_builder: R,
         provider: P,
         hinter: H,
         parent_header: Sealed<Header>,
     ) -> Self {
         let trie_db = TrieDB::new(parent_header, provider, hinter);
-        let factory = OpBlockExecutorFactory::new(
-            OpAlloyReceiptBuilder::default(),
-            config.clone(),
-            evm_factory,
-        );
-        Self { config, trie_db, factory }
+        let factory = OpBlockExecutorFactory::new(receipt_builder, config.clone(), evm_factory);
+        Self {
+            config,
+            trie_db,
+            factory,
+            #[cfg(any(test, feature = "test-utils"))]
+            sdm_active_override: None,
+        }
+    }
+
+    /// Overrides SDM activation for tests and fixture tooling.
+    #[cfg(any(test, feature = "test-utils"))]
+    pub const fn set_sdm_active_override(&mut self, sdm_active_override: Option<bool>) {
+        self.sdm_active_override = sdm_active_override;
+    }
+
+    /// Returns whether SDM is active at the given timestamp.
+    fn is_sdm_active(&self, timestamp: u64) -> bool {
+        #[cfg(any(test, feature = "test-utils"))]
+        if let Some(active) = self.sdm_active_override {
+            return active;
+        }
+
+        self.config.is_sdm_active(timestamp)
     }
 
     /// Builds and executes a new L2 block using the provided payload attributes.
@@ -212,7 +249,7 @@ where
     pub fn build_block(
         &mut self,
         attrs: OpPayloadAttributes,
-    ) -> ExecutorResult<BlockBuildingOutcome> {
+    ) -> ExecutorResult<BlockBuildingOutcome<R::Receipt>> {
         // Step 1. Set up the execution environment.
         let (base_fee_params, min_base_fee) = Self::active_base_fee_params(
             self.config,
@@ -220,7 +257,6 @@ where
             attrs.payload_attributes.timestamp,
         )?;
         let evm_env = self.evm_env(
-            self.config.spec_id(attrs.payload_attributes.timestamp),
             self.trie_db.parent_block_header(),
             &attrs,
             &base_fee_params,
@@ -228,6 +264,11 @@ where
         )?;
         let block_env = evm_env.block_env().clone();
         let parent_hash = self.trie_db.parent_block_header().seal();
+        // Computed here, before `self.trie_db` is borrowed mutably below.
+        let no_user_tx_activation_block = self.config.is_no_user_tx_activation_block(
+            self.trie_db.parent_block_header().timestamp,
+            attrs.payload_attributes.timestamp,
+        );
 
         // Attempt to send a payload witness hint to the host. This hint instructs the host to
         // populate its preimage store with the preimages required to statelessly execute
@@ -247,23 +288,37 @@ where
             "Beginning block building."
         );
 
+        // Compute SDM activation before borrowing `self.trie_db` mutably below.
+        let sdm_active = self.is_sdm_active(block_env.timestamp.saturating_to());
+
         // Step 2. Create the executor, using the trie database.
         let mut state =
             State::builder().with_database(&mut self.trie_db).with_bundle_update().build();
         let evm = self.factory.evm_factory().create_evm(&mut state, evm_env);
-        let ctx = OpBlockExecutionCtx {
-            parent_hash,
-            parent_beacon_block_root: attrs.payload_attributes.parent_beacon_block_root,
-            // This field is unused for individual block building jobs.
-            extra_data: Default::default(),
-        };
-        let executor = self.factory.create_executor(evm, ctx);
-
-        // Step 3. Execute the block containing the transactions within the payload attributes.
+        // Step 3. Decode and validate the block transactions within the payload attributes.
         let transactions = attrs
             .recovered_transactions_with_encoded()
             .collect::<Result<Vec<_>, RecoveryError>>()
             .map_err(ExecutorError::Recovery)?;
+        let post_exec_mode = parse_post_exec_payload_from_transactions(
+            transactions.iter().map(RecoveredTx::tx),
+            block_env.number.saturating_to(),
+            sdm_active,
+        )
+        .map_err(|err| ExecutorError::InvalidPostExecPayload(err.into_string()))?
+        .map(|parsed| PostExecMode::Verify(parsed.payload))
+        .unwrap_or_default();
+
+        let ctx = OpBlockExecutionCtx {
+            parent_hash,
+            no_user_tx_activation_block,
+            parent_beacon_block_root: attrs.payload_attributes.parent_beacon_block_root,
+            // This field is unused for individual block building jobs.
+            extra_data: Default::default(),
+            post_exec_mode,
+        };
+        let executor = self.factory.create_executor(evm, ctx);
+
         let ex_result = executor.execute_block(transactions.iter())?;
 
         info!(
@@ -296,35 +351,24 @@ where
 
 /// The outcome of a block building operation, returning the sealed block [`Header`] and the
 /// [`BlockExecutionResult`].
+///
+/// Generic over the receipt envelope so non-OP receipt shapes (e.g. CIP-64) can be carried out of
+/// the builder.
 #[derive(Debug, Clone)]
-pub struct BlockBuildingOutcome {
+pub struct BlockBuildingOutcome<Receipt> {
     /// The block header.
     pub header: Sealed<Header>,
     /// The block execution result.
-    pub execution_result: BlockExecutionResult<OpReceiptEnvelope>,
+    pub execution_result: BlockExecutionResult<Receipt>,
 }
 
-impl From<(Sealed<Header>, BlockExecutionResult<OpReceiptEnvelope>)> for BlockBuildingOutcome {
-    fn from(
-        (header, execution_result): (Sealed<Header>, BlockExecutionResult<OpReceiptEnvelope>),
-    ) -> Self {
+impl<Receipt> From<(Sealed<Header>, BlockExecutionResult<Receipt>)>
+    for BlockBuildingOutcome<Receipt>
+{
+    fn from((header, execution_result): (Sealed<Header>, BlockExecutionResult<Receipt>)) -> Self {
         Self { header, execution_result }
     }
 }
 
 #[cfg(test)]
-mod test {
-    use crate::test_utils::run_test_fixture;
-    use rstest::rstest;
-    use std::path::PathBuf;
-
-    #[rstest]
-    #[tokio::test]
-    async fn test_statelessly_execute_block(
-        #[base_dir = "./testdata"]
-        #[files("*.tar.gz")]
-        path: PathBuf,
-    ) {
-        run_test_fixture(path).await;
-    }
-}
+mod tests;

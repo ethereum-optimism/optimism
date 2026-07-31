@@ -55,7 +55,7 @@ func (g *SuperCannonGameHelper) CreateHonestActor(ctx context.Context, options .
 	realPrestateBlock, realPostStateBlock, err := g.Game.GetGameRange(ctx)
 	g.Require.NoError(err, "Failed to load block range")
 	splitDepth := g.SplitDepth(ctx)
-	supervisorClient := g.System.SupervisorClient()
+	supernodeClient := g.System.SupernodeClient()
 	actorCfg := &HonestActorConfig{
 		PrestateSequenceNumber:  realPrestateBlock,
 		PoststateSequenceNumber: realPostStateBlock,
@@ -67,7 +67,7 @@ func (g *SuperCannonGameHelper) CreateHonestActor(ctx context.Context, options .
 
 	cfg := challenger.NewChallengerConfig(g.T, g.System, "", actorCfg.ChallengerOpts...)
 	dir := filepath.Join(cfg.Datadir, "honest")
-	prestateProvider := super.NewSuperRootPrestateProvider(supervisorClient, actorCfg.PrestateSequenceNumber)
+	prestateProvider := super.NewSuperNodePrestateProvider(supernodeClient, actorCfg.PrestateSequenceNumber)
 	l1Head := g.GetL1Head(ctx)
 	accessor, err := super.NewSuperCannonTraceAccessor(
 		logger,
@@ -75,9 +75,7 @@ func (g *SuperCannonGameHelper) CreateHonestActor(ctx context.Context, options .
 		cfg.CannonKona,
 		vm.NewKonaSuperExecutor(),
 		prestateProvider,
-		supervisorClient,
-		nil,
-		false,
+		supernodeClient,
 		cfg.CannonKonaAbsolutePreState,
 		dir,
 		l1Head,
@@ -194,15 +192,13 @@ func (g *SuperCannonGameHelper) createSuperCannonTraceProvider(ctx context.Conte
 
 func (g *SuperCannonGameHelper) createSuperTraceProvider(ctx context.Context) super.SuperTraceProvider {
 	logger := testlog.Logger(g.t, log.LevelInfo).New("role", "superTraceProvider", "game", g.splitGame.Addr)
-	rootProvider := g.System.SupervisorClient()
+	rootProvider := g.System.SupernodeClient()
 	splitDepth := g.splitGame.SplitDepth(ctx)
 	l1Head := g.GetL1Head(ctx)
 	prestateTimestamp, poststateTimestamp, err := g.Game.GetGameRange(ctx)
 	g.require.NoError(err, "Failed to load block range")
-	prestateProvider := super.NewSuperRootPrestateProvider(rootProvider, prestateTimestamp)
-	rollupCfgs, err := super.NewRollupConfigsFromParsed(g.System.RollupCfgs()...)
-	require.NoError(g.T, err, "failed to create rollup configs")
-	return super.NewSupervisorSuperTraceProvider(logger, rollupCfgs, prestateProvider, rootProvider, l1Head, splitDepth, prestateTimestamp, poststateTimestamp)
+	prestateProvider := super.NewSuperNodePrestateProvider(rootProvider, prestateTimestamp)
+	return super.NewSuperNodeTraceProvider(logger, prestateProvider, rootProvider, l1Head, splitDepth, prestateTimestamp, poststateTimestamp)
 }
 
 // InitFirstDerivationGame builds a top-level game whose deepest node (at splitDepth) asserts the first

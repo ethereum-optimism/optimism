@@ -62,7 +62,8 @@ impl<T: CommsClient> OracleL2ChainProvider<T> {
     /// L2 safe head.
     async fn header_by_number(&self, block_number: u64) -> Result<Header, OracleProviderError> {
         // Fetch the starting block header.
-        let mut header = self.header_by_hash(self.l2_safe_head().await?)?;
+        let mut current_hash = self.l2_safe_head().await?;
+        let mut header = self.header_by_hash(current_hash)?;
 
         // Check if the block number is in range. If not, we can fail early.
         if block_number > header.number {
@@ -76,7 +77,9 @@ impl<T: CommsClient> OracleL2ChainProvider<T> {
                 // through consulting the ring buffer within the contract. If this
                 // lookup fails for any reason, we fall back to linear walk back.
                 let block_hash =
-                    match eip_2935_history_lookup(&header, block_number, self, self).await {
+                    match eip_2935_history_lookup(&header, block_number, current_hash, self, self)
+                        .await
+                    {
                         Ok(hash) => hash,
                         Err(_) => {
                             // If the EIP-2935 lookup fails for any reason, attempt fallback to
@@ -86,9 +89,11 @@ impl<T: CommsClient> OracleL2ChainProvider<T> {
                         }
                     };
 
+                current_hash = block_hash;
                 header = self.header_by_hash(block_hash)?;
             } else {
                 // Walk back the block headers one-by-one until the desired block number is reached.
+                current_hash = header.parent_hash;
                 header = self.header_by_hash(header.parent_hash)?;
             }
         }
@@ -233,10 +238,10 @@ impl<T: CommsClient> TrieHinter for OracleL2ChainProvider<T> {
         })
     }
 
-    fn hint_account_proof(&self, address: Address, block_number: u64) -> Result<(), Self::Error> {
+    fn hint_account_proof(&self, address: Address, block_hash: B256) -> Result<(), Self::Error> {
         crate::block_on(async move {
             HintType::L2AccountProof
-                .with_data(&[block_number.to_be_bytes().as_ref(), address.as_slice()])
+                .with_data(&[block_hash.as_slice(), address.as_slice()])
                 .with_data(self.chain_id.map_or_else(Vec::new, |id| id.to_be_bytes().to_vec()))
                 .send(self.oracle.as_ref())
                 .await
@@ -247,12 +252,12 @@ impl<T: CommsClient> TrieHinter for OracleL2ChainProvider<T> {
         &self,
         address: alloy_primitives::Address,
         slot: alloy_primitives::U256,
-        block_number: u64,
+        block_hash: B256,
     ) -> Result<(), Self::Error> {
         crate::block_on(async move {
             HintType::L2AccountStorageProof
                 .with_data(&[
-                    block_number.to_be_bytes().as_ref(),
+                    block_hash.as_slice(),
                     address.as_slice(),
                     slot.to_be_bytes::<32>().as_ref(),
                 ])
