@@ -1,31 +1,28 @@
 package deployer
 
 import (
-	"context"
 	"os"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
-// Guards the artifact/contract names DeployZKMockVerifier reads: ZKMockVerifier must be present in a
-// local (full) build, else the name drifted.
-func TestZKMockVerifierArtifactPresent(t *testing.T) {
-	_, afacts := testutil.LocalArtifacts(t)
-	af := &foundry.ArtifactsFS{FS: afacts}
-	artifact, err := af.ReadArtifact(zkMockVerifierArtifact, zkMockVerifierContract)
+func TestZKMockVerifierDeployData_EmbeddedArtifacts(t *testing.T) {
+	afacts, err := artifacts.ExtractEmbedded(t.TempDir())
 	require.NoError(t, err)
-	require.NotEmpty(t, artifact.Bytecode.Object, "ZKMockVerifier must have bytecode in local artifacts")
+
+	deployData, err := zkMockVerifierDeployData(afacts, common.Address{'D'})
+	require.NoError(t, err)
+	require.NotEmpty(t, deployData)
 }
 
-// The helper must fail clearly when the artifact is absent (e.g. released artifacts). The read
-// happens before any client use, so a nil client is fine.
-func TestDeployZKMockVerifier_MissingArtifact(t *testing.T) {
+func TestZKMockVerifierDeployData_MissingArtifact(t *testing.T) {
 	emptyFS, ok := os.DirFS(t.TempDir()).(foundry.StatDirFs)
 	require.True(t, ok)
 
-	_, err := DeployZKMockVerifier(context.Background(), nil, nil, emptyFS)
-	require.ErrorContains(t, err, "ZKMockVerifier artifact")
+	_, err := zkMockVerifierDeployData(emptyFS, common.Address{'D'})
+	require.ErrorContains(t, err, "DeployZKMockVerifier script")
 }
