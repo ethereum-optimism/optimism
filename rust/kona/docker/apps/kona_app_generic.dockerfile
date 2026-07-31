@@ -81,7 +81,7 @@ FROM build-entrypoint AS builder
 COPY --from=planner /app/recipe.json recipe.json
 
 # Build dependencies - this is the caching Docker layer!
-RUN RUSTFLAGS="-C target-cpu=generic" cargo chef cook --bin "${BIN_TARGET}" --locked --profile "${BUILD_PROFILE}" --recipe-path recipe.json
+RUN RUSTFLAGS="-C target-cpu=generic" cargo chef cook --package "${BIN_TARGET}" --bin "${BIN_TARGET}" --locked --profile "${BUILD_PROFILE}" --recipe-path recipe.json
 
 # Build metadata for the version string, read at compile time via `option_env!`
 # in kona-node (kona/bin/node/src/version.rs). Declared here — after the
@@ -102,7 +102,7 @@ ENV BUILD_PROFILE=$BUILD_PROFILE
 COPY --from=app-setup /workspace .
 # Build the application binary on the selected tag. Since we build the external dependencies in the previous step,
 # this step will reuse the target directory from the previous step.
-RUN RUSTFLAGS="-C target-cpu=generic" cargo auditable build --bin "${BIN_TARGET}" --locked --profile "${BUILD_PROFILE}"
+RUN RUSTFLAGS="-C target-cpu=generic" cargo auditable build --package "${BIN_TARGET}" --bin "${BIN_TARGET}" --locked --profile "${BUILD_PROFILE}"
 
 # Export stage
 FROM chainguard/wolfi-base:latest AS export-stage
