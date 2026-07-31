@@ -3,6 +3,7 @@ package interopsmoke
 import (
 	"context"
 	"io"
+	"math/big"
 	"strings"
 	"testing"
 
@@ -10,6 +11,33 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 )
+
+func TestFlowOutput(t *testing.T) {
+	amount := eth.OneHundredthEther
+	receipt := &types.Receipt{
+		TxHash:      common.HexToHash("0x1234"),
+		BlockNumber: big.NewInt(123),
+	}
+	output := flowOutput(
+		"Bridge",
+		&remoteChain{chainID: eth.ChainIDFromUInt64(900)},
+		&remoteChain{chainID: eth.ChainIDFromUInt64(901)},
+		&amount,
+		receipt,
+	)
+
+	for _, want := range []string{
+		"source chain ID 900",
+		"destination chain ID 901",
+		"amount 10000000000000000 wei",
+		"tx 0x0000000000000000000000000000000000000000000000000000000000001234",
+		"included in block 123",
+	} {
+		if !strings.Contains(output, want) {
+			t.Errorf("output = %q, want %q", output, want)
+		}
+	}
+}
 
 func TestNewSmokeEnvRequiresAtLeastTwoRPCURLs(t *testing.T) {
 	for _, tc := range []struct {

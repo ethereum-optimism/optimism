@@ -704,14 +704,16 @@ func smokeBridge(env *smokeEnv) error {
 		return err
 	}
 	for _, pair := range pairs {
+		amount := eth.OneHundredthEther
 		ctx, cancel := context.WithTimeout(env.ctx, bridgeTimeout)
-		err := interopbridge.BridgeETH(ctx, env.logger, pair.initUser.chain.ethClient, pair.execUser.chain.ethClient,
-			pair.execUser.chain.chainID, pair.initUser.privKey, eth.OneHundredthEther, randomAddress())
+		result, err := interopbridge.BridgeETHWithResult(ctx, env.logger, pair.initUser.chain.ethClient, pair.execUser.chain.ethClient,
+			pair.execUser.chain.chainID, pair.initUser.privKey, amount, randomAddress())
 		cancel()
 		if err != nil {
 			return fmt.Errorf("%s bridge failed: %w", pair.name, err)
 		}
-		fmt.Fprintf(env.stderr, "    [%s] Bridge: OK\n", pair.name)
+		fmt.Fprintf(env.stderr, "    [%s] %s\n", pair.name,
+			flowOutput("Bridge", pair.initUser.chain, pair.execUser.chain, &amount, result.RelayReceipt))
 	}
 	return nil
 }
@@ -739,7 +741,8 @@ func smokeValidMessagePair(env *smokeEnv, pair chainPair, rng *rand.Rand) error 
 	if err != nil {
 		return fmt.Errorf("%s: send init message: %w", pair.name, err)
 	}
-	fmt.Fprintf(env.stderr, "    [%s] Init message sent on %s (block %d)\n", pair.name, pair.initUser.chain.name, initMsg.BlockNumber())
+	fmt.Fprintf(env.stderr, "    [%s] %s\n", pair.name,
+		flowOutput("Init message", pair.initUser.chain, pair.execUser.chain, nil, initMsg.Receipt))
 
 	if _, err := waitForNextBlock(env.ctx, pair.execUser.chain); err != nil {
 		return fmt.Errorf("%s: wait for %s block: %w", pair.name, pair.execUser.chain.name, err)
@@ -754,7 +757,8 @@ func smokeValidMessagePair(env *smokeEnv, pair chainPair, rng *rand.Rand) error 
 
 	execBlockNum := execMsg.BlockNumber()
 	execBlockHash := execMsg.BlockHash()
-	fmt.Fprintf(env.stderr, "    [%s] Exec message sent on %s (block %d)\n", pair.name, pair.execUser.chain.name, execBlockNum)
+	fmt.Fprintf(env.stderr, "    [%s] %s\n", pair.name,
+		flowOutput("Exec message", pair.initUser.chain, pair.execUser.chain, nil, execMsg.Receipt))
 
 	if err := waitForHeadAtLeast(env.ctx, pair.execUser.chain, execBlockNum+2); err != nil {
 		return fmt.Errorf("%s: wait for %s head: %w", pair.name, pair.execUser.chain.name, err)
@@ -772,6 +776,14 @@ func smokeValidMessagePair(env *smokeEnv, pair chainPair, rng *rand.Rand) error 
 	}
 	fmt.Fprintf(env.stderr, "    [%s] %s block remained canonical after head advanced past it\n", pair.name, pair.execUser.chain.name)
 	return nil
+}
+
+func flowOutput(flow string, source, destination *remoteChain, amount *eth.ETH, receipt *types.Receipt) string {
+	output := fmt.Sprintf("%s: source chain ID %s, destination chain ID %s", flow, source.chainID, destination.chainID)
+	if amount != nil {
+		output += fmt.Sprintf(", amount %s wei", amount.ToBig())
+	}
+	return fmt.Sprintf("%s, tx %s, included in block %d", output, receipt.TxHash, bigs.Uint64Strict(receipt.BlockNumber))
 }
 
 type invalidInclusion struct {

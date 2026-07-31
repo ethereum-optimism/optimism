@@ -70,15 +70,26 @@ func BridgePlan(cl apis.EthClient, key *ecdsa.PrivateKey) txplan.Option {
 // the SuperchainETHBridge predeploy, relays the message itself, and asserts the
 // recipient's dst-chain balance grew by exactly amount. The wait is bounded by ctx.
 func BridgeETH(ctx context.Context, logger log.Logger, src, dst apis.EthClient, dstChainID eth.ChainID, key *ecdsa.PrivateKey, amount eth.ETH, recipient common.Address) error {
+	_, err := BridgeETHWithResult(ctx, logger, src, dst, dstChainID, key, amount, recipient)
+	return err
+}
+
+// BridgeResult contains the destination relay transaction inclusion details.
+type BridgeResult struct {
+	RelayReceipt *types.Receipt
+}
+
+// BridgeETHWithResult performs BridgeETH and returns the destination relay receipt.
+func BridgeETHWithResult(ctx context.Context, logger log.Logger, src, dst apis.EthClient, dstChainID eth.ChainID, key *ecdsa.PrivateKey, amount eth.ETH, recipient common.Address) (*BridgeResult, error) {
 	before, err := dst.BalanceAt(ctx, recipient, nil)
 	if err != nil {
-		return fmt.Errorf("read recipient balance: %w", err)
+		return nil, fmt.Errorf("read recipient balance: %w", err)
 	}
 
 	send := txintent.NewIntent[*SendETHTrigger, *txintent.InteropOutput](BridgePlan(src, key), txplan.WithValue(amount))
 	send.Content.Set(&SendETHTrigger{Recipient: recipient, Destination: dstChainID})
 	if _, err := send.PlannedTx.Success.Eval(ctx); err != nil {
-		return fmt.Errorf("send ETH: %w", err)
+		return nil, fmt.Errorf("send ETH: %w", err)
 	}
 	logger.Info("sent ETH", "tx", send.PlannedTx.Included.Value().TxHash)
 
@@ -86,17 +97,17 @@ func BridgeETH(ctx context.Context, logger log.Logger, src, dst apis.EthClient, 
 	relay.Content.DependOn(&send.Result)
 	relay.Content.Fn(txintent.RelayIndexed(predeploys.L2toL2CrossDomainMessengerAddr, &send.Result, &send.PlannedTx.Included, 1))
 	if _, err := relay.PlannedTx.Success.Eval(ctx); err != nil {
-		return fmt.Errorf("relay ETH: %w", err)
+		return nil, fmt.Errorf("relay ETH: %w", err)
 	}
 	logger.Info("relayed ETH", "tx", relay.PlannedTx.Included.Value().TxHash)
 
 	after, err := dst.BalanceAt(ctx, recipient, nil)
 	if err != nil {
-		return fmt.Errorf("read recipient balance: %w", err)
+		return nil, fmt.Errorf("read recipient balance: %w", err)
 	}
 	if credited := new(big.Int).Sub(after, before); credited.Cmp(amount.ToBig()) != 0 {
-		return fmt.Errorf("recipient credited %s wei, want %s wei", credited, amount.ToBig())
+		return nil, fmt.Errorf("recipient credited %s wei, want %s wei", credited, amount.ToBig())
 	}
 	logger.Info("bridged ETH", "amount", amount, "recipient", recipient)
-	return nil
+	return &BridgeResult{RelayReceipt: relay.PlannedTx.Included.Value()}, nil
 }
