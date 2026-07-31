@@ -4701,55 +4701,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "example-custom-node"
-version = "0.0.0"
-dependencies = [
- "alloy-consensus 2.1.1",
- "alloy-eips 2.1.1",
- "alloy-evm",
- "alloy-genesis",
- "alloy-network 2.1.1",
- "alloy-op-evm",
- "alloy-primitives",
- "alloy-rlp",
- "alloy-rpc-types-engine",
- "alloy-rpc-types-eth 2.1.1",
- "alloy-serde 2.1.1",
- "async-trait",
- "derive_more 2.1.1",
- "eyre",
- "jsonrpsee",
- "modular-bitfield",
- "op-alloy-consensus",
- "op-alloy-rpc-types",
- "op-alloy-rpc-types-engine",
- "op-revm",
- "reth-codecs",
- "reth-db-api",
- "reth-engine-primitives",
- "reth-ethereum",
- "reth-evm",
- "reth-network-peers",
- "reth-node-api",
- "reth-node-builder",
- "reth-op",
- "reth-optimism-evm",
- "reth-optimism-flashblocks",
- "reth-optimism-forks",
- "reth-payload-builder",
- "reth-payload-primitives",
- "reth-primitives-traits",
- "reth-provider",
- "reth-rpc-api",
- "reth-rpc-engine-api",
- "reth-trie-common",
- "revm",
- "revm-primitives",
- "serde",
- "thiserror 2.0.18",
-]
-
-[[package]]
 name = "example-discovery"
 version = "0.0.0"
 dependencies = [
