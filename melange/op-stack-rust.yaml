@@ -31,6 +31,7 @@ environment:
       - rust
       - openssl-dev
       - perl
+      - protoc
       - clang-19
       - libclang-cpp-19
       # opt-in mold linking when the cargo/build pipeline uses it.
