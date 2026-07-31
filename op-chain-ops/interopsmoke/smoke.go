@@ -51,8 +51,7 @@ const smokeWaitTimeout = 60 * time.Second
 const defaultReorgTimeout = 20 * time.Minute
 
 const (
-	l2AURLFlagName            = "l2a-rpc"
-	l2BURLFlagName            = "l2b-rpc"
+	l2URLFlagName             = "l2-rpc"
 	privateKeyFlagName        = "private-key"
 	invalidBlocksFlagName     = "blocks"
 	invalidTxPerBlockFlagName = "tx-per-block"
@@ -72,17 +71,10 @@ const bridgeTimeout = 2 * time.Minute
 
 func smokeFlags(envPrefix string) []cli.Flag {
 	return cliapp.ProtectFlags([]cli.Flag{
-		&cli.StringFlag{
-			Name:    l2AURLFlagName,
-			Usage:   "RPC URL for chain A.",
-			EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_L2A_RPC"),
-			Value:   "http://localhost:8545",
-		},
-		&cli.StringFlag{
-			Name:    l2BURLFlagName,
-			Usage:   "RPC URL for chain B.",
-			EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_L2B_RPC"),
-			Value:   "http://localhost:8546",
+		&cli.StringSliceFlag{
+			Name:    l2URLFlagName,
+			Usage:   "RPC URL for an interoperable L2. Repeat for each chain.",
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_L2_RPC"),
 		},
 		&cli.StringFlag{
 			Name:    privateKeyFlagName,
@@ -384,8 +376,8 @@ func newLogger(ctx context.Context, stderr io.Writer) log.Logger {
 }
 
 func newSmokeEnv(ctx context.Context, stderr io.Writer, l2URLs []string, privateKey string) (*smokeEnv, func(), error) {
-	if len(l2URLs) < 2 {
-		return nil, nil, fmt.Errorf("at least two L2 RPC URLs are required")
+	if err := validateL2URLs(l2URLs); err != nil {
+		return nil, nil, err
 	}
 	logger := newLogger(ctx, stderr)
 
@@ -430,6 +422,13 @@ func newSmokeEnv(ctx context.Context, stderr io.Writer, l2URLs []string, private
 		}
 	}
 	return env, cleanup, nil
+}
+
+func validateL2URLs(l2URLs []string) error {
+	if len(l2URLs) < 2 {
+		return fmt.Errorf("at least two L2 RPC URLs are required")
+	}
+	return nil
 }
 
 func connectRemoteChain(ctx context.Context, logger log.Logger, name, url string) (*remoteChain, error) {
@@ -492,20 +491,20 @@ func resolveSmokeKey(privateKey string) (*ecdsa.PrivateKey, common.Address, erro
 func withSmokeEnv(cliCtx *cli.Context, name string, fn func(env *smokeEnv) error) error {
 	ctx := cliCtx.Context
 	stderr := cliCtx.App.ErrWriter
-	l2AURL := cliCtx.String(l2AURLFlagName)
-	l2BURL := cliCtx.String(l2BURLFlagName)
+	l2URLs := cliCtx.StringSlice(l2URLFlagName)
 	privateKey := cliCtx.String(privateKeyFlagName)
 
 	fmt.Fprintf(stderr, "\nSmoke: %s\n\n", name)
 
-	env, cleanup, err := newSmokeEnv(ctx, stderr, []string{l2AURL, l2BURL}, privateKey)
+	env, cleanup, err := newSmokeEnv(ctx, stderr, l2URLs, privateKey)
 	if err != nil {
 		return err
 	}
 	defer cleanup()
 
-	fmt.Fprintf(stderr, "Chain A RPC: %s (chain ID %s)\n", env.chainA.url, env.chainA.chainID)
-	fmt.Fprintf(stderr, "Chain B RPC: %s (chain ID %s)\n", env.chainB.url, env.chainB.chainID)
+	for _, chain := range env.chains {
+		fmt.Fprintf(stderr, "%s RPC: %s (chain ID %s)\n", chain.name, chain.url, chain.chainID)
+	}
 	fmt.Fprintf(stderr, "Smoke Sender Address: %s\n\n", env.userA.address)
 
 	if err := fn(env); err != nil {
@@ -518,7 +517,7 @@ func withSmokeEnv(cliCtx *cli.Context, name string, fn func(env *smokeEnv) error
 
 // Command returns the `smoke-interop` command tree for embedding in a host
 // CLI such as op-up. envPrefix scopes the flag environment variables
-// (e.g. "OP_UP" -> OP_UP_SMOKE_L2A_RPC).
+// (e.g. "OP_UP" -> OP_UP_SMOKE_L2_RPC).
 func Command(envPrefix string) *cli.Command {
 	return &cli.Command{
 		Name:        "smoke-interop",

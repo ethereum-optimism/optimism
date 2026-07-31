@@ -28,7 +28,7 @@ func main() {
 
 	app := cli.NewApp()
 	app.Name = "interop-smoke"
-	app.Usage = "runs interop smoke tests against the RPCs of two live interoperable L2 chains"
+	app.Usage = "runs interop smoke tests against the RPCs of live interoperable L2 chains"
 	app.Version = opservice.FormatVersion(Version, GitCommit, GitDate, VersionMeta)
 	app.Writer = os.Stdout
 	app.ErrWriter = os.Stderr

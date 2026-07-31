@@ -30,6 +30,20 @@ func TestNewSmokeEnvRequiresAtLeastTwoRPCURLs(t *testing.T) {
 	}
 }
 
+func TestValidateL2URLs(t *testing.T) {
+	for _, tc := range []struct {
+		urls    []string
+		wantErr bool
+	}{
+		{[]string{"http://a", "http://b"}, false},
+		{[]string{"http://a"}, true},
+	} {
+		if err := validateL2URLs(tc.urls); (err != nil) != tc.wantErr {
+			t.Fatalf("validateL2URLs(%v) error = %v, wantErr %v", tc.urls, err, tc.wantErr)
+		}
+	}
+}
+
 func TestValidateInvalidMessageOptions(t *testing.T) {
 	for _, tc := range []struct {
 		name               string
