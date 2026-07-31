@@ -710,7 +710,11 @@ generate-kona-prestates CANNON_BIN ELF_DIR OUT_ROOT:
 
     variants=$(just kona-prestate-variants)
     [[ -n "$variants" ]] || { echo "no prestate variants" >&2; exit 1; }
-    mapfile -t entries <<<"$variants"
+    # Collect the lines before looping, so the loop body doesn't inherit the
+    # variant list on its stdin. Accumulated with `while read` rather than
+    # `mapfile`: that's a bash 4 builtin, and macOS ships bash 3.2.
+    entries=()
+    while IFS= read -r entry; do entries+=("$entry"); done <<<"$variants"
 
     for entry in "${entries[@]}"; do
       read -r variant dir <<<"$entry"
@@ -757,7 +761,10 @@ build-kona-reproducible-prestate:
 
     variants=$(just kona-prestate-variants)
     [[ -n "$variants" ]] || { echo "no prestate variants" >&2; exit 1; }
-    mapfile -t entries <<<"$variants"
+    # Array first, not a `while read` loop around the body: see
+    # generate-kona-prestates. No `mapfile` — bash 4 only, missing on macOS.
+    entries=()
+    while IFS= read -r entry; do entries+=("$entry"); done <<<"$variants"
 
     # Export to a staging dir rather than straight over KONA_DIR: --output is a
     # filesystem write of the target stage, so it must not be aimed at the crate
@@ -823,7 +830,8 @@ output-kona-prestate-hash:
 
     variants=$(just kona-prestate-variants)
     [[ -n "$variants" ]] || { echo "no prestate variants" >&2; exit 1; }
-    mapfile -t entries <<<"$variants"
+    entries=()
+    while IFS= read -r entry; do entries+=("$entry"); done <<<"$variants"
 
     echo "-------------------- Kona Prestates --------------------"
     echo ""

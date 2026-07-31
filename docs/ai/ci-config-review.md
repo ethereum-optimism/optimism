@@ -174,16 +174,22 @@ here. Treat items 1–4 as **blocking**.
    but mind what the restructure costs:
 
    ```sh
-   mapfile -t ARR < <(cmd)          # no '<<', but swallows cmd's exit status:
+   ARR=(); while IFS= read -r L; do ARR+=("$L"); done < <(cmd)
+                                    # no '<<', but swallows cmd's exit status:
                                     # a failing cmd reads as an empty array
    TMP=$(mktemp); cmd > "$TMP"      # keeps set -e, and keeps the stream off the
-   mapfile -t ARR < "$TMP"          # loop body's stdin. Prefer this.
+   ARR=(); while IFS= read -r L; do ARR+=("$L"); done < "$TMP"   # Prefer this.
    rm -f "$TMP"
    (( ${#ARR[@]} > 0 )) || { echo "empty" >&2; exit 1; }
    ```
 
    Process substitution trades the `<<` bug for a swallowed-exit-status bug, so
    assert on the result either way. For a heredoc, write the body to a temp file.
+
+   Read the lines with `while read`, not `mapfile`: `mapfile` is a bash 4
+   builtin, and macOS ships bash 3.2, so any snippet copied from a CI command
+   into a justfile recipe would break local runs. Same for the rest of bash 4
+   (`declare -A`, `${var^^}`, `local -n`).
 
 ## General best practices
 

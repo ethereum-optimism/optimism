@@ -725,7 +725,8 @@ jobs:
             # build can't disagree about where a variant landed. Read it into an
             # array first: piping into `while` would swallow a failed/empty table
             # as a zero-upload success, and would hand the loop body's stdin to
-            # gsutil.
+            # gsutil. Accumulated with `while read` rather than `mapfile` to keep
+            # one idiom with the justfile, which also runs on macOS bash 3.2.
             #
             # No bash here-strings or heredocs anywhere in a CircleCI command:
             # a doubled left angle bracket opens a parameter tag before any
@@ -734,7 +735,8 @@ jobs:
             # just still fails the step instead of reading as an empty table.
             VARIANTS_FILE=$(mktemp)
             just kona-prestate-variants > "${VARIANTS_FILE}"
-            mapfile -t ENTRIES < "${VARIANTS_FILE}"
+            ENTRIES=()
+            while IFS= read -r ENTRY; do ENTRIES+=("${ENTRY}"); done < "${VARIANTS_FILE}"
             rm -f "${VARIANTS_FILE}"
             (( ${#ENTRIES[@]} > 0 )) || { echo "no prestate variants to publish" >&2; exit 1; }
 
