@@ -384,6 +384,9 @@ func newLogger(ctx context.Context, stderr io.Writer) log.Logger {
 }
 
 func newSmokeEnv(ctx context.Context, stderr io.Writer, l2URLs []string, privateKey string) (*smokeEnv, func(), error) {
+	if len(l2URLs) < 2 {
+		return nil, nil, fmt.Errorf("at least two L2 RPC URLs are required")
+	}
 	logger := newLogger(ctx, stderr)
 
 	chains := make([]*remoteChain, 0, len(l2URLs))

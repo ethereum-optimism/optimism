@@ -1,11 +1,34 @@
 package interopsmoke
 
 import (
+	"context"
+	"io"
+	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 )
+
+func TestNewSmokeEnvRequiresAtLeastTwoRPCURLs(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		l2URLs []string
+	}{
+		{name: "zero RPC URLs"},
+		{name: "one RPC URL", l2URLs: []string{"http://127.0.0.1:0"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, _, err := newSmokeEnv(context.Background(), io.Discard, tc.l2URLs, "")
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if !strings.Contains(err.Error(), "at least two L2 RPC URLs are required") {
+				t.Fatalf("error = %v, want minimum RPC URL error", err)
+			}
+		})
+	}
+}
 
 func TestValidateInvalidMessageOptions(t *testing.T) {
 	for _, tc := range []struct {
