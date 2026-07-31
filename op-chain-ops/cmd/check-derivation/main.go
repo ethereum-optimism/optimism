@@ -303,7 +303,10 @@ func getRandomSignedTransaction(ctx context.Context, ethClient *ethclient.Client
 
 	tx := types.NewTx(txData)
 
-	signer := types.NewIsthmusSigner(chainId)
+	// The Prague signer handles all transaction types this tool creates (legacy,
+	// access-list, dynamic-fee, and SetCode) identically to op-geth's Isthmus signer,
+	// which is the Prague signer minus blob-transaction support.
+	signer := types.NewPragueSigner(chainId)
 	if !protected {
 		if txType == types.LegacyTxType {
 			signer = types.HomesteadSigner{}
