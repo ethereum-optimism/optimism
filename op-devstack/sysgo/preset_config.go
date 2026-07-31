@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -16,18 +14,14 @@ type PreGenesisSuperGameConfig struct {
 }
 
 // ZKDisputeGameConfig configures the shared ZK dispute game installed after
-// the interop migration. ProgramVKey is the real SP1 super-aggregation vkey;
-// devstack uses a mock verifier to exercise the game lifecycle.
+// the interop migration. Devstack uses a mock verifier to exercise the game
+// lifecycle.
 type ZKDisputeGameConfig struct {
-	ProgramVKey          common.Hash
 	MaxChallengeDuration time.Duration
 	MaxProveDuration     time.Duration
 }
 
 func (c ZKDisputeGameConfig) validate() error {
-	if c.ProgramVKey == (common.Hash{}) {
-		return fmt.Errorf("ZK program vkey must not be zero")
-	}
 	if c.MaxChallengeDuration <= 0 {
 		return fmt.Errorf("ZK maximum challenge duration must be positive")
 	}
@@ -68,6 +62,7 @@ type PresetConfig struct {
 	InteropLogBackfillDepth time.Duration
 	PreGenesisSuperGame     *PreGenesisSuperGameConfig
 	ZKDisputeGame           *ZKDisputeGameConfig
+	ZKProposerOptions       []ZKProposerOption
 	// SkipHonestProposer skips starting the honest proposer (op-proposer, or kona-sp1-proposer for the ZK preset).
 	SkipHonestProposer bool
 	// SkipHonestChallenger skips starting the honest challenger.
