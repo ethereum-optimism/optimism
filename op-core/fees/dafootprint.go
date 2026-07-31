@@ -1,7 +1,6 @@
 package fees
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -19,8 +18,8 @@ const (
 	JovianL1AttributesLen = 178
 )
 
-// JovianL1AttributesSelector is the function selector indicating Jovian style L1 gas attributes.
-var JovianL1AttributesSelector = []byte{0x3d, 0xb6, 0xbe, 0x2b}
+// jovianL1AttributesSelector is the function selector indicating Jovian style L1 gas attributes.
+const jovianL1AttributesSelector uint32 = 0x3db6be2b
 
 // ExtractDAFootprintGasScalar extracts the DA footprint gas scalar from the L1 attributes
 // transaction data of a Jovian-enabled block.
@@ -29,7 +28,7 @@ func ExtractDAFootprintGasScalar(data []byte) (uint16, error) {
 		return 0, fmt.Errorf("L1 attributes transaction data too short for DA footprint gas scalar: %d", len(data))
 	}
 	// Future forks need to be added here
-	if !bytes.Equal(data[0:4], JovianL1AttributesSelector) {
+	if binary.BigEndian.Uint32(data[:4]) != jovianL1AttributesSelector {
 		return 0, errors.New("L1 attributes transaction data does not have Jovian selector")
 	}
 	daFootprintGasScalar := binary.BigEndian.Uint16(data[JovianL1AttributesLen-2 : JovianL1AttributesLen])

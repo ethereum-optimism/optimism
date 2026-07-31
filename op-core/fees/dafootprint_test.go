@@ -16,7 +16,7 @@ import (
 // and the given daFootprintGasScalar in the trailing two bytes.
 func jovianL1AttributesData(scalar uint16) []byte {
 	data := make([]byte, JovianL1AttributesLen)
-	copy(data, JovianL1AttributesSelector)
+	binary.BigEndian.PutUint32(data[:4], jovianL1AttributesSelector)
 	binary.BigEndian.PutUint16(data[JovianL1AttributesLen-2:], scalar)
 	return data
 }
@@ -62,7 +62,7 @@ func userTxMix() []*types.Transaction {
 func TestDAFootprintConstantsParity(t *testing.T) {
 	require.Equal(t, types.IsthmusL1AttributesLen, IsthmusL1AttributesLen)
 	require.Equal(t, types.JovianL1AttributesLen, JovianL1AttributesLen)
-	require.Equal(t, types.JovianL1AttributesSelector, JovianL1AttributesSelector)
+	require.Equal(t, binary.BigEndian.Uint32(types.JovianL1AttributesSelector), jovianL1AttributesSelector)
 }
 
 // TestExtractDAFootprintGasScalarParity is a live differential check that
