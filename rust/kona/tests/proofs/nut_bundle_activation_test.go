@@ -136,20 +136,17 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 	require.Equal(t, bigs.Uint64Strict(actHeader.Number), l2SafeHead.Number,
 		"safe head must be exactly the %s activation block", fork)
 
-	// Skip the post-activation checks below for Lagoon/Interop:
-	//   - the fault proof needs dependency-set wiring in op-program / kona-host single; the Lagoon
-	//     activation transition is exercised by TestInteropFaultProofs_ActivationBoundary in
-	//     op-acceptance-tests (kona-host super) instead;
-	//   - the gas-limit revert isn't asserted here because Lagoon's activation block can also carry
-	//     multi-chain wrapper gas (setFeature + ETHLiquidity funding) that the reconstruction path
-	//     can't strip without the dependency set (see this PR's Scope/caveats).
-	// Worth revisiting now that single-chain Lagoon's NUT-bundle gas is stripped (follow-up issue).
-	if fork == forks.Lagoon {
-		return
-	}
+	// kona-client cannot prove a Lagoon span in single-chain mode: its pipeline is constructed
+	// without a DependencySet, which StatefulAttributesBuilder requires to decide whether the
+	// activation block carries the multi-chain wrapper deposits. The Lagoon activation transition
+	// is proven by TestInteropFaultProofs_ActivationBoundary in op-acceptance-tests (kona-host
+	// super) instead. The gas-limit assertions below run for every fork regardless.
+	runFPP := fork != forks.Lagoon
 
 	// Prove the activation-block span: kona-client verifies the activation transition itself.
-	env.RunFaultProofProgram(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
+	if runFPP {
+		env.RunFaultProofProgram(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
+	}
 
 	// The NUT-bundle upgrade gas applies only to the activation block. Build one
 	// more block and confirm its gas limit drops back to the pre-activation
@@ -169,7 +166,9 @@ func testActivationBlockNUTBundle(gt *testing.T, testCfg *helpers.TestCfg[forks.
 	l2SafeHead = env.Sequencer.L2Safe()
 	require.Equal(t, bigs.Uint64Strict(postActivation.Number), l2SafeHead.Number,
 		"safe head must advance to the post-activation block")
-	env.RunFaultProofProgram(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
+	if runFPP {
+		env.RunFaultProofProgram(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
+	}
 }
 
 // TestKarstActivationKeepUpgradeGas covers the keep_karst_upgrade_gas opt-out — the other branch of
