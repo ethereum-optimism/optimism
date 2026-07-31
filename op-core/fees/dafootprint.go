@@ -7,6 +7,8 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/core/types"
+
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 )
 
 const (
@@ -63,7 +65,7 @@ func CalcDAFootprint(txs []*types.Transaction) (uint64, error) {
 		if tx.Type() == types.DepositTxType {
 			continue
 		}
-		daFootprint += TxRollupCostData(tx).EstimatedDASize().Uint64() * uint64(daFootprintGasScalar)
+		daFootprint += bigs.Uint64Strict(TxRollupCostData(tx).EstimatedDASize()) * uint64(daFootprintGasScalar)
 	}
 	return daFootprint, nil
 }
