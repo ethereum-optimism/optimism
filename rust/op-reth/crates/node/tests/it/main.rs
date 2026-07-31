@@ -16,4 +16,6 @@ mod estimate_gas_7825;
 
 mod p2p_version;
 
+mod proofs_history;
+
 const fn main() {}

@@ -13499,6 +13499,7 @@ name = "reth-optimism-node"
 version = "1.11.3"
 dependencies = [
  "alloy-consensus 2.1.1",
+ "alloy-eips 2.1.1",
  "alloy-genesis",
  "alloy-network 2.1.1",
  "alloy-op-evm",
@@ -13561,6 +13562,7 @@ dependencies = [
  "revm",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
  "tracing",
  "url",

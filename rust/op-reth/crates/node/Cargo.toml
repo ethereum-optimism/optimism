@@ -100,6 +100,7 @@ reth-rpc-eth-types.workspace = true
 reth-stages-types.workspace = true
 reth-trie-db.workspace = true
 
+alloy-eips.workspace = true
 alloy-network.workspace = true
 alloy-op-evm.workspace = true
 alloy-op-hardforks.workspace = true
@@ -110,6 +111,7 @@ jsonrpsee.workspace = true
 # Fatal-signal handler in tests/it/crash_backtrace.rs.
 libc.workspace = true
 op-alloy-network.workspace = true
+tempfile.workspace = true
 
 [features]
 default = ["reth-codec"]
