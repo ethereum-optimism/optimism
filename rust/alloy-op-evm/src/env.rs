@@ -185,7 +185,7 @@ mod tests {
         EthereumHardforks, ForkCondition, OP_MAINNET_CANYON_TIMESTAMP,
         OP_MAINNET_ECOTONE_TIMESTAMP, OP_MAINNET_FJORD_TIMESTAMP, OP_MAINNET_GRANITE_TIMESTAMP,
         OP_MAINNET_HOLOCENE_TIMESTAMP, OP_MAINNET_ISTHMUS_TIMESTAMP, OP_MAINNET_JOVIAN_TIMESTAMP,
-        OP_MAINNET_REGOLITH_TIMESTAMP, OpChainHardforks, OpHardfork,
+        OP_MAINNET_KARST_TIMESTAMP, OP_MAINNET_REGOLITH_TIMESTAMP, OpChainHardforks, OpHardfork,
     };
     use alloy_primitives::BlockTimestamp;
 
@@ -235,7 +235,7 @@ mod tests {
                 holocene => Holocene / HOLOCENE @ timestamp, mainnet: OP_MAINNET_HOLOCENE_TIMESTAMP;
                 isthmus => Isthmus / ISTHMUS @ timestamp, mainnet: OP_MAINNET_ISTHMUS_TIMESTAMP;
                 jovian => Jovian / JOVIAN @ timestamp, mainnet: OP_MAINNET_JOVIAN_TIMESTAMP;
-                karst => Karst / KARST @ timestamp, mainnet: _;
+                karst => Karst / KARST @ timestamp, mainnet: OP_MAINNET_KARST_TIMESTAMP;
                 lagoon => Lagoon / LAGOON @ timestamp, mainnet: _;
             }
         };

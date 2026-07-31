@@ -87,7 +87,14 @@ mod tests {
         holesky::{HOLESKY_BPO1_TIMESTAMP, HOLESKY_BPO2_TIMESTAMP},
         sepolia::{SEPOLIA_BPO1_TIMESTAMP, SEPOLIA_BPO2_TIMESTAMP},
     };
-    use alloy_op_hardforks::{OP_MAINNET_JOVIAN_TIMESTAMP, OP_SEPOLIA_JOVIAN_TIMESTAMP};
+    use alloy_op_hardforks::{
+        OP_MAINNET_CANYON_TIMESTAMP, OP_MAINNET_ECOTONE_TIMESTAMP, OP_MAINNET_FJORD_TIMESTAMP,
+        OP_MAINNET_GRANITE_TIMESTAMP, OP_MAINNET_HOLOCENE_TIMESTAMP, OP_MAINNET_ISTHMUS_TIMESTAMP,
+        OP_MAINNET_JOVIAN_TIMESTAMP, OP_MAINNET_KARST_TIMESTAMP, OP_SEPOLIA_CANYON_TIMESTAMP,
+        OP_SEPOLIA_ECOTONE_TIMESTAMP, OP_SEPOLIA_FJORD_TIMESTAMP, OP_SEPOLIA_GRANITE_TIMESTAMP,
+        OP_SEPOLIA_HOLOCENE_TIMESTAMP, OP_SEPOLIA_ISTHMUS_TIMESTAMP, OP_SEPOLIA_JOVIAN_TIMESTAMP,
+        OP_SEPOLIA_KARST_TIMESTAMP,
+    };
 
     #[test]
     fn test_hardcoded_rollup_configs() {
@@ -125,18 +132,62 @@ mod tests {
         assert_eq!(rollup_config_by_alloy_ident, rollup_config_by_id);
     }
 
+    /// Conformance guard: the hand-maintained `OP_MAINNET_{FORK}_TIMESTAMP` /
+    /// `OP_SEPOLIA_{FORK}_TIMESTAMP` constants in alloy-op-hardforks must match the
+    /// superchain-registry snapshot for every timestamp-scheduled OP fork both sources know
+    /// about. Extends the former Jovian-only spot check to the full fork set.
     #[test]
-    fn test_jovian_timestamps() {
-        let op_mainnet_config_by_ident = scr_rollup_config_by_ident("mainnet/op").unwrap();
-        assert_eq!(
-            op_mainnet_config_by_ident.hardforks.jovian_time,
-            Some(OP_MAINNET_JOVIAN_TIMESTAMP)
-        );
+    fn test_op_hardfork_timestamps_match_registry() {
+        fn assert_chain(ident: &str, expected: [(&str, u64); 8]) {
+            let hardforks = scr_rollup_config_by_ident(ident).unwrap().hardforks;
+            let actual = [
+                ("canyon", hardforks.canyon_time),
+                ("ecotone", hardforks.ecotone_time),
+                ("fjord", hardforks.fjord_time),
+                ("granite", hardforks.granite_time),
+                ("holocene", hardforks.holocene_time),
+                ("isthmus", hardforks.isthmus_time),
+                ("jovian", hardforks.jovian_time),
+                ("karst", hardforks.karst_time),
+            ];
+            for ((fork, registry_time), (expected_fork, constant)) in
+                actual.into_iter().zip(expected)
+            {
+                assert_eq!(fork, expected_fork, "fork order mismatch in test tables");
+                assert_eq!(
+                    registry_time,
+                    Some(constant),
+                    "{ident} {fork}: superchain-registry snapshot disagrees with the \
+                     alloy-op-hardforks constant"
+                );
+            }
+        }
 
-        let op_sepolia_config_by_ident = scr_rollup_config_by_ident("sepolia/op").unwrap();
-        assert_eq!(
-            op_sepolia_config_by_ident.hardforks.jovian_time,
-            Some(OP_SEPOLIA_JOVIAN_TIMESTAMP)
+        assert_chain(
+            "mainnet/op",
+            [
+                ("canyon", OP_MAINNET_CANYON_TIMESTAMP),
+                ("ecotone", OP_MAINNET_ECOTONE_TIMESTAMP),
+                ("fjord", OP_MAINNET_FJORD_TIMESTAMP),
+                ("granite", OP_MAINNET_GRANITE_TIMESTAMP),
+                ("holocene", OP_MAINNET_HOLOCENE_TIMESTAMP),
+                ("isthmus", OP_MAINNET_ISTHMUS_TIMESTAMP),
+                ("jovian", OP_MAINNET_JOVIAN_TIMESTAMP),
+                ("karst", OP_MAINNET_KARST_TIMESTAMP),
+            ],
+        );
+        assert_chain(
+            "sepolia/op",
+            [
+                ("canyon", OP_SEPOLIA_CANYON_TIMESTAMP),
+                ("ecotone", OP_SEPOLIA_ECOTONE_TIMESTAMP),
+                ("fjord", OP_SEPOLIA_FJORD_TIMESTAMP),
+                ("granite", OP_SEPOLIA_GRANITE_TIMESTAMP),
+                ("holocene", OP_SEPOLIA_HOLOCENE_TIMESTAMP),
+                ("isthmus", OP_SEPOLIA_ISTHMUS_TIMESTAMP),
+                ("jovian", OP_SEPOLIA_JOVIAN_TIMESTAMP),
+                ("karst", OP_SEPOLIA_KARST_TIMESTAMP),
+            ],
         );
     }
 
