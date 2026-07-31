@@ -87,14 +87,7 @@ mod tests {
         holesky::{HOLESKY_BPO1_TIMESTAMP, HOLESKY_BPO2_TIMESTAMP},
         sepolia::{SEPOLIA_BPO1_TIMESTAMP, SEPOLIA_BPO2_TIMESTAMP},
     };
-    use alloy_op_hardforks::{
-        OP_MAINNET_CANYON_TIMESTAMP, OP_MAINNET_ECOTONE_TIMESTAMP, OP_MAINNET_FJORD_TIMESTAMP,
-        OP_MAINNET_GRANITE_TIMESTAMP, OP_MAINNET_HOLOCENE_TIMESTAMP, OP_MAINNET_ISTHMUS_TIMESTAMP,
-        OP_MAINNET_JOVIAN_TIMESTAMP, OP_MAINNET_KARST_TIMESTAMP, OP_SEPOLIA_CANYON_TIMESTAMP,
-        OP_SEPOLIA_ECOTONE_TIMESTAMP, OP_SEPOLIA_FJORD_TIMESTAMP, OP_SEPOLIA_GRANITE_TIMESTAMP,
-        OP_SEPOLIA_HOLOCENE_TIMESTAMP, OP_SEPOLIA_ISTHMUS_TIMESTAMP, OP_SEPOLIA_JOVIAN_TIMESTAMP,
-        OP_SEPOLIA_KARST_TIMESTAMP,
-    };
+    use alloy_op_hardforks::{ForkCondition, OpChainHardforks, OpHardfork, OpHardforks};
 
     #[test]
     fn test_hardcoded_rollup_configs() {
@@ -132,63 +125,72 @@ mod tests {
         assert_eq!(rollup_config_by_alloy_ident, rollup_config_by_id);
     }
 
-    /// Conformance guard: the hand-maintained `OP_MAINNET_{FORK}_TIMESTAMP` /
-    /// `OP_SEPOLIA_{FORK}_TIMESTAMP` constants in alloy-op-hardforks must match the
-    /// superchain-registry snapshot for every timestamp-scheduled OP fork both sources know
-    /// about. Extends the former Jovian-only spot check to the full fork set.
+    /// Conformance guard: alloy-op-hardforks' OP Mainnet / OP Sepolia hardfork schedules (built
+    /// from the `OP_{CHAIN}_{FORK}_TIMESTAMP` constants) must match the superchain-registry
+    /// snapshot, in both directions:
+    ///
+    /// - every [`OpHardfork`] variant's scheduled activation must equal the registry's
+    ///   `<fork>_time` (both unscheduled for trailing forks, e.g. Lagoon today), so a stale or
+    ///   missing constant fails as soon as the registry snapshot schedules the fork;
+    /// - every activation time the registry schedules must be claimed by a known [`OpHardfork`]
+    ///   variant, so a fork the registry knows before the enum/constants do is also caught.
+    ///
+    /// The fork sets come from [`OpHardfork::VARIANTS`] and [`HardForkConfig::iter`]
+    /// (`kona_genesis::HardForkConfig`), so this test self-expands as forks are added or
+    /// scheduled — there is no per-fork list to maintain here.
     #[test]
-    fn test_op_hardfork_timestamps_match_registry() {
-        fn assert_chain(ident: &str, expected: [(&str, u64); 8]) {
+    fn test_op_hardfork_schedules_match_registry() {
+        use alloc::format;
+
+        // Registry-scheduled times that are deliberately not OpHardfork variants: Delta was
+        // folded into Ecotone in alloy-op-hardforks, and the Pectra blob schedule is an
+        // L1-driven blob-fee patch, not an OP hardfork.
+        const NON_OP_FORK_TIMES: [&str; 2] = ["Delta", "Pectra Blob Schedule"];
+
+        for (ident, schedule) in [
+            ("mainnet/op", OpChainHardforks::op_mainnet()),
+            ("sepolia/op", OpChainHardforks::op_sepolia()),
+        ] {
             let hardforks = scr_rollup_config_by_ident(ident).unwrap().hardforks;
-            let actual = [
-                ("canyon", hardforks.canyon_time),
-                ("ecotone", hardforks.ecotone_time),
-                ("fjord", hardforks.fjord_time),
-                ("granite", hardforks.granite_time),
-                ("holocene", hardforks.holocene_time),
-                ("isthmus", hardforks.isthmus_time),
-                ("jovian", hardforks.jovian_time),
-                ("karst", hardforks.karst_time),
-            ];
-            for ((fork, registry_time), (expected_fork, constant)) in
-                actual.into_iter().zip(expected)
-            {
-                assert_eq!(fork, expected_fork, "fork order mismatch in test tables");
+
+            // Direction 1: every fork the enum knows must resolve identically on both sides.
+            for fork in OpHardfork::VARIANTS.iter().copied() {
+                let scheduled = match schedule.op_fork_activation(fork) {
+                    // Genesis-active forks (activation timestamp 0, e.g. Regolith) predate the
+                    // registry's scheduling and have no `_time` entry there by design; block
+                    // activations (Bedrock) have no timestamp either, and unscheduled trailing
+                    // forks (`Never`) must be unscheduled in the registry too.
+                    ForkCondition::Timestamp(0) |
+                    ForkCondition::Block(_) |
+                    ForkCondition::Never => None,
+                    ForkCondition::Timestamp(t) => Some(t),
+                    cond => panic!("{ident} {fork:?}: unexpected activation condition {cond:?}"),
+                };
                 assert_eq!(
-                    registry_time,
-                    Some(constant),
-                    "{ident} {fork}: superchain-registry snapshot disagrees with the \
-                     alloy-op-hardforks constant"
+                    hardforks.fork_time(fork),
+                    scheduled,
+                    "{ident} {fork:?}: superchain-registry snapshot disagrees with the \
+                     alloy-op-hardforks schedule (is an OP_..._TIMESTAMP constant missing or \
+                     stale?)"
+                );
+            }
+
+            // Direction 2: every time the registry schedules must be claimed by a known variant.
+            for (name, time) in hardforks.iter() {
+                if time.is_none() || NON_OP_FORK_TIMES.contains(&name) {
+                    continue;
+                }
+                let claimed = OpHardfork::VARIANTS
+                    .iter()
+                    .copied()
+                    .any(|fork| format!("{fork:?}") == name && hardforks.fork_time(fork) == time);
+                assert!(
+                    claimed,
+                    "{ident}: the registry schedules {name} at {time:?}, but no OpHardfork \
+                     variant claims it — add the fork and its constant to alloy-op-hardforks"
                 );
             }
         }
-
-        assert_chain(
-            "mainnet/op",
-            [
-                ("canyon", OP_MAINNET_CANYON_TIMESTAMP),
-                ("ecotone", OP_MAINNET_ECOTONE_TIMESTAMP),
-                ("fjord", OP_MAINNET_FJORD_TIMESTAMP),
-                ("granite", OP_MAINNET_GRANITE_TIMESTAMP),
-                ("holocene", OP_MAINNET_HOLOCENE_TIMESTAMP),
-                ("isthmus", OP_MAINNET_ISTHMUS_TIMESTAMP),
-                ("jovian", OP_MAINNET_JOVIAN_TIMESTAMP),
-                ("karst", OP_MAINNET_KARST_TIMESTAMP),
-            ],
-        );
-        assert_chain(
-            "sepolia/op",
-            [
-                ("canyon", OP_SEPOLIA_CANYON_TIMESTAMP),
-                ("ecotone", OP_SEPOLIA_ECOTONE_TIMESTAMP),
-                ("fjord", OP_SEPOLIA_FJORD_TIMESTAMP),
-                ("granite", OP_SEPOLIA_GRANITE_TIMESTAMP),
-                ("holocene", OP_SEPOLIA_HOLOCENE_TIMESTAMP),
-                ("isthmus", OP_SEPOLIA_ISTHMUS_TIMESTAMP),
-                ("jovian", OP_SEPOLIA_JOVIAN_TIMESTAMP),
-                ("karst", OP_SEPOLIA_KARST_TIMESTAMP),
-            ],
-        );
     }
 
     #[test]
