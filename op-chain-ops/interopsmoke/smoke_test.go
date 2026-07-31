@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/urfave/cli/v2"
 )
 
 func TestFlowOutput(t *testing.T) {
@@ -101,26 +102,85 @@ func TestValidateInvalidMessageOptions(t *testing.T) {
 	}
 }
 
-func TestInvalidDirections(t *testing.T) {
-	env := &smokeEnv{
-		users: []*remoteUser{
-			{chain: &remoteChain{name: "L2A"}},
-			{chain: &remoteChain{name: "L2B"}},
-			{chain: &remoteChain{name: "L2C"}},
-		},
-	}
-	dirs, err := invalidDirections(env)
-	if err != nil {
-		t.Fatal(err)
-	}
-	wantNames := []string{"A->B", "A->C", "B->A", "B->C", "C->A", "C->B"}
-	if len(dirs) != len(wantNames) {
-		t.Fatalf("got %d directions, want %d", len(dirs), len(wantNames))
-	}
-	for i, want := range wantNames {
-		if dirs[i].name != want {
-			t.Fatalf("direction %d = %s, want %s", i, dirs[i].name, want)
+func TestInvalidMessageDirectionFlag(t *testing.T) {
+	var invalidMessage *cli.Command
+	for _, command := range Subcommands("OP_UP") {
+		if command.Name == "invalid-message" {
+			invalidMessage = command
+			break
 		}
+	}
+	if invalidMessage == nil {
+		t.Fatal("invalid-message command not found")
+	}
+	for _, flag := range invalidMessage.Flags {
+		if flag.Names()[0] == "direction" {
+			return
+		}
+	}
+	t.Fatal("invalid-message command missing --direction flag")
+}
+
+func TestInvalidDirections(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		direction string
+		wantNames []string
+		wantErr   string
+	}{
+		{
+			name:      "defaults to every ordered pair",
+			wantNames: []string{"A->B", "A->C", "B->A", "B->C", "C->A", "C->B"},
+		},
+		{
+			name:      "selects one direction",
+			direction: "A->B",
+			wantNames: []string{"A->B"},
+		},
+		{
+			name:      "rejects malformed selector",
+			direction: "A-B",
+			wantErr:   "must be in the form A->B",
+		},
+		{
+			name:      "rejects unknown selector",
+			direction: "A->D",
+			wantErr:   "unknown",
+		},
+		{
+			name:      "rejects same chain selector",
+			direction: "A->A",
+			wantErr:   "must differ",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			env := &smokeEnv{
+				invalidDirection: tc.direction,
+				users: []*remoteUser{
+					{chain: &remoteChain{name: "L2A"}},
+					{chain: &remoteChain{name: "L2B"}},
+					{chain: &remoteChain{name: "L2C"}},
+				},
+			}
+			dirs, err := invalidDirections(env)
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("error = %v, want containing %q", err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(dirs) != len(tc.wantNames) {
+				t.Fatalf("got %d directions, want %d", len(dirs), len(tc.wantNames))
+			}
+			for i, want := range tc.wantNames {
+				if dirs[i].name != want {
+					t.Fatalf("direction %d = %s, want %s", i, dirs[i].name, want)
+				}
+			}
+		})
 	}
 }
 

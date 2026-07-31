@@ -54,6 +54,7 @@ const (
 	invalidBlocksFlagName     = "blocks"
 	invalidTxPerBlockFlagName = "tx-per-block"
 	reorgTimeoutFlagName      = "reorg-timeout"
+	directionFlagName         = "direction"
 	requireCascadeFlagName    = "require-cascade"
 )
 
@@ -126,6 +127,7 @@ type smokeEnv struct {
 	userB             *remoteUser
 	invalidBlocks     uint
 	invalidTxPerBlock uint
+	invalidDirection  string
 	reorgTimeout      time.Duration
 	requireCascade    bool
 }
@@ -596,6 +598,10 @@ func Subcommands(envPrefix string) []*cli.Command {
 					EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_TX_PER_BLOCK"),
 					Value:   1,
 				},
+				&cli.StringFlag{
+					Name:  directionFlagName,
+					Usage: "One directed chain pair to test, such as A->B. By default, tests every ordered pair.",
+				},
 				&cli.DurationFlag{
 					Name:    reorgTimeoutFlagName,
 					Usage:   "Maximum time to wait for each invalid block to be reorged.",
@@ -607,6 +613,7 @@ func Subcommands(envPrefix string) []*cli.Command {
 				return withSmokeEnv(cliCtx, "Invalid Exec Message (reorg)", func(env *smokeEnv) error {
 					env.invalidBlocks = cliCtx.Uint(invalidBlocksFlagName)
 					env.invalidTxPerBlock = cliCtx.Uint(invalidTxPerBlockFlagName)
+					env.invalidDirection = cliCtx.String(directionFlagName)
 					env.reorgTimeout = cliCtx.Duration(reorgTimeoutFlagName)
 					return smokeInvalidMessage(env)
 				})
@@ -967,6 +974,24 @@ func invalidDirections(env *smokeEnv) ([]*invalidDirection, error) {
 	pairs, err := orderedPairs(env)
 	if err != nil {
 		return nil, err
+	}
+	if env.invalidDirection != "" {
+		parts := strings.Split(env.invalidDirection, "->")
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+			return nil, fmt.Errorf("invalid-message direction must be in the form A->B")
+		}
+		if parts[0] == parts[1] {
+			return nil, fmt.Errorf("invalid-message direction source and destination must differ: %s", env.invalidDirection)
+		}
+		for i, pair := range pairs {
+			if pair.name == env.invalidDirection {
+				pairs = pairs[i : i+1]
+				break
+			}
+		}
+		if len(pairs) != 1 || pairs[0].name != env.invalidDirection {
+			return nil, fmt.Errorf("invalid-message direction %q is unknown", env.invalidDirection)
+		}
 	}
 	dirs := make([]*invalidDirection, 0, len(pairs))
 	for i, pair := range pairs {
