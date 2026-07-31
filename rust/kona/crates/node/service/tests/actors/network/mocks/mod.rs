@@ -2,10 +2,12 @@
 
 use std::{str::FromStr, time::Duration};
 
+use alloy_primitives::Address;
 use backon::{ExponentialBuilder, Retryable};
 use discv5::Enr;
 use kona_gossip::{P2pRpcRequest, PeerDump, PeerInfo};
-use kona_node_service::{NetworkActorError, NetworkInboundData};
+use kona_node_service::NetworkActorError;
+use kona_rpc::NetworkAdminQuery;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use tokio::{
     sync::{mpsc, oneshot},
@@ -15,7 +17,12 @@ use tokio::{
 pub(crate) mod builder;
 
 pub(crate) struct TestNetwork {
-    pub(super) inbound_data: NetworkInboundData,
+    #[allow(dead_code)]
+    pub(super) signer_tx: mpsc::Sender<Address>,
+    pub(super) p2p_rpc_tx: mpsc::Sender<P2pRpcRequest>,
+    #[allow(dead_code)]
+    pub(super) admin_rpc_tx: mpsc::Sender<NetworkAdminQuery>,
+    pub(super) gossip_payload_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
     pub(super) blocks_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
     #[allow(dead_code)]
     handle: JoinHandle<Result<(), NetworkActorError>>,
@@ -40,8 +47,7 @@ impl TestNetwork {
         // Try to get the peer info. Send a peer info request to the network actor.
         let (peer_info_tx, peer_info_rx) = oneshot::channel();
         let peer_info_request = P2pRpcRequest::PeerInfo(peer_info_tx);
-        self.inbound_data
-            .p2p_rpc
+        self.p2p_rpc_tx
             .send(peer_info_request)
             .await
             .map_err(|_| TestNetworkError::P2pReceiverClosed)?;
@@ -54,8 +60,7 @@ impl TestNetwork {
     pub(super) async fn peers(&self) -> Result<PeerDump, TestNetworkError> {
         let (peers_tx, peers_rx) = oneshot::channel();
         let peers_request = P2pRpcRequest::Peers { out: peers_tx, connected: true };
-        self.inbound_data
-            .p2p_rpc
+        self.p2p_rpc_tx
             .send(peers_request)
             .await
             .map_err(|_| TestNetworkError::P2pReceiverClosed)?;

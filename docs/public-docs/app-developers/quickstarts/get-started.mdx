@@ -1,0 +1,84 @@
+---
+title: App developer quickstart
+description: Get testnet ETH, deploy your first contract to OP Sepolia, and bridge assets - your first steps on the Superchain.
+diataxis: tutorial
+---
+
+import OpEnterpriseAppsCallout from '/snippets/op-enterprise-apps-callout.mdx';
+
+OP Stack chains are [EVM equivalent](/op-stack/protocol/differences): everything you know from Ethereum works here, and everything you build here works across the OP Stack ecosystem.
+This quickstart takes you from zero to a deployed contract on the OP Sepolia testnet, using only free testnet funds.
+
+<Info>
+  No real funds are needed at any point — everything below runs on testnets.
+</Info>
+
+## Before you start
+
+You'll need:
+
+*   A wallet you control (any EVM wallet works; you'll export or generate a private key for testnet use only).
+*   A terminal with `curl` available.
+
+<Warning>
+  Use a fresh, testnet-only private key for tutorials. Never paste a key that holds real funds into a terminal.
+</Warning>
+
+<Steps>
+  <Step title="Get testnet ETH">
+
+  Grab free OP Sepolia ETH from the [Superchain Faucet](https://console.optimism.io/faucet).
+  Other options are listed on the [testnet faucets page](/app-developers/tools/faucets).
+
+  </Step>
+  <Step title="Connect to OP Sepolia">
+
+  OP Sepolia's public RPC endpoint is `https://sepolia.optimism.io` and its chain ID is `11155420`.
+  Verify you can reach it:
+
+  ```bash
+  curl -s -X POST -H "Content-Type: application/json" \
+    --data '{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}' \
+    https://sepolia.optimism.io
+  ```
+
+  Expected result: `{"jsonrpc":"2.0","id":1,"result":"0xaa37dc"}` (`0xaa37dc` = 11155420).
+  For other networks and production-grade endpoints, see [Networks](/app-developers/reference/networks) and [RPC providers](/app-developers/reference/rpc-providers).
+
+  </Step>
+  <Step title="Deploy your first contract">
+
+  Follow the [Deploy a contract to OP Sepolia](/app-developers/tutorials/deploy-a-contract) tutorial.
+  It walks you through installing Foundry, deploying a small `Greeter` contract, and reading and writing to it from the command line — the same workflow you'd use on Ethereum.
+
+  </Step>
+  <Step title="Bridge ETH between L1 and L2 (optional)">
+
+  Apps often need to move assets between Ethereum and an OP Stack chain.
+  Start with [Bridging basics](/app-developers/guides/bridging/basics) to understand the model, then follow the [Bridging ETH with Viem](/app-developers/tutorials/bridging/cross-dom-bridge-eth) tutorial to do a Sepolia → OP Sepolia deposit programmatically.
+
+  </Step>
+</Steps>
+
+## Where to go next
+
+<CardGroup cols={2}>
+  <Card title="Build apps on OP Stack chains" href="/app-developers/guides/building-apps">
+    Development workflow, tooling, and what (little) is different from Ethereum.
+  </Card>
+  <Card title="Test your apps" href="/app-developers/guides/testing-apps">
+    Test against OP Stack chains locally and in CI.
+  </Card>
+  <Card title="Go cross-chain with interop" href="/app-developers/guides/interoperability/get-started">
+    Build apps that span multiple Superchain chains.
+  </Card>
+  <Card title="Integrate DeFi with the Actions SDK" href="/app-developers/quickstarts/actions">
+    Lend, borrow, and swap with lightweight, type-safe modules (early preview — not production-ready).
+  </Card>
+</CardGroup>
+
+<OpEnterpriseAppsCallout />
+
+## Need help?
+
+*   Ask a question or report documentation issues on the [Optimism monorepo issue tracker](https://github.com/ethereum-optimism/optimism/issues).

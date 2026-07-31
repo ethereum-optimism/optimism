@@ -18,6 +18,9 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
+import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 /// @title OPContractsManagerUtils
 /// @notice OPContractsManagerUtils is a contract that provides utility functions for the OPContractsManager.
@@ -38,6 +41,10 @@ contract OPContractsManagerUtils {
         bytes data;
     }
 
+    /// @notice ERC-7201 Initializable slot used by OpenZeppelin Contracts v5.
+    bytes32 internal constant OZ_V5_INITIALIZABLE_SLOT =
+        0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00;
+
     /// @notice Emitted when a proxy is created by this contract.
     /// @param name  The name of the proxy.
     /// @param proxy The address of the proxy.
@@ -51,8 +58,8 @@ contract OPContractsManagerUtils {
     /// @param _contract The address of the contract with extra version tags.
     error OPContractsManagerUtils_ExtraTagInProd(address _contract);
 
-    /// @notice Thrown when a contract has `_initializing` as true during an upgrade.
-    error OPContractsManagerUtils_InitializingDuringUpgrade();
+    /// @notice Thrown when an upgrade attempts to reset an OpenZeppelin Contracts v5 Initializable contract.
+    error OPContractsManagerUtils_OZv5InitializableUnsupported();
 
     /// @notice Thrown when a config load fails.
     /// @param _name The name of the config that failed to load.
@@ -294,7 +301,7 @@ contract OPContractsManagerUtils {
     }
 
     /// @notice Upgrades a contract by resetting the initialized slot and calling the initializer.
-    /// @param _proxyAdmin The proxy admin of the contract.
+    /// @param _proxyAdmin Fallback ProxyAdmin, used when the target can't report its own.
     /// @param _target The target of the contract.
     /// @param _implementation The implementation of the contract.
     /// @param _data The data to call the initializer with.
@@ -310,6 +317,13 @@ contract OPContractsManagerUtils {
     )
         external
     {
+        // Route the upgrade through the ProxyAdmin that actually administers the target rather
+        // than assuming the caller's. After an interop migration a chain set shares an ETHLockbox,
+        // DisputeGameFactory, AnchorStateRegistry and DelayedWETH that are all administered by the
+        // first chain's ProxyAdmin, so an upgrade driven by any other member would otherwise
+        // revert on the shared contracts' proxy admin-slot check. Ref: #21731.
+        _proxyAdmin = _adminFor(_proxyAdmin, _target);
+
         // Check to make sure that we're not downgrading. Downgrades aren't inherently dangerous
         // but we also don't test for them so we don't really know if a specific downgrade will be
         // dangerous or not. It's easier to just revert instead.
@@ -336,36 +350,73 @@ contract OPContractsManagerUtils {
         // Upgrade to StorageSetter.
         _proxyAdmin.upgrade(payable(_target), address(implementations().storageSetterImpl));
 
-        // We need to reset the initialized slot and call the initializer.
+        // OpenZeppelin Contracts v5 Initializable uses an ERC-7201 namespaced slot instead of
+        // the v4 one-byte `_initialized` field. OPCM does not support the v5 layout, so abort
+        // when the caller points at that slot or the target already has state there.
+        if (
+            _slot == OZ_V5_INITIALIZABLE_SLOT
+                || IStorageSetter(_target).getBytes32(OZ_V5_INITIALIZABLE_SLOT) != bytes32(0)
+        ) {
+            revert OPContractsManagerUtils_OZv5InitializableUnsupported();
+        }
+
         // Reset the initialized slot by zeroing the single byte at `_offset` (from the right).
         bytes32 current = IStorageSetter(_target).getBytes32(_slot);
         uint256 mask = ~(uint256(0xff) << (uint256(_offset) * 8));
         IStorageSetter(_target).setBytes32(_slot, bytes32(uint256(current) & mask));
 
-        // Also clear the OZ v5 ERC-7201 Initializable slot. OZ v5 stores `_initialized` as
-        // uint64 in the low 8 bytes and `_initializing` as bool at byte offset 8 of the
-        // namespaced slot. For v4 contracts this slot is all zeros, making this a no-op.
-        // Slot derivation (ERC-7201):
-        //   keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.Initializable")) - 1)) &
-        // ~bytes32(uint256(0xff))
-        // Ref:
-        // https://github.com/OpenZeppelin/openzeppelin-contracts/blob/6b55a93e/contracts/proxy/utils/Initializable.sol#L77
-        bytes32 ozV5Slot = bytes32(uint256(0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00));
-        bytes32 v5Current = IStorageSetter(_target).getBytes32(ozV5Slot);
-        uint256 v5Value = uint256(v5Current);
-
-        // A contract should never be mid-initialization during an upgrade. The `_initializing`
-        // bool lives at byte offset 8 (bits 64..71). Revert if it is set.
-        if ((v5Value >> 64) & 0xFF != 0) {
-            revert OPContractsManagerUtils_InitializingDuringUpgrade();
-        }
-
-        // Zero the uint64 `_initialized` portion (low 8 bytes), preserving all upper bytes.
-        uint256 v5Mask = ~uint256(0xFFFFFFFFFFFFFFFF);
-        IStorageSetter(_target).setBytes32(ozV5Slot, bytes32(v5Value & v5Mask));
-
         // Upgrade to the implementation and call the initializer.
         _proxyAdmin.upgradeAndCall(payable(address(_target)), _implementation, _data);
+
+        // The check above only inspects the proxy's state before the upgrade, so it cannot catch a
+        // v5-style implementation whose initializer writes the ERC-7201 slot during upgradeAndCall.
+        // Re-point at StorageSetter to read what the initializer wrote and revert the whole upgrade
+        // if v5 state is now present, which keeps an unsupported implementation from being installed.
+        // TODO: This should be removed when the OPCM has proper support for upgrading a v5 Initializable contract.
+        _proxyAdmin.upgrade(payable(_target), address(implementations().storageSetterImpl));
+        if (IStorageSetter(_target).getBytes32(OZ_V5_INITIALIZABLE_SLOT) != bytes32(0)) {
+            revert OPContractsManagerUtils_OZv5InitializableUnsupported();
+        }
+
+        // No v5 state was written, so restore the real implementation. A plain upgrade (not
+        // upgradeAndCall) leaves the initializer state from above intact and does not re-run it.
+        _proxyAdmin.upgrade(payable(_target), _implementation);
+    }
+
+    /// @notice Resolves the ProxyAdmin that administers a proxy from its self-reported admin
+    ///         (ProxyAdminOwnedBase), so upgrades route correctly when a chain set spans distinct
+    ///         ProxyAdmins. Falls back to _defaultAdmin for a freshly-deployed proxy that can't
+    ///         report one yet, which is always administered by the ProxyAdmin that deployed it.
+    /// @param _defaultAdmin Fallback ProxyAdmin for not-yet-initialized proxies.
+    /// @param _target The proxy whose administering ProxyAdmin should be resolved.
+    /// @return The administering ProxyAdmin.
+    function _adminFor(IProxyAdmin _defaultAdmin, address _target) internal view returns (IProxyAdmin) {
+        // eip150-safe
+        try IProxyAdminOwnedBase(_target).proxyAdmin() returns (IProxyAdmin admin_) {
+            return address(admin_) == address(0) ? _defaultAdmin : admin_;
+        } catch {
+            return _defaultAdmin;
+        }
+    }
+
+    /// @notice Resolves the SystemConfig a proxy is already bound to, so an upgrade driven by one
+    ///         member of an interop set does not re-point the shared contracts (ETHLockbox,
+    ///         AnchorStateRegistry, DelayedWETH) at the caller's SystemConfig. migrate() binds those
+    ///         to the first member chain's SystemConfig. Per-chain contracts report the caller's own
+    ///         SystemConfig, so behavior is unchanged for them. Falls back to _default for a
+    ///         freshly-deployed proxy that can't report one yet. Ref: #21731.
+    /// @dev The contracts exposing systemConfig() share no common base interface; IETHLockbox is
+    ///      only the source of the (identical) selector.
+    /// @param _default Fallback SystemConfig for not-yet-initialized proxies.
+    /// @param _target The proxy whose bound SystemConfig should be resolved.
+    /// @return The bound SystemConfig.
+    function systemConfigFor(ISystemConfig _default, address _target) external view returns (ISystemConfig) {
+        // eip150-safe
+        try IETHLockbox(_target).systemConfig() returns (ISystemConfig systemConfig_) {
+            return address(systemConfig_) == address(0) ? _default : systemConfig_;
+        } catch {
+            return _default;
+        }
     }
 
     /// @notice Returns the implementations for the contracts.
@@ -391,12 +442,12 @@ contract OPContractsManagerUtils {
             return IDisputeGame(impls.permissionedDisputeGameImpl);
         } else if (_gameType.raw() == GameTypes.CANNON_KONA.raw()) {
             return IDisputeGame(impls.faultDisputeGameImpl);
-        } else if (_gameType.raw() == GameTypes.SUPER_CANNON.raw()) {
-            return IDisputeGame(impls.superFaultDisputeGameImpl);
-        } else if (_gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
+        } else if (_gameType.raw() == GameTypes.SUPER_PERMISSIONED.raw()) {
             return IDisputeGame(impls.superPermissionedDisputeGameImpl);
         } else if (_gameType.raw() == GameTypes.SUPER_CANNON_KONA.raw()) {
             return IDisputeGame(impls.superFaultDisputeGameImpl);
+        } else if (_gameType.raw() == GameTypes.ZK_DISPUTE_GAME.raw()) {
+            return IDisputeGame(impls.zkDisputeGameImpl);
         } else {
             revert IOPContractsManagerUtils.OPContractsManagerUtils_UnsupportedGameType();
         }
@@ -427,7 +478,7 @@ contract OPContractsManagerUtils {
 
         if (
             rawGT == GameTypes.CANNON.raw() || rawGT == GameTypes.CANNON_KONA.raw()
-                || rawGT == GameTypes.SUPER_CANNON.raw() || rawGT == GameTypes.SUPER_CANNON_KONA.raw()
+                || rawGT == GameTypes.SUPER_CANNON_KONA.raw()
         ) {
             IOPContractsManagerUtils.FaultDisputeGameConfig memory parsedInputArgs =
                 abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.FaultDisputeGameConfig));
@@ -438,7 +489,7 @@ contract OPContractsManagerUtils {
                 address(_delayedWETH),
                 chainId
             );
-        } else if (rawGT == GameTypes.PERMISSIONED_CANNON.raw() || rawGT == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
+        } else if (rawGT == GameTypes.PERMISSIONED_CANNON.raw()) {
             IOPContractsManagerUtils.PermissionedDisputeGameConfig memory parsedInputArgs =
                 abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.PermissionedDisputeGameConfig));
             return abi.encodePacked(
@@ -449,6 +500,22 @@ contract OPContractsManagerUtils {
                 chainId,
                 parsedInputArgs.proposer,
                 parsedInputArgs.challenger
+            );
+        } else if (rawGT == GameTypes.SUPER_PERMISSIONED.raw()) {
+            IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig memory parsedInputArgs =
+                abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig));
+            return abi.encodePacked(address(_anchorStateRegistry), parsedInputArgs.proposer);
+        } else if (rawGT == GameTypes.ZK_DISPUTE_GAME.raw()) {
+            IOPContractsManagerUtils.ZKDisputeGameConfig memory parsedInputArgs =
+                abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.ZKDisputeGameConfig));
+            return abi.encodePacked(
+                parsedInputArgs.absolutePrestate,
+                parsedInputArgs.verifier,
+                parsedInputArgs.maxChallengeDuration,
+                parsedInputArgs.maxProveDuration,
+                parsedInputArgs.challengerBond,
+                address(_anchorStateRegistry),
+                address(_delayedWETH)
             );
         } else {
             revert IOPContractsManagerUtils.OPContractsManagerUtils_UnsupportedGameType();

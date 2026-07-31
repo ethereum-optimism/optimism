@@ -7,9 +7,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/proofs"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
-	"github.com/ethereum-optimism/optimism/op-faucet/faucet"
-	"github.com/ethereum-optimism/optimism/op-service/client"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 type SingleChainWithFlashblocks struct {
@@ -31,7 +28,7 @@ func (m *SingleChainWithFlashblocks) StandardBridge() *dsl.StandardBridge {
 }
 
 func (m *SingleChainWithFlashblocks) DisputeGameFactory() *proofs.DisputeGameFactory {
-	return proofs.NewDisputeGameFactory(m.T, m.L1Network, m.L1EL.EthClient(), m.L2Chain.DisputeGameFactoryProxyAddr(), m.L2CL, m.L2EL, nil, m.challengerConfig)
+	return proofs.NewDisputeGameFactory(m.T, m.L1Network, m.L1EL.EthClient(), m.L2Chain.DisputeGameFactoryProxyAddr(), m.L2CL, m.L2EL, nil, nil, m.challengerConfig)
 }
 
 func (m *SingleChainWithFlashblocks) AdvanceTime(amount time.Duration) {
@@ -117,13 +114,6 @@ func singleChainWithFlashblocksFromRuntime(t devtest.T, runtime *sysgo.SingleCha
 	l2CL.attachOPRBuilderNode(l2OPRBuilder)
 	l2CL.attachRollupBoostNode(l2RollupBoost)
 
-	faucetL1Frontend := newFaucetFrontendForChain(t, runtime.FaucetService, l1ChainID)
-	faucetL2Frontend := newFaucetFrontendForChain(t, runtime.FaucetService, l2ChainID)
-	l1Network.AddFaucet(faucetL1Frontend)
-	l2Chain.AddFaucet(faucetL2Frontend)
-	faucetL1 := dsl.NewFaucet(faucetL1Frontend)
-	faucetL2 := dsl.NewFaucet(faucetL2Frontend)
-
 	l1ELDSL := dsl.NewL1ELNode(l1EL)
 	l1CLDSL := dsl.NewL1CLNode(l1CL)
 	l2ELDSL := dsl.NewL2ELNode(l2EL)
@@ -139,11 +129,9 @@ func singleChainWithFlashblocksFromRuntime(t devtest.T, runtime *sysgo.SingleCha
 		L2EL:      l2ELDSL,
 		L2CL:      l2CLDSL,
 		Wallet:    dsl.NewRandomHDWallet(t, 30), // Random for test isolation
-		FaucetL1:  faucetL1,
-		FaucetL2:  faucetL2,
 	}
-	minimal.FunderL1 = dsl.NewFunder(minimal.Wallet, minimal.FaucetL1, minimal.L1EL)
-	minimal.FunderL2 = dsl.NewFunder(minimal.Wallet, minimal.FaucetL2, minimal.L2EL)
+	minimal.FunderL1 = newFunderEOA(t, runtime.Keys, minimal.L1EL, minimal.Wallet)
+	minimal.FunderL2 = newFunderEOA(t, runtime.Keys, minimal.L2EL, minimal.Wallet)
 
 	return &SingleChainWithFlashblocks{
 		L2OPRBuilder:  dsl.NewOPRBuilderNode(l2OPRBuilder),
@@ -151,26 +139,4 @@ func singleChainWithFlashblocksFromRuntime(t devtest.T, runtime *sysgo.SingleCha
 		Minimal:       minimal,
 		TestSequencer: dsl.NewTestSequencer(testSequencer),
 	}
-}
-
-func newFaucetFrontendForChain(t devtest.T, faucetService *faucet.Service, chainID eth.ChainID) *faucetFrontend {
-	faucetName, faucetRPC, ok := defaultFaucetForChain(faucetService, chainID)
-	t.Require().Truef(ok, "missing default faucet for chain %s", chainID)
-
-	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), faucetRPC, client.WithLazyDial())
-	t.Require().NoError(err)
-	t.Cleanup(rpcCl.Close)
-
-	return newPresetFaucet(t, faucetName, chainID, rpcCl)
-}
-
-func defaultFaucetForChain(faucetService *faucet.Service, chainID eth.ChainID) (string, string, bool) {
-	if faucetService == nil {
-		return "", "", false
-	}
-	faucetID, ok := faucetService.Defaults()[chainID]
-	if !ok {
-		return "", "", false
-	}
-	return faucetID.String(), faucetService.FaucetEndpoint(faucetID), true
 }

@@ -16,23 +16,26 @@
 # documented here to avoid false validation failures while maintaining the validation rules
 # for standard contract tests.
 src_validation = [
-    "test/invariants/",                    # Invariant testing framework - no direct src counterpart
-    "test/opcm/",                          # OP Chain Manager tests - may have different structure
-    "test/scripts/",                       # Script tests - test deployment/utility scripts, not contracts
-    "test/integration/",                   # Integration tests - test multiple contracts together
-    "test/cannon/MIPS64Memory.t.sol",      # Tests external MIPS implementation
-    "test/dispute/lib/LibClock.t.sol",     # Tests library utilities
-    "test/dispute/lib/LibGameId.t.sol",    # Tests library utilities
-    "test/libraries/DeployUtils.t.sol",    # Tests library utilities - no direct src counterpart
-    "test/setup/DeployVariations.t.sol",   # Tests deployment variations
-    "test/universal/BenchmarkTest.t.sol",  # Performance benchmarking tests
-    "test/universal/ExtendedPause.t.sol",  # Tests extended functionality
-    "test/vendor/Initializable.t.sol",     # Tests external vendor code
-    "test/vendor/InitializableOZv5.t.sol", # Tests external vendor code
-    "test/L2/LegacyFeeSplitter.t.sol",     # Tests legacy fee splitter with updated vaults interface
-    "test/L2/FeeSplitterVaults.t.sol",     # Tests FeeSplitter with vault-specific scenarios using test helper
-    "test/L2/fork/L2ForkUpgrade.t.sol",    # Tests L2 fork upgrade workflow
-    "test/L2/L2GenesisForkUpgrade.t.sol",  # Tests L2 genesis fork upgrade workflow
+    "test/invariants/",                                       # Invariant testing framework - no direct src counterpart
+    "test/opcm/",                                             # OP Chain Manager tests - may have different structure
+    "test/scripts/",                                          # Script tests - test deployment/utility scripts, not contracts
+    "test/integration/",                                      # Integration tests - test multiple contracts together
+    "test/cannon/MIPS64Memory.t.sol",                         # Tests external MIPS implementation
+    "test/dispute/lib/LibClock.t.sol",                        # Tests library utilities
+    "test/dispute/lib/LibGameId.t.sol",                       # Tests library utilities
+    "test/libraries/DeployUtils.t.sol",                       # Tests library utilities - no direct src counterpart
+    "test/setup/DeployVariations.t.sol",                      # Tests deployment variations
+    "test/setup/DisputeGames.t.sol",                          # Tests a test-only library (test/setup/DisputeGames.sol)
+    "test/setup/PastNUTBundles.t.sol",                        # Tests a test-only library (test/setup/PastNUTBundles.sol)
+    "test/universal/BenchmarkTest.t.sol",                     # Performance benchmarking tests
+    "test/universal/ExtendedPause.t.sol",                     # Tests extended functionality
+    "test/vendor/Initializable.t.sol",                        # Tests external vendor code
+    "test/vendor/InitializableOZv5.t.sol",                    # Tests external vendor code
+    "test/L2/fork/L2ForkUpgrade.t.sol",                       # Tests L2 fork upgrade workflow
+    "test/L2/betanet-fork/L2VerifyBetanetForkUpgrade.t.sol",  # Tests L2 betanet fork upgrade workflow - no src counterpart
+    "test/L2/L2GenesisForkUpgrade.t.sol",                     # Tests L2 genesis fork upgrade workflow
+    "test/dispute/zk/ZKDisputeGameIntegration.t.sol",         # Integration tests for ZK dispute game lifecycle
+    "test/dispute/zk/ZKDisputeGameSuperMigration.t.sol",      # Integration tests for ZK dispute game super migration
 ]
 
 # PATHS EXCLUDED FROM CONTRACT NAME FILE PATH VALIDATION:
@@ -59,7 +62,6 @@ contract_name_validation = [
     "test/L2/CrossDomainOwnable3.t.sol",                  # Contains contracts not matching CrossDomainOwnable3 base name
     "test/L2/GasPriceOracle.t.sol",                       # Contains contracts not matching GasPriceOracle base name
     "test/universal/StandardBridge.t.sol",                # Contains contracts not matching StandardBridge base name
-    "test/L2/RevenueSharingIntegration.t.sol",            # Contains contracts not matching RevenueSharingIntegration base name
     "test/libraries/Blueprint.t.sol",                     # Contains helper contracts (BlueprintHarness, ConstructorArgMock)
     "test/libraries/SafeCall.t.sol",                      # Contains helper contracts (SimpleSafeCaller)
 ]
@@ -80,11 +82,13 @@ contract_name_validation = [
 # - Fixing misspelled function names in test contracts
 # - Restructuring tests to match actual function signatures
 function_name_validation = [
-    "test/L1/ProxyAdminOwnedBase.t.sol",     # Tests internal functions not in ABI
-    "test/L1/SystemConfig.t.sol",            # Tests internal functions not in ABI
-    "test/safe/SafeSigners.t.sol",           # Function name validation issues
-    "test/libraries/Predeploys.t.sol",       # Function 'uncategorizedInterop' doesn't exist in library
-    "test/libraries/TransientContext.t.sol", # Function 'reentrantAware' doesn't exist in library
+    "test/L1/ProxyAdminOwnedBase.t.sol",                       # Tests internal functions not in ABI
+    "test/L1/SystemConfig.t.sol",                              # Tests internal functions not in ABI
+    "test/L1/opcm/OPContractsManagerMigrationValidator.t.sol",  # Tests organized by validation section, not by function
+    "test/safe/SafeSigners.t.sol",                             # Function name validation issues
+    "test/libraries/Predeploys.t.sol",                         # Function 'uncategorizedInterop' doesn't exist in library
+    "test/libraries/TransientContext.t.sol",                   # Function 'reentrantAware' doesn't exist in library
+    "test/dispute/lib/Types.t.sol",                            # isSuperGame is in GameTypes (dispute/lib/Types.sol); artifact lookup by basename resolves to src/libraries/Types.sol's Types library
 ]
 
 [excluded_tests]
@@ -99,4 +103,5 @@ contracts = [
     "Constants_Test",                           # Invalid naming pattern - doesn't specify function or Uncategorized
     "LivenessModule2_TestUtils",                # Test utils library in LivenessModule2 test file
     "L1Block_SetCustomGasToken_Test",           # Custom gas token tests hosted in the L1Block test file
+    "Types_IsSuperGame_Test",                   # Tests library GameTypes; Types.sol basename collides with src/libraries/Types.sol
 ]

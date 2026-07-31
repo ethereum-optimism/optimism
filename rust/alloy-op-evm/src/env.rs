@@ -34,8 +34,11 @@ pub fn spec_by_timestamp_after_bedrock(chain_spec: impl OpHardforks, timestamp: 
             )+
         };
     }
+    // Forks must be checked newest-first. Lagoon is newer than Karst, so Lagoon is checked
+    // before Karst.
     check_forks! {
-        is_interop_active_at_timestamp => INTEROP,
+        is_lagoon_active_at_timestamp => LAGOON,
+        is_karst_active_at_timestamp => KARST,
         is_jovian_active_at_timestamp => JOVIAN,
         is_isthmus_active_at_timestamp => ISTHMUS,
         is_holocene_active_at_timestamp => HOLOCENE,
@@ -120,7 +123,14 @@ fn evm_env_for_op(
     chain_id: ChainId,
 ) -> EvmEnv<OpSpecId> {
     let spec = spec_by_timestamp_after_bedrock(&chain_spec, input.timestamp);
-    let cfg_env = CfgEnv::new().with_chain_id(chain_id).with_spec_and_mainnet_gas_params(spec);
+    let mut cfg_env = CfgEnv::new().with_chain_id(chain_id).with_spec_and_mainnet_gas_params(spec);
+
+    // TODO(21583): remove this workaround once we vendor a reth revision containing
+    // paradigmxyz/reth#25612. Keep the eth_estimateGas EIP-7825/Karst regression test;
+    // upstream should make the estimate path use the effective tx gas cap directly.
+    if spec.into_eth_spec().is_enabled_in(SpecId::OSAKA) {
+        cfg_env.tx_gas_limit_cap = Some(revm::primitives::eip7825::TX_GAS_LIMIT_CAP);
+    }
 
     let blob_excess_gas_and_price = spec
         .into_eth_spec()
@@ -203,7 +213,8 @@ mod tests {
 
     fake_hardfork_constructors! {
         timestamp:
-            interop => Interop,
+            karst => Karst,
+            lagoon => Lagoon,
             jovian => Jovian,
             isthmus => Isthmus,
             holocene => Holocene,
@@ -228,7 +239,55 @@ mod tests {
         }
     }
 
-    #[test_case::test_case(FakeHardfork::interop(), OpSpecId::INTEROP; "Interop")]
+    /// The `BLOBBASEFEE` opcode must always be 1 on the OP Stack from Ecotone onward. Post-Jovian
+    /// the header's `blobGasUsed` carries the block's DA footprint, which must not influence the
+    /// blob env. The footprint here is from op-mainnet block 152635937.
+    #[test_case::test_case(FakeHardfork::lagoon(); "Lagoon")]
+    #[test_case::test_case(FakeHardfork::karst(); "Karst")]
+    #[test_case::test_case(FakeHardfork::jovian(); "Jovian")]
+    #[test_case::test_case(FakeHardfork::isthmus(); "Isthmus")]
+    #[test_case::test_case(FakeHardfork::ecotone(); "Ecotone")]
+    fn evm_env_for_op_next_block_pins_blob_gasprice_to_one(fork: FakeHardfork) {
+        let parent_header = Header {
+            number: 100,
+            timestamp: 1_000_000,
+            gas_limit: 60_000_000,
+            base_fee_per_gas: Some(1_000_000_000),
+            blob_gas_used: Some(30_406_400),
+            excess_blob_gas: Some(0),
+            ..Default::default()
+        };
+
+        let evm_env = evm_env_for_op_next_block(
+            &parent_header,
+            NextEvmEnvAttributes {
+                timestamp: parent_header.timestamp + 2,
+                suggested_fee_recipient: Default::default(),
+                prev_randao: Default::default(),
+                gas_limit: parent_header.gas_limit,
+                slot_number: None,
+            },
+            1_000_000_000,
+            fork,
+            10,
+        );
+
+        let blob = evm_env
+            .block_env
+            .blob_excess_gas_and_price
+            .expect("blob env should be present from Ecotone onward");
+        assert_eq!(
+            blob.blob_gasprice, 1,
+            "BLOBBASEFEE must be pinned to 1 on the OP Stack regardless of the parent DA footprint"
+        );
+        assert_eq!(
+            blob.excess_blob_gas, 0,
+            "excess blob gas must be pinned to 0 regardless of the parent DA footprint"
+        );
+    }
+
+    #[test_case::test_case(FakeHardfork::karst(), OpSpecId::KARST; "Karst")]
+    #[test_case::test_case(FakeHardfork::lagoon(), OpSpecId::LAGOON; "Lagoon")]
     #[test_case::test_case(FakeHardfork::jovian(), OpSpecId::JOVIAN; "Jovian")]
     #[test_case::test_case(FakeHardfork::isthmus(), OpSpecId::ISTHMUS; "Isthmus")]
     #[test_case::test_case(FakeHardfork::holocene(), OpSpecId::HOLOCENE; "Holocene")]
@@ -259,5 +318,122 @@ mod tests {
         let actual_spec = spec(&fork, &header);
 
         assert_eq!(actual_spec, expected_spec);
+    }
+
+    /// The OP fork chronology, oldest first. `Lagoon` is the newest fork.
+    const FORK_CHRONOLOGY: [(OpHardfork, OpSpecId); 11] = [
+        (OpHardfork::Bedrock, OpSpecId::BEDROCK),
+        (OpHardfork::Regolith, OpSpecId::REGOLITH),
+        (OpHardfork::Canyon, OpSpecId::CANYON),
+        (OpHardfork::Ecotone, OpSpecId::ECOTONE),
+        (OpHardfork::Fjord, OpSpecId::FJORD),
+        (OpHardfork::Granite, OpSpecId::GRANITE),
+        (OpHardfork::Holocene, OpSpecId::HOLOCENE),
+        (OpHardfork::Isthmus, OpSpecId::ISTHMUS),
+        (OpHardfork::Jovian, OpSpecId::JOVIAN),
+        (OpHardfork::Karst, OpSpecId::KARST),
+        (OpHardfork::Lagoon, OpSpecId::LAGOON),
+    ];
+
+    /// The revm [`SpecId`] equivalent of the given L1 hardfork, for the L1 forks that OP forks
+    /// imply. The enums use different names for the merge fork (`Paris`/`MERGE`).
+    fn eth_spec_id(l1_fork: EthereumHardfork) -> SpecId {
+        match l1_fork {
+            EthereumHardfork::Paris => SpecId::MERGE,
+            EthereumHardfork::Shanghai => SpecId::SHANGHAI,
+            EthereumHardfork::Cancun => SpecId::CANCUN,
+            EthereumHardfork::Prague => SpecId::PRAGUE,
+            EthereumHardfork::Osaka => SpecId::OSAKA,
+            _ => panic!("not an L1 fork implied by an OP fork: {l1_fork}"),
+        }
+    }
+
+    /// Pins op-revm's hand-written `OpSpecId::into_eth_spec` to the canonical
+    /// OP fork → implied L1 fork mapping in alloy-op-hardforks. op-revm deliberately has no
+    /// alloy dependencies, so divergence between the two is caught here, where both crates
+    /// meet.
+    #[test]
+    fn op_spec_eth_base_matches_canonical_implied_l1_fork() {
+        for (hardfork, spec_id) in FORK_CHRONOLOGY {
+            assert_eq!(
+                spec_id.into_eth_spec(),
+                eth_spec_id(hardfork.implied_l1_fork()),
+                "{hardfork}: OpSpecId::into_eth_spec diverges from OpHardfork::implied_l1_fork"
+            );
+        }
+    }
+
+    /// Builds a chain config where every fork up to and including `forks[idx]` is active at
+    /// timestamp 1, mirroring a real chain that has progressed through the schedule. This is what
+    /// exercises the newest-first precedence in `spec_by_timestamp_after_bedrock`: with several
+    /// forks simultaneously active, the resolver must return the newest one.
+    fn cumulative_hardforks(idx: usize) -> OpChainHardforks {
+        let activations = FORK_CHRONOLOGY.iter().take(idx + 1).map(|(fork, _)| {
+            let cond = if *fork == OpHardfork::Bedrock {
+                ForkCondition::Block(0)
+            } else {
+                ForkCondition::Timestamp(1)
+            };
+            (*fork, cond)
+        });
+        OpChainHardforks::new(activations)
+    }
+
+    /// Locks in the corrected newest-first fork ordering: when forks are activated cumulatively
+    /// (as on a real chain), the resolver must return the newest active spec, not an older one.
+    /// In particular, a post-Lagoon block resolves to `LAGOON`, not `KARST`.
+    #[test]
+    fn test_spec_resolves_newest_active_fork() {
+        for (idx, (fork, expected_spec)) in FORK_CHRONOLOGY.iter().enumerate() {
+            let chain = cumulative_hardforks(idx);
+            let header = Header { timestamp: 1, ..Default::default() };
+            let actual_spec = spec(&chain, &header);
+            assert_eq!(
+                actual_spec, *expected_spec,
+                "with forks active up to {fork:?}, expected newest spec {expected_spec:?}",
+            );
+        }
+    }
+
+    /// Conformance guard: the eth base spec must be non-decreasing across the OP fork chronology.
+    /// A newer OP fork must never map to an older eth base (e.g. LAGOON must not downgrade Karst's
+    /// OSAKA base back to PRAGUE).
+    #[test]
+    fn test_eth_base_is_monotonic_across_chronology() {
+        let mut prev_eth = SpecId::default();
+        let mut first = true;
+        for (fork, op_spec) in FORK_CHRONOLOGY {
+            let eth = op_spec.into_eth_spec();
+            if !first {
+                assert!(
+                    eth >= prev_eth,
+                    "{fork:?} ({op_spec:?}) eth base {eth:?} is older than the previous fork's {prev_eth:?}",
+                );
+            }
+            prev_eth = eth;
+            first = false;
+        }
+        // Sanity-check the specific pairing the bug was about.
+        assert_eq!(OpSpecId::KARST.into_eth_spec(), SpecId::OSAKA);
+        assert_eq!(OpSpecId::LAGOON.into_eth_spec(), SpecId::OSAKA);
+        assert!(OpSpecId::LAGOON.into_eth_spec() >= OpSpecId::KARST.into_eth_spec());
+    }
+
+    #[test]
+    fn osaka_forks_set_tx_gas_limit_cap() {
+        for (idx, (fork, op_spec)) in FORK_CHRONOLOGY.iter().enumerate() {
+            let chain = cumulative_hardforks(idx);
+            let header = Header { timestamp: 1, gas_limit: 60_000_000, ..Default::default() };
+            let env = evm_env_for_op_block(&header, &chain, 10);
+
+            let expected = op_spec
+                .into_eth_spec()
+                .is_enabled_in(SpecId::OSAKA)
+                .then_some(revm::primitives::eip7825::TX_GAS_LIMIT_CAP);
+            assert_eq!(
+                env.cfg_env.tx_gas_limit_cap, expected,
+                "with forks active up to {fork:?} ({op_spec:?}), tx_gas_limit_cap mismatch",
+            );
+        }
     }
 }

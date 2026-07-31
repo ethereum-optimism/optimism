@@ -31,7 +31,7 @@ const (
 	L2AllocsIsthmus  L2AllocsMode = "isthmus"
 	L2AllocsJovian   L2AllocsMode = "jovian"
 	L2AllocsKarst    L2AllocsMode = "karst"
-	L2AllocsInterop  L2AllocsMode = "interop"
+	L2AllocsLagoon   L2AllocsMode = "lagoon"
 )
 
 var (

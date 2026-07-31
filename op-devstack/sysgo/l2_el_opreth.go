@@ -1,6 +1,7 @@
 package sysgo
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"strings"
@@ -13,6 +14,91 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
 	"github.com/ethereum/go-ethereum/log"
 )
+
+// OpRethConfig holds the configurable knobs applied to an op-reth node before it is started.
+type OpRethConfig struct {
+	// ExtraArgs are appended to the generated CLI args.
+	ExtraArgs []string
+	// Binary selects the EL binary to launch. Empty means "op-reth". A CLI-compatible superset
+	// (any binary that accepts every op-reth subcommand/flag, plus optionally its own additive
+	// flags) may be selected via OpRethWithBinary.
+	Binary string
+	// DisableProofsHistory skips the proofs-history init + runtime flags for this node. The mixed
+	// runtime otherwise enables proofs-history on every op-reth node; some CLI-superset binaries
+	// reject --proofs-history in the mode under test.
+	DisableProofsHistory bool
+}
+
+// DefaultOpRethConfig returns a zero-valued OpRethConfig that callers can mutate via OpRethOptions.
+func DefaultOpRethConfig() *OpRethConfig {
+	return &OpRethConfig{}
+}
+
+// OpRethOption customises an OpRethConfig for a specific component target.
+type OpRethOption interface {
+	Apply(p devtest.T, target ComponentTarget, cfg *OpRethConfig)
+}
+
+// OpRethOptionFn adapts a plain function into an OpRethOption.
+type OpRethOptionFn func(p devtest.T, target ComponentTarget, cfg *OpRethConfig)
+
+var _ OpRethOption = OpRethOptionFn(nil)
+
+// Apply invokes the underlying function against the supplied config.
+func (fn OpRethOptionFn) Apply(p devtest.T, target ComponentTarget, cfg *OpRethConfig) {
+	fn(p, target, cfg)
+}
+
+// OpRethOptionBundle applies multiple OpRethOptions in order.
+type OpRethOptionBundle []OpRethOption
+
+var _ OpRethOption = OpRethOptionBundle(nil)
+
+// Apply runs each contained option against cfg, failing the test on a nil entry.
+func (b OpRethOptionBundle) Apply(p devtest.T, target ComponentTarget, cfg *OpRethConfig) {
+	for _, opt := range b {
+		p.Require().NotNil(opt, "cannot Apply nil OpRethOption")
+		opt.Apply(p, target, cfg)
+	}
+}
+
+// OpRethWithExtraArgs appends raw CLI arguments to the op-reth invocation.
+func OpRethWithExtraArgs(args ...string) OpRethOption {
+	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
+		cfg.ExtraArgs = append(cfg.ExtraArgs, args...)
+	})
+}
+
+// OpRethWithBinary selects the EL binary to launch instead of the default "op-reth". The binary
+// must be a CLI superset of op-reth (it is invoked with op-reth's subcommands and flags). A binary
+// that lives outside this repo is resolved via the rustbin env overrides keyed off its name —
+// RUST_BINARY_PATH_<NAME> (or RUST_SRC_DIR_<NAME> + RUST_JIT_BUILD), with <NAME> the upper-snake-cased
+// binary name.
+func OpRethWithBinary(binary string) OpRethOption {
+	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
+		cfg.Binary = binary
+	})
+}
+
+// OpRethWithoutProofsHistory disables the proofs-history subsystem for this node. The mixed runtime
+// enables proofs-history on every op-reth node by default; use this for a CLI-superset binary that
+// rejects --proofs-history in the mode under test.
+func OpRethWithoutProofsHistory() OpRethOption {
+	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
+		cfg.DisableProofsHistory = true
+	})
+}
+
+// OpRethWithInteropURL wires the op-reth node to the given interop filter HTTP endpoint.
+// An empty interopURL is a no-op so callers can pass the value unconditionally.
+func OpRethWithInteropURL(interopURL string) OpRethOption {
+	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
+		if interopURL == "" {
+			return
+		}
+		cfg.ExtraArgs = append(cfg.ExtraArgs, "--rollup.interop-http="+interopURL)
+	})
+}
 
 type OpReth struct {
 	mu sync.Mutex
@@ -64,7 +150,20 @@ func (n *OpReth) Start() {
 		})
 		n.userRPC = "ws://" + n.userProxy.Addr()
 	}
-	logOut := logpipe.ToLoggerWithMinLevel(n.p.Logger().New("component", "op-reth", "src", "stdout", "name", n.name, "chain", n.chainID), log.LevelWarn)
+	stdoutLogger := n.p.Logger().New("component", "op-reth", "src", "stdout", "name", n.name, "chain", n.chainID)
+	stdoutInfo := logpipe.ToLoggerWithMinLevel(stdoutLogger, log.LevelInfo)
+	// Peer-disconnect reasons are logged below INFO under net::session / net::peers.
+	// Raise those entries to INFO (original level kept as an attribute) so they
+	// survive the devtest INFO log filter and peer drops stay diagnosable.
+	stdoutNetPeers := logpipe.ToLoggerRaisedToLevel(stdoutLogger, log.LevelInfo)
+	logOut := func(e logpipe.LogEntry) {
+		if r, ok := e.(logpipe.StructuredRustLogEntry); ok &&
+			(strings.HasPrefix(r.Target, "net::session") || strings.HasPrefix(r.Target, "net::peers")) {
+			stdoutNetPeers(e)
+			return
+		}
+		stdoutInfo(e)
+	}
 	logErr := logpipe.ToLoggerWithMinLevel(n.p.Logger().New("component", "op-reth", "src", "stderr", "name", n.name, "chain", n.chainID), log.LevelWarn)
 
 	authRPCChan := make(chan string, 1)
@@ -131,9 +230,36 @@ func (n *OpReth) Start() {
 func (n *OpReth) Stop() {
 	n.mu.Lock()
 	defer n.mu.Unlock()
+	if n.sub == nil {
+		n.p.Logger().Warn("op-reth already stopped")
+		return
+	}
 	err := n.sub.Stop(true)
 	n.p.Require().NoError(err, "Must stop")
 	n.sub = nil
+}
+
+func (n *OpReth) StartControlled(ctx context.Context) error {
+	return runControlStart(ctx, n.Running, n.Start)
+}
+
+func (n *OpReth) StopControlled(ctx context.Context) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.sub == nil {
+		return nil
+	}
+	if err := n.sub.StopControlled(ctx, controlledInterruptWait, controlledKillWait); err != nil {
+		return err
+	}
+	n.sub = nil
+	return nil
+}
+
+func (n *OpReth) Running() bool {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.sub != nil
 }
 
 func (n *OpReth) UserRPC() string {

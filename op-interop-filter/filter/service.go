@@ -34,7 +34,7 @@ type Service struct {
 
 	pprofService   *oppprof.Service
 	metricsSrv     *httputil.HTTPServer
-	rpcServer      *oprpc.Server // Main RPC server (public supervisor API)
+	rpcServer      *oprpc.Server // Main RPC server (public interop API)
 	adminRPCServer *oprpc.Server // Admin RPC server (JWT-protected, separate port)
 
 	backend *Backend
@@ -67,6 +67,9 @@ func Main(version string) cliapp.LifecycleAction {
 
 		if cfg.Passthrough {
 			l.Warn("PASSTHROUGH MODE ENABLED: all transactions will bypass interop filtering")
+		}
+		if cfg.LegacyCheckAccessListFormat {
+			l.Warn("LEGACY CHECK ACCESS LIST FORMAT ENABLED: interop_checkAccessList will not reject missing executing chain IDs")
 		}
 
 		if !cfg.MessageExpiryWindowExplicit {
@@ -200,6 +203,8 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 			cfg.BackfillDuration,
 			cfg.PollInterval,
 			rollupCfg,
+			cfg.RPCConcurrency,
+			cfg.FetchConcurrency,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to create chain ingester for chain %s: %w", chainID, err)
@@ -219,11 +224,15 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 	)
 
 	s.backend = NewBackend(ctx, BackendParams{
-		Logger:         s.log,
-		Metrics:        s.metrics,
-		Chains:         chains,
-		CrossValidator: crossValidator,
-		Passthrough:    cfg.Passthrough,
+		Logger:                      s.log,
+		Metrics:                     s.metrics,
+		Chains:                      chains,
+		CrossValidator:              crossValidator,
+		Passthrough:                 cfg.Passthrough,
+		LegacyCheckAccessListFormat: cfg.LegacyCheckAccessListFormat,
+
+		ReorgRecoveryEnabled: cfg.ReorgRecoveryEnabled,
+		FailsafeLogInterval:  cfg.FailsafeLogInterval,
 	})
 
 	s.log.Info("Created backend", "chains", len(chains))
@@ -231,7 +240,7 @@ func (s *Service) initBackend(ctx context.Context, cfg *Config) error {
 }
 
 func (s *Service) initRPCServer(cfg *Config) error {
-	// Create server without JWT - public supervisor API
+	// Create server without JWT - public interop API
 	server := oprpc.NewServer(
 		cfg.RPCAddr,
 		cfg.RPCPort,
@@ -239,9 +248,8 @@ func (s *Service) initRPCServer(cfg *Config) error {
 		oprpc.WithLogger(s.log),
 	)
 
-	// Register supervisor query API (public, no auth)
 	server.AddAPI(rpc.API{
-		Namespace:     "supervisor",
+		Namespace:     "interop",
 		Service:       &QueryFrontend{backend: s.backend},
 		Authenticated: false,
 	})
@@ -299,7 +307,7 @@ func (s *Service) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to start backend: %w", err)
 	}
 
-	// Start main RPC server (supervisor API)
+	// Start main RPC server (interop API)
 	if err := s.rpcServer.Start(); err != nil {
 		// Rollback: stop backend if RPC server fails to start
 		stopErr := s.backend.Stop(ctx)
@@ -378,4 +386,20 @@ func (s *Service) AdminHTTPEndpoint() string {
 		return ""
 	}
 	return "http://" + s.adminRPCServer.Endpoint()
+}
+
+// Ready returns true if all chain ingesters have completed backfill.
+func (s *Service) Ready() bool {
+	return s.backend.Ready()
+}
+
+// SetFailsafeEnabled sets the manual failsafe override on the backend.
+// Used by tests to toggle failsafe mode without admin RPC/JWT.
+func (s *Service) SetFailsafeEnabled(enabled bool) {
+	s.backend.SetFailsafeEnabled(enabled)
+}
+
+// FailsafeEnabled returns whether failsafe is currently active.
+func (s *Service) FailsafeEnabled() bool {
+	return s.backend.FailsafeEnabled()
 }

@@ -1,12 +1,19 @@
 package sysgo
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/config"
 	challengerconfig "github.com/ethereum-optimism/optimism/op-challenger/config"
-	"github.com/ethereum-optimism/optimism/op-faucet/faucet"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
+	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
+	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer"
 )
 
@@ -43,7 +50,12 @@ type SingleChainNodeRuntime struct {
 
 type SyncTesterRuntime struct {
 	Service *SyncTesterService
-	Node    *SingleChainNodeRuntime
+	// Node is set on the op-node-verifier path; nil on the supernode path.
+	Node *SingleChainNodeRuntime
+	// EL is the sync-tester-backed L2ELNode.
+	EL L2ELNode
+	// CL drives the sync-tester EL (op-node or SuperNodeProxy).
+	CL L2CLNode
 }
 
 type FlashblocksRuntimeSupport struct {
@@ -53,9 +65,8 @@ type FlashblocksRuntimeSupport struct {
 
 type SingleChainInteropSupport struct {
 	Migration     *interopMigrationState
-	FullConfigSet depset.FullConfigSetMerged
-	DependencySet depset.DependencySet
-	Supervisor    Supervisor
+	FullConfigSet config.FullConfigSetMerged
+	DependencySet coredepset.DependencySet
 }
 
 type SingleChainRuntime struct {
@@ -74,7 +85,6 @@ type SingleChainRuntime struct {
 	L2Proposer   *L2Proposer
 	L2Challenger *L2Challenger
 
-	FaucetService *faucet.Service
 	TimeTravel    *clock.AdvancingClock
 	TestSequencer *TestSequencerRuntime
 
@@ -86,21 +96,57 @@ type SingleChainRuntime struct {
 	P2PEnabled  bool
 }
 
+func (r *SingleChainRuntime) VMConfig(t devtest.T, dir string) *vm.Config {
+	konaHostPath, err := rustbin.Spec{
+		SrcDir:  "rust/kona",
+		Package: "kona-host",
+		Binary:  "kona-host",
+	}.EnsureExists(t.Ctx(), t.Logger())
+	t.Require().NoError(err, "locate/build kona-host")
+
+	rollupCfgPath := filepath.Join(dir, "rollup.json")
+	rollupBytes, err := json.Marshal(r.L2Network.RollupConfig())
+	t.Require().NoError(err, "marshal rollup config")
+	t.Require().NoError(os.WriteFile(rollupCfgPath, rollupBytes, 0o644), "write rollup config")
+
+	l1GenesisPath := filepath.Join(dir, "l1-genesis.json")
+	l1GenesisBytes, err := json.Marshal(r.L1Network.Genesis())
+	t.Require().NoError(err, "marshal l1 genesis")
+	t.Require().NoError(os.WriteFile(l1GenesisPath, l1GenesisBytes, 0o644), "write l1 genesis")
+
+	return &vm.Config{
+		L1:                r.L1EL.UserRPC(),
+		L1Beacon:          r.L1CL.BeaconHTTPAddr(),
+		L2s:               []string{r.L2EL.UserRPC()},
+		RollupConfigPaths: []string{rollupCfgPath},
+		L1GenesisPath:     l1GenesisPath,
+		Server:            konaHostPath,
+	}
+}
+
 type MultiChainNodeRuntime struct {
-	Name      string
-	Network   *L2Network
-	EL        L2ELNode
-	CL        L2CLNode
-	Batcher   *L2Batcher
-	Proposer  *L2Proposer
-	Followers map[string]*SingleChainNodeRuntime
+	Name    string
+	Network *L2Network
+	// EL is the chain's primary EL. In light-sequencer presets it is the
+	// follow-mode sequencer's own EL; in virtual-sequencer presets it is the
+	// same EL the supernode VN drives.
+	EL          L2ELNode
+	CL          L2CLNode
+	SupernodeCL L2CLNode
+	// SupernodeEL is the EL the supernode VN reads/writes. In light-sequencer
+	// presets it is distinct from EL (production topology: separate ELs joined
+	// only by L1 + P2P); in virtual-sequencer presets it equals EL.
+	SupernodeEL L2ELNode
+	Batcher     *L2Batcher
+	Proposer    *L2Proposer
+	Followers   map[string]*SingleChainNodeRuntime
 }
 
 type MultiChainRuntime struct {
 	Keys          devkeys.Keys
 	Migration     *interopMigrationState
-	FullConfigSet depset.FullConfigSetMerged
-	DependencySet depset.DependencySet
+	FullConfigSet config.FullConfigSetMerged
+	DependencySet coredepset.DependencySet
 
 	L1Network *L1Network
 	L1EL      *L1Geth
@@ -108,13 +154,23 @@ type MultiChainRuntime struct {
 
 	Chains map[string]*MultiChainNodeRuntime
 
-	PrimarySupervisor   Supervisor
-	SecondarySupervisor Supervisor
-	Supernode           *SuperNode
+	Supernode *SuperNode
 
-	FaucetService      *faucet.Service
 	TimeTravel         *clock.AdvancingClock
 	TestSequencer      *TestSequencerRuntime
 	L2ChallengerConfig *challengerconfig.Config
+	startZKProposerFn  func()
 	DelaySeconds       uint64
+	InteropFilter      *InteropFilter // nil if not using interop filter
+	SyncTester         *SyncTesterRuntime
+}
+
+// StartZKProposer starts the configured kona-sp1-proposer. It is intended for
+// tests that use WithoutHonestProposer to seed dispute games before allowing
+// the proposer to observe them.
+func (r *MultiChainRuntime) StartZKProposer(t devtest.T) {
+	start := r.startZKProposerFn
+	t.Require().NotNil(start, "ZK proposer is not configured or already started")
+	r.startZKProposerFn = nil
+	start()
 }

@@ -133,7 +133,7 @@ library Blueprint {
         if (newContract_ == address(0)) revert DeploymentFailed();
     }
 
-    /// @notice Parses the code at two target addresses as individual blueprints, concatentates them and then deploys
+    /// @notice Parses the code at two target addresses as individual blueprints, concatenates them and then deploys
     /// the resulting initcode with the given `_data` appended, i.e. `_data` is the ABI-encoded constructor arguments.
     function deployFrom(
         address _target1,

@@ -76,14 +76,14 @@ contract L2ContractsManagerUtils_UpgradeToAndCall_Test is CommonTest {
         external
     {
         vm.startPrank(Predeploys.PROXY_ADMIN);
-        L2ContractsManagerUtils.upgradeToAndCall(_proxy, _implementation, _storageSetter, _data, _slot, _offset);
+        L2ContractsManagerUtils.upgradeToAndCall(_proxy, _implementation, _storageSetter, _data, _slot, _offset, false);
         vm.stopPrank();
     }
 
     /// @notice External wrapper so vm.expectRevert can catch reverts from the internal library call.
     function _callUpgradeTo(address _proxy, address _implementation) external {
         vm.startPrank(Predeploys.PROXY_ADMIN);
-        L2ContractsManagerUtils.upgradeTo(_proxy, _implementation);
+        L2ContractsManagerUtils.upgradeTo(_proxy, _implementation, false);
         vm.stopPrank();
     }
 
@@ -107,7 +107,8 @@ contract L2ContractsManagerUtils_UpgradeToAndCall_Test is CommonTest {
             _storageSetterImpl,
             abi.encodeCall(L2ContractsManagerUtils_ImplV2_Harness.initialize, ()),
             INITIALIZABLE_SLOT_OZ_V4,
-            0
+            0,
+            false
         );
         vm.stopPrank();
 
@@ -135,7 +136,8 @@ contract L2ContractsManagerUtils_UpgradeToAndCall_Test is CommonTest {
             _storageSetterImpl,
             abi.encodeCall(L2ContractsManagerUtils_ImplV2_Harness.initialize, ()),
             INITIALIZABLE_SLOT_OZ_V5,
-            0
+            0,
+            false
         );
         vm.stopPrank();
 
@@ -165,7 +167,8 @@ contract L2ContractsManagerUtils_UpgradeToAndCall_Test is CommonTest {
             _storageSetterImpl,
             abi.encodeCall(L2ContractsManagerUtils_ImplV2_Harness.initialize, ()),
             INITIALIZABLE_SLOT_OZ_V5,
-            0
+            0,
+            false
         );
         vm.stopPrank();
 
@@ -223,7 +226,8 @@ contract L2ContractsManagerUtils_UpgradeToAndCall_Test is CommonTest {
             _storageSetterImpl,
             abi.encodeCall(L2ContractsManagerUtils_ImplV2_Harness.initialize, ()),
             INITIALIZABLE_SLOT_OZ_V4,
-            _offset
+            _offset,
+            false
         );
         vm.stopPrank();
 
@@ -328,7 +332,8 @@ contract L2ContractsManagerUtils_UpgradeToAndCall_Test is CommonTest {
             _storageSetterImpl,
             abi.encodeCall(L2ContractsManagerUtils_ImplV2_Harness.initialize, ()),
             INITIALIZABLE_SLOT_OZ_V5,
-            0
+            0,
+            false
         );
         vm.stopPrank();
 
@@ -359,5 +364,134 @@ contract L2ContractsManagerUtils_UpgradeToAndCall_Test is CommonTest {
             INITIALIZABLE_SLOT_OZ_V4,
             0
         );
+    }
+
+    /// @notice Tests that upgradeTo reverts when the implementation address has no code.
+    function test_upgradeTo_emptyImplementation_reverts() public {
+        address empty = makeAddr("empty");
+        vm.expectRevert(
+            abi.encodeWithSelector(L2ContractsManagerUtils.L2ContractsManager_EmptyImplementation.selector, empty)
+        );
+        this._callUpgradeTo(Predeploys.L2_CROSS_DOMAIN_MESSENGER, empty);
+    }
+
+    /// @notice Tests that upgradeToAndCall reverts when the implementation address has no code.
+    function test_upgradeToAndCall_emptyImplementation_reverts() public {
+        address empty = makeAddr("empty");
+        vm.expectRevert(
+            abi.encodeWithSelector(L2ContractsManagerUtils.L2ContractsManager_EmptyImplementation.selector, empty)
+        );
+        this._callUpgradeToAndCall(
+            Predeploys.L2_CROSS_DOMAIN_MESSENGER,
+            empty,
+            _storageSetterImpl,
+            abi.encodeCall(L2ContractsManagerUtils_ImplV2_Harness.initialize, ()),
+            INITIALIZABLE_SLOT_OZ_V4,
+            0
+        );
+    }
+
+    /// @notice Tests that upgradeToAndCall reverts when the storage setter address has no code.
+    function test_upgradeToAndCall_emptyStorageSetter_reverts() public {
+        address empty = makeAddr("empty");
+        vm.expectRevert(
+            abi.encodeWithSelector(L2ContractsManagerUtils.L2ContractsManager_EmptyImplementation.selector, empty)
+        );
+        this._callUpgradeToAndCall(
+            Predeploys.L2_CROSS_DOMAIN_MESSENGER,
+            implV2,
+            empty,
+            abi.encodeCall(L2ContractsManagerUtils_ImplV2_Harness.initialize, ()),
+            INITIALIZABLE_SLOT_OZ_V4,
+            0
+        );
+    }
+
+    /// @notice Tests that upgradeTo reverts on a downgrade in upgrade mode.
+    function test_upgradeTo_downgrade_reverts() public {
+        address proxy = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
+
+        // Set v2 as current implementation.
+        vm.prank(Predeploys.PROXY_ADMIN);
+        IProxy(payable(proxy)).upgradeTo(implV2);
+
+        // Downgrading to v1 reverts in upgrade mode.
+        vm.expectRevert(
+            abi.encodeWithSelector(L2ContractsManagerUtils.L2ContractsManager_DowngradeNotAllowed.selector, proxy)
+        );
+        this._callUpgradeTo(proxy, implV1);
+    }
+
+    /// @notice Tests that upgradeTo skips the downgrade guard in deploy mode.
+    function test_upgradeTo_deployModeAllowsDowngrade_succeeds() public {
+        address proxy = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
+
+        // Set v2 as current implementation.
+        vm.prank(Predeploys.PROXY_ADMIN);
+        IProxy(payable(proxy)).upgradeTo(implV2);
+
+        // Downgrading to v1 succeeds in deploy mode because the guard is skipped.
+        vm.startPrank(Predeploys.PROXY_ADMIN);
+        L2ContractsManagerUtils.upgradeTo(proxy, implV1, true);
+        vm.stopPrank();
+
+        vm.prank(Predeploys.PROXY_ADMIN);
+        assertEq(IProxy(payable(proxy)).implementation(), implV1);
+    }
+
+    /// @notice Tests that upgradeToAndCall accepts a dummy StorageSetter address in deploy mode.
+    function test_upgradeToAndCall_deployModeDummyStorageSetter_succeeds() public {
+        address proxy = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
+        // A StorageSetter address with no code; rejected in upgrade mode, ignored in deploy mode.
+        address dummyStorageSetter = makeAddr("dummyStorageSetter");
+
+        vm.prank(Predeploys.PROXY_ADMIN);
+        IProxy(payable(proxy)).upgradeTo(implV1);
+
+        vm.startPrank(Predeploys.PROXY_ADMIN);
+        L2ContractsManagerUtils.upgradeToAndCall(
+            proxy,
+            implV2,
+            dummyStorageSetter,
+            abi.encodeCall(L2ContractsManagerUtils_ImplV2_Harness.initialize, ()),
+            INITIALIZABLE_SLOT_OZ_V4,
+            0,
+            true
+        );
+        vm.stopPrank();
+
+        vm.prank(Predeploys.PROXY_ADMIN);
+        assertEq(IProxy(payable(proxy)).implementation(), implV2);
+    }
+
+    /// @notice Tests that upgradeToAndCall skips the initialized-slot reset dance in deploy mode.
+    function test_upgradeToAndCall_deployModeSkipsInitializedSlotReset_succeeds() public {
+        address proxy = Predeploys.L2_STANDARD_BRIDGE;
+
+        // Set v1 as current implementation.
+        vm.prank(Predeploys.PROXY_ADMIN);
+        IProxy(payable(proxy)).upgradeTo(implV1);
+
+        // Set _initialized = 1 and _initializing = true at the v4 slot. In upgrade mode this would
+        // revert with InitializingDuringUpgrade; in deploy mode the slot is never read or cleared.
+        uint256 v4Value = 1 | (uint256(1) << 8);
+        vm.store(proxy, INITIALIZABLE_SLOT_OZ_V4, bytes32(v4Value));
+
+        vm.startPrank(Predeploys.PROXY_ADMIN);
+        L2ContractsManagerUtils.upgradeToAndCall(
+            proxy,
+            implV2,
+            _storageSetterImpl,
+            abi.encodeCall(L2ContractsManagerUtils_ImplV2_Harness.initialize, ()),
+            INITIALIZABLE_SLOT_OZ_V4,
+            0,
+            true
+        );
+        vm.stopPrank();
+
+        vm.prank(Predeploys.PROXY_ADMIN);
+        assertEq(IProxy(payable(proxy)).implementation(), implV2);
+        // The slot is untouched, proving the StorageSetter reset dance was skipped.
+        assertEq(vm.load(proxy, INITIALIZABLE_SLOT_OZ_V4), bytes32(v4Value));
     }
 }

@@ -6,11 +6,9 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
@@ -18,18 +16,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/validate"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/verify"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/prestate"
-	"github.com/ethereum-optimism/optimism/op-validator/pkg/service"
-	"github.com/ethereum-optimism/optimism/op-validator/pkg/validations"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -45,7 +39,6 @@ type ApplyConfig struct {
 	Logger           log.Logger
 	CacheDir         string
 	privateKeyECDSA  *ecdsa.PrivateKey
-	PreStateBuilder  pipeline.PreStateBuilder
 	UseForge         bool
 }
 
@@ -96,13 +89,6 @@ func ApplyCLI() func(cliCtx *cli.Context) error {
 		privateKey := cliCtx.String(PrivateKeyFlagName)
 		cacheDir := cliCtx.String(CacheDirFlagName)
 		depTarget, err := NewDeploymentTarget(cliCtx.String(DeploymentTargetFlag.Name))
-		opProgramSvcUrl := cliCtx.String(OpProgramSvcUrlFlag.Name)
-
-		var preStateBuilder pipeline.PreStateBuilder
-		if opProgramSvcUrl != "" {
-			preStateBuilder = prestate.NewPrestateBuilderClient(opProgramSvcUrl)
-		}
-
 		if err != nil {
 			return fmt.Errorf("failed to parse deployment target: %w", err)
 		}
@@ -116,128 +102,48 @@ func ApplyCLI() func(cliCtx *cli.Context) error {
 			DeploymentTarget: depTarget,
 			Logger:           l,
 			CacheDir:         cacheDir,
-			PreStateBuilder:  preStateBuilder,
 			UseForge:         cliCtx.Bool(UseForgeFlagName),
 		}); err != nil {
 			return err
 		}
 
-		if err := runValidationAfterApply(ctx, cliCtx, l, workdir, l1RPCUrl, depTarget); err != nil {
-			return fmt.Errorf("validation failed: %w", err)
+		if depTarget != DeploymentTargetLive {
+			return nil
 		}
-
-		if !cliCtx.Bool(AutoVerifyFlag.Name) {
+		if cliCtx.Bool(NoVerifyFlag.Name) {
+			l.Warn("Contract verification skipped", "reason", "--no-verify was set")
 			return nil
 		}
 
 		stateFile := fmt.Sprintf("%s/state.json", workdir)
-		chainID, err := ChainIDFromRPC(ctx, l1RPCUrl)
-		if err != nil {
-			return fmt.Errorf("failed to get chain ID: %w", err)
-		}
-
-		intent, err := pipeline.ReadIntent(workdir)
-		if err != nil {
-			return fmt.Errorf("failed to read intent: %w", err)
-		}
-
-		return verify.AutoVerify(
-			ctx,
-			l,
-			l1RPCUrl,
-			bigs.Uint64Strict(chainID),
-			stateFile,
-			intent.L1ContractsLocator,
-			cliCtx.String(VerifierTypeFlagName),
-			cliCtx.String(VerifierUrlFlagName),
-			cliCtx.String(VerifierAPIKeyFlagName),
-		)
-	}
-}
-
-func runValidationAfterApply(ctx context.Context, cliCtx *cli.Context, l log.Logger, workdir, l1RPCUrl string, depTarget DeploymentTarget) error {
-	validateFlag := cliCtx.String(ValidateFlag.Name)
-	// Empty string means validation is disabled
-	if validateFlag == "" {
-		return nil
-	}
-
-	// Skip validation for non-live deployments or when L1 RPC URL is empty
-	// Validation requires a live RPC connection to check contract code
-	if depTarget != DeploymentTargetLive || l1RPCUrl == "" {
-		l.Info("Skipping validation", "reason", "validation requires live deployment with L1 RPC URL", "deployment-target", depTarget, "l1-rpc-url-set", l1RPCUrl != "")
-		return nil
-	}
-
-	st, err := pipeline.ReadState(workdir)
-	if err != nil {
-		return fmt.Errorf("failed to read state for validation: %w", err)
-	}
-
-	if st.AppliedIntent == nil {
-		return fmt.Errorf("cannot validate: no applied intent found")
-	}
-
-	// Add timeout to prevent indefinite hangs
-	// Use a reasonable timeout for validation (5 minutes should be sufficient)
-	validationCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
-	defer cancel()
-
-	validatorVersion := validate.DetectValidatorVersion(validateFlag, st.AppliedIntent, l)
-
-	l.Info("Running validation after deployment", "version", validatorVersion, "intent-type", st.AppliedIntent.ConfigType, "timeout", "5m")
-
-	for _, chain := range st.AppliedIntent.Chains {
-		chainID := chain.ID
-		l.Info("Validating chain", "chain-id", chainID.Hex(), "version", validatorVersion)
-
-		chainState, err := st.Chain(chainID)
-		if err != nil {
-			return fmt.Errorf("failed to get chain state for %s: %w", chainID.Hex(), err)
-		}
-
-		validatorCfg, err := validate.BuildValidatorConfigFromState(validationCtx, l, st, chainState, chainID, l1RPCUrl)
-		if err != nil {
-			return fmt.Errorf("failed to build validator config for chain %s: %w", chainID.Hex(), err)
-		}
-
-		// Skip validation if no validator address is available and L1 chain ID is not supported
-		// This handles custom/test deployments where OPCM may not have a validator set
-		if validatorCfg.ValidatorAddress == (common.Address{}) {
-			l1ChainID, err := ChainIDFromRPC(validationCtx, l1RPCUrl)
+		if err := func() error {
+			chainID, err := ChainIDFromRPC(ctx, l1RPCUrl)
 			if err != nil {
-				l.Warn("Failed to get L1 chain ID, skipping validation", "chain-id", chainID.Hex(), "error", err)
-				continue
+				return fmt.Errorf("failed to get chain ID: %w", err)
 			}
-			// Check if L1 chain ID is supported (mainnet=1, sepolia=11155111)
-			if bigs.Uint64Strict(l1ChainID) != 1 && bigs.Uint64Strict(l1ChainID) != 11155111 {
-				l.Info("Skipping validation", "reason", "no validator address available and L1 chain ID not supported", "chain-id", chainID.Hex(), "l1-chain-id", bigs.Uint64Strict(l1ChainID))
-				continue
+
+			intent, err := pipeline.ReadIntent(workdir)
+			if err != nil {
+				return fmt.Errorf("failed to read intent: %w", err)
 			}
+
+			return verify.AutoVerify(
+				ctx,
+				l,
+				l1RPCUrl,
+				bigs.Uint64Strict(chainID),
+				stateFile,
+				stateFile,
+				intent.L1ContractsLocator,
+				cliCtx.String(VerifierTypeFlagName),
+				cliCtx.String(VerifierUrlFlagName),
+				cliCtx.String(VerifierAPIKeyFlagName),
+			)
+		}(); err != nil {
+			verify.LogAutoVerifyFailure(l, stateFile, err)
 		}
-
-		errors, err := service.Validate(validationCtx, l, validatorVersion, validatorCfg)
-		if err != nil {
-			l.Error("Validation failed", "chain-id", chainID.Hex(), "error", err)
-			return fmt.Errorf("validation failed for chain %s: %w", chainID.Hex(), err)
-		}
-
-		out := validations.Output{
-			Errors: errors,
-		}
-
-		l.Info("Validation results", "chain-id", chainID.Hex(), "error-count", len(errors))
-		fmt.Println(out.AsMarkdown())
-
-		if len(errors) > 0 {
-			l.Error("Validation errors found", "chain-id", chainID.Hex(), "error-count", len(errors))
-			return fmt.Errorf("validation errors found for chain %s", chainID.Hex())
-		}
-
-		l.Info("Validation passed", "chain-id", chainID.Hex())
+		return nil
 	}
-
-	return nil
 }
 
 func Apply(ctx context.Context, cfg ApplyConfig) error {
@@ -255,6 +161,11 @@ func Apply(ctx context.Context, cfg ApplyConfig) error {
 		return fmt.Errorf("failed to read state: %w", err)
 	}
 
+	// A state produced by the prepare pipeline MUST not be used with apply.
+	if err := st.CheckNotPrepared(); err != nil {
+		return err
+	}
+
 	if err := ApplyPipeline(ctx, ApplyPipelineOpts{
 		L1RPCUrl:           cfg.L1RPCUrl,
 		DeploymentTarget:   cfg.DeploymentTarget,
@@ -264,7 +175,6 @@ func Apply(ctx context.Context, cfg ApplyConfig) error {
 		Logger:             cfg.Logger,
 		StateWriter:        pipeline.WorkdirStateWriter(cfg.Workdir),
 		CacheDir:           cfg.CacheDir,
-		PreStateBuilder:    cfg.PreStateBuilder,
 		UseForge:           cfg.UseForge,
 		PrivateKey:         cfg.PrivateKey,
 		Workdir:            cfg.Workdir,
@@ -289,7 +199,6 @@ type ApplyPipelineOpts struct {
 	Logger             log.Logger
 	StateWriter        pipeline.StateWriter
 	CacheDir           string
-	PreStateBuilder    pipeline.PreStateBuilder
 	UseForge           bool
 	PrivateKey         string
 	Workdir            string
@@ -300,32 +209,17 @@ func ApplyPipeline(
 	opts ApplyPipelineOpts,
 ) error {
 	intent := opts.Intent
-	if err := intent.Check(); err != nil {
+	st := opts.State
+	if err := pipeline.ValidateInputs(intent, st); err != nil {
 		return err
 	}
-	st := opts.State
 
-	l1ArtifactsFS, err := artifacts.Download(ctx, intent.L1ContractsLocator, ioutil.BarProgressor(), opts.CacheDir)
+	bundle, err := artifacts.DownloadBundle(ctx, intent.L1ContractsLocator, intent.L2ContractsLocator, ioutil.BarProgressor(), opts.CacheDir)
 	if err != nil {
-		return fmt.Errorf("failed to download L1 artifacts: %w", err)
+		return err
 	}
 
-	var l2ArtifactsFS foundry.StatDirFs
-	if intent.L1ContractsLocator.Equal(intent.L2ContractsLocator) {
-		l2ArtifactsFS = l1ArtifactsFS
-	} else {
-		l2ArtifactsFS, err = artifacts.Download(ctx, intent.L2ContractsLocator, ioutil.BarProgressor(), opts.CacheDir)
-		if err != nil {
-			return fmt.Errorf("failed to download L2 artifacts: %w", err)
-		}
-	}
-
-	bundle := pipeline.ArtifactsBundle{
-		L1: l1ArtifactsFS,
-		L2: l2ArtifactsFS,
-	}
-
-	deployer := common.Address{0x01}
+	deployer := standard.PlaceholderAddress
 	if opts.DeployerPrivateKey != nil {
 		deployer = crypto.PubkeyToAddress(opts.DeployerPrivateKey.PublicKey)
 	}
@@ -448,18 +342,19 @@ func ApplyPipeline(
 	}
 
 	pEnv := &pipeline.Env{
-		StateWriter:  opts.StateWriter,
-		L1ScriptHost: l1Host,
-		L1Client:     l1Client,
-		Logger:       opts.Logger,
-		Broadcaster:  bcaster,
-		Deployer:     deployer,
-		Scripts:      opcmScripts,
-		ForgeClient:  forgeClient,
-		UseForge:     opts.UseForge,
-		L1RPCUrl:     opts.L1RPCUrl,
-		PrivateKey:   opts.PrivateKey,
-		Context:      ctx,
+		StateWriter:               opts.StateWriter,
+		L1ScriptHost:              l1Host,
+		L1Client:                  l1Client,
+		Logger:                    opts.Logger,
+		Broadcaster:               bcaster,
+		Deployer:                  deployer,
+		Scripts:                   opcmScripts,
+		ForgeClient:               forgeClient,
+		UseForge:                  opts.UseForge,
+		AllowUnoptimizedContracts: opts.DeploymentTarget == DeploymentTargetGenesis,
+		L1RPCUrl:                  opts.L1RPCUrl,
+		PrivateKey:                opts.PrivateKey,
+		Context:                   ctx,
 	}
 
 	pline := []pipelineStage{
@@ -475,9 +370,11 @@ func ApplyPipeline(
 		{"deploy-implementations", func() error {
 			return pipeline.DeployImplementations(pEnv, intent, st)
 		}},
+		{"generate-interop-depset", func() error {
+			return pipeline.GenerateInteropDepset(ctx, pEnv, intent, st)
+		}},
 	}
 
-	// Deploy all OP Chains first.
 	for _, chain := range intent.Chains {
 		chainID := chain.ID
 		pline = append(pline, pipelineStage{
@@ -551,21 +448,19 @@ func ApplyPipeline(
 		})
 	}
 
-	// Generate the interop dependency set
-	pline = append(pline, pipelineStage{
-		"generate-interop-depset",
-		func() error {
-			return pipeline.GenerateInteropDepset(ctx, pEnv, intent, st)
-		},
-	})
-
-	// Generate the prestate for all chains
-	pline = append(pline, pipelineStage{
-		"deploy-pre-state",
-		func() error {
-			return pipeline.GeneratePreState(ctx, pEnv, intent, st, opts.PreStateBuilder)
-		},
-	})
+	// Validate that the deployed state renders into a valid L2 genesis and rollup
+	// config for every chain, so an invalid intent fails during apply rather than
+	// later at inspect time.
+	for _, chain := range intent.Chains {
+		chainID := chain.ID
+		pline = append(pline, pipelineStage{
+			fmt.Sprintf("validate-l2-genesis-%s", chainID.Hex()),
+			func() error {
+				_, _, err := pipeline.RenderGenesisAndRollup(st, chainID, intent)
+				return err
+			},
+		})
+	}
 
 	// Run through the pipeline.
 	for _, stage := range pline {

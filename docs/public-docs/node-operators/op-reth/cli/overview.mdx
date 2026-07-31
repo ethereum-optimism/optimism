@@ -1,0 +1,139 @@
+---
+title: Understanding the op-reth CLI
+description: Understand how the op-reth command-line interface is organized, how chain selection works through the Superchain Registry, and where configuration values come from.
+diataxis: explanation
+---
+
+This page explains how the `op-reth` command-line interface is organized, so
+you can find the right command and understand where its configuration comes
+from. To install and start a node, follow
+[Running op-reth on OP Stack chains](/node-operators/op-reth/run/opstack). For the full
+flag catalogue of every command, see the
+[generated CLI reference](/node-operators/op-reth/cli/op-reth).
+
+## One binary, many commands
+
+`op-reth` ships as a single binary. The command you run day to day is
+`op-reth node`, which starts the execution client itself. The other
+subcommands are operational tools: most work against the same data directory —
+initializing it, importing history into it, inspecting it, or repairing it —
+so you rarely run them while the node is running. A couple (`config` and
+`dump-genesis`) simply print information to stdout.
+
+| Command | What it does |
+| --- | --- |
+| [`node`](/node-operators/op-reth/cli/op-reth/node) | Start the node |
+| [`init`](/node-operators/op-reth/cli/op-reth/init) | Initialize the database from a genesis file |
+| [`init-state`](/node-operators/op-reth/cli/op-reth/init-state) | Initialize the database from a state dump file |
+| [`import-op`](/node-operators/op-reth/cli/op-reth/import-op) | Sync RLP-encoded OP blocks below Bedrock from a file, without executing |
+| [`import-receipts-op`](/node-operators/op-reth/cli/op-reth/import-receipts-op) | Import RLP-encoded receipts from a file |
+| [`dump-genesis`](/node-operators/op-reth/cli/op-reth/dump-genesis) | Dump the genesis block JSON configuration to stdout |
+| [`db`](/node-operators/op-reth/cli/op-reth/db) | Database debugging utilities |
+| [`stage`](/node-operators/op-reth/cli/op-reth/stage) | Manipulate individual sync stages |
+| [`p2p`](/node-operators/op-reth/cli/op-reth/p2p) | P2P debugging utilities |
+| [`config`](/node-operators/op-reth/cli/op-reth/config) | Write the configuration to stdout |
+| [`prune`](/node-operators/op-reth/cli/op-reth/prune) | Prune according to the configuration without any limits |
+| [`re-execute`](/node-operators/op-reth/cli/op-reth/re-execute) | Re-execute blocks in parallel to verify historical sync correctness |
+
+The [CLI reference](/node-operators/op-reth/cli/op-reth) mirrors this structure: each
+page reproduces the output of `op-reth <command> --help`, and nested
+subcommands (such as `op-reth db stats`) get their own nested pages.
+
+### Running the node
+
+[`node`](/node-operators/op-reth/cli/op-reth/node) is the long-running command that
+syncs and serves the chain. It carries by far the largest flag surface,
+organized into functional groups — Metrics, Datadir, Networking, RPC, TxPool,
+Builder, Debug, Dev testnet, Pruning, Engine, and Rollup, among others — with
+related flags sharing a dotted prefix (for example `--txpool.*`, `--prune.*`,
+`--rollup.*`, or `--http.*` in the RPC group).
+
+The `Rollup` group is OP Stack-specific: flags such as `--rollup.sequencer`
+(the sequencer endpoint that transactions are forwarded to) and
+`--rollup.disable-tx-pool-gossip` configure behavior that only exists on OP
+Stack chains. These are covered with examples in
+[Running op-reth on OP Stack chains](/node-operators/op-reth/run/opstack).
+
+### Initializing and importing
+
+[`init`](/node-operators/op-reth/cli/op-reth/init) and
+[`init-state`](/node-operators/op-reth/cli/op-reth/init-state) create a fresh database
+from a genesis file or a state dump file respectively, instead of syncing from
+the network.
+
+[`import-op`](/node-operators/op-reth/cli/op-reth/import-op) and
+[`import-receipts-op`](/node-operators/op-reth/cli/op-reth/import-receipts-op) exist for
+one OP Stack-specific job: loading OP Mainnet history from before the Bedrock
+migration, which cannot be re-executed and is instead imported from files.
+[Sync OP Mainnet](/node-operators/op-reth/run/faq/sync-op-mainnet) explains when you
+need them — most operators use the minimal bootstrap path with `init-state`
+and skip the pre-Bedrock import entirely.
+
+### Inspecting and maintaining
+
+The remaining commands are diagnostic and maintenance tools:
+
+*   [`db`](/node-operators/op-reth/cli/op-reth/db) inspects and repairs the database:
+    table statistics, checksums, diffs between databases, and storage
+    settings.
+*   [`stage`](/node-operators/op-reth/cli/op-reth/stage) runs, drops, dumps, or unwinds
+    individual stages of reth's staged-sync pipeline (such as execution,
+    account hashing, and merkle) — useful for debugging or re-running one part
+    of sync without starting over.
+*   [`p2p`](/node-operators/op-reth/cli/op-reth/p2p) debugs the networking layer:
+    downloading a single header or body from peers, RLPx utilities, and
+    running a bootnode.
+*   [`config`](/node-operators/op-reth/cli/op-reth/config) and
+    [`dump-genesis`](/node-operators/op-reth/cli/op-reth/dump-genesis) print the
+    effective configuration and the chain's genesis JSON to stdout.
+*   [`prune`](/node-operators/op-reth/cli/op-reth/prune) and
+    [`re-execute`](/node-operators/op-reth/cli/op-reth/re-execute) are heavyweight
+    maintenance passes: pruning historical data according to your
+    configuration, and re-executing blocks in parallel to verify that
+    historical sync produced correct results.
+
+## Chain selection and the Superchain Registry
+
+Every command that touches chain data accepts `--chain <CHAIN_OR_PATH>`, which
+takes either a built-in chain name or the path to a chain specification file.
+The default is `optimism` (OP Mainnet).
+
+The built-in names come from the
+[Superchain Registry](https://github.com/ethereum-optimism/superchain-registry):
+op-reth bakes the registry's chain configurations into the binary at build
+time, so chains like `base`, `unichain`, `ink`, `mode`, `zora`, and their
+Sepolia counterparts (for example `unichain-sepolia`) work by name with no
+extra configuration files. The full list of built-in chains is in the
+[`node` reference](/node-operators/op-reth/cli/op-reth/node) under `--chain`. For a
+chain that is not in the registry, pass the path to its chain specification
+file instead.
+
+## Where configuration comes from
+
+op-reth is configured primarily through CLI flags. Three conventions in the
+help text (and the [generated reference](/node-operators/op-reth/cli/op-reth)) tell you
+how a flag behaves:
+
+*   **Defaults** — every flag with a default value lists it as
+    `[default: ...]`. For example, `--datadir` defaults to an OS-specific data
+    directory (`$HOME/.local/share/reth/` or `$XDG_DATA_HOME/reth/` on Linux).
+*   **Environment variables** — flags that can also be set through an
+    environment variable list it as `[env: ...]`; the OpenTelemetry export
+    flags (`--logs-otlp`, `--tracing-otlp`) are examples.
+*   **Shared groups** — every subcommand accepts the same Logging, Display,
+    and Tracing options, so `-vvv` or `--log.file.directory` work the same on
+    `op-reth db stats` as on `op-reth node`.
+
+A configuration file supplements the flags: `op-reth node --config <FILE>`
+points the node at one, and `op-reth config` writes the resulting
+configuration to stdout (`op-reth config --default` shows the defaults), which
+is the quickest way to see what is configurable through the file.
+
+## Next steps
+
+*   Follow [Running op-reth on OP Stack chains](/node-operators/op-reth/run/opstack) to
+    install op-reth and pair it with a rollup node.
+*   Browse the [CLI reference](/node-operators/op-reth/cli/op-reth) for the complete
+    flag catalogue of every command.
+*   See [Sync OP Mainnet](/node-operators/op-reth/run/faq/sync-op-mainnet) if you are
+    bootstrapping an OP Mainnet archive node.

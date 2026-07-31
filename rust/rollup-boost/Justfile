@@ -1,0 +1,20 @@
+kurtosis-devnet-up: build kurtosis-spawn
+
+kurtosis-devnet-down:
+    kurtosis enclave rm -f op-rollup-boost
+    kurtosis clean
+
+kurtosis-stress-test:
+    chmod +x ./scripts/ci/kurtosis.sh \
+        && ./scripts/ci/kurtosis.sh run
+
+# Build docker image (release)
+build:
+    docker buildx build --build-context monorepo-rust=.. --build-arg RELEASE=true -t rollup-boost:latest .
+
+# Build docker image (debug)
+build-debug:
+    docker buildx build --build-context monorepo-rust=.. --build-arg RELEASE=false -t rollup-boost:latest .
+
+kurtosis-spawn:
+    kurtosis run github.com/ethpandaops/optimism-package@452133367b693e3ba22214a6615c86c60a1efd5e --args-file ./scripts/ci/kurtosis-params.yaml --enclave op-rollup-boost

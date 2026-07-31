@@ -5,6 +5,8 @@ import (
 	"math/rand"
 	"testing"
 
+	opfees "github.com/ethereum-optimism/optimism/op-core/fees"
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	upgradesHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/upgrades/helpers"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -30,7 +32,7 @@ func TestSystemConfigBatchType(t *testing.T) {
 		f    func(gt *testing.T, deltaTimeOffset *hexutil.Uint64)
 	}{
 		{"BatcherKeyRotation", BatcherKeyRotation},
-		{"GPOParamsChange", GPOParamsChange},
+		{"GPODefaultParams", GPODefaultParams},
 		{"GasLimitChange", GasLimitChange},
 	}
 	for _, test := range tests {
@@ -225,16 +227,17 @@ func BatcherKeyRotation(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	require.Equal(t, sequencer.L2Unsafe(), verifier.L2Unsafe(), "verifier synced")
 }
 
-// GPOParamsChange tests that the GPO params can be updated to adjust fees of L2 transactions,
-// and that the L1 data fees to the L2 transaction are applied correctly before, during and after the GPO update in L2.
-func GPOParamsChange(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
+// GPODefaultParams tests that the pre-Ecotone L1 data fee charged to an L2 transaction is
+// computed from the genesis gas config: op-node derives the fee parameters, the sequencer
+// applies them through the L1 attributes transaction, and they surface on the receipt.
+func GPODefaultParams(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := actionsHelpers.NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, actionsHelpers.DefaultRollupTestParams())
 	upgradesHelpers.ApplyDeltaTimeOffset(dp, deltaTimeOffset)
 
 	// activating Delta only, not Ecotone and further:
 	// the GPO change assertions here all apply only for the Delta transition.
-	// Separate tests cover Ecotone GPO changes.
+	// TestGPOParamsChangeEcotone covers the Ecotone equivalent.
 	dp.DeployConfig.L2GenesisEcotoneTimeOffset = nil
 	dp.DeployConfig.L2GenesisFjordTimeOffset = nil
 	dp.DeployConfig.L2GenesisGraniteTimeOffset = nil
@@ -243,9 +246,6 @@ func GPOParamsChange(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	sd := e2eutils.Setup(t, dp, actionsHelpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	miner, seqEngine, sequencer := actionsHelpers.SetupSequencerTest(t, sd, log)
-	batcher := actionsHelpers.NewL2Batcher(log, sd.RollupCfg, actionsHelpers.DefaultBatcherCfg(dp),
-		sequencer.RollupClient(), miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
-
 	alice := actionsHelpers.NewBasicUser[any](log, dp.Secrets.Alice, rand.New(rand.NewSource(1234)))
 	alice.SetUserEnv(&actionsHelpers.BasicUserEnv[any]{
 		EthCl:  seqEngine.EthClient(),
@@ -280,6 +280,45 @@ func GPOParamsChange(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	l1Cost := types.L1Cost(bigs.Uint64Strict(receipt.L1GasUsed)-2100, basefee, big.NewInt(2100), big.NewInt(1000_000))
 	require.Equal(t, l1Cost, receipt.L1Fee, "L1 fee is computed with standard GPO params")
 	require.Equal(t, "1", receipt.FeeScalar.String(), "1000_000 divided by 6 decimals = float(1)")
+}
+
+// TestGPOParamsChangeEcotone tests that the fee scalars can be updated with setGasConfigEcotone,
+// and that the L1 data fee charged to an L2 transaction is applied correctly before, during and
+// after the L2 chain adopts the L1 origin carrying the update. This is the Ecotone counterpart of
+// GPODefaultParams. It is not parameterized over batch type because the batch variant does not add
+// coverage for this scenario.
+func TestGPOParamsChangeEcotone(gt *testing.T) {
+	t := actionsHelpers.NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, actionsHelpers.DefaultRollupTestParams())
+	log := testlog.Logger(t, log.LevelDebug)
+
+	// Ecotone is the latest active fork, so the L1 cost function under test is the Ecotone one.
+	dp.DeployConfig.ActivateForkAtGenesis(forks.Ecotone)
+	require.NoError(t, dp.DeployConfig.Check(log), "must have valid config")
+
+	sd := e2eutils.Setup(t, dp, actionsHelpers.DefaultAlloc)
+	miner, seqEngine, sequencer := actionsHelpers.SetupSequencerTest(t, sd, log)
+	batcher := actionsHelpers.NewL2Batcher(log, sd.RollupCfg, actionsHelpers.DefaultBatcherCfg(dp),
+		sequencer.RollupClient(), miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
+
+	alice := actionsHelpers.NewBasicUser[any](log, dp.Secrets.Alice, rand.New(rand.NewSource(1234)))
+	alice.SetUserEnv(&actionsHelpers.BasicUserEnv[any]{
+		EthCl:  seqEngine.EthClient(),
+		Signer: types.LatestSigner(sd.L2Cfg.Config),
+	})
+
+	sequencer.ActL2PipelineFull(t)
+
+	// new L1 block, with new L2 chain
+	miner.ActEmptyBlock(t)
+	sequencer.ActL1HeadSignal(t)
+	sequencer.ActBuildToL1Head(t)
+
+	// alice makes a L2 tx, sequencer includes it, and the genesis scalars price its L1 data
+	tx := aliceTx(t, dp, alice, sequencer, seqEngine)
+	genesisScalars, err := sd.RollupCfg.Genesis.SystemConfig.EcotoneScalars()
+	require.NoError(t, err)
+	requireEcotoneL1Fee(t, alice.LastTxReceipt(t), tx, genesisScalars)
 
 	// confirm L2 chain on L1
 	batcher.ActSubmitAll(t)
@@ -293,17 +332,16 @@ func GPOParamsChange(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	sysCfgOwner, err := bind.NewKeyedTransactorWithChainID(dp.Secrets.Deployer, sd.RollupCfg.L1ChainID)
 	require.NoError(t, err)
 
-	// overhead changes from 2100 (default) to 1000
-	// scalar changes from 1_000_000 (default) to 2_300_000
-	// e.g. if system operator determines that l2 txs need to be more expensive, but small ones less
-	_, err = sysCfgContract.SetGasConfig(sysCfgOwner, big.NewInt(1000), big.NewInt(2_300_000))
+	// basefee scalar changes from 1_000_000 (default) to 2_300_000, and the blobbasefee scalar from
+	// 0 to 800_000, e.g. if the system operator starts paying for data availability with blobs
+	newScalars := eth.EcotoneScalars{BaseFeeScalar: 2_300_000, BlobBaseFeeScalar: 800_000}
+	_, err = sysCfgContract.SetGasConfigEcotone(sysCfgOwner, newScalars.BaseFeeScalar, newScalars.BlobBaseFeeScalar)
 	require.NoError(t, err)
 
 	// include the GPO change tx in L1
 	miner.ActL1StartBlock(12)(t)
 	miner.ActL1IncludeTx(dp.Addresses.Deployer)(t)
 	miner.ActL1EndBlock(t)
-	basefeeGPOUpdate := miner.L1Chain().CurrentBlock().BaseFee
 
 	// build empty L2 chain, up to but excluding the L2 block with the L1 origin that processes the GPO change
 	sequencer.ActL1HeadSignal(t)
@@ -314,50 +352,72 @@ func GPOParamsChange(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	require.NoError(t, err)
 	sysCfg, err := derive.PayloadToSystemConfig(sd.RollupCfg, envelope.ExecutionPayload)
 	require.NoError(t, err)
-	require.Equal(t, sd.RollupCfg.Genesis.SystemConfig, sysCfg, "still have genesis system config before we adopt the L1 block with GPO change")
+	// Compare the scalars rather than the whole config: `PayloadToSystemConfig` converts the
+	// post-Ecotone L1 info fields to version-1 scalar encoding, and the Ecotone format omits the
+	// legacy overhead. `Genesis.SystemConfig` still carries the pre-Ecotone encoding from the
+	// deploy config.
+	require.Equal(t, eth.Bytes32(eth.EncodeScalar(genesisScalars)), sysCfg.Scalar, "still have the genesis fee scalars before we adopt the L1 block with GPO change")
 
 	// Now alice makes another transaction, which gets included in the same block that adopts the L1 origin with GPO change
-	alice.ActResetTxOpts(t)
-	alice.ActMakeTx(t)
-	sequencer.ActL2StartBlock(t)
-	seqEngine.ActL2IncludeTx(dp.Addresses.Alice)(t)
-	sequencer.ActL2EndBlock(t)
+	tx = aliceTx(t, dp, alice, sequencer, seqEngine)
 
 	envelope, err = engCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(t, err)
 	sysCfg, err = derive.PayloadToSystemConfig(sd.RollupCfg, envelope.ExecutionPayload)
 	require.NoError(t, err)
-	require.Equal(t, eth.Bytes32(common.BigToHash(big.NewInt(1000))), sysCfg.Overhead, "overhead changed")
-	require.Equal(t, eth.Bytes32(common.BigToHash(big.NewInt(2_300_000))), sysCfg.Scalar, "scalar changed")
+	require.Equal(t, eth.Bytes32(eth.EncodeScalar(newScalars)), sysCfg.Scalar, "scalar changed")
+	// setGasConfigEcotone emits a zero overhead, and op-node zeroes it after Ecotone regardless
+	require.Equal(t, eth.Bytes32{}, sysCfg.Overhead, "overhead zeroed")
 
-	receipt = alice.LastTxReceipt(t)
-	require.Equal(t, basefeeGPOUpdate, receipt.L1GasPrice, "L1 gas price matches basefee of L1 origin")
-	require.NotZero(t, receipt.L1GasUsed, "L2 tx uses L1 data")
-	// subtract overhead from L1GasUsed receipt field, types.L1Cost applies it again
-	l1Cost = types.L1Cost(bigs.Uint64Strict(receipt.L1GasUsed)-1000, basefeeGPOUpdate, big.NewInt(1000), big.NewInt(2_300_000))
-	require.Equal(t, l1Cost, receipt.L1Fee, "L1 fee is computed with updated GPO params")
-	require.Equal(t, "2.3", receipt.FeeScalar.String(), "2_300_000 divided by 6 decimals = float(2.3)")
+	requireEcotoneL1Fee(t, alice.LastTxReceipt(t), tx, newScalars)
 
 	// build more L2 blocks, with new L1 origin
 	miner.ActEmptyBlock(t)
-	basefee = miner.L1Chain().CurrentBlock().BaseFee
 	sequencer.ActL1HeadSignal(t)
 	sequencer.ActBuildToL1Head(t)
 	// and Alice makes a tx again
+	tx = aliceTx(t, dp, alice, sequencer, seqEngine)
+
+	// and verify the new GPO params are persistent, even though the L1 origin and L2 chain have progressed
+	requireEcotoneL1Fee(t, alice.LastTxReceipt(t), tx, newScalars)
+}
+
+// aliceTx has alice send one L2 transaction and the sequencer include it in a fresh L2 block.
+func aliceTx(
+	t actionsHelpers.Testing,
+	dp *e2eutils.DeployParams,
+	alice *actionsHelpers.BasicUser[any],
+	sequencer *actionsHelpers.L2Sequencer,
+	seqEngine *actionsHelpers.L2Engine,
+) *types.Transaction {
 	alice.ActResetTxOpts(t)
-	alice.ActMakeTx(t)
+	tx := alice.ActMakeTx(t)
 	sequencer.ActL2StartBlock(t)
 	seqEngine.ActL2IncludeTx(dp.Addresses.Alice)(t)
 	sequencer.ActL2EndBlock(t)
+	return tx
+}
 
-	// and verify the new GPO params are persistent, even though the L1 origin and L2 chain have progressed
-	receipt = alice.LastTxReceipt(t)
-	require.Equal(t, basefee, receipt.L1GasPrice, "L1 gas price matches basefee of L1 origin")
-	require.NotZero(t, receipt.L1GasUsed, "L2 tx uses L1 data")
-	// subtract overhead from L1GasUsed receipt field, types.L1Cost applies it again
-	l1Cost = types.L1Cost(bigs.Uint64Strict(receipt.L1GasUsed)-1000, basefee, big.NewInt(1000), big.NewInt(2_300_000))
-	require.Equal(t, l1Cost, receipt.L1Fee, "L1 fee is computed with updated GPO params")
-	require.Equal(t, "2.3", receipt.FeeScalar.String(), "2_300_000 divided by 6 decimals = float(2.3)")
+// requireEcotoneL1Fee checks that the L1 data fee on the receipt is priced with the given scalars,
+// recomputing it from the fee parameters the receipt itself reports.
+func requireEcotoneL1Fee(
+	t actionsHelpers.Testing,
+	receipt *types.Receipt,
+	tx *types.Transaction,
+	scalars eth.EcotoneScalars,
+) {
+	require.NotNil(t, receipt.L1BaseFeeScalar, "Ecotone receipt reports the basefee scalar")
+	require.NotNil(t, receipt.L1BlobBaseFeeScalar, "Ecotone receipt reports the blobbasefee scalar")
+	require.Equal(t, uint64(scalars.BaseFeeScalar), *receipt.L1BaseFeeScalar, "basefee scalar on receipt")
+	require.Equal(t, uint64(scalars.BlobBaseFeeScalar), *receipt.L1BlobBaseFeeScalar, "blobbasefee scalar on receipt")
+
+	l1Cost := opfees.L1CostEcotone(opfees.TxRollupCostData(tx), opfees.L1FeeParams{
+		L1BaseFee:     receipt.L1GasPrice,
+		L1BlobBaseFee: receipt.L1BlobBaseFee,
+		BaseFeeScalar: new(big.Int).SetUint64(uint64(scalars.BaseFeeScalar)),
+		BlobFeeScalar: new(big.Int).SetUint64(uint64(scalars.BlobBaseFeeScalar)),
+	})
+	require.Equal(t, l1Cost, receipt.L1Fee, "L1 fee is computed with the expected Ecotone scalars")
 }
 
 // GasLimitChange tests that the gas limit can be configured to L1,

@@ -3,6 +3,8 @@ package dsl
 import (
 	"math/rand"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -11,7 +13,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // DepositEOA wraps an L2 EOA so that transactions are sent via L1 deposit
@@ -32,6 +36,37 @@ func (u *EOA) ViaDepositTx(l1 *EOA, l2EL *L2ELNode, l2Net *L2Network) *DepositEO
 // DepositTx sends a transaction to the given address with the given calldata
 // via OptimismPortal2 on L1. It waits for L2 derivation and returns the L2 receipt.
 func (d *DepositEOA) DepositTx(to common.Address, calldata []byte) *ethtypes.Receipt {
+	l2Receipt := d.sendDeposit(to, calldata)
+	d.l2.t.Require().Equal(ethtypes.ReceiptStatusSuccessful, l2Receipt.Status, "deposit tx failed on L2")
+	return l2Receipt
+}
+
+// DepositTxExpectRevert sends a transaction to the given address with the given calldata via
+// OptimismPortal2 on L1 and requires that it reverts on L2 with exactly the given error
+// signature (e.g. "CrossL2Inbox_NoExecutingDeposits()"). It waits for L2 derivation and
+// returns the L2 receipt.
+func (d *DepositEOA) DepositTxExpectRevert(to common.Address, calldata []byte, errorSignature string) *ethtypes.Receipt {
+	t := d.l2.t
+
+	l2Receipt := d.sendDeposit(to, calldata)
+	t.Require().Equal(ethtypes.ReceiptStatusFailed, l2Receipt.Status, "deposit tx unexpectedly succeeded on L2")
+
+	trace := new(wait.TxTrace)
+	err := d.l2EL.EthClient().RPC().CallContext(d.l2.ctx, trace, "debug_traceTransaction",
+		hexutil.Bytes(l2Receipt.TxHash.Bytes()), map[string]any{
+			"enableReturnData": true,
+			"tracer":           "callTracer",
+			"tracerConfig":     map[string]any{},
+		})
+	t.Require().NoError(err, "failed to trace L2 deposit tx")
+	expected := crypto.Keccak256([]byte(errorSignature))[:4]
+	t.Require().Equal(expected, []byte(trace.Output), "deposit tx reverted for an unexpected reason")
+	return l2Receipt
+}
+
+// sendDeposit sends the deposit transaction on L1, waits for L2 derivation, and returns the
+// L2 receipt without asserting the L2 execution status.
+func (d *DepositEOA) sendDeposit(to common.Address, calldata []byte) *ethtypes.Receipt {
 	t := d.l2.t
 	ctx := d.l2.ctx
 
@@ -50,7 +85,7 @@ func (d *DepositEOA) DepositTx(to common.Address, calldata []byte) *ethtypes.Rec
 	t.Require().NoError(err, "L1 deposit tx failed")
 	t.Require().Equal(ethtypes.ReceiptStatusSuccessful, l1Receipt.Status, "L1 deposit tx reverted")
 
-	var l2DepositTx *ethtypes.DepositTx
+	var l2DepositTx *optypes.DepositTx
 	for _, log := range l1Receipt.Logs {
 		if l2DepositTx, err = derive.UnmarshalDepositLogEvent(log); err == nil {
 			break
@@ -59,9 +94,7 @@ func (d *DepositEOA) DepositTx(to common.Address, calldata []byte) *ethtypes.Rec
 	t.Require().NotNil(l2DepositTx, "no TransactionDeposited event in L1 receipt")
 
 	d.l2EL.WaitL1OriginReached(eth.Unsafe, bigs.Uint64Strict(l1Receipt.BlockNumber), 120)
-	l2Receipt := d.l2EL.WaitForReceipt(ethtypes.NewTx(l2DepositTx).Hash())
-	t.Require().Equal(ethtypes.ReceiptStatusSuccessful, l2Receipt.Status, "deposit tx failed on L2")
-	return l2Receipt
+	return d.l2EL.WaitForReceipt(l2DepositTx.Hash())
 }
 
 // SendInitMessage sends an initiating message via an L1 deposit transaction.

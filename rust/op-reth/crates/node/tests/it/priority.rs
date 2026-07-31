@@ -111,8 +111,9 @@ async fn test_custom_block_priority_config() {
     reth_tracing::init_test_tracing();
 
     let genesis: Genesis = serde_json::from_str(include_str!("../assets/genesis.json")).unwrap();
-    let chain_spec =
-        Arc::new(OpChainSpecBuilder::base_mainnet().genesis(genesis).ecotone_activated().build());
+    let chain_spec = Arc::new(
+        OpChainSpecBuilder::optimism_sepolia().genesis(genesis).ecotone_activated().build(),
+    );
 
     // This wallet is going to send:
     // 1. L1 block info tx
@@ -125,8 +126,8 @@ async fn test_custom_block_priority_config() {
             datadir: reth_db::test_utils::tempdir_path().into(),
             ..Default::default()
         });
-    config.network.discovery.discv5_port = 0;
-    config.network.discovery.discv5_port_ipv6 = 0;
+    config.network.discovery.discv5_port = Some(0);
+    config.network.discovery.discv5_port_ipv6 = Some(0);
     let db = create_test_rw_db_with_path(
         config
             .datadir

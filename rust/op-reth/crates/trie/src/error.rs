@@ -1,5 +1,6 @@
 //! Errors interfacing with [`OpProofsStore`](crate::OpProofsStore) type.
 
+use crate::{api::SnapshotInitStatus, db::SnapshotStatus};
 use alloy_primitives::B256;
 use reth_db::DatabaseError;
 use reth_execution_errors::BlockExecutionError;
@@ -87,6 +88,43 @@ pub enum OpProofsStorageError {
         /// The earliest stored block number
         earliest_block_number: u64,
     },
+    /// Reorg base block is outside the stored proof window [earliest, latest]
+    #[error(
+        "Reorg base block {block_number} is outside the stored proof window [{earliest_block_number}, {latest_block_number}]"
+    )]
+    ReorgBaseOutOfWindow {
+        /// The reorg base block number
+        block_number: u64,
+        /// The earliest stored block number
+        earliest_block_number: u64,
+        /// The latest stored block number
+        latest_block_number: u64,
+    },
+    /// Attempted to prepend a block whose hash does not match the current earliest
+    #[error(
+        "Cannot prepend block {block_number} (hash {block_hash}): \
+         expected earliest block {earliest_block_number} (hash {earliest_block_hash})"
+    )]
+    PrependOutOfOrder {
+        /// The block number being prepended
+        block_number: u64,
+        /// The hash of the block being prepended
+        block_hash: B256,
+        /// The current earliest block number
+        earliest_block_number: u64,
+        /// The current earliest block hash
+        earliest_block_hash: B256,
+    },
+    /// Attempted to prune to a block at or before the earliest stored block
+    #[error(
+        "Attempted to prune to block {target_block_number} but earliest stored block is already {earliest_block_number}"
+    )]
+    PruneBeyondEarliest {
+        /// The target prune block number
+        target_block_number: u64,
+        /// The earliest stored block number
+        earliest_block_number: u64,
+    },
     /// Error occurred while interacting with the database.
     #[error(transparent)]
     DatabaseError(DatabaseError),
@@ -105,6 +143,30 @@ pub enum OpProofsStorageError {
          Please clear proofs data and retry initialization."
     )]
     InitializeStorageInconsistentState,
+    /// The snapshot has never been initialized — no init job has run yet.
+    #[error("Snapshot is not initialized")]
+    SnapshotNotInitialized,
+    /// Attempted to commit a snapshot whose meta is not in [`SnapshotStatus::Building`].
+    #[error("Cannot commit snapshot: meta is in status {status:?}, expected Building")]
+    SnapshotCommitInvalidStatus {
+        /// The status the snapshot meta is currently in.
+        status: SnapshotStatus,
+    },
+    /// Attempted to apply an update to a snapshot whose meta is not in [`SnapshotStatus::Ready`].
+    #[error("Cannot update snapshot: meta is in status {status:?}, expected Ready")]
+    SnapshotUpdateNotReady {
+        /// The status the snapshot meta is currently in.
+        status: SnapshotStatus,
+    },
+    /// Snapshot is not in [`SnapshotStatus::Ready`] — either the init job has
+    /// not been run, or it is still building. Reads against the snapshot must
+    /// wait for [`SnapshotStatus::Ready`].
+    #[error("Snapshot is not ready: current init status {status:?}")]
+    SnapshotNotReady {
+        /// Current lifecycle status as reported by
+        /// [`crate::api::OpProofsSnapshotInitProvider::snapshot_init_anchor`].
+        status: SnapshotInitStatus,
+    },
 }
 
 impl From<BlockExecutionError> for OpProofsStorageError {

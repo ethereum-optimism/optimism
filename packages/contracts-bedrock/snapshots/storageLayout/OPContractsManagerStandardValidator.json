@@ -133,10 +133,31 @@
     "type": "address"
   },
   {
+    "bytes": "20",
+    "label": "zkDisputeGameImpl",
+    "offset": 0,
+    "slot": "19",
+    "type": "address"
+  },
+  {
     "bytes": "32",
     "label": "devFeatureBitmap",
     "offset": 0,
-    "slot": "19",
+    "slot": "20",
     "type": "bytes32"
+  },
+  {
+    "bytes": "20",
+    "label": "standardValidatorUtils",
+    "offset": 0,
+    "slot": "21",
+    "type": "contract IStandardValidatorUtils"
+  },
+  {
+    "bytes": "20",
+    "label": "migrationValidator",
+    "offset": 0,
+    "slot": "22",
+    "type": "contract IOPContractsManagerMigrationValidator"
   }
 ]

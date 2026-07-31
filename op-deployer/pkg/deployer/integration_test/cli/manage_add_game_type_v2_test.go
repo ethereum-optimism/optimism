@@ -11,21 +11,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
-
-	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 )
 
 func TestManageAddGameTypeV2_CLI(t *testing.T) {
@@ -127,12 +128,15 @@ func TestManageAddGameTypeV2_Integration(t *testing.T) {
 	systemConfigProxy := deployed.systemConfigProxy
 	opcmV2 := deployed.opcmV2
 
-	// FaultDisputeGameConfig just needs absolutePrestate (bytes32)
 	testPrestate := common.Hash{'P', 'R', 'E', 'S', 'T', 'A', 'T', 'E'}
-
-	// PermissionedDisputeGameConfig needs absolutePrestate, proposer, challenger
 	testProposer := common.Address{'P'}
-	testChallenger := common.Address{'C'}
+
+	startingAnchorRoot, err := opcm.EncodeStartingAnchorRoot(opcm.DefaultStartingAnchorRoot)
+	require.NoError(t, err)
+	gameTypeTy, err := abi.NewType("uint32", "", nil)
+	require.NoError(t, err)
+	startingRespectedGameType, err := (abi.Arguments{{Type: gameTypeTy}}).Pack(uint32(embedded.GameTypeSuperCannonKona))
+	require.NoError(t, err)
 
 	testConfig := embedded.UpgradeOPChainInput{
 		Prank: l1ProxyAdminOwner,
@@ -140,50 +144,30 @@ func TestManageAddGameTypeV2_Integration(t *testing.T) {
 		UpgradeInputV2: &embedded.UpgradeInputV2{
 			SystemConfig: systemConfigProxy,
 			DisputeGameConfigs: []embedded.DisputeGameConfig{
+				{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeCannon},
+				{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypePermissionedCannon},
+				{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeCannonKona},
+				{
+					Enabled:  true,
+					InitBond: new(big.Int),
+					GameType: embedded.GameTypeSuperPermissioned,
+					SuperPermissionedDisputeGameConfig: &embedded.SuperPermissionedDisputeGameConfig{
+						Proposer: testProposer,
+					},
+				},
 				{
 					Enabled:  true,
 					InitBond: big.NewInt(1000000000000000000),
-					GameType: embedded.GameTypeCannon,
+					GameType: embedded.GameTypeSuperCannonKona,
 					FaultDisputeGameConfig: &embedded.FaultDisputeGameConfig{
 						AbsolutePrestate: testPrestate,
 					},
 				},
-				{
-					Enabled:  true,
-					InitBond: big.NewInt(1000000000000000000),
-					GameType: embedded.GameTypePermissionedCannon,
-					PermissionedDisputeGameConfig: &embedded.PermissionedDisputeGameConfig{
-						AbsolutePrestate: testPrestate,
-						Proposer:         testProposer,
-						Challenger:       testChallenger,
-					},
-				},
-				{
-					Enabled:  false,
-					InitBond: big.NewInt(0),
-					GameType: embedded.GameTypeCannonKona,
-				},
-				{
-					Enabled:  false,
-					InitBond: big.NewInt(0),
-					GameType: embedded.GameTypeSuperCannon,
-				},
-				{
-					Enabled:  false,
-					InitBond: big.NewInt(0),
-					GameType: embedded.GameTypeSuperPermCannon,
-				},
-				{
-					Enabled:  false,
-					InitBond: big.NewInt(0),
-					GameType: embedded.GameTypeSuperCannonKona,
-				},
+				{Enabled: false, InitBond: new(big.Int), GameType: embedded.GameTypeZKDisputeGame},
 			},
 			ExtraInstructions: []embedded.ExtraInstruction{
-				{
-					Key:  "PermittedProxyDeployment",
-					Data: []byte("DelayedWETH"),
-				},
+				{Key: "overrides.cfg.startingAnchorRoot", Data: startingAnchorRoot},
+				{Key: "overrides.cfg.startingRespectedGameType", Data: startingRespectedGameType},
 			},
 		},
 	}
@@ -286,10 +270,7 @@ func deployDependencies(t *testing.T, runner *CLITestRunner) deployedChain {
 
 	intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID, loc, loc, 30_000_000)
 
-	// Ensure we are using OPCM V2
-	intent.GlobalDeployOverrides = map[string]any{
-		"devFeatureBitmap": deployer.OPCMV2DevFlag,
-	}
+	intent.GlobalDeployOverrides = map[string]any{}
 
 	// Deploy using ApplyPipeline with live target
 	err = deployer.ApplyPipeline(ctx, deployer.ApplyPipelineOpts{

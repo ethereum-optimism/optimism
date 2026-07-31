@@ -13,7 +13,6 @@ workspace = true
 
 [dependencies]
 # reth
-reth-codecs.workspace = true
 reth-db = { workspace = true, features = ["mdbx"] }
 reth-evm.workspace = true
 reth-execution-errors.workspace = true
@@ -22,6 +21,8 @@ reth-provider.workspace = true
 reth-revm.workspace = true
 reth-trie = { workspace = true, features = ["serde"] }
 reth-trie-common = { workspace = true, features = ["serde"] }
+reth-trie-db.workspace = true
+reth-codecs.workspace = true
 reth-tasks.workspace = true
 
 # workaround: reth-trie/serde-bincode-compat activates serde-bincode-compat on
@@ -52,9 +53,11 @@ auto_impl.workspace = true
 eyre = { workspace = true, optional = true }
 strum.workspace = true
 tracing.workspace = true
+crossbeam-channel.workspace = true
 derive_more.workspace = true
 
 [dev-dependencies]
+reth-optimism-trie = { path = ".", features = ["test-utils"] }
 reth-codecs = { workspace = true, features = ["test-utils"] }
 tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util", "rt-multi-thread", "macros"] }
@@ -80,6 +83,19 @@ eyre.workspace = true
 serial_test.workspace = true
 
 [features]
+test-utils = [
+	"reth-codecs/test-utils",
+	"reth-db/test-utils",
+	"reth-ethereum-primitives?/test-utils",
+	"reth-evm/test-utils",
+	"reth-primitives-traits/test-utils",
+	"reth-provider/test-utils",
+	"reth-revm/test-utils",
+	"reth-tasks/test-utils",
+	"reth-trie/test-utils",
+	"reth-trie-common/test-utils",
+	"reth-trie-db/test-utils"
+]
 serde-bincode-compat = [
 	"reth-trie-common/serde-bincode-compat",
 	"alloy-consensus/serde-bincode-compat",
@@ -90,6 +106,7 @@ serde-bincode-compat = [
 ]
 metrics = [
 	"reth-trie/metrics",
+	"reth-trie-db/metrics",
 	"dep:reth-metrics",
 	"dep:metrics",
 	"dep:eyre",

@@ -1,7 +1,7 @@
 //! Implements the Optimism engine API RPC methods.
 
 use alloy_eips::eip7685::Requests;
-use alloy_primitives::{B64, B256, BlockHash, U64};
+use alloy_primitives::{B256, BlockHash, U64};
 use alloy_rpc_types_engine::{
     ClientVersionV1, ExecutionPayloadBodiesV1, ExecutionPayloadInputV2, ExecutionPayloadV3,
     ForkchoiceState, ForkchoiceUpdated, PayloadId, PayloadStatus,
@@ -9,17 +9,15 @@ use alloy_rpc_types_engine::{
 use derive_more::Constructor;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee_core::{RpcResult, server::RpcModule};
-use op_alloy_rpc_types_engine::{
-    OpExecutionPayloadV4, ProtocolVersion, ProtocolVersionFormatV0, SuperchainSignal,
-};
+use op_alloy_rpc_types_engine::OpExecutionPayloadV4;
 use reth_chainspec::EthereumHardforks;
 use reth_node_api::{EngineApiValidator, EngineTypes};
 use reth_optimism_payload_builder::OpExecData;
 use reth_rpc_api::IntoEngineApiRpcModule;
 use reth_rpc_engine_api::EngineApi;
-use reth_storage_api::{BlockReader, HeaderProvider, StateProviderFactory};
+use reth_storage_api::{BalProvider, BlockReader, HeaderProvider, StateProviderFactory};
 use reth_transaction_pool::TransactionPool;
-use tracing::{debug, info, trace};
+use tracing::{debug, trace};
 
 /// The list of all supported Engine capabilities available over the engine endpoint.
 ///
@@ -32,23 +30,13 @@ pub const OP_ENGINE_CAPABILITIES: &[&str] = &[
     "engine_getPayloadV2",
     "engine_getPayloadV3",
     "engine_getPayloadV4",
+    "engine_getPayloadV5",
     "engine_newPayloadV2",
     "engine_newPayloadV3",
     "engine_newPayloadV4",
     "engine_getPayloadBodiesByHashV1",
     "engine_getPayloadBodiesByRangeV1",
-    "engine_signalSuperchainV1",
 ];
-
-/// OP Stack protocol version
-/// See also: <https://github.com/ethereum-optimism/op-geth/blob/c3a989eb882d150a936df27bcfa791838b474d55/params/superchain.go#L13-L13>
-pub const OP_STACK_SUPPORT: ProtocolVersion = ProtocolVersion::V0(ProtocolVersionFormatV0 {
-    build: B64::ZERO,
-    major: 9,
-    minor: 0,
-    patch: 0,
-    pre_release: 0,
-});
 
 /// Extension trait that gives access to Optimism engine API RPC methods.
 ///
@@ -192,6 +180,22 @@ pub trait OpEngineApi<Engine: EngineTypes> {
         payload_id: PayloadId,
     ) -> RpcResult<Engine::ExecutionPayloadEnvelopeV4>;
 
+    /// Returns the most recent version of the payload that is available in the corresponding
+    /// payload build process at the time of receiving this call.
+    ///
+    /// See also <https://github.com/ethereum/execution-apis/blob/main/src/engine/osaka.md#engine_getpayloadv5>
+    ///
+    /// Note:
+    /// > Provider software MAY stop the corresponding build process after serving this call.
+    ///
+    /// OP modifications:
+    /// - the response type is extended to [`EngineTypes::ExecutionPayloadEnvelopeV5`].
+    #[method(name = "getPayloadV5")]
+    async fn get_payload_v5(
+        &self,
+        payload_id: PayloadId,
+    ) -> RpcResult<Engine::ExecutionPayloadEnvelopeV5>;
+
     /// Returns the execution payload bodies by the given hash.
     ///
     /// See also <https://github.com/ethereum/execution-apis/blob/6452a6b194d7db269bf1dbd087a267251d3cc7f8/src/engine/shanghai.md#engine_getpayloadbodiesbyhashv1>
@@ -219,12 +223,6 @@ pub trait OpEngineApi<Engine: EngineTypes> {
         start: U64,
         count: U64,
     ) -> RpcResult<ExecutionPayloadBodiesV1>;
-
-    /// Signals superchain information to the Engine.
-    /// Returns the latest supported OP-Stack protocol version of the execution engine.
-    /// See also <https://specs.optimism.io/protocol/exec-engine.html#engine_signalsuperchainv1>
-    #[method(name = "engine_signalSuperchainV1")]
-    async fn signal_superchain_v1(&self, _signal: SuperchainSignal) -> RpcResult<ProtocolVersion>;
 
     /// Returns the execution client version information.
     ///
@@ -266,7 +264,7 @@ where
 impl<Provider, EngineT, Pool, Validator, ChainSpec> OpEngineApiServer<EngineT>
     for OpEngineApi<Provider, EngineT, Pool, Validator, ChainSpec>
 where
-    Provider: HeaderProvider + BlockReader + StateProviderFactory + 'static,
+    Provider: HeaderProvider + BlockReader + StateProviderFactory + BalProvider + 'static,
     EngineT: EngineTypes<ExecutionData = OpExecData>,
     Pool: TransactionPool + 'static,
     Validator: EngineApiValidator<EngineT>,
@@ -362,6 +360,14 @@ where
         Ok(self.inner.get_payload_v4_metered(payload_id).await?)
     }
 
+    async fn get_payload_v5(
+        &self,
+        payload_id: PayloadId,
+    ) -> RpcResult<EngineT::ExecutionPayloadEnvelopeV5> {
+        trace!(target: "rpc::engine", "Serving engine_getPayloadV5");
+        Ok(self.inner.get_payload_v5_metered(payload_id).await?)
+    }
+
     async fn get_payload_bodies_by_hash_v1(
         &self,
         block_hashes: Vec<BlockHash>,
@@ -377,18 +383,6 @@ where
     ) -> RpcResult<ExecutionPayloadBodiesV1> {
         trace!(target: "rpc::engine", "Serving engine_getPayloadBodiesByRangeV1");
         Ok(self.inner.get_payload_bodies_by_range_v1_metered(start.to(), count.to()).await?)
-    }
-
-    async fn signal_superchain_v1(&self, signal: SuperchainSignal) -> RpcResult<ProtocolVersion> {
-        trace!(target: "rpc::engine", "Serving signal_superchain_v1");
-        info!(
-            target: "rpc::engine",
-            "Received superchain version signal local={:?} required={:?} recommended={:?}",
-            OP_STACK_SUPPORT,
-            signal.required,
-            signal.recommended
-        );
-        Ok(OP_STACK_SUPPORT)
     }
 
     async fn get_client_version_v1(
@@ -412,5 +406,19 @@ where
 {
     fn into_rpc_module(self) -> RpcModule<()> {
         self.into_rpc().remove_context()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::OP_ENGINE_CAPABILITIES;
+
+    /// Osaka `engine_getPayloadV5` must be advertised: once Osaka/Karst is active the CL fetches
+    /// payloads via V5, and an unadvertised method is rejected with -38005 "Unsupported fork".
+    /// V4 stays advertised — V5 is additive (`newPayload` remains V4).
+    #[test]
+    fn advertises_get_payload_v5() {
+        assert!(OP_ENGINE_CAPABILITIES.contains(&"engine_getPayloadV5"));
+        assert!(OP_ENGINE_CAPABILITIES.contains(&"engine_getPayloadV4"));
     }
 }

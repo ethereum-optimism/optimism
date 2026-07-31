@@ -21,7 +21,6 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
-import { ProtocolVersion } from "interfaces/L1/IProtocolVersions.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 
 /// @title Initializer_Test
@@ -186,7 +185,6 @@ contract Initializer_Test is CommonTest {
                             systemTxMaxGas: 0,
                             maximumBaseFee: 0
                         }),
-                        address(0),
                         ISystemConfig.Addresses({
                             l1CrossDomainMessenger: address(0),
                             l1ERC721Bridge: address(0),
@@ -224,7 +222,6 @@ contract Initializer_Test is CommonTest {
                             systemTxMaxGas: 0,
                             maximumBaseFee: 0
                         }),
-                        address(0),
                         ISystemConfig.Addresses({
                             l1CrossDomainMessenger: address(0),
                             l1ERC721Bridge: address(0),
@@ -237,26 +234,6 @@ contract Initializer_Test is CommonTest {
                         0,
                         ISuperchainConfig(address(0))
                     )
-                )
-            })
-        );
-        // ProtocolVersionsImpl
-        contracts.push(
-            InitializeableContract({
-                name: "ProtocolVersionsImpl",
-                target: EIP1967Helper.getImplementation(address(protocolVersions)),
-                initCalldata: abi.encodeCall(
-                    protocolVersions.initialize, (address(0), ProtocolVersion.wrap(1), ProtocolVersion.wrap(2))
-                )
-            })
-        );
-        // ProtocolVersionsProxy
-        contracts.push(
-            InitializeableContract({
-                name: "ProtocolVersionsProxy",
-                target: address(protocolVersions),
-                initCalldata: abi.encodeCall(
-                    protocolVersions.initialize, (address(0), ProtocolVersion.wrap(1), ProtocolVersion.wrap(2))
                 )
             })
         );
@@ -384,8 +361,6 @@ contract Initializer_Test is CommonTest {
         // Collect exclusions.
         uint256 j;
         string[] memory excludes = new string[](9);
-        // Contract is currently not being deployed as part of the standard deployment script.
-        excludes[j++] = "src/L2/OptimismSuperchainERC20.sol";
         // Periphery contracts don't get deployed as part of the standard deployment script.
         excludes[j++] = "src/periphery/*";
         // TODO: Deployment script is currently "broken" in the sense that it doesn't properly
@@ -400,7 +375,6 @@ contract Initializer_Test is CommonTest {
         excludes[j++] = "src/dispute/zk/ZKDisputeGame.sol";
         // L2 contract initialization is tested in Predeploys.t.sol
         excludes[j++] = "src/L2/*";
-        excludes[j++] = "src/L1/FeesDepositor.sol";
 
         // Get all contract names in the src directory, minus the excluded contracts.
         string[] memory contractNames = ForgeArtifacts.getContractNames("src/*", excludes);

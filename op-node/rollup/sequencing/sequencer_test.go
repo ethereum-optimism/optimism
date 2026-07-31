@@ -173,6 +173,12 @@ func (fakeEngController) TryUpdateLocalSafe(ctx context.Context, ref eth.L2Block
 
 func (fakeEngController) RequestPendingSafeUpdate(ctx context.Context) {}
 
+func (fakeEngController) IsEngineInitialELSyncing() bool { return false }
+
+func (fakeEngController) IsDenied(blockNumber uint64, payloadHash common.Hash) (bool, error) {
+	return false, nil
+}
+
 // TestSequencer_StartStop runs through start/stop state back and forth to test state changes.
 func TestSequencer_StartStop(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelError)
@@ -186,7 +192,6 @@ func TestSequencer_StartStop(t *testing.T) {
 	deps.conductor.leader = true
 
 	testCtx := context.Background()
-	// TODO(#16917): direct call used now; no ForkchoiceRequestEvent expected
 	require.NoError(t, seq.Init(testCtx, false))
 	emitter.AssertExpectations(t)
 	require.False(t, deps.conductor.closed, "conductor is ready")
@@ -259,6 +264,61 @@ func TestSequencer_StartStop(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestSequencer_NoActionAfterStop verifies that a sequencer-action event that fires
+// after Stop() (because the driver's timer was already armed before we deactivated)
+// is ignored, rather than starting a new block-building job. Acting on that stale
+// event would issue a forkchoice update reasserting our head and could undo a reorg
+// introduced externally after we stopped. Regression test for issue #20198.
+func TestSequencer_NoActionAfterStop(t *testing.T) {
+	logger := testlog.Logger(t, log.LevelError)
+	seq, deps := createSequencer(logger)
+	emitter := &testutils.MockEmitter{}
+	seq.AttachEmitter(emitter)
+	deps.conductor.leader = true
+
+	testCtx := context.Background()
+	require.NoError(t, seq.Init(testCtx, false))
+	emitter.AssertExpectations(t)
+
+	// Bring latestSealed and latestHead to the same known block, so Stop() does not
+	// block waiting for the sealed block to catch up to the head.
+	head := eth.L2BlockRef{Hash: common.Hash{0xaa}}
+	envelope := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{}}
+	emitter.ExpectOnce(engine.PayloadProcessEvent{Envelope: envelope, Ref: head})
+	seq.OnEvent(testCtx, engine.BuildSealedEvent{Envelope: envelope, Ref: head})
+	emitter.AssertExpectations(t)
+	seq.OnEvent(testCtx, engine.ForkchoiceUpdateEvent{UnsafeL2Head: head})
+	require.Equal(t, head.Hash, seq.latestHead.Hash)
+
+	// Start, then stop. While active the sequencer scheduled work; the driver may have
+	// already armed the sequencer-action timer at this point.
+	require.NoError(t, seq.Start(testCtx, head.Hash))
+	require.True(t, seq.Active())
+	_, ok := seq.NextAction()
+	require.True(t, ok, "active sequencer schedules work")
+
+	stopHead, err := seq.Stop(testCtx)
+	require.NoError(t, err)
+	require.Equal(t, head.Hash, stopHead)
+	require.False(t, seq.Active())
+
+	// Provide a valid L1 origin so that, absent the inactive-guard, onSequencerAction
+	// would proceed all the way to emitting a BuildStartEvent — turning a regression
+	// into a clear unexpected-emit failure rather than a panic.
+	deps.l1OriginSelector.l1OriginFn = func(l2Head eth.L2BlockRef) (eth.L1BlockRef, error) {
+		return eth.L1BlockRef{Number: 1000}, nil
+	}
+
+	// Fire the stale action. The MockEmitter has no pending expectations, so any emit
+	// here (i.e. the sequencer acting while stopped) fails the test.
+	seq.OnEvent(testCtx, SequencerActionEvent{})
+	emitter.AssertExpectations(t)
+
+	require.Equal(t, BuildingState{}, seq.latest, "no block-building job started while stopped")
+	_, ok = seq.NextAction()
+	require.False(t, ok, "stopped sequencer schedules no further work")
+}
+
 // TestSequencer_StaleBuild stops the sequencer after block-building,
 // but before processing the block locally,
 // and then continues it again, to check if the async-gossip gets cleared,
@@ -276,7 +336,6 @@ func TestSequencer_StaleBuild(t *testing.T) {
 	deps.conductor.leader = true
 
 	testCtx := context.Background()
-	// TODO(#16917): direct call used now; no ForkchoiceRequestEvent expected
 	require.NoError(t, seq.Init(testCtx, false))
 	emitter.AssertExpectations(t)
 	require.False(t, deps.conductor.closed, "conductor is ready")
@@ -486,13 +545,11 @@ func TestSequencerBuild(t *testing.T) {
 
 	testCtx := context.Background()
 	// Init will request a forkchoice update
-	// TODO(#16917): direct call used now; no ForkchoiceRequestEvent expected
 	require.NoError(t, seq.Init(testCtx, true))
 	emitter.AssertExpectations(t)
 	require.True(t, seq.Active(), "started in active mode")
 
 	// It will request a forkchoice update, it needs the head before being able to build on top of it
-	// TODO(#16917): direct call used now; no ForkchoiceRequestEvent expected
 	seq.OnEvent(context.Background(), SequencerActionEvent{})
 	emitter.AssertExpectations(t)
 

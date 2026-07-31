@@ -34,8 +34,8 @@ var (
 	ErrMissingCannonKonaInfoFreq         = errors.New("missing cannon kona info freq")
 	ErrMissingDepsetConfig               = errors.New("missing network or depset config path")
 
-	ErrMissingRollupRpc = errors.New("missing rollup rpc url")
-	ErrMissingSuperRpc  = errors.New("missing super rpc url")
+	ErrMissingRollupRpc    = errors.New("missing rollup rpc url")
+	ErrMissingSuperRootRpc = errors.New("missing super root RPC URL")
 )
 
 const (
@@ -76,8 +76,7 @@ type Config struct {
 	GameTypes []gameTypes.GameType // Type of games supported
 
 	RollupRpc    string   // L2 Rollup RPC Url
-	SuperRPC     string   // L2 RPC URL for super roots
-	UseSuperNode bool     // Temporary: True to use op-supernode APIs, false for op-supervisor APIs
+	SuperRootRPC string   // Super root RPC URL.
 	L2Rpcs       []string // L2 RPC Url
 
 	// Specific to the cannon trace provider
@@ -112,7 +111,7 @@ func NewInteropConfig(
 	gameFactoryAddress common.Address,
 	l1EthRpc string,
 	l1BeaconApi string,
-	superRpc string,
+	superRootRpc string,
 	l2Rpcs []string,
 	datadir string,
 	supportedGameTypes ...gameTypes.GameType,
@@ -121,7 +120,7 @@ func NewInteropConfig(
 		L1EthRpc:           l1EthRpc,
 		L1RPCKind:          sources.RPCKindStandard,
 		L1Beacon:           l1BeaconApi,
-		SuperRPC:           superRpc,
+		SuperRootRPC:       superRootRpc,
 		L2Rpcs:             l2Rpcs,
 		GameFactoryAddress: gameFactoryAddress,
 		MaxConcurrency:     uint(runtime.NumCPU()),
@@ -237,25 +236,18 @@ func (c Config) Check() error {
 	if len(c.GameTypes) == 0 {
 		return ErrMissingGameType
 	}
+	for _, gameType := range c.GameTypes {
+		if !slices.Contains(gameTypes.PlayableGameTypes, gameType) {
+			return fmt.Errorf("%w: %q", gameTypes.ErrUnknownGameType, gameType.String())
+		}
+	}
 	if c.Datadir == "" {
 		return ErrMissingDatadir
 	}
 	if c.MaxConcurrency == 0 {
 		return ErrMaxConcurrencyZero
 	}
-	if c.GameTypeEnabled(gameTypes.SuperCannonGameType) || c.GameTypeEnabled(gameTypes.SuperPermissionedGameType) {
-		if c.SuperRPC == "" {
-			return ErrMissingSuperRpc
-		}
-
-		if len(c.Cannon.Networks) == 0 && c.Cannon.DepsetConfigPath == "" {
-			return ErrMissingDepsetConfig
-		}
-		if err := c.validateBaseCannonOptions(); err != nil {
-			return err
-		}
-	}
-	if c.GameTypeEnabled(gameTypes.CannonGameType) || c.GameTypeEnabled(gameTypes.PermissionedGameType) {
+	if slices.ContainsFunc(gameTypes.CannonFamilyGameTypes, c.GameTypeEnabled) {
 		if c.RollupRpc == "" {
 			return ErrMissingRollupRpc
 		}
@@ -264,8 +256,8 @@ func (c Config) Check() error {
 		}
 	}
 	if c.GameTypeEnabled(gameTypes.SuperCannonKonaGameType) {
-		if c.SuperRPC == "" {
-			return ErrMissingSuperRpc
+		if c.SuperRootRPC == "" {
+			return ErrMissingSuperRootRpc
 		}
 
 		if len(c.CannonKona.Networks) == 0 && c.CannonKona.DepsetConfigPath == "" {
@@ -284,8 +276,8 @@ func (c Config) Check() error {
 		}
 	}
 	if c.GameTypeEnabled(gameTypes.ZKDisputeGameType) {
-		if c.RollupRpc == "" {
-			return ErrMissingRollupRpc
+		if c.SuperRootRPC == "" {
+			return ErrMissingSuperRootRpc
 		}
 	}
 	if c.GameTypeEnabled(gameTypes.AlphabetGameType) || c.GameTypeEnabled(gameTypes.FastGameType) {
@@ -306,10 +298,15 @@ func (c Config) Check() error {
 }
 
 func (c Config) validateBaseCannonOptions() error {
-	if err := c.Cannon.Check(); err != nil {
+	// Permissioned games never reach step() so do not run op-program or load the absolute
+	// prestate; both are only required when an enabled game type can reach step().
+	canReachStep := slices.ContainsFunc(gameTypes.CannonFamilyGameTypes, func(t gameTypes.GameType) bool {
+		return c.GameTypeEnabled(t) && !t.IsPermissioned()
+	})
+	if err := c.Cannon.Check(canReachStep); err != nil {
 		return fmt.Errorf("cannon: %w", err)
 	}
-	if c.CannonAbsolutePreState == "" && c.CannonAbsolutePreStateBaseURL == nil {
+	if canReachStep && c.CannonAbsolutePreState == "" && c.CannonAbsolutePreStateBaseURL == nil {
 		return ErrMissingCannonAbsolutePreState
 	}
 	if c.Cannon.SnapshotFreq == 0 {
@@ -322,7 +319,7 @@ func (c Config) validateBaseCannonOptions() error {
 }
 
 func (c Config) validateBaseCannonKonaOptions() error {
-	if err := c.CannonKona.Check(); err != nil {
+	if err := c.CannonKona.Check(true); err != nil {
 		return fmt.Errorf("cannon kona: %w", err)
 	}
 	if c.CannonKonaAbsolutePreState == "" && c.CannonKonaAbsolutePreStateBaseURL == nil {

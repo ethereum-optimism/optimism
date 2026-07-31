@@ -14,16 +14,16 @@ going through the formal version update proposal process outlined in this docume
 
 ## Update Process
 
-1. **Minimum Delay Period**: A new Foundry version must be at least 3 month old before it can be
-   considered for adoption. 3 Months is a good minimum delay period to allow for the community to use the new version and for any security vulnerabilities to be discovered and addressed.
+1. **Minimum Delay Period**: A new Foundry version must be at least 3 months old before it can be
+   considered for adoption. Three months is a good minimum delay period to allow for the community to use the new version and for any security vulnerabilities to be discovered and addressed.
 2. Only stable releases are recommended to be proposed for adoption.
-3. Nightly builds must only be considered for adoption if it includes a bug fix that addresses a non-trivial security vulnerability. This path does not need to follow the 3 month delay period, but must fill out the `notable bug fixes` section with rationale for why a nightly release is required.
+3. Nightly builds must only be considered for adoption if they include a bug fix that addresses a non-trivial security vulnerability. This path does not need to follow the 3-month delay period, but must fill out the `notable bug fixes` section with rationale for why a nightly release is required.
 4. **Proposal Submission**: Before any Foundry version upgrades are made, a detailed proposal must
    be submitted as a pull request to the [`ethereum-optimism/design-docs`][1] repository in a
    `foundry/` subfolder, following the standardized format outlined below. This applies to the monorepo, superchain-ops, and any other repositories that use Foundry.
 5. **Review and Approval**: A dedicated review panel that must consist of **at least 2 members of the security team** will assess the proposal based on the
    following criteria:
-   - Is the Foundry version at least 3 month old?
+   - Is the Foundry version at least 3 months old?
    - Does the proposed upgrade provide clear value to the codebase?
    - Do any new features or bug fixes pose an unnecessary risk to the codebase?
    - Are there any security vulnerabilities addressed by this version?

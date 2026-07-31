@@ -34,6 +34,14 @@ pub enum ChannelError {
     /// The frame number is beyond the end frame.
     #[error("Frame number {0} is beyond end frame")]
     FrameBeyondEndFrame(usize),
+    /// The frame is out of order.
+    #[error("Frame out of order: expected {expected}, got {got}")]
+    FrameOutOfOrder {
+        /// The expected frame number.
+        expected: u16,
+        /// The actual frame number.
+        got: u16,
+    },
 }
 
 /// A Channel is a set of batches that are split into at least one, but possibly multiple frames.

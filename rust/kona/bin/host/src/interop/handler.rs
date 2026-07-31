@@ -11,8 +11,7 @@ use alloy_op_evm::OpEvmFactory;
 use alloy_primitives::{Address, B256, Bytes, keccak256};
 use alloy_provider::Provider;
 use alloy_rlp::{Decodable, Encodable};
-use alloy_rpc_types::{Block, debug::ExecutionWitness};
-use alloy_transport::{RpcError, TransportErrorKind};
+use alloy_rpc_types::Block;
 use anyhow::{Result, anyhow, ensure};
 use ark_ff::{BigInteger, PrimeField};
 use async_trait::async_trait;
@@ -21,7 +20,7 @@ use kona_driver::Driver;
 use kona_executor::TrieDBProvider;
 use kona_preimage::{
     BidirectionalChannel, HintReader, HintWriter, OracleReader, OracleServer, PreimageKey,
-    PreimageKeyType,
+    PreimageKeyType, VerifyingPreimageFetcher,
 };
 use kona_proof::{
     CachingOracle, Hint,
@@ -37,7 +36,7 @@ use kona_registry::{L1_CONFIGS, ROLLUP_CONFIGS};
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use std::sync::Arc;
 use tokio::task;
-use tracing::{Instrument, debug, info, info_span, warn};
+use tracing::{Instrument, debug, info, info_span};
 
 /// Parses the binary framing of a [`HintType::L2PayloadWitness`] hint.
 ///
@@ -55,12 +54,6 @@ fn parse_l2_payload_witness_hint(data: &[u8]) -> Result<(B256, &[u8], u64)> {
     let chain_id = u64::from_be_bytes(data[data.len() - 8..].try_into()?);
     let payload_attributes_bytes = &data[32..data.len() - 8];
     Ok((parent_block_hash, payload_attributes_bytes, chain_id))
-}
-
-/// Returns `true` if the RPC error indicates the node does not support the requested method
-/// (JSON-RPC error code -32601: Method not found).
-const fn is_rpc_method_not_found(e: &RpcError<TransportErrorKind>) -> bool {
-    matches!(e, RpcError::ErrorResp(p) if p.code == -32601)
 }
 
 /// The [`HintHandler`] for the [`InteropHost`].
@@ -184,15 +177,7 @@ impl HintHandler for InteropHintHandler {
                 let input = hint.data[28..].to_vec();
                 let input_hash = keccak256(hint.data.as_ref());
 
-                let result = crate::eth::execute(address, input, gas).map_or_else(
-                    |_| vec![0u8; 1],
-                    |raw_res| {
-                        let mut res = Vec::with_capacity(1 + raw_res.len());
-                        res.push(0x01);
-                        res.extend_from_slice(&raw_res);
-                        res
-                    },
-                );
+                let result = crate::eth::execute(address, input, gas)?.into_preimage_value();
 
                 let mut kv_lock = kv.write().await;
                 kv_lock.set(PreimageKey::new_keccak256(*input_hash).into(), hint.data.into())?;
@@ -358,7 +343,7 @@ impl HintHandler for InteropHintHandler {
             HintType::L2StateNode => {
                 ensure!(hint.data.len() == 40, "Invalid hint data length");
 
-                let hash: B256 = hint.data.as_ref().try_into()?;
+                let hash = B256::from_slice(&hint.data[..32]);
                 let chain_id = u64::from_be_bytes(hint.data[32..40].try_into()?);
 
                 // Fetch the preimage from the L2 chain provider.
@@ -369,16 +354,33 @@ impl HintHandler for InteropHintHandler {
                 kv_write_lock.set(PreimageKey::new_keccak256(*hash).into(), preimage.into())?;
             }
             HintType::L2AccountProof => {
-                ensure!(hint.data.len() == 8 + 20 + 8, "Invalid hint data length");
-
-                let block_number = u64::from_be_bytes(hint.data.as_ref()[..8].try_into()?);
-                let address = Address::from_slice(&hint.data.as_ref()[8..28]);
-                let chain_id = u64::from_be_bytes(hint.data[28..].try_into()?);
+                // Backwards compatibility: old prestates send an 8-byte block number; new
+                // prestates send a 32-byte block hash. A single kona-host version serves all
+                // games.
+                const BLOCK_NUMBER_HINT_LEN: usize = 8 + 20 + 8;
+                const BLOCK_HASH_HINT_LEN: usize = 32 + 20 + 8;
+                let (block_id, address, chain_id) = match hint.data.len() {
+                    BLOCK_NUMBER_HINT_LEN => {
+                        let block_number = u64::from_be_bytes(hint.data.as_ref()[..8].try_into()?);
+                        let address = Address::from_slice(&hint.data.as_ref()[8..28]);
+                        let chain_id = u64::from_be_bytes(hint.data.as_ref()[28..36].try_into()?);
+                        (block_number.into(), address, chain_id)
+                    }
+                    BLOCK_HASH_HINT_LEN => {
+                        let block_hash = B256::from_slice(&hint.data.as_ref()[..32]);
+                        let address = Address::from_slice(&hint.data.as_ref()[32..52]);
+                        let chain_id = u64::from_be_bytes(hint.data.as_ref()[52..60].try_into()?);
+                        (block_hash.into(), address, chain_id)
+                    }
+                    other => anyhow::bail!(
+                        "Invalid L2AccountProof hint length: expected {BLOCK_NUMBER_HINT_LEN} or {BLOCK_HASH_HINT_LEN}, got {other}"
+                    ),
+                };
 
                 let proof_response = providers
                     .l2(&chain_id)?
                     .get_proof(address, Default::default())
-                    .block_id(block_number.into())
+                    .block_id(block_id)
                     .await?;
 
                 // Write the account proof nodes to the key-value store.
@@ -391,17 +393,35 @@ impl HintHandler for InteropHintHandler {
                 })?;
             }
             HintType::L2AccountStorageProof => {
-                ensure!(hint.data.len() == 8 + 20 + 32 + 8, "Invalid hint data length");
-
-                let block_number = u64::from_be_bytes(hint.data.as_ref()[..8].try_into()?);
-                let address = Address::from_slice(&hint.data.as_ref()[8..28]);
-                let slot = B256::from_slice(&hint.data.as_ref()[28..60]);
-                let chain_id = u64::from_be_bytes(hint.data[60..].try_into()?);
+                // Backwards compatibility: old prestates send an 8-byte block number; new
+                // prestates send a 32-byte block hash. A single kona-host version serves all
+                // games.
+                const BLOCK_NUMBER_HINT_LEN: usize = 8 + 20 + 32 + 8;
+                const BLOCK_HASH_HINT_LEN: usize = 32 + 20 + 32 + 8;
+                let (block_id, address, slot, chain_id) = match hint.data.len() {
+                    BLOCK_NUMBER_HINT_LEN => {
+                        let block_number = u64::from_be_bytes(hint.data.as_ref()[..8].try_into()?);
+                        let address = Address::from_slice(&hint.data.as_ref()[8..28]);
+                        let slot = B256::from_slice(&hint.data.as_ref()[28..60]);
+                        let chain_id = u64::from_be_bytes(hint.data.as_ref()[60..68].try_into()?);
+                        (block_number.into(), address, slot, chain_id)
+                    }
+                    BLOCK_HASH_HINT_LEN => {
+                        let block_hash = B256::from_slice(&hint.data.as_ref()[..32]);
+                        let address = Address::from_slice(&hint.data.as_ref()[32..52]);
+                        let slot = B256::from_slice(&hint.data.as_ref()[52..84]);
+                        let chain_id = u64::from_be_bytes(hint.data.as_ref()[84..92].try_into()?);
+                        (block_hash.into(), address, slot, chain_id)
+                    }
+                    other => anyhow::bail!(
+                        "Invalid L2AccountStorageProof hint length: expected {BLOCK_NUMBER_HINT_LEN} or {BLOCK_HASH_HINT_LEN}, got {other}"
+                    ),
+                };
 
                 let mut proof_response = providers
                     .l2(&chain_id)?
                     .get_proof(address, vec![slot])
-                    .block_id(block_number.into())
+                    .block_id(block_id)
                     .await?;
 
                 let mut kv_lock = kv.write().await;
@@ -505,12 +525,23 @@ impl HintHandler for InteropHintHandler {
                     PreimageServer::new(
                         OracleServer::new(preimage.host),
                         HintReader::new(hint.host),
-                        Arc::new(backend),
+                        Arc::new(VerifyingPreimageFetcher::new(backend)),
                     )
                     .start(),
                 );
+                // The host re-execution path mirrors the client's
+                // `sub_transition` fault-proof pipeline, so we must pass the same
+                // dependency set that the client will derive from BootInfo. Parse
+                // it from the same path the KV store uses (`--interop-dep-set-path`)
+                // here so the owned value can move into the spawned task.
+                let dependency_set = cfg
+                    .read_dependency_set()
+                    .transpose()
+                    .map_err(|e| anyhow!("failed to read interop dep-set: {e}"))?
+                    .map(Arc::new);
                 let client_task = task::spawn({
                     let l1_head = cfg.l1_head;
+                    let dependency_set = dependency_set.clone();
 
                     async move {
                         let oracle = Arc::new(CachingOracle::new(
@@ -559,6 +590,7 @@ impl HintHandler for InteropHintHandler {
                             da_provider,
                             l1_provider,
                             l2_provider.clone(),
+                            dependency_set,
                         )
                         .await?;
                         let executor = KonaExecutor::new(
@@ -566,6 +598,7 @@ impl HintHandler for InteropHintHandler {
                             l2_provider.clone(),
                             l2_provider,
                             OpEvmFactory::<alloy_op_evm::OpTx>::default(),
+                            alloy_op_evm::block::OpAlloyReceiptBuilder::default(),
                             None,
                         );
                         let mut driver = Driver::new(cursor, executor, pipeline);
@@ -621,47 +654,24 @@ impl HintHandler for InteropHintHandler {
                 );
             }
             HintType::L2PayloadWitness => {
-                // 1. Check feature flag
-                if !cfg.enable_experimental_witness_endpoint {
-                    warn!(
-                        target: "interop_hint_handler",
-                        "L2PayloadWitness hint was sent, but payload witness is disabled. Skipping hint."
-                    );
-                    return Ok(());
-                }
-
-                // 2. Parse hint data
+                // 1. Parse hint data
                 let (parent_block_hash, payload_attributes_bytes, chain_id) =
                     parse_l2_payload_witness_hint(&hint.data)?;
                 let payload_attributes: OpPayloadAttributes =
                     serde_json::from_slice(payload_attributes_bytes)?;
 
-                // 3. Route to correct L2 provider
+                // 2. Route to correct L2 provider
                 let l2_provider = providers.l2(&chain_id)?;
 
-                // 4. Call debug_executePayload RPC
-                let execute_payload_response = match l2_provider
-                    .client()
-                    .request::<(B256, OpPayloadAttributes), ExecutionWitness>(
-                        "debug_executePayload",
-                        (parent_block_hash, payload_attributes),
-                    )
-                    .await
-                {
-                    Ok(response) => response,
-                    Err(e) => {
-                        info!(
-                            target: "interop_hint_handler",
-                            err = %e,
-                            chain_id,
-                            method_not_found = is_rpc_method_not_found(&e),
-                            "debug_executePayload unavailable, skipping witness preimage collection"
-                        );
-                        return Ok(());
-                    }
-                };
+                // 3. Call debug_executePayload RPC.
+                let execute_payload_response = crate::backend::util::fetch_execution_witness(
+                    l2_provider.client(),
+                    parent_block_hash,
+                    payload_attributes,
+                )
+                .await?;
 
-                // 5. Store preimages in KV store
+                // 4. Store preimages in KV store
                 let preimages = execute_payload_response
                     .state
                     .into_iter()
@@ -684,34 +694,6 @@ impl HintHandler for InteropHintHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_json_rpc::ErrorPayload;
-    use alloy_transport::TransportErrorKind;
-
-    #[test]
-    fn test_is_rpc_method_not_found_true() {
-        let e = RpcError::<TransportErrorKind>::ErrorResp(ErrorPayload {
-            code: -32601,
-            message: "method not found".into(),
-            data: None,
-        });
-        assert!(is_rpc_method_not_found(&e));
-    }
-
-    #[test]
-    fn test_is_rpc_method_not_found_false_wrong_code() {
-        let e = RpcError::<TransportErrorKind>::ErrorResp(ErrorPayload {
-            code: -32600,
-            message: "invalid request".into(),
-            data: None,
-        });
-        assert!(!is_rpc_method_not_found(&e));
-    }
-
-    #[test]
-    fn test_is_rpc_method_not_found_false_null_resp() {
-        let e = RpcError::<TransportErrorKind>::NullResp;
-        assert!(!is_rpc_method_not_found(&e));
-    }
 
     fn make_hint(parent_hash: B256, json: &[u8], chain_id: u64) -> Vec<u8> {
         let mut data = Vec::new();

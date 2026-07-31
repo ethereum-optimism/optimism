@@ -1,0 +1,61 @@
+---
+title: "Configure RPC Trust"
+description: "Decide when to enable RPC response verification on kona-node and configure the --l1-trust-rpc and --l2-trust-rpc flags for trusted and untrusted providers."
+diataxis: how-to
+---
+
+The `--l1-trust-rpc` and `--l2-trust-rpc` flags control whether Kona performs additional verification on RPC responses to protect against malicious or faulty RPC providers. This guide helps you choose the right setting for your infrastructure and shows how to configure it.
+
+## Trust Modes
+
+**Default Behavior (trust enabled, `true`):**
+- No additional block hash verification is performed
+- Optimized for performance
+- Suitable for local nodes and trusted infrastructure
+- Assumes the RPC provider is reliable and honest
+
+**Verification Mode (trust disabled, `false`):**
+- All fetched blocks have their hashes verified against the requested hashes
+- Protects against malicious RPC providers returning incorrect blocks
+- Recommended for public or third-party RPC endpoints
+- Small performance overhead due to hash verification
+
+## Examples
+
+**Using trusted local RPCs (default):**
+```bash
+kona-node node \
+  --l1-eth-rpc http://localhost:8545 \
+  --l2-engine-rpc http://localhost:8551 \
+  # trust-rpc defaults to true, no need to specify
+```
+
+**Using untrusted public RPCs:**
+```bash
+kona-node node \
+  --l1-eth-rpc https://public-eth-rpc.com \
+  --l1-trust-rpc false \
+  --l2-engine-rpc https://public-l2-rpc.com \
+  --l2-trust-rpc false
+```
+
+**Mixed trust configuration:**
+```bash
+kona-node node \
+  --l1-eth-rpc https://public-eth-rpc.com \
+  --l1-trust-rpc false \
+  --l2-engine-rpc http://localhost:8551 \
+  # L2 trust-rpc defaults to true for local engine
+```
+
+## Security Recommendations
+
+1. **Local Infrastructure**: Keep the default `true` setting for RPCs you control
+2. **Public RPCs**: Always set `--trust-rpc false` when using third-party endpoints
+3. **Shared Infrastructure**: Consider setting `--trust-rpc false` as a precaution
+4. **Performance Testing**: The verification overhead is minimal but can be measured in high-throughput scenarios
+
+## Next Steps
+
+- Both flags are catalogued with the rest of the node's options in the [Kona node CLI reference](/node-operators/kona-node/configuration).
+- To get a node running end to end, follow the [binary guide](/node-operators/kona-node/run/binary) or the [Docker guide](/node-operators/kona-node/run/docker).

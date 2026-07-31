@@ -1,12 +1,15 @@
 package interop
 
 import (
+	"errors"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
+	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // =============================================================================
@@ -22,16 +25,16 @@ var (
 )
 
 // mutualCycle creates A↔B cycle at log index 0
-func mutualCycle(a, b eth.ChainID) map[eth.ChainID]map[uint32]*suptypes.ExecutingMessage {
-	return map[eth.ChainID]map[uint32]*suptypes.ExecutingMessage{
+func mutualCycle(a, b eth.ChainID) map[eth.ChainID]map[uint32]*messages.ExecutingMessage {
+	return map[eth.ChainID]map[uint32]*messages.ExecutingMessage{
 		a: {0: {ChainID: b, LogIdx: 0, Timestamp: testTS}},
 		b: {0: {ChainID: a, LogIdx: 0, Timestamp: testTS}},
 	}
 }
 
 // triangleCycle creates A→B→C→A cycle at log index 0
-func triangleCycle(a, b, c eth.ChainID) map[eth.ChainID]map[uint32]*suptypes.ExecutingMessage {
-	return map[eth.ChainID]map[uint32]*suptypes.ExecutingMessage{
+func triangleCycle(a, b, c eth.ChainID) map[eth.ChainID]map[uint32]*messages.ExecutingMessage {
+	return map[eth.ChainID]map[uint32]*messages.ExecutingMessage{
 		a: {0: {ChainID: b, LogIdx: 0, Timestamp: testTS}},
 		b: {0: {ChainID: c, LogIdx: 0, Timestamp: testTS}},
 		c: {0: {ChainID: a, LogIdx: 0, Timestamp: testTS}},
@@ -39,19 +42,19 @@ func triangleCycle(a, b, c eth.ChainID) map[eth.ChainID]map[uint32]*suptypes.Exe
 }
 
 // oneWayRef creates a one-way reference from chain 'from' to chain 'to'
-func oneWayRef(from, to eth.ChainID, fromLogIdx, toLogIdx uint32) map[eth.ChainID]map[uint32]*suptypes.ExecutingMessage {
-	return map[eth.ChainID]map[uint32]*suptypes.ExecutingMessage{
+func oneWayRef(from, to eth.ChainID, fromLogIdx, toLogIdx uint32) map[eth.ChainID]map[uint32]*messages.ExecutingMessage {
+	return map[eth.ChainID]map[uint32]*messages.ExecutingMessage{
 		from: {fromLogIdx: {ChainID: to, LogIdx: toLogIdx, Timestamp: testTS}},
 	}
 }
 
 // mergeEMs merges multiple EM maps into one
-func mergeEMs(maps ...map[eth.ChainID]map[uint32]*suptypes.ExecutingMessage) map[eth.ChainID]map[uint32]*suptypes.ExecutingMessage {
-	result := make(map[eth.ChainID]map[uint32]*suptypes.ExecutingMessage)
+func mergeEMs(maps ...map[eth.ChainID]map[uint32]*messages.ExecutingMessage) map[eth.ChainID]map[uint32]*messages.ExecutingMessage {
+	result := make(map[eth.ChainID]map[uint32]*messages.ExecutingMessage)
 	for _, m := range maps {
 		for chainID, ems := range m {
 			if result[chainID] == nil {
-				result[chainID] = make(map[uint32]*suptypes.ExecutingMessage)
+				result[chainID] = make(map[uint32]*messages.ExecutingMessage)
 			}
 			for logIdx, em := range ems {
 				result[chainID][logIdx] = em
@@ -314,7 +317,7 @@ func TestCheckCycle(t *testing.T) {
 				chainB := eth.ChainIDFromUInt64(8453)
 
 				aL0 := &dependencyNode{chainID: chainA, logIndex: 0}
-				aL1 := &dependencyNode{chainID: chainA, logIndex: 1, execMsg: &suptypes.ExecutingMessage{
+				aL1 := &dependencyNode{chainID: chainA, logIndex: 1, execMsg: &messages.ExecutingMessage{
 					ChainID: chainB, LogIdx: 0,
 				}}
 				bL0 := &dependencyNode{chainID: chainB, logIndex: 0}
@@ -339,10 +342,10 @@ func TestCheckCycle(t *testing.T) {
 				chainA := eth.ChainIDFromUInt64(10)
 				chainB := eth.ChainIDFromUInt64(8453)
 
-				aL0 := &dependencyNode{chainID: chainA, logIndex: 0, execMsg: &suptypes.ExecutingMessage{
+				aL0 := &dependencyNode{chainID: chainA, logIndex: 0, execMsg: &messages.ExecutingMessage{
 					ChainID: chainB, LogIdx: 0,
 				}}
-				bL0 := &dependencyNode{chainID: chainB, logIndex: 0, execMsg: &suptypes.ExecutingMessage{
+				bL0 := &dependencyNode{chainID: chainB, logIndex: 0, execMsg: &messages.ExecutingMessage{
 					ChainID: chainA, LogIdx: 0,
 				}}
 
@@ -381,19 +384,19 @@ func TestBuildCycleGraph(t *testing.T) {
 
 	tests := []struct {
 		name             string
-		chainEMs         map[eth.ChainID]map[uint32]*suptypes.ExecutingMessage
+		chainEMs         map[eth.ChainID]map[uint32]*messages.ExecutingMessage
 		expectCycle      bool
 		expectInCycle    []eth.ChainID // chains that should be in the cycle (only checked if expectCycle)
 		expectNotInCycle []eth.ChainID // chains that should NOT be in cycle (bystanders)
 	}{
 		{
 			name:        "empty graph - no cycle",
-			chainEMs:    map[eth.ChainID]map[uint32]*suptypes.ExecutingMessage{},
+			chainEMs:    map[eth.ChainID]map[uint32]*messages.ExecutingMessage{},
 			expectCycle: false,
 		},
 		{
 			name: "past timestamp filtered out",
-			chainEMs: map[eth.ChainID]map[uint32]*suptypes.ExecutingMessage{
+			chainEMs: map[eth.ChainID]map[uint32]*messages.ExecutingMessage{
 				testChainA: {0: {ChainID: testChainB, LogIdx: 0, Timestamp: testTS - 100}},
 			},
 			expectCycle: false,
@@ -427,7 +430,7 @@ func TestBuildCycleGraph(t *testing.T) {
 		},
 		{
 			name: "one-way dependency - no cycle",
-			chainEMs: map[eth.ChainID]map[uint32]*suptypes.ExecutingMessage{
+			chainEMs: map[eth.ChainID]map[uint32]*messages.ExecutingMessage{
 				testChainA: {0: {ChainID: testChainB, LogIdx: 5, Timestamp: testTS}},
 				testChainB: {3: {ChainID: testChainC, LogIdx: 0, Timestamp: testTS}},
 			},
@@ -435,7 +438,7 @@ func TestBuildCycleGraph(t *testing.T) {
 		},
 		{
 			name: "ref before target EM - no dependency, no cycle",
-			chainEMs: map[eth.ChainID]map[uint32]*suptypes.ExecutingMessage{
+			chainEMs: map[eth.ChainID]map[uint32]*messages.ExecutingMessage{
 				testChainA: {0: {ChainID: testChainB, LogIdx: 2, Timestamp: testTS}}, // refs B:2
 				testChainB: {3: {ChainID: testChainA, LogIdx: 0, Timestamp: testTS}}, // B:3 > 2, no match
 			},
@@ -443,7 +446,7 @@ func TestBuildCycleGraph(t *testing.T) {
 		},
 		{
 			name: "intra-chain sequential EMs - no cycle",
-			chainEMs: map[eth.ChainID]map[uint32]*suptypes.ExecutingMessage{
+			chainEMs: map[eth.ChainID]map[uint32]*messages.ExecutingMessage{
 				testChainA: {
 					0: {ChainID: testChainB, LogIdx: 0, Timestamp: testTS},
 					5: {ChainID: testChainB, LogIdx: 3, Timestamp: testTS},
@@ -453,7 +456,7 @@ func TestBuildCycleGraph(t *testing.T) {
 		},
 		{
 			name: "triangle with missing leg - no cycle",
-			chainEMs: map[eth.ChainID]map[uint32]*suptypes.ExecutingMessage{
+			chainEMs: map[eth.ChainID]map[uint32]*messages.ExecutingMessage{
 				testChainA: {5: {ChainID: testChainB, LogIdx: 3, Timestamp: testTS}},
 				testChainB: {5: {ChainID: testChainC, LogIdx: 3, Timestamp: testTS}},
 				testChainC: {5: {ChainID: testChainA, LogIdx: 3, Timestamp: testTS}}, // A:5 > 3
@@ -489,4 +492,52 @@ func TestBuildCycleGraph(t *testing.T) {
 			}
 		})
 	}
+}
+
+// =============================================================================
+// verifyCycleMessages data-availability handling
+// =============================================================================
+
+// A failed logsDB read means the block data the cycle check needs is
+// unavailable. That must surface as an error so the round retries, not be
+// silently swallowed - dropping a chain removes its nodes and every cross-chain
+// edge targeting it, which can hide a real cycle.
+func TestVerifyCycleMessages_OpenBlockErrorReturnsError(t *testing.T) {
+	t.Parallel()
+	chainID := eth.ChainIDFromUInt64(10)
+	block := eth.BlockID{Number: 100, Hash: common.HexToHash("0x123")}
+
+	mockDB := &algoMockLogsDB{openBlockErr: errors.New("database read failed")}
+
+	i := &Interop{
+		log:     gethlog.New(),
+		logsDBs: map[eth.ChainID]LogsDB{chainID: mockDB},
+	}
+
+	// A nil view forces the logsDB branch (view.block returns false on nil).
+	_, err := i.verifyCycleMessages(testTS, map[eth.ChainID]eth.BlockID{chainID: block}, nil)
+	require.Error(t, err, "unavailable block data must surface as an error, not silently drop the chain")
+	require.Contains(t, err.Error(), "database read failed")
+}
+
+// A block that opens successfully but sits at a different timestamp legitimately
+// contributes no same-timestamp executing messages. That is not a data-
+// availability failure, so it must be skipped without error.
+func TestVerifyCycleMessages_BlockNotAtTimestampSkippedWithoutError(t *testing.T) {
+	t.Parallel()
+	chainID := eth.ChainIDFromUInt64(10)
+	block := eth.BlockID{Number: 100, Hash: common.HexToHash("0x123")}
+
+	mockDB := &algoMockLogsDB{
+		openBlockRef: eth.BlockRef{Hash: block.Hash, Number: 100, Time: testTS + 1},
+	}
+
+	i := &Interop{
+		log:     gethlog.New(),
+		logsDBs: map[eth.ChainID]LogsDB{chainID: mockDB},
+	}
+
+	result, err := i.verifyCycleMessages(testTS, map[eth.ChainID]eth.BlockID{chainID: block}, nil)
+	require.NoError(t, err)
+	require.Empty(t, result.InvalidHeads)
 }

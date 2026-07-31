@@ -1,0 +1,109 @@
+---
+title: Learn the OP Stack
+description: A linear learning track that takes you from newcomer to comfortable with the OP Stack, through existing pages in a recommended order.
+diataxis: explanation
+content-type: curriculum-hub
+last-reviewed: 2026-07-21
+---
+
+This track is a guided path through the OP Stack documentation for readers
+who want to learn the stack from the beginning. It sequences existing pages
+into thirteen ordered stops: blocks of concept pages punctuated by three
+hands-on projects, so you consolidate each idea by using it before moving on.
+
+**Scope: this track takes you from newcomer to comfortable.** When you
+finish, you will have deployed a test chain, followed a transaction from
+submission to Ethereum, moved assets in both directions between layers, and
+run a node, and you will know where each deeper layer of material lives.
+Depth stays out of the track on purpose: exhaustive detail lives in the
+reference sections and the [OP Stack specifications](https://specs.optimism.io/),
+and the track exits to them rather than repeating them.
+
+## How the track works
+
+*   Every stop is an existing page. A framing note at the top of each stop
+    tells you where you are in the track and links the next stop, so you can
+    walk the whole path without returning here.
+*   Do the stops in order. Later stops assume the vocabulary and the working
+    setup of earlier ones.
+*   The three projects are the point, not a break: each one turns the
+    concepts before it into something running on your machine.
+
+The track's design rationale, ownership, and change history live in the
+[track syllabus](/op-stack/contribute/learn-track-syllabus).
+
+## Part 1: Foundations
+
+*   **Stop 1.** [The OP Stack](/op-stack/introduction/op-stack): what the
+    stack is and what you can build with it.
+*   **Stop 2.** [Design philosophy & principles](/op-stack/protocol/design-principles):
+    the four pillars that explain why the stack is built the way it is.
+*   **Stop 3.** [Differences from Ethereum](/op-stack/protocol/differences):
+    what "EVM equivalent" means in practice and the small set of behaviors
+    that differ.
+*   **Stop 4.** [OP Stack components](/op-stack/protocol/components): the
+    conceptual layers of the stack and the software modules that fill them.
+
+## Project 1: Deploy your own chain
+
+*   **Stop 5.** [Creating your own L2 rollup testnet](/chain-operators/tutorials/create-l2-rollup):
+    deploy a rollup testnet with op-deployer and start each component
+    yourself. A multi-part series; work through every part before
+    continuing.
+
+## Part 2: Transactions and bridging
+
+*   **Stop 6.** [Transaction flow](/op-stack/transactions/transaction-flow):
+    how a transaction moves through the components you just ran, from
+    submission to finality on Ethereum.
+*   **Stop 7.** [Transaction fees on OP Mainnet](/op-stack/transactions/fees):
+    the fee components of an OP Stack transaction and what determines each
+    one.
+*   **Stop 8.** [Deposit flow](/op-stack/bridging/deposit-flow): how a
+    transaction triggered on L1 becomes an L2 transaction.
+*   **Stop 9.** [Withdrawal flow](/op-stack/bridging/withdrawal-flow): the
+    initiate, prove, and finalize steps that move a transaction from L2
+    back to L1.
+
+## Project 2: Bridge in both directions
+
+*   **Stop 10.** [Submitting transactions from L1](/app-developers/tutorials/bridging/cross-dom-bridge-eth):
+    walk a deposit and a withdrawal end to end from code, using Viem.
+
+## Part 3: Security and the Superchain
+
+*   **Stop 11.** [Fault proofs explainer](/op-stack/fault-proofs/explainer):
+    how anyone can permissionlessly propose and challenge the state
+    proposals that withdrawals depend on.
+*   **Stop 12.** [OP Stack interoperability explainer](/op-stack/interop/explainer):
+    how the OP Stack is evolving so a network of chains can feel like a
+    single blockchain.
+
+## Capstone: Run a node
+
+*   **Stop 13.** [Running a node with Docker](/node-operators/tutorials/node-from-docker):
+    run an OP Stack node with the official Docker images and watch it sync
+    a live network.
+
+## After the track
+
+The track ends where the deep material begins. Depending on what you want
+to do next:
+
+*   **Operate or tune a chain:** the [use case guides](/use-cases/index)
+    sequence cross-layer operator journeys, and the Chain Operators tab
+    holds the full guides and reference.
+*   **Build applications:** the App Developers tab covers bridging,
+    interoperability, and transactions at working depth.
+*   **Understand the protocol precisely:** the
+    [derivation pipeline](/op-stack/protocol/derivation-pipeline) page goes
+    one level deeper, and the
+    [OP Stack specifications](https://specs.optimism.io/) are the normative
+    definition of protocol behavior.
+
+## Next steps
+
+*   Start the track at [stop 1: The OP Stack](/op-stack/introduction/op-stack).
+*   Maintainers: the track is governed by the
+    [track syllabus](/op-stack/contribute/learn-track-syllabus) and swept on
+    the cadence in the [curation review policy](/op-stack/contribute/curation-policy).

@@ -1,7 +1,6 @@
 package filter
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -18,7 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 )
 
-// DefaultMessageExpiryWindow is 7 days, matching op-supervisor's default
+// DefaultMessageExpiryWindow is 7 days, matching the interop message expiry default.
 const DefaultMessageExpiryWindow = 7 * 24 * time.Hour
 
 type Config struct {
@@ -36,7 +35,12 @@ type Config struct {
 	Version                     string
 	PollInterval                time.Duration // Interval for polling new blocks (default: 2s)
 	ValidationInterval          time.Duration // Interval for cross-chain validation (default: 500ms)
+	FailsafeLogInterval         time.Duration // Interval for re-logging the active failsafe reason (default: 1m)
+	ReorgRecoveryEnabled        bool          // If true, automatically rewinds reorg-triggered failsafe to finalized
 	Passthrough                 bool          // If true, all transactions pass through without filtering
+	LegacyCheckAccessListFormat bool          // If true, allows access list requests that omit executing chainID
+	RPCConcurrency              int           // Max concurrent RPC requests per chain (default: 100)
+	FetchConcurrency            int           // Number of blocks to fetch concurrently (default: 64)
 
 	LogConfig     oplog.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
@@ -68,16 +72,26 @@ func (c *Config) Check() error {
 	if c.ValidationInterval <= 0 {
 		result = errors.Join(result, errors.New("validation-interval must be positive"))
 	}
+	// FailsafeLogInterval is intentionally not required: a zero value means
+	// "use the default" and is defaulted to defaultFailsafeLogInterval by the
+	// backend. The CLI flag defaults to 1m, and callers that build Config
+	// directly (e.g. tests) may leave it unset.
+	if c.RPCConcurrency <= 0 {
+		result = errors.Join(result, errors.New("rpc-concurrency must be positive"))
+	}
+	if c.FetchConcurrency <= 0 {
+		result = errors.Join(result, errors.New("fetch-concurrency must be positive"))
+	}
+	if c.FetchConcurrency > c.RPCConcurrency {
+		result = errors.Join(result, errors.New("fetch-concurrency must be less than or equal to rpc-concurrency"))
+	}
 	result = errors.Join(result, c.MetricsConfig.Check())
 	result = errors.Join(result, c.PprofConfig.Check())
 	return result
 }
 
 func NewConfig(ctx *cli.Context, version string) (*Config, error) {
-	backfillDuration, err := time.ParseDuration(ctx.String(flags.BackfillDurationFlag.Name))
-	if err != nil {
-		return nil, fmt.Errorf("invalid backfill-duration: %w", err)
-	}
+	backfillDuration := ctx.Duration(flags.BackfillDurationFlag.Name)
 	if backfillDuration <= 0 {
 		return nil, fmt.Errorf("backfill-duration must be positive, got %s", backfillDuration)
 	}
@@ -85,28 +99,34 @@ func NewConfig(ctx *cli.Context, version string) (*Config, error) {
 		return nil, fmt.Errorf("backfill-duration (%s) exceeds current timestamp", backfillDuration)
 	}
 
-	messageExpiryWindow, err := time.ParseDuration(ctx.String(flags.MessageExpiryWindowFlag.Name))
-	if err != nil {
-		return nil, fmt.Errorf("invalid message-expiry-window: %w", err)
-	}
+	messageExpiryWindow := ctx.Duration(flags.MessageExpiryWindowFlag.Name)
 	if messageExpiryWindow <= 0 {
 		return nil, fmt.Errorf("message-expiry-window must be positive, got %s", messageExpiryWindow)
 	}
 
-	pollInterval, err := time.ParseDuration(ctx.String(flags.PollIntervalFlag.Name))
-	if err != nil {
-		return nil, fmt.Errorf("invalid poll-interval: %w", err)
-	}
+	pollInterval := ctx.Duration(flags.PollIntervalFlag.Name)
 	if pollInterval <= 0 {
 		return nil, fmt.Errorf("poll-interval must be positive, got %s", pollInterval)
 	}
 
-	validationInterval, err := time.ParseDuration(ctx.String(flags.ValidationIntervalFlag.Name))
-	if err != nil {
-		return nil, fmt.Errorf("invalid validation-interval: %w", err)
-	}
+	validationInterval := ctx.Duration(flags.ValidationIntervalFlag.Name)
 	if validationInterval <= 0 {
 		return nil, fmt.Errorf("validation-interval must be positive, got %s", validationInterval)
+	}
+	failsafeLogInterval := ctx.Duration(flags.FailsafeLogIntervalFlag.Name)
+	if failsafeLogInterval <= 0 {
+		return nil, fmt.Errorf("failsafe-log-interval must be positive, got %s", failsafeLogInterval)
+	}
+	rpcConcurrency := ctx.Int(flags.RPCConcurrencyFlag.Name)
+	if rpcConcurrency <= 0 {
+		return nil, fmt.Errorf("rpc-concurrency must be positive, got %d", rpcConcurrency)
+	}
+	fetchConcurrency := ctx.Int(flags.FetchConcurrencyFlag.Name)
+	if fetchConcurrency <= 0 {
+		return nil, fmt.Errorf("fetch-concurrency must be positive, got %d", fetchConcurrency)
+	}
+	if fetchConcurrency > rpcConcurrency {
+		return nil, fmt.Errorf("fetch-concurrency (%d) must be less than or equal to rpc-concurrency (%d)", fetchConcurrency, rpcConcurrency)
 	}
 
 	// Load rollup configs from --networks and --rollup-configs
@@ -133,7 +153,12 @@ func NewConfig(ctx *cli.Context, version string) (*Config, error) {
 		Version:                     version,
 		PollInterval:                pollInterval,
 		ValidationInterval:          validationInterval,
+		FailsafeLogInterval:         failsafeLogInterval,
+		ReorgRecoveryEnabled:        ctx.Bool(flags.ReorgRecoveryEnabledFlag.Name),
 		Passthrough:                 ctx.Bool(flags.DangerouslyEnablePassthroughFlag.Name),
+		LegacyCheckAccessListFormat: ctx.Bool(flags.SupportLegacyCheckAccessListFormatFlag.Name),
+		RPCConcurrency:              rpcConcurrency,
+		FetchConcurrency:            fetchConcurrency,
 		LogConfig:                   oplog.ReadCLIConfig(ctx),
 		MetricsConfig:               opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:                 oppprof.ReadCLIConfig(ctx),
@@ -181,11 +206,6 @@ func loadRollupConfigFromFile(path string) (*rollup.Config, error) {
 	}
 	defer file.Close()
 
-	var cfg rollup.Config
-	dec := json.NewDecoder(file)
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&cfg); err != nil {
-		return nil, fmt.Errorf("failed to decode JSON: %w", err)
-	}
-	return &cfg, nil
+	var rollupConfig rollup.Config
+	return &rollupConfig, rollupConfig.ParseRollupConfig(file)
 }

@@ -63,8 +63,8 @@ const (
 	SuperchainProxyAdminOwner SuperchainOperatorRole = 1
 	// SuperchainConfigGuardianKey is the Guardian of the SuperchainConfig.
 	SuperchainConfigGuardianKey SuperchainOperatorRole = 2
-	// SuperchainProtocolVersionsOwner is the key that can make ProtocolVersions changes.
-	SuperchainProtocolVersionsOwner SuperchainOperatorRole = 3
+	// Slot 3 is reserved-but-unused so the deterministic key derivation of
+	// subsequent roles stays stable.
 	// DependencySetManagerKey is the key used to manage the dependency set of a superchain.
 	DependencySetManagerKey SuperchainOperatorRole = 4
 )
@@ -77,8 +77,6 @@ func (role SuperchainOperatorRole) String() string {
 		return "superchain-proxy-admin-owner"
 	case SuperchainConfigGuardianKey:
 		return "superchain-config-guardian"
-	case SuperchainProtocolVersionsOwner:
-		return "superchain-protocol-versions-owner"
 	case DependencySetManagerKey:
 		return "dependency-set-manager"
 	default:
@@ -160,8 +158,6 @@ const (
 	SystemConfigOwner ChainOperatorRole = 10
 	// OperatorFeeVaultRecipientRole is the key that receives from the OperatorFeeVault predeploy
 	OperatorFeeVaultRecipientRole ChainOperatorRole = 11
-	// ChainFeesRecipientRole is the key that receives the chain's share from the FeeSplitter
-	ChainFeesRecipientRole ChainOperatorRole = 12
 )
 
 func (role ChainOperatorRole) String() string {
@@ -190,8 +186,6 @@ func (role ChainOperatorRole) String() string {
 		return "operator-fee-vault-recipient"
 	case SystemConfigOwner:
 		return "system-config-owner"
-	case ChainFeesRecipientRole:
-		return "chain-fees-recipient"
 	default:
 		return fmt.Sprintf("unknown-operator-%d", uint64(role))
 	}

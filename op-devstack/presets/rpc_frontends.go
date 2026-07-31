@@ -1,7 +1,9 @@
 package presets
 
 import (
+	"context"
 	"crypto/ecdsa"
+	"fmt"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -54,12 +56,13 @@ type rpcELNode struct {
 	client    opclient.RPC
 	ethClient *sources.EthClient
 	chainID   eth.ChainID
+	userRPC   string
 	txTimeout time.Duration
 }
 
 var _ stack.ELNode = (*rpcELNode)(nil)
 
-func newRPCELNode(t devtest.T, name string, chainID eth.ChainID, rpcCl opclient.RPC, timeout time.Duration) rpcELNode {
+func newRPCELNode(t devtest.T, name string, chainID eth.ChainID, rpcCl opclient.RPC, userRPC string, timeout time.Duration) rpcELNode {
 	t = t.WithCtx(stack.ContextWithChainID(t.Ctx(), chainID))
 	ethCl, err := sources.NewEthClient(rpcCl, t.Logger(), nil, sources.DefaultEthClientConfig(10))
 	t.Require().NoError(err)
@@ -71,6 +74,7 @@ func newRPCELNode(t devtest.T, name string, chainID eth.ChainID, rpcCl opclient.
 		client:       rpcCl,
 		ethClient:    ethCl,
 		chainID:      chainID,
+		userRPC:      userRPC,
 		txTimeout:    timeout,
 	}
 }
@@ -83,6 +87,10 @@ func (r *rpcELNode) EthClient() apis.EthClient {
 	return r.ethClient
 }
 
+func (r *rpcELNode) UserRPC() string {
+	return r.userRPC
+}
+
 func (r *rpcELNode) TransactionTimeout() time.Duration {
 	return r.txTimeout
 }
@@ -93,32 +101,38 @@ type l1ELFrontend struct {
 
 var _ stack.L1ELNode = (*l1ELFrontend)(nil)
 
-func newPresetL1ELNode(t devtest.T, name string, chainID eth.ChainID, rpcCl opclient.RPC) *l1ELFrontend {
+func newPresetL1ELNode(t devtest.T, name string, chainID eth.ChainID, rpcCl opclient.RPC, userRPC string) *l1ELFrontend {
 	return &l1ELFrontend{
-		rpcELNode: newRPCELNode(t, name, chainID, rpcCl, 0),
+		rpcELNode: newRPCELNode(t, name, chainID, rpcCl, userRPC, 0),
 	}
 }
 
 type l1CLFrontend struct {
 	presetCommon
-	chainID   eth.ChainID
-	client    apis.BeaconClient
-	lifecycle stack.Lifecycle
+	chainID        eth.ChainID
+	beaconHTTPAddr string
+	client         apis.BeaconClient
+	lifecycle      stack.Lifecycle
 }
 
 var _ stack.L1CLNode = (*l1CLFrontend)(nil)
 
-func newPresetL1CLNode(t devtest.T, name string, chainID eth.ChainID, httpCl opclient.HTTP) *l1CLFrontend {
+func newPresetL1CLNode(t devtest.T, name string, chainID eth.ChainID, beaconHTTPAddr string, httpCl opclient.HTTP) *l1CLFrontend {
 	t = t.WithCtx(stack.ContextWithChainID(t.Ctx(), chainID))
 	return &l1CLFrontend{
-		presetCommon: newPresetCommon(t, name),
-		chainID:      chainID,
-		client:       sources.NewBeaconHTTPClient(httpCl),
+		presetCommon:   newPresetCommon(t, name),
+		chainID:        chainID,
+		beaconHTTPAddr: beaconHTTPAddr,
+		client:         sources.NewBeaconHTTPClient(httpCl),
 	}
 }
 
 func (r *l1CLFrontend) ChainID() eth.ChainID {
 	return r.chainID
+}
+
+func (r *l1CLFrontend) BeaconHTTPAddr() string {
+	return r.beaconHTTPAddr
 }
 
 func (r *l1CLFrontend) BeaconClient() apis.BeaconClient {
@@ -140,11 +154,12 @@ type l2ELFrontend struct {
 	l2Client       *sources.L2Client
 	l2EngineClient *sources.EngineClient
 	lifecycle      stack.Lifecycle
+	control        stack.ControlledLifecycle
 }
 
 var _ stack.L2ELNode = (*l2ELFrontend)(nil)
 
-func newPresetL2ELNode(t devtest.T, name string, chainID eth.ChainID, userRPCCl opclient.RPC, engineRPCCl opclient.RPC, rollupCfg *rollup.Config) *l2ELFrontend {
+func newPresetL2ELNode(t devtest.T, name string, chainID eth.ChainID, userRPCCl opclient.RPC, userRPC string, engineRPCCl opclient.RPC, rollupCfg *rollup.Config) *l2ELFrontend {
 	t.Require().NotNil(rollupCfg, "rollup config must be configured")
 	l2Client, err := sources.NewL2Client(userRPCCl, t.Logger(), nil, sources.L2ClientSimpleConfig(rollupCfg, false, 10, 10))
 	t.Require().NoError(err)
@@ -154,7 +169,7 @@ func newPresetL2ELNode(t devtest.T, name string, chainID eth.ChainID, userRPCCl 
 	engineClient, err := sources.NewEngineClient(engineRPCCl, t.Logger(), nil, engineClientCfg)
 	t.Require().NoError(err)
 	return &l2ELFrontend{
-		rpcELNode:      newRPCELNode(t, name, chainID, userRPCCl, 0),
+		rpcELNode:      newRPCELNode(t, name, chainID, userRPCCl, userRPC, 0),
 		l2Client:       l2Client,
 		l2EngineClient: engineClient,
 	}
@@ -178,6 +193,24 @@ func (r *l2ELFrontend) Stop() {
 	r.lifecycle.Stop()
 }
 
+func (r *l2ELFrontend) StartControlled(ctx context.Context) error {
+	if r.control == nil {
+		return fmt.Errorf("L2EL node %s is not controllable", r.Name())
+	}
+	return r.control.StartControlled(ctx)
+}
+
+func (r *l2ELFrontend) StopControlled(ctx context.Context) error {
+	if r.control == nil {
+		return fmt.Errorf("L2EL node %s is not controllable", r.Name())
+	}
+	return r.control.StopControlled(ctx)
+}
+
+func (r *l2ELFrontend) Running() bool {
+	return r.control != nil && r.control.Running()
+}
+
 type l2CLFrontend struct {
 	presetCommon
 	chainID          eth.ChainID
@@ -188,24 +221,21 @@ type l2CLFrontend struct {
 	rollupBoostNodes locks.RWMap[string, *rollupBoostFrontend]
 	oprBuilderNodes  locks.RWMap[string, *oprBuilderFrontend]
 	userRPC          string
-	interopEndpoint  string
-	interopJWTSecret eth.Bytes32
 	lifecycle        stack.Lifecycle
+	control          stack.ControlledLifecycle
 }
 
 var _ stack.L2CLNode = (*l2CLFrontend)(nil)
 
-func newPresetL2CLNode(t devtest.T, name string, chainID eth.ChainID, rpcCl opclient.RPC, userRPC, interopEndpoint string, interopJWTSecret eth.Bytes32) *l2CLFrontend {
+func newPresetL2CLNode(t devtest.T, name string, chainID eth.ChainID, rpcCl opclient.RPC, userRPC string) *l2CLFrontend {
 	t = t.WithCtx(stack.ContextWithChainID(t.Ctx(), chainID))
 	return &l2CLFrontend{
-		presetCommon:     newPresetCommon(t, name),
-		chainID:          chainID,
-		client:           rpcCl,
-		rollupClient:     sources.NewRollupClient(rpcCl),
-		p2pClient:        sources.NewP2PClient(rpcCl),
-		userRPC:          userRPC,
-		interopEndpoint:  interopEndpoint,
-		interopJWTSecret: interopJWTSecret,
+		presetCommon: newPresetCommon(t, name),
+		chainID:      chainID,
+		client:       rpcCl,
+		rollupClient: sources.NewRollupClient(rpcCl),
+		p2pClient:    sources.NewP2PClient(rpcCl),
+		userRPC:      userRPC,
 	}
 }
 
@@ -223,10 +253,6 @@ func (r *l2CLFrontend) RollupAPI() apis.RollupClient {
 
 func (r *l2CLFrontend) P2PAPI() apis.P2PClient {
 	return r.p2pClient
-}
-
-func (r *l2CLFrontend) InteropRPC() (endpoint string, jwtSecret eth.Bytes32) {
-	return r.interopEndpoint, r.interopJWTSecret
 }
 
 func (r *l2CLFrontend) UserRPC() string {
@@ -278,6 +304,24 @@ func (r *l2CLFrontend) Start() {
 func (r *l2CLFrontend) Stop() {
 	r.require().NotNil(r.lifecycle, "L2CL node %s is not lifecycle-controllable", r.Name())
 	r.lifecycle.Stop()
+}
+
+func (r *l2CLFrontend) StartControlled(ctx context.Context) error {
+	if r.control == nil {
+		return fmt.Errorf("L2CL node %s is not controllable", r.Name())
+	}
+	return r.control.StartControlled(ctx)
+}
+
+func (r *l2CLFrontend) StopControlled(ctx context.Context) error {
+	if r.control == nil {
+		return fmt.Errorf("L2CL node %s is not controllable", r.Name())
+	}
+	return r.control.StopControlled(ctx)
+}
+
+func (r *l2CLFrontend) Running() bool {
+	return r.control != nil && r.control.Running()
 }
 
 type l2BatcherFrontend struct {
@@ -351,11 +395,11 @@ type oprBuilderFrontend struct {
 
 var _ stack.OPRBuilderNode = (*oprBuilderFrontend)(nil)
 
-func newPresetOPRBuilderNode(t devtest.T, name string, chainID eth.ChainID, rpcCl opclient.RPC, rollupCfg *rollup.Config, flashblocksCl *opclient.WSClient, updateRuleSet func(string) error) *oprBuilderFrontend {
+func newPresetOPRBuilderNode(t devtest.T, name string, chainID eth.ChainID, rpcCl opclient.RPC, userRPC string, rollupCfg *rollup.Config, flashblocksCl *opclient.WSClient, updateRuleSet func(string) error) *oprBuilderFrontend {
 	engineClient, err := sources.NewEngineClient(rpcCl, t.Logger(), nil, sources.EngineClientDefaultConfig(rollupCfg))
 	t.Require().NoError(err)
 	return &oprBuilderFrontend{
-		rpcELNode:         newRPCELNode(t, name, chainID, rpcCl, 0),
+		rpcELNode:         newRPCELNode(t, name, chainID, rpcCl, userRPC, 0),
 		engineClient:      engineClient,
 		flashblocksClient: flashblocksCl,
 		updateRuleSet:     updateRuleSet,
@@ -397,11 +441,11 @@ type rollupBoostFrontend struct {
 
 var _ stack.RollupBoostNode = (*rollupBoostFrontend)(nil)
 
-func newPresetRollupBoostNode(t devtest.T, name string, chainID eth.ChainID, rpcCl opclient.RPC, rollupCfg *rollup.Config, flashblocksCl *opclient.WSClient) *rollupBoostFrontend {
+func newPresetRollupBoostNode(t devtest.T, name string, chainID eth.ChainID, rpcCl opclient.RPC, userRPC string, rollupCfg *rollup.Config, flashblocksCl *opclient.WSClient) *rollupBoostFrontend {
 	engineClient, err := sources.NewEngineClient(rpcCl, t.Logger(), nil, sources.EngineClientDefaultConfig(rollupCfg))
 	t.Require().NoError(err)
 	return &rollupBoostFrontend{
-		rpcELNode:         newRPCELNode(t, name, chainID, rpcCl, 0),
+		rpcELNode:         newRPCELNode(t, name, chainID, rpcCl, userRPC, 0),
 		engineClient:      engineClient,
 		flashblocksClient: flashblocksCl,
 	}
@@ -429,55 +473,53 @@ func (r *rollupBoostFrontend) Stop() {
 	r.lifecycle.Stop()
 }
 
-type supervisorFrontend struct {
-	presetCommon
-	api       apis.SupervisorAPI
-	lifecycle stack.Lifecycle
-}
-
-var _ stack.Supervisor = (*supervisorFrontend)(nil)
-
-func newPresetSupervisor(t devtest.T, name string, rpcCl opclient.RPC) *supervisorFrontend {
-	return &supervisorFrontend{
-		presetCommon: newPresetCommon(t, name),
-		api:          sources.NewSupervisorClient(rpcCl),
-	}
-}
-
-func (r *supervisorFrontend) AdminAPI() apis.SupervisorAdminAPI {
-	return r.api
-}
-
-func (r *supervisorFrontend) QueryAPI() apis.SupervisorQueryAPI {
-	return r.api
-}
-
-func (r *supervisorFrontend) Start() {
-	r.require().NotNil(r.lifecycle, "supervisor %s is not lifecycle-controllable", r.Name())
-	r.lifecycle.Start()
-}
-
-func (r *supervisorFrontend) Stop() {
-	r.require().NotNil(r.lifecycle, "supervisor %s is not lifecycle-controllable", r.Name())
-	r.lifecycle.Stop()
-}
-
 type supernodeFrontend struct {
 	presetCommon
-	api apis.SupernodeQueryAPI
+	client  opclient.RPC
+	userRPC string
+	api     apis.SupernodeQueryAPI
+	control stack.ControlledLifecycle
 }
 
 var _ stack.Supernode = (*supernodeFrontend)(nil)
 
-func newPresetSupernode(t devtest.T, name string, rpcCl opclient.RPC) *supernodeFrontend {
+func newPresetSupernode(t devtest.T, name string, userRPC string, rpcCl opclient.RPC) *supernodeFrontend {
 	return &supernodeFrontend{
 		presetCommon: newPresetCommon(t, name),
+		client:       rpcCl,
+		userRPC:      userRPC,
 		api:          sources.NewSuperNodeClient(rpcCl),
 	}
 }
 
+func (r *supernodeFrontend) ClientRPC() opclient.RPC {
+	return r.client
+}
+
 func (r *supernodeFrontend) QueryAPI() apis.SupernodeQueryAPI {
 	return r.api
+}
+
+func (r *supernodeFrontend) UserRPC() string {
+	return r.userRPC
+}
+
+func (r *supernodeFrontend) StartControlled(ctx context.Context) error {
+	if r.control == nil {
+		return fmt.Errorf("supernode %s is not controllable", r.Name())
+	}
+	return r.control.StartControlled(ctx)
+}
+
+func (r *supernodeFrontend) StopControlled(ctx context.Context) error {
+	if r.control == nil {
+		return fmt.Errorf("supernode %s is not controllable", r.Name())
+	}
+	return r.control.StopControlled(ctx)
+}
+
+func (r *supernodeFrontend) Running() bool {
+	return r.control != nil && r.control.Running()
 }
 
 type conductorFrontend struct {
@@ -503,31 +545,6 @@ func (r *conductorFrontend) ChainID() eth.ChainID {
 
 func (r *conductorFrontend) RpcAPI() conductorRpc.API {
 	return r.api
-}
-
-type faucetFrontend struct {
-	presetCommon
-	chainID eth.ChainID
-	client  *sources.FaucetClient
-}
-
-var _ stack.Faucet = (*faucetFrontend)(nil)
-
-func newPresetFaucet(t devtest.T, name string, chainID eth.ChainID, rpcCl opclient.RPC) *faucetFrontend {
-	t = t.WithCtx(stack.ContextWithChainID(t.Ctx(), chainID))
-	return &faucetFrontend{
-		presetCommon: newPresetCommon(t, name),
-		chainID:      chainID,
-		client:       sources.NewFaucetClient(rpcCl),
-	}
-}
-
-func (r *faucetFrontend) ChainID() eth.ChainID {
-	return r.chainID
-}
-
-func (r *faucetFrontend) API() apis.Faucet {
-	return r.client
 }
 
 type testSequencerFrontend struct {

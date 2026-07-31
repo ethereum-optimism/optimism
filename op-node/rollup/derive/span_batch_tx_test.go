@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"testing"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/assert"
@@ -31,7 +32,7 @@ func TestSpanBatchTxConvert(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			rng := rand.New(rand.NewSource(int64(0x1331 + i)))
 			chainID := big.NewInt(rng.Int63n(1000))
-			signer := types.NewIsthmusSigner(chainID)
+			signer := types.NewPragueSigner(chainID)
 			if !testCase.protected {
 				signer = types.HomesteadSigner{}
 			}
@@ -43,13 +44,11 @@ func TestSpanBatchTxConvert(t *testing.T) {
 				sbtx, err := newSpanBatchTx(tx)
 				require.NoError(t, err)
 
-				tx2, err := sbtx.convertToFullTx(tx.Nonce(), tx.Gas(), tx.To(), chainID, v, r, s)
+				tx2Encoded, err := sbtx.convertToFullTx(tx.Nonce(), tx.Gas(), tx.To(), chainID, v, r, s)
 				require.NoError(t, err)
 
-				// compare after marshal because we only need inner field of transaction
+				// compare against the canonical encoding because we only care about the inner fields
 				txEncoded, err := tx.MarshalBinary()
-				require.NoError(t, err)
-				tx2Encoded, err := tx2.MarshalBinary()
 				require.NoError(t, err)
 
 				assert.Equal(t, txEncoded, tx2Encoded)
@@ -71,7 +70,7 @@ func TestSpanBatchTxRoundTrip(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			rng := rand.New(rand.NewSource(int64(0x1332 + i)))
 			chainID := big.NewInt(rng.Int63n(1000))
-			signer := types.NewIsthmusSigner(chainID)
+			signer := types.NewPragueSigner(chainID)
 			if !testCase.protected {
 				signer = types.HomesteadSigner{}
 			}
@@ -95,13 +94,65 @@ func TestSpanBatchTxRoundTrip(t *testing.T) {
 	}
 }
 
+func testPostExecTx() *optypes.PostExecTx {
+	return &optypes.PostExecTx{Data: []byte{0xc2, 0x01, 0xc0}}
+}
+
+// testPostExecGethTx decodes the canonical post-exec encoding into a go-ethereum
+// transaction, mirroring how AddTxs receives post-exec txs from raw batch bytes.
+// The 0x7D type byte keeps this on the typed-transaction decode path (only first
+// bytes > 0x7f decode as legacy RLP); the payload after it — RLP itself, so it can
+// look legacy-shaped — is carried as opaque bytes with no further envelope.
+func testPostExecGethTx(t *testing.T) *types.Transaction {
+	raw, err := testPostExecTx().MarshalBinary()
+	require.NoError(t, err)
+	tx := new(types.Transaction)
+	require.NoError(t, tx.UnmarshalBinary(raw))
+	return tx
+}
+
+func TestSpanBatchTxPostExecConvert(t *testing.T) {
+	tx := testPostExecGethTx(t)
+	v, r, s := tx.RawSignatureValues()
+
+	sbtx, err := newSpanBatchTx(tx)
+	require.NoError(t, err)
+
+	// Deliberately pass non-canonical tx envelope fields. PostExec reconstruction
+	// must ignore them and preserve only the opaque payload bytes.
+	tx2Encoded, err := sbtx.convertToFullTx(123, 456, nil, big.NewInt(901), v, r, s)
+	require.NoError(t, err)
+
+	txEncoded, err := tx.MarshalBinary()
+	require.NoError(t, err)
+	require.Equal(t, txEncoded, tx2Encoded)
+}
+
+func TestSpanBatchTxPostExecRoundTrip(t *testing.T) {
+	tx := testPostExecGethTx(t)
+
+	sbtx, err := newSpanBatchTx(tx)
+	require.NoError(t, err)
+
+	sbtxEncoded, err := sbtx.MarshalBinary()
+	require.NoError(t, err)
+	txEncoded, err := tx.MarshalBinary()
+	require.NoError(t, err)
+	require.Equal(t, txEncoded, sbtxEncoded)
+
+	var sbtx2 spanBatchTx
+	err = sbtx2.UnmarshalBinary(sbtxEncoded)
+	require.NoError(t, err)
+	require.Equal(t, sbtx, &sbtx2)
+}
+
 type spanBatchDummyTxData struct{}
 
-func (txData *spanBatchDummyTxData) txType() byte { return types.DepositTxType }
+func (txData *spanBatchDummyTxData) txType() byte { return optypes.DepositTxType }
 
 func TestSpanBatchTxInvalidTxType(t *testing.T) {
 	// span batch never contain deposit tx
-	depositTx := types.NewTx(&types.DepositTx{})
+	depositTx := testutils.TxFromDeposit(&optypes.DepositTx{})
 	_, err := newSpanBatchTx(depositTx)
 	require.ErrorContains(t, err, "invalid tx type")
 

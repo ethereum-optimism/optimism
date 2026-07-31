@@ -45,11 +45,12 @@ func RunTrace(ctx *cli.Context, _ context.CancelCauseFunc) (cliapp.Lifecycle, er
 		}
 	}
 	vmTimeout := ctx.Duration(VMTimeoutFlag.Name)
-	return runner.NewRunner(logger, cfg, runConfigs, vmTimeout), nil
+	ageGameInputs := ctx.Bool(AgeGameInputsFlag.Name)
+	return runner.NewRunner(logger, cfg, runConfigs, vmTimeout, ageGameInputs), nil
 }
 
 func runTraceFlags() []cli.Flag {
-	return append(flags.Flags, RunTraceRunFlag, VMTimeoutFlag)
+	return append(flags.Flags, RunTraceRunFlag, VMTimeoutFlag, AgeGameInputsFlag)
 }
 
 var RunTraceCommand = &cli.Command{
@@ -79,6 +80,11 @@ var (
 		EnvVars: opservice.PrefixEnvVar(flags.EnvVarPrefix, "VM_TIMEOUT"),
 		Value:   DefaultVMTimeout,
 	}
+	AgeGameInputsFlag = &cli.BoolFlag{
+		Name:    "age-game-inputs",
+		Usage:   "Hold the game L1 head ~16 days behind the chain head and derive the disputed L2 block from an L1 block another ~7 days earlier.",
+		EnvVars: opservice.PrefixEnvVar(flags.EnvVarPrefix, "AGE_GAME_INPUTS"),
+	}
 )
 
 func parseRunArgs(args []string) ([]runner.RunConfig, error) {
@@ -99,7 +105,7 @@ func parseRunArg(arg string) (runner.RunConfig, error) {
 	if len(opts) == 0 {
 		return runner.RunConfig{}, fmt.Errorf("invalid run config %q", arg)
 	}
-	gameType, err := gameTypes.SupportedGameTypeFromString(opts[0])
+	gameType, err := gameTypes.PlayableGameTypeFromString(opts[0])
 	if err != nil {
 		return runner.RunConfig{}, fmt.Errorf("%w %q for run config %q", err, opts[0], arg)
 	}

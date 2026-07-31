@@ -15,6 +15,7 @@ func syncConfigCliApp() *cli.App {
 		flags.L2EngineSyncEnabled,
 		flags.SyncModeFlag,
 		flags.SyncModeReqRespFlag,
+		flags.SyncModeOffsetELSafeFlag,
 		flags.L2FollowSource,
 		flags.L2EngineKind,
 		flags.SkipSyncStartCheck,

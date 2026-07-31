@@ -16,6 +16,8 @@ import (
 // rollup-boost and op-rbuilder streams.
 func TestFlashblocksStream(gt *testing.T) {
 	t := devtest.ParallelT(gt)
+	// TODO(ethereum-optimism/optimism#19883): investigate and unmark.
+	t.MarkFlaky("ethereum-optimism/optimism#19883")
 	// Example error with kona-node:
 	//
 	// assertions.go:387:             ERROR[03-30|22:44:52.250]

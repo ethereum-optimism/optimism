@@ -1,0 +1,34 @@
+{/*
+  Shared preamble for the generated config-reference flag tables. It describes
+  the generation pipeline (the tables themselves live under snippets/generated/
+  with provenance headers); this preamble is hand-maintained, not generated
+  (duplication census cluster S5).
+
+  Usage:
+    import { ConfigReferencePreamble } from "/snippets/config-reference-preamble.mdx"
+
+    <ConfigReferencePreamble component="op-batcher" />
+
+  Props:
+    component - required. The service whose flags the page documents, as the
+                monorepo directory name: "op-batcher", "op-challenger",
+                "op-proposer", "op-conductor", or "op-node". Rendered in prose
+                and as the monorepo flags path ({component}/flags).
+
+  Consumer pages (keep this list in sync):
+    chain-operators/reference/batcher-configuration.mdx
+    chain-operators/reference/challenger-configuration.mdx
+    chain-operators/guides/configuration/proposer.mdx
+    chain-operators/tools/op-conductor/reference.mdx
+    node-operators/reference/op-node-config.mdx
+*/}
+
+export const ConfigReferencePreamble = ({ component }) => (
+  <p>
+    The flag tables below are generated directly from the {component}'s flag
+    definitions in the monorepo (<code>{component}/flags</code>) at the release
+    tag named in the provenance line, and are regenerated when a new finalized
+    release is published, so they cannot silently fall behind. Every flag can
+    also be set through the environment variable listed next to it.
+  </p>
+);

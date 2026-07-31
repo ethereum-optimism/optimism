@@ -25,3 +25,7 @@ func (n *L1Network) ChainID() eth.ChainID {
 func (n *L1Network) ChainConfig() *params.ChainConfig {
 	return n.genesis.Config
 }
+
+func (n *L1Network) Genesis() *core.Genesis {
+	return n.genesis
+}

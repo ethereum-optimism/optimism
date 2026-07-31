@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/big"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -172,15 +171,12 @@ func (m *FakeChainSource) L2BlockRefByLabel(ctx context.Context, label eth.Block
 	}
 }
 
-func (m *FakeChainSource) L2BlockRefByNumber(ctx context.Context, l2Num *big.Int) (eth.L2BlockRef, error) {
+func (m *FakeChainSource) L2BlockRefByNumber(ctx context.Context, l2Num uint64) (eth.L2BlockRef, error) {
 	m.log.Trace("L2BlockRefByNumber", "l2Num", l2Num, "l2Head", m.l2head, "reorg", m.l2reorg)
 	if len(m.l2s[m.l2reorg]) == 0 {
 		panic("bad test, no l2 chain")
 	}
-	if l2Num == nil {
-		return m.l2s[m.l2reorg][m.l2head], nil
-	}
-	i := int(l2Num.Int64())
+	i := int(l2Num)
 	if i > m.l2head {
 		return eth.L2BlockRef{}, ethereum.NotFound
 	}
@@ -191,7 +187,7 @@ func (m *FakeChainSource) L2BlockRefByHash(ctx context.Context, l2Hash common.Ha
 	m.log.Trace("L2BlockRefByHash", "l2Hash", l2Hash, "l2Head", m.l2head, "reorg", m.l2reorg)
 	for i, bl := range m.l2s[m.l2reorg] {
 		if bl.Hash == l2Hash {
-			return m.L2BlockRefByNumber(ctx, big.NewInt(int64(i)))
+			return m.L2BlockRefByNumber(ctx, uint64(i))
 		}
 	}
 	return eth.L2BlockRef{}, ethereum.NotFound

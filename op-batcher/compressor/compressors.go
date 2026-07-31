@@ -1,8 +1,10 @@
 package compressor
 
 import (
+	"maps"
+	"slices"
+
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"golang.org/x/exp/maps"
 )
 
 type FactoryFunc func(Config) (derive.Compressor, error)
@@ -26,5 +28,5 @@ var Kinds = map[string]FactoryFunc{
 var KindKeys []string
 
 func init() {
-	KindKeys = maps.Keys(Kinds)
+	KindKeys = slices.Collect(maps.Keys(Kinds))
 }

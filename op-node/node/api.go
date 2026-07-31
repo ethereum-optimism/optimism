@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -44,6 +44,15 @@ type driverClient interface {
 
 type SafeDBReader interface {
 	SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1 eth.BlockID, l2 eth.BlockID, err error)
+	// L1AtSafeHead returns the earliest L1 block at which the recorded L2 safe
+	// head reached at least targetL2Num. See safedb.L1AtSafeHead.
+	L1AtSafeHead(ctx context.Context, targetL2Num uint64) (l1 eth.BlockID, safeHead eth.BlockID, err error)
+	// FirstEntry returns the lowest recorded (L1, L2 safe head) pair.
+	// Returns ErrNotFound when no entries exist yet.
+	FirstEntry(ctx context.Context) (l1 eth.BlockID, l2 eth.BlockID, err error)
+	// LastEntry returns the highest recorded (L1, L2 safe head) pair (the safedb tip).
+	// Returns ErrNotFound when no entries exist yet.
+	LastEntry(ctx context.Context) (l1 eth.BlockID, l2 eth.BlockID, err error)
 }
 
 type adminAPI struct {

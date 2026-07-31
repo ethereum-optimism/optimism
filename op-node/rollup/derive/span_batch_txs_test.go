@@ -11,6 +11,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/core/types"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
@@ -333,15 +334,15 @@ func TestSpanBatchTxsRecoverV(t *testing.T) {
 	rng := rand.New(rand.NewSource(0x123))
 
 	chainID := big.NewInt(rng.Int63n(1000))
-	isthmusSigner := types.NewIsthmusSigner(chainID)
+	pragueSigner := types.NewPragueSigner(chainID)
 	totalblockTxCount := 20 + rng.Intn(100)
 
 	cases := []txTypeTest{
 		{"unprotected legacy tx", testutils.RandomLegacyTx, types.HomesteadSigner{}},
-		{"legacy tx", testutils.RandomLegacyTx, isthmusSigner},
-		{"access list tx", testutils.RandomAccessListTx, isthmusSigner},
-		{"dynamic fee tx", testutils.RandomDynamicFeeTx, isthmusSigner},
-		{"setcode tx", testutils.RandomSetCodeTx, isthmusSigner},
+		{"legacy tx", testutils.RandomLegacyTx, pragueSigner},
+		{"access list tx", testutils.RandomAccessListTx, pragueSigner},
+		{"dynamic fee tx", testutils.RandomDynamicFeeTx, pragueSigner},
+		{"setcode tx", testutils.RandomSetCodeTx, pragueSigner},
 	}
 
 	for _, testCase := range cases {
@@ -425,14 +426,14 @@ func TestSpanBatchTxsRoundTrip(t *testing.T) {
 func TestSpanBatchTxsRoundTripFullTxs(t *testing.T) {
 	rng := rand.New(rand.NewSource(0x13377331))
 	chainID := big.NewInt(rng.Int63n(1000))
-	isthmusSigner := types.NewIsthmusSigner(chainID)
+	pragueSigner := types.NewPragueSigner(chainID)
 
 	cases := []txTypeTest{
 		{"unprotected legacy tx", testutils.RandomLegacyTx, types.HomesteadSigner{}},
-		{"legacy tx", testutils.RandomLegacyTx, isthmusSigner},
-		{"access list tx", testutils.RandomAccessListTx, isthmusSigner},
-		{"dynamic fee tx", testutils.RandomDynamicFeeTx, isthmusSigner},
-		{"setcode tx", testutils.RandomSetCodeTx, isthmusSigner},
+		{"legacy tx", testutils.RandomLegacyTx, pragueSigner},
+		{"access list tx", testutils.RandomAccessListTx, pragueSigner},
+		{"dynamic fee tx", testutils.RandomDynamicFeeTx, pragueSigner},
+		{"setcode tx", testutils.RandomSetCodeTx, pragueSigner},
 	}
 
 	for _, testCase := range cases {
@@ -458,13 +459,53 @@ func TestSpanBatchTxsRoundTripFullTxs(t *testing.T) {
 	}
 }
 
+func TestSpanBatchTxsPostExecRoundTripFullTxs(t *testing.T) {
+	rng := rand.New(rand.NewSource(0x7d7331))
+	chainID := big.NewInt(901)
+	signer := types.NewPragueSigner(chainID)
+
+	rawNormalTx, err := testutils.RandomDynamicFeeTx(rng, signer).MarshalBinary()
+	require.NoError(t, err)
+	rawPostExecTx, err := testPostExecTx().MarshalBinary()
+	require.NoError(t, err)
+	txs := [][]byte{rawNormalTx, rawPostExecTx}
+
+	sbt, err := newSpanBatchTxs(txs, chainID)
+	require.NoError(t, err)
+
+	txs2, err := sbt.fullTxs(chainID)
+	require.NoError(t, err)
+	require.Equal(t, txs, txs2)
+}
+
+func TestSpanBatchTxsPostExecSkipsChainIDValidation(t *testing.T) {
+	chainID := big.NewInt(901)
+	rawPostExecTx, err := testPostExecTx().MarshalBinary()
+	require.NoError(t, err)
+
+	_, err = newSpanBatchTxs([][]byte{rawPostExecTx}, chainID)
+	require.NoError(t, err)
+}
+
+func TestSpanBatchTxsRejectsWrongChainIDForProtectedTx(t *testing.T) {
+	rng := rand.New(rand.NewSource(0x901902))
+	chainID := big.NewInt(901)
+	wrongChainID := big.NewInt(902)
+	tx := testutils.RandomDynamicFeeTx(rng, types.NewPragueSigner(wrongChainID))
+	rawTx, err := tx.MarshalBinary()
+	require.NoError(t, err)
+
+	_, err = newSpanBatchTxs([][]byte{rawTx}, chainID)
+	require.ErrorContains(t, err, "protected tx has chain ID 902, but expected chain ID 901")
+}
+
 func TestSpanBatchTxsRecoverVInvalidTxType(t *testing.T) {
 	rng := rand.New(rand.NewSource(0x321))
 	chainID := big.NewInt(rng.Int63n(1000))
 
 	var sbt spanBatchTxs
 
-	sbt.txTypes = []int{types.DepositTxType}
+	sbt.txTypes = []int{optypes.DepositTxType}
 	sbt.txSigs = []spanBatchSignature{{v: big.NewInt(0), r: nil, s: nil}}
 	sbt.yParityBits = new(big.Int)
 	sbt.protectedBits = new(big.Int)
@@ -476,14 +517,14 @@ func TestSpanBatchTxsRecoverVInvalidTxType(t *testing.T) {
 func TestSpanBatchTxsFullTxNotEnoughTxTos(t *testing.T) {
 	rng := rand.New(rand.NewSource(0x13572468))
 	chainID := big.NewInt(rng.Int63n(1000))
-	isthmusSigner := types.NewIsthmusSigner(chainID)
+	pragueSigner := types.NewPragueSigner(chainID)
 
 	cases := []txTypeTest{
 		{"unprotected legacy tx", testutils.RandomLegacyTx, types.HomesteadSigner{}},
-		{"legacy tx", testutils.RandomLegacyTx, isthmusSigner},
-		{"access list tx", testutils.RandomAccessListTx, isthmusSigner},
-		{"dynamic fee tx", testutils.RandomDynamicFeeTx, isthmusSigner},
-		{"setcode tx", testutils.RandomSetCodeTx, isthmusSigner},
+		{"legacy tx", testutils.RandomLegacyTx, pragueSigner},
+		{"access list tx", testutils.RandomAccessListTx, pragueSigner},
+		{"dynamic fee tx", testutils.RandomDynamicFeeTx, pragueSigner},
+		{"setcode tx", testutils.RandomSetCodeTx, pragueSigner},
 	}
 
 	for _, testCase := range cases {

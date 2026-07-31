@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-program/host/prefetcher"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -54,10 +53,6 @@ func NewL1Miner(t Testing, log log.Logger, genesis *core.Genesis) *L1Miner {
 		L1Replica: *rep,
 		blobStore: blobstore.New(),
 	}
-}
-
-func (s *L1Miner) BlobSource() prefetcher.L1BlobSource {
-	return s.blobStore
 }
 
 func (s *L1Miner) BlobStore() *blobstore.Store {
@@ -111,7 +106,7 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 			root := crypto.Keccak256Hash([]byte("fake-beacon-block-root"), header.Number.Bytes())
 			header.ParentBeaconRoot = &root
 
-			// Copied from op-program/client/l2/engineapi/block_processor.go
+			// Copied from op-e2e/actions/helpers/engineapi/block_processor.go
 			// TODO(client-pod#826)
 			// Unfortunately this is not part of any Geth environment setup,
 			// we just have to apply it, like how the Geth block-builder worker does.

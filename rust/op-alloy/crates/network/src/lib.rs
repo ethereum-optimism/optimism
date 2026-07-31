@@ -45,6 +45,7 @@ impl NetworkTransactionBuilder<Optimism> for OpTransactionRequest {
     fn complete_type(&self, ty: OpTxType) -> Result<(), Vec<&'static str>> {
         match ty {
             OpTxType::Deposit => Err(vec!["not implemented for deposit tx"]),
+            OpTxType::PostExec => Err(vec!["not implemented for post-exec tx"]),
             _ => {
                 let ty = TxType::try_from(ty as u8).unwrap();
                 NetworkTransactionBuilder::<Ethereum>::complete_type(self.as_ref(), ty)

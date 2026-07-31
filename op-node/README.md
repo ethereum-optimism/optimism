@@ -8,7 +8,7 @@ Pull requests:
 
 User docs:
 
-- [How to run a node](https://docs.optimism.io/builders/node-operators/rollup-node)
+- [How to run a node](https://docs.optimism.io/node-operators/tutorials/run-node-from-source)
 
 Specs:
 
@@ -142,25 +142,6 @@ The op-node is changing in two ways:
 - Event tests: [Issue 13163](https://github.com/ethereum-optimism/optimism/issues/13163)
 - Improving P2P sync: [Issue 11779](https://github.com/ethereum-optimism/optimism/issues/11779)
 
-#### Interoperability
-
-The OP Stack makes chains natively interoperable:
-messages between chains form safety dependencies, and verified asynchronously.
-Asynchronous verification entails that the op-node reorgs away a block
-if and when the block is determined to be invalid.
-
-The [op-supervisor] specializes in this dependency verification work.
-
-The op-node encapsulates all the single-chain concerns:
-it prepares the local safety data-points (DA confirmation and block contents) for the op-supervisor.
-
-The op-supervisor then verifies the cross-chain safety, and promotes the block safety level accordingly,
-which the op-node then follows.
-
-See [Interop specs] and [Interop design-docs] for more information about interoperability.
-
-[op-supervisor]: ../op-supervisor/README.md
-
 ### User stories
 
 <!-- As a **actor** I want **achievement** so that I **benefit** -->
@@ -177,7 +158,7 @@ As _a proof dev_ I want _reusable state-transition code_ so that I _don't reimpl
 
 - Encapsulate the state-transition:
   - Use interfaces to abstract file-IO / concurrency / etc. away from state-transition logic.
-  - Ensure code-sharing with action-tests and op-program.
+  - Ensure code-sharing with action-tests.
 - No critical database:
   - Persisting data is ok, but it should be recoverable from external data without too much work.
   - The best chain "sync" is no sync.
@@ -249,6 +230,17 @@ While recover mode is enabled, the tx pool is disabled and the l1 origin is prog
 by verifiers under autoderivation. To enable the quickest recovery, the batcher should be configured for singular (not span) batches.
 After some time, the l1 origin of the l2 safe head will once again catch up close to the l1 head. Then, the recover mode should be disabled and the chain is
 back in a normal state.
+
+### Unsafe Block Signer Rotation
+
+Unsafe blocks gossiped over P2P are signed by the chain's *unsafe block signer* key,
+whose address lives in the `SystemConfig` L1 contract.
+
+When the op-node detects that this address has changed (via the periodic runtime-config
+reload), it enters a grace period of `DefaultSignerGracePeriod` (3 hours; see
+`op-node/node/runcfg/runtime_config.go`) during which blocks signed by either the new
+*or* the previous signer are accepted. The grace period ends early as soon as a block
+from the new signer is verified, and after it elapses only the new signer is accepted.
 
 ## Testing
 

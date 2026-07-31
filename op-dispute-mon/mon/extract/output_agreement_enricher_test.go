@@ -82,7 +82,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		}
 	})
 
-	t.Run("AllNodesReturnError", func(t *testing.T) {
+	t.Run("RecoversAfterAllNodesReturnError", func(t *testing.T) {
 		validator, clients, metrics := setupMultiNodeTest(t, 3)
 		for _, client := range clients {
 			client.outputErr = errors.New("boom")
@@ -99,6 +99,21 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		require.Equal(t, common.Hash{}, game.ExpectedRootClaim)
 		require.False(t, game.AgreeWithClaim)
 		require.Zero(t, metrics.fetchTime)
+
+		for _, client := range clients {
+			client.outputErr = nil
+		}
+		game = &types.EnrichedGameData{
+			L1HeadNum:          100,
+			L2SequenceNumber:   0,
+			RootClaim:          mockRootClaim,
+			NodeEndpointErrors: make(map[string]bool),
+		}
+		err = validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
+		require.NoError(t, err)
+		require.Equal(t, mockRootClaim, game.ExpectedRootClaim)
+		require.True(t, game.AgreeWithClaim)
+		require.NotZero(t, metrics.fetchTime)
 	})
 
 	t.Run("AllNodesReturnNotFound", func(t *testing.T) {

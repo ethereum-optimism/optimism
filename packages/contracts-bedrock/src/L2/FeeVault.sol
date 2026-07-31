@@ -101,8 +101,6 @@ abstract contract FeeVault is ProxyAdminOwnedBase, Initializable {
     /// @notice Updates the minimum amount of funds the FeeVault contract must hold before they can be
     /// withdrawn.
     /// @param _newMinWithdrawalAmount The new minimum withdrawal amount.
-    /// @dev If integrating the FeeSplitter contract, the minimum withdrawal amount must be set to 0 to
-    /// avoid blocking withdrawals and disbursements for all vaults if one vault doesn't reach the threshold.
     function setMinWithdrawalAmount(uint256 _newMinWithdrawalAmount) external {
         _assertOnlyProxyAdminOwner();
 
@@ -133,6 +131,25 @@ abstract contract FeeVault is ProxyAdminOwnedBase, Initializable {
         Types.WithdrawalNetwork oldWithdrawalNetwork = withdrawalNetwork;
         withdrawalNetwork = _newWithdrawalNetwork;
 
+        emit WithdrawalNetworkUpdated(oldWithdrawalNetwork, _newWithdrawalNetwork);
+    }
+
+    /// @notice Updates the recipient and network to which vault fees will be withdrawn.
+    ///         This function is safer than calling `setRecipient` and `setWithdrawalNetwork` separately,
+    ///         and should be preferred if both are being updated.
+    /// @param _newRecipient The new recipient address.
+    /// @param _newWithdrawalNetwork The new withdrawal network.
+    function setWithdrawalRoute(address _newRecipient, Types.WithdrawalNetwork _newWithdrawalNetwork) external {
+        _assertOnlyProxyAdminOwner();
+        require(_newRecipient != address(0), "FeeVault: zero recipient");
+
+        address oldRecipient = recipient;
+        Types.WithdrawalNetwork oldWithdrawalNetwork = withdrawalNetwork;
+
+        recipient = _newRecipient;
+        withdrawalNetwork = _newWithdrawalNetwork;
+
+        emit RecipientUpdated(oldRecipient, _newRecipient);
         emit WithdrawalNetworkUpdated(oldWithdrawalNetwork, _newWithdrawalNetwork);
     }
 

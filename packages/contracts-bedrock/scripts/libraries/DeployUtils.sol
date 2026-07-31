@@ -69,6 +69,48 @@ library DeployUtils {
         }
     }
 
+    /// @notice Returns the deployed (runtime) bytecode for a contract from the default compiler profile's
+    ///         artifact. The runtime-code analog of {getCode}: with `additional_compiler_profiles` configured
+    ///         in foundry.toml, `vm.getDeployedCode(name)` can resolve to the wrong profile's artifact.
+    ///         Constructing the explicit artifact path (`forge-artifacts/<Name>.sol/<Name>.json`) pins the
+    ///         default profile's runtime bytecode.
+    ///         If the name already contains a colon or slash, it is passed through as-is (the caller has
+    ///         provided disambiguation). Under coverage, forge-artifacts/ holds the default profile's
+    ///         artifacts (no ambiguity), so the explicit path is skipped. The path lookup is wrapped in
+    ///         try/catch so hosts without artifact-path support (the Go script host in op-chain-ops)
+    ///         gracefully fall back to vm.getDeployedCode(_name).
+    /// @param _name Name of the contract, or a qualified "File.sol:Contract" identifier.
+    /// @return The deployed bytecode from the default profile artifact.
+    function getDeployedCode(string memory _name) internal view returns (bytes memory) {
+        // If the name contains a colon or slash, the caller already provided a qualified identifier.
+        bytes memory nameBytes = bytes(_name);
+        for (uint256 i = 0; i < nameBytes.length; i++) {
+            if (nameBytes[i] == ":" || nameBytes[i] == "/") {
+                return vm.getDeployedCode(_name);
+            }
+        }
+        // Under coverage, forge-artifacts/ holds the default profile's artifacts; plain resolution is
+        // unambiguous. The try/catch guards hosts that don't implement vm.isContext (the Go script host).
+        try vm.isContext(VmSafe.ForgeContext.Coverage) returns (bool isCoverage_) {
+            if (isCoverage_) {
+                return vm.getDeployedCode(_name);
+            }
+        } catch {
+            // Intentionally empty: the Go script host doesn't implement vm.isContext, so we
+            // silently fall through to the artifact-path resolution below.
+        }
+        // Try explicit default-profile artifact path for deterministic profile resolution.
+        // Falls back to vm.getDeployedCode(_name) for hosts that don't support artifact paths
+        // (e.g., the Go script host in op-chain-ops, which has no profile ambiguity).
+        try vm.getDeployedCode(string.concat("forge-artifacts/", _name, ".sol/", _name, ".json")) returns (
+            bytes memory code_
+        ) {
+            return code_;
+        } catch {
+            return vm.getDeployedCode(_name);
+        }
+    }
+
     /// @notice Deploys a contract with the given name and arguments via CREATE.
     /// @param _name Name of the contract to deploy.
     /// @param _args ABI-encoded constructor arguments.
@@ -257,8 +299,8 @@ library DeployUtils {
 
     /// @notice Strips the first 4 bytes of `_data` and returns the remaining bytes
     ///         If `_data` is not greater than 4 bytes, it returns empty bytes type.
-    /// @param _data constructor arguments prefixed with a psuedo-constructor function signature
-    /// @return encodedData_ constructor arguments without the psuedo-constructor function signature prefix
+    /// @param _data constructor arguments prefixed with a pseudo-constructor function signature
+    /// @return encodedData_ constructor arguments without the pseudo-constructor function signature prefix
     function encodeConstructor(bytes memory _data) internal pure returns (bytes memory encodedData_) {
         require(_data.length >= 4, "DeployUtils: encodeConstructor takes in _data of length >= 4");
         encodedData_ = Bytes.slice(_data, 4);

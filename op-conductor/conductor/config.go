@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-conductor/flags"
@@ -63,9 +62,6 @@ type Config struct {
 	// ExecutionRPC is the HTTP provider URL for execution layer.
 	ExecutionRPC string
 
-	// SupervisorRPC is the HTTP provider URL for supervisor.
-	SupervisorRPC string
-
 	// RollupBoostEnabled enables the rollup-boost healthcheck (HTTP status codes).
 	// When enabled, healthchecks are performed against ExecutionRPC + "/healthz".
 	// The client internally appends the /healthz path to ExecutionRPC.
@@ -106,6 +102,9 @@ type Config struct {
 	MetricsConfig opmetrics.CLIConfig
 	PprofConfig   oppprof.CLIConfig
 	RPC           oprpc.CLIConfig
+
+	// RoundRobinLeaderTransfer enables deterministic round-robin leader transfer.
+	RoundRobinLeaderTransfer bool
 }
 
 // Check validates the CLIConfig.
@@ -135,19 +134,19 @@ func (c *Config) Check() error {
 		return fmt.Errorf("missing rollup-boost next healthcheck URL")
 	}
 	if err := c.HealthCheck.Check(); err != nil {
-		return errors.Wrap(err, "invalid health check config")
+		return fmt.Errorf("invalid health check config: %w", err)
 	}
 	if err := c.RollupCfg.Check(); err != nil {
-		return errors.Wrap(err, "invalid rollup config")
+		return fmt.Errorf("invalid rollup config: %w", err)
 	}
 	if err := c.MetricsConfig.Check(); err != nil {
-		return errors.Wrap(err, "invalid metrics config")
+		return fmt.Errorf("invalid metrics config: %w", err)
 	}
 	if err := c.PprofConfig.Check(); err != nil {
-		return errors.Wrap(err, "invalid pprof config")
+		return fmt.Errorf("invalid pprof config: %w", err)
 	}
 	if err := c.RPC.Check(); err != nil {
-		return errors.Wrap(err, "invalid rpc config")
+		return fmt.Errorf("invalid rpc config: %w", err)
 	}
 	return nil
 }
@@ -155,12 +154,12 @@ func (c *Config) Check() error {
 // NewConfig parses the Config from the provided flags or environment variables.
 func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 	if err := flags.CheckRequired(ctx); err != nil {
-		return nil, errors.Wrap(err, "missing required flags")
+		return nil, fmt.Errorf("missing required flags: %w", err)
 	}
 
 	rollupCfg, err := opnode.NewRollupConfigFromCLI(log, ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to load rollup config")
+		return nil, fmt.Errorf("failed to load rollup config: %w", err)
 	}
 
 	executionP2pRpcUrl := ctx.String(flags.HealthcheckExecutionP2pRPCUrl.Name)
@@ -187,7 +186,6 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 		RaftLeaderLeaseTimeout:        ctx.Duration(flags.RaftLeaderLeaseTimeout.Name),
 		NodeRPC:                       ctx.String(flags.NodeRPC.Name),
 		ExecutionRPC:                  ctx.String(flags.ExecutionRPC.Name),
-		SupervisorRPC:                 ctx.String(flags.SupervisorRPC.Name),
 		RollupBoostEnabled:            ctx.Bool(flags.RollupBoostEnabled.Name),
 		RollupBoostHealthcheckTimeout: ctx.Duration(flags.RollupBoostHealthcheckTimeout.Name),
 		RollupBoostNextEnabled:        ctx.Bool(flags.RollupBoostNextEnabled.Name),
@@ -214,6 +212,8 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 		MetricsConfig:       opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:         oppprof.ReadCLIConfig(ctx),
 		RPC:                 oprpc.ReadCLIConfig(ctx),
+		// RoundRobinLeaderTransfer enables deterministic round-robin leader transfer.
+		RoundRobinLeaderTransfer: ctx.Bool(flags.RoundRobinLeaderTransfer.Name),
 	}, nil
 }
 

@@ -34,7 +34,6 @@ const fn default_fjord_max_sequencer_drift() -> u64 {
 /// The Rollup configuration.
 #[derive(Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct RollupConfig {
     /// The genesis state of the rollup.
     pub genesis: ChainGenesis,
@@ -72,8 +71,6 @@ pub struct RollupConfig {
     pub deposit_contract_address: Address,
     /// `l1_system_config_address` is the L1 address that the system config is stored at.
     pub l1_system_config_address: Address,
-    /// `protocol_versions_address` is the L1 address that the protocol versions are stored at.
-    pub protocol_versions_address: Address,
     /// The superchain config address.
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub superchain_config_address: Option<Address>,
@@ -123,7 +120,6 @@ impl<'a> arbitrary::Arbitrary<'a> for RollupConfig {
             batch_inbox_address: Address::arbitrary(u)?,
             deposit_contract_address: Address::arbitrary(u)?,
             l1_system_config_address: Address::arbitrary(u)?,
-            protocol_versions_address: Address::arbitrary(u)?,
             superchain_config_address: Option::<Address>::arbitrary(u)?,
             blobs_enabled_l1_timestamp: Option::<u64>::arbitrary(u)?,
             da_challenge_address: Option::<Address>::arbitrary(u)?,
@@ -151,44 +147,11 @@ impl Default for RollupConfig {
             batch_inbox_address: Address::ZERO,
             deposit_contract_address: Address::ZERO,
             l1_system_config_address: Address::ZERO,
-            protocol_versions_address: Address::ZERO,
             superchain_config_address: None,
             blobs_enabled_l1_timestamp: None,
             da_challenge_address: None,
             alt_da_config: None,
             chain_op_config: OP_MAINNET_BASE_FEE_CONFIG,
-        }
-    }
-}
-
-#[cfg(feature = "revm")]
-impl RollupConfig {
-    /// Returns the active [`op_revm::OpSpecId`] for the executor.
-    ///
-    /// ## Takes
-    /// - `timestamp`: The timestamp of the executing block.
-    ///
-    /// ## Returns
-    /// The active [`op_revm::OpSpecId`] for the executor.
-    pub fn spec_id(&self, timestamp: u64) -> op_revm::OpSpecId {
-        if self.is_interop_active(timestamp) {
-            op_revm::OpSpecId::INTEROP
-        } else if self.is_jovian_active(timestamp) {
-            op_revm::OpSpecId::JOVIAN
-        } else if self.is_isthmus_active(timestamp) {
-            op_revm::OpSpecId::ISTHMUS
-        } else if self.is_holocene_active(timestamp) {
-            op_revm::OpSpecId::HOLOCENE
-        } else if self.is_fjord_active(timestamp) {
-            op_revm::OpSpecId::FJORD
-        } else if self.is_ecotone_active(timestamp) {
-            op_revm::OpSpecId::ECOTONE
-        } else if self.is_canyon_active(timestamp) {
-            op_revm::OpSpecId::CANYON
-        } else if self.is_regolith_active(timestamp) {
-            op_revm::OpSpecId::REGOLITH
-        } else {
-            op_revm::OpSpecId::BEDROCK
         }
     }
 }
@@ -301,6 +264,14 @@ impl RollupConfig {
             !self.is_isthmus_active(timestamp.saturating_sub(self.block_time))
     }
 
+    /// Returns true if SDM post-exec transactions are active at the given timestamp.
+    ///
+    /// Defers to the hardfork where SDM is activated, matching op-node's `IsSDM`.
+    #[must_use]
+    pub fn is_sdm_active(&self, timestamp: u64) -> bool {
+        self.is_lagoon_active(timestamp)
+    }
+
     /// Returns true if Jovian is active at the given timestamp.
     pub fn is_jovian_active(&self, timestamp: u64) -> bool {
         self.hardforks.jovian_time.is_some_and(|t| timestamp >= t) ||
@@ -316,7 +287,7 @@ impl RollupConfig {
     /// Returns true if Karst is active at the given timestamp.
     pub fn is_karst_active(&self, timestamp: u64) -> bool {
         self.hardforks.karst_time.is_some_and(|t| timestamp >= t) ||
-            self.is_interop_active(timestamp)
+            self.is_lagoon_active(timestamp)
     }
 
     /// Returns true if the timestamp marks the first Karst block.
@@ -325,12 +296,35 @@ impl RollupConfig {
             !self.is_karst_active(timestamp.saturating_sub(self.block_time))
     }
 
-    /// Returns true if Interop is active at the given timestamp.
-    pub fn is_interop_active(&self, timestamp: u64) -> bool {
-        self.hardforks.interop_time.is_some_and(|t| timestamp >= t)
+    /// Returns true if Lagoon is active at the given timestamp.
+    pub fn is_lagoon_active(&self, timestamp: u64) -> bool {
+        self.hardforks.lagoon_time.is_some_and(|t| timestamp >= t)
     }
 
-    /// Returns true if the timestamp marks the first Interop block.
+    /// Returns true if `timestamp` is `fork`'s activation block — `fork` is active at `timestamp`
+    /// but was not active at the previous block. Mirrors op-node's `IsActivationBlockForFork`.
+    pub fn is_fork_activation_block(&self, fork: OpHardfork, timestamp: u64) -> bool {
+        let activation = self.op_fork_activation(fork);
+        activation.active_at_timestamp(timestamp) &&
+            !activation.active_at_timestamp(timestamp.saturating_sub(self.block_time))
+    }
+
+    /// Returns true if the timestamp marks the first Lagoon block.
+    pub fn is_first_lagoon_block(&self, timestamp: u64) -> bool {
+        self.is_lagoon_active(timestamp) &&
+            !self.is_lagoon_active(timestamp.saturating_sub(self.block_time))
+    }
+
+    /// Returns true if the interop feature is active at the given timestamp.
+    ///
+    /// Defers to the hardfork where interop is activated, but kept as a separate feature gate —
+    /// mirroring op-node's `IsInterop` — so interop can diverge from the fork if its activation is
+    /// ever decoupled. Interop-feature code should gate on this, not on the raw fork accessor.
+    pub fn is_interop_active(&self, timestamp: u64) -> bool {
+        self.is_lagoon_active(timestamp)
+    }
+
+    /// Returns true if the timestamp marks the first interop-active block.
     pub fn is_first_interop_block(&self, timestamp: u64) -> bool {
         self.is_interop_active(timestamp) &&
             !self.is_interop_active(timestamp.saturating_sub(self.block_time))
@@ -415,20 +409,12 @@ impl EthereumHardforks for RollupConfig {
         if fork <= EthereumHardfork::Berlin {
             // We assume that OP chains were launched with all forks before Berlin activated.
             ForkCondition::Block(0)
-        } else if fork <= EthereumHardfork::Paris {
-            // Bedrock activates all hardforks up to Paris.
-            self.op_fork_activation(OpHardfork::Bedrock)
-        } else if fork <= EthereumHardfork::Shanghai {
-            // Canyon activates Shanghai hardfork.
-            self.op_fork_activation(OpHardfork::Canyon)
-        } else if fork <= EthereumHardfork::Cancun {
-            // Ecotone activates Cancun hardfork.
-            self.op_fork_activation(OpHardfork::Ecotone)
-        } else if fork <= EthereumHardfork::Prague {
-            // Isthmus activates Prague hardfork.
-            self.op_fork_activation(OpHardfork::Isthmus)
         } else {
-            ForkCondition::Never
+            // Every later L1 fork activates with the OP fork that implies it (Bedrock for
+            // London through Paris); L1 forks without an L2 equivalent never activate.
+            OpHardfork::activating_op_fork(fork)
+                .map(|op_fork| self.op_fork_activation(op_fork))
+                .unwrap_or(ForkCondition::Never)
         }
     }
 }
@@ -481,10 +467,10 @@ impl OpHardforks for RollupConfig {
                 .hardforks
                 .karst_time
                 .map(ForkCondition::Timestamp)
-                .unwrap_or_else(|| self.op_fork_activation(OpHardfork::Interop)),
-            OpHardfork::Interop => self
+                .unwrap_or_else(|| self.op_fork_activation(OpHardfork::Lagoon)),
+            OpHardfork::Lagoon => self
                 .hardforks
-                .interop_time
+                .lagoon_time
                 .map(ForkCondition::Timestamp)
                 .unwrap_or(ForkCondition::Never),
             _ => ForkCondition::Never,
@@ -512,25 +498,45 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "revm")]
-    fn test_revm_spec_id() {
-        // By default, the spec ID should be BEDROCK.
-        let mut config = RollupConfig {
-            hardforks: HardForkConfig { regolith_time: Some(10), ..Default::default() },
+    fn test_ethereum_fork_activation_follows_op_forks() {
+        let config = RollupConfig {
+            hardforks: HardForkConfig {
+                canyon_time: Some(10),
+                ecotone_time: Some(20),
+                isthmus_time: Some(30),
+                karst_time: Some(40),
+                ..Default::default()
+            },
             ..Default::default()
         };
-        assert_eq!(config.spec_id(0), op_revm::OpSpecId::BEDROCK);
-        assert_eq!(config.spec_id(10), op_revm::OpSpecId::REGOLITH);
-        config.hardforks.canyon_time = Some(20);
-        assert_eq!(config.spec_id(20), op_revm::OpSpecId::CANYON);
-        config.hardforks.ecotone_time = Some(30);
-        assert_eq!(config.spec_id(30), op_revm::OpSpecId::ECOTONE);
-        config.hardforks.fjord_time = Some(40);
-        assert_eq!(config.spec_id(40), op_revm::OpSpecId::FJORD);
-        config.hardforks.holocene_time = Some(50);
-        assert_eq!(config.spec_id(50), op_revm::OpSpecId::HOLOCENE);
-        config.hardforks.isthmus_time = Some(60);
-        assert_eq!(config.spec_id(60), op_revm::OpSpecId::ISTHMUS);
+        // Bedrock activates all L1 forks up to and including Paris.
+        assert_eq!(
+            config.ethereum_fork_activation(EthereumHardfork::London),
+            ForkCondition::Block(0)
+        );
+        assert_eq!(
+            config.ethereum_fork_activation(EthereumHardfork::Paris),
+            config.op_fork_activation(OpHardfork::Bedrock)
+        );
+        assert_eq!(
+            config.ethereum_fork_activation(EthereumHardfork::Shanghai),
+            ForkCondition::Timestamp(10)
+        );
+        assert_eq!(
+            config.ethereum_fork_activation(EthereumHardfork::Cancun),
+            ForkCondition::Timestamp(20)
+        );
+        assert_eq!(
+            config.ethereum_fork_activation(EthereumHardfork::Prague),
+            ForkCondition::Timestamp(30)
+        );
+        // Karst activates the Osaka hardfork.
+        assert_eq!(
+            config.ethereum_fork_activation(EthereumHardfork::Osaka),
+            ForkCondition::Timestamp(40)
+        );
+        // L1 forks without an L2 equivalent never activate.
+        assert_eq!(config.ethereum_fork_activation(EthereumHardfork::Bpo1), ForkCondition::Never);
     }
 
     #[test]
@@ -654,7 +660,7 @@ mod tests {
     #[test]
     fn test_jovian_active() {
         let mut config = RollupConfig::default();
-        assert!(!config.is_interop_active(0));
+        assert!(!config.is_lagoon_active(0));
         config.hardforks.jovian_time = Some(10);
         assert!(config.is_regolith_active(10));
         assert!(config.is_canyon_active(10));
@@ -689,10 +695,57 @@ mod tests {
     }
 
     #[test]
-    fn test_interop_active() {
+    fn test_lagoon_active() {
         let mut config = RollupConfig::default();
-        assert!(!config.is_interop_active(0));
-        config.hardforks.interop_time = Some(10);
+        assert!(!config.is_lagoon_active(0));
+        config.hardforks.lagoon_time = Some(10);
+        assert!(config.is_lagoon_active(10));
+        assert!(!config.is_lagoon_active(9));
+    }
+
+    #[test]
+    fn test_first_lagoon_block() {
+        let mut config = RollupConfig { block_time: 2, ..Default::default() };
+        config.hardforks.lagoon_time = Some(120);
+        assert!(!config.is_first_lagoon_block(118));
+        assert!(config.is_first_lagoon_block(120));
+        assert!(!config.is_first_lagoon_block(122));
+    }
+
+    #[test]
+    fn test_interop_feature_tracks_lagoon() {
+        // The interop feature gate rides Lagoon today.
+        let mut config = RollupConfig { block_time: 2, ..Default::default() };
+        config.hardforks.lagoon_time = Some(120);
+        assert_eq!(config.is_interop_active(119), config.is_lagoon_active(119));
+        assert_eq!(config.is_interop_active(120), config.is_lagoon_active(120));
+        assert!(config.is_first_interop_block(120));
+        assert!(!config.is_first_interop_block(122));
+    }
+
+    #[test]
+    fn test_sdm_rides_lagoon() {
+        let mut config = RollupConfig::default();
+        // Jovian/Karst alone must not activate SDM — only Lagoon does.
+        config.hardforks.jovian_time = Some(10);
+        config.hardforks.karst_time = Some(20);
+        assert!(config.is_jovian_active(10));
+        assert!(!config.is_sdm_active(10));
+        assert!(config.is_karst_active(20));
+        assert!(!config.is_sdm_active(20));
+
+        // Schedule Lagoon and SDM must follow.
+        config.hardforks.lagoon_time = Some(30);
+        assert!(!config.is_sdm_active(29));
+        assert!(config.is_sdm_active(30));
+        assert!(config.is_sdm_active(31));
+    }
+
+    #[test]
+    fn test_lagoon_stacks_prior_forks() {
+        let mut config = RollupConfig::default();
+        assert!(!config.is_lagoon_active(0));
+        config.hardforks.lagoon_time = Some(10);
         assert!(config.is_regolith_active(10));
         assert!(config.is_canyon_active(10));
         assert!(config.is_delta_active(10));
@@ -703,8 +756,8 @@ mod tests {
         assert!(!config.is_pectra_blob_schedule_active(10));
         assert!(config.is_isthmus_active(10));
         assert!(config.is_karst_active(10));
-        assert!(config.is_interop_active(10));
-        assert!(!config.is_interop_active(9));
+        assert!(config.is_lagoon_active(10));
+        assert!(!config.is_lagoon_active(9));
     }
 
     #[test]
@@ -722,7 +775,8 @@ mod tests {
                 isthmus_time: Some(90),
                 jovian_time: Some(100),
                 karst_time: Some(110),
-                interop_time: Some(120),
+                keep_karst_upgrade_gas: false,
+                lagoon_time: Some(120),
             },
             block_time: 2,
             ..Default::default()
@@ -783,10 +837,10 @@ mod tests {
         assert!(cfg.is_first_karst_block(110));
         assert!(!cfg.is_first_karst_block(112));
 
-        // Interop
-        assert!(!cfg.is_first_interop_block(118));
-        assert!(cfg.is_first_interop_block(120));
-        assert!(!cfg.is_first_interop_block(122));
+        // Lagoon
+        assert!(!cfg.is_first_lagoon_block(118));
+        assert!(cfg.is_first_lagoon_block(120));
+        assert!(!cfg.is_first_lagoon_block(122));
     }
 
     #[test]
@@ -821,63 +875,9 @@ mod tests {
         assert_eq!(config.max_sequencer_drift(10), FJORD_MAX_SEQUENCER_DRIFT);
     }
 
-    #[test]
-    #[cfg(feature = "serde")]
-    fn test_deserialize_reference_rollup_config() {
+    fn expected_rollup_config() -> RollupConfig {
         use crate::{OP_MAINNET_BASE_FEE_CONFIG, SystemConfig};
-
-        let raw: &str = r#"
-        {
-          "genesis": {
-            "l1": {
-              "hash": "0x481724ee99b1f4cb71d826e2ec5a37265f460e9b112315665c977f4050b0af54",
-              "number": 10
-            },
-            "l2": {
-              "hash": "0x88aedfbf7dea6bfa2c4ff315784ad1a7f145d8f650969359c003bbed68c87631",
-              "number": 0
-            },
-            "l2_time": 1725557164,
-            "system_config": {
-              "batcherAddr": "0xc81f87a644b41e49b3221f41251f15c6cb00ce03",
-              "overhead": "0x0000000000000000000000000000000000000000000000000000000000000000",
-              "scalar": "0x00000000000000000000000000000000000000000000000000000000000f4240",
-              "gasLimit": 30000000,
-              "baseFeeScalar": 1234,
-              "blobBaseFeeScalar": 5678,
-              "eip1559Denominator": 10,
-              "eip1559Elasticity": 20,
-              "operatorFeeScalar": 30,
-              "operatorFeeConstant": 40,
-              "minBaseFee": 50,
-              "daFootprintGasScalar": 10
-            }
-          },
-          "block_time": 2,
-          "max_sequencer_drift": 600,
-          "seq_window_size": 3600,
-          "channel_timeout": 300,
-          "l1_chain_id": 3151908,
-          "l2_chain_id": 1337,
-          "regolith_time": 0,
-          "canyon_time": 0,
-          "delta_time": 0,
-          "ecotone_time": 0,
-          "fjord_time": 0,
-          "batch_inbox_address": "0xff00000000000000000000000000000000042069",
-          "deposit_contract_address": "0x08073dc48dde578137b8af042bcbc1c2491f1eb2",
-          "l1_system_config_address": "0x94ee52a9d8edd72a85dea7fae3ba6d75e4bf1710",
-          "protocol_versions_address": "0x0000000000000000000000000000000000000000",
-          "chain_op_config": {
-            "eip1559Elasticity": 6,
-            "eip1559Denominator": 50,
-            "eip1559DenominatorCanyon": 250
-            },
-          "alt_da": null
-        }
-        "#;
-
-        let expected = RollupConfig {
+        RollupConfig {
             genesis: ChainGenesis {
                 l1: BlockNumHash {
                     hash: b256!("481724ee99b1f4cb71d826e2ec5a37265f460e9b112315665c977f4050b0af54"),
@@ -923,14 +923,68 @@ mod tests {
             batch_inbox_address: address!("ff00000000000000000000000000000000042069"),
             deposit_contract_address: address!("08073dc48dde578137b8af042bcbc1c2491f1eb2"),
             l1_system_config_address: address!("94ee52a9d8edd72a85dea7fae3ba6d75e4bf1710"),
-            protocol_versions_address: Address::ZERO,
             superchain_config_address: None,
             blobs_enabled_l1_timestamp: None,
             da_challenge_address: None,
             chain_op_config: OP_MAINNET_BASE_FEE_CONFIG,
             alt_da_config: None,
-        };
+        }
+    }
 
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_deserialize_reference_rollup_config() {
+        let raw: &str = r#"
+        {
+          "genesis": {
+            "l1": {
+              "hash": "0x481724ee99b1f4cb71d826e2ec5a37265f460e9b112315665c977f4050b0af54",
+              "number": 10
+            },
+            "l2": {
+              "hash": "0x88aedfbf7dea6bfa2c4ff315784ad1a7f145d8f650969359c003bbed68c87631",
+              "number": 0
+            },
+            "l2_time": 1725557164,
+            "system_config": {
+              "batcherAddr": "0xc81f87a644b41e49b3221f41251f15c6cb00ce03",
+              "overhead": "0x0000000000000000000000000000000000000000000000000000000000000000",
+              "scalar": "0x00000000000000000000000000000000000000000000000000000000000f4240",
+              "gasLimit": 30000000,
+              "baseFeeScalar": 1234,
+              "blobBaseFeeScalar": 5678,
+              "eip1559Denominator": 10,
+              "eip1559Elasticity": 20,
+              "operatorFeeScalar": 30,
+              "operatorFeeConstant": 40,
+              "minBaseFee": 50,
+              "daFootprintGasScalar": 10
+            }
+          },
+          "block_time": 2,
+          "max_sequencer_drift": 600,
+          "seq_window_size": 3600,
+          "channel_timeout": 300,
+          "l1_chain_id": 3151908,
+          "l2_chain_id": 1337,
+          "regolith_time": 0,
+          "canyon_time": 0,
+          "delta_time": 0,
+          "ecotone_time": 0,
+          "fjord_time": 0,
+          "batch_inbox_address": "0xff00000000000000000000000000000000042069",
+          "deposit_contract_address": "0x08073dc48dde578137b8af042bcbc1c2491f1eb2",
+          "l1_system_config_address": "0x94ee52a9d8edd72a85dea7fae3ba6d75e4bf1710",
+          "chain_op_config": {
+            "eip1559Elasticity": 6,
+            "eip1559Denominator": 50,
+            "eip1559DenominatorCanyon": 250
+            },
+          "alt_da": null
+        }
+        "#;
+
+        let expected = expected_rollup_config();
         let deserialized: RollupConfig = serde_json::from_str(raw).unwrap();
         assert_eq!(deserialized, expected);
     }
@@ -953,7 +1007,15 @@ mod tests {
               "batcherAddr": "0xc81f87a644b41e49b3221f41251f15c6cb00ce03",
               "overhead": "0x0000000000000000000000000000000000000000000000000000000000000000",
               "scalar": "0x00000000000000000000000000000000000000000000000000000000000f4240",
-              "gasLimit": 30000000
+              "gasLimit": 30000000,
+              "baseFeeScalar": 1234,
+              "blobBaseFeeScalar": 5678,
+              "eip1559Denominator": 10,
+              "eip1559Elasticity": 20,
+              "operatorFeeScalar": 30,
+              "operatorFeeConstant": 40,
+              "minBaseFee": 50,
+              "daFootprintGasScalar": 10
             }
           },
           "block_time": 2,
@@ -970,18 +1032,18 @@ mod tests {
           "batch_inbox_address": "0xff00000000000000000000000000000000042069",
           "deposit_contract_address": "0x08073dc48dde578137b8af042bcbc1c2491f1eb2",
           "l1_system_config_address": "0x94ee52a9d8edd72a85dea7fae3ba6d75e4bf1710",
-          "protocol_versions_address": "0x0000000000000000000000000000000000000000",
           "chain_op_config": {
-            "eip1559_elasticity": 100,
-            "eip1559_denominator": 100,
-            "eip1559_denominator_canyon": 100
+            "eip1559_elasticity": 6,
+            "eip1559_denominator": 50,
+            "eip1559_denominator_canyon": 250
           },
           "unknown_field": "unknown"
         }
         "#;
 
-        let err = serde_json::from_str::<RollupConfig>(raw).unwrap_err();
-        assert_eq!(err.classify(), serde_json::error::Category::Data);
+        let expected = expected_rollup_config();
+        let deserialized: RollupConfig = serde_json::from_str(raw).unwrap();
+        assert_eq!(deserialized, expected);
     }
 
     #[test]

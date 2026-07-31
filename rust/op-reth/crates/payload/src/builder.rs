@@ -3,28 +3,39 @@ use crate::{
     OpAttributes, OpPayloadBuilderAttributes, OpPayloadPrimitives, config::OpBuilderConfig,
     error::OpPayloadBuilderError, payload::OpBuiltPayload,
 };
-use alloy_consensus::{BlockHeader, Transaction, Typed2718};
+use alloy_consensus::{BlockHeader, Sealable, Transaction, Typed2718, transaction::Recovered};
+use alloy_eips::eip2718::Encodable2718;
 use alloy_evm::Evm as AlloyEvm;
-use alloy_primitives::{B256, U256};
+use alloy_primitives::{Address, B256, Sealed, U256};
 use alloy_rpc_types_debug::ExecutionWitness;
 use alloy_rpc_types_engine::PayloadId;
+use op_alloy_consensus::{
+    ParsedPostExecPayload, SDMGasEntry, TxPostExec, build_post_exec_tx,
+    parse_post_exec_payload_from_transactions,
+};
 use op_revm::{L1BlockInfo, constants::L1_BLOCK_CONTRACT};
 use reth_basic_payload_builder::*;
 use reth_chainspec::{ChainSpecProvider, EthChainSpec};
 use reth_evm::{
     ConfigureEvm, Database,
-    block::BlockExecutorFor,
     execute::{
         BlockBuilder, BlockBuilderOutcome, BlockExecutionError, BlockExecutor, BlockValidationError,
     },
 };
 use reth_execution_types::BlockExecutionOutput;
+use reth_metrics::{
+    Metrics,
+    metrics::{self, Counter, Gauge},
+};
+use reth_optimism_evm::{
+    ConfigurePostExecEvm, PostExecExecutorExt, PostExecMode, PreRefundGasUsed,
+};
 use reth_optimism_forks::OpHardforks;
-use reth_optimism_primitives::{L2_TO_L1_MESSAGE_PASSER_ADDRESS, transaction::OpTransaction};
+use reth_optimism_primitives::{L2_TO_L1_MESSAGE_PASSER_ADDRESS, OpTransaction};
 use reth_optimism_txpool::{
     OpPooledTx,
     estimated_da_size::DataAvailabilitySized,
-    interop::{MaybeInteropTransaction, is_valid_interop},
+    interop::{MaybeInteropTransaction, is_interop_tx, is_valid_interop},
 };
 use reth_payload_builder_primitives::PayloadBuilderError;
 use reth_payload_primitives::{BuildNextEnv, BuiltPayloadExecutedBlock};
@@ -41,6 +52,69 @@ use reth_transaction_pool::{BestTransactionsAttributes, PoolTransaction, Transac
 use revm::context::{Block, BlockEnv};
 use std::{marker::PhantomData, sync::Arc};
 use tracing::{debug, trace, warn};
+
+/// SDM/PostExec payload-builder metrics.
+#[derive(Metrics, Clone)]
+#[metrics(scope = "optimism_payload_builder")]
+struct OpPayloadBuilderMetrics {
+    /// Total SDM gas refunded by produced `PostExec` payloads.
+    sdm_refund_gas_total: Counter,
+    /// SDM gas refunded by the latest produced block.
+    sdm_refund_gas_per_block: Gauge,
+}
+
+impl OpPayloadBuilderMetrics {
+    fn record_sdm_refund_gas(&self, gas_refund: u64) {
+        self.sdm_refund_gas_total.increment(gas_refund);
+        self.sdm_refund_gas_per_block.set(gas_refund as f64);
+    }
+}
+
+fn sdm_refund_gas(entries: &[SDMGasEntry]) -> u64 {
+    entries.iter().map(|entry| entry.gas_refund).sum()
+}
+
+fn build_post_exec_recovered_tx<Tx>(block_number: u64, entries: Vec<SDMGasEntry>) -> Recovered<Tx>
+where
+    Tx: From<Sealed<TxPostExec>>,
+{
+    let sealed = build_post_exec_tx(block_number, entries).seal_slow();
+    Recovered::new_unchecked(Tx::from(sealed), Address::ZERO)
+}
+
+/// Wraps refund entries in a post-exec transaction and executes it via `execute`.
+///
+/// # Returns
+/// - `true` if a post-exec transaction was executed.
+/// - `false` if `entries` is empty.
+///
+/// The post-exec transaction MUST execute successfully: any error is surfaced as
+/// `PayloadBuilderError::EvmExecutionError` so the payload build aborts. A verifier
+/// replaying this block will expect the post-exec tx to match the refunds it observes,
+/// so dropping the tx (or returning an empty block) on failure would produce a payload
+/// that no honest verifier can reproduce.
+fn try_include_post_exec_tx<Tx, Err>(
+    block_number: u64,
+    entries: Vec<SDMGasEntry>,
+    execute: impl FnOnce(Recovered<Tx>) -> Result<u64, Err>,
+) -> Result<bool, PayloadBuilderError>
+where
+    Tx: From<Sealed<TxPostExec>>,
+    Err: core::error::Error + Send + Sync + 'static,
+{
+    if entries.is_empty() {
+        return Ok(false);
+    }
+
+    let post_exec_recovered = build_post_exec_recovered_tx(block_number, entries);
+
+    execute(post_exec_recovered).map_err(|err| {
+        warn!(target: "payload_builder", %err, "post-exec tx execution failed, aborting payload");
+        PayloadBuilderError::evm(err)
+    })?;
+    debug!(target: "payload_builder", "post-exec tx included in block");
+    Ok(true)
+}
 
 /// Optimism's payload builder
 #[derive(Debug)]
@@ -156,7 +230,8 @@ where
     Pool: TransactionPool<Transaction: OpPooledTx<Consensus = N::SignedTx>>,
     Client: StateProviderFactory + ChainSpecProvider<ChainSpec: OpHardforks>,
     N: OpPayloadPrimitives,
-    Evm: ConfigureEvm<
+    N::SignedTx: From<Sealed<TxPostExec>>,
+    Evm: ConfigurePostExecEvm<
             Primitives = N,
             NextBlockEnvCtx: BuildNextEnv<Attrs, N::BlockHeader, Client::ChainSpec>,
         >,
@@ -213,7 +288,12 @@ where
         let attributes = Attrs::try_new(parent.hash(), attributes, 3)?;
         let payload_id = attributes.payload_id();
 
-        let config = PayloadConfig { parent_header: Arc::new(parent), attributes, payload_id };
+        let config = PayloadConfig {
+            parent_header: Arc::new(parent),
+            parent_block_info: None,
+            attributes,
+            payload_id,
+        };
         let ctx = OpPayloadBuilderCtx {
             evm_config: self.evm_config.clone(),
             builder_config: self.config.clone(),
@@ -238,9 +318,10 @@ impl<Pool, Client, Evm, N, Txs> PayloadBuilder
     for OpPayloadBuilder<Pool, Client, Evm, Txs, OpPayloadBuilderAttributes<N::SignedTx>>
 where
     N: OpPayloadPrimitives,
+    N::SignedTx: From<Sealed<TxPostExec>>,
     Client: StateProviderFactory + ChainSpecProvider<ChainSpec: OpHardforks> + Clone,
     Pool: TransactionPool<Transaction: OpPooledTx<Consensus = N::SignedTx>>,
-    Evm: ConfigureEvm<
+    Evm: ConfigurePostExecEvm<
             Primitives = N,
             NextBlockEnvCtx: BuildNextEnv<
                 OpPayloadBuilderAttributes<N::SignedTx>,
@@ -283,7 +364,7 @@ where
             config,
             cached_reads: Default::default(),
             execution_cache: None,
-            trie_handle: None,
+            state_root_handle: None,
             cancel: Default::default(),
             best_payload: None,
         };
@@ -304,8 +385,14 @@ fn convert_build_args<N: OpPayloadPrimitives>(
     BuildArguments<OpPayloadBuilderAttributes<N::SignedTx>, OpBuiltPayload<N>>,
     PayloadBuilderError,
 > {
-    let BuildArguments { config, cached_reads, execution_cache, trie_handle, cancel, best_payload } =
-        args;
+    let BuildArguments {
+        config,
+        cached_reads,
+        execution_cache,
+        state_root_handle,
+        cancel,
+        best_payload,
+    } = args;
     let parent_hash = config.parent_header.hash();
     let payload_id = config.payload_id;
     let builder_attrs =
@@ -314,12 +401,13 @@ fn convert_build_args<N: OpPayloadPrimitives>(
     Ok(BuildArguments {
         config: PayloadConfig {
             parent_header: config.parent_header,
+            parent_block_info: config.parent_block_info,
             attributes: builder_attrs,
             payload_id,
         },
         cached_reads,
         execution_cache,
-        trie_handle,
+        state_root_handle,
         cancel,
         best_payload,
     })
@@ -363,12 +451,13 @@ impl<Txs> OpBuilder<'_, Txs> {
         ctx: OpPayloadBuilderCtx<Evm, ChainSpec, Attrs>,
     ) -> Result<BuildOutcomeKind<OpBuiltPayload<N>>, PayloadBuilderError>
     where
-        Evm: ConfigureEvm<
+        Evm: ConfigurePostExecEvm<
                 Primitives = N,
                 NextBlockEnvCtx: BuildNextEnv<Attrs, N::BlockHeader, ChainSpec>,
             >,
         ChainSpec: EthChainSpec + OpHardforks,
         N: OpPayloadPrimitives,
+        N::SignedTx: From<Sealed<TxPostExec>>,
         Txs:
             PayloadTransactions<Transaction: PoolTransaction<Consensus = N::SignedTx> + OpPooledTx>,
         Attrs: OpAttributes<Transaction = N::SignedTx>,
@@ -383,7 +472,15 @@ impl<Txs> OpBuilder<'_, Txs> {
         // scalar.
         db.load_cache_account(L1_BLOCK_CONTRACT).map_err(BlockExecutionError::other)?;
 
-        let mut builder = ctx.block_builder(&mut db)?;
+        // Snapshot the post-exec mode once for the whole build. The opt-in flag behind
+        // `sdm_production_enabled` is mutable at runtime (admin RPC); reading it again when
+        // deciding whether to append the `0x7D` below could disagree with the mode the EVM
+        // was built in, yielding a block whose refunded state has no matching post-exec tx
+        // (or vice versa).
+        let post_exec_mode = ctx.post_exec_mode()?;
+        let produce_post_exec = matches!(post_exec_mode, PostExecMode::Produce);
+
+        let mut builder = ctx.block_builder_with_mode(&mut db, post_exec_mode)?;
 
         // 1. apply pre-execution changes
         builder.apply_pre_execution_changes().map_err(|err| {
@@ -392,12 +489,21 @@ impl<Txs> OpBuilder<'_, Txs> {
         })?;
 
         // 2. execute sequencer transactions
-        let mut info = ctx.execute_sequencer_transactions(&mut builder)?;
+        let mut info = ctx.execute_sequencer_transactions(&mut builder, None)?;
 
         // 3. if mem pool transactions are requested we execute them
         if !ctx.attributes().no_tx_pool() {
             let best_txs = best(ctx.best_transaction_attributes(builder.evm_mut().block()));
-            if ctx.execute_best_transactions(&mut info, &mut builder, best_txs)?.is_some() {
+            if ctx
+                .execute_best_transactions(
+                    &mut info,
+                    &mut builder,
+                    RethPayloadTransactions(best_txs),
+                    None,
+                    None,
+                )?
+                .is_some()
+            {
                 return Ok(BuildOutcomeKind::Cancelled);
             }
 
@@ -408,8 +514,30 @@ impl<Txs> OpBuilder<'_, Txs> {
             }
         }
 
-        let BlockBuilderOutcome { execution_result, hashed_state, trie_updates, block } =
-            builder.finish(state_provider, None)?;
+        // Only `Produce` mode appends a post-exec tx, and only locally-sequenced blocks reach it; a
+        // derived block (force_empty) is `Verify`/`Disabled` and already carries its own `0x7D`, so
+        // appending would duplicate it. See `post_exec_mode`.
+        let sdm_refund_gas = if produce_post_exec {
+            let block_number = builder.evm_mut().block().number().saturating_to();
+            let entries = builder.executor_mut().take_post_exec_entries();
+            let refund_gas = self::sdm_refund_gas(&entries);
+            try_include_post_exec_tx(block_number, entries, |tx| {
+                builder.execute_transaction(tx).map(|g| g.tx_gas_used())
+            })?;
+            refund_gas
+        } else {
+            0
+        };
+
+        let BlockBuilderOutcome {
+            execution_result,
+            hashed_state,
+            trie_updates,
+            block,
+            block_access_list: _,
+        } = builder.finish(state_provider, None)?;
+
+        OpPayloadBuilderMetrics::default().record_sdm_refund_gas(sdm_refund_gas);
 
         let sealed_block = Arc::new(block.sealed_block().clone());
         debug!(target: "payload_builder", id=%ctx.attributes().payload_id(), sealed_block_header = ?sealed_block.header(), "sealed built block");
@@ -421,9 +549,9 @@ impl<Txs> OpBuilder<'_, Txs> {
         let executed: BuiltPayloadExecutedBlock<N> = BuiltPayloadExecutedBlock {
             recovered_block: Arc::new(block),
             execution_output: Arc::new(execution_outcome),
-            // Keep unsorted; conversion to sorted happens when needed downstream
-            hashed_state: either::Either::Left(Arc::new(hashed_state)),
-            trie_updates: either::Either::Left(Arc::new(trie_updates)),
+            hashed_state: Arc::new(hashed_state),
+            trie_updates: Arc::new(trie_updates),
+            changed_paths: None,
         };
 
         let no_tx_pool = ctx.attributes().no_tx_pool();
@@ -448,12 +576,13 @@ impl<Txs> OpBuilder<'_, Txs> {
         ctx: &OpPayloadBuilderCtx<Evm, ChainSpec, Attrs>,
     ) -> Result<ExecutionWitness, PayloadBuilderError>
     where
-        Evm: ConfigureEvm<
+        Evm: ConfigurePostExecEvm<
                 Primitives = N,
                 NextBlockEnvCtx: BuildNextEnv<Attrs, N::BlockHeader, ChainSpec>,
             >,
         ChainSpec: EthChainSpec + OpHardforks,
         N: OpPayloadPrimitives,
+        N::SignedTx: From<Sealed<TxPostExec>>,
         Txs: PayloadTransactions<Transaction: PoolTransaction<Consensus = N::SignedTx>>,
         Attrs: OpAttributes<Transaction = N::SignedTx>,
     {
@@ -464,7 +593,7 @@ impl<Txs> OpBuilder<'_, Txs> {
         let mut builder = ctx.block_builder(&mut db)?;
 
         builder.apply_pre_execution_changes()?;
-        ctx.execute_sequencer_transactions(&mut builder)?;
+        ctx.execute_sequencer_transactions(&mut builder, None)?;
         builder.into_executor().apply_post_execution_changes()?;
 
         if ctx.chain_spec.is_isthmus_active_at_timestamp(ctx.attributes().timestamp()) {
@@ -483,6 +612,50 @@ impl<Txs> OpBuilder<'_, Txs> {
             ..Default::default()
         })
     }
+}
+
+/// A [`PayloadTransactions`] iterator that is notified of the gas used by each
+/// yielded transaction once it is actually committed to the block.
+///
+/// `next()` yields a candidate, but the iterator doesn't otherwise learn whether
+/// it was included or how much gas it used. [`Self::on_commit`] closes that loop:
+/// the payload builder calls it once per committed transaction, in commit order,
+/// so a custom iterator can maintain its own per-inclusion state. Any data the
+/// iterator needs from the transaction itself is captured at `next()` time, where
+/// it still owns the transaction; commit reports only the gas.
+///
+/// A plain [`PayloadTransactions`] that doesn't care about inclusions can be
+/// adapted with [`RethPayloadTransactions`], whose `on_commit` is a no-op.
+pub trait PayloadTransactionsWithCommitHook: PayloadTransactions {
+    /// Invoked exactly once for the transaction most recently returned by `next()`,
+    /// after it is successfully executed and committed to the block, and BEFORE any
+    /// subsequent `next()` call, with the gas that transaction used. It is NOT invoked
+    /// for transactions that are skipped or rejected — whether or not `mark_invalid`
+    /// was called for them. Implementors may therefore attribute `gas_used` to the
+    /// most-recently-yielded transaction.
+    fn on_commit(&mut self, gas_used: u64);
+}
+
+/// Adapts a plain [`PayloadTransactions`] to [`PayloadTransactionsWithCommitHook`] by ignoring
+/// commit notifications. Lets the standard build path pass a stock pool iterator
+/// where a [`PayloadTransactionsWithCommitHook`] is required.
+#[derive(Debug)]
+pub struct RethPayloadTransactions<T>(pub T);
+
+impl<T: PayloadTransactions> PayloadTransactions for RethPayloadTransactions<T> {
+    type Transaction = T::Transaction;
+
+    fn next(&mut self, ctx: ()) -> Option<Self::Transaction> {
+        self.0.next(ctx)
+    }
+
+    fn mark_invalid(&mut self, sender: Address, nonce: u64) {
+        self.0.mark_invalid(sender, nonce);
+    }
+}
+
+impl<T: PayloadTransactions> PayloadTransactionsWithCommitHook for RethPayloadTransactions<T> {
+    fn on_commit(&mut self, _gas_used: u64) {}
 }
 
 /// A type that returns a the [`PayloadTransactions`] that should be included in the pool.
@@ -524,8 +697,18 @@ pub struct ExecutedPayload<N: NodePrimitives> {
 pub struct ExecutionInfo {
     /// All gas used so far
     pub cumulative_gas_used: u64,
+    /// All pre-refund EVM gas (real compute) so far, before any SDM/post-exec refund.
+    ///
+    /// Bounds the block against the block gas limit regardless of refunds, so an honest block
+    /// never trips the executor's consensus check. Equals [`Self::cumulative_gas_used`] with
+    /// SDM off.
+    pub cumulative_evm_gas_used: u64,
     /// Estimated DA size
     pub cumulative_da_bytes_used: u64,
+    /// Cumulative uncompressed (EIP-2718 encoded) size of every transaction included in the block
+    /// so far, in bytes. Bounds the block against the configured
+    /// [`max_uncompressed_block_size`](crate::config::OpBuilderConfig::max_uncompressed_block_size).
+    pub cumulative_uncompressed_bytes: u64,
     /// Tracks fees from executed mempool transactions
     pub total_fees: U256,
 }
@@ -533,7 +716,21 @@ pub struct ExecutionInfo {
 impl ExecutionInfo {
     /// Create a new instance with allocated slots.
     pub const fn new() -> Self {
-        Self { cumulative_gas_used: 0, cumulative_da_bytes_used: 0, total_fees: U256::ZERO }
+        Self {
+            cumulative_gas_used: 0,
+            cumulative_evm_gas_used: 0,
+            cumulative_da_bytes_used: 0,
+            cumulative_uncompressed_bytes: 0,
+            total_fees: U256::ZERO,
+        }
+    }
+
+    /// Adds a transaction's gas to both the canonical and pre-refund (real compute) counters,
+    /// saturating to guard against overflow. `evm_gas` equals `canonical_gas` when SDM refunds
+    /// are off. Encapsulated so the saturating add is enforced at every call site.
+    pub const fn accumulate_gas(&mut self, canonical_gas: u64, evm_gas: u64) {
+        self.cumulative_gas_used = self.cumulative_gas_used.saturating_add(canonical_gas);
+        self.cumulative_evm_gas_used = self.cumulative_evm_gas_used.saturating_add(evm_gas);
     }
 
     /// Returns true if the transaction would exceed the block limits:
@@ -542,6 +739,9 @@ impl ExecutionInfo {
     ///   per tx.
     /// - block DA limit: if configured, ensures the transaction's DA size does not exceed the
     ///   maximum allowed DA limit per block.
+    /// - block uncompressed size limit: if configured, ensures including the transaction would not
+    ///   push the block's total uncompressed (EIP-2718 encoded) size past the maximum.
+    #[allow(clippy::too_many_arguments)]
     pub fn is_tx_over_limits(
         &self,
         tx_da_size: u64,
@@ -550,6 +750,8 @@ impl ExecutionInfo {
         block_data_limit: Option<u64>,
         tx_gas_limit: u64,
         da_footprint_gas_scalar: Option<u16>,
+        tx_uncompressed_size: u64,
+        max_uncompressed_block_size: Option<u64>,
     ) -> bool {
         if tx_data_limit.is_some_and(|da_limit| tx_da_size > da_limit) {
             return true;
@@ -561,6 +763,17 @@ impl ExecutionInfo {
             return true;
         }
 
+        // Stop including transactions once the block's uncompressed (EIP-2718 encoded) size would
+        // exceed the configured maximum. This keeps the built payload within the size assumed by
+        // consensus-layer clients.
+        if let Some(max_uncompressed_block_size) = max_uncompressed_block_size {
+            let total_uncompressed_bytes =
+                self.cumulative_uncompressed_bytes.saturating_add(tx_uncompressed_size);
+            if total_uncompressed_bytes > max_uncompressed_block_size {
+                return true;
+            }
+        }
+
         // Post Jovian: the tx DA footprint must be less than the block gas limit
         if let Some(da_footprint_gas_scalar) = da_footprint_gas_scalar {
             let tx_da_footprint =
@@ -570,7 +783,11 @@ impl ExecutionInfo {
             }
         }
 
-        self.cumulative_gas_used + tx_gas_limit > block_gas_limit
+        // Cap real compute (pre-refund EVM gas) at the block gas limit, regardless of SDM refunds.
+        // Inducting off the declared gas limit bounds the actual sum. Since
+        // `cumulative_evm_gas_used >= cumulative_gas_used`, this subsumes the canonical
+        // block-gas-limit check; with SDM off the two are identical.
+        self.cumulative_evm_gas_used.saturating_add(tx_gas_limit) > block_gas_limit
     }
 }
 
@@ -597,7 +814,7 @@ pub struct OpPayloadBuilderCtx<
 
 impl<Evm, ChainSpec, Attrs> OpPayloadBuilderCtx<Evm, ChainSpec, Attrs>
 where
-    Evm: ConfigureEvm<
+    Evm: ConfigurePostExecEvm<
             Primitives: OpPayloadPrimitives,
             NextBlockEnvCtx: BuildNextEnv<Attrs, HeaderTy<Evm::Primitives>, ChainSpec>,
         >,
@@ -622,6 +839,68 @@ where
         )
     }
 
+    /// Returns whether SDM production should run for this payload.
+    ///
+    /// Both gates must agree (either being false disables production):
+    /// - **Protocol**: SDM active per the chain spec at the next block's timestamp.
+    /// - **Operator**: the local opt-in flag on `OpBuilderConfig`, mutated by the `admin_` SDM RPC;
+    ///   starts disabled at process boot.
+    pub fn sdm_production_enabled(&self) -> bool {
+        let protocol_active = reth_optimism_evm::is_sdm_active_at_timestamp(
+            &self.chain_spec,
+            self.attributes().timestamp(),
+        );
+        protocol_active && self.builder_config.operator_sdm_opt_in.enabled()
+    }
+
+    /// Returns true when the tx pool is excluded and the block must be reproduced
+    /// deterministically from forced transactions only (i.e. `no_tx_pool = true`).
+    ///
+    /// Mirrors op-geth's `l2ForceEmpty` / `ForcedEmpty()` concept for cross-client consistency.
+    pub fn force_empty(&self) -> bool {
+        self.attributes().no_tx_pool()
+    }
+
+    /// Parses the `0x7D` post-exec tx embedded by op-node into derived payload attributes.
+    ///
+    /// Returns `Ok(None)` when no such tx is present; errors if the embedded payload is
+    /// structurally invalid (present before SDM activation, duplicated, not last, or anchored
+    /// to the wrong block number).
+    fn parse_embedded_post_exec(
+        &self,
+    ) -> Result<Option<ParsedPostExecPayload>, PayloadBuilderError> {
+        let sdm_active = reth_optimism_evm::is_sdm_active_at_timestamp(
+            &self.chain_spec,
+            self.attributes().timestamp(),
+        );
+        let next_block_number = self.parent().number().saturating_add(1);
+        parse_post_exec_payload_from_transactions(
+            self.attributes().sequencer_transactions().iter().map(|tx| tx.value()),
+            next_block_number,
+            sdm_active,
+        )
+        .map_err(PayloadBuilderError::other)
+    }
+
+    /// Decides this payload's SDM post-exec mode: *produce*, *verify*, or `Disabled`.
+    ///
+    /// The deciding factor is whether we're sequencing the block or rebuilding one
+    /// that CL already derived (`force_empty` / `no_tx_pool`):
+    ///
+    /// - **Local sequencing**: *produce* the post-exec tx when [`Self::sdm_production_enabled`],
+    ///   otherwise `Disabled`.
+    /// - **Rebuilding a derived block**: never produce — instead *verify* against the `0x7D`
+    ///   post-exec tx that CL embedded in the attributes, or `Disabled` if there is none. This
+    ///   holds regardless of the local opt-in, since the chain has already committed to it.
+    pub fn post_exec_mode(&self) -> Result<PostExecMode, PayloadBuilderError> {
+        if !self.force_empty() {
+            return Ok(self.sdm_production_enabled().into());
+        }
+
+        let parsed = self.parse_embedded_post_exec()?;
+        Ok(parsed.map_or(PostExecMode::Disabled, |p| PostExecMode::Verify(p.payload)))
+    }
+
     /// Returns the unique id for this payload job.
     pub fn payload_id(&self) -> PayloadId {
         self.attributes().payload_id()
@@ -632,19 +911,40 @@ where
         is_better_payload(self.best_payload.as_ref(), total_fees)
     }
 
-    /// Prepares a [`BlockBuilder`] for the next block.
+    /// Prepares a [`BlockBuilder`] for the next block, resolving the post-exec mode from this
+    /// payload's context.
+    ///
+    /// Callers that also decide whether to append the trailing `0x7D` must instead resolve
+    /// [`Self::post_exec_mode`] once and pass it to [`Self::block_builder_with_mode`], so a
+    /// concurrent opt-in toggle cannot change the mode between EVM construction and the append.
     pub fn block_builder<'a, DB: Database>(
         &'a self,
         db: &'a mut State<DB>,
     ) -> Result<
         impl BlockBuilder<
             Primitives = Evm::Primitives,
-            Executor: BlockExecutorFor<'a, Evm::BlockExecutorFactory, &'a mut State<DB>>,
+            Executor: PostExecExecutorExt + BlockExecutor<Result: PreRefundGasUsed>,
+        > + 'a,
+        PayloadBuilderError,
+    > {
+        self.block_builder_with_mode(db, self.post_exec_mode()?)
+    }
+
+    /// Like [`Self::block_builder`] but builds against a caller-supplied [`PostExecMode`], so a
+    /// single snapshot drives both EVM construction and any later post-exec decision.
+    pub fn block_builder_with_mode<'a, DB: Database>(
+        &'a self,
+        db: &'a mut State<DB>,
+        post_exec_mode: PostExecMode,
+    ) -> Result<
+        impl BlockBuilder<
+            Primitives = Evm::Primitives,
+            Executor: PostExecExecutorExt + BlockExecutor<Result: PreRefundGasUsed>,
         > + 'a,
         PayloadBuilderError,
     > {
         self.evm_config
-            .builder_for_next_block(
+            .post_exec_builder_for_next_block(
                 db,
                 self.parent(),
                 Evm::NextBlockEnvCtx::build_next_env(
@@ -653,14 +953,21 @@ where
                     self.chain_spec.as_ref(),
                 )
                 .map_err(PayloadBuilderError::other)?,
+                post_exec_mode,
             )
             .map_err(PayloadBuilderError::other)
     }
 
     /// Executes all sequencer transactions that are included in the payload attributes.
+    ///
+    /// When `committed_txs` is `Some(vec)`, each successfully committed sequencer
+    /// transaction is appended to `vec` in commit order. `None` skips the
+    /// recording. The function never reads or clears the vec; the caller controls
+    /// capacity and lifecycle.
     pub fn execute_sequencer_transactions(
         &self,
         builder: &mut impl BlockBuilder<Primitives = Evm::Primitives>,
+        mut committed_txs: Option<&mut Vec<Recovered<TxTy<Evm::Primitives>>>>,
     ) -> Result<ExecutionInfo, PayloadBuilderError> {
         let mut info = ExecutionInfo::new();
 
@@ -696,7 +1003,19 @@ where
             };
 
             // add gas used by the transaction to cumulative gas used, before creating the receipt
-            info.cumulative_gas_used += gas_used;
+            let tx_gas_used = gas_used.tx_gas_used();
+            // Sequencer txs (deposits/system txs) are never SDM-refunded, so pre-refund gas equals
+            // canonical gas; track it so the pool-tx pre-refund check starts from the right total.
+            info.accumulate_gas(tx_gas_used, tx_gas_used);
+            // Count the sequencer tx towards the block's uncompressed size so the pool-tx
+            // uncompressed-size check starts from the right total.
+            info.cumulative_uncompressed_bytes += sequencer_tx.encode_2718_len() as u64;
+
+            // Record the successfully committed transaction for callers that want per-call
+            // visibility.
+            if let Some(sink) = committed_txs.as_deref_mut() {
+                sink.push(sequencer_tx);
+            }
         }
 
         Ok(info)
@@ -704,18 +1023,36 @@ where
 
     /// Executes the given best transactions and updates the execution info.
     ///
-    /// Returns `Ok(Some(())` if the job was cancelled.
+    /// `gas_limit_cap` is an optional upper bound on the per-call gas budget.
+    ///   - `None`: effective limit is `min(block_gas_limit, gas_limit_config)`.
+    ///   - `Some(g)`: effective limit is `min(g, block_gas_limit, gas_limit_config)`
+    ///
+    /// When `committed_txs` is `Some(vec)`, each successfully committed transaction
+    /// is appended to `vec` in commit order. `None` skips the recording. The
+    /// function never reads or clears the vec; the caller controls capacity and
+    /// lifecycle.
+    ///
+    /// Returns `Ok(Some(()))` if the job was cancelled.
+    ///
+    /// `best_txs` is a [`PayloadTransactionsWithCommitHook`]: its
+    /// [`PayloadTransactionsWithCommitHook::on_commit`] is invoked once per committed
+    /// transaction, in commit order, with the gas it used, so a custom iterator can
+    /// maintain its own per-inclusion state. A plain [`PayloadTransactions`] satisfies
+    /// the trait via [`RethPayloadTransactions`], where `on_commit` is a no-op.
     pub fn execute_best_transactions<Builder>(
         &self,
         info: &mut ExecutionInfo,
         builder: &mut Builder,
-        mut best_txs: impl PayloadTransactions<
+        mut best_txs: impl PayloadTransactionsWithCommitHook<
             Transaction: PoolTransaction<Consensus = TxTy<Evm::Primitives>> + OpPooledTx,
         >,
+        gas_limit_cap: Option<u64>,
+        mut committed_txs: Option<&mut Vec<Recovered<TxTy<Evm::Primitives>>>>,
     ) -> Result<Option<()>, PayloadBuilderError>
     where
         Builder: BlockBuilder<Primitives = Evm::Primitives>,
         <<Builder::Executor as BlockExecutor>::Evm as AlloyEvm>::DB: Database,
+        <Builder::Executor as BlockExecutor>::Result: PreRefundGasUsed,
     {
         let mut block_gas_limit = builder.evm_mut().block().gas_limit();
         if let Some(gas_limit_config) = self.builder_config.gas_limit_config.gas_limit() {
@@ -723,14 +1060,31 @@ where
             // the block's actual gas limit.
             block_gas_limit = gas_limit_config.min(block_gas_limit);
         };
+        if let Some(gas_limit_cap) = gas_limit_cap {
+            // If a gas limit cap is provided, use that limit as target if it's smaller, otherwise
+            // use the block's actual gas limit.
+            block_gas_limit = gas_limit_cap.min(block_gas_limit);
+        }
         let block_da_limit = self.builder_config.da_config.max_da_block_size();
         let tx_da_limit = self.builder_config.da_config.max_da_tx_size();
+        let max_uncompressed_block_size = self.builder_config.max_uncompressed_block_size;
         let base_fee = builder.evm_mut().block().basefee();
+        // Snapshot the interop failsafe once for this build. Gating here, rather than relying on
+        // async pool eviction, excludes interop txs that bypassed the filter (e.g. private or
+        // local txs) and avoids racing eviction to drain the pool.
+        let interop_failsafe_active = self.builder_config.interop_failsafe.enabled();
 
         while let Some(tx) = best_txs.next(()) {
             let interop = tx.interop_deadline();
             let tx_da_size = tx.estimated_da_size();
+            // Compute the miner fee on the pool tx so downstream pool wrappers can
+            // override `effective_tip_per_gas` (e.g. to convert non-native fee
+            // denominations into a native-wei tip) before the consensus tx is exposed.
+            let miner_fee = tx
+                .effective_tip_per_gas(base_fee)
+                .expect("selected pool transaction must have a valid effective miner tip at the block base fee");
             let tx = tx.into_consensus();
+            let tx_uncompressed_size = tx.encode_2718_len() as u64;
 
             let da_footprint_gas_scalar = self
                 .chain_spec
@@ -748,6 +1102,8 @@ where
                 block_da_limit,
                 tx.gas_limit(),
                 da_footprint_gas_scalar,
+                tx_uncompressed_size,
+                max_uncompressed_block_size,
             ) {
                 // we can't fit this transaction into the block, so we need to mark it as
                 // invalid which also removes all dependent transaction from
@@ -758,6 +1114,12 @@ where
 
             // A sequencer's block should never contain blob or deposit transactions from the pool.
             if tx.is_eip4844() || tx.is_deposit() {
+                best_txs.mark_invalid(tx.signer(), tx.nonce());
+                continue;
+            }
+
+            // While the failsafe is active, exclude every interop tx regardless of its deadline.
+            if interop_failsafe_active && is_interop_tx(&*tx) {
                 best_txs.mark_invalid(tx.signer(), tx.nonce());
                 continue;
             }
@@ -775,7 +1137,11 @@ where
                 return Ok(Some(()));
             }
 
-            let gas_used = match builder.execute_transaction(tx.clone()) {
+            let mut evm_gas_used = 0;
+            let gas_used = match builder
+                .execute_transaction_with_result_closure(tx.clone(), |result| {
+                    evm_gas_used = result.evm_gas_used()
+                }) {
                 Ok(gas_used) => gas_used,
                 Err(BlockExecutionError::Validation(BlockValidationError::InvalidTx {
                     error,
@@ -800,16 +1166,29 @@ where
 
             // add gas used by the transaction to cumulative gas used, before creating the
             // receipt
-            info.cumulative_gas_used += gas_used;
+            let tx_gas_used = gas_used.tx_gas_used();
+            info.accumulate_gas(tx_gas_used, evm_gas_used);
             info.cumulative_da_bytes_used += tx_da_size;
+            info.cumulative_uncompressed_bytes += tx_uncompressed_size;
 
             // update and add to total fees
-            let miner_fee = tx
-                .effective_tip_per_gas(base_fee)
-                .expect("fee is always valid; execution succeeded");
-            info.total_fees += U256::from(miner_fee) * U256::from(gas_used);
+            info.total_fees += U256::from(miner_fee) * U256::from(tx_gas_used);
+
+            // Report the gas used by each committed transaction so a custom
+            // `best_txs` can update its own per-inclusion state. `RethPayloadTransactions`
+            // makes this a no-op for a plain `PayloadTransactions`.
+            best_txs.on_commit(tx_gas_used);
+
+            // Record the successfully committed transaction for callers that want per-call
+            // visibility.
+            if let Some(sink) = committed_txs.as_deref_mut() {
+                sink.push(tx);
+            }
         }
 
         Ok(None)
     }
 }
+
+#[cfg(test)]
+mod tests;

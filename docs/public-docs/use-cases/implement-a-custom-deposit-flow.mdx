@@ -1,0 +1,193 @@
+---
+title: Implement a custom deposit flow
+description: Build an L1 to L2 deposit path for your application, choosing the right contract entry point and handling gas, aliasing, and failed messages.
+diataxis: how-to
+content-type: solution-guide
+last-reviewed: 2026-07-18
+---
+
+This guide takes an app developer whose contracts need to trigger effects on
+an OP Stack chain from Ethereum and walks the deposit path in one pass: how a
+deposit travels from L1 to L2, which of the three contract entry points fits
+your use case, and the safety details (gas limits, address aliasing, failed
+messages) that custom integrations get wrong. It involves the `StandardBridge`,
+the `CrossDomainMessenger` pair, and the `OptimismPortal` contract.
+
+## Is this guide for you?
+
+Use this guide if:
+
+*   You are building contracts or backend infrastructure that initiate L2
+    actions from L1: a custom token bridge, an L1-controlled L2 contract, or
+    a protocol that must be able to force transactions into the L2.
+*   You need to choose *which* contract interface to build against, not just
+    follow one path.
+
+If you only need to move ETH or a standard ERC-20 between layers, use the
+[Standard Bridge](/app-developers/guides/bridging/standard-bridge) as is. If
+your goal is L2 to L1 (withdrawals), read the
+[withdrawal flow explanation](/op-stack/bridging/withdrawal-flow) instead; the
+7-day challenge period makes it a different problem. For messaging between two
+OP Stack chains rather than L1 and L2, see
+[interop explainer](/op-stack/interop/explainer). This guide covers the L1 to
+L2 direction only.
+
+## Before you start
+
+You should already have:
+
+*   A Solidity development environment and a funded account on Sepolia and
+    OP Sepolia (or another OP Stack testnet).
+*   Basic familiarity with how contracts call each other on a single chain;
+    the [bridging basics guide](/app-developers/guides/bridging/basics) sets
+    the baseline vocabulary.
+
+## Step 1: Map the deposit path
+
+Every L1 to L2 write, whatever interface you use, ends as a call to the
+`OptimismPortal` contract's `depositTransaction` function, which emits a
+`TransactionDeposited` event that the rollup node derives into an L2
+transaction. Read the [deposit flow explanation](/op-stack/bridging/deposit-flow)
+and take away:
+
+*   The encapsulation chain: your contract calls a messenger, the messenger
+    calls the portal, the portal emits the event, and `op-node` turns the
+    event into an L2 transaction. Each layer you use adds convenience and
+    safety on top of the one below it.
+*   That deposits are included by derivation, not by the sequencer's grace:
+    once the L1 transaction is confirmed, the L2 transaction will happen.
+
+Then skim [Sending data between L1 and L2](/app-developers/guides/bridging/messaging)
+and take away the `sendMessage(target, message, minGasLimit)` interface shape,
+the 1 to 3 minute L1 to L2 delivery time, and how the portal charges for L2
+execution by burning L1 gas.
+
+## Step 2: Choose your entry layer
+
+This is the decision that shapes everything downstream. Work down the table
+and stop at the first row that fits:
+
+| If ...                                                                                 | Choose ...                                    | Because ...                                                                                                                                                                 |
+| -------------------------------------------------------------------------------------- | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| You are moving ETH or ERC-20 tokens and standard lock-and-mint accounting fits         | `StandardBridge`, extended if necessary       | It is the audited path, it is compatible with the Superchain Bridges UI and the token list, and [building a custom bridged token](/app-developers/tutorials/bridging/standard-bridge-custom-token) covers most "the standard token doesn't fit" cases without a new bridge. |
+| You are calling an L2 contract and want delivery guarantees                            | `L1CrossDomainMessenger.sendMessage`          | The messenger records messages that fail on L2 and lets anyone replay them with more gas, and the target can authenticate the L1 sender via `xDomainMessageSender`.        |
+| You need raw deposited transactions: forced inclusion when the sequencer censors you, or full control of the L2 call | `OptimismPortal.depositTransaction`, called directly | Nothing sits between you and derivation. But you give up the messenger's replay safety net and sender authentication, and address aliasing applies to your contract (Step 3). |
+
+For the current contract interfaces, use the
+[contracts-bedrock reference](https://devdocs.optimism.io/contracts-bedrock)
+or the source on `develop`:
+[`StandardBridge.sol`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/universal/StandardBridge.sol),
+[`CrossDomainMessenger.sol`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/universal/CrossDomainMessenger.sol),
+and [`OptimismPortal2.sol`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OptimismPortal2.sol).
+Deployed addresses for OP Mainnet and OP Sepolia are on the
+[contract addresses page](/op-mainnet/network-information/op-addresses).
+
+If you concluded you need a custom bridge, read the
+[custom bridges guide](/app-developers/guides/bridging/custom-bridge) and take
+away the recommendation to extend `StandardBridge` rather than start from
+scratch, and the requirement to register bridged tokens in the Superchain
+Token List.
+
+## Step 3: Get the safety details right
+
+Three properties of the deposit path surprise custom integrations. Check each
+against your design before writing code:
+
+*   **Address aliasing.** When a *contract* (not an EOA) initiates a deposit,
+    the `from` address on L2 is the L1 contract's address plus a constant
+    offset. If your L2 contract checks `msg.sender` against an L1 contract
+    address, it must check the aliased form. Read
+    [address aliasing in the deposits spec](https://specs.optimism.io/protocol/deposits.html?utm_source=op-docs&utm_medium=docs#address-aliasing)
+    and take away the offset constant and the reason it exists. The messenger
+    abstracts this away; portal-direct integrations must handle it themselves.
+*   **Gas limits are minimums with real floors.** The `minGasLimit` you pass
+    to `sendMessage` is a minimum for the L2 execution, and the portal
+    enforces its own data-size-scaled minimum on every deposit (see
+    `minimumGasLimit` in
+    [`OptimismPortal2.sol`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OptimismPortal2.sol))
+    plus a hard cap on deposit calldata size. The L1 gas burned to pay for L2
+    gas is dynamic, so follow the
+    [fee guidance in the messaging guide](/app-developers/guides/bridging/messaging#fees-for-sending-data-between-l1-and-l2)
+    and take away the recommendation to buffer your gas limit by at least 20%.
+*   **Sender authentication.** On the receiving side, `msg.sender` is the L2
+    messenger, not your L1 contract. Read
+    [accessing msg.sender](/app-developers/guides/bridging/messaging#accessing-msgsender)
+    and take away the `xDomainMessageSender` check pattern. Portal-direct
+    deposits do not get this: the L2 target sees only the (aliased) `from`.
+
+## Step 4: Build against the pattern
+
+Each entry layer has a worked, runnable path. Follow the one matching your
+Step 2 decision; each is a tutorial, so it includes environment setup this
+guide skips:
+
+*   **Standard Bridge with a custom token**: follow
+    [Bridging your custom ERC-20 token](/app-developers/tutorials/bridging/standard-bridge-custom-token)
+    to deploy an `OptimismMintableERC20` variant with custom logic.
+*   **Messenger-based contract calls**: follow
+    [Communicating between contracts on L1 and L2](/app-developers/tutorials/bridging/cross-dom-solidity)
+    for the full send, relay, and authenticate loop in Solidity.
+*   **Portal-direct deposits**: there is no dedicated tutorial; work from the
+    `depositTransaction` interface in
+    [`OptimismPortal2.sol`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OptimismPortal2.sol)
+    and the
+    [deposits spec](https://specs.optimism.io/protocol/deposits.html?utm_source=op-docs&utm_medium=docs#user-deposited-transactions),
+    and keep Step 3's aliasing and gas rules in front of you.
+
+## Step 5: Test the flow locally
+
+Deposits cross two chains, so test against a local multi-chain environment
+before testnet. Follow the
+[supersim deposit transactions tutorial](/app-developers/tutorials/bridging/deposit-transactions)
+and take away how supersim surfaces the `OptimismPortal`,
+`L1CrossDomainMessenger`, and `L1StandardBridge` addresses for each local
+chain, and how to watch a deposit land on the L2 without running a full
+derivation pipeline.
+
+## Step 6: Plan for failed deposits
+
+An L2 execution can fail (usually out-of-gas), and your design must decide in
+advance who notices and who pays for the retry:
+
+| If ...                                                     | Choose ...                                             | Because ...                                                                                          |
+| ----------------------------------------------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| You went through the messenger (or Standard Bridge)        | A monitoring-and-replay runbook                         | Failed messages are recorded on L2 and anyone can replay them later with a higher gas limit.         |
+| You went portal-direct                                      | Conservative gas limits and idempotent L2 handlers      | There is no recorded-message safety net; a failed deposited transaction is final.                    |
+
+For the messenger path, follow the
+[replaying a failed deposit tutorial](/app-developers/tutorials/bridging/replay-failed-deposit)
+and take away how a failed message is detected and the replay call that
+retries it with more gas.
+
+## Step 7: Verify the outcome
+
+Run your flow end to end on testnet and confirm each link of the chain:
+
+*   **The L1 side**: your transaction emits a `TransactionDeposited` event
+    from the `OptimismPortal` (directly or via the messenger). This event is
+    the canonical proof the deposit entered the system.
+*   **The L2 side**: the corresponding L2 transaction appears within a few
+    minutes, and the target contract observed the sender it expected
+    (`xDomainMessageSender` for messenger flows, the aliased address for
+    portal-direct flows).
+*   **The failure drill** (messenger flows): force one deposit to fail with an
+    undersized `minGasLimit`, confirm it is recorded as a failed message, and
+    replay it successfully per Step 6.
+*   **Token accounting** (bridge flows): amounts locked on L1 match amounts
+    minted on L2, and the round trip back burns and releases correctly.
+
+## Next steps
+
+*   [Deposits in the protocol specs](https://specs.optimism.io/protocol/deposits.html?utm_source=op-docs&utm_medium=docs):
+    the normative definition of deposited transactions, the deposit contract,
+    and address aliasing.
+*   [contracts-bedrock reference](https://devdocs.optimism.io/contracts-bedrock):
+    generated interface documentation for the current contracts, for when you
+    need the exact function and event signatures.
+*   [`OptimismPortal2.sol` on develop](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OptimismPortal2.sol):
+    the deposit entry point's source, including `minimumGasLimit` and the
+    calldata cap. Tracks the `develop` branch, so read it alongside the
+    release your chain actually runs.
+*   [Superchain Token List](/app-developers/reference/tokens/tokenlist):
+    where custom-bridged tokens must be registered before users can find
+    them.

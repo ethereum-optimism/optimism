@@ -17,10 +17,11 @@ use tracing::{error, info};
 use transition::sub_transition;
 
 use crate::fpvm_evm::FpvmOpEvmFactory;
+use alloy_op_evm::post_exec::PostExecEvmFactoryAdapter;
 
 pub(crate) mod consolidate;
 pub(crate) mod transition;
-pub(crate) mod util;
+pub mod util;
 
 /// An error that can occur when running the fault proof program.
 #[derive(Error, Debug)]
@@ -76,15 +77,17 @@ where
         }
     };
 
-    let evm_factory = FpvmOpEvmFactory::new(hint_client, oracle_client);
+    let evm_factory =
+        PostExecEvmFactoryAdapter::new(FpvmOpEvmFactory::new(hint_client, oracle_client));
 
     // Load in the agreed pre-state from the preimage oracle in order to determine the active
     // sub-problem.
     match boot.agreed_pre_state {
         PreState::SuperRoot(ref super_root) => {
-            // If the claimed L2 block timestamp is less than the super root timestamp, the
-            // post-state must be the agreed pre-state to accommodate trace extension.
-            if super_root.timestamp >= boot.claimed_l2_timestamp {
+            // At the trace-extension boundary, the post-state must equal the agreed pre-state.
+            // The strict-`>` case is guarded against in `BootInfo::load` (panics there); this
+            // arm only handles the legitimate `==` boundary.
+            if super_root.timestamp == boot.claimed_l2_timestamp {
                 if boot.agreed_pre_state_commitment == boot.claimed_post_state {
                     return Ok(());
                 } else {
@@ -99,13 +102,18 @@ where
             sub_transition(oracle, boot, evm_factory).await
         }
         PreState::TransitionState(ref transition_state) => {
-            // If the claimed L2 block timestamp is less than the prestate timestamp, the
-            // claim must be invalid.
-            if transition_state.pre_state.timestamp >= boot.claimed_l2_timestamp {
-                return Err(FaultProofProgramError::InvalidClaim(
-                    boot.agreed_pre_state_commitment,
-                    boot.claimed_post_state,
-                ));
+            // At the trace-extension boundary, the post-state must equal the agreed pre-state.
+            // The strict-`>` case is guarded against in `BootInfo::load` (panics there); this
+            // arm only handles the legitimate `==` boundary, mirroring the SuperRoot arm above.
+            if transition_state.pre_state.timestamp == boot.claimed_l2_timestamp {
+                if boot.agreed_pre_state_commitment == boot.claimed_post_state {
+                    return Ok(());
+                } else {
+                    return Err(FaultProofProgramError::InvalidClaim(
+                        boot.agreed_pre_state_commitment,
+                        boot.claimed_post_state,
+                    ));
+                }
             }
 
             // If the pre-state is a transition state, the sub-problem is selected based on the

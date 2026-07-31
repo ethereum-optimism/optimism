@@ -2,7 +2,18 @@
 title: FP system components
 description: Learn about Fault Proof System components and how they work together to
   enhance decentralization in the Optimism ecosystem.
+diataxis: explanation
 ---
+
+import { NormativeSpec } from "/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="The fault proof system's component stack"
+  title="fault proof specification"
+  href="https://specs.optimism.io/fault-proof/index.html"
+  note="This page explains how the components fit together; it does not restate the spec."
+/>
+
 This page explains the fault proof system components and how they work together to enhance decentralization in the Optimism ecosystem.
 
 The Fault Proof System is comprised of three main components: a Fault Proof Program (FPP), a Fault Proof Virtual Machine (FPVM), and a dispute game protocol.
@@ -31,12 +42,12 @@ The OP Stack's unique, modular design allows the decoupling of the FPP and FPVM,
 
 The Fault Proof Program (FPP) is one of the modules in the OP Stack's fault proof system. 
 It is a combination of both the consensus and execution "parts" of the protocol in a single process. This means Engine API calls that would normally be made over HTTP are instead made as direct method calls to the execution client code.
-The default for this system component is `op-program`, a combination of `op-geth` and `op-node`, both written in Go. For the Rust stack there is `kona-client` which is a combination of `kona-node` and `op-reth`.
+The default for this system component is `kona-client`, a Rust implementation combining `kona-node` and `op-reth`. Its predecessor `op-program` (a combination of `op-geth` and `op-node`, written in Go) has reached end-of-support and does not support the now-active Karst hardfork. See [End of Support for op-geth and op-program](/notices/archive/op-geth-deprecation).
 These both implement a fault proof program that runs through the rollup state-transition to verify an L2 output from L1 inputs. This verifiable output can then resolve a disputed output on L1.
 
 The FPP is designed so that it can be run in a deterministic way such that two invocations with the same input data will result in not only the same output, but the same program execution trace. This allows it to be run in an onchain VM as part of the dispute resolution process.
 
-All data is retrieved via the [Preimage Oracle API](https://specs.optimism.io/experimental/fault-proof/index.html#pre-image-oracle?utm_source=op-docs&utm_medium=docs). The preimages could be provided via the FPVM when onchain or by a native "host" implementation that can download the required data from nodes via JSON-RPC requests. The native host implementation is also provided by `op-program` but doesn't run as part of the onchain execution.  Basically, `op-program` has two halves: the "client" Fault Proof Program part covered in this section and the "host" part used to fetch required preimages.
+All data is retrieved via the [Preimage Oracle API](https://specs.optimism.io/fault-proof/index.html?utm_source=op-docs&utm_medium=docs#pre-image-oracle). The preimages could be provided via the FPVM when onchain or by a native "host" implementation that can download the required data from nodes via JSON-RPC requests. For `kona-client`, that native host implementation is `kona-host`, and it doesn't run as part of the onchain execution. Basically, the fault proof program has two halves: the "client" Fault Proof Program part covered in this section and the "host" part used to fetch required preimages. (The end-of-support `op-program` followed the same client/host split.)
 
 ## Fault proof virtual machine
 
@@ -47,7 +58,7 @@ To do this, only one instruction is proven at a time. The bisection game will na
 *   To execute the instruction, the VM emulates something akin to an instruction-cycle of a thread-context: the instruction is read from memory, interpreted, and the register-file and memory may change a little.
 *   To support the pre-image oracle, and basic program runtime needs like memory-allocation, the execution also supports a subset of linux syscalls. Read/write syscalls allow interaction with the pre-image oracle: the program writes a hash as request for a pre-image, and then reads the value in small chunks at a time.
 
-OP Stack's modularity decouples the Fault Proof Program (FPP) from the Fault Proof Virtual Machine (FPVM) to enable next-level composability and efficient parallelized upgrades to both components. The FPP (client-side) that runs within the FPVM is the part that expresses the L2 state-transition, and the interface between FPVM and FPP is standardized and documented in the [specs](https://github.com/ethereum-optimism/optimism/blob/546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f/specs/cannon-fault-proof-vm.md).
+OP Stack's modularity decouples the Fault Proof Program (FPP) from the Fault Proof Virtual Machine (FPVM) to enable next-level composability and efficient parallelized upgrades to both components. The FPP (client-side) that runs within the FPVM is the part that expresses the L2 state-transition, and the interface between FPVM and FPP is standardized and documented in the [specs](https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs).
 
 Through this separation, the VM stays ultra-minimal: Ethereum protocol changes, like EVM op-code additions, do not affect the VM. Instead, when the protocol changes, the FPP can simply be updated to import the new state-transition components from the node software. Similar to playing a new version of a game on the same game console, the L1 proof system can be updated to prove a different program.
 
@@ -55,7 +66,7 @@ Through this separation, the VM stays ultra-minimal: Ethereum protocol changes, 
 
 ## Dispute game protocol
 
-In the Dispute protocol, different types of dispute games can be created, managed, and upgraded through the [DisputeGameFactory](https://github.com/ethereum-optimism/optimism/blob/6a53c7a3294edf140d552962f81c0f742bf445f9/packages/contracts-bedrock/src/dispute/DisputeGameFactory.sol#L4).
+In the Dispute protocol, different types of dispute games can be created, managed, and upgraded through the [DisputeGameFactory](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/DisputeGameFactory.sol#L24).
 This opens the door to innovative features, like aggregate proof systems and the ability to expand the protocol to allow for disputing things apart from the state of L2, such as a `FaultDisputeGame` geared towards onchain binary verification.
 
 A dispute game is a core primitive to the dispute protocol. It models a simple state machine, and it is initialized with a 32 byte commitment to any piece of information of which the validity can be disputed.
@@ -69,7 +80,7 @@ We bisect over output roots (which each correspond to single L2 blocks), until w
 After bisection has reached commitments to the state at individual trace instructions, the `FaultDisputeGame` executes a single instruction step on chain using a generic VM.
 The VM's state transition function, which we'll call `T`, can be anything, so long as it adheres to the form `T(s, i) -> s'`, where `s` = the agreed upon prestate, `i` = the state transition inputs, and `s'` = the post state.
 
-The first full implementation of the VM generic in the bisection game includes a single MIPS thread context on top of the EVM to execute a single instruction within an execution trace generated by `Cannon` and the `op-program`.
+The first full implementation of the VM generic in the bisection game includes a single MIPS thread context on top of the EVM to execute a single instruction within an execution trace generated by `Cannon` and the fault proof program (originally `op-program`, which has since reached [end-of-support](/notices/archive/op-geth-deprecation); current games use `kona-client`).
 
 ## Next steps
 

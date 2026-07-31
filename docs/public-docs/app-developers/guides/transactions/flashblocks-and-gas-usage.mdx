@@ -1,11 +1,12 @@
 ---
 title: "Flashblocks and Gas Usage on OP Stack"
-description: "Explains how Flashblocks affect block gas usage, transaction inclusion, and how to avoid unexpected rejections for large transactions."
+description: "Explains how Flashblocks affect block gas usage, transaction inclusion, and why large transactions can be rejected or stay pending."
+diataxis: explanation
 ---
 
 This document explains how **Flashblocks** affect block gas usage, transaction inclusion, large-transaction handling, and how to avoid unexpected transaction rejections.
 
-If you are unfamiliar with Flashblocks you can read more [here](https://docs.optimism.io/op-stack/features/flashblocks#flashblocks).
+If you are unfamiliar with Flashblocks you can read more in the [Flashblocks explainer](/op-stack/features/flashblocks).
 
 ---
 
@@ -19,13 +20,9 @@ With **Flashblocks**, block construction is incremental and *effective transacti
 
 ## What Are Flashblocks?
 
-Flashblocks are an incremental block-building mechanism used by the sequencer and block builder.
-
-Instead of constructing the full block at once, the block is built in **N flashblocks** (currently 8):
-
-- Each flashblock increases the *cumulative gas budget* available for inclusion
-- Earlier flashblocks can only include smaller transactions
-- Larger transactions can only be included later, *if enough gas remains*
+Flashblocks are an incremental block-building mechanism: instead of constructing the full block at once, the sequencer's block builder assembles it as a series of flashblocks, each of which adds to the *cumulative gas budget* available for inclusion.
+For what Flashblocks are, the components involved, and how many flashblocks a block contains, see the [Flashblocks explainer](/op-stack/features/flashblocks).
+The consequence for gas usage is that earlier flashblocks can only include smaller transactions, and larger transactions fit only later in the block, *if enough gas remains*.
 
 ### Example
 
@@ -57,7 +54,7 @@ A transaction may be submitted with a gas limit lower than the total block gas l
 
 This happens because transaction acceptance and transaction inclusion are decided by different components.
 
-Genrally:
+Generally:
 - Incoming transactions first enter the Execution Layer txpool.
 - The EL checks whether `tx.gasLimit` exceeds the **full block gas limit**.
   - If it does, it rejects with `exceeds block gas limit`.

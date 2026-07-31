@@ -1,7 +1,7 @@
 [package]
 name = "op-revm"
 description = "Optimism variant of Revm"
-version = "17.0.0"
+version = "20.0.0"
 authors.workspace = true
 edition.workspace = true
 keywords.workspace = true
@@ -21,6 +21,9 @@ workspace = true
 revm.workspace = true
 auto_impl.workspace = true
 
+# op-alloy
+op-alloy-consensus = { workspace = true }
+
 # Optional
 serde = { workspace = true, features = ["derive", "rc"], optional = true }
 
@@ -37,12 +40,13 @@ default = ["std", "c-kzg", "secp256k1", "portable", "blst"]
 std = [
 	"serde?/std",
 	"revm/std",
+	"op-alloy-consensus/std",
 	"alloy-sol-types/std",
 	"sha2/std",
 	"serde_json/std",
 	"alloy-primitives/std",
 ]
-serde = ["dep:serde", "revm/serde", "alloy-primitives/serde"]
+serde = ["dep:serde", "revm/serde", "alloy-primitives/serde", "op-alloy-consensus/serde"]
 portable = ["revm/portable"]
 
 dev = [

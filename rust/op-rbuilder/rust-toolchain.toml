@@ -1,0 +1,4 @@
+[toolchain]
+# Matches the parent monorepo's rust/rust-toolchain.toml pin (1.95), required by reth v2.4.0.
+channel = "1.95.0"
+components = ["rustfmt", "clippy"]

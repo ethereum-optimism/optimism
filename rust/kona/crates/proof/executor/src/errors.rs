@@ -13,21 +13,14 @@ use thiserror::Error;
 
 /// Errors that can occur when validating EIP-1559 parameters from block header extra data.
 ///
-/// This error type is used for validation errors during decoding of EIP-1559 parameters,
-/// providing more specific error variants than the upstream [`EIP1559ParamError`] which
-/// is primarily designed for encoding errors.
+/// This error type is used for validation errors during decoding of EIP-1559 parameters.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum Eip1559ValidationError {
-    /// The EIP-1559 denominator cannot be zero as it would cause division by zero.
-    ///
-    /// This error occurs when the decoded denominator value from the block header's
-    /// extra data field is zero, which violates protocol specifications.
-    #[error("EIP-1559 denominator cannot be zero")]
-    ZeroDenominator,
     /// Error from EIP-1559 parameter decoding.
     ///
-    /// This variant wraps errors from the underlying EIP-1559 parameter decoding,
-    /// such as invalid version bytes, incorrect data lengths, or missing parameters.
+    /// This variant wraps errors from the underlying EIP-1559 parameter decoding, such as invalid
+    /// version bytes, incorrect data lengths, missing parameters, or a zero denominator/elasticity
+    /// encoded in the block header extra data.
     #[error(transparent)]
     Decode(#[from] EIP1559ParamError),
 }
@@ -134,6 +127,9 @@ pub enum ExecutorError {
     /// - Gas accounting bugs in execution
     #[error("Block gas limit exceeded")]
     BlockGasLimitExceeded,
+    /// Invalid post-exec payload or transaction placement.
+    #[error("Invalid post-exec payload: {0}")]
+    InvalidPostExecPayload(String),
     /// Unsupported transaction type encountered during execution.
     ///
     /// This error occurs when the executor encounters a transaction type that

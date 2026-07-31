@@ -30,9 +30,6 @@ type L2GenesisInput struct {
 	Fork                                     *big.Int
 	EnableGovernance                         bool
 	FundDevAccounts                          bool
-	UseRevenueShare                          bool
-	ChainFeesRecipient                       common.Address
-	L1FeesDepositor                          common.Address
 	UseCustomGasToken                        bool
 	UseInterop                               bool
 	GasPayingTokenName                       string

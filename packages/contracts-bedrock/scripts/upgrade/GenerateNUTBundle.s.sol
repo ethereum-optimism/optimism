@@ -3,15 +3,14 @@ pragma solidity 0.8.15;
 
 // Utilities
 import { Script } from "forge-std/Script.sol";
-
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { NetworkUpgradeTxns } from "src/libraries/NetworkUpgradeTxns.sol";
 import { L2ContractsManagerTypes } from "src/libraries/L2ContractsManagerTypes.sol";
 import { UpgradeUtils } from "scripts/libraries/UpgradeUtils.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { LibString } from "@solady/utils/LibString.sol";
 
 // Interfaces
 import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
@@ -20,28 +19,35 @@ import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
 /// @notice Generates Network Upgrade Transaction (NUT) bundles for L2 hardfork upgrades.
 /// @dev This script creates deterministic upgrade transaction bundles for L2 hardfork upgrades
 ///      using the L2ContractsManager (L2CM) system.
+/// @dev Gas limits in the generated bundle are computed from optimized contract bytecode. Any test
+///      that executes the bundle against those gas limits must be built with the optimized
+///      Foundry profile and should call skipIfUnoptimized() to skip otherwise.
 contract GenerateNUTBundle is Script {
     /// @notice CREATE2 salt for deterministic deployments.
     bytes32 internal constant SALT = bytes32(uint256(keccak256("optimism.network-upgrade")));
 
     /// @notice Name of the upgrade.
-    string internal constant UPGRADE_NAME = "karst";
+    string internal constant UPGRADE_NAME = "interop";
 
     /// @notice Version of the upgrade bundle.
     string internal constant BUNDLE_VERSION = "1.0.0";
 
+    /// @notice EIP-7825 per-transaction gas limit cap (2 ** 24).
+    uint256 public constant MAX_TX_GAS_LIMIT = 16777216;
+
     /// @notice Output containing generated transactions.
     /// @param txns Array of Network Upgrade Transactions to execute.
+    /// @param fork Fork name; L2 fork tests use it as the `PastNUTBundles.wrappersForFork` dispatch key.
     struct Output {
         NetworkUpgradeTxns.NetworkUpgradeTxn[] txns;
+        string fork;
     }
 
     /// @notice Configuration for a implementation contract deployment.
-    /// @param implementation Expected implementation address after deployment.
     /// @param deploymentGasLimit Gas limit for the deployment transaction.
-    /// @param artifactPath Forge artifact path (e.g., "MyContract.sol:MyContract").
+    /// @param implementation Expected implementation address after deployment.
     /// @param name Human-readable name for the contract.
-    /// @param args ABI-encoded constructor arguments.
+    /// @param artifactPath Forge artifact path (e.g., "MyContract.sol:MyContract").
     struct ImplementationConfig {
         address implementation;
         uint64 deploymentGasLimit;
@@ -52,24 +58,49 @@ contract GenerateNUTBundle is Script {
     /// @notice Gas limits for the upgrade.
     UpgradeUtils.GasLimits internal gasLimits;
 
-    /// @notice Expected implementations for the upgrade.
-    L2ContractsManagerTypes.Implementations internal implementations;
+    /// @notice Name + implementation records for all predeploys, derived from the registry. Passed to L2CM constructor.
+    L2ContractsManagerTypes.ImplRecord[] internal _implRecords;
 
-    /// @notice Implementation configurations.
-    mapping(string => ImplementationConfig) public implementationConfigs;
+    /// @notice Ordered list of all implementation configurations.
+    /// @dev This is the single source of truth for what implementations exist and which ones
+    ///      are deployed.
+    ImplementationConfig[] internal _implementationConfigs;
 
     /// @notice Array of generated transactions.
-    NetworkUpgradeTxns.NetworkUpgradeTxn[] internal txns;
+    NetworkUpgradeTxns.NetworkUpgradeTxn[] internal _txns;
 
     function setUp() public {
-        // Clear previous txns: Transactions are pushed to a dynamic array, so we need
-        // to delete the array to avoid pushing duplicates.
-        delete txns;
+        // Clear previous state: dynamic arrays must be deleted to avoid pushing duplicates
+        // across multiple setUp/run calls.
+        delete _txns;
+        delete _implementationConfigs;
+        delete _implRecords;
 
         gasLimits = UpgradeUtils.gasLimits();
     }
 
-    /// @notice Generates the complete upgrade transaction bundle.
+    /// @notice Generates the upgrade transaction bundle and writes the artifact to disk.
+    /// @return output_ Output containing all generated transactions in execution order.
+    function run() public returns (Output memory output_) {
+        output_ = buildOutput();
+
+        // Write transactions to artifact with metadata
+        NetworkUpgradeTxns.BundleMetadata memory metadata =
+            NetworkUpgradeTxns.BundleMetadata({ version: BUNDLE_VERSION });
+        NetworkUpgradeTxns.writeArtifact(output_.txns, metadata, Constants.CURRENT_BUNDLE_PATH);
+    }
+
+    /// @notice Builds the upgrade transaction bundle without writing the artifact to disk.
+    /// @return output_ Output containing all generated transactions in execution order.
+    function buildOutput() public returns (Output memory output_) {
+        setUp();
+
+        output_ = _buildOutput();
+
+        _assertValidOutput(output_);
+    }
+
+    /// @notice Builds the upgrade transaction bundle Output struct.
     /// @dev Executes 5 phases in fixed order:
     ///      1. Pre-implementation deployments [CUSTOM]
     ///      2. Implementation deployments [FIXED]
@@ -78,8 +109,8 @@ contract GenerateNUTBundle is Script {
     ///      5. Upgrade execution [FIXED]
     /// @dev Only modify phases 1 and 3 for fork-specific logic. Other phases must remain unchanged.
     /// @return output_ Output containing all generated transactions in execution order.
-    function run() public returns (Output memory output_) {
-        setUp();
+    function _buildOutput() internal returns (Output memory output_) {
+        output_.fork = UPGRADE_NAME;
 
         // Build implementation deployment configurations
         _buildImplementationDeploymentConfigs();
@@ -92,8 +123,8 @@ contract GenerateNUTBundle is Script {
         // Phase 2: Implementation deployments
         _generateImplementationDeployments();
 
-        // Build the implementations struct
-        implementations = _getImplementations();
+        // Build impl records from the registry-derived deployment configs
+        _getImplementations();
 
         // Phase 3: Pre-L2CM deployment
         // Add fork-specific deployment or upgrade logic that must occur between the implementation deployment
@@ -107,32 +138,53 @@ contract GenerateNUTBundle is Script {
         _generateUpgradeExecution();
 
         // Copy storage array to memory array for return
-        uint256 txnsLength = txns.length;
+        uint256 txnsLength = _txns.length;
         output_.txns = new NetworkUpgradeTxns.NetworkUpgradeTxn[](txnsLength);
         for (uint256 i = 0; i < txnsLength; i++) {
-            output_.txns[i] = txns[i];
+            output_.txns[i] = _txns[i];
         }
 
         _assertValidOutput(output_);
+    }
 
-        // Write transactions to artifact with metadata
-        NetworkUpgradeTxns.BundleMetadata memory metadata =
-            NetworkUpgradeTxns.BundleMetadata({ version: BUNDLE_VERSION });
-        NetworkUpgradeTxns.writeArtifact(txns, metadata, Constants.CURRENT_BUNDLE_PATH);
+    /// @notice Returns the names of implementations scheduled for standard deployment.
+    function getStandardDeploymentNames() public view returns (string[] memory names_) {
+        uint256 count = _implementationConfigs.length;
+        names_ = new string[](count);
+        for (uint256 i = 0; i < count; i++) {
+            names_[i] = _implementationConfigs[i].name;
+        }
     }
 
     /// @notice Asserts the output is valid.
     /// @param _output The output to assert.
-    function _assertValidOutput(Output memory _output) internal pure {
-        uint256 transactionCount = UpgradeUtils.getTransactionCount();
-        uint256 txnsLength = _output.txns.length;
-        require(txnsLength == transactionCount, "GenerateNUTBundle: invalid transaction count");
+    function _assertValidOutput(Output memory _output) internal view {
+        // Total expected transactions:
+        //   - standard implementation deployments
+        //   - [KARST] ConditionalDeployer deployment + ConditionalDeployer upgrade + L2ProxyAdmin upgrade
+        //   - L2ContractsManager deployment
+        //   - L2ProxyAdmin.upgradePredeploys() call
+        uint256 transactionCount = _implementationConfigs.length + 2;
+        if (keccak256(abi.encodePacked(UPGRADE_NAME)) == keccak256(abi.encodePacked("karst"))) {
+            transactionCount += 3;
+        }
+        require(_output.txns.length == transactionCount, "GenerateNUTBundle: invalid transaction count");
 
-        for (uint256 i = 0; i < txnsLength; i++) {
+        for (uint256 i = 0; i < transactionCount; i++) {
             require(_output.txns[i].data.length > 0, "GenerateNUTBundle: invalid transaction data");
             require(bytes(_output.txns[i].intent).length > 0, "GenerateNUTBundle: invalid transaction intent");
             require(_output.txns[i].to != address(0), "GenerateNUTBundle: invalid transaction to");
-            require(_output.txns[i].gasLimit > 0, "GenerateNUTBundle: invalid transaction gasLimit");
+            // Lower bound: EIP-7623 calldata floor (op-geth rejects with ErrFloorDataGas below this).
+            // Upper bound: EIP-7825 per-tx gas cap (2 ** 24). The floor dominates `> 0`, so the
+            // floor is the only lower bound we need here, assuming every NUT is a CALL, which is
+            // guaranteed by the `to != address(0)` check above.
+            uint64 floorDataGas = UpgradeUtils.computeFloorDataGas(_output.txns[i].data);
+            require(
+                _output.txns[i].gasLimit >= floorDataGas && _output.txns[i].gasLimit <= MAX_TX_GAS_LIMIT,
+                string.concat(
+                    "GenerateNUTBundle: gasLimit outside [EIP-7623 floor, EIP-7825 cap] for ", _output.txns[i].intent
+                )
+            );
 
             if (_output.txns[i].from == address(0)) {
                 // Transactions must have a from address except for ProxyAdmin and ConditionalDeployer upgrades
@@ -165,13 +217,7 @@ contract GenerateNUTBundle is Script {
     ///      fork-specific deployment or upgrade logic that must occur prior to the standard
     ///      implementation deployment phase. The rest of the script follows a fixed structure and
     ///      should not be modified.
-    function _preImplementationDeployments() internal {
-        if (keccak256(abi.encodePacked(UPGRADE_NAME)) == keccak256(abi.encodePacked("karst"))) {
-            // TODO(#19369): Remove these steps once Karst upgrade is deployed in all chains.
-            // ConditionalDeployer deployment + upgrade
-            _generateConditionalDeployerTxns();
-        }
-    }
+    function _preImplementationDeployments() internal { }
 
     /// @notice Pre-L2CM deployment phase for fork-specific setup.
     /// @dev This function executes AFTER implementations are deployed but BEFORE the L2ContractsManager
@@ -181,58 +227,7 @@ contract GenerateNUTBundle is Script {
     /// @dev IMPORTANT: This is one of only TWO extension points in this script. Do not modify
     ///      the core deployment flow in _generateL2CMDeployment, _generateUpgradeExecution, or other
     ///      fixed phases.
-    function _preL2CMDeployment() internal {
-        if (keccak256(abi.encodePacked(UPGRADE_NAME)) == keccak256(abi.encodePacked("karst"))) {
-            // TODO(#19369): Remove these steps once Karst upgrade is deployed in all chains.
-            // L2ProxyAdmin upgrade
-            _generateL2ProxyAdminUpgrade(implementations.proxyAdminImpl);
-        }
-    }
-
-    // ========================================
-    // KARST-ONLY NUTs
-    // ========================================
-
-    /// @notice Generates ConditionalDeployer deployment and upgrade transactions.
-    /// @dev TODO(#19369): Remove this function once Karst upgrade is deployed in all chains.
-    function _generateConditionalDeployerTxns() internal {
-        // 1. Deploy ConditionalDeployer implementation
-        bytes memory conditionalDeployerCode =
-            abi.encodePacked(DeployUtils.getCode("ConditionalDeployer.sol:ConditionalDeployer"));
-
-        txns.push(
-            NetworkUpgradeTxns.NetworkUpgradeTxn({
-                intent: "ConditionalDeployer Deployment",
-                from: Constants.DEPOSITOR_ACCOUNT,
-                to: Preinstalls.DeterministicDeploymentProxy,
-                gasLimit: gasLimits.conditionalDeployerDeployment,
-                data: abi.encodePacked(SALT, conditionalDeployerCode)
-            })
-        );
-
-        // 2. Upgrade ConditionalDeployer proxy
-        address newConditionalDeployerImpl = UpgradeUtils.computeCreate2Address(conditionalDeployerCode, SALT);
-        txns.push(
-            UpgradeUtils.createUpgradeTxn(
-                "ConditionalDeployer",
-                Predeploys.CONDITIONAL_DEPLOYER,
-                newConditionalDeployerImpl,
-                gasLimits.conditionalDeployerUpgrade
-            )
-        );
-    }
-
-    /// @notice Generates L2ProxyAdmin upgrade transaction.
-    /// @dev    It upgrades the L2ProxyAdmin to add the upgradePredeploys() function.
-    /// @param _proxyAdminImpl Address of the new L2ProxyAdmin implementation.
-    /// @dev TODO(#19369): Remove this function once Karst upgrade is deployed in all chains.
-    function _generateL2ProxyAdminUpgrade(address _proxyAdminImpl) internal {
-        txns.push(
-            UpgradeUtils.createUpgradeTxn(
-                "L2ProxyAdmin", Predeploys.PROXY_ADMIN, _proxyAdminImpl, gasLimits.proxyAdminUpgrade
-            )
-        );
-    }
+    function _preL2CMDeployment() internal { }
 
     // ========================================
     // FIXED NUT OPERATIONS
@@ -243,16 +238,12 @@ contract GenerateNUTBundle is Script {
     ///      via ConditionalDeployer.deploy(), which ensures idempotent deployments.
     /// @dev IMPORTANT: Only modify this function if you need to add or modify a fixed implementation deployment.
     function _generateImplementationDeployments() internal {
-        // Get all implementations to upgrade
-        string[] memory implementationsToUpgrade = UpgradeUtils.getImplementationsNamesToUpgrade();
-
-        for (uint256 i = 0; i < implementationsToUpgrade.length; i++) {
-            // Get implementation config
-            ImplementationConfig memory config = implementationConfigs[implementationsToUpgrade[i]];
+        for (uint256 i = 0; i < _implementationConfigs.length; i++) {
+            ImplementationConfig memory config = _implementationConfigs[i];
 
             _assertValidImplementationConfig(config);
 
-            txns.push(
+            _txns.push(
                 UpgradeUtils.createDeploymentTxn(config.name, config.artifactPath, SALT, config.deploymentGasLimit)
             );
         }
@@ -263,10 +254,10 @@ contract GenerateNUTBundle is Script {
     ///      with all implementation addresses encoded in its constructor.
     function _generateL2CMDeployment() internal {
         // Encode constructor arguments
-        bytes memory l2cmArgs = abi.encode(implementations);
+        bytes memory l2cmArgs = abi.encode(_implRecords);
 
         // Deploy L2ContractsManager with encoded implementation addresses
-        txns.push(
+        _txns.push(
             UpgradeUtils.createDeploymentTxnWithArgs(
                 "L2ContractsManager",
                 "L2ContractsManager.sol:L2ContractsManager",
@@ -283,7 +274,7 @@ contract GenerateNUTBundle is Script {
     ///      L2ContractsManager.upgrade() function to perform the actual upgrades.
     function _generateUpgradeExecution() internal {
         // Encode constructor arguments
-        bytes memory l2cmArgs = abi.encode(implementations);
+        bytes memory l2cmArgs = abi.encode(_implRecords);
 
         // Compute L2ContractsManager address
         address l2cm = UpgradeUtils.computeCreate2Address(
@@ -291,7 +282,7 @@ contract GenerateNUTBundle is Script {
         );
 
         // Create upgrade execution transaction
-        txns.push(
+        _txns.push(
             NetworkUpgradeTxns.NetworkUpgradeTxn({
                 intent: "L2ProxyAdmin Upgrade Predeploys",
                 from: Constants.DEPOSITOR_ACCOUNT,
@@ -306,276 +297,74 @@ contract GenerateNUTBundle is Script {
     // HELPERS
     // ========================================
 
-    /// @notice Retrieves all expected implementation addresses for the upgrade.
-    /// @dev All addresses are looked up from the implementationConfigs mapping, which contains
-    ///      deterministically computed CREATE2 addresses using the hardcoded salt. This ensures
-    ///      identical addresses across all chains executing the upgrade.
-    /// @return implementations_ Struct containing all implementation addresses.
-    function _getImplementations()
+    /// @notice Looks up an implementation address by contract name.
+    /// @dev Iterates implementationConfigs linearly; acceptable cost for a script.
+    /// @param _name The human-readable name used in buildImplementationDeploymentConfigs.
+    /// @return impl_ The implementation address, or reverts if not found.
+    function findImplByName(string memory _name) public view returns (address impl_) {
+        for (uint256 i = 0; i < _implementationConfigs.length; i++) {
+            if (LibString.eq(_implementationConfigs[i].name, _name)) {
+                return _implementationConfigs[i].implementation;
+            }
+        }
+        revert(string.concat("GenerateNUTBundle: implementation not found: ", _name));
+    }
+
+    /// @notice Populates _implRecords from _implementationConfigs.
+    /// @dev Builds the name + implementation array passed to the L2ContractsManager constructor.
+    ///      Derived entirely from the registry via buildImplementationDeploymentConfigs(),
+    ///      so adding a new predeploy to getAllRecords() automatically includes it here.
+    function _getImplementations() internal {
+        for (uint256 i = 0; i < _implementationConfigs.length; i++) {
+            _implRecords.push(
+                L2ContractsManagerTypes.ImplRecord({
+                    name: _implementationConfigs[i].name,
+                    impl: _implementationConfigs[i].implementation
+                })
+            );
+        }
+    }
+
+    /// @notice Builds the implementation configurations for all contracts to be deployed.
+    /// @dev Iterates the predeploy registry as the single source of truth.
+    ///      All variants are deployed unconditionally. L2CM selects the correct variant at runtime.
+    ///      StorageSetter is prepended first; it is a utility impl, not a predeploy.
+    function _buildImplementationDeploymentConfigs() internal {
+        _implementationConfigs.push(_makeConfig("StorageSetter", "StorageSetter.sol:StorageSetter", 498_000));
+
+        Predeploys.Variant[] memory impls = Predeploys.getUpgradeableImpls();
+        for (uint256 i = 0; i < impls.length; i++) {
+            _implementationConfigs.push(_makeConfig(impls[i].name, impls[i].artifactPath, impls[i].deployGasLimit));
+        }
+    }
+
+    /// @notice Builds a single ImplementationConfig from name, artifact path, and gas limit.
+    /// @param _name The name of the implementation.
+    /// @param _artifactPath The artifact path of the implementation.
+    /// @param _gasLimit The gas limit for the implementation deployment.
+    /// @return config_ The implementation configuration.
+    function _makeConfig(
+        string memory _name,
+        string memory _artifactPath,
+        uint64 _gasLimit
+    )
         internal
         view
-        returns (L2ContractsManagerTypes.Implementations memory implementations_)
+        returns (ImplementationConfig memory config_)
     {
-        implementations_ = L2ContractsManagerTypes.Implementations({
-            storageSetterImpl: implementationConfigs["StorageSetter"].implementation,
-            l2CrossDomainMessengerImpl: implementationConfigs["L2CrossDomainMessenger"].implementation,
-            gasPriceOracleImpl: implementationConfigs["GasPriceOracle"].implementation,
-            l2StandardBridgeImpl: implementationConfigs["L2StandardBridge"].implementation,
-            sequencerFeeWalletImpl: implementationConfigs["SequencerFeeVault"].implementation,
-            optimismMintableERC20FactoryImpl: implementationConfigs["OptimismMintableERC20Factory"].implementation,
-            l2ERC721BridgeImpl: implementationConfigs["L2ERC721Bridge"].implementation,
-            l1BlockImpl: implementationConfigs["L1Block"].implementation,
-            l1BlockCGTImpl: implementationConfigs["L1BlockCGT"].implementation,
-            l2ToL1MessagePasserImpl: implementationConfigs["L2ToL1MessagePasser"].implementation,
-            l2ToL1MessagePasserCGTImpl: implementationConfigs["L2ToL1MessagePasserCGT"].implementation,
-            optimismMintableERC721FactoryImpl: implementationConfigs["OptimismMintableERC721Factory"].implementation,
-            proxyAdminImpl: implementationConfigs["L2ProxyAdmin"].implementation,
-            baseFeeVaultImpl: implementationConfigs["BaseFeeVault"].implementation,
-            l1FeeVaultImpl: implementationConfigs["L1FeeVault"].implementation,
-            operatorFeeVaultImpl: implementationConfigs["OperatorFeeVault"].implementation,
-            schemaRegistryImpl: implementationConfigs["SchemaRegistry"].implementation,
-            easImpl: implementationConfigs["EAS"].implementation,
-            crossL2InboxImpl: implementationConfigs["CrossL2Inbox"].implementation,
-            l2ToL2CrossDomainMessengerImpl: implementationConfigs["L2ToL2CrossDomainMessenger"].implementation,
-            superchainETHBridgeImpl: implementationConfigs["SuperchainETHBridge"].implementation,
-            ethLiquidityImpl: implementationConfigs["ETHLiquidity"].implementation,
-            nativeAssetLiquidityImpl: implementationConfigs["NativeAssetLiquidity"].implementation,
-            liquidityControllerImpl: implementationConfigs["LiquidityController"].implementation,
-            feeSplitterImpl: implementationConfigs["FeeSplitter"].implementation,
-            conditionalDeployerImpl: implementationConfigs["ConditionalDeployer"].implementation,
-            l2DevFeatureFlagsImpl: implementationConfigs["L2DevFeatureFlags"].implementation
+        config_ = ImplementationConfig({
+            name: _name,
+            artifactPath: _artifactPath,
+            deploymentGasLimit: _gasLimit,
+            implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode(_artifactPath), SALT)
         });
     }
 
-    /// @notice Builds the implementation configuration mapping for all contracts to be deployed.
-    /// @dev IMPORTANT: Only modify this function if you need to add or modify a deployment implementation
-    /// configuration.
-    /// @dev An array of strings is used to add contracts that are not predeploys (StorageSetter) or have
-    /// feature-specific variants (e.g. CGT).
-    /// @dev Gas limits are based on actual gas profiling of mainnet fork execution with 1.5x safety margin.
-    function _buildImplementationDeploymentConfigs() internal {
-        // Gas profiling: 280,600 gas used → 420,900 recommended → 500K with safety margin
-        implementationConfigs["StorageSetter"] = ImplementationConfig({
-            name: "StorageSetter",
-            artifactPath: "StorageSetter.sol:StorageSetter",
-            deploymentGasLimit: 500_000,
-            implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("StorageSetter.sol:StorageSetter"), SALT)
-        });
-        // Gas profiling: 1,708,099 gas used → 2,562,148 recommended → 2.6M with safety margin
-        implementationConfigs["L2CrossDomainMessenger"] = ImplementationConfig({
-            name: "L2CrossDomainMessenger",
-            artifactPath: "L2CrossDomainMessenger.sol:L2CrossDomainMessenger",
-            deploymentGasLimit: 2_600_000,
-            implementation: UpgradeUtils.computeCreate2Address(
-                DeployUtils.getCode("L2CrossDomainMessenger.sol:L2CrossDomainMessenger"), SALT
-            )
-        });
-        // Gas profiling: 1,681,024 gas used → 2,521,536 recommended → 2.6M with safety margin
-        implementationConfigs["GasPriceOracle"] = ImplementationConfig({
-            name: "GasPriceOracle",
-            artifactPath: "GasPriceOracle.sol:GasPriceOracle",
-            deploymentGasLimit: 2_600_000,
-            implementation: UpgradeUtils.computeCreate2Address(
-                DeployUtils.getCode("GasPriceOracle.sol:GasPriceOracle"), SALT
-            )
-        });
-        // Gas profiling: 2,358,092 gas used → 3,537,138 recommended → 3.6M with safety margin
-        implementationConfigs["L2StandardBridge"] = ImplementationConfig({
-            name: "L2StandardBridge",
-            artifactPath: "L2StandardBridge.sol:L2StandardBridge",
-            deploymentGasLimit: 3_600_000,
-            implementation: UpgradeUtils.computeCreate2Address(
-                DeployUtils.getCode("L2StandardBridge.sol:L2StandardBridge"), SALT
-            )
-        });
-        // Gas profiling: 841,152 gas used → 1,261,728 recommended → 1.3M with safety margin
-        implementationConfigs["SequencerFeeVault"] = ImplementationConfig({
-            name: "SequencerFeeVault",
-            artifactPath: "SequencerFeeVault.sol:SequencerFeeVault",
-            deploymentGasLimit: 1_300_000,
-            implementation: UpgradeUtils.computeCreate2Address(
-                DeployUtils.getCode("SequencerFeeVault.sol:SequencerFeeVault"), SALT
-            )
-        });
-        // Gas profiling: 2,347,504 gas used → 3,521,256 recommended → 3.6M with safety margin
-        implementationConfigs["OptimismMintableERC20Factory"] = ImplementationConfig({
-            name: "OptimismMintableERC20Factory",
-            artifactPath: "OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory",
-            deploymentGasLimit: 3_600_000,
-            implementation: UpgradeUtils.computeCreate2Address(
-                DeployUtils.getCode("OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory"), SALT
-            )
-        });
-        // Gas profiling: 1,242,108 gas used → 1,863,162 recommended → 1.9M with safety margin
-        implementationConfigs["L2ERC721Bridge"] = ImplementationConfig({
-            name: "L2ERC721Bridge",
-            artifactPath: "L2ERC721Bridge.sol:L2ERC721Bridge",
-            deploymentGasLimit: 1_900_000,
-            implementation: UpgradeUtils.computeCreate2Address(
-                DeployUtils.getCode("L2ERC721Bridge.sol:L2ERC721Bridge"), SALT
-            )
-        });
-        // Gas profiling: 750K with safety margin
-        implementationConfigs["L1Block"] = ImplementationConfig({
-            name: "L1Block",
-            artifactPath: "L1Block.sol:L1Block",
-            deploymentGasLimit: 750_000,
-            implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("L1Block.sol:L1Block"), SALT)
-        });
-        // Gas profiling: 710,257 gas used → 1,065,385 recommended → 1.1M with safety margin
-        implementationConfigs["L1BlockCGT"] = ImplementationConfig({
-            name: "L1BlockCGT",
-            artifactPath: "L1BlockCGT.sol:L1BlockCGT",
-            deploymentGasLimit: 1_100_000,
-            implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("L1BlockCGT.sol:L1BlockCGT"), SALT)
-        });
-        // Gas profiling: 400,911 gas used → 601,366 recommended → 650K with safety margin
-        implementationConfigs["L2ToL1MessagePasser"] = ImplementationConfig({
-            name: "L2ToL1MessagePasser",
-            artifactPath: "L2ToL1MessagePasser.sol:L2ToL1MessagePasser",
-            deploymentGasLimit: 650_000,
-            implementation: UpgradeUtils.computeCreate2Address(
-                DeployUtils.getCode("L2ToL1MessagePasser.sol:L2ToL1MessagePasser"), SALT
-            )
-        });
-        // Gas profiling: 484,560 gas used → 726,840 recommended → 750K with safety margin
-        implementationConfigs["L2ToL1MessagePasserCGT"] = ImplementationConfig({
-            name: "L2ToL1MessagePasserCGT",
-            artifactPath: "L2ToL1MessagePasserCGT.sol:L2ToL1MessagePasserCGT",
-            deploymentGasLimit: 750_000,
-            implementation: UpgradeUtils.computeCreate2Address(
-                DeployUtils.getCode("L2ToL1MessagePasserCGT.sol:L2ToL1MessagePasserCGT"), SALT
-            )
-        });
+    function implementationConfigs() public view returns (ImplementationConfig[] memory) {
+        return _implementationConfigs;
+    }
 
-        // Gas profiling: 3,248,395 gas used → 4,872,592 recommended → 4.9M with safety margin
-        implementationConfigs["OptimismMintableERC721Factory"] = ImplementationConfig({
-            name: "OptimismMintableERC721Factory",
-            artifactPath: "OptimismMintableERC721Factory.sol:OptimismMintableERC721Factory",
-            deploymentGasLimit: 4_900_000,
-            implementation: UpgradeUtils.computeCreate2Address(
-                DeployUtils.getCode("OptimismMintableERC721Factory.sol:OptimismMintableERC721Factory"), SALT
-            )
-        });
-        // Gas profiling: 1,538,265 gas used → 2,307,397 recommended → 2.4M with safety margin
-        implementationConfigs["L2ProxyAdmin"] = ImplementationConfig({
-            name: "L2ProxyAdmin",
-            artifactPath: "L2ProxyAdmin.sol:L2ProxyAdmin",
-            deploymentGasLimit: 2_400_000,
-            implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("L2ProxyAdmin.sol:L2ProxyAdmin"), SALT)
-        });
-        // Gas profiling: 838,947 gas used → 1,258,420 recommended → 1.3M with safety margin
-        implementationConfigs["BaseFeeVault"] = ImplementationConfig({
-            name: "BaseFeeVault",
-            artifactPath: "BaseFeeVault.sol:BaseFeeVault",
-            deploymentGasLimit: 1_300_000,
-            implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("BaseFeeVault.sol:BaseFeeVault"), SALT)
-        });
-        // Gas profiling: 14,439 gas used → 21,658 recommended → 50K with safety margin
-        implementationConfigs["L1FeeVault"] = ImplementationConfig({
-            name: "L1FeeVault",
-            artifactPath: "L1FeeVault.sol:L1FeeVault",
-            deploymentGasLimit: 50_000,
-            implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("L1FeeVault.sol:L1FeeVault"), SALT)
-        });
-        // Gas profiling: 838,947 gas used → 1,258,420 recommended → 1.3M with safety margin
-        implementationConfigs["OperatorFeeVault"] = ImplementationConfig({
-            name: "OperatorFeeVault",
-            artifactPath: "OperatorFeeVault.sol:OperatorFeeVault",
-            deploymentGasLimit: 1_300_000,
-            implementation: UpgradeUtils.computeCreate2Address(
-                DeployUtils.getCode("OperatorFeeVault.sol:OperatorFeeVault"), SALT
-            )
-        });
-        // Gas profiling: 464,947 gas used → 697,420 recommended → 700K with safety margin
-        implementationConfigs["SchemaRegistry"] = ImplementationConfig({
-            name: "SchemaRegistry",
-            artifactPath: "SchemaRegistry.sol:SchemaRegistry",
-            deploymentGasLimit: 700_000,
-            implementation: UpgradeUtils.computeCreate2Address(
-                DeployUtils.getCode("SchemaRegistry.sol:SchemaRegistry"), SALT
-            )
-        });
-        // Gas profiling: 3,820,943 gas used → 5,731,414 recommended → 5.8M with safety margin
-        implementationConfigs["EAS"] = ImplementationConfig({
-            name: "EAS",
-            artifactPath: "EAS.sol:EAS",
-            deploymentGasLimit: 5_800_000,
-            implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("EAS.sol:EAS"), SALT)
-        });
-        // Gas profiling: 385,975 gas used → 578,962 recommended → 600K with safety margin
-        implementationConfigs["CrossL2Inbox"] = ImplementationConfig({
-            name: "CrossL2Inbox",
-            artifactPath: "CrossL2Inbox.sol:CrossL2Inbox",
-            deploymentGasLimit: 600_000,
-            implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("CrossL2Inbox.sol:CrossL2Inbox"), SALT)
-        });
-        // Gas profiling: 965,734 gas used → 1,448,601 recommended → 1.5M with safety margin
-        implementationConfigs["L2ToL2CrossDomainMessenger"] = ImplementationConfig({
-            name: "L2ToL2CrossDomainMessenger",
-            artifactPath: "L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger",
-            deploymentGasLimit: 1_500_000,
-            implementation: UpgradeUtils.computeCreate2Address(
-                DeployUtils.getCode("L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger"), SALT
-            )
-        });
-        // Gas profiling: 441,198 gas used → 661,797 recommended → 700K with safety margin
-        implementationConfigs["SuperchainETHBridge"] = ImplementationConfig({
-            name: "SuperchainETHBridge",
-            artifactPath: "SuperchainETHBridge.sol:SuperchainETHBridge",
-            deploymentGasLimit: 700_000,
-            implementation: UpgradeUtils.computeCreate2Address(
-                DeployUtils.getCode("SuperchainETHBridge.sol:SuperchainETHBridge"), SALT
-            )
-        });
-        // Gas profiling: 230,857 gas used → 346,285 recommended → 400K with safety margin
-        implementationConfigs["ETHLiquidity"] = ImplementationConfig({
-            name: "ETHLiquidity",
-            artifactPath: "ETHLiquidity.sol:ETHLiquidity",
-            deploymentGasLimit: 400_000,
-            implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("ETHLiquidity.sol:ETHLiquidity"), SALT)
-        });
-        // Gas profiling: 215,592 gas used → 323,388 recommended → 400K with safety margin
-        implementationConfigs["NativeAssetLiquidity"] = ImplementationConfig({
-            name: "NativeAssetLiquidity",
-            artifactPath: "NativeAssetLiquidity.sol:NativeAssetLiquidity",
-            deploymentGasLimit: 400_000,
-            implementation: UpgradeUtils.computeCreate2Address(
-                DeployUtils.getCode("NativeAssetLiquidity.sol:NativeAssetLiquidity"), SALT
-            )
-        });
-        // Gas profiling: 914,648 gas used → 1,371,972 recommended → 1.4M with safety margin
-        implementationConfigs["LiquidityController"] = ImplementationConfig({
-            name: "LiquidityController",
-            artifactPath: "LiquidityController.sol:LiquidityController",
-            deploymentGasLimit: 1_400_000,
-            implementation: UpgradeUtils.computeCreate2Address(
-                DeployUtils.getCode("LiquidityController.sol:LiquidityController"), SALT
-            )
-        });
-        // Gas profiling: 1,077,380 gas used → 1,616,070 recommended → 1.7M with safety margin
-        implementationConfigs["FeeSplitter"] = ImplementationConfig({
-            name: "FeeSplitter",
-            artifactPath: "FeeSplitter.sol:FeeSplitter",
-            deploymentGasLimit: 1_700_000,
-            implementation: UpgradeUtils.computeCreate2Address(DeployUtils.getCode("FeeSplitter.sol:FeeSplitter"), SALT)
-        });
-        // Gas profiling: 339,403 gas used → 509,104 recommended → 600K with safety margin
-        implementationConfigs["ConditionalDeployer"] = ImplementationConfig({
-            name: "ConditionalDeployer",
-            artifactPath: "ConditionalDeployer.sol:ConditionalDeployer",
-            deploymentGasLimit: 600_000,
-            implementation: UpgradeUtils.computeCreate2Address(
-                DeployUtils.getCode("ConditionalDeployer.sol:ConditionalDeployer"), SALT
-            )
-        });
-        implementationConfigs["L2DevFeatureFlags"] = ImplementationConfig({
-            name: "L2DevFeatureFlags",
-            artifactPath: "L2DevFeatureFlags.sol:L2DevFeatureFlags",
-            deploymentGasLimit: 300_000,
-            implementation: UpgradeUtils.computeCreate2Address(
-                DeployUtils.getCode("L2DevFeatureFlags.sol:L2DevFeatureFlags"), SALT
-            )
-        });
+    function implRecords() public view returns (L2ContractsManagerTypes.ImplRecord[] memory) {
+        return _implRecords;
     }
 }

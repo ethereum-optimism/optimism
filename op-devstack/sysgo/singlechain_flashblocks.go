@@ -27,14 +27,24 @@ func startFlashblocksSingleChainPrimary(
 	sequencerIdentity := NewELNodeIdentity(0)
 	builderIdentity := NewELNodeIdentity(0)
 
-	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, sequencerIdentity)
+	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, sequencerIdentity, cfg.OpRethOptions...)
 	l2Builder := startBuilderEL(t, world.L2Network, jwtPath, builderIdentity, cfg.OPRBuilderOptions...)
 
-	connectL2ELPeers(t, logger, l2EL.UserRPC(), l2Builder.UserRPC(), false)
-	connectL2ELPeers(t, logger, l2Builder.UserRPC(), l2EL.UserRPC(), true)
+	connectL2ELPeers(t, logger, l2EL.UserRPC(), l2Builder.UserRPC())
 
 	rollupBoost := startRollupBoostNode(t, world.L2Network.ChainID(), l2EL, l2Builder)
-	l2CL := startSequencerCL(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, rollupBoost, jwtSecret, nil)
+	var l2CL L2CLNode
+	if world.Interop != nil {
+		l2CL = startL2CLNode(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, rollupBoost, jwtSecret, l2CLNodeStartConfig{
+			Key:           "sequencer",
+			IsSequencer:   true,
+			NoDiscovery:   true,
+			EnableReqResp: true,
+			DependencySet: world.Interop.DependencySet,
+		})
+	} else {
+		l2CL = startSequencerCL(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, rollupBoost, jwtSecret, nil)
+	}
 
 	return singleChainPrimaryRuntime{
 		EL: l2EL,
@@ -65,7 +75,7 @@ func startBuilderEL(t devtest.T, l2Net *L2Network, jwtPath string, identity *ELN
 
 	data, err := json.Marshal(l2Net.genesis)
 	require.NoError(err, "must json-encode L2 genesis")
-	chainConfigPath := filepath.Join(t.TempDir(), "op-rbuilder-genesis.json")
+	chainConfigPath := filepath.Join(t.TempDirWithPrefix("op-rbuilder"), "op-rbuilder-genesis.json")
 	require.NoError(os.WriteFile(chainConfigPath, data, 0o644), "must write op-rbuilder genesis file")
 
 	cfg := DefaultOPRbuilderNodeConfig()

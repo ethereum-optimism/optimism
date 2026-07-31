@@ -2,7 +2,7 @@
 name = "op-alloy-network"
 description = "Optimism blockchain RPC behavior abstraction"
 
-version = "0.24.0"
+version = "2.0.0"
 edition.workspace = true
 rust-version.workspace = true
 authors = ["Alloy Contributors"]
@@ -17,15 +17,25 @@ workspace = true
 [dependencies]
 # Workspace
 op-alloy-consensus = { workspace = true, features = ["alloy-compat"] }
-op-alloy-rpc-types.workspace = true
+op-alloy-rpc-types = { workspace = true, features = ["std"] }
 
 # Alloy
 alloy-consensus.workspace = true
 alloy-network.workspace = true
-alloy-provider.workspace = true
+# `alloy-provider` is declared explicitly (rather than `workspace = true`) so the
+# `reqwest` HTTP transport can be made opt-in via the `reqwest` feature below. The
+# `Optimism` network marker and the `RecommendedFillers` impl only use transport-agnostic
+# types from `alloy-provider`, so an HTTP backend is not required to depend on this crate.
+alloy-provider = { version = "2.0.5", default-features = false, features = ["debug-api"] }
 alloy-rpc-types-eth.workspace = true
 
 [features]
+default = ["reqwest"]
+# Enables `alloy-provider`'s reqwest-based HTTP transport. On by default to preserve
+# existing behavior; type-only consumers (e.g. zkVM targets without OS networking) can
+# set `default-features = false` to avoid pulling `reqwest` / `hyper` / `tokio` (`net`) /
+# `mio` / `socket2`.
+reqwest = ["alloy-provider/reqwest"]
 std = [
 	"op-alloy-consensus/std",
 	"op-alloy-rpc-types/std",

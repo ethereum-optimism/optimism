@@ -1,0 +1,150 @@
+name: Compile an auditable rust binary with Cargo
+
+# Overrides the built-in cargo/build when --pipeline-dir points here. Writes
+# CARGO_HOME and compile artifacts under /var/cache/melange so melange
+# --cache-dir and GHA actions/cache persist Rust builds across CI runs.
+
+needs:
+  packages:
+    - build-base
+    - busybox
+    - cargo-auditable
+    - rust
+
+inputs:
+  output:
+    description: |
+      Filename to use when writing the binary. The final install location inside
+      the apk will be in prefix / install-dir / output
+
+  opts:
+    default: --release
+    description: |
+      Options to pass to cargo build. Defaults to release
+
+  profile:
+    default: ""
+    required: false
+    description: |
+      Cargo profile to pass as --profile. When set, opts must not include
+      --release or --profile.
+
+  modroot:
+    default: "."
+    required: false
+    description: |
+      Top directory of the rust package, this is where the target package lives.
+      Before building, the cargo pipeline wil cd into this directory. Defaults
+      to current working directory
+
+  rustflags:
+    default: ""
+    required: false
+    description: |
+      Rustc flags to be passed to pass to all compiler invocations that Cargo performs.
+      In contrast with cargo rustc, this is useful for passing a flag to all compiler instances.
+      This string is split by whitespace.
+
+  prefix:
+    default: usr
+    description: |
+      Installation prefix. Defaults to usr
+
+  install-dir:
+    description: |
+      Directory where binaries will be installed
+    default: bin
+
+  output-dir:
+    description: |
+      Directory where the binaris will be placed after building. Defaults to target/release
+    default: target/release
+
+  jobs:
+    description: |
+      Override the number of parallel jobs. It defaults to the number of CPUs.
+
+pipeline:
+  - runs: |
+      set -e
+
+      export CARGO_HOME="${CARGO_HOME:-/var/cache/melange/cargo}"
+      mkdir -p "$CARGO_HOME"
+
+      INSTALL_PATH="${{targets.contextdir}}/${{inputs.prefix}}/${{inputs.install-dir}}"
+
+      cd "${{inputs.modroot}}"
+
+      # Honor CARGO_TARGET_DIR from the melange config (base under
+      # /var/cache/melange). Derive one tree per modroot so main-workspace
+      # subpackages share rust/ and nested workspaces stay separate.
+      cache_root="${CARGO_TARGET_DIR:-/var/cache/melange/target}"
+      modroot_slug=$(echo "${{inputs.modroot}}" | tr '/' '_')
+      export CARGO_TARGET_DIR="${cache_root}/${modroot_slug}"
+      mkdir -p "$CARGO_TARGET_DIR"
+
+      build_opts="${{inputs.opts}}"
+      profile="${{inputs.profile}}"
+      profile_flag=""
+      if [ -n "$profile" ]; then
+        case " $build_opts " in
+          *" --release "*|*" --profile "*|*" --profile="*)
+            echo "profile input cannot be combined with --release or --profile in opts" >&2
+            exit 1
+            ;;
+        esac
+        profile_flag="--profile $profile"
+      else
+        case " $build_opts " in
+          *" --release "*|*" --profile "*|*" --profile="*) ;;
+          *) profile_flag="--release" ;;
+        esac
+      fi
+
+      output_profile=""
+      set -- $profile_flag $build_opts
+      while [ "$#" -gt 0 ]; do
+        case "$1" in
+          --profile)
+            shift
+            output_profile="${1:-}"
+            ;;
+          --profile=*)
+            output_profile="${1#--profile=}"
+            ;;
+          --release)
+            output_profile="release"
+            ;;
+        esac
+        [ "$#" -eq 0 ] || shift
+      done
+
+      if [ -n "$output_profile" ]; then
+        OUTPUT_PATH="${CARGO_TARGET_DIR}/${output_profile}"
+      else
+        output_dir="${{inputs.output-dir}}"
+        case "$output_dir" in
+          /*) OUTPUT_PATH="$output_dir" ;;
+          target/*) OUTPUT_PATH="${CARGO_TARGET_DIR}/${output_dir#target/}" ;;
+          *) OUTPUT_PATH="${CARGO_TARGET_DIR}/${output_dir}" ;;
+        esac
+      fi
+
+      jobs_flag=""
+      if [ -n "${{inputs.jobs}}" ]; then
+        jobs_flag="--jobs ${{inputs.jobs}}"
+      fi
+
+      run_wrap=""
+      if command -v mold >/dev/null 2>&1; then
+        run_wrap="mold -run"
+      fi
+
+      RUSTFLAGS="${{inputs.rustflags}}" $run_wrap cargo auditable build \
+        $profile_flag $build_opts $jobs_flag
+
+      if [ -n "${{inputs.output}}" ]; then
+        install -Dm755 "${OUTPUT_PATH}/${{inputs.output}}" "${INSTALL_PATH}/${{inputs.output}}"
+      else
+        install -Dm755 "${OUTPUT_PATH}"/* -t "${INSTALL_PATH}"
+      fi

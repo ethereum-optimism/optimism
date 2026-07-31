@@ -22,7 +22,6 @@ abstract contract L2DevFeatureFlags_TestInit is CommonTest {
     /// @notice Test setup.
     function setUp() public virtual override {
         super.setUp();
-        skipIfDevFeatureDisabled(DevFeatures.L2CM);
         l2DevFeatureFlags = IL2DevFeatureFlags(Predeploys.L2_DEV_FEATURE_FLAGS);
     }
 }
@@ -30,9 +29,9 @@ abstract contract L2DevFeatureFlags_TestInit is CommonTest {
 /// @title L2DevFeatureFlags_Version_Test
 /// @notice Tests the `version` function of the `L2DevFeatureFlags` contract.
 contract L2DevFeatureFlags_Version_Test is L2DevFeatureFlags_TestInit {
-    /// @notice Tests that the `version` function returns a the correct string.
+    /// @notice Tests that the `version` function returns a non-empty string.
     function test_version_succeeds() public view {
-        assertEq(keccak256(bytes(l2DevFeatureFlags.version())), keccak256(bytes("1.0.0")), "Versions should match");
+        assertEq(keccak256(bytes(l2DevFeatureFlags.version())), keccak256(bytes("1.3.0")), "Versions should match");
     }
 }
 
@@ -61,9 +60,20 @@ contract L2DevFeatureFlags_SetDevFeatureBitmap_Test is L2DevFeatureFlags_TestIni
 /// @notice Tests the `isDevFeatureEnabled` function of the `L2DevFeatureFlags` contract.
 contract L2DevFeatureFlags_IsDevFeatureEnabled_Test is L2DevFeatureFlags_TestInit {
     /// @notice Tests that `isDevFeatureEnabled` returns false when the bitmap is zero.
-    function testFuzz_isDevFeatureEnabled_zeroBitmap_succeeds(bytes32 _feature) public view {
+    function testFuzz_isDevFeatureEnabled_zeroBitmap_succeeds(bytes32 _feature) public {
         vm.assume(_feature != bytes32(0));
+        // SuperRootGamesMigration is hardcoded enabled. TODO(#21662): remove with the broader migration cleanup.
+        vm.assume((_feature & DevFeatures.SUPER_ROOT_GAMES_MIGRATION) != DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        // Ensure `devFeatureBitmap` contains bytes32(0)
+        vm.store(address(l2DevFeatureFlags), bytes32(uint256(keccak256("l2devfeatureflags.bitmap")) - 1), bytes32(0));
         assertFalse(l2DevFeatureFlags.isDevFeatureEnabled(_feature));
+    }
+
+    /// @notice Tests that `isDevFeatureEnabled(SUPER_ROOT_GAMES_MIGRATION)` always returns true regardless of stored
+    /// bitmap.
+    /// @dev TODO(#21662): remove with the broader SuperRootGamesMigration cleanup.
+    function test_isDevFeatureEnabled_superRootGamesMigrationAlwaysEnabled_succeeds() public view {
+        assertTrue(l2DevFeatureFlags.isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION));
     }
 
     /// @notice Tests that `isDevFeatureEnabled` returns false for zero feature.
@@ -90,17 +100,17 @@ contract L2DevFeatureFlags_IsDevFeatureEnabled_Test is L2DevFeatureFlags_TestIni
         l2DevFeatureFlags.setDevFeatureBitmap(DevFeatures.OPTIMISM_PORTAL_INTEROP);
 
         assertTrue(l2DevFeatureFlags.isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP));
-        assertFalse(l2DevFeatureFlags.isDevFeatureEnabled(DevFeatures.CANNON_KONA));
+        assertFalse(l2DevFeatureFlags.isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME));
     }
 
     /// @notice Tests that `isDevFeatureEnabled` works correctly with multiple features set.
     function test_isDevFeatureEnabled_multipleFeatures_succeeds() public {
-        bytes32 bitmap = DevFeatures.OPTIMISM_PORTAL_INTEROP | DevFeatures.CANNON_KONA;
+        bytes32 bitmap = DevFeatures.OPTIMISM_PORTAL_INTEROP | DevFeatures.ZK_DISPUTE_GAME;
 
         vm.prank(Constants.DEPOSITOR_ACCOUNT);
         l2DevFeatureFlags.setDevFeatureBitmap(bitmap);
 
         assertTrue(l2DevFeatureFlags.isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP));
-        assertTrue(l2DevFeatureFlags.isDevFeatureEnabled(DevFeatures.CANNON_KONA));
+        assertTrue(l2DevFeatureFlags.isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME));
     }
 }

@@ -11,7 +11,6 @@
 # Policies
 
 - [Solidity Upgrades](./policies/solidity-upgrades.md)
-
+- [Foundry Versioning](./policies/foundry-upgrades.md)
 - [Versioning](./policies/versioning.md)
 - [Tagging and Release Process](./policies/release-process.md)
-

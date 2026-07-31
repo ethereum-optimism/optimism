@@ -15,6 +15,7 @@ import (
 	dtest "github.com/ethereum-optimism/optimism/op-node/rollup/derive/test"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -118,7 +119,7 @@ func newMiniL2BlockWithChainIDNumberParentAndL1Information(numTx int, chainID *b
 	}
 
 	txs := make([]*types.Transaction, 0, 1+numTx)
-	txs = append(txs, types.NewTx(l1InfoTx))
+	txs = append(txs, testutils.TxFromDeposit(l1InfoTx))
 	for i := 0; i < numTx; i++ {
 		// Create DynamicFeeTx with random data that's harder to compress
 		randomData := make([]byte, 100+i*10) // Variable size data

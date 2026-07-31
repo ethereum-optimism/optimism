@@ -1,0 +1,39 @@
+version:
+  format: 1
+  # Minimum zepter version that is expected to work. This is just for printing a nice error
+  # message when someone tries to use an older version.
+  binary: 0.13.2
+
+# The examples in the following comments assume crate `A` to have a dependency on crate `B`.
+workflows:
+  check:
+    - [
+        "lint",
+        # Check that `A` activates the features of `B`.
+        "propagate-feature",
+        # These are the features to check:
+        "--features=std,optimism,dev,asm-keccak,jemalloc,jemalloc-prof,tracy-allocator,serde-bincode-compat,serde,test-utils,arbitrary,bench,redact-sensitive",
+        # Do not try to add a new section into `[features]` of `A` only because `B` expose that feature. There are edge-cases where this is still needed, but we can add them manually.
+        "--left-side-feature-missing=ignore",
+        # Ignore the case that `A` it outside of the workspace. Otherwise it will report errors in external dependencies that we have no influence on.
+        "--left-side-outside-workspace=ignore",
+        # Auxillary flags:
+        "--offline",
+        "--locked",
+        "--show-path",
+        "--quiet",
+      ]
+  default:
+    # Running `zepter` with no subcommand will check & fix.
+    - [$check.0, "--fix"]
+
+# Will be displayed when any workflow fails:
+help:
+  text: |
+    rbuilder uses the Zepter CLI to detect abnormalities in Cargo features, e.g. missing propagation.
+
+    It looks like one more more checks failed; please check the console output.
+
+    You can try to automatically address them by installing zepter (`cargo install zepter --locked`) and simply running `zepter` in the workspace root.
+  links:
+    - "https://github.com/ggwpez/zepter"

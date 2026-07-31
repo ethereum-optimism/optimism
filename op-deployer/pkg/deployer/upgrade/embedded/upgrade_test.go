@@ -65,32 +65,6 @@ func TestUpgradeOPChainInput_UpgradeInputV2(t *testing.T) {
 	require.Equal(t, expected, hex.EncodeToString(data))
 }
 
-func TestUpgradeOPChainInput_OpChainConfigs(t *testing.T) {
-	input := &UpgradeOPChainInput{
-		Prank: common.Address{0xaa},
-		Opcm:  common.Address{0xbb},
-		ChainConfigs: []OPChainConfig{
-			{
-				SystemConfigProxy:  common.Address{0x01},
-				CannonPrestate:     common.Hash{0xaa},
-				CannonKonaPrestate: common.Hash{0xbb},
-			},
-		},
-	}
-	data, err := input.EncodedOpChainConfigs()
-
-	require.NoError(t, err)
-	require.NotEmpty(t, data)
-
-	expected := "0000000000000000000000000000000000000000000000000000000000000020" + // offset to array
-		"0000000000000000000000000000000000000000000000000000000000000001" + // array.length
-		"0000000000000000000000000100000000000000000000000000000000000000" + // systemConfigProxy
-		"aa00000000000000000000000000000000000000000000000000000000000000" + // cannonPrestate
-		"bb00000000000000000000000000000000000000000000000000000000000000" // cannonKonaPrestate
-
-	require.Equal(t, expected, hex.EncodeToString(data))
-}
-
 func TestUpgrader_ValidationErrors(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -103,7 +77,7 @@ func TestUpgrader_ValidationErrors(t *testing.T) {
 				Prank: common.Address{0xaa},
 				Opcm:  common.Address{0xbb},
 			},
-			errorContains: "failed to read either an upgrade input or config array",
+			errorContains: "UpgradeInputV2 is required",
 		},
 	}
 
@@ -151,65 +125,13 @@ func TestUpgrader_ValidationPasses(t *testing.T) {
 			},
 			description: "Validation should pass when V2 input is provided and ShouldAllowV1 is false",
 		},
-		{
-			name: "only V1 input provided",
-			input: UpgradeOPChainInput{
-				Prank: common.Address{0xaa},
-				Opcm:  common.Address{0xbb},
-				ChainConfigs: []OPChainConfig{
-					{
-						SystemConfigProxy:  common.Address{0x01},
-						CannonPrestate:     common.Hash{0xaa},
-						CannonKonaPrestate: common.Hash{0xbb},
-					},
-				},
-			},
-			description: "Validation should pass when V1 input is provided",
-		},
-		{
-			name: "both inputs provided",
-			input: UpgradeOPChainInput{
-				Prank: common.Address{0xaa},
-				Opcm:  common.Address{0xbb},
-				UpgradeInputV2: &UpgradeInputV2{
-					SystemConfig: common.Address{0x01},
-					DisputeGameConfigs: []DisputeGameConfig{
-						{
-							Enabled:  true,
-							InitBond: big.NewInt(1000),
-							GameType: GameTypeCannon,
-							FaultDisputeGameConfig: &FaultDisputeGameConfig{
-								AbsolutePrestate: common.Hash{0x01, 0x02},
-							},
-						},
-					},
-				},
-				ChainConfigs: []OPChainConfig{
-					{
-						SystemConfigProxy:  common.Address{0x02},
-						CannonPrestate:     common.Hash{0xcc},
-						CannonKonaPrestate: common.Hash{0xdd},
-					},
-				},
-			},
-			description: "Validation should pass when both inputs are provided and ShouldAllowV1 is true (should prefer V2)",
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Verify that encoding works (validation passes)
-			// We test the encoding separately since we can't test the full Upgrade flow without a script host
-			upgradeInput := tt.input
-
-			// Test that the correct encoding path would be chosen
-			if upgradeInput.UpgradeInputV2 != nil {
-				_, err := upgradeInput.EncodedUpgradeInputV2()
-				require.NoError(t, err, "V2 encoding should succeed when V2 input is present")
-			} else if len(upgradeInput.ChainConfigs) > 0 {
-				_, err := upgradeInput.EncodedOpChainConfigs()
-				require.NoError(t, err, "V1 encoding should succeed when V1 input is present")
-			}
+			_, err := tt.input.EncodedUpgradeInputV2()
+			require.NoError(t, err, "V2 encoding should succeed")
 		})
 	}
 }
@@ -252,6 +174,130 @@ func TestEncodedUpgradeInputV2_GameTypeConfigValidation(t *testing.T) {
 				// Missing PermissionedDisputeGameConfig
 			},
 			errorContains: fmt.Sprintf("permissionedDisputeGameConfig is required for game type %d", GameTypePermissionedCannon),
+			shouldPass:    false,
+		},
+		{
+			name: "SUPER_PERMISSIONED requires SuperPermissionedDisputeGameConfig",
+			gameConfig: DisputeGameConfig{
+				Enabled:  true,
+				InitBond: big.NewInt(1000),
+				GameType: GameTypeSuperPermissioned,
+				// Missing SuperPermissionedDisputeGameConfig
+			},
+			errorContains: fmt.Sprintf("superPermissionedDisputeGameConfig is required for game type %d", GameTypeSuperPermissioned),
+			shouldPass:    false,
+		},
+		{
+			name: "ZK_DISPUTE_GAME requires ZKDisputeGameConfig",
+			gameConfig: DisputeGameConfig{
+				Enabled:  true,
+				InitBond: big.NewInt(1000),
+				GameType: GameTypeZKDisputeGame,
+				// Missing ZKDisputeGameConfig
+			},
+			errorContains: fmt.Sprintf("zkDisputeGameConfig is required for game type %d", GameTypeZKDisputeGame),
+			shouldPass:    false,
+		},
+		{
+			name: "ZK_DISPUTE_GAME with zero Verifier returns error",
+			gameConfig: DisputeGameConfig{
+				Enabled:  true,
+				InitBond: big.NewInt(1000),
+				GameType: GameTypeZKDisputeGame,
+				ZKDisputeGameConfig: &ZKDisputeGameConfig{
+					AbsolutePrestate:     common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
+					Verifier:             common.Address{}, // zero
+					MaxChallengeDuration: 3600,
+					MaxProveDuration:     7200,
+					ChallengerBond:       new(big.Int).SetUint64(1e9),
+				},
+			},
+			errorContains: "Verifier must not be zero address",
+			shouldPass:    false,
+		},
+		{
+			name: "ZK_DISPUTE_GAME with zero AbsolutePrestate returns error",
+			gameConfig: DisputeGameConfig{
+				Enabled:  true,
+				InitBond: big.NewInt(1000),
+				GameType: GameTypeZKDisputeGame,
+				ZKDisputeGameConfig: &ZKDisputeGameConfig{
+					AbsolutePrestate:     common.Hash{}, // zero
+					Verifier:             common.HexToAddress("0x3333333333333333333333333333333333333333"),
+					MaxChallengeDuration: 3600,
+					MaxProveDuration:     7200,
+					ChallengerBond:       new(big.Int).SetUint64(1e9),
+				},
+			},
+			errorContains: "AbsolutePrestate must not be zero",
+			shouldPass:    false,
+		},
+		{
+			name: "ZK_DISPUTE_GAME with zero MaxChallengeDuration returns error",
+			gameConfig: DisputeGameConfig{
+				Enabled:  true,
+				InitBond: big.NewInt(1000),
+				GameType: GameTypeZKDisputeGame,
+				ZKDisputeGameConfig: &ZKDisputeGameConfig{
+					AbsolutePrestate:     common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
+					Verifier:             common.HexToAddress("0x3333333333333333333333333333333333333333"),
+					MaxChallengeDuration: 0, // zero
+					MaxProveDuration:     7200,
+					ChallengerBond:       new(big.Int).SetUint64(1e9),
+				},
+			},
+			errorContains: "MaxChallengeDuration must be > 0",
+			shouldPass:    false,
+		},
+		{
+			name: "ZK_DISPUTE_GAME with zero MaxProveDuration returns error",
+			gameConfig: DisputeGameConfig{
+				Enabled:  true,
+				InitBond: big.NewInt(1000),
+				GameType: GameTypeZKDisputeGame,
+				ZKDisputeGameConfig: &ZKDisputeGameConfig{
+					AbsolutePrestate:     common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
+					Verifier:             common.HexToAddress("0x3333333333333333333333333333333333333333"),
+					MaxChallengeDuration: 3600,
+					MaxProveDuration:     0, // zero
+					ChallengerBond:       new(big.Int).SetUint64(1e9),
+				},
+			},
+			errorContains: "MaxProveDuration must be > 0",
+			shouldPass:    false,
+		},
+		{
+			name: "ZK_DISPUTE_GAME with nil ChallengerBond returns error",
+			gameConfig: DisputeGameConfig{
+				Enabled:  true,
+				InitBond: big.NewInt(1000),
+				GameType: GameTypeZKDisputeGame,
+				ZKDisputeGameConfig: &ZKDisputeGameConfig{
+					AbsolutePrestate:     common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
+					Verifier:             common.HexToAddress("0x3333333333333333333333333333333333333333"),
+					MaxChallengeDuration: 3600,
+					MaxProveDuration:     7200,
+					ChallengerBond:       nil, // nil
+				},
+			},
+			errorContains: "ChallengerBond must be set to a positive value",
+			shouldPass:    false,
+		},
+		{
+			name: "ZK_DISPUTE_GAME with zero ChallengerBond returns error",
+			gameConfig: DisputeGameConfig{
+				Enabled:  true,
+				InitBond: big.NewInt(1000),
+				GameType: GameTypeZKDisputeGame,
+				ZKDisputeGameConfig: &ZKDisputeGameConfig{
+					AbsolutePrestate:     common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
+					Verifier:             common.HexToAddress("0x3333333333333333333333333333333333333333"),
+					MaxChallengeDuration: 3600,
+					MaxProveDuration:     7200,
+					ChallengerBond:       big.NewInt(0), // zero
+				},
+			},
+			errorContains: "ChallengerBond must be set to a positive value",
 			shouldPass:    false,
 		},
 		{
@@ -298,6 +344,34 @@ func TestEncodedUpgradeInputV2_GameTypeConfigValidation(t *testing.T) {
 					AbsolutePrestate: common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
 					Proposer:         common.HexToAddress("0x1111111111111111111111111111111111111111"),
 					Challenger:       common.HexToAddress("0x2222222222222222222222222222222222222222"),
+				},
+			},
+			shouldPass: true,
+		},
+		{
+			name: "SUPER_PERMISSIONED with correct SuperPermissionedDisputeGameConfig",
+			gameConfig: DisputeGameConfig{
+				Enabled:  true,
+				InitBond: big.NewInt(1000),
+				GameType: GameTypeSuperPermissioned,
+				SuperPermissionedDisputeGameConfig: &SuperPermissionedDisputeGameConfig{
+					Proposer: common.HexToAddress("0x1111111111111111111111111111111111111111"),
+				},
+			},
+			shouldPass: true,
+		},
+		{
+			name: "ZK_DISPUTE_GAME with correct ZKDisputeGameConfig",
+			gameConfig: DisputeGameConfig{
+				Enabled:  true,
+				InitBond: big.NewInt(1000),
+				GameType: GameTypeZKDisputeGame,
+				ZKDisputeGameConfig: &ZKDisputeGameConfig{
+					AbsolutePrestate:     common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
+					Verifier:             common.HexToAddress("0x3333333333333333333333333333333333333333"),
+					MaxChallengeDuration: 3600,
+					MaxProveDuration:     7200,
+					ChallengerBond:       new(big.Int).SetUint64(1e9),
 				},
 			},
 			shouldPass: true,
@@ -399,6 +473,18 @@ func TestEncodedUpgradeInputV2_DisabledGames(t *testing.T) {
 				},
 			},
 			description: "Mix of enabled and disabled games should encode successfully",
+		},
+		{
+			name: "disabled ZK game with empty config",
+			gameConfigs: []DisputeGameConfig{
+				{
+					Enabled:  false,
+					InitBond: big.NewInt(0),
+					GameType: GameTypeZKDisputeGame,
+					// No ZKDisputeGameConfig needed when disabled
+				},
+			},
+			description: "Disabled ZK game should encode successfully with no config",
 		},
 		{
 			name: "all games disabled",
@@ -526,6 +612,103 @@ func TestEncodedUpgradeInputV2_GameArgsEncoding(t *testing.T) {
 			"038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c" + // gameArgs data (absolutePrestate)
 			"0000000000000000000000001111111111111111111111111111111111111111" + // gameArgs data (proposer)
 			"0000000000000000000000002222222222222222222222222222222222222222" + // gameArgs data (challenger)
+			"0000000000000000000000000000000000000000000000000000000000000000" // extraInstructions.length
+
+		require.Equal(t, expected, hex.EncodeToString(data))
+	})
+
+	t.Run("SuperPermissionedDisputeGameConfig encodes correctly", func(t *testing.T) {
+		proposer := common.HexToAddress("0x1111111111111111111111111111111111111111")
+
+		input := &UpgradeOPChainInput{
+			Prank: common.Address{0xaa},
+			Opcm:  common.Address{0xbb},
+			UpgradeInputV2: &UpgradeInputV2{
+				SystemConfig: common.Address{0x01},
+				DisputeGameConfigs: []DisputeGameConfig{
+					{
+						Enabled:  true,
+						InitBond: big.NewInt(1000),
+						GameType: GameTypeSuperPermissioned,
+						SuperPermissionedDisputeGameConfig: &SuperPermissionedDisputeGameConfig{
+							Proposer: proposer,
+						},
+					},
+				},
+			},
+		}
+
+		data, err := input.EncodedUpgradeInputV2()
+		require.NoError(t, err)
+		require.NotEmpty(t, data)
+
+		expected := "0000000000000000000000000000000000000000000000000000000000000020" + // offset to tuple
+			"0000000000000000000000000100000000000000000000000000000000000000" + // systemConfig
+			"0000000000000000000000000000000000000000000000000000000000000060" + // offset to disputeGameConfigs
+			"0000000000000000000000000000000000000000000000000000000000000160" + // offset to extraInstructions
+			"0000000000000000000000000000000000000000000000000000000000000001" + // disputeGameConfigs.length
+			"0000000000000000000000000000000000000000000000000000000000000020" + // offset to disputeGameConfigs[0]
+			"0000000000000000000000000000000000000000000000000000000000000001" + // disputeGameConfigs[0].enabled
+			"00000000000000000000000000000000000000000000000000000000000003e8" + // disputeGameConfigs[0].initBond (1000)
+			"0000000000000000000000000000000000000000000000000000000000000005" + // disputeGameConfigs[0].gameType
+			"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
+			"0000000000000000000000000000000000000000000000000000000000000020" + // gameArgs.length (32 bytes)
+			"0000000000000000000000001111111111111111111111111111111111111111" + // gameArgs data (proposer)
+			"0000000000000000000000000000000000000000000000000000000000000000" // extraInstructions.length
+
+		require.Equal(t, expected, hex.EncodeToString(data))
+	})
+
+	t.Run("ZKDisputeGameConfig encodes correctly", func(t *testing.T) {
+		absolutePrestate := common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c")
+		verifier := common.HexToAddress("0x3333333333333333333333333333333333333333")
+		// maxChallengeDuration = 3600 = 0xe10
+		// maxProveDuration = 7200 = 0x1c20
+		// challengerBond = 1e18 = 0xde0b6b3a7640000
+		challengerBond, _ := new(big.Int).SetString("1000000000000000000", 10)
+
+		input := &UpgradeOPChainInput{
+			Prank: common.Address{0xaa},
+			Opcm:  common.Address{0xbb},
+			UpgradeInputV2: &UpgradeInputV2{
+				SystemConfig: common.Address{0x01},
+				DisputeGameConfigs: []DisputeGameConfig{
+					{
+						Enabled:  true,
+						InitBond: big.NewInt(1000),
+						GameType: GameTypeZKDisputeGame,
+						ZKDisputeGameConfig: &ZKDisputeGameConfig{
+							AbsolutePrestate:     absolutePrestate,
+							Verifier:             verifier,
+							MaxChallengeDuration: 3600,
+							MaxProveDuration:     7200,
+							ChallengerBond:       challengerBond,
+						},
+					},
+				},
+			},
+		}
+
+		data, err := input.EncodedUpgradeInputV2()
+		require.NoError(t, err)
+		require.NotEmpty(t, data)
+
+		expected := "0000000000000000000000000000000000000000000000000000000000000020" + // offset to tuple
+			"0000000000000000000000000100000000000000000000000000000000000000" + // systemConfig
+			"0000000000000000000000000000000000000000000000000000000000000060" + // offset to disputeGameConfigs
+			"00000000000000000000000000000000000000000000000000000000000001e0" + // offset to extraInstructions
+			"0000000000000000000000000000000000000000000000000000000000000001" + // disputeGameConfigs.length
+			"0000000000000000000000000000000000000000000000000000000000000020" + // offset to disputeGameConfigs[0]
+			"0000000000000000000000000000000000000000000000000000000000000001" + // disputeGameConfigs[0].enabled
+			"00000000000000000000000000000000000000000000000000000000000003e8" + // disputeGameConfigs[0].initBond (1000)
+			"000000000000000000000000000000000000000000000000000000000000000a" + // disputeGameConfigs[0].gameType (10)
+			"0000000000000000000000000000000000000000000000000000000000000080" + // offset to gameArgs
+			"00000000000000000000000000000000000000000000000000000000000000a0" + // gameArgs.length (160 bytes)
+			"038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c" + // absolutePrestate
+			"0000000000000000000000003333333333333333333333333333333333333333" + // verifier
+			"0000000000000000000000000000000000000000000000000000000000000e10" + // maxChallengeDuration (3600)
+			"0000000000000000000000000000000000000000000000000000000000001c20" + // maxProveDuration (7200)
+			"0000000000000000000000000000000000000000000000000de0b6b3a7640000" + // challengerBond (1e18)
 			"0000000000000000000000000000000000000000000000000000000000000000" // extraInstructions.length
 
 		require.Equal(t, expected, hex.EncodeToString(data))

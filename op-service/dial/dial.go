@@ -56,15 +56,6 @@ func DialRollupClientWithTimeout(ctx context.Context, log log.Logger, url string
 	return sources.NewRollupClient(rpcCl), nil
 }
 
-func DialSupervisorClientWithTimeout(ctx context.Context, log log.Logger, url string, callerOpts ...client.RPCOption) (*sources.SupervisorClient, error) {
-	rpcCl, err := dialClientWithTimeout(ctx, log, url, callerOpts...)
-	if err != nil {
-		return nil, err
-	}
-
-	return sources.NewSupervisorClient(rpcCl), nil
-}
-
 func DialSuperNodeClientWithTimeout(ctx context.Context, log log.Logger, url string, callerOpts ...client.RPCOption) (*sources.SuperNodeClient, error) {
 	rpcCl, err := dialClientWithTimeout(ctx, log, url, callerOpts...)
 	if err != nil {

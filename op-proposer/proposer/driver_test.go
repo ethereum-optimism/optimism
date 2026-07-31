@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	"github.com/ethereum-optimism/optimism/op-proposer/proposer/source"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -24,11 +25,14 @@ import (
 
 type StubDGFContract struct {
 	hasProposedCount int
+	proposedRecently bool
+	cutoff           time.Time
 }
 
-func (m *StubDGFContract) HasProposedSince(_ context.Context, _ common.Address, _ time.Time, _ uint32) (bool, time.Time, common.Hash, error) {
+func (m *StubDGFContract) HasProposedSince(_ context.Context, _ common.Address, cutoff time.Time, _ uint32) (bool, time.Time, common.Hash, error) {
 	m.hasProposedCount++
-	return false, time.Unix(1000, 0), common.Hash{0xdd}, nil
+	m.cutoff = cutoff
+	return m.proposedRecently, time.Unix(1000, 0), common.Hash{0xdd}, nil
 }
 
 func (m *StubDGFContract) ProposalTx(_ context.Context, _ uint32, _ common.Hash, _ []byte) (txmgr.TxCandidate, error) {
@@ -96,6 +100,43 @@ func setup(t *testing.T) (*L2OutputSubmitter, *mockRollupEndpointProvider, *Stub
 		})
 
 	return &l2OutputSubmitter, ep, mockDGFContract, txmgr, logs
+}
+
+func TestL2OutputSubmitter_FetchDGFOutputCutoffUsesClock(t *testing.T) {
+	const proposalInterval = 15 * time.Minute
+	fetchCutoff := func(t *testing.T, proposerClock clock.Clock) time.Time {
+		dgfContract := &StubDGFContract{proposedRecently: true}
+		txmgr := txmgrmocks.NewTxManager(t)
+		txmgr.On("From").Return(common.Address{0xab}).Once()
+		submitter := &L2OutputSubmitter{
+			DriverSetup: DriverSetup{
+				Log:   testlog.Logger(t, log.LevelDebug),
+				Cfg:   ProposerConfig{ProposalInterval: proposalInterval},
+				Clock: proposerClock,
+				Txmgr: txmgr,
+			},
+			dgfContract: dgfContract,
+		}
+
+		_, shouldPropose, err := submitter.FetchDGFOutput(t.Context())
+		require.NoError(t, err)
+		require.False(t, shouldPropose)
+		return dgfContract.cutoff
+	}
+
+	t.Run("InjectedClock", func(t *testing.T) {
+		now := time.Unix(1_234_567, 0)
+		cutoff := fetchCutoff(t, clock.NewDeterministicClock(now))
+		require.Equal(t, now.Add(-proposalInterval), cutoff)
+	})
+
+	t.Run("NilClockUsesSystemTime", func(t *testing.T) {
+		before := time.Now().Add(-proposalInterval)
+		cutoff := fetchCutoff(t, nil)
+		after := time.Now().Add(-proposalInterval)
+		require.False(t, cutoff.Before(before), "cutoff must not predate the call")
+		require.False(t, cutoff.After(after), "cutoff must not postdate the call")
+	})
 }
 
 func TestL2OutputSubmitter_OutputRetry(t *testing.T) {

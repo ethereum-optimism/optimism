@@ -15,7 +15,7 @@ build-devnet BINARY:
 
 build-reth:
   #!/bin/bash
-  cd {{SOURCE}}/../../reth && cargo build --bin op-reth -p op-reth
+  cd {{SOURCE}}/../../op-reth && cargo build --bin op-reth -p op-reth
 
 build-kona PROFILE="release":
   #!/bin/bash
@@ -45,7 +45,7 @@ acceptance-tests-run CL_TYPE="kona-node" EL_TYPE="op-reth":
 
   if [ "{{EL_TYPE}}" = "op-reth" ] ; then
     echo "Running acceptance tests for op-reth"
-    export OP_RETH_EXEC_PATH="{{SOURCE}}/../../reth/target/debug/op-reth"
+    export OP_RETH_EXEC_PATH="{{SOURCE}}/../../target/debug/op-reth"
   fi
 
   echo "Running acceptance tests for {{CL_TYPE}} with {{EL_TYPE}}..."
@@ -82,7 +82,7 @@ test-e2e-sysgo-run BINARY="node" GO_PKG_NAME="node/common" DEVNET="simple-kona" 
           export KONA_NODE_EXEC_PATH="{{SOURCE}}/../target/debug/kona-node"
         fi
         if [ $OP_RETH_EXEC_PATH == "" ]; then
-          export OP_RETH_EXEC_PATH="{{SOURCE}}/../../reth/target/debug/op-reth"
+          export OP_RETH_EXEC_PATH="{{SOURCE}}/../../target/debug/op-reth"
         fi
     else
         echo "Invalid BINARY specified. Must be 'node'."
@@ -97,33 +97,15 @@ test-e2e-sysgo-run BINARY="node" GO_PKG_NAME="node/common" DEVNET="simple-kona" 
     if [ "{{DEVNET}}" = "simple-kona" ]; then
         export KONA_SEQUENCER_WITH_RETH=0
         export KONA_VALIDATOR_WITH_RETH=1
-        export KONA_SEQUENCER_WITH_GETH=0
-        export KONA_VALIDATOR_WITH_GETH=0
 
         export OP_SEQUENCER_WITH_RETH=1
         export OP_VALIDATOR_WITH_RETH=1
-        export OP_SEQUENCER_WITH_GETH=0
-        export OP_VALIDATOR_WITH_GETH=0
-    elif [ "{{DEVNET}}" = "simple-kona-geth" ]; then
-        export KONA_SEQUENCER_WITH_RETH=0
-        export KONA_VALIDATOR_WITH_RETH=0
-        export KONA_SEQUENCER_WITH_GETH=0
-        export KONA_VALIDATOR_WITH_GETH=1
-
-        export OP_SEQUENCER_WITH_RETH=0
-        export OP_VALIDATOR_WITH_RETH=0
-        export OP_SEQUENCER_WITH_GETH=1
-        export OP_VALIDATOR_WITH_GETH=1
     elif [ "{{DEVNET}}" = "simple-kona-sequencer" ]; then
         export KONA_SEQUENCER_WITH_RETH=1
         export KONA_VALIDATOR_WITH_RETH=1
-        export KONA_SEQUENCER_WITH_GETH=0
-        export KONA_VALIDATOR_WITH_GETH=1
 
         export OP_SEQUENCER_WITH_RETH=0
         export OP_VALIDATOR_WITH_RETH=0
-        export OP_SEQUENCER_WITH_GETH=0
-        export OP_VALIDATOR_WITH_GETH=0
     fi
 
     export SKIP_P2P_CONNECTION_CHECK=true
@@ -136,45 +118,12 @@ test-e2e-sysgo-run BINARY="node" GO_PKG_NAME="node/common" DEVNET="simple-kona" 
         --jsonfile=./tmp/testlogs/log.json \
         -- -count=1 -timeout 40m ./$GO_PKG_NAME $FILTER
 
-long-running-test FILTER="" OUTPUT_LOGS_DIR="":
-    #!/bin/bash
-    if ! [ -z "{{FILTER}}" ]; then
-        export FILTER="-run {{FILTER}}"
-    fi
-
-    export KONA_SEQUENCER_WITH_RETH=1
-    export KONA_VALIDATOR_WITH_RETH=4
-    export KONA_SEQUENCER_WITH_GETH=0
-    export KONA_VALIDATOR_WITH_GETH=4
-
-    export OP_SEQUENCER_WITH_RETH=0
-    export OP_VALIDATOR_WITH_RETH=0
-    export OP_SEQUENCER_WITH_GETH=0
-    export OP_VALIDATOR_WITH_GETH=0
-
-    export KONA_NODE_EXEC_PATH="{{SOURCE}}/../target/debug/kona-node"
-    export OP_RETH_EXEC_PATH="{{SOURCE}}/../../reth/target/debug/op-reth"
-    export DEVSTACK_ORCHESTRATOR=sysgo
-    echo "Building kona-node..."
-    just build-kona
-    echo "Building op-reth..."
-    just build-reth
-
-    export OP_TESTLOG_FILE_LOGGER_OUTDIR="{{OUTPUT_LOGS_DIR}}"
-    if [ -z "{{OUTPUT_LOGS_DIR}}" ]; then
-        export OP_TESTLOG_FILE_LOGGER_OUTDIR="{{CURRENT_DIR}}/kona-test-logs"
-    fi
-
-    mkdir -p $OP_TESTLOG_FILE_LOGGER_OUTDIR
-
-    export DISABLE_OP_E2E_LEGACY=true
-    export SKIP_P2P_CONNECTION_CHECK=true
-
-    # Run the test with count=1 to avoid caching the test results.
-    cd {{SOURCE}} && go test -count=1 -timeout 0 -v ./node/long-running $FILTER
-
-# Run action tests for the single-chain client program on the native target
-action-tests-single test_name='Test_ProgramAction' *args='': action-tests-build (action-tests-single-run test_name args)
+# Run action tests for the single-chain client program on the native target.
+#
+# Runs every Test* in rust/kona/tests/proofs/. These tests run only here (under
+# kona-host); the runner sets KONA_HOST_PATH and the package is excluded from the
+# monorepo go-tests suite.
+action-tests-single test_name='.*' *args='': action-tests-build (action-tests-single-run test_name args)
 
 # Build action tests for host program
 action-tests-build:
@@ -184,7 +133,7 @@ action-tests-build:
   just build-native --release --bin kona-host
 
 # Run action tests for the single-chain client program on the native target
-action-tests-single-run test_name='Test_ProgramAction' parallel="0" *args='':
+action-tests-single-run test_name='.*' parallel="0" *args='':
   #!/bin/bash
   set -euo pipefail
 
@@ -198,7 +147,7 @@ action-tests-single-run test_name='Test_ProgramAction' parallel="0" *args='':
   # https://github.com/gotestyourself/gotestsum/blob/b4b13345fee56744d80016a20b760d3599c13504/testjson/format.go#L442-L444
   echo "Running action tests for the client program on the native target"
 
-  PROOFS_DIR="{{SOURCE}}/../../../op-e2e/actions/proofs"
+  PROOFS_DIR="{{SOURCE}}/proofs"
   if [ ! -d "$PROOFS_DIR" ]; then
     echo "Error: proofs directory not found: $PROOFS_DIR" >&2
     exit 1
@@ -223,12 +172,13 @@ action-tests-single-run test_name='Test_ProgramAction' parallel="0" *args='':
     export NODE_TOTAL=${CIRCLE_NODE_TOTAL:-1}
 
     # List matching test names, filtering out the "ok" summary line from go test -list.
-    # Note: go test -list uses full-match regex, so we need .* suffix to match prefixes.
-    go test -list '{{test_name}}.*' . | grep -E '^{{test_name}}' > /tmp/tests.txt
+    # Op-program-only tests opt themselves out at runtime via helpers.SkipIfKona(t),
+    # so no name-based exclusion is needed here.
+    go test -list '{{test_name}}' . | grep -E '^Test' > /tmp/tests.txt
 
     TOTAL_TESTS=$(wc -l < /tmp/tests.txt | tr -d ' ')
     if [ "$TOTAL_TESTS" -eq 0 ]; then
-      echo "Error: no tests matched pattern '^{{test_name}}'" >&2
+      echo "Error: no tests matched '{{test_name}}'" >&2
       exit 1
     fi
     echo "Found $TOTAL_TESTS tests to split across $NODE_TOTAL nodes"
@@ -246,7 +196,7 @@ action-tests-single-run test_name='Test_ProgramAction' parallel="0" *args='':
     xargs -I {} gotestsum --format=testname \
       --junitfile=./tmp/test-results/results-$NODE_INDEX.xml \
       --jsonfile=./tmp/testlogs/log-$NODE_INDEX.json \
-      -- -count=1 -parallel=$PARALLEL -coverprofile=coverage-$NODE_INDEX.out -timeout=60m -run '^{}$' \
+      -- -count=1 -parallel=$PARALLEL -timeout=60m -run '^{}$' \
       < /tmp/tests_shard.txt
 
     # xargs calls gotestsum multiple times appending to the same jsonfile,
@@ -259,24 +209,30 @@ action-tests-single-run test_name='Test_ProgramAction' parallel="0" *args='':
   {{SOURCE}}/../../../ops/scripts/gotestsum-split.sh --format=testname \
     --junitfile=./tmp/test-results/results.xml \
     --jsonfile=./tmp/testlogs/log.json \
-    -- -count=1 -parallel=$PARALLEL -coverprofile=coverage.out -timeout=60m -run "{{test_name}}"
+    -- -count=1 -parallel=$PARALLEL -timeout=60m -run "{{test_name}}"
 
-# Run action tests for the interop client program on the native target
-action-tests-interop test_name='TestInteropFaultProofs' *args='': action-tests-build (action-tests-interop-run test_name args)
-
-action-tests-interop-run test_name='TestInteropFaultProofs' *args='':
+# Run the kona-sp1 range guest in SP1 execute mode against the action-test chain.
+#
+# Builds the guest ELFs (Dockerized SP1 toolchain) and the range-executor binary, then runs the SP1
+# execute action tests with KONA_SP1_RANGE_EXECUTOR_PATH and KONA_SP1_ELF_DIR set. Tests skip when
+# the executor path is unset.
+action-tests-sp1 test_name='TestSP1.*':
   #!/bin/bash
   set -euo pipefail
 
-  echo "Building host program for the native target"
-  just build-native --bin kona-host
-  export KONA_HOST_PATH="{{SOURCE}}/../target/debug/kona-host"
+  echo "Building SP1 guest ELFs (Dockerized SP1 toolchain)..."
+  ( cd {{SOURCE}}/../sp1 && just build-elfs )
+  export KONA_SP1_ELF_DIR="{{SOURCE}}/../sp1/elf"
+  echo "KONA_SP1_ELF_DIR: $KONA_SP1_ELF_DIR"
 
-  # GitHub actions patch - do not print logs.
-  # https://github.com/gotestyourself/gotestsum/blob/b4b13345fee56744d80016a20b760d3599c13504/testjson/format.go#L442-L444
-  echo "Running action tests for the client program on the native target"
+  echo "Building kona-sp1-range-executor..."
+  ( cd {{SOURCE}}/../sp1 && just build-range-executor )
 
-  cd {{SOURCE}}/../../../op-e2e/actions/interop && GITHUB_ACTIONS=false {{SOURCE}}/../../../ops/scripts/gotestsum-split.sh --format=short-verbose -- -count=1 -timeout 60m -run "{{test_name}}" {{args}}
+  export KONA_SP1_RANGE_EXECUTOR_PATH="{{SOURCE}}/../../target/release/kona-sp1-range-executor"
+  echo "KONA_SP1_RANGE_EXECUTOR_PATH: $KONA_SP1_RANGE_EXECUTOR_PATH"
+
+  cd {{SOURCE}}/proofs
+  go test -count=1 -timeout=60m -run "{{test_name}}" .
 
 update-packages:
     #!/bin/bash
@@ -287,4 +243,3 @@ update-packages:
 update-optimism:
   #!/bin/bash
   git submodule update --remote --force
-

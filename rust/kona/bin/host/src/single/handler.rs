@@ -9,8 +9,7 @@ use alloy_eips::{eip2718::Encodable2718, eip4844::FIELD_ELEMENTS_PER_BLOB};
 use alloy_primitives::{Address, B256, Bytes, keccak256};
 use alloy_provider::Provider;
 use alloy_rlp::Decodable;
-use alloy_rpc_types::{Block, debug::ExecutionWitness};
-use alloy_transport::{RpcError, TransportErrorKind};
+use alloy_rpc_types::Block;
 use anyhow::{Result, anyhow, ensure};
 use ark_ff::{BigInteger, PrimeField};
 use async_trait::async_trait;
@@ -19,7 +18,7 @@ use kona_proof::{Hint, HintType, l1::ROOTS_OF_UNITY};
 use kona_protocol::{BlockInfo, OutputRoot, Predeploys};
 use kona_providers_alloy::BlobWithCommitmentAndProof;
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
-use tracing::{info, warn};
+use tracing::warn;
 
 /// Parses a blob hint, supporting both legacy (48-byte) and new (40-byte) formats.
 ///
@@ -58,12 +57,6 @@ pub fn parse_blob_hint(hint_data: &[u8]) -> Result<(B256, u64)> {
             );
         }
     }
-}
-
-/// Returns `true` if the RPC error indicates the node does not support the requested method
-/// (JSON-RPC error code -32601: Method not found).
-const fn is_rpc_method_not_found(e: &RpcError<TransportErrorKind>) -> bool {
-    matches!(e, RpcError::ErrorResp(p) if p.code == -32601)
 }
 
 /// The [`HintHandler`] for the [`SingleChainHost`].
@@ -185,15 +178,7 @@ impl HintHandler for SingleChainHintHandler {
                 let input = hint.data[28..].to_vec();
                 let input_hash = keccak256(hint.data.as_ref());
 
-                let result = crate::eth::execute(address, input, gas).map_or_else(
-                    |_| vec![0u8; 1],
-                    |raw_res| {
-                        let mut res = Vec::with_capacity(1 + raw_res.len());
-                        res.push(0x01);
-                        res.extend_from_slice(&raw_res);
-                        res
-                    },
-                );
+                let result = crate::eth::execute(address, input, gas)?.into_preimage_value();
 
                 let mut kv_lock = kv.write().await;
                 kv_lock.set(PreimageKey::new_keccak256(*input_hash).into(), hint.data.into())?;
@@ -316,15 +301,31 @@ impl HintHandler for SingleChainHintHandler {
                 kv_write_lock.set(PreimageKey::new_keccak256(*hash).into(), preimage.into())?;
             }
             HintType::L2AccountProof => {
-                ensure!(hint.data.len() == 8 + 20, "Invalid hint data length");
-
-                let block_number = u64::from_be_bytes(hint.data.as_ref()[..8].try_into()?);
-                let address = Address::from_slice(&hint.data.as_ref()[8..28]);
+                // Backwards compatibility: old prestates send an 8-byte block number; new
+                // prestates send a 32-byte block hash. A single kona-host version serves all
+                // games.
+                const BLOCK_NUMBER_HINT_LEN: usize = 8 + 20;
+                const BLOCK_HASH_HINT_LEN: usize = 32 + 20;
+                let block_id = match hint.data.len() {
+                    BLOCK_NUMBER_HINT_LEN => {
+                        let block_number = u64::from_be_bytes(hint.data.as_ref()[..8].try_into()?);
+                        let address = Address::from_slice(&hint.data.as_ref()[8..28]);
+                        (block_number.into(), address)
+                    }
+                    BLOCK_HASH_HINT_LEN => {
+                        let block_hash = B256::from_slice(&hint.data.as_ref()[..32]);
+                        let address = Address::from_slice(&hint.data.as_ref()[32..52]);
+                        (block_hash.into(), address)
+                    }
+                    other => anyhow::bail!(
+                        "Invalid L2AccountProof hint length: expected {BLOCK_NUMBER_HINT_LEN} or {BLOCK_HASH_HINT_LEN}, got {other}"
+                    ),
+                };
 
                 let proof_response = providers
                     .l2
-                    .get_proof(address, Default::default())
-                    .block_id(block_number.into())
+                    .get_proof(block_id.1, Default::default())
+                    .block_id(block_id.0)
                     .await?;
 
                 // Write the account proof nodes to the key-value store.
@@ -337,17 +338,31 @@ impl HintHandler for SingleChainHintHandler {
                 })?;
             }
             HintType::L2AccountStorageProof => {
-                ensure!(hint.data.len() == 8 + 20 + 32, "Invalid hint data length");
+                // Backwards compatibility: old prestates send an 8-byte block number; new
+                // prestates send a 32-byte block hash. A single kona-host version serves all
+                // games.
+                const BLOCK_NUMBER_HINT_LEN: usize = 8 + 20 + 32;
+                const BLOCK_HASH_HINT_LEN: usize = 32 + 20 + 32;
+                let (block_id, address, slot) = match hint.data.len() {
+                    BLOCK_NUMBER_HINT_LEN => {
+                        let block_number = u64::from_be_bytes(hint.data.as_ref()[..8].try_into()?);
+                        let address = Address::from_slice(&hint.data.as_ref()[8..28]);
+                        let slot = B256::from_slice(&hint.data.as_ref()[28..60]);
+                        (block_number.into(), address, slot)
+                    }
+                    BLOCK_HASH_HINT_LEN => {
+                        let block_hash = B256::from_slice(&hint.data.as_ref()[..32]);
+                        let address = Address::from_slice(&hint.data.as_ref()[32..52]);
+                        let slot = B256::from_slice(&hint.data.as_ref()[52..84]);
+                        (block_hash.into(), address, slot)
+                    }
+                    other => anyhow::bail!(
+                        "Invalid L2AccountStorageProof hint length: expected {BLOCK_NUMBER_HINT_LEN} or {BLOCK_HASH_HINT_LEN}, got {other}"
+                    ),
+                };
 
-                let block_number = u64::from_be_bytes(hint.data.as_ref()[..8].try_into()?);
-                let address = Address::from_slice(&hint.data.as_ref()[8..28]);
-                let slot = B256::from_slice(&hint.data.as_ref()[28..]);
-
-                let mut proof_response = providers
-                    .l2
-                    .get_proof(address, vec![slot])
-                    .block_id(block_number.into())
-                    .await?;
+                let mut proof_response =
+                    providers.l2.get_proof(address, vec![slot]).block_id(block_id).await?;
 
                 let mut kv_lock = kv.write().await;
 
@@ -369,40 +384,18 @@ impl HintHandler for SingleChainHintHandler {
                 })?;
             }
             HintType::L2PayloadWitness => {
-                if !cfg.enable_experimental_witness_endpoint {
-                    warn!(
-                        target: "single_hint_handler",
-                        "L2PayloadWitness hint was sent, but payload witness is disabled. Skipping hint."
-                    );
-                    return Ok(());
-                }
-
                 ensure!(hint.data.len() >= 32, "Invalid hint data length");
 
                 let parent_block_hash = B256::from_slice(&hint.data.as_ref()[..32]);
                 let payload_attributes: OpPayloadAttributes =
                     serde_json::from_slice(&hint.data[32..])?;
 
-                let execute_payload_response = match providers
-                    .l2
-                    .client()
-                    .request::<(B256, OpPayloadAttributes), ExecutionWitness>(
-                        "debug_executePayload",
-                        (parent_block_hash, payload_attributes),
-                    )
-                    .await
-                {
-                    Ok(response) => response,
-                    Err(e) => {
-                        info!(
-                            target: "single_hint_handler",
-                            err = %e,
-                            method_not_found = is_rpc_method_not_found(&e),
-                            "debug_executePayload unavailable, skipping witness preimage collection"
-                        );
-                        return Ok(());
-                    }
-                };
+                let execute_payload_response = crate::backend::util::fetch_execution_witness(
+                    providers.l2.client(),
+                    parent_block_hash,
+                    payload_attributes,
+                )
+                .await?;
 
                 let preimages = execute_payload_response
                     .state
@@ -427,34 +420,6 @@ impl HintHandler for SingleChainHintHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_json_rpc::ErrorPayload;
-    use alloy_transport::TransportErrorKind;
-
-    #[test]
-    fn test_is_rpc_method_not_found_true() {
-        let e = RpcError::<TransportErrorKind>::ErrorResp(ErrorPayload {
-            code: -32601,
-            message: "method not found".into(),
-            data: None,
-        });
-        assert!(is_rpc_method_not_found(&e));
-    }
-
-    #[test]
-    fn test_is_rpc_method_not_found_false_wrong_code() {
-        let e = RpcError::<TransportErrorKind>::ErrorResp(ErrorPayload {
-            code: -32600,
-            message: "invalid request".into(),
-            data: None,
-        });
-        assert!(!is_rpc_method_not_found(&e));
-    }
-
-    #[test]
-    fn test_is_rpc_method_not_found_false_null_resp() {
-        let e = RpcError::<TransportErrorKind>::NullResp;
-        assert!(!is_rpc_method_not_found(&e));
-    }
 
     const TEST_HASH: B256 = B256::new([0x42u8; 32]);
     const TEST_TIMESTAMP: u64 = 1234567890;

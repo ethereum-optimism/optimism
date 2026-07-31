@@ -1,0 +1,28 @@
+# Version control
+.github
+.gitignore
+
+# Include for vergen constants
+!/.git
+
+# Build artifacts
+**/target
+integration_logs
+
+# Development files
+.vscode
+.env
+**/*.log
+
+
+# Cargo artifacts
+**/.cargo
+
+# Documentation
+**/*.md
+docs/
+
+# Scripts that aren't needed for runtime
+scripts/
+tests/
+**/integration

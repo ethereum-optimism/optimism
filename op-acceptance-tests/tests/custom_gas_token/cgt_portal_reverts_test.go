@@ -3,7 +3,6 @@ package custom_gas_token
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum/go-ethereum"
@@ -21,7 +20,7 @@ func TestCGT_PortalReceiveReverts(gt *testing.T) {
 	portal := sys.L2Chain.DepositContractAddr()
 
 	// Try to send 1 wei to the Portal (receive() -> depositTransaction); should revert in CGT mode.
-	ctx, cancel := context.WithTimeout(t.Ctx(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Ctx(), cgtCallTimeout)
 	defer cancel()
 	_, err := l1c.EstimateGas(ctx, ethereum.CallMsg{
 		To:    &portal,

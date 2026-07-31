@@ -13,8 +13,8 @@ kona-registry = "0.1.0"
 [`kona-registry`][sc] declares lazy evaluated statics that expose `ChainConfig`s, `RollupConfig`s,
 and `Chain` objects for all chains with static definitions in the superchain registry. The way this works
 is the golang side of the superchain registry contains an "internal code generation" script that has
-been modified to output configuration files to the [`crates/registry`][s] directory in the
-`etc` folder that are read by the [`kona-registry`][sc] rust crate. These static config files
+been modified to output configuration files to this crate's [`etc`][s] folder
+that are read by the [`kona-registry`][sc] rust crate. These static config files
 contain an up-to-date list of all superchain configurations with their chain configs. It is expected
 that if the commit hash of the [`superchain-registry`][osr] pulled in as a git submodule has breaking
 changes, the tests in this crate (`kona-registry`) will break and updates will need to be made.
@@ -45,9 +45,9 @@ lazy statics.
    export KONA_CUSTOM_CONFIGS_DIR=/absolute/path/to/custom-configs
    cargo build -p kona-registry
    ```
-3. The build script merges the custom files into the generated `etc/chainList.json` and
-   `etc/configs.json` before compiling the crate. Attempting to override existing chain ids will
-   result in build failures.
+3. The build script copies the committed registry snapshot into Cargo's build output and merges the
+   custom files there before compiling the crate. The committed files under `etc/` remain unchanged.
+   Attempting to override existing chain ids will result in build failures.
 
 Both JSON files must stay in lockstep: every chain listed in `configs.json` must also appear in
 `chainList.json`, and chain identifiers must map to a single chain id. The build script validates
@@ -113,7 +113,7 @@ println!("OP Mainnet Chain Config: {:?}", op_chain_config);
 [op-superchain]: https://docs.optimism.io/stack/explainer
 [osr]: https://github.com/ethereum-optimism/superchain-registry
 
-[s]: ./crates/registry
+[s]: ./etc
 [sc]: https://crates.io/crates/kona-registry
 [g]: https://crates.io/crates/kona-genesis
 

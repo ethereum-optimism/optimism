@@ -5,6 +5,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/flags"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 
 	op_service "github.com/ethereum-optimism/optimism/op-service"
@@ -13,23 +14,25 @@ import (
 )
 
 const (
-	EnvVarPrefix             = flags.EnvVarPrefix
-	L1RPCURLFlagName         = flags.L1RPCURLFlagName
-	CacheDirFlagName         = flags.CacheDirFlagName
-	L1ChainIDFlagName        = flags.L1ChainIDFlagName
-	ArtifactsLocatorFlagName = flags.ArtifactsLocatorFlagName
-	L2ChainIDsFlagName       = flags.L2ChainIDsFlagName
-	WorkdirFlagName          = flags.WorkdirFlagName
-	OutdirFlagName           = flags.OutdirFlagName
-	PrivateKeyFlagName       = flags.PrivateKeyFlagName
-	IntentTypeFlagName       = flags.IntentTypeFlagName
-	VerifierAPIKeyFlagName   = flags.VerifierAPIKeyFlagName
-	EtherscanAPIKeyFlagName  = flags.EtherscanAPIKeyFlagName // Deprecated: use VerifierAPIKeyFlagName
-	InputFileFlagName        = flags.InputFileFlagName
-	ContractNameFlagName     = flags.ContractNameFlagName
-	VerifierTypeFlagName     = flags.VerifierTypeFlagName
-	VerifierUrlFlagName      = flags.VerifierUrlFlagName
-	UseForgeFlagName         = flags.UseForgeFlagName
+	EnvVarPrefix              = flags.EnvVarPrefix
+	L1RPCURLFlagName          = flags.L1RPCURLFlagName
+	CacheDirFlagName          = flags.CacheDirFlagName
+	L1ChainIDFlagName         = flags.L1ChainIDFlagName
+	ArtifactsLocatorFlagName  = flags.ArtifactsLocatorFlagName
+	L2ChainIDsFlagName        = flags.L2ChainIDsFlagName
+	WorkdirFlagName           = flags.WorkdirFlagName
+	OutdirFlagName            = flags.OutdirFlagName
+	PrivateKeyFlagName        = flags.PrivateKeyFlagName
+	PrestateFlagName          = flags.PrestateFlagName
+	IntentTypeFlagName        = flags.IntentTypeFlagName
+	VerifierAPIKeyFlagName    = flags.VerifierAPIKeyFlagName
+	EtherscanAPIKeyFlagName   = flags.EtherscanAPIKeyFlagName // Deprecated: use VerifierAPIKeyFlagName
+	InputFileFlagName         = flags.InputFileFlagName
+	ContractNameFlagName      = flags.ContractNameFlagName
+	VerifierTypeFlagName      = flags.VerifierTypeFlagName
+	VerifierUrlFlagName       = flags.VerifierUrlFlagName
+	UseForgeFlagName          = flags.UseForgeFlagName
+	GenesisTimeOffsetFlagName = flags.GenesisTimeOffsetFlagName
 )
 
 var (
@@ -79,16 +82,16 @@ var (
 		Usage:   "Private key of the deployer account.",
 		EnvVars: PrefixEnvVar("PRIVATE_KEY"),
 	}
+	PrestateFlag = &cli.StringFlag{
+		Name:    PrestateFlagName,
+		Usage:   "Selected permissionless-game absolute prestate hash. Fails if a differing intent value is set.",
+		EnvVars: PrefixEnvVar("DISPUTE_ABSOLUTE_PRESTATE"),
+	}
 	DeploymentTargetFlag = &cli.StringFlag{
 		Name:    "deployment-target",
 		Usage:   fmt.Sprintf("Where to deploy L1 contracts. Options: %s, %s, %s, %s", DeploymentTargetLive, DeploymentTargetGenesis, DeploymentTargetCalldata, DeploymentTargetNoop),
 		EnvVars: PrefixEnvVar("DEPLOYMENT_TARGET"),
 		Value:   string(DeploymentTargetLive),
-	}
-	OpProgramSvcUrlFlag = &cli.StringFlag{
-		Name:    "op-program-svc-url",
-		Usage:   "URL of the OP Program SVC",
-		EnvVars: PrefixEnvVar("OP_PROGRAM_SVC_URL"),
 	}
 	IntentTypeFlag = &cli.StringFlag{
 		Name: IntentTypeFlagName,
@@ -120,19 +123,19 @@ var (
 	}
 	VerifierFlag = &cli.StringFlag{
 		Name:    VerifierTypeFlagName,
-		Usage:   "contract verifier type(s) to use. Comma-separated for multiple verifiers. Options: etherscan (default), blockscout, custom. Example: etherscan,blockscout",
+		Usage:   "contract verifier type(s) to use. Comma-separated for multiple verifiers. Options: etherscan, blockscout, custom. Defaults to etherscan and blockscout",
 		EnvVars: PrefixEnvVar("VERIFIER_TYPE"),
-		Value:   "etherscan",
+		Value:   "etherscan,blockscout",
 	}
 	VerifierUrlFlag = &cli.StringFlag{
 		Name:    VerifierUrlFlagName,
 		Usage:   "verifier URL (optional for blockscout, required for custom, ignored for etherscan)",
 		EnvVars: PrefixEnvVar("VERIFIER_URL"),
 	}
-	AutoVerifyFlag = &cli.BoolFlag{
-		Name:    "verify",
-		Usage:   "automatically verify contracts after deployment",
-		EnvVars: PrefixEnvVar("VERIFY"),
+	NoVerifyFlag = &cli.BoolFlag{
+		Name:    "no-verify",
+		Usage:   "skip automatic contract verification after deployment",
+		EnvVars: PrefixEnvVar("NO_VERIFY"),
 		Value:   false,
 	}
 	UseForgeFlag = &cli.BoolFlag{
@@ -141,11 +144,13 @@ var (
 		EnvVars: PrefixEnvVar("USE_FORGE"),
 		Value:   false,
 	}
-	ValidateFlag = &cli.StringFlag{
-		Name:    "validate",
-		Usage:   "automatically validate deployment after apply. Specify validator version (e.g., v2.0.0) or 'auto' to auto-detect from state.json. If not specified, validation is skipped.",
-		EnvVars: PrefixEnvVar("VALIDATE"),
-		Value:   "",
+	GenesisTimeOffsetFlag = &cli.Uint64Flag{
+		Name: GenesisTimeOffsetFlagName,
+		Usage: "Offset in seconds added to the L1 anchor block's timestamp to produce the committed L2 genesis " +
+			"timestamp. Must cover the runtime of the off-chain pipeline between anchor selection and OPCM.deploy " +
+			"landing on L1, including the prestate build.",
+		EnvVars: PrefixEnvVar("GENESIS_TIME_OFFSET"),
+		Value:   standard.DefaultGenesisTimeOffsetSeconds,
 	}
 )
 
@@ -158,24 +163,28 @@ var InitFlags = []cli.Flag{
 	IntentTypeFlag,
 }
 
+var PrepareFlags = []cli.Flag{
+	WorkdirFlag,
+	PrivateKeyFlag,
+	L1RPCURLFlag,
+	GenesisTimeOffsetFlag,
+}
+
 var ApplyFlags = []cli.Flag{
 	L1RPCURLFlag,
 	WorkdirFlag,
 	PrivateKeyFlag,
 	DeploymentTargetFlag,
-	OpProgramSvcUrlFlag,
-	AutoVerifyFlag,
+	NoVerifyFlag,
 	VerifierAPIKeyFlag,
 	VerifierFlag,
 	VerifierUrlFlag,
 	UseForgeFlag,
-	ValidateFlag,
 }
 
-var UpgradeFlags = []cli.Flag{
-	L1RPCURLFlag,
-	PrivateKeyFlag,
-	DeploymentTargetFlag,
+var PrestateFlags = []cli.Flag{
+	WorkdirFlag,
+	PrestateFlag,
 }
 
 var VerifyFlags = []cli.Flag{

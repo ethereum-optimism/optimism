@@ -9,8 +9,13 @@ import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.so
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Libraries
+import { LibClone } from "@solady/utils/LibClone.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Errors.sol";
+import { Types } from "src/libraries/Types.sol";
+import { Encoding } from "src/libraries/Encoding.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
 
 // Interfaces
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
@@ -128,8 +133,21 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         vm.stopPrank();
     }
 
-    /// @notice Sets up a super cannon game implementation
+    /// @notice Sets up a super cannon game implementation at the default SUPER_CANNON slot.
     function setupSuperFaultDisputeGame(Claim _absolutePrestate)
+        internal
+        returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
+    {
+        return setupSuperFaultDisputeGame(_absolutePrestate, GameTypes.SUPER_CANNON);
+    }
+
+    /// @notice Sets up a super cannon game implementation registered at the given game type.
+    /// @dev The SuperFaultDisputeGame impl is type-agnostic (the game type is appended by the
+    ///      factory), so the same impl can be registered at SUPER_CANNON or SUPER_CANNON_KONA.
+    function setupSuperFaultDisputeGame(
+        Claim _absolutePrestate,
+        GameType _gameType
+    )
         internal
         returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
     {
@@ -143,21 +161,12 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
             )
         });
 
-        _setGame(gameImpl_, GameTypes.SUPER_CANNON, immutableArgs);
+        _setGame(gameImpl_, _gameType, immutableArgs);
     }
 
     /// @notice Sets up a super permissioned game implementation
-    function setupSuperPermissionedDisputeGame(
-        Claim _absolutePrestate,
-        address _proposer,
-        address _challenger
-    )
-        internal
-        returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
-    {
-        bytes memory implArgs;
-        (implArgs, vm_, preimageOracle_) =
-            getSuperPermissionedDisputeGameImmutableArgs(_absolutePrestate, _proposer, _challenger);
+    function setupSuperPermissionedDisputeGame(address _proposer) internal returns (address gameImpl_) {
+        bytes memory implArgs = getSuperPermissionedDisputeGameImmutableArgs(_proposer);
         gameImpl_ = setupSuperPermissionedDisputeGame(implArgs);
     }
 
@@ -212,6 +221,7 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         });
 
         _setGame(gameImpl_, GameTypes.CANNON, immutableArgs);
+        _setGame(gameImpl_, GameTypes.CANNON_KONA, immutableArgs);
     }
 
     function changeClaimStatus(Claim _claim, VMStatus _status) public pure returns (Claim out_) {
@@ -244,26 +254,12 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
     }
 
     /// @notice Sets up immutable args for Super PDG implementation
-    function getSuperPermissionedDisputeGameImmutableArgs(
-        Claim _absolutePrestate,
-        address _proposer,
-        address _challenger
-    )
+    function getSuperPermissionedDisputeGameImmutableArgs(address _proposer)
         internal
-        returns (bytes memory implArgs_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
+        view
+        returns (bytes memory implArgs_)
     {
-        (vm_, preimageOracle_) = _createVM(_absolutePrestate);
-
-        // Encode the implementation args for CWIA (tightly packed)
-        implArgs_ = abi.encodePacked(
-            _absolutePrestate, // 32 bytes
-            vm_, // 20 bytes
-            anchorStateRegistry, // 20 bytes
-            delayedWeth, // 20 bytes
-            uint256(0), // 32 bytes (l2ChainId),
-            _proposer, // 20 bytes
-            _challenger // 20 bytes
-        );
+        implArgs_ = abi.encodePacked(anchorStateRegistry, _proposer);
     }
 
     /// @notice Deploys PDG v2 implementation and sets it on the DGF
@@ -298,11 +294,12 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
     function setupSuperPermissionedDisputeGame(bytes memory _implArgs) internal returns (address gameImpl_) {
         gameImpl_ = DeployUtils.create1({
             _name: "SuperPermissionedDisputeGame",
-            _args: DeployUtils.encodeConstructor(
-                abi.encodeCall(ISuperPermissionedDisputeGame.__constructor__, (_getSuperGameConstructorParams()))
-            )
+            _args: DeployUtils.encodeConstructor(abi.encodeCall(ISuperPermissionedDisputeGame.__constructor__, ()))
         });
-        _setGame(gameImpl_, GameTypes.SUPER_PERMISSIONED_CANNON, _implArgs);
+        vm.startPrank(disputeGameFactory.owner());
+        disputeGameFactory.setImplementation(GameTypes.SUPER_PERMISSIONED, IDisputeGame(gameImpl_), _implArgs);
+        disputeGameFactory.setInitBond(GameTypes.SUPER_PERMISSIONED, 0);
+        vm.stopPrank();
     }
 
     /// @notice Parameters for ZKDisputeGame setup
@@ -311,6 +308,43 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         Duration maxProveDuration;
         bytes32 absolutePrestate;
         uint256 challengerBond;
+    }
+
+    /// @notice Builds a canonical SuperRootProof from `_pairs` at `_timestamp` and returns the
+    ///         encoded ZK extraData (4-byte parentIndex prefix + SuperRootProof) together with the
+    ///         `rootClaim` that hashes to that proof. Use this everywhere a ZK game is created so
+    ///         the init-time hash binding check (`hashSuperRootProof(decode(extraData)) == rootClaim`)
+    ///         passes.
+    function _makeZKExtraDataAndClaim(
+        uint32 _parentIndex,
+        uint64 _timestamp,
+        Types.OutputRootWithChainId[] memory _pairs
+    )
+        internal
+        pure
+        returns (bytes memory extraData_, Claim rootClaim_)
+    {
+        Types.SuperRootProof memory proof =
+            Types.SuperRootProof({ version: bytes1(0x01), timestamp: _timestamp, outputRoots: _pairs });
+        bytes memory superRootBytes = Encoding.encodeSuperRootProof(proof);
+        extraData_ = abi.encodePacked(_parentIndex, superRootBytes);
+        rootClaim_ = Claim.wrap(Hashing.hashSuperRootProof(proof));
+    }
+
+    /// @notice Convenience: single-chain SuperRootProof using this test fixture's `l2ChainId` and
+    ///         a caller-supplied output root.
+    function _makeZKExtraDataAndClaim(
+        uint32 _parentIndex,
+        uint64 _timestamp,
+        bytes32 _outputRoot
+    )
+        internal
+        view
+        returns (bytes memory extraData_, Claim rootClaim_)
+    {
+        Types.OutputRootWithChainId[] memory pairs = new Types.OutputRootWithChainId[](1);
+        pairs[0] = Types.OutputRootWithChainId({ chainId: l2ChainId, root: _outputRoot });
+        return _makeZKExtraDataAndClaim(_parentIndex, _timestamp, pairs);
     }
 
     /// @notice Sets up a ZKDisputeGame implementation with gameArgs
@@ -326,7 +360,9 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
 
         GameType zkGameType = GameTypes.ZK_DISPUTE_GAME;
 
-        // Encode the gameArgs for CWIA (tightly packed)
+        // Encode the gameArgs for CWIA (tightly packed). The super-root ZKDisputeGame derives
+        // chain scoping from the SuperRootProof preimage committed to via rootClaim, so no
+        // l2ChainId field is included in the layout.
         bytes memory gameArgs = abi.encodePacked(
             _params.absolutePrestate, // 32 bytes
             zkVerifier_, // 20 bytes
@@ -334,8 +370,7 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
             _params.maxProveDuration, // 8 bytes
             _params.challengerBond, // 32 bytes
             anchorStateRegistry, // 20 bytes
-            delayedWeth, // 20 bytes
-            l2ChainId // 32 bytes
+            delayedWeth // 20 bytes
         );
 
         // Set respected game type
@@ -407,12 +442,12 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
     {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible
         // values.
-        uint32 maxGameType = 8;
+        uint32 maxGameType = 10;
         GameType gt = GameType.wrap(uint8(bound(gameType, 0, maxGameType)));
         // Ensure the rootClaim has a VMStatus that disagrees with the validity.
         rootClaim = changeClaimStatus(rootClaim, VMStatuses.INVALID);
 
-        // Set all three implementations to the same `FakeClone` contract.
+        // Set all implementations to the same `FakeClone` contract.
         for (uint8 i; i < maxGameType + 1; i++) {
             GameType lgt = GameType.wrap(i);
             disputeGameFactory.setImplementation(lgt, IDisputeGame(address(fakeClone)));
@@ -472,9 +507,9 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
     ///         the given `GameType`.
     function testFuzz_create_noImpl_reverts(uint32 gameType, Claim rootClaim, bytes calldata extraData) public {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible
-        // values. We skip over game type = 0, since the deploy script set the implementation for
-        // that game type.
-        uint32 maxGameType = 8;
+        // values. We skip over game types 0-10, since those are known types and may have
+        // implementations set by the deploy script or test setup.
+        uint32 maxGameType = 10;
         GameType gt = GameType.wrap(uint32(bound(gameType, maxGameType + 1, type(uint32).max)));
         // Ensure the rootClaim has a VMStatus that disagrees with the validity.
         rootClaim = changeClaimStatus(rootClaim, VMStatuses.INVALID);
@@ -488,12 +523,12 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
     function testFuzz_create_sameUUID_reverts(uint32 gameType, Claim rootClaim, bytes calldata extraData) public {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible
         // values.
-        uint32 maxGameType = 8;
+        uint32 maxGameType = 10;
         GameType gt = GameType.wrap(uint8(bound(gameType, 0, maxGameType)));
         // Ensure the rootClaim has a VMStatus that disagrees with the validity.
         rootClaim = changeClaimStatus(rootClaim, VMStatuses.INVALID);
 
-        // Set all three implementations to the same `FakeClone` contract.
+        // Set all implementations to the same `FakeClone` contract.
         for (uint8 i; i < maxGameType + 1; i++) {
             disputeGameFactory.setImplementation(GameType.wrap(i), IDisputeGame(address(fakeClone)));
         }
@@ -516,47 +551,6 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
             abi.encodeWithSelector(GameAlreadyExists.selector, disputeGameFactory.getGameUUID(gt, rootClaim, extraData))
         );
         disputeGameFactory.create{ value: bondAmount }(gt, rootClaim, extraData);
-    }
-
-    function test_create_implArgs_succeeds() public {
-        Claim absolutePrestate = Claim.wrap(bytes32(hex"dead"));
-        (, AlphabetVM vm_,) = setupFaultDisputeGame(absolutePrestate);
-
-        Claim rootClaim = changeClaimStatus(Claim.wrap(bytes32(hex"beef")), VMStatuses.INVALID);
-        // extraData should contain the l2BlockNumber as first 32 bytes
-        bytes memory extraData = bytes.concat(bytes32(uint256(type(uint32).max)));
-
-        uint256 bondAmount = disputeGameFactory.initBonds(GameTypes.CANNON);
-        vm.deal(address(this), bondAmount);
-
-        // Create the game
-        IDisputeGame proxy = disputeGameFactory.create{ value: bondAmount }(GameTypes.CANNON, rootClaim, extraData);
-
-        // Verify the game was created and stored
-        (IDisputeGame game, Timestamp timestamp) = disputeGameFactory.games(GameTypes.CANNON, rootClaim, extraData);
-
-        assertEq(address(game), address(proxy));
-        assertEq(Timestamp.unwrap(timestamp), block.timestamp);
-
-        // Verify the game has the correct parameters via CWIA
-        IFaultDisputeGame game_ = IFaultDisputeGame(address(proxy));
-
-        // Test CWIA getters
-        assertEq(Claim.unwrap(game_.absolutePrestate()), Claim.unwrap(absolutePrestate));
-        assertEq(Claim.unwrap(game_.rootClaim()), Claim.unwrap(rootClaim));
-        assertEq(game_.extraData(), extraData);
-        assertEq(game_.l2ChainId(), l2ChainId);
-        assertEq(address(game_.gameCreator()), address(this));
-        assertEq(game_.l2BlockNumber(), uint256(type(uint32).max));
-        assertEq(address(game_.vm()), address(vm_));
-        assertEq(address(game_.weth()), address(delayedWeth));
-        assertEq(address(game_.anchorStateRegistry()), address(anchorStateRegistry));
-        // Test Constructor args
-        assertEq(GameType.unwrap(game_.gameType()), GameType.unwrap(GameTypes.CANNON));
-        assertEq(game_.maxGameDepth(), 2 ** 3);
-        assertEq(game_.splitDepth(), 2 ** 2);
-        assertEq(Duration.unwrap(game_.clockExtension()), Duration.unwrap(Duration.wrap(3 hours)));
-        assertEq(Duration.unwrap(game_.maxClockDuration()), Duration.unwrap(Duration.wrap(3.5 days)));
     }
 
     /// @notice Tests that games get unique addresses based on their inputs (gameType, rootClaim, extraData)
@@ -864,6 +858,370 @@ contract DisputeGameFactory_FindLatestGames_Test is DisputeGameFactory_TestInit 
         IDisputeGameFactory.GameSearchResult[] memory games =
             disputeGameFactory.findLatestGames(GameType.wrap(0), start, _n);
         assertEq(games.length, _n);
+    }
+}
+
+/// @title DisputeGameFactory_Create_FaultDisputeGame_Test
+/// @notice Tests that the factory creates FaultDisputeGame clones with correct CWIA args.
+contract DisputeGameFactory_Create_FaultDisputeGame_Test is DisputeGameFactory_TestInit {
+    function test_create_implArgs_succeeds() public {
+        Claim absolutePrestate = Claim.wrap(bytes32(hex"dead"));
+        (, AlphabetVM vm_,) = setupFaultDisputeGame(absolutePrestate);
+
+        Claim rootClaim = changeClaimStatus(Claim.wrap(bytes32(hex"beef")), VMStatuses.INVALID);
+        // extraData should contain the l2BlockNumber as first 32 bytes
+        bytes memory extraData = bytes.concat(bytes32(uint256(type(uint32).max)));
+
+        uint256 bondAmount = disputeGameFactory.initBonds(GameTypes.CANNON);
+        vm.deal(address(this), bondAmount);
+
+        // Create the game
+        IDisputeGame proxy = disputeGameFactory.create{ value: bondAmount }(GameTypes.CANNON, rootClaim, extraData);
+
+        // Verify the game was created and stored
+        (IDisputeGame game, Timestamp timestamp) = disputeGameFactory.games(GameTypes.CANNON, rootClaim, extraData);
+
+        assertEq(address(game), address(proxy));
+        assertEq(Timestamp.unwrap(timestamp), block.timestamp);
+
+        // Verify the game has the correct parameters via CWIA
+        IFaultDisputeGame game_ = IFaultDisputeGame(address(proxy));
+
+        // Test CWIA getters
+        assertEq(Claim.unwrap(game_.absolutePrestate()), Claim.unwrap(absolutePrestate));
+        assertEq(Claim.unwrap(game_.rootClaim()), Claim.unwrap(rootClaim));
+        assertEq(game_.extraData(), extraData);
+        assertEq(game_.l2ChainId(), l2ChainId);
+        assertEq(address(game_.gameCreator()), address(this));
+        assertEq(game_.l2BlockNumber(), uint256(type(uint32).max));
+        assertEq(address(game_.vm()), address(vm_));
+        assertEq(address(game_.weth()), address(delayedWeth));
+        assertEq(address(game_.anchorStateRegistry()), address(anchorStateRegistry));
+        // Test Constructor args
+        assertEq(GameType.unwrap(game_.gameType()), GameType.unwrap(GameTypes.CANNON));
+        assertEq(game_.maxGameDepth(), 2 ** 3);
+        assertEq(game_.splitDepth(), 2 ** 2);
+        assertEq(Duration.unwrap(game_.clockExtension()), Duration.unwrap(Duration.wrap(3 hours)));
+        assertEq(Duration.unwrap(game_.maxClockDuration()), Duration.unwrap(Duration.wrap(3.5 days)));
+    }
+}
+
+/// @title DisputeGameFactory_ZkDisputeGame_TestInit
+/// @notice Reusable test initialization for ZKDisputeGame factory tests.
+abstract contract DisputeGameFactory_ZkDisputeGame_TestInit is DisputeGameFactory_TestInit {
+    IZKVerifier zkVerifier;
+    address proposer = makeAddr("proposer");
+    ZKDisputeGameParams defaultZKParams = ZKDisputeGameParams({
+        maxChallengeDuration: Duration.wrap(3.5 days),
+        maxProveDuration: Duration.wrap(12 hours),
+        absolutePrestate: keccak256("absolutePrestate"),
+        challengerBond: 1 ether
+    });
+
+    function setUp() public virtual override {
+        super.setUp();
+        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
+        vm.warp(block.timestamp + 1000);
+    }
+
+    function _createZKGameWithParams(ZKDisputeGameParams memory _params) internal returns (ZKDisputeGame proxy_) {
+        // Setup ZK game implementation: deploys impl, encodes gameArgs, registers with factory.
+        (, zkVerifier) = setupZKDisputeGame(_params);
+
+        (Claim rootClaim_, bytes memory extraData_) = _zkCreateParams();
+
+        vm.deal(proposer, _params.challengerBond);
+
+        vm.expectEmit(false, true, true, false);
+        emit DisputeGameCreated(address(0), GameTypes.ZK_DISPUTE_GAME, rootClaim_);
+        vm.prank(proposer);
+        proxy_ = ZKDisputeGame(
+            payable(
+                address(
+                    disputeGameFactory.create{ value: _params.challengerBond }(
+                        GameTypes.ZK_DISPUTE_GAME, rootClaim_, extraData_
+                    )
+                )
+            )
+        );
+    }
+
+    /// @notice Returns valid rootClaim and extraData for creating a ZK game (single chain).
+    /// @dev    Produces a canonical SuperRootProof so the init-time hash binding check passes.
+    function _zkCreateParams() internal view returns (Claim rootClaim_, bytes memory extraData_) {
+        (, uint256 anchorL2SeqNum) = anchorStateRegistry.getAnchorRoot();
+        (extraData_, rootClaim_) =
+            _makeZKExtraDataAndClaim(type(uint32).max, uint64(anchorL2SeqNum + 1000), keccak256("zkOutputRoot"));
+    }
+
+    function _assertZKGameFactoryStorage(ZKDisputeGame _proxy) internal view {
+        // extraData layout: 4 bytes parentIndex + 1 byte super version + 8 bytes timestamp + n*64 bytes pairs.
+        // _zkCreateParams uses 1 chain pair, so length is 4 + 1 + 8 + 64 = 77.
+        bytes memory extraData_ = _proxy.extraData();
+        assertEq(extraData_.length, 77);
+
+        // Verify factory mappings and list.
+        (IDisputeGame storedGame, Timestamp storedTs) =
+            disputeGameFactory.games(GameTypes.ZK_DISPUTE_GAME, _proxy.rootClaim(), extraData_);
+        assertEq(address(storedGame), address(_proxy));
+        assertEq(storedTs.raw(), block.timestamp);
+
+        uint256 idx = disputeGameFactory.gameCount() - 1;
+        (, Timestamp indexedTs, IDisputeGame indexedGame) = disputeGameFactory.gameAtIndex(idx);
+        assertEq(address(indexedGame), address(_proxy));
+        assertEq(indexedTs.raw(), block.timestamp);
+    }
+
+    function _assertZKGameCWIA(
+        ZKDisputeGame _proxy,
+        address _proposer,
+        ZKDisputeGameParams memory _params
+    )
+        internal
+        view
+    {
+        // Verify CWIA getters — confirms gameArgs were forwarded correctly without re-encoding.
+        assertEq(GameType.unwrap(_proxy.gameType()), GameType.unwrap(GameTypes.ZK_DISPUTE_GAME));
+        assertEq(_proxy.gameCreator(), _proposer);
+        assertEq(_proxy.l1Head().raw(), blockhash(block.number - 1));
+        assertEq(_proxy.parentIndex(), type(uint32).max);
+        assertEq(_proxy.absolutePrestate(), _params.absolutePrestate);
+        assertEq(address(_proxy.verifier()), address(zkVerifier));
+        assertEq(_proxy.maxChallengeDuration().raw(), Duration.unwrap(_params.maxChallengeDuration));
+        assertEq(_proxy.maxProveDuration().raw(), Duration.unwrap(_params.maxProveDuration));
+        assertEq(_proxy.challengerBond(), _params.challengerBond);
+        assertEq(address(_proxy.anchorStateRegistry()), address(anchorStateRegistry));
+        assertEq(address(_proxy.weth()), address(delayedWeth));
+
+        // Bond is held by DelayedWETH, not the game proxy itself.
+        assertEq(address(_proxy).balance, 0);
+        assertEq(_proxy.totalBonds(), _params.challengerBond);
+
+        // Game was created while its game type was the respected one.
+        assertTrue(_proxy.wasRespectedGameTypeWhenCreated());
+    }
+}
+
+/// @title DisputeGameFactory_Create_ZkDisputeGame_Test
+/// @notice Tests the `create` function of the `DisputeGameFactory` contract with ZKDisputeGame.
+contract DisputeGameFactory_Create_ZkDisputeGame_Test is DisputeGameFactory_ZkDisputeGame_TestInit {
+    /// @notice Tests that the factory creates a ZKDisputeGame CWIA clone correctly.
+    function testFuzz_create_succeeds(
+        bytes32 _absolutePrestate,
+        uint64 _maxChallengeDuration,
+        uint64 _maxProveDuration,
+        uint256 _challengerBond
+    )
+        public
+    {
+        vm.assume(_challengerBond > 0);
+
+        ZKDisputeGameParams memory params = ZKDisputeGameParams({
+            maxChallengeDuration: Duration.wrap(_maxChallengeDuration),
+            maxProveDuration: Duration.wrap(_maxProveDuration),
+            absolutePrestate: _absolutePrestate,
+            challengerBond: _challengerBond
+        });
+
+        ZKDisputeGame proxy = _createZKGameWithParams(params);
+        _assertZKGameFactoryStorage(proxy);
+        _assertZKGameCWIA(proxy, proposer, params);
+    }
+
+    /// @notice Tests that creating a ZKDisputeGame with any incorrect bond reverts.
+    ///         Fuzzes both the required bond and the sent amount, covering underpayment,
+    ///         overpayment, and zero-value scenarios via `_wrongBond != _challengerBond`.
+    function testFuzz_create_wrongBond_reverts(uint256 _challengerBond, uint256 _wrongBond) public {
+        vm.assume(_challengerBond > 0);
+        vm.assume(_wrongBond != _challengerBond);
+
+        setupZKDisputeGame(
+            ZKDisputeGameParams({
+                maxChallengeDuration: Duration.wrap(3.5 days),
+                maxProveDuration: Duration.wrap(12 hours),
+                absolutePrestate: keccak256("absolutePrestate"),
+                challengerBond: _challengerBond
+            })
+        );
+
+        (Claim rootClaim_, bytes memory extraData_) = _zkCreateParams();
+
+        vm.deal(proposer, _wrongBond);
+        vm.prank(proposer);
+        vm.expectRevert(IncorrectBondAmount.selector);
+        disputeGameFactory.create{ value: _wrongBond }(GameTypes.ZK_DISPUTE_GAME, rootClaim_, extraData_);
+    }
+
+    /// @notice Tests that creating a ZKDisputeGame without a registered implementation reverts.
+    function test_create_noImpl_reverts() public {
+        (Claim rootClaim_, bytes memory extraData_) = _zkCreateParams();
+
+        // ZK_DISPUTE_GAME implementation is not registered — factory must revert.
+        vm.expectRevert(abi.encodeWithSelector(NoImplementation.selector, GameTypes.ZK_DISPUTE_GAME));
+        disputeGameFactory.create{ value: 1 ether }(GameTypes.ZK_DISPUTE_GAME, rootClaim_, extraData_);
+    }
+
+    /// @notice Tests that creating a duplicate ZKDisputeGame (same UUID) reverts.
+    function test_create_duplicateUUID_reverts() public {
+        ZKDisputeGame proxy = _createZKGameWithParams(defaultZKParams);
+
+        vm.deal(proposer, 1 ether);
+
+        // Cache args before applying prank — Solidity evaluates arguments before the call,
+        // so any external call in the argument list would consume the prank prematurely.
+        Claim rc = proxy.rootClaim();
+        bytes memory ed = proxy.extraData();
+        Hash uuid = disputeGameFactory.getGameUUID(GameTypes.ZK_DISPUTE_GAME, rc, ed);
+
+        vm.expectRevert(abi.encodeWithSelector(GameAlreadyExists.selector, uuid));
+        vm.prank(proposer);
+        disputeGameFactory.create{ value: 1 ether }(GameTypes.ZK_DISPUTE_GAME, rc, ed);
+    }
+
+    /// @notice Regression guard for the LibClone immutable-args length-overflow finding from the Solady audit
+    ///         here: https://cantina.xyz/portfolio/018cf146-6e36-49a9-82b3-9ae39904f95a
+    ///         CWIA clones must revert and not silently deploy a corrupted, codeless proxy that
+    ///         permanently traps the bond when the appended args exceed the 2-byte length field.
+    function test_create_oversizedExtraData_reverts() public {
+        // Register both game implementations on the factory.
+        setupZKDisputeGame(defaultZKParams);
+        setupSuperFaultDisputeGame(Claim.wrap(bytes32(0)));
+
+        // Create a ton of extra data, far past the 2-byte CWIA length limit.
+        bytes memory oversizedExtraData = new bytes(0xe0000);
+        Claim rootClaim = Claim.wrap(keccak256("rootClaim"));
+        vm.deal(address(this), 10 ether);
+
+        // ZK dispute game: the clone must revert instead of deploying a codeless proxy.
+        vm.expectRevert(LibClone.DeploymentFailed.selector);
+        disputeGameFactory.create{ value: defaultZKParams.challengerBond }(
+            GameTypes.ZK_DISPUTE_GAME, rootClaim, oversizedExtraData
+        );
+
+        // Super fault dispute game: same guarantee.
+        vm.expectRevert(LibClone.DeploymentFailed.selector);
+        disputeGameFactory.create{ value: DEFAULT_DISPUTE_GAME_INIT_BOND }(
+            GameTypes.SUPER_CANNON, rootClaim, oversizedExtraData
+        );
+    }
+}
+
+/// @title DisputeGameFactory_SetImplementation_ZkDisputeGame_Test
+/// @notice Tests the `setImplementation` function with ZKDisputeGame.
+contract DisputeGameFactory_SetImplementation_ZkDisputeGame_Test is DisputeGameFactory_ZkDisputeGame_TestInit {
+    /// @notice Tests that setImplementation correctly stores the ZK game implementation and
+    ///         its CWIA gameArgs with fuzzed parameters.
+    function testFuzz_setImplementation_succeeds(
+        bytes32 _absolutePrestate,
+        uint64 _maxChallengeDuration,
+        uint64 _maxProveDuration,
+        uint256 _challengerBond
+    )
+        public
+    {
+        address zkImpl = address(new ZKDisputeGame());
+        IZKVerifier _zkVerifier = IZKVerifier(address(new ZKMockVerifier()));
+
+        bytes memory args = abi.encodePacked(
+            _absolutePrestate,
+            _zkVerifier,
+            _maxChallengeDuration,
+            _maxProveDuration,
+            _challengerBond,
+            anchorStateRegistry,
+            delayedWeth
+        );
+
+        vm.expectEmit(true, true, true, true, address(disputeGameFactory));
+        emit ImplementationSet(zkImpl, GameTypes.ZK_DISPUTE_GAME);
+        vm.expectEmit(true, true, true, true, address(disputeGameFactory));
+        emit ImplementationArgsSet(GameTypes.ZK_DISPUTE_GAME, args);
+
+        vm.prank(disputeGameFactory.owner());
+        disputeGameFactory.setImplementation(GameTypes.ZK_DISPUTE_GAME, IDisputeGame(zkImpl), args);
+
+        assertEq(address(disputeGameFactory.gameImpls(GameTypes.ZK_DISPUTE_GAME)), zkImpl);
+        assertEq(disputeGameFactory.gameArgs(GameTypes.ZK_DISPUTE_GAME), args);
+    }
+
+    /// @notice Tests that setImplementation reverts when called by a non-owner.
+    function testFuzz_setImplementation_notOwner_reverts(address _caller) public {
+        vm.assume(_caller != disputeGameFactory.owner());
+
+        address zkImpl = address(new ZKDisputeGame());
+        bytes memory args = abi.encodePacked(keccak256("absolutePrestate"));
+
+        vm.prank(_caller);
+        vm.expectRevert("Ownable: caller is not the owner");
+        disputeGameFactory.setImplementation(GameTypes.ZK_DISPUTE_GAME, IDisputeGame(zkImpl), args);
+    }
+}
+
+/// @title DisputeGameFactory_SetInitBond_ZkDisputeGame_Test
+/// @notice Tests the `setInitBond` function with ZKDisputeGame.
+contract DisputeGameFactory_SetInitBond_ZkDisputeGame_Test is DisputeGameFactory_ZkDisputeGame_TestInit {
+    /// @notice Tests that setInitBond properly sets and updates the bond for ZK_DISPUTE_GAME.
+    function testFuzz_setInitBond_succeeds(uint256 _bond1, uint256 _bond2) public {
+        vm.expectEmit(true, true, true, true, address(disputeGameFactory));
+        emit InitBondUpdated(GameTypes.ZK_DISPUTE_GAME, _bond1);
+
+        disputeGameFactory.setInitBond(GameTypes.ZK_DISPUTE_GAME, _bond1);
+        assertEq(disputeGameFactory.initBonds(GameTypes.ZK_DISPUTE_GAME), _bond1);
+
+        vm.expectEmit(true, true, true, true, address(disputeGameFactory));
+        emit InitBondUpdated(GameTypes.ZK_DISPUTE_GAME, _bond2);
+
+        disputeGameFactory.setInitBond(GameTypes.ZK_DISPUTE_GAME, _bond2);
+        assertEq(disputeGameFactory.initBonds(GameTypes.ZK_DISPUTE_GAME), _bond2);
+    }
+
+    /// @notice Tests that setInitBond reverts when called by a non-owner.
+    function testFuzz_setInitBond_notOwner_reverts(address _caller, uint256 _bond) public {
+        vm.assume(_caller != disputeGameFactory.owner());
+
+        vm.prank(_caller);
+        vm.expectRevert("Ownable: caller is not the owner");
+        disputeGameFactory.setInitBond(GameTypes.ZK_DISPUTE_GAME, _bond);
+    }
+}
+
+/// @title DisputeGameFactory_FindLatestGames_ZkDisputeGame_Test
+/// @notice Tests the `findLatestGames` function with ZKDisputeGame.
+contract DisputeGameFactory_FindLatestGames_ZkDisputeGame_Test is DisputeGameFactory_ZkDisputeGame_TestInit {
+    /// @notice Tests that findLatestGames correctly returns ZKDisputeGame entries.
+    function test_findLatestGames_succeeds() public {
+        // Setup ZK game and create two games with different sequence numbers.
+        setupZKDisputeGame(defaultZKParams);
+
+        (, uint256 anchorL2SeqNum) = anchorStateRegistry.getAnchorRoot();
+        vm.deal(proposer, 10 ether);
+
+        // Build two distinct SuperRootProofs at different timestamps; each binds its own rootClaim.
+        (bytes memory extra1, Claim rootClaim1) =
+            _makeZKExtraDataAndClaim(type(uint32).max, uint64(anchorL2SeqNum + 1000), keccak256("zkRoot1"));
+        (bytes memory extra2, Claim rootClaim2) =
+            _makeZKExtraDataAndClaim(type(uint32).max, uint64(anchorL2SeqNum + 2000), keccak256("zkRoot2"));
+
+        vm.startPrank(proposer);
+        IDisputeGame game1 = disputeGameFactory.create{ value: 1 ether }(GameTypes.ZK_DISPUTE_GAME, rootClaim1, extra1);
+        IDisputeGame game2 = disputeGameFactory.create{ value: 1 ether }(GameTypes.ZK_DISPUTE_GAME, rootClaim2, extra2);
+        vm.stopPrank();
+
+        uint256 latestIdx = disputeGameFactory.gameCount() - 1;
+
+        // Find the 2 most recent ZK games.
+        IDisputeGameFactory.GameSearchResult[] memory results =
+            disputeGameFactory.findLatestGames(GameTypes.ZK_DISPUTE_GAME, latestIdx, 2);
+
+        assertEq(results.length, 2);
+        assertEq(results[0].rootClaim.raw(), rootClaim2.raw());
+        assertEq(results[1].rootClaim.raw(), rootClaim1.raw());
+
+        // Verify the game addresses match.
+        (,, address g2) = results[0].metadata.unpack();
+        (,, address g1) = results[1].metadata.unpack();
+        assertEq(g2, address(game2));
+        assertEq(g1, address(game1));
     }
 }
 

@@ -2,8 +2,15 @@
 
 use alloc::boxed::Box;
 use alloy_consensus::{Header, Sealed};
-use alloy_evm::{EvmFactory, FromRecoveredTx, FromTxWithEncoded, revm::context::BlockEnv};
-use alloy_op_evm::block::OpTxEnv;
+use alloy_eips::Encodable2718;
+use alloy_evm::{
+    EvmFactory, FromRecoveredTx, FromTxWithEncoded, block::BlockExecutorFactory,
+    revm::context::BlockEnv,
+};
+use alloy_op_evm::{
+    OpBlockExecutionCtx, OpBlockExecutorFactory,
+    block::{OpTxEnv, receipt_builder::OpReceiptBuilder},
+};
 use alloy_primitives::B256;
 use async_trait::async_trait;
 use core::fmt::Debug;
@@ -16,8 +23,12 @@ use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use op_revm::OpSpecId;
 
 /// An executor wrapper type.
+///
+/// `R` selects the [`OpReceiptBuilder`] used to assemble per-tx receipts. OP Stack callers pass
+/// `OpAlloyReceiptBuilder`; chains with different receipt envelopes (e.g. Celo's CIP-64 receipt)
+/// pass their own.
 #[derive(Debug)]
-pub struct KonaExecutor<'a, P, H, Evm>
+pub struct KonaExecutor<'a, P, H, Evm, R>
 where
     P: TrieDBProvider + Send + Sync + Clone,
     H: TrieHinter + Send + Sync + Clone,
@@ -31,11 +42,13 @@ where
     trie_hinter: H,
     /// The evm factory for the executor.
     evm_factory: Evm,
+    /// The receipt builder. Cloned into each stateless builder spun up at `update_safe_head`.
+    receipt_builder: R,
     /// The executor.
-    inner: Option<StatelessL2Builder<'a, P, H, Evm>>,
+    inner: Option<StatelessL2Builder<'a, P, H, Evm, R>>,
 }
 
-impl<'a, P, H, Evm> KonaExecutor<'a, P, H, Evm>
+impl<'a, P, H, Evm, R> KonaExecutor<'a, P, H, Evm, R>
 where
     P: TrieDBProvider + Send + Sync + Clone,
     H: TrieHinter + Send + Sync + Clone,
@@ -47,22 +60,32 @@ where
         trie_provider: P,
         trie_hinter: H,
         evm_factory: Evm,
-        inner: Option<StatelessL2Builder<'a, P, H, Evm>>,
+        receipt_builder: R,
+        inner: Option<StatelessL2Builder<'a, P, H, Evm, R>>,
     ) -> Self {
-        Self { rollup_config, trie_provider, trie_hinter, evm_factory, inner }
+        Self { rollup_config, trie_provider, trie_hinter, evm_factory, receipt_builder, inner }
     }
 }
 
 #[async_trait]
-impl<P, H, Evm> Executor for KonaExecutor<'_, P, H, Evm>
+impl<P, H, Evm, R> Executor for KonaExecutor<'_, P, H, Evm, R>
 where
     P: TrieDBProvider + Debug + Send + Sync + Clone,
     H: TrieHinter + Debug + Send + Sync + Clone,
     Evm: EvmFactory<Spec = OpSpecId, BlockEnv = BlockEnv> + Send + Sync + Clone + 'static,
     <Evm as EvmFactory>::Tx:
         FromTxWithEncoded<OpTxEnvelope> + FromRecoveredTx<OpTxEnvelope> + OpTxEnv,
+    R: OpReceiptBuilder<Transaction = OpTxEnvelope> + Clone + Send + Sync + 'static,
+    R::Receipt: Encodable2718 + Send + Sync + 'static,
+    OpBlockExecutorFactory<R, RollupConfig, Evm>: for<'b> BlockExecutorFactory<
+            EvmFactory = Evm,
+            ExecutionCtx<'b> = OpBlockExecutionCtx,
+            Transaction = OpTxEnvelope,
+            Receipt = R::Receipt,
+        >,
 {
     type Error = kona_executor::ExecutorError;
+    type Receipt = R::Receipt;
 
     /// Waits for the executor to be ready.
     async fn wait_until_ready(&mut self) {
@@ -78,6 +101,7 @@ where
         self.inner = Some(StatelessL2Builder::new(
             self.rollup_config,
             self.evm_factory.clone(),
+            self.receipt_builder.clone(),
             self.trie_provider.clone(),
             self.trie_hinter.clone(),
             header,
@@ -88,7 +112,7 @@ where
     async fn execute_payload(
         &mut self,
         attributes: OpPayloadAttributes,
-    ) -> Result<BlockBuildingOutcome, Self::Error> {
+    ) -> Result<BlockBuildingOutcome<R::Receipt>, Self::Error> {
         self.inner.as_mut().map_or_else(
             || Err(kona_executor::ExecutorError::MissingExecutor),
             |e| e.build_block(attributes),

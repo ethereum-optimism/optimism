@@ -21,7 +21,6 @@ import (
 )
 
 const (
-	versionMethod        = "eth/v1/node/version"
 	specMethod           = "eth/v1/config/spec"
 	genesisMethod        = "eth/v1/beacon/genesis"
 	sidecarsMethodPrefix = "eth/v1/beacon/blob_sidecars/"
@@ -44,11 +43,28 @@ type L1BeaconClient struct {
 
 // BeaconHTTPClient implements BeaconClient. It provides golang types over the basic Beacon API.
 type BeaconHTTPClient struct {
-	cl client.HTTP
+	cl                   client.HTTP
+	slotDurationOverride uint64
 }
 
-func NewBeaconHTTPClient(cl client.HTTP) *BeaconHTTPClient {
-	return &BeaconHTTPClient{cl}
+type BeaconHTTPClientOption func(*BeaconHTTPClient)
+
+// WithSlotDurationOverride makes ConfigSpec return a synthesized response with
+// the given SECONDS_PER_SLOT value instead of issuing an HTTP request to the
+// beacon /eth/v1/config/spec endpoint. A value of 0 leaves the default
+// behavior unchanged.
+func WithSlotDurationOverride(slotDuration uint64) BeaconHTTPClientOption {
+	return func(c *BeaconHTTPClient) {
+		c.slotDurationOverride = slotDuration
+	}
+}
+
+func NewBeaconHTTPClient(cl client.HTTP, opts ...BeaconHTTPClientOption) *BeaconHTTPClient {
+	c := &BeaconHTTPClient{cl: cl}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
 }
 
 func (cl *BeaconHTTPClient) apiReq(ctx context.Context, dest any, reqPath string, reqQuery url.Values) error {
@@ -77,15 +93,14 @@ func (cl *BeaconHTTPClient) apiReq(ctx context.Context, dest any, reqPath string
 	return nil
 }
 
-func (cl *BeaconHTTPClient) NodeVersion(ctx context.Context) (string, error) {
-	var resp eth.APIVersionResponse
-	if err := cl.apiReq(ctx, &resp, versionMethod, nil); err != nil {
-		return "", err
-	}
-	return resp.Data.Version, nil
-}
-
 func (cl *BeaconHTTPClient) ConfigSpec(ctx context.Context) (eth.APIConfigResponse, error) {
+	if cl.slotDurationOverride != 0 {
+		return eth.APIConfigResponse{
+			Data: eth.ReducedConfigData{
+				SecondsPerSlot: eth.Uint64String(cl.slotDurationOverride),
+			},
+		}, nil
+	}
 	var configResp eth.APIConfigResponse
 	if err := cl.apiReq(ctx, &configResp, specMethod, nil); err != nil {
 		return eth.APIConfigResponse{}, err
@@ -282,9 +297,4 @@ func verifyBlob(blob *eth.Blob, expectedCommitmentHash common.Hash) error {
 		return fmt.Errorf("recomputed commitment %s does not match expected commitment %s", recomputedCommitmentHash, expectedCommitmentHash)
 	}
 	return nil
-}
-
-// GetVersion fetches the version of the Beacon-node.
-func (cl *L1BeaconClient) GetVersion(ctx context.Context) (string, error) {
-	return cl.cl.NodeVersion(ctx)
 }

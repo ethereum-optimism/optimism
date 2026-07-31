@@ -10,6 +10,7 @@ import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 
 /// @title OPContractsManagerUtilsCaller
 /// @notice OPContractsManagerUtilsCaller is an abstract contract that exists to hide all of the
@@ -26,19 +27,6 @@ abstract contract OPContractsManagerUtilsCaller {
     /// @param _utils Address of the OPContractsManagerUtils contract.
     constructor(IOPContractsManagerUtils _utils) {
         opcmUtils = _utils;
-    }
-
-    /// @notice Maps an L2 chain ID to an L1 batch inbox address as defined by the standard
-    ///         configuration's convention. This convention is
-    ///         `versionByte || keccak256(bytes32(chainId))[:19]`, where || denotes concatenation,
-    ///         versionByte is 0x00, and chainId is a uint256.
-    ///         https://specs.optimism.io/protocol/configurability.html#consensus-parameters
-    /// @param _l2ChainId The L2 chain ID to map to an L1 batch inbox address.
-    /// @return Chain ID mapped to an L1 batch inbox address.
-    function _chainIdToBatchInboxAddress(uint256 _l2ChainId) internal view returns (address) {
-        return abi.decode(
-            _staticcall(abi.encodeCall(IOPContractsManagerUtils.chainIdToBatchInboxAddress, (_l2ChainId))), (address)
-        );
     }
 
     /// @notice Helper for computing a salt for a contract deployment.
@@ -158,7 +146,9 @@ abstract contract OPContractsManagerUtilsCaller {
     /// @param _proxyAdmin The proxy admin of the contract.
     /// @param _target The target of the contract.
     /// @param _implementation The implementation of the contract.
-    /// @param _data The data to call the initializer with.
+    /// @param _data The data to call the initializer with. Must be called and not left empty.
+    /// @dev make sure _data is not empty and calls the initializer. otherwise it can lead to
+    ///      unsupported OZ v5 Initializable contracts being used.
     function _upgrade(IProxyAdmin _proxyAdmin, address _target, address _implementation, bytes memory _data) internal {
         _upgrade(_proxyAdmin, _target, _implementation, _data, bytes32(0), 0);
     }
@@ -184,6 +174,17 @@ abstract contract OPContractsManagerUtilsCaller {
             abi.encodeCall(
                 IOPContractsManagerUtils.upgrade, (_proxyAdmin, _target, _implementation, _data, _slot, _offset)
             )
+        );
+    }
+
+    /// @notice Resolves the SystemConfig a target proxy is already bound to, falling back to
+    ///         _default when it can't report one. See OPContractsManagerUtils.systemConfigFor.
+    /// @param _default Fallback SystemConfig for not-yet-initialized proxies.
+    /// @param _target The proxy whose bound SystemConfig should be resolved.
+    /// @return The bound SystemConfig.
+    function _systemConfigFor(ISystemConfig _default, address _target) internal view returns (ISystemConfig) {
+        return abi.decode(
+            _staticcall(abi.encodeCall(IOPContractsManagerUtils.systemConfigFor, (_default, _target))), (ISystemConfig)
         );
     }
 

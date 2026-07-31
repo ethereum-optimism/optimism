@@ -53,17 +53,17 @@ func (c contractVersion) String() string {
 }
 
 func (c contractVersion) IsSuperGame() bool {
-	return c.gameType == gameTypes.SuperCannonGameType || c.gameType == gameTypes.SuperPermissionedGameType
+	return c.gameType == gameTypes.SuperCannonKonaGameType || c.gameType == gameTypes.SuperPermissionedGameType
 }
 
 const (
-	vers080        = "0.8.0"
-	vers0180       = "0.18.0"
-	vers111        = "1.1.1"
-	vers120        = "1.2.0"
-	vers131        = "1.3.1"
-	versLatest     = "1.4.0"
-	verSuperCannon = "0.1.0"
+	vers080            = "0.8.0"
+	vers0180           = "0.18.0"
+	vers111            = "1.1.1"
+	vers120            = "1.2.0"
+	vers131            = "1.3.1"
+	versLatest         = "1.4.0"
+	verSuperCannonKona = "0.1.0"
 )
 
 var versions = []contractVersion{
@@ -108,8 +108,8 @@ var versions = []contractVersion{
 		loadAbi:  snapshots.LoadFaultDisputeGameABI,
 	},
 	{
-		version:  verSuperCannon,
-		gameType: gameTypes.SuperCannonGameType,
+		version:  verSuperCannonKona,
+		gameType: gameTypes.SuperCannonKonaGameType,
 		loadAbi:  snapshots.LoadSuperFaultDisputeGameABI,
 	},
 }
@@ -249,6 +249,75 @@ func TestBondDistributionMode(t *testing.T) {
 			} else {
 				require.Equal(t, faultTypes.LegacyDistributionMode, status)
 			}
+		})
+	}
+}
+
+func TestIsClosed(t *testing.T) {
+	legacyVersions := []string{vers080, vers0180, vers111, vers120, vers131}
+	modes := []struct {
+		name   string
+		mode   faultTypes.BondDistributionMode
+		closed bool
+	}{
+		{name: "Undecided", mode: faultTypes.UndecidedDistributionMode, closed: false},
+		{name: "Normal", mode: faultTypes.NormalDistributionMode, closed: true},
+		{name: "Refund", mode: faultTypes.RefundDistributionMode, closed: true},
+		{name: "Legacy", mode: faultTypes.LegacyDistributionMode, closed: true},
+	}
+	for _, version := range versions {
+		version := version
+		t.Run(version.String(), func(t *testing.T) {
+			if slices.Contains(legacyVersions, version.version) {
+				statuses := []gameTypes.GameStatus{
+					gameTypes.GameStatusInProgress,
+					gameTypes.GameStatusChallengerWon,
+					gameTypes.GameStatusDefenderWon,
+				}
+				for _, status := range statuses {
+					t.Run(status.String(), func(t *testing.T) {
+						stubRpc, game := setupFaultDisputeGameTest(t, version)
+						stubRpc.SetResponse(fdgAddr, methodStatus, rpcblock.Latest, nil, []interface{}{uint8(status)})
+
+						closed, err := game.IsClosed(context.Background())
+
+						require.NoError(t, err)
+						require.Equal(t, status != gameTypes.GameStatusInProgress, closed)
+					})
+				}
+				return
+			}
+			for _, test := range modes {
+				test := test
+				t.Run(test.name, func(t *testing.T) {
+					stubRpc, game := setupFaultDisputeGameTest(t, version)
+					stubRpc.SetResponse(fdgAddr, methodBondDistributionMode, rpcblock.Latest, nil, []interface{}{uint8(test.mode)})
+
+					closed, err := game.IsClosed(context.Background())
+
+					require.NoError(t, err)
+					require.Equal(t, test.closed, closed)
+				})
+			}
+		})
+	}
+}
+
+func TestGetAnchorStateRegistry(t *testing.T) {
+	expected := common.HexToAddress("0x0123456789abcDEF0123456789abCDef01234567")
+	for _, version := range versions {
+		version := version
+		t.Run(version.String(), func(t *testing.T) {
+			stubRpc, game := setupFaultDisputeGameTest(t, version)
+			if version.version == vers080 {
+				_, err := game.GetAnchorStateRegistry(context.Background(), rpcblock.Latest)
+				require.ErrorIs(t, err, ErrAnchorStateRegistryNotSupported)
+				return
+			}
+			stubRpc.SetResponse(fdgAddr, methodAnchorStateRegistry, rpcblock.Latest, nil, []interface{}{expected})
+			actual, err := game.GetAnchorStateRegistry(context.Background(), rpcblock.Latest)
+			require.NoError(t, err)
+			require.Equal(t, expected, actual)
 		})
 	}
 }

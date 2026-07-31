@@ -8,7 +8,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 interface IZKVerifier is ISemver {
     /// @notice Returns a unique identifier for the verifier type, used to distinguish
     ///         between different ZK proof systems (e.g. SP1, Risc0, etc).
-    function verifierType() external pure returns (string memory);
+    function verifierType() external view returns (string memory);
 
     /// @notice Verifies a ZK proof against public inputs. Reverts if invalid.
     ///

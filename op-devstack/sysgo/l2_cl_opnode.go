@@ -7,8 +7,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/opnode"
 	"github.com/ethereum-optimism/optimism/op-node/config"
+	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -16,28 +16,27 @@ import (
 type OpNode struct {
 	mu sync.Mutex
 
-	name             string
-	opNode           *opnode.Opnode
-	userRPC          string
-	interopEndpoint  string
-	interopJwtSecret eth.Bytes32
-	cfg              *config.Config
-	p                devtest.CommonT
-	logger           log.Logger
-	userProxy        *tcpproxy.Proxy
-	interopProxy     *tcpproxy.Proxy
-	clock            clock.Clock
+	name      string
+	opNode    *opnode.Opnode
+	userRPC   string
+	cfg       *config.Config
+	syncMode  nodeSync.Mode
+	p         devtest.CommonT
+	logger    log.Logger
+	userProxy *tcpproxy.Proxy
+	clock     clock.Clock
+}
+
+// SyncMode reports the sync mode the op-node was started with
+// (VerifierSyncMode for verifiers, SequencerSyncMode for sequencers).
+func (n *OpNode) SyncMode() nodeSync.Mode {
+	return n.syncMode
 }
 
 var _ L2CLNode = (*OpNode)(nil)
 
 func (n *OpNode) UserRPC() string {
 	return n.userRPC
-}
-
-func (n *OpNode) InteropRPC() (endpoint string, jwtSecret eth.Bytes32) {
-	// Make sure to use the proxied interop endpoint
-	return n.interopEndpoint, n.interopJwtSecret
 }
 
 func (n *OpNode) Start() {
@@ -56,27 +55,19 @@ func (n *OpNode) Start() {
 		})
 		n.userRPC = "http://" + n.userProxy.Addr()
 	}
-	if n.interopProxy == nil {
-		n.interopProxy = tcpproxy.New(n.logger.New("proxy", "l2cl-interop"))
-		n.p.Require().NoError(n.interopProxy.Start())
-		n.p.Cleanup(func() {
-			n.interopProxy.Close()
-		})
-		n.interopEndpoint = "ws://" + n.interopProxy.Addr()
-	}
 	n.logger.Info("Starting op-node")
 	opNode, err := opnode.NewOpnode(n.logger, n.cfg, n.clock, func(err error) {
-		n.p.Require().NoError(err, "op-node critical error")
+		// Use Errorf (non-fatal) instead of Require().NoError (fatal) because this
+		// callback is invoked from the event-processing goroutine, not the test
+		// goroutine. Require/FailNow calls runtime.Goexit() which would only exit
+		// the event goroutine, not the test, leaving the test to hang until timeout.
+		n.p.Errorf("op-node critical error: %v", err)
 	})
 	n.p.Require().NoError(err, "op-node failed to start")
 	n.logger.Info("Started op-node")
 	n.opNode = opNode
 
 	n.userProxy.SetUpstream(ProxyAddr(n.p.Require(), opNode.UserRPC().RPC()))
-
-	interopEndpoint, interopJwtSecret := opNode.InteropRPC()
-	n.interopProxy.SetUpstream(ProxyAddr(n.p.Require(), interopEndpoint))
-	n.interopJwtSecret = interopJwtSecret
 }
 
 func (n *OpNode) Stop() {
@@ -93,4 +84,36 @@ func (n *OpNode) Stop() {
 	n.logger.Info("Closed op-node", "err", closeErr)
 
 	n.opNode = nil
+}
+
+func (n *OpNode) StartControlled(ctx context.Context) error {
+	return runControlStart(ctx, n.Running, n.Start)
+}
+
+func (n *OpNode) StopControlled(ctx context.Context) error {
+	n.mu.Lock()
+	if n.opNode == nil {
+		n.mu.Unlock()
+		return nil
+	}
+	opNode := n.opNode
+	n.mu.Unlock()
+
+	err := opNode.Stop(ctx)
+	if err != nil && !opNode.Stopped() {
+		return err
+	}
+
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.opNode == opNode {
+		n.opNode = nil
+	}
+	return nil
+}
+
+func (n *OpNode) Running() bool {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.opNode != nil
 }

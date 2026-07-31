@@ -1,13 +1,25 @@
 package sysgo
 
 import (
+	"crypto/ecdsa"
 	"math/big"
 	"path/filepath"
 	"slices"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/params/forks"
+	"github.com/holiman/uint256"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/config"
+	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
@@ -18,18 +30,27 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testreq"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/params/forks"
-	"github.com/holiman/uint256"
 )
 
 // funderMnemonicIndex the funding account is not one of the 30 standard account, but still derived from a user-key.
 const funderMnemonicIndex = 10_000
+
+// FunderKey returns the private key of the genesis-prefunded funder account.
+// Every sysgo runtime prefunds this account at genesis (see the WithPrefundedAccount
+// calls in this package), so tests hand out funds from a prefunded EOA
+// (dsl.NewFunderEOA) rather than a hosted faucet service. Setup transactions
+// using this key must be included before NewFunderEOA snapshots its nonce; the
+// FunderEOA must own the key exclusively thereafter.
+func FunderKey(keys devkeys.Keys) (*ecdsa.PrivateKey, error) {
+	return keys.Secret(devkeys.UserKey(funderMnemonicIndex))
+}
+
 const devFeatureBitmapKey = "devFeatureBitmap"
+
+// proxyImplementationSlot is the EIP-1967 proxy implementation storage slot used
+// by every L2 predeploy proxy (`bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1)`).
+// Mirrors Constants.PROXY_IMPLEMENTATION_ADDRESS in packages/contracts-bedrock.
+var proxyImplementationSlot = common.HexToHash("0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc")
 
 type DeployerOption func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder)
 
@@ -59,9 +80,39 @@ func WithDefaultBPOBlobSchedule(_ devtest.T, _ devkeys.Keys, builder intentbuild
 	})
 }
 
+func WithKarstAtOffset(offset *uint64) DeployerOption {
+	return func(p devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
+		for _, l2Cfg := range builder.L2s() {
+			l2Cfg.WithForkAtOffset(opforks.Karst, offset)
+		}
+	}
+}
+
+func WithKarstAtGenesis(p devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
+	for _, l2Cfg := range builder.L2s() {
+		l2Cfg.WithForkAtGenesis(opforks.Karst)
+	}
+}
+
+// WithKeepKarstUpgradeGas opts the L2 chains out of reverting the Karst activation block's
+// one-time upgrade gas, so post-activation blocks keep the inflated gas limit.
+func WithKeepKarstUpgradeGas(p devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
+	for _, l2Cfg := range builder.L2s() {
+		l2Cfg.WithKeepKarstUpgradeGas()
+	}
+}
+
 func WithJovianAtGenesis(p devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
 	for _, l2Cfg := range builder.L2s() {
 		l2Cfg.WithForkAtGenesis(opforks.Jovian)
+	}
+}
+
+func WithL2GasLimit(gasLimit uint64) DeployerOption {
+	return func(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
+		for _, l2Cfg := range builder.L2s() {
+			l2Cfg.WithGasLimit(gasLimit)
+		}
 	}
 }
 
@@ -131,6 +182,10 @@ type worldBuilder struct {
 	// options
 	deployerPipelineOptions []DeployerPipelineOption
 
+	// preForkPredeployAllocs, when non-nil, is overlaid onto every L2 chain's
+	// genesis predeploy accounts before the genesis and rollup config are built.
+	preForkPredeployAllocs types.GenesisAlloc
+
 	builder intentbuilder.Builder
 
 	output          *state.State
@@ -140,7 +195,7 @@ type worldBuilder struct {
 	outL2RollupCfg  map[eth.ChainID]*rollup.Config
 	outL2Deployment map[eth.ChainID]*L2Deployment
 
-	outFullCfgSet depset.FullConfigSetMerged
+	outFullCfgSet config.FullConfigSetMerged
 
 	outSuperchainDeployment *SuperchainDeployment
 }
@@ -207,16 +262,15 @@ func WithCommons(l1ChainID eth.ChainID) DeployerOption {
 
 		l1Config.WithL1ForkAtGenesis(forks.Prague) // activate pectra on L1
 
-		faucetFunderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
+		funderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
 		p.Require().NoError(err, "need funder addr")
-		l1Config.WithPrefundedAccount(faucetFunderAddr, *eth.BillionEther.ToU256())
+		l1Config.WithPrefundedAccount(funderAddr, *eth.BillionEther.ToU256())
 
 		// We use the L1 chain ID to identify the superchain-wide roles.
 		addrFor := intentbuilder.RoleToAddrProvider(p, keys, l1ChainID)
 		_, superCfg := builder.WithSuperchain()
 		intentbuilder.WithDevkeySuperRoles(p, keys, l1ChainID, superCfg)
 		l1Config.WithPrefundedAccount(addrFor(devkeys.SuperchainProxyAdminOwner), *millionEth)
-		l1Config.WithPrefundedAccount(addrFor(devkeys.SuperchainProtocolVersionsOwner), *millionEth)
 		l1Config.WithPrefundedAccount(addrFor(devkeys.SuperchainConfigGuardianKey), *millionEth)
 		l1Config.WithPrefundedAccount(addrFor(devkeys.L1ProxyAdminOwnerRole), *millionEth)
 	}
@@ -237,9 +291,9 @@ func WithPrefundedL2(l1ChainID, l2ChainID eth.ChainID) DeployerOption {
 		// l2configurator L1ProxyAdminOwner must be also populated
 		intentbuilder.WithDevkeyL1Roles(p, keys, l2Config, l1ChainID)
 		{
-			faucetFunderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
+			funderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
 			p.Require().NoError(err, "need funder addr")
-			l2Config.WithPrefundedAccount(faucetFunderAddr, *eth.BillionEther.ToU256())
+			l2Config.WithPrefundedAccount(funderAddr, *eth.BillionEther.ToU256())
 		}
 		{
 			addrFor := intentbuilder.RoleToAddrProvider(p, keys, l2ChainID)
@@ -260,8 +314,8 @@ func WithDevFeatureEnabled(flag common.Hash) DeployerOption {
 		if currentValue != nil {
 			bitmap = currentValue.(common.Hash)
 		}
-		builder.WithGlobalOverride(devFeatureBitmapKey, deployer.EnableDevFeature(bitmap, flag))
-		if flag == deployer.OptimismPortalInteropDevFlag {
+		builder.WithGlobalOverride(devFeatureBitmapKey, devfeatures.EnableDevFeature(bitmap, flag))
+		if flag == devfeatures.OptimismPortalInteropFlag {
 			builder.WithUseInterop(true)
 		}
 	}
@@ -271,7 +325,7 @@ func WithDevFeatureEnabled(flag common.Hash) DeployerOption {
 func WithInteropAtGenesis() DeployerOption {
 	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
 		for _, l2Cfg := range builder.L2s() {
-			l2Cfg.WithForkAtGenesis(opforks.Interop)
+			l2Cfg.WithForkAtGenesis(opforks.Lagoon)
 		}
 	}
 }
@@ -335,6 +389,16 @@ func WithL2BlockTimes(blockTimes map[eth.ChainID]uint64) DeployerOption {
 	}
 }
 
+// WithUniformL2BlockTimes sets the same L2 block time (in seconds) on every
+// configured L2 chain.
+func WithUniformL2BlockTimes(seconds uint64) DeployerOption {
+	return func(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
+		for _, l2Cfg := range builder.L2s() {
+			l2Cfg.WithBlockTime(seconds)
+		}
+	}
+}
+
 // WithFinalizationPeriodSeconds overrides the number of L1 blocks in a sequencing window, applied to all L2s.
 func WithFinalizationPeriodSeconds(n uint64) DeployerOption {
 	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
@@ -381,11 +445,60 @@ func (wb *worldBuilder) buildL2Genesis() {
 	wb.outL2Genesis = make(map[eth.ChainID]*core.Genesis)
 	wb.outL2RollupCfg = make(map[eth.ChainID]*rollup.Config)
 	for _, ch := range wb.output.Chains {
+		if wb.preForkPredeployAllocs != nil {
+			wb.require.NotNil(ch.Allocs, "chain must have allocs to overlay pre-fork state onto")
+			for addr, acct := range wb.preForkPredeployAllocs {
+				// Permit2's bytecode contains chain-id-derived immutables (cached
+				// domain separator), so the frozen snapshot's Permit2 is only
+				// valid for its source chain. Keep each chain's own Permit2.
+				// Other chain-agnostic preinstalls are safe to overlay wholesale.
+				if addr == predeploys.Permit2Addr {
+					continue
+				}
+				// Proxied predeploys have chain-specific storage (owners,
+				// balances, mappings, etc.) that the frozen snapshot would
+				// clobber. For these, only overlay the EIP-1967 implementation
+				// slot so the proxy delegates to the frozen pre-fork
+				// implementation while keeping each chain's own state.
+				// Non-proxied predeploys (WETH, GovernanceToken, etc.) and
+				// non-predeploy entries (implementation contracts at 0xc0d3…,
+				// preinstalls, deployer EOA, …) are overlaid wholesale.
+				if p, ok := predeploys.PredeploysByAddress[addr]; ok && !p.ProxyDisabled {
+					existing, ok := ch.Allocs.Data.Accounts[addr]
+					wb.require.Truef(ok, "predeploy %s missing from chain genesis allocs", addr)
+					implSlot, ok := acct.Storage[proxyImplementationSlot]
+					if !ok {
+						// No pre-fork implementation to pin: this proxy had no
+						// implementation in the frozen state. Leave
+						// the chain's own proxy state; the fork's NUT bundle
+						// installs the implementation at activation.
+						continue
+					}
+					if existing.Storage == nil {
+						existing.Storage = make(map[common.Hash]common.Hash, 1)
+					}
+					existing.Storage[proxyImplementationSlot] = implSlot
+					ch.Allocs.Data.Accounts[addr] = existing
+					continue
+				}
+				ch.Allocs.Data.Accounts[addr] = acct
+			}
+		}
 		l2Genesis, l2RollupCfg, err := inspect.GenesisAndRollup(wb.output, ch.ID)
 		wb.require.NoError(err, "need L2 genesis and rollup")
 		id := eth.ChainIDFromBytes32(ch.ID)
 		wb.outL2Genesis[id] = l2Genesis
 		wb.outL2RollupCfg[id] = l2RollupCfg
+		// op-geth is deprecated as of the Karst fork and refuses to build, seal,
+		// or import Karst blocks. The op-geth EL lane therefore cannot run any
+		// chain that ever activates Karst, so skip such tests here — the single
+		// point every runtime builds genesis through — letting Karst+ coverage
+		// run on op-reth (the official Karst EL client). op-geth still covers
+		// chains up to Jovian.
+		if l2Genesis.Config.KarstTime != nil && devstackL2ELKind() == MixedL2ELOpGeth {
+			wb.p.Logf("op-geth is deprecated as of Karst; skipping test: chain %s activates Karst and DEVSTACK_L2EL_KIND=op-geth", id)
+			wb.p.SkipNow()
+		}
 	}
 }
 
@@ -402,16 +515,7 @@ func (wb *worldBuilder) buildL2DeploymentOutputs() {
 		}
 	}
 	wb.outSuperchainDeployment = &SuperchainDeployment{
-		protocolVersionsAddr: wb.output.SuperchainDeployment.ProtocolVersionsProxy,
 		superchainConfigAddr: wb.output.SuperchainDeployment.SuperchainConfigProxy,
-	}
-}
-
-func WithRevenueShare(enabled bool, chainFeesRecipient common.Address) DeployerOption {
-	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
-		for _, l2Cfg := range builder.L2s() {
-			l2Cfg.WithRevenueShare(enabled, chainFeesRecipient)
-		}
 	}
 }
 
@@ -422,9 +526,9 @@ func (wb *worldBuilder) buildFullConfigSet() {
 		return
 	}
 
-	rollupConfigSet := depset.StaticRollupConfigSetFromRollupConfigMap(wb.outL2RollupCfg,
-		depset.StaticTimestamp(wb.outL1Genesis.Timestamp))
-	fullCfgSet, err := depset.NewFullConfigSetMerged(rollupConfigSet, wb.output.InteropDepSet)
+	rollupConfigSet := config.StaticRollupConfigSetFromRollupConfigMap(wb.outL2RollupCfg,
+		config.StaticTimestamp(wb.outL1Genesis.Timestamp))
+	fullCfgSet, err := config.NewFullConfigSetMerged(rollupConfigSet, wb.output.InteropDepSet)
 	wb.require.NoError(err)
 	wb.outFullCfgSet = fullCfgSet
 }

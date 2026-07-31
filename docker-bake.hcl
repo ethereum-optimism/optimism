@@ -53,14 +53,6 @@ variable "OP_DISPUTE_MON_VERSION" {
   default = "${GIT_VERSION}"
 }
 
-variable "OP_PROGRAM_VERSION" {
-  default = "${GIT_VERSION}"
-}
-
-variable "OP_SUPERVISOR_VERSION" {
-  default = "${GIT_VERSION}"
-}
-
 variable "OP_SUPERNODE_VERSION" {
   default = "${GIT_VERSION}"
 }
@@ -188,32 +180,6 @@ target "da-server" {
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/da-server:${tag}"]
 }
 
-target "op-program" {
-  dockerfile = "ops/docker/op-stack-go/Dockerfile"
-  context = "."
-  args = {
-    GIT_COMMIT = "${GIT_COMMIT}"
-    GIT_DATE = "${GIT_DATE}"
-    OP_PROGRAM_VERSION = "${OP_PROGRAM_VERSION}"
-  }
-  target = "op-program-target"
-  platforms = split(",", PLATFORMS)
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-program:${tag}"]
-}
-
-target "op-supervisor" {
-  dockerfile = "ops/docker/op-stack-go/Dockerfile"
-  context = "."
-  args = {
-    GIT_COMMIT = "${GIT_COMMIT}"
-    GIT_DATE = "${GIT_DATE}"
-    OP_SUPERVISOR_VERSION = "${OP_SUPERVISOR_VERSION}"
-  }
-  target = "op-supervisor-target"
-  platforms = split(",", PLATFORMS)
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-supervisor:${tag}"]
-}
-
 target "op-supernode" {
   dockerfile = "ops/docker/op-stack-go/Dockerfile"
   context = "."
@@ -331,25 +297,19 @@ target "op-interop-mon" {
 
 // Rust-based images
 
-target "op-rbuilder" {
-  dockerfile = "Dockerfile"
-  context = "op-rbuilder"
-  target = "rbuilder-runtime"
-  args = {
-    RBUILDER_BIN = "op-rbuilder"
-    FEATURES = ""
-  }
-  platforms = split(",", PLATFORMS)
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-rbuilder:${tag}"]
-}
-
 target "kona-node" {
   dockerfile = "kona/docker/apps/kona_app_generic.dockerfile"
   context = "rust"
+  contexts = {
+    nuts-bundles = "op-core/nuts/bundles"
+  }
   args = {
     REPO_LOCATION = "local"
     BIN_TARGET = "kona-node"
     BUILD_PROFILE = "release"
+    GIT_VERSION = "${GIT_VERSION}"
+    GIT_COMMIT = "${GIT_COMMIT}"
+    GIT_DATE = "${GIT_DATE}"
   }
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/kona-node:${tag}"]
@@ -358,6 +318,9 @@ target "kona-node" {
 target "kona-host" {
   dockerfile = "kona/docker/apps/kona_app_generic.dockerfile"
   context = "rust"
+  contexts = {
+    nuts-bundles = "op-core/nuts/bundles"
+  }
   args = {
     REPO_LOCATION = "local"
     BIN_TARGET = "kona-host"
@@ -370,6 +333,9 @@ target "kona-host" {
 target "kona-client" {
   dockerfile = "kona/docker/apps/kona_app_generic.dockerfile"
   context = "rust"
+  contexts = {
+    nuts-bundles = "op-core/nuts/bundles"
+  }
   args = {
     REPO_LOCATION = "local"
     BIN_TARGET = "kona-client"
@@ -382,12 +348,61 @@ target "kona-client" {
 target "op-reth" {
   dockerfile = "op-reth/DockerfileOp"
   context = "rust"
+  # The chainspec build.rs reads the superchain-registry submodule (at the repo
+  # root, outside the "rust" context); expose it as a named context so the
+  # Dockerfile can COPY the subset it needs.
+  contexts = {
+    superchain-registry = "superchain-registry"
+  }
   args = {
     BUILD_PROFILE = "maxperf"
-    FEATURES = ""
+    GIT_VERSION = "${GIT_VERSION}"
+    GIT_COMMIT = "${GIT_COMMIT}"
+    GIT_DATE = "${GIT_DATE}"
   }
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-reth:${tag}"]
+}
+
+// op-rbuilder and rollup-boost are vendored Rust workspaces under rust/ with
+// path dependencies on sibling crates (op-reth, op-alloy, op-revm, ...). Their
+// Dockerfiles build from inside the crate dir (the `.` context) and pull the
+// sibling crates in via the `monorepo-rust` named context (the rust/ workspace).
+// See the comments at the top of each Dockerfile for the layout.
+target "op-rbuilder" {
+  dockerfile = "Dockerfile"
+  context = "rust/op-rbuilder"
+  contexts = {
+    monorepo-rust = "rust"
+    # op-reth's chainspec build.rs (pulled in via monorepo-rust) regenerates its
+    # gitignored superchain archive from this submodule; see the Dockerfile COPY.
+    superchain-registry = "superchain-registry"
+  }
+  args = {
+    RBUILDER_BIN = "op-rbuilder"
+    FEATURES = ""
+  }
+  target = "rbuilder-runtime"
+  platforms = split(",", PLATFORMS)
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-rbuilder:${tag}"]
+}
+
+target "rollup-boost" {
+  dockerfile = "Dockerfile"
+  context = "rust/rollup-boost"
+  contexts = {
+    monorepo-rust = "rust"
+    # op-reth's chainspec build.rs (pulled in via monorepo-rust) regenerates its
+    # gitignored superchain archive from this submodule; see the Dockerfile COPY.
+    superchain-registry = "superchain-registry"
+  }
+  args = {
+    SERVICE_NAME = "rollup-boost"
+    FEATURES = ""
+    RELEASE = "true"
+  }
+  platforms = split(",", PLATFORMS)
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/rollup-boost:${tag}"]
 }
 
 target "cannon-builder" {
@@ -395,4 +410,11 @@ target "cannon-builder" {
   context = "rust/kona/docker/cannon"
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/cannon-builder:${tag}"]
+}
+
+target "ci-base-clang" {
+  dockerfile = "Dockerfile"
+  context = "ops/docker/ci-base-clang"
+  platforms = split(",", PLATFORMS)
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/ci-base-clang:${tag}"]
 }

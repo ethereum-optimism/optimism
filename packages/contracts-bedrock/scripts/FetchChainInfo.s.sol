@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import { Script } from "forge-std/Script.sol";
 import { GameTypes, GameType } from "src/dispute/lib/Types.sol";
+import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 
 /// @notice Contains getters for arbitrary methods from all L1 contracts, including legacy getters
 /// that have since been deprecated.
@@ -21,6 +22,7 @@ interface IFetcher {
     function l1ERC721Bridge() external view returns (address);
     function optimismMintableERC20Factory() external view returns (address);
     function gameImpls(GameType _gameType) external view returns (address);
+    function gameArgs(GameType _gameType) external view returns (bytes memory);
     function respectedGameType() external view returns (GameType);
     function anchorStateRegistry() external view returns (address);
     function L2_ORACLE() external view returns (address);
@@ -84,6 +86,8 @@ contract FetchChainInfoOutput {
     address internal _faultDisputeGameImpl;
     address internal _faultDisputeGameCannonKonaImpl;
     address internal _permissionedDisputeGameImpl;
+    address internal _superFaultDisputeGameImpl;
+    address internal _superPermissionedDisputeGameImpl;
 
     // roles
     address internal _systemConfigOwner;
@@ -123,6 +127,8 @@ contract FetchChainInfoOutput {
         else if (_sel == this.faultDisputeGameImpl.selector) _faultDisputeGameImpl = _addr;
         else if (_sel == this.faultDisputeGameCannonKonaImpl.selector) _faultDisputeGameCannonKonaImpl = _addr;
         else if (_sel == this.permissionedDisputeGameImpl.selector) _permissionedDisputeGameImpl = _addr;
+        else if (_sel == this.superFaultDisputeGameImpl.selector) _superFaultDisputeGameImpl = _addr;
+        else if (_sel == this.superPermissionedDisputeGameImpl.selector) _superPermissionedDisputeGameImpl = _addr;
         // roles
         else if (_sel == this.systemConfigOwner.selector) _systemConfigOwner = _addr;
         else if (_sel == this.opChainProxyAdminOwner.selector) _opChainProxyAdminOwner = _addr;
@@ -242,6 +248,19 @@ contract FetchChainInfoOutput {
         return _permissionedDisputeGameImpl;
     }
 
+    function superFaultDisputeGameImpl() public view returns (address) {
+        require(_superFaultDisputeGameImpl != address(0), "FetchChainInfoOutput: superFaultDisputeGameImpl not set");
+        return _superFaultDisputeGameImpl;
+    }
+
+    function superPermissionedDisputeGameImpl() public view returns (address) {
+        require(
+            _superPermissionedDisputeGameImpl != address(0),
+            "FetchChainInfoOutput: superPermissionedDisputeGameImpl not set"
+        );
+        return _superPermissionedDisputeGameImpl;
+    }
+
     function preimageOracleImpl() public view returns (address) {
         require(_preimageOracleImpl != address(0), "FetchChainInfoOutput: preimageOracleImpl not set");
         return _preimageOracleImpl;
@@ -347,6 +366,9 @@ contract FetchChainInfo is Script {
         address ethLockboxProxy = _getEthLockboxProxy(optimismPortalProxy);
         _fo.set(_fo.ethLockboxProxy.selector, ethLockboxProxy);
 
+        address anchorStateRegistryProxy = _getAnchorStateRegistryProxy(optimismPortalProxy);
+        _fo.set(_fo.anchorStateRegistryProxy.selector, anchorStateRegistryProxy);
+
         address superchainConfigProxy = _getSuperchainConfigProxy(optimismPortalProxy);
         _fo.set(_fo.superchainConfigProxy.selector, superchainConfigProxy);
     }
@@ -379,46 +401,79 @@ contract FetchChainInfo is Script {
         if (disputeGameFactoryProxy != address(0)) {
             _fo.set(_fo.disputeGameFactoryProxy.selector, disputeGameFactoryProxy);
 
+            // AnchorStateRegistry moved to the Portal in newer contracts; falls back to game args or impl below.
+            address anchorStateRegistryProxy = _getAnchorStateRegistryProxy(optimismPortalProxy);
+            // mipsImpl is shared across game types; resolved once and written at the end.
+            address mipsImpl;
+
             address permissionedDisputeGameImpl = _getPermissionedDisputeGame(disputeGameFactoryProxy);
             if (permissionedDisputeGameImpl != address(0)) {
-                // permissioned fault proofs installed
                 _fo.set(_fo.permissioned.selector, true);
                 _fo.set(_fo.permissionedDisputeGameImpl.selector, permissionedDisputeGameImpl);
 
-                address challenger = IFetcher(permissionedDisputeGameImpl).challenger();
-                _fo.set(_fo.challenger.selector, challenger);
-
-                address anchorStateRegistryProxy = IFetcher(permissionedDisputeGameImpl).anchorStateRegistry();
-                _fo.set(_fo.anchorStateRegistryProxy.selector, anchorStateRegistryProxy);
-
-                address proposer = IFetcher(permissionedDisputeGameImpl).proposer();
-                _fo.set(_fo.proposer.selector, proposer);
-
-                address delayedWethPermissionedGameProxy = _getDelayedWETHProxy(permissionedDisputeGameImpl);
-                _fo.set(_fo.delayedWethPermissionedGameProxy.selector, delayedWethPermissionedGameProxy);
-
-                address mipsImpl = IFetcher(permissionedDisputeGameImpl).vm();
-                _fo.set(_fo.mipsImpl.selector, mipsImpl);
-
-                address preimageOracleImpl = IFetcher(mipsImpl).oracle();
-                _fo.set(_fo.preimageOracleImpl.selector, preimageOracleImpl);
+                bytes memory permissionedArgs = _getGameArgs(disputeGameFactoryProxy, GameTypes.PERMISSIONED_CANNON);
+                if (permissionedArgs.length > 0) {
+                    LibGameArgs.GameArgs memory args = LibGameArgs.decode(permissionedArgs);
+                    _fo.set(_fo.challenger.selector, args.challenger);
+                    _fo.set(_fo.proposer.selector, args.proposer);
+                    _fo.set(_fo.delayedWethPermissionedGameProxy.selector, args.weth);
+                    if (anchorStateRegistryProxy == address(0)) anchorStateRegistryProxy = args.anchorStateRegistry;
+                    mipsImpl = args.vm;
+                } else {
+                    // Fallback for older contracts that predate game args.
+                    _fo.set(_fo.challenger.selector, IFetcher(permissionedDisputeGameImpl).challenger());
+                    _fo.set(_fo.proposer.selector, IFetcher(permissionedDisputeGameImpl).proposer());
+                    _fo.set(
+                        _fo.delayedWethPermissionedGameProxy.selector, _getDelayedWETHProxy(permissionedDisputeGameImpl)
+                    );
+                    if (anchorStateRegistryProxy == address(0)) {
+                        anchorStateRegistryProxy = IFetcher(permissionedDisputeGameImpl).anchorStateRegistry();
+                    }
+                    mipsImpl = IFetcher(permissionedDisputeGameImpl).vm();
+                }
             }
 
-            address faultDisputeGameImpl = _getFaultDisputeGame(disputeGameFactoryProxy, GameTypes.CANNON);
+            anchorStateRegistryProxy = _processSuperPermissioned(disputeGameFactoryProxy, _fo, anchorStateRegistryProxy);
+
+            // Report the live permissionless fault dispute game. CANNON is being deprecated in favor
+            // of CANNON_KONA, but chains that have not yet migrated still run CANNON (and this script
+            // syncs the whole registry), so report whichever type is registered. CANNON is preferred
+            // when both exist to preserve the historical faultDisputeGameImpl for legacy chains.
+            address cannonImpl = _getFaultDisputeGame(disputeGameFactoryProxy, GameTypes.CANNON);
+            address cannonKonaImpl = _getFaultDisputeGame(disputeGameFactoryProxy, GameTypes.CANNON_KONA);
+            GameType permissionlessGameType = cannonImpl != address(0) ? GameTypes.CANNON : GameTypes.CANNON_KONA;
+            address faultDisputeGameImpl = cannonImpl != address(0) ? cannonImpl : cannonKonaImpl;
             if (faultDisputeGameImpl != address(0)) {
-                // permissionless fault proofs installed
                 _fo.set(_fo.faultDisputeGameImpl.selector, faultDisputeGameImpl);
                 _fo.set(_fo.permissionless.selector, true);
 
-                address delayedWethPermissionlessGameProxy = _getDelayedWETHProxy(faultDisputeGameImpl);
-                _fo.set(_fo.delayedWethPermissionlessGameProxy.selector, delayedWethPermissionlessGameProxy);
+                bytes memory permissionlessArgs = _getGameArgs(disputeGameFactoryProxy, permissionlessGameType);
+                if (permissionlessArgs.length > 0) {
+                    LibGameArgs.GameArgs memory args = LibGameArgs.decode(permissionlessArgs);
+                    _fo.set(_fo.delayedWethPermissionlessGameProxy.selector, args.weth);
+                    if (mipsImpl == address(0)) mipsImpl = args.vm;
+                    if (anchorStateRegistryProxy == address(0)) anchorStateRegistryProxy = args.anchorStateRegistry;
+                } else {
+                    // Fallback for older contracts that predate gameArgs
+                    _fo.set(_fo.delayedWethPermissionlessGameProxy.selector, _getDelayedWETHProxy(faultDisputeGameImpl));
+                    if (mipsImpl == address(0)) mipsImpl = IFetcher(faultDisputeGameImpl).vm();
+                }
             }
 
-            address faultDisputeGameCannonKonaImpl =
-                _getFaultDisputeGame(disputeGameFactoryProxy, GameTypes.CANNON_KONA);
-            if (faultDisputeGameCannonKonaImpl != address(0)) {
-                _fo.set(_fo.faultDisputeGameCannonKonaImpl.selector, faultDisputeGameCannonKonaImpl);
-                // if we have CANNON_KONA, we must also have CANNON
+            (anchorStateRegistryProxy, mipsImpl) =
+                _processSuperCannonKona(disputeGameFactoryProxy, _fo, anchorStateRegistryProxy, mipsImpl);
+
+            if (anchorStateRegistryProxy != address(0)) {
+                _fo.set(_fo.anchorStateRegistryProxy.selector, anchorStateRegistryProxy);
+            }
+
+            if (mipsImpl != address(0)) {
+                _fo.set(_fo.mipsImpl.selector, mipsImpl);
+                _fo.set(_fo.preimageOracleImpl.selector, IFetcher(mipsImpl).oracle());
+            }
+
+            if (cannonKonaImpl != address(0)) {
+                _fo.set(_fo.faultDisputeGameCannonKonaImpl.selector, cannonKonaImpl);
             }
         } else {
             // some older chains have L2OutputOracle instead of DisputeGameFactory.
@@ -427,6 +482,54 @@ contract FetchChainInfo is Script {
             address proposer = IFetcher(l2OutputOracleProxy).PROPOSER();
             _fo.set(_fo.proposer.selector, proposer);
         }
+    }
+
+    function _processSuperPermissioned(
+        address _disputeGameFactoryProxy,
+        FetchChainInfoOutput _fo,
+        address _anchorStateRegistryProxy
+    )
+        internal
+        returns (address)
+    {
+        address impl = _getFaultDisputeGame(_disputeGameFactoryProxy, GameTypes.SUPER_PERMISSIONED);
+        if (impl == address(0)) return _anchorStateRegistryProxy;
+
+        _fo.set(_fo.permissioned.selector, true);
+        _fo.set(_fo.superPermissionedDisputeGameImpl.selector, impl);
+
+        bytes memory gameArgs = _getGameArgs(_disputeGameFactoryProxy, GameTypes.SUPER_PERMISSIONED);
+        if (gameArgs.length == 0) return _anchorStateRegistryProxy;
+
+        LibGameArgs.SuperPermissionedGameArgs memory args = LibGameArgs.decodeSuperPermissioned(gameArgs);
+        _fo.set(_fo.proposer.selector, args.proposer);
+        return _anchorStateRegistryProxy == address(0) ? args.anchorStateRegistry : _anchorStateRegistryProxy;
+    }
+
+    function _processSuperCannonKona(
+        address _disputeGameFactoryProxy,
+        FetchChainInfoOutput _fo,
+        address _anchorStateRegistryProxy,
+        address _mipsImpl
+    )
+        internal
+        returns (address, address)
+    {
+        address impl = _getFaultDisputeGame(_disputeGameFactoryProxy, GameTypes.SUPER_CANNON_KONA);
+        if (impl == address(0)) return (_anchorStateRegistryProxy, _mipsImpl);
+
+        _fo.set(_fo.superFaultDisputeGameImpl.selector, impl);
+        _fo.set(_fo.permissionless.selector, true);
+
+        bytes memory gameArgs = _getGameArgs(_disputeGameFactoryProxy, GameTypes.SUPER_CANNON_KONA);
+        if (gameArgs.length == 0) return (_anchorStateRegistryProxy, _mipsImpl);
+
+        LibGameArgs.GameArgs memory args = LibGameArgs.decode(gameArgs);
+        _fo.set(_fo.delayedWethPermissionlessGameProxy.selector, args.weth);
+        address anchorStateRegistryProxy =
+            _anchorStateRegistryProxy == address(0) ? args.anchorStateRegistry : _anchorStateRegistryProxy;
+        address mipsImpl = _mipsImpl == address(0) ? args.vm : _mipsImpl;
+        return (anchorStateRegistryProxy, mipsImpl);
     }
 
     function _getGuardian(address _portal) internal view returns (address) {
@@ -524,6 +627,22 @@ contract FetchChainInfo is Script {
             return ethLockbox_;
         } catch {
             return address(0);
+        }
+    }
+
+    function _getAnchorStateRegistryProxy(address _portal) internal view returns (address) {
+        try IFetcher(_portal).anchorStateRegistry() returns (address asr_) {
+            return asr_;
+        } catch {
+            return address(0);
+        }
+    }
+
+    function _getGameArgs(address _factory, GameType _gameType) internal view returns (bytes memory) {
+        try IFetcher(_factory).gameArgs(_gameType) returns (bytes memory args_) {
+            return args_;
+        } catch {
+            return "";
         }
     }
 

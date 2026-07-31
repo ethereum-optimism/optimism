@@ -1,10 +1,14 @@
 ---
 title: Transaction statuses on OP Mainnet
-description: Learn about the statuses transactions can have on OP Mainnet.
+description: Reference for the statuses a transaction can have on OP Mainnet.
+diataxis: reference
 ---
 
-Transactions on OP Mainnet can have a number of different statuses depending on where a transaction is in the process of being included in the blockchain.
-Understanding these statuses can help you troubleshoot issues, build safer applications, and display more accurate information to your users.
+This page is a reference for the statuses a transaction can have on OP Mainnet, listed in the order a transaction moves through them.
+Each entry gives the status, how long it typically takes to reach, what the status guarantees, and the JSON-RPC call used to observe it.
+
+Consult it when you need to troubleshoot a transaction, decide how many confirmations your application should wait for, or display accurate status information to your users.
+For an explanation of *why* a transaction moves through these states, see [Transaction flow](/op-stack/transactions/transaction-flow).
 
 ## Pending
 
@@ -42,7 +46,7 @@ Transactions typically become "safe" within a few minutes of becoming "sequencer
 
 ## Finalized
 
-**Typically within 15-20 minutes, up to 12 hours**
+**Typically within 15-30 minutes, up to 12 hours**
 
 A transaction is considered "finalized" when it has been included in a block by the Sequencer, that block has been published to Ethereum, and that block has been finalized.
 Once a block has been finalized it is guaranteed to be included in the OP Mainnet blockchain.

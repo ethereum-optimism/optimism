@@ -9,7 +9,6 @@ import { Types } from "scripts/libraries/Types.sol";
 
 // Interfaces
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
@@ -19,7 +18,8 @@ import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { ISuperFaultDisputeGame } from "interfaces/dispute/ISuperFaultDisputeGame.sol";
 import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissionedDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
-import { Duration, GameType, GameTypes } from "src/dispute/lib/Types.sol";
+import { IZKDisputeGame } from "interfaces/dispute/zk/IZKDisputeGame.sol";
+import { Duration, GameType, GameTypes, Hash, Proposal } from "src/dispute/lib/Types.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
@@ -34,10 +34,12 @@ import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMin
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IStorageSetter } from "interfaces/universal/IStorageSetter.sol";
 import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
+import { IOPContractsManagerMigrationValidator } from "interfaces/L1/opcm/IOPContractsManagerMigrationValidator.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
+import { IStandardValidatorUtils } from "interfaces/L1/opcm/IStandardValidatorUtils.sol";
 
 contract DeployImplementations is Script {
     struct Input {
@@ -55,21 +57,12 @@ contract DeployImplementations is Script {
         uint256 faultGameV2MaxClockDuration;
         // Outputs from DeploySuperchain.s.sol.
         ISuperchainConfig superchainConfigProxy;
-        IProtocolVersions protocolVersionsProxy;
         IProxyAdmin superchainProxyAdmin;
         address l1ProxyAdminOwner;
         address challenger;
     }
 
     struct Output {
-        // Deprecated v1 OPCM fields — kept for Go ABI compatibility, always zero.
-        // Remove these when Go op-deployer drops v1 struct fields.
-        address opcm;
-        address opcmContractsContainer;
-        address opcmGameTypeAdder;
-        address opcmDeployer;
-        address opcmUpgrader;
-        address opcmInteropMigrator;
         IOPContractsManagerStandardValidator opcmStandardValidator;
         IOPContractsManagerUtils opcmUtils;
         IOPContractsManagerMigrator opcmMigrator;
@@ -88,11 +81,11 @@ contract DeployImplementations is Script {
         IDisputeGameFactory disputeGameFactoryImpl;
         IAnchorStateRegistry anchorStateRegistryImpl;
         ISuperchainConfig superchainConfigImpl;
-        IProtocolVersions protocolVersionsImpl;
         IFaultDisputeGame faultDisputeGameImpl;
         IPermissionedDisputeGame permissionedDisputeGameImpl;
         ISuperFaultDisputeGame superFaultDisputeGameImpl;
         ISuperPermissionedDisputeGame superPermissionedDisputeGameImpl;
+        IZKDisputeGame zkDisputeGameImpl;
         IStorageSetter storageSetterImpl;
     }
 
@@ -111,7 +104,6 @@ contract DeployImplementations is Script {
 
         // Deploy the implementations.
         deploySuperchainConfigImpl(output_);
-        deployProtocolVersionsImpl(output_);
         deploySystemConfigImpl(output_);
         deployL1CrossDomainMessengerImpl(output_);
         deployL1ERC721BridgeImpl(output_);
@@ -131,7 +123,10 @@ contract DeployImplementations is Script {
                 || DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
         ) {
             deploySuperFaultDisputeGameImpl(_input, output_);
-            deploySuperPermissionedDisputeGameImpl(_input, output_);
+            deploySuperPermissionedDisputeGameImpl(output_);
+        }
+        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
+            deployZKDisputeGameImpl(output_);
         }
         deployStorageSetterImpl(output_);
 
@@ -162,7 +157,6 @@ contract DeployImplementations is Script {
         IOPContractsManagerContainer.Implementations memory implementations = IOPContractsManagerContainer
             .Implementations({
             superchainConfigImpl: address(_output.superchainConfigImpl),
-            protocolVersionsImpl: address(_output.protocolVersionsImpl),
             l1ERC721BridgeImpl: address(_output.l1ERC721BridgeImpl),
             optimismPortalImpl: address(_output.optimismPortalImpl),
             ethLockboxImpl: address(_output.ethLockboxImpl),
@@ -178,6 +172,7 @@ contract DeployImplementations is Script {
             permissionedDisputeGameImpl: address(_output.permissionedDisputeGameImpl),
             superFaultDisputeGameImpl: address(_output.superFaultDisputeGameImpl),
             superPermissionedDisputeGameImpl: address(_output.superPermissionedDisputeGameImpl),
+            zkDisputeGameImpl: address(_output.zkDisputeGameImpl),
             storageSetterImpl: address(_output.storageSetterImpl)
         });
 
@@ -230,18 +225,6 @@ contract DeployImplementations is Script {
         );
         vm.label(address(impl), "SuperchainConfigImpl");
         _output.superchainConfigImpl = impl;
-    }
-
-    function deployProtocolVersionsImpl(Output memory _output) private {
-        IProtocolVersions impl = IProtocolVersions(
-            DeployUtils.createDeterministic({
-                _name: "ProtocolVersions",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProtocolVersions.__constructor__, ())),
-                _salt: _salt
-            })
-        );
-        vm.label(address(impl), "ProtocolVersionsImpl");
-        _output.protocolVersionsImpl = impl;
     }
 
     function deploySystemConfigImpl(Output memory _output) private {
@@ -499,24 +482,28 @@ contract DeployImplementations is Script {
         _output.superFaultDisputeGameImpl = impl;
     }
 
-    function deploySuperPermissionedDisputeGameImpl(Input memory _input, Output memory _output) private {
-        ISuperFaultDisputeGame.GameConstructorParams memory params = ISuperFaultDisputeGame.GameConstructorParams({
-            maxGameDepth: _input.faultGameV2MaxGameDepth,
-            splitDepth: _input.faultGameV2SplitDepth,
-            clockExtension: Duration.wrap(uint64(_input.faultGameV2ClockExtension)),
-            maxClockDuration: Duration.wrap(uint64(_input.faultGameV2MaxClockDuration))
-        });
+    function deploySuperPermissionedDisputeGameImpl(Output memory _output) private {
         ISuperPermissionedDisputeGame impl = ISuperPermissionedDisputeGame(
             DeployUtils.createDeterministic({
                 _name: "SuperPermissionedDisputeGame",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(ISuperPermissionedDisputeGame.__constructor__, (params))
-                ),
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(ISuperPermissionedDisputeGame.__constructor__, ())),
                 _salt: _salt
             })
         );
         vm.label(address(impl), "SuperPermissionedDisputeGameImpl");
         _output.superPermissionedDisputeGameImpl = impl;
+    }
+
+    function deployZKDisputeGameImpl(Output memory _output) private {
+        IZKDisputeGame impl = IZKDisputeGame(
+            DeployUtils.createDeterministic({
+                _name: "ZKDisputeGame",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IZKDisputeGame.__constructor__, ())),
+                _salt: _salt
+            })
+        );
+        vm.label(address(impl), "ZKDisputeGameImpl");
+        _output.zkDisputeGameImpl = impl;
     }
 
     function deployOPCMContainer(
@@ -594,23 +581,43 @@ contract DeployImplementations is Script {
         opcmImplementations.permissionedDisputeGameImpl = _implementations.permissionedDisputeGameImpl;
         opcmImplementations.superFaultDisputeGameImpl = _implementations.superFaultDisputeGameImpl;
         opcmImplementations.superPermissionedDisputeGameImpl = _implementations.superPermissionedDisputeGameImpl;
+        opcmImplementations.zkDisputeGameImpl = _implementations.zkDisputeGameImpl;
 
+        IStandardValidatorUtils standardValidatorUtils = IStandardValidatorUtils(
+            DeployUtils.createDeterministic({
+                _name: "StandardValidatorUtils.sol:StandardValidatorUtils",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IStandardValidatorUtils.__constructor__, ())),
+                _salt: _salt
+            })
+        );
+
+        IOPContractsManagerMigrationValidator migrationValidatorImpl = IOPContractsManagerMigrationValidator(
+            DeployUtils.createDeterministic({
+                _name: "OPContractsManagerMigrationValidator.sol:OPContractsManagerMigrationValidator",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IOPContractsManagerMigrationValidator.__constructor__, ())
+                ),
+                _salt: _salt
+            })
+        );
+
+        bytes memory standardValidatorCtorCall = abi.encodeCall(
+            IOPContractsManagerStandardValidator.__constructor__,
+            (
+                standardValidatorUtils,
+                migrationValidatorImpl,
+                opcmImplementations,
+                _input.superchainConfigProxy,
+                _input.l1ProxyAdminOwner,
+                _input.challenger,
+                _input.withdrawalDelaySeconds,
+                _input.devFeatureBitmap
+            )
+        );
         IOPContractsManagerStandardValidator impl = IOPContractsManagerStandardValidator(
             DeployUtils.createDeterministic({
                 _name: "OPContractsManagerStandardValidator.sol:OPContractsManagerStandardValidator",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(
-                        IOPContractsManagerStandardValidator.__constructor__,
-                        (
-                            opcmImplementations,
-                            _input.superchainConfigProxy,
-                            _input.l1ProxyAdminOwner,
-                            _input.challenger,
-                            _input.withdrawalDelaySeconds,
-                            _input.devFeatureBitmap
-                        )
-                    )
-                ),
+                _args: DeployUtils.encodeConstructor(standardValidatorCtorCall),
                 _salt: _salt
             })
         );
@@ -688,9 +695,6 @@ contract DeployImplementations is Script {
             address(_input.superchainConfigProxy) != address(0), "DeployImplementations: superchainConfigProxy not set"
         );
         require(
-            address(_input.protocolVersionsProxy) != address(0), "DeployImplementations: protocolVersionsProxy not set"
-        );
-        require(
             address(_input.superchainProxyAdmin) != address(0), "DeployImplementations: superchainProxyAdmin not set"
         );
         require(address(_input.l1ProxyAdminOwner) != address(0), "DeployImplementations: L1ProxyAdminOwner not set");
@@ -707,8 +711,7 @@ contract DeployImplementations is Script {
             address(_output.delayedWETHImpl),
             address(_output.preimageOracleSingleton),
             address(_output.mipsSingleton),
-            address(_output.superchainConfigImpl),
-            address(_output.protocolVersionsImpl)
+            address(_output.superchainConfigImpl)
         );
 
         address[] memory addrs2 = Solarray.addresses(
@@ -734,6 +737,10 @@ contract DeployImplementations is Script {
             addrs2 = Solarray.extend(addrs2, superGameAddrs);
         }
 
+        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
+            addrs2 = Solarray.extend(addrs2, Solarray.addresses(address(_output.zkDisputeGameImpl)));
+        }
+
         DeployUtils.assertValidContractAddresses(Solarray.extend(addrs1, addrs2));
 
         require(address(_output.opcmV2) != address(0), "DeployImplementations: OPCM V2 not deployed");
@@ -752,12 +759,24 @@ contract DeployImplementations is Script {
             );
         }
 
+        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
+            require(
+                address(_output.zkDisputeGameImpl) != address(0),
+                "DeployImplementations: ZK_DISPUTE_GAME flag enabled but ZKDisputeGame was not deployed"
+            );
+        } else {
+            require(
+                address(_output.zkDisputeGameImpl) == address(0),
+                "DeployImplementations: ZK_DISPUTE_GAME flag disabled but ZKDisputeGame was deployed"
+            );
+        }
+
         Types.ContractSet memory impls = ChainAssertions.dioToContractSet(_output);
 
         ChainAssertions.checkDelayedWETHImpl(_output.delayedWETHImpl, _input.withdrawalDelaySeconds);
         GameType permGameType = DevFeatures.isDevFeatureEnabled(
             _input.devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION
-        ) ? GameTypes.SUPER_PERMISSIONED_CANNON : GameTypes.PERMISSIONED_CANNON;
+        ) ? GameTypes.SUPER_PERMISSIONED : GameTypes.PERMISSIONED_CANNON;
         ChainAssertions.checkDisputeGameFactory(
             _output.disputeGameFactoryImpl, address(0), address(0), false, permGameType
         );
@@ -772,6 +791,10 @@ contract DeployImplementations is Script {
         ChainAssertions.checkL1StandardBridgeImpl(_output.l1StandardBridgeImpl);
         ChainAssertions.checkMIPS(_output.mipsSingleton, _output.preimageOracleSingleton);
 
+        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
+            ChainAssertions.checkZKDisputeGameImpl(_output.zkDisputeGameImpl);
+        }
+
         ChainAssertions.checkOptimismMintableERC20FactoryImpl(_output.optimismMintableERC20FactoryImpl);
         ChainAssertions.checkOptimismPortal2({
             _contracts: impls,
@@ -781,6 +804,11 @@ contract DeployImplementations is Script {
         });
         ChainAssertions.checkETHLockboxImpl(_output.ethLockboxImpl, _output.optimismPortalImpl);
         ChainAssertions.checkSystemConfigImpls(impls);
-        ChainAssertions.checkAnchorStateRegistryProxy(IAnchorStateRegistry(impls.AnchorStateRegistry), false);
+        ChainAssertions.checkAnchorStateRegistryProxy(
+            IAnchorStateRegistry(impls.AnchorStateRegistry),
+            false,
+            GameType.wrap(0),
+            Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 })
+        );
     }
 }

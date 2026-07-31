@@ -8,12 +8,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/connmgr"
 	"github.com/libp2p/go-libp2p/core/host"
 	p2pmetrics "github.com/libp2p/go-libp2p/core/metrics"
-	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	ma "github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
@@ -28,7 +26,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 // NodeP2P is a p2p node, which can be used to gossip messages.
@@ -46,7 +43,6 @@ type NodeP2P struct {
 	dv5Udp   *discover.UDPv5  // p2p discovery service
 	gs       *pubsub.PubSub   // p2p gossip router
 	gsOut    GossipOut        // p2p gossip application interface for publishing
-	syncCl   *SyncClient
 	syncSrv  *ReqRespServer
 }
 
@@ -130,31 +126,15 @@ func (n *NodeP2P) init(
 	} else {
 		n.appScorer = &NoopApplicationScorer{}
 	}
-	// Activate the P2P req-resp sync if enabled by feature-flag.
-	if setup.ReqRespSyncEnabled() {
-		n.syncCl = NewSyncClient(log, rollupCfg, n.host, gossipIn.OnUnsafeL2Payload, metrics, n.appScorer)
-		n.host.Network().Notify(&network.NotifyBundle{
-			ConnectedF: func(nw network.Network, conn network.Conn) {
-				n.syncCl.AddPeer(conn.RemotePeer())
-			},
-			DisconnectedF: func(nw network.Network, conn network.Conn) {
-				// only when no connection is available, we can remove the peer
-				if nw.Connectedness(conn.RemotePeer()) == network.NotConnected {
-					n.syncCl.RemovePeer(conn.RemotePeer())
-				}
-			},
-		})
-		n.syncCl.Start()
-		// the host may already be connected to peers, add them all to the sync client
-		for _, peerID := range n.host.Network().Peers() {
-			n.syncCl.AddPeer(peerID)
-		}
-		if l2Chain != nil { // Only enable serving side of req-resp sync if we have a data-source, to make minimal P2P testing easy
-			n.syncSrv = NewReqRespServer(rollupCfg, l2Chain, metrics)
-			// register the sync protocol with libp2p host
-			payloadByNumber := MakeStreamHandler(resourcesCtx, log.New("serve", "payloads_by_number"), n.syncSrv.HandleSyncRequest)
-			n.host.SetStreamHandler(PayloadByNumberProtocolID(rollupCfg.L2ChainID), payloadByNumber)
-		}
+	// Activate the serving side of the P2P req-resp sync protocol if enabled by feature-flag.
+	// The client side has been removed; we only continue to serve payloads to peers that still
+	// request them (e.g. older nodes that have not yet upgraded). Only enable the serving side
+	// of req-resp sync if we have a data-source, to make minimal P2P testing easy.
+	if setup.ReqRespSyncEnabled() && l2Chain != nil {
+		n.syncSrv = NewReqRespServer(rollupCfg, l2Chain, metrics)
+		// register the sync protocol with libp2p host
+		payloadByNumber := MakeStreamHandler(resourcesCtx, log.New("serve", "payloads_by_number"), n.syncSrv.HandleSyncRequest)
+		n.host.SetStreamHandler(PayloadByNumberProtocolID(rollupCfg.L2ChainID), payloadByNumber)
 	}
 	n.scorer = NewScorer(eps, metrics, n.appScorer, log)
 	// notify of any new connections/streams/etc.
@@ -191,18 +171,6 @@ func (n *NodeP2P) init(
 	}
 	n.appScorer.Start()
 	return nil
-}
-
-func (n *NodeP2P) AltSyncEnabled() bool {
-	return n.syncCl != nil
-}
-
-func (n *NodeP2P) RequestL2Range(ctx context.Context, start, end eth.L2BlockRef) error {
-	if !n.AltSyncEnabled() {
-		return fmt.Errorf("cannot request range %s - %s, req-resp sync is not enabled", start, end)
-	}
-	_, err := n.syncCl.RequestL2Range(ctx, start, end)
-	return err
 }
 
 func (n *NodeP2P) Host() host.Host {
@@ -276,7 +244,7 @@ func (n *NodeP2P) BanIP(ip net.IP, expiration time.Time) error {
 }
 
 func (n *NodeP2P) Close() error {
-	var result *multierror.Error
+	var result error
 	if n.peerMonitor != nil {
 		n.peerMonitor.Stop()
 	}
@@ -285,23 +253,18 @@ func (n *NodeP2P) Close() error {
 	}
 	if n.gsOut != nil {
 		if err := n.gsOut.Close(); err != nil {
-			result = multierror.Append(result, fmt.Errorf("failed to close gossip cleanly: %w", err))
+			result = errors.Join(result, fmt.Errorf("failed to close gossip cleanly: %w", err))
 		}
 	}
 	if n.host != nil {
 		if err := n.host.Close(); err != nil {
-			result = multierror.Append(result, fmt.Errorf("failed to close p2p host cleanly: %w", err))
-		}
-		if n.syncCl != nil {
-			if err := n.syncCl.Close(); err != nil {
-				result = multierror.Append(result, fmt.Errorf("failed to close p2p sync client cleanly: %w", err))
-			}
+			result = errors.Join(result, fmt.Errorf("failed to close p2p host cleanly: %w", err))
 		}
 	}
 	if n.appScorer != nil {
 		n.appScorer.Stop()
 	}
-	return result.ErrorOrNil()
+	return result
 }
 
 func FindActiveTCPPort(h host.Host) (uint16, error) {

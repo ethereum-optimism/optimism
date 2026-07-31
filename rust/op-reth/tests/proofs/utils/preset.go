@@ -14,8 +14,8 @@ import (
 // MixedOpProofPreset sets up a two-node L2 devnet (sequencer + validator)
 // with configurable EL clients via environment variables:
 //
-//   - OP_DEVSTACK_PROOF_SEQUENCER_EL: "op-geth" (default), "op-reth", or "op-reth-with-proof"
-//   - OP_DEVSTACK_PROOF_VALIDATOR_EL: "op-reth-with-proof" (default), "op-reth", or "op-geth"
+//   - OP_DEVSTACK_PROOF_SEQUENCER_EL: "op-geth", "op-reth" (default), or "op-reth-proof-v1"
+//   - OP_DEVSTACK_PROOF_VALIDATOR_EL: "op-reth-proof-v1" (default), "op-reth", or "op-geth"
 type MixedOpProofPreset struct {
 	Log log.Logger
 	T   devtest.T
@@ -34,10 +34,8 @@ type MixedOpProofPreset struct {
 
 	Wallet *dsl.HDWallet
 
-	FaucetL1 *dsl.Faucet
-	FaucetL2 *dsl.Faucet
-	FunderL1 *dsl.Funder
-	FunderL2 *dsl.Funder
+	FunderL1 *dsl.FunderEOA
+	FunderL2 *dsl.FunderEOA
 
 	TestSequencer *dsl.TestSequencer
 }
@@ -58,7 +56,9 @@ func (m *MixedOpProofPreset) RethWithProofL2ELNode() *dsl.L2ELNode {
 
 func resolveELSpec(envVar string, defaultKind sysgo.MixedL2ELKind) sysgo.MixedL2ELKind {
 	switch os.Getenv(envVar) {
-	case "op-reth-with-proof", "op-reth":
+	case "op-reth-proof-v2":
+		return sysgo.MixedL2ELOpRethV2
+	case "op-reth-proof-v1", "op-reth":
 		return sysgo.MixedL2ELOpReth
 	case "op-geth":
 		return sysgo.MixedL2ELOpGeth
@@ -70,7 +70,7 @@ func resolveELSpec(envVar string, defaultKind sysgo.MixedL2ELKind) sysgo.MixedL2
 // NewMixedOpProofPreset creates the preset using MixedSingleChainRuntime for
 // full control over EL client types.
 func NewMixedOpProofPreset(t devtest.T) *MixedOpProofPreset {
-	seqKind := resolveELSpec("OP_DEVSTACK_PROOF_SEQUENCER_EL", sysgo.MixedL2ELOpGeth)
+	seqKind := resolveELSpec("OP_DEVSTACK_PROOF_SEQUENCER_EL", sysgo.MixedL2ELOpReth)
 	valKind := resolveELSpec("OP_DEVSTACK_PROOF_VALIDATOR_EL", sysgo.MixedL2ELOpReth)
 
 	runtime := sysgo.NewMixedSingleChainRuntime(t, sysgo.MixedSingleChainPresetConfig{
@@ -109,8 +109,6 @@ func NewMixedOpProofPreset(t devtest.T) *MixedOpProofPreset {
 	t.Require().NotNil(seqNode, "expected a sequencer node")
 	t.Require().NotNil(valNode, "expected a validator node")
 
-	wallet := dsl.NewRandomHDWallet(t, 30)
-
 	out := &MixedOpProofPreset{
 		Log:           t.Logger(),
 		T:             t,
@@ -122,12 +120,10 @@ func NewMixedOpProofPreset(t devtest.T) *MixedOpProofPreset {
 		L2CLSequencer: seqNode.CL,
 		L2ELValidator: valNode.EL,
 		L2CLValidator: valNode.CL,
-		Wallet:        wallet,
-		FaucetL1:      frontends.FaucetL1,
-		FaucetL2:      frontends.FaucetL2,
+		Wallet:        frontends.Wallet,
+		FunderL1:      frontends.FunderL1,
+		FunderL2:      frontends.FunderL2,
 		TestSequencer: frontends.TestSequencer,
 	}
-	out.FunderL1 = dsl.NewFunder(wallet, out.FaucetL1, out.L1EL)
-	out.FunderL2 = dsl.NewFunder(wallet, out.FaucetL2, out.L2ELSequencer)
 	return out
 }

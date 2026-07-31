@@ -1,17 +1,37 @@
 package filter
 
 import (
+	"context"
+
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
+
+// LogsDB is the subset of an interop logs DB that
+// LogsDBChainIngester depends on. Capturing it as an interface lets tests
+// substitute a fake when exercising dispatch paths the real DB cannot
+// produce under correct ingester control flow.
+type LogsDB interface {
+	Close() error
+	Contains(query messages.ContainsQuery) (messages.BlockSeal, error)
+	LatestSealedBlock() (eth.BlockID, bool)
+	FindSealedBlock(number uint64) (messages.BlockSeal, error)
+	FirstSealedBlock() (messages.BlockSeal, error)
+	OpenBlock(blockNum uint64) (eth.BlockRef, uint32, map[uint32]*messages.ExecutingMessage, error)
+	AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *messages.ExecutingMessage) error
+	SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uint64) error
+	Rewind(newHead eth.BlockID) error
+}
 
 // IncludedMessage wraps an executing message with its inclusion context.
 // The ExecutingMessage contains the initiating message's data (source chain),
 // while InclusionBlockNum/Timestamp indicate when it was executed (this chain).
 type IncludedMessage struct {
-	*types.ExecutingMessage
+	*messages.ExecutingMessage
 	InclusionBlockNum  uint64
 	InclusionTimestamp uint64
 }
@@ -28,7 +48,7 @@ type ChainIngester interface {
 	Stop() error
 
 	// Contains checks if a log exists in the chain's database.
-	Contains(query types.ContainsQuery) (types.BlockSeal, error)
+	Contains(query messages.ContainsQuery) (messages.BlockSeal, error)
 
 	// LatestBlock returns the latest ingested block.
 	LatestBlock() (eth.BlockID, bool)
@@ -53,6 +73,9 @@ type ChainIngester interface {
 
 	// ClearError clears the error state.
 	ClearError()
+
+	// RewindToFinalized rewinds durable log state to finalized.
+	RewindToFinalized(ctx context.Context) (eth.BlockID, uint64, error)
 }
 
 // CrossValidator validates cross-chain messages.
@@ -66,7 +89,7 @@ type CrossValidator interface {
 	Stop() error
 
 	// ValidateAccessEntry validates a single access list entry.
-	ValidateAccessEntry(access types.Access, minSafety types.SafetyLevel, execDescriptor types.ExecutingDescriptor) error
+	ValidateAccessEntry(access messages.Access, minSafety safety.Level, execDescriptor messages.ExecutingDescriptor) error
 
 	// CrossValidatedTimestamp returns the global cross-validated timestamp.
 	CrossValidatedTimestamp() (uint64, bool)
@@ -74,4 +97,8 @@ type CrossValidator interface {
 	// Error returns the current error state, if any.
 	// Validation errors (invalid executing messages) are tracked here.
 	Error() *ValidatorError
+
+	// ResetCrossValidatedTimestamp rewinds in-memory validation progress after
+	// the underlying log DB has been rewound.
+	ResetCrossValidatedTimestamp(timestamp uint64)
 }

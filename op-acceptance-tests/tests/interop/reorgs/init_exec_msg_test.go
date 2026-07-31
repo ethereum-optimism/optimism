@@ -26,10 +26,10 @@ func TestReorgInitExecMsg(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	ctx := t.Ctx()
 
-	sys := presets.NewSimpleInterop(t)
+	sys := presets.NewTwoL2SupernodeInterop(t, 0)
 	l := sys.Log
 
-	ia := sys.TestSequencer.Escape().ControlAPI(sys.L2ChainA.ChainID())
+	ia := sys.TestSequencer.Escape().ControlAPI(sys.L2A.ChainID())
 
 	// three EOAs for triggering the init and exec interop txs, as well as a simple transfer tx
 	alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
@@ -37,7 +37,7 @@ func TestReorgInitExecMsg(gt *testing.T) {
 	cathrine := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
 
 	sys.L1Network.WaitForBlock()
-	sys.L2ChainA.WaitForBlock()
+	sys.L2A.WaitForBlock()
 
 	// stop batchers on chain A and on chain B
 	sys.L2BatcherA.Stop()
@@ -71,7 +71,7 @@ func TestReorgInitExecMsg(gt *testing.T) {
 	}
 
 	// wait for chain B to catch up to chain A if necessary
-	sys.L2ChainB.CatchUpTo(sys.L2ChainA)
+	sys.L2B.CatchUpTo(sys.L2A)
 
 	var initTx *txintent.IntentTx[*txintent.InitTrigger, *txintent.InteropOutput]
 	var initReceipt *types.Receipt
@@ -83,14 +83,14 @@ func TestReorgInitExecMsg(gt *testing.T) {
 		initReceipt, err = initTx.PlannedTx.Included.Eval(ctx)
 		require.NoError(t, err)
 
-		l.Info("initiating message included", "chain", sys.L2ChainA.ChainID(), "block_number", initReceipt.BlockNumber, "block_hash", initReceipt.BlockHash, "now", time.Now().Unix())
+		l.Info("initiating message included", "chain", sys.L2A.ChainID(), "block_number", initReceipt.BlockNumber, "block_hash", initReceipt.BlockHash, "now", time.Now().Unix())
 	}
 
 	// stop sequencer on chain A so that we later force a reorg/removal of the init msg
-	sys.L2CLA.StopSequencer()
+	sys.L2ACL.StopSequencer()
 
 	// at least one block between the init tx on chain A and the exec tx on chain B
-	sys.L2ChainB.WaitForBlock()
+	sys.L2B.WaitForBlock()
 
 	var execTx *txintent.IntentTx[*txintent.ExecTrigger, *txintent.InteropOutput]
 	var execReceipt *types.Receipt
@@ -105,7 +105,7 @@ func TestReorgInitExecMsg(gt *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 1, len(execReceipt.Logs))
 
-		l.Info("executing message included", "chain", sys.L2ChainB.ChainID(), "block_number", execReceipt.BlockNumber, "block_hash", execReceipt.BlockHash, "now", time.Now().Unix())
+		l.Info("executing message included", "chain", sys.L2B.ChainID(), "block_number", execReceipt.BlockNumber, "block_hash", execReceipt.BlockHash, "now", time.Now().Unix())
 	}
 
 	// record divergence block numbers and original refs for future validation checks
@@ -135,7 +135,7 @@ func TestReorgInitExecMsg(gt *testing.T) {
 		require.NoError(t, err, "Expected to get block number %v from L1 execution client", nextL1Origin)
 		l1OriginHash := l1Origin.Hash()
 
-		l.Info("Sequencing a conflicting block", "chain", sys.L2ChainA.ChainID(), "newL1Origin", eth.ToBlockID(l1Origin), "headToReorgA", headToReorgARef, "parent", parentOfHeadToReorgA, "parent_l1_origin", parentsL1Origin.L1Origin)
+		l.Info("Sequencing a conflicting block", "chain", sys.L2A.ChainID(), "newL1Origin", eth.ToBlockID(l1Origin), "headToReorgA", headToReorgARef, "parent", parentOfHeadToReorgA, "parent_l1_origin", parentsL1Origin.L1Origin)
 
 		err = ia.New(ctx, seqtypes.BuildOpts{
 			Parent:   parentOfHeadToReorgA.Hash,
@@ -176,7 +176,7 @@ func TestReorgInitExecMsg(gt *testing.T) {
 	}
 
 	// continue sequencing with op-node
-	sys.L2CLA.StartSequencer()
+	sys.L2ACL.StartSequencer()
 
 	// start batchers on chain A and on chain B
 	sys.L2BatcherA.Start()
@@ -209,10 +209,8 @@ func TestReorgInitExecMsg(gt *testing.T) {
 	}, 60*time.Second, 3*time.Second, "Expected for the executing tx to be removed from chain B")
 
 	err := wait.For(ctx, 5*time.Second, func() (bool, error) {
-		safeL2Head_supervisor_A := sys.Supervisor.SafeBlockID(sys.L2ChainA.ChainID()).Hash
-		safeL2Head_supervisor_B := sys.Supervisor.SafeBlockID(sys.L2ChainB.ChainID()).Hash
-		safeL2Head_sequencer_A := sys.L2CLA.SafeL2BlockRef()
-		safeL2Head_sequencer_B := sys.L2CLB.SafeL2BlockRef()
+		safeL2Head_sequencer_A := sys.L2ACL.SafeL2BlockRef()
+		safeL2Head_sequencer_B := sys.L2BCL.SafeL2BlockRef()
 
 		if safeL2Head_sequencer_A.Number < divergenceBlockNumber_A {
 			l.Info("Safe ref number is still behind divergence block A number", "divergence", divergenceBlockNumber_A, "safe", safeL2Head_sequencer_A.Number)
@@ -224,23 +222,11 @@ func TestReorgInitExecMsg(gt *testing.T) {
 			return false, nil
 		}
 
-		if safeL2Head_sequencer_A.Hash.Cmp(safeL2Head_supervisor_A) != 0 {
-			l.Info("Safe ref still not the same on supervisor and sequencer A", "supervisor", safeL2Head_supervisor_A, "sequencer", safeL2Head_sequencer_A.Hash)
-			return false, nil
-		}
-
-		if safeL2Head_sequencer_B.Hash.Cmp(safeL2Head_supervisor_B) != 0 {
-			l.Info("Safe ref still not the same on supervisor and sequencer B", "supervisor", safeL2Head_supervisor_B, "sequencer", safeL2Head_sequencer_B.Hash)
-			return false, nil
-		}
-
-		l.Info("Safe ref the same across supervisor and sequencers",
-			"supervisor_A", safeL2Head_supervisor_A,
+		l.Info("Safe ref advanced past divergence on both sequencers",
 			"sequencer_A", safeL2Head_sequencer_A.Hash,
-			"supervisor_B", safeL2Head_supervisor_B,
 			"sequencer_B", safeL2Head_sequencer_B.Hash)
 
 		return true, nil
 	})
-	require.NoError(t, err, "Expected to get same safe ref on both supervisor and sequencer eventually")
+	require.NoError(t, err, "Expected safe ref to advance past divergence on both sequencers")
 }

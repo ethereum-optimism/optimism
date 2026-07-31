@@ -13,6 +13,8 @@ import (
 )
 
 // Persistent is an Includer that persists transactions to an execution layer.
+// It owns the account used by its signer: callers must not submit transactions
+// from that account through another path while the Persistent is in use.
 type Persistent struct {
 	cfg    *persistentConfig
 	signer Signer
@@ -43,7 +45,9 @@ func WithBudget(budget Budget) PersistentOption {
 	}
 }
 
-// NewPersistent creates a Persistent Includer.
+// NewPersistent creates a Persistent Includer. The returned includer exclusively
+// owns the account used by signer and manages all of its transaction nonces.
+//
 // It assumes el is reliable:
 //   - el.SendTransaction guarantees mempool inclusion without the possibility of eviction.
 //   - el.TransactionReceipt will return a valid receipt if one eventually exists.

@@ -1,8 +1,7 @@
 //! Constants for the OP Stack interop protocol.
 
-/// The expiry window for relaying an initiating message (in seconds).
-/// <https://specs.optimism.io/interop/messaging.html#message-expiry-invariant>
-pub const MESSAGE_EXPIRY_WINDOW: u64 = 7 * 24 * 60 * 60;
+/// Re-export of the interop message expiry window. Now defined in `kona-genesis`.
+pub use kona_genesis::MESSAGE_EXPIRY_WINDOW;
 
 /// The current version of the [`SuperRoot`](crate::SuperRoot) encoding format.
 pub const SUPER_ROOT_VERSION: u8 = 1;

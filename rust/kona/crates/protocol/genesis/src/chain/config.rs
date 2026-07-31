@@ -9,8 +9,7 @@ use alloy_primitives::Address;
 use crate::FJORD_MAX_SEQUENCER_DRIFT;
 use crate::{
     AddressList, AltDAConfig, BaseFeeConfig, ChainGenesis, GRANITE_CHANNEL_TIMEOUT, HardForkConfig,
-    Roles, RollupConfig, SuperchainLevel, base_fee_params, base_fee_params_canyon,
-    params::base_fee_config,
+    Roles, RollupConfig, base_fee_params, base_fee_params_canyon, params::base_fee_config,
 };
 
 /// L1 chain configuration from the `alloy-genesis` crate.
@@ -32,6 +31,10 @@ pub type L1ChainConfig = alloy_genesis::ChainConfig;
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+// Reject any registry key the struct does not model, so a superchain-registry field that is added
+// but not wired up here fails loudly at deserialization (or at KONA_SYNC_SUPERCHAIN=true
+// regeneration) instead of being silently dropped. Mirrors HardForkConfig, which is already strict.
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct ChainConfig {
     /// Chain name (e.g. "Base")
     #[cfg_attr(feature = "serde", serde(rename = "Name", alias = "name"))]
@@ -48,9 +51,6 @@ pub struct ChainConfig {
     /// Chain explorer HTTP endpoint
     #[cfg_attr(feature = "serde", serde(rename = "Explorer", alias = "explorer"))]
     pub explorer: String,
-    /// Level of integration with the superchain.
-    #[cfg_attr(feature = "serde", serde(rename = "SuperchainLevel", alias = "superchain_level"))]
-    pub superchain_level: SuperchainLevel,
     /// Whether the chain is governed by optimism.
     #[cfg_attr(
         feature = "serde",
@@ -108,6 +108,16 @@ pub struct ChainConfig {
     /// Addresses
     #[cfg_attr(feature = "serde", serde(rename = "Addresses", alias = "addresses"))]
     pub addresses: Option<AddressList>,
+    /// Interop configuration. Present when `[interop]` is set in the chain TOML.
+    ///
+    /// `serde(skip_serializing_if = "Option::is_none")` keeps the on-disk JSON
+    /// stable for chains that don't declare interop — round-tripping
+    /// `etc/configs.json` does not gain `"interop": null` lines.
+    #[cfg_attr(
+        feature = "serde",
+        serde(rename = "interop", default, skip_serializing_if = "Option::is_none")
+    )]
+    pub interop: Option<crate::InteropConfig>,
 }
 
 impl ChainConfig {
@@ -159,11 +169,6 @@ impl ChainConfig {
                 .as_ref()
                 .and_then(|a| a.system_config_proxy)
                 .unwrap_or_default(),
-            protocol_versions_address: self
-                .addresses
-                .as_ref()
-                .and_then(|a| a.address_manager)
-                .unwrap_or_default(),
             superchain_config_address: None,
             blobs_enabled_l1_timestamp: None,
             da_challenge_address: self
@@ -190,6 +195,7 @@ impl ChainConfig {
 #[cfg(feature = "serde")]
 mod tests {
     use super::*;
+    use alloc::string::ToString;
 
     #[test]
     fn test_chain_config_json() {
@@ -199,7 +205,6 @@ mod tests {
             "PublicRPC": "https://mainnet.base.org",
             "SequencerRPC": "https://mainnet-sequencer.base.org",
             "Explorer": "https://explorer.base.org",
-            "SuperchainLevel": 1,
             "GovernedByOptimism": false,
             "SuperchainTime": 0,
             "DataAvailabilityType": "eth-da",
@@ -275,6 +280,35 @@ mod tests {
     }
 
     #[test]
+    fn test_chain_config_with_interop_dependencies() {
+        // Verbatim copy of the rehearsal-0-bn-0 chain TOML (interop cluster of 2).
+        let toml_src = include_str!("../../tests/fixtures/rehearsal-0-bn-0.toml");
+        let cfg: ChainConfig = toml::from_str(toml_src).expect("parse rehearsal-0-bn-0.toml");
+        let interop = cfg.interop.as_ref().expect("interop section present");
+        assert!(interop.dependencies.contains_key(&420120009));
+        assert!(interop.dependencies.contains_key(&420120010));
+    }
+
+    #[test]
+    fn test_chain_config_rejects_superchain_level() {
+        let mut toml_src = include_str!("../../tests/fixtures/rehearsal-0-bn-0.toml").to_string();
+        toml_src.insert_str(0, "superchain_level = 0\n");
+        let err = toml::from_str::<ChainConfig>(&toml_src).unwrap_err();
+        assert!(err.to_string().contains("unknown field `superchain_level`"));
+    }
+
+    #[test]
+    fn test_chain_config_without_interop_skipped_in_json() {
+        // ChainConfig::default() has interop: None; serializing must omit the key entirely.
+        let cfg = ChainConfig::default();
+        let json = serde_json::to_string(&cfg).unwrap();
+        assert!(!json.contains("interop"), "expected `interop` key to be omitted; got: {json}");
+    }
+
+    // Guards the `deny_unknown_fields` attribute on ChainConfig: an otherwise-valid config with one
+    // extra top-level key must be rejected. (The rest of the config must deserialize cleanly so the
+    // parser reaches the unknown key and that is the sole error.)
+    #[test]
     fn test_chain_config_unknown_field_json() {
         let raw: &str = r#"
         {
@@ -282,7 +316,6 @@ mod tests {
             "PublicRPC": "https://mainnet.base.org",
             "SequencerRPC": "https://mainnet-sequencer.base.org",
             "Explorer": "https://explorer.base.org",
-            "SuperchainLevel": 1,
             "GovernedByOptimism": false,
             "SuperchainTime": 0,
             "DataAvailabilityType": "eth-da",
@@ -301,9 +334,9 @@ mod tests {
                 "holocene_time": 1736445601
             },
             "optimism": {
-            "eip1559Elasticity": "0x6",
-            "eip1559Denominator": "0x32",
-            "eip1559DenominatorCanyon": "0xfa"
+                "eip1559Elasticity": 6,
+                "eip1559Denominator": 50,
+                "eip1559DenominatorCanyon": 250
             },
             "alt_da": null,
             "genesis": {
@@ -355,6 +388,9 @@ mod tests {
         "#;
 
         let err = serde_json::from_str::<ChainConfig>(raw).unwrap_err();
-        assert_eq!(err.classify(), serde_json::error::Category::Data);
+        assert!(
+            err.to_string().contains("unknown field `unknown_field`"),
+            "expected deny_unknown_fields to reject the extra key, got: {err}"
+        );
     }
 }

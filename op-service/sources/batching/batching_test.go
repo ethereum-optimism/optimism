@@ -259,7 +259,7 @@ func TestFetchBatched(t *testing.T) {
 						{id: 0, err: false},
 						{id: 1, err: true},
 					},
-					err: "1 error occurred:",
+					err: "mockErr",
 				},
 				{
 					elems: []elemCall{
@@ -294,14 +294,14 @@ func TestFetchBatched(t *testing.T) {
 						{id: 0, err: true},
 						{id: 1, err: true},
 					},
-					err: "2 errors occurred:",
+					err: "mockErr",
 				},
 				{
 					elems: []elemCall{
 						{id: 0, err: false},
 						{id: 1, err: true},
 					},
-					err: "1 error occurred:",
+					err: "mockErr",
 				},
 				{
 					elems: []elemCall{

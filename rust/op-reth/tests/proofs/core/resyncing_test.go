@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -50,11 +51,17 @@ func TestResyncing(gt *testing.T) {
 
 	time.Sleep(3 * time.Second)
 
-	err = wait.For(t.Ctx(), 2*time.Second, func() (bool, error) {
+	// Bound the wait. Resync takes ~25s in CI, so 5 minutes is ample slack for a slow machine
+	// while a validator that never comes back fails here instead of consuming the package timeout.
+	resyncCtx, cancelResync := context.WithTimeout(t.Ctx(), 5*time.Minute)
+	defer cancelResync()
+	err = wait.For(resyncCtx, 2*time.Second, func() (bool, error) {
 		status := sys.L2CLValidator.SyncStatus()
 		return status.UnsafeL2.Number > blockNumbers[len(blockNumbers)-1], nil
 	})
 	require.NoError(gt, err, "Validator L2 CL failed to resync to latest block")
+
+	utils.WaitForProofsStoreBlock(t, sys.L2ELValidatorNode().Escape().L2EthClient(), blockNumbers[len(blockNumbers)-1])
 
 	t.Logf("Fetching and verifying proofs for transactions produced while node was down")
 	// verify the proofs for the transactions produced while the node was down

@@ -1,0 +1,237 @@
+---
+title: Tune batcher costs
+description: Reduce what your OP Stack chain spends posting data to L1, and recover what you do spend, without breaking batch-submission safety limits.
+diataxis: how-to
+content-type: solution-guide
+last-reviewed: 2026-07-16
+---
+
+This guide takes a chain operator whose largest onchain operating cost is L1 data
+posting and walks the whole cost loop in one pass: what the batcher spends,
+the settings that control that spend, and the fee parameters that recover it
+from users. It involves the `op-batcher`, your chain's `SystemConfig` fee
+parameters, and, for throttling, the sequencer's execution client.
+
+## Is this guide for you?
+
+Use this guide if:
+
+*   You operate an OP Stack chain: you control the `op-batcher` deployment
+    and can reach the [SystemConfig owner](/op-stack/protocol/privileged-roles)
+    when a parameter change needs it.
+*   Your goal is economic (L1 posting costs look too high, or user fees
+    aren't covering them) rather than a batcher outage or sync problem.
+
+If you are standing up a batcher for the first time, follow the
+[batcher setup tutorial](/chain-operators/tutorials/create-l2-rollup/op-batcher-setup)
+first. If you want to understand how fees work rather than change them, read
+[Transaction fees](/op-stack/transactions/fees). If you are evaluating
+alternative data availability layers, see the
+[Alt-DA mode guide](/chain-operators/guides/features/alt-da-mode-guide).
+This guide covers Ethereum DA (calldata and blobs) only.
+
+## Before you start
+
+You should already have:
+
+*   A running `op-batcher` posting batches for your chain, and the ability
+    to change its flags or environment variables and restart it.
+*   Access to the batch submitter's L1 spend history (its address on an L1
+    explorer) so you can measure the effect of changes.
+*   Batcher metrics scraped somewhere you can query; see
+    [chain monitoring options](/chain-operators/tools/chain-monitoring).
+*   For Step 5, transaction access as the SystemConfig owner (fee scalars
+    are set on L1).
+
+## Step 1: Map where the fees go
+
+Two fee flows matter, and they are tuned by different knobs: the fees
+**you** pay L1 to post data (batcher settings), and the fees **users** pay
+you (SystemConfig fee parameters). Read
+[Transaction fees](/op-stack/transactions/fees) and take away:
+
+*   The three components of a user fee (execution gas fee, L1 data fee,
+    operator fee), and that the [L1 data fee](/op-stack/transactions/fees#l1-data-fee)
+    is the component that exists to recover your batcher spend.
+*   Which scalars price the L1 data fee (`basefeeScalar` and
+    `blobBaseFeeScalar`); you will set them in Step 5.
+
+Then skim [Transaction Fees 101](/chain-operators/guides/management/transaction-fees-101)
+and take away which fee parameters are operator-adjustable and the example
+scenarios that match your chain's traffic pattern.
+
+## Step 2: Balance your sequencing-window budget
+
+Cost tuning trades posting cost against batch-submission speed, and the
+sequencing window puts a hard cap on that trade. The faster you submit
+batches, the sooner your users' transactions get Ethereum finality
+guarantees; the longer you accumulate before posting, the cheaper each
+byte gets, up to the cap. Read the
+[batcher policy section](/chain-operators/guides/configuration/batcher#batcher-policy)
+of the batcher configuration guide and take away:
+
+*   Your chain's **sequencing window**, which is 3,600 L1 blocks (12 hours)
+    on standard chains, and that batches must always land on L1 inside it.
+    Breached sequencing windows result in a
+    [12 hour reorg](/op-stack/protocol/outages#inclusion-rules).
+*   The standard requirement to target batch submission at **1,800 L1
+    blocks (6 hours) or lower**, and why operators leave a congestion
+    buffer below that.
+*   That a long submission interval stalls the
+    [safe head](https://specs.optimism.io/glossary.html?utm_source=op-docs&utm_medium=docs#safe-l2-head)
+    for up to that interval, which delays exchanges and bridges that wait
+    for Ethereum finality.
+
+Every choice in Steps 3 and 4 must keep batch submission inside the
+sequencing window. Decide now how long your chain's users can wait for
+Ethereum finality; that number, not the 12-hour hard cap, is your real
+budget.
+
+## Step 3: Choose a data availability type
+
+The batcher posts to Ethereum as calldata or as blobs, controlled by
+`--data-availability-type` (`OP_BATCHER_DATA_AVAILABILITY_TYPE`); valid
+values are `calldata` (the flag's default), `blobs`, and `auto`. A blob must
+be bought whole, about 130 KB of usable capacity, whether or not you fill
+it. In practice that rarely favors calldata: outside short demand spikes,
+the blob base fee has sat at or near its floor since blobs launched, so even
+a partly filled blob usually costs less than posting the same bytes as
+calldata, and L1's Pectra upgrade (EIP-7623) raised calldata pricing for
+data-heavy transactions on top of that.
+
+| If ...                                                                | Choose ... | Because ...                                                                                                                                              |
+| ---------------------------------------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| You want the sensible default (most chains, at any throughput)        | `blobs`    | The blob base fee spends most of its time at or near its floor, where blob bytes are far cheaper than calldata even when your blobs go out partly empty.  |
+| You want blob-fee spikes handled automatically                        | `auto`     | The batcher estimates the current cost per byte of both markets and picks the cheaper, staying on blobs while throttling is active.                       |
+| A sustained blob-fee spike is underway and you prefer to pin the type | `calldata` | Calldata can win briefly when blob demand spikes; treat it as the exception and switch back (or move to `auto`) once the spike passes.                     |
+
+To check which market is cheaper right now, compare the current blob base
+fee with the L1 base fee on any gas tracker that shows both, or let `auto`
+make the comparison per channel. To execute a switch, follow
+[Using Blobs](/chain-operators/guides/features/blobs), which covers
+[switching to blobs](/chain-operators/guides/features/blobs#switch-to-using-blobs),
+[switching back to calldata](/chain-operators/guides/features/blobs#switch-back-to-using-calldata),
+and [auto mode](/chain-operators/guides/features/blobs#use-auto-da-mode-in-your-batcher);
+take away that a DA-type switch also changes the correct scalar values, so
+plan Step 5 in the same change window.
+
+## Step 4: Size your channels
+
+With the DA type fixed, the biggest cost levers are how long the batcher
+accumulates data before posting and, on blobs, how many blobs it packs per
+transaction:
+
+*   `--max-channel-duration` (`OP_BATCHER_MAX_CHANNEL_DURATION`), in L1
+    blocks. The default is `0` (duration tracking disabled). Read the
+    [channel duration recommendation](/chain-operators/guides/configuration/batcher#set-your--op_batcher_max_channel_duration)
+    and take away the recommended 1,500-block (5-hour) ceiling, the reasons
+    not to exceed it, and that a full channel is posted early regardless of
+    this setting.
+*   `--target-num-frames` (`OP_BATCHER_TARGET_NUM_FRAMES`), the number of
+    frames (and so blobs per blob transaction) to target. The default is
+    `1`. Read the
+    [multi-blob recommendation](/chain-operators/guides/configuration/batcher#configure-your-batcher-to-use-multiple-blobs)
+    and take away the companion transaction-manager settings a multi-blob
+    configuration needs and the blob-congestion caveat.
+*   `--batch-type=1` (`OP_BATCHER_BATCH_TYPE`) enables span batches, which
+    cut batch overhead; the default is `0` (singular). Follow
+    [Enable span batches](/chain-operators/guides/features/enable-span-batches),
+    which includes confirming the Delta upgrade is active first.
+
+The connective logic:
+
+| If ...                                                              | Choose ...                                                             | Because ...                                                                                     |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Low throughput and users tolerate hours of safe-head delay          | Long channel duration (up to 1,500 blocks), single blob                | Accumulating longer is the only way a quiet chain fills what it pays for.                        |
+| Low throughput but bridges/exchanges need fresh safe blocks         | Shorter channel duration, accept higher per-byte cost                  | The safe head stalls for up to the channel duration; latency is the price of cheap posting.      |
+| Medium/high throughput                                              | `blobs` with `--target-num-frames` sized so blobs fill before the duration elapses | You stop paying for empty blob space, and fewer L1 transactions carry the same data.  |
+| Any throughput                                                      | Span batches (`--batch-type=1`)                                        | Less overhead per batch at no safety cost on Delta-activated chains.                             |
+
+To get a concrete blob count, estimate the compressed batch data your
+chain produces per channel duration and divide by blob capacity (~130 KB);
+Step 7's utilization metrics will confirm or correct the estimate.
+
+## Step 5: Recover the spend with fee scalars
+
+Posting cheaply is half the loop; the L1 data fee your users pay must track
+what you now actually spend. Follow the
+[L1 fee section of Transaction Fees 101](/chain-operators/guides/management/transaction-fees-101#tune-the-l1-fee)
+to read and set `basefeeScalar` and `blobBaseFeeScalar` on your
+SystemConfig, and take away the direction of each adjustment. For the
+formula the scalars feed and the values OP Mainnet runs, see the
+[fee parameters reference](/chain-operators/reference/fee-parameters#fee-formulas).
+Size the scalars against your measured batcher spend so they recover it
+plus your target margin.
+
+If you switched DA type in Step 3, set the new scalars in the same
+maintenance window: blob-appropriate scalars under calldata (or the reverse)
+misprice every user transaction until corrected.
+
+## Step 6: Decide your throttling posture
+
+Throttling is the batcher's defense against traffic spikes outrunning your
+DA budget: when its backlog of un-posted data grows past a threshold, it
+instructs the sequencer's execution client (via the `miner_setMaxDASize`
+RPC) to limit DA-heavy transactions and blocks. It is **on by default**, so
+this step is about checking the defaults fit your cost posture rather than
+turning something on. Read the
+[batcher sequencer throttling section](/chain-operators/guides/configuration/batcher#batcher-sequencer-throttling)
+and take away:
+
+*   The requirement that the sequencer's execution client exposes the
+    `miner` RPC namespace, and the follow-the-sequencer caveat for
+    multi-node setups.
+*   The default backlog thresholds at which throttling engages and reaches
+    maximum intensity (`--throttle.unsafe-da-bytes-lower/upper-threshold`),
+    and that the default controller is `quadratic`
+    (`--throttle.controller-type`; the options are `step`, `linear`,
+    `quadratic`, and `pid`).
+
+The decision this guide adds: leave throttling on unless, during traffic
+spikes, you accept unbounded backlog growth and the cost exposure that
+comes with posting that backlog at whatever L1 happens to charge. To
+accept that trade anyway, disable throttling by setting
+`--throttle.unsafe-da-bytes-lower-threshold=0`. For controller selection
+and tuning depth, use the throttling deep dive in the next steps.
+
+## Step 7: Verify the outcome
+
+Give a change at least a few full channel cycles, then check both sides of
+the loop. The batcher exports Prometheus metrics under the
+`op_batcher_<procname>` namespace (`op_batcher_default_*` unless you set a
+custom process name):
+
+*   **Blob utilization** (blobs only): the `blob_used_bytes` histogram
+    should sit near blob capacity (~130 KB). Persistently part-empty blobs
+    mean your channel duration or frame count is oversized for your
+    throughput; revisit Step 4.
+*   **Posting cadence**: batcher transactions from your batch submitter
+    address should appear on L1 at roughly the interval you chose, and
+    never approach the sequencing-window deadline from Step 2.
+*   **Throttling at rest**: `throttle_intensity` should be `0` and
+    `unsafe_da_bytes` below the lower threshold in normal operation. If
+    throttling engages routinely, your chain's steady-state throughput
+    exceeds your posting budget; revisit Steps 3 and 4 before touching
+    Step 6's thresholds.
+*   **The economic bottom line**: over a representative window, compare the
+    batch submitter's L1 spend against L1-fee revenue arriving in your
+    [fee vaults](/chain-operators/guides/management/fee-vaults). A healthy
+    result is revenue at or above spend by your target margin; if not,
+    revisit Step 5.
+
+## Next steps
+
+*   [Batcher configuration reference](/chain-operators/reference/batcher-configuration):
+    the full flag and environment-variable catalogue. Hand-pinned to
+    `op-batcher/v1.10.0` as of 2026-07-16; confirm values against
+    `op-batcher --help` for the release you run.
+*   [op-batcher throttling deep dive](https://github.com/ethereum-optimism/optimism/blob/develop/op-batcher/throttling.md):
+    the only in-depth documentation of the four throttling controllers,
+    their runtime-management RPCs, and the experimental PID controller's
+    tuning profiles. In-repo document on `develop`, as of 2026-07-16.
+*   [op-batcher readme](https://github.com/ethereum-optimism/optimism/blob/develop/op-batcher/readme.md):
+    batcher architecture and operational detail beyond configuration.
+    In-repo document on `develop`, as of 2026-07-16.
+*   [Frame format in the derivation spec](https://specs.optimism.io/protocol/derivation.html?utm_source=op-docs&utm_medium=docs#frame-format):
+    the normative definition of channels and frames, for when you need to
+    reason about what a channel actually contains.

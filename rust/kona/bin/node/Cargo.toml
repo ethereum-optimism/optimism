@@ -16,9 +16,12 @@ workspace = true
 
 [dependencies]
 # workspace
+op-version.workspace = true
+
 kona-rpc.workspace = true
 kona-peers.workspace = true
 kona-genesis = { workspace = true, features = ["tabled"] }
+kona-interop = { workspace = true, features = ["serde"] }
 kona-protocol.workspace = true
 
 kona-cli = { workspace = true, features = ["secrets"] }
@@ -73,10 +76,6 @@ tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
 [dev-dependencies]
 rstest.workspace = true
 tempfile.workspace = true
-
-[build-dependencies]
-vergen = { workspace = true, features = ["build", "cargo", "emit_and_set"] }
-vergen-git2.workspace = true
 
 [features]
 default = [ "asm-keccak" ]

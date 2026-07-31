@@ -1,7 +1,18 @@
 ---
 title: "The OP Stack"
 description: "The standard framework for building Ethereum Layer 2 Rollups."
+diataxis: explanation
 ---
+
+import OpEnterpriseSoftCard from '/snippets/op-enterprise-soft-card.mdx';
+
+<Info>
+  **Learn the OP Stack — stop 1 of 13.**
+  This is the start of the track; nothing is assumed beyond general
+  familiarity with Ethereum. This page gives you the mental model: what
+  the OP Stack is and what it powers. When you're done, continue to
+  [Design philosophy & principles](/op-stack/protocol/design-principles).
+</Info>
 
 The OP Stack is the standardized, shared, and open-source development stack that powers Optimism and makes it easy to spin up your own production-ready Layer 2 blockchain. 
 Whether you're building applications or deploying your own chain, the OP Stack provides the foundation you need.
@@ -82,7 +93,7 @@ The OP Stack is a modular collection of software components that work together t
 
 - **EVM Compatibility**: Full compatibility with Ethereum tooling and smart contracts
 - **Low Fees**: Significantly lower transaction costs than Ethereum mainnet
-- **Fast Finality**: Near-instant transaction confirmation
+- **Fast Confirmations**: Near-instant transaction confirmation, with [full Ethereum finality](/op-stack/transactions/transaction-finality) typically under an hour
 - **Ethereum Security**: Inherits security from Ethereum's consensus
 - **Modular Design**: Customizable components for specific needs
 
@@ -101,5 +112,9 @@ The OP Stack is a modular collection of software components that work together t
 </CardGroup>
 
 <Info>
-  The OP Stack is continuously evolving. Check the [OP Stack specifications](https://specs.optimism.io) to stay current with new features and improvements.
+  The OP Stack is continuously evolving. Check the [OP Stack specifications](https://specs.optimism.io) to stay current with new features and improvements, and stay up to date on the OP Stack by reading the [Optimism Blog](https://www.optimism.io/blog).
 </Info>
+
+## Ready to build your chain?
+
+<OpEnterpriseSoftCard />

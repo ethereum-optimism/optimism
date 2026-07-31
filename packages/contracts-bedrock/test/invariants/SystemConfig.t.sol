@@ -45,7 +45,6 @@ contract SystemConfig_GasLimitBoundaries_Invariant is Test {
                     30_000_000, // gas limit
                     address(1), // unsafe block signer
                     Constants.DEFAULT_RESOURCE_CONFIG(),
-                    address(0), // _batchInbox
                     ISystemConfig.Addresses({ // _addrs
                         l1CrossDomainMessenger: address(0),
                         l1ERC721Bridge: address(0),

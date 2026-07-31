@@ -22,6 +22,7 @@
     - [Source Code](#source-code)
     - [Tests](#tests)
       - [Expect Revert with Low Level Calls](#expect-revert-with-low-level-calls)
+      - [Gas Accounting in Tests](#gas-accounting-in-tests)
       - [Organizing Principles](#organizing-principles)
       - [Test function naming convention](#test-function-naming-convention)
         - [Detailed Naming Rules](#detailed-naming-rules)
@@ -252,8 +253,8 @@ contract BadStorageLayout {
 
 All contracts should be assumed to live behind proxies (except in certain special circumstances).
 This means that new contracts MUST be built under the assumption of upgradeability.
-We use a minimal [`Proxy`](../src/universal/Proxy.sol) contract designed to be owned by a
-corresponding [`ProxyAdmin`](../src/universal/ProxyAdmin.sol) which follow the interfaces
+We use a minimal [`Proxy`](../../../src/universal/Proxy.sol) contract designed to be owned by a
+corresponding [`ProxyAdmin`](../../../src/universal/ProxyAdmin.sol) which follow the interfaces
 of OpenZeppelin's `Proxy` and `ProxyAdmin` contracts, respectively.
 
 Unless explicitly discussed otherwise, you MUST include the following basic upgradeability
@@ -363,6 +364,12 @@ There is a non-intuitive behavior in foundry tests, which is documented [here](h
 When testing for a revert on a low-level call, please use the `revertsAsExpected` pattern suggested there.
 
 _Note: This is a work in progress, not all test files are compliant with these guidelines._
+
+#### Gas Accounting in Tests
+
+Foundry's default test runner does not deduct intrinsic gas (21,000 base, plus 16 per non-zero byte and 4 per zero byte of calldata) before forwarding to the called contract. Real Ethereum clients do. Tests that pass `gasLimit` straight through to a call therefore have *more* gas to spend than production would, and code that fits its budget under test can run out of gas onchain. This caused the upgrade-path bug fixed in [#20075](https://github.com/ethereum-optimism/optimism/pull/20075).
+
+Two correct patterns: deduct intrinsic gas manually before the call (`gas: _txn.gasLimit - intrinsicGas_`), or run the test under `forge-config: default.isolate = true`, which makes Foundry execute each top-level call as a separate transaction with proper gas accounting. Use the manual path for tests that drive many top-level calls in one harness and need to control gas precisely; use isolate mode for end-to-end tests that should mirror real client semantics.
 
 #### Organizing Principles
 

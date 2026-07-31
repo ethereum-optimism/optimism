@@ -1,0 +1,88 @@
+---
+title: "Monitoring"
+description: "Set up logging, Prometheus metrics, and Grafana dashboards for kona-node."
+diataxis: how-to
+---
+
+This guide covers observability for a running `kona-node`: adjusting
+log verbosity, filtering log targets, and collecting Prometheus
+metrics into Grafana dashboards.
+
+## Logging
+
+`kona-node` provides a `-v` (or `--v`) flag as a way to set
+the "verbosity" level for logs. By default, the verbosity level
+is set to `3`, which is the INFO level. The level ranges from `0`
+being no logs to `5` which includes trace logs. Log levels are
+listed below, with each level including the one below it.
+
+- `5`: `TRACE` - very verbose logs that provide a detailed trace
+- `4`: `DEBUG` - logs meant to print debugging information
+- `3`: `INFO` - informational logs
+- `2`: `WARN` - includes warning and error logs
+- `1`: `ERROR` - only error logs are shown
+- `0`: No logs
+
+The default verbosity level is `-vvv` which is the `3` or `INFO`
+level. To set the `kona-node` to print `DEBUG` logs or level `4`,
+run the node like so: `kona-node node -vvvv`.
+
+### Filtering Log Targets
+
+By default, the `kona-node` initializes its tracing (logging)
+using the default environment variable filter [provided by the
+tracing_subscriber crate][tracing-env]. This uses the value in
+the `RUST_LOG` environment variable to set the tracing level
+for specific targets. Effectively, `RUST_LOG` allows you to
+bypass the default log level for the whole node or specific
+log targets. For example, by prepending `RUST_LOG=engine=debug`
+to the `kona-node` command (or setting that as an environment
+variable), only `INFO` logs will be displayed except for the
+`engine` log target which will also print `DEBUG` logs.
+
+This comes in handy say for when we would like to debug Kona's
+P2P stack, we could prepend `RUST_LOG=discv5=debug,libp2p=debug`
+to view debug logs from only `discv5` and `libp2p` targets.
+
+## Metrics
+
+The `kona-node` can serve Prometheus metrics, which are disabled
+by default. To turn them on, pass the `--metrics.enabled` cli flag.
+
+Unless otherwise specified with the `--metrics.port` flag, metrics
+are exposed on port `9090`.
+
+To grab a snapshot of the metrics, you can visit `0.0.0.0:9090`
+or `curl` the url.
+
+```
+curl 0.0.0.0:9090
+```
+
+The output should be raw text mapping metrics with their values.
+
+Remember, this is just a snapshot of the metrics at that point
+in time. To record and visualize the metrics, we'll use
+[Grafana and Prometheus](#grafana-and-prometheus).
+
+
+## Grafana and Prometheus
+
+Prometheus is a simple service that scrapes metrics at a predefined
+interval. Grafana then uses Prometheus as a "Data Source" to
+visualize the collected metrics.
+
+The Reth book provides a great overview to setting up [Prometheus
+and Grafana][setup]. Visit the Reth docs to follow along.
+
+The `kona-node` comes shipped with a default Grafana dashboard
+for the `kona-node`. To import the dashboard to grafana, click
+the `+` icon > `Import Dashboard` > paste the contents of [kona's
+dashboard][dashboard] in the textbox > `Load`.
+
+
+[tracing-env]: https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html#method.from_default_env
+
+[setup]: https://reth.rs/run/monitoring#prometheus--grafana
+
+[dashboard]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/docker/recipes/kona-node/grafana/dashboards/overview.json

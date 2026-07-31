@@ -86,7 +86,7 @@ client implementations.
 
 The upgrade system maintains the existing pattern of injecting Network Upgrade Transactions at specific fork block
 heights while improving the development and testing process. Upgrade transactions are defined in JSON bundles (see
-[Bundle Format](./l2-upgrades-1-execution.md#bundle-format)) that are tracked in git, generated from Solidity scripts,
+Bundle Format) that are tracked in git, generated from Solidity scripts,
 and executed deterministically at fork activation.
 
 ## ConditionalDeployer

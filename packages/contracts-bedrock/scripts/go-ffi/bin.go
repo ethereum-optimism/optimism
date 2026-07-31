@@ -15,6 +15,8 @@ func main() {
 		DiffMerkle()
 	case "opcm":
 		GetOPCMs()
+	case "nut-bundles":
+		GetNUTBundles()
 	default:
 		log.Fatal("Must pass a subcommand")
 	}

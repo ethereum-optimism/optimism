@@ -72,7 +72,7 @@ function _dummyClaim() view returns (Claim) {
 /// @notice Base test initializer that can be used by other contracts outside of this test suite.
 abstract contract BaseFaultDisputeGame_TestInit is DisputeGameFactory_TestInit {
     /// @dev The type of the game being tested.
-    GameType internal immutable GAME_TYPE = GameTypes.CANNON;
+    GameType internal immutable GAME_TYPE = GameTypes.CANNON_KONA;
 
     /// @dev The initial bond for the game.
     uint256 internal initBond;
@@ -101,6 +101,9 @@ abstract contract BaseFaultDisputeGame_TestInit is DisputeGameFactory_TestInit {
 
         (address _impl, AlphabetVM _vm,) = setupFaultDisputeGame(absolutePrestate);
         gameImpl = IFaultDisputeGame(_impl);
+
+        vm.prank(systemConfig.guardian());
+        anchorStateRegistry.setRespectedGameType(GAME_TYPE);
 
         // Set the init bond for the given game type.
         initBond = disputeGameFactory.initBonds(GAME_TYPE);
@@ -136,6 +139,15 @@ abstract contract BaseFaultDisputeGame_TestInit is DisputeGameFactory_TestInit {
 
     receive() external payable { }
 
+    function respectGameType(GameType _gameType) internal {
+        if (anchorStateRegistry.respectedGameType().raw() == _gameType.raw()) {
+            return;
+        }
+
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.setRespectedGameType(_gameType);
+    }
+
     function copyBytes(bytes memory src, bytes memory dest) internal pure returns (bytes memory) {
         uint256 byteCount = src.length < dest.length ? src.length : dest.length;
         for (uint256 i = 0; i < byteCount; i++) {
@@ -151,7 +163,7 @@ abstract contract FaultDisputeGame_TestInit is BaseFaultDisputeGame_TestInit {
     /// @dev The root claim of the game.
     Claim internal ROOT_CLAIM;
     /// @dev An arbitrary root claim for testing.
-    Claim internal arbitaryRootClaim = Claim.wrap(bytes32(uint256(123)));
+    Claim internal arbitraryRootClaim = Claim.wrap(bytes32(uint256(123)));
 
     /// @dev The preimage of the absolute prestate claim
     bytes internal absolutePrestateData;
@@ -165,6 +177,7 @@ abstract contract FaultDisputeGame_TestInit is BaseFaultDisputeGame_TestInit {
         absolutePrestate = _changeClaimStatus(Claim.wrap(keccak256(absolutePrestateData)), VMStatuses.UNFINISHED);
 
         super.setUp();
+        respectGameType(GAME_TYPE);
 
         // Get the actual anchor roots
         (Hash root, uint256 l2Bn) = anchorStateRegistry.getAnchorRoot();
@@ -381,7 +394,7 @@ contract FaultDisputeGame_Initialize_Test is FaultDisputeGame_TestInit {
             payable(
                 address(
                     disputeGameFactory.create{ value: _value }(
-                        GAME_TYPE, arbitaryRootClaim, abi.encode(validL2BlockNumber)
+                        GAME_TYPE, arbitraryRootClaim, abi.encode(validL2BlockNumber)
                     )
                 )
             )
@@ -1929,8 +1942,8 @@ contract FaultDisputeGame_Resolve_Test is FaultDisputeGame_TestInit {
         vm.deal(charlie, bal);
 
         // Make claims with bob, charlie and the test contract on defense, and alice as the
-        // challenger charlie is successfully countered by alice alice is successfully countered by
-        // both bob and the test contract
+        // challenger. Charlie is successfully countered by alice. Alice is successfully countered
+        // by both bob and the test contract.
         uint256 firstBond = _getRequiredBond(0);
         (,,,, Claim disputed,,) = gameProxy.claimData(0);
         vm.prank(alice);

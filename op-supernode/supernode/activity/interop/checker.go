@@ -11,21 +11,27 @@ type l1ByNumberSource interface {
 	L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1BlockRef, error)
 }
 
-// byNumberConsistencyChecker verifies that a set of L1 block IDs all belong to
-// the same L1 fork by comparing each against the canonical chain.
-type byNumberConsistencyChecker struct {
+// l1ConsistencyChecker verifies that a set of L1 block IDs all belong to
+// the same L1 fork.
+type l1ConsistencyChecker interface {
+	SameL1Chain(ctx context.Context, heads []eth.BlockID) (bool, error)
+}
+
+// l1ByNumberChecker is the production l1ConsistencyChecker: it checks each
+// head against the canonical L1 chain fetched from an l1ByNumberSource.
+type l1ByNumberChecker struct {
 	l1 l1ByNumberSource
 }
 
-func newByNumberConsistencyChecker(l1 l1ByNumberSource) *byNumberConsistencyChecker {
+func newL1ConsistencyChecker(l1 l1ByNumberSource) l1ConsistencyChecker {
 	if l1 == nil {
 		return nil
 	}
-	return &byNumberConsistencyChecker{l1: l1}
+	return &l1ByNumberChecker{l1: l1}
 }
 
 // SameL1Chain returns true if all non-zero heads belong to the same canonical L1 chain.
-func (c *byNumberConsistencyChecker) SameL1Chain(ctx context.Context, heads []eth.BlockID) (bool, error) {
+func (c *l1ByNumberChecker) SameL1Chain(ctx context.Context, heads []eth.BlockID) (bool, error) {
 	for _, head := range heads {
 		if head == (eth.BlockID{}) {
 			continue

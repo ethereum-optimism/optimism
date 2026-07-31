@@ -29,9 +29,9 @@ func RandomL2Block(rng *rand.Rand, txCount int, t time.Time) (*types.Block, []*t
 		panic("L1InfoDeposit: " + err.Error())
 	}
 	if t.IsZero() {
-		return testutils.RandomBlockPrependTxs(rng, txCount, types.NewTx(l1InfoTx))
+		return testutils.RandomBlockPrependTxs(rng, txCount, testutils.TxFromDeposit(l1InfoTx))
 	} else {
-		return testutils.RandomBlockPrependTxsWithTime(rng, txCount, uint64(t.Unix()), types.NewTx(l1InfoTx))
+		return testutils.RandomBlockPrependTxsWithTime(rng, txCount, uint64(t.Unix()), testutils.TxFromDeposit(l1InfoTx))
 	}
 
 }
@@ -41,7 +41,7 @@ func RandomL2BlockWithChainId(rng *rand.Rand, txCount int, chainId *big.Int) *ty
 }
 
 func RandomL2BlockWithChainIdAndTime(rng *rand.Rand, txCount int, chainId *big.Int, t time.Time) *types.Block {
-	signer := types.NewIsthmusSigner(chainId)
+	signer := types.NewPragueSigner(chainId)
 	block, _ := RandomL2Block(rng, 0, t)
 	txs := []*types.Transaction{block.Transactions()[0]} // L1 info deposit TX
 	for i := 0; i < txCount; i++ {

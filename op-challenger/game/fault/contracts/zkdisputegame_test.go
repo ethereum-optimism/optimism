@@ -138,7 +138,7 @@ func TestZKGetGameRange(t *testing.T) {
 			stubRpc, contract := setupZKDisputeGameTest(t, version)
 			expectedStart := uint64(65)
 			expectedEnd := uint64(102)
-			stubRpc.SetResponse(zkGameAddr, methodStartingBlockNumber, rpcblock.Latest, nil, []interface{}{new(big.Int).SetUint64(expectedStart)})
+			stubRpc.SetResponse(zkGameAddr, methodStartingSequenceNumber, rpcblock.Latest, nil, []interface{}{new(big.Int).SetUint64(expectedStart)})
 			stubRpc.SetResponse(zkGameAddr, methodL2SequenceNumber, rpcblock.Latest, nil, []interface{}{new(big.Int).SetUint64(expectedEnd)})
 			start, end, err := contract.GetGameRange(context.Background())
 			require.NoError(t, err)
@@ -283,6 +283,36 @@ func TestZKGame_GetBondDistributionMode(t *testing.T) {
 			mode, err := game.GetBondDistributionMode(context.Background(), rpcblock.Latest)
 			require.NoError(t, err)
 			require.Equal(t, faultTypes.NormalDistributionMode, mode)
+		})
+	}
+}
+
+func TestZKGame_IsClosed(t *testing.T) {
+	modes := []struct {
+		name   string
+		mode   faultTypes.BondDistributionMode
+		closed bool
+	}{
+		{name: "Undecided", mode: faultTypes.UndecidedDistributionMode, closed: false},
+		{name: "Normal", mode: faultTypes.NormalDistributionMode, closed: true},
+		{name: "Refund", mode: faultTypes.RefundDistributionMode, closed: true},
+		{name: "Legacy", mode: faultTypes.LegacyDistributionMode, closed: true},
+	}
+	for _, version := range zkVersions {
+		version := version
+		t.Run(version.String(), func(t *testing.T) {
+			for _, test := range modes {
+				test := test
+				t.Run(test.name, func(t *testing.T) {
+					stubRpc, game := setupZKDisputeGameTest(t, version)
+					stubRpc.SetResponse(zkGameAddr, methodBondDistributionMode, rpcblock.Latest, nil, []interface{}{uint8(test.mode)})
+
+					closed, err := game.IsClosed(context.Background())
+
+					require.NoError(t, err)
+					require.Equal(t, test.closed, closed)
+				})
+			}
 		})
 	}
 }

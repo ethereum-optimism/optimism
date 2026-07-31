@@ -39,7 +39,7 @@
 //!         .with_loaded_toml_config(sepolia)
 //!         .unwrap()
 //!         .attach(Arc::new(db))
-//!         .with_provider_factory::<_, OpEvmConfig>(ChangesetCache::new(), None)
+//!         .with_provider_factory::<_, OpEvmConfig>(ChangesetCache::new(), None, &[])
 //!         .await
 //!         .unwrap()
 //!         .with_genesis()

@@ -1,3 +1,5 @@
+//! KV conversion helpers for trie history tables.
+
 use crate::db::{
     AccountTrieHistory, HashedAccountHistory, HashedStorageHistory, HashedStorageKey, MaybeDeleted,
     StorageTrieHistory, StorageTrieKey, StorageValue, VersionedValue,

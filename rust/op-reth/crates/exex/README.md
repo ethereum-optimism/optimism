@@ -1,10 +1,4 @@
 # op-reth historical proofs
-[![codecov](https://codecov.io/gh/op-rs/op-reth/branch/main/graph/badge.svg)](https://app.codecov.io/gh/op-rs/op-reth/tree/unstable/crates%2Foptimism?components%5B0%5D=op%20historical%20proof)
-
-![Description](assets/op-rs-logo.png)
-> **⚠️ Under Construction**
->
-> This is a work in progress. Stay tuned!
 
 ## Motivation
 
@@ -102,8 +96,7 @@ op-reth node \
   --datadir=/path/to/reth-datadir \
   --proofs-history \
   --proofs-history.storage-path=/path/to/proofs-db \
-  --proofs-history.window=600000 \
-  --proofs-history.prune-interval=15s
+  --proofs-history.window=600000
 ```
 
 Configuration Flags
@@ -113,7 +106,6 @@ Configuration Flags
 | `--proofs-history` | Enables the historical proofs module. | `false` | No |
 | `--proofs-history.storage-path` | Path to the separate MDBX database for storing proofs. | `None` | **Yes** (if enabled) |
 | `--proofs-history.window` | Retention period in **blocks**. Data older than `Tip - Window` is pruned. | `1,296,000` (~30 days) | No |
-| `--proofs-history.prune-interval` | How frequently the pruner runs to delete old data. | `1h` | No |
 
 ### 3. Management
 

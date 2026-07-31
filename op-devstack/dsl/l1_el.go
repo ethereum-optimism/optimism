@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
@@ -37,6 +38,12 @@ func (el *L1ELNode) Escape() stack.L1ELNode {
 
 func (el *L1ELNode) EthClient() apis.EthClient {
 	return el.inner.EthClient()
+}
+
+func (el *L1ELNode) AdvanceTime(timeTravel *clock.AdvancingClock, amount time.Duration) {
+	target := el.BlockRefByLabel(eth.Unsafe).Time + uint64(amount/time.Second)
+	timeTravel.AdvanceTime(amount)
+	el.WaitForTime(target)
 }
 
 // EstimateBlockTime estimates the L1 block based on the last 1000 blocks

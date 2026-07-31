@@ -1,0 +1,226 @@
+# Consolidated build for every Go service of the optimism monorepo. One
+# melange run, one source checkout, one shared GOMODCACHE/GOCACHE: the module
+# dependency graph compiles once and every later subpackage build is
+# incremental, instead of 13 independent CI legs each recompiling it from
+# scratch.
+#
+# Each subpackage emits its own APK under the same name the per-service
+# configs used (op-node, op-batcher, ...), so the apko/*.yaml image configs
+# keep pulling e.g. `op-node@local` unchanged. The op-stack-go package itself
+# is an empty meta package.
+#
+# op-deployer is NOT here: it needs a submodule checkout and package-local
+# Forge install to embed contract artifacts (see melange/op-deployer.yaml).
+package:
+  name: op-stack-go
+  version: "0.0.0"
+  epoch: 0
+  description: op-stack-go — meta package for the optimism monorepo Go services
+  copyright:
+    - license: MIT
+
+environment:
+  contents:
+    keyring:
+      - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+    repositories:
+      - https://packages.wolfi.dev/os
+    packages:
+      - busybox
+      - build-base
+      - ca-certificates-bundle
+      - bash
+      - git
+      - go-1.26
+      - jq
+      - yq
+      - zip
+  environment:
+    CGO_ENABLED: "0"
+
+# op-core/superchain embed prep runs once before any subpackage go/build.
+pipeline:
+  - uses: op-stack-go/sync-superchain
+
+subpackages:
+  - name: op-node
+    description: op-node — OP Stack rollup node
+    pipeline:
+      - uses: go/build
+        with:
+          modroot: .
+          packages: ./op-node/cmd
+          output: op-node
+          go-package: go-1.26
+          # /usr/local/bin, where upstream's images install binaries.
+          prefix: usr/local
+          ldflags: -s -w -X main.GitCommit=$(git rev-parse HEAD 2>/dev/null || echo unknown) -X main.GitDate=$(git show -s --format=%ct 2>/dev/null || echo 0)
+      - uses: strip
+
+  - name: op-batcher
+    description: op-batcher — OP Stack transaction batcher
+    pipeline:
+      - uses: go/build
+        with:
+          modroot: .
+          packages: ./op-batcher/cmd
+          output: op-batcher
+          go-package: go-1.26
+          # /usr/local/bin, where upstream's images install binaries.
+          prefix: usr/local
+          ldflags: -s -w -X main.GitCommit=$(git rev-parse HEAD 2>/dev/null || echo unknown) -X main.GitDate=$(git show -s --format=%ct 2>/dev/null || echo 0)
+      - uses: strip
+
+  - name: op-proposer
+    description: op-proposer — OP Stack output proposer
+    pipeline:
+      - uses: go/build
+        with:
+          modroot: .
+          packages: ./op-proposer/cmd
+          output: op-proposer
+          go-package: go-1.26
+          # /usr/local/bin, where upstream's images install binaries.
+          prefix: usr/local
+          ldflags: -s -w -X main.GitCommit=$(git rev-parse HEAD 2>/dev/null || echo unknown) -X main.GitDate=$(git show -s --format=%ct 2>/dev/null || echo 0)
+      - uses: strip
+
+  - name: op-conductor
+    description: op-conductor — OP Stack sequencer conductor
+    pipeline:
+      - uses: go/build
+        with:
+          modroot: .
+          packages: ./op-conductor/cmd
+          output: op-conductor
+          go-package: go-1.26
+          # /usr/local/bin, where upstream's images install binaries.
+          prefix: usr/local
+          ldflags: -s -w -X main.GitCommit=$(git rev-parse HEAD 2>/dev/null || echo unknown) -X main.GitDate=$(git show -s --format=%ct 2>/dev/null || echo 0)
+      - uses: strip
+
+  - name: op-challenger
+    description: op-challenger — OP Stack fault dispute challenger
+    pipeline:
+      - uses: go/build
+        with:
+          modroot: .
+          packages: ./op-challenger/cmd
+          output: op-challenger
+          go-package: go-1.26
+          # /usr/local/bin, where upstream's images install binaries.
+          prefix: usr/local
+          ldflags: -s -w -X main.GitCommit=$(git rev-parse HEAD 2>/dev/null || echo unknown) -X main.GitDate=$(git show -s --format=%ct 2>/dev/null || echo 0)
+      - uses: strip
+
+  - name: op-dispute-mon
+    description: op-dispute-mon — OP Stack dispute monitor
+    pipeline:
+      - uses: go/build
+        with:
+          modroot: .
+          packages: ./op-dispute-mon/cmd
+          output: op-dispute-mon
+          go-package: go-1.26
+          # /usr/local/bin, where upstream's images install binaries.
+          prefix: usr/local
+          ldflags: -s -w -X main.GitCommit=$(git rev-parse HEAD 2>/dev/null || echo unknown) -X main.GitDate=$(git show -s --format=%ct 2>/dev/null || echo 0)
+      - uses: strip
+
+  - name: op-dripper
+    description: op-dripper — OP Stack drippie executor
+    pipeline:
+      - uses: go/build
+        with:
+          modroot: .
+          packages: ./op-dripper/cmd
+          output: op-dripper
+          go-package: go-1.26
+          # /usr/local/bin, where upstream's images install binaries.
+          prefix: usr/local
+          ldflags: -s -w -X main.GitCommit=$(git rev-parse HEAD 2>/dev/null || echo unknown) -X main.GitDate=$(git show -s --format=%ct 2>/dev/null || echo 0)
+      - uses: strip
+
+  - name: op-faucet
+    description: op-faucet — OP Stack faucet service
+    pipeline:
+      - uses: go/build
+        with:
+          modroot: .
+          packages: ./op-faucet/cmd
+          output: op-faucet
+          go-package: go-1.26
+          # /usr/local/bin, where upstream's images install binaries.
+          prefix: usr/local
+          ldflags: -s -w -X main.GitCommit=$(git rev-parse HEAD 2>/dev/null || echo unknown) -X main.GitDate=$(git show -s --format=%ct 2>/dev/null || echo 0)
+      - uses: strip
+
+  - name: op-interop-filter
+    description: op-interop-filter — OP Stack interop message filter
+    pipeline:
+      - uses: go/build
+        with:
+          modroot: .
+          packages: ./op-interop-filter/cmd
+          output: op-interop-filter
+          go-package: go-1.26
+          # /usr/local/bin, where upstream's images install binaries.
+          prefix: usr/local
+          ldflags: -s -w -X main.GitCommit=$(git rev-parse HEAD 2>/dev/null || echo unknown) -X main.GitDate=$(git show -s --format=%ct 2>/dev/null || echo 0)
+      - uses: strip
+
+  - name: op-interop-mon
+    description: op-interop-mon — OP Stack interop monitor
+    pipeline:
+      - uses: go/build
+        with:
+          modroot: .
+          packages: ./op-interop-mon/cmd
+          output: op-interop-mon
+          go-package: go-1.26
+          # /usr/local/bin, where upstream's images install binaries.
+          prefix: usr/local
+          ldflags: -s -w -X main.GitCommit=$(git rev-parse HEAD 2>/dev/null || echo unknown) -X main.GitDate=$(git show -s --format=%ct 2>/dev/null || echo 0)
+      - uses: strip
+
+  - name: op-supernode
+    description: op-supernode — OP Stack supernode
+    pipeline:
+      - uses: go/build
+        with:
+          modroot: .
+          packages: ./op-supernode/cmd
+          output: op-supernode
+          go-package: go-1.26
+          # /usr/local/bin, where upstream's images install binaries.
+          prefix: usr/local
+          ldflags: -s -w -X main.GitCommit=$(git rev-parse HEAD 2>/dev/null || echo unknown) -X main.GitDate=$(git show -s --format=%ct 2>/dev/null || echo 0)
+      - uses: strip
+
+  - name: op-test-sequencer
+    description: op-test-sequencer — OP Stack test sequencer
+    pipeline:
+      - uses: go/build
+        with:
+          modroot: .
+          packages: ./op-test-sequencer/cmd
+          output: op-test-sequencer
+          go-package: go-1.26
+          # /usr/local/bin, where upstream's images install binaries.
+          prefix: usr/local
+          ldflags: -s -w -X main.GitCommit=$(git rev-parse HEAD 2>/dev/null || echo unknown) -X main.GitDate=$(git show -s --format=%ct 2>/dev/null || echo 0)
+      - uses: strip
+
+  - name: da-server
+    description: da-server — OP Stack alt-DA server
+    pipeline:
+      - uses: go/build
+        with:
+          modroot: .
+          packages: ./op-alt-da/cmd/daserver
+          output: da-server
+          go-package: go-1.26
+          # /usr/local/bin, where upstream's images install binaries.
+          prefix: usr/local
+          ldflags: -s -w -X main.GitCommit=$(git rev-parse HEAD 2>/dev/null || echo unknown) -X main.GitDate=$(git show -s --format=%ct 2>/dev/null || echo 0)
+      - uses: strip

@@ -65,7 +65,8 @@ impl OpAttributesWithParent {
         self.attributes
             .transactions
             .iter()
-            .all(|tx| tx.first().is_some_and(|tx| tx[0] == OpTxType::Deposit as u8))
+            .flatten()
+            .all(|tx| tx.first() == Some(&(OpTxType::Deposit as u8)))
     }
 
     /// Converts the [`OpAttributesWithParent`] into a deposits-only payload.
@@ -108,6 +109,35 @@ mod tests {
         assert_eq!(op_attributes_with_parent.parent(), &parent);
         assert_eq!(op_attributes_with_parent.is_last_in_span(), is_last_in_span);
         assert_eq!(op_attributes_with_parent.derived_from(), None);
+    }
+
+    /// Regression: `transactions` is `Option<Vec<Bytes>>`; `Option::iter` yields at most one
+    /// `&Vec<Bytes>`. Without `.flatten()`, only the **first** [`Bytes`] in that vec was inspected,
+    /// so a trailing non-deposit was incorrectly ignored.
+    #[test]
+    fn is_deposits_only_iterates_all_transactions() {
+        let deposit_then_legacy = OpPayloadAttributes {
+            transactions: Some(vec![
+                vec![OpTxType::Deposit as u8, 0xaa].into(),
+                vec![OpTxType::Legacy as u8, 0xbb].into(),
+            ]),
+            ..OpPayloadAttributes::default()
+        };
+        let op =
+            OpAttributesWithParent::new(deposit_then_legacy, L2BlockInfo::default(), None, true);
+        assert!(!op.is_deposits_only());
+
+        let two_deposits = OpPayloadAttributes {
+            transactions: Some(vec![
+                vec![OpTxType::Deposit as u8, 0x01].into(),
+                vec![OpTxType::Deposit as u8, 0x02].into(),
+            ]),
+            ..OpPayloadAttributes::default()
+        };
+        assert!(
+            OpAttributesWithParent::new(two_deposits, L2BlockInfo::default(), None, true)
+                .is_deposits_only()
+        );
     }
 
     /// Test that the [`OpAttributesWithParent::as_deposits_only`] method strips out all

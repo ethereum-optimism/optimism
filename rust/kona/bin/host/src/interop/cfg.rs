@@ -16,6 +16,7 @@ use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_preimage::{
     BidirectionalChannel, Channel, HintReader, HintWriter, OracleReader, OracleServer,
+    VerifyingPreimageFetcher,
 };
 use kona_proof_interop::HintType;
 use kona_providers_alloy::{OnlineBeaconClient, OnlineBlobProvider};
@@ -109,10 +110,6 @@ pub struct InteropHost {
     /// dependency set. The config should be stored as a serde-JSON serialized file.
     #[arg(long, alias = "depset-cfg", env)]
     pub dependency_set_path: Option<PathBuf>,
-    /// Optionally enables the use of `debug_executePayload` to collect the execution witness from
-    /// the execution layer.
-    #[arg(long, env)]
-    pub enable_experimental_witness_endpoint: bool,
 }
 
 /// An error that can occur when handling interop hosts
@@ -139,6 +136,18 @@ pub enum InteropHostError {
     /// An error when no provider found for chain ID.
     #[error("No provider found for chain ID: {0}")]
     RootProviderError(u64),
+    /// Lagoon is scheduled for a supplied rollup config but no dependency-set file was provided.
+    #[error(
+        "Lagoon is scheduled for chain {chain_id} (lagoon_time = {lagoon_time:?}), but \
+         --depset-cfg was not provided. Supply the dependency-set JSON file matching op-node's \
+         --interop.dependency-set to avoid silent state divergence on Lagoon activation."
+    )]
+    InteropWithoutDependencySet {
+        /// The L2 chain ID whose rollup config has Lagoon scheduled.
+        chain_id: u64,
+        /// The `lagoon_time` from that rollup config.
+        lagoon_time: Option<u64>,
+    },
     /// Any other error.
     #[error("Error: {0}")]
     Other(&'static str),
@@ -158,8 +167,19 @@ impl InteropHost {
         }
     }
 
+    /// Refuses to start when any supplied rollup config schedules the Lagoon hardfork but no
+    /// `--depset-cfg` was provided. Mirrors the same invariant enforced by `kona-node`, turning a
+    /// silent state-divergence bug into a startup crash.
+    ///
+    /// When `rollup_config_paths` is `None`, the host relies on the superchain registry and this
+    /// check is skipped; The registry path does not statically know which chains are scheduled.
+    fn require_dependency_set_if_interop_scheduled(&self) -> Result<(), InteropHostError> {
+        let Some(configs) = self.read_rollup_configs().transpose()? else { return Ok(()) };
+        require_dependency_set_for_configs(&configs, &self.dependency_set_path)
+    }
+
     /// Starts the preimage server, communicating with the client over the provided channels.
-    async fn start_server<C>(
+    pub async fn start_server<C>(
         &self,
         hint: C,
         preimage: C,
@@ -167,6 +187,8 @@ impl InteropHost {
     where
         C: Channel + Send + Sync + 'static,
     {
+        self.require_dependency_set_if_interop_scheduled()?;
+
         let kv_store = self.create_key_value_store()?;
 
         let task_handle = if self.is_offline() {
@@ -174,7 +196,7 @@ impl InteropHost {
                 PreimageServer::new(
                     OracleServer::new(preimage),
                     HintReader::new(hint),
-                    Arc::new(OfflineHostBackend::new(kv_store)),
+                    Arc::new(VerifyingPreimageFetcher::new(OfflineHostBackend::new(kv_store))),
                 )
                 .start()
                 .await
@@ -188,14 +210,14 @@ impl InteropHost {
                 providers,
                 InteropHintHandler,
             )
-            .with_proactive_hint(HintType::L2BlockData)
-            .with_proactive_hint(HintType::L2PayloadWitness);
+            .with_high_level_hint(HintType::L2BlockData)
+            .with_high_level_hint(HintType::L2PayloadWitness);
 
             task::spawn(async {
                 PreimageServer::new(
                     OracleServer::new(preimage),
                     HintReader::new(hint),
-                    Arc::new(backend),
+                    Arc::new(VerifyingPreimageFetcher::new(backend)),
                 )
                 .start()
                 .await
@@ -338,10 +360,99 @@ impl InteropProviders {
     }
 }
 
+/// Returns `Err` when any config in `configs` schedules the Lagoon hardfork but
+/// `dependency_set_path` is `None`.
+fn require_dependency_set_for_configs(
+    configs: &BTreeMap<u64, RollupConfig>,
+    dependency_set_path: &Option<PathBuf>,
+) -> Result<(), InteropHostError> {
+    if dependency_set_path.is_some() {
+        return Ok(());
+    }
+    for (chain_id, cfg) in configs {
+        if cfg.hardforks.lagoon_time.is_some() {
+            return Err(InteropHostError::InteropWithoutDependencySet {
+                chain_id: *chain_id,
+                lagoon_time: cfg.hardforks.lagoon_time,
+            });
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use alloy_primitives::b256;
+    use kona_genesis::HardForkConfig;
+
+    fn rollup_config_with_lagoon_time(lagoon_time: Option<u64>) -> RollupConfig {
+        RollupConfig {
+            hardforks: HardForkConfig { lagoon_time, ..Default::default() },
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn test_require_dependency_set_interop_scheduled_without_depset() {
+        let configs: BTreeMap<u64, RollupConfig> =
+            BTreeMap::from([(10u64, rollup_config_with_lagoon_time(Some(42)))]);
+
+        let err = require_dependency_set_for_configs(&configs, &None).unwrap_err();
+        match err {
+            InteropHostError::InteropWithoutDependencySet { chain_id, lagoon_time } => {
+                assert_eq!(chain_id, 10);
+                assert_eq!(lagoon_time, Some(42));
+            }
+            other => panic!("expected InteropWithoutDependencySet, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_require_dependency_set_interop_scheduled_with_depset() {
+        let configs: BTreeMap<u64, RollupConfig> =
+            BTreeMap::from([(10u64, rollup_config_with_lagoon_time(Some(42)))]);
+        let depset = Some(PathBuf::from("/tmp/depset.json"));
+
+        assert!(require_dependency_set_for_configs(&configs, &depset).is_ok());
+    }
+
+    #[test]
+    fn test_require_dependency_set_no_interop_no_depset() {
+        let configs: BTreeMap<u64, RollupConfig> =
+            BTreeMap::from([(10u64, rollup_config_with_lagoon_time(None))]);
+
+        assert!(require_dependency_set_for_configs(&configs, &None).is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_start_server_requires_dependency_set_when_interop_scheduled() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let rollup_config_path = temp_dir.path().join("rollup.json");
+        std::fs::write(
+            &rollup_config_path,
+            serde_json::to_string(&rollup_config_with_lagoon_time(Some(42))).unwrap(),
+        )
+        .unwrap();
+
+        let host = InteropHost {
+            server: true,
+            rollup_config_paths: Some(vec![rollup_config_path]),
+            ..Default::default()
+        };
+        let hint = BidirectionalChannel::new().unwrap();
+        let preimage = BidirectionalChannel::new().unwrap();
+
+        let err = host.start_server(hint.host, preimage.host).await.unwrap_err();
+
+        match err {
+            InteropHostError::InteropWithoutDependencySet { chain_id, lagoon_time } => {
+                assert_eq!(chain_id, 0);
+                assert_eq!(lagoon_time, Some(42));
+            }
+            other => panic!("expected InteropWithoutDependencySet, got {other:?}"),
+        }
+    }
 
     #[test]
     fn test_parse_interop_host_cli() {

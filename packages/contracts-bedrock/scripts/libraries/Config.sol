@@ -289,13 +289,35 @@ library Config {
         return vm.envOr("L2_FORK_TEST", false);
     }
 
+    /// @notice Returns true if this is a L2CM activation test.
+    function l2CMActivationTest() internal view returns (bool) {
+        return vm.envOr("L2CM_ACTIVATION_TEST", false);
+    }
+
     /// @notice Returns the L2 RPC URL for forking.
     function l2ForkRpcUrl() internal view returns (string memory) {
         return vm.envString("L2_FORK_RPC_URL");
     }
 
+    /// @notice Returns the L2 block after the fork.
+    function l2BlockAfterFork() internal view returns (uint256) {
+        if (l2CMActivationTest()) {
+            return vm.envOr("L2_FORK_BLOCK_NUMBER", uint256(0));
+        }
+        revert("Config: l2BlockAfterFork called outside of L2CM activation test");
+    }
+
+    /// @notice Returns the path to the committed NUT bundle JSON to verify against.
+    function nutBundlePath() internal view returns (string memory) {
+        return vm.envString("NUT_BUNDLE_PATH");
+    }
+
     /// @notice Returns the L2 block number to fork at. Defaults to 0 (latest).
+    ///         If L2CM activation test is enabled, returns the block before the fork.
     function l2ForkBlockNumber() internal view returns (uint256) {
+        if (l2CMActivationTest()) {
+            return vm.envUint("L2_BLOCK_BEFORE_FORK");
+        }
         return vm.envOr("L2_FORK_BLOCK_NUMBER", uint256(0));
     }
 
@@ -309,24 +331,15 @@ library Config {
         return vm.envOr("DEV_FEATURE__OPTIMISM_PORTAL_INTEROP", false);
     }
 
-    /// @notice Returns true if the development feature l2cm is enabled.
-    function devFeatureL2CM() internal view returns (bool) {
-        return vm.envOr("DEV_FEATURE__L2CM", false);
-    }
-
     /// @notice Returns true if the development feature ZK_DISPUTE_GAME is enabled.
     function devFeatureZkDisputeGame() internal view returns (bool) {
         return vm.envOr("DEV_FEATURE__ZK_DISPUTE_GAME", false);
     }
 
-    /// @notice Returns true if the development feature cannon_kona is enabled.
-    function devFeatureCannonKona() internal view returns (bool) {
-        return vm.envOr("DEV_FEATURE__CANNON_KONA", false);
-    }
-
     /// @notice Returns true if the development feature super root games migration is enabled.
-    function devFeatureSuperRootGamesMigration() internal view returns (bool) {
-        return vm.envOr("DEV_FEATURE__SUPER_ROOT_GAMES_MIGRATION", false);
+    /// @dev Defaults to true: SUPER_ROOT_GAMES_MIGRATION is the default OPCM migration codepath. See TODO(#21662).
+    function devFeatureSuperRootGamesMigration() internal pure returns (bool) {
+        return true;
     }
 
     /// @notice Returns true if the system feature custom_gas_token is enabled.

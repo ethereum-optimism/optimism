@@ -1,0 +1,86 @@
+{
+    "abi": [
+        {
+            "type": "function",
+            "name": "baseFee",
+            "inputs": [],
+            "outputs": [
+                { "name": "", "type": "uint256", "internalType": "uint256" }
+            ],
+            "stateMutability": "view"
+        },
+        {
+            "type": "function",
+            "name": "quoteResults",
+            "inputs": [
+                { "name": "", "type": "bytes", "internalType": "bytes" }
+            ],
+            "outputs": [
+                { "name": "success", "type": "bool", "internalType": "bool" },
+                { "name": "output", "type": "bytes", "internalType": "bytes" }
+            ],
+            "stateMutability": "view"
+        },
+        {
+            "type": "function",
+            "name": "setBaseFee",
+            "inputs": [
+                {
+                    "name": "_baseFee",
+                    "type": "uint256",
+                    "internalType": "uint256"
+                }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+        },
+        {
+            "type": "function",
+            "name": "setQuoteResult",
+            "inputs": [
+                {
+                    "name": "rawQuote",
+                    "type": "bytes",
+                    "internalType": "bytes"
+                },
+                { "name": "_success", "type": "bool", "internalType": "bool" },
+                { "name": "_output", "type": "bytes", "internalType": "bytes" }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+        },
+        {
+            "type": "function",
+            "name": "verifyAndAttestOnChain",
+            "inputs": [
+                { "name": "rawQuote", "type": "bytes", "internalType": "bytes" }
+            ],
+            "outputs": [
+                { "name": "", "type": "bool", "internalType": "bool" },
+                { "name": "", "type": "bytes", "internalType": "bytes" }
+            ],
+            "stateMutability": "payable"
+        },
+        {
+            "type": "error",
+            "name": "InsufficientFee",
+            "inputs": [
+                {
+                    "name": "required",
+                    "type": "uint256",
+                    "internalType": "uint256"
+                },
+                {
+                    "name": "provided",
+                    "type": "uint256",
+                    "internalType": "uint256"
+                }
+            ]
+        }
+    ],
+    "bytecode": {
+        "object": "0x608080604052346015576106fa908161001a8239f35b5f80fdfe60806040526004361015610011575f80fd5b5f3560e01c806338d8480a146103b957806346860698146103825780636ef25c3a1461034757806389e7a16d146102b957639321d73e14610050575f80fd5b346102b55760607ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc3601126102b55760043567ffffffffffffffff81116102b55761009f90369060040161048d565b6024358015158091036102b5576044359167ffffffffffffffff83116102b55760206100d1600194369060040161056a565b94604051936100df8561050d565b845281840195865282604051938492833781015f8152030190209051151560ff7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00835416911617815501905190815167ffffffffffffffff81116102885761014782546105de565b601f8111610243575b50602092601f82116001146101aa57928192935f9261019f575b50507fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8260011b9260031b1c19161790555f80f35b015190505f8061016a565b7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0821693835f52805f20915f5b86811061022b57508360019596106101f4575b505050811b019055005b01517fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff60f88460031b161c191690555f80806101ea565b919260206001819286850151815501940192016101d7565b825f5260205f20601f830160051c8101916020841061027e575b601f0160051c01905b8181106102735750610150565b5f8155600101610266565b909150819061025d565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52604160045260245ffd5b5f80fd5b346102b55760207ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc3601126102b55760043567ffffffffffffffff81116102b557602061030b8192369060040161056a565b604051928184925191829101835e81015f815203019020610333600160ff835416920161062f565b90610343604051928392836104bb565b0390f35b346102b5575f7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc3601126102b5576020600154604051908152f35b346102b55760207ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc3601126102b557600435600155005b60207ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc3601126102b55760043567ffffffffffffffff81116102b55761040390369060040161048d565b9060015480341061045e575060209082604051938492833781015f8152030190206104456001604051926104368461050d565b60ff815416151584520161062f565b90816020820152511515610343604051928392836104bb565b7fa458261b000000000000000000000000000000000000000000000000000000005f526004523460245260445ffd5b9181601f840112156102b55782359167ffffffffffffffff83116102b557602083818601950101116102b557565b90601f60206060947fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe093151585526040828601528051918291826040880152018686015e5f8582860101520116010190565b6040810190811067ffffffffffffffff82111761028857604052565b90601f7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0910116810190811067ffffffffffffffff82111761028857604052565b81601f820112156102b55780359067ffffffffffffffff821161028857604051926105bd60207fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0601f8601160185610529565b828452602083830101116102b557815f926020809301838601378301015290565b90600182811c92168015610625575b60208310146105f857565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52602260045260245ffd5b91607f16916105ed565b9060405191825f825492610642846105de565b80845293600181169081156106ad5750600114610669575b5061066792500383610529565b565b90505f9291925260205f20905f915b818310610691575050906020610667928201015f61065a565b6020919350806001915483858901015201910190918492610678565b602093506106679592507fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0091501682840152151560051b8201015f61065a56fea164736f6c634300081c000a",
+        "sourceMap": "865:844:109:-:0;;;;;;;;;;;;;;;;;",
+        "linkReferences": {}
+    }
+}

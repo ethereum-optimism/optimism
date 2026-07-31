@@ -45,8 +45,37 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     /// @notice Thrown when the starting respected game type is not a valid super game type.
     error OPContractsManagerMigrator_InvalidStartingRespectedGameType();
 
+    /// @notice Thrown when attempting to migrate a CGT chain.
+    error OPContractsManagerMigrator_CustomGasTokenNotSupported();
+
+    /// @notice Thrown when the chainSystemConfigs array is empty.
+    error OPContractsManagerMigrator_NoChains();
+
     /// @notice Thrown when the OPTIMISM_PORTAL_INTEROP dev feature is not enabled.
     error OPContractsManagerMigrator_InteropNotEnabled();
+
+    /// @notice Thrown when a chain is paused before migration mutates its portal.
+    error OPContractsManagerMigrator_SystemPaused();
+
+    /// @notice Thrown when a chain's SystemConfig reports an l2ChainId of zero.
+    error OPContractsManagerMigrator_ZeroL2ChainId();
+
+    /// @notice Thrown when two chains share the same l2ChainId.
+    error OPContractsManagerMigrator_DuplicateL2ChainId();
+
+    /// @notice Thrown when chainSystemConfigs are not provided in ascending order by l2ChainId.
+    error OPContractsManagerMigrator_ChainIdsNotAscending();
+
+    /// @notice Thrown when the ZK_DISPUTE_GAME dev feature is not enabled.
+    error OPContractsManagerMigrator_ZKDisputeGameNotEnabled();
+
+    /// @notice Thrown when the supplied chains do not all share the same AnchorStateRegistry, i.e.
+    ///         they are not a single already-interop set.
+    error OPContractsManagerMigrator_NotSharedInteropSet();
+
+    /// @notice Thrown when the new respected game type does not resolve to a registered
+    ///         implementation on the shared DisputeGameFactory after the dispute games are swapped.
+    error OPContractsManagerMigrator_RespectedGameTypeNotRegistered();
 
     /// @param _utils The utility functions for the OPContractsManager.
     constructor(IOPContractsManagerUtils _utils) OPContractsManagerUtilsCaller(_utils) { }
@@ -73,35 +102,35 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     /// @dev NOTE: Unlike deploy/upgrade, this function does not enforce a SuperchainConfig
     ///      version floor. The caller is responsible for ensuring the SuperchainConfig is
     ///      upgraded to the current OPCM release version before calling migrate.
+    /// @dev NOTE: OPContractsManagerV2.upgrade() only performs standard chain upgrades. This
+    ///      function performs the one-off interop activation by enabling required features,
+    ///      connecting each portal to the shared ETHLockbox, migrating liquidity, and moving each
+    ///      portal to the shared dispute game contracts.
     /// @param _input The input parameters for the migration.
     function migrate(MigrateInput calldata _input) public {
+        // Check that at least one chain is being migrated.
+        if (_input.chainSystemConfigs.length == 0) {
+            revert OPContractsManagerMigrator_NoChains();
+        }
+
         // Check that the OPTIMISM_PORTAL_INTEROP dev feature is enabled.
         if (!contractsContainer().isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
             revert OPContractsManagerMigrator_InteropNotEnabled();
         }
 
         // Check that the starting respected game type is a valid super game type.
+        // SUPER_CANNON is retired in favor of SUPER_CANNON_KONA.
         if (
-            _input.startingRespectedGameType.raw() != GameTypes.SUPER_CANNON.raw()
-                && _input.startingRespectedGameType.raw() != GameTypes.SUPER_PERMISSIONED_CANNON.raw()
+            _input.startingRespectedGameType.raw() != GameTypes.SUPER_CANNON_KONA.raw()
+                && _input.startingRespectedGameType.raw() != GameTypes.SUPER_PERMISSIONED.raw()
         ) {
             revert OPContractsManagerMigrator_InvalidStartingRespectedGameType();
         }
 
-        // Check that all of the chains have the same core contracts.
-        for (uint256 i = 0; i < _input.chainSystemConfigs.length; i++) {
-            // Different chains might actually have different ProxyAdmin contracts, but it's fine
-            // as long as the owner of all of those contracts is the same.
-            if (_input.chainSystemConfigs[i].proxyAdmin().owner() != _input.chainSystemConfigs[0].proxyAdmin().owner())
-            {
-                revert OPContractsManagerMigrator_ProxyAdminOwnerMismatch();
-            }
-
-            // Each chain must have the same SuperchainConfig.
-            if (_input.chainSystemConfigs[i].superchainConfig() != _input.chainSystemConfigs[0].superchainConfig()) {
-                revert OPContractsManagerMigrator_SuperchainConfigMismatch();
-            }
-        }
+        // Check that all of the chains have the same core contracts, that no chain reports a
+        // zero l2ChainId, that no two chains share the same l2ChainId, and that l2ChainIds are
+        // provided in ascending order.
+        _validateChainSystemConfigs(_input.chainSystemConfigs);
 
         // NOTE: Interop doesn't have a real chain ID, and the chain ID provided here is ONLY used
         // as a salt mixer, so we just use the block.timestamp instead. It really doesn't matter
@@ -204,6 +233,7 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
 
             // Migrate each portal to the new ETHLockbox and AnchorStateRegistry.
             for (uint256 i = 0; i < _input.chainSystemConfigs.length; i++) {
+                _updateSystemConfigDelayedWETH(_input.chainSystemConfigs[i], delayedWETH, impls.systemConfigImpl);
                 _migratePortal(_input.chainSystemConfigs[i], ethLockbox, anchorStateRegistry);
             }
         }
@@ -227,6 +257,190 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         }
     }
 
+    /// @notice Re-points the shared dispute games of an ALREADY-interop set to a new respected
+    ///         super game, running shared-infra steps exactly once. This is general across super
+    ///         game types: the caller chooses the source game(s) to retire and the target game to
+    ///         enable via `disputeGameConfigs`, and the new respected type via
+    ///         `startingRespectedGameType`. Unlike migrate(), it does NOT deploy new shared infra
+    ///         and does NOT touch per-chain portals: the chains already share an
+    ///         AnchorStateRegistry, DisputeGameFactory and ETHLockbox. It re-initializes the shared
+    ///         AnchorStateRegistry with the new respected game type and anchor root, then sets the
+    ///         dispute game implementations on the shared DisputeGameFactory.
+    /// @dev NOTE: Gated on OPTIMISM_PORTAL_INTEROP. It is additionally gated on the ZK_DISPUTE_GAME
+    ///      dev feature while ZK is the in-development target super game.
+    /// @dev NOTE: In-flight games can keep finalizing since wasRespectedGameTypeWhenCreated remains
+    ///      true for the retired game.
+    /// @dev NOTE: The shared AnchorStateRegistry is re-initialized, which re-seeds the anchor root.
+    ///      The caller MUST supply an honest anchor root in `startingAnchorRoot`; if it differs
+    ///      from the current one, its l2SequenceNumber MUST be strictly greater than the current
+    ///      anchor's or AnchorStateRegistry.initialize reverts (same constraint as migrate()).
+    /// @dev NOTE: Unlike migrate(), this does NOT invalidate already-proven withdrawals: the
+    ///      AnchorStateRegistry retirement timestamp is preserved. Retired games can therefore still
+    ///      advance the anchor unless they are blacklisted separately.
+    /// @param _input The input parameters. `chainSystemConfigs` is the existing interop set;
+    ///        `disputeGameConfigs` enables the target game and disables the retired one;
+    ///        `startingRespectedGameType` is the new (super) respected game type.
+    function setInteropDisputeGames(MigrateInput calldata _input) public {
+        // Check that at least one chain is supplied.
+        if (_input.chainSystemConfigs.length == 0) {
+            revert OPContractsManagerMigrator_NoChains();
+        }
+
+        if (!contractsContainer().isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+            revert OPContractsManagerMigrator_InteropNotEnabled();
+        }
+        // TODO(#21529): remove this ZK_DISPUTE_GAME gate once the ZK game becomes the default super game post-interop.
+        if (!contractsContainer().isDevFeatureEnabled(DevFeatures.ZK_DISPUTE_GAME)) {
+            revert OPContractsManagerMigrator_ZKDisputeGameNotEnabled();
+        }
+
+        // The new respected game type must be a super game type.
+        if (!GameTypes.isSuperGame(_input.startingRespectedGameType)) {
+            revert OPContractsManagerMigrator_InvalidStartingRespectedGameType();
+        }
+
+        // All chains must share the same core contracts. Validate the set, then resolve the shared
+        // infra from the first chain as the canonical reference (same convention as migrate()).
+        _validateChainSystemConfigs(_input.chainSystemConfigs);
+        ISystemConfig sysCfg = _input.chainSystemConfigs[0];
+
+        // Resolve the existing shared infra.
+        IAnchorStateRegistry anchorStateRegistry =
+            IOptimismPortal(payable(sysCfg.optimismPortal())).anchorStateRegistry();
+        IDisputeGameFactory disputeGameFactory = anchorStateRegistry.disputeGameFactory();
+        IDelayedWETH delayedWETH = IDelayedWETH(payable(sysCfg.delayedWETH()));
+
+        // Assert every chain is actually part of this interop set: each portal must resolve to the
+        // same shared AnchorStateRegistry. Starts at 0 to mirror _validateChainSystemConfigs
+        for (uint256 i = 0; i < _input.chainSystemConfigs.length; i++) {
+            IOptimismPortal portal = IOptimismPortal(payable(_input.chainSystemConfigs[i].optimismPortal()));
+            if (portal.anchorStateRegistry() != anchorStateRegistry) {
+                revert OPContractsManagerMigrator_NotSharedInteropSet();
+            }
+        }
+
+        IOPContractsManagerContainer.Implementations memory impls = contractsContainer().implementations();
+
+        // Re-initialize the shared AnchorStateRegistry with the new respected game type and anchor
+        // root. _upgrade resets the initialized slot, re-seeding the anchor for the new game.
+        _upgrade(
+            sysCfg.proxyAdmin(),
+            address(anchorStateRegistry),
+            impls.anchorStateRegistryImpl,
+            abi.encodeCall(
+                IAnchorStateRegistry.initialize,
+                (sysCfg, disputeGameFactory, _input.startingAnchorRoot, _input.startingRespectedGameType)
+            )
+        );
+
+        // Swap the dispute games on the shared DisputeGameFactory. An enabled config registers the
+        // new game. A disabled config clears the retired one by setting the implementation to address(0).
+        for (uint256 i = 0; i < _input.disputeGameConfigs.length; i++) {
+            IDisputeGame gameImpl = IDisputeGame(address(0));
+            bytes memory gameArgs = bytes("");
+            if (_input.disputeGameConfigs[i].enabled) {
+                gameImpl = _getGameImpl(_input.disputeGameConfigs[i].gameType);
+                gameArgs = _makeGameArgs(0, anchorStateRegistry, delayedWETH, _input.disputeGameConfigs[i]);
+            }
+            disputeGameFactory.setImplementation(_input.disputeGameConfigs[i].gameType, gameImpl, gameArgs);
+            disputeGameFactory.setInitBond(_input.disputeGameConfigs[i].gameType, _input.disputeGameConfigs[i].initBond);
+        }
+
+        // The new respected game type must resolve to a registered implementation after the swap.
+        if (address(disputeGameFactory.gameImpls(_input.startingRespectedGameType)) == address(0)) {
+            revert OPContractsManagerMigrator_RespectedGameTypeNotRegistered();
+        }
+    }
+
+    /// @notice Validates the per-chain SystemConfig array supplied to migrate(). All chains must
+    ///         share a ProxyAdmin owner and SuperchainConfig, and their l2ChainIds must be
+    ///         non-zero, distinct, and provided in ascending order.
+    /// @param _chainSystemConfigs The chain system configs to validate.
+    function _validateChainSystemConfigs(ISystemConfig[] calldata _chainSystemConfigs) internal view {
+        uint256 prevL2ChainId;
+        for (uint256 i = 0; i < _chainSystemConfigs.length; i++) {
+            // Different chains might actually have different ProxyAdmin contracts, but it's fine
+            // as long as the owner of all of those contracts is the same.
+            if (_chainSystemConfigs[i].proxyAdmin().owner() != _chainSystemConfigs[0].proxyAdmin().owner()) {
+                revert OPContractsManagerMigrator_ProxyAdminOwnerMismatch();
+            }
+
+            // Each chain must have the same SuperchainConfig.
+            if (_chainSystemConfigs[i].superchainConfig() != _chainSystemConfigs[0].superchainConfig()) {
+                revert OPContractsManagerMigrator_SuperchainConfigMismatch();
+            }
+
+            // The shared super-root dispute game system keys output roots by l2ChainId, so a
+            // zero or duplicate l2ChainId across migrated portals would let the same withdrawal
+            // be finalized through multiple portals.
+            uint256 l2ChainId = _chainSystemConfigs[i].l2ChainId();
+            if (i == 0) {
+                if (l2ChainId == 0) {
+                    revert OPContractsManagerMigrator_ZeroL2ChainId();
+                }
+            } else if (l2ChainId == prevL2ChainId) {
+                revert OPContractsManagerMigrator_DuplicateL2ChainId();
+            } else if (l2ChainId < prevL2ChainId) {
+                revert OPContractsManagerMigrator_ChainIdsNotAscending();
+            }
+            prevL2ChainId = l2ChainId;
+        }
+    }
+
+    /// @notice Updates a chain's SystemConfig to point at the shared DelayedWETH while preserving
+    ///         all other per-chain configuration values.
+    /// @param _systemConfig The system config for the chain being migrated.
+    /// @param _delayedWETH The shared DelayedWETH to store in the SystemConfig.
+    /// @param _systemConfigImpl The SystemConfig implementation to reinitialize with.
+    function _updateSystemConfigDelayedWETH(
+        ISystemConfig _systemConfig,
+        IDelayedWETH _delayedWETH,
+        address _systemConfigImpl
+    )
+        internal
+    {
+        ISystemConfig.Addresses memory addrs = _systemConfig.getAddresses();
+        addrs.delayedWETH = address(_delayedWETH);
+        addrs.opcm = _systemConfig.lastUsedOPCM();
+
+        _upgrade(
+            _systemConfig.proxyAdmin(),
+            address(_systemConfig),
+            _systemConfigImpl,
+            _makeSystemConfigInitArgs(_systemConfig, addrs)
+        );
+    }
+
+    /// @notice Builds SystemConfig initialize calldata from the chain's current values.
+    /// @dev Kept separate from _updateSystemConfigDelayedWETH to avoid stack-too-deep errors.
+    /// @param _systemConfig The system config to read existing values from.
+    /// @param _addrs The L1 contract address set to write.
+    /// @return Calldata for SystemConfig.initialize.
+    function _makeSystemConfigInitArgs(
+        ISystemConfig _systemConfig,
+        ISystemConfig.Addresses memory _addrs
+    )
+        internal
+        view
+        returns (bytes memory)
+    {
+        return abi.encodeCall(
+            ISystemConfig.initialize,
+            (
+                _systemConfig.owner(),
+                _systemConfig.basefeeScalar(),
+                _systemConfig.blobbasefeeScalar(),
+                _systemConfig.batcherHash(),
+                _systemConfig.gasLimit(),
+                _systemConfig.unsafeBlockSigner(),
+                _systemConfig.resourceConfig(),
+                _addrs,
+                _systemConfig.l2ChainId(),
+                _systemConfig.superchainConfig()
+            )
+        );
+    }
+
     /// @notice Migrates a single portal to the new ETHLockbox and AnchorStateRegistry.
     /// @param _systemConfig The system config for the chain being migrated.
     /// @param _newLockbox The new ETHLockbox.
@@ -238,19 +452,58 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
     )
         internal
     {
-        // Convert portal to interop portal interface, and grab existing ETHLockbox and DGF.
+        // CGT chains must not be migrated — prevents incorrect pooling into shared ETHLockbox.
+        if (_systemConfig.isCustomGasToken()) {
+            revert OPContractsManagerMigrator_CustomGasTokenNotSupported();
+        }
+
+        // Convert portal to interop portal interface, and grab existing migration state.
         IOptimismPortal portal = IOptimismPortal(payable(_systemConfig.optimismPortal()));
-        IETHLockbox existingLockbox = IETHLockbox(payable(address(portal.ethLockbox())));
+        IETHLockbox oldLockbox = IETHLockbox(payable(address(portal.ethLockbox())));
+        IAnchorStateRegistry oldASR = portal.anchorStateRegistry();
         IDisputeGameFactory existingDGF = IDisputeGameFactory(payable(address(portal.disputeGameFactory())));
 
+        // Check the current pause state before mutating the portal's lockbox. For chains that
+        // already use a per-chain lockbox, SystemConfig.paused() keys the local pause against the
+        // portal's current lockbox. Reinitializing the portal first would switch the pause
+        // identifier to the shared lockbox and could hide an active old-lockbox pause.
+        if (_systemConfig.paused()) {
+            revert OPContractsManagerMigrator_SystemPaused();
+        }
+
         // Authorize the portal on the new ETHLockbox.
-        _newLockbox.authorizePortal(IOptimismPortal(payable(address(portal))));
+        _newLockbox.authorizePortal(portal);
 
-        // Authorize the existing ETHLockbox to use the new ETHLockbox.
-        _newLockbox.authorizeLockbox(existingLockbox);
+        // Enable the features required by portal liquidity migration and shared game migration.
+        // ETH_LOCKBOX must be on so SystemConfig.paused() keys against the portal's lockbox; INTEROP
+        // must be on for the post-migration cross-chain message paths. Both are idempotent.
+        if (!_systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
+            _systemConfig.setFeature(Features.ETH_LOCKBOX, true);
+        }
+        if (!_systemConfig.isFeatureEnabled(Features.INTEROP)) {
+            _systemConfig.setFeature(Features.INTEROP, true);
+        }
 
-        // Migrate the existing ETHLockbox to the new ETHLockbox.
-        existingLockbox.migrateLiquidity(_newLockbox);
+        // Attach the portal directly to the shared ETHLockbox before migrating portal-held ETH.
+        _upgrade(
+            _systemConfig.proxyAdmin(),
+            address(portal),
+            contractsContainer().implementations().optimismPortalImpl,
+            abi.encodeCall(IOptimismPortal.initialize, (_systemConfig, oldASR, _newLockbox))
+        );
+
+        // Migrate ETH held directly by the portal into the shared ETHLockbox.
+        portal.migrateLiquidity();
+
+        // Sweep any pre-existing per-chain lockbox liquidity into the shared ETHLockbox. Fresh
+        // chains may have no old lockbox, while already-lockbox-enabled chains can have ETH there
+        // that would be stranded after the portal starts pointing at the shared lockbox.
+        if (address(oldLockbox) != address(0) && address(oldLockbox) != address(_newLockbox)) {
+            // The shared lockbox must authorize the old lockbox before receiveLiquidity() will
+            // accept ETH from oldLockbox.migrateLiquidity().
+            _newLockbox.authorizeLockbox(oldLockbox);
+            oldLockbox.migrateLiquidity(_newLockbox);
+        }
 
         // Clear out any implementations that might exist in the old DisputeGameFactory proxy.
         // We clear out all potential game types to be safe. These game types are intentionally
@@ -260,21 +513,12 @@ contract OPContractsManagerMigrator is OPContractsManagerUtilsCaller {
         existingDGF.setImplementation(GameTypes.CANNON, IDisputeGame(address(0)), hex"");
         existingDGF.setImplementation(GameTypes.SUPER_CANNON, IDisputeGame(address(0)), hex"");
         existingDGF.setImplementation(GameTypes.PERMISSIONED_CANNON, IDisputeGame(address(0)), hex"");
-        existingDGF.setImplementation(GameTypes.SUPER_PERMISSIONED_CANNON, IDisputeGame(address(0)), hex"");
+        existingDGF.setImplementation(GameTypes.SUPER_PERMISSIONED, IDisputeGame(address(0)), hex"");
         existingDGF.setImplementation(GameTypes.CANNON_KONA, IDisputeGame(address(0)), hex"");
         existingDGF.setImplementation(GameTypes.SUPER_CANNON_KONA, IDisputeGame(address(0)), hex"");
-
-        // Enable the ETH lockbox feature on the SystemConfig if not already enabled.
-        // This is needed for the SystemConfig's paused() function to use the correct identifier.
-        if (!_systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
-            _systemConfig.setFeature(Features.ETH_LOCKBOX, true);
-        }
+        existingDGF.setImplementation(GameTypes.ZK_DISPUTE_GAME, IDisputeGame(address(0)), hex"");
 
         // Migrate the portal to the new ETHLockbox and AnchorStateRegistry.
-        // NOTE: This requires the portal to already be upgraded to the interop version
-        // (OptimismPortal2). And it requires the feature flag for INTEROP to be enabled
-        // If the portal is not on the interop version, this call will
-        // fail.
         portal.migrateToSharedDisputeGame(_newLockbox, _newASR);
     }
 

@@ -57,7 +57,7 @@ target "<bin-name>" {
 }
 ```
 
-The [docker release workflow](../../.github/workflows/docker.yaml) will **first** check if a target is available,
+The docker release workflow will **first** check if a target is available,
 using that target for the docker build. If the workflow can't find the target, it will fallback to the "generic"
 target specified in the [`docker-bake.hcl`](../docker-bake.hcl).
 

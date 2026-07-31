@@ -19,21 +19,6 @@ var (
 		Usage:   "Address of the OPCM implementation contract. Not compatible with the --workdir flag.",
 		EnvVars: deployer.PrefixEnvVar("OPCM_IMPL_ADDRESS"),
 	}
-	ProposerFlag = &cli.StringFlag{
-		Name:    "proposer-address",
-		Usage:   "Address of the proposer contract.",
-		EnvVars: deployer.PrefixEnvVar("PROPOSER_ADDRESS"),
-	}
-	ChallengerFlag = &cli.StringFlag{
-		Name:    "challenger-address",
-		Usage:   "Address of the challenger contract.",
-		EnvVars: deployer.PrefixEnvVar("CHALLENGER_ADDRESS"),
-	}
-	SystemConfigProxyFlag = &cli.StringFlag{
-		Name:    "system-config-proxy-address",
-		Usage:   "Address of the SystemConfig proxy contract. Not compatible with the --workdir flag.",
-		EnvVars: deployer.PrefixEnvVar("SYSTEM_CONFIG_PROXY_ADDRESS"),
-	}
 	OPChainProxyAdminFlag = &cli.StringFlag{
 		Name:    "op-chain-proxy-admin-address",
 		Usage:   "Address of the OP Chain's proxy admin on L1. Not compatible with the --workdir flag.",
@@ -45,53 +30,11 @@ var (
 			"one will be deployed for you by the OPCM.",
 		EnvVars: deployer.PrefixEnvVar("DELAYED_WETH_PROXY_ADDRESS"),
 	}
-	DisputeGameTypeFlag = &cli.Uint64Flag{
-		Name:    "dispute-game-type",
-		Usage:   "Numeric type identifier for the dispute game.",
-		EnvVars: deployer.PrefixEnvVar("DISPUTE_GAME_TYPE"),
-		Value:   uint64(standard.DisputeGameType),
-	}
 	DisputeAbsolutePrestateFlag = &cli.StringFlag{
 		Name:    "dispute-absolute-prestate",
 		Usage:   "The absolute prestate hash for the dispute game. Defaults to the standard value.",
 		EnvVars: deployer.PrefixEnvVar("DISPUTE_ABSOLUTE_PRESTATE"),
 		Value:   standard.DisputeAbsolutePrestate.Hex(),
-	}
-	DisputeAbsolutePrestateCannonFlag = &cli.StringFlag{
-		Name:    "dispute-absolute-prestate-cannon",
-		Usage:   "The absolute prestate hash for the CANNON dispute game. Defaults to the standard value.",
-		EnvVars: deployer.PrefixEnvVar("DISPUTE_ABSOLUTE_PRESTATE_CANNON"),
-		Value:   standard.DisputeAbsolutePrestate.Hex(),
-	}
-	DisputeAbsolutePrestateCannonKonaFlag = &cli.StringFlag{
-		Name:    "dispute-absolute-prestate-cannon-kona",
-		Usage:   "The absolute prestate hash for the CANNON_KONA dispute game. Defaults to the standard value.",
-		EnvVars: deployer.PrefixEnvVar("DISPUTE_ABSOLUTE_PRESTATE_CANNON_KONA"),
-		Value:   standard.DisputeAbsolutePrestate.Hex(),
-	}
-	DisputeMaxGameDepthFlag = &cli.Uint64Flag{
-		Name:    "dispute-max-game-depth",
-		Usage:   "Maximum depth of the dispute game tree (value as string). Defaults to the standard value.",
-		EnvVars: deployer.PrefixEnvVar("DISPUTE_MAX_GAME_DEPTH"),
-		Value:   standard.DisputeMaxGameDepth,
-	}
-	DisputeSplitDepthFlag = &cli.Uint64Flag{
-		Name:    "dispute-split-depth",
-		Usage:   "Depth at which the dispute game tree splits (value as string). Defaults to the standard value.",
-		EnvVars: deployer.PrefixEnvVar("DISPUTE_SPLIT_DEPTH"),
-		Value:   standard.DisputeSplitDepth,
-	}
-	DisputeClockExtensionFlag = &cli.Uint64Flag{
-		Name:    "dispute-clock-extension",
-		Usage:   "Clock extension in seconds for dispute game timing. Defaults to the standard value.",
-		EnvVars: deployer.PrefixEnvVar("DISPUTE_CLOCK_EXTENSION"),
-		Value:   standard.DisputeClockExtension,
-	}
-	DisputeMaxClockDurationFlag = &cli.Uint64Flag{
-		Name:    "dispute-max-clock-duration",
-		Usage:   "Maximum clock duration in seconds for dispute game timing. Defaults to the standard value.",
-		EnvVars: deployer.PrefixEnvVar("DISPUTE_MAX_CLOCK_DURATION"),
-		Value:   standard.DisputeMaxClockDuration,
 	}
 	InitialBondFlag = &cli.StringFlag{
 		Name:    "initial-bond",
@@ -103,11 +46,6 @@ var (
 		Name:    "vm-address",
 		Usage:   "Address of the VM contract used by the dispute game.",
 		EnvVars: deployer.PrefixEnvVar("VM_ADDRESS"),
-	}
-	PermissionlessFlag = &cli.BoolFlag{
-		Name:    "permissionless",
-		Usage:   "Boolean indicating if the dispute game should be deployed in permissionless mode.",
-		EnvVars: deployer.PrefixEnvVar("PERMISSIONED"),
 	}
 	StartingAnchorRootFlag = &cli.StringFlag{
 		Name:    "starting-anchor-root",
@@ -135,48 +73,38 @@ var (
 		Usage:   "Chain ID of the L2 network to retrieve from state. Must be specified when --workdir is set.",
 		EnvVars: deployer.PrefixEnvVar("CHAIN_ID"),
 	}
-	// OPCM v2 flags
-	MigrateStartingRespectedGameTypeFlag = &cli.Uint64Flag{
-		Name:    "starting-respected-game-type",
-		Usage:   "Starting respected game type for OPCM v2 migration. Defaults to 4 (Super Cannon).",
-		EnvVars: deployer.PrefixEnvVar("STARTING_RESPECTED_GAME_TYPE"),
-		Value:   4,
+	SystemConfigProxyAddressesFlag = &cli.StringFlag{
+		Name:    "system-config-proxy-addresses",
+		Usage:   "Comma-separated list of SystemConfig proxy addresses for the interop set.",
+		EnvVars: deployer.PrefixEnvVar("SYSTEM_CONFIG_PROXY_ADDRESSES"),
 	}
-	MigrateDisputeGameEnabledFlag = &cli.BoolFlag{
-		Name:    "dispute-game-enabled",
-		Usage:   "Whether the dispute game should be enabled. Used for OPCM v2 migration.",
-		EnvVars: deployer.PrefixEnvVar("DISPUTE_GAME_ENABLED"),
-		Value:   true,
+	SourceGameTypesFlag = &cli.StringFlag{
+		Name: "source-game-types",
+		Usage: "Comma-separated numeric type identifiers of the source super games to retire " +
+			"(cleared by the swap). Defaults to 9 (SUPER_CANNON_KONA), the permissionless super " +
+			"fault game that ZK replaces. SUPER_PERMISSIONED (5) is intentionally kept as a " +
+			"permissioned liveness backup, mirroring the current SPDG + permissionless shape.",
+		EnvVars: deployer.PrefixEnvVar("SOURCE_GAME_TYPES"),
+		Value:   "9",
+	}
+	ZKVerifierFlag = &cli.StringFlag{
+		Name:    "zk-verifier-address",
+		Usage:   "Address of the IZKVerifier contract for the ZK dispute game.",
+		EnvVars: deployer.PrefixEnvVar("ZK_VERIFIER_ADDRESS"),
+	}
+	ZKMaxChallengeDurationFlag = &cli.Uint64Flag{
+		Name:    "zk-max-challenge-duration",
+		Usage:   "Max challenge duration (seconds) for the ZK dispute game.",
+		EnvVars: deployer.PrefixEnvVar("ZK_MAX_CHALLENGE_DURATION"),
+	}
+	ZKMaxProveDurationFlag = &cli.Uint64Flag{
+		Name:    "zk-max-prove-duration",
+		Usage:   "Max prove duration (seconds) for the ZK dispute game.",
+		EnvVars: deployer.PrefixEnvVar("ZK_MAX_PROVE_DURATION"),
 	}
 )
 
 var Commands = cli.Commands{
-	&cli.Command{
-		Name:  "add-game-type",
-		Usage: "adds a new game type to the chain",
-		Flags: append([]cli.Flag{
-			deployer.L1RPCURLFlag,
-			deployer.ArtifactsLocatorFlag,
-			L1ProxyAdminOwnerFlag,
-			OPCMImplFlag,
-			SystemConfigProxyFlag,
-			OPChainProxyAdminFlag,
-			DelayedWETHProxyFlag,
-			DisputeGameTypeFlag,
-			DisputeAbsolutePrestateFlag,
-			DisputeMaxGameDepthFlag,
-			DisputeSplitDepthFlag,
-			DisputeClockExtensionFlag,
-			DisputeMaxClockDurationFlag,
-			InitialBondFlag,
-			VMFlag,
-			PermissionlessFlag,
-			SaltMixerFlag,
-			WorkdirFlag,
-			L2ChainIDFlag,
-		}, oplog.CLIFlags(deployer.EnvVarPrefix)...),
-		Action: AddGameTypeCLI,
-	},
 	&cli.Command{
 		Name:  "add-game-type-v2",
 		Usage: "allows to add new game types to the chain using the OPContractsManager V2",
@@ -190,8 +118,8 @@ var Commands = cli.Commands{
 		Action: AddGameTypeOPCMV2CLI,
 	},
 	&cli.Command{
-		Name:  "migrate",
-		Usage: "migrates the chain to use superproofs. It supports both OPCM v1 and v2.",
+		Name:  "set-interop-dispute-games",
+		Usage: "swaps the shared dispute games of an already-interop set to the ZK dispute game.",
 		Flags: append([]cli.Flag{
 			deployer.CacheDirFlag,
 			deployer.L1RPCURLFlag,
@@ -199,28 +127,16 @@ var Commands = cli.Commands{
 			deployer.ArtifactsLocatorFlag,
 			L1ProxyAdminOwnerFlag,
 			OPCMImplFlag,
-			PermissionlessFlag,
+			SystemConfigProxyAddressesFlag,
 			StartingAnchorRootFlag,
 			StartingAnchorL2SequenceNumberFlag,
-			ProposerFlag,
-			ChallengerFlag,
-			DisputeMaxGameDepthFlag,
-			DisputeSplitDepthFlag,
 			InitialBondFlag,
-			DisputeClockExtensionFlag,
-			DisputeMaxClockDurationFlag,
-			//
-			// The following flags represent one item in The EncodedChainConfigs array
-			//
-			SystemConfigProxyFlag,
-			DisputeAbsolutePrestateCannonFlag,
-			DisputeAbsolutePrestateCannonKonaFlag,
-			// OPCM v2 flags
-			MigrateStartingRespectedGameTypeFlag,
-			MigrateDisputeGameEnabledFlag,
-			DisputeGameTypeFlag,
+			SourceGameTypesFlag,
 			DisputeAbsolutePrestateFlag,
+			ZKVerifierFlag,
+			ZKMaxChallengeDurationFlag,
+			ZKMaxProveDurationFlag,
 		}, oplog.CLIFlags(deployer.EnvVarPrefix)...),
-		Action: MigrateCLI,
+		Action: SetInteropDisputeGamesCLI,
 	},
 }

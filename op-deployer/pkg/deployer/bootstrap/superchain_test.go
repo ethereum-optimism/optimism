@@ -16,7 +16,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
@@ -58,13 +57,10 @@ func testSuperchain(t *testing.T, forkRPCURL string) {
 		ArtifactsLocator: artifacts.EmbeddedLocator,
 		Logger:           lgr,
 
-		SuperchainProxyAdminOwner:  common.Address{'S'},
-		ProtocolVersionsOwner:      common.Address{'P'},
-		Guardian:                   common.Address{'G'},
-		Paused:                     false,
-		RequiredProtocolVersion:    params.ProtocolVersionV0{Major: 1}.Encode(),
-		RecommendedProtocolVersion: params.ProtocolVersionV0{Major: 2}.Encode(),
-		CacheDir:                   testCacheDir,
+		SuperchainProxyAdminOwner: common.Address{'S'},
+		Guardian:                  common.Address{'G'},
+		Paused:                    false,
+		CacheDir:                  testCacheDir,
 	})
 	require.NoError(t, err)
 
@@ -75,8 +71,6 @@ func testSuperchain(t *testing.T, forkRPCURL string) {
 		out.SuperchainConfigProxy,
 		out.SuperchainConfigImpl,
 		out.SuperchainProxyAdmin,
-		out.ProtocolVersionsImpl,
-		out.ProtocolVersionsProxy,
 	}
 	for _, addr := range addresses {
 		require.NotEmpty(t, addr)

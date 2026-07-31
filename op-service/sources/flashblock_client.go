@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/coder/websocket"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -14,13 +15,14 @@ type Flashblock struct {
 	PayloadID string `json:"payload_id"`
 	Index     int    `json:"index"`
 	Diff      struct {
-		StateRoot    string `json:"state_root"`
-		ReceiptsRoot string `json:"receipts_root"`
-		LogsBloom    string `json:"logs_bloom"`
-		GasUsed      string `json:"gas_used"`
-		BlockHash    string `json:"block_hash"`
-		Transactions []any  `json:"transactions"`
-		Withdrawals  []any  `json:"withdrawals"`
+		StateRoot    string         `json:"state_root"`
+		ReceiptsRoot string         `json:"receipts_root"`
+		LogsBloom    string         `json:"logs_bloom"`
+		GasUsed      string         `json:"gas_used"`
+		BlockHash    string         `json:"block_hash"`
+		Transactions []any          `json:"transactions"`
+		PostExecTx   *hexutil.Bytes `json:"post_exec_tx"`
+		Withdrawals  []any          `json:"withdrawals"`
 	} `json:"diff"`
 	Metadata struct {
 		BlockNumber        int                    `json:"block_number"`

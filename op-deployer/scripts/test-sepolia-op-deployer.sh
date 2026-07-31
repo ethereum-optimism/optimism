@@ -298,11 +298,11 @@ if [ "$DEPLOY_TYPE" != "4" ] && [ "$DEPLOY_TYPE" != "5" ]; then
     fi
 fi
 
-if [ "$DEPLOY_TYPE" != "3" ] && [ "$DEPLOY_TYPE" != "5" ]; then
+if [ "$DEPLOY_TYPE" != "5" ]; then
     echo ""
     echo -e "${YELLOW}Contract Verification${NC}"
     echo "  How would you like to verify contracts?"
-    echo "    1) Auto-verify during deployment (--verify flag)"
+    echo "    1) Auto-verify during deployment (default)"
     echo "    2) Verify after deployment using state file"
     echo "    3) Skip verification"
     echo ""
@@ -333,7 +333,6 @@ case "$DEPLOY_TYPE" in
         echo ""
         
         PROXY_ADMIN_OWNER=$(read_env_var "DEPLOYER_PROXY_ADMIN_OWNER" "Superchain Proxy Admin Owner: ")
-        PROTOCOL_VERSIONS_OWNER=$(read_env_var "DEPLOYER_PROTOCOL_VERSIONS_OWNER" "Protocol Versions Owner: ")
         GUARDIAN=$(read_env_var "DEPLOYER_GUARDIAN" "Guardian Address: ")
         
         OUTPUT_FILE="$OUTPUT_DIR/sepolia-superchain-$(date +%Y%m%d-%H%M%S).json"
@@ -346,7 +345,6 @@ case "$DEPLOY_TYPE" in
         echo "  These should be from a previous superchain deployment"
         echo ""
         
-        PROTOCOL_VERSIONS_PROXY=$(read_env_var "DEPLOYER_PROTOCOL_VERSIONS_PROXY" "Protocol Versions Proxy Address: ")
         SUPERCHAIN_CONFIG_PROXY=$(read_env_var "DEPLOYER_SUPERCHAIN_CONFIG_PROXY" "Superchain Config Proxy Address: ")
         SUPERCHAIN_PROXY_ADMIN=$(read_env_var "DEPLOYER_SUPERCHAIN_PROXY_ADMIN" "Superchain Proxy Admin Address: ")
         L1_PROXY_ADMIN_OWNER=$(read_env_var "DEPLOYER_L1_PROXY_ADMIN_OWNER" "L1 Proxy Admin Owner Address: ")
@@ -490,12 +488,6 @@ case "$DEPLOY_TYPE" in
                     "operatorFeeVaultRecipient:OperatorFeeVaultRecipient"
                 )
                 
-                if grep -q 'useRevenueShare = true' "$WORKDIR/intent.toml" 2>/dev/null; then
-                    if grep -q 'chainFeesRecipient = "0x0000000000000000000000000000000000000000"' "$WORKDIR/intent.toml" 2>/dev/null || ! grep -q 'chainFeesRecipient' "$WORKDIR/intent.toml" 2>/dev/null; then
-                        REQUIRED_FIELDS+=("chainFeesRecipient:ChainFeesRecipient")
-                    fi
-                fi
-                
                 NEEDS_FIX=false
                 for field_info in "${REQUIRED_FIELDS[@]}"; do
                     field_name="${field_info%%:*}"
@@ -524,8 +516,6 @@ case "$DEPLOY_TYPE" in
                         FIELD_NEEDS_FIX=false
                         if grep -q "$field_name = \"0x0000000000000000000000000000000000000000\"" "$WORKDIR/intent.toml" 2>/dev/null; then
                             FIELD_NEEDS_FIX=true
-                        elif [ "$field_name" == "chainFeesRecipient" ] && ! grep -q "$field_name" "$WORKDIR/intent.toml" 2>/dev/null; then
-                            FIELD_NEEDS_FIX=true
                         fi
                         
                         if [ "$FIELD_NEEDS_FIX" == "true" ]; then
@@ -548,26 +538,12 @@ case "$DEPLOY_TYPE" in
                                     rm -f "${WORKDIR}/intent.toml.bak" 2>/dev/null
                                     echo -e "${GREEN}✓ Set $field_display to: $ADDRESS_TO_USE${NC}"
                                 else
-                                    if grep -q 'useRevenueShare = true' "$WORKDIR/intent.toml" 2>/dev/null; then
-                                        if ! sed -i.bak "/useRevenueShare = true/a\\
-  $field_name = \"$ADDRESS_TO_USE\"
-" "$WORKDIR/intent.toml" 2>/dev/null; then
-                                            if sed "/useRevenueShare = true/a\\
-  $field_name = \"$ADDRESS_TO_USE\"
-" "$WORKDIR/intent.toml" > "${WORKDIR}/intent.toml.tmp" 2>/dev/null && [ -f "${WORKDIR}/intent.toml.tmp" ]; then
-                                                mv "${WORKDIR}/intent.toml.tmp" "$WORKDIR/intent.toml"
-                                            fi
-                                        fi
-                                        rm -f "${WORKDIR}/intent.toml.bak" 2>/dev/null
-                                        echo -e "${GREEN}✓ Added $field_display: $ADDRESS_TO_USE${NC}"
-                                    else
-                                        if ! sed -i.bak "/\[\[chains\]\]/,/^\[\[/ { /operatorFeeVaultRecipient = /a\\
+                                    if ! sed -i.bak "/\[\[chains\]\]/,/^\[\[/ { /operatorFeeVaultRecipient = /a\\
   $field_name = \"$ADDRESS_TO_USE\"
 }" "$WORKDIR/intent.toml" 2>/dev/null; then
-                                            echo -e "${YELLOW}⚠️  Could not automatically add $field_display. Please add it manually to intent.toml${NC}"
-                                        fi
-                                        rm -f "${WORKDIR}/intent.toml.bak" 2>/dev/null
+                                        echo -e "${YELLOW}⚠️  Could not automatically add $field_display. Please add it manually to intent.toml${NC}"
                                     fi
+                                    rm -f "${WORKDIR}/intent.toml.bak" 2>/dev/null
                                 fi
                             fi
                         fi
@@ -653,6 +629,13 @@ case "$DEPLOY_TYPE" in
         
         [ "$USE_FORGE" == "true" ] && APPLY_CMD+=("--use-forge")
         [ "$AUTO_VALIDATE_ENABLED" == "true" ] && APPLY_CMD+=("--validate" "auto")
+
+        if [ "$AUTO_VERIFY" == "true" ] && [ -n "$VERIFIER_TYPE" ]; then
+            APPLY_CMD+=("--verifier" "$VERIFIER_TYPE")
+            [[ "$VERIFIER_TYPE" == *"etherscan"* ]] && [ -n "$ETHERSCAN_API_KEY" ] && APPLY_CMD+=("--verifier-api-key" "$ETHERSCAN_API_KEY")
+        else
+            APPLY_CMD+=("--no-verify")
+        fi
         
         if "${APPLY_CMD[@]}"; then
             echo ""
@@ -662,6 +645,15 @@ case "$DEPLOY_TYPE" in
             echo ""
             echo "  State file: $WORKDIR/state.json"
             echo "  Intent file: $WORKDIR/intent.toml"
+
+            if [ "$AUTO_VERIFY" == "true" ] && [ -n "$VERIFIER_TYPE" ]; then
+                echo -e "${YELLOW}Verification attempted during deployment; check the summary above for failures.${NC}"
+            elif [ "$POST_DEPLOY_VERIFY" == "true" ] && [ -n "$VERIFIER_TYPE" ]; then
+                read -ra VERIFY_CMD <<< "$(build_verify_cmd "$WORKDIR/state.json")"
+                "${VERIFY_CMD[@]}" || echo -e "${YELLOW}Verification had some issues; check the output above.${NC}"
+            else
+                echo -e "${YELLOW}Verification was skipped.${NC}"
+            fi
         else
             echo ""
             echo -e "${RED}✗ Apply failed!${NC}"
@@ -826,7 +818,6 @@ if [ "$DEPLOY_TYPE" == "1" ] || [ "$DEPLOY_TYPE" == "2" ]; then
             "--private-key" "$PRIVATE_KEY"
             "--outfile" "$OUTPUT_FILE"
             "--superchain-proxy-admin-owner" "$PROXY_ADMIN_OWNER"
-            "--protocol-versions-owner" "$PROTOCOL_VERSIONS_OWNER"
             "--guardian" "$GUARDIAN"
         )
     else
@@ -835,7 +826,6 @@ if [ "$DEPLOY_TYPE" == "1" ] || [ "$DEPLOY_TYPE" == "2" ]; then
             "--l1-rpc-url" "$L1_RPC_URL"
             "--private-key" "$PRIVATE_KEY"
             "--outfile" "$OUTPUT_FILE"
-            "--protocol-versions-proxy" "$PROTOCOL_VERSIONS_PROXY"
             "--superchain-config-proxy" "$SUPERCHAIN_CONFIG_PROXY"
             "--superchain-proxy-admin" "$SUPERCHAIN_PROXY_ADMIN"
             "--l1-proxy-admin-owner" "$L1_PROXY_ADMIN_OWNER"
@@ -844,10 +834,12 @@ if [ "$DEPLOY_TYPE" == "1" ] || [ "$DEPLOY_TYPE" == "2" ]; then
         )
     fi
     
-    if [ "$AUTO_VERIFY" == "true" ] && [ -n "$VERIFIER_TYPE" ]; then
-        CMD+=("--verify" "--verifier" "$VERIFIER_TYPE")
-        [[ "$VERIFIER_TYPE" == *"etherscan"* ]] && [ -n "$ETHERSCAN_API_KEY" ] && CMD+=("--verifier-api-key" "$ETHERSCAN_API_KEY")
-    fi
+	if [ "$AUTO_VERIFY" == "true" ] && [ -n "$VERIFIER_TYPE" ]; then
+	    CMD+=("--verifier" "$VERIFIER_TYPE")
+	    [[ "$VERIFIER_TYPE" == *"etherscan"* ]] && [ -n "$ETHERSCAN_API_KEY" ] && CMD+=("--verifier-api-key" "$ETHERSCAN_API_KEY")
+	else
+	    CMD+=("--no-verify")
+	fi
     
 
     
@@ -868,8 +860,8 @@ if [ "$DEPLOY_TYPE" == "1" ] || [ "$DEPLOY_TYPE" == "2" ]; then
             echo ""
         fi
         
-        if [ "$AUTO_VERIFY" == "true" ] && [ -n "$VERIFIER_TYPE" ]; then
-            echo -e "${GREEN}✓ Contracts verified during deployment${NC}"
+	    if [ "$AUTO_VERIFY" == "true" ] && [ -n "$VERIFIER_TYPE" ]; then
+	        echo -e "${YELLOW}Verification attempted during deployment; check the summary above for failures.${NC}"
             [[ "$VERIFIER_TYPE" == *"etherscan"* ]] && echo "  Etherscan: https://sepolia.etherscan.io/"
             [[ "$VERIFIER_TYPE" == *"blockscout"* ]] && echo "  Blockscout: https://eth-sepolia.blockscout.com/"
         elif [ "$POST_DEPLOY_VERIFY" == "true" ] && [ -n "$VERIFIER_TYPE" ]; then
@@ -946,16 +938,14 @@ if [ "$DEPLOY_TYPE" == "1" ] || [ "$DEPLOY_TYPE" == "2" ]; then
             echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
             echo ""
             
-            PROTOCOL_VERSIONS_PROXY=$(jq -r '.protocolVersionsProxyAddress // .ProtocolVersionsProxyAddress' "$OUTPUT_FILE" 2>/dev/null)
             SUPERCHAIN_CONFIG_PROXY=$(jq -r '.superchainConfigProxyAddress // .SuperchainConfigProxyAddress' "$OUTPUT_FILE" 2>/dev/null)
             SUPERCHAIN_PROXY_ADMIN=$(jq -r '.proxyAdminAddress // .ProxyAdminAddress' "$OUTPUT_FILE" 2>/dev/null)
-            
+
             echo "# Environment variables for next deployment"
             echo "export L1_RPC_URL=\"$L1_RPC_URL\""
             echo "export DEPLOYER_PRIVATE_KEY=\"$PRIVATE_KEY\""
             [ -n "$VERIFIER_TYPE" ] && echo "export DEPLOYER_VERIFIER_TYPE=\"$VERIFIER_TYPE\""
             [ -n "$ETHERSCAN_API_KEY" ] && echo "export DEPLOYER_VERIFIER_API_KEY=\"$ETHERSCAN_API_KEY\""
-            echo "export DEPLOYER_PROTOCOL_VERSIONS_PROXY=\"$PROTOCOL_VERSIONS_PROXY\""
             echo "export DEPLOYER_SUPERCHAIN_CONFIG_PROXY=\"$SUPERCHAIN_CONFIG_PROXY\""
             echo "export DEPLOYER_SUPERCHAIN_PROXY_ADMIN=\"$SUPERCHAIN_PROXY_ADMIN\""
             echo "export DEPLOYER_L1_PROXY_ADMIN_OWNER=\"$PROXY_ADMIN_OWNER\""

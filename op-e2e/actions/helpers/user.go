@@ -218,6 +218,14 @@ func (s *BasicUser[B]) ActSetGasFeeCap(feeCap *big.Int) Action {
 	}
 }
 
+// ActSetTxNonce pins the nonce for the next MakeTransaction/ActMakeTx,
+// bypassing PendingNonceAt for callers that need a deterministic sequence.
+func (s *BasicUser[B]) ActSetTxNonce(nonce uint64) Action {
+	return func(t Testing) {
+		s.txOpts.Nonce = new(big.Int).SetUint64(nonce)
+	}
+}
+
 func (s *BasicUser[B]) ActRandomTxData(t Testing) {
 	t.Helper()
 	dataLen := s.rng.Intn(128_000)
@@ -421,8 +429,7 @@ func (s *CrossLayerUser) CheckDepositTx(t Testing, l1TxHash common.Hash, index i
 		require.Less(t, index, len(depositReceipt.Logs), "must have enough logs in receipt")
 		reconstructedDep, err := derive.UnmarshalDepositLogEvent(depositReceipt.Logs[index])
 		require.NoError(t, err, "Could not reconstruct L2 Deposit")
-		l2Tx := types.NewTx(reconstructedDep)
-		s.L2.CheckReceipt(t, l2Success, l2Tx.Hash())
+		s.L2.CheckReceipt(t, l2Success, reconstructedDep.Hash())
 	}
 }
 
@@ -434,8 +441,7 @@ func (s *CrossLayerUser) GetLastDepositL2Receipt(t Testing) (*types.Receipt, err
 	depositL1Receipt := s.L1.CheckReceipt(t, true, s.lastL1DepositTxHash)
 	reconstructedDep, err := derive.UnmarshalDepositLogEvent(depositL1Receipt.Logs[0])
 	require.NoError(t, err, "Could not reconstruct L2 Deposit")
-	l2Tx := types.NewTx(reconstructedDep)
-	return s.L2.CheckReceipt(t, true, l2Tx.Hash()), nil
+	return s.L2.CheckReceipt(t, true, reconstructedDep.Hash()), nil
 }
 
 func (s *CrossLayerUser) getLastWithdrawalParams(t Testing) (*withdrawals.ProvenWithdrawalParameters, error) {

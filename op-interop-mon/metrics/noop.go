@@ -17,5 +17,13 @@ func (*noopMetrics) RecordMessageStatus(executingChainID string, initiatingChain
 }
 func (*noopMetrics) RecordTerminalStatusChange(executingChainID string, initiatingChainID string, value float64) {
 }
-func (*noopMetrics) RecordExecutingBlockRange(chainID string, min uint64, max uint64)  {}
-func (*noopMetrics) RecordInitiatingBlockRange(chainID string, min uint64, max uint64) {}
+func (*noopMetrics) RecordExecutingBlockRange(chainID string, min uint64, max uint64)        {}
+func (*noopMetrics) RecordInitiatingBlockRange(chainID string, min uint64, max uint64)       {}
+func (*noopMetrics) RecordInitiatingReorg(executingChainID string, initiatingChainID string) {}
+func (*noopMetrics) RecordFilterDivergence(executingChainID string, initiatingChainID string, monitorStatus string, filterStatus string) {
+}
+func (*noopMetrics) RecordFilterFailsafe(enabled bool)                               {}
+func (*noopMetrics) RecordSupernodeUp(endpoint string, up bool)                      {}
+func (*noopMetrics) RecordSupernodeSafeHead(chainID string, level string, bn uint64) {}
+func (*noopMetrics) RecordCrossSafetyViolation(executingChainID string, initiatingChainID string) {
+}

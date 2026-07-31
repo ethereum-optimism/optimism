@@ -1,0 +1,72 @@
+---
+title: op-node
+description: Canonical hub for op-node, the OP Stack rollup node in Go, covering what it does, who runs it, and where its guides, reference, releases, source, and spec live.
+diataxis: explanation
+---
+
+op-node is the OP Stack's consensus-layer client, written in Go: the rollup
+node that derives the canonical L2 chain from L1 data and drives an execution
+client to process the resulting blocks.
+
+## Overview
+
+op-node builds, relays, and verifies the canonical chain of L2 blocks. As a
+sequencer it builds new blocks; as a verifier it derives blocks from the data
+the chain posted to L1 and accepts only blocks that can be reproduced from
+that data. The blocks themselves are executed by an execution client, such as
+op-reth, which op-node controls through the Engine API; the two run in a
+one-to-one pairing. op-node also relays the sequencer's new (unsafe) blocks
+over a P2P network for low-latency access to the latest state; the relay is
+optional and never affects the ability to verify.
+
+It exists because an OP Stack chain is *derived*: the canonical chain is
+defined by data available on L1, and the rollup node is the component that
+turns that data into verified L2 blocks. It plays the role a beacon node
+plays on L1, and it implements the rollup node specification.
+
+**Who runs it:** every node operator. Each OP Stack node pairs a rollup node,
+op-node or [kona-node](/releases/kona-node) (the Rust implementation of the
+same role), with an execution client. Chain operators additionally run
+op-node in sequencer mode to build new blocks.
+
+## Get started
+
+*   [Running a Node With Docker](/node-operators/tutorials/node-from-docker):
+    run op-node and op-reth from the official Docker images. To build and run
+    from source instead, see
+    [Building and running an OP Stack node from source](/node-operators/tutorials/run-node-from-source).
+
+## How-tos
+
+*   [Consensus client configuration](/node-operators/guides/configuration/consensus-clients):
+    configure op-node (or kona-node) and connect it to your execution client.
+*   [Using blobs](/node-operators/guides/management/blobs): give op-node the
+    L1 beacon endpoint it needs to fetch blob batch data, including blobs
+    older than the beacon retention window.
+*   [Node troubleshooting](/node-operators/guides/troubleshooting): solutions
+    to common node problems, many of them surfaced in op-node logs.
+
+## Configuration & flags reference
+
+*   [op-node configuration options](/node-operators/reference/op-node-config):
+    every CLI flag and environment variable, with flag tables generated from
+    the op-node release named on the page.
+*   [op-node JSON-RPC API](/node-operators/reference/op-node-json-rpc): the
+    rollup-specific RPC methods op-node serves.
+
+## Releases
+
+*   [op-node release history](/releases/op-node)
+
+## Source & spec links
+
+*   [Source: `op-node/`](https://github.com/ethereum-optimism/optimism/tree/develop/op-node)
+    in the Optimism monorepo; its
+    [README](https://github.com/ethereum-optimism/optimism/blob/develop/op-node/README.md)
+    documents the quickstart, design principles, and failure modes (L1
+    downtime, L1 reorgs, sequencer window expiry, and more).
+*   [Rollup node specification](https://specs.optimism.io/protocol/rollup-node.html):
+    the normative definition of the rollup node's role.
+*   [L2 chain derivation specification](https://specs.optimism.io/protocol/derivation.html):
+    the normative definition of how the canonical L2 chain is derived from L1
+    data.

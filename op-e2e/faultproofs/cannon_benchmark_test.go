@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"encoding/json"
+	"fmt"
 	"math/big"
 	"os"
 	"path"
@@ -21,7 +22,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
@@ -70,14 +70,14 @@ func testBenchmarkCannonFPP(t *testing.T, allocType config.AllocType) {
 	t.Log("Capture the latest L2 head that precedes contract creations as agreed starting point")
 	agreedBlock, err := l2Seq.BlockByNumber(ctx, new(big.Int).Sub(receipt.BlockNumber, big.NewInt(1)))
 	require.NoError(t, err)
-	agreedL2Output, err := rollupClient.OutputAtBlock(ctx, agreedBlock.NumberU64())
+	agreedL2Output, err := wait.ForOutputAtBlock(ctx, rollupClient, agreedBlock.NumberU64())
 	require.NoError(t, err, "could not retrieve l2 agreed block")
 	l2Head := agreedL2Output.BlockRef.Hash
 	l2OutputRoot := agreedL2Output.OutputRoot
 
 	t.Log("Determine L2 claim")
 	l2ClaimBlockNumber := receipt.BlockNumber
-	l2Output, err := rollupClient.OutputAtBlock(ctx, bigs.Uint64Strict(l2ClaimBlockNumber))
+	l2Output, err := wait.ForOutputAtBlock(ctx, rollupClient, bigs.Uint64Strict(l2ClaimBlockNumber))
 	require.NoError(t, err, "could not get expected output")
 	l2Claim := l2Output.OutputRoot
 
@@ -142,12 +142,12 @@ func createBigContracts(ctx context.Context, t *testing.T, cfg e2esys.SystemConf
 			defer cancel()
 			err := client.SendTransaction(ctx, tx)
 			if err != nil {
-				results <- result{err: errors.Wrap(err, "Sending L2 tx")}
+				results <- result{err: fmt.Errorf("Sending L2 tx: %w", err)}
 				return
 			}
 			receipt, err := wait.ForReceiptOK(ctx, client, tx.Hash())
 			if err != nil {
-				results <- result{err: errors.Wrap(err, "Waiting for receipt")}
+				results <- result{err: fmt.Errorf("Waiting for receipt: %w", err)}
 				return
 			}
 			results <- result{addr: receipt.ContractAddress, err: nil}

@@ -6,7 +6,6 @@ import (
 )
 
 type SuperchainDeployment struct {
-	protocolVersionsAddr common.Address
 	superchainConfigAddr common.Address
 }
 
@@ -14,8 +13,4 @@ var _ stack.SuperchainDeployment = &SuperchainDeployment{}
 
 func (d *SuperchainDeployment) SuperchainConfigAddr() common.Address {
 	return d.superchainConfigAddr
-}
-
-func (d *SuperchainDeployment) ProtocolVersionsAddr() common.Address {
-	return d.protocolVersionsAddr
 }

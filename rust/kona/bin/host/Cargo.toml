@@ -19,7 +19,7 @@ kona-executor.workspace = true
 kona-std-fpvm.workspace = true
 kona-proof-interop.workspace = true
 kona-proof = { workspace = true, features = ["std"] }
-kona-preimage = { workspace = true, features = ["std"] }
+kona-preimage = { workspace = true, features = ["std", "verify"] }
 
 # Protocol
 kona-driver.workspace = true

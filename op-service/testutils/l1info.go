@@ -1,7 +1,6 @@
 package testutils
 
 import (
-	"errors"
 	"math/big"
 	"math/rand"
 
@@ -30,14 +29,10 @@ type MockBlockInfo struct {
 	InfoGasUsed       uint64
 	InfoBlobGasUsed   *uint64
 	InfoGasLimit      uint64
-	InfoHeaderRLP     []byte
 
 	InfoParentBeaconRoot *common.Hash
 	InfoWithdrawalsRoot  *common.Hash
-}
-
-func (l *MockBlockInfo) Header() *types.Header {
-	panic("not implemented")
+	InfoExtra            []byte
 }
 
 func (l *MockBlockInfo) Hash() common.Hash {
@@ -108,11 +103,8 @@ func (l *MockBlockInfo) WithdrawalsRoot() *common.Hash {
 	return l.InfoWithdrawalsRoot
 }
 
-func (l *MockBlockInfo) HeaderRLP() ([]byte, error) {
-	if l.InfoHeaderRLP == nil {
-		return nil, errors.New("header rlp not available")
-	}
-	return l.InfoHeaderRLP, nil
+func (l *MockBlockInfo) Extra() []byte {
+	return l.InfoExtra
 }
 
 func (l *MockBlockInfo) BlockRef() eth.L1BlockRef {

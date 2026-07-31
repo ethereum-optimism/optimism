@@ -1,0 +1,54 @@
+# Multi-binary image: bundles op-challenger + multicannon + kona-host.
+# needs-melange-apks: op-stack-go, multicannon, op-stack-rust.
+# Mirrors monorepo op-challenger-target: multiplexer only (no loose embed files).
+contents:
+  keyring:
+    - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+  repositories:
+    - https://packages.wolfi.dev/os
+  packages:
+    - ca-certificates-bundle
+    # ca-certificates provides update-ca-certificates binary (ca-certificates-bundle is cert data only).
+    # Required: the chart's /init/entrypoint.sh calls update-ca-certificates before exec.
+    - ca-certificates
+    - wolfi-baselayout
+    # busybox provides /bin/sh — the k8s chart launches op-challenger via
+    # command: ["/bin/sh", "/init/entrypoint.sh"], which fails on a shell-less image.
+    - busybox
+    - glibc
+    - libgcc
+    - libstdc++
+    - openssl
+    - op-challenger@local
+    - multicannon@local
+    - kona-host@local
+
+environment:
+  PATH: /usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/sbin:/bin
+  SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+  # Matches the monorepo op-challenger-target env. OP_CHALLENGER_CANNON_SERVER
+  # (op-program) is gone; the cannon-kona and asterisc-kona servers are kona-host.
+  OP_CHALLENGER_CANNON_BIN: /usr/local/bin/cannon
+  OP_CHALLENGER_ASTERISC_KONA_SERVER: /usr/local/bin/kona-host
+  OP_CHALLENGER_CANNON_KONA_SERVER: /usr/local/bin/kona-host
+
+accounts:
+  groups:
+    - groupname: nonroot
+      gid: 65532
+  users:
+    - username: nonroot
+      uid: 65532
+      gid: 65532
+  # Run as root to match the monorepo op-challenger-target (ubuntu base, no USER
+  # directive). Also required for the chart's root-owned op-challenger-data PVC
+  # (no fsGroup) — nonroot 65532 would be permission-denied.
+  run-as: 0
+
+# No entrypoint, bare-name cmd: matches the upstream image contract
+# (CMD ["op-challenger"], resolved via PATH).
+cmd: op-challenger
+
+annotations:
+  org.opencontainers.image.source: https://github.com/ethereum-optimism/optimism
+  org.opencontainers.image.title: op-challenger

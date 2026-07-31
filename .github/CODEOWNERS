@@ -7,9 +7,8 @@
 /rust/kona/crates/protocol @ethereum-optimism/consensus # exclusive
 
 /op-deployer    @ethereum-optimism/core-team @ethereum-optimism/monorepo-reviewers
-/op-validator   @ethereum-optimism/core-team @ethereum-optimism/monorepo-reviewers
 
-/op-conductor   @ethereum-optimism/op-conductor @ethereum-optimism/monorepo-reviewers
+/op-conductor   @ethereum-optimism/infra-reviewers @ethereum-optimism/monorepo-reviewers
 
 # Contracts
 # We require a minimum of 2 reviewers for all changes to the contracts-bedrock
@@ -23,6 +22,10 @@
 
 # Public developer documentation
 /docs/public-docs/  @ethereum-optimism/solutions
+
+# CI workflows
+/.github/workflows/ @ethereum-optimism/cloud-security
+/.github/actions/   @ethereum-optimism/cloud-security
 
 # Must come last to avoid being overridden
 /.github/CODEOWNERS  @ethereum-optimism/cloud-security

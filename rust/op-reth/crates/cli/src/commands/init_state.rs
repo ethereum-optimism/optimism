@@ -4,6 +4,7 @@ use alloy_consensus::Header;
 use clap::Parser;
 use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment};
+use reth_db_api::database::Database;
 use reth_db_common::init::init_from_state_dump;
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_primitives::{
@@ -12,8 +13,8 @@ use reth_optimism_primitives::{
 };
 use reth_primitives_traits::{SealedHeader, header::HeaderMut};
 use reth_provider::{
-    BlockNumReader, DBProvider, DatabaseProviderFactory, StaticFileProviderFactory,
-    StaticFileWriter,
+    BlockNumReader, DBProvider, DatabaseProviderFactory, MetadataProvider,
+    StaticFileProviderFactory, StaticFileWriter,
 };
 use std::{io::BufReader, sync::Arc};
 use tracing::info;
@@ -96,12 +97,27 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> InitStateCommandOp<C> {
             ));
         }
 
+        // Commit the RW provider before `init_from_state_dump`: that call opens its own
+        // RW transaction via `provider_factory`, and MDBX permits only one writer at a time —
+        // holding `provider_rw` here would deadlock the inner txn.
+        provider_rw.commit()?;
+
         info!(target: "reth::cli", "Initiating state dump");
 
-        let reader = BufReader::new(reth_fs_util::open(self.init_state.state)?);
-        let hash = init_from_state_dump(reader, &provider_rw, config.stages.etl)?;
+        let state_path = self.init_state.state;
+        let reader = BufReader::new(reth_fs_util::open(&state_path)?);
+        let hash = init_from_state_dump(reader, &provider_factory, config.stages.etl)?;
 
-        provider_rw.commit()?;
+        // V2 storage (hashed state) needs `keccak256(slot) → slot` preimages so the execution
+        // stage can resolve plain storage keys when a pre-Ecotone SELFDESTRUCT wipes a contract
+        // whose storage came from the imported snapshot. `init_from_state_dump` writes hashed
+        // storage but no preimages, so seed them here from the dump's plain slot keys. The
+        // preimage DB is only consulted pre-Cancun and reth deletes it after Ecotone, so this is
+        // a no-op for v1 storage and harmless overhead that self-cleans on v2.
+        if provider_factory.provider()?.storage_settings()?.is_some_and(|s| s.is_v2()) {
+            let preimage_dir = provider_factory.db_ref().path().join("preimage");
+            super::slot_preimages_seed::seed_slot_preimages(&preimage_dir, &state_path)?;
+        }
 
         info!(target: "reth::cli", hash = ?hash, "Genesis block written");
         Ok(())

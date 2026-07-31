@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -133,7 +133,7 @@ func isDepositTx(opaqueTx eth.Data) (bool, error) {
 	if len(opaqueTx) == 0 {
 		return false, errors.New("empty transaction")
 	}
-	return opaqueTx[0] == types.DepositTxType, nil
+	return opaqueTx[0] == optypes.DepositTxType, nil
 }
 
 // lastDeposit finds the index of last deposit at the start of the transactions.
@@ -160,7 +160,7 @@ func sanityCheckPayload(payload *eth.ExecutionPayload) error {
 	if len(payload.Transactions) == 0 {
 		return errors.New("no transactions in returned payload")
 	}
-	if payload.Transactions[0][0] != types.DepositTxType {
+	if payload.Transactions[0][0] != optypes.DepositTxType {
 		return fmt.Errorf("first transaction was not deposit tx. Got %v", payload.Transactions[0][0])
 	}
 	// Ensure that the deposits are first

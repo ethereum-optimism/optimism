@@ -9,6 +9,9 @@
 
 extern crate alloc;
 
+#[macro_use]
+mod nut_bundle;
+
 mod traits;
 pub use traits::Hardfork;
 
@@ -25,7 +28,7 @@ mod isthmus;
 pub use isthmus::Isthmus;
 
 mod interop;
-pub use interop::Interop;
+pub use interop::Lagoon;
 
 mod jovian;
 pub use jovian::Jovian;

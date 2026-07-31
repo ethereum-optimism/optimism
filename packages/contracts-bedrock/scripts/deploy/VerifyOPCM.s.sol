@@ -199,6 +199,7 @@ contract VerifyOPCM is Script {
         fieldNameOverrides["storageSetterImpl"] = "StorageSetter";
         fieldNameOverrides["opcmV2"] = "OPContractsManagerV2";
         fieldNameOverrides["opcmUtils"] = "OPContractsManagerUtils";
+        fieldNameOverrides["zkDisputeGameImpl"] = "ZKDisputeGame";
 
         // Expected getter functions and their verification methods.
         // CRITICAL: Any getter in the ABI that's not in this list will cause verification to fail.
@@ -209,7 +210,6 @@ contract VerifyOPCM is Script {
         expectedGetters["implementations"] = "SKIP"; // Verified via bytecode comparison of implementation contracts
 
         // Getters verified via environment variables in _verifyOpcmImmutableVariables()
-        expectedGetters["protocolVersions"] = "EXPECTED_PROTOCOL_VERSIONS";
         expectedGetters["superchainConfig"] = "EXPECTED_SUPERCHAIN_CONFIG";
 
         // Getters for OPCM sub-contracts (addresses verified via bytecode comparison)
@@ -218,6 +218,8 @@ contract VerifyOPCM is Script {
         expectedGetters["opcmInteropMigrator"] = "SKIP"; // Address verified via bytecode comparison
         expectedGetters["opcmMigrator"] = "SKIP"; // Address verified via bytecode comparison
         expectedGetters["opcmStandardValidator"] = "SKIP"; // Address verified via bytecode comparison
+        validatorGetterChecks["standardValidatorUtils"] = "SKIP";
+        validatorGetterChecks["migrationValidator"] = "SKIP";
         expectedGetters["opcmUpgrader"] = "SKIP"; // Address verified via bytecode comparison
 
         // OPCM V2 Specific expected getters overrides
@@ -247,6 +249,7 @@ contract VerifyOPCM is Script {
         validatorGetterChecks["permissionedDisputeGameImpl"] = "CONTAINER_IMPL";
         validatorGetterChecks["superFaultDisputeGameImpl"] = "CONTAINER_IMPL";
         validatorGetterChecks["superPermissionedDisputeGameImpl"] = "CONTAINER_IMPL";
+        validatorGetterChecks["zkDisputeGameImpl"] = "CONTAINER_IMPL";
 
         // Verify against env vars
         validatorGetterChecks["superchainConfig"] = "ENV:ADDRESS:EXPECTED_SUPERCHAIN_CONFIG";
@@ -288,7 +291,7 @@ contract VerifyOPCM is Script {
         // Rather than requiring an opcm input parameter, just pass in an empty reference
         // as we really only need this for features that are in development.
         IOPContractsManagerV2 emptyOpcm = IOPContractsManagerV2(address(0));
-        _verifyOpcmContractRef(
+        _verifyContractRef(
             emptyOpcm,
             OpcmContractRef({ field: _name, name: _name, addr: _addr, blueprint: false }),
             _skipConstructorVerification
@@ -585,16 +588,7 @@ contract VerifyOPCM is Script {
         returns (bool)
     {
         bool success = true;
-
-        console.log();
-        console.log(string.concat("Checking Contract: ", _target.field));
-        console.log(string.concat("  Type: ", _target.blueprint ? "Blueprint" : "Implementation"));
-        console.log(string.concat("  Contract: ", _target.name));
-        console.log(string.concat("  Address: ", vm.toString(_target.addr)));
-
-        // Build the expected path to the artifact file.
-        string memory artifactPath = _buildArtifactPath(_target.name);
-        console.log(string.concat("  Expected Runtime Artifact: ", artifactPath));
+        string memory artifactPath = _logContractRef(_target);
 
         // Check if this is a Super dispute game that should be skipped
         if (_isSuperDisputeGameImplementation(_target.name)) {
@@ -610,8 +604,73 @@ contract VerifyOPCM is Script {
             // If feature is enabled, continue with normal verification
         }
 
+        // Check if this is a ZK dispute game that should be skipped
+        if (_isZKDisputeGameImplementation(_target.name)) {
+            if (!_isZKDisputeGameEnabled(_opcm)) {
+                if (_target.addr == address(0)) {
+                    console.log("[SKIP] ZK dispute game not deployed (feature disabled)");
+                    return true; // Consider this "verified" when feature is off
+                } else {
+                    console.log("[FAIL] ERROR: ZK dispute game deployed but feature disabled");
+                    success = false;
+                }
+            }
+            // If feature is enabled, continue with normal verification
+        }
+
+        return _verifyContractRefAfterHeader(_opcm, _target, artifactPath, _skipConstructorVerification) && success;
+    }
+
+    /// @notice Verifies a single contract reference without applying OPCM feature gates.
+    /// @param _opcm The OPCM contract used for security-critical value checks.
+    /// @param _target The target contract reference to verify.
+    /// @param _skipConstructorVerification Whether to skip constructor verification.
+    /// @return True if the contract reference is verified, false otherwise.
+    function _verifyContractRef(
+        IOPContractsManagerV2 _opcm,
+        OpcmContractRef memory _target,
+        bool _skipConstructorVerification
+    )
+        internal
+        returns (bool)
+    {
+        string memory artifactPath = _logContractRef(_target);
+        return _verifyContractRefAfterHeader(_opcm, _target, artifactPath, _skipConstructorVerification);
+    }
+
+    /// @notice Logs the standard verification header for a contract reference.
+    /// @param _target The target contract reference to log.
+    /// @return artifactPath_ The expected Foundry artifact path for the target.
+    function _logContractRef(OpcmContractRef memory _target) internal view returns (string memory artifactPath_) {
+        console.log();
+        console.log(string.concat("Checking Contract: ", _target.field));
+        console.log(string.concat("  Type: ", _target.blueprint ? "Blueprint" : "Implementation"));
+        console.log(string.concat("  Contract: ", _target.name));
+        console.log(string.concat("  Address: ", vm.toString(_target.addr)));
+
+        artifactPath_ = _buildArtifactPath(_target.name);
+        console.log(string.concat("  Expected Runtime Artifact: ", artifactPath_));
+    }
+
+    /// @notice Verifies a contract reference after the standard header has already been logged.
+    /// @param _opcm The OPCM contract used for security-critical value checks.
+    /// @param _target The target contract reference to verify.
+    /// @param _artifactPath The expected Foundry artifact path for the target.
+    /// @param _skipConstructorVerification Whether to skip constructor verification.
+    /// @return True if the contract reference is verified, false otherwise.
+    function _verifyContractRefAfterHeader(
+        IOPContractsManagerV2 _opcm,
+        OpcmContractRef memory _target,
+        string memory _artifactPath,
+        bool _skipConstructorVerification
+    )
+        internal
+        returns (bool)
+    {
+        bool success = true;
+
         // Load artifact information (bytecode, immutable refs) for detailed comparison
-        ArtifactInfo memory artifact = _loadArtifactInfo(artifactPath);
+        ArtifactInfo memory artifact = _loadArtifactInfo(_artifactPath);
 
         // Grab the actual code.
         bytes memory actualCode = _target.addr.code;
@@ -748,6 +807,20 @@ contract VerifyOPCM is Script {
     function _isSuperDisputeGameImplementation(string memory _contractName) internal pure returns (bool) {
         return LibString.eq(_contractName, "SuperFaultDisputeGame")
             || LibString.eq(_contractName, "SuperPermissionedDisputeGame");
+    }
+
+    /// @notice Checks if the ZK dispute game feature is enabled in the dev feature bitmap.
+    /// @param _opcm The OPContractsManager to check.
+    /// @return True if the ZK dispute game feature is enabled.
+    function _isZKDisputeGameEnabled(IOPContractsManagerV2 _opcm) internal view returns (bool) {
+        return DevFeatures.isDevFeatureEnabled(_opcm.devFeatureBitmap(), DevFeatures.ZK_DISPUTE_GAME);
+    }
+
+    /// @notice Checks if a contract is a ZK dispute game implementation.
+    /// @param _contractName The name to check.
+    /// @return True if this is a ZK dispute game.
+    function _isZKDisputeGameImplementation(string memory _contractName) internal pure returns (bool) {
+        return LibString.eq(_contractName, "ZKDisputeGame");
     }
 
     /// @notice Verifies that the immutable variables in the OPCM contract match expected values.
