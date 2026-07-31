@@ -104,9 +104,9 @@ pub fn is_unprovable(err: &anyhow::Error) -> bool {
 /// endpoints must match the game's on-chain roots and the claim must be
 /// derivable under the game's L1 head, else the game is permanently
 /// [`GameUnprovable`] - but ONLY when the verdict comes from a trusted
-/// response (`current_l1 >= verified_required_l1`): the supernode serves stale data
-/// mid-rewind, and a permanent verdict from an untrusted answer would burn
-/// an honest game's bond over a transient reorg window.
+/// response (`current_l1 > verified_required_l1`): the supernode serves
+/// stale data mid-rewind, and a permanent verdict from an untrusted answer
+/// would burn an honest game's bond over a transient reorg window.
 pub async fn fetch_span_responses(
     client: &SuperrootClient,
     game: &GameProofInputs,
@@ -137,14 +137,17 @@ pub async fn fetch_span_responses(
 ///
 /// The supernode returns `data` even when its `current_l1` sits below the
 /// entry's `verified_required_l1` (e.g. mid-rewind after an L1 reorg);
-/// callers gate trust on `current_l1` themselves. An untrusted answer may
-/// still be used to prove (the guest re-derives everything anyway) but must
-/// never permanently condemn a game.
+/// callers gate trust on `current_l1` themselves. Per the API contract
+/// (`SuperRootAtTimestampResponse.CurrentL1`), only blocks STRICTLY below
+/// `current_l1` are fully processed - data at `current_l1` itself may still
+/// be incomplete - so trust requires `current_l1 > verified_required_l1`,
+/// not `>=`. An untrusted answer may still be used to prove (the guest
+/// re-derives everything anyway) but must never permanently condemn a game.
 fn response_trusted(response: &SuperRootAtTimestampResponse) -> bool {
     response
         .data
         .as_ref()
-        .is_some_and(|data| response.current_l1.number >= data.verified_required_l1.number)
+        .is_some_and(|data| response.current_l1.number > data.verified_required_l1.number)
 }
 
 /// Classifies a supernode-vs-game contradiction: permanent when the answer
@@ -345,7 +348,7 @@ pub async fn prove_game_inner(
     for result in results {
         range_outputs[result.index] = Some(result.range_outputs);
         consolidation_outputs[result.index] = Some(result.consolidation_outputs);
-        proofs[result.index] = result.proofs.map(Some).unwrap_or(None);
+        proofs[result.index] = result.proofs;
     }
     let range_outputs = collect_indexed(range_outputs, "range outputs")?;
     let consolidation_outputs = collect_indexed(consolidation_outputs, "consolidation outputs")?;
@@ -438,7 +441,7 @@ mod tests {
 
     /// Self-consistent supernode response fixture (the reported super root
     /// is computed from the proof preimage), mirroring superroot.rs tests.
-    /// `current_l1` sits at the required L1 (trusted) by default.
+    /// `current_l1` sits strictly above the required L1 (trusted) by default.
     fn response_at(
         timestamp: u64,
         output_byte: u8,
@@ -455,7 +458,7 @@ mod tests {
         let proof = proof_from_super_v1(&super_v1).unwrap();
         let super_root = B256::from(*hash_super_root_proof(&proof).unwrap());
         SuperRootAtTimestampResponse {
-            current_l1: BlockId { number: required_l1, ..Default::default() },
+            current_l1: BlockId { number: required_l1 + 1, ..Default::default() },
             current_safe_timestamp: timestamp,
             current_local_safe_timestamp: timestamp,
             current_finalized_timestamp: timestamp,
@@ -474,6 +477,14 @@ mod tests {
     fn untrusted(mut response: SuperRootAtTimestampResponse) -> SuperRootAtTimestampResponse {
         response.current_l1.number =
             response.data.as_ref().unwrap().verified_required_l1.number.saturating_sub(1);
+        response
+    }
+
+    /// Pins a response's `current_l1` AT `verified_required_l1`: per the API
+    /// contract, data at `current_l1` itself may still be incomplete, so
+    /// this must count as untrusted.
+    fn at_required_l1(mut response: SuperRootAtTimestampResponse) -> SuperRootAtTimestampResponse {
+        response.current_l1.number = response.data.as_ref().unwrap().verified_required_l1.number;
         response
     }
 
@@ -543,6 +554,11 @@ mod tests {
         // Untrusted violation (mid-rewind answer): transient.
         let err = check_provable(&game, &untrusted(end.clone())).unwrap_err();
         assert!(!is_unprovable(&err), "untrusted violation must be transient, got: {err}");
+
+        // Boundary (current_l1 == required L1): that block may still be
+        // mid-processing, so the verdict must stay transient.
+        let err = check_provable(&game, &at_required_l1(end.clone())).unwrap_err();
+        assert!(!is_unprovable(&err), "boundary violation must be transient, got: {err}");
 
         // At or below the game's L1 head is provable.
         let game = game_for(&start, &end, 42);

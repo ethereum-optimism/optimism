@@ -11,7 +11,7 @@ use std::{
     collections::{HashMap, HashSet},
     sync::{
         Arc,
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::{Duration, Instant},
 };
@@ -1215,22 +1215,49 @@ where
     /// Returns whether game creation may proceed for `prestate`: the program
     /// artifacts must load ([`PrestateCache::ensure_loaded`]) and, in network
     /// mode, the SP1 proving keys must be set up and vkey-verified BEFORE any
-    /// game is bonded on the prestate.
+    /// game is bonded on the prestate. Loading alone would admit artifacts
+    /// whose keys were never initialized, deferring verification to the first
+    /// defense - after a bond is already at stake.
+    ///
+    /// Key setup takes tens of seconds per ELF and this gate runs inline on
+    /// the scheduler path each tick, so setup is NEVER awaited here: the
+    /// first call kicks it off on a background task and creation stays
+    /// paused until the verdict lands. A failed setup poisons the entry,
+    /// which keeps this gate closed (via [`PrestateCache::ensure_loaded`])
+    /// until corrected artifacts are published.
     async fn prestate_usable_for_creation(&self, prestate: B256) -> bool {
         if !self.prestates.ensure_loaded(prestate).await {
             return false;
         }
-        if self.config.proof_provider == ProofProviderKind::Network &&
-            let Err(err) = self.prestates.proof_keys(prestate, self.config.proof_provider).await
-        {
-            tracing::warn!(
-                prestate = %prestate,
-                error = %err,
-                "registered prestate proving keys unusable; creation will pause"
-            );
-            return false;
+        if self.config.proof_provider != ProofProviderKind::Network {
+            return true;
         }
-        true
+        match self.prestates.key_verification_state(prestate).await {
+            Some(true) => true,
+            // Poisoned: ensure_loaded owns healing and log pacing; it only
+            // reports usable again once changed artifacts replace the entry.
+            Some(false) => false,
+            None => {
+                if self.prestates.try_kick_key_setup(prestate).await {
+                    let prestates = self.prestates.clone();
+                    let kind = self.config.proof_provider;
+                    tokio::spawn(async move {
+                        if let Err(err) = prestates.proof_keys(prestate, kind).await {
+                            tracing::warn!(
+                                prestate = %prestate,
+                                error = %err,
+                                "registered prestate proving keys unusable; creation stays paused"
+                            );
+                        }
+                    });
+                    tracing::info!(
+                        prestate = %prestate,
+                        "Started SP1 proving-key setup; creation waits for the verdict"
+                    );
+                }
+                false
+            }
+        }
     }
 
     /// Returns the loaded program ELFs for `prestate`, if present in the
@@ -1627,6 +1654,22 @@ where
         let (proposal_status, deadline) =
             (ProposalStatus::try_from(claim_data.status)?, claim_data.deadline);
 
+        // A CHALLENGER_WINS game is terminal: children can never
+        // initialize on it (InvalidParentGame), it can never anchor, and
+        // the proposer holds no claimable credit in it. Classify it as
+        // invalid at discovery so it can never enter the DAG or the pending
+        // set - without this, an own game lost while held pending would
+        // stay pending (owned pending entries are eviction-exempt) and
+        // re-validate forever.
+        if status == GameStatus::ChallengerWins {
+            tracing::info!(
+                game_index = %index,
+                ?game_address,
+                "Invalid game: resolved CHALLENGER_WINS (terminal)"
+            );
+            return Ok(GameFetchResult::InvalidGame { index });
+        }
+
         // Drop games whose type does not respect the expected type.
         if !was_respected {
             tracing::warn!(
@@ -1722,9 +1765,10 @@ where
                     // terminally dropping it (and its subtree and our init
                     // bond) on one wrong answer. The game is never
                     // parent-eligible while pending; if the claim really is
-                    // bad the bond is lost on chain regardless, and the
-                    // pending entry ages out via the eviction cutoff once
-                    // its deadline falls behind the anchor.
+                    // bad the bond is lost on chain regardless, and the lost
+                    // game is dropped at re-validation once it resolves
+                    // CHALLENGER_WINS (owned pending entries are otherwise
+                    // exempt from the eviction cutoff).
                     tracing::warn!(
                         game_index = %index,
                         ?game_address,
@@ -3018,6 +3062,9 @@ pub struct PrestateEntry {
     /// does not hash to the prestate (or setup itself failed), so the
     /// outcome is deterministic and never retried.
     keys: OnceCell<Result<Arc<ProofKeys>, PrestateKeyError>>,
+    /// One-shot latch claiming the right to start background key setup for
+    /// this entry (see `try_kick_key_setup`).
+    setup_kicked: AtomicBool,
 }
 
 /// Why a prestate's proving keys are unusable. Cloneable so the poisoned
@@ -3144,7 +3191,11 @@ impl PrestateCache {
                 self.misses.write().await.remove(&prestate);
                 self.programs.write().await.insert(
                     prestate,
-                    Arc::new(PrestateEntry { programs: Arc::new(programs), keys: OnceCell::new() }),
+                    Arc::new(PrestateEntry {
+                        programs: Arc::new(programs),
+                        keys: OnceCell::new(),
+                        setup_kicked: AtomicBool::new(false),
+                    }),
                 );
                 true
             }
@@ -3174,7 +3225,11 @@ impl PrestateCache {
     pub(crate) async fn insert_for_tests(&self, prestate: B256, programs: PrestatePrograms) {
         self.programs.write().await.insert(
             prestate,
-            Arc::new(PrestateEntry { programs: Arc::new(programs), keys: OnceCell::new() }),
+            Arc::new(PrestateEntry {
+                programs: Arc::new(programs),
+                keys: OnceCell::new(),
+                setup_kicked: AtomicBool::new(false),
+            }),
         );
     }
 
@@ -3189,6 +3244,30 @@ impl PrestateCache {
             .filter(|(_, entry)| !matches!(entry.keys.get(), Some(Err(_))))
             .map(|(prestate, _)| *prestate)
             .collect()
+    }
+
+    /// Non-blocking view of the proving-key verdict for `prestate`:
+    /// `Some(true)` = set up and vkey-verified, `Some(false)` = poisoned,
+    /// `None` = no verdict yet (setup pending or never started) or the
+    /// prestate is not loaded.
+    pub async fn key_verification_state(&self, prestate: B256) -> Option<bool> {
+        self.programs
+            .read()
+            .await
+            .get(&prestate)
+            .and_then(|entry| entry.keys.get())
+            .map(|outcome| outcome.is_ok())
+    }
+
+    /// Claims the one-shot right to start key setup for `prestate`'s entry.
+    /// Returns true exactly once per entry; healing replaces the entry and
+    /// re-arms the claim for the corrected artifacts.
+    pub async fn try_kick_key_setup(&self, prestate: B256) -> bool {
+        self.programs
+            .read()
+            .await
+            .get(&prestate)
+            .is_some_and(|entry| !entry.setup_kicked.swap(true, Ordering::Relaxed))
     }
 
     /// The proving keys for `prestate`, running SP1 key setup on first use
@@ -3605,10 +3684,21 @@ mod tests {
                 )
                 .await;
 
-            // Artifacts load, but key setup fails: creation must pause.
+            // Artifacts load, but the keys are unverified: creation must
+            // pause immediately, and the gate kicks setup off the scheduler
+            // path onto a background task.
             assert!(!proposer.prestate_usable_for_creation(prestate).await);
-            // The failure poisoned the entry; the gate stays closed on the
-            // cheap (already-loaded) path too.
+
+            // Setup on garbage ELFs fails and poisons the entry; wait for
+            // the background verdict to land.
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
+            while proposer.prestates.key_verification_state(prestate).await.is_none() {
+                assert!(std::time::Instant::now() < deadline, "key setup verdict did not land");
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            }
+
+            // Poisoned: the gate stays closed on the cheap paths too.
+            assert!(!proposer.prestate_usable_for_creation(prestate).await);
             assert!(!proposer.prestates.ensure_loaded(prestate).await);
         }
 
