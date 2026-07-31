@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -98,6 +99,27 @@ func TestPollPeerListPermanentErrorAfterTimeoutIsNotWrapped(t *testing.T) {
 	require.ErrorIs(t, err, rpcErr)
 	require.NotErrorIs(t, err, context.DeadlineExceeded)
 	require.Equal(t, 2, node.calls)
+}
+
+func TestPollPeerListMidPollDeadlineWithLiveOuterCtx(t *testing.T) {
+	// After a retained attempt timeout, a later CallContext can return
+	// context.DeadlineExceeded while both the attempt and outer contexts are
+	// still live (e.g. a deadline internal to the RPC client). That is not an
+	// attempt timeout, so it must fail fast — and the stale retained timeout
+	// must not be attached, since the outer budget did not expire.
+	staleTimeout := fmt.Errorf("first attempt stalled: %w", context.DeadlineExceeded)
+	node := &fakeRpcCaller{behaviors: []func(ctx context.Context) ([]peer, error){
+		blockUntilAttemptDeadline(staleTimeout),
+		func(ctx context.Context) ([]peer, error) { return nil, context.DeadlineExceeded },
+	}}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err := pollPeerList(ctx, node, 10*time.Millisecond, 50*time.Millisecond, hasPeer("abc"))
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.NotContains(t, err.Error(), "last admin_peers attempt error",
+		"a mid-poll deadline error with a live outer budget must not carry the stale retained timeout")
+	require.Equal(t, 2, node.calls, "a deadline error from a live attempt context must not be retried")
 }
 
 func TestPollPeerListOuterBudgetExpiry(t *testing.T) {

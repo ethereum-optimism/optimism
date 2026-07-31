@@ -103,10 +103,11 @@ func pollPeerList(ctx context.Context, node RpcCaller, interval, attemptTimeout 
 		}
 		return cond(peers), nil
 	})
-	// Surface the retained attempt timeout only when polling ended because the
-	// outer budget expired; any other terminal error is returned unchanged so
-	// it is not misclassified as a timeout.
-	if lastTimeout != nil && errors.Is(err, context.DeadlineExceeded) {
+	// Surface the retained attempt timeout only when the outer budget itself
+	// expired: a terminal error can be a DeadlineExceeded from inside the RPC
+	// client while the outer context is still live, and must not have a stale
+	// prior attempt timeout attached.
+	if err != nil && lastTimeout != nil && errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		err = fmt.Errorf("%w (last admin_peers attempt error: %w)", err, lastTimeout)
 	}
 	return err

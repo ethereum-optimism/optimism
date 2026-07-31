@@ -56,8 +56,10 @@ func (p *Proxy) Start() error {
 	if err != nil {
 		return fmt.Errorf("could not listen: %w", err)
 	}
-	p.lis = lis
+	// Initialize the lifecycle context before publishing the listener: Close
+	// treats a set listener as "started" and calls p.cancel unconditionally.
 	p.ctx, p.cancel = context.WithCancel(context.Background())
+	p.lis = lis
 	p.lgr.Info("proxy listening", "addr", lis.Addr().String())
 
 	p.wg.Add(1)
