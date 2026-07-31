@@ -142,9 +142,11 @@ mod tests {
     fn test_op_hardfork_schedules_match_registry() {
         use alloc::format;
 
-        // Registry-scheduled times that are deliberately not OpHardfork variants: Delta was
-        // folded into Ecotone in alloy-op-hardforks, and the Pectra blob schedule is an
-        // L1-driven blob-fee patch, not an OP hardfork.
+        // Registry-scheduled times that are deliberately not `OpHardfork` variants:
+        // - Delta only changed batch derivation (span batches), with no execution-layer behavior,
+        //   so the execution-oriented `OpHardfork` enum (like op-revm's `OpSpecId`) does not model
+        //   it;
+        // - the Pectra blob schedule is an L1-driven blob-fee patch, not an OP hardfork.
         const NON_OP_FORK_TIMES: [&str; 2] = ["Delta", "Pectra Blob Schedule"];
 
         for (ident, schedule) in [
@@ -176,14 +178,14 @@ mod tests {
             }
 
             // Direction 2: every time the registry schedules must be claimed by a known variant.
+            // Matching by name is sufficient: direction 1 above already verified the scheduled
+            // value of every known variant, so an entry only ends up unclaimed when no variant
+            // of that name exists at all.
             for (name, time) in hardforks.iter() {
                 if time.is_none() || NON_OP_FORK_TIMES.contains(&name) {
                     continue;
                 }
-                let claimed = OpHardfork::VARIANTS
-                    .iter()
-                    .copied()
-                    .any(|fork| format!("{fork:?}") == name && hardforks.fork_time(fork) == time);
+                let claimed = OpHardfork::VARIANTS.iter().any(|fork| format!("{fork:?}") == name);
                 assert!(
                     claimed,
                     "{ident}: the registry schedules {name} at {time:?}, but no OpHardfork \
