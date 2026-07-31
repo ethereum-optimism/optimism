@@ -134,7 +134,7 @@ func VerifyProof(res *eth.AccountResult, stateRoot common.Hash) error {
 func fetchProofWithRetry(t devtest.T, source string, block uint64, fetch func() (*eth.AccountResult, error)) *eth.AccountResult {
 	// Each op-reth node persists proof state asynchronously. Readiness on one node does not imply
 	// that its peer can serve the same historical block yet, so retry the exact RPC on each node.
-	proof, err := retry.Do(t.Ctx(), 150, &retry.FixedStrategy{Dur: 200 * time.Millisecond}, fetch)
+	proof, err := retry.Do(t.Ctx(), 50, &retry.FixedStrategy{Dur: 200 * time.Millisecond}, fetch)
 	require.NoError(t, err, "failed to get proof from %s at block %d", source, block)
 	return proof
 }
