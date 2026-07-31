@@ -1207,10 +1207,31 @@ where
     }
 
     /// Returns true if game creation may proceed for the currently registered
-    /// game implementation's prestate (see [`PrestateCache::ensure_loaded`]).
+    /// game implementation's prestate (see [`Self::prestate_usable_for_creation`]).
     async fn registered_prestate_known(&self) -> Result<bool> {
         let args = self.registered_game_args(BlockId::latest()).await?;
-        Ok(self.prestates.ensure_loaded(args.absolute_prestate).await)
+        Ok(self.prestate_usable_for_creation(args.absolute_prestate).await)
+    }
+
+    /// Returns whether game creation may proceed for `prestate`: the program
+    /// artifacts must load ([`PrestateCache::ensure_loaded`]) and, in network
+    /// mode, the SP1 proving keys must be set up and vkey-verified BEFORE any
+    /// game is bonded on the prestate.
+    async fn prestate_usable_for_creation(&self, prestate: B256) -> bool {
+        if !self.prestates.ensure_loaded(prestate).await {
+            return false;
+        }
+        if self.config.proof_provider == ProofProviderKind::Network &&
+            let Err(err) = self.prestates.proof_keys(prestate, self.config.proof_provider).await
+        {
+            tracing::warn!(
+                prestate = %prestate,
+                error = %err,
+                "registered prestate proving keys unusable; creation will pause"
+            );
+            return false;
+        }
+        true
     }
 
     /// Returns the loaded program ELFs for `prestate`, if present in the
@@ -2441,7 +2462,7 @@ where
         let candidates = self.state.read().await.challenged_candidates();
 
         let mut active_defense_tasks = self.count_active_defense_tasks().await;
-        let max_concurrent = self.config.max_concurrent_defense_tasks;
+        let max_concurrent = self.config.max_concurrent_defense_tasks.get();
         let mut tasks_spawned = false;
 
         for (index, game_address, deadline, prestate) in candidates {
@@ -3075,7 +3096,7 @@ impl PrestateCache {
     /// fails, the result follows [`UNKNOWN_PRESTATE_POLICY`].
     ///
     /// A POISONED entry (its proving keys failed setup or vkey
-    /// verification) never gates creation open: bonding a game the
+    /// verification) always blocks game creation: bonding a game the
     /// proposer has already proven it cannot defend hands the bond to the
     /// first challenger. Poisoned entries re-fetch on the negative-cache
     /// cadence and heal only when the published artifacts actually
@@ -3294,8 +3315,8 @@ mod tests {
         use super::*;
         use crate::{
             config::{
-                ProofProviderConfig, ProofProviderKind, ProposalSafety, ProposerConfig,
-                RangeSplitCount,
+                PrestatePrograms, ProofProviderConfig, ProofProviderKind, ProposalSafety,
+                ProposerConfig, RangeSplitCount,
             },
             contract::DisputeGameFactory,
             proposer::{
@@ -3327,7 +3348,7 @@ mod tests {
                 dependency_set_path: None,
                 range_split_count: RangeSplitCount::one(),
                 max_concurrent_range_proofs: std::num::NonZeroUsize::MIN,
-                max_concurrent_defense_tasks: 8,
+                max_concurrent_defense_tasks: std::num::NonZeroU64::new(8).unwrap(),
                 proof_provider_config: ProofProviderConfig {
                     timeout: 14_400,
                     network_calls_timeout: 15,
@@ -3512,7 +3533,7 @@ mod tests {
         #[tokio::test]
         async fn defense_scan_enforces_concurrency_cap() {
             let mut config = test_config();
-            config.max_concurrent_defense_tasks = 1;
+            config.max_concurrent_defense_tasks = std::num::NonZeroU64::MIN;
             let signer = SignerLock::new(Signer::LocalSigner(PrivateKeySigner::random()));
             let provider =
                 ProviderBuilder::default().connect_http("http://127.0.0.1:1".parse().unwrap());
@@ -3553,6 +3574,82 @@ mod tests {
                 .filter(|(_, info)| matches!(info, TaskInfo::GameProving { .. }))
                 .count();
             assert_eq!(proving_tasks, 1);
+        }
+
+        /// Network mode must verify a prestate's proving keys BEFORE any
+        /// game is bonded on it: loaded-but-unverified artifacts do not open
+        /// the creation gate, and a failed setup poisons the entry so the
+        /// gate stays closed afterwards. Without this, `ensure_loaded` alone
+        /// would admit the prestate and defer verification to the first
+        /// defense - after a bond is already at stake.
+        #[tokio::test]
+        async fn network_creation_gate_requires_verified_keys() {
+            let mut config = test_config();
+            config.proof_provider = ProofProviderKind::Network;
+            let signer = SignerLock::new(Signer::LocalSigner(PrivateKeySigner::random()));
+            let provider =
+                ProviderBuilder::default().connect_http("http://127.0.0.1:1".parse().unwrap());
+            let factory = DisputeGameFactory::new(Address::ZERO, provider);
+            let proposer =
+                Proposer::new(config, signer, factory, ProofProvider::Mock(MockProofProvider))
+                    .await
+                    .unwrap();
+
+            let prestate = B256::left_padding_from(&[0x77]);
+            proposer
+                .prestates
+                .insert_for_tests(
+                    prestate,
+                    PrestatePrograms {
+                        aggregation_elf: b"not an elf".to_vec(),
+                        range_elf: b"not an elf".to_vec(),
+                    },
+                )
+                .await;
+
+            // Artifacts load, but key setup fails: creation must pause.
+            assert!(!proposer.prestate_usable_for_creation(prestate).await);
+            // The failure poisoned the entry; the gate stays closed on the
+            // cheap (already-loaded) path too.
+            assert!(!proposer.prestates.ensure_loaded(prestate).await);
+        }
+
+        /// A prestate rotation (upgrade registering a NEW prestate) pauses
+        /// creation until the new artifacts are published, while games on
+        /// the old prestate stay owned (defense, resolution, and claims
+        /// continue). Publish-heals-the-gate is pinned at the cache level in
+        /// `prestate_gate::missing_programs_hard_pause`.
+        #[tokio::test]
+        async fn prestate_rotation_pauses_creation_and_keeps_old_games_owned() {
+            let proposer = test_proposer().await;
+            let old = B256::left_padding_from(&[0x0a]);
+            let new = B256::left_padding_from(&[0x0b]);
+            proposer
+                .prestates
+                .insert_for_tests(
+                    old,
+                    PrestatePrograms { aggregation_elf: vec![1], range_elf: vec![1] },
+                )
+                .await;
+
+            // Old prestate: usable (mock mode never initializes keys).
+            assert!(proposer.prestate_usable_for_creation(old).await);
+            // Rotated-in prestate with unpublished artifacts: creation
+            // pauses...
+            assert!(!proposer.prestate_usable_for_creation(new).await);
+            // ...while the old prestate stays in the owned set, so existing
+            // games keep being defended, resolved, and claimed.
+            assert!(proposer.prestates.known_prestates().await.contains(&old));
+
+            // Operator publishes the new artifacts: creation resumes.
+            proposer
+                .prestates
+                .insert_for_tests(
+                    new,
+                    PrestatePrograms { aggregation_elf: vec![2], range_elf: vec![2] },
+                )
+                .await;
+            assert!(proposer.prestate_usable_for_creation(new).await);
         }
     }
 

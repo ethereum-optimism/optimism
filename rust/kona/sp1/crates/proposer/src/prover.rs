@@ -292,6 +292,29 @@ impl NetworkProofProvider {
                 }
             };
 
+            // Take a fulfilled proof before any auction or deadline
+            // bookkeeping: it is already paid for, and discarding it over a
+            // stale server deadline or a failed follow-up network call
+            // throws away the spend.
+            match check_status(status.fulfillment_status()) {
+                ProofStatus::Ready => {
+                    tracing::info!(proof_id = %proof_id, "Proof fulfilled");
+                    return proof.ok_or_else(|| {
+                        anyhow::anyhow!("Proof status is fulfilled but proof is None")
+                    });
+                }
+                ProofStatus::Failed => {
+                    bail!(
+                        "Proving failed: proof_id={}, execution_status={}",
+                        proof_id,
+                        status.execution_status()
+                    );
+                }
+                ProofStatus::Pending => {
+                    tracing::debug!(proof_id = %proof_id, "Proof pending/assigned, continuing...");
+                }
+            }
+
             // Get request details for the auction check; retry on transient
             // failures.
             let request_details = match self
@@ -365,26 +388,6 @@ impl NetworkProofProvider {
                     deadline,
                     current_time
                 );
-            }
-
-            // Check fulfillment status.
-            match check_status(status.fulfillment_status()) {
-                ProofStatus::Ready => {
-                    tracing::info!(proof_id = %proof_id, "Proof fulfilled");
-                    return proof.ok_or_else(|| {
-                        anyhow::anyhow!("Proof status is fulfilled but proof is None")
-                    });
-                }
-                ProofStatus::Failed => {
-                    bail!(
-                        "Proving failed: proof_id={}, execution_status={}",
-                        proof_id,
-                        status.execution_status()
-                    );
-                }
-                ProofStatus::Pending => {
-                    tracing::debug!(proof_id = %proof_id, "Proof pending/assigned, continuing...");
-                }
             }
 
             sleep(Duration::from_secs(PROOF_STATUS_POLL_INTERVAL)).await;

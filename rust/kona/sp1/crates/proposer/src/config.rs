@@ -8,7 +8,7 @@
 
 use std::{
     env,
-    num::{NonZeroU8, NonZeroUsize},
+    num::{NonZeroU8, NonZeroU64, NonZeroUsize},
     path::PathBuf,
     str::FromStr,
 };
@@ -158,8 +158,9 @@ pub struct ProposerConfig {
     /// game's defense.
     pub max_concurrent_range_proofs: NonZeroUsize,
 
-    /// Maximum number of games being defended concurrently.
-    pub max_concurrent_defense_tasks: u64,
+    /// Maximum number of games being defended concurrently. Zero is
+    /// rejected at parse time: it would silently disable defense.
+    pub max_concurrent_defense_tasks: NonZeroU64,
 
     /// SP1 proof-provider settings (timeouts, strategies, limits, prices).
     pub proof_provider_config: ProofProviderConfig,
@@ -243,7 +244,10 @@ impl ProposerConfig {
                 "MAX_CONCURRENT_RANGE_PROOFS",
                 NonZeroUsize::MIN,
             )?,
-            max_concurrent_defense_tasks: parsed_env_or("MAX_CONCURRENT_DEFENSE_TASKS", 8u64)?,
+            max_concurrent_defense_tasks: parsed_env_or(
+                "MAX_CONCURRENT_DEFENSE_TASKS",
+                NonZeroU64::new(8).expect("8 is non-zero"),
+            )?,
             proof_provider_config: ProofProviderConfig::from_env()?,
         })
     }
@@ -724,8 +728,27 @@ mod tests {
             assert_eq!(config.l2_rpcs.len(), 2);
             assert!(config.rollup_config_paths.is_none());
             assert_eq!(config.range_split_count, RangeSplitCount::one());
-            assert_eq!(config.max_concurrent_defense_tasks, 8);
+            assert_eq!(config.max_concurrent_defense_tasks.get(), 8);
             assert_eq!(config.proof_provider_config.timeout, 14_400);
+        }
+
+        /// A zero defense cap would silently disable defense entirely;
+        /// `NonZeroU64` parsing rejects it at startup. Safe under nextest's
+        /// process-per-test model; env mutation is `unsafe` on edition 2024.
+        #[test]
+        fn zero_defense_cap_is_rejected() {
+            unsafe {
+                env::set_var("L1_RPC", "http://127.0.0.1:8545");
+                env::set_var("SUPERNODE_RPC", "http://127.0.0.1:9545");
+                env::set_var("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
+                env::set_var("PRESTATES_URL", "file:///tmp/prestates");
+                env::set_var("PROOF_PROVIDER", "mock");
+                env::set_var("L2_RPCS", "http://127.0.0.1:8646");
+                env::set_var("L1_BEACON_RPC", "http://127.0.0.1:5052");
+                env::set_var("MAX_CONCURRENT_DEFENSE_TASKS", "0");
+            }
+            let err = ProposerConfig::from_env().unwrap_err().to_string();
+            assert!(err.contains("MAX_CONCURRENT_DEFENSE_TASKS"), "unexpected error: {err}");
         }
     }
 }

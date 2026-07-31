@@ -53,7 +53,7 @@ async fn main() -> Result<()> {
         dependency_set_path = ?config.dependency_set_path,
         range_split_count = ?config.range_split_count,
         max_concurrent_range_proofs = %config.max_concurrent_range_proofs,
-        max_concurrent_defense_tasks = config.max_concurrent_defense_tasks,
+        max_concurrent_defense_tasks = %config.max_concurrent_defense_tasks,
         "Resolved proposer configuration"
     );
 
