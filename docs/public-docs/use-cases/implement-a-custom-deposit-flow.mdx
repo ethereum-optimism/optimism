@@ -69,7 +69,7 @@ and stop at the first row that fits:
 
 | If ...                                                                                 | Choose ...                                    | Because ...                                                                                                                                                                 |
 | -------------------------------------------------------------------------------------- | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| You are moving ETH or ERC-20 tokens and standard lock-and-mint accounting fits         | `StandardBridge`, extended if necessary       | It is the audited path, it is compatible with the Superchain Bridges UI and the token list, and [building a custom bridged token](/app-developers/tutorials/bridging/standard-bridge-custom-token) covers most "the standard token doesn't fit" cases without a new bridge. |
+| You are moving ETH or ERC-20 tokens and standard lock-and-mint accounting fits         | `StandardBridge`, extended if necessary       | It is the audited path, it is compatible with the Superchain Bridges UI and the token list, and [building a custom bridged token](/app-developers/tutorials/bridging/standard-bridge-standard-token) covers most "the standard token doesn't fit" cases without a new bridge. |
 | You are calling an L2 contract and want delivery guarantees                            | `L1CrossDomainMessenger.sendMessage`          | The messenger records messages that fail on L2 and lets anyone replay them with more gas, and the target can authenticate the L1 sender via `xDomainMessageSender`.        |
 | You need raw deposited transactions: forced inclusion when the sequencer censors you, or full control of the L2 call | `OptimismPortal.depositTransaction`, called directly | Nothing sits between you and derivation. But you give up the messenger's replay safety net and sender authentication, and address aliasing applies to your contract (Step 3). |
 
@@ -121,8 +121,8 @@ Each entry layer has a worked, runnable path. Follow the one matching your
 Step 2 decision; each is a tutorial, so it includes environment setup this
 guide skips:
 
-*   **Standard Bridge with a custom token**: follow
-    [Bridging your custom ERC-20 token](/app-developers/tutorials/bridging/standard-bridge-custom-token)
+*   **Standard Bridge with a custom token**: follow the custom-token path of
+    [Bridge tokens with the Standard Bridge](/app-developers/tutorials/bridging/standard-bridge-standard-token)
     to deploy an `OptimismMintableERC20` variant with custom logic.
 *   **Messenger-based contract calls**: follow
     [Communicating between contracts on L1 and L2](/app-developers/tutorials/bridging/cross-dom-solidity)

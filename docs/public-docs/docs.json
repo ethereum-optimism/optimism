@@ -2586,6 +2586,10 @@
     {
       "source": "/chain-operators/reference/standard-configuration",
       "destination": "/op-stack/protocol/superchain-registry"
+    },
+    {
+      "source": "/app-developers/tutorials/bridging/standard-bridge-custom-token",
+      "destination": "/app-developers/tutorials/bridging/standard-bridge-standard-token"
     }
   ],
   "interaction": {
@@ -3094,7 +3098,6 @@
                 "pages": [
                   "app-developers/tutorials/bridging/cross-dom-bridge-erc20",
                   "app-developers/tutorials/bridging/cross-dom-solidity",
-                  "app-developers/tutorials/bridging/standard-bridge-custom-token",
                   "app-developers/tutorials/bridging/standard-bridge-standard-token",
                   "app-developers/tutorials/bridging/cross-dom-bridge-eth",
                   "app-developers/tutorials/bridging/bridge-crosschain-eth",
