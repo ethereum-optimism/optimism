@@ -168,10 +168,9 @@ impl Game {
     /// `absolutePrestate()` is in the known-prestates set (artifacts
     /// loadable from `PRESTATES_URL`, proving keys not poisoned).
     ///
-    /// Ownership is prestate-based, not creator-based (option A, #22111,
-    /// matching upstream's identity semantics for now): the prove, resolve, and
-    /// claim sets are the same set, and the creator is irrelevant to all
-    /// three. Claims stay credit-driven, so iterating foreign games costs
+    /// Ownership is prestate-based, not creator-based: the prove, resolve,
+    /// and claim sets are the same set, and the creator is irrelevant to
+    /// all three. Claims stay credit-driven, so iterating foreign games costs
     /// nothing where the proposer holds no credit. Games created before a
     /// prestate rotation stay owned because sync loads the prestate of
     /// every cached game, not just the registered one.
@@ -1295,8 +1294,8 @@ where
     }
 
     async fn resolve_games(&self) -> Result<()> {
-        // Ownership is prestate-based (option A, #22111): the resolve set
-        // equals the willing-to-prove set.
+        // Ownership is prestate-based: the resolve set equals the
+        // willing-to-prove set.
         let known_prestates = self.prestates.known_prestates().await;
         let candidates = {
             let state = self.state.read().await;
@@ -3277,9 +3276,8 @@ mod tests {
         use super::*;
 
         // Ownership moved from creator-based to prestate-based with the
-        // defend path (option A, #22111): the prove, resolve, and claim
-        // sets are one set, keyed by whether the game's prestate programs
-        // are loadable.
+        // defend path: the prove, resolve, and claim sets are one set,
+        // keyed by whether the game's prestate programs are loadable.
 
         #[test]
         fn rotation_keeps_old_prestate_games_owned() {
