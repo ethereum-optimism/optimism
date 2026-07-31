@@ -142,11 +142,13 @@ mod tests {
     fn test_op_hardfork_schedules_match_registry() {
         use alloc::format;
 
-        // Registry-scheduled times that are deliberately not `OpHardfork` variants:
-        // - Delta only changed batch derivation (span batches), with no execution-layer behavior,
-        //   so the execution-oriented `OpHardfork` enum (like op-revm's `OpSpecId`) does not model
-        //   it;
-        // - the Pectra blob schedule is an L1-driven blob-fee patch, not an OP hardfork.
+        // Consensus-layer forks carried in the rollup config but not modeled by the
+        // execution-layer `OpHardfork`/`OpSpecId` enums, so no timestamp constants exist for
+        // them: Delta only changed batch derivation (span batches, gated by
+        // `RollupConfig::is_delta_active`), and the optional Pectra blob schedule fix only
+        // selects which L1 blob fee params apply (`is_pectra_blob_schedule_active`; set on OP
+        // Sepolia, unset on OP Mainnet). Their registry values are conformance-checked against
+        // the full config fixtures by `test_hardcoded_rollup_configs` above.
         const NON_OP_FORK_TIMES: [&str; 2] = ["Delta", "Pectra Blob Schedule"];
 
         for (ident, schedule) in [
