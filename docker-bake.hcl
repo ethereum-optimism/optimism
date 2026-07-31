@@ -350,9 +350,11 @@ target "kona-sp1-proposer" {
   context = "rust"
   contexts = {
     nuts-bundles = "op-core/nuts/bundles"
+    contracts-bedrock-abis = "packages/contracts-bedrock/snapshots/abi"
   }
   args = {
     REPO_LOCATION = "local"
+    BUILDER_VARIANT = "contract-abis"
     BIN_TARGET = "kona-sp1-proposer"
     BUILD_PROFILE = "release"
   }

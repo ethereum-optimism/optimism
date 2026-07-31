@@ -1,4 +1,5 @@
 ARG REPO_LOCATION
+ARG BUILDER_VARIANT=default
 
 ################################
 #   Dependency Installation    #
@@ -78,7 +79,7 @@ FROM build-entrypoint AS planner
 COPY --from=app-setup /workspace .
 RUN cargo chef prepare --recipe-path recipe.json
 
-FROM build-entrypoint AS builder
+FROM build-entrypoint AS builder-base
 # Since we only copy recipe.json, if the dependencies don't change, this step and the next one will be cached.
 COPY --from=planner /app/recipe.json recipe.json
 
@@ -102,6 +103,16 @@ ENV BUILD_PROFILE=$BUILD_PROFILE
 
 # Build application. This step will systematically trigger a cache invalidation if the source code changes.
 COPY --from=app-setup /workspace .
+
+# Only binaries that embed contract ABI snapshots select this builder variant.
+FROM builder-base AS builder-contract-abis
+# The kona-sp1-proposer contract bindings embed ABI snapshots using paths that
+# resolve from the rust workspace to the repository-level packages directory.
+COPY --from=contracts-bedrock-abis / /packages/contracts-bedrock/snapshots/abi
+
+FROM builder-base AS builder-default
+
+FROM builder-${BUILDER_VARIANT} AS builder
 # Build the application binary on the selected tag. Since we build the external dependencies in the previous step,
 # this step will reuse the target directory from the previous step.
 RUN RUSTFLAGS="-C target-cpu=generic" cargo auditable build --package "${BIN_TARGET}" --bin "${BIN_TARGET}" --locked --profile "${BUILD_PROFILE}"
