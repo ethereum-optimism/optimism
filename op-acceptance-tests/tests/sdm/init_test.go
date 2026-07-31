@@ -42,17 +42,17 @@ func newSDMRethSystemWithIsolatedVerifier(t devtest.T) *sdmtest.RethSystem {
 	return buildSDMRethSystem(t, true, true, nil)
 }
 
-// newSDMRethSystemWithInteropOffset builds the SDM system with Interop scheduled at the given
+// newSDMRethSystemWithLagoonOffset builds the SDM system with Lagoon scheduled at the given
 // offset (in seconds) from L2 genesis. Used by the boundary test that exercises the chain-spec
 // gate across the activation timestamp; pass `nil` for genesis activation.
-func newSDMRethSystemWithInteropOffset(
+func newSDMRethSystemWithLagoonOffset(
 	t devtest.T,
-	interopOffset *uint64,
+	lagoonOffset *uint64,
 	batcherOpts ...sysgo.BatcherOption,
 ) *sdmtest.RethSystem {
 	var deployerOpts []sysgo.DeployerOption
-	if interopOffset != nil {
-		offset := *interopOffset
+	if lagoonOffset != nil {
+		offset := *lagoonOffset
 		// Take the InteropAtGenesis path so the runtime builds an interop
 		// dependency set for op-node; then override the Lagoon fork offset
 		// to schedule activation in the future rather than at genesis.

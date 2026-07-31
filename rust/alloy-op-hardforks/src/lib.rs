@@ -50,7 +50,7 @@ hardfork!(
         Jovian,
         /// Karst: <https://github.com/ethereum-optimism/specs/tree/main/specs/protocol/karst>
         Karst,
-        /// TODO: add Lagoon hardfork overview when available
+        /// Lagoon: <https://specs.optimism.io/protocol/lagoon/overview.html>
         Lagoon,
     }
 );
