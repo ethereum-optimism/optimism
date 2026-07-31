@@ -4,6 +4,8 @@ description: How to configure, monitor, and withdraw from fee vaults on your OP 
 diataxis: how-to
 ---
 
+import FeeVaultAddresses from "/snippets/fee-vault-addresses.mdx"
+
 This guide covers the operational aspects of managing fee vaults on your OP Stack chain. For a conceptual overview of how fee vaults work, see [Fee vaults](/op-stack/transactions/fee-vaults).
 
 ## Prerequisites
@@ -14,12 +16,7 @@ This guide covers the operational aspects of managing fee vaults on your OP Stac
 
 ## Fee vault addresses
 
-| Vault | Address |
-|-------|---------|
-| `SequencerFeeVault` | `0x4200000000000000000000000000000000000011` |
-| `BaseFeeVault` | `0x4200000000000000000000000000000000000019` |
-| `L1FeeVault` | `0x420000000000000000000000000000000000001A` |
-| `OperatorFeeVault` | `0x420000000000000000000000000000000000001B` |
+<FeeVaultAddresses />
 
 ## Checking vault state
 

@@ -5,6 +5,9 @@ description: Upgrade an OP Stack chain from output-root dispute games to super-r
 diataxis: how-to
 ---
 
+import RunbookToolVersions from "/snippets/runbook-tool-versions.mdx"
+import { SuperchainOpsPrereqs } from "/snippets/superchain-ops-prereqs.mdx"
+
 # Upgrading a Chain From Output Roots to Super Roots
 
 <Warning>This guide depends on the interop feature, which is still in development. Do not follow it on production chains.</Warning>
@@ -19,19 +22,11 @@ Looking to switch from permissioned to permissionless fault proofs? See [Migrati
 
 ## Before You Begin
 
-You should be familiar with running `superchain-ops` upgrade tasks, signing through the standard signing workflow, and operating `op-proposer`, `op-challenger`, and `op-dispute-mon`. See [Upgrade using superchain-ops](/chain-operators/tutorials/l1-contract-upgrades/superchain-ops-guide) for the signing workflow.
+<SuperchainOpsPrereqs />
 
 ### Required tooling
 
-The versions below are the ones the optimism repo's `mise.toml` pins; older versions of `cast` in particular may not parse the function-selector syntax used in this runbook.
-
-| Tool | Minimum version |
-| --- | --- |
-| `foundry` (`cast`, `forge`) | `1.2.3` |
-| `just` | `1.46.0` |
-| `jq` | `1.7.1` |
-| `go` | `1.24.13` |
-| `curl` | any |
+<RunbookToolVersions />
 
 You also need a checkout of the [optimism monorepo](https://github.com/ethereum-optimism/optimism) to run [`op-fetcher`](https://github.com/ethereum-optimism/optimism/tree/develop/op-fetcher) (used in the next step).
 

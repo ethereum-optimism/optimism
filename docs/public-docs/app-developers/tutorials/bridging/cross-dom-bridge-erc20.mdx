@@ -7,6 +7,7 @@ diataxis: tutorial
 import TutorialSetupNodeProject from '/snippets/tutorial-setup-node-project.mdx';
 import TutorialSetupWalletAndFunds, { TutorialFaucets } from '/snippets/tutorial-setup-wallet-and-funds.mdx';
 import TutorialSetupRepl from '/snippets/tutorial-setup-repl.mdx';
+import StandardBridgeTokenWarning from '/snippets/standard-bridge-token-warning.mdx';
 
 This tutorial explains how you can use [@eth-optimism/viem](https://www.npmjs.com/package/@eth-optimism/viem) and [viem](https://viem.sh/op-stack) to bridge ERC-20 tokens between L1 (Ethereum or Sepolia) and L2 (OP Mainnet or OP Sepolia).
 The `@eth-optimism/viem` and `viem` packages are an easy way to add bridging functionality to your javascript-based application.
@@ -15,12 +16,7 @@ They also provide some safety rails to prevent common mistakes that could cause 
 Behind the scenes, `@eth-optimism/viem` package uses the [Standard Bridge](/app-developers/guides/bridging/standard-bridge) contracts to transfer tokens.
 Make sure to check out the [Standard Bridge guide](/app-developers/guides/bridging/standard-bridge) if you want to learn more about how the bridge works under the hood.
 
-<Info>
-  The Standard Bridge **does not** support [**fee on transfer
-  tokens**](https://github.com/d-xo/weird-erc20#fee-on-transfer) or [**rebasing
-  tokens**](https://github.com/d-xo/weird-erc20#balance-modifications-outside-of-transfers-rebasingairdrops)
-  because they can cause bridge accounting errors.
-</Info>
+<StandardBridgeTokenWarning />
 
 ## Supported networks
 

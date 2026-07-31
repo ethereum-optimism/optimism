@@ -5,16 +5,13 @@ diataxis: reference
 ---
 
 import OpChallengerFlags from '/snippets/generated/op-challenger-flags.mdx';
+import { ConfigReferencePreamble } from '/snippets/config-reference-preamble.mdx';
 
 This page catalogues every configuration option for the op-challenger, the
 dispute game agent that monitors fault proof games on L1, challenges invalid
 claims, and defends valid state transitions.
 
-The flag tables below are generated directly from the op-challenger's flag
-definitions in the monorepo (`op-challenger/flags`) at the release tag named
-in the provenance line, and are regenerated when a new finalized release is
-published, so they cannot silently fall behind. Every flag can also be set
-through the environment variable listed next to it.
+<ConfigReferencePreamble component="op-challenger" />
 
 For step-by-step setup instructions — prestates, trace types, wallets, and
 monitoring — see the
