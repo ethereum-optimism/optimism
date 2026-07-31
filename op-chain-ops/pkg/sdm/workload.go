@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -125,17 +126,17 @@ type ReplaySDMSummary struct {
 }
 
 type ReplaySDMBlock struct {
-	BlockNum                uint64              `json:"block_num"`
-	BlockHash               common.Hash         `json:"block_hash"`
-	ParentHash              common.Hash         `json:"parent_hash"`
-	PostExecTxPresent       bool                `json:"post_exec_tx_present"`
-	PostExecTxIndex         *uint64             `json:"post_exec_tx_index"`
-	EmbeddedPayload         *PostExecPayload    `json:"embedded_payload"`
-	SynthesizedPayload      PostExecPayload     `json:"synthesized_payload"`
-	SynthesizedPayloadBytes hexutil.Bytes       `json:"synthesized_payload_bytes"`
-	Txs                     []ReplaySDMTx       `json:"txs"`
-	Mismatches              []ReplaySDMMismatch `json:"mismatches"`
-	Summary                 ReplaySDMSummary    `json:"summary"`
+	BlockNum                uint64                   `json:"block_num"`
+	BlockHash               common.Hash              `json:"block_hash"`
+	ParentHash              common.Hash              `json:"parent_hash"`
+	PostExecTxPresent       bool                     `json:"post_exec_tx_present"`
+	PostExecTxIndex         *uint64                  `json:"post_exec_tx_index"`
+	EmbeddedPayload         *optypes.PostExecPayload `json:"embedded_payload"`
+	SynthesizedPayload      optypes.PostExecPayload  `json:"synthesized_payload"`
+	SynthesizedPayloadBytes hexutil.Bytes            `json:"synthesized_payload_bytes"`
+	Txs                     []ReplaySDMTx            `json:"txs"`
+	Mismatches              []ReplaySDMMismatch      `json:"mismatches"`
+	Summary                 ReplaySDMSummary         `json:"summary"`
 }
 
 // ValidationOptions controls how ValidatePostExecBlock checks the selected block.
@@ -150,13 +151,13 @@ func DefaultValidationOptions() ValidationOptions {
 }
 
 type ValidationResult struct {
-	Block              *RPCBlock         `json:"block"`
-	PostExecTx         *RPCTransaction   `json:"post_exec_tx"`
-	PostExecIndex      int               `json:"post_exec_index"`
-	Payload            *PostExecPayload  `json:"payload"`
-	ReceiptRefunds     map[uint64]uint64 `json:"receipt_refunds,omitempty"`
-	TotalPayloadRefund uint64            `json:"total_payload_refund"`
-	Replay             *ReplaySDMBlock   `json:"replay,omitempty"`
+	Block              *RPCBlock                `json:"block"`
+	PostExecTx         *RPCTransaction          `json:"post_exec_tx"`
+	PostExecIndex      int                      `json:"post_exec_index"`
+	Payload            *optypes.PostExecPayload `json:"payload"`
+	ReceiptRefunds     map[uint64]uint64        `json:"receipt_refunds,omitempty"`
+	TotalPayloadRefund uint64                   `json:"total_payload_refund"`
+	Replay             *ReplaySDMBlock          `json:"replay,omitempty"`
 }
 
 func GetBlockWithTxs(ctx context.Context, rpcClient Caller, blockNum uint64) (*RPCBlock, error) {
@@ -178,7 +179,7 @@ func GetBlockWithTxs(ctx context.Context, rpcClient Caller, blockNum uint64) (*R
 func FindPostExecTransaction(block *RPCBlock) (*RPCTransaction, int) {
 	for i := range block.Transactions {
 		tx := &block.Transactions[i]
-		if uint64(tx.Type) == SDMTxType {
+		if uint64(tx.Type) == optypes.PostExecTxType {
 			return tx, i
 		}
 	}
@@ -236,12 +237,12 @@ func ValidatePostExecBlock(ctx context.Context, rpcClient Caller, blockNum uint6
 
 	postExecTx, postExecPos := FindPostExecTransaction(block)
 	if postExecTx == nil {
-		return nil, fmt.Errorf("block %d does not contain post-exec tx type 0x%x", blockNum, SDMTxType)
+		return nil, fmt.Errorf("block %d does not contain post-exec tx type 0x%x", blockNum, optypes.PostExecTxType)
 	}
 	if postExecPos != len(block.Transactions)-1 {
 		return nil, fmt.Errorf("block %d post-exec tx at index %d, want trailing index %d", blockNum, postExecPos, len(block.Transactions)-1)
 	}
-	payload, err := DecodePayload(postExecTx.Input)
+	payload, err := optypes.DecodePostExecPayload(postExecTx.Input)
 	if err != nil {
 		return nil, fmt.Errorf("decode block %d post-exec payload: %w", blockNum, err)
 	}
@@ -265,7 +266,7 @@ func ValidatePostExecBlock(ctx context.Context, rpcClient Caller, blockNum uint6
 			return nil, fmt.Errorf("payload entry index %d out of range for block tx count %d", entry.Index, len(block.Transactions))
 		}
 		targetTx := block.Transactions[entry.Index]
-		if uint64(targetTx.Type) == SDMTxType {
+		if uint64(targetTx.Type) == optypes.PostExecTxType {
 			return nil, fmt.Errorf("payload entry index %d targets post-exec tx", entry.Index)
 		}
 		if uint64(targetTx.Type) == types.DepositTxType {

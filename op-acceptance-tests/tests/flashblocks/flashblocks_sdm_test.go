@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/pkg/sdm"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -28,7 +29,7 @@ type flashblocksIncludedTx struct {
 type observedSdmFlashblock struct {
 	index      uint64
 	postExecTx []byte
-	payload    *sdm.PostExecPayload
+	payload    *optypes.PostExecPayload
 	// blockHash is diff.block_hash: the hash op-rbuilder computed over the materialized view
 	// (base + all diff.transactions + this post_exec_tx). Matches the canonical block hash only
 	// when rollup-boost serves the builder payload, not an EL fallback block.
@@ -228,7 +229,7 @@ func TestFlashblocksSDMMaterializesPostExecBlock(gt *testing.T) {
 	secondPostExecTx, _ := sdm.FindPostExecTransaction(&sdm.RPCBlock{Transactions: block.Transactions[:postExecPos]})
 	t.Require().Nil(secondPostExecTx, "final materialized block must contain exactly one PostExec tx")
 
-	payload, err := sdm.DecodePayload(postExecTx.Input)
+	payload, err := optypes.DecodePostExecPayload(postExecTx.Input)
 	t.Require().NoError(err, "final PostExec tx input must decode")
 	t.Require().Equal(targetBlockNum, payload.BlockNumber, "final payload must target selected block")
 	t.Require().NotEmpty(payload.GasRefundEntries, "final payload must contain SDM refund entries")
@@ -255,13 +256,13 @@ func TestFlashblocksSDMMaterializesPostExecBlock(gt *testing.T) {
 		"post_exec_tx_index", postExecPos)
 }
 
-func decodeFlashblockPostExecTx(t devtest.T, fb *sources.Flashblock) (*sdm.PostExecPayload, []byte) {
+func decodeFlashblockPostExecTx(t devtest.T, fb *sources.Flashblock) (*optypes.PostExecPayload, []byte) {
 	t.Helper()
 	t.Require().NotNil(fb.Diff.PostExecTx, "flashblock must include post_exec_tx")
 	raw := append([]byte(nil), (*fb.Diff.PostExecTx)...)
 	t.Require().NotEmpty(raw, "post_exec_tx must not be empty")
-	t.Require().Equal(byte(sdm.SDMTxType), raw[0], "post_exec_tx must use type 0x7d")
-	payload, err := sdm.DecodePayload(raw[1:])
+	t.Require().Equal(byte(optypes.PostExecTxType), raw[0], "post_exec_tx must use type 0x7d")
+	payload, err := optypes.DecodePostExecPayload(raw[1:])
 	t.Require().NoError(err, "post_exec_tx payload must decode")
 	t.Require().Equal(uint64(fb.Metadata.BlockNumber), payload.BlockNumber,
 		"post_exec_tx payload block number must match flashblock metadata")

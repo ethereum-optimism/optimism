@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/pkg/sdm"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
@@ -137,7 +138,7 @@ func TestFlashblocksSDMPhantomWarmingDivergence(gt *testing.T) {
 }
 
 // entryMap indexes an SDM payload's refund entries by tx index. A nil payload yields an empty map.
-func entryMap(p *sdm.PostExecPayload) map[uint64]uint64 {
+func entryMap(p *optypes.PostExecPayload) map[uint64]uint64 {
 	out := make(map[uint64]uint64)
 	if p == nil {
 		return out

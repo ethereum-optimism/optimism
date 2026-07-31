@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sdm/sdmtest"
 	sdmpkg "github.com/ethereum-optimism/optimism/op-chain-ops/pkg/sdm"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 )
 
@@ -63,12 +64,12 @@ func TestSDMActivatesAtInteropBoundary(gt *testing.T) {
 	postPostExecTx, _ := sdmpkg.FindPostExecTransaction(postBlock)
 	t.Require().NotNil(postPostExecTx,
 		"post-Interop block %d must contain a PostExec tx; chain-spec gates SDM on", postBlockNum)
-	t.Require().Equal(uint64(sdmpkg.SDMTxType), uint64(postPostExecTx.Type),
+	t.Require().Equal(uint64(optypes.PostExecTxType), uint64(postPostExecTx.Type),
 		"post-exec tx type must be 0x7D")
 
-	payload, err := sdmpkg.DecodePayload(postPostExecTx.Input)
+	payload, err := optypes.DecodePostExecPayload(postPostExecTx.Input)
 	t.Require().NoError(err, "post-exec payload must decode")
-	t.Require().Equal(sdmpkg.PostExecPayloadVersion, payload.Version,
+	t.Require().Equal(optypes.PostExecPayloadVersion, payload.Version,
 		"post-exec payload version must be 1")
 	t.Require().NotEmpty(payload.GasRefundEntries,
 		"post-exec payload must carry refund entries for the repeated-slot workload")
