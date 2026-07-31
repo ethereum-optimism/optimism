@@ -34,7 +34,7 @@
     "aarch64": "ubuntu-24.04-arm"
   },
   "smoke_runners": {
-    "amd64": "ubuntu-slim",
+    "amd64": "ubuntu-24.04",
     "arm64": "ubuntu-24.04-arm"
   },
   "melange": {
