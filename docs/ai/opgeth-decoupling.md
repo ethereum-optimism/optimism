@@ -527,6 +527,6 @@ import op-geth-only symbols by design).
 | `op-chain-ops/script` + op-deployer (§16) | **Rust script engine** (foundry crates) | open |
 | In-process op-geth L2 EL in system tests + sysgo (§17) | op-reth-only; folds #21451 | open |
 | `cmd/check-*` (§18) | delete pre-Holocene; swap survivors to op-core | open |
-| `op-wheel/cheat` (§18) | delete (`engine` stays) | open |
+| `op-wheel/cheat` (§18) | delete (`engine` stays) | **done** (#21747) |
 | CI ratchet (§19) | scheduled upstream-build job + tightening baseline | open |
 | Final cutover: flip replace, shed `GethChainConfig` OP fields, delete differential tests + §2 scaffolding | go.mod | open (#20266) |
