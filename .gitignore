@@ -43,6 +43,7 @@ packages/contracts-bedrock/deployments/anvil
 .devnet*
 
 .claude/worktrees
+.worktrees/
 
 # Local AI planning docs (op-claude and similar agent tooling)
 .claude/plans
