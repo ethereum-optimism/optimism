@@ -2649,6 +2649,12 @@
         "tab": "Chain Operators",
         "groups": [
           {
+            "group": "Get started",
+            "pages": [
+              "chain-operators/index"
+            ]
+          },
+          {
             "group": "Guides",
             "pages": [
               {
@@ -3074,8 +3080,9 @@
         "tab": "App Developers",
         "groups": [
           {
-            "group": "Quickstarts",
+            "group": "Get started",
             "pages": [
+              "app-developers/index",
               "app-developers/quickstarts/get-started",
               "app-developers/quickstarts/actions"
             ]
@@ -3086,7 +3093,37 @@
               "app-developers/guides/building-apps",
               "app-developers/guides/testing-apps",
               "app-developers/guides/configuring-actions",
-              "app-developers/guides/connect-wallet-to-actions"
+              "app-developers/guides/connect-wallet-to-actions",
+              {
+                "group": "Bridging",
+                "pages": [
+                  "app-developers/guides/bridging/basics",
+                  "app-developers/guides/bridging/custom-bridge",
+                  "app-developers/guides/bridging/messaging",
+                  "app-developers/guides/bridging/standard-bridge",
+                  "app-developers/guides/bridging/verify-bridged-tokens"
+                ]
+              },
+              {
+                "group": "Interoperability",
+                "pages": [
+                  "app-developers/guides/interoperability/get-started",
+                  "app-developers/guides/interoperability/message-passing",
+                  "app-developers/guides/interoperability/reading-logs",
+                  "app-developers/guides/interoperability/message-expiration"
+                ]
+              },
+              {
+                "group": "Transactions",
+                "pages": [
+                  "app-developers/guides/transactions/estimates",
+                  "app-developers/guides/transactions/flashblocks-and-gas-usage",
+                  "app-developers/guides/transactions/integrating-flashblocks",
+                  "app-developers/guides/transactions/parameters",
+                  "app-developers/guides/transactions/statuses",
+                  "app-developers/guides/transactions/troubleshooting"
+                ]
+              }
             ]
           },
           {
@@ -3106,13 +3143,6 @@
                 ]
               },
               {
-                "group": "Supersim",
-                "pages": [
-                  "app-developers/tutorials/development/supersim/first-steps",
-                  "app-developers/tutorials/development/supersim/installation"
-                ]
-              },
-              {
                 "group": "Interoperability",
                 "pages": [
                   "app-developers/tutorials/interoperability/contract-calls",
@@ -3123,6 +3153,13 @@
                 ]
               },
               {
+                "group": "Supersim",
+                "pages": [
+                  "app-developers/tutorials/development/supersim/first-steps",
+                  "app-developers/tutorials/development/supersim/installation"
+                ]
+              },
+              {
                 "group": "Transactions",
                 "pages": [
                   "app-developers/tutorials/transactions/sdk-estimate-costs",
@@ -3130,36 +3167,6 @@
                   "app-developers/tutorials/transactions/send-tx-from-eth"
                 ]
               }
-            ]
-          },
-          {
-            "group": "Bridging",
-            "pages": [
-              "app-developers/guides/bridging/basics",
-              "app-developers/guides/bridging/custom-bridge",
-              "app-developers/guides/bridging/messaging",
-              "app-developers/guides/bridging/standard-bridge",
-              "app-developers/guides/bridging/verify-bridged-tokens"
-            ]
-          },
-          {
-            "group": "Interoperability",
-            "pages": [
-              "app-developers/guides/interoperability/get-started",
-              "app-developers/guides/interoperability/message-passing",
-              "app-developers/guides/interoperability/reading-logs",
-              "app-developers/guides/interoperability/message-expiration"
-            ]
-          },
-          {
-            "group": "Transactions",
-            "pages": [
-              "app-developers/guides/transactions/estimates",
-              "app-developers/guides/transactions/flashblocks-and-gas-usage",
-              "app-developers/guides/transactions/integrating-flashblocks",
-              "app-developers/guides/transactions/parameters",
-              "app-developers/guides/transactions/statuses",
-              "app-developers/guides/transactions/troubleshooting"
             ]
           },
           {
