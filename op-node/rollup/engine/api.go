@@ -127,13 +127,17 @@ func (e *EngineController) CommitBlock(ctx context.Context, signed *opsigner.Sig
 	}
 
 	switch status.Status {
-	case eth.ExecutionInvalid, eth.ExecutionInvalidBlockHash:
+	case eth.ExecutionValid, eth.ExecutionSyncing, eth.ExecutionAccepted:
+		// Proceed to the forkchoice update. SYNCING and ACCEPTED are tolerated here to stay
+		// consistent with insertUnsafePayload, which also continues on a non-VALID-but-not-invalid
+		// status so the engine can be driven towards the new head.
+	default:
+		// Anything else (INVALID, INVALID_BLOCK_HASH, INVALID_TERMINAL_BLOCK, or a status this
+		// version does not recognize) must not become the unsafe head.
 		return &rpc.JsonError{
 			Code:    apis.BuildErrCodeInvalidInput,
-			Message: fmt.Sprintf("execution invalid: %v", err),
+			Message: eth.NewPayloadErr(envelope.ExecutionPayload, status).Error(),
 		}
-	case eth.ExecutionValid:
-		break
 	}
 
 	e.SetUnsafeHead(ref)
