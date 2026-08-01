@@ -215,6 +215,8 @@ where
             pruner,
         );
 
+        engine_handle.sync_to(self.ctx.provider().best_block_number()?)?;
+
         while let Some(notification) = self.ctx.notifications.try_next().await? {
             self.handle_notification(notification, &engine_handle)?;
         }
