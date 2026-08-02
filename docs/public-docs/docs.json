@@ -3425,7 +3425,13 @@
         "tab": "OP Mainnet",
         "groups": [
           {
-            "group": "Network Information",
+            "group": "Get started",
+            "pages": [
+              "op-mainnet/index"
+            ]
+          },
+          {
+            "group": "Reference",
             "pages": [
               "op-mainnet/network-information/connecting-to-op",
               "op-mainnet/network-information/op-addresses",
