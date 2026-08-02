@@ -2719,17 +2719,32 @@
                   "chain-operators/tutorials/l1-contract-upgrades/upgrade-op-contracts-1-3-1-8"
                 ]
               },
-              "chain-operators/tutorials/absolute-prestate",
-              "chain-operators/tutorials/kona-custom-prestate",
-              "chain-operators/tutorials/adding-derivation-attributes",
-              "chain-operators/tutorials/adding-precompiles",
-              "chain-operators/tutorials/dispute-games",
-              "chain-operators/tutorials/integrating-da-layer",
-              "chain-operators/tutorials/merge-shared-dispute-game",
-              "chain-operators/tutorials/migrating-permissionless",
-              "chain-operators/tutorials/modifying-predeploys",
-              "chain-operators/tutorials/rewind-op-geth",
-              "chain-operators/tutorials/upgrade-chain-to-super-roots"
+              {
+                "group": "Customize your chain",
+                "pages": [
+                  "chain-operators/tutorials/adding-precompiles",
+                  "chain-operators/tutorials/modifying-predeploys",
+                  "chain-operators/tutorials/adding-derivation-attributes",
+                  "chain-operators/tutorials/integrating-da-layer"
+                ]
+              },
+              {
+                "group": "Proofs & disputes",
+                "pages": [
+                  "chain-operators/tutorials/absolute-prestate",
+                  "chain-operators/tutorials/kona-custom-prestate",
+                  "chain-operators/tutorials/dispute-games",
+                  "chain-operators/tutorials/migrating-permissionless",
+                  "chain-operators/tutorials/merge-shared-dispute-game"
+                ]
+              },
+              {
+                "group": "Operations",
+                "pages": [
+                  "chain-operators/tutorials/rewind-op-geth",
+                  "chain-operators/tutorials/upgrade-chain-to-super-roots"
+                ]
+              }
             ]
           },
           {
@@ -3281,7 +3296,7 @@
               "/op-stack/protocol/derivation-pipeline",
               "/op-stack/protocol/outages",
               {
-                "group": "Network Upgrades",
+                "group": "Network upgrade explainers",
                 "pages": [
                   "/op-stack/protocol/network-upgrades",
                   "/op-stack/protocol/hardforks/lagoon",
@@ -3297,11 +3312,16 @@
                   "/op-stack/protocol/hardforks/regolith"
                 ]
               },
-              "/op-stack/protocol/smart-contracts",
-              "/op-stack/protocol/privileged-roles",
               "/op-stack/protocol/blockspace-charter",
-              "/op-stack/protocol/superchain-registry",
-              "/op-stack/research/block-time-research"
+              "/op-stack/research/block-time-research",
+              {
+                "group": "Reference",
+                "pages": [
+                  "/op-stack/protocol/smart-contracts",
+                  "/op-stack/protocol/superchain-registry",
+                  "/op-stack/protocol/privileged-roles"
+                ]
+              }
             ]
           },
           {
