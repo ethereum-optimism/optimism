@@ -76,6 +76,15 @@ function runHelp(bin, subcommands) {
   });
 }
 
+/**
+ * Subcommand names are the only untrusted input that reaches process
+ * arguments and file paths (they come from the binary's --help output), so
+ * they are validated against the shape clap actually produces before either
+ * use. Anything else (e.g. a path-traversal-shaped token from a corrupted or
+ * malicious binary) aborts the run.
+ */
+const SUBCOMMAND_NAME = /^[a-z0-9][a-z0-9._-]*$/;
+
 /** Parse subcommand names from a help output's "Commands:" section. */
 function parseSubCommands(helpText) {
   const afterCommands = helpText.split("Commands:")[1];
@@ -84,7 +93,14 @@ function parseSubCommands(helpText) {
   for (const line of afterCommands.split("\n")) {
     if (line.startsWith("Options:") || line.startsWith("Arguments:")) break;
     const m = /^ {2}(\S+)/.exec(line);
-    if (m && m[1] !== "help") names.push(m[1]);
+    if (m && m[1] !== "help") {
+      if (!SUBCOMMAND_NAME.test(m[1])) {
+        throw new Error(
+          `refusing unexpected subcommand name in --help output: ${JSON.stringify(m[1])}`,
+        );
+      }
+      names.push(m[1]);
+    }
   }
   return names;
 }
@@ -337,15 +353,23 @@ function main() {
     return;
   }
 
-  // Write pages.
+  // Write pages. Belt-and-braces on top of SUBCOMMAND_NAME validation:
+  // every path written or deleted must resolve inside the generated tree.
+  const containedPath = (relPath) => {
+    const abs = path.resolve(CLI_DIR, relPath);
+    if (!abs.startsWith(CLI_DIR + path.sep)) {
+      throw new Error(`refusing path outside the generated tree: ${relPath}`);
+    }
+    return abs;
+  };
   for (const { relPath, content } of pages) {
-    const abs = path.join(CLI_DIR, relPath);
+    const abs = containedPath(relPath);
     fs.mkdirSync(path.dirname(abs), { recursive: true });
     fs.writeFileSync(abs, content);
   }
   // Delete stale pages and prune empty directories.
   for (const relPath of removed) {
-    fs.rmSync(path.join(CLI_DIR, relPath));
+    fs.rmSync(containedPath(relPath));
   }
   removeEmptyDirs(path.join(CLI_DIR, ROOT_NAME));
 
