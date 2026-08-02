@@ -76,6 +76,7 @@ func checkTCPPortOpen(address string) error {
 // NewRaftConsensus creates a new RaftConsensus instance.
 func NewRaftConsensus(log log.Logger, cfg *RaftConsensusConfig) (*RaftConsensus, error) {
 	rc := raft.DefaultConfig()
+	rc.Logger = newRaftLogger(log)
 	rc.SnapshotInterval = cfg.SnapshotInterval
 	rc.TrailingLogs = cfg.TrailingLogs
 	rc.SnapshotThreshold = cfg.SnapshotThreshold
@@ -109,7 +110,7 @@ func NewRaftConsensus(log log.Logger, cfg *RaftConsensusConfig) (*RaftConsensus,
 		return nil, fmt.Errorf(`boltdb.NewBoltStore(%q): %w`, stableStorePath, err)
 	}
 
-	snapshotStore, err := raft.NewFileSnapshotStoreWithLogger(baseDir, 1, rc.Logger)
+	snapshotStore, err := raft.NewFileSnapshotStoreWithLogger(baseDir, 1, rc.Logger.Named("snapshot"))
 	if err != nil {
 		return nil, fmt.Errorf(`raft.NewFileSnapshotStore(%q): %w`, baseDir, err)
 	}
@@ -134,7 +135,7 @@ func NewRaftConsensus(log log.Logger, cfg *RaftConsensusConfig) (*RaftConsensus,
 	timeout := 5 * time.Second
 
 	// When advertiseAddr == nil, the transport will use the local address that it is bound to.
-	transport, err := raft.NewTCPTransportWithLogger(bindAddr, advertiseAddr, maxConnPool, timeout, rc.Logger)
+	transport, err := raft.NewTCPTransportWithLogger(bindAddr, advertiseAddr, maxConnPool, timeout, rc.Logger.Named("network"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create raft tcp transport: %w", err)
 	}
