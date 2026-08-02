@@ -8007,7 +8007,7 @@ dependencies = [
  "opentelemetry 0.31.0",
  "p2p",
  "parking_lot",
- "rand 0.9.5",
+ "rand 0.10.2",
  "reqwest 0.12.28",
  "reth",
  "reth-basic-payload-builder",

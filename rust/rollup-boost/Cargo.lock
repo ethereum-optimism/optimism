@@ -409,7 +409,7 @@ dependencies = [
  "paste",
  "proptest",
  "proptest-derive 0.8.0",
- "rand 0.9.4",
+ "rand 0.9.5",
  "rapidhash",
  "ruint",
  "rustc-hash",
@@ -4808,7 +4808,7 @@ dependencies = [
  "jsonrpsee-types 0.25.1",
  "parking_lot",
  "pin-project",
- "rand 0.9.4",
+ "rand 0.9.5",
  "rustc-hash",
  "serde",
  "serde_json",
@@ -4834,7 +4834,7 @@ dependencies = [
  "jsonrpsee-types 0.26.0",
  "parking_lot",
  "pin-project",
- "rand 0.9.4",
+ "rand 0.9.5",
  "rustc-hash",
  "serde",
  "serde_json",
@@ -5542,7 +5542,7 @@ dependencies = [
  "ordered-float",
  "quanta",
  "radix_trie",
- "rand 0.9.4",
+ "rand 0.9.5",
  "rand_xoshiro",
  "sketches-ddsketch",
 ]
@@ -5558,7 +5558,7 @@ dependencies = [
  "hashbrown 0.16.1",
  "metrics",
  "quanta",
- "rand 0.9.4",
+ "rand 0.9.5",
  "rand_xoshiro",
  "rapidhash",
  "sketches-ddsketch",
@@ -6310,7 +6310,7 @@ dependencies = [
  "opentelemetry 0.32.0",
  "percent-encoding",
  "portable-atomic",
- "rand 0.9.4",
+ "rand 0.9.5",
  "thiserror 2.0.18",
 ]
 
@@ -6777,7 +6777,7 @@ dependencies = [
  "bit-vec",
  "bitflags 2.11.1",
  "num-traits",
- "rand 0.9.4",
+ "rand 0.9.5",
  "rand_chacha 0.9.0",
  "rand_xorshift",
  "regex-syntax",
@@ -7011,9 +7011,9 @@ dependencies = [
 
 [[package]]
 name = "rand"
-version = "0.9.4"
+version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "44c5af06bb1b7d3216d91932aed5265164bf384dc89cd6ba05cf59a35f5f76ea"
+checksum = "b9ef1d0d795eb7d84685bca4f72f3649f064e6641543d3a8c415898726a57b41"
 dependencies = [
  "rand_chacha 0.9.0",
  "rand_core 0.9.5",
@@ -7109,7 +7109,7 @@ version = "4.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b5e48930979c155e2f33aa36ab3119b5ee81332beb6482199a8ecd6029b80b59"
 dependencies = [
- "rand 0.9.4",
+ "rand 0.9.5",
  "rustversion",
 ]
 
@@ -7437,7 +7437,7 @@ dependencies = [
  "metrics",
  "parking_lot",
  "pin-project",
- "rand 0.9.4",
+ "rand 0.9.5",
  "rayon",
  "reth-chainspec",
  "reth-errors",
@@ -7838,7 +7838,7 @@ dependencies = [
  "futures",
  "itertools 0.14.0",
  "metrics",
- "rand 0.9.4",
+ "rand 0.9.5",
  "reth-chainspec",
  "reth-ethereum-forks",
  "reth-metrics",
@@ -8629,7 +8629,7 @@ dependencies = [
  "parking_lot",
  "pin-project",
  "rand 0.8.6",
- "rand 0.9.4",
+ "rand 0.9.5",
  "rayon",
  "reth-chainspec",
  "reth-consensus",
@@ -8870,7 +8870,7 @@ dependencies = [
  "futures",
  "humantime",
  "ipnet",
- "rand 0.9.4",
+ "rand 0.9.5",
  "reth-chainspec",
  "reth-cli-util",
  "reth-config",
@@ -10009,7 +10009,7 @@ dependencies = [
  "jsonrpsee-core 0.26.0",
  "jsonrpsee-types 0.26.0",
  "metrics",
- "rand 0.9.4",
+ "rand 0.9.5",
  "reqwest 0.13.3",
  "reth-chain-state",
  "reth-chainspec",
@@ -10284,7 +10284,7 @@ dependencies = [
  "alloy-genesis",
  "alloy-primitives",
  "rand 0.8.6",
- "rand 0.9.4",
+ "rand 0.9.5",
  "reth-ethereum-primitives",
  "reth-primitives-traits",
  "secp256k1 0.30.0",
@@ -10354,7 +10354,7 @@ dependencies = [
  "parking_lot",
  "paste",
  "pin-project",
- "rand 0.9.4",
+ "rand 0.9.5",
  "reth-chain-state",
  "reth-chainspec",
  "reth-eth-wire-types",
@@ -10864,7 +10864,7 @@ dependencies = [
  "parking_lot",
  "paste",
  "predicates",
- "rand 0.9.4",
+ "rand 0.9.5",
  "reqwest 0.12.28",
  "reth-optimism-payload-builder",
  "reth-rpc-layer",
@@ -10917,7 +10917,7 @@ dependencies = [
  "primitive-types",
  "proptest",
  "rand 0.8.6",
- "rand 0.9.4",
+ "rand 0.9.5",
  "rlp",
  "ruint-macro",
  "serde_core",
@@ -11231,7 +11231,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2c3c81b43dc2d8877c216a3fccf76677ee1ebccd429566d3e67447290d0c42b2"
 dependencies = [
  "bitcoin_hashes",
- "rand 0.9.4",
+ "rand 0.9.5",
  "secp256k1-sys 0.11.0",
 ]
 
@@ -12689,7 +12689,7 @@ dependencies = [
  "httparse",
  "log",
  "native-tls",
- "rand 0.9.4",
+ "rand 0.9.5",
  "sha1",
  "thiserror 2.0.18",
  "utf-8",
@@ -12706,7 +12706,7 @@ dependencies = [
  "http",
  "httparse",
  "log",
- "rand 0.9.4",
+ "rand 0.9.5",
  "rustls",
  "rustls-pki-types",
  "sha1",
@@ -12725,7 +12725,7 @@ dependencies = [
  "http",
  "httparse",
  "log",
- "rand 0.9.4",
+ "rand 0.9.5",
  "sha1",
  "thiserror 2.0.18",
 ]
