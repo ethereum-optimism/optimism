@@ -2606,7 +2606,7 @@
               "index",
               "ai-docs",
               "chain-operators/quickstart",
-              "/op-stack/reference/glossary"
+              "op-stack/reference/glossary"
             ]
           },
           {
@@ -2623,24 +2623,24 @@
           {
             "group": "Contribute",
             "pages": [
-              "/op-stack/contribute/index",
-              "/op-stack/contribute/content-guide",
-              "/op-stack/contribute/link-policy",
-              "/op-stack/contribute/curation-policy",
-              "/op-stack/contribute/learn-track-syllabus",
-              "/op-stack/contribute/style-guide",
+              "op-stack/contribute/index",
+              "op-stack/contribute/content-guide",
+              "op-stack/contribute/link-policy",
+              "op-stack/contribute/curation-policy",
+              "op-stack/contribute/learn-track-syllabus",
+              "op-stack/contribute/style-guide",
               {
                 "group": "Choose a content type",
                 "pages": [
-                  "/op-stack/contribute/choose-a-content-type",
-                  "/op-stack/contribute/solution-guide",
-                  "/op-stack/contribute/learning-unit",
-                  "/op-stack/contribute/curriculum-hub",
-                  "/op-stack/contribute/router-landing",
-                  "/op-stack/contribute/notice"
+                  "op-stack/contribute/choose-a-content-type",
+                  "op-stack/contribute/solution-guide",
+                  "op-stack/contribute/learning-unit",
+                  "op-stack/contribute/curriculum-hub",
+                  "op-stack/contribute/router-landing",
+                  "op-stack/contribute/notice"
                 ]
               },
-              "/op-stack/contribute/component-hub-template"
+              "op-stack/contribute/component-hub-template"
             ]
           }
         ]
@@ -3266,60 +3266,60 @@
           {
             "group": "Introduction",
             "pages": [
-              "/op-stack/introduction/op-stack",
-              "/op-stack/introduction/fact-sheet",
-              "/op-stack/learn/index"
+              "op-stack/introduction/op-stack",
+              "op-stack/introduction/fact-sheet",
+              "op-stack/learn/index"
             ]
           },
           {
             "group": "Features",
             "pages": [
-              "/op-stack/features/flashblocks",
-              "/op-stack/features/custom-gas-token",
-              "/op-stack/features/bridged-usdc-standard",
-              "/op-stack/features/span-batches",
-              "/op-stack/features/send-raw-transaction-conditional",
-              "/op-stack/features/l2-contract-manager",
-              "/op-stack/features/osaka-on-l2",
-              "/op-stack/features/preinstalls",
-              "/op-stack/features/experimental/alt-da-mode"
+              "op-stack/features/flashblocks",
+              "op-stack/features/custom-gas-token",
+              "op-stack/features/bridged-usdc-standard",
+              "op-stack/features/span-batches",
+              "op-stack/features/send-raw-transaction-conditional",
+              "op-stack/features/l2-contract-manager",
+              "op-stack/features/osaka-on-l2",
+              "op-stack/features/preinstalls",
+              "op-stack/features/experimental/alt-da-mode"
             ]
           },
           {
             "group": "Protocol Information",
             "pages": [
-              "/op-stack/protocol/index",
-              "/op-stack/protocol/overview",
-              "/op-stack/protocol/design-principles",
-              "/op-stack/protocol/differences",
-              "/op-stack/protocol/components",
-              "/op-stack/protocol/derivation-pipeline",
-              "/op-stack/protocol/outages",
+              "op-stack/protocol/index",
+              "op-stack/protocol/overview",
+              "op-stack/protocol/design-principles",
+              "op-stack/protocol/differences",
+              "op-stack/protocol/components",
+              "op-stack/protocol/derivation-pipeline",
+              "op-stack/protocol/outages",
               {
                 "group": "Network upgrade explainers",
                 "pages": [
-                  "/op-stack/protocol/network-upgrades",
-                  "/op-stack/protocol/hardforks/lagoon",
-                  "/op-stack/protocol/hardforks/karst",
-                  "/op-stack/protocol/hardforks/jovian",
-                  "/op-stack/protocol/hardforks/isthmus",
-                  "/op-stack/protocol/hardforks/holocene",
-                  "/op-stack/protocol/hardforks/granite",
-                  "/op-stack/protocol/hardforks/fjord",
-                  "/op-stack/protocol/hardforks/ecotone",
-                  "/op-stack/protocol/hardforks/delta",
-                  "/op-stack/protocol/hardforks/canyon",
-                  "/op-stack/protocol/hardforks/regolith"
+                  "op-stack/protocol/network-upgrades",
+                  "op-stack/protocol/hardforks/lagoon",
+                  "op-stack/protocol/hardforks/karst",
+                  "op-stack/protocol/hardforks/jovian",
+                  "op-stack/protocol/hardforks/isthmus",
+                  "op-stack/protocol/hardforks/holocene",
+                  "op-stack/protocol/hardforks/granite",
+                  "op-stack/protocol/hardforks/fjord",
+                  "op-stack/protocol/hardforks/ecotone",
+                  "op-stack/protocol/hardforks/delta",
+                  "op-stack/protocol/hardforks/canyon",
+                  "op-stack/protocol/hardforks/regolith"
                 ]
               },
-              "/op-stack/protocol/blockspace-charter",
-              "/op-stack/research/block-time-research",
+              "op-stack/protocol/blockspace-charter",
+              "op-stack/research/block-time-research",
               {
                 "group": "Reference",
                 "pages": [
-                  "/op-stack/protocol/smart-contracts",
-                  "/op-stack/protocol/superchain-registry",
-                  "/op-stack/protocol/privileged-roles"
+                  "op-stack/protocol/smart-contracts",
+                  "op-stack/protocol/superchain-registry",
+                  "op-stack/protocol/privileged-roles"
                 ]
               }
             ]
@@ -3327,38 +3327,38 @@
           {
             "group": "Stack Components",
             "pages": [
-              "/op-stack/components/index",
+              "op-stack/components/index",
               {
                 "group": "Sequencing",
                 "pages": [
-                  "/op-stack/components/op-batcher",
-                  "/op-stack/components/op-conductor"
+                  "op-stack/components/op-batcher",
+                  "op-stack/components/op-conductor"
                 ]
               },
               {
                 "group": "Derivation & Execution",
                 "pages": [
-                  "/op-stack/components/op-node",
-                  "/op-stack/components/kona-node",
-                  "/op-stack/components/op-reth"
+                  "op-stack/components/op-node",
+                  "op-stack/components/kona-node",
+                  "op-stack/components/op-reth"
                 ]
               },
               {
                 "group": "Settlement & Proofs",
                 "pages": [
-                  "/op-stack/components/op-proposer",
-                  "/op-stack/components/op-challenger",
-                  "/op-stack/components/cannon",
-                  "/op-stack/components/kona-client",
-                  "/op-stack/components/kona-host",
-                  "/op-stack/components/op-contracts"
+                  "op-stack/components/op-proposer",
+                  "op-stack/components/op-challenger",
+                  "op-stack/components/cannon",
+                  "op-stack/components/kona-client",
+                  "op-stack/components/kona-host",
+                  "op-stack/components/op-contracts"
                 ]
               },
               {
                 "group": "Deployment & Infrastructure",
                 "pages": [
-                  "/op-stack/components/op-deployer",
-                  "/op-stack/components/proxyd"
+                  "op-stack/components/op-deployer",
+                  "op-stack/components/proxyd"
                 ]
               }
             ]
@@ -3366,19 +3366,19 @@
           {
             "group": "Bridging",
             "pages": [
-              "/op-stack/bridging/cross-domain",
-              "/op-stack/bridging/deposit-flow",
-              "/op-stack/bridging/withdrawal-flow"
+              "op-stack/bridging/cross-domain",
+              "op-stack/bridging/deposit-flow",
+              "op-stack/bridging/withdrawal-flow"
             ]
           },
           {
             "group": "Transactions",
             "pages": [
-              "/op-stack/transactions/fees",
-              "/op-stack/transactions/fee-vaults",
-              "/op-stack/transactions/forced-transaction",
-              "/op-stack/transactions/transaction-finality",
-              "/op-stack/transactions/transaction-flow"
+              "op-stack/transactions/fees",
+              "op-stack/transactions/fee-vaults",
+              "op-stack/transactions/forced-transaction",
+              "op-stack/transactions/transaction-finality",
+              "op-stack/transactions/transaction-flow"
             ]
           },
           {
@@ -3386,7 +3386,7 @@
             "pages": [
               "op-stack/fault-proofs/index",
               "op-stack/fault-proofs/explainer",
-              "/op-stack/fault-proofs/fp-security",
+              "op-stack/fault-proofs/fp-security",
               "op-stack/fault-proofs/fp-components",
               "op-stack/fault-proofs/cannon",
               "op-stack/fault-proofs/mips",
@@ -3422,21 +3422,21 @@
           {
             "group": "Security",
             "pages": [
-              "/op-stack/security/security-policy",
-              "/op-stack/security/audit-reports",
-              "/op-stack/security/faq-sec-model",
-              "/op-stack/security/pause",
-              "/op-stack/security/interop-security"
+              "op-stack/security/security-policy",
+              "op-stack/security/audit-reports",
+              "op-stack/security/faq-sec-model",
+              "op-stack/security/pause",
+              "op-stack/security/interop-security"
             ]
           },
           {
             "group": "Interoperability",
             "pages": [
-              "/op-stack/interop/index",
-              "/op-stack/interop/explainer",
-              "/op-stack/interop/supernode",
-              "/op-stack/interop/reorg",
-              "/op-stack/interop/superchain-eth-bridge"
+              "op-stack/interop/index",
+              "op-stack/interop/explainer",
+              "op-stack/interop/supernode",
+              "op-stack/interop/reorg",
+              "op-stack/interop/superchain-eth-bridge"
             ]
           }
         ]
