@@ -13593,7 +13593,6 @@ dependencies = [
  "op-alloy-consensus",
  "proptest",
  "proptest-arbitrary-interop",
- "rand 0.8.6",
  "rand 0.9.4",
  "reth-codecs",
  "reth-primitives-traits",
