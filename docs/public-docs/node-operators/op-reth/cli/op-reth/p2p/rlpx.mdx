@@ -33,7 +33,7 @@ Logging:
       --log.stdout.filter <FILTER>
           The filter to use for logs written to stdout
 
-          [default: ]
+          [default: ""]
 
       --log.file.format <FORMAT>
           The format to use for logs written to the log file
@@ -66,9 +66,9 @@ Logging:
           [default: 200]
 
       --log.file.max-files <COUNT>
-          The maximum amount of log files that will be stored. If set to 0, background file logging is disabled
+          The maximum amount of log files that will be stored. If set to 0, background file logging is disabled.
 
-          [default: 5]
+          Default: 5 for `node` command, 0 for non-node utility subcommands.
 
       --log.journald
           Write logs to journald

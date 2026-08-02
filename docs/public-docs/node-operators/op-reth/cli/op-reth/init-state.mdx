@@ -44,7 +44,7 @@ Datadir:
           Possible values are either a built-in chain or the path to a chain specification file.
 
           Built-in chains:
-              optimism, optimism_sepolia, optimism-sepolia, base, base_sepolia, base-sepolia, arena-z, arena-z-sepolia, automata, base-devnet-0-sepolia-dev-0, bob, boba-sepolia, boba, camp-sepolia, celo, creator-chain-testnet-sepolia, cyber, cyber-sepolia, ethernity, ethernity-sepolia, fraxtal, funki, funki-sepolia, hashkeychain, ink, ink-sepolia, lisk, lisk-sepolia, lyra, metal, metal-sepolia, mint, mode, mode-sepolia, oplabs-devnet-0-sepolia-dev-0, orderly, ozean-sepolia, pivotal-sepolia, polynomial, race, race-sepolia, radius_testnet-sepolia, redstone, rehearsal-0-bn-0-rehearsal-0-bn, rehearsal-0-bn-1-rehearsal-0-bn, settlus-mainnet, settlus-sepolia-sepolia, shape, shape-sepolia, silent-data-mainnet, snax, soneium, soneium-minato-sepolia, sseed, swan, swell, tbn, tbn-sepolia, unichain, unichain-sepolia, worldchain, worldchain-sepolia, xterio-eth, zora, zora-sepolia, dev
+              optimism, op-mainnet, optimism_sepolia, optimism-sepolia, automata, bob, boba, celo, cyber, ethernity, fraxtal, funki, hashkeychain, ink, lisk, lyra, metal, mint, mode, op, orderly, polynomial, race, redstone, settlus-mainnet, shape, silent-data-mainnet, soneium, sseed, swan, tbn, unichain, worldchain, xterio-eth, zora, boba-sepolia, camp-sepolia, celo-sep-sepolia, cyber-sepolia, funki-sepolia, ink-sepolia, lisk-sepolia, metal-sepolia, mode-sepolia, op-sepolia, ozean-sepolia, pivotal-sepolia, race-sepolia, radius_testnet-sepolia, settlus-sepolia-sepolia, shape-sepolia, soneium-minato-sepolia, tbn-sepolia, unichain-sepolia, worldchain-sepolia, zora-sepolia, oplabs-devnet-0-sepolia-dev-0, sepolia-devnet-2-sepolia-devnet-2, dev
 
           [default: optimism]
 
@@ -95,6 +95,17 @@ Database:
       --db.sync-mode <SYNC_MODE>
           Controls how aggressively the database synchronizes data to disk
 
+      --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE>
+          `RocksDB` block cache size (e.g., 512MB, 4GB).
+
+          Controls the size of the in-memory LRU cache for decompressed `RocksDB` blocks. A larger cache reduces repeated decompression of hot blocks, improving read performance for history lookups.
+
+      --db.balstore-cache-size <BALSTORE_CACHE_SIZE>
+          Number of recent blocks to keep in the in-memory BAL store cache
+
+      --db.disable-metrics
+          Disable built-in database metrics
+
 Static Files:
       --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS>
           Number of blocks per file for the headers segment
@@ -114,80 +125,19 @@ Static Files:
       --static-files.blocks-per-file.storage-change-sets <BLOCKS_PER_FILE_STORAGE_CHANGE_SETS>
           Number of blocks per file for the storage changesets segment
 
-      --static-files.receipts <RECEIPTS>
-          Store receipts in static files instead of the database.
+Storage:
+      --storage.v2 [<V2>]
+          Enable V2 (hot/cold) storage layout for new databases.
 
-          When enabled, receipts will be written to static files on disk instead of the database.
+          When set, new databases will be initialized with the V2 storage layout that separates hot and cold data. Existing databases always use the settings persisted in their metadata regardless of this flag.
 
-          Note: This setting can only be configured at genesis initialization. Once the node has been initialized, changing this flag requires re-syncing from scratch.
-
-          [default: false]
-          [possible values: true, false]
-
-      --static-files.transaction-senders <TRANSACTION_SENDERS>
-          Store transaction senders in static files instead of the database.
-
-          When enabled, transaction senders will be written to static files on disk instead of the database.
-
-          Note: This setting can only be configured at genesis initialization. Once the node has been initialized, changing this flag requires re-syncing from scratch.
-
-          [default: false]
-          [possible values: true, false]
-
-      --static-files.account-change-sets <ACCOUNT_CHANGESETS>
-          Store account changesets in static files.
-
-          When enabled, account changesets will be written to static files on disk instead of the database.
-
-          Note: This setting can only be configured at genesis initialization. Once the node has been initialized, changing this flag requires re-syncing from scratch.
-
-          [default: false]
-          [possible values: true, false]
-
-      --static-files.storage-change-sets <STORAGE_CHANGESETS>
-          Store storage changesets in static files.
-
-          When enabled, storage changesets will be written to static files on disk instead of the database.
-
-          Note: This setting can only be configured at genesis initialization. Once the node has been initialized, changing this flag requires re-syncing from scratch.
-
-          [default: false]
-          [possible values: true, false]
-
-RocksDB:
-      --rocksdb.all
-          Route all supported tables to `RocksDB` instead of MDBX.
-
-          This enables `RocksDB` for `tx-hash`, `storages-history`, and `account-history` tables. Cannot be combined with individual flags set to false.
-
-      --rocksdb.tx-hash <TX_HASH>
-          Route tx hash -> number table to `RocksDB` instead of MDBX.
-
-          This is a genesis-initialization-only flag: changing it after genesis requires a re-sync. Defaults to `true` when the `edge` feature is enabled, `false` otherwise.
-
-          [default: false]
-          [possible values: true, false]
-
-      --rocksdb.storages-history <STORAGES_HISTORY>
-          Route storages history tables to `RocksDB` instead of MDBX.
-
-          This is a genesis-initialization-only flag: changing it after genesis requires a re-sync. Defaults to `true` when the `edge` feature is enabled, `false` otherwise.
-
-          [default: false]
-          [possible values: true, false]
-
-      --rocksdb.account-history <ACCOUNT_HISTORY>
-          Route account history tables to `RocksDB` instead of MDBX.
-
-          This is a genesis-initialization-only flag: changing it after genesis requires a re-sync. Defaults to `true` when the `edge` feature is enabled, `false` otherwise.
-
-          [default: false]
+          [default: true]
           [possible values: true, false]
 
       --without-evm
           Specifies whether to initialize the state without relying on EVM historical data.
 
-          When enabled, and before inserting the state, it creates a dummy chain up to the last EVM block specified. It then, appends the first block provided block.
+          When enabled, and before inserting the state, it creates a dummy chain up to the last EVM block specified. It then appends the first provided block.
 
           - **Note**: **Do not** import receipts and blocks beforehand, or this will fail or be ignored.
 
@@ -237,7 +187,7 @@ Logging:
       --log.stdout.filter <FILTER>
           The filter to use for logs written to stdout
 
-          [default: ]
+          [default: ""]
 
       --log.file.format <FORMAT>
           The format to use for logs written to the log file
@@ -270,9 +220,9 @@ Logging:
           [default: 200]
 
       --log.file.max-files <COUNT>
-          The maximum amount of log files that will be stored. If set to 0, background file logging is disabled
+          The maximum amount of log files that will be stored. If set to 0, background file logging is disabled.
 
-          [default: 5]
+          Default: 5 for `node` command, 0 for non-node utility subcommands.
 
       --log.journald
           Write logs to journald
