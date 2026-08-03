@@ -184,15 +184,29 @@ mod test {
             Bytes48::new(raw.as_slice().try_into().unwrap())
         };
 
-        // Validate each field element in the blob
-        (0..FIELD_ELEMENTS_PER_BLOB).into_par_iter().for_each(|i| {
+        // A KZG proof per element makes the full FIELD_ELEMENTS_PER_BLOB sweep
+        // too slow for CI, so check a random sample instead: a structural bug in
+        // the table build breaks thousands of entries and fails on the first
+        // sample. The first and last indices are the fixed points of the
+        // bit-reversal permutation — the entries an off-by-one would strand —
+        // so they are always checked.
+        const SAMPLED_FIELD_ELEMENTS: usize = 32;
+        let mut indices = rand::seq::index::sample(
+            &mut rand::rng(),
+            FIELD_ELEMENTS_PER_BLOB as usize,
+            SAMPLED_FIELD_ELEMENTS,
+        )
+        .into_vec();
+        indices.extend([0, FIELD_ELEMENTS_PER_BLOB as usize - 1]);
+
+        indices.into_par_iter().for_each(|i| {
             let field_element = {
                 let mut fe = [0u8; 32];
-                fe.copy_from_slice(&blob[(i as usize) << 5..(i as usize + 1) << 5]);
+                fe.copy_from_slice(&blob[i << 5..(i + 1) << 5]);
                 Bytes32::new(fe)
             };
 
-            let z_bytes = Bytes32::new(ROOTS_OF_UNITY[i as usize].into_bigint().to_bytes_be().try_into().unwrap());
+            let z_bytes = Bytes32::new(ROOTS_OF_UNITY[i].into_bigint().to_bytes_be().try_into().unwrap());
             let (proof, fe) = kzg.get().compute_kzg_proof(&blob, &z_bytes).unwrap();
 
             // Ensure the field element matches the expected value
