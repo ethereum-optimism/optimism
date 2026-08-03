@@ -118,7 +118,8 @@ func TestMakePredictionInput(t *testing.T) {
 	require.Equal(t, standard.DisputeGameType, dci.DisputeGameType)
 	require.Equal(t, opcm.DefaultStartingAnchorRoot.Root, dci.StartingAnchorRoot.Root)
 	require.Equal(t, common.Big0, dci.StartingAnchorRoot.L2SequenceNumber)
-	require.Equal(t, dci.DisputeAbsolutePrestate, dci.CannonAbsolutePrestate)
+	// The standard deploy selects SUPER_PERMISSIONED, which installs no CANNON_KONA fallback.
+	require.Equal(t, common.Hash{}, dci.CannonAbsolutePrestate)
 }
 
 func TestMakePredictionInput_OwnsStartingAnchorSequenceNumber(t *testing.T) {
@@ -223,11 +224,6 @@ func TestMakePredictionInput_RejectsInvalidInitialGameType(t *testing.T) {
 			name:     "CANNON",
 			gameType: uint32(embedded.GameTypeCannon),
 			wantErr:  "unsupported initial dispute game type 0",
-		},
-		{
-			name:     "SUPER_PERMISSIONED",
-			gameType: uint32(embedded.GameTypeSuperPermissioned),
-			wantErr:  "derived fallback and is not an initial-deploy selector",
 		},
 		{
 			name:     "ZK_DISPUTE_GAME",
@@ -828,7 +824,7 @@ func TestPrepareChainsPredictionFailureOnlyClearsSuccessfullyPredictedPrestatesI
 	require.EqualValues(t, uint64(anchor.Time)+genesisTimeOffset, *first.GenesisTime)
 	require.Equal(t, common.HexToAddress("0x3333"), first.SystemConfigProxy)
 	require.Zero(t, first.Prestate)
-	require.Equal(t, uint32(embedded.GameTypePermissionedCannon), *first.InitialGameType)
+	require.Equal(t, standard.DisputeGameType, *first.InitialGameType)
 	second, err := st.Chain(secondID)
 	require.NoError(t, err)
 	require.Equal(t, anchor, second.StartBlock)
@@ -925,11 +921,6 @@ func TestPredictChainsRejectsInvalidInitialGameTypeBeforePrediction(t *testing.T
 			name:     "CANNON",
 			gameType: uint32(embedded.GameTypeCannon),
 			wantErr:  "unsupported initial dispute game type 0",
-		},
-		{
-			name:     "SUPER_PERMISSIONED",
-			gameType: uint32(embedded.GameTypeSuperPermissioned),
-			wantErr:  "derived fallback and is not an initial-deploy selector",
 		},
 		{
 			name:     "ZK_DISPUTE_GAME",

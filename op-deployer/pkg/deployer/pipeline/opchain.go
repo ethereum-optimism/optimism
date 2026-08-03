@@ -287,18 +287,13 @@ func ValidateInitialGameTypeSet(gameTypes []uint32) error {
 // ResolveInitialDeployRequirements returns requirements for a supported initial game type.
 func ResolveInitialDeployRequirements(gameType uint32) (InitialDeployRequirements, error) {
 	switch embedded.GameType(gameType) {
-	case embedded.GameTypePermissionedCannon:
+	case embedded.GameTypePermissionedCannon, embedded.GameTypeSuperPermissioned:
 		return InitialDeployRequirements{}, nil
 	case embedded.GameTypeCannonKona, embedded.GameTypeSuperCannonKona:
 		return InitialDeployRequirements{
 			Permissionless:   true,
 			RequiresPrestate: true,
 		}, nil
-	case embedded.GameTypeSuperPermissioned:
-		return InitialDeployRequirements{}, fmt.Errorf(
-			"initial dispute game type SUPER_PERMISSIONED (%d) is a derived fallback and is not an initial-deploy selector",
-			gameType,
-		)
 	default:
 		return InitialDeployRequirements{}, fmt.Errorf("unsupported initial dispute game type %d", gameType)
 	}
@@ -471,7 +466,7 @@ func BuildDeployOPChainInput(
 	switch embedded.GameType(proofParams.DisputeGameType) {
 	case embedded.GameTypeCannonKona:
 		cannonAbsolutePrestate = opcm.PermissionedCannonFallbackPrestatePlaceholder
-	case embedded.GameTypeSuperCannonKona:
+	case embedded.GameTypeSuperCannonKona, embedded.GameTypeSuperPermissioned:
 		cannonAbsolutePrestate = common.Hash{}
 	case embedded.GameTypePermissionedCannon:
 		cannonAbsolutePrestate = proofParams.DisputeAbsolutePrestate

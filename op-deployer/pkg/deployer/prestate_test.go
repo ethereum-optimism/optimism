@@ -732,7 +732,7 @@ func TestPrestateRejectsIntentChainChangesAfterPrepare(t *testing.T) {
 			},
 			wantErrs: []string{
 				chainA.Hex(),
-				"prepared PERMISSIONED_CANNON (1)",
+				"prepared SUPER_PERMISSIONED (5)",
 				"intent CANNON_KONA (8)",
 				"rerun op-deployer prepare",
 			},
