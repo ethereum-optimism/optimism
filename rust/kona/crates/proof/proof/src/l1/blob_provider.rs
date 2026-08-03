@@ -161,12 +161,14 @@ mod test {
     use alloc::vec::Vec;
     use alloy_eips::eip4844::{FIELD_ELEMENTS_PER_BLOB, env_settings::EnvKzgSettings};
     use ark_ff::{BigInteger, PrimeField};
-    use c_kzg::{BYTES_PER_BLOB, Blob, Bytes32, Bytes48};
+    use c_kzg::{BYTES_PER_BLOB, BYTES_PER_FIELD_ELEMENT, Blob, Bytes32, Bytes48};
     use rand::Rng;
     use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
     #[test]
     fn test_roots_of_unity() {
+        const FIELD_ELEMENTS: usize = FIELD_ELEMENTS_PER_BLOB as usize;
+
         // Initiate the default Ethereum KZG settings.
         let kzg = EnvKzgSettings::default();
 
@@ -174,10 +176,10 @@ mod test {
         let mut bytes = [0u8; BYTES_PER_BLOB];
         rand::rng().fill(bytes.as_mut_slice());
 
-        // Ensure the blob is valid by keeping each field element within range.
-        (0..FIELD_ELEMENTS_PER_BLOB).for_each(|i| {
-            bytes[(i as usize) << 5] = 0;
-        });
+        // Zero each field element's most significant byte to keep it below the BLS modulus.
+        bytes
+            .chunks_exact_mut(BYTES_PER_FIELD_ELEMENT)
+            .for_each(|field_element| field_element[0] = 0);
 
         let blob = Blob::new(bytes);
         let blob_commitment = {
@@ -193,15 +195,12 @@ mod test {
         // under the bit-reversal permutation — are always checked; the random
         // sample is drawn from the interior so all checked indices are distinct.
         const SAMPLED_FIELD_ELEMENTS: usize = 32;
-        let mut indices: Vec<usize> = rand::seq::index::sample(
-            &mut rand::rng(),
-            FIELD_ELEMENTS_PER_BLOB as usize - 2,
-            SAMPLED_FIELD_ELEMENTS,
-        )
-        .into_iter()
-        .map(|interior_index| interior_index + 1)
-        .collect();
-        indices.extend([0, FIELD_ELEMENTS_PER_BLOB as usize - 1]);
+        let mut indices: Vec<usize> =
+            rand::seq::index::sample(&mut rand::rng(), FIELD_ELEMENTS - 2, SAMPLED_FIELD_ELEMENTS)
+                .into_iter()
+                .map(|interior_index| interior_index + 1)
+                .collect();
+        indices.extend([0, FIELD_ELEMENTS - 1]);
 
         indices.into_par_iter().for_each(|i| {
             let field_element = {
