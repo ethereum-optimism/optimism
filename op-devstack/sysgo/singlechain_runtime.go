@@ -120,6 +120,39 @@ func startDefaultSingleChainPrimary(
 	}
 }
 
+// startStoppedSingleChainPrimary builds an op-node sequencer that is inactive
+// from its first start. Conductor presets use this to ensure no node can create
+// an independent unsafe fork before the Raft cluster and p2p mesh are ready.
+func startStoppedSingleChainPrimary(
+	t devtest.T,
+	keys devkeys.Keys,
+	world singleChainRuntimeWorld,
+	l1EL *L1Geth,
+	l1CL *L1CLNode,
+	jwtPath string,
+	jwtSecret [32]byte,
+	cfg PresetConfig,
+) singleChainPrimaryRuntime {
+	t.Require().Nil(world.Interop, "conductor primary does not support interop")
+	safeDBPath := filepath.Join(t.TempDirWithPrefix("l2-safe-db-"+world.L2Network.ChainID().String()), "safe-head.db")
+	l2CLOptions := []L2CLOption{L2CLOptionFn(func(_ devtest.T, _ ComponentTarget, cfg *L2CLConfig) {
+		cfg.SafeDBPath = safeDBPath
+	})}
+	l2CLOptions = append(l2CLOptions, cfg.GlobalL2CLOptions...)
+	// Env-resolved options come first so an explicit binary from the test overrides the env one.
+	sequencerELOpts := append(append([]OpRethOption{}, ResolveMixedL2ELOpts(t)...), cfg.OpRethOptions...)
+	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, NewELNodeIdentity(0), sequencerELOpts...)
+	l2CL := startL2CLNode(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
+		Key:              "sequencer",
+		IsSequencer:      true,
+		NoDiscovery:      true,
+		EnableReqResp:    true,
+		L2CLOptions:      l2CLOptions,
+		SequencerStopped: true,
+	})
+	return singleChainPrimaryRuntime{EL: l2EL, CL: l2CL}
+}
+
 func newSingleChainRuntimeWithConfig(t devtest.T, cfg PresetConfig, spec singleChainRuntimeSpec) *SingleChainRuntime {
 	require := t.Require()
 
