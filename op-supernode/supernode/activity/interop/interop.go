@@ -448,11 +448,18 @@ func (i *Interop) progress() (time.Duration, error) {
 				fmt.Sprintf("chain_%s", chain.ID()),
 				fmt.Sprintf("safe=%d pending_safe=%d unsafe=%d",
 					status.SafeL2.Number, status.PendingSafeL2.Number, status.UnsafeL2.Number))
+			// A flat safe head with an advancing unsafe head is the derivation
+			// wedge signature; export it so it is visible without log scraping.
+			cid := chain.ID().String()
+			i.metrics.ChainSyncHeadBlock.WithLabelValues(cid, "safe").Set(float64(status.SafeL2.Number))
+			i.metrics.ChainSyncHeadBlock.WithLabelValues(cid, "pending_safe").Set(float64(status.PendingSafeL2.Number))
+			i.metrics.ChainSyncHeadBlock.WithLabelValues(cid, "unsafe").Set(float64(status.UnsafeL2.Number))
 		}
 		var behind uint64
 		if tipTS > lastTS {
 			behind = tipTS - lastTS
 		}
+		i.metrics.InteropBehindSeconds.Set(float64(behind))
 		fields = append(fields,
 			"lastVerifiedTimestamp", lastTS, "tipTimestamp", tipTS, "behindSeconds", behind)
 		i.log.Info("interop verification progress", fields...)

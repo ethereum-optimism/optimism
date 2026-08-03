@@ -193,6 +193,10 @@ type simpleChainContainer struct {
 	rollupClient       *sources.RollupClient // In-proc rollup RPC client bound to rpcHandler
 	metrics            *resources.SupernodeMetrics
 
+	// lastFloorDecision holds the last logged floorDecision, so the replacement
+	// floor logs transitions instead of every verifier head poll.
+	lastFloorDecision atomic.Value
+
 	// verifierMu guards writes and reads of the verifier.
 	verifierMu sync.RWMutex
 	verifier   activity.VerificationActivity
@@ -367,6 +371,9 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 	if c.rpcRouter != nil {
 		c.rpcRouter.SetReadinessCheck(c.chainID.String(), c.IsRPCReady)
 	}
+	// Counts consecutive paused iterations, so a long pause logs once per 30s
+	// instead of once per second per chain.
+	pausedIters := 0
 	for {
 		// Refresh per-start derived fields
 		c.vncfg.SafeDBPath = c.subPath("safe_db")
@@ -409,10 +416,14 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 				c.log.Info("chain container stop requested while paused, stopping restart loop")
 				break
 			}
-			c.log.Info("chain container paused")
+			if pausedIters%30 == 0 {
+				c.log.Info("chain container paused", "paused_seconds", pausedIters)
+			}
+			pausedIters++
 			time.Sleep(1 * time.Second)
 			continue
 		}
+		pausedIters = 0
 		if c.stop.Load() {
 			break
 		}

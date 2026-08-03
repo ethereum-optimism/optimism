@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	gosync "sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
@@ -116,6 +117,10 @@ type EngineController struct {
 
 	// To lock the engine RPC usage, such that components like the API, which need direct access, can protect their access.
 	mu gosync.RWMutex
+
+	// lastAnchorLogged holds the last logged resolved anchor block, so the
+	// anchor resolution logs transitions instead of every SafeL2Head poll.
+	lastAnchorLogged atomic.Value
 
 	// Block Head State
 	unsafeHead eth.L2BlockRef
@@ -285,6 +290,15 @@ func (e *EngineController) resolveAnchorAsSafe(ts uint64) eth.L2BlockRef {
 	if br.Number > e.localSafeHead.Number {
 		// Local safe hasn't reached the anchor block for the validator, so use local safe head.
 		return e.localSafeHead
+	}
+	// The anchor is the block a pipeline reset walks from, so whether it sits at
+	// or below an applied block replacement decides which batch lineage this node
+	// derives. Log transitions only: SafeL2Head is polled continuously.
+	if prev, ok := e.lastAnchorLogged.Load().(eth.BlockID); !ok || prev != br.ID() {
+		e.lastAnchorLogged.Store(br.ID())
+		e.log.Info("resolved super authority anchor as safe head",
+			"anchor_ts", ts, "anchor", br.ID(), "anchor_parent", br.ParentHash,
+			"local_safe", e.localSafeHead.ID())
 	}
 	e.crossSafeCache.Store(br)
 	return br

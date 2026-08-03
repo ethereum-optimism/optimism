@@ -44,6 +44,12 @@ func (e *EngineController) onPayloadProcess(ctx context.Context, ev PayloadProce
 					"blockNumber", payload.BlockNumber,
 					"blockHash", payload.BlockHash,
 					"derivedFrom", ev.DerivedFrom,
+					// The parent this denied block was re-proposed on: a parent one
+					// below the replacement means the walk anchored below it instead
+					// of past-skipping it, which is what flushes the channel and
+					// hands the lineage to the next channel on L1.
+					"parent", ev.Ref.ParentID(),
+					"localSafe", e.localSafeHead.ID(),
 				)
 				e.emitDepositsOnlyPayloadAttributesRequest(ctx, ev.Ref.ParentID(), ev.DerivedFrom)
 			} else {

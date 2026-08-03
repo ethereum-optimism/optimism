@@ -164,6 +164,16 @@ func (bs *BatchStage) nextSingularBatchCandidate(ctx context.Context, parent eth
 			bs.FlushChannel()
 			return nil, NotEnoughData
 		}
+		// Elements at or below the parent's timestamp are past-skipped without any
+		// content check. When the parent is a block replacement, this is what
+		// decides the lineage: the span's tail re-applies on top of the
+		// replacement instead of the denied block being re-proposed. Log it so the
+		// choice is visible at the moment it is made.
+		if skipped := len(spanBatch.Batches) - len(singularBatches); skipped > 0 {
+			spanBatch.LogContext(bs.Log()).Info("Past-skipped span batch elements overlapping the safe chain",
+				"skipped", skipped, "kept", len(singularBatches),
+				"parent_number", parent.Number, "parent_hash", parent.Hash, "parent_time", parent.Time)
+		}
 		bs.nextSpan = singularBatches
 		// span-batches are non-empty, so the below pop is safe.
 		return bs.popNextBatch(parent), nil

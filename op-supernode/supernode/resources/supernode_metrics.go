@@ -19,6 +19,11 @@ type SupernodeMetrics struct {
 	ChainRewindDuration         *prometheus.HistogramVec
 	ChainRewindFailures         *prometheus.CounterVec
 	DenyListEntries             *prometheus.CounterVec
+	DenyListHits                *prometheus.CounterVec
+	DenyListMaxHeight           *prometheus.GaugeVec
+	AnchorFloorDecisions        *prometheus.CounterVec
+	ChainSyncHeadBlock          *prometheus.GaugeVec
+	InteropBehindSeconds        prometheus.Gauge
 	LogBackfillProgress         *prometheus.GaugeVec
 	LogBackfillRetries          *prometheus.CounterVec
 	ActivityErrors              *prometheus.CounterVec
@@ -91,6 +96,31 @@ func NewSupernodeMetrics() *SupernodeMetrics {
 			Name:      "denylist_entries_total",
 			Help:      "Total number of deny list entries added per chain.",
 		}, []string{"chain_id"}),
+		DenyListHits: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "supernode",
+			Name:      "denylist_hits_total",
+			Help:      "Total number of payloads rejected by a deny list lookup, i.e. denied blocks re-proposed by derivation.",
+		}, []string{"chain_id"}),
+		DenyListMaxHeight: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: "supernode",
+			Name:      "denylist_max_height",
+			Help:      "Highest denied block height on the deny list, 0 when no replacement has been applied locally.",
+		}, []string{"chain_id"}),
+		AnchorFloorDecisions: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "supernode",
+			Name:      "derivation_anchor_floor_decisions_total",
+			Help:      "Verifier head decisions by outcome of the replacement floor: floored, at_or_above_replacement, no_denylist_entries, denylist_read_failed, pre_activation.",
+		}, []string{"chain_id", "outcome"}),
+		ChainSyncHeadBlock: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: "supernode",
+			Name:      "chain_sync_head_block",
+			Help:      "Per-chain L2 head block number by kind (safe, pending_safe, unsafe). A flat safe head with advancing unsafe is the derivation wedge signature.",
+		}, []string{"chain_id", "kind"}),
+		InteropBehindSeconds: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "supernode",
+			Name:      "interop_behind_seconds",
+			Help:      "Seconds between the latest verified timestamp and the highest unsafe tip timestamp across chains.",
+		}),
 		LogBackfillProgress: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: "supernode",
 			Name:      "log_backfill_progress",
@@ -125,6 +155,11 @@ func NewSupernodeMetrics() *SupernodeMetrics {
 		m.ChainRewindDuration,
 		m.ChainRewindFailures,
 		m.DenyListEntries,
+		m.DenyListHits,
+		m.DenyListMaxHeight,
+		m.AnchorFloorDecisions,
+		m.ChainSyncHeadBlock,
+		m.InteropBehindSeconds,
 		m.LogBackfillProgress,
 		m.LogBackfillRetries,
 		m.ActivityErrors,

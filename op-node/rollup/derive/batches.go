@@ -278,7 +278,10 @@ func checkSpanBatchPrefix(ctx context.Context, cfg *rollup.Config, log log.Logge
 		}
 	}
 	if !batch.CheckParentHash(parentBlock.Hash) {
-		log.Warn("ignoring batch with mismatching parent hash", "parent_block", parentBlock.Hash)
+		// The batch's parent_check (in the log context) against the local parent:
+		// this is where a lineage gets cut after a block replacement.
+		log.Warn("ignoring batch with mismatching parent hash", "parent_block", parentBlock.Hash,
+			"parent_number", parentBlock.Number, "parent_time", parentBlock.Time)
 		return BatchDrop, parentBlock
 	}
 
