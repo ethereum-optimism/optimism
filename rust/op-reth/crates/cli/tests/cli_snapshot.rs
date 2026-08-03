@@ -3,8 +3,8 @@
 //! Renders the full clap command tree (every subcommand, every argument, including hidden ones)
 //! into a deterministic text form and compares it against the checked-in snapshot at
 //! `tests/snapshots/cli.snap`. Any change to the CLI surface — a new upstream reth flag after a
-//! pin bump, a renamed alias, a changed default — shows up as a diff in the snapshot and has to
-//! be acknowledged by regenerating it:
+//! pin bump, a renamed alias, a changed default, or changed parsing behavior — shows up as a diff
+//! in the snapshot and has to be acknowledged by regenerating it:
 //!
 //! ```text
 //! UPDATE_SNAPSHOT=1 cargo nextest run -p reth-optimism-cli --all-features cli_surface_snapshot
@@ -123,7 +123,7 @@ fn render_command(out: &mut String, path: &str, cmd: &clap::Command) {
         if matches!(arg.get_id().as_str(), "help" | "version") {
             continue;
         }
-        writeln!(out, "{}", render_arg(arg)).unwrap();
+        writeln!(out, "{}", render_arg(cmd, arg)).unwrap();
     }
     writeln!(out).unwrap();
     for sub in cmd.get_subcommands() {
@@ -135,17 +135,15 @@ fn render_command(out: &mut String, path: &str, cmd: &clap::Command) {
 }
 
 /// Renders a single argument as one line with a fixed field order.
-fn render_arg(arg: &clap::Arg) -> String {
-    let mut s = String::from("arg: ");
+fn render_arg(cmd: &clap::Command, arg: &clap::Arg) -> String {
+    let mut s = format!("arg: {}", arg_name(arg));
+    let arg_debug = format!("{arg:?}");
 
-    let takes_value = matches!(arg.get_action(), clap::ArgAction::Set | clap::ArgAction::Append);
-
-    match (arg.get_short(), arg.get_long()) {
-        (Some(short), Some(long)) => write!(s, "-{short}/--{long}").unwrap(),
-        (None, Some(long)) => write!(s, "--{long}").unwrap(),
-        (Some(short), None) => write!(s, "-{short}").unwrap(),
-        (None, None) => write!(s, "[positional: {}]", arg.get_id()).unwrap(),
-    }
+    let configured_num_args = arg.get_num_args();
+    let takes_value = configured_num_args.map_or_else(
+        || matches!(arg.get_action(), clap::ArgAction::Set | clap::ArgAction::Append),
+        |range| range.takes_values(),
+    );
 
     if takes_value {
         let value_names = match arg.get_value_names() {
@@ -155,6 +153,19 @@ fn render_arg(arg: &clap::Arg) -> String {
             _ => arg.get_id().as_str().to_uppercase(),
         };
         write!(s, " <{value_names}>").unwrap();
+    }
+
+    write!(s, " [action: {:?}]", arg.get_action()).unwrap();
+    if let Some(range) = configured_num_args {
+        write!(s, " [num-args: {range}]").unwrap();
+    } else {
+        write!(s, " [num-args: {}]", usize::from(takes_value)).unwrap();
+    }
+    if let Some(delimiter) = arg.get_value_delimiter() {
+        write!(s, " [value-delimiter: {delimiter:?}]").unwrap();
+    }
+    if let Some(terminator) = arg.get_value_terminator() {
+        write!(s, " [value-terminator: {}]", escape(terminator.as_str())).unwrap();
     }
 
     if let Some(aliases) = arg.get_all_aliases() &&
@@ -180,6 +191,13 @@ fn render_arg(arg: &clap::Arg) -> String {
     if !defaults.is_empty() {
         write!(s, " [default: {}]", defaults.join(", ")).unwrap();
     }
+    render_arg_debug_field(
+        &mut s,
+        &arg_debug,
+        "default_missing_vals",
+        "ext",
+        "default-missing-values",
+    );
 
     if takes_value {
         let possible: Vec<String> =
@@ -188,6 +206,20 @@ fn render_arg(arg: &clap::Arg) -> String {
             write!(s, " [possible: {}]", possible.join(", ")).unwrap();
         }
     }
+
+    let mut conflicts: Vec<String> =
+        cmd.get_arg_conflicts_with(arg).into_iter().map(arg_name).collect();
+    conflicts.sort_unstable();
+    conflicts.dedup();
+    if !conflicts.is_empty() {
+        write!(s, " [conflicts: {}]", conflicts.join(", ")).unwrap();
+    }
+    // clap does not expose reflection getters for requirement predicates or default-missing
+    // values. Its Debug implementation does expose their value-only representations; the focused
+    // test below ensures a clap update cannot silently remove or rename these fields.
+    render_arg_debug_field(&mut s, &arg_debug, "requires", "r_ifs", "requires");
+    render_arg_debug_field(&mut s, &arg_debug, "r_ifs", "r_unless", "requires-if");
+    render_arg_debug_field(&mut s, &arg_debug, "r_unless", "short", "requires-unless");
 
     if arg.is_required_set() {
         s.push_str(" [required]");
@@ -198,12 +230,81 @@ fn render_arg(arg: &clap::Arg) -> String {
     if arg.is_hide_set() {
         s.push_str(" [hidden]");
     }
+    if arg.is_require_equals_set() {
+        s.push_str(" [require-equals]");
+    }
+    if arg.is_allow_hyphen_values_set() {
+        s.push_str(" [allow-hyphen-values]");
+    }
+    if arg.is_allow_negative_numbers_set() {
+        s.push_str(" [allow-negative-numbers]");
+    }
+    if arg.is_exclusive_set() {
+        s.push_str(" [exclusive]");
+    }
+    if arg.is_trailing_var_arg_set() {
+        s.push_str(" [trailing-var-arg]");
+    }
+    if arg.is_last_set() {
+        s.push_str(" [last]");
+    }
+    if arg.is_ignore_case_set() {
+        s.push_str(" [ignore-case]");
+    }
 
     if let Some(help) = arg.get_help() {
         write!(s, " help: {}", escape(&help.to_string())).unwrap();
     }
 
     s
+}
+
+/// Appends a non-empty field from clap's value-only [`Debug`] representation of an argument.
+fn render_arg_debug_field(
+    out: &mut String,
+    debug: &str,
+    field: &str,
+    next_field: &str,
+    label: &str,
+) {
+    let start = format!(", {field}: ");
+    let end = format!(", {next_field}:");
+    let value = debug
+        .split_once(&start)
+        .and_then(|(_, rest)| rest.split_once(&end))
+        .map(|(value, _)| value);
+    if let Some(value) = value &&
+        !matches!(value, "[]" | "None")
+    {
+        write!(out, " [{label}: {value}]").unwrap();
+    }
+}
+
+/// Returns an argument's operator-facing name.
+fn arg_name(arg: &clap::Arg) -> String {
+    match (arg.get_short(), arg.get_long()) {
+        (Some(short), Some(long)) => format!("-{short}/--{long}"),
+        (None, Some(long)) => format!("--{long}"),
+        (Some(short), None) => format!("-{short}"),
+        (None, None) => format!("[positional: {}]", arg.get_id()),
+    }
+}
+
+#[test]
+fn renders_parser_requirements_and_missing_defaults() {
+    let command = clap::Command::new("test").arg(clap::Arg::new("mode").long("mode")).arg(
+        clap::Arg::new("output")
+            .long("output")
+            .num_args(0..=1)
+            .default_missing_value("stdout")
+            .requires("mode"),
+    );
+
+    let rendered = render_snapshot(&command);
+    assert!(rendered.contains(
+        "arg: --output <OUTPUT> [action: Set] [num-args: 0..=1] \
+         [default-missing-values: [\"stdout\"]] [requires: [(IsPresent, \"mode\")]]"
+    ));
 }
 
 /// Replaces machine-specific default values with stable placeholders.
