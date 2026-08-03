@@ -3432,7 +3432,6 @@ mod tests {
                     auction_timeout: 60,
                     range_proof_strategy: sp1_sdk::network::FulfillmentStrategy::Reserved,
                     agg_proof_strategy: sp1_sdk::network::FulfillmentStrategy::Reserved,
-                    agg_proof_mode: sp1_sdk::SP1ProofMode::Plonk,
                     range_cycle_limit: 1,
                     range_gas_limit: 1,
                     agg_cycle_limit: 1,

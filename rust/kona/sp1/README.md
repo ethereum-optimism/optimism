@@ -163,8 +163,8 @@ proofs from scratch. A pre-flight check prevents duplicate `prove()` submissions
 
 `kona_sp1_proposer_game_proving_error` and
 `kona_sp1_proposer_proving_timeout_error` are spend alarms in network mode: every
-emergent retry after a post-proving failure (for example a misrouted
-`AGG_PROOF_MODE` vs the on-chain verifier, or fee caps below basefee) re-purchases
+emergent retry after a post-proving failure (for example fee caps below
+basefee, or a submission that keeps reverting) re-purchases
 the full proof set until the prove deadline expires. A sustained non-zero rate
 means money burning, not a transient. `kona_sp1_proposer_game_unprovable` counts
 games given up as permanently unprovable (kept in-memory until restart).
@@ -197,7 +197,6 @@ Optional (defaults in parentheses):
 | `MAX_CONCURRENT_DEFENSE_TASKS` (8) | games defended concurrently (must be >= 1) |
 | `NETWORK_PRIVATE_KEY` (network mode; `USE_KMS_REQUESTER` for AWS KMS) | SPN requester key |
 | `RANGE_PROOF_STRATEGY`, `AGG_PROOF_STRATEGY` (reserved) | SPN fulfillment strategies |
-| `AGG_PROOF_MODE` (plonk) | on-chain proof kind, `plonk` or `groth16` |
 | `SP1_TIMEOUT_SECONDS` (14400), `NETWORK_CALLS_TIMEOUT` (15), `AUCTION_TIMEOUT` (60) | SPN timeouts |
 | `RANGE_CYCLE_LIMIT`, `RANGE_GAS_LIMIT`, `AGG_CYCLE_LIMIT`, `AGG_GAS_LIMIT` (1e12) | SPN request limits |
 | `MAX_PRICE_PER_PGU` (3e8), `MIN_AUCTION_PERIOD` (1) | SPN pricing |

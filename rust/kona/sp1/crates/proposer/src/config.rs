@@ -17,7 +17,7 @@ use alloy_primitives::{Address, B256};
 use alloy_transport_http::reqwest::{self, Url};
 use anyhow::{Context, Result, anyhow, bail};
 use kona_sp1_host_utils::network::parse_fulfillment_strategy;
-use sp1_sdk::{SP1ProofMode, network::FulfillmentStrategy};
+use sp1_sdk::network::FulfillmentStrategy;
 
 /// Safety level gating how far proposals may advance.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -297,8 +297,6 @@ pub struct ProofProviderConfig {
     pub range_proof_strategy: FulfillmentStrategy,
     /// Fulfillment strategy for the aggregation proof.
     pub agg_proof_strategy: FulfillmentStrategy,
-    /// On-chain proof mode for the aggregation proof.
-    pub agg_proof_mode: SP1ProofMode,
     /// Cycle limit for super-range proof requests.
     pub range_cycle_limit: u64,
     /// Gas limit for super-range proof requests.
@@ -345,9 +343,6 @@ impl ProofProviderConfig {
             agg_proof_strategy: parse_fulfillment_strategy(
                 env::var("AGG_PROOF_STRATEGY").unwrap_or_else(|_| "reserved".to_string()),
             )?,
-            agg_proof_mode: parse_agg_proof_mode(
-                &env::var("AGG_PROOF_MODE").unwrap_or_else(|_| "plonk".to_string()),
-            )?,
             range_cycle_limit: parsed_env_or("RANGE_CYCLE_LIMIT", DEFAULT_PROOF_LIMIT)?,
             range_gas_limit: parsed_env_or("RANGE_GAS_LIMIT", DEFAULT_PROOF_LIMIT)?,
             agg_cycle_limit: parsed_env_or("AGG_CYCLE_LIMIT", DEFAULT_PROOF_LIMIT)?,
@@ -358,16 +353,9 @@ impl ProofProviderConfig {
     }
 }
 
-/// Parses the aggregation proof mode. Unlike upstream (which treats any
-/// non-groth16 value as plonk), unknown values are rejected: a typo here
-/// must not silently buy the wrong on-chain proof kind.
-fn parse_agg_proof_mode(value: &str) -> Result<SP1ProofMode> {
-    match value.to_ascii_lowercase().as_str() {
-        "plonk" => Ok(SP1ProofMode::Plonk),
-        "groth16" => Ok(SP1ProofMode::Groth16),
-        other => bail!("invalid AGG_PROOF_MODE: {other} (expected plonk|groth16)"),
-    }
-}
+// The aggregation proof kind is deliberately NOT configurable: the on-chain
+// verifier adapter is SP1PlonkAdapter, so PLONK is the only mode that can
+// ever verify. The prover hardcodes it (see `NetworkProofProvider`).
 
 /// How many chunks a defended timestamp span is partitioned into
 /// (1-16 inclusive). Ported from upstream op-succinct's `RangeSplitCount`;
@@ -670,15 +658,6 @@ mod tests {
             assert!(parse_url_list("").is_err());
             assert!(parse_url_list(" , ").is_err());
             assert!(parse_url_list("not a url").is_err());
-        }
-
-        #[test]
-        fn agg_proof_mode_rejects_unknown() {
-            assert!(matches!(parse_agg_proof_mode("plonk").unwrap(), SP1ProofMode::Plonk));
-            assert!(matches!(parse_agg_proof_mode("Groth16").unwrap(), SP1ProofMode::Groth16));
-            // Upstream silently maps unknown values to plonk; we reject:
-            // a typo must not buy the wrong on-chain proof kind.
-            assert!(parse_agg_proof_mode("core").is_err());
         }
 
         #[test]

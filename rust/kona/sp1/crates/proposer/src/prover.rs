@@ -16,8 +16,8 @@ use alloy_primitives::B256;
 use anyhow::{Context, Result, bail};
 use kona_sp1_host_utils::metrics::MetricsGauge;
 use sp1_sdk::{
-    CpuProver, Elf, NetworkProver, ProveRequest, Prover, ProvingKey, SP1ProofWithPublicValues,
-    SP1ProvingKey, SP1Stdin, SP1VerifyingKey,
+    CpuProver, Elf, NetworkProver, ProveRequest, Prover, ProvingKey, SP1ProofMode,
+    SP1ProofWithPublicValues, SP1ProvingKey, SP1Stdin, SP1VerifyingKey,
     network::{NetworkMode, proto::types::FulfillmentStatus},
 };
 use tokio::time::sleep;
@@ -225,7 +225,7 @@ impl NetworkProofProvider {
         let proof_id = self
             .prover
             .prove(&keys.agg_pk, stdin)
-            .mode(self.config.agg_proof_mode)
+            .mode(SP1ProofMode::Plonk)
             .strategy(self.config.agg_proof_strategy)
             .timeout(Duration::from_secs(self.config.timeout))
             .min_auction_period(self.config.min_auction_period)

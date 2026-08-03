@@ -14,7 +14,7 @@
 //! witness collection (which natively computes the range and consolidation
 //! outputs), and aggregation-input assembly + validation. The mock provider
 //! stops there and submits placeholder bytes; the network provider proves
-//! each chunk (compressed) and aggregates (PLONK/Groth16).
+//! each chunk (compressed) and aggregates (PLONK).
 
 use std::num::NonZeroUsize;
 
