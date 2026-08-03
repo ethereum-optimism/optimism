@@ -38,4 +38,13 @@ type Config struct {
 
 	// Finalizer contains runtime configuration for finality behavior.
 	Finalizer *finality.Config `json:"finalizer,omitempty"`
+
+	// ReplacementContinuesSpan makes a deposits-only block replacement keep the
+	// containing channel buffered, so the remainder of the span re-applies on top
+	// of the replacement instead of the channel being flushed.
+	//
+	// EXPERIMENTAL: this changes which batch lineage a node derives after an
+	// interop block replacement, so nodes running with and without it can end up
+	// on different chains. Off by default; for devnet investigation only.
+	ReplacementContinuesSpan bool `json:"replacement_continues_span"`
 }

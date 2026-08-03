@@ -57,6 +57,20 @@ type AttributesQueue struct {
 	batch       *SingularBatch
 	concluding  bool
 	lastAttribs *AttributesWithParent
+
+	// replacementContinuesSpan keeps the containing channel buffered when a
+	// deposits-only replacement is produced, so the remainder of the span
+	// re-applies on top of the replacement. See DepositsOnlyAttributes.
+	replacementContinuesSpan bool
+}
+
+// AttributesQueueOption configures an AttributesQueue.
+type AttributesQueueOption func(*AttributesQueue)
+
+// WithReplacementContinuesSpan enables continuing the containing span after a
+// deposits-only block replacement, instead of flushing the channel.
+func WithReplacementContinuesSpan(enabled bool) AttributesQueueOption {
+	return func(aq *AttributesQueue) { aq.replacementContinuesSpan = enabled }
 }
 
 type SingularBatchProvider interface {
@@ -66,13 +80,17 @@ type SingularBatchProvider interface {
 	NextBatch(context.Context, eth.L2BlockRef) (*SingularBatch, bool, error)
 }
 
-func NewAttributesQueue(log log.Logger, cfg *rollup.Config, builder AttributesBuilder, prev SingularBatchProvider) *AttributesQueue {
-	return &AttributesQueue{
+func NewAttributesQueue(log log.Logger, cfg *rollup.Config, builder AttributesBuilder, prev SingularBatchProvider, opts ...AttributesQueueOption) *AttributesQueue {
+	aq := &AttributesQueue{
 		log:     log,
 		config:  cfg,
 		builder: builder,
 		prev:    prev,
 	}
+	for _, opt := range opts {
+		opt(aq)
+	}
+	return aq
 }
 
 func (aq *AttributesQueue) Origin() eth.L1BlockRef {
@@ -163,7 +181,21 @@ func (aq *AttributesQueue) DepositsOnlyAttributes(parent eth.BlockID, derivedFro
 			aq.lastAttribs.Parent.ID(), parent)
 	}
 
-	aq.prev.FlushChannel() // flush all channel data in previous stages
+	// Flushing discards the remainder of the channel that contained the replaced
+	// block, which hands the lineage to whichever channel comes next on L1. A
+	// node that still held the following blocks locally (the live cluster during
+	// an invalidation) instead re-applies the span's tail on the replacement and
+	// stays on the batcher's continued lineage; a node deriving the same L1 data
+	// from scratch flushes and lands on an abandoned one, permanently.
+	// See devnet interop-reorg-5, chain 420120192, blocks 13460 and 14245.
+	if aq.replacementContinuesSpan {
+		aq.log.Info("deposits-only replacement: continuing containing span, channel not flushed",
+			"parent", parent, "derived_from", derivedFrom)
+	} else {
+		aq.log.Info("deposits-only replacement: flushing channel",
+			"parent", parent, "derived_from", derivedFrom)
+		aq.prev.FlushChannel() // flush all channel data in previous stages
+	}
 	attrs := aq.lastAttribs.WithDepositsOnly()
 	aq.lastAttribs = attrs
 	return attrs, nil

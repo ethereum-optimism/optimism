@@ -99,6 +99,7 @@ type DerivationPipeline struct {
 // NewDerivationPipeline creates a DerivationPipeline, to turn L1 data into L2 block-inputs.
 func NewDerivationPipeline(log log.Logger, rollupCfg *rollup.Config, depSet DependencySet, l1Fetcher L1Fetcher, l1Blobs L1BlobsFetcher,
 	altDA AltDAInputFetcher, l2Source L2Source, metrics Metrics, l1ChainConfig *params.ChainConfig,
+	attribOpts ...AttributesQueueOption,
 ) *DerivationPipeline {
 	spec := rollup.NewChainSpec(rollupCfg)
 	// Stages are strung together into a pipeline,
@@ -111,7 +112,7 @@ func NewDerivationPipeline(log log.Logger, rollupCfg *rollup.Config, depSet Depe
 	chInReader := NewChannelInReader(rollupCfg, log, channelMux, metrics)
 	batchMux := NewBatchMux(log, rollupCfg, chInReader, l2Source)
 	attrBuilder := NewFetchingAttributesBuilder(rollupCfg, l1ChainConfig, depSet, l1Fetcher, l2Source)
-	attributesQueue := NewAttributesQueue(log, rollupCfg, attrBuilder, batchMux)
+	attributesQueue := NewAttributesQueue(log, rollupCfg, attrBuilder, batchMux, attribOpts...)
 
 	// Reset from ResetEngine then up from L1 Traversal. The stages do not talk to each other during
 	// the ResetEngine, but after the ResetEngine, this is the order in which the stages could talk to each other.

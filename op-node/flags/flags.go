@@ -282,6 +282,16 @@ var (
 		Value:    4,
 		Category: SequencerCategory,
 	}
+	ReplacementContinuesSpan = &cli.BoolFlag{
+		Name: "rollup.replacement-continues-span",
+		Usage: "EXPERIMENTAL: after an interop block replacement, continue deriving the remainder of the span the " +
+			"replaced block came from, instead of flushing its channel. Changes which batch lineage is derived, so " +
+			"nodes running with and without it can end up on different chains. Devnet investigation only.",
+		EnvVars:  prefixEnvVars("ROLLUP_REPLACEMENT_CONTINUES_SPAN"),
+		Value:    false,
+		Hidden:   true,
+		Category: InteropCategory,
+	}
 	SequencerRecoverMode = &cli.BoolFlag{
 		Name:     "sequencer.recover",
 		Usage:    "Forces the sequencer to strictly prepare the next L1 origin and create empty L2 blocks",
@@ -471,6 +481,7 @@ var optionalFlags = []cli.Flag{
 	SequencerMaxSafeLagFlag,
 	SequencerL1Confs,
 	SequencerRecoverMode,
+	ReplacementContinuesSpan,
 	SequencerSealingDurationFlag,
 	FinalityLookbackFlag,
 	FinalityDelayFlag,
