@@ -13,25 +13,16 @@ import (
 func TestCalculateRequiredCollateralAggregatesFaultAndZKGames(t *testing.T) {
 	weth := common.Address{0xaa}
 	recipient := common.Address{0x11}
-	fault := &monTypes.FaultGameData{BondGameData: monTypes.BondGameData{
-		Bonds: []monTypes.BondRecord{
-			{Amount: big.NewInt(5)},
-			{Amount: big.NewInt(100), Resolved: true},
-		},
-		Credits: map[common.Address]*big.Int{recipient: big.NewInt(3)},
-		WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{
-			recipient: {Amount: big.NewInt(7)},
-		},
-		WETHContract:  weth,
-		ETHCollateral: big.NewInt(100),
-	}}
-	zk := &monTypes.ZKGameData{BondGameData: monTypes.BondGameData{
-		Bonds:              []monTypes.BondRecord{{Amount: big.NewInt(10)}},
-		WETHContract:       weth,
-		ETHCollateral:      big.NewInt(90),
-		Credits:            map[common.Address]*big.Int{},
-		WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{},
-	}}
+	faultData := bondData(weth, 100, []monTypes.BondRecord{
+		{Amount: big.NewInt(5)},
+		{Amount: big.NewInt(100), Resolved: true},
+	})
+	faultData.Credits[recipient] = big.NewInt(3)
+	faultData.WithdrawalRequests[recipient] = &contracts.WithdrawalRequest{
+		Amount: big.NewInt(7), Timestamp: new(big.Int),
+	}
+	fault := &monTypes.FaultGameData{BondGameData: faultData}
+	zk := &monTypes.ZKGameData{BondGameData: bondData(weth, 90, []monTypes.BondRecord{{Amount: big.NewInt(10)}})}
 
 	actual := CalculateRequiredCollateral([]monTypes.BondedGame{fault, zk})
 	require.Equal(t, big.NewInt(22), actual[weth].Required)
@@ -45,15 +36,28 @@ func TestCalculateRequiredCollateralAggregatesFaultAndZKGames(t *testing.T) {
 func TestCalculateRequiredCollateralUsesLargestPendingRepresentation(t *testing.T) {
 	weth := common.Address{0xaa}
 	recipient := common.Address{0x11}
-	game := &monTypes.ZKGameData{BondGameData: monTypes.BondGameData{
-		WETHContract:  weth,
-		ETHCollateral: big.NewInt(100),
-		Credits:       map[common.Address]*big.Int{recipient: big.NewInt(9)},
-		WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{
-			recipient: {Amount: big.NewInt(7)},
-		},
-	}}
+	data := bondData(weth, 100, nil)
+	data.Credits[recipient] = big.NewInt(9)
+	data.WithdrawalRequests[recipient] = &contracts.WithdrawalRequest{
+		Amount: big.NewInt(7), Timestamp: new(big.Int),
+	}
+	game := &monTypes.ZKGameData{BondGameData: data}
 
 	actual := CalculateRequiredCollateral([]monTypes.BondedGame{game})
 	require.Equal(t, big.NewInt(9), actual[weth].Required)
+}
+
+func TestCalculateRequiredCollateralRequiresNormalizedSnapshot(t *testing.T) {
+	recipient := common.Address{0x11}
+	game := &monTypes.ZKGameData{BondGameData: monTypes.BondGameData{
+		Recipients:         map[common.Address]bool{recipient: true},
+		Credits:            map[common.Address]*big.Int{recipient: nil},
+		ExpectedCredits:    map[common.Address]*big.Int{},
+		WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{recipient: nil},
+		ETHCollateral:      big.NewInt(100),
+	}}
+
+	require.Panics(t, func() {
+		CalculateRequiredCollateral([]monTypes.BondedGame{game})
+	})
 }

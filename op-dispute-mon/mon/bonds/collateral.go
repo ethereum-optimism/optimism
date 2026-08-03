@@ -62,11 +62,8 @@ func requiredCollateralForGame(game monTypes.BondedGame) *big.Int {
 
 func effectiveCredit(data *monTypes.BondGameData, recipient common.Address) *big.Int {
 	credit := data.Credits[recipient]
-	if credit == nil {
-		credit = new(big.Int)
-	}
 	request := data.WithdrawalRequests[recipient]
-	if request != nil && request.Amount != nil && request.Amount.Cmp(credit) > 0 {
+	if request.Amount.Cmp(credit) > 0 {
 		return request.Amount
 	}
 	return credit

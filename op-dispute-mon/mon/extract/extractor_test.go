@@ -262,7 +262,6 @@ func TestExtractorRejectsCallerMissingVariantCapability(t *testing.T) {
 		{name: "fault", gameType: gameTypes.CannonGameType, wantErr: "does not support fault game extraction"},
 		{name: "ZK", gameType: gameTypes.ZKDisputeGameType, wantErr: "does not support ZK game extraction"},
 		{name: "SuperPermissioned", gameType: gameTypes.SuperPermissionedGameType, wantErr: "does not support common game extraction"},
-		{name: "unsupported game type", gameType: gameTypes.GameType(99), wantErr: "unsupported game type: 99"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -274,6 +273,13 @@ func TestExtractorRejectsCallerMissingVariantCapability(t *testing.T) {
 			require.ErrorContains(t, err, test.wantErr)
 		})
 	}
+}
+
+func TestExtractorRejectsUnsupportedGameTypeBeforeVariantDispatch(t *testing.T) {
+	extractor, _, _, _, _ := setupExtractorTest(t)
+
+	_, err := extractor.enrichGame(context.Background(), common.Hash{}, gameTypes.GameMetadata{GameType: 99})
+	require.EqualError(t, err, "unsupported game type: 99")
 }
 
 type anchorOnlyGameCaller struct{}

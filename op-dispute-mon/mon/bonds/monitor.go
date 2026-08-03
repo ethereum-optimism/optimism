@@ -162,7 +162,7 @@ func observedCredit(data *types.BondGameData, recipient common.Address, expected
 func creditCanBeWithdrawn(game types.BondedGame, recipient common.Address, now time.Time) bool {
 	data := game.BondData()
 	request := data.WithdrawalRequests[recipient]
-	if request != nil && request.Timestamp != nil && request.Timestamp.Sign() > 0 {
+	if request.Timestamp.Sign() > 0 {
 		return withdrawalMature(request, data.WETHDelay, now)
 	}
 	return game.RequiresCreditForWithdrawal() &&
@@ -170,6 +170,6 @@ func creditCanBeWithdrawn(game types.BondedGame, recipient common.Address, now t
 }
 
 func withdrawalMature(request *contracts.WithdrawalRequest, delay time.Duration, now time.Time) bool {
-	return request != nil && request.Timestamp != nil && request.Timestamp.Sign() > 0 &&
+	return request.Timestamp.Sign() > 0 &&
 		!time.Unix(request.Timestamp.Int64(), 0).Add(delay).After(now)
 }

@@ -136,6 +136,18 @@ func TestCheckBondsUsesFaultUnlockTimestampAfterWithdrawalStarts(t *testing.T) {
 	require.Equal(t, 0, recorded.credits[metrics.CreditEqualWithdrawable])
 }
 
+func TestCreditCanBeWithdrawnRequiresNormalizedSnapshot(t *testing.T) {
+	recipient := common.Address{0x11}
+	game := bondedZK(common.Address{0xaa}, 100, nil)
+	game.Recipients = map[common.Address]bool{recipient: true}
+	game.Credits = map[common.Address]*big.Int{recipient: new(big.Int)}
+	game.WithdrawalRequests = map[common.Address]*contracts.WithdrawalRequest{recipient: nil}
+
+	require.Panics(t, func() {
+		creditCanBeWithdrawn(game, recipient, frozen)
+	})
+}
+
 func TestCheckBondsRecordsHonestActorsAcrossFaultAndZK(t *testing.T) {
 	actor1 := common.Address{0x11}
 	actor2 := common.Address{0x22}
@@ -188,6 +200,9 @@ func TestCheckBondsRecordsEveryCreditBucket(t *testing.T) {
 		game := bondedFault(common.Address{byte(i + 1)}, 100, nil)
 		game.ExpectedCredits = map[common.Address]*big.Int{recipient: big.NewInt(10)}
 		game.Credits = map[common.Address]*big.Int{recipient: big.NewInt(test.actual)}
+		game.WithdrawalRequests = map[common.Address]*contracts.WithdrawalRequest{
+			recipient: {Amount: new(big.Int), Timestamp: new(big.Int)},
+		}
 		game.Recipients = map[common.Address]bool{recipient: true}
 		game.CreditWithdrawableAt = frozen.Add(time.Second)
 		if test.withdrawable {
@@ -227,7 +242,7 @@ func bondedZK(weth common.Address, balance int64, records []monTypes.BondRecord)
 }
 
 func bondData(weth common.Address, balance int64, records []monTypes.BondRecord) monTypes.BondGameData {
-	return monTypes.BondGameData{
+	data := monTypes.BondGameData{
 		Bonds:              records,
 		Credits:            map[common.Address]*big.Int{},
 		ExpectedCredits:    map[common.Address]*big.Int{},
@@ -235,6 +250,13 @@ func bondData(weth common.Address, balance int64, records []monTypes.BondRecord)
 		WETHContract:       weth,
 		ETHCollateral:      big.NewInt(balance),
 	}
+	for _, recipient := range data.RecipientAddresses() {
+		data.Credits[recipient] = new(big.Int)
+		data.WithdrawalRequests[recipient] = &contracts.WithdrawalRequest{
+			Amount: new(big.Int), Timestamp: new(big.Int),
+		}
+	}
+	return data
 }
 
 func setupBondMetricsTest(t *testing.T, honestActors monTypes.HonestActors) (*Bonds, *stubBondMetrics, *testlog.CapturingHandler) {

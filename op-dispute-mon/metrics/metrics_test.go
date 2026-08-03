@@ -4,6 +4,8 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	dto "github.com/prometheus/client_model/go"
@@ -11,7 +13,9 @@ import (
 )
 
 func TestGameAgreementStatusSentinelIsLast(t *testing.T) {
-	file, err := parser.ParseFile(token.NewFileSet(), "metrics.go", nil, 0)
+	_, testFile, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	file, err := parser.ParseFile(token.NewFileSet(), filepath.Join(filepath.Dir(testFile), "metrics.go"), nil, 0)
 	require.NoError(t, err)
 	found := false
 	ast.Inspect(file, func(node ast.Node) bool {

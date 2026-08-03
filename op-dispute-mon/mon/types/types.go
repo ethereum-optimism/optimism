@@ -44,6 +44,10 @@ type BondRecord struct {
 }
 
 // BondGameData contains the bond and DelayedWETH state shared by bond-bearing game variants.
+// After successful bond enrichment, ETHCollateral is non-nil and Credits and
+// WithdrawalRequests contain non-nil values for every RecipientAddresses entry.
+// Every withdrawal request also has non-nil Amount and Timestamp values. Bond monitors
+// only receive successfully enriched games and rely on this normalized snapshot invariant.
 type BondGameData struct {
 	Bonds           []BondRecord
 	Recipients      map[common.Address]bool
