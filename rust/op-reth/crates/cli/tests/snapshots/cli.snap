@@ -119,7 +119,7 @@ arg: --disable-auth-server [action: SetTrue] [num-args: 0] [aliases: disable-eng
 arg: --rpc.jwtsecret <HEX> [action: Set] [num-args: 1] [global] help: Hex encoded JWT secret to authenticate the regular RPC server(s), see `--http.api` and `--ws.api`
 arg: --rpc.disable-metrics [action: SetTrue] [num-args: 0] [default: false] help: Disable built-in RPC request metrics
 arg: --rpc.max-request-size <RPC_MAX_REQUEST_SIZE> [action: Set] [num-args: 1] [aliases: rpc-max-request-size] [default: 15] help: Set the maximum RPC request payload size for both HTTP and WS in megabytes
-arg: --rpc.max-response-size <RPC_MAX_RESPONSE_SIZE> [action: Set] [num-args: 1] [aliases: rpc-max-response-size, rpc.returndata.limit] [default: 160] help: Set the maximum RPC response payload size for both HTTP and WS in megabytes
+arg: --rpc.max-response-size <RPC_MAX_RESPONSE_SIZE> [action: Set] [num-args: 1] [aliases: rpc-max-response-size, rpc.returndata.limit] [visible-aliases: rpc.returndata.limit] [default: 160] help: Set the maximum RPC response payload size for both HTTP and WS in megabytes
 arg: --rpc.max-subscriptions-per-connection <RPC_MAX_SUBSCRIPTIONS_PER_CONNECTION> [action: Set] [num-args: 1] [aliases: rpc-max-subscriptions-per-connection] [default: 1024] help: Set the maximum concurrent subscriptions per connection
 arg: --rpc.max-connections <COUNT> [action: Set] [num-args: 1] [aliases: rpc-max-connections] [default: 500] help: Maximum number of RPC server connections
 arg: --rpc.max-tracing-requests <COUNT> [action: Set] [num-args: 1] [aliases: rpc-max-tracing-requests] [default: <MACHINE_SPECIFIC>] help: Maximum number of concurrent tracing requests
@@ -300,7 +300,7 @@ arg: --jit.code-cache-bytes <CODE_CACHE_BYTES> [action: Set] [num-args: 1] [defa
 arg: --jit.idle-evict-duration <IDLE_EVICT_DURATION> [action: Set] [num-args: 1] [default: 1h] help: Duration after which a compiled program with no lookup hits is evicted
 arg: --jit.debug [action: SetTrue] [num-args: 0] [default: false] help: Enable compiler debug dumps
 arg: --jit.blocking [action: SetTrue] [num-args: 0] [default: false] [hidden] help: Blocking mode: synchronously JIT-compile every contract on first encounter. Intended for debugging only
-arg: --rollup.sequencer <SEQUENCER> [action: Set] [num-args: 1] [aliases: rollup.sequencer-http, rollup.sequencer-ws] help: Endpoint for the sequencer mempool (can be both HTTP and WS)
+arg: --rollup.sequencer <SEQUENCER> [action: Set] [num-args: 1] [aliases: rollup.sequencer-http, rollup.sequencer-ws] [visible-aliases: rollup.sequencer-http, rollup.sequencer-ws] help: Endpoint for the sequencer mempool (can be both HTTP and WS)
 arg: --rollup.disable-tx-pool-gossip [action: SetTrue] [num-args: 0] help: Disable transaction pool gossip
 arg: --rollup.compute-pending-block [action: SetTrue] [num-args: 0] help: By default the pending block equals the latest block to save resources and not leak txs from the tx-pool, this flag enables computing of the pending block from the tx-pool instead
 arg: --rollup.discovery.v4 [action: SetTrue] [num-args: 0] [default: false] help: enables discovery v4 if provided

@@ -115,6 +115,7 @@ fn render_snapshot(cmd: &clap::Command) -> String {
 /// Renders one command block, then recurses into its subcommands.
 fn render_command(out: &mut String, path: &str, cmd: &clap::Command) {
     writeln!(out, "== {path}").unwrap();
+    render_command_metadata(out, cmd);
     if let Some(about) = cmd.get_about() {
         writeln!(out, "about: {}", escape(&about.to_string())).unwrap();
     }
@@ -131,6 +132,57 @@ fn render_command(out: &mut String, path: &str, cmd: &clap::Command) {
             continue;
         }
         render_command(out, &format!("{path} {}", sub.get_name()), sub);
+    }
+}
+
+/// Renders aliases, flag forms, and visibility for a command.
+fn render_command_metadata(out: &mut String, cmd: &clap::Command) {
+    let mut metadata = String::from("command:");
+
+    let aliases: Vec<&str> = cmd.get_all_aliases().collect();
+    if !aliases.is_empty() {
+        write!(metadata, " [aliases: {}]", aliases.join(", ")).unwrap();
+    }
+    let visible_aliases: Vec<&str> = cmd.get_visible_aliases().collect();
+    if !visible_aliases.is_empty() {
+        write!(metadata, " [visible-aliases: {}]", visible_aliases.join(", ")).unwrap();
+    }
+
+    if let Some(short) = cmd.get_short_flag() {
+        write!(metadata, " [short-flag: -{short}]").unwrap();
+    }
+    let short_aliases: Vec<String> =
+        cmd.get_all_short_flag_aliases().map(|alias| format!("-{alias}")).collect();
+    if !short_aliases.is_empty() {
+        write!(metadata, " [short-flag-aliases: {}]", short_aliases.join(", ")).unwrap();
+    }
+    let visible_short_aliases: Vec<String> =
+        cmd.get_visible_short_flag_aliases().map(|alias| format!("-{alias}")).collect();
+    if !visible_short_aliases.is_empty() {
+        write!(metadata, " [visible-short-flag-aliases: {}]", visible_short_aliases.join(", "))
+            .unwrap();
+    }
+
+    if let Some(long) = cmd.get_long_flag() {
+        write!(metadata, " [long-flag: --{long}]").unwrap();
+    }
+    let long_aliases: Vec<String> =
+        cmd.get_all_long_flag_aliases().map(|alias| format!("--{alias}")).collect();
+    if !long_aliases.is_empty() {
+        write!(metadata, " [long-flag-aliases: {}]", long_aliases.join(", ")).unwrap();
+    }
+    let visible_long_aliases: Vec<String> =
+        cmd.get_visible_long_flag_aliases().map(|alias| format!("--{alias}")).collect();
+    if !visible_long_aliases.is_empty() {
+        write!(metadata, " [visible-long-flag-aliases: {}]", visible_long_aliases.join(", "))
+            .unwrap();
+    }
+
+    if cmd.is_hide_set() {
+        metadata.push_str(" [hidden]");
+    }
+    if metadata != "command:" {
+        writeln!(out, "{metadata}").unwrap();
     }
 }
 
@@ -173,10 +225,20 @@ fn render_arg(cmd: &clap::Command, arg: &clap::Arg) -> String {
     {
         write!(s, " [aliases: {}]", aliases.join(", ")).unwrap();
     }
+    if let Some(visible_aliases) = arg.get_visible_aliases() &&
+        !visible_aliases.is_empty()
+    {
+        write!(s, " [visible-aliases: {}]", visible_aliases.join(", ")).unwrap();
+    }
     let short_aliases = arg.get_all_short_aliases().unwrap_or_default();
     if !short_aliases.is_empty() {
         let rendered: Vec<String> = short_aliases.iter().map(|c| format!("-{c}")).collect();
         write!(s, " [short-aliases: {}]", rendered.join(", ")).unwrap();
+    }
+    let visible_short_aliases = arg.get_visible_short_aliases().unwrap_or_default();
+    if !visible_short_aliases.is_empty() {
+        let rendered: Vec<String> = visible_short_aliases.iter().map(|c| format!("-{c}")).collect();
+        write!(s, " [visible-short-aliases: {}]", rendered.join(", ")).unwrap();
     }
 
     if let Some(env_var) = arg.get_env() {
@@ -201,7 +263,7 @@ fn render_arg(cmd: &clap::Command, arg: &clap::Arg) -> String {
 
     if takes_value {
         let possible: Vec<String> =
-            arg.get_possible_values().iter().map(|p| p.get_name().to_string()).collect();
+            arg.get_possible_values().iter().map(render_possible_value).collect();
         if !possible.is_empty() {
             write!(s, " [possible: {}]", possible.join(", ")).unwrap();
         }
@@ -280,6 +342,20 @@ fn render_arg_debug_field(
     }
 }
 
+/// Renders a possible value, including accepted aliases and visibility.
+fn render_possible_value(value: &clap::builder::PossibleValue) -> String {
+    let mut names = value.get_name_and_aliases();
+    let mut rendered = names.next().unwrap_or_default().to_string();
+    let aliases: Vec<&str> = names.collect();
+    if !aliases.is_empty() {
+        write!(rendered, " (aliases: {})", aliases.join(", ")).unwrap();
+    }
+    if value.is_hide_set() {
+        rendered.push_str(" (hidden)");
+    }
+    rendered
+}
+
 /// Returns an argument's operator-facing name.
 fn arg_name(arg: &clap::Arg) -> String {
     match (arg.get_short(), arg.get_long()) {
@@ -304,6 +380,47 @@ fn renders_parser_requirements_and_missing_defaults() {
     assert!(rendered.contains(
         "arg: --output <OUTPUT> [action: Set] [num-args: 0..=1] \
          [default-missing-values: [\"stdout\"]] [requires: [(IsPresent, \"mode\")]]"
+    ));
+}
+
+#[test]
+fn renders_alias_and_visibility_metadata() {
+    let command = clap::Command::new("test").subcommand(
+        clap::Command::new("serve")
+            .alias("s")
+            .visible_alias("run")
+            .short_flag('S')
+            .short_flag_alias('x')
+            .visible_short_flag_alias('r')
+            .long_flag("serve-now")
+            .long_flag_alias("start")
+            .visible_long_flag_alias("run-now")
+            .hide(true)
+            .arg(
+                clap::Arg::new("mode")
+                    .long("mode")
+                    .alias("kind")
+                    .visible_alias("type")
+                    .short_alias('k')
+                    .visible_short_alias('t')
+                    .value_parser(clap::builder::PossibleValuesParser::new([
+                        clap::builder::PossibleValue::new("fast").alias("quick"),
+                        clap::builder::PossibleValue::new("internal").hide(true),
+                    ])),
+            ),
+    );
+
+    let rendered = render_snapshot(&command);
+    assert!(rendered.contains(
+        "command: [aliases: s, run] [visible-aliases: run] [short-flag: -S] \
+         [short-flag-aliases: -x, -r] [visible-short-flag-aliases: -r] \
+         [long-flag: --serve-now] [long-flag-aliases: --start, --run-now] \
+         [visible-long-flag-aliases: --run-now] [hidden]"
+    ));
+    assert!(rendered.contains(
+        "arg: --mode <MODE> [action: Set] [num-args: 1] [aliases: kind, type] \
+         [visible-aliases: type] [short-aliases: -k, -t] [visible-short-aliases: -t] \
+         [possible: fast (aliases: quick), internal (hidden)]"
     ));
 }
 
