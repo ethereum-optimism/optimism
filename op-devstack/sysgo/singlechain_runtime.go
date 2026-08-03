@@ -99,7 +99,7 @@ func startDefaultSingleChainPrimary(
 		cfg.SafeDBPath = safeDBPath
 	})}
 	l2CLOptions = append(l2CLOptions, cfg.GlobalL2CLOptions...)
-	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, NewELNodeIdentity(0))
+	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, NewELNodeIdentity(0), cfg.OpRethOptions...)
 	if world.Interop != nil {
 		l2CL := startL2CLNode(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
 			Key:           "sequencer",
