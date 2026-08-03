@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
@@ -19,6 +20,8 @@ type ZKAgreementEnricher struct {
 	clients []SuperRootProvider
 	clock   clock.Clock
 }
+
+var _ ZKEnricher = (*ZKAgreementEnricher)(nil)
 
 // NewZKAgreementEnricher creates a ZK agreement policy using the supplied root sources.
 func NewZKAgreementEnricher(logger log.Logger, metrics OutputMetrics, clients []SuperRootProvider, cl clock.Clock) *ZKAgreementEnricher {
@@ -37,7 +40,10 @@ type zkRootResult struct {
 	err       error
 }
 
-func (e *ZKAgreementEnricher) Enrich(ctx context.Context, _ rpcblock.Block, _ GameCaller, game *monTypes.CommonGameData) error {
+func (e *ZKAgreementEnricher) Enrich(ctx context.Context, _ rpcblock.Block, _ ZKGameCaller, zkGame *monTypes.ZKGameData) error {
+	game := zkGame.Common()
+	// ZK games intentionally do not classify endpoints as safe or unsafe. Like the challenger,
+	// they validate the pinned super root without gating it on VerifiedRequiredL1.
 	if len(e.clients) == 0 {
 		return fmt.Errorf("%w but required for game type %v", ErrSuperRootRpcRequired, game.GameType)
 	}
@@ -88,6 +94,9 @@ func (e *ZKAgreementEnricher) Enrich(ctx context.Context, _ rpcblock.Block, _ Ga
 	}
 
 	if len(usable) == 0 {
+		if game.NodeEndpointOutOfSyncCount == len(e.clients) {
+			return fmt.Errorf("all ZK super root sources are behind game L1 head %d: %w", game.L1HeadNum, gameTypes.ErrNotInSync)
+		}
 		return fmt.Errorf("failed to get ZK super root at timestamp: %w", ErrAllSuperRootRpcsUnavailable)
 	}
 	if len(found) == 0 {

@@ -134,11 +134,11 @@ func (f *DisputeGameFactoryContract) GetGameStatusAtBlock(ctx context.Context, i
 	if err != nil {
 		return 0, fmt.Errorf("failed to create contract bindings for game %s: %w", game.Proxy, err)
 	}
-	metadata, err := gameContract.GetMetadata(ctx, block)
+	status, err := gameContract.GetStatusAtBlock(ctx, block)
 	if err != nil {
 		return 0, fmt.Errorf("failed to load game status from game %s: %w", game.Proxy, err)
 	}
-	return metadata.Status, nil
+	return status, nil
 }
 
 func (f *DisputeGameFactoryContract) getGameImpl(ctx context.Context, gameType gameTypes.GameType) (common.Address, error) {

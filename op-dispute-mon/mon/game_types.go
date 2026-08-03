@@ -18,7 +18,10 @@ func NewGameTypeMonitor(metrics GameTypeMetrics) *GameTypeMonitor {
 }
 
 func (m *GameTypeMonitor) CheckGameTypes(games []*types.CommonGameData) {
-	counts := make(map[string]int)
+	counts := make(map[string]int, len(gameTypes.SupportedLifecycleGameTypes))
+	for _, gameType := range gameTypes.SupportedLifecycleGameTypes {
+		counts[gameType.String()] = 0
+	}
 	for _, game := range games {
 		gt := gameTypes.GameType(game.GameType).String()
 		counts[gt]++

@@ -25,17 +25,33 @@ var outputRootGameTypes = []types.GameType{
 	types.KailuaGameType,
 }
 
-var superRootGameTypes = []types.GameType{
-	types.SuperPermissionedGameType,
-	types.SuperAsteriscKonaGameType,
-	types.SuperCannonKonaGameType,
-	types.ZKDisputeGameType,
-}
-
 // EnrichedClaim extends the faultTypes.Claim with additional context.
 type EnrichedClaim struct {
 	faultTypes.Claim
 	Resolved bool
+}
+
+// BondRecord describes the current disposition of one deposited game bond.
+type BondRecord struct {
+	Depositor common.Address
+	Recipient common.Address
+	Amount    *big.Int
+	Resolved  bool
+}
+
+// BondGameData contains the bond and DelayedWETH state shared by bond-bearing game variants.
+type BondGameData struct {
+	Bonds           []BondRecord
+	Recipients      map[common.Address]bool
+	Credits         map[common.Address]*big.Int
+	ExpectedCredits map[common.Address]*big.Int
+
+	BondDistributionMode faultTypes.BondDistributionMode
+	WithdrawalRequests   map[common.Address]*contracts.WithdrawalRequest
+	WETHContract         common.Address
+	WETHDelay            time.Duration
+	ETHCollateral        *big.Int
+	CreditWithdrawableAt time.Time
 }
 
 // EnrichedGame is a complete, pinned snapshot of a supported dispute game.
@@ -43,6 +59,13 @@ type EnrichedClaim struct {
 type EnrichedGame interface {
 	Common() *CommonGameData
 	enrichedGame()
+}
+
+// BondedGame is a complete pinned snapshot of a game that holds bonds in DelayedWETH.
+type BondedGame interface {
+	EnrichedGame
+	BondData() *BondGameData
+	bondedGame()
 }
 
 // CommonGameData contains fields shared by every supported game kind.
@@ -91,44 +114,27 @@ type CommonGameData struct {
 // FaultGameData contains claims, bonds, withdrawals, and challenge state for a fault game.
 type FaultGameData struct {
 	CommonGameData
+	BondGameData
 
 	MaxClockDuration      uint64
 	BlockNumberChallenged bool
 	BlockNumberChallenger common.Address
 	Claims                []EnrichedClaim
-
-	// Recipients maps addresses to true if they are a bond recipient in the game.
-	Recipients map[common.Address]bool
-
-	// Credits records the paid out bonds for the game, keyed by recipient.
-	Credits map[common.Address]*big.Int
-
-	BondDistributionMode faultTypes.BondDistributionMode
-
-	// WithdrawalRequests maps recipients with withdrawal requests in DelayedWETH for this game.
-	WithdrawalRequests map[common.Address]*contracts.WithdrawalRequest
-
-	// WETHContract is the address of the DelayedWETH contract used by this game
-	// The contract is potentially shared by multiple games.
-	WETHContract common.Address
-
-	// WETHDelay is the delay applied before credits can be withdrawn.
-	WETHDelay time.Duration
-
-	// ETHCollateral is the ETH balance of the (potentially shared) WETHContract
-	// This ETH balance will be used to pay out any bonds required by the games
-	// that use the same DelayedWETH contract.
-	ETHCollateral *big.Int
 }
 
 // ZKGameData contains proposal and parent state for a ZK dispute game.
 type ZKGameData struct {
 	CommonGameData
+	BondGameData
 
 	ParentIndex    uint32
-	HasParent      bool
-	ParentStatus   types.GameStatus
+	ParentStatus   *types.GameStatus
 	ProposalStatus contracts.ProposalStatus
+	GameCreator    common.Address
+	Challenger     common.Address
+	Prover         common.Address
+	TotalBonds     *big.Int
+	ChallengerBond *big.Int
 }
 
 // SuperPermissionedGameData is the common snapshot of a SuperPermissioned game.
@@ -143,6 +149,11 @@ func (g *SuperPermissionedGameData) Common() *CommonGameData { return &g.CommonG
 func (*FaultGameData) enrichedGame()             {}
 func (*ZKGameData) enrichedGame()                {}
 func (*SuperPermissionedGameData) enrichedGame() {}
+
+func (g *FaultGameData) BondData() *BondGameData { return &g.BondGameData }
+func (g *ZKGameData) BondData() *BondGameData    { return &g.BondGameData }
+func (*FaultGameData) bondedGame()               {}
+func (*ZKGameData) bondedGame()                  {}
 
 // UsesOutputRoots returns true if the game type is one of the known types that use output roots as proposals.
 func (g CommonGameData) UsesOutputRoots() bool {

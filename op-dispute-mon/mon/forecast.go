@@ -56,34 +56,33 @@ func (f *Forecast) recordBatch(batch forecastBatch, ignoredCount, failedCount in
 }
 
 func (f *Forecast) forecastGame(game monTypes.EnrichedGame, batch *forecastBatch) {
-	common := game.Common()
-	agreement := common.AgreeWithClaim
+	gameData := game.Common()
+	agreement := gameData.AgreeWithClaim
 	expectedResult := types.GameStatusDefenderWon
 
 	if !agreement {
 		expectedResult = types.GameStatusChallengerWon
-		if batch.LatestInvalidProposal < common.Timestamp {
-			batch.LatestInvalidProposal = common.Timestamp
+		if batch.LatestInvalidProposal < gameData.Timestamp {
+			batch.LatestInvalidProposal = gameData.Timestamp
 		}
 	} else {
-		if batch.LatestValidProposal < common.Timestamp {
-			batch.LatestValidProposal = common.Timestamp
+		if batch.LatestValidProposal < gameData.Timestamp {
+			batch.LatestValidProposal = gameData.Timestamp
 		}
-		if types.GameType(common.GameType) != types.ZKDisputeGameType &&
-			batch.LatestValidProposalL2Block < common.L2SequenceNumber {
-			batch.LatestValidProposalL2Block = common.L2SequenceNumber
+		if gameData.UsesOutputRoots() && batch.LatestValidProposalL2Block < gameData.L2SequenceNumber {
+			batch.LatestValidProposalL2Block = gameData.L2SequenceNumber
 		}
 	}
 
-	actualResult := common.Status
+	actualResult := gameData.Status
 	inProgress := actualResult == types.GameStatusInProgress
 	if inProgress {
 		actualResult = f.forecastInProgressGame(game)
 	} else if actualResult != expectedResult {
 		f.logger.Error("Unexpected game result",
-			"game", common.Proxy, "l2SequenceNumber", common.L2SequenceNumber,
-			"expectedResult", expectedResult, "actualResult", common.Status,
-			"rootClaim", common.RootClaim, "correctClaim", common.ExpectedRootClaim)
+			"game", gameData.Proxy, "l2SequenceNumber", gameData.L2SequenceNumber,
+			"expectedResult", expectedResult, "actualResult", gameData.Status,
+			"rootClaim", gameData.RootClaim, "correctClaim", gameData.ExpectedRootClaim)
 	}
 
 	status := agreementStatus(agreement, actualResult, inProgress)
@@ -92,41 +91,38 @@ func (f *Forecast) forecastGame(game monTypes.EnrichedGame, batch *forecastBatch
 	if inProgress {
 		if actualResult != expectedResult {
 			f.logger.Warn("Forecasting unexpected game result", "status", actualResult,
-				"game", common.Proxy, "l2SequenceNumber", common.L2SequenceNumber,
-				"rootClaim", common.RootClaim, "expected", common.ExpectedRootClaim)
+				"game", gameData.Proxy, "l2SequenceNumber", gameData.L2SequenceNumber,
+				"rootClaim", gameData.RootClaim, "expected", gameData.ExpectedRootClaim)
 		} else {
 			f.logger.Debug("Forecasting expected game result", "status", actualResult,
-				"game", common.Proxy, "l2SequenceNumber", common.L2SequenceNumber,
-				"rootClaim", common.RootClaim, "expected", common.ExpectedRootClaim)
+				"game", gameData.Proxy, "l2SequenceNumber", gameData.L2SequenceNumber,
+				"rootClaim", gameData.RootClaim, "expected", gameData.ExpectedRootClaim)
 		}
 	}
 }
 
 func (f *Forecast) forecastInProgressGame(game monTypes.EnrichedGame) types.GameStatus {
-	common := game.Common()
+	gameData := game.Common()
 	switch game := game.(type) {
 	case *monTypes.SuperPermissionedGameData:
 		// Unreachable since super permissioned games resolve immediately, unless the game was misconfigured!
-		f.logger.Error("Found super permissioned game still in progress, this should be impossible, check game configuration", "game", common.Proxy)
+		f.logger.Error("Found super permissioned game still in progress, this should be impossible, check game configuration", "game", gameData.Proxy)
 		// Since we don't know how an in-progress super permissioned game would resolve, assume the
 		// opposite of the expected root result so existing monitoring alerts.
-		if common.AgreeWithClaim {
-			return types.GameStatusChallengerWon
-		}
-		return types.GameStatusDefenderWon
+		return pessimisticForecast(gameData)
 	case *monTypes.FaultGameData:
 		if game.BlockNumberChallenged {
 			// Games that have their block number challenged are won
 			// by the challenger since the counter is proven on-chain.
 			f.logger.Debug("Found game with challenged block number",
-				"game", common.Proxy, "l2SequenceNumber", common.L2SequenceNumber, "agreement", common.AgreeWithClaim)
+				"game", gameData.Proxy, "l2SequenceNumber", gameData.L2SequenceNumber, "agreement", gameData.AgreeWithClaim)
 			return types.GameStatusChallengerWon
 		}
 		// Otherwise we go through the resolution process to determine who would win based on the current claims
 		tree := transform.CreateBidirectionalTree(game.Claims)
 		return Resolve(tree)
 	case *monTypes.ZKGameData:
-		if game.HasParent && game.ParentStatus == types.GameStatusChallengerWon {
+		if game.ParentStatus != nil && *game.ParentStatus == types.GameStatusChallengerWon {
 			return types.GameStatusChallengerWon
 		}
 		switch game.ProposalStatus {
@@ -137,11 +133,21 @@ func (f *Forecast) forecastInProgressGame(game monTypes.EnrichedGame) types.Game
 		case contracts.ProposalStatusChallenged:
 			return types.GameStatusChallengerWon
 		default:
-			panic("resolved ZK proposal cannot have an in-progress global status")
+			f.logger.Error("Unable to forecast ZK game with incompatible proposal and global status",
+				"game", gameData.Proxy, "proposalStatus", game.ProposalStatus, "globalStatus", gameData.Status)
+			return pessimisticForecast(gameData)
 		}
 	default:
-		panic("unknown enriched game variant")
+		f.logger.Error("Unable to forecast unknown enriched game variant", "game", gameData.Proxy, "type", gameData.GameType)
+		return pessimisticForecast(gameData)
 	}
+}
+
+func pessimisticForecast(game *monTypes.CommonGameData) types.GameStatus {
+	if game.AgreeWithClaim {
+		return types.GameStatusChallengerWon
+	}
+	return types.GameStatusDefenderWon
 }
 
 func agreementStatus(agreement bool, result types.GameStatus, inProgress bool) metrics.GameAgreementStatus {

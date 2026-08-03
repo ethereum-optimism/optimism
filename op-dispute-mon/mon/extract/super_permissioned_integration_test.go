@@ -50,12 +50,14 @@ func TestExtractorChecksSuperPermissionedGame(t *testing.T) {
 	metrics := &stubOutputMetrics{}
 	logger := testlog.Logger(t, log.LvlInfo)
 	creator := NewGameCallerCreator(&mockCacheMetrics{}, caller)
-	extractor := NewExtractor(
+	extractor, err := NewExtractor(
 		logger,
 		clock.NewDeterministicClock(time.Unix(48294294, 58)),
 		creator.CreateContract,
 		fetchGames,
-		nil,
+		func(context.Context, uint64, rpcblock.Block) (gameTypes.GameStatus, error) {
+			return gameTypes.GameStatusDefenderWon, nil
+		},
 		nil,
 		1,
 		[]CommonEnricher{
@@ -63,8 +65,10 @@ func TestExtractorChecksSuperPermissionedGame(t *testing.T) {
 			NewSuperAgreementEnricher(logger, metrics, []SuperRootProvider{provider}, clock.NewDeterministicClock(time.Unix(9824924, 499))),
 		},
 		nil,
-		nil,
+		&recordingBondEnricher{},
+		&recordingZKEnricher{},
 	)
+	require.NoError(t, err)
 
 	games, ignored, failed, err := extractor.Extract(context.Background(), blockHash, 0)
 	require.NoError(t, err)

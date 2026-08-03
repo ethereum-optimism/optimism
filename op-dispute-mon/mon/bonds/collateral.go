@@ -11,40 +11,69 @@ type Collateral struct {
 	// Required is the amount of collateral required to pay out bonds.
 	Required *big.Int
 
-	// Actual is the amount of collateral actually head by the DelayedWETH contract
+	// Actual is the amount of collateral actually held by the DelayedWETH contract
 	Actual *big.Int
+
+	// BalancesDiffer indicates games sharing this DelayedWETH returned different pinned balances.
+	BalancesDiffer bool
 }
 
 // CalculateRequiredCollateral determines the minimum balance required for each DelayedWETH contract used by a set
 // of dispute games.
 // Returns a map of DelayedWETH contract address to collateral data (required and actual amounts)
-func CalculateRequiredCollateral(games []*monTypes.FaultGameData) map[common.Address]Collateral {
+func CalculateRequiredCollateral(games []monTypes.BondedGame) map[common.Address]Collateral {
 	result := make(map[common.Address]Collateral)
 	for _, game := range games {
-		collateral, ok := result[game.WETHContract]
+		data := game.BondData()
+		collateral, ok := result[data.WETHContract]
 		if !ok {
 			collateral = Collateral{
 				Required: big.NewInt(0),
-				Actual:   game.ETHCollateral,
+				Actual:   data.ETHCollateral,
+			}
+		} else if collateral.Actual.Cmp(data.ETHCollateral) != 0 {
+			collateral.BalancesDiffer = true
+			if data.ETHCollateral.Cmp(collateral.Actual) < 0 {
+				collateral.Actual = data.ETHCollateral
 			}
 		}
 		gameRequired := requiredCollateralForGame(game)
 		collateral.Required = new(big.Int).Add(collateral.Required, gameRequired)
-		result[game.WETHContract] = collateral
+		result[data.WETHContract] = collateral
 	}
 	return result
 }
 
-func requiredCollateralForGame(game *monTypes.FaultGameData) *big.Int {
+func requiredCollateralForGame(game monTypes.BondedGame) *big.Int {
+	data := game.BondData()
 	required := big.NewInt(0)
-	for _, claim := range game.Claims {
-		if !claim.Resolved {
-			required = new(big.Int).Add(required, claim.Bond)
+	for _, bond := range data.Bonds {
+		if !bond.Resolved {
+			required = new(big.Int).Add(required, bond.Amount)
 		}
 	}
 
-	for _, unclaimedCredit := range game.Credits {
-		required = new(big.Int).Add(required, unclaimedCredit)
+	recipients := make(map[common.Address]bool)
+	for recipient := range data.Credits {
+		recipients[recipient] = true
+	}
+	for recipient := range data.WithdrawalRequests {
+		recipients[recipient] = true
+	}
+	for recipient := range recipients {
+		required = new(big.Int).Add(required, effectiveCredit(data, recipient))
 	}
 	return required
+}
+
+func effectiveCredit(data *monTypes.BondGameData, recipient common.Address) *big.Int {
+	credit := data.Credits[recipient]
+	if credit == nil {
+		credit = new(big.Int)
+	}
+	request := data.WithdrawalRequests[recipient]
+	if request != nil && request.Amount != nil && request.Amount.Cmp(credit) > 0 {
+		return request.Amount
+	}
+	return credit
 }

@@ -57,6 +57,8 @@ type zkDisputeGameBinding struct {
 	Status               func() bindings.TypedCall[uint8]                  `sol:"status"`
 	ClaimData            func() bindings.TypedCall[ZKClaimData]            `sol:"claimData"`
 	ChallengerBond       func() bindings.TypedCall[*big.Int]               `sol:"challengerBond"`
+	TotalBonds           func() bindings.TypedCall[*big.Int]               `sol:"totalBonds"`
+	Weth                 func() bindings.TypedCall[common.Address]         `sol:"weth"`
 	GameOver             func() bindings.TypedCall[bool]                   `sol:"gameOver"`
 	ResolvedAt           func() bindings.TypedCall[uint64]                 `sol:"resolvedAt"`
 	BondDistributionMode func() bindings.TypedCall[uint8]                  `sol:"bondDistributionMode"`
@@ -153,6 +155,14 @@ func (g *ZKGame) GameStatus() gameTypes.GameStatus {
 
 func (g *ZKGame) ChallengerBond() eth.ETH {
 	return eth.WeiBig(contract.Read(g.contract.ChallengerBond()))
+}
+
+func (g *ZKGame) TotalBonds() eth.ETH {
+	return eth.WeiBig(contract.Read(g.contract.TotalBonds()))
+}
+
+func (g *ZKGame) WETHAddress() common.Address {
+	return contract.Read(g.contract.Weth())
 }
 
 func (g *ZKGame) GameOver() bool {

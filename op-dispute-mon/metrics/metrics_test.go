@@ -10,6 +10,7 @@ import (
 func TestRecordGameAgreementsPreservesCanonicalSeries(t *testing.T) {
 	metricer := NewMetrics()
 	metricer.RecordGameAgreements(nil)
+	require.Len(t, canonicalGameAgreementSeries, int(gameAgreementStatusCount))
 
 	initial := gatherGameAgreements(t, metricer)
 	require.Len(t, initial.Metric, 8)
@@ -29,24 +30,27 @@ func TestRecordGameAgreementsPreservesCanonicalSeries(t *testing.T) {
 		require.Zero(t, metric.GetGauge().GetValue())
 	}
 
-	metricer.RecordGameAgreements(map[GameAgreementStatus]int{
-		AgreeDefenderAhead:     6,
-		DisagreeChallengerWins: 2,
-	})
+	counts := map[GameAgreementStatus]int{
+		AgreeChallengerAhead:    1,
+		DisagreeChallengerAhead: 2,
+		AgreeDefenderAhead:      3,
+		DisagreeDefenderAhead:   4,
+		AgreeDefenderWins:       5,
+		DisagreeDefenderWins:    6,
+		AgreeChallengerWins:     7,
+		DisagreeChallengerWins:  8,
+	}
+	metricer.RecordGameAgreements(counts)
 	firstCycle := gatherGameAgreements(t, metricer)
 	require.Len(t, firstCycle.Metric, len(initial.Metric))
-	require.Equal(t, float64(6), agreementValue(t, firstCycle, map[string]string{
-		"status":             "agree_defender_ahead",
-		"completion":         "in_progress",
-		"result_correctness": "correct",
-		"root_agreement":     "agree",
-	}))
-	require.Equal(t, float64(2), agreementValue(t, firstCycle, map[string]string{
-		"status":             "disagree_challenger_wins",
-		"completion":         "complete",
-		"result_correctness": "correct",
-		"root_agreement":     "disagree",
-	}))
+	require.Equal(t, float64(1), agreementValue(t, firstCycle, agreementLabels("agree_challenger_ahead", "in_progress", "incorrect", "agree")))
+	require.Equal(t, float64(2), agreementValue(t, firstCycle, agreementLabels("disagree_challenger_ahead", "in_progress", "correct", "disagree")))
+	require.Equal(t, float64(3), agreementValue(t, firstCycle, agreementLabels("agree_defender_ahead", "in_progress", "correct", "agree")))
+	require.Equal(t, float64(4), agreementValue(t, firstCycle, agreementLabels("disagree_defender_ahead", "in_progress", "incorrect", "disagree")))
+	require.Equal(t, float64(5), agreementValue(t, firstCycle, agreementLabels("agree_defender_wins", "complete", "correct", "agree")))
+	require.Equal(t, float64(6), agreementValue(t, firstCycle, agreementLabels("disagree_defender_wins", "complete", "incorrect", "disagree")))
+	require.Equal(t, float64(7), agreementValue(t, firstCycle, agreementLabels("agree_challenger_wins", "complete", "incorrect", "agree")))
+	require.Equal(t, float64(8), agreementValue(t, firstCycle, agreementLabels("disagree_challenger_wins", "complete", "correct", "disagree")))
 
 	metricer.RecordGameAgreements(map[GameAgreementStatus]int{
 		AgreeChallengerAhead: 3,

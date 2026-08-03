@@ -4,118 +4,53 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
-	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
-func TestCalculateRequiredCollateral(t *testing.T) {
-	weth1 := common.Address{0x1a}
-	weth1Balance := big.NewInt(4200)
-	weth2 := common.Address{0x2b}
-	weth2Balance := big.NewInt(6000)
-	game1 := &monTypes.FaultGameData{
-		Claims: []monTypes.EnrichedClaim{
-			{
-				Claim: types.Claim{
-					ClaimData: types.ClaimData{
-						Bond: big.NewInt(17),
-					},
-					Claimant:    common.Address{0x01},
-					CounteredBy: common.Address{0x02},
-				},
-				Resolved: true,
-			},
-			{
-				Claim: types.Claim{
-					ClaimData: types.ClaimData{
-						Bond: big.NewInt(5),
-					},
-					Claimant:    common.Address{0x03},
-					CounteredBy: common.Address{},
-				},
-			},
-			{
-				Claim: types.Claim{
-					ClaimData: types.ClaimData{
-						Bond: big.NewInt(7),
-					},
-					Claimant:    common.Address{0x03},
-					CounteredBy: common.Address{},
-				},
-			},
+func TestCalculateRequiredCollateralAggregatesFaultAndZKGames(t *testing.T) {
+	weth := common.Address{0xaa}
+	recipient := common.Address{0x11}
+	fault := &monTypes.FaultGameData{BondGameData: monTypes.BondGameData{
+		Bonds: []monTypes.BondRecord{
+			{Amount: big.NewInt(5)},
+			{Amount: big.NewInt(100), Resolved: true},
 		},
-		Credits: map[common.Address]*big.Int{
-			common.Address{0x01}: big.NewInt(2),
-			common.Address{0x04}: big.NewInt(3),
+		Credits: map[common.Address]*big.Int{recipient: big.NewInt(3)},
+		WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{
+			recipient: {Amount: big.NewInt(7)},
 		},
-		WETHContract:  weth1,
-		ETHCollateral: weth1Balance,
-	}
-	game2 := &monTypes.FaultGameData{
-		Claims: []monTypes.EnrichedClaim{
-			{
-				Claim: types.Claim{
-					ClaimData: types.ClaimData{
-						Bond: big.NewInt(10),
-					},
-					Claimant:    common.Address{0x01},
-					CounteredBy: common.Address{0x02},
-				},
-				Resolved: true,
-			},
-			{
-				Claim: types.Claim{
-					ClaimData: types.ClaimData{
-						Bond: big.NewInt(6),
-					},
-					Claimant:    common.Address{0x03},
-					CounteredBy: common.Address{},
-				},
-			},
-			{
-				Claim: types.Claim{
-					ClaimData: types.ClaimData{
-						Bond: big.NewInt(9),
-					},
-					Claimant:    common.Address{0x03},
-					CounteredBy: common.Address{},
-				},
-			},
+		WETHContract:  weth,
+		ETHCollateral: big.NewInt(100),
+	}}
+	zk := &monTypes.ZKGameData{BondGameData: monTypes.BondGameData{
+		Bonds:              []monTypes.BondRecord{{Amount: big.NewInt(10)}},
+		WETHContract:       weth,
+		ETHCollateral:      big.NewInt(90),
+		Credits:            map[common.Address]*big.Int{},
+		WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{},
+	}}
+
+	actual := CalculateRequiredCollateral([]monTypes.BondedGame{fault, zk})
+	require.Equal(t, big.NewInt(22), actual[weth].Required)
+	require.Equal(t, big.NewInt(90), actual[weth].Actual)
+	require.True(t, actual[weth].BalancesDiffer)
+}
+
+func TestCalculateRequiredCollateralUsesLargestPendingRepresentation(t *testing.T) {
+	weth := common.Address{0xaa}
+	recipient := common.Address{0x11}
+	game := &monTypes.ZKGameData{BondGameData: monTypes.BondGameData{
+		WETHContract:  weth,
+		ETHCollateral: big.NewInt(100),
+		Credits:       map[common.Address]*big.Int{recipient: big.NewInt(9)},
+		WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{
+			recipient: {Amount: big.NewInt(7)},
 		},
-		Credits: map[common.Address]*big.Int{
-			common.Address{0x01}: big.NewInt(4),
-			common.Address{0x04}: big.NewInt(1),
-		},
-		WETHContract:  weth1,
-		ETHCollateral: weth1Balance,
-	}
-	game3 := &monTypes.FaultGameData{
-		Claims: []monTypes.EnrichedClaim{
-			{
-				Claim: types.Claim{
-					ClaimData: types.ClaimData{
-						Bond: big.NewInt(23),
-					},
-					Claimant:    common.Address{0x03},
-					CounteredBy: common.Address{},
-				},
-			},
-		},
-		Credits: map[common.Address]*big.Int{
-			common.Address{0x01}: big.NewInt(46),
-		},
-		WETHContract:  weth2,
-		ETHCollateral: weth2Balance,
-	}
-	actual := CalculateRequiredCollateral([]*monTypes.FaultGameData{game1, game2, game3})
-	require.Len(t, actual, 2)
-	require.Contains(t, actual, weth1)
-	require.Contains(t, actual, weth2)
-	require.Equal(t, bigs.Uint64Strict(actual[weth1].Required), uint64(5+7+2+3+6+9+4+1))
-	require.Equal(t, bigs.Uint64Strict(actual[weth1].Actual), bigs.Uint64Strict(weth1Balance))
-	require.Equal(t, bigs.Uint64Strict(actual[weth2].Required), uint64(23+46))
-	require.Equal(t, bigs.Uint64Strict(actual[weth2].Actual), bigs.Uint64Strict(weth2Balance))
+	}}
+
+	actual := CalculateRequiredCollateral([]monTypes.BondedGame{game})
+	require.Equal(t, big.NewInt(9), actual[weth].Required)
 }

@@ -56,6 +56,8 @@ var (
 	methodChallenge      = "challenge"
 	methodChallengerBond = "challengerBond"
 	methodClaimData      = "claimData"
+	methodGameCreator    = "gameCreator"
+	methodTotalBonds     = "totalBonds"
 )
 
 type claimData struct {
@@ -200,8 +202,12 @@ func (g *ZKDisputeGameContractLatest) GetL1Head(ctx context.Context) (common.Has
 }
 
 func (g *ZKDisputeGameContractLatest) GetStatus(ctx context.Context) (gameTypes.GameStatus, error) {
+	return g.GetStatusAtBlock(ctx, rpcblock.Latest)
+}
+
+func (g *ZKDisputeGameContractLatest) GetStatusAtBlock(ctx context.Context, block rpcblock.Block) (gameTypes.GameStatus, error) {
 	defer g.metrics.StartContractRequest("GetStatus")()
-	result, err := g.multiCaller.SingleCall(ctx, rpcblock.Latest, g.contract.Call(methodStatus))
+	result, err := g.multiCaller.SingleCall(ctx, block, g.contract.Call(methodStatus))
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch status: %w", err)
 	}
@@ -229,35 +235,104 @@ func (g *ZKDisputeGameContractLatest) GetGameRange(ctx context.Context) (prestat
 }
 
 type ChallengerMetadata struct {
-	ParentIndex      uint32
-	ProposalStatus   ProposalStatus
-	ProposedRoot     common.Hash
-	L2SequenceNumber uint64
-	Deadline         time.Time
+	ParentIndex    uint32
+	ProposalStatus ProposalStatus
+	Challenger     common.Address
+	Prover         common.Address
+	ProposedRoot   common.Hash
+	Deadline       time.Time
+}
+
+// ZKBondMetadata contains the pinned values needed to account for ZK game bonds.
+type ZKBondMetadata struct {
+	GameCreator    common.Address
+	TotalBonds     *big.Int
+	ChallengerBond *big.Int
+}
+
+// GetBondMetadata returns the ZK bond metadata pinned to block.
+func (g *ZKDisputeGameContractLatest) GetBondMetadata(ctx context.Context, block rpcblock.Block) (ZKBondMetadata, error) {
+	defer g.metrics.StartContractRequest("GetBondMetadata")()
+	results, err := g.multiCaller.Call(ctx, block,
+		g.contract.Call(methodGameCreator),
+		g.contract.Call(methodTotalBonds),
+		g.contract.Call(methodChallengerBond),
+	)
+	if err != nil {
+		return ZKBondMetadata{}, fmt.Errorf("failed to retrieve ZK bond metadata: %w", err)
+	}
+	return ZKBondMetadata{
+		GameCreator:    results[0].GetAddress(0),
+		TotalBonds:     results[1].GetBigInt(0),
+		ChallengerBond: results[2].GetBigInt(0),
+	}, nil
+}
+
+// GetCredits returns ZK game credits for each recipient pinned to block.
+func (g *ZKDisputeGameContractLatest) GetCredits(ctx context.Context, block rpcblock.Block, recipients ...common.Address) ([]*big.Int, error) {
+	defer g.metrics.StartContractRequest("GetCredits")()
+	calls := make([]batching.Call, 0, len(recipients))
+	for _, recipient := range recipients {
+		calls = append(calls, g.contract.Call(methodCredit, recipient))
+	}
+	results, err := g.multiCaller.Call(ctx, block, calls...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve ZK credit: %w", err)
+	}
+	credits := make([]*big.Int, len(results))
+	for i, result := range results {
+		credits[i] = result.GetBigInt(0)
+	}
+	return credits, nil
+}
+
+// GetWithdrawals returns the ZK game's DelayedWETH withdrawal requests pinned to block.
+func (g *ZKDisputeGameContractLatest) GetWithdrawals(ctx context.Context, block rpcblock.Block, recipients ...common.Address) ([]*WithdrawalRequest, error) {
+	delayedWETH, err := g.getDelayedWETH(ctx, block)
+	if err != nil {
+		return nil, err
+	}
+	return delayedWETH.GetWithdrawals(ctx, block, g.contract.Addr(), recipients...)
+}
+
+// GetBalanceAndDelay returns the ZK game's DelayedWETH balance, delay, and address pinned to block.
+func (g *ZKDisputeGameContractLatest) GetBalanceAndDelay(ctx context.Context, block rpcblock.Block) (*big.Int, time.Duration, common.Address, error) {
+	delayedWETH, err := g.getDelayedWETH(ctx, block)
+	if err != nil {
+		return nil, 0, common.Address{}, err
+	}
+	balance, delay, err := delayedWETH.GetBalanceAndDelay(ctx, block)
+	if err != nil {
+		return nil, 0, common.Address{}, fmt.Errorf("failed to get ZK WETH balance and delay: %w", err)
+	}
+	return balance, delay, delayedWETH.Addr(), nil
+}
+
+func (g *ZKDisputeGameContractLatest) getDelayedWETH(ctx context.Context, block rpcblock.Block) (*DelayedWETHContract, error) {
+	result, err := g.multiCaller.SingleCall(ctx, block, g.contract.Call(methodWETH))
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch ZK WETH address: %w", err)
+	}
+	return NewDelayedWETHContract(g.metrics, result.GetAddress(0), g.multiCaller), nil
 }
 
 func (g *ZKDisputeGameContractLatest) GetChallengerMetadata(ctx context.Context, block rpcblock.Block) (ChallengerMetadata, error) {
 	defer g.metrics.StartContractRequest("GetChallengerMetadata")()
-	results, err := g.multiCaller.Call(ctx, block,
-		g.contract.Call(methodClaimData),
-		g.contract.Call(methodL2SequenceNumber))
+	result, err := g.multiCaller.SingleCall(ctx, block, g.contract.Call(methodClaimData))
 	if err != nil {
 		return ChallengerMetadata{}, fmt.Errorf("failed to retrieve challenger metadata: %w", err)
 	}
-	if len(results) != 2 {
-		return ChallengerMetadata{}, fmt.Errorf("expected 2 results but got %v", len(results))
-	}
-	data, err := g.decodeClaimData(results[0])
+	data, err := g.decodeClaimData(result)
 	if err != nil {
 		return ChallengerMetadata{}, err
 	}
-	l2SeqNum := getBlockNumber(results[1], 0)
 	return ChallengerMetadata{
-		ParentIndex:      data.ParentIndex,
-		ProposalStatus:   data.Status,
-		ProposedRoot:     data.Claim,
-		L2SequenceNumber: l2SeqNum,
-		Deadline:         time.Unix(int64(data.Deadline), 0),
+		ParentIndex:    data.ParentIndex,
+		ProposalStatus: data.Status,
+		Challenger:     data.Challenger,
+		Prover:         data.Prover,
+		ProposedRoot:   data.Claim,
+		Deadline:       time.Unix(int64(data.Deadline), 0),
 	}, nil
 }
 

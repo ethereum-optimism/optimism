@@ -23,7 +23,7 @@ var mockErr = errors.New("mock error")
 
 func TestMonitorMonitorGames(t *testing.T) {
 	t.Run("failed fetch head block", func(t *testing.T) {
-		monitor, _, _, _, _ := setupMonitorTest(t)
+		monitor, _, _, _, _, _ := setupMonitorTest(t)
 		boom := errors.New("boom")
 		monitor.fetchHeadBlock = func(context.Context) (eth.L1BlockRef, error) {
 			return eth.L1BlockRef{}, boom
@@ -32,7 +32,7 @@ func TestMonitorMonitorGames(t *testing.T) {
 	})
 
 	t.Run("routes sealed variants", func(t *testing.T) {
-		monitor, extractor, forecast, commonMonitor, faultMonitor := setupMonitorTest(t)
+		monitor, extractor, forecast, commonMonitor, faultMonitor, bondMonitor := setupMonitorTest(t)
 		extractor.games = []monTypes.EnrichedGame{
 			faultGame(gameTypes.GameStatusInProgress, true),
 			&monTypes.ZKGameData{CommonGameData: commonGame(
@@ -47,14 +47,16 @@ func TestMonitorMonitorGames(t *testing.T) {
 		require.Equal(t, 1, forecast.Calls())
 		require.Equal(t, 3, commonMonitor.gameCount)
 		require.Equal(t, 1, faultMonitor.gameCount)
+		require.Equal(t, 2, bondMonitor.gameCount)
 	})
 
 	t.Run("empty cycle still calls all consumers", func(t *testing.T) {
-		monitor, _, forecast, commonMonitor, faultMonitor := setupMonitorTest(t)
+		monitor, _, forecast, commonMonitor, faultMonitor, bondMonitor := setupMonitorTest(t)
 		require.NoError(t, monitor.monitorGames())
 		require.Equal(t, 1, forecast.Calls())
 		require.Equal(t, 1, commonMonitor.calls)
 		require.Equal(t, 1, faultMonitor.calls)
+		require.Equal(t, 1, bondMonitor.calls)
 	})
 }
 
@@ -67,14 +69,15 @@ func TestPartitionGamesOnlyReturnsFaultVariantsToFaultMonitors(t *testing.T) {
 		gameTypes.SuperPermissionedGameType, gameTypes.GameStatusDefenderWon, true,
 	)}
 
-	commonGames, faultGames := partitionGames([]monTypes.EnrichedGame{fault, zk, superPermissioned})
+	commonGames, faultGames, bondedGames := partitionGames([]monTypes.EnrichedGame{fault, zk, superPermissioned})
 	require.Len(t, commonGames, 3)
 	require.Equal(t, []*monTypes.FaultGameData{fault}, faultGames)
+	require.Equal(t, []monTypes.BondedGame{fault, zk}, bondedGames)
 }
 
 func TestMonitorStartAndStop(t *testing.T) {
 	t.Run("monitors until extraction fails", func(t *testing.T) {
-		monitor, extractor, forecast, _, _ := setupMonitorTest(t)
+		monitor, extractor, forecast, _, _, _ := setupMonitorTest(t)
 		extractor.games = []monTypes.EnrichedGame{faultGame(gameTypes.GameStatusInProgress, true)}
 		extractor.maxSuccess = 2
 
@@ -87,7 +90,7 @@ func TestMonitorStartAndStop(t *testing.T) {
 	})
 
 	t.Run("failed extraction is not forecast", func(t *testing.T) {
-		monitor, extractor, forecast, _, _ := setupMonitorTest(t)
+		monitor, extractor, forecast, _, _, _ := setupMonitorTest(t)
 		extractor.fetchErr = errors.New("boom")
 
 		monitor.StartMonitoring()
@@ -99,14 +102,14 @@ func TestMonitorStartAndStop(t *testing.T) {
 	})
 
 	t.Run("stops before start", func(t *testing.T) {
-		monitor, _, _, _, _ := setupMonitorTest(t)
+		monitor, _, _, _, _, _ := setupMonitorTest(t)
 		require.NoError(t, monitor.StopMonitoring(stopContext(t)))
 		require.NoError(t, monitor.StopMonitoring(stopContext(t)))
 	})
 
 	t.Run("waits for in-flight monitor", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			monitor, _, _, _, _ := setupMonitorTest(t)
+			monitor, _, _, _, _, _ := setupMonitorTest(t)
 			monitor.clock.(*clock.AdvancingClock).Stop()
 			cl := clock.NewDeterministicClock(time.Unix(0, 0))
 			monitor.clock = cl
@@ -142,7 +145,7 @@ func TestMonitorStartAndStop(t *testing.T) {
 
 	t.Run("honors stop context", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			monitor, _, _, _, _ := setupMonitorTest(t)
+			monitor, _, _, _, _, _ := setupMonitorTest(t)
 			monitor.clock.(*clock.AdvancingClock).Stop()
 			cl := clock.NewDeterministicClock(time.Unix(0, 0))
 			monitor.clock = cl
@@ -172,7 +175,7 @@ func TestMonitorStartAndStop(t *testing.T) {
 }
 
 func TestServiceStopStopsMonitoring(t *testing.T) {
-	monitor, _, _, _, _ := setupMonitorTest(t)
+	monitor, _, _, _, _, _ := setupMonitorTest(t)
 	service := &Service{logger: monitor.logger, monitor: monitor}
 	require.NoError(t, service.Start(context.Background()))
 	require.NoError(t, service.Stop(stopContext(t)))
@@ -190,7 +193,7 @@ func stopContext(t *testing.T) context.Context {
 	return ctx
 }
 
-func setupMonitorTest(t *testing.T) (*gameMonitor, *mockExtractor, *mockForecast, *mockCommonMonitor, *mockFaultMonitor) {
+func setupMonitorTest(t *testing.T) (*gameMonitor, *mockExtractor, *mockForecast, *mockCommonMonitor, *mockFaultMonitor, *mockBondMonitor) {
 	logger := testlog.Logger(t, log.LvlDebug)
 	cl := clock.NewAdvancingClock()
 	cl.Start()
@@ -199,6 +202,7 @@ func setupMonitorTest(t *testing.T) (*gameMonitor, *mockExtractor, *mockForecast
 	forecast := &mockForecast{}
 	commonMonitor := &mockCommonMonitor{}
 	faultMonitor := &mockFaultMonitor{}
+	bondMonitor := &mockBondMonitor{}
 	monitor := newGameMonitor(
 		context.Background(),
 		logger,
@@ -214,8 +218,9 @@ func setupMonitorTest(t *testing.T) (*gameMonitor, *mockExtractor, *mockForecast
 		func(context.Context, common.Hash, []*monTypes.CommonGameData) {},
 		[]CommonMonitor{commonMonitor.Check},
 		[]FaultMonitor{faultMonitor.Check},
+		[]BondMonitor{bondMonitor.Check},
 	)
-	return monitor, extractor, forecast, commonMonitor, faultMonitor
+	return monitor, extractor, forecast, commonMonitor, faultMonitor, bondMonitor
 }
 
 type mockCommonMonitor struct {
@@ -231,6 +236,16 @@ func (m *mockCommonMonitor) Check(games []*monTypes.CommonGameData) {
 type mockFaultMonitor struct {
 	calls     int
 	gameCount int
+}
+
+type mockBondMonitor struct {
+	calls     int
+	gameCount int
+}
+
+func (m *mockBondMonitor) Check(games []monTypes.BondedGame) {
+	m.calls++
+	m.gameCount = len(games)
 }
 
 func (m *mockFaultMonitor) Check(games []*monTypes.FaultGameData) {

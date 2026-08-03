@@ -26,6 +26,7 @@ type DisputeGameContract interface {
 	Addr() common.Address
 	GetL1Head(ctx context.Context) (common.Hash, error)
 	GetStatus(ctx context.Context) (gameTypes.GameStatus, error)
+	GetStatusAtBlock(ctx context.Context, block rpcblock.Block) (gameTypes.GameStatus, error)
 	GetGameRange(ctx context.Context) (prestateBlock uint64, poststateBlock uint64, retErr error)
 	GetMetadata(ctx context.Context, block rpcblock.Block) (GenericGameMetadata, error)
 

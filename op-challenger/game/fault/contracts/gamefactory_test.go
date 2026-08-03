@@ -168,9 +168,6 @@ func TestGetGameStatus(t *testing.T) {
 				stubRpc.AddContract(game0.Proxy, snapshots.LoadFaultDisputeGameABI())
 				expectedStatus := gameTypes.GameStatusChallengerWon
 				stubRpc.SetResponse(game0.Proxy, methodVersion, rpcblock.Latest, nil, []interface{}{versLatest})
-				stubRpc.SetResponse(game0.Proxy, methodL1Head, test.block, nil, []interface{}{common.Hash{0x01}})
-				stubRpc.SetResponse(game0.Proxy, methodL2BlockNumber, test.block, nil, []interface{}{big.NewInt(1)})
-				stubRpc.SetResponse(game0.Proxy, methodRootClaim, test.block, nil, []interface{}{common.Hash{0x02}})
 				stubRpc.SetResponse(game0.Proxy, methodStatus, test.block, nil, []interface{}{expectedStatus})
 				actual, err := test.call(factory)
 				require.NoError(t, err)
@@ -193,9 +190,6 @@ func TestGetZKGameStatusAtPinnedBlock(t *testing.T) {
 	stubRpc.AddContract(game.Proxy, snapshots.LoadZKDisputeGameABI())
 	stubRpc.SetResponse(game.Proxy, methodVersion, rpcblock.Latest, nil, []interface{}{versZKLatest})
 	stubRpc.SetResponse(game.Proxy, methodGameType, rpcblock.Latest, nil, []interface{}{uint32(gameTypes.ZKDisputeGameType)})
-	stubRpc.SetResponse(game.Proxy, methodL1Head, block, nil, []interface{}{common.Hash{0x01}})
-	stubRpc.SetResponse(game.Proxy, methodL2SequenceNumber, block, nil, []interface{}{big.NewInt(1)})
-	stubRpc.SetResponse(game.Proxy, methodRootClaim, block, nil, []interface{}{common.Hash{0x02}})
 	expectedStatus := gameTypes.GameStatusChallengerWon
 	stubRpc.SetResponse(game.Proxy, methodStatus, block, nil, []interface{}{expectedStatus})
 

@@ -38,11 +38,12 @@ func TestCommonGameData_NodeEndpointErrorCountInitialization(t *testing.T) {
 
 func TestCommonGameData_HasMixedAvailability(t *testing.T) {
 	tests := []struct {
-		name                      string
-		nodeEndpointTotalCount    int
-		nodeEndpointErrorCount    int
-		nodeEndpointNotFoundCount int
-		expected                  bool
+		name                       string
+		nodeEndpointTotalCount     int
+		nodeEndpointErrorCount     int
+		nodeEndpointNotFoundCount  int
+		nodeEndpointOutOfSyncCount int
+		expected                   bool
 	}{
 		{
 			name:                      "no endpoints attempted",
@@ -100,14 +101,29 @@ func TestCommonGameData_HasMixedAvailability(t *testing.T) {
 			nodeEndpointNotFoundCount: 2,
 			expected:                  false,
 		},
+		{
+			name:                       "no successful endpoints - only not found and out of sync",
+			nodeEndpointTotalCount:     3,
+			nodeEndpointNotFoundCount:  1,
+			nodeEndpointOutOfSyncCount: 2,
+			expected:                   false,
+		},
+		{
+			name:                       "mixed availability with an out of sync endpoint",
+			nodeEndpointTotalCount:     3,
+			nodeEndpointNotFoundCount:  1,
+			nodeEndpointOutOfSyncCount: 1,
+			expected:                   true,
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			data := CommonGameData{
-				NodeEndpointTotalCount:    test.nodeEndpointTotalCount,
-				NodeEndpointErrorCount:    test.nodeEndpointErrorCount,
-				NodeEndpointNotFoundCount: test.nodeEndpointNotFoundCount,
+				NodeEndpointTotalCount:     test.nodeEndpointTotalCount,
+				NodeEndpointErrorCount:     test.nodeEndpointErrorCount,
+				NodeEndpointNotFoundCount:  test.nodeEndpointNotFoundCount,
+				NodeEndpointOutOfSyncCount: test.nodeEndpointOutOfSyncCount,
 			}
 			result := data.HasMixedAvailability()
 			require.Equal(t, test.expected, result)
@@ -178,6 +194,17 @@ func TestCommonGameData_HasMixedSafety(t *testing.T) {
 	}
 }
 func TestAllSupportedLifecycleGameTypesAreOutputOrSuperRootType(t *testing.T) {
+	expected := map[types.GameType]bool{
+		types.CannonGameType:            true,
+		types.PermissionedGameType:      true,
+		types.SuperPermissionedGameType: false,
+		types.AlphabetGameType:          true,
+		types.FastGameType:              true,
+		types.CannonKonaGameType:        true,
+		types.SuperCannonKonaGameType:   false,
+		types.ZKDisputeGameType:         false,
+	}
+	require.Len(t, expected, len(types.SupportedLifecycleGameTypes))
 	for _, gameType := range types.SupportedLifecycleGameTypes {
 		t.Run(gameType.String(), func(t *testing.T) {
 			data := CommonGameData{
@@ -185,13 +212,7 @@ func TestAllSupportedLifecycleGameTypesAreOutputOrSuperRootType(t *testing.T) {
 					GameType: uint32(gameType),
 				},
 			}
-			if data.UsesOutputRoots() {
-				require.Contains(t, outputRootGameTypes, gameType)
-				require.NotContains(t, superRootGameTypes, gameType)
-			} else {
-				require.Contains(t, superRootGameTypes, gameType)
-				require.NotContains(t, outputRootGameTypes, gameType)
-			}
+			require.Equal(t, expected[gameType], data.UsesOutputRoots())
 		})
 	}
 }

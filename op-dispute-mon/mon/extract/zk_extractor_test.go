@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"math"
+	"math/big"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
@@ -37,9 +39,13 @@ func TestExtractorRoutesEverySupportedLifecycleGameType(t *testing.T) {
 			faultCallers[metadata.Proxy] = &mockGameCaller{}
 		}
 	}
-	commonEnricher := &recordingCommonEnricher{}
+	commonEnricher := &recordingCommonEnricher{action: func(game *monTypes.CommonGameData) error {
+		game.L1HeadNum = 123
+		return nil
+	}}
 	faultEnricher := &recordingFaultEnricher{}
-	zkAgreement := &recordingCommonEnricher{action: func(game *monTypes.CommonGameData) error {
+	bondEnricher := &recordingBondEnricher{}
+	zkAgreement := &recordingZKEnricher{action: func(game *monTypes.ZKGameData) error {
 		game.AgreeWithClaim = true
 		game.ExpectedRootClaim = game.RootClaim
 		return nil
@@ -54,20 +60,24 @@ func TestExtractorRoutesEverySupportedLifecycleGameType(t *testing.T) {
 			return faultCallers[game.Proxy], nil
 		}
 	}
-	extractor := NewExtractor(
+	extractor, err := NewExtractor(
 		testlog.Logger(t, log.LvlDebug),
 		clock.NewDeterministicClock(time.Unix(1234, 0)),
 		creator,
 		func(context.Context, common.Hash, uint64) ([]gameTypes.GameMetadata, error) {
 			return games, nil
 		},
-		nil,
+		func(context.Context, uint64, rpcblock.Block) (gameTypes.GameStatus, error) {
+			return gameTypes.GameStatusDefenderWon, nil
+		},
 		nil,
 		5,
 		[]CommonEnricher{commonEnricher},
 		[]FaultEnricher{faultEnricher},
+		bondEnricher,
 		zkAgreement,
 	)
+	require.NoError(t, err)
 
 	extracted, ignored, failed, err := extractor.Extract(context.Background(), common.Hash{0xaa}, 0)
 	require.NoError(t, err)
@@ -76,6 +86,10 @@ func TestExtractorRoutesEverySupportedLifecycleGameType(t *testing.T) {
 	require.Len(t, extracted, len(gameTypes.SupportedLifecycleGameTypes))
 	require.Equal(t, len(gameTypes.SupportedLifecycleGameTypes), commonEnricher.Calls())
 	require.Equal(t, len(gameTypes.SupportedLifecycleGameTypes)-2, faultEnricher.Calls())
+	require.Equal(t, len(gameTypes.SupportedLifecycleGameTypes)-1, bondEnricher.Calls())
+	for _, l1Head := range faultEnricher.L1Heads() {
+		require.Equal(t, uint64(123), l1Head)
+	}
 	require.Equal(t, 1, zkAgreement.Calls())
 
 	var faultCount, zkCount, superPermissionedCount int
@@ -114,13 +128,6 @@ func TestExtractorValidatesPinnedZKState(t *testing.T) {
 			wantErr: "inconsistent ZK root claim",
 		},
 		{
-			name: "sequence mismatch",
-			configure: func(caller *routingZKCaller) {
-				caller.challengerMetadata.L2SequenceNumber++
-			},
-			wantErr: "inconsistent ZK sequence number",
-		},
-		{
 			name: "resolved proposal with live global status",
 			configure: func(caller *routingZKCaller) {
 				caller.challengerMetadata.ProposalStatus = contracts.ProposalStatusResolved
@@ -152,7 +159,7 @@ func TestExtractorValidatesPinnedZKState(t *testing.T) {
 			test.configure(caller)
 			extractor, _ := newZKExtractor(t, caller, func(context.Context, uint64, rpcblock.Block) (gameTypes.GameStatus, error) {
 				return test.parentStatus, nil
-			}, &recordingCommonEnricher{})
+			}, &recordingZKEnricher{})
 			game, err := extractor.enrichGame(context.Background(), common.Hash{0xaa}, zkMetadata())
 			require.Nil(t, game)
 			require.ErrorContains(t, err, test.wantErr)
@@ -167,11 +174,11 @@ func TestExtractorZKParentSemantics(t *testing.T) {
 		extractor, _ := newZKExtractor(t, caller, func(context.Context, uint64, rpcblock.Block) (gameTypes.GameStatus, error) {
 			parentCalls++
 			return gameTypes.GameStatusDefenderWon, nil
-		}, &recordingCommonEnricher{})
+		}, &recordingZKEnricher{})
 		game, err := extractor.enrichGame(context.Background(), common.Hash{0xaa}, zkMetadata())
 		require.NoError(t, err)
 		zkGame := game.(*monTypes.ZKGameData)
-		require.False(t, zkGame.HasParent)
+		require.Nil(t, zkGame.ParentStatus)
 		require.Equal(t, uint32(math.MaxUint32), zkGame.ParentIndex)
 		require.Zero(t, parentCalls)
 	})
@@ -185,14 +192,13 @@ func TestExtractorZKParentSemantics(t *testing.T) {
 			requestedIndex = index
 			requestedBlock = block
 			return gameTypes.GameStatusDefenderWon, nil
-		}, &recordingCommonEnricher{})
+		}, &recordingZKEnricher{})
 		blockHash := common.Hash{0xaa}
 		game, err := extractor.enrichGame(context.Background(), blockHash, zkMetadata())
 		require.NoError(t, err)
 		zkGame := game.(*monTypes.ZKGameData)
-		require.True(t, zkGame.HasParent)
 		require.Equal(t, uint32(0), zkGame.ParentIndex)
-		require.Equal(t, gameTypes.GameStatusDefenderWon, zkGame.ParentStatus)
+		require.Equal(t, gameTypes.GameStatusDefenderWon, *zkGame.ParentStatus)
 		require.Zero(t, requestedIndex)
 		require.Equal(t, rpcblock.ByHash(blockHash), requestedBlock)
 	})
@@ -204,28 +210,28 @@ func TestExtractorZKParentSemantics(t *testing.T) {
 		extractor, _ := newZKExtractor(t, caller, func(_ context.Context, index uint64, _ rpcblock.Block) (gameTypes.GameStatus, error) {
 			requestedIndex = index
 			return gameTypes.GameStatusChallengerWon, nil
-		}, &recordingCommonEnricher{})
+		}, &recordingZKEnricher{})
 		game, err := extractor.enrichGame(context.Background(), common.Hash{0xaa}, zkMetadata())
 		require.NoError(t, err)
 		require.Equal(t, uint64(1234), requestedIndex)
-		require.Equal(t, gameTypes.GameStatusChallengerWon, game.(*monTypes.ZKGameData).ParentStatus)
+		require.Equal(t, gameTypes.GameStatusChallengerWon, *game.(*monTypes.ZKGameData).ParentStatus)
 	})
 }
 
 func TestExtractorZKCacheFallbackIsImmutable(t *testing.T) {
 	for _, test := range []struct {
 		name string
-		fail func(*parentStatusSource, *recordingCommonEnricher)
+		fail func(*parentStatusSource, *recordingZKEnricher)
 	}{
 		{
 			name: "parent refresh failure",
-			fail: func(parent *parentStatusSource, _ *recordingCommonEnricher) {
+			fail: func(parent *parentStatusSource, _ *recordingZKEnricher) {
 				parent.err = errors.New("parent unavailable")
 			},
 		},
 		{
 			name: "root source refresh failure",
-			fail: func(_ *parentStatusSource, agreement *recordingCommonEnricher) {
+			fail: func(_ *parentStatusSource, agreement *recordingZKEnricher) {
 				agreement.err = errors.New("root source unavailable")
 			},
 		},
@@ -234,7 +240,7 @@ func TestExtractorZKCacheFallbackIsImmutable(t *testing.T) {
 			caller := validZKCaller()
 			caller.challengerMetadata.ParentIndex = 7
 			parent := &parentStatusSource{status: gameTypes.GameStatusDefenderWon}
-			agreement := &recordingCommonEnricher{action: func(game *monTypes.CommonGameData) error {
+			agreement := &recordingZKEnricher{action: func(game *monTypes.ZKGameData) error {
 				game.AgreeWithClaim = true
 				game.ExpectedRootClaim = game.RootClaim
 				return nil
@@ -246,7 +252,7 @@ func TestExtractorZKCacheFallbackIsImmutable(t *testing.T) {
 			require.Zero(t, failed)
 			require.Len(t, first, 1)
 			snapshot := first[0].(*monTypes.ZKGameData)
-			require.Equal(t, gameTypes.GameStatusDefenderWon, snapshot.ParentStatus)
+			require.Equal(t, gameTypes.GameStatusDefenderWon, *snapshot.ParentStatus)
 			require.Equal(t, snapshot.RootClaim, snapshot.ExpectedRootClaim)
 
 			test.fail(parent, agreement)
@@ -256,17 +262,55 @@ func TestExtractorZKCacheFallbackIsImmutable(t *testing.T) {
 			require.Equal(t, 1, failed)
 			require.Len(t, second, 1)
 			require.Same(t, snapshot, second[0])
-			require.Equal(t, gameTypes.GameStatusDefenderWon, snapshot.ParentStatus)
+			require.Equal(t, gameTypes.GameStatusDefenderWon, *snapshot.ParentStatus)
 			require.Equal(t, snapshot.RootClaim, snapshot.ExpectedRootClaim)
 		})
 	}
 }
 
+func TestExtractorSkipsOutOfSyncZKWithoutFailure(t *testing.T) {
+	caller := validZKCaller()
+	agreement := &recordingZKEnricher{err: gameTypes.ErrNotInSync}
+	extractor, fetcher := newZKExtractor(t, caller, func(context.Context, uint64, rpcblock.Block) (gameTypes.GameStatus, error) {
+		return gameTypes.GameStatusDefenderWon, nil
+	}, agreement)
+
+	games, ignored, failed, err := extractor.Extract(context.Background(), common.Hash{0xaa}, 0)
+	require.NoError(t, err)
+	require.Empty(t, games)
+	require.Zero(t, ignored)
+	require.Zero(t, failed)
+	require.Zero(t, caller.bondMetadataCalls)
+
+	agreement.err = nil
+	agreement.action = func(game *monTypes.ZKGameData) error {
+		game.AgreeWithClaim = true
+		game.ExpectedRootClaim = game.RootClaim
+		return nil
+	}
+	games, _, failed, err = extractor.Extract(context.Background(), common.Hash{0xbb}, 0)
+	require.NoError(t, err)
+	require.Zero(t, failed)
+	require.Len(t, games, 1)
+	require.Equal(t, 1, caller.bondMetadataCalls)
+	snapshot := games[0]
+
+	agreement.err = gameTypes.ErrNotInSync
+	fetcher.blockHash = common.Hash{0xcc}
+	games, _, failed, err = extractor.Extract(context.Background(), fetcher.blockHash, 0)
+	require.NoError(t, err)
+	require.Zero(t, failed)
+	require.Equal(t, []monTypes.EnrichedGame{snapshot}, games)
+	require.Equal(t, 1, caller.bondMetadataCalls)
+}
+
 type routingZKCaller struct {
 	metadata                contracts.GenericGameMetadata
 	challengerMetadata      contracts.ChallengerMetadata
+	bondMetadata            contracts.ZKBondMetadata
 	metadataCalls           int
 	challengerMetadataCalls int
+	bondMetadataCalls       int
 }
 
 func validZKCaller() *routingZKCaller {
@@ -278,10 +322,14 @@ func validZKCaller() *routingZKCaller {
 			Status:        gameTypes.GameStatusInProgress,
 		},
 		challengerMetadata: contracts.ChallengerMetadata{
-			ParentIndex:      math.MaxUint32,
-			ProposalStatus:   contracts.ProposalStatusUnchallenged,
-			ProposedRoot:     common.Hash{0x22},
-			L2SequenceNumber: 99,
+			ParentIndex:    math.MaxUint32,
+			ProposalStatus: contracts.ProposalStatusUnchallenged,
+			ProposedRoot:   common.Hash{0x22},
+		},
+		bondMetadata: contracts.ZKBondMetadata{
+			GameCreator:    common.Address{0xc1},
+			TotalBonds:     big.NewInt(100),
+			ChallengerBond: big.NewInt(30),
 		},
 	}
 }
@@ -294,6 +342,27 @@ func (c *routingZKCaller) GetMetadata(context.Context, rpcblock.Block) (contract
 func (c *routingZKCaller) GetChallengerMetadata(context.Context, rpcblock.Block) (contracts.ChallengerMetadata, error) {
 	c.challengerMetadataCalls++
 	return c.challengerMetadata, nil
+}
+
+func (c *routingZKCaller) GetBondMetadata(context.Context, rpcblock.Block) (contracts.ZKBondMetadata, error) {
+	c.bondMetadataCalls++
+	return c.bondMetadata, nil
+}
+
+func (*routingZKCaller) GetCredits(context.Context, rpcblock.Block, ...common.Address) ([]*big.Int, error) {
+	return nil, nil
+}
+
+func (*routingZKCaller) GetBondDistributionMode(context.Context, rpcblock.Block) (faultTypes.BondDistributionMode, error) {
+	return faultTypes.UndecidedDistributionMode, nil
+}
+
+func (*routingZKCaller) GetWithdrawals(context.Context, rpcblock.Block, ...common.Address) ([]*contracts.WithdrawalRequest, error) {
+	return nil, nil
+}
+
+func (*routingZKCaller) GetBalanceAndDelay(context.Context, rpcblock.Block) (*big.Int, time.Duration, common.Address, error) {
+	return big.NewInt(0), 0, common.Address{}, nil
 }
 
 func (*routingZKCaller) GetAnchorStateRegistry(context.Context, rpcblock.Block) (common.Address, error) {
@@ -320,6 +389,50 @@ type recordingCommonEnricher struct {
 	action func(*monTypes.CommonGameData) error
 }
 
+type recordingZKEnricher struct {
+	mu     sync.Mutex
+	calls  int
+	err    error
+	action func(*monTypes.ZKGameData) error
+}
+
+type recordingBondEnricher struct {
+	mu    sync.Mutex
+	calls int
+}
+
+func (e *recordingBondEnricher) Enrich(context.Context, rpcblock.Block, BondGameCaller, monTypes.BondedGame) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.calls++
+	return nil
+}
+
+func (e *recordingBondEnricher) Calls() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.calls
+}
+
+func (e *recordingZKEnricher) Enrich(_ context.Context, _ rpcblock.Block, _ ZKGameCaller, game *monTypes.ZKGameData) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.calls++
+	if e.err != nil {
+		return e.err
+	}
+	if e.action != nil {
+		return e.action(game)
+	}
+	return nil
+}
+
+func (e *recordingZKEnricher) Calls() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.calls
+}
+
 func (e *recordingCommonEnricher) Enrich(_ context.Context, _ rpcblock.Block, _ GameCaller, game *monTypes.CommonGameData) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -340,14 +453,16 @@ func (e *recordingCommonEnricher) Calls() int {
 }
 
 type recordingFaultEnricher struct {
-	mu    sync.Mutex
-	calls int
+	mu      sync.Mutex
+	calls   int
+	l1Heads []uint64
 }
 
-func (e *recordingFaultEnricher) Enrich(context.Context, rpcblock.Block, FaultGameCaller, *monTypes.FaultGameData) error {
+func (e *recordingFaultEnricher) Enrich(_ context.Context, _ rpcblock.Block, _ FaultGameCaller, game *monTypes.FaultGameData) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.calls++
+	e.l1Heads = append(e.l1Heads, game.L1HeadNum)
 	return nil
 }
 
@@ -355,6 +470,12 @@ func (e *recordingFaultEnricher) Calls() int {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return e.calls
+}
+
+func (e *recordingFaultEnricher) L1Heads() []uint64 {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return append([]uint64(nil), e.l1Heads...)
 }
 
 type parentStatusSource struct {
@@ -386,10 +507,10 @@ func newZKExtractor(
 	t *testing.T,
 	caller *routingZKCaller,
 	parent ParentGameStatusFetcher,
-	agreement *recordingCommonEnricher,
+	agreement *recordingZKEnricher,
 ) (*Extractor, *zkGameFetcher) {
 	fetcher := &zkGameFetcher{}
-	return NewExtractor(
+	extractor, err := NewExtractor(
 		testlog.Logger(t, log.LvlDebug),
 		clock.NewDeterministicClock(time.Unix(1234, 0)),
 		func(context.Context, gameTypes.GameMetadata) (GameCaller, error) {
@@ -401,6 +522,9 @@ func newZKExtractor(
 		1,
 		nil,
 		nil,
+		&recordingBondEnricher{},
 		agreement,
-	), fetcher
+	)
+	require.NoError(t, err)
+	return extractor, fetcher
 }

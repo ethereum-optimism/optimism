@@ -179,16 +179,10 @@ func TestClaimMonitor_CheckClaims(t *testing.T) {
 		require.Equal(t, 2, actor1.InvalidClaimCount)
 		require.Equal(t, 0, actor1.ValidClaimCount)
 		require.Equal(t, 2, actor1.PendingClaimCount)
-		require.EqualValues(t, 4, actor1.LostBonds.Int64())
-		require.EqualValues(t, 0, actor1.WonBonds.Int64())
-		require.EqualValues(t, 10, actor1.PendingBonds.Int64())
 
 		require.Equal(t, 0, actor2.InvalidClaimCount)
 		require.Equal(t, 2, actor2.ValidClaimCount)
 		require.Equal(t, 0, actor2.PendingClaimCount)
-		require.EqualValues(t, 0, actor2.LostBonds.Int64())
-		require.EqualValues(t, 6, actor2.WonBonds.Int64())
-		require.EqualValues(t, 0, actor2.PendingBonds.Int64())
 	})
 }
 
@@ -206,7 +200,7 @@ func newTestClaimMonitor(t *testing.T) (*ClaimMonitor, *clock.DeterministicClock
 
 type stubClaimMetrics struct {
 	calls  map[metrics.ClaimStatus]int
-	honest map[common.Address]metrics.HonestActorData
+	honest map[common.Address]metrics.HonestActorClaimData
 }
 
 func (s *stubClaimMetrics) RecordClaims(statuses *metrics.ClaimStatuses) {
@@ -218,9 +212,9 @@ func (s *stubClaimMetrics) RecordClaims(statuses *metrics.ClaimStatuses) {
 	})
 }
 
-func (s *stubClaimMetrics) RecordHonestActorClaims(address common.Address, data *metrics.HonestActorData) {
+func (s *stubClaimMetrics) RecordHonestActorClaims(address common.Address, data *metrics.HonestActorClaimData) {
 	if s.honest == nil {
-		s.honest = make(map[common.Address]metrics.HonestActorData)
+		s.honest = make(map[common.Address]metrics.HonestActorClaimData)
 	}
 	s.honest[address] = *data
 }
@@ -235,11 +229,6 @@ func makeMultipleTestGames(duration uint64) []*types.FaultGameData {
 func makeTestGame(duration uint64) *types.FaultGameData {
 	return &types.FaultGameData{
 		MaxClockDuration: duration / 2,
-		Recipients: map[common.Address]bool{
-			{0x02}: true,
-			{0x03}: true,
-			{0x04}: true,
-		},
 		Claims: []types.EnrichedClaim{
 			{
 				Claim: faultTypes.Claim{

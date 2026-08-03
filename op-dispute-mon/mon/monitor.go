@@ -26,6 +26,9 @@ type CommonMonitor func(games []*types.CommonGameData)
 // FaultMonitor checks fields that exist only on fault games.
 type FaultMonitor func(games []*types.FaultGameData)
 
+// BondMonitor checks fields shared by every game kind that holds bonds in DelayedWETH.
+type BondMonitor func(games []types.BondedGame)
+
 // HeadBlockFetcher returns the L1 snapshot used for a monitor cycle.
 type HeadBlockFetcher func(ctx context.Context) (eth.L1BlockRef, error)
 
@@ -55,6 +58,7 @@ type gameMonitor struct {
 	checkAnchorState AnchorStateCheck
 	commonMonitors   []CommonMonitor
 	faultMonitors    []FaultMonitor
+	bondMonitors     []BondMonitor
 	extract          Extract
 	fetchHeadBlock   HeadBlockFetcher
 }
@@ -72,6 +76,7 @@ func newGameMonitor(
 	checkAnchorState AnchorStateCheck,
 	commonMonitors []CommonMonitor,
 	faultMonitors []FaultMonitor,
+	bondMonitors []BondMonitor,
 ) *gameMonitor {
 	return &gameMonitor{
 		logger:           logger,
@@ -86,6 +91,7 @@ func newGameMonitor(
 		checkAnchorState: checkAnchorState,
 		commonMonitors:   commonMonitors,
 		faultMonitors:    faultMonitors,
+		bondMonitors:     bondMonitors,
 		extract:          extract,
 		fetchHeadBlock:   fetchHeadBlock,
 	}
@@ -103,7 +109,7 @@ func (m *gameMonitor) monitorGames() error {
 	if err != nil {
 		return fmt.Errorf("failed to load games: %w", err)
 	}
-	commonGames, faultGames := partitionGames(enrichedGames)
+	commonGames, faultGames, bondedGames := partitionGames(enrichedGames)
 	m.forecast(enrichedGames, ignored, failed)
 	m.checkAnchorState(m.ctx, headBlock.Hash, commonGames)
 	for _, monitor := range m.commonMonitors {
@@ -111,6 +117,9 @@ func (m *gameMonitor) monitorGames() error {
 	}
 	for _, monitor := range m.faultMonitors {
 		monitor(faultGames)
+	}
+	for _, monitor := range m.bondMonitors {
+		monitor(bondedGames)
 	}
 	timeTaken := m.clock.Since(start)
 	m.metrics.RecordMonitorDuration(timeTaken)
@@ -124,16 +133,20 @@ func (m *gameMonitor) monitorGames() error {
 	return nil
 }
 
-func partitionGames(games []types.EnrichedGame) ([]*types.CommonGameData, []*types.FaultGameData) {
+func partitionGames(games []types.EnrichedGame) ([]*types.CommonGameData, []*types.FaultGameData, []types.BondedGame) {
 	commonGames := make([]*types.CommonGameData, 0, len(games))
 	faultGames := make([]*types.FaultGameData, 0, len(games))
+	bondedGames := make([]types.BondedGame, 0, len(games))
 	for _, game := range games {
 		commonGames = append(commonGames, game.Common())
 		if faultGame, ok := game.(*types.FaultGameData); ok {
 			faultGames = append(faultGames, faultGame)
 		}
+		if bondedGame, ok := game.(types.BondedGame); ok {
+			bondedGames = append(bondedGames, bondedGame)
+		}
 	}
-	return commonGames, faultGames
+	return commonGames, faultGames, bondedGames
 }
 
 func (m *gameMonitor) loop() {

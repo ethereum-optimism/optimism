@@ -91,8 +91,16 @@ func TestZKAgreementPolicy(t *testing.T) {
 			name:      "current L1 below head is out of sync",
 			providers: []SuperRootProvider{zkFound(99, root, 0)},
 			claim:     root,
+			wantErr:   gameTypes.ErrNotInSync,
+			outOfSync: 1,
+		},
+		{
+			name:      "mixed out of sync and errors is unavailable",
+			providers: []SuperRootProvider{zkFound(99, root, 0), zkError(errors.New("boom"))},
+			claim:     root,
 			wantErr:   ErrAllSuperRootRpcsUnavailable,
 			outOfSync: 1,
+			errors:    1,
 		},
 		{
 			name:      "all errors fail",
@@ -121,13 +129,13 @@ func TestZKAgreementPolicy(t *testing.T) {
 				test.providers,
 				clock.NewDeterministicClock(time.Unix(1234, 0)),
 			)
-			game := &monTypes.CommonGameData{
+			game := &monTypes.ZKGameData{CommonGameData: monTypes.CommonGameData{
 				GameMetadata:       gameTypes.GameMetadata{GameType: uint32(gameTypes.ZKDisputeGameType)},
 				L1HeadNum:          100,
 				L2SequenceNumber:   44,
 				RootClaim:          test.claim,
 				NodeEndpointErrors: make(map[string]bool),
-			}
+			}}
 
 			err := enricher.Enrich(context.Background(), rpcblock.Latest, nil, game)
 			if test.wantErr != nil {
@@ -158,10 +166,10 @@ func TestZKAgreementRequiresProvider(t *testing.T) {
 		nil,
 		clock.NewDeterministicClock(time.Unix(1234, 0)),
 	)
-	game := &monTypes.CommonGameData{
+	game := &monTypes.ZKGameData{CommonGameData: monTypes.CommonGameData{
 		GameMetadata:       gameTypes.GameMetadata{GameType: uint32(gameTypes.ZKDisputeGameType)},
 		NodeEndpointErrors: make(map[string]bool),
-	}
+	}}
 	require.ErrorIs(t, enricher.Enrich(context.Background(), rpcblock.Latest, nil, game), ErrSuperRootRpcRequired)
 }
 

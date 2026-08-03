@@ -52,13 +52,16 @@ func withDisputeMonClock(cl *clock.AdvancingClock) DisputeMonOption {
 	}
 }
 
-func (s *SingleChainInterop) StartDisputeMon() *disputemon.DisputeMon {
+func (s *SingleChainInterop) StartDisputeMon(options ...DisputeMonOption) *disputemon.DisputeMon {
+	options = append([]DisputeMonOption{
+		WithDisputeMonSupernodes(s.SuperRoots),
+		withDisputeMonClock(s.timeTravel),
+	}, options...)
 	return StartDisputeMon(
 		s.T,
 		s.L1EL,
 		s.L2ChainA.DisputeGameFactoryProxyAddr(),
-		WithDisputeMonSupernodes(s.SuperRoots),
-		withDisputeMonClock(s.timeTravel),
+		options...,
 	)
 }
 

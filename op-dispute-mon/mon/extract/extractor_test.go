@@ -25,6 +25,32 @@ var (
 	ignoredGames  = []common.Address{common.HexToAddress("0xdeadbeef")}
 )
 
+func TestNewExtractorRequiresZKDependencies(t *testing.T) {
+	parentFetcher := func(context.Context, uint64, rpcblock.Block) (gameTypes.GameStatus, error) {
+		return gameTypes.GameStatusDefenderWon, nil
+	}
+	newExtractor := func(parent ParentGameStatusFetcher, bond BondEnricher, agreement ZKEnricher) error {
+		_, err := NewExtractor(
+			testlog.Logger(t, log.LvlDebug),
+			clock.NewDeterministicClock(time.Unix(1, 0)),
+			func(context.Context, gameTypes.GameMetadata) (GameCaller, error) { return nil, nil },
+			func(context.Context, common.Hash, uint64) ([]gameTypes.GameMetadata, error) { return nil, nil },
+			parent,
+			nil,
+			1,
+			nil,
+			nil,
+			bond,
+			agreement,
+		)
+		return err
+	}
+	require.ErrorContains(t, newExtractor(nil, &recordingBondEnricher{}, &recordingZKEnricher{}), "parent game status fetcher is required")
+	require.ErrorContains(t, newExtractor(parentFetcher, &recordingBondEnricher{}, nil), "ZK agreement enricher is required")
+	require.ErrorContains(t, newExtractor(parentFetcher, nil, &recordingZKEnricher{}), "bond enricher is required")
+	require.NoError(t, newExtractor(parentFetcher, &recordingBondEnricher{}, &recordingZKEnricher{}))
+}
+
 func TestExtractor_Extract(t *testing.T) {
 	t.Run("FetchGamesError", func(t *testing.T) {
 		extractor, _, games, _, _ := setupExtractorTest(t)
@@ -232,18 +258,22 @@ func setupExtractorTest(t *testing.T, enrichers ...CommonEnricher) (*Extractor, 
 	caller := &mockGameCaller{rootClaim: mockRootClaim}
 	creator := &mockGameCallerCreator{caller: caller}
 	cl := clock.NewDeterministicClock(time.Unix(48294294, 58))
-	extractor := NewExtractor(
+	extractor, err := NewExtractor(
 		logger,
 		cl,
 		creator.CreateGameCaller,
 		games.FetchGames,
-		nil,
+		func(context.Context, uint64, rpcblock.Block) (gameTypes.GameStatus, error) {
+			return gameTypes.GameStatusDefenderWon, nil
+		},
 		ignoredGames,
 		5,
 		enrichers,
 		nil,
-		nil,
+		&recordingBondEnricher{},
+		&recordingZKEnricher{},
 	)
+	require.NoError(t, err)
 	return extractor, creator, games, capturedLogs, cl
 }
 

@@ -65,7 +65,24 @@ const (
 	DisagreeDefenderWins
 	AgreeChallengerWins
 	DisagreeChallengerWins
+	gameAgreementStatusCount
 )
+
+type gameAgreementSeries struct {
+	status GameAgreementStatus
+	labels [4]string
+}
+
+var canonicalGameAgreementSeries = [...]gameAgreementSeries{
+	{AgreeChallengerAhead, [4]string{"agree_challenger_ahead", "in_progress", "incorrect", "agree"}},
+	{DisagreeChallengerAhead, [4]string{"disagree_challenger_ahead", "in_progress", "correct", "disagree"}},
+	{AgreeDefenderAhead, [4]string{"agree_defender_ahead", "in_progress", "correct", "agree"}},
+	{DisagreeDefenderAhead, [4]string{"disagree_defender_ahead", "in_progress", "incorrect", "disagree"}},
+	{AgreeDefenderWins, [4]string{"agree_defender_wins", "complete", "correct", "agree"}},
+	{DisagreeDefenderWins, [4]string{"disagree_defender_wins", "complete", "incorrect", "disagree"}},
+	{AgreeChallengerWins, [4]string{"agree_challenger_wins", "complete", "incorrect", "agree"}},
+	{DisagreeChallengerWins, [4]string{"disagree_challenger_wins", "complete", "correct", "disagree"}},
+}
 
 type ClaimStatus struct {
 	resolved     bool
@@ -140,13 +157,16 @@ func NewClaimStatus(firstHalf, clockExpired, resolvable, resolved bool) ClaimSta
 	}
 }
 
-type HonestActorData struct {
+type HonestActorClaimData struct {
 	PendingClaimCount int
 	ValidClaimCount   int
 	InvalidClaimCount int
-	PendingBonds      *big.Int
-	LostBonds         *big.Int
-	WonBonds          *big.Int
+}
+
+type HonestActorBondData struct {
+	Pending *big.Int
+	Lost    *big.Int
+	Won     *big.Int
 }
 
 type Metricer interface {
@@ -157,7 +177,8 @@ type Metricer interface {
 
 	RecordFailedGames(count int)
 
-	RecordHonestActorClaims(address common.Address, stats *HonestActorData)
+	RecordHonestActorClaims(address common.Address, stats *HonestActorClaimData)
+	RecordHonestActorBonds(address common.Address, stats *HonestActorBondData)
 
 	RecordGameResolutionStatus(status ResolutionStatus, count int)
 
@@ -357,7 +378,7 @@ func NewMetrics() *Metrics {
 		withdrawalRequests: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
 			Name:      "withdrawal_requests",
-			Help:      "Number of withdrawal requests categorised by the source DelayedWETH contract and whether the withdrawal request amount matches or diverges from its fault dispute game credits",
+			Help:      "Number of withdrawal requests categorised by the source DelayedWETH contract and whether the withdrawal request amount matches or diverges from its dispute game credits",
 		}, []string{
 			"delayedWETH",
 			"credits",
@@ -497,14 +518,16 @@ func (m *Metrics) RecordMonitorDuration(dur time.Duration) {
 	m.monitorDuration.Observe(dur.Seconds())
 }
 
-func (m *Metrics) RecordHonestActorClaims(address common.Address, stats *HonestActorData) {
+func (m *Metrics) RecordHonestActorClaims(address common.Address, stats *HonestActorClaimData) {
 	m.honestActorClaims.WithLabelValues(address.Hex(), "pending").Set(float64(stats.PendingClaimCount))
 	m.honestActorClaims.WithLabelValues(address.Hex(), "invalid").Set(float64(stats.InvalidClaimCount))
 	m.honestActorClaims.WithLabelValues(address.Hex(), "valid").Set(float64(stats.ValidClaimCount))
+}
 
-	m.honestActorBonds.WithLabelValues(address.Hex(), "pending").Set(weiToEther(stats.PendingBonds))
-	m.honestActorBonds.WithLabelValues(address.Hex(), "lost").Set(weiToEther(stats.LostBonds))
-	m.honestActorBonds.WithLabelValues(address.Hex(), "won").Set(weiToEther(stats.WonBonds))
+func (m *Metrics) RecordHonestActorBonds(address common.Address, stats *HonestActorBondData) {
+	m.honestActorBonds.WithLabelValues(address.Hex(), "pending").Set(weiToEther(stats.Pending))
+	m.honestActorBonds.WithLabelValues(address.Hex(), "lost").Set(weiToEther(stats.Lost))
+	m.honestActorBonds.WithLabelValues(address.Hex(), "won").Set(weiToEther(stats.Won))
 }
 
 func (m *Metrics) RecordGameResolutionStatus(status ResolutionStatus, count int) {
@@ -584,8 +607,8 @@ func (m *Metrics) RecordOldestGameUpdateTime(t time.Time) {
 }
 
 func (m *Metrics) RecordGameAgreements(counts map[GameAgreementStatus]int) {
-	for status := AgreeChallengerAhead; status <= DisagreeChallengerWins; status++ {
-		m.gamesAgreement.WithLabelValues(labelValuesFor(status)...).Set(float64(counts[status]))
+	for _, series := range canonicalGameAgreementSeries {
+		m.gamesAgreement.WithLabelValues(series.labels[:]...).Set(float64(counts[series.status]))
 	}
 }
 
@@ -655,53 +678,6 @@ func (m *Metrics) RecordL2Challenges(agreement bool, count int) {
 		agree = "agree"
 	}
 	m.l2Challenges.WithLabelValues(agree).Set(float64(count))
-}
-
-const (
-	inProgress = true
-	correct    = true
-	agree      = true
-)
-
-func labelValuesFor(status GameAgreementStatus) []string {
-	asStrings := func(status string, inProgress, correct, agree bool) []string {
-		inProgressStr := "in_progress"
-		if !inProgress {
-			inProgressStr = "complete"
-		}
-		correctStr := "correct"
-		if !correct {
-			correctStr = "incorrect"
-		}
-		agreeStr := "agree"
-		if !agree {
-			agreeStr = "disagree"
-		}
-		return []string{status, inProgressStr, correctStr, agreeStr}
-	}
-	switch status {
-	case AgreeChallengerAhead:
-		return asStrings("agree_challenger_ahead", inProgress, !correct, agree)
-	case DisagreeChallengerAhead:
-		return asStrings("disagree_challenger_ahead", inProgress, correct, !agree)
-	case AgreeDefenderAhead:
-		return asStrings("agree_defender_ahead", inProgress, correct, agree)
-	case DisagreeDefenderAhead:
-		return asStrings("disagree_defender_ahead", inProgress, !correct, !agree)
-
-	// Completed
-	case AgreeDefenderWins:
-		return asStrings("agree_defender_wins", !inProgress, correct, agree)
-	case DisagreeDefenderWins:
-		return asStrings("disagree_defender_wins", !inProgress, !correct, !agree)
-	case AgreeChallengerWins:
-		return asStrings("agree_challenger_wins", !inProgress, !correct, agree)
-	case DisagreeChallengerWins:
-		return asStrings("disagree_challenger_wins", !inProgress, correct, !agree)
-
-	default:
-		panic(fmt.Errorf("unknown game agreement status: %v", status))
-	}
 }
 
 func (m *Metrics) RecordGameTypes(gameTypeCounts map[string]int) {

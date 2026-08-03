@@ -39,6 +39,11 @@ type FaultEnricher interface {
 	Enrich(ctx context.Context, block rpcblock.Block, caller FaultGameCaller, game *monTypes.FaultGameData) error
 }
 
+// ZKEnricher adds data that exists only for ZK games.
+type ZKEnricher interface {
+	Enrich(ctx context.Context, block rpcblock.Block, caller ZKGameCaller, game *monTypes.ZKGameData) error
+}
+
 type Extractor struct {
 	logger            log.Logger
 	clock             clock.Clock
@@ -48,7 +53,8 @@ type Extractor struct {
 	maxConcurrency    int
 	commonEnrichers   []CommonEnricher
 	faultEnrichers    []FaultEnricher
-	zkAgreement       CommonEnricher
+	bondEnricher      BondEnricher
+	zkAgreement       ZKEnricher
 	ignoredGames      map[common.Address]bool
 	latestGameData    map[common.Address]monTypes.EnrichedGame
 }
@@ -63,8 +69,18 @@ func NewExtractor(
 	maxConcurrency uint,
 	commonEnrichers []CommonEnricher,
 	faultEnrichers []FaultEnricher,
-	zkAgreement CommonEnricher,
-) *Extractor {
+	bondEnricher BondEnricher,
+	zkAgreement ZKEnricher,
+) (*Extractor, error) {
+	if fetchParentStatus == nil {
+		return nil, errors.New("parent game status fetcher is required")
+	}
+	if zkAgreement == nil {
+		return nil, errors.New("ZK agreement enricher is required")
+	}
+	if bondEnricher == nil {
+		return nil, errors.New("bond enricher is required")
+	}
 	ignored := make(map[common.Address]bool)
 	for _, game := range ignoredGames {
 		ignored[game] = true
@@ -78,9 +94,10 @@ func NewExtractor(
 		maxConcurrency:    int(maxConcurrency),
 		commonEnrichers:   commonEnrichers,
 		faultEnrichers:    faultEnrichers,
+		bondEnricher:      bondEnricher,
 		zkAgreement:       zkAgreement,
 		ignoredGames:      ignored,
-	}
+	}, nil
 }
 
 func (e *Extractor) Extract(ctx context.Context, blockHash common.Hash, minTimestamp uint64) ([]monTypes.EnrichedGame, int, int, error) {
@@ -120,6 +137,9 @@ func (e *Extractor) enrichGames(ctx context.Context, blockHash common.Hash, game
 					if errors.Is(err, ErrIgnored) {
 						ignored.Add(1)
 						e.logger.Warn("Ignoring game", "game", game.Proxy)
+						continue
+					} else if errors.Is(err, gameTypes.ErrNotInSync) {
+						e.logger.Debug("Waiting for root source to process past the game L1 head", "game", game.Proxy)
 						continue
 					} else if err != nil {
 						failed.Add(1)
@@ -210,13 +230,16 @@ func (e *Extractor) enrichFaultGame(
 		BlockNumberChallenger: meta.L2BlockNumberChallenger,
 		Claims:                enrichedClaims,
 	}
+	if err := e.applyCommonEnrichers(ctx, block, caller, enrichedGame.Common()); err != nil {
+		return nil, fmt.Errorf("failed to enrich game: %w", err)
+	}
 	for _, enricher := range e.faultEnrichers {
 		if err := enricher.Enrich(ctx, block, faultCaller, enrichedGame); err != nil {
 			return nil, fmt.Errorf("failed to enrich fault game: %w", err)
 		}
 	}
-	if err := e.applyCommonEnrichers(ctx, block, caller, enrichedGame.Common()); err != nil {
-		return nil, fmt.Errorf("failed to enrich game: %w", err)
+	if err := e.bondEnricher.Enrich(ctx, block, faultCaller, enrichedGame); err != nil {
+		return nil, fmt.Errorf("failed to enrich fault game bonds: %w", err)
 	}
 	return enrichedGame, nil
 }
@@ -265,25 +288,19 @@ func (e *Extractor) enrichZKGame(
 	if meta.ProposedRoot != challengerMeta.ProposedRoot {
 		return nil, fmt.Errorf("inconsistent ZK root claim: generic %s, challenger %s", meta.ProposedRoot, challengerMeta.ProposedRoot)
 	}
-	if meta.L2SequenceNum != challengerMeta.L2SequenceNumber {
-		return nil, fmt.Errorf("inconsistent ZK sequence number: generic %d, challenger %d", meta.L2SequenceNum, challengerMeta.L2SequenceNumber)
-	}
 	proposalInProgress := challengerMeta.ProposalStatus != contracts.ProposalStatusResolved
 	if (meta.Status == gameTypes.GameStatusInProgress) != proposalInProgress {
 		return nil, fmt.Errorf("inconsistent ZK global status %s and proposal status %s", meta.Status, challengerMeta.ProposalStatus)
 	}
 
-	hasParent := challengerMeta.ParentIndex != math.MaxUint32
-	parentStatus := gameTypes.GameStatusInProgress
-	if hasParent {
-		if e.fetchParentStatus == nil {
-			return nil, errors.New("parent game status fetcher is required for ZK child games")
-		}
-		parentStatus, err = e.fetchParentStatus(ctx, uint64(challengerMeta.ParentIndex), block)
+	var parentStatus *gameTypes.GameStatus
+	if challengerMeta.ParentIndex != math.MaxUint32 {
+		status, err := e.fetchParentStatus(ctx, uint64(challengerMeta.ParentIndex), block)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch ZK parent game %d status: %w", challengerMeta.ParentIndex, err)
 		}
-		if meta.Status != gameTypes.GameStatusInProgress && parentStatus == gameTypes.GameStatusInProgress {
+		parentStatus = &status
+		if meta.Status != gameTypes.GameStatusInProgress && status == gameTypes.GameStatusInProgress {
 			return nil, fmt.Errorf("terminal ZK child has in-progress parent %d", challengerMeta.ParentIndex)
 		}
 	}
@@ -291,18 +308,26 @@ func (e *Extractor) enrichZKGame(
 	enrichedGame := &monTypes.ZKGameData{
 		CommonGameData: e.newCommonGameData(game, meta.L1Head, meta.L2SequenceNum, meta.ProposedRoot, meta.Status),
 		ParentIndex:    challengerMeta.ParentIndex,
-		HasParent:      hasParent,
 		ParentStatus:   parentStatus,
 		ProposalStatus: challengerMeta.ProposalStatus,
 	}
 	if err := e.applyCommonEnrichers(ctx, block, caller, enrichedGame.Common()); err != nil {
 		return nil, fmt.Errorf("failed to enrich game: %w", err)
 	}
-	if e.zkAgreement == nil {
-		return nil, errors.New("ZK agreement enricher is required")
-	}
-	if err := e.zkAgreement.Enrich(ctx, block, caller, enrichedGame.Common()); err != nil {
+	if err := e.zkAgreement.Enrich(ctx, block, zkCaller, enrichedGame); err != nil {
 		return nil, fmt.Errorf("failed to enrich ZK agreement: %w", err)
+	}
+	bondMeta, err := zkCaller.GetBondMetadata(ctx, block)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch ZK bond metadata: %w", err)
+	}
+	enrichedGame.GameCreator = bondMeta.GameCreator
+	enrichedGame.Challenger = challengerMeta.Challenger
+	enrichedGame.Prover = challengerMeta.Prover
+	enrichedGame.TotalBonds = bondMeta.TotalBonds
+	enrichedGame.ChallengerBond = bondMeta.ChallengerBond
+	if err := e.bondEnricher.Enrich(ctx, block, zkCaller, enrichedGame); err != nil {
+		return nil, fmt.Errorf("failed to enrich ZK game bonds: %w", err)
 	}
 	return enrichedGame, nil
 }

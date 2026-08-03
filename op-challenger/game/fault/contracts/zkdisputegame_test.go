@@ -195,24 +195,84 @@ func TestZKGetChallengerMetadata(t *testing.T) {
 			expectedProposalStatus := ProposalStatusChallengedAndValidProofProvided
 			challenger := common.Address{0xad}
 			prover := common.Address{0xac}
-			expectedL2BlockNumber := uint64(123)
 			expectedRootClaim := common.Hash{0x01, 0x02}
 			expectedDeadline := time.Unix(84928429020, 0)
 			block := rpcblock.ByNumber(889)
 			stubRpc.SetResponse(zkGameAddr, methodClaimData, block, nil, []interface{}{
 				expectedParentIndex, expectedProposalStatus, challenger, prover, uint64(expectedDeadline.Unix()), expectedRootClaim,
 			})
-			stubRpc.SetResponse(zkGameAddr, methodL2SequenceNumber, block, nil, []interface{}{new(big.Int).SetUint64(expectedL2BlockNumber)})
 			actual, err := contract.GetChallengerMetadata(context.Background(), block)
 			expected := ChallengerMetadata{
-				ParentIndex:      expectedParentIndex,
-				ProposalStatus:   expectedProposalStatus,
-				ProposedRoot:     expectedRootClaim,
-				L2SequenceNumber: expectedL2BlockNumber,
-				Deadline:         expectedDeadline,
+				ParentIndex:    expectedParentIndex,
+				ProposalStatus: expectedProposalStatus,
+				Challenger:     challenger,
+				Prover:         prover,
+				ProposedRoot:   expectedRootClaim,
+				Deadline:       expectedDeadline,
 			}
 			require.NoError(t, err)
 			require.Equal(t, expected, actual)
+		})
+	}
+}
+
+func TestZKGetBondMetadata(t *testing.T) {
+	for _, version := range zkVersions {
+		version := version
+		t.Run(version.String(), func(t *testing.T) {
+			stubRpc, contract := setupZKDisputeGameTest(t, version)
+			latest := contract.(*ZKDisputeGameContractLatest)
+			block := rpcblock.ByNumber(889)
+			creator := common.Address{0xc1}
+			totalBonds := big.NewInt(90)
+			challengerBond := big.NewInt(30)
+			stubRpc.SetResponse(zkGameAddr, methodGameCreator, block, nil, []interface{}{creator})
+			stubRpc.SetResponse(zkGameAddr, methodTotalBonds, block, nil, []interface{}{totalBonds})
+			stubRpc.SetResponse(zkGameAddr, methodChallengerBond, block, nil, []interface{}{challengerBond})
+
+			actual, err := latest.GetBondMetadata(context.Background(), block)
+			require.NoError(t, err)
+			require.Equal(t, ZKBondMetadata{
+				GameCreator:    creator,
+				TotalBonds:     totalBonds,
+				ChallengerBond: challengerBond,
+			}, actual)
+		})
+	}
+}
+
+func TestZKBondAndDelayedWETHReads(t *testing.T) {
+	for _, version := range zkVersions {
+		version := version
+		t.Run(version.String(), func(t *testing.T) {
+			stubRpc, contract := setupZKDisputeGameTest(t, version)
+			latest := contract.(*ZKDisputeGameContractLatest)
+			block := rpcblock.ByNumber(482)
+			wethAddr := common.Address{0x77}
+			recipients := []common.Address{{0x01}, {0x02}}
+			credits := []*big.Int{big.NewInt(11), big.NewInt(22)}
+			for i, recipient := range recipients {
+				stubRpc.SetResponse(zkGameAddr, methodCredit, block, []interface{}{recipient}, []interface{}{credits[i]})
+			}
+			stubRpc.SetResponse(zkGameAddr, methodWETH, block, nil, []interface{}{wethAddr})
+			stubRpc.AddContract(wethAddr, snapshots.LoadDelayedWETHABI())
+			for i, recipient := range recipients {
+				stubRpc.SetResponse(wethAddr, methodWithdrawals, block, []interface{}{zkGameAddr, recipient}, []interface{}{big.NewInt(int64(i + 1)), big.NewInt(123)})
+			}
+			stubRpc.SetResponse(wethAddr, methodDelay, block, nil, []interface{}{big.NewInt(60)})
+			stubRpc.AddExpectedCall(batchingTest.NewGetBalanceCall(wethAddr, block, big.NewInt(99)))
+
+			actualCredits, err := latest.GetCredits(context.Background(), block, recipients...)
+			require.NoError(t, err)
+			require.Equal(t, credits, actualCredits)
+			withdrawals, err := latest.GetWithdrawals(context.Background(), block, recipients...)
+			require.NoError(t, err)
+			require.Equal(t, big.NewInt(1), withdrawals[0].Amount)
+			balance, delay, actualWETH, err := latest.GetBalanceAndDelay(context.Background(), block)
+			require.NoError(t, err)
+			require.Equal(t, big.NewInt(99), balance)
+			require.Equal(t, time.Minute, delay)
+			require.Equal(t, wethAddr, actualWETH)
 		})
 	}
 }

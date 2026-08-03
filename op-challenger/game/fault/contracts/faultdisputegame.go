@@ -501,8 +501,12 @@ func (f *FaultDisputeGameContractLatest) GetL1Head(ctx context.Context) (common.
 }
 
 func (f *FaultDisputeGameContractLatest) GetStatus(ctx context.Context) (gameTypes.GameStatus, error) {
+	return f.GetStatusAtBlock(ctx, rpcblock.Latest)
+}
+
+func (f *FaultDisputeGameContractLatest) GetStatusAtBlock(ctx context.Context, block rpcblock.Block) (gameTypes.GameStatus, error) {
 	defer f.metrics.StartContractRequest("GetStatus")()
-	result, err := f.multiCaller.SingleCall(ctx, rpcblock.Latest, f.contract.Call(methodStatus))
+	result, err := f.multiCaller.SingleCall(ctx, block, f.contract.Call(methodStatus))
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch status: %w", err)
 	}

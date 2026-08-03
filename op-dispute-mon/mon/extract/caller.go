@@ -32,23 +32,35 @@ type MetadataCaller interface {
 	GetExtendedMetadata(context.Context, rpcblock.Block) (contracts.GameMetadata, error)
 }
 
+// BondGameCaller exposes pinned bond and DelayedWETH reads shared by fault and ZK games.
+type BondGameCaller interface {
+	BondCaller
+	BalanceCaller
+	GetWithdrawals(context.Context, rpcblock.Block, ...common.Address) ([]*contracts.WithdrawalRequest, error)
+}
+
 // FaultGameCaller exposes RPCs used only to enrich fault games.
 type FaultGameCaller interface {
 	GameCaller
 	MetadataCaller
-	GetWithdrawals(context.Context, rpcblock.Block, ...common.Address) ([]*contracts.WithdrawalRequest, error)
+	BondGameCaller
 	GetAllClaims(context.Context, rpcblock.Block) ([]faultTypes.Claim, error)
-	BondCaller
-	BalanceCaller
 	ClaimCaller
 }
 
 // ZKGameCaller exposes the generic and challenger views of a ZK game.
 type ZKGameCaller interface {
 	GameCaller
+	BondGameCaller
 	GetMetadata(context.Context, rpcblock.Block) (contracts.GenericGameMetadata, error)
 	GetChallengerMetadata(context.Context, rpcblock.Block) (contracts.ChallengerMetadata, error)
+	GetBondMetadata(context.Context, rpcblock.Block) (contracts.ZKBondMetadata, error)
 }
+
+var _ FaultGameCaller = (contracts.FaultDisputeGameContract)(nil)
+var _ ZKGameCaller = (*contracts.ZKDisputeGameContractLatest)(nil)
+var _ BondGameCaller = (*contracts.ZKDisputeGameContractLatest)(nil)
+var _ MetadataCaller = (*contracts.SuperPermissionedDisputeGameContract)(nil)
 
 type GameCallerCreator struct {
 	m      GameCallerMetrics

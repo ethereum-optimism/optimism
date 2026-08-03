@@ -366,11 +366,10 @@ func (s *stubContract) GetGameStatus(_ context.Context, idx uint64) (types.GameS
 
 func (s *stubContract) GetChallengerMetadata(_ context.Context, _ rpcblock.Block) (contracts.ChallengerMetadata, error) {
 	return contracts.ChallengerMetadata{
-		ParentIndex:      s.parentIndex,
-		ProposalStatus:   s.proposalStatus,
-		ProposedRoot:     s.proposalHash,
-		L2SequenceNumber: s.l2SequenceNumber,
-		Deadline:         s.deadline,
+		ParentIndex:    s.parentIndex,
+		ProposalStatus: s.proposalStatus,
+		ProposedRoot:   s.proposalHash,
+		Deadline:       s.deadline,
 	}, nil
 }
 
