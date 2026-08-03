@@ -414,48 +414,63 @@ func checkSpanBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1B
 		}
 	}
 
-	parentNum := parentBlock.Number
 	nextTimestamp := l2SafeHead.Time + cfg.BlockTime
 	// Check overlapped blocks
 	if batch.GetTimestamp() < nextTimestamp {
-		for i := uint64(0); i < l2SafeHead.Number-parentNum; i++ {
-			safeBlockNum := parentNum + i + 1
-			safeBlockPayload, err := l2Fetcher.PayloadByNumber(ctx, safeBlockNum)
-			if err != nil {
-				log.Warn("failed to fetch L2 block payload", "number", safeBlockNum, "err", err)
-				// unable to validate the batch for now. retry later.
-				return BatchUndecided
-			}
-			safeBlockTxs := safeBlockPayload.ExecutionPayload.Transactions
-			batchTxs := batch.GetBlockTransactions(int(i))
-			// execution payload has deposit TXs, but batch does not.
-			depositCount := 0
-			for _, tx := range safeBlockTxs {
-				if tx[0] == optypes.DepositTxType {
-					depositCount++
-				}
-			}
-			if len(safeBlockTxs)-depositCount != len(batchTxs) {
-				log.Warn("overlapped block's tx count does not match", "safeBlockTxs", len(safeBlockTxs), "batchTxs", len(batchTxs))
-				return BatchDrop
-			}
-			for j := 0; j < len(batchTxs); j++ {
-				if !bytes.Equal(safeBlockTxs[j+depositCount], batchTxs[j]) {
-					log.Warn("overlapped block's transaction does not match")
-					return BatchDrop
-				}
-			}
-			safeBlockRef, err := PayloadToBlockRef(cfg, safeBlockPayload.ExecutionPayload)
-			if err != nil {
-				log.Error("failed to extract L2BlockRef from execution payload", "hash", safeBlockPayload.ExecutionPayload.BlockHash, "err", err)
-				return BatchDrop
-			}
-			if safeBlockRef.L1Origin.Number != batch.GetBlockEpochNum(int(i)) {
-				log.Warn("overlapped block's L1 origin number does not match")
-				return BatchDrop
-			}
+		if validity := checkSpanBatchOverlap(ctx, cfg, log, batch, parentBlock, l2SafeHead, l2Fetcher); validity != BatchAccept {
+			return validity
 		}
 	}
 
+	return BatchAccept
+}
+
+// checkSpanBatchOverlap validates the portion of a span batch that overlaps the safe chain: every
+// overlapped element's transactions and L1 origin must match the canonical block at the same
+// height. A batch whose overlap disagrees with the safe chain — possible since interop block
+// replacement — describes a different history and is dropped as a whole, so that its elements
+// past the safe head cannot be applied. Returns BatchUndecided if a canonical payload cannot be
+// fetched right now.
+func checkSpanBatchOverlap(ctx context.Context, cfg *rollup.Config, log log.Logger, batch *SpanBatch,
+	parentBlock, l2SafeHead eth.L2BlockRef, l2Fetcher SafeBlockFetcher,
+) BatchValidity {
+	parentNum := parentBlock.Number
+	for i := uint64(0); i < l2SafeHead.Number-parentNum; i++ {
+		safeBlockNum := parentNum + i + 1
+		safeBlockPayload, err := l2Fetcher.PayloadByNumber(ctx, safeBlockNum)
+		if err != nil {
+			log.Warn("failed to fetch L2 block payload", "number", safeBlockNum, "err", err)
+			// unable to validate the batch for now. retry later.
+			return BatchUndecided
+		}
+		safeBlockTxs := safeBlockPayload.ExecutionPayload.Transactions
+		batchTxs := batch.GetBlockTransactions(int(i))
+		// execution payload has deposit TXs, but batch does not.
+		depositCount := 0
+		for _, tx := range safeBlockTxs {
+			if tx[0] == optypes.DepositTxType {
+				depositCount++
+			}
+		}
+		if len(safeBlockTxs)-depositCount != len(batchTxs) {
+			log.Warn("overlapped block's tx count does not match", "safeBlockTxs", len(safeBlockTxs), "batchTxs", len(batchTxs))
+			return BatchDrop
+		}
+		for j := 0; j < len(batchTxs); j++ {
+			if !bytes.Equal(safeBlockTxs[j+depositCount], batchTxs[j]) {
+				log.Warn("overlapped block's transaction does not match")
+				return BatchDrop
+			}
+		}
+		safeBlockRef, err := PayloadToBlockRef(cfg, safeBlockPayload.ExecutionPayload)
+		if err != nil {
+			log.Error("failed to extract L2BlockRef from execution payload", "hash", safeBlockPayload.ExecutionPayload.BlockHash, "err", err)
+			return BatchDrop
+		}
+		if safeBlockRef.L1Origin.Number != batch.GetBlockEpochNum(int(i)) {
+			log.Warn("overlapped block's L1 origin number does not match")
+			return BatchDrop
+		}
+	}
 	return BatchAccept
 }

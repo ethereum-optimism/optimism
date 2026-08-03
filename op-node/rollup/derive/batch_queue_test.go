@@ -619,7 +619,10 @@ func testBatchStage_OverlappingSpanBatch(t *testing.T, batchType int, newBatchSt
 		case *BatchQueue:
 			logs.RequireMessageContainedOnce(t, "block epoch is too old")
 		case *BatchStage:
-			logs.RequireMessageContainedOnce(t, "Dropping invalid span batch, flushing channel (singular batch extraction)")
+			// The overlap content checks catch the origin mismatch before singular batch
+			// extraction gets a chance to.
+			logs.RequireMessageContainedOnce(t, "overlapped block's L1 origin number does not match")
+			logs.RequireMessageContainedOnce(t, "Dropping invalid span batch, flushing channel (span batch overlap checks)")
 		}
 	})
 
