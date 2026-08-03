@@ -6,15 +6,17 @@ Guidance for AI agents writing new acceptance tests in the Optimism monorepo. Fo
 
 An acceptance test exists to describe a user-visible behaviour of the OP Stack and fail loudly when that behaviour breaks. A reader who is not a domain expert should be able to open any test in `op-acceptance-tests/tests/` and understand what the system is supposed to do, without running anything.
 
-Tests express *requirements*. The DSL expresses *how those requirements are checked*. When the technical details change, the DSL is updated once and every test benefits — including tests added in the future. When a test is flaky, the fix usually belongs in the DSL (a better wait, a missing precondition), not in the test.
+Tests express *requirements*. The DSL exposes reusable domain operations and hides transport details, asynchronous waits, and other mechanics. Tests retain scenario-specific policy and assertions so a reader can see what behaviour is required without opening the DSL. When shared mechanics change, the DSL is updated once and every test benefits. When a test is flaky, the fix usually belongs in a reusable wait or precondition rather than in timing code in the test.
 
 This guide covers both sides: how to write a test that reads as a requirement, and how to grow the DSL so future tests stay that way.
 
 ## Guiding Principles
 
-### Keep Tests Simple, Even If That Makes the DSL Complex
+### Keep Tests Simple Without Hiding the Requirement
 
-Complexity in a test is duplicated across every test that follows. Complexity in the DSL is centralised and encapsulated. Push difficulty downward.
+Complex reusable mechanics in a test are duplicated across every test that follows. Centralise those mechanics in the DSL and push transport details, retries, and stable domain operations downward.
+
+Do not move an entire one-off verification into the DSL merely to shorten a test. A method that chooses the inputs, defines the expected policy, and performs every assertion can hide the requirement it is meant to clarify. The test should still make the action and expected outcome visible.
 
 The DSL is not plain English and should not try to be. Its domain experts are test authors, not non-technical readers. A statement should clearly describe *what* it is doing without reading like a sentence.
 
@@ -22,7 +24,7 @@ The DSL is not plain English and should not try to be. Its domain experts are te
 
 The "language" of the DSL emerges from consistent naming and structure. Follow established patterns even when a new one would be marginally nicer for your specific test — the cognitive cost of divergent patterns outweighs the win.
 
-If the pattern you need does not exist, extend the DSL rather than invent a one-off in the test file.
+If a reusable operation or wait is missing, extend the DSL rather than reaching into raw clients. If only a verification policy is shared by one or a few tests in the same package, prefer a package-local test helper over adding it to the repository-wide DSL.
 
 ### One Behaviour Per Test
 
@@ -37,7 +39,7 @@ func TestTransferChargesGasToSender(gt *testing.T) { ... }
 func TestTransferMovesFundsAndChargesGasAndUpdatesNonce(gt *testing.T) { ... }
 ```
 
-When two behaviours always change together, the second is part of the first behaviour's definition — fold it into an action or verification method on the DSL, not a second assertion in the test body.
+When two behaviours always change together, the second is part of the first behaviour's definition — keep them in the same assertion flow. If that flow is reused, place it at the narrowest useful scope rather than automatically adding it to the DSL.
 
 ### Plain-English Test Names
 
@@ -76,7 +78,7 @@ func TestSomething(gt *testing.T) {
 }
 ```
 
-Keep the test body at this level. If you find yourself reaching into low-level clients, RPC calls, or raw receipts to build assertions, that is a signal the DSL needs a new method — not that the test needs more lines.
+Keep the test body at this level. If you find yourself reaching into low-level clients, RPC calls, or raw receipts, that is a signal the DSL is missing an operation or typed API. The resulting value or error may still be asserted in the test when that assertion is the behaviour under test.
 
 ## DSL Patterns to Follow
 
@@ -90,13 +92,35 @@ As a test author, this means you should be able to call an action once and trust
 
 ### Verification Methods Include Waits
 
-Verification methods in the DSL do the fetching, waiting, retrying, *and* asserting. Tests should never need to build their own wait/retry loops around a raw getter.
+When a verification belongs in the DSL, it does the fetching, waiting, retrying, *and* asserting. Tests should never need to build their own wait/retry loops around a raw getter. This does not mean every assertion needs a DSL verification method: scenario-specific assertions can remain in the test or a package-local helper while using DSL operations and wait primitives.
 
 Use verification methods only to assert the behaviour the test is actually covering. Do **not** re-verify that setup worked — that belongs inside the setup action method. Extra verifications in the test body obscure intent and increase the number of places that need updating when behaviour changes.
 
-### Prefer Verification Methods Over Getters
+### Put Verification at the Narrowest Useful Scope
 
-The system state is asynchronous; fetching raw values and asserting on them creates flakes. A verification method bundles the fetch with a bounded wait and an assertion.
+Choose where a verification lives based on how broadly it is useful:
+
+- Used by one test: keep the assertion in that test, or in a small file-local helper if needed for readability.
+- Used by a few tests in one package: share it in a package-local `_test.go` helper.
+- Used across packages, or representing a stable domain invariant: make it a DSL verification method.
+
+Even repeated verification often belongs at package scope because acceptance-test policy is usually shared only by closely related tests. The DSL should provide the thin capability underneath it. For example, expose typed methods for calling a proxied sequencer API, but let the proxy acceptance test choose which API families to probe and assert which calls must succeed or fail.
+
+Avoid DSL methods that encode a whole test in a name such as `VerifyAllProxyBehaviour`. They obscure which calls define coverage and make unrelated tests depend on scenario-specific policy.
+
+```go
+// Avoid: the test's coverage policy is hidden inside a repository-wide helper.
+leader.VerifyProxyServesAllRequiredAPIs()
+
+// Better: the DSL exposes the capability; the test shows the requirement.
+api := leader.SequencerAPI()
+_, err := api.SyncStatus()
+require.NoError(t, err)
+```
+
+### Prefer Waiting Operations Over Snapshot Getters
+
+The system state is asynchronous; fetching raw values and immediately asserting on them creates flakes. A reusable verification method can bundle the fetch with a bounded wait and an assertion; a package-local verification helper can compose the same DSL wait primitives.
 
 ```go
 // Avoid: async state fetched and compared directly
@@ -176,7 +200,7 @@ If you find yourself wanting one of these to make a test pass, the real fix is a
 
 DSL methods (including ones you add) should log what they are doing. Waiters should log what they are waiting for and the current state of the system on every poll cycle. When an acceptance test fails in CI, the logs are often the only evidence — make them speak.
 
-Inside a test body, prefer expressive DSL calls over scattered `t.Log` statements. If you need a comment or log line to explain what a block of test code is doing, the DSL method is either poorly named or missing.
+Inside a test body, prefer expressive DSL calls over scattered `t.Log` statements. If you need a comment or log line to explain mechanics, the underlying DSL capability or a package-local helper may be poorly named or missing. Comments that explain why an outcome matters should remain in the test.
 
 ## Self-Sufficient Failures
 
@@ -190,7 +214,7 @@ Re-running to "see what happened" is a sign the failure artefact is missing.
 
 ## Test Smells
 
-Smells are signals that the DSL is at the wrong level of abstraction for this test. They are not hard rules — they are invitations to stop and consider whether the DSL should grow.
+Smells are signals that test support is at the wrong level of abstraction. They are not hard rules — they are invitations to consider whether a reusable capability belongs in the DSL or scenario-specific composition belongs in a package-local helper.
 
 ### Comment + Code Block
 
@@ -236,11 +260,13 @@ If two tests open with the same ten lines of boilerplate, that boilerplate belon
 
 Write a new DSL method when:
 
-- A comment is needed to explain what a block of test code is doing.
-- Two tests need the same setup or wait pattern.
-- A test hand-rolls a `require.Eventually` or retry loop.
+- A reusable domain operation or typed API is missing.
+- Multiple packages need the same setup, wait, or stable domain invariant.
+- A test hand-rolls a `require.Eventually` or retry loop that belongs in a reusable wait primitive.
 - A test reaches past the DSL into low-level clients, RPCs, or internal packages.
-- Adding the method would let the test read at the level "describe a behaviour" rather than "drive the implementation".
+- Adding the method would let the test read at the level "describe a behaviour" rather than "drive the implementation" without hiding the expected outcome.
+
+Do not add a DSL method solely because one or two tests in the same package share an assertion. Prefer a package-local test helper for that verification and add only the underlying reusable capability to the DSL.
 
 When extending the DSL, apply the same patterns this guide prescribes for tests: action methods check/act/assert, verification methods wait internally, optional args use the opts-struct vararg pattern, and no method should require the caller to add their own wait or retry loop.
 
@@ -252,6 +278,7 @@ When extending the DSL, apply the same patterns this guide prescribes for tests:
 - [ ] No test-only branches added to production code to make this test pass.
 - [ ] Setup is not re-verified in the test body.
 - [ ] Fixtures are deterministic.
-- [ ] Waits and assertions go through DSL methods, not raw clients.
-- [ ] If a new pattern was needed, it was added to the DSL, not inlined in the test.
+- [ ] Tests use DSL operations and wait primitives rather than raw clients or hand-rolled retries.
+- [ ] Scenario-specific assertions remain visible in the test or a package-local helper.
+- [ ] Reusable capabilities live in the DSL; package-local verification policy does not leak into it.
 - [ ] Assertion and log messages are actionable — a CI failure can be diagnosed from logs alone.
