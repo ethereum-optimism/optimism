@@ -34,6 +34,7 @@ alloy-contract.workspace = true
 # general
 anyhow.workspace = true
 async-trait.workspace = true
+clap = { workspace = true, features = ["derive"] }
 strum.workspace = true
 strum_macros.workspace = true
 tokio = { workspace = true, features = ["full"] }

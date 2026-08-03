@@ -4,29 +4,13 @@ Issues: [monorepo](https://github.com/ethereum-optimism/optimism/issues?q=is%3Ai
 
 Pull requests: [monorepo](https://github.com/ethereum-optimism/optimism/pulls?q=is%3Aopen+is%3Apr+label%3AA-op-wheel)
 
-`op-wheel` is a CLI tool to direct the engine one way or the other with DB cheats and Engine API routines.
+`op-wheel` is a CLI tool to direct the engine one way or the other with Engine API routines.
 
 It was named the "wheel" because of two reasons:
 - Figuratively, it allows to steer the stack, an interface for a *driver* (like the op-node sub-component) to control the execution *engine* (e.g. op-geth).
 - Idiomatically, like the Unix wheel-bit and its slang origins: empower a user to execute restricted commands, or more generally just someone with great power or influence.
 
 ## Quickstart
-
-### Cheat utils
-
-Cheating commands to modify a Geth database without corresponding in-protocol change.
-
-The `cheat` sub-command has sub-commands for interacting with the DB, making patches, and dumping debug data.
-
-Note that the validity of state-changes, as applied through patches,
-does not get checked until the block is re-processed.
-This can be used to trick the node into things like hypothetical
-test-states or shadow-forks without diverging the block-hashes.
-
-To run:
-```bash
-go run ./op-wheel/cmd cheat --help
-```
 
 ### Engine utils
 

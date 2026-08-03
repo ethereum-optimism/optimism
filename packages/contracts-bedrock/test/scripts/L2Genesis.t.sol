@@ -187,7 +187,7 @@ abstract contract L2Genesis_TestInit is Test {
 
     /// @notice Mirrors L2Genesis._isGenesisInteropEnabled for the current input.
     function isGenesisInteropEnabled() internal view returns (bool) {
-        return input.useInterop && input.fork >= uint256(Fork.INTEROP)
+        return input.useInterop && input.fork >= uint256(Fork.LAGOON)
             && DevFeatures.isDevFeatureEnabled(input.devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP);
     }
 
@@ -392,7 +392,7 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
     /// @notice Tests the L2CM genesis path with interop predeploys active at genesis.
     function test_run_l2cmInteropAtGenesis_succeeds() external {
         _setInputInteropEnabled();
-        input.fork = uint256(Fork.INTEROP);
+        input.fork = uint256(Fork.LAGOON);
         runGenesisAndAssertL2CM();
 
         testProxyAdmin();
@@ -407,7 +407,7 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
     /// @notice Tests that L2CM skips interop predeploys when interop is scheduled after genesis.
     function test_run_l2cmInteropScheduledNotActive_succeeds() external {
         uint256 snap = vm.snapshotState();
-        for (uint256 f = uint256(Fork.DELTA); f < uint256(Fork.INTEROP); f++) {
+        for (uint256 f = uint256(Fork.DELTA); f < uint256(Fork.LAGOON); f++) {
             // `f` is a stack local so it survives the revert; `input` is reset and rebuilt each iteration.
             input.fork = f;
             _setInputInteropEnabled();
@@ -416,7 +416,7 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
             assertEq(
                 IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP),
                 false,
-                "INTEROP runtime flag must not be set at genesis when fork < INTEROP"
+                "INTEROP runtime flag must not be set at genesis when fork < LAGOON"
             );
 
             vm.revertToState(snap);
@@ -427,7 +427,7 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
     function test_run_l2cmCgtAndInteropAtGenesis_succeeds() external {
         _setInputCGTEnabled();
         _setInputInteropEnabled();
-        input.fork = uint256(Fork.INTEROP);
+        input.fork = uint256(Fork.LAGOON);
         runGenesisAndAssertL2CM();
 
         testProxyAdmin();
@@ -456,7 +456,7 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
         genesis.run(input);
     }
 
-    /// @notice Tests that when interop is scheduled for a later fork (genesis fork < INTEROP),
+    /// @notice Tests that when interop is scheduled for a later fork (genesis fork < LAGOON),
     ///         the runtime INTEROP feature flag on L1Block is NOT set at genesis. The flag will
     ///         instead be flipped at the activation block by op-node's setFeature deposit wrapper.
     function test_setL1Block_interopScheduledNotActive_succeeds() external {
@@ -467,25 +467,25 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
         assertEq(
             IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP),
             false,
-            "INTEROP runtime flag must not be set at genesis when fork < INTEROP"
+            "INTEROP runtime flag must not be set at genesis when fork < LAGOON"
         );
     }
 
-    /// @notice Tests that when a chain is born at or beyond the Interop fork, the runtime INTEROP
+    /// @notice Tests that when a chain is born at or beyond the Lagoon fork, the runtime INTEROP
     ///         feature flag on L1Block IS set at genesis.
     function test_setL1Block_interopAtGenesis_succeeds() external {
         _setInputInteropEnabled();
-        input.fork = uint256(Fork.INTEROP);
+        input.fork = uint256(Fork.LAGOON);
         genesis.run(input);
 
         assertEq(
             IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP),
             true,
-            "INTEROP runtime flag must be set at genesis when fork >= INTEROP"
+            "INTEROP runtime flag must be set at genesis when fork >= LAGOON"
         );
     }
 
-    /// @notice Sanity check: with useInterop disabled and fork < INTEROP, the runtime INTEROP flag
+    /// @notice Sanity check: with useInterop disabled and fork < LAGOON, the runtime INTEROP flag
     ///         is unset.
     function test_setL1Block_interopDisabled_succeeds() external {
         input.useInterop = false;

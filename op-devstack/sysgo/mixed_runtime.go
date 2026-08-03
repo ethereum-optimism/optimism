@@ -147,9 +147,9 @@ type MixedSingleChainPresetConfig struct {
 	DeployerOptions            []DeployerOption
 	BatcherOptions             []BatcherOption
 	OpRethOptions              []OpRethOption
-	// InteropAtGenesis activates the Interop hardfork at genesis on the L2 chain and provides
+	// InteropAtGenesis activates the Lagoon hardfork at genesis on the L2 chain and provides
 	// the resulting dependency set to op-node CL startup. Required by any test that exercises
-	// Interop-gated consensus features (e.g. SDM PostExec) without a supervisor.
+	// interop-gated consensus features (e.g. SDM PostExec) without a supervisor.
 	InteropAtGenesis bool
 }
 

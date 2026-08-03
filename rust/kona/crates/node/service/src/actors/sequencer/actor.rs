@@ -398,9 +398,9 @@ where
             return false;
         }
 
-        // Do not include transactions in the first Interop block.
+        // Do not include transactions in the first Lagoon block.
         if self.rollup_config.is_first_interop_block(attributes.payload_attributes.timestamp) {
-            info!(target: "sequencer", "Sequencing interop upgrade block");
+            info!(target: "sequencer", "Sequencing lagoon upgrade block");
             return false;
         }
 

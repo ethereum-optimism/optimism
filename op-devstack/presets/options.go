@@ -386,9 +386,9 @@ func WithoutHonestChallenger() Option {
 	}
 }
 
-// WithInteropAtGenesis activates the Interop hardfork at genesis on the L2 chain and provisions
+// WithInteropAtGenesis activates the Lagoon hardfork at genesis on the L2 chain and provisions
 // a DependencySet for op-node startup without a supervisor. Required by presets that exercise
-// Interop-gated consensus features (e.g. SDM PostExec).
+// interop-gated consensus features (e.g. SDM PostExec).
 func WithInteropAtGenesis() Option {
 	return option{
 		kinds: optionKindInteropAtGenesis,

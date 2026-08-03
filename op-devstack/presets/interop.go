@@ -165,9 +165,9 @@ func NewSingleChainInteropSuperRootAtGenesis(t devtest.T, opts ...Option) *Singl
 	return singleChainInteropFromSupernodeProofsRuntime(t, sysgo.NewSingleChainSuperRootAtGenesisRuntimeWithConfig(t, presetCfg))
 }
 
-// WithSuggestedInteropActivationOffset suggests a hardfork time offset to use.
+// WithSuggestedLagoonActivationOffset suggests a Lagoon hardfork time offset to use.
 // This is applied e.g. to the deployment if running against sysgo.
-func WithSuggestedInteropActivationOffset(offset uint64) Option {
+func WithSuggestedLagoonActivationOffset(offset uint64) Option {
 	return WithDeployerOptions(
 		func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
 			for _, l2Cfg := range builder.L2s() {
