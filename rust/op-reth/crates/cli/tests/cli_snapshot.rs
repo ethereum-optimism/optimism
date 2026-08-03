@@ -114,6 +114,11 @@ fn render_command(out: &mut String, path: &str, cmd: &clap::Command) {
     if let Some(about) = cmd.get_about() {
         writeln!(out, "about: {}", escape(&about.to_string())).unwrap();
     }
+    for group in cmd.get_groups() {
+        if let Some(group) = render_arg_group(cmd, group) {
+            writeln!(out, "{group}").unwrap();
+        }
+    }
     for arg in cmd.get_arguments() {
         // `help` and `version` are clap built-ins, not part of the surface under our control.
         if matches!(arg.get_id().as_str(), "help" | "version") {
@@ -130,7 +135,7 @@ fn render_command(out: &mut String, path: &str, cmd: &clap::Command) {
     }
 }
 
-/// Renders aliases, flag forms, and visibility for a command.
+/// Renders aliases, flag forms, visibility, and parser settings for a command.
 fn render_command_metadata(out: &mut String, cmd: &clap::Command) {
     let mut metadata = String::from("command:");
 
@@ -171,6 +176,25 @@ fn render_command_metadata(out: &mut String, cmd: &clap::Command) {
     if !visible_long_aliases.is_empty() {
         write!(metadata, " [visible-long-flag-aliases: {}]", visible_long_aliases.join(", "))
             .unwrap();
+    }
+
+    let parser_settings = [
+        ("no-binary-name", cmd.is_no_binary_name_set()),
+        ("dont-delimit-trailing-values", cmd.is_dont_delimit_trailing_values_set()),
+        ("arg-required-else-help", cmd.is_arg_required_else_help_set()),
+        ("allow-missing-positional", cmd.is_allow_missing_positional_set()),
+        ("subcommand-required", cmd.is_subcommand_required_set()),
+        ("allow-external-subcommands", cmd.is_allow_external_subcommands_set()),
+        ("args-conflicts-with-subcommands", cmd.is_args_conflicts_with_subcommands_set()),
+        ("args-override-self", cmd.is_args_override_self()),
+        ("subcommand-precedence-over-arg", cmd.is_subcommand_precedence_over_arg_set()),
+        ("subcommand-negates-reqs", cmd.is_subcommand_negates_reqs_set()),
+        ("multicall", cmd.is_multicall_set()),
+    ];
+    for (name, enabled) in parser_settings {
+        if enabled {
+            write!(metadata, " [{name}]").unwrap();
+        }
     }
 
     if cmd.is_hide_set() {
@@ -248,20 +272,8 @@ fn render_arg(cmd: &clap::Command, arg: &clap::Arg) -> String {
     if !defaults.is_empty() {
         write!(s, " [default: {}]", defaults.join(", ")).unwrap();
     }
-    render_arg_debug_field(
-        &mut s,
-        &arg_debug,
-        "default_vals_ifs",
-        "terminator",
-        "default-values-if",
-    );
-    render_arg_debug_field(
-        &mut s,
-        &arg_debug,
-        "default_missing_vals",
-        "ext",
-        "default-missing-values",
-    );
+    render_debug_field(&mut s, &arg_debug, "default_vals_ifs", "terminator", "default-values-if");
+    render_debug_field(&mut s, &arg_debug, "default_missing_vals", "ext", "default-missing-values");
 
     if takes_value {
         let possible: Vec<String> =
@@ -282,9 +294,9 @@ fn render_arg(cmd: &clap::Command, arg: &clap::Arg) -> String {
     // default-missing values. Its Debug implementation does expose their value-only
     // representations; the focused test below ensures a clap update cannot silently remove or
     // rename these fields.
-    render_arg_debug_field(&mut s, &arg_debug, "requires", "r_ifs", "requires");
-    render_arg_debug_field(&mut s, &arg_debug, "r_ifs", "r_unless", "requires-if");
-    render_arg_debug_field(&mut s, &arg_debug, "r_unless", "short", "requires-unless");
+    render_debug_field(&mut s, &arg_debug, "requires", "r_ifs", "requires");
+    render_debug_field(&mut s, &arg_debug, "r_ifs", "r_unless", "requires-if");
+    render_debug_field(&mut s, &arg_debug, "r_unless", "short", "requires-unless");
 
     if arg.is_required_set() {
         s.push_str(" [required]");
@@ -324,23 +336,51 @@ fn render_arg(cmd: &clap::Command, arg: &clap::Arg) -> String {
     s
 }
 
-/// Appends a non-empty field from clap's value-only [`Debug`] representation of an argument.
-fn render_arg_debug_field(
-    out: &mut String,
-    debug: &str,
-    field: &str,
-    next_field: &str,
-    label: &str,
-) {
+/// Renders a group only when it imposes a parser constraint.
+fn render_arg_group(cmd: &clap::Command, group: &clap::ArgGroup) -> Option<String> {
+    let group_debug = format!("{group:?}");
+    let requires = debug_field(&group_debug, "requires", "conflicts");
+    let conflicts = debug_field(&group_debug, "conflicts", "multiple");
+    let mut group = group.clone();
+    let multiple = group.is_multiple();
+
+    if !group.is_required_set() && multiple && requires.is_none() && conflicts.is_none() {
+        return None;
+    }
+
+    let args = group
+        .get_args()
+        .map(|id| {
+            cmd.get_arguments()
+                .find(|arg| arg.get_id() == id)
+                .map_or_else(|| id.to_string(), arg_name)
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    let mut rendered = format!(
+        "group: {} [args: {args}] [required: {}] [multiple: {multiple}]",
+        group.get_id(),
+        group.is_required_set()
+    );
+    render_debug_field(&mut rendered, &group_debug, "requires", "conflicts", "requires");
+    render_debug_field(&mut rendered, &group_debug, "conflicts", "multiple", "conflicts");
+    Some(rendered)
+}
+
+/// Returns a non-empty field from a clap builder's value-only [`Debug`] representation.
+fn debug_field<'a>(debug: &'a str, field: &str, next_field: &str) -> Option<&'a str> {
     let start = format!(", {field}: ");
     let end = format!(", {next_field}:");
-    let value = debug
+    debug
         .split_once(&start)
         .and_then(|(_, rest)| rest.split_once(&end))
-        .map(|(value, _)| value);
-    if let Some(value) = value &&
-        !matches!(value, "[]" | "None")
-    {
+        .map(|(value, _)| value)
+        .filter(|value| !matches!(*value, "[]" | "None"))
+}
+
+/// Appends a non-empty field from a clap builder's value-only [`Debug`] representation.
+fn render_debug_field(out: &mut String, debug: &str, field: &str, next_field: &str, label: &str) {
+    if let Some(value) = debug_field(debug, field, next_field) {
         write!(out, " [{label}: {value}]").unwrap();
     }
 }
@@ -385,6 +425,32 @@ fn renders_parser_requirements_and_defaults() {
         "arg: --output <OUTPUT> [action: Set] [num-args: 0..=1] \
          [default-values-if: [(\"mode\", Equals(\"json\"), Some([\"output.json\"]))]] \
          [default-missing-values: [\"stdout\"]] [requires: [(IsPresent, \"mode\")]]"
+    ));
+}
+
+#[test]
+fn renders_command_and_group_constraints() {
+    let command = clap::Command::new("test")
+        .arg_required_else_help(true)
+        .subcommand_required(true)
+        .arg(clap::Arg::new("write").long("write"))
+        .arg(clap::Arg::new("read").long("read"))
+        .arg(clap::Arg::new("mode").long("mode"))
+        .arg(clap::Arg::new("quiet").long("quiet"))
+        .group(
+            clap::ArgGroup::new("output")
+                .args(["write", "read"])
+                .required(true)
+                .multiple(false)
+                .requires("mode")
+                .conflicts_with("quiet"),
+        );
+
+    let rendered = render_snapshot(&command);
+    assert!(rendered.contains("command: [arg-required-else-help] [subcommand-required]"));
+    assert!(rendered.contains(
+        "group: output [args: --write, --read] [required: true] [multiple: false] \
+         [requires: [\"mode\"]] [conflicts: [\"quiet\"]]"
     ));
 }
 

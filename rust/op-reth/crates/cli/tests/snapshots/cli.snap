@@ -5,6 +5,7 @@
 #   UPDATE_SNAPSHOT=1 cargo nextest run -p reth-optimism-cli --all-features cli_surface_snapshot
 
 == op-reth
+command: [arg-required-else-help] [subcommand-required]
 about: Reth
 arg: --log.stdout.format <FORMAT> [action: Set] [num-args: 1] [default: terminal] [possible: json, log-fmt, terminal] [global] help: The format to use for logs written to stdout
 arg: --log.stdout.filter <FILTER> [action: Set] [num-args: 1] [default: ] [global] help: The filter to use for logs written to stdout
@@ -37,6 +38,7 @@ arg: --tracing-otlp.sample-ratio <RATIO> [action: Set] [num-args: 1] [env: OTEL_
 
 == op-reth node
 about: Start the node
+group: EraSourceArgs [args: --era.path, --era.url] [required: false] [multiple: false]
 arg: --config <FILE> [action: Set] [num-args: 1] help: The path to the configuration file to use.
 arg: --chain <CHAIN_OR_PATH> [action: Set] [num-args: 1] [default: optimism] [default-values-if: [("dev", Equals("true"), Some(["dev"]))]] help: The chain this node is running
 arg: --metrics <PROMETHEUS> [action: Set] [num-args: 1] [aliases: metrics.prometheus] help: Enable Prometheus metrics
@@ -444,6 +446,7 @@ about: Dumps genesis block JSON configuration to stdout
 arg: --chain <CHAIN_OR_PATH> [action: Set] [num-args: 1] [default: optimism] help: The chain this node is running
 
 == op-reth db
+command: [arg-required-else-help] [subcommand-required]
 about: Database debugging utilities
 arg: --datadir <DATA_DIR> [action: Set] [num-args: 1] [default: default] help: The path to the data dir for all reth files and subdirectories.
 arg: --datadir.static-files <PATH> [action: Set] [num-args: 1] [aliases: datadir.static_files] help: The absolute path to store static files in.
@@ -492,6 +495,7 @@ arg: -j/--json [action: SetTrue] [num-args: 0] help: Dump as JSON instead of usi
 arg: --raw [action: SetTrue] [num-args: 0] help: Output bytes instead of human-readable decoded value
 
 == op-reth db checksum
+command: [arg-required-else-help] [subcommand-required]
 about: Calculates the content checksum of a table or static file segment
 
 == op-reth db checksum mdbx
@@ -538,6 +542,7 @@ arg: --table <TABLE> [action: Set] [num-args: 1] help: The table name to diff. I
 arg: --output <OUTPUT> [action: Set] [num-args: 1] [required] help: The output directory for the diff report.
 
 == op-reth db get
+command: [arg-required-else-help] [subcommand-required]
 about: Gets the content of a table for the given key
 
 == op-reth db get mdbx
@@ -570,6 +575,7 @@ about: Deletes all database entries
 arg: -f/--force [action: SetTrue] [num-args: 0] help: Bypasses the interactive confirmation and drops the database directly
 
 == op-reth db clear
+command: [arg-required-else-help] [subcommand-required]
 about: Deletes all table entries
 
 == op-reth db clear mdbx
@@ -586,6 +592,7 @@ arg: --dry-run [action: SetTrue] [num-args: 0] help: Only show inconsistencies w
 arg: --metrics <ADDR:PORT> [action: Set] [num-args: 1] help: Enable Prometheus metrics
 
 == op-reth db static-file-header
+command: [arg-required-else-help] [subcommand-required]
 about: Reads and displays the static file segment header
 
 == op-reth db static-file-header block
@@ -604,12 +611,14 @@ about: Lists current and local database versions
 about: Returns the full database path
 
 == op-reth db settings
+command: [arg-required-else-help] [subcommand-required]
 about: Manage storage settings
 
 == op-reth db settings get
 about: Get current storage settings from database
 
 == op-reth db settings set
+command: [arg-required-else-help] [subcommand-required]
 about: Set storage settings in database
 
 == op-reth db settings set v2
@@ -617,6 +626,7 @@ about: Enable or disable v2 storage layout
 arg: [positional: value] <VALUE> [action: Set] [num-args: 1] [possible: true, false] [required]
 
 == op-reth db prune-checkpoints
+command: [arg-required-else-help] [subcommand-required]
 about: View or set prune checkpoints
 
 == op-reth db prune-checkpoints get
@@ -632,6 +642,7 @@ arg: --mode <MODE> [action: Set] [num-args: 1] [possible: full, distance, before
 arg: --mode-value <MODE_VALUE> [action: Set] [num-args: 1] [requires-if: [("mode", "distance"), ("mode", "before")]] help: Value for distance or before mode (required unless mode is full)
 
 == op-reth db stage-checkpoints
+command: [arg-required-else-help] [subcommand-required]
 about: `reth db stage-checkpoints` subcommand
 
 == op-reth db stage-checkpoints get
@@ -659,6 +670,7 @@ arg: -f/--format <FORMAT> [action: Set] [num-args: 1] [default: table] [possible
 about: Migrate storage layout from v1 (MDBX-only) to v2 (static files + RocksDB)
 
 == op-reth stage
+command: [arg-required-else-help] [subcommand-required]
 about: Manipulate individual stages
 
 == op-reth stage run
@@ -773,6 +785,7 @@ arg: --storage.v2 <V2> [action: SetTrue] [num-args: 0..=1] [default: true] [defa
 arg: [positional: stage] <STAGE> [action: Set] [num-args: 1] [possible: headers, bodies, senders, execution, account-hashing, storage-hashing, hashing, merkle, tx-lookup, account-history, storage-history] [required]
 
 == op-reth stage dump
+command: [arg-required-else-help] [subcommand-required]
 about: Dumps a stage from a range into a new database
 arg: --datadir <DATA_DIR> [action: Set] [num-args: 1] [default: default] help: The path to the data dir for all reth files and subdirectories.
 arg: --datadir.static-files <PATH> [action: Set] [num-args: 1] [aliases: datadir.static_files] help: The absolute path to store static files in.
@@ -828,6 +841,7 @@ arg: -t/--to <TO> [action: Set] [num-args: 1] [required] help: To which block
 arg: -d/--dry-run [action: SetTrue] [num-args: 0] [default: false] help: If passed, it will dry-run a stage execution from the newly created database right after dumping
 
 == op-reth stage unwind
+command: [arg-required-else-help] [subcommand-required]
 about: Unwinds a certain block range, deleting it from the database
 arg: --datadir <DATA_DIR> [action: Set] [num-args: 1] [default: default] help: The path to the data dir for all reth files and subdirectories.
 arg: --datadir.static-files <PATH> [action: Set] [num-args: 1] [aliases: datadir.static_files] help: The absolute path to store static files in.
@@ -864,6 +878,7 @@ about: Unwinds the database from the latest block, until the given number of blo
 arg: [positional: amount] <AMOUNT> [action: Set] [num-args: 1] [required]
 
 == op-reth p2p
+command: [arg-required-else-help] [subcommand-required]
 about: P2P Debugging utilities
 
 == op-reth p2p header
@@ -985,6 +1000,7 @@ arg: --chain <CHAIN_OR_PATH> [action: Set] [num-args: 1] [default: optimism] hel
 arg: [positional: id] <ID> [action: Set] [num-args: 1] [required] help: The block number or hash
 
 == op-reth p2p rlpx
+command: [arg-required-else-help] [subcommand-required]
 about: RLPx commands
 
 == op-reth p2p rlpx ping
@@ -1039,6 +1055,7 @@ arg: --metrics.prometheus.push.url <PUSH_GATEWAY_URL> [action: Set] [num-args: 1
 arg: --metrics.prometheus.push.interval <SECONDS> [action: Set] [num-args: 1] [default: 5] help: Interval in seconds for pushing metrics to push gateway
 
 == op-reth test-vectors
+command: [arg-required-else-help] [subcommand-required]
 about: Generate Test Vectors
 
 == op-reth test-vectors tables
@@ -1047,6 +1064,7 @@ arg: [positional: names] <NAMES> [action: Append] [num-args: 1..] help: List of 
 
 == op-reth test-vectors compact
 about: Generates test vectors for `Compact` types with `--write`. Reads and checks generated vectors with `--read`
+group: Compact [args: --write, --read] [required: true] [multiple: false]
 arg: --write [action: SetTrue] [num-args: 0] help: Write test vectors to a file
 arg: --read [action: SetTrue] [num-args: 0] help: Read test vectors from a file
 
@@ -1093,6 +1111,7 @@ arg: --jit.debug [action: SetTrue] [num-args: 0] [default: false] help: Enable c
 arg: --jit.blocking [action: SetTrue] [num-args: 0] [default: false] [hidden] help: Blocking mode: synchronously JIT-compile every contract on first encounter. Intended for debugging only
 
 == op-reth proofs
+command: [arg-required-else-help] [subcommand-required]
 about: Manage storage of historical proofs in expanded trie db in fault proof window
 
 == op-reth proofs init
@@ -1192,6 +1211,7 @@ arg: --proofs-history.window <PROOFS_HISTORY_WINDOW> [action: Set] [num-args: 1]
 arg: --proofs-history.prune-batch-size <PROOFS_HISTORY_PRUNE_BATCH_SIZE> [action: Set] [num-args: 1] [default: 1000] help: The batch size for pruning operations
 
 == op-reth proofs snapshot
+command: [arg-required-else-help] [subcommand-required]
 about: Build or drop the trie-state snapshot
 
 == op-reth proofs snapshot init
