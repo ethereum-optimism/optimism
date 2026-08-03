@@ -59,9 +59,58 @@ api_dispatch:
   labeled_pr:
     - close_issue
 
+# Authoritative policy for workflows started by a webhook push to develop.
+# Every CircleCI route is declared here and explicitly classified: entries with
+# `workflow` are aggregated by post-merge-gate, while entries with `excluded`
+# explain why they are not gate members. The setup router reads the `route`
+# fields directly, so a new post-merge route cannot be added without choosing a
+# gate policy. `required_jobs` guards jobs that must appear inside a successful
+# workflow (currently go-tests-full, which is branch-filtered to develop).
+post_merge_gate:
+  circleci:
+    always:
+      - route: main
+        workflow: main
+        required_jobs:
+          - go-tests-full
+      - route: publish_contract_artifacts
+        workflow: publish-contract-artifacts-auto-or-manual
+      - route: develop_fault_proofs
+        workflow: develop-fault-proofs
+      - route: develop_kontrol_tests
+        workflow: develop-kontrol-tests
+      - route: contracts_feature_tests
+        workflow: contracts-feature-tests
+      - route: release
+        excluded: Tag-only release jobs are filtered out on branch pushes.
+      - route: post_merge_gate
+        excluded: The aggregator cannot wait for its own workflow.
+    rust_changed:
+      - route: rust_ci
+        workflow: rust-ci
+      - route: rust_e2e_ci
+        workflow: rust-e2e-ci
+      - route: kona_publish_prestates
+        workflow: kona-publish-prestates
+    rust_unchanged:
+      - route: rust_ci_gate_short
+        workflow: rust-ci-gate-short
+      - route: rust_e2e_gate_skip
+        workflow: rust-e2e-gate-skip
+  github_actions:
+    always:
+      - workflow: build images
+        path: .github/workflows/build-images.yaml
+      - workflow: build-images.apko
+        path: .github/workflows/build-images.apko.yaml
+    security_changed:
+      - workflow: security
+        path: .github/workflows/security.yml
+
 # Change-detection patterns. Each value is a POSIX Extended Regular Expression
 # (ERE, like grep -E) matched line-by-line against the changed file list
-# (git diff --name-only origin/develop...HEAD). collect-params.sh reads these.
+# selected by collect-params.sh (merge-base for branches, first-parent for a
+# webhook push to develop).
 #
 # Test a pattern locally:
 #   git diff --name-only origin/develop...HEAD | grep -E "^your/pattern/"
@@ -72,6 +121,7 @@ change_patterns:
     contracts_changed: "^(packages/contracts-bedrock|op-core/forks|op-core/nuts|\\.circleci|\\.github|ops/check-changed)/|^(package\\.json|mise\\.toml)$"
     docs_changes_detected: "^docs/public-docs/"
     rust_changes_detected: "^(rust|op-e2e|\\.circleci)/|^mise\\.toml$"
+    security_changed: "^(\\.circleci/config\\.yml|\\.github/workflows/security\\.yml)$"
   # "all": c-<name> is true iff EVERY changed file matches (and there is at
   # least one). Used for the safe-by-default docs-only fast path: any path not
   # enumerated still falls through to the full main workflow.
@@ -87,3 +137,7 @@ passthrough_params:
   - c-github-event-base64
   - c-go-cache-version
   - c-publish_contract_artifacts_ref
+  # Conditional choices consumed by the post-merge aggregator. Keeping these
+  # exact routing decisions avoids inferring applicability from absent checks.
+  - c-rust_changes_detected
+  - c-security_changed

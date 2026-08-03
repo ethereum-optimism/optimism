@@ -7,7 +7,7 @@
 # Usage (from compute-workflow-conditions.sh):
 #   source .circleci/scripts/workflow-helpers.sh
 #   init_json
-#   ...routing logic using run/run_group/param/is_true...
+#   ...routing logic using run/run_group/run_post_merge_group/param/is_true...
 #   finalize
 
 # OUTPUT is overridable so tests can point at an isolated file instead of the
@@ -35,6 +35,19 @@ run_group() {
   local section="${1}" key="${2}"
   local wfs
   wfs=$(yq -r ".${section}.\"${key}\"[]?" "${ROUTING}")
+  if [[ -n "${wfs}" ]]; then
+    # shellcheck disable=SC2086  # intentional word-splitting of the name list
+    run ${wfs}
+  fi
+}
+
+# Enable every CircleCI route in one post-merge policy variant. Each entry is
+# explicitly either a gate member (`workflow`) or an exclusion (`excluded`),
+# but both classifications must be routed when the variant applies.
+run_post_merge_group() {
+  local variant="${1}"
+  local wfs
+  wfs=$(yq -r ".post_merge_gate.circleci.\"${variant}\"[].route" "${ROUTING}")
   if [[ -n "${wfs}" ]]; then
     # shellcheck disable=SC2086  # intentional word-splitting of the name list
     run ${wfs}

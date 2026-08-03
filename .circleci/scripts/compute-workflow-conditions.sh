@@ -15,6 +15,7 @@
 # Helpers (workflow-helpers.sh):
 #   run <wf...>            enable workflows by literal name
 #   run_group <sec> <key>  enable the workflows listed under routing.yml sec.key
+#   run_post_merge_group   enable a classified post-merge policy variant
 #   is_true <x>            true if c-x is true in the JSON
 #   param <x>              raw value of c-x from the JSON
 #   finalize               strip intermediate params, keep c-run_* + passthrough
@@ -102,19 +103,13 @@ case "${TRIGGER_SOURCE}" in
     #    Adds expensive post-merge jobs: fault proofs, kontrol, prestate publishing.
     # ---------------------------------------------------------
     elif [[ "${BRANCH}" == "develop" ]]; then
-      run main
-      run release
-      run publish_contract_artifacts
-      run develop_fault_proofs
-      run develop_kontrol_tests
-      run contracts_feature_tests
+      # routing.yml classifies every post-merge route as either aggregated or
+      # explicitly excluded. The gate reads the same policy when polling.
+      run_post_merge_group always
       if is_true rust_changes_detected; then
-        run rust_ci
-        run rust_e2e_ci
-        run kona_publish_prestates
+        run_post_merge_group rust_changed
       else
-        run rust_ci_gate_short
-        run rust_e2e_gate_skip
+        run_post_merge_group rust_unchanged
       fi
     fi
     ;;
