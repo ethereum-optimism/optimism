@@ -203,6 +203,10 @@ impl<T> AsRef<T> for Transaction<T> {
     }
 }
 
+// Unused in-tree (callers lower to `OpTxEnvelope` first), but required by downstream chains with
+// their own extended envelope, which cannot write this impl themselves under the orphan rule —
+// see the `Recovered<T>` impl in op-alloy-consensus. Do not remove as dead code.
+//
 // Deposit classification MUST come from the inner consensus tx, never the `deposit_nonce` /
 // `deposit_receipt_version` RPC side fields (an untrusted peer can set those independently of the
 // inner `type`). Keeps it consistent with the delegated `Typed2718::ty()`; guarded by the test.
