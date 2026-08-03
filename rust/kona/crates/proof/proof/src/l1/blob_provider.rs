@@ -194,7 +194,7 @@ mod test {
         // off-by-one would leave at Fr::ZERO, and both mapping to themselves
         // under the bit-reversal permutation — are always checked; the random
         // sample is drawn from the interior so all checked indices are distinct.
-        const SAMPLED_FIELD_ELEMENTS: usize = 32;
+        const SAMPLED_FIELD_ELEMENTS: usize = 256;
         let mut indices: Vec<usize> =
             rand::seq::index::sample(&mut rand::rng(), FIELD_ELEMENTS - 2, SAMPLED_FIELD_ELEMENTS)
                 .into_iter()
