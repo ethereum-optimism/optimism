@@ -2,6 +2,7 @@ package sysgo
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"encoding/hex"
 	"flag"
 	"fmt"
@@ -34,6 +35,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	sequencerConfig "github.com/ethereum-optimism/optimism/op-test-sequencer/config"
 	testmetrics "github.com/ethereum-optimism/optimism/op-test-sequencer/metrics"
@@ -278,6 +280,17 @@ type l2CLNodeStartConfig struct {
 	SequencerStopped bool
 }
 
+// renewableP2PSignerSetup mints a fresh signer on every SetupSigner call, so
+// an op-node that is stopped and started again (which closes the previous
+// signer) can keep signing gossip after the restart.
+type renewableP2PSignerSetup struct {
+	priv *ecdsa.PrivateKey
+}
+
+func (s *renewableP2PSignerSetup) SetupSigner(context.Context) (p2p.Signer, error) {
+	return opsigner.NewLocalSigner(s.priv), nil
+}
+
 func startL2CLNode(
 	t devtest.T,
 	keys devkeys.Keys,
@@ -342,10 +355,10 @@ func startL2CLNode(
 	if cfg.IsSequencer {
 		p2pKey, err := keys.Secret(devkeys.SequencerP2PRole.Key(l2Net.ChainID().ToBig()))
 		require.NoError(err, "need p2p key for sequencer")
-		p2pKeyHex := hex.EncodeToString(crypto.FromECDSA(p2pKey))
-		require.NoError(fs.Set(opNodeFlags.SequencerP2PKeyName, p2pKeyHex))
-		p2pSignerSetup, err = p2pcli.LoadSignerSetup(cliCtx, logger)
-		require.NoError(err, "failed to load p2p signer")
+		// Not a PreparedSigner: the node closes its signer on shutdown, and a
+		// PreparedSigner would hand the closed instance back to a restarted
+		// node, leaving it unable to sign gossip ("signer is closed").
+		p2pSignerSetup = &renewableP2PSignerSetup{priv: p2pKey}
 	}
 	p2pConfig, err := p2pcli.NewConfig(cliCtx, l2Net.rollupCfg.BlockTime)
 	require.NoError(err, "failed to load p2p config")
