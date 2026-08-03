@@ -277,6 +277,11 @@ func minimalWithConductorsFromRuntime(t devtest.T, runtime *sysgo.SingleChainRun
 		l2Net.AddL2CLNode(cl)
 		sequencerCLs[name] = dsl.NewL2CLNode(cl)
 	}
+	// Keep the p2p mesh intact across node restarts mid-test (e.g. failover tests).
+	sequencerCLs["b"].ManagePeer(sequencerCLs["sequencer"])
+	sequencerCLs["c"].ManagePeer(sequencerCLs["sequencer"])
+	sequencerCLs["c"].ManagePeer(sequencerCLs["b"])
+
 	conductors := make(dsl.ConductorSet, 0, len(sequencerCLs))
 	for _, name := range []string{"sequencer", "b", "c"} {
 		frontend := newConductorFrontend(t, name, l2ChainID, runtime.Conductors[name].HTTPEndpoint())
