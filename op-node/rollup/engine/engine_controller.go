@@ -1620,7 +1620,7 @@ func (e *EngineController) FollowSource(eSafeBlockRef, eLocalSafeRef, eFinalized
 		logger.Warn("Follow Source: Reorg onto upstream chain")
 		e.metrics.RecordFollowSourceReorg("force_reset")
 		e.forceReset(e.ctx, eLocalSafeRef, eLocalSafeRef, eLocalSafeRef, eSafeBlockRef, eFinalizedRef, false)
-		e.log.Info("Follow Source: reorg onto upstream chain completed",
+		e.log.Info("Follow Source: reorg onto upstream chain applied",
 			"action", "force_reset",
 			"local_safe", e.localSafeHead,
 			"local_unsafe", e.unsafeHead,
