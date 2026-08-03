@@ -214,7 +214,7 @@ func testContinueRejectsPrestateOverrideDrift(t *testing.T) {
 
 func testContinuePermissioned(t *testing.T) {
 	t.Helper()
-	env := newContinuationEnv(t, embedded.GameTypePermissionedCannon)
+	env := newContinuationEnv(t, embedded.GameTypeSuperPermissioned)
 	require.Zero(t, env.preparedChain.Prestate)
 	elapsedGenesisTime := hexutil.Uint64(1)
 	env.preparedSnapshotChain.GenesisTime = &elapsedGenesisTime
@@ -244,7 +244,7 @@ func testContinuePermissionedSuperRoot(t *testing.T) {
 	t.Helper()
 	env := newContinuationEnvForGameTypesAndFeatures(
 		t,
-		[]embedded.GameType{embedded.GameTypePermissionedCannon},
+		[]embedded.GameType{embedded.GameTypeSuperPermissioned},
 		devfeatures.SuperRootGamesMigrationFlag,
 	)
 	require.Zero(t, env.preparedChain.Prestate)
@@ -300,7 +300,7 @@ func testContinueLiveValidationFailure(t *testing.T) {
 
 func testContinuePostCheckpointReorg(t *testing.T) {
 	t.Helper()
-	env := newContinuationEnv(t, embedded.GameTypePermissionedCannon)
+	env := newContinuationEnv(t, embedded.GameTypeSuperPermissioned)
 	nonceBefore := pendingNonce(t, env)
 	var snapshotID string
 	require.NoError(t, env.l1Client.Client().Call(&snapshotID, "evm_snapshot"))
@@ -349,7 +349,7 @@ func testContinuePartialDeployment(t *testing.T) {
 func testContinueMultiChainGlobalPreflight(t *testing.T) {
 	t.Helper()
 	env := newContinuationEnvForGameTypes(t, []embedded.GameType{
-		embedded.GameTypePermissionedCannon,
+		embedded.GameTypeSuperPermissioned,
 		embedded.GameTypeSuperCannonKona,
 	})
 	permissionless := env.preparedChains[1]
@@ -392,7 +392,7 @@ func testContinueMultiChainGlobalPreflight(t *testing.T) {
 func testContinueMultiChainLiveValidationFailure(t *testing.T) {
 	t.Helper()
 	env := newContinuationEnvForGameTypes(t, []embedded.GameType{
-		embedded.GameTypePermissionedCannon,
+		embedded.GameTypeSuperPermissioned,
 		embedded.GameTypeSuperCannonKona,
 	})
 	setPermissionlessContinuationInputs(env.preparedChains[1], 2)
@@ -435,7 +435,7 @@ func testContinueMultiChainSequentialValidation(t *testing.T) {
 	t.Helper()
 	env := newContinuationEnvForGameTypes(t, []embedded.GameType{
 		embedded.GameTypeSuperCannonKona,
-		embedded.GameTypePermissionedCannon,
+		embedded.GameTypeSuperPermissioned,
 	})
 	setPermissionlessContinuationInputs(env.preparedChains[0], 1)
 	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
@@ -473,8 +473,8 @@ func testContinueMultiChainSequentialValidation(t *testing.T) {
 func testContinueRejectsMixedPermissionlessFamilies(t *testing.T) {
 	t.Helper()
 	env := newContinuationEnvForGameTypes(t, []embedded.GameType{
-		embedded.GameTypePermissionedCannon,
-		embedded.GameTypePermissionedCannon,
+		embedded.GameTypeSuperPermissioned,
+		embedded.GameTypeSuperPermissioned,
 	})
 	gameTypes := []embedded.GameType{
 		embedded.GameTypeCannonKona,

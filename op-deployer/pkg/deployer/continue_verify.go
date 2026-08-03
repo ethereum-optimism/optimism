@@ -257,12 +257,25 @@ func (v *continuationVerifier) resolveGameMode() (continuationGameMode, error) {
 		respectedGameType: gameType,
 	}
 	switch embedded.GameType(gameType) {
+	// DeployOPChain.s.sol requires GameTypes.isSuperGame(gameType) == isSuperRoot, so each
+	// selector is valid for exactly one OPCM family.
 	case embedded.GameTypePermissionedCannon:
 		if superRoot {
-			mode.respectedGameType = uint32(embedded.GameTypeSuperPermissioned)
+			return continuationGameMode{}, fmt.Errorf(
+				"initial game type mismatch: frozen selector %d requires an OPCM without SUPER_ROOT_GAMES_MIGRATION",
+				gameType,
+			)
 		}
 		mode.respectedImplementation = v.expected.PermissionedDisputeGameImpl
-		mode.hasChallenger = !superRoot
+		mode.hasChallenger = true
+	case embedded.GameTypeSuperPermissioned:
+		if !superRoot {
+			return continuationGameMode{}, fmt.Errorf(
+				"initial game type mismatch: frozen selector %d requires an OPCM with SUPER_ROOT_GAMES_MIGRATION",
+				gameType,
+			)
+		}
+		mode.respectedImplementation = v.expected.PermissionedDisputeGameImpl
 	case embedded.GameTypeCannonKona:
 		if superRoot {
 			return continuationGameMode{}, fmt.Errorf(

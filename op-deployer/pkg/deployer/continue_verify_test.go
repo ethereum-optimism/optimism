@@ -183,7 +183,7 @@ func newContinuationVerificationFixtureWithMode(
 		},
 		SuperchainConfig: common.Address{0xb2},
 	}
-	if gameType == embedded.GameTypePermissionedCannon {
+	if gameType == embedded.GameTypeSuperPermissioned {
 		expected.Prestate = common.Hash{}
 		expected.StartingAnchorRoot = nil
 		dci.DisputeAbsolutePrestate = common.HexToHash("0x4321")
@@ -243,7 +243,7 @@ func continuationVerificationAddresses(gameType embedded.GameType) addresses.OpC
 			DelayedWethPermissionlessGameProxy: common.Address{0x25},
 		},
 	}
-	if gameType != embedded.GameTypePermissionedCannon {
+	if gameType != embedded.GameTypeSuperPermissioned {
 		contracts.FaultDisputeGameImpl = common.Address{0x23}
 	}
 	return contracts
@@ -273,9 +273,6 @@ func (f *continuationVerificationFixture) seed(t *testing.T, gameType embedded.G
 	)
 
 	respectedGameType := gameType
-	if gameType == embedded.GameTypePermissionedCannon && f.superRoot {
-		respectedGameType = embedded.GameTypeSuperPermissioned
-	}
 	f.backend.set(
 		t,
 		f.expected.OptimismPortalProxy,
@@ -285,31 +282,14 @@ func (f *continuationVerificationFixture) seed(t *testing.T, gameType embedded.G
 	)
 
 	switch gameType {
-	case embedded.GameTypePermissionedCannon:
-		if f.superRoot {
-			f.seedGameImplementation(
-				t,
-				uint32(embedded.GameTypeSuperPermissioned),
-				f.expected.PermissionedDisputeGameImpl,
-				superPermissionedContinuationGameArgs(
-					f.expected.AnchorStateRegistryProxy,
-					f.dci.Proposer,
-				),
-			)
-			break
-		}
+	case embedded.GameTypeSuperPermissioned:
 		f.seedGameImplementation(
 			t,
-			uint32(gameType),
+			uint32(embedded.GameTypeSuperPermissioned),
 			f.expected.PermissionedDisputeGameImpl,
-			permissionedContinuationGameArgs(
-				f.dci.DisputeAbsolutePrestate,
-				f.vm,
+			superPermissionedContinuationGameArgs(
 				f.expected.AnchorStateRegistryProxy,
-				f.expected.DelayedWethPermissionedGameProxy,
-				f.dci.L2ChainId,
 				f.dci.Proposer,
-				f.dci.Challenger,
 			),
 		)
 	case embedded.GameTypeCannonKona:
@@ -432,7 +412,7 @@ func (f *continuationVerificationFixture) seed(t *testing.T, gameType embedded.G
 	f.backend.set(t, f.expected.SystemConfigProxy, continuationGuardianMethod, nil, f.guardian)
 	f.backend.set(t, f.expected.OptimismPortalProxy, continuationGuardianMethod, nil, f.guardian)
 
-	if gameType != embedded.GameTypePermissionedCannon {
+	if gameType != embedded.GameTypeSuperPermissioned {
 		f.backend.validator = common.Address{0xb4}
 		f.backend.validatorResult = "OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER"
 		f.backend.set(
@@ -542,14 +522,14 @@ func TestVerifyContinuationDeployment(t *testing.T) {
 	})
 
 	t.Run("permissioned only skips StandardValidator", func(t *testing.T) {
-		fixture := newContinuationVerificationFixture(t, embedded.GameTypePermissionedCannon)
+		fixture := newContinuationVerificationFixture(t, embedded.GameTypeSuperPermissioned)
 		require.NoError(t, fixture.verify(t))
 		require.Equal(t, 2, fixture.backend.callsTo(fixture.dci.Opcm))
 		require.Zero(t, fixture.backend.callsTo(fixture.backend.validator))
 	})
 
 	t.Run("permissioned selector uses SUPER_PERMISSIONED with a super-root OPCM", func(t *testing.T) {
-		fixture := newContinuationVerificationFixtureWithMode(t, embedded.GameTypePermissionedCannon, true)
+		fixture := newContinuationVerificationFixtureWithMode(t, embedded.GameTypeSuperPermissioned, true)
 		require.NoError(t, fixture.verify(t))
 		require.Equal(t, 2, fixture.backend.callsTo(fixture.dci.Opcm))
 		require.Zero(t, fixture.backend.callsTo(fixture.backend.validator))
@@ -659,7 +639,7 @@ func TestVerifyContinuationDeploymentSuperPermissionedArguments(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			fixture := newContinuationVerificationFixtureWithMode(t, embedded.GameTypePermissionedCannon, true)
+			fixture := newContinuationVerificationFixtureWithMode(t, embedded.GameTypeSuperPermissioned, true)
 			fixture.setGameArgs(t, embedded.GameTypeSuperPermissioned, test.args(fixture))
 			require.ErrorContains(t, fixture.verify(t), test.wantErr)
 		})
@@ -667,7 +647,7 @@ func TestVerifyContinuationDeploymentSuperPermissionedArguments(t *testing.T) {
 }
 
 func TestVerifyContinuationDeploymentChecksPermissionedSystemConfigExactly(t *testing.T) {
-	fixture := newContinuationVerificationFixture(t, embedded.GameTypePermissionedCannon)
+	fixture := newContinuationVerificationFixture(t, embedded.GameTypeSuperPermissioned)
 	fixture.backend.set(
 		t,
 		fixture.expected.SystemConfigProxy,
@@ -681,11 +661,11 @@ func TestVerifyContinuationDeploymentChecksPermissionedSystemConfigExactly(t *te
 }
 
 func TestVerifyContinuationDeploymentPermissionedAddressParity(t *testing.T) {
-	template := newContinuationVerificationFixture(t, embedded.GameTypePermissionedCannon)
+	template := newContinuationVerificationFixture(t, embedded.GameTypeSuperPermissioned)
 	verifier := &continuationVerifier{expected: template.expected, dci: template.dci}
 	for _, expectation := range verifier.persistentAddressExpectations(&template.impls) {
 		t.Run(expectation.check, func(t *testing.T) {
-			fixture := newContinuationVerificationFixture(t, embedded.GameTypePermissionedCannon)
+			fixture := newContinuationVerificationFixture(t, embedded.GameTypeSuperPermissioned)
 			fixture.backend.set(t, expectation.contract, expectation.method, expectation.args, common.Address{0xff})
 			require.ErrorContains(t, fixture.verify(t), expectation.check)
 		})
@@ -947,7 +927,7 @@ func TestVerifyContinuationDeploymentFailures(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			gameType := embedded.GameTypeSuperCannonKona
 			if test.permissioned {
-				gameType = embedded.GameTypePermissionedCannon
+				gameType = embedded.GameTypeSuperPermissioned
 			}
 			fixture := newContinuationVerificationFixture(t, gameType)
 			test.mutate(t, fixture)
