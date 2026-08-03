@@ -10,6 +10,7 @@ import (
 
 	opconductor "github.com/ethereum-optimism/optimism/op-conductor/conductor"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -109,18 +110,39 @@ func NewMinimalWithConductorsRuntimeWithConfig(t devtest.T, cfg PresetConfig) *S
 	// challenger, and rust e2e jobs do not build cannon artifacts.
 	runtime := newSingleChainRuntimeWithConfig(t, cfg, singleChainRuntimeSpec{
 		BuildWorld:      newDefaultSingleChainWorld,
-		StartPrimary:    startDefaultSingleChainPrimary,
+		StartPrimary:    startStoppedSingleChainPrimary,
 		StartBatcher:    true,
 		StartProposer:   true,
 		StartChallenger: false,
 	})
-	nodeB := addSingleChainOpNode(t, runtime, "b", true, "", cfg.GlobalL2CLOptions...)
-	nodeC := addSingleChainOpNode(t, runtime, "c", true, "", cfg.GlobalL2CLOptions...)
+	nodeB := addStoppedSingleChainSequencerNode(t, runtime, "b", cfg.GlobalL2CLOptions...)
+	nodeC := addStoppedSingleChainSequencerNode(t, runtime, "c", cfg.GlobalL2CLOptions...)
 
-	conductorA := startConductorNode(t, "sequencer", runtime.L2Network, runtime.L2CL.(*OpNode), runtime.L2EL, true, false)
+	primaryCL := runtime.L2CL.(*OpNode)
+	conductorA := startConductorNode(t, "sequencer", runtime.L2Network, primaryCL, runtime.L2EL, true, false)
 	conductorB := startConductorNode(t, "b", runtime.L2Network, nodeB.CL.(*OpNode), nodeB.EL, false, true)
 	conductorC := startConductorNode(t, "c", runtime.L2Network, nodeC.CL.(*OpNode), nodeC.EL, false, true)
-	startConductorCluster(t, conductorA, []*Conductor{conductorB, conductorC})
+
+	// Mesh the sequencer CL nodes over p2p, as in a production HA deployment:
+	// the active sequencer gossips unsafe blocks to the followers, which keeps
+	// them close enough to the raft-committed head for the conductor to start
+	// them on leadership changes (op-conductor only backfills a single missing
+	// block). EL p2p is not needed — unsafe blocks reach the follower ELs via
+	// CL gossip and the engine API. Peering must happen after
+	// startConductorNode, which restarts each op-node and would drop earlier
+	// connections.
+	connectSingleChainCLPeer(t, runtime.L2CL, nodeB.CL)
+	connectSingleChainCLPeer(t, runtime.L2CL, nodeC.CL)
+	connectSingleChainCLPeer(t, nodeB.CL, nodeC.CL)
+	runtime.P2PEnabled = true
+
+	startConductorCluster(
+		t,
+		conductorA,
+		primaryCL,
+		[]*Conductor{conductorB, conductorC},
+		[]*OpNode{nodeB.CL.(*OpNode), nodeC.CL.(*OpNode)},
+	)
 
 	runtime.Conductors = map[string]*Conductor{
 		"sequencer": conductorA,
@@ -170,6 +192,30 @@ func addSingleChainOpNode(
 	l2EL := startL2ELForKey(t, runtime.L2Network, jwtPath, jwtSecret, name, NewELNodeIdentity(0))
 	l2CL := startL2CLForKey(t, runtime.Keys, runtime.L1Network, runtime.L2Network, runtime.L1EL, runtime.L1CL, l2EL, jwtSecret, name, name, isSequencer, followSource, l2Opts)
 	node := newSingleChainNodeRuntime(name, isSequencer, l2EL, l2CL)
+	runtime.Nodes[name] = node
+	return node
+}
+
+// addStoppedSingleChainSequencerNode builds an op-node sequencer that cannot
+// create an unsafe fork before its conductor cluster is ready.
+func addStoppedSingleChainSequencerNode(
+	t devtest.T,
+	runtime *SingleChainRuntime,
+	name string,
+	l2Opts ...L2CLOption,
+) *SingleChainNodeRuntime {
+	jwtPath := runtime.L2EL.JWTPath()
+	jwtSecret := readJWTSecretFromPath(t, jwtPath)
+	l2EL := startL2ELForKey(t, runtime.L2Network, jwtPath, jwtSecret, name, NewELNodeIdentity(0))
+	l2CL := startL2CLNode(t, runtime.Keys, runtime.L1Network, runtime.L2Network, runtime.L1EL, runtime.L1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
+		Key:              name,
+		IsSequencer:      true,
+		NoDiscovery:      true,
+		EnableReqResp:    true,
+		L2CLOptions:      l2Opts,
+		SequencerStopped: true,
+	})
+	node := newSingleChainNodeRuntime(name, true, l2EL, l2CL)
 	runtime.Nodes[name] = node
 	return node
 }
@@ -319,8 +365,15 @@ func startConductorNode(
 	return out
 }
 
-func startConductorCluster(t devtest.T, bootstrap *Conductor, members []*Conductor) {
+func startConductorCluster(
+	t devtest.T,
+	bootstrap *Conductor,
+	bootstrapNode *OpNode,
+	members []*Conductor,
+	memberNodes []*OpNode,
+) {
 	require := t.Require()
+	require.Len(memberNodes, len(members), "each conductor member must have a sequencer node")
 	ctx, cancel := context.WithTimeout(t.Ctx(), 90*time.Second)
 	defer cancel()
 
@@ -356,6 +409,53 @@ func startConductorCluster(t devtest.T, bootstrap *Conductor, members []*Conduct
 		return nil
 	})
 	require.NoError(err, "conductor cluster did not converge to expected membership")
+
+	// A fresh Raft FSM holds no unsafe payload, so a conductor refuses to
+	// start a sequencer on its own (ErrNoUnsafeHead). Seed sequencing manually
+	// on the bootstrap node — exactly how an operator bootstraps a production
+	// HA cluster. All sequencers started stopped, so they share the same initial
+	// head and cannot create competing forks before this point.
+	rollupClient, err := dial.DialRollupClientWithTimeout(ctx, t.Logger(), bootstrapNode.UserRPC())
+	require.NoError(err, "failed to dial bootstrap sequencer node")
+	initialStatus, err := rollupClient.SyncStatus(ctx)
+	require.NoError(err, "failed to fetch bootstrap sequencer sync status")
+	require.NoError(rollupClient.StartSequencer(ctx, initialStatus.UnsafeL2.Hash), "failed to start sequencing on bootstrap node")
+	err = retry.Do0(ctx, 90, retry.Fixed(500*time.Millisecond), func() error {
+		status, err := rollupClient.SyncStatus(ctx)
+		if err != nil {
+			return err
+		}
+		if status.UnsafeL2.Number <= initialStatus.UnsafeL2.Number {
+			return fmt.Errorf("bootstrap sequencer has not sealed a block yet, unsafe head at %d", status.UnsafeL2.Number)
+		}
+		return nil
+	})
+	require.NoError(err, "bootstrap sequencer never sealed its first block")
+
+	// Freeze the seed head and require every follower to have processed that
+	// exact canonical block before conductor control loops can start. Without
+	// this barrier, a failover can elect a follower that is unable to start on
+	// the Raft-committed head.
+	seedHash, err := rollupClient.StopSequencer(ctx)
+	require.NoError(err, "failed to stop bootstrap sequencer after seeding")
+	seedStatus, err := rollupClient.SyncStatus(ctx)
+	require.NoError(err, "failed to fetch seeded bootstrap sequencer sync status")
+	require.Equal(seedHash, seedStatus.UnsafeL2.Hash, "bootstrap sequencer stopped at an unexpected unsafe head")
+	for i, node := range memberNodes {
+		memberClient, err := dial.DialRollupClientWithTimeout(ctx, t.Logger(), node.UserRPC())
+		require.NoErrorf(err, "failed to dial sequencer node %s", members[i].ServerID())
+		err = retry.Do0(ctx, 90, retry.Fixed(500*time.Millisecond), func() error {
+			status, err := memberClient.SyncStatus(ctx)
+			if err != nil {
+				return err
+			}
+			if status.UnsafeL2.ID() != seedStatus.UnsafeL2.ID() {
+				return fmt.Errorf("sequencer %s unsafe head is %s, want seeded head %s", members[i].ServerID(), status.UnsafeL2, seedStatus.UnsafeL2)
+			}
+			return nil
+		})
+		require.NoErrorf(err, "sequencer %s never reached the seeded unsafe head", members[i].ServerID())
+	}
 
 	cluster := append([]*Conductor{bootstrap}, members...)
 	for _, conductor := range cluster {
