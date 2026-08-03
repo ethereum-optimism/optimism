@@ -37,6 +37,9 @@ func TestCalculateRequiredCollateralAggregatesFaultAndZKGames(t *testing.T) {
 	require.Equal(t, big.NewInt(22), actual[weth].Required)
 	require.Equal(t, big.NewInt(90), actual[weth].Actual)
 	require.True(t, actual[weth].BalancesDiffer)
+
+	zk.ETHCollateral.SetInt64(1)
+	require.Equal(t, big.NewInt(90), actual[weth].Actual)
 }
 
 func TestCalculateRequiredCollateralUsesLargestPendingRepresentation(t *testing.T) {

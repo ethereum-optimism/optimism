@@ -25,19 +25,30 @@ var (
 	ignoredGames  = []common.Address{common.HexToAddress("0xdeadbeef")}
 )
 
-func TestNewExtractorRequiresZKDependencies(t *testing.T) {
+func TestNewExtractorRequiresDependencies(t *testing.T) {
+	cl := clock.NewDeterministicClock(time.Unix(1, 0))
+	creator := func(context.Context, gameTypes.GameMetadata) (GameCaller, error) { return nil, nil }
+	gameFetcher := func(context.Context, common.Hash, uint64) ([]gameTypes.GameMetadata, error) { return nil, nil }
 	parentFetcher := func(context.Context, uint64, rpcblock.Block) (gameTypes.GameStatus, error) {
 		return gameTypes.GameStatusDefenderWon, nil
 	}
-	newExtractor := func(parent ParentGameStatusFetcher, bond BondEnricher, agreement ZKEnricher) error {
+	newExtractor := func(
+		cl clock.Clock,
+		creator CreateGameCaller,
+		games FactoryGameFetcher,
+		parent ParentGameStatusFetcher,
+		bond BondEnricher,
+		agreement ZKEnricher,
+		maxConcurrency uint,
+	) error {
 		_, err := NewExtractor(
 			testlog.Logger(t, log.LvlDebug),
-			clock.NewDeterministicClock(time.Unix(1, 0)),
-			func(context.Context, gameTypes.GameMetadata) (GameCaller, error) { return nil, nil },
-			func(context.Context, common.Hash, uint64) ([]gameTypes.GameMetadata, error) { return nil, nil },
+			cl,
+			creator,
+			games,
 			parent,
 			nil,
-			1,
+			maxConcurrency,
 			nil,
 			nil,
 			bond,
@@ -45,10 +56,16 @@ func TestNewExtractorRequiresZKDependencies(t *testing.T) {
 		)
 		return err
 	}
-	require.ErrorContains(t, newExtractor(nil, &recordingBondEnricher{}, &recordingZKEnricher{}), "parent game status fetcher is required")
-	require.ErrorContains(t, newExtractor(parentFetcher, &recordingBondEnricher{}, nil), "ZK agreement enricher is required")
-	require.ErrorContains(t, newExtractor(parentFetcher, nil, &recordingZKEnricher{}), "bond enricher is required")
-	require.NoError(t, newExtractor(parentFetcher, &recordingBondEnricher{}, &recordingZKEnricher{}))
+	bond := &recordingBondEnricher{}
+	agreement := &recordingZKEnricher{}
+	require.ErrorContains(t, newExtractor(nil, creator, gameFetcher, parentFetcher, bond, agreement, 1), "clock is required")
+	require.ErrorContains(t, newExtractor(cl, nil, gameFetcher, parentFetcher, bond, agreement, 1), "game caller creator is required")
+	require.ErrorContains(t, newExtractor(cl, creator, nil, parentFetcher, bond, agreement, 1), "game fetcher is required")
+	require.ErrorContains(t, newExtractor(cl, creator, gameFetcher, nil, bond, agreement, 1), "parent game status fetcher is required")
+	require.ErrorContains(t, newExtractor(cl, creator, gameFetcher, parentFetcher, bond, nil, 1), "ZK agreement enricher is required")
+	require.ErrorContains(t, newExtractor(cl, creator, gameFetcher, parentFetcher, nil, agreement, 1), "bond enricher is required")
+	require.ErrorContains(t, newExtractor(cl, creator, gameFetcher, parentFetcher, bond, agreement, 0), "max concurrency must be greater than zero")
+	require.NoError(t, newExtractor(cl, creator, gameFetcher, parentFetcher, bond, agreement, 1))
 }
 
 func TestExtractor_Extract(t *testing.T) {
@@ -234,6 +251,34 @@ func TestExtractor_Extract(t *testing.T) {
 		require.Equal(t, firstUpdateTime, actual[gameA].LastUpdateTime)
 		require.Equal(t, secondUpdateTime, actual[gameB].LastUpdateTime)
 	})
+}
+
+func TestExtractorRejectsCallerMissingVariantCapability(t *testing.T) {
+	tests := []struct {
+		name     string
+		gameType gameTypes.GameType
+		wantErr  string
+	}{
+		{name: "fault", gameType: gameTypes.CannonGameType, wantErr: "does not support fault game extraction"},
+		{name: "ZK", gameType: gameTypes.ZKDisputeGameType, wantErr: "does not support ZK game extraction"},
+		{name: "SuperPermissioned", gameType: gameTypes.SuperPermissionedGameType, wantErr: "does not support common game extraction"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			extractor, _, _, _, _ := setupExtractorTest(t)
+			extractor.createContract = func(context.Context, gameTypes.GameMetadata) (GameCaller, error) {
+				return anchorOnlyGameCaller{}, nil
+			}
+			_, err := extractor.enrichGame(context.Background(), common.Hash{}, gameTypes.GameMetadata{GameType: uint32(test.gameType)})
+			require.ErrorContains(t, err, test.wantErr)
+		})
+	}
+}
+
+type anchorOnlyGameCaller struct{}
+
+func (anchorOnlyGameCaller) GetAnchorStateRegistry(context.Context, rpcblock.Block) (common.Address, error) {
+	return common.Address{}, nil
 }
 
 func verifyLogs(t *testing.T, logs *testlog.CapturingHandler, createErr, metadataErr, claimsErr, durationErr int) {

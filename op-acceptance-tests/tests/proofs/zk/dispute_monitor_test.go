@@ -88,6 +88,10 @@ func TestZKDisputeMonitorValidTerminalProposalAfterDeadline(gt *testing.T) {
 
 	weth := factory.DelayedWETH(game.WETHAddress())
 	advanceL1To(&sys.SingleChainInterop, game.ResolvedAt()+uint64(zkFinalityDelay/time.Second)+1)
+	monitor.VerifyState(
+		disputemon.ExactNonWithdrawableCredits(1),
+		disputemon.NoWithdrawalRequests(game),
+	)
 	game.ClaimCredit(resolver, proposer.Address())
 	withdrawal := weth.Withdrawal(game.Address, proposer.Address())
 	t.Require().Equal(totalBonds, withdrawal.Amount)

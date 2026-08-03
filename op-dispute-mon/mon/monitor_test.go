@@ -70,7 +70,7 @@ func TestPartitionGamesOnlyReturnsFaultVariantsToFaultMonitors(t *testing.T) {
 	)}
 
 	commonGames, faultGames, bondedGames := partitionGames([]monTypes.EnrichedGame{fault, zk, superPermissioned})
-	require.Len(t, commonGames, 3)
+	require.Equal(t, []*monTypes.CommonGameData{fault.Common(), zk.Common(), superPermissioned.Common()}, commonGames)
 	require.Equal(t, []*monTypes.FaultGameData{fault}, faultGames)
 	require.Equal(t, []monTypes.BondedGame{fault, zk}, bondedGames)
 }

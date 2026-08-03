@@ -68,7 +68,11 @@ func (w *WithdrawalMonitor) validateGameWithdrawals(game types.BondedGame, now t
 	matching := 0
 	divergent := 0
 	data := game.BondData()
-	for recipient := range data.Recipients {
+	if data.Recipients == nil {
+		divergent++
+		w.logger.Error("Missing bond recipients", "game", game.Common().Proxy)
+	}
+	for _, recipient := range data.RecipientAddresses() {
 		withdrawal := data.WithdrawalRequests[recipient]
 		if withdrawal == nil {
 			withdrawal = &contracts.WithdrawalRequest{Amount: new(big.Int), Timestamp: new(big.Int)}
@@ -81,7 +85,7 @@ func (w *WithdrawalMonitor) validateGameWithdrawals(game types.BondedGame, now t
 		if expected == nil {
 			expected = new(big.Int)
 		}
-		hasObligation := expected.Sign() > 0 || credit.Sign() > 0 || withdrawal.Amount.Sign() > 0
+		hasObligation := bigs.IsPositive(expected) || bigs.IsPositive(credit) || bigs.IsPositive(withdrawal.Amount)
 		if !hasObligation {
 			continue
 		}
@@ -120,7 +124,8 @@ func (w *WithdrawalMonitor) validateGameWithdrawals(game types.BondedGame, now t
 				total = new(big.Int).Add(total, credit)
 				honestWithdrawableAmounts[recipient] = total
 			}
-			if bigs.IsPositive(withdrawal.Amount) && !time.Unix(withdrawal.Timestamp.Int64(), 0).Add(data.WETHDelay).After(now) {
+			if bigs.IsPositive(withdrawal.Amount) && bigs.IsPositive(withdrawal.Timestamp) &&
+				!time.Unix(withdrawal.Timestamp.Int64(), 0).Add(data.WETHDelay).After(now) {
 				// Credits are fully withdrawable
 				total := honestWithdrawableAmounts[recipient]
 				total = new(big.Int).Add(total, withdrawal.Amount)
@@ -149,12 +154,8 @@ func validDecidedWithdrawal(
 	if !bigs.IsPositive(withdrawal.Timestamp) || !bigs.Equal(withdrawal.Amount, expected) {
 		return false
 	}
-	switch game.(type) {
-	case *types.FaultGameData:
+	if game.RequiresCreditForWithdrawal() {
 		return bigs.Equal(credit, expected)
-	case *types.ZKGameData:
-		return bigs.IsZero(credit)
-	default:
-		return false
 	}
+	return bigs.IsZero(credit)
 }

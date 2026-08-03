@@ -10,7 +10,7 @@ import (
 func TestRecordGameAgreementsPreservesCanonicalSeries(t *testing.T) {
 	metricer := NewMetrics()
 	metricer.RecordGameAgreements(nil)
-	require.Len(t, canonicalGameAgreementSeries, int(gameAgreementStatusCount))
+	require.Len(t, canonicalGameAgreementSeries, 8)
 
 	initial := gatherGameAgreements(t, metricer)
 	require.Len(t, initial.Metric, 8)

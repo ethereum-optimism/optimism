@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"math/big"
 	"slices"
 	"time"
@@ -21,6 +20,7 @@ import (
 var (
 	ErrIncorrectCreditCount      = errors.New("incorrect credit count")
 	ErrIncorrectWithdrawalsCount = errors.New("incorrect withdrawals count")
+	ErrInvalidETHCollateral      = errors.New("invalid DelayedWETH collateral")
 	ErrInvalidZKBondTotals       = errors.New("invalid ZK bond totals")
 )
 
@@ -57,7 +57,7 @@ func (b *BondDataEnricher) Enrich(ctx context.Context, block rpcblock.Block, cal
 		return err
 	}
 
-	recipients := slices.Collect(maps.Keys(game.BondData().Recipients))
+	recipients := game.BondData().RecipientAddresses()
 	slices.SortFunc(recipients, func(a, b common.Address) int {
 		return bytes.Compare(a[:], b[:])
 	})
@@ -83,11 +83,18 @@ func (b *BondDataEnricher) Enrich(ctx context.Context, block rpcblock.Block, cal
 		data.Credits[recipient] = credits[i]
 		data.WithdrawalRequests[recipient] = withdrawals[i]
 	}
-	data.ETHCollateral, data.WETHDelay, data.WETHContract, err = caller.GetBalanceAndDelay(ctx, block)
+	ethCollateral, wethDelay, wethContract, err := caller.GetBalanceAndDelay(ctx, block)
 	if err != nil {
 		return fmt.Errorf("failed to fetch DelayedWETH balance and delay: %w", err)
 	}
-	if typed, ok := game.(*monTypes.FaultGameData); ok {
+	if ethCollateral == nil {
+		return ErrInvalidETHCollateral
+	}
+	data.ETHCollateral = new(big.Int).Set(ethCollateral)
+	data.WETHDelay = wethDelay
+	data.WETHContract = wethContract
+	switch typed := game.(type) {
+	case *monTypes.FaultGameData:
 		data.CreditWithdrawableAt = time.Unix(int64(typed.Timestamp), 0).
 			Add(time.Duration(typed.MaxClockDuration) * time.Second).
 			Add(data.WETHDelay)
@@ -168,12 +175,14 @@ func normalizeZKBonds(game *monTypes.ZKGameData, mode faultTypes.BondDistributio
 	data.ExpectedCredits = make(map[common.Address]*big.Int)
 
 	creatorBond := new(big.Int).Set(game.TotalBonds)
-	data.Bonds = []monTypes.BondRecord{{Depositor: game.GameCreator, Amount: creatorBond}}
 	if game.Challenger != (common.Address{}) {
 		if game.TotalBonds.Cmp(game.ChallengerBond) < 0 {
 			return fmt.Errorf("%w: total bonds %s below challenger bond %s", ErrInvalidZKBondTotals, game.TotalBonds, game.ChallengerBond)
 		}
 		creatorBond.Sub(creatorBond, game.ChallengerBond)
+	}
+	data.Bonds = []monTypes.BondRecord{{Depositor: game.GameCreator, Amount: creatorBond}}
+	if game.Challenger != (common.Address{}) {
 		data.Bonds = append(data.Bonds, monTypes.BondRecord{
 			Depositor: game.Challenger,
 			Amount:    new(big.Int).Set(game.ChallengerBond),
@@ -185,13 +194,16 @@ func normalizeZKBonds(game *monTypes.ZKGameData, mode faultTypes.BondDistributio
 	}
 	for i := range data.Bonds {
 		record := &data.Bonds[i]
+		isChallengerBond := i == 1
 		record.Resolved = true
 		switch {
 		case mode == faultTypes.RefundDistributionMode:
 			record.Recipient = record.Depositor
+		case game.Status == gameTypes.GameStatusChallengerWon && game.Challenger == (common.Address{}):
+			record.Burned = true
 		case game.Status == gameTypes.GameStatusChallengerWon:
 			record.Recipient = game.Challenger
-		case game.Status == gameTypes.GameStatusDefenderWon && record.Depositor == game.Challenger &&
+		case game.Status == gameTypes.GameStatusDefenderWon && isChallengerBond &&
 			game.Prover != (common.Address{}) && game.Prover != game.GameCreator:
 			record.Recipient = game.Prover
 		case game.Status == gameTypes.GameStatusDefenderWon:

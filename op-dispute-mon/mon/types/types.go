@@ -1,6 +1,7 @@
 package types
 
 import (
+	"maps"
 	"math/big"
 	"slices"
 	"time"
@@ -37,6 +38,7 @@ type BondRecord struct {
 	Recipient common.Address
 	Amount    *big.Int
 	Resolved  bool
+	Burned    bool
 }
 
 // BondGameData contains the bond and DelayedWETH state shared by bond-bearing game variants.
@@ -65,6 +67,9 @@ type EnrichedGame interface {
 type BondedGame interface {
 	EnrichedGame
 	BondData() *BondGameData
+	// RequiresCreditForWithdrawal reports whether starting a DelayedWETH withdrawal leaves the
+	// game's credit in place. Fault games do; ZK games transfer the credit into DelayedWETH.
+	RequiresCreditForWithdrawal() bool
 	bondedGame()
 }
 
@@ -150,10 +155,41 @@ func (*FaultGameData) enrichedGame()             {}
 func (*ZKGameData) enrichedGame()                {}
 func (*SuperPermissionedGameData) enrichedGame() {}
 
-func (g *FaultGameData) BondData() *BondGameData { return &g.BondGameData }
-func (g *ZKGameData) BondData() *BondGameData    { return &g.BondGameData }
-func (*FaultGameData) bondedGame()               {}
-func (*ZKGameData) bondedGame()                  {}
+func (g *FaultGameData) BondData() *BondGameData         { return &g.BondGameData }
+func (g *ZKGameData) BondData() *BondGameData            { return &g.BondGameData }
+func (*FaultGameData) RequiresCreditForWithdrawal() bool { return true }
+func (*ZKGameData) RequiresCreditForWithdrawal() bool    { return false }
+func (*FaultGameData) bondedGame()                       {}
+func (*ZKGameData) bondedGame()                          {}
+
+var (
+	_ BondedGame = (*FaultGameData)(nil)
+	_ BondedGame = (*ZKGameData)(nil)
+)
+
+// RecipientAddresses returns the union of every address represented in the normalized bond data.
+func (d *BondGameData) RecipientAddresses() []common.Address {
+	recipients := make(map[common.Address]bool)
+	for recipient := range d.Recipients {
+		recipients[recipient] = true
+	}
+	for recipient := range d.Credits {
+		recipients[recipient] = true
+	}
+	for recipient := range d.ExpectedCredits {
+		recipients[recipient] = true
+	}
+	for recipient := range d.WithdrawalRequests {
+		recipients[recipient] = true
+	}
+	for _, bond := range d.Bonds {
+		recipients[bond.Depositor] = true
+		if bond.Resolved {
+			recipients[bond.Recipient] = true
+		}
+	}
+	return slices.Collect(maps.Keys(recipients))
+}
 
 // UsesOutputRoots returns true if the game type is one of the known types that use output roots as proposals.
 func (g CommonGameData) UsesOutputRoots() bool {

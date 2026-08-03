@@ -87,7 +87,7 @@ func (b *Bonds) checkHonestActorBonds(games []types.BondedGame) {
 				honest[bond.Depositor].Lost.Add(honest[bond.Depositor].Lost, bond.Amount)
 				b.logger.Error("Bond resolved against honest actor", "game", game.Common().Proxy, "honestActor", bond.Depositor, "recipient", bond.Recipient, "bondAmount", bond.Amount)
 			}
-			if bond.Recipient != (common.Address{}) && b.honestActors.Contains(bond.Recipient) {
+			if !bond.Burned && b.honestActors.Contains(bond.Recipient) {
 				honest[bond.Recipient].Won.Add(honest[bond.Recipient].Won, bond.Amount)
 			}
 		}
@@ -100,27 +100,19 @@ func (b *Bonds) checkHonestActorBonds(games []types.BondedGame) {
 func (b *Bonds) checkCredits(games []types.BondedGame) {
 	creditMetrics := make(map[metrics.CreditExpectation]int)
 
+	now := b.clock.Now()
 	for _, game := range games {
 		data := game.BondData()
-
-		allRecipients := make(map[common.Address]bool)
-		for address := range data.ExpectedCredits {
-			allRecipients[address] = true
-		}
-		for address := range data.Credits {
-			if effectiveCredit(data, address).Sign() > 0 {
-				allRecipients[address] = true
-			}
-		}
-
-		for recipient := range allRecipients {
+		for _, recipient := range data.RecipientAddresses() {
 			expected := data.ExpectedCredits[recipient]
+			if expected == nil && effectiveCredit(data, recipient).Sign() == 0 {
+				continue
+			}
 			if expected == nil {
 				expected = big.NewInt(0)
 			}
-			now := b.clock.Now()
 			actual := observedCredit(data, recipient, expected, now)
-			withdrawable := creditCanBeWithdrawn(data, recipient, now)
+			withdrawable := creditCanBeWithdrawn(game, recipient, now)
 			comparison := actual.Cmp(expected)
 			if withdrawable {
 				if comparison > 0 {
@@ -159,18 +151,22 @@ func observedCredit(data *types.BondGameData, recipient common.Address, expected
 	request := data.WithdrawalRequests[recipient]
 	if actual.Sign() == 0 && withdrawalMature(request, data.WETHDelay, now) {
 		// DelayedWETH retains the unlock timestamp after the full amount has been withdrawn.
-		// A zero credit and zero request amount with a timestamp therefore means the payout completed.
+		// A zero credit and zero request amount with a mature timestamp therefore means the payout
+		// completed. DelayedWETH does not retain the paid amount, so a partial payout cannot be
+		// distinguished from a full payout after maturity and is represented as the expected amount.
 		return expected
 	}
 	return actual
 }
 
-func creditCanBeWithdrawn(data *types.BondGameData, recipient common.Address, now time.Time) bool {
+func creditCanBeWithdrawn(game types.BondedGame, recipient common.Address, now time.Time) bool {
+	data := game.BondData()
 	request := data.WithdrawalRequests[recipient]
 	if request != nil && request.Timestamp != nil && request.Timestamp.Sign() > 0 {
 		return withdrawalMature(request, data.WETHDelay, now)
 	}
-	return !data.CreditWithdrawableAt.IsZero() && !data.CreditWithdrawableAt.After(now)
+	return game.RequiresCreditForWithdrawal() &&
+		!data.CreditWithdrawableAt.IsZero() && !data.CreditWithdrawableAt.After(now)
 }
 
 func withdrawalMature(request *contracts.WithdrawalRequest, delay time.Duration, now time.Time) bool {

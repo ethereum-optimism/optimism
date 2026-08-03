@@ -2,6 +2,7 @@ package extract
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"testing"
 	"time"
@@ -51,12 +52,13 @@ func TestNormalizeZKBonds(t *testing.T) {
 	challenger := common.Address{0x22}
 	prover := common.Address{0x33}
 	tests := []struct {
-		name       string
-		status     gameTypes.GameStatus
-		mode       faultTypes.BondDistributionMode
-		challenger common.Address
-		prover     common.Address
-		want       []monTypes.BondRecord
+		name        string
+		status      gameTypes.GameStatus
+		mode        faultTypes.BondDistributionMode
+		challenger  common.Address
+		prover      common.Address
+		want        []monTypes.BondRecord
+		wantCredits map[common.Address]*big.Int
 	}{
 		{
 			name:   "live unchallenged",
@@ -83,6 +85,7 @@ func TestNormalizeZKBonds(t *testing.T) {
 				{Depositor: creator, Recipient: challenger, Amount: big.NewInt(70), Resolved: true},
 				{Depositor: challenger, Recipient: challenger, Amount: big.NewInt(30), Resolved: true},
 			},
+			wantCredits: map[common.Address]*big.Int{challenger: big.NewInt(100)},
 		},
 		{
 			name:       "defender wins with distinct prover",
@@ -94,6 +97,19 @@ func TestNormalizeZKBonds(t *testing.T) {
 				{Depositor: creator, Recipient: creator, Amount: big.NewInt(70), Resolved: true},
 				{Depositor: challenger, Recipient: prover, Amount: big.NewInt(30), Resolved: true},
 			},
+			wantCredits: map[common.Address]*big.Int{creator: big.NewInt(70), prover: big.NewInt(30)},
+		},
+		{
+			name:       "defender wins after creator self-challenges",
+			status:     gameTypes.GameStatusDefenderWon,
+			mode:       faultTypes.NormalDistributionMode,
+			challenger: creator,
+			prover:     prover,
+			want: []monTypes.BondRecord{
+				{Depositor: creator, Recipient: creator, Amount: big.NewInt(70), Resolved: true},
+				{Depositor: creator, Recipient: prover, Amount: big.NewInt(30), Resolved: true},
+			},
+			wantCredits: map[common.Address]*big.Int{creator: big.NewInt(70), prover: big.NewInt(30)},
 		},
 		{
 			name:       "defender wins with creator proving",
@@ -105,6 +121,16 @@ func TestNormalizeZKBonds(t *testing.T) {
 				{Depositor: creator, Recipient: creator, Amount: big.NewInt(70), Resolved: true},
 				{Depositor: challenger, Recipient: creator, Amount: big.NewInt(30), Resolved: true},
 			},
+			wantCredits: map[common.Address]*big.Int{creator: big.NewInt(100)},
+		},
+		{
+			name:   "defender wins without challenger",
+			status: gameTypes.GameStatusDefenderWon,
+			mode:   faultTypes.NormalDistributionMode,
+			want: []monTypes.BondRecord{
+				{Depositor: creator, Recipient: creator, Amount: big.NewInt(100), Resolved: true},
+			},
+			wantCredits: map[common.Address]*big.Int{creator: big.NewInt(100)},
 		},
 		{
 			name:       "refund",
@@ -116,12 +142,14 @@ func TestNormalizeZKBonds(t *testing.T) {
 				{Depositor: creator, Recipient: creator, Amount: big.NewInt(70), Resolved: true},
 				{Depositor: challenger, Recipient: challenger, Amount: big.NewInt(30), Resolved: true},
 			},
+			wantCredits: map[common.Address]*big.Int{creator: big.NewInt(70), challenger: big.NewInt(30)},
 		},
 		{
-			name:   "invalid parent burns unchallenged creator bond",
-			status: gameTypes.GameStatusChallengerWon,
-			mode:   faultTypes.NormalDistributionMode,
-			want:   []monTypes.BondRecord{{Depositor: creator, Amount: big.NewInt(100), Resolved: true}},
+			name:        "invalid parent burns unchallenged creator bond",
+			status:      gameTypes.GameStatusChallengerWon,
+			mode:        faultTypes.NormalDistributionMode,
+			want:        []monTypes.BondRecord{{Depositor: creator, Amount: big.NewInt(100), Resolved: true, Burned: true}},
+			wantCredits: map[common.Address]*big.Int{common.Address{}: big.NewInt(100)},
 		},
 	}
 
@@ -137,24 +165,61 @@ func TestNormalizeZKBonds(t *testing.T) {
 			}
 			require.NoError(t, normalizeZKBonds(game, test.mode))
 			require.Equal(t, test.want, game.Bonds)
-			for _, bond := range test.want {
-				if bond.Resolved {
-					require.Contains(t, game.ExpectedCredits, bond.Recipient)
-				}
+			if test.wantCredits == nil {
+				test.wantCredits = map[common.Address]*big.Int{}
 			}
+			require.Equal(t, test.wantCredits, game.ExpectedCredits)
 		})
 	}
 }
 
 func TestNormalizeZKBondsRejectsInvalidTotals(t *testing.T) {
+	tests := []struct {
+		name           string
+		totalBonds     *big.Int
+		challengerBond *big.Int
+	}{
+		{name: "nil total", challengerBond: big.NewInt(30)},
+		{name: "nil challenger bond", totalBonds: big.NewInt(100)},
+		{name: "negative total", totalBonds: big.NewInt(-1), challengerBond: big.NewInt(30)},
+		{name: "negative challenger bond", totalBonds: big.NewInt(100), challengerBond: big.NewInt(-1)},
+		{name: "total below challenger bond", totalBonds: big.NewInt(29), challengerBond: big.NewInt(30)},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			game := &monTypes.ZKGameData{
+				CommonGameData: monTypes.CommonGameData{Status: gameTypes.GameStatusInProgress},
+				GameCreator:    common.Address{0x11},
+				Challenger:     common.Address{0x22},
+				TotalBonds:     test.totalBonds,
+				ChallengerBond: test.challengerBond,
+			}
+			require.ErrorIs(t, normalizeZKBonds(game, faultTypes.UndecidedDistributionMode), ErrInvalidZKBondTotals)
+		})
+	}
+}
+
+func TestNormalizeZKBondsCopiesAmounts(t *testing.T) {
+	totalBonds := big.NewInt(100)
+	challengerBond := big.NewInt(30)
 	game := &monTypes.ZKGameData{
 		CommonGameData: monTypes.CommonGameData{Status: gameTypes.GameStatusInProgress},
 		GameCreator:    common.Address{0x11},
 		Challenger:     common.Address{0x22},
-		TotalBonds:     big.NewInt(29),
-		ChallengerBond: big.NewInt(30),
+		TotalBonds:     totalBonds,
+		ChallengerBond: challengerBond,
 	}
-	require.ErrorIs(t, normalizeZKBonds(game, faultTypes.UndecidedDistributionMode), ErrInvalidZKBondTotals)
+	require.NoError(t, normalizeZKBonds(game, faultTypes.UndecidedDistributionMode))
+
+	totalBonds.SetInt64(200)
+	challengerBond.SetInt64(40)
+	require.Equal(t, big.NewInt(70), game.Bonds[0].Amount)
+	require.Equal(t, big.NewInt(30), game.Bonds[1].Amount)
+
+	game.Bonds[0].Amount.SetInt64(1)
+	game.Bonds[1].Amount.SetInt64(2)
+	require.Equal(t, big.NewInt(200), totalBonds)
+	require.Equal(t, big.NewInt(40), challengerBond)
 }
 
 func TestBondDataEnricherLoadsPinnedStateForAllRecipients(t *testing.T) {
@@ -181,6 +246,121 @@ func TestBondDataEnricherLoadsPinnedStateForAllRecipients(t *testing.T) {
 	require.Equal(t, caller.requestedCredits, caller.requestedWithdrawals)
 	require.Equal(t, big.NewInt(100), game.ETHCollateral)
 	require.Equal(t, big.NewInt(100), game.ExpectedCredits[challenger])
+	require.True(t, game.CreditWithdrawableAt.IsZero())
+
+	caller.balance.SetInt64(200)
+	require.Equal(t, big.NewInt(100), game.ETHCollateral)
+}
+
+func TestBondDataEnricherLoadsFaultState(t *testing.T) {
+	creator := common.Address{0x11}
+	counterer := common.Address{0x22}
+	blockChallenger := common.Address{0x33}
+	caller := &stubBondGameCaller{
+		mode: faultTypes.NormalDistributionMode,
+		credits: map[common.Address]*big.Int{
+			creator: big.NewInt(10), counterer: big.NewInt(3), blockChallenger: big.NewInt(7),
+		},
+		withdrawals: map[common.Address]*contracts.WithdrawalRequest{},
+		balance:     big.NewInt(20),
+		delay:       time.Hour,
+		weth:        common.Address{0xaa},
+	}
+	game := &monTypes.FaultGameData{
+		CommonGameData:        monTypes.CommonGameData{GameMetadata: gameTypes.GameMetadata{Timestamp: 1_000}},
+		MaxClockDuration:      50,
+		BlockNumberChallenged: true,
+		BlockNumberChallenger: blockChallenger,
+		Claims: []monTypes.EnrichedClaim{
+			{Claim: faultTypes.Claim{Claimant: creator, ClaimData: faultTypes.ClaimData{Bond: big.NewInt(7), Position: faultTypes.RootPosition}}, Resolved: true},
+			{Claim: faultTypes.Claim{Claimant: creator, CounteredBy: counterer, ClaimData: faultTypes.ClaimData{Bond: big.NewInt(3), Position: faultTypes.NewPositionFromGIndex(big.NewInt(2))}}, Resolved: true},
+		},
+	}
+
+	require.NoError(t, NewBondDataEnricher().Enrich(context.Background(), rpcblock.ByNumber(10), caller, game))
+	require.Equal(t, []common.Address{creator, counterer, blockChallenger}, caller.requestedCredits)
+	require.Equal(t, caller.requestedCredits, caller.requestedWithdrawals)
+	require.Equal(t, map[common.Address]bool{creator: true, counterer: true, blockChallenger: true}, game.Recipients)
+	require.Equal(t, faultTypes.NormalDistributionMode, game.BondDistributionMode)
+	require.Equal(t, []monTypes.BondRecord{
+		{Depositor: creator, Recipient: blockChallenger, Amount: big.NewInt(7), Resolved: true},
+		{Depositor: creator, Recipient: counterer, Amount: big.NewInt(3), Resolved: true},
+	}, game.Bonds)
+	require.Equal(t, map[common.Address]*big.Int{
+		blockChallenger: big.NewInt(7), counterer: big.NewInt(3),
+	}, game.ExpectedCredits)
+	require.Equal(t, caller.credits, game.Credits)
+	require.Len(t, game.WithdrawalRequests, 3)
+	for _, request := range game.WithdrawalRequests {
+		require.Zero(t, request.Amount.Sign())
+		require.Zero(t, request.Timestamp.Sign())
+	}
+	require.Equal(t, big.NewInt(20), game.ETHCollateral)
+	require.Equal(t, time.Hour, game.WETHDelay)
+	require.Equal(t, common.Address{0xaa}, game.WETHContract)
+	require.Equal(t, time.Unix(1_000, 0).Add(50*time.Second).Add(time.Hour), game.CreditWithdrawableAt)
+}
+
+func TestBondDataEnricherErrors(t *testing.T) {
+	errRPC := errors.New("boom")
+	tests := []struct {
+		name     string
+		mutate   func(*stubBondGameCaller)
+		wantErr  error
+		contains string
+	}{
+		{name: "distribution mode", mutate: func(c *stubBondGameCaller) { c.modeErr = errRPC }, wantErr: errRPC},
+		{name: "unsupported mode", mutate: func(c *stubBondGameCaller) { c.mode = faultTypes.BondDistributionMode(99) }, contains: "unsupported ZK bond distribution mode 99"},
+		{name: "credits", mutate: func(c *stubBondGameCaller) { c.creditsErr = errRPC }, wantErr: errRPC},
+		{name: "credit count", mutate: func(c *stubBondGameCaller) { c.wrongCreditCount = true }, wantErr: ErrIncorrectCreditCount},
+		{name: "withdrawals", mutate: func(c *stubBondGameCaller) { c.withdrawalsErr = errRPC }, wantErr: errRPC},
+		{name: "withdrawal count", mutate: func(c *stubBondGameCaller) { c.wrongWithdrawalCount = true }, wantErr: ErrIncorrectWithdrawalsCount},
+		{name: "balance", mutate: func(c *stubBondGameCaller) { c.balanceErr = errRPC }, wantErr: errRPC},
+		{name: "nil balance", mutate: func(c *stubBondGameCaller) { c.balance = nil }, wantErr: ErrInvalidETHCollateral},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			creator := common.Address{0x11}
+			caller := &stubBondGameCaller{
+				mode:        faultTypes.UndecidedDistributionMode,
+				credits:     map[common.Address]*big.Int{creator: new(big.Int)},
+				withdrawals: map[common.Address]*contracts.WithdrawalRequest{},
+				balance:     big.NewInt(100),
+			}
+			test.mutate(caller)
+			game := &monTypes.ZKGameData{
+				CommonGameData: monTypes.CommonGameData{Status: gameTypes.GameStatusInProgress},
+				BondGameData:   monTypes.BondGameData{ETHCollateral: big.NewInt(7)},
+				GameCreator:    creator,
+				TotalBonds:     big.NewInt(100),
+				ChallengerBond: big.NewInt(30),
+			}
+			err := NewBondDataEnricher().Enrich(context.Background(), rpcblock.ByNumber(10), caller, game)
+			require.Error(t, err)
+			if test.wantErr != nil {
+				require.ErrorIs(t, err, test.wantErr)
+			}
+			if test.contains != "" {
+				require.ErrorContains(t, err, test.contains)
+			}
+			if test.name == "balance" {
+				require.Equal(t, big.NewInt(7), game.ETHCollateral)
+			}
+		})
+	}
+}
+
+func TestNormalizeBondsRejectsUnsupportedVariantStates(t *testing.T) {
+	fault := &monTypes.FaultGameData{}
+	require.ErrorContains(t, normalizeFaultBonds(fault, faultTypes.BondDistributionMode(99)), "unsupported fault bond distribution mode 99")
+
+	zk := &monTypes.ZKGameData{
+		CommonGameData: monTypes.CommonGameData{Status: gameTypes.GameStatus(99)},
+		GameCreator:    common.Address{0x11},
+		TotalBonds:     big.NewInt(100),
+		ChallengerBond: big.NewInt(30),
+	}
+	require.ErrorContains(t, normalizeZKBonds(zk, faultTypes.NormalDistributionMode), "unsupported terminal ZK game status")
 }
 
 func TestBondDataEnricherLoadsZeroAddressBurnCredit(t *testing.T) {
@@ -213,23 +393,38 @@ type stubBondGameCaller struct {
 	weth                 common.Address
 	requestedCredits     []common.Address
 	requestedWithdrawals []common.Address
+	modeErr              error
+	creditsErr           error
+	withdrawalsErr       error
+	balanceErr           error
+	wrongCreditCount     bool
+	wrongWithdrawalCount bool
 }
 
 func (s *stubBondGameCaller) GetCredits(_ context.Context, _ rpcblock.Block, recipients ...common.Address) ([]*big.Int, error) {
 	s.requestedCredits = append([]common.Address(nil), recipients...)
+	if s.creditsErr != nil {
+		return nil, s.creditsErr
+	}
 	result := make([]*big.Int, len(recipients))
 	for i, recipient := range recipients {
 		result[i] = s.credits[recipient]
+	}
+	if s.wrongCreditCount && len(result) > 0 {
+		result = result[:len(result)-1]
 	}
 	return result, nil
 }
 
 func (s *stubBondGameCaller) GetBondDistributionMode(context.Context, rpcblock.Block) (faultTypes.BondDistributionMode, error) {
-	return s.mode, nil
+	return s.mode, s.modeErr
 }
 
 func (s *stubBondGameCaller) GetWithdrawals(_ context.Context, _ rpcblock.Block, recipients ...common.Address) ([]*contracts.WithdrawalRequest, error) {
 	s.requestedWithdrawals = append([]common.Address(nil), recipients...)
+	if s.withdrawalsErr != nil {
+		return nil, s.withdrawalsErr
+	}
 	result := make([]*contracts.WithdrawalRequest, len(recipients))
 	for i, recipient := range recipients {
 		request := s.withdrawals[recipient]
@@ -238,9 +433,12 @@ func (s *stubBondGameCaller) GetWithdrawals(_ context.Context, _ rpcblock.Block,
 		}
 		result[i] = request
 	}
+	if s.wrongWithdrawalCount && len(result) > 0 {
+		result = result[:len(result)-1]
+	}
 	return result, nil
 }
 
 func (s *stubBondGameCaller) GetBalanceAndDelay(context.Context, rpcblock.Block) (*big.Int, time.Duration, common.Address, error) {
-	return s.balance, s.delay, s.weth, nil
+	return s.balance, s.delay, s.weth, s.balanceErr
 }

@@ -72,6 +72,15 @@ func NewExtractor(
 	bondEnricher BondEnricher,
 	zkAgreement ZKEnricher,
 ) (*Extractor, error) {
+	if cl == nil {
+		return nil, errors.New("clock is required")
+	}
+	if creator == nil {
+		return nil, errors.New("game caller creator is required")
+	}
+	if fetchGames == nil {
+		return nil, errors.New("game fetcher is required")
+	}
 	if fetchParentStatus == nil {
 		return nil, errors.New("parent game status fetcher is required")
 	}
@@ -80,6 +89,9 @@ func NewExtractor(
 	}
 	if bondEnricher == nil {
 		return nil, errors.New("bond enricher is required")
+	}
+	if maxConcurrency == 0 {
+		return nil, errors.New("max concurrency must be greater than zero")
 	}
 	ignored := make(map[common.Address]bool)
 	for _, game := range ignoredGames {

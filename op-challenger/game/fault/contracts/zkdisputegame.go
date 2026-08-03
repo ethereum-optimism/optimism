@@ -261,6 +261,9 @@ func (g *ZKDisputeGameContractLatest) GetBondMetadata(ctx context.Context, block
 	if err != nil {
 		return ZKBondMetadata{}, fmt.Errorf("failed to retrieve ZK bond metadata: %w", err)
 	}
+	if len(results) != 3 {
+		return ZKBondMetadata{}, fmt.Errorf("expected 3 results but got %d", len(results))
+	}
 	return ZKBondMetadata{
 		GameCreator:    results[0].GetAddress(0),
 		TotalBonds:     results[1].GetBigInt(0),

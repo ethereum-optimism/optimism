@@ -30,6 +30,8 @@ func NewResolutionMonitor(logger log.Logger, metrics ResolutionMetrics, clock RC
 }
 
 func (r *ResolutionMonitor) CheckResolutions(games []*types.FaultGameData) {
+	// ZK and SuperPermissioned games have no fault claims or meaningful fault-game clock duration,
+	// so resolution-status monitoring intentionally covers only fault games.
 	statusMetrics := make(map[metrics.ResolutionStatus]int)
 	for _, game := range games {
 		complete := game.Status != gameTypes.GameStatusInProgress

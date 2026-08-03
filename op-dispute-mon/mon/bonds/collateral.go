@@ -25,16 +25,20 @@ func CalculateRequiredCollateral(games []monTypes.BondedGame) map[common.Address
 	result := make(map[common.Address]Collateral)
 	for _, game := range games {
 		data := game.BondData()
+		actual := new(big.Int)
+		if data.ETHCollateral != nil {
+			actual.Set(data.ETHCollateral)
+		}
 		collateral, ok := result[data.WETHContract]
 		if !ok {
 			collateral = Collateral{
 				Required: big.NewInt(0),
-				Actual:   data.ETHCollateral,
+				Actual:   actual,
 			}
-		} else if collateral.Actual.Cmp(data.ETHCollateral) != 0 {
+		} else if collateral.Actual.Cmp(actual) != 0 {
 			collateral.BalancesDiffer = true
-			if data.ETHCollateral.Cmp(collateral.Actual) < 0 {
-				collateral.Actual = data.ETHCollateral
+			if actual.Cmp(collateral.Actual) < 0 {
+				collateral.Actual = actual
 			}
 		}
 		gameRequired := requiredCollateralForGame(game)
@@ -53,14 +57,7 @@ func requiredCollateralForGame(game monTypes.BondedGame) *big.Int {
 		}
 	}
 
-	recipients := make(map[common.Address]bool)
-	for recipient := range data.Credits {
-		recipients[recipient] = true
-	}
-	for recipient := range data.WithdrawalRequests {
-		recipients[recipient] = true
-	}
-	for recipient := range recipients {
+	for _, recipient := range data.RecipientAddresses() {
 		required = new(big.Int).Add(required, effectiveCredit(data, recipient))
 	}
 	return required

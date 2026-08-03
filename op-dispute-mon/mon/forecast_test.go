@@ -195,7 +195,13 @@ func TestForecastZKTerminalUsesActualResult(t *testing.T) {
 	for _, status := range []gameTypes.GameStatus{gameTypes.GameStatusDefenderWon, gameTypes.GameStatusChallengerWon} {
 		for _, parent := range parentStates {
 			for _, agree := range []bool{false, true} {
-				t.Run(status.String()+"/"+parent.name, func(t *testing.T) {
+				name := status.String() + "/" + parent.name
+				if agree {
+					name += "/agree"
+				} else {
+					name += "/disagree"
+				}
+				t.Run(name, func(t *testing.T) {
 					forecast, metricer := setupForecastTest(t)
 					game := &monTypes.ZKGameData{
 						CommonGameData: commonGame(gameTypes.ZKDisputeGameType, status, agree),
