@@ -519,7 +519,7 @@ import op-geth-only symbols by design).
 | Test migration: wait.go split, L2 call sites, `L2Client` type, sysgo audit, delete op-e2e/opgeth (§13) | `apis.EthClient` + header-only variants | open (#20265 + subs) |
 | op-e2e/actions in-process EL | `op-reth-test-engine` subprocess | open (#20415 Rust, #21196 Go) |
 | Genesis tooling (§14) | upstream geth as library + `opparams` | open (#21281) |
-| op-simulate / op-run-block (§14) | delete | open (#21282) |
+| op-simulate / op-run-block (§14) | delete | **done** (#21282) |
 | op-sync-tester PayloadID hash | OP-aware `Id()` reimplementation | open (#21525) |
 | Log context extensions (§15) | owned `op-service/log` layer (alias sweep → owned interface) | open |
 | RPC recorder hooks + `JsonError` (§15) | client wrappers + server-side interception | open |
