@@ -272,7 +272,12 @@ jobs:
           name: Run cargo tests
           working_directory: <<parameters.directory>>
           no_output_timeout: 40m
-          command: just <<parameters.command>> <<parameters.flags>>
+          # mold (pinned via mise; also present in ci-base-clang) cuts the link
+          # time of the many nextest test binaries. `mold -run` intercepts the
+          # linker at exec time, so it needs no RUSTFLAGS change and does not
+          # perturb the sccache compile-cache key. The CI env is controlled, so
+          # a missing mold must fail loudly rather than silently falling back.
+          command: mold -run just <<parameters.command>> <<parameters.flags>>
       # Surface individual test results in the CircleCI UI, including on failure.
       # nextest writes JUnit to <workspace>/target/nextest/default/junit.xml.
       - store_test_results:
