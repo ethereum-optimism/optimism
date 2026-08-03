@@ -128,10 +128,12 @@ func TestPrestateWorkflowFromPrepareChains(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, predicted[permissionedID], permissioned.SystemConfigProxy)
 			require.Zero(t, permissioned.Prestate)
+			// No respectedGameType override, so this chain resolves to the standard
+			// selector, which is SUPER_PERMISSIONED now that super-root is default-on.
 			permissionedProof, err := pipeline.PreparedChainProofParams(persisted, permissionedID)
 			require.NoError(t, err)
-			require.Equal(t, uint32(embedded.GameTypePermissionedCannon), permissionedProof.DisputeGameType)
-			require.Equal(t, uint32(embedded.GameTypePermissionedCannon), *permissioned.InitialGameType)
+			require.Equal(t, standard.DisputeGameType, permissionedProof.DisputeGameType)
+			require.Equal(t, standard.DisputeGameType, *permissioned.InitialGameType)
 
 			permissionless, err := persisted.Chain(permissionlessID)
 			require.NoError(t, err)

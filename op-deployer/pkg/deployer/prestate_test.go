@@ -715,6 +715,8 @@ func TestPrestateRejectsIntentChainChangesAfterPrepare(t *testing.T) {
 			mutate: func(intent *state.Intent, _ *state.State) {
 				intent.Chains[0].DeployOverrides = gameOverride(embedded.GameTypeCannonKona)
 			},
+			// ValidatePreparedDeployment runs before the per-chain game type check, so the
+			// snapshot comparison reports the drift first.
 			wantErrs: []string{"deployment intent changed after prepare", "rerun op-deployer prepare"},
 		},
 		{
