@@ -13,7 +13,7 @@ import (
 // super-root transition that occurs under the new interop rules.
 //
 // The system must be configured with a non-zero interop activation offset
-// (via WithSuggestedInteropActivationOffset) so that early blocks are
+// (via WithSuggestedLagoonActivationOffset) so that early blocks are
 // pre-interop and later blocks are post-interop.
 func RunInteropActivationBoundaryTest(t devtest.T, sys *presets.SimpleInterop, runners ...ProofRunner) {
 	t.Require().NotNil(sys.SuperRoots, "supernode is required for this test")

@@ -186,7 +186,7 @@ func newSupernodeInteropSystem(t *testingT) (sys *presets.TwoL2SupernodeInterop,
 	// (SuperchainETHBridge, ETHLiquidity) get properly initialized.
 	const interopDelay = uint64(2)
 	return presets.NewTwoL2SupernodeInterop(t, interopDelay,
-		presets.WithSuggestedInteropActivationOffset(interopDelay),
+		presets.WithSuggestedLagoonActivationOffset(interopDelay),
 	), nil
 }
 

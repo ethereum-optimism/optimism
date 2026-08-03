@@ -19,7 +19,7 @@ func TestInteropFaultProofs(gt *testing.T) {
 
 func TestInteropFaultProofs_PreForkActivation(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSimpleInterop(t, presets.WithSuggestedInteropActivationOffset(365*24*60*60))
+	sys := presets.NewSimpleInterop(t, presets.WithSuggestedLagoonActivationOffset(365*24*60*60))
 	sfp.RunPreForkActivationTest(t, sys)
 }
 
@@ -28,7 +28,7 @@ func TestInteropFaultProofs_ActivationBoundary(gt *testing.T) {
 	// Set interop activation ~6s (3 blocks) after genesis. A small offset keeps
 	// the fork reachable within CI timeouts while still having pre-interop blocks.
 	sys := presets.NewSimpleInterop(t,
-		presets.WithSuggestedInteropActivationOffset(6),
+		presets.WithSuggestedLagoonActivationOffset(6),
 	)
 	sfp.RunInteropActivationBoundaryTest(t, sys, proofRunners()...)
 }

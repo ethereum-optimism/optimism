@@ -40,8 +40,8 @@ const ENDPOINT_UP: &str = "optimism_transaction_pool.interop.endpoint.up";
 /// `result` label values for [`InteropMetrics::record_decision`]. Every transaction that reaches
 /// the interop filter records exactly one of these. Low-cardinality and stable.
 pub(crate) const RESULT_ALLOWED: &str = "allowed";
-/// Rejected because the interop hardfork is not yet active at this block (a cross-chain tx cannot
-/// exist pre-activation). A local gate — the filter is not contacted.
+/// Rejected because the Lagoon hardfork (interop activation) is not yet active at this block (a
+/// cross-chain tx cannot exist pre-activation). A local gate — the filter is not contacted.
 pub(crate) const RESULT_REJECTED_PRE_INTEROP: &str = "rejected_pre_interop";
 /// Rejected because failsafe is active (fast-path cached gate, or an endpoint reported failsafe
 /// during the check). All interop txs are rejected while failsafe is on.
