@@ -211,13 +211,14 @@ mod test {
             };
 
             let z_bytes = Bytes32::new(ROOTS_OF_UNITY[i].into_bigint().to_bytes_be().try_into().unwrap());
-            let (proof, fe) = kzg.get().compute_kzg_proof(&blob, &z_bytes).unwrap();
+            let (proof, evaluated_field_element) =
+                kzg.get().compute_kzg_proof(&blob, &z_bytes).unwrap();
 
             // Ensure the field element matches the expected value
             assert_eq!(
-                fe.as_slice(),
+                evaluated_field_element.as_slice(),
                 field_element.as_slice(),
-                "Field element {i} does not match the expected value. Expected: {field_element:?}, Got: {fe:?}"
+                "Field element {i} does not match the expected value. Expected: {field_element:?}, Got: {evaluated_field_element:?}"
             );
 
             // Ensure the proof can be verified
