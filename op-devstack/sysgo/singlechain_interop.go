@@ -35,7 +35,7 @@ func startSingleChainInteropPrimaryNoSupernode(
 	t.Require().NotNil(world.Interop, "single-chain interop runtime requires interop support")
 
 	sequencerIdentity := NewELNodeIdentity(0)
-	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, sequencerIdentity, ResolveMixedL2ELOpts()...)
+	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, sequencerIdentity, ResolveMixedL2ELOpts(t)...)
 	l2CL := startL2CLNode(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
 		Key:            "sequencer",
 		IsSequencer:    true,

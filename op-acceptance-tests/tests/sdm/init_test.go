@@ -73,11 +73,11 @@ func buildSDMRethSystem(t devtest.T, interopAtGenesis bool, isolateVerifier bool
 	// kona-node on both the sequencer and verifier (defaults to op-node when unset).
 	clKind := sysgo.ResolveMixedL2CLKind()
 
-	// Applied to the sequencer only: an external suite pointing DEVSTACK_L2EL_BINARY at its own
-	// builder gets that builder producing blocks while a stock op-reth verifies them, so any
-	// block it produces that stock op-reth rejects fails the run. Overriding both nodes would
+	// Applied to the sequencer only: an external suite pointing DEVSTACK_L2EL_OVERRIDE_BINARY at
+	// its own builder gets that builder producing blocks while a stock op-reth verifies them, so
+	// any block it produces that stock op-reth rejects fails the run. Overriding both nodes would
 	// let a self-consistent divergence pass.
-	sequencerELOpts := sysgo.ResolveMixedL2ELOpts()
+	sequencerELOpts := sysgo.ResolveMixedL2ELOpts(t)
 
 	runtime := sysgo.NewMixedSingleChainRuntime(t, sysgo.MixedSingleChainPresetConfig{
 		NodeSpecs: []sysgo.MixedSingleChainNodeSpec{
