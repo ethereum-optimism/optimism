@@ -116,6 +116,9 @@ func testSpanBatchCrossesLagoon(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	)
 }
 
+// withEmptyPostExec adds a verifier-accepted no-op payload for the derivation-only action harness,
+// whose op-geth engine cannot produce SDM refunds. TestSDMPostExecSpanCrossesInteropBoundary in
+// op-acceptance-tests covers a non-empty payload produced by op-reth from genuine warming refunds.
 func withEmptyPostExec(t actionsHelpers.Testing) actionsHelpers.BlockModifier {
 	return func(block *types.Block) *types.Block {
 		payload, err := rlp.EncodeToBytes(&optypes.PostExecPayload{

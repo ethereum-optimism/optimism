@@ -8,12 +8,59 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 // boundaryInteropOffset schedules Interop a few blocks after L2 genesis so the test
 // can observe both pre- and post-activation block production within a short window.
 // At 2s block time, 30s ≈ 15 blocks of pre-activation runway.
 const boundaryInteropOffset uint64 = 30
+
+// TestSDMPostExecSpanCrossesInteropBoundary verifies that a span can start before Lagoon,
+// cross its activation block, and carry a genuinely produced PostExec payload afterwards.
+func TestSDMPostExecSpanCrossesInteropBoundary(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	offset := boundaryInteropOffset
+	sys := newSDMRethSystemWithInteropOffset(t, &offset, withCrossActivationSpanBatcher)
+	sdmtest.VerifyOpReth(t, sys.L2EL)
+	sdmtest.VerifyOpReth(t, sys.L2ELVerifier)
+
+	activationBlock := sys.L2Network.AwaitActivation(t, forks.Lagoon)
+	activationRef := sys.L2EL.BlockRefByNumber(activationBlock.Number)
+
+	block, included, postExecBlockNumber := sdmtest.MustFindRepeatedSlotBlock(t, sys, 2, 3)
+	t.Require().GreaterOrEqual(len(included), 2,
+		"post-Lagoon target block must contain repeated-slot transactions")
+	postExecTx, _ := sdmpkg.FindPostExecTransaction(block)
+	t.Require().NotNil(postExecTx, "SDM producer must append a PostExec transaction")
+	payload, err := optypes.DecodePostExecPayload(postExecTx.Input)
+	t.Require().NoError(err, "produced PostExec payload must decode")
+	t.Require().NotEmpty(payload.GasRefundEntries,
+		"produced PostExec payload must contain repeated-slot gas refunds")
+	postExecRef := sys.L2EL.BlockRefByNumber(postExecBlockNumber)
+
+	// The batcher has been stopped since genesis. Starting it now submits the accumulated pre- and
+	// post-Lagoon blocks in one span, including the genuinely produced PostExec payload above.
+	sys.L2Batcher.Start()
+	sdmtest.VerifyPostExecSpanCrossesActivation(
+		t,
+		sys.L2Network,
+		4,
+		activationRef.Time,
+		postExecBlockNumber,
+	)
+	dsl.CheckAll(t,
+		sys.L2CL.ReachedRefFn(safety.CrossSafe, postExecRef.ID(), 120),
+		sys.L2CLVerifier.ReachedRefFn(safety.CrossSafe, postExecRef.ID(), 120),
+		sys.L2EL.ReachedFn(eth.Safe, postExecBlockNumber, 120),
+		sys.L2ELVerifier.ReachedFn(eth.Safe, postExecBlockNumber, 120),
+	)
+	verifierRef := sys.L2ELVerifier.BlockRefByNumber(postExecBlockNumber)
+	t.Require().Equal(postExecRef.Hash, verifierRef.Hash,
+		"verifier must derive the producer's PostExec block from the cross-Lagoon span")
+}
 
 // TestSDMActivatesAtInteropBoundary exercises the chain-spec-driven SDM gate across
 // the Interop activation timestamp. Both layers (op-node derivation and op-reth
