@@ -187,9 +187,9 @@ mod test {
         // A KZG proof per element makes the full FIELD_ELEMENTS_PER_BLOB sweep
         // too slow for CI, so check a random sample instead: a structural bug in
         // the table build breaks thousands of entries and fails on the first
-        // sample. The first and last indices are the fixed points of the
-        // bit-reversal permutation — the entries an off-by-one would strand —
-        // so they are always checked.
+        // sampled index. Indices 0 and 4095 — the entries a fill-loop
+        // off-by-one would leave at Fr::ZERO, and both mapping to themselves
+        // under the bit-reversal permutation — are always checked.
         const SAMPLED_FIELD_ELEMENTS: usize = 32;
         let mut indices = rand::seq::index::sample(
             &mut rand::rng(),
