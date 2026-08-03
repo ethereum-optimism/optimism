@@ -158,6 +158,7 @@ fn generate_roots_of_unity() -> [Fr; FIELD_ELEMENTS_PER_BLOB as usize] {
 #[cfg(test)]
 mod test {
     use super::ROOTS_OF_UNITY;
+    use alloc::vec::Vec;
     use alloy_eips::eip4844::{FIELD_ELEMENTS_PER_BLOB, env_settings::EnvKzgSettings};
     use ark_ff::{BigInteger, PrimeField};
     use c_kzg::{BYTES_PER_BLOB, Blob, Bytes32, Bytes48};
@@ -189,14 +190,17 @@ mod test {
         // the table build breaks thousands of entries and fails on the first
         // sampled index. Indices 0 and 4095 — the entries a fill-loop
         // off-by-one would leave at Fr::ZERO, and both mapping to themselves
-        // under the bit-reversal permutation — are always checked.
+        // under the bit-reversal permutation — are always checked; the random
+        // sample is drawn from the interior so all checked indices are distinct.
         const SAMPLED_FIELD_ELEMENTS: usize = 32;
-        let mut indices = rand::seq::index::sample(
+        let mut indices: Vec<usize> = rand::seq::index::sample(
             &mut rand::rng(),
-            FIELD_ELEMENTS_PER_BLOB as usize,
+            FIELD_ELEMENTS_PER_BLOB as usize - 2,
             SAMPLED_FIELD_ELEMENTS,
         )
-        .into_vec();
+        .into_iter()
+        .map(|interior_index| interior_index + 1)
+        .collect();
         indices.extend([0, FIELD_ELEMENTS_PER_BLOB as usize - 1]);
 
         indices.into_par_iter().for_each(|i| {
