@@ -25,10 +25,7 @@ func CalculateRequiredCollateral(games []monTypes.BondedGame) map[common.Address
 	result := make(map[common.Address]Collateral)
 	for _, game := range games {
 		data := game.BondData()
-		actual := new(big.Int)
-		if data.ETHCollateral != nil {
-			actual.Set(data.ETHCollateral)
-		}
+		actual := new(big.Int).Set(data.ETHCollateral)
 		collateral, ok := result[data.WETHContract]
 		if !ok {
 			collateral = Collateral{

@@ -47,6 +47,56 @@ func TestNormalizeFaultBonds(t *testing.T) {
 	}
 }
 
+func TestNormalizeFaultBondsReturnsResolvedUncounteredBondToClaimant(t *testing.T) {
+	claimant := common.Address{0x11}
+	game := &monTypes.FaultGameData{
+		Claims: []monTypes.EnrichedClaim{{
+			Claim: faultTypes.Claim{
+				Claimant:  claimant,
+				ClaimData: faultTypes.ClaimData{Bond: big.NewInt(10), Position: faultTypes.RootPosition},
+			},
+			Resolved: true,
+		}},
+	}
+
+	require.NoError(t, normalizeFaultBonds(game, faultTypes.NormalDistributionMode))
+	require.Equal(t, []monTypes.BondRecord{{
+		Depositor: claimant,
+		Recipient: claimant,
+		Amount:    big.NewInt(10),
+		Resolved:  true,
+	}}, game.Bonds)
+	require.Equal(t, map[common.Address]*big.Int{claimant: big.NewInt(10)}, game.ExpectedCredits)
+}
+
+func TestNormalizeFaultBondsRefundsEachDepositor(t *testing.T) {
+	firstClaimant := common.Address{0x11}
+	secondClaimant := common.Address{0x22}
+	game := &monTypes.FaultGameData{Claims: []monTypes.EnrichedClaim{
+		{Claim: faultTypes.Claim{
+			Claimant:  firstClaimant,
+			ClaimData: faultTypes.ClaimData{Bond: big.NewInt(10), Position: faultTypes.RootPosition},
+		}},
+		{Claim: faultTypes.Claim{
+			Claimant: secondClaimant,
+			ClaimData: faultTypes.ClaimData{
+				Bond:     big.NewInt(3),
+				Position: faultTypes.NewPositionFromGIndex(big.NewInt(2)),
+			},
+		}},
+	}}
+
+	require.NoError(t, normalizeFaultBonds(game, faultTypes.RefundDistributionMode))
+	require.Equal(t, []monTypes.BondRecord{
+		{Depositor: firstClaimant, Recipient: firstClaimant, Amount: big.NewInt(10), Resolved: true},
+		{Depositor: secondClaimant, Recipient: secondClaimant, Amount: big.NewInt(3), Resolved: true},
+	}, game.Bonds)
+	require.Equal(t, map[common.Address]*big.Int{
+		firstClaimant:  big.NewInt(10),
+		secondClaimant: big.NewInt(3),
+	}, game.ExpectedCredits)
+}
+
 func TestNormalizeZKBonds(t *testing.T) {
 	creator := common.Address{0x11}
 	challenger := common.Address{0x22}
@@ -73,7 +123,7 @@ func TestNormalizeZKBonds(t *testing.T) {
 			challenger: challenger,
 			want: []monTypes.BondRecord{
 				{Depositor: creator, Amount: big.NewInt(70)},
-				{Depositor: challenger, Amount: big.NewInt(30)},
+				{Depositor: challenger, Amount: big.NewInt(30), ChallengerBond: true},
 			},
 		},
 		{
@@ -83,7 +133,7 @@ func TestNormalizeZKBonds(t *testing.T) {
 			challenger: challenger,
 			want: []monTypes.BondRecord{
 				{Depositor: creator, Recipient: challenger, Amount: big.NewInt(70), Resolved: true},
-				{Depositor: challenger, Recipient: challenger, Amount: big.NewInt(30), Resolved: true},
+				{Depositor: challenger, Recipient: challenger, Amount: big.NewInt(30), Resolved: true, ChallengerBond: true},
 			},
 			wantCredits: map[common.Address]*big.Int{challenger: big.NewInt(100)},
 		},
@@ -95,7 +145,7 @@ func TestNormalizeZKBonds(t *testing.T) {
 			prover:     prover,
 			want: []monTypes.BondRecord{
 				{Depositor: creator, Recipient: creator, Amount: big.NewInt(70), Resolved: true},
-				{Depositor: challenger, Recipient: prover, Amount: big.NewInt(30), Resolved: true},
+				{Depositor: challenger, Recipient: prover, Amount: big.NewInt(30), Resolved: true, ChallengerBond: true},
 			},
 			wantCredits: map[common.Address]*big.Int{creator: big.NewInt(70), prover: big.NewInt(30)},
 		},
@@ -107,7 +157,7 @@ func TestNormalizeZKBonds(t *testing.T) {
 			prover:     prover,
 			want: []monTypes.BondRecord{
 				{Depositor: creator, Recipient: creator, Amount: big.NewInt(70), Resolved: true},
-				{Depositor: creator, Recipient: prover, Amount: big.NewInt(30), Resolved: true},
+				{Depositor: creator, Recipient: prover, Amount: big.NewInt(30), Resolved: true, ChallengerBond: true},
 			},
 			wantCredits: map[common.Address]*big.Int{creator: big.NewInt(70), prover: big.NewInt(30)},
 		},
@@ -119,7 +169,17 @@ func TestNormalizeZKBonds(t *testing.T) {
 			prover:     creator,
 			want: []monTypes.BondRecord{
 				{Depositor: creator, Recipient: creator, Amount: big.NewInt(70), Resolved: true},
-				{Depositor: challenger, Recipient: creator, Amount: big.NewInt(30), Resolved: true},
+				{Depositor: challenger, Recipient: creator, Amount: big.NewInt(30), Resolved: true, ChallengerBond: true},
+			},
+			wantCredits: map[common.Address]*big.Int{creator: big.NewInt(100)},
+		},
+		{
+			name:   "defender wins after unchallenged proof",
+			status: gameTypes.GameStatusDefenderWon,
+			mode:   faultTypes.NormalDistributionMode,
+			prover: prover,
+			want: []monTypes.BondRecord{
+				{Depositor: creator, Recipient: creator, Amount: big.NewInt(100), Resolved: true},
 			},
 			wantCredits: map[common.Address]*big.Int{creator: big.NewInt(100)},
 		},
@@ -140,7 +200,7 @@ func TestNormalizeZKBonds(t *testing.T) {
 			prover:     prover,
 			want: []monTypes.BondRecord{
 				{Depositor: creator, Recipient: creator, Amount: big.NewInt(70), Resolved: true},
-				{Depositor: challenger, Recipient: challenger, Amount: big.NewInt(30), Resolved: true},
+				{Depositor: challenger, Recipient: challenger, Amount: big.NewInt(30), Resolved: true, ChallengerBond: true},
 			},
 			wantCredits: map[common.Address]*big.Int{creator: big.NewInt(70), challenger: big.NewInt(30)},
 		},
@@ -171,6 +231,19 @@ func TestNormalizeZKBonds(t *testing.T) {
 			require.Equal(t, test.wantCredits, game.ExpectedCredits)
 		})
 	}
+}
+
+func TestNormalizeZKBondsAllowsUnchallengedTotalBelowChallengerBond(t *testing.T) {
+	creator := common.Address{0x11}
+	game := &monTypes.ZKGameData{
+		CommonGameData: monTypes.CommonGameData{Status: gameTypes.GameStatusInProgress},
+		GameCreator:    creator,
+		TotalBonds:     big.NewInt(29),
+		ChallengerBond: big.NewInt(30),
+	}
+
+	require.NoError(t, normalizeZKBonds(game, faultTypes.UndecidedDistributionMode))
+	require.Equal(t, []monTypes.BondRecord{{Depositor: creator, Amount: big.NewInt(29)}}, game.Bonds)
 }
 
 func TestNormalizeZKBondsRejectsInvalidTotals(t *testing.T) {
@@ -225,10 +298,11 @@ func TestNormalizeZKBondsCopiesAmounts(t *testing.T) {
 func TestBondDataEnricherLoadsPinnedStateForAllRecipients(t *testing.T) {
 	creator := common.Address{0x11}
 	challenger := common.Address{0x22}
+	creatorWithdrawal := &contracts.WithdrawalRequest{Amount: big.NewInt(5), Timestamp: big.NewInt(6)}
 	caller := &stubBondGameCaller{
 		mode:        faultTypes.NormalDistributionMode,
 		credits:     map[common.Address]*big.Int{creator: big.NewInt(70), challenger: big.NewInt(30)},
-		withdrawals: map[common.Address]*contracts.WithdrawalRequest{},
+		withdrawals: map[common.Address]*contracts.WithdrawalRequest{creator: creatorWithdrawal},
 		balance:     big.NewInt(100),
 		delay:       time.Hour,
 		weth:        common.Address{0xaa},
@@ -249,7 +323,69 @@ func TestBondDataEnricherLoadsPinnedStateForAllRecipients(t *testing.T) {
 	require.True(t, game.CreditWithdrawableAt.IsZero())
 
 	caller.balance.SetInt64(200)
+	caller.credits[creator].SetInt64(200)
+	creatorWithdrawal.Amount.SetInt64(200)
+	creatorWithdrawal.Timestamp.SetInt64(200)
 	require.Equal(t, big.NewInt(100), game.ETHCollateral)
+	require.Equal(t, big.NewInt(70), game.Credits[creator])
+	require.Equal(t, big.NewInt(5), game.WithdrawalRequests[creator].Amount)
+	require.Equal(t, big.NewInt(6), game.WithdrawalRequests[creator].Timestamp)
+}
+
+func TestBondDataEnricherNormalizesNilCredit(t *testing.T) {
+	creator := common.Address{0x11}
+	caller := &stubBondGameCaller{
+		mode:        faultTypes.UndecidedDistributionMode,
+		credits:     map[common.Address]*big.Int{creator: nil},
+		withdrawals: map[common.Address]*contracts.WithdrawalRequest{},
+		balance:     big.NewInt(100),
+	}
+	game := &monTypes.ZKGameData{
+		CommonGameData: monTypes.CommonGameData{Status: gameTypes.GameStatusInProgress},
+		GameCreator:    creator,
+		TotalBonds:     big.NewInt(100),
+		ChallengerBond: big.NewInt(30),
+	}
+
+	require.NoError(t, NewBondDataEnricher().Enrich(context.Background(), rpcblock.ByNumber(10), caller, game))
+	require.NotNil(t, game.Credits[creator])
+	require.Zero(t, game.Credits[creator].Sign())
+}
+
+func TestBondDataEnricherNormalizesNilWithdrawal(t *testing.T) {
+	creator := common.Address{0x11}
+	tests := []struct {
+		name       string
+		withdrawal *contracts.WithdrawalRequest
+	}{
+		{name: "nil request"},
+		{name: "nil request fields", withdrawal: &contracts.WithdrawalRequest{}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			caller := &stubBondGameCaller{
+				mode:        faultTypes.UndecidedDistributionMode,
+				credits:     map[common.Address]*big.Int{creator: new(big.Int)},
+				withdrawals: map[common.Address]*contracts.WithdrawalRequest{creator: test.withdrawal},
+				balance:     big.NewInt(100),
+				rawRequests: true,
+			}
+			game := &monTypes.ZKGameData{
+				CommonGameData: monTypes.CommonGameData{Status: gameTypes.GameStatusInProgress},
+				GameCreator:    creator,
+				TotalBonds:     big.NewInt(100),
+				ChallengerBond: big.NewInt(30),
+			}
+
+			require.NoError(t, NewBondDataEnricher().Enrich(context.Background(), rpcblock.ByNumber(10), caller, game))
+			request := game.WithdrawalRequests[creator]
+			require.NotNil(t, request)
+			require.NotNil(t, request.Amount)
+			require.NotNil(t, request.Timestamp)
+			require.Zero(t, request.Amount.Sign())
+			require.Zero(t, request.Timestamp.Sign())
+		})
+	}
 }
 
 func TestBondDataEnricherLoadsFaultState(t *testing.T) {
@@ -399,6 +535,7 @@ type stubBondGameCaller struct {
 	balanceErr           error
 	wrongCreditCount     bool
 	wrongWithdrawalCount bool
+	rawRequests          bool
 }
 
 func (s *stubBondGameCaller) GetCredits(_ context.Context, _ rpcblock.Block, recipients ...common.Address) ([]*big.Int, error) {
@@ -428,7 +565,7 @@ func (s *stubBondGameCaller) GetWithdrawals(_ context.Context, _ rpcblock.Block,
 	result := make([]*contracts.WithdrawalRequest, len(recipients))
 	for i, recipient := range recipients {
 		request := s.withdrawals[recipient]
-		if request == nil {
+		if request == nil && !s.rawRequests {
 			request = &contracts.WithdrawalRequest{Amount: new(big.Int), Timestamp: new(big.Int)}
 		}
 		result[i] = request

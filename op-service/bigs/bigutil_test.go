@@ -9,11 +9,6 @@ import (
 )
 
 func TestEqual(t *testing.T) {
-	require.True(t, Equal(nil, nil))
-	require.True(t, Equal(nil, big.NewInt(0)))
-	require.True(t, Equal(big.NewInt(0), nil))
-	require.False(t, Equal(nil, big.NewInt(1)))
-	require.False(t, Equal(big.NewInt(1), nil))
 	require.True(t, Equal(big.NewInt(0), big.NewInt(0)))
 	require.True(t, Equal(big.NewInt(1), big.NewInt(1)))
 	require.True(t, Equal(big.NewInt(1900), big.NewInt(1900)))
@@ -27,14 +22,12 @@ func TestEqual(t *testing.T) {
 }
 
 func TestIsZero(t *testing.T) {
-	require.True(t, IsZero(nil))
 	require.True(t, IsZero(big.NewInt(0)))
 	require.False(t, IsZero(big.NewInt(1)))
 	require.False(t, IsZero(big.NewInt(-1)))
 }
 
 func TestIsPositive(t *testing.T) {
-	require.False(t, IsPositive(nil))
 	require.True(t, IsPositive(big.NewInt(1)))
 	require.True(t, IsPositive(big.NewInt(2)))
 
@@ -43,7 +36,6 @@ func TestIsPositive(t *testing.T) {
 }
 
 func TestIsNegative(t *testing.T) {
-	require.False(t, IsNegative(nil))
 	require.True(t, IsNegative(big.NewInt(-1)))
 	require.True(t, IsNegative(big.NewInt(-2)))
 

@@ -32,7 +32,7 @@ func TestBondGameDataRecipientAddresses(t *testing.T) {
 		},
 	}
 
-	require.ElementsMatch(t, []common.Address{
+	require.Equal(t, []common.Address{
 		fromRecipients, fromCredits, fromExpected, fromWithdrawals, depositor, resolvedRecipient,
 	}, data.RecipientAddresses())
 }

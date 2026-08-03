@@ -5,25 +5,19 @@ import (
 )
 
 func Equal(a *big.Int, b *big.Int) bool {
-	if a == nil {
-		return IsZero(b)
-	}
-	if b == nil {
-		return IsZero(a)
-	}
 	return a.Cmp(b) == 0
 }
 
 func IsZero(val *big.Int) bool {
-	return val == nil || val.Sign() == 0
+	return val.Sign() == 0
 }
 
 func IsPositive(val *big.Int) bool {
-	return val != nil && val.Sign() > 0
+	return val.Sign() > 0
 }
 
 func IsNegative(val *big.Int) bool {
-	return val != nil && val.Sign() < 0
+	return val.Sign() < 0
 }
 
 // Uint64Strict converts a big.Int to a uint64, panicking if the value is not a UInt64.

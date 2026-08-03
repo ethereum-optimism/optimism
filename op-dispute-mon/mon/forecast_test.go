@@ -19,6 +19,28 @@ import (
 
 var mockRootClaim = common.Hash{0x11}
 
+func TestAgreementStatusCoversCanonicalSeries(t *testing.T) {
+	actual := make(map[metrics.GameAgreementStatus]bool)
+	for _, agree := range []bool{false, true} {
+		for _, result := range []gameTypes.GameStatus{gameTypes.GameStatusDefenderWon, gameTypes.GameStatusChallengerWon} {
+			for _, inProgress := range []bool{false, true} {
+				actual[agreementStatus(agree, result, inProgress)] = true
+			}
+		}
+	}
+
+	require.Equal(t, map[metrics.GameAgreementStatus]bool{
+		metrics.AgreeChallengerAhead:    true,
+		metrics.DisagreeChallengerAhead: true,
+		metrics.AgreeDefenderAhead:      true,
+		metrics.DisagreeDefenderAhead:   true,
+		metrics.AgreeDefenderWins:       true,
+		metrics.DisagreeDefenderWins:    true,
+		metrics.AgreeChallengerWins:     true,
+		metrics.DisagreeChallengerWins:  true,
+	}, actual)
+}
+
 func TestForecastFaultGamesUnchanged(t *testing.T) {
 	tests := []struct {
 		name   string

@@ -218,24 +218,6 @@ func TestCheckBondsLogsInsufficientCollateral(t *testing.T) {
 	))
 }
 
-func TestCheckBondsTreatsMissingCollateralAsZero(t *testing.T) {
-	weth := common.Address{0xaa}
-	game := bondedZK(weth, 0, []monTypes.BondRecord{{Amount: big.NewInt(10)}})
-	game.ETHCollateral = nil
-	monitor, recorded, logs := setupBondMetricsTest(t, nil)
-
-	require.NotPanics(t, func() { monitor.CheckBonds([]monTypes.BondedGame{game}) })
-	require.Equal(t, big.NewInt(10), recorded.collateral[weth].Required)
-	require.Equal(t, big.NewInt(0), recorded.collateral[weth].Actual)
-	require.NotNil(t, logs.FindLog(
-		testlog.NewLevelFilter(log.LevelError),
-		testlog.NewMessageFilter("Insufficient collateral"),
-		testlog.NewAttributesFilter("delayedWETH", weth.Hex()),
-		testlog.NewAttributesFilter("required", "10"),
-		testlog.NewAttributesFilter("actual", "0"),
-	))
-}
-
 func bondedFault(weth common.Address, balance int64, records []monTypes.BondRecord) *monTypes.FaultGameData {
 	return &monTypes.FaultGameData{BondGameData: bondData(weth, balance, records)}
 }

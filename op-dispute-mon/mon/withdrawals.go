@@ -68,19 +68,9 @@ func (w *WithdrawalMonitor) validateGameWithdrawals(game types.BondedGame, now t
 	matching := 0
 	divergent := 0
 	data := game.BondData()
-	if data.Recipients == nil {
-		divergent++
-		w.logger.Error("Missing bond recipients", "game", game.Common().Proxy)
-	}
 	for _, recipient := range data.RecipientAddresses() {
 		withdrawal := data.WithdrawalRequests[recipient]
-		if withdrawal == nil {
-			withdrawal = &contracts.WithdrawalRequest{Amount: new(big.Int), Timestamp: new(big.Int)}
-		}
 		credit := data.Credits[recipient]
-		if credit == nil {
-			credit = new(big.Int)
-		}
 		expected := data.ExpectedCredits[recipient]
 		if expected == nil {
 			expected = new(big.Int)
@@ -117,7 +107,12 @@ func (w *WithdrawalMonitor) validateGameWithdrawals(game types.BondedGame, now t
 		}
 
 		if w.honestActors.Contains(recipient) {
-			if data.BondDistributionMode != challengerTypes.UndecidedDistributionMode && bigs.IsZero(withdrawal.Amount) && !bigs.IsZero(credit) {
+			switch data.BondDistributionMode {
+			case challengerTypes.LegacyDistributionMode, challengerTypes.NormalDistributionMode, challengerTypes.RefundDistributionMode:
+			default:
+				continue
+			}
+			if bigs.IsZero(withdrawal.Amount) && !bigs.IsZero(credit) {
 				w.logger.Warn("Found uninitiated withdrawal", "recipient", recipient, "game", game.Common().Proxy, "amount", credit)
 				// Treat credits as withdrawable because the first step of withdrawing can be performed
 				total := honestWithdrawableAmounts[recipient]

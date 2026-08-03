@@ -389,11 +389,92 @@ func TestCheckWithdrawalsIgnoresZeroCreditUnlock(t *testing.T) {
 	require.Equal(t, 0, metrics.divergent[weth1])
 }
 
-func TestCheckWithdrawalsRejectsMissingRecipients(t *testing.T) {
+func TestCheckWithdrawalsReportsInvalidDistributionState(t *testing.T) {
+	recipient := honestActor1
+	tests := []struct {
+		name       string
+		mode       faultTypes.BondDistributionMode
+		withdrawal *big.Int
+		message    string
+	}{
+		{
+			name:       "withdrawal before distribution mode is set",
+			mode:       faultTypes.UndecidedDistributionMode,
+			withdrawal: big.NewInt(3),
+			message:    "Withdrawal request created before bond distribution mode set",
+		},
+		{
+			name:       "unsupported distribution mode",
+			mode:       faultTypes.BondDistributionMode(99),
+			withdrawal: new(big.Int),
+			message:    "Unsupported distribution mode",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			game := &monTypes.ZKGameData{BondGameData: monTypes.BondGameData{
+				Recipients:           map[common.Address]bool{recipient: true},
+				Credits:              map[common.Address]*big.Int{recipient: big.NewInt(3)},
+				ExpectedCredits:      map[common.Address]*big.Int{recipient: big.NewInt(3)},
+				BondDistributionMode: test.mode,
+				WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{
+					recipient: {Amount: test.withdrawal, Timestamp: big.NewInt(nowUnix)},
+				},
+				WETHContract: weth1,
+			}}
+			metrics := &stubWithdrawalsMetrics{matching: make(map[common.Address]int), divergent: make(map[common.Address]int)}
+			logger, logs := testlog.CaptureLogger(t, log.LvlInfo)
+			monitor := NewWithdrawalMonitor(
+				logger,
+				clock.NewDeterministicClock(time.Unix(nowUnix, 0)),
+				metrics,
+				monTypes.NewHonestActors([]common.Address{recipient}),
+			)
+
+			monitor.CheckWithdrawals([]monTypes.BondedGame{game})
+			require.Equal(t, 0, metrics.matching[weth1])
+			require.Equal(t, 1, metrics.divergent[weth1])
+			require.Zero(t, metrics.honestWithdrawable[recipient].Sign())
+			require.NotNil(t, logs.FindLog(
+				testlog.NewLevelFilter(log.LevelError),
+				testlog.NewMessageFilter(test.message),
+				testlog.NewAttributesFilter("recipient", recipient.Hex()),
+			))
+		})
+	}
+}
+
+func TestCheckWithdrawalsDoesNotReportZeroTimestampAsWithdrawable(t *testing.T) {
 	recipient := honestActor1
 	game := &monTypes.ZKGameData{BondGameData: monTypes.BondGameData{
-		Credits:              map[common.Address]*big.Int{recipient: big.NewInt(3)},
+		Recipients:           map[common.Address]bool{recipient: true},
+		Credits:              map[common.Address]*big.Int{recipient: new(big.Int)},
 		ExpectedCredits:      map[common.Address]*big.Int{recipient: big.NewInt(3)},
+		BondDistributionMode: faultTypes.NormalDistributionMode,
+		WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{
+			recipient: {Amount: big.NewInt(3), Timestamp: new(big.Int)},
+		},
+		WETHContract: weth1,
+	}}
+	metrics := &stubWithdrawalsMetrics{matching: make(map[common.Address]int), divergent: make(map[common.Address]int)}
+	monitor := NewWithdrawalMonitor(
+		testlog.Logger(t, log.LvlInfo),
+		clock.NewDeterministicClock(time.Unix(nowUnix, 0)),
+		metrics,
+		monTypes.NewHonestActors([]common.Address{recipient}),
+	)
+
+	monitor.CheckWithdrawals([]monTypes.BondedGame{game})
+	require.Equal(t, 1, metrics.divergent[weth1])
+	require.Zero(t, metrics.honestWithdrawable[recipient].Sign())
+}
+
+func TestCheckWithdrawalsTreatsMissingExpectedCreditAsZero(t *testing.T) {
+	recipient := honestActor1
+	game := &monTypes.FaultGameData{BondGameData: monTypes.BondGameData{
+		Recipients:           map[common.Address]bool{recipient: true},
+		Credits:              map[common.Address]*big.Int{recipient: big.NewInt(3)},
+		ExpectedCredits:      map[common.Address]*big.Int{},
 		BondDistributionMode: faultTypes.NormalDistributionMode,
 		WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{
 			recipient: {Amount: new(big.Int), Timestamp: new(big.Int)},
@@ -401,16 +482,16 @@ func TestCheckWithdrawalsRejectsMissingRecipients(t *testing.T) {
 		WETHContract: weth1,
 	}}
 	metrics := &stubWithdrawalsMetrics{matching: make(map[common.Address]int), divergent: make(map[common.Address]int)}
-	logger, logs := testlog.CaptureLogger(t, log.LvlInfo)
-	monitor := NewWithdrawalMonitor(logger, clock.NewDeterministicClock(time.Unix(nowUnix, 0)), metrics, nil)
+	monitor := NewWithdrawalMonitor(
+		testlog.Logger(t, log.LvlInfo),
+		clock.NewDeterministicClock(time.Unix(nowUnix, 0)),
+		metrics,
+		nil,
+	)
 
 	monitor.CheckWithdrawals([]monTypes.BondedGame{game})
-	require.Equal(t, 1, metrics.matching[weth1])
+	require.Equal(t, 0, metrics.matching[weth1])
 	require.Equal(t, 1, metrics.divergent[weth1])
-	require.NotNil(t, logs.FindLog(
-		testlog.NewLevelFilter(log.LevelError),
-		testlog.NewMessageFilter("Missing bond recipients"),
-	))
 }
 
 func asBondedGames(games []*monTypes.FaultGameData) []monTypes.BondedGame {

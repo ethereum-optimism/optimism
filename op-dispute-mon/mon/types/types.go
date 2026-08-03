@@ -1,6 +1,7 @@
 package types
 
 import (
+	"bytes"
 	"maps"
 	"math/big"
 	"slices"
@@ -34,11 +35,12 @@ type EnrichedClaim struct {
 
 // BondRecord describes the current disposition of one deposited game bond.
 type BondRecord struct {
-	Depositor common.Address
-	Recipient common.Address
-	Amount    *big.Int
-	Resolved  bool
-	Burned    bool
+	Depositor      common.Address
+	Recipient      common.Address
+	Amount         *big.Int
+	Resolved       bool
+	Burned         bool
+	ChallengerBond bool
 }
 
 // BondGameData contains the bond and DelayedWETH state shared by bond-bearing game variants.
@@ -167,7 +169,7 @@ var (
 	_ BondedGame = (*ZKGameData)(nil)
 )
 
-// RecipientAddresses returns the union of every address represented in the normalized bond data.
+// RecipientAddresses returns a deterministic union of every address represented in the normalized bond data.
 func (d *BondGameData) RecipientAddresses() []common.Address {
 	recipients := make(map[common.Address]bool)
 	for recipient := range d.Recipients {
@@ -188,7 +190,11 @@ func (d *BondGameData) RecipientAddresses() []common.Address {
 			recipients[bond.Recipient] = true
 		}
 	}
-	return slices.Collect(maps.Keys(recipients))
+	result := slices.Collect(maps.Keys(recipients))
+	slices.SortFunc(result, func(a, b common.Address) int {
+		return bytes.Compare(a[:], b[:])
+	})
+	return result
 }
 
 // UsesOutputRoots returns true if the game type is one of the known types that use output roots as proposals.

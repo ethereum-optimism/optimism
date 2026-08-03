@@ -1,16 +1,45 @@
 package metrics
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"testing"
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
 )
 
+func TestGameAgreementStatusSentinelIsLast(t *testing.T) {
+	file, err := parser.ParseFile(token.NewFileSet(), "metrics.go", nil, 0)
+	require.NoError(t, err)
+	found := false
+	ast.Inspect(file, func(node ast.Node) bool {
+		declaration, ok := node.(*ast.GenDecl)
+		if !ok || declaration.Tok != token.CONST {
+			return true
+		}
+		for specIndex, spec := range declaration.Specs {
+			values := spec.(*ast.ValueSpec)
+			for nameIndex, name := range values.Names {
+				if name.Name != "gameAgreementStatusCount" {
+					continue
+				}
+				found = true
+				require.Equal(t, len(declaration.Specs)-1, specIndex, "gameAgreementStatusCount must remain the last agreement status")
+				require.Equal(t, len(values.Names)-1, nameIndex, "gameAgreementStatusCount must remain the last agreement status")
+			}
+		}
+		return true
+	})
+	require.True(t, found, "gameAgreementStatusCount sentinel not found")
+}
+
 func TestRecordGameAgreementsPreservesCanonicalSeries(t *testing.T) {
 	metricer := NewMetrics()
 	metricer.RecordGameAgreements(nil)
-	require.Len(t, canonicalGameAgreementSeries, 8)
+	require.Equal(t, GameAgreementStatus(8), gameAgreementStatusCount)
+	require.Len(t, canonicalGameAgreementSeries, int(gameAgreementStatusCount))
 
 	initial := gatherGameAgreements(t, metricer)
 	require.Len(t, initial.Metric, 8)

@@ -65,6 +65,7 @@ const (
 	DisagreeDefenderWins
 	AgreeChallengerWins
 	DisagreeChallengerWins
+	gameAgreementStatusCount
 )
 
 type gameAgreementSeries struct {

@@ -1,12 +1,10 @@
 package extract
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"math/big"
-	"slices"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
@@ -57,10 +55,9 @@ func (b *BondDataEnricher) Enrich(ctx context.Context, block rpcblock.Block, cal
 		return err
 	}
 
+	// At this point the RPC-populated maps are empty, so the deterministic union is derived
+	// from the normalized recipients, bonds, and expected credits used to pair batch results.
 	recipients := game.BondData().RecipientAddresses()
-	slices.SortFunc(recipients, func(a, b common.Address) int {
-		return bytes.Compare(a[:], b[:])
-	})
 	credits, err := caller.GetCredits(ctx, block, recipients...)
 	if err != nil {
 		return fmt.Errorf("failed to fetch credits: %w", err)
@@ -80,8 +77,8 @@ func (b *BondDataEnricher) Enrich(ctx context.Context, block rpcblock.Block, cal
 	data.Credits = make(map[common.Address]*big.Int, len(recipients))
 	data.WithdrawalRequests = make(map[common.Address]*contracts.WithdrawalRequest, len(recipients))
 	for i, recipient := range recipients {
-		data.Credits[recipient] = credits[i]
-		data.WithdrawalRequests[recipient] = withdrawals[i]
+		data.Credits[recipient] = normalizedBigInt(credits[i])
+		data.WithdrawalRequests[recipient] = normalizedWithdrawal(withdrawals[i])
 	}
 	ethCollateral, wethDelay, wethContract, err := caller.GetBalanceAndDelay(ctx, block)
 	if err != nil {
@@ -184,8 +181,9 @@ func normalizeZKBonds(game *monTypes.ZKGameData, mode faultTypes.BondDistributio
 	data.Bonds = []monTypes.BondRecord{{Depositor: game.GameCreator, Amount: creatorBond}}
 	if game.Challenger != (common.Address{}) {
 		data.Bonds = append(data.Bonds, monTypes.BondRecord{
-			Depositor: game.Challenger,
-			Amount:    new(big.Int).Set(game.ChallengerBond),
+			Depositor:      game.Challenger,
+			Amount:         new(big.Int).Set(game.ChallengerBond),
+			ChallengerBond: true,
 		})
 	}
 
@@ -194,7 +192,6 @@ func normalizeZKBonds(game *monTypes.ZKGameData, mode faultTypes.BondDistributio
 	}
 	for i := range data.Bonds {
 		record := &data.Bonds[i]
-		isChallengerBond := i == 1
 		record.Resolved = true
 		switch {
 		case mode == faultTypes.RefundDistributionMode:
@@ -203,7 +200,7 @@ func normalizeZKBonds(game *monTypes.ZKGameData, mode faultTypes.BondDistributio
 			record.Burned = true
 		case game.Status == gameTypes.GameStatusChallengerWon:
 			record.Recipient = game.Challenger
-		case game.Status == gameTypes.GameStatusDefenderWon && isChallengerBond &&
+		case game.Status == gameTypes.GameStatusDefenderWon && record.ChallengerBond &&
 			game.Prover != (common.Address{}) && game.Prover != game.GameCreator:
 			record.Recipient = game.Prover
 		case game.Status == gameTypes.GameStatusDefenderWon:
@@ -215,6 +212,23 @@ func normalizeZKBonds(game *monTypes.ZKGameData, mode faultTypes.BondDistributio
 		addExpectedCredit(data.ExpectedCredits, *record)
 	}
 	return nil
+}
+
+func normalizedBigInt(value *big.Int) *big.Int {
+	if value == nil {
+		return new(big.Int)
+	}
+	return new(big.Int).Set(value)
+}
+
+func normalizedWithdrawal(request *contracts.WithdrawalRequest) *contracts.WithdrawalRequest {
+	if request == nil {
+		return &contracts.WithdrawalRequest{Amount: new(big.Int), Timestamp: new(big.Int)}
+	}
+	return &contracts.WithdrawalRequest{
+		Amount:    normalizedBigInt(request.Amount),
+		Timestamp: normalizedBigInt(request.Timestamp),
+	}
 }
 
 func addExpectedCredit(expected map[common.Address]*big.Int, record monTypes.BondRecord) {
