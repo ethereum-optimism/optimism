@@ -22,12 +22,15 @@ import (
 // Upon Holocene activation, it replaces the [BatchQueue].
 type BatchStage struct {
 	baseBatchStage
+	// denied provides the heights carrying interop deny list entries, i.e. heights at which a
+	// block replacement may have been applied. May be nil (no interop deny list available).
+	denied DeniedHeightsView
 }
 
 var _ SingularBatchProvider = (*BatchStage)(nil)
 
-func NewBatchStage(log log.Logger, cfg *rollup.Config, prev NextBatchProvider, l2 SafeBlockFetcher) *BatchStage {
-	return &BatchStage{baseBatchStage: newBaseBatchStage(log, cfg, prev, l2)}
+func NewBatchStage(log log.Logger, cfg *rollup.Config, prev NextBatchProvider, l2 SafeBlockFetcher, denied DeniedHeightsView) *BatchStage {
+	return &BatchStage{baseBatchStage: newBaseBatchStage(log, cfg, prev, l2), denied: denied}
 }
 
 func (bs *BatchStage) Reset(_ context.Context, base eth.L1BlockRef, _ eth.SystemConfig) error {
@@ -136,7 +139,7 @@ func (bs *BatchStage) nextSingularBatchCandidate(ctx context.Context, parent eth
 			return nil, NewCriticalError(errors.New("failed type assertion to SpanBatch"))
 		}
 
-		validity, _ := checkSpanBatchPrefix(ctx, bs.config, bs.Log(), bs.l1Blocks, parent, spanBatch, bs.origin, bs.l2)
+		validity, parentBlock := checkSpanBatchPrefix(ctx, bs.config, bs.Log(), bs.l1Blocks, parent, spanBatch, bs.origin, bs.l2)
 		switch validity {
 		case BatchAccept: // continue
 			spanBatch.LogContext(bs.Log()).Info("Found next valid span batch")
@@ -153,6 +156,23 @@ func (bs *BatchStage) nextSingularBatchCandidate(ctx context.Context, parent eth
 			return nil, NotEnoughData
 		case BatchFuture: // can't happen with Holocene
 			return nil, NewCriticalError(errors.New("impossible future batch validity"))
+		}
+
+		// The prefix checks do not validate overlap contents against the safe chain. Re-validate
+		// them at deny-listed heights, so that a span batch carrying a since-replaced block cannot
+		// splice the remainder of an invalidated lineage onto the canonical chain. See
+		// checkSpanBatchDeniedOverlap for details.
+		switch validity := checkSpanBatchDeniedOverlap(ctx, bs.config, bs.Log(), bs.denied, spanBatch, parentBlock, parent, bs.l2); validity {
+		case BatchAccept: // continue
+		case BatchDrop:
+			spanBatch.LogContext(bs.Log()).Warn("Dropping invalid span batch, flushing channel (deny list overlap checks)")
+			bs.FlushChannel()
+			return nil, NotEnoughData
+		case BatchUndecided: // l2 fetcher error, try again
+			spanBatch.LogContext(bs.Log()).Warn("Undecided span batch (deny list overlap checks)")
+			return nil, NotEnoughData
+		default:
+			return nil, NewCriticalError(fmt.Errorf("unexpected deny list overlap batch validity: %v", validity))
 		}
 
 		// If next batch is SpanBatch, convert it to SingularBatches.

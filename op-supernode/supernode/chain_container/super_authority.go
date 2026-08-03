@@ -112,6 +112,15 @@ func (c *simpleChainContainer) MaxDeniedHeight() (uint64, bool, error) {
 	return c.denyList.MaxDeniedHeight()
 }
 
+// DeniedHeightsInRange returns all heights within [minHeight, maxHeight] (inclusive) that carry
+// deny list entries, in ascending order.
+func (c *simpleChainContainer) DeniedHeightsInRange(minHeight, maxHeight uint64) ([]uint64, error) {
+	if c.denyList == nil {
+		return nil, nil
+	}
+	return c.denyList.DeniedHeightsInRange(minHeight, maxHeight)
+}
+
 // GetDeniedOutput returns the reconstructed OutputV0 for a denied block.
 func (c *simpleChainContainer) GetDeniedOutput(height uint64, payloadHash common.Hash) (*eth.OutputV0, error) {
 	if c.denyList == nil {

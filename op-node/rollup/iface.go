@@ -74,6 +74,13 @@ type SuperAuthority interface {
 	// cheap (a local lookup, no network I/O). A read error is returned rather
 	// than reported as "no denials", so callers can log it.
 	MaxDeniedHeight() (uint64, bool, error)
+
+	// DeniedHeightsInRange returns all block heights within [minHeight, maxHeight] (inclusive)
+	// that carry at least one deny list entry, in ascending order. Consulted by derivation when
+	// a span batch overlaps the safe chain, to re-validate overlap contents at heights where a
+	// block replacement may have been applied. Like MaxDeniedHeight, it must be a cheap local
+	// lookup.
+	DeniedHeightsInRange(minHeight, maxHeight uint64) ([]uint64, error)
 }
 
 // SafeHeadListener is called when the safe head is updated.

@@ -426,36 +426,103 @@ func checkSpanBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1B
 				// unable to validate the batch for now. retry later.
 				return BatchUndecided
 			}
-			safeBlockTxs := safeBlockPayload.ExecutionPayload.Transactions
-			batchTxs := batch.GetBlockTransactions(int(i))
-			// execution payload has deposit TXs, but batch does not.
-			depositCount := 0
-			for _, tx := range safeBlockTxs {
-				if tx[0] == optypes.DepositTxType {
-					depositCount++
-				}
-			}
-			if len(safeBlockTxs)-depositCount != len(batchTxs) {
-				log.Warn("overlapped block's tx count does not match", "safeBlockTxs", len(safeBlockTxs), "batchTxs", len(batchTxs))
-				return BatchDrop
-			}
-			for j := 0; j < len(batchTxs); j++ {
-				if !bytes.Equal(safeBlockTxs[j+depositCount], batchTxs[j]) {
-					log.Warn("overlapped block's transaction does not match")
-					return BatchDrop
-				}
-			}
-			safeBlockRef, err := PayloadToBlockRef(cfg, safeBlockPayload.ExecutionPayload)
-			if err != nil {
-				log.Error("failed to extract L2BlockRef from execution payload", "hash", safeBlockPayload.ExecutionPayload.BlockHash, "err", err)
-				return BatchDrop
-			}
-			if safeBlockRef.L1Origin.Number != batch.GetBlockEpochNum(int(i)) {
-				log.Warn("overlapped block's L1 origin number does not match")
-				return BatchDrop
+			if validity := checkOverlappedBlock(cfg, log, batch, int(i), safeBlockPayload); validity != BatchAccept {
+				return validity
 			}
 		}
 	}
 
+	return BatchAccept
+}
+
+// checkOverlappedBlock compares the i-th span batch element against the canonical block payload
+// at the same height, returning BatchDrop on any transaction or L1 origin mismatch.
+func checkOverlappedBlock(cfg *rollup.Config, log log.Logger, batch *SpanBatch, i int, safeBlockPayload *eth.ExecutionPayloadEnvelope) BatchValidity {
+	safeBlockTxs := safeBlockPayload.ExecutionPayload.Transactions
+	batchTxs := batch.GetBlockTransactions(i)
+	// execution payload has deposit TXs, but batch does not.
+	depositCount := 0
+	for _, tx := range safeBlockTxs {
+		if tx[0] == optypes.DepositTxType {
+			depositCount++
+		}
+	}
+	if len(safeBlockTxs)-depositCount != len(batchTxs) {
+		log.Warn("overlapped block's tx count does not match", "safeBlockTxs", len(safeBlockTxs), "batchTxs", len(batchTxs))
+		return BatchDrop
+	}
+	for j := 0; j < len(batchTxs); j++ {
+		if !bytes.Equal(safeBlockTxs[j+depositCount], batchTxs[j]) {
+			log.Warn("overlapped block's transaction does not match")
+			return BatchDrop
+		}
+	}
+	safeBlockRef, err := PayloadToBlockRef(cfg, safeBlockPayload.ExecutionPayload)
+	if err != nil {
+		log.Error("failed to extract L2BlockRef from execution payload", "hash", safeBlockPayload.ExecutionPayload.BlockHash, "err", err)
+		return BatchDrop
+	}
+	if safeBlockRef.L1Origin.Number != batch.GetBlockEpochNum(i) {
+		log.Warn("overlapped block's L1 origin number does not match")
+		return BatchDrop
+	}
+	return BatchAccept
+}
+
+// DeniedHeightsView provides read access to the block heights at which the interop deny list
+// holds entries, i.e. heights at which a block has been invalidated and replaced with a
+// deposits-only block. Implemented by rollup.SuperAuthority.
+type DeniedHeightsView interface {
+	// DeniedHeightsInRange returns all heights within [minHeight, maxHeight] (inclusive) that
+	// carry at least one deny list entry, in ascending order. It must be a cheap local lookup.
+	DeniedHeightsInRange(minHeight, maxHeight uint64) ([]uint64, error)
+}
+
+// checkSpanBatchDeniedOverlap re-validates the overlapping portion of a prefix-accepted span
+// batch against the canonical chain, at heights that carry deny list entries.
+//
+// The Holocene span batch prefix checks (checkSpanBatchPrefix) do not validate the contents of
+// batch elements that overlap the safe chain — unlike the legacy full checks (checkSpanBatch) —
+// on the assumption that the safe chain was derived from this same batch data and therefore must
+// agree with it. An interop deposits-only block replacement breaks that assumption: the canonical
+// block at the replaced height no longer matches the batch element it was originally derived
+// from. Without this check, a span batch carrying a replaced block is silently past-skipped over
+// the replacement and splices the remainder of an invalidated lineage onto the canonical chain,
+// making the derived chain dependent on where the pipeline (re-)anchored relative to the
+// replacement.
+//
+// Deny list entries mark the only heights at which the canonical chain can disagree with batch
+// data that was once accepted, so the content comparison is restricted to those heights and is a
+// no-op while the deny list is empty.
+func checkSpanBatchDeniedOverlap(ctx context.Context, cfg *rollup.Config, log log.Logger, denied DeniedHeightsView,
+	batch *SpanBatch, parentBlock, l2SafeHead eth.L2BlockRef, l2Fetcher SafeBlockFetcher,
+) BatchValidity {
+	if denied == nil || parentBlock.Number >= l2SafeHead.Number {
+		// No deny list available, or the batch does not overlap the safe chain.
+		return BatchAccept
+	}
+	heights, err := denied.DeniedHeightsInRange(parentBlock.Number+1, l2SafeHead.Number)
+	if err != nil {
+		// Fail open, mirroring the deny list checks on the engine paths: log, but do not block
+		// derivation on a deny list read failure.
+		log.Error("Failed to read deny list heights, skipping span batch overlap re-validation",
+			"parent_block", parentBlock, "safe_head", l2SafeHead, "err", err)
+		return BatchAccept
+	}
+	for _, height := range heights {
+		i := int(height - parentBlock.Number - 1) // index of the span batch element at this height
+		if i >= batch.GetBlockCount() {
+			continue
+		}
+		safeBlockPayload, err := l2Fetcher.PayloadByNumber(ctx, height)
+		if err != nil {
+			log.Warn("failed to fetch L2 block payload", "number", height, "err", err)
+			// unable to validate the batch for now. retry later.
+			return BatchUndecided
+		}
+		if validity := checkOverlappedBlock(cfg, log, batch, i, safeBlockPayload); validity != BatchAccept {
+			return validity
+		}
+	}
 	return BatchAccept
 }

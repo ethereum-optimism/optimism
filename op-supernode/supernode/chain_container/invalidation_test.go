@@ -294,6 +294,41 @@ func TestDenyList_GetDeniedHashes(t *testing.T) {
 	}
 }
 
+func TestDenyList_DeniedHeightsInRange(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	dl, err := OpenDenyList(dir)
+	require.NoError(t, err)
+	defer dl.Close()
+
+	// Two entries at height 20 must yield the height once.
+	require.NoError(t, dl.Add(5, common.HexToHash("0x0505"), 0, eth.Bytes32{}, eth.Bytes32{}))
+	require.NoError(t, dl.Add(20, common.HexToHash("0x2020"), 0, eth.Bytes32{}, eth.Bytes32{}))
+	require.NoError(t, dl.Add(20, common.HexToHash("0x2021"), 0, eth.Bytes32{}, eth.Bytes32{}))
+	require.NoError(t, dl.Add(30, common.HexToHash("0x3030"), 0, eth.Bytes32{}, eth.Bytes32{}))
+
+	heights, err := dl.DeniedHeightsInRange(0, 100)
+	require.NoError(t, err)
+	require.Equal(t, []uint64{5, 20, 30}, heights)
+
+	heights, err = dl.DeniedHeightsInRange(6, 30)
+	require.NoError(t, err)
+	require.Equal(t, []uint64{20, 30}, heights)
+
+	heights, err = dl.DeniedHeightsInRange(20, 20)
+	require.NoError(t, err)
+	require.Equal(t, []uint64{20}, heights)
+
+	heights, err = dl.DeniedHeightsInRange(6, 19)
+	require.NoError(t, err)
+	require.Empty(t, heights)
+
+	heights, err = dl.DeniedHeightsInRange(31, 100)
+	require.NoError(t, err)
+	require.Empty(t, heights)
+}
+
 // mockEngineForInvalidation implements engine_controller.EngineController for invalidation tests
 type mockEngineForInvalidation struct {
 	blockRef        eth.L2BlockRef

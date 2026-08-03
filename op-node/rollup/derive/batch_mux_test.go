@@ -23,7 +23,7 @@ func TestBatchMux_LaterHolocene(t *testing.T) {
 	cfg := &rollup.Config{
 		HoloceneTime: &l1B.Time,
 	}
-	b := NewBatchMux(log, cfg, nil, nil)
+	b := NewBatchMux(log, cfg, nil, nil, nil)
 
 	require.Nil(t, b.SingularBatchProvider)
 
@@ -56,7 +56,7 @@ func TestBatchMux_ActiveHolocene(t *testing.T) {
 	}
 	// without the fake input, the panic check later would panic because of the Origin() call
 	prev := &fakeBatchQueueInput{origin: l1A}
-	b := NewBatchMux(log, cfg, prev, nil)
+	b := NewBatchMux(log, cfg, prev, nil, nil)
 
 	require.Nil(t, b.SingularBatchProvider)
 

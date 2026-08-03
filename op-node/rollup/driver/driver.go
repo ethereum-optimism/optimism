@@ -75,7 +75,13 @@ func NewDriver(
 	attrHandler := attributes.NewAttributesHandler(log, cfg, driverCtx, l2, ec)
 	sys.Register("attributes-handler", attrHandler)
 
-	derivationPipeline := derive.NewDerivationPipeline(log, cfg, depSet, verifConfDepth, l1Blobs, altDA, l2, metrics, l1ChainConfig)
+	// The deny list gives derivation the heights at which an interop block replacement may have
+	// been applied, so the batch stage can re-validate span batch overlap contents there.
+	var deniedHeights derive.DeniedHeightsView
+	if superAuthority != nil {
+		deniedHeights = superAuthority
+	}
+	derivationPipeline := derive.NewDerivationPipeline(log, cfg, depSet, verifConfDepth, l1Blobs, altDA, l2, metrics, l1ChainConfig, deniedHeights)
 
 	pipelineDeriver := derive.NewPipelineDeriver(driverCtx, derivationPipeline)
 	sys.Register("pipeline", pipelineDeriver)

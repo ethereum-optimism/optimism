@@ -1,6 +1,7 @@
 package chain_container
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/json"
@@ -97,6 +98,27 @@ func (d *DenyList) MaxDeniedHeight() (uint64, bool, error) {
 		return 0, false, fmt.Errorf("failed to read max denied height: %w", err)
 	}
 	return maxHeight, maxHeight != 0, nil
+}
+
+// DeniedHeightsInRange returns all heights within [minHeight, maxHeight] (inclusive) that have
+// at least one deny record, in ascending order. The big-endian height keys make the bbolt cursor
+// scan range-bounded and cheap.
+func (d *DenyList) DeniedHeightsInRange(minHeight, maxHeight uint64) ([]uint64, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	var heights []uint64
+	err := d.db.View(func(tx *bolt.Tx) error {
+		c := tx.Bucket(denyListBucketName).Cursor()
+		maxKey := heightToKey(maxHeight)
+		for k, _ := c.Seek(heightToKey(minHeight)); k != nil && bytes.Compare(k, maxKey) <= 0; k, _ = c.Next() {
+			heights = append(heights, binary.BigEndian.Uint64(k))
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to read denied heights in range [%d, %d]: %w", minHeight, maxHeight, err)
+	}
+	return heights, nil
 }
 
 // heightToKey converts a block height to a big-endian byte key.

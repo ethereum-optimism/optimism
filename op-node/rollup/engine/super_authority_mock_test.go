@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -61,6 +62,20 @@ func (m *mockSuperAuthority) MaxDeniedHeight() (uint64, bool, error) {
 		}
 	}
 	return maxHeight, maxHeight != 0, nil
+}
+
+func (m *mockSuperAuthority) DeniedHeightsInRange(minHeight, maxHeight uint64) ([]uint64, error) {
+	if m.shouldError {
+		return nil, fmt.Errorf("superauthority check failed")
+	}
+	var heights []uint64
+	for num := range m.deniedBlocks {
+		if num >= minHeight && num <= maxHeight {
+			heights = append(heights, num)
+		}
+	}
+	slices.Sort(heights)
+	return heights, nil
 }
 
 func (m *mockSuperAuthority) FullyVerifiedL2Head(ctx context.Context) (rollup.VerifierHead, bool) {

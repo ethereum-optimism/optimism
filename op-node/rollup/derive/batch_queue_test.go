@@ -208,7 +208,7 @@ func TestBatchStages(t *testing.T) {
 		return NewBatchQueue(log, cfg, prev, l2)
 	}
 	newBatchStage := func(log log.Logger, cfg *rollup.Config, prev NextBatchProvider, l2 SafeBlockFetcher) testableBatchStage {
-		return NewBatchStage(log, cfg, prev, l2)
+		return NewBatchStage(log, cfg, prev, l2, nil)
 	}
 
 	tests := []struct {
