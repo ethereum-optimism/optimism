@@ -130,7 +130,7 @@ kona-sp1-range-vkeys = { path = "../crates/range-vkeys" }
 
 # Feature anchor only: revm's `bn` forwards to revm-precompile/bn so the guest
 # build uses the SP1-patched substrate-bn backend for bn128.
-revm = { version = "41.0.0", default-features = false, features = ["bn"] }
+revm = { version = "42.0.1", default-features = false, features = ["bn"] }
 
 alloy-primitives = { version = "1.6.0", default-features = false, features = [
   "map-foldhash",

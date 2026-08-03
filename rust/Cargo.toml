@@ -426,22 +426,22 @@ reth-trie-common = { git = "https://github.com/paradigmxyz/reth", rev = "f2eecc6
 reth-trie-db = { git = "https://github.com/paradigmxyz/reth", rev = "f2eecc65482af4085e43eedb27a32024bf177a0d" }
 
 # ==================== REVM (latest: op-reth versions) ====================
-revm = { version = "41.0.0", default-features = false }
-revm-bytecode = { version = "41.0.0", default-features = false }
-revm-database = { version = "41.0.0", default-features = false }
-revm-state = { version = "41.0.0", default-features = false }
-revm-primitives = { version = "41.0.0", default-features = false }
-revm-interpreter = { version = "41.0.0", default-features = false }
-revm-database-interface = { version = "41.0.0", default-features = false }
+revm = { version = "42.0.1", default-features = false }
+revm-bytecode = { version = "42.0.1", default-features = false }
+revm-database = { version = "42.0.1", default-features = false }
+revm-state = { version = "42.0.1", default-features = false }
+revm-primitives = { version = "42.0.1", default-features = false }
+revm-interpreter = { version = "42.0.1", default-features = false }
+revm-database-interface = { version = "42.0.1", default-features = false }
 op-revm = { version = "20.0.0", path = "op-revm/", default-features = false }
-revm-inspectors = "0.41.0"
+revm-inspectors = "0.42.0"
 
 # ==================== ALLOY ====================
 alloy-chains = { version = "0.2.33", default-features = false }
 alloy-dyn-abi = "1.6.0"
 alloy-eip2124 = { version = "0.2.0", default-features = false }
 alloy-eip7928 = { version = "0.4.5", default-features = false }
-alloy-evm = { version = "0.37.0", default-features = false }
+alloy-evm = { version = "0.38.0", default-features = false }
 alloy-primitives = { version = "1.6.0", default-features = false, features = [
   "map-foldhash",
 ] }
