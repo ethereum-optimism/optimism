@@ -3301,7 +3301,7 @@ impl PrestateCache {
             .get_or_init(|| async move {
                 match setup_proof_keys(&programs).await {
                     Ok(keys) => {
-                        let actual = B256::from(keys.agg_vk.hash_bytes());
+                        let actual = B256::from(keys.agg_vk.bytes32_raw());
                         if actual == prestate {
                             Ok(Arc::new(keys))
                         } else {
@@ -3889,6 +3889,44 @@ mod tests {
             // The poisoned verdict is stored: same error, no re-setup.
             let again = cache.proof_keys(hash, ProofProviderKind::Network).await.unwrap_err();
             assert_eq!(again.to_string(), verdict);
+        }
+
+        /// With real artifacts (`KONA_SP1_ELF_DIR` pointing at the built
+        /// ELFs and their `vkeys.toml`), key setup must ACCEPT the canonical
+        /// prestate: the aggregation vkey's `bytes32_raw` - the bn254
+        /// packing `cargo prove vkey` writes into `vkeys.toml`, which
+        /// deployments use as `absolutePrestate()`. Skipped without
+        /// the env var; run locally after `just build-elfs` or
+        /// in the real-ELF lane.
+        #[tokio::test]
+        async fn real_elf_agg_vkey_matches_vkeys_toml_prestate() {
+            let Ok(elf_dir) = std::env::var("KONA_SP1_ELF_DIR") else {
+                return;
+            };
+            let dir = std::path::PathBuf::from(&elf_dir);
+            let manifest = std::fs::read_to_string(dir.join("vkeys.toml")).unwrap();
+            let prestate: B256 = manifest
+                .lines()
+                .find_map(|line| line.strip_prefix("super-aggregation = \""))
+                .and_then(|rest| rest.strip_suffix('"'))
+                .expect("vkeys.toml lacks a super-aggregation entry")
+                .parse()
+                .unwrap();
+
+            let cache = PrestateCache::new(Url::parse("file:///nonexistent").unwrap());
+            cache
+                .insert_for_tests(
+                    prestate,
+                    PrestatePrograms {
+                        aggregation_elf: std::fs::read(dir.join("super-aggregation-elf")).unwrap(),
+                        range_elf: std::fs::read(dir.join("super-range-elf")).unwrap(),
+                    },
+                )
+                .await;
+            cache.proof_keys(prestate, ProofProviderKind::Network).await.expect(
+                "real aggregation vkey must match the vkeys.toml prestate (bytes32 encoding)",
+            );
+            assert!(cache.known_prestates().await.contains(&prestate));
         }
 
         /// A poisoned prestate must close the creation gate (never bond a
