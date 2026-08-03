@@ -238,10 +238,23 @@ jobs:
           paths:
             - ~/.sp1/toolchains
       - run:
+          # Check the committed guest lock before build-elfs-native regenerates it in place and masks drift.
+          name: Check SP1 guest lock
+          working_directory: rust
+          command: just check-sp1-guest-lock
+      - run:
           name: Build SP1 guest ELFs
           working_directory: rust/kona/sp1
           no_output_timeout: 40m
           command: just build-elfs-native
+      - run:
+          # The Go acceptance setup (op-acceptance-tests/tests/proofs/zk,
+          # loadSuperAggregationVKey) reads this key when running with real
+          # artifacts (KONA_SP1_ELF_DIR set); renaming it in the vkeys
+          # manifest breaks that consumer silently, since PR CI runs the
+          # acceptance tests with stub artifacts.
+          name: Check vkeys manifest names expected by consumers
+          command: grep -q '^super-aggregation = "0x' rust/kona/sp1/elf/vkeys.toml
       - store_artifacts:
           path: rust/kona/sp1/elf
       - persist_to_workspace:

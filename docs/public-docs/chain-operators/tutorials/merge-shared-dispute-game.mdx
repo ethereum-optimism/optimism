@@ -5,6 +5,9 @@ description: Merge two pre-interop OP Stack chains into a shared DisputeGameFact
 diataxis: how-to
 ---
 
+import RunbookToolVersions from "/snippets/runbook-tool-versions.mdx"
+import { SuperchainOpsPrereqs } from "/snippets/superchain-ops-prereqs.mdx"
+
 # Merging Two Chains Into a Shared Dispute Game
 
 <Warning>This guide depends on the interop feature, which is still in development. Do not follow it on production chains.</Warning>
@@ -19,7 +22,7 @@ If you instead want to swap a single chain's proof method from output roots to s
 
 ## Before You Begin
 
-You should be familiar with running `superchain-ops` upgrade tasks, signing through the standard signing workflow, and operating `op-proposer`, `op-challenger`, and `op-dispute-mon` for both chains. See [Upgrade Using superchain-ops](/chain-operators/tutorials/l1-contract-upgrades/superchain-ops-guide) for the signing workflow.
+<SuperchainOpsPrereqs scope="for both chains" />
 
 This runbook assumes:
 
@@ -32,15 +35,7 @@ This runbook assumes:
 
 ### Install Required Tooling
 
-The versions below are the ones the optimism repo's `mise.toml` pins; older versions of `cast` in particular may not parse the function-selector syntax used in this runbook.
-
-| Tool | Minimum version |
-| --- | --- |
-| `foundry` (`cast`, `forge`) | `1.2.3` |
-| `just` | `1.46.0` |
-| `jq` | `1.7.1` |
-| `go` | `1.24.13` |
-| `curl` | any |
+<RunbookToolVersions />
 
 ### Gather the Required Inputs
 

@@ -31,10 +31,13 @@ const (
 	optionKindInteropFilter
 	optionKindPreGenesisSuperGame
 	optionKindSkipHonestProposer
+	optionKindSkipHonestChallenger
 	optionKindSupernodeVerifierSyncMode
 	optionKindInteropActivationDelay
 	optionKindInteropAtGenesis
 	optionKindSupernodeVNSequencerForBootstrap
+	optionKindZKDisputeGame
+	optionKindZKProposer
 )
 
 const allOptionKinds = optionKindDeployer |
@@ -57,10 +60,13 @@ const allOptionKinds = optionKindDeployer |
 	optionKindInteropFilter |
 	optionKindPreGenesisSuperGame |
 	optionKindSkipHonestProposer |
+	optionKindSkipHonestChallenger |
 	optionKindSupernodeVerifierSyncMode |
 	optionKindInteropActivationDelay |
 	optionKindInteropAtGenesis |
-	optionKindSupernodeVNSequencerForBootstrap
+	optionKindSupernodeVNSequencerForBootstrap |
+	optionKindZKDisputeGame |
+	optionKindZKProposer
 
 var optionKindLabels = []struct {
 	kind  optionKinds
@@ -86,10 +92,13 @@ var optionKindLabels = []struct {
 	{kind: optionKindInteropFilter, label: "interop filter"},
 	{kind: optionKindPreGenesisSuperGame, label: "pre-genesis super game"},
 	{kind: optionKindSkipHonestProposer, label: "skip honest proposer"},
+	{kind: optionKindSkipHonestChallenger, label: "skip honest challenger"},
 	{kind: optionKindSupernodeVerifierSyncMode, label: "supernode verifier sync mode"},
 	{kind: optionKindInteropActivationDelay, label: "interop activation delay"},
 	{kind: optionKindInteropAtGenesis, label: "interop at genesis"},
 	{kind: optionKindSupernodeVNSequencerForBootstrap, label: "supernode VN sequencer for bootstrap"},
+	{kind: optionKindZKDisputeGame, label: "ZK dispute game"},
+	{kind: optionKindZKProposer, label: "ZK proposer options"},
 }
 
 func (k optionKinds) String() string {
@@ -122,7 +131,18 @@ func collectSupportedPresetConfig(t devtest.T, presetName string, opts []Option,
 	if unsupported := unsupportedPresetOptionKinds(combined, supported); unsupported != 0 {
 		t.Require().FailNowf("%s does not support preset options: %s", presetName, unsupported)
 	}
+	t.Require().NoError(validatePresetConfig(cfg), "%s has invalid preset options", presetName)
 	return cfg, combined
+}
+
+func validatePresetConfig(cfg sysgo.PresetConfig) error {
+	if cfg.ZKDisputeGame != nil && cfg.ZKDisputeGame.MaxProveDuration == 0 {
+		return fmt.Errorf("WithZKChallengeDuration requires a preceding WithZK")
+	}
+	if len(cfg.ZKProposerOptions) > 0 && cfg.ZKDisputeGame == nil {
+		return fmt.Errorf("ZK proposer options require WithZK")
+	}
+	return nil
 }
 
 const minimalPresetSupportedOptionKinds = optionKindDeployer |
@@ -134,7 +154,8 @@ const minimalPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindRespectedGameType |
 	optionKindTimeTravel |
 	optionKindAfterBuild |
-	optionKindProofValidation
+	optionKindProofValidation |
+	optionKindSkipHonestProposer
 
 const minimalWithConductorsPresetSupportedOptionKinds = minimalPresetSupportedOptionKinds
 
@@ -165,7 +186,10 @@ const supernodeProofsPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindSkipHonestProposer
 
 const twoL2SupernodeProofsPresetSupportedOptionKinds = supernodeProofsPresetSupportedOptionKinds |
-	optionKindPreGenesisSuperGame
+	optionKindPreGenesisSuperGame |
+	optionKindZKDisputeGame |
+	optionKindZKProposer |
+	optionKindSkipHonestChallenger
 
 const twoL2SupernodePresetSupportedOptionKinds = optionKindDeployer |
 	optionKindL1EL

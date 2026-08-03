@@ -62,7 +62,7 @@ Each getter below is a `view` method with the same name as the parameter.
 | `daFootprintGasScalar` | `uint16` | Scales estimated DA usage to the gas dimension to limit DA-heavy blocks. See [how the DA footprint block limit works](/chain-operators/reference/da-footprint). | `setDAFootprintGasScalar(uint16)` | `0` (treated as `400`) |
 
 <Warning>
-- Any non-zero operator fee makes the chain configuration [non-standard](/chain-operators/reference/standard-configuration).
+- Any non-zero operator fee makes the chain configuration [non-standard](/op-stack/protocol/superchain-registry#what-is-a-standard-chain).
 - A `daFootprintGasScalar` of `0` is treated as the default of `400`; set it to `1` to effectively disable the DA footprint limit.
 </Warning>
 

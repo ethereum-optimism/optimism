@@ -10,19 +10,31 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-// PermissionedGameStartingAnchorRoot is a root of bytes32(hex"dead") for the permissioned game at block 0,
-// and no root for the permissionless game.
-var PermissionedGameStartingAnchorRoot = []byte{
-	0xde, 0xad, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-}
+// PermissionedCannonFallbackPrestatePlaceholder matches the historical bytes32(hex"dead") anchor.
+// Kona prestates cannot select it.
+var PermissionedCannonFallbackPrestatePlaceholder = common.HexToHash(
+	"0xdead000000000000000000000000000000000000000000000000000000000000",
+)
+
+// PermissionedGameStartingAnchorRoot contains the permissioned placeholder at block 0 and no permissionless root.
+var PermissionedGameStartingAnchorRoot = append(
+	PermissionedCannonFallbackPrestatePlaceholder.Bytes(),
+	make([]byte, common.HashLength)...,
+)
 
 // Proposal mirrors the Solidity Proposal tuple used for the starting anchor root.
 type Proposal struct {
 	Root             common.Hash
 	L2SequenceNumber *big.Int
+}
+
+// DefaultStartingAnchorProposal returns the permissioned placeholder proposal.
+// Each call returns an independent sequence number that callers may safely mutate.
+func DefaultStartingAnchorProposal() Proposal {
+	return Proposal{
+		Root:             DefaultStartingAnchorRoot.Root,
+		L2SequenceNumber: new(big.Int),
+	}
 }
 
 type DeployOPChainInput struct {
@@ -40,9 +52,12 @@ type DeployOPChainInput struct {
 	SaltMixer         string
 	GasLimit          uint64
 
-	DisputeGameType              uint32
-	DisputeAbsolutePrestate      common.Hash
-	StartingAnchorRoot           Proposal
+	DisputeGameType         uint32
+	DisputeAbsolutePrestate common.Hash // Selected game prestate.
+	StartingAnchorRoot      Proposal
+	// CannonAbsolutePrestate configures the CANNON_KONA guardian fallback.
+	// PERMISSIONED_CANNON mirrors the selected prestate. The super types (SUPER_CANNON_KONA,
+	// SUPER_PERMISSIONED) leave it zero.
 	CannonAbsolutePrestate       common.Hash
 	DisputeMaxGameDepth          *big.Int
 	DisputeSplitDepth            *big.Int

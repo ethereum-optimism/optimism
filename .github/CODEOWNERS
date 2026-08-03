@@ -8,7 +8,7 @@
 
 /op-deployer    @ethereum-optimism/core-team @ethereum-optimism/monorepo-reviewers
 
-/op-conductor   @ethereum-optimism/op-conductor @ethereum-optimism/monorepo-reviewers
+/op-conductor   @ethereum-optimism/infra-reviewers @ethereum-optimism/monorepo-reviewers
 
 # Contracts
 # We require a minimum of 2 reviewers for all changes to the contracts-bedrock

@@ -320,6 +320,7 @@ impl OpNode {
             .with_historical_rpc(self.args.historical_rpc.clone())
             .with_flashblocks(self.args.flashblocks_url.clone())
             .with_flashblock_consensus(self.args.flashblock_consensus)
+            .with_retain_forwarded_txs(self.args.retain_forwarded_txs)
     }
 
     /// Instantiates the [`ProviderFactoryBuilder`] for an opstack node.
@@ -889,6 +890,9 @@ pub struct OpAddOnsBuilder<NetworkT, RpcMiddleware = Identity> {
     operator_sdm_opt_in: Option<OperatorSdmOptIn>,
     /// Enable transaction conditionals.
     enable_tx_conditional: bool,
+    /// Whether to retain forwarded transactions in the local pool after
+    /// forwarding to the configured sequencer if it exists.
+    retain_forwarded_txs: bool,
     /// Marker for network types.
     _nt: PhantomData<NetworkT>,
     /// Minimum suggested priority fee (tip)
@@ -913,6 +917,7 @@ impl<NetworkT> Default for OpAddOnsBuilder<NetworkT> {
             gas_limit_config: None,
             operator_sdm_opt_in: None,
             enable_tx_conditional: false,
+            retain_forwarded_txs: false,
             min_suggested_priority_fee: 1_000_000,
             _nt: PhantomData,
             rpc_middleware: Identity::new(),
@@ -961,6 +966,13 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
         self
     }
 
+    /// Retains transactions in the local pool after forwarding them to
+    /// the configured sequencer if it exists.
+    pub const fn with_retain_forwarded_txs(mut self, retain_forwarded_txs: bool) -> Self {
+        self.retain_forwarded_txs = retain_forwarded_txs;
+        self
+    }
+
     /// Configure the minimum priority fee (tip)
     pub const fn with_min_suggested_priority_fee(mut self, min: u64) -> Self {
         self.min_suggested_priority_fee = min;
@@ -991,6 +1003,7 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
             gas_limit_config,
             operator_sdm_opt_in,
             enable_tx_conditional,
+            retain_forwarded_txs,
             min_suggested_priority_fee,
             tokio_runtime,
             _nt,
@@ -1006,6 +1019,7 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
             gas_limit_config,
             operator_sdm_opt_in,
             enable_tx_conditional,
+            retain_forwarded_txs,
             min_suggested_priority_fee,
             _nt,
             rpc_middleware,
@@ -1047,6 +1061,7 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
             gas_limit_config,
             operator_sdm_opt_in,
             enable_tx_conditional,
+            retain_forwarded_txs,
             min_suggested_priority_fee,
             historical_rpc,
             rpc_middleware,
@@ -1063,7 +1078,8 @@ impl<NetworkT, RpcMiddleware> OpAddOnsBuilder<NetworkT, RpcMiddleware> {
                     .with_sequencer_headers(sequencer_headers.clone())
                     .with_min_suggested_priority_fee(min_suggested_priority_fee)
                     .with_flashblocks(flashblocks_url)
-                    .with_flashblock_consensus(flashblock_consensus),
+                    .with_flashblock_consensus(flashblock_consensus)
+                    .with_retain_forwarded_txs(retain_forwarded_txs),
                 PVB::default(),
                 EB::default(),
                 EVB::default(),
@@ -1801,6 +1817,42 @@ mod tests {
             cfg.da_config.max_da_block_size(),
             Some(2),
             "builder_config must carry the node's live DA handle, not a detached copy"
+        );
+    }
+
+    /// The failsafe is written by the interop filter client after the payload builder has already
+    /// been constructed, so a config that copied the flag's value instead of sharing the handle
+    /// would leave the builder permanently ungated while every value-propagation assertion above
+    /// still passed.
+    #[test]
+    fn builder_config_interop_failsafe_is_live_shared_handle() {
+        let node = OpNode::new(RollupArgs::default());
+        let cfg = node.builder_config();
+
+        node.interop_failsafe.set(true);
+        assert!(
+            cfg.interop_failsafe.enabled(),
+            "builder_config must carry the node's live interop failsafe handle, not a detached copy"
+        );
+
+        node.interop_failsafe.set(false);
+        assert!(
+            !cfg.interop_failsafe.enabled(),
+            "builder_config must observe the failsafe being cleared, proving one shared handle"
+        );
+    }
+
+    /// Same detached-copy risk as the interop failsafe: the admin RPC flips this after startup.
+    #[test]
+    fn builder_config_operator_sdm_opt_in_is_live_shared_handle() {
+        let node = OpNode::new(RollupArgs::default());
+        let cfg = node.builder_config();
+
+        node.operator_sdm_opt_in.set(true);
+
+        assert!(
+            cfg.operator_sdm_opt_in.enabled(),
+            "builder_config must carry the node's live SDM opt-in handle, not a detached copy"
         );
     }
 }

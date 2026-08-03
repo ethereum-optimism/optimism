@@ -29,20 +29,23 @@ alloy-genesis.workspace = true
 thiserror.workspace = true
 derive_more = { workspace = true, features = ["from", "try_from"] }
 
-# `revm` feature
-op-revm = { workspace = true, optional = true }
-
 # `arbitrary` feature
 arbitrary = { workspace = true, features = ["derive"], optional = true }
 
 # `serde` feature
 serde = { workspace = true, optional = true }
-serde_repr = { workspace = true, optional = true }
 
 # `tabled` feature
 tabled = { workspace = true, features = ["derive"], optional = true }
 
+# The self dev-dependency below enables this crate's own non-default features for
+# its standalone test build (`cargo test -p kona-genesis`). cargo-udeps reports it
+# unused because it activates features rather than importing symbols, so ignore it.
+[package.metadata.cargo-udeps.ignore]
+development = ["kona-genesis"]
+
 [dev-dependencies]
+kona-genesis = { path = ".", features = ["std", "serde"] }
 toml = { workspace = true, features = ["parse", "serde"] }
 rand = { workspace = true, features = ["thread_rng"] }
 serde_json.workspace = true
@@ -52,7 +55,6 @@ alloy-primitives = { workspace = true, features = ["rand", "arbitrary"] }
 [features]
 default = []
 rollup_config_override = []
-revm = [ "dep:op-revm" ]
 tabled = [ "dep:tabled", "std" ]
 std = [
 	"alloy-chains/std",
@@ -62,7 +64,6 @@ std = [
 	"alloy-primitives/std",
 	"alloy-sol-types/std",
 	"derive_more/std",
-	"op-revm?/std",
 	"serde?/std",
 	"thiserror/std",
 	"tabled?/std"
@@ -85,6 +86,4 @@ serde = [
 	"alloy-op-hardforks/serde",
 	"alloy-primitives/serde",
 	"dep:serde",
-	"dep:serde_repr",
-	"op-revm?/serde",
 ]

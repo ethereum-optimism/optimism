@@ -4,15 +4,17 @@ description: Set up and run op-reth and op-node, the execution and consensus lay
 diataxis: tutorial
 ---
 
+import OpGethEol from "/snippets/op-geth-eol.mdx"
+
 Now that you have op-deployer configured, it's time to spin up the sequencer for your rollup. This involves running both `op-reth` and `op-node` to create a functioning sequencer.
 
 <Info>
   **Step 2 of 5**: This tutorial builds on [Spin up op-deployer](./op-deployer-setup). Make sure you've completed that first.
 </Info>
 
-<Warning>
-  This tutorial previously taught `op-geth` as the execution client. op-geth reached [end-of-support on 2026-05-31](/notices/op-geth-deprecation) and can no longer be recommended — this page now uses `op-reth`, the primary supported execution client.
-</Warning>
+<OpGethEol />
+
+This tutorial previously taught `op-geth` as the execution client; this page now uses `op-reth` throughout.
 
 ## What you'll set up
 
@@ -501,7 +503,7 @@ Great! Your sequencer is running and processing transactions. The next step is t
 
 ## Need Help?
 
-- **Running op-reth**: [Running op-reth on OP Stack chains](/rust/op-reth/run/opstack)
-- **op-reth CLI reference**: [op-reth node command](/rust/op-reth/cli/op-reth/node)
+- **Running op-reth**: [Running op-reth on OP Stack chains](/node-operators/op-reth/run/opstack)
+- **op-reth CLI reference**: [op-reth node command](/node-operators/op-reth/cli/op-reth/node)
 - **Best Practices**: [Chain Operator Best Practices](/chain-operators/guides/management/best-practices)
 - **Support**: [Report an issue or ask a question](https://github.com/ethereum-optimism/optimism/issues) in the Optimism monorepo

@@ -210,9 +210,8 @@ reads on go-ethereum's `*params.ChainConfig` go through `rollup.Config` or
 
 ## 6. `params/superchain.go` – `LoadOPStackChainConfig` — **DONE**
 
-Moved to `op-core/params.FromSuperchainConfig`; the by-chain-ID loader
-(`LoadChainConfigFromChainID`, ex-superutil) lives in `op-core/params` too. §7 has the layering
-rationale.
+Moved to `op-core/superchain`: `(*superchain.ChainConfig).OpChainConfig()` plus the by-chain-ID
+loader `superchain.LoadOpChainConfig` (ex-superutil). §7 has the layering rationale.
 
 ---
 
@@ -223,10 +222,13 @@ repo-root `superchain-registry` submodule by `sync-superchain.sh`; the zip is gi
 by a committed `.sha256`). `op-service/superutil` was deleted; all consumers import
 `op-core/superchain`.
 
-Layering decision worth remembering: the by-chain-ID loader lives in **`op-core/params`**, not
-`op-core/superchain`, because `params.FromSuperchainConfig` takes a `superchain.ChainConfig` —
-putting the loader in `superchain` would create an import cycle. `op-core/superchain` stays a
-pure registry leaf.
+Layering decision worth remembering: `op-core/params` holds pure config types and must stay
+free of `op-core/superchain`, which embeds the bundle — anything in its build closure needs the
+bundle generated before it compiles, and external module consumers (the superchain-registry ops
+tooling) cannot generate it at all. The registry→`ChainConfig` conversion (`OpChainConfig`,
+`LoadOpChainConfig`) therefore lives in **`op-core/superchain`**, which imports `op-core/params`
+one-way. Transitive guard tests in `op-node/rollup`, `op-chain-ops/script`, and
+`op-fetcher/pkg/fetcher/fetch/script` enforce the boundary (`op-service/testutils/depguard`).
 
 `rollup.Config` carries the full OP hardfork schedule itself (loaded from the registry,
 bypassing any geth `ChainConfig`); future forks extend `rollup.Config` directly. Any remaining
@@ -517,7 +519,7 @@ import op-geth-only symbols by design).
 | Test migration: wait.go split, L2 call sites, `L2Client` type, sysgo audit, delete op-e2e/opgeth (§13) | `apis.EthClient` + header-only variants | open (#20265 + subs) |
 | op-e2e/actions in-process EL | `op-reth-test-engine` subprocess | open (#20415 Rust, #21196 Go) |
 | Genesis tooling (§14) | upstream geth as library + `opparams` | open (#21281) |
-| op-simulate / op-run-block (§14) | delete | open (#21282) |
+| op-simulate / op-run-block (§14) | delete | **done** (#21282) |
 | op-sync-tester PayloadID hash | OP-aware `Id()` reimplementation | open (#21525) |
 | Log context extensions (§15) | owned `op-service/log` layer (alias sweep → owned interface) | open |
 | RPC recorder hooks + `JsonError` (§15) | client wrappers + server-side interception | open |
@@ -525,6 +527,6 @@ import op-geth-only symbols by design).
 | `op-chain-ops/script` + op-deployer (§16) | **Rust script engine** (foundry crates) | open |
 | In-process op-geth L2 EL in system tests + sysgo (§17) | op-reth-only; folds #21451 | open |
 | `cmd/check-*` (§18) | delete pre-Holocene; swap survivors to op-core | open |
-| `op-wheel/cheat` (§18) | delete (`engine` stays) | open |
+| `op-wheel/cheat` (§18) | delete (`engine` stays) | **done** (#21747) |
 | CI ratchet (§19) | scheduled upstream-build job + tightening baseline | open |
 | Final cutover: flip replace, shed `GethChainConfig` OP fields, delete differential tests + §2 scaffolding | go.mod | open (#20266) |

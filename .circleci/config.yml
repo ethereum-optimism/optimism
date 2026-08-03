@@ -59,6 +59,9 @@ parameters:
   rust_e2e_dispatch:
     type: boolean
     default: false
+  rust_nightly_bump_dispatch:
+    type: boolean
+    default: false
   l2_fork_test_dispatch:
     type: boolean
     default: false
@@ -153,6 +156,7 @@ jobs:
             c-heavy_fuzz_dispatch: << pipeline.parameters.heavy_fuzz_dispatch >>
             c-rust_ci_dispatch: << pipeline.parameters.rust_ci_dispatch >>
             c-rust_e2e_dispatch: << pipeline.parameters.rust_e2e_dispatch >>
+            c-rust_nightly_bump_dispatch: << pipeline.parameters.rust_nightly_bump_dispatch >>
             c-l2_fork_test_dispatch: << pipeline.parameters.l2_fork_test_dispatch >>
       # Change-detection patterns live in routing.yml (change_patterns.any and
       # change_patterns.all). Each is a POSIX ERE matched line-by-line against

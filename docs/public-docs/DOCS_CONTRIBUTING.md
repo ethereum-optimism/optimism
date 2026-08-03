@@ -12,6 +12,7 @@ Thanks for taking the time to contribute! ❤️
   - [Contributing Process](#contributing-process)
     - [File Architecture](#file-architecture)
     - [Content Guidelines](#content-guidelines)
+    - [Shared snippets](#shared-snippets)
     - [Local Testing](#local-testing)
     - [Nav and redirect lint](#nav-and-redirect-lint)
   - [Pull Request Process](#pull-request-process)
@@ -59,6 +60,52 @@ We use [mintlify](https://www.mintlify.com/docs) to power our docs.
 Please refer to our comprehensive [Style Guide](https://docs.optimism.io/op-stack/contribute/style-guide) ([source](op-stack/contribute/style-guide.mdx)) for detailed formatting instructions.
 
 Before adding new content, check the [Content Guide](https://docs.optimism.io/op-stack/contribute/content-guide) ([source](op-stack/contribute/content-guide.mdx)) — it defines what belongs on docs.optimism.io, the canonical home for each content type, and how to mark third-party content.
+
+### Shared snippets
+
+Every fact should be stated once and referenced everywhere else. When the same
+block of prose (a warning, a disclaimer, a preamble) appears on more than one
+page, extract it into a [Mintlify snippet](https://www.mintlify.com/docs/create/reusable-snippets)
+instead of copying it. `snippets/` is Mintlify's reserved folder: files there
+never render as standalone pages.
+
+**Placement rule**
+
+- Machine-written snippets live under `snippets/generated/` and carry
+  do-not-edit provenance headers. They are owned by generation pipelines; hand
+  edits will fail drift checks.
+- Hand-maintained shared prose lives at the `snippets/` root, in a kebab-case
+  file, with a leading `{/* ... */}` comment naming its purpose, its usage, and
+  its consumer pages (precedents: `snippets/third-party-content.mdx`,
+  `snippets/op-geth-eol.mdx`). Keep the consumer list in the header comment up
+  to date when you add or remove an import.
+
+**Import forms**
+
+- Plain include: the page imports the snippet as a default export and renders
+  it as a component.
+
+  ```mdx
+  import OpGethEol from "/snippets/op-geth-eol.mdx"
+
+  <OpGethEol />
+  ```
+
+- Parameterized include: the snippet exports an arrow-function component taking
+  props, imported by name (precedent: `snippets/normative-spec.mdx`).
+
+  ```mdx
+  import { NormativeSpec } from "/snippets/normative-spec.mdx"
+
+  <NormativeSpec what="..." title="..." href="..." />
+  ```
+
+**Extraction rule**
+
+Only extract verbatim or near-verbatim blocks. Audience-specific framing stays
+on the page, outside the snippet. If the copies have drifted, reconcile the
+wording against the source of truth first, then extract; do not parameterize
+prose that ought to read differently per audience.
 
 ### Local Testing
 

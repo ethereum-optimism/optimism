@@ -276,8 +276,8 @@ func (c Config) Check() error {
 		}
 	}
 	if c.GameTypeEnabled(gameTypes.ZKDisputeGameType) {
-		if c.RollupRpc == "" {
-			return ErrMissingRollupRpc
+		if c.SuperRootRPC == "" {
+			return ErrMissingSuperRootRpc
 		}
 	}
 	if c.GameTypeEnabled(gameTypes.AlphabetGameType) || c.GameTypeEnabled(gameTypes.FastGameType) {

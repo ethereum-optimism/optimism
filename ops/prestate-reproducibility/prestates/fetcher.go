@@ -1,12 +1,15 @@
 package prestates
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
 // standardPrestatesUrl is the URL to the TOML file in superchain registry that defines the list of standard prestates
@@ -22,18 +25,11 @@ func LoadReleases(overrideFile string) (*Prestates, error) {
 		}
 		data = d
 	} else {
-		resp, err := http.Get(standardPrestatesUrl)
+		d, err := fetchStandardPrestates()
 		if err != nil {
-			return nil, fmt.Errorf("failed to download standard prestates from %v: %w", standardPrestatesUrl, err)
+			return nil, err
 		}
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("failed to download standard prestates from %v: received status code %d", standardPrestatesUrl, resp.StatusCode)
-		}
-		data, err = io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read standard prestates from %v: %w", standardPrestatesUrl, err)
-		}
+		data = d
 	}
 	var standardPrestates Prestates
 	err := toml.Unmarshal(data, &standardPrestates)
@@ -41,6 +37,25 @@ func LoadReleases(overrideFile string) (*Prestates, error) {
 		return nil, fmt.Errorf("failed to parse standard prestates from %v: %w", standardPrestatesUrl, err)
 	}
 	return &standardPrestates, nil
+}
+
+func fetchStandardPrestates() ([]byte, error) {
+	client := &http.Client{Timeout: 30 * time.Second}
+	return retry.Do(context.Background(), 3, retry.Fixed(2*time.Second), func() ([]byte, error) {
+		resp, err := client.Get(standardPrestatesUrl)
+		if err != nil {
+			return nil, fmt.Errorf("failed to download standard prestates from %v: %w", standardPrestatesUrl, err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("failed to download standard prestates from %v: received status code %d", standardPrestatesUrl, resp.StatusCode)
+		}
+		data, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read standard prestates from %v: %w", standardPrestatesUrl, err)
+		}
+		return data, nil
+	})
 }
 
 type Prestates struct {

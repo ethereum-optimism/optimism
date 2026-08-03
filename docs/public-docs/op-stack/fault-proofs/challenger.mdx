@@ -4,6 +4,16 @@ description: Learn about OP-Challenger and how it operates within the OP Stack's
   Proof System.
 diataxis: explanation
 ---
+
+import { NormativeSpec } from "/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="The honest challenger's behavior"
+  title="honest challenger specification"
+  href="https://specs.optimism.io/fault-proof/stage-one/honest-challenger-fdg.html"
+  note="This page explains how op-challenger implements that role; it does not restate the spec."
+/>
+
 The `op-challenger` operates as the *honest actor* in the fault dispute system and defends the chain by securing the `OptimismPortal` and ensuring the game always resolves to the correct state of the chain. For verifying the legitimacy of claims, `op-challenger` relies on a synced, trusted rollup node as well as a trace provider (e.g., [Cannon](/op-stack/fault-proofs/cannon)).
 
 Specifically, `op-challenger` performs the following actions:
@@ -30,7 +40,7 @@ graph TD;
 ```
 
 <Info>
-  The `op-challenger` docker container runs the `cannon` VM with a fault-proof program as a sub-process to generate game trace data. Since the Karst upgrade, the respected game type is `cannon-kona`, which uses `kona-host`. The legacy `cannon` game type uses `op-program host`, which reached end-of-support at the Karst upgrade. See [End of Support for op-geth and op-program](/notices/op-geth-deprecation).
+  The `op-challenger` docker container runs the `cannon` VM with a fault-proof program as a sub-process to generate game trace data. Since the Karst upgrade, the respected game type is `cannon-kona`, which uses `kona-host`. The legacy `cannon` game type uses `op-program host`, which reached end-of-support at the Karst upgrade. See [End of Support for op-geth and op-program](/notices/archive/op-geth-deprecation).
 </Info>
 
 ## Fault detection responses

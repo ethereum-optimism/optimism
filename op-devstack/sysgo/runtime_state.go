@@ -12,7 +12,6 @@ import (
 	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
-	"github.com/ethereum-optimism/optimism/op-faucet/faucet"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer"
@@ -86,7 +85,6 @@ type SingleChainRuntime struct {
 	L2Proposer   *L2Proposer
 	L2Challenger *L2Challenger
 
-	FaucetService *faucet.Service
 	TimeTravel    *clock.AdvancingClock
 	TestSequencer *TestSequencerRuntime
 
@@ -158,11 +156,21 @@ type MultiChainRuntime struct {
 
 	Supernode *SuperNode
 
-	FaucetService      *faucet.Service
 	TimeTravel         *clock.AdvancingClock
 	TestSequencer      *TestSequencerRuntime
 	L2ChallengerConfig *challengerconfig.Config
+	startZKProposerFn  func()
 	DelaySeconds       uint64
 	InteropFilter      *InteropFilter // nil if not using interop filter
 	SyncTester         *SyncTesterRuntime
+}
+
+// StartZKProposer starts the configured kona-sp1-proposer. It is intended for
+// tests that use WithoutHonestProposer to seed dispute games before allowing
+// the proposer to observe them.
+func (r *MultiChainRuntime) StartZKProposer(t devtest.T) {
+	start := r.startZKProposerFn
+	t.Require().NotNil(start, "ZK proposer is not configured or already started")
+	r.startZKProposerFn = nil
+	start()
 }

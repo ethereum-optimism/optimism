@@ -14,16 +14,11 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params/forks"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
-	faucetConfig "github.com/ethereum-optimism/optimism/op-faucet/config"
-	"github.com/ethereum-optimism/optimism/op-faucet/faucet"
-	fconf "github.com/ethereum-optimism/optimism/op-faucet/faucet/backend/config"
-	ftypes "github.com/ethereum-optimism/optimism/op-faucet/faucet/backend/types"
 	"github.com/ethereum-optimism/optimism/op-node/config"
 	opNodeFlags "github.com/ethereum-optimism/optimism/op-node/flags"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
@@ -112,22 +107,7 @@ func applyConfigLocalContractSources(t devtest.T, _ devkeys.Keys, builder intent
 }
 
 func applyConfigCommons(t devtest.T, keys devkeys.Keys, l1ChainID eth.ChainID, builder intentbuilder.Builder) {
-	_, l1Config := builder.WithL1(l1ChainID)
-
-	l1StartTimestamp := uint64(time.Now().Unix()) + 1
-	l1Config.WithTimestamp(l1StartTimestamp)
-	l1Config.WithL1ForkAtGenesis(forks.Prague)
-
-	faucetFunderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
-	t.Require().NoError(err, "need funder addr")
-	l1Config.WithPrefundedAccount(faucetFunderAddr, *eth.BillionEther.ToU256())
-
-	addrFor := intentbuilder.RoleToAddrProvider(t, keys, l1ChainID)
-	_, superCfg := builder.WithSuperchain()
-	intentbuilder.WithDevkeySuperRoles(t, keys, l1ChainID, superCfg)
-	l1Config.WithPrefundedAccount(addrFor(devkeys.SuperchainProxyAdminOwner), *millionEth)
-	l1Config.WithPrefundedAccount(addrFor(devkeys.SuperchainConfigGuardianKey), *millionEth)
-	l1Config.WithPrefundedAccount(addrFor(devkeys.L1ProxyAdminOwnerRole), *millionEth)
+	WithCommons(l1ChainID)(t, keys, builder)
 }
 
 func applyConfigPrefundedL2(t devtest.T, keys devkeys.Keys, l1ChainID, l2ChainID eth.ChainID, builder intentbuilder.Builder) {
@@ -136,9 +116,9 @@ func applyConfigPrefundedL2(t devtest.T, keys devkeys.Keys, l1ChainID, l2ChainID
 	intentbuilder.WithDevkeyL2Roles(t, keys, l2Config)
 	intentbuilder.WithDevkeyL1Roles(t, keys, l2Config, l1ChainID)
 
-	faucetFunderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
+	funderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
 	t.Require().NoError(err, "need funder addr")
-	l2Config.WithPrefundedAccount(faucetFunderAddr, *eth.BillionEther.ToU256())
+	l2Config.WithPrefundedAccount(funderAddr, *eth.BillionEther.ToU256())
 
 	addrFor := intentbuilder.RoleToAddrProvider(t, keys, l2ChainID)
 	l1Config := l2Config.L1Config()
@@ -151,17 +131,18 @@ func applyConfigPrefundedL2(t devtest.T, keys devkeys.Keys, l1ChainID, l2ChainID
 // startL2ELForKey starts an L2 EL node for the given key, respecting DEVSTACK_L2EL_KIND.
 // This is the single env-aware dispatch point for L2 EL selection.
 func startL2ELForKey(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [32]byte, key string, identity *ELNodeIdentity, opts ...OpRethOption) L2ELNode {
-	switch devstackL2ELKind() {
+	switch k := devstackL2ELKind(); k {
 	case MixedL2ELOpGeth:
 		return startL2ELNode(t, l2Net, jwtPath, jwtSecret, key, identity)
 	case MixedL2ELOpRethV2:
 		return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil, "v2", opts...)
-	case MixedL2ELOpRethPremium:
-		return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil, "v1", opRethPremiumOpts(opts)...)
 	case MixedOpRbuilder:
 		return startBuilderEL(t, l2Net, jwtPath, identity)
-	default: // op-reth v1
+	case "", MixedL2ELOpReth: // unset (default) or explicit op-reth v1
 		return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil, "v1", opts...)
+	default:
+		t.Require().FailNow("unsupported L2 EL kind", "unknown DEVSTACK_L2EL_KIND %q", k)
+		return nil // unreachable
 	}
 }
 
@@ -230,7 +211,7 @@ func startL2ELNode(
 	return l2EL
 }
 
-func connectL2ELPeers(t devtest.T, logger log.Logger, initiatorRPC, acceptorRPC string, trusted bool) {
+func connectL2ELPeers(t devtest.T, logger log.Logger, initiatorRPC, acceptorRPC string) {
 	require := t.Require()
 	rpc1, err := dial.DialRPCClientWithTimeout(t.Ctx(), logger, initiatorRPC)
 	require.NoError(err, "failed to connect initiator EL RPC")
@@ -238,7 +219,7 @@ func connectL2ELPeers(t devtest.T, logger log.Logger, initiatorRPC, acceptorRPC 
 	rpc2, err := dial.DialRPCClientWithTimeout(t.Ctx(), logger, acceptorRPC)
 	require.NoError(err, "failed to connect acceptor EL RPC")
 	defer rpc2.Close()
-	ConnectP2P(t.Ctx(), require, rpc1, rpc2, trusted)
+	ConnectP2P(t.Ctx(), require, rpc1, rpc2)
 }
 
 func connectL2CLPeers(t devtest.T, logger log.Logger, l2CL1, l2CL2 L2CLNode) {
@@ -650,62 +631,6 @@ func startTestSequencer(
 		controlRPC: controlRPCs,
 		service:    sq,
 	}
-}
-
-func startFaucets(
-	t devtest.T,
-	keys devkeys.Keys,
-	l1ChainID eth.ChainID,
-	l2ChainID eth.ChainID,
-	l1ELRPC string,
-	l2ELRPC string,
-) *faucet.Service {
-	require := t.Require()
-	logger := t.Logger().New("component", "faucet")
-
-	funderKey, err := keys.Secret(devkeys.UserKey(funderMnemonicIndex))
-	require.NoError(err, "need faucet funder key")
-	funderKeyStr := hexutil.Encode(crypto.FromECDSA(funderKey))
-
-	faucets := map[ftypes.FaucetID]*fconf.FaucetEntry{
-		ftypes.FaucetID(fmt.Sprintf("dev-faucet-%s", l1ChainID)): {
-			ELRPC:   endpoint.MustRPC{Value: endpoint.URL(l1ELRPC)},
-			ChainID: l1ChainID,
-			TxCfg: fconf.TxManagerConfig{
-				PrivateKey: funderKeyStr,
-			},
-		},
-		ftypes.FaucetID(fmt.Sprintf("dev-faucet-%s", l2ChainID)): {
-			ELRPC:   endpoint.MustRPC{Value: endpoint.URL(l2ELRPC)},
-			ChainID: l2ChainID,
-			TxCfg: fconf.TxManagerConfig{
-				PrivateKey: funderKeyStr,
-			},
-		},
-	}
-
-	cfg := &faucetConfig.Config{
-		RPC: oprpc.CLIConfig{
-			ListenAddr: "127.0.0.1",
-		},
-		Faucets: &fconf.Config{
-			Faucets: faucets,
-		},
-	}
-
-	srv, err := faucet.FromConfig(t.Ctx(), cfg, logger)
-	require.NoError(err, "failed to create faucet service")
-	require.NoError(srv.Start(t.Ctx()), "failed to start faucet service")
-
-	t.Cleanup(func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel() // force-close
-		logger.Info("Closing faucet service")
-		closeErr := srv.Stop(ctx)
-		logger.Info("Closed faucet service", "err", closeErr)
-	})
-
-	return srv
 }
 
 func copyControlRPCMap(in map[eth.ChainID]string) map[eth.ChainID]string {

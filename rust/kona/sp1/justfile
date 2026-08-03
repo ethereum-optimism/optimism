@@ -97,7 +97,8 @@ _build-elf NAME MODE:
       fi
     fi
 
-    args=(--ignore-rust-version --elf-name "{{NAME}}-elf" --workspace-directory "$root" --output-directory "{{justfile_directory()}}/elf")
+    # --locked appears to be a no-op in upstream cargo-prove (regenerates the lock anyway).
+    args=(--locked --ignore-rust-version --elf-name "{{NAME}}-elf" --workspace-directory "$root" --output-directory "{{justfile_directory()}}/elf")
     if [[ "{{MODE}}" == "docker" ]]; then
       mkdir -p "{{justfile_directory()}}/programs/target/elf-compilation/docker"
       args=(--docker --tag "{{SP1_TAG}}" "${args[@]}")

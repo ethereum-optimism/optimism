@@ -15,7 +15,23 @@ diataxis: reference
 
 **kona-node** is a Rust implementation of the [rollup-node spec](https://specs.optimism.io/protocol/rollup-node.html), backed by kona-derive. It is a Rust-native alternative to op-node.
 
-<Update label="July 20, 2026" description="v1.6.2" tags={["Latest", "Stable"]}>
+<Update label="August 3, 2026" description="v1.6.3" tags={["Latest", "Stable"]}>
+
+> [!WARNING]
+> **Security fix — upgrade recommended.** This release closes three unauthenticated attack surfaces ([#21753](https://github.com/ethereum-optimism/optimism/pull/21753))
+> and hardens gossip by binding the message-id to the topic and metering invalid messages ([#21804](https://github.com/ethereum-optimism/optimism/pull/21804)).
+
+> [!IMPORTANT]
+> Derivation correctness: span-batch transaction type prefixes are now preserved ([#21808](https://github.com/ethereum-optimism/optimism/pull/21808)).
+
+> [!IMPORTANT]
+> **APKO Docker images:** Starting with this release, the Docker URL contains an additional `/nexus` in its path, see full Docker image path below. Our Docker builds are now APKO based and during a transition period, the APKO-based images for any component will be available at `https://us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus/<component>:<version>`. When we migrate to APKO-only images, we may remove the `/nexus` again from our image paths and will give another notice in this case.
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/kona-node/v1.6.3)
+
+</Update>
+
+<Update label="July 20, 2026" description="v1.6.2" tags={["Stable"]}>
 
 > [!NOTE]
 > **Recommended upgrade for fault-proof operators.** Fixes precompile gas accounting in the fpvm provider — gas is fully spent on precompile halt ([#21634](https://github.com/ethereum-optimism/optimism/pull/21634)) and out-of-gas on overspend is handled gracefully ([#21582](https://github.com/ethereum-optimism/optimism/pull/21582)). Registry config decoding is now strict (`deny_unknown_fields`, [#21648](https://github.com/ethereum-optimism/optimism/pull/21648)): unknown keys fail loudly; custom registry data with unmodeled keys will no longer load. Remaining changes are kona-sp1 proof-program scaffolding with no node-facing impact.

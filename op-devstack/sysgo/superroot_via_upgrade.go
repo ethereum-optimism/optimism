@@ -67,7 +67,6 @@ func upgradeToSuperRoots(
 				ExtraInstructions: []embedded.ExtraInstruction{
 					{Key: "overrides.cfg.startingAnchorRoot", Data: anchorRootData},
 					{Key: "overrides.cfg.startingRespectedGameType", Data: respectedGameTypeData},
-					{Key: "PermittedProxyDeployment", Data: []byte("DelayedWETH")},
 				},
 			},
 		})

@@ -4,11 +4,12 @@ description: Build and run an OP Stack node (op-reth + op-node) from source code
 diataxis: tutorial
 ---
 
-<Warning>
-  **op-geth has reached end-of-support (2026-05-31) and does not support the now-active Karst hardfork, so op-geth nodes can no longer follow the canonical chain.** This tutorial builds and runs op-reth (the primary supported execution client) and Nethermind. op-geth instructions are retained in a legacy section at the bottom for operators mid-migration. See the [op-geth deprecation notice](/notices/op-geth-deprecation) for the full migration plan.
-</Warning>
+import OpGethEol from "/snippets/op-geth-eol.mdx"
+
+<OpGethEol />
 
 This tutorial walks through the full process of building and running an OP Stack node from source — op-node plus an execution client. Building from source is a flexible alternative to using pre-built Docker images and is useful if you need a specific architecture or want to inspect what you're running.
+It builds and runs op-reth and Nethermind; op-geth instructions are retained in a legacy section at the bottom for operators mid-migration.
 
 For permissionless chains setting up historical proofs for withdrawal proving, follow this tutorial first to get a working node, then continue with [Running op-reth with Historical Proofs](/node-operators/tutorials/reth-historical-proofs).
 
@@ -235,7 +236,7 @@ Once your execution client is running, start `op-node`. It will connect to the E
     </Info>
 
     <Info>
-      `--l2.enginekind=reth` is required when pairing with op-reth. The binary still defaults to `geth` for backward compatibility — set `--l2.enginekind=geth` if you are still running op-geth.
+      `--l2.enginekind` tells op-node which kind of execution client it is driving. The binary defaults to `reth`, so this flag is shown for clarity and can be omitted when pairing with op-reth.
     </Info>
 
     ```bash
@@ -382,14 +383,12 @@ Blocks and transactions included in OP Mainnet before the Bedrock Upgrade cannot
   </Step>
 </Steps>
 
-## op-geth (legacy — end of support 2026-05-31)
+## op-geth (legacy, end of support 2026-05-31)
 
-<Warning>
-  op-geth reached end-of-support on **2026-05-31** and **does not support the now-active Karst hardfork**. For new deployments, use op-reth (above). See the [op-geth deprecation notice](/notices/op-geth-deprecation) for the migration plan.
-</Warning>
+<OpGethEol />
 
 <Accordion title="Build and run op-geth (legacy)">
-  Pair op-geth with op-node by setting `--l2.enginekind=geth` (the binary default) instead of `reth` in the op-node command above.
+  Pair op-geth with op-node by setting `--l2.enginekind=geth` instead of `reth` in the op-node command above.
 
   ### Build op-geth
 

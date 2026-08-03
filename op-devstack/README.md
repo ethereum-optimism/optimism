@@ -48,7 +48,6 @@ Available components:
   - `L2Proposer`: op-proposer, or equivalent
   - `L2Challenger`: op-challenger, or equivalent
   - `L2MetricsDashboard`: runs prometheus and grafana instances if any component registers metrics endpoints
-- `Faucet`: util to fund eth to test accounts
 
 ### DSL-only components
 
@@ -60,7 +59,8 @@ Available components:
 - `HDWallet`: a source to create new `Key`s from.
 - `EOA`: an Externally-Owned-Account (EOA) is a private-key backed ethereum account, specific to a single chain.
   This is a `Key` coupled to an `ELNode` (L1 or L2).
-- `Funder`: a wallet combined with a faucet and EL node, to create pre-funded `EOA`s
+- `SyncEOA`: combines a transaction plan with a `txinclude.Includer` to submit transactions and wait for inclusion. Nonce and concurrency guarantees come from the supplied includer.
+- `FunderEOA`: a genesis-prefunded `EOA` combined with an `HDWallet`, used to create and fund test `EOA`s. Funding transactions use a `SyncEOA` so they can be issued concurrently with managed nonces.
 
 #### `presets`, `Option`, `TestSetup`
 
@@ -101,6 +101,8 @@ and returns a typed output that the test then may use.
 
 - `DEVSTACK_KEYS_SALT`: Seeds the keys generated with `NewHDWallet`. This is useful for "isolating" test runs, and might be needed to reproduce CI and/or acceptance test runs. It can be any string, including the empty one to use the "usual" devkeys.
 - `DEVNET_EXPECT_PRECONDITIONS_MET`: This can be set of force test failures when their pre-conditions are not met, which would otherwise result in them being skipped. This is helpful in particular for runs that do intend to run specific tests (as opposed to whatever is available). `op-acceptor` does set that variable, for example.
+- `DEVSTACK_L1_FORK=prague` selects the L1 fork active at genesis. Ethereum upgrade names (`pectra`, `fusaka`) and geth execution-fork names (`prague`, `osaka`) are accepted. If unset, Prague remains the default.
+- `DEVSTACK_MONOREPO_ROOT`: Absolute path to a monorepo checkout. Used by out-of-tree acceptance suites (which depend on this module by git rev) so contract-artifact resolution can find `packages/contracts-bedrock` outside the cwd-relative walk. In-tree runs don't need it.
 
 ### Rust stack env vars:
 - `DEVSTACK_L2CL_KIND=kona-node` to select kona-node as default L2 CL node

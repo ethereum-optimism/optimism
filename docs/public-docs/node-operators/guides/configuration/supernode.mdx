@@ -19,6 +19,7 @@ audit-source:
 
 This guide covers the recommended settings and a starter configuration for op-supernode.
 op-supernode runs every chain in an interop dependency set together as virtual nodes inside one process, sharing the L1 client and beacon-chain plumbing across them.
+For the end-to-end procedure to stand up a supernode from scratch (build, engine-API wiring, start, verify), see the [supernode setup guide](/node-operators/guides/configuration/supernode-setup).
 For the complete per-flag catalogue, see the [op-supernode configuration reference](/node-operators/reference/op-supernode-config).
 
 ## Recommendations
@@ -32,7 +33,7 @@ For the complete per-flag catalogue, see the [op-supernode configuration referen
 
 To share a single JWT secret across every virtual node, set `--vn.all.l2.jwt-secret=<path>` (or `OP_SUPERNODE_VN_ALL_L2_ENGINE_AUTH`) at the supernode level.
 This avoids repeating the per-chain `--vn.<chainID>.l2.jwt-secret` line for every chain in `--chains`.
-Use the per-chain form only when a chain's execution client requires its own secret.
+Reserve the per-chain form for the case where one chain's execution client needs a different secret; the [configuration reference](/node-operators/reference/op-supernode-config) documents both forms.
 
 ### Configure a beacon archiver fallback with `--l1.beacon-fallbacks`
 
@@ -44,7 +45,6 @@ Use the per-chain form only when a chain's execution client requires its own sec
 Configure `--l1.beacon-fallbacks` (or `OP_SUPERNODE_L1_BEACON_FALLBACKS`) with one or more beacon-API-compatible archive endpoints.
 Set them up from the start — once a primary beacon prunes a blob the supernode needs, only an archiver can recover it.
 The shared beacon client uses the fallbacks transparently when the primary beacon node returns 404 for an expired blob.
-The `--l1.beacon-archiver` alias points at the same flag and is accepted for compatibility with older deployment scripts.
 
 For options on what to point `--l1.beacon-fallbacks` at — running your own non-pruning beacon, running `blob-archiver`, or using a third-party service — see the [blob archiver guide](/node-operators/guides/management/blobs#configure-a-blob-archiver).
 
@@ -107,11 +107,13 @@ OP_SUPERNODE_L1_BEACON_FALLBACKS: <your-l1-beacon-archiver-rpc>
 # Shared JWT secret for every virtual node's engine connection
 OP_SUPERNODE_VN_ALL_L2_ENGINE_AUTH: /etc/op/jwt-secret.txt
 
-# Per-chain: chain identity and engine RPC
+# Per-chain: chain identity, engine RPC, and engine kind (reth when the chain's EL is op-reth)
 OP_SUPERNODE_VN_11155420_NETWORK: op-sepolia
 OP_SUPERNODE_VN_11155420_L2_ENGINE_RPC: <op-sepolia-engine-rpc>
+OP_SUPERNODE_VN_11155420_L2_ENGINE_KIND: reth
 OP_SUPERNODE_VN_1301_NETWORK: unichain-sepolia
 OP_SUPERNODE_VN_1301_L2_ENGINE_RPC: <unichain-sepolia-engine-rpc>
+OP_SUPERNODE_VN_1301_L2_ENGINE_KIND: reth
 
 # Top-level JSON-RPC server (per-chain namespaces under /<chainID>/)
 OP_SUPERNODE_RPC_ADDR: 0.0.0.0
@@ -130,6 +132,7 @@ Every flag in the example — and everything else the binary accepts, including 
 
 ## Where to go next
 
+* Follow the [supernode setup guide](/node-operators/guides/configuration/supernode-setup) to stand up a supernode from scratch.
 * Read the [op-supernode configuration reference](/node-operators/reference/op-supernode-config) for the complete flag and environment-variable catalogue.
 * Read the [interop prep notice](/notices/interop-prep) for the node-operator action checklist for the OP Sepolia and Unichain Sepolia activation.
 * Read the [supernode explainer](/op-stack/interop/supernode) for what op-supernode is and why it exists.

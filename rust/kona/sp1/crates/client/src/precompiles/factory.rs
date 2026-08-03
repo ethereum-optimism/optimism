@@ -18,6 +18,8 @@ use revm::{
 pub struct ZkvmOpEvmFactory;
 
 impl PostExecEvmFactoryHooks for ZkvmOpEvmFactory {
+    type Snapshot = WarmingState;
+
     fn begin_post_exec_tx<DB, I>(evm: &mut Self::Evm<DB, I>, ctx: PostExecTxContext)
     where
         DB: Database,
@@ -34,20 +36,20 @@ impl PostExecEvmFactoryHooks for ZkvmOpEvmFactory {
         evm.take_last_post_exec_tx_result()
     }
 
-    fn warming_state<DB, I>(evm: &Self::Evm<DB, I>) -> WarmingState
+    fn refund_snapshot<DB, I>(evm: &Self::Evm<DB, I>) -> Self::Snapshot
     where
         DB: Database,
         I: Inspector<Self::Context<DB>>,
     {
-        evm.warming_state()
+        evm.refund_snapshot()
     }
 
-    fn seed_warming_state<DB, I>(evm: &mut Self::Evm<DB, I>, state: WarmingState)
+    fn seed_refund_snapshot<DB, I>(evm: &mut Self::Evm<DB, I>, state: Self::Snapshot)
     where
         DB: Database,
         I: Inspector<Self::Context<DB>>,
     {
-        evm.seed_warming_state(state);
+        evm.seed_refund_snapshot(state);
     }
 }
 

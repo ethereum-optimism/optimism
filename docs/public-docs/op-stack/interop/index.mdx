@@ -1,0 +1,93 @@
+---
+title: Interoperability
+description: One place to learn OP Stack interoperability, from the gentle introduction through message passing, safety, hands-on tutorials, and the normative spec.
+diataxis: explanation
+content-type: curriculum-hub
+last-reviewed: 2026-07-22
+---
+
+<Info>OP Stack interop is in active development. Some features may be experimental.</Info>
+
+OP Stack interoperability is a set of protocols that lets OP Stack chains
+read each other's state, so a network of chains can feel like a single
+blockchain: ETH and ERC-20 tokens move between chains by native minting and
+burning, contracts can compose with events from other chains at low
+latency, and applications that need it can scale horizontally across
+multiple chains.
+
+Interop is in active development and is being rolled out iteratively, so
+read these materials as a picture of where the stack is going and what you
+can already build against, not as a finished production system. Start with
+the explainer, then work through the mechanism pages in order: they build
+from the message-passing model up to reorg safety and the runtime that
+enforces it. The tutorials let you try everything on local or devnet
+chains, and the spec is the normative definition throughout.
+
+## Start here
+
+*   [OP Stack interoperability explainer](/op-stack/interop/explainer): read
+    this first for what interop enables (native asset transfers, cross-chain
+    composability, horizontal scalability) and the architecture end to end,
+    covering initiating and executing messages, access-list validation,
+    block safety levels, and dependency sets and clusters.
+
+## Go deeper
+
+*   [Interop message passing overview](/app-developers/guides/interoperability/message-passing):
+    the messaging lifecycle at contract level, from the low-level
+    `CrossL2Inbox` to the `L2ToL2CrossDomainMessenger` most apps use.
+*   [Reading logs with OP Stack interop](/app-developers/guides/interoperability/reading-logs):
+    the pull model, where a contract validates a log from another chain
+    directly instead of receiving a message.
+*   [Message expiration](/app-developers/guides/interoperability/message-expiration):
+    why an unrelayed message eventually expires and how to reemit one that
+    did.
+*   [Superchain ETH Bridge](/op-stack/interop/superchain-eth-bridge): how
+    native ETH moves between chains through `SuperchainETHBridge` and the
+    `ETHLiquidity` contract.
+*   [Interop reorg awareness](/op-stack/interop/reorg): how interop delivers
+    low-latency messages without opening the door to cross-chain
+    double-spends.
+*   [OP Supernode](/op-stack/interop/supernode): the runtime that hosts
+    every chain in a dependency set in one process and performs the
+    cross-chain verification work.
+
+## Get hands-on
+
+*   [Build interoperable apps on OP Stack devnet](/app-developers/guides/interoperability/get-started):
+    pick a development environment (local Supersim or the interop devnet)
+    and start deploying.
+*   [Supersim](/app-developers/tools-sdks/supersim): the local development
+    environment that simulates a multi-chain OP Stack setup for building
+    and testing cross-chain applications.
+*   [Interop message passing tutorial](/app-developers/tutorials/interoperability/message-passing):
+    build a cross-chain message passing system with the
+    `L2ToL2CrossDomainMessenger` contract.
+*   [Relay transactions manually](/app-developers/tutorials/interoperability/manual-relay):
+    construct and send an executing message yourself when no autorelayer
+    does it for you.
+
+## The normative spec
+
+The definitive definition of interop behavior lives in the OP Stack
+specifications:
+
+*   [Interop](https://specs.optimism.io/interop/overview.html?utm_source=op-docs&utm_medium=docs):
+    the root of the interop specs and the map of everything below it.
+*   [Messaging](https://specs.optimism.io/interop/messaging.html?utm_source=op-docs&utm_medium=docs):
+    the normative definitions of initiating and executing messages and
+    their safety rules.
+*   [Predeploys](https://specs.optimism.io/interop/predeploys.html?utm_source=op-docs&utm_medium=docs):
+    the `CrossL2Inbox`, `L2ToL2CrossDomainMessenger`, and the other interop
+    predeploy contracts.
+*   [SuperchainETHBridge](https://specs.optimism.io/interop/superchain-eth-bridge.html?utm_source=op-docs&utm_medium=docs):
+    the specification of native ETH bridging between interop chains.
+
+## Audits and security
+
+*   [Crosschain security measures](/op-stack/security/interop-security):
+    the trust model, what happens under sequencer equivocation, and the
+    latency versus security tradeoff each chain configures.
+*   [Audit reports](/op-stack/security/audit-reports): the standing index of
+    OP Stack security reviews, which routes to the full list in the
+    monorepo.

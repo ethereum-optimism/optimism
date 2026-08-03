@@ -12,7 +12,7 @@ For a catalogue of every CLI flag and environment variable, see the
 
 ## Batcher policy
 
-The batcher policy defines high-level constraints and responsibilities regarding how L2 data is posted to L1. Below are the [standard guidelines](/chain-operators/reference/standard-configuration) for configuring the batcher within the OP Stack.
+The batcher policy defines high-level constraints and responsibilities regarding how L2 data is posted to L1. Below are the [standard guidelines](/op-stack/protocol/superchain-registry#what-is-a-standard-chain) for configuring the batcher within the OP Stack.
 
 | Parameter                  | Description                                                                                                    | Administrator           | Requirement                                                                                | Notes                                                                                                                                                                                                                                    |
 | -------------------------- | -------------------------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -76,7 +76,7 @@ The minimum tip cap and base fee are also lifted to 2 gwei because it is uncerta
 The resubmission timeout is increased to a few minutes to give more time for inclusion before bumping the fees because current transaction pool implementations require a doubling of fees for blob transaction replacements.
 
 Multi-blob transactions are particularly useful for medium to high-throughput chains, where enough transaction volume exists to fill up 6 blobs in a reasonable amount of time.
-You can use [this calculator](https://docs.google.com/spreadsheets/d/1V3CWpeUzXv5Iopw8lBSS8tWoSzyR4PDDwV9cu2kKOrs/edit?gid=186414307#gid=186414307) for your chain to determine what number of blobs are right for you, and what gas scalar configuration to use. Please also refer to guide on [Using Blobs](/chain-operators/guides/features/blobs) for chain operators.
+To determine what number of blobs is right for your chain, estimate the compressed batch data your chain produces per channel duration and divide by blob capacity (about 130 KB); [Size your channels](/use-cases/tune-batcher-costs#step-4-size-your-channels) in the Tune batcher costs guide walks through this estimate and the matching fee scalar configuration. Please also refer to guide on [Using Blobs](/chain-operators/guides/features/blobs) for chain operators.
 
 ### Set your `--batch-type=1` to use span batches
 

@@ -1,0 +1,83 @@
+---
+title: op-reth
+description: Canonical hub for op-reth, the OP Stack execution client built on reth, covering what it does, who runs it, and where its guides, reference, releases, source, and spec live.
+diataxis: explanation
+---
+
+op-reth is the OP Stack's execution-layer client, written in Rust and built on
+[reth](https://github.com/paradigmxyz/reth): it executes the L2 blocks the
+rollup node derives and maintains the resulting chain state.
+
+## Overview
+
+op-reth provides the EVM execution environment for OP Stack chains. A rollup
+node ([op-node](/op-stack/components/op-node) or
+[kona-node](/op-stack/components/kona-node)) derives the
+canonical chain from L1 data and drives op-reth through the Engine API;
+op-reth executes the payloads, maintains the chain state, and serves JSON-RPC.
+It extends upstream reth with the OP Stack protocol changes, such as the
+deposit transaction type and L2 fee handling, and bakes the
+[Superchain Registry](https://github.com/ethereum-optimism/superchain-registry)'s
+chain configurations into the binary, so registry chains work by name via the
+`--chain` flag.
+
+It exists because every OP Stack node splits into a consensus half and an
+execution half, mirroring post-merge Ethereum, and the execution client is the
+half that runs the EVM. op-reth is the primary supported execution client and
+the implementation maintained by Optimism: new OP Stack feature development,
+including hardfork support, happens on op-reth. See
+[Choose your node stack](/use-cases/choose-your-node-stack) for the selection
+reasoning.
+
+**Who runs it:** every node operator, paired one-to-one with a rollup node.
+Chain operators run it as the execution half of their sequencer, where it
+builds the new blocks the sequencing rollup node requests.
+
+## Get started
+
+*   [Running a Node With Docker](/node-operators/tutorials/node-from-docker):
+    run op-reth and op-node from the official Docker images. To build and run
+    from source instead, see
+    [Building and running an OP Stack node from source](/node-operators/tutorials/run-node-from-source).
+
+## How-tos
+
+*   [Execution client configuration](/node-operators/guides/configuration/execution-clients):
+    configure op-reth and connect it to your consensus client.
+*   [Running op-reth on OP Stack chains](/node-operators/op-reth/run/opstack):
+    install op-reth, pair it with a rollup node, and use the rollup-specific
+    flags.
+*   [Sync OP Mainnet](/node-operators/op-reth/run/faq/sync-op-mainnet): import
+    Bedrock state and sync OP Mainnet from scratch.
+*   [Building an archive node](/node-operators/guides/management/archive-node):
+    archive versus full nodes, and how to prune op-reth safely.
+*   [Running op-reth with historical proofs](/node-operators/tutorials/reth-historical-proofs):
+    provision the historical proof store that fault-proof infrastructure
+    needs.
+
+## Configuration & flags reference
+
+*   [op-reth configuration options](/node-operators/reference/op-reth-config):
+    routes to the imported op-reth CLI reference, versioned with the op-reth
+    source tree.
+*   [Understanding the op-reth CLI](/node-operators/op-reth/cli/overview): how
+    the commands, chain selection, and configuration model fit together.
+*   [op-reth JSON-RPC reference](/node-operators/reference/op-reth-json-rpc):
+    the RPC namespaces op-reth serves.
+
+## Releases
+
+*   [op-reth release history](/releases/op-reth)
+
+## Source & spec links
+
+*   [Source: `rust/op-reth/`](https://github.com/ethereum-optimism/optimism/tree/develop/rust/op-reth)
+    in the Optimism monorepo.
+*   [Reth book, OP Stack chapter](https://reth.rs/run/opstack): the upstream
+    reth project's operational documentation, maintained with reth releases.
+*   [L2 execution engine specification](https://specs.optimism.io/protocol/exec-engine.html):
+    the normative definition of the OP Stack's changes to the execution
+    engine.
+*   [Deposits specification](https://specs.optimism.io/protocol/deposits.html):
+    the normative definition of the deposit transaction type op-reth
+    implements.

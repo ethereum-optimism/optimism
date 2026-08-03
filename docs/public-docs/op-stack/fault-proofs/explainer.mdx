@@ -4,6 +4,24 @@ description: Learn about the OP Stack's Fault Proof System.
 diataxis: explanation
 ---
 
+import { NormativeSpec } from "/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="The fault proof system"
+  title="fault proof specification"
+  href="https://specs.optimism.io/fault-proof/index.html"
+  note="This page is a conceptual explainer; it does not restate the spec."
+/>
+
+<Info>
+  **Learn the OP Stack — stop 11 of 13.**
+  You've proven and finalized a withdrawal yourself. This page adds why
+  that process can be trusted: permissionless proposals about the state
+  of the chain, and permissionless challenges to them. When you're done,
+  continue to
+  [OP Stack interoperability explainer](/op-stack/interop/explainer).
+</Info>
+
 Fault Proofs are an important part of an Optimistic Rollup system.
 Users withdraw ETH and tokens from OP Stack chains like OP Mainnet by submitting a withdrawal proof that shows the withdrawal was actually included in the OP Stack chain.
 Fault Proofs allow users to permissionlessly submit and challenge the proposals about the state of an OP Stack chain that are used to prove withdrawals.
@@ -16,9 +34,8 @@ This Fault Proofs upgrade moves the OP Stack closer to technical decentralizatio
 *   allowing users to trigger withdrawals from L2 to L1 without the need for a trusted third party
 *   introducing a modular fault proof design that can easily integrate additional proving mechanisms
 
-Although the fault proof game is permissionless, the Optimism Security Council acting as the Guardian role provides a backstop in case of a failure in the fault proof game.
-Each proposal must wait for a delay period during which the Guardian can prevent invalid proposals from being used to withdraw ETH or tokens through a number of safety hatches.
-The Guardian can also choose to shift the system to use a PermissionedDisputeGame, in which only specific `PROPOSER` and `CHALLENGER` roles can submit and challenge proposals.
+Although the fault proof game is permissionless, the Optimism Security Council acting as the [Guardian](/op-stack/protocol/privileged-roles#guardian) role provides a backstop in case of a failure in the fault proof game.
+The Guardian's safety hatches, including the delay period on proposals and the ability to fall back to a permissioned game, are described in the [OP Stack security model](/op-stack/security/faq-sec-model#fault-proofs).
 
 ## Permissionless proposals
 

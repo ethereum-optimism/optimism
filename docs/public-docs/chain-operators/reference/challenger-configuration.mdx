@@ -5,16 +5,13 @@ diataxis: reference
 ---
 
 import OpChallengerFlags from '/snippets/generated/op-challenger-flags.mdx';
+import { ConfigReferencePreamble } from '/snippets/config-reference-preamble.mdx';
 
 This page catalogues every configuration option for the op-challenger, the
 dispute game agent that monitors fault proof games on L1, challenges invalid
 claims, and defends valid state transitions.
 
-The flag tables below are generated directly from the op-challenger's flag
-definitions in the monorepo (`op-challenger/flags`) at the release tag named
-in the provenance line, and are regenerated when a new finalized release is
-published, so they cannot silently fall behind. Every flag can also be set
-through the environment variable listed next to it.
+<ConfigReferencePreamble component="op-challenger" />
 
 For step-by-step setup instructions — prestates, trace types, wallets, and
 monitoring — see the
@@ -59,7 +56,7 @@ overrides it (the `(<game type> game type only)` suffix in the table above).
 
 Note that op-program, the fault proof program the non-kona cannon game types
 execute, has
-[reached end of support](/notices/op-geth-deprecation), so only the kona
+[reached end of support](/notices/archive/op-geth-deprecation), so only the kona
 variants are still being maintained.
 
 ## Utility subcommands

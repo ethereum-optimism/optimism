@@ -9,19 +9,13 @@
       "/app-developers/tutorials/bridging"
     ],
     "app-developers/guides/interoperability/reading-logs.mdx": ["/>"],
-    "app-developers/reference/rpc-providers.mdx": ["/app-developers/tools"],
-    "app-developers/tools/block-explorers.mdx": ["/app-developers/tools"],
-    "app-developers/tools/data/oracles.mdx": ["/app-developers/tools"],
-    "app-developers/tools/faucets.mdx": ["/app-developers/tools"],
-    "app-developers/tools/supersim.mdx": ["/app-developers/tutorials/development/supersim"],
     "app-developers/tutorials/bridging/deposit-transactions.mdx": ["/app-developers/guides/transactions"],
     "app-developers/tutorials/development/supersim/installation.mdx": [
       "/app-developers/tutorials/development/supersim"
     ],
     "app-developers/tutorials/interoperability/manual-relay.mdx": ["/>"],
     "app-developers/tutorials/interoperability/message-passing.mdx": ["/>"],
-    "op-stack/interop/interop.mdx": ["/app-developers/tutorials/interoperability/"],
-    "op-stack/introduction/op-stack.mdx": ["/app-developers/tools", "/app-developers/tutorials"],
+    "op-stack/introduction/op-stack.mdx": ["/app-developers/tutorials"],
     "op-stack/security/interop-security.mdx": ["/app-developers/tutorials/interoperability/"]
   }
 }

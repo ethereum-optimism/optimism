@@ -149,7 +149,8 @@ func (b *StandardBridge) UsesSuperRoots() bool {
 	gameType := gameTypes.GameType(b.RespectedGameType())
 	return gameType == gameTypes.SuperPermissionedGameType ||
 		gameType == gameTypes.SuperAsteriscKonaGameType ||
-		gameType == gameTypes.SuperCannonKonaGameType
+		gameType == gameTypes.SuperCannonKonaGameType ||
+		gameType == gameTypes.ZKDisputeGameType
 }
 
 type Deposit struct {

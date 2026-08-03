@@ -29,10 +29,8 @@ type Minimal struct {
 
 	Wallet *dsl.HDWallet
 
-	FaucetL1 *dsl.Faucet
-	FaucetL2 *dsl.Faucet
-	FunderL1 *dsl.Funder
-	FunderL2 *dsl.Funder
+	FunderL1 *dsl.FunderEOA
+	FunderL2 *dsl.FunderEOA
 
 	// May be nil if not using sysgo
 	challengerConfig *challengerConfig.Config
@@ -58,7 +56,7 @@ func (m *Minimal) AnchorStateRegistry() *dsl.AnchorStateRegistry {
 
 func (m *Minimal) AdvanceTime(amount time.Duration) {
 	m.T.Require().NotNil(m.timeTravel, "attempting to advance time on incompatible system")
-	m.timeTravel.AdvanceTime(amount)
+	m.L1EL.AdvanceTime(m.timeTravel, amount)
 }
 
 func (m *Minimal) proofValidationContext() (devtest.T, *dsl.L1ELNode, []*dsl.L2Network) {

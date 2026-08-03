@@ -39,10 +39,10 @@ enum Fork {
     ISTHMUS,
     JOVIAN,
     KARST,
-    INTEROP
+    LAGOON
 }
 
-Fork constant LATEST_FORK = Fork.INTEROP;
+Fork constant LATEST_FORK = Fork.LAGOON;
 
 library ForkUtils {
     function toString(Fork _fork) internal pure returns (string memory) {
@@ -337,8 +337,9 @@ library Config {
     }
 
     /// @notice Returns true if the development feature super root games migration is enabled.
-    function devFeatureSuperRootGamesMigration() internal view returns (bool) {
-        return vm.envOr("DEV_FEATURE__SUPER_ROOT_GAMES_MIGRATION", false);
+    /// @dev Defaults to true: SUPER_ROOT_GAMES_MIGRATION is the default OPCM migration codepath. See TODO(#21662).
+    function devFeatureSuperRootGamesMigration() internal pure returns (bool) {
+        return true;
     }
 
     /// @notice Returns true if the system feature custom_gas_token is enabled.

@@ -1,0 +1,24 @@
+{/*
+  Shared fee-vault predeploy address table. Fact-bearing: the addresses must
+  match packages/contracts-bedrock/src/libraries/Predeploys.sol in the
+  monorepo; re-check them there whenever this snippet is edited. Single home
+  for the vault/address mapping (duplication census cluster S7).
+
+  Hand-maintained; not generated.
+
+  Usage:
+    import FeeVaultAddresses from "/snippets/fee-vault-addresses.mdx"
+
+    <FeeVaultAddresses />
+
+  Consumer pages (keep this list in sync):
+    op-stack/transactions/fee-vaults.mdx
+    chain-operators/guides/management/fee-vaults.mdx
+*/}
+
+| Vault | Address | Collects | Introduced |
+|-------|---------|----------|------------|
+| `SequencerFeeVault` | `0x4200000000000000000000000000000000000011` | Priority fees (tips) | Legacy |
+| `BaseFeeVault` | `0x4200000000000000000000000000000000000019` | Base fees (not burned on L2) | Bedrock |
+| `L1FeeVault` | `0x420000000000000000000000000000000000001A` | L1 data fees | Bedrock |
+| `OperatorFeeVault` | `0x420000000000000000000000000000000000001B` | Operator fees | Isthmus |

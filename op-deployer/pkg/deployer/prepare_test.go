@@ -7,17 +7,21 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"math"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
@@ -25,6 +29,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	opdenv "github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/common"
@@ -33,6 +39,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
 )
@@ -111,7 +118,31 @@ func TestMakePredictionInput(t *testing.T) {
 	require.Equal(t, standard.DisputeGameType, dci.DisputeGameType)
 	require.Equal(t, opcm.DefaultStartingAnchorRoot.Root, dci.StartingAnchorRoot.Root)
 	require.Equal(t, common.Big0, dci.StartingAnchorRoot.L2SequenceNumber)
-	require.Equal(t, dci.DisputeAbsolutePrestate, dci.CannonAbsolutePrestate)
+	// The standard deploy selects SUPER_PERMISSIONED, which installs no CANNON_KONA fallback.
+	require.Equal(t, common.Hash{}, dci.CannonAbsolutePrestate)
+}
+
+func TestMakePredictionInput_OwnsStartingAnchorSequenceNumber(t *testing.T) {
+	opcmAddr := common.HexToAddress("0x01")
+	superchainConfig := common.HexToAddress("0x02")
+	intent := &state.Intent{
+		OPCMAddress:           &opcmAddr,
+		SuperchainConfigProxy: &superchainConfig,
+	}
+	st := &state.State{}
+	chain := &state.ChainIntent{}
+
+	first, err := makePredictionInput(intent, st, chain)
+	require.NoError(t, err)
+	second, err := makePredictionInput(intent, st, chain)
+	require.NoError(t, err)
+
+	require.Zero(t, first.StartingAnchorRoot.L2SequenceNumber.Sign())
+	require.Zero(t, second.StartingAnchorRoot.L2SequenceNumber.Sign())
+	require.NotSame(t, first.StartingAnchorRoot.L2SequenceNumber, second.StartingAnchorRoot.L2SequenceNumber)
+
+	first.StartingAnchorRoot.L2SequenceNumber.SetUint64(1)
+	require.Zero(t, second.StartingAnchorRoot.L2SequenceNumber.Sign())
 }
 
 func TestMakePredictionInput_GameTypeInputs(t *testing.T) {
@@ -124,16 +155,14 @@ func TestMakePredictionInput_GameTypeInputs(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                       string
-		gameType                   embedded.GameType
-		usesPredictionAnchor       bool
-		usesCannonFallbackPrestate bool
+		name                 string
+		gameType             embedded.GameType
+		usesPredictionAnchor bool
 	}{
 		{
-			name:                       "CANNON_KONA",
-			gameType:                   embedded.GameTypeCannonKona,
-			usesPredictionAnchor:       true,
-			usesCannonFallbackPrestate: true,
+			name:                 "CANNON_KONA",
+			gameType:             embedded.GameTypeCannonKona,
+			usesPredictionAnchor: true,
 		},
 		{
 			name:                 "SUPER_CANNON_KONA",
@@ -143,10 +172,6 @@ func TestMakePredictionInput_GameTypeInputs(t *testing.T) {
 		{
 			name:     "PERMISSIONED_CANNON",
 			gameType: embedded.GameTypePermissionedCannon,
-		},
-		{
-			name:     "SUPER_PERMISSIONED",
-			gameType: embedded.GameTypeSuperPermissioned,
 		},
 	}
 
@@ -168,12 +193,59 @@ func TestMakePredictionInput_GameTypeInputs(t *testing.T) {
 				require.Equal(t, opcm.DefaultStartingAnchorRoot.Root, dci.StartingAnchorRoot.Root)
 			}
 
-			if tt.usesCannonFallbackPrestate {
-				require.Equal(t, predictionCannonAbsolutePrestate, dci.CannonAbsolutePrestate)
+			switch tt.gameType {
+			case embedded.GameTypeCannonKona:
+				require.Equal(t, opcm.PermissionedCannonFallbackPrestatePlaceholder, dci.CannonAbsolutePrestate)
 				require.NotEqual(t, dci.DisputeAbsolutePrestate, dci.CannonAbsolutePrestate)
-			} else {
+			case embedded.GameTypeSuperCannonKona:
+				require.Zero(t, dci.CannonAbsolutePrestate)
+			default:
 				require.Equal(t, dci.DisputeAbsolutePrestate, dci.CannonAbsolutePrestate)
 			}
+		})
+	}
+}
+
+func TestMakePredictionInput_RejectsInvalidInitialGameType(t *testing.T) {
+	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
+	superchainConfig := common.HexToAddress("0xbbbb000000000000000000000000000000000002")
+	intent := &state.Intent{
+		OPCMAddress:           &opcmAddr,
+		SuperchainConfigProxy: &superchainConfig,
+	}
+	st := &state.State{Create2Salt: common.HexToHash("0x03")}
+
+	tests := []struct {
+		name     string
+		gameType uint32
+		wantErr  string
+	}{
+		{
+			name:     "CANNON",
+			gameType: uint32(embedded.GameTypeCannon),
+			wantErr:  "unsupported initial dispute game type 0",
+		},
+		{
+			name:     "ZK_DISPUTE_GAME",
+			gameType: uint32(embedded.GameTypeZKDisputeGame),
+			wantErr:  "unsupported initial dispute game type 10",
+		},
+		{
+			name:     "unknown",
+			gameType: math.MaxUint32,
+			wantErr:  fmt.Sprintf("unsupported initial dispute game type %d", uint32(math.MaxUint32)),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			chain := &state.ChainIntent{
+				ID:              common.HexToHash("0x0a"),
+				DeployOverrides: map[string]any{"respectedGameType": tt.gameType},
+			}
+
+			_, err := makePredictionInput(intent, st, chain)
+			require.ErrorContains(t, err, tt.wantErr)
 		})
 	}
 }
@@ -221,61 +293,22 @@ func TestValidateL1ChainID(t *testing.T) {
 
 func TestResolveSuperchainConfigProxy(t *testing.T) {
 	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
-	superCfg := common.HexToAddress("0xcccc000000000000000000000000000000000003")
-
-	// Stub JSON-RPC endpoint
-	var calls int
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var req struct {
-			ID     any               `json:"id"`
-			Method string            `json:"method"`
-			Params []json.RawMessage `json:"params"`
-		}
-		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
-		require.Equal(t, "eth_call", req.Method)
-
-		var msg struct {
-			To    *common.Address `json:"to"`
-			Data  hexutil.Bytes   `json:"data"`
-			Input hexutil.Bytes   `json:"input"`
-		}
-		require.NoError(t, json.Unmarshal(req.Params[0], &msg))
-		require.Equal(t, &opcmAddr, msg.To)
-		calldata := msg.Data
-		if len(calldata) == 0 {
-			calldata = msg.Input
-		}
-		require.Equal(t, crypto.Keccak256([]byte("superchainConfig()"))[:4], []byte(calldata))
-
-		calls++
-		w.Header().Set("Content-Type", "application/json")
-		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
-			"jsonrpc": "2.0",
-			"id":      req.ID,
-			"result":  common.BytesToHash(superCfg.Bytes()).Hex(),
-		}))
-	}))
-	defer srv.Close()
-
-	l1RPC, err := rpc.Dial(srv.URL)
-	require.NoError(t, err)
-	defer l1RPC.Close()
 
 	ctx := context.Background()
+	var l1RPC *rpc.Client
 
-	// Unset -> resolved from the OPCM in memory only.
+	// Unset -> rejected, naming the OPCM the intent pinned.
 	intent := &state.Intent{OPCMAddress: &opcmAddr}
-	require.NoError(t, resolveSuperchainConfigProxy(ctx, l1RPC, intent, opcmAddr))
-	require.NotNil(t, intent.SuperchainConfigProxy)
-	require.Equal(t, superCfg, *intent.SuperchainConfigProxy)
-	require.Equal(t, 1, calls)
+	err := resolveSuperchainConfigProxy(ctx, l1RPC, intent, opcmAddr)
+	require.ErrorContains(t, err, "intent.superchainConfigProxy must be set")
+	require.ErrorContains(t, err, opcmAddr.Hex())
+	require.Nil(t, intent.SuperchainConfigProxy)
 
-	// Already set -> left untouched without an RPC call.
+	// Already set -> left untouched.
 	pinned := common.HexToAddress("0xdddd000000000000000000000000000000000004")
 	intent = &state.Intent{OPCMAddress: &opcmAddr, SuperchainConfigProxy: &pinned}
 	require.NoError(t, resolveSuperchainConfigProxy(ctx, l1RPC, intent, opcmAddr))
 	require.Equal(t, pinned, *intent.SuperchainConfigProxy)
-	require.Equal(t, 1, calls)
 }
 
 func TestPrepareConfigCheck(t *testing.T) {
@@ -346,9 +379,9 @@ func TestCheckReservedOverrides(t *testing.T) {
 	})
 }
 
-// TestPredictionDryRun_Permissionless exercises the prediction dry-run end to end for a
-// permissionless chain: it deploys a superchain + OPCM onto anvil, then runs
-// the DeployOPChain script against a fork with the prediction input.
+// TestPredictionDryRun_Permissionless exercises the prediction dry-run end to end for the
+// permissionless super-root game type: it deploys a super-root OPCM onto anvil, then runs the
+// DeployOPChain script against a fork with the prediction input.
 func TestPredictionDryRun_Permissionless(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
@@ -356,8 +389,7 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 	embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
 	require.NoError(t, err)
 
-	forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
-	require.NoError(t, err)
+	forgeClient := testutil.NewForgeClient(t, fmt.Sprintf("%v", embeddedArtifactsFS))
 
 	_, afacts := testutil.LocalArtifacts(t)
 	lgr := testlog.Logger(t, slog.LevelInfo)
@@ -431,17 +463,10 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 		salt             common.Hash
 	}{
 		{
-			name:     "CANNON_KONA",
-			gameType: embedded.GameTypeCannonKona,
-			chainID:  common.HexToHash("0x0300"),
-			salt:     common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901234"),
-		},
-		{
-			name:             "SUPER_CANNON_KONA",
-			gameType:         embedded.GameTypeSuperCannonKona,
-			devFeatureBitmap: devfeatures.SuperRootGamesMigrationFlag,
-			chainID:          common.HexToHash("0x0301"),
-			salt:             common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901235"),
+			name:     "SUPER_CANNON_KONA",
+			gameType: embedded.GameTypeSuperCannonKona,
+			chainID:  common.HexToHash("0x0301"),
+			salt:     common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901235"),
 		},
 	}
 
@@ -474,9 +499,10 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 			}
 			predictState := &state.State{Version: 1, Create2Salt: tt.salt}
 
-			// runPrediction mirrors Prepare: a fresh fork of the live L1 with a no-op
-			// broadcaster, running the DeployOPChain script with the prediction input.
-			runPrediction := func(mutate func(*opcm.DeployOPChainInput)) opcm.DeployOPChainOutput {
+			runPrediction := func(
+				beforePredict func(*script.Host),
+				mutate func(*opcm.DeployOPChainInput),
+			) opcm.DeployOPChainOutput {
 				predictHost, err := opdenv.DefaultForkedScriptHost(
 					ctx,
 					broadcaster.NoopBroadcaster(),
@@ -486,6 +512,10 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 					l1RPC,
 				)
 				require.NoError(t, err)
+
+				if beforePredict != nil {
+					beforePredict(predictHost)
+				}
 
 				deployScript, err := opcm.NewDeployOPChainScript(predictHost)
 				require.NoError(t, err)
@@ -501,7 +531,7 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 				return out
 			}
 
-			out := runPrediction(nil)
+			out := runPrediction(nil, nil)
 			require.NotEqual(t, common.Address{}, out.SystemConfigProxy)
 			require.NotEqual(t, common.Address{}, out.OptimismPortalProxy)
 			require.NotEqual(t, common.Address{}, out.DisputeGameFactoryProxy)
@@ -511,17 +541,48 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 			require.NotEqual(t, common.Address{}, out.PermissionedDisputeGame)
 
 			// A different placeholder anchor root must produce identical predicted addresses.
-			outDifferentRoot := runPrediction(func(dci *opcm.DeployOPChainInput) {
+			outDifferentRoot := runPrediction(nil, func(dci *opcm.DeployOPChainInput) {
 				dci.StartingAnchorRoot.Root = common.Hash{0xaa}
 			})
 			require.Equal(t, out, outDifferentRoot)
+
+			// Prepare reads the live superchain deployment on the prediction host before
+			// predicting
+			outAfterSuperchainRead := runPrediction(func(predictHost *script.Host) {
+				superDeployment, superRoles, err := pipeline.PopulateSuperchainState(
+					&pipeline.Env{Logger: lgr, L1ScriptHost: predictHost},
+					opcmAddr,
+					superchainConfigProxy,
+				)
+				require.NoError(t, err)
+				require.Equal(t, superchainConfigProxy, superDeployment.SuperchainConfigProxy)
+				require.NotEqual(t, common.Address{}, superDeployment.SuperchainProxyAdminImpl)
+				require.NotEqual(t, common.Address{}, superDeployment.SuperchainConfigImpl)
+				require.Equal(
+					t,
+					superchainIntent.SuperchainRoles.SuperchainProxyAdminOwner,
+					superRoles.SuperchainProxyAdminOwner,
+				)
+				require.Equal(t, superchainIntent.SuperchainRoles.SuperchainGuardian, superRoles.SuperchainGuardian)
+			}, nil)
+			require.Equal(t, out, outAfterSuperchainRead)
 		})
 	}
 }
 
-func TestPredictChains_SkipsDeployed(t *testing.T) {
+func TestPredictChains_ClearsOnlyRepredictedPreparedInputs(t *testing.T) {
 	deployedID := common.HexToHash("0x0a")
 	freshID := common.HexToHash("0x0b")
+	deployedPrestate := common.HexToHash("0xfeed")
+	freshPrestate := common.HexToHash("0xbeef")
+	deployedStartingAnchorRoot := &state.StartingAnchorProposal{
+		Root:             common.HexToHash("0x1111"),
+		L2SequenceNumber: 1,
+	}
+	freshStartingAnchorRoot := &state.StartingAnchorProposal{
+		Root:             common.HexToHash("0x2222"),
+		L2SequenceNumber: 2,
+	}
 
 	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
 	superchainConfig := common.HexToAddress("0xbbbb000000000000000000000000000000000002")
@@ -532,7 +593,12 @@ func TestPredictChains_SkipsDeployed(t *testing.T) {
 		GlobalDeployOverrides: make(map[string]any),
 		Chains: []*state.ChainIntent{
 			{ID: deployedID},
-			{ID: freshID},
+			{
+				ID: freshID,
+				DeployOverrides: map[string]any{
+					"respectedGameType": embedded.GameTypeCannonKona,
+				},
+			},
 		},
 	}
 
@@ -540,6 +606,28 @@ func TestPredictChains_SkipsDeployed(t *testing.T) {
 	deployedContracts.SystemConfigProxy = common.HexToAddress("0xdead")
 	st := &state.State{Create2Salt: common.HexToHash("0x03")}
 	st.SetChainContracts(deployedID, deployedContracts, true)
+	st.SetChainContracts(freshID, addresses.OpChainContracts{}, false)
+	deployed, err := st.Chain(deployedID)
+	require.NoError(t, err)
+	deployedGenesisBlockHash := common.HexToHash("0x3333")
+	freshGenesisBlockHash := common.HexToHash("0x4444")
+	deployedAllocs := &state.GzipData[foundry.ForgeAllocs]{Data: &foundry.ForgeAllocs{}}
+	freshAllocs := &state.GzipData[foundry.ForgeAllocs]{Data: &foundry.ForgeAllocs{}}
+
+	deployed.Prestate = deployedPrestate
+	deployed.StartingAnchorRoot = deployedStartingAnchorRoot
+	deployedInitialGameType := uint32(embedded.GameTypeSuperPermissioned)
+	deployed.InitialGameType = &deployedInitialGameType
+	deployed.Allocs = deployedAllocs
+	deployed.GenesisBlockHash = &deployedGenesisBlockHash
+	fresh, err := st.Chain(freshID)
+	require.NoError(t, err)
+	fresh.Prestate = freshPrestate
+	fresh.StartingAnchorRoot = freshStartingAnchorRoot
+	freshInitialGameType := uint32(embedded.GameTypePermissionedCannon)
+	fresh.InitialGameType = &freshInitialGameType
+	fresh.Allocs = freshAllocs
+	fresh.GenesisBlockHash = &freshGenesisBlockHash
 
 	var ran []common.Hash
 	run := func(in opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
@@ -574,17 +662,23 @@ func TestPredictChains_SkipsDeployed(t *testing.T) {
 
 	require.Equal(t, []common.Hash{freshID}, ran)
 
-	deployed, err := st.Chain(deployedID)
-	require.NoError(t, err)
 	require.NotNil(t, deployed.Deployed)
 	require.True(t, *deployed.Deployed)
 	require.Equal(t, deployedContracts.SystemConfigProxy, deployed.SystemConfigProxy)
+	require.Equal(t, deployedPrestate, deployed.Prestate)
+	require.Equal(t, deployedStartingAnchorRoot, deployed.StartingAnchorRoot)
+	require.Equal(t, uint32(embedded.GameTypeSuperPermissioned), *deployed.InitialGameType)
+	require.Same(t, deployedAllocs, deployed.Allocs, "a deployed chain's allocs must remain untouched")
+	require.Equal(t, &deployedGenesisBlockHash, deployed.GenesisBlockHash)
 
-	fresh, err := st.Chain(freshID)
-	require.NoError(t, err)
 	require.NotNil(t, fresh.Deployed)
 	require.False(t, *fresh.Deployed)
 	require.Equal(t, common.HexToAddress("0xbeef"), fresh.SystemConfigProxy)
+	require.Zero(t, fresh.Prestate)
+	require.Nil(t, fresh.StartingAnchorRoot)
+	require.Nil(t, fresh.Allocs, "a re-predicted chain's allocs must be rebuilt")
+	require.Nil(t, fresh.GenesisBlockHash)
+	require.Equal(t, uint32(embedded.GameTypeCannonKona), *fresh.InitialGameType)
 	require.Equal(t, anchor, fresh.StartBlock, "fresh chain must have its anchor block pinned")
 	require.NotNil(t, fresh.GenesisTime, "fresh chain must have its genesis time committed")
 	require.EqualValues(t, uint64(anchor.Time)+genesisTimeOffset, *fresh.GenesisTime)
@@ -592,6 +686,301 @@ func TestPredictChains_SkipsDeployed(t *testing.T) {
 	// The already-deployed chain is skipped, so its anchor is never resolved or pinned.
 	require.Nil(t, deployed.StartBlock)
 	require.Nil(t, deployed.GenesisTime)
+}
+
+func TestPrepareChainsBuildsInteropDepSetBeforePrediction(t *testing.T) {
+	firstID := common.HexToHash("0x0a")
+	secondID := common.HexToHash("0x0b")
+	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
+	superchainConfig := common.HexToAddress("0xbbbb000000000000000000000000000000000002")
+	intent := &state.Intent{
+		OPCMAddress:           &opcmAddr,
+		SuperchainConfigProxy: &superchainConfig,
+		GlobalDeployOverrides: make(map[string]any),
+		Chains: []*state.ChainIntent{
+			{ID: firstID},
+			{ID: secondID},
+		},
+	}
+	st := &state.State{Create2Salt: common.HexToHash("0x03")}
+
+	var predictions int
+	run := func(opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
+		predictions++
+		require.NotNil(t, st.InteropDepSet)
+		require.Len(t, st.InteropDepSet.Chains(), 2)
+		return emptyDeployOPChainOutput(), nil
+	}
+	anchor := &state.L1BlockRefJSON{Hash: common.HexToHash("0xa11c"), Number: 100, Time: 5000}
+	selectAnchor := func(overrideHash *common.Hash) (*state.L1BlockRefJSON, error) {
+		return anchor, nil
+	}
+
+	require.NoError(t, prepareChains(testlog.Logger(t, slog.LevelInfo), intent, st, run, selectAnchor, anchor, 600))
+	require.Equal(t, 2, predictions)
+}
+
+func TestPrepareChainsRejectsMixedInitialGameTypesBeforePrediction(t *testing.T) {
+	firstID := common.HexToHash("0x0a")
+	secondID := common.HexToHash("0x0b")
+	intent := &state.Intent{
+		Chains: []*state.ChainIntent{
+			{
+				ID:              firstID,
+				DeployOverrides: map[string]any{"respectedGameType": embedded.GameTypeCannonKona},
+			},
+			{
+				ID:              secondID,
+				DeployOverrides: map[string]any{"respectedGameType": embedded.GameTypeSuperCannonKona},
+			},
+		},
+	}
+	st := &state.State{}
+	var predictions int
+	run := func(opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
+		predictions++
+		return emptyDeployOPChainOutput(), nil
+	}
+
+	err := prepareChains(testlog.Logger(t, slog.LevelInfo), intent, st, run, nil, nil, 0)
+	require.EqualError(t, err, "an intent cannot mix CANNON_KONA and SUPER_CANNON_KONA initial games")
+	require.Nil(t, st.InteropDepSet)
+	require.Zero(t, predictions)
+}
+
+func TestPrepareChainsRejectsDuplicateChainIDsBeforeDepSet(t *testing.T) {
+	chainID := common.HexToHash("0x0a")
+	intent := &state.Intent{
+		Chains: []*state.ChainIntent{
+			{ID: chainID},
+			{ID: chainID},
+		},
+	}
+	st := &state.State{}
+	var predictions int
+	run := func(opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
+		predictions++
+		return emptyDeployOPChainOutput(), nil
+	}
+
+	err := prepareChains(testlog.Logger(t, slog.LevelInfo), intent, st, run, nil, nil, 0)
+	require.EqualError(t, err, "duplicate chain IDs ["+chainID.Hex()+"]")
+	require.Nil(t, st.InteropDepSet)
+	require.Zero(t, predictions)
+}
+
+func TestPrepareChainsPredictionFailureOnlyClearsSuccessfullyPredictedPrestatesInMemory(t *testing.T) {
+	firstID := common.HexToHash("0x0a")
+	secondID := common.HexToHash("0x0b")
+	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
+	superchainConfig := common.HexToAddress("0xbbbb000000000000000000000000000000000002")
+	intent := &state.Intent{
+		OPCMAddress:           &opcmAddr,
+		SuperchainConfigProxy: &superchainConfig,
+		GlobalDeployOverrides: make(map[string]any),
+		Chains: []*state.ChainIntent{
+			{ID: firstID},
+			{ID: secondID},
+		},
+	}
+	st := &state.State{Create2Salt: common.HexToHash("0x03")}
+	var firstContracts addresses.OpChainContracts
+	firstContracts.SystemConfigProxy = common.HexToAddress("0x1111")
+	st.SetChainContracts(firstID, firstContracts, false)
+	var secondContracts addresses.OpChainContracts
+	secondContracts.SystemConfigProxy = common.HexToAddress("0x2222")
+	st.SetChainContracts(secondID, secondContracts, false)
+	for i, chainID := range []common.Hash{firstID, secondID} {
+		chain, err := st.Chain(chainID)
+		require.NoError(t, err)
+		chain.Prestate = common.HexToHash("0x11")
+		gameType := uint32(embedded.GameTypeCannonKona) + uint32(i)
+		chain.InitialGameType = &gameType
+	}
+
+	var predictions int
+	run := func(in opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
+		predictions++
+		if predictions == 2 {
+			return opcm.DeployOPChainOutput{}, fmt.Errorf("prediction sentinel")
+		}
+		out := emptyDeployOPChainOutput()
+		out.SystemConfigProxy = common.HexToAddress("0x3333")
+		return out, nil
+	}
+	anchor := &state.L1BlockRefJSON{Hash: common.HexToHash("0xa11c"), Number: 100, Time: 5000}
+	selectAnchor := func(overrideHash *common.Hash) (*state.L1BlockRefJSON, error) {
+		return anchor, nil
+	}
+	const genesisTimeOffset = 600
+
+	err := prepareChains(testlog.Logger(t, slog.LevelInfo), intent, st, run, selectAnchor, anchor, genesisTimeOffset)
+	require.ErrorContains(t, err, "prediction sentinel")
+
+	first, err := st.Chain(firstID)
+	require.NoError(t, err)
+	require.Equal(t, anchor, first.StartBlock)
+	require.NotNil(t, first.GenesisTime)
+	require.EqualValues(t, uint64(anchor.Time)+genesisTimeOffset, *first.GenesisTime)
+	require.Equal(t, common.HexToAddress("0x3333"), first.SystemConfigProxy)
+	require.Zero(t, first.Prestate)
+	require.Equal(t, standard.DisputeGameType, *first.InitialGameType)
+	second, err := st.Chain(secondID)
+	require.NoError(t, err)
+	require.Equal(t, anchor, second.StartBlock)
+	require.NotNil(t, second.GenesisTime)
+	require.EqualValues(t, uint64(anchor.Time)+genesisTimeOffset, *second.GenesisTime)
+	require.Equal(t, secondContracts.SystemConfigProxy, second.SystemConfigProxy)
+	require.Equal(t, common.HexToHash("0x11"), second.Prestate)
+	require.Equal(t, uint32(embedded.GameTypeSuperCannonKona), *second.InitialGameType)
+}
+
+func TestPredictChainsPrestateReminders(t *testing.T) {
+	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
+	superchainConfig := common.HexToAddress("0xbbbb000000000000000000000000000000000002")
+
+	tests := []struct {
+		name            string
+		gameType        embedded.GameType
+		reminderMessage string
+	}{
+		{
+			name:            "CANNON_KONA",
+			gameType:        embedded.GameTypeCannonKona,
+			reminderMessage: "selected prestate must be committed",
+		},
+		{
+			name:            "SUPER_CANNON_KONA",
+			gameType:        embedded.GameTypeSuperCannonKona,
+			reminderMessage: "selected prestate must be committed",
+		},
+		{
+			name:     "PERMISSIONED_CANNON",
+			gameType: embedded.GameTypePermissionedCannon,
+		},
+	}
+
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			chainID := common.HexToHash(fmt.Sprintf("0x%x", i+1))
+			intent := &state.Intent{
+				OPCMAddress:           &opcmAddr,
+				SuperchainConfigProxy: &superchainConfig,
+				GlobalDeployOverrides: make(map[string]any),
+				Chains: []*state.ChainIntent{{
+					ID: chainID,
+					DeployOverrides: map[string]any{
+						"respectedGameType": tt.gameType,
+					},
+				}},
+			}
+			st := &state.State{Create2Salt: common.HexToHash("0x03")}
+			st.SetChainContracts(chainID, addresses.OpChainContracts{}, false)
+			chain, err := st.Chain(chainID)
+			require.NoError(t, err)
+			chain.Prestate = common.HexToHash("0x11")
+			lgr, logs := testlog.CaptureLogger(t, slog.LevelInfo)
+
+			run := func(in opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
+				require.Equal(t, uint32(tt.gameType), in.DisputeGameType)
+				return emptyDeployOPChainOutput(), nil
+			}
+			anchor := &state.L1BlockRefJSON{Hash: common.HexToHash("0xa11c"), Number: 100, Time: 5000}
+			selectAnchor := func(overrideHash *common.Hash) (*state.L1BlockRefJSON, error) {
+				return anchor, nil
+			}
+
+			require.NoError(t, predictChains(lgr, intent, st, run, selectAnchor, anchor, 600))
+			require.Zero(t, chain.Prestate)
+			require.NotNil(t, chain.InitialGameType)
+			require.Equal(t, uint32(tt.gameType), *chain.InitialGameType)
+
+			chainFilter := testlog.NewAttributesFilter("chain", chainID.Hex())
+			if tt.reminderMessage == "" {
+				require.Nil(t, logs.FindLog(
+					testlog.NewMessageContainsFilter("run op-deployer prestate before continue"),
+					chainFilter,
+				))
+				return
+			}
+			logs.RequireMessageContainedOnce(t, tt.reminderMessage, chainFilter)
+		})
+	}
+}
+
+func TestPredictChainsRejectsInvalidInitialGameTypeBeforePrediction(t *testing.T) {
+	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
+	superchainConfig := common.HexToAddress("0xbbbb000000000000000000000000000000000002")
+
+	tests := []struct {
+		name     string
+		gameType uint32
+		wantErr  string
+	}{
+		{
+			name:     "CANNON",
+			gameType: uint32(embedded.GameTypeCannon),
+			wantErr:  "unsupported initial dispute game type 0",
+		},
+		{
+			name:     "ZK_DISPUTE_GAME",
+			gameType: uint32(embedded.GameTypeZKDisputeGame),
+			wantErr:  "unsupported initial dispute game type 10",
+		},
+		{
+			name:     "unknown",
+			gameType: math.MaxUint32,
+			wantErr:  fmt.Sprintf("unsupported initial dispute game type %d", uint32(math.MaxUint32)),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			chainID := common.HexToHash("0x01")
+			intent := &state.Intent{
+				OPCMAddress:           &opcmAddr,
+				SuperchainConfigProxy: &superchainConfig,
+				Chains: []*state.ChainIntent{{
+					ID:              chainID,
+					DeployOverrides: map[string]any{"respectedGameType": tt.gameType},
+				}},
+			}
+			st := &state.State{Create2Salt: common.HexToHash("0x03")}
+			var predictionCalls int
+			run := func(opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
+				predictionCalls++
+				return emptyDeployOPChainOutput(), nil
+			}
+			anchor := &state.L1BlockRefJSON{Hash: common.HexToHash("0xa11c"), Number: 100, Time: 5000}
+			selectAnchor := func(overrideHash *common.Hash) (*state.L1BlockRefJSON, error) {
+				return anchor, nil
+			}
+
+			err := predictChains(testlog.Logger(t, slog.LevelInfo), intent, st, run, selectAnchor, anchor, 600)
+			require.ErrorContains(t, err, tt.wantErr)
+			require.Zero(t, predictionCalls)
+		})
+	}
+}
+
+func emptyDeployOPChainOutput() opcm.DeployOPChainOutput {
+	return opcm.DeployOPChainOutput{
+		OpChainProxyAdmin:                  common.Address{},
+		AddressManager:                     common.Address{},
+		L1ERC721BridgeProxy:                common.Address{},
+		SystemConfigProxy:                  common.Address{},
+		OptimismMintableERC20FactoryProxy:  common.Address{},
+		L1StandardBridgeProxy:              common.Address{},
+		L1CrossDomainMessengerProxy:        common.Address{},
+		OptimismPortalProxy:                common.Address{},
+		EthLockboxProxy:                    common.Address{},
+		DisputeGameFactoryProxy:            common.Address{},
+		AnchorStateRegistryProxy:           common.Address{},
+		FaultDisputeGame:                   common.Address{},
+		PermissionedDisputeGame:            common.Address{},
+		DelayedWETHPermissionedGameProxy:   common.Address{},
+		DelayedWETHPermissionlessGameProxy: common.Address{},
+	}
 }
 
 func TestPredictChains_ReusesPinnedAnchor(t *testing.T) {
@@ -792,4 +1181,187 @@ func TestPredictChains_StaleGenesisTime(t *testing.T) {
 		err := predictChains(lgr, intent, st, run, selectAnchor, safe, 600)
 		require.ErrorContains(t, err, "the deployment window has elapsed")
 	})
+}
+
+// TestPrepare_RejectsAppliedWorkdir checks that prepare refuses a workdir that already holds an
+// applied deployment.
+func TestPrepare_RejectsAppliedWorkdir(t *testing.T) {
+	_, _, dk := shared.DefaultPrivkey(t)
+	l1ChainID := big.NewInt(900)
+	loc, _ := testutil.LocalArtifacts(t)
+
+	intent, st := shared.NewIntent(t, l1ChainID, dk, uint256.NewInt(1), loc, loc, standard.GasLimit)
+
+	st.AppliedIntent = intent
+	st.SetChainContracts(intent.Chains[0].ID, addresses.OpChainContracts{}, true)
+	intent.Chains = append(intent.Chains, shared.NewChainIntent(t, dk, l1ChainID, uint256.NewInt(2), standard.GasLimit))
+
+	workdir := t.TempDir()
+	require.NoError(t, intent.WriteToFile(filepath.Join(workdir, "intent.toml")))
+	require.NoError(t, st.WriteToFile(filepath.Join(workdir, "state.json")))
+
+	err := Prepare(context.Background(), PrepareConfig{
+		Workdir:    workdir,
+		Logger:     testlog.Logger(t, slog.LevelWarn),
+		PrivateKey: testPrivKey,
+		L1RPCUrl:   testL1RPCUrl,
+	})
+	require.ErrorContains(t, err, "cannot be prepared")
+}
+
+// TestGenerateGenesisForChains_UsesPredictedAddressesAndPinnedGenesisTime verifies that L2
+// genesis is built from the L1 addresses and genesis time predictChains commits.
+func TestGenerateGenesisForChains_UsesPredictedAddressesAndPinnedGenesisTime(t *testing.T) {
+	lgr := testlog.Logger(t, slog.LevelWarn)
+	_, pk, dk := shared.DefaultPrivkey(t)
+	deployer := crypto.PubkeyToAddress(pk.PublicKey)
+
+	l1ChainID := big.NewInt(900)
+	l2ChainID := uint256.NewInt(1)
+	loc, afacts := testutil.LocalArtifacts(t)
+
+	intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID, loc, loc, standard.GasLimit)
+	chain := intent.Chains[0]
+
+	// Stub predicted addresses.
+	predicted := addresses.OpChainContracts{
+		OpChainCoreContracts: addresses.OpChainCoreContracts{
+			L1CrossDomainMessengerProxy: common.HexToAddress("0x1111111111111111111111111111111111111111"),
+			L1StandardBridgeProxy:       common.HexToAddress("0x2222222222222222222222222222222222222222"),
+			L1Erc721BridgeProxy:         common.HexToAddress("0x3333333333333333333333333333333333333333"),
+		},
+	}
+	st.SetChainContracts(chain.ID, predicted, false)
+	require.False(t, st.IsChainDeployed(chain.ID), "addresses from a dry run must not be marked deployed")
+
+	genesisTime := hexutil.Uint64(1_700_000_000)
+	st.PinChainAnchor(chain.ID, &state.L1BlockRefJSON{
+		Hash:   common.HexToHash("0xaaaa"),
+		Number: 100,
+		Time:   hexutil.Uint64(uint64(genesisTime) - 100),
+	}, genesisTime)
+
+	genesisEnv := &pipeline.Env{Logger: lgr, Deployer: deployer}
+	bundle := artifacts.Bundle{L1: afacts, L2: afacts}
+	require.NoError(t, generateGenesisForChains(genesisEnv, intent, bundle, st))
+
+	chainState, err := st.Chain(chain.ID)
+	require.NoError(t, err)
+	require.NotNil(t, chainState.Allocs, "generateGenesisForChains must populate allocs")
+
+	config, err := state.CombineDeployConfig(intent, chain, st, chainState)
+	require.NoError(t, err)
+	l2Genesis, err := genesis.BuildL2Genesis(&config, chainState.Allocs.Data, chainState.StartBlock.ToBlockRef())
+	require.NoError(t, err)
+	require.Equal(t, uint64(genesisTime), l2Genesis.Timestamp,
+		"genesis header must carry the genesis time pinned at anchor selection")
+
+	allocsBefore := chainState.Allocs.Data
+	require.NoError(t, generateGenesisForChains(genesisEnv, intent, bundle, st))
+	chainStateAfter, err := st.Chain(chain.ID)
+	require.NoError(t, err)
+	require.Same(t, allocsBefore, chainStateAfter.Allocs.Data, "re-running must not regenerate allocs")
+
+	// The genesis output root must be computable from this same state, before any L1
+	// transaction is sent, and match an independent recomputation.
+	require.NoError(t, computeGenesisOutputRootsForChains(genesisEnv, intent, st))
+	require.NotNil(t, chainState.GenesisBlockHash)
+	require.NotNil(t, chainState.StartingAnchorRoot)
+	require.Zero(t, uint64(chainState.StartingAnchorRoot.L2SequenceNumber))
+
+	l2GenesisBlock := l2Genesis.ToBlock()
+	require.Equal(t, l2GenesisBlock.Hash(), *chainState.GenesisBlockHash)
+	require.NotNil(t, l2GenesisBlock.Header().WithdrawalsHash)
+	wantOutputRoot, err := rollup.ComputeL2OutputRootV0(eth.HeaderBlockInfo(l2GenesisBlock.Header()), *l2GenesisBlock.Header().WithdrawalsHash)
+	require.NoError(t, err)
+	require.Equal(t, common.Hash(wantOutputRoot), chainState.StartingAnchorRoot.Root)
+
+	// Re-running the output-root computation is deterministic. The anchor is recomputed.
+	anchorBefore := *chainState.StartingAnchorRoot
+	require.NoError(t, computeGenesisOutputRootsForChains(genesisEnv, intent, st))
+	require.Equal(t, anchorBefore, *chainStateAfter.StartingAnchorRoot)
+}
+
+// A prepare re-run must rebuild the L2 genesis from the current intent.
+func TestPrepare_RepredictionRebuildsL2Genesis(t *testing.T) {
+	lgr := testlog.Logger(t, slog.LevelWarn)
+	_, pk, dk := shared.DefaultPrivkey(t)
+	deployer := crypto.PubkeyToAddress(pk.PublicKey)
+
+	l1ChainID := big.NewInt(900)
+	l2ChainID := uint256.NewInt(1)
+	loc, afacts := testutil.LocalArtifacts(t)
+
+	intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID, loc, loc, standard.GasLimit)
+	require.False(t, intent.FundDevAccounts, "the edit below must change the generated allocs")
+	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
+	superchainConfig := common.HexToAddress("0xbbbb000000000000000000000000000000000002")
+	intent.OPCMAddress = &opcmAddr
+	intent.SuperchainConfigProxy = &superchainConfig
+	st.Create2Salt = common.HexToHash("0x03")
+	chain := intent.Chains[0]
+
+	// Stable across both runs. The first five are the addresses the L2 genesis embeds.
+	predicted := opcm.DeployOPChainOutput{
+		L1CrossDomainMessengerProxy:        common.HexToAddress("0x1111111111111111111111111111111111111111"),
+		L1StandardBridgeProxy:              common.HexToAddress("0x2222222222222222222222222222222222222222"),
+		L1ERC721BridgeProxy:                common.HexToAddress("0x3333333333333333333333333333333333333333"),
+		SystemConfigProxy:                  common.HexToAddress("0x4444444444444444444444444444444444444444"),
+		OptimismPortalProxy:                common.HexToAddress("0x5555555555555555555555555555555555555555"),
+		OpChainProxyAdmin:                  common.Address{0x01},
+		AddressManager:                     common.Address{0x02},
+		OptimismMintableERC20FactoryProxy:  common.Address{0x03},
+		EthLockboxProxy:                    common.Address{0x04},
+		DisputeGameFactoryProxy:            common.Address{0x05},
+		AnchorStateRegistryProxy:           common.Address{0x06},
+		FaultDisputeGame:                   common.Address{0x07},
+		PermissionedDisputeGame:            common.Address{0x08},
+		DelayedWETHPermissionedGameProxy:   common.Address{0x09},
+		DelayedWETHPermissionlessGameProxy: common.Address{0x0a},
+	}
+
+	runs := 0
+	run := func(opcm.DeployOPChainInput) (opcm.DeployOPChainOutput, error) {
+		runs++
+		return predicted, nil
+	}
+	anchor := &state.L1BlockRefJSON{Hash: common.HexToHash("0xa11c"), Number: 100, Time: 5000}
+	selectAnchor := func(*common.Hash) (*state.L1BlockRefJSON, error) {
+		return anchor, nil
+	}
+	const genesisTimeOffset = 600
+
+	genesisEnv := &pipeline.Env{Logger: lgr, Deployer: deployer}
+	bundle := artifacts.Bundle{L1: afacts, L2: afacts}
+	prepareOnce := func() *state.ChainState {
+		require.NoError(t, predictChains(lgr, intent, st, run, selectAnchor, anchor, genesisTimeOffset))
+		require.NoError(t, generateGenesisForChains(genesisEnv, intent, bundle, st))
+		require.NoError(t, computeGenesisOutputRootsForChains(genesisEnv, intent, st))
+		chainState, err := st.Chain(chain.ID)
+		require.NoError(t, err)
+		return chainState
+	}
+
+	chainState := prepareOnce()
+	require.NotNil(t, chainState.Allocs)
+	allocsBefore := chainState.Allocs.Data
+	accountsBefore := len(allocsBefore.Accounts)
+	genesisHashBefore := *chainState.GenesisBlockHash
+
+	// Edit an L2 input and re-run.
+	intent.FundDevAccounts = true
+	chainState = prepareOnce()
+
+	require.Equal(t, 2, runs, "both runs must re-predict the undeployed chain")
+	require.NotNil(t, chainState.Allocs)
+	require.NotSame(t, allocsBefore, chainState.Allocs.Data, "the re-run must rebuild allocs, not reuse them")
+	require.Greater(t, len(chainState.Allocs.Data.Accounts), accountsBefore,
+		"funded dev accounts must be present in the rebuilt allocs")
+	require.NotEqual(t, genesisHashBefore, *chainState.GenesisBlockHash,
+		"the committed genesis block hash must follow the rebuilt allocs")
+
+	// The pinned anchor commitment survives the rebuild.
+	require.Equal(t, anchor, chainState.StartBlock)
+	require.NotNil(t, chainState.GenesisTime)
+	require.EqualValues(t, uint64(anchor.Time)+genesisTimeOffset, *chainState.GenesisTime)
 }

@@ -375,7 +375,7 @@ commands:
               echo "apt-get update failed (attempt $i), retrying in 10s..." >&2
               sleep 10
             done
-            sudo -E apt-get install -y << parameters.extra_flags >> << parameters.packages >>
+            sudo -E apt-get -o Acquire::Retries=5 install -y << parameters.extra_flags >> << parameters.packages >>
 
   # Kona-specific commands
   install-zstd:
@@ -627,6 +627,13 @@ commands:
         description: "Whether to save the cache at the end of the build"
         type: boolean
         default: false
+      fetch_workspace:
+        description: >
+          Run `cargo fetch` for the whole workspace before the (possibly
+          package-scoped) build so the shared rust-deps cache this job saves is
+          complete rather than partial.
+        type: boolean
+        default: false
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -652,7 +659,11 @@ commands:
 
             export PACKAGE="--workspace"
             if [ -n "<< parameters.package >>" ]; then
-              export PACKAGE="--package << parameters.package >>"
+              # Space-separated package list -> repeated --package flags.
+              export PACKAGE=""
+              for pkg in << parameters.package >>; do
+                export PACKAGE="$PACKAGE --package $pkg"
+              done
             fi
 
             export BINARY=""
@@ -665,7 +676,19 @@ commands:
               export FEATURES="--all-features"
             fi
 
-            cd << parameters.directory >> && cargo build $PROFILE $TARGET $PACKAGE $FEATURES $BINARY
+            cd << parameters.directory >>
+            if [ "<< parameters.fetch_workspace >>" = "true" ]; then
+              # Populate the complete workspace crate registry so the shared
+              # rust-deps cache this job saves is not partial (a package-scoped
+              # build alone would omit crates other workspace members need).
+              cargo fetch --locked
+            fi
+            # Use the mold linker (pinned via mise; also present in ci-base-clang)
+            # to cut final link time. `mold -run` intercepts the linker at exec
+            # time, so it needs no RUSTFLAGS change and does not perturb the sccache
+            # compile-cache key. The CI env is controlled, so a missing mold must
+            # fail loudly rather than silently falling back to the default linker.
+            mold -run cargo build $PROFILE $TARGET $PACKAGE $FEATURES $BINARY
           no_output_timeout: 30m
       - when:
           condition: << parameters.save_cache >>
@@ -790,6 +813,41 @@ jobs:
           root: .
           paths:
             - ".circleci-cache/rust-binaries/kona-sp1-super-range-executor"
+
+  # Split of the former single rust-workspace-binaries build: kona binaries and
+  # op-reth compile in parallel jobs, so the critical path is the slower of the
+  # two rather than their sum, and neither job compiles the other's dep tree.
+  rust-kona-binaries:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: xlarge.gen2
+    steps:
+      - rust-build:
+          directory: rust
+          profile: release
+          package: "kona-host kona-client kona-node kona-sp1-proposer"
+          save_cache: true
+          fetch_workspace: true
+      - persist_to_workspace:
+          root: "."
+          paths:
+            - "rust/target/release/kona-*"
+
+  rust-op-reth-binary:
+    docker:
+      - image: <<pipeline.parameters.c-rust_base_image>>
+    resource_class: xlarge.gen2
+    steps:
+      - rust-build:
+          directory: rust
+          profile: release
+          package: op-reth
+          binary: op-reth
+          save_cache: false
+      - persist_to_workspace:
+          root: "."
+          paths:
+            - "rust/target/release/op-reth"
 
   # Build a single Rust binary from a vendored (non-submodule) directory.
   rust-build-vendored:
@@ -1951,6 +2009,10 @@ jobs:
 
   op-acceptance-tests:
     parameters:
+      l1_fork:
+        description: "L1 fork active at genesis"
+        type: string
+        default: "prague"
       l2_cl_kind:
         description: "L2 consensus layer client (op-node or kona-node)"
         type: string
@@ -1995,13 +2057,20 @@ jobs:
             BIN_DIR="$ROOT_DIR/.circleci-cache/rust-binaries"
 
             echo "export RUST_BINARY_PATH_KONA_NODE=$ROOT_DIR/rust/target/release/kona-node" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_KONA_SP1_PROPOSER=$ROOT_DIR/rust/target/release/kona-sp1-proposer" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RETH=$ROOT_DIR/rust/target/release/op-reth" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_KONA_SP1_SUPER_RANGE_EXECUTOR=$BIN_DIR/kona-sp1-super-range-executor" >> "$BASH_ENV"
+            # KONA_SP1_ELF_DIR deliberately not set: acceptance tests run with
+            # stub prestate artifacts (the devstack deploys the mock verifier,
+            # so nothing consumes real ELF bytes until the proving path). This
+            # keeps these jobs off the slow kona-build-sp1-elfs critical path;
+            # kona-build-sp1-elfs is gated directly via ci-gate instead.
       - run:
-          name: Configure L2 stack
+          name: Configure devstack
           command: |
+            echo "export DEVSTACK_L1_FORK=<<parameters.l1_fork>>" >> "$BASH_ENV"
             echo "export DEVSTACK_L2CL_KIND=<<parameters.l2_cl_kind>>" >> "$BASH_ENV"
             echo "export DEVSTACK_L2EL_KIND=<<parameters.l2_el_kind>>" >> "$BASH_ENV"
       # Restore cached Go modules (downloaded once by prep-go-modules) plus the
@@ -2072,20 +2141,6 @@ jobs:
       - run:
           name: Build prestates
           command: just reproducible-prestate
-      - run:
-          name: Capture kona prestate debug artifacts
-          command: |
-            mkdir -p /tmp/prestate-debug
-
-            # chainList.json from the checkout (baked into the binary via include_str!)
-            cp rust/kona/crates/protocol/registry/etc/chainList.json /tmp/prestate-debug/chainList.json
-
-            # The kona-client ELF binaries (for offline inspection with strings/objdump)
-            cp rust/kona/prestate-artifacts-cannon/kona-client-elf /tmp/prestate-debug/kona-client-elf-cannon 2>/dev/null || true
-            cp rust/kona/prestate-artifacts-cannon-interop/kona-client-elf /tmp/prestate-debug/kona-client-elf-cannon-interop 2>/dev/null || true
-      - store_artifacts:
-          path: /tmp/prestate-debug
-          destination: prestate-debug
       - persist_to_workspace:
           root: .
           paths:
@@ -2108,7 +2163,7 @@ jobs:
     resource_class: large.gen2
     steps:
       - utils/checkout-with-mise:
-          checkout-method: blobless
+          checkout-method: full
           enable-mise-cache: true
       # `just verify-reproducibility` runs `go run ...verify.go` on the host.
       - restore-go-mod-cache
@@ -2494,7 +2549,8 @@ workflows:
             - go-binaries-for-sysgo
             - prep-superchain
             - prep-go-modules
-            - rust-workspace-binaries
+            - rust-kona-binaries
+            - rust-op-reth-binary
           context:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-repo-rpc-secrets
@@ -2517,7 +2573,8 @@ workflows:
             - go-binaries-for-sysgo
             - prep-superchain
             - prep-go-modules
-            - rust-workspace-binaries
+            - rust-kona-binaries
+            - rust-op-reth-binary
           context:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-repo-rpc-secrets
@@ -2557,17 +2614,24 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
       # Acceptance test jobs (formerly in separate acceptance-tests workflow)
-      - rust-build-binary:
-          name: rust-workspace-binaries
-          directory: rust
-          profile: "release"
-          save_cache: true
-          persist_to_workspace: true
+      - rust-kona-binaries:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
+      - rust-op-reth-binary:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
       - rust-build-sp1-super-range-executor:
           name: rust-sp1-super-range-executor
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
+      # Gates that the SP1 guest ELFs build reproducibly. The acceptance tests
+      # no longer consume this job's workspace (they run with stub prestate
+      # artifacts against the mock verifier), so it is required directly by
+      # ci-gate rather than through them.
+      - kona-build-sp1-elfs:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
@@ -2601,7 +2665,8 @@ workflows:
       # via each crate's `make lint`.
       - rust-binaries-for-sysgo:
           requires:
-            - rust-workspace-binaries
+            - rust-kona-binaries
+            - rust-op-reth-binary
             - rust-sp1-super-range-executor
             - rust-build-op-rbuilder
             - rust-build-rollup-boost
@@ -2612,7 +2677,11 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
       # IN-MEMORY - op-node/op-reth
       - op-acceptance-tests:
-          name: memory-all-opn-op-reth
+          name: memory-all-opn-op-reth-<<matrix.l1_fork>>
+          matrix:
+            parameters:
+              l1_fork: &acceptance_l1_forks
+                - prague
           l2_el_kind: op-reth
           parallelism: 2
           acceptance_test_jobs: "8"
@@ -2631,7 +2700,10 @@ workflows:
             - prep-superchain
       # IN-MEMORY - kona/op-reth
       - op-acceptance-tests:
-          name: memory-all-kona-op-reth
+          name: memory-all-kona-op-reth-<<matrix.l1_fork>>
+          matrix:
+            parameters:
+              l1_fork: *acceptance_l1_forks
           l2_cl_kind: kona-node
           l2_el_kind: op-reth
           parallelism: 2
@@ -2661,8 +2733,9 @@ workflows:
             - semgrep-scan-local: terminal
             - semgrep-test: terminal
             - go-tests-short: terminal
-            - memory-all-opn-op-reth: terminal
-            - memory-all-kona-op-reth: terminal
+            - memory-all-opn-op-reth-prague: terminal
+            - memory-all-kona-op-reth-prague: terminal
+            - kona-build-sp1-elfs: terminal
             # Go test/lint jobs previously fanned in via the bedrock-go-tests helper.
             - cannon-go-lint-and-test: terminal
             - check-generated-mocks-op-node: terminal
@@ -2780,12 +2853,11 @@ workflows:
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
-      - rust-build-binary:
-          name: rust-workspace-binaries
-          directory: rust
-          profile: "release"
-          save_cache: true
-          persist_to_workspace: true
+      - rust-kona-binaries:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
+      - rust-op-reth-binary:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - sccache-gcs-optimism
@@ -2803,7 +2875,8 @@ workflows:
           requires:
             - contracts-bedrock-build
             - cannon-prestate
-            - rust-workspace-binaries
+            - rust-kona-binaries
+            - rust-op-reth-binary
             - prep-go-modules
 
   develop-kontrol-tests:
@@ -2949,8 +3022,7 @@ workflows:
                 - main
                 - CUSTOM_GAS_TOKEN
                 - OPTIMISM_PORTAL_INTEROP
-                - ZK_DISPUTE_GAME,SUPER_ROOT_GAMES_MIGRATION
-                - SUPER_ROOT_GAMES_MIGRATION
+                - ZK_DISPUTE_GAME
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
@@ -3105,23 +3177,19 @@ workflows:
             - contracts-bedrock-tests main: terminal
             - contracts-bedrock-tests CUSTOM_GAS_TOKEN: terminal
             - contracts-bedrock-tests OPTIMISM_PORTAL_INTEROP: terminal
-            - contracts-bedrock-tests ZK_DISPUTE_GAME,SUPER_ROOT_GAMES_MIGRATION: terminal
-            - contracts-bedrock-tests SUPER_ROOT_GAMES_MIGRATION: terminal
+            - contracts-bedrock-tests ZK_DISPUTE_GAME: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified main: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified CUSTOM_GAS_TOKEN: terminal
             - contracts-bedrock-tests-heavy-fuzz-modified OPTIMISM_PORTAL_INTEROP: terminal
-            - contracts-bedrock-tests-heavy-fuzz-modified ZK_DISPUTE_GAME,SUPER_ROOT_GAMES_MIGRATION: terminal
-            - contracts-bedrock-tests-heavy-fuzz-modified SUPER_ROOT_GAMES_MIGRATION: terminal
+            - contracts-bedrock-tests-heavy-fuzz-modified ZK_DISPUTE_GAME: terminal
             - contracts-bedrock-coverage main: terminal
             - contracts-bedrock-coverage CUSTOM_GAS_TOKEN: terminal
             - contracts-bedrock-coverage OPTIMISM_PORTAL_INTEROP: terminal
-            - contracts-bedrock-coverage ZK_DISPUTE_GAME,SUPER_ROOT_GAMES_MIGRATION: terminal
-            - contracts-bedrock-coverage SUPER_ROOT_GAMES_MIGRATION: terminal
+            - contracts-bedrock-coverage ZK_DISPUTE_GAME: terminal
             - contracts-bedrock-tests-upgrade op-mainnet main: terminal
             - contracts-bedrock-tests-upgrade op-mainnet CUSTOM_GAS_TOKEN: terminal
             - contracts-bedrock-tests-upgrade op-mainnet OPTIMISM_PORTAL_INTEROP: terminal
-            - contracts-bedrock-tests-upgrade op-mainnet ZK_DISPUTE_GAME,SUPER_ROOT_GAMES_MIGRATION: terminal
-            - contracts-bedrock-tests-upgrade op-mainnet SUPER_ROOT_GAMES_MIGRATION: terminal
+            - contracts-bedrock-tests-upgrade op-mainnet ZK_DISPUTE_GAME: terminal
             - contracts-bedrock-tests-upgrade op-mainnet: terminal
             - contracts-bedrock-tests-upgrade ink-mainnet: terminal
             - contracts-bedrock-tests-upgrade unichain-mainnet: terminal
