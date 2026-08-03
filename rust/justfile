@@ -629,8 +629,8 @@ kona-prestate-variants:
     for pair in {{KONA_PRESTATE_VARIANTS}}; do
       variant="${pair%%:*}"
       dir="${pair#*:}"
-      if [[ -z "$variant" || -z "$dir" || "$variant" == "$pair" ]]; then
-        echo "malformed KONA_PRESTATE_VARIANTS entry '${pair}', want '<cargo bin>:<artifacts dir>'" >&2
+      if [[ -z "$variant" || "$variant" == "$pair" || ! "$dir" =~ ^prestate-artifacts-[a-zA-Z0-9_-]+$ ]]; then
+        echo "malformed KONA_PRESTATE_VARIANTS entry '${pair}', want '<cargo bin>:prestate-artifacts-<name>'" >&2
         exit 1
       fi
       lines+=("${variant} ${dir}")
