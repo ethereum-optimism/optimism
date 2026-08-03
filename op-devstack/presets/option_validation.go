@@ -148,6 +148,7 @@ func validatePresetConfig(cfg sysgo.PresetConfig) error {
 const minimalPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindBatcher |
 	optionKindProposer |
+	optionKindOpReth |
 	optionKindGlobalL2CL |
 	optionKindL1EL |
 	optionKindAddedGameType |

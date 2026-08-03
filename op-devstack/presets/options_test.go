@@ -108,6 +108,12 @@ func TestUnsupportedPresetOptionKinds(t *testing.T) {
 			want:      0,
 		},
 		{
+			name:      "minimal allows op-reth options",
+			supported: minimalPresetSupportedOptionKinds,
+			opts:      WithOpRethOption(sysgo.OpRethWithBinary("op-reth-superset")),
+			want:      0,
+		},
+		{
 			name:      "flashblocks allows builder and deployer adapters",
 			supported: singleChainWithFlashblocksPresetSupportedOptionKinds,
 			opts: Combine(

@@ -121,6 +121,33 @@ func ResolveMixedL2CLKind() MixedL2CLKind {
 	return MixedL2CLOpNode
 }
 
+// ResolveMixedL2ELOpts returns the op-reth options requested via the environment:
+// DEVSTACK_L2EL_BINARY names a CLI-superset binary to launch instead of the default
+// "op-reth", and DEVSTACK_L2EL_ARGS carries whitespace-separated extra CLI arguments for
+// it. The returned slice is empty when both are unset, so callers get stock op-reth.
+//
+// This is the EL-side counterpart to ResolveMixedL2CLKind: it lets a suite outside this
+// repo re-run these tests against its own EL build without forking the test bodies. The
+// named binary is resolved through the usual rustbin env overrides (see OpRethWithBinary).
+//
+// A superset binary that binds a listener the harness knows nothing about needs the args
+// to move it off a fixed port, since every node here shares one host.
+//
+// Proofs history is disabled whenever a binary is named: the mixed runtime enables it on
+// every op-reth node, but a superset binary that replaces the payload service cannot host
+// op-reth's proof-history launcher, so leaving it on would either be silently ignored or
+// refused at startup. A suite that needs it should run stock op-reth.
+func ResolveMixedL2ELOpts() []OpRethOption {
+	var opts []OpRethOption
+	if binary := os.Getenv("DEVSTACK_L2EL_BINARY"); binary != "" {
+		opts = append(opts, OpRethWithBinary(binary), OpRethWithoutProofsHistory())
+	}
+	if extraArgs := strings.Fields(os.Getenv("DEVSTACK_L2EL_ARGS")); len(extraArgs) > 0 {
+		opts = append(opts, OpRethWithExtraArgs(extraArgs...))
+	}
+	return opts
+}
+
 type MixedSingleChainNodeSpec struct {
 	ELKey       string
 	CLKey       string

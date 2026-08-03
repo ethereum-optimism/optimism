@@ -99,7 +99,9 @@ func startDefaultSingleChainPrimary(
 		cfg.SafeDBPath = safeDBPath
 	})}
 	l2CLOptions = append(l2CLOptions, cfg.GlobalL2CLOptions...)
-	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, NewELNodeIdentity(0))
+	// Env-resolved options come first so an option the test set explicitly still wins.
+	sequencerELOpts := append(ResolveMixedL2ELOpts(), cfg.OpRethOptions...)
+	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, NewELNodeIdentity(0), sequencerELOpts...)
 	if world.Interop != nil {
 		l2CL := startL2CLNode(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
 			Key:           "sequencer",
