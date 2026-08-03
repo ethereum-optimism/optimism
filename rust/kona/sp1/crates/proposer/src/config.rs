@@ -353,10 +353,6 @@ impl ProofProviderConfig {
     }
 }
 
-// The aggregation proof kind is deliberately NOT configurable: the on-chain
-// verifier adapter is SP1PlonkAdapter, so PLONK is the only mode that can
-// ever verify. The prover hardcodes it (see `NetworkProofProvider`).
-
 /// How many chunks a defended timestamp span is partitioned into
 /// (1-16 inclusive). Ported from upstream op-succinct's `RangeSplitCount`;
 /// the unit here is super-root timestamps, not L2 blocks.

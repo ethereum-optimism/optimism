@@ -1656,11 +1656,8 @@ where
 
         // A CHALLENGER_WINS game is terminal: children can never
         // initialize on it (InvalidParentGame), it can never anchor, and
-        // the proposer holds no claimable credit in it. Classify it as
-        // invalid at discovery so it can never enter the DAG or the pending
-        // set - without this, an own game lost while held pending would
-        // stay pending (owned pending entries are eviction-exempt) and
-        // re-validate forever.
+        // the proposer holds no claimable credit in it. It never enters
+        // the DAG or the pending set.
         if status == GameStatus::ChallengerWins {
             tracing::info!(
                 game_index = %index,

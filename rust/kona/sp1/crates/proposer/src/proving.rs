@@ -140,9 +140,9 @@ pub async fn fetch_span_responses(
 /// callers gate trust on `current_l1` themselves. Per the API contract
 /// (`SuperRootAtTimestampResponse.CurrentL1`), only blocks STRICTLY below
 /// `current_l1` are fully processed - data at `current_l1` itself may still
-/// be incomplete - so trust requires `current_l1 > verified_required_l1`,
-/// not `>=`. An untrusted answer may still be used to prove (the guest
-/// re-derives everything anyway) but must never permanently condemn a game.
+/// be incomplete - so trust requires `current_l1 > verified_required_l1`.
+/// An untrusted answer may still be used to prove (the guest re-derives
+/// everything anyway) but must never permanently condemn a game.
 fn response_trusted(response: &SuperRootAtTimestampResponse) -> bool {
     response
         .data

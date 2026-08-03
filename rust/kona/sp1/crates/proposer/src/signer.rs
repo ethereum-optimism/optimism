@@ -161,9 +161,6 @@ impl Signer {
                 let raw: Bytes =
                     signer.provider().client().request("eth_signTransaction", (tx,)).await?;
 
-                // A malformed response (truncated body, proxy error page)
-                // must fail the task - retried next tick - not kill the
-                // process while it holds live defense deadlines.
                 let tx_envelope = TxEnvelope::decode_2718(&mut raw.as_ref()).context(
                     "eth_signTransaction returned bytes that do not decode as a signed envelope",
                 )?;
