@@ -13302,6 +13302,7 @@ dependencies = [
  "alloy-rlp",
  "clap",
  "derive_more 2.1.1",
+ "dirs-next",
  "eyre",
  "futures-util",
  "metrics",

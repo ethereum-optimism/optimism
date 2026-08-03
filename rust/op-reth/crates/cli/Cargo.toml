@@ -72,6 +72,7 @@ proptest = { workspace = true, optional = true }
 op-alloy-consensus.workspace = true
 
 [dev-dependencies]
+dirs-next.workspace = true
 tempfile.workspace = true
 reth-stages = { workspace = true, features = ["test-utils"] }
 metrics-exporter-prometheus.workspace = true

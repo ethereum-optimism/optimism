@@ -11,9 +11,9 @@
 //! ```
 //!
 //! The rendering is hand-rolled (instead of `--help` output or a snapshot crate) so that it is
-//! independent of terminal width, help-text wrapping, and extra dependencies. Machine-specific
-//! content (platform-derived paths, build metadata embedded in defaults) is normalized to stable
-//! placeholders, see [`normalize_default`]. Only clap's *short* help (`Arg::get_help`) is
+//! independent of terminal width and help-text wrapping. Machine-specific content
+//! (platform-derived path prefixes, build metadata embedded in defaults) is normalized to
+//! stable placeholders, see [`normalize_default`]. Only clap's *short* help (`Arg::get_help`) is
 //! rendered, never the long help: long help texts embed environment- and registry-derived
 //! content (most notably `--chain`, whose long help lists every built-in superchain chain and
 //! would churn on registry updates unrelated to the CLI surface).
@@ -42,11 +42,6 @@ const ROOT_NAME: &str = "op-reth";
 /// (client version strings, CPU counts). Their defaults are normalized to a placeholder.
 const MACHINE_SPECIFIC_DEFAULTS: &[&str] =
     &["identity", "builder.extradata", "rpc.max-tracing-requests"];
-
-/// Environment variables that point at machine-specific base directories. Any default value that
-/// contains one of these paths is normalized to a placeholder.
-const PATH_ENV_VARS: &[&str] =
-    &["XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_CONFIG_HOME", "HOME", "USERPROFILE"];
 
 #[test]
 fn cli_surface_snapshot() {
@@ -431,15 +426,38 @@ fn normalize_default(long: Option<&str>, value: &str) -> String {
     {
         return "<MACHINE_SPECIFIC>".to_string();
     }
-    for var in PATH_ENV_VARS {
-        if let Ok(dir) = env::var(var) &&
-            dir.len() > 1 &&
-            value.contains(&dir)
-        {
-            return "<PLATFORM_PATH>".to_string();
-        }
+    if long == Some("log.file.directory") &&
+        let Some(cache_dir) = dirs_next::cache_dir() &&
+        let Some(normalized) = normalize_platform_path(&cache_dir, value, "<CACHE_DIR>")
+    {
+        return normalized;
     }
     value.to_string()
+}
+
+/// Replaces a platform-specific base directory while retaining the meaningful path suffix.
+fn normalize_platform_path(base_dir: &Path, value: &str, placeholder: &str) -> Option<String> {
+    let suffix = Path::new(value).strip_prefix(base_dir).ok()?;
+    let suffix = suffix
+        .components()
+        .map(|component| component.as_os_str().to_string_lossy())
+        .collect::<Vec<_>>()
+        .join("/");
+    if suffix.is_empty() {
+        Some(placeholder.to_string())
+    } else {
+        Some(format!("{placeholder}/{suffix}"))
+    }
+}
+
+#[test]
+fn platform_path_normalization_preserves_suffix() {
+    let base = Path::new("/home/alice/.cache");
+    assert_eq!(
+        normalize_platform_path(base, "/home/alice/.cache/reth/logs", "<CACHE_DIR>"),
+        Some("<CACHE_DIR>/reth/logs".to_string())
+    );
+    assert_eq!(normalize_platform_path(base, "/var/log/reth", "<CACHE_DIR>"), None);
 }
 
 /// Escapes newlines so every rendered element stays on a single line.

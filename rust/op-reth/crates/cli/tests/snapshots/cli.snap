@@ -10,7 +10,7 @@ arg: --log.stdout.format <FORMAT> [action: Set] [num-args: 1] [default: terminal
 arg: --log.stdout.filter <FILTER> [action: Set] [num-args: 1] [default: ] [global] help: The filter to use for logs written to stdout
 arg: --log.file.format <FORMAT> [action: Set] [num-args: 1] [default: terminal] [possible: json, log-fmt, terminal] [global] help: The format to use for logs written to the log file
 arg: --log.file.filter <FILTER> [action: Set] [num-args: 1] [default: debug] [global] help: The filter to use for logs written to the log file
-arg: --log.file.directory <PATH> [action: Set] [num-args: 1] [default: <PLATFORM_PATH>] [global] help: The path to put log files in
+arg: --log.file.directory <PATH> [action: Set] [num-args: 1] [default: <CACHE_DIR>/reth/logs] [global] help: The path to put log files in
 arg: --log.file.name <NAME> [action: Set] [num-args: 1] [default: reth.log] [global] help: The prefix name of the log files
 arg: --log.file.max-size <SIZE> [action: Set] [num-args: 1] [default: 200] [global] help: The maximum size (in MB) of one log file
 arg: --log.file.max-files <COUNT> [action: Set] [num-args: 1] [global] help: The maximum amount of log files that will be stored. If set to 0, background file logging is disabled
