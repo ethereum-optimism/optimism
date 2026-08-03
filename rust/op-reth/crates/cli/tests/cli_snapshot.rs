@@ -66,7 +66,7 @@ fn cli_surface_snapshot() {
     // Print the full generated snapshot so it can be recovered from CI logs even when the
     // checked-in file is badly out of date (e.g. on the very first run after a reth bump).
     println!("----- BEGIN GENERATED CLI SNAPSHOT ({}) -----", SNAPSHOT_PATH);
-    println!("{rendered}");
+    print!("{rendered}");
     println!("----- END GENERATED CLI SNAPSHOT -----");
 
     if let Some(tmpdir) = option_env!("CARGO_TARGET_TMPDIR") {
