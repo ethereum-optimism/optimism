@@ -255,7 +255,7 @@ A minimal batcher configuration (with env vars) to enable 6-blob batcher transac
 ```
 This enables blob transactions and sets the target number of frames to 6, which translates to 6 blobs per transaction. The min. tip cap and base fee are also lifted to 2 gwei because it is uncertain how easy it will be to get 6-blob transactions included and slightly higher priority fees should help. The resubmission timeout is increased to a few minutes to give more time for inclusion before bumping the fees, because current txpool implementations require a _doubling_ of fees for blob transaction replacements.
 
-Multi-blob transactions are particularly interesting for medium to high-throughput chains, where enough transaction volume exists to fill up 6 blobs in a reasonable amount of time. You can use [this calculator](https://docs.google.com/spreadsheets/d/12VIiXHaVECG2RUunDSVJpn67IQp9NHFJqUsma2PndpE/edit) for your chain to determine what number of blobs are right for you, and what gas scalar configuration to use. Please also refer to our [documentation](https://docs.optimism.io/builders/chain-operators/management/blobs) on Blobs for chain operators.
+Multi-blob transactions are particularly interesting for medium to high-throughput chains, where enough transaction volume exists to fill up 6 blobs in a reasonable amount of time. You can use [the Tune batcher costs guide](/use-cases/tune-batcher-costs) for your chain to determine what number of blobs are right for you, and what gas scalar configuration to use. Please also refer to our [documentation](/chain-operators/guides/features/blobs) on Blobs for chain operators.
 
 🚢 **Docker image**: https://us-docker.pkg.dev/oplabs-tools-artifacts/images/op-batcher:v1.7.2-rc.3
 

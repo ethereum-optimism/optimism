@@ -185,6 +185,17 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return fmt.Errorf("failed to create forked L1 script host: %w", err)
 	}
 
+	superDeployment, superRoles, err := pipeline.PopulateSuperchainState(
+		&pipeline.Env{Logger: cfg.Logger, L1ScriptHost: l1Host},
+		opcmAddr,
+		*intent.SuperchainConfigProxy,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to read superchain deployment: %w", err)
+	}
+	st.SuperchainDeployment = superDeployment
+	st.SuperchainRoles = superRoles
+
 	deployScript, err := opcm.NewDeployOPChainScript(l1Host)
 	if err != nil {
 		return fmt.Errorf("failed to load DeployOPChain script: %w", err)
