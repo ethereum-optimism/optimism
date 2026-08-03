@@ -251,6 +251,13 @@ fn render_arg(cmd: &clap::Command, arg: &clap::Arg) -> String {
     render_arg_debug_field(
         &mut s,
         &arg_debug,
+        "default_vals_ifs",
+        "terminator",
+        "default-values-if",
+    );
+    render_arg_debug_field(
+        &mut s,
+        &arg_debug,
         "default_missing_vals",
         "ext",
         "default-missing-values",
@@ -271,9 +278,10 @@ fn render_arg(cmd: &clap::Command, arg: &clap::Arg) -> String {
     if !conflicts.is_empty() {
         write!(s, " [conflicts: {}]", conflicts.join(", ")).unwrap();
     }
-    // clap does not expose reflection getters for requirement predicates or default-missing
-    // values. Its Debug implementation does expose their value-only representations; the focused
-    // test below ensures a clap update cannot silently remove or rename these fields.
+    // clap does not expose reflection getters for requirement predicates or conditional and
+    // default-missing values. Its Debug implementation does expose their value-only
+    // representations; the focused test below ensures a clap update cannot silently remove or
+    // rename these fields.
     render_arg_debug_field(&mut s, &arg_debug, "requires", "r_ifs", "requires");
     render_arg_debug_field(&mut s, &arg_debug, "r_ifs", "r_unless", "requires-if");
     render_arg_debug_field(&mut s, &arg_debug, "r_unless", "short", "requires-unless");
@@ -362,11 +370,12 @@ fn arg_name(arg: &clap::Arg) -> String {
 }
 
 #[test]
-fn renders_parser_requirements_and_missing_defaults() {
+fn renders_parser_requirements_and_defaults() {
     let command = clap::Command::new("test").arg(clap::Arg::new("mode").long("mode")).arg(
         clap::Arg::new("output")
             .long("output")
             .num_args(0..=1)
+            .default_value_if("mode", "json", "output.json")
             .default_missing_value("stdout")
             .requires("mode"),
     );
@@ -374,6 +383,7 @@ fn renders_parser_requirements_and_missing_defaults() {
     let rendered = render_snapshot(&command);
     assert!(rendered.contains(
         "arg: --output <OUTPUT> [action: Set] [num-args: 0..=1] \
+         [default-values-if: [(\"mode\", Equals(\"json\"), Some([\"output.json\"]))]] \
          [default-missing-values: [\"stdout\"]] [requires: [(IsPresent, \"mode\")]]"
     ));
 }

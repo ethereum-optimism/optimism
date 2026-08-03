@@ -38,7 +38,7 @@ arg: --tracing-otlp.sample-ratio <RATIO> [action: Set] [num-args: 1] [env: OTEL_
 == op-reth node
 about: Start the node
 arg: --config <FILE> [action: Set] [num-args: 1] help: The path to the configuration file to use.
-arg: --chain <CHAIN_OR_PATH> [action: Set] [num-args: 1] [default: optimism] help: The chain this node is running
+arg: --chain <CHAIN_OR_PATH> [action: Set] [num-args: 1] [default: optimism] [default-values-if: [("dev", Equals("true"), Some(["dev"]))]] help: The chain this node is running
 arg: --metrics <PROMETHEUS> [action: Set] [num-args: 1] [aliases: metrics.prometheus] help: Enable Prometheus metrics
 arg: --metrics.prometheus.push.url <PUSH_GATEWAY_URL> [action: Set] [num-args: 1] help: URL for pushing Prometheus metrics to a push gateway
 arg: --metrics.prometheus.push.interval <SECONDS> [action: Set] [num-args: 1] [default: 5] help: Interval in seconds for pushing metrics to push gateway
@@ -48,7 +48,7 @@ arg: --datadir <DATA_DIR> [action: Set] [num-args: 1] [default: default] help: T
 arg: --datadir.static-files <PATH> [action: Set] [num-args: 1] [aliases: datadir.static_files] help: The absolute path to store static files in.
 arg: --datadir.rocksdb <PATH> [action: Set] [num-args: 1] help: The absolute path to store `RocksDB` database in.
 arg: --datadir.pprof-dumps <PATH> [action: Set] [num-args: 1] help: The absolute path to store pprof dumps in.
-arg: -d/--disable-discovery [action: SetTrue] [num-args: 0] [default: false] help: Disable the discovery service
+arg: -d/--disable-discovery [action: SetTrue] [num-args: 0] [default: false] [default-values-if: [("dev", Equals("true"), Some(["true"]))]] help: Disable the discovery service
 arg: --disable-dns-discovery [action: SetTrue] [num-args: 0] [default: false] [conflicts: -d/--disable-discovery] help: Disable the DNS discovery
 arg: --disable-discv4-discovery [action: SetTrue] [num-args: 0] [default: false] [conflicts: -d/--disable-discovery] help: Disable Discv4 discovery
 arg: --enable-discv5-discovery [action: SetTrue] [num-args: 0] [conflicts: -d/--disable-discovery] [hidden] help: Enable Discv5 discovery
@@ -96,7 +96,7 @@ arg: --network-id <NETWORK_ID> [action: Set] [num-args: 1] help: Optional networ
 arg: --eth-max-message-size <BYTES> [action: Set] [num-args: 1] help: Maximum allowed ETH message size in bytes. Default is 10 MiB
 arg: --netrestrict <NETRESTRICT> [action: Set] [num-args: 1] help: Restrict network communication to the given IP networks (CIDR masks)
 arg: --enforce-enr-fork-id [action: SetTrue] [num-args: 0] [default: false] help: Enforce EIP-868 ENR fork ID validation for discovered peers
-arg: --http [action: SetTrue] [num-args: 0] [default: false] help: Enable the HTTP-RPC server
+arg: --http [action: SetTrue] [num-args: 0] [default: false] [default-values-if: [("dev", Equals("true"), Some(["true"]))]] help: Enable the HTTP-RPC server
 arg: --http.addr <HTTP_ADDR> [action: Set] [num-args: 1] [default: 127.0.0.1] help: Http server address to listen on
 arg: --http.port <HTTP_PORT> [action: Set] [num-args: 1] [default: 8545] help: Http server port to listen on
 arg: --http.disable-compression [action: SetTrue] [num-args: 0] [default: false] help: Disable compression for HTTP responses
@@ -316,7 +316,7 @@ arg: --min-suggested-priority-fee <MIN_SUGGESTED_PRIORITY_FEE> [action: Set] [nu
 arg: --rollup.max-uncompressed-block-size <MAX_UNCOMPRESSED_BLOCK_SIZE> [action: Set] [num-args: 1] help: Maximum cumulative uncompressed (EIP-2718 encoded) block size in bytes
 arg: --flashblocks-url <FLASHBLOCKS_URL> [action: Set] [num-args: 1] [aliases: websocket-url] help: A URL pointing to a secure websocket subscription that streams out flashblocks
 arg: --flashblock-consensus [action: SetTrue] [num-args: 0] [default: false] [requires: [(IsPresent, "flashblocks_url")]] help: Enable flashblock consensus client to drive the chain forward
-arg: --proofs-history [action: SetTrue] [num-args: 0] help: If true, initialize external-proofs exex to save and serve trie nodes to provide proofs faster
+arg: --proofs-history [action: SetTrue] [num-args: 0] [default-values-if: [("proofs-history.storage-path", IsPresent, Some(["true"]))]] help: If true, initialize external-proofs exex to save and serve trie nodes to provide proofs faster
 arg: --proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH> [action: Set] [num-args: 1] help: Path to the proofs-history storage DB. Defaults to `<reth-data-dir>/historical-proofs` (chain-namespaced via reth's `--datadir`)
 arg: --proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION> [action: Set] [num-args: 1] [default: v1] [possible: v1, v2] help: Storage schema version. Must match the version used when starting the node
 arg: --proofs-history.window <PROOFS_HISTORY_WINDOW> [action: Set] [num-args: 1] [default: 1296000] help: The window to span blocks for proofs history. Value is the number of blocks. Default is 1 month of blocks based on 2 seconds block time (`30 * 24 * 60 * 60 / 2 = 1_296_000`)
@@ -695,7 +695,7 @@ arg: --batch-size <BATCH_SIZE> [action: Set] [num-args: 1] help: Batch size for 
 arg: -s/--skip-unwind [action: SetTrue] [num-args: 0] help: Normally, running the stage requires unwinding for stages that already have been run, in order to not rewrite to the same database slots
 arg: -c/--commit [action: SetTrue] [num-args: 0] help: Commits the changes in the database. WARNING: potentially destructive
 arg: --checkpoints [action: SetTrue] [num-args: 0] help: Save stage checkpoints
-arg: -d/--disable-discovery [action: SetTrue] [num-args: 0] [default: false] help: Disable the discovery service
+arg: -d/--disable-discovery [action: SetTrue] [num-args: 0] [default: false] [default-values-if: [("dev", Equals("true"), Some(["true"]))]] help: Disable the discovery service
 arg: --disable-dns-discovery [action: SetTrue] [num-args: 0] [default: false] [conflicts: -d/--disable-discovery] help: Disable the DNS discovery
 arg: --disable-discv4-discovery [action: SetTrue] [num-args: 0] [default: false] [conflicts: -d/--disable-discovery] help: Disable Discv4 discovery
 arg: --enable-discv5-discovery [action: SetTrue] [num-args: 0] [conflicts: -d/--disable-discovery] [hidden] help: Enable Discv5 discovery
@@ -869,7 +869,7 @@ about: P2P Debugging utilities
 == op-reth p2p header
 about: Download block header
 arg: --retries <RETRIES> [action: Set] [num-args: 1] [default: 5] help: The number of retries per request
-arg: -d/--disable-discovery [action: SetTrue] [num-args: 0] [default: false] help: Disable the discovery service
+arg: -d/--disable-discovery [action: SetTrue] [num-args: 0] [default: false] [default-values-if: [("dev", Equals("true"), Some(["true"]))]] help: Disable the discovery service
 arg: --disable-dns-discovery [action: SetTrue] [num-args: 0] [default: false] [conflicts: -d/--disable-discovery] help: Disable the DNS discovery
 arg: --disable-discv4-discovery [action: SetTrue] [num-args: 0] [default: false] [conflicts: -d/--disable-discovery] help: Disable Discv4 discovery
 arg: --enable-discv5-discovery [action: SetTrue] [num-args: 0] [conflicts: -d/--disable-discovery] [hidden] help: Enable Discv5 discovery
@@ -928,7 +928,7 @@ arg: [positional: id] <ID> [action: Set] [num-args: 1] [required] help: The head
 == op-reth p2p body
 about: Download block body
 arg: --retries <RETRIES> [action: Set] [num-args: 1] [default: 5] help: The number of retries per request
-arg: -d/--disable-discovery [action: SetTrue] [num-args: 0] [default: false] help: Disable the discovery service
+arg: -d/--disable-discovery [action: SetTrue] [num-args: 0] [default: false] [default-values-if: [("dev", Equals("true"), Some(["true"]))]] help: Disable the discovery service
 arg: --disable-dns-discovery [action: SetTrue] [num-args: 0] [default: false] [conflicts: -d/--disable-discovery] help: Disable the DNS discovery
 arg: --disable-discv4-discovery [action: SetTrue] [num-args: 0] [default: false] [conflicts: -d/--disable-discovery] help: Disable Discv4 discovery
 arg: --enable-discv5-discovery [action: SetTrue] [num-args: 0] [conflicts: -d/--disable-discovery] [hidden] help: Enable Discv5 discovery
