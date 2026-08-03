@@ -15,7 +15,21 @@ diataxis: reference
 
 **op-batcher** is responsible for data availability — it reads unsafe blocks from the sequencer and posts transaction batches to the DA layer (L1 or Alt DA). See the [batcher spec](https://specs.optimism.io/protocol/batcher.html).
 
-<Update label="July 20, 2026" description="v1.16.11" tags={["Latest", "Stable"]}>
+<Update label="August 3, 2026" description="v1.16.12" tags={["Latest", "Stable"]}>
+
+> [!NOTE]
+> **Optional upgrade — no functional changes.** This release contains no behavioural changes to op-batcher.
+> It is published to keep op-batcher aligned with the rest of the op-stack release, and carries only a
+> refactor moving shared `DepositTx` and transaction helpers into `op-core`.
+
+> [!IMPORTANT]
+> **APKO Docker images:** Starting with this release, the Docker URL contains an additional `/nexus` in its path, see full Docker image path below. Our Docker builds are now APKO based and during a transition period, the APKO-based images for any component will be available at `https://us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus/<component>:<version>`. When we migrate to APKO-only images, we may remove the `/nexus` again from our image paths and will give another notice in this case.
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-batcher/v1.16.12)
+
+</Update>
+
+<Update label="July 20, 2026" description="v1.16.11" tags={["Stable"]}>
 
 > [!NOTE]
 > **Optional upgrade.** No op-batcher-specific changes — this release refreshes shared dependencies: Go 1.26.4 + dependency bumps for image CVE fixes ([#21452](https://github.com/ethereum-optimism/optimism/pull/21452), [#21450](https://github.com/ethereum-optimism/optimism/pull/21450)), a txmgr fix suppressing a spurious receipt-missing log after successful sends ([#21317](https://github.com/ethereum-optimism/optimism/pull/21317)), and Karst/Lagoon hardfork plumbing in shared packages. Recommended to pick up the CVE-motivated image refresh.
