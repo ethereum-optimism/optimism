@@ -192,14 +192,22 @@ mod test {
         // the table build breaks thousands of entries and fails on the first
         // sampled index. Indices 0 and 4095 — the entries a fill-loop
         // off-by-one would leave at Fr::ZERO, and both mapping to themselves
-        // under the bit-reversal permutation — are always checked; the random
-        // sample is drawn from the interior so all checked indices are distinct.
-        const SAMPLED_FIELD_ELEMENTS: usize = 256;
-        let mut indices: Vec<usize> =
-            rand::seq::index::sample(&mut rand::rng(), FIELD_ELEMENTS - 2, SAMPLED_FIELD_ELEMENTS)
-                .into_iter()
-                .map(|interior_index| interior_index + 1)
-                .collect();
+        // under the bit-reversal permutation — are always checked; the remaining
+        // draws come from the interior so all checked indices are distinct.
+        //
+        // 256 (kept a power of two) fills the ~5s CI budget agreed in review:
+        // checking n elements costs ~1.4s fixed + ~5.1ms each locally
+        // (n=34: 1.54s, n=258: 2.69s, n=514: 4.01s), and CI ran n=34 at
+        // 1.85x local (2.85s), so n=256 projects to ~5.0s in CI.
+        const CHECKED_FIELD_ELEMENTS: usize = 256;
+        let mut indices: Vec<usize> = rand::seq::index::sample(
+            &mut rand::rng(),
+            FIELD_ELEMENTS - 2,
+            CHECKED_FIELD_ELEMENTS - 2,
+        )
+        .into_iter()
+        .map(|interior_index| interior_index + 1)
+        .collect();
         indices.extend([0, FIELD_ELEMENTS - 1]);
 
         indices.into_par_iter().for_each(|i| {
