@@ -64,7 +64,6 @@ func buildPreparedWorkdir(t *testing.T) (string, common.Hash) {
 	require.NoError(t, pipeline.GenerateL2Genesis(pEnv, intent, bundle, st, chain.ID))
 	require.NoError(t, pipeline.ComputeGenesisOutputRoots(pEnv, intent, st))
 
-	st.Prepared = true
 	prepared, err := pipeline.NewPreparedDeployment(intent, st, deployerAddr, common.HexToAddress("0x1234"), bundle)
 	require.NoError(t, err)
 	st.PreparedDeployment = prepared

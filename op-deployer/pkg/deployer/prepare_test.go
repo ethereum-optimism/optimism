@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	opdenv "github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
@@ -406,6 +407,9 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 	l1RPC, err := rpc.Dial(l1RPCUrl)
 	require.NoError(t, err)
 	l1Client := ethclient.NewClient(l1RPC)
+	l1ChainID, err := l1Client.ChainID(ctx)
+	require.NoError(t, err)
+	require.NotEqualValues(t, 1337, bigs.Uint64Strict(l1ChainID))
 
 	host, err := opdenv.DefaultScriptHost(
 		broadcaster.NoopBroadcaster(),
@@ -467,6 +471,14 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 			gameType: embedded.GameTypeSuperCannonKona,
 			chainID:  common.HexToHash("0x0301"),
 			salt:     common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901235"),
+		},
+		{
+			name:     "L2_CHAIN_ID_1337",
+			gameType: embedded.GameTypeSuperCannonKona,
+			// The script host defaults to chain ID 1337. This remains a valid L2 chain ID
+			// because the fork context must use the actual, non-1337 Anvil L1 chain ID.
+			chainID: common.HexToHash("0x0539"),
+			salt:    common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901236"),
 		},
 	}
 

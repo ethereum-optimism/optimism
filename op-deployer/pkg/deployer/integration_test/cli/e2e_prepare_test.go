@@ -70,7 +70,7 @@ func TestCLIPrepareCommitsSuperchainDeployment(t *testing.T) {
 
 		prepared, err := pipeline.ReadState(workdir)
 		require.NoError(t, err)
-		require.True(t, prepared.Prepared)
+		require.NotNil(t, prepared.PreparedDeployment)
 
 		// The read must reproduce what apply recorded when it deployed the superchain.
 		require.NotNil(t, prepared.SuperchainDeployment)
@@ -107,7 +107,6 @@ func TestCLIPrepareCommitsSuperchainDeployment(t *testing.T) {
 
 		unwritten, err := pipeline.ReadState(workdir)
 		require.NoError(t, err)
-		require.False(t, unwritten.Prepared)
 		require.Nil(t, unwritten.SuperchainDeployment)
 		require.Nil(t, unwritten.SuperchainRoles)
 		require.Nil(t, unwritten.PreparedDeployment)

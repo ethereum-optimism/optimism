@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
@@ -51,7 +53,6 @@ func TestPrestateWorkflowFromPrepareChains(t *testing.T) {
 			historicalSelected := common.HexToHash("0xaa")
 			st := &state.State{
 				Version:     1,
-				Prepared:    true,
 				Create2Salt: common.HexToHash("0xcc"),
 			}
 			var deployedContracts addresses.OpChainContracts
@@ -84,6 +85,12 @@ func TestPrestateWorkflowFromPrepareChains(t *testing.T) {
 			}
 
 			require.NoError(t, prepareChains(testlog.Logger(t, slog.LevelInfo), intent, st, run, selectAnchor, anchor, 600))
+			bundle := artifacts.Bundle{
+				L1: foundry.OpenArtifactsDir(t.TempDir()).FS,
+				L2: foundry.OpenArtifactsDir(t.TempDir()).FS,
+			}
+			st.PreparedDeployment, err = pipeline.NewPreparedDeployment(intent, st, common.Address{0x01}, *intent.OPCMAddress, bundle)
+			require.NoError(t, err)
 			require.Len(t, predicted, 2)
 			require.NotContains(t, predicted, deployedID)
 			require.Len(t, st.Chains, len(chainIDs))
@@ -106,7 +113,7 @@ func TestPrestateWorkflowFromPrepareChains(t *testing.T) {
 
 			persisted, err := pipeline.ReadState(workdir)
 			require.NoError(t, err)
-			require.True(t, persisted.Prepared)
+			require.NotNil(t, persisted.PreparedDeployment)
 			require.NotNil(t, persisted.InteropDepSet)
 			for _, chainID := range chainIDs {
 				require.True(t, persisted.InteropDepSet.HasChain(eth.ChainIDFromBytes32(chainID)))
@@ -121,12 +128,20 @@ func TestPrestateWorkflowFromPrepareChains(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, predicted[permissionedID], permissioned.SystemConfigProxy)
 			require.Zero(t, permissioned.Prestate)
+			// No respectedGameType override, so this chain resolves to the standard
+			// selector, which is SUPER_PERMISSIONED now that super-root is default-on.
+			permissionedProof, err := pipeline.PreparedChainProofParams(persisted, permissionedID)
+			require.NoError(t, err)
+			require.Equal(t, standard.DisputeGameType, permissionedProof.DisputeGameType)
 			require.Equal(t, standard.DisputeGameType, *permissioned.InitialGameType)
 
 			permissionless, err := persisted.Chain(permissionlessID)
 			require.NoError(t, err)
 			require.Equal(t, predicted[permissionlessID], permissionless.SystemConfigProxy)
 			require.Equal(t, tt.wantSelected, permissionless.Prestate)
+			permissionlessProof, err := pipeline.PreparedChainProofParams(persisted, permissionlessID)
+			require.NoError(t, err)
+			require.Equal(t, uint32(tt.permissionlessType), permissionlessProof.DisputeGameType)
 			require.Equal(t, uint32(tt.permissionlessType), *permissionless.InitialGameType)
 		})
 	}
