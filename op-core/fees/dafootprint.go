@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
-
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 )
 
