@@ -35,7 +35,6 @@ import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
-import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 /// @title OPContractsManagerV2_TestInit
@@ -245,10 +244,6 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         skipIfNotForkTest("OPContractsManagerV2_Upgrade_TestInit: only runs in forked tests");
         skipIfOpsRepoTest("OPContractsManagerV2_Upgrade_TestInit: skipped in superchain-ops");
 
-        // Etch code to the dummy ZK verifier address
-        // so that the code length check passes in the StandardValidator.
-        vm.etch(address(0xBEEF), hex"01");
-
         // Set the chain PAO.
         chainPAO = proxyAdmin.owner();
         vm.label(chainPAO, "ProxyAdmin Owner");
@@ -322,7 +317,6 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
                 gameArgs: abi.encode(
                     IOPContractsManagerUtils.ZKDisputeGameConfig({
                         absolutePrestate: Claim.wrap(bytes32(0)),
-                        verifier: IZKVerifier(address(0)),
                         maxChallengeDuration: Duration.wrap(0),
                         maxProveDuration: Duration.wrap(0),
                         challengerBond: 0
@@ -1058,7 +1052,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
             IOPContractsManagerUtils.ZKDisputeGameConfig({
                 absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate"))),
-                verifier: IZKVerifier(address(0xBEEF)),
                 maxChallengeDuration: Duration.wrap(uint64(7 days)),
                 maxProveDuration: Duration.wrap(uint64(3 days)),
                 challengerBond: 1 ether
@@ -1086,7 +1079,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
             IOPContractsManagerUtils.ZKDisputeGameConfig({
                 absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate"))),
-                verifier: IZKVerifier(address(0xBEEF)),
                 maxChallengeDuration: Duration.wrap(uint64(7 days)),
                 maxProveDuration: Duration.wrap(uint64(3 days)),
                 challengerBond: 1 ether
@@ -1100,6 +1092,11 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         // + challengerBond(32) + anchorStateRegistry(20) + delayedWETH(20) = 140 bytes
         bytes memory args = disputeGameFactory.gameArgs(GameTypes.ZK_DISPUTE_GAME);
         assertEq(args.length, 140, "ZK game args length must be 140 bytes (32+20+8+8+32+20+20)");
+        assertEq(
+            LibGameArgs.decodeZK(args).verifier,
+            opcmV2.implementations().sp1PlonkAdapter,
+            "ZK verifier must be the release adapter"
+        );
     }
 
     /// @notice Tests that setting ZK config to enabled without the dev feature reverts.
@@ -1121,8 +1118,8 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         );
     }
 
-    /// @notice Tests that the ZK prestate and verifier can be rotated via a config update.
-    function test_upgrade_updateZKPrestateAndVerifier_succeeds() public {
+    /// @notice Tests that the ZK prestate can be rotated while the release adapter remains fixed.
+    function test_upgrade_updateZKPrestate_succeeds() public {
         skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
 
         // Enable ZK with initial config.
@@ -1131,7 +1128,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
             IOPContractsManagerUtils.ZKDisputeGameConfig({
                 absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate v1"))),
-                verifier: IZKVerifier(address(0xBEEF)),
                 maxChallengeDuration: Duration.wrap(uint64(7 days)),
                 maxProveDuration: Duration.wrap(uint64(3 days)),
                 challengerBond: 1 ether
@@ -1140,15 +1136,12 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         runCurrentUpgradeV2(chainPAO);
         bytes memory argsV1 = disputeGameFactory.gameArgs(GameTypes.ZK_DISPUTE_GAME);
 
-        // Etch code to the dummy ZK verifier address
-        // so that the code length check passes in the StandardValidator.
-        vm.etch(address(0xDEAD), hex"01");
+        address verifierV1 = LibGameArgs.decodeZK(argsV1).verifier;
 
-        // Rotate to new prestate and verifier.
+        // Rotate to a new prestate.
         v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
             IOPContractsManagerUtils.ZKDisputeGameConfig({
                 absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate v2"))),
-                verifier: IZKVerifier(address(0xDEAD)),
                 maxChallengeDuration: Duration.wrap(uint64(7 days)),
                 maxProveDuration: Duration.wrap(uint64(3 days)),
                 challengerBond: 1 ether
@@ -1158,6 +1151,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         bytes memory argsV2 = disputeGameFactory.gameArgs(GameTypes.ZK_DISPUTE_GAME);
 
         assertTrue(keccak256(argsV1) != keccak256(argsV2), "ZK game args should have changed after rotation");
+        assertEq(LibGameArgs.decodeZK(argsV2).verifier, verifierV1, "release verifier must not rotate per chain");
     }
 
     /// @notice Tests that disabling the ZK game sets the init bond to zero in the factory.
@@ -1170,7 +1164,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
             IOPContractsManagerUtils.ZKDisputeGameConfig({
                 absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate"))),
-                verifier: IZKVerifier(address(0xBEEF)),
                 maxChallengeDuration: Duration.wrap(uint64(7 days)),
                 maxProveDuration: Duration.wrap(uint64(3 days)),
                 challengerBond: 1 ether
@@ -1319,7 +1312,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
                 gameArgs: abi.encode(
                     IOPContractsManagerUtils.ZKDisputeGameConfig({
                         absolutePrestate: Claim.wrap(bytes32(0)),
-                        verifier: IZKVerifier(address(0)),
                         maxChallengeDuration: Duration.wrap(0),
                         maxProveDuration: Duration.wrap(0),
                         challengerBond: 0
@@ -1856,7 +1848,6 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
                 gameArgs: abi.encode(
                     IOPContractsManagerUtils.ZKDisputeGameConfig({
                         absolutePrestate: Claim.wrap(bytes32(0)),
-                        verifier: IZKVerifier(address(0)),
                         maxChallengeDuration: Duration.wrap(0),
                         maxProveDuration: Duration.wrap(0),
                         challengerBond: 0
@@ -2454,7 +2445,6 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             gameArgs: abi.encode(
                 IOPContractsManagerUtils.ZKDisputeGameConfig({
                     absolutePrestate: Claim.wrap(bytes32(0)),
-                    verifier: IZKVerifier(address(0)),
                     maxChallengeDuration: Duration.wrap(0),
                     maxProveDuration: Duration.wrap(0),
                     challengerBond: 0
@@ -2641,7 +2631,6 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             gameArgs: abi.encode(
                 IOPContractsManagerUtils.ZKDisputeGameConfig({
                     absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate"))),
-                    verifier: IZKVerifier(address(0xBEEF)),
                     maxChallengeDuration: Duration.wrap(uint64(7 days)),
                     maxProveDuration: Duration.wrap(uint64(3 days)),
                     challengerBond: 1 ether
@@ -2669,6 +2658,11 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         // ZK is now registered on the shared DGF, with the 140-byte CWIA layout and the init bond.
         assertTrue(address(sharedDgf.gameImpls(GameTypes.ZK_DISPUTE_GAME)) != address(0), "ZK not registered");
         assertEq(sharedDgf.gameArgs(GameTypes.ZK_DISPUTE_GAME).length, 140, "ZK args not 140 bytes");
+        assertEq(
+            LibGameArgs.decodeZK(sharedDgf.gameArgs(GameTypes.ZK_DISPUTE_GAME)).verifier,
+            opcmV2.implementations().sp1PlonkAdapter,
+            "ZK verifier must be the release adapter"
+        );
         assertEq(sharedDgf.initBonds(GameTypes.ZK_DISPUTE_GAME), 1 ether, "ZK init bond not set");
 
         // The source super game is cleared, and the shared ASR's respected type is now ZK.
@@ -2703,7 +2697,6 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
             gameArgs: abi.encode(
                 IOPContractsManagerUtils.ZKDisputeGameConfig({
                     absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate"))),
-                    verifier: IZKVerifier(address(0xBEEF)),
                     maxChallengeDuration: Duration.wrap(uint64(7 days)),
                     maxProveDuration: Duration.wrap(uint64(3 days)),
                     challengerBond: 1 ether
@@ -3468,7 +3461,6 @@ contract OPContractsManagerV2_FeatBatchUpgrade_Test is OPContractsManagerV2_Test
             gameArgs: abi.encode(
                 IOPContractsManagerUtils.ZKDisputeGameConfig({
                     absolutePrestate: Claim.wrap(bytes32(0)),
-                    verifier: IZKVerifier(address(0)),
                     maxChallengeDuration: Duration.wrap(0),
                     maxProveDuration: Duration.wrap(0),
                     challengerBond: 0

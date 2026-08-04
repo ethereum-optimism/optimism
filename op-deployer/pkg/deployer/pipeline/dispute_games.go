@@ -133,13 +133,17 @@ func deployDisputeGame(
 		if game.DisputeGameType != uint32(embedded.GameTypeZKDisputeGame) {
 			return fmt.Errorf("DisputeGameType must be %d for ZK dispute game, got %d", embedded.GameTypeZKDisputeGame, game.DisputeGameType)
 		}
+		sp1PlonkAdapter := st.ImplementationsDeployment.SP1PlonkAdapterImpl
+		if sp1PlonkAdapter == (common.Address{}) {
+			return fmt.Errorf("SP1PlonkAdapterImpl is not deployed; ensure ZKDisputeGameFlag is set in devFeatureBitmap")
+		}
 		zk := game.ZKDisputeGame
 		if zk.ChallengerBond == nil || zk.ChallengerBond.ToInt().Sign() <= 0 {
 			return fmt.Errorf("ZKDisputeGame.ChallengerBond must be set to a positive value")
 		}
 		gameArgs := gameargs.ZKGameArgs{
 			AbsolutePrestate:     zk.AbsolutePrestate,
-			Verifier:             zk.Verifier,
+			Verifier:             sp1PlonkAdapter,
 			MaxChallengeDuration: zk.MaxChallengeDuration,
 			MaxProveDuration:     zk.MaxProveDuration,
 			ChallengerBond:       zk.ChallengerBond.ToInt(),

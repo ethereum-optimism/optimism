@@ -314,6 +314,11 @@
             "internalType": "address",
             "name": "storageSetterImpl",
             "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "sp1PlonkAdapter",
+            "type": "address"
           }
         ],
         "internalType": "struct IOPContractsManagerContainer.Implementations",
@@ -713,6 +718,17 @@
       }
     ],
     "name": "OPContractsManagerUtils_ExtraTagInProd",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "length",
+        "type": "uint256"
+      }
+    ],
+    "name": "OPContractsManagerUtils_InvalidZKGameArgsLength",
     "type": "error"
   },
   {

@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 // Testing
 import { Test } from "test/setup/Test.sol";
 import { FeatureFlags } from "test/setup/FeatureFlags.sol";
+import { MockSP1Verifier } from "test/dispute/zk/MockSP1Verifier.sol";
 
 // Scripts
 import { DeploySuperchain } from "scripts/deploy/DeploySuperchain.s.sol";
@@ -31,6 +32,7 @@ import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { ISP1Verifier } from "interfaces/vendor/ISP1Verifier.sol";
 
 contract DeployOPChain_TestBase is Test, FeatureFlags {
     DeploySuperchain deploySuperchain;
@@ -96,6 +98,7 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
         deploySuperchain = new DeploySuperchain();
         deployImplementations = new DeployImplementations();
         deployOPChain = new DeployOPChain();
+        ISP1Verifier sp1Verifier = new MockSP1Verifier();
 
         // 1) DeploySuperchain
         DeploySuperchain.Output memory dso = deploySuperchain.run(
@@ -123,7 +126,10 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
                 superchainProxyAdmin: dso.superchainProxyAdmin,
                 l1ProxyAdminOwner: dso.superchainProxyAdmin.owner(),
                 challenger: challenger,
-                devFeatureBitmap: devFeatureBitmap
+                devFeatureBitmap: devFeatureBitmap,
+                sp1Verifier: DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)
+                    ? sp1Verifier
+                    : ISP1Verifier(address(0))
             })
         );
         opcmAddr = address(dio.opcmV2);

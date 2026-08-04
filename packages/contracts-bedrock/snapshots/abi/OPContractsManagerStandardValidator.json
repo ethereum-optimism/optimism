@@ -92,6 +92,11 @@
             "internalType": "address",
             "name": "zkDisputeGameImpl",
             "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "sp1PlonkAdapter",
+            "type": "address"
           }
         ],
         "internalType": "struct OPContractsManagerStandardValidator.Implementations",
@@ -346,6 +351,19 @@
       }
     ],
     "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "sp1PlonkAdapter",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {

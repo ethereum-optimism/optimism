@@ -24,14 +24,11 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/delegatecallproxy"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
@@ -60,14 +57,13 @@ type MigrateInputV2 struct {
 
 type zkDisputeGameConfig struct {
 	AbsolutePrestate     common.Hash
-	Verifier             common.Address
 	MaxChallengeDuration uint64
 	MaxProveDuration     uint64
 	ChallengerBond       *big.Int
 }
 
 var zkGameArgsEncoder = w3.MustNewFunc(
-	"dummy((bytes32 absolutePrestate,address verifier,uint64 maxChallengeDuration,uint64 maxProveDuration,uint256 challengerBond))",
+	"dummy((bytes32 absolutePrestate,uint64 maxChallengeDuration,uint64 maxProveDuration,uint256 challengerBond))",
 	"",
 )
 
@@ -328,17 +324,8 @@ func setInteropZKDisputeGameForRuntime(
 	w3Client := w3.NewClient(rpcClient)
 
 	_, l1PAOKey := resolveL1ProxyAdminOwner(t, keys, l1ChainID)
-	artifactsFS, err := artifacts.Download(t.Ctx(), LocalArtifacts(t), ioutil.NoopProgressor(), t.TempDir())
-	require.NoError(err, "failed to load local contract artifacts")
-	verifier, err := deployer.DeployZKMockVerifier(t.Ctx(), client, l1PAOKey, artifactsFS)
-	require.NoError(err, "failed to deploy ZK mock verifier")
-	verifierCode, err := client.CodeAt(t.Ctx(), verifier, nil)
-	require.NoError(err, "failed to load ZK mock verifier code")
-	require.NotEmpty(verifierCode, "ZK mock verifier must have deployed code")
-
 	gameArgs, err := encodeZKDisputeGameArgs(zkDisputeGameConfig{
 		AbsolutePrestate:     programVKey,
-		Verifier:             verifier,
 		MaxChallengeDuration: uint64(cfg.MaxChallengeDuration / time.Second),
 		MaxProveDuration:     uint64(cfg.MaxProveDuration / time.Second),
 		ChallengerBond:       new(big.Int).Set(defaultInitBond),

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	mipsVersion "github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
+	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
@@ -43,6 +44,7 @@ type ImplementationsConfig struct {
 	ProofMaturityDelaySeconds       uint64             `cli:"proof-maturity-delay-seconds"`
 	DisputeGameFinalityDelaySeconds uint64             `cli:"dispute-game-finality-delay-seconds"`
 	DevFeatureBitmap                common.Hash        `cli:"dev-feature-bitmap"`
+	SP1Verifier                     common.Address     `cli:"sp1-verifier-address"`
 	FaultGameMaxGameDepth           uint64             `cli:"dispute-max-game-depth"`
 	FaultGameSplitDepth             uint64             `cli:"dispute-split-depth"`
 	FaultGameClockExtension         uint64             `cli:"dispute-clock-extension"`
@@ -58,6 +60,15 @@ type ImplementationsConfig struct {
 
 	privateKeyECDSA *ecdsa.PrivateKey
 }
+
+const (
+	// Source: succinctlabs/sp1-contracts@2ac5ecbbe473421a963d67e55f182e9a36576f7c,
+	// contracts/deployments/1.json, V6_1_0_SP1_VERIFIER_PLONK.
+	mainnetSP1VerifierV610 = "0xc3c6dDDAc8829b233Dc6536Ec024775a57b0AF2A"
+	// Source: succinctlabs/sp1-contracts@2ac5ecbbe473421a963d67e55f182e9a36576f7c,
+	// contracts/deployments/11155111.json, V6_1_0_SP1_VERIFIER_PLONK.
+	sepoliaSP1VerifierV610 = "0xc3c6dDDAc8829b233Dc6536Ec024775a57b0AF2A"
+)
 
 func (c *ImplementationsConfig) Check() error {
 	if c.L1RPCUrl == "" {
@@ -121,6 +132,39 @@ func (c *ImplementationsConfig) Check() error {
 	if c.Challenger == (common.Address{}) {
 		return errors.New("challenger must be specified")
 	}
+	zkEnabled := devfeatures.IsDevFeatureEnabled(c.DevFeatureBitmap, devfeatures.ZKDisputeGameFlag)
+	if !zkEnabled && c.SP1Verifier != (common.Address{}) {
+		return errors.New("sp1 verifier must not be specified when ZK dispute games are disabled")
+	}
+	return nil
+}
+
+func (c *ImplementationsConfig) resolveSP1Verifier(chainID *big.Int) error {
+	if !devfeatures.IsDevFeatureEnabled(c.DevFeatureBitmap, devfeatures.ZKDisputeGameFlag) ||
+		c.SP1Verifier != (common.Address{}) {
+		return nil
+	}
+
+	if !chainID.IsUint64() {
+		return fmt.Errorf(
+			"no default SP1 verifier for L1 chain ID %s; specify --%s",
+			chainID,
+			SP1VerifierAddressFlagName,
+		)
+	}
+	chainIDUint64 := bigs.Uint64Strict(chainID)
+	switch chainIDUint64 {
+	case 1:
+		c.SP1Verifier = common.HexToAddress(mainnetSP1VerifierV610)
+	case 11155111:
+		c.SP1Verifier = common.HexToAddress(sepoliaSP1VerifierV610)
+	default:
+		return fmt.Errorf(
+			"no default SP1 verifier for L1 chain ID %d; specify --%s",
+			chainIDUint64,
+			SP1VerifierAddressFlagName,
+		)
+	}
 	return nil
 }
 
@@ -132,6 +176,9 @@ func ImplementationsCLI(cliCtx *cli.Context) error {
 	var cfg ImplementationsConfig
 	if err := cliutil.PopulateStruct(&cfg, cliCtx); err != nil {
 		return fmt.Errorf("failed to populate config: %w", err)
+	}
+	if cliCtx.IsSet(SP1VerifierAddressFlagName) && cfg.SP1Verifier == (common.Address{}) {
+		return fmt.Errorf("--%s must not be zero when explicitly set", SP1VerifierAddressFlagName)
 	}
 	cfg.Logger = l
 
@@ -202,6 +249,16 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 	if err := cfg.Check(); err != nil {
 		return dio, fmt.Errorf("invalid config for Implementations: %w", err)
 	}
+	if devfeatures.IsDevFeatureEnabled(cfg.DevFeatureBitmap, devfeatures.ZKDisputeGameFlag) &&
+		cfg.SP1Verifier == (common.Address{}) {
+		chainID, err := deployer.ChainIDFromRPC(ctx, cfg.L1RPCUrl)
+		if err != nil {
+			return dio, fmt.Errorf("failed to select default SP1 verifier: %w", err)
+		}
+		if err := cfg.resolveSP1Verifier(chainID); err != nil {
+			return dio, err
+		}
+	}
 
 	lgr := cfg.Logger
 
@@ -226,6 +283,7 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 		SuperchainProxyAdmin:            cfg.SuperchainProxyAdmin,
 		L1ProxyAdminOwner:               cfg.L1ProxyAdminOwner,
 		Challenger:                      cfg.Challenger,
+		SP1Verifier:                     cfg.SP1Verifier,
 	}
 
 	if cfg.UseForge {

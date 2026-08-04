@@ -506,11 +506,14 @@ contract OPContractsManagerUtils {
                 abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig));
             return abi.encodePacked(address(_anchorStateRegistry), parsedInputArgs.proposer);
         } else if (rawGT == GameTypes.ZK_DISPUTE_GAME.raw()) {
+            if (_gcfg.gameArgs.length != 128) {
+                revert IOPContractsManagerUtils.OPContractsManagerUtils_InvalidZKGameArgsLength(_gcfg.gameArgs.length);
+            }
             IOPContractsManagerUtils.ZKDisputeGameConfig memory parsedInputArgs =
                 abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.ZKDisputeGameConfig));
             return abi.encodePacked(
                 parsedInputArgs.absolutePrestate,
-                parsedInputArgs.verifier,
+                impls.sp1PlonkAdapter,
                 parsedInputArgs.maxChallengeDuration,
                 parsedInputArgs.maxProveDuration,
                 parsedInputArgs.challengerBond,

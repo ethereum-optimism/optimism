@@ -20,6 +20,7 @@ import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
+import { ISP1PlonkAdapter } from "interfaces/dispute/zk/ISP1PlonkAdapter.sol";
 
 /// @title VerifyOPCM
 /// @notice Verifies the bytecode of an OPContractsManager instance and all associated blueprints
@@ -200,6 +201,7 @@ contract VerifyOPCM is Script {
         fieldNameOverrides["opcmV2"] = "OPContractsManagerV2";
         fieldNameOverrides["opcmUtils"] = "OPContractsManagerUtils";
         fieldNameOverrides["zkDisputeGameImpl"] = "ZKDisputeGame";
+        fieldNameOverrides["sp1PlonkAdapter"] = "SP1PlonkAdapter";
 
         // Expected getter functions and their verification methods.
         // CRITICAL: Any getter in the ABI that's not in this list will cause verification to fail.
@@ -250,6 +252,7 @@ contract VerifyOPCM is Script {
         validatorGetterChecks["superFaultDisputeGameImpl"] = "CONTAINER_IMPL";
         validatorGetterChecks["superPermissionedDisputeGameImpl"] = "CONTAINER_IMPL";
         validatorGetterChecks["zkDisputeGameImpl"] = "CONTAINER_IMPL";
+        validatorGetterChecks["sp1PlonkAdapter"] = "CONTAINER_IMPL";
 
         // Verify against env vars
         validatorGetterChecks["superchainConfig"] = "ENV:ADDRESS:EXPECTED_SUPERCHAIN_CONFIG";
@@ -820,7 +823,7 @@ contract VerifyOPCM is Script {
     /// @param _contractName The name to check.
     /// @return True if this is a ZK dispute game.
     function _isZKDisputeGameImplementation(string memory _contractName) internal pure returns (bool) {
-        return LibString.eq(_contractName, "ZKDisputeGame");
+        return LibString.eq(_contractName, "ZKDisputeGame") || LibString.eq(_contractName, "SP1PlonkAdapter");
     }
 
     /// @notice Verifies that the immutable variables in the OPCM contract match expected values.
@@ -1338,6 +1341,11 @@ contract VerifyOPCM is Script {
             success = _verifyPreimageOracle(IMIPS64(_target.addr)) && success;
         }
 
+        // SP1PlonkAdapter: Verify the release-approved raw SP1 verifier it points to.
+        if (LibString.eq(_target.name, "SP1PlonkAdapter")) {
+            success = _verifySP1Verifier(ISP1PlonkAdapter(_target.addr)) && success;
+        }
+
         // OptimismPortal2: Verify PROOF_MATURITY_DELAY_SECONDS
         if (LibString.eq(_target.name, "OptimismPortal2")) {
             success = _verifyPortalDelays(IOptimismPortal2(payable(_target.addr))) && success;
@@ -1372,6 +1380,24 @@ contract VerifyOPCM is Script {
             oracleArtifact,
             true // allow immutables for challengePeriod/minProposalSize
         );
+    }
+
+    /// @notice Verifies the raw SP1 verifier referenced by the release adapter.
+    function _verifySP1Verifier(ISP1PlonkAdapter _adapter) internal view returns (bool) {
+        // nosemgrep: sol-style-vm-env-only-in-config-sol
+        address expectedVerifier = vm.envAddress("EXPECTED_SP1_VERIFIER");
+        address actualVerifier = address(_adapter.sp1Verifier());
+
+        console.log("  Verifying SP1 verifier...");
+        console.log(string.concat("    Expected: ", vm.toString(expectedVerifier)));
+        console.log(string.concat("    Actual: ", vm.toString(actualVerifier)));
+
+        if (actualVerifier != expectedVerifier) {
+            console.log("    [FAIL] SP1 verifier mismatch");
+            return false;
+        }
+        console.log("    [OK] SP1 verifier verified");
+        return true;
     }
 
     /// @notice Verifies OptimismPortal2 security-critical delay values.

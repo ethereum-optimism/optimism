@@ -14,8 +14,7 @@ type PreGenesisSuperGameConfig struct {
 }
 
 // ZKDisputeGameConfig configures the shared ZK dispute game installed after
-// the interop migration. Devstack uses a mock verifier to exercise the game
-// lifecycle.
+// the interop migration. OPCM injects the release-owned SP1 adapter.
 type ZKDisputeGameConfig struct {
 	MaxChallengeDuration time.Duration
 	MaxProveDuration     time.Duration

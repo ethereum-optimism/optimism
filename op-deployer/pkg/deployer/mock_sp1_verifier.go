@@ -14,23 +14,22 @@ import (
 )
 
 const (
-	zkMockVerifierArtifact = "ZKMockVerifier.sol"
-	zkMockVerifierContract = "ZKMockVerifier"
+	mockSP1VerifierArtifact = "MockSP1Verifier.sol"
+	mockSP1VerifierContract = "MockSP1Verifier"
 )
 
-// DeployZKMockVerifier deploys the test-only ZKMockVerifier and returns its address. DEV ONLY: the
-// mock accepts every proof; it just gives the ZK game's verifier on-chain code (ZKDG-80) for devnet
-// e2e without a real prover. Lives in test/, so artifactsFS must be a local (full) build.
-func DeployZKMockVerifier(
+// DeployMockSP1Verifier deploys the test-only raw SP1 verifier used by development environments.
+// The OPCM release wraps it in SP1PlonkAdapter; callers must not use it directly as an IZKVerifier.
+func DeployMockSP1Verifier(
 	ctx context.Context,
 	client *ethclient.Client,
 	key *ecdsa.PrivateKey,
 	artifactsFS foundry.StatDirFs,
 ) (common.Address, error) {
 	af := &foundry.ArtifactsFS{FS: artifactsFS}
-	artifact, err := af.ReadArtifact(zkMockVerifierArtifact, zkMockVerifierContract)
+	artifact, err := af.ReadArtifact(mockSP1VerifierArtifact, mockSP1VerifierContract)
 	if err != nil {
-		return common.Address{}, fmt.Errorf("failed to read ZKMockVerifier artifact (needs a local full contracts build): %w", err)
+		return common.Address{}, fmt.Errorf("failed to read MockSP1Verifier artifact (needs a local full contracts build): %w", err)
 	}
 
 	deployTx := txplan.NewPlannedTx(
@@ -45,10 +44,10 @@ func DeployZKMockVerifier(
 	)
 	receipt, err := deployTx.Included.Eval(ctx)
 	if err != nil {
-		return common.Address{}, fmt.Errorf("failed to deploy ZKMockVerifier: %w", err)
+		return common.Address{}, fmt.Errorf("failed to deploy MockSP1Verifier: %w", err)
 	}
 	if receipt.ContractAddress == (common.Address{}) {
-		return common.Address{}, fmt.Errorf("ZKMockVerifier deploy produced no contract address")
+		return common.Address{}, fmt.Errorf("MockSP1Verifier deploy produced no contract address")
 	}
 	return receipt.ContractAddress, nil
 }

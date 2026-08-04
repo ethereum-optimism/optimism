@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
@@ -19,8 +20,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/holiman/uint256"
+	"github.com/lmittmann/w3"
 	"github.com/stretchr/testify/require"
 )
 
@@ -47,6 +50,11 @@ func TestSetInteropDisputeGames(t *testing.T) {
 	defer cancel()
 
 	_, pk, dk := shared.DefaultPrivkey(t)
+	rpcClient, err := rpc.Dial(l1RPC)
+	require.NoError(t, err)
+	defer rpcClient.Close()
+	rawSP1Verifier, err := deployer.DeployMockSP1Verifier(ctx, ethclient.NewClient(rpcClient), pk, afactsFS)
+	require.NoError(t, err)
 
 	l1ChainID := big.NewInt(11155111) // Sepolia
 	l2ChainID := uint256.NewInt(12345)
@@ -59,6 +67,7 @@ func TestSetInteropDisputeGames(t *testing.T) {
 	devBitmap = devfeatures.EnableDevFeature(devBitmap, devfeatures.ZKDisputeGameFlag)
 	intent.GlobalDeployOverrides = map[string]any{
 		"devFeatureBitmap": devBitmap,
+		"sp1Verifier":      rawSP1Verifier,
 	}
 	intent.UseInterop = true
 
@@ -80,9 +89,6 @@ func TestSetInteropDisputeGames(t *testing.T) {
 
 	require.NotEqual(t, common.Address{}, st.ImplementationsDeployment.OpcmV2Impl, "OPCM V2 address should be set")
 	opcmAddr := st.ImplementationsDeployment.OpcmV2Impl
-
-	rpcClient, err := rpc.Dial(l1RPC)
-	require.NoError(t, err)
 
 	shared.DeployDummyCaller(t, rpcClient, afactsFS, l1ProxyAdminOwner, opcmAddr)
 
@@ -140,15 +146,15 @@ func TestSetInteropDisputeGames(t *testing.T) {
 	})
 	require.NoError(t, err, "interop migration failed")
 
-	// Step 2: swap the shared dispute games to ZK. encodeZKGameArgs produces the 5-field config the
+	// Step 2: swap the shared dispute games to ZK. encodeZKGameArgs produces the 4-field config the
 	// contract's _makeGameArgs decodes; the source super game is cleared and ZK is enabled.
-	zkArgs, err := encodeZKGameArgs(zkDisputeGameConfig{
+	zkConfig := zkDisputeGameConfig{
 		AbsolutePrestate:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000abc"),
-		Verifier:             common.HexToAddress("0x000000000000000000000000000000000000bEEF"),
 		MaxChallengeDuration: 7 * 24 * 60 * 60,
 		MaxProveDuration:     3 * 24 * 60 * 60,
 		ChallengerBond:       big.NewInt(1000000000000000000),
-	})
+	}
+	zkArgs, err := encodeZKGameArgs(zkConfig)
 	require.NoError(t, err)
 
 	output, err := SetInteropDisputeGames(host, InteropMigrationInput{
@@ -175,6 +181,21 @@ func TestSetInteropDisputeGames(t *testing.T) {
 	require.NoError(t, err, "interop dispute game swap failed")
 	require.NotEqual(t, common.Address{}, output.DisputeGameFactory, "shared DGF should be resolved")
 
+	gameArgsFn := w3.MustNewFunc("gameArgs(uint32)", "bytes")
+	callData, err := gameArgsFn.EncodeArgs(gameTypeZK)
+	require.NoError(t, err)
+	ret, err := (&shared.HostCaller{Host: host}).Call(output.DisputeGameFactory, callData)
+	require.NoError(t, err)
+	var packedGameArgs []byte
+	require.NoError(t, gameArgsFn.DecodeReturns(ret, &packedGameArgs))
+	decodedGameArgs, err := gameargs.ParseZK(packedGameArgs)
+	require.NoError(t, err)
+	require.Equal(t, zkConfig.AbsolutePrestate, decodedGameArgs.AbsolutePrestate)
+	require.Equal(t, st.ImplementationsDeployment.SP1PlonkAdapterImpl, decodedGameArgs.Verifier)
+	require.Equal(t, zkConfig.MaxChallengeDuration, decodedGameArgs.MaxChallengeDuration)
+	require.Equal(t, zkConfig.MaxProveDuration, decodedGameArgs.MaxProveDuration)
+	require.Zero(t, zkConfig.ChallengerBond.Cmp(decodedGameArgs.ChallengerBond))
+
 	dump, err := bcast.Dump()
 	require.NoError(t, err)
 	require.Len(t, dump, 2, "should have two transactions (migrate + swap)")
@@ -185,29 +206,17 @@ func TestEncodeZKGameArgs(t *testing.T) {
 	t.Run("succeeds", func(t *testing.T) {
 		args, err := encodeZKGameArgs(zkDisputeGameConfig{
 			AbsolutePrestate:     common.HexToHash("0x1234"),
-			Verifier:             common.HexToAddress("0xBEEF"),
 			MaxChallengeDuration: 7 * 24 * 60 * 60,
 			MaxProveDuration:     3 * 24 * 60 * 60,
 			ChallengerBond:       big.NewInt(1e18),
 		})
 		require.NoError(t, err)
-		// 5 head words for (bytes32, address, uint64, uint64, uint256) = 160 bytes, selector stripped.
-		require.Len(t, args, 160)
-	})
-
-	t.Run("rejects zero verifier", func(t *testing.T) {
-		_, err := encodeZKGameArgs(zkDisputeGameConfig{
-			AbsolutePrestate:     common.HexToHash("0x1234"),
-			MaxChallengeDuration: 1,
-			MaxProveDuration:     1,
-			ChallengerBond:       big.NewInt(1),
-		})
-		require.ErrorContains(t, err, "verifier")
+		// 4 head words for (bytes32, uint64, uint64, uint256) = 128 bytes, selector stripped.
+		require.Len(t, args, 128)
 	})
 
 	t.Run("rejects zero prestate", func(t *testing.T) {
 		_, err := encodeZKGameArgs(zkDisputeGameConfig{
-			Verifier:             common.HexToAddress("0xBEEF"),
 			MaxChallengeDuration: 1,
 			MaxProveDuration:     1,
 			ChallengerBond:       big.NewInt(1),
@@ -218,7 +227,6 @@ func TestEncodeZKGameArgs(t *testing.T) {
 	t.Run("rejects zero durations and bond", func(t *testing.T) {
 		base := zkDisputeGameConfig{
 			AbsolutePrestate:     common.HexToHash("0x1234"),
-			Verifier:             common.HexToAddress("0xBEEF"),
 			MaxChallengeDuration: 1,
 			MaxProveDuration:     1,
 			ChallengerBond:       big.NewInt(1),

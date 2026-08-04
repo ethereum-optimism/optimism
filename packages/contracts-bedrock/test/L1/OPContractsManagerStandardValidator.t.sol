@@ -44,7 +44,6 @@ import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { IStaticERC1967Proxy } from "interfaces/universal/IStaticERC1967Proxy.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
-import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
 import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 import { IStandardValidatorUtils } from "interfaces/L1/opcm/IStandardValidatorUtils.sol";
 
@@ -2109,10 +2108,6 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
         dgf = IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
         standardValidator = opcmV2.opcmStandardValidator();
 
-        // ZKDG-80 requires verifier.code.length > 0. Etch a dummy byte so the dummy
-        // verifier address used in both fork and non-fork paths satisfies this check.
-        vm.etch(address(0xBEEF), hex"01");
-
         if (isL1ForkTest()) {
             // Fork setup migrates the chain to super games before this fixture runs.
             GameType permissionlessGameType = DisputeGames.permissionlessGameType(dgf);
@@ -2129,7 +2124,7 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
             // preimage, so the 140-byte layout has no l2ChainId field.
             bytes memory zkArgs = abi.encodePacked(
                 bytes32(keccak256("zkPrestate")),
-                address(0xBEEF),
+                standardValidator.sp1PlonkAdapter(),
                 uint64(7 days),
                 uint64(3 days),
                 uint256(0.08 ether),
@@ -2206,7 +2201,6 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
                 gameArgs: abi.encode(
                     IOPContractsManagerUtils.ZKDisputeGameConfig({
                         absolutePrestate: Claim.wrap(bytes32(keccak256("zkPrestate"))),
-                        verifier: IZKVerifier(address(0xBEEF)),
                         maxChallengeDuration: Duration.wrap(uint64(7 days)),
                         maxProveDuration: Duration.wrap(uint64(3 days)),
                         challengerBond: 0.08 ether
@@ -2289,6 +2283,14 @@ contract OPContractsManagerStandardValidator_ZKValidation_Test is
     function test_validate_zkDisputeGameZeroVerifier_succeeds() public {
         // verifier occupies bytes [32-51] (20-byte address).
         DisputeGames.mockZKGameArg(dgf, GameTypes.ZK_DISPUTE_GAME, 32, abi.encodePacked(address(0)));
+        assertEq("ZKDG-80", _validate(true));
+    }
+
+    /// @notice Tests ZKDG-80 when the verifier is a contract other than the release-approved verifier.
+    function test_validate_zkDisputeGameUnapprovedVerifier_succeeds() public {
+        address unapprovedVerifier = address(0xCAFE);
+        vm.etch(unapprovedVerifier, hex"01");
+        DisputeGames.mockZKGameArg(dgf, GameTypes.ZK_DISPUTE_GAME, 32, abi.encodePacked(unapprovedVerifier));
         assertEq("ZKDG-80", _validate(true));
     }
 

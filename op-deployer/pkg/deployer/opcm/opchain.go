@@ -139,6 +139,7 @@ type ReadImplementationAddressesOutput struct {
 	ZkDisputeGame                common.Address
 	OpcmStandardValidator        common.Address
 	OpcmInteropMigrator          common.Address
+	SP1PlonkAdapter              common.Address `evm:"sp1PlonkAdapter" abi:"sp1PlonkAdapter"`
 }
 
 type ReadImplementationAddressesScript script.DeployScriptWithOutput[ReadImplementationAddressesInput, ReadImplementationAddressesOutput]
