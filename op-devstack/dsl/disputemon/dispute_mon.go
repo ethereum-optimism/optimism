@@ -9,7 +9,6 @@ import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	devtestmetrics "github.com/ethereum-optimism/optimism/op-devstack/devtest/metrics"
-	"github.com/ethereum-optimism/optimism/op-devstack/dsl/proofs"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
@@ -35,6 +34,10 @@ func New(t devtest.T, metricsURL string) *DisputeMon {
 
 type StateExpectation struct {
 	check devtestmetrics.SnapshotCheck
+}
+
+type BondedGame interface {
+	WETHAddress() common.Address
 }
 
 func allOf(expectations ...StateExpectation) StateExpectation {
@@ -124,6 +127,26 @@ func CorrectChallengerWins(expected int) StateExpectation {
 		"disagree",
 		expected,
 	)
+}
+
+func CorrectDefenderAhead(expected int) StateExpectation {
+	return gameAgreement("agree_defender_ahead", "in_progress", "correct", "agree", expected)
+}
+
+func CorrectDefenderWins(expected int) StateExpectation {
+	return gameAgreement("agree_defender_wins", "complete", "correct", "agree", expected)
+}
+
+func CorrectChallengerAhead(expected int) StateExpectation {
+	return gameAgreement("disagree_challenger_ahead", "in_progress", "correct", "disagree", expected)
+}
+
+func IncorrectChallengerAhead(expected int) StateExpectation {
+	return gameAgreement("agree_challenger_ahead", "in_progress", "incorrect", "agree", expected)
+}
+
+func IncorrectChallengerWins(expected int) StateExpectation {
+	return gameAgreement("agree_challenger_wins", "complete", "incorrect", "agree", expected)
 }
 
 func CompletedBeforeMaxDuration(expected int) StateExpectation {
@@ -230,26 +253,46 @@ func ExactNonWithdrawableCredits(expected int) StateExpectation {
 	)
 }
 
-func MatchingWithdrawalRequests(game *proofs.FaultDisputeGame, expected int) StateExpectation {
+func ExactWithdrawableCredits(expected int) StateExpectation {
+	return allOf(
+		StateExpectation{check: devtestmetrics.GaugeEquals(
+			"op_dispute_mon_credits",
+			map[string]string{"credit": "expected", "withdrawable": "withdrawable"},
+			float64(expected),
+		)},
+		StateExpectation{check: devtestmetrics.GaugeEquals(
+			"op_dispute_mon_credits",
+			map[string]string{"credit": "below", "withdrawable": "withdrawable"},
+			0,
+		)},
+		StateExpectation{check: devtestmetrics.GaugeEquals(
+			"op_dispute_mon_credits",
+			map[string]string{"credit": "above", "withdrawable": "withdrawable"},
+			0,
+		)},
+	)
+}
+
+func MatchingWithdrawalRequests(game BondedGame, expected int) StateExpectation {
 	return withdrawalRequests(game, "matching", expected)
 }
 
-func DivergentWithdrawalRequests(game *proofs.FaultDisputeGame, expected int) StateExpectation {
+func DivergentWithdrawalRequests(game BondedGame, expected int) StateExpectation {
 	return withdrawalRequests(game, "divergent", expected)
 }
 
-func NoWithdrawalRequests(game *proofs.FaultDisputeGame) StateExpectation {
+func NoWithdrawalRequests(game BondedGame) StateExpectation {
 	return allOf(
 		MatchingWithdrawalRequests(game, 0),
 		DivergentWithdrawalRequests(game, 0),
 	)
 }
 
-func SufficientCollateral(game *proofs.FaultDisputeGame, expectedWei *big.Int) StateExpectation {
+func SufficientCollateral(game BondedGame, expectedWei *big.Int) StateExpectation {
 	return collateral(game, "sufficient", expectedWei)
 }
 
-func NoInsufficientCollateral(game *proofs.FaultDisputeGame) StateExpectation {
+func NoInsufficientCollateral(game BondedGame) StateExpectation {
 	return StateExpectation{
 		check: devtestmetrics.GaugeEquals(
 			"op_dispute_mon_bond_collateral_required",
@@ -262,7 +305,7 @@ func NoInsufficientCollateral(game *proofs.FaultDisputeGame) StateExpectation {
 	}
 }
 
-func FullyCollateralized(game *proofs.FaultDisputeGame, expectedWei *big.Int) StateExpectation {
+func FullyCollateralized(game BondedGame, expectedWei *big.Int) StateExpectation {
 	return allOf(
 		SufficientCollateral(game, expectedWei),
 		NoInsufficientCollateral(game),
@@ -283,12 +326,52 @@ func HonestActorInvalidClaims(actor common.Address, expected int) StateExpectati
 }
 
 func HonestActorLostBonds(actor common.Address, expectedWei *big.Int) StateExpectation {
+	return honestActorBonds(actor, "lost", expectedWei)
+}
+
+func HonestActorPendingBonds(actor common.Address, expectedWei *big.Int) StateExpectation {
+	return honestActorBonds(actor, "pending", expectedWei)
+}
+
+func HonestActorWonBonds(actor common.Address, expectedWei *big.Int) StateExpectation {
+	return honestActorBonds(actor, "won", expectedWei)
+}
+
+func HonestActorPendingWithdrawals(actor common.Address, expectedWei *big.Int) StateExpectation {
+	return StateExpectation{
+		check: devtestmetrics.GaugeEquals(
+			"op_dispute_mon_honest_actor_pending_withdrawals",
+			map[string]string{"actor": actor.Hex()},
+			weiToEther(expectedWei),
+		),
+	}
+}
+
+func PendingZKResolutions(expected int) StateExpectation {
+	return pendingZKLifecycleAction("resolution", expected)
+}
+
+func PendingZKBondDistributions(expected int) StateExpectation {
+	return pendingZKLifecycleAction("bond_distribution", expected)
+}
+
+func AnchorStateL2SequenceNumber(registry common.Address, expected uint64) StateExpectation {
+	return StateExpectation{
+		check: devtestmetrics.GaugeEquals(
+			"op_dispute_mon_anchor_state_l2_sequence_number",
+			map[string]string{"anchor_state_registry": registry.Hex()},
+			float64(expected),
+		),
+	}
+}
+
+func honestActorBonds(actor common.Address, state string, expectedWei *big.Int) StateExpectation {
 	return StateExpectation{
 		check: devtestmetrics.GaugeEquals(
 			"op_dispute_mon_honest_actor_bonds",
 			map[string]string{
 				"honest_actor_address": actor.Hex(),
-				"state":                "lost",
+				"state":                state,
 			},
 			weiToEther(expectedWei),
 		),
@@ -320,7 +403,7 @@ func gameAgreement(status string, completion string, resultCorrectness string, r
 	}
 }
 
-func withdrawalRequests(game *proofs.FaultDisputeGame, credits string, expected int) StateExpectation {
+func withdrawalRequests(game BondedGame, credits string, expected int) StateExpectation {
 	return StateExpectation{
 		check: devtestmetrics.GaugeEquals(
 			"op_dispute_mon_withdrawal_requests",
@@ -333,7 +416,7 @@ func withdrawalRequests(game *proofs.FaultDisputeGame, credits string, expected 
 	}
 }
 
-func collateral(game *proofs.FaultDisputeGame, balance string, expectedWei *big.Int) StateExpectation {
+func collateral(game BondedGame, balance string, expectedWei *big.Int) StateExpectation {
 	return StateExpectation{
 		check: devtestmetrics.GaugeEquals(
 			"op_dispute_mon_bond_collateral_required",
@@ -342,6 +425,16 @@ func collateral(game *proofs.FaultDisputeGame, balance string, expectedWei *big.
 				"balance":     balance,
 			},
 			weiToEther(expectedWei),
+		),
+	}
+}
+
+func pendingZKLifecycleAction(action string, expected int) StateExpectation {
+	return StateExpectation{
+		check: devtestmetrics.GaugeEquals(
+			"op_dispute_mon_zk_games_pending_lifecycle_action",
+			map[string]string{"action": action},
+			float64(expected),
 		),
 	}
 }
@@ -359,6 +452,15 @@ func (d *DisputeMon) VerifyState(expectations ...StateExpectation) {
 		}
 		return nil
 	})
+}
+
+// VerifyCompletedCycleWithoutFailures waits for one completed monitor cycle
+// that did not classify any game as failed.
+func (d *DisputeMon) VerifyCompletedCycleWithoutFailures() {
+	d.waitForMetrics(
+		devtestmetrics.GaugeEquals("op_dispute_mon_failed_games", nil, 0),
+		devtestmetrics.HistogramCountAtLeast("op_dispute_mon_monitor_duration_seconds", nil, 1),
+	)
 }
 
 type MonitoringBaseline struct {

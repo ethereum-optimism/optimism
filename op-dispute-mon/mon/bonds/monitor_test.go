@@ -146,6 +146,40 @@ func TestZKBondConsumersRecordAllCreditBuckets(t *testing.T) {
 	}, metricer.credits)
 }
 
+func TestZKBondConsumersIgnoreEmptyCreditSlots(t *testing.T) {
+	recipient := common.Address{0x01}
+	game := &monTypes.ZKGameData{BondGameData: monTypes.BondGameData{
+		ExpectedCredits: map[common.Address]*big.Int{},
+		Credits:         map[common.Address]*big.Int{recipient: new(big.Int)},
+		WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{
+			recipient: {Amount: new(big.Int), Timestamp: new(big.Int)},
+		},
+		WETHContract:  common.Address{0xee},
+		ETHCollateral: big.NewInt(1000),
+	}}
+
+	bonds, metricer, _ := setupBondMetricsTest(t)
+	bonds.CheckBonds([]monTypes.BondedGame{game})
+	for _, count := range metricer.credits {
+		require.Zero(t, count)
+	}
+}
+
+func TestFaultBondConsumersPreserveEmptyCreditSlots(t *testing.T) {
+	recipient := common.Address{0x01}
+	game := &monTypes.FaultGameData{BondGameData: monTypes.BondGameData{
+		ExpectedCredits:      map[common.Address]*big.Int{},
+		Credits:              map[common.Address]*big.Int{recipient: new(big.Int)},
+		CreditWithdrawableAt: frozen.Add(time.Hour),
+		WETHContract:         common.Address{0xee},
+		ETHCollateral:        big.NewInt(1000),
+	}}
+
+	bonds, metricer, _ := setupBondMetricsTest(t)
+	bonds.CheckBonds([]monTypes.BondedGame{game})
+	require.Equal(t, 1, metricer.credits[metrics.CreditEqualNonWithdrawable])
+}
+
 func TestCheckBondsRecordsHonestActorBonds(t *testing.T) {
 	actor1 := common.Address{0x01}
 	actor2 := common.Address{0x02}

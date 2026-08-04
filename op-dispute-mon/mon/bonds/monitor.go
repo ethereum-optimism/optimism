@@ -118,6 +118,9 @@ func (b *Bonds) checkCredits(games []types.BondedGame) {
 					!now.Before(time.Unix(request.Timestamp.Int64(), 0).Add(data.WETHDelay))
 			}
 			expected := data.ExpectedCredits[recipient]
+			if isZK && expected == nil && actual.Sign() == 0 {
+				continue
+			}
 			if expected == nil {
 				expected = big.NewInt(0)
 			}

@@ -91,6 +91,13 @@ func (g *GameCallerCreator) CreateContract(ctx context.Context, game gameTypes.G
 		fdg := contracts.NewSuperPermissionedDisputeGameContract(g.m, game.Proxy, g.caller)
 		g.cache.Add(game.Proxy, fdg)
 		return fdg, nil
+	case gameTypes.ZKDisputeGameType:
+		zk, err := contracts.NewZKDisputeGameContract(g.m, game.Proxy, g.caller)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create zk dispute game contract: %w", err)
+		}
+		g.cache.Add(game.Proxy, zk)
+		return zk, nil
 	case gameTypes.CannonGameType,
 		gameTypes.PermissionedGameType,
 		gameTypes.CannonKonaGameType,
