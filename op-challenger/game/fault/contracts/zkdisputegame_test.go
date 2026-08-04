@@ -3,6 +3,7 @@ package contracts
 import (
 	"context"
 	"errors"
+	"math"
 	"math/big"
 	"testing"
 	"time"
@@ -247,6 +248,41 @@ func TestZKGetBalanceAndDelayAtPinnedBlock(t *testing.T) {
 			require.Equal(t, balance, actualBalance)
 			require.Equal(t, time.Duration(delaySeconds)*time.Second, actualDelay)
 			require.Equal(t, zkWethAddr, actualAddr)
+		})
+	}
+}
+
+func TestZKGetBalanceAndDelayRejectsDurationOverflow(t *testing.T) {
+	for _, version := range zkVersions {
+		t.Run(version.String(), func(t *testing.T) {
+			stubRpc, contract := setupZKDisputeGameTest(t, version)
+			stubRpc.AddContract(zkWethAddr, snapshots.LoadDelayedWETHABI())
+			block := rpcblock.ByNumber(493)
+			tooManySeconds := big.NewInt(math.MaxInt64/int64(time.Second) + 1)
+			stubRpc.SetResponse(zkGameAddr, methodWETH, block, nil, []interface{}{zkWethAddr})
+			stubRpc.AddExpectedCall(batchingTest.NewGetBalanceCall(zkWethAddr, block, big.NewInt(144)))
+			stubRpc.SetResponse(zkWethAddr, methodDelay, block, nil, []interface{}{tooManySeconds})
+
+			_, _, _, err := contract.GetBalanceAndDelay(t.Context(), block)
+			require.ErrorContains(t, err, "withdrawal delay too big for time.Duration")
+		})
+	}
+}
+
+func TestZKGetBalanceAndDelayAcceptsMaxDuration(t *testing.T) {
+	for _, version := range zkVersions {
+		t.Run(version.String(), func(t *testing.T) {
+			stubRpc, contract := setupZKDisputeGameTest(t, version)
+			stubRpc.AddContract(zkWethAddr, snapshots.LoadDelayedWETHABI())
+			block := rpcblock.ByNumber(493)
+			maxSeconds := int64(math.MaxInt64 / int64(time.Second))
+			stubRpc.SetResponse(zkGameAddr, methodWETH, block, nil, []interface{}{zkWethAddr})
+			stubRpc.AddExpectedCall(batchingTest.NewGetBalanceCall(zkWethAddr, block, big.NewInt(144)))
+			stubRpc.SetResponse(zkWethAddr, methodDelay, block, nil, []interface{}{big.NewInt(maxSeconds)})
+
+			_, actualDelay, _, err := contract.GetBalanceAndDelay(t.Context(), block)
+			require.NoError(t, err)
+			require.Equal(t, time.Duration(maxSeconds)*time.Second, actualDelay)
 		})
 	}
 }
