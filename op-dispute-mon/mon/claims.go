@@ -33,7 +33,7 @@ func NewClaimMonitor(logger log.Logger, clock RClock, honestActors types.HonestA
 	return &ClaimMonitor{logger, clock, honestActors, metrics}
 }
 
-func (c *ClaimMonitor) CheckClaims(games []*types.EnrichedGameData) {
+func (c *ClaimMonitor) CheckClaims(games []*types.FaultGameData) {
 	claimStatuses := &metrics.ClaimStatuses{}
 	honest := make(map[common.Address]*metrics.HonestActorData)
 	for actor := range c.honestActors {
@@ -77,7 +77,7 @@ func (c *ClaimMonitor) checkUpdateHonestActorStats(proxy common.Address, claim *
 }
 
 func (c *ClaimMonitor) checkGameClaims(
-	game *types.EnrichedGameData,
+	game *types.FaultGameData,
 	claimStatuses *metrics.ClaimStatuses,
 	honest map[common.Address]*metrics.HonestActorData,
 ) {

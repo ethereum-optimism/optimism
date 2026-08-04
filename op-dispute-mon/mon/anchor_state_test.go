@@ -32,7 +32,7 @@ func TestAnchorStateMonitor_DedupesPerASR(t *testing.T) {
 	providers.set(asrA, big.NewInt(100), nil)
 	providers.set(asrB, big.NewInt(200), nil)
 
-	games := []*types.EnrichedGameData{
+	games := []*types.CommonGameData{
 		{AnchorStateRegistry: asrA},
 		{AnchorStateRegistry: asrA},
 		{AnchorStateRegistry: asrB},
@@ -50,7 +50,7 @@ func TestAnchorStateMonitor_ToleratesPerASRError(t *testing.T) {
 	providers.set(asrA, nil, errors.New("boom"))
 	providers.set(asrB, big.NewInt(200), nil)
 
-	games := []*types.EnrichedGameData{
+	games := []*types.CommonGameData{
 		{AnchorStateRegistry: asrA},
 		{AnchorStateRegistry: asrB},
 	}
@@ -64,7 +64,7 @@ func TestAnchorStateMonitor_SequenceNumberOverflow(t *testing.T) {
 	tooBig := new(big.Int).Add(new(big.Int).SetUint64(math.MaxUint64), big.NewInt(1))
 	providers.set(asrA, tooBig, nil)
 
-	monitor.CheckAnchorState(context.Background(), common.Hash{0xaa}, []*types.EnrichedGameData{
+	monitor.CheckAnchorState(context.Background(), common.Hash{0xaa}, []*types.CommonGameData{
 		{AnchorStateRegistry: asrA},
 	})
 

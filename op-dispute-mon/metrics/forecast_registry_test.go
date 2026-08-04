@@ -1,4 +1,4 @@
-package mon_test
+package metrics_test
 
 import (
 	"testing"
@@ -13,17 +13,19 @@ import (
 )
 
 func TestForecastRecordsCanonicalAgreementSeries(t *testing.T) {
+	// Mutation killed: omitting or relabeling one RecordGameAgreement call survives
+	// mock-metric unit tests but changes the real registry's public series.
 	metricer := metrics.NewMetrics()
 	forecast := mon.NewForecast(testlog.Logger(t, 0), metricer)
-	forecast.Forecast([]*monTypes.EnrichedGameData{
-		{Status: types.GameStatusInProgress, AgreeWithClaim: true, BlockNumberChallenged: true},
-		{Status: types.GameStatusInProgress, AgreeWithClaim: false, BlockNumberChallenged: true},
-		{Status: types.GameStatusInProgress, AgreeWithClaim: true},
-		{Status: types.GameStatusInProgress, AgreeWithClaim: false},
-		{Status: types.GameStatusDefenderWon, AgreeWithClaim: true},
-		{Status: types.GameStatusDefenderWon, AgreeWithClaim: false},
-		{Status: types.GameStatusChallengerWon, AgreeWithClaim: true},
-		{Status: types.GameStatusChallengerWon, AgreeWithClaim: false},
+	forecast.Forecast([]monTypes.EnrichedGame{
+		&monTypes.FaultGameData{CommonGameData: monTypes.CommonGameData{Status: types.GameStatusInProgress, AgreeWithClaim: true}, BlockNumberChallenged: true},
+		&monTypes.FaultGameData{CommonGameData: monTypes.CommonGameData{Status: types.GameStatusInProgress, AgreeWithClaim: false}, BlockNumberChallenged: true},
+		&monTypes.FaultGameData{CommonGameData: monTypes.CommonGameData{Status: types.GameStatusInProgress, AgreeWithClaim: true}},
+		&monTypes.FaultGameData{CommonGameData: monTypes.CommonGameData{Status: types.GameStatusInProgress, AgreeWithClaim: false}},
+		&monTypes.FaultGameData{CommonGameData: monTypes.CommonGameData{Status: types.GameStatusDefenderWon, AgreeWithClaim: true}},
+		&monTypes.FaultGameData{CommonGameData: monTypes.CommonGameData{Status: types.GameStatusDefenderWon, AgreeWithClaim: false}},
+		&monTypes.FaultGameData{CommonGameData: monTypes.CommonGameData{Status: types.GameStatusChallengerWon, AgreeWithClaim: true}},
+		&monTypes.FaultGameData{CommonGameData: monTypes.CommonGameData{Status: types.GameStatusChallengerWon, AgreeWithClaim: false}},
 	}, 0, 0)
 
 	expected := map[string]map[string]string{

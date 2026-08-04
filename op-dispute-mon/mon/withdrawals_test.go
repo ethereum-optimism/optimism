@@ -28,12 +28,12 @@ var (
 	nowUnix = int64(10_000)
 )
 
-func makeGames(distributionMode faultTypes.BondDistributionMode, noWithdrawalRequest bool) []*monTypes.EnrichedGameData {
+func makeGames(distributionMode faultTypes.BondDistributionMode, noWithdrawalRequest bool) []*monTypes.FaultGameData {
 	weth1Balance := big.NewInt(4200)
 	weth2Balance := big.NewInt(6000)
 
-	game1 := &monTypes.EnrichedGameData{
-		GameMetadata: types.GameMetadata{Proxy: common.Address{0x11, 0x11, 0x11}},
+	game1 := &monTypes.FaultGameData{
+		CommonGameData: monTypes.CommonGameData{GameMetadata: types.GameMetadata{Proxy: common.Address{0x11, 0x11, 0x11}}},
 		Credits: map[common.Address]*big.Int{
 			honestActor1: big.NewInt(3),
 			honestActor2: big.NewInt(1),
@@ -47,8 +47,8 @@ func makeGames(distributionMode faultTypes.BondDistributionMode, noWithdrawalReq
 		ETHCollateral: weth1Balance,
 		WETHDelay:     100 * time.Second,
 	}
-	game2 := &monTypes.EnrichedGameData{
-		GameMetadata:         types.GameMetadata{Proxy: common.Address{0x22, 0x22, 0x22}},
+	game2 := &monTypes.FaultGameData{
+		CommonGameData:       monTypes.CommonGameData{GameMetadata: types.GameMetadata{Proxy: common.Address{0x22, 0x22, 0x22}}},
 		BondDistributionMode: distributionMode,
 		Credits: map[common.Address]*big.Int{
 			honestActor1: big.NewInt(46),
@@ -62,8 +62,8 @@ func makeGames(distributionMode faultTypes.BondDistributionMode, noWithdrawalReq
 		ETHCollateral: weth2Balance,
 		WETHDelay:     500 * time.Second,
 	}
-	game3 := &monTypes.EnrichedGameData{
-		GameMetadata:         types.GameMetadata{Proxy: common.Address{0x33, 0x33, 0x33}},
+	game3 := &monTypes.FaultGameData{
+		CommonGameData:       monTypes.CommonGameData{GameMetadata: types.GameMetadata{Proxy: common.Address{0x33, 0x33, 0x33}}},
 		BondDistributionMode: distributionMode,
 		Credits: map[common.Address]*big.Int{
 			honestActor3:    big.NewInt(2),
@@ -84,7 +84,7 @@ func makeGames(distributionMode faultTypes.BondDistributionMode, noWithdrawalReq
 			Timestamp: big.NewInt(0),
 		}
 	}
-	return []*monTypes.EnrichedGameData{game1, game2, game3}
+	return []*monTypes.FaultGameData{game1, game2, game3}
 }
 
 func TestCheckWithdrawals(t *testing.T) {
@@ -203,9 +203,9 @@ func TestWithdrawalNotInitiated(t *testing.T) {
 	}
 	honestActors := monTypes.NewHonestActors([]common.Address{honestActor1, honestActor2, honestActor3})
 	withdrawals := NewWithdrawalMonitor(logger, cl, metrics, honestActors)
-	games := []*monTypes.EnrichedGameData{
+	games := []*monTypes.FaultGameData{
 		{
-			GameMetadata: types.GameMetadata{Proxy: common.Address{0x11, 0x11, 0x11}},
+			CommonGameData: monTypes.CommonGameData{GameMetadata: types.GameMetadata{Proxy: common.Address{0x11, 0x11, 0x11}}},
 			Credits: map[common.Address]*big.Int{
 				honestActor1: big.NewInt(3),
 			},
@@ -227,32 +227,6 @@ func TestWithdrawalNotInitiated(t *testing.T) {
 
 	require.Truef(t, big.NewInt(3).Cmp(metrics.honestWithdrawable[honestActor1]) == 0,
 		"Expected %v withdrawable to be %v but was %v", honestActor1, 3, metrics.honestWithdrawable[honestActor1])
-}
-
-func TestWithdrawalMonitorSkipsSuperPermissioned(t *testing.T) {
-	now := time.Unix(nowUnix, 0)
-	cl := clock.NewDeterministicClock(now)
-	logger := testlog.Logger(t, log.LvlInfo)
-	metrics := &stubWithdrawalsMetrics{
-		matching:  make(map[common.Address]int),
-		divergent: make(map[common.Address]int),
-	}
-	honestActors := monTypes.NewHonestActors([]common.Address{honestActor1})
-	withdrawals := NewWithdrawalMonitor(logger, cl, metrics, honestActors)
-	games := []*monTypes.EnrichedGameData{
-		{
-			GameMetadata: types.GameMetadata{
-				GameType: uint32(types.SuperPermissionedGameType),
-			},
-		},
-	}
-	withdrawals.CheckWithdrawals(games)
-
-	require.Zero(t, metrics.matchCalls)
-	require.Zero(t, metrics.divergeCalls)
-	require.Empty(t, metrics.matching)
-	require.Empty(t, metrics.divergent)
-	require.Equal(t, big.NewInt(0), metrics.honestWithdrawable[honestActor1])
 }
 
 type stubWithdrawalsMetrics struct {

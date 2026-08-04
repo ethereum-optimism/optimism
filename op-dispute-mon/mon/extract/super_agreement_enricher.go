@@ -46,7 +46,7 @@ type superRootResult struct {
 	err       error
 }
 
-func (e *SuperAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Block, caller GameCaller, game *monTypes.EnrichedGameData) error {
+func (e *SuperAgreementEnricher) Enrich(ctx context.Context, _ rpcblock.Block, _ GameCaller, game *monTypes.CommonGameData) error {
 	if game.UsesOutputRoots() {
 		return nil
 	}

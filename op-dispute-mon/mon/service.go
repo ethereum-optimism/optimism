@@ -239,15 +239,19 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		s.factoryContract.GetGamesAtOrAfter,
 		cfg.IgnoredGames,
 		cfg.MaxConcurrency,
-		extract.NewClaimEnricher(),
-		extract.NewRecipientEnricher(), // Must be called before WithdrawalsEnricher and BondEnricher
-		extract.NewWithdrawalsEnricher(),
-		extract.NewBondEnricher(),
-		extract.NewBalanceEnricher(),
-		extract.NewL1HeadBlockNumEnricher(s.l1Client),
-		extract.NewOutputAgreementEnricher(s.logger, s.metrics, s.outputRollupClients(), clock.SystemClock),
-		extract.NewSuperAgreementEnricher(s.logger, s.metrics, s.asSuperRootProviders(), clock.SystemClock),
-		extract.NewAnchorStateRegistryEnricher(s.logger),
+		[]extract.CommonEnricher{
+			extract.NewL1HeadBlockNumEnricher(s.l1Client),
+			extract.NewOutputAgreementEnricher(s.logger, s.metrics, s.outputRollupClients(), clock.SystemClock),
+			extract.NewSuperAgreementEnricher(s.logger, s.metrics, s.asSuperRootProviders(), clock.SystemClock),
+			extract.NewAnchorStateRegistryEnricher(s.logger),
+		},
+		[]extract.FaultEnricher{
+			extract.NewClaimEnricher(),
+			extract.NewRecipientEnricher(), // Must be called before WithdrawalsEnricher and BondEnricher
+			extract.NewWithdrawalsEnricher(),
+			extract.NewBondEnricher(),
+			extract.NewBalanceEnricher(),
+		},
 	)
 	forecast := NewForecast(s.logger, s.metrics)
 	bonds := bonds.NewBonds(s.logger, s.metrics, s.cl)
@@ -270,19 +274,23 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		extractor.Extract,
 		forecast.Forecast,
 		anchorStateMonitor.CheckAnchorState,
-		bonds.CheckBonds,
-		resolutions.CheckResolutions,
-		claims.CheckClaims,
-		withdrawals.CheckWithdrawals,
-		l2ChallengesMonitor.CheckL2Challenges,
-		updateTimeMonitor.CheckUpdateTimes,
-		nodeEndpointErrorsMonitor.CheckNodeEndpointErrors,
-		nodeEndpointErrorCountMonitor.CheckNodeEndpointErrorCount,
-		nodeEndpointOutOfSyncMonitor.CheckNodeEndpointOutOfSync,
-		mixedAvailabilityMonitor.CheckMixedAvailability,
-		mixedSafetyMonitor.CheckMixedSafety,
-		differentRootMonitor.CheckDifferentRoots,
-		gameTypeMonitor.CheckGameTypes)
+		[]CommonMonitor{
+			updateTimeMonitor.CheckUpdateTimes,
+			nodeEndpointErrorsMonitor.CheckNodeEndpointErrors,
+			nodeEndpointErrorCountMonitor.CheckNodeEndpointErrorCount,
+			nodeEndpointOutOfSyncMonitor.CheckNodeEndpointOutOfSync,
+			mixedAvailabilityMonitor.CheckMixedAvailability,
+			mixedSafetyMonitor.CheckMixedSafety,
+			differentRootMonitor.CheckDifferentRoots,
+			gameTypeMonitor.CheckGameTypes,
+		},
+		[]FaultMonitor{
+			bonds.CheckBonds,
+			resolutions.CheckResolutions,
+			claims.CheckClaims,
+			withdrawals.CheckWithdrawals,
+			l2ChallengesMonitor.CheckL2Challenges,
+		})
 }
 
 func (s *Service) Start(ctx context.Context) error {

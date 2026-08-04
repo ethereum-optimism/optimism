@@ -9,13 +9,12 @@ import (
 	"slices"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
 )
 
-var _ Enricher = (*BondEnricher)(nil)
+var _ FaultEnricher = (*BondEnricher)(nil)
 
 var ErrIncorrectCreditCount = errors.New("incorrect credit count")
 
@@ -30,10 +29,7 @@ func NewBondEnricher() *BondEnricher {
 	return &BondEnricher{}
 }
 
-func (b *BondEnricher) Enrich(ctx context.Context, block rpcblock.Block, caller GameCaller, game *monTypes.EnrichedGameData) error {
-	if gameTypes.GameType(game.GameType) == gameTypes.SuperPermissionedGameType {
-		return nil
-	}
+func (b *BondEnricher) Enrich(ctx context.Context, block rpcblock.Block, caller FaultGameCaller, game *monTypes.FaultGameData) error {
 	recipientAddrs := slices.Collect(maps.Keys(game.Recipients))
 	credits, err := caller.GetCredits(ctx, block, recipientAddrs...)
 	if err != nil {

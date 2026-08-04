@@ -21,7 +21,7 @@ func NewMixedAvailability(logger log.Logger, metrics MixedAvailabilityMetrics) *
 	}
 }
 
-func (m *MixedAvailability) CheckMixedAvailability(games []*types.EnrichedGameData) {
+func (m *MixedAvailability) CheckMixedAvailability(games []*types.CommonGameData) {
 	count := 0
 	for _, game := range games {
 		if game.HasMixedAvailability() {

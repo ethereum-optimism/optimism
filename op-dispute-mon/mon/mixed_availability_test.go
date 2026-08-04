@@ -12,7 +12,7 @@ import (
 )
 
 func TestCheckMixedAvailability(t *testing.T) {
-	games := []*types.EnrichedGameData{
+	games := []*types.CommonGameData{
 		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x11}}, NodeEndpointTotalCount: 5, NodeEndpointNotFoundCount: 2, NodeEndpointErrorCount: 1}, // Mixed (2 successful)
 		{NodeEndpointTotalCount: 3, NodeEndpointNotFoundCount: 0, NodeEndpointErrorCount: 0},                                                                    // All successful
 		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x22}}, NodeEndpointTotalCount: 6, NodeEndpointNotFoundCount: 2, NodeEndpointErrorCount: 2}, // Mixed (2 successful)

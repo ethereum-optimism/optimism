@@ -24,14 +24,27 @@ type GameCallerMetrics interface {
 }
 
 type GameCaller interface {
-	GetWithdrawals(context.Context, rpcblock.Block, ...common.Address) ([]*contracts.WithdrawalRequest, error)
-	GetExtendedMetadata(context.Context, rpcblock.Block) (contracts.GameMetadata, error)
-	GetAllClaims(context.Context, rpcblock.Block) ([]faultTypes.Claim, error)
 	GetAnchorStateRegistry(context.Context, rpcblock.Block) (common.Address, error)
+}
+
+// MetadataCaller exposes metadata shared by fault and SuperPermissioned games.
+type MetadataCaller interface {
+	GetExtendedMetadata(context.Context, rpcblock.Block) (contracts.GameMetadata, error)
+}
+
+// FaultGameCaller exposes reads used only to enrich fault games.
+type FaultGameCaller interface {
+	GameCaller
+	MetadataCaller
+	GetWithdrawals(context.Context, rpcblock.Block, ...common.Address) ([]*contracts.WithdrawalRequest, error)
+	GetAllClaims(context.Context, rpcblock.Block) ([]faultTypes.Claim, error)
 	BondCaller
 	BalanceCaller
 	ClaimCaller
 }
+
+var _ FaultGameCaller = (contracts.FaultDisputeGameContract)(nil)
+var _ MetadataCaller = (*contracts.SuperPermissionedDisputeGameContract)(nil)
 
 type GameCallerCreator struct {
 	m      GameCallerMetrics

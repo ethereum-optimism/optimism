@@ -16,10 +16,6 @@ import (
 func TestResolutionMonitor_CheckResolutions(t *testing.T) {
 	r, cl, m := newTestResolutionMonitor(t)
 	games := newTestGames(uint64(cl.Now().Unix()))
-	games = append(games, &types.EnrichedGameData{
-		GameMetadata: gameTypes.GameMetadata{GameType: uint32(gameTypes.SuperPermissionedGameType)},
-		Status:       gameTypes.GameStatusDefenderWon,
-	})
 	r.CheckResolutions(games)
 
 	require.Equal(t, 1, m.calls[metrics.CompleteMaxDuration])
@@ -48,11 +44,11 @@ func (s *stubResolutionMetrics) RecordGameResolutionStatus(status metrics.Resolu
 	s.calls[status] += count
 }
 
-func newTestGames(duration uint64) []*types.EnrichedGameData {
-	newTestGame := func(duration uint64, status gameTypes.GameStatus, resolvable bool) *types.EnrichedGameData {
-		game := &types.EnrichedGameData{
+func newTestGames(duration uint64) []*types.FaultGameData {
+	newTestGame := func(duration uint64, status gameTypes.GameStatus, resolvable bool) *types.FaultGameData {
+		game := &types.FaultGameData{
 			MaxClockDuration: duration,
-			Status:           status,
+			CommonGameData:   types.CommonGameData{Status: status},
 		}
 		if !resolvable {
 			game.Claims = []types.EnrichedClaim{
@@ -63,7 +59,7 @@ func newTestGames(duration uint64) []*types.EnrichedGameData {
 		}
 		return game
 	}
-	return []*types.EnrichedGameData{
+	return []*types.FaultGameData{
 		newTestGame(duration/2, gameTypes.GameStatusInProgress, false),
 		newTestGame(duration*5, gameTypes.GameStatusInProgress, false),
 		newTestGame(duration/2, gameTypes.GameStatusInProgress, true),

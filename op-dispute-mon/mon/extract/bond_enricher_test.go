@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
@@ -15,8 +14,8 @@ import (
 )
 
 // makeTestGame returns an enriched game with 3 claims and a list of expected recipients.
-func makeTestGame() (*monTypes.EnrichedGameData, []common.Address) {
-	game := &monTypes.EnrichedGameData{
+func makeTestGame() (*monTypes.FaultGameData, []common.Address) {
+	game := &monTypes.FaultGameData{
 		Recipients: map[common.Address]bool{
 			common.Address{0x02}: true,
 			common.Address{0x03}: true,
@@ -100,14 +99,4 @@ func TestBondEnricher(t *testing.T) {
 		require.Equal(t, faultTypes.RefundDistributionMode, game.BondDistributionMode)
 	})
 
-	t.Run("SkipSuperPermissioned", func(t *testing.T) {
-		enricher := NewBondEnricher()
-		caller := &mockGameCaller{creditsErr: errors.New("nope")}
-		game := &monTypes.EnrichedGameData{
-			GameMetadata: gameTypes.GameMetadata{GameType: uint32(gameTypes.SuperPermissionedGameType)},
-		}
-		err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, game)
-		require.NoError(t, err)
-		require.Empty(t, caller.requestedCredits)
-	})
 }
