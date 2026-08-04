@@ -139,7 +139,7 @@ jobs:
           working_directory: rust/op-reth/tests
           no_output_timeout: 60m
           command: |
-            export OP_RETH_EXEC_PATH="$(pwd)/../../target/release/op-reth"
+            export RUST_BINARY_PATH_OP_RETH="$(pwd)/../../target/release/op-reth"
             just test-e2e-sysgo
       - go-save-cache:
           namespace: op-reth-e2e
