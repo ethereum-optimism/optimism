@@ -98,6 +98,13 @@ type EnrichedGame interface {
 	enrichedGame()
 }
 
+// BondedGame is a complete pinned snapshot of a game that holds bonds in DelayedWETH.
+type BondedGame interface {
+	EnrichedGame
+	BondData() *BondGameData
+	bondedGame()
+}
+
 // CommonGameData contains fields shared by every supported game kind.
 type CommonGameData struct {
 	types.GameMetadata
@@ -144,31 +151,12 @@ type CommonGameData struct {
 // FaultGameData contains claims, bonds, withdrawals, and challenge state for a fault game.
 type FaultGameData struct {
 	CommonGameData
+	BondGameData
 
 	MaxClockDuration      uint64
 	BlockNumberChallenged bool
 	BlockNumberChallenger common.Address
 	Claims                []EnrichedClaim
-
-	// Recipients maps addresses to true if they are a bond recipient in the game.
-	Recipients map[common.Address]bool
-
-	// Credits records the paid out bonds for the game, keyed by recipient.
-	Credits map[common.Address]*big.Int
-
-	BondDistributionMode faultTypes.BondDistributionMode
-
-	// WithdrawalRequests maps recipients with withdrawal requests in DelayedWETH for this game.
-	WithdrawalRequests map[common.Address]*contracts.WithdrawalRequest
-
-	// WETHContract is the address of the DelayedWETH contract used by this game.
-	WETHContract common.Address
-
-	// WETHDelay is the delay applied before credits can be withdrawn.
-	WETHDelay time.Duration
-
-	// ETHCollateral is the ETH balance of the potentially shared WETHContract.
-	ETHCollateral *big.Int
 }
 
 // SuperPermissionedGameData is the common snapshot of a SuperPermissioned game.
@@ -181,6 +169,11 @@ func (g *SuperPermissionedGameData) Common() *CommonGameData { return &g.CommonG
 
 func (*FaultGameData) enrichedGame()             {}
 func (*SuperPermissionedGameData) enrichedGame() {}
+
+func (g *FaultGameData) BondData() *BondGameData { return &g.BondGameData }
+func (*FaultGameData) bondedGame()               {}
+
+var _ BondedGame = (*FaultGameData)(nil)
 
 // UsesOutputRoots returns true if the game type is one of the known types that use output roots as proposals.
 func (g CommonGameData) UsesOutputRoots() bool {

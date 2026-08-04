@@ -3,6 +3,7 @@ package extract
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"math/big"
@@ -10,20 +11,45 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
 )
 
 // BondDataEnricher loads the normalized bond state for a fault game.
-// It is intentionally unwired until FaultGameData embeds BondGameData.
 type BondDataEnricher struct{}
+
+var (
+	ErrIncorrectCreditCount      = errors.New("incorrect credit count")
+	ErrIncorrectWithdrawalsCount = errors.New("incorrect withdrawals count")
+)
+
+type BondCaller interface {
+	GetCredits(context.Context, rpcblock.Block, ...common.Address) ([]*big.Int, error)
+	GetBondDistributionMode(context.Context, rpcblock.Block) (faultTypes.BondDistributionMode, error)
+}
+
+type BalanceCaller interface {
+	GetBalanceAndDelay(context.Context, rpcblock.Block) (*big.Int, time.Duration, common.Address, error)
+}
 
 func NewBondDataEnricher() *BondDataEnricher {
 	return &BondDataEnricher{}
 }
 
-func (*BondDataEnricher) Enrich(ctx context.Context, block rpcblock.Block, caller BondGameCaller, game *monTypes.FaultGameData) (monTypes.BondGameData, error) {
+var _ FaultEnricher = (*BondDataEnricher)(nil)
+
+func (b *BondDataEnricher) Enrich(ctx context.Context, block rpcblock.Block, caller FaultGameCaller, game *monTypes.FaultGameData) error {
+	data, err := b.load(ctx, block, caller, game)
+	if err != nil {
+		return err
+	}
+	game.BondGameData = data
+	return nil
+}
+
+func (*BondDataEnricher) load(ctx context.Context, block rpcblock.Block, caller BondGameCaller, game *monTypes.FaultGameData) (monTypes.BondGameData, error) {
 	data := normalizeFaultBondData(game)
 	recipients := slices.Collect(maps.Keys(data.Recipients))
 	slices.SortFunc(recipients, func(a, b common.Address) int {

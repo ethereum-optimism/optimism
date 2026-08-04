@@ -233,11 +233,6 @@ func makeMultipleTestGames(duration uint64) []*types.FaultGameData {
 func makeTestGame(duration uint64) *types.FaultGameData {
 	return &types.FaultGameData{
 		MaxClockDuration: duration / 2,
-		Recipients: map[common.Address]bool{
-			{0x02}: true,
-			{0x03}: true,
-			{0x04}: true,
-		},
 		Claims: []types.EnrichedClaim{
 			{
 				Claim: faultTypes.Claim{

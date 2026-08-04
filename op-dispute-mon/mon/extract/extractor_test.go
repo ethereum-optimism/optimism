@@ -155,6 +155,10 @@ func TestExtractor_Extract(t *testing.T) {
 	})
 
 	t.Run("UseCachedValueOnFailure", func(t *testing.T) {
+		bondEnricher := &mockFaultEnricher{action: func(game *monTypes.FaultGameData) error {
+			game.BondGameData.Credits = map[common.Address]*big.Int{{0x01}: big.NewInt(1)}
+			return nil
+		}}
 		enricher := &mockEnricher{
 			action: func(game *monTypes.CommonGameData) error {
 				game.Status = gameTypes.GameStatusDefenderWon
@@ -162,6 +166,7 @@ func TestExtractor_Extract(t *testing.T) {
 			},
 		}
 		extractor, _, games, _, cl := setupExtractorTest(t, enricher)
+		extractor.faultEnrichers = []FaultEnricher{bondEnricher}
 		gameA := common.Address{0xaa}
 		gameB := common.Address{0xbb}
 		games.games = []gameTypes.GameMetadata{{Proxy: gameA}, {Proxy: gameB}}
@@ -181,10 +186,14 @@ func TestExtractor_Extract(t *testing.T) {
 
 		cl.AdvanceTime(2 * time.Minute)
 		secondUpdateTime := cl.Now()
-		enricher.action = func(game *monTypes.CommonGameData) error {
+		bondEnricher.action = func(game *monTypes.FaultGameData) error {
 			if game.Proxy == gameA {
 				return errors.New("boom")
 			}
+			game.BondGameData.Credits = map[common.Address]*big.Int{{0x01}: big.NewInt(2)}
+			return nil
+		}
+		enricher.action = func(game *monTypes.CommonGameData) error {
 			// Updated games will have a different status
 			game.Status = gameTypes.GameStatusChallengerWon
 			return nil
@@ -195,11 +204,15 @@ func TestExtractor_Extract(t *testing.T) {
 		require.Zero(t, ignored)
 		require.Equal(t, 1, failed)
 		require.Len(t, enriched, 2)
-		require.Equal(t, 4, enricher.calls)
+		require.Equal(t, 4, bondEnricher.calls)
+		require.Equal(t, 3, enricher.calls)
 		// The returned games are not in a fixed order, create a map to look up the game we need to assert
 		actual := make(map[common.Address]*monTypes.CommonGameData)
+		actualBonds := make(map[common.Address]*monTypes.BondGameData)
 		for _, data := range enriched {
 			actual[data.Common().Proxy] = data.Common()
+			fault := data.(*monTypes.FaultGameData)
+			actualBonds[data.Common().Proxy] = fault.BondData()
 		}
 		require.Contains(t, actual, gameA)
 		require.Contains(t, actual, gameB)
@@ -207,6 +220,8 @@ func TestExtractor_Extract(t *testing.T) {
 		require.Equal(t, actual[gameB].Status, gameTypes.GameStatusChallengerWon) // Updates game B
 		require.Equal(t, firstUpdateTime, actual[gameA].LastUpdateTime)
 		require.Equal(t, secondUpdateTime, actual[gameB].LastUpdateTime)
+		require.Equal(t, big.NewInt(1), actualBonds[gameA].Credits[common.Address{0x01}])
+		require.Equal(t, big.NewInt(2), actualBonds[gameB].Credits[common.Address{0x01}])
 	})
 }
 
@@ -499,11 +514,19 @@ type mockFaultEnricher struct {
 	name   string
 	trace  *[]string
 	blocks []rpcblock.Block
+	action func(game *monTypes.FaultGameData) error
+	calls  int
 }
 
-func (m *mockFaultEnricher) Enrich(_ context.Context, block rpcblock.Block, _ FaultGameCaller, _ *monTypes.FaultGameData) error {
+func (m *mockFaultEnricher) Enrich(_ context.Context, block rpcblock.Block, _ FaultGameCaller, game *monTypes.FaultGameData) error {
+	m.calls++
 	m.blocks = append(m.blocks, block)
-	*m.trace = append(*m.trace, m.name)
+	if m.trace != nil {
+		*m.trace = append(*m.trace, m.name)
+	}
+	if m.action != nil {
+		return m.action(game)
+	}
 	return nil
 }
 

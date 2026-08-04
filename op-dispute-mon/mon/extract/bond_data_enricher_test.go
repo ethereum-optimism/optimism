@@ -62,8 +62,9 @@ func TestFaultBondSnapshotCompatibility(t *testing.T) {
 		weth:        common.Address{0xee},
 	}
 
-	data, err := NewBondDataEnricher().Enrich(t.Context(), block, caller, game)
+	err := NewBondDataEnricher().Enrich(t.Context(), block, faultBondCaller(caller), game)
 	require.NoError(t, err)
+	data := game.BondGameData
 	require.Equal(t, []string{"withdrawals", "credits", "mode", "balance"}, caller.trace)
 	require.Equal(t, []rpcblock.Block{block, block, block, block}, caller.blocks)
 	require.Equal(t, []common.Address{counterer, blockChallenger, pendingClaimant}, caller.recipients)
@@ -154,9 +155,9 @@ func TestFaultBondSnapshotStopsAfterErrors(t *testing.T) {
 			test.configure(caller)
 			game := &monTypes.FaultGameData{Claims: []monTypes.EnrichedClaim{{Claim: faultTypes.Claim{Claimant: common.Address{0x01}}}}}
 
-			data, err := NewBondDataEnricher().Enrich(t.Context(), rpcblock.Latest, caller, game)
+			err := NewBondDataEnricher().Enrich(t.Context(), rpcblock.Latest, faultBondCaller(caller), game)
 			require.ErrorIs(t, err, test.expectedError)
-			require.Equal(t, monTypes.BondGameData{}, data)
+			require.Equal(t, monTypes.BondGameData{}, game.BondGameData)
 			require.Equal(t, test.expectedTrace, caller.trace)
 		})
 	}
@@ -180,8 +181,9 @@ func TestFaultBondSnapshotPreservesNilAndZeroValues(t *testing.T) {
 				credits:     []*big.Int{nil},
 			}
 
-			data, err := NewBondDataEnricher().Enrich(t.Context(), rpcblock.Latest, caller, game)
+			err := NewBondDataEnricher().Enrich(t.Context(), rpcblock.Latest, faultBondCaller(caller), game)
 			require.NoError(t, err)
+			data := game.BondGameData
 			require.Contains(t, data.Credits, recipient)
 			require.Nil(t, data.Credits[recipient])
 			require.Contains(t, data.WithdrawalRequests, recipient)
@@ -257,6 +259,31 @@ type bondSnapshotCaller struct {
 	balanceErr     error
 	delay          time.Duration
 	weth           common.Address
+}
+
+type faultBondSnapshotCaller struct {
+	*mockGameCaller
+	bond *bondSnapshotCaller
+}
+
+func faultBondCaller(bond *bondSnapshotCaller) *faultBondSnapshotCaller {
+	return &faultBondSnapshotCaller{mockGameCaller: &mockGameCaller{}, bond: bond}
+}
+
+func (c *faultBondSnapshotCaller) GetWithdrawals(ctx context.Context, block rpcblock.Block, recipients ...common.Address) ([]*contracts.WithdrawalRequest, error) {
+	return c.bond.GetWithdrawals(ctx, block, recipients...)
+}
+
+func (c *faultBondSnapshotCaller) GetCredits(ctx context.Context, block rpcblock.Block, recipients ...common.Address) ([]*big.Int, error) {
+	return c.bond.GetCredits(ctx, block, recipients...)
+}
+
+func (c *faultBondSnapshotCaller) GetBondDistributionMode(ctx context.Context, block rpcblock.Block) (faultTypes.BondDistributionMode, error) {
+	return c.bond.GetBondDistributionMode(ctx, block)
+}
+
+func (c *faultBondSnapshotCaller) GetBalanceAndDelay(ctx context.Context, block rpcblock.Block) (*big.Int, time.Duration, common.Address, error) {
+	return c.bond.GetBalanceAndDelay(ctx, block)
 }
 
 func (c *bondSnapshotCaller) record(name string, block rpcblock.Block) {

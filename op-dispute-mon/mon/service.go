@@ -274,11 +274,13 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 			gameTypeMonitor.CheckGameTypes,
 		},
 		[]FaultMonitor{
-			bonds.CheckBonds,
 			resolutions.CheckResolutions,
 			claims.CheckClaims,
-			withdrawals.CheckWithdrawals,
 			l2ChallengesMonitor.CheckL2Challenges,
+		},
+		[]BondMonitor{
+			bonds.CheckBonds,
+			withdrawals.CheckWithdrawals,
 		})
 }
 
@@ -294,10 +296,7 @@ func (s *Service) commonEnrichers() []extract.CommonEnricher {
 func (s *Service) faultEnrichers() []extract.FaultEnricher {
 	return []extract.FaultEnricher{
 		extract.NewClaimEnricher(),
-		extract.NewRecipientEnricher(), // Must be called before WithdrawalsEnricher and BondEnricher
-		extract.NewWithdrawalsEnricher(),
-		extract.NewBondEnricher(),
-		extract.NewBalanceEnricher(),
+		extract.NewBondDataEnricher(),
 	}
 }
 

@@ -58,9 +58,12 @@ func TestMonitor_MonitorGames(t *testing.T) {
 		}
 	})
 
-	t.Run("PreservesHistoricalMonitorOrder", func(t *testing.T) {
+	t.Run("RunsTypedMonitorLanesInOrder", func(t *testing.T) {
 		monitor, _, _, _ := setupMonitorTest(t)
 		var calls []string
+		monitor.bondMonitors = []BondMonitor{func([]monTypes.BondedGame) {
+			calls = append(calls, "bond")
+		}}
 		monitor.faultMonitors = []FaultMonitor{func([]*monTypes.FaultGameData) {
 			calls = append(calls, "fault")
 		}}
@@ -69,7 +72,7 @@ func TestMonitor_MonitorGames(t *testing.T) {
 		}}
 
 		require.NoError(t, monitor.monitorGames())
-		require.Equal(t, []string{"fault", "common"}, calls)
+		require.Equal(t, []string{"bond", "fault", "common"}, calls)
 	})
 }
 
@@ -89,10 +92,15 @@ func TestMonitorRoutesGamesToResolution(t *testing.T) {
 	monitor.faultMonitors = []FaultMonitor{func(games []*monTypes.FaultGameData) {
 		faultReceived = games
 	}}
+	var bondReceived []monTypes.BondedGame
+	monitor.bondMonitors = []BondMonitor{func(games []monTypes.BondedGame) {
+		bondReceived = games
+	}}
 
 	require.NoError(t, monitor.monitorGames())
 	require.Equal(t, []*monTypes.CommonGameData{terminal.Common(), super.Common()}, commonReceived)
 	require.Equal(t, []*monTypes.FaultGameData{terminal}, faultReceived)
+	require.Equal(t, []monTypes.BondedGame{terminal}, bondReceived)
 }
 
 func TestPartitionGamesRejectsUnknownGameType(t *testing.T) {
@@ -280,11 +288,13 @@ func setupMonitorTest(t *testing.T) (*gameMonitor, *mockExtractor, *mockForecast
 	monitor1 := &mockMonitor{}
 	monitor2 := &mockMonitor{}
 	monitor3 := &mockMonitor{}
+	monitor4 := &mockMonitor{}
 	monitor := newGameMonitor(context.Background(), logger, cl, metrics.NoopMetrics, monitorInterval, 10*time.Second, fetchHeadBlock,
 		extractor.Extract, forecast.Forecast, noopAnchorStateCheck,
 		[]CommonMonitor{monitor1.CheckCommon, monitor2.CheckCommon},
-		[]FaultMonitor{monitor3.CheckFault})
-	return monitor, extractor, forecast, []*mockMonitor{monitor1, monitor2, monitor3}
+		[]FaultMonitor{monitor3.CheckFault},
+		[]BondMonitor{monitor4.CheckBond})
+	return monitor, extractor, forecast, []*mockMonitor{monitor1, monitor2, monitor3, monitor4}
 }
 
 func noopAnchorStateCheck(_ context.Context, _ common.Hash, _ []*monTypes.CommonGameData) {}
@@ -298,6 +308,10 @@ func (m *mockMonitor) CheckCommon(_ []*monTypes.CommonGameData) {
 }
 
 func (m *mockMonitor) CheckFault(_ []*monTypes.FaultGameData) {
+	m.calls++
+}
+
+func (m *mockMonitor) CheckBond(_ []monTypes.BondedGame) {
 	m.calls++
 }
 

@@ -85,15 +85,21 @@ func TestInitMonitorWiresEveryTypedLane(t *testing.T) {
 		require.Contains(t, registeredFunctionName(service.monitor.commonMonitors[i]), expected)
 	}
 	expectedFault := []string{
-		"bonds.(*Bonds).CheckBonds-fm",
 		"(*ResolutionMonitor).CheckResolutions-fm",
 		"(*ClaimMonitor).CheckClaims-fm",
-		"(*WithdrawalMonitor).CheckWithdrawals-fm",
 		"(*L2ChallengesMonitor).CheckL2Challenges-fm",
 	}
 	require.Len(t, service.monitor.faultMonitors, len(expectedFault))
 	for i, expected := range expectedFault {
 		require.Contains(t, registeredFunctionName(service.monitor.faultMonitors[i]), expected)
+	}
+	expectedBond := []string{
+		"bonds.(*Bonds).CheckBonds-fm",
+		"(*WithdrawalMonitor).CheckWithdrawals-fm",
+	}
+	require.Len(t, service.monitor.bondMonitors, len(expectedBond))
+	for i, expected := range expectedBond {
+		require.Contains(t, registeredFunctionName(service.monitor.bondMonitors[i]), expected)
 	}
 }
 
