@@ -2,6 +2,7 @@ package proofs
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"time"
 
@@ -111,13 +112,37 @@ func (g *ZKGame) ClaimData() ZKClaimData {
 	return contract.Read(g.contract.ClaimData())
 }
 
-// TryClaimData reads the game's claim data, returning read errors instead of
-// failing the test. Hand-rolled poll loops that must tolerate transient RPC
-// failures under CI contention use this; direct assertions use ClaimData.
-func (g *ZKGame) TryClaimData() (ZKClaimData, error) {
-	ctx, cancel := context.WithTimeout(g.t.Ctx(), 15*time.Second)
+// WaitForClaimData retries transient read failures for up to the DSL timeout.
+func (g *ZKGame) WaitForClaimData() ZKClaimData {
+	timedCtx, cancel := context.WithTimeout(g.t.Ctx(), defaultTimeout)
 	defer cancel()
-	return contractio.Read(g.contract.ClaimData(), ctx)
+
+	claim, err := awaitClaimData(timedCtx, time.Second, func(ctx context.Context) (ZKClaimData, error) {
+		claim, readErr := contractio.Read(g.contract.ClaimData(), ctx)
+		if readErr != nil {
+			g.t.Logf("Zk game %v claim data unavailable: %v", g.Address, readErr)
+		}
+		return claim, readErr
+	})
+	g.require.NoErrorf(err, "zk game %v claim data unavailable", g.Address)
+	return claim
+}
+
+func awaitClaimData(
+	ctx context.Context,
+	pollInterval time.Duration,
+	read func(context.Context) (ZKClaimData, error),
+) (ZKClaimData, error) {
+	var claim ZKClaimData
+	var lastReadErr error
+	err := wait.For(ctx, pollInterval, func() (bool, error) {
+		claim, lastReadErr = read(ctx)
+		return lastReadErr == nil, nil
+	})
+	if err != nil && lastReadErr != nil {
+		return claim, fmt.Errorf("%w; last read error: %w", err, lastReadErr)
+	}
+	return claim, err
 }
 
 func (g *ZKGame) ProposalStatus() ZKProposalStatus {

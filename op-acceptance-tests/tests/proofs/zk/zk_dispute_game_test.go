@@ -129,7 +129,7 @@ func TestProposerDefendsForeignValidGame(gt *testing.T) {
 // the prestate it can prove - so the challenge wins at the deadline by
 // forfeit.
 func TestProposerIgnoresInvalidChallengedGame(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	// The honest challenger would race the test's own challenge; disable it
 	// so the scenario stays deterministic.
 	sys := presets.NewSimpleInterop(t, presets.WithZK(), presets.WithoutHonestChallenger())
@@ -152,21 +152,24 @@ func TestProposerIgnoresInvalidChallengedGame(gt *testing.T) {
 	)
 	game.Challenge(challenger)
 
-	// Hold the game inside its prove window long enough for many defense
-	// scan cycles (FETCH_INTERVAL=2s) and several full proving pipelines
-	// (the valid foreign game in TestProposerDefendsForeignValidGame is
-	// proven well within this bound). The proposer must never touch it.
-	// Transient read errors are tolerated (CI contention); any status or
-	// prover change fails immediately.
-	holdUntil := time.Now().Add(2 * time.Minute)
-	for time.Now().Before(holdUntil) {
-		if claim, err := game.TryClaimData(); err == nil {
+	holdTimer := time.NewTimer(2 * time.Minute)
+	defer holdTimer.Stop()
+	pollTicker := time.NewTicker(2 * time.Second)
+	defer pollTicker.Stop()
+	holding := true
+	for holding {
+		select {
+		case <-t.Ctx().Done():
+			t.Require().NoError(t.Ctx().Err(), "test context ended while checking invalid game")
+		case <-holdTimer.C:
+			holding = false
+		case <-pollTicker.C:
+			claim := game.WaitForClaimData()
 			t.Require().Equal(proofs.ZKProposalChallenged, proofs.ZKProposalStatus(claim.Status),
 				"proposer must not defend an invalid game")
 			t.Require().Equal(common.Address{}, claim.Prover,
 				"proposer must not prove an invalid game")
 		}
-		time.Sleep(2 * time.Second)
 	}
 
 	// With no proof by the deadline, the challenger wins by forfeit.
@@ -232,15 +235,11 @@ func TestProposerDefendsMultipleChallengedGamesConcurrently(gt *testing.T) {
 	var proverA, proverB common.Address
 	pollDeadline := time.Now().Add(10 * time.Minute)
 	for (proverA == common.Address{} || proverB == common.Address{}) && time.Now().Before(pollDeadline) {
-		if (proverA == common.Address{}) {
-			if claim, err := gameA.TryClaimData(); err == nil {
-				proverA = claim.Prover
-			}
+		if proverA == (common.Address{}) {
+			proverA = gameA.WaitForClaimData().Prover
 		}
-		if (proverB == common.Address{}) {
-			if claim, err := gameB.TryClaimData(); err == nil {
-				proverB = claim.Prover
-			}
+		if proverB == (common.Address{}) {
+			proverB = gameB.WaitForClaimData().Prover
 		}
 		// Concurrency witness: two defense tasks spawned, zero failures,
 		// and neither proof landed yet - both pipelines are live at once.
@@ -248,7 +247,7 @@ func TestProposerDefendsMultipleChallengedGamesConcurrently(gt *testing.T) {
 		// single game with concurrency; the zero-error conjunct closes
 		// that hole.
 		if (proverA == common.Address{}) && (proverB == common.Address{}) &&
-			scrapeMetric(metricsURL, spawnedMetric) >= 2 &&
+			scrapeMetric(metricsURL, spawnedMetric) == 2 &&
 			scrapeMetric(metricsURL, provingErrorMetric) == 0 {
 			sawConcurrentDefense = true
 		}

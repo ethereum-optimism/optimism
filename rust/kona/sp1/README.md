@@ -201,9 +201,6 @@ Optional (defaults in parentheses):
 | `RANGE_CYCLE_LIMIT`, `RANGE_GAS_LIMIT`, `AGG_CYCLE_LIMIT`, `AGG_GAS_LIMIT` (1e12) | SPN request limits |
 | `MAX_PRICE_PER_PGU` (3e8), `MIN_AUCTION_PERIOD` (1) | SPN pricing |
 
-Fast finality (proving at creation) is tracked in
-ethereum-optimism/optimism#22112.
-
 ## Building
 
 Programs are compiled for the zkVM target through the recipes in this directory's `justfile`.
