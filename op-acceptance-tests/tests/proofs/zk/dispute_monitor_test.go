@@ -158,6 +158,7 @@ func TestZKDisputeMonitorValidTerminalProposalAfterDeadline(gt *testing.T) {
 	t.Require().True(game.Credit(proposer.Address()).IsZero())
 	t.Require().Zero(weth.Withdrawal(game.Address, proposer.Address()).Amount.Sign())
 	monitor.VerifyState(
+		disputemon.ExactWithdrawableCredits(1),
 		disputemon.MatchingWithdrawalRequests(game, 1),
 		disputemon.DivergentWithdrawalRequests(game, 0),
 		disputemon.FullyCollateralized(game, new(big.Int)),

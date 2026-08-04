@@ -165,6 +165,26 @@ func TestZKBondConsumersIgnoreEmptyCreditSlots(t *testing.T) {
 	}
 }
 
+func TestZKBondConsumersRecognizeCompletedMaturePayout(t *testing.T) {
+	recipient := common.Address{0x01}
+	game := &monTypes.ZKGameData{BondGameData: monTypes.BondGameData{
+		ExpectedCredits: map[common.Address]*big.Int{recipient: big.NewInt(10)},
+		Credits:         map[common.Address]*big.Int{recipient: new(big.Int)},
+		WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{
+			recipient: {Amount: new(big.Int), Timestamp: big.NewInt(frozen.Unix() - 10)},
+		},
+		BondDistributionMode: faultTypes.NormalDistributionMode,
+		WETHContract:         common.Address{0xee},
+		WETHDelay:            10 * time.Second,
+		ETHCollateral:        big.NewInt(1000),
+	}}
+
+	bonds, metricer, _ := setupBondMetricsTest(t)
+	bonds.CheckBonds([]monTypes.BondedGame{game})
+	require.Equal(t, 1, metricer.credits[metrics.CreditEqualWithdrawable])
+	require.Zero(t, metricer.credits[metrics.CreditBelowWithdrawable])
+}
+
 func TestFaultBondConsumersPreserveEmptyCreditSlots(t *testing.T) {
 	recipient := common.Address{0x01}
 	game := &monTypes.FaultGameData{BondGameData: monTypes.BondGameData{
