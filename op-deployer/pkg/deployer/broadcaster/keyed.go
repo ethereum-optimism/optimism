@@ -28,21 +28,27 @@ type KeyedBroadcaster struct {
 }
 
 type KeyedBroadcasterOpts struct {
-	Logger  log.Logger
-	ChainID *big.Int
-	Client  *ethclient.Client
-	Signer  opcrypto.SignerFn
-	From    common.Address
+	Logger               log.Logger
+	ChainID              *big.Int
+	Client               *ethclient.Client
+	Signer               opcrypto.SignerFn
+	From                 common.Address
+	ReceiptQueryInterval time.Duration
 }
 
 func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
+	receiptQueryInterval := cfg.ReceiptQueryInterval
+	if receiptQueryInterval == 0 {
+		receiptQueryInterval = time.Second
+	}
+
 	mgrCfg := &txmgr.Config{
 		Backend:                   cfg.Client,
 		ChainID:                   cfg.ChainID,
 		TxSendTimeout:             5 * time.Minute,
 		TxNotInMempoolTimeout:     time.Minute,
 		NetworkTimeout:            10 * time.Second,
-		ReceiptQueryInterval:      time.Second,
+		ReceiptQueryInterval:      receiptQueryInterval,
 		NumConfirmations:          1,
 		SafeAbortNonceTooLowCount: 3,
 		Signer:                    cfg.Signer,
