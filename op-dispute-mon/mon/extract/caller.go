@@ -32,18 +32,24 @@ type MetadataCaller interface {
 	GetExtendedMetadata(context.Context, rpcblock.Block) (contracts.GameMetadata, error)
 }
 
+// BondGameCaller exposes reads shared by every bond-bearing game.
+type BondGameCaller interface {
+	GetWithdrawals(context.Context, rpcblock.Block, ...common.Address) ([]*contracts.WithdrawalRequest, error)
+	BondCaller
+	BalanceCaller
+}
+
 // FaultGameCaller exposes reads used only to enrich fault games.
 type FaultGameCaller interface {
 	GameCaller
 	MetadataCaller
-	GetWithdrawals(context.Context, rpcblock.Block, ...common.Address) ([]*contracts.WithdrawalRequest, error)
 	GetAllClaims(context.Context, rpcblock.Block) ([]faultTypes.Claim, error)
-	BondCaller
-	BalanceCaller
+	BondGameCaller
 	ClaimCaller
 }
 
 var _ FaultGameCaller = (contracts.FaultDisputeGameContract)(nil)
+var _ BondGameCaller = (contracts.FaultDisputeGameContract)(nil)
 var _ MetadataCaller = (*contracts.SuperPermissionedDisputeGameContract)(nil)
 
 type GameCallerCreator struct {

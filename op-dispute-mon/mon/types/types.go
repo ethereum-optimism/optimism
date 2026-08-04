@@ -1,6 +1,8 @@
 package types
 
 import (
+	"bytes"
+	"maps"
 	"math/big"
 	"slices"
 	"time"
@@ -36,6 +38,57 @@ var superRootGameTypes = []types.GameType{
 type EnrichedClaim struct {
 	faultTypes.Claim
 	Resolved bool
+}
+
+// BondRecord describes the current disposition of one deposited game bond.
+type BondRecord struct {
+	Depositor common.Address
+	Recipient common.Address
+	Amount    *big.Int
+	Resolved  bool
+}
+
+// BondGameData contains normalized bond and DelayedWETH state.
+type BondGameData struct {
+	Bonds           []BondRecord
+	Recipients      map[common.Address]bool
+	Credits         map[common.Address]*big.Int
+	ExpectedCredits map[common.Address]*big.Int
+
+	BondDistributionMode faultTypes.BondDistributionMode
+	WithdrawalRequests   map[common.Address]*contracts.WithdrawalRequest
+	WETHContract         common.Address
+	WETHDelay            time.Duration
+	ETHCollateral        *big.Int
+	CreditWithdrawableAt time.Time
+}
+
+// RecipientAddresses returns a deterministic union of all addresses represented in the bond snapshot.
+func (d *BondGameData) RecipientAddresses() []common.Address {
+	recipients := make(map[common.Address]bool)
+	for recipient := range d.Recipients {
+		recipients[recipient] = true
+	}
+	for recipient := range d.Credits {
+		recipients[recipient] = true
+	}
+	for recipient := range d.ExpectedCredits {
+		recipients[recipient] = true
+	}
+	for recipient := range d.WithdrawalRequests {
+		recipients[recipient] = true
+	}
+	for _, bond := range d.Bonds {
+		recipients[bond.Depositor] = true
+		if bond.Resolved {
+			recipients[bond.Recipient] = true
+		}
+	}
+	result := slices.Collect(maps.Keys(recipients))
+	slices.SortFunc(result, func(a, b common.Address) int {
+		return bytes.Compare(a[:], b[:])
+	})
+	return result
 }
 
 // EnrichedGame is a complete, pinned snapshot of a supported dispute game.
