@@ -160,6 +160,8 @@ const minimalPresetSupportedOptionKinds = optionKindDeployer |
 
 const minimalWithConductorsPresetSupportedOptionKinds = minimalPresetSupportedOptionKinds
 
+// Builds on the minimal set, op-reth options included: the added node is a sync-tester EL, not a
+// sequencing candidate, so the sequencer-builds / stock-verifies split holds.
 const simpleWithSyncTesterPresetSupportedOptionKinds = minimalPresetSupportedOptionKinds |
 	optionKindGlobalSyncTesterEL
 

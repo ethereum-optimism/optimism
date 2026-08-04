@@ -135,7 +135,11 @@ const (
 //
 // This is the EL-side counterpart to ResolveMixedL2CLKind: it lets a suite outside this
 // repo re-run these tests against its own EL build without forking the test bodies. The
-// named binary is resolved through the usual rustbin env overrides (see OpRethWithBinary).
+// named binary is resolved through the usual rustbin env overrides (see OpRethWithBinary),
+// whose variable name derives from the binary name — "my-builder" reads
+// RUST_BINARY_PATH_MY_BUILDER, leaving the stock verifiers' RUST_BINARY_PATH_OP_RETH
+// untouched. Naming the override "op-reth" would collapse that distinction, but such an
+// override selects the default binary anyway.
 //
 // A superset binary that binds a listener the harness knows nothing about needs the args
 // to move it off a fixed port, since every node here shares one host. The args only ever
