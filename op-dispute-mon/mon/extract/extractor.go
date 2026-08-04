@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math"
 	"slices"
 	"sync"
 	"sync/atomic"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
@@ -20,8 +22,9 @@ import (
 var ErrIgnored = errors.New("ignored")
 
 type (
-	CreateGameCaller   func(ctx context.Context, game gameTypes.GameMetadata) (GameCaller, error)
-	FactoryGameFetcher func(ctx context.Context, blockHash common.Hash, earliestTimestamp uint64) ([]gameTypes.GameMetadata, error)
+	CreateGameCaller        func(ctx context.Context, game gameTypes.GameMetadata) (GameCaller, error)
+	FactoryGameFetcher      func(ctx context.Context, blockHash common.Hash, earliestTimestamp uint64) ([]gameTypes.GameMetadata, error)
+	ParentGameStatusFetcher func(ctx context.Context, index uint64, block rpcblock.Block) (gameTypes.GameStatus, error)
 )
 
 // CommonEnricher adds data shared by every enriched game variant.
@@ -34,16 +37,23 @@ type FaultEnricher interface {
 	Enrich(ctx context.Context, block rpcblock.Block, caller FaultGameCaller, game *monTypes.FaultGameData) error
 }
 
+// ZKEnricher adds data that exists only for ZK games.
+type ZKEnricher interface {
+	Enrich(ctx context.Context, block rpcblock.Block, caller ZKGameCaller, game *monTypes.ZKGameData) error
+}
+
 type Extractor struct {
-	logger          log.Logger
-	clock           clock.Clock
-	createContract  CreateGameCaller
-	fetchGames      FactoryGameFetcher
-	maxConcurrency  int
-	commonEnrichers []CommonEnricher
-	faultEnrichers  []FaultEnricher
-	ignoredGames    map[common.Address]bool
-	latestGameData  map[common.Address]monTypes.EnrichedGame
+	logger            log.Logger
+	clock             clock.Clock
+	createContract    CreateGameCaller
+	fetchGames        FactoryGameFetcher
+	fetchParentStatus ParentGameStatusFetcher
+	maxConcurrency    int
+	commonEnrichers   []CommonEnricher
+	faultEnrichers    []FaultEnricher
+	zkAgreement       ZKEnricher
+	ignoredGames      map[common.Address]bool
+	latestGameData    map[common.Address]monTypes.EnrichedGame
 }
 
 func NewExtractor(
@@ -51,24 +61,28 @@ func NewExtractor(
 	cl clock.Clock,
 	creator CreateGameCaller,
 	fetchGames FactoryGameFetcher,
+	fetchParentStatus ParentGameStatusFetcher,
 	ignoredGames []common.Address,
 	maxConcurrency uint,
 	commonEnrichers []CommonEnricher,
 	faultEnrichers []FaultEnricher,
+	zkAgreement ZKEnricher,
 ) *Extractor {
 	ignored := make(map[common.Address]bool)
 	for _, game := range ignoredGames {
 		ignored[game] = true
 	}
 	return &Extractor{
-		logger:          logger,
-		clock:           cl,
-		createContract:  creator,
-		fetchGames:      fetchGames,
-		maxConcurrency:  int(maxConcurrency),
-		commonEnrichers: commonEnrichers,
-		faultEnrichers:  faultEnrichers,
-		ignoredGames:    ignored,
+		logger:            logger,
+		clock:             cl,
+		createContract:    creator,
+		fetchGames:        fetchGames,
+		fetchParentStatus: fetchParentStatus,
+		maxConcurrency:    int(maxConcurrency),
+		commonEnrichers:   commonEnrichers,
+		faultEnrichers:    faultEnrichers,
+		zkAgreement:       zkAgreement,
+		ignoredGames:      ignored,
 	}
 }
 
@@ -106,6 +120,10 @@ func (e *Extractor) enrichGames(ctx context.Context, blockHash common.Hash, game
 					if errors.Is(err, ErrIgnored) {
 						ignored.Add(1)
 						e.logger.Warn("Ignoring game", "game", game.Proxy)
+						continue
+					}
+					if errors.Is(err, gameTypes.ErrNotInSync) {
+						e.logger.Debug("Waiting for root source to process past the game L1 head", "game", game.Proxy)
 						continue
 					}
 					if err != nil {
@@ -150,6 +168,8 @@ func (e *Extractor) enrichGame(ctx context.Context, blockHash common.Hash, game 
 	switch gameTypes.GameType(game.GameType) {
 	case gameTypes.SuperPermissionedGameType:
 		return e.enrichSuperPermissionedGame(ctx, block, caller, game)
+	case gameTypes.ZKDisputeGameType:
+		return e.enrichZKGame(ctx, block, caller, game)
 	case gameTypes.CannonGameType,
 		gameTypes.PermissionedGameType,
 		gameTypes.CannonKonaGameType,
@@ -160,6 +180,103 @@ func (e *Extractor) enrichGame(ctx context.Context, blockHash common.Hash, game 
 	default:
 		return nil, fmt.Errorf("unsupported game type: %d", game.GameType)
 	}
+}
+
+func (e *Extractor) enrichZKGame(ctx context.Context, block rpcblock.Block, caller GameCaller, game gameTypes.GameMetadata) (monTypes.EnrichedGame, error) {
+	zkCaller, ok := caller.(ZKGameCaller)
+	if !ok {
+		return nil, fmt.Errorf("game caller %T does not support ZK game extraction", caller)
+	}
+	meta, err := zkCaller.GetMetadata(ctx, block)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch game metadata: %w", err)
+	}
+	enrichedGame := &monTypes.ZKGameData{
+		CommonGameData: e.newCommonGameData(game, meta.L1Head, meta.L2SequenceNum, meta.ProposedRoot, meta.Status),
+	}
+	if err := e.applyCommonEnrichers(ctx, block, caller, enrichedGame.Common()); err != nil {
+		return nil, fmt.Errorf("failed to enrich game: %w", err)
+	}
+	if err := e.zkAgreement.Enrich(ctx, block, zkCaller, enrichedGame); err != nil {
+		return nil, fmt.Errorf("failed to enrich ZK agreement: %w", err)
+	}
+
+	challengerMeta, err := zkCaller.GetChallengerMetadata(ctx, block)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch ZK challenger metadata: %w", err)
+	}
+	proposalStatus, err := contracts.ProposalStatusFromUint8(uint8(challengerMeta.ProposalStatus))
+	if err != nil {
+		return nil, err
+	}
+	if meta.ProposedRoot != challengerMeta.ProposedRoot {
+		return nil, fmt.Errorf("inconsistent ZK root claim: generic %s, challenger %s", meta.ProposedRoot, challengerMeta.ProposedRoot)
+	}
+	if meta.L2SequenceNum != challengerMeta.L2SequenceNumber {
+		return nil, fmt.Errorf("inconsistent ZK sequence number: generic %d, challenger %d", meta.L2SequenceNum, challengerMeta.L2SequenceNumber)
+	}
+	if err := validateZKStatus(meta.Status, proposalStatus); err != nil {
+		return nil, err
+	}
+	if err := validateZKParticipants(proposalStatus, challengerMeta.Challenger, challengerMeta.Prover); err != nil {
+		return nil, err
+	}
+	anchorStateRegistry, err := zkCaller.GetAnchorStateRegistry(ctx, block)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch ZK anchor state registry: %w", err)
+	}
+	if anchorStateRegistry == (common.Address{}) {
+		return nil, errors.New("ZK anchor state registry is zero")
+	}
+
+	var parentStatus *gameTypes.GameStatus
+	if challengerMeta.ParentIndex != math.MaxUint32 {
+		status, err := e.fetchParentStatus(ctx, uint64(challengerMeta.ParentIndex), block)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch ZK parent game %d status: %w", challengerMeta.ParentIndex, err)
+		}
+		parentStatus = &status
+		if meta.Status != gameTypes.GameStatusInProgress && status == gameTypes.GameStatusInProgress {
+			return nil, fmt.Errorf("terminal ZK child has in-progress parent %d", challengerMeta.ParentIndex)
+		}
+	}
+
+	enrichedGame.AnchorStateRegistry = anchorStateRegistry
+	enrichedGame.ParentIndex = challengerMeta.ParentIndex
+	enrichedGame.ParentStatus = parentStatus
+	enrichedGame.ProposalStatus = proposalStatus
+	enrichedGame.Deadline = challengerMeta.Deadline
+	return enrichedGame, nil
+}
+
+func validateZKStatus(global gameTypes.GameStatus, proposal contracts.ProposalStatus) error {
+	proposalInProgress := proposal != contracts.ProposalStatusResolved
+	if (global == gameTypes.GameStatusInProgress) != proposalInProgress {
+		return fmt.Errorf("inconsistent ZK global status %s and proposal status %s", global, proposal)
+	}
+	return nil
+}
+
+func validateZKParticipants(status contracts.ProposalStatus, challenger, prover common.Address) error {
+	zeroChallenger := challenger == (common.Address{})
+	zeroProver := prover == (common.Address{})
+	valid := false
+	switch status {
+	case contracts.ProposalStatusUnchallenged:
+		valid = zeroChallenger && zeroProver
+	case contracts.ProposalStatusChallenged:
+		valid = !zeroChallenger && zeroProver
+	case contracts.ProposalStatusUnchallengedAndValidProofProvided:
+		valid = zeroChallenger && !zeroProver
+	case contracts.ProposalStatusChallengedAndValidProofProvided:
+		valid = !zeroChallenger && !zeroProver
+	case contracts.ProposalStatusResolved:
+		valid = true
+	}
+	if !valid {
+		return fmt.Errorf("invalid ZK participants for proposal status %s: challenger %s, prover %s", status, challenger, prover)
+	}
+	return nil
 }
 
 func (e *Extractor) enrichFaultGame(ctx context.Context, block rpcblock.Block, caller GameCaller, game gameTypes.GameMetadata) (monTypes.EnrichedGame, error) {

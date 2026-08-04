@@ -167,15 +167,27 @@ type FaultGameData struct {
 	Claims                []EnrichedClaim
 }
 
+// ZKGameData contains proposal and parent state for a ZK dispute game.
+type ZKGameData struct {
+	CommonGameData
+
+	ParentIndex    uint32
+	ParentStatus   *types.GameStatus
+	ProposalStatus contracts.ProposalStatus
+	Deadline       time.Time
+}
+
 // SuperPermissionedGameData is the common snapshot of a SuperPermissioned game.
 type SuperPermissionedGameData struct {
 	CommonGameData
 }
 
 func (g *FaultGameData) Common() *CommonGameData             { return &g.CommonGameData }
+func (g *ZKGameData) Common() *CommonGameData                { return &g.CommonGameData }
 func (g *SuperPermissionedGameData) Common() *CommonGameData { return &g.CommonGameData }
 
 func (*FaultGameData) enrichedGame()             {}
+func (*ZKGameData) enrichedGame()                {}
 func (*SuperPermissionedGameData) enrichedGame() {}
 
 func (g *FaultGameData) BondData() *BondGameData { return &g.BondGameData }
@@ -195,7 +207,7 @@ func (g CommonGameData) HasMixedAvailability() bool {
 		return false
 	}
 
-	successfulEndpoints := g.NodeEndpointTotalCount - g.NodeEndpointErrorCount - g.NodeEndpointNotFoundCount
+	successfulEndpoints := g.NodeEndpointTotalCount - g.NodeEndpointErrorCount - g.NodeEndpointNotFoundCount - g.NodeEndpointOutOfSyncCount
 	return g.NodeEndpointNotFoundCount > 0 && successfulEndpoints > 0
 }
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync"
 
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -47,7 +48,7 @@ type superRootResult struct {
 }
 
 func (e *SuperAgreementEnricher) Enrich(ctx context.Context, _ rpcblock.Block, _ GameCaller, game *monTypes.CommonGameData) error {
-	if game.UsesOutputRoots() {
+	if game.UsesOutputRoots() || gameTypes.GameType(game.GameType) == gameTypes.ZKDisputeGameType {
 		return nil
 	}
 	if len(e.clients) == 0 {

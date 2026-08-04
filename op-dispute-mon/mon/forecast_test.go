@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
@@ -360,6 +361,74 @@ func TestForecast_Forecast_MultipleGames(t *testing.T) {
 	require.EqualValues(t, 8, m.latestValidProposalL2Block)
 	require.EqualValues(t, 7, m.latestInvalidProposal)
 	require.EqualValues(t, 8, m.latestValidProposal)
+}
+
+func TestForecastZKDecisionTable(t *testing.T) {
+	inProgress := types.GameStatusInProgress
+	defenderWon := types.GameStatusDefenderWon
+	challengerWon := types.GameStatusChallengerWon
+	tests := []struct {
+		name        string
+		agree       bool
+		status      types.GameStatus
+		proposal    contracts.ProposalStatus
+		parent      *types.GameStatus
+		expectation metrics.GameAgreementStatus
+		impossible  bool
+	}{
+		{name: "agree unchallenged live", agree: true, status: types.GameStatusInProgress, proposal: contracts.ProposalStatusUnchallenged, expectation: metrics.AgreeDefenderAhead},
+		{name: "disagree unchallenged live", status: types.GameStatusInProgress, proposal: contracts.ProposalStatusUnchallenged, expectation: metrics.DisagreeDefenderAhead},
+		{name: "agree challenged live", agree: true, status: types.GameStatusInProgress, proposal: contracts.ProposalStatusChallenged, expectation: metrics.AgreeChallengerAhead},
+		{name: "disagree challenged live", status: types.GameStatusInProgress, proposal: contracts.ProposalStatusChallenged, expectation: metrics.DisagreeChallengerAhead},
+		{name: "agree valid proof live", agree: true, status: types.GameStatusInProgress, proposal: contracts.ProposalStatusChallengedAndValidProofProvided, expectation: metrics.AgreeDefenderAhead},
+		{name: "disagree valid proof live", status: types.GameStatusInProgress, proposal: contracts.ProposalStatusUnchallengedAndValidProofProvided, expectation: metrics.DisagreeDefenderAhead},
+		{name: "agree unchallenged proof live", agree: true, status: types.GameStatusInProgress, proposal: contracts.ProposalStatusUnchallengedAndValidProofProvided, expectation: metrics.AgreeDefenderAhead},
+		{name: "disagree challenged proof live", status: types.GameStatusInProgress, proposal: contracts.ProposalStatusChallengedAndValidProofProvided, expectation: metrics.DisagreeDefenderAhead},
+		{name: "invalid parent overrides live", agree: true, status: types.GameStatusInProgress, proposal: contracts.ProposalStatusUnchallenged, parent: &challengerWon, expectation: metrics.AgreeChallengerAhead},
+		{name: "live parent does not override defender-governed proposal", agree: true, status: types.GameStatusInProgress, proposal: contracts.ProposalStatusUnchallenged, parent: &inProgress, expectation: metrics.AgreeDefenderAhead},
+		{name: "valid parent does not override challenger-governed proposal", agree: true, status: types.GameStatusInProgress, proposal: contracts.ProposalStatusChallenged, parent: &defenderWon, expectation: metrics.AgreeChallengerAhead},
+		{name: "agree terminal defender ignores invalid parent", agree: true, status: types.GameStatusDefenderWon, proposal: contracts.ProposalStatusResolved, parent: &challengerWon, expectation: metrics.AgreeDefenderWins},
+		{name: "disagree terminal defender", status: types.GameStatusDefenderWon, proposal: contracts.ProposalStatusResolved, expectation: metrics.DisagreeDefenderWins},
+		{name: "agree terminal challenger", agree: true, status: types.GameStatusChallengerWon, proposal: contracts.ProposalStatusResolved, expectation: metrics.AgreeChallengerWins},
+		{name: "disagree terminal challenger", status: types.GameStatusChallengerWon, proposal: contracts.ProposalStatusResolved, expectation: metrics.DisagreeChallengerWins},
+		{name: "agree impossible live resolved is pessimistic", agree: true, status: types.GameStatusInProgress, proposal: contracts.ProposalStatusResolved, expectation: metrics.AgreeChallengerAhead, impossible: true},
+		{name: "disagree impossible live resolved is pessimistic", status: types.GameStatusInProgress, proposal: contracts.ProposalStatusResolved, expectation: metrics.DisagreeDefenderAhead, impossible: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			forecast, metricer, logs := setupForecastTest(t)
+			game := &monTypes.ZKGameData{
+				CommonGameData: monTypes.CommonGameData{Status: test.status, AgreeWithClaim: test.agree},
+				ProposalStatus: test.proposal,
+				ParentStatus:   test.parent,
+			}
+
+			forecast.Forecast([]monTypes.EnrichedGame{game}, 0, 0)
+			expected := zeroGameAgreement()
+			expected[test.expectation] = 1
+			require.Equal(t, expected, metricer.gameAgreement)
+			impossibleLog := logs.FindLog(testlog.NewMessageFilter("Unable to forecast ZK game with incompatible proposal and global status"))
+			require.Equal(t, test.impossible, impossibleLog != nil)
+		})
+	}
+}
+
+func TestForecastExcludesZKFromLatestValidL2Block(t *testing.T) {
+	forecast, metricer, _ := setupForecastTest(t)
+	games := []monTypes.EnrichedGame{
+		&monTypes.FaultGameData{CommonGameData: monTypes.CommonGameData{Status: types.GameStatusChallengerWon, L2SequenceNumber: 55}},
+		&monTypes.SuperPermissionedGameData{CommonGameData: monTypes.CommonGameData{AgreeWithClaim: true, L2SequenceNumber: 77, Status: types.GameStatusDefenderWon}},
+		&monTypes.ZKGameData{CommonGameData: monTypes.CommonGameData{AgreeWithClaim: true, L2SequenceNumber: 99, Status: types.GameStatusInProgress}, ProposalStatus: contracts.ProposalStatusChallenged},
+	}
+
+	forecast.Forecast(games, 0, 0)
+	require.Equal(t, uint64(77), metricer.latestValidProposalL2Block)
+	expected := zeroGameAgreement()
+	expected[metrics.DisagreeChallengerWins] = 1
+	expected[metrics.AgreeDefenderWins] = 1
+	expected[metrics.AgreeChallengerAhead] = 1
+	require.Equal(t, expected, metricer.gameAgreement)
 }
 
 func setupForecastTest(t *testing.T) (*Forecast, *mockForecastMetrics, *testlog.CapturingHandler) {

@@ -55,6 +55,11 @@ func TestMetadataCreator_CreateContract(t *testing.T) {
 			game: types.GameMetadata{GameType: uint32(types.SuperCannonKonaGameType), Proxy: fdgAddr},
 		},
 		{
+			name:        "zk production creation remains disabled",
+			game:        types.GameMetadata{GameType: uint32(types.ZKDisputeGameType), Proxy: fdgAddr},
+			expectedErr: fmt.Errorf("unsupported game type: %d", types.ZKDisputeGameType),
+		},
+		{
 			name:        "InvalidGameType",
 			game:        types.GameMetadata{GameType: 6, Proxy: fdgAddr},
 			expectedErr: fmt.Errorf("unsupported game type: 6"),
