@@ -226,7 +226,6 @@ func (n *OpReth) Start() {
 }
 
 // Stop stops the op-reth node.
-// warning: no restarts supported yet, since the RPC port is not remembered.
 func (n *OpReth) Stop() {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -234,9 +233,20 @@ func (n *OpReth) Stop() {
 		n.p.Logger().Warn("op-reth already stopped")
 		return
 	}
+	n.clearProxyUpstreams()
 	err := n.sub.Stop(true)
 	n.p.Require().NoError(err, "Must stop")
 	n.sub = nil
+}
+
+// Callers must hold n.mu.
+func (n *OpReth) clearProxyUpstreams() {
+	if n.userProxy != nil {
+		n.userProxy.ClearUpstream()
+	}
+	if n.authProxy != nil {
+		n.authProxy.ClearUpstream()
+	}
 }
 
 func (n *OpReth) StartControlled(ctx context.Context) error {
@@ -249,6 +259,7 @@ func (n *OpReth) StopControlled(ctx context.Context) error {
 	if n.sub == nil {
 		return nil
 	}
+	n.clearProxyUpstreams()
 	if err := n.sub.StopControlled(ctx, controlledInterruptWait, controlledKillWait); err != nil {
 		return err
 	}
