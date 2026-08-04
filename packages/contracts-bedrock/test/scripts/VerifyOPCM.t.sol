@@ -810,7 +810,7 @@ contract VerifyOPCM_defaultSP1Verifier_Test is CommonTest {
         assertEq(harness.defaultSP1Verifier(), SP1_VERIFIER_V6_1_0);
     }
 
-    function test_defaultSP1Verifier_unknownNetwork_returnsZero() public {
+    function test_defaultSP1Verifier_unknownNetwork_succeeds() public {
         vm.chainId(Chains.LocalDevnet);
         assertEq(harness.defaultSP1Verifier(), address(0));
     }
