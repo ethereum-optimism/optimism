@@ -162,7 +162,7 @@
   },
   {
     "bytes": "20",
-    "label": "sp1PlonkAdapter",
+    "label": "sp1PlonkAdapterImpl",
     "offset": 0,
     "slot": "23",
     "type": "address"

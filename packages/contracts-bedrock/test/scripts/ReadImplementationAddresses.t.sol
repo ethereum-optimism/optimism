@@ -53,7 +53,7 @@ contract ReadImplementationAddressesTest is CommonTest {
         assertEq(output.delayedWETH, impls.delayedWETHImpl, "DelayedWETH should match");
         assertEq(output.anchorStateRegistry, impls.anchorStateRegistryImpl, "AnchorStateRegistry should match");
         assertEq(output.mipsSingleton, impls.mipsImpl, "MIPS singleton should match");
-        assertEq(output.sp1PlonkAdapter, impls.sp1PlonkAdapter, "SP1PlonkAdapter should match");
+        assertEq(output.sp1PlonkAdapter, impls.sp1PlonkAdapterImpl, "SP1PlonkAdapter should match");
         assertEq(output.faultDisputeGame, impls.faultDisputeGameImpl, "FaultDisputeGame should match");
         assertEq(
             output.permissionedDisputeGame, impls.permissionedDisputeGameImpl, "PermissionedDisputeGame should match"
@@ -86,7 +86,7 @@ contract ReadImplementationAddressesTest is CommonTest {
         // Assert key values match
         assertEq(output.delayedWETH, impls.delayedWETHImpl, "DelayedWETH should match");
         assertEq(output.mipsSingleton, impls.mipsImpl, "MIPS singleton should match");
-        assertEq(output.sp1PlonkAdapter, impls.sp1PlonkAdapter, "SP1PlonkAdapter should match");
+        assertEq(output.sp1PlonkAdapter, impls.sp1PlonkAdapterImpl, "SP1PlonkAdapter should match");
         assertEq(
             output.opcmStandardValidator, address(opcm_.opcmStandardValidator()), "OPCM StandardValidator should match"
         );

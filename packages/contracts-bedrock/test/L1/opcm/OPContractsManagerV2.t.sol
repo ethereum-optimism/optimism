@@ -1094,7 +1094,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         assertEq(args.length, 140, "ZK game args length must be 140 bytes (32+20+8+8+32+20+20)");
         assertEq(
             LibGameArgs.decodeZK(args).verifier,
-            opcmV2.implementations().sp1PlonkAdapter,
+            opcmV2.implementations().sp1PlonkAdapterImpl,
             "ZK verifier must be the release adapter"
         );
     }
@@ -2660,7 +2660,7 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
         assertEq(sharedDgf.gameArgs(GameTypes.ZK_DISPUTE_GAME).length, 140, "ZK args not 140 bytes");
         assertEq(
             LibGameArgs.decodeZK(sharedDgf.gameArgs(GameTypes.ZK_DISPUTE_GAME)).verifier,
-            opcmV2.implementations().sp1PlonkAdapter,
+            opcmV2.implementations().sp1PlonkAdapterImpl,
             "ZK verifier must be the release adapter"
         );
         assertEq(sharedDgf.initBonds(GameTypes.ZK_DISPUTE_GAME), 1 ether, "ZK init bond not set");

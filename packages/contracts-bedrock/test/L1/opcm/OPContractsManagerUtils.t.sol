@@ -148,7 +148,7 @@ contract OPContractsManagerUtils_TestInit is Test, FeatureFlags {
             superPermissionedDisputeGameImpl: makeAddr("superPermissionedDisputeGameImpl"),
             zkDisputeGameImpl: makeAddr("zkDisputeGameImpl"),
             storageSetterImpl: address(storageSetter),
-            sp1PlonkAdapter: makeAddr("sp1PlonkAdapter")
+            sp1PlonkAdapterImpl: makeAddr("sp1PlonkAdapterImpl")
         });
 
         // Deploy the container and utils.
@@ -937,7 +937,7 @@ contract OPContractsManagerUtils_MakeGameArgs_Test is OPContractsManagerUtils_Te
     function test_makeGameArgs_zkDisputeGame_succeeds() public {
         skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
         Claim absolutePrestate = Claim.wrap(bytes32(keccak256("zk prestate")));
-        address verifier = implementations.sp1PlonkAdapter;
+        address verifier = implementations.sp1PlonkAdapterImpl;
         Duration maxChallengeDuration = Duration.wrap(uint64(7 days));
         Duration maxProveDuration = Duration.wrap(uint64(3 days));
         uint256 challengerBond = 1 ether;

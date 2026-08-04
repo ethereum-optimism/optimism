@@ -150,7 +150,7 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         assertEq(address(output1.ethLockboxImpl), address(output2.ethLockboxImpl), "1300");
         assertEq(address(output1.faultDisputeGameImpl), address(output2.faultDisputeGameImpl), "1400");
         assertEq(address(output1.permissionedDisputeGameImpl), address(output2.permissionedDisputeGameImpl), "1500");
-        assertEq(address(output1.sp1PlonkAdapter), address(output2.sp1PlonkAdapter), "1600");
+        assertEq(address(output1.sp1PlonkAdapterSingleton), address(output2.sp1PlonkAdapterSingleton), "1600");
 
         assertNotEq(address(output1.faultDisputeGameImpl), address(0), "V2 contracts should not be null");
         assertNotEq(address(output1.permissionedDisputeGameImpl), address(0), "V2 contracts should not be null");
@@ -168,9 +168,9 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         inputB.sp1Verifier = verifierB;
         DeployImplementations.Output memory outputB = deployImplementations.run(inputB);
 
-        assertNotEq(address(outputA.sp1PlonkAdapter), address(outputB.sp1PlonkAdapter));
-        assertEq(address(outputA.sp1PlonkAdapter.sp1Verifier()), address(sp1Verifier));
-        assertEq(address(outputB.sp1PlonkAdapter.sp1Verifier()), address(verifierB));
+        assertNotEq(address(outputA.sp1PlonkAdapterSingleton), address(outputB.sp1PlonkAdapterSingleton));
+        assertEq(address(outputA.sp1PlonkAdapterSingleton.sp1Verifier()), address(sp1Verifier));
+        assertEq(address(outputB.sp1PlonkAdapterSingleton.sp1Verifier()), address(verifierB));
     }
 
     /// @notice Test that the deployImplementations script succeeds with a range of input values.
@@ -361,7 +361,9 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         // Architecture assertions.
         assertEq(address(output.mipsSingleton.oracle()), address(output.preimageOracleSingleton), "600");
         if (DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
-            assertEq(address(output.sp1PlonkAdapter.sp1Verifier()), address(sp1Verifier), "SP1 verifier mismatch");
+            assertEq(
+                address(output.sp1PlonkAdapterSingleton.sp1Verifier()), address(sp1Verifier), "SP1 verifier mismatch"
+            );
         }
     }
 

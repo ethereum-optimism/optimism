@@ -513,7 +513,7 @@ contract OPContractsManagerUtils {
                 abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.ZKDisputeGameConfig));
             return abi.encodePacked(
                 parsedInputArgs.absolutePrestate,
-                impls.sp1PlonkAdapter,
+                impls.sp1PlonkAdapterImpl,
                 parsedInputArgs.maxChallengeDuration,
                 parsedInputArgs.maxProveDuration,
                 parsedInputArgs.challengerBond,

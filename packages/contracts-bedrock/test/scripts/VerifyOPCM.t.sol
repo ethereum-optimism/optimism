@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
+import { Chains } from "scripts/libraries/Chains.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Tests
@@ -85,6 +86,10 @@ contract VerifyOPCM_Harness is VerifyOPCM {
         return _verifySP1Verifier(_adapter);
     }
 
+    function defaultSP1Verifier() public view returns (address) {
+        return _defaultSP1Verifier();
+    }
+
     function verifyPortalDelays(IOptimismPortal2 _portal) public view returns (bool) {
         return _verifyPortalDelays(_portal);
     }
@@ -145,7 +150,7 @@ abstract contract VerifyOPCM_TestInit is CommonTest {
             vm.toString(anchorStateRegistry.disputeGameFinalityDelaySeconds())
         );
         if (zkDisputeGameEnabled()) {
-            ISP1PlonkAdapter adapter = ISP1PlonkAdapter(opcm.implementations().sp1PlonkAdapter);
+            ISP1PlonkAdapter adapter = ISP1PlonkAdapter(opcm.implementations().sp1PlonkAdapterImpl);
             vm.setEnv("EXPECTED_SP1_VERIFIER", vm.toString(address(adapter.sp1Verifier())));
         }
     }
@@ -769,16 +774,44 @@ contract VerifyOPCM_verifyPreimageOracle_Test is VerifyOPCM_TestInit {
 /// @title VerifyOPCM_verifySP1Verifier_Test
 /// @notice Tests for release-approved raw SP1 verifier verification.
 contract VerifyOPCM_verifySP1Verifier_Test is VerifyOPCM_TestInit {
-    function test_verifySP1Verifier_matchingAddress_succeeds() public {
+    function test_verifySP1Verifier_overrideAndMismatch_succeeds() public {
         skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-        ISP1PlonkAdapter adapter = ISP1PlonkAdapter(opcm.implementations().sp1PlonkAdapter);
-        assertTrue(harness.verifySP1Verifier(adapter));
-    }
+        ISP1PlonkAdapter adapter = ISP1PlonkAdapter(opcm.implementations().sp1PlonkAdapterImpl);
+        address verifier = address(adapter.sp1Verifier());
 
-    function test_verifySP1Verifier_mismatchedAddress_fails() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-        ISP1PlonkAdapter adapter = ISP1PlonkAdapter(opcm.implementations().sp1PlonkAdapter);
+        vm.setEnv("EXPECTED_SP1_VERIFIER", vm.toString(verifier));
+        vm.chainId(Chains.Mainnet);
+        assertTrue(harness.verifySP1Verifier(adapter));
+
         vm.setEnv("EXPECTED_SP1_VERIFIER", vm.toString(address(0xBEEF)));
         assertFalse(harness.verifySP1Verifier(adapter));
+
+        vm.setEnv("EXPECTED_SP1_VERIFIER", vm.toString(verifier));
+    }
+}
+
+/// @title VerifyOPCM_defaultSP1Verifier_Test
+/// @notice Tests the network defaults for release-approved raw SP1 verifier verification.
+contract VerifyOPCM_defaultSP1Verifier_Test is CommonTest {
+    address internal constant SP1_VERIFIER_V6_1_0 = 0xc3c6dDDAc8829b233Dc6536Ec024775a57b0AF2A;
+
+    VerifyOPCM_Harness internal harness;
+
+    function setUp() public override {
+        super.setUp();
+        harness = new VerifyOPCM_Harness();
+    }
+
+    function test_defaultSP1Verifier_knownNetworks_succeeds() public {
+        vm.chainId(Chains.Mainnet);
+        assertEq(harness.defaultSP1Verifier(), SP1_VERIFIER_V6_1_0);
+
+        vm.chainId(Chains.Sepolia);
+        assertEq(harness.defaultSP1Verifier(), SP1_VERIFIER_V6_1_0);
+    }
+
+    function test_defaultSP1Verifier_unknownNetwork_returnsZero() public {
+        vm.chainId(Chains.LocalDevnet);
+        assertEq(harness.defaultSP1Verifier(), address(0));
     }
 }

@@ -95,7 +95,7 @@
           },
           {
             "internalType": "address",
-            "name": "sp1PlonkAdapter",
+            "name": "sp1PlonkAdapterImpl",
             "type": "address"
           }
         ],
@@ -355,7 +355,7 @@
   },
   {
     "inputs": [],
-    "name": "sp1PlonkAdapter",
+    "name": "sp1PlonkAdapterImpl",
     "outputs": [
       {
         "internalType": "address",

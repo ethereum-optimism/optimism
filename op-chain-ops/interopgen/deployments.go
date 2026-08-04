@@ -34,7 +34,7 @@ type Implementations struct {
 	SuperPermissionedDisputeGameImpl common.Address `json:"SuperPermissionedDisputeGameImpl"`
 	ZkDisputeGameImpl                common.Address `json:"ZkDisputeGameImpl"`
 	StorageSetterImpl                common.Address `json:"StorageSetterImpl"`
-	SP1PlonkAdapter                  common.Address `json:"SP1PlonkAdapter"`
+	SP1PlonkAdapterSingleton         common.Address `json:"SP1PlonkAdapterSingleton"`
 }
 
 type SuperchainDeployment struct {

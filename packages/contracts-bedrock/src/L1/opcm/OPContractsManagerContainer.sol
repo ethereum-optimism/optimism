@@ -40,7 +40,7 @@ contract OPContractsManagerContainer {
         address superPermissionedDisputeGameImpl;
         address zkDisputeGameImpl;
         address storageSetterImpl;
-        address sp1PlonkAdapter;
+        address sp1PlonkAdapterImpl;
     }
 
     /// @notice Address of the blueprint contracts. This is internal because if it were public the

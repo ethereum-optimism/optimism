@@ -121,7 +121,7 @@ contract OPContractsManagerStandardValidator is ISemver {
     IOPContractsManagerMigrationValidator public migrationValidator;
 
     /// @notice The release-approved SP1 PLONK adapter address.
-    address public sp1PlonkAdapter;
+    address public sp1PlonkAdapterImpl;
 
     /// @notice Struct containing the implementation addresses of the L1 contracts.
     struct Implementations {
@@ -141,7 +141,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         address superFaultDisputeGameImpl;
         address superPermissionedDisputeGameImpl;
         address zkDisputeGameImpl;
-        address sp1PlonkAdapter;
+        address sp1PlonkAdapterImpl;
     }
 
     /// @notice Struct containing the input parameters for the validation process.
@@ -203,7 +203,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         superFaultDisputeGameImpl = _implementations.superFaultDisputeGameImpl;
         superPermissionedDisputeGameImpl = _implementations.superPermissionedDisputeGameImpl;
         zkDisputeGameImpl = _implementations.zkDisputeGameImpl;
-        sp1PlonkAdapter = _implementations.sp1PlonkAdapter;
+        sp1PlonkAdapterImpl = _implementations.sp1PlonkAdapterImpl;
     }
 
     /// @notice Returns a string representing the overrides that are set.
@@ -1057,7 +1057,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         LibGameArgs.ZKGameArgs memory args = LibGameArgs.decodeZK(factory.gameArgs(GameTypes.ZK_DISPUTE_GAME));
         _errors = internalRequire(args.absolutePrestate != bytes32(0), string.concat(_errorPrefix, "-70"), _errors);
         _errors = internalRequire(
-            args.verifier == sp1PlonkAdapter && sp1PlonkAdapter.code.length > 0,
+            args.verifier == sp1PlonkAdapterImpl && sp1PlonkAdapterImpl.code.length > 0,
             string.concat(_errorPrefix, "-80"),
             _errors
         );

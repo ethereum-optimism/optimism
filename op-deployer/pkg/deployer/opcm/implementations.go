@@ -58,7 +58,7 @@ type DeployImplementationsOutput struct {
 	SuperPermissionedDisputeGameImpl common.Address `json:"superPermissionedDisputeGameImplAddress"`
 	ZkDisputeGameImpl                common.Address `json:"zkDisputeGameImplAddress" abi:"zkDisputeGameImpl"`
 	StorageSetterImpl                common.Address `json:"storageSetterImplAddress"`
-	SP1PlonkAdapter                  common.Address `json:"sp1PlonkAdapterAddress" abi:"sp1PlonkAdapter"`
+	SP1PlonkAdapterSingleton         common.Address `json:"sp1PlonkAdapterSingletonAddress" abi:"sp1PlonkAdapterSingleton"`
 }
 
 type DeployImplementationsScript script.DeployScriptWithOutput[DeployImplementationsInput, DeployImplementationsOutput]

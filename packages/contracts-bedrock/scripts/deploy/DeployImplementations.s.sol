@@ -90,7 +90,7 @@ contract DeployImplementations is Script {
         ISuperPermissionedDisputeGame superPermissionedDisputeGameImpl;
         IZKDisputeGame zkDisputeGameImpl;
         IStorageSetter storageSetterImpl;
-        ISP1PlonkAdapter sp1PlonkAdapter;
+        ISP1PlonkAdapter sp1PlonkAdapterSingleton;
     }
 
     bytes32 internal _salt = DeployUtils.DEFAULT_SALT;
@@ -179,7 +179,7 @@ contract DeployImplementations is Script {
             superPermissionedDisputeGameImpl: address(_output.superPermissionedDisputeGameImpl),
             zkDisputeGameImpl: address(_output.zkDisputeGameImpl),
             storageSetterImpl: address(_output.storageSetterImpl),
-            sp1PlonkAdapter: address(_output.sp1PlonkAdapter)
+            sp1PlonkAdapterImpl: address(_output.sp1PlonkAdapterSingleton)
         });
 
         // Deploy OPCM V2 components
@@ -521,7 +521,7 @@ contract DeployImplementations is Script {
             })
         );
         vm.label(address(impl), "SP1PlonkAdapter");
-        _output.sp1PlonkAdapter = impl;
+        _output.sp1PlonkAdapterSingleton = impl;
     }
 
     function deployOPCMContainer(
@@ -600,7 +600,7 @@ contract DeployImplementations is Script {
         opcmImplementations.superFaultDisputeGameImpl = _implementations.superFaultDisputeGameImpl;
         opcmImplementations.superPermissionedDisputeGameImpl = _implementations.superPermissionedDisputeGameImpl;
         opcmImplementations.zkDisputeGameImpl = _implementations.zkDisputeGameImpl;
-        opcmImplementations.sp1PlonkAdapter = _implementations.sp1PlonkAdapter;
+        opcmImplementations.sp1PlonkAdapterImpl = _implementations.sp1PlonkAdapterImpl;
 
         IStandardValidatorUtils standardValidatorUtils = IStandardValidatorUtils(
             DeployUtils.createDeterministic({
@@ -769,7 +769,8 @@ contract DeployImplementations is Script {
 
         if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
             addrs2 = Solarray.extend(
-                addrs2, Solarray.addresses(address(_output.zkDisputeGameImpl), address(_output.sp1PlonkAdapter))
+                addrs2,
+                Solarray.addresses(address(_output.zkDisputeGameImpl), address(_output.sp1PlonkAdapterSingleton))
             );
         }
 
@@ -797,11 +798,11 @@ contract DeployImplementations is Script {
                 "DeployImplementations: ZK_DISPUTE_GAME flag enabled but ZKDisputeGame was not deployed"
             );
             require(
-                address(_output.sp1PlonkAdapter) != address(0),
+                address(_output.sp1PlonkAdapterSingleton) != address(0),
                 "DeployImplementations: ZK_DISPUTE_GAME flag enabled but SP1PlonkAdapter was not deployed"
             );
             require(
-                address(_output.sp1PlonkAdapter.sp1Verifier()) == address(_input.sp1Verifier),
+                address(_output.sp1PlonkAdapterSingleton.sp1Verifier()) == address(_input.sp1Verifier),
                 "DeployImplementations: SP1PlonkAdapter has unexpected verifier"
             );
         } else {
@@ -810,7 +811,7 @@ contract DeployImplementations is Script {
                 "DeployImplementations: ZK_DISPUTE_GAME flag disabled but ZKDisputeGame was deployed"
             );
             require(
-                address(_output.sp1PlonkAdapter) == address(0),
+                address(_output.sp1PlonkAdapterSingleton) == address(0),
                 "DeployImplementations: ZK_DISPUTE_GAME flag disabled but SP1PlonkAdapter was deployed"
             );
         }

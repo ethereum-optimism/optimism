@@ -2124,7 +2124,7 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
             // preimage, so the 140-byte layout has no l2ChainId field.
             bytes memory zkArgs = abi.encodePacked(
                 bytes32(keccak256("zkPrestate")),
-                standardValidator.sp1PlonkAdapter(),
+                standardValidator.sp1PlonkAdapterImpl(),
                 uint64(7 days),
                 uint64(3 days),
                 uint256(0.08 ether),

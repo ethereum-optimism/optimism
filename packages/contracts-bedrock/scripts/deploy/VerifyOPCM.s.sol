@@ -11,6 +11,7 @@ import { Math } from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 import { Process } from "scripts/libraries/Process.sol";
 import { Config } from "scripts/libraries/Config.sol";
+import { Chains } from "scripts/libraries/Chains.sol";
 import { Bytes } from "src/libraries/Bytes.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Constants } from "src/libraries/Constants.sol";
@@ -98,11 +99,20 @@ contract VerifyOPCM is Script {
     /// @notice Thrown when a staticcall to a validator getter fails.
     error VerifyOPCM_ValidatorCallFailed(string sig);
 
+    /// @notice Thrown when no approved SP1 verifier is configured for the current network.
+    error VerifyOPCM_SP1VerifierNotConfigured(uint256 chainId);
+
     /// @notice Preamble used for blueprint contracts.
     bytes constant BLUEPRINT_PREAMBLE = hex"FE7100";
 
     /// @notice Maximum init code size for blueprints.
     uint256 constant MAX_INIT_CODE_SIZE = 23500;
+
+    /// @notice Succinct's v6.1.0 SP1 PLONK verifier on Ethereum Mainnet.
+    address internal constant MAINNET_SP1_VERIFIER_V6_1_0 = 0xc3c6dDDAc8829b233Dc6536Ec024775a57b0AF2A;
+
+    /// @notice Succinct's v6.1.0 SP1 PLONK verifier on Ethereum Sepolia.
+    address internal constant SEPOLIA_SP1_VERIFIER_V6_1_0 = 0xc3c6dDDAc8829b233Dc6536Ec024775a57b0AF2A;
 
     /// @notice Represents a contract name and its corresponding address.
     /// @param field     Name of the field the address was extracted from.
@@ -201,7 +211,7 @@ contract VerifyOPCM is Script {
         fieldNameOverrides["opcmV2"] = "OPContractsManagerV2";
         fieldNameOverrides["opcmUtils"] = "OPContractsManagerUtils";
         fieldNameOverrides["zkDisputeGameImpl"] = "ZKDisputeGame";
-        fieldNameOverrides["sp1PlonkAdapter"] = "SP1PlonkAdapter";
+        fieldNameOverrides["sp1PlonkAdapterImpl"] = "SP1PlonkAdapter";
 
         // Expected getter functions and their verification methods.
         // CRITICAL: Any getter in the ABI that's not in this list will cause verification to fail.
@@ -252,7 +262,7 @@ contract VerifyOPCM is Script {
         validatorGetterChecks["superFaultDisputeGameImpl"] = "CONTAINER_IMPL";
         validatorGetterChecks["superPermissionedDisputeGameImpl"] = "CONTAINER_IMPL";
         validatorGetterChecks["zkDisputeGameImpl"] = "CONTAINER_IMPL";
-        validatorGetterChecks["sp1PlonkAdapter"] = "CONTAINER_IMPL";
+        validatorGetterChecks["sp1PlonkAdapterImpl"] = "CONTAINER_IMPL";
 
         // Verify against env vars
         validatorGetterChecks["superchainConfig"] = "ENV:ADDRESS:EXPECTED_SUPERCHAIN_CONFIG";
@@ -1382,10 +1392,20 @@ contract VerifyOPCM is Script {
         );
     }
 
+    /// @notice Returns the approved SP1 verifier for the current network, or zero if none is configured.
+    function _defaultSP1Verifier() internal view returns (address verifier_) {
+        if (block.chainid == Chains.Mainnet) {
+            verifier_ = MAINNET_SP1_VERIFIER_V6_1_0;
+        } else if (block.chainid == Chains.Sepolia) {
+            verifier_ = SEPOLIA_SP1_VERIFIER_V6_1_0;
+        }
+    }
+
     /// @notice Verifies the raw SP1 verifier referenced by the release adapter.
     function _verifySP1Verifier(ISP1PlonkAdapter _adapter) internal view returns (bool) {
         // nosemgrep: sol-style-vm-env-only-in-config-sol
-        address expectedVerifier = vm.envAddress("EXPECTED_SP1_VERIFIER");
+        address expectedVerifier = vm.envOr("EXPECTED_SP1_VERIFIER", _defaultSP1Verifier());
+        if (expectedVerifier == address(0)) revert VerifyOPCM_SP1VerifierNotConfigured(block.chainid);
         address actualVerifier = address(_adapter.sp1Verifier());
 
         console.log("  Verifying SP1 verifier...");

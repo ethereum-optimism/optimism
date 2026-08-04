@@ -29,7 +29,7 @@ interface IOPContractsManagerContainer {
         address superPermissionedDisputeGameImpl;
         address zkDisputeGameImpl;
         address storageSetterImpl;
-        address sp1PlonkAdapter;
+        address sp1PlonkAdapterImpl;
     }
 
     error OPContractsManagerContainer_DevFeatureInProd();

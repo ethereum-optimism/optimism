@@ -12,7 +12,7 @@ func TestGetArtifactPath(t *testing.T) {
 		"superchain_superchain_config_impl":       "SuperchainConfig.sol/SuperchainConfig.json",
 		"implementations_opcm_impl":               "OPContractsManagerV2.sol/OPContractsManagerV2.json",
 		"implementations_s_p1_plonk_adapter_impl": "SP1PlonkAdapter.sol/SP1PlonkAdapter.json",
-		"sp1PlonkAdapterAddress":                  "SP1PlonkAdapter.sol/SP1PlonkAdapter.json",
+		"sp1PlonkAdapterSingletonAddress":         "SP1PlonkAdapter.sol/SP1PlonkAdapter.json",
 	}
 
 	for contractName, expectedPath := range testCases {

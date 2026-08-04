@@ -169,7 +169,7 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 		PermissionedDisputeGameImpl:      dio.PermissionedDisputeGameImpl,
 		ZkDisputeGameImpl:                dio.ZkDisputeGameImpl,
 		StorageSetterImpl:                dio.StorageSetterImpl,
-		SP1PlonkAdapterImpl:              dio.SP1PlonkAdapter,
+		SP1PlonkAdapterImpl:              dio.SP1PlonkAdapterSingleton,
 		SuperFaultDisputeGameImpl:        dio.SuperFaultDisputeGameImpl,
 		SuperPermissionedDisputeGameImpl: dio.SuperPermissionedDisputeGameImpl,
 	}

@@ -72,7 +72,7 @@ contract ReadImplementationAddresses is Script {
         output_.superFaultDisputeGame = impls.superFaultDisputeGameImpl;
         output_.superPermissionedDisputeGame = impls.superPermissionedDisputeGameImpl;
         output_.zkDisputeGame = impls.zkDisputeGameImpl;
-        output_.sp1PlonkAdapter = impls.sp1PlonkAdapter;
+        output_.sp1PlonkAdapter = impls.sp1PlonkAdapterImpl;
 
         // Get L1CrossDomainMessenger from AddressManager
         IAddressManager am = IAddressManager(_input.addressManager);
