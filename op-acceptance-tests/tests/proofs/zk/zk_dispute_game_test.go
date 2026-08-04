@@ -2,6 +2,7 @@ package zk
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"math"
 	"net"
@@ -148,19 +149,24 @@ func TestProposerIgnoresInvalidChallengedGame(gt *testing.T) {
 	)
 	game.Challenge(challenger)
 
-	holdTimer := time.NewTimer(2 * time.Minute)
-	defer holdTimer.Stop()
+	holdCtx, cancelHold := context.WithTimeout(t.Ctx(), 2*time.Minute)
+	defer cancelHold()
 	pollTicker := time.NewTicker(2 * time.Second)
 	defer pollTicker.Stop()
 	holding := true
 	for holding {
 		select {
-		case <-t.Ctx().Done():
+		case <-holdCtx.Done():
 			t.Require().NoError(t.Ctx().Err(), "test context ended while checking invalid game")
-		case <-holdTimer.C:
 			holding = false
 		case <-pollTicker.C:
-			claim := game.WaitForClaimData()
+			claim, err := game.WaitForClaimData(holdCtx)
+			if holdCtx.Err() != nil {
+				t.Require().NoError(t.Ctx().Err(), "test context ended while checking invalid game")
+				holding = false
+				continue
+			}
+			t.Require().NoError(err, "read claim data while checking invalid game")
 			t.Require().Equal(proofs.ZKProposalChallenged, proofs.ZKProposalStatus(claim.Status),
 				"proposer must not defend an invalid game")
 			t.Require().Equal(common.Address{}, claim.Prover,
@@ -183,7 +189,7 @@ func TestProposerIgnoresInvalidChallengedGame(gt *testing.T) {
 // either proof lands; transaction landing times are serialized by the signer
 // lock and do not measure proving concurrency.
 func TestProposerDefendsMultipleChallengedGamesConcurrently(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	metricsPort := freeTCPPort(t)
 	// The honest challenger resolves games and claims credit on the
 	// proposer's behalf; disable it so proof submission is attributable to
@@ -192,25 +198,24 @@ func TestProposerDefendsMultipleChallengedGamesConcurrently(gt *testing.T) {
 		presets.WithZK(),
 		presets.WithZKProposerOption(sysgo.WithZKMetricsPort(metricsPort)),
 		presets.WithoutHonestChallenger(),
+		presets.WithoutHonestProposer(),
 	)
 	factory := sys.DisputeGameFactory()
 	proposerAddr := zkProposerAddress(t, sys)
 	creator, challenger := fundedActors(sys)
 
-	// Two foreign valid games at adjacent off-grid timestamps (an on-grid
-	// game would collide with the proposer's own creations on the factory
-	// UUID).
-	proposerGame := factory.WaitForZKGameAtIndex(0)
-	timestampA := proposerGame.L2SequenceNumber() + 1
-	timestampB := proposerGame.L2SequenceNumber() + 2
-	factory.WaitForSafeSuperRootAfter(timestampB)
+	// Create two foreign valid root games at distinct safe timestamps.
+	_, anchorSequence := sys.AnchorStateRegistry(sys.L2ChainA).AnchorRoot()
+	timestampA, _ := factory.WaitForSafeSuperRootAfter(anchorSequence)
+	timestampB, _ := factory.WaitForSafeSuperRootAfter(timestampA)
 	gameA := factory.StartZKGame(creator, proofs.WithL2SequenceNumber(timestampA))
 	gameB := factory.StartZKGame(creator, proofs.WithL2SequenceNumber(timestampB))
 
-	// Both Challenge calls wait for their receipts, so both games are
-	// challenged on-chain from here.
+	// Start the proposer after both challenges are on-chain so its first
+	// defense scan sees both candidates.
 	gameA.Challenge(challenger)
 	gameB.Challenge(challenger)
+	sys.StartZKProposer()
 
 	metricsURL := fmt.Sprintf("http://127.0.0.1:%d/metrics", metricsPort)
 	const spawnedMetric = "kona_sp1_proposer_games_defense_spawned"
@@ -220,10 +225,14 @@ func TestProposerDefendsMultipleChallengedGamesConcurrently(gt *testing.T) {
 	pollDeadline := time.Now().Add(10 * time.Minute)
 	for (proverA == common.Address{} || proverB == common.Address{}) && time.Now().Before(pollDeadline) {
 		if proverA == (common.Address{}) {
-			proverA = gameA.WaitForClaimData().Prover
+			claim, err := gameA.WaitForClaimData(t.Ctx())
+			t.Require().NoError(err, "read game A claim data")
+			proverA = claim.Prover
 		}
 		if proverB == (common.Address{}) {
-			proverB = gameB.WaitForClaimData().Prover
+			claim, err := gameB.WaitForClaimData(t.Ctx())
+			t.Require().NoError(err, "read game B claim data")
+			proverB = claim.Prover
 		}
 		// Two spawned tasks before either proof lands witnesses concurrency.
 		// Zero failures excludes one failed and respawned task.
