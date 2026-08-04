@@ -243,7 +243,7 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		s.faultEnrichers(),
 	)
 	forecast := NewForecast(s.logger, s.metrics)
-	bonds := bonds.NewBonds(s.logger, s.metrics, s.cl)
+	bonds := bonds.NewBonds(s.logger, s.metrics, s.cl, s.honestActors)
 	resolutions := NewResolutionMonitor(s.logger, s.metrics, s.cl)
 	claims := NewClaimMonitor(s.logger, s.cl, s.honestActors, s.metrics)
 	withdrawals := NewWithdrawalMonitor(s.logger, s.cl, s.metrics, s.honestActors)

@@ -46,6 +46,7 @@ type BondRecord struct {
 	Recipient common.Address
 	Amount    *big.Int
 	Resolved  bool
+	Forfeited bool
 }
 
 // BondGameData contains normalized bond and DelayedWETH state.

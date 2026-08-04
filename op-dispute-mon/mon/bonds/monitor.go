@@ -17,19 +17,22 @@ type RClock interface {
 type BondMetrics interface {
 	RecordCredit(expectation metrics.CreditExpectation, count int)
 	RecordBondCollateral(addr common.Address, required *big.Int, available *big.Int)
+	RecordHonestActorBonds(address common.Address, data *metrics.HonestActorBondData)
 }
 
 type Bonds struct {
-	logger  log.Logger
-	clock   RClock
-	metrics BondMetrics
+	logger       log.Logger
+	clock        RClock
+	metrics      BondMetrics
+	honestActors types.HonestActors
 }
 
-func NewBonds(logger log.Logger, metrics BondMetrics, clock RClock) *Bonds {
+func NewBonds(logger log.Logger, metrics BondMetrics, clock RClock, honestActors types.HonestActors) *Bonds {
 	return &Bonds{
-		logger:  logger,
-		clock:   clock,
-		metrics: metrics,
+		logger:       logger,
+		clock:        clock,
+		metrics:      metrics,
+		honestActors: honestActors,
 	}
 }
 
@@ -43,6 +46,44 @@ func (b *Bonds) CheckBonds(games []types.BondedGame) {
 	}
 
 	b.checkCredits(games)
+	b.checkHonestActorBonds(games)
+}
+
+func (b *Bonds) checkHonestActorBonds(games []types.BondedGame) {
+	honest := make(map[common.Address]*metrics.HonestActorBondData, len(b.honestActors))
+	for actor := range b.honestActors {
+		honest[actor] = &metrics.HonestActorBondData{
+			Pending: new(big.Int),
+			Lost:    new(big.Int),
+			Won:     new(big.Int),
+		}
+	}
+	for _, game := range games {
+		for _, bond := range game.BondData().Bonds {
+			if !bond.Resolved {
+				if b.honestActors.Contains(bond.Depositor) {
+					honest[bond.Depositor].Pending.Add(honest[bond.Depositor].Pending, bond.Amount)
+				}
+				continue
+			}
+			if !bond.Forfeited {
+				// Preserve the historical zero-address series until zero is rejected as an honest actor.
+				if b.honestActors.Contains(common.Address{}) {
+					honest[common.Address{}].Won.Add(honest[common.Address{}].Won, bond.Amount)
+				}
+				continue
+			}
+			if b.honestActors.Contains(bond.Depositor) {
+				honest[bond.Depositor].Lost.Add(honest[bond.Depositor].Lost, bond.Amount)
+			}
+			if b.honestActors.Contains(bond.Recipient) {
+				honest[bond.Recipient].Won.Add(honest[bond.Recipient].Won, bond.Amount)
+			}
+		}
+	}
+	for actor, data := range honest {
+		b.metrics.RecordHonestActorBonds(actor, data)
+	}
 }
 
 func (b *Bonds) checkCredits(games []types.BondedGame) {

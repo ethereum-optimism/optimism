@@ -75,7 +75,7 @@ func TestFaultBondSnapshotCompatibility(t *testing.T) {
 	}, data.Recipients)
 	require.Equal(t, map[common.Address]*big.Int{blockChallenger: big.NewInt(7)}, data.ExpectedCredits)
 	require.Equal(t, []monTypes.BondRecord{
-		{Depositor: claimant, Recipient: counterer, Amount: big.NewInt(7), Resolved: true},
+		{Depositor: claimant, Recipient: counterer, Amount: big.NewInt(7), Resolved: true, Forfeited: true},
 		{Depositor: pendingClaimant, Amount: big.NewInt(11)},
 	}, data.Bonds)
 	require.Equal(t, faultTypes.RefundDistributionMode, data.BondDistributionMode)
@@ -217,6 +217,31 @@ func TestFaultBondSnapshotSumsExpectedCredits(t *testing.T) {
 
 	data := normalizeFaultBondData(game)
 	require.Equal(t, map[common.Address]*big.Int{recipient: big.NewInt(5)}, data.ExpectedCredits)
+}
+
+func TestFaultBondSnapshotDistinguishesRefundsFromSelfCounters(t *testing.T) {
+	refunded := common.Address{0x01}
+	selfCountered := common.Address{0x02}
+	game := &monTypes.FaultGameData{Claims: []monTypes.EnrichedClaim{
+		{
+			Claim:    faultTypes.Claim{ClaimData: faultTypes.ClaimData{Bond: big.NewInt(2)}, Claimant: refunded},
+			Resolved: true,
+		},
+		{
+			Claim: faultTypes.Claim{
+				ClaimData:   faultTypes.ClaimData{Bond: big.NewInt(3)},
+				Claimant:    selfCountered,
+				CounteredBy: selfCountered,
+			},
+			Resolved: true,
+		},
+	}}
+
+	data := normalizeFaultBondData(game)
+	require.Equal(t, []monTypes.BondRecord{
+		{Depositor: refunded, Recipient: refunded, Amount: big.NewInt(2), Resolved: true},
+		{Depositor: selfCountered, Recipient: selfCountered, Amount: big.NewInt(3), Resolved: true, Forfeited: true},
+	}, data.Bonds)
 }
 
 func TestFaultBondSnapshotRetainsZeroAddressBlockChallengeCredit(t *testing.T) {

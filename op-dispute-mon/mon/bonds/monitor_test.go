@@ -103,6 +103,40 @@ func TestCheckRecipientCredit(t *testing.T) {
 	require.NotNil(t, findCreditLog(logs, log.LevelWarn, "Credit above expected amount", game4.Proxy, addr4, "withdrawable"))
 }
 
+func TestCheckBondsRecordsHonestActorBonds(t *testing.T) {
+	actor1 := common.Address{0x01}
+	actor2 := common.Address{0x02}
+	game1 := &monTypes.FaultGameData{
+		CommonGameData: monTypes.CommonGameData{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0xaa}}},
+		BondGameData: monTypes.BondGameData{
+			Bonds: []monTypes.BondRecord{
+				{Depositor: actor1, Amount: big.NewInt(5)},
+				{Depositor: actor1, Recipient: common.Address{0x03}, Amount: big.NewInt(2), Resolved: true, Forfeited: true},
+				{Depositor: actor2, Recipient: actor2, Amount: big.NewInt(1), Resolved: true},
+				{Depositor: common.Address{0x04}, Recipient: actor2, Amount: big.NewInt(3), Resolved: true, Forfeited: true},
+				{Depositor: actor2, Recipient: actor2, Amount: big.NewInt(4), Resolved: true, Forfeited: true},
+			},
+			WETHContract:  common.Address{0xff},
+			ETHCollateral: big.NewInt(100),
+		},
+	}
+	game2 := &monTypes.FaultGameData{
+		CommonGameData: monTypes.CommonGameData{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0xbb}}},
+		BondGameData:   game1.BondGameData,
+	}
+
+	bonds, metricer, _ := setupBondMetricsTestWithHonestActors(t, monTypes.NewHonestActors([]common.Address{{}, actor1, actor2}))
+	bonds.CheckBonds([]monTypes.BondedGame{game1, game2})
+
+	require.Equal(t, big.NewInt(10), metricer.honest[actor1].Pending)
+	require.Equal(t, big.NewInt(4), metricer.honest[actor1].Lost)
+	require.Equal(t, big.NewInt(0), metricer.honest[actor1].Won)
+	require.Equal(t, big.NewInt(0), metricer.honest[actor2].Pending)
+	require.Equal(t, big.NewInt(8), metricer.honest[actor2].Lost)
+	require.Equal(t, big.NewInt(14), metricer.honest[actor2].Won)
+	require.Equal(t, big.NewInt(2), metricer.honest[common.Address{}].Won)
+}
+
 func findCreditLog(logs *testlog.CapturingHandler, level slog.Level, message string, game, recipient common.Address, withdrawable string) *testlog.CapturedRecord {
 	return logs.FindLog(
 		testlog.NewLevelFilter(level),
@@ -113,17 +147,23 @@ func findCreditLog(logs *testlog.CapturingHandler, level slog.Level, message str
 }
 
 func setupBondMetricsTest(t *testing.T) (*Bonds, *stubBondMetrics, *testlog.CapturingHandler) {
+	return setupBondMetricsTestWithHonestActors(t, nil)
+}
+
+func setupBondMetricsTestWithHonestActors(t *testing.T, honestActors monTypes.HonestActors) (*Bonds, *stubBondMetrics, *testlog.CapturingHandler) {
 	logger, logs := testlog.CaptureLogger(t, log.LvlInfo)
 	metricer := &stubBondMetrics{
 		credits:  make(map[metrics.CreditExpectation]int),
 		recorded: make(map[common.Address]Collateral),
+		honest:   make(map[common.Address]metrics.HonestActorBondData),
 	}
-	return NewBonds(logger, metricer, clock.NewDeterministicClock(frozen)), metricer, logs
+	return NewBonds(logger, metricer, clock.NewDeterministicClock(frozen), honestActors), metricer, logs
 }
 
 type stubBondMetrics struct {
 	credits  map[metrics.CreditExpectation]int
 	recorded map[common.Address]Collateral
+	honest   map[common.Address]metrics.HonestActorBondData
 }
 
 func (s *stubBondMetrics) RecordBondCollateral(addr common.Address, required *big.Int, available *big.Int) {
@@ -132,4 +172,12 @@ func (s *stubBondMetrics) RecordBondCollateral(addr common.Address, required *bi
 
 func (s *stubBondMetrics) RecordCredit(expectation metrics.CreditExpectation, count int) {
 	s.credits[expectation] = count
+}
+
+func (s *stubBondMetrics) RecordHonestActorBonds(address common.Address, data *metrics.HonestActorBondData) {
+	s.honest[address] = metrics.HonestActorBondData{
+		Pending: new(big.Int).Set(data.Pending),
+		Lost:    new(big.Int).Set(data.Lost),
+		Won:     new(big.Int).Set(data.Won),
+	}
 }

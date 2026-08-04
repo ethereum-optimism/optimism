@@ -114,6 +114,7 @@ func normalizeFaultBondData(game *monTypes.FaultGameData) monTypes.BondGameData 
 			Depositor: claim.Claimant,
 			Amount:    cloneBigInt(claim.Bond),
 			Resolved:  claim.Resolved,
+			Forfeited: claim.Resolved && claim.CounteredBy != (common.Address{}),
 		}
 		if claim.Resolved {
 			record.Recipient = rpcRecipient
