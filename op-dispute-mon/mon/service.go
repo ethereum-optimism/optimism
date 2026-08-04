@@ -260,6 +260,7 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 	mixedSafetyMonitor := NewMixedSafetyMonitor(s.logger, s.metrics)
 	differentRootMonitor := NewDifferentRootMonitor(s.logger, s.metrics)
 	gameTypeMonitor := NewGameTypeMonitor(s.metrics)
+	zkLifecycleMonitor := NewZKLifecycleMonitor(s.cl, s.metrics)
 	anchorStateMonitor := NewAnchorStateMonitor(s.logger, s.metrics, func(addr common.Address) AnchorRootProvider {
 		return contracts.NewAnchorStateRegistryContract(s.metrics, addr, s.l1Caller)
 	})
@@ -285,6 +286,9 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		[]BondMonitor{
 			bonds.CheckBonds,
 			withdrawals.CheckWithdrawals,
+		},
+		[]ZKMonitor{
+			zkLifecycleMonitor.CheckLifecycle,
 		})
 }
 

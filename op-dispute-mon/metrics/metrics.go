@@ -205,6 +205,8 @@ type Metricer interface {
 
 	RecordAnchorStateL2SequenceNumber(anchorStateRegistry common.Address, l2SequenceNumber uint64)
 
+	RecordZKGamesPendingLifecycleActions(resolution, bondDistribution int)
+
 	caching.Metrics
 	contractMetrics.ContractMetricer
 	opmetrics.RPCMetricer
@@ -259,6 +261,7 @@ type Metrics struct {
 	mixedSafetyGames           prometheus.Gauge
 	differentRootGames         prometheus.Gauge
 	gameTypes                  prometheus.GaugeVec
+	zkGamesPendingLifecycle    prometheus.GaugeVec
 }
 
 func (m *Metrics) Registry() *prometheus.Registry {
@@ -471,6 +474,13 @@ func NewMetrics() *Metrics {
 		}, []string{
 			"game_type",
 		}),
+		zkGamesPendingLifecycle: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "zk_games_pending_lifecycle_action",
+			Help:      "Number of ZK dispute games awaiting an honest lifecycle action",
+		}, []string{
+			"action",
+		}),
 	}
 }
 
@@ -604,6 +614,11 @@ func (m *Metrics) RecordLatestProposals(latestValid, latestInvalid uint64) {
 
 func (m *Metrics) RecordAnchorStateL2SequenceNumber(anchorStateRegistry common.Address, l2SequenceNumber uint64) {
 	m.anchorStateL2SequenceNumber.WithLabelValues(anchorStateRegistry.Hex()).Set(float64(l2SequenceNumber))
+}
+
+func (m *Metrics) RecordZKGamesPendingLifecycleActions(resolution, bondDistribution int) {
+	m.zkGamesPendingLifecycle.WithLabelValues("resolution").Set(float64(resolution))
+	m.zkGamesPendingLifecycle.WithLabelValues("bond_distribution").Set(float64(bondDistribution))
 }
 
 func (m *Metrics) RecordIgnoredGames(count int) {
