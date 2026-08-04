@@ -1,12 +1,9 @@
-//! Proposer service for the super-root ZK dispute game.
+//! Proposer service for super-root ZK dispute games.
 //!
-//! Derived from op-succinct's fault-proof proposer
-//! (succinctlabs/op-succinct `fault-proof` crate @ 13716c2c), adapted for the
-//! monorepo `ZKDisputeGame`: super-root claims sourced from a supernode,
-//! `parentIndex || superRootProof` extraData, prestate-based ownership, and
-//! two-phase `DelayedWETH` bond claiming. The defend path (#21463) proves
-//! challenged games in the owned set: witness collection and native output
-//! computation in [`proving`], SP1 proof providers in [`prover`].
+//! Handles super-root claims sourced from a supernode, `parentIndex || superRootProof`
+//! extra data, prestate-based ownership, two-phase `DelayedWETH` bond claims, and defense
+//! of challenged games in the owned set. Witness collection and native output computation
+//! live in [`proving`]; SP1 proof providers live in [`prover`].
 
 pub mod config;
 pub mod contract;

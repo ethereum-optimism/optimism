@@ -57,8 +57,8 @@ async fn main() -> Result<()> {
         "Resolved proposer configuration"
     );
 
-    // Construct the proof provider. NETWORK_PRIVATE_KEY is read only here,
-    // and only in network mode; mock deployments need no SPN credentials.
+    // Read NETWORK_PRIVATE_KEY only in network mode; mock deployments
+    // need no SPN credentials.
     let proof_provider = match config.proof_provider {
         ProofProviderKind::Network => {
             let provider_config = config.proof_provider_config.clone();
@@ -92,11 +92,9 @@ async fn main() -> Result<()> {
     // proposer binds the currently registered args per use and each game's
     // own args for game-specific reads.
 
-    // Metrics: bind before the readiness log so the advertised address is live.
-    // A failed bind is a startup error, not a degraded mode. The recorder
-    // must be installed (init_metrics) BEFORE register_all: describe_gauge!
-    // calls dispatched to the pre-install no-op recorder are silently
-    // dropped, which would strip every HELP line from the exposition.
+    // Bind before readiness so the advertised address is live. Install the
+    // recorder before register_all; describe_gauge! calls sent to the no-op
+    // recorder lose their HELP lines.
     let metrics_addr = if config.metrics_port != 0 {
         init_metrics(&config.metrics_port)?;
         ProposerGauge::register_all();
@@ -108,9 +106,8 @@ async fn main() -> Result<()> {
 
     let proposer = Proposer::new(config, signer, factory, proof_provider).await?;
 
-    // STARTUP LOG CONTRACT: devstack readiness matches this exact message.
-    // Emitted before the chain-dependent init retry loop on purpose - a
-    // supernode that is still deriving must not stall process readiness.
+    // Devstack readiness matches this message. Emit it before chain-dependent
+    // initialization so a deriving supernode does not stall process readiness.
     match &metrics_addr {
         Some(addr) => tracing::info!(metrics_addr = %addr, "kona-sp1-proposer started"),
         None => tracing::info!("kona-sp1-proposer started"),

@@ -56,10 +56,8 @@ pub async fn get_network_signer(use_kms_requester: bool) -> Result<NetworkSigner
 
         signer
     } else {
-        // Network proving spends real money under this identity; a
-        // placeholder key would fail late (at request time) and
-        // confusingly. Callers run this only in network mode, so require
-        // the key up front.
+        // Network proving spends real money. Require the key at startup instead
+        // of failing on the first proof request.
         let private_key =
             env::var("NETWORK_PRIVATE_KEY").ok().filter(|key| !key.trim().is_empty()).context(
                 "NETWORK_PRIVATE_KEY must be set for network proving \

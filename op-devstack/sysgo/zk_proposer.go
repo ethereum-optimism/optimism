@@ -105,9 +105,8 @@ func newZKProposerConfig(opts ...ZKProposerOption) (zkProposerConfig, error) {
 }
 
 // startZKProposer launches the Rust kona-sp1-proposer binary against the ZK
-// dispute game type. Modeled on the kona-node launcher (l2_cl_kona.go), minus
-// the RPC proxy: the proposer serves no HTTP API. The proposer is configured
-// exclusively through environment variables.
+// dispute game type. The process has no HTTP API and is configured through
+// environment variables.
 func startZKProposer(
 	t devtest.T,
 	keys devkeys.Keys,
@@ -156,12 +155,8 @@ func startZKProposer(
 		writePrestateArtifact(t, open, filepath.Join(prestatesDir, programVKey.Hex()+suffix))
 	}
 
-	// The defend path collects derivation witnesses through the interop host,
-	// which needs the L1 beacon, every L2 EL, and the rollup/depset/L1 chain
-	// configs. Materialize the config files with the same inline
-	// marshal+WriteFile the kona-node launcher uses (startMixedKonaNode),
-	// with per-chain rollup-<chainID>.json naming as in the shared
-	// challenger's VM config.
+	// InteropHost witness collection requires the L1 beacon, every L2 EL,
+	// and the rollup, dependency-set, and L1 chain configs.
 	require.Len(l2ELs, len(l2Nets), "need matching L2 ELs for the ZK proposer")
 	configDir := t.TempDir()
 	l2RPCs := make([]string, len(l2ELs))

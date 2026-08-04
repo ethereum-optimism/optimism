@@ -1,10 +1,4 @@
-//! Prometheus gauge definitions for the proposer.
-//!
-//! Trimmed from op-succinct's `fault-proof/src/prometheus.rs` (@ 13716c2c):
-//! the challenger gauges are not ported (op-challenger owns that role), and
-//! the emulator cycle/gas and backup gauges are dropped with their features.
-//! Gauge names are renamed `kona_sp1_proposer_*` and speak super-root sequence
-//! numbers instead of L2 block numbers.
+//! Prometheus gauges for the proposer.
 
 use kona_sp1_host_utils::metrics::MetricsGauge;
 use strum::EnumMessage;

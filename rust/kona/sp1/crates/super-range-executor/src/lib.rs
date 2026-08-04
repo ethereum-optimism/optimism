@@ -73,7 +73,7 @@ pub struct RunConfig {
 }
 
 impl RunConfig {
-    /// Extracts the deployment-scoped host endpoints and config paths.
+    /// Returns the endpoints and config paths used by `InteropHost`.
     pub fn host_inputs(&self) -> HostInputs {
         HostInputs {
             l1_node_address: self.l1_node_address.clone(),
@@ -677,7 +677,7 @@ pub fn build_interop_host(
     })
 }
 
-/// Fetches the block number of `l1_head` from the given L1 execution endpoint.
+/// Fetches the block number for `l1_head` from an L1 execution endpoint.
 pub async fn fetch_l1_head_number(l1_node_address: &str, l1_head: B256) -> Result<u64> {
     let client = HttpClientBuilder::default()
         .build(l1_node_address)

@@ -1,11 +1,8 @@
-//! Core proposer: state sync, canonical-head selection, and the
-//! creation/resolution/bond-claim/defense task scheduler.
+//! Core proposer state synchronization and task scheduling.
 //!
-//! Ported from op-succinct's `fault-proof/src/proposer.rs` (@ 13716c2c),
-//! adapted for the super-root `ZKDisputeGame`: supernode-sourced claims,
-//! `parentIndex || superRootProof` extraData, prestate-based ownership, and
-//! two-phase `DelayedWETH` bond claiming. The defense scheduler proves
-//! challenged games in the owned set via [`crate::proving`].
+//! Handles supernode-sourced claims, `parentIndex || superRootProof` extra data,
+//! prestate-based ownership, two-phase `DelayedWETH` bond claims, and proof defense
+//! for challenged games in the owned set.
 
 use std::{
     collections::{HashMap, HashSet},
@@ -69,11 +66,8 @@ pub type TaskMap = HashMap<TaskId, (TaskHandle, TaskInfo)>;
 
 /// Information about a running task.
 ///
-/// `GameCreation`, `GameResolution`, and `BondClaim` are singletons: at
-/// most one task per variant runs at a time (see
-/// `has_active_task_of_type`). `GameProving` is exempt from that rule and
-/// deduplicated PER GAME instead: several games can be defended
-/// concurrently, bounded by `MAX_CONCURRENT_DEFENSE_TASKS`.
+/// Singleton task variants are deduplicated by type. `GameProving` tasks are
+/// deduplicated by game address and bounded by the configured defense-task limit.
 #[derive(Clone, Debug)]
 pub enum TaskInfo {
     /// Task creating a new game at the given super-root timestamp.
@@ -81,8 +75,7 @@ pub enum TaskInfo {
         /// Super-root timestamp (`l2SequenceNumber`) of the game being created.
         sequence_number: u64,
     },
-    /// Task proving a game (defense today; the `is_defense` flag is the
-    /// seam a future prove-at-creation mode reuses, see #22112).
+    /// Task proving a game.
     GameProving {
         /// Address of the game being proven.
         game_address: Address,
@@ -271,7 +264,7 @@ impl ProposerState {
     ///
     /// With no anchor, the head is simply the highest game in the cache. With an anchor, the head
     /// is the highest descendant of the anchor, unless a higher chain branches off earlier
-    /// (genesis-rooted, or a lower parent index than the anchor head) — that alternative chain is
+    /// (genesis-rooted, or a lower parent index than the anchor head); that alternative chain is
     /// then followed to its own tip.
     fn select_canonical_head(&self) -> Option<Game> {
         let Some(anchor_game) = self.anchor_game.as_ref() else {
@@ -291,7 +284,7 @@ impl ProposerState {
         // Override with a higher non-descendant chain that branches off earlier than the anchor
         // head (genesis-rooted, or a lower parent index). Such a chain's root sits outside the
         // anchor's subtree, so we follow each qualifying root to its own highest-block tip rather
-        // than stopping at the root — otherwise the head would pin to the root of a genesis-rooted
+        // than stopping at the root; otherwise the head would pin to the root of a genesis-rooted
         // catch-up chain and stall instead of tracking its tip.
         let override_head = anchor_head.as_ref().and_then(|anchor| {
             let roots: Vec<U256> = self
@@ -402,10 +395,9 @@ where
     /// `try_init`. Used for the deadline-approaching warning tier only;
     /// per-game deadlines come from `claimData` each sync.
     max_prove_duration: Arc<OnceCell<u64>>,
-    /// Games found permanently unprovable (claim diverged from the
-    /// supernode view, or required L1 beyond the game's L1 head). Skipped
-    /// by the defense scan without re-fetching their spans. In-memory
-    /// only: a restart re-evaluates (upstream-parity statelessness).
+    /// Games found permanently unprovable because their claim diverges from
+    /// the supernode view or requires L1 data beyond the game's pinned head.
+    /// A restart re-evaluates this in-memory set.
     undefendable: Arc<Mutex<HashSet<Address>>>,
 }
 
@@ -425,8 +417,7 @@ impl<P> Proposer<P>
 where
     P: Provider + Clone + Send + Sync + 'static,
 {
-    /// Creates a new proposer instance with the provided signer, factory
-    /// contract instance, and proof provider.
+    /// Creates a proposer from resolved configuration and dependencies.
     pub async fn new(
         config: ProposerConfig,
         signer: SignerLock,
@@ -1166,7 +1157,7 @@ where
             state.anchor_game = Some(anchor_game.clone());
             tracing::debug!(?anchor_address, "Anchor game updated in cache");
         } else {
-            // Anchor not in cache (pruned or not yet fetched) — clear to prevent
+            // Anchor not in cache (pruned or not yet fetched); clear to prevent
             // compute_canonical_head from following a stale subtree.
             state.anchor_game = None;
             tracing::debug!(?anchor_address, "Anchor game not in cache, clearing");
@@ -1197,12 +1188,10 @@ where
                 );
             }
         } else {
-            // Clear stale canonical head index when no valid games exist.
-            // canonical_head_sequence_number is intentionally preserved — it serves as the anchor
-            // baseline for should_create_game() to propose the first game. Clearing it
-            // would permanently block proposals on fresh deployments or when the pinned
-            // snapshot has no games. The new canonical_head_index gauge (-1) provides
-            // observability for the "no head" state.
+            // Preserve canonical_head_sequence_number as the anchor baseline for
+            // the first proposal. Clearing it would block creation on fresh
+            // deployments or pinned snapshots without games.
+            // canonical_head_index = -1 reports the no-head state.
             state.canonical_head_index = None;
 
             if previous_canonical_index.is_some() {
@@ -1222,19 +1211,13 @@ where
         Ok(self.prestate_usable_for_creation(args.absolute_prestate).await)
     }
 
-    /// Returns whether game creation may proceed for `prestate`: the program
-    /// artifacts must load ([`PrestateCache::ensure_loaded`]) and, in network
-    /// mode, the SP1 proving keys must be set up and vkey-verified BEFORE any
-    /// game is bonded on the prestate. Loading alone would admit artifacts
-    /// whose keys were never initialized, deferring verification to the first
-    /// defense - after a bond is already at stake.
+    /// Returns whether game creation may proceed for `prestate`. Artifacts
+    /// must load, and network mode also requires key setup and vkey
+    /// verification before a game is bonded on the prestate.
     ///
-    /// Key setup takes tens of seconds per ELF and this gate runs inline on
-    /// the scheduler path each tick, so setup is NEVER awaited here: the
-    /// first call kicks it off on a background task and creation stays
-    /// paused until the verdict lands. A failed setup poisons the entry,
-    /// which keeps this gate closed (via [`PrestateCache::ensure_loaded`])
-    /// until corrected artifacts are published.
+    /// Key setup takes tens of seconds per ELF, so this scheduler path starts
+    /// it in a background task and keeps creation paused until completion. A
+    /// failed setup poisons the entry until corrected artifacts are published.
     async fn prestate_usable_for_creation(&self, prestate: B256) -> bool {
         if !self.prestates.ensure_loaded(prestate).await {
             return false;
@@ -2154,8 +2137,6 @@ where
             }
         }
 
-        // Spawn defense tasks for challenged games in the owned set
-        // (per-game, capped by MAX_CONCURRENT_DEFENSE_TASKS).
         match self.spawn_game_defense_tasks().await {
             Ok(true) => tracing::info!("Successfully spawned game defense tasks"),
             Ok(false) => tracing::debug!("No games need defense or defense is at capacity"),
@@ -2470,7 +2451,6 @@ where
         Ok(())
     }
 
-    /// Count active defense proving tasks.
     async fn count_active_defense_tasks(&self) -> u64 {
         let tasks = self.tasks.lock().await;
         tasks
@@ -2479,7 +2459,6 @@ where
             .count() as u64
     }
 
-    /// Check if there's an active proving task for a specific game.
     async fn has_active_proving_for_game(&self, game_address: Address) -> bool {
         let tasks = self.tasks.lock().await;
         tasks.values().any(|(_, info)| {
@@ -2487,15 +2466,9 @@ where
         })
     }
 
-    /// Spawns defense proving tasks for challenged games in the owned set.
-    ///
-    /// Candidates are sorted by deadline ascending (closest to expiring
-    /// first) and capped by `MAX_CONCURRENT_DEFENSE_TASKS`; each game gets
-    /// at most one live proving task. Retry is emergent: a failed task is
-    /// removed by `handle_completed_tasks`, and the still-Challenged game
-    /// is re-detected here next cycle.
-    ///
-    /// Returns `Ok(true)` if any task was spawned.
+    /// Schedules owned challenged games by ascending deadline, up to the
+    /// configured limit. Each game has at most one live task. Failed tasks
+    /// become eligible again after `handle_completed_tasks` removes them.
     #[tracing::instrument(name = "[[Defending]]", skip(self))]
     async fn spawn_game_defense_tasks(&self) -> Result<bool> {
         let known_prestates = self.prestates.known_prestates().await;
@@ -2635,14 +2608,10 @@ where
         }
     }
 
-    /// Spawns a tracked proving task for the game.
-    ///
-    /// The task runs the full pipeline (span fetch, witness collection,
-    /// proving, `prove()` submission). A [`crate::proving::GameUnprovable`]
-    /// outcome is
-    /// terminal: the game joins the `undefendable` set and the task
-    /// completes cleanly (no error-gauge retry churn). Any other failure
-    /// bubbles to `handle_task_failure` and retries emergently.
+    /// Runs span fetch, witness collection, proving, and `prove()` submission.
+    /// A [`crate::proving::GameUnprovable`] outcome moves the game to the
+    /// `undefendable` set without retry churn. Other failures retry after
+    /// `handle_task_failure`.
     async fn spawn_game_proving_task(
         &self,
         game_index: U256,
@@ -2704,7 +2673,6 @@ where
         }
     }
 
-    /// Proves one game end to end and submits `prove()`.
     #[tracing::instrument(name = "[[Proving]]", skip(self), fields(game_address = ?game_address))]
     async fn prove_game(&self, game_address: Address) -> Result<()> {
         let start_time = Instant::now();
@@ -2724,7 +2692,6 @@ where
             return Ok(());
         };
 
-        // On-chain facts the proof binds.
         let contract = ZKDisputeGame::new(game_address, self.l1_provider.clone());
         let l1_head = contract.l1Head().call().await?;
         let starting = contract.startingProposal().call().await?;
@@ -2807,13 +2774,8 @@ where
         Ok(())
     }
 
-    /// Final checks before submitting a `prove()` transaction. Returns false
-    /// when submission should be skipped (all three legs log why):
-    /// 1. the game is still tracked (subtree removal on a lost parent evicts descendants, and
-    ///    `prove()` reverts `InvalidParentGame`; a residual on-chain-but-unsynced parent loss still
-    ///    reverts harmlessly and is caught by the tx status check);
-    /// 2. `claimData` at `latest` is still `Challenged`;
-    /// 3. the prove deadline has not passed.
+    /// Returns false unless the game remains tracked, challenged, not
+    /// blacklisted or retired, and at or before its prove deadline.
     async fn pre_submit_checks(&self, game_address: Address) -> Result<bool> {
         let tracked = {
             let state = self.state.read().await;
@@ -2905,7 +2867,7 @@ pub enum DeadlineStatus {
     Ok,
 }
 
-/// Check the deadline status for a game (ported from upstream op-succinct).
+/// Classifies a prove deadline; equality has not passed.
 pub fn check_deadline_status(now: u64, deadline: u64, max_duration: u64) -> DeadlineStatus {
     if now > deadline {
         return DeadlineStatus::Passed;
@@ -2942,12 +2904,9 @@ pub enum GameFetchResult {
         /// Factory index of the invalid game.
         index: U256,
     },
-    /// The game's timestamp is not yet safe from this node's view: it cannot
-    /// be validated yet. Kept OUT of the DAG (never parent-eligible) but
-    /// re-validated each sync until data appears or the horizon expires -
-    /// unlike terminal invalidity, this verdict is not permanent (the
-    /// upstream design could drop terminally because its data source errored
-    /// on unavailable blocks; ours reports absence as `data: None`).
+    /// The game's timestamp is not yet safe from this node's view, so it
+    /// cannot be validated. It remains outside the DAG and is re-validated
+    /// each sync until data appears or the horizon expires.
     Pending {
         /// Factory index of the pending game.
         index: U256,
@@ -3094,12 +3053,9 @@ pub const fn beyond_deadline_lag(anchor_deadline: u64, game_deadline: u64) -> bo
     anchor_deadline.abs_diff(game_deadline) > MAX_GAME_DEADLINE_LAG
 }
 
-/// Returns whether a pending game may be evicted from re-validation: its
-/// deadline fell BEHIND the anchor deadline by more than the maximum lag.
-/// Deliberately one-sided, unlike [`beyond_deadline_lag`]: a game that far
-/// behind the anchor can never become parent-eligible, so nothing is lost by
-/// dropping it, while a game AHEAD of a stalled anchor is fresh (its
-/// challenge window is still open) and must stay re-checkable.
+/// Returns whether a pending game's deadline is more than the maximum lag
+/// behind the anchor deadline. This is one-sided: a game ahead of a stalled
+/// anchor may still have an open challenge window and remains re-checkable.
 pub const fn pending_evictable(anchor_deadline: u64, game_deadline: u64) -> bool {
     game_deadline.saturating_add(MAX_GAME_DEADLINE_LAG) < anchor_deadline
 }
@@ -3196,8 +3152,7 @@ impl PrestateCache {
         Self::with_retry_window(url, UNKNOWN_PRESTATE_RETRY)
     }
 
-    /// Creates an empty cache with an explicit negative-cache retry window
-    /// (tests use a zero window to pin the immediate self-heal property).
+    /// Creates an empty cache with the given negative-cache retry window.
     pub fn with_retry_window(url: Url, unknown_retry: Duration) -> Self {
         Self {
             programs: RwLock::new(HashMap::new()),
@@ -3207,19 +3162,14 @@ impl PrestateCache {
         }
     }
 
-    /// Ensures the program ELFs for `prestate` are loaded AND usable,
-    /// fetching them on a miss (see [`load_prestate`]) unless a recent
-    /// failed attempt is still inside the negative-cache window. Returns
-    /// whether game creation may proceed for that prestate. When loading
-    /// fails, the result follows [`UNKNOWN_PRESTATE_POLICY`].
+    /// Loads program ELFs unless a recent miss is cached. An unpoisoned
+    /// loaded entry returns true even when network proving keys are not
+    /// initialized; `prestate_usable_for_creation` applies that separate
+    /// creation gate.
     ///
-    /// A POISONED entry (its proving keys failed setup or vkey
-    /// verification) always blocks game creation: bonding a game the
-    /// proposer has already proven it cannot defend hands the bond to the
-    /// first challenger. Poisoned entries re-fetch on the negative-cache
-    /// cadence and heal only when the published artifacts actually
-    /// changed, so an operator can fix bad artifacts without a restart
-    /// while identical bad artifacts stay poisoned (no setup churn).
+    /// Poisoned entries are re-fetched on the negative-cache cadence and
+    /// replaced only when published bytes change. Load failures and unchanged
+    /// poisoned artifacts follow [`UNKNOWN_PRESTATE_POLICY`].
     pub async fn ensure_loaded(&self, prestate: B256) -> bool {
         let poisoned_programs = match self.programs.read().await.get(&prestate) {
             Some(entry) if !matches!(entry.keys.get(), Some(Err(_))) => return true,
@@ -3342,15 +3292,13 @@ impl PrestateCache {
             .is_some_and(|entry| !entry.setup_kicked.swap(true, Ordering::Relaxed))
     }
 
-    /// The proving keys for `prestate`, running SP1 key setup on first use
-    /// (network mode only; the mock provider never needs keys).
+    /// Returns the proving keys for `prestate`, running SP1 key setup on first
+    /// use in network mode.
     ///
-    /// Setup runs on the blocking pool and takes tens of seconds per ELF;
-    /// the entry is cloned OUT of the map first so no map guard is held
-    /// across it (a held guard would queue writers and stall every reader
-    /// for the whole setup). The deferred PR-1 MUST-DO lands here: after
-    /// setup, the aggregation verifying key must hash to `prestate`, else
-    /// the entry is poisoned and excluded from [`Self::known_prestates`].
+    /// Setup takes tens of seconds per ELF. The entry is cloned before setup
+    /// so no map guard blocks cache readers or writers. The aggregation
+    /// verifying key must hash to `prestate`; otherwise the entry is poisoned
+    /// and excluded from [`Self::known_prestates`].
     pub async fn proof_keys(
         &self,
         prestate: B256,
@@ -3425,10 +3373,6 @@ mod tests {
         use std::collections::HashSet;
 
         use super::*;
-
-        // Ownership moved from creator-based to prestate-based with the
-        // defend path: the prove, resolve, and claim sets are one set,
-        // keyed by whether the game's prestate programs are loadable.
 
         #[test]
         fn rotation_keeps_old_prestate_games_owned() {
@@ -3757,8 +3701,7 @@ mod tests {
         #[tokio::test]
         async fn pre_submit_checks_skip_evicted_games() {
             let proposer = test_proposer().await;
-            // Leg 1: a game absent from state.games (evicted mid-proving,
-            // e.g. subtree removal after a parent loss) is never submitted.
+            // A game evicted after a parent loss is never submitted.
             let evicted = Address::left_padding_from(&[0xee]);
             assert!(!proposer.pre_submit_checks(evicted).await.unwrap());
         }
@@ -3889,12 +3832,8 @@ mod tests {
             assert_eq!(proving_tasks, 1);
         }
 
-        /// Network mode must verify a prestate's proving keys BEFORE any
-        /// game is bonded on it: loaded-but-unverified artifacts do not open
-        /// the creation gate, and a failed setup poisons the entry so the
-        /// gate stays closed afterwards. Without this, `ensure_loaded` alone
-        /// would admit the prestate and defer verification to the first
-        /// defense - after a bond is already at stake.
+        /// Network mode keeps creation closed until key setup verifies the
+        /// prestate. Failed setup poisons the entry and leaves the gate closed.
         #[tokio::test]
         async fn network_creation_gate_requires_verified_keys() {
             let mut config = test_config();
@@ -3938,11 +3877,8 @@ mod tests {
             assert!(!proposer.prestates.ensure_loaded(prestate).await);
         }
 
-        /// A prestate rotation (upgrade registering a NEW prestate) pauses
-        /// creation until the new artifacts are published, while games on
-        /// the old prestate stay owned (defense, resolution, and claims
-        /// continue). Publish-heals-the-gate is pinned at the cache level in
-        /// `prestate_gate::missing_programs_hard_pause`.
+        /// Prestate rotation pauses creation until the new artifacts exist
+        /// while games on the old prestate remain owned.
         #[tokio::test]
         async fn prestate_rotation_pauses_creation_and_keeps_old_games_owned() {
             let proposer = test_proposer().await;
@@ -4030,8 +3966,8 @@ mod tests {
             let dir = artifact_dir("pause");
             let hash: B256 = HASH_A.parse().unwrap();
             let base = Url::from_directory_path(&dir).unwrap();
-            // Zero retry window: this test pins the SELF-HEAL property, not
-            // the negative-cache pacing (covered separately below).
+            // A zero retry window isolates immediate self-healing from
+            // negative-cache pacing.
             let cache = PrestateCache::with_retry_window(base, std::time::Duration::from_secs(0));
             assert!(!cache.ensure_loaded(hash).await);
             assert!(
@@ -4054,8 +3990,7 @@ mod tests {
                 PrestateCache::with_retry_window(base, std::time::Duration::from_secs(3600));
             assert!(!cache.ensure_loaded(hash).await);
 
-            // Publishing the artifacts inside the retry window does NOT
-            // self-heal yet: the miss is cached and no re-fetch happens.
+            // The retry window prevents a refetch after artifacts are published.
             write_artifacts(&dir);
             assert!(!cache.ensure_loaded(hash).await);
             assert!(cache.programs(hash).await.is_none());
@@ -4127,13 +4062,9 @@ mod tests {
             assert_eq!(again.to_string(), verdict);
         }
 
-        /// With real artifacts (`KONA_SP1_ELF_DIR` pointing at the built
-        /// ELFs and their `vkeys.toml`), key setup must ACCEPT the canonical
-        /// prestate: the aggregation vkey's `bytes32_raw` - the bn254
-        /// packing `cargo prove vkey` writes into `vkeys.toml`, which
-        /// deployments use as `absolutePrestate()`. Skipped without
-        /// the env var; run locally after `just build-elfs` or
-        /// in the real-ELF lane.
+        /// With `KONA_SP1_ELF_DIR` set, verifies the built aggregation vkey
+        /// against the canonical prestate in `vkeys.toml`. Skipped when the
+        /// environment variable is absent.
         #[tokio::test]
         async fn real_elf_agg_vkey_matches_vkeys_toml_prestate() {
             let Ok(elf_dir) = std::env::var("KONA_SP1_ELF_DIR") else {
@@ -4181,15 +4112,11 @@ mod tests {
             cache.proof_keys(hash, ProofProviderKind::Network).await.unwrap_err();
             assert!(!cache.known_prestates().await.contains(&hash));
 
-            // The creation gate is closed while the same bad artifacts are
-            // published: refetching identical bytes must NOT clear the
-            // poisoned verdict.
+            // Identical published bytes do not clear the poisoned verdict.
             assert!(!cache.ensure_loaded(hash).await);
             assert!(!cache.known_prestates().await.contains(&hash));
 
-            // Publishing CHANGED artifacts heals the entry without a
-            // restart: the gate reopens and the prestate re-enters the
-            // owned set (key setup will re-run on the next defense).
+            // Changed artifacts replace the entry and re-arm key setup.
             write_artifacts_with(&dir, b"corrected elf");
             assert!(cache.ensure_loaded(hash).await);
             assert!(cache.known_prestates().await.contains(&hash));

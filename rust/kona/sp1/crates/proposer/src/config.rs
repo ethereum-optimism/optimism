@@ -1,10 +1,4 @@
 //! Environment-driven proposer configuration.
-//!
-//! Trimmed from op-succinct's `fault-proof/src/config.rs` (@ 13716c2c):
-//! proof-provider selection, SP1 network knobs, and range splitting are
-//! ported here with the defend path; fast finality is tracked in #22112;
-//! cluster proving, restart recovery, and the challenger and forge-deploy
-//! configs are deliberately not ported (see PR #21463 for the ledger).
 
 use std::{
     env,
@@ -129,7 +123,7 @@ pub struct ProposerConfig {
     /// need exists.
     pub max_priority_fee_per_gas: Option<u128>,
 
-    /// Which proof provider defends challenged games.
+    /// Selects network or mock proving for challenged games.
     pub proof_provider: ProofProviderKind,
 
     /// The L1 beacon API URL serving blob sidecars for derivation witnesses.
@@ -151,7 +145,7 @@ pub struct ProposerConfig {
     /// fallback. The env name matches the executor's `DEPENDENCY_SET_PATH`.
     pub dependency_set_path: Option<PathBuf>,
 
-    /// How many chunks a defended timestamp span is partitioned into.
+    /// Number of proof chunks per defended timestamp span.
     pub range_split_count: RangeSplitCount,
 
     /// Maximum concurrent child (range/consolidation) proofs within one
@@ -162,7 +156,7 @@ pub struct ProposerConfig {
     /// rejected at parse time: it would silently disable defense.
     pub max_concurrent_defense_tasks: NonZeroU64,
 
-    /// SP1 proof-provider settings (timeouts, strategies, limits, prices).
+    /// SP1 request limits and fulfillment settings.
     pub proof_provider_config: ProofProviderConfig,
 }
 
@@ -261,7 +255,6 @@ pub fn redacted_url(url: &Url) -> String {
     url.to_string()
 }
 
-/// Parses a comma-separated list of URLs, requiring at least one entry.
 fn parse_url_list(value: &str) -> Result<Vec<Url>> {
     let urls = value
         .split(',')
@@ -273,15 +266,12 @@ fn parse_url_list(value: &str) -> Result<Vec<Url>> {
     Ok(urls)
 }
 
-/// Default SP1 request cycle/gas limit (one trillion), matching upstream.
 const DEFAULT_PROOF_LIMIT: u64 = 1_000_000_000_000;
 
 /// SP1 proof-provider settings (timeouts, strategies, limits, prices).
 ///
-/// Parsed unconditionally with upstream op-succinct's defaults; none of the
-/// entries is required or secret, so mock deployments need to set none of
-/// them. `NETWORK_PRIVATE_KEY` is deliberately NOT part of this struct: it
-/// is read only when the network provider is constructed.
+/// Parsed in mock mode too, but all values have defaults and require no credentials.
+/// `NETWORK_PRIVATE_KEY` is read only when the network provider is built.
 #[derive(Debug, Clone)]
 pub struct ProofProviderConfig {
     /// Overall per-proof timeout in seconds: the server-side deadline for
@@ -312,8 +302,7 @@ pub struct ProofProviderConfig {
 }
 
 impl ProofProviderConfig {
-    /// Parses the provider settings from environment variables, applying
-    /// upstream op-succinct's defaults throughout.
+    /// Reads proof-provider settings from environment variables.
     pub fn from_env() -> Result<Self> {
         let timeout = parsed_env_or("SP1_TIMEOUT_SECONDS", 14_400u64)?;
         anyhow::ensure!(
@@ -353,14 +342,12 @@ impl ProofProviderConfig {
     }
 }
 
-/// How many chunks a defended timestamp span is partitioned into
-/// (1-16 inclusive). Ported from upstream op-succinct's `RangeSplitCount`;
-/// the unit here is super-root timestamps, not L2 blocks.
+/// Splits defended super-root timestamp spans into 1 to 16 chunks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct RangeSplitCount(NonZeroU8);
 
 impl RangeSplitCount {
-    /// Maximum number of chunks.
+    /// Maximum accepted chunk count.
     pub const MAX: u8 = 16;
 
     /// Creates a new `RangeSplitCount`, rejecting 0 and values above
@@ -374,12 +361,12 @@ impl RangeSplitCount {
         Ok(Self(count))
     }
 
-    /// Returns a `RangeSplitCount` of one.
+    /// Returns a single-chunk split.
     pub const fn one() -> Self {
         Self(NonZeroU8::MIN)
     }
 
-    /// Converts to `usize`.
+    /// Returns the chunk count as a `usize`.
     pub const fn to_usize(self) -> usize {
         self.0.get() as usize
     }
@@ -409,7 +396,6 @@ impl RangeSplitCount {
             return Ok(vec![(start, end)]);
         }
 
-        // Never split into more chunks than there are timestamps.
         let segments = splits.min(total as usize);
         let mut ranges = Vec::with_capacity(segments);
         let step = total.div_ceil(segments as u64);
@@ -691,9 +677,8 @@ mod tests {
             assert!(RangeSplitCount::one().split(6, 5).is_err());
         }
 
-        /// `from_env` requires the new defend-path variables. Safe under
-        /// nextest's process-per-test model; env mutation is `unsafe` on
-        /// edition 2024.
+        /// Safe under nextest's process-per-test model; environment mutation
+        /// is `unsafe` on edition 2024.
         #[test]
         fn from_env_requires_defend_path_vars() {
             unsafe {

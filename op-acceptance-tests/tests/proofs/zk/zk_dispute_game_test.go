@@ -71,9 +71,8 @@ func TestChallengedValidProposalAnchors(gt *testing.T) {
 	sys.AnchorStateRegistry(sys.L2ChainA).WaitForAnchorRootAtLeast(game)
 }
 
-// TestProposerDefendsForeignValidGame pins the prestate-based defense set end
-// to end: the proposer proves, resolves, and claims the prover credit on a
-// challenged valid game it did NOT create.
+// TestProposerDefendsForeignValidGame proves, resolves, and claims prover
+// credit on a challenged valid game that the proposer did not create.
 func TestProposerDefendsForeignValidGame(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	// The honest challenger resolves games and claims credit on the
@@ -85,12 +84,9 @@ func TestProposerDefendsForeignValidGame(gt *testing.T) {
 	weth := factory.DelayedWETH(factory.ZKGameImpl().Args.Weth)
 	creator, challenger := fundedActors(sys)
 
-	// A foreign EOA creates a valid game (no super-root override: the DSL
-	// derives the claim from the supernode), and a second EOA challenges it.
-	// The timestamp is placed OFF the honest proposer's fixed proposal grid
-	// (one second past its first game): an on-grid anchor-rooted game would
-	// collide with the proposer's own creation on the factory UUID
-	// (identical claim and extraData) and revert with GameAlreadyExists.
+	// The DSL derives a valid claim from the supernode. Use an off-grid
+	// timestamp to avoid a factory UUID collision with the proposer's game,
+	// which would have the same claim and extraData.
 	proposerGame := factory.WaitForZKGameAtIndex(0)
 	foreignTimestamp := proposerGame.L2SequenceNumber() + 1
 	factory.WaitForSafeSuperRootAfter(foreignTimestamp)
@@ -182,16 +178,10 @@ func TestProposerIgnoresInvalidChallengedGame(gt *testing.T) {
 		"an invalid game must never be proven by the proposer")
 }
 
-// TestProposerDefendsMultipleChallengedGamesConcurrently challenges two
-// foreign valid games back to back: both must be proven by the proposer,
-// and the proving must run in parallel, not one game per pipeline.
-// Parallelism is witnessed through the proposer's own
-// games_defense_spawned metric: it must reach two while NEITHER game is
-// proven yet, i.e. both defense tasks were live concurrently. Proof
-// LANDING times are deliberately not compared: prove transactions queue
-// behind the proposer's 6s-cadence creation transactions on the signer
-// lock (held through confirmation), which quantizes landings by multiples
-// of the L1 block time regardless of proving concurrency.
+// TestProposerDefendsMultipleChallengedGamesConcurrently proves two foreign
+// valid games in parallel. The spawned-task metric must reach two before
+// either proof lands; transaction landing times are serialized by the signer
+// lock and do not measure proving concurrency.
 func TestProposerDefendsMultipleChallengedGamesConcurrently(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	metricsPort := freeTCPPort(t)
@@ -222,12 +212,6 @@ func TestProposerDefendsMultipleChallengedGamesConcurrently(gt *testing.T) {
 	gameA.Challenge(challenger)
 	gameB.Challenge(challenger)
 
-	// Both proofs must land, and at some point BEFORE the first proof both
-	// defense tasks must have been spawned with none failed (the defense
-	// scan caps at MAX_CONCURRENT_DEFENSE_TASKS=8, so nothing throttles two
-	// games). The prover field is permanent once set, so the latch cannot
-	// miss a proven game that resolves between polls; reads tolerate
-	// transient RPC errors.
 	metricsURL := fmt.Sprintf("http://127.0.0.1:%d/metrics", metricsPort)
 	const spawnedMetric = "kona_sp1_proposer_games_defense_spawned"
 	const provingErrorMetric = "kona_sp1_proposer_game_proving_error"
@@ -241,11 +225,8 @@ func TestProposerDefendsMultipleChallengedGamesConcurrently(gt *testing.T) {
 		if proverB == (common.Address{}) {
 			proverB = gameB.WaitForClaimData().Prover
 		}
-		// Concurrency witness: two defense tasks spawned, zero failures,
-		// and neither proof landed yet - both pipelines are live at once.
-		// A spawn counter alone could conflate a failed-and-respawned
-		// single game with concurrency; the zero-error conjunct closes
-		// that hole.
+		// Two spawned tasks before either proof lands witnesses concurrency.
+		// Zero failures excludes one failed and respawned task.
 		if (proverA == common.Address{}) && (proverB == common.Address{}) &&
 			scrapeMetric(metricsURL, spawnedMetric) == 2 &&
 			scrapeMetric(metricsURL, provingErrorMetric) == 0 {
@@ -259,8 +240,6 @@ func TestProposerDefendsMultipleChallengedGamesConcurrently(gt *testing.T) {
 		"both defense tasks must be live before either proof lands (parallel proving)")
 }
 
-// freeTCPPort reserves an ephemeral localhost port and releases it for the
-// component under test to bind.
 func freeTCPPort(t devtest.T) uint16 {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	t.Require().NoError(err, "reserve an ephemeral port")
@@ -268,9 +247,8 @@ func freeTCPPort(t devtest.T) uint16 {
 	return uint16(listener.Addr().(*net.TCPAddr).Port)
 }
 
-// scrapeMetric fetches a Prometheus exposition page and returns the value of
-// the first sample whose name starts with name (0 when the endpoint or the
-// sample is not there yet, so callers can poll).
+// scrapeMetric returns the first matching Prometheus sample, or 0 while the
+// endpoint or sample is unavailable.
 func scrapeMetric(url, name string) float64 {
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Get(url)
