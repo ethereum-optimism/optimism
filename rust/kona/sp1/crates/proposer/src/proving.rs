@@ -143,7 +143,7 @@ pub async fn fetch_span_responses(
 /// be incomplete - so trust requires `current_l1 > verified_required_l1`.
 /// An untrusted answer may still be used to prove (the guest re-derives
 /// everything anyway) but must never permanently condemn a game.
-fn response_trusted(response: &SuperRootAtTimestampResponse) -> bool {
+pub(crate) fn response_trusted(response: &SuperRootAtTimestampResponse) -> bool {
     response
         .data
         .as_ref()
