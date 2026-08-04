@@ -59,6 +59,20 @@ func TestMonitor_MonitorGames(t *testing.T) {
 	})
 }
 
+func TestMonitorRoutesGamesToResolution(t *testing.T) {
+	monitor, extractor, _, _ := setupMonitorTest(t)
+	terminal := newEnrichedGameData(common.Address{0xaa}, 1)
+	terminal.Status = types.GameStatusDefenderWon
+	extractor.games = []*monTypes.EnrichedGameData{terminal}
+	var received []*monTypes.EnrichedGameData
+	monitor.monitors = []Monitor{func(games []*monTypes.EnrichedGameData) {
+		received = games
+	}}
+
+	require.NoError(t, monitor.monitorGames())
+	require.Equal(t, []*monTypes.EnrichedGameData{terminal}, received)
+}
+
 func TestMonitor_StartMonitoring(t *testing.T) {
 	t.Run("MonitorsGames", func(t *testing.T) {
 		addr1 := common.Address{0xaa}

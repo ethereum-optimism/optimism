@@ -210,6 +210,28 @@ func TestExtractor_Extract(t *testing.T) {
 	})
 }
 
+func TestExtractorPinsFaultReadsAndPreservesEnricherOrder(t *testing.T) {
+	trace := make([]string, 0, 4)
+	first := &mockEnricher{name: "first", trace: &trace}
+	second := &mockEnricher{name: "second", trace: &trace}
+	extractor, creator, games, _, _ := setupExtractorTest(t, first, second)
+	creator.caller.trace = &trace
+	games.games = []gameTypes.GameMetadata{{GameType: uint32(gameTypes.CannonGameType)}}
+	blockHash := common.Hash{0xab}
+
+	enriched, ignored, failed, err := extractor.Extract(t.Context(), blockHash, 0)
+	require.NoError(t, err)
+	require.Zero(t, ignored)
+	require.Zero(t, failed)
+	require.Len(t, enriched, 1)
+	require.Equal(t, []string{"metadata", "claims", "first", "second"}, trace)
+	expectedBlock := rpcblock.ByHash(blockHash)
+	require.Equal(t, []rpcblock.Block{expectedBlock}, creator.caller.metadataBlocks)
+	require.Equal(t, []rpcblock.Block{expectedBlock}, creator.caller.claimBlocks)
+	require.Equal(t, []rpcblock.Block{expectedBlock}, first.blocks)
+	require.Equal(t, []rpcblock.Block{expectedBlock}, second.blocks)
+}
+
 func verifyLogs(t *testing.T, logs *testlog.CapturingHandler, createErr, metadataErr, claimsErr, durationErr int) {
 	errorLevelFilter := testlog.NewLevelFilter(log.LevelError)
 	createMessageFilter := testlog.NewAttributesContainsFilter("err", "failed to create contracts")
@@ -296,6 +318,9 @@ type mockGameCaller struct {
 	resolved             map[int]bool
 	anchorStateRegistry  common.Address
 	anchorStateRegErr    error
+	metadataBlocks       []rpcblock.Block
+	claimBlocks          []rpcblock.Block
+	trace                *[]string
 }
 
 func (m *mockGameCaller) GetWithdrawals(_ context.Context, _ rpcblock.Block, _ ...common.Address) ([]*contracts.WithdrawalRequest, error) {
@@ -318,8 +343,12 @@ func (m *mockGameCaller) GetWithdrawals(_ context.Context, _ rpcblock.Block, _ .
 	}, nil
 }
 
-func (m *mockGameCaller) GetExtendedMetadata(_ context.Context, _ rpcblock.Block) (contracts.GameMetadata, error) {
+func (m *mockGameCaller) GetExtendedMetadata(_ context.Context, block rpcblock.Block) (contracts.GameMetadata, error) {
 	m.metadataCalls++
+	m.metadataBlocks = append(m.metadataBlocks, block)
+	if m.trace != nil {
+		*m.trace = append(*m.trace, "metadata")
+	}
 	if m.metadataErr != nil {
 		return contracts.GameMetadata{}, m.metadataErr
 	}
@@ -336,8 +365,12 @@ func (m *mockGameCaller) GetAnchorStateRegistry(_ context.Context, _ rpcblock.Bl
 	return m.anchorStateRegistry, nil
 }
 
-func (m *mockGameCaller) GetAllClaims(_ context.Context, _ rpcblock.Block) ([]faultTypes.Claim, error) {
+func (m *mockGameCaller) GetAllClaims(_ context.Context, block rpcblock.Block) ([]faultTypes.Claim, error) {
 	m.claimsCalls++
+	m.claimBlocks = append(m.claimBlocks, block)
+	if m.trace != nil {
+		*m.trace = append(*m.trace, "claims")
+	}
 	if m.claimsErr != nil {
 		return nil, m.claimsErr
 	}
@@ -410,10 +443,17 @@ type mockEnricher struct {
 	err    error
 	calls  int
 	action func(game *monTypes.EnrichedGameData) error
+	name   string
+	trace  *[]string
+	blocks []rpcblock.Block
 }
 
-func (m *mockEnricher) Enrich(_ context.Context, _ rpcblock.Block, _ GameCaller, game *monTypes.EnrichedGameData) error {
+func (m *mockEnricher) Enrich(_ context.Context, block rpcblock.Block, _ GameCaller, game *monTypes.EnrichedGameData) error {
 	m.calls++
+	m.blocks = append(m.blocks, block)
+	if m.trace != nil {
+		*m.trace = append(*m.trace, m.name)
+	}
 	if m.action != nil {
 		return m.action(game)
 	}
