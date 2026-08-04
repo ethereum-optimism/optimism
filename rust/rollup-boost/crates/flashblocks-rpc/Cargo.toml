@@ -16,19 +16,19 @@ reth-optimism-chainspec = { path = "../../../op-reth/crates/chainspec/", default
 reth-optimism-rpc = { path = "../../../op-reth/crates/rpc/" }
 reth-optimism-evm = { path = "../../../op-reth/crates/evm/", default-features = false }
 reth-optimism-forks = { path = "../../../op-reth/crates/hardforks/", default-features = false }
-reth-rpc-eth-api = { git = "https://github.com/paradigmxyz/reth", rev = "f2eecc65482af4085e43eedb27a32024bf177a0d" }
-reth-provider = { git = "https://github.com/paradigmxyz/reth", rev = "f2eecc65482af4085e43eedb27a32024bf177a0d" }
+reth-rpc-eth-api = { git = "https://github.com/paradigmxyz/reth", rev = "d7d34e741bb2f66a5a8253a912ddb0aaa86853dc" }
+reth-provider = { git = "https://github.com/paradigmxyz/reth", rev = "d7d34e741bb2f66a5a8253a912ddb0aaa86853dc" }
 reth-primitives-traits = { version = "0.5.0", default-features = false }
-reth-node-builder = { git = "https://github.com/paradigmxyz/reth", rev = "f2eecc65482af4085e43eedb27a32024bf177a0d", features = [
+reth-node-builder = { git = "https://github.com/paradigmxyz/reth", rev = "d7d34e741bb2f66a5a8253a912ddb0aaa86853dc", features = [
     "test-utils",
 ] }
-reth-e2e-test-utils = { git = "https://github.com/paradigmxyz/reth", rev = "f2eecc65482af4085e43eedb27a32024bf177a0d" }
-reth-node-api = { git = "https://github.com/paradigmxyz/reth", rev = "f2eecc65482af4085e43eedb27a32024bf177a0d" }
-reth-tasks = { git = "https://github.com/paradigmxyz/reth", rev = "f2eecc65482af4085e43eedb27a32024bf177a0d" }
-reth-node-core = { git = "https://github.com/paradigmxyz/reth", rev = "f2eecc65482af4085e43eedb27a32024bf177a0d" }
-reth-db = { git = "https://github.com/paradigmxyz/reth", rev = "f2eecc65482af4085e43eedb27a32024bf177a0d", default-features = false }
-reth-tracing = { git = "https://github.com/paradigmxyz/reth", rev = "f2eecc65482af4085e43eedb27a32024bf177a0d", default-features = false }
-reth-rpc-server-types = { git = "https://github.com/paradigmxyz/reth", rev = "f2eecc65482af4085e43eedb27a32024bf177a0d" }
+reth-e2e-test-utils = { git = "https://github.com/paradigmxyz/reth", rev = "d7d34e741bb2f66a5a8253a912ddb0aaa86853dc" }
+reth-node-api = { git = "https://github.com/paradigmxyz/reth", rev = "d7d34e741bb2f66a5a8253a912ddb0aaa86853dc" }
+reth-tasks = { git = "https://github.com/paradigmxyz/reth", rev = "d7d34e741bb2f66a5a8253a912ddb0aaa86853dc" }
+reth-node-core = { git = "https://github.com/paradigmxyz/reth", rev = "d7d34e741bb2f66a5a8253a912ddb0aaa86853dc" }
+reth-db = { git = "https://github.com/paradigmxyz/reth", rev = "d7d34e741bb2f66a5a8253a912ddb0aaa86853dc", default-features = false }
+reth-tracing = { git = "https://github.com/paradigmxyz/reth", rev = "d7d34e741bb2f66a5a8253a912ddb0aaa86853dc", default-features = false }
+reth-rpc-server-types = { git = "https://github.com/paradigmxyz/reth", rev = "d7d34e741bb2f66a5a8253a912ddb0aaa86853dc" }
 
 alloy-eips.workspace = true
 alloy-primitives.workspace = true
