@@ -4,6 +4,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
@@ -58,4 +59,28 @@ func TestCalculateRequiredCollateral(t *testing.T) {
 	require.Equal(t, bigs.Uint64Strict(weth1Balance), bigs.Uint64Strict(actual[weth1].Actual))
 	require.Equal(t, uint64(23+46), bigs.Uint64Strict(actual[weth2].Required))
 	require.Equal(t, bigs.Uint64Strict(weth2Balance), bigs.Uint64Strict(actual[weth2].Actual))
+}
+
+func TestCalculateRequiredCollateralAggregatesFaultAndZK(t *testing.T) {
+	weth := common.Address{0xaa}
+	recipient := common.Address{0x01}
+	fault := &monTypes.FaultGameData{BondGameData: monTypes.BondGameData{
+		Bonds:         []monTypes.BondRecord{{Amount: big.NewInt(5)}},
+		Credits:       map[common.Address]*big.Int{recipient: big.NewInt(2)},
+		WETHContract:  weth,
+		ETHCollateral: big.NewInt(100),
+	}}
+	zk := &monTypes.ZKGameData{BondGameData: monTypes.BondGameData{
+		Bonds:   []monTypes.BondRecord{{Amount: big.NewInt(11)}},
+		Credits: map[common.Address]*big.Int{recipient: big.NewInt(3)},
+		WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{
+			recipient: {Amount: big.NewInt(7), Timestamp: big.NewInt(1)},
+		},
+		WETHContract:  weth,
+		ETHCollateral: big.NewInt(100),
+	}}
+
+	actual := CalculateRequiredCollateral([]monTypes.BondedGame{fault, zk})
+	require.Equal(t, big.NewInt(25), actual[weth].Required)
+	require.Equal(t, big.NewInt(100), actual[weth].Actual)
 }

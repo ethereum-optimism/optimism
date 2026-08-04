@@ -232,6 +232,7 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 	headBlockFetcher := func(ctx context.Context) (eth.L1BlockRef, error) {
 		return s.l1Client.L1BlockRefByLabel(ctx, "latest")
 	}
+	bondEnricher := extract.NewBondDataEnricher()
 	extractor := extract.NewExtractor(
 		s.logger,
 		s.cl,
@@ -241,8 +242,9 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		cfg.IgnoredGames,
 		cfg.MaxConcurrency,
 		s.commonEnrichers(),
-		s.faultEnrichers(),
+		s.faultEnrichers(bondEnricher),
 		extract.NewZKAgreementEnricher(s.logger, s.metrics, s.asSuperRootProviders(), clock.SystemClock),
+		bondEnricher,
 	)
 	forecast := NewForecast(s.logger, s.metrics)
 	bonds := bonds.NewBonds(s.logger, s.metrics, s.cl, s.honestActors)
@@ -295,10 +297,10 @@ func (s *Service) commonEnrichers() []extract.CommonEnricher {
 	}
 }
 
-func (s *Service) faultEnrichers() []extract.FaultEnricher {
+func (s *Service) faultEnrichers(bondEnricher *extract.BondDataEnricher) []extract.FaultEnricher {
 	return []extract.FaultEnricher{
 		extract.NewClaimEnricher(),
-		extract.NewBondDataEnricher(),
+		bondEnricher,
 	}
 }
 

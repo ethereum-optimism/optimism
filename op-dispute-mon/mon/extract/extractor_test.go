@@ -329,6 +329,7 @@ func setupExtractorTest(t *testing.T, enrichers ...CommonEnricher) (*Extractor, 
 		enrichers,
 		nil,
 		nil,
+		nil,
 	)
 	return extractor, creator, games, capturedLogs, cl
 }

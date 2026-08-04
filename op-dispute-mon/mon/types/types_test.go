@@ -32,6 +32,12 @@ func TestBondGameDataRecipientAddresses(t *testing.T) {
 	}, data.RecipientAddresses())
 }
 
+func TestNewHonestActorsIgnoresZeroAddress(t *testing.T) {
+	actor := common.Address{0x01}
+	honest := NewHonestActors([]common.Address{{}, actor})
+	require.Equal(t, HonestActors{actor: true}, honest)
+}
+
 func TestCommonGameData_UsesOutputRoots(t *testing.T) {
 	for _, gameType := range outputRootGameTypes {
 		gameType := gameType

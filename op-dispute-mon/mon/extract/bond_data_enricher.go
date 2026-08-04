@@ -12,6 +12,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
@@ -23,6 +24,7 @@ type BondDataEnricher struct{}
 var (
 	ErrIncorrectCreditCount      = errors.New("incorrect credit count")
 	ErrIncorrectWithdrawalsCount = errors.New("incorrect withdrawals count")
+	ErrInvalidZKBondData         = errors.New("invalid ZK bond data")
 )
 
 type BondCaller interface {
@@ -47,6 +49,163 @@ func (b *BondDataEnricher) Enrich(ctx context.Context, block rpcblock.Block, cal
 	}
 	game.BondGameData = data
 	return nil
+}
+
+func (b *BondDataEnricher) EnrichZK(ctx context.Context, block rpcblock.Block, caller ZKBondGameCaller, game *monTypes.ZKGameData) error {
+	data, err := b.loadZK(ctx, block, caller, game)
+	if err != nil {
+		return err
+	}
+	game.BondGameData = data
+	return nil
+}
+
+func (*BondDataEnricher) loadZK(ctx context.Context, block rpcblock.Block, caller ZKBondGameCaller, game *monTypes.ZKGameData) (monTypes.BondGameData, error) {
+	mode, err := caller.GetBondDistributionMode(ctx, block)
+	if err != nil {
+		return monTypes.BondGameData{}, fmt.Errorf("failed to fetch ZK bond distribution mode: %w", err)
+	}
+	data, err := normalizeZKBondData(game, mode)
+	if err != nil {
+		return monTypes.BondGameData{}, err
+	}
+	recipients := data.RecipientAddresses()
+
+	withdrawals, err := caller.GetWithdrawals(ctx, block, recipients...)
+	if err != nil {
+		return monTypes.BondGameData{}, fmt.Errorf("failed to fetch ZK withdrawals: %w", err)
+	}
+	if len(withdrawals) != len(recipients) {
+		return monTypes.BondGameData{}, fmt.Errorf("%w, requested %v values but got %v", ErrIncorrectWithdrawalsCount, len(recipients), len(withdrawals))
+	}
+	data.WithdrawalRequests = make(map[common.Address]*contracts.WithdrawalRequest, len(recipients))
+	for i, recipient := range recipients {
+		request := withdrawals[i]
+		if request == nil || request.Amount == nil || request.Timestamp == nil || request.Amount.Sign() < 0 || request.Timestamp.Sign() < 0 || !request.Timestamp.IsInt64() {
+			return monTypes.BondGameData{}, fmt.Errorf("%w: invalid withdrawal for %s", ErrInvalidZKBondData, recipient)
+		}
+		data.WithdrawalRequests[recipient] = cloneWithdrawal(request)
+	}
+	credits, err := caller.GetCredits(ctx, block, recipients...)
+	if err != nil {
+		return monTypes.BondGameData{}, fmt.Errorf("failed to fetch ZK credits: %w", err)
+	}
+	if len(credits) != len(recipients) {
+		return monTypes.BondGameData{}, fmt.Errorf("%w, requested %v values but got %v", ErrIncorrectCreditCount, len(recipients), len(credits))
+	}
+	data.Credits = make(map[common.Address]*big.Int, len(recipients))
+	for i, recipient := range recipients {
+		if credits[i] == nil || credits[i].Sign() < 0 {
+			return monTypes.BondGameData{}, fmt.Errorf("%w: invalid credit for %s", ErrInvalidZKBondData, recipient)
+		}
+		data.Credits[recipient] = cloneBigInt(credits[i])
+	}
+	balance, delay, wethContract, err := caller.GetBalanceAndDelay(ctx, block)
+	if err != nil {
+		return monTypes.BondGameData{}, fmt.Errorf("failed to fetch ZK balance: %w", err)
+	}
+	if balance == nil || balance.Sign() < 0 || delay < 0 {
+		return monTypes.BondGameData{}, fmt.Errorf("%w: invalid collateral", ErrInvalidZKBondData)
+	}
+
+	data.BondDistributionMode = mode
+	data.ETHCollateral = cloneBigInt(balance)
+	data.WETHDelay = delay
+	data.WETHContract = wethContract
+	return data, nil
+}
+
+func normalizeZKBondData(game *monTypes.ZKGameData, mode faultTypes.BondDistributionMode) (monTypes.BondGameData, error) {
+	if mode != faultTypes.UndecidedDistributionMode && mode != faultTypes.NormalDistributionMode && mode != faultTypes.RefundDistributionMode {
+		return monTypes.BondGameData{}, fmt.Errorf("%w: unsupported distribution mode %d", ErrInvalidZKBondData, mode)
+	}
+	if game.GameCreator == (common.Address{}) {
+		return monTypes.BondGameData{}, fmt.Errorf("%w: game creator is zero", ErrInvalidZKBondData)
+	}
+	if game.TotalBonds == nil || game.ChallengerBond == nil || game.TotalBonds.Sign() < 0 || game.ChallengerBond.Sign() < 0 {
+		return monTypes.BondGameData{}, fmt.Errorf("%w: invalid bond totals", ErrInvalidZKBondData)
+	}
+	if game.Status != gameTypes.GameStatusInProgress && game.Status != gameTypes.GameStatusDefenderWon && game.Status != gameTypes.GameStatusChallengerWon {
+		return monTypes.BondGameData{}, fmt.Errorf("%w: unsupported game status %d", ErrInvalidZKBondData, game.Status)
+	}
+	if err := validateZKStatus(game.Status, game.ProposalStatus); err != nil {
+		return monTypes.BondGameData{}, fmt.Errorf("%w: %w", ErrInvalidZKBondData, err)
+	}
+	if err := validateZKParticipants(game.ProposalStatus, game.Challenger, game.Prover); err != nil {
+		return monTypes.BondGameData{}, fmt.Errorf("%w: %w", ErrInvalidZKBondData, err)
+	}
+	if game.Status == gameTypes.GameStatusInProgress && mode != faultTypes.UndecidedDistributionMode {
+		return monTypes.BondGameData{}, fmt.Errorf("%w: live game has decided distribution mode %d", ErrInvalidZKBondData, mode)
+	}
+	if game.Status == gameTypes.GameStatusDefenderWon {
+		if game.ParentStatus != nil && *game.ParentStatus == gameTypes.GameStatusChallengerWon {
+			return monTypes.BondGameData{}, fmt.Errorf("%w: defender won with invalid parent", ErrInvalidZKBondData)
+		}
+		if game.Challenger != (common.Address{}) && game.Prover == (common.Address{}) {
+			return monTypes.BondGameData{}, fmt.Errorf("%w: challenged defender win has no prover", ErrInvalidZKBondData)
+		}
+	}
+	if game.Status == gameTypes.GameStatusChallengerWon {
+		invalidParent := game.ParentStatus != nil && *game.ParentStatus == gameTypes.GameStatusChallengerWon
+		if game.Prover != (common.Address{}) && !invalidParent {
+			return monTypes.BondGameData{}, fmt.Errorf("%w: challenger won after valid proof without invalid parent", ErrInvalidZKBondData)
+		}
+		if game.Challenger == (common.Address{}) && !invalidParent {
+			return monTypes.BondGameData{}, fmt.Errorf("%w: unchallenged game lost without invalid parent", ErrInvalidZKBondData)
+		}
+	}
+
+	creatorBond := cloneBigInt(game.TotalBonds)
+	if game.Challenger != (common.Address{}) {
+		if creatorBond.Cmp(game.ChallengerBond) < 0 {
+			return monTypes.BondGameData{}, fmt.Errorf("%w: total bonds below challenger bond", ErrInvalidZKBondData)
+		}
+		creatorBond.Sub(creatorBond, game.ChallengerBond)
+	}
+	data := monTypes.BondGameData{
+		Bonds: []monTypes.BondRecord{{Depositor: game.GameCreator, Amount: creatorBond}},
+		Recipients: map[common.Address]bool{
+			game.GameCreator: true,
+		},
+		ExpectedCredits: make(map[common.Address]*big.Int),
+	}
+	if game.Challenger != (common.Address{}) {
+		data.Recipients[game.Challenger] = true
+		data.Bonds = append(data.Bonds, monTypes.BondRecord{
+			Depositor:      game.Challenger,
+			Amount:         cloneBigInt(game.ChallengerBond),
+			ChallengerBond: true,
+		})
+	}
+	if game.Prover != (common.Address{}) {
+		data.Recipients[game.Prover] = true
+	}
+	if game.Status == gameTypes.GameStatusInProgress {
+		return data, nil
+	}
+
+	for i := range data.Bonds {
+		record := &data.Bonds[i]
+		record.Resolved = true
+		switch {
+		case mode == faultTypes.RefundDistributionMode:
+			record.Recipient = record.Depositor
+		case game.Status == gameTypes.GameStatusChallengerWon:
+			record.Recipient = game.Challenger
+		case record.ChallengerBond:
+			if game.Prover == game.GameCreator {
+				record.Recipient = game.GameCreator
+			} else {
+				record.Recipient = game.Prover
+			}
+		default:
+			record.Recipient = game.GameCreator
+		}
+		record.Forfeited = record.Recipient != record.Depositor
+		data.Recipients[record.Recipient] = true
+		addExpectedCredit(data.ExpectedCredits, record.Recipient, record.Amount)
+	}
+	return data, nil
 }
 
 func (*BondDataEnricher) load(ctx context.Context, block rpcblock.Block, caller BondGameCaller, game *monTypes.FaultGameData) (monTypes.BondGameData, error) {
