@@ -1088,21 +1088,13 @@ jobs:
       - run:
           name: Compute forge build cache key
           command: |
-            # Hash every input that affects forge output: all tracked files in
-            # the package (sources, foundry.toml, justfile, and the lib/
-            # submodule gitlink pins — git ls-files -s covers them all via
-            # index blob SHAs), the toolchain pins (mise.toml), and the build
-            # profile/args. Exact-key only (no fallback restore) so a hit
-            # always corresponds to these exact inputs — a stale hit could
-            # serve artifacts for deleted or renamed contracts. A miss is just
-            # a normal clean build.
-            #
-            # Deliberately not keyed: the installed solc set, which floating
-            # pragmas (interfaces/, scripts/) resolve against. If it changes,
-            # forge spots the per-artifact compiler mismatch and recompiles
-            # the delta on top of this cache — a smaller build, never a stale
-            # one. Keying on it would instead cost spurious misses whenever
-            # the svm cache drifts.
+            # Key over every input affecting forge output: all tracked package
+            # files via `git ls-files -s` (sources, config, lib/ submodule
+            # pins), mise.toml toolchain pins, and profile/args. Exact-key only
+            # (no fallback restore): a hit never serves artifacts for changed
+            # or deleted contracts; a miss is a normal clean build. The
+            # installed solc set is deliberately unkeyed — drift only makes
+            # forge recompile mismatched artifacts, never serve stale ones.
             {
               echo "profile=<<parameters.profile>> args=<<parameters.build_args>>"
               sha256sum mise.toml
