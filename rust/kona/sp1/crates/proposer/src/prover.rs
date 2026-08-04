@@ -18,7 +18,10 @@ use kona_sp1_host_utils::metrics::MetricsGauge;
 use sp1_sdk::{
     CpuProver, Elf, NetworkProver, ProveRequest, Prover, ProvingKey, SP1ProofMode,
     SP1ProofWithPublicValues, SP1ProvingKey, SP1Stdin, SP1VerifyingKey,
-    network::{NetworkMode, proto::types::FulfillmentStatus},
+    network::{
+        NetworkMode,
+        proto::types::{ExecutionStatus, FulfillmentStatus},
+    },
 };
 use tokio::time::sleep;
 
@@ -296,7 +299,7 @@ impl NetworkProofProvider {
             // bookkeeping: it is already paid for, and discarding it over a
             // stale server deadline or a failed follow-up network call
             // throws away the spend.
-            match check_status(status.fulfillment_status()) {
+            match check_status(status.fulfillment_status(), status.execution_status()) {
                 ProofStatus::Ready => {
                     tracing::info!(proof_id = %proof_id, "Proof fulfilled");
                     return proof.ok_or_else(|| {
@@ -305,8 +308,9 @@ impl NetworkProofProvider {
                 }
                 ProofStatus::Failed => {
                     bail!(
-                        "Proving failed: proof_id={}, execution_status={}",
+                        "Proving failed: proof_id={}, fulfillment_status={}, execution_status={}",
                         proof_id,
+                        status.fulfillment_status(),
                         status.execution_status()
                     );
                 }
@@ -527,13 +531,20 @@ pub enum ProofStatus {
     Pending,
 }
 
-/// Determine proof status from fulfillment status.
-pub fn check_status(status: i32) -> ProofStatus {
-    match FulfillmentStatus::try_from(status) {
-        Ok(FulfillmentStatus::Fulfilled) => ProofStatus::Ready,
-        Ok(FulfillmentStatus::Unfulfillable) => ProofStatus::Failed,
-        _ => ProofStatus::Pending,
+/// Determine proof status from fulfillment and execution status.
+pub fn check_status(fulfillment_status: i32, execution_status: i32) -> ProofStatus {
+    if matches!(FulfillmentStatus::try_from(fulfillment_status), Ok(FulfillmentStatus::Fulfilled)) {
+        return ProofStatus::Ready;
     }
+    if matches!(ExecutionStatus::try_from(execution_status), Ok(ExecutionStatus::Unexecutable)) ||
+        matches!(
+            FulfillmentStatus::try_from(fulfillment_status),
+            Ok(FulfillmentStatus::Unfulfillable)
+        )
+    {
+        return ProofStatus::Failed;
+    }
+    ProofStatus::Pending
 }
 
 #[cfg(test)]
@@ -594,14 +605,34 @@ mod tests {
     #[test]
     fn status_transitions() {
         let cases = [
-            (FulfillmentStatus::Fulfilled as i32, ProofStatus::Ready),
-            (FulfillmentStatus::Unfulfillable as i32, ProofStatus::Failed),
-            (FulfillmentStatus::Assigned as i32, ProofStatus::Pending),
-            (FulfillmentStatus::Requested as i32, ProofStatus::Pending),
-            (999, ProofStatus::Pending),
+            (
+                FulfillmentStatus::Fulfilled as i32,
+                ExecutionStatus::Unexecutable as i32,
+                ProofStatus::Ready,
+            ),
+            (
+                FulfillmentStatus::Unfulfillable as i32,
+                ExecutionStatus::Unexecuted as i32,
+                ProofStatus::Failed,
+            ),
+            (
+                FulfillmentStatus::Assigned as i32,
+                ExecutionStatus::Unexecuted as i32,
+                ProofStatus::Pending,
+            ),
+            (
+                FulfillmentStatus::Requested as i32,
+                ExecutionStatus::Unexecutable as i32,
+                ProofStatus::Failed,
+            ),
+            (999, ExecutionStatus::Unexecuted as i32, ProofStatus::Pending),
         ];
-        for (status, expected) in cases {
-            assert_eq!(check_status(status), expected, "status={status}");
+        for (fulfillment_status, execution_status, expected) in cases {
+            assert_eq!(
+                check_status(fulfillment_status, execution_status),
+                expected,
+                "fulfillment_status={fulfillment_status} execution_status={execution_status}"
+            );
         }
     }
 }
