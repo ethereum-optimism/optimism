@@ -37,6 +37,7 @@ func TestSupernodeInteropInvalidMessageReplacement(gt *testing.T) {
 // light-sequencer path. op-geth is being deprecated, so we skip rather than block on it.
 func TestSupernodeLightSequencerInteropInvalidMessageReplacement(gt *testing.T) {
 	t := devtest.SerialT(gt)
+	t.MarkFlaky("ethereum-optimism/optimism#22234")
 	// op-reth only: on op-geth the follower never adopts the deposits-only replacement.
 	sysgo.SkipOnOpGeth(t, "op-geth does not adopt the invalid-message replacement on the light path (#21119)")
 	// Bootstrap via the supernode VN sequencer and hand off to the light ELSync sequencers, then
