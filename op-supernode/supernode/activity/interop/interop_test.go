@@ -2789,6 +2789,99 @@ func TestVerify_DoesNotPersistFrontierLogs(t *testing.T) {
 	require.Zero(t, trackingDB.sealCalls, "verify must not seal frontier blocks into logsDB")
 }
 
+func TestVerify_RejectsNonCanonicalFrontier(t *testing.T) {
+	canonicalHash := common.HexToHash("0xcafe")
+	forkHash := common.HexToHash("0xdead")
+	h := newInteropTestHarness(t).
+		WithChain(10, func(m *mockChainContainer) {
+			m.outputV0Override = func(context.Context, uint64) (*eth.OutputV0, error) {
+				return &eth.OutputV0{BlockHash: canonicalHash}, nil
+			}
+		}).
+		Build()
+
+	verifyCalled := false
+	h.interop.verifyFn = func(uint64, map[eth.ChainID]eth.BlockID, map[eth.ChainID]eth.BlockID, *frontierVerificationView) (Result, error) {
+		verifyCalled = true
+		return Result{}, nil
+	}
+
+	chainID := eth.ChainIDFromUInt64(10)
+	_, err := h.interop.verify(1001,
+		map[eth.ChainID]eth.BlockID{chainID: {Number: 1001, Hash: forkHash}},
+		map[eth.ChainID]eth.BlockID{})
+	require.ErrorIs(t, err, ErrNonCanonicalFrontier)
+	require.Contains(t, err.Error(), canonicalHash.String())
+	require.Contains(t, err.Error(), forkHash.String())
+	require.False(t, verifyCalled, "non-canonical frontier must be rejected before message verification")
+}
+
+func TestPendingTransition_RecoversLiveLogsDBAfterReorg(t *testing.T) {
+	const (
+		activation uint64 = 100
+		forkPoint  uint64 = 103
+		forkTip    uint64 = 105
+		target     uint64 = 106
+	)
+	h := newInteropTestHarness(t).
+		WithActivation(activation).
+		WithLogBackfillDepth(20*time.Second).
+		WithChain(10, nil).
+		Build()
+
+	chainID := eth.ChainIDFromUInt64(10)
+	db := h.interop.logsDBs[chainID]
+	canonicalHash := func(n uint64) common.Hash {
+		return common.BigToHash(new(big.Int).SetUint64(n))
+	}
+	forkHash := func(n uint64) common.Hash {
+		return common.BigToHash(new(big.Int).SetUint64(n | 0xdead0000))
+	}
+
+	require.NoError(t, db.SealBlock(common.Hash{},
+		eth.BlockID{Number: activation, Hash: canonicalHash(activation)}, activation))
+	for n := activation + 1; n < forkPoint; n++ {
+		require.NoError(t, db.SealBlock(canonicalHash(n-1),
+			eth.BlockID{Number: n, Hash: canonicalHash(n)}, n))
+	}
+	require.NoError(t, db.SealBlock(canonicalHash(forkPoint-1),
+		eth.BlockID{Number: forkPoint, Hash: forkHash(forkPoint)}, forkPoint))
+	for n := forkPoint + 1; n <= forkTip; n++ {
+		require.NoError(t, db.SealBlock(forkHash(n-1),
+			eth.BlockID{Number: n, Hash: forkHash(n)}, n))
+	}
+
+	result := Result{
+		Timestamp: target,
+		L2Heads: map[eth.ChainID]eth.BlockID{
+			chainID: {Number: target, Hash: canonicalHash(target)},
+		},
+	}
+	pending := PendingTransition{Decision: DecisionAdvance, Result: &result}
+	require.NoError(t, h.interop.verifiedDB.SetPendingTransition(pending))
+
+	madeProgress, err := h.interop.applyPendingTransition(pending)
+	require.NoError(t, err)
+	require.True(t, madeProgress)
+
+	for n := forkPoint; n <= target; n++ {
+		seal, err := db.FindSealedBlock(n)
+		require.NoError(t, err, "canonical block %d must be resealed", n)
+		require.Equal(t, canonicalHash(n), seal.Hash,
+			"block %d must not retain the stale fork hash", n)
+	}
+	latest, has := db.LatestSealedBlock()
+	require.True(t, has)
+	require.Equal(t, eth.BlockID{Number: target, Hash: canonicalHash(target)}, latest)
+
+	committed, err := h.interop.verifiedDB.Get(target)
+	require.NoError(t, err)
+	require.Equal(t, canonicalHash(target), committed.L2Heads[chainID].Hash)
+	storedPending, err := h.interop.verifiedDB.GetPendingTransition()
+	require.NoError(t, err)
+	require.Nil(t, storedPending)
+}
+
 func TestResetIsNoOp(t *testing.T) {
 	h := newInteropTestHarness(t).
 		WithChain(10, nil).

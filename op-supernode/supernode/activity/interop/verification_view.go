@@ -1,12 +1,18 @@
 package interop
 
 import (
+	"errors"
 	"fmt"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
 )
+
+// ErrNonCanonicalFrontier is returned when the block selected for interop
+// verification does not match the execution engine's canonical block at the
+// same height.
+var ErrNonCanonicalFrontier = errors.New("interop frontier block is not canonical")
 
 type frontierQueryKey struct {
 	blockNum  uint64
@@ -33,6 +39,14 @@ func (i *Interop) resolveFrontierVerificationView(blocksAtTS map[eth.ChainID]eth
 		chain, ok := i.chains[chainID]
 		if !ok {
 			continue
+		}
+		canonical, err := chain.OutputV0AtBlockNumber(i.ctx, blockID.Number)
+		if err != nil {
+			return nil, fmt.Errorf("chain %s: failed to fetch canonical output for frontier block %s: %w", chainID, blockID, err)
+		}
+		if canonical.BlockHash != blockID.Hash {
+			return nil, fmt.Errorf("chain %s: frontier block %s does not match canonical block %s:%d: %w",
+				chainID, blockID, canonical.BlockHash, blockID.Number, ErrNonCanonicalFrontier)
 		}
 		blockInfo, receipts, err := chain.FetchReceipts(i.ctx, blockID)
 		if err != nil {

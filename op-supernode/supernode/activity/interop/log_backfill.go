@@ -207,6 +207,48 @@ func (i *Interop) backfillChain(ctx context.Context, cid eth.ChainID, chain cc.C
 	return nil
 }
 
+// recoverLiveLogsDB reconciles a diverged live logsDB tail and re-seals the
+// canonical chain through target. If reconciliation clears the database, the
+// configured backfill window is restored so message verification retains the
+// same history available after a cold start.
+func (i *Interop) recoverLiveLogsDB(cid eth.ChainID, target eth.BlockID, targetTimestamp uint64) error {
+	chain, ok := i.chains[cid]
+	if !ok {
+		return fmt.Errorf("chain %s: not configured", cid)
+	}
+
+	startNum := target.Number
+	if i.logBackfillDepth > 0 {
+		depthSec := uint64(i.logBackfillDepth.Seconds())
+		var depthFloor uint64
+		if targetTimestamp >= depthSec {
+			depthFloor = targetTimestamp - depthSec
+		}
+		startTime := max(depthFloor, i.activationTimestamp)
+		genesisTime, err := chain.BlockNumberToTimestamp(i.ctx, 0)
+		if err != nil {
+			return fmt.Errorf("chain %s: genesis timestamp during live logsDB recovery: %w", cid, err)
+		}
+		startTime = max(startTime, genesisTime)
+		if startTime <= targetTimestamp {
+			startNum, err = chain.TimestampToBlockNumber(i.ctx, startTime)
+			if err != nil {
+				return fmt.Errorf("chain %s: timestamp to block number for live recovery start %d: %w", cid, startTime, err)
+			}
+			if startNum > target.Number {
+				startNum = target.Number
+			}
+		}
+	}
+
+	i.log.Info("live logsDB recovery: reconciling and sealing canonical logs",
+		"chain", cid, "from", startNum, "to", target.Number)
+	if err := i.backfillChain(i.ctx, cid, chain, startNum, target.Number); err != nil {
+		return fmt.Errorf("chain %s: live logsDB recovery backfill: %w", cid, err)
+	}
+	return nil
+}
+
 // reconcileLogsDBTail trims tail blocks whose hash no longer matches canonical,
 // so backfill resumes from a block that is still in force. Without this, an L2
 // reorg that occurs while supernode is offline leaves the tail diverged and the

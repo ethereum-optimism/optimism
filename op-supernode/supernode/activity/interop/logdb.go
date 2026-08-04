@@ -80,8 +80,24 @@ var (
 // transition apply — verification itself is read-only.
 func (i *Interop) persistFrontierLogs(ts uint64, blocksAtTS map[eth.ChainID]eth.BlockID) error {
 	for chainID, blockID := range blocksAtTS {
-		if err := i.sealFetchedBlockIntoLogsDB(chainID, blockID, ts); err != nil {
+		err := i.sealFetchedBlockIntoLogsDB(chainID, blockID, ts)
+		if err == nil {
+			continue
+		}
+		if !errors.Is(err, ErrParentHashMismatch) && !errors.Is(err, ErrStaleLogsDB) {
 			return err
+		}
+
+		i.log.Warn("recovering non-canonical live logsDB frontier",
+			"chain", chainID, "target", blockID, "err", err)
+		if recoverErr := i.recoverLiveLogsDB(chainID, blockID, ts); recoverErr != nil {
+			return fmt.Errorf("chain %s: recover live logsDB: %w", chainID, recoverErr)
+		}
+		// The recovery backfill includes blockID. Retry the normal seal path to
+		// prove that the requested frontier is now present and consistent before
+		// the verified result is committed.
+		if retryErr := i.sealFetchedBlockIntoLogsDB(chainID, blockID, ts); retryErr != nil {
+			return fmt.Errorf("chain %s: persist frontier block after logsDB recovery: %w", chainID, retryErr)
 		}
 	}
 	return nil
