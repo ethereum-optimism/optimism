@@ -15,7 +15,7 @@ import (
 )
 
 func TestDeploymentUsesSuperAggregationVKey(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t, presets.WithZK())
 	vkey := expectedSuperAggregationVKey(t)
 	factory := sys.DisputeGameFactory()
@@ -36,7 +36,7 @@ func TestDeploymentUsesSuperAggregationVKey(gt *testing.T) {
 }
 
 func TestChallengedValidProposalAnchors(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t, presets.WithZK())
 	factory := sys.DisputeGameFactory()
 	challenger, prover := fundedActors(sys)

@@ -1819,4 +1819,40 @@ mod tests {
             "builder_config must carry the node's live DA handle, not a detached copy"
         );
     }
+
+    /// The failsafe is written by the interop filter client after the payload builder has already
+    /// been constructed, so a config that copied the flag's value instead of sharing the handle
+    /// would leave the builder permanently ungated while every value-propagation assertion above
+    /// still passed.
+    #[test]
+    fn builder_config_interop_failsafe_is_live_shared_handle() {
+        let node = OpNode::new(RollupArgs::default());
+        let cfg = node.builder_config();
+
+        node.interop_failsafe.set(true);
+        assert!(
+            cfg.interop_failsafe.enabled(),
+            "builder_config must carry the node's live interop failsafe handle, not a detached copy"
+        );
+
+        node.interop_failsafe.set(false);
+        assert!(
+            !cfg.interop_failsafe.enabled(),
+            "builder_config must observe the failsafe being cleared, proving one shared handle"
+        );
+    }
+
+    /// Same detached-copy risk as the interop failsafe: the admin RPC flips this after startup.
+    #[test]
+    fn builder_config_operator_sdm_opt_in_is_live_shared_handle() {
+        let node = OpNode::new(RollupArgs::default());
+        let cfg = node.builder_config();
+
+        node.operator_sdm_opt_in.set(true);
+
+        assert!(
+            cfg.operator_sdm_opt_in.enabled(),
+            "builder_config must carry the node's live SDM opt-in handle, not a detached copy"
+        );
+    }
 }

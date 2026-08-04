@@ -7746,6 +7746,7 @@ dependencies = [
  "alloy-transport-http",
  "anyhow",
  "async-trait",
+ "clap",
  "flate2",
  "jsonrpsee",
  "kona-sp1-client-utils",

@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use alloy_provider::ProviderBuilder;
 use anyhow::Result;
+use clap::Parser;
 use kona_sp1_host_utils::{
     logger::setup_logger,
     metrics::{MetricsGauge, init_metrics},
@@ -19,8 +20,14 @@ use kona_sp1_proposer::{
     signer::{Signer, SignerLock},
 };
 
+/// Command-line interface for process metadata; runtime configuration remains environment-only.
+#[derive(Debug, Parser)]
+#[command(version, about = env!("CARGO_PKG_DESCRIPTION"))]
+struct Cli {}
+
 #[tokio::main]
 async fn main() -> Result<()> {
+    Cli::parse();
     setup_logger();
 
     let config = ProposerConfig::from_env()?;

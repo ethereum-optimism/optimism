@@ -79,7 +79,6 @@ func TestResolveRenderIntent_ErrorsWhenNeitherPreparedNorApplied(t *testing.T) {
 
 func TestRenderGenesisAndRollup_PreparedNotApplied(t *testing.T) {
 	_, intent, st, chainID := setupChainWithGenesis(t)
-	st.Prepared = true
 
 	// RollupConfig requires the predicted L1 addresses prepare's predictChains would have set.
 	chainState, err := st.Chain(chainID)
@@ -95,7 +94,6 @@ func TestRenderGenesisAndRollup_PreparedNotApplied(t *testing.T) {
 
 func TestRenderGenesisAndRollup_AcceptsMatchingGenesisBlockHash(t *testing.T) {
 	pEnv, intent, st, chainID := setupChainWithGenesis(t)
-	st.Prepared = true
 
 	require.NoError(t, ComputeGenesisOutputRoots(pEnv, intent, st))
 
@@ -113,7 +111,6 @@ func TestRenderGenesisAndRollup_AcceptsMatchingGenesisBlockHash(t *testing.T) {
 
 func TestRenderGenesisAndRollup_RejectsGenesisBlockHashMismatch(t *testing.T) {
 	pEnv, intent, st, chainID := setupChainWithGenesis(t)
-	st.Prepared = true
 
 	require.NoError(t, ComputeGenesisOutputRoots(pEnv, intent, st))
 
