@@ -32,6 +32,9 @@ func NewResolutionMonitor(logger log.Logger, metrics ResolutionMetrics, clock RC
 func (r *ResolutionMonitor) CheckResolutions(games []*types.EnrichedGameData) {
 	statusMetrics := make(map[metrics.ResolutionStatus]int)
 	for _, game := range games {
+		if gameTypes.GameType(game.GameType) == gameTypes.SuperPermissionedGameType {
+			continue
+		}
 		complete := game.Status != gameTypes.GameStatusInProgress
 		duration := uint64(r.clock.Now().Unix()) - game.Timestamp
 		maxDurationReached := duration >= (2 * game.MaxClockDuration)

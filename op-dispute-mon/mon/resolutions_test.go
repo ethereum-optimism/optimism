@@ -16,6 +16,10 @@ import (
 func TestResolutionMonitor_CheckResolutions(t *testing.T) {
 	r, cl, m := newTestResolutionMonitor(t)
 	games := newTestGames(uint64(cl.Now().Unix()))
+	games = append(games, &types.EnrichedGameData{
+		GameMetadata: gameTypes.GameMetadata{GameType: uint32(gameTypes.SuperPermissionedGameType)},
+		Status:       gameTypes.GameStatusDefenderWon,
+	})
 	r.CheckResolutions(games)
 
 	require.Equal(t, 1, m.calls[metrics.CompleteMaxDuration])
