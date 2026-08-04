@@ -470,6 +470,20 @@ func (el *L2ELNode) PeerWith(peer *L2ELNode) {
 	sysgo.ConnectP2P(el.ctx, el.require, el.inner.L2EthClient().RPC(), peer.inner.L2EthClient().RPC())
 }
 
+// PeerWithBasic connects el to peer without trusted-peer registration: the
+// session stays subject to normal reputation penalties, bans, and eviction.
+// Use it when the test observes peer-management behavior itself; PeerWith
+// exempts the session from exactly that.
+func (el *L2ELNode) PeerWithBasic(peer *L2ELNode) {
+	sysgo.ConnectP2PBasic(el.ctx, el.require, el.inner.L2EthClient().RPC(), peer.inner.L2EthClient().RPC())
+}
+
+// VerifyPeeredWith waits until peer is present in el's active peer list,
+// failing the test if it does not appear within the bounded wait.
+func (el *L2ELNode) VerifyPeeredWith(peer *L2ELNode) {
+	sysgo.WaitP2PConnected(el.require, el.inner.L2EthClient().RPC(), peer.inner.L2EthClient().RPC())
+}
+
 func (el *L2ELNode) DisconnectPeerWith(peer *L2ELNode) {
 	sysgo.DisconnectP2P(el.ctx, el.require, el.inner.L2EthClient().RPC(), peer.inner.L2EthClient().RPC())
 }

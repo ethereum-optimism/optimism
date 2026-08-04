@@ -60,15 +60,49 @@ func ConnectP2P(ctx context.Context, require *testreq.Assertions, initiator RpcC
 		return
 	}
 
+	require.NoError(waitForPeerConnected(initiator, expectedID), "The peer was not connected")
+}
+
+// ConnectP2PBasic creates a p2p peer connection between initiator and acceptor
+// without registering the peering as trusted on either side. The initiator
+// records the peer as a static entry (re-dialed after benign session drops),
+// but the session remains subject to reputation penalties, bans, and eviction
+// like any discovered peer. Use this instead of ConnectP2P when a test must
+// observe peer-management behavior that trusted peering would mask.
+func ConnectP2PBasic(ctx context.Context, require *testreq.Assertions, initiator RpcCaller, acceptor RpcCaller) {
+	var targetInfo p2p.NodeInfo
+	require.NoError(acceptor.CallContext(ctx, &targetInfo, "admin_nodeInfo"), "get node info")
+	targetNode, err := enode.ParseV4(targetInfo.Enode)
+	require.NoError(err, "failed to parse target node")
+
+	var peerAdded bool
+	require.NoError(initiator.CallContext(ctx, &peerAdded, "admin_addPeer", targetInfo.Enode), "add peer")
+	require.True(peerAdded, "should have added peer successfully")
+
+	require.NoError(waitForPeerConnected(initiator, targetNode.ID().String()), "The peer was not connected")
+}
+
+// WaitP2PConnected waits until acceptor appears in initiator's active peer
+// list, and errors if it does not within the polling budget.
+func WaitP2PConnected(require *testreq.Assertions, initiator RpcCaller, acceptor RpcCaller) {
+	var targetInfo p2p.NodeInfo
+	require.NoError(acceptor.CallContext(context.Background(), &targetInfo, "admin_nodeInfo"), "get node info")
+	targetNode, err := enode.ParseV4(targetInfo.Enode)
+	require.NoError(err, "failed to parse target node")
+
+	require.NoError(waitForPeerConnected(initiator, targetNode.ID().String()), "The peer is not connected")
+}
+
+// waitForPeerConnected polls node's admin_peers until expectedID is present.
+func waitForPeerConnected(node RpcCaller, expectedID string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	err = forPeerList(ctx, initiator, func(peers []peer) bool {
+	return forPeerList(ctx, node, func(peers []peer) bool {
 		return slices.ContainsFunc(peers, func(p peer) bool {
 			peerID := strings.TrimPrefix(strings.ToLower(p.ID), "0x")
 			return peerID == strings.ToLower(expectedID)
 		})
 	})
-	require.NoError(err, "The peer was not connected")
 }
 
 // forPeerList polls admin_peers on node until cond holds for the returned peer

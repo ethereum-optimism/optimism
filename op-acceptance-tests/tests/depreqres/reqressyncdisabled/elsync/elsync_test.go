@@ -14,3 +14,7 @@ func TestUnsafeChainNotStalling_ELSync(gt *testing.T) {
 func TestUnsafeChainNotStalling_ELSync_RestartOpNode(gt *testing.T) {
 	common.UnsafeChainNotStalling_RestartOpNode(gt, sync.ELSync, 20, common.ReqRespSyncDisabledOpts(sync.ELSync)...)
 }
+
+func TestUnsafeChainNotStalling_ELSync_Backfill(gt *testing.T) {
+	common.UnsafeChainNotStalling_Backfill(gt, sync.ELSync, 64, common.ReqRespSyncDisabledOpts(sync.ELSync)...)
+}
