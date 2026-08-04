@@ -5,6 +5,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sdm/sdmtest"
 	sdmpkg "github.com/ethereum-optimism/optimism/op-chain-ops/pkg/sdm"
+	opfees "github.com/ethereum-optimism/optimism/op-core/fees"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -52,6 +53,15 @@ func TestSDMEnabledPayloadAndReplayMatch(gt *testing.T) {
 	t.Require().NoError(err, "post-exec payload must decode")
 	t.Require().Equal(sdmpkg.PostExecPayloadVersion, payload.Version, "post-exec payload version must be 1")
 	t.Require().NotEmpty(payload.GasRefundEntries, "post-exec payload must be non-empty for repeated-slot workload")
+
+	blockInfo, txs, err := sys.L2EL.Escape().EthClient().InfoAndTxsByHash(t.Ctx(), block.Hash)
+	t.Require().NoError(err, "failed to load typed transactions for SDM block %d", targetBlockNum)
+	expectedDAFootprint, err := opfees.CalcDAFootprint(txs)
+	t.Require().NoError(err, "failed to calculate DA footprint for SDM block %d", targetBlockNum)
+	headerDAFootprint := blockInfo.BlobGasUsed()
+	t.Require().NotNil(headerDAFootprint, "SDM block %d must have a DA footprint", targetBlockNum)
+	t.Require().Equal(expectedDAFootprint, *headerDAFootprint,
+		"calculated DA footprint must match SDM block %d header", targetBlockNum)
 
 	receiptByHash := make(map[common.Hash]*types.Receipt, len(included))
 	hasNonZeroReceiptRefund := false
