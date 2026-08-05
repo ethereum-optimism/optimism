@@ -28,7 +28,7 @@ func LoadSignerSetup(ctx cliiface.Context, logger log.Logger) (p2p.SignerSetup, 
 			return nil, fmt.Errorf("failed to read sequencer p2p key: %w", err)
 		}
 
-		return &p2p.PreparedSigner{Signer: opsigner.NewLocalSigner(priv)}, nil
+		return p2p.NewLocalSignerSetup(priv), nil
 	} else if signerCfg.Enabled() {
 		remoteSigner, err := opsigner.NewRemoteSigner(logger, signerCfg)
 		if err != nil {
