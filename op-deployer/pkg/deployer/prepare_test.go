@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	opdenv "github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
@@ -118,7 +119,8 @@ func TestMakePredictionInput(t *testing.T) {
 	require.Equal(t, standard.DisputeGameType, dci.DisputeGameType)
 	require.Equal(t, opcm.DefaultStartingAnchorRoot.Root, dci.StartingAnchorRoot.Root)
 	require.Equal(t, common.Big0, dci.StartingAnchorRoot.L2SequenceNumber)
-	require.Equal(t, dci.DisputeAbsolutePrestate, dci.CannonAbsolutePrestate)
+	// The standard deploy selects SUPER_PERMISSIONED, which installs no CANNON_KONA fallback.
+	require.Equal(t, common.Hash{}, dci.CannonAbsolutePrestate)
 }
 
 func TestMakePredictionInput_OwnsStartingAnchorSequenceNumber(t *testing.T) {
@@ -223,11 +225,6 @@ func TestMakePredictionInput_RejectsInvalidInitialGameType(t *testing.T) {
 			name:     "CANNON",
 			gameType: uint32(embedded.GameTypeCannon),
 			wantErr:  "unsupported initial dispute game type 0",
-		},
-		{
-			name:     "SUPER_PERMISSIONED",
-			gameType: uint32(embedded.GameTypeSuperPermissioned),
-			wantErr:  "derived fallback and is not an initial-deploy selector",
 		},
 		{
 			name:     "ZK_DISPUTE_GAME",
@@ -410,6 +407,9 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 	l1RPC, err := rpc.Dial(l1RPCUrl)
 	require.NoError(t, err)
 	l1Client := ethclient.NewClient(l1RPC)
+	l1ChainID, err := l1Client.ChainID(ctx)
+	require.NoError(t, err)
+	require.NotEqualValues(t, 1337, bigs.Uint64Strict(l1ChainID))
 
 	host, err := opdenv.DefaultScriptHost(
 		broadcaster.NoopBroadcaster(),
@@ -472,6 +472,14 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 			chainID:  common.HexToHash("0x0301"),
 			salt:     common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901235"),
 		},
+		{
+			name:     "L2_CHAIN_ID_1337",
+			gameType: embedded.GameTypeSuperCannonKona,
+			// The script host defaults to chain ID 1337. This remains a valid L2 chain ID
+			// because the fork context must use the actual, non-1337 Anvil L1 chain ID.
+			chainID: common.HexToHash("0x0539"),
+			salt:    common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901236"),
+		},
 	}
 
 	for _, tt := range tests {
@@ -503,9 +511,10 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 			}
 			predictState := &state.State{Version: 1, Create2Salt: tt.salt}
 
-			// runPrediction mirrors Prepare: a fresh fork of the live L1 with a no-op
-			// broadcaster, running the DeployOPChain script with the prediction input.
-			runPrediction := func(mutate func(*opcm.DeployOPChainInput)) opcm.DeployOPChainOutput {
+			runPrediction := func(
+				beforePredict func(*script.Host),
+				mutate func(*opcm.DeployOPChainInput),
+			) opcm.DeployOPChainOutput {
 				predictHost, err := opdenv.DefaultForkedScriptHost(
 					ctx,
 					broadcaster.NoopBroadcaster(),
@@ -515,6 +524,10 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 					l1RPC,
 				)
 				require.NoError(t, err)
+
+				if beforePredict != nil {
+					beforePredict(predictHost)
+				}
 
 				deployScript, err := opcm.NewDeployOPChainScript(predictHost)
 				require.NoError(t, err)
@@ -530,7 +543,7 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 				return out
 			}
 
-			out := runPrediction(nil)
+			out := runPrediction(nil, nil)
 			require.NotEqual(t, common.Address{}, out.SystemConfigProxy)
 			require.NotEqual(t, common.Address{}, out.OptimismPortalProxy)
 			require.NotEqual(t, common.Address{}, out.DisputeGameFactoryProxy)
@@ -540,10 +553,31 @@ func TestPredictionDryRun_Permissionless(t *testing.T) {
 			require.NotEqual(t, common.Address{}, out.PermissionedDisputeGame)
 
 			// A different placeholder anchor root must produce identical predicted addresses.
-			outDifferentRoot := runPrediction(func(dci *opcm.DeployOPChainInput) {
+			outDifferentRoot := runPrediction(nil, func(dci *opcm.DeployOPChainInput) {
 				dci.StartingAnchorRoot.Root = common.Hash{0xaa}
 			})
 			require.Equal(t, out, outDifferentRoot)
+
+			// Prepare reads the live superchain deployment on the prediction host before
+			// predicting
+			outAfterSuperchainRead := runPrediction(func(predictHost *script.Host) {
+				superDeployment, superRoles, err := pipeline.PopulateSuperchainState(
+					&pipeline.Env{Logger: lgr, L1ScriptHost: predictHost},
+					opcmAddr,
+					superchainConfigProxy,
+				)
+				require.NoError(t, err)
+				require.Equal(t, superchainConfigProxy, superDeployment.SuperchainConfigProxy)
+				require.NotEqual(t, common.Address{}, superDeployment.SuperchainProxyAdminImpl)
+				require.NotEqual(t, common.Address{}, superDeployment.SuperchainConfigImpl)
+				require.Equal(
+					t,
+					superchainIntent.SuperchainRoles.SuperchainProxyAdminOwner,
+					superRoles.SuperchainProxyAdminOwner,
+				)
+				require.Equal(t, superchainIntent.SuperchainRoles.SuperchainGuardian, superRoles.SuperchainGuardian)
+			}, nil)
+			require.Equal(t, out, outAfterSuperchainRead)
 		})
 	}
 }
@@ -802,7 +836,7 @@ func TestPrepareChainsPredictionFailureOnlyClearsSuccessfullyPredictedPrestatesI
 	require.EqualValues(t, uint64(anchor.Time)+genesisTimeOffset, *first.GenesisTime)
 	require.Equal(t, common.HexToAddress("0x3333"), first.SystemConfigProxy)
 	require.Zero(t, first.Prestate)
-	require.Equal(t, uint32(embedded.GameTypePermissionedCannon), *first.InitialGameType)
+	require.Equal(t, standard.DisputeGameType, *first.InitialGameType)
 	second, err := st.Chain(secondID)
 	require.NoError(t, err)
 	require.Equal(t, anchor, second.StartBlock)
@@ -899,11 +933,6 @@ func TestPredictChainsRejectsInvalidInitialGameTypeBeforePrediction(t *testing.T
 			name:     "CANNON",
 			gameType: uint32(embedded.GameTypeCannon),
 			wantErr:  "unsupported initial dispute game type 0",
-		},
-		{
-			name:     "SUPER_PERMISSIONED",
-			gameType: uint32(embedded.GameTypeSuperPermissioned),
-			wantErr:  "derived fallback and is not an initial-deploy selector",
 		},
 		{
 			name:     "ZK_DISPUTE_GAME",

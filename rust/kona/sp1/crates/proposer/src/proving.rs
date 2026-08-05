@@ -1,20 +1,10 @@
-//! Defend-path proving pipeline: super-root span fetching, witness
-//! collection, and super-aggregation proof assembly.
+//! Super-root witness collection and aggregation proof assembly.
 //!
-//! This module replaces upstream op-succinct's single-chain host machinery
-//! (`range_proof_stdin`, upstream proposer.rs:1343-1371, and
-//! `get_agg_proof_stdin`, upstream utils/host/src/proof.rs:8-36) with the
-//! super-root stack: witnesses come from `kona-sp1-super-range-executor`'s
-//! `InteropHost` collection, and the aggregation inputs are
-//! [`SuperAggregationInputs`]. Upstream's `get_header_preimages` has no
-//! analog here: the super-aggregation guest validates a single shared
-//! `l1_head` instead of walking an L1 header chain.
-//!
-//! Both providers share every step up to proof generation: span chunking,
-//! witness collection (which natively computes the range and consolidation
-//! outputs), and aggregation-input assembly + validation. The mock provider
-//! stops there and submits placeholder bytes; the network provider proves
-//! each chunk (compressed) and aggregates (PLONK/Groth16).
+//! Witnesses come from `kona-sp1-super-range-executor`'s `InteropHost`, and aggregation inputs
+//! use [`SuperAggregationInputs`]. The aggregation guest validates one shared `l1_head`.
+//! Both proof providers share span chunking, native witness and output collection, and
+//! aggregation-input validation. The mock provider then returns placeholder bytes; the network
+//! provider proves each chunk in compressed mode and aggregates them with PLONK.
 
 use std::num::NonZeroUsize;
 
@@ -95,18 +85,14 @@ pub fn is_unprovable(err: &anyhow::Error) -> bool {
     err.chain().any(|cause| cause.is::<GameUnprovable>())
 }
 
-/// Fetches and verifies the `superroot_atTimestamp` responses covering the
-/// game's span: `starting_ts..=claim_ts` inclusive (`responses[i]` is the
-/// verified response for `starting_ts + i`).
+/// Fetches verified `superroot_atTimestamp` responses for
+/// `starting_ts..=claim_ts`.
 ///
-/// Every response is hash- and timestamp-verified (`super_root_at`); absent
-/// data is a transient [`SuperRootDataUnavailable`] failure. The span
-/// endpoints must match the game's on-chain roots and the claim must be
-/// derivable under the game's L1 head, else the game is permanently
-/// [`GameUnprovable`] - but ONLY when the verdict comes from a trusted
-/// response (`current_l1 >= verified_required_l1`): the supernode serves stale data
-/// mid-rewind, and a permanent verdict from an untrusted answer would burn
-/// an honest game's bond over a transient reorg window.
+/// Missing data is transient. Trusted endpoint mismatches or claims requiring
+/// L1 data beyond the game's pinned head make the game permanently
+/// unprovable. A response is trusted only when
+/// `current_l1 > verified_required_l1`; stale responses during rewinds cannot
+/// determine a permanent verdict.
 pub async fn fetch_span_responses(
     client: &SuperrootClient,
     game: &GameProofInputs,
@@ -133,18 +119,17 @@ pub async fn fetch_span_responses(
     Ok(responses)
 }
 
-/// Whether a response's data may support a PERMANENT verdict about a game.
+/// Reports whether response data may support a permanent verdict.
 ///
-/// The supernode returns `data` even when its `current_l1` sits below the
-/// entry's `verified_required_l1` (e.g. mid-rewind after an L1 reorg);
-/// callers gate trust on `current_l1` themselves. An untrusted answer may
-/// still be used to prove (the guest re-derives everything anyway) but must
-/// never permanently condemn a game.
-fn response_trusted(response: &SuperRootAtTimestampResponse) -> bool {
+/// The API reports blocks strictly below `current_l1` as fully processed.
+/// Data is trusted only when `current_l1 > verified_required_l1`. Untrusted
+/// data may still be proved because the guest re-derives it, but it cannot
+/// mark a game permanently unprovable.
+pub(crate) fn response_trusted(response: &SuperRootAtTimestampResponse) -> bool {
     response
         .data
         .as_ref()
-        .is_some_and(|data| response.current_l1.number >= data.verified_required_l1.number)
+        .is_some_and(|data| response.current_l1.number > data.verified_required_l1.number)
 }
 
 /// Classifies a supernode-vs-game contradiction: permanent when the answer
@@ -337,15 +322,14 @@ pub async fn prove_game_inner(
     let results: Vec<ChunkResult> =
         futures::stream::iter(tasks).buffer_unordered(max_concurrent).try_collect().await?;
 
-    // Chunks complete out of order under `buffer_unordered`; place each by
-    // its index (upstream prove_game's ordering discipline).
+    // buffer_unordered completes chunks out of order; restore chunk order by index.
     let mut range_outputs = vec![None; chunk_count];
     let mut consolidation_outputs = vec![None; chunk_count];
     let mut proofs = vec![None; chunk_count];
     for result in results {
         range_outputs[result.index] = Some(result.range_outputs);
         consolidation_outputs[result.index] = Some(result.consolidation_outputs);
-        proofs[result.index] = result.proofs.map(Some).unwrap_or(None);
+        proofs[result.index] = result.proofs;
     }
     let range_outputs = collect_indexed(range_outputs, "range outputs")?;
     let consolidation_outputs = collect_indexed(consolidation_outputs, "consolidation outputs")?;
@@ -364,7 +348,7 @@ pub async fn prove_game_inner(
         range_outputs,
         consolidation_outputs,
     };
-    // A validation failure here is a bug in our assembly, never submittable.
+    // Invalid aggregation inputs must not reach proof generation.
     inputs.validate().with_context(|| {
         format!(
             "assembled aggregation inputs failed validation for span {}..={}",
@@ -436,9 +420,7 @@ mod tests {
 
     use super::*;
 
-    /// Self-consistent supernode response fixture (the reported super root
-    /// is computed from the proof preimage), mirroring superroot.rs tests.
-    /// `current_l1` sits at the required L1 (trusted) by default.
+    /// Builds a self-consistent supernode response trusted by default.
     fn response_at(
         timestamp: u64,
         output_byte: u8,
@@ -455,7 +437,7 @@ mod tests {
         let proof = proof_from_super_v1(&super_v1).unwrap();
         let super_root = B256::from(*hash_super_root_proof(&proof).unwrap());
         SuperRootAtTimestampResponse {
-            current_l1: BlockId { number: required_l1, ..Default::default() },
+            current_l1: BlockId { number: required_l1 + 1, ..Default::default() },
             current_safe_timestamp: timestamp,
             current_local_safe_timestamp: timestamp,
             current_finalized_timestamp: timestamp,
@@ -474,6 +456,13 @@ mod tests {
     fn untrusted(mut response: SuperRootAtTimestampResponse) -> SuperRootAtTimestampResponse {
         response.current_l1.number =
             response.data.as_ref().unwrap().verified_required_l1.number.saturating_sub(1);
+        response
+    }
+
+    /// Sets `current_l1` equal to `verified_required_l1`. The API may still
+    /// report incomplete data at that block, so the response is untrusted.
+    fn at_required_l1(mut response: SuperRootAtTimestampResponse) -> SuperRootAtTimestampResponse {
+        response.current_l1.number = response.data.as_ref().unwrap().verified_required_l1.number;
         response
     }
 
@@ -505,23 +494,19 @@ mod tests {
         let game = game_for(&start, &end, 10);
         let responses = [start.clone(), end.clone()];
 
-        // Matching endpoints pass.
         assert!(check_span_roots(&game, &[root_of(&start), root_of(&end)], &responses).is_ok());
 
-        // A diverged starting root from a TRUSTED response is permanently
-        // unprovable.
+        // A diverged starting root from a trusted response is permanently unprovable.
         let err = check_span_roots(&game, &[B256::repeat_byte(0xee), root_of(&end)], &responses)
             .unwrap_err();
         assert!(is_unprovable(&err), "expected GameUnprovable, got: {err}");
 
-        // A diverged claim root from a TRUSTED response is permanently
-        // unprovable.
+        // A diverged claim root from a trusted response is permanently unprovable.
         let err = check_span_roots(&game, &[root_of(&start), B256::repeat_byte(0xee)], &responses)
             .unwrap_err();
         assert!(is_unprovable(&err), "expected GameUnprovable, got: {err}");
 
-        // The same mismatch from an UNTRUSTED response (supernode mid-rewind)
-        // is transient: never condemn a game on a stale answer.
+        // The same mismatch from an untrusted response is transient.
         let end_root = root_of(&end);
         let untrusted_responses = [untrusted(start), untrusted(end)];
         let err =
@@ -543,6 +528,11 @@ mod tests {
         // Untrusted violation (mid-rewind answer): transient.
         let err = check_provable(&game, &untrusted(end.clone())).unwrap_err();
         assert!(!is_unprovable(&err), "untrusted violation must be transient, got: {err}");
+
+        // Boundary (current_l1 == required L1): that block may still be
+        // mid-processing, so the verdict must stay transient.
+        let err = check_provable(&game, &at_required_l1(end.clone())).unwrap_err();
+        assert!(!is_unprovable(&err), "boundary violation must be transient, got: {err}");
 
         // At or below the game's L1 head is provable.
         let game = game_for(&start, &end, 42);

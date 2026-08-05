@@ -17,7 +17,7 @@ use alloy_primitives::{Address, B256};
 use alloy_transport_http::reqwest::{self, Url};
 use anyhow::{Context, Result, anyhow, bail};
 use kona_sp1_host_utils::network::parse_fulfillment_strategy;
-use sp1_sdk::{SP1ProofMode, network::FulfillmentStrategy};
+use sp1_sdk::network::FulfillmentStrategy;
 
 /// Safety level gating how far proposals may advance.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -129,7 +129,7 @@ pub struct ProposerConfig {
     /// need exists.
     pub max_priority_fee_per_gas: Option<u128>,
 
-    /// Which proof provider defends challenged games.
+    /// Selects network or mock proving for challenged games.
     pub proof_provider: ProofProviderKind,
 
     /// The L1 beacon API URL serving blob sidecars for derivation witnesses.
@@ -151,7 +151,7 @@ pub struct ProposerConfig {
     /// fallback. The env name matches the executor's `DEPENDENCY_SET_PATH`.
     pub dependency_set_path: Option<PathBuf>,
 
-    /// How many chunks a defended timestamp span is partitioned into.
+    /// Number of proof chunks per defended timestamp span.
     pub range_split_count: RangeSplitCount,
 
     /// Maximum concurrent child (range/consolidation) proofs within one
@@ -275,7 +275,6 @@ pub fn redacted_url(url: &Url) -> String {
     url.to_string()
 }
 
-/// Parses a comma-separated list of URLs, requiring at least one entry.
 fn parse_url_list(value: &str) -> Result<Vec<Url>> {
     let urls = value
         .split(',')
@@ -287,15 +286,12 @@ fn parse_url_list(value: &str) -> Result<Vec<Url>> {
     Ok(urls)
 }
 
-/// Default SP1 request cycle/gas limit (one trillion), matching upstream.
 const DEFAULT_PROOF_LIMIT: u64 = 1_000_000_000_000;
 
 /// SP1 proof-provider settings (timeouts, strategies, limits, prices).
 ///
-/// Parsed unconditionally with upstream op-succinct's defaults; none of the
-/// entries is required or secret, so mock deployments need to set none of
-/// them. `NETWORK_PRIVATE_KEY` is deliberately NOT part of this struct: it
-/// is read only when the network provider is constructed.
+/// Parsed in mock mode too, but all values have defaults and require no credentials.
+/// `NETWORK_PRIVATE_KEY` is read only when the network provider is built.
 #[derive(Debug, Clone)]
 pub struct ProofProviderConfig {
     /// Overall per-proof timeout in seconds: the server-side deadline for
@@ -311,8 +307,6 @@ pub struct ProofProviderConfig {
     pub range_proof_strategy: FulfillmentStrategy,
     /// Fulfillment strategy for the aggregation proof.
     pub agg_proof_strategy: FulfillmentStrategy,
-    /// On-chain proof mode for the aggregation proof.
-    pub agg_proof_mode: SP1ProofMode,
     /// Cycle limit for super-range proof requests.
     pub range_cycle_limit: u64,
     /// Gas limit for super-range proof requests.
@@ -328,21 +322,35 @@ pub struct ProofProviderConfig {
 }
 
 impl ProofProviderConfig {
-    /// Parses the provider settings from environment variables, applying
-    /// upstream op-succinct's defaults throughout.
+    /// Reads proof-provider settings from environment variables.
     pub fn from_env() -> Result<Self> {
+        let timeout = parsed_env_or("SP1_TIMEOUT_SECONDS", 14_400u64)?;
+        anyhow::ensure!(
+            timeout > 0,
+            "SP1_TIMEOUT_SECONDS must be positive: 0 would abandon every proof request at its \
+             first poll, right after paying to submit it"
+        );
+        let network_calls_timeout = parsed_env_or("NETWORK_CALLS_TIMEOUT", 15u64)?;
+        anyhow::ensure!(
+            network_calls_timeout > 0,
+            "NETWORK_CALLS_TIMEOUT must be positive: 0 would time out every SPN call before any \
+             I/O completes"
+        );
+        let auction_timeout = parsed_env_or("AUCTION_TIMEOUT", 60u64)?;
+        anyhow::ensure!(
+            auction_timeout > 0,
+            "AUCTION_TIMEOUT must be positive: 0 would cancel every mainnet request by its second \
+             poll"
+        );
         Ok(Self {
-            timeout: parsed_env_or("SP1_TIMEOUT_SECONDS", 14_400u64)?,
-            network_calls_timeout: parsed_env_or("NETWORK_CALLS_TIMEOUT", 15u64)?,
-            auction_timeout: parsed_env_or("AUCTION_TIMEOUT", 60u64)?,
+            timeout,
+            network_calls_timeout,
+            auction_timeout,
             range_proof_strategy: parse_fulfillment_strategy(
                 env::var("RANGE_PROOF_STRATEGY").unwrap_or_else(|_| "reserved".to_string()),
             )?,
             agg_proof_strategy: parse_fulfillment_strategy(
                 env::var("AGG_PROOF_STRATEGY").unwrap_or_else(|_| "reserved".to_string()),
-            )?,
-            agg_proof_mode: parse_agg_proof_mode(
-                &env::var("AGG_PROOF_MODE").unwrap_or_else(|_| "plonk".to_string()),
             )?,
             range_cycle_limit: parsed_env_or("RANGE_CYCLE_LIMIT", DEFAULT_PROOF_LIMIT)?,
             range_gas_limit: parsed_env_or("RANGE_GAS_LIMIT", DEFAULT_PROOF_LIMIT)?,
@@ -354,25 +362,12 @@ impl ProofProviderConfig {
     }
 }
 
-/// Parses the aggregation proof mode. Unlike upstream (which treats any
-/// non-groth16 value as plonk), unknown values are rejected: a typo here
-/// must not silently buy the wrong on-chain proof kind.
-fn parse_agg_proof_mode(value: &str) -> Result<SP1ProofMode> {
-    match value.to_ascii_lowercase().as_str() {
-        "plonk" => Ok(SP1ProofMode::Plonk),
-        "groth16" => Ok(SP1ProofMode::Groth16),
-        other => bail!("invalid AGG_PROOF_MODE: {other} (expected plonk|groth16)"),
-    }
-}
-
-/// How many chunks a defended timestamp span is partitioned into
-/// (1-16 inclusive). Ported from upstream op-succinct's `RangeSplitCount`;
-/// the unit here is super-root timestamps, not L2 blocks.
+/// Splits defended super-root timestamp spans into 1 to 16 chunks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct RangeSplitCount(NonZeroU8);
 
 impl RangeSplitCount {
-    /// Maximum number of chunks.
+    /// Maximum accepted chunk count.
     pub const MAX: u8 = 16;
 
     /// Creates a new `RangeSplitCount`, rejecting 0 and values above
@@ -386,12 +381,12 @@ impl RangeSplitCount {
         Ok(Self(count))
     }
 
-    /// Returns a `RangeSplitCount` of one.
+    /// Returns a single-chunk split.
     pub const fn one() -> Self {
         Self(NonZeroU8::MIN)
     }
 
-    /// Converts to `usize`.
+    /// Returns the chunk count as a `usize`.
     pub const fn to_usize(self) -> usize {
         self.0.get() as usize
     }
@@ -421,7 +416,6 @@ impl RangeSplitCount {
             return Ok(vec![(start, end)]);
         }
 
-        // Never split into more chunks than there are timestamps.
         let segments = splits.min(total as usize);
         let mut ranges = Vec::with_capacity(segments);
         let step = total.div_ceil(segments as u64);
@@ -461,7 +455,7 @@ pub const RANGE_ARTIFACT_SUFFIX: &str = ".range.bin.gz";
 pub fn prestate_artifact_url(base: &Url, prestate: B256, suffix: &str) -> Result<Url> {
     let mut url = base.clone();
     url.path_segments_mut()
-        .map_err(|()| anyhow!("PRESTATES_URL cannot be a base: {base}"))?
+        .map_err(|()| anyhow!("PRESTATES_URL cannot be a base: {}", redacted_url(base)))?
         .pop_if_empty()
         .push(&format!("{prestate}{suffix}"));
     Ok(url)
@@ -520,19 +514,21 @@ async fn fetch_artifact(url: &Url) -> Result<Vec<u8>> {
             .get(url.clone())
             .send()
             .await
-            .with_context(|| format!("failed to fetch prestate artifact at {url}"))?
+            .with_context(|| format!("failed to fetch prestate artifact at {}", redacted_url(url)))?
             .error_for_status()
-            .with_context(|| format!("prestate artifact fetch failed for {url}"))?
+            .with_context(|| format!("prestate artifact fetch failed for {}", redacted_url(url)))?
             .bytes()
             .await
-            .with_context(|| format!("failed to read prestate artifact body from {url}"))?
+            .with_context(|| {
+                format!("failed to read prestate artifact body from {}", redacted_url(url))
+            })?
             .to_vec(),
         other => bail!("unsupported PRESTATES_URL scheme {other} (expected file, http, or https)"),
     };
 
     let mut elf = Vec::new();
     std::io::Read::read_to_end(&mut flate2::read::GzDecoder::new(compressed.as_slice()), &mut elf)
-        .with_context(|| format!("prestate artifact at {url} is not valid gzip"))?;
+        .with_context(|| format!("prestate artifact at {} is not valid gzip", redacted_url(url)))?;
     Ok(elf)
 }
 
@@ -667,15 +663,6 @@ mod tests {
         }
 
         #[test]
-        fn agg_proof_mode_rejects_unknown() {
-            assert!(matches!(parse_agg_proof_mode("plonk").unwrap(), SP1ProofMode::Plonk));
-            assert!(matches!(parse_agg_proof_mode("Groth16").unwrap(), SP1ProofMode::Groth16));
-            // Upstream silently maps unknown values to plonk; we reject:
-            // a typo must not buy the wrong on-chain proof kind.
-            assert!(parse_agg_proof_mode("core").is_err());
-        }
-
-        #[test]
         fn range_split_bounds() {
             assert!(RangeSplitCount::new(0).is_err());
             assert!(RangeSplitCount::new(17).is_err());
@@ -710,9 +697,8 @@ mod tests {
             assert!(RangeSplitCount::one().split(6, 5).is_err());
         }
 
-        /// `from_env` requires the new defend-path variables. Safe under
-        /// nextest's process-per-test model; env mutation is `unsafe` on
-        /// edition 2024.
+        /// Safe under nextest's process-per-test model; environment mutation
+        /// is `unsafe` on edition 2024.
         #[test]
         fn from_env_requires_defend_path_vars() {
             unsafe {
@@ -765,6 +751,28 @@ mod tests {
             }
             let err = ProposerConfig::from_env().unwrap_err().to_string();
             assert!(err.contains("MAX_CONCURRENT_DEFENSE_TASKS"), "unexpected error: {err}");
+        }
+
+        /// Zero SPN timeouts are configuration errors, not degraded modes:
+        /// each would spin or abandon paid work at the first poll. Safe
+        /// under nextest's process-per-test model.
+        #[test]
+        fn zero_spn_timeouts_are_rejected() {
+            unsafe {
+                env::set_var("L1_RPC", "http://127.0.0.1:8545");
+                env::set_var("SUPERNODE_RPC", "http://127.0.0.1:9545");
+                env::set_var("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
+                env::set_var("PRESTATES_URL", "file:///tmp/prestates");
+                env::set_var("PROOF_PROVIDER", "mock");
+                env::set_var("L2_RPCS", "http://127.0.0.1:8646");
+                env::set_var("L1_BEACON_RPC", "http://127.0.0.1:5052");
+            }
+            for var in ["SP1_TIMEOUT_SECONDS", "NETWORK_CALLS_TIMEOUT", "AUCTION_TIMEOUT"] {
+                unsafe { env::set_var(var, "0") };
+                let err = ProposerConfig::from_env().unwrap_err().to_string();
+                assert!(err.contains(var), "expected {var} rejection, got: {err}");
+                unsafe { env::remove_var(var) };
+            }
         }
 
         /// Fast finality knobs: parse and defaults; `NonZeroU64` rejects a

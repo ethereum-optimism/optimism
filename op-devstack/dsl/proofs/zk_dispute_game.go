@@ -2,6 +2,7 @@ package proofs
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"time"
 
@@ -109,6 +110,26 @@ func (g *ZKGame) ParentIndex() uint32 {
 
 func (g *ZKGame) ClaimData() ZKClaimData {
 	return contract.Read(g.contract.ClaimData())
+}
+
+// WaitForClaimData retries transient read failures until ctx ends or the DSL timeout elapses.
+func (g *ZKGame) WaitForClaimData(ctx context.Context) (ZKClaimData, error) {
+	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	defer cancel()
+
+	var claim ZKClaimData
+	var lastReadErr error
+	err := wait.For(timedCtx, time.Second, func() (bool, error) {
+		claim, lastReadErr = contractio.Read(g.contract.ClaimData(), timedCtx)
+		if lastReadErr != nil {
+			g.t.Logf("Zk game %v claim data unavailable: %v", g.Address, lastReadErr)
+		}
+		return lastReadErr == nil, nil
+	})
+	if err != nil && lastReadErr != nil {
+		return claim, fmt.Errorf("%w; last read error: %w", err, lastReadErr)
+	}
+	return claim, err
 }
 
 func (g *ZKGame) ProposalStatus() ZKProposalStatus {

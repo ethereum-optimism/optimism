@@ -12,6 +12,8 @@ All Rust code lives under `rust/`. This is a unified Cargo workspace — always 
 
 Check `rust/Cargo.toml` for the full workspace member list, dependency versions, and lint configuration. The Rust toolchain version is pinned in `rust/rust-toolchain.toml`.
 
+Workspace tool config lives at **`rust/.config/`** — `nextest.toml` (test settings, JUnit output) and `zepter.yaml` (feature-propagation lint). `nextest`, `zepter`, and `cargo-release` discover config **only from the workspace root**, so per-component `rust/<crate>/.config/*.toml` files are *not* read and have no effect — put new test/lint config at `rust/.config/`. (`rust/op-rbuilder` and `rust/rollup-boost` are separate vendored Cargo workspaces with their own root configs.)
+
 ### Migrated, not vendored
 
 Most of the OP Stack Rust code here was **officially migrated** into the monorepo in coordination with the upstream repository owners — it is **not** a vendored copy. The upstream crates have been deleted or deprecated, so the entire Rust OP Stack is now developed here. This applies to:

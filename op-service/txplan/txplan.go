@@ -224,10 +224,11 @@ func WithEstimator(cl Estimator, invalidateOnNewBlock bool) Option {
 			tx.Gas.DependOn(&tx.AgainstBlock)
 		}
 		tx.Gas.Fn(func(ctx context.Context) (uint64, error) {
+			// Leave CallMsg.Gas unset so the target node applies the estimation ceiling for its active
+			// fork.
 			msg := ethereum.CallMsg{
 				From:       tx.Sender.Value(),
 				To:         tx.To.Value(),
-				Gas:        params.MaxTxGas, // max gas, will be estimated
 				GasPrice:   nil,
 				GasFeeCap:  tx.GasFeeCap.Value(),
 				GasTipCap:  tx.GasTipCap.Value(),

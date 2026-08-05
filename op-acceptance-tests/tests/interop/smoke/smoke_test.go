@@ -20,7 +20,7 @@ import (
 func TestWrapETH(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	require := t.Require()
-	sys := presets.NewMinimal(t)
+	sys := presets.NewMinimalNoFaultProofs(t)
 
 	// alice and bob are funded with 0.1 ETH
 	alice := sys.FunderL2.NewFundedEOA(eth.OneTenthEther)

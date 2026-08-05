@@ -127,7 +127,6 @@ func (t *KeyedBroadcaster) Broadcast(ctx context.Context) ([]BroadcastResult, er
 			"nonce", bcast.Nonce,
 		)
 	}
-
 	var txErr error
 	var completed int
 	for i, fut := range futures {

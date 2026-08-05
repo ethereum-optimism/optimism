@@ -131,16 +131,12 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return fmt.Errorf("intent.opcmAddress must be set to predict against an existing OPCM")
 	}
 
-	// The sender and OPCM of the deploy dry-run. Pin them into the state so a re-run
-	// cannot silently switch deployer keys or OPCM and invalidate the predicted addresses.
+	// A rerun must use the same deployer and OPCM or the predicted addresses may change.
 	deployer := crypto.PubkeyToAddress(cfg.privateKeyECDSA.PublicKey)
 	opcmAddr := *intent.OPCMAddress
 	if err := st.CheckL1PredictInputs(deployer, opcmAddr); err != nil {
 		return err
 	}
-	st.L1PredictSenderAddress = &deployer
-	st.L1PredictOPCMAddress = &opcmAddr
-	st.Prepared = true
 
 	if err := st.EnsureCreate2Salt(); err != nil {
 		return err
@@ -184,6 +180,17 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed to create forked L1 script host: %w", err)
 	}
+
+	superDeployment, superRoles, err := pipeline.PopulateSuperchainState(
+		&pipeline.Env{Logger: cfg.Logger, L1ScriptHost: l1Host},
+		opcmAddr,
+		*intent.SuperchainConfigProxy,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to read superchain deployment: %w", err)
+	}
+	st.SuperchainDeployment = superDeployment
+	st.SuperchainRoles = superRoles
 
 	deployScript, err := opcm.NewDeployOPChainScript(l1Host)
 	if err != nil {

@@ -23,6 +23,8 @@ schedules:
     - scheduled_daily_tests
     - scheduled_sp1_elf_smoke
     - circleci_schedule_trigger_check
+  build_weekly:
+    - scheduled_rust_nightly_bump
 
 # API triggers: dispatch flag -> workflows enabled when that flag is set.
 # Most flags fire on a simple "is the flag true?" check. main_dispatch and
@@ -52,6 +54,8 @@ api_dispatch:
     - rust_ci
   rust_e2e_dispatch:
     - rust_e2e_ci
+  rust_nightly_bump_dispatch:
+    - scheduled_rust_nightly_bump
   labeled_pr:
     - close_issue
 
@@ -67,7 +71,7 @@ change_patterns:
     circleci_changed: "^\\.circleci/"
     contracts_changed: "^(packages/contracts-bedrock|op-core/forks|op-core/nuts|\\.circleci|\\.github|ops/check-changed)/|^(package\\.json|mise\\.toml)$"
     docs_changes_detected: "^docs/public-docs/"
-    rust_changes_detected: "^(rust|op-e2e|\\.circleci)/"
+    rust_changes_detected: "^(rust|op-e2e|\\.circleci)/|^mise\\.toml$"
   # "all": c-<name> is true iff EVERY changed file matches (and there is at
   # least one). Used for the safe-by-default docs-only fast path: any path not
   # enumerated still falls through to the full main workflow.

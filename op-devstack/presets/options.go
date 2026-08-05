@@ -250,6 +250,9 @@ func WithOPRBuilderOption(opt sysgo.OPRBuilderNodeOption) Option {
 	}
 }
 
+// WithOpRethOption applies an op-reth option to every EL in the preset that can sequence. Nodes
+// that only verify stay on stock op-reth, so a binary override here yields a sequencing-builds /
+// stock-verifies split rather than a uniform swap.
 func WithOpRethOption(opt sysgo.OpRethOption) Option {
 	var kinds optionKinds
 	if opt != nil {

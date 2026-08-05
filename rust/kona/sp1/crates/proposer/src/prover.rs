@@ -1,14 +1,8 @@
-//! SP1 proof providers for the defend path.
+//! SP1 proof providers for challenged games.
 //!
-//! Ported from op-succinct's `fault-proof/src/prover.rs` (@ 13716c2c) with
-//! two deliberate divergences:
-//! - No cluster arm (the cluster-vs-SPN decision is tracked outside this crate) and no
-//!   emulator-backed mock: [`MockProofProvider`] never touches SP1 at all. The mock pipeline
-//!   computes real outputs natively and only needs placeholder bytes for the on-chain call, because
-//!   the dev deployments that run it install a verifier that accepts any bytes.
-//! - Proving keys are per-prestate, not per-provider: the proposer defends games across prestate
-//!   rotations, so [`ProofKeys`] are resolved per game through the prestate cache and passed into
-//!   each request. Upstream holds one global key set.
+//! The mock pipeline computes outputs natively and submits placeholder bytes to deployments
+//! whose verifier accepts arbitrary proofs. Network proving resolves [`ProofKeys`] per game
+//! because games may use different prestates.
 
 use std::{sync::Arc, time::Duration};
 
@@ -16,9 +10,12 @@ use alloy_primitives::B256;
 use anyhow::{Context, Result, bail};
 use kona_sp1_host_utils::metrics::MetricsGauge;
 use sp1_sdk::{
-    CpuProver, Elf, NetworkProver, ProveRequest, Prover, ProvingKey, SP1ProofWithPublicValues,
-    SP1ProvingKey, SP1Stdin, SP1VerifyingKey,
-    network::{NetworkMode, proto::types::FulfillmentStatus},
+    CpuProver, Elf, NetworkProver, ProveRequest, Prover, ProvingKey, SP1ProofMode,
+    SP1ProofWithPublicValues, SP1ProvingKey, SP1Stdin, SP1VerifyingKey,
+    network::{
+        NetworkMode,
+        proto::types::{ExecutionStatus, FulfillmentStatus},
+    },
 };
 use tokio::time::sleep;
 
@@ -36,12 +33,9 @@ pub const PROOF_STATUS_POLL_INTERVAL: u64 = 2;
 /// `ZKMockVerifier`) can resolve games proven with these.
 pub const MOCK_PROOF_BYTES: &[u8] = b"kona-sp1-mock-super-aggregation-proof";
 
-/// Unique identifier for a proof request.
+/// Identifier returned by the SP1 prover network for a proof request.
 pub type ProofId = B256;
 
-/// Get the current Unix timestamp in seconds.
-///
-/// Panics if system time is before Unix epoch (should never happen).
 fn current_timestamp() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -143,7 +137,7 @@ impl ProofProvider {
         }
     }
 
-    /// Returns true for the mock provider.
+    /// Returns whether this provider uses the mock pipeline.
     pub const fn is_mock(&self) -> bool {
         matches!(self, Self::Mock(_))
     }
@@ -167,7 +161,7 @@ impl std::fmt::Debug for NetworkProofProvider {
 }
 
 impl NetworkProofProvider {
-    /// Creates a new network provider.
+    /// Creates a network provider with the given requester and request settings.
     pub const fn new(
         prover: Arc<NetworkProver>,
         config: ProofProviderConfig,
@@ -200,7 +194,6 @@ impl NetworkProofProvider {
         self.wait_for_proof(proof_id).await
     }
 
-    /// Submits a super-range proof request to the network.
     async fn request_range_proof(&self, keys: &ProofKeys, stdin: SP1Stdin) -> Result<ProofId> {
         let proof_id = self
             .prover
@@ -220,12 +213,11 @@ impl NetworkProofProvider {
         Ok(proof_id)
     }
 
-    /// Submits an aggregation proof request to the network.
     async fn request_agg_proof(&self, keys: &ProofKeys, stdin: SP1Stdin) -> Result<ProofId> {
         let proof_id = self
             .prover
             .prove(&keys.agg_pk, stdin)
-            .mode(self.config.agg_proof_mode)
+            .mode(SP1ProofMode::Plonk)
             .strategy(self.config.agg_proof_strategy)
             .timeout(Duration::from_secs(self.config.timeout))
             .min_auction_period(self.config.min_auction_period)
@@ -254,8 +246,6 @@ impl NetworkProofProvider {
         let is_mainnet = self.network_mode == NetworkMode::Mainnet;
 
         loop {
-            // Proving timeout: never wait forever, even through persistent
-            // network errors.
             if let ProvingTimeout::Exceeded { elapsed_secs } =
                 check_timeout(start_time.elapsed(), proving_timeout)
             {
@@ -275,7 +265,6 @@ impl NetworkProofProvider {
                 );
             }
 
-            // Get proof status; retry on transient failures.
             let (status, proof) = match self
                 .network_call_with_timeout(
                     self.prover.get_proof_status(proof_id),
@@ -296,7 +285,7 @@ impl NetworkProofProvider {
             // bookkeeping: it is already paid for, and discarding it over a
             // stale server deadline or a failed follow-up network call
             // throws away the spend.
-            match check_status(status.fulfillment_status()) {
+            match check_status(status.fulfillment_status(), status.execution_status()) {
                 ProofStatus::Ready => {
                     tracing::info!(proof_id = %proof_id, "Proof fulfilled");
                     return proof.ok_or_else(|| {
@@ -305,8 +294,9 @@ impl NetworkProofProvider {
                 }
                 ProofStatus::Failed => {
                     bail!(
-                        "Proving failed: proof_id={}, execution_status={}",
+                        "Proving failed: proof_id={}, fulfillment_status={}, execution_status={}",
                         proof_id,
+                        status.fulfillment_status(),
                         status.execution_status()
                     );
                 }
@@ -315,28 +305,33 @@ impl NetworkProofProvider {
                 }
             }
 
-            // Get request details for the auction check; retry on transient
-            // failures.
-            let request_details = match self
-                .network_call_with_timeout(
-                    self.prover.get_proof_request(proof_id),
-                    "get_proof_request",
-                    proof_id,
-                )
-                .await
-            {
-                Ok(result) => result,
-                Err(err) => {
-                    tracing::warn!(proof_id = %proof_id, error = %err, "get_proof_request failed, retrying...");
-                    sleep(Duration::from_secs(PROOF_STATUS_POLL_INTERVAL)).await;
-                    continue;
+            // Request details feed only the auction check, which is
+            // meaningful on mainnet alone: skip the call entirely elsewhere
+            // so a failing details endpoint cannot starve the deadline
+            // check below, and reserved-strategy polling costs one RPC per
+            // iteration instead of two. Retry transient failures.
+            let request_details = if is_mainnet {
+                match self
+                    .network_call_with_timeout(
+                        self.prover.get_proof_request(proof_id),
+                        "get_proof_request",
+                        proof_id,
+                    )
+                    .await
+                {
+                    Ok(result) => result,
+                    Err(err) => {
+                        tracing::warn!(proof_id = %proof_id, error = %err, "get_proof_request failed, retrying...");
+                        sleep(Duration::from_secs(PROOF_STATUS_POLL_INTERVAL)).await;
+                        continue;
+                    }
                 }
+            } else {
+                None
             };
 
             let current_time = current_timestamp();
 
-            // Cancel requests stuck in the auction (mainnet only, where
-            // auction dynamics are meaningful).
             if let Some(details) = &request_details {
                 let timeout_secs = self.config.auction_timeout;
                 if let AuctionTimeout::Exceeded { elapsed_secs } = check_auction(
@@ -372,7 +367,6 @@ impl NetworkProofProvider {
                 }
             }
 
-            // Check the server-side proof deadline.
             if let Deadline::Exceeded { deadline } = check_deadline(status.deadline(), current_time)
             {
                 tracing::warn!(
@@ -394,7 +388,6 @@ impl NetworkProofProvider {
         }
     }
 
-    /// Executes a network call with the per-call timeout.
     async fn network_call_with_timeout<F, T>(
         &self,
         future: F,
@@ -431,19 +424,19 @@ impl NetworkProofProvider {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct MockProofProvider;
 
-/// Result of checking if proving has timed out.
+/// Client-side proof request timeout status.
 #[derive(Debug, PartialEq, Eq)]
 pub enum ProvingTimeout {
-    /// Still within timeout, continue polling.
+    /// Polling may continue.
     Ok,
-    /// Timeout exceeded, should bail.
+    /// The configured timeout elapsed.
     Exceeded {
         /// Seconds elapsed since the request started.
         elapsed_secs: u64,
     },
 }
 
-/// Check if the overall proving timeout has been exceeded.
+/// Equality remains within the timeout.
 pub fn check_timeout(elapsed: Duration, timeout: Duration) -> ProvingTimeout {
     if elapsed > timeout {
         ProvingTimeout::Exceeded { elapsed_secs: elapsed.as_secs() }
@@ -452,23 +445,22 @@ pub fn check_timeout(elapsed: Duration, timeout: Duration) -> ProvingTimeout {
     }
 }
 
-/// Result of checking auction timeout.
+/// Prover-network auction timeout status.
 #[derive(Debug, PartialEq, Eq)]
 pub enum AuctionTimeout {
-    /// No timeout issue, continue.
+    /// The auction remains within its timeout.
     Ok,
-    /// Not applicable (not mainnet or already assigned).
+    /// Auction timeout does not apply to this request.
     Skip,
-    /// Auction timed out, should cancel and bail.
+    /// The auction timeout elapsed.
     Exceeded {
         /// Seconds elapsed since the request was created.
         elapsed_secs: u64,
     },
 }
 
-/// Check if the auction has timed out (no prover picked up the request).
-///
-/// Only applies on mainnet when the request is still in "Requested" state.
+/// Applies only to mainnet requests in `Requested` state; equality remains
+/// within the timeout.
 pub const fn check_auction(
     is_mainnet: bool,
     fulfillment_status: i32,
@@ -492,41 +484,48 @@ pub const fn check_auction(
     }
 }
 
-/// Result of checking server deadline.
+/// Server-side proof deadline status.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Deadline {
-    /// Still within deadline.
+    /// The deadline remains in the future.
     Ok,
-    /// Deadline exceeded.
+    /// The deadline has been reached.
     Exceeded {
-        /// The exceeded server-side deadline (Unix seconds).
+        /// Server-side deadline in Unix seconds.
         deadline: u64,
     },
 }
 
-/// Check if the server-side proof deadline has been exceeded.
+/// Treats equality as expired.
 pub const fn check_deadline(deadline: u64, current_time: u64) -> Deadline {
     if current_time >= deadline { Deadline::Exceeded { deadline } } else { Deadline::Ok }
 }
 
-/// Result of checking proof fulfillment status.
+/// Combined fulfillment and execution status for a proof request.
 #[derive(Debug, PartialEq, Eq)]
 pub enum ProofStatus {
-    /// Proof is ready, return it.
+    /// A fulfilled proof is available.
     Ready,
-    /// Proof request failed permanently.
+    /// The request cannot produce a proof.
     Failed,
-    /// Proof is being worked on, continue polling.
+    /// Polling should continue.
     Pending,
 }
 
-/// Determine proof status from fulfillment status.
-pub fn check_status(status: i32) -> ProofStatus {
-    match FulfillmentStatus::try_from(status) {
-        Ok(FulfillmentStatus::Fulfilled) => ProofStatus::Ready,
-        Ok(FulfillmentStatus::Unfulfillable) => ProofStatus::Failed,
-        _ => ProofStatus::Pending,
+/// Fulfillment takes precedence over terminal execution status.
+pub fn check_status(fulfillment_status: i32, execution_status: i32) -> ProofStatus {
+    if matches!(FulfillmentStatus::try_from(fulfillment_status), Ok(FulfillmentStatus::Fulfilled)) {
+        return ProofStatus::Ready;
     }
+    if matches!(ExecutionStatus::try_from(execution_status), Ok(ExecutionStatus::Unexecutable)) ||
+        matches!(
+            FulfillmentStatus::try_from(fulfillment_status),
+            Ok(FulfillmentStatus::Unfulfillable)
+        )
+    {
+        return ProofStatus::Failed;
+    }
+    ProofStatus::Pending
 }
 
 #[cfg(test)]
@@ -587,14 +586,34 @@ mod tests {
     #[test]
     fn status_transitions() {
         let cases = [
-            (FulfillmentStatus::Fulfilled as i32, ProofStatus::Ready),
-            (FulfillmentStatus::Unfulfillable as i32, ProofStatus::Failed),
-            (FulfillmentStatus::Assigned as i32, ProofStatus::Pending),
-            (FulfillmentStatus::Requested as i32, ProofStatus::Pending),
-            (999, ProofStatus::Pending),
+            (
+                FulfillmentStatus::Fulfilled as i32,
+                ExecutionStatus::Unexecutable as i32,
+                ProofStatus::Ready,
+            ),
+            (
+                FulfillmentStatus::Unfulfillable as i32,
+                ExecutionStatus::Unexecuted as i32,
+                ProofStatus::Failed,
+            ),
+            (
+                FulfillmentStatus::Assigned as i32,
+                ExecutionStatus::Unexecuted as i32,
+                ProofStatus::Pending,
+            ),
+            (
+                FulfillmentStatus::Requested as i32,
+                ExecutionStatus::Unexecutable as i32,
+                ProofStatus::Failed,
+            ),
+            (999, ExecutionStatus::Unexecuted as i32, ProofStatus::Pending),
         ];
-        for (status, expected) in cases {
-            assert_eq!(check_status(status), expected, "status={status}");
+        for (fulfillment_status, execution_status, expected) in cases {
+            assert_eq!(
+                check_status(fulfillment_status, execution_status),
+                expected,
+                "fulfillment_status={fulfillment_status} execution_status={execution_status}"
+            );
         }
     }
 }

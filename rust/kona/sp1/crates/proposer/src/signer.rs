@@ -161,7 +161,9 @@ impl Signer {
                 let raw: Bytes =
                     signer.provider().client().request("eth_signTransaction", (tx,)).await?;
 
-                let tx_envelope = TxEnvelope::decode_2718(&mut raw.as_ref()).unwrap();
+                let tx_envelope = TxEnvelope::decode_2718(&mut raw.as_ref()).context(
+                    "eth_signTransaction returned bytes that do not decode as a signed envelope",
+                )?;
 
                 let receipt = provider
                     .send_tx_envelope(tx_envelope)

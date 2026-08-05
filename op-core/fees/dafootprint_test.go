@@ -10,6 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
+
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 )
 
 // jovianL1AttributesData builds Jovian-length L1-attributes calldata with the Jovian selector
@@ -103,9 +105,9 @@ func TestExtractDAFootprintGasScalarParity(t *testing.T) {
 }
 
 // TestCalcDAFootprintParity is a live differential check that CalcDAFootprint matches op-geth's
-// types.CalcDAFootprint across deposit/user-transaction mixes, attribute layouts, and scalar
-// values, including error cases. It runs while the build still resolves go-ethereum to op-geth;
-// remove it when the op-geth dependency is dropped.
+// types.CalcDAFootprint across pre-Lagoon deposit/user-transaction mixes, attribute layouts, and
+// scalar values, including error cases. Post-exec transactions intentionally diverge because
+// op-geth does not support Lagoon. Remove this test when the op-geth dependency is dropped.
 func TestCalcDAFootprintParity(t *testing.T) {
 	userTxs := userTxMix()
 	secondDeposit := l1AttributesDepositTx(nil)
@@ -163,4 +165,21 @@ func TestCalcDAFootprintDirected(t *testing.T) {
 	got, err = CalcDAFootprint([]*types.Transaction{l1AttributesDepositTx(isthmusL1AttributesData())})
 	require.NoError(t, err)
 	require.Zero(t, got)
+}
+
+func TestCalcDAFootprintExcludesPostExec(t *testing.T) {
+	deposit := l1AttributesDepositTx(jovianL1AttributesData(3))
+	userTx := userTxMix()[0]
+
+	rawPostExec, err := (&optypes.PostExecTx{Data: []byte{0xc0}}).MarshalBinary()
+	require.NoError(t, err)
+	postExecTx := new(types.Transaction)
+	require.NoError(t, postExecTx.UnmarshalBinary(rawPostExec))
+	require.True(t, optypes.IsPostExecTx(postExecTx))
+
+	withoutPostExec, err := CalcDAFootprint([]*types.Transaction{deposit, userTx})
+	require.NoError(t, err)
+	withPostExec, err := CalcDAFootprint([]*types.Transaction{deposit, userTx, postExecTx})
+	require.NoError(t, err)
+	require.Equal(t, withoutPostExec, withPostExec)
 }

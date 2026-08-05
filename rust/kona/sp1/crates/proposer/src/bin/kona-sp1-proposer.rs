@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use alloy_provider::ProviderBuilder;
 use anyhow::Result;
+use clap::Parser;
 use kona_sp1_host_utils::{
     logger::setup_logger,
     metrics::{MetricsGauge, init_metrics},
@@ -21,8 +22,14 @@ use kona_sp1_proposer::{
     signer::{Signer, SignerLock},
 };
 
+/// Command-line interface for process metadata; runtime configuration remains environment-only.
+#[derive(Debug, Parser)]
+#[command(version, about = env!("CARGO_PKG_DESCRIPTION"))]
+struct Cli {}
+
 #[tokio::main]
 async fn main() -> Result<()> {
+    Cli::parse();
     setup_logger();
 
     let config = ProposerConfig::from_env()?;
@@ -59,8 +66,8 @@ async fn main() -> Result<()> {
         "Resolved proposer configuration"
     );
 
-    // Construct the proof provider. NETWORK_PRIVATE_KEY is read only here,
-    // and only in network mode; mock deployments need no SPN credentials.
+    // Read NETWORK_PRIVATE_KEY only in network mode; mock deployments
+    // need no SPN credentials.
     let proof_provider = match config.proof_provider {
         ProofProviderKind::Network => {
             let provider_config = config.proof_provider_config.clone();
@@ -94,11 +101,12 @@ async fn main() -> Result<()> {
     // proposer binds the currently registered args per use and each game's
     // own args for game-specific reads.
 
-    // Metrics: bind before the readiness log so the advertised address is live.
-    // A failed bind is a startup error, not a degraded mode.
+    // Bind before readiness so the advertised address is live. Install the
+    // recorder before register_all; describe_gauge! calls sent to the no-op
+    // recorder lose their HELP lines.
     let metrics_addr = if config.metrics_port != 0 {
-        ProposerGauge::register_all();
         init_metrics(&config.metrics_port)?;
+        ProposerGauge::register_all();
         ProposerGauge::init_all();
         Some(format!("0.0.0.0:{}", config.metrics_port))
     } else {
@@ -107,10 +115,8 @@ async fn main() -> Result<()> {
 
     let proposer = Proposer::new(config, signer, factory, proof_provider).await?;
 
-    // STARTUP LOG CONTRACT: devstack readiness matches this exact message,
-    // and reads `metrics_addr` from the same entry when metrics are enabled.
-    // Emitted before the chain-dependent init retry loop on purpose - a
-    // supernode that is still deriving must not stall process readiness.
+    // Devstack readiness matches this message. Emit it before chain-dependent
+    // initialization so a deriving supernode does not stall process readiness.
     match &metrics_addr {
         Some(addr) => tracing::info!(metrics_addr = %addr, "kona-sp1-proposer started"),
         None => tracing::info!("kona-sp1-proposer started"),
