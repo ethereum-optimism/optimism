@@ -20,6 +20,6 @@ type TwoL2SupernodeFollowL2 struct {
 // NewTwoL2SupernodeFollowL2 creates a fresh follow-source variant of the two-L2
 // supernode interop preset for the current test.
 func NewTwoL2SupernodeFollowL2(t devtest.T, delaySeconds uint64, opts ...Option) *TwoL2SupernodeFollowL2 {
-	presetCfg, _ := collectSupportedPresetConfig(t, "NewTwoL2SupernodeFollowL2", opts, twoL2SupernodeInteropPresetSupportedOptionKinds)
+	presetCfg, _ := collectSupportedPresetConfig(t, "NewTwoL2SupernodeFollowL2", opts, twoL2SupernodeFollowL2PresetSupportedOptionKinds)
 	return twoL2SupernodeFollowL2FromRuntime(t, sysgo.NewTwoL2SupernodeFollowL2RuntimeWithConfig(t, delaySeconds, presetCfg))
 }

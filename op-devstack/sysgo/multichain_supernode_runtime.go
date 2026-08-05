@@ -99,8 +99,8 @@ func NewTwoL2SupernodeLightSequencerInteropRuntimeWithConfig(t devtest.T, delayS
 
 func NewTwoL2SupernodeFollowL2RuntimeWithConfig(t devtest.T, delaySeconds uint64, cfg PresetConfig) *MultiChainRuntime {
 	runtime := NewTwoL2SupernodeInteropRuntimeWithConfig(t, delaySeconds, cfg)
-	addMultiChainFollowL2Node(t, runtime, "l2a", "follower")
-	addMultiChainFollowL2Node(t, runtime, "l2b", "follower")
+	addMultiChainFollowL2Node(t, runtime, "l2a", "follower", cfg.GlobalL2CLOptions)
+	addMultiChainFollowL2Node(t, runtime, "l2b", "follower", cfg.GlobalL2CLOptions)
 	return runtime
 }
 
@@ -516,7 +516,7 @@ func l2NetworkFromWorldBuilder(t devtest.T, wb *worldBuilder, l1ChainID, l2Chain
 	}
 }
 
-func addMultiChainFollowL2Node(t devtest.T, runtime *MultiChainRuntime, chainKey string, name string) *SingleChainNodeRuntime {
+func addMultiChainFollowL2Node(t devtest.T, runtime *MultiChainRuntime, chainKey string, name string, l2CLOptions []L2CLOption) *SingleChainNodeRuntime {
 	chain := runtime.Chains[chainKey]
 	t.Require().NotNil(chain, "missing %s runtime chain", chainKey)
 	t.Require().NotNil(chain.CL, "%s runtime chain missing CL follow source", chainKey)
@@ -530,6 +530,7 @@ func addMultiChainFollowL2Node(t devtest.T, runtime *MultiChainRuntime, chainKey
 		NoDiscovery:    true,
 		EnableReqResp:  false,
 		L2FollowSource: chain.CL.UserRPC(),
+		L2CLOptions:    l2CLOptions,
 		DependencySet:  runtime.DependencySet,
 		// Follow nodes catch up to their follow source via EL sync.
 		SyncMode: nodeSync.ELSync,

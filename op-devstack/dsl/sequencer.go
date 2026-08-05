@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
@@ -68,4 +69,22 @@ func (s *TestSequencer) SequenceBlockWithTxs(t devtest.T, chainID eth.ChainID, p
 	// Publish is optional - it broadcasts via P2P which may not be enabled in tests.
 	// The block is already committed and canonical at this point.
 	_ = ca.Publish(ctx) // ignore publish errors
+}
+
+// SequencePlannedBlock signs the supplied planned transactions and includes
+// them in a deterministic block at parent.Time + blockTime. Callers must set
+// any nonces that need to be stable before invoking this method.
+func (s *TestSequencer) SequencePlannedBlock(t devtest.T, chainID eth.ChainID, parent common.Hash, txs ...*txplan.PlannedTx) []common.Hash {
+	rawTxs := make([][]byte, 0, len(txs))
+	txHashes := make([]common.Hash, 0, len(txs))
+	for _, tx := range txs {
+		signed, err := tx.Signed.Eval(t.Ctx())
+		require.NoError(t, err, "failed to sign planned transaction")
+		raw, err := signed.MarshalBinary()
+		require.NoError(t, err, "failed to marshal planned transaction")
+		rawTxs = append(rawTxs, raw)
+		txHashes = append(txHashes, signed.Hash())
+	}
+	s.SequenceBlockWithTxs(t, chainID, parent, rawTxs)
+	return txHashes
 }

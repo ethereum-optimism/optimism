@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 
@@ -38,19 +39,58 @@ func TestL2ReorgAfterL1Reorg(gt *testing.T) {
 	})
 
 	gt.Run("unsafe, local-safe, cross-unsafe, cross-safe reorgs", func(gt *testing.T) {
-		var crossSafeRef, crossUnsafeRef, localSafeRef, unsafeRef eth.BlockID
+		var crossSafeA, crossUnsafeA, localSafeA, unsafeA eth.L2BlockRef
+		var crossSafeB, crossUnsafeB, localSafeB, unsafeB eth.L2BlockRef
+		var verifiedTimestamp uint64
+		var staleSuperRoot eth.Bytes32
 		pre := func(t devtest.T, sys *presets.TwoL2SupernodeInterop) {
-			ss := sys.L2ACL.SyncStatus()
-			crossUnsafeRef = ss.CrossUnsafeL2.ID()
-			crossSafeRef = ss.SafeL2.ID()
-			localSafeRef = ss.LocalSafeL2.ID()
-			unsafeRef = ss.UnsafeL2.ID()
+			ssA := sys.L2ACL.SyncStatus()
+			ssB := sys.L2BCL.SyncStatus()
+			crossUnsafeA, crossSafeA = ssA.CrossUnsafeL2, ssA.SafeL2
+			localSafeA, unsafeA = ssA.LocalSafeL2, ssA.UnsafeL2
+			crossUnsafeB, crossSafeB = ssB.CrossUnsafeL2, ssB.SafeL2
+			localSafeB, unsafeB = ssB.LocalSafeL2, ssB.UnsafeL2
+
+			verifiedTimestamp = min(crossSafeA.Time, crossSafeB.Time)
+			sys.Supernode.AwaitValidatedTimestamp(verifiedTimestamp)
+			staleSuperRoot = sys.Supernode.SuperRootAt(
+				verifiedTimestamp, sys.L2A.ChainID(), sys.L2B.ChainID(),
+			).Data.SuperRoot
 		}
 		post := func(t devtest.T, sys *presets.TwoL2SupernodeInterop) {
-			require.False(t, sys.L2ELA.IsCanonical(crossSafeRef), "Previous cross-safe block should have been reorged")
-			require.False(t, sys.L2ELA.IsCanonical(crossUnsafeRef), "Previous cross-unsafe block should have been reorged")
-			require.False(t, sys.L2ELA.IsCanonical(localSafeRef), "Previous local-safe block should have been reorged")
-			require.False(t, sys.L2ELA.IsCanonical(unsafeRef), "Previous unsafe block should have been reorged")
+			for chain, refs := range map[string]struct {
+				el                                        *dsl.L2ELNode
+				crossSafe, crossUnsafe, localSafe, unsafe eth.L2BlockRef
+			}{
+				"A": {sys.L2ELA, crossSafeA, crossUnsafeA, localSafeA, unsafeA},
+				"B": {sys.L2ELB, crossSafeB, crossUnsafeB, localSafeB, unsafeB},
+			} {
+				require.False(t, refs.el.IsCanonical(refs.crossSafe.ID()), "chain %s previous cross-safe block should have been reorged", chain)
+				require.False(t, refs.el.IsCanonical(refs.crossUnsafe.ID()), "chain %s previous cross-unsafe block should have been reorged", chain)
+				require.False(t, refs.el.IsCanonical(refs.localSafe.ID()), "chain %s previous local-safe block should have been reorged", chain)
+				require.False(t, refs.el.IsCanonical(refs.unsafe.ID()), "chain %s previous unsafe block should have been reorged", chain)
+			}
+
+			replacementA := sys.L2ELA.BlockRefByNumber(crossSafeA.Number)
+			replacementB := sys.L2ELB.BlockRefByNumber(crossSafeB.Number)
+			require.NotEqual(t, replacementA.Hash, replacementB.Hash,
+				"replacement lineages were contaminated across sibling chains")
+			_, err := sys.L2ELA.Escape().L2EthClient().L2BlockRefByHash(t.Ctx(), replacementB.Hash)
+			require.Error(t, err, "chain B replacement unexpectedly resolved in chain A's engine")
+			_, err = sys.L2ELB.Escape().L2EthClient().L2BlockRefByHash(t.Ctx(), replacementA.Hash)
+			require.Error(t, err, "chain A replacement unexpectedly resolved in chain B's engine")
+
+			require.Eventually(t, func() bool {
+				resp, err := sys.SuperNodeClient().SuperRootAtTimestamp(t.Ctx(), verifiedTimestamp)
+				return err == nil && resp.Data != nil && resp.Data.SuperRoot != staleSuperRoot
+			}, 2*time.Minute, time.Second,
+				"verified super-root at the reorged timestamp remained stale")
+			newRoot := sys.Supernode.SuperRootAt(
+				verifiedTimestamp, sys.L2A.ChainID(), sys.L2B.ChainID(),
+			)
+			canonicalL1 := sys.L1EL.BlockRefByNumber(newRoot.Data.VerifiedRequiredL1.Number)
+			require.Equal(t, canonicalL1.Hash, newRoot.Data.VerifiedRequiredL1.Hash,
+				"replacement super-root retained an orphaned L1 dependency")
 		}
 		preEarly := func(t devtest.T, sys *presets.TwoL2SupernodeInterop) {}
 		testL2ReorgAfterL1Reorg(gt, 10, preEarly, pre, post)
@@ -68,7 +108,7 @@ func TestL2ReorgAfterL1Reorg(gt *testing.T) {
 // to-be-reorged window.
 // postChecks runs after the reorg has been recovered.
 func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preEarlyChecks, preChecks, postChecks checksFunc) {
-	t := devtest.ParallelT(gt)
+	t := devtest.SerialT(gt)
 	ctx := t.Ctx()
 
 	sys := presets.NewTwoL2SupernodeInterop(t, 0)
@@ -78,7 +118,10 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preEarlyChecks, preChecks, po
 	// Build a stable cross-safe foundation before we stop the L1 CL and manually sequence.
 	// This ensures the supernode has verified state that references canonical L1 blocks,
 	// so after the reorg it doesn't need to rewind all the way back to genesis.
-	sys.L2ACL.Advanced(safety.CrossSafe, 20, 100)
+	dsl.CheckAll(t,
+		sys.L2ACL.AdvancedFn(safety.CrossSafe, 20, 100),
+		sys.L2BCL.AdvancedFn(safety.CrossSafe, 20, 100),
+	)
 
 	preEarlyChecks(t, sys)
 
@@ -108,7 +151,8 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preEarlyChecks, preChecks, po
 	// pre reorg trigger validations and checks
 	preChecks(t, sys)
 
-	tipL2_preReorg := sys.L2ELA.BlockRefByLabel(eth.Unsafe)
+	tipL2APreReorg := sys.L2ELA.BlockRefByLabel(eth.Unsafe)
+	tipL2BPreReorg := sys.L2ELB.BlockRefByLabel(eth.Unsafe)
 
 	// reorg the L1 chain -- sequence an alternative L1 block from divergence block parent
 	sys.TestSequencer.SequenceBlock(t, sys.L1Network.ChainID(), divergence.ParentHash)
@@ -119,66 +163,63 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preEarlyChecks, preChecks, po
 	// confirm L1 reorged
 	sys.L1EL.ReorgTriggered(divergence, 5)
 
-	// Wait until L2 chain A cross-safe ref caught up to where it was before the reorg.
+	// Wait until both L2 cross-safe refs catch up to where they were before the reorg.
 	// Use require.Eventually instead of sys.L2ACL.Reached because the supernode rewinds
 	// one timestamp at a time after an L1 reorg, stopping and restarting VNs each cycle.
 	// During these rewinds the CL RPC is temporarily unavailable, and Reached() would
 	// fatally fail via require.NoError on the transient RPC error.
 	require.Eventually(t, func() bool {
-		ss, err := sys.L2ACL.Escape().RollupAPI().SyncStatus(ctx)
+		ssA, err := sys.L2ACL.Escape().RollupAPI().SyncStatus(ctx)
 		if err != nil {
-			sys.Log.Info("SyncStatus unavailable during rewind, retrying", "err", err)
+			sys.Log.Info("chain A SyncStatus unavailable during rewind, retrying", "err", err)
 			return false
 		}
-		sys.Log.Info("waiting for cross-safe to reach pre-reorg tip",
-			"cross_safe", ss.SafeL2.Number, "target", tipL2_preReorg.Number)
-		return ss.SafeL2.Number >= tipL2_preReorg.Number
-	}, 10*time.Minute, 5*time.Second, "L2 chain A cross-safe should reach pre-reorg tip %d", tipL2_preReorg.Number)
-
-	// test that latest chain A unsafe is not referencing a reorged L1 block (through the L1Origin field)
-	require.Eventually(t, func() bool {
-		unsafe := sys.L2ELA.BlockRefByLabel(eth.Unsafe)
-
-		block, err := sys.L1EL.Escape().EthClient().InfoByNumber(ctx, unsafe.L1Origin.Number)
+		ssB, err := sys.L2BCL.Escape().RollupAPI().SyncStatus(ctx)
 		if err != nil {
-			sys.Log.Warn("failed to get L1 block info by number", "number", unsafe.L1Origin.Number, "err", err)
+			sys.Log.Info("chain B SyncStatus unavailable during rewind, retrying", "err", err)
 			return false
 		}
+		sys.Log.Info("waiting for both cross-safe heads to reach their pre-reorg tips",
+			"chain_a_cross_safe", ssA.SafeL2.Number, "chain_a_target", tipL2APreReorg.Number,
+			"chain_b_cross_safe", ssB.SafeL2.Number, "chain_b_target", tipL2BPreReorg.Number)
+		return ssA.SafeL2.Number >= tipL2APreReorg.Number && ssB.SafeL2.Number >= tipL2BPreReorg.Number
+	}, 10*time.Minute, 5*time.Second,
+		"both L2 cross-safe heads should reach their pre-reorg tips A=%d B=%d",
+		tipL2APreReorg.Number, tipL2BPreReorg.Number)
 
-		sys.Log.Info("current unsafe ref", "tip", unsafe, "tip_origin", unsafe.L1Origin, "l1blk", eth.InfoToL1BlockRef(block))
-
-		// print the chains so we have information to debug if the test fails
-		sys.L2A.PrintChain()
-		sys.L1Network.PrintChain()
-
-		return block.Hash() == unsafe.L1Origin.Hash
-	}, 120*time.Second, 7*time.Second, "L1 block origin hash should match hash of block on L1 at that number. If not, it means there was a reorg, and L2 blocks L1Origin field is referencing a reorged block.")
-
-	// confirm all L1Origin fields point to canonical blocks
+	// Test that neither latest unsafe head references a reorged L1 block.
 	require.Eventually(t, func() bool {
-		ref := sys.L2ELA.BlockRefByLabel(eth.Unsafe)
-		var err error
-
-		// wait until L2 chains' L1Origin points to a L1 block after the one that was reorged
-		if ref.L1Origin.Number < divergence.Number {
-			return false
-		}
-
-		sys.Log.Info("L2 chain progressed, pointing to newer L1 block", "ref", ref, "ref_origin", ref.L1Origin, "divergence", divergence)
-
-		for i := ref.Number; i > 0 && ref.L1Origin.Number >= divergence.Number; i-- {
-			ref, err = sys.L2ELA.Escape().L2EthClient().L2BlockRefByNumber(ctx, i)
+		for chain, el := range map[string]*dsl.L2ELNode{"A": sys.L2ELA, "B": sys.L2ELB} {
+			unsafe := el.BlockRefByLabel(eth.Unsafe)
+			block, err := sys.L1EL.Escape().EthClient().InfoByNumber(ctx, unsafe.L1Origin.Number)
 			if err != nil {
+				sys.Log.Warn("failed to get L1 block info by number", "chain", chain, "number", unsafe.L1Origin.Number, "err", err)
 				return false
 			}
-
-			if !sys.L1EL.IsCanonical(ref.L1Origin) {
+			if block.Hash() != unsafe.L1Origin.Hash {
 				return false
 			}
 		}
-
 		return true
-	}, 120*time.Second, 5*time.Second, "all L1Origin fields should point to canonical L1 blocks")
+	}, 120*time.Second, 7*time.Second, "both L2 unsafe heads should reference canonical L1 origins")
+
+	// Confirm all recent L1Origin fields on both chains point to canonical blocks.
+	require.Eventually(t, func() bool {
+		for _, el := range []*dsl.L2ELNode{sys.L2ELA, sys.L2ELB} {
+			ref := el.BlockRefByLabel(eth.Unsafe)
+			if ref.L1Origin.Number < divergence.Number {
+				return false
+			}
+			for i := ref.Number; i > 0 && ref.L1Origin.Number >= divergence.Number; i-- {
+				var err error
+				ref, err = el.Escape().L2EthClient().L2BlockRefByNumber(ctx, i)
+				if err != nil || !sys.L1EL.IsCanonical(ref.L1Origin) {
+					return false
+				}
+			}
+		}
+		return true
+	}, 120*time.Second, 5*time.Second, "all recent L1 origins on both chains should be canonical")
 
 	// post reorg test validations and checks
 	postChecks(t, sys)

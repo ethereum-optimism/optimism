@@ -688,6 +688,22 @@ func (el *L2ELNode) AssertTxInBlock(blockNumber uint64, txHash common.Hash) {
 	el.require.Fail("transaction should exist in block", "blockNumber", blockNumber, "txHash", txHash)
 }
 
+// AssertBlockDepositOnly asserts that the canonical block at blockNumber is a
+// deposits-only block. Interop invalidation uses this block shape to replace an
+// invalid unsafe payload without retaining any user transactions.
+func (el *L2ELNode) AssertBlockDepositOnly(blockNumber uint64) {
+	ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
+	defer cancel()
+
+	_, txs, err := el.inner.EthClient().InfoAndTxsByNumber(ctx, blockNumber)
+	el.require.NoError(err, "failed to fetch block %d", blockNumber)
+	el.require.NotEmpty(txs, "deposit-only block %d must contain its L1 attributes deposit", blockNumber)
+	for _, tx := range txs {
+		el.require.Truef(tx.IsDepositTx(), "block %d contains non-deposit transaction %s", blockNumber, tx.Hash())
+	}
+	el.log.Info("confirmed deposit-only block", "blockNumber", blockNumber, "transactions", len(txs))
+}
+
 // ResendUntilSafe broadcasts a transaction from makeTx and waits for it to derive onto this
 // node's irreversible safe chain, retrying with a newly built transaction whenever a broadcast
 // fails to settle. It returns the block number and hash where the transaction landed, and fails
