@@ -74,7 +74,7 @@ type L1Client interface {
 }
 
 type L2Client interface {
-	BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error)
+	PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error)
 }
 
 type RollupClient interface {
@@ -284,10 +284,10 @@ func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context, start, end uin
 		l.Log.Info("Loading range of multiple blocks into state", "start", start, "end", end)
 	}
 
-	var latestBlock *types.Block
+	var latestPayload *eth.ExecutionPayload
 	// Add all blocks to "state"
 	for i := start; i <= end; i++ {
-		block, err := l.loadBlockIntoState(ctx, i)
+		payload, err := l.loadBlockIntoState(ctx, i)
 		if errors.Is(err, ErrReorg) {
 			l.Log.Warn("Found L2 reorg", "block_number", i)
 			return err
@@ -295,7 +295,7 @@ func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context, start, end uin
 			l.Log.Warn("Failed to load block into state", "err", err)
 			return err
 		}
-		latestBlock = block
+		latestPayload = payload
 
 		if numBlocksLoaded := (i - start + 1); numBlocksLoaded%100 == 0 {
 			// Every 100 blocks, signal the publishing loop to publish.
@@ -307,7 +307,7 @@ func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context, start, end uin
 
 	}
 
-	l2ref, err := derive.L2BlockToBlockRef(l.RollupConfig, latestBlock)
+	l2ref, err := derive.PayloadToBlockRef(l.RollupConfig, latestPayload)
 	if err != nil {
 		l.Log.Warn("Invalid L2 block loaded into state", "err", err)
 		return err
@@ -317,9 +317,9 @@ func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context, start, end uin
 	return nil
 }
 
-// loadBlockIntoState fetches & stores a single block into `state`. It returns the block it loaded.
-func (l *BatchSubmitter) loadBlockIntoState(ctx context.Context, blockNumber uint64) (*types.Block, error) {
-	l2Client, err := l.EndpointProvider.EthClient(ctx)
+// loadBlockIntoState fetches & stores a single block into `state`. It returns the payload it loaded.
+func (l *BatchSubmitter) loadBlockIntoState(ctx context.Context, blockNumber uint64) (*eth.ExecutionPayload, error) {
+	l2Client, err := l.EndpointProvider.PayloadSource(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("getting L2 client: %w", err)
 	}
@@ -327,21 +327,20 @@ func (l *BatchSubmitter) loadBlockIntoState(ctx context.Context, blockNumber uin
 	cCtx, cancel := context.WithTimeout(ctx, l.Config.NetworkTimeout)
 	defer cancel()
 
-	block, err := l2Client.BlockByNumber(cCtx, new(big.Int).SetUint64(blockNumber))
+	envelope, err := l2Client.PayloadByNumber(cCtx, blockNumber)
 	if err != nil {
 		return nil, fmt.Errorf("getting L2 block: %w", err)
 	}
-
-	l.Log.Debug("Loaded L2 block", "size", block.Size())
+	payload := envelope.ExecutionPayload
 
 	l.channelMgrMutex.Lock()
 	defer l.channelMgrMutex.Unlock()
-	if err := l.channelMgr.AddL2Block(block); err != nil {
+	if err := l.channelMgr.AddL2Block(payload); err != nil {
 		return nil, fmt.Errorf("adding L2 block to state: %w", err)
 	}
 
-	l.Log.Info("Added L2 block to local state", "block", eth.ToBlockID(block), "tx_count", len(block.Transactions()), "time", block.Time())
-	return block, nil
+	l.Log.Info("Added L2 block to local state", "block", payload.ID(), "tx_count", len(payload.Transactions), "time", payload.Timestamp)
+	return payload, nil
 }
 
 func (l *BatchSubmitter) getSyncStatus(ctx context.Context) (*eth.SyncStatus, error) {

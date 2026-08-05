@@ -48,7 +48,7 @@ func newChannelBuilder(log log.Logger, cfg ChannelConfig, rollupCfg *rollup.Conf
 // ChannelBuilder.AddBlock method.
 func addMiniBlock(cb *ChannelBuilder) error {
 	a := newMiniL2Block(0)
-	_, err := cb.AddBlock(SizedBlock{Block: a})
+	_, err := cb.AddBlock(mustSizedBlockFromGeth(a))
 	return err
 }
 
@@ -149,6 +149,7 @@ func newMiniL2BlockWithChainIDNumberParentAndL1Information(numTx int, chainID *b
 	return types.NewBlock(&types.Header{
 		Number:     l2Number,
 		ParentHash: parent,
+		BaseFee:    big.NewInt(7),
 	}, &types.Body{Transactions: txs}, nil, trie.NewStackTrie(nil), types.DefaultBlockConfig)
 }
 
@@ -160,7 +161,7 @@ func addTooManyBlocks(cb *ChannelBuilder, blockCount int) (int, error) {
 
 	for i := 0; i < blockCount; i++ {
 		block := dtest.RandomL2BlockWithChainIdAndTime(rng, 1000, defaultTestRollupConfig.L2ChainID, t.Add(time.Duration(i)*time.Second))
-		_, err := cb.AddBlock(SizedBlock{Block: block})
+		_, err := cb.AddBlock(mustSizedBlockFromGeth(block))
 		if err != nil {
 			return i + 1, err
 		}
@@ -651,7 +652,7 @@ func ChannelBuilder_OutputFramesMaxFrameIndex(t *testing.T, batchType uint) {
 	ti := time.Now()
 	for i := 0; ; i++ {
 		a := dtest.RandomL2BlockWithChainIdAndTime(rng, 1000, defaultTestRollupConfig.L2ChainID, ti.Add(time.Duration(i)*time.Second))
-		_, err = cb.AddBlock(SizedBlock{Block: a})
+		_, err = cb.AddBlock(mustSizedBlockFromGeth(a))
 		if cb.IsFull() {
 			fullErr := cb.FullErr()
 			require.ErrorIs(t, fullErr, derive.ErrCompressorFull)
@@ -686,9 +687,9 @@ func TestChannelBuilder_FullShadowCompressor(t *testing.T) {
 
 	rng := rand.New(rand.NewSource(420))
 	a := dtest.RandomL2BlockWithChainId(rng, 1, defaultTestRollupConfig.L2ChainID)
-	_, err = cb.AddBlock(SizedBlock{Block: a})
+	_, err = cb.AddBlock(mustSizedBlockFromGeth(a))
 	require.NoError(err)
-	_, err = cb.AddBlock(SizedBlock{Block: a})
+	_, err = cb.AddBlock(mustSizedBlockFromGeth(a))
 	require.ErrorIs(err, derive.ErrCompressorFull)
 	// without fix, adding the second block would succeed and then adding a
 	// third block would fail with full error and the compressor would be full.
@@ -832,19 +833,19 @@ func TestChannelBuilder_LatestL1Origin(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, eth.BlockID{}, cb.LatestL1Origin(), "LatestL1Origin should be empty")
 
-	_, err = cb.AddBlock(SizedBlock{Block: newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(1), common.Hash{}, 1, 100)})
+	_, err = cb.AddBlock(mustSizedBlockFromGeth(newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(1), common.Hash{}, 1, 100)))
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), cb.LatestL1Origin().Number)
 
-	_, err = cb.AddBlock(SizedBlock{Block: newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(2), common.Hash{}, 1, 100)})
+	_, err = cb.AddBlock(mustSizedBlockFromGeth(newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(2), common.Hash{}, 1, 100)))
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), cb.LatestL1Origin().Number)
 
-	_, err = cb.AddBlock(SizedBlock{Block: newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(3), common.Hash{}, 2, 110)})
+	_, err = cb.AddBlock(mustSizedBlockFromGeth(newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(3), common.Hash{}, 2, 110)))
 	require.NoError(t, err)
 	require.Equal(t, uint64(2), cb.LatestL1Origin().Number)
 
-	_, err = cb.AddBlock(SizedBlock{Block: newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(3), common.Hash{}, 1, 110)})
+	_, err = cb.AddBlock(mustSizedBlockFromGeth(newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(3), common.Hash{}, 1, 110)))
 	require.NoError(t, err)
 	require.Equal(t, uint64(2), cb.LatestL1Origin().Number)
 }
@@ -855,19 +856,19 @@ func TestChannelBuilder_OldestL1Origin(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, eth.BlockID{}, cb.OldestL1Origin())
 
-	_, err = cb.AddBlock(SizedBlock{Block: newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(1), common.Hash{}, 1, 100)})
+	_, err = cb.AddBlock(mustSizedBlockFromGeth(newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(1), common.Hash{}, 1, 100)))
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), cb.OldestL1Origin().Number)
 
-	_, err = cb.AddBlock(SizedBlock{Block: newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(2), common.Hash{}, 1, 100)})
+	_, err = cb.AddBlock(mustSizedBlockFromGeth(newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(2), common.Hash{}, 1, 100)))
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), cb.OldestL1Origin().Number)
 
-	_, err = cb.AddBlock(SizedBlock{Block: newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(3), common.Hash{}, 2, 110)})
+	_, err = cb.AddBlock(mustSizedBlockFromGeth(newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(3), common.Hash{}, 2, 110)))
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), cb.OldestL1Origin().Number)
 
-	_, err = cb.AddBlock(SizedBlock{Block: newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(3), common.Hash{}, 1, 110)})
+	_, err = cb.AddBlock(mustSizedBlockFromGeth(newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(3), common.Hash{}, 1, 110)))
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), cb.OldestL1Origin().Number)
 }
@@ -878,19 +879,19 @@ func TestChannelBuilder_LatestL2(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, eth.BlockID{}, cb.LatestL2())
 
-	_, err = cb.AddBlock(SizedBlock{Block: newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(1), common.Hash{}, 1, 100)})
+	_, err = cb.AddBlock(mustSizedBlockFromGeth(newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(1), common.Hash{}, 1, 100)))
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), cb.LatestL2().Number)
 
-	_, err = cb.AddBlock(SizedBlock{Block: newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(2), common.Hash{}, 1, 100)})
+	_, err = cb.AddBlock(mustSizedBlockFromGeth(newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(2), common.Hash{}, 1, 100)))
 	require.NoError(t, err)
 	require.Equal(t, uint64(2), cb.LatestL2().Number)
 
-	_, err = cb.AddBlock(SizedBlock{Block: newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(3), common.Hash{}, 2, 110)})
+	_, err = cb.AddBlock(mustSizedBlockFromGeth(newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(3), common.Hash{}, 2, 110)))
 	require.NoError(t, err)
 	require.Equal(t, uint64(3), cb.LatestL2().Number)
 
-	_, err = cb.AddBlock(SizedBlock{Block: newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(3), common.Hash{}, 1, 110)})
+	_, err = cb.AddBlock(mustSizedBlockFromGeth(newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(3), common.Hash{}, 1, 110)))
 	require.NoError(t, err)
 	require.Equal(t, uint64(3), cb.LatestL2().Number)
 }
@@ -901,19 +902,19 @@ func TestChannelBuilder_OldestL2(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, eth.BlockID{}, cb.OldestL2())
 
-	_, err = cb.AddBlock(SizedBlock{Block: newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(1), common.Hash{}, 1, 100)})
+	_, err = cb.AddBlock(mustSizedBlockFromGeth(newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(1), common.Hash{}, 1, 100)))
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), cb.OldestL2().Number)
 
-	_, err = cb.AddBlock(SizedBlock{Block: newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(2), common.Hash{}, 1, 100)})
+	_, err = cb.AddBlock(mustSizedBlockFromGeth(newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(2), common.Hash{}, 1, 100)))
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), cb.OldestL2().Number)
 
-	_, err = cb.AddBlock(SizedBlock{Block: newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(3), common.Hash{}, 2, 110)})
+	_, err = cb.AddBlock(mustSizedBlockFromGeth(newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(3), common.Hash{}, 2, 110)))
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), cb.OldestL2().Number)
 
-	_, err = cb.AddBlock(SizedBlock{Block: newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(3), common.Hash{}, 1, 110)})
+	_, err = cb.AddBlock(mustSizedBlockFromGeth(newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(3), common.Hash{}, 1, 110)))
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), cb.OldestL2().Number)
 }
@@ -939,7 +940,7 @@ func ChannelBuilder_PendingFrames_TotalFrames(t *testing.T, batchType uint) {
 	// fill up
 	for i := 0; ; i++ {
 		block := dtest.RandomL2BlockWithChainIdAndTime(rng, 4, defaultTestRollupConfig.L2ChainID, ti.Add(time.Duration(i)*time.Second))
-		_, err := cb.AddBlock(SizedBlock{Block: block})
+		_, err := cb.AddBlock(mustSizedBlockFromGeth(block))
 		if cb.IsFull() {
 			break
 		}
@@ -986,7 +987,7 @@ func ChannelBuilder_InputBytes(t *testing.T, batchType uint) {
 		if batchType == derive.SingularBatchType {
 			l += blockBatchRlpSize(t, block)
 		} else {
-			singularBatch, l1Info, err := derive.BlockToSingularBatch(defaultTestRollupConfig, block)
+			singularBatch, l1Info, err := derive.PayloadToSingularBatch(defaultTestRollupConfig, mustPayloadFromGeth(block))
 			require.NoError(err)
 			err = spanBatch.AppendSingularBatch(singularBatch, l1Info.SequenceNumber)
 			require.NoError(err)
@@ -997,7 +998,7 @@ func ChannelBuilder_InputBytes(t *testing.T, batchType uint) {
 			require.NoError(batch.EncodeRLP(&buf))
 			l = buf.Len()
 		}
-		_, err := cb.AddBlock(SizedBlock{Block: block})
+		_, err := cb.AddBlock(mustSizedBlockFromGeth(block))
 		require.NoError(err)
 		require.Equal(cb.InputBytes(), l)
 	}
@@ -1020,7 +1021,7 @@ func ChannelBuilder_OutputBytes(t *testing.T, batchType uint) {
 	ti := time.Now()
 	for i := 0; ; i++ {
 		block := dtest.RandomL2BlockWithChainIdAndTime(rng, rng.Intn(32), defaultTestRollupConfig.L2ChainID, ti.Add(time.Duration(i)*time.Second))
-		_, err := cb.AddBlock(SizedBlock{Block: block})
+		_, err := cb.AddBlock(mustSizedBlockFromGeth(block))
 		if errors.Is(err, derive.ErrCompressorFull) {
 			break
 		}
@@ -1042,10 +1043,35 @@ func ChannelBuilder_OutputBytes(t *testing.T, batchType uint) {
 
 func blockBatchRlpSize(t *testing.T, b *types.Block) int {
 	t.Helper()
-	singularBatch, _, err := derive.BlockToSingularBatch(defaultTestRollupConfig, b)
+	singularBatch, _, err := derive.PayloadToSingularBatch(defaultTestRollupConfig, mustPayloadFromGeth(b))
 	batch := derive.NewBatchData(singularBatch)
 	require.NoError(t, err)
 	var buf bytes.Buffer
 	require.NoError(t, batch.EncodeRLP(&buf), "RLP-encoding batch")
 	return buf.Len()
+}
+
+// mustSizedBlockFromGeth converts a go-ethereum test block into the
+// payload-based SizedBlock the batcher pipeline operates on.
+func mustSizedBlockFromGeth(block *types.Block) SizedBlock {
+	return ToSizedBlock(mustPayloadFromGeth(block))
+}
+
+// mustPayloadFromGeth converts a go-ethereum test block into an execution
+// payload. Minimal test blocks may lack a base fee, which the payload
+// conversion requires; those convert with a zeroed base fee while keeping the
+// original block hash, so hash-chained test fixtures stay consistent.
+func mustPayloadFromGeth(block *types.Block) *eth.ExecutionPayload {
+	convert := block
+	if block.BaseFee() == nil {
+		hdr := block.Header()
+		hdr.BaseFee = new(big.Int)
+		convert = types.NewBlockWithHeader(hdr).WithBody(*block.Body())
+	}
+	payload, err := eth.BlockAsPayload(convert, defaultTestRollupConfig)
+	if err != nil {
+		panic(err)
+	}
+	payload.BlockHash = block.Hash()
+	return payload
 }
