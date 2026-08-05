@@ -179,6 +179,7 @@ type simpleChainContainer struct {
 	pause              atomic.Bool
 	stop               atomic.Bool
 	resetting          atomic.Bool
+	rpcWarmReady       atomic.Bool
 	stopped            chan struct{}
 	log                gethlog.Logger
 	chainID            eth.ChainID
@@ -321,14 +322,49 @@ func (c *simpleChainContainer) setVN(vn virtual_node.VirtualNode) {
 }
 
 // IsRPCReady reports whether the chain's router handler may serve requests.
-// Pause and stop close the gate immediately; otherwise the current virtual node
-// must be installed and running.
+// Pause and stop close the gate immediately. A running virtual node on a warm
+// start must also have restored the verifier's durable cross-safe frontier;
+// otherwise the route could transiently expose genesis after restart. This is
+// a one-time barrier for the chain container: later intentional rewinds rely on
+// the normal VN lifecycle gate and may legitimately move below that frontier.
 func (c *simpleChainContainer) IsRPCReady() bool {
 	if c.pause.Load() || c.stop.Load() {
 		return false
 	}
 	vn := c.getVN()
-	return vn != nil && vn.State() == virtual_node.VNStateRunning
+	if vn == nil || vn.State() != virtual_node.VNStateRunning {
+		return false
+	}
+	if c.rpcWarmReady.Load() {
+		return true
+	}
+
+	verifier := c.registeredVerifier()
+	if verifier == nil {
+		c.rpcWarmReady.Store(true)
+		return true
+	}
+	verified, _, err := verifier.LatestVerifiedL2Block(c.chainID)
+	if err != nil {
+		return false
+	}
+	if verified == (eth.BlockID{}) {
+		c.rpcWarmReady.Store(true)
+		return true
+	}
+	status, err := vn.SyncStatus(context.Background())
+	if err != nil {
+		return false
+	}
+	if status.SafeL2.Number > verified.Number {
+		c.rpcWarmReady.Store(true)
+		return true
+	}
+	ready := status.SafeL2.ID() == verified
+	if ready {
+		c.rpcWarmReady.Store(true)
+	}
+	return ready
 }
 
 // WaitReady polls IsRPCReady() until true or ctx is done. If ctx has no

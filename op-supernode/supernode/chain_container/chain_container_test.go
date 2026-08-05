@@ -572,6 +572,37 @@ func TestChainContainerIsRPCReady(t *testing.T) {
 	}
 }
 
+func TestChainContainerIsRPCReadyWaitsForVerifiedHead(t *testing.T) {
+	t.Parallel()
+
+	chainID := eth.ChainIDFromUInt64(420)
+	verified := eth.BlockID{Number: 10, Hash: common.HexToHash("0x1234")}
+	container := newTestChainContainer(t, chainID)
+	vn := container.vn.(*mockVirtualNode)
+	vn.setState(virtual_node.VNStateRunning)
+	container.RegisterVerifier(&mockVerificationActivityForSuperAuthority{
+		latestVerifiedBlock: verified,
+		latestVerifiedTS:    100,
+	})
+
+	setStatus := func(ref eth.L2BlockRef) {
+		vn.syncStatusOverride = func() (*eth.SyncStatus, error) {
+			return &eth.SyncStatus{SafeL2: ref}, nil
+		}
+	}
+
+	setStatus(eth.L2BlockRef{})
+	require.False(t, container.IsRPCReady(), "genesis must stay gated during warm restore")
+	setStatus(eth.L2BlockRef{Number: verified.Number, Hash: common.HexToHash("0x5678")})
+	require.False(t, container.IsRPCReady(), "a conflicting block at the verified height must stay gated")
+	setStatus(eth.L2BlockRef{Number: verified.Number, Hash: verified.Hash})
+	require.True(t, container.IsRPCReady(), "the exact verified frontier should open the route")
+	setStatus(eth.L2BlockRef{Number: verified.Number + 1, Hash: common.HexToHash("0x9abc")})
+	require.True(t, container.IsRPCReady(), "a head beyond the verified frontier should stay routable")
+	setStatus(eth.L2BlockRef{Number: verified.Number - 1, Hash: common.HexToHash("0xdef0")})
+	require.True(t, container.IsRPCReady(), "an intentional post-start rewind should use the normal lifecycle gate")
+}
+
 // TestChainContainer_Lifecycle tests Start/Stop behavior
 func TestChainContainer_Lifecycle(t *testing.T) {
 	t.Parallel()
