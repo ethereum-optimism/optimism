@@ -2434,6 +2434,12 @@ jobs:
       - attach_workspace: {at: "."}
       # goreleaser compiles the Go release binaries on the host.
       - restore-go-mod-cache
+      # The release binaries link op-core/superchain, which //go:embeds the
+      # gitignored superchain-configs.zip. The tag-triggered release workflows have
+      # no prep-superchain job, so build the bundle in-job.
+      - run:
+          name: Build superchain bundle
+          command: just build-superchain-go
       - run:
           name: Configure Docker
           command: |
