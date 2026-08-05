@@ -20,7 +20,7 @@ func NewUpdateTimeMonitor(cl clock.Clock, metrics UpdateTimeMetrics) *UpdateTime
 	return &UpdateTimeMonitor{clock: cl, metrics: metrics}
 }
 
-func (m *UpdateTimeMonitor) CheckUpdateTimes(games []*types.EnrichedGameData) {
+func (m *UpdateTimeMonitor) CheckUpdateTimes(games []*types.CommonGameData) {
 	// Report the current time if there are no games
 	// Otherwise the last update time would drop to 0 when there are no games, making it appear there were errors
 	earliest := m.clock.Now()

@@ -44,7 +44,7 @@ func TestClaimMonitor_CheckClaims(t *testing.T) {
 
 	t.Run("ZeroRecordsClaims", func(t *testing.T) {
 		monitor, _, cMetrics, _ := newTestClaimMonitor(t)
-		var games []*types.EnrichedGameData
+		var games []*types.FaultGameData
 		monitor.CheckClaims(games)
 		// Should record 0 values for true and false variants of the four fields in ClaimStatus
 		require.Len(t, cMetrics.calls, 2*2*2*2)
@@ -55,13 +55,13 @@ func TestClaimMonitor_CheckClaims(t *testing.T) {
 		chessClockDuration := 10 * time.Minute
 		// Game started long enough ago that the root chess clock has now expired
 		gameStart := frozen.Add(-chessClockDuration - 15*time.Minute)
-		games := []*types.EnrichedGameData{
+		games := []*types.FaultGameData{
 			{
 				MaxClockDuration: uint64(chessClockDuration.Seconds()),
-				GameMetadata: gameTypes.GameMetadata{
+				CommonGameData: types.CommonGameData{GameMetadata: gameTypes.GameMetadata{
 					Proxy:     common.Address{0xaa},
 					Timestamp: 50,
-				},
+				}},
 				Claims: []types.EnrichedClaim{
 					{
 						Claim: faultTypes.Claim{
@@ -223,15 +223,15 @@ func (s *stubClaimMetrics) RecordHonestActorClaims(address common.Address, data 
 	s.honest[address] = *data
 }
 
-func makeMultipleTestGames(duration uint64) []*types.EnrichedGameData {
-	return []*types.EnrichedGameData{
+func makeMultipleTestGames(duration uint64) []*types.FaultGameData {
+	return []*types.FaultGameData{
 		makeTestGame(duration),      // first half
 		makeTestGame(duration * 10), // second half
 	}
 }
 
-func makeTestGame(duration uint64) *types.EnrichedGameData {
-	return &types.EnrichedGameData{
+func makeTestGame(duration uint64) *types.FaultGameData {
+	return &types.FaultGameData{
 		MaxClockDuration: duration / 2,
 		Recipients: map[common.Address]bool{
 			{0x02}: true,

@@ -5,7 +5,6 @@ import (
 	"time"
 
 	challengerTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
@@ -33,7 +32,7 @@ func NewWithdrawalMonitor(logger log.Logger, clock RClock, metrics WithdrawalMet
 	}
 }
 
-func (w *WithdrawalMonitor) CheckWithdrawals(games []*types.EnrichedGameData) {
+func (w *WithdrawalMonitor) CheckWithdrawals(games []*types.FaultGameData) {
 	now := w.clock.Now() // Use a consistent time for all checks
 	matching := make(map[common.Address]int)
 	divergent := make(map[common.Address]int)
@@ -42,9 +41,6 @@ func (w *WithdrawalMonitor) CheckWithdrawals(games []*types.EnrichedGameData) {
 		honestWithdrawableAmounts[address] = big.NewInt(0)
 	}
 	for _, game := range games {
-		if gameTypes.GameType(game.GameType) == gameTypes.SuperPermissionedGameType {
-			continue
-		}
 		matches, diverges := w.validateGameWithdrawals(game, now, honestWithdrawableAmounts)
 		matching[game.WETHContract] += matches
 		divergent[game.WETHContract] += diverges
@@ -58,7 +54,7 @@ func (w *WithdrawalMonitor) CheckWithdrawals(games []*types.EnrichedGameData) {
 	w.metrics.RecordHonestWithdrawableAmounts(honestWithdrawableAmounts)
 }
 
-func (w *WithdrawalMonitor) validateGameWithdrawals(game *types.EnrichedGameData, now time.Time, honestWithdrawableAmounts map[common.Address]*big.Int) (int, int) {
+func (w *WithdrawalMonitor) validateGameWithdrawals(game *types.FaultGameData, now time.Time, honestWithdrawableAmounts map[common.Address]*big.Int) (int, int) {
 	matching := 0
 	divergent := 0
 	for recipient, withdrawalAmount := range game.WithdrawalRequests {

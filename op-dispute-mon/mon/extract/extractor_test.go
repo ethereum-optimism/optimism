@@ -147,7 +147,7 @@ func TestExtractor_Extract(t *testing.T) {
 		require.Zero(t, failed)
 		require.Len(t, enriched, 1)
 		require.Equal(t, 1, enricher1.calls)
-		require.Equal(t, enriched[0].Proxy, common.Address{0xaa})
+		require.Equal(t, enriched[0].Common().Proxy, common.Address{0xaa})
 		require.NotNil(t, logs.FindLog(
 			testlog.NewLevelFilter(log.LevelWarn),
 			testlog.NewMessageFilter("Ignoring game"),
@@ -156,7 +156,7 @@ func TestExtractor_Extract(t *testing.T) {
 
 	t.Run("UseCachedValueOnFailure", func(t *testing.T) {
 		enricher := &mockEnricher{
-			action: func(game *monTypes.EnrichedGameData) error {
+			action: func(game *monTypes.CommonGameData) error {
 				game.Status = gameTypes.GameStatusDefenderWon
 				return nil
 			},
@@ -176,12 +176,12 @@ func TestExtractor_Extract(t *testing.T) {
 		firstUpdateTime := cl.Now()
 		// All results should have current LastUpdateTime
 		for _, data := range enriched {
-			require.Equal(t, firstUpdateTime, data.LastUpdateTime)
+			require.Equal(t, firstUpdateTime, data.Common().LastUpdateTime)
 		}
 
 		cl.AdvanceTime(2 * time.Minute)
 		secondUpdateTime := cl.Now()
-		enricher.action = func(game *monTypes.EnrichedGameData) error {
+		enricher.action = func(game *monTypes.CommonGameData) error {
 			if game.Proxy == gameA {
 				return errors.New("boom")
 			}
@@ -197,9 +197,9 @@ func TestExtractor_Extract(t *testing.T) {
 		require.Len(t, enriched, 2)
 		require.Equal(t, 4, enricher.calls)
 		// The returned games are not in a fixed order, create a map to look up the game we need to assert
-		actual := make(map[common.Address]*monTypes.EnrichedGameData)
+		actual := make(map[common.Address]*monTypes.CommonGameData)
 		for _, data := range enriched {
-			actual[data.Proxy] = data
+			actual[data.Common().Proxy] = data.Common()
 		}
 		require.Contains(t, actual, gameA)
 		require.Contains(t, actual, gameB)
@@ -208,6 +208,74 @@ func TestExtractor_Extract(t *testing.T) {
 		require.Equal(t, firstUpdateTime, actual[gameA].LastUpdateTime)
 		require.Equal(t, secondUpdateTime, actual[gameB].LastUpdateTime)
 	})
+}
+
+func TestExtractorPinsFaultReadsAndPreservesEnricherOrder(t *testing.T) {
+	// Mutation killed: moving either enricher lane ahead of claims, or using a
+	// different block selector for one read, survives value-only extractor tests.
+	trace := make([]string, 0, 4)
+	faultEnricher := &mockFaultEnricher{name: "fault", trace: &trace}
+	commonEnricher := &mockEnricher{name: "common", trace: &trace}
+	extractor, creator, games, _, cl := setupExtractorTest(t, commonEnricher)
+	extractor.faultEnrichers = []FaultEnricher{faultEnricher}
+	creator.caller.trace = &trace
+	game := gameTypes.GameMetadata{
+		Index:     7,
+		GameType:  uint32(gameTypes.CannonGameType),
+		Timestamp: 11,
+		Proxy:     common.Address{0x12},
+	}
+	metadata := contracts.GameMetadata{
+		L1Head:                  common.Hash{0x23},
+		L2SequenceNum:           34,
+		RootClaim:               common.Hash{0x45},
+		Status:                  gameTypes.GameStatusChallengerWon,
+		MaxClockDuration:        56,
+		L2BlockNumberChallenged: true,
+		L2BlockNumberChallenger: common.Address{0x67},
+	}
+	claim := faultTypes.Claim{
+		ClaimData: faultTypes.ClaimData{
+			Value: common.Hash{0x78},
+			Bond:  big.NewInt(89),
+		},
+		CounteredBy:         common.Address{0x9a},
+		Claimant:            common.Address{0xab},
+		Clock:               faultTypes.NewClock(2*time.Minute, time.Unix(123, 0)),
+		ContractIndex:       2,
+		ParentContractIndex: 1,
+	}
+	creator.caller.metadata = metadata
+	creator.caller.claims = []faultTypes.Claim{claim}
+	games.games = []gameTypes.GameMetadata{game}
+	blockHash := common.Hash{0xab}
+
+	enriched, ignored, failed, err := extractor.Extract(t.Context(), blockHash, 0)
+	require.NoError(t, err)
+	require.Zero(t, ignored)
+	require.Zero(t, failed)
+	require.Len(t, enriched, 1)
+	require.Equal(t, &monTypes.FaultGameData{
+		CommonGameData: monTypes.CommonGameData{
+			GameMetadata:       game,
+			LastUpdateTime:     cl.Now(),
+			L1Head:             metadata.L1Head,
+			L2SequenceNumber:   metadata.L2SequenceNum,
+			RootClaim:          metadata.RootClaim,
+			Status:             metadata.Status,
+			NodeEndpointErrors: make(map[string]bool),
+		},
+		MaxClockDuration:      metadata.MaxClockDuration,
+		BlockNumberChallenged: metadata.L2BlockNumberChallenged,
+		BlockNumberChallenger: metadata.L2BlockNumberChallenger,
+		Claims:                []monTypes.EnrichedClaim{{Claim: claim}},
+	}, enriched[0])
+	require.Equal(t, []string{"metadata", "claims", "fault", "common"}, trace)
+	expectedBlock := rpcblock.ByHash(blockHash)
+	require.Equal(t, []rpcblock.Block{expectedBlock}, creator.caller.metadataBlocks)
+	require.Equal(t, []rpcblock.Block{expectedBlock}, creator.caller.claimBlocks)
+	require.Equal(t, []rpcblock.Block{expectedBlock}, faultEnricher.blocks)
+	require.Equal(t, []rpcblock.Block{expectedBlock}, commonEnricher.blocks)
 }
 
 func verifyLogs(t *testing.T, logs *testlog.CapturingHandler, createErr, metadataErr, claimsErr, durationErr int) {
@@ -226,10 +294,13 @@ func verifyLogs(t *testing.T, logs *testlog.CapturingHandler, createErr, metadat
 	require.Len(t, l, durationErr)
 }
 
-func setupExtractorTest(t *testing.T, enrichers ...Enricher) (*Extractor, *mockGameCallerCreator, *mockGameFetcher, *testlog.CapturingHandler, *clock.DeterministicClock) {
+func setupExtractorTest(t *testing.T, enrichers ...CommonEnricher) (*Extractor, *mockGameCallerCreator, *mockGameFetcher, *testlog.CapturingHandler, *clock.DeterministicClock) {
 	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
 	games := &mockGameFetcher{}
-	caller := &mockGameCaller{rootClaim: mockRootClaim}
+	caller := &mockGameCaller{metadata: contracts.GameMetadata{
+		L1Head:    common.Hash{0xaa},
+		RootClaim: mockRootClaim,
+	}}
 	creator := &mockGameCallerCreator{caller: caller}
 	cl := clock.NewDeterministicClock(time.Unix(48294294, 58))
 	extractor := NewExtractor(
@@ -239,7 +310,8 @@ func setupExtractorTest(t *testing.T, enrichers ...Enricher) (*Extractor, *mockG
 		games.FetchGames,
 		ignoredGames,
 		5,
-		enrichers...,
+		enrichers,
+		nil,
 	)
 	return extractor, creator, games, capturedLogs, cl
 }
@@ -277,7 +349,7 @@ type mockGameCaller struct {
 	metadataErr          error
 	claimsCalls          int
 	claimsErr            error
-	rootClaim            common.Hash
+	metadata             contracts.GameMetadata
 	claims               []faultTypes.Claim
 	requestedCredits     []common.Address
 	creditsErr           error
@@ -296,6 +368,9 @@ type mockGameCaller struct {
 	resolved             map[int]bool
 	anchorStateRegistry  common.Address
 	anchorStateRegErr    error
+	metadataBlocks       []rpcblock.Block
+	claimBlocks          []rpcblock.Block
+	trace                *[]string
 }
 
 func (m *mockGameCaller) GetWithdrawals(_ context.Context, _ rpcblock.Block, _ ...common.Address) ([]*contracts.WithdrawalRequest, error) {
@@ -318,15 +393,16 @@ func (m *mockGameCaller) GetWithdrawals(_ context.Context, _ rpcblock.Block, _ .
 	}, nil
 }
 
-func (m *mockGameCaller) GetExtendedMetadata(_ context.Context, _ rpcblock.Block) (contracts.GameMetadata, error) {
+func (m *mockGameCaller) GetExtendedMetadata(_ context.Context, block rpcblock.Block) (contracts.GameMetadata, error) {
 	m.metadataCalls++
+	m.metadataBlocks = append(m.metadataBlocks, block)
+	if m.trace != nil {
+		*m.trace = append(*m.trace, "metadata")
+	}
 	if m.metadataErr != nil {
 		return contracts.GameMetadata{}, m.metadataErr
 	}
-	return contracts.GameMetadata{
-		L1Head:    common.Hash{0xaa},
-		RootClaim: mockRootClaim,
-	}, nil
+	return m.metadata, nil
 }
 
 func (m *mockGameCaller) GetAnchorStateRegistry(_ context.Context, _ rpcblock.Block) (common.Address, error) {
@@ -336,8 +412,12 @@ func (m *mockGameCaller) GetAnchorStateRegistry(_ context.Context, _ rpcblock.Bl
 	return m.anchorStateRegistry, nil
 }
 
-func (m *mockGameCaller) GetAllClaims(_ context.Context, _ rpcblock.Block) ([]faultTypes.Claim, error) {
+func (m *mockGameCaller) GetAllClaims(_ context.Context, block rpcblock.Block) ([]faultTypes.Claim, error) {
 	m.claimsCalls++
+	m.claimBlocks = append(m.claimBlocks, block)
+	if m.trace != nil {
+		*m.trace = append(*m.trace, "claims")
+	}
 	if m.claimsErr != nil {
 		return nil, m.claimsErr
 	}
@@ -392,7 +472,7 @@ func TestExtractor_EnrichGameInitializesRollupEndpointErrorCount(t *testing.T) {
 	require.Zero(t, ignored)
 	require.Zero(t, failed)
 	require.Len(t, enriched, 1)
-	require.Equal(t, 0, enriched[0].NodeEndpointErrorCount, "NodeEndpointErrorCount should be initialized to 0")
+	require.Equal(t, 0, enriched[0].Common().NodeEndpointErrorCount, "NodeEndpointErrorCount should be initialized to 0")
 }
 
 func TestExtractor_EnrichGameInitializesRollupEndpointOutOfSyncCount(t *testing.T) {
@@ -403,17 +483,36 @@ func TestExtractor_EnrichGameInitializesRollupEndpointOutOfSyncCount(t *testing.
 	require.Zero(t, ignored)
 	require.Zero(t, failed)
 	require.Len(t, enriched, 1)
-	require.Equal(t, 0, enriched[0].NodeEndpointOutOfSyncCount, "NodeEndpointOutOfSyncCount should be initialized to 0")
+	require.Equal(t, 0, enriched[0].Common().NodeEndpointOutOfSyncCount, "NodeEndpointOutOfSyncCount should be initialized to 0")
 }
 
 type mockEnricher struct {
 	err    error
 	calls  int
-	action func(game *monTypes.EnrichedGameData) error
+	action func(game *monTypes.CommonGameData) error
+	name   string
+	trace  *[]string
+	blocks []rpcblock.Block
 }
 
-func (m *mockEnricher) Enrich(_ context.Context, _ rpcblock.Block, _ GameCaller, game *monTypes.EnrichedGameData) error {
+type mockFaultEnricher struct {
+	name   string
+	trace  *[]string
+	blocks []rpcblock.Block
+}
+
+func (m *mockFaultEnricher) Enrich(_ context.Context, block rpcblock.Block, _ FaultGameCaller, _ *monTypes.FaultGameData) error {
+	m.blocks = append(m.blocks, block)
+	*m.trace = append(*m.trace, m.name)
+	return nil
+}
+
+func (m *mockEnricher) Enrich(_ context.Context, block rpcblock.Block, _ GameCaller, game *monTypes.CommonGameData) error {
 	m.calls++
+	m.blocks = append(m.blocks, block)
+	if m.trace != nil {
+		*m.trace = append(*m.trace, m.name)
+	}
 	if m.action != nil {
 		return m.action(game)
 	}

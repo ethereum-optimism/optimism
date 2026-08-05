@@ -3,7 +3,6 @@ package bonds
 import (
 	"math/big"
 
-	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -19,12 +18,9 @@ type Collateral struct {
 // CalculateRequiredCollateral determines the minimum balance required for each DelayedWETH contract used by a set
 // of dispute games.
 // Returns a map of DelayedWETH contract address to collateral data (required and actual amounts)
-func CalculateRequiredCollateral(games []*monTypes.EnrichedGameData) map[common.Address]Collateral {
+func CalculateRequiredCollateral(games []*monTypes.FaultGameData) map[common.Address]Collateral {
 	result := make(map[common.Address]Collateral)
 	for _, game := range games {
-		if gameTypes.GameType(game.GameType) == gameTypes.SuperPermissionedGameType {
-			continue
-		}
 		collateral, ok := result[game.WETHContract]
 		if !ok {
 			collateral = Collateral{
@@ -39,7 +35,7 @@ func CalculateRequiredCollateral(games []*monTypes.EnrichedGameData) map[common.
 	return result
 }
 
-func requiredCollateralForGame(game *monTypes.EnrichedGameData) *big.Int {
+func requiredCollateralForGame(game *monTypes.FaultGameData) *big.Int {
 	required := big.NewInt(0)
 	for _, claim := range game.Claims {
 		if !claim.Resolved {

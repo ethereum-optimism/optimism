@@ -29,7 +29,7 @@ func NewResolutionMonitor(logger log.Logger, metrics ResolutionMetrics, clock RC
 	}
 }
 
-func (r *ResolutionMonitor) CheckResolutions(games []*types.EnrichedGameData) {
+func (r *ResolutionMonitor) CheckResolutions(games []*types.FaultGameData) {
 	statusMetrics := make(map[metrics.ResolutionStatus]int)
 	for _, game := range games {
 		complete := game.Status != gameTypes.GameStatusInProgress
