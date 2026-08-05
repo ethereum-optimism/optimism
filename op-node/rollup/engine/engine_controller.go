@@ -292,6 +292,16 @@ func (e *EngineController) resolveAnchorAsSafe(ts uint64) eth.L2BlockRef {
 	return br
 }
 
+// CrossSafeLagExceeded reports whether the local-safe head has advanced more
+// than maxLag blocks beyond the cross-safe head. A late block invalidation
+// from the verifier rewinds everything derived past the point of
+// invalidation, so bounding this lag bounds the rewind depth. A maxLag of 0,
+// or the absence of a SuperAuthority, disables the check.
+func (e *EngineController) CrossSafeLagExceeded(maxLag uint64) bool {
+	return maxLag != 0 && e.superAuthority != nil &&
+		e.localSafeHead.Number > e.SafeL2Head().Number+maxLag
+}
+
 // crossSafeFallback is the cross-safe fallback path. It first tries the
 // canonicality-validated cross-safe cache (so a transient verifier outage
 // doesn't drop cross-safe to FinalizedHead), and otherwise floors at

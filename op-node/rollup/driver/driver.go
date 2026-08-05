@@ -96,9 +96,10 @@ func NewDriver(
 		L1:             l1,
 		L1Tracker:      l1Tracker,
 		L2:             l2,
-		Log:            log,
-		Ctx:            driverCtx,
-		StepDeriver:    schedDeriv,
+		Log:             log,
+		Ctx:             driverCtx,
+		StepDeriver:     schedDeriv,
+		MaxCrossSafeLag: driverCfg.MaxCrossSafeLag,
 	}
 	ec.SyncDeriver = syncDeriver
 	sys.Register("sync", syncDeriver)

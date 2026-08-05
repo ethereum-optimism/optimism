@@ -27,6 +27,11 @@ type Config struct {
 	// Disabled if 0.
 	SequencerMaxSafeLag uint64 `json:"sequencer_max_safe_lag"`
 
+	// MaxCrossSafeLag is the maximum number of L2 blocks that the local-safe head may advance
+	// beyond the cross-safe (verifier) head before derivation pauses. Bounds the depth of
+	// engine rewinds caused by late block invalidations. Disabled if 0.
+	MaxCrossSafeLag uint64 `json:"max_cross_safe_lag"`
+
 	// RecoverMode forces the sequencer to select the next L1 Origin exactly, and create an empty block,
 	// to be compatible with verifiers forcefully generating the same block while catching up the sequencing window timeout.
 	RecoverMode bool `json:"recover_mode"`

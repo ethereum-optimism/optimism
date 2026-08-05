@@ -199,6 +199,7 @@ func NewDriverConfig(ctx cliiface.Context) *driver.Config {
 		SequencerEnabled:         ctx.Bool(flags.SequencerEnabledFlag.Name),
 		SequencerStopped:         ctx.Bool(flags.SequencerStoppedFlag.Name),
 		SequencerMaxSafeLag:      ctx.Uint64(flags.SequencerMaxSafeLagFlag.Name),
+		MaxCrossSafeLag:          ctx.Uint64(flags.VerifierMaxCrossSafeLagFlag.Name),
 		RecoverMode:              ctx.Bool(flags.SequencerRecoverMode.Name),
 		SequencerSealingDuration: ctx.Duration(flags.SequencerSealingDurationFlag.Name),
 	}

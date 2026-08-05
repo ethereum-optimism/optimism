@@ -275,6 +275,13 @@ var (
 		Value:    0,
 		Category: SequencerCategory,
 	}
+	VerifierMaxCrossSafeLagFlag = &cli.Uint64Flag{
+		Name:     "verifier.max-cross-safe-lag",
+		Usage:    "Maximum number of L2 blocks that the local-safe head may advance beyond the cross-safe (interop-verified) head before derivation pauses. Bounds the depth of engine rewinds caused by late block invalidations. Disabled if 0.",
+		EnvVars:  prefixEnvVars("VERIFIER_MAX_CROSS_SAFE_LAG"),
+		Value:    0,
+		Category: RollupCategory,
+	}
 	SequencerL1Confs = &cli.Uint64Flag{
 		Name:     "sequencer.l1-confs",
 		Usage:    "Number of L1 blocks to keep distance from the L1 head as a sequencer for picking an L1 origin.",
@@ -469,6 +476,7 @@ var optionalFlags = []cli.Flag{
 	SequencerEnabledFlag,
 	SequencerStoppedFlag,
 	SequencerMaxSafeLagFlag,
+	VerifierMaxCrossSafeLagFlag,
 	SequencerL1Confs,
 	SequencerRecoverMode,
 	SequencerSealingDurationFlag,

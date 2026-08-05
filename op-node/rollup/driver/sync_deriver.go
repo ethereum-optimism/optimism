@@ -44,6 +44,11 @@ type SyncDeriver struct {
 	Ctx context.Context
 
 	StepDeriver StepDeriver
+
+	// MaxCrossSafeLag, if non-zero, pauses local-safe derivation whenever the
+	// local-safe head is more than this many blocks ahead of the cross-safe
+	// (verifier) head, bounding the depth of block-invalidation rewinds.
+	MaxCrossSafeLag uint64
 }
 
 func (s *SyncDeriver) AttachEmitter(em event.Emitter) {
@@ -274,6 +279,18 @@ func (s *SyncDeriver) SyncStep() {
 			// May need a single reset to trigger sequencer block building
 			s.Engine.TryInitialResetEngineForSequencer(s.Ctx)
 		}
+		return
+	}
+
+	if s.Engine.CrossSafeLagExceeded(s.MaxCrossSafeLag) {
+		// Derivation may not run further ahead of cross-safe verification than
+		// the configured window: a late invalidation rewinds everything built
+		// beyond the verified frontier, so holding here caps rewind depth.
+		// The verifier consumes already-derived blocks only, so it catches up
+		// while we wait, and OnL1Unsafe re-requests a step every L1 block.
+		s.Log.Debug("Rollup driver is backing off: local-safe too far ahead of cross-safe verification",
+			"max_cross_safe_lag", s.MaxCrossSafeLag)
+		s.StepDeriver.ResetStepBackoff(s.Ctx)
 		return
 	}
 
