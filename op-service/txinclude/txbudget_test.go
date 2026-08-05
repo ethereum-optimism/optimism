@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	opfees "github.com/ethereum-optimism/optimism/op-core/fees"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/accounting"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
@@ -103,10 +104,12 @@ func TestTxBudgetIncluded(t *testing.T) {
 		BlobFeeCap: uint256.NewInt(1),
 		BlobHashes: []common.Hash{{}},
 	})
-	receipt := &types.Receipt{
-		EffectiveGasPrice:   eth.WeiU64(effectiveGasPrice).ToBig(),
-		GasUsed:             gasUsed,
-		Type:                types.DynamicFeeTxType,
+	receipt := &optypes.Receipt{
+		Receipt: types.Receipt{
+			EffectiveGasPrice: eth.WeiU64(effectiveGasPrice).ToBig(),
+			GasUsed:           gasUsed,
+			Type:              types.DynamicFeeTxType,
+		},
 		L1GasPrice:          l1GasPrice,
 		L1BaseFeeScalar:     ptr(uint64(1)),
 		L1BlobBaseFee:       l1BlobBaseFee,

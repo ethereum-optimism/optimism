@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -57,7 +58,7 @@ type alchemyBackend struct {
 
 func (b *alchemyBackend) GetTransactionReceipts(p blockHashParameter) (*receiptsWrapper, error) {
 	out := b.Mock.MethodCalled("alchemy_getTransactionReceipts", p.BlockHash.String())
-	return &receiptsWrapper{Receipts: out[0].([]*types.Receipt)}, *out[1].(*error)
+	return &receiptsWrapper{Receipts: optypes.FromGethReceipts(out[0].([]*types.Receipt))}, *out[1].(*error)
 }
 
 type debugBackend struct {
@@ -174,7 +175,7 @@ func (tc *ReceiptsTestCase) Run(t *testing.T) {
 			require.NoError(t, req.err, "error")
 			require.Equal(t, block.Hash, info.Hash(), fmt.Sprintf("req %d blockhash", i))
 			for j, rec := range req.result {
-				requireEqualReceipt(t, rec, result[j], "req %d result %d", i, j)
+				requireEqualReceipt(t, rec, &result[j].Receipt, "req %d result %d", i, j)
 			}
 		} else {
 			require.Error(t, req.err, "error")
@@ -183,6 +184,20 @@ func (tc *ReceiptsTestCase) Run(t *testing.T) {
 	}
 
 	m.AssertExpectations(t)
+}
+
+// mustRawTransactions encodes go-ethereum transactions into their canonical
+// binary form for RPCBlock fixtures.
+func mustRawTransactions(txs types.Transactions) RawTransactions {
+	out := make(RawTransactions, len(txs))
+	for i, tx := range txs {
+		raw, err := tx.MarshalBinary()
+		if err != nil {
+			panic(err)
+		}
+		out[i] = raw
+	}
+	return out
 }
 
 func randomRpcBlockAndReceipts(rng *rand.Rand, txCount uint64) (*RPCBlock, []*types.Receipt) {
@@ -207,7 +222,7 @@ func randomRpcBlockAndReceipts(rng *rand.Rand, txCount uint64) (*RPCBlock, []*ty
 			BaseFee:     (*hexutil.Big)(block.BaseFee()),
 			Hash:        block.Hash(),
 		},
-		Transactions: block.Transactions(),
+		Transactions: mustRawTransactions(block.Transactions()),
 	}, receipts
 }
 
@@ -340,7 +355,7 @@ func TestEthClient_FetchReceipts(t *testing.T) {
 }
 
 func TestVerifyReceipts(t *testing.T) {
-	validData := func() (eth.BlockID, common.Hash, []common.Hash, []*types.Receipt) {
+	validData := func() (eth.BlockID, common.Hash, []common.Hash, optypes.Receipts) {
 		block := eth.BlockID{
 			Hash:   common.HexToHash("0x40fb7cc5fbc1ec594230a60648a442412116d50ae43d517ea458d8ea4e60bd1b"),
 			Number: 9998910,
@@ -351,7 +366,7 @@ func TestVerifyReceipts(t *testing.T) {
 			common.HexToHash("0x2de33b18143039dcdf88cb62c3f3dd8f3f5d9f29807edfd3b0507246c55f9cb8"),
 			common.HexToHash("0xb6a381d3c31df47da82ac807c3000ae4adf55e981715f56d13a27b220de20198"),
 		}
-		receipts := []*types.Receipt{
+		gethReceipts := []*types.Receipt{
 			{
 				Type:              2,
 				Status:            0,
@@ -437,7 +452,8 @@ func TestVerifyReceipts(t *testing.T) {
 				TransactionIndex:  3,
 			},
 		}
-		receiptsHash := types.DeriveSha(types.Receipts(receipts), trie.NewStackTrie(nil))
+		receipts := optypes.FromGethReceipts(gethReceipts)
+		receiptsHash := types.DeriveSha(receipts, trie.NewStackTrie(nil))
 		return block, receiptsHash, txHashes, receipts
 	}
 

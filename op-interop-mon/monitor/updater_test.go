@@ -8,6 +8,7 @@ import (
 	"time"
 
 	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
 	"github.com/ethereum/go-ethereum/common"
@@ -279,11 +280,11 @@ func TestUpdaterJobStatusUpdate(t *testing.T) {
 			}
 
 			// Configure mock client to return the test receipts
-			client.fetchReceiptsByNumber = func(ctx context.Context, number uint64) (eth.BlockInfo, ethtypes.Receipts, error) {
+			client.fetchReceiptsByNumber = func(ctx context.Context, number uint64) (eth.BlockInfo, optypes.Receipts, error) {
 				if tt.receipts == nil {
 					return nil, nil, errors.New("mock error")
 				}
-				return eth.HeaderBlockInfo(&ethtypes.Header{}), tt.receipts, nil
+				return eth.HeaderBlockInfo(&ethtypes.Header{}), optypes.FromGethReceipts(tt.receipts), nil
 			}
 
 			// Update job status
@@ -370,9 +371,9 @@ func TestUpdaterValidityInvariants(t *testing.T) {
 			expiry := locks.RWMapFromMap(map[eth.ChainID]eth.NumberAndHash{})
 			updater := NewUpdater(eth.ChainIDFromUInt64(1), client, expiry, tt.expiryWindow, logger)
 
-			client.fetchReceiptsByNumber = func(ctx context.Context, number uint64) (eth.BlockInfo, ethtypes.Receipts, error) {
+			client.fetchReceiptsByNumber = func(ctx context.Context, number uint64) (eth.BlockInfo, optypes.Receipts, error) {
 				blk := eth.HeaderBlockInfo(&ethtypes.Header{Number: big.NewInt(100), Time: tt.blockTime})
-				return blk, ethtypes.Receipts{{Logs: []*ethtypes.Log{validLog}}}, nil
+				return blk, optypes.FromGethReceipts(ethtypes.Receipts{{Logs: []*ethtypes.Log{validLog}}}), nil
 			}
 
 			job := &Job{

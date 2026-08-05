@@ -123,7 +123,7 @@ func NewBasePlan(cl *ethclient.Client, key *ecdsa.PrivateKey) txplan.Option {
 		txplan.WithAgainstLatestBlockEthClient(cl),
 		txplan.WithEstimator(cl, true),
 		txplan.WithRetrySubmission(cl, 5, retry.Exponential()),
-		txplan.WithRetryInclusion(cl, 5, retry.Exponential()),
+		txplan.WithRetryInclusion(txplan.FromGethReceipts(cl), 5, retry.Exponential()),
 	)
 }
 
@@ -419,7 +419,7 @@ func CheckEIP7825DepositBypass(
 
 	l2DepositHash := l2DepositTx.Hash()
 	logger.Info("EIP-7825-deposit: waiting for L2 deposit receipt", "tx", l2DepositHash)
-	var l2Receipt *types.Receipt
+	var l2Receipt *optypes.Receipt
 	for {
 		var err error
 		l2Receipt, err = l2.TransactionReceipt(ctx, l2DepositHash)

@@ -155,7 +155,11 @@ func (p *PostExecTx) MarshalJSON() ([]byte, error) {
 }
 
 // UnmarshalJSON decodes a post-exec transaction from op-geth's RPC transaction
-// format, applying the same field validation as op-geth.
+// format, applying the same field validation as op-geth, plus one stricter
+// check: the input must not be empty. Empty input would encode to the one-byte
+// value 0x7D, which the binary decoders (UnmarshalPostExecTx, op-geth,
+// op-alloy) all reject — accepting it here would produce a transaction with no
+// canonical encoding.
 func (p *PostExecTx) UnmarshalJSON(input []byte) error {
 	var dec txJSON
 	if err := json.Unmarshal(input, &dec); err != nil {
@@ -185,6 +189,9 @@ func (p *PostExecTx) UnmarshalJSON(input []byte) error {
 	}
 	if dec.Input == nil {
 		return errors.New("missing required field 'input' in transaction")
+	}
+	if len(*dec.Input) == 0 {
+		return errors.New("post-exec transaction input must not be empty")
 	}
 	p.Data = *dec.Input
 	return nil
