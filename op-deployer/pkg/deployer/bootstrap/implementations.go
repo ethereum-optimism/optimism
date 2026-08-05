@@ -65,6 +65,7 @@ const (
 	// Source: succinctlabs/sp1-contracts@2ac5ecbbe473421a963d67e55f182e9a36576f7c,
 	// contracts/deployments/1.json, V6_1_0_SP1_VERIFIER_PLONK.
 	mainnetSP1VerifierV610 = "0xc3c6dDDAc8829b233Dc6536Ec024775a57b0AF2A"
+	// Succinct deploys the same verifier bytecode and address deterministically on both networks.
 	// Source: succinctlabs/sp1-contracts@2ac5ecbbe473421a963d67e55f182e9a36576f7c,
 	// contracts/deployments/11155111.json, V6_1_0_SP1_VERIFIER_PLONK.
 	sepoliaSP1VerifierV610 = "0xc3c6dDDAc8829b233Dc6536Ec024775a57b0AF2A"
@@ -249,8 +250,8 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 	if err := cfg.Check(); err != nil {
 		return dio, fmt.Errorf("invalid config for Implementations: %w", err)
 	}
-	if devfeatures.IsDevFeatureEnabled(cfg.DevFeatureBitmap, devfeatures.ZKDisputeGameFlag) &&
-		cfg.SP1Verifier == (common.Address{}) {
+	zkEnabled := devfeatures.IsDevFeatureEnabled(cfg.DevFeatureBitmap, devfeatures.ZKDisputeGameFlag)
+	if zkEnabled && cfg.SP1Verifier == (common.Address{}) {
 		chainID, err := deployer.ChainIDFromRPC(ctx, cfg.L1RPCUrl)
 		if err != nil {
 			return dio, fmt.Errorf("failed to select default SP1 verifier: %w", err)
@@ -261,6 +262,9 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 	}
 
 	lgr := cfg.Logger
+	if zkEnabled {
+		lgr.Info("using SP1 verifier", "address", cfg.SP1Verifier)
+	}
 
 	artifactsFS, err := artifacts.Download(ctx, cfg.ArtifactsLocator, ioutil.BarProgressor(), cfg.CacheDir)
 	if err != nil {

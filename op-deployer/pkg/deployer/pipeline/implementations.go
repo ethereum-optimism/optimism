@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math/big"
-	"strings"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -66,6 +65,12 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 		return fmt.Errorf("error merging proof params from overrides: %w", err)
 	}
 	zkEnabled := devfeatures.IsDevFeatureEnabled(proofParams.DevFeatureBitmap, devfeatures.ZKDisputeGameFlag)
+	if !zkEnabled && hasSP1VerifierOverride {
+		return fmt.Errorf("sp1Verifier must not be specified when ZK dispute games are disabled")
+	}
+	if intent.OPCMAddress == nil && zkEnabled && !hasSP1VerifierOverride && !env.DeployMockSP1Verifier {
+		return fmt.Errorf("sp1Verifier must be specified when ZK dispute games are enabled")
+	}
 
 	if !shouldDeployImplementations(intent, st) {
 		if hasSP1VerifierOverride {
@@ -81,14 +86,10 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 					return err
 				}
 			}
-		} else if intent.OPCMAddress == nil && env.IsGenesis && zkEnabled {
-			if !env.DeployMockSP1Verifier {
-				return fmt.Errorf("sp1Verifier must be specified when ZK dispute games are enabled")
-			}
+		} else if intent.OPCMAddress == nil && zkEnabled {
 			if st.SP1Verifier == nil || *st.SP1Verifier == (common.Address{}) {
 				return fmt.Errorf("reused ZK implementations do not record an SP1 verifier")
 			}
-			recordSP1VerifierOverride(intent, *st.SP1Verifier)
 		}
 		lgr.Info("implementations deployment not needed")
 		return nil
@@ -115,14 +116,8 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 		Challenger:                      st.SuperchainRoles.Challenger,
 		SP1Verifier:                     proofParams.SP1Verifier,
 	}
-	if !zkEnabled && input.SP1Verifier != (common.Address{}) {
-		return fmt.Errorf("sp1Verifier must not be specified when ZK dispute games are disabled")
-	}
 	if zkEnabled && input.SP1Verifier == (common.Address{}) {
-		if !env.DeployMockSP1Verifier {
-			return fmt.Errorf("sp1Verifier must be specified when ZK dispute games are enabled")
-		}
-		input.SP1Verifier, err = deployAndRecordGenesisMockSP1Verifier(env, intent)
+		input.SP1Verifier, err = deployGenesisMockSP1Verifier(env)
 		if err != nil {
 			return err
 		}
@@ -181,18 +176,7 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 }
 
 func parseSP1VerifierOverride(overrides map[string]any) (common.Address, bool, error) {
-	var value any
-	found := false
-	for key, candidate := range overrides {
-		if !strings.EqualFold(key, "sp1Verifier") {
-			continue
-		}
-		if found {
-			return common.Address{}, false, fmt.Errorf("sp1Verifier is specified more than once")
-		}
-		value = candidate
-		found = true
-	}
+	value, found := overrides["sp1Verifier"]
 	if !found {
 		return common.Address{}, false, nil
 	}
@@ -272,22 +256,6 @@ func deployGenesisMockSP1Verifier(env *Env) (common.Address, error) {
 		return common.Address{}, fmt.Errorf("genesis MockSP1Verifier deployment produced no contract address")
 	}
 	return verifier, nil
-}
-
-func deployAndRecordGenesisMockSP1Verifier(env *Env, intent *state.Intent) (common.Address, error) {
-	verifier, err := deployGenesisMockSP1Verifier(env)
-	if err != nil {
-		return common.Address{}, err
-	}
-	recordSP1VerifierOverride(intent, verifier)
-	return verifier, nil
-}
-
-func recordSP1VerifierOverride(intent *state.Intent, verifier common.Address) {
-	if intent.GlobalDeployOverrides == nil {
-		intent.GlobalDeployOverrides = make(map[string]any)
-	}
-	intent.GlobalDeployOverrides["sp1Verifier"] = verifier
 }
 
 func shouldDeployImplementations(intent *state.Intent, st *state.State) bool {

@@ -463,6 +463,19 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         deployImplementations.run(input);
     }
 
+    /// @notice Tests that the raw SP1 verifier exposes the expected verifier interface.
+    function test_run_sp1VerifierWithoutVersion_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
+
+        address verifierWithoutVersion = makeAddr("verifierWithoutVersion");
+        vm.etch(verifierWithoutVersion, hex"00");
+        DeployImplementations.Input memory input = defaultInput();
+        input.sp1Verifier = ISP1Verifier(verifierWithoutVersion);
+
+        vm.expectRevert("DeployImplementations: sp1Verifier must expose VERSION()");
+        deployImplementations.run(input);
+    }
+
     /// @notice Test that the deployImplementations script reverts when the V2 game parameters are invalid.
     function test_invalidV2GameParams_withV2Enabled_reverts() public {
         DeployImplementations.Input memory input;

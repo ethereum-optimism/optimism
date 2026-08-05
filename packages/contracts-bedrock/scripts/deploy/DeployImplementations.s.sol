@@ -723,6 +723,9 @@ contract DeployImplementations is Script {
                 address(_input.sp1Verifier).code.length > 0,
                 "DeployImplementations: sp1Verifier must be a contract when ZK_DISPUTE_GAME is enabled"
             );
+            (bool success, bytes memory returnData) =
+                address(_input.sp1Verifier).staticcall(abi.encodeCall(ISP1Verifier.VERSION, ()));
+            require(success && returnData.length >= 64, "DeployImplementations: sp1Verifier must expose VERSION()");
         } else {
             require(
                 address(_input.sp1Verifier) == address(0),

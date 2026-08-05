@@ -39,7 +39,8 @@ The bitmap has **two operator-facing input surfaces**, both in op-deployer:
    - Schema field on `Intent`, `op-deployer/pkg/deployer/state/intent.go`
    - Lives in the operator's intent TOML/JSON
    - Read by the L2 genesis pipeline.
-   - A ZK-enabled deployment must also set `globalDeployOverrides.sp1Verifier`. The op-devstack builder explicitly opts into deploying a test raw verifier and records it in that override automatically.
+   - A live ZK-enabled deployment must also set `globalDeployOverrides.sp1Verifier`.
+   - The op-devstack builder instead explicitly opts into deploying a test raw verifier during genesis. The generated address is recorded in deployment state, not written back into intent.
 
 There is no other production operator-facing surface. `op-node`, `op-program`, `kona`, and rollup config do not take a bitmap at runtime.
 

@@ -7,7 +7,7 @@ test args='./...': build-contracts copy-contract-artifacts
 
 build-contracts:
   just ../packages/contracts-bedrock/build-no-tests
-  # Genesis-only ZK deployments install this raw verifier before OPCM deploys its adapter.
+  # In-process devstack genesis tests explicitly opt into this mock verifier.
   just ../packages/contracts-bedrock/forge-build test/dispute/zk/MockSP1Verifier.sol
 
 copy-contract-artifacts:

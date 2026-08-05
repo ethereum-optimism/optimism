@@ -26,15 +26,19 @@ func TestGenesisMockSP1VerifierArtifactAndDeployment(t *testing.T) {
 	require.NotEmpty(t, artifact.Bytecode.Object, "genesis MockSP1Verifier must have bytecode in op-deployer artifacts")
 
 	host := script.NewHost(testlog.Logger(t, slog.LevelDebug), af, nil, script.DefaultContext)
-	intent := new(state.Intent)
-	verifier, err := deployAndRecordGenesisMockSP1Verifier(&Env{
+	verifier, err := deployGenesisMockSP1Verifier(&Env{
 		L1ScriptHost: host,
 		Deployer:     common.Address{0xdd},
-	}, intent)
+	})
 	require.NoError(t, err)
 	require.NotEqual(t, common.Address{}, verifier)
 	require.NotEmpty(t, host.GetCode(verifier))
-	require.Equal(t, verifier, intent.GlobalDeployOverrides["sp1Verifier"])
+}
+
+func TestParseSP1VerifierOverrideRequiresExactKey(t *testing.T) {
+	_, found, err := parseSP1VerifierOverride(map[string]any{"SP1Verifier": common.Address{0x05}})
+	require.NoError(t, err)
+	require.False(t, found)
 }
 
 func TestDeployImplementationsSP1VerifierValidation(t *testing.T) {
@@ -137,8 +141,20 @@ func TestDeployImplementationsSP1VerifierValidation(t *testing.T) {
 		resumeEnv := *env
 		resumeEnv.L1ScriptHost = host
 
-		// Use alternate casing to ensure bootstrap-only overrides cannot bypass reuse validation.
-		sameIntent := &state.Intent{GlobalDeployOverrides: map[string]any{"SP1Verifier": rawVerifier}}
+		disabledIntent := &state.Intent{GlobalDeployOverrides: map[string]any{"sp1Verifier": rawVerifier}}
+		err = DeployImplementations(&resumeEnv, disabledIntent, st)
+		require.ErrorContains(t, err, "ZK dispute games are disabled")
+
+		unselectedLiveIntent := &state.Intent{GlobalDeployOverrides: map[string]any{
+			"devFeatureBitmap": devfeatures.ZKDisputeGameFlag,
+		}}
+		err = DeployImplementations(&resumeEnv, unselectedLiveIntent, st)
+		require.ErrorContains(t, err, "sp1Verifier must be specified")
+
+		sameIntent := &state.Intent{GlobalDeployOverrides: map[string]any{
+			"devFeatureBitmap": devfeatures.ZKDisputeGameFlag,
+			"sp1Verifier":      rawVerifier,
+		}}
 		require.NoError(t, DeployImplementations(&resumeEnv, sameIntent, st))
 
 		restartedGenesisEnv := *env
@@ -151,7 +167,8 @@ func TestDeployImplementationsSP1VerifierValidation(t *testing.T) {
 		explicitGenesisEnv := *env
 		explicitGenesisEnv.IsGenesis = true
 		explicitGenesisIntent := &state.Intent{GlobalDeployOverrides: map[string]any{
-			"sp1Verifier": rawVerifier,
+			"devFeatureBitmap": devfeatures.ZKDisputeGameFlag,
+			"sp1Verifier":      rawVerifier,
 		}}
 		require.NoError(t, DeployImplementations(&explicitGenesisEnv, explicitGenesisIntent, &resumedState))
 
@@ -167,9 +184,12 @@ func TestDeployImplementationsSP1VerifierValidation(t *testing.T) {
 			"devFeatureBitmap": devfeatures.ZKDisputeGameFlag,
 		}}
 		require.NoError(t, DeployImplementations(&restartedGenesisEnv, resumedGenesisIntent, &resumedState))
-		require.Equal(t, rawVerifier, resumedGenesisIntent.GlobalDeployOverrides["sp1Verifier"])
+		require.NotContains(t, resumedGenesisIntent.GlobalDeployOverrides, "sp1Verifier")
 
-		changedIntent := &state.Intent{GlobalDeployOverrides: map[string]any{"sp1Verifier": common.Address{0x08}}}
+		changedIntent := &state.Intent{GlobalDeployOverrides: map[string]any{
+			"devFeatureBitmap": devfeatures.ZKDisputeGameFlag,
+			"sp1Verifier":      common.Address{0x08},
+		}}
 		err = DeployImplementations(&resumeEnv, changedIntent, st)
 		require.ErrorContains(t, err, "does not match")
 	})
