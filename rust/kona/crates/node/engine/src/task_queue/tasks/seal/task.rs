@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use derive_more::Constructor;
 use kona_genesis::RollupConfig;
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
-use op_alloy_rpc_types_engine::{OpExecutionPayload, OpExecutionPayloadEnvelope};
+use op_alloy_rpc_types_engine::{OpExecutionData, OpExecutionPayload, OpExecutionPayloadEnvelope};
 use std::{sync::Arc, time::Instant};
 use tokio::sync::mpsc;
 
@@ -138,13 +138,13 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
     async fn insert_payload(
         &self,
         state: &mut EngineState,
-        new_payload: OpExecutionPayloadEnvelope,
+        execution_data: OpExecutionData,
     ) -> Result<(), SealTaskError> {
         // Insert the new block into the engine.
         match InsertTask::new(
             Arc::clone(&self.engine),
             self.cfg.clone(),
-            new_payload.clone(),
+            execution_data,
             self.is_attributes_derived,
         )
         .execute(state)
@@ -211,15 +211,13 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
             .seal_payload(&self.cfg, &self.engine, self.payload_id, self.attributes.clone())
             .await?;
 
-        let new_block_ref = L2BlockInfo::from_payload_and_genesis(
-            new_payload.execution_payload.clone(),
-            self.attributes.attributes().payload_attributes.parent_beacon_block_root,
-            &self.cfg.genesis,
-        )
-        .map_err(SealTaskError::FromBlock)?;
+        let execution_data = new_payload.clone().into_execution_data();
+        let new_block_ref =
+            L2BlockInfo::from_execution_data_and_genesis(execution_data.clone(), &self.cfg.genesis)
+                .map_err(SealTaskError::FromBlock)?;
 
         // Insert the payload into the engine.
-        self.insert_payload(state, new_payload.clone()).await?;
+        self.insert_payload(state, execution_data).await?;
 
         let block_import_duration = block_import_start_time.elapsed();
 

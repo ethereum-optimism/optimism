@@ -1,20 +1,17 @@
 //! Block Types for Optimism.
 
 use crate::{DecodeError, L1BlockInfoTx};
-use alloc::vec::Vec;
 use alloy_consensus::{Block, Header, Transaction, Typed2718};
 use alloy_eips::{
     BlockNumHash,
     eip2718::{Decodable2718, Eip2718Error},
-    eip7685::EMPTY_REQUESTS_HASH,
 };
 use alloy_primitives::{B256, Bytes, Sealed};
-use alloy_rpc_types_engine::{CancunPayloadFields, PraguePayloadFields};
 use alloy_rpc_types_eth::Block as RpcBlock;
 use derive_more::Display;
 use kona_genesis::ChainGenesis;
 use op_alloy_consensus::{OpBlock, OpTransaction, OpTxEnvelope};
-use op_alloy_rpc_types_engine::{OpExecutionPayload, OpExecutionPayloadSidecar, OpPayloadError};
+use op_alloy_rpc_types_engine::{OpExecutionData, OpPayloadError};
 
 /// Block Header Info
 #[derive(Debug, Clone, Display, Copy, Eq, Hash, PartialEq, Default)]
@@ -149,7 +146,7 @@ pub enum FromBlockError {
     /// Failed to decode the [`L1BlockInfoTx`] from the deposit transaction.
     #[error("Failed to decode the L1BlockInfoTx from the deposit transaction: {0}")]
     BlockInfoDecodeError(#[from] DecodeError),
-    /// Failed to convert [`OpExecutionPayload`] to [`OpBlock`].
+    /// Failed to convert [`OpExecutionData`] to [`OpBlock`].
     #[error(transparent)]
     OpPayload(#[from] OpPayloadError),
 }
@@ -257,32 +254,12 @@ impl L2BlockInfo {
         Self::from_block_info_and_first_tx(block_info, first_tx.as_ref(), genesis)
     }
 
-    /// Constructs an [`L2BlockInfo`] From a given [`OpExecutionPayload`] and [`ChainGenesis`].
-    pub fn from_payload_and_genesis(
-        payload: OpExecutionPayload,
-        parent_beacon_block_root: Option<B256>,
+    /// Constructs an [`L2BlockInfo`] from complete execution data and a [`ChainGenesis`].
+    pub fn from_execution_data_and_genesis(
+        execution_data: OpExecutionData,
         genesis: &ChainGenesis,
     ) -> Result<Self, FromBlockError> {
-        let block: OpBlock = match payload {
-            OpExecutionPayload::V4(_) => {
-                let sidecar = OpExecutionPayloadSidecar::v4(
-                    CancunPayloadFields::new(
-                        parent_beacon_block_root.unwrap_or_default(),
-                        Vec::new(),
-                    ),
-                    PraguePayloadFields::new(EMPTY_REQUESTS_HASH),
-                );
-                payload.try_into_block_with_sidecar(&sidecar)?
-            }
-            OpExecutionPayload::V3(_) => {
-                let sidecar = OpExecutionPayloadSidecar::v3(CancunPayloadFields::new(
-                    parent_beacon_block_root.unwrap_or_default(),
-                    Vec::new(),
-                ));
-                payload.try_into_block_with_sidecar(&sidecar)?
-            }
-            _ => payload.try_into_block()?,
-        };
+        let block: OpBlock = execution_data.try_into_block()?;
         Self::from_block_and_genesis(&block, genesis)
     }
 }

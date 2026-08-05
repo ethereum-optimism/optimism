@@ -3,14 +3,14 @@ use std::time::Instant;
 use std::time::SystemTime;
 
 use alloy_consensus::Block;
-use alloy_eips::eip7685::EMPTY_REQUESTS_HASH;
 use alloy_primitives::{Address, B256};
 use alloy_rpc_types_engine::{ExecutionPayloadV3, PayloadError};
 use kona_genesis::RollupConfig;
 use libp2p::gossipsub::MessageAcceptance;
 use op_alloy_consensus::OpTxEnvelope;
 use op_alloy_rpc_types_engine::{
-    OpExecutionPayload, OpExecutionPayloadV4, OpNetworkPayloadEnvelope, OpPayloadError,
+    OpExecutionPayload, OpExecutionPayloadEnvelope, OpExecutionPayloadV4, OpNetworkPayloadEnvelope,
+    OpPayloadError,
 };
 
 use super::BlockHandler;
@@ -53,8 +53,8 @@ pub enum BlockInvalidError {
     /// Invalid block.
     #[error(transparent)]
     InvalidBlock(#[from] OpPayloadError),
-    /// The block has an invalid parent beacon block root.
-    #[error("Payload is on v3+ topic, but has empty parent beacon root")]
+    /// The block has a parent beacon block root incompatible with its payload version.
+    #[error("Payload has an invalid parent beacon block root")]
     ParentBeaconRoot,
     /// The block has an invalid blob gas used.
     #[error("Payload is on v3+ topic, but has non-zero blob gas used")]
@@ -209,12 +209,9 @@ impl BlockHandler {
 
         // CHECK: Ensure the block hash is valid.
         let expected = envelope.payload.block_hash();
-        let mut block: Block<OpTxEnvelope> = envelope.payload.clone().try_into_block()?;
-        block.header.parent_beacon_block_root = envelope.parent_beacon_block_root;
-        // If isthmus is active, set the requests hash to the empty hash.
-        if self.rollup_config.is_isthmus_active(envelope.payload.timestamp()) {
-            block.header.requests_hash = Some(EMPTY_REQUESTS_HASH);
-        }
+        let execution_data =
+            OpExecutionPayloadEnvelope::from(envelope.clone()).into_execution_data();
+        let block: Block<OpTxEnvelope> = execution_data.try_into_block()?;
         let received = block.header.hash_slow();
         if received != expected {
             return Err(BlockInvalidError::BlockHash { expected, received });
@@ -281,12 +278,11 @@ impl BlockHandler {
         // 3. The block should not have any blob gas used
         // 4. The block should not have any excess blob gas
         // 5. The block should not have any withdrawals root
-        // 6. The block should not have any parent beacon block root (validated because ignored by
-        //    the decoder, this causes a hash mismatch. See tests)
+        // 6. The block should not have any parent beacon block root (checked below)
 
         // Same as v1, except:
         // 1. The block should have an empty withdrawals list. This is checked during the call to
-        //    [`OpExecutionPayload::try_into_block`].
+        //    [`op_alloy_rpc_types_engine::OpExecutionData::try_into_block`].
 
         // Same as v2, except:
         // 1. The block should have a zero blob gas used
@@ -324,7 +320,12 @@ impl BlockHandler {
         }
 
         match &envelope.payload {
-            OpExecutionPayload::V1(_) | OpExecutionPayload::V2(_) => Ok(()),
+            OpExecutionPayload::V1(_) | OpExecutionPayload::V2(_) => {
+                if envelope.parent_beacon_block_root.is_some() {
+                    return Err(BlockInvalidError::ParentBeaconRoot);
+                }
+                Ok(())
+            }
             OpExecutionPayload::V3(payload) => {
                 validate_v3(&self.rollup_config, payload, envelope.parent_beacon_block_root)
             }
@@ -341,7 +342,7 @@ pub(crate) mod tests {
     use super::*;
     use alloy_chains::Chain;
     use alloy_consensus::{Block, EMPTY_OMMER_ROOT_HASH};
-    use alloy_eips::{eip2718::Encodable2718, eip4895::Withdrawal};
+    use alloy_eips::{eip2718::Encodable2718, eip4895::Withdrawal, eip7685::EMPTY_REQUESTS_HASH};
     use alloy_primitives::{Address, B256, Bytes, Signature};
     use alloy_rlp::BufMut;
     use alloy_rpc_types_engine::{ExecutionPayloadV1, ExecutionPayloadV2, ExecutionPayloadV3};
@@ -438,7 +439,9 @@ pub(crate) mod tests {
 
     /// Make the block v4 compatible
     pub(crate) fn v4_valid_block() -> Block<OpTxEnvelope> {
-        v3_valid_block()
+        let mut block = v3_valid_block();
+        block.header.requests_hash = Some(EMPTY_REQUESTS_HASH);
+        block
     }
 
     /// Generates a random valid block and ensure it is v1 compatible
@@ -687,9 +690,7 @@ pub(crate) mod tests {
         assert!(matches!(handler.block_valid(&envelope), Err(BlockInvalidError::Signer { .. })));
     }
 
-    /// If we specify a non empty parent beacon block root for blocks with v1/v2 payloads we
-    /// get a hash mismatch error because the decoder enforces that these versions of the execution
-    /// payload don't contain the parent beacon block root.
+    /// V1/V2 payloads reject a parent beacon block root because those versions do not include it.
     #[test]
     fn test_v1_v2_block_invalid_parent_beacon_block_root() {
         let block = v1_valid_block();
@@ -712,7 +713,7 @@ pub(crate) mod tests {
             unsafe_signer,
         );
 
-        assert!(matches!(handler.block_valid(&envelope), Err(BlockInvalidError::BlockHash { .. })));
+        assert!(matches!(handler.block_valid(&envelope), Err(BlockInvalidError::ParentBeaconRoot)));
 
         let block = v2_valid_block();
 
@@ -734,7 +735,7 @@ pub(crate) mod tests {
             unsafe_signer,
         );
 
-        assert!(matches!(handler.block_valid(&envelope), Err(BlockInvalidError::BlockHash { .. })));
+        assert!(matches!(handler.block_valid(&envelope), Err(BlockInvalidError::ParentBeaconRoot)));
     }
 
     #[test]
