@@ -134,14 +134,14 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
     /// 2. Handling deposits-only payload failures
     /// 3. Holocene fallback via `build_and_seal` if needed
     ///
-    /// Returns Ok(()) if the payload is successfully inserted, or an error if insertion fails.
+    /// Returns the inserted block information, or an error if insertion fails.
     async fn insert_payload(
         &self,
         state: &mut EngineState,
         execution_data: OpExecutionData,
-    ) -> Result<(), SealTaskError> {
+    ) -> Result<L2BlockInfo, SealTaskError> {
         // Insert the new block into the engine.
-        match InsertTask::new(
+        let new_block_ref = match InsertTask::new(
             Arc::clone(&self.engine),
             self.cfg.clone(),
             execution_data,
@@ -187,12 +187,13 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
                 error!(target: "engine", "Payload import failed: {e}");
                 return Err(Box::new(e).into());
             }
-            Ok(_) => {
-                info!(target: "engine", "Successfully imported payload")
+            Ok(new_block_ref) => {
+                info!(target: "engine", "Successfully imported payload");
+                new_block_ref
             }
-        }
+        };
 
-        Ok(())
+        Ok(new_block_ref)
     }
 
     /// Seals and canonicalizes the block by fetching the payload and importing it.
@@ -212,12 +213,9 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
             .await?;
 
         let execution_data = new_payload.clone().into_execution_data();
-        let new_block_ref =
-            L2BlockInfo::from_execution_data_and_genesis(execution_data.clone(), &self.cfg.genesis)
-                .map_err(SealTaskError::FromBlock)?;
 
-        // Insert the payload into the engine.
-        self.insert_payload(state, execution_data).await?;
+        // Insert the payload into the engine and reuse its decoded block information.
+        let new_block_ref = self.insert_payload(state, execution_data).await?;
 
         let block_import_duration = block_import_start_time.elapsed();
 

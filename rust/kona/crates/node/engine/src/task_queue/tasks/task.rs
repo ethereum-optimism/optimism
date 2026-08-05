@@ -110,7 +110,9 @@ impl<EngineClient_: EngineClient> EngineTask<EngineClient_> {
     /// Executes the task without consuming it.
     async fn execute_inner(&self, state: &mut EngineState) -> Result<(), EngineTaskErrors> {
         match self {
-            Self::Insert(task) => task.execute(state).await?,
+            Self::Insert(task) => {
+                task.execute(state).await?;
+            }
             Self::Seal(task) => task.execute(state).await?,
             Self::Consolidate(task) => task.execute(state).await?,
             Self::Finalize(task) => task.execute(state).await?,

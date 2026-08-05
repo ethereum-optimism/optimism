@@ -45,11 +45,11 @@ impl<EngineClient_: EngineClient> InsertTask<EngineClient_> {
 
 #[async_trait]
 impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
-    type Output = ();
+    type Output = L2BlockInfo;
 
     type Error = InsertTaskError;
 
-    async fn execute(&self, state: &mut EngineState) -> Result<(), InsertTaskError> {
+    async fn execute(&self, state: &mut EngineState) -> Result<L2BlockInfo, InsertTaskError> {
         let time_start = Instant::now();
 
         // Insert the new payload.
@@ -120,6 +120,6 @@ impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
             "Inserted new unsafe block"
         );
 
-        Ok(())
+        Ok(new_unsafe_ref)
     }
 }
