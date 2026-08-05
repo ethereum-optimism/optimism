@@ -239,19 +239,8 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		s.factoryContract.GetGamesAtOrAfter,
 		cfg.IgnoredGames,
 		cfg.MaxConcurrency,
-		[]extract.CommonEnricher{
-			extract.NewL1HeadBlockNumEnricher(s.l1Client),
-			extract.NewOutputAgreementEnricher(s.logger, s.metrics, s.outputRollupClients(), clock.SystemClock),
-			extract.NewSuperAgreementEnricher(s.logger, s.metrics, s.asSuperRootProviders(), clock.SystemClock),
-			extract.NewAnchorStateRegistryEnricher(s.logger),
-		},
-		[]extract.FaultEnricher{
-			extract.NewClaimEnricher(),
-			extract.NewRecipientEnricher(), // Must be called before WithdrawalsEnricher and BondEnricher
-			extract.NewWithdrawalsEnricher(),
-			extract.NewBondEnricher(),
-			extract.NewBalanceEnricher(),
-		},
+		s.commonEnrichers(),
+		s.faultEnrichers(),
 	)
 	forecast := NewForecast(s.logger, s.metrics)
 	bonds := bonds.NewBonds(s.logger, s.metrics, s.cl)
@@ -291,6 +280,25 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 			withdrawals.CheckWithdrawals,
 			l2ChallengesMonitor.CheckL2Challenges,
 		})
+}
+
+func (s *Service) commonEnrichers() []extract.CommonEnricher {
+	return []extract.CommonEnricher{
+		extract.NewL1HeadBlockNumEnricher(s.l1Client),
+		extract.NewOutputAgreementEnricher(s.logger, s.metrics, s.outputRollupClients(), clock.SystemClock),
+		extract.NewSuperAgreementEnricher(s.logger, s.metrics, s.asSuperRootProviders(), clock.SystemClock),
+		extract.NewAnchorStateRegistryEnricher(s.logger),
+	}
+}
+
+func (s *Service) faultEnrichers() []extract.FaultEnricher {
+	return []extract.FaultEnricher{
+		extract.NewClaimEnricher(),
+		extract.NewRecipientEnricher(), // Must be called before WithdrawalsEnricher and BondEnricher
+		extract.NewWithdrawalsEnricher(),
+		extract.NewBondEnricher(),
+		extract.NewBalanceEnricher(),
+	}
 }
 
 func (s *Service) Start(ctx context.Context) error {

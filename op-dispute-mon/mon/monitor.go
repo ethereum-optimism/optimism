@@ -116,9 +116,14 @@ func partitionGames(games []types.EnrichedGame) ([]*types.CommonGameData, []*typ
 	commonGames := make([]*types.CommonGameData, 0, len(games))
 	faultGames := make([]*types.FaultGameData, 0, len(games))
 	for _, game := range games {
-		commonGames = append(commonGames, game.Common())
-		if faultGame, ok := game.(*types.FaultGameData); ok {
-			faultGames = append(faultGames, faultGame)
+		switch game := game.(type) {
+		case *types.FaultGameData:
+			commonGames = append(commonGames, game.Common())
+			faultGames = append(faultGames, game)
+		case *types.SuperPermissionedGameData:
+			commonGames = append(commonGames, game.Common())
+		default:
+			panic(fmt.Sprintf("unsupported enriched game type %T", game))
 		}
 	}
 	return commonGames, faultGames
@@ -142,6 +147,7 @@ func (m *gameMonitor) loop() {
 }
 
 func (m *gameMonitor) StartMonitoring() {
+	// Keep the original context and cancel function if this is called multiple times.
 	if m.cancel == nil {
 		ctx, cancel := context.WithCancel(m.ctx)
 		m.ctx = ctx

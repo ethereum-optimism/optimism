@@ -216,10 +216,38 @@ func TestExtractorPinsFaultReadsAndPreservesEnricherOrder(t *testing.T) {
 	trace := make([]string, 0, 4)
 	faultEnricher := &mockFaultEnricher{name: "fault", trace: &trace}
 	commonEnricher := &mockEnricher{name: "common", trace: &trace}
-	extractor, creator, games, _, _ := setupExtractorTest(t, commonEnricher)
+	extractor, creator, games, _, cl := setupExtractorTest(t, commonEnricher)
 	extractor.faultEnrichers = []FaultEnricher{faultEnricher}
 	creator.caller.trace = &trace
-	games.games = []gameTypes.GameMetadata{{GameType: uint32(gameTypes.CannonGameType)}}
+	game := gameTypes.GameMetadata{
+		Index:     7,
+		GameType:  uint32(gameTypes.CannonGameType),
+		Timestamp: 11,
+		Proxy:     common.Address{0x12},
+	}
+	metadata := contracts.GameMetadata{
+		L1Head:                  common.Hash{0x23},
+		L2SequenceNum:           34,
+		RootClaim:               common.Hash{0x45},
+		Status:                  gameTypes.GameStatusChallengerWon,
+		MaxClockDuration:        56,
+		L2BlockNumberChallenged: true,
+		L2BlockNumberChallenger: common.Address{0x67},
+	}
+	claim := faultTypes.Claim{
+		ClaimData: faultTypes.ClaimData{
+			Value: common.Hash{0x78},
+			Bond:  big.NewInt(89),
+		},
+		CounteredBy:         common.Address{0x9a},
+		Claimant:            common.Address{0xab},
+		Clock:               faultTypes.NewClock(2*time.Minute, time.Unix(123, 0)),
+		ContractIndex:       2,
+		ParentContractIndex: 1,
+	}
+	creator.caller.metadata = metadata
+	creator.caller.claims = []faultTypes.Claim{claim}
+	games.games = []gameTypes.GameMetadata{game}
 	blockHash := common.Hash{0xab}
 
 	enriched, ignored, failed, err := extractor.Extract(t.Context(), blockHash, 0)
@@ -227,6 +255,21 @@ func TestExtractorPinsFaultReadsAndPreservesEnricherOrder(t *testing.T) {
 	require.Zero(t, ignored)
 	require.Zero(t, failed)
 	require.Len(t, enriched, 1)
+	require.Equal(t, &monTypes.FaultGameData{
+		CommonGameData: monTypes.CommonGameData{
+			GameMetadata:       game,
+			LastUpdateTime:     cl.Now(),
+			L1Head:             metadata.L1Head,
+			L2SequenceNumber:   metadata.L2SequenceNum,
+			RootClaim:          metadata.RootClaim,
+			Status:             metadata.Status,
+			NodeEndpointErrors: make(map[string]bool),
+		},
+		MaxClockDuration:      metadata.MaxClockDuration,
+		BlockNumberChallenged: metadata.L2BlockNumberChallenged,
+		BlockNumberChallenger: metadata.L2BlockNumberChallenger,
+		Claims:                []monTypes.EnrichedClaim{{Claim: claim}},
+	}, enriched[0])
 	require.Equal(t, []string{"metadata", "claims", "fault", "common"}, trace)
 	expectedBlock := rpcblock.ByHash(blockHash)
 	require.Equal(t, []rpcblock.Block{expectedBlock}, creator.caller.metadataBlocks)
@@ -254,7 +297,10 @@ func verifyLogs(t *testing.T, logs *testlog.CapturingHandler, createErr, metadat
 func setupExtractorTest(t *testing.T, enrichers ...CommonEnricher) (*Extractor, *mockGameCallerCreator, *mockGameFetcher, *testlog.CapturingHandler, *clock.DeterministicClock) {
 	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
 	games := &mockGameFetcher{}
-	caller := &mockGameCaller{rootClaim: mockRootClaim}
+	caller := &mockGameCaller{metadata: contracts.GameMetadata{
+		L1Head:    common.Hash{0xaa},
+		RootClaim: mockRootClaim,
+	}}
 	creator := &mockGameCallerCreator{caller: caller}
 	cl := clock.NewDeterministicClock(time.Unix(48294294, 58))
 	extractor := NewExtractor(
@@ -303,7 +349,7 @@ type mockGameCaller struct {
 	metadataErr          error
 	claimsCalls          int
 	claimsErr            error
-	rootClaim            common.Hash
+	metadata             contracts.GameMetadata
 	claims               []faultTypes.Claim
 	requestedCredits     []common.Address
 	creditsErr           error
@@ -356,10 +402,7 @@ func (m *mockGameCaller) GetExtendedMetadata(_ context.Context, block rpcblock.B
 	if m.metadataErr != nil {
 		return contracts.GameMetadata{}, m.metadataErr
 	}
-	return contracts.GameMetadata{
-		L1Head:    common.Hash{0xaa},
-		RootClaim: mockRootClaim,
-	}, nil
+	return m.metadata, nil
 }
 
 func (m *mockGameCaller) GetAnchorStateRegistry(_ context.Context, _ rpcblock.Block) (common.Address, error) {

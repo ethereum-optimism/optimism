@@ -1,3 +1,4 @@
+// Package metrics_test stays external because mon imports metrics, while this test exercises mon.Forecast.
 package metrics_test
 
 import (

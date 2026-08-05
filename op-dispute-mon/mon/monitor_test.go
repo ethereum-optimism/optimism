@@ -95,6 +95,12 @@ func TestMonitorRoutesGamesToResolution(t *testing.T) {
 	require.Equal(t, []*monTypes.FaultGameData{terminal}, faultReceived)
 }
 
+func TestPartitionGamesRejectsUnknownGameType(t *testing.T) {
+	require.PanicsWithValue(t, "unsupported enriched game type <nil>", func() {
+		partitionGames([]monTypes.EnrichedGame{nil})
+	})
+}
+
 func TestMonitorChecksAnchorOnceOnEmptyLane(t *testing.T) {
 	monitor, _, _, _ := setupMonitorTest(t)
 	calls := 0

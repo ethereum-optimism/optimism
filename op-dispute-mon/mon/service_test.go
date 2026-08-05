@@ -50,6 +50,20 @@ func TestInitMonitorWiresEveryTypedLane(t *testing.T) {
 	service.game = extract.NewGameCallerCreator(service.metrics, caller)
 	cfg := config.NewCombinedConfig(factoryAddress, "unused", nil, nil)
 
+	require.Equal(t, []string{
+		"*extract.L1HeadBlockNumEnricher",
+		"*extract.OutputAgreementEnricher",
+		"*extract.SuperAgreementEnricher",
+		"*extract.AnchorStateRegistryEnricher",
+	}, registeredTypeNames(service.commonEnrichers()))
+	require.Equal(t, []string{
+		"*extract.ClaimEnricher",
+		"*extract.RecipientEnricher",
+		"*extract.WithdrawalsEnricher",
+		"*extract.BondEnricher",
+		"*extract.BalanceEnricher",
+	}, registeredTypeNames(service.faultEnrichers()))
+
 	service.initMonitor(ctx, &cfg)
 	require.NotNil(t, service.monitor)
 	require.NotNil(t, service.monitor.fetchHeadBlock)
@@ -85,6 +99,14 @@ func TestInitMonitorWiresEveryTypedLane(t *testing.T) {
 
 func registeredFunctionName(fn any) string {
 	return runtime.FuncForPC(reflect.ValueOf(fn).Pointer()).Name()
+}
+
+func registeredTypeNames[T any](values []T) []string {
+	names := make([]string, len(values))
+	for i, value := range values {
+		names[i] = reflect.TypeOf(value).String()
+	}
+	return names
 }
 
 type serviceRPCStub struct {
