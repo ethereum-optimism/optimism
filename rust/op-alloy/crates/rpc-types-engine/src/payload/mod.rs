@@ -7,7 +7,7 @@ pub mod v4;
 use crate::{OpExecutionPayloadSidecar, OpExecutionPayloadV4};
 use alloc::vec::Vec;
 use alloy_consensus::{Block, BlockHeader, HeaderInfo, Transaction};
-use alloy_eips::{Decodable2718, Encodable2718, Typed2718, eip7685::EMPTY_REQUESTS_HASH};
+use alloy_eips::{Decodable2718, Encodable2718, Typed2718};
 use alloy_primitives::{Address, B256, Bytes, Sealable, U256};
 use alloy_rpc_types_engine::{
     ExecutionPayload, ExecutionPayloadInputV2, ExecutionPayloadV1, ExecutionPayloadV2,
@@ -518,90 +518,27 @@ impl OpExecutionPayload {
         }
     }
 
-    /// Converts [`OpExecutionPayload`] to [`Block`] with raw transactions.
+    /// Converts this payload into an incomplete block with raw transactions.
     ///
-    /// Caution: This does not set fields that are not part of the payload and only part of the
-    /// [`OpExecutionPayloadSidecar`]:
-    /// - `parent_beacon_block_root`
-    ///
-    /// See also: [`OpExecutionPayload::into_block_with_sidecar_raw`]
-    pub fn into_block_raw(self) -> Result<Block<alloy_primitives::Bytes>, PayloadError> {
+    /// This is crate-private because fields supplied separately to `newPayload` are unavailable.
+    pub(crate) fn into_incomplete_block_raw(
+        self,
+    ) -> Result<Block<alloy_primitives::Bytes>, PayloadError> {
         match self {
             Self::V1(payload) => payload.into_block_raw(),
             Self::V2(payload) => payload.into_block_raw(),
             Self::V3(payload) => payload.into_block_raw(),
-            Self::V4(payload) => payload.into_block_raw(),
+            Self::V4(payload) => payload.into_incomplete_block_raw(),
         }
     }
 
-    /// Creates a new unsealed block from the given payload and payload sidecar with raw
-    /// transactions.
+    /// Converts this payload into an incomplete block with a custom transaction mapper.
     ///
-    /// This sets the `parent_beacon_block_root` and `requests_hash` if present in the sidecar.
-    /// Also validates that L1 withdrawals are empty.
-    ///
-    /// See also: [`OpExecutionPayload::try_into_block_with_sidecar`]
-    pub fn into_block_with_sidecar_raw(
+    /// This is crate-private because fields supplied separately to `newPayload` are unavailable.
+    pub(crate) fn try_into_incomplete_block_with<T, F, E>(
         self,
-        sidecar: &OpExecutionPayloadSidecar,
-    ) -> Result<Block<alloy_primitives::Bytes>, OpPayloadError> {
-        if let Some(payload) = self.as_v2() &&
-            !payload.withdrawals.is_empty()
-        {
-            return Err(OpPayloadError::NonEmptyL1Withdrawals);
-        }
-
-        let mut block = self.into_block_raw()?;
-
-        if let Some(blobs_hashes) = sidecar.versioned_hashes() &&
-            !blobs_hashes.is_empty()
-        {
-            return Err(OpPayloadError::NonEmptyBlobVersionedHashes);
-        }
-        if let Some(reqs_hash) = sidecar.requests_hash() {
-            if reqs_hash != EMPTY_REQUESTS_HASH {
-                return Err(OpPayloadError::NonEmptyELRequests);
-            }
-            block.header.requests_hash = Some(EMPTY_REQUESTS_HASH)
-        }
-        block.header.parent_beacon_block_root = sidecar.parent_beacon_block_root();
-
-        Ok(block)
-    }
-
-    #[allow(rustdoc::broken_intra_doc_links)]
-    /// Converts [`OpExecutionPayload`] to [`Block`].
-    ///
-    /// Checks that payload doesn't contain:
-    /// - blob transactions
-    /// - L1 withdrawals
-    ///
-    /// Caution: This does not set fields that are not part of the payload and only part of the
-    /// [`OpExecutionPayloadSidecar`]:
-    /// - `parent_beacon_block_root`
-    ///
-    /// See also: [`OpExecutionPayload::try_into_block_with_sidecar`]
-    pub fn try_into_block<T: Decodable2718 + Typed2718>(self) -> Result<Block<T>, OpPayloadError> {
-        self.try_into_block_with(|tx| {
-            T::decode_2718_exact(tx.as_ref())
-                .map_err(alloy_rlp::Error::from)
-                .map_err(PayloadError::from)
-        })
-    }
-
-    #[allow(rustdoc::broken_intra_doc_links)]
-    /// Converts [`OpExecutionPayload`] to [`Block`] with a custom transaction mapper.
-    ///
-    /// Checks that payload doesn't contain:
-    /// - blob transactions
-    /// - L1 withdrawals
-    ///
-    /// Caution: This does not set fields that are not part of the payload and only part of the
-    /// [`OpExecutionPayloadSidecar`]:
-    /// - `parent_beacon_block_root`
-    ///
-    /// See also: [`OpExecutionPayload::try_into_block_with_sidecar_with`]
-    pub fn try_into_block_with<T, F, E>(self, f: F) -> Result<Block<T>, OpPayloadError>
+        f: F,
+    ) -> Result<Block<T>, OpPayloadError>
     where
         T: Typed2718,
         F: FnMut(alloy_primitives::Bytes) -> Result<T, E>,
@@ -616,70 +553,13 @@ impl OpExecutionPayload {
             Self::V1(payload) => return Ok(payload.try_into_block_with(f)?),
             Self::V2(payload) => return Ok(payload.try_into_block_with(f)?),
             Self::V3(payload) => payload.try_into_block_with(f)?,
-            Self::V4(payload) => payload.try_into_block_with(f)?,
+            Self::V4(payload) => payload.try_into_incomplete_block_with(f)?,
         };
         if block.body.has_eip4844_transactions() {
             return Err(OpPayloadError::BlobTransaction);
         }
 
         Ok(block)
-    }
-
-    /// Tries to create a new unsealed block from the given payload and payload sidecar.
-    ///
-    /// Additional to checks performed in [`OpExecutionPayload::try_into_block`], which is called
-    /// under the hood, also checks that sidecar doesn't contain:
-    /// - blob versioned hashes
-    /// - execution layer requests
-    ///
-    /// See also docs for
-    /// [`ExecutionPayload::try_into_block_with_sidecar`](alloy_rpc_types_engine::ExecutionPayload::try_into_block_with_sidecar).
-    pub fn try_into_block_with_sidecar<T: Decodable2718 + Typed2718>(
-        self,
-        sidecar: &OpExecutionPayloadSidecar,
-    ) -> Result<Block<T>, OpPayloadError> {
-        self.try_into_block_with_sidecar_with(sidecar, |tx| {
-            T::decode_2718_exact(tx.as_ref())
-                .map_err(alloy_rlp::Error::from)
-                .map_err(PayloadError::from)
-        })
-    }
-
-    /// Tries to create a new unsealed block from the given payload and payload sidecar with a
-    /// custom transaction mapper.
-    ///
-    /// Additional to checks performed in [`OpExecutionPayload::try_into_block_with`], which is
-    /// called under the hood, also checks that sidecar doesn't contain:
-    /// - blob versioned hashes
-    /// - execution layer requests
-    ///
-    /// See also docs for
-    /// [`ExecutionPayload::try_into_block_with_sidecar_with`](alloy_rpc_types_engine::ExecutionPayload::try_into_block_with_sidecar_with).
-    pub fn try_into_block_with_sidecar_with<T, F, E>(
-        self,
-        sidecar: &OpExecutionPayloadSidecar,
-        f: F,
-    ) -> Result<Block<T>, OpPayloadError>
-    where
-        T: Typed2718,
-        F: FnMut(alloy_primitives::Bytes) -> Result<T, E>,
-        E: Into<PayloadError>,
-    {
-        let mut base_payload = self.try_into_block_with(f)?;
-        if let Some(blobs_hashes) = sidecar.versioned_hashes() &&
-            !blobs_hashes.is_empty()
-        {
-            return Err(OpPayloadError::NonEmptyBlobVersionedHashes);
-        }
-        if let Some(reqs_hash) = sidecar.requests_hash() {
-            if reqs_hash != EMPTY_REQUESTS_HASH {
-                return Err(OpPayloadError::NonEmptyELRequests);
-            }
-            base_payload.header.requests_hash = Some(EMPTY_REQUESTS_HASH)
-        }
-        base_payload.header.parent_beacon_block_root = sidecar.parent_beacon_block_root();
-
-        Ok(base_payload)
     }
 
     /// Returns an iterator over the decoded transactions in this payload.

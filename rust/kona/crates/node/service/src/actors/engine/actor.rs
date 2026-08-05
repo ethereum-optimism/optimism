@@ -261,7 +261,7 @@ where
                 let task = EngineTask::Insert(Box::new(InsertTask::new(
                     self.client.clone(),
                     self.rollup.clone(),
-                    *envelope,
+                    (*envelope).into_execution_data(),
                     false, /* The payload is not derived in this case. This is an unsafe
                             * block. */
                 )));
