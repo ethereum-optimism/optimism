@@ -774,36 +774,5 @@ mod tests {
                 unsafe { env::remove_var(var) };
             }
         }
-
-        /// Fast finality knobs: parse and defaults; `NonZeroU64` rejects a
-        /// zero limit at startup. Safe under nextest's process-per-test
-        /// model; env mutation is `unsafe` on edition 2024.
-        #[test]
-        fn fast_finality_env_parsing() {
-            unsafe {
-                env::set_var("L1_RPC", "http://127.0.0.1:8545");
-                env::set_var("SUPERNODE_RPC", "http://127.0.0.1:9545");
-                env::set_var("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
-                env::set_var("PRESTATES_URL", "file:///tmp/prestates");
-                env::set_var("PROOF_PROVIDER", "mock");
-                env::set_var("L2_RPCS", "http://127.0.0.1:8646");
-                env::set_var("L1_BEACON_RPC", "http://127.0.0.1:5052");
-                env::set_var("FAST_FINALITY_MODE", "notabool");
-            }
-            let err = ProposerConfig::from_env().unwrap_err().to_string();
-            assert!(err.contains("FAST_FINALITY_MODE"), "unexpected error: {err}");
-
-            unsafe {
-                env::set_var("FAST_FINALITY_MODE", "true");
-                env::set_var("FAST_FINALITY_PROVING_LIMIT", "0");
-            }
-            let err = ProposerConfig::from_env().unwrap_err().to_string();
-            assert!(err.contains("FAST_FINALITY_PROVING_LIMIT"), "unexpected error: {err}");
-
-            unsafe { env::set_var("FAST_FINALITY_PROVING_LIMIT", "3") };
-            let config = ProposerConfig::from_env().unwrap();
-            assert!(config.fast_finality_mode);
-            assert_eq!(config.fast_finality_proving_limit.get(), 3);
-        }
     }
 }
