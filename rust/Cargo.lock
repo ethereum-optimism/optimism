@@ -7555,7 +7555,6 @@ dependencies = [
  "kona-protocol",
  "libp2p",
  "metrics",
- "op-alloy-consensus",
  "op-alloy-rpc-jsonrpsee",
  "op-alloy-rpc-types",
  "op-alloy-rpc-types-engine",

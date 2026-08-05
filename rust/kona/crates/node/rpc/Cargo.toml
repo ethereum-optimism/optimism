@@ -23,7 +23,6 @@ kona-macros.workspace = true
 kona-genesis = {workspace = true, features = ["serde", "std"]}
 
 # OP Alloy
-op-alloy-consensus.workspace = true
 op-alloy-rpc-types-engine = {workspace = true, features = ["serde", "std"]}
 op-alloy-rpc-types.workspace = true
 
