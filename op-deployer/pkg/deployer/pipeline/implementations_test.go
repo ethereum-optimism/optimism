@@ -103,20 +103,6 @@ func TestDeployImplementationsSP1VerifierValidation(t *testing.T) {
 		require.ErrorContains(t, err, "sp1Verifier override must not be zero")
 	})
 
-	t.Run("predeployed OPCM rejects verifier override", func(t *testing.T) {
-		opcmAddress := common.Address{0x06}
-		intent := &state.Intent{
-			OPCMAddress: &opcmAddress,
-			GlobalDeployOverrides: map[string]any{
-				"sp1Verifier": common.Address{0x05},
-			},
-		}
-		st := newState()
-		st.ImplementationsDeployment = &addresses.ImplementationsContracts{OpcmV2Impl: opcmAddress}
-		err := DeployImplementations(env, intent, st)
-		require.ErrorContains(t, err, "must not be specified when using a predeployed OPCM")
-	})
-
 	t.Run("reused implementations require the same verifier", func(t *testing.T) {
 		artifactsFS, err := artifacts.Download(context.Background(), artifacts.EmbeddedLocator, nil, t.TempDir())
 		require.NoError(t, err)

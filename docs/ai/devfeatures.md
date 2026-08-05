@@ -33,7 +33,7 @@ The bitmap has **two operator-facing input surfaces**, both in op-deployer:
    - `--dev-feature-bitmap` (env: `OP_DEPLOYER_DEV_FEATURE_BITMAP`), defined in `op-deployer/pkg/deployer/bootstrap/flags.go`
    - Raw 32-byte hex; default empty
    - Flows into `ImplementationsConfig.DevFeatureBitmap` and on into `DeployImplementationsInput` for L1 implementation deployment.
-   - When the ZK bit is enabled, Ethereum mainnet and Sepolia default to Succinct's v6.1.0 PLONK verifier. `--sp1-verifier-address` (env: `OP_DEPLOYER_SP1_VERIFIER_ADDRESS`) overrides that release input and is required on other L1 networks.
+   - When the ZK bit is enabled, Ethereum mainnet and Sepolia default to Succinct's v6.1.0 PLONK verifier. `--sp1-verifier-address` (env: `DEPLOYER_SP1_VERIFIER_ADDRESS`) overrides that release input and is required on other L1 networks.
 
 2. **Intent file (`globalDeployOverrides.devFeatureBitmap`)**
    - Schema field on `Intent`, `op-deployer/pkg/deployer/state/intent.go`

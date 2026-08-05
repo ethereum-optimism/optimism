@@ -41,10 +41,6 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 	if hasSP1VerifierOverride && requestedSP1Verifier == (common.Address{}) {
 		return fmt.Errorf("sp1Verifier override must not be zero")
 	}
-	if intent.OPCMAddress != nil && hasSP1VerifierOverride {
-		return fmt.Errorf("sp1Verifier must not be specified when using a predeployed OPCM")
-	}
-
 	proofParams, err := jsonutil.MergeJSON(
 		state.SuperchainProofParams{
 			WithdrawalDelaySeconds:          standard.WithdrawalDelaySeconds,
