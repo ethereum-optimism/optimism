@@ -140,7 +140,7 @@ parameters:
     default: false
 
 orbs:
-  utils: ethereum-optimism/circleci-utils@1.0.27
+  utils: ethereum-optimism/circleci-utils@1.0.30
   go: circleci/go@1.8.0
   gcp-cli: circleci/gcp-cli@3.0.1
   slack: circleci/slack@6.0.0
@@ -1086,11 +1086,40 @@ jobs:
           name: Print forge version
           command: forge --version
       - run:
+          name: Compute forge build cache key
+          command: |
+            # Key over every input affecting forge output: all tracked package
+            # files via `git ls-files -s` (sources, config, lib/ submodule
+            # pins), mise.toml toolchain pins, and profile/args. Exact-key only
+            # (no fallback restore): a hit never serves artifacts for changed
+            # or deleted contracts; a miss is a normal clean build. The
+            # installed solc set is deliberately unkeyed — drift only makes
+            # forge recompile mismatched artifacts, never serve stale ones.
+            {
+              echo "profile=<<parameters.profile>> args=<<parameters.build_args>>"
+              sha256sum mise.toml
+              git ls-files -s -- packages/contracts-bedrock
+            } | sha256sum | cut -d' ' -f1 | tee /tmp/forge-cache-key.txt
+      - restore_cache:
+          name: Restore forge build cache
+          keys:
+            - forge-build-v1-<<parameters.profile>>-{{ checksum "/tmp/forge-cache-key.txt" }}
+      - run:
           name: Build contracts
           command: just forge-build <<parameters.build_args>>
           environment:
             FOUNDRY_PROFILE: <<parameters.profile>>
           working_directory: packages/contracts-bedrock
+      - save_cache:
+          name: Save forge build cache
+          key: forge-build-v1-<<parameters.profile>>-{{ checksum "/tmp/forge-cache-key.txt" }}
+          # These paths hold for profiles that keep foundry.toml's default
+          # output dirs; a profile that redirects them (e.g. kprove's
+          # out = kout-proofs) needs this list extended.
+          paths:
+            - packages/contracts-bedrock/cache
+            - packages/contracts-bedrock/artifacts
+            - packages/contracts-bedrock/forge-artifacts
       # copy-contract-artifacts runs `go run ... mktar`, which needs the Go
       # module set. Restore the shared cache (warmed by prep-go-modules) so it
       # doesn't hit proxy.golang.org.
@@ -1817,7 +1846,22 @@ jobs:
       - restore-go-mod-cache
       - run:
           name: Download Go modules
-          command: go mod download
+          command: |
+            # proxy.golang.org intermittently returns transient stream errors
+            # (INTERNAL_ERROR). Retry with exponential backoff so a flaky
+            # download doesn't fail this shared prep job and everything behind
+            # it.
+            n=0
+            until go mod download; do
+              n=$((n+1))
+              if [ "$n" -ge 5 ]; then
+                echo "go mod download failed after $n attempts" >&2
+                exit 1
+              fi
+              backoff=$((5 * 2 ** (n - 1)))
+              echo "go mod download failed (attempt $n); retrying in ${backoff}s..." >&2
+              sleep "$backoff"
+            done
       - save-go-mod-cache
 
   check-nut-locks:
@@ -2051,12 +2095,12 @@ jobs:
     resource_class: 2xlarge+.gen2
     parallelism: <<parameters.parallelism>>
     steps:
+      - apt-install:
+          extra_flags: "--no-install-recommends"
+          packages: "eatmydata"
       - run:
-          name: Install eatmydata and disable fsync for all subprocesses
-          command: |
-            sudo apt-get update
-            sudo apt-get install -y --no-install-recommends eatmydata
-            echo 'export LD_PRELOAD=libeatmydata.so' >> "$BASH_ENV"
+          name: Disable fsync for all subprocesses
+          command: echo 'export LD_PRELOAD=libeatmydata.so' >> "$BASH_ENV"
       - utils/checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true

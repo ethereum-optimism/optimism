@@ -7,11 +7,11 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
@@ -1109,8 +1109,8 @@ func (m *algoMockChain) OutputRootAtL2BlockHash(ctx context.Context, blockHash c
 func (m *algoMockChain) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputV0, error) {
 	return nil, nil
 }
-func (m *algoMockChain) FetchReceipts(ctx context.Context, blockID eth.BlockID) (eth.BlockInfo, types.Receipts, error) {
-	return nil, types.Receipts{}, nil
+func (m *algoMockChain) FetchReceipts(ctx context.Context, blockID eth.BlockID) (eth.BlockInfo, optypes.Receipts, error) {
+	return nil, optypes.Receipts{}, nil
 }
 func (m *algoMockChain) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 	return &eth.SyncStatus{}, nil

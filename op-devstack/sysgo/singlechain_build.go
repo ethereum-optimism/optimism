@@ -133,10 +133,14 @@ func applyConfigPrefundedL2(t devtest.T, keys devkeys.Keys, l1ChainID, l2ChainID
 func startL2ELForKey(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [32]byte, key string, identity *ELNodeIdentity, opts ...OpRethOption) L2ELNode {
 	switch k := devstackL2ELKind(); k {
 	case MixedL2ELOpGeth:
+		// op-reth options have no analogue on these kinds. Dropping them silently would make a
+		// binary override look like it took effect on a node that never saw it.
+		t.Require().Empty(opts, "op-reth options cannot be applied to EL kind %q", k)
 		return startL2ELNode(t, l2Net, jwtPath, jwtSecret, key, identity)
 	case MixedL2ELOpRethV2:
 		return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil, "v2", opts...)
 	case MixedOpRbuilder:
+		t.Require().Empty(opts, "op-reth options cannot be applied to EL kind %q", k)
 		return startBuilderEL(t, l2Net, jwtPath, identity)
 	case "", MixedL2ELOpReth: // unset (default) or explicit op-reth v1
 		return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil, "v1", opts...)

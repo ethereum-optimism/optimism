@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-interop-filter/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -74,7 +75,7 @@ func fetchedBlock(num, ts uint64, parent common.Hash) blockFetch {
 	return blockFetch{
 		blockNum:  num,
 		blockInfo: info,
-		receipts:  gethTypes.Receipts{{TxHash: common.Hash{byte(num)}, Logs: []*gethTypes.Log{plainLog(0, num)}}},
+		receipts:  optypes.Receipts{{Receipt: gethTypes.Receipt{TxHash: common.Hash{byte(num)}, Logs: []*gethTypes.Log{plainLog(0, num)}}}},
 	}
 }
 

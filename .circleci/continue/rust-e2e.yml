@@ -5,7 +5,7 @@ version: 2.1
 # It is merged with main.yml and rust-ci.yml when rust/** changes are detected.
 # Shared orbs, commands, and jobs come from main.yml and rust-ci.yml during merge.
 orbs:
-  utils: ethereum-optimism/circleci-utils@1.0.27
+  utils: ethereum-optimism/circleci-utils@1.0.30
 
 parameters:
   c-default_docker_image:
@@ -283,7 +283,7 @@ jobs:
 
   sp1-super-range-elf-smoke:
     docker:
-      - image: <<pipeline.parameters.c-default_docker_image>>
+      - image: <<pipeline.parameters.c-rust_base_image>>
     # Full SP1 ELF execution peaked near 13 GiB locally. Keep it isolated on a
     # 32 GB runner instead of competing with parallel acceptance tests.
     resource_class: 2xlarge.gen2
@@ -291,10 +291,19 @@ jobs:
       - utils/checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
+      - rust-prepare-and-restore-cache:
+          directory: rust
       - attach_workspace:
           at: .
       - go-restore-cache:
           namespace: sp1-super-range-elf-smoke
+      - run:
+          name: Test proposer aggregation vkey against built ELF
+          working_directory: rust
+          command: |
+            KONA_SP1_ELF_DIR="$PWD/kona/sp1/elf" \
+              cargo nextest run --package kona-sp1-proposer \
+              real_elf_agg_vkey_matches_vkeys_toml_prestate
       - run:
           name: Run SP1 super-range ELF smoke
           no_output_timeout: 30m
@@ -479,6 +488,7 @@ workflows:
       - sp1-super-range-elf-smoke:
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - sccache-gcs-optimism
             - slack
           requires:
             - prep-go-modules

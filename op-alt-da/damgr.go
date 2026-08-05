@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-alt-da/bindings"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -38,7 +39,7 @@ var ErrInvalidChallenge = errors.New("invalid challenge")
 // L1Fetcher is the required interface for syncing the DA challenge contract state.
 type L1Fetcher interface {
 	InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error)
-	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error)
+	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, optypes.Receipts, error)
 	L1BlockRefByNumber(context.Context, uint64) (eth.L1BlockRef, error)
 }
 

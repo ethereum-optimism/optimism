@@ -6,13 +6,61 @@ import (
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sdm/sdmtest"
 	sdmpkg "github.com/ethereum-optimism/optimism/op-chain-ops/pkg/sdm"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
-// boundaryInteropOffset schedules Interop a few blocks after L2 genesis so the test
+// boundaryLagoonOffset schedules Lagoon a few blocks after L2 genesis so the test
 // can observe both pre- and post-activation block production within a short window.
 // At 2s block time, 30s ≈ 15 blocks of pre-activation runway.
-const boundaryInteropOffset uint64 = 30
+const boundaryLagoonOffset uint64 = 30
+
+// TestSDMPostExecSpanCrossesInteropBoundary verifies that a span can start before Lagoon,
+// cross its activation block, and carry a genuinely produced PostExec payload afterwards.
+func TestSDMPostExecSpanCrossesInteropBoundary(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	offset := boundaryLagoonOffset
+	sys := newSDMRethSystemWithLagoonOffset(t, &offset, withCrossActivationSpanBatcher)
+	sdmtest.VerifyOpReth(t, sys.L2EL)
+	sdmtest.VerifyOpReth(t, sys.L2ELVerifier)
+
+	activationBlock := sys.L2Network.AwaitActivation(t, forks.Lagoon)
+	activationRef := sys.L2EL.BlockRefByNumber(activationBlock.Number)
+
+	block, included, postExecBlockNumber := sdmtest.MustFindRepeatedSlotBlock(t, sys, 2, 3)
+	t.Require().GreaterOrEqual(len(included), 2,
+		"post-Lagoon target block must contain repeated-slot transactions")
+	postExecTx, _ := sdmpkg.FindPostExecTransaction(block)
+	t.Require().NotNil(postExecTx, "SDM producer must append a PostExec transaction")
+	payload, err := optypes.DecodePostExecPayload(postExecTx.Input)
+	t.Require().NoError(err, "produced PostExec payload must decode")
+	t.Require().NotEmpty(payload.GasRefundEntries,
+		"produced PostExec payload must contain repeated-slot gas refunds")
+	postExecRef := sys.L2EL.BlockRefByNumber(postExecBlockNumber)
+
+	// The batcher has been stopped since genesis. Starting it now submits the accumulated pre- and
+	// post-Lagoon blocks in one span, including the genuinely produced PostExec payload above.
+	sys.L2Batcher.Start()
+	sdmtest.VerifyPostExecSpanCrossesActivation(
+		t,
+		sys.L2Network,
+		4,
+		activationRef.Time,
+		postExecBlockNumber,
+	)
+	dsl.CheckAll(t,
+		sys.L2CL.ReachedRefFn(safety.CrossSafe, postExecRef.ID(), 120),
+		sys.L2CLVerifier.ReachedRefFn(safety.CrossSafe, postExecRef.ID(), 120),
+		sys.L2EL.ReachedFn(eth.Safe, postExecBlockNumber, 120),
+		sys.L2ELVerifier.ReachedFn(eth.Safe, postExecBlockNumber, 120),
+	)
+	verifierRef := sys.L2ELVerifier.BlockRefByNumber(postExecBlockNumber)
+	t.Require().Equal(postExecRef.Hash, verifierRef.Hash,
+		"verifier must derive the producer's PostExec block from the cross-Lagoon span")
+}
 
 // TestSDMActivatesAtInteropBoundary exercises the chain-spec-driven SDM gate across
 // the Interop activation timestamp. Both layers (op-node derivation and op-reth
@@ -26,7 +74,7 @@ const boundaryInteropOffset uint64 = 30
 // containing a PostExec tx with refund entries.
 func TestSDMActivatesAtInteropBoundary(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	offset := boundaryInteropOffset
+	offset := boundaryLagoonOffset
 	sys := newSDMRethSystemWithLagoonOffset(t, &offset)
 	sdmtest.VerifyOpReth(t, sys.L2EL)
 
@@ -63,12 +111,12 @@ func TestSDMActivatesAtInteropBoundary(gt *testing.T) {
 	postPostExecTx, _ := sdmpkg.FindPostExecTransaction(postBlock)
 	t.Require().NotNil(postPostExecTx,
 		"post-Interop block %d must contain a PostExec tx; chain-spec gates SDM on", postBlockNum)
-	t.Require().Equal(uint64(sdmpkg.SDMTxType), uint64(postPostExecTx.Type),
+	t.Require().Equal(uint64(optypes.PostExecTxType), uint64(postPostExecTx.Type),
 		"post-exec tx type must be 0x7D")
 
-	payload, err := sdmpkg.DecodePayload(postPostExecTx.Input)
+	payload, err := optypes.DecodePostExecPayload(postPostExecTx.Input)
 	t.Require().NoError(err, "post-exec payload must decode")
-	t.Require().Equal(sdmpkg.PostExecPayloadVersion, payload.Version,
+	t.Require().Equal(optypes.PostExecPayloadVersion, payload.Version,
 		"post-exec payload version must be 1")
 	t.Require().NotEmpty(payload.GasRefundEntries,
 		"post-exec payload must carry refund entries for the repeated-slot workload")

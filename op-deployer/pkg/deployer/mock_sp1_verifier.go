@@ -40,7 +40,7 @@ func DeployMockSP1Verifier(
 		txplan.WithData(artifact.Bytecode.Object),
 		txplan.WithEstimator(client, true),
 		txplan.WithRetrySubmission(client, 5, retry.Exponential()),
-		txplan.WithRetryInclusion(client, 5, retry.Exponential()),
+		txplan.WithRetryInclusion(txplan.FromGethReceipts(client), 5, retry.Exponential()),
 	)
 	receipt, err := deployTx.Included.Eval(ctx)
 	if err != nil {

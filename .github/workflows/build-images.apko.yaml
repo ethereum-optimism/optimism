@@ -9,6 +9,24 @@ on:
       - develop
     tags:
       - "*/v*"
+      - "op-reth/bench*"
+  pull_request:
+    branches:
+      - develop
+    # Mirror the (now-disabled) docker build-images.yaml triggers: build on the
+    # same source changes, with docker-specific paths swapped for apko ones.
+    paths:
+      - "op-*/**"
+      - "cannon/**"
+      - "packages/contracts-bedrock/**"
+      - "rust/**"
+      - "ops/scripts/compute-git-versions.sh"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/build-images.apko.yaml"
+      - ".github/images.apko.json"
+      - "apko/**"
+      - "melange/**"
   schedule:
     - cron: "0 2 * * *"
   workflow_dispatch:
@@ -19,7 +37,7 @@ concurrency:
 
 env:
   SOURCE_DATE_EPOCH: 0
-  REGISTRY: us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus
+  REGISTRY: us-docker.pkg.dev/oplabs-tools-artifacts/images
 
 jobs:
   plan:
@@ -96,7 +114,7 @@ jobs:
     with:
       service: ${{ matrix.service }}
       needs-melange-apks: ${{ matrix.needs_melange_apks }}
-      registry: us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus
+      registry: us-docker.pkg.dev/oplabs-tools-artifacts/images
       publish-tag: ${{ matrix.publish_tag }}
       archs: ${{ matrix.archs }}
 
@@ -118,7 +136,7 @@ jobs:
     uses: ethereum-optimism/factory/.github/workflows/apko-smoke-test.yaml@9f80f67c23ba5ff05dff9e4265f74bbd58e9b012
     with:
       service: ${{ matrix.service }}
-      registry: us-docker.pkg.dev/oplabs-tools-artifacts/images/nexus
+      registry: us-docker.pkg.dev/oplabs-tools-artifacts/images
       arch: ${{ matrix.arch }}
       runner: ${{ matrix.runner }}
       smoke-test: ${{ matrix.smoke_test }}

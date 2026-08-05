@@ -56,13 +56,13 @@ pub async fn get_network_signer(use_kms_requester: bool) -> Result<NetworkSigner
 
         signer
     } else {
-        // Otherwise, use a private key with a default value to avoid errors in mock mode.
-        let private_key = env::var("NETWORK_PRIVATE_KEY").unwrap_or_else(|_| {
-            tracing::warn!(
-                "Using default NETWORK_PRIVATE_KEY of 0x01. This is only valid in mock mode."
-            );
-            "0x0000000000000000000000000000000000000000000000000000000000000001".to_string()
-        });
+        // Network proving spends real money. Require the key at startup instead
+        // of failing on the first proof request.
+        let private_key =
+            env::var("NETWORK_PRIVATE_KEY").ok().filter(|key| !key.trim().is_empty()).context(
+                "NETWORK_PRIVATE_KEY must be set for network proving \
+                 (or set USE_KMS_REQUESTER=true to sign requests with AWS KMS)",
+            )?;
         let signer = NetworkSigner::local(&private_key)?;
         tracing::info!("Using local requester with address: {:?}", signer.address());
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -119,6 +120,63 @@ func ResolveMixedL2CLKind() MixedL2CLKind {
 		return kind
 	}
 	return MixedL2CLOpNode
+}
+
+const (
+	devstackL2ELOverrideBinaryEnv = "DEVSTACK_L2EL_OVERRIDE_BINARY"
+	devstackL2ELOverrideArgsEnv   = "DEVSTACK_L2EL_OVERRIDE_ARGS"
+)
+
+// ResolveMixedL2ELOpts returns the op-reth options requested via the environment:
+// DEVSTACK_L2EL_OVERRIDE_BINARY names a CLI-superset binary to launch instead of the
+// default "op-reth", and DEVSTACK_L2EL_OVERRIDE_ARGS carries whitespace-separated extra CLI
+// arguments for it. The returned slice is empty when both are unset, so callers get stock
+// op-reth.
+//
+// This is the EL-side counterpart to ResolveMixedL2CLKind: it lets a suite outside this
+// repo re-run these tests against its own EL build without forking the test bodies. The
+// named binary is resolved through the usual rustbin env overrides (see OpRethWithBinary),
+// whose variable name derives from the binary name — "my-builder" reads
+// RUST_BINARY_PATH_MY_BUILDER, leaving the stock verifiers' RUST_BINARY_PATH_OP_RETH
+// untouched. Naming the override "op-reth" would collapse that distinction, but such an
+// override selects the default binary anyway.
+//
+// A superset binary that binds a listener the harness knows nothing about needs the args
+// to move it off a fixed port, since every node here shares one host. The args only ever
+// qualify an override binary, so naming them without one is rejected rather than ignored —
+// a stale value in the environment would otherwise silently alter a stock run.
+//
+// Proofs history is disabled whenever a binary is named: the mixed runtime enables it on
+// every op-reth node, but a superset binary that replaces the payload service cannot host
+// op-reth's proof-history launcher, so leaving it on would either be silently ignored or
+// refused at startup. A suite that needs it should run stock op-reth.
+func ResolveMixedL2ELOpts(t devtest.T) []OpRethOption {
+	opts, err := mixedL2ELOptsFromEnv(
+		os.Getenv(devstackL2ELOverrideBinaryEnv),
+		os.Getenv(devstackL2ELOverrideArgsEnv),
+	)
+	t.Require().NoError(err, "invalid L2 EL override environment")
+	return opts
+}
+
+// mixedL2ELOptsFromEnv holds the env-independent decision behind ResolveMixedL2ELOpts so it can
+// be exercised directly, including the rejection path.
+func mixedL2ELOptsFromEnv(binary, rawArgs string) ([]OpRethOption, error) {
+	extraArgs := strings.Fields(rawArgs)
+
+	if binary == "" {
+		if len(extraArgs) > 0 {
+			return nil, fmt.Errorf("%s only qualifies an override binary; set %s or unset the args",
+				devstackL2ELOverrideArgsEnv, devstackL2ELOverrideBinaryEnv)
+		}
+		return nil, nil
+	}
+
+	opts := []OpRethOption{OpRethWithBinary(binary), OpRethWithoutProofsHistory()}
+	if len(extraArgs) > 0 {
+		opts = append(opts, OpRethWithExtraArgs(extraArgs...))
+	}
+	return opts, nil
 }
 
 type MixedSingleChainNodeSpec struct {

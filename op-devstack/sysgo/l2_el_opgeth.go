@@ -139,9 +139,20 @@ func (n *OpGeth) Stop() {
 		return
 	}
 	n.logger.Info("Closing op-geth", "name", n.name, "chain", n.l2Net.ChainID())
+	n.clearProxyUpstreams()
 	closeErr := n.l2Geth.Close()
 	n.logger.Info("Closed op-geth", "name", n.name, "chain", n.l2Net.ChainID(), "err", closeErr)
 	n.l2Geth = nil
+}
+
+// Callers must hold n.mu.
+func (n *OpGeth) clearProxyUpstreams() {
+	if n.userProxy != nil {
+		n.userProxy.ClearUpstream()
+	}
+	if n.authProxy != nil {
+		n.authProxy.ClearUpstream()
+	}
 }
 
 func (n *OpGeth) StartControlled(ctx context.Context) error {
@@ -155,18 +166,17 @@ func (n *OpGeth) StopControlled(ctx context.Context) error {
 		return nil
 	}
 	l2Geth := n.l2Geth
+	n.clearProxyUpstreams()
 	n.mu.Unlock()
 
-	if err := l2Geth.Close(); err != nil {
-		return err
-	}
+	err := l2Geth.Close()
 
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if n.l2Geth == l2Geth {
 		n.l2Geth = nil
 	}
-	return nil
+	return err
 }
 
 func (n *OpGeth) Running() bool {
