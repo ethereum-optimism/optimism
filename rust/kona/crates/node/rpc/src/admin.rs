@@ -2,13 +2,15 @@
 
 use crate::{AdminApiServer, SequencerAdminAPIClient};
 use alloy_primitives::B256;
+use alloy_rpc_types_engine::PayloadError;
 use async_trait::async_trait;
 use core::fmt::Debug;
 use jsonrpsee::{
     core::RpcResult,
     types::{ErrorCode, ErrorObject},
 };
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
+use op_alloy_consensus::OpTxEnvelope;
+use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelope, OpPayloadError};
 
 /// The query types to the network actor for the admin api.
 #[derive(Debug)]
@@ -64,6 +66,28 @@ where
         payload: OpExecutionPayloadEnvelope,
     ) -> RpcResult<()> {
         kona_macros::inc!(gauge, kona_gossip::Metrics::RPC_CALLS, "method" => "admin_postUnsafePayload");
+
+        payload
+            .clone()
+            .into_execution_data()
+            .try_into_checked_block::<OpTxEnvelope>()
+            .map_err(|err| {
+                tracing::warn!(
+                    target: "rpc",
+                    %err,
+                    "admin_postUnsafePayload: rejecting payload"
+                );
+                let message = match &err {
+                    OpPayloadError::Eth(PayloadError::BlockHash { execution, consensus }) => {
+                        format!(
+                            "payload has bad block hash: {consensus}, actual block hash is: {execution}"
+                        )
+                    }
+                    _ => format!("invalid payload: {err}"),
+                };
+                ErrorObject::owned(ErrorCode::InvalidParams.code(), message, None::<()>)
+            })?;
+
         self.network_sender
             .send(NetworkAdminQuery::PostUnsafePayload { payload })
             .await

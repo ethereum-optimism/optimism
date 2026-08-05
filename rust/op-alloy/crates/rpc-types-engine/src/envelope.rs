@@ -742,7 +742,7 @@ impl PayloadHash {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_primitives::{Bytes, b256};
+    use alloy_primitives::{Address, Bloom, Bytes, U256, b256};
 
     #[test]
     #[cfg(feature = "std")]
@@ -770,6 +770,98 @@ mod tests {
         let expected = b256!("9999999999999999999999999999999999999999999999999999999999999999");
         assert_eq!(envelope.parent_beacon_block_root.unwrap(), expected);
         let _ = serde_json::to_string(&envelope).unwrap();
+    }
+
+    fn execution_payload_v1(block_hash: B256) -> ExecutionPayloadV1 {
+        ExecutionPayloadV1 {
+            parent_hash: b256!("1111111111111111111111111111111111111111111111111111111111111111"),
+            fee_recipient: Address::repeat_byte(0x22),
+            state_root: b256!("3333333333333333333333333333333333333333333333333333333333333333"),
+            receipts_root: b256!(
+                "4444444444444444444444444444444444444444444444444444444444444444"
+            ),
+            logs_bloom: Bloom::ZERO,
+            prev_randao: b256!("5555555555555555555555555555555555555555555555555555555555555555"),
+            block_number: 1,
+            gas_limit: 30_000_000,
+            gas_used: 21_000,
+            timestamp: 123_456_789,
+            extra_data: Bytes::from_static(&[0x12, 0x34]),
+            base_fee_per_gas: U256::from(1_000_000_000),
+            block_hash,
+            transactions: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn test_try_into_checked_block() {
+        // Pin hashes produced by op-service's independent ExecutionPayloadEnvelope.CheckBlockHash.
+        // The V3 case uses a zero beacon root because engine insertion defaults a missing root.
+        let v1_hash = b256!("55e9427d0f33b1e09e76c229aa4d685336ebc151a26820914652439a69e46791");
+        let v2_hash = b256!("de05d55fdc91f15fc85cbf222ab05a586a3b7b6afd1a7abb7f353d3522dfff15");
+        let v3_hash = b256!("f27a826220863770f4c8f5599c19a8dc82b8b2bbbc1bc689cb1b0dab6418886e");
+        let v4_hash = b256!("4034384737b7667a4015c0083ba2262ca3d196cc6fa6c3e763ee0a69ff95e780");
+
+        let cases = [
+            OpExecutionPayloadEnvelope {
+                parent_beacon_block_root: None,
+                execution_payload: OpExecutionPayload::V1(execution_payload_v1(v1_hash)),
+            },
+            OpExecutionPayloadEnvelope {
+                parent_beacon_block_root: None,
+                execution_payload: OpExecutionPayload::V2(ExecutionPayloadV2 {
+                    payload_inner: execution_payload_v1(v2_hash),
+                    withdrawals: Vec::new(),
+                }),
+            },
+            OpExecutionPayloadEnvelope {
+                parent_beacon_block_root: None,
+                execution_payload: OpExecutionPayload::V3(ExecutionPayloadV3 {
+                    payload_inner: ExecutionPayloadV2 {
+                        payload_inner: execution_payload_v1(v3_hash),
+                        withdrawals: Vec::new(),
+                    },
+                    blob_gas_used: 0,
+                    excess_blob_gas: 0,
+                }),
+            },
+            OpExecutionPayloadEnvelope {
+                parent_beacon_block_root: Some(b256!(
+                    "7777777777777777777777777777777777777777777777777777777777777777"
+                )),
+                execution_payload: OpExecutionPayload::V4(OpExecutionPayloadV4 {
+                    payload_inner: ExecutionPayloadV3 {
+                        payload_inner: ExecutionPayloadV2 {
+                            payload_inner: execution_payload_v1(v4_hash),
+                            withdrawals: Vec::new(),
+                        },
+                        blob_gas_used: 0,
+                        excess_blob_gas: 0,
+                    },
+                    withdrawals_root: b256!(
+                        "6666666666666666666666666666666666666666666666666666666666666666"
+                    ),
+                }),
+            },
+        ];
+
+        for mut envelope in cases {
+            let claimed = envelope.execution_payload.block_hash();
+            let block: Block<op_alloy_consensus::OpTxEnvelope> =
+                envelope.clone().into_execution_data().try_into_checked_block().unwrap();
+            assert_eq!(block.header.hash_slow(), claimed);
+
+            envelope.execution_payload.as_v1_mut().state_root = B256::ZERO;
+            assert!(matches!(
+                envelope
+                    .into_execution_data()
+                    .try_into_checked_block::<op_alloy_consensus::OpTxEnvelope>(),
+                Err(OpPayloadError::Eth(PayloadError::BlockHash {
+                    execution,
+                    consensus,
+                })) if execution != claimed && consensus == claimed
+            ));
+        }
     }
 
     #[test]

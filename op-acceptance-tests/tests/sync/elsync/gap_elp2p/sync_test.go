@@ -406,14 +406,6 @@ func TestSafeDoesNotAdvanceWhenUnsafeIsSyncing_NoELP2P(gt *testing.T) {
 // invalid payloads—whether rejected at the CL or EL—do not advance the chain.
 func TestInvalidPayloadThroughCLP2P(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	// Example error with kona-node:
-	//
-	// assertions.go:387:             ERROR[03-31|10:42:03.034]
-	// assertions.go:387:             	Error Trace:	/Users/josh/repos/optimism/op-acceptance-tests/tests/sync/elsync/gap_elp2p/sync_test.go:436
-	// assertions.go:387:             	Error:      	An error is expected but got nil.
-	// assertions.go:387:             	Test:       	TestInvalidPayloadThroughCLP2P
-	// assertions.go:387:
-	sysgo.SkipOnKonaNode(t, "not supported")
 	sys := newGapELP2PSystem(t)
 	logger := t.Logger()
 	require := t.Require()
@@ -442,7 +434,7 @@ func TestInvalidPayloadThroughCLP2P(gt *testing.T) {
 	payload.ExecutionPayload.StateRoot = eth.Bytes32{}
 	logger.Info("Injected fault to payload but not updated hash")
 	// Post invalid payload with the fault that can be checked at the CL side
-	require.Error(sys.L2CLB.Escape().RollupAPI().PostUnsafePayload(ctx, payload))
+	require.ErrorContains(sys.L2CLB.Escape().RollupAPI().PostUnsafePayload(ctx, payload), "bad block hash")
 	// ex) op-node error msg: "payload has bad block hash"
 	// CL will not send the payload but drop immediately due to hash mismatch
 	// EL did not advance
@@ -480,10 +472,10 @@ func TestInvalidPayloadThroughCLP2P(gt *testing.T) {
 	require.False(ok)
 	logger.Info("Updated payload parent to invalid payload", "newHash", newHash)
 	payload2.ExecutionPayload.BlockHash = newHash
-	_, ok = payload.CheckBlockHash()
+	_, ok = payload2.CheckBlockHash()
 	require.True(ok)
 	// Post invalid payload with the fault that can be only checked at the EL side
-	sys.L2CLB.PostUnsafePayload(payload)
+	sys.L2CLB.PostUnsafePayload(payload2)
 	// ex) op-geth error msg: "ignoring bad block: links to previously rejected block"
 	sys.L2CLB.NotAdvanced(safety.LocalUnsafe, attempts)
 	sys.L2ELB.NotAdvanced(eth.Unsafe, attempts)
