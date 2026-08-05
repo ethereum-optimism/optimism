@@ -2,12 +2,11 @@
 
 use alloy_consensus::{BlockHeader, EMPTY_ROOT_HASH};
 use clap::Parser;
+use reth_chainspec::EthChainSpec;
 use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, EnvironmentArgs};
 use reth_node_core::version::version_metadata;
-use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_node::args::{ProofsHistoryStorageArgs, ProofsStorageVersion};
-use reth_optimism_primitives::OpPrimitives;
 use reth_optimism_trie::{
     OpProofsProviderRO, OpProofsProviderRw, OpProofsStorageError, OpProofsStore,
     db::{MdbxProofsStorage, MdbxProofsStorageV2},
@@ -63,9 +62,9 @@ impl<C: ChainSpecParser> UnwindCommand<C> {
     }
 }
 
-impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> UnwindCommand<C> {
+impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> UnwindCommand<C> {
     /// Execute [`UnwindCommand`].
-    pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec, Primitives = OpPrimitives>>(
+    pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec>>(
         self,
         runtime: reth_tasks::Runtime,
     ) -> eyre::Result<()> {
