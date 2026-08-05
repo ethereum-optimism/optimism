@@ -1846,7 +1846,22 @@ jobs:
       - restore-go-mod-cache
       - run:
           name: Download Go modules
-          command: go mod download
+          command: |
+            # proxy.golang.org intermittently returns transient stream errors
+            # (INTERNAL_ERROR). Retry with exponential backoff so a flaky
+            # download doesn't fail this shared prep job and everything behind
+            # it.
+            n=0
+            until go mod download; do
+              n=$((n+1))
+              if [ "$n" -ge 5 ]; then
+                echo "go mod download failed after $n attempts" >&2
+                exit 1
+              fi
+              backoff=$((5 * 2 ** (n - 1)))
+              echo "go mod download failed (attempt $n); retrying in ${backoff}s..." >&2
+              sleep "$backoff"
+            done
       - save-go-mod-cache
 
   check-nut-locks:
@@ -2080,12 +2095,12 @@ jobs:
     resource_class: 2xlarge+.gen2
     parallelism: <<parameters.parallelism>>
     steps:
+      - apt-install:
+          extra_flags: "--no-install-recommends"
+          packages: "eatmydata"
       - run:
-          name: Install eatmydata and disable fsync for all subprocesses
-          command: |
-            sudo apt-get update
-            sudo apt-get install -y --no-install-recommends eatmydata
-            echo 'export LD_PRELOAD=libeatmydata.so' >> "$BASH_ENV"
+          name: Disable fsync for all subprocesses
+          command: echo 'export LD_PRELOAD=libeatmydata.so' >> "$BASH_ENV"
       - utils/checkout-with-mise:
           checkout-method: blobless
           enable-mise-cache: true
