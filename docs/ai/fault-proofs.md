@@ -94,3 +94,23 @@ KONA_HOST_PATH="$(git rev-parse --show-toplevel)/rust/target/release/kona-host" 
 
 Or let the justfile build kona-host and run in one step (still needs the contracts built
 above): from `rust/kona/tests`, `just action-tests-single TestActivationBlockNUTBundle`.
+
+### Writing a proof test for a batch-validity rule
+
+A test that injects an invalid transaction into a batch can accidentally make the **proof half
+assert nothing**. Avoid two independent traps so the test pins the rule in kona-client, not just in
+op-node:
+
+- **Claim the poisoned block itself.** The driver stops as soon as it reaches the claim height, so a
+  test that poisons the batch for block N but claims N-1 never validates that batch. Poison the
+  *first* span element after the safe head so the drop flushes the whole channel, post an honest
+  replacement channel in a later L1 block, and claim N.
+- **Give the claimed block a user transaction.** For an empty block, rejecting the transaction at
+  the batch stage or during execution produces the same safe chain. Holocene recovers from execution
+  failure with a deposits-only replacement block, which is byte-identical to an empty honest block
+  and therefore has the same output root. A user transaction in the claimed block distinguishes the
+  two outcomes.
+
+`TestInvalidPostExecTxInCrossLagoonSpan` (`rust/kona/tests/proofs/lagoon_postexec_batch_test.go`) uses
+this structure. Validate new tests the same way: disable the rule in each client in turn and confirm
+that the test fails.
