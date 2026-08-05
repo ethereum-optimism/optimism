@@ -30,7 +30,6 @@ func simpleWithSyncTesterOpts() []presets.Option {
 
 func TestMultiELSync(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sysgo.FlakyOnKonaNode(t, "fails in ci but passes locally")
 	sys := presets.NewSimpleWithSyncTester(t, simpleWithSyncTesterOpts()...)
 	require := t.Require()
 
