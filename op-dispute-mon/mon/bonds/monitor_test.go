@@ -131,7 +131,7 @@ func TestZKBondConsumersRecordAllCreditBuckets(t *testing.T) {
 		newGame(3, big.NewInt(11), new(big.Int), 0),
 		newGame(4, new(big.Int), big.NewInt(9), matureTimestamp),
 		newGame(5, new(big.Int), big.NewInt(10), matureTimestamp),
-		newGame(6, new(big.Int), big.NewInt(11), matureTimestamp),
+		newGame(6, new(big.Int), big.NewInt(11), matureTimestamp-1),
 	}
 
 	bonds, metricer, _ := setupBondMetricsTest(t)
