@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
 
@@ -717,50 +716,4 @@ func TestSpanBatchTotalBlockTxCountNotOverflow(t *testing.T) {
 	err = sb.decodeTxs(r)
 
 	require.ErrorIs(t, err, ErrTooBigSpanBatchSize)
-}
-
-// TestDeriveSpanBatchSDMGate verifies that DeriveSpanBatch rejects PostExec
-// transactions when SDM is not active and accepts them once it is.
-func TestDeriveSpanBatchSDMGate(t *testing.T) {
-	chainID := big.NewInt(901)
-	const (
-		genesisTime = uint64(100)
-		blockTime   = uint64(2)
-		blockTS     = genesisTime + blockTime
-	)
-
-	rawPostExecTx, err := testPostExecTx().MarshalBinary()
-	require.NoError(t, err)
-
-	singular := &SingularBatch{
-		ParentHash:   common.Hash{0x01},
-		EpochNum:     1,
-		EpochHash:    common.Hash{0x02},
-		Timestamp:    blockTS,
-		Transactions: []hexutil.Bytes{rawPostExecTx},
-	}
-	sb := NewSpanBatch(genesisTime, chainID)
-	require.NoError(t, sb.AppendSingularBatch(singular, 0))
-	rawSb, err := sb.ToRawSpanBatch()
-	require.NoError(t, err)
-	bd := NewBatchData(rawSb)
-
-	disabled := &rollup.Config{
-		Genesis:   rollup.Genesis{L2Time: genesisTime},
-		BlockTime: blockTime,
-		L2ChainID: chainID,
-	}
-	_, err = DeriveSpanBatch(bd, disabled)
-	require.ErrorContains(t, err, "PostExec tx")
-
-	sdmTime := blockTS
-	enabled := &rollup.Config{
-		Genesis:    rollup.Genesis{L2Time: genesisTime},
-		BlockTime:  blockTime,
-		L2ChainID:  chainID,
-		LagoonTime: &sdmTime,
-	}
-	derived, err := DeriveSpanBatch(bd, enabled)
-	require.NoError(t, err)
-	require.Equal(t, 1, derived.GetBlockCount())
 }

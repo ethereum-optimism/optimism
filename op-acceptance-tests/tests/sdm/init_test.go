@@ -108,3 +108,10 @@ func buildSDMRethSystem(t devtest.T, interopAtGenesis bool, isolateVerifier bool
 func withSingularBatcher(_ sysgo.ComponentTarget, cfg *bss.CLIConfig) {
 	cfg.BatchType = derive.SingularBatchType
 }
+
+func withCrossActivationSpanBatcher(_ sysgo.ComponentTarget, cfg *bss.CLIConfig) {
+	cfg.BatchType = derive.SpanBatchType
+	// The batcher starts stopped, then catches up from genesis after Lagoon activates. Keep all
+	// accumulated blocks in one span so the submitted span necessarily crosses the boundary.
+	cfg.MaxBlocksPerSpanBatch = 1_000
+}

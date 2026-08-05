@@ -5,6 +5,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sdm/sdmtest"
 	sdmpkg "github.com/ethereum-optimism/optimism/op-chain-ops/pkg/sdm"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -43,14 +44,14 @@ func TestSDMEnabledPayloadAndReplayMatch(gt *testing.T) {
 	postExecTx, postExecPos := sdmpkg.FindPostExecTransaction(block)
 	t.Require().NotNil(postExecTx, "SDM-enabled sequencer must include a post-exec tx")
 	t.Require().Greater(len(postExecTx.Input), 0, "post-exec tx input must not be empty")
-	t.Require().Equal(uint64(sdmpkg.SDMTxType), uint64(postExecTx.Type), "post-exec tx type must be 0x7D")
+	t.Require().Equal(uint64(optypes.PostExecTxType), uint64(postExecTx.Type), "post-exec tx type must be 0x7D")
 
 	// Tx-hash parity: op-reth must serve and index under the canonical keccak256(0x7D || Data) hash.
 	assertPostExecTxHashIsCanonical(t, sys.L2EL, postExecTx)
 
-	payload, err := sdmpkg.DecodePayload(postExecTx.Input)
+	payload, err := optypes.DecodePostExecPayload(postExecTx.Input)
 	t.Require().NoError(err, "post-exec payload must decode")
-	t.Require().Equal(sdmpkg.PostExecPayloadVersion, payload.Version, "post-exec payload version must be 1")
+	t.Require().Equal(optypes.PostExecPayloadVersion, payload.Version, "post-exec payload version must be 1")
 	t.Require().NotEmpty(payload.GasRefundEntries, "post-exec payload must be non-empty for repeated-slot workload")
 
 	receiptByHash := make(map[common.Hash]*types.Receipt, len(included))
@@ -68,7 +69,7 @@ func TestSDMEnabledPayloadAndReplayMatch(gt *testing.T) {
 		t.Require().Less(int(entry.Index), len(block.Transactions), "payload index must be in block range")
 		targetTx := block.Transactions[entry.Index]
 		t.Require().NotEqual(uint64(types.DepositTxType), uint64(targetTx.Type), "payload must not target deposits")
-		t.Require().NotEqual(uint64(sdmpkg.SDMTxType), uint64(targetTx.Type), "payload must not target the SDM tx itself")
+		t.Require().NotEqual(uint64(optypes.PostExecTxType), uint64(targetTx.Type), "payload must not target the SDM tx itself")
 
 		refund, present := getOPGasRefund(t, sys.L2EL, targetTx.Hash)
 		t.Require().True(present, "SDM receipt must expose opGasRefund for tx index %d", entry.Index)
@@ -204,7 +205,7 @@ func testSDMPostExecBlockDerivesAndChainProgresses(t devtest.T, batchType string
 	t.Require().NotNil(postExecTx, "SDM-enabled sequencer must include a post-exec tx before batching")
 	t.Require().Greater(len(postExecTx.Input), 0, "post-exec tx input must not be empty")
 
-	payload, err := sdmpkg.DecodePayload(postExecTx.Input)
+	payload, err := optypes.DecodePostExecPayload(postExecTx.Input)
 	t.Require().NoError(err, "post-exec payload must decode before derivation")
 	t.Require().NotEmpty(payload.GasRefundEntries, "post-exec payload must be non-empty for repeated-slot workload")
 	targetRef := sys.L2EL.BlockRefByNumber(targetBlockNum)
@@ -333,7 +334,7 @@ func TestSDMPostExecBlockDerivesOnIsolatedVerifier(gt *testing.T) {
 	t.Require().NotEmpty(included, "target block must include workload transactions")
 	postExecTx, _ := sdmpkg.FindPostExecTransaction(block)
 	t.Require().NotNil(postExecTx, "SDM-enabled sequencer must include a post-exec tx before batching")
-	payload, err := sdmpkg.DecodePayload(postExecTx.Input)
+	payload, err := optypes.DecodePostExecPayload(postExecTx.Input)
 	t.Require().NoError(err, "post-exec payload must decode")
 	t.Require().NotEmpty(payload.GasRefundEntries,
 		"post-exec payload must be non-empty for repeated-slot workload")
