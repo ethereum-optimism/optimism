@@ -72,6 +72,12 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 	})
 
 	t.Run("embedded L1 locator with standard intent types and standard roles", func(t *testing.T) {
+		if standard.CurrentTag == standard.ContractsV800PCDTag {
+			// The pcdtest OPCM resolves to its own Sepolia superchain deployment, not the canonical
+			// one in the Registry.
+			t.Skip("skipping while CurrentTag is a non-canonical test tag")
+		}
+
 		runTest := func(configType state.IntentType) {
 			_, afacts := testutil.LocalArtifacts(t)
 			host, err := env.DefaultForkedScriptHost(
