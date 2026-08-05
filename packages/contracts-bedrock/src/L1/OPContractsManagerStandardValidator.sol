@@ -46,8 +46,8 @@ import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 /// before and after an upgrade.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 2.12.0
-    string public constant version = "2.12.0";
+    /// @custom:semver 3.0.0
+    string public constant version = "3.0.0";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -120,6 +120,9 @@ contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The migration validator contract for post-interop-migration validation.
     IOPContractsManagerMigrationValidator public migrationValidator;
 
+    /// @notice The release-approved SP1 PLONK adapter address.
+    address public sp1PlonkAdapterImpl;
+
     /// @notice Struct containing the implementation addresses of the L1 contracts.
     struct Implementations {
         address l1ERC721BridgeImpl;
@@ -138,6 +141,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         address superFaultDisputeGameImpl;
         address superPermissionedDisputeGameImpl;
         address zkDisputeGameImpl;
+        address sp1PlonkAdapterImpl;
     }
 
     /// @notice Struct containing the input parameters for the validation process.
@@ -199,6 +203,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         superFaultDisputeGameImpl = _implementations.superFaultDisputeGameImpl;
         superPermissionedDisputeGameImpl = _implementations.superPermissionedDisputeGameImpl;
         zkDisputeGameImpl = _implementations.zkDisputeGameImpl;
+        sp1PlonkAdapterImpl = _implementations.sp1PlonkAdapterImpl;
     }
 
     /// @notice Returns a string representing the overrides that are set.
@@ -1052,7 +1057,9 @@ contract OPContractsManagerStandardValidator is ISemver {
         LibGameArgs.ZKGameArgs memory args = LibGameArgs.decodeZK(factory.gameArgs(GameTypes.ZK_DISPUTE_GAME));
         _errors = internalRequire(args.absolutePrestate != bytes32(0), string.concat(_errorPrefix, "-70"), _errors);
         _errors = internalRequire(
-            args.verifier != address(0) && args.verifier.code.length > 0, string.concat(_errorPrefix, "-80"), _errors
+            args.verifier == sp1PlonkAdapterImpl && sp1PlonkAdapterImpl.code.length > 0,
+            string.concat(_errorPrefix, "-80"),
+            _errors
         );
         _errors = internalRequire(args.maxChallengeDuration > 0, string.concat(_errorPrefix, "-90"), _errors);
         _errors = internalRequire(args.maxProveDuration > 0, string.concat(_errorPrefix, "-100"), _errors);

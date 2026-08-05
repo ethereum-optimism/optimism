@@ -202,6 +202,7 @@ func RecordOPChainDeployment(st *state.State, result OPChainDeploymentResult) er
 		st.ImplementationsDeployment.FaultDisputeGameImpl = impls.FaultDisputeGame
 		st.ImplementationsDeployment.PermissionedDisputeGameImpl = impls.PermissionedDisputeGame
 		st.ImplementationsDeployment.ZkDisputeGameImpl = impls.ZkDisputeGame
+		st.ImplementationsDeployment.SP1PlonkAdapterImpl = impls.SP1PlonkAdapter
 		st.ImplementationsDeployment.OpcmStandardValidatorImpl = impls.OpcmStandardValidator
 		st.ImplementationsDeployment.SuperFaultDisputeGameImpl = impls.SuperFaultDisputeGame
 		st.ImplementationsDeployment.SuperPermissionedDisputeGameImpl = impls.SuperPermissionedDisputeGame

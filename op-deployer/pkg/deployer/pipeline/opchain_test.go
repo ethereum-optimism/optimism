@@ -339,6 +339,7 @@ func TestRecordOPChainDeploymentAppliesImplementationReadback(t *testing.T) {
 	var readback opcm.ReadImplementationAddressesOutput
 	readback.SystemConfig = common.HexToAddress("0x1111111111111111111111111111111111111111")
 	readback.SuperFaultDisputeGame = common.HexToAddress("0x2222222222222222222222222222222222222222")
+	readback.SP1PlonkAdapter = common.HexToAddress("0x3333333333333333333333333333333333333333")
 
 	var contracts addresses.OpChainContracts
 	result := OPChainDeploymentResult{
@@ -353,6 +354,7 @@ func TestRecordOPChainDeploymentAppliesImplementationReadback(t *testing.T) {
 	require.NoError(t, RecordOPChainDeployment(st, result))
 	require.Equal(t, readback.SystemConfig, st.ImplementationsDeployment.SystemConfigImpl)
 	require.Equal(t, readback.SuperFaultDisputeGame, st.ImplementationsDeployment.SuperFaultDisputeGameImpl)
+	require.Equal(t, readback.SP1PlonkAdapter, st.ImplementationsDeployment.SP1PlonkAdapterImpl)
 }
 
 func TestChainContractsForRecordedStatePreservesPreparedAddresses(t *testing.T) {

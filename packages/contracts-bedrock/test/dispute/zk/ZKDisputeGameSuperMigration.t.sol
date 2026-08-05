@@ -22,12 +22,10 @@ import {
 
 // Contracts
 import { ZKDisputeGame } from "src/dispute/zk/ZKDisputeGame.sol";
-import { ZKMockVerifier } from "test/dispute/zk/ZKMockVerifier.sol";
 
 // Interfaces
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { ISuperFaultDisputeGame } from "interfaces/dispute/ISuperFaultDisputeGame.sol";
-import { IZKVerifier } from "interfaces/dispute/zk/IZKVerifier.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 
@@ -52,9 +50,6 @@ contract ZKDisputeGameSuperMigration_Test is DisputeGameFactory_TestInit {
     Duration internal zkMaxChallengeDuration = Duration.wrap(uint64(12 hours));
     Duration internal zkMaxProveDuration = Duration.wrap(uint64(3 days));
 
-    /// @notice The verifier injected into the ZK game args.
-    IZKVerifier internal zkVerifier;
-
     /// @notice Storage-resident upgrade input (nested dynamic arrays must live in storage to push).
     IOPContractsManagerV2.UpgradeInput internal _zkUpgradeInput;
 
@@ -62,8 +57,6 @@ contract ZKDisputeGameSuperMigration_Test is DisputeGameFactory_TestInit {
         super.setUp();
         skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
         skipIfDevFeatureDisabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
-
-        zkVerifier = IZKVerifier(address(new ZKMockVerifier()));
 
         vm.deal(flipProposer, 100 ether);
         vm.deal(flipChallenger, 100 ether);
@@ -210,7 +203,6 @@ contract ZKDisputeGameSuperMigration_Test is DisputeGameFactory_TestInit {
                 gameArgs: abi.encode(
                     IOPContractsManagerUtils.ZKDisputeGameConfig({
                         absolutePrestate: Claim.wrap(bytes32(0)),
-                        verifier: zkVerifier,
                         maxChallengeDuration: zkMaxChallengeDuration,
                         maxProveDuration: zkMaxProveDuration,
                         challengerBond: flipBond

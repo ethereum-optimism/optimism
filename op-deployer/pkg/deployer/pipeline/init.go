@@ -22,6 +22,11 @@ func ValidateInputs(intent *state.Intent, st *state.State) error {
 	if err := intent.Check(); err != nil {
 		return err
 	}
+	if intent.OPCMAddress != nil {
+		if _, ok := intent.GlobalDeployOverrides["sp1Verifier"]; ok {
+			return fmt.Errorf("sp1Verifier must not be specified when using a predeployed OPCM")
+		}
+	}
 	if !IsSupportedStateVersion(st.Version) {
 		return fmt.Errorf("unsupported state version: %d", st.Version)
 	}

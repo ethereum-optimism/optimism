@@ -577,6 +577,8 @@ func (wb *worldBuilder) Build() {
 		State:              st,
 		Logger:             wb.logger,
 		StateWriter:        wb, // direct output back here
+		// Devstack deliberately uses an accept-all raw verifier when ZK dispute games are enabled.
+		DeployMockSP1Verifier: true,
 	}
 	for _, opt := range wb.deployerPipelineOptions {
 		opt(wb, intent, &pipelineOpts)

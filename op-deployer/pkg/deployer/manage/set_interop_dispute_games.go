@@ -30,16 +30,15 @@ const gameTypeZKDisputeGame uint32 = 10
 
 // zkGameArgsEncoder ABI-encodes the ZKDisputeGameConfig consumed by
 // OPContractsManagerUtils._makeGameArgs for the ZK dispute game. It mirrors the encoder in the
-// embedded upgrader; the five fields match IOPContractsManagerUtils.ZKDisputeGameConfig.
+// embedded upgrader; the four fields match IOPContractsManagerUtils.ZKDisputeGameConfig.
 var zkGameArgsEncoder = w3.MustNewFunc(
-	"dummy((bytes32 absolutePrestate,address verifier,uint64 maxChallengeDuration,uint64 maxProveDuration,uint256 challengerBond))",
+	"dummy((bytes32 absolutePrestate,uint64 maxChallengeDuration,uint64 maxProveDuration,uint256 challengerBond))",
 	"",
 )
 
 // zkDisputeGameConfig mirrors IOPContractsManagerUtils.ZKDisputeGameConfig.
 type zkDisputeGameConfig struct {
 	AbsolutePrestate     common.Hash
-	Verifier             common.Address
 	MaxChallengeDuration uint64
 	MaxProveDuration     uint64
 	ChallengerBond       *big.Int
@@ -48,9 +47,6 @@ type zkDisputeGameConfig struct {
 // encodeZKGameArgs ABI-encodes a ZKDisputeGameConfig into the `gameArgs` bytes expected by the
 // DisputeGameConfig entry for the ZK dispute game type.
 func encodeZKGameArgs(cfg zkDisputeGameConfig) ([]byte, error) {
-	if cfg.Verifier == (common.Address{}) {
-		return nil, fmt.Errorf("ZK verifier must not be the zero address")
-	}
 	if cfg.AbsolutePrestate == (common.Hash{}) {
 		return nil, fmt.Errorf("ZK absolutePrestate must not be zero")
 	}
@@ -200,16 +196,11 @@ func SetInteropDisputeGamesCLI(cliCtx *cli.Context) error {
 	}
 
 	// Encode the ZK dispute game args and enable it.
-	verifierFlag := cliCtx.String(ZKVerifierFlag.Name)
-	if !common.IsHexAddress(verifierFlag) {
-		return fmt.Errorf("flag %s must be a valid address, got %q", ZKVerifierFlag.Name, verifierFlag)
-	}
 	if !cliCtx.IsSet(DisputeAbsolutePrestateFlag.Name) {
 		return fmt.Errorf("flag %s must be explicitly set for the ZK dispute game; its default is the cannon/kona prestate which is invalid for ZK", DisputeAbsolutePrestateFlag.Name)
 	}
 	zkArgs, err := encodeZKGameArgs(zkDisputeGameConfig{
 		AbsolutePrestate:     common.HexToHash(cliCtx.String(DisputeAbsolutePrestateFlag.Name)),
-		Verifier:             common.HexToAddress(verifierFlag),
 		MaxChallengeDuration: cliCtx.Uint64(ZKMaxChallengeDurationFlag.Name),
 		MaxProveDuration:     cliCtx.Uint64(ZKMaxProveDurationFlag.Name),
 		ChallengerBond:       initBond,

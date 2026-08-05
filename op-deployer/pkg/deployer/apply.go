@@ -199,14 +199,20 @@ type ApplyPipelineOpts struct {
 	StateWriter        pipeline.StateWriter
 	CacheDir           string
 	UseForge           bool
-	PrivateKey         string
-	Workdir            string
+	// DeployMockSP1Verifier is a test-only opt-in for development environments.
+	DeployMockSP1Verifier bool
+	PrivateKey            string
+	Workdir               string
 }
 
 func ApplyPipeline(
 	ctx context.Context,
 	opts ApplyPipelineOpts,
 ) error {
+	if opts.DeployMockSP1Verifier && opts.DeploymentTarget != DeploymentTargetGenesis {
+		return fmt.Errorf("mock SP1 verifier deployment is only supported for genesis")
+	}
+
 	intent := opts.Intent
 	st := opts.State
 	if err := pipeline.ValidateInputs(intent, st); err != nil {
@@ -319,6 +325,8 @@ func ApplyPipeline(
 		Scripts:                   opcmScripts,
 		ForgeClient:               forgeClient,
 		UseForge:                  opts.UseForge,
+		IsGenesis:                 opts.DeploymentTarget == DeploymentTargetGenesis,
+		DeployMockSP1Verifier:     opts.DeployMockSP1Verifier,
 		AllowUnoptimizedContracts: opts.DeploymentTarget == DeploymentTargetGenesis,
 		L1RPCUrl:                  opts.L1RPCUrl,
 		PrivateKey:                opts.PrivateKey,
