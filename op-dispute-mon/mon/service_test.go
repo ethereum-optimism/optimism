@@ -58,10 +58,7 @@ func TestInitMonitorWiresEveryTypedLane(t *testing.T) {
 	}, registeredTypeNames(service.commonEnrichers()))
 	require.Equal(t, []string{
 		"*extract.ClaimEnricher",
-		"*extract.RecipientEnricher",
-		"*extract.WithdrawalsEnricher",
-		"*extract.BondEnricher",
-		"*extract.BalanceEnricher",
+		"*extract.BondDataEnricher",
 	}, registeredTypeNames(service.faultEnrichers()))
 
 	service.initMonitor(ctx, &cfg)
