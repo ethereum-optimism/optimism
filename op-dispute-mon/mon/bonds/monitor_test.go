@@ -82,6 +82,7 @@ func TestCheckRecipientCredit(t *testing.T) {
 	game4 := newGame(common.Address{0x44}, true,
 		map[common.Address]*big.Int{addr1: big.NewInt(9), addr2: big.NewInt(6), addr4: big.NewInt(2)},
 		map[common.Address]*big.Int{addr1: big.NewInt(9), addr2: big.NewInt(5), addr4: big.NewInt(3)})
+	game4.CreditWithdrawableAt = frozen.Add(-time.Second)
 
 	bonds, metricer, logs := setupBondMetricsTest(t)
 	bonds.CheckBonds([]monTypes.BondedGame{game1, game2, game3, game4})
