@@ -171,7 +171,7 @@ func TestZKBondConsumersRecognizeCompletedMaturePayout(t *testing.T) {
 		ExpectedCredits: map[common.Address]*big.Int{recipient: big.NewInt(10)},
 		Credits:         map[common.Address]*big.Int{recipient: new(big.Int)},
 		WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{
-			recipient: {Amount: new(big.Int), Timestamp: big.NewInt(frozen.Unix() - 10)},
+			recipient: {Amount: new(big.Int), Timestamp: big.NewInt(frozen.Unix() - 11)},
 		},
 		BondDistributionMode: faultTypes.NormalDistributionMode,
 		WETHContract:         common.Address{0xee},
