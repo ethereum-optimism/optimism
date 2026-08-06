@@ -104,7 +104,7 @@ async fn main() -> Result<()> {
     // Bind before readiness so the advertised address is live. Install the
     // recorder before register_all; describe_gauge! calls sent to the no-op
     // recorder lose their HELP lines.
-    let metrics_addr = init_metrics(config.metrics_listen)?;
+    let metrics_addr = init_metrics(config.metrics_listen).await?;
     if metrics_addr.is_some() {
         ProposerGauge::register_all();
         ProposerGauge::init_all();

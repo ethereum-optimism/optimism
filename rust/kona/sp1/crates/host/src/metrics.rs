@@ -1,18 +1,27 @@
 //! Metrics utilities for the host application.
 
 use std::{
+    convert::Infallible,
     fmt,
-    net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener},
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    num::NonZeroU16,
     str::FromStr,
     thread,
     time::Duration,
 };
 
 use anyhow::{Context, anyhow};
+use bytes::Bytes;
+use http_body_util::Full;
+use hyper::{
+    Request, Response, StatusCode, body::Incoming, server::conn::http1, service::service_fn,
+};
+use hyper_util::rt::TokioIo;
 use metrics::{describe_gauge, gauge};
-use metrics_exporter_prometheus::{BuildError, PrometheusBuilder};
+use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use metrics_process::Collector;
 use strum::{EnumMessage, IntoEnumIterator};
+use tokio::net::TcpListener;
 
 /// Trait for metrics gauge that provides common functionality.
 pub trait MetricsGauge: Sized + IntoEnumIterator + EnumMessage + ToString {
@@ -46,10 +55,10 @@ pub trait MetricsGauge: Sized + IntoEnumIterator + EnumMessage + ToString {
     }
 }
 
-/// Where the Prometheus exporter listens.
+/// Where the Prometheus endpoint listens.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum MetricsListen {
-    /// No exporter is installed.
+    /// No recorder is installed and no endpoint is served.
     #[default]
     Disabled,
     /// A kernel-assigned port on all interfaces, reported back by
@@ -57,29 +66,35 @@ pub enum MetricsListen {
     /// host, where any fixed port risks a collision.
     Ephemeral,
     /// The given port on all interfaces.
-    Fixed(u16),
+    Fixed(NonZeroU16),
 }
 
 /// Configured value selecting [`MetricsListen::Ephemeral`].
 const EPHEMERAL: &str = "auto";
 
-/// Configured value selecting [`MetricsListen::Disabled`], alongside `0` and
-/// the empty value.
+/// Configured value selecting [`MetricsListen::Disabled`], alongside any
+/// numeric zero and the empty value.
 const DISABLED: &str = "disabled";
 
-/// Probe-then-bind attempts before an ephemeral listen gives up.
-const EPHEMERAL_BIND_ATTEMPTS: usize = 10;
+/// How often the recorder is swept; `install_recorder` leaves upkeep to the
+/// caller. Matches the exporter's own default.
+const UPKEEP_INTERVAL: Duration = Duration::from_secs(5);
 
 impl FromStr for MetricsListen {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.trim() {
-            "" | "0" | DISABLED => Ok(Self::Disabled),
+            "" | DISABLED => Ok(Self::Disabled),
             EPHEMERAL => Ok(Self::Ephemeral),
-            port => Ok(Self::Fixed(
-                port.parse().map_err(|err| anyhow!("expected a port or `{EPHEMERAL}`: {err}"))?,
-            )),
+            port => {
+                let port: u16 = port
+                    .parse()
+                    .map_err(|err| anyhow!("expected a port or `{EPHEMERAL}`: {err}"))?;
+                // Any spelling of zero disables, as it did before the mode
+                // became explicit.
+                Ok(NonZeroU16::new(port).map_or(Self::Disabled, Self::Fixed))
+            }
         }
     }
 }
@@ -94,19 +109,37 @@ impl fmt::Display for MetricsListen {
     }
 }
 
-/// Initialize the metrics server, returning the address it listens on, or
-/// `None` when metrics are disabled. Fails when the listener cannot be
-/// installed (e.g. the port is already bound).
-pub fn init_metrics(listen: MetricsListen) -> anyhow::Result<Option<SocketAddr>> {
-    let addr = match listen {
+/// Initialize the metrics endpoint, returning the address it serves on, or
+/// `None` when metrics are disabled. Fails when the address cannot be bound
+/// (e.g. the port is already taken).
+///
+/// The endpoint serves from the listener bound here rather than delegating an
+/// address to the exporter, so an ephemeral port is resolved by the very bind
+/// that keeps it: nothing can take the port in between.
+pub async fn init_metrics(listen: MetricsListen) -> anyhow::Result<Option<SocketAddr>> {
+    let port = match listen {
         MetricsListen::Disabled => return Ok(None),
-        MetricsListen::Fixed(port) => {
-            let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), port);
-            install_exporter(addr).map_err(|e| anyhow!("failed to start metrics server: {e}"))?;
-            addr
-        }
-        MetricsListen::Ephemeral => install_exporter_on_ephemeral_port()?,
+        MetricsListen::Ephemeral => 0,
+        MetricsListen::Fixed(port) => port.get(),
     };
+
+    let listener = TcpListener::bind(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), port))
+        .await
+        .context("failed to bind the metrics endpoint")?;
+    let addr = listener.local_addr().context("failed to read the metrics endpoint address")?;
+
+    let handle = PrometheusBuilder::new()
+        .install_recorder()
+        .map_err(|e| anyhow!("failed to install the metrics recorder: {e}"))?;
+
+    let upkeep = handle.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(UPKEEP_INTERVAL).await;
+            upkeep.run_upkeep();
+        }
+    });
+    tokio::spawn(serve_metrics(listener, handle));
 
     // Spawn a thread to collect process metrics.
     thread::spawn(move || {
@@ -121,50 +154,63 @@ pub fn init_metrics(listen: MetricsListen) -> anyhow::Result<Option<SocketAddr>>
     Ok(Some(addr))
 }
 
-fn install_exporter(addr: SocketAddr) -> Result<(), BuildError> {
-    PrometheusBuilder::new().with_http_listener(addr).install()
-}
+/// Serves the rendered registry on `/metrics` until the process ends.
+async fn serve_metrics(listener: TcpListener, handle: PrometheusHandle) {
+    loop {
+        let stream = match listener.accept().await {
+            Ok((stream, _)) => stream,
+            Err(err) => {
+                // Back off rather than spin: an exhausted descriptor table
+                // fails every accept until something else frees one.
+                tracing::warn!(%err, "metrics endpoint could not accept a connection");
+                tokio::time::sleep(Duration::from_millis(100)).await;
+                continue;
+            }
+        };
 
-/// The exporter binds the address itself and never reports what it bound, so
-/// port 0 cannot be delegated to it: a port is reserved here and handed over
-/// once the reservation is closed. Another socket can take the port in that
-/// window, so an occupied port is retried rather than fatal. `install` only
-/// registers the global recorder once the listener is bound, leaving a failed
-/// attempt with nothing to undo.
-fn install_exporter_on_ephemeral_port() -> anyhow::Result<SocketAddr> {
-    let mut last_err = None;
-    for _ in 0..EPHEMERAL_BIND_ATTEMPTS {
-        let addr = reserve_ephemeral_addr()?;
-        match install_exporter(addr) {
-            Ok(()) => return Ok(addr),
-            Err(BuildError::FailedToCreateHTTPListener(err)) => last_err = Some(err),
-            Err(err) => return Err(anyhow!("failed to start metrics server: {err}")),
-        }
+        let handle = handle.clone();
+        tokio::spawn(async move {
+            let service = service_fn(move |req: Request<Incoming>| {
+                let response = if req.uri().path() == "/metrics" {
+                    Response::builder()
+                        .header("content-type", "text/plain")
+                        .body(Full::new(Bytes::from(handle.render())))
+                } else {
+                    Response::builder().status(StatusCode::NOT_FOUND).body(Full::new(Bytes::new()))
+                };
+                async move {
+                    Ok::<_, Infallible>(
+                        response.expect("a response with a valid status and header builds"),
+                    )
+                }
+            });
+
+            if let Err(err) =
+                http1::Builder::new().serve_connection(TokioIo::new(stream), service).await
+            {
+                tracing::debug!(%err, "metrics connection ended");
+            }
+        });
     }
-    Err(anyhow!(
-        "failed to start metrics server on an ephemeral port in {EPHEMERAL_BIND_ATTEMPTS} \
-         attempts: {}",
-        last_err.unwrap_or_default()
-    ))
-}
-
-fn reserve_ephemeral_addr() -> anyhow::Result<SocketAddr> {
-    let listener = TcpListener::bind((Ipv4Addr::UNSPECIFIED, 0))
-        .context("failed to reserve an ephemeral metrics port")?;
-    listener.local_addr().context("failed to read the reserved ephemeral metrics port")
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn fixed(port: u16) -> MetricsListen {
+        MetricsListen::Fixed(NonZeroU16::new(port).unwrap())
+    }
+
     #[test]
     fn parses_metrics_listen() {
         for (input, want) in [
             ("", MetricsListen::Disabled),
             ("0", MetricsListen::Disabled),
+            // Every spelling of zero disables, not just the canonical one.
+            ("00", MetricsListen::Disabled),
             (" auto ", MetricsListen::Ephemeral),
-            ("9090", MetricsListen::Fixed(9090)),
+            ("9090", fixed(9090)),
         ] {
             assert_eq!(input.parse::<MetricsListen>().unwrap(), want, "parsing {input:?}");
             // A rendered mode parses back to itself, so a resolved config can
@@ -179,23 +225,24 @@ mod tests {
         assert!("70000".parse::<MetricsListen>().is_err());
     }
 
-    #[test]
-    fn ephemeral_listen_reports_the_port_it_holds() {
-        let addr = init_metrics(MetricsListen::Ephemeral).unwrap().expect("an exporter is running");
+    #[tokio::test]
+    async fn ephemeral_listen_serves_on_the_port_it_reports() {
+        let addr =
+            init_metrics(MetricsListen::Ephemeral).await.unwrap().expect("an endpoint is serving");
         assert_ne!(addr.port(), 0, "the reported port must be the resolved one");
-        assert!(TcpListener::bind(addr).is_err(), "the exporter must hold the port it reported");
+        gauge!("kona_sp1_metrics_self_test").set(1.0);
+
+        let url = format!("http://127.0.0.1:{}/metrics", addr.port());
+        let body =
+            reqwest::get(&url).await.unwrap().error_for_status().unwrap().text().await.unwrap();
+        assert!(body.contains("kona_sp1_metrics_self_test 1"), "scraped:\n{body}");
+
+        let missing = reqwest::get(format!("http://127.0.0.1:{}/nope", addr.port())).await.unwrap();
+        assert_eq!(missing.status(), 404);
     }
 
-    #[test]
-    fn disabled_listen_installs_nothing() {
-        assert_eq!(init_metrics(MetricsListen::Disabled).unwrap(), None);
-    }
-
-    #[test]
-    fn reserves_a_bindable_ephemeral_port() {
-        let addr = reserve_ephemeral_addr().unwrap();
-        assert_ne!(addr.port(), 0, "the kernel must resolve port 0");
-        // The reservation is released on return, so the port rebinds.
-        TcpListener::bind(addr).unwrap();
+    #[tokio::test]
+    async fn disabled_listen_installs_nothing() {
+        assert_eq!(init_metrics(MetricsListen::Disabled).await.unwrap(), None);
     }
 }
