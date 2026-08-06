@@ -172,6 +172,18 @@ func TestUnsupportedPresetOptionKinds(t *testing.T) {
 			want:      optionKindZKProposer,
 		},
 		{
+			name:      "single chain supernode proofs reject op-reth options",
+			supported: supernodeProofsPresetSupportedOptionKinds,
+			opts:      WithOpRethOption(sysgo.OpRethWithBinary("op-reth-sdm-fixture")),
+			want:      optionKindOpReth,
+		},
+		{
+			name:      "single chain no-supernode proofs accept op-reth options",
+			supported: singleChainInteropNoSupernodePresetSupportedOptionKinds,
+			opts:      WithOpRethOption(sysgo.OpRethWithBinary("op-reth-sdm-fixture")),
+			want:      0,
+		},
+		{
 			name:      "two l2 supernode rejects time travel",
 			supported: twoL2SupernodePresetSupportedOptionKinds,
 			opts:      WithTimeTravelEnabled(),

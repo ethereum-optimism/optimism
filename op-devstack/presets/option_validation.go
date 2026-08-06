@@ -188,6 +188,8 @@ const supernodeProofsPresetSupportedOptionKinds = optionKindDeployer |
 	optionKindMessageExpiryWindow |
 	optionKindSkipHonestProposer
 
+const singleChainInteropNoSupernodePresetSupportedOptionKinds = optionKindOpReth
+
 const twoL2SupernodeProofsPresetSupportedOptionKinds = supernodeProofsPresetSupportedOptionKinds |
 	optionKindPreGenesisSuperGame |
 	optionKindZKDisputeGame |
