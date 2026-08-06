@@ -1,6 +1,6 @@
 ---
-title: Installation
-description: Learn how to install OP Deployer from binaries or source.
+title: Install op-deployer
+description: Learn how to install op-deployer from pre-built binaries or from source.
 diataxis: how-to
 ---
 
