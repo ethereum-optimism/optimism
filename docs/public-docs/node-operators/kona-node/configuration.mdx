@@ -115,19 +115,18 @@ Supported chain names include all those recognized by `alloy_chains` (e.g., `opt
 | `--sequencer.max-safe-lag <N>` | `KONA_NODE_SEQUENCER_MAX_SAFE_LAG` | Max L2 safe/unsafe lag | `0` |
 | `--sequencer.l1-confs <N>` | `KONA_NODE_SEQUENCER_L1_CONFS` | L1 block confirmations for sequencer | `4` |
 | `--sequencer.recover` | `KONA_NODE_SEQUENCER_RECOVER` | Strictly prepare next L1 origin and create empty L2 blocks | `false` |
-| `--conductor.enabled` | `KONA_NODE_CONDUCTOR_ENABLED` | Enable the conductor service | `false` |
-| `--conductor.rpc <ADDR>` | `KONA_NODE_CONDUCTOR_RPC` | Conductor service RPC endpoint | `127.0.0.1:8547` |
+| `--conductor.rpc <URL>` | `KONA_NODE_CONDUCTOR_RPC` | RPC endpoint URL of an external conductor service. Supplying it enables the conductor integration. | - |
 | `--conductor.rpc.timeout <SECONDS>` | `KONA_NODE_CONDUCTOR_RPC_TIMEOUT` | Conductor service RPC timeout | `1` |
 
-## Supervisor Arguments
+## Interop Arguments
 
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
-| `--supervisor.rpc-enabled` | `KONA_NODE_SUPERVISOR_RPC_ENABLED` | Enable Supervisor Websocket | `false` |
-| `--supervisor.ip.address <IP>` | `KONA_NODE_SUPERVISOR_IP` | IP to bind Supervisor Websocket RPC server | `0.0.0.0` |
-| `--supervisor.port <PORT>` | `KONA_NODE_SUPERVISOR_PORT` | TCP port for supervisor RPC | `9333` |
-| `--supervisor.jwt.secret <HEX>` | `KONA_NODE_SUPERVISOR_JWT_SECRET` | JWT secret for supervisor websocket authentication | - |
-| `--supervisor.jwt.secret.file <PATH>` | `KONA_NODE_SUPERVISOR_JWT_SECRET_FILE` | Path to file containing JWT secret | - |
+| `--interop.dependency-set <PATH>` | `KONA_NODE_INTEROP_DEPENDENCY_SET` | Path to the JSON file describing the interop dependency set for this chain. Required when the rollup config schedules the Lagoon hardfork. | - |
+
+`kona-node` does not expose a supervisor websocket server, so there is no
+`--supervisor.*` flag group. Interop is configured with the dependency-set file
+above.
 
 ## RPC Trust Flags
 

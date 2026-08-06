@@ -20,5 +20,12 @@
 | RPC WebSocket   | 9545         | (same as HTTP, enabled with `--rpc.ws-enabled`) |
 | P2P TCP         | 9222         | `--p2p.listen.tcp` / `KONA_NODE_P2P_LISTEN_TCP_PORT` |
 | P2P UDP         | 9223         | `--p2p.listen.udp` / `KONA_NODE_P2P_LISTEN_UDP_PORT` |
-| Supervisor RPC  | 9333         | `--supervisor.port` / `KONA_NODE_SEQUENCER_PORT`     |
-| Conductor RPC   | 8547         | `--conductor.rpc` / `KONA_NODE_CONDUCTOR_RPC`        |
+
+`kona-node` does not run a supervisor RPC server: the binary has no `--supervisor.*`
+flag group. Interop is configured with `--interop.dependency-set`
+(`KONA_NODE_INTEROP_DEPENDENCY_SET`), which takes a path to a dependency-set JSON
+file rather than a port.
+
+`--conductor.rpc` (`KONA_NODE_CONDUCTOR_RPC`) is not a listening port either. It is
+the RPC endpoint URL of an external conductor service that the node dials out to,
+and it has no default value; supplying it is what enables the conductor integration.
