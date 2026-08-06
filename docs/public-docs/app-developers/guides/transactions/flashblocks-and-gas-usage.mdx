@@ -80,7 +80,7 @@ The **EL** checks if the transaction exceeds **40M**. Since **38M < 40M**, the t
 There are two distinct outcomes depending on the transaction size:
 
 - **Rejected immediately (txpool admission failure):**  
-  The EL (e.g. **op-geth**, **op-reth**) rejects transactions only when the transaction gas limit exceeds the **full block gas limit**:
+  The EL (e.g. **op-reth**) rejects transactions only when the transaction gas limit exceeds the **full block gas limit**:
   - Condition: `tx.gasLimit > blockGasLimit`
   - Error returned to the user: `exceeds block gas limit`
 
