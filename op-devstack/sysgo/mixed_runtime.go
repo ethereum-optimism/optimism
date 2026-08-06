@@ -45,9 +45,8 @@ import (
 type MixedL2ELKind string
 
 const (
-	MixedL2ELOpGeth   MixedL2ELKind = "op-geth"
-	MixedL2ELOpReth   MixedL2ELKind = "op-reth"
-	MixedL2ELOpRethV2 MixedL2ELKind = "op-reth-proof-v2"
+	MixedL2ELOpGeth MixedL2ELKind = "op-geth"
+	MixedL2ELOpReth MixedL2ELKind = "op-reth"
 )
 
 type MixedL2CLKind string
@@ -66,8 +65,7 @@ func SkipOnOpGeth(t devtest.T, reason string) {
 
 // SkipOnOpReth skips the test when the L2 execution layer is op-reth
 func SkipOnOpReth(t devtest.T, reason string) {
-	kind := devstackL2ELKind()
-	if kind == MixedL2ELOpReth || kind == MixedL2ELOpRethV2 {
+	if devstackL2ELKind() == MixedL2ELOpReth {
 		t.Skipf("skipping on op-reth: %s", reason)
 	}
 }
@@ -263,7 +261,7 @@ func NewMixedSingleChainRuntime(t devtest.T, cfg MixedSingleChainPresetConfig) *
 		switch spec.ELKind {
 		case MixedL2ELOpGeth:
 			el = startL2ELNode(t, l2Net, jwtPath, jwtSecret, spec.ELKey, identity)
-		case MixedL2ELOpReth, MixedL2ELOpRethV2:
+		case MixedL2ELOpReth:
 			el = startMixedOpRethNode(t, l2Net, spec.ELKey, jwtPath, jwtSecret, metricsRegistrar, nodeOpRethOpts...)
 		default:
 			require.FailNowf("unsupported EL kind", "unsupported mixed EL kind %q", spec.ELKind)
@@ -465,7 +463,6 @@ func buildMixedOpRethNode(
 			"--datadir=" + dataDirPath,
 			"--chain=" + chainConfigPath,
 			"--proofs-history.storage-path=" + proofHistoryDir,
-			"--proofs-history.storage-version=v2",
 		}
 		initOut, initErr := exec.Command(execPath, initProofsArgs...).CombinedOutput()
 		t.Require().NoError(initErr, "must init op-reth proof history: %s", string(initOut))
@@ -475,7 +472,6 @@ func buildMixedOpRethNode(
 			"--proofs-history",
 			"--proofs-history.window=10000",
 			"--proofs-history.storage-path="+proofHistoryDir,
-			"--proofs-history.storage-version=v2",
 		)
 	}
 
