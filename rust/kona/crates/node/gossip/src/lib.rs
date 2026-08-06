@@ -65,6 +65,8 @@ pub use error::{DialError, GossipDriverBuilderError, HandlerEncodeError, Publish
 mod event;
 pub use event::Event;
 
+mod payload;
+
 mod handler;
 pub use handler::{BlockHandler, Handler};
 

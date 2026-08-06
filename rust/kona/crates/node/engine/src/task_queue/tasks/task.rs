@@ -8,6 +8,7 @@ use crate::{
     InsertTaskError,
     task_queue::{SealTask, SealTaskError},
 };
+use alloy_rpc_types_engine::PayloadStatusEnum;
 use async_trait::async_trait;
 use derive_more::Display;
 use std::cmp::Ordering;
@@ -92,7 +93,7 @@ impl EngineTaskError for EngineTaskErrors {
 /// [`Engine`]: crate::Engine
 #[derive(Debug, Clone)]
 pub enum EngineTask<EngineClient_: EngineClient> {
-    /// Inserts a payload into the execution engine.
+    /// Inserts an unsafe payload into the execution engine.
     Insert(Box<InsertTask<EngineClient_>>),
     /// Begins building a new block with the given attributes, producing a new payload ID.
     Build(Box<BuildTask<EngineClient_>>),
@@ -110,9 +111,17 @@ impl<EngineClient_: EngineClient> EngineTask<EngineClient_> {
     /// Executes the task without consuming it.
     async fn execute_inner(&self, state: &mut EngineState) -> Result<(), EngineTaskErrors> {
         match self {
-            Self::Insert(task) => {
-                task.execute(state).await?;
-            }
+            Self::Insert(task) => match task.execute(state).await {
+                // INVALID is terminal for an externally sourced unsafe payload. Drop it so the
+                // queue can process competing or subsequent payloads instead of retrying forever.
+                Err(InsertTaskError::UnexpectedPayloadStatus(
+                    status @ PayloadStatusEnum::Invalid { .. },
+                )) => {
+                    warn!(target: "engine", %status, "Dropping invalid unsafe payload");
+                }
+                Err(err) => return Err(err.into()),
+                Ok(_) => {}
+            },
             Self::Seal(task) => task.execute(state).await?,
             Self::Consolidate(task) => task.execute(state).await?,
             Self::Finalize(task) => task.execute(state).await?,
@@ -238,5 +247,44 @@ impl<EngineClient_: EngineClient> EngineTaskExt for EngineTask<EngineClient_> {
         kona_macros::inc!(counter, crate::Metrics::ENGINE_TASK_SUCCESS, self.task_metrics_label());
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::MockEngineClient;
+    use alloy_consensus::Block;
+    use alloy_primitives::Bytes;
+    use alloy_rpc_types_engine::{ExecutionPayloadV1, PayloadStatus};
+    use kona_genesis::RollupConfig;
+    use op_alloy_consensus::OpTxEnvelope;
+    use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
+    use std::{sync::Arc, time::Duration};
+
+    #[tokio::test]
+    async fn invalid_unsafe_payload_completes_without_retry() {
+        let config = Arc::new(RollupConfig::default());
+        let client = Arc::new(
+            MockEngineClient::builder()
+                .with_config(config.clone())
+                .with_new_payload_v1_response(PayloadStatus::from_status(
+                    PayloadStatusEnum::Invalid { validation_error: "invalid transaction".into() },
+                ))
+                .build(),
+        );
+        let mut payload = ExecutionPayloadV1::from_block_slow(&Block::<OpTxEnvelope>::default());
+        payload.transactions = vec![Bytes::from_static(&[0xff])];
+        let task = EngineTask::Insert(Box::new(InsertTask::new(
+            client,
+            config,
+            OpExecutionPayloadEnvelope::V1(payload),
+            false,
+        )));
+
+        tokio::time::timeout(Duration::from_secs(1), task.execute(&mut EngineState::default()))
+            .await
+            .expect("invalid unsafe payload task should not retry")
+            .unwrap();
     }
 }

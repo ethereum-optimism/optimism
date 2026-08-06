@@ -7040,6 +7040,7 @@ dependencies = [
  "arbitrary",
  "derive_more 2.1.1",
  "discv5 0.10.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ethereum_ssz",
  "futures",
  "ipnet",
  "kona-disc",
@@ -9451,7 +9452,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
- "snap",
  "thiserror 2.0.18",
 ]
 

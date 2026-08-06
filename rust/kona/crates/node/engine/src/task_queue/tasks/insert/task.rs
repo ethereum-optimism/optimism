@@ -72,7 +72,6 @@ impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
                 self.client.new_payload_v4(payload, parent_beacon_block_root).await
             }
         };
-        let block: OpBlock = payload.try_into_block().map_err(InsertTaskError::FromBlockError)?;
 
         // Check the `engine_newPayload` response.
         let response = match response {
@@ -87,6 +86,7 @@ impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
         }
         let insert_duration = insert_time_start.elapsed();
 
+        let block: OpBlock = payload.try_into_block().map_err(InsertTaskError::FromBlockError)?;
         let new_unsafe_ref =
             L2BlockInfo::from_block_and_genesis(&block, &self.rollup_config.genesis)
                 .map_err(InsertTaskError::L2BlockInfoConstruction)?;
