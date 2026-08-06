@@ -62,8 +62,8 @@ jobs:
           command: |
             WD=$(pwd)
             echo "Running tests..."
-            export OP_RETH_EXEC_PATH="$WD/rust/target/release/op-reth"
-            export RUST_BINARY_PATH_KONA_NODE="$WD/rust/target/release/kona-node"
+            export RUST_BINARY_PATH_OP_RETH="$WD/rust/target/ci/op-reth"
+            export RUST_BINARY_PATH_KONA_NODE="$WD/rust/target/ci/kona-node"
             cd rust/kona && just test-e2e-sysgo-run node node/common "<<parameters.devnet_config>>"
       - when:
           condition:
@@ -75,8 +75,8 @@ jobs:
                 command: |
                   WD=$(pwd)
                   echo "Running tests..."
-                  export OP_RETH_EXEC_PATH="$WD/rust/target/release/op-reth"
-                  export RUST_BINARY_PATH_KONA_NODE="$WD/rust/target/release/kona-node"
+                  export RUST_BINARY_PATH_OP_RETH="$WD/rust/target/ci/op-reth"
+                  export RUST_BINARY_PATH_KONA_NODE="$WD/rust/target/ci/kona-node"
                   cd rust/kona && just test-e2e-sysgo-run node node/reorgs "<<parameters.devnet_config>>"
       - go-save-cache:
           namespace: kona-ci
@@ -139,7 +139,7 @@ jobs:
           working_directory: rust/op-reth/tests
           no_output_timeout: 60m
           command: |
-            export OP_RETH_EXEC_PATH="$(pwd)/../../target/release/op-reth"
+            export RUST_BINARY_PATH_OP_RETH="$(pwd)/../../target/ci/op-reth"
             just test-e2e-sysgo
       - go-save-cache:
           namespace: op-reth-e2e
@@ -176,7 +176,7 @@ jobs:
           no_output_timeout: 90m
           command: |
             echo "Running action tests"
-            export KONA_HOST_PATH=$(pwd)/../target/release/kona-host
+            export KONA_HOST_PATH=$(pwd)/../target/ci/kona-host
             just action-tests-<<parameters.kind>>-run
       - go-save-cache:
           namespace: kona-ci
@@ -373,13 +373,15 @@ workflows:
       - cannon-prestate: &rust-e2e-job-base
           context:
             - circleci-repo-readonly-authenticated-github-token
-      # rust-workspace-release builds the whole rust workspace (no binary filter),
+      # rust-workspace-ci builds the whole rust workspace (no binary filter),
       # so it produces kona-host, kona-node, op-reth, and the rest. Downstream
       # e2e jobs attach the workspace and consume the binaries directly.
-      - rust-build-binary: &rust-workspace-release
-          name: rust-workspace-release
+      - rust-build-binary: &rust-workspace-ci
+          name: rust-workspace-ci
           directory: rust
-          profile: release
+          # ci profile: release plus line-table debug info and assertions, so
+          # e2e failures come with usable backtraces.
+          profile: ci
           persist_to_workspace: true
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -395,26 +397,26 @@ workflows:
           requires:
             - contracts-bedrock-build
             - cannon-prestate
-            - rust-workspace-release
+            - rust-workspace-ci
       - op-reth-e2e-sysgo-tests:
           <<: *rust-e2e-job-base
           requires:
             - contracts-bedrock-build
-            - rust-workspace-release
+            - rust-workspace-ci
       - rust-restart-sysgo-tests:
           name: rust-e2e-restart
           <<: *rust-e2e-job-base
           requires:
             - contracts-bedrock-build
             - cannon-prestate
-            - rust-workspace-release
+            - rust-workspace-ci
       # Proof action tests - single-chain only. Interop proof coverage runs
       # under kona-host in op-acceptance-tests, not as action tests.
       - kona-proof-action-tests:
           name: kona-proof-action-single
           kind: single
           requires:
-            - rust-workspace-release
+            - rust-workspace-ci
             - contracts-bedrock-build
           context:
             - circleci-repo-readonly-authenticated-github-token
