@@ -740,8 +740,12 @@ jobs:
     description: "Build a Rust workspace with target directory caching"
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
-    resource_class: xlarge.gen2
+    resource_class: << parameters.resource_class >>
     parameters:
+      resource_class:
+        description: "Executor size; profiles that keep debug info need the 32GB class"
+        type: string
+        default: xlarge.gen2
       directory:
         description: "Directory containing the Cargo workspace"
         type: string
