@@ -187,7 +187,7 @@ Required:
 | Variable | Purpose |
 |---|---|
 | `L1_RPC` | L1 execution RPC |
-| `SUPERNODE_RPC` | supernode (or single-chain op-node) RPC serving `superroot_atTimestamp` |
+| `SUPERROOT_RPC` | op-supernode or single-chain op-node RPC serving `superroot_atTimestamp` |
 | `FACTORY_ADDRESS` | `DisputeGameFactory` address |
 | `PRESTATES_URL` | prestate artifact directory (`<vkey>.agg.bin.gz` + `<vkey>.range.bin.gz`) |
 | `PROOF_PROVIDER` | `network` or `mock`; no default |

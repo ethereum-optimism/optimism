@@ -124,7 +124,7 @@ func startZKProposer(
 	l1EL L1ELNode,
 	l1CL *L1CLNode,
 	depSet depset.DependencySet,
-	supernodeRPC string,
+	superRootRPC string,
 	l2Nets []*L2Network,
 	l2ELs []L2ELNode,
 	factoryAddr common.Address,
@@ -191,7 +191,7 @@ func startZKProposer(
 
 	env := []string{
 		"L1_RPC=" + l1EL.UserRPC(),
-		"SUPERNODE_RPC=" + supernodeRPC,
+		"SUPERROOT_RPC=" + superRootRPC,
 		"FACTORY_ADDRESS=" + factoryAddr.Hex(),
 		"PRESTATES_URL=file://" + prestatesDir,
 		"PRIVATE_KEY=" + hexutil.Encode(crypto.FromECDSA(proposerSecret)),
