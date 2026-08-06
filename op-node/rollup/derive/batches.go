@@ -207,10 +207,11 @@ func checkSequencerTxData(log log.Logger, txIndex int, txBytes []byte, isIsthmus
 	return BatchAccept
 }
 
-// checkSpanBatchPrefix performs the span batch prefix rules for Holocene.
-// Next to the validity, it also returns the parent L2 block as determined during the checks for
-// further consumption.
-func checkSpanBatchPrefix(ctx context.Context, cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1BlockRef, l2SafeHead eth.L2BlockRef,
+// checkSpanBatchHolocene performs the full set of span batch checks that run post-Holocene: the
+// prefix rules, plus the overlap content comparison against the safe chain (see
+// checkSpanBatchOverlap). Next to the validity, it also returns the parent L2 block as determined
+// during the checks for further consumption.
+func checkSpanBatchHolocene(ctx context.Context, cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1BlockRef, l2SafeHead eth.L2BlockRef,
 	batch *SpanBatch, l1InclusionBlock eth.L1BlockRef, l2Fetcher SafeBlockFetcher,
 ) (BatchValidity, eth.L2BlockRef) {
 	// add details to the log
@@ -316,6 +317,16 @@ func checkSpanBatchPrefix(ctx context.Context, cfg *rollup.Config, log log.Logge
 		log.Warn("dropped batch, epoch is too old", "minimum", parentBlock.ID())
 		return BatchDrop, parentBlock
 	}
+
+	// The prefix rules only anchor the batch at its parent; they do not validate the contents of
+	// elements that overlap the safe chain. A span batch whose overlap disagrees with the safe
+	// chain — possible since interop block replacement — must be dropped as a whole, so that the
+	// remainder of an invalidated lineage cannot be spliced onto the canonical chain.
+	// The loop is empty if the batch does not overlap (parentBlock == l2SafeHead).
+	if validity := checkSpanBatchOverlap(ctx, cfg, log, batch, parentBlock, l2SafeHead, l2Fetcher); validity != BatchAccept {
+		return validity, parentBlock
+	}
+
 	return BatchAccept, parentBlock
 }
 
@@ -324,7 +335,7 @@ func checkSpanBatchPrefix(ctx context.Context, cfg *rollup.Config, log log.Logge
 func checkSpanBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1BlockRef, l2SafeHead eth.L2BlockRef,
 	batch *SpanBatch, l1InclusionBlock eth.L1BlockRef, l2Fetcher SafeBlockFetcher,
 ) BatchValidity {
-	prefixValidity, parentBlock := checkSpanBatchPrefix(ctx, cfg, log, l1Blocks, l2SafeHead, batch, l1InclusionBlock, l2Fetcher)
+	prefixValidity, parentBlock := checkSpanBatchHolocene(ctx, cfg, log, l1Blocks, l2SafeHead, batch, l1InclusionBlock, l2Fetcher)
 	if prefixValidity != BatchAccept {
 		return prefixValidity
 	}
@@ -414,13 +425,9 @@ func checkSpanBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1B
 		}
 	}
 
-	nextTimestamp := l2SafeHead.Time + cfg.BlockTime
-	// Check overlapped blocks
-	if batch.GetTimestamp() < nextTimestamp {
-		if validity := checkSpanBatchOverlap(ctx, cfg, log, batch, parentBlock, l2SafeHead, l2Fetcher); validity != BatchAccept {
-			return validity
-		}
-	}
+	// Note: the overlapped blocks were already checked by checkSpanBatchHolocene above. This
+	// moves the overlap content check ahead of the per-transaction checks relative to the
+	// pre-Holocene order, which only matters for the validity of batches failing both.
 
 	return BatchAccept
 }

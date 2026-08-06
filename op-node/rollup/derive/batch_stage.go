@@ -136,7 +136,7 @@ func (bs *BatchStage) nextSingularBatchCandidate(ctx context.Context, parent eth
 			return nil, NewCriticalError(errors.New("failed type assertion to SpanBatch"))
 		}
 
-		validity, parentBlock := checkSpanBatchPrefix(ctx, bs.config, bs.Log(), bs.l1Blocks, parent, spanBatch, bs.origin, bs.l2)
+		validity, _ := checkSpanBatchHolocene(ctx, bs.config, bs.Log(), bs.l1Blocks, parent, spanBatch, bs.origin, bs.l2)
 		switch validity {
 		case BatchAccept: // continue
 			spanBatch.LogContext(bs.Log()).Info("Found next valid span batch")
@@ -145,7 +145,7 @@ func (bs *BatchStage) nextSingularBatchCandidate(ctx context.Context, parent eth
 			// NotEnoughData to read in next batch until we're through all past batches
 			return nil, NotEnoughData
 		case BatchDrop: // drop, try next
-			spanBatch.LogContext(bs.Log()).Warn("Dropping invalid span batch, flushing channel (span batch prefix checks)")
+			spanBatch.LogContext(bs.Log()).Warn("Dropping invalid span batch, flushing channel (span batch checks)")
 			bs.FlushChannel()
 			return nil, NotEnoughData
 		case BatchUndecided: // l2 fetcher error, try again
@@ -155,28 +155,9 @@ func (bs *BatchStage) nextSingularBatchCandidate(ctx context.Context, parent eth
 			return nil, NewCriticalError(errors.New("impossible future batch validity"))
 		}
 
-		// The prefix checks do not validate overlap contents against the safe chain. A span batch
-		// that disagrees with the safe chain — possible since interop block replacement — must be
-		// dropped as a whole, so that the remainder of an invalidated lineage cannot be spliced
-		// onto the canonical chain. See checkSpanBatchOverlap for details.
-		if parentBlock.Number < parent.Number {
-			switch validity := checkSpanBatchOverlap(ctx, bs.config, bs.Log(), spanBatch, parentBlock, parent, bs.l2); validity {
-			case BatchAccept: // continue
-			case BatchDrop:
-				spanBatch.LogContext(bs.Log()).Warn("Dropping invalid span batch, flushing channel (span batch overlap checks)")
-				bs.FlushChannel()
-				return nil, NotEnoughData
-			case BatchUndecided: // l2 fetcher error, try again
-				spanBatch.LogContext(bs.Log()).Warn("Undecided span batch (span batch overlap checks)")
-				return nil, NotEnoughData
-			default:
-				return nil, NewCriticalError(fmt.Errorf("unexpected overlap batch validity: %v", validity))
-			}
-		}
-
 		// If next batch is SpanBatch, convert it to SingularBatches.
 		singularBatches, err := spanBatch.GetSingularBatches(bs.l1Blocks, parent)
-		// Errors can happen here because the span batch prefix checks are not exhaustive (unlike the full span batch
+		// Errors can happen here because the Holocene span batch checks are not exhaustive (unlike the full span batch
 		// checks) so an error must be handled like an invalid span batch (DROP).
 		if err != nil {
 			spanBatch.LogContext(bs.Log()).Warn("Dropping invalid span batch, flushing channel (singular batch extraction)", "error", err)
