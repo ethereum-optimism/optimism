@@ -4,6 +4,8 @@ description: Learn about the Supersim included contracts.
 diataxis: reference
 ---
 
+import SupersimDepositPointer from '/snippets/supersim-deposit-pointer.mdx';
+
 The `supersim` chain environment includes contracts already deployed to help replicate the OP Stack interop environment. See [OP Chain A](./chain-a) for contract address examples for a L2 system.
 
 ## OP Stack system contracts (L1)
@@ -41,4 +43,5 @@ cast send 0x420beeF000000000000000000000000000000001 "mint(address _to, uint256 
 ## Next steps
 
 *   Get network details about the two OP Stack systems spun up in vanilla mode: [OPChainA (chainID 901)](/app-developers/reference/tools/supersim/chain-a) and [OPChainB (chainID 902)](/app-developers/reference/tools/supersim/chain-b).
-*   Learn how to [deposit transactions](/app-developers/tutorials/bridging/deposit-transactions) with Supersim, using a much simpler approach that bypasses the derivation pipeline.
+
+<SupersimDepositPointer />
