@@ -40,38 +40,77 @@ What that ownership includes, stated the way the docs themselves state it:
     protects against crashes and partitions, not against a malicious cluster
     member. See
     [the launch guide's sequencer topology step](/use-cases/launch-a-chain-with-fault-proofs-and-ha-sequencing#step-3-design-the-sequencer-topology).
-*   **The defense.** The challenger is a role your team staffs, not a service
-    you switch on. Every claim it posts carries a bond sent as transaction
-    value; correct claims are refunded, incorrect ones pay the counter-claimer,
-    and bonds from won games pay out only after a delay, so capital stays locked
-    while games resolve. Deciding how much the challenger's account holds and
-    how quickly you can top it up during an active dispute is an operational
-    answer your team owns. See
+*   **The defense.** The defense is a service you run and a set of decisions
+    your team staffs. The service is
+    [`op-challenger`](/op-stack/fault-proofs/challenger): an autonomous agent
+    that monitors every game, defends valid proposals, challenges invalid ones,
+    resolves games, and claims bonds. Starting it is not the whole job. Every
+    claim it posts carries a bond sent as transaction value; correct claims are
+    refunded, incorrect ones pay the counter-claimer, and bonds from won games
+    pay out only after a delay, so capital stays locked while games resolve.
+    How much the challenger's account holds, how quickly you can top it up
+    during an active dispute, and which absolute prestate it plays with are
+    operational answers your team owns; the challenger refuses to interact with
+    games whose prestate it does not have. See
     [Run a fault-proof challenger](/use-cases/run-a-fault-proof-challenger).
+*   **The monitoring.** Watching the chain is a separate set of services from
+    running it. `op-dispute-mon` tracks the status of every dispute game and is
+    how you learn that your challenger is acting; `monitorism` carries the
+    onchain security monitors, whose security-integrity group exists to check
+    that the bridges between L2 and L1 behave as expected, including the
+    faultproof withdrawal monitor that watches `ProvenWithdrawals` events on
+    the `OptimismPortal` and flags invariant violations. Your own components
+    need their metrics endpoints scraped alongside that: `op-node`,
+    `op-batcher`, `op-proposer`, and `op-challenger` each expose one. Peer
+    count belongs on that list too, because an `op-node` without peers cannot
+    sync unsafe blocks and falls behind the sequencer. See
+    [Chain monitoring options](/chain-operators/tools/chain-monitoring) and
+    [the important node metrics](/node-operators/guides/monitoring/metrics#important-metrics).
 *   **The keys.** The batcher and proposer addresses need their private keys
     online somewhere for the system to work, and if those addresses are
-    compromised, the system can be exploited. How to hold them, whether through
-    an HSM or a cloud key management system, is a decision the chain operator
+    compromised, the system can be exploited. They are not the only privileged
+    addresses your chain has. The Proxy Admins can upgrade most of the system
+    contracts on L1 and L2, the System Config Owner can change the values in
+    the `SystemConfig` contract, the Guardian can pause withdrawal logic and
+    disable dispute game types from executing withdrawals, and the permissioned
+    Challenger role is a distinct address from the `op-challenger` service.
+    Which addresses hold which role, and how each key is held, whether through
+    an HSM or a cloud key management system, are decisions the chain operator
     makes. See
-    [Key management](/chain-operators/guides/management/key-management).
-*   **The upgrade calendar.** Network upgrades, deprecations, and operational
-    changes arrive as time-bound action items in
-    [Network Notices](/notices), with the permanent record of each hardfork in
-    the [hardfork registry](/op-stack/protocol/network-upgrades). Tracking each
-    notice and executing it on your chain is yours, and the calendar does not
-    end.
-*   **The Ethereum endpoints.** Every service in the stack reads from and
-    transacts against Ethereum. Redundant nodes behind a generic load balancer
-    are the wrong shape here: two nodes are never at exactly the same head, so a
-    service whose consecutive requests round-robin between them reads blocks
-    appearing and disappearing as reorgs that never happened. The challenger
-    needs one trusted endpoint that fails over deliberately rather than per
-    request. See
+    [Key management](/chain-operators/guides/management/key-management) and
+    [Privileged roles in OP Stack chains](/op-stack/protocol/privileged-roles#privileged-roles-in-op-stack-chains)
+    for what every role can do and what a compromise of it means.
+*   **The protocol upgrade cadence.** There is no fixed calendar of dates, but
+    the OP Stack keeps moving and keeping current with it is yours. Network
+    upgrades, deprecations, and operational changes arrive as time-bound action
+    items in [Network Notices](/notices), with the permanent record of each
+    hardfork in the
+    [hardfork registry](/op-stack/protocol/network-upgrades), which records
+    activation times, the governing spec, and minimum component versions.
+    Tracking each notice, moving your components to the versions it names, and
+    executing the change on your chain recurs for as long as the chain runs.
+*   **The RPC endpoints.** Every service in the stack depends on RPC, and not
+    only on L1. Each sequencer's op-node derives the chain from an L1 RPC and
+    an L1 beacon endpoint, and the batcher, proposer, and challenger read and
+    transact against L1; `op-challenger` additionally needs an L2 archive node
+    (`--l2-eth-rpc`) and a rollup node with SafeDB (`--rollup-rpc`), and
+    `op-dispute-mon` takes a rollup RPC of its own. Redundant nodes behind a
+    generic load balancer are the wrong shape for any of them. Two nodes can be
+    at the same head, but nothing holds them there, and a service whose
+    consecutive requests round-robin between them reads that divergence as
+    blocks appearing and disappearing: reorgs that never happened. The
+    challenger is the least tolerant consumer and needs one trusted endpoint
+    that fails over deliberately rather than per request. See
     [the launch guide's section on a consistent view](/use-cases/launch-a-chain-with-fault-proofs-and-ha-sequencing#give-every-service-a-consistent-view-of-l1).
 *   **The standing work.** Running current production releases, keeping the
     deployment artifacts, staggering upgrade rollouts across your
     infrastructure, isolating the sequencer, and writing your own runbooks are
-    continuous tasks rather than launch-day ones. See
+    continuous tasks rather than launch-day ones. Monitoring only helps if
+    someone is on the other end of it. Metrics endpoints on your key
+    components, and runbooks to execute when something is not behaving as
+    expected, are the documented practice; the alerting path, the people
+    reachable through it, and the incident response itself are yours to build
+    and staff. See
     [Chain operator best practices](/chain-operators/guides/management/best-practices).
 *   **The path to permissionless proofs.** Chains deployed with `op-deployer`
     start with the permissioned dispute game, in which the proposer and
