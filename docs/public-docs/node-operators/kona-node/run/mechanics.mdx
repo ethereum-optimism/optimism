@@ -53,8 +53,8 @@ The `kona-node` syncs the L2 chain in two main phases:
 
 1. **Execution Layer (EL) Sync:**
    When starting, the node initially has an empty engine task queue.
-   Once an unsafe block is received from P2P gossip, an `InsertUnsafe`
-   task is executed. The `InsertUnsafe` task executes a forkchoice
+   Once an unsafe block is received from P2P gossip, an `InsertTask`
+   is executed. That task inserts the payload and sends a forkchoice
    update through the engine api. Since the engine state is lazily
    initialized (the safe and finalized heads are zero), the forkchoice
    update kicks off EL sync on the execution layer (EL) client (such
@@ -97,17 +97,14 @@ the [`NodeActor` trait][node-actor], a minimal interface with a single
 `step` method that the service drives in a loop until the actor reports
 a fatal error or the node shuts down.
 
-The [`RollupNode` service][node] builds and spawns these actors:
-- **DerivationActor**: Runs the derivation pipeline to produce L2 payload attributes.
-- **EngineActor**: Brokers the connection to the execution layer (EL) Engine API.
-- **EngineRpcActor**: Serves read-only engine queries alongside the engine actor.
-- **L1WatcherActor**: Watches L1 for new head and finalized blocks.
-- **NetworkActor**: Handles P2P networking and block gossip.
-- **RpcActor**: Runs the node's RPC server.
-- **SequencerActor**: Builds blocks when the node runs as a sequencer.
+The [`RollupNode` service][node] builds and spawns a fixed set of
+actors covering derivation, the execution engine and its read-only
+engine RPC, the L1 watcher, P2P networking, the node's RPC server,
+and, in sequencer mode, block building.
 
-The [Node Design section](/node-operators/kona-node/design/intro) covers
-what each actor does in more detail.
+The [Node Design section](/node-operators/kona-node/design/intro) is
+the canonical description of that actor set and of what each actor
+does.
 
 
 #### Extending with Custom Actors
@@ -151,11 +148,13 @@ and the helper that spawns and supervises those actors is internal to
 the `kona-node-service` crate.
 
 Running a custom actor therefore means composing the node yourself.
-The built-in actors and the channel types they communicate over are
-public API of the `kona-node-service` crate, so a custom binary can
-construct the actors it needs, wire them together over channels, add
-its own `NodeActor` implementations, and drive each actor's `step`
-method in its own task.
+The built-in actors are public API of the `kona-node-service` crate.
+The request and payload types they exchange over channels are public
+too, spread across `kona-node-service`, sibling kona crates such as
+`kona-rpc` and `kona-gossip`, and the shared alloy engine types. A
+custom binary can therefore construct the actors it needs, wire them
+together over channels, add its own `NodeActor` implementations, and
+drive each actor's `step` method in its own task.
 
 #### Programmatic Node Construction
 
