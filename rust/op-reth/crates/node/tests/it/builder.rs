@@ -4,7 +4,6 @@ use alloy_op_evm::{
     OpEvmContext, OpTxError,
     post_exec::{
         PostExecEvmFactoryAdapter, PostExecEvmFactoryHooks, PostExecExecutedTx, PostExecTxContext,
-        WarmingState,
     },
 };
 use alloy_primitives::{Bytes, address};
@@ -132,7 +131,7 @@ fn test_setup_custom_precompiles() {
     }
 
     impl PostExecEvmFactoryHooks for UniEvmFactory {
-        type Snapshot = WarmingState;
+        type Snapshot = ();
 
         fn begin_post_exec_tx<DB, I>(evm: &mut Self::Evm<DB, I>, ctx: PostExecTxContext)
         where

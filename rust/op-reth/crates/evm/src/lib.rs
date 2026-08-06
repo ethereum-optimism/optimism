@@ -69,7 +69,11 @@ pub use tx::OpTx;
 pub use alloy_op_evm::{
     OpBlockExecutionCtx, OpBlockExecutorFactory, OpEvm, OpEvmFactory, PostExecMode,
     PreRefundGasUsed,
-    post_exec::{PostExecExecutorExt, WarmingRefundEvent, WarmingRefundKind, WarmingState},
+    post_exec::{
+        NullRefundPolicy, PostExecEvmFactoryAdapter, PostExecExecutedTx, PostExecExecutorExt,
+        PostExecRefundEvent, PostExecRefundInspector, PostExecRefundKind, PostExecTxContext,
+        PostExecTxKind,
+    },
 };
 
 mod post_exec_ext;
@@ -123,6 +127,21 @@ impl<ChainSpec, N: NodePrimitives, R, EvmFactory> OpEvmConfig<ChainSpec, N, R, E
             _pd: core::marker::PhantomData,
         }
     }
+
+    /// Clones this configuration's chain spec and receipt builder with a different EVM factory.
+    pub fn clone_with_evm_factory<OtherEvmFactory>(
+        &self,
+        evm_factory: OtherEvmFactory,
+    ) -> OpEvmConfig<ChainSpec, N, R, OtherEvmFactory>
+    where
+        R: Clone,
+    {
+        OpEvmConfig::new_with_evm_factory(
+            self.executor_factory.spec().clone(),
+            self.executor_factory.receipt_builder().clone(),
+            evm_factory,
+        )
+    }
 }
 
 impl<ChainSpec: EthChainSpec<Header = Header> + OpHardforks, N: NodePrimitives, R>
@@ -130,7 +149,11 @@ impl<ChainSpec: EthChainSpec<Header = Header> + OpHardforks, N: NodePrimitives, 
 {
     /// Creates a new [`OpEvmConfig`] with the given chain spec.
     pub fn new(chain_spec: Arc<ChainSpec>, receipt_builder: R) -> Self {
-        Self::new_with_evm_factory(chain_spec, receipt_builder, OpEvmFactory::<OpTx>::default())
+        Self::new_with_evm_factory(
+            chain_spec,
+            receipt_builder,
+            OpEvmFactory::<OpTx, NullRefundPolicy>::default(),
+        )
     }
 }
 
