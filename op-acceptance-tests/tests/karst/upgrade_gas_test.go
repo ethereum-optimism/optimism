@@ -62,8 +62,5 @@ func testKarstUpgradeGas(gt *testing.T, keep bool) {
 
 	// Prove the boundary with kona-client too: agree on the pre-activation block and prove
 	// forward across the activation into the post-activation block. kona-host cannot prefetch
-	// state proofs from op-rbuilder (no proofs-history ExEx).
-	if !sysgo.IsOpRbuilder() {
-		t.Require().True(sys.RunKonaNative(activationBlock-1, postBlock))
-	}
+	t.Require().True(sys.RunKonaNative(activationBlock-1, postBlock))
 }

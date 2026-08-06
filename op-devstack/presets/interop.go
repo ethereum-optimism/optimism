@@ -142,7 +142,7 @@ func NewSingleChainInteropIsthmusSuper(t devtest.T, opts ...Option) *SingleChain
 // op-supernode). The op-challenger plays super-cannon-kona games against this op-node
 // source. This exercises the "op-node as super root RPC" path end-to-end.
 func NewSingleChainInteropNoSupernode(t devtest.T, opts ...Option) *SingleChainInterop {
-	presetCfg, _ := collectSupportedPresetConfig(t, "NewSingleChainInteropNoSupernode", opts, 0)
+	presetCfg, _ := collectSupportedPresetConfig(t, "NewSingleChainInteropNoSupernode", opts, singleChainInteropNoSupernodePresetSupportedOptionKinds)
 	return singleChainInteropNoSupernodeFromRuntime(t, sysgo.NewSingleChainInteropNoSupernodeSuperRootRuntimeWithConfig(t, presetCfg))
 }
 

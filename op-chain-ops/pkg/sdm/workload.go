@@ -25,7 +25,7 @@ import (
 
 // StateBloatBin is a tiny contract with run(uint256 n), which writes n stable storage slots.
 // Sending repeated calls to the same contract in one block warms the same account/slots and
-// should produce SDM refund entries in an SDM-enabled op-reth/op-rbuilder devnet.
+// should produce SDM refund entries when run against an SDM fixture or policy-enabled producer.
 const StateBloatBin = "6080604052348015600e575f5ffd5b5060f28061001b5f395ff3fe6080604052348015600e575f5ffd5b50600436106026575f3560e01c8063a444f5e914602a575b5f5ffd5b60406004803603810190603c91906096565b6042565b005b5f5f90505b8181101560605760018101815580806001019150506047565b5050565b5f5ffd5b5f819050919050565b6078816068565b81146081575f5ffd5b50565b5f813590506090816071565b92915050565b5f6020828403121560a85760a76064565b5b5f60b3848285016084565b9150509291505056fea2646970667358221220fb9ef6750b6ac6ded2dd901595e50b6daefe24726b41a0346f3a36ac6fcf5f8264736f6c634300081c0033"
 
 const runSelectorHex = "a444f5e9" // run(uint256)
@@ -77,29 +77,19 @@ func (r *RPCReceipt) BlockNum() uint64 {
 	return bigs.Uint64Strict((*big.Int)(r.BlockNumber))
 }
 
-type ReplaySDMRefundEvent struct {
-	ClaimingReplayTxIndex      uint64         `json:"claiming_replay_tx_index"`
-	ClaimingTxIndex            uint64         `json:"claiming_tx_index"`
-	Kind                       string         `json:"kind"`
-	Amount                     uint64         `json:"amount"`
-	Address                    common.Address `json:"address"`
-	Slot                       *common.Hash   `json:"slot"`
-	FirstWarmedByReplayTxIndex uint64         `json:"first_warmed_by_replay_tx_index"`
-	FirstWarmedByTxIndex       uint64         `json:"first_warmed_by_tx_index"`
-}
-
+// ReplaySDMTx is one row of debug_replaySDMBlock. RawGasUsed comes from policy-free re-execution;
+// CanonicalGasUsed is what the block's embedded payload implies the producer charged. Replay does not
+// recompute refunds, so there is no replay-side refund to compare against.
 type ReplaySDMTx struct {
-	TxIndex            uint64                 `json:"tx_index"`
-	ReplayTxIndex      uint64                 `json:"replay_tx_index"`
-	TxHash             common.Hash            `json:"tx_hash"`
-	TxType             uint64                 `json:"tx_type"`
-	IsDepositTx        bool                   `json:"is_deposit_tx"`
-	RawGasUsed         uint64                 `json:"raw_gas_used"`
-	CanonicalGasUsed   uint64                 `json:"canonical_gas_used"`
-	OPGasRefundReplay  uint64                 `json:"op_gas_refund_replay"`
-	OPGasRefundPayload *uint64                `json:"op_gas_refund_payload"`
-	RefundBreakdown    []ReplaySDMRefundEvent `json:"refund_breakdown"`
-	Mismatch           bool                   `json:"mismatch"`
+	TxIndex            uint64      `json:"tx_index"`
+	ReplayTxIndex      uint64      `json:"replay_tx_index"`
+	TxHash             common.Hash `json:"tx_hash"`
+	TxType             uint64      `json:"tx_type"`
+	IsDepositTx        bool        `json:"is_deposit_tx"`
+	RawGasUsed         uint64      `json:"raw_gas_used"`
+	CanonicalGasUsed   uint64      `json:"canonical_gas_used"`
+	OPGasRefundPayload *uint64     `json:"op_gas_refund_payload"`
+	Mismatch           bool        `json:"mismatch"`
 }
 
 type ReplaySDMMismatch struct {
@@ -120,23 +110,20 @@ type ReplaySDMSummary struct {
 	PostExecPayloadEntryCount int         `json:"post_exec_payload_entry_count"`
 	BlockGasUsed              uint64      `json:"block_gas_used"`
 	BlockRawGasUsed           uint64      `json:"block_raw_gas_used"`
-	ReplayRefundTotal         uint64      `json:"replay_refund_total"`
 	PayloadRefundTotal        uint64      `json:"payload_refund_total"`
 	MismatchCount             int         `json:"mismatch_count"`
 }
 
 type ReplaySDMBlock struct {
-	BlockNum                uint64                   `json:"block_num"`
-	BlockHash               common.Hash              `json:"block_hash"`
-	ParentHash              common.Hash              `json:"parent_hash"`
-	PostExecTxPresent       bool                     `json:"post_exec_tx_present"`
-	PostExecTxIndex         *uint64                  `json:"post_exec_tx_index"`
-	EmbeddedPayload         *optypes.PostExecPayload `json:"embedded_payload"`
-	SynthesizedPayload      optypes.PostExecPayload  `json:"synthesized_payload"`
-	SynthesizedPayloadBytes hexutil.Bytes            `json:"synthesized_payload_bytes"`
-	Txs                     []ReplaySDMTx            `json:"txs"`
-	Mismatches              []ReplaySDMMismatch      `json:"mismatches"`
-	Summary                 ReplaySDMSummary         `json:"summary"`
+	BlockNum          uint64                   `json:"block_num"`
+	BlockHash         common.Hash              `json:"block_hash"`
+	ParentHash        common.Hash              `json:"parent_hash"`
+	PostExecTxPresent bool                     `json:"post_exec_tx_present"`
+	PostExecTxIndex   *uint64                  `json:"post_exec_tx_index"`
+	EmbeddedPayload   *optypes.PostExecPayload `json:"embedded_payload"`
+	Txs               []ReplaySDMTx            `json:"txs"`
+	Mismatches        []ReplaySDMMismatch      `json:"mismatches"`
+	Summary           ReplaySDMSummary         `json:"summary"`
 }
 
 // ValidationOptions controls how ValidatePostExecBlock checks the selected block.
@@ -310,9 +297,6 @@ func ValidatePostExecBlock(ctx context.Context, rpcClient Caller, blockNum uint6
 		}
 		if replay.Summary.PostExecPayloadEntryCount != len(payload.GasRefundEntries) {
 			return nil, fmt.Errorf("replay payload entry count %d, want %d", replay.Summary.PostExecPayloadEntryCount, len(payload.GasRefundEntries))
-		}
-		if replay.Summary.ReplayRefundTotal != replay.Summary.PayloadRefundTotal {
-			return nil, fmt.Errorf("replay refund total %d, payload total %d", replay.Summary.ReplayRefundTotal, replay.Summary.PayloadRefundTotal)
 		}
 		if replay.Summary.PayloadRefundTotal != result.TotalPayloadRefund {
 			return nil, fmt.Errorf("replay payload refund total %d, decoded payload total %d", replay.Summary.PayloadRefundTotal, result.TotalPayloadRefund)

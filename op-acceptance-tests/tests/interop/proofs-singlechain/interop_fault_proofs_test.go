@@ -3,10 +3,10 @@ package proofs_singlechain
 import (
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sdm/sdmtest"
 	sfp "github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/superfaultproofs"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 )
 
 func TestInteropSingleChainFaultProofs(gt *testing.T) {
@@ -17,10 +17,6 @@ func TestInteropSingleChainFaultProofs(gt *testing.T) {
 
 func TestInteropSingleChainFaultProofsWithSDM(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sysgo.SkipOnOpGeth(t, "SDM PostExec is op-reth only")
-
-	sys := presets.NewSingleChainInterop(t)
-	err := sys.L2ELA.Escape().L2EthClient().RPC().CallContext(t.Ctx(), nil, "admin_setOperatorSdmOptIn", true)
-	t.Require().NoError(err, "admin_setOperatorSdmOptIn(true) RPC failed")
+	sys := sdmtest.NewFixtureSingleChainFaultProofSystem(t)
 	sfp.RunSingleChainSuperFaultProofSDMSmokeTest(t, sys)
 }
