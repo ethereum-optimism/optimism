@@ -7,6 +7,7 @@ use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
     BuildTask, ConsolidateInput, ConsolidateTask, Engine, EngineClient, EngineTask,
     EngineTaskError, EngineTaskErrorSeverity, FinalizeBlockId, FinalizeTask, InsertTask, SealTask,
+    UnsafePayloadQueue,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -58,6 +59,8 @@ where
     client: Arc<EngineClient_>,
     /// The [`Engine`] task queue.
     engine: Engine<EngineClient_>,
+    /// Unsafe payloads waiting for their parent block to become canonical.
+    unsafe_payloads: UnsafePayloadQueue,
     /// The inbound request channel.
     inbound_request_rx: mpsc::Receiver<EngineActorRequest>,
 }
@@ -84,6 +87,7 @@ where
             last_safe_head_sent: L2BlockInfo::default(),
             rollup: config,
             unsafe_head_tx,
+            unsafe_payloads: UnsafePayloadQueue::default(),
             inbound_request_rx,
         }
     }
@@ -156,6 +160,26 @@ where
         Ok(())
     }
 
+    /// Enqueues the next applicable unsafe payload, if one is available.
+    fn enqueue_next_unsafe_payload(&mut self) -> bool {
+        let state = self.engine.state();
+        let Some(envelope) = self.unsafe_payloads.pop_applicable(
+            state.sync_state.unsafe_head(),
+            state.sync_state.safe_head(),
+            state.el_sync_finished,
+        ) else {
+            return false;
+        };
+
+        self.engine.enqueue(EngineTask::Insert(Box::new(InsertTask::new(
+            self.client.clone(),
+            self.rollup.clone(),
+            envelope,
+            false, /* The payload is not derived in this case. This is an unsafe block. */
+        ))));
+        true
+    }
+
     async fn mark_el_sync_complete_and_notify_derivation_actor(
         &mut self,
     ) -> Result<(), EngineError> {
@@ -223,11 +247,28 @@ where
             });
         }
 
-        // Wait for the next processing request.
-        let request = self.inbound_request_rx.recv().await.ok_or_else(|| {
-            error!(target: "engine", "Engine processing request receiver closed unexpectedly");
-            EngineError::ChannelClosed
-        })?;
+        // Schedule a buffered unsafe payload before waiting for more work. If another request is
+        // already waiting, enqueue it too so higher-priority build and seal tasks are not starved
+        // while an unsafe gap is being filled.
+        let request = if self.enqueue_next_unsafe_payload() {
+            match self.inbound_request_rx.try_recv() {
+                Ok(request) => Some(request),
+                Err(mpsc::error::TryRecvError::Empty) => None,
+                Err(mpsc::error::TryRecvError::Disconnected) => {
+                    error!(target: "engine", "Engine processing request receiver closed unexpectedly");
+                    return Err(EngineError::ChannelClosed);
+                }
+            }
+        } else {
+            Some(self.inbound_request_rx.recv().await.ok_or_else(|| {
+                error!(target: "engine", "Engine processing request receiver closed unexpectedly");
+                EngineError::ChannelClosed
+            })?)
+        };
+
+        let Some(request) = request else {
+            return Ok(());
+        };
 
         match request {
             EngineActorRequest::Build(build_request) => {
@@ -258,14 +299,9 @@ where
                 self.engine.enqueue(task);
             }
             EngineActorRequest::ProcessUnsafeL2Block(envelope) => {
-                let task = EngineTask::Insert(Box::new(InsertTask::new(
-                    self.client.clone(),
-                    self.rollup.clone(),
-                    *envelope,
-                    false, /* The payload is not derived in this case. This is an unsafe
-                            * block. */
-                )));
-                self.engine.enqueue(task);
+                if let Err(err) = self.unsafe_payloads.push(*envelope) {
+                    warn!(target: "engine", ?err, "Failed to buffer unsafe payload");
+                }
             }
             EngineActorRequest::Reset(reset_request) => {
                 warn!(target: "engine", "Received reset request");

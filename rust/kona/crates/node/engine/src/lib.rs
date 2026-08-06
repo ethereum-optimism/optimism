@@ -26,6 +26,7 @@
 //! ## Module Organization
 //!
 //! - **Task Queue** - Core engine task queue and execution logic via [`Engine`]
+//! - **Payload Queue** - Out-of-order unsafe payload buffering via [`UnsafePayloadQueue`]
 //! - **Client** - HTTP client for Engine API communication via [`EngineClient`]
 //! - **State** - Engine state management and synchronization via [`EngineState`]
 //! - **Versions** - Engine API version selection via [`EngineForkchoiceVersion`],
@@ -48,6 +49,9 @@ pub use task_queue::{
 
 mod attributes;
 pub use attributes::{AttributesMatch, AttributesMismatch};
+
+mod payloads_queue;
+pub use payloads_queue::{UnsafePayloadQueue, UnsafePayloadQueueError};
 
 mod client;
 pub use client::{
