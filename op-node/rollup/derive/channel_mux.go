@@ -37,7 +37,6 @@ func NewChannelMux(log log.Logger, spec *rollup.ChainSpec, prev NextFrameProvide
 }
 
 func (c *ChannelMux) Reset(ctx context.Context, base eth.L1BlockRef, sysCfg eth.SystemConfig) error {
-	// TODO(12490): change to a switch over c.cfg.ActiveFork(base.Time)
 	switch {
 	default:
 		if _, ok := c.RawChannelProvider.(*ChannelBank); !ok {
