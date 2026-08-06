@@ -131,11 +131,15 @@ super-root `ZKDisputeGame` (game type 10) end to end:
 
 ### Ownership (which games it defends)
 
-Ownership is prestate-based: the
-proposer proves, resolves, and claims every game whose `absolutePrestate()`
-artifacts it can load, regardless of creator. The three sets are the same set.
-Games whose prestate is unknown are skipped with the
+Defense, resolution, and bond claims use prestate-based ownership. The proposer
+handles every game whose `absolutePrestate()` artifacts it can load, regardless
+of creator. Games whose prestate is unknown are skipped with the
 `kona_sp1_proposer_unknown_prestate_challenged` gauge as the alarm.
+
+Fast finality uses a narrower spend policy. It proves only unchallenged games
+created by the configured proposer signer and owned by prestate. After a signer
+rotation, old-signer games stay eligible for defense, resolution, and claims,
+but the restart scan does not fast-finalize them.
 
 **Operational requirement**: rotated-out prestate artifacts must remain published
 under `PRESTATES_URL` for as long as games created under them can be live, or the
@@ -159,8 +163,8 @@ proposer loses the ability to defend, resolve, and claim those games.
 There is no in-flight proof-request recovery (upstream parity): the task map is
 in-memory, and a restart re-detects still-challenged games and re-requests their
 proofs from scratch. A pre-flight check prevents duplicate `prove()` submissions.
-In fast finality mode the per-tick scan likewise re-detects unproven owned
-unchallenged games and re-spawns their proving.
+In fast finality mode the per-tick scan likewise re-detects unproven,
+signer-created unchallenged games and re-spawns their proving.
 
 ### Operator alarms
 
@@ -202,7 +206,7 @@ Optional (defaults in parentheses):
 | `RANGE_SPLIT_COUNT` (1, max 16) | chunks a defended span is split into |
 | `MAX_CONCURRENT_RANGE_PROOFS` (1) | child-proof concurrency within one game |
 | `MAX_CONCURRENT_DEFENSE_TASKS` (8) | games defended concurrently (must be >= 1) |
-| `FAST_FINALITY_MODE` (false) | prove owned games while unchallenged |
+| `FAST_FINALITY_MODE` (false) | prove signer-created owned games while unchallenged |
 | `FAST_FINALITY_PROVING_LIMIT` (1) | total in-flight proving tasks (defense included) before creation pauses |
 | `NETWORK_PRIVATE_KEY` (network mode; `USE_KMS_REQUESTER` for AWS KMS) | SPN requester key |
 | `RANGE_PROOF_STRATEGY`, `AGG_PROOF_STRATEGY` (reserved) | SPN fulfillment strategies |
@@ -212,20 +216,20 @@ Optional (defaults in parentheses):
 
 ### Fast finality
 
-With `FAST_FINALITY_MODE=true` the proposer proves every owned game while it is
-still unchallenged, spawned by the per-tick scan one fetch interval after
-creation. A proven game is over immediately, so it resolves as soon as its
-parent does instead of waiting out `maxChallengeDuration`: proof spend traded
-for finality latency. Off by default.
+With `FAST_FINALITY_MODE=true` the proposer proves every signer-created owned
+game while it is still unchallenged, spawned by the per-tick scan one fetch
+interval after creation. A proven game is over immediately, so it resolves as
+soon as its parent does instead of waiting out `maxChallengeDuration`: proof
+spend traded for finality latency. Blacklisted and retired games are skipped.
+Off by default.
 
-Spend framing: in network mode this proves every owned game. At a one-hour
-proposal interval that is a baseline of 24 aggregation proofs per day; the
-default `FAST_FINALITY_PROVING_LIMIT=1` serializes them. Ownership is
-prestate-based (see above), so an unchallenged foreign game with a known
-prestate is proven at this proposer's expense (there is no bond upside for
-proving unchallenged games), and multiple proposers sharing prestates duplicate
-proof spend: run one fast-finality proposer per prestate set. Enabling the mode
-on a chain with an existing unchallenged backlog proves the whole owned backlog.
+Spend framing: in network mode this proves every game created by this signer
+whose prestate artifacts are available. At a one-hour proposal interval that is
+a baseline of 24 aggregation proofs per day; the default
+`FAST_FINALITY_PROVING_LIMIT=1` serializes them. An unchallenged game created by
+another proposer is not proven, even when it uses a known prestate. Enabling the
+mode on a chain with an existing unchallenged backlog proves the signer-created
+owned backlog.
 
 Concurrency interaction:
 
