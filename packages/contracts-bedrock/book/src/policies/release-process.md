@@ -73,24 +73,24 @@ L2 contracts are tagged and released on the same commit as L1 contracts, but the
 
 Since `op-node` and `kona` are released from `develop` while `op-deployer` is released from a `proposal/op-contracts/vX.Y.Z` branch, both branches consume the fork's snapshotted bundle (`op-core/nuts/bundles/<fork>_nut_bundle.json`).
 
-### The situation
+### Handling changes to L2 contracts on a proposal branch
 
 Normally L2 contract changes merge to `develop` before the fork bundle is snapshotted, and the standard [two-PR flow](../../../../../op-core/nuts/README.md#pr-2--snapshot-the-bundle-for-a-fork) applies. The problem arises when a change modifying `current-upgrade-bundle.json` (i.e. any L2 contract change) lands on the proposal branch after `develop`'s bundle has moved on due to other contract changes. The fork bundle must then be snapshotted from a proposal-branch commit, and no commit on `develop` can reproduce it.
 
 Before proceeding, check whether the proposal-branch change can be avoided: the only occurrence to date was resolved by [reverting it](https://github.com/ethereum-optimism/optimism/pull/20981), making everything below unnecessary.
 
-### Invariants
+#### Invariants
 
 1. The fork's snapshotted bundle and its `fork_lock.toml` entry are identical on `develop` and the proposal branch.
 2. The bundle is reproducible from the source commit recorded in `fork_lock.toml`. CI enforces this via [`checkCommitAncestry()`](../../../../../ops/scripts/check-nut-locks/main.go), which requires that commit to be an ancestor of `origin/develop`, so a bundle generated from a proposal-branch commit needs a fork-scoped special case there. The special case is permanent: it documents that fork's bundle provenance forever.
 
-### Steps
+#### Steps
 
 1. Merge the contract change (with regenerated `current-upgrade-bundle.json`) to the proposal branch.
 2. In a second PR to the proposal branch, snapshot the bundle per the [README steps](../../../../../op-core/nuts/README.md#pr-2--snapshot-the-bundle-for-a-fork), with two deviations:
    - Set the source commit in `fork_lock.toml` by hand to the proposal-branch commit that produced the bundle (`just nut-snapshot-for` records the merge-base with `develop`, which is wrong here).
    - Add a fork-scoped special case to `checkCommitAncestry()` accepting ancestors of the proposal branch for this fork ([#20921](https://github.com/ethereum-optimism/optimism/pull/20921) shows both changes; [this suggestion](https://github.com/ethereum-optimism/optimism/pull/20921#discussion_r3282817526) is the preferred shape).
-3. Cherry-pick the snapshot PR to `develop`, restoring invariant 1.
+3. Cherry-pick the second PR to `develop`, restoring invariant 1.
 
 ## Finalizing a release
 
