@@ -97,7 +97,7 @@ There are two throttling knobs:
 
 **Feature requirements**
 
-*   This feature is enabled by default and requires the sequencer's `op-reth` node to expose the `miner_setMaxDASize` RPC (enable the `miner` namespace, below). It can be disabled by setting `--throttle-threshold` to 0. The sequencer's `op-reth` node has to be updated first, before updating the batcher, so that the required RPC is available at the time of the batcher restart.
+*   This feature is enabled by default and requires the sequencer's `op-reth` node to expose the `miner_setMaxDASize` RPC (enable the `miner` namespace, below). It can be disabled by setting `--throttle.unsafe-da-bytes-lower-threshold` (env var `OP_BATCHER_THROTTLE_UNSAFE_DA_BYTES_LOWER_THRESHOLD`) to 0, which is the only flag you need to change to turn throttling off. The sequencer's `op-reth` node has to be updated first, before updating the batcher, so that the required RPC is available at the time of the batcher restart.
 *   It is required to upgrade to `op-conductor/v0.2.0` if you are using conductor's leader-aware rpc proxy feature. This conductor release includes support for proxying the `miner_setMaxDASize` RPC.
 
 **Configuration**
