@@ -20,7 +20,7 @@ func TestResolveELSpec(t *testing.T) {
 	}{
 		{name: "default", want: defaultKind},
 		{name: "op reth", value: "op-reth", want: sysgo.MixedL2ELOpReth},
-		{name: "op reth proof v2", value: "op-reth-proof-v2", want: sysgo.MixedL2ELOpRethV2},
+		{name: "removed v2 alias", value: "op-reth-proof-v2", wantErr: true},
 		{name: "op geth", value: "op-geth", want: sysgo.MixedL2ELOpGeth},
 		{name: "removed v1", value: "op-reth-proof-v1", wantErr: true},
 		{name: "unknown", value: "op-reht", wantErr: true},

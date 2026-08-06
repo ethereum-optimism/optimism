@@ -7,7 +7,7 @@ use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, Environ
 use reth_node_core::version::version_metadata;
 use reth_optimism_node::args::ProofsHistoryStorageArgs;
 use reth_optimism_trie::{
-    OpProofsProviderRO, OpProofsStore, SnapshotInitJob, db::MdbxProofsStorageV2,
+    OpProofsProviderRO, OpProofsStore, SnapshotInitJob, db::MdbxProofsStorage,
 };
 use reth_provider::{DBProvider, DatabaseProviderFactory};
 use std::sync::Arc;
@@ -43,9 +43,9 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> SnapshotInitCommand<C> {
         let storage_path = self.history.resolve_storage_path(data_dir.as_ref());
         info!(target: "reth::cli", "Initializing OP proofs snapshot at: {:?}", storage_path);
 
-        let storage: Arc<MdbxProofsStorageV2> = Arc::new(
-            MdbxProofsStorageV2::new(&storage_path)
-                .map_err(|e| eyre::eyre!("Failed to open MdbxProofsStorageV2: {e}"))?,
+        let storage: Arc<MdbxProofsStorage> = Arc::new(
+            MdbxProofsStorage::new(&storage_path)
+                .map_err(|e| eyre::eyre!("Failed to open MdbxProofsStorage: {e}"))?,
         );
 
         // Resolve `None` to the proof window's `earliest`.

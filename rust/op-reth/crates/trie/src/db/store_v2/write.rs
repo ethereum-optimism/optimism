@@ -1,6 +1,6 @@
-//! Read-write helpers for [`MdbxProofsProviderV2`].
+//! Read-write helpers for [`MdbxProofsProvider`].
 
-use super::MdbxProofsProviderV2;
+use super::MdbxProofsProvider;
 use crate::{
     BlockStateDiff, OpProofsStorageResult,
     api::WriteCounts,
@@ -50,7 +50,7 @@ pub(super) struct HistoryCollector {
 }
 
 /// Pre-opened write cursors for the 8 tables touched by
-/// [`MdbxProofsProviderV2::store_block_updates`].
+/// [`MdbxProofsProvider::store_block_updates`].
 struct WriteCursors<TX: DbTxMut + DbTx> {
     account_trie_state: <TX as DbTxMut>::CursorMut<V2AccountsTrie>,
     account_trie_cs: <TX as DbTxMut>::DupCursorMut<V2AccountTrieChangeSets>,
@@ -190,7 +190,7 @@ fn append_storage_trie_entry(
 /// Returns the set of nibble subkeys that were snapshotted so the caller can avoid
 /// double-recording changeset entries for those nodes in the subsequent per-node loop.
 ///
-/// Used for the `is_deleted` (full-wipe) path in [`MdbxProofsProviderV2::write_storage_trie`].
+/// Used for the `is_deleted` (full-wipe) path in [`MdbxProofsProvider::write_storage_trie`].
 fn snapshot_and_wipe_storage_trie(
     state_cursor: &mut (
              impl DbCursorRO<V2StoragesTrie>
@@ -232,7 +232,7 @@ fn snapshot_and_wipe_storage_trie(
 /// Write a single storage-trie node update: snapshot the old node into the changeset,
 /// record in the history collector, then apply the new value (upsert or delete).
 ///
-/// Used for the per-node path in [`MdbxProofsProviderV2::write_storage_trie`].
+/// Used for the per-node path in [`MdbxProofsProvider::write_storage_trie`].
 fn write_storage_trie_node(
     state_cursor: &mut (impl DbDupCursorRO<V2StoragesTrie> + DbCursorRW<V2StoragesTrie>),
     cs_cursor: &mut impl DbDupCursorRW<V2StorageTrieChangeSets>,
@@ -276,7 +276,7 @@ fn append_hashed_storage_entry(
 /// Snapshot all existing hashed-storage slots for `hashed_address` into the changeset and
 /// collector, delete them from the state table, and return the set of slot keys that were wiped.
 ///
-/// Used for the `is_wiped` (full-wipe) path in [`MdbxProofsProviderV2::write_hashed_storages`].
+/// Used for the `is_wiped` (full-wipe) path in [`MdbxProofsProvider::write_hashed_storages`].
 fn snapshot_and_wipe_hashed_storage(
     state_cursor: &mut (
              impl DbCursorRO<V2HashedStorages>
@@ -306,7 +306,7 @@ fn snapshot_and_wipe_hashed_storage(
 /// Write a single hashed-storage slot update: snapshot the old value into the changeset,
 /// record in the history collector, then apply the new value (upsert or delete).
 ///
-/// Used for the per-slot path in [`MdbxProofsProviderV2::write_hashed_storages`].
+/// Used for the per-slot path in [`MdbxProofsProvider::write_hashed_storages`].
 fn write_hashed_storage_slot(
     state_cursor: &mut (impl DbDupCursorRO<V2HashedStorages> + DbCursorRW<V2HashedStorages>),
     cs_cursor: &mut impl DbDupCursorRW<V2HashedStorageChangeSets>,
@@ -338,7 +338,7 @@ fn write_hashed_storage_slot(
     Ok(())
 }
 
-impl<TX: DbTxMut + DbTx> MdbxProofsProviderV2<TX> {
+impl<TX: DbTxMut + DbTx> MdbxProofsProvider<TX> {
     pub(super) fn set_earliest_block_number_inner(
         &self,
         block_number: u64,

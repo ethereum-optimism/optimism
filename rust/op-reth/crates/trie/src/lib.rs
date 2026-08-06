@@ -39,7 +39,7 @@ pub use in_memory::{
 };
 
 pub mod db;
-pub use db::MdbxProofsStorageV2;
+pub use db::MdbxProofsStorage;
 
 #[cfg(feature = "metrics")]
 pub mod metrics;

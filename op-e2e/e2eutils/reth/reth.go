@@ -138,7 +138,6 @@ func InitL2(ctx context.Context, lgr log.Logger, name string, genesis *core.Gene
 		"--datadir=" + dataDir,
 		"--chain=" + chainConfigPath,
 		"--proofs-history.storage-path=" + proofHistoryDir,
-		"--proofs-history.storage-version=v2",
 	}
 	if err := runToCompletion(ctx, execPath, proofsInitArgs...); err != nil {
 		return nil, fmt.Errorf("op-reth proofs init: %w", err)
@@ -167,7 +166,6 @@ func InitL2(ctx context.Context, lgr log.Logger, name string, genesis *core.Gene
 		"--proofs-history",
 		"--proofs-history.window=10000",
 		"--proofs-history.storage-path=" + proofHistoryDir,
-		"--proofs-history.storage-version=v2",
 		"--with-unused-ports",
 		"--ws",
 		"--ws.api=admin,debug,eth,net,trace,txpool,web3,rpc,reth,miner",

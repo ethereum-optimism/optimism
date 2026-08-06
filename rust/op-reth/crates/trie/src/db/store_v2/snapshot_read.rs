@@ -1,10 +1,10 @@
-//! [`OpProofsSnapshotProviderRO`] implementation for [`MdbxProofsProviderV2`].
+//! [`OpProofsSnapshotProviderRO`] implementation for [`MdbxProofsProvider`].
 
 use super::{
-    MdbxProofsProviderV2,
+    MdbxProofsProvider,
     cursor::{
-        V2AccountTrieSnapshotCursor, V2HashedAccountSnapshotCursor, V2HashedStorageSnapshotCursor,
-        V2StorageTrieSnapshotCursor,
+        MdbxAccountTrieSnapshotCursor, MdbxHashedAccountSnapshotCursor,
+        MdbxHashedStorageSnapshotCursor, MdbxStorageTrieSnapshotCursor,
     },
 };
 use crate::{
@@ -23,11 +23,11 @@ use alloy_primitives::B256;
 use reth_db::{cursor::DbCursorRO, transaction::DbTx};
 use std::fmt::Debug;
 
-impl<TX: DbTx> MdbxProofsProviderV2<TX> {
+impl<TX: DbTx> MdbxProofsProvider<TX> {
     /// Read the singleton row from [`V2SnapshotMeta`], or
     /// [`OpProofsStorageError::SnapshotNotInitialized`] if absent.
     ///
-    /// Internal helper for V2 write paths that need to verify or mutate the
+    /// Internal helper for write paths that need to verify or mutate the
     /// current lifecycle state. External reads go through
     /// [`OpProofsSnapshotProviderRO::snapshot_anchor`].
     pub(super) fn read_snapshot_meta(&self) -> OpProofsStorageResult<SnapshotMeta> {
@@ -40,28 +40,28 @@ impl<TX: DbTx> MdbxProofsProviderV2<TX> {
 }
 
 impl<TX: DbTx + Send + Sync + Debug + 'static> OpProofsSnapshotProviderRO
-    for MdbxProofsProviderV2<TX>
+    for MdbxProofsProvider<TX>
 {
     type SnapshotAccountTrieCursor<'tx>
-        = V2AccountTrieSnapshotCursor<TX::Cursor<V2AccountsTrieSnapshot>>
+        = MdbxAccountTrieSnapshotCursor<TX::Cursor<V2AccountsTrieSnapshot>>
     where
         Self: 'tx,
         TX: 'tx;
 
     type SnapshotStorageTrieCursor<'tx>
-        = V2StorageTrieSnapshotCursor<TX::DupCursor<V2StoragesTrieSnapshot>>
+        = MdbxStorageTrieSnapshotCursor<TX::DupCursor<V2StoragesTrieSnapshot>>
     where
         Self: 'tx,
         TX: 'tx;
 
     type SnapshotHashedAccountCursor<'tx>
-        = V2HashedAccountSnapshotCursor<TX::Cursor<V2HashedAccountsSnapshot>>
+        = MdbxHashedAccountSnapshotCursor<TX::Cursor<V2HashedAccountsSnapshot>>
     where
         Self: 'tx,
         TX: 'tx;
 
     type SnapshotHashedStorageCursor<'tx>
-        = V2HashedStorageSnapshotCursor<TX::DupCursor<V2HashedStoragesSnapshot>>
+        = MdbxHashedStorageSnapshotCursor<TX::DupCursor<V2HashedStoragesSnapshot>>
     where
         Self: 'tx,
         TX: 'tx;
@@ -86,14 +86,14 @@ impl<TX: DbTx + Send + Sync + Debug + 'static> OpProofsSnapshotProviderRO
     fn snapshot_account_trie_cursor<'tx>(
         &self,
     ) -> OpProofsStorageResult<Self::SnapshotAccountTrieCursor<'tx>> {
-        Ok(V2AccountTrieSnapshotCursor::new(self.tx.cursor_read::<V2AccountsTrieSnapshot>()?))
+        Ok(MdbxAccountTrieSnapshotCursor::new(self.tx.cursor_read::<V2AccountsTrieSnapshot>()?))
     }
 
     fn snapshot_storage_trie_cursor<'tx>(
         &self,
         hashed_address: B256,
     ) -> OpProofsStorageResult<Self::SnapshotStorageTrieCursor<'tx>> {
-        Ok(V2StorageTrieSnapshotCursor::new(
+        Ok(MdbxStorageTrieSnapshotCursor::new(
             self.tx.cursor_dup_read::<V2StoragesTrieSnapshot>()?,
             hashed_address,
         ))
@@ -102,14 +102,14 @@ impl<TX: DbTx + Send + Sync + Debug + 'static> OpProofsSnapshotProviderRO
     fn snapshot_hashed_account_cursor<'tx>(
         &self,
     ) -> OpProofsStorageResult<Self::SnapshotHashedAccountCursor<'tx>> {
-        Ok(V2HashedAccountSnapshotCursor::new(self.tx.cursor_read::<V2HashedAccountsSnapshot>()?))
+        Ok(MdbxHashedAccountSnapshotCursor::new(self.tx.cursor_read::<V2HashedAccountsSnapshot>()?))
     }
 
     fn snapshot_hashed_storage_cursor<'tx>(
         &self,
         hashed_address: B256,
     ) -> OpProofsStorageResult<Self::SnapshotHashedStorageCursor<'tx>> {
-        Ok(V2HashedStorageSnapshotCursor::new(
+        Ok(MdbxHashedStorageSnapshotCursor::new(
             self.tx.cursor_dup_read::<V2HashedStoragesSnapshot>()?,
             hashed_address,
         ))

@@ -10,7 +10,7 @@ use reth_optimism_node::args::{
 };
 use reth_optimism_trie::{
     BackfillJob, InitializationJob, OpProofsProviderRO, OpProofsStorageError, OpProofsStore,
-    RethTrieStorageLayout, db::MdbxProofsStorageV2,
+    RethTrieStorageLayout, db::MdbxProofsStorage,
 };
 use reth_provider::{BlockNumReader, DBProvider, DatabaseProviderFactory, StorageSettingsCache};
 use std::sync::Arc;
@@ -68,9 +68,9 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> InitCommand<C> {
         // During initialization we write billions of entries; the metrics layer's
         // `AtomicBucket::push` (used by `Histogram::record_many`) is append-only and
         // would accumulate ~19 bytes per observation, causing OOM on large chains.
-        let storage: Arc<MdbxProofsStorageV2> = Arc::new(
-            MdbxProofsStorageV2::new(&storage_path)
-                .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorageV2: {e}"))?,
+        let storage: Arc<MdbxProofsStorage> = Arc::new(
+            MdbxProofsStorage::new(&storage_path)
+                .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
         );
         Self::run_init(&provider_factory, storage.clone())?;
 

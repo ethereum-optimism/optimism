@@ -9,7 +9,7 @@ use reth_node_core::version::version_metadata;
 use reth_optimism_node::args::ProofsHistoryStorageArgs;
 use reth_optimism_trie::{
     OpProofsProviderRO, OpProofsProviderRw, OpProofsStorageError, OpProofsStore,
-    db::MdbxProofsStorageV2,
+    db::MdbxProofsStorage,
 };
 use reth_primitives_traits::BlockBody;
 use reth_provider::{BlockReader, TransactionVariant};
@@ -77,9 +77,9 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> UnwindCommand<C> {
         let storage_path = self.history.resolve_storage_path(data_dir.as_ref());
         info!(target: "reth::cli", "Unwinding OP proofs storage at: {:?}", storage_path);
 
-        let storage: Arc<MdbxProofsStorageV2> = Arc::new(
-            MdbxProofsStorageV2::new(&storage_path)
-                .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorageV2: {e}"))?,
+        let storage: Arc<MdbxProofsStorage> = Arc::new(
+            MdbxProofsStorage::new(&storage_path)
+                .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
         );
         self.run_unwind(storage, &provider_factory)?;
 

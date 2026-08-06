@@ -15,8 +15,8 @@ import (
 // MixedOpProofPreset sets up a two-node L2 devnet (sequencer + validator)
 // with configurable EL clients via environment variables:
 //
-//   - OP_DEVSTACK_PROOF_SEQUENCER_EL: "op-reth" (default), "op-reth-proof-v2", or "op-geth"
-//   - OP_DEVSTACK_PROOF_VALIDATOR_EL: "op-reth" (default), "op-reth-proof-v2", or "op-geth"
+//   - OP_DEVSTACK_PROOF_SEQUENCER_EL: "op-reth" (default) or "op-geth"
+//   - OP_DEVSTACK_PROOF_VALIDATOR_EL: "op-reth" (default) or "op-geth"
 type MixedOpProofPreset struct {
 	Log log.Logger
 	T   devtest.T
@@ -60,8 +60,6 @@ func resolveELSpec(envVar string, defaultKind sysgo.MixedL2ELKind) (sysgo.MixedL
 	switch value {
 	case "":
 		return defaultKind, nil
-	case "op-reth-proof-v2":
-		return sysgo.MixedL2ELOpRethV2, nil
 	case "op-reth":
 		return sysgo.MixedL2ELOpReth, nil
 	case "op-geth":

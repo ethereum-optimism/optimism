@@ -110,8 +110,8 @@ where
 /// use reth_node_builder::{NodeBuilder, NodeConfig};
 /// use reth_optimism_chainspec::OP_MAINNET;
 /// use reth_optimism_exex::OpProofsExEx;
-/// use reth_optimism_node::{args::RollupArgs, OpNode};
-/// use reth_optimism_trie::{db::MdbxProofsStorageV2, InMemoryProofsStorage, OpProofsStorage};
+/// use reth_optimism_node::{OpNode, args::RollupArgs};
+/// use reth_optimism_trie::{InMemoryProofsStorage, OpProofsStorage, db::MdbxProofsStorage};
 /// use reth_provider::providers::BlockchainProvider;
 /// use std::{sync::Arc, time::Duration};
 ///
@@ -128,8 +128,8 @@ where
 /// # let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
 /// # let storage_path = temp_dir.path().join("proofs_storage");
 ///
-/// # let storage: OpProofsStorage<Arc<MdbxProofsStorageV2>> = Arc::new(
-/// #    MdbxProofsStorageV2::new(&storage_path).expect("Failed to create MdbxProofsStorageV2"),
+/// # let storage: OpProofsStorage<Arc<MdbxProofsStorage>> = Arc::new(
+/// #    MdbxProofsStorage::new(&storage_path).expect("Failed to create MdbxProofsStorage"),
 /// # ).into();
 ///
 /// let storage_exec = storage.clone();
@@ -402,7 +402,7 @@ mod tests {
     use reth_execution_types::{Chain, ExecutionOutcome};
     use reth_optimism_trie::{
         BlockStateDiff, OpProofsInitProvider, OpProofsProviderRO, OpProofsProviderRw,
-        OpProofsStore, db::MdbxProofsStorageV2, engine::EngineHandle,
+        OpProofsStore, db::MdbxProofsStorage, engine::EngineHandle,
     };
     use reth_primitives_traits::RecoveredBlock;
     use reth_trie::{
@@ -496,7 +496,7 @@ mod tests {
     async fn handle_notification_chain_committed() {
         // MDBX proofs storage
         let dir = tempdir_path();
-        let store = Arc::new(MdbxProofsStorageV2::new(dir.as_path()).expect("env"));
+        let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
 
         init_storage(store.clone());
 
@@ -534,7 +534,7 @@ mod tests {
     async fn handle_notification_chain_committed_skips_already_processed() {
         // MDBX proofs storage
         let dir = tempdir_path();
-        let store = Arc::new(MdbxProofsStorageV2::new(dir.as_path()).expect("env"));
+        let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
 
         init_storage(store.clone());
 
@@ -584,7 +584,7 @@ mod tests {
     async fn handle_notification_chain_reorged() {
         // MDBX proofs storage
         let dir = tempdir_path();
-        let store = Arc::new(MdbxProofsStorageV2::new(dir.as_path()).expect("env"));
+        let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
 
         init_storage(store.clone());
 
@@ -640,7 +640,7 @@ mod tests {
     async fn handle_notification_chain_reorged_skips_beyond_stored_blocks() {
         // MDBX proofs storage
         let dir = tempdir_path();
-        let store = Arc::new(MdbxProofsStorageV2::new(dir.as_path()).expect("env"));
+        let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
 
         init_storage(store.clone());
 
@@ -699,7 +699,7 @@ mod tests {
     async fn handle_notification_chain_reverted() {
         // MDBX proofs storage
         let dir = tempdir_path();
-        let store = Arc::new(MdbxProofsStorageV2::new(dir.as_path()).expect("env"));
+        let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
 
         init_storage(store.clone());
 
@@ -755,7 +755,7 @@ mod tests {
     async fn handle_notification_chain_reverted_skips_beyond_stored_blocks() {
         // MDBX proofs storage
         let dir = tempdir_path();
-        let store = Arc::new(MdbxProofsStorageV2::new(dir.as_path()).expect("env"));
+        let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
 
         init_storage(store.clone());
 
@@ -811,7 +811,7 @@ mod tests {
     async fn ensure_initialized_errors_on_storage_not_initialized() {
         // MDBX proofs storage
         let dir = tempdir_path();
-        let store = Arc::new(MdbxProofsStorageV2::new(dir.as_path()).expect("env"));
+        let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
 
         let (ctx, _handle) =
             reth_exex_test_utils::test_exex_context().await.expect("exex test context");
@@ -824,7 +824,7 @@ mod tests {
     async fn ensure_initialized_errors_when_prune_exceeds_threshold() {
         // MDBX proofs storage
         let dir = tempdir_path();
-        let store = Arc::new(MdbxProofsStorageV2::new(dir.as_path()).expect("env"));
+        let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
 
         init_storage(store.clone());
 
@@ -849,7 +849,7 @@ mod tests {
     async fn ensure_initialized_succeeds() {
         // MDBX proofs storage
         let dir = tempdir_path();
-        let store = Arc::new(MdbxProofsStorageV2::new(dir.as_path()).expect("env"));
+        let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
 
         init_storage(store.clone());
 
@@ -864,7 +864,7 @@ mod tests {
     async fn handle_notification_errors_on_empty_storage() {
         // MDBX proofs storage
         let dir = tempdir_path();
-        let store = Arc::new(MdbxProofsStorageV2::new(dir.as_path()).expect("env"));
+        let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
 
         let (ctx, _handle) =
             reth_exex_test_utils::test_exex_context().await.expect("exex test context");
@@ -894,7 +894,7 @@ mod tests {
     async fn handle_notification_schedules_async_on_gap() {
         // MDBX proofs storage
         let dir = tempdir_path();
-        let store = Arc::new(MdbxProofsStorageV2::new(dir.as_path()).expect("env"));
+        let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
 
         init_storage(store.clone());
 

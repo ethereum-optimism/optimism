@@ -12,13 +12,13 @@ use reth_optimism_rpc::{
     debug::{DebugApiExt, DebugApiOverrideServer},
     eth::proofs::{EthApiExt, EthApiOverrideServer},
 };
-use reth_optimism_trie::{OpProofsStorage, OpProofsStore, db::MdbxProofsStorageV2};
+use reth_optimism_trie::{OpProofsStorage, OpProofsStore, db::MdbxProofsStorage};
 use reth_tasks::TaskExecutor;
 use std::{sync::Arc, time::Duration};
 use tokio::time::sleep;
 use tracing::info;
 
-/// Launches the node with optional v2 proof-history support.
+/// Launches the node with optional proof-history support.
 pub async fn launch_node(
     builder: WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
     args: RollupArgs,
@@ -32,10 +32,10 @@ pub async fn launch_node(
     // [`ProofsHistoryStorageArgs::resolve_storage_path`].
     let path = args.history.resolve_storage_path(builder.config().datadir().as_ref());
 
-    info!(target: "reth::cli", "Using on-disk storage for proofs history (v2)");
+    info!(target: "reth::cli", "Using on-disk storage for proofs history");
     let mdbx = Arc::new(
-        MdbxProofsStorageV2::new(&path)
-            .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorageV2: {e}"))?,
+        MdbxProofsStorage::new(&path)
+            .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
     );
     launch_with_proof_history(builder, args, mdbx).await
 }

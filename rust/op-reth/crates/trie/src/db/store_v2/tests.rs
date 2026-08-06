@@ -1,4 +1,4 @@
-//! Tests for the V2 MDBX proof storage.
+//! Tests for the MDBX proof storage.
 
 use super::*;
 use crate::db::models;
@@ -66,7 +66,7 @@ fn init_store_hashed_accounts_writes_to_current_state() {
     let addr = B256::from([0xAA; 32]);
     let account = sample_account();
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw tx"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw tx"));
         provider.store_hashed_accounts(vec![(addr, Some(account))]).expect("write");
         OpProofsInitProvider::commit(provider).expect("commit");
     }
@@ -87,7 +87,7 @@ fn init_store_hashed_storages_writes_to_current_state() {
     let slot = B256::from([0x22; 32]);
     let val = U256::from(0x1234u64);
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw tx"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw tx"));
         provider.store_hashed_storages(addr, vec![(slot, val)]).expect("write");
         OpProofsInitProvider::commit(provider).expect("commit");
     }
@@ -106,7 +106,7 @@ fn init_store_account_branches_writes_to_current_state() {
     let path = Nibbles::from_nibbles_unchecked([0x12, 0x34]);
     let node = sample_node();
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw tx"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw tx"));
         provider.store_account_branches(vec![(path, Some(node.clone()))]).expect("write");
         OpProofsInitProvider::commit(provider).expect("commit");
     }
@@ -126,7 +126,7 @@ fn init_store_storage_branches_writes_to_current_state() {
     let path = Nibbles::from_nibbles_unchecked([0x12, 0x34]);
     let node = sample_node();
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw tx"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw tx"));
         provider.store_storage_branches(addr, vec![(path, Some(node.clone()))]).expect("write");
         OpProofsInitProvider::commit(provider).expect("commit");
     }
@@ -151,7 +151,7 @@ fn store_and_read_trie_updates_account() {
 
     // Initialize state
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider.store_hashed_accounts(vec![(addr, Some(initial_account))]).expect("init");
         provider.set_initial_state_anchor(BlockNumHash::new(0, B256::ZERO)).expect("anchor");
         provider.commit_initial_state().expect("commit init");
@@ -160,7 +160,7 @@ fn store_and_read_trie_updates_account() {
 
     // Store block 1 update
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         let mut post_state = HashedPostState::default();
         post_state.accounts.insert(addr, Some(updated_account));
 
@@ -202,7 +202,7 @@ fn unwind_restores_old_state() {
 
     // Initialize with v0
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider.store_hashed_accounts(vec![(addr, Some(account_v0))]).expect("init");
         provider.set_initial_state_anchor(BlockNumHash::new(0, B256::ZERO)).expect("anchor");
         provider.commit_initial_state().expect("commit init");
@@ -211,7 +211,7 @@ fn unwind_restores_old_state() {
 
     // Store block 1
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         let mut post_state = HashedPostState::default();
         post_state.accounts.insert(addr, Some(account_v1));
 
@@ -235,7 +235,7 @@ fn unwind_restores_old_state() {
 
     // Unwind block 1
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         let unwind_to = BlockWithParent::new(B256::ZERO, NumHash::new(1, B256::repeat_byte(0x01)));
         provider.unwind_history(unwind_to).expect("unwind");
         OpProofsProviderRw::commit(provider).expect("commit");
@@ -258,7 +258,7 @@ fn store_creates_history_bitmap() {
 
     // Initialize
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider.store_hashed_accounts(vec![(addr, Some(Account::default()))]).expect("init");
         provider.set_initial_state_anchor(BlockNumHash::new(0, B256::ZERO)).expect("anchor");
         provider.commit_initial_state().expect("commit init");
@@ -268,7 +268,7 @@ fn store_creates_history_bitmap() {
     // Store 3 blocks
     let mut parent_hash = B256::ZERO;
     for block_num in 1..=3 {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         let hash = B256::repeat_byte(block_num as u8);
         let mut post_state = HashedPostState::default();
         post_state.accounts.insert(addr, Some(Account { nonce: block_num, ..Default::default() }));
@@ -302,7 +302,7 @@ fn prune_removes_changesets() {
 
     // Initialize
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider.store_hashed_accounts(vec![(addr, Some(Account::default()))]).expect("init");
         provider.set_initial_state_anchor(BlockNumHash::new(0, B256::ZERO)).expect("anchor");
         provider.commit_initial_state().expect("commit init");
@@ -312,7 +312,7 @@ fn prune_removes_changesets() {
     // Store blocks 1-3
     let mut parent_hash = B256::ZERO;
     for block_num in 1u64..=3 {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         let hash = B256::repeat_byte(block_num as u8);
         let mut post_state = HashedPostState::default();
         post_state.accounts.insert(addr, Some(Account { nonce: block_num, ..Default::default() }));
@@ -328,7 +328,7 @@ fn prune_removes_changesets() {
 
     // Prune blocks 1-2
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         let prune_ref = make_block_ref(2, B256::repeat_byte(0x02), B256::repeat_byte(0x01));
         provider.prune_earliest_state(prune_ref).expect("prune");
         OpProofsProviderRw::commit(provider).expect("commit");
@@ -365,7 +365,7 @@ fn prune_removes_changesets() {
 
 /// Initialize database with accounts and set anchor at block 0.
 fn init_state(db: &DatabaseEnv, accounts: Vec<(B256, Option<Account>)>) {
-    let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+    let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
     if !accounts.is_empty() {
         provider.store_hashed_accounts(accounts).expect("init accounts");
     }
@@ -376,7 +376,7 @@ fn init_state(db: &DatabaseEnv, accounts: Vec<(B256, Option<Account>)>) {
 
 /// Store a block diff.
 fn store_block(db: &DatabaseEnv, block_ref: BlockWithParent, diff: BlockStateDiff) {
-    let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+    let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
     provider.store_trie_updates(block_ref, diff).expect("store");
     OpProofsProviderRw::commit(provider).expect("commit");
 }
@@ -417,7 +417,7 @@ fn store_trie_updates_out_of_order_rejects() {
     store_block(&db, b1, BlockStateDiff::default());
 
     // Try to store block 2 with wrong parent
-    let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+    let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
     let bad_block = make_block_ref(2, B256::repeat_byte(0x02), B256::repeat_byte(0xFF));
     let res = provider.store_trie_updates(bad_block, BlockStateDiff::default());
     assert!(matches!(res, Err(OpProofsStorageError::OutOfOrder { .. })));
@@ -448,7 +448,7 @@ fn store_trie_updates_comprehensive() {
 
     // Initialize state
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider.store_hashed_accounts(vec![(addr1, Some(acc1_old))]).expect("init accounts");
         provider.store_hashed_storages(addr1, vec![(slot1, val1_old)]).expect("init storage");
         provider
@@ -616,7 +616,7 @@ fn store_trie_updates_deleted_account_trie() {
 
     // Initialize with a trie node
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider.store_account_branches(vec![(acc_path, Some(node.clone()))]).expect("init");
         provider.set_initial_state_anchor(BlockNumHash::new(0, B256::ZERO)).expect("anchor");
         provider.commit_initial_state().expect("commit init");
@@ -655,7 +655,7 @@ fn store_trie_updates_deleted_storage_trie() {
 
     // Initialize with a storage trie node
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider.store_storage_branches(addr, vec![(st_path, Some(node.clone()))]).expect("init");
         provider.set_initial_state_anchor(BlockNumHash::new(0, B256::ZERO)).expect("anchor");
         provider.commit_initial_state().expect("commit init");
@@ -701,7 +701,7 @@ fn store_trie_updates_wiped_storage_trie_nodes() {
 
     // Seed storage trie nodes for addr_wiped
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider
             .store_storage_branches(addr_wiped, vec![(p1, Some(n1)), (p2, Some(n2))])
             .expect("seed");
@@ -755,7 +755,7 @@ fn store_trie_updates_wiped_storage() {
 
     // Seed prior storage
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider.store_hashed_storages(addr, vec![(s1, v1), (s2, v2)]).expect("seed");
         provider.set_initial_state_anchor(BlockNumHash::new(0, B256::ZERO)).expect("anchor");
         provider.commit_initial_state().expect("commit init");
@@ -809,7 +809,7 @@ fn store_trie_updates_wiped_and_non_wiped_mixed_order() {
 
     // Seed storage for both addresses
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider.store_hashed_storages(addr_wiped, vec![(ws1, wv1)]).expect("seed wiped");
         provider.store_hashed_storages(addr_live, vec![(ls1, lv1_old)]).expect("seed live");
         provider.set_initial_state_anchor(BlockNumHash::new(0, B256::ZERO)).expect("anchor");
@@ -863,7 +863,7 @@ fn fetch_trie_updates_basic() {
 
     // Initialize
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider.store_hashed_accounts(vec![(addr1, Some(acc1_old))]).expect("init accounts");
         provider.store_hashed_storages(addr1, vec![(slot1, val1_old)]).expect("init storage");
         provider.store_account_branches(vec![(path1, Some(node1_old))]).expect("init trie");
@@ -891,7 +891,7 @@ fn fetch_trie_updates_basic() {
     store_block(&db, block, diff);
 
     // Fetch block 1
-    let provider = MdbxProofsProviderV2::new(db.tx().expect("ro"));
+    let provider = MdbxProofsProvider::new(db.tx().expect("ro"));
     let got = provider.fetch_trie_updates(1).expect("fetch");
 
     // Verify: accounts should have current values
@@ -914,7 +914,7 @@ fn fetch_trie_updates_empty_changeset() {
     let block = make_block_ref(1, B256::repeat_byte(0x01), B256::ZERO);
     store_block(&db, block, BlockStateDiff::default());
 
-    let provider = MdbxProofsProviderV2::new(db.tx().expect("ro"));
+    let provider = MdbxProofsProvider::new(db.tx().expect("ro"));
     let got = provider.fetch_trie_updates(1).expect("fetch");
     assert!(got.sorted_trie_updates.account_nodes_ref().is_empty());
     assert!(got.sorted_trie_updates.storage_tries_ref().is_empty());
@@ -930,7 +930,7 @@ fn test_proof_window() {
 
     // Empty store: both endpoints are None.
     {
-        let provider = MdbxProofsProviderV2::new(db.tx().expect("ro"));
+        let provider = MdbxProofsProvider::new(db.tx().expect("ro"));
         assert!(matches!(provider.get_earliest_block(), Err(OpProofsStorageError::NoBlocksFound)));
         assert!(matches!(provider.get_latest_block(), Err(OpProofsStorageError::NoBlocksFound)));
     }
@@ -938,7 +938,7 @@ fn test_proof_window() {
     // Bootstrap via the init flow: commit_initial_state sets both earliest and latest.
     let anchor_hash = B256::repeat_byte(0x42);
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider
             .set_initial_state_anchor(BlockNumHash { number: 42, hash: anchor_hash })
             .expect("anchor");
@@ -947,7 +947,7 @@ fn test_proof_window() {
     }
 
     {
-        let provider = MdbxProofsProviderV2::new(db.tx().expect("ro"));
+        let provider = MdbxProofsProvider::new(db.tx().expect("ro"));
         assert_eq!(provider.get_earliest_block().expect("get"), NumHash::new(42, anchor_hash));
         assert_eq!(provider.get_latest_block().expect("get"), NumHash::new(42, anchor_hash));
     }
@@ -961,7 +961,7 @@ fn test_prune_earliest_state_no_op() {
     init_state(&db, vec![]);
 
     // Attempt to prune with a block that is not newer than earliest
-    let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+    let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
     let block_0 = make_block_ref(0, B256::repeat_byte(0x00), B256::ZERO);
     let result = provider.prune_earliest_state(block_0);
     assert!(
@@ -975,7 +975,7 @@ fn test_prune_earliest_state_uninitialized_guard() {
     let db = setup_db();
     // Don't initialize — pruning uninitialized store returns NoBlocksFound.
 
-    let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+    let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
     let target = make_block_ref(5, B256::repeat_byte(0x05), B256::ZERO);
     let result = provider.prune_earliest_state(target);
     assert!(
@@ -1004,7 +1004,7 @@ fn test_prune_earliest_state_overlapping_keys() {
 
     // Prune to block 3
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         let b3 = make_block_ref(3, B256::repeat_byte(0x03), B256::repeat_byte(0x02));
         provider.prune_earliest_state(b3).expect("prune");
         OpProofsProviderRw::commit(provider).expect("commit");
@@ -1035,7 +1035,7 @@ fn test_prune_earliest_state_comprehensive() {
 
     // Initialize with all 4 data types
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider.store_hashed_accounts(vec![(addr, Some(Account::default()))]).expect("init");
         provider.store_hashed_storages(addr, vec![(slot, U256::from(100u64))]).expect("init");
         provider.store_account_branches(vec![(path, Some(node_old))]).expect("init");
@@ -1068,7 +1068,7 @@ fn test_prune_earliest_state_comprehensive() {
 
     // Prune to block 3
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         let b3 = make_block_ref(3, B256::repeat_byte(0x03), B256::repeat_byte(0x02));
         provider.prune_earliest_state(b3).expect("prune");
         OpProofsProviderRw::commit(provider).expect("commit");
@@ -1105,7 +1105,7 @@ fn test_prune_earliest_state_returns_correct_counts() {
 
     // Prune to block 2 — should remove changeset for block 1
     let counts = {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         let prune_ref = make_block_ref(2, B256::repeat_byte(0x02), B256::repeat_byte(0x01));
         let c = provider.prune_earliest_state(prune_ref).expect("prune");
         OpProofsProviderRw::commit(provider).expect("commit");
@@ -1148,7 +1148,7 @@ fn replace_updates_prunes_and_adds_new_chain() {
     let b4p = make_block_ref(4, B256::repeat_byte(0xA4), B256::repeat_byte(0xA3));
 
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider
             .replace_updates(
                 BlockNumHash::new(2, B256::repeat_byte(0x02)),
@@ -1194,7 +1194,7 @@ fn test_replace_updates_beyond_earliest_returns_error() {
 
     // Move earliest forward to block 2.
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider
             .prune_earliest_state(make_block_ref(
                 2,
@@ -1206,7 +1206,7 @@ fn test_replace_updates_beyond_earliest_returns_error() {
     }
 
     // Attempt to replace_updates with a common block before earliest (block 1).
-    let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+    let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
     let res = provider.replace_updates(BlockNumHash::new(1, B256::repeat_byte(0x01)), vec![]);
     assert!(
         matches!(res, Err(OpProofsStorageError::ReorgBaseOutOfWindow { .. })),
@@ -1231,7 +1231,7 @@ fn test_replace_updates_at_earliest_returns_error() {
 
     // Move earliest forward to block 2.
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider
             .prune_earliest_state(make_block_ref(
                 2,
@@ -1243,7 +1243,7 @@ fn test_replace_updates_at_earliest_returns_error() {
     }
 
     // Attempt to replace_updates with common block at earliest (block 2) — no valid anchor.
-    let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+    let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
     let res = provider.replace_updates(BlockNumHash::new(2, B256::repeat_byte(0x02)), vec![]);
     assert!(
         matches!(res, Err(OpProofsStorageError::ReorgBaseOutOfWindow { .. })),
@@ -1265,7 +1265,7 @@ fn test_replace_updates_ahead_of_latest_returns_error() {
     store_block(&db, b2, make_nonce_diff(addr, 20));
 
     // Attempt to replace_updates with a common block beyond latest (block 5).
-    let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+    let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
     let res = provider.replace_updates(BlockNumHash::new(5, B256::repeat_byte(0x05)), vec![]);
     assert!(
         matches!(res, Err(OpProofsStorageError::ReorgBaseOutOfWindow { .. })),
@@ -1282,7 +1282,7 @@ fn test_unwind_history_to_earliest() {
 
     // Initialize and set earliest at block 1
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider.store_hashed_accounts(vec![(addr, Some(Account::default()))]).expect("init");
         provider
             .set_initial_state_anchor(BlockNumHash::new(1, B256::repeat_byte(0x01)))
@@ -1298,7 +1298,7 @@ fn test_unwind_history_to_earliest() {
     store_block(&db, b3, make_nonce_diff(addr, 3));
 
     // Try to unwind to block 1 (= earliest) — should error
-    let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+    let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
     let unwind_to =
         BlockWithParent::new(B256::repeat_byte(0x01), NumHash::new(1, B256::repeat_byte(0x01)));
     let res = provider.unwind_history(unwind_to);
@@ -1317,7 +1317,7 @@ fn test_unwind_history_with_storage() {
 
     // Initialize with account and storage
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider.store_hashed_accounts(vec![(addr, Some(Account::default()))]).expect("init");
         provider.store_hashed_storages(addr, vec![(slot, U256::from(100u64))]).expect("init");
         provider.set_initial_state_anchor(BlockNumHash::new(0, B256::ZERO)).expect("anchor");
@@ -1357,7 +1357,7 @@ fn test_unwind_history_with_storage() {
 
     // Unwind to block 2 (removes blocks 2+)
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         let unwind_to =
             BlockWithParent::new(B256::repeat_byte(0x01), NumHash::new(2, B256::repeat_byte(0x02)));
         provider.unwind_history(unwind_to).expect("unwind");
@@ -1386,7 +1386,7 @@ fn test_unwind_history_with_trie_nodes() {
 
     // Initialize with node1 at path1
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider.store_account_branches(vec![(path1, Some(node1.clone()))]).expect("init");
         provider.set_initial_state_anchor(BlockNumHash::new(0, B256::ZERO)).expect("anchor");
         provider.commit_initial_state().expect("commit init");
@@ -1419,7 +1419,7 @@ fn test_unwind_history_with_trie_nodes() {
 
     // Unwind to block 2 (removes blocks 2+)
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         let unwind_to =
             BlockWithParent::new(B256::repeat_byte(0x01), NumHash::new(2, B256::repeat_byte(0x02)));
         provider.unwind_history(unwind_to).expect("unwind");
@@ -1452,7 +1452,7 @@ fn test_unwind_history_comprehensive() {
 
     // Initialize
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider.store_hashed_accounts(vec![(addr1, Some(acc1))]).expect("init");
         provider.store_hashed_storages(addr1, vec![(slot1, U256::from(1111u64))]).expect("init");
         provider.store_account_branches(vec![(path1, Some(node1))]).expect("init");
@@ -1502,7 +1502,7 @@ fn test_unwind_history_comprehensive() {
 
     // Unwind to block 2 (removes blocks 2+)
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         let unwind_to =
             BlockWithParent::new(B256::repeat_byte(0x01), NumHash::new(2, B256::repeat_byte(0x02)));
         provider.unwind_history(unwind_to).expect("unwind");
@@ -1548,7 +1548,7 @@ fn test_unwind_history_empty_chain() {
     let db = setup_db();
 
     // No blocks stored — uninitialized proof window returns NoBlocksFound.
-    let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+    let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
     let unwind_to = BlockWithParent::new(B256::ZERO, NumHash::new(0, B256::ZERO));
     let result = provider.unwind_history(unwind_to);
     assert!(
@@ -1573,14 +1573,14 @@ fn test_unwind_history_idempotent() {
 
     // Unwind to block 2
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider.unwind_history(b2).expect("first unwind");
         OpProofsProviderRw::commit(provider).expect("commit");
     }
 
     // Unwind again (should be idempotent)
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider.unwind_history(b2).expect("second unwind");
         OpProofsProviderRw::commit(provider).expect("commit");
     }
@@ -1608,7 +1608,7 @@ fn test_unwind_history_beyond_latest() {
 
     // Unwind to block 5 (beyond latest) — should be no-op
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         let b5 = make_block_ref(5, B256::repeat_byte(0x05), B256::repeat_byte(0x04));
         provider.unwind_history(b5).expect("unwind");
         OpProofsProviderRw::commit(provider).expect("commit");
@@ -1666,7 +1666,7 @@ fn hashed_storages_no_duplicate_entries_after_multi_block_update() {
 
     // Initialize with one storage slot
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider.store_hashed_storages(addr, vec![(slot, U256::from(100u64))]).expect("seed");
         provider.set_initial_state_anchor(BlockNumHash::new(0, B256::ZERO)).expect("anchor");
         provider.commit_initial_state().expect("commit init");
@@ -1719,7 +1719,7 @@ fn hashed_storages_no_duplicates_multiple_slots() {
 
     // Initialize with 2 slots
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider
             .store_hashed_storages(
                 addr,
@@ -1802,7 +1802,7 @@ fn hashed_storages_wipe_then_readd_no_duplicates() {
 
     // Initialize with old_slot
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider.store_hashed_storages(addr, vec![(old_slot, U256::from(999u64))]).expect("seed");
         provider.set_initial_state_anchor(BlockNumHash::new(0, B256::ZERO)).expect("anchor");
         provider.commit_initial_state().expect("commit init");
@@ -1861,7 +1861,7 @@ fn hashed_storages_batch_no_duplicates() {
 
     // Initialize
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider.store_hashed_storages(addr, vec![(slot, U256::from(1u64))]).expect("seed");
         provider.set_initial_state_anchor(BlockNumHash::new(0, B256::ZERO)).expect("anchor");
         provider.commit_initial_state().expect("commit init");
@@ -1887,7 +1887,7 @@ fn hashed_storages_batch_no_duplicates() {
 
     // Store as batch
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider.store_trie_updates_batch(blocks).expect("batch store");
         OpProofsProviderRw::commit(provider).expect("commit");
     }
@@ -1996,7 +1996,7 @@ fn prepend_block_basic_advances_earliest_and_writes_changeset() {
 
     // Init the proof window at (5, block5_hash) — earliest == latest == 5.
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider.set_initial_state_anchor(BlockNumHash::new(5, block5_hash)).expect("anchor");
         provider.commit_initial_state().expect("commit init");
         OpProofsInitProvider::commit(provider).expect("commit");
@@ -2004,7 +2004,7 @@ fn prepend_block_basic_advances_earliest_and_writes_changeset() {
 
     // Prepend block 5 with addr's before-account = state at end of block 4.
     let counts = {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         let mut post_state = HashedPostState::default();
         post_state.accounts.insert(addr, Some(before_account));
         let diff = BlockStateDiff {
@@ -2023,7 +2023,7 @@ fn prepend_block_basic_advances_earliest_and_writes_changeset() {
 
     // earliest advanced to (4, block4_hash).
     {
-        let provider = MdbxProofsProviderV2::new(db.tx().expect("ro"));
+        let provider = MdbxProofsProvider::new(db.tx().expect("ro"));
         assert_eq!(provider.get_earliest_block().expect("get"), NumHash::new(4, block4_hash));
     }
 
@@ -2055,14 +2055,14 @@ fn prepend_block_hash_mismatch_rejects() {
 
     // Init the proof window at (5, block5_hash).
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider.set_initial_state_anchor(BlockNumHash::new(5, block5_hash)).expect("anchor");
         provider.commit_initial_state().expect("commit init");
         OpProofsInitProvider::commit(provider).expect("commit");
     }
 
     // Attempt to prepend with a non-matching hash → PrependOutOfOrder.
-    let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+    let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
     let block_ref = make_block_ref(5, wrong_hash, B256::repeat_byte(0x04));
     let res = provider.prepend_block(block_ref, BlockStateDiff::default());
     assert!(
@@ -2080,7 +2080,7 @@ fn prepend_block_idempotent_when_changeset_exists() {
 
     // Init the proof window at (1, block1_hash) — earliest == latest == 1.
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider.store_hashed_accounts(vec![(addr, Some(Account::default()))]).expect("seed");
         provider.set_initial_state_anchor(BlockNumHash::new(1, block1_hash)).expect("anchor");
         provider.commit_initial_state().expect("commit init");
@@ -2102,7 +2102,7 @@ fn prepend_block_idempotent_when_changeset_exists() {
     // Attempt to prepend block 1 with a would-be value (nonce 42). The guard
     // sees the planted changeset and short-circuits.
     let counts = {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         let block_ref = make_block_ref(1, block1_hash, B256::ZERO);
         let counts = provider.prepend_block(block_ref, make_nonce_diff(addr, 42)).expect("prepend");
         OpProofsBackfillProvider::commit(provider).expect("commit");
@@ -2112,7 +2112,7 @@ fn prepend_block_idempotent_when_changeset_exists() {
     // Idempotency: zero write counts AND earliest unchanged.
     assert_eq!(counts, WriteCounts::default());
     {
-        let provider = MdbxProofsProviderV2::new(db.tx().expect("ro"));
+        let provider = MdbxProofsProvider::new(db.tx().expect("ro"));
         assert_eq!(provider.get_earliest_block().expect("get"), NumHash::new(1, block1_hash));
     }
 
@@ -2138,14 +2138,14 @@ fn prepend_block_descending_chain_accumulates_history() {
 
     // Init the proof window at (3, hash_3). Backfill blocks 3, 2, 1 descending.
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider.set_initial_state_anchor(BlockNumHash::new(3, hashes[3])).expect("anchor");
         provider.commit_initial_state().expect("commit init");
         OpProofsInitProvider::commit(provider).expect("commit");
     }
 
     for block_num in (1u64..=3).rev() {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         let block_ref =
             make_block_ref(block_num, hashes[block_num as usize], hashes[(block_num - 1) as usize]);
         provider.prepend_block(block_ref, make_nonce_diff(addr, block_num)).expect("prepend");
@@ -2154,7 +2154,7 @@ fn prepend_block_descending_chain_accumulates_history() {
 
     // earliest now at (0, hash_0).
     {
-        let provider = MdbxProofsProviderV2::new(db.tx().expect("ro"));
+        let provider = MdbxProofsProvider::new(db.tx().expect("ro"));
         assert_eq!(provider.get_earliest_block().expect("get"), NumHash::new(0, hashes[0]));
     }
 
@@ -2192,7 +2192,7 @@ fn prepend_block_overflows_history_shard_after_filling_sentinel() {
     // Init proof window at (4000, hash(4000)). `prepend_block` doesn't read
     // current-state tables, so seeding `addr`/`slot` there isn't necessary.
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         provider
             .set_initial_state_anchor(BlockNumHash::new(ANCHOR_BLOCK, hash(ANCHOR_BLOCK)))
             .expect("anchor");
@@ -2203,7 +2203,7 @@ fn prepend_block_overflows_history_shard_after_filling_sentinel() {
     // Backfill descending: each block writes a diff touching `addr` and
     // `(addr, slot)`, growing both history bitmaps in lock-step.
     for block_num in (last_filled_block..=ANCHOR_BLOCK).rev() {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         let block_ref = make_block_ref(block_num, hash(block_num), hash(block_num - 1));
         let diff = make_account_and_storage_diff(addr, slot, block_num);
         provider.prepend_block(block_ref, diff).expect("prepend");
@@ -2242,7 +2242,7 @@ fn prepend_block_overflows_history_shard_after_filling_sentinel() {
     // One more prepend pushes past `NUM_OF_INDICES_IN_SHARD` — the sentinel is
     // full, so this must spawn a fresh singleton rather than rewrite it.
     {
-        let provider = MdbxProofsProviderV2::new(db.tx_mut().expect("rw"));
+        let provider = MdbxProofsProvider::new(db.tx_mut().expect("rw"));
         let block_ref =
             make_block_ref(overflow_block, hash(overflow_block), hash(overflow_block - 1));
         let diff = make_account_and_storage_diff(addr, slot, overflow_block);

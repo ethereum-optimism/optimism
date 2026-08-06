@@ -234,7 +234,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{BlockStateDiff, OpProofsInitProvider, OpProofsStorage, db::MdbxProofsStorageV2};
+    use crate::{BlockStateDiff, OpProofsInitProvider, OpProofsStorage, db::MdbxProofsStorage};
     use alloy_eips::{BlockHashOrNumber, BlockNumHash, NumHash};
     use alloy_primitives::{B256, BlockNumber, U256};
     use mockall::mock;
@@ -283,7 +283,7 @@ mod tests {
     async fn run_inner_and_and_verify_updated_state() {
         // --- env/store ---
         let dir = TempDir::new().unwrap();
-        let store = Arc::new(MdbxProofsStorageV2::new(dir.path()).expect("env"));
+        let store = Arc::new(MdbxProofsStorage::new(dir.path()).expect("env"));
 
         {
             let init = store.initialization_provider().expect("init");
@@ -587,8 +587,8 @@ mod tests {
     #[tokio::test]
     async fn run_inner_where_latest_block_is_none() {
         let dir = TempDir::new().unwrap();
-        let store: OpProofsStorage<Arc<MdbxProofsStorageV2>> =
-            OpProofsStorage::from(Arc::new(MdbxProofsStorageV2::new(dir.path()).expect("env")));
+        let store: OpProofsStorage<Arc<MdbxProofsStorage>> =
+            OpProofsStorage::from(Arc::new(MdbxProofsStorage::new(dir.path()).expect("env")));
 
         {
             let provider = store.provider_ro().unwrap();
@@ -610,8 +610,8 @@ mod tests {
     #[tokio::test]
     async fn run_inner_earliest_none_real_db() {
         let dir = TempDir::new().unwrap();
-        let store: OpProofsStorage<Arc<MdbxProofsStorageV2>> =
-            OpProofsStorage::from(Arc::new(MdbxProofsStorageV2::new(dir.path()).expect("env")));
+        let store: OpProofsStorage<Arc<MdbxProofsStorage>> =
+            OpProofsStorage::from(Arc::new(MdbxProofsStorage::new(dir.path()).expect("env")));
 
         // Bootstrap the chain anchor via the init flow; commit_initial_state sets both
         // earliest and latest.
@@ -643,8 +643,8 @@ mod tests {
         use crate::BlockStateDiff;
 
         let dir = TempDir::new().unwrap();
-        let store: OpProofsStorage<Arc<MdbxProofsStorageV2>> =
-            OpProofsStorage::from(Arc::new(MdbxProofsStorageV2::new(dir.path()).expect("env")));
+        let store: OpProofsStorage<Arc<MdbxProofsStorage>> =
+            OpProofsStorage::from(Arc::new(MdbxProofsStorage::new(dir.path()).expect("env")));
 
         // Bootstrap earliest=4 via the init flow.
         let earliest_num = 4u64;

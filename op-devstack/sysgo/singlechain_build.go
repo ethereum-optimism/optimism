@@ -140,7 +140,7 @@ func startL2ELForKey(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [3
 	case MixedOpRbuilder:
 		t.Require().Empty(opts, "op-reth options cannot be applied to EL kind %q", k)
 		return startBuilderEL(t, l2Net, jwtPath, identity)
-	case "", MixedL2ELOpReth, MixedL2ELOpRethV2: // unset (default) or explicit op-reth
+	case "", MixedL2ELOpReth: // unset (default) or explicit op-reth
 		return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil, opts...)
 	default:
 		t.Require().FailNow("unsupported L2 EL kind", "unknown DEVSTACK_L2EL_KIND %q", k)
