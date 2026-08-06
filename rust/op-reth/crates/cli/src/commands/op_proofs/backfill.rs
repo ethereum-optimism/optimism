@@ -7,7 +7,6 @@ use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, Environ
 use reth_node_core::version::version_metadata;
 use reth_optimism_node::args::{
     ProofsHistoryBackfillArgs, ProofsHistoryStorageArgs, ProofsHistoryWindowArg,
-    ProofsStorageVersion,
 };
 use reth_optimism_trie::{
     BackfillJob, OpProofsBackfillStore, OpProofsProviderRO, db::MdbxProofsStorageV2,
@@ -52,27 +51,17 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> BackfillCommand<C> {
         let storage_path = self.history.resolve_storage_path(data_dir.as_ref());
         info!(target: "reth::cli", "Backfilling OP proofs storage at: {:?}", storage_path);
 
-        match self.history.storage_version {
-            ProofsStorageVersion::V1 => {
-                return Err(eyre::eyre!(
-                    "Backfill is not supported for V1 proofs storage. \
-                     Re-run with --proofs-history.storage-version v2."
-                ));
-            }
-            ProofsStorageVersion::V2 => {
-                let storage: Arc<MdbxProofsStorageV2> = Arc::new(
-                    MdbxProofsStorageV2::new(&storage_path)
-                        .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorageV2: {e}"))?,
-                );
-                Self::run_backfill(
-                    &provider_factory,
-                    storage,
-                    self.proofs_history_window.window,
-                    self.backfill_args.use_snapshot,
-                    self.backfill_args.backfill_batch_size,
-                )?;
-            }
-        }
+        let storage: Arc<MdbxProofsStorageV2> = Arc::new(
+            MdbxProofsStorageV2::new(&storage_path)
+                .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorageV2: {e}"))?,
+        );
+        Self::run_backfill(
+            &provider_factory,
+            storage,
+            self.proofs_history_window.window,
+            self.backfill_args.use_snapshot,
+            self.backfill_args.backfill_batch_size,
+        )?;
 
         Ok(())
     }

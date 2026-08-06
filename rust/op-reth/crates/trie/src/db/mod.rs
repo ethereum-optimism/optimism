@@ -8,14 +8,6 @@
 mod models;
 pub use models::*;
 
-mod store;
-pub use store::{MdbxProofsProvider, MdbxProofsStorage};
-
-mod cursor;
-pub use cursor::{
-    BlockNumberVersionedCursor, MdbxAccountCursor, MdbxStorageCursor, MdbxTrieCursor,
-};
-
 mod store_v2;
 pub use store_v2::{
     MdbxProofsProviderV2, MdbxProofsStorageV2, V2AccountCursor, V2AccountTrieCursor,

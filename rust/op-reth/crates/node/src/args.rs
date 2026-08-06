@@ -11,11 +11,9 @@ use url::Url;
 /// Storage schema version for the proofs-history database.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
 pub enum ProofsStorageVersion {
-    /// V1 storage schema (original single-table-per-domain layout). Default.
-    #[default]
-    V1,
-    /// V2 storage schema with changeset and history-bitmap tables, enabling
+    /// Storage schema with changeset and history-bitmap tables, enabling
     /// history-aware reads at any block number within the proof window.
+    #[default]
     V2,
 }
 
@@ -43,7 +41,7 @@ pub struct ProofsHistoryStorageArgs {
     #[arg(
         long = "proofs-history.storage-version",
         value_name = "PROOFS_HISTORY_STORAGE_VERSION",
-        default_value = "v1"
+        default_value = "v2"
     )]
     pub storage_version: ProofsStorageVersion,
 }
@@ -313,7 +311,7 @@ impl Default for RollupArgs {
             proofs_history: false,
             history: ProofsHistoryStorageArgs {
                 storage_path: None,
-                storage_version: ProofsStorageVersion::V1,
+                storage_version: ProofsStorageVersion::V2,
             },
             proofs_history_window: ProofsHistoryWindowArg::default(),
             proofs_history_verification_interval: 0,
