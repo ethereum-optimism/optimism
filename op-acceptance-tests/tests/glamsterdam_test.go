@@ -12,9 +12,12 @@ import (
 	"github.com/ethereum/go-ethereum/params/forks"
 
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/loadtest"
+	"github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -24,11 +27,15 @@ import (
 
 func TestSafeHeadAdvancesAcrossGlamsterdam(gt *testing.T) {
 	t := devtest.ParallelT(gt)
+	prepareGlamsterdamOpReth(t)
 	sys := presets.NewMinimal(t,
 		glamsterdamL1Geth(t),
+		glamsterdamBlobBatcher(),
 		presets.WithDeployerOptions(
 			sysgo.WithForkAtL1Genesis(forks.BPO5),
-			sysgo.WithForkAtL1Offset(forks.Amsterdam, 30),
+			// Leave enough time for the devstack to start, fund the load generators, and
+			// produce a loaded block before activating Glamsterdam.
+			sysgo.WithForkAtL1Offset(forks.Amsterdam, 120),
 		),
 	)
 	spamGlamsterdamTxs(sys)
@@ -40,7 +47,7 @@ func TestSafeHeadAdvancesAcrossGlamsterdam(gt *testing.T) {
 		"Glamsterdam must activate after L1 genesis to exercise the fork transition")
 
 	threshold := sys.L2Chain.Escape().RollupConfig().Genesis.SystemConfig.GasLimit/2 + 1
-	waitForHalfFullBlock(t, sys.L2EL, eth.Unsafe, threshold, "pre-Glamsterdam")
+	sys.L2EL.WaitForGasUsed(eth.Unsafe, threshold, 2*time.Minute)
 	preForkL1 := sys.L1EL.BlockRefByLabel(eth.Unsafe)
 	t.Require().Less(preForkL1.Time, *l1Config.AmsterdamTime,
 		"load must begin before Glamsterdam activates")
@@ -53,13 +60,14 @@ func TestSafeHeadAdvancesAcrossGlamsterdam(gt *testing.T) {
 		"post-Glamsterdam L1 block must include a block access list hash")
 
 	sys.L2EL.WaitL1OriginReached(eth.Safe, postForkL1.Number, 120)
-	waitForHalfFullBlock(t, sys.L2EL, eth.Safe, threshold, "post-Glamsterdam")
+	sys.L2EL.WaitForGasUsed(eth.Safe, threshold, 2*time.Minute)
 }
 
 func TestGlamsterdamP2PUnsafeBlockBecomesSafe(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSingleChainMultiNode(t,
 		glamsterdamL1Geth(t),
+		glamsterdamBlobBatcher(),
 		presets.WithDeployerOptions(sysgo.WithForkAtL1Genesis(forks.Amsterdam)),
 	)
 
@@ -104,21 +112,27 @@ func TestGlamsterdamP2PUnsafeBlockBecomesSafe(gt *testing.T) {
 		"sequencer and verifier must finish on the same unsafe chain")
 }
 
-func waitForHalfFullBlock(t devtest.T, el *dsl.L2ELNode, label eth.BlockLabel, threshold uint64, phase string) {
-	el.WaitForLabel(label, func(info eth.BlockInfo) (bool, error) {
-		if info.GasUsed() >= threshold {
-			t.Logger().Info("Found half-full block",
-				"phase", phase, "block", eth.ToBlockID(info), "gasUsed", info.GasUsed(), "threshold", threshold)
-			return true, nil
-		}
-		return false, nil
-	})
-}
-
 func glamsterdamL1Geth(t devtest.T) presets.Option {
 	out, err := exec.CommandContext(t.Ctx(), "mise", "which", "geth").Output()
 	t.Require().NoError(err, "resolve mise-installed Glamsterdam geth")
 	return presets.WithL1Geth(strings.TrimSpace(string(out)))
+}
+
+func prepareGlamsterdamOpReth(t devtest.T) {
+	_, err := (rustbin.Spec{
+		SrcDir:  "rust",
+		Package: "op-reth",
+		Binary:  "op-reth",
+	}).EnsureExists(t.Ctx(), t.Logger())
+	t.Require().NoError(err, "prepare op-reth before starting the L1 fork activation clock")
+}
+
+func glamsterdamBlobBatcher() presets.Option {
+	return presets.WithBatcherOption(func(_ sysgo.ComponentTarget, cfg *batcher.CLIConfig) {
+		// Amsterdam changes calldata floor-gas accounting. Blob batches keep this test focused
+		// on L1 Engine API and derivation behavior across the fork.
+		cfg.DataAvailabilityType = flags.BlobsType
+	})
 }
 
 func spamGlamsterdamTxs(sys *presets.Minimal) {
