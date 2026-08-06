@@ -13,6 +13,7 @@ contents:
     - libstdc++
     - openssl
     - rollup-boost@local
+    - apk-tools
 
 environment:
   PATH: /usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/sbin:/bin
