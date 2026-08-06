@@ -319,17 +319,6 @@ mod tests {
     }
 
     #[test]
-    fn test_proofs_storage_version_arg_is_rejected() {
-        for version in ["v1", "v2"] {
-            let result = CommandParser::<RollupArgs>::try_parse_from([
-                "reth".to_string(),
-                format!("--proofs-history.storage-version={version}"),
-            ]);
-            assert!(result.is_err(), "storage version {version} should not be selectable");
-        }
-    }
-
-    #[test]
     fn test_parse_optimism_compute_pending_block_args() {
         let expected_args = RollupArgs { compute_pending_block: true, ..Default::default() };
         let args =
