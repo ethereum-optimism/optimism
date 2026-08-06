@@ -32,7 +32,7 @@ func NewWithdrawalMonitor(logger log.Logger, clock RClock, metrics WithdrawalMet
 	}
 }
 
-func (w *WithdrawalMonitor) CheckWithdrawals(games []*types.FaultGameData) {
+func (w *WithdrawalMonitor) CheckWithdrawals(games []types.BondedGame) {
 	now := w.clock.Now() // Use a consistent time for all checks
 	matching := make(map[common.Address]int)
 	divergent := make(map[common.Address]int)
@@ -42,8 +42,8 @@ func (w *WithdrawalMonitor) CheckWithdrawals(games []*types.FaultGameData) {
 	}
 	for _, game := range games {
 		matches, diverges := w.validateGameWithdrawals(game, now, honestWithdrawableAmounts)
-		matching[game.WETHContract] += matches
-		divergent[game.WETHContract] += diverges
+		matching[game.BondData().WETHContract] += matches
+		divergent[game.BondData().WETHContract] += diverges
 	}
 	for contract, count := range matching {
 		w.metrics.RecordWithdrawalRequests(contract, true, count)
@@ -54,53 +54,54 @@ func (w *WithdrawalMonitor) CheckWithdrawals(games []*types.FaultGameData) {
 	w.metrics.RecordHonestWithdrawableAmounts(honestWithdrawableAmounts)
 }
 
-func (w *WithdrawalMonitor) validateGameWithdrawals(game *types.FaultGameData, now time.Time, honestWithdrawableAmounts map[common.Address]*big.Int) (int, int) {
+func (w *WithdrawalMonitor) validateGameWithdrawals(game types.BondedGame, now time.Time, honestWithdrawableAmounts map[common.Address]*big.Int) (int, int) {
 	matching := 0
 	divergent := 0
-	for recipient, withdrawalAmount := range game.WithdrawalRequests {
-		switch game.BondDistributionMode {
+	data := game.BondData()
+	for recipient, withdrawalAmount := range data.WithdrawalRequests {
+		switch data.BondDistributionMode {
 		case challengerTypes.LegacyDistributionMode:
-			if bigs.Equal(withdrawalAmount.Amount, game.Credits[recipient]) {
+			if bigs.Equal(withdrawalAmount.Amount, data.Credits[recipient]) {
 				matching++
 			} else {
 				divergent++
-				w.logger.Error("Withdrawal request amount does not match credit", "game", game.Proxy, "recipient", recipient, "credit", game.Credits[recipient], "withdrawal", game.WithdrawalRequests[recipient].Amount)
+				w.logger.Error("Withdrawal request amount does not match credit", "game", game.Common().Proxy, "recipient", recipient, "credit", data.Credits[recipient], "withdrawal", data.WithdrawalRequests[recipient].Amount)
 			}
 		case challengerTypes.UndecidedDistributionMode:
 			// DelayedWETH should not have any withdrawal request yet because the bond distribution mode is undecided
 			if !bigs.IsZero(withdrawalAmount.Amount) {
 				divergent++
-				w.logger.Error("Withdrawal request created before bond distribution mode set", "game", game.Proxy, "recipient", recipient, "withdrawal", game.WithdrawalRequests[recipient].Amount)
+				w.logger.Error("Withdrawal request created before bond distribution mode set", "game", game.Common().Proxy, "recipient", recipient, "withdrawal", data.WithdrawalRequests[recipient].Amount)
 			}
 		case challengerTypes.NormalDistributionMode, challengerTypes.RefundDistributionMode:
 			// The withdrawal request is only created on the first claim to claimCredit, so it may not have been set.
 			// If it has been set, it should match the game credit amount.
-			if bigs.IsZero(withdrawalAmount.Amount) || bigs.Equal(withdrawalAmount.Amount, game.Credits[recipient]) {
+			if bigs.IsZero(withdrawalAmount.Amount) || bigs.Equal(withdrawalAmount.Amount, data.Credits[recipient]) {
 				matching++
 			} else {
 				divergent++
-				w.logger.Error("Withdrawal request amount does not match credit", "game", game.Proxy, "recipient", recipient, "credit", game.Credits[recipient], "withdrawal", game.WithdrawalRequests[recipient].Amount)
+				w.logger.Error("Withdrawal request amount does not match credit", "game", game.Common().Proxy, "recipient", recipient, "credit", data.Credits[recipient], "withdrawal", data.WithdrawalRequests[recipient].Amount)
 			}
 		default:
 			// Treat unknown distribution mode as divergent - better to alert than to ignore.
 			divergent++
-			w.logger.Error("Unsupported distribution mode", "game", game.Proxy, "recipient", recipient, "mode", game.BondDistributionMode)
+			w.logger.Error("Unsupported distribution mode", "game", game.Common().Proxy, "recipient", recipient, "mode", data.BondDistributionMode)
 		}
 
 		if w.honestActors.Contains(recipient) {
-			if game.BondDistributionMode != challengerTypes.UndecidedDistributionMode && bigs.IsZero(withdrawalAmount.Amount) && !bigs.IsZero(game.Credits[recipient]) {
-				w.logger.Warn("Found uninitiated withdrawal", "recipient", recipient, "game", game.Proxy, "amount", game.Credits[recipient])
+			if data.BondDistributionMode != challengerTypes.UndecidedDistributionMode && bigs.IsZero(withdrawalAmount.Amount) && !bigs.IsZero(data.Credits[recipient]) {
+				w.logger.Warn("Found uninitiated withdrawal", "recipient", recipient, "game", game.Common().Proxy, "amount", data.Credits[recipient])
 				// Treat credits as withdrawable because the first step of withdrawing can be performed
 				total := honestWithdrawableAmounts[recipient]
-				total = new(big.Int).Add(total, game.Credits[recipient])
+				total = new(big.Int).Add(total, data.Credits[recipient])
 				honestWithdrawableAmounts[recipient] = total
 			}
-			if bigs.IsPositive(withdrawalAmount.Amount) && time.Unix(withdrawalAmount.Timestamp.Int64(), 0).Add(game.WETHDelay).Before(now) {
+			if bigs.IsPositive(withdrawalAmount.Amount) && time.Unix(withdrawalAmount.Timestamp.Int64(), 0).Add(data.WETHDelay).Before(now) {
 				// Credits are fully withdrawable
 				total := honestWithdrawableAmounts[recipient]
 				total = new(big.Int).Add(total, withdrawalAmount.Amount)
 				honestWithdrawableAmounts[recipient] = total
-				w.logger.Warn("Found unclaimed credit", "recipient", recipient, "game", game.Proxy, "amount", withdrawalAmount.Amount)
+				w.logger.Warn("Found unclaimed credit", "recipient", recipient, "game", game.Common().Proxy, "amount", withdrawalAmount.Amount)
 			}
 		}
 	}

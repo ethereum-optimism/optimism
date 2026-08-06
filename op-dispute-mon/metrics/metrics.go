@@ -140,13 +140,16 @@ func NewClaimStatus(firstHalf, clockExpired, resolvable, resolved bool) ClaimSta
 	}
 }
 
-type HonestActorData struct {
+type HonestActorClaimData struct {
 	PendingClaimCount int
 	ValidClaimCount   int
 	InvalidClaimCount int
-	PendingBonds      *big.Int
-	LostBonds         *big.Int
-	WonBonds          *big.Int
+}
+
+type HonestActorBondData struct {
+	Pending *big.Int
+	Lost    *big.Int
+	Won     *big.Int
 }
 
 type Metricer interface {
@@ -157,7 +160,8 @@ type Metricer interface {
 
 	RecordFailedGames(count int)
 
-	RecordHonestActorClaims(address common.Address, stats *HonestActorData)
+	RecordHonestActorClaims(address common.Address, stats *HonestActorClaimData)
+	RecordHonestActorBonds(address common.Address, stats *HonestActorBondData)
 
 	RecordGameResolutionStatus(status ResolutionStatus, count int)
 
@@ -497,14 +501,16 @@ func (m *Metrics) RecordMonitorDuration(dur time.Duration) {
 	m.monitorDuration.Observe(dur.Seconds())
 }
 
-func (m *Metrics) RecordHonestActorClaims(address common.Address, stats *HonestActorData) {
+func (m *Metrics) RecordHonestActorClaims(address common.Address, stats *HonestActorClaimData) {
 	m.honestActorClaims.WithLabelValues(address.Hex(), "pending").Set(float64(stats.PendingClaimCount))
 	m.honestActorClaims.WithLabelValues(address.Hex(), "invalid").Set(float64(stats.InvalidClaimCount))
 	m.honestActorClaims.WithLabelValues(address.Hex(), "valid").Set(float64(stats.ValidClaimCount))
+}
 
-	m.honestActorBonds.WithLabelValues(address.Hex(), "pending").Set(weiToEther(stats.PendingBonds))
-	m.honestActorBonds.WithLabelValues(address.Hex(), "lost").Set(weiToEther(stats.LostBonds))
-	m.honestActorBonds.WithLabelValues(address.Hex(), "won").Set(weiToEther(stats.WonBonds))
+func (m *Metrics) RecordHonestActorBonds(address common.Address, stats *HonestActorBondData) {
+	m.honestActorBonds.WithLabelValues(address.Hex(), "pending").Set(weiToEther(stats.Pending))
+	m.honestActorBonds.WithLabelValues(address.Hex(), "lost").Set(weiToEther(stats.Lost))
+	m.honestActorBonds.WithLabelValues(address.Hex(), "won").Set(weiToEther(stats.Won))
 }
 
 func (m *Metrics) RecordGameResolutionStatus(status ResolutionStatus, count int) {

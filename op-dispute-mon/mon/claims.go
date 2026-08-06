@@ -1,7 +1,6 @@
 package mon
 
 import (
-	"math/big"
 	"time"
 
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -19,7 +18,7 @@ type RClock interface {
 
 type ClaimMetrics interface {
 	RecordClaims(statuses *metrics.ClaimStatuses)
-	RecordHonestActorClaims(address common.Address, data *metrics.HonestActorData)
+	RecordHonestActorClaims(address common.Address, data *metrics.HonestActorClaimData)
 }
 
 type ClaimMonitor struct {
@@ -35,13 +34,9 @@ func NewClaimMonitor(logger log.Logger, clock RClock, honestActors types.HonestA
 
 func (c *ClaimMonitor) CheckClaims(games []*types.FaultGameData) {
 	claimStatuses := &metrics.ClaimStatuses{}
-	honest := make(map[common.Address]*metrics.HonestActorData)
+	honest := make(map[common.Address]*metrics.HonestActorClaimData)
 	for actor := range c.honestActors {
-		honest[actor] = &metrics.HonestActorData{
-			PendingBonds: big.NewInt(0),
-			LostBonds:    big.NewInt(0),
-			WonBonds:     big.NewInt(0),
-		}
+		honest[actor] = &metrics.HonestActorClaimData{}
 	}
 	for _, game := range games {
 		c.checkGameClaims(game, claimStatuses, honest)
@@ -52,11 +47,10 @@ func (c *ClaimMonitor) CheckClaims(games []*types.FaultGameData) {
 	}
 }
 
-func (c *ClaimMonitor) checkUpdateHonestActorStats(proxy common.Address, claim *types.EnrichedClaim, honest map[common.Address]*metrics.HonestActorData) {
+func (c *ClaimMonitor) checkUpdateHonestActorStats(proxy common.Address, claim *types.EnrichedClaim, honest map[common.Address]*metrics.HonestActorClaimData) {
 	if !claim.Resolved {
 		if c.honestActors[claim.Claimant] {
 			honest[claim.Claimant].PendingClaimCount++
-			honest[claim.Claimant].PendingBonds = new(big.Int).Add(honest[claim.Claimant].PendingBonds, claim.Bond)
 		}
 		return
 	}
@@ -64,22 +58,17 @@ func (c *ClaimMonitor) checkUpdateHonestActorStats(proxy common.Address, claim *
 		actor := claim.Claimant
 		if claim.CounteredBy != (common.Address{}) {
 			honest[actor].InvalidClaimCount++
-			honest[actor].LostBonds = new(big.Int).Add(honest[actor].LostBonds, claim.Bond)
 			c.logger.Error("Claim resolved against honest actor", "game", proxy, "honestActor", actor, "counteredBy", claim.CounteredBy, "claimContractIndex", claim.ContractIndex, "bondAmount", claim.Bond)
 		} else {
 			honest[actor].ValidClaimCount++
-			// Note that we don't count refunded bonds as won
 		}
-	}
-	if c.honestActors[claim.CounteredBy] {
-		honest[claim.CounteredBy].WonBonds = new(big.Int).Add(honest[claim.CounteredBy].WonBonds, claim.Bond)
 	}
 }
 
 func (c *ClaimMonitor) checkGameClaims(
 	game *types.FaultGameData,
 	claimStatuses *metrics.ClaimStatuses,
-	honest map[common.Address]*metrics.HonestActorData,
+	honest map[common.Address]*metrics.HonestActorClaimData,
 ) {
 	// Check if the game is in the first half
 	now := c.clock.Now()
