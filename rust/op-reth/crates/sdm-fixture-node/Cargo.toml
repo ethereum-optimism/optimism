@@ -1,0 +1,54 @@
+[package]
+name = "op-reth-sdm-fixture"
+version = "0.0.0"
+description = "Test-only op-reth fixture producer with deterministic one-gas SDM refunds"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+alloy-consensus.workspace = true
+alloy-evm.workspace = true
+alloy-op-evm.workspace = true
+alloy-primitives.workspace = true
+op-alloy-consensus.workspace = true
+op-revm.workspace = true
+
+futures-util.workspace = true
+reth-basic-payload-builder.workspace = true
+reth-cli-util.workspace = true
+reth-db.workspace = true
+reth-db-api.workspace = true
+reth-node-api.workspace = true
+reth-node-builder.workspace = true
+reth-node-core.workspace = true
+reth-payload-builder.workspace = true
+reth-payload-primitives.workspace = true
+reth-transaction-pool.workspace = true
+
+reth-optimism-chainspec.workspace = true
+reth-optimism-cli.workspace = true
+reth-optimism-evm.workspace = true
+reth-optimism-exex.workspace = true
+reth-optimism-node.workspace = true
+reth-optimism-payload-builder.workspace = true
+reth-optimism-primitives.workspace = true
+reth-optimism-rpc.workspace = true
+reth-optimism-trie.workspace = true
+
+op-version.workspace = true
+
+clap = { workspace = true, features = ["derive", "env"] }
+eyre.workspace = true
+revm.workspace = true
+tracing.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "op-reth-sdm-fixture"
+path = "src/main.rs"

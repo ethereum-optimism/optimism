@@ -288,21 +288,26 @@ impl OpNode {
             .with_interop_failsafe(self.interop_failsafe.clone())
     }
 
+    /// Returns the payload builder stock components install.
+    ///
+    /// Exposed so a wrapper node that replaces only the payload *service* still builds payloads
+    /// from the same configured builder.
+    pub fn payload_builder(&self) -> OpPayloadBuilder {
+        OpPayloadBuilder::new(self.args.compute_pending_block)
+            .with_builder_config(self.builder_config())
+    }
+
     /// Returns the components for the given [`RollupArgs`].
     pub fn components<Node>(&self) -> OpNodeComponentBuilder<Node>
     where
         Node: FullNodeTypes<Types: OpNodeTypes>,
     {
-        let RollupArgs { disable_txpool_gossip, compute_pending_block, discovery_v4, .. } =
-            self.args;
+        let RollupArgs { disable_txpool_gossip, discovery_v4, .. } = self.args;
         ComponentsBuilder::default()
             .node_types::<Node>()
             .executor(OpExecutorBuilder::default())
             .pool(self.standard_pool_builder())
-            .payload(BasicPayloadServiceBuilder::new(
-                OpPayloadBuilder::new(compute_pending_block)
-                    .with_builder_config(self.builder_config()),
-            ))
+            .payload(BasicPayloadServiceBuilder::new(self.payload_builder()))
             .network(OpNetworkBuilder::new(disable_txpool_gossip, !discovery_v4))
             .consensus(OpConsensusBuilder::default())
     }

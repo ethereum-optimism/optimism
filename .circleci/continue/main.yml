@@ -724,6 +724,22 @@ jobs:
       - utils/ci-gate:
           always-succeed: << parameters.always-succeed >>
 
+  # Static guards for the test-only SDM fixture producer. Text scans only, so they run in a small
+  # job and fail in seconds rather than after an xlarge release build.
+  sdm-fixture-guards:
+    docker:
+      - image: <<pipeline.parameters.c-default_docker_image>>
+    resource_class: small.gen2
+    steps:
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - run:
+          name: Verify SDM fixture release exclusion
+          command: .circleci/scripts/check-sdm-fixture-release-exclusion.sh
+      - run:
+          name: Require SDM fixture acceptance tests
+          command: .circleci/scripts/check-sdm-fixture-test-names.sh
+
   circleci-schedule-trigger-check:
     docker:
       - image: <<pipeline.parameters.c-default_docker_image>>
@@ -853,13 +869,13 @@ jobs:
       - rust-build:
           directory: rust
           profile: release
-          package: op-reth
-          binary: op-reth
+          package: "op-reth op-reth-sdm-fixture"
           save_cache: false
       - persist_to_workspace:
           root: "."
           paths:
             - "rust/target/release/op-reth"
+            - "rust/target/release/op-reth-sdm-fixture"
 
   # Build a single Rust binary from a vendored (non-submodule) directory.
   rust-build-vendored:
@@ -2115,6 +2131,7 @@ jobs:
             echo "export RUST_BINARY_PATH_KONA_NODE=$ROOT_DIR/rust/target/release/kona-node" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_KONA_SP1_PROPOSER=$ROOT_DIR/rust/target/release/kona-sp1-proposer" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RETH=$ROOT_DIR/rust/target/release/op-reth" >> "$BASH_ENV"
+            echo "export RUST_BINARY_PATH_OP_RETH_SDM_FIXTURE=$ROOT_DIR/rust/target/release/op-reth-sdm-fixture" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_OP_RBUILDER=$BIN_DIR/op-rbuilder" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_ROLLUP_BOOST=$BIN_DIR/rollup-boost" >> "$BASH_ENV"
             echo "export RUST_BINARY_PATH_KONA_SP1_SUPER_RANGE_EXECUTOR=$BIN_DIR/kona-sp1-super-range-executor" >> "$BASH_ENV"
@@ -2704,6 +2721,9 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
+      - sdm-fixture-guards:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - shellcheck/check:
           name: shell-check
           # We don't need the `exclude` key as the orb detects the `.shellcheckrc`
@@ -2831,6 +2851,7 @@ workflows:
           requires:
             - check-kontrol-build: terminal
             - shell-check: terminal
+            - sdm-fixture-guards: terminal
             - go-lint: terminal
             - semgrep-scan-local: terminal
             - semgrep-test: terminal
