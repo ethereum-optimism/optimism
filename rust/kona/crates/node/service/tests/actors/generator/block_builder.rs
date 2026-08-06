@@ -6,7 +6,7 @@ use alloy_primitives::Bytes;
 use arbitrary::{Arbitrary, Unstructured};
 use libp2p::bytes::BufMut;
 use op_alloy_consensus::OpTxEnvelope;
-use op_alloy_rpc_types_engine::{OpExecutionPayload, OpExecutionPayloadEnvelope};
+use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 
 use crate::actors::generator::seed::SeedGenerator;
 
@@ -34,14 +34,7 @@ impl SeedGenerator {
             PayloadVersion::V4 => self.v4_valid_block(),
         };
 
-        let (payload, _) = OpExecutionPayload::from_block_slow(&block);
-
-        let parent_beacon_block_root = block.header.parent_beacon_block_root;
-
-        let envelope =
-            OpExecutionPayloadEnvelope { parent_beacon_block_root, execution_payload: payload };
-
-        Ok(envelope)
+        Ok(OpExecutionPayloadEnvelope::from_block_slow(&block)?)
     }
 
     fn valid_block(&mut self) -> Block<OpTxEnvelope> {
