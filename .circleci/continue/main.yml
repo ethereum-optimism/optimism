@@ -2639,36 +2639,18 @@ workflows:
             - prep-go-modules
           context:
             - circleci-repo-readonly-authenticated-github-token
+      # One job on every branch: -short gates only a handful of tests, and a
+      # single job name lets CircleCI reuse timing data across branches (develop
+      # runs keep the store fresh). Slack notify fires on develop only
+      # (branch_pattern in notify-failures-on-develop).
       - go-tests:
-          name: go-tests-short
+          name: go-tests
+          rule: "go-tests-ci"
           parallelism: 12
-          no_output_timeout: 19m
-          test_timeout: 20m
-          requires:
-            - contracts-bedrock-build
-            - cannon-prestate
-            - go-binaries-for-sysgo
-            - prep-superchain
-            - prep-go-modules
-            - rust-kona-binaries
-            - rust-op-reth-binary
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - circleci-repo-rpc-secrets
-          filters:
-            branches:
-              ignore: develop # Run on all branches EXCEPT develop (PR branches only)
-      - go-tests:
-          name: go-tests-full
-          rule: "go-tests-ci" # Run full test suite instead of short
-          parallelism: 16
-          no_output_timeout: 89m # Longer timeout for full tests
-          test_timeout: 90m
+          no_output_timeout: 39m
+          test_timeout: 40m
           notify: true
           mentions: "<!subteam^S09D13R3HJ7>" # @protocol-oncall
-          filters:
-            branches:
-              only: develop # Only runs on develop branch (post-merge)
           requires:
             - contracts-bedrock-build
             - cannon-prestate
@@ -2785,7 +2767,7 @@ workflows:
               l1_fork: &acceptance_l1_forks
                 - prague
           l2_el_kind: op-reth
-          parallelism: 2
+          parallelism: 8
           acceptance_test_jobs: "8"
           no_output_timeout: 120m
           context:
@@ -2808,7 +2790,7 @@ workflows:
               l1_fork: *acceptance_l1_forks
           l2_cl_kind: kona-node
           l2_el_kind: op-reth
-          parallelism: 2
+          parallelism: 8
           acceptance_test_jobs: "8"
           no_output_timeout: 120m
           context:
@@ -2834,7 +2816,7 @@ workflows:
             - go-lint: terminal
             - semgrep-scan-local: terminal
             - semgrep-test: terminal
-            - go-tests-short: terminal
+            - go-tests: terminal
             - memory-all-opn-op-reth-prague: terminal
             - memory-all-kona-op-reth-prague: terminal
             - kona-build-sp1-elfs: terminal

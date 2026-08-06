@@ -62,7 +62,7 @@ jobs:
           command: |
             WD=$(pwd)
             echo "Running tests..."
-            export OP_RETH_EXEC_PATH="$WD/rust/target/release/op-reth"
+            export RUST_BINARY_PATH_OP_RETH="$WD/rust/target/release/op-reth"
             export RUST_BINARY_PATH_KONA_NODE="$WD/rust/target/release/kona-node"
             cd rust/kona && just test-e2e-sysgo-run node node/common "<<parameters.devnet_config>>"
       - when:
@@ -75,7 +75,7 @@ jobs:
                 command: |
                   WD=$(pwd)
                   echo "Running tests..."
-                  export OP_RETH_EXEC_PATH="$WD/rust/target/release/op-reth"
+                  export RUST_BINARY_PATH_OP_RETH="$WD/rust/target/release/op-reth"
                   export RUST_BINARY_PATH_KONA_NODE="$WD/rust/target/release/kona-node"
                   cd rust/kona && just test-e2e-sysgo-run node node/reorgs "<<parameters.devnet_config>>"
       - go-save-cache:
@@ -91,6 +91,8 @@ jobs:
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: xlarge.gen2
+    # One test per node via the timing split in test-e2e-sysgo-run.
+    parallelism: 3
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
@@ -105,11 +107,15 @@ jobs:
       - run:
           name: Run restart tests for node with sysgo orchestrator
           no_output_timeout: 60m
+          # test-e2e-sysgo-run skips build-kona/build-reth; the binaries come
+          # prebuilt from the attached workspace via the RUST_BINARY_PATH_*
+          # exports.
           command: |
             echo "Running tests..."
             WD=$(pwd)
+            export RUST_BINARY_PATH_OP_RETH="$WD/rust/target/release/op-reth"
             export RUST_BINARY_PATH_KONA_NODE="$WD/rust/target/release/kona-node"
-            cd rust/kona && just test-e2e-sysgo node node/restart
+            cd rust/kona && just test-e2e-sysgo-run node node/restart
       - go-save-cache:
           namespace: kona-ci
       - store_test_results:
@@ -158,7 +164,9 @@ jobs:
     docker:
       - image: <<pipeline.parameters.c-rust_base_image>>
     resource_class: xlarge.gen2
-    parallelism: 4
+    # ~35 action tests, timing-split across nodes (see action-tests-single-run).
+    # 8 nodes roughly halves per-node test time vs 4.
+    parallelism: 8
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless

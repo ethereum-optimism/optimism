@@ -3,6 +3,7 @@ package node_restart
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -19,6 +20,14 @@ type packageInitResult struct {
 }
 
 func TestMain(m *testing.M) {
+	// go test -list executes TestMain; when only listing, print the names and
+	// exit before booting the shared devstack runtime below.
+	for _, arg := range os.Args[1:] {
+		if arg == "-test.list" || strings.HasPrefix(arg, "-test.list=") {
+			os.Exit(m.Run())
+		}
+	}
+
 	logger := oplog.NewLogger(os.Stderr, oplog.DefaultCLIConfig())
 	pkg := devtest.NewP(context.Background(), logger, func(_ bool) {
 		panic(packageInitResult{code: 1})
