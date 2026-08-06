@@ -531,6 +531,7 @@ fn is_seal_task_err_fatal(err: &SealTaskError) -> bool {
         SealTaskError::GetPayloadFailed(_) |
         SealTaskError::HoloceneInvalidFlush |
         SealTaskError::UnsafeHeadChangedSinceBuild => false,
+        SealTaskError::InvalidExecutionPayload(_) |
         SealTaskError::DepositOnlyPayloadFailed |
         SealTaskError::DepositOnlyPayloadReattemptFailed |
         SealTaskError::FromBlock(_) |

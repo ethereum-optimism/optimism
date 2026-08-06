@@ -134,7 +134,7 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
                 Ok(())
             }
             Some(block) = self.publish_rx.recv(), if !self.publish_rx.is_closed() => {
-                let timestamp = block.execution_payload.timestamp();
+                let timestamp = block.timestamp();
                 let selector = |handler: &kona_gossip::BlockHandler| {
                     handler.topic(timestamp)
                 };
@@ -149,10 +149,11 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
 
                 let payload_hash = block.payload_hash();
                 let signature = signer.sign_block(payload_hash, chain_id, sender_address).await?;
+                let (payload, parent_beacon_block_root) = block.into_parts();
 
                 let payload = OpNetworkPayloadEnvelope {
-                    payload: block.execution_payload,
-                    parent_beacon_block_root: block.parent_beacon_block_root,
+                    payload,
+                    parent_beacon_block_root,
                     signature,
                     payload_hash,
                 };
@@ -169,10 +170,17 @@ impl<NetworkEngineClient_: NetworkEngineClient + 'static> NodeActor
                     return Err(NetworkActorError::ChannelClosed);
                 };
 
-                if let Some(payload) = self.handler.gossip.handle_event(event)
-                    && self.unsafe_block_tx.send(payload.into()).is_err()
-                {
-                    warn!(target: "node::p2p", "Failed to send unsafe block to network handler");
+                if let Some(payload) = self.handler.gossip.handle_event(event) {
+                    match OpExecutionPayloadEnvelope::try_from(payload) {
+                        Ok(payload) => {
+                            if self.unsafe_block_tx.send(payload).is_err() {
+                                warn!(target: "node::p2p", "Failed to send unsafe block to network handler");
+                            }
+                        }
+                        Err(err) => {
+                            warn!(target: "node::p2p", %err, "Validated gossip payload has invalid structure");
+                        }
+                    }
                 }
                 Ok(())
             }
@@ -211,7 +219,6 @@ mod tests {
     use alloy_signer::SignerSync;
     use alloy_signer_local::PrivateKeySigner;
     use arbitrary::Arbitrary;
-    use op_alloy_rpc_types_engine::OpExecutionPayload;
     use rand::Rng;
 
     #[test]
@@ -223,21 +230,15 @@ mod tests {
         let expected_address = pubkey.address();
         const CHAIN_ID: u64 = 1337;
 
-        let block = OpExecutionPayloadEnvelope {
-            execution_payload: OpExecutionPayload::V1(
-                ExecutionPayloadV1::arbitrary(&mut arbitrary::Unstructured::new(&bytes)).unwrap(),
-            ),
-            parent_beacon_block_root: None,
-        };
+        let block = OpExecutionPayloadEnvelope::V1(
+            ExecutionPayloadV1::arbitrary(&mut arbitrary::Unstructured::new(&bytes)).unwrap(),
+        );
 
         let payload_hash = block.payload_hash();
         let signature = pubkey.sign_hash_sync(&payload_hash.signature_message(CHAIN_ID)).unwrap();
-        let payload = OpNetworkPayloadEnvelope {
-            payload: block.execution_payload,
-            parent_beacon_block_root: block.parent_beacon_block_root,
-            signature,
-            payload_hash,
-        };
+        let (payload, parent_beacon_block_root) = block.into_parts();
+        let payload =
+            OpNetworkPayloadEnvelope { payload, parent_beacon_block_root, signature, payload_hash };
         let encoded_payload = payload.encode_v1().unwrap();
 
         let decoded_payload = OpNetworkPayloadEnvelope::decode_v1(&encoded_payload).unwrap();
@@ -257,21 +258,17 @@ mod tests {
         let expected_address = pubkey.address();
         const CHAIN_ID: u64 = 1337;
 
-        let block = OpExecutionPayloadEnvelope {
-            execution_payload: OpExecutionPayload::V3(
-                ExecutionPayloadV3::arbitrary(&mut arbitrary::Unstructured::new(&bytes)).unwrap(),
-            ),
-            parent_beacon_block_root: Some(B256::random()),
+        let block = OpExecutionPayloadEnvelope::V3 {
+            payload: ExecutionPayloadV3::arbitrary(&mut arbitrary::Unstructured::new(&bytes))
+                .unwrap(),
+            parent_beacon_block_root: B256::random(),
         };
 
         let payload_hash = block.payload_hash();
         let signature = pubkey.sign_hash_sync(&payload_hash.signature_message(CHAIN_ID)).unwrap();
-        let payload = OpNetworkPayloadEnvelope {
-            payload: block.execution_payload,
-            parent_beacon_block_root: block.parent_beacon_block_root,
-            signature,
-            payload_hash,
-        };
+        let (payload, parent_beacon_block_root) = block.into_parts();
+        let payload =
+            OpNetworkPayloadEnvelope { payload, parent_beacon_block_root, signature, payload_hash };
         let encoded_payload = payload.encode_v3().unwrap();
 
         let decoded_payload = OpNetworkPayloadEnvelope::decode_v3(&encoded_payload).unwrap();

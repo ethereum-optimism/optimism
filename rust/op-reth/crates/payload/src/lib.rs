@@ -15,7 +15,7 @@ pub mod builder;
 pub use builder::{OpPayloadBuilder, PayloadTransactionsWithCommitHook, RethPayloadTransactions};
 pub mod error;
 pub mod payload;
-use op_alloy_rpc_types_engine::OpExecutionData;
+use op_alloy_rpc_types_engine::{OpExecutionData, OpExecutionPayloadEnvelope};
 pub use payload::{
     OpBuiltPayload, OpExecData, OpPayloadAttributes, OpPayloadAttrs, OpPayloadBuilderAttributes,
     payload_id_optimism,
@@ -92,9 +92,12 @@ where
         >,
         _bal: Option<alloy_primitives::Bytes>,
     ) -> Self::ExecutionData {
-        crate::payload::OpExecData::from(OpExecutionData::from_block_unchecked(
-            block.hash(),
-            &block.into_block().into_ethereum_block(),
+        crate::payload::OpExecData::from(OpExecutionData::from(
+            OpExecutionPayloadEnvelope::from_block_unchecked(
+                block.hash(),
+                &block.into_block().into_ethereum_block(),
+            )
+            .expect("built OP blocks must normalize"),
         ))
     }
 }

@@ -20,6 +20,8 @@ pub use envelope::{
     PayloadEnvelopeEncodeError, PayloadEnvelopeError, PayloadHash,
 };
 
+mod execution;
+
 mod sidecar;
 pub use sidecar::OpExecutionPayloadSidecar;
 
