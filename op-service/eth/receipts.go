@@ -11,19 +11,6 @@ import (
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 )
 
-// EncodeReceipts encodes a list of receipts into raw receipts. Some non-consensus meta-data may be lost.
-func EncodeReceipts(elems []*types.Receipt) ([]hexutil.Bytes, error) {
-	out := make([]hexutil.Bytes, len(elems))
-	for i, el := range elems {
-		dat, err := el.MarshalBinary()
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal receipt %d: %w", i, err)
-		}
-		out[i] = dat
-	}
-	return out, nil
-}
-
 // DecodeRawReceipts decodes receipts and adds additional blocks metadata.
 // The contract-deployment addresses are not set however (high cost, depends on nonce values, unused by op-node).
 // The OP JSON-only fee fields (L1GasPrice, OperatorFeeScalar, ...) are not part

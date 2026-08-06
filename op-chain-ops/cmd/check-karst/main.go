@@ -179,14 +179,14 @@ func makeAllCommand() *cli.Command {
 type ethclientLatestBlockAdapter struct{ *ethclient.Client }
 
 // TransactionReceipt adapts the go-ethereum receipt to the optypes shape the
-// karst checks consume; the OP extension fields stay nil (the checks read only
-// standard fields).
+// karst checks consume; the JSON-only OP fee fields stay nil (the checks read
+// only standard fields).
 func (a *ethclientLatestBlockAdapter) TransactionReceipt(ctx context.Context, txHash common.Hash) (*optypes.Receipt, error) {
 	receipt, err := a.Client.TransactionReceipt(ctx, txHash)
 	if err != nil || receipt == nil {
 		return nil, err
 	}
-	return &optypes.Receipt{Receipt: *receipt}, nil
+	return optypes.FromGethReceipt(receipt), nil
 }
 
 func (a *ethclientLatestBlockAdapter) InfoAndTxsByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, types.Transactions, error) {
