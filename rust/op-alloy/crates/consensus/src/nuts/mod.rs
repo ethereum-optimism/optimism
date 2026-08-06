@@ -38,14 +38,20 @@ pub struct NetworkUpgradeTransaction {
 pub struct NutBundle {
     /// The fork name, used to namespace intents for source hash derivation.
     pub fork_name: String,
+    /// Gas added to the activation block's gas limit on top of [`Self::transactions`], covering
+    /// activation deposits the consensus layer emits outside the bundle — deposits the bundle
+    /// format cannot express, such as one carrying a non-zero mint. Zero for a bundle that needs
+    /// none.
+    pub extra_gas: u64,
     /// The ordered list of upgrade transactions.
     pub transactions: Vec<NetworkUpgradeTransaction>,
 }
 
 impl NutBundle {
-    /// Returns the total gas required by all transactions in the bundle.
+    /// Returns the gas a fork's activation block reserves for this bundle: the sum of its
+    /// transactions' gas limits, plus [`Self::extra_gas`].
     pub fn total_gas(&self) -> u64 {
-        self.transactions.iter().map(|tx| tx.gas_limit).sum()
+        self.extra_gas + self.transactions.iter().map(|tx| tx.gas_limit).sum::<u64>()
     }
 
     /// Converts the bundle into a list of [`TxDeposit`]s.
@@ -115,6 +121,7 @@ mod tests {
     fn test_bundle() -> NutBundle {
         NutBundle {
             fork_name: "Test".to_string(),
+            extra_gas: 0,
             transactions: alloc::vec![
                 NetworkUpgradeTransaction {
                     intent: "First Transaction".to_string(),
@@ -206,6 +213,7 @@ mod tests {
     fn test_null_to_produces_create() {
         let bundle = NutBundle {
             fork_name: "Test".to_string(),
+            extra_gas: 0,
             transactions: alloc::vec![NetworkUpgradeTransaction {
                 intent: "Deploy Contract".to_string(),
                 from: address!("4210000000000000000000000000000000000006"),
@@ -223,6 +231,7 @@ mod tests {
     fn test_missing_intent_error() {
         let bundle = NutBundle {
             fork_name: "Test".to_string(),
+            extra_gas: 0,
             transactions: alloc::vec![NetworkUpgradeTransaction {
                 intent: String::new(),
                 from: Address::ZERO,
@@ -239,7 +248,8 @@ mod tests {
 
     #[test]
     fn test_empty_bundle() {
-        let bundle = NutBundle { fork_name: "Test".to_string(), transactions: alloc::vec![] };
+        let bundle =
+            NutBundle { fork_name: "Test".to_string(), extra_gas: 0, transactions: alloc::vec![] };
 
         assert_eq!(bundle.total_gas(), 0);
         let deposits = bundle.to_deposit_transactions().unwrap();
@@ -253,5 +263,17 @@ mod tests {
 
         let sum_gas: u64 = deposits.iter().map(|d| d.gas_limit).sum();
         assert_eq!(bundle.total_gas(), sum_gas);
+    }
+
+    #[test]
+    fn test_extra_gas_is_reserved_without_a_transaction() {
+        let mut bundle = test_bundle();
+        let tx_gas = bundle.total_gas();
+        bundle.extra_gas = 150_000;
+
+        // The reservation grows, but the bundle still emits only its own deposits — extra_gas
+        // covers activation deposits the consensus layer emits outside the bundle.
+        assert_eq!(bundle.total_gas(), tx_gas + 150_000);
+        assert_eq!(bundle.to_deposit_transactions().unwrap().len(), 2);
     }
 }

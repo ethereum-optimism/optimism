@@ -13,9 +13,10 @@ import (
 
 // ForkLockEntry represents a single fork's entry in fork_lock.toml.
 type ForkLockEntry struct {
-	Bundle string `toml:"bundle"`
-	Hash   string `toml:"hash"`
-	Commit string `toml:"commit"`
+	Bundle   string `toml:"bundle"`
+	Hash     string `toml:"hash"`
+	Commit   string `toml:"commit"`
+	ExtraGas uint64 `toml:"extra_gas,omitempty"`
 }
 
 // ForkLock is the full contents of fork_lock.toml, keyed by fork name.

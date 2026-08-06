@@ -5,6 +5,7 @@ pub(crate) fn test_nut_bundle() -> &'static op_alloy_consensus::NutBundle {
         = once_cell::race::OnceBox::new();
     BUNDLE.get_or_init(|| alloc::boxed::Box::new(op_alloy_consensus::NutBundle {
         fork_name: alloc::string::String::from("Test"),
+        extra_gas: 50000,
         transactions: alloc::vec![
             op_alloy_consensus::NetworkUpgradeTransaction {
                 intent: alloc::string::String::from("Deploy FooProxy"),

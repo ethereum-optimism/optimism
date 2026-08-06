@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-core/nuts"
@@ -14,8 +15,14 @@ func hashOf(data []byte) string {
 	return "sha256:" + hex.EncodeToString(h[:])
 }
 
+// bundleWithExtraGas returns minimal but schema-valid bundle contents.
+func bundleWithExtraGas(extraGas uint64) []byte {
+	return fmt.Appendf(nil, `{"metadata":{"extraGas":%d,"version":%q},"transactions":[]}`,
+		extraGas, nuts.BundleVersion)
+}
+
 func TestValidateEntry_MatchingHash(t *testing.T) {
-	content := []byte(`{"transactions":[]}`)
+	content := bundleWithExtraGas(0)
 	entry := nuts.ForkLockEntry{
 		Bundle: "op-core/nuts/bundles/test_nut_bundle.json",
 		Hash:   hashOf(content),
@@ -23,6 +30,47 @@ func TestValidateEntry_MatchingHash(t *testing.T) {
 	}
 	err := validateEntry("test", entry, content)
 	require.NoError(t, err)
+}
+
+func TestValidateEntry_MatchingExtraGas(t *testing.T) {
+	content := bundleWithExtraGas(150_000)
+	entry := nuts.ForkLockEntry{
+		Bundle:   "op-core/nuts/bundles/test_nut_bundle.json",
+		Hash:     hashOf(content),
+		Commit:   "abc123",
+		ExtraGas: 150_000,
+	}
+	require.NoError(t, validateEntry("test", entry, content))
+}
+
+// The lock's extra_gas mirrors the bundle's own metadata.extraGas. Hand-editing either one
+// alone must fail loudly rather than leave the reviewer-visible number lying about the
+// activation block's gas reservation.
+func TestValidateEntry_ExtraGasMismatch(t *testing.T) {
+	content := bundleWithExtraGas(150_000)
+	entry := nuts.ForkLockEntry{
+		Bundle:   "op-core/nuts/bundles/test_nut_bundle.json",
+		Hash:     hashOf(content),
+		Commit:   "abc123",
+		ExtraGas: 100_000,
+	}
+	err := validateEntry("test", entry, content)
+	require.ErrorContains(t, err, "does not match the bundle's metadata.extraGas")
+}
+
+// A bundle predating the field must not carry one — a reader that predates it would silently
+// under-reserve the activation block's gas limit.
+func TestValidateEntry_ExtraGasAtLegacyVersion(t *testing.T) {
+	content := fmt.Appendf(nil, `{"metadata":{"extraGas":150000,"version":%q},"transactions":[]}`,
+		nuts.BundleVersionNoExtraGas)
+	entry := nuts.ForkLockEntry{
+		Bundle:   "op-core/nuts/bundles/test_nut_bundle.json",
+		Hash:     hashOf(content),
+		Commit:   "abc123",
+		ExtraGas: 150_000,
+	}
+	err := validateEntry("test", entry, content)
+	require.ErrorContains(t, err, "must not declare extraGas")
 }
 
 func TestValidateEntry_HashMismatch(t *testing.T) {

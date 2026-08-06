@@ -18,14 +18,6 @@ import (
 // Network Upgrade Transactions (NUTs) are read from a JSON file and
 // converted into deposit transactions.
 
-// nutBundleVersion is the only bundle schema version this reader accepts.
-const nutBundleVersion = "1.0.0"
-
-// nutMetadata contains version information for the NUT bundle format.
-type nutMetadata struct {
-	Version string `json:"version"`
-}
-
 // networkUpgradeTransaction defines a single deposit transaction within a NUT bundle.
 type networkUpgradeTransaction struct {
 	Intent   string          `json:"intent"`
@@ -38,7 +30,7 @@ type networkUpgradeTransaction struct {
 // nutBundle is the top-level structure of a NUT file.
 type nutBundle struct {
 	ForkName     forks.Name                  `json:"-"`
-	Metadata     nutMetadata                 `json:"metadata"`
+	Metadata     nuts.BundleMetadata         `json:"metadata"`
 	Transactions []networkUpgradeTransaction `json:"transactions"`
 }
 
@@ -60,16 +52,18 @@ func readNUTBundle(fork forks.Name, r io.Reader) (*nutBundle, error) {
 	if err := json.NewDecoder(r).Decode(&bundle); err != nil {
 		return nil, fmt.Errorf("failed to parse NUT bundle: %w", err)
 	}
-	if bundle.Metadata.Version != nutBundleVersion {
-		return nil, fmt.Errorf("unsupported NUT bundle version: got %q, want %q", bundle.Metadata.Version, nutBundleVersion)
+	if err := bundle.Metadata.Validate(); err != nil {
+		return nil, err
 	}
 	bundle.ForkName = fork
 	return &bundle, nil
 }
 
-// totalGas returns the sum of gas limits across all transactions in the bundle.
+// totalGas returns the gas a fork's activation block reserves for this bundle: the sum of its
+// transactions' gas limits, plus any extra gas the bundle declares for activation deposits the
+// consensus layer emits outside it.
 func (b *nutBundle) totalGas() uint64 {
-	var total uint64
+	total := b.Metadata.ExtraGas
 	for _, tx := range b.Transactions {
 		total += tx.GasLimit
 	}

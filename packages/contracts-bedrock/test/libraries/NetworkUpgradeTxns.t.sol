@@ -136,7 +136,8 @@ contract NetworkUpgradeTxns_WriteArtifact_Test is NetworkUpgradeTxns_TestInit {
     function test_writeArtifact_emptyArray_succeeds() public {
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns = new NetworkUpgradeTxns.NetworkUpgradeTxn[](0);
         string memory outputPath = "deployments/nut-test-empty.json";
-        NetworkUpgradeTxns.BundleMetadata memory metadata = NetworkUpgradeTxns.BundleMetadata({ version: "" });
+        NetworkUpgradeTxns.BundleMetadata memory metadata =
+            NetworkUpgradeTxns.BundleMetadata({ extraGas: 0, version: "" });
         NetworkUpgradeTxns.writeArtifact(txns, metadata, outputPath);
     }
 
@@ -144,10 +145,45 @@ contract NetworkUpgradeTxns_WriteArtifact_Test is NetworkUpgradeTxns_TestInit {
     function test_readArtifact_unsupportedVersion_reverts() public {
         string memory path = "deployments/nut-test-bad-version.json";
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns = new NetworkUpgradeTxns.NetworkUpgradeTxn[](0);
-        NetworkUpgradeTxns.writeArtifact(txns, NetworkUpgradeTxns.BundleMetadata({ version: "2.0.0" }), path);
+        NetworkUpgradeTxns.writeArtifact(
+            txns, NetworkUpgradeTxns.BundleMetadata({ extraGas: 0, version: "2.0.0" }), path
+        );
 
         vm.expectRevert("NetworkUpgradeTxns: unsupported bundle version: 2.0.0");
         this._callReadArtifact(path);
+    }
+
+    /// @notice Test that readArtifact reverts when a bundle predating `extraGas` declares one.
+    ///         The schema version gates the field: a reader that predates it would silently
+    ///         under-reserve the activation block's gas limit.
+    function test_readArtifact_extraGasAtLegacyVersion_reverts() public {
+        string memory path = "deployments/nut-test-legacy-extra-gas.json";
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns = new NetworkUpgradeTxns.NetworkUpgradeTxn[](0);
+        NetworkUpgradeTxns.writeArtifact(
+            txns,
+            NetworkUpgradeTxns.BundleMetadata({
+                extraGas: 150_000,
+                version: NetworkUpgradeTxns.BUNDLE_VERSION_NO_EXTRA_GAS
+            }),
+            path
+        );
+
+        vm.expectRevert("NetworkUpgradeTxns: extraGas requires bundle version 1.1.0");
+        this._callReadArtifact(path);
+    }
+
+    /// @notice Test that a bundle at the current version round-trips a non-zero `extraGas`.
+    function test_writeArtifact_extraGas_succeeds() public {
+        string memory path = "deployments/nut-test-extra-gas.json";
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns = new NetworkUpgradeTxns.NetworkUpgradeTxn[](0);
+        NetworkUpgradeTxns.writeArtifact(
+            txns,
+            NetworkUpgradeTxns.BundleMetadata({ extraGas: 150_000, version: NetworkUpgradeTxns.BUNDLE_VERSION }),
+            path
+        );
+
+        NetworkUpgradeTxns.readArtifact(path);
+        assertEq(vm.parseJsonUint(vm.readFile(path), ".metadata.extraGas"), 150_000, "'extraGas' doesn't match");
     }
 
     /// @notice Test writeArtifact creates valid JSON file
@@ -171,7 +207,8 @@ contract NetworkUpgradeTxns_WriteArtifact_Test is NetworkUpgradeTxns_TestInit {
         });
 
         string memory outputPath = "deployments/nut-test.json";
-        NetworkUpgradeTxns.BundleMetadata memory metadata = NetworkUpgradeTxns.BundleMetadata({ version: "1.0.0" });
+        NetworkUpgradeTxns.BundleMetadata memory metadata =
+            NetworkUpgradeTxns.BundleMetadata({ extraGas: 0, version: NetworkUpgradeTxns.BUNDLE_VERSION });
         NetworkUpgradeTxns.writeArtifact(txns, metadata, outputPath);
 
         // Read json file and validate the transactions
@@ -265,7 +302,8 @@ contract NetworkUpgradeTxns_Uncategorized_Test is NetworkUpgradeTxns_TestInit {
 
         // Write transactions to JSON file
         string memory outputPath = "deployments/nut-ecotone-upgrade-test.json";
-        NetworkUpgradeTxns.BundleMetadata memory metadata = NetworkUpgradeTxns.BundleMetadata({ version: "1.0.0" });
+        NetworkUpgradeTxns.BundleMetadata memory metadata =
+            NetworkUpgradeTxns.BundleMetadata({ extraGas: 0, version: NetworkUpgradeTxns.BUNDLE_VERSION });
         NetworkUpgradeTxns.writeArtifact(txns, metadata, outputPath);
 
         // Read back the transactions

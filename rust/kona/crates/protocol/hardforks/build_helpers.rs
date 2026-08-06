@@ -12,12 +12,22 @@
 use anyhow::{Context, Result, anyhow};
 use serde::Deserialize;
 
-/// Supported NUT bundle schema version.
-pub const SUPPORTED_VERSION: &str = "1.0.0";
+/// Current NUT bundle schema version.
+pub const SUPPORTED_VERSION: &str = "1.1.0";
+
+/// Schema version predating the `extraGas` field. It stays supported because a bundle locked at
+/// this version is regenerated, for provenance verification, by the generator of its own locked
+/// commit — which cannot emit anything newer.
+pub const SUPPORTED_VERSION_NO_EXTRA_GAS: &str = "1.0.0";
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BundleMetadata {
     pub version: String,
+    /// Gas added to the activation block's gas limit on top of the bundle's own transactions,
+    /// covering activation deposits the consensus layer emits outside the bundle.
+    #[serde(default)]
+    pub extra_gas: u64,
 }
 
 #[derive(Deserialize)]
@@ -39,12 +49,25 @@ pub struct BundleFile {
 /// Parse a NUT bundle from JSON, validating its schema version.
 pub fn parse_bundle(json: &str) -> Result<BundleFile> {
     let bundle: BundleFile = serde_json::from_str(json).context("parse NUT bundle JSON")?;
-    if bundle.metadata.version != SUPPORTED_VERSION {
-        return Err(anyhow!(
-            "unsupported NUT bundle version: got {:?}, want {:?}",
-            bundle.metadata.version,
-            SUPPORTED_VERSION
-        ));
+    match bundle.metadata.version.as_str() {
+        SUPPORTED_VERSION => {}
+        SUPPORTED_VERSION_NO_EXTRA_GAS => {
+            if bundle.metadata.extra_gas != 0 {
+                return Err(anyhow!(
+                    "NUT bundle version {:?} must not declare extraGas, got {}",
+                    SUPPORTED_VERSION_NO_EXTRA_GAS,
+                    bundle.metadata.extra_gas
+                ));
+            }
+        }
+        other => {
+            return Err(anyhow!(
+                "unsupported NUT bundle version: got {:?}, want {:?} or {:?}",
+                other,
+                SUPPORTED_VERSION,
+                SUPPORTED_VERSION_NO_EXTRA_GAS
+            ));
+        }
     }
     Ok(bundle)
 }
@@ -78,7 +101,8 @@ pub fn format_bundle(name: &str, fork_display: &str, bundle: &BundleFile) -> Str
         "    static BUNDLE: once_cell::race::OnceBox<op_alloy_consensus::NutBundle>\n        = once_cell::race::OnceBox::new();\n",
     );
     code.push_str(&format!(
-        "    BUNDLE.get_or_init(|| alloc::boxed::Box::new(op_alloy_consensus::NutBundle {{\n        fork_name: alloc::string::String::from({fork_display:?}),\n        transactions: alloc::vec![\n"
+        "    BUNDLE.get_or_init(|| alloc::boxed::Box::new(op_alloy_consensus::NutBundle {{\n        fork_name: alloc::string::String::from({fork_display:?}),\n        extra_gas: {},\n        transactions: alloc::vec![\n",
+        bundle.metadata.extra_gas
     ));
 
     for tx in &bundle.transactions {

@@ -29,8 +29,16 @@ contract GenerateNUTBundle is Script {
     /// @notice Name of the upgrade.
     string internal constant UPGRADE_NAME = "lagoon";
 
-    /// @notice Version of the upgrade bundle.
-    string internal constant BUNDLE_VERSION = "1.0.0";
+    /// @notice Gas the consensus layer adds to the activation block's gas limit on top of this
+    ///         bundle's own transactions, covering activation deposits it emits outside the bundle.
+    ///
+    ///         Lagoon's are the `L1Block.setFeature(INTEROP)` and `ETHLiquidity` funding wrappers
+    ///         (100,000 + 50,000). Neither is expressible as a bundle transaction: the funding
+    ///         deposit carries a non-zero mint, and both are emitted only by a chain whose
+    ///         dependency set holds more than one chain. The reservation is unconditional anyway,
+    ///         because the system config reconstructed from the activation block must subtract the
+    ///         same amount again for the next block and never sees the dependency set.
+    uint64 internal constant EXTRA_GAS = 150_000;
 
     /// @notice EIP-7825 per-transaction gas limit cap (2 ** 24).
     uint256 public constant MAX_TX_GAS_LIMIT = 16777216;
@@ -86,7 +94,7 @@ contract GenerateNUTBundle is Script {
 
         // Write transactions to artifact with metadata
         NetworkUpgradeTxns.BundleMetadata memory metadata =
-            NetworkUpgradeTxns.BundleMetadata({ version: BUNDLE_VERSION });
+            NetworkUpgradeTxns.BundleMetadata({ extraGas: EXTRA_GAS, version: NetworkUpgradeTxns.BUNDLE_VERSION });
         NetworkUpgradeTxns.writeArtifact(output_.txns, metadata, Constants.CURRENT_BUNDLE_PATH);
     }
 

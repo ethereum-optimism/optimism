@@ -1,6 +1,7 @@
 {
   "metadata": {
-    "version": "1.0.0"
+    "extraGas": 50000,
+    "version": "1.1.0"
   },
   "transactions": [
     {

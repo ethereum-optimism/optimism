@@ -62,6 +62,23 @@ func validateEntry(fork string, entry nuts.ForkLockEntry, bundleContent []byte) 
 			"run 'just nut-snapshot-for %s' to populate the commit field", fork, fork)
 	}
 
+	metadata, err := nuts.ReadBundleMetadata(bundleContent)
+	if err != nil {
+		return fmt.Errorf("fork %s: %w", fork, err)
+	}
+	if err := metadata.Validate(); err != nil {
+		return fmt.Errorf("fork %s: %w", fork, err)
+	}
+	// The lock's extra_gas is the reviewer-visible mirror of the bundle's own metadata.extraGas.
+	// A disagreement means one of the two was hand-edited; the bundle is authoritative.
+	if entry.ExtraGas != metadata.ExtraGas {
+		return fmt.Errorf(
+			"fork %s: extra_gas in fork_lock.toml (%d) does not match the bundle's metadata.extraGas (%d); "+
+				"run 'just nut-snapshot-for %s' to re-derive it from the bundle",
+			fork, entry.ExtraGas, metadata.ExtraGas, fork,
+		)
+	}
+
 	return nil
 }
 

@@ -129,6 +129,37 @@ func TestNUTBundleTotalGas(t *testing.T) {
 	require.Equal(t, bundle.totalGas(), sumGas)
 }
 
+// A bundle's extraGas is reserved in the activation block's gas limit without a matching
+// transaction in the bundle — it covers activation deposits emitted outside it.
+func TestNUTBundleExtraGasCountsTowardTotal(t *testing.T) {
+	jsonData := []byte(`{
+		"metadata": {"extraGas": 150000, "version": "1.1.0"},
+		"transactions": [{
+			"intent": "Deploy Foo",
+			"from": "0x0000000000000000000000000000000000000000",
+			"to": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+			"data": "0xabcdef",
+			"gasLimit": 1000000
+		}]
+	}`)
+
+	bundle, err := readNUTBundle("Test", bytes.NewReader(jsonData))
+	require.NoError(t, err)
+	require.Equal(t, uint64(1_000_000+150_000), bundle.totalGas())
+
+	txs, err := bundle.toDepositTransactions()
+	require.NoError(t, err)
+	require.Len(t, txs, 1, "extraGas must not add a transaction")
+}
+
+// The schema version gates the field: a reader predating extraGas would silently under-reserve
+// the activation block's gas limit, so a legacy-version bundle declaring one is malformed.
+func TestNUTBundleExtraGasRejectedAtLegacyVersion(t *testing.T) {
+	jsonData := []byte(`{"metadata":{"extraGas":150000,"version":"1.0.0"},"transactions":[]}`)
+	_, err := readNUTBundle("Test", bytes.NewReader(jsonData))
+	require.ErrorContains(t, err, "must not declare extraGas")
+}
+
 func TestUpgradeTransactionsUnknownFork(t *testing.T) {
 	_, _, err := UpgradeTransactions("UnknownFork")
 	require.Error(t, err)

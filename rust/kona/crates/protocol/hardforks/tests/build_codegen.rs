@@ -22,6 +22,31 @@ fn generates_expected_rust_source() {
     assert_eq!(generated, EXPECTED_OUTPUT, "generated source does not match expected fixture");
 }
 
+/// A bundle predating `extraGas` stays readable: its locked commit's generator emits the old
+/// schema, and provenance verification regenerates it with exactly that generator.
+#[test]
+fn accepts_legacy_version_without_extra_gas() {
+    let json = INPUT_JSON.replace("\"extraGas\": 50000,\n    ", "").replace("1.1.0", "1.0.0");
+    let bundle = parse_bundle(&json).expect("legacy bundle should parse");
+    assert_eq!(bundle.metadata.extra_gas, 0);
+}
+
+/// `extraGas` at the legacy version is a malformed bundle, not a silently-ignored field — a
+/// reader that predates the field would under-reserve the activation block's gas limit.
+#[test]
+fn rejects_extra_gas_at_legacy_version() {
+    let json = INPUT_JSON.replace("1.1.0", "1.0.0");
+    let Err(err) = parse_bundle(&json) else { panic!("legacy version must not declare extraGas") };
+    assert!(err.to_string().contains("must not declare extraGas"), "unexpected error: {err}");
+}
+
+#[test]
+fn rejects_unknown_version() {
+    let json = INPUT_JSON.replace("1.1.0", "2.0.0");
+    let Err(err) = parse_bundle(&json) else { panic!("unknown version must be rejected") };
+    assert!(err.to_string().contains("unsupported NUT bundle version"), "unexpected error: {err}");
+}
+
 /// Regenerate `tests/fixtures/test_bundle_expected.rs` from the current
 /// generator output. Run manually after an intentional codegen change:
 /// `cargo test -p kona-hardforks --test build_codegen -- --ignored regenerate_expected`

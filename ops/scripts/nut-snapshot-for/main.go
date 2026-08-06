@@ -72,16 +72,28 @@ func run(fork forks.Name) error {
 		return err
 	}
 
+	// Mirror the bundle's own extraGas into the lock so it is visible to a reviewer without
+	// opening the bundle. check-nut-locks enforces that the two stay in agreement.
+	metadata, err := nuts.ReadBundleMetadata(content)
+	if err != nil {
+		return err
+	}
+	if err := metadata.Validate(); err != nil {
+		return fmt.Errorf("bundle %s: %w", bundleRel, err)
+	}
+
 	locks[string(fork)] = nuts.ForkLockEntry{
-		Bundle: bundleRel,
-		Hash:   hashStr,
-		Commit: commit,
+		Bundle:   bundleRel,
+		Hash:     hashStr,
+		Commit:   commit,
+		ExtraGas: metadata.ExtraGas,
 	}
 
 	if err := nuts.WriteLockFile(lockPath, locks); err != nil {
 		return err
 	}
 
-	fmt.Printf("Updated fork_lock.toml: fork=%s hash=%s commit=%s\n", fork, hashStr, commit[:12])
+	fmt.Printf("Updated fork_lock.toml: fork=%s hash=%s commit=%s extra_gas=%d\n",
+		fork, hashStr, commit[:12], metadata.ExtraGas)
 	return nil
 }
