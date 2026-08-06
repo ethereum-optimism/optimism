@@ -22,6 +22,9 @@ pub enum EngineTaskErrorSeverity {
     /// The error is temporary and the task is retried.
     #[display("temporary")]
     Temporary,
+    /// The task should be dropped.
+    #[display("drop")]
+    Drop,
     /// The error is critical and is propagated to the engine actor.
     #[display("critical")]
     Critical,
@@ -78,6 +81,12 @@ pub enum EngineTaskErrors {
 impl EngineTaskError for EngineTaskErrors {
     fn severity(&self) -> EngineTaskErrorSeverity {
         match self {
+            // SealTask handles INVALID with its own fallback, so drop only top-level insert tasks.
+            Self::Insert(InsertTaskError::UnexpectedPayloadStatus(status))
+                if status.is_invalid() =>
+            {
+                EngineTaskErrorSeverity::Drop
+            }
             Self::Insert(inner) => inner.severity(),
             Self::Build(inner) => inner.severity(),
             Self::Seal(inner) => inner.severity(),
@@ -201,7 +210,6 @@ impl<EngineClient_: EngineClient> EngineTaskExt for EngineTask<EngineClient_> {
     type Error = EngineTaskErrors;
 
     async fn execute(&self, state: &mut EngineState) -> Result<(), Self::Error> {
-        // Retry the task until it succeeds or a critical error occurs.
         while let Err(e) = self.execute_inner(state).await {
             let severity = e.severity();
 
@@ -217,6 +225,10 @@ impl<EngineClient_: EngineClient> EngineTaskExt for EngineTask<EngineClient_> {
 
                     // Yield the task to allow other tasks to execute to avoid starvation.
                     yield_now().await;
+                }
+                EngineTaskErrorSeverity::Drop => {
+                    warn!(target: "engine", "Dropping permanently invalid engine task: {e}");
+                    return Err(e);
                 }
                 EngineTaskErrorSeverity::Critical => {
                     error!(target: "engine", "{e}");
@@ -236,5 +248,31 @@ impl<EngineClient_: EngineClient> EngineTaskExt for EngineTask<EngineClient_> {
         kona_macros::inc!(counter, crate::Metrics::ENGINE_TASK_SUCCESS, self.task_metrics_label());
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy_rpc_types_engine::PayloadStatusEnum;
+
+    #[test]
+    fn only_permanently_invalid_unsafe_payloads_are_dropped() {
+        let invalid = || {
+            InsertTaskError::UnexpectedPayloadStatus(PayloadStatusEnum::Invalid {
+                validation_error: "invalid state root".to_string(),
+            })
+        };
+
+        // SealTask handles INVALID separately, so InsertTaskError remains temporary.
+        assert_eq!(invalid().severity(), EngineTaskErrorSeverity::Temporary);
+        assert_eq!(EngineTaskErrors::Insert(invalid()).severity(), EngineTaskErrorSeverity::Drop);
+        assert_eq!(
+            EngineTaskErrors::Insert(InsertTaskError::UnexpectedPayloadStatus(
+                PayloadStatusEnum::Accepted,
+            ))
+            .severity(),
+            EngineTaskErrorSeverity::Temporary
+        );
     }
 }

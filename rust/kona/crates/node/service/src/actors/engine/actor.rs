@@ -116,6 +116,11 @@ where
             }
             Err(err) => {
                 match err.severity() {
+                    EngineTaskErrorSeverity::Drop => {
+                        // Unreachable: Engine::drain consumes drop errors.
+                        error!(target: "engine", ?err, "Drop error escaped engine task queue");
+                        return Err(err.into());
+                    }
                     EngineTaskErrorSeverity::Critical => {
                         error!(target: "engine", ?err, "Critical error draining engine tasks");
                         return Err(err.into());
