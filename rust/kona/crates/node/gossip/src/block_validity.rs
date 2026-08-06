@@ -2,20 +2,16 @@
 use std::time::Instant;
 use std::time::SystemTime;
 
-use alloy_consensus::Block;
 use alloy_primitives::{Address, B256};
 use alloy_rpc_types_engine::{ExecutionPayloadV3, PayloadError};
 use kona_genesis::RollupConfig;
 use libp2p::gossipsub::MessageAcceptance;
-use op_alloy_consensus::OpTxEnvelope;
-use op_alloy_rpc_types_engine::{
-    OpExecutionPayload, OpExecutionPayloadEnvelope, OpExecutionPayloadV4, OpNetworkPayloadEnvelope,
-    OpPayloadError,
-};
+use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelope, OpExecutionPayloadV4, OpPayloadError};
 
 use super::BlockHandler;
 #[cfg(feature = "metrics")]
 use crate::Metrics;
+use crate::payload::SignedGossipPayload;
 
 /// Error that can occur when validating a block.
 #[derive(Debug, thiserror::Error)]
@@ -53,9 +49,6 @@ pub enum BlockInvalidError {
     /// Invalid block.
     #[error(transparent)]
     InvalidBlock(#[from] OpPayloadError),
-    /// The block has a parent beacon block root incompatible with its payload version.
-    #[error("Payload has an invalid parent beacon block root")]
-    ParentBeaconRoot,
     /// The block has an invalid blob gas used.
     #[error("Payload is on v3+ topic, but has non-zero blob gas used")]
     BlobGasUsed,
@@ -105,6 +98,30 @@ impl BlockHandler {
     /// <https://specs.optimism.io/protocol/rollup-node-p2p.html#block-validation>
     const MAX_BLOCKS_TO_KEEP: usize = 5;
 
+    /// Validates that the signature authenticates the exact encoded envelope bytes and was
+    /// produced by the configured unsafe block signer.
+    pub(crate) fn validate_signature(
+        &self,
+        payload: &SignedGossipPayload,
+    ) -> Result<(), BlockInvalidError> {
+        let message = payload.payload_hash().signature_message(self.rollup_config.l2_chain_id.id());
+        let expected = *self.signer_recv.borrow();
+        let received = match payload.signature().recover_address_from_prehash(&message) {
+            Ok(received) => received,
+            Err(_) => {
+                #[cfg(feature = "metrics")]
+                kona_macros::inc!(counter, Metrics::BLOCK_VALIDATION_FAILED, "reason" => "invalid_signature");
+                return Err(BlockInvalidError::Signature);
+            }
+        };
+        if received != expected {
+            #[cfg(feature = "metrics")]
+            kona_macros::inc!(counter, Metrics::BLOCK_VALIDATION_FAILED, "reason" => "invalid_signer");
+            return Err(BlockInvalidError::Signer { expected, received });
+        }
+        Ok(())
+    }
+
     /// Determines if a block is valid.
     ///
     /// We validate the block according to the rules defined here:
@@ -114,24 +131,20 @@ impl BlockHandler {
     /// in the handle).
     pub fn block_valid(
         &mut self,
-        envelope: &OpNetworkPayloadEnvelope,
+        envelope: &OpExecutionPayloadEnvelope,
     ) -> Result<(), BlockInvalidError> {
         // Start timing for the validation duration
         #[cfg(feature = "metrics")]
         let validation_start = Instant::now();
 
-        // Record total validation attempts
-        #[cfg(feature = "metrics")]
-        kona_macros::inc!(counter, Metrics::BLOCK_VALIDATION_TOTAL);
-
         // Record block version distribution
         #[cfg(feature = "metrics")]
         {
-            let version = match &envelope.payload {
-                OpExecutionPayload::V1(_) => "v1",
-                OpExecutionPayload::V2(_) => "v2",
-                OpExecutionPayload::V3(_) => "v3",
-                OpExecutionPayload::V4(_) => "v4",
+            let version = match envelope {
+                OpExecutionPayloadEnvelope::V1(_) => "v1",
+                OpExecutionPayloadEnvelope::V2(_) => "v2",
+                OpExecutionPayloadEnvelope::V3 { .. } => "v3",
+                OpExecutionPayloadEnvelope::V4 { .. } => "v4",
             };
             kona_macros::inc!(counter, Metrics::BLOCK_VERSION, "version" => version);
         }
@@ -173,7 +186,6 @@ impl BlockHandler {
                         BlockInvalidError::BlockSeen { .. } => "block_seen",
                         BlockInvalidError::InvalidBlock(_) |
                         BlockInvalidError::BaseFeePerGasOverflow(_) => "invalid_block",
-                        BlockInvalidError::ParentBeaconRoot => "parent_beacon_root",
                         BlockInvalidError::BlobGasUsed => "blob_gas_used",
                         BlockInvalidError::ExcessBlobGas => "excess_blob_gas",
                         BlockInvalidError::WithdrawalsRoot => "withdrawals_root",
@@ -189,80 +201,49 @@ impl BlockHandler {
     /// Internal validation logic extracted for cleaner metrics instrumentation.
     fn validate_block_internal(
         &mut self,
-        envelope: &OpNetworkPayloadEnvelope,
+        envelope: &OpExecutionPayloadEnvelope,
     ) -> Result<(), BlockInvalidError> {
         let current_timestamp =
             SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
 
         // The timestamp is at most 5 seconds in the future.
-        let is_future = envelope.payload.timestamp() > current_timestamp + 5;
+        let is_future = envelope.timestamp() > current_timestamp + 5;
         // The timestamp is at most 60 seconds in the past.
-        let is_past = envelope.payload.timestamp() < current_timestamp - 60;
+        let is_past = envelope.timestamp() < current_timestamp - 60;
 
         // CHECK: The timestamp is not too far in the future or past.
         if is_future || is_past {
             return Err(BlockInvalidError::Timestamp {
                 current: current_timestamp,
-                received: envelope.payload.timestamp(),
+                received: envelope.timestamp(),
             });
         }
 
-        // CHECK: Ensure the block hash is valid.
-        let expected = envelope.payload.block_hash();
-        let execution_data =
-            OpExecutionPayloadEnvelope::try_from(envelope.clone()).map_err(|err| match err {
-                OpPayloadError::MissingParentBeaconBlockRoot |
-                OpPayloadError::UnexpectedParentBeaconBlockRoot => {
-                    BlockInvalidError::ParentBeaconRoot
-                }
-                err => BlockInvalidError::InvalidBlock(err),
-            })?;
-        let block: Block<OpTxEnvelope> = execution_data.try_into_block()?;
-        let received = block.header.hash_slow();
-        if received != expected {
-            return Err(BlockInvalidError::BlockHash { expected, received });
-        }
+        // CHECK: Ensure the block hash is valid without decoding the transactions.
+        envelope.check_block_hash().map_err(|err| match err {
+            OpPayloadError::Eth(PayloadError::BlockHash { execution, consensus }) => {
+                BlockInvalidError::BlockHash { expected: consensus, received: execution }
+            }
+            err => BlockInvalidError::InvalidBlock(err),
+        })?;
 
         // CHECK: The payload is valid for the specific version of this block.
         self.validate_version_specific_payload(envelope)?;
 
-        if let Some(seen_hashes_at_height) =
-            self.seen_hashes.get_mut(&envelope.payload.block_number())
-        {
+        if let Some(seen_hashes_at_height) = self.seen_hashes.get_mut(&envelope.block_number()) {
             // CHECK: If more than [`Self::MAX_BLOCKS_TO_KEEP`] different blocks have been received
             // for the same height, reject the block.
             if seen_hashes_at_height.len() > Self::MAX_BLOCKS_TO_KEEP {
-                return Err(BlockInvalidError::TooManyBlocks {
-                    height: envelope.payload.block_number(),
-                });
+                return Err(BlockInvalidError::TooManyBlocks { height: envelope.block_number() });
             }
 
             // CHECK: If the block has already been seen, ignore it.
-            if seen_hashes_at_height.contains(&envelope.payload.block_hash()) {
-                return Err(BlockInvalidError::BlockSeen {
-                    block_hash: envelope.payload.block_hash(),
-                });
+            if seen_hashes_at_height.contains(&envelope.block_hash()) {
+                return Err(BlockInvalidError::BlockSeen { block_hash: envelope.block_hash() });
             }
         }
 
-        // CHECK: The signature is valid.
-        let msg = envelope.payload_hash.signature_message(self.rollup_config.l2_chain_id.id());
-        let block_signer = *self.signer_recv.borrow();
-
-        // The block has a valid signature.
-        let Ok(msg_signer) = envelope.signature.recover_address_from_prehash(&msg) else {
-            return Err(BlockInvalidError::Signature);
-        };
-
-        // The block is signed by the expected signer (the unsafe block signer).
-        if msg_signer != block_signer {
-            return Err(BlockInvalidError::Signer { expected: block_signer, received: msg_signer });
-        }
-
-        self.seen_hashes
-            .entry(envelope.payload.block_number())
-            .or_default()
-            .insert(envelope.payload.block_hash());
+        self.seen_hashes.entry(envelope.block_number()).or_default().insert(envelope.block_hash());
 
         // Mark the block as seen.
         if self.seen_hashes.len() >= Self::SEEN_HASH_CACHE_SIZE {
@@ -275,7 +256,7 @@ impl BlockHandler {
     /// Validate version specific contents of the payload.
     fn validate_version_specific_payload(
         &self,
-        envelope: &OpNetworkPayloadEnvelope,
+        envelope: &OpExecutionPayloadEnvelope,
     ) -> Result<(), BlockInvalidError> {
         // Validation for v1 payloads are mostly ensured by type-safety, by decoding the
         // payload to the ExecutionPayloadV1 type:
@@ -284,20 +265,19 @@ impl BlockHandler {
         // 3. The block should not have any blob gas used
         // 4. The block should not have any excess blob gas
         // 5. The block should not have any withdrawals root
-        // 6. The block should not have any parent beacon block root (checked below)
+        // 6. The block cannot have a parent beacon block root by construction
 
         // Same as v1, except:
-        // 1. The block should have an empty withdrawals list. This is checked during the call to
-        //    [`op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope::try_into_block`].
+        // 1. The block should have an empty withdrawals list. This is checked during block
+        //    reconstruction.
 
         // Same as v2, except:
         // 1. The block should have a zero blob gas used
         // 2. The block should have a zero excess blob gas
-        // 3. The block should have a non empty parent beacon block root
+        // 3. The block has a parent beacon block root by construction
         fn validate_v3(
             rollup_config: &RollupConfig,
             block: &ExecutionPayloadV3,
-            parent_beacon_block_root: Option<B256>,
         ) -> Result<(), BlockInvalidError> {
             // If Jovian is not active, the blob gas used should be zero.
             if !rollup_config.is_jovian_active(block.timestamp()) && block.blob_gas_used != 0 {
@@ -308,10 +288,6 @@ impl BlockHandler {
                 return Err(BlockInvalidError::ExcessBlobGas);
             }
 
-            if parent_beacon_block_root.is_none() {
-                return Err(BlockInvalidError::ParentBeaconRoot);
-            }
-
             Ok(())
         }
 
@@ -320,23 +296,17 @@ impl BlockHandler {
         fn validate_v4(
             rollup_config: &RollupConfig,
             block: &OpExecutionPayloadV4,
-            parent_beacon_block_root: Option<B256>,
         ) -> Result<(), BlockInvalidError> {
-            validate_v3(rollup_config, &block.payload_inner, parent_beacon_block_root)
+            validate_v3(rollup_config, &block.payload_inner)
         }
 
-        match &envelope.payload {
-            OpExecutionPayload::V1(_) | OpExecutionPayload::V2(_) => {
-                if envelope.parent_beacon_block_root.is_some() {
-                    return Err(BlockInvalidError::ParentBeaconRoot);
-                }
-                Ok(())
+        match envelope {
+            OpExecutionPayloadEnvelope::V1(_) | OpExecutionPayloadEnvelope::V2(_) => Ok(()),
+            OpExecutionPayloadEnvelope::V3 { payload, .. } => {
+                validate_v3(&self.rollup_config, payload)
             }
-            OpExecutionPayload::V3(payload) => {
-                validate_v3(&self.rollup_config, payload, envelope.parent_beacon_block_root)
-            }
-            OpExecutionPayload::V4(payload) => {
-                validate_v4(&self.rollup_config, payload, envelope.parent_beacon_block_root)
+            OpExecutionPayloadEnvelope::V4 { payload, .. } => {
+                validate_v4(&self.rollup_config, payload)
             }
         }
     }
@@ -355,7 +325,9 @@ pub(crate) mod tests {
     use arbitrary::{Arbitrary, Unstructured};
     use kona_genesis::RollupConfig;
     use op_alloy_consensus::OpTxEnvelope;
-    use op_alloy_rpc_types_engine::{OpExecutionPayload, OpExecutionPayloadV4, PayloadHash};
+    use op_alloy_rpc_types_engine::OpExecutionPayloadV4;
+
+    use crate::payload::GossipPayloadVersion;
 
     fn valid_block() -> Block<OpTxEnvelope> {
         // Simulate some random data
@@ -450,137 +422,114 @@ pub(crate) mod tests {
         block
     }
 
-    /// Generates a random valid block and ensure it is v1 compatible
-    #[test]
-    fn test_block_valid() {
-        let block = v1_valid_block();
-
-        let v1 = ExecutionPayloadV1::from_block_slow(&block);
-
-        let payload = OpExecutionPayload::V1(v1);
-        let envelope = OpNetworkPayloadEnvelope {
-            payload,
-            signature: Signature::test_signature(),
-            payload_hash: PayloadHash(B256::ZERO),
-            parent_beacon_block_root: None,
-        };
-
-        let msg = envelope.payload_hash.signature_message(10);
-        let signer = envelope.signature.recover_address_from_prehash(&msg).unwrap();
-        let (_, unsafe_signer) = tokio::sync::watch::channel(signer);
-        let mut handler = BlockHandler::new(
+    fn handler() -> BlockHandler {
+        let (_, unsafe_signer) = tokio::sync::watch::channel(Address::ZERO);
+        BlockHandler::new(
             RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() },
             unsafe_signer,
-        );
-
-        assert!(handler.block_valid(&envelope).is_ok());
+        )
     }
 
-    /// Generates a random block with an invalid timestamp and ensure it is rejected
+    fn v1_envelope(block: &Block<OpTxEnvelope>) -> OpExecutionPayloadEnvelope {
+        OpExecutionPayloadEnvelope::V1(ExecutionPayloadV1::from_block_slow(block))
+    }
+
+    fn v2_envelope(block: &Block<OpTxEnvelope>) -> OpExecutionPayloadEnvelope {
+        OpExecutionPayloadEnvelope::V2(ExecutionPayloadV2::from_block_slow(block))
+    }
+
+    fn v3_envelope(block: &Block<OpTxEnvelope>) -> OpExecutionPayloadEnvelope {
+        OpExecutionPayloadEnvelope::V3 {
+            payload: ExecutionPayloadV3::from_block_slow(block),
+            parent_beacon_block_root: block.header.parent_beacon_block_root.unwrap(),
+        }
+    }
+
+    fn v4_envelope(block: &Block<OpTxEnvelope>) -> OpExecutionPayloadEnvelope {
+        OpExecutionPayloadEnvelope::V4 {
+            payload: OpExecutionPayloadV4::from_v3_with_withdrawals_root(
+                ExecutionPayloadV3::from_block_slow(block),
+                block.withdrawals_root.unwrap(),
+            ),
+            parent_beacon_block_root: block.header.parent_beacon_block_root.unwrap(),
+        }
+    }
+
+    fn signed_payload(
+        envelope: &OpExecutionPayloadEnvelope,
+        signature: Signature,
+    ) -> SignedGossipPayload {
+        let version = match envelope {
+            OpExecutionPayloadEnvelope::V1(_) => GossipPayloadVersion::V1,
+            OpExecutionPayloadEnvelope::V2(_) => GossipPayloadVersion::V2,
+            OpExecutionPayloadEnvelope::V3 { .. } => GossipPayloadVersion::V3,
+            OpExecutionPayloadEnvelope::V4 { .. } => GossipPayloadVersion::V4,
+        };
+        SignedGossipPayload::from_envelope(envelope, signature, version).unwrap()
+    }
+
+    /// Generates a random valid block and ensures it is V1 compatible.
+    #[test]
+    fn test_block_valid() {
+        let envelope = v1_envelope(&v1_valid_block());
+        assert!(handler().block_valid(&envelope).is_ok());
+    }
+
     #[test]
     fn test_block_invalid_timestamp_early() {
         let mut block = v1_valid_block();
-
         block.header.timestamp -= 61;
+        let envelope = v1_envelope(&block);
 
-        let v1 = ExecutionPayloadV1::from_block_slow(&block);
-
-        let payload = OpExecutionPayload::V1(v1);
-        let envelope = OpNetworkPayloadEnvelope {
-            payload,
-            signature: Signature::test_signature(),
-            payload_hash: PayloadHash(B256::ZERO),
-            parent_beacon_block_root: None,
-        };
-
-        let msg = envelope.payload_hash.signature_message(10);
-        let signer = envelope.signature.recover_address_from_prehash(&msg).unwrap();
-        let (_, unsafe_signer) = tokio::sync::watch::channel(signer);
-        let mut handler = BlockHandler::new(
-            RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() },
-            unsafe_signer,
-        );
-
-        assert!(matches!(handler.block_valid(&envelope), Err(BlockInvalidError::Timestamp { .. })));
+        assert!(matches!(
+            handler().block_valid(&envelope),
+            Err(BlockInvalidError::Timestamp { .. })
+        ));
     }
 
-    /// Generates a random block with an invalid timestamp and ensure it is rejected
     #[test]
     fn test_block_invalid_timestamp_too_far() {
         let mut block = v1_valid_block();
-
         block.header.timestamp += 6;
+        let envelope = v1_envelope(&block);
 
-        let v1 = ExecutionPayloadV1::from_block_slow(&block);
-
-        let payload = OpExecutionPayload::V1(v1);
-        let envelope = OpNetworkPayloadEnvelope {
-            payload,
-            signature: Signature::test_signature(),
-            payload_hash: PayloadHash(B256::ZERO),
-            parent_beacon_block_root: None,
-        };
-
-        let msg = envelope.payload_hash.signature_message(10);
-        let signer = envelope.signature.recover_address_from_prehash(&msg).unwrap();
-        let (_, unsafe_signer) = tokio::sync::watch::channel(signer);
-        let mut handler = BlockHandler::new(
-            RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() },
-            unsafe_signer,
-        );
-
-        assert!(matches!(handler.block_valid(&envelope), Err(BlockInvalidError::Timestamp { .. })));
+        assert!(matches!(
+            handler().block_valid(&envelope),
+            Err(BlockInvalidError::Timestamp { .. })
+        ));
     }
 
-    /// Generates a random block with an invalid hash and ensure it is rejected
     #[test]
     fn test_block_invalid_hash() {
         let block = v1_valid_block();
+        let mut payload = ExecutionPayloadV1::from_block_slow(&block);
+        payload.block_hash = B256::ZERO;
+        let envelope = OpExecutionPayloadEnvelope::V1(payload);
 
-        let mut v1 = ExecutionPayloadV1::from_block_slow(&block);
+        assert!(matches!(
+            handler().block_valid(&envelope),
+            Err(BlockInvalidError::BlockHash { .. })
+        ));
+    }
 
-        v1.block_hash = B256::ZERO;
-
-        let payload = OpExecutionPayload::V1(v1);
-        let envelope = OpNetworkPayloadEnvelope {
-            payload,
-            signature: Signature::test_signature(),
-            payload_hash: PayloadHash(B256::ZERO),
-            parent_beacon_block_root: None,
+    #[test]
+    fn test_block_hash_validation_does_not_decode_transactions() {
+        let mut envelope = v1_envelope(&v1_valid_block());
+        envelope.as_v1_mut().transactions = vec![Bytes::from_static(&[0xff])];
+        let block_hash = match envelope.check_block_hash() {
+            Err(OpPayloadError::Eth(PayloadError::BlockHash { execution, .. })) => execution,
+            result => panic!("expected block hash mismatch, got {result:?}"),
         };
+        envelope.as_v1_mut().block_hash = block_hash;
 
-        let msg = envelope.payload_hash.signature_message(10);
-        let signer = envelope.signature.recover_address_from_prehash(&msg).unwrap();
-        let (_, unsafe_signer) = tokio::sync::watch::channel(signer);
-        let mut handler = BlockHandler::new(
-            RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() },
-            unsafe_signer,
-        );
-
-        assert!(matches!(handler.block_valid(&envelope), Err(BlockInvalidError::BlockHash { .. })));
+        assert!(handler().block_valid(&envelope).is_ok());
+        assert!(envelope.try_into_block::<OpTxEnvelope>().is_err());
     }
 
     #[test]
     fn test_cannot_validate_same_block_twice() {
-        let block = v1_valid_block();
-
-        let v1 = ExecutionPayloadV1::from_block_slow(&block);
-
-        let payload = OpExecutionPayload::V1(v1);
-        let envelope = OpNetworkPayloadEnvelope {
-            payload,
-            signature: Signature::test_signature(),
-            payload_hash: PayloadHash(B256::ZERO),
-            parent_beacon_block_root: None,
-        };
-
-        let msg = envelope.payload_hash.signature_message(10);
-        let signer = envelope.signature.recover_address_from_prehash(&msg).unwrap();
-        let (_, unsafe_signer) = tokio::sync::watch::channel(signer);
-        let mut handler = BlockHandler::new(
-            RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() },
-            unsafe_signer,
-        );
+        let envelope = v1_envelope(&v1_valid_block());
+        let mut handler = handler();
 
         assert!(handler.block_valid(&envelope).is_ok());
         assert!(matches!(handler.block_valid(&envelope), Err(BlockInvalidError::BlockSeen { .. })));
@@ -589,277 +538,99 @@ pub(crate) mod tests {
     #[test]
     fn test_cannot_have_too_many_blocks_for_the_same_height() {
         let first_block = v1_valid_block();
-
         let initial_height = first_block.header.number;
-
-        let v1 = ExecutionPayloadV1::from_block_slow(&first_block);
-
-        let payload = OpExecutionPayload::V1(v1);
-        let envelope = OpNetworkPayloadEnvelope {
-            payload,
-            signature: Signature::test_signature(),
-            payload_hash: PayloadHash(B256::ZERO),
-            parent_beacon_block_root: None,
-        };
-
-        let msg = envelope.payload_hash.signature_message(10);
-        let signer = envelope.signature.recover_address_from_prehash(&msg).unwrap();
-        let (_, unsafe_signer) = tokio::sync::watch::channel(signer);
-        let mut handler = BlockHandler::new(
-            RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() },
-            unsafe_signer,
-        );
-
-        assert!(handler.block_valid(&envelope).is_ok());
+        let first = v1_envelope(&first_block);
+        let mut handler = handler();
+        assert!(handler.block_valid(&first).is_ok());
 
         let next_payloads = (0..=BlockHandler::MAX_BLOCKS_TO_KEEP)
             .map(|_| {
                 let mut block = v1_valid_block();
-                // The blocks have the same height
                 block.header.number = initial_height;
-
-                let v1 = ExecutionPayloadV1::from_block_slow(&block);
-
-                let payload = OpExecutionPayload::V1(v1);
-                OpNetworkPayloadEnvelope {
-                    payload,
-                    signature: Signature::test_signature(),
-                    payload_hash: PayloadHash(B256::ZERO),
-                    parent_beacon_block_root: None,
-                }
+                v1_envelope(&block)
             })
             .collect::<Vec<_>>();
 
         for envelope in &next_payloads[..next_payloads.len() - 1] {
             assert!(handler.block_valid(envelope).is_ok());
         }
-
-        // The last envelope should fail
         assert!(matches!(
             handler.block_valid(next_payloads.last().unwrap()),
             Err(BlockInvalidError::TooManyBlocks { .. })
         ));
     }
 
-    /// Blocks with invalid signatures should be rejected.
     #[test]
     fn test_invalid_signature() {
-        let block = v1_valid_block();
-
-        let v1 = ExecutionPayloadV1::from_block_slow(&block);
-
-        let payload = OpExecutionPayload::V1(v1);
-        let mut envelope = OpNetworkPayloadEnvelope {
-            payload,
-            signature: Signature::test_signature(),
-            payload_hash: PayloadHash(B256::ZERO),
-            parent_beacon_block_root: None,
-        };
-
-        let msg = envelope.payload_hash.signature_message(10);
-        let signer = envelope.signature.recover_address_from_prehash(&msg).unwrap();
+        let envelope = v1_envelope(&v1_valid_block());
+        let signature = Signature::test_signature();
+        let valid = signed_payload(&envelope, signature);
+        let message = valid.payload_hash().signature_message(10);
+        let signer = signature.recover_address_from_prehash(&message).unwrap();
         let (_, unsafe_signer) = tokio::sync::watch::channel(signer);
-        let mut handler = BlockHandler::new(
+        let handler = BlockHandler::new(
             RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() },
             unsafe_signer,
         );
 
-        let mut signature_bytes = envelope.signature.as_bytes();
+        let mut signature_bytes = signature.as_bytes();
         signature_bytes[0] = !signature_bytes[0];
-        envelope.signature = Signature::from_raw_array(&signature_bytes).unwrap();
-
-        assert!(handler.seen_hashes.is_empty());
-        assert!(matches!(handler.block_valid(&envelope), Err(BlockInvalidError::Signature)));
+        let invalid =
+            signed_payload(&envelope, Signature::from_raw_array(&signature_bytes).unwrap());
+        assert!(matches!(
+            handler.validate_signature(&invalid),
+            Err(BlockInvalidError::Signature | BlockInvalidError::Signer { .. })
+        ));
     }
 
-    /// Blocks with invalid signers should be rejected.
     #[test]
     fn test_invalid_signer() {
-        let block = v1_valid_block();
-
-        let v1 = ExecutionPayloadV1::from_block_slow(&block);
-
-        let payload = OpExecutionPayload::V1(v1);
-        let envelope = OpNetworkPayloadEnvelope {
-            payload,
-            signature: Signature::test_signature(),
-            payload_hash: PayloadHash(B256::ZERO),
-            parent_beacon_block_root: None,
-        };
-
-        let (_, unsafe_signer) = tokio::sync::watch::channel(Address::default());
-        let mut handler = BlockHandler::new(
-            RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() },
-            unsafe_signer,
-        );
-
-        assert!(matches!(handler.block_valid(&envelope), Err(BlockInvalidError::Signer { .. })));
-    }
-
-    /// V1/V2 payloads reject a parent beacon block root because those versions do not include it.
-    #[test]
-    fn test_v1_v2_block_invalid_parent_beacon_block_root() {
-        let block = v1_valid_block();
-
-        let v1 = ExecutionPayloadV1::from_block_slow(&block);
-
-        let payload = OpExecutionPayload::V1(v1);
-        let envelope = OpNetworkPayloadEnvelope {
-            payload,
-            signature: Signature::test_signature(),
-            payload_hash: PayloadHash(B256::ZERO),
-            parent_beacon_block_root: Some(B256::ZERO),
-        };
-
-        let msg = envelope.payload_hash.signature_message(10);
-        let signer = envelope.signature.recover_address_from_prehash(&msg).unwrap();
-        let (_, unsafe_signer) = tokio::sync::watch::channel(signer);
-        let mut handler = BlockHandler::new(
-            RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() },
-            unsafe_signer,
-        );
-
-        assert!(matches!(handler.block_valid(&envelope), Err(BlockInvalidError::ParentBeaconRoot)));
-
-        let block = v2_valid_block();
-
-        let v2 = ExecutionPayloadV2::from_block_slow(&block);
-
-        let payload = OpExecutionPayload::V2(v2);
-        let envelope = OpNetworkPayloadEnvelope {
-            payload,
-            signature: Signature::test_signature(),
-            payload_hash: PayloadHash(B256::ZERO),
-            parent_beacon_block_root: Some(B256::ZERO),
-        };
-
-        let msg = envelope.payload_hash.signature_message(10);
-        let signer = envelope.signature.recover_address_from_prehash(&msg).unwrap();
-        let (_, unsafe_signer) = tokio::sync::watch::channel(signer);
-        let mut handler = BlockHandler::new(
-            RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() },
-            unsafe_signer,
-        );
-
-        assert!(matches!(handler.block_valid(&envelope), Err(BlockInvalidError::ParentBeaconRoot)));
+        let envelope = v1_envelope(&v1_valid_block());
+        let signed = signed_payload(&envelope, Signature::test_signature());
+        assert!(matches!(
+            handler().validate_signature(&signed),
+            Err(BlockInvalidError::Signer { .. })
+        ));
     }
 
     #[test]
     fn test_v2_block() {
-        let block = v2_valid_block();
-
-        let v2 = ExecutionPayloadV2::from_block_slow(&block);
-
-        let payload = OpExecutionPayload::V2(v2);
-        let envelope = OpNetworkPayloadEnvelope {
-            payload,
-            signature: Signature::test_signature(),
-            payload_hash: PayloadHash(B256::ZERO),
-            parent_beacon_block_root: None,
-        };
-
-        let msg = envelope.payload_hash.signature_message(10);
-        let signer = envelope.signature.recover_address_from_prehash(&msg).unwrap();
-        let (_, unsafe_signer) = tokio::sync::watch::channel(signer);
-        let mut handler = BlockHandler::new(
-            RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() },
-            unsafe_signer,
-        );
-
-        assert!(handler.block_valid(&envelope).is_ok());
+        let envelope = v2_envelope(&v2_valid_block());
+        assert!(handler().block_valid(&envelope).is_ok());
     }
 
     #[test]
     fn test_v2_non_empty_withdrawals() {
         let mut block = v2_valid_block();
         block.body.withdrawals = Some(vec![Withdrawal::default()].into());
-        let withdrawals_root = alloy_consensus::proofs::calculate_withdrawals_root(
+        block.header.withdrawals_root = Some(alloy_consensus::proofs::calculate_withdrawals_root(
             &block.body.withdrawals.clone().unwrap_or_default(),
-        );
-        block.header.withdrawals_root = Some(withdrawals_root);
-
-        let v2 = ExecutionPayloadV2::from_block_slow(&block);
-
-        let payload = OpExecutionPayload::V2(v2);
-        let envelope = OpNetworkPayloadEnvelope {
-            payload,
-            signature: Signature::test_signature(),
-            payload_hash: PayloadHash(B256::ZERO),
-            parent_beacon_block_root: None,
-        };
-
-        let msg = envelope.payload_hash.signature_message(10);
-        let signer = envelope.signature.recover_address_from_prehash(&msg).unwrap();
-        let (_, unsafe_signer) = tokio::sync::watch::channel(signer);
-        let mut handler = BlockHandler::new(
-            RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() },
-            unsafe_signer,
-        );
+        ));
+        let envelope = v2_envelope(&block);
 
         assert!(matches!(
-            handler.block_valid(&envelope),
+            handler().block_valid(&envelope),
             Err(BlockInvalidError::InvalidBlock(OpPayloadError::NonEmptyL1Withdrawals))
         ));
     }
 
     #[test]
     fn test_v3_block() {
-        let block = v3_valid_block();
-
-        let v3 = ExecutionPayloadV3::from_block_slow(&block);
-
-        let payload = OpExecutionPayload::V3(v3);
-        let envelope = OpNetworkPayloadEnvelope {
-            payload,
-            signature: Signature::test_signature(),
-            payload_hash: PayloadHash(B256::ZERO),
-            parent_beacon_block_root: Some(
-                block.header.parent_beacon_block_root.unwrap_or_default(),
-            ),
-        };
-
-        let msg = envelope.payload_hash.signature_message(10);
-        let signer = envelope.signature.recover_address_from_prehash(&msg).unwrap();
-        let (_, unsafe_signer) = tokio::sync::watch::channel(signer);
-        let mut handler = BlockHandler::new(
-            RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() },
-            unsafe_signer,
-        );
-
-        assert!(handler.block_valid(&envelope).is_ok());
+        let envelope = v3_envelope(&v3_valid_block());
+        assert!(handler().block_valid(&envelope).is_ok());
     }
 
     #[test]
     fn test_v3_non_empty_withdrawals() {
         let mut block = v3_valid_block();
         block.body.withdrawals = Some(vec![Withdrawal::default()].into());
-        let withdrawals_root = alloy_consensus::proofs::calculate_withdrawals_root(
+        block.header.withdrawals_root = Some(alloy_consensus::proofs::calculate_withdrawals_root(
             &block.body.withdrawals.clone().unwrap_or_default(),
-        );
-        block.header.withdrawals_root = Some(withdrawals_root);
-
-        let v3 = ExecutionPayloadV3::from_block_slow(&block);
-
-        let payload = OpExecutionPayload::V3(v3);
-        let envelope = OpNetworkPayloadEnvelope {
-            payload,
-            signature: Signature::test_signature(),
-            payload_hash: PayloadHash(B256::ZERO),
-            parent_beacon_block_root: Some(
-                block.header.parent_beacon_block_root.unwrap_or_default(),
-            ),
-        };
-
-        let msg = envelope.payload_hash.signature_message(10);
-        let signer = envelope.signature.recover_address_from_prehash(&msg).unwrap();
-        let (_, unsafe_signer) = tokio::sync::watch::channel(signer);
-        let mut handler = BlockHandler::new(
-            RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() },
-            unsafe_signer,
-        );
+        ));
+        let envelope = v3_envelope(&block);
 
         assert!(matches!(
-            handler.block_valid(&envelope),
+            handler().block_valid(&envelope),
             Err(BlockInvalidError::InvalidBlock(OpPayloadError::NonEmptyL1Withdrawals))
         ));
     }
@@ -868,150 +639,39 @@ pub(crate) mod tests {
     fn test_v3_gas_params() {
         let mut block = v3_valid_block();
         block.header.blob_gas_used = Some(1);
-
-        let v3 = ExecutionPayloadV3::from_block_slow(&block);
-
-        let payload = OpExecutionPayload::V3(v3);
-        let envelope = OpNetworkPayloadEnvelope {
-            payload,
-            signature: Signature::test_signature(),
-            payload_hash: PayloadHash(B256::ZERO),
-            parent_beacon_block_root: Some(
-                block.header.parent_beacon_block_root.unwrap_or_default(),
-            ),
-        };
-
-        let msg = envelope.payload_hash.signature_message(10);
-        let signer = envelope.signature.recover_address_from_prehash(&msg).unwrap();
-        let (_, unsafe_signer) = tokio::sync::watch::channel(signer);
-        let mut handler = BlockHandler::new(
-            RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() },
-            unsafe_signer,
-        );
-
-        assert!(matches!(handler.block_valid(&envelope), Err(BlockInvalidError::BlobGasUsed)));
+        let envelope = v3_envelope(&block);
+        assert!(matches!(handler().block_valid(&envelope), Err(BlockInvalidError::BlobGasUsed)));
 
         block.header.blob_gas_used = Some(0);
         block.header.excess_blob_gas = Some(1);
-
-        let v3 = ExecutionPayloadV3::from_block_slow(&block);
-
-        let payload = OpExecutionPayload::V3(v3);
-        let envelope = OpNetworkPayloadEnvelope {
-            payload,
-            signature: Signature::test_signature(),
-            payload_hash: PayloadHash(B256::ZERO),
-            parent_beacon_block_root: Some(
-                block.header.parent_beacon_block_root.unwrap_or_default(),
-            ),
-        };
-
-        assert!(matches!(handler.block_valid(&envelope), Err(BlockInvalidError::ExcessBlobGas)));
+        let envelope = v3_envelope(&block);
+        assert!(matches!(handler().block_valid(&envelope), Err(BlockInvalidError::ExcessBlobGas)));
     }
 
     #[test]
     fn test_v4_block() {
-        let block = v4_valid_block();
-
-        let v3 = ExecutionPayloadV3::from_block_slow(&block);
-        let v4 = OpExecutionPayloadV4::from_v3_with_withdrawals_root(
-            v3,
-            block.withdrawals_root.unwrap(),
-        );
-
-        let payload = OpExecutionPayload::V4(v4);
-        let envelope = OpNetworkPayloadEnvelope {
-            payload,
-            signature: Signature::test_signature(),
-            payload_hash: PayloadHash(B256::ZERO),
-            parent_beacon_block_root: Some(
-                block.header.parent_beacon_block_root.unwrap_or_default(),
-            ),
-        };
-
-        let msg = envelope.payload_hash.signature_message(10);
-        let signer = envelope.signature.recover_address_from_prehash(&msg).unwrap();
-        let (_, unsafe_signer) = tokio::sync::watch::channel(signer);
-        let mut handler = BlockHandler::new(
-            RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() },
-            unsafe_signer,
-        );
-
-        assert!(handler.block_valid(&envelope).is_ok());
+        let envelope = v4_envelope(&v4_valid_block());
+        assert!(handler().block_valid(&envelope).is_ok());
     }
 
     #[test]
     #[cfg(feature = "metrics")]
     fn test_metrics_instrumentation() {
-        // This test verifies that metrics code compiles and doesn't panic
-        // The actual metric values would require a metrics registry setup in a real test
-        // environment
-
         use crate::Metrics;
-
-        // Initialize metrics (this should not panic)
         Metrics::init();
 
-        let block = v1_valid_block();
-        let v1 = ExecutionPayloadV1::from_block_slow(&block);
-        let payload = OpExecutionPayload::V1(v1);
-        let envelope = OpNetworkPayloadEnvelope {
-            payload,
-            signature: Signature::test_signature(),
-            payload_hash: PayloadHash(B256::ZERO),
-            parent_beacon_block_root: None,
-        };
-
-        let msg = envelope.payload_hash.signature_message(10);
-        let signer = envelope.signature.recover_address_from_prehash(&msg).unwrap();
-        let (_, unsafe_signer) = tokio::sync::watch::channel(signer);
-        let mut handler = BlockHandler::new(
-            RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() },
-            unsafe_signer,
-        );
-
-        // Test successful validation metrics
+        let envelope = v1_envelope(&v1_valid_block());
+        let mut handler = handler();
         assert!(handler.block_valid(&envelope).is_ok());
 
-        // Test failed validation metrics
         let mut invalid_block = v1_valid_block();
-        invalid_block.header.timestamp = 0; // Invalid timestamp
-
-        let v1_invalid = ExecutionPayloadV1::from_block_slow(&invalid_block);
-        let payload_invalid = OpExecutionPayload::V1(v1_invalid);
-        let envelope_invalid = OpNetworkPayloadEnvelope {
-            payload: payload_invalid,
-            signature: Signature::test_signature(),
-            payload_hash: PayloadHash(B256::ZERO),
-            parent_beacon_block_root: None,
-        };
-
-        // This should increment failure metrics
-        assert!(handler.block_valid(&envelope_invalid).is_err());
+        invalid_block.header.timestamp = 0;
+        assert!(handler.block_valid(&v1_envelope(&invalid_block)).is_err());
     }
 
     #[test]
     fn test_metrics_feature_gating() {
-        // Verify the code compiles and runs without panics even when metrics feature is disabled
-        let block = v1_valid_block();
-        let v1 = ExecutionPayloadV1::from_block_slow(&block);
-        let payload = OpExecutionPayload::V1(v1);
-        let envelope = OpNetworkPayloadEnvelope {
-            payload,
-            signature: Signature::test_signature(),
-            payload_hash: PayloadHash(B256::ZERO),
-            parent_beacon_block_root: None,
-        };
-
-        let msg = envelope.payload_hash.signature_message(10);
-        let signer = envelope.signature.recover_address_from_prehash(&msg).unwrap();
-        let (_, unsafe_signer) = tokio::sync::watch::channel(signer);
-        let mut handler = BlockHandler::new(
-            RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() },
-            unsafe_signer,
-        );
-
-        // Should work regardless of metrics feature
-        assert!(handler.block_valid(&envelope).is_ok());
+        let envelope = v1_envelope(&v1_valid_block());
+        assert!(handler().block_valid(&envelope).is_ok());
     }
 }

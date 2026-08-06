@@ -1,10 +1,14 @@
 //! Block Handler
 
-use crate::{HandlerEncodeError, config::snappy_decompressed_len_within_bound};
-use alloy_primitives::{Address, B256};
+use crate::{
+    HandlerEncodeError,
+    config::snappy_decompressed_len_within_bound,
+    payload::{GossipPayloadVersion, SignedGossipPayload},
+};
+use alloy_primitives::{Address, B256, Signature};
 use kona_genesis::RollupConfig;
 use libp2p::gossipsub::{IdentTopic, Message, MessageAcceptance, TopicHash};
-use op_alloy_rpc_types_engine::OpNetworkPayloadEnvelope;
+use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::collections::{BTreeMap, HashSet};
 use tokio::sync::watch::Receiver;
 
@@ -16,7 +20,7 @@ use tokio::sync::watch::Receiver;
 pub trait Handler: Send {
     /// Manages validation and further processing of messages
     /// This is a stateful method, because the handler needs to keep track of seen hashes.
-    fn handle(&mut self, msg: Message) -> (MessageAcceptance, Option<OpNetworkPayloadEnvelope>);
+    fn handle(&mut self, msg: Message) -> (MessageAcceptance, Option<OpExecutionPayloadEnvelope>);
 
     /// Specifies which topics the handler is interested in
     fn topics(&self) -> Vec<TopicHash>;
@@ -43,53 +47,60 @@ pub struct BlockHandler {
 }
 
 impl Handler for BlockHandler {
-    /// Checks validity of a [`OpNetworkPayloadEnvelope`] received over P2P gossip.
-    /// If valid, sends the [`OpNetworkPayloadEnvelope`] to the block update channel.
-    fn handle(&mut self, msg: Message) -> (MessageAcceptance, Option<OpNetworkPayloadEnvelope>) {
-        // Reject frames whose snappy header declares a decompressed size over MAX_GOSSIP_SIZE
-        // before decoding. `OpNetworkPayloadEnvelope::decode_v*` otherwise pre-allocates a
-        // buffer of the declared length (up to ~4 GiB) from a tiny frame. Mirrors op-node's
-        // gossip topic validator, which rejects `outLen > maxGossipSize` before decompressing.
+    /// Authenticates and validates a signed execution payload received over P2P gossip.
+    fn handle(&mut self, msg: Message) -> (MessageAcceptance, Option<OpExecutionPayloadEnvelope>) {
+        // Reject frames whose Snappy header declares a decompressed size over MAX_GOSSIP_SIZE
+        // before decoding. The decoder would otherwise pre-allocate the declared length (up to
+        // roughly 4 GiB) from a tiny frame. This mirrors op-node's gossip topic validator.
         if snappy_decompressed_len_within_bound(&msg.data).is_none() {
-            // The snappy header declares a length that is unreadable or over MAX_GOSSIP_SIZE. Count
-            // for alerting and debug-log for investigation, but never warn: unauthenticated remote
-            // input must not be able to spam warnings just by being invalid.
             kona_macros::inc!(counter, crate::Metrics::INVALID_MESSAGE, "reason" => "invalid_snappy_length");
-            debug!(target: "gossip", len = msg.data.len(), "Rejecting snappy frame with invalid declared length before decode");
+            debug!(target: "gossip", len = msg.data.len(), "Rejecting Snappy frame with invalid declared length before decode");
             return (MessageAcceptance::Reject, None);
         }
 
-        let decoded = if msg.topic == self.blocks_v1_topic.hash() {
-            OpNetworkPayloadEnvelope::decode_v1(&msg.data)
-        } else if msg.topic == self.blocks_v2_topic.hash() {
-            OpNetworkPayloadEnvelope::decode_v2(&msg.data)
-        } else if msg.topic == self.blocks_v3_topic.hash() {
-            OpNetworkPayloadEnvelope::decode_v3(&msg.data)
-        } else if msg.topic == self.blocks_v4_topic.hash() {
-            OpNetworkPayloadEnvelope::decode_v4(&msg.data)
-        } else {
-            // Unreachable in practice (the driver only dispatches known block topics), but count
-            // and debug-log it rather than warn if that ever changes.
+        let Some(version) = self.payload_version(&msg.topic) else {
+            // Unreachable in practice because the driver dispatches only known block topics.
             kona_macros::inc!(counter, crate::Metrics::INVALID_MESSAGE, "reason" => "unknown_topic");
             debug!(target: "gossip", topic = ?msg.topic, "Received block with unknown topic");
             return (MessageAcceptance::Reject, None);
         };
 
-        match decoded {
-            Ok(envelope) => match self.block_valid(&envelope) {
-                Ok(()) => (MessageAcceptance::Accept, Some(envelope)),
-                Err(err) => {
-                    // Already metered by BLOCK_VALIDATION_FAILED; debug-log for investigation
-                    // without letting invalid remote blocks spam warnings.
-                    debug!(target: "gossip", ?err, hash = ?envelope.payload_hash, "Received invalid block");
-                    (err.into(), None)
-                }
-            },
+        let signed = match SignedGossipPayload::decode_snappy(&msg.data) {
+            Ok(signed) => signed,
             Err(err) => {
-                // Undecodable payload from unauthenticated input: count and debug-log, don't warn.
                 kona_macros::inc!(counter, crate::Metrics::INVALID_MESSAGE, "reason" => "decode_error");
-                debug!(target: "gossip", ?err, "Failed to decode block");
-                (MessageAcceptance::Reject, None)
+                debug!(target: "gossip", ?err, "Failed to decode signed gossip payload");
+                return (MessageAcceptance::Reject, None);
+            }
+        };
+        let payload_hash = signed.payload_hash();
+        #[cfg(feature = "metrics")]
+        kona_macros::inc!(counter, crate::Metrics::BLOCK_VALIDATION_TOTAL);
+
+        // Authenticate the exact envelope bytes before decoding the SSZ payload and transactions.
+        if let Err(err) = self.validate_signature(&signed) {
+            debug!(target: "gossip", ?err, hash = ?payload_hash, "Received unauthenticated block");
+            return (err.into(), None);
+        }
+
+        let envelope = match signed.into_envelope(version) {
+            Ok(envelope) => envelope,
+            Err(err) => {
+                kona_macros::inc!(counter, crate::Metrics::INVALID_MESSAGE, "reason" => "decode_error");
+                #[cfg(feature = "metrics")]
+                kona_macros::inc!(counter, crate::Metrics::BLOCK_VALIDATION_FAILED, "reason" => "invalid_block");
+                debug!(target: "gossip", ?err, hash = ?payload_hash, "Failed to decode authenticated execution payload");
+                return (MessageAcceptance::Reject, None);
+            }
+        };
+
+        match self.block_valid(&envelope) {
+            Ok(()) => (MessageAcceptance::Accept, Some(envelope)),
+            Err(err) => {
+                // Already metered by BLOCK_VALIDATION_FAILED; debug-log for investigation without
+                // letting invalid remote blocks spam warnings.
+                debug!(target: "gossip", ?err, hash = ?payload_hash, "Received invalid block");
+                (err.into(), None)
             }
         }
     }
@@ -137,21 +148,33 @@ impl BlockHandler {
         }
     }
 
-    /// Encodes a [`OpNetworkPayloadEnvelope`] into a byte array
-    /// based on the specified topic.
+    /// Encodes an execution payload and signature for the specified gossip topic.
     pub fn encode(
         &self,
         topic: IdentTopic,
-        envelope: OpNetworkPayloadEnvelope,
+        envelope: OpExecutionPayloadEnvelope,
+        signature: Signature,
     ) -> Result<Vec<u8>, HandlerEncodeError> {
-        let encoded = match topic.hash() {
-            hash if hash == self.blocks_v1_topic.hash() => envelope.encode_v1()?,
-            hash if hash == self.blocks_v2_topic.hash() => envelope.encode_v2()?,
-            hash if hash == self.blocks_v3_topic.hash() => envelope.encode_v3()?,
-            hash if hash == self.blocks_v4_topic.hash() => envelope.encode_v4()?,
-            hash => return Err(HandlerEncodeError::UnknownTopic(hash)),
-        };
-        Ok(encoded)
+        let topic_hash = topic.hash();
+        let version = self
+            .payload_version(&topic_hash)
+            .ok_or(HandlerEncodeError::UnknownTopic(topic_hash))?;
+        SignedGossipPayload::from_envelope(&envelope, signature, version)?.encode_snappy()
+    }
+
+    /// Returns the payload version selected by a gossip topic.
+    fn payload_version(&self, topic: &TopicHash) -> Option<GossipPayloadVersion> {
+        if topic == &self.blocks_v1_topic.hash() {
+            Some(GossipPayloadVersion::V1)
+        } else if topic == &self.blocks_v2_topic.hash() {
+            Some(GossipPayloadVersion::V2)
+        } else if topic == &self.blocks_v3_topic.hash() {
+            Some(GossipPayloadVersion::V3)
+        } else if topic == &self.blocks_v4_topic.hash() {
+            Some(GossipPayloadVersion::V4)
+        } else {
+            None
+        }
     }
 }
 
@@ -159,343 +182,162 @@ impl BlockHandler {
 mod tests {
     use alloy_chains::Chain;
     use alloy_rpc_types_engine::{ExecutionPayloadV2, ExecutionPayloadV3};
-    use op_alloy_rpc_types_engine::{OpExecutionPayload, OpExecutionPayloadV4, PayloadHash};
+    use op_alloy_rpc_types_engine::{
+        OpExecutionPayloadEnvelope, OpExecutionPayloadV4, PayloadHash,
+    };
 
     use crate::{v2_valid_block, v3_valid_block, v4_valid_block};
 
     use super::*;
-    use alloy_primitives::{B256, Signature};
+    use alloy_primitives::{Address, B256, Signature};
+
+    fn encode_with_test_signature(
+        handler: &BlockHandler,
+        topic: IdentTopic,
+        envelope: OpExecutionPayloadEnvelope,
+    ) -> (Vec<u8>, Address) {
+        let signature = Signature::test_signature();
+        let message = envelope.payload_hash().signature_message(10);
+        let signer = signature.recover_address_from_prehash(&message).unwrap();
+        let encoded = handler.encode(topic, envelope, signature).unwrap();
+        (encoded, signer)
+    }
+
+    fn message(topic: IdentTopic, data: Vec<u8>) -> Message {
+        Message { source: None, sequence_number: None, topic: topic.into(), data }
+    }
+
+    fn v2_envelope() -> OpExecutionPayloadEnvelope {
+        OpExecutionPayloadEnvelope::V2(ExecutionPayloadV2::from_block_slow(&v2_valid_block()))
+    }
+
+    fn v3_envelope() -> OpExecutionPayloadEnvelope {
+        let block = v3_valid_block();
+        OpExecutionPayloadEnvelope::V3 {
+            payload: ExecutionPayloadV3::from_block_slow(&block),
+            parent_beacon_block_root: block.header.parent_beacon_block_root.unwrap(),
+        }
+    }
+
+    fn v4_envelope() -> OpExecutionPayloadEnvelope {
+        let block = v4_valid_block();
+        OpExecutionPayloadEnvelope::V4 {
+            payload: OpExecutionPayloadV4::from_v3_with_withdrawals_root(
+                ExecutionPayloadV3::from_block_slow(&block),
+                block.withdrawals_root.unwrap(),
+            ),
+            parent_beacon_block_root: block.header.parent_beacon_block_root.unwrap(),
+        }
+    }
+
+    fn handler_with_signer(signer: Address) -> BlockHandler {
+        let (_, unsafe_signer) = tokio::sync::watch::channel(signer);
+        BlockHandler::new(
+            RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() },
+            unsafe_signer,
+        )
+    }
 
     #[test]
     fn test_valid_decode() {
-        let block = v2_valid_block();
+        let mut handler = handler_with_signer(Address::ZERO);
+        let topic = handler.blocks_v2_topic.clone();
+        let (encoded, signer) = encode_with_test_signature(&handler, topic.clone(), v2_envelope());
+        handler.signer_recv = tokio::sync::watch::channel(signer).1;
 
-        let v2 = ExecutionPayloadV2::from_block_slow(&block);
-
-        let payload = OpExecutionPayload::V2(v2);
-        let envelope = OpNetworkPayloadEnvelope {
-            payload,
-            signature: Signature::test_signature(),
-            payload_hash: PayloadHash(B256::ZERO),
-            parent_beacon_block_root: None,
-        };
-
-        let msg = envelope.payload_hash.signature_message(10);
-        let signer = envelope.signature.recover_address_from_prehash(&msg).unwrap();
-        let (_, unsafe_signer) = tokio::sync::watch::channel(signer);
-        let mut handler = BlockHandler::new(
-            RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() },
-            unsafe_signer,
-        );
-
-        // TRICK: Since the decode method recomputes the payload hash, we need to change the unsafe
-        // signer in the handler to ensure that the payload won't be rejected for invalid
-        // signature.
-        let encoded = handler.encode(handler.blocks_v2_topic.clone(), envelope).unwrap();
-        let decoded = OpNetworkPayloadEnvelope::decode_v2(&encoded).unwrap();
-
-        let msg = decoded.payload_hash.signature_message(10);
-        let signer = decoded.signature.recover_address_from_prehash(&msg).unwrap();
-        let (_, unsafe_signer) = tokio::sync::watch::channel(signer);
-        handler.signer_recv = unsafe_signer;
-
-        // Let's try to encode a message.
-        let message = Message {
-            source: None,
-            sequence_number: None,
-            topic: handler.blocks_v2_topic.clone().into(),
-            data: encoded,
-        };
-
-        assert!(matches!(handler.handle(message).0, MessageAcceptance::Accept));
+        let (acceptance, payload) = handler.handle(message(topic, encoded));
+        assert!(matches!(acceptance, MessageAcceptance::Accept));
+        assert!(matches!(payload, Some(OpExecutionPayloadEnvelope::V2(_))));
     }
 
-    /// This payload has a wrong hash so the signature won't be valid.
+    /// A signature over a different payload hash must be rejected before envelope decoding.
     #[test]
     fn test_invalid_decode_payload_hash() {
-        let block = v2_valid_block();
+        let signature = Signature::test_signature();
+        let wrong_message = PayloadHash(B256::ZERO).signature_message(10);
+        let wrong_signer = signature.recover_address_from_prehash(&wrong_message).unwrap();
+        let mut handler = handler_with_signer(wrong_signer);
+        let topic = handler.blocks_v2_topic.clone();
+        let encoded = handler.encode(topic.clone(), v2_envelope(), signature).unwrap();
 
-        let v2 = ExecutionPayloadV2::from_block_slow(&block);
-
-        let payload = OpExecutionPayload::V2(v2);
-        let envelope = OpNetworkPayloadEnvelope {
-            payload,
-            signature: Signature::test_signature(),
-            payload_hash: PayloadHash(B256::ZERO),
-            parent_beacon_block_root: None,
-        };
-
-        let msg = envelope.payload_hash.signature_message(10);
-        let signer = envelope.signature.recover_address_from_prehash(&msg).unwrap();
-        let (_, unsafe_signer) = tokio::sync::watch::channel(signer);
-        let mut handler = BlockHandler::new(
-            RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() },
-            unsafe_signer,
-        );
-
-        // Let's try to encode a message.
-        let message = Message {
-            source: None,
-            sequence_number: None,
-            topic: handler.blocks_v2_topic.clone().into(),
-            data: handler.encode(handler.blocks_v2_topic.clone(), envelope).unwrap(),
-        };
-
-        assert!(matches!(handler.handle(message).0, MessageAcceptance::Reject));
+        assert!(matches!(handler.handle(message(topic, encoded)).0, MessageAcceptance::Reject));
     }
 
-    /// The message contains a wrong version so the payload won't be properly decoded.
+    fn assert_version_mismatch(
+        envelope: OpExecutionPayloadEnvelope,
+        encoded_topic: fn(&BlockHandler) -> IdentTopic,
+        received_topic: fn(&BlockHandler) -> IdentTopic,
+    ) {
+        let mut handler = handler_with_signer(Address::ZERO);
+        let (encoded, signer) =
+            encode_with_test_signature(&handler, encoded_topic(&handler), envelope);
+        handler.signer_recv = tokio::sync::watch::channel(signer).1;
+
+        assert!(matches!(
+            handler.handle(message(received_topic(&handler), encoded)).0,
+            MessageAcceptance::Reject
+        ));
+    }
+
     #[test]
     fn test_invalid_decode_version_mismatch() {
-        let block = v2_valid_block();
-
-        let v2 = ExecutionPayloadV2::from_block_slow(&block);
-
-        let payload = OpExecutionPayload::V2(v2);
-        let envelope = OpNetworkPayloadEnvelope {
-            payload,
-            signature: Signature::test_signature(),
-            payload_hash: PayloadHash(B256::ZERO),
-            parent_beacon_block_root: None,
-        };
-
-        let msg = envelope.payload_hash.signature_message(10);
-        let signer = envelope.signature.recover_address_from_prehash(&msg).unwrap();
-        let (_, unsafe_signer) = tokio::sync::watch::channel(signer);
-        let mut handler = BlockHandler::new(
-            RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() },
-            unsafe_signer,
+        assert_version_mismatch(
+            v2_envelope(),
+            |h| h.blocks_v2_topic.clone(),
+            |h| h.blocks_v1_topic.clone(),
         );
-
-        let encoded = handler.encode(handler.blocks_v2_topic.clone(), envelope).unwrap();
-
-        // Let's try to encode a message.
-        let message = Message {
-            source: None,
-            sequence_number: None,
-            // Version mismatch!
-            topic: handler.blocks_v1_topic.clone().into(),
-            data: encoded,
-        };
-
-        assert!(matches!(handler.handle(message).0, MessageAcceptance::Reject));
     }
 
-    /// The message contains a wrong version so the payload won't be properly decoded.
     #[test]
     fn test_invalid_decode_version_mismatch_v3_with_v2() {
-        let block = v3_valid_block();
-
-        let v3 = ExecutionPayloadV3::from_block_slow(&block);
-
-        let payload = OpExecutionPayload::V3(v3);
-        let envelope = OpNetworkPayloadEnvelope {
-            payload,
-            signature: Signature::test_signature(),
-            payload_hash: PayloadHash(B256::ZERO),
-            parent_beacon_block_root: Some(
-                block.header.parent_beacon_block_root.unwrap_or_default(),
-            ),
-        };
-
-        let msg = envelope.payload_hash.signature_message(10);
-        let signer = envelope.signature.recover_address_from_prehash(&msg).unwrap();
-        let (_, unsafe_signer) = tokio::sync::watch::channel(signer);
-        let mut handler = BlockHandler::new(
-            RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() },
-            unsafe_signer,
+        assert_version_mismatch(
+            v3_envelope(),
+            |h| h.blocks_v3_topic.clone(),
+            |h| h.blocks_v2_topic.clone(),
         );
-
-        let encoded = handler.encode(handler.blocks_v3_topic.clone(), envelope).unwrap();
-
-        // Let's try to encode a message.
-        let message = Message {
-            source: None,
-            sequence_number: None,
-            // Version mismatch!
-            topic: handler.blocks_v2_topic.clone().into(),
-            data: encoded,
-        };
-
-        assert!(matches!(handler.handle(message).0, MessageAcceptance::Reject));
     }
 
-    /// The message contains a wrong version so the payload won't be properly decoded.
     #[test]
     fn test_invalid_decode_version_mismatch_v2_with_v3() {
-        let block = v2_valid_block();
-
-        let v2 = ExecutionPayloadV2::from_block_slow(&block);
-
-        let payload = OpExecutionPayload::V2(v2);
-        let envelope = OpNetworkPayloadEnvelope {
-            payload,
-            signature: Signature::test_signature(),
-            payload_hash: PayloadHash(B256::ZERO),
-            parent_beacon_block_root: Some(
-                block.header.parent_beacon_block_root.unwrap_or_default(),
-            ),
-        };
-
-        let msg = envelope.payload_hash.signature_message(10);
-        let signer = envelope.signature.recover_address_from_prehash(&msg).unwrap();
-        let (_, unsafe_signer) = tokio::sync::watch::channel(signer);
-        let mut handler = BlockHandler::new(
-            RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() },
-            unsafe_signer,
+        assert_version_mismatch(
+            v2_envelope(),
+            |h| h.blocks_v2_topic.clone(),
+            |h| h.blocks_v3_topic.clone(),
         );
-
-        let encoded = handler.encode(handler.blocks_v2_topic.clone(), envelope).unwrap();
-
-        // Let's try to encode a message.
-        let message = Message {
-            source: None,
-            sequence_number: None,
-            // Version mismatch!
-            topic: handler.blocks_v3_topic.clone().into(),
-            data: encoded,
-        };
-
-        assert!(matches!(handler.handle(message).0, MessageAcceptance::Reject));
     }
 
-    /// The message contains a wrong version so the payload won't be properly decoded.
     #[test]
     fn test_invalid_decode_version_mismatch_v4_with_v3() {
-        let block = v4_valid_block();
-
-        let v3 = ExecutionPayloadV3::from_block_slow(&block);
-        let v4 = OpExecutionPayloadV4::from_v3_with_withdrawals_root(
-            v3,
-            block.withdrawals_root.unwrap(),
+        assert_version_mismatch(
+            v4_envelope(),
+            |h| h.blocks_v4_topic.clone(),
+            |h| h.blocks_v3_topic.clone(),
         );
+    }
 
-        let payload = OpExecutionPayload::V4(v4);
-        let envelope = OpNetworkPayloadEnvelope {
-            payload,
-            signature: Signature::test_signature(),
-            payload_hash: PayloadHash(B256::ZERO),
-            parent_beacon_block_root: Some(
-                block.header.parent_beacon_block_root.unwrap_or_default(),
-            ),
-        };
+    fn assert_valid_decode(
+        envelope: OpExecutionPayloadEnvelope,
+        topic: fn(&BlockHandler) -> IdentTopic,
+    ) {
+        let mut handler = handler_with_signer(Address::ZERO);
+        let selected_topic = topic(&handler);
+        let (encoded, signer) =
+            encode_with_test_signature(&handler, selected_topic.clone(), envelope);
+        handler.signer_recv = tokio::sync::watch::channel(signer).1;
 
-        let msg = envelope.payload_hash.signature_message(10);
-        let signer = envelope.signature.recover_address_from_prehash(&msg).unwrap();
-        let (_, unsafe_signer) = tokio::sync::watch::channel(signer);
-        let mut handler = BlockHandler::new(
-            RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() },
-            unsafe_signer,
-        );
-
-        let encoded = handler.encode(handler.blocks_v4_topic.clone(), envelope).unwrap();
-
-        // Let's try to encode a message.
-        let message = Message {
-            source: None,
-            sequence_number: None,
-            // Version mismatch!
-            topic: handler.blocks_v3_topic.clone().into(),
-            data: encoded,
-        };
-
-        assert!(matches!(handler.handle(message).0, MessageAcceptance::Reject));
+        let (acceptance, payload) = handler.handle(message(selected_topic, encoded));
+        assert!(matches!(acceptance, MessageAcceptance::Accept));
+        assert!(payload.is_some());
     }
 
     #[test]
     fn test_valid_decode_v4() {
-        let block = v4_valid_block();
-
-        let v3 = ExecutionPayloadV3::from_block_slow(&block);
-        let v4 = OpExecutionPayloadV4::from_v3_with_withdrawals_root(
-            v3,
-            block.withdrawals_root.unwrap(),
-        );
-
-        let payload = OpExecutionPayload::V4(v4);
-        let envelope = OpNetworkPayloadEnvelope {
-            payload,
-            signature: Signature::test_signature(),
-            payload_hash: PayloadHash(B256::ZERO),
-            parent_beacon_block_root: Some(
-                block.header.parent_beacon_block_root.unwrap_or_default(),
-            ),
-        };
-
-        let msg = envelope.payload_hash.signature_message(10);
-        let signer = envelope.signature.recover_address_from_prehash(&msg).unwrap();
-        let (_, unsafe_signer) = tokio::sync::watch::channel(signer);
-        let mut handler = BlockHandler::new(
-            RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() },
-            unsafe_signer,
-        );
-
-        // TRICK: Since the decode method recomputes the payload hash, we need to change the unsafe
-        // signer in the handler to ensure that the payload won't be rejected for invalid
-        // signature.
-        let encoded = handler.encode(handler.blocks_v4_topic.clone(), envelope).unwrap();
-        let decoded = OpNetworkPayloadEnvelope::decode_v4(&encoded).unwrap();
-
-        let msg = decoded.payload_hash.signature_message(10);
-        let signer = decoded.signature.recover_address_from_prehash(&msg).unwrap();
-        let (_, unsafe_signer) = tokio::sync::watch::channel(signer);
-        handler.signer_recv = unsafe_signer;
-
-        // Let's try to encode a message.
-        let message = Message {
-            source: None,
-            sequence_number: None,
-            topic: handler.blocks_v4_topic.clone().into(),
-            data: encoded,
-        };
-
-        assert!(matches!(handler.handle(message).0, MessageAcceptance::Accept));
+        assert_valid_decode(v4_envelope(), |h| h.blocks_v4_topic.clone());
     }
 
     #[test]
     fn test_valid_decode_v3() {
-        let block = v3_valid_block();
-
-        let v3 = ExecutionPayloadV3::from_block_slow(&block);
-
-        let payload = OpExecutionPayload::V3(v3);
-        let envelope = OpNetworkPayloadEnvelope {
-            payload,
-            signature: Signature::test_signature(),
-            payload_hash: PayloadHash(B256::ZERO),
-            parent_beacon_block_root: Some(
-                block.header.parent_beacon_block_root.unwrap_or_default(),
-            ),
-        };
-
-        let msg = envelope.payload_hash.signature_message(10);
-        let signer = envelope.signature.recover_address_from_prehash(&msg).unwrap();
-        let (_, unsafe_signer) = tokio::sync::watch::channel(signer);
-        let mut handler = BlockHandler::new(
-            RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() },
-            unsafe_signer,
-        );
-
-        // TRICK: Since the decode method recomputes the payload hash, we need to change the unsafe
-        // signer in the handler to ensure that the payload won't be rejected for invalid
-        // signature.
-        let encoded = handler.encode(handler.blocks_v3_topic.clone(), envelope).unwrap();
-        let decoded = OpNetworkPayloadEnvelope::decode_v3(&encoded).unwrap();
-
-        let msg = decoded.payload_hash.signature_message(10);
-        let signer = decoded.signature.recover_address_from_prehash(&msg).unwrap();
-        let (_, unsafe_signer) = tokio::sync::watch::channel(signer);
-        handler.signer_recv = unsafe_signer;
-
-        // Let's try to encode a message.
-        let message = Message {
-            source: None,
-            sequence_number: None,
-            topic: handler.blocks_v3_topic.clone().into(),
-            data: encoded,
-        };
-
-        assert!(matches!(handler.handle(message).0, MessageAcceptance::Accept));
+        assert_valid_decode(v3_envelope(), |h| h.blocks_v3_topic.clone());
     }
 
     #[cfg(feature = "metrics")]
@@ -559,22 +401,12 @@ mod tests {
     fn handle_records_invalid_message_metric_for_decode_error() {
         use metrics_util::debugging::DebuggingRecorder;
 
-        // A v2-encoded payload published on the v1 topic fails `decode_v1` before validation.
-        let v2 = ExecutionPayloadV2::from_block_slow(&v2_valid_block());
-        let envelope = OpNetworkPayloadEnvelope {
-            payload: OpExecutionPayload::V2(v2),
-            signature: Signature::test_signature(),
-            payload_hash: PayloadHash(B256::ZERO),
-            parent_beacon_block_root: None,
-        };
+        // An authenticated V2 payload published on the V1 topic fails typed envelope decoding.
         let mut handler = zero_signer_handler();
-        let encoded = handler.encode(handler.blocks_v2_topic.clone(), envelope).unwrap();
-        let message = Message {
-            source: None,
-            sequence_number: None,
-            topic: handler.blocks_v1_topic.clone().into(),
-            data: encoded,
-        };
+        let (encoded, signer) =
+            encode_with_test_signature(&handler, handler.blocks_v2_topic.clone(), v2_envelope());
+        handler.signer_recv = tokio::sync::watch::channel(signer).1;
+        let message = message(handler.blocks_v1_topic.clone(), encoded);
 
         let recorder = DebuggingRecorder::new();
         let snapshotter = recorder.snapshotter();
