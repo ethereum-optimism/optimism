@@ -3,9 +3,7 @@ package zk
 import (
 	"bufio"
 	"context"
-	"fmt"
 	"math"
-	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -190,13 +188,12 @@ func TestProposerIgnoresInvalidChallengedGame(gt *testing.T) {
 // lock and do not measure proving concurrency.
 func TestProposerDefendsMultipleChallengedGamesConcurrently(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	metricsPort := freeTCPPort(t)
 	// The honest challenger resolves games and claims credit on the
 	// proposer's behalf; disable it so proof submission is attributable to
 	// the proposer alone.
 	sys := presets.NewSimpleInterop(t,
 		presets.WithZK(),
-		presets.WithZKProposerOption(sysgo.WithZKMetricsPort(metricsPort)),
+		presets.WithZKProposerOption(sysgo.WithZKMetrics()),
 		presets.WithoutHonestChallenger(),
 		presets.WithoutHonestProposer(),
 	)
@@ -215,9 +212,8 @@ func TestProposerDefendsMultipleChallengedGamesConcurrently(gt *testing.T) {
 	// defense scan sees both candidates.
 	gameA.Challenge(challenger)
 	gameB.Challenge(challenger)
-	sys.StartZKProposer()
+	metricsURL := "http://" + sys.StartZKProposer() + "/metrics"
 
-	metricsURL := fmt.Sprintf("http://127.0.0.1:%d/metrics", metricsPort)
 	const spawnedMetric = "kona_sp1_proposer_games_defense_spawned"
 	const provingErrorMetric = "kona_sp1_proposer_game_proving_error"
 	sawConcurrentDefense := false
@@ -247,13 +243,6 @@ func TestProposerDefendsMultipleChallengedGamesConcurrently(gt *testing.T) {
 	t.Require().Equal(proposerAddr, proverB, "game B was not proven by the proposer in time")
 	t.Require().True(sawConcurrentDefense,
 		"both defense tasks must be live before either proof lands (parallel proving)")
-}
-
-func freeTCPPort(t devtest.T) uint16 {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	t.Require().NoError(err, "reserve an ephemeral port")
-	defer listener.Close()
-	return uint16(listener.Addr().(*net.TCPAddr).Port)
 }
 
 // scrapeMetric returns the first matching Prometheus sample, or 0 while the

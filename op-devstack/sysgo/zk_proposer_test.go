@@ -46,10 +46,18 @@ func TestZKProposerOptions(t *testing.T) {
 	cfg, err := newZKProposerConfig(
 		WithZKProposalInterval(12*time.Second),
 		WithZKFastFinality(),
+		WithZKMetrics(),
 	)
 	require.NoError(t, err)
 	require.Equal(t, 12*time.Second, *cfg.ProposalInterval)
 	require.True(t, cfg.FastFinality)
+	require.True(t, cfg.Metrics)
+}
+
+func TestZKProposerDisablesMetricsByDefault(t *testing.T) {
+	cfg, err := newZKProposerConfig()
+	require.NoError(t, err)
+	require.False(t, cfg.Metrics)
 }
 
 func TestZKProposerConfigRejectsInvalidProposalInterval(t *testing.T) {

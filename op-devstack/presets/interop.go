@@ -41,7 +41,7 @@ type SingleChainInterop struct {
 
 	// May be nil if not using sysgo
 	challengerConfig *challengerConfig.Config
-	startZKProposer  func()
+	startZKProposer  func() string
 }
 
 func (s *SingleChainInterop) L2Networks() []*dsl.L2Network {
@@ -65,10 +65,11 @@ func (s *SingleChainInterop) AdvanceTime(amount time.Duration) {
 }
 
 // StartZKProposer starts the kona-sp1-proposer after a system configured with
-// WithZK and WithoutHonestProposer has seeded its initial dispute games.
-func (s *SingleChainInterop) StartZKProposer() {
+// WithZK and WithoutHonestProposer has seeded its initial dispute games. It
+// returns the proposer's metrics address, empty unless WithZKMetrics was set.
+func (s *SingleChainInterop) StartZKProposer() string {
 	s.T.Require().NotNil(s.startZKProposer, "ZK proposer is not configured")
-	s.startZKProposer()
+	return s.startZKProposer()
 }
 
 func (s *SingleChainInterop) proofValidationContext() (devtest.T, *dsl.L1ELNode, []*dsl.L2Network) {

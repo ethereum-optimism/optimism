@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -63,7 +64,7 @@ func loadZKProgramVKey(elfDir string) (common.Hash, error) {
 type zkProposerConfig struct {
 	ProposalInterval *time.Duration
 	FastFinality     bool
-	MetricsPort      *uint16
+	Metrics          bool
 }
 
 // ZKProposerOption configures the kona-sp1-proposer process started by
@@ -86,12 +87,15 @@ func WithZKFastFinality() ZKProposerOption {
 	}
 }
 
-// WithZKMetricsPort exposes the proposer's Prometheus metrics on the given
-// local port (0 keeps metrics disabled, the default). Tests use this to
-// observe internal counters, e.g. concurrent defense-task spawning.
-func WithZKMetricsPort(port uint16) ZKProposerOption {
+// WithZKMetrics exposes the proposer's Prometheus metrics on a port the
+// proposer picks and reports, returned by StartZKProposer (metrics are
+// disabled by default). Tests use this to observe internal counters, e.g.
+// concurrent defense-task spawning. The proposer owns the port so that no
+// window exists between choosing it and binding it, in which another socket
+// could take it.
+func WithZKMetrics() ZKProposerOption {
 	return func(cfg *zkProposerConfig) {
-		cfg.MetricsPort = &port
+		cfg.Metrics = true
 	}
 }
 
@@ -115,7 +119,8 @@ func newZKProposerConfig(opts ...ZKProposerOption) (zkProposerConfig, error) {
 
 // startZKProposer launches the Rust kona-sp1-proposer binary against the ZK
 // dispute game type. The process has no HTTP API and is configured through
-// environment variables.
+// environment variables. It returns the loopback address of the proposer's
+// metrics endpoint, empty unless WithZKMetrics was set.
 func startZKProposer(
 	t devtest.T,
 	keys devkeys.Keys,
@@ -131,7 +136,7 @@ func startZKProposer(
 	programVKey common.Hash,
 	elfDir string,
 	proposerOpts ...ZKProposerOption,
-) {
+) string {
 	require := t.Require()
 	cfg, err := newZKProposerConfig(proposerOpts...)
 	require.NoError(err, "invalid ZK proposer config")
@@ -217,12 +222,13 @@ func startZKProposer(
 	// Always pin METRICS_PORT: the child inherits the host environment, and
 	// an inherited value (op-succinct deployments export this exact name)
 	// would otherwise reach every devstack proposer and collide across
-	// parallel systems. 0 keeps metrics disabled.
-	metricsPort := uint16(0)
-	if cfg.MetricsPort != nil {
-		metricsPort = *cfg.MetricsPort
+	// parallel systems. 0 keeps metrics disabled; "auto" has the proposer
+	// bind a free port and report it on its startup line.
+	metricsPort := "0"
+	if cfg.Metrics {
+		metricsPort = "auto"
 	}
-	env = append(env, "METRICS_PORT="+strconv.FormatUint(uint64(metricsPort), 10))
+	env = append(env, "METRICS_PORT="+metricsPort)
 
 	logOut := logpipe.ToLoggerWithMinLevel(t.Logger().New("component", "kona-sp1-proposer", "src", "stdout"), log.LevelWarn)
 	logErr := logpipe.ToLoggerWithMinLevel(t.Logger().New("component", "kona-sp1-proposer", "src", "stderr"), log.LevelWarn)
@@ -252,11 +258,12 @@ func startZKProposer(
 
 	// Wait for the startup line, but fail fast if the process exits first
 	// (e.g. a crash on boot) rather than blocking until the test times out.
+	var started logpipe.LogEntry
 	select {
-	case <-startedChan:
+	case started = <-startedChan:
 	case <-sub.Exited():
 		select {
-		case <-startedChan:
+		case started = <-startedChan:
 		default:
 			require.FailNow("kona-sp1-proposer exited before its startup line was emitted")
 		}
@@ -264,7 +271,25 @@ func startZKProposer(
 		require.NoError(t.Ctx().Err(), "need kona-sp1-proposer startup")
 	}
 
-	t.Logger().Info("kona-sp1-proposer is up", "chain", proposerChainID, "factory", factoryAddr)
+	var metricsAddr string
+	if cfg.Metrics {
+		metricsAddr = loopbackMetricsAddr(t, started)
+	}
+
+	t.Logger().Info("kona-sp1-proposer is up",
+		"chain", proposerChainID, "factory", factoryAddr, "metricsAddr", metricsAddr)
+	return metricsAddr
+}
+
+// loopbackMetricsAddr reads the metrics address the proposer reports on its
+// startup line, rewritten to loopback: the proposer serves on all interfaces,
+// which is not an address the test process can dial.
+func loopbackMetricsAddr(t devtest.T, started logpipe.LogEntry) string {
+	reported, _ := started.FieldValue("metrics_addr").(string)
+	t.Require().NotEmpty(reported, "kona-sp1-proposer must report its metrics address")
+	_, port, err := net.SplitHostPort(reported)
+	t.Require().NoErrorf(err, "parse reported metrics address %q", reported)
+	return net.JoinHostPort("127.0.0.1", port)
 }
 
 // elfSource returns an opener for the program ELF in elfDir, or for

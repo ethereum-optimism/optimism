@@ -16,7 +16,7 @@ use std::{
 use alloy_primitives::{Address, B256};
 use alloy_transport_http::reqwest::{self, Url};
 use anyhow::{Context, Result, anyhow, bail};
-use kona_sp1_host_utils::network::parse_fulfillment_strategy;
+use kona_sp1_host_utils::{metrics::MetricsListen, network::parse_fulfillment_strategy};
 use sp1_sdk::network::FulfillmentStrategy;
 
 /// Safety level gating how far proposals may advance.
@@ -105,8 +105,10 @@ pub struct ProposerConfig {
     /// The interval in seconds between sync/schedule loop iterations.
     pub fetch_interval: u64,
 
-    /// The metrics port. Metrics are disabled when 0.
-    pub metrics_port: u16,
+    /// Where the Prometheus metrics endpoint listens: `0` (the default)
+    /// disables it, `auto` binds a kernel-assigned port, and any other value
+    /// is a fixed port.
+    pub metrics_listen: MetricsListen,
 
     /// Number of L1 blocks behind `latest` to pin reads during sync cycles.
     pub sync_l1_confirmations: u64,
@@ -233,7 +235,7 @@ impl ProposerConfig {
             proposal_interval_seconds: parsed_env_or("PROPOSAL_INTERVAL_SECONDS", 3600u64)?,
             proposal_safety: parsed_env_or("PROPOSAL_SAFETY", ProposalSafety::Finalized)?,
             fetch_interval: parsed_env_or("FETCH_INTERVAL", 30u64)?,
-            metrics_port: parsed_env_or("METRICS_PORT", 0u16)?,
+            metrics_listen: parsed_env_or("METRICS_PORT", MetricsListen::default())?,
             sync_l1_confirmations: parsed_env_or("SYNC_L1_CONFIRMATIONS", 0u64)?,
             tx_confirmation_timeout,
             max_fee_per_gas: parsed_optional_env("MAX_FEE_PER_GAS")?,

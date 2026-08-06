@@ -3511,6 +3511,7 @@ mod tests {
     use alloy_provider::{ProviderBuilder, mock::Asserter};
     use alloy_rpc_types_eth::Block;
     use alloy_signer_local::PrivateKeySigner;
+    use kona_sp1_host_utils::metrics::MetricsListen;
 
     use super::{
         Cursor, DEADLINE_WARNING_DIVISOR, DeadlineStatus, Game, Proposer, ProposerState, TaskInfo,
@@ -3554,7 +3555,7 @@ mod tests {
             proposal_interval_seconds: 3600,
             proposal_safety: ProposalSafety::Finalized,
             fetch_interval: 30,
-            metrics_port: 0,
+            metrics_listen: MetricsListen::Disabled,
             sync_l1_confirmations: 0,
             tx_confirmation_timeout: 60,
             max_fee_per_gas: None,
