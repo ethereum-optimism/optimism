@@ -1,4 +1,10 @@
 //! Environment-driven proposer configuration.
+//!
+//! Trimmed from op-succinct's `fault-proof/src/config.rs` (@ 13716c2c):
+//! proof-provider selection, SP1 network knobs, range splitting, and the
+//! fast finality knobs are ported; cluster proving, restart recovery, and
+//! the challenger and forge-deploy configs are deliberately not ported
+//! (see PR #21463 for the ledger).
 
 use std::{
     env,
@@ -156,7 +162,16 @@ pub struct ProposerConfig {
     /// rejected at parse time: it would silently disable defense.
     pub max_concurrent_defense_tasks: NonZeroU64,
 
-    /// SP1 request limits and fulfillment settings.
+    /// Prove every owned game while it is still unchallenged (fast finality).
+    /// A proven game resolves as soon as its parent does, without waiting out
+    /// `maxChallengeDuration`. Trades proof spend for finality latency.
+    pub fast_finality_mode: bool,
+
+    /// Total in-flight proving tasks (defense included) allowed before game
+    /// creation pauses in fast finality mode.
+    pub fast_finality_proving_limit: NonZeroU64,
+
+    /// SP1 proof-provider settings (timeouts, strategies, limits, prices).
     pub proof_provider_config: ProofProviderConfig,
 }
 
@@ -241,6 +256,11 @@ impl ProposerConfig {
             max_concurrent_defense_tasks: parsed_env_or(
                 "MAX_CONCURRENT_DEFENSE_TASKS",
                 NonZeroU64::new(8).expect("8 is non-zero"),
+            )?,
+            fast_finality_mode: parsed_env_or("FAST_FINALITY_MODE", false)?,
+            fast_finality_proving_limit: parsed_env_or(
+                "FAST_FINALITY_PROVING_LIMIT",
+                NonZeroU64::MIN,
             )?,
             proof_provider_config: ProofProviderConfig::from_env()?,
         })
@@ -709,6 +729,8 @@ mod tests {
             assert!(config.rollup_config_paths.is_none());
             assert_eq!(config.range_split_count, RangeSplitCount::one());
             assert_eq!(config.max_concurrent_defense_tasks.get(), 8);
+            assert!(!config.fast_finality_mode);
+            assert_eq!(config.fast_finality_proving_limit.get(), 1);
             assert_eq!(config.proof_provider_config.timeout, 14_400);
         }
 
