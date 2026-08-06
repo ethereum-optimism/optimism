@@ -2450,6 +2450,9 @@ jobs:
       # goreleaser compiles the Go release binaries on the host.
       - restore-go-mod-cache
       - run:
+          name: Build superchain bundle
+          command: just build-superchain-go
+      - run:
           name: Configure Docker
           command: |
             gcloud auth configure-docker us-docker.pkg.dev
