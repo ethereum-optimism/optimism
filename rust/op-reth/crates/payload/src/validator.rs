@@ -3,7 +3,7 @@
 use alloc::sync::Arc;
 use alloy_consensus::Block;
 use derive_more::{Constructor, Deref};
-use op_alloy_rpc_types_engine::{OpExecutionData, OpPayloadError};
+use op_alloy_rpc_types_engine::{OpExecutionData, OpNormalizedExecutionData, OpPayloadError};
 use reth_optimism_forks::OpHardforks;
 use reth_payload_validator::{cancun, prague, shanghai};
 use reth_primitives_traits::{Block as _, SealedBlock, SignedTransaction};
@@ -64,6 +64,7 @@ where
     T: SignedTransaction,
 {
     let sidecar = payload.sidecar.clone();
+    let payload = OpNormalizedExecutionData::try_from(payload)?;
 
     // First parse the block and ensure its hash matches the payload's claim.
     let sealed_block = payload.try_into_checked_block()?.seal_slow();

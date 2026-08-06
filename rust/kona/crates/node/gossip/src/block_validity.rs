@@ -10,7 +10,7 @@ use libp2p::gossipsub::MessageAcceptance;
 use op_alloy_consensus::OpTxEnvelope;
 use op_alloy_rpc_types_engine::{
     OpExecutionPayload, OpExecutionPayloadEnvelope, OpExecutionPayloadV4, OpNetworkPayloadEnvelope,
-    OpPayloadError,
+    OpNormalizedExecutionData, OpPayloadError,
 };
 
 use super::BlockHandler;
@@ -210,7 +210,14 @@ impl BlockHandler {
         // CHECK: Ensure the block hash is valid.
         let expected = envelope.payload.block_hash();
         let execution_data =
-            OpExecutionPayloadEnvelope::from(envelope.clone()).into_execution_data();
+            OpNormalizedExecutionData::try_from(OpExecutionPayloadEnvelope::from(envelope.clone()))
+                .map_err(|err| match err {
+                    OpPayloadError::MissingParentBeaconBlockRoot |
+                    OpPayloadError::UnexpectedParentBeaconBlockRoot => {
+                        BlockInvalidError::ParentBeaconRoot
+                    }
+                    err => BlockInvalidError::InvalidBlock(err),
+                })?;
         let block: Block<OpTxEnvelope> = execution_data.try_into_block()?;
         let received = block.header.hash_slow();
         if received != expected {
@@ -282,7 +289,7 @@ impl BlockHandler {
 
         // Same as v1, except:
         // 1. The block should have an empty withdrawals list. This is checked during the call to
-        //    [`op_alloy_rpc_types_engine::OpExecutionData::try_into_block`].
+        //    [`op_alloy_rpc_types_engine::OpNormalizedExecutionData::try_into_block`].
 
         // Same as v2, except:
         // 1. The block should have a zero blob gas used

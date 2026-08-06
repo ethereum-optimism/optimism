@@ -10,7 +10,7 @@ use kona_engine::{
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
+use op_alloy_rpc_types_engine::OpNormalizedExecutionData;
 use std::sync::Arc;
 use tokio::sync::{mpsc, watch};
 
@@ -24,7 +24,7 @@ pub enum EngineActorRequest {
     /// Request to process the finalized L2 block identified by the provided [`FinalizeBlockId`].
     ProcessFinalizedL2Block(Box<FinalizeBlockId>),
     /// Request to process a received unsafe L2 block.
-    ProcessUnsafeL2Block(Box<OpExecutionPayloadEnvelope>),
+    ProcessUnsafeL2Block(Box<OpNormalizedExecutionData>),
     /// Request to reset the forkchoice.
     Reset(Box<ResetRequest>),
     /// Request to seal a block.
@@ -261,7 +261,7 @@ where
                 let task = EngineTask::Insert(Box::new(InsertTask::new(
                     self.client.clone(),
                     self.rollup.clone(),
-                    (*envelope).into_execution_data(),
+                    *envelope,
                     false, /* The payload is not derived in this case. This is an unsafe
                             * block. */
                 )));

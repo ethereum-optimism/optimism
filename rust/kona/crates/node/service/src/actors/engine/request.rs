@@ -1,7 +1,7 @@
 use alloy_rpc_types_engine::PayloadId;
 use kona_engine::{BuildTaskError, EngineQueries, SealTaskError};
 use kona_protocol::OpAttributesWithParent;
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
+use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelope, OpPayloadError};
 use thiserror::Error;
 use tokio::sync::mpsc;
 
@@ -19,6 +19,10 @@ pub enum EngineClientError {
     /// This means the request may or may not have succeeded.
     #[error("Error receiving response from the engine: {0}.")]
     ResponseError(String),
+
+    /// The execution payload could not be normalized.
+    #[error(transparent)]
+    InvalidExecutionData(#[from] OpPayloadError),
 
     /// An error occurred starting to build a block.
     #[error(transparent)]

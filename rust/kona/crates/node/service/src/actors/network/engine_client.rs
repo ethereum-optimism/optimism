@@ -1,6 +1,6 @@
 use crate::{EngineActorRequest, EngineClientError, EngineClientResult};
 use async_trait::async_trait;
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
+use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelope, OpNormalizedExecutionData};
 use std::fmt::Debug;
 use tokio::sync::mpsc;
 
@@ -24,9 +24,10 @@ pub struct QueuedNetworkEngineClient {
 impl NetworkEngineClient for QueuedNetworkEngineClient {
     async fn send_unsafe_block(&self, block: OpExecutionPayloadEnvelope) -> EngineClientResult<()> {
         trace!(target: "network", ?block, "Sending unsafe block to engine.");
+        let execution_data = OpNormalizedExecutionData::try_from(block)?;
         Ok(self
             .engine_actor_request_tx
-            .send(EngineActorRequest::ProcessUnsafeL2Block(Box::new(block)))
+            .send(EngineActorRequest::ProcessUnsafeL2Block(Box::new(execution_data)))
             .await
             .map_err(|_| EngineClientError::RequestError("request channel closed.".to_string()))?)
     }

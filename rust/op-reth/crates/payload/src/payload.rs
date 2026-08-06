@@ -15,6 +15,7 @@ use alloy_rpc_types_engine::{
 use op_alloy_consensus::{EIP1559ParamError, encode_holocene_extra_data, encode_jovian_extra_data};
 use op_alloy_rpc_types_engine::{
     OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4, OpExecutionPayloadV4,
+    OpNormalizedExecutionData,
 };
 use reth_chainspec::EthChainSpec;
 use reth_optimism_evm::OpNextBlockEnvAttributes;
@@ -63,7 +64,7 @@ impl reth_payload_primitives::ExecutionPayload for OpExecData {
     }
 
     fn withdrawals(&self) -> Option<&Vec<alloy_eips::eip4895::Withdrawal>> {
-        self.0.withdrawals()
+        self.0.payload.as_v2().map(|payload| &payload.withdrawals)
     }
 
     fn block_access_list(&self) -> Option<&Bytes> {
@@ -476,7 +477,13 @@ where
     fn from(value: OpBuiltPayload<N>) -> Self {
         let block = Arc::unwrap_or_clone(value.block);
         let hash = block.hash();
-        Self(OpExecutionData::from_block_unchecked(hash, &block.into_block().into_ethereum_block()))
+        Self(OpExecutionData::from(
+            OpNormalizedExecutionData::from_block_unchecked(
+                hash,
+                &block.into_block().into_ethereum_block(),
+            )
+            .expect("built OP blocks must normalize"),
+        ))
     }
 }
 

@@ -10,7 +10,9 @@ use async_trait::async_trait;
 use derive_more::Constructor;
 use kona_genesis::RollupConfig;
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
-use op_alloy_rpc_types_engine::{OpExecutionData, OpExecutionPayload, OpExecutionPayloadEnvelope};
+use op_alloy_rpc_types_engine::{
+    OpExecutionPayload, OpExecutionPayloadEnvelope, OpNormalizedExecutionData,
+};
 use std::{sync::Arc, time::Instant};
 use tokio::sync::mpsc;
 
@@ -138,7 +140,7 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
     async fn insert_payload(
         &self,
         state: &mut EngineState,
-        execution_data: OpExecutionData,
+        execution_data: OpNormalizedExecutionData,
     ) -> Result<L2BlockInfo, SealTaskError> {
         // Insert the new block into the engine.
         let new_block_ref = match InsertTask::new(
@@ -212,7 +214,7 @@ impl<EngineClient_: EngineClient> SealTask<EngineClient_> {
             .seal_payload(&self.cfg, &self.engine, self.payload_id, self.attributes.clone())
             .await?;
 
-        let execution_data = new_payload.clone().into_execution_data();
+        let execution_data = OpNormalizedExecutionData::try_from(new_payload.clone())?;
 
         // Insert the payload into the engine and reuse its decoded block information.
         let new_block_ref = self.insert_payload(state, execution_data).await?;

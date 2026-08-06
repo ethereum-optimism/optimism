@@ -20,6 +20,9 @@ pub use envelope::{
     PayloadEnvelopeEncodeError, PayloadEnvelopeError, PayloadHash,
 };
 
+mod normalized;
+pub use normalized::OpNormalizedExecutionData;
+
 mod sidecar;
 pub use sidecar::OpExecutionPayloadSidecar;
 

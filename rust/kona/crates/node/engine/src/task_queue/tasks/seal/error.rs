@@ -2,7 +2,7 @@
 
 use crate::{EngineTaskError, InsertTaskError, task_queue::tasks::task::EngineTaskErrorSeverity};
 use alloy_transport::{RpcError, TransportErrorKind};
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
+use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelope, OpPayloadError};
 use thiserror::Error;
 use tokio::sync::mpsc;
 
@@ -15,6 +15,9 @@ pub enum SealTaskError {
     /// The get payload call to the engine api failed.
     #[error(transparent)]
     GetPayloadFailed(RpcError<TransportErrorKind>),
+    /// The execution payload could not be normalized.
+    #[error(transparent)]
+    InvalidExecutionData(#[from] OpPayloadError),
     /// A deposit-only payload failed to import.
     #[error("Deposit-only payload failed to import")]
     DepositOnlyPayloadFailed,
@@ -47,6 +50,7 @@ impl EngineTaskError for SealTaskError {
             Self::PayloadInsertionFailed(inner) => inner.severity(),
             Self::GetPayloadFailed(_) => EngineTaskErrorSeverity::Temporary,
             Self::HoloceneInvalidFlush => EngineTaskErrorSeverity::Flush,
+            Self::InvalidExecutionData(_) |
             Self::DepositOnlyPayloadReattemptFailed |
             Self::DepositOnlyPayloadFailed |
             Self::MpscSend(_) |

@@ -10,7 +10,9 @@ use jsonrpsee::{
     types::{ErrorCode, ErrorObject},
 };
 use op_alloy_consensus::OpTxEnvelope;
-use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelope, OpPayloadError};
+use op_alloy_rpc_types_engine::{
+    OpExecutionPayloadEnvelope, OpNormalizedExecutionData, OpPayloadError,
+};
 
 /// The query types to the network actor for the admin api.
 #[derive(Debug)]
@@ -67,10 +69,8 @@ where
     ) -> RpcResult<()> {
         kona_macros::inc!(gauge, kona_gossip::Metrics::RPC_CALLS, "method" => "admin_postUnsafePayload");
 
-        payload
-            .clone()
-            .into_execution_data()
-            .try_into_checked_block::<OpTxEnvelope>()
+        OpNormalizedExecutionData::try_from(payload.clone())
+            .and_then(|data| data.try_into_checked_block::<OpTxEnvelope>())
             .map_err(|err| {
                 tracing::warn!(
                     target: "rpc",

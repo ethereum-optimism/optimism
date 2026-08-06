@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
 use op_alloy_consensus::OpBlock;
-use op_alloy_rpc_types_engine::{OpExecutionData, OpExecutionPayload};
+use op_alloy_rpc_types_engine::OpNormalizedExecutionData;
 use std::{sync::Arc, time::Instant};
 
 /// The task to insert a payload into the execution engine.
@@ -19,8 +19,8 @@ pub struct InsertTask<EngineClient_: EngineClient> {
     client: Arc<EngineClient_>,
     /// The rollup config.
     rollup_config: Arc<RollupConfig>,
-    /// Complete execution data for the payload.
-    execution_data: OpExecutionData,
+    /// Normalized execution data for the payload.
+    execution_data: OpNormalizedExecutionData,
     /// If the payload is safe this is true.
     /// A payload is safe if it is derived from a safe block.
     is_payload_safe: bool,
@@ -31,7 +31,7 @@ impl<EngineClient_: EngineClient> InsertTask<EngineClient_> {
     pub const fn new(
         client: Arc<EngineClient_>,
         rollup_config: Arc<RollupConfig>,
-        execution_data: OpExecutionData,
+        execution_data: OpNormalizedExecutionData,
         is_attributes_derived: bool,
     ) -> Self {
         Self { client, rollup_config, execution_data, is_payload_safe: is_attributes_derived }
@@ -55,22 +55,20 @@ impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
         // Insert the new payload.
         // Form the new unsafe block ref from the execution payload.
         let execution_data = self.execution_data.clone();
-        let parent_beacon_block_root =
-            execution_data.sidecar.parent_beacon_block_root().unwrap_or_default();
         let insert_time_start = Instant::now();
-        let response = match execution_data.payload.clone() {
-            OpExecutionPayload::V1(payload) => self.client.new_payload_v1(payload).await,
-            OpExecutionPayload::V2(payload) => {
+        let response = match execution_data.clone() {
+            OpNormalizedExecutionData::V1(payload) => self.client.new_payload_v1(payload).await,
+            OpNormalizedExecutionData::V2(payload) => {
                 let payload_input = ExecutionPayloadInputV2 {
                     execution_payload: payload.payload_inner,
                     withdrawals: Some(payload.withdrawals),
                 };
                 self.client.new_payload_v2(payload_input).await
             }
-            OpExecutionPayload::V3(payload) => {
+            OpNormalizedExecutionData::V3 { payload, parent_beacon_block_root } => {
                 self.client.new_payload_v3(payload, parent_beacon_block_root).await
             }
-            OpExecutionPayload::V4(payload) => {
+            OpNormalizedExecutionData::V4 { payload, parent_beacon_block_root } => {
                 self.client.new_payload_v4(payload, parent_beacon_block_root).await
             }
         };
