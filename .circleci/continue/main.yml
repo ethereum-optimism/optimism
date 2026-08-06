@@ -2665,6 +2665,7 @@ workflows:
           no_output_timeout: 89m # Longer timeout for full tests
           test_timeout: 90m
           notify: true
+          mentions: "<!subteam^S09D13R3HJ7>" # @protocol-oncall
           filters:
             branches:
               only: develop # Only runs on develop branch (post-merge)
