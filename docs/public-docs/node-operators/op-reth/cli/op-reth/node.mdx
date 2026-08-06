@@ -20,7 +20,7 @@ Options:
           Possible values are either a built-in chain or the path to a chain specification file.
 
           Built-in chains:
-              optimism, optimism_sepolia, optimism-sepolia, base, base_sepolia, base-sepolia, arena-z, arena-z-sepolia, automata, base-devnet-0-sepolia-dev-0, bob, boba-sepolia, boba, camp-sepolia, celo, creator-chain-testnet-sepolia, cyber, cyber-sepolia, ethernity, ethernity-sepolia, fraxtal, funki, funki-sepolia, hashkeychain, ink, ink-sepolia, lisk, lisk-sepolia, lyra, metal, metal-sepolia, mint, mode, mode-sepolia, oplabs-devnet-0-sepolia-dev-0, orderly, ozean-sepolia, pivotal-sepolia, polynomial, race, race-sepolia, radius_testnet-sepolia, redstone, rehearsal-0-bn-0-rehearsal-0-bn, rehearsal-0-bn-1-rehearsal-0-bn, settlus-mainnet, settlus-sepolia-sepolia, shape, shape-sepolia, silent-data-mainnet, snax, soneium, soneium-minato-sepolia, sseed, swan, swell, tbn, tbn-sepolia, unichain, unichain-sepolia, worldchain, worldchain-sepolia, xterio-eth, zora, zora-sepolia, dev
+              optimism, op-mainnet, optimism_sepolia, optimism-sepolia, automata, bob, boba, celo, cyber, ethernity, fraxtal, funki, hashkeychain, ink, lisk, lyra, metal, mint, mode, op, orderly, polynomial, race, redstone, settlus-mainnet, shape, silent-data-mainnet, soneium, sseed, swan, tbn, unichain, worldchain, xterio-eth, zora, boba-sepolia, camp-sepolia, celo-sep-sepolia, cyber-sepolia, funki-sepolia, ink-sepolia, lisk-sepolia, metal-sepolia, mode-sepolia, op-sepolia, ozean-sepolia, pivotal-sepolia, race-sepolia, radius_testnet-sepolia, settlus-sepolia-sepolia, shape-sepolia, soneium-minato-sepolia, tbn-sepolia, unichain-sepolia, worldchain-sepolia, zora-sepolia, oplabs-devnet-0-sepolia-dev-0, sepolia-devnet-2-sepolia-devnet-2, dev
 
           [default: optimism]
 
@@ -90,14 +90,16 @@ Networking:
       --disable-discv4-discovery
           Disable Discv4 discovery
 
-      --enable-discv5-discovery
-          Enable Discv5 discovery
+      --disable-discv5-discovery
+          Disable Discv5 discovery
 
       --disable-nat
           Disable Nat discovery
 
       --discovery.addr <DISCOVERY_ADDR>
-          The UDP address to use for devp2p peer discovery version 4
+          The UDP address to use for devp2p peer discovery version 4.
+
+          If unset and `--net-if.experimental` is used, discv4 binds to the resolved interface address.
 
           [default: 0.0.0.0]
 
@@ -118,7 +120,9 @@ Networking:
           [default: 9200]
 
       --discovery.v5.port.ipv6 <DISCOVERY_V5_PORT_IPV6>
-          The UDP IPv6 port to use for devp2p peer discovery version 5. Not used unless `--addr` is IPv6, or `--discovery.addr.ipv6` is set
+          The UDP IPv6 port to use for devp2p peer discovery version 5. Not used unless `--addr` is IPv6, or `--discovery.addr.ipv6` is set.
+
+          If not provided, discovery V5 defaults to same port as discovery V4 (--discovery.port).
 
           [default: 9200]
 
@@ -162,7 +166,7 @@ Networking:
       --identity <IDENTITY>
           Custom node identity
 
-          [default: reth/<VERSION>-<SHA>/<ARCH>]
+          [default: op-reth/<VERSION>-<SHA>/<ARCH>]
 
       --p2p-secret-key <PATH>
           Secret key to use for this node.
@@ -252,10 +256,20 @@ Networking:
 
           [default: 25600]
 
+      --tx-channel-memory-limit <BYTES>
+          Memory limit (in bytes) for the channel that buffers transaction events flowing
+          from the network manager to the transactions manager.
+
+          When the budget is exhausted, new events are dropped (see metric
+          `total_dropped_tx_events_at_full_capacity`). Acts as a backstop against unbounded
+          memory growth under sustained P2P transaction flooding.
+
+          [default: 1073741824]
+
       --net-if.experimental <IF_NAME>
           Name of network interface used to communicate with peers.
 
-          If flag is set, but no value is passed, the default interface for docker `eth0` is tried.
+          If flag is set, but no value is passed, the default interface for docker `eth0` is tried. If `--discovery.addr` is left at its default, discv4 will also bind to the resolved interface address.
 
       --tx-propagation-policy <TX_PROPAGATION_POLICY>
           Transaction Propagation Policy
@@ -289,12 +303,20 @@ Networking:
       --network-id <NETWORK_ID>
           Optional network ID to override the chain specification's network ID for P2P connections
 
+      --eth-max-message-size <BYTES>
+          Maximum allowed ETH message size in bytes. Default is 10 MiB
+
       --netrestrict <NETRESTRICT>
           Restrict network communication to the given IP networks (CIDR masks).
 
           Comma separated list of CIDR network specifications. Only peers with IP addresses within these ranges will be allowed to connect.
 
           Example: --netrestrict "192.168.0.0/16,10.0.0.0/8"
+
+      --enforce-enr-fork-id
+          Enforce EIP-868 ENR fork ID validation for discovered peers.
+
+          When enabled, peers discovered without a confirmed fork ID are not added to the peer set until their fork ID is verified via EIP-868 ENR request. This filters out peers from other networks that pollute the discovery table.
 
 RPC:
       --http
@@ -370,7 +392,7 @@ RPC:
 
           This will enforce JWT authentication for all requests coming from the consensus layer.
 
-          If no path is provided, a secret will be generated and stored in the datadir under `<DIR>/<CHAIN_ID>/jwt.hex`. For mainnet this would be `~/.reth/mainnet/jwt.hex` by default.
+          If no path is provided, a secret will be generated and stored in the datadir under `<DIR>/<CHAIN_ID>/jwt.hex`. For mainnet this would be `~/.local/share/reth/mainnet/jwt.hex` by default.
 
       --auth-ipc
           Enable auth engine API over IPC
@@ -389,6 +411,9 @@ RPC:
           Hex encoded JWT secret to authenticate the regular RPC server(s), see `--http.api` and `--ws.api`.
 
           This is __not__ used for the authenticated engine-API RPC server, see `--authrpc.jwtsecret`.
+
+      --rpc.disable-metrics
+          Disable built-in RPC request metrics
 
       --rpc.max-request-size <RPC_MAX_REQUEST_SIZE>
           Set the maximum RPC request payload size for both HTTP and WS in megabytes
@@ -460,6 +485,11 @@ RPC:
 
           [default: 256]
 
+      --rpc.compute-state-root-for-eth-simulate
+          Compute state roots for `eth_simulateV1` responses
+
+          [env: RETH_RPC_COMPUTE_STATE_ROOT_FOR_ETH_SIMULATE=]
+
       --rpc.eth-proof-window <RPC_ETH_PROOF_WINDOW>
           The maximum proof window for historical proof generation. This value allows for generating historical proofs up to configured number of blocks from current tip (up to `tip - window`)
 
@@ -499,10 +529,20 @@ RPC State Cache:
 
           [default: 1000]
 
+      --rpc-cache.max-bals <MAX_BALS>
+          Max number of revm block access lists in cache
+
+          [default: 1000]
+
       --rpc-cache.max-concurrent-db-requests <MAX_CONCURRENT_DB_REQUESTS>
           Max number of concurrent database requests
 
           [default: 512]
+
+      --rpc-cache.max-cached-tx-hashes <MAX_CACHED_TX_HASHES>
+          Maximum number of transaction hashes to cache for transaction lookups
+
+          [default: 30000]
 
 Gas Price Oracle:
       --gpo.blocks <BLOCKS>
@@ -513,7 +553,7 @@ Gas Price Oracle:
       --gpo.ignoreprice <IGNORE_PRICE>
           Gas Price below which gpo will ignore transactions
 
-          [default: 2]
+          [default: 0]
 
       --gpo.maxprice <MAX_PRICE>
           Maximum transaction priority fee(or gasprice before London Fork) to be recommended by gpo
@@ -538,9 +578,14 @@ Gas Price Oracle:
 
           When enabled, transactions that fail execution will be skipped, and all subsequent transactions from the same sender will also be skipped.
 
+      --rpc.force-blob-sidecar-upcasting
+          Force upcasting EIP-4844 blob sidecars to EIP-7594 format when Osaka is active.
+
+          When enabled, blob transactions submitted via `eth_sendRawTransaction` with EIP-4844 sidecars will be automatically converted to EIP-7594 format if the next block is Osaka. By default this is disabled, meaning transactions are submitted as-is.
+
 TxPool:
       --txpool.pending-max-count <PENDING_MAX_COUNT>
-          Max number of transaction in the pending sub-pool
+          Max number of transactions in the pending sub-pool
 
           [default: 10000]
 
@@ -550,7 +595,7 @@ TxPool:
           [default: 20]
 
       --txpool.basefee-max-count <BASEFEE_MAX_COUNT>
-          Max number of transaction in the basefee sub-pool
+          Max number of transactions in the basefee sub-pool
 
           [default: 10000]
 
@@ -560,7 +605,7 @@ TxPool:
           [default: 20]
 
       --txpool.queued-max-count <QUEUED_MAX_COUNT>
-          Max number of transaction in the queued sub-pool
+          Max number of transactions in the queued sub-pool
 
           [default: 10000]
 
@@ -570,7 +615,7 @@ TxPool:
           [default: 20]
 
       --txpool.blobpool-max-count <BLOBPOOL_MAX_COUNT>
-          Max number of transaction in the blobpool
+          Max number of transactions in the blobpool
 
           [default: 10000]
 
@@ -673,7 +718,9 @@ TxPool:
 
 Builder:
       --builder.extradata <EXTRA_DATA>
-          Block extra data set by the payload builder
+          Block extra data set by the payload builder.
+
+          If the value is a `0x`-prefixed hex string, it is decoded into raw bytes. Otherwise, the raw UTF-8 bytes of the string are used.
 
           [default: reth/<VERSION>/<OS>]
 
@@ -723,6 +770,9 @@ Debug:
 
       --debug.skip-new-payload <SKIP_NEW_PAYLOAD>
           If provided, the engine will skip `n` consecutive new payloads
+
+      --debug.skip-genesis-validation
+          If set, bypasses genesis hash validation during init. Intended for tools that direct-write the database (e.g. snapshot importers, state-actor) and want reth to trust the DB-resident genesis state instead of recomputing it from the chainspec's alloc. When the bypass fires, a structured `tracing::warn!` is emitted so the divergence stays observable in operator logs
 
       --debug.reorg-frequency <REORG_FREQUENCY>
           If provided, the chain will be reorged at specified frequency
@@ -804,6 +854,17 @@ Database:
       --db.sync-mode <SYNC_MODE>
           Controls how aggressively the database synchronizes data to disk
 
+      --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE>
+          `RocksDB` block cache size (e.g., 512MB, 4GB).
+
+          Controls the size of the in-memory LRU cache for decompressed `RocksDB` blocks. A larger cache reduces repeated decompression of hot blocks, improving read performance for history lookups.
+
+      --db.balstore-cache-size <BALSTORE_CACHE_SIZE>
+          Number of recent blocks to keep in the in-memory BAL store cache
+
+      --db.disable-metrics
+          Disable built-in database metrics
+
 Dev testnet:
       --dev
           Start the node in dev mode
@@ -823,6 +884,16 @@ Dev testnet:
           Parses strings using [`humantime::parse_duration`]
           --dev.block-time 12s
 
+      --dev.payload-wait-time <PAYLOAD_WAIT_TIME>
+          Time to wait after initiating payload building before resolving.
+
+          Introduces a sleep between `fork_choice_updated` and `resolve_kind` in the
+          local miner, giving the payload job time for multiple rebuild attempts with
+          new transactions from the pool.
+
+          Parses strings using [`humantime::parse_duration`]
+          --dev.payload-wait-time 450ms
+
       --dev.mnemonic <MNEMONIC>
           Derive dev accounts from a fixed mnemonic instead of random ones.
 
@@ -830,7 +901,7 @@ Dev testnet:
 
 Pruning:
       --full
-          Run full node. Only the most recent [`MINIMUM_PRUNING_DISTANCE`] block states are stored
+          Run full node. Only the most recent [`MINIMUM_UNWIND_SAFE_DISTANCE`] block states are stored
 
       --minimal
           Run minimal storage mode with maximum pruning and smaller static files.
@@ -900,35 +971,8 @@ Pruning:
       --prune.bodies.before <BLOCK_NUMBER>
           Prune storage history before the specified block number. The specified block number is not pruned
 
-RocksDB:
-      --rocksdb.all
-          Route all supported tables to `RocksDB` instead of MDBX.
-
-          This enables `RocksDB` for `tx-hash`, `storages-history`, and `account-history` tables. Cannot be combined with individual flags set to false.
-
-      --rocksdb.tx-hash <TX_HASH>
-          Route tx hash -> number table to `RocksDB` instead of MDBX.
-
-          This is a genesis-initialization-only flag: changing it after genesis requires a re-sync. Defaults to `true` when the `edge` feature is enabled, `false` otherwise.
-
-          [default: false]
-          [possible values: true, false]
-
-      --rocksdb.storages-history <STORAGES_HISTORY>
-          Route storages history tables to `RocksDB` instead of MDBX.
-
-          This is a genesis-initialization-only flag: changing it after genesis requires a re-sync. Defaults to `true` when the `edge` feature is enabled, `false` otherwise.
-
-          [default: false]
-          [possible values: true, false]
-
-      --rocksdb.account-history <ACCOUNT_HISTORY>
-          Route account history tables to `RocksDB` instead of MDBX.
-
-          This is a genesis-initialization-only flag: changing it after genesis requires a re-sync. Defaults to `true` when the `edge` feature is enabled, `false` otherwise.
-
-          [default: false]
-          [possible values: true, false]
+      --prune.minimum-distance <BLOCKS>
+          Minimum pruning distance from the tip. This controls the safety margin for reorgs and manual unwinds
 
 Engine:
       --engine.persistence-threshold <PERSISTENCE_THRESHOLD>
@@ -938,22 +982,30 @@ Engine:
 
           [default: 2]
 
+      --engine.persistence-backpressure-threshold <PERSISTENCE_BACKPRESSURE_THRESHOLD>
+          Configure the maximum canonical-minus-persisted gap before engine API processing stalls.
+
+          If omitted, this defaults to the larger of the default backpressure threshold and twice `--engine.persistence-threshold`.
+
+          This value must be greater than `--engine.persistence-threshold`.
+
       --engine.memory-block-buffer-target <MEMORY_BLOCK_BUFFER_TARGET>
           Configure the target number of blocks to keep in memory
 
           [default: 0]
 
-      --engine.legacy-state-root
-          Enable legacy state root
+      --engine.invalid-header-cache-hit-eviction-threshold <INVALID_HEADER_HIT_EVICTION_THRESHOLD>
+          Configure how many cache hits an invalid header can accumulate before it is evicted and reprocessed.
+
+          Set to `0` to effectively disable the cache because entries are evicted on the first lookup.
+
+          [default: 128]
 
       --engine.disable-state-cache
           Disable state cache
 
       --engine.disable-prewarming
           Disable parallel prewarming
-
-      --engine.disable-parallel-sparse-trie
-          Disable the parallel sparse trie in the engine
 
       --engine.state-provider-metrics
           Enable state provider latency metrics. This allows the engine to collect and report stats about how long state provider calls took during execution, but this does introduce slight overhead to state provider calls
@@ -969,13 +1021,10 @@ Engine:
       --engine.accept-execution-requests-hash
           Enables accepting requests hash instead of an array of requests in `engine_newPayloadV4`
 
-      --engine.multiproof-chunking
-          Whether multiproof task should chunk proof targets
-
       --engine.multiproof-chunk-size <MULTIPROOF_CHUNK_SIZE>
           Multiproof task chunk size for proof targets
 
-          [default: 60]
+          [default: 5]
 
       --engine.reserved-cpu-cores <RESERVED_CPU_CORES>
           Configure the number of reserved CPU cores for non-reth processes
@@ -997,16 +1046,77 @@ Engine:
           Allow unwinding canonical header to ancestor during forkchoice updates. See `TreeConfig::unwind_canonical_header` for more details
 
       --engine.storage-worker-count <STORAGE_WORKER_COUNT>
-          Configure the number of storage proof workers in the Tokio blocking pool. If not specified, defaults to 2x available parallelism, clamped between 2 and 64
+          Configure the number of storage proof workers in the Tokio blocking pool. If not specified, defaults to 2x available parallelism
 
       --engine.account-worker-count <ACCOUNT_WORKER_COUNT>
           Configure the number of account proof workers in the Tokio blocking pool. If not specified, defaults to the same count as storage workers
 
-      --engine.enable-proof-v2
-          Enable V2 storage proofs for state root calculations
+      --engine.prewarming-threads <PREWARMING_THREADS>
+          Configure the number of prewarming threads. If not specified, defaults to available parallelism
 
       --engine.disable-cache-metrics
           Disable cache metrics recording, which can take up to 50ms with large cached state
+
+      --engine.sparse-trie-max-hot-slots <SPARSE_TRIE_MAX_HOT_SLOTS>
+          LFU hot-slot capacity: max storage slots retained across sparse trie prune cycles
+
+          [default: 1500]
+
+      --engine.sparse-trie-max-hot-accounts <SPARSE_TRIE_MAX_HOT_ACCOUNTS>
+          LFU hot-account capacity: max account addresses retained across sparse trie prune cycles
+
+          [default: 1000]
+
+      --engine.slow-block-threshold <DURATION>
+          Configure the slow block logging threshold in milliseconds.
+
+          When set, blocks that take longer than this threshold to execute will be logged with detailed metrics including timing, state operations, and cache statistics.
+
+          Set to 0 to log all blocks (useful for debugging/profiling).
+
+          When not set, slow block logging is disabled (default).
+
+      --engine.disable-sparse-trie-cache-pruning
+          Fully disable sparse trie cache pruning. When set, the cached sparse trie is preserved without any node pruning or storage trie eviction between blocks. Useful for benchmarking the effects of retaining the full trie cache
+
+      --engine.state-root-task-timeout <STATE_ROOT_TASK_TIMEOUT>
+          Configure the timeout for the state root task before spawning a sequential fallback. If the state root task takes longer than this, a sequential computation starts in parallel and whichever finishes first is used.
+
+          --engine.state-root-task-timeout 4s --engine.state-root-task-timeout 400ms
+
+          Set to 0s to disable.
+
+          [default: 4s]
+
+      --engine.share-execution-cache-with-payload-builder
+          Whether to share execution cache with the payload builder.
+
+          When enabled, each payload job will get an instance of cross-block execution cache from the engine.
+
+          Note: this should only be enabled if node would not be requested to process any payloads in parallel with payload building.
+
+      --engine.share-sparse-trie-with-payload-builder
+          Whether to share the sparse trie with the payload builder.
+
+          Replaces the payload builder's blocking `state_root_with_updates()` call with the sparse trie, computing the state root concurrently with transaction execution.
+
+          The engine and payload builder contend for the same trie — if a builder task is still running when `newPayload` arrives, the engine will block until the trie is stored back.
+
+          The builder also anchors the trie at the built block's state root, so if the next `newPayload` is not on top of that block, the trie cache is invalidated and cleared.
+
+      --engine.suppress-persistence-during-build
+          Suppress persistence while building a payload.
+
+          When enabled, persistence cycles are deferred from the moment an FCU with payload attributes arrives until the next FCU clears the build. Useful on chains with short block times where persistence I/O can interfere with block building latency.
+
+      --engine.disable-bal-parallel-execution
+          Disable BAL (Block Access List, EIP-7928) based parallel execution
+
+      --engine.disable-bal-parallel-state-root
+          Disable BAL-driven parallel state root computation. This is only valid together with `--engine.disable-bal-parallel-execution`
+
+      --engine.disable-bal-batch-io
+          Disable BAL (Block Access List) storage prefetch IO during prewarming. When set, BAL storage slots are not read into the execution cache
 
 ERA:
       --era.enable
@@ -1042,45 +1152,56 @@ Static Files:
       --static-files.blocks-per-file.storage-change-sets <BLOCKS_PER_FILE_STORAGE_CHANGE_SETS>
           Number of blocks per file for the storage changesets segment
 
-      --static-files.receipts <RECEIPTS>
-          Store receipts in static files instead of the database.
+Storage:
+      --storage.v2 [<V2>]
+          Enable V2 (hot/cold) storage layout for new databases.
 
-          When enabled, receipts will be written to static files on disk instead of the database.
+          When set, new databases will be initialized with the V2 storage layout that separates hot and cold data. Existing databases always use the settings persisted in their metadata regardless of this flag.
 
-          Note: This setting can only be configured at genesis initialization. Once the node has been initialized, changing this flag requires re-syncing from scratch.
-
-          [default: false]
+          [default: true]
           [possible values: true, false]
 
-      --static-files.transaction-senders <TRANSACTION_SENDERS>
-          Store transaction senders in static files instead of the database.
+JIT:
+      --jit
+          Enable JIT compilation of EVM bytecode
 
-          When enabled, transaction senders will be written to static files on disk instead of the database.
+      --jit.hot-threshold <HOT_THRESHOLD>
+          Number of observed misses before a bytecode is promoted to JIT compilation
 
-          Note: This setting can only be configured at genesis initialization. Once the node has been initialized, changing this flag requires re-syncing from scratch.
+          [default: 8]
 
-          [default: false]
-          [possible values: true, false]
+      --jit.worker-count <WORKER_COUNT>
+          Number of JIT compilation worker threads
 
-      --static-files.account-change-sets <ACCOUNT_CHANGESETS>
-          Store account changesets in static files.
+      --jit.channel-capacity <CHANNEL_CAPACITY>
+          Capacity of the lookup-observed event channel. Events are silently dropped when the channel is full
 
-          When enabled, account changesets will be written to static files on disk instead of the database.
+          [default: 4096]
 
-          Note: This setting can only be configured at genesis initialization. Once the node has been initialized, changing this flag requires re-syncing from scratch.
+      --jit.max-pending-jobs <MAX_PENDING_JOBS>
+          Maximum number of pending JIT compilation jobs
 
-          [default: false]
-          [possible values: true, false]
+          [default: 2048]
 
-      --static-files.storage-change-sets <STORAGE_CHANGESETS>
-          Store storage changesets in static files.
+      --jit.max-bytecode-len <MAX_BYTECODE_LEN>
+          Maximum bytecode length eligible for JIT compilation. Contracts with bytecode larger than this are never promoted to JIT. 0 means no limit
 
-          When enabled, storage changesets will be written to static files on disk instead of the database.
+          [default: 0]
 
-          Note: This setting can only be configured at genesis initialization. Once the node has been initialized, changing this flag requires re-syncing from scratch.
+      --jit.code-cache-bytes <CODE_CACHE_BYTES>
+          Maximum total resident compiled code size in bytes. When exceeded, the backend evicts least-recently-used entries. 0 means no limit
 
-          [default: false]
-          [possible values: true, false]
+          [default: 1073741824]
+
+      --jit.idle-evict-duration <IDLE_EVICT_DURATION>
+          Duration after which a compiled program with no lookup hits is evicted
+
+          [default: 1h]
+
+      --jit.debug
+          Enable compiler debug dumps.
+
+          IR, assembly, and bytecode are written to `<datadir>/jit/<spec_id>/<code_hash>/` for each compiled contract. Note that this is not ever cleaned up, and has a non negligible performance overhead.
 
 Rollup:
       --rollup.sequencer <SEQUENCER>
@@ -1102,8 +1223,27 @@ Rollup:
       --rollup.enable-tx-conditional
           Enable transaction conditional support on sequencer
 
+      --rollup.retain-forwarded-txs
+          Retain RPC-submitted transactions in the local pool after forwarding them to the sequencer.
+
+          This flag only has an effect when `rollup.sequencer` is present.
+
+      --rollup.operator-sdm-opt-in <OPERATOR_SDM_OPT_IN>
+          Local operator opt-in for SDM `PostExec` production at process boot. The admin RPC (`admin_setOperatorSdmOptIn`) can still toggle it at runtime. Defaults to disabled
+
+          [env: OP_RETH_OPERATOR_SDM_OPT_IN=]
+          [default: false]
+          [possible values: true, false]
+
       --rollup.interop-http <INTEROP_HTTP_URL>
-          HTTP endpoint for the interop filter, used to validate the interop messages referenced by incoming transactions. When not set, interop transaction validation is disabled: a node that builds blocks will then include transactions carrying invalid interop messages, producing invalid blocks. It is only safe to leave this unset on nodes that do not build blocks.
+          HTTP endpoint(s) for the interop filter, used to validate the interop messages referenced by incoming transactions. Repeat the flag to configure multiple endpoints; each check is fanned out to all of them and combined by quorum agreement (see `--rollup.interop-min-responses`). When none are set, interop transaction validation is disabled: a node that builds blocks will then include transactions carrying invalid interop messages, producing invalid blocks. It is only safe to leave this unset on nodes that do not build blocks
+
+      --rollup.interop-min-responses <INTEROP_MIN_RESPONSES>
+          Minimum number of definitive verdicts required to decide an interop check across the configured `--rollup.interop-http` endpoints. A transaction is accepted only when this many endpoints return a definitive verdict and all of them agree it is valid; if they disagree the transaction is rejected.
+
+          Defaults to the number of endpoints (unanimity, fail-closed). Note this means any single unreachable or out-of-sync endpoint blocks ALL interop admission until it recovers, so adding endpoints under the default REDUCES availability. Set a majority quorum (e.g. N/2+1) to tolerate a degraded endpoint while still only accepting on unanimous agreement among responders.
+
+          Disagreement detection is best-effort: once the quorum is reached the remaining endpoints are not awaited, so a slow dissenter beyond the quorum may go unseen.
 
       --rollup.interop-safety-level <INTEROP_SAFETY_LEVEL>
           Safety level for interop filter validation
@@ -1121,6 +1261,11 @@ Rollup:
 
           [default: 1000000]
 
+      --rollup.max-uncompressed-block-size <MAX_UNCOMPRESSED_BLOCK_SIZE>
+          Maximum cumulative uncompressed (EIP-2718 encoded) block size in bytes.
+
+          When set, the payload builder stops including mempool transactions once the block's total uncompressed transaction size would exceed this value. This bounds the size of the `engine_getPayload` response so it stays within the limits assumed by consensus-layer clients (e.g. the common 10 MiB JSON payload cap). Unset means no limit.
+
       --flashblocks-url <FLASHBLOCKS_URL>
           A URL pointing to a secure websocket subscription that streams out flashblocks.
 
@@ -1130,6 +1275,35 @@ Rollup:
           Enable flashblock consensus client to drive the chain forward
 
           When enabled, the flashblock consensus client will process flashblock sequences and submit them to the engine API to advance the chain. Requires `flashblocks_url` to be set.
+
+      --proofs-history
+          If true, initialize external-proofs exex to save and serve trie nodes to provide proofs faster
+
+      --proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH>
+          Path to the proofs-history storage DB. Defaults to `<reth-data-dir>/historical-proofs` (chain-namespaced via reth's `--datadir`)
+
+      --proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION>
+          Storage schema version. Must match the version used when starting the node
+
+          Possible values:
+          - v1: V1 storage schema (original single-table-per-domain layout). Default
+          - v2: V2 storage schema with changeset and history-bitmap tables, enabling history-aware reads at any block number within the proof window
+
+          [default: v1]
+
+      --proofs-history.window <PROOFS_HISTORY_WINDOW>
+          The window to span blocks for proofs history. Value is the number of blocks. Default is 1 month of blocks based on 2 seconds block time (`30 * 24 * 60 * 60 / 2 = 1_296_000`)
+
+          [default: 1296000]
+
+      --proofs-history.verification-interval <PROOFS_HISTORY_VERIFICATION_INTERVAL>
+          Verification interval: perform full block execution every N blocks for data integrity. - 0: Disabled (Default) (always use fast path with pre-computed data from notifications) - 1: Always verify (always execute blocks, slowest) - N: Verify every Nth block (e.g., 100 = every 100 blocks)
+
+          Periodic verification helps catch data corruption or consensus bugs while maintaining good performance.
+
+          CLI: `--proofs-history.verification-interval 100`
+
+          [default: 0]
 
 Logging:
       --log.stdout.format <FORMAT>
@@ -1145,7 +1319,7 @@ Logging:
       --log.stdout.filter <FILTER>
           The filter to use for logs written to stdout
 
-          [default: ]
+          [default: ""]
 
       --log.file.format <FORMAT>
           The format to use for logs written to the log file
@@ -1178,9 +1352,9 @@ Logging:
           [default: 200]
 
       --log.file.max-files <COUNT>
-          The maximum amount of log files that will be stored. If set to 0, background file logging is disabled
+          The maximum amount of log files that will be stored. If set to 0, background file logging is disabled.
 
-          [default: 5]
+          Default: 5 for `node` command, 0 for non-node utility subcommands.
 
       --log.journald
           Write logs to journald
