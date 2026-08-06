@@ -468,7 +468,7 @@ where
         identity.log_startup_info(&config.prestates_url);
 
         let l1_provider = ProviderBuilder::default().connect_http(config.l1_rpc.clone());
-        let superroot_client = SuperrootClient::new(config.supernode_rpc.as_str())?;
+        let superroot_client = SuperrootClient::new(config.superroot_rpc.as_str())?;
 
         let prestates = Arc::new(PrestateCache::new(config.prestates_url.clone()));
         let host_inputs = Arc::new(HostInputs {
@@ -3548,7 +3548,7 @@ mod tests {
     fn test_config() -> ProposerConfig {
         ProposerConfig {
             l1_rpc: "http://127.0.0.1:1".parse().unwrap(),
-            supernode_rpc: "http://127.0.0.1:1".parse().unwrap(),
+            superroot_rpc: "http://127.0.0.1:1".parse().unwrap(),
             factory_address: Address::ZERO,
             prestates_url: "file:///nonexistent".parse().unwrap(),
             proposal_interval_seconds: 3600,

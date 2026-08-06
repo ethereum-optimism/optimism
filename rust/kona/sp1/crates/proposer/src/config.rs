@@ -72,9 +72,9 @@ pub struct ProposerConfig {
     /// The L1 RPC URL.
     pub l1_rpc: Url,
 
-    /// The supernode (or single-chain op-node) RPC URL serving
-    /// `superroot_atTimestamp`.
-    pub supernode_rpc: Url,
+    /// The RPC URL serving `superroot_atTimestamp`, provided by an op-supernode
+    /// or a single-chain op-node.
+    pub superroot_rpc: Url,
 
     /// The address of the `DisputeGameFactory` contract.
     pub factory_address: Address,
@@ -218,10 +218,10 @@ impl ProposerConfig {
                 .context("L1_RPC not set")?
                 .parse()
                 .map_err(|err| anyhow!("invalid L1_RPC: {err}"))?,
-            supernode_rpc: env::var("SUPERNODE_RPC")
-                .context("SUPERNODE_RPC not set")?
+            superroot_rpc: env::var("SUPERROOT_RPC")
+                .context("SUPERROOT_RPC not set")?
                 .parse()
-                .map_err(|err| anyhow!("invalid SUPERNODE_RPC: {err}"))?,
+                .map_err(|err| anyhow!("invalid SUPERROOT_RPC: {err}"))?,
             factory_address: env::var("FACTORY_ADDRESS")
                 .context("FACTORY_ADDRESS not set")?
                 .parse()
@@ -703,7 +703,7 @@ mod tests {
         fn from_env_requires_defend_path_vars() {
             unsafe {
                 env::set_var("L1_RPC", "http://127.0.0.1:8545");
-                env::set_var("SUPERNODE_RPC", "http://127.0.0.1:9545");
+                env::set_var("SUPERROOT_RPC", "http://127.0.0.1:9545");
                 env::set_var("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
                 env::set_var("PRESTATES_URL", "file:///tmp/prestates");
             }
@@ -741,7 +741,7 @@ mod tests {
         fn zero_defense_cap_is_rejected() {
             unsafe {
                 env::set_var("L1_RPC", "http://127.0.0.1:8545");
-                env::set_var("SUPERNODE_RPC", "http://127.0.0.1:9545");
+                env::set_var("SUPERROOT_RPC", "http://127.0.0.1:9545");
                 env::set_var("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
                 env::set_var("PRESTATES_URL", "file:///tmp/prestates");
                 env::set_var("PROOF_PROVIDER", "mock");
@@ -760,7 +760,7 @@ mod tests {
         fn zero_spn_timeouts_are_rejected() {
             unsafe {
                 env::set_var("L1_RPC", "http://127.0.0.1:8545");
-                env::set_var("SUPERNODE_RPC", "http://127.0.0.1:9545");
+                env::set_var("SUPERROOT_RPC", "http://127.0.0.1:9545");
                 env::set_var("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
                 env::set_var("PRESTATES_URL", "file:///tmp/prestates");
                 env::set_var("PROOF_PROVIDER", "mock");
