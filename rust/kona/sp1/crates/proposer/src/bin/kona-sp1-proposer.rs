@@ -36,7 +36,7 @@ async fn main() -> Result<()> {
 
     tracing::info!(
         l1_rpc = %redacted_url(&config.l1_rpc),
-        supernode_rpc = %redacted_url(&config.supernode_rpc),
+        superroot_rpc = %redacted_url(&config.superroot_rpc),
         factory_address = %config.factory_address,
         prestates_url = %redacted_url(&config.prestates_url),
         proposal_interval_seconds = config.proposal_interval_seconds,
