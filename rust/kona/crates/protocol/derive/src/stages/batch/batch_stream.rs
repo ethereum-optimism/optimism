@@ -149,7 +149,7 @@ where
                     #[cfg(feature = "metrics")]
                     let start = std::time::Instant::now();
                     let (validity, _) = b
-                        .check_batch_prefix(
+                        .check_batch_holocene(
                             self.config.as_ref(),
                             l1_origins,
                             parent,
@@ -507,9 +507,12 @@ mod test {
         assert!(stream.span.is_none());
         assert_eq!(stream.span_buffer_size(), 0);
 
+        // The overlap content checks (part of check_batch_holocene) reject the batch before
+        // singular batch extraction gets a chance to: the overlapped canonical block is not a
+        // valid L2 block (no L1 info deposit), so L2BlockInfo extraction fails.
         let logs = trace_store.get_by_level(tracing::Level::WARN);
         assert_eq!(logs.len(), 1);
-        assert!(logs[0].contains("Extracting singular batches from span batch failed: Future batch L1 origin before safe head"));
+        assert!(logs[0].contains("failed to extract L2BlockInfo from execution payload"));
     }
 
     #[tokio::test]
