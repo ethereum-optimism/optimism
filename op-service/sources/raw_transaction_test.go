@@ -177,6 +177,53 @@ func TestRawTransactionJSONEmptyPostExecRejected(t *testing.T) {
 	require.ErrorContains(t, err, "invalid post-exec tx")
 }
 
+// TestRawTransactionJSONLegacyWithoutType covers an RPC transaction object with
+// no type field, which decodes as a legacy transaction.
+func TestRawTransactionJSONLegacyWithoutType(t *testing.T) {
+	key, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	to := common.HexToAddress("0x4242424242424242424242424242424242424242")
+	tx := types.MustSignNewTx(key, types.LatestSignerForChainID(big.NewInt(10)), &types.LegacyTx{
+		Nonce: 3, GasPrice: big.NewInt(2), Gas: 21000, To: &to, Value: big.NewInt(1),
+	})
+	txJSON, err := tx.MarshalJSON()
+	require.NoError(t, err)
+	obj := map[string]json.RawMessage{}
+	require.NoError(t, json.Unmarshal(txJSON, &obj))
+	delete(obj, "type")
+	stripped, err := json.Marshal(obj)
+	require.NoError(t, err)
+
+	var raw RawTransaction
+	require.NoError(t, json.Unmarshal(stripped, &raw))
+	want, err := tx.MarshalBinary()
+	require.NoError(t, err)
+	require.Equal(t, want, []byte(raw))
+	require.Equal(t, tx.Hash(), raw.Hash())
+}
+
+// TestRPCBlockNullTransactionRejected pins what a JSON null transaction costs: it
+// decodes to an empty RawTransaction, which has no canonical encoding and no
+// hash, so block verification must reject the block rather than pass it on.
+func TestRPCBlockNullTransactionRejected(t *testing.T) {
+	blockJSON := l2RPCBlockJSON(t, l2BlockTxs(t))
+	obj := map[string]json.RawMessage{}
+	require.NoError(t, json.Unmarshal(blockJSON, &obj))
+	var txsJSON []json.RawMessage
+	require.NoError(t, json.Unmarshal(obj["transactions"], &txsJSON))
+	txsJSON[1] = json.RawMessage("null")
+	var err error
+	obj["transactions"], err = json.Marshal(txsJSON)
+	require.NoError(t, err)
+	withNull, err := json.Marshal(obj)
+	require.NoError(t, err)
+
+	var block RPCBlock
+	require.NoError(t, json.Unmarshal(withNull, &block))
+	require.Empty(t, block.Transactions[1])
+	require.ErrorContains(t, block.Verify(), "block tx 1 is nil or empty")
+}
+
 func TestRawTransactionsGeth(t *testing.T) {
 	txs := l2BlockTxs(t)
 	blockJSON := l2RPCBlockJSON(t, txs)

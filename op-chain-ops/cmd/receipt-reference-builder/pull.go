@@ -316,9 +316,6 @@ func processBlockRange(
 	return results, nil
 }
 
-// batchBlockByNumber will batch a list of block numbers into a single batch rpc request
-// it uses the iterative batch call to make the request
-// and returns the results
 // rpcBlock is a minimal eth_getBlockBy* result carrying what this tool reads.
 // Transactions decode as op-geth typed transactions: the tool extracts the
 // effective deposit nonce, JSON-only data that op-geth's decoder captures.
@@ -327,6 +324,9 @@ type rpcBlock struct {
 	Transactions []*types.Transaction `json:"transactions"`
 }
 
+// batchBlockByNumber will batch a list of block numbers into a single batch rpc request
+// it uses the iterative batch call to make the request
+// and returns the results
 func batchBlockByNumber(ctx context.Context, c *ethclient.Client, blockNumbers []rpc.BlockNumber) ([]*rpcBlock, error) {
 	makeBlockByNumberRequest := func(blockNumber rpc.BlockNumber) (*rpcBlock, rpc.BatchElem) {
 		out := new(rpcBlock)
