@@ -84,6 +84,7 @@ More detailed guidance for AI agents can be found in:
 - [docs/ai/derivation.md](docs/ai/derivation.md) - Derivation pipeline development (op-node, kona-node)
 - [docs/ai/execution-layer.md](docs/ai/execution-layer.md) - Execution layer development (op-reth / EVM, fees, deposits)
 - [docs/ai/fault-proofs.md](docs/ai/fault-proofs.md) - Fault proof system (Cannon, kona-client, dispute games)
+- [docs/ai/sdm-public-architecture.md](docs/ai/sdm-public-architecture.md) - Sequencer-Defined Metering (SDM) in this repo: why the mechanism is public but no refund policy is, the `NullRefundPolicy` default that keeps released binaries inert, the test-only `op-reth-sdm-fixture` producer and its release-exclusion guards, and why `debug_replaySDMBlock` is structural only. Read before touching `alloy-op-evm/src/post_exec/`, `post-exec-replay/`, `sdm-fixture-node/`, or the SDM acceptance tests
 - [docs/ai/devfeatures.md](docs/ai/devfeatures.md) - The `DevFeatures` bitmap system gating in-development smart contract features: where the bitmap is supplied, composed, propagated, and read. Only relevant for contract development and op-deployer — not needed for client (op-node / op-reth / kona) work
 - [docs/ai/acceptance-tests.md](docs/ai/acceptance-tests.md) - Building and running acceptance tests locally
 - [docs/ai/writing-acceptance-tests.md](docs/ai/writing-acceptance-tests.md) - Writing new acceptance tests: DSL patterns, naming, what to avoid
