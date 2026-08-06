@@ -77,11 +77,6 @@ func TestParseL1Fork(t *testing.T) {
 		"prague":      forks.Prague,
 		"fusaka":      forks.Osaka,
 		"osaka":       forks.Osaka,
-		"bpo1":        forks.BPO1,
-		"bpo2":        forks.BPO2,
-		"bpo3":        forks.BPO3,
-		"bpo4":        forks.BPO4,
-		"bpo5":        forks.BPO5,
 		"glamsterdam": forks.Amsterdam,
 		"amsterdam":   forks.Amsterdam,
 	}
@@ -93,7 +88,7 @@ func TestParseL1Fork(t *testing.T) {
 		})
 	}
 
-	for _, input := range []string{"", "dencun", "cancun", "frontier", "CANCUN", "Fusaka", "Osaka", " osaka ", "bpo-1", "BPO_5", " amsterdam "} {
+	for _, input := range []string{"", "dencun", "cancun", "frontier", "CANCUN", "Fusaka", "Osaka", " osaka ", "bpo1", "bpo2", "bpo3", "bpo4", "bpo5", "bpo-1", "BPO_5", " amsterdam "} {
 		t.Run("reject "+input, func(t *testing.T) {
 			_, err := parseL1Fork(input)
 			require.EqualError(t, err, `unsupported L1 fork "`+input+`"`)

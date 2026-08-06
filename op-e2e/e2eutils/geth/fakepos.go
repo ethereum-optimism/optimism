@@ -202,6 +202,10 @@ func (f *FakePoS) Start() error {
 					f.log.Error("failed to start building L1 block", "err", err)
 					continue
 				}
+				if err := ValidatePayloadStatus("start-building forkchoice update", res.PayloadStatus); err != nil {
+					f.log.Error("failed to start building L1 block", "err", err)
+					continue
+				}
 				if res.PayloadID == nil {
 					f.log.Error("failed to start block building", "res", res)
 					continue
@@ -232,6 +236,9 @@ func (f *FakePoS) Start() error {
 					f.log.Error("failed to finish building L1 block", "err", err)
 					continue
 				}
+				if isAmsterdam {
+					EnsureAmsterdamBlockAccessList(envelope.ExecutionPayload)
+				}
 
 				blobHashes := make([]common.Hash, 0) // must be non-nil even when empty, due to geth engine API checks
 				if envelope.BlobsBundle != nil {
@@ -248,16 +255,21 @@ func (f *FakePoS) Start() error {
 					}
 				}
 
+				var payloadStatus engine.PayloadStatusV1
 				if isAmsterdam {
-					_, err = f.engineAPI.NewPayloadV5(context.Background(), *envelope.ExecutionPayload, blobHashes, &parentBeaconBlockRoot, make([]hexutil.Bytes, 0))
+					payloadStatus, err = f.engineAPI.NewPayloadV5(context.Background(), *envelope.ExecutionPayload, blobHashes, &parentBeaconBlockRoot, make([]hexutil.Bytes, 0))
 				} else if isPrague {
-					_, err = f.engineAPI.NewPayloadV4(context.Background(), *envelope.ExecutionPayload, blobHashes, &parentBeaconBlockRoot, make([]hexutil.Bytes, 0))
+					payloadStatus, err = f.engineAPI.NewPayloadV4(context.Background(), *envelope.ExecutionPayload, blobHashes, &parentBeaconBlockRoot, make([]hexutil.Bytes, 0))
 				} else if isCancun {
-					_, err = f.engineAPI.NewPayloadV3(context.Background(), *envelope.ExecutionPayload, blobHashes, &parentBeaconBlockRoot)
+					payloadStatus, err = f.engineAPI.NewPayloadV3(context.Background(), *envelope.ExecutionPayload, blobHashes, &parentBeaconBlockRoot)
 				} else {
-					_, err = f.engineAPI.NewPayloadV2(context.Background(), *envelope.ExecutionPayload)
+					payloadStatus, err = f.engineAPI.NewPayloadV2(context.Background(), *envelope.ExecutionPayload)
 				}
 				if err != nil {
+					f.log.Error("failed to insert built L1 block", "err", err)
+					continue
+				}
+				if err := ValidatePayloadStatus("new payload", payloadStatus); err != nil {
 					f.log.Error("failed to insert built L1 block", "err", err)
 					continue
 				}
@@ -278,12 +290,17 @@ func (f *FakePoS) Start() error {
 					SafeBlockHash:      safe.Hash(),
 					FinalizedBlockHash: finalized.Hash(),
 				}
+				var fcRes engine.ForkChoiceResponse
 				if isAmsterdam {
-					_, err = f.engineAPI.ForkchoiceUpdatedV4(ctx, fcState, nil, nil)
+					fcRes, err = f.engineAPI.ForkchoiceUpdatedV4(ctx, fcState, nil, nil)
 				} else {
-					_, err = f.engineAPI.ForkchoiceUpdatedV3(ctx, fcState, nil)
+					fcRes, err = f.engineAPI.ForkchoiceUpdatedV3(ctx, fcState, nil)
 				}
 				if err != nil {
+					f.log.Error("failed to make built L1 block canonical", "err", err)
+					continue
+				}
+				if err := ValidatePayloadStatus("canonicalizing forkchoice update", fcRes.PayloadStatus); err != nil {
 					f.log.Error("failed to make built L1 block canonical", "err", err)
 					continue
 				}

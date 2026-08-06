@@ -89,17 +89,13 @@ func WithDefaultBPOBlobSchedule(_ devtest.T, _ devkeys.Keys, builder intentbuild
 }
 
 // parseL1Fork accepts both Ethereum upgrade names and their geth execution-layer names.
+// BPO selectors are intentionally excluded while the bundled op-geth rejects newPayloadV4 for them.
 func parseL1Fork(value string) (forks.Fork, error) {
 	fork, ok := map[string]forks.Fork{
 		"pectra":      forks.Prague,
 		"prague":      forks.Prague,
 		"fusaka":      forks.Osaka,
 		"osaka":       forks.Osaka,
-		"bpo1":        forks.BPO1,
-		"bpo2":        forks.BPO2,
-		"bpo3":        forks.BPO3,
-		"bpo4":        forks.BPO4,
-		"bpo5":        forks.BPO5,
 		"glamsterdam": forks.Amsterdam,
 		"amsterdam":   forks.Amsterdam,
 	}[value]

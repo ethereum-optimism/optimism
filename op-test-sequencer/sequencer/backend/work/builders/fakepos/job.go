@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opeth "github.com/ethereum-optimism/optimism/op-service/eth"
@@ -144,6 +145,10 @@ func (j *Job) Open(ctx context.Context) error {
 			j.logger.Error("failed to start building L1 block", "err", err)
 			return err
 		}
+		if err := geth.ValidatePayloadStatus("start-building forkchoice update", res.PayloadStatus); err != nil {
+			j.logger.Error("failed to start building L1 block", "err", err)
+			return err
+		}
 		if res.PayloadID == nil {
 			j.logger.Error("failed to start block building", "res", res)
 			return errors.New("failed to start block building")
@@ -164,6 +169,9 @@ func (j *Job) Open(ctx context.Context) error {
 		if err != nil {
 			j.logger.Error("failed to finish building L1 block", "err", err)
 			return err
+		}
+		if isAmsterdam {
+			geth.EnsureAmsterdamBlockAccessList(envelope.ExecutionPayload)
 		}
 
 		j.b.envelopes[envelope.ExecutionPayload.ParentHash] = envelope
@@ -217,13 +225,19 @@ func (j *Job) Seal(ctx context.Context) (work.Block, error) {
 	j.logger.Info("about to insert payload into the chain", "envelope-hash", envelope.ExecutionPayload.BlockHash, "txs", len(envelope.ExecutionPayload.Transactions))
 
 	var err error
+	var payloadStatus engine.PayloadStatusV1
 	payloadNumber := new(big.Int).SetUint64(envelope.ExecutionPayload.Number)
-	if j.b.config.IsAmsterdam(payloadNumber, envelope.ExecutionPayload.Timestamp) {
-		_, err = j.b.engine.NewPayloadV5(ctx, *envelope.ExecutionPayload, blobHashes, &j.parentBeaconBlockRoot, make([]hexutil.Bytes, 0))
+	isAmsterdam := j.b.config.IsAmsterdam(payloadNumber, envelope.ExecutionPayload.Timestamp)
+	if isAmsterdam {
+		payloadStatus, err = j.b.engine.NewPayloadV5(ctx, *envelope.ExecutionPayload, blobHashes, &j.parentBeaconBlockRoot, make([]hexutil.Bytes, 0))
 	} else {
-		_, err = j.b.engine.NewPayloadV4(ctx, *envelope.ExecutionPayload, blobHashes, &j.parentBeaconBlockRoot, make([]hexutil.Bytes, 0))
+		payloadStatus, err = j.b.engine.NewPayloadV4(ctx, *envelope.ExecutionPayload, blobHashes, &j.parentBeaconBlockRoot, make([]hexutil.Bytes, 0))
 	}
 	if err != nil {
+		j.logger.Error("failed to insert built L1 block", "err", err)
+		return nil, err
+	}
+	if err := geth.ValidatePayloadStatus("new payload", payloadStatus); err != nil {
 		j.logger.Error("failed to insert built L1 block", "err", err)
 		return nil, err
 	}
@@ -242,11 +256,22 @@ func (j *Job) Seal(ctx context.Context) (work.Block, error) {
 
 	j.logger.Info("about to forkchoice update", "safe", j.safe.Hash(), "finalized", j.finalized.Hash(), "head", envelope.ExecutionPayload.BlockHash)
 
-	if _, err := j.b.engine.ForkchoiceUpdatedV3(ctx, engine.ForkchoiceStateV1{
+	fcState := engine.ForkchoiceStateV1{
 		HeadBlockHash:      envelope.ExecutionPayload.BlockHash,
 		SafeBlockHash:      j.safe.Hash(),
 		FinalizedBlockHash: j.finalized.Hash(),
-	}, nil); err != nil {
+	}
+	var fcRes engine.ForkChoiceResponse
+	if isAmsterdam {
+		fcRes, err = j.b.engine.ForkchoiceUpdatedV4(ctx, fcState, nil, nil)
+	} else {
+		fcRes, err = j.b.engine.ForkchoiceUpdatedV3(ctx, fcState, nil)
+	}
+	if err != nil {
+		j.logger.Error("failed to make built L1 block canonical", "err", err)
+		return nil, err
+	}
+	if err := geth.ValidatePayloadStatus("canonicalizing forkchoice update", fcRes.PayloadStatus); err != nil {
 		j.logger.Error("failed to make built L1 block canonical", "err", err)
 		return nil, err
 	}
