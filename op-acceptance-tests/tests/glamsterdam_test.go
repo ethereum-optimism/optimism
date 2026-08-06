@@ -12,8 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/params/forks"
 
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/loadtest"
-	"github.com/ethereum-optimism/optimism/op-batcher/batcher"
-	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -30,7 +28,6 @@ func TestSafeHeadAdvancesAcrossGlamsterdam(gt *testing.T) {
 	prepareGlamsterdamOpReth(t)
 	sys := presets.NewMinimal(t,
 		glamsterdamL1Geth(t),
-		glamsterdamBlobBatcher(),
 		presets.WithDeployerOptions(
 			sysgo.WithForkAtL1Genesis(forks.BPO5),
 			// Leave enough time for the devstack to start, fund the load generators, and
@@ -67,7 +64,6 @@ func TestGlamsterdamP2PUnsafeBlockBecomesSafe(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSingleChainMultiNode(t,
 		glamsterdamL1Geth(t),
-		glamsterdamBlobBatcher(),
 		presets.WithDeployerOptions(sysgo.WithForkAtL1Genesis(forks.Amsterdam)),
 	)
 
@@ -125,14 +121,6 @@ func prepareGlamsterdamOpReth(t devtest.T) {
 		Binary:  "op-reth",
 	}).EnsureExists(t.Ctx(), t.Logger())
 	t.Require().NoError(err, "prepare op-reth before starting the L1 fork activation clock")
-}
-
-func glamsterdamBlobBatcher() presets.Option {
-	return presets.WithBatcherOption(func(_ sysgo.ComponentTarget, cfg *batcher.CLIConfig) {
-		// Amsterdam changes calldata floor-gas accounting. Blob batches keep this test focused
-		// on L1 Engine API and derivation behavior across the fork.
-		cfg.DataAvailabilityType = flags.BlobsType
-	})
 }
 
 func spamGlamsterdamTxs(sys *presets.Minimal) {
