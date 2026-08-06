@@ -492,7 +492,7 @@ impl<C> InitTable for HashedStoragesInit<C> {
     ///
     /// Entries arrive from the source `DupSort` cursor in `(address ASC, slot ASC)`
     /// order.  We group consecutive entries by address — preserving that order —
-    /// so the V2 implementation can use `append_dup` (O(1) per entry, no B-tree
+    /// so the MDBX implementation can use `append_dup` (O(1) per entry, no B-tree
     /// traversal).  This keeps page-cache pressure constant regardless of table
     /// size, which is critical on 16 GB machines.
     ///
@@ -667,7 +667,7 @@ impl<C> InitTable for StoragesTrieInitLegacy<C> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{MdbxProofsStorageV2, OpProofsProviderRO};
+    use crate::{MdbxProofsStorage, OpProofsProviderRO};
     use alloy_eips::NumHash;
     use alloy_primitives::{Address, U256, keccak256};
     use reth_db::{
@@ -707,7 +707,7 @@ mod tests {
     fn test_initialize_hashed_accounts() {
         let db = create_test_rw_db();
         let dir = TempDir::new().unwrap();
-        let storage = Arc::new(MdbxProofsStorageV2::new(dir.path()).expect("env"));
+        let storage = Arc::new(MdbxProofsStorage::new(dir.path()).expect("env"));
 
         // Insert test accounts into database
         let tx = db.tx_mut().unwrap();
@@ -758,7 +758,7 @@ mod tests {
     fn test_initialize_hashed_storage() {
         let db = create_test_rw_db();
         let dir = TempDir::new().unwrap();
-        let storage = Arc::new(MdbxProofsStorageV2::new(dir.path()).expect("env"));
+        let storage = Arc::new(MdbxProofsStorage::new(dir.path()).expect("env"));
 
         // Insert test storage into database
         let tx = db.tx_mut().unwrap();
@@ -819,7 +819,7 @@ mod tests {
     fn test_initialize_accounts_trie() {
         let db = create_test_rw_db();
         let dir = TempDir::new().unwrap();
-        let storage = Arc::new(MdbxProofsStorageV2::new(dir.path()).expect("env"));
+        let storage = Arc::new(MdbxProofsStorage::new(dir.path()).expect("env"));
 
         // Insert test trie nodes into database
         let tx = db.tx_mut().unwrap();
@@ -857,7 +857,7 @@ mod tests {
     fn test_initialize_storages_trie() {
         let db = create_test_rw_db();
         let dir = TempDir::new().unwrap();
-        let storage = Arc::new(MdbxProofsStorageV2::new(dir.path()).expect("env"));
+        let storage = Arc::new(MdbxProofsStorage::new(dir.path()).expect("env"));
 
         // Insert test storage trie nodes into database
         let tx = db.tx_mut().unwrap();
@@ -928,7 +928,7 @@ mod tests {
     fn test_full_initialize_run() {
         let db = create_test_rw_db();
         let dir = TempDir::new().unwrap();
-        let storage = Arc::new(MdbxProofsStorageV2::new(dir.path()).expect("env"));
+        let storage = Arc::new(MdbxProofsStorage::new(dir.path()).expect("env"));
 
         // Insert some test data
         let tx = db.tx_mut().unwrap();
@@ -1020,7 +1020,7 @@ mod tests {
     fn test_initialize_run_skips_if_already_done() {
         let db = create_test_rw_db();
         let dir = TempDir::new().unwrap();
-        let storage = Arc::new(MdbxProofsStorageV2::new(dir.path()).expect("env"));
+        let storage = Arc::new(MdbxProofsStorage::new(dir.path()).expect("env"));
 
         // set and commit initial state anchor
         let init_provider = storage.initialization_provider().unwrap();
@@ -1060,7 +1060,7 @@ mod tests {
     fn test_initialize_resumes_hashed_accounts_with_no_dups() {
         let db = create_test_rw_db();
         let dir = TempDir::new().unwrap();
-        let store = Arc::new(MdbxProofsStorageV2::new(dir.path()).expect("env"));
+        let store = Arc::new(MdbxProofsStorage::new(dir.path()).expect("env"));
 
         let init_provider = store.initialization_provider().unwrap();
         init_provider
@@ -1154,7 +1154,7 @@ mod tests {
     fn test_initialize_resumes_hashed_storages_with_no_dups() {
         let db = create_test_rw_db();
         let dir = TempDir::new().unwrap();
-        let store = Arc::new(MdbxProofsStorageV2::new(dir.path()).expect("env"));
+        let store = Arc::new(MdbxProofsStorage::new(dir.path()).expect("env"));
 
         let init_provider = store.initialization_provider().unwrap();
         init_provider
@@ -1253,7 +1253,7 @@ mod tests {
     fn test_initialize_resumes_accounts_trie_with_no_dups() {
         let db = create_test_rw_db();
         let dir = TempDir::new().unwrap();
-        let store = Arc::new(MdbxProofsStorageV2::new(dir.path()).expect("env"));
+        let store = Arc::new(MdbxProofsStorage::new(dir.path()).expect("env"));
 
         let init_provider = store.initialization_provider().unwrap();
         init_provider
@@ -1335,7 +1335,7 @@ mod tests {
     fn test_initialize_resumes_storages_trie_with_no_dups() {
         let db = create_test_rw_db();
         let dir = TempDir::new().unwrap();
-        let store = Arc::new(MdbxProofsStorageV2::new(dir.path()).expect("env"));
+        let store = Arc::new(MdbxProofsStorage::new(dir.path()).expect("env"));
 
         let init_provider = store.initialization_provider().unwrap();
         init_provider
@@ -1444,7 +1444,7 @@ mod tests {
 
     // ── RecordingStore spy ─────────────────────────────────────────────
     //
-    // Wraps `MdbxProofsStorageV2` and records the order of hashed addresses
+    // Wraps `MdbxProofsStorage` and records the order of hashed addresses
     // passed to `store_hashed_storages` / `store_storage_branches`.
     // Used by the two `_preserves_sorted_address_order` tests below to
     // assert that sequential grouping is used (not HashMap).
@@ -1512,18 +1512,18 @@ mod tests {
         }
     }
 
-    /// Spy around [`MdbxProofsStorageV2`] that records the order of addresses
+    /// Spy around [`MdbxProofsStorage`] that records the order of addresses
     /// passed to `store_hashed_storages` / `store_storage_branches`, while
     /// delegating the actual storage to the real MDBX backend.
     #[derive(Debug)]
     struct RecordingStore {
-        inner: MdbxProofsStorageV2,
+        inner: MdbxProofsStorage,
         hashed_storage_addresses: Arc<Mutex<Vec<B256>>>,
         storage_branch_addresses: Arc<Mutex<Vec<B256>>>,
     }
 
     impl RecordingStore {
-        fn new(inner: MdbxProofsStorageV2) -> Self {
+        fn new(inner: MdbxProofsStorage) -> Self {
             Self {
                 inner,
                 hashed_storage_addresses: Arc::new(Mutex::new(Vec::new())),
@@ -1533,10 +1533,10 @@ mod tests {
     }
 
     impl OpProofsStore for RecordingStore {
-        type ProviderRO<'a> = <MdbxProofsStorageV2 as OpProofsStore>::ProviderRO<'a>;
-        type ProviderRw<'a> = <MdbxProofsStorageV2 as OpProofsStore>::ProviderRw<'a>;
+        type ProviderRO<'a> = <MdbxProofsStorage as OpProofsStore>::ProviderRO<'a>;
+        type ProviderRw<'a> = <MdbxProofsStorage as OpProofsStore>::ProviderRw<'a>;
         type Initializer<'a> =
-            RecordingInitProvider<<MdbxProofsStorageV2 as OpProofsStore>::Initializer<'a>>;
+            RecordingInitProvider<<MdbxProofsStorage as OpProofsStore>::Initializer<'a>>;
 
         fn provider_ro<'a>(&'a self) -> OpProofsStorageResult<Self::ProviderRO<'a>> {
             self.inner.provider_ro()
@@ -1564,7 +1564,7 @@ mod tests {
     #[test]
     fn test_store_hashed_storages_preserves_sorted_address_order() {
         let dir = TempDir::new().unwrap();
-        let store = RecordingStore::new(MdbxProofsStorageV2::new(dir.path()).expect("env"));
+        let store = RecordingStore::new(MdbxProofsStorage::new(dir.path()).expect("env"));
 
         // Three addresses in ascending order
         let a = k(0x11);
@@ -1589,7 +1589,7 @@ mod tests {
     #[test]
     fn test_store_storage_branches_preserves_sorted_address_order() {
         let dir = TempDir::new().unwrap();
-        let store = RecordingStore::new(MdbxProofsStorageV2::new(dir.path()).expect("env"));
+        let store = RecordingStore::new(MdbxProofsStorage::new(dir.path()).expect("env"));
 
         let a = k(0x11);
         let b = k(0x22);

@@ -27,8 +27,8 @@ use reth_trie_common::{BranchNodeCompact, StorageTrieEntry, StoredNibbles, Store
 use std::fmt;
 
 tables! {
-    // The v2 schema uses the 3-table-per-data-type pattern. Table names retain
-    // their `V2` prefix for compatibility with existing proofs databases.
+    // The proofs schema uses the 3-table-per-data-type pattern. Table names retain their `V2`
+    // prefix for compatibility with existing proofs databases.
     //
     //   - **Current state** tables hold the latest values for fast reads.
     //   - **ChangeSet** tables group changes by block number for efficient pruning/unwinding.

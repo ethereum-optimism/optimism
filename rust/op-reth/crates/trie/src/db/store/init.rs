@@ -1,6 +1,6 @@
-//! [`OpProofsInitProvider`] implementation for [`MdbxProofsProviderV2`].
+//! [`OpProofsInitProvider`] implementation for [`MdbxProofsProvider`].
 
-use super::MdbxProofsProviderV2;
+use super::MdbxProofsProvider;
 use crate::{
     OpProofsStorageError, OpProofsStorageResult,
     api::{InitialStateAnchor, InitialStateStatus, OpProofsInitProvider},
@@ -20,7 +20,7 @@ use reth_trie::{BranchNodeCompact, Nibbles, StorageTrieEntry, StoredNibbles, Sto
 use std::fmt::Debug;
 
 impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> OpProofsInitProvider
-    for MdbxProofsProviderV2<TX>
+    for MdbxProofsProvider<TX>
 {
     fn initial_state_anchor(&self) -> OpProofsStorageResult<InitialStateAnchor> {
         let Some(block) = self.get_initial_state_anchor_inner()? else {

@@ -1,6 +1,6 @@
 //! Plain (non-history-aware) cursors over the snapshot tables.
 //!
-//! Unlike the V2 history-aware cursors (see [`super::account_trie`] and
+//! Unlike the history-aware cursors (see [`super::account_trie`] and
 //! [`super::storage_trie`], [`super::account`], [`super::storage`]), these read directly from
 //! snapshot tables without any merge walk: the snapshot tables already reflect trie state at the
 //! snapshot's anchor block, so a single current-state read is authoritative.
@@ -29,7 +29,7 @@ use crate::db::models::{
 
 /// Plain account-trie cursor over [`V2AccountsTrieSnapshot`].
 #[derive(Debug)]
-pub struct V2AccountTrieSnapshotCursor<C> {
+pub struct MdbxAccountTrieSnapshotCursor<C> {
     cursor: C,
     last_key: Option<StoredNibbles>,
     /// Whether `seek*` has positioned the underlying cursor at least once
@@ -38,14 +38,14 @@ pub struct V2AccountTrieSnapshotCursor<C> {
     seeked: bool,
 }
 
-impl<C> V2AccountTrieSnapshotCursor<C> {
+impl<C> MdbxAccountTrieSnapshotCursor<C> {
     /// Create a new snapshot cursor wrapping `cursor`.
     pub const fn new(cursor: C) -> Self {
         Self { cursor, last_key: None, seeked: false }
     }
 }
 
-impl<C> TrieCursor for V2AccountTrieSnapshotCursor<C>
+impl<C> TrieCursor for MdbxAccountTrieSnapshotCursor<C>
 where
     C: DbCursorRO<V2AccountsTrieSnapshot> + Send,
 {
@@ -96,7 +96,7 @@ where
 
 /// Plain storage-trie cursor over [`V2StoragesTrieSnapshot`] (a `DupSort` table).
 #[derive(Debug)]
-pub struct V2StorageTrieSnapshotCursor<C> {
+pub struct MdbxStorageTrieSnapshotCursor<C> {
     cursor: C,
     hashed_address: B256,
     last_key: Option<StoredNibbles>,
@@ -106,14 +106,14 @@ pub struct V2StorageTrieSnapshotCursor<C> {
     seeked: bool,
 }
 
-impl<C> V2StorageTrieSnapshotCursor<C> {
+impl<C> MdbxStorageTrieSnapshotCursor<C> {
     /// Create a new snapshot cursor wrapping `cursor`, scoped to `hashed_address`.
     pub const fn new(cursor: C, hashed_address: B256) -> Self {
         Self { cursor, hashed_address, last_key: None, seeked: false }
     }
 }
 
-impl<C> TrieCursor for V2StorageTrieSnapshotCursor<C>
+impl<C> TrieCursor for MdbxStorageTrieSnapshotCursor<C>
 where
     C: DbCursorRO<V2StoragesTrieSnapshot> + DbDupCursorRO<V2StoragesTrieSnapshot> + Send,
 {
@@ -167,7 +167,7 @@ where
     }
 }
 
-impl<C> TrieStorageCursor for V2StorageTrieSnapshotCursor<C>
+impl<C> TrieStorageCursor for MdbxStorageTrieSnapshotCursor<C>
 where
     C: DbCursorRO<V2StoragesTrieSnapshot> + DbDupCursorRO<V2StoragesTrieSnapshot> + Send,
 {
@@ -180,21 +180,21 @@ where
 
 /// Plain hashed-account leaf cursor over [`V2HashedAccountsSnapshot`].
 #[derive(Debug)]
-pub struct V2HashedAccountSnapshotCursor<C> {
+pub struct MdbxHashedAccountSnapshotCursor<C> {
     cursor: C,
     /// Whether `seek*` has positioned the underlying cursor at least once.
     /// Guards `next` against undefined mdbx behavior on an unpositioned cursor.
     seeked: bool,
 }
 
-impl<C> V2HashedAccountSnapshotCursor<C> {
+impl<C> MdbxHashedAccountSnapshotCursor<C> {
     /// Create a new hashed-account snapshot cursor wrapping `cursor`.
     pub const fn new(cursor: C) -> Self {
         Self { cursor, seeked: false }
     }
 }
 
-impl<C> HashedCursor for V2HashedAccountSnapshotCursor<C>
+impl<C> HashedCursor for MdbxHashedAccountSnapshotCursor<C>
 where
     C: DbCursorRO<V2HashedAccountsSnapshot> + Send,
 {
@@ -220,23 +220,23 @@ where
 /// Plain hashed-storage leaf cursor over [`V2HashedStoragesSnapshot`] (a
 /// `DupSort` table). Yields `(storage_key, U256)` pairs, skipping any
 /// zero-valued entries defensively (the snapshot writer never inserts zeros,
-/// but the cursor mirrors the live [`super::storage::V2StorageCursor`]
+/// but the cursor mirrors the live [`super::storage::MdbxStorageCursor`]
 /// invariant).
 #[derive(Debug)]
-pub struct V2HashedStorageSnapshotCursor<C> {
+pub struct MdbxHashedStorageSnapshotCursor<C> {
     cursor: C,
     hashed_address: B256,
     seeked: bool,
 }
 
-impl<C> V2HashedStorageSnapshotCursor<C> {
+impl<C> MdbxHashedStorageSnapshotCursor<C> {
     /// Create a new hashed-storage snapshot cursor scoped to `hashed_address`.
     pub const fn new(cursor: C, hashed_address: B256) -> Self {
         Self { cursor, hashed_address, seeked: false }
     }
 }
 
-impl<C> HashedCursor for V2HashedStorageSnapshotCursor<C>
+impl<C> HashedCursor for MdbxHashedStorageSnapshotCursor<C>
 where
     C: DbCursorRO<V2HashedStoragesSnapshot> + DbDupCursorRO<V2HashedStoragesSnapshot> + Send,
 {
@@ -271,7 +271,7 @@ where
     }
 }
 
-impl<C> HashedStorageCursor for V2HashedStorageSnapshotCursor<C>
+impl<C> HashedStorageCursor for MdbxHashedStorageSnapshotCursor<C>
 where
     C: DbCursorRO<V2HashedStoragesSnapshot> + DbDupCursorRO<V2HashedStoragesSnapshot> + Send,
 {
