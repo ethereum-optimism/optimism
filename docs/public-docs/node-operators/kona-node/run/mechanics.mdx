@@ -68,7 +68,7 @@ The `kona-node` syncs the L2 chain in two main phases:
    Once the EL client is fully synced to the tip, the node transitions
    to consensus layer (CL) sync. In this phase, `kona-node` begins
    deriving new L2 payload attributes from the L1 chain, following
-   the rollup derivation process. `OpPayloadAttributesWithParent`
+   the rollup derivation process. `OpAttributesWithParent` values
    derived this way are executed as an engine task which submits
    the payloads to the execution engine for validation and execution.
 
@@ -91,110 +91,85 @@ to support advanced use cases and custom integrations.
 
 #### Actor Model
 
-At the core of `kona-node` is the concept of **actors**—independent,
-async services that communicate via channels. Each actor implements
-the `NodeActor` trait, which defines how the actor is built, started,
-and how it communicates with other actors.
+At the core of `kona-node` is the concept of **actors**: independent,
+async services that communicate over channels. Each actor implements
+the [`NodeActor` trait][node-actor], a minimal interface with a single
+`step` method that the service drives in a loop until the actor reports
+a fatal error or the node shuts down.
 
-Key built-in actors include:
-- **EngineActor**: Manages the execution layer (EL) Engine API.
-- **DerivationActor**: Runs the derivation pipeline to produce L2 payloads.
+The [`RollupNode` service][node] builds and spawns these actors:
+- **DerivationActor**: Runs the derivation pipeline to produce L2 payload attributes.
+- **EngineActor**: Brokers the connection to the execution layer (EL) Engine API.
+- **EngineRpcActor**: Serves read-only engine queries alongside the engine actor.
+- **L1WatcherActor**: Watches L1 for new head and finalized blocks.
 - **NetworkActor**: Handles P2P networking and block gossip.
 - **RpcActor**: Runs the node's RPC server.
-- **SupervisorActor**: Integrates with the supervisor RPC API.
-- **L1WatcherActor**: Watches L1 for new blocks and events.
+- **SequencerActor**: Builds blocks when the node runs as a sequencer.
+
+The [Node Design section](/node-operators/kona-node/design/intro) covers
+what each actor does in more detail.
 
 
 #### Extending with Custom Actors
 
-You can add your own actors to the node by implementing the `NodeActor`
-trait. This allows you to introduce new background services, event
+You can write your own actor by implementing the `NodeActor` trait.
+This allows you to introduce new background services, event
 processors, or integrations with external systems.
+
+The trait has one associated type and one method. Each call to `step`
+handles a single inbound request, event, or scheduled tick. Returning
+`Ok(())` means the actor is ready to be stepped again; returning an
+error is fatal and stops the actor. Cancellation is handled by the
+caller that drives the loop, so the actor itself does not own a
+cancellation token.
 
 **Example: Defining a Custom Actor**
 
 ```rust
-use kona_node_service::NodeActor;
 use async_trait::async_trait;
-use tokio_util::sync::CancellationToken;
+use kona_node_service::NodeActor;
 
 struct MyCustomActor;
 
 #[async_trait]
 impl NodeActor for MyCustomActor {
     type Error = std::io::Error;
-    type InboundData = MyCustomContext;
-    type OutboundData = ();
-    type State = ();
 
-    fn build(_state: Self::State) -> (Self::OutboundData, Self) {
-        ((), MyCustomActor)
-    }
-
-    async fn start(self, ctx: Self::InboundData) -> Result<(), Self::Error> {
-        // Your actor logic here
+    async fn step(&mut self) -> Result<(), Self::Error> {
+        // Your actor logic for one step here.
         Ok(())
     }
 }
-
-struct MyCustomContext {
-    cancellation: CancellationToken,
-}
-
-impl kona_node_service::CancellableContext for MyCustomContext {
-    fn cancelled(&self) -> tokio_util::sync::WaitForCancellationFuture<'_> {
-        self.cancellation.cancelled()
-    }
-}
 ```
 
-#### Integrating Custom Actors
+#### Running Custom Actors
 
-To integrate your custom actor, you can create your own implementation
-of the `RollupNodeService` trait, which defines the set of actors and
-pipelines used by the node. You can swap out any of the built-in actors
-for your own, or add entirely new ones.
+There is no trait-based extension point for swapping actors into the
+standard node today. [`RollupNode`][node] is a concrete type rather
+than a trait, its actor set is fixed in that type's `start` method,
+and the helper that spawns and supervises those actors is internal to
+the `kona-node-service` crate.
 
-**Example: Custom RollupNodeService**
-
-```rust
-use kona_node_service::{RollupNodeService, NodeActor, ...};
-
-struct MyNodeService;
-
-#[async_trait]
-impl RollupNodeService for MyNodeService {
-    // Use built-in actors, or your own custom ones
-    type DataAvailabilityWatcher = MyCustomActor;
-    type DerivationPipeline = ...;
-    type DerivationActor = ...;
-    type EngineActor = ...;
-    type NetworkActor = ...;
-    type SupervisorExt = ...;
-    type SupervisorActor = ...;
-    type RpcActor = ...;
-    type Error = ...;
-
-    // Implement required trait methods...
-}
-```
-
-You can then instantiate and run your custom node service in your
-own binary or integration test.
+Running a custom actor therefore means composing the node yourself.
+The built-in actors and the channel types they communicate over are
+public API of the `kona-node-service` crate, so a custom binary can
+construct the actors it needs, wire them together over channels, add
+its own `NodeActor` implementations, and drive each actor's `step`
+method in its own task.
 
 #### Programmatic Node Construction
 
-The `RollupNodeBuilder` provides a convenient way to construct a
-standard node, but for advanced use cases, you can build your own
-node by composing actors and services directly, or by implementing
-your own builder pattern.
+The [`RollupNodeBuilder`][builder] provides a convenient way to
+construct a standard node, but for advanced use cases, you can build
+your own node by composing actors directly, or by implementing your
+own builder pattern.
 
 #### Current Limitations
 
-- The extensibility API is **beta** and may change.
-- Most users will want to start by subclassing or wrapping the
-  standard `RollupNode` and only override specific actors or
-  pipelines as needed.
+- The actor and service APIs are **beta** and may change.
+- The standard `RollupNode` exposes no hook for overriding an
+  individual actor or pipeline, so extending the node means composing
+  actors in your own binary rather than wrapping `RollupNode`.
 - Documentation and examples for advanced extensibility are still
   evolving—contributions and feedback are welcome!
 
@@ -211,6 +186,8 @@ your own builder pattern.
 
 [service]: https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/node/service
 [node-actor]: https://docs.rs/kona-node-service/latest/kona_node_service/trait.NodeActor.html
+[node]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/crates/node/service/src/service/node.rs
+[builder]: https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/crates/node/service/src/service/builder.rs
 
 [kona]: https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona
 [packages]: https://github.com/orgs/op-rs/packages?repo_name=kona
