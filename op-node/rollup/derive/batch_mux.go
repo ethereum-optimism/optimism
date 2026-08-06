@@ -33,7 +33,6 @@ func NewBatchMux(lgr log.Logger, cfg *rollup.Config, prev NextBatchProvider, l2 
 }
 
 func (b *BatchMux) Reset(ctx context.Context, base eth.L1BlockRef, sysCfg eth.SystemConfig) error {
-	// TODO(12490): change to a switch over b.cfg.ActiveFork(base.Time)
 	switch {
 	default:
 		if _, ok := b.SingularBatchProvider.(*BatchQueue); !ok {
