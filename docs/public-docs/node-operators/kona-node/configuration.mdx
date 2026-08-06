@@ -20,7 +20,7 @@ For more details on each flag, see the inline help (`kona-node node --help`) or 
 
 | Flag | Env | Description | Required | Default |
 |------|-----|-------------|----------|---------|
-| `--mode <verifier/sequencer>` | `KONA_NODE_MODE` | Mode of operation for the node | Yes | `verifier` |
+| `--mode <validator/sequencer>` | `KONA_NODE_MODE` | Mode of operation for the node | No | `validator` |
 | `--l1-eth-rpc <URL>` | `KONA_NODE_L1_ETH_RPC` | URL of the L1 execution client RPC API | Yes | - |
 | `--l1-trust-rpc <true/false>` | `KONA_NODE_L1_TRUST_RPC` | Whether to trust the L1 RPC without verification | No | `true` |
 | `--l1-beacon <URL>` | `KONA_NODE_L1_BEACON` | URL of the L1 beacon API | Yes | - |
@@ -115,7 +115,7 @@ Supported chain names include all those recognized by `alloy_chains` (e.g., `opt
 | `--sequencer.max-safe-lag <N>` | `KONA_NODE_SEQUENCER_MAX_SAFE_LAG` | Max L2 safe/unsafe lag | `0` |
 | `--sequencer.l1-confs <N>` | `KONA_NODE_SEQUENCER_L1_CONFS` | L1 block confirmations for sequencer | `4` |
 | `--sequencer.recover` | `KONA_NODE_SEQUENCER_RECOVER` | Strictly prepare next L1 origin and create empty L2 blocks | `false` |
-| `--conductor.rpc <URL>` | `KONA_NODE_CONDUCTOR_RPC` | RPC endpoint URL of an external conductor service. Supplying it enables the conductor integration. | - |
+| `--conductor.rpc <URL>` | `KONA_NODE_CONDUCTOR_RPC` | RPC endpoint URL of an external conductor service. Supplying it enables the conductor integration in sequencer mode; it has no effect in validator mode. | - |
 | `--conductor.rpc.timeout <SECONDS>` | `KONA_NODE_CONDUCTOR_RPC_TIMEOUT` | Conductor service RPC timeout | `1` |
 
 ## Interop Arguments
@@ -124,9 +124,8 @@ Supported chain names include all those recognized by `alloy_chains` (e.g., `opt
 |------|-----|-------------|---------|
 | `--interop.dependency-set <PATH>` | `KONA_NODE_INTEROP_DEPENDENCY_SET` | Path to the JSON file describing the interop dependency set for this chain. Required when the rollup config schedules the Lagoon hardfork. | - |
 
-`kona-node` does not expose a supervisor websocket server, so there is no
-`--supervisor.*` flag group. Interop is configured with the dependency-set file
-above.
+`kona-node` does not run a supervisor RPC server, so there is no `--supervisor.*`
+flag group. `--interop.dependency-set` is the node's only interop flag.
 
 ## RPC Trust Flags
 
