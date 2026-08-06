@@ -31,6 +31,8 @@ docs cover all of it, and every destination below is one click away.
 
 What that ownership includes, stated the way the docs themselves state it:
 
+### The services you run
+
 *   **The sequencer.** A single sequencer is a single point of failure for the
     whole chain: when it stops, no new unsafe blocks exist for anyone. The
     high-availability answer is a sequencer cluster managed by
@@ -41,9 +43,9 @@ What that ownership includes, stated the way the docs themselves state it:
     member. See
     [the launch guide's sequencer topology step](/use-cases/launch-a-chain-with-fault-proofs-and-ha-sequencing#step-3-design-the-sequencer-topology).
 *   **The defense.** The defense is a service you run and a set of decisions
-    your team staffs. The service is
-    [`op-challenger`](/op-stack/fault-proofs/challenger): an autonomous agent
-    that monitors every game, defends valid proposals, challenges invalid ones,
+    your team staffs. The
+    [`op-challenger`](/op-stack/fault-proofs/challenger) is a service that
+    monitors every game, defends valid proposals, challenges invalid ones,
     resolves games, and claims bonds. Starting it is not the whole job. Every
     claim it posts carries a bond sent as transaction value; correct claims are
     refunded, incorrect ones pay the counter-claimer, and bonds from won games
@@ -66,6 +68,22 @@ What that ownership includes, stated the way the docs themselves state it:
     sync unsafe blocks and falls behind the sequencer. See
     [Chain monitoring options](/chain-operators/tools/chain-monitoring) and
     [the important node metrics](/node-operators/guides/monitoring/metrics#important-metrics).
+*   **The RPC endpoints.** Every service in the stack depends on RPC, and not
+    only on L1. Each sequencer's op-node derives the chain from an L1 RPC and
+    an L1 beacon endpoint, and the batcher, proposer, and challenger read and
+    transact against L1; `op-challenger` additionally needs an L2 archive node
+    (`--l2-eth-rpc`) and a rollup node with SafeDB (`--rollup-rpc`), and
+    `op-dispute-mon` takes a rollup RPC of its own. Redundant nodes behind a
+    generic load balancer are the wrong shape for any of them. Two nodes can be
+    at the same head, but nothing holds them there, and a service whose
+    consecutive requests round-robin between them reads that divergence as
+    blocks appearing and disappearing: reorgs that never happened. The
+    challenger is the least tolerant consumer and needs one trusted endpoint
+    that fails over deliberately rather than per request. See
+    [the launch guide's section on a consistent view](/use-cases/launch-a-chain-with-fault-proofs-and-ha-sequencing#give-every-service-a-consistent-view-of-l1).
+
+### The keys and the decisions
+
 *   **The keys.** The batcher and proposer addresses need their private keys
     online somewhere for the system to work, and if those addresses are
     compromised, the system can be exploited. They are not the only privileged
@@ -80,28 +98,24 @@ What that ownership includes, stated the way the docs themselves state it:
     [Key management](/chain-operators/guides/management/key-management) and
     [Privileged roles in OP Stack chains](/op-stack/protocol/privileged-roles#privileged-roles-in-op-stack-chains)
     for what every role can do and what a compromise of it means.
-*   **The protocol upgrade cadence.** There is no fixed calendar of dates, but
-    the OP Stack keeps moving and keeping current with it is yours. Network
-    upgrades, deprecations, and operational changes arrive as time-bound action
-    items in [Network Notices](/notices), with the permanent record of each
-    hardfork in the
+*   **The path to permissionless proofs.** Chains deployed with `op-deployer`
+    start with the permissioned dispute game, in which the proposer and
+    challenger are specific addresses holding privileged roles. Moving to
+    permissionless fault proofs is a switch your team schedules after launch.
+    See
+    [the launch guide's permissionless-proofs step](/use-cases/launch-a-chain-with-fault-proofs-and-ha-sequencing#step-7-schedule-the-switch-to-permissionless-proofs).
+
+### The work that recurs
+
+*   **The protocol upgrade cadence.** The OP Stack is being continuously
+    improved and it's your responsibility to keep it up to date. Network
+    upgrades, deprecations, security patches, and operational changes arrive as
+    time-bound action items in [Network Notices](/notices), with the permanent
+    record of each hardfork in the
     [hardfork registry](/op-stack/protocol/network-upgrades), which records
     activation times, the governing spec, and minimum component versions.
     Tracking each notice, moving your components to the versions it names, and
     executing the change on your chain recurs for as long as the chain runs.
-*   **The RPC endpoints.** Every service in the stack depends on RPC, and not
-    only on L1. Each sequencer's op-node derives the chain from an L1 RPC and
-    an L1 beacon endpoint, and the batcher, proposer, and challenger read and
-    transact against L1; `op-challenger` additionally needs an L2 archive node
-    (`--l2-eth-rpc`) and a rollup node with SafeDB (`--rollup-rpc`), and
-    `op-dispute-mon` takes a rollup RPC of its own. Redundant nodes behind a
-    generic load balancer are the wrong shape for any of them. Two nodes can be
-    at the same head, but nothing holds them there, and a service whose
-    consecutive requests round-robin between them reads that divergence as
-    blocks appearing and disappearing: reorgs that never happened. The
-    challenger is the least tolerant consumer and needs one trusted endpoint
-    that fails over deliberately rather than per request. See
-    [the launch guide's section on a consistent view](/use-cases/launch-a-chain-with-fault-proofs-and-ha-sequencing#give-every-service-a-consistent-view-of-l1).
 *   **The standing work.** Running current production releases, keeping the
     deployment artifacts, staggering upgrade rollouts across your
     infrastructure, isolating the sequencer, and writing your own runbooks are
@@ -112,12 +126,6 @@ What that ownership includes, stated the way the docs themselves state it:
     reachable through it, and the incident response itself are yours to build
     and staff. See
     [Chain operator best practices](/chain-operators/guides/management/best-practices).
-*   **The path to permissionless proofs.** Chains deployed with `op-deployer`
-    start with the permissioned dispute game, in which the proposer and
-    challenger are specific addresses holding privileged roles. Moving to
-    permissionless fault proofs is a switch your team schedules after launch.
-    See
-    [the launch guide's permissionless-proofs step](/use-cases/launch-a-chain-with-fault-proofs-and-ha-sequencing#step-7-schedule-the-switch-to-permissionless-proofs).
 
 <CardGroup cols={2}>
   <Card title="Deploy a chain, component by component" icon="rocket" href="/chain-operators/tutorials/create-l2-rollup">
@@ -144,6 +152,11 @@ Your team still runs the chain. The difference is who sits behind the decisions
 above and behind the incidents when they happen: OP Labs engineering does,
 alongside your operators. Everything linked in the previous section stays the
 reference for what your team is running, because it is the same system.
+
+One capability on this path is not something your team has to stand up itself:
+OP Labs can optionally run a backup sequencer for your chain, alongside the
+sequencer cluster your team operates. It is opt-in rather than part of the path
+by default, and whether to take it is your team's decision.
 
 ## Have it operated for you
 
