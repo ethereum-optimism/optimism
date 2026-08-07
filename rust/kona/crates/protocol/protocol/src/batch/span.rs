@@ -700,7 +700,9 @@ impl SpanBatch {
                 Ok(block) => block,
                 Err(e) => {
                     warn!(target: "batch_span", "failed to fetch L2 block number {parent_num}: {e}");
-                    // Unable to validate the batch for now. Retry later.
+                    // Unable to validate the batch right now. Only the pre-Holocene
+                    // BatchQueue retains the batch for a retry; the Holocene BatchStream has
+                    // already consumed it and skips it.
                     return (BatchValidity::Undecided, None);
                 }
             };

@@ -148,7 +148,7 @@ func (bs *BatchStage) nextSingularBatchCandidate(ctx context.Context, parent eth
 			spanBatch.LogContext(bs.Log()).Warn("Dropping invalid span batch, flushing channel (span batch checks)")
 			bs.FlushChannel()
 			return nil, NotEnoughData
-		case BatchUndecided: // l2 fetcher error, try again
+		case BatchUndecided: // l2 fetcher error; the span was already consumed and is skipped, not retried
 			spanBatch.LogContext(bs.Log()).Warn("Undecided span batch")
 			return nil, NotEnoughData
 		case BatchFuture: // can't happen with Holocene

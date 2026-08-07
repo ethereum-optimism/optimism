@@ -188,6 +188,8 @@ where
                             return Err(PipelineError::NotEnoughData.temp());
                         }
                         BatchValidity::Undecided | BatchValidity::Future => {
+                            // Undecided: the span was already consumed and is skipped, not
+                            // retried.
                             return Err(PipelineError::NotEnoughData.temp());
                         }
                     }

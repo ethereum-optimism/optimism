@@ -274,7 +274,8 @@ func checkSpanBatchHolocene(ctx context.Context, cfg *rollup.Config, log log.Log
 		parentBlock, err = l2Fetcher.L2BlockRefByNumber(ctx, parentNum)
 		if err != nil {
 			log.Warn("failed to fetch L2 block", "number", parentNum, "err", err)
-			// unable to validate the batch for now. retry later.
+			// Unable to validate the batch right now. Only the pre-Holocene BatchQueue retains
+			// the batch for a retry; the Holocene BatchStage has already consumed it and skips it.
 			return BatchUndecided, eth.L2BlockRef{}
 		}
 	}
@@ -444,7 +445,8 @@ func checkSpanBatchOverlap(ctx context.Context, cfg *rollup.Config, log log.Logg
 		safeBlockPayload, err := l2Fetcher.PayloadByNumber(ctx, safeBlockNum)
 		if err != nil {
 			log.Warn("failed to fetch L2 block payload", "number", safeBlockNum, "err", err)
-			// unable to validate the batch for now. retry later.
+			// Unable to validate the batch right now. Only the pre-Holocene BatchQueue retains
+			// the batch for a retry; the Holocene BatchStage has already consumed it and skips it.
 			return BatchUndecided
 		}
 		safeBlockTxs := safeBlockPayload.ExecutionPayload.Transactions
