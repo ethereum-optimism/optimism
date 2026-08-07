@@ -220,6 +220,7 @@ codegen-units = 256
 [profile.ci]
 inherits = "release"
 debug = "line-tables-only"
+debug-assertions = true
 incremental = false
 strip = "none"
 
