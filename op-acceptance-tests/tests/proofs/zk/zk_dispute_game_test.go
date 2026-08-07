@@ -212,7 +212,8 @@ func TestProposerDefendsMultipleChallengedGamesConcurrently(gt *testing.T) {
 	// defense scan sees both candidates.
 	gameA.Challenge(challenger)
 	gameB.Challenge(challenger)
-	metricsURL := "http://" + sys.StartZKProposer() + "/metrics"
+	sys.StartZKProposer()
+	metricsURL := sys.ZKProposerMetricsURL()
 
 	const spawnedMetric = "kona_sp1_proposer_games_defense_spawned"
 	const provingErrorMetric = "kona_sp1_proposer_game_proving_error"

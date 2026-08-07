@@ -41,7 +41,8 @@ type SingleChainInterop struct {
 
 	// May be nil if not using sysgo
 	challengerConfig *challengerConfig.Config
-	startZKProposer  func() string
+	startZKProposer  func()
+	zkMetricsAddr    func() string
 }
 
 func (s *SingleChainInterop) L2Networks() []*dsl.L2Network {
@@ -65,11 +66,19 @@ func (s *SingleChainInterop) AdvanceTime(amount time.Duration) {
 }
 
 // StartZKProposer starts the kona-sp1-proposer after a system configured with
-// WithZK and WithoutHonestProposer has seeded its initial dispute games. It
-// returns the proposer's metrics address, empty unless WithZKMetrics was set.
-func (s *SingleChainInterop) StartZKProposer() string {
+// WithZK and WithoutHonestProposer has seeded its initial dispute games.
+func (s *SingleChainInterop) StartZKProposer() {
 	s.T.Require().NotNil(s.startZKProposer, "ZK proposer is not configured")
-	return s.startZKProposer()
+	s.startZKProposer()
+}
+
+// ZKProposerMetricsURL returns the proposer's Prometheus scrape URL. It
+// requires WithZKProposerOption(sysgo.WithZKMetrics()).
+func (s *SingleChainInterop) ZKProposerMetricsURL() string {
+	s.T.Require().NotNil(s.zkMetricsAddr, "ZK proposer is not configured")
+	addr := s.zkMetricsAddr()
+	s.T.Require().NotEmpty(addr, "no ZK proposer metrics endpoint; pass sysgo.WithZKMetrics()")
+	return "http://" + addr + "/metrics"
 }
 
 func (s *SingleChainInterop) proofValidationContext() (devtest.T, *dsl.L1ELNode, []*dsl.L2Network) {
