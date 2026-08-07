@@ -57,6 +57,7 @@ func simpleInteropFromSupernodeProofsRuntime(t devtest.T, runtime *sysgo.MultiCh
 			Wallet:           dsl.NewRandomHDWallet(t, 30),
 			challengerConfig: runtime.L2ChallengerConfig,
 			startZKProposer:  func() { runtime.StartZKProposer(t) },
+			zkMetricsAddr:    runtime.ZKProposerMetricsAddr,
 		},
 		L2ChainB:   twoL2.L2B,
 		L2BatcherB: dsl.NewL2Batcher(components.l2BBatcher),
@@ -145,6 +146,7 @@ func singleChainInteropFromSupernodeProofsRuntime(t devtest.T, runtime *sysgo.Mu
 		Wallet:           dsl.NewRandomHDWallet(t, 30),
 		challengerConfig: challengerCfg,
 		startZKProposer:  func() { runtime.StartZKProposer(t) },
+		zkMetricsAddr:    runtime.ZKProposerMetricsAddr,
 	}
 	out.l1Proposer = newL1ProposerEOA(t, runtime, l2ChainID, out.L1EL)
 	out.FunderL1 = newFunderEOA(t, runtime.Keys, out.L1EL, out.Wallet)

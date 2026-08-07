@@ -42,6 +42,7 @@ type SingleChainInterop struct {
 	// May be nil if not using sysgo
 	challengerConfig *challengerConfig.Config
 	startZKProposer  func()
+	zkMetricsAddr    func() string
 }
 
 func (s *SingleChainInterop) L2Networks() []*dsl.L2Network {
@@ -69,6 +70,15 @@ func (s *SingleChainInterop) AdvanceTime(amount time.Duration) {
 func (s *SingleChainInterop) StartZKProposer() {
 	s.T.Require().NotNil(s.startZKProposer, "ZK proposer is not configured")
 	s.startZKProposer()
+}
+
+// ZKProposerMetricsURL returns the proposer's Prometheus scrape URL. It
+// requires WithZKProposerOption(sysgo.WithZKMetrics()).
+func (s *SingleChainInterop) ZKProposerMetricsURL() string {
+	s.T.Require().NotNil(s.zkMetricsAddr, "ZK proposer is not configured")
+	addr := s.zkMetricsAddr()
+	s.T.Require().NotEmpty(addr, "no ZK proposer metrics endpoint; pass sysgo.WithZKMetrics()")
+	return "http://" + addr + "/metrics"
 }
 
 func (s *SingleChainInterop) proofValidationContext() (devtest.T, *dsl.L1ELNode, []*dsl.L2Network) {

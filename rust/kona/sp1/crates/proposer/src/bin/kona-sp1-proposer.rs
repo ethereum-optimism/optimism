@@ -42,7 +42,7 @@ async fn main() -> Result<()> {
         proposal_interval_seconds = config.proposal_interval_seconds,
         proposal_safety = ?config.proposal_safety,
         fetch_interval = config.fetch_interval,
-        metrics_port = config.metrics_port,
+        metrics_listen = %config.metrics_listen,
         sync_l1_confirmations = config.sync_l1_confirmations,
         tx_confirmation_timeout = config.tx_confirmation_timeout,
         max_fee_per_gas = ?config.max_fee_per_gas,
@@ -104,20 +104,17 @@ async fn main() -> Result<()> {
     // Bind before readiness so the advertised address is live. Install the
     // recorder before register_all; describe_gauge! calls sent to the no-op
     // recorder lose their HELP lines.
-    let metrics_addr = if config.metrics_port != 0 {
-        init_metrics(&config.metrics_port)?;
+    let metrics_addr = init_metrics(config.metrics_listen).await?;
+    if metrics_addr.is_some() {
         ProposerGauge::register_all();
         ProposerGauge::init_all();
-        Some(format!("0.0.0.0:{}", config.metrics_port))
-    } else {
-        None
-    };
+    }
 
     let proposer = Proposer::new(config, signer, factory, proof_provider).await?;
 
     // Devstack readiness matches this message. Emit it before chain-dependent
     // initialization so a deriving supernode does not stall process readiness.
-    match &metrics_addr {
+    match metrics_addr {
         Some(addr) => tracing::info!(metrics_addr = %addr, "kona-sp1-proposer started"),
         None => tracing::info!("kona-sp1-proposer started"),
     }

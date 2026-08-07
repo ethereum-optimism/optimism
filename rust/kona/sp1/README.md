@@ -201,7 +201,7 @@ Optional (defaults in parentheses):
 |---|---|
 | `ROLLUP_CONFIG_PATHS`, `L1_CONFIG_PATH`, `DEPENDENCY_SET_PATH` | chain config files; absent = superchain-registry fallback, matching the executor CLI |
 | `PROPOSAL_INTERVAL_SECONDS` (3600), `PROPOSAL_SAFETY` (finalized), `FETCH_INTERVAL` (30) | proposal cadence |
-| `METRICS_PORT` (0 = disabled), `SYNC_L1_CONFIRMATIONS` (0), `TX_CONFIRMATION_TIMEOUT` (60) | operations |
+| `METRICS_PORT` (0 = disabled, `auto` = a free port reported on the startup line), `SYNC_L1_CONFIRMATIONS` (0), `TX_CONFIRMATION_TIMEOUT` (60) | operations |
 | `MAX_FEE_PER_GAS`, `MAX_PRIORITY_FEE_PER_GAS` | L1 fee caps in wei (unset = uncapped) |
 | `RANGE_SPLIT_COUNT` (1, max 16) | chunks a defended span is split into |
 | `MAX_CONCURRENT_RANGE_PROOFS` (1) | child-proof concurrency within one game |
