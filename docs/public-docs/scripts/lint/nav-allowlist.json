@@ -1,5 +1,5 @@
 {
-  "$comment": "Allowlist for validate-nav.ts. Every entry needs a reason string. Entries here are either deliberately hidden pages or pre-existing violations grandfathered when the guardrail was introduced (tracked in ethereum-optimism/solutions#955); the grandfathered set only shrinks \u2014 new violations always fail CI.",
+  "$comment": "Allowlist for validate-nav.ts. Every entry needs a reason string. Entries fall into two categories. (1) Pages deliberately kept out of the sidebar — hidden feature pages, and completed notices under notices/archive/ that keep a permanent URL and are browsed from notices/archive/index.mdx; this category grows and shrinks as pages are deliberately unnavigated or renavigated. (2) Pre-existing violations grandfathered when the guardrail was introduced (tracked in ethereum-optimism/solutions#955); that set only shrinks — new accidental orphans always fail CI.",
   "orphans": [
     {
       "path": "chain-operators/guides/features/sequencer-defined-metering",

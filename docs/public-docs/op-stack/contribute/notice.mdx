@@ -66,6 +66,14 @@ Use every applicable persona from `keywords.config.yaml`; do not reduce the
 list to the primary audience. Add `audit-source:` when source files or
 generated artifacts were checked to substantiate the notice.
 
+Add `date:` (an ISO `YYYY-MM-DD` value) when the notice is archived. It
+records the date the change took effect — the mainnet hardfork activation,
+the end-of-support date, the mainnet execution date of a contract upgrade,
+or the start of a time-boxed experiment — and it must match the row for the
+page in the [notice archive](/notices/archive). Omit the key rather than
+guess: when no canonical in-tree source gives a date, the archive row says
+"Not dated" instead.
+
 ## Required components
 
 Every notice must include:
@@ -117,7 +125,12 @@ navigation group in `docs.json`.
 After activation and completion of the required migration window:
 
 1.  Move the page under `/notices/archive`.
-2.  Remove its active card and move its navigation entry.
+2.  Remove its active card from `/notices` and delete its `docs.json`
+    navigation entry. Archived notices are deliberately not in the sidebar:
+    add the page to `scripts/lint/nav-allowlist.json` with a reason so the
+    nav validator accepts it, set the page's `date:` frontmatter, and add a
+    row to the [notice archive](/notices/archive), which is how readers
+    browse to it. The page keeps its URL forever — live pages link into it.
 3.  Record the permanent outcome in the
     [network upgrade registry](/op-stack/protocol/network-upgrades), using
     the [contract upgrades table](/op-stack/protocol/network-upgrades#contract-upgrades)
