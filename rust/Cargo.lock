@@ -9491,6 +9491,43 @@ dependencies = [
 ]
 
 [[package]]
+name = "op-reth-sdm-fixture"
+version = "0.0.0"
+dependencies = [
+ "alloy-consensus 2.1.1",
+ "alloy-evm",
+ "alloy-op-evm",
+ "alloy-primitives",
+ "clap",
+ "eyre",
+ "futures-util",
+ "op-alloy-consensus",
+ "op-revm",
+ "op-version",
+ "reth-basic-payload-builder",
+ "reth-cli-util",
+ "reth-db",
+ "reth-db-api",
+ "reth-node-api",
+ "reth-node-builder",
+ "reth-node-core",
+ "reth-optimism-chainspec",
+ "reth-optimism-cli",
+ "reth-optimism-evm",
+ "reth-optimism-exex",
+ "reth-optimism-node",
+ "reth-optimism-payload-builder",
+ "reth-optimism-primitives",
+ "reth-optimism-rpc",
+ "reth-optimism-trie",
+ "reth-payload-builder",
+ "reth-payload-primitives",
+ "reth-transaction-pool",
+ "revm",
+ "tracing",
+]
+
+[[package]]
 name = "op-reth-test-engine"
 version = "0.1.0"
 dependencies = [

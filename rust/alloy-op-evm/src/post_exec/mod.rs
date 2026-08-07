@@ -1,8 +1,10 @@
 //! Post-exec execution extensions.
 
 mod inspector;
+mod null;
 mod refund;
 
+pub use null::NullRefundPolicy;
 pub use refund::PostExecRefundInspector;
 
 use alloc::vec::Vec;
@@ -15,8 +17,8 @@ use op_alloy::consensus::post_exec::SDMGasEntry;
 use revm::{Inspector, context::DBErrorMarker, inspector::NoOpInspector};
 
 pub use inspector::{
-    PostExecCompositeInspector, PostExecExecutedTx, PostExecTxContext, PostExecTxKind,
-    SDMWarmingInspector, WarmingRefundEvent, WarmingRefundKind, WarmingState,
+    PostExecCompositeInspector, PostExecExecutedTx, PostExecRefundEvent, PostExecRefundKind,
+    PostExecTxContext, PostExecTxKind,
 };
 
 use crate::block::{OpBlockExecutor, receipt_builder::OpReceiptBuilder};
@@ -262,8 +264,8 @@ pub trait PostExecExecutorExt {
     /// Take the accumulated post-exec entries for the current block.
     fn take_post_exec_entries(&mut self) -> Vec<SDMGasEntry>;
 
-    /// Take the exact per-transaction warming refund attribution events aligned with receipts.
-    fn take_warming_events_by_tx(&mut self) -> Vec<Vec<WarmingRefundEvent>>;
+    /// Take the exact per-transaction policy-provided refund events aligned with receipts.
+    fn take_refund_events_by_tx(&mut self) -> Vec<Vec<PostExecRefundEvent>>;
 
     /// Snapshot refund state to carry across subblock executors.
     fn refund_snapshot(&self) -> Self::Snapshot;
@@ -288,8 +290,8 @@ where
         Self::take_post_exec_entries(self)
     }
 
-    fn take_warming_events_by_tx(&mut self) -> Vec<Vec<WarmingRefundEvent>> {
-        Self::take_warming_events_by_tx(self)
+    fn take_refund_events_by_tx(&mut self) -> Vec<Vec<PostExecRefundEvent>> {
+        Self::take_refund_events_by_tx(self)
     }
 
     fn refund_snapshot(&self) -> Self::Snapshot {

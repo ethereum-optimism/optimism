@@ -69,7 +69,11 @@ pub use tx::OpTx;
 pub use alloy_op_evm::{
     OpBlockExecutionCtx, OpBlockExecutorFactory, OpEvm, OpEvmFactory, PostExecMode,
     PreRefundGasUsed,
-    post_exec::{PostExecExecutorExt, WarmingRefundEvent, WarmingRefundKind, WarmingState},
+    post_exec::{
+        NullRefundPolicy, PostExecEvmFactoryAdapter, PostExecExecutedTx, PostExecExecutorExt,
+        PostExecRefundEvent, PostExecRefundInspector, PostExecRefundKind, PostExecTxContext,
+        PostExecTxKind,
+    },
 };
 
 mod post_exec_ext;
@@ -130,7 +134,11 @@ impl<ChainSpec: EthChainSpec<Header = Header> + OpHardforks, N: NodePrimitives, 
 {
     /// Creates a new [`OpEvmConfig`] with the given chain spec.
     pub fn new(chain_spec: Arc<ChainSpec>, receipt_builder: R) -> Self {
-        Self::new_with_evm_factory(chain_spec, receipt_builder, OpEvmFactory::<OpTx>::default())
+        Self::new_with_evm_factory(
+            chain_spec,
+            receipt_builder,
+            OpEvmFactory::<OpTx, NullRefundPolicy>::default(),
+        )
     }
 }
 

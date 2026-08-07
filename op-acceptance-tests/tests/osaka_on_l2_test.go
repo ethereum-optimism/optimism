@@ -54,10 +54,7 @@ func TestEIP7823UpperBoundModExp(gt *testing.T) {
 
 		agreedBlockChild, claimBlock, err := karsttest.CheckEIP7823(t.Ctx(), t.Logger(), eoa.Plan())
 		t.Require().NoError(err)
-		// kona-host cannot prefetch state proofs from op-rbuilder (no proofs-history ExEx).
-		if !sysgo.IsOpRbuilder() {
-			t.Require().True(sys.RunKonaNative(agreedBlockChild-1, claimBlock))
-		}
+		t.Require().True(sys.RunKonaNative(agreedBlockChild-1, claimBlock))
 	})
 }
 
@@ -97,10 +94,7 @@ func TestEIP7883ModExpGasCostIncrease(gt *testing.T) {
 
 		agreedBlockChild, claimBlock, err := karsttest.CheckEIP7883(t.Ctx(), t.Logger(), eoa.Plan())
 		t.Require().NoError(err)
-		// kona-host cannot prefetch state proofs from op-rbuilder (no proofs-history ExEx).
-		if !sysgo.IsOpRbuilder() {
-			t.Require().True(sys.RunKonaNative(agreedBlockChild-1, claimBlock))
-		}
+		t.Require().True(sys.RunKonaNative(agreedBlockChild-1, claimBlock))
 	})
 }
 
@@ -156,10 +150,7 @@ func TestEIP7825TxGasLimitCap(gt *testing.T) {
 
 				agreedBlock := bigs.Uint64Strict(receipt.BlockNumber) - 1
 				claimBlock := bigs.Uint64Strict(receipt.BlockNumber)
-				// kona-host cannot prefetch state proofs from op-rbuilder (no proofs-history ExEx).
-				if !sysgo.IsOpRbuilder() {
-					t.Require().Equal(tc.konaAccepts, sys.RunKonaNative(agreedBlock, claimBlock))
-				}
+				t.Require().Equal(tc.konaAccepts, sys.RunKonaNative(agreedBlock, claimBlock))
 			})
 		}
 	})
@@ -231,10 +222,7 @@ func TestEIP7951P256VerifyGasCostIncrease(gt *testing.T) {
 
 				agreedBlock := bigs.Uint64Strict(receipt.BlockNumber) - 1
 				claimBlock := bigs.Uint64Strict(receipt.BlockNumber)
-				// kona-host cannot prefetch state proofs from op-rbuilder (no proofs-history ExEx).
-				if !sysgo.IsOpRbuilder() {
-					t.Require().Equal(tc.konaAccepts, sys.RunKonaNative(agreedBlock, claimBlock))
-				}
+				t.Require().Equal(tc.konaAccepts, sys.RunKonaNative(agreedBlock, claimBlock))
 			})
 		}
 	})
@@ -251,10 +239,7 @@ func TestEIP7951P256VerifyGasCostIncrease(gt *testing.T) {
 
 		agreedBlockChild, claimBlock, err := karsttest.CheckEIP7951(t.Ctx(), t.Logger(), eoa.Plan())
 		t.Require().NoError(err)
-		// kona-host cannot prefetch state proofs from op-rbuilder (no proofs-history ExEx).
-		if !sysgo.IsOpRbuilder() {
-			t.Require().True(sys.RunKonaNative(agreedBlockChild-1, claimBlock))
-		}
+		t.Require().True(sys.RunKonaNative(agreedBlockChild-1, claimBlock))
 	})
 }
 
@@ -317,10 +302,7 @@ func TestKarstBn256PairingInputSizeReduction(gt *testing.T) {
 
 				agreedBlock := bigs.Uint64Strict(receipt.BlockNumber) - 1
 				claimBlock := bigs.Uint64Strict(receipt.BlockNumber)
-				// kona-host cannot prefetch state proofs from op-rbuilder (no proofs-history ExEx).
-				if !sysgo.IsOpRbuilder() {
-					t.Require().Equal(tc.konaAccepts, sys.RunKonaNative(agreedBlock, claimBlock))
-				}
+				t.Require().Equal(tc.konaAccepts, sys.RunKonaNative(agreedBlock, claimBlock))
 			})
 		}
 	})
@@ -337,10 +319,7 @@ func TestKarstBn256PairingInputSizeReduction(gt *testing.T) {
 
 		agreedBlockChild, claimBlock, err := karsttest.CheckKarstBn256PairInputLimit(t.Ctx(), t.Logger(), eoa.Plan())
 		t.Require().NoError(err)
-		// kona-host cannot prefetch state proofs from op-rbuilder (no proofs-history ExEx).
-		if !sysgo.IsOpRbuilder() {
-			t.Require().True(sys.RunKonaNative(agreedBlockChild-1, claimBlock))
-		}
+		t.Require().True(sys.RunKonaNative(agreedBlockChild-1, claimBlock))
 	})
 }
 
@@ -375,10 +354,7 @@ func TestEIP7939CLZ(gt *testing.T) {
 
 		claimBlock, err := karsttest.CheckEIP7939(t.Ctx(), t.Logger(), sys.L2EL.EthClient(), eoa.Plan())
 		t.Require().NoError(err)
-		// kona-host cannot prefetch state proofs from op-rbuilder (no proofs-history ExEx).
-		if !sysgo.IsOpRbuilder() {
-			t.Require().True(sys.RunKonaNative(claimBlock-1, claimBlock))
-		}
+		t.Require().True(sys.RunKonaNative(claimBlock-1, claimBlock))
 	})
 }
 
@@ -412,10 +388,7 @@ func TestEIP7825DepositBypassesTxGasLimitCap(gt *testing.T) {
 		eth.OneHundredthEther,
 	)
 	t.Require().NoError(err)
-	// kona-host cannot prefetch state proofs from op-rbuilder (no proofs-history ExEx).
-	if !sysgo.IsOpRbuilder() {
-		t.Require().True(sys.RunKonaNative(claimBlock-1, claimBlock))
-	}
+	t.Require().True(sys.RunKonaNative(claimBlock-1, claimBlock))
 }
 
 // TestEIP7934BlockSizeLimitDisabled proves that EIP-7934 is disabled by building a single block

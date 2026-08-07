@@ -1,21 +1,18 @@
 use crate::types::{
     PostExecReplayBlock, PostExecReplayConfig, PostExecReplayMismatch, PostExecReplayMismatchKind,
-    PostExecReplayPayload, PostExecReplayPayloadEntry, PostExecReplayRefundEvent,
-    PostExecReplayRefundKind, PostExecReplaySummary, PostExecReplayTx,
+    PostExecReplayPayload, PostExecReplayPayloadEntry, PostExecReplaySummary, PostExecReplayTx,
 };
 use alloy_consensus::{
     Block as AlloyBlock, BlockBody, BlockHeader as AlloyBlockHeader, TxReceipt, Typed2718,
 };
 use op_alloy_consensus::{
-    OpTransaction, POST_EXEC_PAYLOAD_VERSION, POST_EXEC_TX_TYPE_ID, PostExecPayload,
-    PostExecPayloadValidationError, build_post_exec_tx, parse_post_exec_payload_from_transactions,
+    OpTransaction, POST_EXEC_TX_TYPE_ID, PostExecPayload, PostExecPayloadValidationError,
+    parse_post_exec_payload_from_transactions,
 };
 use reth_evm::{Database, execute::BlockExecutor};
 use reth_execution_errors::BlockExecutionError;
 use reth_node_api::NodePrimitives;
-use reth_optimism_evm::{
-    ConfigurePostExecEvm, PostExecExecutorExt, WarmingRefundEvent, WarmingRefundKind,
-};
+use reth_optimism_evm::ConfigurePostExecEvm;
 use reth_primitives_traits::{Block, BlockHeader, RecoveredBlock, SignedTransaction};
 use revm::database::State;
 use std::collections::{BTreeMap, BTreeSet};
@@ -107,40 +104,6 @@ where
     );
 
     Ok(NormalizedBlock { replay_block, original_indexes, embedded_payload, post_exec_tx_index })
-}
-
-const fn into_refund_kind(kind: WarmingRefundKind) -> PostExecReplayRefundKind {
-    match kind {
-        WarmingRefundKind::WarmAccount => PostExecReplayRefundKind::WarmAccount,
-        WarmingRefundKind::WarmSload => PostExecReplayRefundKind::WarmSload,
-        WarmingRefundKind::WarmSstore => PostExecReplayRefundKind::WarmSstore,
-    }
-}
-
-fn original_tx_index(original_indexes: &[u64], replay_tx_index: u64) -> u64 {
-    original_indexes.get(replay_tx_index as usize).copied().unwrap_or(replay_tx_index)
-}
-
-fn into_refund_event(
-    event: WarmingRefundEvent,
-    claiming_replay_tx_index: u64,
-    original_indexes: &[u64],
-) -> PostExecReplayRefundEvent {
-    let first_warmed_by_replay_tx_index = event.first_warmed_by_tx_index;
-
-    PostExecReplayRefundEvent {
-        claiming_replay_tx_index,
-        claiming_tx_index: original_tx_index(original_indexes, claiming_replay_tx_index),
-        kind: into_refund_kind(event.kind),
-        amount: event.amount,
-        address: event.address,
-        slot: event.slot,
-        first_warmed_by_replay_tx_index,
-        first_warmed_by_tx_index: original_tx_index(
-            original_indexes,
-            first_warmed_by_replay_tx_index,
-        ),
-    }
 }
 
 const fn replay_mismatch(
@@ -242,57 +205,40 @@ fn into_replay_payload(payload: PostExecPayload) -> PostExecReplayPayload {
     }
 }
 
-struct CompareRefundsInput<'a> {
+/// Bounds a claimed refund by the transaction's raw gas, returning whether it was violated.
+///
+/// This is the structural rule the executor also enforces (`refund <= evm_gas_used`); replay
+/// re-derives `raw_gas_used` independently of the producer, so it catches a payload claiming more
+/// than the transaction actually cost.
+fn check_payload_refund(
     block_number: u64,
     tx_index: u64,
     raw_gas_used: u64,
-    replay_refund: u64,
     payload_refund: Option<u64>,
-    config: &'a PostExecReplayConfig,
-}
-
-fn compare_refunds(
-    input: CompareRefundsInput<'_>,
     mismatches: &mut Vec<PostExecReplayMismatch>,
 ) -> bool {
-    let CompareRefundsInput {
+    let Some(payload_refund) = payload_refund else { return false };
+    if payload_refund <= raw_gas_used {
+        return false;
+    }
+
+    mismatches.push(replay_mismatch(
+        PostExecReplayMismatchKind::PayloadRefundExceedsRawGas,
         block_number,
-        tx_index,
-        raw_gas_used,
-        replay_refund,
-        payload_refund,
-        config,
-    } = input;
-    let mismatch_count = mismatches.len();
-
-    if let Some(payload_refund) = payload_refund &&
-        payload_refund > raw_gas_used
-    {
-        mismatches.push(replay_mismatch(
-            PostExecReplayMismatchKind::PayloadRefundExceedsRawGas,
-            block_number,
-            Some(tx_index),
-            Some(raw_gas_used),
-            Some(payload_refund),
-            format!("payload refund exceeds raw gas for tx index {tx_index}"),
-        ));
-    }
-
-    if config.compare_payload && payload_refund.unwrap_or_default() != replay_refund {
-        mismatches.push(replay_mismatch(
-            PostExecReplayMismatchKind::PayloadRefundMismatch,
-            block_number,
-            Some(tx_index),
-            payload_refund,
-            Some(replay_refund),
-            format!("payload refund mismatch for tx index {tx_index}"),
-        ));
-    }
-
-    mismatches.len() != mismatch_count
+        Some(tx_index),
+        Some(raw_gas_used),
+        Some(payload_refund),
+        format!("payload refund exceeds raw gas for tx index {tx_index}"),
+    ));
+    true
 }
 
-/// Replay a historical block with post-exec enabled counterfactually.
+/// Replay a historical block's non-`0x7D` transactions and check its embedded payload structurally.
+///
+/// Re-execution runs with post-exec accounting disabled, so the receipts report each transaction's
+/// raw (pre-rebate) gas regardless of what policy produced the block. Replay reports that raw gas
+/// alongside the block's claimed refunds and flags structurally invalid claims; it does not
+/// recompute what the refunds should have been.
 pub fn replay_block<DB, EvmConfig, Tx, Header>(
     evm_config: &EvmConfig,
     db: DB,
@@ -322,7 +268,7 @@ where
         .post_exec_executor_for_block(
             &mut state,
             normalized.replay_block.sealed_block(),
-            reth_optimism_evm::PostExecMode::Produce,
+            reth_optimism_evm::PostExecMode::Disabled,
         )
         .map_err(BlockExecutionError::other)?;
 
@@ -330,17 +276,7 @@ where
     for tx in normalized.replay_block.clone_transactions_recovered() {
         executor.execute_transaction(tx)?;
     }
-    let replay_entries = executor.take_post_exec_entries();
-    let warming_events_by_tx = executor.take_warming_events_by_tx();
     let execution = executor.apply_post_execution_changes()?;
-
-    let replay_payload = PostExecPayload {
-        version: POST_EXEC_PAYLOAD_VERSION,
-        block_number,
-        gas_refund_entries: replay_entries.clone(),
-    };
-    let replay_refunds: BTreeMap<u64, u64> =
-        replay_entries.iter().map(|entry| (entry.index, entry.gas_refund)).collect();
 
     let mut mismatches = Vec::new();
     let payload_refunds = match (config.compare_payload, normalized.embedded_payload.as_ref()) {
@@ -361,28 +297,17 @@ where
     {
         let replay_tx_index = replay_idx as u64;
         let cumulative_gas_used = execution.receipts[replay_idx].cumulative_gas_used();
-        let canonical_gas_used = cumulative_gas_used.saturating_sub(previous_cumulative_gas);
+        // Post-exec accounting is disabled for this run, so the receipt delta is raw gas.
+        let raw_gas_used = cumulative_gas_used.saturating_sub(previous_cumulative_gas);
         previous_cumulative_gas = cumulative_gas_used;
 
-        let replay_refund = replay_refunds.get(&tx_index).copied().unwrap_or_default();
-        let raw_gas_used = canonical_gas_used.saturating_add(replay_refund);
         let payload_refund = payload_refunds.get(&tx_index).copied();
-        let refund_breakdown = warming_events_by_tx
-            .get(replay_idx)
-            .into_iter()
-            .flatten()
-            .copied()
-            .map(|event| into_refund_event(event, replay_tx_index, &normalized.original_indexes))
-            .collect();
-        let mismatch = compare_refunds(
-            CompareRefundsInput {
-                block_number,
-                tx_index,
-                raw_gas_used,
-                replay_refund,
-                payload_refund,
-                config: &config,
-            },
+        let canonical_gas_used = raw_gas_used.saturating_sub(payload_refund.unwrap_or_default());
+        let mismatch = check_payload_refund(
+            block_number,
+            tx_index,
+            raw_gas_used,
+            payload_refund,
             &mut mismatches,
         );
 
@@ -394,15 +319,12 @@ where
             is_deposit_tx: tx.is_deposit(),
             raw_gas_used,
             canonical_gas_used,
-            op_gas_refund_replay: replay_refund,
             op_gas_refund_payload: payload_refund,
-            refund_breakdown,
             mismatch,
         });
     }
 
     let tx_count_user = txs.iter().filter(|tx| !tx.is_deposit_tx).count();
-    let replay_refund_total = txs.iter().map(|tx| tx.op_gas_refund_replay).sum::<u64>();
     let payload_refund_total =
         txs.iter().map(|tx| tx.op_gas_refund_payload.unwrap_or_default()).sum::<u64>();
     let block_gas_used = txs.iter().map(|tx| tx.canonical_gas_used).sum::<u64>();
@@ -414,10 +336,12 @@ where
         tx_count_total: txs.len(),
         tx_count_user,
         post_exec_tx_present,
-        post_exec_payload_entry_count: replay_entries.len(),
+        post_exec_payload_entry_count: normalized
+            .embedded_payload
+            .as_ref()
+            .map_or(0, |payload| payload.gas_refund_entries.len()),
         block_gas_used,
         block_raw_gas_used,
-        replay_refund_total,
         payload_refund_total,
         mismatch_count: mismatches.len(),
     };
@@ -430,10 +354,6 @@ where
         post_exec_tx_present,
         post_exec_tx_index: normalized.post_exec_tx_index,
         embedded_payload: normalized.embedded_payload.map(into_replay_payload),
-        synthesized_payload_bytes: build_post_exec_tx(block_number, replay_entries)
-            .payload
-            .to_rlp_bytes(),
-        synthesized_payload: into_replay_payload(replay_payload),
         txs,
         mismatches,
         summary,
@@ -443,10 +363,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::{
-        CompareRefundsInput, PostExecReplayError, build_payload_map, compare_refunds,
-        normalize_block, strip_post_exec_tx_for_replay,
+        PostExecReplayError, build_payload_map, check_payload_refund, normalize_block,
+        strip_post_exec_tx_for_replay,
     };
-    use crate::{PostExecReplayConfig, PostExecReplayMismatchKind};
+    use crate::PostExecReplayMismatchKind;
     use alloy_consensus::{BlockBody, Header, Sealable, SignableTransaction, TxLegacy};
     use alloy_primitives::{Address, Signature, U256};
     use op_alloy_consensus::{
@@ -584,24 +504,24 @@ mod tests {
     }
 
     #[test]
-    fn compare_refunds_detects_tampered_payload_mismatches() {
-        let config = PostExecReplayConfig { compare_payload: true };
+    fn check_payload_refund_flags_refund_above_raw_gas() {
         let mut mismatches = Vec::new();
 
-        let mismatch = compare_refunds(
-            CompareRefundsInput {
-                block_number: 100,
-                tx_index: 3,
-                raw_gas_used: 40,
-                replay_refund: 5,
-                payload_refund: Some(7),
-                config: &config,
-            },
-            &mut mismatches,
-        );
-
-        assert!(mismatch);
+        assert!(check_payload_refund(100, 3, 40, Some(41), &mut mismatches));
         assert_eq!(mismatches.len(), 1);
-        assert_eq!(mismatches[0].category, PostExecReplayMismatchKind::PayloadRefundMismatch);
+        assert_eq!(mismatches[0].category, PostExecReplayMismatchKind::PayloadRefundExceedsRawGas);
+        assert_eq!(mismatches[0].expected, Some(40));
+        assert_eq!(mismatches[0].actual, Some(41));
+    }
+
+    #[test]
+    fn check_payload_refund_accepts_refund_within_raw_gas() {
+        let mut mismatches = Vec::new();
+
+        // A refund equal to raw gas is the structural limit, not a violation.
+        assert!(!check_payload_refund(100, 3, 40, Some(40), &mut mismatches));
+        // No claim at all cannot violate the bound.
+        assert!(!check_payload_refund(100, 3, 0, None, &mut mismatches));
+        assert!(mismatches.is_empty());
     }
 }
