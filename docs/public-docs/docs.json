@@ -2089,7 +2089,11 @@
     },
     {
       "source": "/rust/op-reth/run/opstack",
-      "destination": "/node-operators/op-reth/run/opstack"
+      "destination": "/node-operators/guides/configuration/execution-clients"
+    },
+    {
+      "source": "/node-operators/op-reth/run/opstack",
+      "destination": "/node-operators/guides/configuration/execution-clients"
     },
     {
       "source": "/rust/op-reth/run/faq/sync-op-mainnet",
@@ -3002,18 +3006,7 @@
                 "group": "op-reth",
                 "pages": [
                   "node-operators/op-reth/index",
-                  {
-                    "group": "Run a Node",
-                    "pages": [
-                      "node-operators/op-reth/run/opstack",
-                      {
-                        "group": "FAQ",
-                        "pages": [
-                          "node-operators/op-reth/run/faq/sync-op-mainnet"
-                        ]
-                      }
-                    ]
-                  }
+                  "node-operators/op-reth/run/faq/sync-op-mainnet"
                 ]
               }
             ]

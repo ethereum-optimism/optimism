@@ -14,11 +14,26 @@ The execution client provides the EVM runtime and transaction processing for you
   Always run your execution client and consensus client in a 1:1 configuration. Don't run multiple execution clients behind one consensus client, or vice versa.
 </Info>
 
+## What a running node needs
+
+The execution client is one of three pieces. Before configuring it, make sure you have:
+
+1.  **L1 endpoints** for the settlement layer of the chain you are syncing: an L1 execution RPC endpoint and an L1 Beacon API endpoint. Your consensus client reads batch data and blobs from them.
+2.  **A consensus client**, also called the rollup node: op-node or kona-node. It derives the canonical chain from L1 and drives the execution client over the Engine API. See [Consensus client configuration](/node-operators/guides/configuration/consensus-clients).
+3.  **An execution client**, configured below.
+
 ## Execution clients
 
 <Tabs>
   <Tab title="op-reth">
-    [op-reth](https://github.com/paradigmxyz/reth) is a Rust-based execution client and the primary supported path for OP Stack nodes going forward.
+    [op-reth](https://github.com/paradigmxyz/reth) is a Rust-based execution client and the primary supported path for OP Stack nodes going forward. The [Superchain Registry](https://github.com/ethereum-optimism/superchain-registry) chain configurations are compiled into the binary, so registry chains work by name through `--chain` (for example `--chain unichain` or `--chain unichain-sepolia`).
+
+    ### Install
+
+    Two supported install paths:
+
+    *   **Docker image**, wired up end to end in [Running a Node With Docker](/node-operators/tutorials/node-from-docker).
+    *   **From source.** op-reth lives at `rust/op-reth/` inside the Optimism monorepo and builds with Cargo. Follow [Building and running an OP Stack node from source](/node-operators/tutorials/run-node-from-source), which pins op-node and op-reth to the same coordinated release tag.
 
     ### Minimal configuration
 
@@ -31,6 +46,15 @@ The execution client provides the EVM runtime and transaction processing for you
       --authrpc.port 9551 \
       --authrpc.jwtsecret /path/to/jwt.hex
     ```
+
+    ### OP Stack specific flags
+
+    op-reth's `Rollup` flag group holds the behavior that exists only on OP Stack chains. Two matter to most operators:
+
+    *   `--rollup.sequencer <uri>` (shown above) is the sequencer endpoint that transactions submitted to this node are forwarded to, since the sequencer is what builds blocks. Aliases: `--rollup.sequencer-http`, `--rollup.sequencer-ws`.
+    *   `--rollup.disable-tx-pool-gossip` stops the node from gossiping its transaction pool to peers. Omit it on a personal node; set it on a replica you operate as a provider.
+
+    The rest of the group covers the interop filter, flashblocks, and historical RPC. For the full list with the binary's own descriptions, see the [`op-reth node` flag listing](/node-operators/op-reth/cli/op-reth/node), and [Understanding the op-reth CLI](/node-operators/op-reth/cli/overview) for how the flag groups fit together.
 
     ### Historical proofs
 
