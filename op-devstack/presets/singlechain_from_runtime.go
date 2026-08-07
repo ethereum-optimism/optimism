@@ -11,8 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
@@ -290,8 +288,5 @@ func minimalWithConductorsFromRuntime(t devtest.T, runtime *sysgo.SingleChainRun
 	return &MinimalWithConductors{
 		Minimal:    minimal,
 		Conductors: conductors,
-		ConductorSets: map[eth.ChainID]dsl.ConductorSet{
-			l2ChainID: conductors,
-		},
 	}
 }
