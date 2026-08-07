@@ -17,7 +17,7 @@ import (
 // ProofRunner executes the proof checks attached to one shared interop scenario.
 // Implementations are constructed here so scenario internals remain private.
 type ProofRunner interface {
-	run(t devtest.T, sys *presets.SimpleInterop, data *scenarioProofData)
+	run(t devtest.T, sys *presets.SingleChainInterop, chains []*chain, data *scenarioProofData)
 }
 
 type scenarioProofData struct {
@@ -55,12 +55,12 @@ func NewSP1FullProofRunner(executorPath string) ProofRunner {
 	return sp1ProofRunner{executorPath: executorPath}
 }
 
-func runScenarioProofs(t devtest.T, sys *presets.SimpleInterop, data *scenarioProofData, runners ...ProofRunner) {
+func runScenarioProofs(t devtest.T, sys *presets.SingleChainInterop, chains []*chain, data *scenarioProofData, runners ...ProofRunner) {
 	if len(runners) == 0 {
 		runners = []ProofRunner{NewKonaProofRunner()}
 	}
 	for _, runner := range runners {
-		runner.run(t, sys, data)
+		runner.run(t, sys, chains, data)
 	}
 }
 
@@ -73,7 +73,7 @@ func hasSP1Runner(runners []ProofRunner) bool {
 	return false
 }
 
-func (konaProofRunner) run(t devtest.T, sys *presets.SimpleInterop, data *scenarioProofData) {
+func (konaProofRunner) run(t devtest.T, sys *presets.SingleChainInterop, _ []*chain, data *scenarioProofData) {
 	t.Require().NotEmpty(data.fpvmTransitions, "Kona runner requires FPVM transition cases")
 	challengerCfg := sys.L2ChainA.Escape().L2Challengers()[0].Config()
 	gameDepth := sys.DisputeGameFactory().GameImpl(gameTypes.SuperCannonKonaGameType).SplitDepth()
@@ -90,7 +90,7 @@ func (konaProofRunner) run(t devtest.T, sys *presets.SimpleInterop, data *scenar
 	}
 }
 
-func (r sp1ProofRunner) run(t devtest.T, sys *presets.SimpleInterop, data *scenarioProofData) {
+func (r sp1ProofRunner) run(t devtest.T, sys *presets.SingleChainInterop, chains []*chain, data *scenarioProofData) {
 	executorPath := r.executorPath
 	if r.nativeCore {
 		var err error
@@ -114,7 +114,7 @@ func (r sp1ProofRunner) run(t devtest.T, sys *presets.SimpleInterop, data *scena
 		checkpoint := data.zkCheckpoint
 		validateZKCheckpoint(t, sys, checkpoint)
 		cfg := sys.L2ChainA.Escape().L2Challengers()[0].Config().CannonKona
-		args := superRangeExecutorArgs(t, sys, cfg, checkpoint.trustedL1Head, checkpoint.endTimestamp)
+		args := superRangeExecutorArgs(t, sys, chains, cfg, checkpoint.trustedL1Head, checkpoint.endTimestamp)
 		if r.nativeCore {
 			args = append(args, "--native-core")
 		}
@@ -126,7 +126,7 @@ func (r sp1ProofRunner) run(t devtest.T, sys *presets.SimpleInterop, data *scena
 	})
 }
 
-func newZKCheckpoint(t devtest.T, sys *presets.SimpleInterop, endTimestamp uint64, expectReplacement bool) *zkCheckpoint {
+func newZKCheckpoint(t devtest.T, sys *presets.SingleChainInterop, endTimestamp uint64, expectReplacement bool) *zkCheckpoint {
 	resp := sys.SuperRoots.SuperRootAtTimestamp(endTimestamp)
 	t.Require().NotNil(resp.Data, "expected verified super-root data at timestamp %d", endTimestamp)
 	return &zkCheckpoint{
@@ -138,7 +138,7 @@ func newZKCheckpoint(t devtest.T, sys *presets.SimpleInterop, endTimestamp uint6
 
 func newZKCheckpointForRunners(
 	t devtest.T,
-	sys *presets.SimpleInterop,
+	sys *presets.SingleChainInterop,
 	endTimestamp uint64,
 	expectReplacement bool,
 	runners []ProofRunner,
@@ -149,7 +149,7 @@ func newZKCheckpointForRunners(
 	return newZKCheckpoint(t, sys, endTimestamp, expectReplacement)
 }
 
-func validateZKCheckpoint(t devtest.T, sys *presets.SimpleInterop, checkpoint *zkCheckpoint) {
+func validateZKCheckpoint(t devtest.T, sys *presets.SingleChainInterop, checkpoint *zkCheckpoint) {
 	resp := sys.SuperRoots.SuperRootAtTimestamp(checkpoint.endTimestamp)
 	t.Require().NotNil(resp.Data, "expected verified super-root data at timestamp %d", checkpoint.endTimestamp)
 	t.Require().Equal(checkpoint.trustedL1Head, resp.Data.VerifiedRequiredL1,
@@ -212,21 +212,24 @@ func validateZKCheckpoint(t devtest.T, sys *presets.SimpleInterop, checkpoint *z
 
 func superRangeExecutorArgs(
 	t devtest.T,
-	sys *presets.SimpleInterop,
+	sys *presets.SingleChainInterop,
+	chains []*chain,
 	cfg vm.Config,
 	l1Head eth.BlockID,
 	endTimestamp uint64,
 ) []string {
+	t.Require().Len(chains, 2, "SP1 super-range requires exactly two chains")
 	t.Require().Len(cfg.RollupConfigPaths, 2, "SP1 super-range requires both rollup configs")
 	t.Require().NotEmpty(cfg.DepsetConfigPath, "SP1 super-range requires a dependency-set config")
+	l2NodeAddresses := make([]string, len(chains))
+	for i, chain := range chains {
+		l2NodeAddresses[i] = chain.EL.Escape().UserRPC()
+	}
 	args := []string{
 		"--supernode-address", sys.SuperRoots.UserRPC(),
 		"--l1-node-address", sys.L1EL.Escape().UserRPC(),
 		"--l1-beacon-address", sys.L1CL.BeaconHTTPAddr(),
-		"--l2-node-addresses", strings.Join([]string{
-			sys.L2ELA.Escape().UserRPC(),
-			sys.L2ELB.Escape().UserRPC(),
-		}, ","),
+		"--l2-node-addresses", strings.Join(l2NodeAddresses, ","),
 		"--l1-head", l1Head.Hash.Hex(),
 		"--end-timestamp", strconv.FormatUint(endTimestamp, 10),
 		"--rollup-config-paths", strings.Join(cfg.RollupConfigPaths, ","),

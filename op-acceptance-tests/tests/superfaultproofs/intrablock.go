@@ -195,10 +195,10 @@ func RunIntraBlockConsolidationTest(t devtest.T, sys *presets.SimpleInterop, tc 
 		})
 	}
 
-	runScenarioProofs(t, sys, &scenarioProofData{
+	runScenarioProofs(t, &sys.SingleChainInterop, chains, &scenarioProofData{
 		fpvmTransitions:    tests,
 		fpvmStartTimestamp: startTimestamp,
-		zkCheckpoint:       newZKCheckpointForRunners(t, sys, endTimestamp, tc.ExpectReplacement, runners),
+		zkCheckpoint:       newZKCheckpointForRunners(t, &sys.SingleChainInterop, endTimestamp, tc.ExpectReplacement, runners),
 	}, runners...)
 }
 
