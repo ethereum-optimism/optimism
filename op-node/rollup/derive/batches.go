@@ -318,11 +318,8 @@ func checkSpanBatchHolocene(ctx context.Context, cfg *rollup.Config, log log.Log
 		return BatchDrop, parentBlock
 	}
 
-	// The prefix rules only anchor the batch at its parent; they do not validate the contents of
-	// elements that overlap the safe chain. A span batch whose overlap disagrees with the safe
-	// chain — possible since interop block replacement — must be dropped as a whole, so that the
-	// remainder of an invalidated lineage cannot be spliced onto the canonical chain.
-	// The loop is empty if the batch does not overlap (parentBlock == l2SafeHead).
+	// The prefix rules only anchor the batch at its parent; any overlap content must also agree
+	// with the safe chain, see checkSpanBatchOverlap. No-op without overlap (parentBlock == l2SafeHead).
 	if validity := checkSpanBatchOverlap(ctx, cfg, log, batch, parentBlock, l2SafeHead, l2Fetcher); validity != BatchAccept {
 		return validity, parentBlock
 	}

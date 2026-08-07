@@ -17,13 +17,10 @@ import (
 
 // TestBatchStage_OverlapContent pins the derive-level mechanism behind the interop
 // block-replacement lineage bug: a span batch whose overlap section disagrees with the safe
-// chain (e.g. it carries a block that has since been replaced with a deposits-only block) must
-// be dropped and its channel flushed, instead of having the conflicting element silently
-// past-skipped and the remainder of the invalidated lineage spliced onto the canonical chain.
-//
-// The scenario mirrors the incident: the safe head is a deposits-only replacement, and the
-// incoming span batch is the original channel, whose element at that height still carries the
-// invalidated transaction.
+// chain — here, the original channel of a lineage whose block has since been replaced with a
+// deposits-only block — must be dropped and its channel flushed, instead of having the
+// conflicting element silently past-skipped and the remainder of the invalidated lineage
+// spliced onto the canonical chain.
 func TestBatchStage_OverlapContent(t *testing.T) {
 	l1 := L1Chain([]uint64{10, 16, 22, 28})
 	chainId := big.NewInt(1234)
@@ -104,6 +101,30 @@ func TestBatchStage_OverlapContent(t *testing.T) {
 		batch, _, err := stage.NextBatch(context.Background(), safeHead)
 		require.NoError(t, err)
 		require.Equal(t, uint64(24), batch.Timestamp)
+	})
+
+	t.Run("overlapped origin mismatch is dropped", func(t *testing.T) {
+		// A fixture where the overlapped element's transactions match the canonical block
+		// (b() derives the tx from the timestamp), but its L1 origin number does not.
+		txSafeBatch := b(cfg.L2ChainID, 22, l1[1])
+		txSafeHead := singularBatchToBlockRef(t, txSafeBatch, 1)
+		txSafePayload := singularBatchToPayload(t, txSafeBatch, 1)
+		fetcher := newFakeSafeBlockFetcher()
+		fetcher.addBlock(parentRef, &parentPayload)
+		fetcher.addBlock(txSafeHead, &txSafePayload)
+		originMismatchSpan := initializedSpanBatch([]*SingularBatch{
+			b(cfg.L2ChainID, 22, l1[0]), // same txs as the canonical block, outdated origin
+			b(cfg.L2ChainID, 24, l1[1]),
+		}, cfg.Genesis.L2Time, chainId)
+
+		lgr, logs := testlog.CaptureLogger(t, log.LevelWarn)
+		stage := newStage(lgr, originMismatchSpan, fetcher)
+
+		batch, _, err := stage.NextBatch(context.Background(), txSafeHead)
+		require.ErrorIs(t, err, NotEnoughData)
+		require.Nil(t, batch)
+		logs.RequireMessageContainedOnce(t, "overlapped block's L1 origin number does not match")
+		logs.RequireMessageContainedOnce(t, "Dropping invalid span batch, flushing channel (span batch checks)")
 	})
 
 	t.Run("payload fetch error is undecided", func(t *testing.T) {

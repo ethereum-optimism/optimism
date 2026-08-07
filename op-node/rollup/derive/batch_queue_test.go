@@ -597,7 +597,7 @@ func testBatchStage_OverlappingSpanBatch(t *testing.T, batchType int, newBatchSt
 
 	t.Run("outdated origin", func(t *testing.T) {
 		invalidSpanSingulars := []*SingularBatch{
-			b(cfg.L2ChainID, 22, l1[0]), // same block number as safe head, will be skipped
+			safeBatch,                   // matches the safe head, so the overlap content checks pass
 			b(cfg.L2ChainID, 24, l1[0]), // first batch after safe head uses outdated origin 0
 			b(cfg.L2ChainID, 26, l1[1]),
 		}
@@ -615,13 +615,11 @@ func testBatchStage_OverlappingSpanBatch(t *testing.T, batchType int, newBatchSt
 		batch, _, err := stage.NextBatch(context.Background(), safeHead)
 		require.ErrorIs(t, err, NotEnoughData)
 		require.Nil(t, batch)
-		// The overlap content checks catch the origin mismatch first on both paths: they run as
-		// part of checkSpanBatchHolocene, ahead of the remaining full checks of the BatchQueue's
-		// checkSpanBatch (which used to catch this batch with "block epoch is too old") and ahead
-		// of the BatchStage's singular batch extraction.
-		logs.RequireMessageContainedOnce(t, "overlapped block's L1 origin number does not match")
-		if _, ok := stage.(*BatchStage); ok {
-			logs.RequireMessageContainedOnce(t, "Dropping invalid span batch, flushing channel (span batch checks)")
+		switch stage.(type) {
+		case *BatchQueue:
+			logs.RequireMessageContainedOnce(t, "block epoch is too old")
+		case *BatchStage:
+			logs.RequireMessageContainedOnce(t, "Dropping invalid span batch, flushing channel (singular batch extraction)")
 		}
 	})
 

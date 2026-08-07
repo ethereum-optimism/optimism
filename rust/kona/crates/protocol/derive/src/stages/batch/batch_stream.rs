@@ -157,6 +157,8 @@ where
                             &mut self.fetcher,
                         )
                         .await;
+                    // Note: since the overlap content checks joined check_batch_holocene, this
+                    // histogram includes their L2 payload fetches for overlapping span batches.
                     kona_macros::record!(
                         histogram,
                         crate::metrics::Metrics::PIPELINE_CHECK_BATCH_PREFIX,
@@ -477,9 +479,27 @@ mod test {
             l1_origin: BlockNumHash { number: 9, ..Default::default() },
             ..Default::default()
         };
+        // A valid overlapped canonical block (L1 info deposit only, origin 9), so the overlap
+        // content checks pass and singular batch extraction is reached.
+        let l1_info = kona_protocol::L1BlockInfoBedrock::new(
+            9,
+            0,
+            0,
+            alloy_primitives::B256::ZERO,
+            0,
+            alloy_primitives::Address::ZERO,
+            alloy_primitives::U256::ZERO,
+            alloy_primitives::U256::ZERO,
+        );
+        let info_tx = op_alloy_consensus::OpTxEnvelope::Deposit(alloy_primitives::Sealed::new(
+            op_alloy_consensus::TxDeposit {
+                input: l1_info.encode_calldata(),
+                ..Default::default()
+            },
+        ));
         let op_block = OpBlock {
             header: Header { number: 41, ..Default::default() },
-            body: BlockBody { transactions: vec![], ommers: vec![], withdrawals: None },
+            body: BlockBody { transactions: vec![info_tx], ommers: vec![], withdrawals: None },
         };
 
         let span_batch = SpanBatch {
@@ -507,12 +527,9 @@ mod test {
         assert!(stream.span.is_none());
         assert_eq!(stream.span_buffer_size(), 0);
 
-        // The overlap content checks (part of check_batch_holocene) reject the batch before
-        // singular batch extraction gets a chance to: the overlapped canonical block is not a
-        // valid L2 block (no L1 info deposit), so L2BlockInfo extraction fails.
         let logs = trace_store.get_by_level(tracing::Level::WARN);
         assert_eq!(logs.len(), 1);
-        assert!(logs[0].contains("failed to extract L2BlockInfo from execution payload"));
+        assert!(logs[0].contains("Extracting singular batches from span batch failed: Future batch L1 origin before safe head"));
     }
 
     #[tokio::test]

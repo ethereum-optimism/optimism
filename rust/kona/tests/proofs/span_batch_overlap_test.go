@@ -78,7 +78,7 @@ func TestSpanBatchOverlapContent(gt *testing.T) {
 		}
 		submitAndIncludeFrame := func(frame []byte) {
 			env.Batcher.ActL2BatchSubmitRaw(t, frame)
-			env.Miner.ActL1StartBlock(12)(t)
+			env.Miner.ActL1StartBlock(helpers.L1BlockTime)(t)
 			env.Miner.ActL1IncludeTxByHash(env.Batcher.LastSubmitted.Hash())(t)
 			env.Miner.ActL1EndBlock(t)
 		}
