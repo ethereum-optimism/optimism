@@ -210,16 +210,18 @@ incremental = true
 codegen-units = 256
 
 # Fully optimized profile for binaries under test in CI: release plus
-# line-table debug info and unstripped symbols, so e2e failures come with
-# usable backtraces at release speed. Debug assertions were measured at
-# +18-55% e2e wall clock (worst on the compute-bound proof jobs), so they
-# stay off; line tables and symbols cost nothing at runtime. Carrying debug
-# info through the thin-LTO link OOM-kills 16GB builders on the reth crates
-# regardless of profile family, so CI builds this on a 32GB class.
-# Incremental stays off so sccache can cache the compilation.
+# line-table debug info, unstripped symbols, and debug assertions, so e2e
+# failures come with usable backtraces and live invariant checks. Measured
+# against release on identical job shapes: test-step times are unchanged by
+# both the debug info and the assertions; the only cost is fatter binaries
+# (slower workspace attach). Carrying debug info through the thin-LTO link
+# OOM-kills 16GB builders on the reth crates regardless of profile family,
+# so CI builds this on a 32GB class. Incremental stays off so sccache can
+# cache the compilation.
 [profile.ci]
 inherits = "release"
 debug = "line-tables-only"
+debug-assertions = true
 incremental = false
 strip = "none"
 
