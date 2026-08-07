@@ -820,6 +820,10 @@
       "destination": "/op-stack/introduction/op-stack"
     },
     {
+      "source": "/op-stack",
+      "destination": "/op-stack/introduction/op-stack"
+    },
+    {
       "source": "/get-started/superchain",
       "destination": "/op-stack/introduction/op-stack"
     },
@@ -1129,7 +1133,7 @@
     },
     {
       "source": "/operators/chain-operators/management/snap-sync",
-      "destination": "/chain-operators/archive/snap-sync"
+      "destination": "/chain-operators/guides/features/snap-sync"
     },
     {
       "source": "/operators/chain-operators/management/troubleshooting",
@@ -1873,7 +1877,7 @@
     },
     {
       "source": "/chain-operators/guides/management/snap-sync",
-      "destination": "/chain-operators/archive/snap-sync"
+      "destination": "/chain-operators/guides/features/snap-sync"
     },
     {
       "source": "/chain-operators/tools/fee-calculator",
@@ -2628,8 +2632,8 @@
       "destination": "/app-developers/tools-sdks/data/oracles"
     },
     {
-      "source": "/chain-operators/guides/features/snap-sync",
-      "destination": "/chain-operators/archive/snap-sync"
+      "source": "/chain-operators/archive/snap-sync",
+      "destination": "/chain-operators/guides/features/snap-sync"
     },
     {
       "source": "/node-operators/kona-node/faq/profiling",
@@ -2758,7 +2762,8 @@
                   "chain-operators/guides/features/flashblocks-guide",
                   "chain-operators/guides/features/alt-da-mode-guide",
                   "chain-operators/guides/features/blobs",
-                  "chain-operators/guides/features/enable-span-batches"
+                  "chain-operators/guides/features/enable-span-batches",
+                  "chain-operators/guides/features/snap-sync"
                 ]
               },
               {
@@ -2894,8 +2899,7 @@
           {
             "group": "Archive",
             "pages": [
-              "chain-operators/tutorials/archive/op-program-prestate",
-              "chain-operators/archive/snap-sync"
+              "chain-operators/tutorials/archive/op-program-prestate"
             ]
           }
         ]
