@@ -151,3 +151,5 @@ EOL
 
 # Write the final config file
 mv tmp_config.json "$CONTRACTS_BASE/deploy-config/getting-started.json"
+
+# CI baseline probe - do not merge
