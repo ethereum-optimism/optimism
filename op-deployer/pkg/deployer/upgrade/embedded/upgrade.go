@@ -3,6 +3,7 @@ package embedded
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
@@ -177,8 +178,16 @@ func (u *UpgradeOPChainInput) EncodedUpgradeInputV2() ([]byte, error) {
 				if zk.MaxChallengeDuration == 0 {
 					return nil, fmt.Errorf("ZKDisputeGameConfig.MaxChallengeDuration must be > 0 for game type %d", gameConfig.GameType)
 				}
+				// Capped at uint32 max so block.timestamp + duration cannot overflow the game's
+				// uint64 deadline cast, which would place the deadline in the past.
+				if zk.MaxChallengeDuration > math.MaxUint32 {
+					return nil, fmt.Errorf("ZKDisputeGameConfig.MaxChallengeDuration must be <= %d seconds for game type %d, got %d", uint64(math.MaxUint32), gameConfig.GameType, zk.MaxChallengeDuration)
+				}
 				if zk.MaxProveDuration == 0 {
 					return nil, fmt.Errorf("ZKDisputeGameConfig.MaxProveDuration must be > 0 for game type %d", gameConfig.GameType)
+				}
+				if zk.MaxProveDuration > math.MaxUint32 {
+					return nil, fmt.Errorf("ZKDisputeGameConfig.MaxProveDuration must be <= %d seconds for game type %d, got %d", uint64(math.MaxUint32), gameConfig.GameType, zk.MaxProveDuration)
 				}
 				if zk.ChallengerBond == nil || zk.ChallengerBond.Sign() <= 0 {
 					return nil, fmt.Errorf("ZKDisputeGameConfig.ChallengerBond must be set to a positive value for game type %d", gameConfig.GameType)

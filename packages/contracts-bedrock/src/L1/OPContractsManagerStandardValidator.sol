@@ -46,8 +46,8 @@ import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 /// before and after an upgrade.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 3.0.0
-    string public constant version = "3.0.0";
+    /// @custom:semver 3.1.0
+    string public constant version = "3.1.0";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -1061,8 +1061,18 @@ contract OPContractsManagerStandardValidator is ISemver {
             string.concat(_errorPrefix, "-80"),
             _errors
         );
-        _errors = internalRequire(args.maxChallengeDuration > 0, string.concat(_errorPrefix, "-90"), _errors);
-        _errors = internalRequire(args.maxProveDuration > 0, string.concat(_errorPrefix, "-100"), _errors);
+        // Durations are capped at uint32 max so that `block.timestamp + duration` cannot overflow
+        // the uint64 deadline cast in ZKDisputeGame, which would place the deadline in the past.
+        _errors = internalRequire(
+            args.maxChallengeDuration > 0 && args.maxChallengeDuration <= type(uint32).max,
+            string.concat(_errorPrefix, "-90"),
+            _errors
+        );
+        _errors = internalRequire(
+            args.maxProveDuration > 0 && args.maxProveDuration <= type(uint32).max,
+            string.concat(_errorPrefix, "-100"),
+            _errors
+        );
         _errors = internalRequire(args.challengerBond > 0, string.concat(_errorPrefix, "-110"), _errors);
         _errors = standardValidatorUtils.assertValidDelayedWETH(
             _errors,

@@ -3,6 +3,7 @@ package manage
 import (
 	"context"
 	"log/slog"
+	"math"
 	"math/big"
 	"testing"
 	"time"
@@ -246,5 +247,40 @@ func TestEncodeZKGameArgs(t *testing.T) {
 		c.ChallengerBond = big.NewInt(0)
 		_, err = encodeZKGameArgs(c)
 		require.ErrorContains(t, err, "challengerBond")
+	})
+
+	// Durations above uint32 max overflow the game's uint64 deadline cast on-chain, putting the
+	// deadline in the past so the game is over the instant it is created.
+	t.Run("rejects out-of-range durations", func(t *testing.T) {
+		base := zkDisputeGameConfig{
+			AbsolutePrestate:     common.HexToHash("0x1234"),
+			MaxChallengeDuration: math.MaxUint32,
+			MaxProveDuration:     math.MaxUint32,
+			ChallengerBond:       big.NewInt(1),
+		}
+
+		// The bound itself is accepted.
+		_, err := encodeZKGameArgs(base)
+		require.NoError(t, err)
+
+		c := base
+		c.MaxChallengeDuration = math.MaxUint32 + 1
+		_, err = encodeZKGameArgs(c)
+		require.ErrorContains(t, err, "maxChallengeDuration must be <=")
+
+		c = base
+		c.MaxProveDuration = math.MaxUint32 + 1
+		_, err = encodeZKGameArgs(c)
+		require.ErrorContains(t, err, "maxProveDuration must be <=")
+
+		c = base
+		c.MaxChallengeDuration = math.MaxUint64
+		_, err = encodeZKGameArgs(c)
+		require.ErrorContains(t, err, "maxChallengeDuration must be <=")
+
+		c = base
+		c.MaxProveDuration = math.MaxUint64
+		_, err = encodeZKGameArgs(c)
+		require.ErrorContains(t, err, "maxProveDuration must be <=")
 	})
 }

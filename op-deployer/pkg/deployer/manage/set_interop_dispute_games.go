@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"math/big"
 	"strconv"
 	"strings"
@@ -53,8 +54,16 @@ func encodeZKGameArgs(cfg zkDisputeGameConfig) ([]byte, error) {
 	if cfg.MaxChallengeDuration == 0 {
 		return nil, fmt.Errorf("ZK maxChallengeDuration must be > 0")
 	}
+	// Capped at uint32 max so block.timestamp + duration cannot overflow the game's uint64 deadline
+	// cast, which would place the deadline in the past.
+	if cfg.MaxChallengeDuration > math.MaxUint32 {
+		return nil, fmt.Errorf("ZK maxChallengeDuration must be <= %d seconds, got %d", uint64(math.MaxUint32), cfg.MaxChallengeDuration)
+	}
 	if cfg.MaxProveDuration == 0 {
 		return nil, fmt.Errorf("ZK maxProveDuration must be > 0")
+	}
+	if cfg.MaxProveDuration > math.MaxUint32 {
+		return nil, fmt.Errorf("ZK maxProveDuration must be <= %d seconds, got %d", uint64(math.MaxUint32), cfg.MaxProveDuration)
 	}
 	if cfg.ChallengerBond == nil || cfg.ChallengerBond.Sign() <= 0 {
 		return nil, fmt.Errorf("ZK challengerBond must be a positive value")
