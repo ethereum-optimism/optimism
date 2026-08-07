@@ -821,7 +821,7 @@
     },
     {
       "source": "/op-stack",
-      "destination": "/op-stack/protocol"
+      "destination": "/op-stack/introduction/op-stack"
     },
     {
       "source": "/get-started/superchain",
