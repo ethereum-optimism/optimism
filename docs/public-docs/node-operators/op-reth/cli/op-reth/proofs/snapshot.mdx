@@ -1,33 +1,24 @@
 ---
-title: "op-reth db settings set transaction_senders"
+title: "op-reth proofs snapshot"
 diataxis: reference
 ---
 
-Store transaction senders in static files instead of the database
+Build or drop the trie-state snapshot
 
 ```bash
-$ op-reth db settings set transaction_senders --help
+$ op-reth proofs snapshot --help
 ```
 ```txt
-Usage: op-reth db settings set transaction_senders [OPTIONS] <VALUE>
+Usage: op-reth proofs snapshot [OPTIONS] <COMMAND>
 
-Arguments:
-  <VALUE>
-          [possible values: true, false]
+Commands:
+  init  Build a snapshot at a target block and mark it Ready
+  drop  Drop the snapshot tables and meta row
+  help  Print this message or the help of the given subcommand(s)
 
 Options:
   -h, --help
           Print help (see a summary with '-h')
-
-Datadir:
-      --chain <CHAIN_OR_PATH>
-          The chain this node is running.
-          Possible values are either a built-in chain or the path to a chain specification file.
-
-          Built-in chains:
-              optimism, optimism_sepolia, optimism-sepolia, base, base_sepolia, base-sepolia, arena-z, arena-z-sepolia, automata, base-devnet-0-sepolia-dev-0, bob, boba-sepolia, boba, camp-sepolia, celo, creator-chain-testnet-sepolia, cyber, cyber-sepolia, ethernity, ethernity-sepolia, fraxtal, funki, funki-sepolia, hashkeychain, ink, ink-sepolia, lisk, lisk-sepolia, lyra, metal, metal-sepolia, mint, mode, mode-sepolia, oplabs-devnet-0-sepolia-dev-0, orderly, ozean-sepolia, pivotal-sepolia, polynomial, race, race-sepolia, radius_testnet-sepolia, redstone, rehearsal-0-bn-0-rehearsal-0-bn, rehearsal-0-bn-1-rehearsal-0-bn, settlus-mainnet, settlus-sepolia-sepolia, shape, shape-sepolia, silent-data-mainnet, snax, soneium, soneium-minato-sepolia, sseed, swan, swell, tbn, tbn-sepolia, unichain, unichain-sepolia, worldchain, worldchain-sepolia, xterio-eth, zora, zora-sepolia, dev
-
-          [default: optimism]
 
 Logging:
       --log.stdout.format <FORMAT>
@@ -43,7 +34,7 @@ Logging:
       --log.stdout.filter <FILTER>
           The filter to use for logs written to stdout
 
-          [default: ]
+          [default: ""]
 
       --log.file.format <FORMAT>
           The format to use for logs written to the log file
@@ -76,9 +67,9 @@ Logging:
           [default: 200]
 
       --log.file.max-files <COUNT>
-          The maximum amount of log files that will be stored. If set to 0, background file logging is disabled
+          The maximum amount of log files that will be stored. If set to 0, background file logging is disabled.
 
-          [default: 5]
+          Default: 5 for `node` command, 0 for non-node utility subcommands.
 
       --log.journald
           Write logs to journald

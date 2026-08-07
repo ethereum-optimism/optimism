@@ -151,6 +151,30 @@ func TestReceiptsEncodeIndexOuterFieldsAuthoritative(t *testing.T) {
 	require.NotEqual(t, mirroredBuf.Bytes(), desyncedBuf.Bytes())
 }
 
+// TestFromGethReceiptMirrorsDepositFields covers the wrapping constructor
+// against the hazard above: it carries the deposit fields to the authoritative
+// outer copies, where wrapping by hand leaves them nil.
+func TestFromGethReceiptMirrorsDepositFields(t *testing.T) {
+	gr := *consensusReceiptCases()[0] // legacy shape, mutate into a deposit
+	gr.Type = gethtypes.DepositTxType
+	gr.DepositNonce = uint64Ptr(7)
+	gr.DepositReceiptVersion = uint64Ptr(gethtypes.CanyonDepositReceiptVersion)
+
+	wrapped := optypes.FromGethReceipt(&gr)
+	require.Equal(t, gr.DepositNonce, wrapped.DepositNonce)
+	require.Equal(t, gr.DepositReceiptVersion, wrapped.DepositReceiptVersion)
+
+	var wrappedBuf, handBuiltBuf bytes.Buffer
+	optypes.Receipts{wrapped}.EncodeIndex(0, &wrappedBuf)
+	optypes.Receipts{{Receipt: gr}}.EncodeIndex(0, &handBuiltBuf)
+	require.NotEqual(t, handBuiltBuf.Bytes(), wrappedBuf.Bytes())
+
+	// The list constructor wraps identically.
+	var listBuf bytes.Buffer
+	optypes.FromGethReceipts(gethtypes.Receipts{&gr}).EncodeIndex(0, &listBuf)
+	require.Equal(t, wrappedBuf.Bytes(), listBuf.Bytes())
+}
+
 // TestReceiptUnmarshalBinaryDifferential asserts the consensus decode against
 // op-geth's MarshalBinary for every encoding arm. It will be removed in the
 // final cutover, when the op-geth dependency is replaced with upstream

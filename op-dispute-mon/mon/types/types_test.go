@@ -2,11 +2,35 @@ package types
 
 import (
 	"fmt"
+	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
+
+func TestBondGameDataRecipientAddresses(t *testing.T) {
+	addresses := [6]common.Address{{0x06}, {0x01}, {0x05}, {0x03}, {0x02}, {0x04}}
+	data := BondGameData{
+		Recipients:      map[common.Address]bool{addresses[0]: true},
+		Credits:         map[common.Address]*big.Int{addresses[1]: big.NewInt(1)},
+		ExpectedCredits: map[common.Address]*big.Int{addresses[2]: big.NewInt(2)},
+		WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{
+			addresses[3]: {},
+		},
+		Bonds: []BondRecord{
+			{Depositor: addresses[4]},
+			{Depositor: addresses[4], Recipient: addresses[5], Resolved: true},
+			{Depositor: addresses[4], Recipient: common.Address{0xff}},
+		},
+	}
+
+	require.Equal(t, []common.Address{
+		addresses[1], addresses[4], addresses[3], addresses[5], addresses[2], addresses[0],
+	}, data.RecipientAddresses())
+}
 
 func TestCommonGameData_UsesOutputRoots(t *testing.T) {
 	for _, gameType := range outputRootGameTypes {

@@ -90,10 +90,10 @@ pub enum ProposerGauge {
     UnknownRegisteredPrestate,
     /// Total number of times a game's super-root data could not be fetched
     /// or validated, either during sync (game held as pending) or during a
-    /// defense task (task fails and retries next cycle).
+    /// proving task (task fails and retries next cycle).
     #[strum(
         serialize = "kona_sp1_proposer_super_root_unavailable",
-        message = "Total number of times a game's super-root data was unavailable (sync or defense)"
+        message = "Total number of times a game's super-root data was unavailable (sync or proving)"
     )]
     SuperRootUnavailable,
     /// Total number of per-game sync failures. A discovery (fetch) failure
@@ -119,7 +119,7 @@ pub enum ProposerGauge {
         message = "Latest game index on the factory at the pinned block (-1 when empty)"
     )]
     FactoryLatestGameIndex,
-    // Defense metrics
+    // Proving metrics (defense and fast finality)
     /// Total number of games proven by the proposer.
     #[strum(
         serialize = "kona_sp1_proposer_games_proven",
@@ -132,23 +132,31 @@ pub enum ProposerGauge {
         message = "Total number of defense proving tasks spawned"
     )]
     GamesDefenseSpawned,
+    /// Total number of fast finality proving tasks spawned (games proven
+    /// while still unchallenged; see `FAST_FINALITY_MODE`).
+    #[strum(
+        serialize = "kona_sp1_proposer_games_fast_finality_spawned",
+        message = "Total number of fast finality proving tasks spawned"
+    )]
+    GamesFastFinalitySpawned,
     /// Duration of the most recent successful game proving run, in seconds.
     #[strum(
         serialize = "kona_sp1_proposer_proving_duration_seconds",
         message = "Duration of the most recent successful game proving run in seconds"
     )]
     ProvingDurationSeconds,
-    /// Total number of times a prove deadline was observed approaching
-    /// (within half of `maxProveDuration`).
+    /// Total number of times a proving deadline was observed approaching
+    /// (within half of `maxProveDuration` for defense tasks, half of
+    /// `maxChallengeDuration` for fast finality tasks).
     #[strum(
         serialize = "kona_sp1_proposer_deadline_approaching",
         message = "Total number of approaching-deadline observations"
     )]
     DeadlineApproaching,
-    // Defense error metrics. In network mode a persistently failing game
-    // re-purchases its full proof set on every retry until the prove
-    // deadline expires: a sustained non-zero rate on these gauges is a
-    // spend alarm, not a transient.
+    // Proving error metrics (defense and fast finality). In network mode a
+    // persistently failing game re-purchases its full proof set on every
+    // retry until its deadline expires: a sustained non-zero rate on these
+    // gauges is a spend alarm, not a transient.
     /// Total number of game proving task failures.
     #[strum(
         serialize = "kona_sp1_proposer_game_proving_error",

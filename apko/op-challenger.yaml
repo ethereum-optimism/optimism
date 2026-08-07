@@ -8,6 +8,8 @@ contents:
     - https://packages.wolfi.dev/os
   packages:
     - ca-certificates-bundle
+    - busybox
+    - apk-tools
     # ca-certificates provides update-ca-certificates binary (ca-certificates-bundle is cert data only).
     # Required: the chart's /init/entrypoint.sh calls update-ca-certificates before exec.
     - ca-certificates

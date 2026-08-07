@@ -1,21 +1,28 @@
 ---
-title: "op-reth db settings set storage_changesets"
+title: "op-reth db stage-checkpoints set"
 diataxis: reference
 ---
 
-Store storage changesets in static files instead of the database
+Set a stage checkpoint
 
 ```bash
-$ op-reth db settings set storage_changesets --help
+$ op-reth db stage-checkpoints set --help
 ```
 ```txt
-Usage: op-reth db settings set storage_changesets [OPTIONS] <VALUE>
-
-Arguments:
-  <VALUE>
-          [possible values: true, false]
+Usage: op-reth db stage-checkpoints set [OPTIONS] --stage <STAGE> --block-number <BLOCK_NUMBER>
 
 Options:
+      --stage <STAGE>
+          Stage to update
+
+          [possible values: era, headers, bodies, sender-recovery, execution, prune-sender-recovery, merkle-unwind, account-hashing, storage-hashing, merkle-execute, transaction-lookup, index-storage-history, index-account-history, prune, finish]
+
+      --block-number <BLOCK_NUMBER>
+          Block number to set as stage checkpoint
+
+      --clear-stage-unit
+          Clear stage-specific unit checkpoint payload
+
   -h, --help
           Print help (see a summary with '-h')
 
@@ -25,7 +32,7 @@ Datadir:
           Possible values are either a built-in chain or the path to a chain specification file.
 
           Built-in chains:
-              optimism, optimism_sepolia, optimism-sepolia, base, base_sepolia, base-sepolia, arena-z, arena-z-sepolia, automata, base-devnet-0-sepolia-dev-0, bob, boba-sepolia, boba, camp-sepolia, celo, creator-chain-testnet-sepolia, cyber, cyber-sepolia, ethernity, ethernity-sepolia, fraxtal, funki, funki-sepolia, hashkeychain, ink, ink-sepolia, lisk, lisk-sepolia, lyra, metal, metal-sepolia, mint, mode, mode-sepolia, oplabs-devnet-0-sepolia-dev-0, orderly, ozean-sepolia, pivotal-sepolia, polynomial, race, race-sepolia, radius_testnet-sepolia, redstone, rehearsal-0-bn-0-rehearsal-0-bn, rehearsal-0-bn-1-rehearsal-0-bn, settlus-mainnet, settlus-sepolia-sepolia, shape, shape-sepolia, silent-data-mainnet, snax, soneium, soneium-minato-sepolia, sseed, swan, swell, tbn, tbn-sepolia, unichain, unichain-sepolia, worldchain, worldchain-sepolia, xterio-eth, zora, zora-sepolia, dev
+              optimism, op-mainnet, optimism_sepolia, optimism-sepolia, automata, bob, boba, celo, cyber, ethernity, fraxtal, funki, hashkeychain, ink, lisk, lyra, metal, mint, mode, op, orderly, polynomial, race, redstone, settlus-mainnet, shape, silent-data-mainnet, soneium, sseed, swan, tbn, unichain, worldchain, xterio-eth, zora, boba-sepolia, camp-sepolia, celo-sep-sepolia, cyber-sepolia, funki-sepolia, ink-sepolia, lisk-sepolia, metal-sepolia, mode-sepolia, op-sepolia, ozean-sepolia, pivotal-sepolia, race-sepolia, radius_testnet-sepolia, settlus-sepolia-sepolia, shape-sepolia, soneium-minato-sepolia, tbn-sepolia, unichain-sepolia, worldchain-sepolia, zora-sepolia, oplabs-devnet-0-sepolia-dev-0, sepolia-devnet-2-sepolia-devnet-2, dev
 
           [default: optimism]
 
@@ -43,7 +50,7 @@ Logging:
       --log.stdout.filter <FILTER>
           The filter to use for logs written to stdout
 
-          [default: ]
+          [default: ""]
 
       --log.file.format <FORMAT>
           The format to use for logs written to the log file
@@ -76,9 +83,9 @@ Logging:
           [default: 200]
 
       --log.file.max-files <COUNT>
-          The maximum amount of log files that will be stored. If set to 0, background file logging is disabled
+          The maximum amount of log files that will be stored. If set to 0, background file logging is disabled.
 
-          [default: 5]
+          Default: 5 for `node` command, 0 for non-node utility subcommands.
 
       --log.journald
           Write logs to journald

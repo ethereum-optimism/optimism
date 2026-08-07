@@ -34,48 +34,54 @@ func makeGames(distributionMode faultTypes.BondDistributionMode, noWithdrawalReq
 
 	game1 := &monTypes.FaultGameData{
 		CommonGameData: monTypes.CommonGameData{GameMetadata: types.GameMetadata{Proxy: common.Address{0x11, 0x11, 0x11}}},
-		Credits: map[common.Address]*big.Int{
-			honestActor1: big.NewInt(3),
-			honestActor2: big.NewInt(1),
+		BondGameData: monTypes.BondGameData{
+			Credits: map[common.Address]*big.Int{
+				honestActor1: big.NewInt(3),
+				honestActor2: big.NewInt(1),
+			},
+			BondDistributionMode: distributionMode,
+			WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{
+				honestActor1: {Amount: big.NewInt(3), Timestamp: big.NewInt(nowUnix - 101)}, // Claimable
+				honestActor2: {Amount: big.NewInt(1), Timestamp: big.NewInt(nowUnix - 99)},  // Not claimable
+			},
+			WETHContract:  weth1,
+			ETHCollateral: weth1Balance,
+			WETHDelay:     100 * time.Second,
 		},
-		BondDistributionMode: distributionMode,
-		WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{
-			honestActor1: {Amount: big.NewInt(3), Timestamp: big.NewInt(nowUnix - 101)}, // Claimable
-			honestActor2: {Amount: big.NewInt(1), Timestamp: big.NewInt(nowUnix - 99)},  // Not claimable
-		},
-		WETHContract:  weth1,
-		ETHCollateral: weth1Balance,
-		WETHDelay:     100 * time.Second,
 	}
 	game2 := &monTypes.FaultGameData{
-		CommonGameData:       monTypes.CommonGameData{GameMetadata: types.GameMetadata{Proxy: common.Address{0x22, 0x22, 0x22}}},
-		BondDistributionMode: distributionMode,
-		Credits: map[common.Address]*big.Int{
-			honestActor1: big.NewInt(46),
-			honestActor2: big.NewInt(1),
+		CommonGameData: monTypes.CommonGameData{GameMetadata: types.GameMetadata{Proxy: common.Address{0x22, 0x22, 0x22}}},
+		BondGameData: monTypes.BondGameData{
+			BondDistributionMode: distributionMode,
+			Credits: map[common.Address]*big.Int{
+				honestActor1: big.NewInt(46),
+				honestActor2: big.NewInt(1),
+			},
+			WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{
+				honestActor1: {Amount: big.NewInt(3), Timestamp: big.NewInt(nowUnix - 501)}, // Claimable
+				honestActor2: {Amount: big.NewInt(1), Timestamp: big.NewInt(nowUnix)},       // Not claimable
+			},
+			WETHContract:  weth2,
+			ETHCollateral: weth2Balance,
+			WETHDelay:     500 * time.Second,
 		},
-		WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{
-			honestActor1: {Amount: big.NewInt(3), Timestamp: big.NewInt(nowUnix - 501)}, // Claimable
-			honestActor2: {Amount: big.NewInt(1), Timestamp: big.NewInt(nowUnix)},       // Not claimable
-		},
-		WETHContract:  weth2,
-		ETHCollateral: weth2Balance,
-		WETHDelay:     500 * time.Second,
 	}
 	game3 := &monTypes.FaultGameData{
-		CommonGameData:       monTypes.CommonGameData{GameMetadata: types.GameMetadata{Proxy: common.Address{0x33, 0x33, 0x33}}},
-		BondDistributionMode: distributionMode,
-		Credits: map[common.Address]*big.Int{
-			honestActor3:    big.NewInt(2),
-			dishonestActor4: big.NewInt(4),
+		CommonGameData: monTypes.CommonGameData{GameMetadata: types.GameMetadata{Proxy: common.Address{0x33, 0x33, 0x33}}},
+		BondGameData: monTypes.BondGameData{
+			BondDistributionMode: distributionMode,
+			Credits: map[common.Address]*big.Int{
+				honestActor3:    big.NewInt(2),
+				dishonestActor4: big.NewInt(4),
+			},
+			WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{
+				honestActor3:    {Amount: big.NewInt(2), Timestamp: big.NewInt(nowUnix - 1)}, // Claimable
+				dishonestActor4: {Amount: big.NewInt(4), Timestamp: big.NewInt(nowUnix - 5)}, // Claimable
+			},
+			WETHContract:  weth2,
+			ETHCollateral: weth2Balance,
+			WETHDelay:     0 * time.Second,
 		},
-		WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{
-			honestActor3:    {Amount: big.NewInt(2), Timestamp: big.NewInt(nowUnix - 1)}, // Claimable
-			dishonestActor4: {Amount: big.NewInt(4), Timestamp: big.NewInt(nowUnix - 5)}, // Claimable
-		},
-		WETHContract:  weth2,
-		ETHCollateral: weth2Balance,
-		WETHDelay:     0 * time.Second,
 	}
 	if noWithdrawalRequest {
 		// eth_call will return 0s, not nil, when no withdrawal request is present
@@ -129,7 +135,7 @@ func TestCheckWithdrawals(t *testing.T) {
 			honestActors := monTypes.NewHonestActors([]common.Address{honestActor1, honestActor2, honestActor3})
 			withdrawals := NewWithdrawalMonitor(logger, cl, metrics, honestActors)
 			games := makeGames(test.distributionMode, test.noWithdrawalRequest)
-			withdrawals.CheckWithdrawals(games)
+			withdrawals.CheckWithdrawals(asBondedGames(games))
 
 			require.Equal(t, metrics.matchCalls, 2)
 			require.Equal(t, metrics.divergeCalls, 2)
@@ -206,19 +212,21 @@ func TestWithdrawalNotInitiated(t *testing.T) {
 	games := []*monTypes.FaultGameData{
 		{
 			CommonGameData: monTypes.CommonGameData{GameMetadata: types.GameMetadata{Proxy: common.Address{0x11, 0x11, 0x11}}},
-			Credits: map[common.Address]*big.Int{
-				honestActor1: big.NewInt(3),
+			BondGameData: monTypes.BondGameData{
+				Credits: map[common.Address]*big.Int{
+					honestActor1: big.NewInt(3),
+				},
+				BondDistributionMode: faultTypes.NormalDistributionMode,
+				WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{
+					honestActor1: {Amount: big.NewInt(0), Timestamp: big.NewInt(0)},
+				},
+				WETHContract:  weth1,
+				ETHCollateral: big.NewInt(3),
+				WETHDelay:     100 * time.Second,
 			},
-			BondDistributionMode: faultTypes.NormalDistributionMode,
-			WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{
-				honestActor1: {Amount: big.NewInt(0), Timestamp: big.NewInt(0)},
-			},
-			WETHContract:  weth1,
-			ETHCollateral: big.NewInt(3),
-			WETHDelay:     100 * time.Second,
 		},
 	}
-	withdrawals.CheckWithdrawals(games)
+	withdrawals.CheckWithdrawals(asBondedGames(games))
 
 	require.NotNil(t, logs.FindLog(testlog.NewMessageFilter("Found uninitiated withdrawal"),
 		testlog.NewAttributesFilter("recipient", honestActor1.Hex()),
@@ -227,6 +235,14 @@ func TestWithdrawalNotInitiated(t *testing.T) {
 
 	require.Truef(t, big.NewInt(3).Cmp(metrics.honestWithdrawable[honestActor1]) == 0,
 		"Expected %v withdrawable to be %v but was %v", honestActor1, 3, metrics.honestWithdrawable[honestActor1])
+}
+
+func asBondedGames(games []*monTypes.FaultGameData) []monTypes.BondedGame {
+	result := make([]monTypes.BondedGame, len(games))
+	for i, game := range games {
+		result[i] = game
+	}
+	return result
 }
 
 type stubWithdrawalsMetrics struct {

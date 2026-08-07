@@ -62,6 +62,7 @@ func loadZKProgramVKey(elfDir string) (common.Hash, error) {
 
 type zkProposerConfig struct {
 	ProposalInterval *time.Duration
+	FastFinality     bool
 	MetricsPort      *uint16
 }
 
@@ -74,6 +75,14 @@ type ZKProposerOption func(cfg *zkProposerConfig)
 func WithZKProposalInterval(interval time.Duration) ZKProposerOption {
 	return func(cfg *zkProposerConfig) {
 		cfg.ProposalInterval = &interval
+	}
+}
+
+// WithZKFastFinality makes the proposer prove every game it owns while it
+// is still unchallenged (FAST_FINALITY_MODE=true).
+func WithZKFastFinality() ZKProposerOption {
+	return func(cfg *zkProposerConfig) {
+		cfg.FastFinality = true
 	}
 }
 
@@ -115,7 +124,7 @@ func startZKProposer(
 	l1EL L1ELNode,
 	l1CL *L1CLNode,
 	depSet depset.DependencySet,
-	supernodeRPC string,
+	superRootRPC string,
 	l2Nets []*L2Network,
 	l2ELs []L2ELNode,
 	factoryAddr common.Address,
@@ -182,7 +191,7 @@ func startZKProposer(
 
 	env := []string{
 		"L1_RPC=" + l1EL.UserRPC(),
-		"SUPERNODE_RPC=" + supernodeRPC,
+		"SUPERROOT_RPC=" + superRootRPC,
 		"FACTORY_ADDRESS=" + factoryAddr.Hex(),
 		"PRESTATES_URL=file://" + prestatesDir,
 		"PRIVATE_KEY=" + hexutil.Encode(crypto.FromECDSA(proposerSecret)),
@@ -201,6 +210,9 @@ func startZKProposer(
 	}
 	if cfg.ProposalInterval != nil {
 		env = append(env, "PROPOSAL_INTERVAL_SECONDS="+strconv.FormatUint(uint64(*cfg.ProposalInterval/time.Second), 10))
+	}
+	if cfg.FastFinality {
+		env = append(env, "FAST_FINALITY_MODE=true")
 	}
 	// Always pin METRICS_PORT: the child inherits the host environment, and
 	// an inherited value (op-succinct deployments export this exact name)

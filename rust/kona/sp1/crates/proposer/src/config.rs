@@ -1,4 +1,10 @@
 //! Environment-driven proposer configuration.
+//!
+//! Trimmed from op-succinct's `fault-proof/src/config.rs` (@ 13716c2c):
+//! proof-provider selection, SP1 network knobs, range splitting, and the
+//! fast finality knobs are ported; cluster proving, restart recovery, and
+//! the challenger and forge-deploy configs are deliberately not ported
+//! (see PR #21463 for the ledger).
 
 use std::{
     env,
@@ -66,9 +72,9 @@ pub struct ProposerConfig {
     /// The L1 RPC URL.
     pub l1_rpc: Url,
 
-    /// The supernode (or single-chain op-node) RPC URL serving
-    /// `superroot_atTimestamp`.
-    pub supernode_rpc: Url,
+    /// The RPC URL serving `superroot_atTimestamp`, provided by an op-supernode
+    /// or a single-chain op-node.
+    pub superroot_rpc: Url,
 
     /// The address of the `DisputeGameFactory` contract.
     pub factory_address: Address,
@@ -156,7 +162,16 @@ pub struct ProposerConfig {
     /// rejected at parse time: it would silently disable defense.
     pub max_concurrent_defense_tasks: NonZeroU64,
 
-    /// SP1 request limits and fulfillment settings.
+    /// Prove every owned game while it is still unchallenged (fast finality).
+    /// A proven game resolves as soon as its parent does, without waiting out
+    /// `maxChallengeDuration`. Trades proof spend for finality latency.
+    pub fast_finality_mode: bool,
+
+    /// Total in-flight proving tasks (defense included) allowed before game
+    /// creation pauses in fast finality mode.
+    pub fast_finality_proving_limit: NonZeroU64,
+
+    /// SP1 proof-provider settings (timeouts, strategies, limits, prices).
     pub proof_provider_config: ProofProviderConfig,
 }
 
@@ -203,10 +218,10 @@ impl ProposerConfig {
                 .context("L1_RPC not set")?
                 .parse()
                 .map_err(|err| anyhow!("invalid L1_RPC: {err}"))?,
-            supernode_rpc: env::var("SUPERNODE_RPC")
-                .context("SUPERNODE_RPC not set")?
+            superroot_rpc: env::var("SUPERROOT_RPC")
+                .context("SUPERROOT_RPC not set")?
                 .parse()
-                .map_err(|err| anyhow!("invalid SUPERNODE_RPC: {err}"))?,
+                .map_err(|err| anyhow!("invalid SUPERROOT_RPC: {err}"))?,
             factory_address: env::var("FACTORY_ADDRESS")
                 .context("FACTORY_ADDRESS not set")?
                 .parse()
@@ -241,6 +256,11 @@ impl ProposerConfig {
             max_concurrent_defense_tasks: parsed_env_or(
                 "MAX_CONCURRENT_DEFENSE_TASKS",
                 NonZeroU64::new(8).expect("8 is non-zero"),
+            )?,
+            fast_finality_mode: parsed_env_or("FAST_FINALITY_MODE", false)?,
+            fast_finality_proving_limit: parsed_env_or(
+                "FAST_FINALITY_PROVING_LIMIT",
+                NonZeroU64::MIN,
             )?,
             proof_provider_config: ProofProviderConfig::from_env()?,
         })
@@ -683,7 +703,7 @@ mod tests {
         fn from_env_requires_defend_path_vars() {
             unsafe {
                 env::set_var("L1_RPC", "http://127.0.0.1:8545");
-                env::set_var("SUPERNODE_RPC", "http://127.0.0.1:9545");
+                env::set_var("SUPERROOT_RPC", "http://127.0.0.1:9545");
                 env::set_var("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
                 env::set_var("PRESTATES_URL", "file:///tmp/prestates");
             }
@@ -709,6 +729,8 @@ mod tests {
             assert!(config.rollup_config_paths.is_none());
             assert_eq!(config.range_split_count, RangeSplitCount::one());
             assert_eq!(config.max_concurrent_defense_tasks.get(), 8);
+            assert!(!config.fast_finality_mode);
+            assert_eq!(config.fast_finality_proving_limit.get(), 1);
             assert_eq!(config.proof_provider_config.timeout, 14_400);
         }
 
@@ -719,7 +741,7 @@ mod tests {
         fn zero_defense_cap_is_rejected() {
             unsafe {
                 env::set_var("L1_RPC", "http://127.0.0.1:8545");
-                env::set_var("SUPERNODE_RPC", "http://127.0.0.1:9545");
+                env::set_var("SUPERROOT_RPC", "http://127.0.0.1:9545");
                 env::set_var("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
                 env::set_var("PRESTATES_URL", "file:///tmp/prestates");
                 env::set_var("PROOF_PROVIDER", "mock");
@@ -738,7 +760,7 @@ mod tests {
         fn zero_spn_timeouts_are_rejected() {
             unsafe {
                 env::set_var("L1_RPC", "http://127.0.0.1:8545");
-                env::set_var("SUPERNODE_RPC", "http://127.0.0.1:9545");
+                env::set_var("SUPERROOT_RPC", "http://127.0.0.1:9545");
                 env::set_var("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
                 env::set_var("PRESTATES_URL", "file:///tmp/prestates");
                 env::set_var("PROOF_PROVIDER", "mock");

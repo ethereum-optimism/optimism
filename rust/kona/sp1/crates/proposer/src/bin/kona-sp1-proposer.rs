@@ -36,7 +36,7 @@ async fn main() -> Result<()> {
 
     tracing::info!(
         l1_rpc = %redacted_url(&config.l1_rpc),
-        supernode_rpc = %redacted_url(&config.supernode_rpc),
+        superroot_rpc = %redacted_url(&config.superroot_rpc),
         factory_address = %config.factory_address,
         prestates_url = %redacted_url(&config.prestates_url),
         proposal_interval_seconds = config.proposal_interval_seconds,
@@ -61,6 +61,8 @@ async fn main() -> Result<()> {
         range_split_count = ?config.range_split_count,
         max_concurrent_range_proofs = %config.max_concurrent_range_proofs,
         max_concurrent_defense_tasks = %config.max_concurrent_defense_tasks,
+        fast_finality_mode = config.fast_finality_mode,
+        fast_finality_proving_limit = %config.fast_finality_proving_limit,
         "Resolved proposer configuration"
     );
 

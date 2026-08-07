@@ -1,6 +1,8 @@
 package types
 
 import (
+	"bytes"
+	"maps"
 	"math/big"
 	"slices"
 	"time"
@@ -38,11 +40,77 @@ type EnrichedClaim struct {
 	Resolved bool
 }
 
+// BondRecord describes the monitor's normalized accounting view of one deposited game bond.
+type BondRecord struct {
+	Depositor common.Address
+	// Recipient is the monitor's normalized recipient once the bond is resolved.
+	// Fault snapshots preserve the historical normal-resolution recipient, so this is
+	// not necessarily the contract's current payout recipient.
+	Recipient common.Address
+	Amount    *big.Int
+	Resolved  bool
+	// Forfeited reports whether normalized accounting counts Amount as lost by Depositor and won by Recipient.
+	Forfeited bool
+}
+
+// BondGameData contains normalized bond and DelayedWETH state.
+type BondGameData struct {
+	Bonds      []BondRecord
+	Recipients map[common.Address]bool
+	Credits    map[common.Address]*big.Int
+	// ExpectedCredits maps recipients to the credit amounts expected by the monitor.
+	// Fault snapshots preserve the historical normal-resolution view, which may differ
+	// from the current payout when BondDistributionMode uses different semantics.
+	ExpectedCredits map[common.Address]*big.Int
+
+	BondDistributionMode faultTypes.BondDistributionMode
+	WithdrawalRequests   map[common.Address]*contracts.WithdrawalRequest
+	WETHContract         common.Address
+	WETHDelay            time.Duration
+	ETHCollateral        *big.Int
+	CreditWithdrawableAt time.Time
+}
+
+// RecipientAddresses returns a deterministic union of all addresses represented in the bond snapshot.
+func (d *BondGameData) RecipientAddresses() []common.Address {
+	recipients := make(map[common.Address]bool)
+	for recipient := range d.Recipients {
+		recipients[recipient] = true
+	}
+	for recipient := range d.Credits {
+		recipients[recipient] = true
+	}
+	for recipient := range d.ExpectedCredits {
+		recipients[recipient] = true
+	}
+	for recipient := range d.WithdrawalRequests {
+		recipients[recipient] = true
+	}
+	for _, bond := range d.Bonds {
+		recipients[bond.Depositor] = true
+		if bond.Resolved {
+			recipients[bond.Recipient] = true
+		}
+	}
+	result := slices.Collect(maps.Keys(recipients))
+	slices.SortFunc(result, func(a, b common.Address) int {
+		return bytes.Compare(a[:], b[:])
+	})
+	return result
+}
+
 // EnrichedGame is a complete, pinned snapshot of a supported dispute game.
 // Implementations are sealed so every game kind is handled explicitly.
 type EnrichedGame interface {
 	Common() *CommonGameData
 	enrichedGame()
+}
+
+// BondedGame is a complete pinned snapshot of a game that holds bonds in DelayedWETH.
+type BondedGame interface {
+	EnrichedGame
+	BondData() *BondGameData
+	bondedGame()
 }
 
 // CommonGameData contains fields shared by every supported game kind.
@@ -91,31 +159,12 @@ type CommonGameData struct {
 // FaultGameData contains claims, bonds, withdrawals, and challenge state for a fault game.
 type FaultGameData struct {
 	CommonGameData
+	BondGameData
 
 	MaxClockDuration      uint64
 	BlockNumberChallenged bool
 	BlockNumberChallenger common.Address
 	Claims                []EnrichedClaim
-
-	// Recipients maps addresses to true if they are a bond recipient in the game.
-	Recipients map[common.Address]bool
-
-	// Credits records the paid out bonds for the game, keyed by recipient.
-	Credits map[common.Address]*big.Int
-
-	BondDistributionMode faultTypes.BondDistributionMode
-
-	// WithdrawalRequests maps recipients with withdrawal requests in DelayedWETH for this game.
-	WithdrawalRequests map[common.Address]*contracts.WithdrawalRequest
-
-	// WETHContract is the address of the DelayedWETH contract used by this game.
-	WETHContract common.Address
-
-	// WETHDelay is the delay applied before credits can be withdrawn.
-	WETHDelay time.Duration
-
-	// ETHCollateral is the ETH balance of the potentially shared WETHContract.
-	ETHCollateral *big.Int
 }
 
 // SuperPermissionedGameData is the common snapshot of a SuperPermissioned game.
@@ -128,6 +177,11 @@ func (g *SuperPermissionedGameData) Common() *CommonGameData { return &g.CommonG
 
 func (*FaultGameData) enrichedGame()             {}
 func (*SuperPermissionedGameData) enrichedGame() {}
+
+func (g *FaultGameData) BondData() *BondGameData { return &g.BondGameData }
+func (*FaultGameData) bondedGame()               {}
+
+var _ BondedGame = (*FaultGameData)(nil)
 
 // UsesOutputRoots returns true if the game type is one of the known types that use output roots as proposals.
 func (g CommonGameData) UsesOutputRoots() bool {

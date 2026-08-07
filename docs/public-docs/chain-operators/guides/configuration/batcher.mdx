@@ -76,7 +76,7 @@ The minimum tip cap and base fee are also lifted to 2 gwei because it is uncerta
 The resubmission timeout is increased to a few minutes to give more time for inclusion before bumping the fees because current transaction pool implementations require a doubling of fees for blob transaction replacements.
 
 Multi-blob transactions are particularly useful for medium to high-throughput chains, where enough transaction volume exists to fill up 6 blobs in a reasonable amount of time.
-To determine what number of blobs is right for your chain, estimate the compressed batch data your chain produces per channel duration and divide by blob capacity (about 130 KB); [Size your channels](/use-cases/tune-batcher-costs#step-4-size-your-channels) in the Tune batcher costs guide walks through this estimate and the matching fee scalar configuration. Please also refer to guide on [Using Blobs](/chain-operators/guides/features/blobs) for chain operators.
+To determine what number of blobs is right for your chain, estimate the compressed batch data your chain produces per channel duration and divide by blob capacity (about 130 KB); [Size your channels](/use-cases/tune-batcher-costs#step-4-size-your-channels) in the Tune batcher costs guide walks through this estimate and the matching fee scalar configuration. Please also refer to the [Post batch data as blobs](/chain-operators/guides/features/blobs) guide for chain operators.
 
 ### Set your `--batch-type=1` to use span batches
 
@@ -97,7 +97,7 @@ There are two throttling knobs:
 
 **Feature requirements**
 
-*   This feature is enabled by default and requires the sequencer's `op-reth` node to expose the `miner_setMaxDASize` RPC (enable the `miner` namespace, below). It can be disabled by setting `--throttle-threshold` to 0. The sequencer's `op-reth` node has to be updated first, before updating the batcher, so that the required RPC is available at the time of the batcher restart.
+*   This feature is enabled by default and requires the sequencer's `op-reth` node to expose the `miner_setMaxDASize` RPC (enable the `miner` namespace, below). It can be disabled by setting `--throttle.unsafe-da-bytes-lower-threshold` (env var `OP_BATCHER_THROTTLE_UNSAFE_DA_BYTES_LOWER_THRESHOLD`) to 0, which is the only flag you need to change to turn throttling off. The sequencer's `op-reth` node has to be updated first, before updating the batcher, so that the required RPC is available at the time of the batcher restart.
 *   It is required to upgrade to `op-conductor/v0.2.0` if you are using conductor's leader-aware rpc proxy feature. This conductor release includes support for proxying the `miner_setMaxDASize` RPC.
 
 **Configuration**

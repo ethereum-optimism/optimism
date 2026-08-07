@@ -24,6 +24,7 @@ Commands:
   config              Write config to stdout
   prune               Prune according to the configuration without any limits
   re-execute          Re-execute blocks in parallel to verify historical sync correctness
+  proofs              Manage storage of historical proofs in expanded trie db in fault proof window
   help                Print this message or the help of the given subcommand(s)
 
 Options:
@@ -47,7 +48,7 @@ Logging:
       --log.stdout.filter <FILTER>
           The filter to use for logs written to stdout
 
-          [default: ]
+          [default: ""]
 
       --log.file.format <FORMAT>
           The format to use for logs written to the log file
@@ -80,9 +81,9 @@ Logging:
           [default: 200]
 
       --log.file.max-files <COUNT>
-          The maximum amount of log files that will be stored. If set to 0, background file logging is disabled
+          The maximum amount of log files that will be stored. If set to 0, background file logging is disabled.
 
-          [default: 5]
+          Default: 5 for `node` command, 0 for non-node utility subcommands.
 
       --log.journald
           Write logs to journald

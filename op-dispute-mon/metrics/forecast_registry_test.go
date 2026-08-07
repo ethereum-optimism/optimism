@@ -1,14 +1,19 @@
-// Package metrics_test stays external because mon imports metrics, while this test exercises mon.Forecast.
+// Package metrics_test stays external because mon imports metrics, while these tests exercise monitor components.
 package metrics_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon"
+	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/bonds"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum/go-ethereum/common"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
 )
@@ -49,6 +54,43 @@ func TestForecastRecordsCanonicalAgreementSeries(t *testing.T) {
 
 	forecast.Forecast(nil, 0, 0)
 	family = gatherMetricFamily(t, metricer, "op_dispute_mon_games_agreement")
+	require.Len(t, family.Metric, len(expected))
+	for _, sample := range family.Metric {
+		require.Zero(t, sample.GetGauge().GetValue())
+	}
+}
+
+func TestBondsRecordsCanonicalHonestActorSeries(t *testing.T) {
+	actor := common.Address{0xaa}
+	other := common.Address{0xbb}
+	metricer := metrics.NewMetrics()
+	monitor := bonds.NewBonds(
+		testlog.Logger(t, 0),
+		metricer,
+		clock.NewDeterministicClock(time.Unix(0, 0)),
+		monTypes.NewHonestActors([]common.Address{actor}),
+	)
+	monitor.CheckBonds([]monTypes.BondedGame{&monTypes.FaultGameData{BondGameData: monTypes.BondGameData{
+		Bonds: []monTypes.BondRecord{
+			{Depositor: actor, Amount: eth.Ether(1).ToBig()},
+			{Depositor: actor, Recipient: other, Amount: eth.Ether(2).ToBig(), Resolved: true, Forfeited: true},
+			{Depositor: other, Recipient: actor, Amount: eth.Ether(3).ToBig(), Resolved: true, Forfeited: true},
+		},
+		WETHContract:  common.Address{0xcc},
+		ETHCollateral: eth.Ether(6).ToBig(),
+	}}})
+
+	expected := map[string]float64{"pending": 1, "lost": 2, "won": 3}
+	family := gatherMetricFamily(t, metricer, "op_dispute_mon_honest_actor_bonds")
+	require.Len(t, family.Metric, len(expected))
+	for _, sample := range family.Metric {
+		labels := metricLabels(sample)
+		require.Equal(t, actor.Hex(), labels["honest_actor_address"])
+		require.Equal(t, expected[labels["state"]], sample.GetGauge().GetValue())
+	}
+
+	monitor.CheckBonds(nil)
+	family = gatherMetricFamily(t, metricer, "op_dispute_mon_honest_actor_bonds")
 	require.Len(t, family.Metric, len(expected))
 	for _, sample := range family.Metric {
 		require.Zero(t, sample.GetGauge().GetValue())

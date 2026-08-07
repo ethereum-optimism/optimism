@@ -1977,11 +1977,11 @@
     },
     {
       "source": "/rust/op-reth/cli/op-reth/db/settings/set/receipts_in_static_files",
-      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/receipts"
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
     },
     {
       "source": "/rust/op-reth/cli/op-reth/db/settings/set/transaction_senders_in_static_files",
-      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/transaction_senders"
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
     },
     {
       "source": "/app-developers/guides/superchain",
@@ -2221,31 +2221,31 @@
     },
     {
       "source": "/rust/op-reth/cli/op-reth/db/settings/set/receipts",
-      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/receipts"
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
     },
     {
       "source": "/rust/op-reth/cli/op-reth/db/settings/set/transaction_senders",
-      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/transaction_senders"
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
     },
     {
       "source": "/rust/op-reth/cli/op-reth/db/settings/set/account_changesets",
-      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/account_changesets"
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
     },
     {
       "source": "/rust/op-reth/cli/op-reth/db/settings/set/storages_history",
-      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/storages_history"
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
     },
     {
       "source": "/rust/op-reth/cli/op-reth/db/settings/set/transaction_hash_numbers",
-      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/transaction_hash_numbers"
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
     },
     {
       "source": "/rust/op-reth/cli/op-reth/db/settings/set/account_history",
-      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/account_history"
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
     },
     {
       "source": "/rust/op-reth/cli/op-reth/db/settings/set/storage_changesets",
-      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set/storage_changesets"
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
     },
     {
       "source": "/rust/op-reth/cli/op-reth/db/account-storage",
@@ -2638,6 +2638,34 @@
     {
       "source": "/app-developers/tools",
       "destination": "/app-developers/guides/building-apps"
+    },
+    {
+      "source": "/node-operators/op-reth/cli/op-reth/db/settings/set/account_changesets",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
+    },
+    {
+      "source": "/node-operators/op-reth/cli/op-reth/db/settings/set/account_history",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
+    },
+    {
+      "source": "/node-operators/op-reth/cli/op-reth/db/settings/set/receipts",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
+    },
+    {
+      "source": "/node-operators/op-reth/cli/op-reth/db/settings/set/storage_changesets",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
+    },
+    {
+      "source": "/node-operators/op-reth/cli/op-reth/db/settings/set/storages_history",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
+    },
+    {
+      "source": "/node-operators/op-reth/cli/op-reth/db/settings/set/transaction_hash_numbers",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
+    },
+    {
+      "source": "/node-operators/op-reth/cli/op-reth/db/settings/set/transaction_senders",
+      "destination": "/node-operators/op-reth/cli/op-reth/db/settings/set"
     }
   ],
   "interaction": {
@@ -2654,6 +2682,7 @@
               "index",
               "ai-docs",
               "chain-operators/quickstart",
+              "chain-operators/launch-paths",
               "op-stack/reference/glossary"
             ]
           },
@@ -3030,16 +3059,19 @@
                             "pages": [
                               "node-operators/op-reth/cli/op-reth/db/checksum",
                               "node-operators/op-reth/cli/op-reth/db/checksum/mdbx",
-                              "node-operators/op-reth/cli/op-reth/db/checksum/static-file"
+                              "node-operators/op-reth/cli/op-reth/db/checksum/static-file",
+                              "node-operators/op-reth/cli/op-reth/db/checksum/rocksdb"
                             ]
                           },
+                          "node-operators/op-reth/cli/op-reth/db/copy",
                           "node-operators/op-reth/cli/op-reth/db/diff",
                           {
                             "group": "op-reth db get",
                             "pages": [
                               "node-operators/op-reth/cli/op-reth/db/get",
                               "node-operators/op-reth/cli/op-reth/db/get/mdbx",
-                              "node-operators/op-reth/cli/op-reth/db/get/static-file"
+                              "node-operators/op-reth/cli/op-reth/db/get/static-file",
+                              "node-operators/op-reth/cli/op-reth/db/get/rocksdb"
                             ]
                           },
                           "node-operators/op-reth/cli/op-reth/db/drop",
@@ -3071,18 +3103,30 @@
                                 "group": "op-reth db settings set",
                                 "pages": [
                                   "node-operators/op-reth/cli/op-reth/db/settings/set",
-                                  "node-operators/op-reth/cli/op-reth/db/settings/set/receipts",
-                                  "node-operators/op-reth/cli/op-reth/db/settings/set/transaction_senders",
-                                  "node-operators/op-reth/cli/op-reth/db/settings/set/account_changesets",
-                                  "node-operators/op-reth/cli/op-reth/db/settings/set/storages_history",
-                                  "node-operators/op-reth/cli/op-reth/db/settings/set/transaction_hash_numbers",
-                                  "node-operators/op-reth/cli/op-reth/db/settings/set/account_history",
-                                  "node-operators/op-reth/cli/op-reth/db/settings/set/storage_changesets"
+                                  "node-operators/op-reth/cli/op-reth/db/settings/set/v2"
                                 ]
                               }
                             ]
                           },
-                          "node-operators/op-reth/cli/op-reth/db/account-storage"
+                          {
+                            "group": "op-reth db prune-checkpoints",
+                            "pages": [
+                              "node-operators/op-reth/cli/op-reth/db/prune-checkpoints",
+                              "node-operators/op-reth/cli/op-reth/db/prune-checkpoints/get",
+                              "node-operators/op-reth/cli/op-reth/db/prune-checkpoints/set"
+                            ]
+                          },
+                          {
+                            "group": "op-reth db stage-checkpoints",
+                            "pages": [
+                              "node-operators/op-reth/cli/op-reth/db/stage-checkpoints",
+                              "node-operators/op-reth/cli/op-reth/db/stage-checkpoints/get",
+                              "node-operators/op-reth/cli/op-reth/db/stage-checkpoints/set"
+                            ]
+                          },
+                          "node-operators/op-reth/cli/op-reth/db/account-storage",
+                          "node-operators/op-reth/cli/op-reth/db/state",
+                          "node-operators/op-reth/cli/op-reth/db/migrate-v2"
                         ]
                       },
                       {
@@ -3124,12 +3168,31 @@
                               "node-operators/op-reth/cli/op-reth/p2p/rlpx/ping"
                             ]
                           },
-                          "node-operators/op-reth/cli/op-reth/p2p/bootnode"
+                          "node-operators/op-reth/cli/op-reth/p2p/bootnode",
+                          "node-operators/op-reth/cli/op-reth/p2p/enode"
                         ]
                       },
                       "node-operators/op-reth/cli/op-reth/config",
                       "node-operators/op-reth/cli/op-reth/prune",
-                      "node-operators/op-reth/cli/op-reth/re-execute"
+                      "node-operators/op-reth/cli/op-reth/re-execute",
+                      {
+                        "group": "op-reth proofs",
+                        "pages": [
+                          "node-operators/op-reth/cli/op-reth/proofs",
+                          "node-operators/op-reth/cli/op-reth/proofs/init",
+                          "node-operators/op-reth/cli/op-reth/proofs/backfill",
+                          "node-operators/op-reth/cli/op-reth/proofs/prune",
+                          {
+                            "group": "op-reth proofs snapshot",
+                            "pages": [
+                              "node-operators/op-reth/cli/op-reth/proofs/snapshot",
+                              "node-operators/op-reth/cli/op-reth/proofs/snapshot/init",
+                              "node-operators/op-reth/cli/op-reth/proofs/snapshot/drop"
+                            ]
+                          },
+                          "node-operators/op-reth/cli/op-reth/proofs/unwind"
+                        ]
+                      }
                     ]
                   }
                 ]
@@ -3437,6 +3500,7 @@
               "op-stack/fault-proofs/cannon",
               "op-stack/fault-proofs/mips",
               "op-stack/fault-proofs/challenger",
+              "op-stack/fault-proofs/reference",
               {
                 "group": "Kona",
                 "pages": [
