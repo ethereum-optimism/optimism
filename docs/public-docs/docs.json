@@ -3617,29 +3617,7 @@
                   "notices/specialized-node-topology"
                 ]
               },
-              {
-                "group": "Archive",
-                "pages": [
-                  "notices/archive/upgrade-19",
-                  "notices/archive/op-geth-deprecation",
-                  "notices/archive/op-deployer-upgrade-deprecation",
-                  "notices/archive/req-resp-cl-sync-deprecation",
-                  "notices/archive/stake-based-priority-ordering",
-                  "notices/archive/upgrade-18",
-                  "notices/archive/upgrade-17",
-                  "notices/archive/fusaka-notice",
-                  "notices/archive/upgrade-16a",
-                  "notices/archive/upgrade-16",
-                  "notices/archive/blob-fee-bug",
-                  "notices/archive/pectra-changes",
-                  "notices/archive/pectra-fees",
-                  "notices/archive/upgrade-15",
-                  "notices/archive/upgrade-14",
-                  "notices/archive/upgrade-13",
-                  "notices/archive/holocene-changes",
-                  "notices/archive/superchain-withdrawal-pause-test"
-                ]
-              }
+              "notices/archive"
             ]
           },
           {

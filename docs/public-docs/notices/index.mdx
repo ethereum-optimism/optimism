@@ -8,12 +8,23 @@ description: "Active upgrade notices, deprecations, and network change announcem
   MAINTENANCE: Keep this page in sync with the "Network Notices" group in docs.json.
   When a notice is activated: add a card here (under the matching heading) AND add
   the page to the matching docs.json nav subgroup.
-  When a notice is archived: remove its card here AND move the page to
-  notices/archive/ in docs.json.
+  When a notice is archived: remove its card here AND move the page under
+  notices/archive/, then follow RETENTION below.
   Notices are transient operator action items. The permanent record of every
   network upgrade lives in the hardfork registry
   (/op-stack/protocol/network-upgrades) — when archiving an upgrade notice,
   check that the registry page for its hardfork is up to date.
+
+  RETENTION: a notice leaves the sidebar when its deadline passes. Archived
+  notices are not listed in docs.json; they live on at their existing URLs and
+  are browsable from the archive index (notices/archive/index.mdx), which is
+  the Archive entry in this tab. Archiving a notice means: add a row to that
+  index, set the page's date: frontmatter, and add the page to
+  scripts/lint/nav-allowlist.json so the nav validator accepts it.
+  A notice leaves the archive index only when nothing links to it AND the
+  hardfork registry (or its contract upgrades table) carries the same facts.
+  Until both are true the page stays at its existing URL: over twenty live
+  pages link into the archive, so deleting or moving a page breaks them.
 */}
 
 Notices are time-bound action items for application developers, node operators, and chain operators: upcoming
