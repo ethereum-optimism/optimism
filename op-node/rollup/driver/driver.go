@@ -197,6 +197,14 @@ func (s *Driver) Start() error {
 		}
 	}
 
+	// The sequencer runs on its own goroutine: block production must not
+	// wait behind derivation-event draining on the event loop.
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		s.sequencer.RunLoop(s.driverCtx)
+	}()
+
 	s.wg.Add(1)
 	go s.eventLoop()
 
@@ -210,7 +218,7 @@ func (s *Driver) Close() error {
 	return nil
 }
 
-// the eventLoop responds to L1 changes and internal timers to produce L2 blocks.
+// the eventLoop responds to L1 changes and internal timers to drive derivation and syncing.
 func (s *Driver) eventLoop() {
 	defer s.wg.Done()
 	s.log.Info("State loop started")
@@ -227,35 +235,6 @@ func (s *Driver) eventLoop() {
 	// reqStep will also be triggered when the L1 head moves forward or if there was a reorg on the
 	// L1 chain that we need to handle.
 	reqStep()
-
-	sequencerTimer := time.NewTimer(0)
-	var sequencerCh <-chan time.Time
-	var prevTime time.Time
-	// planSequencerAction updates the sequencerTimer with the next action, if any.
-	// The sequencerCh is nil (indefinitely blocks on read) if no action needs to be performed,
-	// or set to the timer channel if there is an action scheduled.
-	planSequencerAction := func() {
-		nextAction, ok := s.sequencer.NextAction()
-		if !ok {
-			if sequencerCh != nil {
-				s.log.Info("Sequencer paused until new events")
-			}
-			sequencerCh = nil
-			return
-		}
-		// avoid unnecessary timer resets
-		if nextAction == prevTime {
-			return
-		}
-		prevTime = nextAction
-		sequencerCh = sequencerTimer.C
-		if len(sequencerCh) > 0 { // empty if not already drained before resetting
-			<-sequencerCh
-		}
-		delta := time.Until(nextAction)
-		s.log.Info("Scheduled sequencer action", "delta", delta)
-		sequencerTimer.Reset(delta)
-	}
 
 	// Create a ticker to check if there is a gap in the engine queue.
 	unsafeGapCheckInterval := time.Duration(s.SyncDeriver.Config.BlockTime) * time.Second * 2
@@ -301,8 +280,6 @@ func (s *Driver) eventLoop() {
 			return
 		}
 
-		planSequencerAction()
-
 		head := s.SyncDeriver.Engine.UnsafeL2Head()
 		derivationReady := s.SyncDeriver.Derivation.DerivationReady()
 
@@ -315,8 +292,6 @@ func (s *Driver) eventLoop() {
 		}
 
 		select {
-		case <-sequencerCh:
-			s.emitter.Emit(s.driverCtx, sequencing.SequencerActionEvent{})
 		case <-unsafeGapTicker.C:
 			// Check if there is a gap in the current unsafe payload queue.
 			ctx, cancel := context.WithTimeout(s.driverCtx, time.Second*2)

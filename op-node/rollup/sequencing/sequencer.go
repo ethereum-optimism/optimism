@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -13,7 +14,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/attributes"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
@@ -52,17 +52,6 @@ type AsyncGossiper interface {
 	Clear()
 	Stop()
 	Start()
-}
-
-// SequencerActionEvent triggers the sequencer to start/seal a block, if active and ready to act.
-// This event is used to prioritize sequencer work over derivation work,
-// by emitting it before e.g. a derivation-pipeline step.
-// A future sequencer in an async world may manage its own execution.
-type SequencerActionEvent struct {
-}
-
-func (ev SequencerActionEvent) String() string {
-	return "sequencer-action"
 }
 
 type BuildingState struct {
@@ -110,7 +99,7 @@ type Sequencer struct {
 
 	emitter event.Emitter
 
-	eng attributes.EngineController
+	eng SequencerEngine
 
 	attrBuilder      derive.AttributesBuilder
 	l1OriginSelector L1OriginSelectorIface
@@ -123,12 +112,30 @@ type Sequencer struct {
 	// nextAction is when the next sequencing action should be performed
 	nextAction   time.Time
 	nextActionOK bool
+	// awaitingResetConfirm parks the sequencer between a reset signal and its
+	// confirmation. The engine emits the rewound forkchoice update before
+	// EngineResetConfirmedEvent, and that update must not re-arm the schedule:
+	// the confirmation carries a deliberate one-block delay that keeps a reset
+	// loop from running hot.
+	awaitingResetConfirm bool
 
 	latest       BuildingState
 	latestSealed eth.L2BlockRef
 	latestHead   eth.L2BlockRef
+	// latestSafe is the safe head as of the last ingested forkchoice update,
+	// used to enforce maxSafeLag on the direct-call scheduling path.
+	latestSafe eth.L2BlockRef
 
 	latestHeadSet chan struct{}
+
+	// inbox is an ordered log of external events, appended by the event loop
+	// via OnEvent and replayed by the sequencer goroutine via drainInbox.
+	inboxMu sync.Mutex
+	inbox   []event.Event
+
+	// wakeCh coalesces wake-up signals (cap 1) for the sequencer goroutine,
+	// so inbox appends and RPC start/stop interrupt its timer wait.
+	wakeCh chan struct{}
 
 	// toBlockRef converts a payload to a block-ref, and is only configurable for test-purposes
 	toBlockRef func(rollupCfg *rollup.Config, payload *eth.ExecutionPayload) (eth.L2BlockRef, error)
@@ -144,7 +151,7 @@ func NewSequencer(driverCtx context.Context, log log.Logger, rollupCfg *rollup.C
 	conductor conductor.SequencerConductor,
 	asyncGossip AsyncGossiper,
 	metrics Metrics,
-	eng attributes.EngineController,
+	eng SequencerEngine,
 ) *Sequencer {
 	if sealingDuration <= 0 {
 		sealingDuration = defaultSealingDuration
@@ -163,6 +170,7 @@ func NewSequencer(driverCtx context.Context, log log.Logger, rollupCfg *rollup.C
 		metrics:          metrics,
 		eng:              eng,
 		timeNow:          time.Now,
+		wakeCh:           make(chan struct{}, 1),
 		toBlockRef:       derive.PayloadToBlockRef,
 	}
 }
@@ -171,36 +179,95 @@ func (d *Sequencer) AttachEmitter(em event.Emitter) {
 	d.emitter = em
 }
 
+// OnEvent implements event.Deriver. It never blocks and never mutates
+// sequencer state: accepted events are appended to the inbox log and
+// replayed in arrival order on the sequencer goroutine.
 func (d *Sequencer) OnEvent(ctx context.Context, ev event.Event) bool {
+	switch x := ev.(type) {
+	case engine.ForkchoiceUpdateInitEvent:
+		d.ingest(engine.ForkchoiceUpdateEvent(x))
+	case engine.PayloadSuccessEvent:
+		// Only the block hash is used. Ingesting the event as-is would keep a
+		// whole block, with all its transactions, alive in the inbox.
+		d.ingest(payloadSuccess{blockHash: x.Envelope.ExecutionPayload.BlockHash})
+	case engine.ForkchoiceUpdateEvent,
+		rollup.ResetEvent,
+		engine.EngineResetConfirmedEvent,
+		rollup.EngineTemporaryErrorEvent,
+		engine.BuildStartedEvent:
+		d.ingest(x)
+	default:
+		return false
+	}
+	return true
+}
+
+// payloadSuccess is the inbox form of engine.PayloadSuccessEvent, reduced to
+// the only field the sequencer reads.
+type payloadSuccess struct{ blockHash common.Hash }
+
+func (payloadSuccess) String() string { return "payload-success" }
+
+// ingest appends an event to the inbox and wakes the sequencer goroutine.
+// A head update replaces the last inbox entry if that entry is also a head
+// update that does not advance past the new one: nothing sits between
+// adjacent entries, so relative order with other event kinds is unaffected.
+// A rewinding head update (block replacement, backup-unsafe restore) is
+// appended instead, so replay still drops build jobs onto the rewound head.
+func (d *Sequencer) ingest(ev event.Event) {
+	d.inboxMu.Lock()
+	defer d.wake() // deferred LIFO: runs after the unlock below
+	defer d.inboxMu.Unlock()
+	if fcu, isHead := ev.(engine.ForkchoiceUpdateEvent); isHead && len(d.inbox) > 0 {
+		if last, lastIsHead := d.inbox[len(d.inbox)-1].(engine.ForkchoiceUpdateEvent); lastIsHead &&
+			fcu.UnsafeL2Head.Number >= last.UnsafeL2Head.Number {
+			d.inbox[len(d.inbox)-1] = ev
+			return
+		}
+	}
+	d.inbox = append(d.inbox, ev)
+}
+
+// wake signals the sequencer goroutine to re-plan its schedule. Non-blocking.
+func (d *Sequencer) wake() {
+	select {
+	case d.wakeCh <- struct{}{}:
+	default:
+	}
+}
+
+// drainInbox replays queued external events in arrival order.
+// Must only be called from the sequencer goroutine.
+func (d *Sequencer) drainInbox() {
+	d.inboxMu.Lock()
+	events := d.inbox
+	d.inbox = nil
+	d.inboxMu.Unlock()
+	if len(events) == 0 {
+		return
+	}
+
 	d.l.Lock()
 	defer d.l.Unlock()
-
 	preTime := d.nextAction
 	preOk := d.nextActionOK
-	defer func() {
-		if d.nextActionOK != preOk || d.nextAction != preTime {
-			d.log.Debug("Sequencer action schedule changed",
-				"time", d.nextAction, "wait", d.nextAction.Sub(d.timeNow()), "ok", d.nextActionOK, "event", ev)
-		}
-	}()
+	for _, ev := range events {
+		d.handleIngest(ev)
+	}
+	if d.nextActionOK != preOk || d.nextAction != preTime {
+		d.log.Debug("Sequencer action schedule changed",
+			"time", d.nextAction, "wait", d.nextAction.Sub(d.timeNow()), "ok", d.nextActionOK)
+	}
+}
 
+// handleIngest dispatches a single inbox event to its handler.
+// Must be called with the sequencer lock held.
+func (d *Sequencer) handleIngest(ev event.Event) {
 	switch x := ev.(type) {
 	case engine.BuildStartedEvent:
 		d.onBuildStarted(x)
-	case engine.InvalidPayloadAttributesEvent:
-		d.onInvalidPayloadAttributes(x)
-	case engine.BuildSealedEvent:
-		d.onBuildSealed(x)
-	case engine.PayloadSealInvalidEvent:
-		d.onPayloadSealInvalid(x)
-	case engine.PayloadSealExpiredErrorEvent:
-		d.onPayloadSealExpiredError(x)
-	case engine.PayloadInvalidEvent:
-		d.onPayloadInvalid(x)
-	case engine.PayloadSuccessEvent:
+	case payloadSuccess:
 		d.onPayloadSuccess(x)
-	case SequencerActionEvent:
-		d.onSequencerAction(x)
 	case rollup.EngineTemporaryErrorEvent:
 		d.onEngineTemporaryError(x)
 	case rollup.ResetEvent:
@@ -209,12 +276,57 @@ func (d *Sequencer) OnEvent(ctx context.Context, ev event.Event) bool {
 		d.onEngineResetConfirmedEvent(x)
 	case engine.ForkchoiceUpdateEvent:
 		d.onForkchoiceUpdate(x)
-	case engine.ForkchoiceUpdateInitEvent:
-		d.onForkchoiceUpdate(engine.ForkchoiceUpdateEvent(x))
-	default:
-		return false
 	}
-	return true
+}
+
+// RunLoop runs the sequencer scheduling loop: it replays ingested events and
+// runs the next sequencer action when its scheduled time arrives, until ctx
+// is canceled. Event ingestion and RPC start/stop interrupt the wait via the
+// wake channel.
+func (d *Sequencer) RunLoop(ctx context.Context) {
+	timer := time.NewTimer(0)
+	defer timer.Stop()
+	// lastRan is the deadline the previous action fired at. An action that
+	// leaves the schedule untouched (e.g. a no-op while state is unknown) must
+	// not re-arm the same deadline, or the loop would spin on it; the next
+	// schedule mutation wakes the loop and re-plans with a fresh deadline.
+	var lastRan time.Time
+	for {
+		d.drainInbox()
+
+		// Re-plan from post-drain state. A nil channel blocks forever,
+		// disarming the timer case while no action is scheduled.
+		var timerC <-chan time.Time
+		var armed time.Time
+		if nextAction, ok := d.NextAction(); ok && nextAction != lastRan {
+			timer.Reset(time.Until(nextAction))
+			timerC = timer.C
+			armed = nextAction
+		} else {
+			timer.Stop()
+			if !ok {
+				// Forget the fired deadline on disarm, so re-arming at the very
+				// same instant later still schedules the action.
+				lastRan = time.Time{}
+			}
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-d.wakeCh:
+			// loop around: drain the inbox and re-plan
+		case <-timerC:
+			lastRan = armed
+			d.drainInbox() // events may have arrived while we were sleeping
+			// The drain may have pushed the deadline out (engine backoff, the
+			// post-reset delay). Acting on the fired deadline would defeat it.
+			if next, ok := d.NextAction(); !ok || next.After(d.timeNow()) {
+				continue
+			}
+			d.RunAction()
+		}
+	}
 }
 
 func (d *Sequencer) onBuildStarted(x engine.BuildStartedEvent) {
@@ -227,39 +339,17 @@ func (d *Sequencer) onBuildStarted(x engine.BuildStartedEvent) {
 		d.nextActionOK = false
 		return
 	}
-	if d.latest.Onto != x.Parent {
-		d.log.Warn("Canceling stale block-building job that was just started, as target to build onto has changed",
-			"stale", x.Parent, "new", d.latest.Onto, "job_id", x.Info.ID, "job_timestamp", x.Info.Timestamp)
-		d.emitter.Emit(d.ctx, engine.BuildCancelEvent{
-			Info:  x.Info,
-			Force: true,
-		})
-		d.handleInvalid()
-		return
-	}
-	// if not a derived block, then it is work of the sequencer
-	d.log.Debug("Sequencer started building new block",
-		"payloadID", x.Info.ID, "parent", x.Parent, "parent_time", x.Parent.Time)
-	d.latest.Info = x.Info
-	d.latest.Started = x.BuildStarted
-
-	d.nextActionOK = d.active.Load()
-
-	// schedule sealing
-	now := d.timeNow()
-	payloadTime := time.Unix(int64(x.Parent.Time+d.rollupCfg.BlockTime), 0)
-	remainingTime := payloadTime.Sub(now)
-	if remainingTime < d.sealingDuration {
-		d.nextAction = now // if there's not enough time for sealing, don't wait.
-	} else {
-		// finish with margin of sealing duration before payloadTime
-		d.nextAction = payloadTime.Add(-d.sealingDuration)
-	}
+	// Sequencer-originated builds are handled inline via direct engine calls.
+	d.log.Debug("Ignoring build-started event of sequencer-originated block", "payloadID", x.Info.ID)
 }
 
 func (d *Sequencer) handleInvalid() {
 	d.metrics.RecordSequencingError()
 	d.latest = BuildingState{}
+	// A block we sealed may be discarded here (invalid or denied insertion), and
+	// will then never become the head. Reconcile the sealed marker so Stop, which
+	// waits for the head to catch up to it, is not left waiting for a dead block.
+	d.latestSealed = d.latestHead
 	d.asyncGossip.Clear()
 	// upon error, retry after one block worth of time
 	blockTime := time.Duration(d.rollupCfg.BlockTime) * time.Second
@@ -267,101 +357,46 @@ func (d *Sequencer) handleInvalid() {
 	d.nextActionOK = d.active.Load()
 }
 
-func (d *Sequencer) onInvalidPayloadAttributes(x engine.InvalidPayloadAttributesEvent) {
-	if x.Attributes.DerivedFrom != (eth.L1BlockRef{}) {
-		return // not our payload, should be ignored.
-	}
-	d.log.Error("Cannot sequence invalid payload attributes",
-		"attributes_parent", x.Attributes.Parent,
-		"timestamp", x.Attributes.Attributes.Timestamp, "err", x.Err)
-
-	d.handleInvalid()
-}
-
-func (d *Sequencer) onBuildSealed(x engine.BuildSealedEvent) {
-	if d.latest.Info != x.Info {
-		return // not our payload, should be ignored.
-	}
-	d.log.Info("Sequencer sealed block", "payloadID", x.Info.ID,
-		"block", x.Envelope.ExecutionPayload.ID(),
-		"parent", x.Envelope.ExecutionPayload.ParentID(),
-		"txs", len(x.Envelope.ExecutionPayload.Transactions),
-		"time", uint64(x.Envelope.ExecutionPayload.Timestamp))
-
-	// generous timeout, the conductor is important
-	ctx, cancel := context.WithTimeout(d.ctx, time.Second*30)
-	defer cancel()
-	if err := d.conductor.CommitUnsafePayload(ctx, x.Envelope); err != nil {
-		d.emitter.Emit(d.ctx, rollup.EngineTemporaryErrorEvent{
-			Err: fmt.Errorf("failed to commit unsafe payload to conductor: %w", err),
-		})
-		return
-	}
-
-	// begin gossiping as soon as possible
-	// asyncGossip.Clear() will be called later if an non-temporary error is found,
-	// or if the payload is successfully inserted
-	d.asyncGossip.Gossip(x.Envelope)
-	// Now after having gossiped the block, try to put it in our own canonical chain
-	d.emitter.Emit(d.ctx, engine.PayloadProcessEvent{
-		Concluding:   x.Concluding,
-		DerivedFrom:  x.DerivedFrom,
-		BuildStarted: x.BuildStarted,
-		Envelope:     x.Envelope,
-		Ref:          x.Ref,
-	})
-	d.latest.Ref = x.Ref
-	d.latestSealed = x.Ref
-}
-
-func (d *Sequencer) onPayloadSealInvalid(x engine.PayloadSealInvalidEvent) {
-	if d.latest.Info != x.Info {
-		return // not our payload, should be ignored.
-	}
-	d.log.Error("Sequencer could not seal block",
-		"payloadID", x.Info.ID, "timestamp", x.Info.Timestamp, "err", x.Err)
-	d.handleInvalid()
-}
-
-func (d *Sequencer) onPayloadSealExpiredError(x engine.PayloadSealExpiredErrorEvent) {
-	if d.latest.Info != x.Info {
-		return // not our payload, should be ignored.
-	}
-	d.log.Error("Sequencer temporarily could not seal block",
-		"payloadID", x.Info.ID, "timestamp", x.Info.Timestamp, "err", x.Err)
-	// Restart building, this way we get a block we should be able to seal
-	// (smaller, since we adapt build time).
-	d.handleInvalid()
-}
-
-func (d *Sequencer) onPayloadInvalid(x engine.PayloadInvalidEvent) {
-	if d.latest.Ref.Hash != x.Envelope.ExecutionPayload.BlockHash {
-		return // not a payload from the sequencer
-	}
-	d.log.Error("Sequencer could not insert payload",
-		"block", x.Envelope.ExecutionPayload.ID(), "err", x.Err)
-	d.handleInvalid()
-}
-
-func (d *Sequencer) onPayloadSuccess(x engine.PayloadSuccessEvent) {
-	// d.latest as building state may already be empty,
-	// if the forkchoice update (that dropped the stale building job) was received before the payload-success.
-	if d.latest.Ref != (eth.L2BlockRef{}) && d.latest.Ref.Hash != x.Envelope.ExecutionPayload.BlockHash {
-		// Not a payload that was built by this sequencer. We can ignore it, and continue upon forkchoice update.
-		return
+func (d *Sequencer) onPayloadSuccess(x payloadSuccess) {
+	// Sequencer-originated payloads are processed inline via direct engine calls.
+	// For derivation-originated payloads (e.g. replacement blocks) we still clear
+	// the async-gossip buffer, so the sequencer cannot reuse a stale payload after
+	// a chain reset.
+	if d.latest.Ref != (eth.L2BlockRef{}) && d.latest.Ref.Hash != x.blockHash {
+		return // not relevant to us
 	}
 	d.latest = BuildingState{}
-	d.log.Info("Sequencer inserted block",
-		"block", x.Ref, "parent", x.Envelope.ExecutionPayload.ParentID())
-	// The payload was already published upon sealing.
-	// Now that we have processed it ourselves we don't need it anymore.
 	d.asyncGossip.Clear()
 }
 
-func (d *Sequencer) onSequencerAction(ev SequencerActionEvent) {
+// RunAction performs one sequencer action: it processes a payload left in the
+// async-gossip buffer, seals the pending block-building job, or starts a new
+// build. Engine interactions happen as direct synchronous calls, not events.
+func (d *Sequencer) RunAction() {
+	d.drainInbox() // decide from up-to-date state
+
+	d.l.Lock()
+	defer d.l.Unlock()
+
+	preTime := d.nextAction
+	preOk := d.nextActionOK
+	defer func() {
+		if d.nextActionOK != preOk || d.nextAction != preTime {
+			d.log.Debug("Sequencer action schedule changed",
+				"time", d.nextAction, "wait", d.nextAction.Sub(d.timeNow()), "ok", d.nextActionOK)
+		}
+	}()
+
 	d.log.Debug("Sequencer action")
 	if !d.active.Load() {
 		d.log.Debug("Ignoring stale sequencer action while inactive")
+		return
+	}
+	// The inbox drain above may have parked the schedule (reset, derivation
+	// build, engine backoff, maxSafeLag stall). The timer fire that triggered
+	// this action predates that state: honor the post-drain decision.
+	if !d.nextActionOK {
+		d.log.Debug("Ignoring sequencer action, no action scheduled after inbox replay")
 		return
 	}
 	payload := d.asyncGossip.Get()
@@ -375,37 +410,114 @@ func (d *Sequencer) onSequencerAction(ev SequencerActionEvent) {
 		ref, err := d.toBlockRef(d.rollupCfg, payload.ExecutionPayload)
 		if err != nil {
 			d.log.Error("Payload from async-gossip buffer could not be turned into block-ref", "err", err)
-			d.asyncGossip.Clear() // bad payload
+			// Treat like an invalid payload: drop it and retry with a fresh
+			// build after a backoff. No event echo re-arms this failure.
+			d.handleInvalid()
 			return
 		}
 		d.log.Info("Resuming sequencing with previously async-gossip confirmed payload",
 			"payload", payload.ExecutionPayload.ID())
-		// Payload is known, we must have resumed sequencer-actions after a temporary error,
-		// meaning that we have seen BuildSealedEvent already.
-		// We can retry processing to make it canonical.
-		d.emitter.Emit(d.ctx, engine.PayloadProcessEvent{
-			Concluding:  false,
-			DerivedFrom: eth.L1BlockRef{},
-			Envelope:    payload,
-			Ref:         ref,
-		})
-		d.latest.Ref = ref
-	} else {
-		if d.latest.Info != (eth.PayloadInfo{}) {
-			// We should not repeat the seal request.
-			d.nextActionOK = false
-			// No known payload for block building job,
-			// we have to retrieve it first.
-			d.emitter.Emit(d.ctx, engine.BuildSealEvent{
-				Info:         d.latest.Info,
-				BuildStarted: d.latest.Started,
-				Concluding:   false,
-				DerivedFrom:  eth.L1BlockRef{},
-			})
-		} else if d.latest == (BuildingState{}) {
-			// If we have not started building anything, start building.
-			d.startBuildingBlock()
+		// The payload is known and was already gossiped: it must have been sealed
+		// before a temporary error. Retry processing to make it canonical.
+		// Park the schedule first: on a temporary error the engine's
+		// EngineTemporaryErrorEvent echoes back through the mailbox and re-arms
+		// the backoff; re-firing before that echo would spin on the engine.
+		d.nextActionOK = false
+		if err := d.eng.ProcessPayload(d.ctx, payload, ref, time.Time{}); err != nil {
+			if errors.Is(err, engine.ErrStaleBuild) {
+				// The chain moved past the buffered payload; it is worthless now.
+				// Nothing of ours is outstanding anymore: don't leave Stop
+				// waiting for the dropped block to become the head.
+				d.latest = BuildingState{}
+				d.latestSealed = d.latestHead
+				d.asyncGossip.Clear()
+				if ref.ParentHash != d.latestHead.Hash {
+					// The payload was already stale against the head we know, so
+					// the forkchoice update the engine just requested carries that
+					// same head and will not re-plan anything. Re-plan here, or the
+					// sequencer parks forever waiting for an echo it has had.
+					d.scheduleNextAction(d.latestHead)
+				}
+				// Otherwise the engine moved during the call: its forkchoice update
+				// names a head we have not seen yet and re-arms us on arrival.
+			} else if errors.Is(err, engine.ErrPayloadDenied) || errors.Is(err, engine.ErrPayloadInvalid) {
+				d.handleInvalid()
+			}
+			return
 		}
+		d.latest = BuildingState{}
+		d.asyncGossip.Clear()
+		d.scheduleNextAction(ref)
+		return
+	}
+	if d.latest.Info != (eth.PayloadInfo{}) {
+		// We should not repeat the seal request.
+		d.nextActionOK = false
+		sealResult, err := d.eng.SealBuild(d.ctx, d.latest.Info, d.latest.Started)
+		if err != nil {
+			if errors.Is(err, engine.ErrStaleBuild) {
+				// A competing block landed while we were building; drop the job
+				// without committing or gossiping the stale sibling. Parked until
+				// the engine-requested forkchoice update arrives.
+				d.log.Warn("Dropping stale sealed block, chain moved past it", "payloadID", d.latest.Info.ID)
+				d.latest = BuildingState{}
+				return
+			}
+			// Restart building on seal errors (expired or invalid), this way we get
+			// a block we should be able to seal (smaller, since we adapt build time).
+			d.handleInvalid()
+			return
+		}
+		envelope := sealResult.Envelope
+		d.log.Info("Sequencer sealed block", "payloadID", d.latest.Info.ID,
+			"block", envelope.ExecutionPayload.ID(),
+			"parent", envelope.ExecutionPayload.ParentID(),
+			"txs", len(envelope.ExecutionPayload.Transactions),
+			"time", uint64(envelope.ExecutionPayload.Timestamp))
+
+		// generous timeout, the conductor is important
+		commitCtx, cancel := context.WithTimeout(d.ctx, time.Second*30)
+		defer cancel()
+		if err := d.conductor.CommitUnsafePayload(commitCtx, envelope); err != nil {
+			d.emitter.Emit(d.ctx, rollup.EngineTemporaryErrorEvent{
+				Err: fmt.Errorf("failed to commit unsafe payload to conductor: %w", err),
+			})
+			return
+		}
+
+		// Begin gossiping as soon as possible.
+		// asyncGossip.Clear() is called once the payload is successfully inserted below,
+		// or when a later action hits a non-temporary error.
+		d.asyncGossip.Gossip(envelope)
+		d.latest.Ref = sealResult.Ref
+		d.latestSealed = sealResult.Ref
+		// Now after having gossiped the block, try to put it in our own canonical chain.
+		if err := d.eng.ProcessPayload(d.ctx, envelope, sealResult.Ref, d.latest.Started); err != nil {
+			if errors.Is(err, engine.ErrStaleBuild) {
+				// A competing block landed after we sealed and gossiped; the
+				// gossiped sibling lost. Drop it rather than reorging back to it.
+				// Parked until the engine-requested forkchoice update arrives.
+				// Reset latestSealed so Stop does not wait for the dropped
+				// block to ever become the head.
+				d.log.Warn("Dropping stale processed block, chain moved past it", "block", sealResult.Ref)
+				d.latest = BuildingState{}
+				d.latestSealed = d.latestHead
+				d.asyncGossip.Clear()
+			} else if errors.Is(err, engine.ErrPayloadDenied) || errors.Is(err, engine.ErrPayloadInvalid) {
+				d.handleInvalid()
+			}
+			return
+		}
+		d.log.Info("Sequencer inserted block",
+			"block", sealResult.Ref, "parent", envelope.ExecutionPayload.ParentID())
+		d.latest = BuildingState{}
+		// The payload was already published upon sealing.
+		// Now that we have processed it ourselves we don't need it anymore.
+		d.asyncGossip.Clear()
+		d.scheduleNextAction(sealResult.Ref)
+	} else if d.latest == (BuildingState{}) {
+		// If we have not started building anything, start building.
+		d.startBuildingBlock()
 	}
 }
 
@@ -419,11 +531,17 @@ func (d *Sequencer) onEngineTemporaryError(x rollup.EngineTemporaryErrorEvent) {
 	} else {
 		d.nextAction = d.timeNow().Add(time.Second)
 	}
-	d.nextActionOK = d.active.Load()
+	// A reset in flight keeps the sequencer parked: the engine has not rewound
+	// yet, so re-arming here would resume building on the pre-reset head. The
+	// confirmation carries the cool-down, and a backoff must not pre-empt it.
+	d.nextActionOK = d.active.Load() && !d.awaitingResetConfirm
+	// Re-check the lag bound: this is the only ingest-path re-arm, so it is the
+	// only way a maxSafeLag-stalled sequencer can be released early.
+	d.evalMaxSafeLag()
 	// We don't explicitly cancel block building jobs upon temporary errors: we may still finish the block (if any).
 	// Any unfinished block building work eventually times out, and will be cleaned up that way.
 	// Note that this only applies to temporary errors upon starting a block-building job.
-	// If the engine errors upon sealing, an PayloadSealInvalidEvent will be get it to restart the attributes.
+	// If the engine errors upon sealing, the seal-error handling restarts the build with fresh attributes.
 
 	// If we don't have an ID of a job to resume, then start over.
 	// (d.latest.Onto would be set if we emitted BuildStart already)
@@ -443,55 +561,93 @@ func (d *Sequencer) onReset(x rollup.ResetEvent) {
 	d.stalledByMaxSafeLag = false
 	// no action to perform until we get a reset-confirmation
 	d.nextActionOK = false
+	d.awaitingResetConfirm = true
 }
 
 func (d *Sequencer) onEngineResetConfirmedEvent(engine.EngineResetConfirmedEvent) {
+	d.awaitingResetConfirm = false
 	d.nextActionOK = d.active.Load()
 	// Before sequencing we can wait a block,
 	// assuming the execution-engine just churned through some work for the reset.
 	// This will also prevent any potential reset-loop from running too hot.
 	d.nextAction = d.timeNow().Add(time.Second * time.Duration(d.rollupCfg.BlockTime))
-	// Note: stalledByMaxSafeLag was cleared in onReset. If the lag condition still holds,
-	// the next ForkchoiceUpdateEvent will re-evaluate and re-stall the sequencer.
+	// The reset delivered fresh forkchoice state just before this confirmation;
+	// re-check the lag bound rather than unconditionally re-arming, so a still
+	// badly lagging sequencer does not build one extra block before the next
+	// forkchoice update re-stalls it. (onReset cleared stalledByMaxSafeLag.)
+	d.evalMaxSafeLag()
 	d.log.Info("Engine reset confirmed, sequencer may continue", "next", d.nextActionOK)
 }
 
 func (d *Sequencer) onForkchoiceUpdate(x engine.ForkchoiceUpdateEvent) {
 	d.log.Debug("Sequencer is processing forkchoice update", "unsafe", x.UnsafeL2Head, "latest", d.latestHead)
 
+	d.latestSafe = x.SafeL2Head
 	if !d.active.Load() {
 		d.setLatestHead(x.UnsafeL2Head)
 		return
 	}
-	// Drop stale block-building job if the chain has moved past it already.
-	if d.latest != (BuildingState{}) && d.latest.Onto.Number < x.UnsafeL2Head.Number {
+	// Drop a stale block-building job if the chain no longer sits on its parent.
+	// The head can move backwards (block replacement, backup-unsafe restore, an
+	// engine reset), so compare identity, not height.
+	if d.latest != (BuildingState{}) && d.latest.Onto.Hash != x.UnsafeL2Head.Hash {
 		d.log.Debug("Dropping stale/completed block-building job",
 			"state", d.latest.Onto, "unsafe_head", x.UnsafeL2Head)
-		// The cleared state will block further BuildStarted/BuildSealed responses from continuing the stale build job.
+		// The cleared state stops the next sequencer action from sealing the stale build job.
 		d.latest = BuildingState{}
 	}
-	if x.UnsafeL2Head.Number > d.latestHead.Number {
-		d.nextActionOK = true
-		now := d.timeNow()
-		blockTime := time.Duration(d.rollupCfg.BlockTime) * time.Second
-		payloadTime := time.Unix(int64(x.UnsafeL2Head.Time+d.rollupCfg.BlockTime), 0)
-		remainingTime := payloadTime.Sub(now)
-		if remainingTime > blockTime {
-			// if we have too much time, then wait before starting the build
-			d.nextAction = payloadTime.Add(-blockTime)
-		} else {
-			// otherwise start instantly
-			d.nextAction = now
-		}
+	if x.UnsafeL2Head.Hash != d.latestHead.Hash && !d.awaitingResetConfirm {
+		// Any change of head — including a rewind — needs a fresh plan on top of
+		// it. Re-planning only on a higher block number would leave the sequencer
+		// parked forever after a rewind, because the engine rejects builds and
+		// seals that no longer extend its head and the recovering forkchoice
+		// update is the rewound one.
+		d.scheduleNextAction(x.UnsafeL2Head)
+	} else {
+		d.setLatestHead(x.UnsafeL2Head)
+		// Re-evaluate the stall even when the head is unchanged: the resume
+		// trigger is the safe head catching up, which arrives on exactly such
+		// forkchoice updates. (scheduleNextAction evaluates it itself.)
+		d.evalMaxSafeLag()
 	}
-	// If the safe head has fallen behind by a significant number of blocks, delay creating new blocks
-	// until the safe lag is below SequencerMaxSafeLag.
-	// NOTE: This block must appear after the head-advancement block above. The head-advancement
-	// block unconditionally sets nextActionOK=true; the maxSafeLag check must be able to override it.
+}
+
+// scheduleNextAction arms the sequencer to build the next block on top of the
+// given new head, leaving spare time if the head is fresh enough.
+// Called after a block insertion, either from RunAction (direct-call path)
+// or from onForkchoiceUpdate (event path).
+func (d *Sequencer) scheduleNextAction(newHead eth.L2BlockRef) {
+	d.nextActionOK = true
+	now := d.timeNow()
+	blockTime := time.Duration(d.rollupCfg.BlockTime) * time.Second
+	payloadTime := time.Unix(int64(newHead.Time+d.rollupCfg.BlockTime), 0)
+	remainingTime := payloadTime.Sub(now)
+	if remainingTime > blockTime {
+		// if we have too much time, then wait before starting the build
+		d.nextAction = payloadTime.Add(-blockTime)
+	} else {
+		// otherwise start instantly
+		d.nextAction = now
+	}
+	d.setLatestHead(newHead)
+	// The stall check must run after arming (nextActionOK=true above), so it
+	// can override it. Evaluating here, not just on forkchoice updates, keeps
+	// the lag bound enforced on the direct-call path too: the sequencer must
+	// not outrun it while the stalling forkchoice echo is still queued.
+	d.evalMaxSafeLag()
+}
+
+// evalMaxSafeLag stalls block production while the safe head (as of the last
+// ingested forkchoice update) lags the unsafe head by more than the configured
+// bound, and resumes it when the safe head catches up.
+// Must run after any schedule arming so the stall can override it.
+func (d *Sequencer) evalMaxSafeLag() {
 	if maxSafeLag := d.maxSafeLag.Load(); maxSafeLag > 0 {
-		if x.SafeL2Head.Number+maxSafeLag <= x.UnsafeL2Head.Number {
-			d.log.Warn("sequencer has fallen behind safe head by more than lag, stalling",
-				"head", x.UnsafeL2Head, "safe", x.SafeL2Head, "max_lag", maxSafeLag)
+		if d.latestSafe.Number+maxSafeLag <= d.latestHead.Number {
+			if !d.stalledByMaxSafeLag {
+				d.log.Warn("sequencer has fallen behind safe head by more than lag, stalling",
+					"head", d.latestHead, "safe", d.latestSafe, "max_lag", maxSafeLag)
+			}
 			d.nextActionOK = false
 			d.stalledByMaxSafeLag = true
 		} else if d.stalledByMaxSafeLag {
@@ -499,7 +655,7 @@ func (d *Sequencer) onForkchoiceUpdate(x engine.ForkchoiceUpdateEvent) {
 			// Only resume if we were stalled by maxSafeLag specifically, to avoid
 			// interfering with other nextActionOK=false states (reset, L1-derivation backoff, etc).
 			d.log.Info("safe head caught up, resuming sequencing",
-				"head", x.UnsafeL2Head, "safe", x.SafeL2Head, "max_lag", maxSafeLag)
+				"head", d.latestHead, "safe", d.latestSafe, "max_lag", maxSafeLag)
 			d.stalledByMaxSafeLag = false
 			d.nextActionOK = d.active.Load()
 			d.nextAction = d.timeNow()
@@ -511,7 +667,6 @@ func (d *Sequencer) onForkchoiceUpdate(x engine.ForkchoiceUpdateEvent) {
 		d.nextActionOK = d.active.Load()
 		d.nextAction = d.timeNow()
 	}
-	d.setLatestHead(x.UnsafeL2Head)
 }
 
 func (d *Sequencer) setLatestHead(head eth.L2BlockRef) {
@@ -527,13 +682,13 @@ func (d *Sequencer) startBuildingBlock() {
 	ctx := d.ctx
 	l2Head := d.latestHead
 
-	// If we do not have data to know what to build on, then request a forkchoice update
+	// If we do not have data to know what to build on, then request a forkchoice update.
+	// Park until the head update arrives through the mailbox; re-firing on the
+	// unchanged schedule would hot-loop forkchoice requests while the engine
+	// state is still unknown (e.g. before the initial engine reset completes).
 	if l2Head == (eth.L2BlockRef{}) {
+		d.nextActionOK = false
 		d.eng.RequestForkchoiceUpdate(d.ctx)
-		return
-	}
-	// If we have already started trying to build on top of this block, we can avoid starting over again.
-	if d.latest.Onto == l2Head {
 		return
 	}
 
@@ -545,6 +700,9 @@ func (d *Sequencer) startBuildingBlock() {
 	case err == nil:
 	case errors.Is(err, ErrInvalidL1Origin), errors.Is(err, ErrNextL1OriginOrphaned):
 		d.metrics.RecordSequencerInconsistentL1Origin(l2Head.L1Origin, l1Origin.ID())
+		// Park: the ResetEvent echoes back through the mailbox (onReset keeps us
+		// parked until the reset is confirmed).
+		d.nextActionOK = false
 		d.emitter.Emit(d.ctx, rollup.ResetEvent{
 			Err: fmt.Errorf("cannot build new L2 block with L1 origin %s (parent L1 %s) on current L2 head %s with L1 origin %s",
 				l1Origin, l1Origin.ParentHash, l2Head, l2Head.L1Origin),
@@ -567,6 +725,11 @@ func (d *Sequencer) startBuildingBlock() {
 
 	attrs, err := d.attrBuilder.PreparePayloadAttributes(fetchCtx, l2Head, l1Origin.ID())
 	if err != nil {
+		// Park before emitting: recovery is driven by the event echoing back
+		// through the mailbox (temp-error backoff re-arms, reset stays parked
+		// until confirmed). An armed past deadline would spin the loop until
+		// the echo arrives.
+		d.nextActionOK = false
 		if errors.Is(err, derive.ErrTemporary) {
 			d.emitter.Emit(d.ctx, rollup.EngineTemporaryErrorEvent{Err: err})
 			return
@@ -655,15 +818,68 @@ func (d *Sequencer) startBuildingBlock() {
 	// If we get a forkchoice update that conflicts, we will have to abort building.
 	d.latest = BuildingState{Onto: l2Head}
 
-	d.emitter.Emit(d.ctx, engine.BuildStartEvent{
-		Attributes: withParent,
-	})
+	result, err := d.eng.StartBuild(d.ctx, withParent)
+	if err != nil {
+		if errors.Is(err, engine.ErrStaleBuild) {
+			// The engine head moved past our build target; the engine already requested
+			// a forkchoice update, so wait for the next head update to re-plan.
+			d.log.Warn("Engine rejected stale build attempt, waiting for next head update",
+				"parent", l2Head, "err", err)
+			d.latest = BuildingState{}
+			return
+		}
+		if errors.Is(err, engine.ErrBuildInvalid) {
+			// No recovery event reaches us for invalid attributes of our own
+			// builds; back off locally and retry with a new job.
+			d.handleInvalid()
+			return
+		}
+		// Temporary, reset, or critical error: the engine emitted the matching
+		// event, which echoes back through the mailbox and re-arms or keeps us
+		// parked as appropriate. Stay parked (set before StartBuild) meanwhile.
+		return
+	}
+	if d.latest.Onto != result.Parent {
+		d.log.Warn("Canceling stale block-building job that was just started, as target to build onto has changed",
+			"stale", result.Parent, "new", d.latest.Onto, "job_id", result.Info.ID, "job_timestamp", result.Info.Timestamp)
+		d.emitter.Emit(d.ctx, engine.BuildCancelEvent{
+			Info:  result.Info,
+			Force: true,
+		})
+		d.handleInvalid()
+		return
+	}
+	d.log.Debug("Sequencer started building new block",
+		"payloadID", result.Info.ID, "parent", result.Parent, "parent_time", result.Parent.Time)
+	d.latest.Info = result.Info
+	d.latest.Started = result.BuildStarted
+
+	d.nextActionOK = d.active.Load()
+
+	// schedule sealing
+	now := d.timeNow()
+	payloadTime := time.Unix(int64(result.Parent.Time+d.rollupCfg.BlockTime), 0)
+	remainingTime := payloadTime.Sub(now)
+	if remainingTime < d.sealingDuration {
+		d.nextAction = now // if there's not enough time for sealing, don't wait.
+	} else {
+		// finish with margin of sealing duration before payloadTime
+		d.nextAction = payloadTime.Add(-d.sealingDuration)
+	}
 }
 
 func (d *Sequencer) NextAction() (t time.Time, ok bool) {
 	d.l.Lock()
 	defer d.l.Unlock()
 	return d.nextAction, d.nextActionOK
+}
+
+// Building returns the block-building job the sequencer currently has in
+// flight. The zero value means no job is in flight.
+func (d *Sequencer) Building() BuildingState {
+	d.l.Lock()
+	defer d.l.Unlock()
+	return d.latest
 }
 
 func (d *Sequencer) Active() bool {
@@ -740,11 +956,16 @@ func (d *Sequencer) forceStart() error {
 	}
 	// clear the building state; interrupting any existing sequencing job (there should never be one)
 	d.latest = BuildingState{}
-	d.nextActionOK = true
+	// Same reset rule as the error backoff: if a reset is unconfirmed, latestHead
+	// is still the pre-reset head (which is exactly what Start checks against), so
+	// arming now would sequence on a chain about to be rewound. The confirmation
+	// arms us on the new head.
+	d.nextActionOK = !d.awaitingResetConfirm
 	d.stalledByMaxSafeLag = false
 	d.nextAction = d.timeNow()
 	d.active.Store(true)
 	d.metrics.SetSequencerState(true)
+	d.wake() // wake the sequencer goroutine, so it picks up the new schedule
 	d.log.Info("Sequencer has been started", "next action", d.nextAction)
 	return nil
 }
@@ -802,12 +1023,22 @@ func (d *Sequencer) Stop(ctx context.Context) (common.Hash, error) {
 	d.stalledByMaxSafeLag = false
 	d.active.Store(false)
 	d.metrics.SetSequencerState(false)
+	d.wake() // wake the sequencer goroutine, so it parks its action timer
 	d.log.Info("Sequencer has been stopped")
 	return d.latestHead.Hash, nil
 }
 
 func (d *Sequencer) SetMaxSafeLag(ctx context.Context, v uint64) error {
+	if err := d.l.LockCtx(ctx); err != nil {
+		return err
+	}
+	defer d.l.Unlock()
 	d.maxSafeLag.Store(v)
+	// Apply the new bound immediately instead of waiting for the next forkchoice
+	// update: while stalled the sequencer goroutine is parked with no timer armed,
+	// so relaxing or disabling the bound would otherwise not resume it at all.
+	d.evalMaxSafeLag()
+	d.wake()
 	return nil
 }
 

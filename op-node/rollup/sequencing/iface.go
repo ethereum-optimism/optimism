@@ -2,7 +2,6 @@ package sequencing
 
 import (
 	"context"
-	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 
@@ -11,8 +10,12 @@ import (
 
 type SequencerIface interface {
 	event.Deriver
-	// NextAction returns when the sequencer needs to do the next change, and iff it should do so.
-	NextAction() (t time.Time, ok bool)
+	// RunAction performs one sequencer action: start, seal, or (re)process a
+	// block. Engine calls inside it use the sequencer's own lifetime context, so
+	// it takes none. Called from the sequencer goroutine, or directly by tests.
+	RunAction()
+	// RunLoop runs the sequencer scheduling loop, and blocks until ctx is canceled.
+	RunLoop(ctx context.Context)
 	Active() bool
 	Init(ctx context.Context, active bool) error
 	Start(ctx context.Context, head common.Hash) error
