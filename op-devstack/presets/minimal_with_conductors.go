@@ -4,15 +4,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 type MinimalWithConductors struct {
 	*Minimal
 
 	Conductors dsl.ConductorSet
-
-	ConductorSets map[eth.ChainID]dsl.ConductorSet
 }
 
 // NewMinimalWithConductors creates a fresh MinimalWithConductors target for the current

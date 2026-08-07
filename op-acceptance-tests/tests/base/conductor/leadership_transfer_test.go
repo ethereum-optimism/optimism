@@ -37,7 +37,6 @@ func TestConductorLeadershipTransfer(gt *testing.T) {
 	tracer := t.Tracer()
 	ctx := t.Ctx()
 	logger.Info("Started Conductor Leadership Transfer test")
-	require.NotEmpty(t, sys.ConductorSets, "expected at least one L2 conductor set")
 
 	ctx, span := tracer.Start(ctx, "test chains")
 	defer span.End()
@@ -45,60 +44,58 @@ func TestConductorLeadershipTransfer(gt *testing.T) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	// Test all L2 chains in the system
-	for l2Chain, conductors := range sys.ConductorSets {
-		require.NotEmpty(t, conductors, "expected conductors in L2 chain", "chainId", l2Chain.String())
-		chainId := l2Chain.String()
+	conductors := sys.Conductors
+	chainId := sys.L2Chain.ChainID().String()
+	require.NotEmpty(t, conductors, "expected conductors in L2 chain", "chainId", chainId)
 
-		_, span = tracer.Start(ctx, fmt.Sprintf("test chain %s", chainId))
-		defer span.End()
+	_, span = tracer.Start(ctx, fmt.Sprintf("test chain %s", chainId))
+	defer span.End()
 
-		membership := conductors[0].FetchClusterMembership()
-		require.Equal(t, len(membership.Servers), len(conductors), "cluster membership does not match the number of conductors", "chainId", chainId)
+	membership := conductors[0].FetchClusterMembership()
+	require.Equal(t, len(membership.Servers), len(conductors), "cluster membership does not match the number of conductors", "chainId", chainId)
 
-		idToConductor := make(map[string]conductorWithInfo)
-		for _, conductor := range conductors {
-			idToConductor[conductor.String()] = conductorWithInfo{conductor, consensus.ServerInfo{}}
-		}
-		for _, memberInfo := range membership.Servers {
-			conductor, ok := idToConductor[memberInfo.ID]
-			require.True(t, ok, "unknown conductor in cluster membership", "unknown conductor id", memberInfo.ID, "chainId", chainId)
-			conductor.info = memberInfo
-			idToConductor[memberInfo.ID] = conductor
-		}
+	idToConductor := make(map[string]conductorWithInfo)
+	for _, conductor := range conductors {
+		idToConductor[conductor.String()] = conductorWithInfo{conductor, consensus.ServerInfo{}}
+	}
+	for _, memberInfo := range membership.Servers {
+		conductor, ok := idToConductor[memberInfo.ID]
+		require.True(t, ok, "unknown conductor in cluster membership", "unknown conductor id", memberInfo.ID, "chainId", chainId)
+		conductor.info = memberInfo
+		idToConductor[memberInfo.ID] = conductor
+	}
 
-		leaderInfo, err := conductors[0].Escape().RpcAPI().LeaderWithID(ctx)
-		require.NoError(t, err, "failed to get current conductor info", "chainId", chainId)
+	leaderInfo, err := conductors[0].Escape().RpcAPI().LeaderWithID(ctx)
+	require.NoError(t, err, "failed to get current conductor info", "chainId", chainId)
 
-		leaderConductor := idToConductor[leaderInfo.ID]
+	leaderConductor := idToConductor[leaderInfo.ID]
 
-		voters := []conductorWithInfo{leaderConductor}
-		for _, member := range membership.Servers {
-			if member.ID == leaderInfo.ID || member.Suffrage == consensus.Nonvoter {
-				continue
-			}
-
-			voters = append(voters, idToConductor[member.ID])
-		}
-
-		if len(voters) == 1 {
-			t.Skip("only one voter found in the cluster, skipping leadership transfer test")
+	voters := []conductorWithInfo{leaderConductor}
+	for _, member := range membership.Servers {
+		if member.ID == leaderInfo.ID || member.Suffrage == consensus.Nonvoter {
 			continue
 		}
 
-		t.Run(fmt.Sprintf("L2_Chain_%s", chainId), func(tt devtest.T) {
-			numOfLeadershipTransfers := len(voters)
-			for i := 0; i < numOfLeadershipTransfers; i++ {
-				// the modulo operation is used to wrap around the list of voters whenever i or i+1 becomes >= len(voters)
-				oldLeaderIndex, newLeaderIndex := i%len(voters), (i+1)%len(voters)
-				oldLeader, newLeader := voters[oldLeaderIndex], voters[newLeaderIndex]
-
-				require.NoError(tt, clock.SystemClock.SleepCtx(ctx, 3*time.Second)) // nosemgrep: flake-sleep-in-test -- intentional inter-transfer pause; no deterministic chain event to wait on
-
-				testTransferLeadershipAndCheck(t, oldLeader, newLeader)
-			}
-		})
+		voters = append(voters, idToConductor[member.ID])
 	}
+
+	if len(voters) == 1 {
+		t.Skip("only one voter found in the cluster, skipping leadership transfer test")
+		return
+	}
+
+	t.Run(fmt.Sprintf("L2_Chain_%s", chainId), func(tt devtest.T) {
+		numOfLeadershipTransfers := len(voters)
+		for i := 0; i < numOfLeadershipTransfers; i++ {
+			// the modulo operation is used to wrap around the list of voters whenever i or i+1 becomes >= len(voters)
+			oldLeaderIndex, newLeaderIndex := i%len(voters), (i+1)%len(voters)
+			oldLeader, newLeader := voters[oldLeaderIndex], voters[newLeaderIndex]
+
+			require.NoError(tt, clock.SystemClock.SleepCtx(ctx, 3*time.Second)) // nosemgrep: flake-sleep-in-test -- intentional inter-transfer pause; no deterministic chain event to wait on
+
+			testTransferLeadershipAndCheck(t, oldLeader, newLeader)
+		}
+	})
 }
 
 // testTransferLeadershipAndCheck tests conductor's leadership transfer from one leader to another
