@@ -193,6 +193,9 @@ where
         outcome: &mut revm::interpreter::CallOutcome,
     ) {
         self.inner.call_end(context, inputs, outcome);
+        // The refund observer sees the outcome the user inspector settled on, and only by
+        // shared reference: the seam is observer-only, so it cannot rewrite the frame result.
+        self.post_exec.inspect_call_end(context, inputs, outcome);
     }
 
     fn create(
@@ -212,6 +215,7 @@ where
         outcome: &mut revm::interpreter::CreateOutcome,
     ) {
         self.inner.create_end(context, inputs, outcome);
+        self.post_exec.inspect_create_end(context, inputs, outcome);
     }
 
     fn selfdestruct(&mut self, contract: Address, target: Address, value: alloy_primitives::U256) {

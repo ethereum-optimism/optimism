@@ -84,10 +84,18 @@ func buildSDMRethSystem(
 	clKind := sysgo.ResolveMixedL2CLKind()
 
 	sequencerKey := "sequencer-op-reth"
-	// Applied to the sequencer only: an external suite pointing DEVSTACK_L2EL_OVERRIDE_BINARY at
-	// its own builder gets that builder producing blocks while a stock op-reth verifies them, so
-	// any block it produces that stock op-reth rejects fails the run. Overriding both nodes would
-	// let a self-consistent divergence pass.
+	// The two sequencer paths are disjoint, and neither is an extension point for a
+	// refund-producing binary:
+	//
+	//   - Stock path (below): plain op-reth on both nodes, backing the disabled and null-policy
+	//     regressions. These assert that op-reth produces no PostExec transaction at all, so a
+	//     refund-producing DEVSTACK_L2EL_OVERRIDE_BINARY would fail them by construction.
+	//   - Fixture path (`fixtureSequencer`): pins op-reth-sdm-fixture as the producer against a
+	//     stock op-reth verifier, so any block the fixture produces that stock op-reth rejects
+	//     fails the run.
+	//
+	// A downstream suite exercising its own refund policy does not run this package; it mirrors
+	// the `sdmtest` workload semantics in its own harness.
 	sequencerOpts := sysgo.ResolveMixedL2ELOpts(t)
 	if fixtureSequencer {
 		sequencerKey = "sequencer-op-reth-sdm-fixture"

@@ -700,8 +700,13 @@ where
         let post_exec_index_offset = info.executed_transactions.len() as u64;
         // Seed this fresh executor with opaque block-scoped refund-policy state accumulated by
         // prior flashblocks (and the base block). Recaptured after the build below.
-        core::mem::take(&mut info.extra.refund_policy_snapshot);
-        builder.executor_mut().seed_refund_snapshot(());
+        //
+        // Written as one expression so it stays correct if `Snapshot` stops being `()`; clippy
+        // objects only because the public policy's snapshot type is currently the unit type.
+        #[allow(clippy::unit_arg)]
+        builder
+            .executor_mut()
+            .seed_refund_snapshot(core::mem::take(&mut info.extra.refund_policy_snapshot));
         let mut target_gas_for_batch = ctx.extra_ctx.target_gas_for_batch;
         let mut target_da_for_batch = ctx.extra_ctx.target_da_for_batch;
         let mut target_da_footprint_for_batch = ctx.extra_ctx.target_da_footprint_for_batch;

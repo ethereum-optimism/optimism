@@ -8,7 +8,7 @@ use alloy_primitives::{Address, U256};
 use revm::{
     context_interface::ContextTr,
     inspector::JournalExt,
-    interpreter::{CallInputs, CreateInputs, Interpreter},
+    interpreter::{CallInputs, CallOutcome, CreateInputs, CreateOutcome, Interpreter},
 };
 
 use super::{PostExecExecutedTx, PostExecTxContext};
@@ -66,9 +66,35 @@ pub trait PostExecRefundInspector {
     where
         CTX: ContextTr<Journal: JournalExt>;
 
+    /// Observe the outcome of a call frame while post-exec tracking is active.
+    ///
+    /// `outcome` is observe-only: mutating it would change execution, which the seam forbids.
+    fn inspect_call_end<CTX>(
+        &mut self,
+        context: &mut CTX,
+        inputs: &CallInputs,
+        outcome: &CallOutcome,
+    ) where
+        CTX: ContextTr<Journal: JournalExt>;
+
     /// Observe a create frame while post-exec tracking is active.
     fn inspect_create<CTX>(&mut self, context: &mut CTX, inputs: &mut CreateInputs)
     where
+        CTX: ContextTr<Journal: JournalExt>;
+
+    /// Observe the outcome of a create frame while post-exec tracking is active.
+    ///
+    /// [`inspect_create`](Self::inspect_create) runs before revm's own frame checks, so an early
+    /// failure there (depth limit, insufficient balance, nonce overflow) never warms the created
+    /// address even though the policy has already observed it. A policy that must distinguish those
+    /// cases gates on this hook — noting that `CreateCollision` warms the address but reports no
+    /// created address. `outcome` is observe-only.
+    fn inspect_create_end<CTX>(
+        &mut self,
+        context: &mut CTX,
+        inputs: &CreateInputs,
+        outcome: &CreateOutcome,
+    ) where
         CTX: ContextTr<Journal: JournalExt>;
 
     /// Observe a self-destruct while post-exec tracking is active.

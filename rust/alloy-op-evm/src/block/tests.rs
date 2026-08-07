@@ -12,7 +12,7 @@ use op_revm::{
     L1BlockInfo, OpBuilder, OpSpecId, OpTransaction,
     constants::{
         BASE_FEE_SCALAR_OFFSET, ECOTONE_L1_BLOB_BASE_FEE_SLOT, ECOTONE_L1_FEE_SCALARS_SLOT,
-        L1_BASE_FEE_SLOT, L1_BLOCK_CONTRACT, OPERATOR_FEE_SCALARS_SLOT,
+        L1_BASE_FEE_SLOT, L1_BLOCK_CONTRACT, L1_FEE_RECIPIENT, OPERATOR_FEE_SCALARS_SLOT,
     },
 };
 use revm::{
@@ -21,7 +21,7 @@ use revm::{
     context_interface::ContextTr,
     database::{CacheDB, EmptyDB, InMemoryDB, State},
     inspector::{JournalExt, NoOpInspector},
-    interpreter::{CallInputs, CreateInputs, Interpreter},
+    interpreter::{CallInputs, CallOutcome, CreateInputs, CreateOutcome, Interpreter},
     primitives::HashMap,
     state::{Account, AccountInfo, Bytecode, EvmState},
 };
@@ -129,6 +129,10 @@ const JOVIAN_TIMESTAMP: u64 = 1_746_806_402;
 /// a bare `bool` at the call sites.
 enum Inspect {
     Enabled,
+    /// Models real block building and validation, which construct the EVM without an inspector
+    /// (`create_evm` passes `false`). The inspected `inspect_tx` path is then reached *only* via
+    /// SDM Produce's `begin_post_exec_tx`, exactly as in production.
+    Disabled,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -592,6 +596,22 @@ fn build_policy_executor<'a, R>(
 where
     R: Default + PostExecRefundInspector,
 {
+    build_policy_executor_with(db, receipt_builder, hardforks, 0, Address::ZERO, Inspect::Enabled)
+}
+
+/// [`build_policy_executor`] with an explicit base fee, beneficiary, and inspector setting, for
+/// tests whose assertion depends on fees actually moving ETH or on how the EVM is constructed.
+fn build_policy_executor_with<'a, R>(
+    db: &'a mut State<InMemoryDB>,
+    receipt_builder: &'a OpAlloyReceiptBuilder,
+    hardforks: &'a OpChainHardforks,
+    base_fee: u64,
+    beneficiary: Address,
+    inspect: Inspect,
+) -> PolicyTestExecutor<'a, R>
+where
+    R: Default + PostExecRefundInspector,
+{
     let ctx = Context::mainnet()
         .with_tx(crate::OpTx(OpTransaction::builder().build_fill()))
         .with_cfg(CfgEnv::new_with_spec(OpSpecId::BEDROCK))
@@ -600,12 +620,16 @@ where
         .with_block(BlockEnv {
             timestamp: U256::from(JOVIAN_TIMESTAMP),
             gas_limit: 500_000,
+            basefee: base_fee,
+            beneficiary,
             ..Default::default()
         })
         .modify_cfg_chained(|cfg| cfg.spec = OpSpecId::JOVIAN);
 
-    let evm: OpEvm<_, _, _, crate::OpTx, R> =
-        OpEvm::new(ctx.build_op_with_inspector(NoOpInspector {}), true);
+    let evm: OpEvm<_, _, _, crate::OpTx, R> = OpEvm::new(
+        ctx.build_op_with_inspector(NoOpInspector {}),
+        matches!(inspect, Inspect::Enabled),
+    );
     OpBlockExecutor::new(
         evm,
         OpBlockExecutionCtx { post_exec_mode: PostExecMode::Produce, ..Default::default() },
@@ -654,11 +678,33 @@ impl PostExecRefundInspector for HookObservingPolicy {
         self.observed_hooks |= 2;
     }
 
+    fn inspect_call_end<CTX>(
+        &mut self,
+        _context: &mut CTX,
+        _inputs: &CallInputs,
+        _outcome: &CallOutcome,
+    ) where
+        CTX: ContextTr<Journal: JournalExt>,
+    {
+        self.observed_hooks |= 16;
+    }
+
     fn inspect_create<CTX>(&mut self, _context: &mut CTX, _inputs: &mut CreateInputs)
     where
         CTX: ContextTr<Journal: JournalExt>,
     {
         self.observed_hooks |= 4;
+    }
+
+    fn inspect_create_end<CTX>(
+        &mut self,
+        _context: &mut CTX,
+        _inputs: &CreateInputs,
+        _outcome: &CreateOutcome,
+    ) where
+        CTX: ContextTr<Journal: JournalExt>,
+    {
+        self.observed_hooks |= 32;
     }
 
     fn inspect_selfdestruct(&mut self, _contract: Address, _target: Address, _value: U256) {
@@ -686,8 +732,8 @@ fn post_exec_composite_dispatches_every_observer_hook() {
 
     assert_eq!(
         executor.post_exec_entries(),
-        &[op_alloy::consensus::SDMGasEntry { index: 0, gas_refund: 15 }],
-        "step, call, create, and selfdestruct must all reach the refund policy"
+        &[op_alloy::consensus::SDMGasEntry { index: 0, gas_refund: 63 }],
+        "step, call, call_end, create, create_end, and selfdestruct must all reach the refund policy"
     );
 }
 
@@ -720,8 +766,28 @@ impl PostExecRefundInspector for ScriptedRefundPolicy {
     {
     }
 
+    fn inspect_call_end<CTX>(
+        &mut self,
+        _context: &mut CTX,
+        _inputs: &CallInputs,
+        _outcome: &CallOutcome,
+    ) where
+        CTX: ContextTr<Journal: JournalExt>,
+    {
+    }
+
     fn inspect_create<CTX>(&mut self, _context: &mut CTX, _inputs: &mut CreateInputs)
     where
+        CTX: ContextTr<Journal: JournalExt>,
+    {
+    }
+
+    fn inspect_create_end<CTX>(
+        &mut self,
+        _context: &mut CTX,
+        _inputs: &CreateInputs,
+        _outcome: &CreateOutcome,
+    ) where
         CTX: ContextTr<Journal: JournalExt>,
     {
     }

@@ -465,7 +465,7 @@ mod tests {
         context_interface::ContextTr,
         database::{EmptyDB, InMemoryDB},
         inspector::JournalExt,
-        interpreter::{CallInputs, CreateInputs, Interpreter},
+        interpreter::{CallInputs, CallOutcome, CreateInputs, CreateOutcome, Interpreter},
         precompile::PrecompileHalt,
         state::AccountInfo,
     };
@@ -511,8 +511,28 @@ mod tests {
         {
         }
 
+        fn inspect_call_end<CTX>(
+            &mut self,
+            _context: &mut CTX,
+            _inputs: &CallInputs,
+            _outcome: &CallOutcome,
+        ) where
+            CTX: ContextTr<Journal: JournalExt>,
+        {
+        }
+
         fn inspect_create<CTX>(&mut self, _context: &mut CTX, _inputs: &mut CreateInputs)
         where
+            CTX: ContextTr<Journal: JournalExt>,
+        {
+        }
+
+        fn inspect_create_end<CTX>(
+            &mut self,
+            _context: &mut CTX,
+            _inputs: &CreateInputs,
+            _outcome: &CreateOutcome,
+        ) where
             CTX: ContextTr<Journal: JournalExt>,
         {
         }

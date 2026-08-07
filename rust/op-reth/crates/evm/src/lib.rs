@@ -127,21 +127,6 @@ impl<ChainSpec, N: NodePrimitives, R, EvmFactory> OpEvmConfig<ChainSpec, N, R, E
             _pd: core::marker::PhantomData,
         }
     }
-
-    /// Clones this configuration's chain spec and receipt builder with a different EVM factory.
-    pub fn clone_with_evm_factory<OtherEvmFactory>(
-        &self,
-        evm_factory: OtherEvmFactory,
-    ) -> OpEvmConfig<ChainSpec, N, R, OtherEvmFactory>
-    where
-        R: Clone,
-    {
-        OpEvmConfig::new_with_evm_factory(
-            self.executor_factory.spec().clone(),
-            self.executor_factory.receipt_builder().clone(),
-            evm_factory,
-        )
-    }
 }
 
 impl<ChainSpec: EthChainSpec<Header = Header> + OpHardforks, N: NodePrimitives, R>
