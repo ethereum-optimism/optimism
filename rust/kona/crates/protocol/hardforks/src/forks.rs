@@ -100,3 +100,5 @@ mod tests {
         assert_eq!(cross_l2_inbox_txs.collect::<Vec<_>>().len(), 2);
     }
 }
+
+// CI baseline probe - do not merge
