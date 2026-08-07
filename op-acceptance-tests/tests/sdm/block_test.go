@@ -77,6 +77,9 @@ func TestSDMFixturePayloadReceiptAndAccounting(gt *testing.T) {
 	t.Require().GreaterOrEqual(len(included), 2, "fixture target block must contain user txs")
 	assertFixtureBlockOracle(t, sys, block, targetBlockNum)
 
+	// The 0x7D footprint is zero; other receipts must sum to the block total.
+	assertPostExecDAFootprint(t, sys.L2EL, block)
+
 	targetRef := sys.L2EL.BlockRefByNumber(targetBlockNum)
 	sys.L2ELVerifier.Reached(eth.Unsafe, targetBlockNum, 60)
 	verifierRef := sys.L2ELVerifier.BlockRefByNumber(targetBlockNum)

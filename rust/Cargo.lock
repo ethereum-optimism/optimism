@@ -9554,6 +9554,7 @@ dependencies = [
 name = "op-revm"
 version = "20.0.0"
 dependencies = [
+ "alloy-eips 2.1.1",
  "alloy-primitives",
  "alloy-sol-types",
  "auto_impl",

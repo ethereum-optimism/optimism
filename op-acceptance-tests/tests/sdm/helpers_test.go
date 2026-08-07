@@ -179,3 +179,48 @@ func assertPostExecTxHashIsCanonical(t devtest.T, l2EL *dsl.L2ELNode, postExecTx
 func isNullJSONResult(raw json.RawMessage) bool {
 	return len(raw) == 0 || strings.TrimSpace(string(raw)) == "null"
 }
+
+// assertPostExecDAFootprint verifies Jovian's blobGasUsed accounting for a block with a 0x7D.
+// Deposits are omitted because block accounting excludes them while their receipts do not.
+func assertPostExecDAFootprint(t devtest.T, l2EL *dsl.L2ELNode, block *sdmpkg.RPCBlock) {
+	rpcClient := l2EL.Escape().L2EthClient().RPC()
+
+	var header struct {
+		BlobGasUsed *hexutil.Uint64 `json:"blobGasUsed"`
+	}
+	err := rpcClient.CallContext(t.Ctx(), &header, "eth_getBlockByHash", block.Hash, false)
+	t.Require().NoError(err, "eth_getBlockByHash RPC failed for block %s", block.Hash)
+	t.Require().NotNil(header.BlobGasUsed,
+		"blobGasUsed must be set on block %s: SDM rides Lagoon, which is post-Jovian", block.Hash)
+	blockDAFootprint := uint64(*header.BlobGasUsed)
+
+	var (
+		totalDAFootprint uint64
+		postExecSeen     bool
+	)
+	for _, tx := range block.Transactions {
+		if uint64(tx.Type) == uint64(gethtypes.DepositTxType) {
+			continue
+		}
+
+		var receipt struct {
+			BlobGasUsed *hexutil.Uint64 `json:"blobGasUsed"`
+		}
+		err := rpcClient.CallContext(t.Ctx(), &receipt, "eth_getTransactionReceipt", tx.Hash)
+		t.Require().NoError(err, "eth_getTransactionReceipt RPC failed for tx %s", tx.Hash)
+		t.Require().NotNil(receipt.BlobGasUsed, "nil receipt blobGasUsed for tx %s", tx.Hash)
+
+		if uint64(tx.Type) == uint64(optypes.PostExecTxType) {
+			postExecSeen = true
+			t.Require().Zero(uint64(*receipt.BlobGasUsed),
+				"post-exec tx %s must report a zero DA footprint on its receipt", tx.Hash)
+		}
+		totalDAFootprint += uint64(*receipt.BlobGasUsed)
+	}
+
+	t.Require().True(postExecSeen, "block %s must contain a post-exec tx", block.Hash)
+	t.Require().Equal(blockDAFootprint, totalDAFootprint,
+		"per-tx receipt DA footprints must sum to the header total on block %s", block.Hash)
+	// Ensure the sum is not vacuously zero.
+	t.Require().Positive(blockDAFootprint, "user txs must accrue a DA footprint for this to bite")
+}
