@@ -794,7 +794,7 @@ func (e *EngineController) TryUpdateEngine(ctx context.Context) {
 
 func (e *EngineController) localSafeIsFullySafe(timestamp uint64) bool {
 	// pre-interop (or if supervisor disabled) everything that is local-safe is also immediately cross-safe.
-	return !e.rollupCfg.IsInterop(timestamp) || (!e.supervisorEnabled && !e.syncCfg.FollowSourceEnabled())
+	return !e.rollupCfg.IsLagoon(timestamp) || (!e.supervisorEnabled && !e.syncCfg.FollowSourceEnabled())
 }
 
 func (e *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {

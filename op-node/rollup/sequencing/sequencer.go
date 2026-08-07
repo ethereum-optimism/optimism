@@ -594,7 +594,7 @@ func (d *Sequencer) startBuildingBlock() {
 	}
 
 	// For the Lagoon activation block we must not include any sequencer transactions.
-	if d.rollupCfg.IsInteropActivationBlock(uint64(attrs.Timestamp)) {
+	if d.rollupCfg.IsLagoonActivationBlock(uint64(attrs.Timestamp)) {
 		attrs.NoTxPool = true
 		d.log.Info("Sequencing Lagoon upgrade block")
 	}

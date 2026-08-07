@@ -485,7 +485,7 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		emitter := &testutils.MockEmitter{}
 		ec := new(fakeEngineController)
 		fi := NewFinalizer(context.Background(), logger, &rollup.Config{
-			InteropTime: &refC1.Time,
+			LagoonTime: &refC1.Time,
 		}, nil, true, l1F, ec)
 		fi.AttachEmitter(emitter)
 

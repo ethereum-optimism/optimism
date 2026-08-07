@@ -187,7 +187,7 @@ func (m *IndexingMode) OnEvent(ctx context.Context, ev event.Event) bool {
 
 	case engine.UnsafeUpdateEvent:
 		logger := m.log.New("unsafe", x.Ref)
-		if !m.cfg.IsInterop(x.Ref.Time) {
+		if !m.cfg.IsLagoon(x.Ref.Time) {
 			logger.Debug("Ignoring non-Interop local unsafe update")
 			return false
 		} else if !m.lastUnsafe.Update(x.Ref.ID()) {
@@ -199,7 +199,7 @@ func (m *IndexingMode) OnEvent(ctx context.Context, ev event.Event) bool {
 
 	case engine.LocalSafeUpdateEvent:
 		logger := m.log.New("derivedFrom", x.Source, "derived", x.Ref)
-		if !m.cfg.IsInterop(x.Ref.Time) {
+		if !m.cfg.IsLagoon(x.Ref.Time) {
 			logger.Debug("Ignoring non-Interop local safe update")
 			return false
 		} else if !m.lastSafe.Update(x.Ref.ID()) {
@@ -216,7 +216,7 @@ func (m *IndexingMode) OnEvent(ctx context.Context, ev event.Event) bool {
 
 	case derive.DeriverL1StatusEvent:
 		logger := m.log.New("derivedFrom", x.Origin, "derived", x.LastL2)
-		if !m.cfg.IsInterop(x.LastL2.Time) {
+		if !m.cfg.IsLagoon(x.LastL2.Time) {
 			logger.Debug("Ignoring non-Interop L1 traversal")
 			return false
 		} else if !m.lastL1Traversal.Update(x.Origin.ID()) {
@@ -346,7 +346,7 @@ func (m *IndexingMode) InvalidateBlock(ctx context.Context, seal supervisortypes
 func (m *IndexingMode) AnchorPoint(ctx context.Context) (supervisortypes.DerivedBlockRefPair, error) {
 	// TODO: maybe cache non-genesis anchor point when seeing safe Interop activation block?
 	//  Only needed if we don't test for activation block in the supervisor.
-	if !m.cfg.IsInterop(m.cfg.Genesis.L2Time) {
+	if !m.cfg.IsLagoon(m.cfg.Genesis.L2Time) {
 		return supervisortypes.DerivedBlockRefPair{}, &gethrpc.JsonError{
 			Code:    InteropInactiveRPCErrCode,
 			Message: "Interop inactive at genesis",
@@ -536,7 +536,7 @@ func (m *IndexingMode) sanityCheck(ctx context.Context, logger log.Logger, propo
 	}
 
 	// check we are not reorging to a non-interop block
-	if !m.cfg.IsInterop(proposedUnsafe.Time) {
+	if !m.cfg.IsLagoon(proposedUnsafe.Time) {
 		err := fmt.Errorf("proposed local-unsafe block %s found to be reorged to is not interop-enabled", proposedUnsafe)
 		logger.Error(err.Error(), "block", proposedUnsafe)
 		return err

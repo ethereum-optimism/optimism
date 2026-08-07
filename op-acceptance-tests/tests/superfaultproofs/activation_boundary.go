@@ -31,8 +31,8 @@ func RunInteropActivationBoundaryTest(t devtest.T, sys *presets.SimpleInterop) {
 
 	startTimestamp := activationTimestamp - 1
 	endTimestamp := activationTimestamp
-	t.Require().False(chains[0].Cfg.IsInterop(startTimestamp), "startTimestamp must not be interop-active")
-	t.Require().True(chains[0].Cfg.IsInterop(endTimestamp), "endTimestamp must be interop-active")
+	t.Require().False(chains[0].Cfg.IsLagoon(startTimestamp), "startTimestamp must not be interop-active")
+	t.Require().True(chains[0].Cfg.IsLagoon(endTimestamp), "endTimestamp must be interop-active")
 
 	// Wait for chains to produce blocks past the end timestamp.
 	for _, c := range chains {

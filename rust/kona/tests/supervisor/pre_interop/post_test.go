@@ -49,7 +49,7 @@ func TestPostInbox(gt *testing.T) {
 	sys := newMinimalPreInterop(t)
 	devtest.RunParallel(t, sys.L2Networks(), func(t devtest.T, net *dsl.L2Network) {
 		require := t.Require()
-		activationBlock := net.AwaitActivation(t, forks.Interop)
+		activationBlock := net.AwaitActivation(t, forks.Lagoon)
 
 		el := net.PrimaryEL()
 		implAddrBytes, err := el.EthClient().GetStorageAt(t.Ctx(), predeploys.CrossL2InboxAddr,
@@ -119,7 +119,7 @@ func testSupervisorAnchorBlock(t devtest.T, sys *presets.SimpleInterop) {
 			t.Gate().True(upgradeTime.Before(deadline), "test must not time out before upgrade happens")
 		}
 
-		activationBlock := net.AwaitActivation(t, forks.Interop)
+		activationBlock := net.AwaitActivation(t, forks.Lagoon)
 		sys.Supervisor.WaitForL2HeadToAdvanceTo(net.ChainID(), stypes.CrossSafe, activationBlock)
 
 		logger.Info("Validating anchor block timing",

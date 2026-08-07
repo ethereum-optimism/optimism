@@ -754,7 +754,7 @@ func RunPreForkActivationTest(t devtest.T, sys *presets.SimpleInterop) {
 	execMsg := aliceB.SendExecMessage(initMsg, dsl.WithFixedGasLimit(100_000), dsl.WithExpectRevert())
 
 	endTimestamp := sys.L2ChainB.TimestampForBlockNum(bigs.Uint64Strict(execMsg.BlockNumber()))
-	t.Require().False(chains[0].Cfg.IsInterop(endTimestamp), "Interop should not be active")
+	t.Require().False(chains[0].Cfg.IsLagoon(endTimestamp), "Interop should not be active")
 
 	sys.SuperRoots.AwaitValidatedTimestamp(endTimestamp)
 	l1Head := latestRequiredL1(sys.SuperRoots.SuperRootAtTimestamp(endTimestamp))

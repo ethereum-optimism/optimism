@@ -42,7 +42,7 @@ use crate::{Ecotone, Fjord, Isthmus, Jovian, Karst, Lagoon};
 /// containing more than one chain and is emitted separately via
 /// [`Lagoon::cross_l2_inbox_txs`]:
 /// ```rust
-/// use kona_hardforks::Interop;
+/// use kona_hardforks::Lagoon;
 /// let cross_l2_inbox_txs = Lagoon::cross_l2_inbox_txs();
 /// assert_eq!(cross_l2_inbox_txs.collect::<Vec<_>>().len(), 2);
 /// ```

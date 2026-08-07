@@ -148,7 +148,7 @@ func (s *ChainSpec) CheckForkActivation(log log.Logger, block eth.L2BlockRef) {
 		if s.config.IsKarst(block.Time) {
 			s.currentFork = forks.Karst
 		}
-		if s.config.IsInterop(block.Time) {
+		if s.config.IsLagoon(block.Time) {
 			s.currentFork = forks.Lagoon
 		}
 		log.Info("Current hardfork version detected", "forkName", s.currentFork)
@@ -179,7 +179,7 @@ func (s *ChainSpec) CheckForkActivation(log log.Logger, block eth.L2BlockRef) {
 	case forks.Karst:
 		foundActivationBlock = s.config.IsKarstActivationBlock(block.Time)
 	case forks.Lagoon:
-		foundActivationBlock = s.config.IsInteropActivationBlock(block.Time)
+		foundActivationBlock = s.config.IsLagoonActivationBlock(block.Time)
 	}
 
 	if foundActivationBlock {

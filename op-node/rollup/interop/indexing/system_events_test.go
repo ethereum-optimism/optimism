@@ -46,8 +46,8 @@ func (m *mockEventStream) drainEvents() []*supervisortypes.IndexingEvent {
 func TestManagedMode_OnEvent_Deduplication(t *testing.T) {
 	logger, logs := testlog.CaptureLogger(t, log.LevelDebug)
 	cfg := &rollup.Config{
-		L2ChainID:   big.NewInt(123),
-		InteropTime: new(uint64), // Interop active from genesis
+		L2ChainID:  big.NewInt(123),
+		LagoonTime: new(uint64), // Interop active from genesis
 	}
 
 	mockStream := &mockEventStream{}
@@ -355,8 +355,8 @@ func TestManagedMode_OnEvent_Deduplication(t *testing.T) {
 		// Create a config with Interop activation at a future time
 		interopTime := uint64(2000)
 		preInteropCfg := &rollup.Config{
-			L2ChainID:   big.NewInt(123),
-			InteropTime: &interopTime,
+			L2ChainID:  big.NewInt(123),
+			LagoonTime: &interopTime,
 		}
 
 		preInteropMM := &IndexingMode{

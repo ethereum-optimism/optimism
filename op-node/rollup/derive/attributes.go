@@ -168,7 +168,7 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 	}
 
 	// TODO(#19239): migrate Interop to NUT bundle and add its gas to upgradeGas.
-	if ba.rollupCfg.IsInteropActivationBlock(nextL2Time) {
+	if ba.rollupCfg.IsLagoonActivationBlock(nextL2Time) {
 		interop, err := InteropNetworkUpgradeTransactions()
 		if err != nil {
 			return nil, NewCriticalError(fmt.Errorf("failed to build interop network upgrade txs: %w", err))

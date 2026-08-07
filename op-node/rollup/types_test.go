@@ -376,7 +376,7 @@ func TestActivations(t *testing.T) {
 				c.LagoonTime = t
 			},
 			checkEnabled: func(t uint64, c *Config) bool {
-				return c.IsInterop(t)
+				return c.IsLagoon(t)
 			},
 		},
 	} {

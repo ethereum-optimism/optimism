@@ -142,7 +142,7 @@ func sharedInteropActivationTimestamp(t helpers.Testing, chains []*Chain) *uint6
 
 	var interopTime *uint64
 	for _, chain := range chains {
-		resolvedInteropTime := chain.RollupCfg.InteropTime
+		resolvedInteropTime := chain.RollupCfg.LagoonTime
 		if resolvedInteropTime != nil && *resolvedInteropTime == 0 {
 			ts := chain.RollupCfg.Genesis.L2Time
 			resolvedInteropTime = &ts
