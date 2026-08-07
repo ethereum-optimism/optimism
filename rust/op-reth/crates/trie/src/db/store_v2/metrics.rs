@@ -1,15 +1,15 @@
 //! [`DatabaseMetrics`](reth_db::database_metrics::DatabaseMetrics) implementation for
-//! [`MdbxProofsStorageV2`].
+//! [`MdbxProofsStorage`].
 //!
 //! Reports per-table size, page counts, and entry counts.
 
-use super::{MdbxProofsStorageV2, Tables};
+use super::{MdbxProofsStorage, Tables};
 use eyre::WrapErr;
 use metrics::{Label, gauge};
 use reth_db::Database;
 use tracing::error;
 
-impl reth_db::database_metrics::DatabaseMetrics for MdbxProofsStorageV2 {
+impl reth_db::database_metrics::DatabaseMetrics for MdbxProofsStorage {
     fn report_metrics(&self) {
         for (name, value, labels) in self.gauge_metrics() {
             gauge!(name, labels).set(value);

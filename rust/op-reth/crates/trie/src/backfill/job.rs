@@ -341,7 +341,7 @@ where
     /// Backfill using a `Ready` snapshot to accelerate per-block reads.
     ///
     /// Mirrors [`Self::run`] but reads trie state at each iteration's
-    /// `block_number` from the snapshot tables instead of the V2 merge-walk,
+    /// `block_number` from the snapshot tables instead of the history merge-walk,
     /// and advances the snapshot anchor atomically with each `prepend_block`
     /// (so the snapshot stays in sync with the moving `earliest`).
     ///

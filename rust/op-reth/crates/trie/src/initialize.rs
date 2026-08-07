@@ -492,7 +492,7 @@ impl<C> InitTable for HashedStoragesInit<C> {
     ///
     /// Entries arrive from the source `DupSort` cursor in `(address ASC, slot ASC)`
     /// order.  We group consecutive entries by address — preserving that order —
-    /// so the V2 implementation can use `append_dup` (O(1) per entry, no B-tree
+    /// so the MDBX implementation can use `append_dup` (O(1) per entry, no B-tree
     /// traversal).  This keeps page-cache pressure constant regardless of table
     /// size, which is critical on 16 GB machines.
     ///

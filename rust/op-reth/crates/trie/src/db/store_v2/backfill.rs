@@ -1,6 +1,6 @@
-//! [`OpProofsBackfillProvider`] implementation for [`MdbxProofsProviderV2`].
+//! [`OpProofsBackfillProvider`] implementation for [`MdbxProofsProvider`].
 
-use super::{MdbxProofsProviderV2, NUM_OF_INDICES_IN_SHARD, write::HistoryCollector};
+use super::{MdbxProofsProvider, NUM_OF_INDICES_IN_SHARD, write::HistoryCollector};
 use crate::{
     BlockStateDiff, OpProofsStorageError, OpProofsStorageResult,
     api::{OpProofsBackfillProvider, WriteCounts},
@@ -95,7 +95,7 @@ where
     Ok(())
 }
 
-impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> MdbxProofsProviderV2<TX> {
+impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> MdbxProofsProvider<TX> {
     /// Upsert the singleton row in [`V2SnapshotMeta`].
     ///
     /// Shared helper used by both
@@ -457,7 +457,7 @@ impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> MdbxProofsProviderV2<TX
 }
 
 impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> OpProofsBackfillProvider
-    for MdbxProofsProviderV2<TX>
+    for MdbxProofsProvider<TX>
 {
     fn prepend_block(
         &self,

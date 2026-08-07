@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -14,8 +15,8 @@ import (
 // MixedOpProofPreset sets up a two-node L2 devnet (sequencer + validator)
 // with configurable EL clients via environment variables:
 //
-//   - OP_DEVSTACK_PROOF_SEQUENCER_EL: "op-geth", "op-reth" (default), or "op-reth-proof-v1"
-//   - OP_DEVSTACK_PROOF_VALIDATOR_EL: "op-reth-proof-v1" (default), "op-reth", or "op-geth"
+//   - OP_DEVSTACK_PROOF_SEQUENCER_EL: "op-reth" (default) or "op-geth"
+//   - OP_DEVSTACK_PROOF_VALIDATOR_EL: "op-reth" (default) or "op-geth"
 type MixedOpProofPreset struct {
 	Log log.Logger
 	T   devtest.T
@@ -54,24 +55,27 @@ func (m *MixedOpProofPreset) RethWithProofL2ELNode() *dsl.L2ELNode {
 	return m.L2ELValidator
 }
 
-func resolveELSpec(envVar string, defaultKind sysgo.MixedL2ELKind) sysgo.MixedL2ELKind {
-	switch os.Getenv(envVar) {
-	case "op-reth-proof-v2":
-		return sysgo.MixedL2ELOpRethV2
-	case "op-reth-proof-v1", "op-reth":
-		return sysgo.MixedL2ELOpReth
+func resolveELSpec(envVar string, defaultKind sysgo.MixedL2ELKind) (sysgo.MixedL2ELKind, error) {
+	value := os.Getenv(envVar)
+	switch value {
+	case "":
+		return defaultKind, nil
+	case "op-reth":
+		return sysgo.MixedL2ELOpReth, nil
 	case "op-geth":
-		return sysgo.MixedL2ELOpGeth
+		return sysgo.MixedL2ELOpGeth, nil
 	default:
-		return defaultKind
+		return "", fmt.Errorf("unsupported %s value %q", envVar, value)
 	}
 }
 
 // NewMixedOpProofPreset creates the preset using MixedSingleChainRuntime for
 // full control over EL client types.
 func NewMixedOpProofPreset(t devtest.T) *MixedOpProofPreset {
-	seqKind := resolveELSpec("OP_DEVSTACK_PROOF_SEQUENCER_EL", sysgo.MixedL2ELOpReth)
-	valKind := resolveELSpec("OP_DEVSTACK_PROOF_VALIDATOR_EL", sysgo.MixedL2ELOpReth)
+	seqKind, err := resolveELSpec("OP_DEVSTACK_PROOF_SEQUENCER_EL", sysgo.MixedL2ELOpReth)
+	t.Require().NoError(err)
+	valKind, err := resolveELSpec("OP_DEVSTACK_PROOF_VALIDATOR_EL", sysgo.MixedL2ELOpReth)
+	t.Require().NoError(err)
 
 	runtime := sysgo.NewMixedSingleChainRuntime(t, sysgo.MixedSingleChainPresetConfig{
 		NodeSpecs: []sysgo.MixedSingleChainNodeSpec{

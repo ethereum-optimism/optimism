@@ -137,13 +137,11 @@ func startL2ELForKey(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [3
 		// binary override look like it took effect on a node that never saw it.
 		t.Require().Empty(opts, "op-reth options cannot be applied to EL kind %q", k)
 		return startL2ELNode(t, l2Net, jwtPath, jwtSecret, key, identity)
-	case MixedL2ELOpRethV2:
-		return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil, "v2", opts...)
 	case MixedOpRbuilder:
 		t.Require().Empty(opts, "op-reth options cannot be applied to EL kind %q", k)
 		return startBuilderEL(t, l2Net, jwtPath, identity)
-	case "", MixedL2ELOpReth: // unset (default) or explicit op-reth v1
-		return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil, "v1", opts...)
+	case "", MixedL2ELOpReth: // unset (default) or explicit op-reth
+		return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil, opts...)
 	default:
 		t.Require().FailNow("unsupported L2 EL kind", "unknown DEVSTACK_L2EL_KIND %q", k)
 		return nil // unreachable

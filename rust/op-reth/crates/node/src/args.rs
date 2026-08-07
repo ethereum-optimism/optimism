@@ -8,17 +8,6 @@ use reth_optimism_trie::DEFAULT_BACKFILL_BATCH_SIZE;
 use std::path::PathBuf;
 use url::Url;
 
-/// Storage schema version for the proofs-history database.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
-pub enum ProofsStorageVersion {
-    /// V1 storage schema (original single-table-per-domain layout). Default.
-    #[default]
-    V1,
-    /// V2 storage schema with changeset and history-bitmap tables, enabling
-    /// history-aware reads at any block number within the proof window.
-    V2,
-}
-
 /// Default proofs history window in blocks: 30 days × 24h × 60min × 60s / 2s
 /// per block = `1_296_000`.
 pub const DEFAULT_PROOFS_HISTORY_WINDOW: u64 = 1_296_000;
@@ -38,14 +27,6 @@ pub struct ProofsHistoryStorageArgs {
     /// `--datadir`).
     #[arg(long = "proofs-history.storage-path", value_name = "PROOFS_HISTORY_STORAGE_PATH")]
     pub storage_path: Option<PathBuf>,
-
-    /// Storage schema version. Must match the version used when starting the node.
-    #[arg(
-        long = "proofs-history.storage-version",
-        value_name = "PROOFS_HISTORY_STORAGE_VERSION",
-        default_value = "v1"
-    )]
-    pub storage_version: ProofsStorageVersion,
 }
 
 impl ProofsHistoryStorageArgs {
@@ -111,7 +92,7 @@ pub struct ProofsHistoryBackfillArgs {
 
     /// Use the trie-state snapshot to accelerate per-block reads during
     /// backfill. If no snapshot exists, one is bootstrapped at the current
-    /// `earliest` before the backfill loop begins. Requires v2 storage.
+    /// `earliest` before the backfill loop begins.
     ///
     /// Defaults to `true`. Pass `--proofs-history.use-snapshot false` to
     /// force the non-snapshot path (per-block reads via the reth DB).
@@ -311,10 +292,7 @@ impl Default for RollupArgs {
             flashblocks_url: None,
             flashblock_consensus: false,
             proofs_history: false,
-            history: ProofsHistoryStorageArgs {
-                storage_path: None,
-                storage_version: ProofsStorageVersion::V1,
-            },
+            history: ProofsHistoryStorageArgs { storage_path: None },
             proofs_history_window: ProofsHistoryWindowArg::default(),
             proofs_history_verification_interval: 0,
         }

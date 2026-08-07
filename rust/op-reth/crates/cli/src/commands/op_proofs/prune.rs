@@ -5,12 +5,9 @@ use reth_chainspec::EthChainSpec;
 use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, EnvironmentArgs};
 use reth_node_core::version::version_metadata;
-use reth_optimism_node::args::{
-    ProofsHistoryStorageArgs, ProofsHistoryWindowArg, ProofsStorageVersion,
-};
+use reth_optimism_node::args::{ProofsHistoryStorageArgs, ProofsHistoryWindowArg};
 use reth_optimism_trie::{
-    OpProofStoragePruner, OpProofsProviderRO, OpProofsStore,
-    db::{MdbxProofsStorage, MdbxProofsStorageV2},
+    OpProofStoragePruner, OpProofsProviderRO, OpProofsStore, db::MdbxProofsStorage,
 };
 use std::sync::Arc;
 use tracing::info;
@@ -53,32 +50,16 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> PruneCommand<C> {
         let storage_path = self.history.resolve_storage_path(data_dir.as_ref());
         info!(target: "reth::cli", "Pruning OP proofs storage at: {:?}", storage_path);
 
-        match self.history.storage_version {
-            ProofsStorageVersion::V1 => {
-                let storage: Arc<MdbxProofsStorage> = Arc::new(
-                    MdbxProofsStorage::new(&storage_path)
-                        .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
-                );
-                Self::run_prune(
-                    storage,
-                    provider_factory,
-                    self.proofs_history_window.window,
-                    self.proofs_history_prune_batch_size,
-                )?;
-            }
-            ProofsStorageVersion::V2 => {
-                let storage: Arc<MdbxProofsStorageV2> = Arc::new(
-                    MdbxProofsStorageV2::new(&storage_path)
-                        .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorageV2: {e}"))?,
-                );
-                Self::run_prune(
-                    storage,
-                    provider_factory,
-                    self.proofs_history_window.window,
-                    self.proofs_history_prune_batch_size,
-                )?;
-            }
-        }
+        let storage: Arc<MdbxProofsStorage> = Arc::new(
+            MdbxProofsStorage::new(&storage_path)
+                .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
+        );
+        Self::run_prune(
+            storage,
+            provider_factory,
+            self.proofs_history_window.window,
+            self.proofs_history_prune_batch_size,
+        )?;
 
         Ok(())
     }

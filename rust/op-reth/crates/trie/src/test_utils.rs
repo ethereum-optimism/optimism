@@ -1,14 +1,14 @@
 //! Shared test fixtures for OP-reth proofs storage tests.
 //!
 //! Builds real reth-side chains (genesis + EVM-executed blocks) and
-//! initializes a V2 MDBX proofs storage on top, so downstream tests
+//! initializes an MDBX proofs storage on top, so downstream tests
 //! (backfill, snapshot, …) can exercise end-to-end pipelines without
 //! duplicating the chain-construction boilerplate.
 //!
 //! Gated on `#[cfg(test)]` and re-exported via `pub(crate)`; not part of the
 //! crate's public surface.
 
-use crate::{MdbxProofsStorageV2, RethTrieStorageLayout, initialize::InitializationJob};
+use crate::{MdbxProofsStorage, RethTrieStorageLayout, initialize::InitializationJob};
 use alloy_consensus::{Header, TxEip2930, constants::ETH_TO_WEI};
 use alloy_genesis::{Genesis, GenesisAccount};
 use alloy_primitives::{Address, B256, Bytes, TxKind, U256, keccak256};
@@ -30,10 +30,10 @@ use secp256k1::{Keypair, Secp256k1, SecretKey};
 use std::sync::Arc;
 use tempfile::TempDir;
 
-/// Create a fresh V2 MDBX proofs storage backed by a temporary directory.
-pub(crate) fn create_storage() -> Arc<MdbxProofsStorageV2> {
+/// Create a fresh MDBX proofs storage backed by a temporary directory.
+pub(crate) fn create_storage() -> Arc<MdbxProofsStorage> {
     let path = TempDir::new().unwrap();
-    Arc::new(MdbxProofsStorageV2::new(path.path()).unwrap())
+    Arc::new(MdbxProofsStorage::new(path.path()).unwrap())
 }
 
 pub(crate) fn public_key_to_address(pubkey: secp256k1::PublicKey) -> Address {
@@ -241,14 +241,14 @@ fn build_storage_call_block(
 }
 
 /// Build a chain of `num_blocks` simple transfer blocks on top of a freshly
-/// initialized genesis, then initialize the v2 proofs storage at the latest
+/// initialized genesis, then initialize the proofs storage at the latest
 /// block. Returns the provider factory, the storage, and the latest
 /// (number, hash) pair.
 pub(crate) fn build_chain_and_initialize_storage(
     num_blocks: u64,
 ) -> (
     ProviderFactory<reth_provider::test_utils::MockNodeTypesWithDB>,
-    Arc<MdbxProofsStorageV2>,
+    Arc<MdbxProofsStorage>,
     u64,
     B256,
 ) {
@@ -293,7 +293,7 @@ pub(crate) fn build_chain_with_storage_writes_and_initialize_storage(
     num_blocks: u64,
 ) -> (
     ProviderFactory<reth_provider::test_utils::MockNodeTypesWithDB>,
-    Arc<MdbxProofsStorageV2>,
+    Arc<MdbxProofsStorage>,
     u64,
     B256,
 ) {

@@ -12,8 +12,7 @@ use reth_evm::{ConfigureEvm, execute::Executor};
 use reth_evm_ethereum::EthEvmConfig;
 use reth_node_api::{NodePrimitives, NodeTypesWithDB};
 use reth_optimism_trie::{
-    MdbxProofsStorage, MdbxProofsStorageV2, OpProofStoragePruner, OpProofsStorage, OpProofsStore,
-    RethTrieStorageLayout,
+    MdbxProofsStorage, OpProofStoragePruner, OpProofsStorage, OpProofsStore, RethTrieStorageLayout,
     engine::{EngineError, EngineHandle},
     initialize::InitializationJob,
 };
@@ -34,11 +33,6 @@ use test_case::test_case;
 fn create_mdbx_proofs_storage() -> Arc<MdbxProofsStorage> {
     let path = TempDir::new().unwrap().keep();
     Arc::new(MdbxProofsStorage::new(&path).unwrap())
-}
-
-fn create_mdbx_proofs_storage_v2() -> Arc<MdbxProofsStorageV2> {
-    let path = TempDir::new().unwrap().keep();
-    Arc::new(MdbxProofsStorageV2::new(&path).unwrap())
 }
 
 /// Converts a secp256k1 public key to an Ethereum address.
@@ -320,7 +314,6 @@ where
 /// (2) Stores the genesis state into storage via initialization
 /// (3) Executes a block and calculates the state root using the stored state
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
-#[test_case(create_mdbx_proofs_storage_v2(); "MdbxV2")]
 #[serial]
 fn test_execute_and_store_block_updates<S>(storage: S) -> Result<(), eyre::Error>
 where
@@ -354,7 +347,6 @@ where
 }
 
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
-#[test_case(create_mdbx_proofs_storage_v2(); "MdbxV2")]
 #[serial]
 fn test_execute_and_store_block_updates_missing_parent_block<S>(
     storage: S,
@@ -413,7 +405,6 @@ where
 }
 
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
-#[test_case(create_mdbx_proofs_storage_v2(); "MdbxV2")]
 #[serial]
 fn test_execute_and_store_block_updates_state_root_mismatch<S>(
     storage: Arc<S>,
@@ -496,7 +487,6 @@ where
 /// `transactions_root` (i.e. originally contained transactions) but whose body has been
 /// stripped — exactly what `recovered_block` would return for a body-pruned block.
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
-#[test_case(create_mdbx_proofs_storage_v2(); "MdbxV2")]
 #[serial]
 fn test_execute_and_store_block_updates_body_pruned<S>(storage: Arc<S>) -> Result<(), eyre::Error>
 where
@@ -560,7 +550,6 @@ where
 
 /// Test with multiple blocks before and after initialization
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
-#[test_case(create_mdbx_proofs_storage_v2(); "MdbxV2")]
 #[serial]
 fn test_multiple_blocks_before_and_after_initialization<S>(
     storage: Arc<S>,
@@ -601,7 +590,6 @@ where
 
 /// Test with blocks containing multiple transactions
 #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
-#[test_case(create_mdbx_proofs_storage_v2(); "MdbxV2")]
 #[serial]
 fn test_blocks_with_multiple_transactions<S>(storage: Arc<S>) -> Result<(), eyre::Error>
 where

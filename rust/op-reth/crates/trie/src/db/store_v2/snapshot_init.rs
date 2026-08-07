@@ -1,11 +1,11 @@
-//! [`OpProofsSnapshotInitProvider`] implementation for [`MdbxProofsProviderV2`].
+//! [`OpProofsSnapshotInitProvider`] implementation for [`MdbxProofsProvider`].
 //!
 //! Mirrors `init.rs`'s role for [`OpProofsInitProvider`](crate::api::OpProofsInitProvider):
 //! this module is the one place where all init-time operations on the snapshot
 //! tables live — bulk source reads, append-only destination writes, anchor
 //! recovery, meta transitions, and `clear`.
 
-use super::MdbxProofsProviderV2;
+use super::MdbxProofsProvider;
 use crate::{
     OpProofsStorageError, OpProofsStorageResult,
     api::{OpProofsSnapshotInitProvider, SnapshotInitAnchor, SnapshotInitStatus},
@@ -28,7 +28,7 @@ use reth_trie::{BranchNodeCompact, Nibbles, StorageTrieEntry, StoredNibbles, Sto
 use std::fmt::Debug;
 
 impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> OpProofsSnapshotInitProvider
-    for MdbxProofsProviderV2<TX>
+    for MdbxProofsProvider<TX>
 {
     fn snapshot_init_anchor(&self) -> OpProofsStorageResult<SnapshotInitAnchor> {
         let (block, status) = match self.read_snapshot_meta() {

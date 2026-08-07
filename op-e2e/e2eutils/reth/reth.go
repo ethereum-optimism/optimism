@@ -26,18 +26,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/tasks"
 )
 
-const (
-	proofsHistoryVersionV1      = "v1"
-	defaultProofsHistoryVersion = "v2"
-)
-
 // Config carries the op-e2e-level EL knobs that translate onto the op-reth CLI.
 type Config struct {
 	// SequencerHTTP, when non-empty, wires op-reth to forward transactions to the
 	// sequencer via --rollup.sequencer-http (sentry tx-forwarding).
 	SequencerHTTP string
-	// ProofsHistoryVersion selects the proof-history storage version; defaults to v2.
-	ProofsHistoryVersion string
 	// DataDir is the base directory for the op-reth datadir/logs/proof-history.
 	// Callers should pass t.TempDir() so the test framework owns cleanup even if
 	// the test panics before Close.
@@ -99,11 +92,6 @@ func (i *Instance) Close() error {
 // from the given genesis, starts an op-reth node, and waits for its RPCs to come
 // up. cfg.DataDir must be created with t.TempDir() by the caller.
 func InitL2(ctx context.Context, lgr log.Logger, name string, genesis *core.Genesis, jwtPath string, cfg Config) (*Instance, error) {
-	proofsVersion := cfg.ProofsHistoryVersion
-	if proofsVersion == "" {
-		proofsVersion = defaultProofsHistoryVersion
-	}
-
 	execPath, err := rustbin.Spec{
 		SrcDir:  "rust",
 		Package: "op-reth",
@@ -150,12 +138,6 @@ func InitL2(ctx context.Context, lgr log.Logger, name string, genesis *core.Gene
 		"--datadir=" + dataDir,
 		"--chain=" + chainConfigPath,
 		"--proofs-history.storage-path=" + proofHistoryDir,
-		"--proofs-history.storage-version=" + proofsVersion,
-	}
-	// `proofs init` runs snapshot-accelerated backfill by default, which v1
-	// storage does not support, so opt out explicitly for v1 (mirrors sysgo).
-	if proofsVersion == proofsHistoryVersionV1 {
-		proofsInitArgs = append(proofsInitArgs, "--proofs-history.skip-backfill")
 	}
 	if err := runToCompletion(ctx, execPath, proofsInitArgs...); err != nil {
 		return nil, fmt.Errorf("op-reth proofs init: %w", err)
@@ -184,7 +166,6 @@ func InitL2(ctx context.Context, lgr log.Logger, name string, genesis *core.Gene
 		"--proofs-history",
 		"--proofs-history.window=10000",
 		"--proofs-history.storage-path=" + proofHistoryDir,
-		"--proofs-history.storage-version=" + proofsVersion,
 		"--with-unused-ports",
 		"--ws",
 		"--ws.api=admin,debug,eth,net,trace,txpool,web3,rpc,reth,miner",

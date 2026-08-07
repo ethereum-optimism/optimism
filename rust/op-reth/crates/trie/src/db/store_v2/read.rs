@@ -1,6 +1,6 @@
-//! Read-only helpers for [`MdbxProofsProviderV2`].
+//! Read-only helpers for [`MdbxProofsProvider`].
 
-use super::MdbxProofsProviderV2;
+use super::MdbxProofsProvider;
 use crate::{
     OpProofsStorageError, OpProofsStorageResult,
     api::ProofWindowRange,
@@ -21,7 +21,7 @@ use reth_db::{
 };
 use reth_trie::{HashedPostState, StoredNibbles, StoredNibblesSubKey, updates::TrieUpdates};
 
-impl<TX: DbTx> MdbxProofsProviderV2<TX> {
+impl<TX: DbTx> MdbxProofsProvider<TX> {
     pub(super) fn get_block_number_hash_inner(
         &self,
         key: ProofWindowKey,

@@ -1,9 +1,6 @@
 //! Node launcher with proof history support.
 
-use crate::{
-    OpNode,
-    args::{ProofsStorageVersion, RollupArgs},
-};
+use crate::{OpNode, args::RollupArgs};
 use eyre::ErrReport;
 use futures_util::FutureExt;
 use reth_db::DatabaseEnv;
@@ -15,16 +12,13 @@ use reth_optimism_rpc::{
     debug::{DebugApiExt, DebugApiOverrideServer},
     eth::proofs::{EthApiExt, EthApiOverrideServer},
 };
-use reth_optimism_trie::{
-    OpProofsStorage, OpProofsStore,
-    db::{MdbxProofsStorage, MdbxProofsStorageV2},
-};
+use reth_optimism_trie::{OpProofsStorage, OpProofsStore, db::MdbxProofsStorage};
 use reth_tasks::TaskExecutor;
 use std::{sync::Arc, time::Duration};
 use tokio::time::sleep;
 use tracing::info;
 
-/// Launch the node in one of three proof-history modes:
+/// Launches the node with optional proof-history support.
 pub async fn launch_node(
     builder: WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
     args: RollupArgs,
@@ -38,24 +32,12 @@ pub async fn launch_node(
     // [`ProofsHistoryStorageArgs::resolve_storage_path`].
     let path = args.history.resolve_storage_path(builder.config().datadir().as_ref());
 
-    match args.history.storage_version {
-        ProofsStorageVersion::V1 => {
-            info!(target: "reth::cli", "Using on-disk storage for proofs history (v1)");
-            let mdbx = Arc::new(
-                MdbxProofsStorage::new(&path)
-                    .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
-            );
-            launch_with_proof_history(builder, args, mdbx).await
-        }
-        ProofsStorageVersion::V2 => {
-            info!(target: "reth::cli", "Using on-disk storage for proofs history (v2)");
-            let mdbx = Arc::new(
-                MdbxProofsStorageV2::new(&path)
-                    .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorageV2: {e}"))?,
-            );
-            launch_with_proof_history(builder, args, mdbx).await
-        }
-    }
+    info!(target: "reth::cli", "Using on-disk storage for proofs history");
+    let mdbx = Arc::new(
+        MdbxProofsStorage::new(&path)
+            .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
+    );
+    launch_with_proof_history(builder, args, mdbx).await
 }
 
 /// Installs the ExEx, RPC overrides, and metrics hook for proof history, then launches the node.
