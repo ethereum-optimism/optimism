@@ -35,8 +35,10 @@ import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManager
 ///         `OPCMv2.upgrade()` flow (the same flow the `op-deployer manage` commands invoke). Asserts
 ///         (1) the upgrade succeeds (ZK registered, source super game cleared, respected type flipped
 ///         to ZK), (2) a ZK game can be created, proven, resolved, and finalized in place of the
-///         super game (closeGame -> valid claim -> anchor advances), and (3) a super game created
-///         just before the flip still finalizes afterwards.
+///         super game (closeGame -> valid claim -> anchor advances), (3) a super game created
+///         just before the flip still finalizes afterwards, and (4) the flip behaves correctly when
+///         real pre-boundary state crosses it: an already-advanced anchor, a blacklist entry, and an
+///         unresolved game.
 contract ZKDisputeGameSuperMigration_Test is DisputeGameFactory_TestInit {
     /// @notice Actors used across the migration scenarios.
     address internal flipProposer = address(0xA11CE);
@@ -71,6 +73,102 @@ contract ZKDisputeGameSuperMigration_Test is DisputeGameFactory_TestInit {
     /// @notice Path B: SuperPermissionedDisputeGame -> ZKDisputeGame (permissioned -> permissionless).
     function test_flip_spdgToZK_succeeds() public {
         _runFlipAndAssert(GameTypes.SUPER_PERMISSIONED);
+    }
+
+    /// @notice Drives the SFDG -> ZK flip for the following in-flight games: an anchor that a
+    ///         game has already advanced (`anchorGame != 0`), a Guardian blacklist entry, and a game
+    ///         still IN_PROGRESS. The upgrade re-initializes the AnchorStateRegistry in place.
+    ///         `anchorGame` is cleared, `retirementTimestamp` and the blacklist are preserved, and a
+    ///         in-flight game can still resolve, close in NORMAL mode, and re-advance the anchor.
+    /// @dev    SFDG only. SuperPermissionedDisputeGame resolves DEFENDER_WINS at initialization, so
+    ///         it cannot be left unresolved across the boundary.
+    function test_flip_inFlightStateCrossesBoundary_succeeds() public {
+        GameType sourceType = GameTypes.SUPER_CANNON_KONA;
+
+        _registerSourceSuperGame(sourceType);
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.setRespectedGameType(sourceType);
+
+        // Warp past the retirement timestamp so the pre-boundary games are not "retired".
+        vm.warp(anchorStateRegistry.retirementTimestamp() + 1);
+
+        (, uint256 anchorSeqNum) = anchorStateRegistry.getAnchorRoot();
+        uint256 finalityDelay = anchorStateRegistry.disputeGameFinalityDelaySeconds();
+
+        // ── Pre-state 1: a game that has already advanced the anchor, so `anchorGame != 0` ──
+        IDisputeGame advancer = _createSuperGame(sourceType, anchorSeqNum + 1);
+        _resolveSuperGame(sourceType, advancer);
+        vm.warp(advancer.resolvedAt().raw() + finalityDelay + 1 seconds);
+        ISuperFaultDisputeGame(address(advancer)).closeGame();
+        assertEq(
+            address(anchorStateRegistry.anchorGame()), address(advancer), "anchor must be advanced before the flip"
+        );
+
+        // ── Pre-state 2: a resolved game the Guardian has blacklisted ──
+        IDisputeGame blacklisted = _createSuperGame(sourceType, anchorSeqNum + 2);
+        _resolveSuperGame(sourceType, blacklisted);
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.blacklistDisputeGame(blacklisted);
+
+        // ── Pre-state 3: a game left IN_PROGRESS across the boundary ──
+        IDisputeGame inFlight = _createSuperGame(sourceType, anchorSeqNum + 5000);
+        assertEq(uint8(inFlight.status()), uint8(GameStatus.IN_PROGRESS), "in-flight game must be unresolved pre-flip");
+
+        uint64 retirementBefore = anchorStateRegistry.retirementTimestamp();
+
+        // ── Flip ──
+        _buildZKFlipUpgradeInput();
+        _runUpgradeAsPAO();
+
+        // ── The in-place ASR re-init clears the anchor game and re-seeds the starting root ──
+        assertEq(
+            address(anchorStateRegistry.anchorGame()),
+            address(0),
+            "anchorGame must be cleared when the starting anchor root changes"
+        );
+        (Hash reseededRoot, uint256 reseededSeq) = anchorStateRegistry.getAnchorRoot();
+        assertEq(reseededRoot.raw(), keccak256("zkMigrationAnchor"), "anchor must be re-seeded to the supplied root");
+        assertEq(reseededSeq, anchorSeqNum + 2, "anchor seq must be re-seeded one above the pre-flip anchor");
+
+        // ── retirementTimestamp is deliberately preserved: the flip must not mass-retire games ──
+        assertEq(anchorStateRegistry.retirementTimestamp(), retirementBefore, "retirementTimestamp must be preserved");
+        assertFalse(anchorStateRegistry.isGameRetired(inFlight), "in-flight game must not be retired by the flip");
+
+        // ── The blacklist entry survives the re-init and still forces REFUND mode ──
+        assertTrue(anchorStateRegistry.isGameBlacklisted(blacklisted), "blacklist entry must survive the flip");
+        assertFalse(anchorStateRegistry.isGameProper(blacklisted), "blacklisted game must remain improper");
+        vm.warp(block.timestamp + finalityDelay + 1 seconds);
+        ISuperFaultDisputeGame(address(blacklisted)).closeGame();
+        assertEq(
+            uint8(ISuperFaultDisputeGame(address(blacklisted)).bondDistributionMode()),
+            uint8(BondDistributionMode.REFUND),
+            "blacklisted game must close in REFUND mode after the flip"
+        );
+
+        // ── The unresolved game still resolves after the boundary and keeps its respected snapshot ──
+        _resolveSuperGame(sourceType, inFlight);
+        assertEq(
+            uint8(inFlight.status()), uint8(GameStatus.DEFENDER_WINS), "in-flight game must still resolve post-flip"
+        );
+        assertTrue(
+            anchorStateRegistry.isGameRespected(inFlight), "wasRespectedGameTypeWhenCreated must survive the flip"
+        );
+
+        // ── In-flight game closes in NORMAL mode, re-advancing the anchor to a pre-boundary super root ──
+        // The respected-type snapshot is taken at creation, so a game created under the old super
+        // game type remains a valid claim and can still become the anchor after the flip.
+        vm.warp(inFlight.resolvedAt().raw() + finalityDelay + 1 seconds);
+        ISuperFaultDisputeGame(address(inFlight)).closeGame();
+        assertEq(
+            uint8(ISuperFaultDisputeGame(address(inFlight)).bondDistributionMode()),
+            uint8(BondDistributionMode.NORMAL),
+            "in-flight game must close in NORMAL bond distribution mode after the flip"
+        );
+        assertEq(
+            address(anchorStateRegistry.anchorGame()),
+            address(inFlight),
+            "a pre-boundary game can still advance the anchor after the flip"
+        );
     }
 
     /// @notice Drives the full migration for a given source super game type.
@@ -219,8 +317,11 @@ contract ZKDisputeGameSuperMigration_Test is DisputeGameFactory_TestInit {
             })
         );
 
-        // Re-seed the anchor to a fresh honest super root, as the real migration does. No game has
-        // advanced the anchor yet (anchorGame == 0), so this simply sets the new startingAnchorRoot.
+        // Re-seed the anchor to a fresh honest super root, as the real migration does. The override
+        // is derived from getAnchorRoot() so it always sits one above the live anchor. That keeps it
+        // valid whether or not a game has already advanced the anchor: when `anchorGame != 0`,
+        // AnchorStateRegistry.initialize requires the new root to be strictly ahead of the current
+        // anchor and then clears `anchorGame` so getAnchorRoot() falls back to startingAnchorRoot.
         (, uint256 anchorSeqNum) = anchorStateRegistry.getAnchorRoot();
         _zkUpgradeInput.extraInstructions.push(
             IOPContractsManagerUtils.ExtraInstruction({
