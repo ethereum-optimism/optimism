@@ -387,10 +387,10 @@ workflows:
       - rust-build-binary: &rust-workspace-ci
           name: rust-workspace-ci
           directory: rust
-          # ci profile: release plus line-table debug info and assertions, so
-          # e2e failures come with usable backtraces. Carrying debug info
-          # through the thin-LTO link needs the 32GB class — every 16GB
-          # attempt was OOM-killed on the reth crates.
+          # ci profile: release plus line-table debug info, so e2e failures
+          # come with usable backtraces. Carrying debug info through the
+          # thin-LTO link needs the 32GB class — every 16GB attempt was
+          # OOM-killed on the reth crates.
           profile: ci
           resource_class: 2xlarge.gen2
           persist_to_workspace: true
