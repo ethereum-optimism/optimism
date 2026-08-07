@@ -13,9 +13,7 @@ use std::{
 use anyhow::{Context, anyhow};
 use bytes::Bytes;
 use http_body_util::Full;
-use hyper::{
-    Request, Response, StatusCode, body::Incoming, server::conn::http1, service::service_fn,
-};
+use hyper::{Request, Response, body::Incoming, server::conn::http1, service::service_fn};
 use hyper_util::rt::TokioIo;
 use metrics::{describe_gauge, gauge};
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
@@ -154,7 +152,7 @@ pub async fn init_metrics(listen: MetricsListen) -> anyhow::Result<Option<Socket
     Ok(Some(addr))
 }
 
-/// Serves the rendered registry on `/metrics` until the process ends.
+/// Serves health checks and the rendered registry until the process ends.
 async fn serve_metrics(listener: TcpListener, handle: PrometheusHandle) {
     loop {
         let stream = match listener.accept().await {
@@ -171,14 +169,19 @@ async fn serve_metrics(listener: TcpListener, handle: PrometheusHandle) {
         let handle = handle.clone();
         tokio::spawn(async move {
             let service = service_fn(move |req: Request<Incoming>| {
-                let response = if req.uri().path() == "/metrics" {
-                    Response::builder()
-                        .header("content-type", "text/plain")
-                        .body(Full::new(Bytes::from(handle.render())))
-                } else {
-                    Response::builder().status(StatusCode::NOT_FOUND).body(Full::new(Bytes::new()))
-                };
+                let handle = handle.clone();
                 async move {
+                    let body = if req.uri().path() == "/health" {
+                        Bytes::from_static(b"OK")
+                    } else {
+                        let rendered = tokio::task::spawn_blocking(move || handle.render())
+                            .await
+                            .expect("metrics rendering task must complete");
+                        Bytes::from(rendered)
+                    };
+                    let response = Response::builder()
+                        .header("content-type", "text/plain")
+                        .body(Full::new(body));
                     Ok::<_, Infallible>(
                         response.expect("a response with a valid status and header builds"),
                     )
@@ -237,8 +240,15 @@ mod tests {
             reqwest::get(&url).await.unwrap().error_for_status().unwrap().text().await.unwrap();
         assert!(body.contains("kona_sp1_metrics_self_test 1"), "scraped:\n{body}");
 
-        let missing = reqwest::get(format!("http://127.0.0.1:{}/nope", addr.port())).await.unwrap();
-        assert_eq!(missing.status(), 404);
+        let health = reqwest::get(format!("http://127.0.0.1:{}/health", addr.port()))
+            .await
+            .unwrap()
+            .error_for_status()
+            .unwrap()
+            .text()
+            .await
+            .unwrap();
+        assert_eq!(health, "OK");
     }
 
     #[tokio::test]
