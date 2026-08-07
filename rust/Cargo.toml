@@ -218,10 +218,10 @@ codegen-units = 256
 # regardless of profile family, so CI builds this on a 32GB class.
 # Incremental stays off so sccache can cache the compilation.
 [profile.ci]
-inherits = "release"
+inherits = "dev"
+opt-level = 3
 debug = "line-tables-only"
 incremental = false
-strip = "none"
 
 [profile.bench]
 debug = true
