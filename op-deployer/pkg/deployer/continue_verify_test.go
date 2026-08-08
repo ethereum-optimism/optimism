@@ -267,7 +267,7 @@ func (f *continuationVerificationFixture) seed(t *testing.T, gameType embedded.G
 	f.backend.set(
 		t,
 		f.dci.Opcm,
-		continuationImplementationsMethod,
+		opcm.ImplementationsMethod,
 		nil,
 		f.impls,
 	)

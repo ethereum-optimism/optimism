@@ -918,7 +918,6 @@ var (
 	continuationRespectedGameTypeMethod   = w3.MustNewFunc("respectedGameType()", "uint32")
 	continuationGameImplMethod            = w3.MustNewFunc("gameImpls(uint32)", "address")
 	continuationGameArgsMethod            = w3.MustNewFunc("gameArgs(uint32)", "bytes")
-	continuationImplementationsMethod     = w3.MustNewFunc("implementations()", `(address superchainConfigImpl,address l1ERC721BridgeImpl,address optimismPortalImpl,address ethLockboxImpl,address systemConfigImpl,address optimismMintableERC20FactoryImpl,address l1CrossDomainMessengerImpl,address l1StandardBridgeImpl,address disputeGameFactoryImpl,address anchorStateRegistryImpl,address delayedWETHImpl,address mipsImpl,address faultDisputeGameImpl,address permissionedDisputeGameImpl,address superFaultDisputeGameImpl,address superPermissionedDisputeGameImpl,address zkDisputeGameImpl,address storageSetterImpl,address sp1PlonkAdapterImpl)`)
 	continuationOwnerMethod               = w3.MustNewFunc("owner()", "address")
 	continuationAddressManagerMethod      = w3.MustNewFunc("addressManager()", "address")
 	continuationProxyImplementationMethod = w3.MustNewFunc("getProxyImplementation(address)", "address")
@@ -980,7 +979,7 @@ func readContinuationOPCMImplementations(
 		ctx,
 		backend,
 		opcmAddress,
-		continuationImplementationsMethod,
+		opcm.ImplementationsMethod,
 	)
 }
 

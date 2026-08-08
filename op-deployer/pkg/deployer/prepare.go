@@ -169,6 +169,18 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 		return err
 	}
 
+	l1Client := ethclient.NewClient(l1RPC)
+	if err := checkOPCMHasCode(ctx, l1Client, opcmAddr); err != nil {
+		return err
+	}
+
+	// Record the implementations the pinned OPCM installs.
+	impls, err := opcm.ReadImplementations(ctx, l1Client, opcmAddr)
+	if err != nil {
+		return fmt.Errorf("failed to read implementations from OPCM at %s: %w", opcmAddr, err)
+	}
+	st.ImplementationsDeployment = impls
+
 	l1Host, err := env.DefaultForkedScriptHost(
 		ctx,
 		broadcaster.NoopBroadcaster(),
@@ -281,6 +293,18 @@ func validateL1ChainID(ctx context.Context, l1RPC *rpc.Client, intent *state.Int
 	}
 	if l1ChainID.Cmp(intent.L1ChainIDBig()) != 0 {
 		return fmt.Errorf("l1 chain ID mismatch: got %d, expected %d", l1ChainID, intent.L1ChainID)
+	}
+	return nil
+}
+
+// checkOPCMHasCode rejects an unusable OPCM address.
+func checkOPCMHasCode(ctx context.Context, l1Client *ethclient.Client, opcmAddr common.Address) error {
+	code, err := l1Client.CodeAt(ctx, opcmAddr, nil)
+	if err != nil {
+		return fmt.Errorf("failed to read code at OPCM address %s: %w", opcmAddr, err)
+	}
+	if len(code) == 0 {
+		return fmt.Errorf("no contract code at intent.opcmAddress %s", opcmAddr)
 	}
 	return nil
 }

@@ -292,6 +292,40 @@ func TestValidateL1ChainID(t *testing.T) {
 	require.ErrorContains(t, err, "l1 chain ID mismatch: got 900, expected 901")
 }
 
+func TestCheckOPCMHasCode(t *testing.T) {
+	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
+
+	newClient := func(t *testing.T, code string) *ethclient.Client {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var req struct {
+				ID     any    `json:"id"`
+				Method string `json:"method"`
+			}
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+			require.Equal(t, "eth_getCode", req.Method)
+			w.Header().Set("Content-Type", "application/json")
+			require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+				"jsonrpc": "2.0",
+				"id":      req.ID,
+				"result":  code,
+			}))
+		}))
+		t.Cleanup(srv.Close)
+
+		l1RPC, err := rpc.Dial(srv.URL)
+		require.NoError(t, err)
+		t.Cleanup(l1RPC.Close)
+		return ethclient.NewClient(l1RPC)
+	}
+
+	ctx := context.Background()
+	require.NoError(t, checkOPCMHasCode(ctx, newClient(t, "0x60806040"), opcmAddr))
+
+	err := checkOPCMHasCode(ctx, newClient(t, "0x"), opcmAddr)
+	require.ErrorContains(t, err, "no contract code at intent.opcmAddress")
+	require.ErrorContains(t, err, opcmAddr.Hex())
+}
+
 func TestResolveSuperchainConfigProxy(t *testing.T) {
 	opcmAddr := common.HexToAddress("0xaaaa000000000000000000000000000000000001")
 
