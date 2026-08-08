@@ -29,9 +29,29 @@ fn deposit_tx_env(tx: &TxDeposit, caller: Address) -> TxEnv {
 #[derive(Clone, Debug, Default)]
 pub struct OpTx(pub OpTransaction<TxEnv>);
 
+impl OpTx {
+    /// Creates a new [`OpTx`] from a base [`TxEnv`], with the OP-specific fields at their
+    /// defaults.
+    pub fn new(base: TxEnv) -> Self {
+        Self(OpTransaction::new(base))
+    }
+}
+
 impl From<OpTx> for OpTransaction<TxEnv> {
     fn from(tx: OpTx) -> Self {
         tx.0
+    }
+}
+
+impl From<OpTransaction<TxEnv>> for OpTx {
+    fn from(tx: OpTransaction<TxEnv>) -> Self {
+        Self(tx)
+    }
+}
+
+impl From<TxEnv> for OpTx {
+    fn from(base: TxEnv) -> Self {
+        Self::new(base)
     }
 }
 
@@ -270,5 +290,20 @@ impl TransactionEnvMut for OpTx {
 
     fn set_access_list(&mut self, access_list: alloy_eips::eip2930::AccessList) {
         self.0.base.access_list = access_list;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn inbound_constructors_wrap_the_base_tx_env() {
+        let base = TxEnv { gas_limit: 123_456, ..Default::default() };
+        let expected = OpTransaction::new(base.clone());
+
+        assert_eq!(OpTx::new(base.clone()).0, expected);
+        assert_eq!(OpTx::from(base).0, expected);
+        assert_eq!(OpTx::from(expected.clone()).0, expected);
     }
 }
