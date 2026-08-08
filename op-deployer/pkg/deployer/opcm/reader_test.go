@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/lmittmann/w3"
@@ -58,6 +59,28 @@ func (b *readerBackend) CallContract(
 		return nil, fmt.Errorf("unexpected call to %s with calldata %s", *call.To, hex.EncodeToString(call.Data))
 	}
 	return bytes.Clone(result), nil
+}
+
+func TestReadSuperRootEnabled(t *testing.T) {
+	opcmAddr := common.Address{0xcc}
+
+	// TODO(#21662): devfeatures.IsDevFeatureEnabled hardcodes SuperRootGamesMigrationFlag to
+	// true, so a cleared bitmap still reports super-root. Solidity does the same, so this
+	// deliberately mirrors what DeployOPChain.s.sol observes.
+	for _, bitmap := range []common.Hash{{}, devfeatures.SuperRootGamesMigrationFlag} {
+		b := newReaderBackend(t)
+		b.set(opcmAddr, DevFeatureBitmapMethod, bitmap)
+
+		superRoot, err := ReadSuperRootEnabled(context.Background(), b, opcmAddr)
+		require.NoError(t, err)
+		require.True(t, superRoot)
+	}
+
+	t.Run("surfaces a failing read", func(t *testing.T) {
+		_, err := ReadSuperRootEnabled(context.Background(), newReaderBackend(t), opcmAddr)
+		require.ErrorContains(t, err, "devFeatureBitmap()")
+		require.ErrorContains(t, err, opcmAddr.Hex())
+	})
 }
 
 func TestReadImplementations(t *testing.T) {

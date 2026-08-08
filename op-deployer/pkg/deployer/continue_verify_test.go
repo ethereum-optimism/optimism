@@ -260,7 +260,7 @@ func (f *continuationVerificationFixture) seed(t *testing.T, gameType embedded.G
 	f.backend.set(
 		t,
 		f.dci.Opcm,
-		continuationDevFeatureBitmapMethod,
+		opcm.DevFeatureBitmapMethod,
 		nil,
 		f.devFeatureBitmap(),
 	)
@@ -572,11 +572,15 @@ func TestVerifyContinuationDeploymentRejectsOPCMGameModeMismatch(t *testing.T) {
 		fixture.backend.set(
 			t,
 			fixture.dci.Opcm,
-			continuationDevFeatureBitmapMethod,
+			opcm.DevFeatureBitmapMethod,
 			nil,
 			devfeatures.SuperRootGamesMigrationFlag,
 		)
-		require.ErrorContains(t, fixture.verify(t), "requires an OPCM without SUPER_ROOT_GAMES_MIGRATION")
+		require.ErrorContains(
+			t,
+			fixture.verify(t),
+			"initial dispute game type CANNON_KONA (8) is not deployable by the OPCM",
+		)
 	})
 }
 

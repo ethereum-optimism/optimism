@@ -188,7 +188,11 @@ func (r *continuationRunner) run() error {
 	if err != nil {
 		return err
 	}
-	if err := validateContinuationGameTypes(pending); err != nil {
+	superRoot, err := opcm.ReadSuperRootEnabled(r.ctx, l1Client, pinnedOPCM)
+	if err != nil {
+		return fmt.Errorf("failed to read the OPCM game mode at %s: %w", pinnedOPCM, err)
+	}
+	if err := validateContinuationGameTypes(pending, superRoot, pinnedOPCM); err != nil {
 		return err
 	}
 	for i := range pending {
@@ -208,13 +212,19 @@ func (r *continuationRunner) run() error {
 	return nil
 }
 
-func validateContinuationGameTypes(pending []continuationChain) error {
+func validateContinuationGameTypes(pending []continuationChain, superRoot bool, opcmAddr common.Address) error {
 	gameTypes := make([]uint32, 0, len(pending))
 	for _, chain := range pending {
 		gameTypes = append(gameTypes, chain.dci.DisputeGameType)
 	}
 	if err := pipeline.ValidateInitialGameTypeSet(gameTypes); err != nil {
 		return fmt.Errorf("invalid pending continuation game types: %w", err)
+	}
+	// Catch a frozen selector the pinned OPCM rejects before the fork simulation runs it.
+	for _, chain := range pending {
+		if err := pipeline.ValidateInitialGameTypeForOPCM(chain.dci.DisputeGameType, superRoot, opcmAddr); err != nil {
+			return fmt.Errorf("chain %s: %w", chain.id.Hex(), err)
+		}
 	}
 	return nil
 }

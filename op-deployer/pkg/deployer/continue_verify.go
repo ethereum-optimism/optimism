@@ -9,8 +9,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	opeth "github.com/ethereum-optimism/optimism/op-service/eth"
@@ -243,47 +243,25 @@ func verifyContinuationDeployment(
 func (v *continuationVerifier) resolveGameMode() (continuationGameMode, error) {
 	gameType := v.dci.DisputeGameType
 
-	bitmap, err := readContinuation[common.Hash](
-		v.ctx,
-		v.backend,
-		v.dci.Opcm,
-		continuationDevFeatureBitmapMethod,
-	)
+	superRoot, err := opcm.ReadSuperRootEnabled(v.ctx, v.backend, v.dci.Opcm)
 	if err != nil {
 		return continuationGameMode{}, fmt.Errorf("failed to read pinned OPCM dev feature bitmap: %w", err)
 	}
-	superRoot := devfeatures.IsDevFeatureEnabled(bitmap, devfeatures.SuperRootGamesMigrationFlag)
+	// The frozen selector must still match the family the pinned OPCM installs.
+	if err := pipeline.ValidateInitialGameTypeForOPCM(gameType, superRoot, v.dci.Opcm); err != nil {
+		return continuationGameMode{}, err
+	}
 
 	mode := continuationGameMode{
 		respectedGameType: gameType,
 	}
 	switch embedded.GameType(gameType) {
-	// DeployOPChain.s.sol requires GameTypes.isSuperGame(gameType) == isSuperRoot, so each
-	// selector is valid for exactly one OPCM family.
 	case embedded.GameTypePermissionedCannon:
-		if superRoot {
-			return continuationGameMode{}, fmt.Errorf(
-				"initial game type mismatch: frozen selector %d requires an OPCM without SUPER_ROOT_GAMES_MIGRATION",
-				gameType,
-			)
-		}
 		mode.respectedImplementation = v.expected.PermissionedDisputeGameImpl
 		mode.hasChallenger = true
 	case embedded.GameTypeSuperPermissioned:
-		if !superRoot {
-			return continuationGameMode{}, fmt.Errorf(
-				"initial game type mismatch: frozen selector %d requires an OPCM with SUPER_ROOT_GAMES_MIGRATION",
-				gameType,
-			)
-		}
 		mode.respectedImplementation = v.expected.PermissionedDisputeGameImpl
 	case embedded.GameTypeCannonKona:
-		if superRoot {
-			return continuationGameMode{}, fmt.Errorf(
-				"initial game type mismatch: frozen selector %d requires an OPCM without SUPER_ROOT_GAMES_MIGRATION",
-				gameType,
-			)
-		}
 		fallback := uint32(embedded.GameTypePermissionedCannon)
 		mode.respectedImplementation = v.expected.FaultDisputeGameImpl
 		mode.fallbackGameType = &fallback
@@ -291,12 +269,6 @@ func (v *continuationVerifier) resolveGameMode() (continuationGameMode, error) {
 		mode.permissionless = true
 		mode.hasChallenger = true
 	case embedded.GameTypeSuperCannonKona:
-		if !superRoot {
-			return continuationGameMode{}, fmt.Errorf(
-				"initial game type mismatch: frozen selector %d requires an OPCM with SUPER_ROOT_GAMES_MIGRATION",
-				gameType,
-			)
-		}
 		fallback := uint32(embedded.GameTypeSuperPermissioned)
 		mode.respectedImplementation = v.expected.FaultDisputeGameImpl
 		mode.fallbackGameType = &fallback
@@ -944,7 +916,6 @@ var (
 	continuationConfigMethod              = w3.MustNewFunc("config()", "address")
 	continuationGuardianMethod            = w3.MustNewFunc("guardian()", "address")
 	continuationStandardValidatorMethod   = w3.MustNewFunc("opcmStandardValidator()", "address")
-	continuationDevFeatureBitmapMethod    = w3.MustNewFunc("devFeatureBitmap()", "bytes32")
 	continuationStartingAnchorRootMethod  = w3.MustNewFunc("getStartingAnchorRoot()", "(bytes32 root,uint256 l2SequenceNumber)")
 )
 
