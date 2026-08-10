@@ -59,9 +59,13 @@ type pcdJourneyFixture struct {
 }
 
 func newPCDJourneyFixture(t *testing.T, chainIDs []common.Hash) *pcdJourneyFixture {
+	return newPCDJourneyFixtureWithAnvilOptions(t, chainIDs)
+}
+
+func newPCDJourneyFixtureWithAnvilOptions(t *testing.T, chainIDs []common.Hash, opts ...devnet.AnvilOption) *pcdJourneyFixture {
 	t.Helper()
 	lgr := testlog.Logger(t, log.LevelError)
-	l1RPC, l1Client := devnet.DefaultAnvilRPC(t, lgr)
+	l1RPC, l1Client := devnet.DefaultAnvilRPC(t, lgr, opts...)
 	t.Cleanup(l1Client.Close)
 	privateKey, key, devKeys := shared.DefaultPrivkey(t)
 	runner := NewCLITestRunner(t, WithL1RPC(l1RPC), WithPrivateKey(privateKey))
