@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"math/big"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
@@ -10,6 +12,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -156,6 +160,170 @@ func TestCLIPCDResume(t *testing.T) {
 		finalIdentity := readPCDResumeIdentity(t, journey.workdir, journey.chainIDs[0], true)
 		requirePCDResumeIdentity(t, "reprepare-invalidates-prestate/unblock", frozen, finalIdentity)
 		requirePCDSingletonCompletion(t, "reprepare-invalidates-prestate/unblock", journey, prestate)
+	})
+
+	t.Run("post-checkpoint-reorg", func(t *testing.T) {
+		prestate := requirePCDPrestate(t, pcdPrestateArtifactPath(t))
+		journey := newPCDResumeJourney(t, pcdAfterPrestate, prestate)
+		probe := pcdL1Probe{client: journey.l1Client, deployer: journey.deployer}
+		beforeContinue := probe.read(t, nil)
+		prepared, err := pipeline.ReadState(journey.workdir)
+		require.NoError(t, err)
+		preparedChain, err := prepared.PreparedDeployment.Chain(journey.chainIDs[0])
+		require.NoError(t, err)
+		deploymentMarker := pcdNamedAddress{
+			name:             journey.chainIDs[0].Hex() + "/SystemConfigProxy",
+			address:          preparedChain.SystemConfigProxy,
+			deploymentMarker: true,
+		}
+
+		var snapshotID string
+		require.NoError(t, journey.l1Client.Client().Call(&snapshotID, "evm_snapshot"))
+		require.NotEmpty(t, snapshotID)
+
+		journey.runContinue()
+		firstCompletion := requirePCDSingletonCompletion(t, "post-checkpoint-reorg/first-run", journey, prestate)
+		requirePCDNoncePair(
+			t,
+			"post-checkpoint-reorg/first-run",
+			beforeContinue.latestNonce+1,
+			beforeContinue.pendingNonce+1,
+			firstCompletion,
+		)
+		committedWorkdir := journey.cloneCommittedWorkdir()
+		frozen := readPCDResumeIdentity(t, committedWorkdir, journey.chainIDs[0], true)
+
+		var reverted bool
+		require.NoError(t, journey.l1Client.Client().Call(&reverted, "evm_revert", snapshotID))
+		require.True(t, reverted)
+		revertedL1 := probe.read(t, []pcdNamedAddress{deploymentMarker})
+		requirePCDNoncePair(
+			t,
+			"post-checkpoint-reorg/reverted",
+			beforeContinue.latestNonce,
+			beforeContinue.pendingNonce,
+			revertedL1,
+		)
+		require.Emptyf(
+			t,
+			revertedL1.code[deploymentMarker],
+			"snapshot reversion left code at %s at L1 block %s (%s)",
+			deploymentMarker.address,
+			revertedL1.blockNumber,
+			revertedL1.blockHash,
+		)
+		t.Logf(
+			"PCD post-checkpoint reorg reverted snapshot %s and removed %s at %s; deployer nonces reset to latest=%d pending=%d",
+			snapshotID,
+			deploymentMarker.name,
+			deploymentMarker.address,
+			revertedL1.latestNonce,
+			revertedL1.pendingNonce,
+		)
+
+		journey.restartCold(committedWorkdir)
+		probe.client = journey.l1Client
+		journey.runContinue()
+		// The snapshot also restores the deployment nonce. Recovery must consume the same one nonce again.
+		recovered := requirePCDSingletonCompletion(t, "post-checkpoint-reorg/recovery", journey, prestate)
+		requirePCDNoncePair(
+			t,
+			"post-checkpoint-reorg/recovery",
+			beforeContinue.latestNonce+1,
+			beforeContinue.pendingNonce+1,
+			recovered,
+		)
+		finalIdentity := readPCDResumeIdentity(t, journey.workdir, journey.chainIDs[0], true)
+		requirePCDResumeIdentity(t, "post-checkpoint-reorg/recovery", frozen, finalIdentity)
+
+		journey.runContinue()
+		noOp := probe.read(t, nil)
+		requirePCDNoncePair(
+			t,
+			"post-checkpoint-reorg/no-op",
+			recovered.latestNonce,
+			recovered.pendingNonce,
+			noOp,
+		)
+		noOpIdentity := readPCDResumeIdentity(t, journey.workdir, journey.chainIDs[0], true)
+		requirePCDResumeIdentity(t, "post-checkpoint-reorg/no-op", frozen, noOpIdentity)
+	})
+
+	t.Run("live-validation-failure", func(t *testing.T) {
+		prestate := requirePCDPrestate(t, pcdPrestateArtifactPath(t))
+		journey := newPCDResumeJourney(t, pcdAfterPrestate, prestate)
+		probe := pcdL1Probe{client: journey.l1Client, deployer: journey.deployer}
+		beforeFailure := probe.read(t, nil)
+		frozen := readPCDResumeIdentity(t, journey.workdir, journey.chainIDs[0], true)
+
+		validator := journey.implementationsOutput.OpcmStandardValidator
+		require.NotEqual(t, common.Address{}, validator)
+		originalValidatorCode, err := journey.l1Client.CodeAt(t.Context(), validator, nil)
+		require.NoError(t, err)
+		require.NotEmpty(t, originalValidatorCode)
+		latest, err := journey.l1Client.HeaderByNumber(t.Context(), nil)
+		require.NoError(t, err)
+		liveValidationBlock := new(big.Int).Add(latest.Number, big.NewInt(1))
+		// Preflight reads block N and passes. The deployment lands at N+1, where this validator rejects it.
+		setPCDAnvilCode(t, journey.l1Client, validator, pcdConditionalValidatorCode(liveValidationBlock))
+
+		failureOutput := journey.runner.ExpectErrorContainsWithNetwork(t, []string{
+			"continue",
+			"--workdir", journey.workdir,
+		}, nil, "live deployment validation failed")
+		failureEvidence := strings.TrimSpace(failureOutput)
+		if lastLine := strings.LastIndexByte(failureEvidence, '\n'); lastLine >= 0 {
+			failureEvidence = strings.TrimSpace(failureEvidence[lastLine+1:])
+		}
+		require.Contains(t, failureEvidence, "live deployment validation failed")
+		t.Logf("PCD live-validation failure evidence: %s", failureEvidence)
+
+		afterFailure := probe.read(t, nil)
+		requirePCDNoncePair(
+			t,
+			"live-validation-failure/failed-attempt",
+			beforeFailure.latestNonce+1,
+			beforeFailure.pendingNonce+1,
+			afterFailure,
+		)
+		failed, err := pipeline.ReadState(journey.workdir)
+		require.NoError(t, err)
+		require.True(t, failed.IsChainDeployed(journey.chainIDs[0]))
+		require.Nil(t, failed.AppliedIntent)
+		failedChain, err := failed.Chain(journey.chainIDs[0])
+		require.NoError(t, err)
+		require.NotNil(t, failedChain.Continuation)
+		failedIdentity := readPCDResumeIdentity(t, journey.workdir, journey.chainIDs[0], true)
+		requirePCDResumeIdentity(t, "live-validation-failure/failed-attempt", frozen, failedIdentity)
+
+		committedWorkdir := journey.cloneCommittedWorkdir()
+		setPCDAnvilCode(t, journey.l1Client, validator, originalValidatorCode)
+		journey.restartCold(committedWorkdir)
+		probe.client = journey.l1Client
+		journey.runContinue()
+		// The failed attempt spent the only deployment nonce. Recovery must validate the checkpoint without a new send.
+		recovered := requirePCDSingletonCompletion(t, "live-validation-failure/recovery", journey, prestate)
+		requirePCDNoncePair(
+			t,
+			"live-validation-failure/recovery",
+			afterFailure.latestNonce,
+			afterFailure.pendingNonce,
+			recovered,
+		)
+		finalIdentity := readPCDResumeIdentity(t, journey.workdir, journey.chainIDs[0], true)
+		requirePCDResumeIdentity(t, "live-validation-failure/recovery", frozen, finalIdentity)
+
+		journey.runContinue()
+		noOp := probe.read(t, nil)
+		requirePCDNoncePair(
+			t,
+			"live-validation-failure/no-op",
+			recovered.latestNonce,
+			recovered.pendingNonce,
+			noOp,
+		)
+		noOpIdentity := readPCDResumeIdentity(t, journey.workdir, journey.chainIDs[0], true)
+		requirePCDResumeIdentity(t, "live-validation-failure/no-op", frozen, noOpIdentity)
 	})
 }
 
@@ -328,4 +496,44 @@ func requirePCDSingletonCompletion(
 		completed.blockHash,
 	)
 	return completed
+}
+
+// setPCDAnvilCode follows setAnvilCode in
+// op-deployer/pkg/deployer/integration_test/continue_test.go.
+func setPCDAnvilCode(t *testing.T, client *ethclient.Client, address common.Address, code []byte) {
+	t.Helper()
+	require.NoError(t, client.Client().Call(nil, "anvil_setCode", address, hexutil.Encode(code)))
+}
+
+const pcdValidValidatorResult = "OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER"
+
+// pcdValidatorResultCode follows validatorResultCode in
+// op-deployer/pkg/deployer/integration_test/continue_test.go.
+func pcdValidatorResultCode(result string) []byte {
+	code := []byte{
+		byte(vm.PUSH1), 0x20, byte(vm.PUSH1), 0, byte(vm.MSTORE),
+		byte(vm.PUSH1), byte(len(result)), byte(vm.PUSH1), 0x20, byte(vm.MSTORE),
+	}
+	data := []byte(result)
+	for offset := 0; offset < len(data); offset += 32 {
+		end := min(offset+32, len(data))
+		code = append(code, byte(vm.PUSH32))
+		code = append(code, common.RightPadBytes(data[offset:end], 32)...)
+		code = append(code, byte(vm.PUSH1), byte(0x40+offset), byte(vm.MSTORE))
+	}
+	returnSize := byte(0x40 + 32*((len(data)+31)/32))
+	return append(code, byte(vm.PUSH1), returnSize, byte(vm.PUSH1), 0, byte(vm.RETURN))
+}
+
+// pcdConditionalValidatorCode follows conditionalValidatorCode in
+// op-deployer/pkg/deployer/integration_test/continue_test.go.
+func pcdConditionalValidatorCode(liveValidationBlock *big.Int) []byte {
+	code := []byte{byte(vm.NUMBER), byte(vm.PUSH32)}
+	code = append(code, common.LeftPadBytes(liveValidationBlock.Bytes(), 32)...)
+	code = append(code, byte(vm.EQ), byte(vm.PUSH1), 0, byte(vm.JUMPI))
+	jumpDestinationIndex := len(code) - 2
+	code = append(code, pcdValidatorResultCode(pcdValidValidatorResult)...)
+	code[jumpDestinationIndex] = byte(len(code))
+	code = append(code, byte(vm.JUMPDEST))
+	return append(code, pcdValidatorResultCode("TEST-FAIL")...)
 }
