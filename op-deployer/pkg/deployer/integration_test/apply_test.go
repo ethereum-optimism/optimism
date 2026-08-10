@@ -56,7 +56,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const testCustomGasLimit = uint64(90_123_456)
+const (
+	testCustomGasLimit       = uint64(90_123_456)
+	testReceiptQueryInterval = 50 * time.Millisecond
+)
 
 type deployerKey struct{}
 
@@ -231,14 +234,15 @@ func TestEndToEndApply(t *testing.T) {
 		require.NoError(t, deployer.ApplyPipeline(
 			ctx,
 			deployer.ApplyPipelineOpts{
-				DeploymentTarget:   deployer.DeploymentTargetLive,
-				L1RPCUrl:           l1RPC,
-				DeployerPrivateKey: pk,
-				Intent:             intent,
-				State:              st,
-				Logger:             lgr,
-				StateWriter:        pipeline.NoopStateWriter(),
-				CacheDir:           testCacheDir,
+				DeploymentTarget:     deployer.DeploymentTargetLive,
+				L1RPCUrl:             l1RPC,
+				DeployerPrivateKey:   pk,
+				Intent:               intent,
+				State:                st,
+				Logger:               lgr,
+				StateWriter:          pipeline.NoopStateWriter(),
+				CacheDir:             testCacheDir,
+				ReceiptQueryInterval: testReceiptQueryInterval,
 			},
 		))
 
@@ -249,14 +253,15 @@ func TestEndToEndApply(t *testing.T) {
 		require.NoError(t, deployer.ApplyPipeline(
 			ctx,
 			deployer.ApplyPipelineOpts{
-				DeploymentTarget:   deployer.DeploymentTargetLive,
-				L1RPCUrl:           l1RPC,
-				DeployerPrivateKey: pk,
-				Intent:             intent,
-				State:              st,
-				Logger:             lgr,
-				StateWriter:        pipeline.NoopStateWriter(),
-				CacheDir:           testCacheDir,
+				DeploymentTarget:     deployer.DeploymentTargetLive,
+				L1RPCUrl:             l1RPC,
+				DeployerPrivateKey:   pk,
+				Intent:               intent,
+				State:                st,
+				Logger:               lgr,
+				StateWriter:          pipeline.NoopStateWriter(),
+				CacheDir:             testCacheDir,
+				ReceiptQueryInterval: testReceiptQueryInterval,
 			},
 		))
 
@@ -297,14 +302,15 @@ func TestEndToEndApply(t *testing.T) {
 		}
 
 		require.NoError(t, deployer.ApplyPipeline(ctx, deployer.ApplyPipelineOpts{
-			DeploymentTarget:   deployer.DeploymentTargetLive,
-			L1RPCUrl:           l1RPC,
-			DeployerPrivateKey: pk,
-			Intent:             intent,
-			State:              st,
-			Logger:             lgr,
-			StateWriter:        pipeline.NoopStateWriter(),
-			CacheDir:           testCacheDir,
+			DeploymentTarget:     deployer.DeploymentTargetLive,
+			L1RPCUrl:             l1RPC,
+			DeployerPrivateKey:   pk,
+			Intent:               intent,
+			State:                st,
+			Logger:               lgr,
+			StateWriter:          pipeline.NoopStateWriter(),
+			CacheDir:             testCacheDir,
+			ReceiptQueryInterval: testReceiptQueryInterval,
 		}))
 
 		systemConfig := st.Chains[0].SystemConfigProxy
@@ -349,14 +355,15 @@ func TestEndToEndApply(t *testing.T) {
 		require.NoError(t, deployer.ApplyPipeline(
 			ctx,
 			deployer.ApplyPipelineOpts{
-				DeploymentTarget:   deployer.DeploymentTargetLive,
-				L1RPCUrl:           l1RPC,
-				DeployerPrivateKey: pk,
-				Intent:             intent,
-				State:              st,
-				Logger:             lgr,
-				StateWriter:        pipeline.NoopStateWriter(),
-				CacheDir:           testCacheDir,
+				DeploymentTarget:     deployer.DeploymentTargetLive,
+				L1RPCUrl:             l1RPC,
+				DeployerPrivateKey:   pk,
+				Intent:               intent,
+				State:                st,
+				Logger:               lgr,
+				StateWriter:          pipeline.NoopStateWriter(),
+				CacheDir:             testCacheDir,
+				ReceiptQueryInterval: testReceiptQueryInterval,
 			},
 		))
 
