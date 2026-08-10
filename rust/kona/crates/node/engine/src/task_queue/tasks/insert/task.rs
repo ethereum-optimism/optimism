@@ -72,9 +72,9 @@ impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
                 self.client.new_payload_v4(payload, parent_beacon_block_root).await
             }
         };
-        let block: OpBlock = payload.try_into_block().map_err(InsertTaskError::FromBlockError)?;
 
-        // Check the `engine_newPayload` response.
+        // Check the `engine_newPayload` response before decoding transactions locally. The
+        // execution layer's terminal response takes precedence for externally supplied payloads.
         let response = match response {
             Ok(resp) => resp,
             Err(e) => {
@@ -85,6 +85,8 @@ impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
         if !self.check_new_payload_status(&response.status) {
             return Err(InsertTaskError::UnexpectedPayloadStatus(response.status));
         }
+
+        let block: OpBlock = payload.try_into_block().map_err(InsertTaskError::FromBlockError)?;
         let insert_duration = insert_time_start.elapsed();
 
         let new_unsafe_ref =
@@ -118,5 +120,50 @@ impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
         );
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::{TestEngineStateBuilder, test_engine_client_builder};
+    use alloy_primitives::Bytes;
+    use alloy_rpc_types_engine::{ExecutionPayloadV1, PayloadStatus};
+
+    #[tokio::test]
+    async fn invalid_status_precedes_local_transaction_decoding() {
+        let config = Arc::new(RollupConfig::default());
+        let client = test_engine_client_builder()
+            .with_config(config.clone())
+            .with_new_payload_v1_response(PayloadStatus {
+                status: PayloadStatusEnum::Invalid {
+                    validation_error: "invalid transaction".to_string(),
+                },
+                latest_valid_hash: None,
+            })
+            .build();
+        let payload = OpExecutionPayloadEnvelope::V1(ExecutionPayloadV1 {
+            parent_hash: Default::default(),
+            fee_recipient: Default::default(),
+            state_root: Default::default(),
+            receipts_root: Default::default(),
+            logs_bloom: Default::default(),
+            prev_randao: Default::default(),
+            block_number: 1,
+            gas_limit: 0,
+            gas_used: 0,
+            timestamp: 2,
+            extra_data: Default::default(),
+            base_fee_per_gas: Default::default(),
+            block_hash: Default::default(),
+            transactions: vec![Bytes::from_static(&[0xff])],
+        });
+        let task = InsertTask::new(Arc::new(client), config, payload, false);
+        let mut state = TestEngineStateBuilder::new().build();
+
+        assert!(matches!(
+            task.execute(&mut state).await,
+            Err(InsertTaskError::UnexpectedPayloadStatus(PayloadStatusEnum::Invalid { .. }))
+        ));
     }
 }
