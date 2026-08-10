@@ -239,8 +239,47 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::SequencerAdminAPIError;
     use alloy_rpc_types_engine::{ExecutionPayloadV1, ExecutionPayloadV2, ExecutionPayloadV3};
     use op_alloy_rpc_types_engine::OpExecutionPayloadV4;
+
+    #[derive(Debug)]
+    struct TestSequencerAdminClient;
+
+    #[async_trait]
+    impl SequencerAdminAPIClient for TestSequencerAdminClient {
+        async fn is_sequencer_active(&self) -> Result<bool, SequencerAdminAPIError> {
+            unreachable!()
+        }
+
+        async fn is_conductor_enabled(&self) -> Result<bool, SequencerAdminAPIError> {
+            unreachable!()
+        }
+
+        async fn is_recovery_mode(&self) -> Result<bool, SequencerAdminAPIError> {
+            unreachable!()
+        }
+
+        async fn start_sequencer(&self) -> Result<(), SequencerAdminAPIError> {
+            unreachable!()
+        }
+
+        async fn stop_sequencer(&self) -> Result<B256, SequencerAdminAPIError> {
+            unreachable!()
+        }
+
+        async fn set_recovery_mode(&self, _mode: bool) -> Result<(), SequencerAdminAPIError> {
+            unreachable!()
+        }
+
+        async fn override_leader(&self) -> Result<(), SequencerAdminAPIError> {
+            unreachable!()
+        }
+
+        async fn reset_derivation_pipeline(&self) -> Result<(), SequencerAdminAPIError> {
+            unreachable!()
+        }
+    }
 
     fn v1_payload(timestamp: u64) -> ExecutionPayloadV1 {
         ExecutionPayloadV1 {
@@ -290,6 +329,17 @@ mod tests {
         }
     }
 
+    fn valid_envelope(version: u8, timestamp: u64) -> OpExecutionPayloadEnvelope {
+        let mut envelope = envelope(version, timestamp);
+        let execution = match envelope.check_block_hash().unwrap_err() {
+            OpPayloadError::Eth(PayloadError::BlockHash { execution, .. }) => execution,
+            error => panic!("unexpected block hash error: {error}"),
+        };
+        envelope.as_v1_mut().block_hash = execution;
+        envelope.check_block_hash().unwrap();
+        envelope
+    }
+
     fn rollup_config() -> RollupConfig {
         let mut config = RollupConfig::default();
         config.hardforks.canyon_time = Some(10);
@@ -328,5 +378,34 @@ mod tests {
         assert_eq!(error.code(), ErrorCode::InvalidParams.code());
         assert!(error.message().contains("payload has bad block hash"));
         assert!(error.message().contains("actual block hash is"));
+    }
+
+    #[tokio::test]
+    async fn only_enqueues_valid_unsafe_payloads() {
+        let (network_sender, mut network_rx) = tokio::sync::mpsc::channel(1);
+        let rpc = AdminRpc::<TestSequencerAdminClient>::new(
+            None,
+            network_sender,
+            Arc::new(rollup_config()),
+        );
+
+        rpc.admin_post_unsafe_payload(envelope(2, 9)).await.unwrap_err();
+        assert!(matches!(
+            network_rx.try_recv(),
+            Err(tokio::sync::mpsc::error::TryRecvError::Empty)
+        ));
+
+        rpc.admin_post_unsafe_payload(envelope(1, 9)).await.unwrap_err();
+        assert!(matches!(
+            network_rx.try_recv(),
+            Err(tokio::sync::mpsc::error::TryRecvError::Empty)
+        ));
+
+        let payload = valid_envelope(1, 9);
+        rpc.admin_post_unsafe_payload(payload.clone()).await.unwrap();
+        assert!(matches!(
+            network_rx.recv().await,
+            Some(NetworkAdminQuery::PostUnsafePayload { payload: received }) if received == payload
+        ));
     }
 }
