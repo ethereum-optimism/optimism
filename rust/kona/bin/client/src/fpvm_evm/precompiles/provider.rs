@@ -12,8 +12,8 @@ use op_revm::{
 };
 use revm::{
     context::{Cfg, ContextTr},
-    handler::{EthPrecompiles, PrecompileProvider},
-    interpreter::{CallInputs, Gas, InstructionResult, InterpreterResult},
+    handler::{EthPrecompiles, PrecompileProvider, precompile_output_to_interpreter_result},
+    interpreter::{CallInputs, InterpreterResult},
     precompile::{
         EthPrecompileResult, PrecompileError, PrecompileOutput, Precompiles, bls12_381_const, bn254,
     },
@@ -102,12 +102,6 @@ where
         context: &mut CTX,
         inputs: &CallInputs,
     ) -> Result<Option<Self::Output>, String> {
-        let mut result = InterpreterResult {
-            result: InstructionResult::Return,
-            gas: Gas::new(inputs.gas_limit),
-            output: Bytes::new(),
-        };
-
         use revm::context::LocalContextTr;
         let input = match &inputs.input {
             revm::interpreter::CallInput::Bytes(bytes) => bytes.clone(),
@@ -137,27 +131,10 @@ where
                 return Ok(None);
             };
 
-        if output.is_halt() {
-            result.gas.spend_all();
-            result.result = if output.halt_reason().is_some_and(|r| r.is_oog()) {
-                InstructionResult::PrecompileOOG
-            } else {
-                InstructionResult::PrecompileError
-            };
-        } else if result.gas.record_regular_cost(output.gas_used) {
-            result.result = InstructionResult::Return;
-            result.output = output.bytes;
-        } else {
-            // Mirror revm's `EthPrecompiles::run`: a precompile reporting more gas than the
-            // call limit gracefully out-of-gases instead of panicking. Unreachable for the
-            // registered precompile set (each checks cost <= gas_limit before returning `Ok`),
-            // but matching upstream keeps the FPVM and op-reth aligned by construction and
-            // avoids halting the fault-proof program on a future precompile that omits the check.
-            result.gas.spend_all();
-            result.result = InstructionResult::PrecompileOOG;
-        }
-
-        Ok(Some(result))
+        // Turning the output into an interpreter result is revm's job, not ours: every field it
+        // sets on the result gas has to reach the caller frame the same way it does under
+        // `EthPrecompiles`, which op-reth uses.
+        Ok(Some(precompile_output_to_interpreter_result(output, inputs.gas_limit)))
     }
 
     #[inline]
@@ -331,18 +308,29 @@ mod test {
     use kona_preimage::{HintWriterClient, PreimageOracleClient};
     use op_revm::{L1BlockInfo, OpSpecId, OpTransaction};
     use revm::{
-        Context, MainContext, database::EmptyDB, handler::PrecompileProvider,
-        interpreter::CallInput,
+        Context, MainContext,
+        database::EmptyDB,
+        handler::PrecompileProvider,
+        interpreter::{CallInput, InstructionResult},
     };
 
     type TestContext = OpEvmContext<EmptyDB>;
 
     fn create_call_inputs(address: Address, input: Bytes, gas_limit: u64) -> CallInputs {
+        create_call_inputs_with_reservoir(address, input, gas_limit, 0)
+    }
+
+    fn create_call_inputs_with_reservoir(
+        address: Address,
+        input: Bytes,
+        gas_limit: u64,
+        reservoir: u64,
+    ) -> CallInputs {
         CallInputs {
             input: CallInput::Bytes(input),
             return_memory_offset: 0..0,
             gas_limit,
-            reservoir: 0,
+            reservoir,
             bytecode_address: address,
             known_bytecode: (revm::primitives::KECCAK_EMPTY, revm::bytecode::Bytecode::new()),
             target_address: Address::ZERO,
@@ -513,6 +501,62 @@ mod test {
         let interpreter_result = result.unwrap();
         assert_eq!(interpreter_result.result, InstructionResult::Return);
         assert!(!interpreter_result.output.is_empty());
+    }
+
+    /// At every address it does not accelerate, this provider is a pass-through to the
+    /// [`EthPrecompiles`] it wraps — the one op-reth runs — so it has to hand back exactly what
+    /// that provider would. Compares the whole [`InterpreterResult`], gas tracker included,
+    /// rather than the few fields any one test happens to look at: the conversion from
+    /// [`PrecompileOutput`] carries more state than a returned status and gas cost.
+    #[test]
+    fn test_non_accelerated_result_matches_wrapped_provider() {
+        let (hint_chan, preimage_chan) = (
+            kona_preimage::BidirectionalChannel::new().unwrap(),
+            kona_preimage::BidirectionalChannel::new().unwrap(),
+        );
+        let hint_writer = kona_preimage::HintWriter::new(hint_chan.client);
+        let oracle_reader = kona_preimage::OracleReader::new(preimage_chan.client);
+
+        let mut ctx = create_test_context();
+
+        let mut precompiles =
+            OpFpvmPrecompiles::new_with_spec(OpSpecId::KARST, hint_writer, oracle_reader);
+        let mut wrapped = precompiles.inner.clone();
+
+        // Neither address is accelerated at KARST. SHA-256 (0x02) succeeds, or runs out of gas
+        // when the call forwards none; blake2f (0x09) rejects any input that is not exactly 213
+        // bytes, halting for a reason that is not out-of-gas. Each is driven with and without a
+        // reservoir on the call.
+        let sha256 = revm::precompile::u64_to_address(2);
+        let blake2f = revm::precompile::u64_to_address(9);
+        let cases: [(Address, &[u8], u64, u64); 6] = [
+            (sha256, b"hello world", 100_000, 0),
+            (sha256, b"hello world", 100_000, 4_096),
+            (sha256, b"hello world", 0, 0),
+            (sha256, b"hello world", 0, 4_096),
+            (blake2f, b"too short", 100_000, 0),
+            (blake2f, b"too short", 100_000, 4_096),
+        ];
+
+        for (address, input, gas_limit, reservoir) in cases {
+            let call_inputs = create_call_inputs_with_reservoir(
+                address,
+                input.to_vec().into(),
+                gas_limit,
+                reservoir,
+            );
+
+            let ours = precompiles.run(&mut ctx, &call_inputs).unwrap();
+            let theirs =
+                PrecompileProvider::<TestContext>::run(&mut wrapped, &mut ctx, &call_inputs)
+                    .unwrap();
+
+            assert_eq!(
+                ours, theirs,
+                "diverged from the wrapped provider at {address} with gas limit {gas_limit} \
+                 and reservoir {reservoir}",
+            );
+        }
     }
 
     #[test]
