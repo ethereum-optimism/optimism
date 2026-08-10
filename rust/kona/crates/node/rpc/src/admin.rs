@@ -9,7 +9,9 @@ use jsonrpsee::{
     core::RpcResult,
     types::{ErrorCode, ErrorObject},
 };
+use kona_genesis::RollupConfig;
 use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelope, OpPayloadError};
+use std::sync::Arc;
 
 /// The query types to the network actor for the admin api.
 #[derive(Debug)]
@@ -30,6 +32,8 @@ pub struct AdminRpc<SequencerAdminAPIClient> {
     pub sequencer_admin_client: Option<SequencerAdminAPIClient>,
     /// The sender to the network actor.
     pub network_sender: NetworkAdminQuerySender,
+    /// The rollup configuration used to validate payload versions.
+    pub rollup_config: Arc<RollupConfig>,
 }
 
 impl<SequencerAdminAPIClient_> AdminRpc<SequencerAdminAPIClient_>
@@ -43,6 +47,7 @@ where
     /// - `sequencer_sender`: The [`SequencerAdminAPIClient`] used to fulfill sequencer admin
     ///   queries.
     /// - `network_sender`: The sender to the network actor.
+    /// - `rollup_config`: The rollup configuration used to validate payload versions.
     ///
     /// # Returns
     ///
@@ -50,9 +55,69 @@ where
     pub const fn new(
         sequencer_admin_client: Option<SequencerAdminAPIClient_>,
         network_sender: NetworkAdminQuerySender,
+        rollup_config: Arc<RollupConfig>,
     ) -> Self {
-        Self { sequencer_admin_client, network_sender }
+        Self { sequencer_admin_client, network_sender, rollup_config }
     }
+}
+
+/// Validates that the payload envelope version matches the fork active at its timestamp.
+fn validate_payload_version(
+    payload: &OpExecutionPayloadEnvelope,
+    config: &RollupConfig,
+) -> RpcResult<()> {
+    let timestamp = payload.timestamp();
+    let actual = match payload {
+        OpExecutionPayloadEnvelope::V1(_) => 1,
+        OpExecutionPayloadEnvelope::V2(_) => 2,
+        OpExecutionPayloadEnvelope::V3 { .. } => 3,
+        OpExecutionPayloadEnvelope::V4 { .. } => 4,
+    };
+    let expected = if config.is_isthmus_active(timestamp) {
+        4
+    } else if config.is_ecotone_active(timestamp) {
+        3
+    } else if config.is_canyon_active(timestamp) {
+        2
+    } else {
+        1
+    };
+
+    if actual == expected {
+        return Ok(());
+    }
+
+    Err(ErrorObject::owned(
+        ErrorCode::InvalidParams.code(),
+        format!(
+            "payload version V{actual} does not match timestamp {timestamp}; expected V{expected}"
+        ),
+        None::<()>,
+    ))
+}
+
+/// Validates an unsafe payload before it enters the network and engine queues.
+fn validate_unsafe_payload(
+    payload: &OpExecutionPayloadEnvelope,
+    config: &RollupConfig,
+) -> RpcResult<()> {
+    validate_payload_version(payload, config)?;
+    payload.check_block_hash().map_err(|err| {
+        tracing::warn!(
+            target: "rpc",
+            %err,
+            "admin_postUnsafePayload: rejecting payload"
+        );
+        let message = match &err {
+            OpPayloadError::Eth(PayloadError::BlockHash { execution, consensus }) => {
+                format!(
+                    "payload has bad block hash: {consensus}, actual block hash is: {execution}"
+                )
+            }
+            _ => format!("invalid payload: {err}"),
+        };
+        ErrorObject::owned(ErrorCode::InvalidParams.code(), message, None::<()>)
+    })
 }
 
 #[async_trait]
@@ -66,22 +131,7 @@ where
     ) -> RpcResult<()> {
         kona_macros::inc!(gauge, kona_gossip::Metrics::RPC_CALLS, "method" => "admin_postUnsafePayload");
 
-        payload.check_block_hash().map_err(|err| {
-            tracing::warn!(
-                target: "rpc",
-                %err,
-                "admin_postUnsafePayload: rejecting payload"
-            );
-            let message = match &err {
-                OpPayloadError::Eth(PayloadError::BlockHash { execution, consensus }) => {
-                    format!(
-                        "payload has bad block hash: {consensus}, actual block hash is: {execution}"
-                    )
-                }
-                _ => format!("invalid payload: {err}"),
-            };
-            ErrorObject::owned(ErrorCode::InvalidParams.code(), message, None::<()>)
-        })?;
+        validate_unsafe_payload(&payload, &self.rollup_config)?;
 
         self.network_sender
             .send(NetworkAdminQuery::PostUnsafePayload { payload })
@@ -183,5 +233,100 @@ where
             .reset_derivation_pipeline()
             .await
             .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy_rpc_types_engine::{ExecutionPayloadV1, ExecutionPayloadV2, ExecutionPayloadV3};
+    use op_alloy_rpc_types_engine::OpExecutionPayloadV4;
+
+    fn v1_payload(timestamp: u64) -> ExecutionPayloadV1 {
+        ExecutionPayloadV1 {
+            parent_hash: Default::default(),
+            fee_recipient: Default::default(),
+            state_root: Default::default(),
+            receipts_root: Default::default(),
+            logs_bloom: Default::default(),
+            prev_randao: Default::default(),
+            block_number: 1,
+            gas_limit: 0,
+            gas_used: 0,
+            timestamp,
+            extra_data: Default::default(),
+            base_fee_per_gas: Default::default(),
+            block_hash: Default::default(),
+            transactions: Vec::new(),
+        }
+    }
+
+    fn envelope(version: u8, timestamp: u64) -> OpExecutionPayloadEnvelope {
+        let v2 =
+            ExecutionPayloadV2 { payload_inner: v1_payload(timestamp), withdrawals: Vec::new() };
+        match version {
+            1 => OpExecutionPayloadEnvelope::V1(v2.payload_inner),
+            2 => OpExecutionPayloadEnvelope::V2(v2),
+            3 => OpExecutionPayloadEnvelope::V3 {
+                payload: ExecutionPayloadV3 {
+                    payload_inner: v2,
+                    blob_gas_used: 0,
+                    excess_blob_gas: 0,
+                },
+                parent_beacon_block_root: Default::default(),
+            },
+            4 => OpExecutionPayloadEnvelope::V4 {
+                payload: OpExecutionPayloadV4 {
+                    payload_inner: ExecutionPayloadV3 {
+                        payload_inner: v2,
+                        blob_gas_used: 0,
+                        excess_blob_gas: 0,
+                    },
+                    withdrawals_root: Default::default(),
+                },
+                parent_beacon_block_root: Default::default(),
+            },
+            _ => panic!("unsupported test payload version"),
+        }
+    }
+
+    fn rollup_config() -> RollupConfig {
+        let mut config = RollupConfig::default();
+        config.hardforks.canyon_time = Some(10);
+        config.hardforks.ecotone_time = Some(20);
+        config.hardforks.isthmus_time = Some(30);
+        config
+    }
+
+    #[test]
+    fn validates_payload_version_at_fork_boundaries() {
+        let config = rollup_config();
+        for (version, timestamp) in [(1, 9), (2, 10), (2, 19), (3, 20), (3, 29), (4, 30)] {
+            validate_payload_version(&envelope(version, timestamp), &config).unwrap();
+        }
+
+        for (version, timestamp, expected) in [
+            (2, 9, "expected V1"),
+            (1, 10, "expected V2"),
+            (3, 19, "expected V2"),
+            (2, 20, "expected V3"),
+            (4, 29, "expected V3"),
+            (3, 30, "expected V4"),
+        ] {
+            let error = validate_payload_version(&envelope(version, timestamp), &config)
+                .expect_err("version mismatch accepted");
+            assert_eq!(error.code(), ErrorCode::InvalidParams.code());
+            assert!(error.message().contains(expected), "{error}");
+        }
+    }
+
+    #[test]
+    fn maps_block_hash_mismatch_to_invalid_params() {
+        let error = validate_unsafe_payload(&envelope(1, 9), &rollup_config())
+            .expect_err("zero block hash unexpectedly valid");
+
+        assert_eq!(error.code(), ErrorCode::InvalidParams.code());
+        assert!(error.message().contains("payload has bad block hash"));
+        assert!(error.message().contains("actual block hash is"));
     }
 }

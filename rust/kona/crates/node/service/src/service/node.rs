@@ -396,6 +396,7 @@ impl RollupNode {
             config.enable_admin(),
             sequencer_admin_client,
             network_admin_tx,
+            self.config.clone(),
         )?;
         modules
             .merge(RollupRpc::new(engine_rpc_client.clone(), l1_watcher_queries_tx).into_rpc())
@@ -554,10 +555,13 @@ fn merge_admin_module(
     enable_admin: bool,
     sequencer_admin_client: Option<QueuedSequencerAdminAPIClient>,
     network_admin_tx: mpsc::Sender<NetworkAdminQuery>,
+    rollup_config: Arc<RollupConfig>,
 ) -> Result<(), String> {
     if enable_admin {
         modules
-            .merge(AdminRpc::new(sequencer_admin_client, network_admin_tx).into_rpc())
+            .merge(
+                AdminRpc::new(sequencer_admin_client, network_admin_tx, rollup_config).into_rpc(),
+            )
             .map_err(|e| format!("Failed to register admin module: {e:?}"))?;
     }
     Ok(())
@@ -570,8 +574,14 @@ mod tests {
     fn admin_method_names(enable_admin: bool) -> Vec<String> {
         let mut modules = RpcModule::new(());
         let (network_admin_tx, _rx) = mpsc::channel(1);
-        merge_admin_module(&mut modules, enable_admin, None, network_admin_tx)
-            .expect("admin module registration");
+        merge_admin_module(
+            &mut modules,
+            enable_admin,
+            None,
+            network_admin_tx,
+            Arc::new(RollupConfig::default()),
+        )
+        .expect("admin module registration");
         modules.method_names().map(ToString::to_string).collect()
     }
 
