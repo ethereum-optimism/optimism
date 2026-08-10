@@ -91,6 +91,9 @@ impl EngineTaskError for EngineTaskErrors {
             Self::Insert(
                 InsertTaskError::FromBlockError(_) | InsertTaskError::L2BlockInfoConstruction(_),
             ) => EngineTaskErrorSeverity::Drop,
+            Self::Insert(inner) if inner.is_terminal_unsafe_payload_error() => {
+                EngineTaskErrorSeverity::Drop
+            }
             Self::Insert(inner) => inner.severity(),
             Self::Build(inner) => inner.severity(),
             Self::Seal(inner) => inner.severity(),
@@ -251,7 +254,17 @@ impl<EngineClient_: EngineClient> EngineTaskExt for EngineTask<EngineClient_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy_json_rpc::ErrorPayload;
     use alloy_rpc_types_engine::PayloadStatusEnum;
+    use alloy_transport::{RpcError, TransportErrorKind};
+
+    fn rpc_error(code: i64) -> InsertTaskError {
+        InsertTaskError::InsertFailed(RpcError::ErrorResp(ErrorPayload {
+            code,
+            message: "test error".into(),
+            data: None,
+        }))
+    }
 
     #[test]
     fn only_permanently_invalid_unsafe_payloads_are_dropped() {
@@ -268,6 +281,35 @@ mod tests {
             EngineTaskErrors::Insert(InsertTaskError::UnexpectedPayloadStatus(
                 PayloadStatusEnum::Accepted,
             ))
+            .severity(),
+            EngineTaskErrorSeverity::Temporary
+        );
+    }
+
+    #[test]
+    fn drops_terminal_rpc_input_errors_and_retries_transient_errors() {
+        for code in [
+            ErrorPayload::<()>::invalid_request().code,
+            ErrorPayload::<()>::method_not_found().code,
+            ErrorPayload::<()>::invalid_params().code,
+            -38004,
+            -38005,
+        ] {
+            assert_eq!(
+                EngineTaskErrors::Insert(rpc_error(code)).severity(),
+                EngineTaskErrorSeverity::Drop,
+                "RPC error {code} should be terminal"
+            );
+        }
+
+        assert_eq!(
+            EngineTaskErrors::Insert(rpc_error(-32603)).severity(),
+            EngineTaskErrorSeverity::Temporary
+        );
+        assert_eq!(
+            EngineTaskErrors::Insert(InsertTaskError::InsertFailed(RpcError::Transport(
+                TransportErrorKind::BackendGone,
+            )))
             .severity(),
             EngineTaskErrorSeverity::Temporary
         );
