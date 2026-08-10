@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 	"math/big"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -44,7 +43,7 @@ func TestContinueCLIColdStart(t *testing.T) {
 	fixture := newContinueCLIFixture(t)
 
 	t.Run("use-forge is rejected by the parser", func(t *testing.T) {
-		workdir := copyContinueCLIWorkdir(t, fixture.preparedWorkdir)
+		workdir := copyCommittedCLIWorkdir(t, fixture.preparedWorkdir)
 		runner := NewCLITestRunner(t)
 		nonceBefore := continueCLINonce(t, fixture)
 
@@ -57,7 +56,7 @@ func TestContinueCLIColdStart(t *testing.T) {
 	})
 
 	t.Run("frozen value changed on disk is rejected", func(t *testing.T) {
-		workdir := copyContinueCLIWorkdir(t, fixture.preparedWorkdir)
+		workdir := copyCommittedCLIWorkdir(t, fixture.preparedWorkdir)
 		intent, err := pipeline.ReadIntent(workdir)
 		require.NoError(t, err)
 		changedOPCM := common.Address{0xaa}
@@ -81,7 +80,7 @@ func TestContinueCLIColdStart(t *testing.T) {
 	})
 
 	t.Run("committed workdir and fresh cache are sufficient", func(t *testing.T) {
-		workdir := copyContinueCLIWorkdir(t, fixture.preparedWorkdir)
+		workdir := copyCommittedCLIWorkdir(t, fixture.preparedWorkdir)
 		prepared, err := pipeline.ReadState(workdir)
 		require.NoError(t, err)
 		preparedChain, err := prepared.Chain(fixture.chainID)
@@ -195,13 +194,6 @@ func newContinueCLIFixture(t *testing.T) *continueCLIFixture {
 		l1Client:        l1Client,
 		chainID:         chainID.Bytes32(),
 	}
-}
-
-func copyContinueCLIWorkdir(t *testing.T, source string) string {
-	t.Helper()
-	destination := filepath.Join(t.TempDir(), "workdir")
-	require.NoError(t, os.CopyFS(destination, os.DirFS(source)))
-	return destination
 }
 
 func continueCLIArgs(fixture *continueCLIFixture, workdir string) []string {

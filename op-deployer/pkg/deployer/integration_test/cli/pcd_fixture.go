@@ -44,7 +44,6 @@ type pcdJourneyFixture struct {
 	t                     *testing.T
 	runner                *CLITestRunner
 	workdir               string
-	cacheDir              string
 	l1RPC                 string
 	l1Client              *ethclient.Client
 	privateKey            string
@@ -71,7 +70,6 @@ func newPCDJourneyFixture(t *testing.T, chainIDs []common.Hash) *pcdJourneyFixtu
 		t:          t,
 		runner:     runner,
 		workdir:    runner.GetWorkDir(),
-		cacheDir:   filepath.Join(runner.GetWorkDir(), ".cache"),
 		l1RPC:      l1RPC,
 		l1Client:   l1Client,
 		privateKey: privateKey,
@@ -79,6 +77,58 @@ func newPCDJourneyFixture(t *testing.T, chainIDs []common.Hash) *pcdJourneyFixtu
 		devKeys:    devKeys,
 		chainIDs:   append([]common.Hash(nil), chainIDs...),
 	}
+}
+
+func (f *pcdJourneyFixture) cloneCommittedWorkdir() string {
+	f.t.Helper()
+	return copyCommittedCLIWorkdir(f.t, f.workdir)
+}
+
+func (f *pcdJourneyFixture) restartCold(workdir string) {
+	f.t.Helper()
+	runner := NewCLITestRunner(f.t, WithL1RPC(f.l1RPC), WithPrivateKey(f.privateKey))
+	restartedClient, err := ethclient.Dial(f.l1RPC)
+	require.NoError(f.t, err)
+	f.t.Cleanup(restartedClient.Close)
+
+	require.NoDirExists(f.t, filepath.Join(workdir, ".cache"), "committed workdir contains a CLI cache")
+	require.NoDirExists(f.t, filepath.Join(runner.GetWorkDir(), ".cache"), "new CLI runner reused a cache")
+	f.runner = runner
+	f.workdir = workdir
+	f.l1Client = restartedClient
+	f.chainArtifacts = pcdArtifactPaths(workdir, f.chainIDs)
+	f.dependencySetPath = filepath.Join(workdir, "interop-depset.json")
+}
+
+// This copy follows TestContinueCLIColdStart in continue_test.go. A cold restart must
+// exclude the CLI cache because the cache is not committed deployment state.
+func copyCommittedCLIWorkdir(t *testing.T, source string) string {
+	t.Helper()
+	destination := filepath.Join(t.TempDir(), "workdir")
+	require.NoError(t, os.MkdirAll(destination, 0o755))
+
+	entries, err := os.ReadDir(source)
+	require.NoError(t, err)
+	for _, entry := range entries {
+		if entry.Name() == ".cache" {
+			continue
+		}
+
+		sourcePath := filepath.Join(source, entry.Name())
+		destinationPath := filepath.Join(destination, entry.Name())
+		if entry.IsDir() {
+			require.NoError(t, os.CopyFS(destinationPath, os.DirFS(sourcePath)))
+			continue
+		}
+
+		info, err := entry.Info()
+		require.NoError(t, err)
+		require.Truef(t, info.Mode().IsRegular(), "committed workdir entry is not a regular file: %s", sourcePath)
+		data, err := os.ReadFile(sourcePath)
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(destinationPath, data, info.Mode().Perm()))
+	}
+	return destination
 }
 
 // This setup uses the CLI sequence from TestCLIBootstrap in bootstrap_test.go.
@@ -156,21 +206,16 @@ func (f *pcdJourneyFixture) runInspect() []pcdChainArtifacts {
 	require.NoError(f.t, err)
 	stateHashBefore := sha256.Sum256(stateBefore)
 
-	f.chainArtifacts = make([]pcdChainArtifacts, 0, len(f.chainIDs))
-	for _, chainID := range f.chainIDs {
-		artifactDir := filepath.Join(f.workdir, "artifacts", chainID.Hex())
+	f.chainArtifacts = pcdArtifactPaths(f.workdir, f.chainIDs)
+	for _, artifacts := range f.chainArtifacts {
+		artifactDir := filepath.Dir(artifacts.genesisPath)
 		require.NoError(f.t, os.MkdirAll(artifactDir, 0o755))
-		artifacts := pcdChainArtifacts{
-			chainID:     chainID,
-			genesisPath: filepath.Join(artifactDir, "genesis.json"),
-			rollupPath:  filepath.Join(artifactDir, "rollup.json"),
-		}
 
 		f.runner.ExpectSuccess(f.t, []string{
 			"inspect", "genesis",
 			"--workdir", f.workdir,
 			"--outfile", artifacts.genesisPath,
-			chainID.Hex(),
+			artifacts.chainID.Hex(),
 		}, nil)
 		require.FileExists(f.t, artifacts.genesisPath)
 		var genesis core.Genesis
@@ -180,19 +225,31 @@ func (f *pcdJourneyFixture) runInspect() []pcdChainArtifacts {
 			"inspect", "rollup",
 			"--workdir", f.workdir,
 			"--outfile", artifacts.rollupPath,
-			chainID.Hex(),
+			artifacts.chainID.Hex(),
 		}, nil)
 		require.FileExists(f.t, artifacts.rollupPath)
 		var rollupConfig rollup.Config
 		f.readJSON(artifacts.rollupPath, &rollupConfig)
 
-		f.chainArtifacts = append(f.chainArtifacts, artifacts)
 	}
 
 	stateAfter, err := os.ReadFile(statePath)
 	require.NoError(f.t, err)
 	require.Equal(f.t, stateHashBefore, sha256.Sum256(stateAfter), "inspect changed state.json")
 	return append([]pcdChainArtifacts(nil), f.chainArtifacts...)
+}
+
+func pcdArtifactPaths(workdir string, chainIDs []common.Hash) []pcdChainArtifacts {
+	artifacts := make([]pcdChainArtifacts, 0, len(chainIDs))
+	for _, chainID := range chainIDs {
+		artifactDir := filepath.Join(workdir, "artifacts", chainID.Hex())
+		artifacts = append(artifacts, pcdChainArtifacts{
+			chainID:     chainID,
+			genesisPath: filepath.Join(artifactDir, "genesis.json"),
+			rollupPath:  filepath.Join(artifactDir, "rollup.json"),
+		})
+	}
+	return artifacts
 }
 
 func (f *pcdJourneyFixture) writeDependencySet() string {
@@ -249,6 +306,12 @@ func (f *pcdJourneyFixture) runPrestate(prestate common.Hash) *state.State {
 
 func (f *pcdJourneyFixture) runContinue() *state.State {
 	f.t.Helper()
+	continued, _ := f.runContinueWithOutput()
+	return continued
+}
+
+func (f *pcdJourneyFixture) runContinueWithOutput() (*state.State, string) {
+	f.t.Helper()
 	f.t.Log("PCD stage: continue")
 	prepared, err := pipeline.ReadState(f.workdir)
 	require.NoError(f.t, err)
@@ -256,7 +319,7 @@ func (f *pcdJourneyFixture) runContinue() *state.State {
 	preparedSnapshot, err := prepared.PreparedDeployment.Clone()
 	require.NoError(f.t, err)
 
-	f.runner.ExpectSuccessWithNetwork(f.t, []string{
+	output := f.runner.ExpectSuccessWithNetwork(f.t, []string{
 		"continue",
 		"--workdir", f.workdir,
 	}, nil)
@@ -271,7 +334,7 @@ func (f *pcdJourneyFixture) runContinue() *state.State {
 		require.NoError(f.t, err)
 		require.NotNilf(f.t, chain.Continuation, "chain %s has no continuation checkpoint", chainID.Hex())
 	}
-	return continued
+	return continued, output
 }
 
 func (f *pcdJourneyFixture) readJSON(path string, out any) {
