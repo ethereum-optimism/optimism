@@ -14,6 +14,17 @@ impl Metrics {
     /// Identifier for the counter of critical derivation errors (strictly for alerting.)
     pub const DERIVATION_CRITICAL_ERROR: &str = "kona_node_derivation_critical_errors";
 
+    /// Identifier for the counter that tracks delegated derivation follow source requests.
+    pub const FOLLOW_SOURCE_REQUESTS: &str = "kona_node_follow_source_requests_total";
+    /// Label for a follow source request that was fetched, validated, and applied.
+    pub const FOLLOW_SOURCE_SUCCESS: &str = "success";
+    /// Label for a follow source request whose sync status fetch failed.
+    pub const FOLLOW_SOURCE_ERROR_FETCH_STATUS: &str = "error_fetch_status";
+    /// Label for a follow source request whose L1 lookup against the canonical chain failed.
+    pub const FOLLOW_SOURCE_ERROR_L1_LOOKUP: &str = "error_l1_lookup";
+    /// Label for a follow source request whose L1 block hash disagreed with the canonical chain.
+    pub const FOLLOW_SOURCE_ERROR_L1_MISMATCH: &str = "error_l1_mismatch";
+
     /// Identifier for the counter that tracks sequencer state flags.
     pub const SEQUENCER_STATE: &str = "kona_node_sequencer_state";
 
@@ -63,6 +74,13 @@ impl Metrics {
             "Critical errors in the derivation pipeline"
         );
 
+        // Follow source requests
+        metrics::describe_counter!(
+            Self::FOLLOW_SOURCE_REQUESTS,
+            metrics::Unit::Count,
+            "Count of delegated derivation follow source requests by result"
+        );
+
         // Sequencer state
         metrics::describe_counter!(Self::SEQUENCER_STATE, "Tracks sequencer state flags");
 
@@ -107,6 +125,36 @@ impl Metrics {
 
         // Derivation critical error
         kona_macros::set!(counter, Self::DERIVATION_CRITICAL_ERROR, 0);
+
+        // Follow source requests
+        kona_macros::set!(
+            counter,
+            Self::FOLLOW_SOURCE_REQUESTS,
+            "result",
+            Self::FOLLOW_SOURCE_SUCCESS,
+            0
+        );
+        kona_macros::set!(
+            counter,
+            Self::FOLLOW_SOURCE_REQUESTS,
+            "result",
+            Self::FOLLOW_SOURCE_ERROR_FETCH_STATUS,
+            0
+        );
+        kona_macros::set!(
+            counter,
+            Self::FOLLOW_SOURCE_REQUESTS,
+            "result",
+            Self::FOLLOW_SOURCE_ERROR_L1_LOOKUP,
+            0
+        );
+        kona_macros::set!(
+            counter,
+            Self::FOLLOW_SOURCE_REQUESTS,
+            "result",
+            Self::FOLLOW_SOURCE_ERROR_L1_MISMATCH,
+            0
+        );
 
         // Sequencer: reset total transactions sequenced
         kona_macros::set!(counter, Self::SEQUENCER_TOTAL_TRANSACTIONS_SEQUENCED, 0);

@@ -143,7 +143,10 @@ where
 
     /// Verifies that the L1 info reported by the derivation delegate
     /// are consistent with canonical L1 chain.
-    async fn validate_sync_status(&mut self, v: &SyncStatus) -> bool {
+    async fn validate_sync_status(
+        &mut self,
+        v: &SyncStatus,
+    ) -> Result<(), DerivationDelegationError> {
         let checks = [
             ("L1 Origin of Safe L2", v.safe_l2.l1_origin.number, v.safe_l2.l1_origin.hash),
             (
@@ -161,10 +164,10 @@ where
                     error = %err,
                     "L1 inconsistency detected at sync status from delegate"
                 );
-                return false;
+                return Err(err);
             }
         }
-        true
+        Ok(())
     }
 
     /// Fetches, validates, and applies sync status from the derivation delegate.
@@ -173,14 +176,35 @@ where
             Ok(status) => status,
             Err(_) => {
                 warn!(target: "derivation", "Failed to fetch sync status from delegate");
+                kona_macros::inc!(
+                    counter,
+                    crate::Metrics::FOLLOW_SOURCE_REQUESTS,
+                    "result" => crate::Metrics::FOLLOW_SOURCE_ERROR_FETCH_STATUS
+                );
                 return Ok(());
             }
         };
 
-        if !self.validate_sync_status(&sync_status).await {
+        if let Err(err) = self.validate_sync_status(&sync_status).await {
             // Validation failures here are expected to be transient, so we skip processing
             // this sync status and continue delegating derivation instead of treating it as
             // fatal.
+            match err {
+                DerivationDelegationError::L1Provider(_) => {
+                    kona_macros::inc!(
+                        counter,
+                        crate::Metrics::FOLLOW_SOURCE_REQUESTS,
+                        "result" => crate::Metrics::FOLLOW_SOURCE_ERROR_L1_LOOKUP
+                    );
+                }
+                DerivationDelegationError::L1ValidationFailed { .. } => {
+                    kona_macros::inc!(
+                        counter,
+                        crate::Metrics::FOLLOW_SOURCE_REQUESTS,
+                        "result" => crate::Metrics::FOLLOW_SOURCE_ERROR_L1_MISMATCH
+                    );
+                }
+            }
             return Ok(());
         }
 
@@ -204,6 +228,12 @@ where
             safe_l2 = ?sync_status.safe_l2,
             finalized_l2 = ?sync_status.finalized_l2,
             "Processed sync status from delegate"
+        );
+
+        kona_macros::inc!(
+            counter,
+            crate::Metrics::FOLLOW_SOURCE_REQUESTS,
+            "result" => crate::Metrics::FOLLOW_SOURCE_SUCCESS
         );
 
         Ok(())
