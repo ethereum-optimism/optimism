@@ -626,6 +626,11 @@ mod tests {
     #[test]
     #[cfg(feature = "serde")]
     fn test_serde_versioned_root_invariants() {
+        let v1 = OpExecutionPayloadEnvelope::V1(execution_payload_v1(B256::ZERO));
+        let v1_json = serde_json::to_value(&v1).unwrap();
+        assert!(v1_json["parentBeaconBlockRoot"].is_null());
+        assert_eq!(serde_json::from_value::<OpExecutionPayloadEnvelope>(v1_json).unwrap(), v1);
+
         let v2 = OpExecutionPayloadEnvelope::V2(ExecutionPayloadV2 {
             payload_inner: execution_payload_v1(B256::ZERO),
             withdrawals: Vec::new(),
