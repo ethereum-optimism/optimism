@@ -106,7 +106,7 @@ impl BlockHandler {
     ) -> Result<(), BlockInvalidError> {
         let message = payload.payload_hash().signature_message(self.rollup_config.l2_chain_id.id());
         let expected = *self.signer_recv.borrow();
-        let received = match payload.signature().recover_address_from_prehash(&message) {
+        let received = match payload.recover_signer(&message) {
             Ok(received) => received,
             Err(_) => {
                 #[cfg(feature = "metrics")]

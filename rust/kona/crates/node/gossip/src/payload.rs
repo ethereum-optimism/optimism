@@ -1,8 +1,9 @@
 //! Private wire representation of signed OP Stack gossip payloads.
 
 use crate::HandlerEncodeError;
-use alloy_primitives::{B256, Bytes, Signature};
+use alloy_primitives::{Address, B256, Bytes, Signature};
 use alloy_rpc_types_engine::{ExecutionPayloadV1, ExecutionPayloadV2, ExecutionPayloadV3};
+use k256::ecdsa::{RecoveryId, Signature as K256Signature, VerifyingKey};
 use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelope, OpExecutionPayloadV4, PayloadHash};
 use ssz::{Decode, Encode};
 
@@ -85,13 +86,52 @@ impl EncodedExecutionPayloadEnvelope {
     }
 }
 
+/// A compact secp256k1 signature as encoded on the gossip wire.
+///
+/// The final byte is a recovery ID in `0..=3`, not an Ethereum transaction-style `v` value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct GossipSignature([u8; 65]);
+
+impl GossipSignature {
+    /// Parses a compact signature without normalizing its raw recovery ID.
+    fn decode(bytes: &[u8]) -> Result<Self, GossipPayloadDecodeError> {
+        let bytes: [u8; 65] =
+            bytes.try_into().map_err(|_| GossipPayloadDecodeError::InvalidSignature)?;
+        if RecoveryId::from_byte(bytes[64]).is_none() {
+            return Err(GossipPayloadDecodeError::InvalidSignature);
+        }
+        Ok(Self(bytes))
+    }
+
+    /// Converts an Alloy signature to its canonical compact wire encoding.
+    fn from_alloy(signature: Signature) -> Self {
+        let mut bytes = signature.as_bytes();
+        bytes[64] = signature.v() as u8;
+        Self(bytes)
+    }
+
+    /// Recovers the address that signed `prehash` using the full two-bit recovery ID.
+    fn recover_address_from_prehash(&self, prehash: &B256) -> Result<Address, k256::ecdsa::Error> {
+        let signature = K256Signature::try_from(&self.0[..64])?;
+        let recovery_id = RecoveryId::try_from(self.0[64])?;
+        let public_key =
+            VerifyingKey::recover_from_prehash(prehash.as_slice(), &signature, recovery_id)?;
+        Ok(Address::from_public_key(&public_key))
+    }
+
+    /// Returns the exact compact signature bytes.
+    const fn as_bytes(&self) -> &[u8; 65] {
+        &self.0
+    }
+}
+
 /// The decompressed bytes carried by an OP Stack block gossip message.
 ///
 /// The gossip topic determines how to interpret [`Self::envelope`] and is deliberately not part of
 /// this type because it is not included in the signed payload bytes.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct SignedGossipPayload {
-    signature: Signature,
+    signature: GossipSignature,
     envelope: EncodedExecutionPayloadEnvelope,
 }
 
@@ -103,7 +143,7 @@ impl SignedGossipPayload {
             return Err(GossipPayloadDecodeError::InvalidLength);
         }
 
-        let signature = Signature::try_from(&decompressed[..65])?;
+        let signature = GossipSignature::decode(&decompressed[..65])?;
         Ok(Self { signature, envelope: EncodedExecutionPayloadEnvelope(decompressed.slice(65..)) })
     }
 
@@ -114,7 +154,7 @@ impl SignedGossipPayload {
         version: GossipPayloadVersion,
     ) -> Result<Self, HandlerEncodeError> {
         Ok(Self {
-            signature,
+            signature: GossipSignature::from_alloy(signature),
             envelope: EncodedExecutionPayloadEnvelope::encode(envelope, version)?,
         })
     }
@@ -122,16 +162,14 @@ impl SignedGossipPayload {
     /// Encodes this signed payload using the Snappy wire framing.
     pub(crate) fn encode_snappy(&self) -> Result<Vec<u8>, HandlerEncodeError> {
         let mut data = Vec::with_capacity(65 + self.envelope.0.len());
-        let mut signature = self.signature.as_bytes();
-        signature[64] = self.signature.v() as u8;
-        data.extend_from_slice(&signature);
+        data.extend_from_slice(self.signature.as_bytes());
         data.extend_from_slice(self.envelope.0.as_ref());
         Ok(snap::raw::Encoder::new().compress_vec(&data)?)
     }
 
-    /// Returns the parsed block signature.
-    pub(crate) const fn signature(&self) -> &Signature {
-        &self.signature
+    /// Recovers the address that signed the provided prehash.
+    pub(crate) fn recover_signer(&self, prehash: &B256) -> Result<Address, k256::ecdsa::Error> {
+        self.signature.recover_address_from_prehash(prehash)
     }
 
     /// Returns the hash authenticated by the block signature.
@@ -182,12 +220,6 @@ impl From<snap::Error> for GossipPayloadDecodeError {
     }
 }
 
-impl From<alloy_primitives::SignatureError> for GossipPayloadDecodeError {
-    fn from(_: alloy_primitives::SignatureError) -> Self {
-        Self::InvalidSignature
-    }
-}
-
 impl From<ssz::DecodeError> for GossipPayloadDecodeError {
     fn from(_: ssz::DecodeError) -> Self {
         Self::BrokenSszEncoding
@@ -202,7 +234,7 @@ mod tests {
     fn assert_roundtrip(data: &[u8], version: GossipPayloadVersion, timestamp: u64) {
         let signed = SignedGossipPayload::decode_snappy(data).unwrap();
         let payload_hash = signed.payload_hash();
-        let signature = *signed.signature();
+        let signature = Signature::try_from(signed.signature.as_bytes().as_slice()).unwrap();
         let envelope = signed.into_envelope(version).unwrap();
 
         assert_eq!(envelope.timestamp(), timestamp);
@@ -213,6 +245,24 @@ mod tests {
             .encode_snappy()
             .unwrap();
         assert_eq!(encoded, data);
+    }
+
+    #[test]
+    fn enforces_compact_recovery_id_range() {
+        for recovery_id in 0..=u8::MAX {
+            let mut decompressed = vec![0; 66];
+            decompressed[64] = recovery_id;
+            let encoded = snap::raw::Encoder::new().compress_vec(&decompressed).unwrap();
+            let decoded = SignedGossipPayload::decode_snappy(&encoded);
+
+            if recovery_id < 4 {
+                let signed = decoded.unwrap();
+                assert_eq!(signed.signature.as_bytes()[64], recovery_id);
+                assert_eq!(signed.encode_snappy().unwrap(), encoded);
+            } else {
+                assert_eq!(decoded.unwrap_err(), GossipPayloadDecodeError::InvalidSignature);
+            }
+        }
     }
 
     #[test]
@@ -243,7 +293,7 @@ mod tests {
     fn rejects_topic_version_mismatch_when_encoding() {
         let data = hex::decode("0xbd04f043128457c6ccf35128497167442bcc0f8cce78cda8b366e6a12e526d938d1e4c1046acffffbfc542a7e212bb7d80d3a4b2f84f7b196d935398a24eb84c519789b401000000fe0300fe0300fe0300fe0300fe0300fe0300a203000c4a8fd56621ad04fc0101067601008ce60be0005b220117c32c0f3b394b346c2aa42cfa8157cd41f891aa0bec485a62fc010000").unwrap();
         let signed = SignedGossipPayload::decode_snappy(&data).unwrap();
-        let signature = *signed.signature();
+        let signature = Signature::try_from(signed.signature.as_bytes().as_slice()).unwrap();
         let envelope = signed.into_envelope(GossipPayloadVersion::V1).unwrap();
 
         assert!(matches!(

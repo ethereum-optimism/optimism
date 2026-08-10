@@ -26,6 +26,7 @@ kona-disc.workspace = true
 alloy-rlp.workspace = true
 alloy-rpc-types-engine.workspace = true
 alloy-primitives = { workspace = true, features = ["k256", "getrandom"] }
+k256.workspace = true
 
 # Op Alloy
 op-alloy-rpc-types-engine = { workspace = true, features = ["std", "serde"] }

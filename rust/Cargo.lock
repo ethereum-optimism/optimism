@@ -7043,6 +7043,7 @@ dependencies = [
  "ethereum_ssz",
  "futures",
  "ipnet",
+ "k256",
  "kona-disc",
  "kona-genesis",
  "kona-macros",
