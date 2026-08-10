@@ -250,7 +250,6 @@ mod tests {
         assert!(matches!(payload, Some(OpExecutionPayloadEnvelope::V2(_))));
     }
 
-    /// A signature over a different payload hash must be rejected before envelope decoding.
     #[test]
     fn test_invalid_decode_payload_hash() {
         let signature = Signature::test_signature();
