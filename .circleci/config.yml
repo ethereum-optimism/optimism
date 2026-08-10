@@ -87,12 +87,14 @@ parameters:
 
 orbs:
   continuation: circleci/continuation@2.0.1
+  utils: ethereum-optimism/circleci-utils@1.0.30
 
 jobs:
   # --------------------------------------------------------------------------
   # This job prepares the dynamic continuation pipeline in 7 steps:
   #
-  #   1. Install yq (YAML processor for merging configs)
+  #   1. Install the mise toolset (front-loads the shared mise cache; provides
+  #      yq for merging configs)
   #   2. Store string pipeline params  → /tmp/pipeline-parameters.json
   #   3. Store boolean pipeline params → /tmp/pipeline-parameters.json
   #   4. Detect file-tree changes     → /tmp/pipeline-parameters.json
@@ -112,16 +114,28 @@ jobs:
       BASE_REVISION: develop
     steps:
       - checkout
-      # yq is used by the "Merge continuation configs" step to deep-merge YAML files.
-      # Keep version in sync with mise.toml.
+      # Front-loads the mise toolset for the whole pipeline: this job always
+      # completes before the continuation pipeline exists, so on a cold cache
+      # (mise.toml change or eviction) it is the only job that cold-installs —
+      # every continuation job restores the cache saved here. During an
+      # upstream outage (GitHub rate limits, missing release attestations) the
+      # blast radius is this one job instead of every job on every PR.
+      # Also provides yq (pinned in mise.toml) for the merge/routing scripts.
+      #
+      # This must remain a full, unfiltered `mise install`: the orb saves
+      # /data/mise-data under a write-once key, so narrowing the install here
+      # (e.g. to just yq) would freeze an incomplete toolset for every
+      # continuation job and silently force them all to cold-install forever.
+      - utils/install-mise:
+          enable_mise_cache: true
+      # mise shims re-resolve the tool on every invocation, which the yq/jq
+      # loops in the routing scripts below pay hundreds of times (~9s of
+      # overhead measured). Putting the resolved tool bin directories ahead
+      # of the shims makes those calls direct.
       - run:
-          name: Install yq
+          name: Put mise tool bin paths on PATH
           command: |
-            YQ_VERSION="4.44.5"
-            wget -qO /usr/local/bin/yq \
-              "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64"
-            chmod +x /usr/local/bin/yq
-            echo "yq version: $(yq --version)"
+            echo "export PATH=\"$(mise bin-paths | paste -sd: -):\$PATH\"" >> "$BASH_ENV"
       # Validates the decision tree logic against known scenarios.
       # Fails fast if a refactor breaks expected workflow activation.
       - run:
@@ -213,7 +227,11 @@ workflows:
     when:
       equal: ["", << pipeline.git.tag >>]
     jobs:
-      - prepare-continuation-config
+      - prepare-continuation-config:
+          # MISE_GITHUB_TOKEN: authenticated GitHub API quota for mise's tool
+          # downloads (5,000 req/h per token vs 60/h/IP anonymous).
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
   setup-tag:
     when:
@@ -221,6 +239,9 @@ workflows:
         equal: ["", << pipeline.git.tag >>]
     jobs:
       - prepare-continuation-config:
+          # MISE_GITHUB_TOKEN, as in the setup workflow above.
+          context:
+            - circleci-repo-readonly-authenticated-github-token
           filters:
             tags:
               only: /.*/
