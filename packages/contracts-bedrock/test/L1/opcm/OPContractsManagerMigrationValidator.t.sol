@@ -410,8 +410,7 @@ contract OPContractsManagerMigrationValidator_SPDG_Test is OPContractsManagerMig
             abi.encode(address(bad))
         );
 
-        // MIG-SPDG-150 also fires: mocking the expected implementation address makes the registered
-        // implementation no longer the expected one.
+        // MIG-SPDG-150 also fires because the expected implementation address changed.
         assertEq("MIG-SPDG-20,MIG-SPDG-150", _validateMigration(true));
     }
 

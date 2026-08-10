@@ -421,9 +421,6 @@ contract StandardValidatorUtils {
             string.concat(errorPrefix, "-20"),
             errors_
         );
-        // The version is self-reported by the registered implementation, so it is not evidence of
-        // identity on its own. Dispute game implementations are release singletons parameterized
-        // by the factory's game args, so the registered address must be the release address.
         errors_ =
             internalRequire(game.gameAddress == _impls.expectedGameImpl, string.concat(errorPrefix, "-150"), errors_);
 
@@ -499,9 +496,6 @@ contract StandardValidatorUtils {
             string.concat(errorPrefix, "-20"),
             errors_
         );
-        // See the identity check in `assertValidDisputeGame` for why the version alone is not
-        // enough. It matters more here: the remaining checks authenticate only the game args, not
-        // the semantics the implementation enforces.
         errors_ =
             internalRequire(game.gameAddress == _impls.expectedGameImpl, string.concat(errorPrefix, "-150"), errors_);
         errors_ = internalRequire(Hash.unwrap(anchorRoot) != bytes32(0), string.concat(errorPrefix, "-120"), errors_);
