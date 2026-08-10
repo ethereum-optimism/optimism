@@ -40,6 +40,67 @@ func TestFlowOutput(t *testing.T) {
 	}
 }
 
+func TestMessageLandingOutput(t *testing.T) {
+	receipt := &types.Receipt{
+		TxHash:      common.HexToHash("0x1234"),
+		BlockNumber: big.NewInt(123),
+	}
+	source := &remoteChain{name: "L2A", chainID: eth.ChainIDFromUInt64(900)}
+	destination := &remoteChain{name: "L2B", chainID: eth.ChainIDFromUInt64(901)}
+
+	initOutput := messageLandingOutput("Initiating message", source, destination, source, receipt)
+	execOutput := messageLandingOutput("Executing message", source, destination, destination, receipt)
+	for _, want := range []string{
+		"Initiating message landed on source chain L2A",
+		"Executing message landed on destination chain L2B",
+		"source chain ID 900",
+		"destination chain ID 901",
+		"included in block 123",
+	} {
+		if !strings.Contains(initOutput+execOutput, want) {
+			t.Errorf("output = %q, want %q", initOutput+execOutput, want)
+		}
+	}
+}
+
+func TestIterationsFlagDefaultsToOne(t *testing.T) {
+	var iterations *cli.UintFlag
+	for _, flag := range Subcommands("OP_UP")[0].Flags {
+		if flag.Names()[0] == iterationsFlagName {
+			iterations, _ = flag.(*cli.UintFlag)
+			break
+		}
+	}
+	if iterations == nil {
+		t.Fatal("iterations flag not found")
+	}
+	if iterations.Value != 1 {
+		t.Fatalf("iterations default = %d, want 1", iterations.Value)
+	}
+}
+
+func TestRunIterations(t *testing.T) {
+	calls := 0
+	if err := runIterations(3, func() error {
+		calls++
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 3 {
+		t.Fatalf("calls = %d, want 3", calls)
+	}
+}
+
+func TestValidateIterations(t *testing.T) {
+	if err := validateIterations(0); err == nil {
+		t.Fatal("expected zero iterations to fail")
+	}
+	if err := validateIterations(1); err != nil {
+		t.Fatalf("one iteration failed: %v", err)
+	}
+}
+
 func TestNewSmokeEnvRequiresAtLeastTwoRPCURLs(t *testing.T) {
 	for _, tc := range []struct {
 		name   string

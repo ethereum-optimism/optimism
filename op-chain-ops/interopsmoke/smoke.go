@@ -56,6 +56,7 @@ const (
 	reorgTimeoutFlagName      = "reorg-timeout"
 	directionFlagName         = "direction"
 	requireCascadeFlagName    = "require-cascade"
+	iterationsFlagName        = "iterations"
 )
 
 // bridgeTimeout bounds a single cross-chain bridge (send, relay, and balance check).
@@ -72,6 +73,12 @@ func smokeFlags(envPrefix string) []cli.Flag {
 			Name:    privateKeyFlagName,
 			Usage:   "Private key to fund smoke-test transactions. If empty, uses the default dev key.",
 			EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_PRIVATE_KEY"),
+		},
+		&cli.UintFlag{
+			Name:    iterationsFlagName,
+			Usage:   "Number of times to repeat the selected smoke flow.",
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "SMOKE_ITERATIONS"),
+			Value:   1,
 		},
 	})
 }
@@ -503,6 +510,10 @@ func withSmokeEnv(cliCtx *cli.Context, name string, fn func(env *smokeEnv) error
 	stderr := cliCtx.App.ErrWriter
 	l2URLs := cliCtx.StringSlice(l2URLFlagName)
 	privateKey := cliCtx.String(privateKeyFlagName)
+	iterations := cliCtx.Uint(iterationsFlagName)
+	if err := validateIterations(iterations); err != nil {
+		return err
+	}
 
 	fmt.Fprintf(stderr, "\nSmoke: %s\n\n", name)
 
@@ -517,11 +528,37 @@ func withSmokeEnv(cliCtx *cli.Context, name string, fn func(env *smokeEnv) error
 	}
 	fmt.Fprintf(stderr, "Smoke Sender Address: %s\n\n", env.userA.address)
 
-	if err := fn(env); err != nil {
+	iteration := uint(0)
+	if err := runIterations(iterations, func() error {
+		iteration++
+		if iterations > 1 {
+			fmt.Fprintf(stderr, "\nIteration %d/%d\n", iteration, iterations)
+		}
+		return fn(env)
+	}); err != nil {
 		fmt.Fprintf(stderr, "\nFAIL: %s (%v)\n", name, err)
 		return err
 	}
 	fmt.Fprintf(stderr, "\nPASS: %s\n", name)
+	return nil
+}
+
+func validateIterations(iterations uint) error {
+	if iterations == 0 {
+		return fmt.Errorf("iterations must be greater than zero")
+	}
+	return nil
+}
+
+func runIterations(iterations uint, fn func() error) error {
+	if err := validateIterations(iterations); err != nil {
+		return err
+	}
+	for i := uint(0); i < iterations; i++ {
+		if err := fn(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -749,7 +786,7 @@ func smokeValidMessagePair(env *smokeEnv, pair chainPair, rng *rand.Rand) error 
 		return fmt.Errorf("%s: send init message: %w", pair.name, err)
 	}
 	fmt.Fprintf(env.stderr, "    [%s] %s\n", pair.name,
-		flowOutput("Init message", pair.initUser.chain, pair.execUser.chain, nil, initMsg.Receipt))
+		messageLandingOutput("Initiating message", pair.initUser.chain, pair.execUser.chain, pair.initUser.chain, initMsg.Receipt))
 
 	if _, err := waitForNextBlock(env.ctx, pair.execUser.chain); err != nil {
 		return fmt.Errorf("%s: wait for %s block: %w", pair.name, pair.execUser.chain.name, err)
@@ -765,7 +802,7 @@ func smokeValidMessagePair(env *smokeEnv, pair chainPair, rng *rand.Rand) error 
 	execBlockNum := execMsg.BlockNumber()
 	execBlockHash := execMsg.BlockHash()
 	fmt.Fprintf(env.stderr, "    [%s] %s\n", pair.name,
-		flowOutput("Exec message", pair.initUser.chain, pair.execUser.chain, nil, execMsg.Receipt))
+		messageLandingOutput("Executing message", pair.initUser.chain, pair.execUser.chain, pair.execUser.chain, execMsg.Receipt))
 
 	if err := waitForHeadAtLeast(env.ctx, pair.execUser.chain, execBlockNum+2); err != nil {
 		return fmt.Errorf("%s: wait for %s head: %w", pair.name, pair.execUser.chain.name, err)
@@ -791,6 +828,17 @@ func flowOutput(flow string, source, destination *remoteChain, amount *eth.ETH, 
 		output += fmt.Sprintf(", amount %s wei", amount.ToBig())
 	}
 	return fmt.Sprintf("%s, tx %s, included in block %d", output, receipt.TxHash, bigs.Uint64Strict(receipt.BlockNumber))
+}
+
+func messageLandingOutput(message string, source, destination, landedOn *remoteChain, receipt *types.Receipt) string {
+	role := "chain"
+	if landedOn == source {
+		role = "source chain"
+	} else if landedOn == destination {
+		role = "destination chain"
+	}
+	return fmt.Sprintf("%s landed on %s %s (chain ID %s), source chain ID %s, destination chain ID %s, tx %s, included in block %d",
+		message, role, landedOn.name, landedOn.chainID, source.chainID, destination.chainID, receipt.TxHash, bigs.Uint64Strict(receipt.BlockNumber))
 }
 
 type invalidInclusion struct {
@@ -848,6 +896,7 @@ func smokeInvalidMessage(env *smokeEnv) error {
 					return fmt.Errorf("%s: send init message: %w", d.name, err)
 				}
 				d.pending = append(d.pending, initMsg)
+				fmt.Fprintf(stderr, "    [%s] %s\n", d.name, messageLandingOutput("Initiating message", d.initUser.chain, d.execUser.chain, d.initUser.chain, initMsg.Receipt))
 			}
 			return nil
 		}); err != nil {
@@ -869,8 +918,7 @@ func smokeInvalidMessage(env *smokeEnv) error {
 				}
 				inclusion := invalidInclusion{invalidExec.Receipt.TxHash, invalidExec.BlockHash(), invalidExec.BlockNumber()}
 				d.inclusions = append(d.inclusions, inclusion)
-				fmt.Fprintf(stderr, "    [%s] Invalid exec tx included on %s: %s\n", d.name, execChain.name, inclusion.txHash)
-				fmt.Fprintf(stderr, "    [%s] Invalid exec message landed on %s block %d (%s)\n", d.name, execChain.name, inclusion.blockNum, inclusion.blockHash)
+				fmt.Fprintf(stderr, "    [%s] %s\n", d.name, messageLandingOutput("Invalid executing message", d.initUser.chain, execChain, execChain, invalidExec.Receipt))
 			}
 			return nil
 		}); err != nil {
