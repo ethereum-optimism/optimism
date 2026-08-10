@@ -1078,7 +1078,22 @@ contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
         bytes32 slot =
             bytes32(ForgeArtifacts.getSlot("OPContractsManagerStandardValidator", "permissionedDisputeGameImpl").slot);
         vm.store(address(standardValidator), slot, bytes32(uint256(uint160(address(bad)))));
-        assertEq("PDDG-20", _validate(true));
+        // -150 also fires: swapping the validator's stored implementation address makes the
+        // registered implementation no longer the expected one.
+        assertEq("PDDG-20,PDDG-150", _validate(true));
+    }
+
+    /// @notice Tests PDDG-150 when the registered PERMISSIONED_CANNON implementation is a different
+    ///         contract with identical code and game args.
+    function test_validate_permissionedDisputeGameLookalikeImplementation_succeeds() public {
+        address lookalike = makeAddr("lookalikePermissionedDisputeGame");
+        vm.etch(lookalike, address(pdgImpl).code);
+        vm.mockCall(
+            address(disputeGameFactory),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.PERMISSIONED_CANNON)),
+            abi.encode(lookalike)
+        );
+        assertEq("PDDG-150", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -1432,7 +1447,9 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
         bytes32 slot =
             bytes32(ForgeArtifacts.getSlot("OPContractsManagerStandardValidator", "faultDisputeGameImpl").slot);
         vm.store(address(standardValidator), slot, bytes32(uint256(uint160(address(bad)))));
-        assertEq("CKDG-20", _validate(true));
+        // -150 also fires: swapping the validator's stored implementation address makes the
+        // registered implementation no longer the expected one.
+        assertEq("CKDG-20,CKDG-150", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -1942,7 +1959,23 @@ contract OPContractsManagerStandardValidator_SuperPermissionedDisputeGame_Test i
             ForgeArtifacts.getSlot("OPContractsManagerStandardValidator", "superPermissionedDisputeGameImpl").slot
         );
         vm.store(address(standardValidator), slot, bytes32(uint256(uint160(address(bad)))));
-        assertEq("SPDG-20", _validate(true));
+        // -150 also fires: swapping the validator's stored implementation address makes the
+        // registered implementation no longer the expected one.
+        assertEq("SPDG-20,SPDG-150", _validate(true));
+    }
+
+    /// @notice Tests SPDG-150 when the registered SUPER_PERMISSIONED implementation is a different
+    ///         contract that reports the expected version and canonical game args.
+    function test_validate_superPermissionedDisputeGameLookalikeImplementation_succeeds() public {
+        address spdgImpl = address(disputeGameFactory.gameImpls(GameTypes.SUPER_PERMISSIONED));
+        address lookalike = makeAddr("lookalikeSuperPermissionedDisputeGame");
+        vm.etch(lookalike, spdgImpl.code);
+        vm.mockCall(
+            address(disputeGameFactory),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED)),
+            abi.encode(lookalike)
+        );
+        assertEq("SPDG-150", _validate(true));
     }
 
     /// @notice Tests SPDG-GARGS-10 when SUPER_PERMISSIONED game args are invalid.
@@ -2014,7 +2047,9 @@ contract OPContractsManagerStandardValidator_SuperPermissionlessDisputeGame_Test
         bytes32 slot =
             bytes32(ForgeArtifacts.getSlot("OPContractsManagerStandardValidator", "superFaultDisputeGameImpl").slot);
         vm.store(address(standardValidator), slot, bytes32(uint256(uint160(address(bad)))));
-        assertEq("SCKDG-20", _validate(true));
+        // -150 also fires: swapping the validator's stored implementation address makes the
+        // registered implementation no longer the expected one.
+        assertEq("SCKDG-20,SCKDG-150", _validate(true));
     }
 
     /// @notice Tests SCKDG-40 when SUPER_CANNON_KONA absolute prestate is invalid.
@@ -2277,7 +2312,23 @@ contract OPContractsManagerStandardValidator_ZKValidation_Test is
         BadVersionReturner bad = new BadVersionReturner(standardValidator, ISemver(zkImpl), "0.0.0");
         bytes32 slot = bytes32(ForgeArtifacts.getSlot("OPContractsManagerStandardValidator", "zkDisputeGameImpl").slot);
         vm.store(address(standardValidator), slot, bytes32(uint256(uint160(address(bad)))));
-        assertEq("ZKDG-20", _validate(true));
+        // -150 also fires: swapping the validator's stored implementation address makes the
+        // registered implementation no longer the expected one.
+        assertEq("ZKDG-20,ZKDG-150", _validate(true));
+    }
+
+    /// @notice Tests ZKDG-150 when the registered ZK_DISPUTE_GAME implementation is a different
+    ///         contract with identical code and game args.
+    function test_validate_zkDisputeGameLookalikeImplementation_succeeds() public {
+        address zkImpl = address(dgf.gameImpls(GameTypes.ZK_DISPUTE_GAME));
+        address lookalike = makeAddr("lookalikeZKDisputeGame");
+        vm.etch(lookalike, zkImpl.code);
+        vm.mockCall(
+            address(dgf),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.ZK_DISPUTE_GAME)),
+            abi.encode(lookalike)
+        );
+        assertEq("ZKDG-150", _validate(true));
     }
 
     /// @notice Tests ZKDG-70 when the absolutePrestate encoded in the ZK game args is zero.

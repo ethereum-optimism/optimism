@@ -410,7 +410,24 @@ contract OPContractsManagerMigrationValidator_SPDG_Test is OPContractsManagerMig
             abi.encode(address(bad))
         );
 
-        assertEq("MIG-SPDG-20", _validateMigration(true));
+        // MIG-SPDG-150 also fires: mocking the expected implementation address makes the registered
+        // implementation no longer the expected one.
+        assertEq("MIG-SPDG-20,MIG-SPDG-150", _validateMigration(true));
+    }
+
+    /// @notice MIG-SPDG-150: Registered SPDG implementation is a different contract with identical
+    ///         code and game args.
+    function test_validate_spdg150LookalikeImplementation_succeeds() public {
+        address spdgImpl = address(sharedDGF.gameImpls(GameTypes.SUPER_PERMISSIONED));
+        address lookalike = makeAddr("lookalikeSuperPermissionedDisputeGame");
+        vm.etch(lookalike, spdgImpl.code);
+        vm.mockCall(
+            address(sharedDGF),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED)),
+            abi.encode(lookalike)
+        );
+
+        assertEq("MIG-SPDG-150", _validateMigration(true));
     }
 
     /// @notice MIG-SPDG-GARGS-10: Invalid game args length for SPDG.

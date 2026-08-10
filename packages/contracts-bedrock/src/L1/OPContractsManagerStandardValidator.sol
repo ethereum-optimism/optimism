@@ -1122,6 +1122,8 @@ contract OPContractsManagerStandardValidator is ISemver {
             string.concat(errorPrefix, "-20"),
             _errors
         );
+        _errors =
+            internalRequire(gameImpl.gameAddress == zkDisputeGameImpl, string.concat(errorPrefix, "-150"), _errors);
         return _assertValidZKGameArgs(_errors, _sysCfg, _admin, _overrides, errorPrefix);
     }
 
