@@ -70,7 +70,7 @@ func CallGetter[T any](
 	return value, nil
 }
 
-// TODO(#2162): Remove this function once the super root dispute games are fully deployed and the flag is no longer needed.
+// TODO(#21662): Remove this function once the super root dispute games are fully deployed and the flag is no longer needed.
 // ReadSuperRootEnabled reports whether a deployed OPCM installs super root dispute games.
 // DeployOPChain.s.sol reads the same flag to decide which game family an initial deploy accepts.
 func ReadSuperRootEnabled(
