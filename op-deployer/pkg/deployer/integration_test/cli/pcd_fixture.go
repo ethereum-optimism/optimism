@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"math/big"
 	"os"
@@ -10,15 +12,19 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -27,6 +33,12 @@ import (
 )
 
 const pcdGenesisTimeOffset = 600
+
+type pcdChainArtifacts struct {
+	chainID     common.Hash
+	genesisPath string
+	rollupPath  string
+}
 
 type pcdJourneyFixture struct {
 	t                     *testing.T
@@ -42,6 +54,9 @@ type pcdJourneyFixture struct {
 	superchainOutput      opcm.DeploySuperchainOutput
 	implementationsOutput opcm.DeployImplementationsOutput
 	postBootstrapL1State  pcdL1State
+	chainArtifacts        []pcdChainArtifacts
+	dependencySetPath     string
+	prestate              common.Hash
 }
 
 func newPCDJourneyFixture(t *testing.T, chainIDs []common.Hash) *pcdJourneyFixture {
@@ -130,6 +145,97 @@ func (f *pcdJourneyFixture) runPrepare() *state.State {
 	}, nil)
 	st, err := pipeline.ReadState(f.workdir)
 	require.NoError(f.t, err)
+	return st
+}
+
+func (f *pcdJourneyFixture) runInspect() []pcdChainArtifacts {
+	f.t.Helper()
+	f.t.Log("PCD stage: inspect")
+	statePath := filepath.Join(f.workdir, "state.json")
+	stateBefore, err := os.ReadFile(statePath)
+	require.NoError(f.t, err)
+	stateHashBefore := sha256.Sum256(stateBefore)
+
+	f.chainArtifacts = make([]pcdChainArtifacts, 0, len(f.chainIDs))
+	for _, chainID := range f.chainIDs {
+		artifactDir := filepath.Join(f.workdir, "artifacts", chainID.Hex())
+		require.NoError(f.t, os.MkdirAll(artifactDir, 0o755))
+		artifacts := pcdChainArtifacts{
+			chainID:     chainID,
+			genesisPath: filepath.Join(artifactDir, "genesis.json"),
+			rollupPath:  filepath.Join(artifactDir, "rollup.json"),
+		}
+
+		f.runner.ExpectSuccess(f.t, []string{
+			"inspect", "genesis",
+			"--workdir", f.workdir,
+			"--outfile", artifacts.genesisPath,
+			chainID.Hex(),
+		}, nil)
+		require.FileExists(f.t, artifacts.genesisPath)
+		var genesis core.Genesis
+		f.readJSON(artifacts.genesisPath, &genesis)
+
+		f.runner.ExpectSuccess(f.t, []string{
+			"inspect", "rollup",
+			"--workdir", f.workdir,
+			"--outfile", artifacts.rollupPath,
+			chainID.Hex(),
+		}, nil)
+		require.FileExists(f.t, artifacts.rollupPath)
+		var rollupConfig rollup.Config
+		f.readJSON(artifacts.rollupPath, &rollupConfig)
+
+		f.chainArtifacts = append(f.chainArtifacts, artifacts)
+	}
+
+	stateAfter, err := os.ReadFile(statePath)
+	require.NoError(f.t, err)
+	require.Equal(f.t, stateHashBefore, sha256.Sum256(stateAfter), "inspect changed state.json")
+	return append([]pcdChainArtifacts(nil), f.chainArtifacts...)
+}
+
+func (f *pcdJourneyFixture) writeDependencySet() string {
+	f.t.Helper()
+	f.t.Log("PCD stage: write dependency set")
+	st, err := pipeline.ReadState(f.workdir)
+	require.NoError(f.t, err)
+	require.NotNil(f.t, st.InteropDepSet)
+
+	data, err := json.Marshal(st.InteropDepSet)
+	require.NoError(f.t, err)
+	f.dependencySetPath = filepath.Join(f.workdir, "interop-depset.json")
+	require.NoError(f.t, os.WriteFile(f.dependencySetPath, data, 0o644))
+	require.FileExists(f.t, f.dependencySetPath)
+
+	written, err := os.ReadFile(f.dependencySetPath)
+	require.NoError(f.t, err)
+	parsed, err := depset.ParseJSONDependencySet(bytes.NewReader(written))
+	require.NoError(f.t, err)
+	require.Len(f.t, parsed.Chains(), len(f.chainIDs))
+	for _, chainID := range f.chainIDs {
+		require.Truef(f.t, parsed.HasChain(eth.ChainIDFromBytes32(chainID)), "dependency set is missing chain %s", chainID.Hex())
+	}
+	return f.dependencySetPath
+}
+
+func (f *pcdJourneyFixture) runPrestate(prestate common.Hash) *state.State {
+	f.t.Helper()
+	f.t.Log("PCD stage: prestate")
+	f.runner.ExpectSuccess(f.t, []string{
+		"prestate",
+		"--workdir", f.workdir,
+		"--dispute-absolute-prestate", prestate.Hex(),
+	}, nil)
+
+	st, err := pipeline.ReadState(f.workdir)
+	require.NoError(f.t, err)
+	for _, chainID := range f.chainIDs {
+		chain, err := st.Chain(chainID)
+		require.NoError(f.t, err)
+		require.Equal(f.t, prestate, chain.Prestate)
+	}
+	f.prestate = prestate
 	return st
 }
 
