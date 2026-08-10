@@ -981,6 +981,8 @@ impl OpProofsStore for MdbxProofsStorage {
     }
 }
 
+/// UPSTREAM-MIRROR(port): reth@rev:aef8d3e reth_db::database_metrics::DatabaseMetrics
+///
 /// This implementation is copied from the
 /// [`DatabaseMetrics`](reth_db::database_metrics::DatabaseMetrics) implementation for
 /// [`DatabaseEnv`]. As the implementation hard-coded the table name, we need to reimplement it.
