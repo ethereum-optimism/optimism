@@ -19,6 +19,9 @@ use reth_storage_api::{BalProvider, BlockReader, HeaderProvider, StateProviderFa
 use reth_transaction_pool::TransactionPool;
 use tracing::{debug, trace};
 
+/// UPSTREAM-MIRROR(set): reth@rev:aef8d3e reth_rpc_api::EngineApi
+///
+/// Advertised capabilities must stay in step with the methods declared on [`OpEngineApi`].
 /// The list of all supported Engine capabilities available over the engine endpoint.
 ///
 /// Spec: <https://specs.optimism.io/protocol/exec-engine.html>
@@ -47,6 +50,11 @@ pub const OP_ENGINE_CAPABILITIES: &[&str] = &[
 /// <https://specs.optimism.io/protocol/exec-engine.html#engine-api>
 #[cfg_attr(not(feature = "client"), rpc(server, namespace = "engine"), server_bounds(Engine::PayloadAttributes: jsonrpsee::core::DeserializeOwned))]
 #[cfg_attr(feature = "client", rpc(server, client, namespace = "engine", client_bounds(Engine::PayloadAttributes: jsonrpsee::core::Serialize + Clone), server_bounds(Engine::PayloadAttributes: jsonrpsee::core::DeserializeOwned)))]
+/// UPSTREAM-MIRROR(set): reth@rev:aef8d3e reth_rpc_api::EngineApi
+///
+/// Re-declares the engine RPC surface rather than extending upstream's trait. A method added
+/// upstream produces no diff here, so compare the method sets on each bump and update
+/// [`OP_ENGINE_CAPABILITIES`] alongside.
 pub trait OpEngineApi<Engine: EngineTypes> {
     /// Sends the given payload to the execution layer client, as specified for the Shanghai fork.
     ///
