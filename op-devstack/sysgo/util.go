@@ -51,7 +51,7 @@ func waitTCPReady(p devtest.CommonT, rawURL string, timeout time.Duration) {
 
 // parseAndValidateAddr ensures the address has a scheme and is a valid URL.
 // Returns the validated URL string or empty string if invalid.
-// This is used to parse addresses from process (e.g. op-rbuilder) log output.
+// This is used to parse addresses from child-process log output.
 func parseAndValidateAddr(addr, defaultScheme string) string {
 	if addr == "" {
 		return ""

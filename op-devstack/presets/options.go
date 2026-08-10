@@ -234,22 +234,6 @@ func WithZKProposerOption(opt sysgo.ZKProposerOption) Option {
 	}
 }
 
-func WithOPRBuilderOption(opt sysgo.OPRBuilderNodeOption) Option {
-	var kinds optionKinds
-	if opt != nil {
-		kinds = optionKindOPRBuilder
-	}
-	return option{
-		kinds: kinds,
-		applyFn: func(cfg *sysgo.PresetConfig) {
-			if opt == nil {
-				return
-			}
-			cfg.OPRBuilderOptions = append(cfg.OPRBuilderOptions, opt)
-		},
-	}
-}
-
 // WithOpRethOption applies an op-reth option to every EL in the preset that can sequence. Nodes
 // that only verify stay on stock op-reth, so a binary override here yields a sequencing-builds /
 // stock-verifies split rather than a uniform swap.

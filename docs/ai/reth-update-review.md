@@ -29,14 +29,13 @@ UPDATING-RETH step 4). The authoritative change set is the **lockfile delta**:
 
 ```bash
 cd rust
-git diff <base>..<head> -- Cargo.lock op-rbuilder/Cargo.lock \
-  rollup-boost/Cargo.lock kona/sp1/programs/Cargo.lock
+git diff <base>..<head> -- Cargo.lock kona/sp1/programs/Cargo.lock
 ```
 
 This lists every crate that moved and its exact old→new version, **including transitive
 bumps** that floated up without a manifest edit (e.g. `revm-interpreter`, `reth-evm`,
-an `alloy-*` core crate). All four lockfiles matter — `op-rbuilder`, `rollup-boost`, and
-the SP1 guest programs are separate workspaces with their own locks.
+an `alloy-*` core crate). Both lockfiles matter — the SP1 guest programs are a separate
+workspace with their own lock.
 
 Review every changed git source outside the intended reth/revm/alloy bump before applying
 the funnel below. A targeted cargo update can advance unrelated branch-based dependencies;
@@ -122,7 +121,7 @@ our override, leaving OP-specific branches byte-identical.
 ## Review process
 
 1. Identify the old→new pins from the `Cargo.toml` diff; compute the lockfile delta
-   across all four locks and isolate unrelated git-source drift.
+   across both locks and isolate unrelated git-source drift.
 2. Apply the funnel to get the review set.
 3. Obtain the upstream diff for each crate in the review set from a git checkout —
    `git log/diff <old>..<new> -- <path>`. Use a local checkout of `paradigmxyz/reth`,

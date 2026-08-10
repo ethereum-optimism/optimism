@@ -34,22 +34,13 @@ main's CI actually validated.
    carried change is contained in, or explicitly superseded by, the target.
    Never silently drop a fix the pin was carrying.
 
-3. Update the pin. The ref is pinned in **four** manifests, not just the main
-   workspace: `op-rbuilder` and `rollup-boost` are separate Cargo workspaces
-   that path-depend on the op-reth crates while also pinning reth directly.
-   Bumping only `rust/Cargo.toml` leaves them on the old ref, so their
-   dependency graphs contain two reth versions and fail with E0308 type
-   mismatches, breaking the `op-rbuilder-checks` / `rollup-boost-checks` gates.
+3. Update the pin in `rust/Cargo.toml`.
 
    When moving to a release tag (the normal case):
 
    ```bash
    cd rust
-   sed -i 's/tag = "<OLD_TAG>"/tag = "<NEW_TAG>"/g' \
-     Cargo.toml \
-     op-rbuilder/Cargo.toml \
-     rollup-boost/crates/rollup-boost/Cargo.toml \
-     rollup-boost/crates/flashblocks-rpc/Cargo.toml
+   sed -i 's/tag = "<OLD_TAG>"/tag = "<NEW_TAG>"/g' Cargo.toml
    ```
 
    When pinning a non-release commit instead, use `rev = "<sha>"` in the same
@@ -70,11 +61,6 @@ main's CI actually validated.
    # from a reth checkout at the new rev:
    git show <NEW_REV>:Cargo.toml | grep -E '^(revm|alloy-|reth-)'
    ```
-
-   Apply the same bumps in `op-rbuilder/Cargo.toml` (which additionally pins
-   `revm-context`, `revm-context-interface`, and `revm-inspector` — take their
-   versions from reth's `Cargo.lock` at the new rev) and
-   `rollup-boost/crates/flashblocks-rpc/Cargo.toml`.
 
    Bump only these crates.io ecosystem crates. Leave the OP-internal path
    crates (`op-revm`, `op-alloy*`, `alloy-op-evm`, `alloy-op-hardforks`) alone —
@@ -97,16 +83,14 @@ main's CI actually validated.
    keeps the manifest honest about what we actually build against and signals
    the sync to downstream consumers (e.g. Hardhat tracking `op-revm`).
 
-5. Refresh the lockfiles — all four Rust workspaces have their own. `cargo
-   update -p reth` does **not** work — there is no top-level crate literally
-   named `reth` in the dependency graph. Pass any real reth subcrate in the
-   three workspaces that depend on reth directly, then refresh revm in the SP1
-   guest workspace:
+5. Refresh both lockfiles — the main workspace and the SP1 guest programs
+   workspace each have their own. `cargo update -p reth` does **not** work —
+   there is no top-level crate literally named `reth` in the dependency graph.
+   Pass any real reth subcrate in the main workspace, then refresh revm in the
+   SP1 guest workspace:
 
    ```bash
-   for d in . op-rbuilder rollup-boost; do
-     (cd $d && mise exec -- cargo update reth-chainspec)
-   done
+   mise exec -- cargo update reth-chainspec
    (cd kona/sp1/programs && mise exec -- cargo update revm)
    ```
 
@@ -148,13 +132,6 @@ main's CI actually validated.
    never invent logic. Any new semantic branch (even fork-gated and inert
    today) gets a unit test, verified red against a deliberately broken variant
    and green against the real code.
-
-   Then repeat for the vendored workspaces:
-
-   ```bash
-   (cd op-rbuilder && mise exec -- cargo check --workspace --tests)
-   (cd rollup-boost && mise exec -- cargo check --workspace --tests)
-   ```
 
 8. Build, format, and test before pushing:
 
@@ -246,10 +223,8 @@ onto an older base, or accept the broader catch-up work as part of the bump.
   taxonomy and the `reth-update-reviewer` agent that surfaces upstream changes
   which should have forced an op- change but didn't.
 - `docs/ai/rust-dev.md` — broader Rust workflow (build, test, lint).
-- `rust/Cargo.toml` — where the pin lives (~70 occurrences), plus
-  `rust/op-rbuilder/Cargo.toml` and the two `rust/rollup-boost` crate
-  manifests.
-- `rust/kona/sp1/programs/Cargo.lock` — the fourth lockfile; refresh it when
+- `rust/Cargo.toml` — where the pin lives (~70 occurrences).
+- `rust/kona/sp1/programs/Cargo.lock` — the second lockfile; refresh it when
   shared revm or alloy anchors move.
 - `rust/op-reth/crates/rpc/src/witness.rs` — example of vendoring a trait that
   upstream removed.
