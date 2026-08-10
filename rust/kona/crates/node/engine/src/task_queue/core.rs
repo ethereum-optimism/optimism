@@ -156,10 +156,30 @@ mod tests {
         InsertTask,
         test_utils::{TestEngineStateBuilder, test_engine_client_builder},
     };
+    use alloy_primitives::Bytes;
     use alloy_rpc_types_engine::{ExecutionPayloadV1, PayloadStatus, PayloadStatusEnum};
     use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
     use std::time::Duration;
     use tokio::{sync::watch, time::timeout};
+
+    fn v1_payload(transactions: Vec<Bytes>) -> OpExecutionPayloadEnvelope {
+        OpExecutionPayloadEnvelope::V1(ExecutionPayloadV1 {
+            parent_hash: Default::default(),
+            fee_recipient: Default::default(),
+            state_root: Default::default(),
+            receipts_root: Default::default(),
+            logs_bloom: Default::default(),
+            prev_randao: Default::default(),
+            block_number: 1,
+            gas_limit: 0,
+            gas_used: 0,
+            timestamp: 2,
+            extra_data: Default::default(),
+            base_fee_per_gas: Default::default(),
+            block_hash: Default::default(),
+            transactions,
+        })
+    }
 
     #[tokio::test]
     async fn drops_permanently_invalid_unsafe_payload() {
@@ -181,25 +201,40 @@ mod tests {
         engine.enqueue(EngineTask::Insert(Box::new(InsertTask::new(
             Arc::new(client),
             config,
-            OpExecutionPayloadEnvelope::V1(ExecutionPayloadV1 {
-                parent_hash: Default::default(),
-                fee_recipient: Default::default(),
-                state_root: Default::default(),
-                receipts_root: Default::default(),
-                logs_bloom: Default::default(),
-                prev_randao: Default::default(),
-                block_number: 1,
-                gas_limit: 0,
-                gas_used: 0,
-                timestamp: 2,
-                extra_data: Default::default(),
-                base_fee_per_gas: Default::default(),
-                block_hash: Default::default(),
-                transactions: Vec::new(),
-            }),
+            v1_payload(Vec::new()),
             false,
         ))));
         assert_eq!(*queue_length.borrow(), 1);
+
+        timeout(Duration::from_secs(1), engine.drain())
+            .await
+            .expect("drain timed out")
+            .expect("drain failed");
+
+        assert_eq!(*queue_length.borrow(), 0);
+    }
+
+    #[tokio::test]
+    async fn drops_unsafe_payload_with_malformed_transaction() {
+        let config = Arc::new(RollupConfig::default());
+        let client = test_engine_client_builder()
+            .with_config(config.clone())
+            .with_new_payload_v1_response(PayloadStatus {
+                status: PayloadStatusEnum::Valid,
+                latest_valid_hash: None,
+            })
+            .build();
+        let state = TestEngineStateBuilder::new().build();
+        let (state_sender, _) = watch::channel(state);
+        let (queue_length_sender, queue_length) = watch::channel(0);
+        let mut engine = Engine::new(state, state_sender, queue_length_sender);
+
+        engine.enqueue(EngineTask::Insert(Box::new(InsertTask::new(
+            Arc::new(client),
+            config,
+            v1_payload(vec![Bytes::from_static(&[0xff])]),
+            false,
+        ))));
 
         timeout(Duration::from_secs(1), engine.drain())
             .await

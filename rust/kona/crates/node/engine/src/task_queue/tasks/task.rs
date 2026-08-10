@@ -87,6 +87,11 @@ impl EngineTaskError for EngineTaskErrors {
             {
                 EngineTaskErrorSeverity::Drop
             }
+            // These conversion failures are terminal for unsafe payloads received from the
+            // network. SealTask executes InsertTask directly and retains the inner severity.
+            Self::Insert(
+                InsertTaskError::FromBlockError(_) | InsertTaskError::L2BlockInfoConstruction(_),
+            ) => EngineTaskErrorSeverity::Drop,
             Self::Insert(inner) => inner.severity(),
             Self::Build(inner) => inner.severity(),
             Self::Seal(inner) => inner.severity(),
