@@ -1,18 +1,29 @@
 package cli
 
 import (
+	"context"
+	"fmt"
 	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
+	txintentbindings "github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
+	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	pcdPermissionlessGameArgsLength = 124
+	pcdSuperPermissionedArgsLength  = 40
+)
+
 type pcdNamedAddress struct {
-	name    string
-	address common.Address
+	name             string
+	address          common.Address
+	deploymentMarker bool
 }
 
 type pcdL1Probe struct {
@@ -26,6 +37,17 @@ type pcdL1State struct {
 	latestNonce  uint64
 	pendingNonce uint64
 	code         map[pcdNamedAddress][]byte
+}
+
+type pcdLiveChainExpectation struct {
+	chainID                       common.Hash
+	portal                        common.Address
+	disputeGameFactory            common.Address
+	respectedGameType             embedded.GameType
+	fallbackGameType              embedded.GameType
+	respectedGameImplementation   common.Address
+	fallbackGameImplementation    common.Address
+	respectedGameAbsolutePrestate common.Hash
 }
 
 func (p pcdL1Probe) read(t *testing.T, contractAddresses []pcdNamedAddress) pcdL1State {
@@ -85,34 +107,288 @@ func requireNoPCDDeploymentMutation(t *testing.T, baseline, prepared pcdL1State)
 	}
 }
 
-// This list matches the deployment markers from continuationContractAddresses in
-// op-deployer/pkg/deployer/continue_verify.go. It omits shared implementations because
-// OPCM bootstrap deploys them before prepare.
-func pcdPreparedContractAddresses(prepared *state.PreparedDeployment) []pcdNamedAddress {
+func (p pcdL1Probe) requireCompletedDeployment(
+	t *testing.T,
+	baseline pcdL1State,
+	expectedNonceDelta uint64,
+	contractAddresses []pcdNamedAddress,
+	chains []pcdLiveChainExpectation,
+) pcdL1State {
+	t.Helper()
+	completed := p.read(t, contractAddresses)
+	require.Equalf(
+		t,
+		completed.latestNonce,
+		completed.pendingNonce,
+		"deployment has a pending deployer transaction at pinned L1 block %s (%s)",
+		completed.blockNumber,
+		completed.blockHash,
+	)
+	require.Equalf(
+		t,
+		baseline.latestNonce+expectedNonceDelta,
+		completed.latestNonce,
+		"bootstrap-to-completion deployer nonce delta differs at pinned L1 block %s (%s)",
+		completed.blockNumber,
+		completed.blockHash,
+	)
+	for contract, code := range completed.code {
+		require.NotEmptyf(
+			t,
+			code,
+			"deployment has no code for %s at %s at pinned L1 block %s (%s)",
+			contract.name,
+			contract.address,
+			completed.blockNumber,
+			completed.blockHash,
+		)
+	}
+	for _, chain := range chains {
+		p.requireLiveGameConfiguration(t, completed.blockNumber, chain)
+	}
+	return completed
+}
+
+func (p pcdL1Probe) requireLiveGameConfiguration(
+	t *testing.T,
+	blockNumber *big.Int,
+	expected pcdLiveChainExpectation,
+) {
+	t.Helper()
+	portal := txintentbindings.NewBindings[txintentbindings.OptimismPortal2](
+		txintentbindings.WithTo(expected.portal),
+	)
+	observedGameType, err := readPCDCallAtBlock(t.Context(), p.client, blockNumber, portal.RespectedGameType())
+	require.NoErrorf(
+		t,
+		err,
+		"read respected game type for chain %s from portal %s at pinned L1 block %s",
+		expected.chainID.Hex(),
+		expected.portal,
+		blockNumber,
+	)
+	require.Equalf(
+		t,
+		uint32(expected.respectedGameType),
+		observedGameType,
+		"respected game type differs for chain %s at portal %s at pinned L1 block %s",
+		expected.chainID.Hex(),
+		expected.portal,
+		blockNumber,
+	)
+
+	factory := txintentbindings.NewDisputeGameFactory(
+		txintentbindings.WithTo(expected.disputeGameFactory),
+	)
+	respectedImplementation, err := readPCDCallAtBlock(
+		t.Context(),
+		p.client,
+		blockNumber,
+		factory.GameImpls(uint32(expected.respectedGameType)),
+	)
+	require.NoErrorf(
+		t,
+		err,
+		"read game type %d implementation for chain %s from factory %s at pinned L1 block %s",
+		expected.respectedGameType,
+		expected.chainID.Hex(),
+		expected.disputeGameFactory,
+		blockNumber,
+	)
+	require.Equalf(
+		t,
+		expected.respectedGameImplementation,
+		respectedImplementation,
+		"game type %d implementation differs for chain %s at factory %s at pinned L1 block %s",
+		expected.respectedGameType,
+		expected.chainID.Hex(),
+		expected.disputeGameFactory,
+		blockNumber,
+	)
+	require.NotEqualf(
+		t,
+		common.Address{},
+		respectedImplementation,
+		"game type %d implementation is absent for chain %s at factory %s at pinned L1 block %s",
+		expected.respectedGameType,
+		expected.chainID.Hex(),
+		expected.disputeGameFactory,
+		blockNumber,
+	)
+
+	respectedArgs, err := readPCDCallAtBlock(
+		t.Context(),
+		p.client,
+		blockNumber,
+		factory.GameArgs(uint32(expected.respectedGameType)),
+	)
+	require.NoErrorf(
+		t,
+		err,
+		"read game type %d arguments for chain %s from factory %s at pinned L1 block %s",
+		expected.respectedGameType,
+		expected.chainID.Hex(),
+		expected.disputeGameFactory,
+		blockNumber,
+	)
+	require.Lenf(
+		t,
+		respectedArgs,
+		pcdPermissionlessGameArgsLength,
+		"game type %d arguments have the wrong length for chain %s at factory %s at pinned L1 block %s",
+		expected.respectedGameType,
+		expected.chainID.Hex(),
+		expected.disputeGameFactory,
+		blockNumber,
+	)
+	observedPrestate := common.BytesToHash(respectedArgs[:common.HashLength])
+	require.Equalf(
+		t,
+		expected.respectedGameAbsolutePrestate,
+		observedPrestate,
+		"game type %d absolute prestate differs for chain %s at factory %s at pinned L1 block %s",
+		expected.respectedGameType,
+		expected.chainID.Hex(),
+		expected.disputeGameFactory,
+		blockNumber,
+	)
+
+	fallbackImplementation, err := readPCDCallAtBlock(
+		t.Context(),
+		p.client,
+		blockNumber,
+		factory.GameImpls(uint32(expected.fallbackGameType)),
+	)
+	require.NoErrorf(
+		t,
+		err,
+		"read game type %d implementation for chain %s from factory %s at pinned L1 block %s",
+		expected.fallbackGameType,
+		expected.chainID.Hex(),
+		expected.disputeGameFactory,
+		blockNumber,
+	)
+	require.Equalf(
+		t,
+		expected.fallbackGameImplementation,
+		fallbackImplementation,
+		"game type %d implementation differs for chain %s at factory %s at pinned L1 block %s",
+		expected.fallbackGameType,
+		expected.chainID.Hex(),
+		expected.disputeGameFactory,
+		blockNumber,
+	)
+	require.NotEqualf(
+		t,
+		common.Address{},
+		fallbackImplementation,
+		"game type %d implementation is absent for chain %s at factory %s at pinned L1 block %s",
+		expected.fallbackGameType,
+		expected.chainID.Hex(),
+		expected.disputeGameFactory,
+		blockNumber,
+	)
+
+	fallbackArgs, err := readPCDCallAtBlock(
+		t.Context(),
+		p.client,
+		blockNumber,
+		factory.GameArgs(uint32(expected.fallbackGameType)),
+	)
+	require.NoErrorf(
+		t,
+		err,
+		"read game type %d arguments for chain %s from factory %s at pinned L1 block %s",
+		expected.fallbackGameType,
+		expected.chainID.Hex(),
+		expected.disputeGameFactory,
+		blockNumber,
+	)
+	// SuperPermissionedDisputeGame has no absolutePrestate getter. Its upgrade config
+	// encodes only a proposer, and its factory arguments add only the AnchorStateRegistry.
+	// See dispute/SuperPermissionedDisputeGame.sol, upgrade/embedded/upgrade.go, and
+	// dispute/lib/LibGameArgs.sol in packages/contracts-bedrock/src.
+	require.Lenf(
+		t,
+		fallbackArgs,
+		pcdSuperPermissionedArgsLength,
+		"game type %d arguments contain an unexpected prestate slot for chain %s at factory %s at pinned L1 block %s",
+		expected.fallbackGameType,
+		expected.chainID.Hex(),
+		expected.disputeGameFactory,
+		blockNumber,
+	)
+}
+
+func readPCDCallAtBlock[T any](
+	ctx context.Context,
+	client *ethclient.Client,
+	blockNumber *big.Int,
+	call txintentbindings.TypedCall[T],
+) (T, error) {
+	var zero T
+	target, err := call.To()
+	if err != nil {
+		return zero, fmt.Errorf("resolve call target: %w", err)
+	}
+	data, err := call.EncodeInput()
+	if err != nil {
+		return zero, fmt.Errorf("encode call input: %w", err)
+	}
+	result, err := client.CallContract(ctx, ethereum.CallMsg{To: target, Data: data}, blockNumber)
+	if err != nil {
+		return zero, fmt.Errorf("call %s at block %s: %w", *target, blockNumber, err)
+	}
+	decoded, err := call.DecodeOutput(result)
+	if err != nil {
+		return zero, fmt.Errorf("decode call result from %s at block %s: %w", *target, blockNumber, err)
+	}
+	return decoded, nil
+}
+
+// This list matches continuationContractAddresses in op-deployer/pkg/deployer/continue_verify.go.
+// Shared implementations are not deployment markers because OPCM bootstrap deploys them before prepare.
+func pcdPredictedContractAddresses(prepared *state.PreparedDeployment) []pcdNamedAddress {
 	var result []pcdNamedAddress
 	for _, chain := range prepared.Chains {
 		prefix := chain.ID.Hex() + "/"
 		contracts := []pcdNamedAddress{
-			{prefix + "OpChainProxyAdminImpl", chain.OpChainProxyAdminImpl},
-			{prefix + "OptimismPortalProxy", chain.OptimismPortalProxy},
-			{prefix + "AddressManagerImpl", chain.AddressManagerImpl},
-			{prefix + "L1Erc721BridgeProxy", chain.L1Erc721BridgeProxy},
-			{prefix + "SystemConfigProxy", chain.SystemConfigProxy},
-			{prefix + "OptimismMintableErc20FactoryProxy", chain.OptimismMintableErc20FactoryProxy},
-			{prefix + "L1StandardBridgeProxy", chain.L1StandardBridgeProxy},
-			{prefix + "L1CrossDomainMessengerProxy", chain.L1CrossDomainMessengerProxy},
-			{prefix + "EthLockboxProxy", chain.EthLockboxProxy},
-			{prefix + "DisputeGameFactoryProxy", chain.DisputeGameFactoryProxy},
-			{prefix + "AnchorStateRegistryProxy", chain.AnchorStateRegistryProxy},
-			{prefix + "DelayedWethPermissionedGameProxy", chain.DelayedWethPermissionedGameProxy},
-			{prefix + "DelayedWethPermissionlessGameProxy", chain.DelayedWethPermissionlessGameProxy},
-			{prefix + "AltDAChallengeProxy", chain.AltDAChallengeProxy},
-			{prefix + "L2OutputOracleProxy", chain.L2OutputOracleProxy},
+			{prefix + "OpChainProxyAdminImpl", chain.OpChainProxyAdminImpl, true},
+			{prefix + "OptimismPortalProxy", chain.OptimismPortalProxy, true},
+			{prefix + "AddressManagerImpl", chain.AddressManagerImpl, true},
+			{prefix + "L1Erc721BridgeProxy", chain.L1Erc721BridgeProxy, true},
+			{prefix + "SystemConfigProxy", chain.SystemConfigProxy, true},
+			{prefix + "OptimismMintableErc20FactoryProxy", chain.OptimismMintableErc20FactoryProxy, true},
+			{prefix + "L1StandardBridgeProxy", chain.L1StandardBridgeProxy, true},
+			{prefix + "L1CrossDomainMessengerProxy", chain.L1CrossDomainMessengerProxy, true},
+			{prefix + "EthLockboxProxy", chain.EthLockboxProxy, true},
+			{prefix + "DisputeGameFactoryProxy", chain.DisputeGameFactoryProxy, true},
+			{prefix + "AnchorStateRegistryProxy", chain.AnchorStateRegistryProxy, true},
+			{prefix + "FaultDisputeGameImpl", chain.FaultDisputeGameImpl, false},
+			{prefix + "FaultDisputeGameCannonKonaImpl", chain.FaultDisputeGameCannonKonaImpl, false},
+			{prefix + "PermissionedDisputeGameImpl", chain.PermissionedDisputeGameImpl, false},
+			{prefix + "SuperFaultDisputeGameImpl", chain.SuperFaultDisputeGameImpl, false},
+			{prefix + "SuperPermissionedDisputeGameImpl", chain.SuperPermissionedDisputeGameImpl, false},
+			{prefix + "DelayedWethPermissionedGameProxy", chain.DelayedWethPermissionedGameProxy, true},
+			{prefix + "DelayedWethPermissionlessGameProxy", chain.DelayedWethPermissionlessGameProxy, true},
+			{prefix + "AltDAChallengeProxy", chain.AltDAChallengeProxy, true},
+			{prefix + "AltDAChallengeImpl", chain.AltDAChallengeImpl, false},
+			{prefix + "L2OutputOracleProxy", chain.L2OutputOracleProxy, true},
 		}
 		for _, contract := range contracts {
 			if contract.address != (common.Address{}) {
 				result = append(result, contract)
 			}
+		}
+	}
+	return result
+}
+
+func pcdDeploymentMarkerAddresses(predicted []pcdNamedAddress) []pcdNamedAddress {
+	result := make([]pcdNamedAddress, 0, len(predicted))
+	for _, contract := range predicted {
+		if contract.deploymentMarker {
+			result = append(result, contract)
 		}
 	}
 	return result

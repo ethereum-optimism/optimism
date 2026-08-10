@@ -239,6 +239,33 @@ func (f *pcdJourneyFixture) runPrestate(prestate common.Hash) *state.State {
 	return st
 }
 
+func (f *pcdJourneyFixture) runContinue() *state.State {
+	f.t.Helper()
+	f.t.Log("PCD stage: continue")
+	prepared, err := pipeline.ReadState(f.workdir)
+	require.NoError(f.t, err)
+	require.NotNil(f.t, prepared.PreparedDeployment)
+	preparedSnapshot, err := prepared.PreparedDeployment.Clone()
+	require.NoError(f.t, err)
+
+	f.runner.ExpectSuccessWithNetwork(f.t, []string{
+		"continue",
+		"--workdir", f.workdir,
+	}, nil)
+
+	continued, err := pipeline.ReadState(f.workdir)
+	require.NoError(f.t, err)
+	require.Nil(f.t, continued.AppliedIntent)
+	require.Equal(f.t, preparedSnapshot, continued.PreparedDeployment)
+	for _, chainID := range f.chainIDs {
+		require.Truef(f.t, continued.IsChainDeployed(chainID), "chain %s was not deployed", chainID.Hex())
+		chain, err := continued.Chain(chainID)
+		require.NoError(f.t, err)
+		require.NotNilf(f.t, chain.Continuation, "chain %s has no continuation checkpoint", chainID.Hex())
+	}
+	return continued
+}
+
 func (f *pcdJourneyFixture) readJSON(path string, out any) {
 	f.t.Helper()
 	data, err := os.ReadFile(path)

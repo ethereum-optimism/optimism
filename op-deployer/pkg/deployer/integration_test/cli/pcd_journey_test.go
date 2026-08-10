@@ -16,14 +16,18 @@ import (
 
 func TestCLIPCDJourney(t *testing.T) {
 	rows := []struct {
-		name              string
-		chainIDs          []common.Hash
-		respectedGameType embedded.GameType
+		name                       string
+		chainIDs                   []common.Hash
+		respectedGameType          embedded.GameType
+		fallbackGameType           embedded.GameType
+		expectedContinueNonceDelta uint64
 	}{
 		{
-			name:              "singleton-super-root",
-			chainIDs:          []common.Hash{uint256.NewInt(1).Bytes32()},
-			respectedGameType: embedded.GameTypeSuperCannonKona,
+			name:                       "singleton-super-root",
+			chainIDs:                   []common.Hash{uint256.NewInt(1).Bytes32()},
+			respectedGameType:          embedded.GameTypeSuperCannonKona,
+			fallbackGameType:           embedded.GameTypeSuperPermissioned,
+			expectedContinueNonceDelta: 1,
 		},
 	}
 
@@ -42,10 +46,10 @@ func TestCLIPCDJourney(t *testing.T) {
 			require.NotNil(t, prepared.PreparedDeployment)
 			require.NotEmpty(t, prepared.PreparedDeployment.Chains)
 
-			predictedAddresses := pcdPreparedContractAddresses(prepared.PreparedDeployment)
+			predictedAddresses := pcdPredictedContractAddresses(prepared.PreparedDeployment)
 			require.NotEmpty(t, predictedAddresses)
 			probe := pcdL1Probe{client: journey.l1Client, deployer: journey.deployer}
-			preparedL1State := probe.read(t, predictedAddresses)
+			preparedL1State := probe.read(t, pcdDeploymentMarkerAddresses(predictedAddresses))
 			requireNoPCDDeploymentMutation(t, journey.postBootstrapL1State, preparedL1State)
 
 			artifacts := journey.runInspect()
@@ -55,6 +59,36 @@ func TestCLIPCDJourney(t *testing.T) {
 			prestatePath := pcdPrestateArtifactPath(t)
 			prestate := requirePCDPrestate(t, prestatePath)
 			journey.runPrestate(prestate)
+			journey.runContinue()
+
+			liveChains := make([]pcdLiveChainExpectation, 0, len(row.chainIDs))
+			for _, chainID := range row.chainIDs {
+				preparedChain, err := prepared.PreparedDeployment.Chain(chainID)
+				require.NoError(t, err)
+				liveChains = append(liveChains, pcdLiveChainExpectation{
+					chainID:                       chainID,
+					portal:                        preparedChain.OptimismPortalProxy,
+					disputeGameFactory:            preparedChain.DisputeGameFactoryProxy,
+					respectedGameType:             row.respectedGameType,
+					fallbackGameType:              row.fallbackGameType,
+					respectedGameImplementation:   preparedChain.FaultDisputeGameImpl,
+					fallbackGameImplementation:    preparedChain.PermissionedDisputeGameImpl,
+					respectedGameAbsolutePrestate: prestate,
+				})
+			}
+			completedL1State := probe.requireCompletedDeployment(
+				t,
+				journey.postBootstrapL1State,
+				row.expectedContinueNonceDelta,
+				predictedAddresses,
+				liveChains,
+			)
+			t.Logf(
+				"PCD bootstrap-to-completion deployer nonce delta: %d at pinned L1 block %s (%s)",
+				completedL1State.latestNonce-journey.postBootstrapL1State.latestNonce,
+				completedL1State.blockNumber,
+				completedL1State.blockHash,
+			)
 		})
 	}
 }
