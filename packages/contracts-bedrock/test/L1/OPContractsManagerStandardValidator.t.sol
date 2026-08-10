@@ -1726,11 +1726,12 @@ abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is Supe
         dgf = IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
         standardValidator = opcmV2.opcmStandardValidator();
 
-        l2ChainId = deploy.cfg().l2ChainID();
         cannonPrestate = Claim.wrap(bytes32(deploy.cfg().faultGameAbsolutePrestate()));
         if (isL1ForkTest()) {
+            l2ChainId = uint256(uint160(address(artifacts.mustGetAddress("L2ChainId"))));
             proposer = DisputeGames.permissionedGameProposer(dgf);
         } else {
+            l2ChainId = deploy.cfg().l2ChainID();
             proposer = deploy.cfg().l2OutputOracleProposer();
         }
 
@@ -2130,7 +2131,8 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
                 LibGameArgs.decode(dgf.gameArgs(permissionlessGameType));
             cannonKonaPrestate = Claim.wrap(permissionlessGameArgs.absolutePrestate);
             cannonPrestate = cannonKonaPrestate;
-            l2ChainId = permissionlessGameArgs.l2ChainId;
+            // Super game args store l2ChainId=0, so take the chain ID from the fork fixture.
+            l2ChainId = uint256(uint160(address(artifacts.mustGetAddress("L2ChainId"))));
             proposer = DisputeGames.permissionedGameProposer(dgf);
 
             // ZK game is not deployed on mainnet. Mock it using the same ASR and WETH as the active
