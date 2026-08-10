@@ -24,6 +24,8 @@ use reth_rpc_server_types::{ToRpcResult, result::internal_rpc_err};
 /// Trait for the `debug_executePayload` endpoint, which re-executes a payload and returns the
 /// resulting execution witness.
 ///
+/// UPSTREAM-MIRROR(port): reth@pre-24284 reth_rpc_api::DebugExecutionWitnessApi
+///
 /// Vendored from `reth_rpc_api::DebugExecutionWitnessApi`, which was removed upstream in
 /// paradigmxyz/reth#24284.
 #[cfg_attr(not(feature = "client"), rpc(server, namespace = "debug"))]

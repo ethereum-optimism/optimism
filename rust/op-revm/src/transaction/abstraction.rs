@@ -95,6 +95,15 @@ impl<TX: Transaction + SystemCallTx> SystemCallTx for OpTransaction<TX> {
     }
 }
 
+/// UPSTREAM-MIRROR(delegate): revm-context-interface@41.0.0 revm_context_interface::Transaction
+///
+/// Forwards the primitive getters to `self.base` and overrides `tx_type` and
+/// `effective_gas_price` for deposits. Everything not listed here inherits the upstream
+/// default — currently `total_blob_gas`, `calc_max_data_fee`, `max_balance_spending`,
+/// `ensure_enough_balance`, `effective_balance_spending` and `gas_balance_spending`, all of
+/// which are built from the getters above and so stay consistent. On each bump check for
+/// newly defaulted methods: one that reads a concrete field instead of going through the
+/// trait's getters would silently read the wrapper's field rather than the inner tx's.
 impl<T: Transaction> Transaction for OpTransaction<T> {
     type AccessListItem<'a>
         = T::AccessListItem<'a>

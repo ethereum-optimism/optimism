@@ -10,5 +10,11 @@ risk; you do not adjudicate safety**.
 
 Read **[docs/ai/reth-update-review.md](../../docs/ai/reth-update-review.md)** in full and
 follow it exactly — scope (the lockfile-delta funnel), the change-driven approach, the
-risk taxonomy, the succinct output format, and the all-severities triage → investigation
-handoff all live there. Do not restate it; execute it.
+precondition question, the risk taxonomy, the succinct output format, and the
+all-severities triage → investigation handoff all live there. Do not restate it; execute it.
+
+Before reading the upstream diff, run `cd rust && just mirrors stale`. That is the one
+worklist you pull upfront rather than deriving from the diff: OP code that reproduces
+upstream logic and has not been verified since before this pin. Grep the upstream diff for
+each symbol it names. `docs/ai/reth-upstream-mirrors.md` explains the tags and what
+re-verification means per kind.
