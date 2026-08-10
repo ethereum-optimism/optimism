@@ -236,15 +236,16 @@ func (d *Sequencer) wake() {
 	}
 }
 
-// drainInbox replays queued external events in arrival order.
+// drainInbox replays queued external events in arrival order, and reports
+// whether they mutated the action schedule.
 // Must only be called from the sequencer goroutine.
-func (d *Sequencer) drainInbox() {
+func (d *Sequencer) drainInbox() (scheduleChanged bool) {
 	d.inboxMu.Lock()
 	events := d.inbox
 	d.inbox = nil
 	d.inboxMu.Unlock()
 	if len(events) == 0 {
-		return
+		return false
 	}
 
 	d.l.Lock()
@@ -257,7 +258,9 @@ func (d *Sequencer) drainInbox() {
 	if d.nextActionOK != preOk || d.nextAction != preTime {
 		d.log.Debug("Sequencer action schedule changed",
 			"time", d.nextAction, "wait", d.nextAction.Sub(d.timeNow()), "ok", d.nextActionOK)
+		return true
 	}
+	return false
 }
 
 // handleIngest dispatches a single inbox event to its handler.
@@ -286,20 +289,24 @@ func (d *Sequencer) handleIngest(ev event.Event) {
 func (d *Sequencer) RunLoop(ctx context.Context) {
 	timer := time.NewTimer(0)
 	defer timer.Stop()
-	// lastRan is the deadline the previous action fired at. An action that
-	// leaves the schedule untouched (e.g. a no-op while state is unknown) must
-	// not re-arm the same deadline, or the loop would spin on it; the next
-	// schedule mutation wakes the loop and re-plans with a fresh deadline.
+	// lastRan is the deadline the previous action fired at, and is only
+	// meaningful while the schedule still holds exactly that state: an action
+	// that leaves the schedule untouched (e.g. a no-op while state is unknown)
+	// must not re-arm the same deadline, or the loop would spin on it. Any
+	// schedule mutation invalidates the guard — arming a byte-identical
+	// instant after a mutation is a fresh deadline, not the fired one.
 	var lastRan time.Time
 	for {
-		d.drainInbox()
+		if d.drainInbox() {
+			lastRan = time.Time{}
+		}
 
 		// Re-plan from post-drain state. A nil channel blocks forever,
 		// disarming the timer case while no action is scheduled.
 		var timerC <-chan time.Time
 		var armed time.Time
 		if nextAction, ok := d.NextAction(); ok && nextAction != lastRan {
-			timer.Reset(time.Until(nextAction))
+			timer.Reset(nextAction.Sub(d.timeNow()))
 			timerC = timer.C
 			armed = nextAction
 		} else {
@@ -317,14 +324,34 @@ func (d *Sequencer) RunLoop(ctx context.Context) {
 		case <-d.wakeCh:
 			// loop around: drain the inbox and re-plan
 		case <-timerC:
-			lastRan = armed
-			d.drainInbox() // events may have arrived while we were sleeping
+			if d.drainInbox() { // events may have arrived while we were sleeping
+				lastRan = time.Time{}
+			}
 			// The drain may have pushed the deadline out (engine backoff, the
 			// post-reset delay). Acting on the fired deadline would defeat it.
-			if next, ok := d.NextAction(); !ok || next.After(d.timeNow()) {
+			// The timer can also deliver while timeNow() still reads before the
+			// unchanged deadline: deadlines are wall-clock values but the timer
+			// sleeps monotonic time, so a backward wall-clock step (VM time
+			// sync, NTP) makes the fire early. Either way, don't touch lastRan:
+			// recording a deadline that never ran would let the planning pass
+			// above disarm it forever, silently freezing the sequencer.
+			next, ok := d.NextAction()
+			if !ok || next.After(d.timeNow()) {
+				if ok && next.Equal(armed) {
+					d.log.Debug("Timer fired before its wall-clock deadline, re-arming",
+						"deadline", next, "early_by", next.Sub(d.timeNow()))
+				}
 				continue
 			}
+			// Record the post-drain deadline the action actually consumes (the
+			// armed one may have been replaced while sleeping).
+			lastRan = next
 			d.RunAction()
+			if after, stillOk := d.NextAction(); stillOk && after != next {
+				// The action re-planned: whatever is scheduled now is a fresh
+				// deadline, even if a later event re-creates the fired instant.
+				lastRan = time.Time{}
+			}
 		}
 	}
 }
