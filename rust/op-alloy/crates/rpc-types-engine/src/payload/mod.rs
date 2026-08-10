@@ -18,9 +18,11 @@ use alloy_rpc_types_engine::{
 ///
 /// V1 through V3 use the corresponding Alloy execution payload types. V4 uses the OP-specific
 /// Isthmus payload, which adds a withdrawals root and differs from Alloy's execution payload V4.
+/// Its transparent SSZ encoding does not include a version discriminator, so decoding requires an
+/// externally supplied payload version.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
-#[cfg_attr(feature = "std", derive(ssz_derive::Encode, ssz_derive::Decode))]
+#[cfg_attr(feature = "std", derive(ssz_derive::Encode))]
 #[cfg_attr(feature = "std", ssz(enum_behaviour = "transparent"))]
 #[cfg_attr(feature = "serde", serde(untagged))]
 pub enum OpExecutionPayload {

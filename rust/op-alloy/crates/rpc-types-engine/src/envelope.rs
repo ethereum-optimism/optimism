@@ -17,6 +17,9 @@ use alloy_rpc_types_engine::{
 /// V3 and V4 envelopes always contain a parent beacon block root, while V1 and V2 envelopes
 /// cannot contain one. Engine API sidecar fields unsupported by OP are validated when converting
 /// from [`OpExecutionData`].
+///
+/// The transparent SSZ encoding does not include a version discriminator and is therefore not
+/// self-describing. Decoding requires an externally supplied payload version.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OpExecutionPayloadEnvelope {
     /// A V1 execution payload.
@@ -153,39 +156,6 @@ impl ssz::Encode for OpExecutionPayloadEnvelope {
             Self::V2(payload) => payload.ssz_bytes_len(),
             Self::V3 { payload, .. } => B256::len_bytes() + payload.ssz_bytes_len(),
             Self::V4 { payload, .. } => B256::len_bytes() + payload.ssz_bytes_len(),
-        }
-    }
-}
-
-#[cfg(feature = "std")]
-impl ssz::Decode for OpExecutionPayloadEnvelope {
-    fn is_ssz_fixed_len() -> bool {
-        false
-    }
-
-    fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, ssz::DecodeError> {
-        if let Ok(payload) = OpExecutionPayload::from_ssz_bytes(bytes) {
-            match payload {
-                OpExecutionPayload::V1(payload) => return Ok(Self::V1(payload)),
-                OpExecutionPayload::V2(payload) => return Ok(Self::V2(payload)),
-                OpExecutionPayload::V3(_) | OpExecutionPayload::V4(_) => {}
-            }
-        }
-
-        if bytes.len() < B256::len_bytes() {
-            return Err(ssz::DecodeError::InvalidByteLength {
-                len: bytes.len(),
-                expected: B256::len_bytes(),
-            });
-        }
-
-        let parent_beacon_block_root = B256::from_slice(&bytes[..B256::len_bytes()]);
-        match OpExecutionPayload::from_ssz_bytes(&bytes[B256::len_bytes()..])? {
-            OpExecutionPayload::V3(payload) => Ok(Self::V3 { payload, parent_beacon_block_root }),
-            OpExecutionPayload::V4(payload) => Ok(Self::V4 { payload, parent_beacon_block_root }),
-            OpExecutionPayload::V1(_) | OpExecutionPayload::V2(_) => {
-                Err(ssz::DecodeError::BytesInvalid("parent beacon root on V1/V2 payload".into()))
-            }
         }
     }
 }
@@ -558,20 +528,6 @@ mod tests {
     use alloy_rpc_types_engine::{ExecutionPayloadV1, ExecutionPayloadV2, PayloadError};
 
     #[test]
-    #[cfg(feature = "std")]
-    fn test_roundtrip_encode_rpc_execution_payload_envelope() {
-        use alloy_primitives::hex;
-        use ssz::{Decode, Encode};
-        let data = hex!(
-            "00000000000000000000000000000000000000000000000000000000000001230000000000000000000000000000000000000000000000000000000000000123000000000000000000000000000000000000045600000000000000000000000000000000000000000000000000000000000007890000000000000000000000000000000000000000000000000000000000000abc0d0e0f000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000111de000000000000004d01000000000000bc010000000000002b02000000000000300200000903000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000088832020000380200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001236666040000009999"
-        );
-
-        let payload = OpExecutionPayloadEnvelope::from_ssz_bytes(&data).unwrap();
-        let serialized = payload.as_ssz_bytes();
-        assert_eq!(data, &serialized[..]);
-    }
-
-    #[test]
     #[cfg(feature = "serde")]
     fn test_serde_roundtrip_op_execution_payload_envelope() {
         let envelope_str = r#"{
@@ -749,15 +705,49 @@ mod tests {
         });
     }
 
+    #[test]
     #[cfg(feature = "std")]
-    fn assert_payload_envelope_roundtrip(network: &OpNetworkPayloadEnvelope) {
+    fn test_ssz_envelope_encoding_requires_external_version() {
+        use ssz::{Decode, Encode};
+
+        let mut payload_v1 = execution_payload_v1(B256::ZERO);
+        payload_v1.extra_data = Bytes::new();
+
+        // With the 32-byte root prefix, the V1 decoder reads these shifted V3 fields as its
+        // extra-data and transactions offsets.
+        payload_v1.block_number = payload_v1.ssz_bytes_len() as u64;
+        let mut payload_v3 = ExecutionPayloadV3 {
+            payload_inner: ExecutionPayloadV2 {
+                payload_inner: payload_v1,
+                withdrawals: Vec::new(),
+            },
+            blob_gas_used: 0,
+            excess_blob_gas: 0,
+        };
+        let encoded_len = B256::len_bytes() + payload_v3.ssz_bytes_len();
+        let mut block_hash = [0; B256::len_bytes()];
+        block_hash[..4].copy_from_slice(&(encoded_len as u32).to_le_bytes());
+        payload_v3.payload_inner.payload_inner.block_hash = B256::from(block_hash);
+        let envelope = OpExecutionPayloadEnvelope::V3 {
+            payload: payload_v3.clone(),
+            parent_beacon_block_root: B256::ZERO,
+        };
+
+        let encoded = envelope.as_ssz_bytes();
+        assert_eq!(encoded.len(), encoded_len);
+
+        // The complete root-prefixed V3 encoding is also structurally valid as a V1 payload.
+        assert!(ExecutionPayloadV1::from_ssz_bytes(&encoded).is_ok());
+        assert_eq!(
+            ExecutionPayloadV3::from_ssz_bytes(&encoded[B256::len_bytes()..]).unwrap(),
+            payload_v3
+        );
+    }
+
+    #[cfg(feature = "std")]
+    fn assert_payload_envelope_encoding(network: &OpNetworkPayloadEnvelope) {
         let envelope = OpExecutionPayloadEnvelope::try_from(network).unwrap();
         assert_eq!(envelope.payload_hash(), network.payload_hash);
-
-        let encoded = ssz::Encode::as_ssz_bytes(&envelope);
-        let decoded =
-            <OpExecutionPayloadEnvelope as ssz::Decode>::from_ssz_bytes(&encoded).unwrap();
-        assert_eq!(decoded, envelope);
     }
 
     #[test]
@@ -767,7 +757,7 @@ mod tests {
         let data = hex::decode("0xbd04f043128457c6ccf35128497167442bcc0f8cce78cda8b366e6a12e526d938d1e4c1046acffffbfc542a7e212bb7d80d3a4b2f84f7b196d935398a24eb84c519789b401000000fe0300fe0300fe0300fe0300fe0300fe0300a203000c4a8fd56621ad04fc0101067601008ce60be0005b220117c32c0f3b394b346c2aa42cfa8157cd41f891aa0bec485a62fc010000").unwrap();
         let payload_envelop = OpNetworkPayloadEnvelope::decode_v1(&data).unwrap();
         assert_eq!(1725271882, payload_envelop.payload.timestamp());
-        assert_payload_envelope_roundtrip(&payload_envelop);
+        assert_payload_envelope_encoding(&payload_envelop);
         let encoded = payload_envelop.encode_v1().unwrap();
         assert_eq!(data, encoded);
     }
@@ -779,7 +769,7 @@ mod tests {
         let data = hex::decode("0xc104f0433805080eb36c0b130a7cc1dc74c3f721af4e249aa6f61bb89d1557143e971bb738a3f3b98df7c457e74048e9d2d7e5cd82bb45e3760467e2270e9db86d1271a700000000fe0300fe0300fe0300fe0300fe0300fe0300a203000c6b89d46525ad000205067201009cda69cb5b9b73fc4eb2458b37d37f04ff507fe6c9cd2ab704a05ea9dae3cd61760002000000020000").unwrap();
         let payload_envelop = OpNetworkPayloadEnvelope::decode_v2(&data).unwrap();
         assert_eq!(1708427627, payload_envelop.payload.timestamp());
-        assert_payload_envelope_roundtrip(&payload_envelop);
+        assert_payload_envelope_encoding(&payload_envelop);
         let encoded = payload_envelop.encode_v2().unwrap();
         assert_eq!(data, encoded);
     }
@@ -791,7 +781,7 @@ mod tests {
         let data = hex::decode("0xf104f0434442b9eb38b259f5b23826e6b623e829d2fb878dac70187a1aecf42a3f9bedfd29793d1fcb5822324be0d3e12340a95855553a65d64b83e5579dffb31470df5d010000006a03000412346a1d00fe0100fe0100fe0100fe0100fe0100fe01004201000cc588d465219504100201067601007cfece77b89685f60e3663b6e0faf2de0734674eb91339700c4858c773a8ff921e014401043e0100").unwrap();
         let payload_envelop = OpNetworkPayloadEnvelope::decode_v3(&data).unwrap();
         assert_eq!(1708427461, payload_envelop.payload.timestamp());
-        assert_payload_envelope_roundtrip(&payload_envelop);
+        assert_payload_envelope_encoding(&payload_envelop);
         let encoded = payload_envelop.encode_v3().unwrap();
         assert_eq!(data, encoded);
     }
@@ -803,7 +793,7 @@ mod tests {
         let data = hex::decode("0x9105f043cee25401b6853202950d1d8a082f31a80c4fef5782c049a731f5d104b1b9b9aa7618605b420438ae98b44c8aaaebd482854473c2ae57c079286bb634bece5210000000006a03000412346a1d00fe0100fe0100fe0100fe0100fe0100fe01004201000c5766d26721950430020106f6010001440104b60100049876").unwrap();
         let payload_envelop = OpNetworkPayloadEnvelope::decode_v4(&data).unwrap();
         assert_eq!(1741842007, payload_envelop.payload.timestamp());
-        assert_payload_envelope_roundtrip(&payload_envelop);
+        assert_payload_envelope_encoding(&payload_envelop);
         let encoded = payload_envelop.encode_v4().unwrap();
         assert_eq!(data, encoded);
     }
