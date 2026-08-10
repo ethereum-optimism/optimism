@@ -72,7 +72,7 @@ The portal-derived lookups return the chain's current `DisputeGameFactory`, `Anc
 
 `migrate` reads each chain's `DelayedWETH` directly from `SystemConfig.delayedWETH()` at execution time, so there is nothing to capture for it here.
 
-**Init bonds.** The migration registers two super game types on the new shared factory. `SUPER_PERMISSIONED` (game type `5`) is bondless and must use an `initBond` of `0`. `SUPER_CANNON_KONA` (game type `9`) uses `0.08 ether` (`80000000000000000` wei).
+**Init bonds.** `SUPER_CANNON_KONA` (game type `9`) uses `0.08 ether` (`80000000000000000` wei).
 
 **Release artifacts and infrastructure.**
 
@@ -82,7 +82,6 @@ The portal-derived lookups return the chain's current `DisputeGameFactory`, `Anc
 | `SUPER_CANNON_KONA` absolute prestate hash | `validation/standard/standard-prestates.toml` in `superchain-registry`. Use the entry with `type="interop"` for the OPCM release version. |
 | Prestate artifact URL | The `cannon-kona-prestates-url` server, with the kona-interop prestate uploaded ahead of the migration. |
 | Shared `op-supernode` RPC URL | Your infrastructure team. The instance must derive **exactly `chainA` and `chainB`** (and no other chains). The shared `op-proposer`, `op-challenger`, and `op-dispute-mon` for the merged factory all point at this same instance. The per-chain services will be pointed to chain-specific endpoints under this URL. |
-| Privileged `proposer` for `SUPER_PERMISSIONED` | The address authorized to post proposals to the permissioned super game. `op-proposer` is configured to sign with this key. |
 
 ### Verify the Preconditions
 
@@ -129,7 +128,7 @@ Run every check below. Each one corresponds to an invariant the migrator enforce
   # Expect: 9 for both.
   ```
 
-* **Confirm the shared supernode derives exactly the two merging chains.** Verify with your infrastructure team that the instance behind `$SUPERNODE_RPC` has `chainA` and `chainB` in its dependency set and **no** other chains. A supernode that also tracks an unrelated chain (or an interop cluster that includes one) computes super roots over that broader set, and those roots will not match what the shared `SUPER_CANNON_KONA` and `SUPER_PERMISSIONED` games verify.
+* **Confirm the shared supernode derives exactly the two merging chains.** Verify with your infrastructure team that the instance behind `$SUPERNODE_RPC` has `chainA` and `chainB` in its dependency set and **no** other chains. A supernode that also tracks an unrelated chain (or an interop cluster that includes one) computes super roots over that broader set, and those roots will not match what the shared `SUPER_CANNON_KONA` game verifies.
 * **Confirm the shared supernode is in sync.** It must report a finalized L2 head within both chains' expected finality windows:
 
   ```bash
@@ -156,7 +155,7 @@ Before migration, point every existing per-chain service at its chain's RPC name
 
 | Service flag | chainA value | chainB value |
 | --- | --- | --- |
-| `op-proposer --superroot-rpcs` | `$SUPERNODE_RPC/$CHAIN_A_CHAINID` | `$SUPERNODE_RPC/$CHAIN_B_CHAINID` |
+| `op-proposer --supernode-rpcs` | `$SUPERNODE_RPC/$CHAIN_A_CHAINID` | `$SUPERNODE_RPC/$CHAIN_B_CHAINID` |
 | `op-challenger --supernode-rpc` | `$SUPERNODE_RPC/$CHAIN_A_CHAINID` | `$SUPERNODE_RPC/$CHAIN_B_CHAINID` |
 | `op-dispute-mon --supernode-rpc` | `$SUPERNODE_RPC/$CHAIN_A_CHAINID` | `$SUPERNODE_RPC/$CHAIN_B_CHAINID` |
 
@@ -171,9 +170,9 @@ Configure the new shared instance with the flags below.
 | Flag (env var) | Value |
 | --- | --- |
 | `--game-factory-address` (`OP_CHALLENGER_GAME_FACTORY_ADDRESS`) | The new shared `<DGF>` (capture from chain A's portal after [Execute the Migration](#execute-the-migration)) |
-| `--superroot-rpc` (`OP_CHALLENGER_SUPERNODE_RPC`) | `$SUPERNODE_RPC` |
+| `--supernode-rpc` (`OP_CHALLENGER_SUPERNODE_RPC`) | `$SUPERNODE_RPC` |
 | `--l2-eth-rpc` (`OP_CHALLENGER_L2_ETH_RPC`) | `<chainA-EL>,<chainB-EL>` (comma-separated) |
-| `--game-types` (`OP_CHALLENGER_GAME_TYPES`) | `super-cannon-kona`. Do not add `super-permissioned`; the simplified `SUPER_PERMISSIONED` game does not require `op-challenger` to post claims. `op-challenger` is still required by permissioned only networks and will automatically update the `AnchorStateRegistry` as games are finalized. |
+| `--game-types` (`OP_CHALLENGER_GAME_TYPES`) | `super-cannon-kona`. `op-challenger` will automatically update the `AnchorStateRegistry` as games are finalized. |
 | `--network` (`OP_CHALLENGER_NETWORK`) | `<chainA-network>,<chainB-network>` (the registry chain names; the challenger loads the depset from `superchain-registry` the same way `op-supernode` does) |
 | `--cannon-kona-prestates-url` (`OP_CHALLENGER_CANNON_KONA_PRESTATES_URL`) | The prestate server URL validated in the preconditions |
 
@@ -190,7 +189,7 @@ Keep the per-chain `op-challenger` instances running with the namespaced RPC con
 | Flag (env var) | Value |
 | --- | --- |
 | `--game-factory-address` (`OP_DISPUTE_MON_GAME_FACTORY_ADDRESS`) | The new shared `<DGF>` |
-| `--superroot-rpc` (`OP_DISPUTE_MON_SUPERNODE_RPC`) | `$SUPERNODE_RPC` or a comma-separated list of high-availability root endpoints for the same dependency set |
+| `--supernode-rpc` (`OP_DISPUTE_MON_SUPERNODE_RPC`) | `$SUPERNODE_RPC` or a comma-separated list of high-availability root endpoints for the same dependency set |
 | `--l1-eth-rpc` (`OP_DISPUTE_MON_L1_ETH_RPC`) | unchanged |
 
 As with the shared `op-challenger`, stage the deployment now with every flag except `--game-factory-address`; the address is filled in and the process is started in [Start the Shared op-challenger and op-dispute-mon](#start-the-shared-op-challenger-and-op-dispute-mon) after the migration is verified on-chain.
@@ -252,22 +251,15 @@ l2SequenceNumber = <timestamp>
 # 9 = SUPER_CANNON_KONA. Required because both chains run permissionless fault proofs today.
 startingRespectedGameType = 9
 
-# Both super game types must be registered. The migration validator requires it.
+# The super game type must be registered. The migration validator requires it.
 # The template assembles the on-chain DisputeGameConfig.gameArgs bytes from these
-# fields: abi.encode(absolutePrestate) for game type 9, and
-# abi.encode(proposer) for game type 5.
+# fields: abi.encode(absolutePrestate) for game type 9.
 
 [[disputeGameConfigs]]
 gameType = 9                             # SUPER_CANNON_KONA
 enabled = true
 initBond = 80000000000000000             # match the value gathered in the inputs
 absolutePrestate = "0x<super-cannon-kona prestate>"
-
-[[disputeGameConfigs]]
-gameType = 5                             # SUPER_PERMISSIONED
-enabled = true
-initBond = 0                             # SUPER_PERMISSIONED does not charge init bonds
-proposer = "0x<privileged proposer>"
 
 expectedValidationErrors = ""            # fill in after the dry run if any structurally expected codes appear
 ```
@@ -285,7 +277,6 @@ The validator behind `OPContractsManagerMigrationValidator` returns a comma-sepa
 
 | Code | Meaning |
 | --- | --- |
-| `MIG-DGF-10` | `SUPER_PERMISSIONED` is not registered on the shared factory. |
 | `MIG-DGF-20` | `SUPER_CANNON_KONA` is not registered on the shared factory. |
 | `MIG-DGF-30` | `CANNON` is still registered on the shared factory. |
 | `MIG-DGF-40` | `PERMISSIONED_CANNON` is still registered on the shared factory. |
@@ -299,13 +290,12 @@ The validator behind `OPContractsManagerMigrationValidator` returns a comma-sepa
 | `MIG-CHAIN-{i}-20` | Chain `i`'s per-chain factory still has `CANNON` registered. |
 | `MIG-CHAIN-{i}-30` | Chain `i`'s per-chain factory still has `PERMISSIONED_CANNON` registered. |
 | `MIG-CHAIN-{i}-40` | Chain `i`'s per-chain factory still has `CANNON_KONA` registered. |
-| `MIG-CHAIN-{i}-60` | Chain `i`'s per-chain factory still has `SUPER_PERMISSIONED` registered. |
 | `MIG-CHAIN-{i}-70` | Chain `i`'s per-chain factory still has `SUPER_CANNON_KONA` registered. |
 | `MIG-CHAIN-{i}-80` | Shared lockbox does not list chain `i`'s portal as authorized. |
 | `MIG-CHAIN-{i}-90` | Chain `i`'s portal `ethLockbox` does not equal the shared lockbox. |
 | `MIG-CHAIN-{i}-100` | Chain `i`'s `SystemConfig` does not have `Features.INTEROP` enabled. |
 | `MIG-CHAIN-{i}-110` | Chain `i`'s `SystemConfig` does not have `Features.ETH_LOCKBOX` enabled. |
-| `MIG-SPDG-*` or `MIG-SCKDG-*` | Super game drill-down. The first prefix covers `SUPER_PERMISSIONED` and the second covers `SUPER_CANNON_KONA`. `MIG-SPDG-*` subcodes cover the simplified permissioned game's args, proposer, and `AnchorStateRegistry`; `MIG-SCKDG-*` covers the fault-proof game checks. |
+| `MIG-SCKDG-*` | `SUPER_CANNON_KONA` fault-proof game checks. |
 
 ## Execute the Migration
 
@@ -374,13 +364,10 @@ cast call $SHARED_ASR 'retirementTimestamp()(uint64)' --rpc-url $L1_RPC
 # Expect: equal to the migration block's timestamp
 
 # Game implementations registered on the shared factory
-cast call $SHARED_DGF 'gameImpls(uint32)(address)' 5 --rpc-url $L1_RPC   # SUPER_PERMISSIONED
 cast call $SHARED_DGF 'gameImpls(uint32)(address)' 9 --rpc-url $L1_RPC   # SUPER_CANNON_KONA
-# Expect both: non-zero
+# Expect: non-zero
 
-# Init bonds match each game type's configuration
-cast call $SHARED_DGF 'initBonds(uint32)(uint256)' 5 --rpc-url $L1_RPC
-# Expect: 0
+# Init bond matches game configuration
 cast call $SHARED_DGF 'initBonds(uint32)(uint256)' 9 --rpc-url $L1_RPC
 # Expect: 80000000000000000
 
@@ -430,7 +417,7 @@ Configure the new instance with the flags below.
 | Flag (env var) | Value |
 | --- | --- |
 | `--game-factory-address` (`OP_PROPOSER_GAME_FACTORY_ADDRESS`) | the new shared `<DGF>` |
-| `--superroot-rpcs` (`OP_PROPOSER_SUPERROOT_RPCS`) | `$SUPERNODE_RPC` or high-availability root endpoints for the same dependency set |
+| `--supernode-rpcs` (`OP_PROPOSER_SUPERNODE_RPCS`) | `$SUPERNODE_RPC` or high-availability root endpoints for the same dependency set |
 | `--game-type` (`OP_PROPOSER_GAME_TYPE`) | `9` (SUPER_CANNON_KONA) |
 | `--l1-eth-rpc` (`OP_PROPOSER_L1_ETH_RPC`) | as for the existing proposers |
 | `--proposal-interval`, `--poll-interval`, `--mnemonic` or `--private-key` | as for the existing proposers |
@@ -470,7 +457,7 @@ Concretely:
 
 * The two per-chain `op-challenger` instances continue to play retired games to `DEFENDER_WINS` or `CHALLENGER_WINS` and schedule bond claims as games finalize.
 * Bond claims succeed without operator intervention. Chain A's retired games claim through chain A's `DelayedWETH` (which is also the one used by the new shared games); chain B's retired games claim through chain B's `DelayedWETH`, which is otherwise unused after migration.
-* The two per-chain `op-dispute-mon` instances keep observing those games. The per-game-type metric `op_dispute_mon_games{game_type="super-cannon-kona"}` and the equivalent for `super-permissioned` should monotonically decrease toward zero across the drain window.
+* The two per-chain `op-dispute-mon` instances keep observing those games. The per-game-type metric `op_dispute_mon_games{game_type="super-cannon-kona"}` should monotonically decrease toward zero across the drain window.
 * `op-challenger`'s default `--game-window` is 28 days, sized to cover up to 16 days of game play plus a seven-day `DelayedWETH` withdrawal delay plus a five-day buffer. Do not shrink it on the per-chain instances; doing so risks dropping games before their bonds are claimable.
 
 Pick a still-in-flight pre-migration game and watch it through to resolution and bond claim:
@@ -489,14 +476,14 @@ Once a game is resolved and the `DelayedWETH` finality window has elapsed, the c
 
 Run these checks once the new proposer is stable.
 
-* **Confirm the shared `op-challenger` is defending super-root games.** The challenger does not break metrics down by game type, so verify by way of the startup log (every configured trace type, including `super-cannon-kona` and `super-permissioned`, must be listed as registered) and by ongoing logs (no scheduler or game-poll errors as super games appear on the shared factory). The aggregate `op_challenger_tracked_games{status="in_progress"}` becomes non-zero as super games are created and remains non-zero while games are in progress.
-* **Confirm the shared `op-dispute-mon` reports super-root games.** On the shared instance, `op_dispute_mon_games{game_type="super-cannon-kona"}` and `op_dispute_mon_games{game_type="super-permissioned"}` are non-zero once games are created. `op_dispute_mon_failed_games` stays near zero; a non-zero value typically points at missing `--supernode-rpc` or supernode unavailability.
+* **Confirm the shared `op-challenger` is defending super-root games.** Verify by way of the startup log that `super-cannon-kona` is registered and by ongoing logs that no scheduler or game-poll errors occur as super games appear on the shared factory. The aggregate `op_challenger_tracked_games{status="in_progress"}` becomes non-zero as super games are created and remains non-zero while games are in progress.
+* **Confirm the shared `op-dispute-mon` reports super-root games.** On the shared instance, `op_dispute_mon_games{game_type="super-cannon-kona"}` is non-zero once games are created. `op_dispute_mon_failed_games` stays near zero; a non-zero value typically points at missing `--supernode-rpc` or supernode unavailability.
 * **Confirm new pre-migration games cannot be created.** Optionally call `DisputeGameFactory.create` with one of the cleared game types on either per-chain factory and confirm it reverts.
 * **Watch for the first super-game finalization.** The first anchor update typically lands roughly seven days after the first super-root game is created (game duration plus `DISPUTE_GAME_FINALITY_DELAY_SECONDS`). Do not block the rollout on this—schedule a follow-up to re-run `getAnchorRoot()` after that window and confirm it returns the new game's claim instead of the starting anchor.
 
 ## Tear Down After the Drain
 
-A per-chain instance is safe to retire when its `op_dispute_mon_games{game_type="super-cannon-kona"}` and `op_dispute_mon_games{game_type="super-permissioned"}` have been zero for at least one full `--game-window` (default 28 days) and `op_challenger_tracked_games{status="in_progress"}` on the matching per-chain `op-challenger` is zero with bond-claim metrics stable.
+A per-chain instance is safe to retire when its `op_dispute_mon_games{game_type="super-cannon-kona"}` has been zero for at least one full `--game-window` (default 28 days) and `op_challenger_tracked_games{status="in_progress"}` on the matching per-chain `op-challenger` is zero with bond-claim metrics stable.
 
 For each chain when both conditions hold, stop the per-chain `op-challenger` and `op-dispute-mon` instances.
 
