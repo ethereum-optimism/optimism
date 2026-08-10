@@ -603,8 +603,7 @@ func TestExecMessageInvalidAttributes(gt *testing.T) {
 	for _, faults := range faultsLists {
 		logger.Info("Attempt to validate message with invalid attribute", "faults", faults)
 		// Intent to validate message on chain B.
-		// The identifiers are fabricated, so their timestamps do not describe a block chain A will
-		// ever build. There is nothing to wait for, and randomTimestamp is unreachable.
+		// The identifiers are fabricated, so their timestamps name blocks chain A will never build.
 		txC := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](
 			chuck.Plan(), txintent.WithoutInteropDependencyWait())
 		txC.Content.DependOn(&txA.Result)

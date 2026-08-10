@@ -180,7 +180,6 @@ func (u *remoteUser) plan() txplan.Option {
 		txplan.WithRetrySubmission(u.chain.ethClient, 5, retry.Exponential()),
 		txplan.WithRetryInclusion(u.chain.ethClient, 5, retry.Exponential()),
 		txplan.WithBlockInclusionInfo(u.chain.ethClient),
-		// Must come after WithAgainstLatestBlock, which it wraps.
 		txintent.WithInteropDependencyWait(u.waitForTime),
 	)
 }
@@ -237,7 +236,6 @@ func (u *remoteUser) sendRandomInitMessage(ctx context.Context, rng *rand.Rand, 
 	return &initMessage{Tx: tx, Receipt: receipt}, nil
 }
 
-// waitForTime waits for this chain to build a block with a timestamp of at least minTime.
 func (u *remoteUser) waitForTime(ctx context.Context, minTime uint64) error {
 	return waitForHead(ctx, u.chain, fmt.Sprintf("timestamp >= %d", minTime), func(head eth.BlockRef) bool {
 		return head.Time >= minTime
@@ -1276,8 +1274,8 @@ func waitForHeadAtLeast(ctx context.Context, chain *remoteChain, target uint64) 
 	})
 }
 
-// waitForHead polls the unsafe head until ready accepts it. A failed lookup is treated as
-// transient — these are live chains — and only reported if the head never becomes ready.
+// waitForHead polls the unsafe head until ready accepts it. Lookup failures are transient on a
+// live chain, so they are only reported if the head never becomes ready.
 func waitForHead(ctx context.Context, chain *remoteChain, want string, ready func(eth.BlockRef) bool) error {
 	deadline := time.Now().Add(smokeWaitTimeout)
 	for {

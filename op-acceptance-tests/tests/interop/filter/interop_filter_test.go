@@ -82,8 +82,8 @@ func TestInteropFilter_IngressRejectsInvalid(gt *testing.T) {
 		txplan.WithTo(&bobAddr),
 		txplan.WithValue(eth.GWei(1)),
 		txplan.WithAccessList(accessList),
-		// The entry names no message, so there is nothing to wait for. The node is what has to
-		// reject this tx.
+		// The fabricated entry does not decode as a message, so the wait cannot be planned. The
+		// node is what has to reject this tx.
 		txintent.WithoutInteropDependencyWait(),
 		txplan.WithGasLimit(100_000),
 	)

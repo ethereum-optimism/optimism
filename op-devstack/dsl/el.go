@@ -2,6 +2,7 @@ package dsl
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
@@ -46,16 +47,21 @@ func (el *elNode) WaitForLabel(label eth.BlockLabel, predicate func(eth.BlockInf
 }
 
 // awaitLabel is WaitForLabel for callers that must handle the failure themselves rather than fail
-// the test, e.g. a wait running inside a tx plan, where the caller treats a stuck chain as a
-// failure of that tx.
+// the test.
 func (el *elNode) awaitLabel(ctx context.Context, label eth.BlockLabel, predicate func(eth.BlockInfo) (bool, error)) (eth.BlockInfo, error) {
 	var block eth.BlockInfo
+	var lastLookupErr error
 	err := wait.For(ctx, 200*time.Millisecond, func() (bool, error) {
-		var err error
-		block, err = el.inner.EthClient().InfoByLabel(ctx, label)
+		info, err := el.inner.EthClient().InfoByLabel(ctx, label)
 		if err != nil {
-			return false, err
+			// Transient against a live chain, so keep polling; only report it if the target is
+			// never reached.
+			lastLookupErr = err
+			el.log.Debug("Block lookup failed", "chain", el.ChainID(), "err", err)
+			return false, nil
 		}
+		lastLookupErr = nil
+		block = info
 		ok, err := predicate(block)
 		if ok {
 			el.log.Info("Target block reached", "chain", el.ChainID(), "block", eth.ToBlockID(block))
@@ -64,6 +70,9 @@ func (el *elNode) awaitLabel(ctx context.Context, label eth.BlockLabel, predicat
 		}
 		return ok, err
 	})
+	if err != nil && lastLookupErr != nil {
+		return block, fmt.Errorf("%w (last block lookup failed: %w)", err, lastLookupErr)
+	}
 	return block, err
 }
 

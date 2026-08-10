@@ -15,19 +15,23 @@ import (
 // interopWaitDisabled flags a tx that must not wait for the messages it executes.
 type interopWaitDisabled struct{}
 
-// WaitForTime blocks until the chain has built a block with a timestamp of at least minTime.
-type WaitForTime func(ctx context.Context, minTime uint64) error
+// AwaitTimeFn blocks until the chain has built a block with a timestamp of at least minTime.
+type AwaitTimeFn func(ctx context.Context, minTime uint64) error
 
 // WithInteropDependencyWait holds back planning a tx until the chain it is sent to has reached
 // every message the tx executes, read from its access-list. A block executing a message newer than
 // itself is invalid, and is replaced during consolidation.
 //
-// Wraps the AgainstBlock stage, so it must be applied after the Option that resolves it.
+// Wraps the AgainstBlock stage, so it must be applied after the Option that resolves it, and
+// panics otherwise: a later Fn would replace the wrapper and drop the wait silently.
 // For a tx referencing a message that does not exist yet, see WithoutInteropDependencyWait.
-func WithInteropDependencyWait(wait WaitForTime) txplan.Option {
+func WithInteropDependencyWait(wait AwaitTimeFn) txplan.Option {
 	return func(tx *txplan.PlannedTx) {
 		tx.AgainstBlock.DependOn(&tx.AccessList)
 		tx.AgainstBlock.Wrap(func(fn plan.Fn[eth.BlockInfo]) plan.Fn[eth.BlockInfo] {
+			if fn == nil {
+				panic("WithInteropDependencyWait must be applied after the Option resolving AgainstBlock")
+			}
 			return func(ctx context.Context) (eth.BlockInfo, error) {
 				if tx.HasFlag(interopWaitDisabled{}) {
 					return fn(ctx)
