@@ -43,11 +43,15 @@ type pcdLiveChainExpectation struct {
 	chainID                       common.Hash
 	portal                        common.Address
 	disputeGameFactory            common.Address
+	anchorStateRegistry           common.Address
 	respectedGameType             embedded.GameType
 	fallbackGameType              embedded.GameType
 	respectedGameImplementation   common.Address
 	fallbackGameImplementation    common.Address
 	respectedGameAbsolutePrestate common.Hash
+	startingProposalRoot          common.Hash
+	startingProposalSequence      uint64
+	proposalArtifactPaths         []string
 }
 
 func (p pcdL1Probe) read(t *testing.T, contractAddresses []pcdNamedAddress) pcdL1State {
@@ -145,8 +149,53 @@ func (p pcdL1Probe) requireCompletedDeployment(
 	}
 	for _, chain := range chains {
 		p.requireLiveGameConfiguration(t, completed.blockNumber, chain)
+		p.requireStartingProposal(t, completed.blockNumber, chain)
 	}
 	return completed
+}
+
+func (p pcdL1Probe) requireStartingProposal(
+	t *testing.T,
+	blockNumber *big.Int,
+	expected pcdLiveChainExpectation,
+) {
+	t.Helper()
+	registry := txintentbindings.NewBindings[txintentbindings.AnchorStateRegistry](
+		txintentbindings.WithTo(expected.anchorStateRegistry),
+	)
+	observed, err := readPCDCallAtBlock(t.Context(), p.client, blockNumber, registry.GetAnchorRoot())
+	require.NoErrorf(
+		t,
+		err,
+		"read starting proposal for chain %s from registry %s at pinned L1 block %s; oracle artifacts: %v",
+		expected.chainID.Hex(),
+		expected.anchorStateRegistry,
+		blockNumber,
+		expected.proposalArtifactPaths,
+	)
+	require.Equalf(
+		t,
+		expected.startingProposalRoot,
+		observed.Root,
+		"starting proposal root differs for chain %s at registry %s at pinned L1 block %s: expected %s, observed %s; oracle artifacts: %v",
+		expected.chainID.Hex(),
+		expected.anchorStateRegistry,
+		blockNumber,
+		expected.startingProposalRoot,
+		observed.Root,
+		expected.proposalArtifactPaths,
+	)
+	require.Zero(
+		t,
+		new(big.Int).SetUint64(expected.startingProposalSequence).Cmp(observed.L2SequenceNumber),
+		"starting proposal sequence differs for chain %s at registry %s at pinned L1 block %s: expected %d, observed %s; oracle artifacts: %v",
+		expected.chainID.Hex(),
+		expected.anchorStateRegistry,
+		blockNumber,
+		expected.startingProposalSequence,
+		observed.L2SequenceNumber,
+		expected.proposalArtifactPaths,
+	)
 }
 
 func (p pcdL1Probe) requireLiveGameConfiguration(

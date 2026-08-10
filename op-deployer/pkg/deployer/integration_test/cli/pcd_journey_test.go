@@ -55,6 +55,8 @@ func TestCLIPCDJourney(t *testing.T) {
 			artifacts := journey.runInspect()
 			require.Len(t, artifacts, 1)
 			journey.writeDependencySet()
+			expectedProposal, genesisTime, err := pcdSuperRootFromArtifacts(artifacts)
+			require.NoErrorf(t, err, "compute proposal from rendered artifacts %v", pcdOracleArtifactPaths(artifacts))
 
 			prestatePath := pcdPrestateArtifactPath(t)
 			prestate := requirePCDPrestate(t, prestatePath)
@@ -69,11 +71,15 @@ func TestCLIPCDJourney(t *testing.T) {
 					chainID:                       chainID,
 					portal:                        preparedChain.OptimismPortalProxy,
 					disputeGameFactory:            preparedChain.DisputeGameFactoryProxy,
+					anchorStateRegistry:           preparedChain.AnchorStateRegistryProxy,
 					respectedGameType:             row.respectedGameType,
 					fallbackGameType:              row.fallbackGameType,
 					respectedGameImplementation:   preparedChain.FaultDisputeGameImpl,
 					fallbackGameImplementation:    preparedChain.PermissionedDisputeGameImpl,
 					respectedGameAbsolutePrestate: prestate,
+					startingProposalRoot:          expectedProposal,
+					startingProposalSequence:      genesisTime,
+					proposalArtifactPaths:         pcdOracleArtifactPaths(artifacts),
 				})
 			}
 			completedL1State := probe.requireCompletedDeployment(
