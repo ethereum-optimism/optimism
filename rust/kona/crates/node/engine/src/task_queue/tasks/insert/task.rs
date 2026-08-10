@@ -4,7 +4,7 @@ use crate::{
     EngineClient, EngineState, EngineTaskExt, InsertTaskError, SynchronizeTask,
     state::EngineSyncStateUpdate,
 };
-use alloy_rpc_types_engine::{ExecutionPayloadInputV2, PayloadStatusEnum};
+use alloy_rpc_types_engine::ExecutionPayloadInputV2;
 use async_trait::async_trait;
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -35,11 +35,6 @@ impl<EngineClient_: EngineClient> InsertTask<EngineClient_> {
         is_attributes_derived: bool,
     ) -> Self {
         Self { client, rollup_config, payload, is_payload_safe: is_attributes_derived }
-    }
-
-    /// Checks the response of the `engine_newPayload` call.
-    const fn check_new_payload_status(&self, status: &PayloadStatusEnum) -> bool {
-        matches!(status, PayloadStatusEnum::Valid | PayloadStatusEnum::Syncing)
     }
 }
 
@@ -82,7 +77,7 @@ impl<EngineClient_: EngineClient> EngineTaskExt for InsertTask<EngineClient_> {
                 return Err(InsertTaskError::InsertFailed(e));
             }
         };
-        if !self.check_new_payload_status(&response.status) {
+        if !state.accepts_new_payload_status(&response.status) {
             return Err(InsertTaskError::UnexpectedPayloadStatus(response.status));
         }
 
@@ -128,7 +123,16 @@ mod tests {
     use super::*;
     use crate::test_utils::{TestEngineStateBuilder, test_engine_client_builder};
     use alloy_primitives::Bytes;
-    use alloy_rpc_types_engine::{ExecutionPayloadV1, PayloadStatus};
+    use alloy_rpc_types_engine::{ExecutionPayloadV1, PayloadStatus, PayloadStatusEnum};
+
+    #[test]
+    fn accepts_accepted_status_only_during_el_sync() {
+        let syncing = TestEngineStateBuilder::new().with_el_sync_finished(false).build();
+        let synced = TestEngineStateBuilder::new().with_el_sync_finished(true).build();
+
+        assert!(syncing.accepts_new_payload_status(&PayloadStatusEnum::Accepted));
+        assert!(!synced.accepts_new_payload_status(&PayloadStatusEnum::Accepted));
+    }
 
     #[tokio::test]
     async fn invalid_status_precedes_local_transaction_decoding() {

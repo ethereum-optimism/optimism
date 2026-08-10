@@ -1,7 +1,7 @@
 //! The internal state of the engine controller.
 
 use crate::Metrics;
-use alloy_rpc_types_engine::ForkchoiceState;
+use alloy_rpc_types_engine::{ForkchoiceState, PayloadStatusEnum};
 use kona_protocol::L2BlockInfo;
 use serde::{Deserialize, Serialize};
 
@@ -161,6 +161,15 @@ pub struct EngineState {
 }
 
 impl EngineState {
+    /// Returns whether an `engine_newPayload` status permits payload processing to continue.
+    ///
+    /// `ACCEPTED` is permitted only during initial execution-layer sync. Once sync has completed,
+    /// it remains retryable because the payload's parent may arrive later.
+    pub const fn accepts_new_payload_status(&self, status: &PayloadStatusEnum) -> bool {
+        matches!(status, PayloadStatusEnum::Valid | PayloadStatusEnum::Syncing) ||
+            matches!(status, PayloadStatusEnum::Accepted) && !self.el_sync_finished
+    }
+
     /// Returns if consolidation is needed.
     ///
     /// [Consolidation] is only performed by a rollup node when the unsafe head
