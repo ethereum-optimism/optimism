@@ -1,0 +1,141 @@
+package cli
+
+import (
+	"encoding/json"
+	"math/big"
+	"os"
+	"path/filepath"
+	"strconv"
+	"testing"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/require"
+)
+
+const pcdGenesisTimeOffset = 600
+
+type pcdJourneyFixture struct {
+	t                     *testing.T
+	runner                *CLITestRunner
+	workdir               string
+	cacheDir              string
+	l1RPC                 string
+	l1Client              *ethclient.Client
+	privateKey            string
+	deployer              common.Address
+	devKeys               *devkeys.MnemonicDevKeys
+	chainIDs              []common.Hash
+	superchainOutput      opcm.DeploySuperchainOutput
+	implementationsOutput opcm.DeployImplementationsOutput
+	postBootstrapL1State  pcdL1State
+}
+
+func newPCDJourneyFixture(t *testing.T, chainIDs []common.Hash) *pcdJourneyFixture {
+	t.Helper()
+	lgr := testlog.Logger(t, log.LevelError)
+	l1RPC, l1Client := devnet.DefaultAnvilRPC(t, lgr)
+	t.Cleanup(l1Client.Close)
+	privateKey, key, devKeys := shared.DefaultPrivkey(t)
+	runner := NewCLITestRunner(t, WithL1RPC(l1RPC), WithPrivateKey(privateKey))
+
+	return &pcdJourneyFixture{
+		t:          t,
+		runner:     runner,
+		workdir:    runner.GetWorkDir(),
+		cacheDir:   filepath.Join(runner.GetWorkDir(), ".cache"),
+		l1RPC:      l1RPC,
+		l1Client:   l1Client,
+		privateKey: privateKey,
+		deployer:   crypto.PubkeyToAddress(key.PublicKey),
+		devKeys:    devKeys,
+		chainIDs:   append([]common.Hash(nil), chainIDs...),
+	}
+}
+
+// This setup uses the CLI sequence from TestCLIBootstrap in bootstrap_test.go.
+func (f *pcdJourneyFixture) bootstrapOPCM() {
+	f.t.Helper()
+	f.t.Log("PCD stage: bootstrap OPCM")
+	l1ChainID := new(big.Int).SetUint64(devnet.DefaultChainID)
+	superchainProxyAdminOwner := shared.AddrFor(f.t, f.devKeys, devkeys.L1ProxyAdminOwnerRole.Key(l1ChainID))
+	guardian := shared.AddrFor(f.t, f.devKeys, devkeys.SuperchainConfigGuardianKey.Key(l1ChainID))
+	challenger := shared.AddrFor(f.t, f.devKeys, devkeys.ChallengerRole.Key(l1ChainID))
+	l1ProxyAdminOwner := shared.AddrFor(f.t, f.devKeys, devkeys.L2ProxyAdminOwnerRole.Key(l1ChainID))
+
+	superchainOutputFile := filepath.Join(f.workdir, "bootstrap-superchain.json")
+	f.runner.ExpectSuccessWithNetwork(f.t, []string{
+		"bootstrap", "superchain",
+		"--outfile", superchainOutputFile,
+		"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
+		"--guardian", guardian.Hex(),
+	}, nil)
+	f.readJSON(superchainOutputFile, &f.superchainOutput)
+	require.NoError(f.t, addresses.CheckNoZeroAddresses(f.superchainOutput))
+
+	implementationsOutputFile := filepath.Join(f.workdir, "bootstrap-implementations.json")
+	f.runner.ExpectSuccessWithNetwork(f.t, []string{
+		"bootstrap", "implementations",
+		"--outfile", implementationsOutputFile,
+		"--mips-version", strconv.Itoa(int(standard.MIPSVersion)),
+		"--superchain-config-proxy", f.superchainOutput.SuperchainConfigProxy.Hex(),
+		"--l1-proxy-admin-owner", l1ProxyAdminOwner.Hex(),
+		"--superchain-proxy-admin", f.superchainOutput.SuperchainProxyAdmin.Hex(),
+		"--challenger", challenger.Hex(),
+	}, nil)
+	f.readJSON(implementationsOutputFile, &f.implementationsOutput)
+	require.NotEqual(f.t, common.Address{}, f.implementationsOutput.OpcmV2)
+
+	probe := pcdL1Probe{client: f.l1Client, deployer: f.deployer}
+	f.postBootstrapL1State = probe.read(f.t, nil)
+}
+
+func (f *pcdJourneyFixture) runInit(gameType embedded.GameType) (*state.Intent, *state.State) {
+	f.t.Helper()
+	f.t.Log("PCD stage: init")
+	intent, st := cliInitIntent(f.t, f.runner, devnet.DefaultChainID, f.chainIDs)
+	intent.OPCMAddress = &f.implementationsOutput.OpcmV2
+	intent.SuperchainConfigProxy = &f.superchainOutput.SuperchainConfigProxy
+	intent.SuperchainRoles = nil
+	l1ChainID := new(big.Int).SetUint64(devnet.DefaultChainID)
+	for i, chain := range intent.Chains {
+		chainID := new(uint256.Int).SetBytes32(chain.ID[:])
+		intent.Chains[i] = shared.NewChainIntent(f.t, f.devKeys, l1ChainID, chainID, standard.GasLimit)
+		intent.Chains[i].DeployOverrides = map[string]any{"respectedGameType": gameType}
+	}
+	require.NoError(f.t, intent.WriteToFile(filepath.Join(f.workdir, "intent.toml")))
+	return intent, st
+}
+
+func (f *pcdJourneyFixture) runPrepare() *state.State {
+	f.t.Helper()
+	f.t.Log("PCD stage: prepare")
+	f.runner.ExpectSuccessWithNetwork(f.t, []string{
+		"prepare",
+		"--workdir", f.workdir,
+		"--genesis-time-offset", strconv.FormatUint(pcdGenesisTimeOffset, 10),
+	}, nil)
+	st, err := pipeline.ReadState(f.workdir)
+	require.NoError(f.t, err)
+	return st
+}
+
+func (f *pcdJourneyFixture) readJSON(path string, out any) {
+	f.t.Helper()
+	data, err := os.ReadFile(path)
+	require.NoError(f.t, err)
+	require.NoError(f.t, json.Unmarshal(data, out))
+}
