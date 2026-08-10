@@ -228,8 +228,17 @@ where
             });
         }
 
-        // Wait for the next processing request.
-        let request = self.inbound_request_rx.recv().await.ok_or_else(|| {
+        // Wait for either fresh work or the next delayed task retry. This keeps temporary engine
+        // failures from blocking the request channel or spinning in a tight loop.
+        let request = if let Some(deadline) = self.engine.next_retry_deadline() {
+            tokio::select! {
+                request = self.inbound_request_rx.recv() => request,
+                _ = tokio::time::sleep_until(deadline) => return Ok(()),
+            }
+        } else {
+            self.inbound_request_rx.recv().await
+        }
+        .ok_or_else(|| {
             error!(target: "engine", "Engine processing request receiver closed unexpectedly");
             EngineError::ChannelClosed
         })?;

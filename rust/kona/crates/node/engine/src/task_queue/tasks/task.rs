@@ -12,7 +12,6 @@ use async_trait::async_trait;
 use derive_more::Display;
 use std::cmp::Ordering;
 use thiserror::Error;
-use tokio::task::yield_now;
 
 /// The severity of an engine task error.
 ///
@@ -215,44 +214,37 @@ impl<EngineClient_: EngineClient> EngineTaskExt for EngineTask<EngineClient_> {
     type Error = EngineTaskErrors;
 
     async fn execute(&self, state: &mut EngineState) -> Result<(), Self::Error> {
-        while let Err(e) = self.execute_inner(state).await {
-            let severity = e.severity();
-
+        let Err(error) = self.execute_inner(state).await else {
             kona_macros::inc!(
                 counter,
-                crate::Metrics::ENGINE_TASK_FAILURE,
-                self.task_metrics_label() => severity.to_string()
+                crate::Metrics::ENGINE_TASK_SUCCESS,
+                self.task_metrics_label()
             );
+            return Ok(());
+        };
+        let severity = error.severity();
 
-            match severity {
-                EngineTaskErrorSeverity::Temporary => {
-                    trace!(target: "engine", "{e}");
+        kona_macros::inc!(
+            counter,
+            crate::Metrics::ENGINE_TASK_FAILURE,
+            self.task_metrics_label() => severity.to_string()
+        );
 
-                    // Yield the task to allow other tasks to execute to avoid starvation.
-                    yield_now().await;
-                }
-                EngineTaskErrorSeverity::Drop => {
-                    warn!(target: "engine", "Dropping permanently invalid engine task: {e}");
-                    return Err(e);
-                }
-                EngineTaskErrorSeverity::Critical => {
-                    error!(target: "engine", "{e}");
-                    return Err(e);
-                }
-                EngineTaskErrorSeverity::Reset => {
-                    warn!(target: "engine", "Engine requested derivation reset");
-                    return Err(e);
-                }
-                EngineTaskErrorSeverity::Flush => {
-                    warn!(target: "engine", "Engine requested derivation flush");
-                    return Err(e);
-                }
+        match severity {
+            EngineTaskErrorSeverity::Temporary => trace!(target: "engine", "{error}"),
+            EngineTaskErrorSeverity::Drop => {
+                warn!(target: "engine", "Dropping permanently invalid engine task: {error}")
+            }
+            EngineTaskErrorSeverity::Critical => error!(target: "engine", "{error}"),
+            EngineTaskErrorSeverity::Reset => {
+                warn!(target: "engine", "Engine requested derivation reset")
+            }
+            EngineTaskErrorSeverity::Flush => {
+                warn!(target: "engine", "Engine requested derivation flush")
             }
         }
 
-        kona_macros::inc!(counter, crate::Metrics::ENGINE_TASK_SUCCESS, self.task_metrics_label());
-
-        Ok(())
+        Err(error)
     }
 }
 
