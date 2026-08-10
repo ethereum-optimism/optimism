@@ -756,6 +756,9 @@ func smokeBridge(env *smokeEnv) error {
 		if err != nil {
 			return fmt.Errorf("%s bridge failed: %w", pair.name, err)
 		}
+		for _, output := range bridgeMessageOutputs(pair.initUser.chain, pair.execUser.chain, result) {
+			fmt.Fprintf(env.stderr, "    [%s] %s\n", pair.name, output)
+		}
 		fmt.Fprintf(env.stderr, "    [%s] %s\n", pair.name,
 			flowOutput("Bridge", pair.initUser.chain, pair.execUser.chain, &amount, result.RelayReceipt))
 	}
@@ -839,6 +842,13 @@ func messageLandingOutput(message string, source, destination, landedOn *remoteC
 	}
 	return fmt.Sprintf("%s landed on %s %s (chain ID %s), source chain ID %s, destination chain ID %s, tx %s, included in block %d",
 		message, role, landedOn.name, landedOn.chainID, source.chainID, destination.chainID, receipt.TxHash, bigs.Uint64Strict(receipt.BlockNumber))
+}
+
+func bridgeMessageOutputs(source, destination *remoteChain, result *interopbridge.BridgeResult) []string {
+	return []string{
+		messageLandingOutput("Initiating message", source, destination, source, result.SendReceipt),
+		messageLandingOutput("Executing message", source, destination, destination, result.RelayReceipt),
+	}
 }
 
 type invalidInclusion struct {

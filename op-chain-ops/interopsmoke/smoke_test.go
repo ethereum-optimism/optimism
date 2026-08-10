@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/interopbridge"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -59,6 +60,32 @@ func TestMessageLandingOutput(t *testing.T) {
 	} {
 		if !strings.Contains(initOutput+execOutput, want) {
 			t.Errorf("output = %q, want %q", initOutput+execOutput, want)
+		}
+	}
+}
+
+func TestBridgeMessageLandingOutput(t *testing.T) {
+	receipt := &types.Receipt{
+		TxHash:      common.HexToHash("0x1234"),
+		BlockNumber: big.NewInt(123),
+	}
+	source := &remoteChain{name: "L2A", chainID: eth.ChainIDFromUInt64(900)}
+	destination := &remoteChain{name: "L2B", chainID: eth.ChainIDFromUInt64(901)}
+	outputs := bridgeMessageOutputs(source, destination, &interopbridge.BridgeResult{
+		SendReceipt:  receipt,
+		RelayReceipt: receipt,
+	})
+
+	for _, want := range []string{
+		"Initiating message landed on source chain L2A",
+		"Executing message landed on destination chain L2B",
+	} {
+		found := false
+		for _, output := range outputs {
+			found = found || strings.Contains(output, want)
+		}
+		if !found {
+			t.Errorf("outputs = %q, want %q", outputs, want)
 		}
 	}
 }

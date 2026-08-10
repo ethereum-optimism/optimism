@@ -76,6 +76,7 @@ func BridgeETH(ctx context.Context, logger log.Logger, src, dst apis.EthClient, 
 
 // BridgeResult contains the destination relay transaction inclusion details.
 type BridgeResult struct {
+	SendReceipt  *types.Receipt
 	RelayReceipt *types.Receipt
 }
 
@@ -109,5 +110,5 @@ func BridgeETHWithResult(ctx context.Context, logger log.Logger, src, dst apis.E
 		return nil, fmt.Errorf("recipient credited %s wei, want %s wei", credited, amount.ToBig())
 	}
 	logger.Info("bridged ETH", "amount", amount, "recipient", recipient)
-	return &BridgeResult{RelayReceipt: relay.PlannedTx.Included.Value()}, nil
+	return &BridgeResult{SendReceipt: send.PlannedTx.Included.Value(), RelayReceipt: relay.PlannedTx.Included.Value()}, nil
 }
