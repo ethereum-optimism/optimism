@@ -612,6 +612,13 @@ contract OPContractsManagerStandardValidator_SystemConfig_Test is OPContractsMan
         );
         assertEq("SYSCON-130", _validate(true));
     }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         SystemConfig l2ChainId does not match the expected chain ID.
+    function test_validate_systemConfigInvalidL2ChainId_succeeds() public {
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.l2ChainId, ()), abi.encode(l2ChainId + 1));
+        assertEq("SYSCON-140", _validate(true));
+    }
 }
 
 /// @title OPContractsManagerStandardValidator_L1CrossDomainMessenger_Test
@@ -1840,6 +1847,14 @@ contract OPContractsManagerStandardValidator_SuperModeCoreValidation_Test is
     function test_validate_succeeds() public view {
         string memory errors = _validate(false);
         assertEq(errors, "");
+    }
+
+    /// @notice Tests that validation fails when the SystemConfig is configured for a different chain
+    ///         than the one being validated. Super game args store l2ChainId=0, so SYSCON-140 is the
+    ///         only check binding the deployment to the chain the Portal settles withdrawals for.
+    function test_validate_systemConfigInvalidL2ChainId_succeeds() public {
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.l2ChainId, ()), abi.encode(l2ChainId + 1));
+        assertEq("SYSCON-140", _validate(true));
     }
 }
 
