@@ -17,7 +17,7 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0
 	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.4-0.20251001155152-4eb15ccedf7e
-	github.com/ethereum-optimism/superchain-registry/validation v0.0.0-20260611202829-ac4e48516794
+	github.com/ethereum-optimism/superchain-registry/validation v0.0.0-20260804210749-8336d2aedd19
 	github.com/ethereum/go-ethereum v1.17.0
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/golang/snappy v1.0.0
