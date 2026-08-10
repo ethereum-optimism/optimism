@@ -1,7 +1,7 @@
 {
   "op-batcher": {
     "sha256": "b295339298c9f284d8cbdbe1c5e1e7693b6ebc72ee7f97e76e97e292f7bc1cd3",
-    "tag": "op-batcher/v1.16.11"
+    "tag": "op-batcher/v1.16.12"
   },
   "op-challenger": {
     "sha256": "ba593ac3882424f9f985375b347fce27f86a6241a9439917cbfd05fb700e7451",
