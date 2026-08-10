@@ -233,7 +233,15 @@ func (f *pcdJourneyFixture) runPrestate(prestate common.Hash) *state.State {
 	for _, chainID := range f.chainIDs {
 		chain, err := st.Chain(chainID)
 		require.NoError(f.t, err)
-		require.Equal(f.t, prestate, chain.Prestate)
+		require.Equalf(
+			f.t,
+			prestate,
+			chain.Prestate,
+			"committed prestate differs for chain %s: expected %s, observed %s",
+			chainID.Hex(),
+			prestate,
+			chain.Prestate,
+		)
 	}
 	f.prestate = prestate
 	return st

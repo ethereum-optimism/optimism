@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestCLIPCDJourney verifies that distinct dependency-set outputs use one genesis time and produce the same anchor for each chain.
 func TestCLIPCDJourney(t *testing.T) {
 	rows := []struct {
 		name                       string
@@ -28,6 +29,13 @@ func TestCLIPCDJourney(t *testing.T) {
 			respectedGameType:          embedded.GameTypeSuperCannonKona,
 			fallbackGameType:           embedded.GameTypeSuperPermissioned,
 			expectedContinueNonceDelta: 1,
+		},
+		{
+			name:                       "two-chain-shared-super-root",
+			chainIDs:                   []common.Hash{uint256.NewInt(1).Bytes32(), uint256.NewInt(2).Bytes32()},
+			respectedGameType:          embedded.GameTypeSuperCannonKona,
+			fallbackGameType:           embedded.GameTypeSuperPermissioned,
+			expectedContinueNonceDelta: 2,
 		},
 	}
 
@@ -44,7 +52,7 @@ func TestCLIPCDJourney(t *testing.T) {
 			_, err := pipeline.ReadIntent(journey.workdir)
 			require.NoError(t, err)
 			require.NotNil(t, prepared.PreparedDeployment)
-			require.NotEmpty(t, prepared.PreparedDeployment.Chains)
+			require.Len(t, prepared.PreparedDeployment.Chains, len(row.chainIDs))
 
 			predictedAddresses := pcdPredictedContractAddresses(prepared.PreparedDeployment)
 			require.NotEmpty(t, predictedAddresses)
@@ -53,10 +61,38 @@ func TestCLIPCDJourney(t *testing.T) {
 			requireNoPCDDeploymentMutation(t, journey.postBootstrapL1State, preparedL1State)
 
 			artifacts := journey.runInspect()
-			require.Len(t, artifacts, 1)
+			require.Len(t, artifacts, len(row.chainIDs))
 			journey.writeDependencySet()
 			expectedProposal, genesisTime, err := pcdSuperRootFromArtifacts(artifacts)
 			require.NoErrorf(t, err, "compute proposal from rendered artifacts %v", pcdOracleArtifactPaths(artifacts))
+			for _, artifact := range artifacts {
+				rollupConfig, err := readPCDRollupConfig(artifact.rollupPath)
+				require.NoErrorf(t, err, "read rollup config for row %s chain %s", row.name, artifact.chainID.Hex())
+				require.Equalf(
+					t,
+					genesisTime,
+					rollupConfig.Genesis.L2Time,
+					"genesis time differs for row %s chain %s: expected %d, observed %d",
+					row.name,
+					artifact.chainID.Hex(),
+					genesisTime,
+					rollupConfig.Genesis.L2Time,
+				)
+			}
+			if len(artifacts) == 2 {
+				firstRoot := pcdArtifactOutputRoot(t, row.name, artifacts[0])
+				secondRoot := pcdArtifactOutputRoot(t, row.name, artifacts[1])
+				require.NotEqualf(
+					t,
+					firstRoot,
+					secondRoot,
+					"member output roots must differ for row %s chains %s and %s: both are %s",
+					row.name,
+					artifacts[0].chainID.Hex(),
+					artifacts[1].chainID.Hex(),
+					firstRoot,
+				)
+			}
 
 			prestatePath := pcdPrestateArtifactPath(t)
 			prestate := requirePCDPrestate(t, prestatePath)
@@ -97,6 +133,15 @@ func TestCLIPCDJourney(t *testing.T) {
 			)
 		})
 	}
+}
+
+func pcdArtifactOutputRoot(t *testing.T, rowName string, artifact pcdChainArtifacts) common.Hash {
+	t.Helper()
+	genesis, err := readPCDGenesis(artifact.genesisPath)
+	require.NoErrorf(t, err, "read genesis for row %s chain %s", rowName, artifact.chainID.Hex())
+	header := genesis.ToBlock().Header()
+	require.NotNilf(t, header.WithdrawalsHash, "genesis for row %s chain %s has no withdrawals hash", rowName, artifact.chainID.Hex())
+	return common.Hash(pcdOutputRoot(header))
 }
 
 func TestPCDPrestateReader(t *testing.T) {
