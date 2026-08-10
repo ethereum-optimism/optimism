@@ -14,21 +14,23 @@ use alloy_rpc_types_engine::{
     ExecutionPayloadV3,
 };
 
-/// An execution payload, which can be either [`ExecutionPayloadV2`], [`ExecutionPayloadV3`], or
-/// [`OpExecutionPayloadV4`].
+/// A versioned OP execution payload.
+///
+/// V1 through V3 use the corresponding Alloy execution payload types. V4 uses the OP-specific
+/// Isthmus payload, which adds a withdrawals root and differs from Alloy's execution payload V4.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[cfg_attr(feature = "std", derive(ssz_derive::Encode, ssz_derive::Decode))]
 #[cfg_attr(feature = "std", ssz(enum_behaviour = "transparent"))]
 #[cfg_attr(feature = "serde", serde(untagged))]
 pub enum OpExecutionPayload {
-    /// V1 payload
+    /// Pre-Canyon execution payload.
     V1(ExecutionPayloadV1),
-    /// V2 payload
+    /// Canyon execution payload.
     V2(ExecutionPayloadV2),
-    /// V3 payload
+    /// Ecotone execution payload.
     V3(ExecutionPayloadV3),
-    /// V4 payload
+    /// OP-specific Isthmus execution payload.
     V4(OpExecutionPayloadV4),
 }
 
@@ -223,17 +225,23 @@ impl<'de> serde::Deserialize<'de> for OpExecutionPayload {
                         .ok_or_else(|| serde::de::Error::missing_field("transactions"))?,
                 };
 
-                // Ensure `withdrawals` is present before proceeding
-                let withdrawals =
-                    withdrawals.ok_or_else(|| serde::de::Error::missing_field("withdrawals"))?;
+                // Match Alloy's V1 through V3 field-based decoding, with the OP-specific
+                // withdrawals root as the V4 discriminator.
+                let Some(withdrawals) = withdrawals else {
+                    return if blob_gas_used.is_none() &&
+                        excess_blob_gas.is_none() &&
+                        withdrawals_root.is_none()
+                    {
+                        Ok(OpExecutionPayload::V1(v1))
+                    } else {
+                        Err(serde::de::Error::custom("invalid enum variant"))
+                    };
+                };
 
-                // Construct base V2 payload
                 let payload_v2 = ExecutionPayloadV2 { payload_inner: v1, withdrawals };
 
-                // Ensure `blob_gas_used` and `excess_blob_gas` are either both present or both
-                // absent
                 match (blob_gas_used, excess_blob_gas) {
-                    // If both are present, create V3
+                    // Both blob gas fields distinguish V3 from V2.
                     (Some(blob_gas_used), Some(excess_blob_gas)) => {
                         let payload_v3 = ExecutionPayloadV3 {
                             payload_inner: payload_v2,
@@ -241,7 +249,7 @@ impl<'de> serde::Deserialize<'de> for OpExecutionPayload {
                             excess_blob_gas,
                         };
 
-                        // If `withdrawals_root` is present, wrap into V4; otherwise, return V3
+                        // The withdrawals root distinguishes the OP-specific V4 from V3.
                         if let Some(withdrawals_root) = withdrawals_root {
                             Ok(OpExecutionPayload::V4(OpExecutionPayloadV4 {
                                 payload_inner: payload_v3,
@@ -251,11 +259,14 @@ impl<'de> serde::Deserialize<'de> for OpExecutionPayload {
                             Ok(OpExecutionPayload::V3(payload_v3))
                         }
                     }
-                    // If one is missing, reject as invalid
+                    // An incomplete V3 payload is invalid.
                     (Some(_), None) | (None, Some(_)) => {
                         Err(serde::de::Error::custom("invalid enum variant"))
                     }
-                    // If neither are present, return V2
+                    // A withdrawals root without the V3 fields is also invalid.
+                    (None, None) if withdrawals_root.is_some() => {
+                        Err(serde::de::Error::custom("invalid enum variant"))
+                    }
                     (None, None) => Ok(OpExecutionPayload::V2(payload_v2)),
                 }
             }
@@ -590,6 +601,43 @@ impl OpExecutionPayload {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn serde_payload_input_enum_v1() {
+        let payload = OpExecutionPayload::V1(ExecutionPayloadV1::from_block_unchecked(
+            B256::ZERO,
+            &Block::<op_alloy_consensus::OpTxEnvelope>::default(),
+        ));
+        let mut json = serde_json::to_value(&payload).unwrap();
+
+        assert!(json.get("withdrawals").is_none());
+        assert_eq!(serde_json::from_value::<OpExecutionPayload>(json.clone()).unwrap(), payload);
+
+        // Later-fork fields without withdrawals must not be silently discarded as a V1 payload.
+        json["withdrawalsRoot"] = serde_json::Value::String(B256::ZERO.to_string());
+        assert!(serde_json::from_value::<OpExecutionPayload>(json).is_err());
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn serde_payload_input_enum_rejects_v2_with_withdrawals_root() {
+        let payload = OpExecutionPayload::V2(ExecutionPayloadV2 {
+            payload_inner: ExecutionPayloadV1::from_block_unchecked(
+                B256::ZERO,
+                &Block::<op_alloy_consensus::OpTxEnvelope>::default(),
+            ),
+            withdrawals: Vec::new(),
+        });
+        let mut json = serde_json::to_value(&payload).unwrap();
+
+        assert!(json.get("withdrawals").is_some());
+        assert!(json.get("blobGasUsed").is_none());
+        assert!(json.get("excessBlobGas").is_none());
+
+        json["withdrawalsRoot"] = serde_json::Value::String(B256::ZERO.to_string());
+        assert!(serde_json::from_value::<OpExecutionPayload>(json).is_err());
+    }
 
     #[test]
     #[cfg(feature = "serde")]
