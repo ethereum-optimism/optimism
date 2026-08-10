@@ -5,8 +5,9 @@ description: Update the pinned upstream reth dependency across the Rust workspac
 
 # Update reth
 
-Bump the `paradigmxyz/reth` pin (normally to the latest release tag) and adapt the
-OP Stack Rust workspaces to upstream API changes.
+Bump the `reth` pin (normally to the latest upstream release tag) and adapt the
+OP Stack Rust workspaces to upstream API changes. The pin may point at an OP-maintained
+fork rather than upstream directly — read the source out of `rust/Cargo.toml`.
 
 The complete procedure — pin audit, the four manifests, shared dependency sync,
 lockfiles, the compile-and-adapt loop, and verification — lives in
@@ -21,9 +22,11 @@ Default: the latest upstream release tag (`gh release list --repo paradigmxyz/re
 
 ## Workflow
 
-1. **Orient.** Read the guide. Find a local `paradigmxyz/reth` checkout (ask the
-   user if you can't find one) and fetch its tags — you'll need it for tag
-   resolution, API archaeology, and diffing replicated code.
+1. **Orient.** Read the guide. Find a local reth checkout (ask the user if you
+   can't find one) and fetch its tags — you'll need it for tag resolution, API
+   archaeology, and diffing replicated code. An upstream clone covers most of
+   that, but fetch the pinned source too when the pin is a fork rev: that commit
+   will not exist in an upstream-only checkout.
 
 2. **Isolate.** Work in a fresh git worktree (or jj workspace) based on latest
    `develop` — never on the main checkout's working copy. Run `mise trust` in the
@@ -44,5 +47,10 @@ Default: the latest upstream release tag (`gh release list --repo paradigmxyz/re
    have forced an op- change but produced no diff in our tree. PR to `develop`
    with verification results spelled out.
 
-6. **Compound.** If this bump taught you something the guide doesn't cover, fold
-   it into `rust/UPDATING-RETH.md` in the same PR.
+6. **Compound.** In the same PR:
+   - Work `just mirrors stale` to empty, advancing each `UPSTREAM-MIRROR` tag's
+     version only where you actually re-checked that mirror. If you removed a
+     mirror by calling upstream instead, delete its tag — that's the best
+     outcome available.
+   - If this bump taught you something the guide doesn't cover, fold it into
+     `rust/UPDATING-RETH.md`.

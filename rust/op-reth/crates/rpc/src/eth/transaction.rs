@@ -79,6 +79,13 @@ where
         Ok(hash)
     }
 
+    /// UPSTREAM-MIRROR(override): reth@rev:aef8d3e
+    /// reth_rpc_eth_api::helpers::EthTransactions::send_raw_transaction_sync
+    ///
+    /// Derived from the upstream default: the timeout computation is taken verbatim and the
+    /// wait loop is extended to also resolve the receipt from a flashblock. Re-derive on any
+    /// change to the default body.
+    ///
     /// Decodes and recovers the transaction and submits it to the pool.
     ///
     /// And awaits the receipt, checking both canonical blocks and flashblocks for faster

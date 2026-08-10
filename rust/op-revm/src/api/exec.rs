@@ -46,6 +46,12 @@ impl<T> OpContextTr for T where
 /// Type alias for the error type of the `OpEvm`.
 pub type OpError<CTX> = EVMError<<<CTX as ContextTr>::Db as Database>::Error, OpTransactionError>;
 
+/// UPSTREAM-MIRROR(copy): revm-handler@41.0.0 revm_handler::api
+///
+/// The `ExecuteEvm` / `ExecuteCommitEvm` / `InspectEvm` / `InspectCommitEvm` /
+/// `SystemCallEvm` impls below reproduce upstream's impls for `revm::Evm` with `OpHandler`
+/// substituted for `MainnetHandler`. Re-diff the bodies on any change; a required method
+/// added to one of those traits will not compile-error until it is added here too.
 impl<CTX, INSP, PRECOMPILE> ExecuteEvm
     for OpEvm<CTX, INSP, EthInstructions<EthInterpreter, CTX>, PRECOMPILE>
 where
