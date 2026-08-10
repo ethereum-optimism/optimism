@@ -4,7 +4,9 @@ on: pull_request
 
 jobs:
   dependency-review:
-    uses: ethereum-optimism/factory/.github/workflows/dependency-review.yaml@0a5a01da201169813de992b8c2dac6e7999f5d51
+    uses: ethereum-optimism/factory/.github/workflows/dependency-review.yaml@ed703fcc960cbe3f16c3844db11143a33b01b33b
+    with:
+      config-file: .github/dependency-review-config.yml
     permissions:
       contents: read
       pull-requests: write
