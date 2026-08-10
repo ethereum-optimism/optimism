@@ -71,6 +71,18 @@ gh workflow run "Build and Publish Nightly Docker Images"
 
 ## Building Kona Prestates
 
+### Automatic Selection (for local test runs)
+
+```bash
+# From repo root; also what op-acceptance-tests' `just build-deps` runs
+just cannon-prestates
+```
+
+Picks the native build when the MIPS64 cross-linker is on PATH, and the Docker
+build otherwise — so this works on Linux with the toolchain and on macOS with
+Docker, and reports what to install when neither is available. Pin one build
+with `KONA_PRESTATE_BUILD=native` or `KONA_PRESTATE_BUILD=docker`.
+
 ### Reproducible Build (Docker — recommended for releases)
 
 ```bash
@@ -94,7 +106,9 @@ for `-Zbuild-std`); `mise.toml` only pulls `rustfmt`.
 sudo apt install g++-mips64-linux-gnuabi64 libc6-dev-mips64-cross binutils-mips64-linux-gnuabi64
 ```
 
-macOS: use the Docker path (`just reproducible-prestate-kona`).
+macOS: no package provides this toolchain, so use a Docker path
+(`just reproducible-prestate-kona`, or `just cannon-prestates` which selects it
+for you).
 
 #### Build
 

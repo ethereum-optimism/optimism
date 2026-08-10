@@ -248,9 +248,9 @@ reproducible-prestate:
   (cd rust && just build-kona-reproducible-prestate)
   (cd rust && just output-kona-prestate-hash)
 
-# Builds the kona prestates natively (hashes will not match release builds).
+# Builds the kona prestates, natively when the MIPS64 cross-linker is installed and via Docker otherwise.
 cannon-prestates:
-  cd rust && just build-kona-prestates
+  cd rust && just build-kona-prestates-auto
 
 # Verifies the reproducibility of released cannon prestates against the
 # superchain-registry standard prestates. Only kona-client/v* releases are

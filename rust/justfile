@@ -605,6 +605,14 @@ KONA_DIR := justfile_directory() / "kona"
 MIPS64_TARGET_SPEC := justfile_directory() / "kona/docker/cannon/mips64-unknown-none.json"
 MIPS64_ELF_DIR := justfile_directory() / "target/mips64-unknown-none/release-client-lto"
 
+# MIPS64 cross toolchain for the cannon target. The defaults are Debian's
+# g++-mips64-linux-gnuabi64 names; each reads from the same environment variable
+# the build exports, so a differently named toolchain is both probed for and
+# used, instead of the probe passing on a name the build then ignores.
+MIPS64_CC := env('CC_mips64_unknown_none', 'mips64-linux-gnuabi64-gcc')
+MIPS64_CXX := env('CXX_mips64_unknown_none', 'mips64-linux-gnuabi64-g++')
+MIPS64_LINKER := env('CARGO_TARGET_MIPS64_UNKNOWN_NONE_LINKER', 'mips64-linux-gnuabi64-gcc')
+
 # Prestate variants, as `<cargo bin>:<artifacts dir>` pairs. The build side
 # derives everything from this; the artifacts dir names are additionally
 # hardcoded by rust/kona/.gitignore, ops/prestate-reproducibility/build-prestates.sh,
@@ -653,13 +661,30 @@ build-kona-client-elfs:
     bins=()
     while read -r variant _; do bins+=(--bin "$variant"); done <<<"$variants"
 
+    # Checked up front so a missing toolchain names its own fix, rather than
+    # surfacing as a bare `error: linker not found` from rustc after cargo has
+    # already compiled the whole dependency graph.
+    if ! command -v "{{MIPS64_LINKER}}" >/dev/null 2>&1; then
+      echo "error: MIPS64 cross-linker '{{MIPS64_LINKER}}' is not on PATH." >&2
+      echo "" >&2
+      echo "kona-client is cross-compiled to the cannon MIPS64 target, which needs a" >&2
+      echo "MIPS64 GCC toolchain. It is apt-only; no macOS package provides it:" >&2
+      echo "  sudo apt install g++-mips64-linux-gnuabi64 libc6-dev-mips64-cross binutils-mips64-linux-gnuabi64" >&2
+      echo "Set CARGO_TARGET_MIPS64_UNKNOWN_NONE_LINKER if your toolchain is named differently." >&2
+      echo "" >&2
+      echo "Or build the prestates in Docker, which needs no host toolchain:" >&2
+      echo "  just cannon-prestates            # from the repo root; picks Docker when the linker is missing" >&2
+      echo "  just reproducible-prestate-kona  # from the repo root; hashes match release builds" >&2
+      exit 1
+    fi
+
     # Ensure nightly toolchain with rust-src is installed
     just install-nightly
 
     # Cross-compilation environment
-    export CC_mips64_unknown_none=mips64-linux-gnuabi64-gcc
-    export CXX_mips64_unknown_none=mips64-linux-gnuabi64-g++
-    export CARGO_TARGET_MIPS64_UNKNOWN_NONE_LINKER=mips64-linux-gnuabi64-gcc
+    export CC_mips64_unknown_none="{{MIPS64_CC}}"
+    export CXX_mips64_unknown_none="{{MIPS64_CXX}}"
+    export CARGO_TARGET_MIPS64_UNKNOWN_NONE_LINKER="{{MIPS64_LINKER}}"
     export RUSTFLAGS="-Clink-arg=-e_start -Cllvm-args=-mno-check-zero-division"
     export CARGO_BUILD_TARGET="{{MIPS64_TARGET_SPEC}}"
     export RUSTUP_TOOLCHAIN="{{NIGHTLY}}"
@@ -699,9 +724,9 @@ lint-kona-cannon:
 
     just install-nightly
 
-    export CC_mips64_unknown_none=mips64-linux-gnuabi64-gcc
-    export CXX_mips64_unknown_none=mips64-linux-gnuabi64-g++
-    export CARGO_TARGET_MIPS64_UNKNOWN_NONE_LINKER=mips64-linux-gnuabi64-gcc
+    export CC_mips64_unknown_none="{{MIPS64_CC}}"
+    export CXX_mips64_unknown_none="{{MIPS64_CXX}}"
+    export CARGO_TARGET_MIPS64_UNKNOWN_NONE_LINKER="{{MIPS64_LINKER}}"
     export RUSTFLAGS="-Clink-arg=-e_start -Cllvm-args=-mno-check-zero-division"
     export CARGO_BUILD_TARGET="{{MIPS64_TARGET_SPEC}}"
     export RUSTUP_TOOLCHAIN="{{NIGHTLY}}"
@@ -727,6 +752,67 @@ build-kona-prestates:
       "{{justfile_directory()}}/../cannon/bin/cannon" \
       "{{MIPS64_ELF_DIR}}" \
       "{{KONA_DIR}}"
+
+# Build the kona prestates with whichever of the two builds this host supports.
+# Both write the same per-variant artifacts dirs, so consumers don't care which
+# ran; only the hashes differ, and only the Docker build's match releases.
+#
+# The native build needs the MIPS64 cross toolchain, which is apt-only — hence
+# the fallback: on macOS Docker is the only option, and it is what CI uses. Set
+# KONA_PRESTATE_BUILD=native|docker to pin one and skip the detection.
+build-kona-prestates-auto:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    mode="${KONA_PRESTATE_BUILD:-auto}"
+    if [[ "$mode" == "auto" ]]; then
+      # Docker is probed for the CLI only. A stopped daemon already fails with
+      # its own actionable error, and picking a build should not cost a daemon
+      # round-trip on the machines that never needed Docker in the first place.
+      if command -v "{{MIPS64_LINKER}}" >/dev/null 2>&1; then
+        mode=native
+      elif command -v docker >/dev/null 2>&1; then
+        mode=docker
+      else
+        echo "error: cannot build the kona prestates: no MIPS64 cross toolchain, and no Docker." >&2
+        echo "" >&2
+        echo "Install either:" >&2
+        echo "  * the MIPS64 cross toolchain, for the native build (apt only, so not macOS;" >&2
+        echo "    provides '{{MIPS64_LINKER}}'):" >&2
+        echo "      sudo apt install g++-mips64-linux-gnuabi64 libc6-dev-mips64-cross binutils-mips64-linux-gnuabi64" >&2
+        echo "  * Docker, for the reproducible build (the supported path on macOS):" >&2
+        echo "      https://docs.docker.com/get-started/get-docker/" >&2
+        echo "" >&2
+        echo "Then re-run, or pin a build with KONA_PRESTATE_BUILD=native|docker." >&2
+        exit 1
+      fi
+    fi
+
+    case "$mode" in
+      native)
+        echo "=== Building kona prestates natively (cross-linker: {{MIPS64_LINKER}}) ==="
+        echo "    Hashes will not match release builds; use KONA_PRESTATE_BUILD=docker if they must."
+        just build-kona-prestates
+        ;;
+      docker)
+        # The Docker build builds cannon as a stage and exports only the prestate
+        # dirs, but consumers of this recipe also expect the host binary the
+        # native path leaves at cannon/bin/cannon — op-devstack points the
+        # challenger's VmBin there (shared/challenger/challenger.go). Built first
+        # so a broken Go toolchain fails before the long Docker build, and
+        # exactly as build-kona-prestates does it: cannon/justfile's relative
+        # imports resolve from cannon/, so cd there and call just directly.
+        echo "=== Building cannon ==="
+        (cd "{{justfile_directory()}}/../cannon" && just cannon)
+
+        echo "=== Building kona prestates via the reproducible Docker build ==="
+        just build-kona-reproducible-prestate
+        ;;
+      *)
+        echo "error: KONA_PRESTATE_BUILD must be 'native' or 'docker'; is '${mode}'" >&2
+        exit 1
+        ;;
+    esac
 
 # Generate the cannon prestate for every variant from already-built ELFs.
 # CANNON_BIN: the cannon executable. ELF_DIR: holds one ELF per variant, named
