@@ -3051,6 +3051,7 @@ workflows:
       - circleci-schedule-trigger-check:
           context:
             - circleci-api-token
+            - circleci-repo-readonly-authenticated-github-token
 
   close-issue-workflow:
     when: << pipeline.parameters.c-run_close_issue >>
