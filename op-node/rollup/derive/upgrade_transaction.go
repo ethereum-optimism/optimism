@@ -122,6 +122,7 @@ func UpgradeTransactions(fork forks.Name) ([]hexutil.Bytes, uint64, error) {
 	switch fork {
 	case forks.Karst:
 		bundleJSON = nuts.KarstNUTBundleJSON
+		bundleLabel = forks.Karst
 	default:
 		return nil, 0, fmt.Errorf("no NUT bundle for fork %s", fork)
 	}
