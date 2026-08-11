@@ -192,7 +192,10 @@ func TestExtractorZKLagAndCache(t *testing.T) {
 	games, _, failed, err = extractor.Extract(t.Context(), common.Hash{0xcc}, 0)
 	require.NoError(t, err)
 	require.Zero(t, failed)
-	require.Equal(t, []monTypes.EnrichedGame{snapshot}, games)
+	require.Len(t, games, 1)
+	lagSnapshot := games[0]
+	require.NotSame(t, snapshot, lagSnapshot)
+	require.Equal(t, snapshot, lagSnapshot)
 	require.Equal(t, []string{"metadata", "l1-head", "agreement"}, *trace)
 
 	*trace = nil
@@ -200,8 +203,80 @@ func TestExtractorZKLagAndCache(t *testing.T) {
 	games, _, failed, err = extractor.Extract(t.Context(), common.Hash{0xdd}, 0)
 	require.NoError(t, err)
 	require.Equal(t, 1, failed)
-	require.Equal(t, []monTypes.EnrichedGame{snapshot}, games)
-	require.Same(t, snapshot, games[0])
+	require.Equal(t, []monTypes.EnrichedGame{lagSnapshot}, games)
+	require.Same(t, lagSnapshot, games[0])
+}
+
+func TestExtractorZKLagPublishesCurrentEndpointHealthFromCachedSnapshot(t *testing.T) {
+	caller := validZKCaller()
+	root := caller.metadata.ProposedRoot
+	provider := &zkSuperRootProvider{response: zkResponse(101, &root)}
+	agreement := NewZKAgreementEnricher(
+		testlog.Logger(t, log.LvlDebug),
+		&stubOutputMetrics{},
+		[]SuperRootProvider{provider},
+		clock.NewDeterministicClock(time.Unix(1234, 0)),
+	)
+	extractor, _ := newZKExtractor(t, caller, parentStatus(gameTypes.GameStatusDefenderWon), agreement)
+
+	games, ignored, failed, err := extractor.Extract(t.Context(), common.Hash{0xaa}, 0)
+	require.NoError(t, err)
+	require.Zero(t, ignored)
+	require.Zero(t, failed)
+	require.Len(t, games, 1)
+	cached := games[0].(*monTypes.ZKGameData)
+	require.True(t, cached.AgreeWithClaim)
+	require.Equal(t, root, cached.ExpectedRootClaim)
+	require.Equal(t, 1, cached.NodeEndpointTotalCount)
+	require.Zero(t, cached.NodeEndpointOutOfSyncCount)
+	cached.NodeEndpointErrors = map[string]bool{"stale": true}
+	cached.NodeEndpointErrorCount = 2
+	cached.NodeEndpointNotFoundCount = 3
+	cached.NodeEndpointOutOfSyncCount = 4
+	cached.NodeEndpointTotalCount = 5
+	cached.NodeEndpointSafeCount = 6
+	cached.NodeEndpointUnsafeCount = 7
+	cached.NodeEndpointDifferentRoots = true
+	cachedUpdateTime := cached.LastUpdateTime
+	extractor.clock.(*clock.DeterministicClock).AdvanceTime(time.Minute)
+	require.NotEqual(t, cachedUpdateTime, extractor.clock.Now())
+
+	expected := *cached
+	expected.NodeEndpointErrors = make(map[string]bool)
+	expected.NodeEndpointErrorCount = 0
+	expected.NodeEndpointNotFoundCount = 0
+	expected.NodeEndpointOutOfSyncCount = 1
+	expected.NodeEndpointTotalCount = 1
+	expected.NodeEndpointSafeCount = 0
+	expected.NodeEndpointUnsafeCount = 0
+	expected.NodeEndpointDifferentRoots = false
+
+	provider.response = zkResponse(100, &root)
+	games, ignored, failed, err = extractor.Extract(t.Context(), common.Hash{0xbb}, 0)
+	require.NoError(t, err)
+	require.Zero(t, ignored)
+	require.Zero(t, failed)
+	require.Len(t, games, 1)
+	current := games[0].(*monTypes.ZKGameData)
+	require.NotSame(t, cached, current)
+	require.Equal(t, &expected, current)
+	require.Equal(t, cachedUpdateTime, current.LastUpdateTime)
+	require.Equal(t, 1, current.NodeEndpointTotalCount)
+	require.Zero(t, current.NodeEndpointErrorCount)
+	require.Empty(t, current.NodeEndpointErrors)
+	require.Zero(t, current.NodeEndpointNotFoundCount)
+	require.Equal(t, 1, current.NodeEndpointOutOfSyncCount)
+	require.Zero(t, current.NodeEndpointSafeCount)
+	require.Zero(t, current.NodeEndpointUnsafeCount)
+	require.False(t, current.NodeEndpointDifferentRoots)
+	require.Equal(t, map[string]bool{"stale": true}, cached.NodeEndpointErrors)
+	require.Equal(t, 2, cached.NodeEndpointErrorCount)
+	require.Equal(t, 3, cached.NodeEndpointNotFoundCount)
+	require.Equal(t, 4, cached.NodeEndpointOutOfSyncCount)
+	require.Equal(t, 5, cached.NodeEndpointTotalCount)
+	require.Equal(t, 6, cached.NodeEndpointSafeCount)
+	require.Equal(t, 7, cached.NodeEndpointUnsafeCount)
+	require.True(t, cached.NodeEndpointDifferentRoots)
 }
 
 func TestValidateZKStatus(t *testing.T) {
@@ -343,11 +418,13 @@ func (c *anchorOnlyCaller) GetAnchorStateRegistry(context.Context, rpcblock.Bloc
 	return common.Address{0xab}, nil
 }
 
-func newZKExtractor(t *testing.T, caller *testZKCaller, parent ParentGameStatusFetcher, agreement *testZKAgreement) (*Extractor, *[]string) {
+func newZKExtractor(t *testing.T, caller *testZKCaller, parent ParentGameStatusFetcher, agreement ZKEnricher) (*Extractor, *[]string) {
 	t.Helper()
 	trace := new([]string)
 	caller.trace = trace
-	agreement.trace = trace
+	if tracedAgreement, ok := agreement.(*testZKAgreement); ok {
+		tracedAgreement.trace = trace
+	}
 	tracedParent := func(ctx context.Context, index uint64, block rpcblock.Block) (gameTypes.GameStatus, error) {
 		*trace = append(*trace, "parent")
 		return parent(ctx, index, block)

@@ -124,6 +124,11 @@ func (e *Extractor) enrichGames(ctx context.Context, blockHash common.Hash, game
 					}
 					if errors.Is(err, gameTypes.ErrNotInSync) {
 						e.logger.Debug("Waiting for root source to process past the game L1 head", "game", game.Proxy)
+						current, currentIsZK := enrichedGame.(*monTypes.ZKGameData)
+						cached, cachedIsZK := e.latestGameData[game.Proxy].(*monTypes.ZKGameData)
+						if currentIsZK && cachedIsZK {
+							enrichedCh <- withEndpointHealth(cached, current)
+						}
 						continue
 					}
 					if err != nil {
@@ -198,6 +203,9 @@ func (e *Extractor) enrichZKGame(ctx context.Context, block rpcblock.Block, call
 		return nil, fmt.Errorf("failed to enrich game: %w", err)
 	}
 	if err := e.zkAgreement.Enrich(ctx, block, zkCaller, enrichedGame); err != nil {
+		if errors.Is(err, gameTypes.ErrNotInSync) {
+			return enrichedGame, fmt.Errorf("failed to enrich ZK agreement: %w", err)
+		}
 		return nil, fmt.Errorf("failed to enrich ZK agreement: %w", err)
 	}
 
@@ -247,6 +255,19 @@ func (e *Extractor) enrichZKGame(ctx context.Context, block rpcblock.Block, call
 	enrichedGame.ProposalStatus = proposalStatus
 	enrichedGame.Deadline = challengerMeta.Deadline
 	return enrichedGame, nil
+}
+
+func withEndpointHealth(cached, current *monTypes.ZKGameData) *monTypes.ZKGameData {
+	updated := *cached
+	updated.NodeEndpointErrors = maps.Clone(current.NodeEndpointErrors)
+	updated.NodeEndpointErrorCount = current.NodeEndpointErrorCount
+	updated.NodeEndpointNotFoundCount = current.NodeEndpointNotFoundCount
+	updated.NodeEndpointOutOfSyncCount = current.NodeEndpointOutOfSyncCount
+	updated.NodeEndpointTotalCount = current.NodeEndpointTotalCount
+	updated.NodeEndpointSafeCount = current.NodeEndpointSafeCount
+	updated.NodeEndpointUnsafeCount = current.NodeEndpointUnsafeCount
+	updated.NodeEndpointDifferentRoots = current.NodeEndpointDifferentRoots
+	return &updated
 }
 
 func validateZKStatus(global gameTypes.GameStatus, proposal contracts.ProposalStatus) error {
