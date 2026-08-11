@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/bootstrap"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
@@ -210,6 +211,71 @@ func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
 	}
 
 	runEndToEndBootstrapAndApplyUpgradeTest(t, afactsFS, cfg)
+}
+
+// TestApplyDefaultsSP1VerifierOnSepolia pins that a ZK-enabled live apply with no sp1Verifier
+// override deploys an SP1PlonkAdapter wrapping the release-approved raw verifier.
+func TestApplyDefaultsSP1VerifierOnSepolia(t *testing.T) {
+	op_e2e.InitParallel(t)
+
+	lgr := testlog.Logger(t, slog.LevelDebug)
+
+	forkedL1, stopL1, err := devnet.NewForkedSepolia(lgr)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, stopL1())
+	})
+	l1RPC := forkedL1.RPCUrl()
+
+	loc, _ := testutil.LocalArtifacts(t)
+	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	const sepoliaChainID = 11155111
+	_, pk, dk := shared.DefaultPrivkey(t)
+	intent, st := shared.NewIntent(t, big.NewInt(sepoliaChainID), dk, uint256.NewInt(12345), loc, loc, 30_000_000)
+	intent.GlobalDeployOverrides = map[string]any{
+		"devFeatureBitmap": devfeatures.EnableDevFeature(common.Hash{}, devfeatures.ZKDisputeGameFlag),
+	}
+
+	require.NoError(t, deployer.ApplyPipeline(ctx, deployer.ApplyPipelineOpts{
+		DeploymentTarget:   deployer.DeploymentTargetLive,
+		L1RPCUrl:           l1RPC,
+		DeployerPrivateKey: pk,
+		Intent:             intent,
+		State:              st,
+		Logger:             lgr,
+		StateWriter:        pipeline.NoopStateWriter(),
+		CacheDir:           testCacheDir,
+	}))
+
+	expected, err := standard.SP1VerifierFor(sepoliaChainID)
+	require.NoError(t, err)
+	require.NotNil(t, st.SP1Verifier)
+	require.Equal(t, expected, *st.SP1Verifier, "apply should persist the selected raw verifier")
+	require.NotContains(t, intent.GlobalDeployOverrides, "sp1Verifier", "apply must not rewrite the intent")
+
+	client, err := ethclient.Dial(l1RPC)
+	require.NoError(t, err)
+	defer client.Close()
+
+	verifierCode, err := client.CodeAt(ctx, expected, nil)
+	require.NoError(t, err)
+	require.NotEmpty(t, verifierCode, "release verifier must already be deployed on Sepolia")
+
+	adapter := st.ImplementationsDeployment.SP1PlonkAdapterImpl
+	require.NotEqual(t, common.Address{}, adapter, "ZK-enabled apply should deploy an SP1PlonkAdapter")
+
+	sp1VerifierFn := w3.MustNewFunc("sp1Verifier()", "address")
+	calldata, err := sp1VerifierFn.EncodeArgs()
+	require.NoError(t, err)
+	ret, err := client.CallContract(ctx, ethereum.CallMsg{To: &adapter, Data: calldata}, nil)
+	require.NoError(t, err)
+	var wrapped common.Address
+	require.NoError(t, sp1VerifierFn.DecodeReturns(ret, &wrapped))
+	require.Equal(t, expected, wrapped, "adapter should wrap the release verifier")
 }
 
 func TestEndToEndApply(t *testing.T) {

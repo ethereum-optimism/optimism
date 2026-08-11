@@ -95,6 +95,11 @@ func TestStandardAddresses(t *testing.T) {
 			common.HexToAddress("0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A"),
 			common.HexToAddress("0x1Eb2fFc903729a0F03966B917003800b145F56E2"),
 		},
+		{
+			SP1VerifierFor,
+			common.HexToAddress("0xc3c6dDDAc8829b233Dc6536Ec024775a57b0AF2A"),
+			common.HexToAddress("0xc3c6dDDAc8829b233Dc6536Ec024775a57b0AF2A"),
+		},
 	}
 	for _, test := range tests {
 		fname := runtime.FuncForPC(reflect.ValueOf(test.f).Pointer()).Name()
@@ -109,6 +114,13 @@ func TestStandardAddresses(t *testing.T) {
 			require.Equal(t, test.sepoliaAddr, sepoliaAddr)
 		})
 	}
+}
+
+// TestSP1VerifierForUnsupportedChain pins that networks outside the OPCM release require an
+// explicitly supplied verifier.
+func TestSP1VerifierForUnsupportedChain(t *testing.T) {
+	_, err := SP1VerifierFor(900)
+	require.ErrorContains(t, err, "unsupported chain ID: 900")
 }
 
 func TestL2ProxyAdminOwner(t *testing.T) {
