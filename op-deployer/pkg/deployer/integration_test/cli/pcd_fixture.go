@@ -91,6 +91,9 @@ func (f *pcdJourneyFixture) cloneCommittedWorkdir() string {
 func (f *pcdJourneyFixture) restartCold(workdir string) {
 	f.t.Helper()
 	runner := NewCLITestRunner(f.t, WithL1RPC(f.l1RPC), WithPrivateKey(f.privateKey))
+	// NewCLITestRunner reuses TEST_ARTIFACTS_DIR for calls from the same test.
+	// Give the restarted runner a new directory so it cannot reuse the old CLI cache.
+	runner.workDir = f.t.TempDir()
 	restartedClient, err := ethclient.Dial(f.l1RPC)
 	require.NoError(f.t, err)
 	f.t.Cleanup(restartedClient.Close)
