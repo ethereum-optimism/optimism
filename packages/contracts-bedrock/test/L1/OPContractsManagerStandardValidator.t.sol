@@ -1780,11 +1780,12 @@ abstract contract OPContractsManagerStandardValidator_SuperMode_TestInit is Supe
         });
 
         IOPContractsManagerUtils.ExtraInstruction[] memory extraInstructions =
-            new IOPContractsManagerUtils.ExtraInstruction[](1);
+            new IOPContractsManagerUtils.ExtraInstruction[](2);
         extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
             key: "overrides.cfg.startingRespectedGameType",
             data: abi.encode(GameTypes.SUPER_PERMISSIONED)
         });
+        extraInstructions[1] = _superRootAnchorInstruction();
 
         prankDelegateCall(owner);
         (bool success,) = address(opcmV2).delegatecall(

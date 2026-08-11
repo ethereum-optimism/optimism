@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 // Libraries
-import { GameType } from "src/dispute/lib/Types.sol";
+import { GameType, Proposal } from "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
@@ -84,6 +84,29 @@ abstract contract OPContractsManagerUtilsCaller {
         return abi.decode(
             _staticcall(abi.encodeCall(IOPContractsManagerUtils.isMatchingInstruction, (_instruction, _key, _data))),
             (bool)
+        );
+    }
+
+    /// @notice Asserts that an upgrade onto super root games supplies a new starting anchor root.
+    ///         See OPContractsManagerUtils.assertValidSuperRootMigration.
+    /// @param _anchorStateRegistry The AnchorStateRegistry of the chain being upgraded.
+    /// @param _startingRespectedGameType The respected game type the upgrade will install.
+    /// @param _startingAnchorRoot The starting anchor root the upgrade will install.
+    /// @param _instructions The extra upgrade instructions for the upgrade.
+    function _assertValidSuperRootMigration(
+        IAnchorStateRegistry _anchorStateRegistry,
+        GameType _startingRespectedGameType,
+        Proposal memory _startingAnchorRoot,
+        IOPContractsManagerUtils.ExtraInstruction[] memory _instructions
+    )
+        internal
+        view
+    {
+        _staticcall(
+            abi.encodeCall(
+                IOPContractsManagerUtils.assertValidSuperRootMigration,
+                (_anchorStateRegistry, _startingRespectedGameType, _startingAnchorRoot, _instructions)
+            )
         );
     }
 

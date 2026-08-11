@@ -8,7 +8,7 @@ import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
-import { Claim, Duration, GameType } from "src/dispute/lib/Types.sol";
+import { Claim, Duration, GameType, Proposal } from "src/dispute/lib/Types.sol";
 
 interface IOPContractsManagerUtils {
     struct ProxyDeployArgs {
@@ -63,6 +63,8 @@ interface IOPContractsManagerUtils {
     error OPContractsManagerUtils_OZv5InitializableUnsupported();
     error OPContractsManagerUtils_ConfigLoadFailed(string _name);
     error OPContractsManagerUtils_ProxyMustLoad(string _name);
+    error OPContractsManagerUtils_MissingStartingAnchorRoot();
+    error OPContractsManagerUtils_InvalidStartingAnchorRoot();
     error OPContractsManagerUtils_UnsupportedGameType();
     error OPContractsManagerUtils_InvalidZKGameArgsLength(uint256 length);
     error ReservedBitsSet();
@@ -121,6 +123,17 @@ interface IOPContractsManagerUtils {
         external
         pure
         returns (ExtraInstruction memory);
+
+    function assertValidSuperRootMigration(
+        IAnchorStateRegistry _anchorStateRegistry,
+        GameType _startingRespectedGameType,
+        Proposal memory _startingAnchorRoot,
+        ExtraInstruction[] memory _instructions
+    )
+        external
+        view;
+
+    function hasOutputRootAnchor(IAnchorStateRegistry _anchorStateRegistry) external view returns (bool);
 
     function loadBytes(
         address _source,

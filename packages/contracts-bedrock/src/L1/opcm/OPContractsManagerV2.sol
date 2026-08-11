@@ -158,9 +158,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 8.0.1
+    /// @custom:semver 8.0.2
     function version() public pure returns (string memory) {
-        return "8.0.1";
+        return "8.0.2";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -263,6 +263,11 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
 
         // Load the full config.
         FullConfig memory cfg = _loadFullConfig(_inp, cts);
+
+        // Assert that a migration onto super root games carries a usable anchor root.
+        _assertValidSuperRootMigration(
+            cts.anchorStateRegistry, cfg.startingRespectedGameType, cfg.startingAnchorRoot, _inp.extraInstructions
+        );
 
         // Execute the upgrade.
         return _apply(cfg, cts, false);

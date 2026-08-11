@@ -5,7 +5,7 @@ pragma solidity 0.8.15;
 import { CommonTest } from "test/setup/CommonTest.sol";
 
 // Libraries
-import { GameTypes, Claim } from "src/dispute/lib/Types.sol";
+import { GameTypes, Claim, Hash, Proposal } from "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
@@ -24,6 +24,20 @@ abstract contract SuperGameTestInit is CommonTest {
 
     /// @notice The challenger role.
     address challenger;
+
+    /// @notice Builds the starting anchor root override that a migration onto super root games
+    ///         must supply. The sequence number must be ahead of the current anchor so the
+    ///         AnchorStateRegistry clears the output root anchor game.
+    /// @return The starting anchor root instruction.
+    function _superRootAnchorInstruction() internal view returns (IOPContractsManagerUtils.ExtraInstruction memory) {
+        (, uint256 currentSeqNum) = anchorStateRegistry.getAnchorRoot();
+        return IOPContractsManagerUtils.ExtraInstruction({
+            key: "overrides.cfg.startingAnchorRoot",
+            data: abi.encode(
+                Proposal({ root: Hash.wrap(keccak256("superRootAnchorRoot")), l2SequenceNumber: currentSeqNum + 1 })
+            )
+        });
+    }
 
     /// @notice Runs an upgrade that enables SUPER_CANNON_KONA alongside SUPER_PERMISSIONED.
     function _enableSuperCannonKona() internal virtual {
@@ -73,11 +87,12 @@ abstract contract SuperGameTestInit is CommonTest {
         });
 
         IOPContractsManagerUtils.ExtraInstruction[] memory extraInstructions =
-            new IOPContractsManagerUtils.ExtraInstruction[](1);
+            new IOPContractsManagerUtils.ExtraInstruction[](2);
         extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
             key: "overrides.cfg.startingRespectedGameType",
             data: abi.encode(GameTypes.SUPER_PERMISSIONED)
         });
+        extraInstructions[1] = _superRootAnchorInstruction();
 
         prankDelegateCall(owner);
         (bool success,) = address(opcmV2).delegatecall(

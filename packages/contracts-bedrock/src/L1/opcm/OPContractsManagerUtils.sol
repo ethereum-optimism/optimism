@@ -6,7 +6,7 @@ import { LibString } from "@solady/utils/LibString.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
 import { Blueprint } from "src/libraries/Blueprint.sol";
 import { Constants } from "src/libraries/Constants.sol";
-import { GameType, GameTypes } from "src/dispute/lib/Types.sol";
+import { GameType, GameTypes, Proposal } from "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
@@ -71,6 +71,13 @@ contract OPContractsManagerUtils {
     /// @notice Thrown when a proxy must be loaded but couldn't be.
     /// @param _name The name of the proxy that couldn't be loaded.
     error OPContractsManagerUtils_ProxyMustLoad(string _name);
+
+    /// @notice Thrown when an upgrade moves a chain from output root games to super root games
+    ///         without supplying a new starting anchor root.
+    error OPContractsManagerUtils_MissingStartingAnchorRoot();
+
+    /// @notice Thrown when the starting anchor root supplied for a super root migration is invalid.
+    error OPContractsManagerUtils_InvalidStartingAnchorRoot();
 
     /// @notice Container of blueprint and implementation contract addresses.
     IOPContractsManagerContainer public immutable contractsContainer;
@@ -184,6 +191,65 @@ contract OPContractsManagerUtils {
             }
         }
         return ExtraInstruction({ key: "", data: bytes("") });
+    }
+
+    /// @notice Asserts that an upgrade that moves a chain from output root games to super root
+    ///         games supplies a new starting anchor root.
+    /// @dev Without the override, the AnchorStateRegistry is re-initialized with its existing
+    ///      starting anchor root. The root then counts as unchanged, so the registry keeps the
+    ///      legacy anchor game and new super root games start from an output root and an L2 block
+    ///      number that the super trace reads as a super root and a timestamp. Honest challengers
+    ///      cannot build a trace for that prestate, so invalid claims would go uncontested.
+    ///
+    /// @param _anchorStateRegistry The AnchorStateRegistry of the chain being upgraded.
+    /// @param _startingRespectedGameType The respected game type the upgrade will install.
+    /// @param _startingAnchorRoot The starting anchor root the upgrade will install.
+    /// @param _instructions The extra upgrade instructions for the upgrade.
+    function assertValidSuperRootMigration(
+        IAnchorStateRegistry _anchorStateRegistry,
+        GameType _startingRespectedGameType,
+        Proposal memory _startingAnchorRoot,
+        ExtraInstruction[] memory _instructions
+    )
+        external
+        view
+    {
+        // Only the move onto super root games needs a new anchor root. A chain that already runs
+        // super root games holds an anchor that super root games can interpret.
+        if (!GameTypes.isSuperGame(_startingRespectedGameType)) return;
+        if (!hasOutputRootAnchor(_anchorStateRegistry)) return;
+
+        // The anchor root must be supplied explicitly. Falling back to the value already stored in
+        // the registry would retain the legacy anchor game.
+        if (bytes(getInstructionByKey(_instructions, "overrides.cfg.startingAnchorRoot").key).length == 0) {
+            revert OPContractsManagerUtils_MissingStartingAnchorRoot();
+        }
+
+        // The anchor must be a real commitment at a sequence number that leaves room for a uint64
+        // successor. AnchorStateRegistry.initialize separately requires that the sequence number is
+        // ahead of the current anchor, which is what clears the legacy anchor game.
+        if (
+            _startingAnchorRoot.root.raw() == bytes32(0)
+                || _startingAnchorRoot.root.raw() == Constants.PLACEHOLDER_STARTING_ANCHOR_ROOT
+                || _startingAnchorRoot.l2SequenceNumber >= type(uint64).max
+        ) {
+            revert OPContractsManagerUtils_InvalidStartingAnchorRoot();
+        }
+    }
+
+    /// @notice Checks whether an AnchorStateRegistry currently respects an output root game type.
+    /// @dev A registry that cannot report a respected game type was deployed by this upgrade and
+    ///      therefore holds no anchor state to carry over.
+    /// @param _anchorStateRegistry The AnchorStateRegistry to check.
+    /// @return True if the registry reports an output root game type, false otherwise.
+    function hasOutputRootAnchor(IAnchorStateRegistry _anchorStateRegistry) public view returns (bool) {
+        if (address(_anchorStateRegistry).code.length == 0) return false;
+
+        (bool success, bytes memory result) =
+            address(_anchorStateRegistry).staticcall(abi.encodeCall(IAnchorStateRegistry.respectedGameType, ()));
+        if (!success || result.length != 32) return false;
+
+        return !GameTypes.isSuperGame(abi.decode(result, (GameType)));
     }
 
     /// @notice Helper function to load data from a source contract as bytes.

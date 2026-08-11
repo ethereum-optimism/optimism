@@ -1335,6 +1335,31 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         );
     }
 
+    /// @notice Removes the extra instruction with the given key from v2UpgradeInput.
+    /// @param _key The key of the instruction to remove.
+    function _removeExtraInstruction(string memory _key) internal {
+        uint256 length = v2UpgradeInput.extraInstructions.length;
+        for (uint256 i = 0; i < length; i++) {
+            if (keccak256(bytes(v2UpgradeInput.extraInstructions[i].key)) == keccak256(bytes(_key))) {
+                v2UpgradeInput.extraInstructions[i] = v2UpgradeInput.extraInstructions[length - 1];
+                v2UpgradeInput.extraInstructions.pop();
+                return;
+            }
+        }
+    }
+
+    /// @notice Replaces the data of the extra instruction with the given key in v2UpgradeInput.
+    /// @param _key The key of the instruction to replace.
+    /// @param _data The new instruction data.
+    function _setExtraInstructionData(string memory _key, bytes memory _data) internal {
+        for (uint256 i = 0; i < v2UpgradeInput.extraInstructions.length; i++) {
+            if (keccak256(bytes(v2UpgradeInput.extraInstructions[i].key)) == keccak256(bytes(_key))) {
+                v2UpgradeInput.extraInstructions[i].data = _data;
+                return;
+            }
+        }
+    }
+
     /// @notice Tests that the full super root migration upgrade succeeds end-to-end with overrides.
     function test_upgrade_superRootMigration_succeeds() public {
         skipIfNotForkTest("FeatSuperRootMigration: only runs in forked tests");
@@ -1404,6 +1429,83 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         // Verify ASR state: anchor game cleared, new anchor root and game type set.
         assertEq(address(anchorStateRegistry.anchorGame()), address(0), "anchor game not cleared");
         assertEq(anchorStateRegistry.respectedGameType().raw(), targetGameType.raw(), "respected game type not updated");
+    }
+
+    /// @notice Tests that migrating onto super root games without a new starting anchor root
+    ///         reverts. Falling back to the stored root would retain the legacy anchor game.
+    function test_upgrade_superRootMigrationWithoutAnchorRoot_reverts() public {
+        skipIfNotForkTest("FeatSuperRootMigration: only runs in forked tests");
+        skipIfDevFeatureDisabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+
+        GameType originalGameType = optimismPortal2.respectedGameType();
+        if (GameTypes.isSuperGame(originalGameType)) {
+            vm.skip(true, "Skipping: fork chain already migrated to SUPER_ game type");
+        }
+
+        uint32 originalRaw = originalGameType.raw();
+        bool isPermissionless = originalRaw == GameTypes.CANNON.raw() || originalRaw == GameTypes.CANNON_KONA.raw();
+        _setupSuperRootConfigs(isPermissionless, DisputeGames.permissionedGameProposer(disputeGameFactory));
+        _removeExtraInstruction("overrides.cfg.startingAnchorRoot");
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runCurrentUpgradeV2(
+            chainPAO,
+            abi.encodeWithSelector(IOPContractsManagerUtils.OPContractsManagerUtils_MissingStartingAnchorRoot.selector)
+        );
+    }
+
+    /// @notice Tests that migrating onto super root games with an empty starting anchor root reverts.
+    function test_upgrade_superRootMigrationWithEmptyAnchorRoot_reverts() public {
+        skipIfNotForkTest("FeatSuperRootMigration: only runs in forked tests");
+        skipIfDevFeatureDisabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+
+        GameType originalGameType = optimismPortal2.respectedGameType();
+        if (GameTypes.isSuperGame(originalGameType)) {
+            vm.skip(true, "Skipping: fork chain already migrated to SUPER_ game type");
+        }
+
+        uint32 originalRaw = originalGameType.raw();
+        bool isPermissionless = originalRaw == GameTypes.CANNON.raw() || originalRaw == GameTypes.CANNON_KONA.raw();
+        _setupSuperRootConfigs(isPermissionless, DisputeGames.permissionedGameProposer(disputeGameFactory));
+
+        (, uint256 currentSeqNum) = anchorStateRegistry.getAnchorRoot();
+        _setExtraInstructionData(
+            "overrides.cfg.startingAnchorRoot",
+            abi.encode(Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: currentSeqNum + 1 }))
+        );
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runCurrentUpgradeV2(
+            chainPAO,
+            abi.encodeWithSelector(IOPContractsManagerUtils.OPContractsManagerUtils_InvalidStartingAnchorRoot.selector)
+        );
+    }
+
+    /// @notice Tests that a chain already running super root games can upgrade without supplying a
+    ///         new starting anchor root. The requirement covers the migration only.
+    function test_upgrade_superRootUpgradeWithoutAnchorRoot_succeeds() public {
+        skipIfNotForkTest("FeatSuperRootMigration: only runs in forked tests");
+        skipIfDevFeatureDisabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+
+        GameType originalGameType = optimismPortal2.respectedGameType();
+        if (GameTypes.isSuperGame(originalGameType)) {
+            vm.skip(true, "Skipping: fork chain already migrated to SUPER_ game type");
+        }
+
+        uint32 originalRaw = originalGameType.raw();
+        bool isPermissionless = originalRaw == GameTypes.CANNON.raw() || originalRaw == GameTypes.CANNON_KONA.raw();
+        GameType targetGameType =
+            _setupSuperRootConfigs(isPermissionless, DisputeGames.permissionedGameProposer(disputeGameFactory));
+
+        // Migrate onto super root games with the anchor root override.
+        runCurrentUpgradeV2(chainPAO);
+
+        // Upgrade again without the override. The chain is already on super root games, so the
+        // stored anchor root is a valid super root anchor.
+        _removeExtraInstruction("overrides.cfg.startingAnchorRoot");
+        runCurrentUpgradeV2(chainPAO);
+
+        assertEq(anchorStateRegistry.respectedGameType().raw(), targetGameType.raw(), "respected game type changed");
     }
 
     /// @notice Tests that upgrade() can be called twice with the super root flag without reverting.

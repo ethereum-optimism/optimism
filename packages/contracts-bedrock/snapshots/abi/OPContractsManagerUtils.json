@@ -11,6 +11,58 @@
     "type": "constructor"
   },
   {
+    "inputs": [
+      {
+        "internalType": "contract IAnchorStateRegistry",
+        "name": "_anchorStateRegistry",
+        "type": "address"
+      },
+      {
+        "internalType": "GameType",
+        "name": "_startingRespectedGameType",
+        "type": "uint32"
+      },
+      {
+        "components": [
+          {
+            "internalType": "Hash",
+            "name": "root",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "l2SequenceNumber",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct Proposal",
+        "name": "_startingAnchorRoot",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "string",
+            "name": "key",
+            "type": "string"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct OPContractsManagerUtils.ExtraInstruction[]",
+        "name": "_instructions",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "assertValidSuperRootMigration",
+    "outputs": [],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "blueprints",
     "outputs": [
@@ -217,6 +269,25 @@
       }
     ],
     "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IAnchorStateRegistry",
+        "name": "_anchorStateRegistry",
+        "type": "address"
+      }
+    ],
+    "name": "hasOutputRootAnchor",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -721,6 +792,11 @@
     "type": "error"
   },
   {
+    "inputs": [],
+    "name": "OPContractsManagerUtils_InvalidStartingAnchorRoot",
+    "type": "error"
+  },
+  {
     "inputs": [
       {
         "internalType": "uint256",
@@ -729,6 +805,11 @@
       }
     ],
     "name": "OPContractsManagerUtils_InvalidZKGameArgsLength",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerUtils_MissingStartingAnchorRoot",
     "type": "error"
   },
   {
