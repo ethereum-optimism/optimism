@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// The code under test calculated these values from testdata/oracle.
+// They detect changed results but do not prove correctness.
 const (
 	pcdOracleOneMemberOutputRoot = "0x9a796318a96bc4298e35dda0e08fee1a3e4a75d72e8db3f7b17280a84d34d8bb"
 	pcdOracleOneMemberSuperRoot  = "0x0121849e39dd263255e80f3457bded5be97fb3294c87051b5921e5293cf0c24c"
