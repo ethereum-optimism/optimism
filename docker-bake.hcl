@@ -232,17 +232,6 @@ target "cannon" {
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/cannon:${tag}"]
 }
 
-target "holocene-deployer" {
-  dockerfile = "./packages/contracts-bedrock/scripts/upgrades/holocene/upgrade.dockerfile"
-  context = "./packages/contracts-bedrock/scripts/upgrades/holocene"
-  args = {
-    REV = "op-contracts/v1.8.0-rc.1"
-  }
-  target="holocene-deployer"
-  platforms = split(",", PLATFORMS)
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/holocene-deployer:${tag}"]
-}
-
 target "op-deployer" {
   dockerfile = "ops/docker/op-stack-go/Dockerfile"
   context = "."
