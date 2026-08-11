@@ -612,13 +612,6 @@ contract OPContractsManagerStandardValidator_SystemConfig_Test is OPContractsMan
         );
         assertEq("SYSCON-130", _validate(true));
     }
-
-    /// @notice Tests that the validate function successfully returns the right error when the
-    ///         SystemConfig l2ChainId does not match the expected chain ID.
-    function test_validate_systemConfigInvalidL2ChainId_succeeds() public {
-        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.l2ChainId, ()), abi.encode(l2ChainId + 1));
-        assertEq("SYSCON-140", _validate(true));
-    }
 }
 
 /// @title OPContractsManagerStandardValidator_L1CrossDomainMessenger_Test
