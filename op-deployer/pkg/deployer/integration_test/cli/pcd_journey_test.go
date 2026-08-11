@@ -16,6 +16,8 @@ import (
 
 // TestCLIPCDJourney verifies that distinct dependency-set outputs use one genesis time and produce the same anchor for each chain.
 func TestCLIPCDJourney(t *testing.T) {
+	prestate := requirePCDPrestate(t, pcdPrestateArtifactPath(t))
+
 	rows := []struct {
 		name                       string
 		chainIDs                   []common.Hash
@@ -94,8 +96,6 @@ func TestCLIPCDJourney(t *testing.T) {
 				)
 			}
 
-			prestatePath := pcdPrestateArtifactPath(t)
-			prestate := requirePCDPrestate(t, prestatePath)
 			journey.runPrestate(prestate)
 			journey.runContinue()
 
