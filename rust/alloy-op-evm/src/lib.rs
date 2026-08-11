@@ -26,6 +26,7 @@ use core::{
     marker::PhantomData,
     ops::{Deref, DerefMut},
 };
+use op_alloy::consensus::POST_EXEC_TX_TYPE_ID;
 use op_revm::{
     L1BlockInfo, OpBuilder, OpHaltReason, OpSpecId, OpTransaction,
     constants::{BASE_FEE_RECIPIENT, L1_FEE_RECIPIENT, OPERATOR_FEE_RECIPIENT},
@@ -331,11 +332,20 @@ where
     ) -> Result<ResultAndState<Self::HaltReason>, Self::Error> {
         self.last_tx_post_exec_result = post_exec::PostExecExecutedTx::default();
 
+        let tx = OpTx(tx.into());
+
+        // Post-exec transactions never execute: the block executor short-circuits them, and revm
+        // would reject their tx env outright. Replay paths (e.g. RPC tracing) transact each
+        // transaction directly, so synthesize the consensus-defined result here.
+        if tx.tx_type() == POST_EXEC_TX_TYPE_ID {
+            return Ok(post_exec::noop_post_exec_result());
+        }
+
         let track_post_exec = self.post_exec_tracking_active;
         let result = if self.inspect || track_post_exec {
-            self.inner.inspect_tx(OpTx(tx.into()))
+            self.inner.inspect_tx(tx)
         } else {
-            self.inner.transact(OpTx(tx.into()))
+            self.inner.transact(tx)
         };
 
         if track_post_exec {
@@ -558,6 +568,51 @@ mod tests {
                 ));
 
         OpTx::from_recovered_tx(&tx, caller)
+    }
+
+    fn post_exec_op_tx() -> OpTx {
+        let tx = op_alloy::consensus::post_exec::build_post_exec_tx(1, vec![]);
+        OpTx::from_recovered_tx(&tx, Address::ZERO)
+    }
+
+    fn evm_on_chain_901<DB: Database>(db: DB) -> OpEvm<DB, NoOpInspector, PrecompilesMap> {
+        OpEvmFactory::<OpTx>::default().create_evm(
+            db,
+            EvmEnv::new(
+                CfgEnv::new_with_spec(OpSpecId::JOVIAN).with_chain_id(901),
+                BlockEnv::default(),
+            ),
+        )
+    }
+
+    #[test_case::test_case(false; "without inspector")]
+    #[test_case::test_case(true; "with inspector")]
+    fn transact_raw_short_circuits_post_exec_tx(inspect: bool) {
+        let mut evm = evm_on_chain_901(EmptyDB::default());
+        evm.set_inspector_enabled(inspect);
+
+        let result = evm.transact_raw(post_exec_op_tx()).expect("post-exec tx short-circuits");
+
+        assert!(matches!(result.result, revm::context::result::ExecutionResult::Success { .. }));
+        assert_eq!(result.result.tx_gas_used(), 0);
+        assert!(result.state.is_empty());
+    }
+
+    /// Documents the failure the post-exec short-circuit avoids: `TxEnv::default()` carries
+    /// `chain_id: Some(1)`, which revm rejects on any non-mainnet chain.
+    #[test]
+    fn transact_raw_rejects_mainnet_chain_id_on_other_chain() {
+        let mut evm = evm_on_chain_901(EmptyDB::default());
+
+        let stale_chain_id_tx = OpTx(OpTransaction {
+            base: TxEnv { gas_limit: 100_000, ..Default::default() },
+            enveloped_tx: Some(Bytes::new()),
+            deposit: Default::default(),
+        });
+        assert_eq!(stale_chain_id_tx.chain_id(), Some(1));
+
+        let err = evm.transact_raw(stale_chain_id_tx).expect_err("chain id mismatch");
+        assert!(format!("{err:?}").contains("InvalidChainId"));
     }
 
     #[test]

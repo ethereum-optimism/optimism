@@ -1,7 +1,7 @@
 //! Block executor for Optimism.
 
 use crate::{OpEvmFactory, spec_by_timestamp_after_bedrock};
-use alloc::{boxed::Box, collections::BTreeMap, format, string::String, vec, vec::Vec};
+use alloc::{boxed::Box, collections::BTreeMap, format, string::String, vec::Vec};
 use alloy_consensus::{Eip658Value, Header, Transaction, TransactionEnvelope, TxReceipt};
 use alloy_eips::{Encodable2718, Typed2718, eip7685::Requests};
 use alloy_evm::{
@@ -32,7 +32,7 @@ use revm::{
     Database as _, DatabaseCommit, Inspector,
     context::{
         Block, TxEnv,
-        result::{ExecutionResult, Output, ResultAndState, SuccessReason},
+        result::{ExecutionResult, ResultAndState},
     },
     database::DatabaseCommitExt,
     state::{Account, AccountStatus, EvmState},
@@ -41,6 +41,7 @@ use revm::{
 use crate::post_exec::{
     PostExecEvm, PostExecEvmFactoryAdapter, PostExecEvmFactoryHooks, PostExecExecutedTx,
     PostExecRefundEvent, PostExecRefundInspector, PostExecTxContext, PostExecTxKind,
+    noop_post_exec_result,
 };
 
 mod canyon;
@@ -898,15 +899,7 @@ where
             self.verifier_post_exec_refund_for_tx(tx_index, false, true, 0)?;
             return Ok(OpTxResult {
                 inner: EthTxResult {
-                    result: ResultAndState::new(
-                        ExecutionResult::Success {
-                            reason: SuccessReason::Stop,
-                            gas: revm::context::result::ResultGas::default(),
-                            logs: vec![],
-                            output: Output::Call(Bytes::default()),
-                        },
-                        EvmState::default(),
-                    ),
+                    result: noop_post_exec_result(),
                     blob_gas_used: 0,
                     tx_type: tx.tx().tx_type(),
                 },
