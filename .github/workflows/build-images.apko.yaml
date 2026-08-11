@@ -5,8 +5,6 @@ name: build-images.apko
 
 on:
   push:
-    branches:
-      - develop
     tags:
       - "*/v*"
       - "op-reth/bench*"
@@ -27,12 +25,15 @@ on:
       - ".github/images.apko.json"
       - "apko/**"
       - "melange/**"
+  # Publish the full development image catalog once per night instead of after
+  # every merge to develop. A unique concurrency key below ensures that a
+  # scheduled build cannot be superseded while it is waiting to run.
   schedule:
     - cron: "0 2 * * *"
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'schedule' && github.run_id || github.ref }}
   cancel-in-progress: false
 
 env:
