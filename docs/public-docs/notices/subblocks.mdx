@@ -1,0 +1,77 @@
+---
+title: Flashblocks evolve into subblocks
+description: Subblocks bring a 200 ms interval to OP Sepolia and OP Mainnet, and zero two fields in the stream payload.
+date: 2026-08-14
+diataxis: reference
+lang: en-US
+content_type: notice
+topic: subblocks
+personas:
+  - app-developer
+  - node-operator
+categories:
+  - protocol
+  - infrastructure
+is_imported_content: 'false'
+audit-source:
+  - rust/rollup-boost/crates/rollup-boost/src/flashblocks/primitives.rs
+---
+
+Flashblocks are evolving into *subblocks*, a more native in-house implementation of pre-confirmation streaming.
+The change brings a shorter subblock interval and four zeroed fields in the stream payload.
+Both apply to OP Sepolia and OP Mainnet.
+
+<Warning>
+  The subblock stream sets `state_root`, `block_hash`, `withdrawals_root`, and `withdrawals` to their zero value.
+  The stream remains wire compatible, so reads return a zero value rather than raising an error.
+  Audit stream integrations before **August 14, 2026**.
+</Warning>
+
+## What this means
+
+*   **The interval drops from 250 ms to 200 ms.** This brings OP Sepolia and OP Mainnet to `FLASHBLOCKS_TIME = 200ms`, the default in the [Flashblocks specification](https://specs.optimism.io/protocol/flashblocks.html).
+*   **Four payload fields are set to their zero value.** All four remain present in `ExecutionPayloadFlashblockDeltaV1`. Nothing is removed from the wire format.
+*   **Every other field, including `receipts_root` and `logs_bloom`, continues to carry a real value.**
+
+| Field | Zero value on the stream |
+| --- | --- |
+| `state_root` | `0x0000...0000` |
+| `block_hash` | `0x0000...0000` |
+| `withdrawals_root` | `0x0000...0000` |
+| `withdrawals` | `[]` |
+
+The failure mode is silent.
+An integration that reads any of these fields receives a zero value and continues, rather than failing loudly at the parse boundary.
+Audit for these reads directly instead of waiting for an error to surface.
+
+## The rollout is gradual
+
+This is not a hardfork, and there is no single activation point.
+The change rolls out incrementally across the sequencer fleet, converging on all subblock sequencers.
+During a rollout window, the stream may reflect either the previous or the new behavior, depending on which sequencer produced a given subblock.
+Handle both until the rollout completes.
+
+## Action required
+
+For teams consuming the subblock stream directly:
+
+*   Audit integrations for reads of `state_root`, `block_hash`, `withdrawals_root`, and `withdrawals`.
+*   Confirm that a zero value in any of them cannot propagate into downstream state, balances, or proofs.
+*   RPC providers that forward stream payloads to their own consumers should pass this notice on to those consumers.
+
+## Timeline
+
+| Network | Target rollout |
+| --- | --- |
+| OP Sepolia | August 14, 2026 |
+| OP Mainnet | August 19, 2026 |
+
+Both dates are targets and may move.
+
+## Key links
+
+| Resource | Link |
+| --- | --- |
+| Flashblocks specification | [specs.optimism.io](https://specs.optimism.io/protocol/flashblocks.html) |
+| Flashblocks explainer | [How Flashblocks work](/op-stack/features/flashblocks) |
+| App integration guide | [Integrate Flashblocks in your app](/app-developers/guides/transactions/integrating-flashblocks) |

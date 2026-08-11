@@ -3611,7 +3611,8 @@
               {
                 "group": "Operations",
                 "pages": [
-                  "notices/specialized-node-topology"
+                  "notices/specialized-node-topology",
+                  "notices/subblocks"
                 ]
               },
               "notices/archive/index"
