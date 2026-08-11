@@ -123,12 +123,15 @@ func testContinuePermissionless(t *testing.T) {
 	require.Equal(t, nonceBefore, pendingNonce(t, env))
 	setAnvilCode(t, env.l1Client, env.standardValidator, validatorCode)
 
+	// The game mode read is the first call made against the pinned OPCM, so an unusable
+	// OPCM stops the run before the fork simulation.
 	opcmCode, err := env.l1Client.CodeAt(env.ctx, env.opcm, nil)
 	require.NoError(t, err)
 	setAnvilCode(t, env.l1Client, env.opcm, []byte{byte(vm.PUSH0), byte(vm.PUSH0), byte(vm.REVERT)})
 	require.NoError(t, pipeline.WriteState(env.workdir, env.prepared))
 	err = deployer.Continue(env.ctx, env.config())
-	require.ErrorContains(t, err, "continuation preflight failed")
+	require.ErrorContains(t, err, "failed to read the OPCM game mode")
+	require.ErrorContains(t, err, env.opcm.Hex())
 	require.Equal(t, nonceBefore, pendingNonce(t, env))
 	setAnvilCode(t, env.l1Client, env.opcm, opcmCode)
 
