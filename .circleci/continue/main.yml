@@ -2498,7 +2498,7 @@ jobs:
 
   stale-check:
     machine:
-      image: ubuntu-2204:2024.08.1
+      image: ubuntu-2404:2026.05.1
     steps:
       - utils/github-stale:
           stale-issue-message: "This issue has been automatically marked as stale and will
@@ -2514,7 +2514,7 @@ jobs:
 
   close-issue:
     machine:
-      image: ubuntu-2204:2024.08.1
+      image: ubuntu-2404:2026.05.1
     parameters:
       label_name:
         type: string

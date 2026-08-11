@@ -5,7 +5,7 @@ ARG BUILDER_VARIANT=default
 #   Dependency Installation    #
 #            Stage             #
 ################################
-FROM ubuntu:22.04 AS dep-setup-stage
+FROM ubuntu:24.04 AS dep-setup-stage
 SHELL ["/bin/bash", "-c"]
 
 # Install deps
