@@ -48,9 +48,10 @@ environment:
 subpackages:
   # The first subpackage builds ALL five packages in one cargo invocation:
   # one scheduler pass over the whole workspace graph keeps every core busy
-  # instead of serializing five builds. The shared target dir persists across
-  # subpackages, so the later four cargo runs are no-op fingerprint checks
-  # followed by an install.
+  # instead of serializing five builds. The later subpackages install those
+  # outputs directly from the shared target dir. Do not invoke Cargo again:
+  # selecting one package at a time changes feature unification and can make
+  # Cargo recompile and relink workspace crates built by the combined command.
   - name: op-reth
     description: op-reth — OP Stack Reth execution client
     pipeline:
@@ -67,53 +68,41 @@ subpackages:
   - name: kona-node
     description: kona-node — OP Stack Kona rollup node
     pipeline:
-      - uses: cargo/build
-        with:
-          # /usr/local/bin, where upstream's images install binaries.
-          prefix: usr/local
-          modroot: rust
-          output: kona-node
-          profile: "${MELANGE_CARGO_PROFILE}"
-          opts: --locked --package kona-node
+      - runs: |
+          profile="${MELANGE_CARGO_PROFILE:-release}"
+          install -Dm755 \
+            "${CARGO_TARGET_DIR}/rust/${profile}/kona-node" \
+            "${{targets.contextdir}}/usr/local/bin/kona-node"
       - uses: strip
 
   - name: kona-host
     description: kona-host — OP Stack Kona fault proof host
     pipeline:
-      - uses: cargo/build
-        with:
-          # /usr/local/bin, where upstream's images install binaries.
-          prefix: usr/local
-          modroot: rust
-          output: kona-host
-          profile: "${MELANGE_CARGO_PROFILE}"
-          opts: --locked --package kona-host
+      - runs: |
+          profile="${MELANGE_CARGO_PROFILE:-release}"
+          install -Dm755 \
+            "${CARGO_TARGET_DIR}/rust/${profile}/kona-host" \
+            "${{targets.contextdir}}/usr/local/bin/kona-host"
       - uses: strip
 
   - name: kona-client
     description: kona-client — OP Stack Kona fault proof client
     pipeline:
-      - uses: cargo/build
-        with:
-          # /usr/local/bin, where upstream's images install binaries.
-          prefix: usr/local
-          modroot: rust
-          output: kona-client
-          profile: "${MELANGE_CARGO_PROFILE}"
-          opts: --locked --package kona-client
+      - runs: |
+          profile="${MELANGE_CARGO_PROFILE:-release}"
+          install -Dm755 \
+            "${CARGO_TARGET_DIR}/rust/${profile}/kona-client" \
+            "${{targets.contextdir}}/usr/local/bin/kona-client"
       - uses: strip
 
   - name: kona-sp1-proposer
     description: kona-sp1-proposer — OP Stack SP1 fault proof proposer
     pipeline:
-      - uses: cargo/build
-        with:
-          # /usr/local/bin, where upstream's images install binaries.
-          prefix: usr/local
-          modroot: rust
-          output: kona-sp1-proposer
-          profile: "${MELANGE_CARGO_PROFILE}"
-          opts: --locked --package kona-sp1-proposer
+      - runs: |
+          profile="${MELANGE_CARGO_PROFILE:-release}"
+          install -Dm755 \
+            "${CARGO_TARGET_DIR}/rust/${profile}/kona-sp1-proposer" \
+            "${{targets.contextdir}}/usr/local/bin/kona-sp1-proposer"
       - uses: strip
 
   # The monorepo vendors op-rbuilder and rollup-boost as NESTED workspaces
