@@ -35,6 +35,7 @@ func TestZKAgreementPolicy(t *testing.T) {
 		fetchRecorded     bool
 	}{
 		{name: "matching root", providers: []SuperRootProvider{zkFound(101, root)}, claim: root, agree: true, expected: root, fetchRecorded: true},
+		{name: "verified L1 does not gate ZK", providers: []SuperRootProvider{zkFoundWithRequiredL1(101, 101, root)}, claim: root, agree: true, expected: root, fetchRecorded: true},
 		{name: "mismatching root", providers: []SuperRootProvider{zkFound(101, root)}, claim: otherRoot, expected: root, fetchRecorded: true},
 		{name: "all behind", providers: []SuperRootProvider{zkFound(100, root), zkFound(99, otherRoot)}, wantErr: gameTypes.ErrNotInSync, outOfSync: 2},
 		{name: "all errors", providers: []SuperRootProvider{zkError(errors.New("first")), zkError(errors.New("second"))}, wantErr: ErrAllSuperRootRpcsUnavailable, errors: 2},
@@ -44,6 +45,7 @@ func TestZKAgreementPolicy(t *testing.T) {
 		{name: "all not found", providers: []SuperRootProvider{zkNotFound(101), zkNotFound(102)}, notFound: 2},
 		{name: "found and not found", providers: []SuperRootProvider{zkFound(101, root), zkNotFound(101)}, claim: root, expected: root, notFound: 1, mixedAvailability: true, fetchRecorded: true},
 		{name: "conflicting roots use first provider", providers: []SuperRootProvider{zkFound(101, root), zkFound(101, otherRoot)}, claim: root, expected: root, differentRoots: true, fetchRecorded: true},
+		{name: "conflicting roots and not found", providers: []SuperRootProvider{zkFound(101, root), zkFound(101, otherRoot), zkNotFound(101)}, claim: root, expected: root, notFound: 1, differentRoots: true, mixedAvailability: true, fetchRecorded: true},
 	}
 
 	for _, test := range tests {
@@ -98,6 +100,37 @@ func TestZKAgreementCancellationPreventsMutation(t *testing.T) {
 	require.Zero(t, metricer.fetchTime)
 }
 
+func TestZKAgreementReplacesEndpointTracking(t *testing.T) {
+	root := common.Hash{0xaa}
+	enricher := NewZKAgreementEnricher(
+		testlog.Logger(t, log.LvlDebug),
+		&stubOutputMetrics{},
+		[]SuperRootProvider{zkFound(101, root)},
+		clock.NewDeterministicClock(time.Unix(1234, 0)),
+	)
+	game := newZKAgreementGame(root)
+	game.NodeEndpointErrors = map[string]bool{"stale": true}
+	game.NodeEndpointErrorCount = 1
+	game.NodeEndpointNotFoundCount = 2
+	game.NodeEndpointOutOfSyncCount = 3
+	game.NodeEndpointTotalCount = 4
+	game.NodeEndpointSafeCount = 5
+	game.NodeEndpointUnsafeCount = 6
+	game.NodeEndpointDifferentRoots = true
+
+	require.NoError(t, enricher.Enrich(t.Context(), rpcblock.Latest, nil, game))
+	require.True(t, game.AgreeWithClaim)
+	require.Equal(t, root, game.ExpectedRootClaim)
+	require.Empty(t, game.NodeEndpointErrors)
+	require.Zero(t, game.NodeEndpointErrorCount)
+	require.Zero(t, game.NodeEndpointNotFoundCount)
+	require.Zero(t, game.NodeEndpointOutOfSyncCount)
+	require.Equal(t, 1, game.NodeEndpointTotalCount)
+	require.Zero(t, game.NodeEndpointSafeCount)
+	require.Zero(t, game.NodeEndpointUnsafeCount)
+	require.False(t, game.NodeEndpointDifferentRoots)
+}
+
 func TestZKAgreementRequiresProvider(t *testing.T) {
 	enricher := NewZKAgreementEnricher(
 		testlog.Logger(t, log.LvlDebug),
@@ -106,6 +139,9 @@ func TestZKAgreementRequiresProvider(t *testing.T) {
 		clock.NewDeterministicClock(time.Unix(1234, 0)),
 	)
 	require.ErrorIs(t, enricher.Enrich(t.Context(), rpcblock.Latest, nil, newZKAgreementGame(common.Hash{})), ErrSuperRootRpcRequired)
+
+	var zeroValue ZKAgreementEnricher
+	require.ErrorIs(t, zeroValue.Enrich(t.Context(), rpcblock.Latest, nil, newZKAgreementGame(common.Hash{})), ErrSuperRootRpcRequired)
 }
 
 func newZKAgreementGame(claim common.Hash) *monTypes.ZKGameData {
@@ -141,6 +177,12 @@ func zkResponse(currentL1 uint64, root *common.Hash) eth.SuperRootAtTimestampRes
 
 func zkFound(currentL1 uint64, root common.Hash) SuperRootProvider {
 	return zkSuperRootProvider{response: zkResponse(currentL1, &root)}
+}
+
+func zkFoundWithRequiredL1(currentL1, requiredL1 uint64, root common.Hash) SuperRootProvider {
+	response := zkResponse(currentL1, &root)
+	response.Data.VerifiedRequiredL1 = eth.BlockID{Number: requiredL1}
+	return zkSuperRootProvider{response: response}
 }
 
 func zkNotFound(currentL1 uint64) SuperRootProvider {
