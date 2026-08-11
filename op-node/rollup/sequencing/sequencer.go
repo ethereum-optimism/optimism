@@ -286,29 +286,19 @@ func (d *Sequencer) handleIngest(ev event.Event) {
 func (d *Sequencer) RunLoop(ctx context.Context) {
 	timer := time.NewTimer(0)
 	defer timer.Stop()
-	// lastRan is the deadline the previous action fired at. An action that
-	// leaves the schedule untouched (e.g. a no-op while state is unknown) must
-	// not re-arm the same deadline, or the loop would spin on it; the next
-	// schedule mutation wakes the loop and re-plans with a fresh deadline.
-	var lastRan time.Time
 	for {
 		d.drainInbox()
 
 		// Re-plan from post-drain state. A nil channel blocks forever,
 		// disarming the timer case while no action is scheduled.
 		var timerC <-chan time.Time
-		var armed time.Time
-		if nextAction, ok := d.NextAction(); ok && nextAction != lastRan {
-			timer.Reset(time.Until(nextAction))
+		if nextAction, ok := d.NextAction(); ok {
+			// Same clock the due-check below uses, so an early fire re-arms on
+			// the true remaining wait instead of busy-looping.
+			timer.Reset(nextAction.Sub(d.timeNow()))
 			timerC = timer.C
-			armed = nextAction
 		} else {
 			timer.Stop()
-			if !ok {
-				// Forget the fired deadline on disarm, so re-arming at the very
-				// same instant later still schedules the action.
-				lastRan = time.Time{}
-			}
 		}
 
 		select {
@@ -317,11 +307,14 @@ func (d *Sequencer) RunLoop(ctx context.Context) {
 		case <-d.wakeCh:
 			// loop around: drain the inbox and re-plan
 		case <-timerC:
-			lastRan = armed
 			d.drainInbox() // events may have arrived while we were sleeping
-			// The drain may have pushed the deadline out (engine backoff, the
-			// post-reset delay). Acting on the fired deadline would defeat it.
+			// Only act on a deadline that is actually due. The drain may have
+			// pushed it out (engine backoff, post-reset delay), and the timer
+			// itself can fire early: deadlines are wall-clock values while the
+			// sleep is monotonic, so a backward clock step arrives here as an
+			// early fire. Either way, loop around and re-plan on the remainder.
 			if next, ok := d.NextAction(); !ok || next.After(d.timeNow()) {
+				d.log.Debug("Sequencer deadline not due yet, re-planning", "next", next)
 				continue
 			}
 			d.RunAction()
@@ -390,6 +383,10 @@ func (d *Sequencer) RunAction() {
 	d.log.Debug("Sequencer action")
 	if !d.active.Load() {
 		d.log.Debug("Ignoring stale sequencer action while inactive")
+		// Every exit must leave the schedule changed or disarmed, so the loop
+		// never re-fires an unchanged deadline. Start/Stop normally keep these
+		// two in step; this makes it structural rather than incidental.
+		d.nextActionOK = false
 		return
 	}
 	// The inbox drain above may have parked the schedule (reset, derivation

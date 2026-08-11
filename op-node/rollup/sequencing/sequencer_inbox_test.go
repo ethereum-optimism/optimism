@@ -519,3 +519,52 @@ func TestSequencerRunLoop_NoSpinOnUnchangedSchedule(t *testing.T) {
 	require.Less(t, clockReads.Load(), int64(10),
 		"loop re-fired the same deadline instead of parking")
 }
+
+// TestSequencerRunLoop_EarlyTimerFireKeepsDeadline covers a backward wall-clock
+// step (VM time sync, NTP) landing between arming the timer and its fire.
+// Sequencing deadlines are wall-clock values while the timer sleeps monotonic
+// time, so the step delivers the fire before the deadline is due. The loop must
+// re-plan on the remaining wait and still act: dropping the deadline here froze
+// block production permanently, with no log, metric or error (#22357).
+func TestSequencerRunLoop_EarlyTimerFireKeepsDeadline(t *testing.T) {
+	f := newRunLoopFixture(t)
+	deliver(f.seq, engine.ForkchoiceUpdateEvent{UnsafeL2Head: f.head})
+
+	const step = 500 * time.Millisecond
+	start := time.Now()
+	deadline := start.Add(150 * time.Millisecond)
+	// The step lands after the loop has armed its timer, so the fire is early.
+	stepAt := start.Add(50 * time.Millisecond)
+	f.seq.timeNow = func() time.Time {
+		now := time.Now()
+		if now.Before(stepAt) {
+			return now
+		}
+		return now.Add(-step)
+	}
+
+	var actions atomic.Int64
+	f.deps.eng.startBuildFn = func(context.Context, *derive.AttributesWithParent) (*engine.BuildStartResult, error) {
+		actions.Add(1)
+		return nil, context.Canceled // the outcome is irrelevant; only that we ran
+	}
+
+	f.seq.l.Lock()
+	f.seq.active.Store(true)
+	f.seq.nextActionOK = true
+	f.seq.nextAction = deadline
+	f.seq.l.Unlock()
+
+	stop := f.startLoop(t)
+	defer stop()
+	f.seq.wake() // re-plan onto the deadline set above
+
+	// The timer fires at +150ms, but the stepped clock still reads before the
+	// deadline, so the action is not due yet.
+	time.Sleep(300 * time.Millisecond)
+	require.Zero(t, actions.Load(), "must not act before the deadline is due")
+
+	// Once the stepped clock reaches the deadline, the action must still run.
+	require.Eventually(t, func() bool { return actions.Load() > 0 }, 3*time.Second, 20*time.Millisecond,
+		"early timer fire dropped the deadline: the sequencer never acted again")
+}

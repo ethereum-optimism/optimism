@@ -76,8 +76,9 @@ func TestCLIPrepareCommitsSuperchainDeployment(t *testing.T) {
 		require.NotNil(t, prepared.SuperchainDeployment)
 		require.Equal(t, *applied.SuperchainDeployment, *prepared.SuperchainDeployment)
 
-		// prepare deploys no implementations, so it must not claim any.
-		require.Nil(t, prepared.ImplementationsDeployment)
+		// prepare must record implementations the pinned OPCM installs.
+		require.NotNil(t, prepared.ImplementationsDeployment)
+		require.Equal(t, *applied.ImplementationsDeployment, *prepared.ImplementationsDeployment)
 
 		// The committed proxy must match the frozen intent the continuation deploys from.
 		require.NotNil(t, prepared.PreparedDeployment)
