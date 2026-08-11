@@ -1850,9 +1850,8 @@ contract OPContractsManagerStandardValidator_SuperModeCoreValidation_Test is
         assertEq(errors, "");
     }
 
-    /// @notice Tests that validation fails when the SystemConfig is configured for a different chain
-    ///         than the one being validated. Super game args store l2ChainId=0, so SYSCON-140 is the
-    ///         only check binding the deployment to the chain the Portal settles withdrawals for.
+    /// @notice Tests that the validate function returns SYSCON-140 when the SystemConfig l2ChainId
+    ///         does not match the expected chain ID.
     function test_validate_systemConfigInvalidL2ChainId_succeeds() public {
         vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.l2ChainId, ()), abi.encode(l2ChainId + 1));
         assertEq("SYSCON-140", _validate(true));
@@ -2131,7 +2130,6 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
                 LibGameArgs.decode(dgf.gameArgs(permissionlessGameType));
             cannonKonaPrestate = Claim.wrap(permissionlessGameArgs.absolutePrestate);
             cannonPrestate = cannonKonaPrestate;
-            // Super game args store l2ChainId=0, so take the chain ID from the fork fixture.
             l2ChainId = uint256(uint160(address(artifacts.mustGetAddress("L2ChainId"))));
             proposer = DisputeGames.permissionedGameProposer(dgf);
 

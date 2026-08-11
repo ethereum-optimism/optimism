@@ -306,9 +306,6 @@ contract OPContractsManagerStandardValidator is ISemver {
         _errors = internalRequire(_sysCfg.operatorFeeScalar() == 0, "SYSCON-110", _errors);
         _errors = internalRequire(_sysCfg.operatorFeeConstant() == 0, "SYSCON-120", _errors);
         _errors = internalRequire(_sysCfg.superchainConfig() == superchainConfig, "SYSCON-130", _errors);
-        // OptimismPortal2 selects the member output root with rootClaimByChainId(sysCfg.l2ChainId()), so this
-        // binds the validated configuration to the chain the caller asked about. Super game args store
-        // l2ChainId=0, so this is the only check tying a super game deployment to its domain.
         _errors = internalRequire(_sysCfg.l2ChainId() == _l2ChainID, "SYSCON-140", _errors);
         return _errors;
     }
