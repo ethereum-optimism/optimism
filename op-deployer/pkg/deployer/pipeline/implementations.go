@@ -74,7 +74,6 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 		if err != nil {
 			return fmt.Errorf("sp1Verifier must be specified when ZK dispute games are enabled on L1 chain ID %d: %w", intent.L1ChainID, err)
 		}
-		lgr.Info("selected release-approved SP1 verifier", "address", selectedSP1Verifier)
 	}
 
 	if !shouldDeployImplementations(intent, st) {
@@ -126,6 +125,9 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 		if err != nil {
 			return err
 		}
+	}
+	if zkEnabled {
+		lgr.Info("using SP1 verifier", "address", input.SP1Verifier)
 	}
 
 	if env.UseForge {
