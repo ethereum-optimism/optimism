@@ -35,6 +35,8 @@ const (
 	GenesisTimeOffsetFlagName = flags.GenesisTimeOffsetFlagName
 )
 
+const OutputRootBootstrapFlagName = flags.OutputRootBootstrapFlagName
+
 var (
 	L1RPCURLFlag = &cli.StringFlag{
 		Name: L1RPCURLFlagName,
@@ -152,6 +154,12 @@ var (
 		EnvVars: PrefixEnvVar("GENESIS_TIME_OFFSET"),
 		Value:   standard.DefaultGenesisTimeOffsetSeconds,
 	}
+	OutputRootBootstrapFlag = &cli.BoolFlag{
+		Name: OutputRootBootstrapFlagName,
+		Usage: "Deploy output-root dispute games and initialize each ASR with its L2 genesis output root at block 0. " +
+			"Only supported for custom deployment intents.",
+		EnvVars: PrefixEnvVar("OUTPUT_ROOT_BOOTSTRAP"),
+	}
 )
 
 var GlobalFlags = append([]cli.Flag{CacheDirFlag}, oplog.CLIFlags(EnvVarPrefix)...)
@@ -161,6 +169,7 @@ var InitFlags = []cli.Flag{
 	L2ChainIDsFlag,
 	WorkdirFlag,
 	IntentTypeFlag,
+	OutputRootBootstrapFlag,
 }
 
 var PrepareFlags = []cli.Flag{

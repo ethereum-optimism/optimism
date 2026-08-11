@@ -82,6 +82,25 @@ func TestBuildDevFeatureBitmap(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("output root bootstrap enables its internal feature", func(t *testing.T) {
+		intent := &state.Intent{OutputRootBootstrap: true, GlobalDeployOverrides: map[string]any{}}
+		result, err := buildDevFeatureBitmap(intent)
+		require.NoError(t, err)
+		require.True(t, devfeatures.IsDevFeatureEnabled(result, devfeatures.OutputRootGamesFlag))
+		require.False(t, devfeatures.IsDevFeatureEnabled(result, devfeatures.SuperRootGamesMigrationFlag))
+	})
+
+	t.Run("output root bootstrap rejects an explicit super root feature", func(t *testing.T) {
+		intent := &state.Intent{
+			OutputRootBootstrap: true,
+			GlobalDeployOverrides: map[string]any{
+				"devFeatureBitmap": devfeatures.SuperRootGamesMigrationFlag,
+			},
+		}
+		_, err := buildDevFeatureBitmap(intent)
+		require.ErrorContains(t, err, "conflicts with an explicit super root games migration feature")
+	})
 }
 
 func TestCalculateL2GenesisOverrides(t *testing.T) {

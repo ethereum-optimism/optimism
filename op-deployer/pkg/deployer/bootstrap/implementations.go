@@ -44,6 +44,7 @@ type ImplementationsConfig struct {
 	ProofMaturityDelaySeconds       uint64             `cli:"proof-maturity-delay-seconds"`
 	DisputeGameFinalityDelaySeconds uint64             `cli:"dispute-game-finality-delay-seconds"`
 	DevFeatureBitmap                common.Hash        `cli:"dev-feature-bitmap"`
+	OutputRootBootstrap             bool               `cli:"output-root-bootstrap"`
 	SP1Verifier                     common.Address     `cli:"sp1-verifier-address"`
 	FaultGameMaxGameDepth           uint64             `cli:"dispute-max-game-depth"`
 	FaultGameSplitDepth             uint64             `cli:"dispute-split-depth"`
@@ -108,6 +109,12 @@ func (c *ImplementationsConfig) Check() error {
 	}
 	if c.DisputeGameFinalityDelaySeconds == 0 {
 		return errors.New("dispute game finality delay in seconds must be specified")
+	}
+	if c.OutputRootBootstrap {
+		if devfeatures.EnableDevFeature(c.DevFeatureBitmap, devfeatures.SuperRootGamesMigrationFlag) == c.DevFeatureBitmap {
+			return errors.New("output root bootstrap conflicts with an explicit super root games migration feature")
+		}
+		c.DevFeatureBitmap = devfeatures.EnableDevFeature(c.DevFeatureBitmap, devfeatures.OutputRootGamesFlag)
 	}
 	if c.FaultGameMaxGameDepth == 0 {
 		return errors.New("fault game max game depth must be specified")

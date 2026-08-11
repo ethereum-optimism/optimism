@@ -161,6 +161,7 @@ var ImplementationsFlags = []cli.Flag{
 	deployer.ArtifactsLocatorFlag,
 	MIPSVersionFlag,
 	DevFeatureBitmapFlag,
+	deployer.OutputRootBootstrapFlag,
 	SP1VerifierAddressFlag,
 	WithdrawalDelaySecondsFlag,
 	MinProposalSizeBytesFlag,

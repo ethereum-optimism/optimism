@@ -135,6 +135,13 @@ func TestValidateStandardValues(t *testing.T) {
 			},
 			ErrNonStandardValue,
 		},
+		{
+			"OutputRootBootstrap",
+			func(intent *Intent) {
+				intent.OutputRootBootstrap = true
+			},
+			ErrIncompatibleValue,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

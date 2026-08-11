@@ -227,6 +227,12 @@ func buildDevFeatureBitmap(intent *state.Intent) (common.Hash, error) {
 	case string:
 		devFeatureBitmap = common.HexToHash(v)
 	}
+	if intent.OutputRootBootstrap {
+		if devfeatures.EnableDevFeature(devFeatureBitmap, devfeatures.SuperRootGamesMigrationFlag) == devFeatureBitmap {
+			return common.Hash{}, fmt.Errorf("output root bootstrap conflicts with an explicit super root games migration feature")
+		}
+		devFeatureBitmap = devfeatures.EnableDevFeature(devFeatureBitmap, devfeatures.OutputRootGamesFlag)
+	}
 
 	interopBitEnabled := devfeatures.IsDevFeatureEnabled(devFeatureBitmap, devfeatures.OptimismPortalInteropFlag)
 

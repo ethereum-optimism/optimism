@@ -17,10 +17,11 @@ import (
 )
 
 type InitConfig struct {
-	IntentType state.IntentType
-	L1ChainID  uint64
-	Outdir     string
-	L2ChainIDs []common.Hash
+	IntentType          state.IntentType
+	L1ChainID           uint64
+	Outdir              string
+	L2ChainIDs          []common.Hash
+	OutputRootBootstrap bool
 }
 
 func (c *InitConfig) Check() error {
@@ -35,6 +36,9 @@ func (c *InitConfig) Check() error {
 	if len(c.L2ChainIDs) == 0 {
 		return fmt.Errorf("must specify at least one L2 chain ID")
 	}
+	if c.OutputRootBootstrap && c.IntentType != state.IntentTypeCustom {
+		return fmt.Errorf("output root bootstrap requires intent-type=%s", state.IntentTypeCustom)
+	}
 
 	return nil
 }
@@ -45,6 +49,7 @@ func InitCLI() func(ctx *cli.Context) error {
 		outdir := ctx.String(OutdirFlagName)
 		l2ChainIDsRaw := ctx.String(L2ChainIDsFlagName)
 		intentType := ctx.String(IntentTypeFlagName)
+		outputRootBootstrap := ctx.Bool(OutputRootBootstrapFlagName)
 
 		if len(l2ChainIDsRaw) == 0 {
 			return fmt.Errorf("must specify at least one L2 chain ID")
@@ -61,10 +66,11 @@ func InitCLI() func(ctx *cli.Context) error {
 		}
 
 		err := Init(InitConfig{
-			IntentType: state.IntentType(intentType),
-			L1ChainID:  l1ChainID,
-			Outdir:     outdir,
-			L2ChainIDs: l2ChainIDs,
+			IntentType:          state.IntentType(intentType),
+			L1ChainID:           l1ChainID,
+			Outdir:              outdir,
+			L2ChainIDs:          l2ChainIDs,
+			OutputRootBootstrap: outputRootBootstrap,
 		})
 		if err != nil {
 			return err
@@ -84,6 +90,7 @@ func Init(cfg InitConfig) error {
 	if err != nil {
 		return err
 	}
+	intent.OutputRootBootstrap = cfg.OutputRootBootstrap
 
 	st := &state.State{
 		Version:           1,

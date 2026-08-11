@@ -336,10 +336,15 @@ library Config {
         return vm.envOr("DEV_FEATURE__ZK_DISPUTE_GAME", false);
     }
 
+    /// @notice Returns true if output root dispute games are selected instead of super root games.
+    function devFeatureOutputRootGames() internal view returns (bool) {
+        return vm.envOr("DEV_FEATURE__OUTPUT_ROOT_GAMES", false);
+    }
+
     /// @notice Returns true if the development feature super root games migration is enabled.
     /// @dev Defaults to true: SUPER_ROOT_GAMES_MIGRATION is the default OPCM migration codepath. See TODO(#21662).
-    function devFeatureSuperRootGamesMigration() internal pure returns (bool) {
-        return true;
+    function devFeatureSuperRootGamesMigration() internal view returns (bool) {
+        return !devFeatureOutputRootGames();
     }
 
     /// @notice Returns true if the system feature custom_gas_token is enabled.

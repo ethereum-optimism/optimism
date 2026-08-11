@@ -28,6 +28,8 @@ const (
 	GenesisTimeOffsetFlagName = "genesis-time-offset"
 )
 
+const OutputRootBootstrapFlagName = "output-root-bootstrap"
+
 func DefaultCacheDir() string {
 	var cacheDir string
 

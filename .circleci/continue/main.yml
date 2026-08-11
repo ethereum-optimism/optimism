@@ -3136,6 +3136,7 @@ workflows:
                 - CUSTOM_GAS_TOKEN
                 - OPTIMISM_PORTAL_INTEROP
                 - ZK_DISPUTE_GAME
+                - OUTPUT_ROOT_GAMES
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack

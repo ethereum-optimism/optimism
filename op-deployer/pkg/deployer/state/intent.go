@@ -97,6 +97,7 @@ type Intent struct {
 	Chains                []*ChainIntent             `json:"chains" toml:"chains"`
 	GlobalDeployOverrides map[string]any             `json:"globalDeployOverrides" toml:"globalDeployOverrides"`
 	UseInterop            bool                       `json:"useInterop" toml:"useInterop"`
+	OutputRootBootstrap   bool                       `json:"outputRootBootstrap" toml:"outputRootBootstrap"`
 
 	// L1DevGenesisParams is optional. This may be used to customize the L1 genesis when
 	// the deployer output is directed to produce a L1 genesis state for development.
@@ -238,6 +239,9 @@ func GetStandardSuperchainRoles(l1ChainId uint64) (*addresses.SuperchainRoles, e
 func (c *Intent) Check() error {
 	if c.L1ChainID == 0 {
 		return fmt.Errorf("l1ChainID cannot be 0")
+	}
+	if c.OutputRootBootstrap && c.ConfigType != IntentTypeCustom {
+		return fmt.Errorf("%w: output root bootstrap requires intent-type=%s", ErrIncompatibleValue, IntentTypeCustom)
 	}
 
 	if c.L1ContractsLocator == nil {

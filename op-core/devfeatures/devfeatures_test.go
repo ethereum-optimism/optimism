@@ -79,7 +79,7 @@ func TestIsDevFeatureEnabled(t *testing.T) {
 		require.False(t, IsDevFeatureEnabled(ALL_FEATURES, EMPTY_FEATURES))
 	})
 
-	// SuperRootGamesMigration is hardcoded on. TODO(#21662): remove with the broader DevFeatures cleanup.
+	// SuperRootGamesMigration is default-on. TODO(#21662): remove with the broader DevFeatures cleanup.
 	hardcoded := []struct {
 		name string
 		flag common.Hash
@@ -96,7 +96,7 @@ func TestIsDevFeatureEnabled(t *testing.T) {
 	})
 
 	for _, c := range hardcoded {
-		t.Run(c.name+" always enabled regardless of bitmap", func(t *testing.T) {
+		t.Run(c.name+" enabled by default", func(t *testing.T) {
 			require.True(t, IsDevFeatureEnabled(EMPTY_FEATURES, c.flag))
 			require.True(t, IsDevFeatureEnabled(FEATURE_A, c.flag))
 			require.True(t, IsDevFeatureEnabled(c.flag, c.flag))
@@ -107,6 +107,15 @@ func TestIsDevFeatureEnabled(t *testing.T) {
 			require.True(t, IsDevFeatureEnabled(EMPTY_FEATURES, or(FEATURE_B, c.flag)))
 		})
 	}
+
+	t.Run("OutputRootGames disables the default super root games migration", func(t *testing.T) {
+		require.False(t, IsDevFeatureEnabled(OutputRootGamesFlag, SuperRootGamesMigrationFlag))
+	})
+
+	t.Run("explicit SuperRootGamesMigration takes precedence over OutputRootGames", func(t *testing.T) {
+		bitmap := or(OutputRootGamesFlag, SuperRootGamesMigrationFlag)
+		require.True(t, IsDevFeatureEnabled(bitmap, SuperRootGamesMigrationFlag))
+	})
 }
 
 func TestEnableDevFeature(t *testing.T) {

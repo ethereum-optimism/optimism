@@ -128,10 +128,6 @@ func newContinuationVerificationFixture(
 	t *testing.T,
 	gameType embedded.GameType,
 ) *continuationVerificationFixture {
-	// devfeatures.IsDevFeatureEnabled hardcodes SuperRootGamesMigrationFlag to true, so
-	// resolveGameMode always observes a super-root OPCM regardless of the bitmap the
-	// fixture serves. See TODO(#21662) for the eventual cleanup. Flip the super canon cases
-	// back to cannon to improve coverage.
 	return newContinuationVerificationFixtureWithMode(t, gameType, true)
 }
 
@@ -429,7 +425,7 @@ func (f *continuationVerificationFixture) devFeatureBitmap() common.Hash {
 	if f.superRoot {
 		return devfeatures.SuperRootGamesMigrationFlag
 	}
-	return common.Hash{}
+	return devfeatures.OutputRootGamesFlag
 }
 
 func (f *continuationVerificationFixture) seedGameImplementation(
@@ -564,9 +560,6 @@ func TestVerifyContinuationDeploymentRejectsHeadChange(t *testing.T) {
 }
 
 func TestVerifyContinuationDeploymentRejectsOPCMGameModeMismatch(t *testing.T) {
-	// Only the CANNON_KONA direction is reachable: devfeatures.IsDevFeatureEnabled hardcodes
-	// SuperRootGamesMigrationFlag to true, so an OPCM without super-root cannot be observed and
-	// the SUPER_CANNON_KONA mismatch cannot be constructed. Restore that case with TODO(#21662).
 	t.Run("CANNON_KONA with super-root OPCM", func(t *testing.T) {
 		fixture := newContinuationVerificationFixture(t, embedded.GameTypeCannonKona)
 		fixture.backend.set(
@@ -581,6 +574,11 @@ func TestVerifyContinuationDeploymentRejectsOPCMGameModeMismatch(t *testing.T) {
 			fixture.verify(t),
 			"initial dispute game type CANNON_KONA (8) is not deployable by the OPCM",
 		)
+	})
+
+	t.Run("SUPER_CANNON_KONA with output-root OPCM", func(t *testing.T) {
+		fixture := newContinuationVerificationFixtureWithMode(t, embedded.GameTypeSuperCannonKona, false)
+		require.ErrorContains(t, fixture.verify(t), "has SUPER_ROOT_GAMES_MIGRATION disabled")
 	})
 }
 

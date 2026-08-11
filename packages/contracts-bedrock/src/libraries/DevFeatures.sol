@@ -46,6 +46,10 @@ library DevFeatures {
     bytes32 public constant SUPER_ROOT_GAMES_MIGRATION =
         bytes32(0x0000000000000000000000000000000000000000000000000000000010000000);
 
+    /// @notice The feature that selects output root dispute games instead of the default super root games.
+    bytes32 public constant OUTPUT_ROOT_GAMES =
+        bytes32(0x0000000000000000000000000000000000000000000000000000001000000000);
+
     /// @notice Checks if a feature is enabled in a bitmap. Note that this function does not check
     ///         that the input feature represents a single feature and the bitwise AND operation
     ///         allows for multiple features to be enabled at once. Users should generally check
@@ -54,9 +58,13 @@ library DevFeatures {
     /// @param _feature The feature to check.
     /// @return True if the feature is enabled, false otherwise.
     function isDevFeatureEnabled(bytes32 _bitmap, bytes32 _feature) internal pure returns (bool) {
-        // SuperRootGamesMigration is enabled by default.
+        // SuperRootGamesMigration is enabled by default, but fresh chains may explicitly select
+        // output root games. If both flags are set, the explicit super root flag takes precedence.
         // TODO(#21662): remove with the broader SuperRootGamesMigration cleanup.
-        if (hasFlag(_feature, SUPER_ROOT_GAMES_MIGRATION)) return true;
+        if (
+            hasFlag(_feature, SUPER_ROOT_GAMES_MIGRATION)
+                && (!hasFlag(_bitmap, OUTPUT_ROOT_GAMES) || hasFlag(_bitmap, SUPER_ROOT_GAMES_MIGRATION))
+        ) return true;
         return _feature != 0 && hasFlag(_bitmap, _feature);
     }
 

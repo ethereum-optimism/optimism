@@ -19,9 +19,17 @@ Active flags:
 | `DeployV2DisputeGames` | Legacy, no longer used; constant kept for historical reasons |
 | `ZKDisputeGame` | ZK dispute game system |
 | `SuperRootGamesMigration` | Super-root games migration path in OPCM upgrade — **enabled by default** |
+| `OutputRootGames` | Internal capability selected by `--output-root-bootstrap` for fresh output-root deployments |
 
 
-The predicate is a bitwise AND (`(bitmap & flag) == flag && flag != 0`) — except that `IsDevFeatureEnabled` short-circuits to `true` for `SuperRootGamesMigration`, which is enabled by default on both the Go and Solidity sides. The bitmap no longer acts as a circuit breaker for it; removal is tracked in #21662.
+The predicate is a bitwise AND (`(bitmap & flag) == flag && flag != 0`) — except that `IsDevFeatureEnabled` short-circuits to `true` for `SuperRootGamesMigration`, which is enabled by default on both the Go and Solidity sides. `OutputRootGames` disables that default for fresh output-root chains. If both flags are set, the explicit `SuperRootGamesMigration` flag takes precedence. Removal of the migration flag is tracked in #21662.
+
+Operators should use `op-deployer init --output-root-bootstrap` and
+`op-deployer bootstrap implementations --output-root-bootstrap`, not construct the internal
+`OutputRootGames` bit manually. The persisted intent makes `prepare` reject an OPCM from the wrong
+game family and causes L2 genesis to receive the matching bitmap. For each undeployed chain,
+`prepare` derives the V0 output root from the generated L2 genesis block and commits it as the ASR
+starting proposal with L2 block number `0`.
 
 **Adding a new dev feature**: the full checklist lives in the `DevFeatures.sol` natspec — both constant files, the env-var reader in `scripts/libraries/Config.sol`, the test assembler in `test/setup/FeatureFlags.sol`, and the CI `&features_matrix` anchor in `.circleci/continue/main.yml` all need updating; there is no compile-time link between them.
 
@@ -64,8 +72,9 @@ A separate, **test-only** assembler exists for Foundry tests and fork scripts. I
 
 - `DEV_FEATURE__OPTIMISM_PORTAL_INTEROP`
 - `DEV_FEATURE__ZK_DISPUTE_GAME`
+- `DEV_FEATURE__OUTPUT_ROOT_GAMES`
 
-Interop and ZK are read via `vm.envOr(..., false)` in `packages/contracts-bedrock/scripts/libraries/Config.sol`; `devFeatureSuperRootGamesMigration()` returns `true` unconditionally. The only callers are under `test/`:
+Interop, ZK, and output-root games are read via `vm.envOr(..., false)` in `packages/contracts-bedrock/scripts/libraries/Config.sol`; `devFeatureSuperRootGamesMigration()` defaults to true unless output-root games are selected. The only callers are under `test/`:
 
 - `test/setup/FeatureFlags.sol` — `resolveFeaturesFromEnv()` OR-s each enabled flag into `devFeatureBitmap`
 - `test/setup/CommonTest.sol`, `test/setup/ForkL1Live.s.sol`, `test/setup/ForkL2Live.s.sol` — branch on individual `Config.devFeature*` returns
@@ -121,7 +130,7 @@ Interop and ZK use the bitmap as their per-chain provisioning switch and have no
 
 ## G. Lifecycle direction
 
-- SuperRootGamesMigration is **default-on**: `IsDevFeatureEnabled` / `isDevFeatureEnabled` return `true` for it regardless of the bitmap.
+- SuperRootGamesMigration is **default-on**: `IsDevFeatureEnabled` / `isDevFeatureEnabled` return `true` unless `OutputRootGames` is set without an explicit `SuperRootGamesMigration` bit.
 - **#21662** tracks removing the SuperRootGamesMigration flag and its remaining scaffolding.
 
 ## File index

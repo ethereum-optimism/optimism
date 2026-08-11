@@ -244,6 +244,7 @@ func canonicalPreparedIntent(
 		FundDevAccounts:       intent.FundDevAccounts,
 		GlobalDeployOverrides: intent.GlobalDeployOverrides,
 		UseInterop:            intent.UseInterop,
+		OutputRootBootstrap:   intent.OutputRootBootstrap,
 	}
 
 	for _, chain := range intent.Chains {

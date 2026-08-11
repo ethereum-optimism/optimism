@@ -147,7 +147,7 @@ contract OPContractsManagerContainer_IsDevFeatureEnabled_Test is OPContractsMana
     /// @param _bitIndex The bit index to test.
     function testFuzz_isDevFeatureEnabled_bitNotSet_succeeds(uint8 _bitIndex) public {
         bytes32 feature = bytes32(uint256(1) << _bitIndex);
-        // SuperRootGamesMigration is hardcoded enabled. TODO(#21662): remove with the broader migration cleanup.
+        // SuperRootGamesMigration is default-on. TODO(#21662): remove with the broader migration cleanup.
         vm.assume(feature != DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
 
         // Create a bitmap with all bits set except the one we're testing.
@@ -161,11 +161,18 @@ contract OPContractsManagerContainer_IsDevFeatureEnabled_Test is OPContractsMana
     /// @notice Tests that isDevFeatureEnabled returns false when the bitmap is zero.
     /// @param _feature The feature to check.
     function testFuzz_isDevFeatureEnabled_zeroBitmap_succeeds(bytes32 _feature) public {
-        // SuperRootGamesMigration is hardcoded enabled. TODO(#21662): remove with the broader migration cleanup.
+        // SuperRootGamesMigration is default-on. TODO(#21662): remove with the broader migration cleanup.
         vm.assume((_feature & DevFeatures.SUPER_ROOT_GAMES_MIGRATION) != DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
         OPContractsManagerContainer container = _deploy(bytes32(0));
 
         assertFalse(container.isDevFeatureEnabled(_feature));
+    }
+
+    /// @notice Tests that OUTPUT_ROOT_GAMES disables the default super-root mode.
+    function test_isDevFeatureEnabled_outputRootGames_succeeds() public {
+        OPContractsManagerContainer container = _deploy(DevFeatures.OUTPUT_ROOT_GAMES);
+
+        assertFalse(container.isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION));
     }
 
     /// @notice Tests that isDevFeatureEnabled returns true for multiple features set at once.

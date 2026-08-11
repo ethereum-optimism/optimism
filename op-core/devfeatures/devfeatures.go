@@ -30,15 +30,20 @@ var (
 
 	// SuperRootGamesMigrationFlag enables the super root games migration path in OPCM upgrade.
 	SuperRootGamesMigrationFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000010000000")
+
+	// OutputRootGamesFlag selects output root dispute games instead of the default super root games.
+	OutputRootGamesFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000001000000000")
 )
 
 // IsDevFeatureEnabled checks if a specific development feature is enabled in a feature bitmap.
 // It performs a bitwise AND between the bitmap and flag to determine if the feature
 // is set. This follows the same pattern as the Solidity DevFeatures library.
 func IsDevFeatureEnabled(bitmap, flag common.Hash) bool {
-	// SuperRootGamesMigration is enabled by default.
+	// SuperRootGamesMigration is enabled by default, but fresh chains may explicitly select
+	// output root games. If both flags are set, the explicit super root flag takes precedence.
 	// TODO(#21662): remove with the broader SuperRootGamesMigrationFlag cleanup.
-	if hasFlag(flag, SuperRootGamesMigrationFlag) {
+	if hasFlag(flag, SuperRootGamesMigrationFlag) &&
+		(!hasFlag(bitmap, OutputRootGamesFlag) || hasFlag(bitmap, SuperRootGamesMigrationFlag)) {
 		return true
 	}
 	return flag != (common.Hash{}) && hasFlag(bitmap, flag)

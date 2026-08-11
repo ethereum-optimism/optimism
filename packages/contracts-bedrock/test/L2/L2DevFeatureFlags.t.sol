@@ -62,18 +62,28 @@ contract L2DevFeatureFlags_IsDevFeatureEnabled_Test is L2DevFeatureFlags_TestIni
     /// @notice Tests that `isDevFeatureEnabled` returns false when the bitmap is zero.
     function testFuzz_isDevFeatureEnabled_zeroBitmap_succeeds(bytes32 _feature) public {
         vm.assume(_feature != bytes32(0));
-        // SuperRootGamesMigration is hardcoded enabled. TODO(#21662): remove with the broader migration cleanup.
+        // SuperRootGamesMigration is default-on. TODO(#21662): remove with the broader migration cleanup.
         vm.assume((_feature & DevFeatures.SUPER_ROOT_GAMES_MIGRATION) != DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
         // Ensure `devFeatureBitmap` contains bytes32(0)
         vm.store(address(l2DevFeatureFlags), bytes32(uint256(keccak256("l2devfeatureflags.bitmap")) - 1), bytes32(0));
         assertFalse(l2DevFeatureFlags.isDevFeatureEnabled(_feature));
     }
 
-    /// @notice Tests that `isDevFeatureEnabled(SUPER_ROOT_GAMES_MIGRATION)` always returns true regardless of stored
-    /// bitmap.
+    /// @notice Tests that `isDevFeatureEnabled(SUPER_ROOT_GAMES_MIGRATION)` defaults to true.
     /// @dev TODO(#21662): remove with the broader SuperRootGamesMigration cleanup.
-    function test_isDevFeatureEnabled_superRootGamesMigrationAlwaysEnabled_succeeds() public view {
+    function test_isDevFeatureEnabled_superRootGamesMigrationDefault_succeeds() public {
+        vm.prank(Constants.DEPOSITOR_ACCOUNT);
+        l2DevFeatureFlags.setDevFeatureBitmap(bytes32(0));
+
         assertTrue(l2DevFeatureFlags.isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION));
+    }
+
+    /// @notice Tests that OUTPUT_ROOT_GAMES disables the default super-root mode.
+    function test_isDevFeatureEnabled_outputRootGames_succeeds() public {
+        vm.prank(Constants.DEPOSITOR_ACCOUNT);
+        l2DevFeatureFlags.setDevFeatureBitmap(DevFeatures.OUTPUT_ROOT_GAMES);
+
+        assertFalse(l2DevFeatureFlags.isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION));
     }
 
     /// @notice Tests that `isDevFeatureEnabled` returns false for zero feature.

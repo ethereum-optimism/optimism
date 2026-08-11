@@ -68,6 +68,38 @@ func TestImplementationsConfigSP1Verifier(t *testing.T) {
 	})
 }
 
+func TestImplementationsConfigOutputRootBootstrap(t *testing.T) {
+	valid := ImplementationsConfig{
+		L1RPCUrl:                        "http://localhost:8545",
+		PrivateKey:                      testutil.AnvilDefaultPrivateKey,
+		ArtifactsLocator:                artifacts.EmbeddedLocator,
+		MIPSVersion:                     int(standard.MIPSVersion),
+		WithdrawalDelaySeconds:          1,
+		MinProposalSizeBytes:            1,
+		ChallengePeriodSeconds:          1,
+		ProofMaturityDelaySeconds:       1,
+		DisputeGameFinalityDelaySeconds: 1,
+		FaultGameMaxGameDepth:           1,
+		FaultGameSplitDepth:             1,
+		FaultGameClockExtension:         1,
+		FaultGameMaxClockDuration:       1,
+		SuperchainConfigProxy:           common.Address{0x01},
+		L1ProxyAdminOwner:               common.Address{0x02},
+		SuperchainProxyAdmin:            common.Address{0x03},
+		Challenger:                      common.Address{0x04},
+		Logger:                          testlog.Logger(t, slog.LevelDebug),
+		OutputRootBootstrap:             true,
+	}
+
+	require.NoError(t, valid.Check())
+	require.True(t, devfeatures.IsDevFeatureEnabled(valid.DevFeatureBitmap, devfeatures.OutputRootGamesFlag))
+	require.False(t, devfeatures.IsDevFeatureEnabled(valid.DevFeatureBitmap, devfeatures.SuperRootGamesMigrationFlag))
+
+	conflict := valid
+	conflict.DevFeatureBitmap = devfeatures.SuperRootGamesMigrationFlag
+	require.ErrorContains(t, conflict.Check(), "conflicts with an explicit super root games migration feature")
+}
+
 func TestImplementationsConfigResolveSP1Verifier(t *testing.T) {
 	t.Run("mainnet default", func(t *testing.T) {
 		cfg := ImplementationsConfig{DevFeatureBitmap: devfeatures.ZKDisputeGameFlag}

@@ -155,6 +155,9 @@ func Apply(ctx context.Context, cfg ApplyConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed to read intent: %w", err)
 	}
+	if intent.OutputRootBootstrap {
+		return fmt.Errorf("output root bootstrap requires the bootstrap implementations, prepare, prestate, and continue workflow")
+	}
 
 	st, err := pipeline.ReadState(cfg.Workdir)
 	if err != nil {

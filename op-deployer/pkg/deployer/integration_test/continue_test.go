@@ -59,6 +59,9 @@ func TestEndToEndContinuePreparedChain(t *testing.T) {
 	t.Run("permissionless", func(t *testing.T) {
 		testContinuePermissionless(t)
 	})
+	t.Run("permissionless output-root bootstrap", func(t *testing.T) {
+		testContinuePermissionlessOutputRoot(t)
+	})
 	t.Run("permissionless with custom roles", func(t *testing.T) {
 		testContinuePermissionlessWithCustomRoles(t)
 	})
@@ -164,6 +167,32 @@ func testContinuePermissionless(t *testing.T) {
 	require.Equal(t, originalContracts, env.preparedSnapshotChain.OpChainContracts)
 	require.NotNil(t, reconciledChain.Continuation)
 	require.Nil(t, reconciled.AppliedIntent)
+}
+
+func testContinuePermissionlessOutputRoot(t *testing.T) {
+	t.Helper()
+	env := newContinuationEnvWithIntentMutator(
+		t,
+		[]embedded.GameType{embedded.GameTypeCannonKona},
+		devfeatures.OutputRootGamesFlag,
+		func(intent *state.Intent) {
+			intent.Chains[0].DeployOverrides = map[string]any{
+				state.FaultGameAbsolutePrestateOverrideKey: standard.DisputeAbsolutePrestate,
+			}
+		},
+	)
+	require.NotNil(t, env.preparedChain.StartingAnchorRoot)
+	require.NotZero(t, env.preparedChain.StartingAnchorRoot.Root)
+	require.NotEqual(t, opcm.DefaultStartingAnchorRoot.Root, env.preparedChain.StartingAnchorRoot.Root)
+	require.Zero(t, env.preparedChain.StartingAnchorRoot.L2SequenceNumber)
+
+	require.NoError(t, deployer.Prestate(env.ctx, deployer.PrestateConfig{
+		Workdir: env.workdir,
+		Logger:  env.lgr,
+	}))
+	nonceBefore := pendingNonce(t, env)
+	require.NoError(t, deployer.Continue(env.ctx, env.config()))
+	assertContinuationCompleted(t, env, nonceBefore)
 }
 
 func testContinuePermissionlessWithCustomRoles(t *testing.T) {
@@ -540,6 +569,8 @@ func newContinuationEnvWithIntentMutator(
 	loc, _ := testutil.LocalArtifacts(t)
 	cacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
 	intent, st := shared.NewIntent(t, l1ChainID, dk, uint256.NewInt(1), loc, loc, testCustomGasLimit)
+	outputRootBootstrap := devfeatures.IsDevFeatureEnabled(devFeatureBitmap, devfeatures.OutputRootGamesFlag)
+	intent.OutputRootBootstrap = outputRootBootstrap
 	for i := 1; i < len(gameTypes); i++ {
 		intent.Chains = append(
 			intent.Chains,
@@ -570,6 +601,7 @@ func newContinuationEnvWithIntentMutator(
 		ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
 		DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
 		DevFeatureBitmap:                devFeatureBitmap,
+		OutputRootBootstrap:             outputRootBootstrap,
 		SuperchainConfigProxy:           bstrap.SuperchainConfigProxy,
 		L1ProxyAdminOwner:               intent.Chains[0].Roles.L1ProxyAdminOwner,
 		SuperchainProxyAdmin:            bstrap.SuperchainProxyAdmin,
@@ -590,7 +622,10 @@ func newContinuationEnvWithIntentMutator(
 	intent.OPCMAddress = &impls.OpcmV2
 	intent.SuperchainConfigProxy = &bstrap.SuperchainConfigProxy
 	for i, gameType := range gameTypes {
-		intent.Chains[i].DeployOverrides = map[string]any{"respectedGameType": gameType}
+		if intent.Chains[i].DeployOverrides == nil {
+			intent.Chains[i].DeployOverrides = make(map[string]any)
+		}
+		intent.Chains[i].DeployOverrides["respectedGameType"] = gameType
 	}
 	workdir := t.TempDir()
 	require.NoError(t, intent.WriteToFile(filepath.Join(workdir, "intent.toml")))

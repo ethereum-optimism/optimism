@@ -179,6 +179,13 @@ func Prepare(ctx context.Context, cfg PrepareConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed to read the OPCM game mode at %s: %w", opcmAddr, err)
 	}
+	if superRoot == intent.OutputRootBootstrap {
+		mode := "super-root"
+		if intent.OutputRootBootstrap {
+			mode = "output-root"
+		}
+		return fmt.Errorf("intent requests %s bootstrap, but OPCM at %s has the opposite game mode", mode, opcmAddr)
+	}
 	if err := validateInitialGameTypes(intent, st, superRoot, opcmAddr); err != nil {
 		return err
 	}

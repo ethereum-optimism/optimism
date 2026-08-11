@@ -45,6 +45,10 @@ abstract contract FeatureFlags {
             console.log("Setup: DEV_FEATURE__ZK_DISPUTE_GAME is enabled");
             devFeatureBitmap |= DevFeatures.ZK_DISPUTE_GAME;
         }
+        if (Config.devFeatureOutputRootGames()) {
+            console.log("Setup: DEV_FEATURE__OUTPUT_ROOT_GAMES is enabled");
+            devFeatureBitmap |= DevFeatures.OUTPUT_ROOT_GAMES;
+        }
         if (Config.devFeatureSuperRootGamesMigration()) {
             console.log("Setup: DEV_FEATURE__SUPER_ROOT_GAMES_MIGRATION is enabled");
             devFeatureBitmap |= DevFeatures.SUPER_ROOT_GAMES_MIGRATION;
@@ -59,6 +63,8 @@ abstract contract FeatureFlags {
             return "DEV_FEATURE__OPTIMISM_PORTAL_INTEROP";
         } else if (_feature == DevFeatures.ZK_DISPUTE_GAME) {
             return "DEV_FEATURE__ZK_DISPUTE_GAME";
+        } else if (_feature == DevFeatures.OUTPUT_ROOT_GAMES) {
+            return "DEV_FEATURE__OUTPUT_ROOT_GAMES";
         } else if (_feature == DevFeatures.SUPER_ROOT_GAMES_MIGRATION) {
             return "DEV_FEATURE__SUPER_ROOT_GAMES_MIGRATION";
         } else if (_feature == Features.CUSTOM_GAS_TOKEN) {

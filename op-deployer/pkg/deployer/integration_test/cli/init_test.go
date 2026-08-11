@@ -119,3 +119,32 @@ func TestCLIInitCustomIntentType(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, st.Chains, 0)
 }
+
+func TestCLIInitOutputRootBootstrap(t *testing.T) {
+	runner := NewCLITestRunner(t)
+	workDir := runner.GetWorkDir()
+
+	runner.ExpectSuccess(t, []string{
+		"init",
+		"--l1-chain-id", "11155111",
+		"--l2-chain-ids", "1",
+		"--intent-type", "custom",
+		"--output-root-bootstrap",
+		"--workdir", workDir,
+	}, nil)
+
+	intent, err := pipeline.ReadIntent(workDir)
+	require.NoError(t, err)
+	require.True(t, intent.OutputRootBootstrap)
+}
+
+func TestCLIInitOutputRootBootstrapRejectsStandardIntent(t *testing.T) {
+	runner := NewCLITestRunner(t)
+	runner.ExpectErrorContains(t, []string{
+		"init",
+		"--l1-chain-id", "11155111",
+		"--l2-chain-ids", "1",
+		"--output-root-bootstrap",
+		"--workdir", runner.GetWorkDir(),
+	}, nil, "output root bootstrap requires intent-type=custom")
+}
