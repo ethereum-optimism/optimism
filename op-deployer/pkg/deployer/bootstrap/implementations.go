@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/verify"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -60,16 +61,6 @@ type ImplementationsConfig struct {
 
 	privateKeyECDSA *ecdsa.PrivateKey
 }
-
-const (
-	// Source: succinctlabs/sp1-contracts@2ac5ecbbe473421a963d67e55f182e9a36576f7c,
-	// contracts/deployments/1.json, V6_1_0_SP1_VERIFIER_PLONK.
-	mainnetSP1VerifierV610 = "0xc3c6dDDAc8829b233Dc6536Ec024775a57b0AF2A"
-	// Succinct deploys the same verifier bytecode and address deterministically on both networks.
-	// Source: succinctlabs/sp1-contracts@2ac5ecbbe473421a963d67e55f182e9a36576f7c,
-	// contracts/deployments/11155111.json, V6_1_0_SP1_VERIFIER_PLONK.
-	sepoliaSP1VerifierV610 = "0xc3c6dDDAc8829b233Dc6536Ec024775a57b0AF2A"
-)
 
 func (c *ImplementationsConfig) Check() error {
 	if c.L1RPCUrl == "" {
@@ -154,18 +145,15 @@ func (c *ImplementationsConfig) resolveSP1Verifier(chainID *big.Int) error {
 		)
 	}
 	chainIDUint64 := bigs.Uint64Strict(chainID)
-	switch chainIDUint64 {
-	case 1:
-		c.SP1Verifier = common.HexToAddress(mainnetSP1VerifierV610)
-	case 11155111:
-		c.SP1Verifier = common.HexToAddress(sepoliaSP1VerifierV610)
-	default:
+	verifier, err := standard.SP1VerifierFor(chainIDUint64)
+	if err != nil {
 		return fmt.Errorf(
 			"no default SP1 verifier for L1 chain ID %d; specify --%s",
 			chainIDUint64,
 			SP1VerifierAddressFlagName,
 		)
 	}
+	c.SP1Verifier = verifier
 	return nil
 }
 

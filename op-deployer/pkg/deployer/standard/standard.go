@@ -102,6 +102,31 @@ func ChallengerAddressFor(chainID uint64) (common.Address, error) {
 	}
 }
 
+const (
+	// Source: succinctlabs/sp1-contracts@2ac5ecbbe473421a963d67e55f182e9a36576f7c,
+	// contracts/deployments/1.json, V6_1_0_SP1_VERIFIER_PLONK.
+	mainnetSP1VerifierV610 = "0xc3c6dDDAc8829b233Dc6536Ec024775a57b0AF2A"
+	// Succinct deploys the same verifier bytecode and address deterministically on both networks.
+	// Source: succinctlabs/sp1-contracts@2ac5ecbbe473421a963d67e55f182e9a36576f7c,
+	// contracts/deployments/11155111.json, V6_1_0_SP1_VERIFIER_PLONK.
+	sepoliaSP1VerifierV610 = "0xc3c6dDDAc8829b233Dc6536Ec024775a57b0AF2A"
+)
+
+// SP1VerifierFor returns the raw SP1 verifier approved for the current OPCM release on the given L1
+// chain ID. Both `bootstrap implementations` and `apply` default to it when ZK dispute games are
+// enabled and the operator did not pin a verifier explicitly.
+// DO NOT MODIFY THIS METHOD WITHOUT CLEARING IT WITH THE EVM SAFETY TEAM.
+func SP1VerifierFor(chainID uint64) (common.Address, error) {
+	switch chainID {
+	case 1:
+		return common.HexToAddress(mainnetSP1VerifierV610), nil
+	case 11155111:
+		return common.HexToAddress(sepoliaSP1VerifierV610), nil
+	default:
+		return common.Address{}, fmt.Errorf("unsupported chain ID: %d", chainID)
+	}
+}
+
 func SuperchainFor(chainID uint64) (superchain.Superchain, error) {
 	switch chainID {
 	case 1:

@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
@@ -41,19 +42,21 @@ func TestParseSP1VerifierOverrideRequiresExactKey(t *testing.T) {
 	require.False(t, found)
 }
 
-func TestDeployImplementationsSP1VerifierValidation(t *testing.T) {
-	newState := func() *state.State {
-		return &state.State{
-			SuperchainDeployment: &addresses.SuperchainContracts{
-				SuperchainConfigProxy:    common.Address{0x01},
-				SuperchainProxyAdminImpl: common.Address{0x02},
-			},
-			SuperchainRoles: &addresses.SuperchainRoles{
-				SuperchainProxyAdminOwner: common.Address{0x03},
-				Challenger:                common.Address{0x04},
-			},
-		}
+func newSP1VerifierTestState() *state.State {
+	return &state.State{
+		SuperchainDeployment: &addresses.SuperchainContracts{
+			SuperchainConfigProxy:    common.Address{0x01},
+			SuperchainProxyAdminImpl: common.Address{0x02},
+		},
+		SuperchainRoles: &addresses.SuperchainRoles{
+			SuperchainProxyAdminOwner: common.Address{0x03},
+			Challenger:                common.Address{0x04},
+		},
 	}
+}
+
+func TestDeployImplementationsSP1VerifierValidation(t *testing.T) {
+	newState := newSP1VerifierTestState
 	env := &Env{Logger: testlog.Logger(t, slog.LevelDebug)}
 
 	t.Run("disabled rejects verifier", func(t *testing.T) {
@@ -178,5 +181,100 @@ func TestDeployImplementationsSP1VerifierValidation(t *testing.T) {
 		}}
 		err = DeployImplementations(&resumeEnv, changedIntent, st)
 		require.ErrorContains(t, err, "does not match")
+	})
+}
+
+// capturingDeployImplementations records the input DeployImplementations would broadcast. The
+// embedded nil ForgeScript satisfies the rest of the interface; only Run is exercised.
+type capturingDeployImplementations struct {
+	script.ForgeScript
+	input opcm.DeployImplementationsInput
+	ran   bool
+}
+
+func (c *capturingDeployImplementations) Run(input opcm.DeployImplementationsInput) (opcm.DeployImplementationsOutput, error) {
+	c.input = input
+	c.ran = true
+	var out opcm.DeployImplementationsOutput
+	return out, nil
+}
+
+// TestDeployImplementationsSelectsStandardSP1Verifier pins which raw SP1 verifier a live
+// ZK-enabled apply hands to DeployImplementations.
+func TestDeployImplementationsSelectsStandardSP1Verifier(t *testing.T) {
+	const standardVerifier = "0xc3c6dDDAc8829b233Dc6536Ec024775a57b0AF2A"
+
+	deploy := func(t *testing.T, env Env, intent *state.Intent, st *state.State) (*capturingDeployImplementations, error) {
+		capture := new(capturingDeployImplementations)
+		env.Logger = testlog.Logger(t, slog.LevelDebug)
+		env.Scripts = &opcm.Scripts{DeployImplementations: capture}
+		return capture, DeployImplementations(&env, intent, st)
+	}
+
+	zkIntent := func(l1ChainID uint64, overrides map[string]any) *state.Intent {
+		merged := map[string]any{"devFeatureBitmap": devfeatures.ZKDisputeGameFlag}
+		for k, v := range overrides {
+			merged[k] = v
+		}
+		return &state.Intent{L1ChainID: l1ChainID, GlobalDeployOverrides: merged}
+	}
+
+	for _, tt := range []struct {
+		name      string
+		l1ChainID uint64
+	}{
+		{"mainnet", 1},
+		{"sepolia", 11155111},
+	} {
+		t.Run(tt.name+" defaults to the release verifier", func(t *testing.T) {
+			st := newSP1VerifierTestState()
+			intent := zkIntent(tt.l1ChainID, nil)
+			capture, err := deploy(t, Env{}, intent, st)
+			require.NoError(t, err)
+			require.Equal(t, common.HexToAddress(standardVerifier), capture.input.SP1Verifier)
+			require.NotNil(t, st.SP1Verifier)
+			require.Equal(t, common.HexToAddress(standardVerifier), *st.SP1Verifier)
+			require.NotContains(t, intent.GlobalDeployOverrides, "sp1Verifier")
+		})
+	}
+
+	t.Run("explicit override wins", func(t *testing.T) {
+		override := common.Address{0x05}
+		capture, err := deploy(t, Env{}, zkIntent(11155111, map[string]any{"sp1Verifier": override}), newSP1VerifierTestState())
+		require.NoError(t, err)
+		require.Equal(t, override, capture.input.SP1Verifier)
+	})
+
+	t.Run("unsupported network requires an override", func(t *testing.T) {
+		capture, err := deploy(t, Env{}, zkIntent(900, nil), newSP1VerifierTestState())
+		require.ErrorContains(t, err, "sp1Verifier must be specified")
+		require.ErrorContains(t, err, "900")
+		require.False(t, capture.ran)
+	})
+
+	t.Run("disabled ZK selects nothing", func(t *testing.T) {
+		st := newSP1VerifierTestState()
+		capture, err := deploy(t, Env{}, &state.Intent{L1ChainID: 11155111}, st)
+		require.NoError(t, err)
+		require.Equal(t, common.Address{}, capture.input.SP1Verifier)
+		require.Nil(t, st.SP1Verifier)
+	})
+
+	t.Run("genesis does not select the release verifier", func(t *testing.T) {
+		capture, err := deploy(t, Env{IsGenesis: true}, zkIntent(11155111, nil), newSP1VerifierTestState())
+		require.ErrorContains(t, err, "sp1Verifier must be specified")
+		require.False(t, capture.ran)
+	})
+
+	t.Run("resumed deployment keeps the verifier recorded in state", func(t *testing.T) {
+		recorded := common.Address{0x06}
+		st := newSP1VerifierTestState()
+		st.ImplementationsDeployment = &addresses.ImplementationsContracts{SP1PlonkAdapterImpl: common.Address{0xad}}
+		st.SP1Verifier = &recorded
+
+		capture, err := deploy(t, Env{}, zkIntent(11155111, nil), st)
+		require.NoError(t, err)
+		require.False(t, capture.ran)
+		require.Equal(t, recorded, *st.SP1Verifier)
 	})
 }
