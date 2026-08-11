@@ -141,6 +141,12 @@ type InteropChain interface {
 	// callers must capture it at build time, before the rewind starts. Returns true if
 	// a rewind was triggered, false otherwise.
 	InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32, parentPayload *eth.ExecutionPayloadEnvelope) (bool, error)
+	// InvalidationRewindRequired reports whether InvalidateBlock for this target would
+	// still change chain state — false only when a previous recovery cycle completed it.
+	// parent is the WAL-captured rewind destination at height-1, needed to tell a
+	// completed rewind from one that crashed part-way; an empty parent forces true.
+	// Read-only: it never mutates the deny list or the engine.
+	InvalidationRewindRequired(ctx context.Context, height uint64, payloadHash common.Hash, parent eth.BlockID) (bool, error)
 	// WaitReady blocks until IsRPCReady() returns true or ctx is cancelled / times out.
 	// Used by callers that must not return until the chain is actually ready to serve
 	// traffic after a Pause/Resume cycle. Returns ctx.Err() on cancellation or timeout;

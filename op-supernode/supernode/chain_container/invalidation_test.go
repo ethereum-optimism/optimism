@@ -298,6 +298,8 @@ func TestDenyList_GetDeniedHashes(t *testing.T) {
 type mockEngineForInvalidation struct {
 	blockRef        eth.L2BlockRef
 	blockRefErr     error
+	labelRef        eth.L2BlockRef
+	labelRefErr     error
 	rewindCalled    bool
 	rewindTimestamp uint64
 }
@@ -339,7 +341,7 @@ func (m *mockEngineForInvalidation) L2BlockRefByNumber(ctx context.Context, num 
 }
 
 func (m *mockEngineForInvalidation) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error) {
-	return eth.L2BlockRef{}, nil
+	return m.labelRef, m.labelRefErr
 }
 
 // mockVNForInvalidation implements virtual_node.VirtualNode for invalidation tests
@@ -653,6 +655,108 @@ func TestInvalidateBlock(t *testing.T) {
 			require.Equal(t, testOut, storedOutput, "OutputV0 should be stored in denylist after InvalidateBlock")
 		})
 	}
+}
+
+func TestInvalidationRewindRequired(t *testing.T) {
+	t.Parallel()
+
+	const height = uint64(5)
+	hash := common.HexToHash("0xdead")
+	parent := eth.BlockID{Number: height - 1, Hash: common.HexToHash("0xpa4e17")}
+	parentRef := eth.L2BlockRef{Number: parent.Number, Hash: parent.Hash}
+
+	newContainer := func(t *testing.T, eng *mockEngineForInvalidation, denied bool) *simpleChainContainer {
+		t.Helper()
+		dl, err := OpenDenyList(filepath.Join(t.TempDir(), "denylist"))
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = dl.Close() })
+		if denied {
+			require.NoError(t, dl.Add(height, hash, 0, eth.Bytes32{}, eth.Bytes32{}))
+		}
+		return &simpleChainContainer{denyList: dl, log: testLogger(), engine: eng, vn: &mockVNForInvalidation{}}
+	}
+
+	t.Run("denied and superseded needs no rewind", func(t *testing.T) {
+		t.Parallel()
+		eng := &mockEngineForInvalidation{blockRef: eth.L2BlockRef{Hash: common.HexToHash("0xbeef")}}
+		required, err := newContainer(t, eng, true).InvalidationRewindRequired(context.Background(), height, hash, parent)
+		require.NoError(t, err)
+		require.False(t, required)
+	})
+
+	t.Run("denied but still canonical needs a rewind", func(t *testing.T) {
+		t.Parallel()
+		eng := &mockEngineForInvalidation{blockRef: eth.L2BlockRef{Hash: hash}}
+		required, err := newContainer(t, eng, true).InvalidationRewindRequired(context.Background(), height, hash, parent)
+		require.NoError(t, err)
+		require.True(t, required)
+	})
+
+	t.Run("not yet denied needs the full path", func(t *testing.T) {
+		t.Parallel()
+		// The engine already moved on, but the durable deny-list write has not happened.
+		eng := &mockEngineForInvalidation{blockRef: eth.L2BlockRef{Hash: common.HexToHash("0xbeef")}}
+		required, err := newContainer(t, eng, false).InvalidationRewindRequired(context.Background(), height, hash, parent)
+		require.NoError(t, err)
+		require.True(t, required)
+	})
+
+	t.Run("completed rewind awaiting its replacement needs no rewind", func(t *testing.T) {
+		t.Parallel()
+		// Nothing canonical at the height and the unsafe head is the rewind target.
+		eng := &mockEngineForInvalidation{blockRefErr: ethereum.NotFound, labelRef: parentRef}
+		required, err := newContainer(t, eng, true).InvalidationRewindRequired(context.Background(), height, hash, parent)
+		require.NoError(t, err)
+		require.False(t, required)
+	})
+
+	t.Run("crashed rewind needs a rewind", func(t *testing.T) {
+		t.Parallel()
+		// The synthetic block from the failed attempt is still the unsafe head.
+		eng := &mockEngineForInvalidation{
+			blockRefErr: ethereum.NotFound,
+			labelRef:    eth.L2BlockRef{Number: parent.Number, Hash: common.HexToHash("0x5417e1")},
+		}
+		required, err := newContainer(t, eng, true).InvalidationRewindRequired(context.Background(), height, hash, parent)
+		require.NoError(t, err)
+		require.True(t, required, "a partial rewind must not be mistaken for a completed one")
+	})
+
+	t.Run("missing parent cannot prove completion", func(t *testing.T) {
+		t.Parallel()
+		eng := &mockEngineForInvalidation{blockRefErr: ethereum.NotFound, labelRef: parentRef}
+		required, err := newContainer(t, eng, true).InvalidationRewindRequired(context.Background(), height, hash, eth.BlockID{})
+		require.NoError(t, err)
+		require.True(t, required)
+	})
+
+	t.Run("engine failure surfaces as an error", func(t *testing.T) {
+		t.Parallel()
+		fetchErr := errors.New("transient RPC failure")
+		eng := &mockEngineForInvalidation{blockRefErr: fetchErr}
+		_, err := newContainer(t, eng, true).InvalidationRewindRequired(context.Background(), height, hash, parent)
+		require.ErrorIs(t, err, fetchErr)
+	})
+
+	t.Run("unsafe head failure surfaces as an error", func(t *testing.T) {
+		t.Parallel()
+		labelErr := errors.New("unsafe head unavailable")
+		eng := &mockEngineForInvalidation{blockRefErr: ethereum.NotFound, labelRefErr: labelErr}
+		_, err := newContainer(t, eng, true).InvalidationRewindRequired(context.Background(), height, hash, parent)
+		require.ErrorIs(t, err, labelErr)
+	})
+
+	t.Run("the check never mutates the deny list", func(t *testing.T) {
+		t.Parallel()
+		eng := &mockEngineForInvalidation{blockRef: eth.L2BlockRef{Hash: common.HexToHash("0xbeef")}}
+		c := newContainer(t, eng, false)
+		_, err := c.InvalidationRewindRequired(context.Background(), height, hash, parent)
+		require.NoError(t, err)
+		found, err := c.denyList.Contains(height, hash)
+		require.NoError(t, err)
+		require.False(t, found)
+		require.False(t, eng.rewindCalled)
+	})
 }
 
 func TestGetDeniedOutput(t *testing.T) {

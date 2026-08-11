@@ -1194,7 +1194,7 @@ func TestInvalidateBlock(t *testing.T) {
 			run: func(t *testing.T, h *interopTestHarness) {
 				mock := h.Mock(10)
 				blockID := eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD")}
-				err := h.interop.invalidateBlock(mock.id, blockID, 0, eth.Bytes32{}, eth.Bytes32{}, dummyParentPayload(blockID))
+				_, err := h.interop.invalidateBlock(mock.id, blockID, 0, eth.Bytes32{}, eth.Bytes32{}, dummyParentPayload(blockID))
 				require.NoError(t, err)
 
 				require.Len(t, mock.invalidateBlockCalls, 1)
@@ -1211,7 +1211,7 @@ func TestInvalidateBlock(t *testing.T) {
 				mock := h.Mock(10)
 				unknownChain := eth.ChainIDFromUInt64(999)
 				blockID := eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD")}
-				err := h.interop.invalidateBlock(unknownChain, blockID, 0, eth.Bytes32{}, eth.Bytes32{}, dummyParentPayload(blockID))
+				_, err := h.interop.invalidateBlock(unknownChain, blockID, 0, eth.Bytes32{}, eth.Bytes32{}, dummyParentPayload(blockID))
 
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "not found")
@@ -1228,7 +1228,7 @@ func TestInvalidateBlock(t *testing.T) {
 			run: func(t *testing.T, h *interopTestHarness) {
 				mock := h.Mock(10)
 				blockID := eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD")}
-				err := h.interop.invalidateBlock(mock.id, blockID, 0, eth.Bytes32{}, eth.Bytes32{}, dummyParentPayload(blockID))
+				_, err := h.interop.invalidateBlock(mock.id, blockID, 0, eth.Bytes32{}, eth.Bytes32{}, dummyParentPayload(blockID))
 
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "engine failure")
@@ -1740,6 +1740,8 @@ type mockChainContainer struct {
 	invalidateBlockCalls   []invalidateBlockCall
 	invalidateBlockRet     bool
 	invalidateBlockErr     error
+	rewindNotRequired      bool
+	rewindRequiredErr      error
 	pruneDeniedResult      map[uint64][]common.Hash
 	rewindEngineCalls      []uint64
 	rewindEngineErr        error
@@ -2065,6 +2067,21 @@ func (m *mockChainContainer) InvalidateBlock(ctx context.Context, height uint64,
 		m.callLog.record(m.id, "InvalidateBlock")
 	}
 	return m.invalidateBlockRet, m.invalidateBlockErr
+}
+
+// InvalidationRewindRequired defaults to true — the fresh-invalidation case —
+// so tests that don't care about the duplicate-invalidation preflight keep
+// exercising the full freeze/rewind path.
+func (m *mockChainContainer) InvalidationRewindRequired(ctx context.Context, height uint64, payloadHash common.Hash, parent eth.BlockID) (bool, error) {
+	if m.callLog != nil {
+		m.callLog.record(m.id, "InvalidationRewindRequired")
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.rewindRequiredErr != nil {
+		return false, m.rewindRequiredErr
+	}
+	return !m.rewindNotRequired, nil
 }
 func (m *mockChainContainer) OutputV0AtBlockNumber(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error) {
 	if m.outputV0Override != nil {
@@ -3026,10 +3043,12 @@ func TestFreezeAllBeforeRewind(t *testing.T) {
 			WithChain(10, func(m *mockChainContainer) {
 				m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
 				m.callLog = cl
+				m.invalidateBlockRet = true
 			}).
 			WithChain(8453, func(m *mockChainContainer) {
 				m.blockAtTimestamp = eth.L2BlockRef{Number: 200, Hash: common.HexToHash("0x2")}
 				m.callLog = cl
+				m.invalidateBlockRet = true
 			}).
 			WithChain(42, func(m *mockChainContainer) {
 				m.blockAtTimestamp = eth.L2BlockRef{Number: 300, Hash: common.HexToHash("0x3")}
@@ -3130,12 +3149,297 @@ func TestFreezeAllBeforeRewind(t *testing.T) {
 		}
 	})
 
+	t.Run("invalidated chain is resumed when no rewind was needed", func(t *testing.T) {
+		cl := &callLog{}
+		h := newInteropTestHarness(t).
+			WithChain(10, func(m *mockChainContainer) {
+				m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
+				m.callLog = cl
+				// The deny-list write lands but the engine is already off the
+				// invalidated block, so InvalidateBlock reports no rewind and
+				// RewindEngine — the only other path that resumes — never runs.
+				m.invalidateBlockRet = false
+			}).
+			WithChain(8453, func(m *mockChainContainer) {
+				m.blockAtTimestamp = eth.L2BlockRef{Number: 200, Hash: common.HexToHash("0x2")}
+				m.callLog = cl
+			}).
+			Build()
+
+		chain10 := h.Mock(10).id
+		chain8453 := h.Mock(8453).id
+
+		invalidResult := Result{
+			Timestamp:   1000,
+			L1Inclusion: eth.BlockID{Number: 100, Hash: common.HexToHash("0xL1")},
+			L2Heads: map[eth.ChainID]eth.BlockID{
+				chain10:   {Number: 500, Hash: common.HexToHash("0xL2-10")},
+				chain8453: {Number: 600, Hash: common.HexToHash("0xL2-8453")},
+			},
+			InvalidHeads: map[eth.ChainID]InvalidHead{
+				chain10: {BlockID: eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD")}},
+			},
+		}
+
+		pending, err := h.interop.buildPendingTransition(
+			StepOutput{Decision: DecisionInvalidate, Result: invalidResult},
+			RoundObservation{},
+		)
+		require.NoError(t, err)
+		require.NoError(t, h.interop.verifiedDB.SetPendingTransition(pending))
+		_, err = h.interop.applyPendingTransition(pending)
+		require.NoError(t, err)
+
+		require.Equal(t, 1, h.Mock(10).pauseAndStopVNCalls, "chain 10 should be frozen")
+		require.Equal(t, 1, h.Mock(10).resumeCalls,
+			"a frozen chain whose invalidation triggered no rewind must be resumed, or its VN stays stopped forever")
+		require.Equal(t, 1, h.Mock(8453).resumeCalls, "non-invalidated chain should be resumed")
+	})
+
+	t.Run("failed invalidation resumes rather than wedging the chain", func(t *testing.T) {
+		h := newInteropTestHarness(t).
+			WithChain(10, func(m *mockChainContainer) {
+				m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
+				m.invalidateBlockErr = errors.New("engine failure")
+			}).
+			WithChain(8453, func(m *mockChainContainer) {
+				m.blockAtTimestamp = eth.L2BlockRef{Number: 200, Hash: common.HexToHash("0x2")}
+			}).
+			Build()
+
+		chain10 := h.Mock(10).id
+		chain8453 := h.Mock(8453).id
+
+		invalidResult := Result{
+			Timestamp:   1000,
+			L1Inclusion: eth.BlockID{Number: 100, Hash: common.HexToHash("0xL1")},
+			L2Heads: map[eth.ChainID]eth.BlockID{
+				chain10:   {Number: 500, Hash: common.HexToHash("0xL2-10")},
+				chain8453: {Number: 600, Hash: common.HexToHash("0xL2-8453")},
+			},
+			InvalidHeads: map[eth.ChainID]InvalidHead{
+				chain10: {BlockID: eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD")}},
+			},
+		}
+
+		pending, err := h.interop.buildPendingTransition(
+			StepOutput{Decision: DecisionInvalidate, Result: invalidResult},
+			RoundObservation{},
+		)
+		require.NoError(t, err)
+		require.NoError(t, h.interop.verifiedDB.SetPendingTransition(pending))
+		_, err = h.interop.applyPendingTransition(pending)
+		require.Error(t, err, "the transition must be preserved for retry")
+
+		// The rewind never ran, so nothing else will ever resume this chain.
+		require.Equal(t, 1, h.Mock(10).resumeCalls, "a failed invalidation must not leave the chain frozen")
+		require.Equal(t, 1, h.Mock(8453).resumeCalls, "unaffected chain should be resumed")
+	})
+
+	t.Run("already-applied invalidation skips the global freeze", func(t *testing.T) {
+		cl := &callLog{}
+		h := newInteropTestHarness(t).
+			WithChain(10, func(m *mockChainContainer) {
+				m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
+				m.callLog = cl
+				// Already denied and no longer canonical: a previous recovery
+				// cycle completed this exact invalidation.
+				m.rewindNotRequired = true
+			}).
+			WithChain(8453, func(m *mockChainContainer) {
+				m.blockAtTimestamp = eth.L2BlockRef{Number: 200, Hash: common.HexToHash("0x2")}
+				m.callLog = cl
+			}).
+			Build()
+
+		chain10 := h.Mock(10).id
+		chain8453 := h.Mock(8453).id
+
+		invalidResult := Result{
+			Timestamp:   1000,
+			L1Inclusion: eth.BlockID{Number: 100, Hash: common.HexToHash("0xL1")},
+			L2Heads: map[eth.ChainID]eth.BlockID{
+				chain10:   {Number: 500, Hash: common.HexToHash("0xL2-10")},
+				chain8453: {Number: 600, Hash: common.HexToHash("0xL2-8453")},
+			},
+			InvalidHeads: map[eth.ChainID]InvalidHead{
+				chain10: {BlockID: eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD")}},
+			},
+		}
+
+		pending, err := h.interop.buildPendingTransition(
+			StepOutput{Decision: DecisionInvalidate, Result: invalidResult},
+			RoundObservation{},
+		)
+		require.NoError(t, err)
+		require.NoError(t, h.interop.verifiedDB.SetPendingTransition(pending))
+		_, err = h.interop.applyPendingTransition(pending)
+		require.NoError(t, err)
+
+		// The unaffected chain must not be dragged through a VN restart: that is
+		// the reset/local-safe-replay storm this preflight exists to stop.
+		require.Zero(t, h.Mock(8453).pauseAndStopVNCalls, "unaffected chain must not be frozen")
+		require.Zero(t, h.Mock(10).pauseAndStopVNCalls, "already-recovered chain must not be frozen")
+		require.Empty(t, h.Mock(10).invalidateBlockCalls, "no invalidation work should be redone")
+
+		cleared, err := h.interop.verifiedDB.GetPendingTransition()
+		require.NoError(t, err)
+		require.Nil(t, cleared, "the duplicate transition must be cleared, not retried forever")
+	})
+
+	t.Run("partially-applied invalidation still freezes every chain", func(t *testing.T) {
+		h := newInteropTestHarness(t).
+			WithChain(10, func(m *mockChainContainer) {
+				m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
+				m.rewindNotRequired = true
+			}).
+			WithChain(8453, func(m *mockChainContainer) {
+				m.blockAtTimestamp = eth.L2BlockRef{Number: 200, Hash: common.HexToHash("0x2")}
+				m.invalidateBlockRet = true
+			}).
+			Build()
+
+		chain10 := h.Mock(10).id
+		chain8453 := h.Mock(8453).id
+
+		// Chain 8453 still needs its rewind, so transitive-invalidation safety
+		// requires the full freeze even though chain 10 is already recovered.
+		invalidResult := Result{
+			Timestamp:   1000,
+			L1Inclusion: eth.BlockID{Number: 100, Hash: common.HexToHash("0xL1")},
+			L2Heads: map[eth.ChainID]eth.BlockID{
+				chain10:   {Number: 500, Hash: common.HexToHash("0xL2-10")},
+				chain8453: {Number: 600, Hash: common.HexToHash("0xL2-8453")},
+			},
+			InvalidHeads: map[eth.ChainID]InvalidHead{
+				chain10:   {BlockID: eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD10")}},
+				chain8453: {BlockID: eth.BlockID{Number: 600, Hash: common.HexToHash("0xBAD8453")}},
+			},
+		}
+
+		pending, err := h.interop.buildPendingTransition(
+			StepOutput{Decision: DecisionInvalidate, Result: invalidResult},
+			RoundObservation{},
+		)
+		require.NoError(t, err)
+		require.NoError(t, h.interop.verifiedDB.SetPendingTransition(pending))
+		_, err = h.interop.applyPendingTransition(pending)
+		require.NoError(t, err)
+
+		require.Equal(t, 1, h.Mock(10).pauseAndStopVNCalls, "chain 10 should be frozen")
+		require.Equal(t, 1, h.Mock(8453).pauseAndStopVNCalls, "chain 8453 should be frozen")
+		require.Equal(t, 1, h.Mock(10).resumeCalls, "chain 10 rewound nothing, so it must be resumed")
+		require.Zero(t, h.Mock(8453).resumeCalls, "chain 8453 is resumed by RewindEngine")
+	})
+
+	t.Run("already-recovered chain is not recounted when a sibling keeps failing", func(t *testing.T) {
+		h := newInteropTestHarness(t).
+			WithChain(10, func(m *mockChainContainer) {
+				m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
+				m.rewindNotRequired = true
+			}).
+			WithChain(8453, func(m *mockChainContainer) {
+				m.blockAtTimestamp = eth.L2BlockRef{Number: 200, Hash: common.HexToHash("0x2")}
+				m.invalidateBlockErr = errors.New("engine failure")
+			}).
+			Build()
+
+		chain10 := h.Mock(10).id
+		chain8453 := h.Mock(8453).id
+
+		invalidResult := Result{
+			Timestamp:   1000,
+			L1Inclusion: eth.BlockID{Number: 100, Hash: common.HexToHash("0xL1")},
+			L2Heads: map[eth.ChainID]eth.BlockID{
+				chain10:   {Number: 500, Hash: common.HexToHash("0xL2-10")},
+				chain8453: {Number: 600, Hash: common.HexToHash("0xL2-8453")},
+			},
+			InvalidHeads: map[eth.ChainID]InvalidHead{
+				chain10:   {BlockID: eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD10")}},
+				chain8453: {BlockID: eth.BlockID{Number: 600, Hash: common.HexToHash("0xBAD8453")}},
+			},
+		}
+
+		pending, err := h.interop.buildPendingTransition(
+			StepOutput{Decision: DecisionInvalidate, Result: invalidResult},
+			RoundObservation{},
+		)
+		require.NoError(t, err)
+		require.NoError(t, h.interop.verifiedDB.SetPendingTransition(pending))
+
+		// Chain 8453 keeps failing, so the transition is retried every round. Chain 10
+		// is dragged along each time but must not be counted as a new invalidation.
+		for range 3 {
+			_, err = h.interop.applyPendingTransition(pending)
+			require.Error(t, err)
+		}
+		v, found := gatheredCounter(t, h.interop.metrics, "supernode_interop_invalidations_total", "chain_id", chain10.String())
+		require.True(t, found)
+		require.Zero(t, v, "an already-recovered chain must not be counted on every retry")
+	})
+
+	t.Run("unconfigured chain is treated as outstanding", func(t *testing.T) {
+		h := newInteropTestHarness(t).
+			WithChain(10, func(m *mockChainContainer) {
+				m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
+				m.rewindNotRequired = true
+			}).
+			Build()
+
+		unknown := eth.ChainIDFromUInt64(999)
+		outstanding := h.interop.outstandingInvalidations(
+			[]PendingInvalidation{
+				{ChainID: h.Mock(10).id, BlockID: eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD")}},
+				{ChainID: unknown, BlockID: eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD")}},
+			},
+			nil,
+		)
+		require.True(t, outstanding[unknown], "an unreadable chain must never be skipped")
+		require.False(t, outstanding[h.Mock(10).id])
+	})
+
+	t.Run("preflight error falls back to the full freeze", func(t *testing.T) {
+		h := newInteropTestHarness(t).
+			WithChain(10, func(m *mockChainContainer) {
+				m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
+				m.rewindRequiredErr = errors.New("denylist read failed")
+				m.invalidateBlockRet = true
+			}).
+			Build()
+
+		chain10 := h.Mock(10).id
+
+		invalidResult := Result{
+			Timestamp:   1000,
+			L1Inclusion: eth.BlockID{Number: 100, Hash: common.HexToHash("0xL1")},
+			L2Heads: map[eth.ChainID]eth.BlockID{
+				chain10: {Number: 500, Hash: common.HexToHash("0xL2-10")},
+			},
+			InvalidHeads: map[eth.ChainID]InvalidHead{
+				chain10: {BlockID: eth.BlockID{Number: 500, Hash: common.HexToHash("0xBAD")}},
+			},
+		}
+
+		pending, err := h.interop.buildPendingTransition(
+			StepOutput{Decision: DecisionInvalidate, Result: invalidResult},
+			RoundObservation{},
+		)
+		require.NoError(t, err)
+		require.NoError(t, h.interop.verifiedDB.SetPendingTransition(pending))
+		_, err = h.interop.applyPendingTransition(pending)
+		require.NoError(t, err)
+
+		require.Equal(t, 1, h.Mock(10).pauseAndStopVNCalls, "an unreadable preflight must not skip the invalidation")
+		require.Len(t, h.Mock(10).invalidateBlockCalls, 1)
+	})
+
 	t.Run("single chain invalidated freezes and does not resume", func(t *testing.T) {
 		cl := &callLog{}
 		h := newInteropTestHarness(t).
 			WithChain(10, func(m *mockChainContainer) {
 				m.blockAtTimestamp = eth.L2BlockRef{Number: 100, Hash: common.HexToHash("0x1")}
 				m.callLog = cl
+				m.invalidateBlockRet = true
 			}).
 			Build()
 

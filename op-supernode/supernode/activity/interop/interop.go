@@ -812,6 +812,18 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 		sort.Slice(invalidations, func(i, j int) bool {
 			return invalidations[i].ChainID.Cmp(invalidations[j].ChainID) < 0
 		})
+		// Re-running an already-applied decision is not free: the freeze below restarts
+		// every VN, resetting derivation and walking local-safe back a sequencing window
+		// on chains that were never invalidated.
+		outstanding := i.outstandingInvalidations(invalidations, pending.InvalidationParentPayloads)
+		if len(outstanding) == 0 {
+			i.log.Info("invalidation already applied on every chain, skipping recovery",
+				"timestamp", pending.Result.Timestamp, "chains", len(invalidations))
+			if err := i.verifiedDB.ClearPendingTransition(); err != nil {
+				return false, fmt.Errorf("clear already-applied invalidation transition: %w", err)
+			}
+			return false, nil
+		}
 		// Freeze ALL chains' VNs before rewinding any. Without this, a non-invalidated
 		// chain's still-running VN can observe the interop state change from onReset and
 		// issue a ForkchoiceUpdate that advances its safe head. If that chain is later
@@ -826,6 +838,8 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 			}
 		}
 		var failedAny bool
+		// Chains RewindEngine resumed for us; every other chain is resumed below.
+		rewound := make(map[eth.ChainID]bool, len(invalidations))
 		for _, p := range invalidations {
 			parentPayload, ok := pending.InvalidationParentPayloads[p.ChainID]
 			if !ok || parentPayload == nil {
@@ -837,18 +851,28 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 				failedAny = true
 				continue
 			}
-			if err := i.invalidateBlock(p.ChainID, p.BlockID, p.Timestamp, p.StateRoot, p.MessagePasserStorageRoot, parentPayload); err != nil {
+			didRewind, err := i.invalidateBlock(p.ChainID, p.BlockID, p.Timestamp, p.StateRoot, p.MessagePasserStorageRoot, parentPayload)
+			if err != nil {
 				i.log.Error("invalidation failed, transition preserved for retry on restart",
 					"chain", p.ChainID, "block", p.BlockID, "err", err)
 				failedAny = true
-			} else {
+				continue
+			}
+			if didRewind {
+				rewound[p.ChainID] = true
+			}
+			// Count only the chains the preflight found outstanding, so a transition
+			// retried because a sibling chain keeps failing does not inflate the counter.
+			if outstanding[p.ChainID] {
 				i.metrics.InteropInvalidations.WithLabelValues(p.ChainID.String()).Inc()
 			}
 		}
-		// Resume non-invalidated chains. Invalidated chains are resumed by
-		// RewindEngine internally (which also waits for readiness).
+		needsResume := func(chainID eth.ChainID) bool { return !rewound[chainID] }
+		// RewindEngine is the only other path that resumes a chain, so anything it did
+		// not run for stays stopped unless resumed here — including failed invalidations,
+		// which are retried next round rather than left wedged.
 		for chainID, chain := range i.chains {
-			if _, isInvalid := pending.Result.InvalidHeads[chainID]; !isInvalid {
+			if needsResume(chainID) {
 				if err := chain.Resume(i.ctx); err != nil {
 					i.log.Error("failed to resume chain after rewind", "chainID", chainID, "err", err)
 				}
@@ -866,7 +890,7 @@ func (i *Interop) applyPendingTransition(pending PendingTransition) (bool, error
 		// verifier backoff loop, so we log and continue rather than return.
 		waitCtx, cancel := context.WithTimeout(i.ctx, cc.DefaultWaitReadyTimeout)
 		for chainID, chain := range i.chains {
-			if _, isInvalid := pending.Result.InvalidHeads[chainID]; !isInvalid {
+			if needsResume(chainID) {
 				if err := chain.WaitReady(waitCtx); err != nil {
 					i.log.Error("chain not ready after resume", "chainID", chainID, "err", err)
 				}
@@ -1362,11 +1386,41 @@ func (i *Interop) Reset(chainID eth.ChainID, timestamp uint64, invalidatedBlock 
 // invalidateBlock notifies the chain container to add the block to the denylist
 // and potentially rewind if the chain is currently using that block. parentPayload
 // is the canonical payload at the rewind destination (height-1), captured from the WAL.
-func (i *Interop) invalidateBlock(chainID eth.ChainID, blockID eth.BlockID, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32, parentPayload *eth.ExecutionPayloadEnvelope) error {
+// Reports whether a rewind was triggered.
+func (i *Interop) invalidateBlock(chainID eth.ChainID, blockID eth.BlockID, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32, parentPayload *eth.ExecutionPayloadEnvelope) (bool, error) {
 	chain, ok := i.chains[chainID]
 	if !ok {
-		return fmt.Errorf("chain %s not found", chainID)
+		return false, fmt.Errorf("chain %s not found", chainID)
 	}
-	_, err := chain.InvalidateBlock(i.ctx, blockID.Number, blockID.Hash, decisionTimestamp, stateRoot, messagePasserStorageRoot, parentPayload)
-	return err
+	return chain.InvalidateBlock(i.ctx, blockID.Number, blockID.Hash, decisionTimestamp, stateRoot, messagePasserStorageRoot, parentPayload)
+}
+
+// outstandingInvalidations returns the chains whose pending invalidation would
+// still change chain state. An unreadable chain counts as outstanding: re-running
+// a completed invalidation is idempotent, whereas skipping a real one leaves an
+// invalid block canonical.
+func (i *Interop) outstandingInvalidations(invalidations []PendingInvalidation, parents map[eth.ChainID]*eth.ExecutionPayloadEnvelope) map[eth.ChainID]bool {
+	outstanding := make(map[eth.ChainID]bool, len(invalidations))
+	for _, p := range invalidations {
+		chain, ok := i.chains[p.ChainID]
+		if !ok {
+			// Reported properly by the apply loop, which preserves the transition.
+			outstanding[p.ChainID] = true
+			continue
+		}
+		var parent eth.BlockID
+		if envelope := parents[p.ChainID]; envelope != nil && envelope.ExecutionPayload != nil {
+			parent = envelope.ExecutionPayload.ID()
+		}
+		required, err := chain.InvalidationRewindRequired(i.ctx, p.BlockID.Number, p.BlockID.Hash, parent)
+		if err != nil {
+			i.log.Warn("invalidation preflight failed, proceeding with recovery",
+				"chain", p.ChainID, "block", p.BlockID, "err", err)
+			required = true
+		}
+		if required {
+			outstanding[p.ChainID] = true
+		}
+	}
+	return outstanding
 }

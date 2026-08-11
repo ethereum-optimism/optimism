@@ -428,30 +428,18 @@ func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint6
 
 	// Errors here propagate so the caller preserves the pending transition for
 	// retry on restart; the deny list entry above is already durable.
-	if c.engine == nil {
-		return false, fmt.Errorf("cannot check current block at height %d: %w", height, engine_controller.ErrNoEngineClient)
+	invalidatedBlock, state, err := c.resolveInvalidationTarget(ctx, height, payloadHash)
+	if err != nil {
+		return false, err
 	}
-
-	// Only skip the rewind when the engine reports a block at this height that is not the
-	// invalidated one. A NotFound result is not safe to skip: a prior crashed attempt may
-	// have left the synthetic block at this height with no canonical entry visible by
-	// number, and we need to drive the rewind to completion.
-	var invalidatedBlock eth.BlockRef
-	currentBlock, err := c.engine.L2BlockRefByNumber(ctx, height)
-	switch {
-	case err == nil:
-		if currentBlock.Hash != payloadHash {
-			c.log.Info("current block differs from invalidated block, no rewind needed",
-				"height", height, "currentHash", currentBlock.Hash, "invalidatedHash", payloadHash)
-			return false, nil
-		}
-		invalidatedBlock = currentBlock.BlockRef()
-	case errors.Is(err, ethereum.NotFound):
+	if state == invalidationSuperseded {
+		return false, nil
+	}
+	if state == invalidationAbsent {
+		// Could be a completed rewind or a crashed one; drive it to completion either
+		// way, since Rewind no-ops when the chain already sits on the target.
 		c.log.Warn("no canonical block at invalidated height; assuming partial rewind state and retrying",
 			"height", height, "payloadHash", payloadHash)
-		invalidatedBlock = eth.BlockRef{Number: height, Hash: payloadHash}
-	default:
-		return false, fmt.Errorf("failed to get current block at height %d: %w", height, err)
 	}
 
 	rewindFrom, rewindFromErr := c.engine.L2BlockRefByLabel(ctx, eth.Unsafe)
@@ -485,6 +473,80 @@ func (c *simpleChainContainer) InvalidateBlock(ctx context.Context, height uint6
 	}
 
 	return true, nil
+}
+
+// invalidationState describes where the engine sits relative to an invalidated block.
+type invalidationState int
+
+const (
+	// The invalidated block still occupies its height.
+	invalidationCanonical invalidationState = iota
+	// A different block occupies the height, so the invalidation already took effect.
+	invalidationSuperseded
+	// Nothing is canonical at the height: either a completed rewind still awaiting its
+	// replacement, or an attempt that crashed leaving the synthetic block there.
+	invalidationAbsent
+)
+
+// resolveInvalidationTarget reports where the engine sits relative to the invalidated
+// block, along with the block ref to hand to the rewind.
+func (c *simpleChainContainer) resolveInvalidationTarget(ctx context.Context, height uint64, payloadHash common.Hash) (eth.BlockRef, invalidationState, error) {
+	if c.engine == nil {
+		return eth.BlockRef{}, invalidationCanonical, fmt.Errorf("cannot check current block at height %d: %w", height, engine_controller.ErrNoEngineClient)
+	}
+	currentBlock, err := c.engine.L2BlockRefByNumber(ctx, height)
+	switch {
+	case err == nil:
+		if currentBlock.Hash != payloadHash {
+			c.log.Info("current block differs from invalidated block, no rewind needed",
+				"height", height, "currentHash", currentBlock.Hash, "invalidatedHash", payloadHash)
+			return eth.BlockRef{}, invalidationSuperseded, nil
+		}
+		return currentBlock.BlockRef(), invalidationCanonical, nil
+	case errors.Is(err, ethereum.NotFound):
+		return eth.BlockRef{Number: height, Hash: payloadHash}, invalidationAbsent, nil
+	default:
+		return eth.BlockRef{}, invalidationCanonical, fmt.Errorf("failed to get current block at height %d: %w", height, err)
+	}
+}
+
+func (c *simpleChainContainer) InvalidationRewindRequired(ctx context.Context, height uint64, payloadHash common.Hash, parent eth.BlockID) (bool, error) {
+	if c.denyList == nil {
+		return false, fmt.Errorf("deny list not initialized")
+	}
+	if height == 0 {
+		return false, fmt.Errorf("cannot invalidate genesis block (height=0)")
+	}
+	denied, err := c.denyList.Contains(height, payloadHash)
+	if err != nil {
+		return false, fmt.Errorf("failed to check deny list at height %d: %w", height, err)
+	}
+	// An undenied target always needs the full path: the deny-list write is the
+	// durable part of the invalidation and has not happened yet.
+	if !denied {
+		return true, nil
+	}
+	_, state, err := c.resolveInvalidationTarget(ctx, height, payloadHash)
+	if err != nil {
+		return false, err
+	}
+	switch state {
+	case invalidationSuperseded:
+		return false, nil
+	case invalidationCanonical:
+		return true, nil
+	}
+	// Nothing canonical at the height, which is also what a completed rewind looks like
+	// until derivation produces the replacement. A completed rewind put the unsafe head
+	// exactly on the parent; a crashed one left the synthetic block there.
+	if parent == (eth.BlockID{}) || parent.Number != height-1 {
+		return true, nil
+	}
+	unsafe, err := c.engine.L2BlockRefByLabel(ctx, eth.Unsafe)
+	if err != nil {
+		return false, fmt.Errorf("failed to read unsafe head for invalidation preflight at height %d: %w", height, err)
+	}
+	return unsafe.ID() != parent, nil
 }
 
 func (c *simpleChainContainer) PruneDeniedAtOrAfterTimestamp(timestamp uint64) (map[uint64][]common.Hash, error) {

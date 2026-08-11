@@ -1147,6 +1147,9 @@ func (m *algoMockChain) BlockTime() uint64 {
 func (m *algoMockChain) InvalidateBlock(ctx context.Context, height uint64, payloadHash common.Hash, decisionTimestamp uint64, stateRoot, messagePasserStorageRoot eth.Bytes32, parentPayload *eth.ExecutionPayloadEnvelope) (bool, error) {
 	return false, nil
 }
+func (m *algoMockChain) InvalidationRewindRequired(ctx context.Context, height uint64, payloadHash common.Hash, parent eth.BlockID) (bool, error) {
+	return true, nil
+}
 func (m *algoMockChain) OutputV0AtBlockNumber(ctx context.Context, l2BlockNum uint64) (*eth.OutputV0, error) {
 	out := &eth.OutputV0{}
 	if m.blockHashes != nil {
