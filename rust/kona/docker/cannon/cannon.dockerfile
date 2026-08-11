@@ -1,4 +1,5 @@
-FROM ubuntu:24.04
+# Debian base: Ubuntu dropped the big-endian MIPS64 cross toolchain after 24.04.
+FROM debian:trixie-slim
 
 ENV SHELL=/bin/bash
 ENV DEBIAN_FRONTEND=noninteractive
