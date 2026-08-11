@@ -194,12 +194,9 @@ contract OPContractsManagerUtils {
     }
 
     /// @notice Asserts that an upgrade that moves a chain from output root games to super root
-    ///         games supplies a new starting anchor root.
-    /// @dev Without the override, the AnchorStateRegistry is re-initialized with its existing
-    ///      starting anchor root. The root then counts as unchanged, so the registry keeps the
-    ///      legacy anchor game and new super root games start from an output root and an L2 block
-    ///      number that the super trace reads as a super root and a timestamp. Honest challengers
-    ///      cannot build a trace for that prestate, so invalid claims would go uncontested.
+    ///         games supplies a new starting anchor root. Without it the AnchorStateRegistry sees
+    ///         an unchanged root, keeps the legacy anchor game, and super root games inherit an
+    ///         output root that no honest challenger can build a trace for.
     ///
     /// @param _anchorStateRegistry The AnchorStateRegistry of the chain being upgraded.
     /// @param _startingRespectedGameType The respected game type the upgrade will install.
@@ -214,20 +211,16 @@ contract OPContractsManagerUtils {
         external
         view
     {
-        // Only the move onto super root games needs a new anchor root. A chain that already runs
-        // super root games holds an anchor that super root games can interpret.
+        // Only the move onto super root games needs a new anchor root.
         if (!GameTypes.isSuperGame(_startingRespectedGameType)) return;
         if (!hasOutputRootAnchor(_anchorStateRegistry)) return;
 
-        // The anchor root must be supplied explicitly. Falling back to the value already stored in
-        // the registry would retain the legacy anchor game.
         if (bytes(getInstructionByKey(_instructions, "overrides.cfg.startingAnchorRoot").key).length == 0) {
             revert OPContractsManagerUtils_MissingStartingAnchorRoot();
         }
 
-        // The anchor must be a real commitment at a sequence number that leaves room for a uint64
-        // successor. AnchorStateRegistry.initialize separately requires that the sequence number is
-        // ahead of the current anchor, which is what clears the legacy anchor game.
+        // AnchorStateRegistry.initialize separately requires the sequence number to be ahead of the
+        // current anchor, which is what clears the legacy anchor game.
         if (
             _startingAnchorRoot.root.raw() == bytes32(0)
                 || _startingAnchorRoot.root.raw() == Constants.PLACEHOLDER_STARTING_ANCHOR_ROOT
@@ -238,8 +231,9 @@ contract OPContractsManagerUtils {
     }
 
     /// @notice Checks whether an AnchorStateRegistry currently respects an output root game type.
-    /// @dev A registry that cannot report a respected game type was deployed by this upgrade and
-    ///      therefore holds no anchor state to carry over.
+    ///         A registry that cannot report one was deployed by this upgrade, so it holds no
+    ///         anchor state to carry over.
+    ///
     /// @param _anchorStateRegistry The AnchorStateRegistry to check.
     /// @return True if the registry reports an output root game type, false otherwise.
     function hasOutputRootAnchor(IAnchorStateRegistry _anchorStateRegistry) public view returns (bool) {

@@ -25,9 +25,9 @@ abstract contract SuperGameTestInit is CommonTest {
     /// @notice The challenger role.
     address challenger;
 
-    /// @notice Builds the starting anchor root override that a migration onto super root games
-    ///         must supply. The sequence number must be ahead of the current anchor so the
-    ///         AnchorStateRegistry clears the output root anchor game.
+    /// @notice Builds the starting anchor root override a migration onto super root games must
+    ///         supply. The sequence number must be ahead of the current anchor.
+    ///
     /// @return The starting anchor root instruction.
     function _superRootAnchorInstruction() internal view returns (IOPContractsManagerUtils.ExtraInstruction memory) {
         (, uint256 currentSeqNum) = anchorStateRegistry.getAnchorRoot();

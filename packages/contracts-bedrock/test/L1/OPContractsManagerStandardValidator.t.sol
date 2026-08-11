@@ -10,7 +10,7 @@ import { OPContractsManagerMigrationValidator_TestInit } from "test/L1/opcm/OPCo
 
 // Libraries
 import { GameType, Hash } from "src/dispute/lib/LibUDT.sol";
-import { GameTypes, Duration, Claim } from "src/dispute/lib/Types.sol";
+import { GameTypes, Duration, Claim, Proposal } from "src/dispute/lib/Types.sol";
 import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
 import { Features } from "src/libraries/Features.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
@@ -2209,11 +2209,19 @@ abstract contract OPContractsManagerStandardValidator_ZKMode_TestInit is CommonT
                 )
             });
 
+            // Moving off the output root games requires a new anchor root, ahead of the current one.
+            (, uint256 currentSeqNum) = anchorStateRegistry.getAnchorRoot();
             IOPContractsManagerUtils.ExtraInstruction[] memory extraInstructions =
-                new IOPContractsManagerUtils.ExtraInstruction[](1);
+                new IOPContractsManagerUtils.ExtraInstruction[](2);
             extraInstructions[0] = IOPContractsManagerUtils.ExtraInstruction({
                 key: "overrides.cfg.startingRespectedGameType",
                 data: abi.encode(GameTypes.SUPER_CANNON_KONA)
+            });
+            extraInstructions[1] = IOPContractsManagerUtils.ExtraInstruction({
+                key: "overrides.cfg.startingAnchorRoot",
+                data: abi.encode(
+                    Proposal({ root: Hash.wrap(keccak256("zkAnchorRoot")), l2SequenceNumber: currentSeqNum + 1 })
+                )
             });
 
             prankDelegateCall(owner);

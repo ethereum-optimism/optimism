@@ -87,8 +87,8 @@ abstract contract OPContractsManagerUtilsCaller {
         );
     }
 
-    /// @notice Asserts that an upgrade onto super root games supplies a new starting anchor root.
-    ///         See OPContractsManagerUtils.assertValidSuperRootMigration.
+    /// @notice See OPContractsManagerUtils.assertValidSuperRootMigration.
+    ///
     /// @param _anchorStateRegistry The AnchorStateRegistry of the chain being upgraded.
     /// @param _startingRespectedGameType The respected game type the upgrade will install.
     /// @param _startingAnchorRoot The starting anchor root the upgrade will install.
