@@ -397,6 +397,7 @@ type System struct {
 	// Note that this time travel may occur in a single block, creating a very large difference in the Time
 	// on sequential blocks.
 	TimeTravelClock *clock.AdvancingClock
+	l1Miner         *geth.FakePoS
 
 	t      *testing.T
 	closed atomic.Bool
@@ -427,6 +428,19 @@ func (sys *System) AdvanceTime(d time.Duration) {
 	if sys.TimeTravelClock != nil {
 		sys.TimeTravelClock.AdvanceTime(d)
 	}
+}
+
+// PauseL1AtBlock configures the fake L1 block producer to pause immediately
+// after the requested block is made canonical. The returned channel closes
+// when the pause has taken effect.
+func (sys *System) PauseL1AtBlock(block uint64) (<-chan struct{}, error) {
+	return sys.l1Miner.PauseAtBlock(block)
+}
+
+// ResumeL1 resumes a fake L1 block producer paused by PauseL1AtBlock or
+// WithL1BlockPauseAtBlock2.
+func (sys *System) ResumeL1() error {
+	return sys.l1Miner.Resume()
 }
 
 func (sys *System) L1BeaconEndpoint() endpoint.RestHTTP {
@@ -559,15 +573,25 @@ type StartOption struct {
 
 	// Batcher CLIConfig modifications to apply before starting the batcher.
 	BatcherMod func(*bss.CLIConfig)
+
+	pauseL1AtBlock2 bool
 }
 
 type startOptions struct {
-	opts map[string]SystemConfigHook
+	opts            map[string]SystemConfigHook
+	pauseL1AtBlock2 bool
 }
 
 func parseStartOptions(_opts []StartOption) (startOptions, error) {
 	opts := make(map[string]SystemConfigHook)
+	var pauseL1AtBlock2 bool
 	for _, opt := range _opts {
+		if opt.pauseL1AtBlock2 {
+			if pauseL1AtBlock2 {
+				return startOptions{}, errors.New("duplicate L1 block 2 pause option")
+			}
+			pauseL1AtBlock2 = true
+		}
 		if _, ok := opts[opt.Key+":"+opt.Role]; ok {
 			return startOptions{}, fmt.Errorf("duplicate option for key %s and role %s", opt.Key, opt.Role)
 		}
@@ -575,8 +599,16 @@ func parseStartOptions(_opts []StartOption) (startOptions, error) {
 	}
 
 	return startOptions{
-		opts: opts,
+		opts:            opts,
+		pauseL1AtBlock2: pauseL1AtBlock2,
 	}, nil
+}
+
+// WithL1BlockPauseAtBlock2 pauses the fake L1 block producer immediately after
+// block 2 is made canonical. Start does not return until the pause takes
+// effect, and tests can resume the producer with System.ResumeL1.
+func WithL1BlockPauseAtBlock2() StartOption {
+	return StartOption{Key: "pauseL1AtBlock2", pauseL1AtBlock2: true}
 }
 
 func WithBatcherCompressionAlgo(ca derive.CompressionAlgo) StartOption {
@@ -605,6 +637,10 @@ func (s *startOptions) Get(key, role string) (SystemConfigHook, bool) {
 }
 
 func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, error) {
+	return cfg.start(t, nil, startOpts...)
+}
+
+func (cfg SystemConfig) start(t *testing.T, wrapL1Block2PauseWait func(<-chan struct{}) <-chan struct{}, startOpts ...StartOption) (*System, error) {
 	parsedStartOpts, err := parseStartOptions(startOpts)
 	if err != nil {
 		return nil, err
@@ -766,11 +802,19 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 	sys.L1BeaconAPIAddr = endpoint.RestHTTPURL(beaconApiAddr)
 
 	// Initialize nodes
-	l1Geth, _, err := geth.InitL1(
+	l1Geth, l1Miner, err := geth.InitL1(
 		cfg.DeployConfig.L1BlockTime, cfg.L1FinalizedDistance, l1Genesis, clk,
 		path.Join(cfg.BlobsPath, "l1_el"), bcn, cfg.GethOptions[RoleL1]...)
 	if err != nil {
 		return nil, err
+	}
+	sys.l1Miner = l1Miner
+	var l1Block2PauseReached <-chan struct{}
+	if parsedStartOpts.pauseL1AtBlock2 {
+		l1Block2PauseReached, err = l1Miner.PauseAtBlock(2)
+		if err != nil {
+			return nil, err
+		}
 	}
 	sys.EthInstances[RoleL1] = l1Geth
 	err = l1Geth.Node.Start()
@@ -780,7 +824,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 
 	sysLogger := testlog.Logger(t, log.LevelInfo).New("role", "system")
 
-	l1UpCtx, l1UpCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	l1UpCtx, l1UpCancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer l1UpCancel()
 	if err := wait.ForNodeUp(l1UpCtx, sys.NodeClient(RoleL1), sysLogger); err != nil {
 		return nil, fmt.Errorf("l1 never came up: %w", err)
@@ -836,6 +880,18 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 	_, err = geth.WaitForBlock(big.NewInt(2), l1Client)
 	if err != nil {
 		return nil, fmt.Errorf("waiting for blocks: %w", err)
+	}
+	if l1Block2PauseReached != nil {
+		if wrapL1Block2PauseWait != nil {
+			l1Block2PauseReached = wrapL1Block2PauseWait(l1Block2PauseReached)
+		}
+		l1PauseCtx, l1PauseCancel := context.WithTimeout(t.Context(), 30*time.Second)
+		defer l1PauseCancel()
+		select {
+		case <-l1Block2PauseReached:
+		case <-l1PauseCtx.Done():
+			return nil, fmt.Errorf("waiting for L1 block producer to pause: %w", l1PauseCtx.Err())
+		}
 	}
 
 	sys.Mocknet = mocknet.New()
