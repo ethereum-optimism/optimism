@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 	"testing"
@@ -376,6 +377,9 @@ func readPCDCallAtBlock[T any](
 	call txintentbindings.TypedCall[T],
 ) (T, error) {
 	var zero T
+	if blockNumber == nil {
+		return zero, errors.New("read PCD call requires a pinned block number")
+	}
 	target, err := call.To()
 	if err != nil {
 		return zero, fmt.Errorf("resolve call target: %w", err)
