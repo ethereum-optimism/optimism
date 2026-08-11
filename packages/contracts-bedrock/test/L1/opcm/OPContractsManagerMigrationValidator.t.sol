@@ -410,7 +410,7 @@ contract OPContractsManagerMigrationValidator_SPDG_Test is OPContractsManagerMig
             abi.encode(address(bad))
         );
 
-        // MIG-SPDG-150 also fires because the expected implementation address changed.
+        // MIG-SPDG-150 also fires because the stored implementation address changed.
         assertEq("MIG-SPDG-20,MIG-SPDG-150", _validateMigration(true));
     }
 
@@ -467,6 +467,21 @@ contract OPContractsManagerMigrationValidator_SCKDG_Test is OPContractsManagerMi
             abi.encode(hex"deadbeef")
         );
         assertEq("MIG-SCKDG-GARGS-10", _validateMigration(true));
+    }
+
+    /// @notice MIG-SCKDG-150: Registered SCKDG implementation is a different contract with identical
+    ///         code and game args.
+    function test_validate_sckdg150LookalikeImplementation_succeeds() public {
+        address sckdgImpl = address(sharedDGF.gameImpls(GameTypes.SUPER_CANNON_KONA));
+        address lookalike = makeAddr("lookalikeSuperCannonKonaDisputeGame");
+        vm.etch(lookalike, sckdgImpl.code);
+        vm.mockCall(
+            address(sharedDGF),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON_KONA)),
+            abi.encode(lookalike)
+        );
+
+        assertEq("MIG-SCKDG-150", _validateMigration(true));
     }
 
     /// @notice MIG-SCKDG-60: l2ChainId != 0 in SCKDG game args.

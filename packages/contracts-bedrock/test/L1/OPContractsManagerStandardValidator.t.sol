@@ -2048,6 +2048,20 @@ contract OPContractsManagerStandardValidator_SuperPermissionlessDisputeGame_Test
         assertEq("SCKDG-20,SCKDG-150", _validate(true));
     }
 
+    /// @notice Tests SCKDG-150 when the registered SUPER_CANNON_KONA implementation is a different
+    ///         contract with identical code and game args.
+    function test_validate_superPermissionlessDisputeGameLookalikeImplementation_succeeds() public {
+        address sckdgImpl = address(disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON_KONA));
+        address lookalike = makeAddr("lookalikeSuperCannonKonaDisputeGame");
+        vm.etch(lookalike, sckdgImpl.code);
+        vm.mockCall(
+            address(disputeGameFactory),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON_KONA)),
+            abi.encode(lookalike)
+        );
+        assertEq("SCKDG-150", _validate(true));
+    }
+
     /// @notice Tests SCKDG-40 when SUPER_CANNON_KONA absolute prestate is invalid.
     function test_validate_superPermissionlessDisputeGameInvalidPrestate_succeeds() public {
         bytes32 badPrestate = cannonPrestate.raw(); // Use the wrong prestate
