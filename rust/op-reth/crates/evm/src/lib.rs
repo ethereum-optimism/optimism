@@ -395,7 +395,7 @@ where
         )?;
 
         Ok(OpBlockExecutionCtx {
-            parent_hash: payload.parent_hash(),
+            parent_hash: payload.payload.parent_hash(),
             // No parent header on this path to detect fork-activation blocks, so the executor's
             // check is skipped; the derivation layer enforces the rule instead.
             no_user_tx_activation_block: false,
