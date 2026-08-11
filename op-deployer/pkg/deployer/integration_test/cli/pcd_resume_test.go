@@ -297,9 +297,26 @@ func TestCLIPCDResume(t *testing.T) {
 		requirePCDResumeIdentity(t, "live-validation-failure/failed-attempt", frozen, failedIdentity)
 
 		committedWorkdir := journey.cloneCommittedWorkdir()
-		setPCDAnvilCode(t, journey.l1Client, validator, originalValidatorCode)
 		journey.restartCold(committedWorkdir)
 		probe.client = journey.l1Client
+		setPCDAnvilCode(t, journey.l1Client, validator, pcdValidatorResultCode("TEST-FAIL"))
+		deployedValidationError := "live deployment validation failed for deployed chain " + journey.chainIDs[0].Hex()
+		journey.runner.ExpectErrorContainsWithNetwork(t, []string{
+			"continue",
+			"--workdir", journey.workdir,
+		}, nil, deployedValidationError)
+		afterRejectedResume := probe.read(t, nil)
+		requirePCDNoncePair(
+			t,
+			"live-validation-failure/rejected-resume",
+			afterFailure.latestNonce,
+			afterFailure.pendingNonce,
+			afterRejectedResume,
+		)
+		rejectedResumeIdentity := readPCDResumeIdentity(t, journey.workdir, journey.chainIDs[0], true)
+		requirePCDResumeIdentity(t, "live-validation-failure/rejected-resume", frozen, rejectedResumeIdentity)
+
+		setPCDAnvilCode(t, journey.l1Client, validator, originalValidatorCode)
 		journey.runContinue()
 		// The failed attempt spent the only deployment nonce. Recovery must validate the checkpoint without a new send.
 		recovered := requirePCDSingletonCompletion(t, "live-validation-failure/recovery", journey, prestate)
