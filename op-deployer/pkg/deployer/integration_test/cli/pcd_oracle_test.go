@@ -1,11 +1,14 @@
 package cli
 
 import (
+	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,7 +19,7 @@ const (
 )
 
 func TestPCDOracleOneMemberSuperRoot(t *testing.T) {
-	artifact := pcdOracleTestArtifact("genesis-chain-900.json")
+	artifact := pcdOracleTestArtifact(900)
 	got, genesisTime, err := pcdSuperRootFromArtifacts([]pcdChainArtifacts{artifact})
 	require.NoError(t, err)
 	require.Equal(t, uint64(1234), genesisTime)
@@ -33,8 +36,8 @@ func TestPCDOracleOneMemberSuperRoot(t *testing.T) {
 }
 
 func TestPCDOracleTwoMembersSortsByChainID(t *testing.T) {
-	first := pcdOracleTestArtifact("genesis-chain-900.json")
-	second := pcdOracleTestArtifact("genesis-chain-901.json")
+	first := pcdOracleTestArtifact(900)
+	second := pcdOracleTestArtifact(901)
 
 	forward, forwardTime, err := pcdSuperRootFromArtifacts([]pcdChainArtifacts{first, second})
 	require.NoError(t, err)
@@ -47,9 +50,65 @@ func TestPCDOracleTwoMembersSortsByChainID(t *testing.T) {
 	require.Equal(t, forward, reversed)
 }
 
-func pcdOracleTestArtifact(genesisFile string) pcdChainArtifacts {
+func TestPCDOracleRejectsInvalidChainIDs(t *testing.T) {
+	chain900 := pcdOracleTestArtifact(900)
+	chain901 := pcdOracleTestArtifact(901)
+
+	swapped900 := chain900
+	swapped900.genesisPath = chain901.genesisPath
+	swapped900.rollupPath = chain901.rollupPath
+	swapped901 := chain901
+	swapped901.genesisPath = chain900.genesisPath
+	swapped901.rollupPath = chain900.rollupPath
+
+	missingRollupPath := filepath.Join(t.TempDir(), "rollup.json")
+	require.NoError(t, os.WriteFile(missingRollupPath, []byte(`{"genesis":{"l2_time":1234}}`), 0o600))
+	missingRollupChainID := chain900
+	missingRollupChainID.rollupPath = missingRollupPath
+
+	mismatchedRollup := chain900
+	mismatchedRollup.rollupPath = chain901.rollupPath
+
+	tests := []struct {
+		name      string
+		artifacts []pcdChainArtifacts
+		wantErr   string
+	}{
+		{
+			name:      "swapped chain artifacts",
+			artifacts: []pcdChainArtifacts{swapped900, swapped901},
+			wantErr:   "identifies chain 901, expected chain 900",
+		},
+		{
+			name:      "rollup L2 chain ID is missing",
+			artifacts: []pcdChainArtifacts{missingRollupChainID},
+			wantErr:   "does not identify an L2 chain",
+		},
+		{
+			name:      "genesis and rollup chain IDs do not match",
+			artifacts: []pcdChainArtifacts{mismatchedRollup},
+			wantErr:   "identifies chain 901, expected chain 900",
+		},
+		{
+			name:      "duplicate chain ID",
+			artifacts: []pcdChainArtifacts{chain900, chain900},
+			wantErr:   "contain duplicate chain ID 900",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, _, err := pcdSuperRootFromArtifacts(test.artifacts)
+			require.ErrorContains(t, err, test.wantErr)
+		})
+	}
+}
+
+func pcdOracleTestArtifact(chainID uint64) pcdChainArtifacts {
+	artifactDir := filepath.Join("testdata", "oracle", "chain-"+strconv.FormatUint(chainID, 10))
 	return pcdChainArtifacts{
-		genesisPath: filepath.Join("testdata", "oracle", genesisFile),
-		rollupPath:  filepath.Join("testdata", "oracle", "rollup.json"),
+		chainID:     uint256.NewInt(chainID).Bytes32(),
+		genesisPath: filepath.Join(artifactDir, "genesis.json"),
+		rollupPath:  filepath.Join(artifactDir, "rollup.json"),
 	}
 }

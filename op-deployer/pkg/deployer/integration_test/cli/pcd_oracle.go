@@ -19,8 +19,16 @@ func pcdSuperRootFromArtifacts(artifacts []pcdChainArtifacts) (common.Hash, uint
 	}
 
 	chainOutputs := make([]eth.ChainIDAndOutput, 0, len(artifacts))
+	seenChainIDs := make(map[eth.ChainID]struct{}, len(artifacts))
 	var genesisTime uint64
 	for i, artifact := range artifacts {
+		expectedChainID := eth.ChainIDFromBytes32(artifact.chainID)
+		if _, ok := seenChainIDs[expectedChainID]; ok {
+			return common.Hash{}, 0, fmt.Errorf("PCD proposal artifacts contain duplicate chain ID %s", expectedChainID)
+		}
+		seenChainIDs[expectedChainID] = struct{}{}
+		expectedChainIDBig := expectedChainID.ToBig()
+
 		genesis, err := readPCDGenesis(artifact.genesisPath)
 		if err != nil {
 			return common.Hash{}, 0, err
@@ -28,18 +36,28 @@ func pcdSuperRootFromArtifacts(artifacts []pcdChainArtifacts) (common.Hash, uint
 		if genesis.Config == nil || genesis.Config.ChainID == nil {
 			return common.Hash{}, 0, fmt.Errorf("read PCD genesis %s: missing chain ID", artifact.genesisPath)
 		}
+		if genesis.Config.ChainID.Cmp(expectedChainIDBig) != 0 {
+			return common.Hash{}, 0, fmt.Errorf(
+				"PCD genesis %s identifies chain %s, expected chain %s",
+				artifact.genesisPath,
+				genesis.Config.ChainID,
+				expectedChainID,
+			)
+		}
 
 		rollupConfig, err := readPCDRollupConfig(artifact.rollupPath)
 		if err != nil {
 			return common.Hash{}, 0, err
 		}
-		if rollupConfig.L2ChainID != nil && rollupConfig.L2ChainID.Cmp(genesis.Config.ChainID) != 0 {
+		if rollupConfig.L2ChainID == nil {
+			return common.Hash{}, 0, fmt.Errorf("PCD rollup config %s does not identify an L2 chain", artifact.rollupPath)
+		}
+		if rollupConfig.L2ChainID.Cmp(expectedChainIDBig) != 0 {
 			return common.Hash{}, 0, fmt.Errorf(
-				"PCD artifact chain ID mismatch: genesis %s has %s, rollup %s has %s",
-				artifact.genesisPath,
-				genesis.Config.ChainID,
+				"PCD rollup config %s identifies chain %s, expected chain %s",
 				artifact.rollupPath,
 				rollupConfig.L2ChainID,
+				expectedChainID,
 			)
 		}
 
@@ -72,7 +90,7 @@ func pcdSuperRootFromArtifacts(artifacts []pcdChainArtifacts) (common.Hash, uint
 		}
 
 		chainOutputs = append(chainOutputs, eth.ChainIDAndOutput{
-			ChainID: eth.ChainIDFromBig(genesis.Config.ChainID),
+			ChainID: expectedChainID,
 			Output:  pcdOutputRoot(header),
 		})
 	}
