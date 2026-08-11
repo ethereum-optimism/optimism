@@ -17,11 +17,13 @@ import (
 )
 
 type InitConfig struct {
-	IntentType          state.IntentType
-	L1ChainID           uint64
-	Outdir              string
-	L2ChainIDs          []common.Hash
-	OutputRootBootstrap bool
+	IntentType            state.IntentType
+	L1ChainID             uint64
+	Outdir                string
+	L2ChainIDs            []common.Hash
+	OutputRootBootstrap   bool
+	OPCMAddress           *common.Address
+	SuperchainConfigProxy *common.Address
 }
 
 func (c *InitConfig) Check() error {
@@ -39,6 +41,15 @@ func (c *InitConfig) Check() error {
 	if c.OutputRootBootstrap && c.IntentType != state.IntentTypeCustom {
 		return fmt.Errorf("output root bootstrap requires intent-type=%s", state.IntentTypeCustom)
 	}
+	if (c.OPCMAddress == nil) != (c.SuperchainConfigProxy == nil) {
+		return fmt.Errorf("opcm address and superchain config proxy must be specified together")
+	}
+	if c.OPCMAddress != nil && c.IntentType != state.IntentTypeCustom {
+		return fmt.Errorf("pinned OPCM requires intent-type=%s", state.IntentTypeCustom)
+	}
+	if c.OPCMAddress != nil && (*c.OPCMAddress == (common.Address{}) || *c.SuperchainConfigProxy == (common.Address{})) {
+		return fmt.Errorf("opcm address and superchain config proxy must not be zero")
+	}
 
 	return nil
 }
@@ -50,6 +61,14 @@ func InitCLI() func(ctx *cli.Context) error {
 		l2ChainIDsRaw := ctx.String(L2ChainIDsFlagName)
 		intentType := ctx.String(IntentTypeFlagName)
 		outputRootBootstrap := ctx.Bool(OutputRootBootstrapFlagName)
+		opcmAddress, err := optionalAddressFlag(ctx, OPCMAddressFlagName)
+		if err != nil {
+			return err
+		}
+		superchainConfig, err := optionalAddressFlag(ctx, SuperchainConfigProxyFlagName)
+		if err != nil {
+			return err
+		}
 
 		if len(l2ChainIDsRaw) == 0 {
 			return fmt.Errorf("must specify at least one L2 chain ID")
@@ -65,12 +84,14 @@ func InitCLI() func(ctx *cli.Context) error {
 			l2ChainIDs[i] = id
 		}
 
-		err := Init(InitConfig{
-			IntentType:          state.IntentType(intentType),
-			L1ChainID:           l1ChainID,
-			Outdir:              outdir,
-			L2ChainIDs:          l2ChainIDs,
-			OutputRootBootstrap: outputRootBootstrap,
+		err = Init(InitConfig{
+			IntentType:            state.IntentType(intentType),
+			L1ChainID:             l1ChainID,
+			Outdir:                outdir,
+			L2ChainIDs:            l2ChainIDs,
+			OutputRootBootstrap:   outputRootBootstrap,
+			OPCMAddress:           opcmAddress,
+			SuperchainConfigProxy: superchainConfig,
 		})
 		if err != nil {
 			return err
@@ -91,6 +112,11 @@ func Init(cfg InitConfig) error {
 		return err
 	}
 	intent.OutputRootBootstrap = cfg.OutputRootBootstrap
+	if cfg.OPCMAddress != nil {
+		intent.OPCMAddress = cfg.OPCMAddress
+		intent.SuperchainConfigProxy = cfg.SuperchainConfigProxy
+		intent.SuperchainRoles = nil
+	}
 
 	st := &state.State{
 		Version:           1,
@@ -115,4 +141,19 @@ func Init(cfg InitConfig) error {
 		return fmt.Errorf("failed to write state to file: %w", err)
 	}
 	return nil
+}
+
+func optionalAddressFlag(ctx *cli.Context, name string) (*common.Address, error) {
+	if !ctx.IsSet(name) {
+		return nil, nil
+	}
+	raw := ctx.String(name)
+	if !common.IsHexAddress(raw) {
+		return nil, fmt.Errorf("--%s must be a valid address", name)
+	}
+	addr := common.HexToAddress(raw)
+	if addr == (common.Address{}) {
+		return nil, fmt.Errorf("--%s must not be zero", name)
+	}
+	return &addr, nil
 }

@@ -29,7 +29,12 @@ Operators should use `op-deployer init --output-root-bootstrap` and
 `OutputRootGames` bit manually. The persisted intent makes `prepare` reject an OPCM from the wrong
 game family and causes L2 genesis to receive the matching bitmap. For each undeployed chain,
 `prepare` derives the V0 output root from the generated L2 genesis block and commits it as the ASR
-starting proposal with L2 block number `0`.
+starting proposal with L2 block number `0`. This gives proof systems the trusted starting state
+needed to prove the first post-genesis state transition.
+
+When the Superchain and implementations are bootstrapped before intent creation, pass their
+`--opcm-address` and `--superchain-config-proxy` outputs to `op-deployer init`. This creates a
+valid pinned custom intent without manual TOML editing.
 
 **Adding a new dev feature**: the full checklist lives in the `DevFeatures.sol` natspec — both constant files, the env-var reader in `scripts/libraries/Config.sol`, the test assembler in `test/setup/FeatureFlags.sol`, and the CI `&features_matrix` anchor in `.circleci/continue/main.yml` all need updating; there is no compile-time link between them.
 

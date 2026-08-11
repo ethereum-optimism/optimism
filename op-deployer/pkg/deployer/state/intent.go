@@ -97,7 +97,9 @@ type Intent struct {
 	Chains                []*ChainIntent             `json:"chains" toml:"chains"`
 	GlobalDeployOverrides map[string]any             `json:"globalDeployOverrides" toml:"globalDeployOverrides"`
 	UseInterop            bool                       `json:"useInterop" toml:"useInterop"`
-	OutputRootBootstrap   bool                       `json:"outputRootBootstrap" toml:"outputRootBootstrap"`
+	// OutputRootBootstrap initializes each ASR with the L2 genesis output root at block 0,
+	// allowing proof systems to prove the first post-genesis state transition.
+	OutputRootBootstrap bool `json:"outputRootBootstrap" toml:"outputRootBootstrap"`
 
 	// L1DevGenesisParams is optional. This may be used to customize the L1 genesis when
 	// the deployer output is directed to produce a L1 genesis state for development.

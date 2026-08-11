@@ -37,6 +37,11 @@ const (
 
 const OutputRootBootstrapFlagName = flags.OutputRootBootstrapFlagName
 
+const (
+	OPCMAddressFlagName           = flags.OPCMAddressFlagName
+	SuperchainConfigProxyFlagName = flags.SuperchainConfigProxyFlagName
+)
+
 var (
 	L1RPCURLFlag = &cli.StringFlag{
 		Name: L1RPCURLFlagName,
@@ -160,6 +165,16 @@ var (
 			"Only supported for custom deployment intents.",
 		EnvVars: PrefixEnvVar("OUTPUT_ROOT_BOOTSTRAP"),
 	}
+	OPCMAddressFlag = &cli.StringFlag{
+		Name:    OPCMAddressFlagName,
+		Usage:   "Existing OPCM address to pin in a custom intent.",
+		EnvVars: PrefixEnvVar("OPCM_ADDRESS"),
+	}
+	SuperchainConfigProxyFlag = &cli.StringFlag{
+		Name:    SuperchainConfigProxyFlagName,
+		Usage:   "Existing SuperchainConfig proxy address to pin in a custom intent.",
+		EnvVars: PrefixEnvVar("SUPERCHAIN_CONFIG_PROXY"),
+	}
 )
 
 var GlobalFlags = append([]cli.Flag{CacheDirFlag}, oplog.CLIFlags(EnvVarPrefix)...)
@@ -170,6 +185,8 @@ var InitFlags = []cli.Flag{
 	WorkdirFlag,
 	IntentTypeFlag,
 	OutputRootBootstrapFlag,
+	OPCMAddressFlag,
+	SuperchainConfigProxyFlag,
 }
 
 var PrepareFlags = []cli.Flag{

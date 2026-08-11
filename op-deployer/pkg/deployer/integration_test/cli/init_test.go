@@ -138,6 +138,41 @@ func TestCLIInitOutputRootBootstrap(t *testing.T) {
 	require.True(t, intent.OutputRootBootstrap)
 }
 
+func TestCLIInitPinnedOPCM(t *testing.T) {
+	runner := NewCLITestRunner(t)
+	workDir := runner.GetWorkDir()
+	opcm := common.HexToAddress("0x1111111111111111111111111111111111111111")
+	superchainConfig := common.HexToAddress("0x2222222222222222222222222222222222222222")
+
+	runner.ExpectSuccess(t, []string{
+		"init",
+		"--l1-chain-id", "11155111",
+		"--l2-chain-ids", "1",
+		"--intent-type", "custom",
+		"--opcm-address", opcm.Hex(),
+		"--superchain-config-proxy", superchainConfig.Hex(),
+		"--workdir", workDir,
+	}, nil)
+
+	intent, err := pipeline.ReadIntent(workDir)
+	require.NoError(t, err)
+	require.Equal(t, opcm, *intent.OPCMAddress)
+	require.Equal(t, superchainConfig, *intent.SuperchainConfigProxy)
+	require.Nil(t, intent.SuperchainRoles)
+}
+
+func TestCLIInitPinnedOPCMRequiresBothAddresses(t *testing.T) {
+	runner := NewCLITestRunner(t)
+	runner.ExpectErrorContains(t, []string{
+		"init",
+		"--l1-chain-id", "11155111",
+		"--l2-chain-ids", "1",
+		"--intent-type", "custom",
+		"--opcm-address", "0x1111111111111111111111111111111111111111",
+		"--workdir", runner.GetWorkDir(),
+	}, nil, "must be specified together")
+}
+
 func TestCLIInitOutputRootBootstrapRejectsStandardIntent(t *testing.T) {
 	runner := NewCLITestRunner(t)
 	runner.ExpectErrorContains(t, []string{

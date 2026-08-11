@@ -30,6 +30,11 @@ const (
 
 const OutputRootBootstrapFlagName = "output-root-bootstrap"
 
+const (
+	OPCMAddressFlagName           = "opcm-address"
+	SuperchainConfigProxyFlagName = "superchain-config-proxy"
+)
+
 func DefaultCacheDir() string {
 	var cacheDir string
 
