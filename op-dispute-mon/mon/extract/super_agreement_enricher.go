@@ -48,7 +48,9 @@ type superRootResult struct {
 }
 
 func (e *SuperAgreementEnricher) Enrich(ctx context.Context, _ rpcblock.Block, _ GameCaller, game *monTypes.CommonGameData) error {
-	if game.UsesOutputRoots() || gameTypes.GameType(game.GameType) == gameTypes.ZKDisputeGameType {
+	switch gameTypes.GameType(game.GameType) {
+	case gameTypes.SuperPermissionedGameType, gameTypes.SuperCannonKonaGameType:
+	default:
 		return nil
 	}
 	if len(e.clients) == 0 {
