@@ -110,14 +110,24 @@ where
         Ok(self.in_recovery_mode)
     }
 
-    /// Starts the sequencer in an idempotent fashion.
+    /// Starts the sequencer in an idempotent fashion after validating the expected unsafe head.
     pub(super) async fn start_sequencer(
         &mut self,
-        _head: B256,
+        head: B256,
     ) -> Result<(), SequencerAdminAPIError> {
         if self.is_active {
             info!(target: "sequencer", "received request to start sequencer, but it is already started");
             return Ok(());
+        }
+
+        let unsafe_head = self.engine_client.get_unsafe_head().await.map_err(|err| {
+            SequencerAdminAPIError::RequestError(format!("failed to get unsafe head: {err}"))
+        })?;
+        if unsafe_head.hash() != head {
+            return Err(SequencerAdminAPIError::RequestError(format!(
+                "block hash does not match: head {}, received {head}",
+                unsafe_head.hash()
+            )));
         }
 
         info!(target: "sequencer", "Starting sequencer");
