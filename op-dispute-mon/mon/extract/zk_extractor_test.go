@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"math"
+	"math/big"
 	"testing"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
@@ -34,9 +36,14 @@ func TestExtractorZKSnapshotValidation(t *testing.T) {
 		require.Equal(t, caller.anchorStateRegistry, zk.AnchorStateRegistry)
 		require.Equal(t, uint32(math.MaxUint32), zk.ParentIndex)
 		require.Nil(t, zk.ParentStatus)
-		require.Equal(t, []string{"metadata", "l1-head", "agreement", "challenger", "anchor"}, *trace)
+		require.Equal(t, caller.bondMetadata.GameCreator, zk.GameCreator)
+		require.Equal(t, caller.bondMetadata.TotalBonds, zk.TotalBonds)
+		caller.bondMetadata.TotalBonds.SetInt64(1)
+		require.Equal(t, big.NewInt(100), zk.TotalBonds)
+		require.Equal(t, []string{"metadata", "l1-head", "agreement", "challenger", "anchor", "bond-metadata", "mode", "withdrawals", "credits", "balance"}, *trace)
 		require.Equal(t, []rpcblock.Block{
-			rpcblock.ByHash(blockHash), rpcblock.ByHash(blockHash), rpcblock.ByHash(blockHash),
+			rpcblock.ByHash(blockHash), rpcblock.ByHash(blockHash), rpcblock.ByHash(blockHash), rpcblock.ByHash(blockHash),
+			rpcblock.ByHash(blockHash), rpcblock.ByHash(blockHash), rpcblock.ByHash(blockHash), rpcblock.ByHash(blockHash),
 		}, caller.blocks)
 	})
 
@@ -58,7 +65,7 @@ func TestExtractorZKSnapshotValidation(t *testing.T) {
 		require.Equal(t, gameTypes.GameStatusDefenderWon, *zk.ParentStatus)
 		require.Zero(t, requestedIndex)
 		require.Equal(t, rpcblock.ByHash(blockHash), requestedBlock)
-		require.Equal(t, []string{"metadata", "l1-head", "agreement", "challenger", "anchor", "parent"}, *trace)
+		require.Equal(t, []string{"metadata", "l1-head", "agreement", "challenger", "anchor", "parent", "bond-metadata", "mode", "withdrawals", "credits", "balance"}, *trace)
 	})
 
 	tests := []struct {
@@ -75,6 +82,7 @@ func TestExtractorZKSnapshotValidation(t *testing.T) {
 		{name: "invalid participants", configure: func(c *testZKCaller) { c.challenger.Challenger = common.Address{0x01} }, wantErr: "invalid ZK participants"},
 		{name: "anchor read", configure: func(c *testZKCaller) { c.anchorErr = errors.New("anchor unavailable") }, wantErr: "failed to fetch ZK anchor state registry"},
 		{name: "zero anchor", configure: func(c *testZKCaller) { c.anchorStateRegistry = common.Address{} }, wantErr: "anchor state registry is zero"},
+		{name: "bond metadata read", configure: func(c *testZKCaller) { c.bondMetadataErr = errors.New("bonds unavailable") }, wantErr: "failed to fetch ZK bond metadata"},
 		{
 			name: "parent read",
 			configure: func(c *testZKCaller) {
@@ -127,6 +135,7 @@ func TestExtractorRejectsZKCallerWithoutCapabilities(t *testing.T) {
 		nil,
 		nil,
 		&testZKAgreement{},
+		nil,
 	)
 
 	game, err := extractor.enrichGame(t.Context(), common.Hash{0xaa}, zkMetadata())
@@ -155,6 +164,7 @@ func TestExtractorZKLagAndCache(t *testing.T) {
 	require.Zero(t, ignored)
 	require.Zero(t, failed)
 	require.Equal(t, []string{"metadata", "l1-head", "agreement"}, *trace)
+	require.Zero(t, caller.bondMetadataCalls)
 
 	*trace = nil
 	agreement.err = nil
@@ -169,6 +179,7 @@ func TestExtractorZKLagAndCache(t *testing.T) {
 	snapshot := games[0]
 	original := snapshot.(*monTypes.ZKGameData)
 	originalExpectedRoot := original.ExpectedRootClaim
+	require.Equal(t, 1, caller.bondMetadataCalls)
 
 	*trace = nil
 	agreement.action = func(game *monTypes.ZKGameData) {
@@ -185,7 +196,19 @@ func TestExtractorZKLagAndCache(t *testing.T) {
 	require.Equal(t, originalExpectedRoot, original.ExpectedRootClaim)
 	require.Zero(t, original.NodeEndpointOutOfSyncCount)
 	require.Equal(t, []string{"metadata", "l1-head", "agreement", "challenger", "anchor"}, *trace)
+	require.Equal(t, 1, caller.bondMetadataCalls)
 	caller.anchorErr = nil
+
+	*trace = nil
+	caller.balanceErr = errors.New("balance unavailable")
+	games, _, failed, err = extractor.Extract(t.Context(), common.Hash{0xbd}, 0)
+	require.NoError(t, err)
+	require.Equal(t, 1, failed)
+	require.Same(t, snapshot, games[0])
+	require.Equal(t, big.NewInt(100), original.ETHCollateral)
+	require.Equal(t, []string{"metadata", "l1-head", "agreement", "challenger", "anchor", "bond-metadata", "mode", "withdrawals", "credits", "balance"}, *trace)
+	require.Equal(t, 2, caller.bondMetadataCalls)
+	caller.balanceErr = nil
 
 	*trace = nil
 	agreement.err = gameTypes.ErrNotInSync
@@ -197,6 +220,7 @@ func TestExtractorZKLagAndCache(t *testing.T) {
 	require.NotSame(t, snapshot, lagSnapshot)
 	require.Equal(t, snapshot, lagSnapshot)
 	require.Equal(t, []string{"metadata", "l1-head", "agreement"}, *trace)
+	require.Equal(t, 2, caller.bondMetadataCalls)
 
 	*trace = nil
 	agreement.err = errors.New("root source unavailable")
@@ -339,10 +363,15 @@ func TestValidateZKParticipants(t *testing.T) {
 type testZKCaller struct {
 	metadata            contracts.GenericGameMetadata
 	challenger          contracts.ChallengerMetadata
+	bondMetadata        contracts.ZKBondMetadata
+	bondMetadataErr     error
 	anchorStateRegistry common.Address
 	anchorErr           error
 	trace               *[]string
 	blocks              []rpcblock.Block
+	bondRecipients      []common.Address
+	bondMetadataCalls   int
+	balanceErr          error
 }
 
 func validZKCaller() *testZKCaller {
@@ -361,6 +390,11 @@ func validZKCaller() *testZKCaller {
 			Deadline:         time.Unix(5678, 0),
 		},
 		anchorStateRegistry: common.Address{0xab},
+		bondMetadata: contracts.ZKBondMetadata{
+			GameCreator:    common.Address{0xc1},
+			TotalBonds:     big.NewInt(100),
+			ChallengerBond: big.NewInt(30),
+		},
 	}
 }
 
@@ -380,6 +414,47 @@ func (c *testZKCaller) GetAnchorStateRegistry(_ context.Context, block rpcblock.
 	*c.trace = append(*c.trace, "anchor")
 	c.blocks = append(c.blocks, block)
 	return c.anchorStateRegistry, c.anchorErr
+}
+
+func (c *testZKCaller) GetBondMetadata(_ context.Context, block rpcblock.Block) (contracts.ZKBondMetadata, error) {
+	*c.trace = append(*c.trace, "bond-metadata")
+	c.blocks = append(c.blocks, block)
+	c.bondMetadataCalls++
+	return c.bondMetadata, c.bondMetadataErr
+}
+
+func (c *testZKCaller) GetBondDistributionMode(_ context.Context, block rpcblock.Block) (faultTypes.BondDistributionMode, error) {
+	*c.trace = append(*c.trace, "mode")
+	c.blocks = append(c.blocks, block)
+	return faultTypes.UndecidedDistributionMode, nil
+}
+
+func (c *testZKCaller) GetWithdrawals(_ context.Context, block rpcblock.Block, recipients ...common.Address) ([]*contracts.WithdrawalRequest, error) {
+	*c.trace = append(*c.trace, "withdrawals")
+	c.blocks = append(c.blocks, block)
+	c.bondRecipients = append([]common.Address(nil), recipients...)
+	result := make([]*contracts.WithdrawalRequest, len(recipients))
+	for i := range result {
+		result[i] = &contracts.WithdrawalRequest{Amount: new(big.Int), Timestamp: new(big.Int)}
+	}
+	return result, nil
+}
+
+func (c *testZKCaller) GetCredits(_ context.Context, block rpcblock.Block, recipients ...common.Address) ([]*big.Int, error) {
+	*c.trace = append(*c.trace, "credits")
+	c.blocks = append(c.blocks, block)
+	requireSameRecipients(c.bondRecipients, recipients)
+	result := make([]*big.Int, len(recipients))
+	for i := range result {
+		result[i] = new(big.Int)
+	}
+	return result, nil
+}
+
+func (c *testZKCaller) GetBalanceAndDelay(_ context.Context, block rpcblock.Block) (*big.Int, time.Duration, common.Address, error) {
+	*c.trace = append(*c.trace, "balance")
+	c.blocks = append(c.blocks, block)
+	return big.NewInt(100), time.Hour, common.Address{0xdd}, c.balanceErr
 }
 
 type testZKAgreement struct {
@@ -442,6 +517,7 @@ func newZKExtractor(t *testing.T, caller *testZKCaller, parent ParentGameStatusF
 		[]CommonEnricher{&testCommonEnricher{trace: trace}},
 		nil,
 		agreement,
+		NewBondDataEnricher(),
 	), trace
 }
 

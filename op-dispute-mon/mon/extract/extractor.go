@@ -52,6 +52,7 @@ type Extractor struct {
 	commonEnrichers   []CommonEnricher
 	faultEnrichers    []FaultEnricher
 	zkAgreement       ZKEnricher
+	zkBonds           *BondDataEnricher
 	ignoredGames      map[common.Address]bool
 	latestGameData    map[common.Address]monTypes.EnrichedGame
 }
@@ -67,6 +68,7 @@ func NewExtractor(
 	commonEnrichers []CommonEnricher,
 	faultEnrichers []FaultEnricher,
 	zkAgreement ZKEnricher,
+	zkBonds *BondDataEnricher,
 ) *Extractor {
 	ignored := make(map[common.Address]bool)
 	for _, game := range ignoredGames {
@@ -82,6 +84,7 @@ func NewExtractor(
 		commonEnrichers:   commonEnrichers,
 		faultEnrichers:    faultEnrichers,
 		zkAgreement:       zkAgreement,
+		zkBonds:           zkBonds,
 		ignoredGames:      ignored,
 	}
 }
@@ -188,7 +191,7 @@ func (e *Extractor) enrichGame(ctx context.Context, blockHash common.Hash, game 
 }
 
 func (e *Extractor) enrichZKGame(ctx context.Context, block rpcblock.Block, caller GameCaller, game gameTypes.GameMetadata) (monTypes.EnrichedGame, error) {
-	zkCaller, ok := caller.(ZKGameCaller)
+	zkCaller, ok := caller.(ZKBondGameCaller)
 	if !ok {
 		return nil, fmt.Errorf("game caller %T does not support ZK game extraction", caller)
 	}
@@ -254,6 +257,18 @@ func (e *Extractor) enrichZKGame(ctx context.Context, block rpcblock.Block, call
 	enrichedGame.ParentStatus = parentStatus
 	enrichedGame.ProposalStatus = proposalStatus
 	enrichedGame.Deadline = challengerMeta.Deadline
+	enrichedGame.Challenger = challengerMeta.Challenger
+	enrichedGame.Prover = challengerMeta.Prover
+	bondMeta, err := zkCaller.GetBondMetadata(ctx, block)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch ZK bond metadata: %w", err)
+	}
+	enrichedGame.GameCreator = bondMeta.GameCreator
+	enrichedGame.TotalBonds = cloneBigInt(bondMeta.TotalBonds)
+	enrichedGame.ChallengerBond = cloneBigInt(bondMeta.ChallengerBond)
+	if err := e.zkBonds.EnrichZK(ctx, block, zkCaller, enrichedGame); err != nil {
+		return nil, fmt.Errorf("failed to enrich ZK game bonds: %w", err)
+	}
 	return enrichedGame, nil
 }
 

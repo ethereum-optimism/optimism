@@ -67,10 +67,6 @@ func (b *Bonds) checkHonestActorBonds(games []types.BondedGame) {
 				continue
 			}
 			if !bond.Forfeited {
-				// Preserve the historical zero-address series until zero is rejected as an honest actor.
-				if b.honestActors.Contains(common.Address{}) {
-					honest[common.Address{}].Won.Add(honest[common.Address{}].Won, bond.Amount)
-				}
 				continue
 			}
 			if b.honestActors.Contains(bond.Depositor) {
@@ -91,7 +87,8 @@ func (b *Bonds) checkCredits(games []types.BondedGame) {
 
 	for _, game := range games {
 		data := game.BondData()
-		maxDurationReached := !data.CreditWithdrawableAt.After(b.clock.Now())
+		now := b.clock.Now()
+		_, isZK := game.(*types.ZKGameData)
 
 		allRecipients := make(map[common.Address]bool)
 		for address := range data.ExpectedCredits {
@@ -100,11 +97,25 @@ func (b *Bonds) checkCredits(games []types.BondedGame) {
 		for address := range data.Credits {
 			allRecipients[address] = true
 		}
+		if isZK {
+			for address := range data.WithdrawalRequests {
+				allRecipients[address] = true
+			}
+		}
 
 		for recipient := range allRecipients {
 			actual := data.Credits[recipient]
 			if actual == nil {
 				actual = big.NewInt(0)
+			}
+			maxDurationReached := !data.CreditWithdrawableAt.After(now)
+			if isZK {
+				request := data.WithdrawalRequests[recipient]
+				if request != nil && request.Amount != nil && request.Amount.Cmp(actual) > 0 {
+					actual = request.Amount
+				}
+				maxDurationReached = request != nil && request.Timestamp != nil && request.Timestamp.Sign() > 0 &&
+					!now.Before(time.Unix(request.Timestamp.Int64(), 0).Add(data.WETHDelay))
 			}
 			expected := data.ExpectedCredits[recipient]
 			if expected == nil {

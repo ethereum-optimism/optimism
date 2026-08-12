@@ -55,6 +55,9 @@ func (w *WithdrawalMonitor) CheckWithdrawals(games []types.BondedGame) {
 }
 
 func (w *WithdrawalMonitor) validateGameWithdrawals(game types.BondedGame, now time.Time, honestWithdrawableAmounts map[common.Address]*big.Int) (int, int) {
+	if _, ok := game.(*types.ZKGameData); ok {
+		return w.validateZKGameWithdrawals(game, now, honestWithdrawableAmounts)
+	}
 	matching := 0
 	divergent := 0
 	data := game.BondData()
@@ -103,6 +106,54 @@ func (w *WithdrawalMonitor) validateGameWithdrawals(game types.BondedGame, now t
 				honestWithdrawableAmounts[recipient] = total
 				w.logger.Warn("Found unclaimed credit", "recipient", recipient, "game", game.Common().Proxy, "amount", withdrawalAmount.Amount)
 			}
+		}
+	}
+	return matching, divergent
+}
+
+func (w *WithdrawalMonitor) validateZKGameWithdrawals(game types.BondedGame, now time.Time, honestWithdrawableAmounts map[common.Address]*big.Int) (int, int) {
+	matching := 0
+	divergent := 0
+	data := game.BondData()
+	for recipient, request := range data.WithdrawalRequests {
+		credit := data.Credits[recipient]
+		if credit == nil {
+			credit = new(big.Int)
+		}
+		expected := data.ExpectedCredits[recipient]
+		if expected == nil {
+			expected = new(big.Int)
+		}
+		mature := request.Timestamp.Sign() > 0 && !now.Before(time.Unix(request.Timestamp.Int64(), 0).Add(data.WETHDelay))
+		switch data.BondDistributionMode {
+		case challengerTypes.UndecidedDistributionMode:
+			if request.Amount.Sign() > 0 || request.Timestamp.Sign() > 0 {
+				divergent++
+				w.logger.Error("Withdrawal request created before bond distribution mode set", "game", game.Common().Proxy, "recipient", recipient, "withdrawal", request.Amount)
+			}
+		case challengerTypes.NormalDistributionMode, challengerTypes.RefundDistributionMode:
+			observed := credit
+			if request.Amount.Cmp(observed) > 0 {
+				observed = request.Amount
+			}
+			uninitiated := request.Amount.Sign() == 0 && request.Timestamp.Sign() == 0
+			completed := request.Amount.Sign() == 0 && credit.Sign() == 0 && mature
+			pending := request.Amount.Sign() > 0 && request.Timestamp.Sign() > 0 && credit.Sign() == 0 && observed.Cmp(expected) == 0
+			if uninitiated || completed || pending {
+				matching++
+			} else {
+				divergent++
+				w.logger.Error("ZK withdrawal state does not match expected credit", "game", game.Common().Proxy, "recipient", recipient, "expected", expected, "credit", credit, "withdrawal", request.Amount)
+			}
+		default:
+			divergent++
+			w.logger.Error("Unsupported distribution mode", "game", game.Common().Proxy, "recipient", recipient, "mode", data.BondDistributionMode)
+		}
+
+		if w.honestActors.Contains(recipient) && request.Amount.Sign() > 0 && mature {
+			total := honestWithdrawableAmounts[recipient]
+			honestWithdrawableAmounts[recipient] = new(big.Int).Add(total, request.Amount)
+			w.logger.Warn("Found unclaimed credit", "recipient", recipient, "game", game.Common().Proxy, "amount", request.Amount)
 		}
 	}
 	return matching, divergent

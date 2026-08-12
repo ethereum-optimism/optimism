@@ -101,7 +101,7 @@ func TestMonitorRoutesGamesToResolution(t *testing.T) {
 	require.NoError(t, monitor.monitorGames())
 	require.Equal(t, []*monTypes.CommonGameData{terminal.Common(), super.Common(), zk.Common()}, commonReceived)
 	require.Equal(t, []*monTypes.FaultGameData{terminal}, faultReceived)
-	require.Equal(t, []monTypes.BondedGame{terminal}, bondReceived)
+	require.Equal(t, []monTypes.BondedGame{terminal, zk}, bondReceived)
 }
 
 func TestPartitionGamesRejectsUnknownGameType(t *testing.T) {
