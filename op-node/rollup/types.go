@@ -61,7 +61,8 @@ type Genesis struct {
 }
 
 type AltDAConfig struct {
-	// L1 DataAvailabilityChallenge contract proxy address
+	// L1 DataAvailabilityChallenge contract proxy address.
+	// Optional for Keccak256 commitments; must be zero for GenericCommitment.
 	DAChallengeAddress common.Address `json:"da_challenge_contract_address,omitempty"`
 	// CommitmentType specifies which commitment type can be used. Defaults to Keccak (type 0) if not present
 	CommitmentType string `json:"da_commitment_type"`
@@ -429,16 +430,14 @@ func (cfg *Config) ProbablyMissingPectraBlobSchedule() bool {
 	return pragueTime >= cfg.Genesis.L2Time
 }
 
-// validateAltDAConfig checks the two approaches to configuring alt-da mode.
-// If the legacy values are set, they are copied to the new location. If both are set, they are check for consistency.
+// validateAltDAConfig checks that the AltDA configuration is internally consistent.
+// GenericCommitment must not have a DAChallengeAddress set; Keccak256 may optionally have one.
 func validateAltDAConfig(cfg *Config) error {
 	if cfg.AltDAConfig != nil {
 		if !(cfg.AltDAConfig.CommitmentType == altda.KeccakCommitmentString || cfg.AltDAConfig.CommitmentType == altda.GenericCommitmentString) {
 			return fmt.Errorf("invalid commitment type: %v", cfg.AltDAConfig.CommitmentType)
 		}
-		if cfg.AltDAConfig.CommitmentType == altda.KeccakCommitmentString && cfg.AltDAConfig.DAChallengeAddress == (common.Address{}) {
-			return errors.New("Must set da_challenge_contract_address for keccak commitments")
-		} else if cfg.AltDAConfig.CommitmentType == altda.GenericCommitmentString && cfg.AltDAConfig.DAChallengeAddress != (common.Address{}) {
+		if cfg.AltDAConfig.CommitmentType == altda.GenericCommitmentString && cfg.AltDAConfig.DAChallengeAddress != (common.Address{}) {
 			return errors.New("Must set empty da_challenge_contract_address for generic commitments")
 		}
 	}
