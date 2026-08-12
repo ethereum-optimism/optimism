@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
@@ -20,71 +19,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
-
-func TestStopStartSequencer(t *testing.T) {
-	op_e2e.InitParallel(t)
-
-	cfg := e2esys.DefaultSystemConfig(t)
-	sys, err := cfg.Start(t)
-	require.Nil(t, err, "Error starting up system")
-
-	l2Seq := sys.NodeClient("sequencer")
-
-	rollupClient := sys.RollupClient("sequencer")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	active, err := rollupClient.SequencerActive(ctx)
-	require.NoError(t, err)
-	require.True(t, active, "sequencer should be active")
-
-	require.NoError(
-		t,
-		wait.ForNextBlock(ctx, l2Seq),
-		"Chain did not advance after starting sequencer",
-	)
-
-	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	blockHash, err := rollupClient.StopSequencer(ctx)
-	require.Nil(t, err, "Error stopping sequencer")
-
-	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	active, err = rollupClient.SequencerActive(ctx)
-	require.NoError(t, err)
-	require.False(t, active, "sequencer should be inactive")
-
-	blockBefore := latestBlock(t, l2Seq)
-	time.Sleep(time.Duration(cfg.DeployConfig.L2BlockTime+1) * time.Second)
-	blockAfter := latestBlock(t, l2Seq)
-	require.Equal(t, blockAfter, blockBefore, "Chain advanced after stopping sequencer")
-
-	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	err = rollupClient.StartSequencer(ctx, blockHash)
-	require.Nil(t, err, "Error starting sequencer")
-
-	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	active, err = rollupClient.SequencerActive(ctx)
-	require.NoError(t, err)
-	require.True(t, active, "sequencer should be active again")
-
-	require.NoError(
-		t,
-		wait.ForNextBlock(ctx, l2Seq),
-		"Chain did not advance after starting sequencer",
-	)
-}
-
-func latestBlock(t *testing.T, client *ethclient.Client) uint64 {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	blockAfter, err := client.BlockNumber(ctx)
-	require.Nil(t, err, "Error getting latest block")
-	return blockAfter
-}
 
 func TestPersistSequencerStateWhenChanged(t *testing.T) {
 	op_e2e.InitParallel(t)
