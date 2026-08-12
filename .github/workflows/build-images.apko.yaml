@@ -90,7 +90,7 @@ jobs:
       source-submodules: ${{ matrix.source_submodules }}
       use-gha-cache: ${{ matrix.use_gha_cache }}
       cache-key-files: ${{ matrix.cache_key_files }}
-      cargo-profile: maxperf
+      cargo-profile: ${{ github.event_name == 'pull_request' && 'fast-build' || 'maxperf' }}
       build-version: ${{ matrix.build_version }}
 
   apko:
