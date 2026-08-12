@@ -146,6 +146,10 @@ pipeline:
         run_wrap="mold -run"
       fi
 
+      export VERGEN_GIT_SHA="${VERGEN_GIT_SHA:-${GIT_COMMIT:-0000000000000000000000000000000000000000}}"
+      export VERGEN_GIT_DIRTY="${VERGEN_GIT_DIRTY:-false}"
+      export VERGEN_GIT_DESCRIBE="${VERGEN_GIT_DESCRIBE:-${GIT_VERSION:-${GIT_COMMIT:-unknown}}}"
+
       RUSTFLAGS="${{inputs.rustflags}}" $run_wrap cargo auditable build \
         $profile_flag $build_opts $jobs_flag
 

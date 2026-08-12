@@ -32,8 +32,8 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   SOURCE_DATE_EPOCH: 0
@@ -90,7 +90,7 @@ jobs:
       source-submodules: ${{ matrix.source_submodules }}
       use-gha-cache: ${{ matrix.use_gha_cache }}
       cache-key-files: ${{ matrix.cache_key_files }}
-      cargo-profile: maxperf
+      cargo-profile: ${{ github.event_name == 'pull_request' && 'fast-build' || 'maxperf' }}
       build-version: ${{ matrix.build_version }}
 
   apko:
