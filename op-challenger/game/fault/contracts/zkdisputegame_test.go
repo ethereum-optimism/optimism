@@ -131,6 +131,31 @@ func TestZKGetMetadata(t *testing.T) {
 	}
 }
 
+func TestProposalStatusFromUint8(t *testing.T) {
+	for value := uint8(ProposalStatusUnchallenged); value <= uint8(ProposalStatusResolved); value++ {
+		status, err := ProposalStatusFromUint8(value)
+		require.NoError(t, err)
+		require.Equal(t, ProposalStatus(value), status)
+	}
+	status, err := ProposalStatusFromUint8(uint8(ProposalStatusResolved) + 1)
+	require.ErrorContains(t, err, "invalid proposal status")
+	require.Equal(t, ProposalStatusUnchallenged, status)
+}
+
+func TestZKGetAnchorStateRegistryAtPinnedBlock(t *testing.T) {
+	for _, version := range zkVersions {
+		t.Run(version.String(), func(t *testing.T) {
+			stubRpc, contract := setupZKDisputeGameTest(t, version)
+			block := rpcblock.ByHash(common.Hash{0x88, 0x99})
+			expected := common.Address{0xab}
+			stubRpc.SetResponse(zkGameAddr, methodAnchorStateRegistry, block, nil, []interface{}{expected})
+			actual, err := contract.GetAnchorStateRegistry(context.Background(), block)
+			require.NoError(t, err)
+			require.Equal(t, expected, actual)
+		})
+	}
+}
+
 func TestZKGetGameRange(t *testing.T) {
 	for _, version := range zkVersions {
 		version := version
@@ -182,6 +207,8 @@ func TestZKGetChallengerMetadata(t *testing.T) {
 			expected := ChallengerMetadata{
 				ParentIndex:      expectedParentIndex,
 				ProposalStatus:   expectedProposalStatus,
+				Challenger:       challenger,
+				Prover:           prover,
 				ProposedRoot:     expectedRootClaim,
 				L2SequenceNumber: expectedL2BlockNumber,
 				Deadline:         expectedDeadline,
@@ -190,6 +217,20 @@ func TestZKGetChallengerMetadata(t *testing.T) {
 			require.Equal(t, expected, actual)
 		})
 	}
+}
+
+func TestZKGetChallengerMetadataAllowsUnknownProposalStatus(t *testing.T) {
+	stubRpc, contract := setupZKDisputeGameTest(t, zkVersions[0])
+	block := rpcblock.ByNumber(889)
+	unknown := ProposalStatus(255)
+	stubRpc.SetResponse(zkGameAddr, methodClaimData, block, nil, []interface{}{
+		uint32(0), unknown, common.Address{}, common.Address{}, uint64(0), common.Hash{},
+	})
+	stubRpc.SetResponse(zkGameAddr, methodL2SequenceNumber, block, nil, []interface{}{new(big.Int)})
+
+	metadata, err := contract.GetChallengerMetadata(context.Background(), block)
+	require.NoError(t, err)
+	require.Equal(t, unknown, metadata.ProposalStatus)
 }
 
 func TestZKChallengeTx(t *testing.T) {

@@ -237,10 +237,12 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		s.cl,
 		s.game.CreateContract,
 		s.factoryContract.GetGamesAtOrAfter,
+		s.factoryContract.GetGameStatusAtBlock,
 		cfg.IgnoredGames,
 		cfg.MaxConcurrency,
 		s.commonEnrichers(),
 		s.faultEnrichers(),
+		extract.NewZKAgreementEnricher(s.logger, s.metrics, s.asSuperRootProviders(), clock.SystemClock),
 	)
 	forecast := NewForecast(s.logger, s.metrics)
 	bonds := bonds.NewBonds(s.logger, s.metrics, s.cl, s.honestActors)

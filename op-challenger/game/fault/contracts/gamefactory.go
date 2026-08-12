@@ -41,6 +41,10 @@ var (
 //go:embed abis/DisputeGameFactory-1.2.0.json
 var disputeGameFactoryAbi120 []byte
 
+var disputeGameStatusABI = mustParseAbi([]byte(`[
+	{"type":"function","name":"status","stateMutability":"view","inputs":[],"outputs":[{"type":"uint8"}]}
+]`))
+
 type gameArgsFunc func(ctx context.Context, caller *batching.MultiCaller, block rpcblock.Block, contract *batching.BoundContract, gameType gameTypes.GameType) ([]byte, error)
 
 func getGameArgsLatest(ctx context.Context, caller *batching.MultiCaller, block rpcblock.Block, contract *batching.BoundContract, gameType gameTypes.GameType) ([]byte, error) {
@@ -130,6 +134,26 @@ func (f *DisputeGameFactoryContract) GetGameStatus(ctx context.Context, idx uint
 		return 0, fmt.Errorf("failed to create contract bindings for game %s: %w", game.Proxy, err)
 	}
 	return gameContract.GetStatus(ctx)
+}
+
+// GetGameStatusAtBlock returns a game's status from a snapshot pinned to block.
+func (f *DisputeGameFactoryContract) GetGameStatusAtBlock(ctx context.Context, idx uint64, block rpcblock.Block) (gameTypes.GameStatus, error) {
+	defer f.metrics.StartContractRequest("GetGameStatus")()
+	game, err := f.GetGame(ctx, idx, block)
+	if err != nil {
+		return 0, fmt.Errorf("failed to load game status: %w", err)
+	}
+
+	gameContract := batching.NewBoundContract(disputeGameStatusABI, game.Proxy)
+	result, err := f.multiCaller.SingleCall(ctx, block, gameContract.Call(methodStatus))
+	if err != nil {
+		return 0, fmt.Errorf("failed to load game status from game %s: %w", game.Proxy, err)
+	}
+	status, err := gameTypes.GameStatusFromUint8(result.GetUint8(0))
+	if err != nil {
+		return 0, fmt.Errorf("invalid status from game %s: %w", game.Proxy, err)
+	}
+	return status, nil
 }
 
 func (f *DisputeGameFactoryContract) getGameImpl(ctx context.Context, gameType gameTypes.GameType) (common.Address, error) {
