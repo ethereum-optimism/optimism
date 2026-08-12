@@ -112,7 +112,7 @@ func (r sp1ProofRunner) run(t devtest.T, sys *presets.SingleChainInterop, chains
 	}
 	t.Run(name, func(t devtest.T) {
 		checkpoint := data.zkCheckpoint
-		validateZKCheckpoint(t, sys, checkpoint)
+		validateZKCheckpoint(t, sys, chains, checkpoint)
 		cfg := sys.L2ChainA.Escape().L2Challengers()[0].Config().CannonKona
 		args := superRangeExecutorArgs(t, sys, chains, cfg, checkpoint.trustedL1Head, checkpoint.endTimestamp)
 		if r.nativeCore {
@@ -149,13 +149,19 @@ func newZKCheckpointForRunners(
 	return newZKCheckpoint(t, sys, endTimestamp, expectReplacement)
 }
 
-func validateZKCheckpoint(t devtest.T, sys *presets.SingleChainInterop, checkpoint *zkCheckpoint) {
+func validateZKCheckpoint(t devtest.T, sys *presets.SingleChainInterop, chains []*chain, checkpoint *zkCheckpoint) {
 	resp := sys.SuperRoots.SuperRootAtTimestamp(checkpoint.endTimestamp)
 	t.Require().NotNil(resp.Data, "expected verified super-root data at timestamp %d", checkpoint.endTimestamp)
 	t.Require().Equal(checkpoint.trustedL1Head, resp.Data.VerifiedRequiredL1,
 		"verified required L1 changed for timestamp %d", checkpoint.endTimestamp)
-	t.Require().NotEmpty(resp.ChainIDs, "dependency set must contain at least one chain")
-	t.Require().Len(resp.OptimisticAtTimestamp, len(resp.ChainIDs),
+	expectedChainIDs := make([]eth.ChainID, len(chains))
+	for i, chain := range chains {
+		expectedChainIDs[i] = chain.ID
+	}
+	t.Require().NotEmpty(expectedChainIDs, "dependency set must contain at least one chain")
+	t.Require().Equal(expectedChainIDs, resp.ChainIDs,
+		"checkpoint dependency-set chains must match the proof system")
+	t.Require().Len(resp.OptimisticAtTimestamp, len(expectedChainIDs),
 		"every dependency-set chain must have an optimistic output")
 
 	verified, ok := resp.Data.Super.(*eth.SuperV1)
@@ -164,12 +170,11 @@ func validateZKCheckpoint(t devtest.T, sys *presets.SingleChainInterop, checkpoi
 		return
 	}
 	t.Require().Equal(checkpoint.endTimestamp, verified.Timestamp)
-	t.Require().Len(verified.Chains, len(resp.ChainIDs),
+	t.Require().Len(verified.Chains, len(expectedChainIDs),
 		"verified super root must contain every dependency-set chain")
-
-	verifiedRoots := make(map[eth.ChainID]eth.Bytes32, len(verified.Chains))
-	for _, output := range verified.Chains {
-		verifiedRoots[output.ChainID] = output.Output
+	for i, output := range verified.Chains {
+		t.Require().Equal(expectedChainIDs[i], output.ChainID,
+			"verified super-root chains must match the proof system")
 	}
 	trustedL1 := sys.L1EL.BlockRefByNumber(checkpoint.trustedL1Head.Number)
 	t.Require().Equal(checkpoint.trustedL1Head.Hash, trustedL1.Hash,
@@ -179,7 +184,7 @@ func validateZKCheckpoint(t devtest.T, sys *presets.SingleChainInterop, checkpoi
 	}
 
 	replacements := 0
-	for _, chainID := range resp.ChainIDs {
+	for i, chainID := range expectedChainIDs {
 		optimistic, exists := resp.OptimisticAtTimestamp[chainID]
 		t.Require().Truef(exists, "missing optimistic output for chain %s", chainID)
 		if !exists {
@@ -197,9 +202,7 @@ func validateZKCheckpoint(t devtest.T, sys *presets.SingleChainInterop, checkpoi
 		}
 		t.Require().Equalf(optimistic.RequiredL1.Hash, canonicalHash,
 			"optimistic output for chain %s is not supported by the trusted L1 chain", chainID)
-		verifiedRoot, exists := verifiedRoots[chainID]
-		t.Require().Truef(exists, "verified super root missing chain %s", chainID)
-		if optimistic.OutputRoot != verifiedRoot {
+		if optimistic.OutputRoot != verified.Chains[i].Output {
 			replacements++
 		}
 	}
@@ -218,8 +221,8 @@ func superRangeExecutorArgs(
 	l1Head eth.BlockID,
 	endTimestamp uint64,
 ) []string {
-	t.Require().Len(chains, 2, "SP1 super-range requires exactly two chains")
-	t.Require().Len(cfg.RollupConfigPaths, 2, "SP1 super-range requires both rollup configs")
+	t.Require().NotEmpty(chains, "SP1 super-range requires at least one chain")
+	t.Require().Len(cfg.RollupConfigPaths, len(chains), "SP1 super-range requires one rollup config per chain")
 	t.Require().NotEmpty(cfg.DepsetConfigPath, "SP1 super-range requires a dependency-set config")
 	l2NodeAddresses := make([]string, len(chains))
 	for i, chain := range chains {
