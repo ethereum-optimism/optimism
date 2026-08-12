@@ -1078,7 +1078,6 @@ contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
         bytes32 slot =
             bytes32(ForgeArtifacts.getSlot("OPContractsManagerStandardValidator", "permissionedDisputeGameImpl").slot);
         vm.store(address(standardValidator), slot, bytes32(uint256(uint160(address(bad)))));
-        // -150 also fires because the stored implementation address changed.
         assertEq("PDDG-20,PDDG-150", _validate(true));
     }
 
@@ -1446,7 +1445,6 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
         bytes32 slot =
             bytes32(ForgeArtifacts.getSlot("OPContractsManagerStandardValidator", "faultDisputeGameImpl").slot);
         vm.store(address(standardValidator), slot, bytes32(uint256(uint160(address(bad)))));
-        // -150 also fires because the stored implementation address changed.
         assertEq("CKDG-20,CKDG-150", _validate(true));
     }
 
@@ -1957,7 +1955,6 @@ contract OPContractsManagerStandardValidator_SuperPermissionedDisputeGame_Test i
             ForgeArtifacts.getSlot("OPContractsManagerStandardValidator", "superPermissionedDisputeGameImpl").slot
         );
         vm.store(address(standardValidator), slot, bytes32(uint256(uint160(address(bad)))));
-        // -150 also fires because the stored implementation address changed.
         assertEq("SPDG-20,SPDG-150", _validate(true));
     }
 
@@ -2044,7 +2041,6 @@ contract OPContractsManagerStandardValidator_SuperPermissionlessDisputeGame_Test
         bytes32 slot =
             bytes32(ForgeArtifacts.getSlot("OPContractsManagerStandardValidator", "superFaultDisputeGameImpl").slot);
         vm.store(address(standardValidator), slot, bytes32(uint256(uint160(address(bad)))));
-        // -150 also fires because the stored implementation address changed.
         assertEq("SCKDG-20,SCKDG-150", _validate(true));
     }
 
@@ -2322,7 +2318,6 @@ contract OPContractsManagerStandardValidator_ZKValidation_Test is
         BadVersionReturner bad = new BadVersionReturner(standardValidator, ISemver(zkImpl), "0.0.0");
         bytes32 slot = bytes32(ForgeArtifacts.getSlot("OPContractsManagerStandardValidator", "zkDisputeGameImpl").slot);
         vm.store(address(standardValidator), slot, bytes32(uint256(uint160(address(bad)))));
-        // -150 also fires because the stored implementation address changed.
         assertEq("ZKDG-20,ZKDG-150", _validate(true));
     }
 
