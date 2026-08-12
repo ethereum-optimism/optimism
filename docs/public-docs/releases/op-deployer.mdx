@@ -15,7 +15,54 @@ diataxis: reference
 
 **op-deployer** automates deploying and upgrading OP Stack smart contracts. See the [usage docs](https://docs.optimism.io/chain-operators/tools/op-deployer/overview) for full configuration reference.
 
-<Update label="June 26, 2026" description="v0.7.1" tags={["Latest", "Stable"]}>
+<Update label="August 11, 2026" description="v0.8.0-pcd-test.5" tags={["Latest", "Stable"]}>
+
+## Changelog
+* 615b1c75ddc4e9a7a73a8a9ea45dabf3e7b05201  feat: permissionless fault games at initial deploy (#21588)
+* b5c39b26a02377acf02c02dab011e0053a75f8a3 Lagoon hardfork rename (#21105)
+* a0343895acaf0d098216358cb3c4faac48792d2c acceptance: support newer L1 forks (#21920)
+* 8ae65c41742927c0fa4d3e6d6bfbd868618db4e6 chore: Remove `L2CM` Dev Feature Flag (#21591)
+* d1cd3a5c0c327e2c118ffa3f5f8d661dae716d9e chore: remove op-deployer op-program-svc integration and scrub stale op-program refs (#21299)
+* 8acf99a471876c363a0fed343a47c4f436273ab8 chore: remove op-validator (#21308)
+* 36a8fc3ea050be12b7a95bb939028762fd5b2694 chore: safe dependency cleanups (#21241)
+* 52f603b464d072fcbd89ee2df5c14e730c0d87cb cleanup(contracts): rename super permissioned game type (#21513)
+* 7799a2464f23b4e19abd5e29843545f960e677be contracts-bedrock: Bump OPCM major version to 8.0.0 for U20 (#22096)
+* 8732c3a3a04bdde34f4e2260e1afd7a0ded6813a devfeatures: Enable super root games migration by default (#21689)
+* 5cdeaaf765b835957b93422023ae790c556895ae feat(op-chain-ops): validate L2 genesis allocs in production generation (#21345)
+* 4fc727d4d536fc13fd5f02e2d233bd5d5df82175 feat(op-deployer): add prepare command to predict L1 addresses (#21560)
+* 4f3d541eb9efbf2020882a0b9662086cbfa08dd3 feat(op-deployer): make anchor block selection reorg-safe for prepare (#21600)
+* bd4e855e7185c4cdb1567e18e911a0599e2cd004 feat(proofs): add simplified super permissioned dispute game (#20641)
+* b624543c41ea919c4ec3857c56a16d0efbfb9325 feat: Super ZK Dispute Game (#21011)
+* bc1197fab9948095b1ae559f4866043e51fcf073 feat: `ZKDisputeGame` Multi-chain Super Game Migration Paths (#21518)
+* 9d7765a6b2d49f87749eb9c168515636eb954a8f feat: op deployer zk mock verifier (#21571)
+* 9714d4dd2c77052fad62505598db3568b1458f7d feat: support super-root fault games at initial deployment (#21720)
+* d210865edde5f2c9a6b84dd26f08fe8b3fa562b3 fix(op-deployer): hydrate OpcmUtilsImpl and OpcmMigratorImpl in state (#20403)
+* 1ff82a9730bdcafbc9871384931e9f3d9ff31e79 fix(opcm/sysgo): disallow/remove super cannon game type (#20363)
+* 7831b7dfaaea31e4bcd56221e5e2a4a2a96a7393 fix: ZK Game Internal Review Remediations (#20548)
+* 443799b675f7cffd6122ed2d02f544cf10a5c17b op-acceptance-tests: use Rust binary path for SP1 executor (#21936)
+* 0a072d5da40465000960e964059a25bed78bdcea op-deployer: PCD record implementations and game mode (#22337)
+* 10b7882f62fbcf7068b2d5553012a1ec8a55f155 op-deployer: Remove manage migrate command (#21929)
+* 6e1b9010eaee48b08b9284e7aba8675ff9abddb2 op-deployer: Revert on game config mismatches instead of promoting them to Super Games (#22128)
+* f16dcfd6bf764d41e0762801e5962f2b16f992ae op-deployer: activate Karst at genesis by default (#21633)
+* 35a36662b4cfbfb2b40f63da825b39a7cf8fecc8 op-deployer: add computation of output root to prepare stage (#21963)
+* 038d8d8f303e98da59611efdcd45bf4c2f41a945 op-deployer: automatically update the default genesis fork (#21664)
+* 31d98892ccb8dd3df60d5e5a8216a22c7bb03ccd op-deployer: bound forge subprocess waits, slow test broadcasts (#22011)
+* 7360af4ec230518e34ce4a3cdeda64cd85b22fd3 op-deployer: build continuation deploy input from prepared state (#21897)
+* cc6446b5e8ac3aab293b707b2ac2473cbfd56729 op-deployer: commit prestates before chain deploy (#21611)
+* c826e3684c92f484ab7ba611d88d7093ba397ab7 op-deployer: continue prepared chain deployments (#21974)
+* 733efcafd87eccecc5c6bdf33dfdfb36c22e22ac op-deployer: estimate broadcast gas against the target chain (Glamsterdam/EIP-8037) (#21728)
+* a4982ff1d08445976a3238e11a7cee2cf45e3b0d op-deployer: fix live sepolia upgrade tests (#21400)
+* ebfa948478248ca90e7821bdd47a77d09c223e2e op-deployer: fix missing Superchain Deployment after prepare (#22082)
+* 0eb8cf871f330ddce7fe28f604d894e69291f1e0 op-deployer: fix superchainconfig resolution in InitLiveStrategy (#22252)
+* 8d87500534488ee8d1b407109a10b546673ee3e0 op-deployer: make SP1 verifier OPCM release-owned (#22218)
+* b35088a5b53c8087824b1aa67c1748bd752b41b1 op-deployer: remove deprecated upgrade command (#21945)
+* bfcf378660099b71cf94d197af13956bc758e8a5 op-deployer: select the release SP1 verifier for ZK-enabled apply (#22367)
+
+[View full release on GitHub →](https://github.com/ethereum-optimism/optimism/releases/tag/op-deployer/v0.8.0-pcd-test.5)
+
+</Update>
+
+<Update label="June 26, 2026" description="v0.7.1" tags={["Stable"]}>
 
 ## Changelog
 * 6a1240e9974e87b390cb72a15b16bfd85bb8a2ff chore(opd): update SCR dep for op-contracts/v7.0.0-rc.3 tag (#20989)
