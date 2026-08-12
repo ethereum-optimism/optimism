@@ -58,10 +58,6 @@ type pcdJourneyFixture struct {
 	prestate              common.Hash
 }
 
-func newPCDJourneyFixture(t *testing.T, chainIDs []common.Hash) *pcdJourneyFixture {
-	return newPCDJourneyFixtureWithAnvilOptions(t, chainIDs)
-}
-
 func newPCDJourneyFixtureWithAnvilOptions(t *testing.T, chainIDs []common.Hash, opts ...devnet.AnvilOption) *pcdJourneyFixture {
 	t.Helper()
 	lgr := testlog.Logger(t, log.LevelError)
@@ -80,6 +76,81 @@ func newPCDJourneyFixtureWithAnvilOptions(t *testing.T, chainIDs []common.Hash, 
 		deployer:   crypto.PubkeyToAddress(key.PublicKey),
 		devKeys:    devKeys,
 		chainIDs:   append([]common.Hash(nil), chainIDs...),
+	}
+}
+
+// pcdBootstrappedL1 is one Anvil L1 with OPCM already bootstrapped, shared by every
+// case of a PCD test function. The bootstrap pair is the slowest operation in these
+// tests and nothing under test mutates it, so it runs once per test function instead
+// of once per case. Construct it from the parent *testing.T so the L1 outlives the
+// subtests that use it.
+type pcdBootstrappedL1 struct {
+	l1RPC                 string
+	l1Client              *ethclient.Client
+	privateKey            string
+	deployer              common.Address
+	devKeys               *devkeys.MnemonicDevKeys
+	superchainOutput      opcm.DeploySuperchainOutput
+	implementationsOutput opcm.DeployImplementationsOutput
+	postBootstrapL1State  pcdL1State
+	snapshotID            string
+}
+
+func newPCDBootstrappedL1(t *testing.T, opts ...devnet.AnvilOption) *pcdBootstrappedL1 {
+	t.Helper()
+	// The chain IDs here only size the throwaway bootstrap fixture; each case supplies its own.
+	boot := newPCDJourneyFixtureWithAnvilOptions(t, []common.Hash{uint256.NewInt(1).Bytes32()}, opts...)
+	boot.bootstrapOPCM()
+	return &pcdBootstrappedL1{
+		l1RPC:                 boot.l1RPC,
+		l1Client:              boot.l1Client,
+		privateKey:            boot.privateKey,
+		deployer:              boot.deployer,
+		devKeys:               boot.devKeys,
+		superchainOutput:      boot.superchainOutput,
+		implementationsOutput: boot.implementationsOutput,
+		postBootstrapL1State:  boot.postBootstrapL1State,
+	}
+}
+
+// resetL1 rolls the shared L1 back to the post-bootstrap state so absolute deployer
+// nonces, block numbers, and injected code from a previous case cannot leak into the
+// next one. Cases must run serially: the rollback is global to the Anvil process.
+func (b *pcdBootstrappedL1) resetL1(t *testing.T) {
+	t.Helper()
+	if b.snapshotID != "" {
+		var reverted bool
+		require.NoError(t, b.l1Client.Client().Call(&reverted, "evm_revert", b.snapshotID))
+		require.Truef(t, reverted, "revert shared PCD L1 to post-bootstrap snapshot %s", b.snapshotID)
+	}
+	// evm_revert drops the snapshot it reverted to, so take a fresh one at the same state.
+	require.NoError(t, b.l1Client.Client().Call(&b.snapshotID, "evm_snapshot"))
+	require.NotEmpty(t, b.snapshotID)
+}
+
+// newJourney gives one case a pristine post-bootstrap L1, a fresh CLI runner, and a
+// fresh workdir, reusing the bootstrapped OPCM addresses.
+func (b *pcdBootstrappedL1) newJourney(t *testing.T, chainIDs []common.Hash) *pcdJourneyFixture {
+	t.Helper()
+	b.resetL1(t)
+	runner := NewCLITestRunner(t, WithL1RPC(b.l1RPC), WithPrivateKey(b.privateKey))
+	l1Client, err := ethclient.Dial(b.l1RPC)
+	require.NoError(t, err)
+	t.Cleanup(l1Client.Close)
+
+	return &pcdJourneyFixture{
+		t:                     t,
+		runner:                runner,
+		workdir:               runner.GetWorkDir(),
+		l1RPC:                 b.l1RPC,
+		l1Client:              l1Client,
+		privateKey:            b.privateKey,
+		deployer:              b.deployer,
+		devKeys:               b.devKeys,
+		chainIDs:              append([]common.Hash(nil), chainIDs...),
+		superchainOutput:      b.superchainOutput,
+		implementationsOutput: b.implementationsOutput,
+		postBootstrapL1State:  b.postBootstrapL1State,
 	}
 }
 
