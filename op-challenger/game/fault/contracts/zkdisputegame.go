@@ -3,7 +3,6 @@ package contracts
 import (
 	"context"
 	"fmt"
-	"math"
 	"math/big"
 	"time"
 
@@ -313,22 +312,11 @@ func (g *ZKDisputeGameContractLatest) GetBalanceAndDelay(ctx context.Context, bl
 	if err != nil {
 		return nil, 0, common.Address{}, err
 	}
-	results, err := g.multiCaller.Call(ctx, block,
-		batching.NewBalanceCall(delayedWETH.Addr()),
-		delayedWETH.contract.Call(methodDelay),
-	)
+	balance, delay, err := delayedWETH.GetBalanceAndDelay(ctx, block)
 	if err != nil {
-		return nil, 0, common.Address{}, fmt.Errorf("failed to retrieve ZK WETH balance and delay: %w", err)
-	}
-	if err := validateResultCount(2, len(results)); err != nil {
 		return nil, 0, common.Address{}, err
 	}
-	balance := results[0].GetBigInt(0)
-	delaySeconds := results[1].GetBigInt(0)
-	if !delaySeconds.IsInt64() || delaySeconds.Int64() > math.MaxInt64/int64(time.Second) {
-		return nil, 0, common.Address{}, fmt.Errorf("withdrawal delay too big for time.Duration %v", delaySeconds)
-	}
-	return balance, time.Duration(delaySeconds.Int64()) * time.Second, delayedWETH.Addr(), nil
+	return balance, delay, delayedWETH.Addr(), nil
 }
 
 func (g *ZKDisputeGameContractLatest) getDelayedWETH(ctx context.Context, block rpcblock.Block) (*DelayedWETHContract, error) {

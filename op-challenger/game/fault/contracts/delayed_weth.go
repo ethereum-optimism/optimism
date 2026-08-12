@@ -3,6 +3,7 @@ package contracts
 import (
 	"context"
 	"fmt"
+	"math"
 	"math/big"
 	"time"
 
@@ -51,10 +52,13 @@ func (d *DelayedWETHContract) GetBalanceAndDelay(ctx context.Context, block rpcb
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to retrieve game balance: %w", err)
 	}
+	if err := validateResultCount(2, len(results)); err != nil {
+		return nil, 0, err
+	}
 	balance := results[0].GetBigInt(0)
 	delaySeconds := results[1].GetBigInt(0)
-	if !delaySeconds.IsInt64() {
-		return nil, 0, fmt.Errorf("withdrawal delay too big for int64 %v", delaySeconds)
+	if !delaySeconds.IsInt64() || delaySeconds.Int64() > math.MaxInt64/int64(time.Second) {
+		return nil, 0, fmt.Errorf("withdrawal delay too big for time.Duration %v", delaySeconds)
 	}
 	delay := time.Duration(delaySeconds.Int64()) * time.Second
 	return balance, delay, nil
