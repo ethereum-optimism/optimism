@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/coder/websocket"
@@ -51,16 +52,17 @@ type Config struct {
 
 // Handler implements the FlashblockHandler interface
 type Handler struct {
-	cfg                 Config
-	log                 log.Logger
-	isLeaderFn          func(context.Context) bool
-	metrics             metrics.Metricer
-	rollupBoostConn     *opclient.WSClient
-	rollupBoostCtx      context.Context
-	rollupBoostWsCancel context.CancelFunc
-	httpServer          *httputil.HTTPServer
-	hub                 *Hub
-	boundPort           int
+	cfg                    Config
+	log                    log.Logger
+	isLeaderFn             func(context.Context) bool
+	metrics                metrics.Metricer
+	initialRollupBoostConn *opclient.WSClient
+	rollupBoostCtx         context.Context
+	rollupBoostWsCancel    context.CancelFunc
+	listenerWG             sync.WaitGroup
+	httpServer             *httputil.HTTPServer
+	hub                    *Hub
+	boundPort              int
 }
 
 // NewHandler creates a new flashblocks handler
@@ -91,7 +93,7 @@ func NewHandler(cfg Config, log log.Logger, isLeaderFn func(context.Context) boo
 		Backoff:     retry.Fixed(reconnectDelay),
 		Log:         log,
 	})
-	handler.rollupBoostConn = conn
+	handler.initialRollupBoostConn = conn
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to rollup boost WebSocket: %w", err)
 	}
@@ -108,7 +110,8 @@ func (h *Handler) Start(ctx context.Context) error {
 
 	// Start the rollup boost listener
 	h.rollupBoostCtx, h.rollupBoostWsCancel = context.WithCancel(ctx)
-	go h.listenToRollupBoost(h.rollupBoostCtx)
+	h.listenerWG.Add(1)
+	go h.listenToRollupBoost(h.rollupBoostCtx, h.initialRollupBoostConn)
 
 	return nil
 }
@@ -130,12 +133,8 @@ func (h *Handler) Stop() {
 		h.rollupBoostWsCancel()
 	}
 
-	// Close the rollup boost connection if it exists
-	if h.rollupBoostConn != nil {
-		h.log.Info("closing rollup boost WebSocket connection")
-		h.rollupBoostConn.Close(websocket.StatusNormalClosure, "shutting down")
-		h.rollupBoostConn = nil
-	}
+	// Wait for the listener to close its rollup boost connection.
+	h.listenerWG.Wait()
 
 	// Close the HTTP server if it's running
 	if h.httpServer != nil {
@@ -203,8 +202,16 @@ func (h *Handler) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	h.serveWs(w, r)
 }
 
-// listenToRollupBoost listens for messages from the rollup boost WebSocket
-func (h *Handler) listenToRollupBoost(ctx context.Context) {
+// listenToRollupBoost listens for messages from the rollup boost WebSocket.
+func (h *Handler) listenToRollupBoost(ctx context.Context, conn *opclient.WSClient) {
+	defer h.listenerWG.Done()
+	defer func() {
+		if conn != nil {
+			h.log.Info("closing rollup boost WebSocket connection")
+			_ = conn.Close(websocket.StatusNormalClosure, "shutting down")
+		}
+	}()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -212,15 +219,17 @@ func (h *Handler) listenToRollupBoost(ctx context.Context) {
 		default:
 			// If not leader, avoid pulling messages to reduce allocation pressure
 			if !h.isLeaderFn(ctx) {
-				time.Sleep(500 * time.Millisecond)
+				if !sleepContext(ctx, 500*time.Millisecond) {
+					return
+				}
 				continue
 			}
 			// Try to connect if not connected indefinitely
-			if h.rollupBoostConn == nil {
+			if conn == nil {
 				h.log.Info("reconnecting to rollup boost WebSocket", "url", h.cfg.RollupBoostWsURL)
 
 				// Connect with timeout
-				conn, err := opclient.DialWS(ctx, opclient.WSConfig{
+				newConn, err := opclient.DialWS(ctx, opclient.WSConfig{
 					URL:         h.cfg.RollupBoostWsURL,
 					DialTimeout: 5 * time.Second,
 					MaxAttempts: 1,
@@ -231,32 +240,48 @@ func (h *Handler) listenToRollupBoost(ctx context.Context) {
 						"err", err, "retryIn", reconnectDelay)
 					// add a metric for the number of times we've tried to connect
 					h.metrics.RecordRollupBoostConnectionAttempts(false, h.cfg.RollupBoostWsURL)
-					time.Sleep(reconnectDelay)
+					if !sleepContext(ctx, reconnectDelay) {
+						return
+					}
 					continue
 				}
 
-				h.rollupBoostConn = conn
+				conn = newConn
 				h.log.Info("successfully connected to rollup boost WebSocket")
 				h.metrics.RecordRollupBoostConnectionAttempts(true, h.cfg.RollupBoostWsURL)
 			}
 
 			// Read with timeout
 			readCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-			_, message, err := h.rollupBoostConn.Read(readCtx)
+			_, message, err := conn.Read(readCtx)
 			cancel()
 
 			if err != nil {
+				if ctx.Err() != nil {
+					return
+				}
 				h.log.Warn("error reading from rollup boost WebSocket", "err", err)
 				// Close and reset for reconnection
-				if h.rollupBoostConn != nil {
-					h.rollupBoostConn.Close(websocket.StatusInternalError, "read error")
-					h.rollupBoostConn = nil
+				if conn != nil {
+					_ = conn.Close(websocket.StatusInternalError, "read error")
+					conn = nil
 				}
 				continue
 			}
 
 			h.handleRollupBoostMessage(ctx, message)
 		}
+	}
+}
+
+func sleepContext(ctx context.Context, duration time.Duration) bool {
+	timer := time.NewTimer(duration)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
 	}
 }
 
