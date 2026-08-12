@@ -50,7 +50,8 @@ type BondRecord struct {
 	Amount    *big.Int
 	Resolved  bool
 	// Forfeited reports whether normalized accounting counts Amount as lost by Depositor and won by Recipient.
-	Forfeited      bool
+	Forfeited bool
+	// ChallengerBond reports whether this record represents a ZK game's challenger bond.
 	ChallengerBond bool
 }
 
