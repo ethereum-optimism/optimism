@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"sync/atomic"
 	"time"
 
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	opconductor "github.com/ethereum-optimism/optimism/op-conductor/conductor"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -18,10 +18,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
 	synctesterconfig "github.com/ethereum-optimism/optimism/op-sync-tester/config"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester"
 	stconf "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/config"
 	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -115,6 +117,26 @@ func NewMinimalWithConductorsRuntime(t devtest.T) *SingleChainRuntime {
 }
 
 func NewMinimalWithConductorsRuntimeWithConfig(t devtest.T, cfg PresetConfig) *SingleChainRuntime {
+	// The CL and conductor depend on each other's RPC endpoints. Allocate a
+	// stable proxy for each conductor before starting its CL, then attach the
+	// conductor once its dynamically allocated RPC port is known.
+	conductorRPCProxies := make(map[string]*tcpproxy.Proxy)
+	for _, name := range []string{"sequencer", "b", "c"} {
+		proxy := tcpproxy.New(t.Logger().New("proxy", "conductor-rpc", "name", name))
+		t.Require().NoError(proxy.Start())
+		t.Cleanup(func() {
+			_ = proxy.Close()
+		})
+		conductorRPCProxies[name] = proxy
+	}
+	conductorConfig := L2CLOptionFn(func(_ devtest.T, target ComponentTarget, nodeCfg *L2CLConfig) {
+		if proxy, ok := conductorRPCProxies[target.Name]; ok {
+			nodeCfg.ConductorRPC = "http://" + proxy.Addr()
+			nodeCfg.ConductorRPCTimeout = 5 * time.Second
+		}
+	})
+	cfg.GlobalL2CLOptions = append(append([]L2CLOption{}, cfg.GlobalL2CLOptions...), conductorConfig)
+
 	// Conductor tests only exercise sequencing leadership. They do not need a
 	// challenger, and rust e2e jobs do not build cannon artifacts.
 	runtime := newSingleChainRuntimeWithConfig(t, cfg, singleChainRuntimeSpec{
@@ -137,19 +159,16 @@ func NewMinimalWithConductorsRuntimeWithConfig(t devtest.T, cfg PresetConfig) *S
 	nodeVerifier := addSingleChainOpNode(t, runtime, "verifier", false, "", cfg.GlobalL2CLOptions...)
 
 	healthCheck := conductorHealthCheckConfig(cfg.ConductorFastHealthChecks)
-	primaryCL := runtime.L2CL.(*OpNode)
-	conductorA := startConductorNode(t, "sequencer", runtime.L2Network, primaryCL, runtime.L2EL, true, false, healthCheck)
-	conductorB := startConductorNode(t, "b", runtime.L2Network, nodeB.CL.(*OpNode), nodeB.EL, false, true, healthCheck)
-	conductorC := startConductorNode(t, "c", runtime.L2Network, nodeC.CL.(*OpNode), nodeC.EL, false, true, healthCheck)
+	conductorA := startConductorNode(t, "sequencer", runtime.L2Network, runtime.L2CL, conductorRPCProxies["sequencer"], runtime.L2EL, true, false, healthCheck)
+	conductorB := startConductorNode(t, "b", runtime.L2Network, nodeB.CL, conductorRPCProxies["b"], nodeB.EL, false, true, healthCheck)
+	conductorC := startConductorNode(t, "c", runtime.L2Network, nodeC.CL, conductorRPCProxies["c"], nodeC.EL, false, true, healthCheck)
 
 	// Mesh the sequencer CL nodes over p2p, as in a production HA deployment:
 	// the active sequencer gossips unsafe blocks to the followers, which keeps
 	// them close enough to the raft-committed head for the conductor to start
 	// them on leadership changes (op-conductor only backfills a single missing
 	// block). EL p2p is not needed — unsafe blocks reach the follower ELs via
-	// CL gossip and the engine API. Peering must happen after
-	// startConductorNode, which restarts each op-node and would drop earlier
-	// connections.
+	// CL gossip and the engine API.
 	connectSingleChainCLPeer(t, runtime.L2CL, nodeB.CL)
 	connectSingleChainCLPeer(t, runtime.L2CL, nodeC.CL)
 	connectSingleChainCLPeer(t, nodeB.CL, nodeC.CL)
@@ -159,9 +178,10 @@ func NewMinimalWithConductorsRuntimeWithConfig(t devtest.T, cfg PresetConfig) *S
 	startConductorCluster(
 		t,
 		conductorA,
-		primaryCL,
+		runtime.L2CL,
+		runtime.L2EL,
 		[]*Conductor{conductorB, conductorC},
-		[]*OpNode{nodeB.CL.(*OpNode), nodeC.CL.(*OpNode)},
+		[]L2CLNode{nodeB.CL, nodeC.CL},
 	)
 
 	// Match production HA deployments: downstream services use every
@@ -172,7 +192,7 @@ func NewMinimalWithConductorsRuntimeWithConfig(t devtest.T, cfg PresetConfig) *S
 		t.Require().NoError(runtime.L2Batcher.service.Stop(t.Ctx()), "failed to stop direct-endpoint batcher")
 	}
 	conductorEndpoints := []string{conductorA.HTTPEndpoint(), conductorB.HTTPEndpoint(), conductorC.HTTPEndpoint()}
-	runtime.L2Batcher = startMinimalBatcher(t, runtime.Keys, runtime.L2Network, runtime.L1EL, primaryCL, runtime.L2EL, append(cfg.BatcherOptions,
+	runtime.L2Batcher = startMinimalBatcher(t, runtime.Keys, runtime.L2Network, runtime.L1EL, runtime.L2CL, runtime.L2EL, append(cfg.BatcherOptions,
 		func(_ ComponentTarget, batcherCfg *bss.CLIConfig) {
 			batcherCfg.L2EthRpc = conductorEndpoints
 			batcherCfg.RollupRpc = conductorEndpoints
@@ -259,14 +279,10 @@ func addStoppedSingleChainSequencerNode(
 	jwtPath := runtime.L2EL.JWTPath()
 	jwtSecret := readJWTSecretFromPath(t, jwtPath)
 	l2EL := startL2ELForKey(t, runtime.L2Network, jwtPath, jwtSecret, name, NewELNodeIdentity(0), elOpts...)
-	l2CL := startL2CLNode(t, runtime.Keys, runtime.L1Network, runtime.L2Network, runtime.L1EL, runtime.L1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
-		Key:              name,
-		IsSequencer:      true,
-		NoDiscovery:      true,
-		EnableReqResp:    true,
-		L2CLOptions:      l2Opts,
-		SequencerStopped: true,
-	})
+	l2CL := startStoppedSequencerCL(
+		t, runtime.Keys, runtime.L1Network, runtime.L2Network, runtime.L1EL, runtime.L1CL,
+		l2EL, jwtSecret, name, l2Opts,
+	)
 	node := newSingleChainNodeRuntime(name, true, l2EL, l2CL)
 	runtime.Nodes[name] = node
 	return node
@@ -353,7 +369,8 @@ func startConductorNode(
 	t devtest.T,
 	conductorName string,
 	l2Net *L2Network,
-	opNode *OpNode,
+	node L2CLNode,
+	conductorRPCProxy *tcpproxy.Proxy,
 	l2EL L2ELNode,
 	bootstrap bool,
 	paused bool,
@@ -363,25 +380,7 @@ func startConductorNode(
 	serverID := conductorName
 	require.NotEmpty(serverID, "conductor ID key cannot be empty")
 
-	var conductorRPCEndpoint atomic.Value
-	conductorRPCEndpoint.Store("")
-	opNode.cfg.ConductorEnabled = true
-	opNode.cfg.ConductorRpcTimeout = 5 * time.Second
-	opNode.cfg.ConductorRpc = func(ctx context.Context) (string, error) {
-		for {
-			if endpoint, _ := conductorRPCEndpoint.Load().(string); endpoint != "" {
-				return endpoint, nil
-			}
-			select {
-			case <-ctx.Done():
-				return "", ctx.Err()
-			case <-time.After(100 * time.Millisecond):
-			}
-		}
-	}
-	opNode.cfg.Driver.SequencerStopped = true
-	opNode.Stop()
-	opNode.Start()
+	require.NotNil(conductorRPCProxy, "conductor RPC proxy is required")
 
 	cfg := opconductor.Config{
 		ConsensusAddr:           "127.0.0.1",
@@ -395,7 +394,7 @@ func startConductorNode(
 		RaftTrailingLogs:        10240,
 		RaftHeartbeatTimeout:    1000 * time.Millisecond,
 		RaftLeaderLeaseTimeout:  500 * time.Millisecond,
-		NodeRPC:                 opNode.UserRPC(),
+		NodeRPC:                 node.UserRPC(),
 		ExecutionRPC:            l2EL.UserRPC(),
 		Paused:                  paused,
 		HealthCheck:             healthCheck,
@@ -433,16 +432,17 @@ func startConductorNode(
 		rpcEndpoint:       svc.HTTPEndpoint(),
 		service:           svc,
 	}
-	conductorRPCEndpoint.Store(svc.HTTPEndpoint())
+	conductorRPCProxy.SetUpstream(ProxyAddr(require, svc.HTTPEndpoint()))
 	return out
 }
 
 func startConductorCluster(
 	t devtest.T,
 	bootstrap *Conductor,
-	bootstrapNode *OpNode,
+	bootstrapNode L2CLNode,
+	bootstrapEL L2ELNode,
 	members []*Conductor,
-	memberNodes []*OpNode,
+	memberNodes []L2CLNode,
 ) {
 	require := t.Require()
 	require.Len(memberNodes, len(members), "each conductor member must have a sequencer node")
@@ -489,15 +489,18 @@ func startConductorCluster(
 	// head and cannot create competing forks before this point.
 	rollupClient, err := dial.DialRollupClientWithTimeout(ctx, t.Logger(), bootstrapNode.UserRPC())
 	require.NoError(err, "failed to dial bootstrap sequencer node")
-	initialStatus, err := rollupClient.SyncStatus(ctx)
-	require.NoError(err, "failed to fetch bootstrap sequencer sync status")
-	require.NoError(rollupClient.StartSequencer(ctx, initialStatus.UnsafeL2.Hash), "failed to start sequencing on bootstrap node")
+	execClient, err := ethclient.DialContext(ctx, bootstrapEL.UserRPC())
+	require.NoError(err, "failed to dial bootstrap execution node")
+	defer execClient.Close()
+	initialHead, err := execClient.HeaderByNumber(ctx, nil)
+	require.NoError(err, "failed to fetch bootstrap execution head")
+	require.NoError(rollupClient.StartSequencer(ctx, initialHead.Hash()), "failed to start sequencing on bootstrap node")
 	err = retry.Do0(ctx, 90, retry.Fixed(500*time.Millisecond), func() error {
 		status, err := rollupClient.SyncStatus(ctx)
 		if err != nil {
 			return err
 		}
-		if status.UnsafeL2.Number <= initialStatus.UnsafeL2.Number {
+		if status.UnsafeL2.Number <= bigs.Uint64Strict(initialHead.Number) {
 			return fmt.Errorf("bootstrap sequencer has not sealed a block yet, unsafe head at %d", status.UnsafeL2.Number)
 		}
 		return nil
@@ -550,7 +553,7 @@ func startConductorCluster(
 		require.NoErrorf(err, "conductor %s never became healthy", conductor.ServerID())
 	}
 
-	clusterNodes := append([]*OpNode{bootstrapNode}, memberNodes...)
+	clusterNodes := append([]L2CLNode{bootstrapNode}, memberNodes...)
 	clusterClients := make([]*sources.RollupClient, 0, len(clusterNodes))
 	for _, node := range clusterNodes {
 		client, err := dial.DialRollupClientWithTimeout(ctx, t.Logger(), node.UserRPC())

@@ -142,14 +142,10 @@ func startStoppedSingleChainPrimary(
 	// Env-resolved options come first so an explicit binary from the test overrides the env one.
 	sequencerELOpts := append(append([]OpRethOption{}, ResolveMixedL2ELOpts(t)...), cfg.OpRethOptions...)
 	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, NewELNodeIdentity(0), sequencerELOpts...)
-	l2CL := startL2CLNode(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
-		Key:              "sequencer",
-		IsSequencer:      true,
-		NoDiscovery:      true,
-		EnableReqResp:    true,
-		L2CLOptions:      l2CLOptions,
-		SequencerStopped: true,
-	})
+	l2CL := startStoppedSequencerCL(
+		t, keys, world.L1Network, world.L2Network, l1EL, l1CL, l2EL, jwtSecret,
+		"sequencer", l2CLOptions,
+	)
 	return singleChainPrimaryRuntime{EL: l2EL, CL: l2CL}
 }
 
