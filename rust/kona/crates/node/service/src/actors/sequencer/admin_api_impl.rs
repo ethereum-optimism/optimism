@@ -110,7 +110,8 @@ where
         Ok(self.in_recovery_mode)
     }
 
-    /// Starts the sequencer in an idempotent fashion after validating the expected unsafe head.
+    /// Starts the sequencer in an idempotent fashion after validating conductor leadership and
+    /// the expected unsafe head.
     pub(super) async fn start_sequencer(
         &mut self,
         head: B256,
@@ -118,6 +119,19 @@ where
         if self.is_active {
             info!(target: "sequencer", "received request to start sequencer, but it is already started");
             return Ok(());
+        }
+
+        if let Some(conductor) = &self.conductor {
+            let is_leader = conductor.leader().await.map_err(|err| {
+                SequencerAdminAPIError::RequestError(format!(
+                    "sequencer leader check failed: {err}"
+                ))
+            })?;
+            if !is_leader {
+                return Err(SequencerAdminAPIError::RequestError(
+                    "sequencer is not the leader, aborting".to_string(),
+                ));
+            }
         }
 
         let unsafe_head = self.engine_client.get_unsafe_head().await.map_err(|err| {
