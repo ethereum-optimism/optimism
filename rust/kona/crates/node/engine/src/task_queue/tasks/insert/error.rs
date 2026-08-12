@@ -34,6 +34,11 @@ impl EngineTaskError for InsertTaskError {
             Self::FromBlockError(_) | Self::L2BlockInfoConstruction(_) => {
                 EngineTaskErrorSeverity::Critical
             }
+            // A built payload that is rejected will remain invalid on retry. Externally sourced
+            // invalid unsafe payloads are consumed before their severity is evaluated.
+            Self::UnexpectedPayloadStatus(PayloadStatusEnum::Invalid { .. }) => {
+                EngineTaskErrorSeverity::Reset
+            }
             Self::InsertFailed(_) | Self::UnexpectedPayloadStatus(_) => {
                 EngineTaskErrorSeverity::Temporary
             }

@@ -253,14 +253,68 @@ impl<EngineClient_: EngineClient> EngineTaskExt for EngineTask<EngineClient_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::MockEngineClient;
+    use crate::{
+        EngineBuildError, SynchronizeTaskError,
+        test_utils::{
+            MockEngineClient, TestAttributesBuilder, TestEngineStateBuilder, test_block_info,
+        },
+    };
     use alloy_consensus::Block;
     use alloy_primitives::Bytes;
-    use alloy_rpc_types_engine::{ExecutionPayloadV1, PayloadStatus};
+    use alloy_rpc_types_engine::{ExecutionPayloadV1, ForkchoiceUpdated, PayloadStatus};
+    use alloy_rpc_types_eth::Block as RpcBlock;
     use kona_genesis::RollupConfig;
     use op_alloy_consensus::OpTxEnvelope;
+    use op_alloy_rpc_types::Transaction;
     use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
     use std::{sync::Arc, time::Duration};
+
+    #[test]
+    fn invalid_payload_errors_request_reset() {
+        let invalid = PayloadStatusEnum::Invalid { validation_error: "invalid payload".into() };
+
+        assert_eq!(
+            BuildTaskError::EngineBuildError(EngineBuildError::InvalidPayload(
+                "invalid payload".into()
+            ))
+            .severity(),
+            EngineTaskErrorSeverity::Reset
+        );
+        assert_eq!(
+            BuildTaskError::EngineBuildError(EngineBuildError::UnexpectedPayloadStatus(
+                invalid.clone()
+            ))
+            .severity(),
+            EngineTaskErrorSeverity::Reset
+        );
+        assert_eq!(
+            InsertTaskError::UnexpectedPayloadStatus(invalid.clone()).severity(),
+            EngineTaskErrorSeverity::Reset
+        );
+        assert_eq!(
+            SynchronizeTaskError::UnexpectedPayloadStatus(invalid).severity(),
+            EngineTaskErrorSeverity::Reset
+        );
+    }
+
+    #[test]
+    fn accepted_payload_status_errors_remain_temporary() {
+        assert_eq!(
+            BuildTaskError::EngineBuildError(EngineBuildError::UnexpectedPayloadStatus(
+                PayloadStatusEnum::Accepted
+            ))
+            .severity(),
+            EngineTaskErrorSeverity::Temporary
+        );
+        assert_eq!(
+            InsertTaskError::UnexpectedPayloadStatus(PayloadStatusEnum::Accepted).severity(),
+            EngineTaskErrorSeverity::Temporary
+        );
+        assert_eq!(
+            SynchronizeTaskError::UnexpectedPayloadStatus(PayloadStatusEnum::Accepted).severity(),
+            EngineTaskErrorSeverity::Temporary
+        );
+    }
 
     #[tokio::test]
     async fn invalid_unsafe_payload_completes_without_retry() {
@@ -286,5 +340,49 @@ mod tests {
             .await
             .expect("invalid unsafe payload task should not retry")
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn invalid_consolidation_build_requests_reset_without_retry() {
+        let mut config = RollupConfig::default();
+        config.hardforks.ecotone_time = Some(0);
+        let config = Arc::new(config);
+
+        let invalid_status = PayloadStatusEnum::Invalid {
+            validation_error: "derived payload conflicts with unsafe chain".into(),
+        };
+        let client = Arc::new(
+            MockEngineClient::builder()
+                .with_config(config.clone())
+                .with_l2_block_by_label(1_u64.into(), RpcBlock::<Transaction>::default())
+                .with_fork_choice_updated_v3_response(ForkchoiceUpdated {
+                    payload_status: PayloadStatus::from_status(invalid_status),
+                    payload_id: None,
+                })
+                .build(),
+        );
+
+        let parent = test_block_info(0);
+        let unsafe_head = test_block_info(1);
+        let attributes = TestAttributesBuilder::new()
+            .with_parent(parent)
+            .with_timestamp(unsafe_head.block_info.timestamp)
+            .build();
+        let task = EngineTask::Consolidate(Box::new(ConsolidateTask::new(
+            client,
+            config,
+            attributes.into(),
+        )));
+        let mut state = TestEngineStateBuilder::new()
+            .with_unsafe_head(unsafe_head)
+            .with_safe_head(parent)
+            .with_finalized_head(parent)
+            .build();
+
+        let err = tokio::time::timeout(Duration::from_secs(1), task.execute(&mut state))
+            .await
+            .expect("invalid consolidation task should not retry")
+            .expect_err("invalid consolidation should request an engine reset");
+        assert_eq!(err.severity(), EngineTaskErrorSeverity::Reset);
     }
 }

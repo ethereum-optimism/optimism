@@ -59,9 +59,14 @@ impl EngineTaskError for BuildTaskError {
             Self::EngineBuildError(EngineBuildError::FinalizedAheadOfUnsafe(_, _)) => {
                 EngineTaskErrorSeverity::Critical
             }
+            // INVALID is deterministic for the same attributes and forkchoice. Reset instead of
+            // retrying an unchanged build forever.
+            Self::EngineBuildError(
+                EngineBuildError::InvalidPayload(_) |
+                EngineBuildError::UnexpectedPayloadStatus(PayloadStatusEnum::Invalid { .. }),
+            ) => EngineTaskErrorSeverity::Reset,
             Self::EngineBuildError(
                 EngineBuildError::AttributesInsertionFailed(_) |
-                EngineBuildError::InvalidPayload(_) |
                 EngineBuildError::UnexpectedPayloadStatus(_) |
                 EngineBuildError::MissingPayloadId |
                 EngineBuildError::EngineSyncing,
