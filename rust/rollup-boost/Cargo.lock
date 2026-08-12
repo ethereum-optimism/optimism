@@ -6084,7 +6084,6 @@ dependencies = [
  "op-alloy-consensus",
  "serde",
  "sha2",
- "snap",
  "thiserror 2.0.18",
 ]
 
