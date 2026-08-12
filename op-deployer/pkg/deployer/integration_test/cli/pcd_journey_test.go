@@ -17,6 +17,7 @@ import (
 // TestCLIPCDJourney verifies that distinct dependency-set outputs use one genesis time and produce the same anchor for each chain.
 func TestCLIPCDJourney(t *testing.T) {
 	prestate := requirePCDPrestate(t, pcdPrestateArtifactPath(t))
+	base := newPCDBootstrappedL1(t)
 
 	// The OPCM created by this test enables SUPER_ROOT_GAMES_MIGRATION. The `prepare` command
 	// rejects non-super game types for this OPCM, so this table contains only super-root cases.
@@ -45,8 +46,7 @@ func TestCLIPCDJourney(t *testing.T) {
 
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {
-			journey := newPCDJourneyFixture(t, row.chainIDs)
-			journey.bootstrapOPCM()
+			journey := base.newJourney(t, row.chainIDs)
 			journey.runInit(row.respectedGameType)
 
 			require.FileExists(t, filepath.Join(journey.workdir, "intent.toml"))

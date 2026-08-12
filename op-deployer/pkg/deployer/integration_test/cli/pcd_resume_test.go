@@ -55,6 +55,9 @@ type pcdResumeIdentity struct {
 }
 
 func TestCLIPCDResume(t *testing.T) {
+	prestate := requirePCDPrestate(t, pcdPrestateArtifactPath(t))
+	base := newPCDBootstrappedL1(t)
+
 	boundaries := []pcdResumeBoundary{
 		pcdAfterInit,
 		pcdAfterPrepare,
@@ -65,8 +68,7 @@ func TestCLIPCDResume(t *testing.T) {
 
 	for _, boundary := range boundaries {
 		t.Run(boundary.String(), func(t *testing.T) {
-			prestate := requirePCDPrestate(t, pcdPrestateArtifactPath(t))
-			journey := newPCDResumeJourney(t, boundary, prestate)
+			journey := newPCDResumeJourney(t, base, boundary, prestate)
 			probe := pcdL1Probe{client: journey.l1Client, deployer: journey.deployer}
 			l1BeforeRestart := probe.read(t, nil)
 			if boundary < pcdAfterContinue {
@@ -100,8 +102,7 @@ func TestCLIPCDResume(t *testing.T) {
 	}
 
 	t.Run("elapsed-genesis", func(t *testing.T) {
-		prestate := requirePCDPrestate(t, pcdPrestateArtifactPath(t))
-		journey := newPCDResumeJourney(t, pcdAfterPrestate, prestate)
+		journey := newPCDResumeJourney(t, base, pcdAfterPrestate, prestate)
 		committedWorkdir := journey.cloneCommittedWorkdir()
 		frozen := readPCDResumeIdentity(t, committedWorkdir, journey.chainIDs[0], true)
 		require.NotNil(t, frozen.genesisTime)
@@ -122,8 +123,7 @@ func TestCLIPCDResume(t *testing.T) {
 	})
 
 	t.Run("reprepare-invalidates-prestate", func(t *testing.T) {
-		prestate := requirePCDPrestate(t, pcdPrestateArtifactPath(t))
-		journey := newPCDResumeJourney(t, pcdAfterPrestate, prestate)
+		journey := newPCDResumeJourney(t, base, pcdAfterPrestate, prestate)
 		committedWorkdir := journey.cloneCommittedWorkdir()
 		frozen := readPCDResumeIdentity(t, committedWorkdir, journey.chainIDs[0], true)
 		journey.restartCold(committedWorkdir)
@@ -163,8 +163,7 @@ func TestCLIPCDResume(t *testing.T) {
 	})
 
 	t.Run("post-checkpoint-reorg", func(t *testing.T) {
-		prestate := requirePCDPrestate(t, pcdPrestateArtifactPath(t))
-		journey := newPCDResumeJourney(t, pcdAfterPrestate, prestate)
+		journey := newPCDResumeJourney(t, base, pcdAfterPrestate, prestate)
 		probe := pcdL1Probe{client: journey.l1Client, deployer: journey.deployer}
 		beforeContinue := probe.read(t, nil)
 		prepared, err := pipeline.ReadState(journey.workdir)
@@ -177,6 +176,8 @@ func TestCLIPCDResume(t *testing.T) {
 			deploymentMarker: true,
 		}
 
+		// Nested inside the shared post-bootstrap snapshot, which is older and so survives
+		// the revert below.
 		var snapshotID string
 		require.NoError(t, journey.l1Client.Client().Call(&snapshotID, "evm_snapshot"))
 		require.NotEmpty(t, snapshotID)
@@ -250,8 +251,7 @@ func TestCLIPCDResume(t *testing.T) {
 	})
 
 	t.Run("live-validation-failure", func(t *testing.T) {
-		prestate := requirePCDPrestate(t, pcdPrestateArtifactPath(t))
-		journey := newPCDResumeJourney(t, pcdAfterPrestate, prestate)
+		journey := newPCDResumeJourney(t, base, pcdAfterPrestate, prestate)
 		probe := pcdL1Probe{client: journey.l1Client, deployer: journey.deployer}
 		beforeFailure := probe.read(t, nil)
 		frozen := readPCDResumeIdentity(t, journey.workdir, journey.chainIDs[0], true)
@@ -344,10 +344,14 @@ func TestCLIPCDResume(t *testing.T) {
 	})
 }
 
-func newPCDResumeJourney(t *testing.T, boundary pcdResumeBoundary, prestate common.Hash) *pcdJourneyFixture {
+func newPCDResumeJourney(
+	t *testing.T,
+	base *pcdBootstrappedL1,
+	boundary pcdResumeBoundary,
+	prestate common.Hash,
+) *pcdJourneyFixture {
 	t.Helper()
-	journey := newPCDJourneyFixture(t, []common.Hash{uint256.NewInt(1).Bytes32()})
-	journey.bootstrapOPCM()
+	journey := base.newJourney(t, []common.Hash{uint256.NewInt(1).Bytes32()})
 	journey.runInit(embedded.GameTypeSuperCannonKona)
 	if boundary >= pcdAfterPrepare {
 		journey.runPrepare()
