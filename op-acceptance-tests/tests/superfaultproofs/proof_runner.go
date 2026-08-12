@@ -50,7 +50,7 @@ func NewSP1NativeProofRunner() ProofRunner {
 	return sp1ProofRunner{nativeCore: true}
 }
 
-// NewSP1FullProofRunner constructs the opt-in full-ELF runner used by the single smoke test.
+// NewSP1FullProofRunner constructs the opt-in runner used by the full-ELF smoke tests.
 func NewSP1FullProofRunner(executorPath string) ProofRunner {
 	return sp1ProofRunner{executorPath: executorPath}
 }

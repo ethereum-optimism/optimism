@@ -78,6 +78,36 @@ The directory must contain `chainList.json`, `configs.json`, and `depsets.json`.
 Those files are compiled into the kona crates used by the guest programs, so
 custom configs produce different ELFs and verification-key hashes.
 
+## Acceptance coverage
+
+Kona-SP1 acceptance coverage targets the shipping super-root path: `super-range` and
+`super-aggregation`, for both multi-chain interop and a single-chain dependency set of size one.
+
+| Tier | Coverage | Boundary |
+|---|---|---|
+| Required native core | Existing two-chain scenarios and one canonical single-chain scenario collect real witnesses and replay the shared range/consolidation cores. | Does not load the zkVM ELF. |
+| Scheduled full ELF | One valid cross-chain transition and one canonical single-chain transition execute `super-range-elf`. | Exercises ELF input/output and zkVM patches, but does not generate a proof. |
+| Required lifecycle | The proposer and challenger assemble real child outputs and aggregation inputs, then submit mock proof bytes through `SP1PlonkAdapter` backed by `MockSP1Verifier`. | Exercises the onchain lifecycle without production proof verification. |
+| Guest and artifact | Guest tests validate single-chain aggregation, child ordering, and `SUPER_RANGE_VKEY`; scheduled checks bind the built aggregation vkey to the deployed prestate. | Does not generate a recursive aggregation proof. |
+
+Run the native and full-ELF acceptance packages from the repository root after building the
+standard acceptance dependencies:
+
+```bash
+RUST_JIT_BUILD=1 go test -count=1 -timeout=60m \
+  ./op-acceptance-tests/tests/interop/proofs/serial \
+  ./op-acceptance-tests/tests/interop/proofs-singlechain
+
+cd rust/kona/sp1 && just build-elfs-native && just build-super-range-executor && cd ../../..
+KONA_SP1_ELF_DIR="$PWD/rust/kona/sp1/elf" \
+KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH="$PWD/rust/target/release/kona-sp1-super-range-executor" \
+RUST_JIT_BUILD=1 go test -count=1 -parallel=1 -timeout=120m \
+  ./op-acceptance-tests/tests/interop/proofs/sp1
+```
+
+Real recursive proof generation, SPN credentials, and production verifier proof-byte validation
+remain network-proving concerns rather than deterministic acceptance-test coverage.
+
 ## CI TODOs
 
 TODO(#18326): the monorepo's CircleCI runs the
