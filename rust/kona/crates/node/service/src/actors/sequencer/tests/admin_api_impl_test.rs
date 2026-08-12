@@ -134,6 +134,20 @@ async fn test_start_sequencer(
 }
 
 #[tokio::test]
+async fn test_start_sequencer_requires_conductor_leadership() {
+    let mut conductor = MockConductor::new();
+    conductor.expect_leader().times(1).return_once(|| Ok(false));
+
+    let mut actor = test_actor();
+    actor.conductor = Some(conductor);
+    actor.is_active = false;
+
+    let err = actor.start_sequencer(B256::ZERO).await.unwrap_err();
+    assert!(err.to_string().contains("sequencer is not the leader"));
+    assert!(!actor.is_active);
+}
+
+#[tokio::test]
 async fn test_start_sequencer_validates_unsafe_head() {
     let unsafe_head = L2BlockInfo {
         block_info: BlockInfo { hash: B256::from([1u8; 32]), ..Default::default() },

@@ -88,10 +88,9 @@ where
             return Err(ErrorObject::from(ErrorCode::MethodNotFound));
         };
 
-        sequencer_client
-            .start_sequencer(head)
-            .await
-            .map_err(|_| ErrorObject::from(ErrorCode::InternalError))
+        sequencer_client.start_sequencer(head).await.map_err(|err| {
+            ErrorObject::owned(ErrorCode::InternalError.code(), err.to_string(), None::<()>)
+        })
     }
 
     async fn admin_stop_sequencer(&self) -> RpcResult<B256> {
