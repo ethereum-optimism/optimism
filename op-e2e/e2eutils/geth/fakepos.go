@@ -57,14 +57,17 @@ type Backend interface {
 }
 
 type EngineAPI interface {
+	ForkchoiceUpdatedV4(context.Context, engine.ForkchoiceStateV1, *engine.PayloadAttributes, *types.CustodyBitmap) (engine.ForkChoiceResponse, error)
 	ForkchoiceUpdatedV3(context.Context, engine.ForkchoiceStateV1, *engine.PayloadAttributes) (engine.ForkChoiceResponse, error)
 	ForkchoiceUpdatedV2(context.Context, engine.ForkchoiceStateV1, *engine.PayloadAttributes) (engine.ForkChoiceResponse, error)
 
+	GetPayloadV6(engine.PayloadID) (*engine.ExecutionPayloadEnvelope, error)
 	GetPayloadV5(engine.PayloadID) (*engine.ExecutionPayloadEnvelope, error)
 	GetPayloadV4(engine.PayloadID) (*engine.ExecutionPayloadEnvelope, error)
 	GetPayloadV3(engine.PayloadID) (*engine.ExecutionPayloadEnvelope, error)
 	GetPayloadV2(engine.PayloadID) (*engine.ExecutionPayloadEnvelope, error)
 
+	NewPayloadV5(context.Context, engine.ExecutableData, []common.Hash, *common.Hash, []hexutil.Bytes) (engine.PayloadStatusV1, error)
 	NewPayloadV4(context.Context, engine.ExecutableData, []common.Hash, *common.Hash, []hexutil.Bytes) (engine.PayloadStatusV1, error)
 	NewPayloadV3(context.Context, engine.ExecutableData, []common.Hash, *common.Hash) (engine.PayloadStatusV1, error)
 	NewPayloadV2(context.Context, engine.ExecutableData) (engine.PayloadStatusV1, error)
@@ -170,8 +173,15 @@ func (f *FakePoS) Start() error {
 				isCancun := f.config.IsCancun(nextHeight, newBlockTime)
 				isPrague := f.config.IsPrague(nextHeight, newBlockTime)
 				isOsaka := f.config.IsOsaka(nextHeight, newBlockTime)
+				isAmsterdam := f.config.IsAmsterdam(nextHeight, newBlockTime)
 				if isCancun {
 					attrs.BeaconRoot = &parentBeaconBlockRoot
+				}
+				if isAmsterdam {
+					slotNumber := (newBlockTime - genesisHeader.Time) / f.blockTime
+					attrs.SlotNumber = &slotNumber
+					targetGasLimit := head.GasLimit
+					attrs.TargetGasLimit = &targetGasLimit
 				}
 				fcState := engine.ForkchoiceStateV1{
 					HeadBlockHash:      head.Hash(),
@@ -179,12 +189,20 @@ func (f *FakePoS) Start() error {
 					FinalizedBlockHash: finalized.Hash(),
 				}
 				var res engine.ForkChoiceResponse
-				if isCancun {
+				if isAmsterdam {
+					// FakePoS does not model custody-column availability. EIP-8070 makes the
+					// custody bitmap optional, so custody behavior needs separate CL/DA coverage.
+					res, err = f.engineAPI.ForkchoiceUpdatedV4(ctx, fcState, attrs, nil)
+				} else if isCancun {
 					res, err = f.engineAPI.ForkchoiceUpdatedV3(ctx, fcState, attrs)
 				} else {
 					res, err = f.engineAPI.ForkchoiceUpdatedV2(ctx, fcState, attrs)
 				}
 				if err != nil {
+					f.log.Error("failed to start building L1 block", "err", err)
+					continue
+				}
+				if err := ValidatePayloadStatus("start-building forkchoice update", res.PayloadStatus); err != nil {
 					f.log.Error("failed to start building L1 block", "err", err)
 					continue
 				}
@@ -203,7 +221,9 @@ func (f *FakePoS) Start() error {
 					return nil
 				}
 				var envelope *engine.ExecutionPayloadEnvelope
-				if isOsaka {
+				if isAmsterdam {
+					envelope, err = f.engineAPI.GetPayloadV6(*res.PayloadID)
+				} else if isOsaka {
 					envelope, err = f.engineAPI.GetPayloadV5(*res.PayloadID)
 				} else if isPrague {
 					envelope, err = f.engineAPI.GetPayloadV4(*res.PayloadID)
@@ -215,6 +235,9 @@ func (f *FakePoS) Start() error {
 				if err != nil {
 					f.log.Error("failed to finish building L1 block", "err", err)
 					continue
+				}
+				if isAmsterdam {
+					EnsureAmsterdamBlockAccessList(envelope.ExecutionPayload)
 				}
 
 				blobHashes := make([]common.Hash, 0) // must be non-nil even when empty, due to geth engine API checks
@@ -232,14 +255,21 @@ func (f *FakePoS) Start() error {
 					}
 				}
 
-				if isPrague {
-					_, err = f.engineAPI.NewPayloadV4(context.Background(), *envelope.ExecutionPayload, blobHashes, &parentBeaconBlockRoot, make([]hexutil.Bytes, 0))
+				var payloadStatus engine.PayloadStatusV1
+				if isAmsterdam {
+					payloadStatus, err = f.engineAPI.NewPayloadV5(context.Background(), *envelope.ExecutionPayload, blobHashes, &parentBeaconBlockRoot, make([]hexutil.Bytes, 0))
+				} else if isPrague {
+					payloadStatus, err = f.engineAPI.NewPayloadV4(context.Background(), *envelope.ExecutionPayload, blobHashes, &parentBeaconBlockRoot, make([]hexutil.Bytes, 0))
 				} else if isCancun {
-					_, err = f.engineAPI.NewPayloadV3(context.Background(), *envelope.ExecutionPayload, blobHashes, &parentBeaconBlockRoot)
+					payloadStatus, err = f.engineAPI.NewPayloadV3(context.Background(), *envelope.ExecutionPayload, blobHashes, &parentBeaconBlockRoot)
 				} else {
-					_, err = f.engineAPI.NewPayloadV2(context.Background(), *envelope.ExecutionPayload)
+					payloadStatus, err = f.engineAPI.NewPayloadV2(context.Background(), *envelope.ExecutionPayload)
 				}
 				if err != nil {
+					f.log.Error("failed to insert built L1 block", "err", err)
+					continue
+				}
+				if err := ValidatePayloadStatus("new payload", payloadStatus); err != nil {
 					f.log.Error("failed to insert built L1 block", "err", err)
 					continue
 				}
@@ -255,11 +285,22 @@ func (f *FakePoS) Start() error {
 						continue
 					}
 				}
-				if _, err := f.engineAPI.ForkchoiceUpdatedV3(ctx, engine.ForkchoiceStateV1{
+				fcState = engine.ForkchoiceStateV1{
 					HeadBlockHash:      envelope.ExecutionPayload.BlockHash,
 					SafeBlockHash:      safe.Hash(),
 					FinalizedBlockHash: finalized.Hash(),
-				}, nil); err != nil {
+				}
+				var fcRes engine.ForkChoiceResponse
+				if isAmsterdam {
+					fcRes, err = f.engineAPI.ForkchoiceUpdatedV4(ctx, fcState, nil, nil)
+				} else {
+					fcRes, err = f.engineAPI.ForkchoiceUpdatedV3(ctx, fcState, nil)
+				}
+				if err != nil {
+					f.log.Error("failed to make built L1 block canonical", "err", err)
+					continue
+				}
+				if err := ValidatePayloadStatus("canonicalizing forkchoice update", fcRes.PayloadStatus); err != nil {
 					f.log.Error("failed to make built L1 block canonical", "err", err)
 					continue
 				}

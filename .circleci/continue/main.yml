@@ -2068,7 +2068,7 @@ jobs:
       l1_fork:
         description: "L1 fork active at genesis"
         type: string
-        default: "prague"
+        default: "fusaka"
       l2_cl_kind:
         description: "L2 consensus layer client (op-node or kona-node)"
         type: string
@@ -2775,7 +2775,7 @@ workflows:
           matrix:
             parameters:
               l1_fork: &acceptance_l1_forks
-                - prague
+                - fusaka
           l2_el_kind: op-reth
           parallelism: 8
           acceptance_test_jobs: "8"
@@ -2827,8 +2827,8 @@ workflows:
             - semgrep-scan-local: terminal
             - semgrep-test: terminal
             - go-tests: terminal
-            - memory-all-opn-op-reth-prague: terminal
-            - memory-all-kona-op-reth-prague: terminal
+            - memory-all-opn-op-reth-fusaka: terminal
+            - memory-all-kona-op-reth-fusaka: terminal
             - kona-build-sp1-elfs: terminal
             # Go test/lint jobs previously fanned in via the bedrock-go-tests helper.
             - cannon-go-lint-and-test: terminal

@@ -341,12 +341,33 @@ where
             return Ok(post_exec::noop_post_exec_result());
         }
 
+        // Deposits are force-included from L1 and are exempt from EIP-7825's per-transaction gas
+        // limit cap: https://specs.optimism.io/protocol/karst/overview.html#execution-layer
+        // Temporarily remove the cap so it cannot limit the deposit's execution, then restore it
+        // so non-deposit transactions remain subject to it. Changing the cap itself, rather than
+        // special-casing deposits at each place that reads it, means every reader sees the
+        // exemption, including any added upstream later.
+        //
+        // The cap feeds `initial_gas_and_reservoir`, which splits the gas limit between the first
+        // frame's budget and the EIP-8037 reservoir: removing it hands the frame the whole limit
+        // and leaves the reservoir empty, which is what the exemption means while no OP fork
+        // enables EIP-8037. The cap is shared across every transaction this EVM runs, and the RPC
+        // call, estimate and simulate paths raise it deliberately, so the previous value is put
+        // back rather than recomputed.
+        let saved_tx_gas_limit_cap = (tx.tx_type() ==
+            op_revm::transaction::deposit::DEPOSIT_TRANSACTION_TYPE)
+            .then(|| self.inner.0.ctx.cfg.tx_gas_limit_cap.replace(u64::MAX));
+
         let track_post_exec = self.post_exec_tracking_active;
         let result = if self.inspect || track_post_exec {
             self.inner.inspect_tx(tx)
         } else {
             self.inner.transact(tx)
         };
+
+        if let Some(cap) = saved_tx_gas_limit_cap {
+            self.inner.0.ctx.cfg.tx_gas_limit_cap = cap;
+        }
 
         if track_post_exec {
             if self.inner.0.ctx.tx.tx_type() !=
@@ -469,14 +490,18 @@ mod tests {
         precompiles::{Precompile, PrecompileInput},
     };
     use alloy_primitives::{Signature, TxKind, U256};
-    use op_revm::precompiles::{bls12_381, bn254_pair};
+    use op_revm::{
+        OpTransactionError,
+        precompiles::{bls12_381, bn254_pair},
+    };
     use revm::{
         context::CfgEnv,
-        context_interface::ContextTr,
+        context_interface::{ContextTr, result::InvalidTransaction},
         database::{EmptyDB, InMemoryDB},
         inspector::JournalExt,
         interpreter::{CallInputs, CallOutcome, CreateInputs, CreateOutcome, Interpreter},
         precompile::PrecompileHalt,
+        primitives::eip7825::TX_GAS_LIMIT_CAP,
         state::AccountInfo,
     };
 
@@ -558,14 +583,13 @@ mod tests {
         }
     }
 
-    fn legacy_op_tx(nonce: u64, caller: Address, target: Address) -> OpTx {
-        let tx =
-            TxLegacy { nonce, gas_limit: 100_000, to: TxKind::Call(target), ..Default::default() }
-                .into_signed(Signature::new(
-                    Default::default(),
-                    Default::default(),
-                    Default::default(),
-                ));
+    fn legacy_op_tx(nonce: u64, caller: Address, target: Address, gas_limit: u64) -> OpTx {
+        let tx = TxLegacy { nonce, gas_limit, to: TxKind::Call(target), ..Default::default() }
+            .into_signed(Signature::new(
+                Default::default(),
+                Default::default(),
+                Default::default(),
+            ));
 
         OpTx::from_recovered_tx(&tx, caller)
     }
@@ -615,6 +639,37 @@ mod tests {
         assert!(format!("{err:?}").contains("InvalidChainId"));
     }
 
+    /// EIP-7825 caps a transaction's gas limit, and a transaction above the cap is rejected before
+    /// it executes. The deposit exemption in `transact_raw` is scoped to the deposit that carries
+    /// it and must leave that rule intact for every other transaction.
+    #[test]
+    fn non_deposit_above_tx_gas_limit_cap_is_rejected() {
+        let caller = Address::ZERO;
+        let target = Address::from([0x22; 20]);
+        // Karst is Osaka-based, so EIP-7825 is live. The block gas limit is set above the
+        // transaction's so that the cap is the only limit the transaction can trip over.
+        let mut evm = OpEvmFactory::<OpTx>::default().create_evm(
+            EmptyDB::default(),
+            EvmEnv::new(
+                CfgEnv::new_with_spec(OpSpecId::KARST),
+                BlockEnv { gas_limit: 60_000_000, ..Default::default() },
+            ),
+        );
+
+        let err = evm
+            .transact_raw(legacy_op_tx(0, caller, target, TX_GAS_LIMIT_CAP + 1))
+            .expect_err("a transaction above the cap must be rejected");
+        assert!(
+            matches!(
+                err,
+                EVMError::Transaction(OpTxError(OpTransactionError::Base(
+                    InvalidTransaction::TxGasLimitGreaterThanCap { .. }
+                )))
+            ),
+            "expected TxGasLimitGreaterThanCap, got {err:?}",
+        );
+    }
+
     #[test]
     fn op_evm_factory_uses_configured_refund_policy_and_snapshot() {
         let caller = Address::ZERO;
@@ -636,7 +691,7 @@ mod tests {
             tx_index: 0,
             kind: post_exec::PostExecTxKind::Normal,
         });
-        evm.transact_raw(legacy_op_tx(0, caller, target)).expect("tx executes");
+        evm.transact_raw(legacy_op_tx(0, caller, target, 100_000)).expect("tx executes");
         assert_eq!(evm.take_last_post_exec_tx_result().refund_total, 7);
         assert_eq!(evm.refund_snapshot(), 1);
         evm.seed_refund_snapshot(9);

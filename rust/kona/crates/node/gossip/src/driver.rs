@@ -1,6 +1,6 @@
 //! Consensus-layer gossipsub driver for Optimism.
 
-use alloy_primitives::{Address, hex};
+use alloy_primitives::{Address, Signature, hex};
 use derive_more::Debug;
 use discv5::Enr;
 use futures::{AsyncReadExt, AsyncWriteExt, stream::StreamExt};
@@ -13,7 +13,7 @@ use libp2p::{
 };
 use libp2p_identity::Keypair;
 use libp2p_stream::IncomingStreams;
-use op_alloy_rpc_types_engine::OpNetworkPayloadEnvelope;
+use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{
     collections::HashMap,
     sync::Arc,
@@ -116,17 +116,15 @@ where
     pub fn publish(
         &mut self,
         selector: impl FnOnce(&BlockHandler) -> IdentTopic,
-        payload: Option<OpNetworkPayloadEnvelope>,
-    ) -> Result<Option<MessageId>, PublishError> {
-        let Some(payload) = payload else {
-            return Ok(None);
-        };
+        payload: OpExecutionPayloadEnvelope,
+        signature: Signature,
+    ) -> Result<MessageId, PublishError> {
         let topic = selector(&self.handler);
         let topic_hash = topic.hash();
-        let data = self.handler.encode(topic, payload)?;
+        let data = self.handler.encode(topic, payload, signature)?;
         let id = self.swarm.behaviour_mut().gossipsub.publish(topic_hash, data)?;
         kona_macros::inc!(gauge, crate::Metrics::UNSAFE_BLOCK_PUBLISHED);
-        Ok(Some(id))
+        Ok(id)
     }
 
     /// Handles the sync request/response protocol.
@@ -284,7 +282,7 @@ where
         }
     }
 
-    fn handle_gossip_event(&mut self, event: Event) -> Option<OpNetworkPayloadEnvelope> {
+    fn handle_gossip_event(&mut self, event: Event) -> Option<OpExecutionPayloadEnvelope> {
         match event {
             Event::Gossipsub(e) => return self.handle_gossipsub_event(*e),
             Event::Ping(libp2p::ping::Event { peer, result, .. }) => {
@@ -344,7 +342,7 @@ where
     fn handle_gossipsub_event(
         &mut self,
         event: libp2p::gossipsub::Event,
-    ) -> Option<OpNetworkPayloadEnvelope> {
+    ) -> Option<OpExecutionPayloadEnvelope> {
         match event {
             libp2p::gossipsub::Event::Message {
                 propagation_source: src,
@@ -384,7 +382,7 @@ where
     }
 
     /// Handles the [`SwarmEvent<Event>`].
-    pub fn handle_event(&mut self, event: SwarmEvent<Event>) -> Option<OpNetworkPayloadEnvelope> {
+    pub fn handle_event(&mut self, event: SwarmEvent<Event>) -> Option<OpExecutionPayloadEnvelope> {
         match event {
             SwarmEvent::Behaviour(behavior_event) => {
                 return self.handle_gossip_event(behavior_event);

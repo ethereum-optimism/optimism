@@ -26,7 +26,6 @@ alloy-rlp.workspace = true
 alloy-consensus.workspace = true
 
 # Encoding
-snap = { workspace = true, optional = true }
 ethereum_ssz = { workspace = true, optional = true }
 ethereum_ssz_derive = { workspace = true, optional = true }
 
@@ -50,7 +49,6 @@ alloy-primitives = { workspace = true, features = ["arbitrary", "getrandom"] }
 [features]
 default = ["std", "serde"]
 std = [
-	"dep:snap",
 	"dep:ethereum_ssz",
 	"dep:ethereum_ssz_derive",
 	"alloy-rpc-types-engine/ssz",

@@ -15,10 +15,7 @@ mod attributes;
 pub use attributes::OpPayloadAttributes;
 
 mod envelope;
-pub use envelope::{
-    OpExecutionData, OpExecutionPayloadEnvelope, OpNetworkPayloadEnvelope,
-    PayloadEnvelopeEncodeError, PayloadEnvelopeError, PayloadHash,
-};
+pub use envelope::{OpExecutionData, OpExecutionPayloadEnvelope, PayloadHash};
 
 mod execution;
 
