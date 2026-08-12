@@ -262,7 +262,7 @@ func (g *ZKDisputeGameContractLatest) GetBondMetadata(ctx context.Context, block
 	if err != nil {
 		return ZKBondMetadata{}, fmt.Errorf("failed to retrieve ZK bond metadata: %w", err)
 	}
-	if err := validateZKResultCount(3, len(results)); err != nil {
+	if err := validateResultCount(3, len(results)); err != nil {
 		return ZKBondMetadata{}, err
 	}
 	return ZKBondMetadata{
@@ -285,7 +285,7 @@ func (g *ZKDisputeGameContractLatest) GetCredits(ctx context.Context, block rpcb
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve ZK credit: %w", err)
 	}
-	if err := validateZKResultCount(len(recipients), len(results)); err != nil {
+	if err := validateResultCount(len(recipients), len(results)); err != nil {
 		return nil, err
 	}
 	credits := make([]*big.Int, len(results))
@@ -304,25 +304,7 @@ func (g *ZKDisputeGameContractLatest) GetWithdrawals(ctx context.Context, block 
 	if err != nil {
 		return nil, err
 	}
-	calls := make([]batching.Call, 0, len(recipients))
-	for _, recipient := range recipients {
-		calls = append(calls, delayedWETH.contract.Call(methodWithdrawals, g.contract.Addr(), recipient))
-	}
-	results, err := g.multiCaller.Call(ctx, block, calls...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve ZK withdrawals: %w", err)
-	}
-	if err := validateZKResultCount(len(recipients), len(results)); err != nil {
-		return nil, err
-	}
-	withdrawals := make([]*WithdrawalRequest, len(results))
-	for i, result := range results {
-		withdrawals[i] = &WithdrawalRequest{
-			Amount:    result.GetBigInt(0),
-			Timestamp: result.GetBigInt(1),
-		}
-	}
-	return withdrawals, nil
+	return delayedWETH.GetWithdrawals(ctx, block, g.contract.Addr(), recipients...)
 }
 
 func (g *ZKDisputeGameContractLatest) GetBalanceAndDelay(ctx context.Context, block rpcblock.Block) (*big.Int, time.Duration, common.Address, error) {
@@ -338,7 +320,7 @@ func (g *ZKDisputeGameContractLatest) GetBalanceAndDelay(ctx context.Context, bl
 	if err != nil {
 		return nil, 0, common.Address{}, fmt.Errorf("failed to retrieve ZK WETH balance and delay: %w", err)
 	}
-	if err := validateZKResultCount(2, len(results)); err != nil {
+	if err := validateResultCount(2, len(results)); err != nil {
 		return nil, 0, common.Address{}, err
 	}
 	balance := results[0].GetBigInt(0)
@@ -356,13 +338,6 @@ func (g *ZKDisputeGameContractLatest) getDelayedWETH(ctx context.Context, block 
 		return nil, fmt.Errorf("failed to fetch ZK WETH address: %w", err)
 	}
 	return NewDelayedWETHContract(g.metrics, result.GetAddress(0), g.multiCaller), nil
-}
-
-func validateZKResultCount(expected, actual int) error {
-	if actual != expected {
-		return fmt.Errorf("expected %d results but got %d", expected, actual)
-	}
-	return nil
 }
 
 func (g *ZKDisputeGameContractLatest) GetChallengerMetadata(ctx context.Context, block rpcblock.Block) (ChallengerMetadata, error) {

@@ -287,10 +287,10 @@ func TestZKGetBalanceAndDelayAcceptsMaxDuration(t *testing.T) {
 	}
 }
 
-func TestValidateZKResultCount(t *testing.T) {
-	require.NoError(t, validateZKResultCount(2, 2))
-	require.ErrorContains(t, validateZKResultCount(2, 1), "expected 2 results but got 1")
-	require.ErrorContains(t, validateZKResultCount(2, 3), "expected 2 results but got 3")
+func TestValidateResultCount(t *testing.T) {
+	require.NoError(t, validateResultCount(2, 2))
+	require.ErrorContains(t, validateResultCount(2, 1), "expected 2 results but got 1")
+	require.ErrorContains(t, validateResultCount(2, 3), "expected 2 results but got 3")
 }
 
 func TestZKGetGameRange(t *testing.T) {

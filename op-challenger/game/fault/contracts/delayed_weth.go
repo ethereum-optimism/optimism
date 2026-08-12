@@ -71,7 +71,10 @@ func (d *DelayedWETHContract) GetWithdrawals(ctx context.Context, block rpcblock
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch withdrawals: %w", err)
 	}
-	withdrawals := make([]*WithdrawalRequest, len(recipients))
+	if err := validateResultCount(len(recipients), len(results)); err != nil {
+		return nil, err
+	}
+	withdrawals := make([]*WithdrawalRequest, len(results))
 	for i, result := range results {
 		withdrawals[i] = &WithdrawalRequest{
 			Amount:    result.GetBigInt(0),
@@ -79,4 +82,11 @@ func (d *DelayedWETHContract) GetWithdrawals(ctx context.Context, block rpcblock
 		}
 	}
 	return withdrawals, nil
+}
+
+func validateResultCount(expected, actual int) error {
+	if actual != expected {
+		return fmt.Errorf("expected %d results but got %d", expected, actual)
+	}
+	return nil
 }
