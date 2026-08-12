@@ -22,7 +22,6 @@ RUN apt-get -o Acquire::Retries=8 update \
       clang \
       llvm-dev \
       libclang-dev \
-      mold \
       protobuf-compiler \
       libprotobuf-dev \
  && apt clean \

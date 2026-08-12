@@ -135,12 +135,7 @@ pipeline:
         jobs_flag="--jobs ${{inputs.jobs}}"
       fi
 
-      run_wrap=""
-      if command -v mold >/dev/null 2>&1; then
-        run_wrap="mold -run"
-      fi
-
-      RUSTFLAGS="${{inputs.rustflags}}" $run_wrap cargo auditable build \
+      RUSTFLAGS="${{inputs.rustflags}}" cargo auditable build \
         $profile_flag $build_opts $jobs_flag
 
       if [ -n "${{inputs.output}}" ]; then

@@ -34,8 +34,6 @@ environment:
       - protobuf-dev
       - clang-19
       - libclang-cpp-19
-      # opt-in mold linking when the cargo/build pipeline uses it.
-      - mold
   environment:
     # The workflow selects MELANGE_CARGO_PROFILE for the main rust/ workspace:
     # fast-build for PRs and maxperf for develop/tag builds. CARGO_HOME and
