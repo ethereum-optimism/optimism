@@ -495,21 +495,25 @@ func EncodeAccessList(accesses []Access) []common.Hash {
 
 // DecodeAccessList returns the accesses a transaction declares, i.e. the messages it executes.
 // Entries for any address other than the CrossL2Inbox are not accesses, and are ignored.
+//
+// The CrossL2Inbox entries form one stream, as the node reads them: an access may be split across
+// duplicate CrossL2Inbox tuples, so the tuples are concatenated in order before being parsed.
 func DecodeAccessList(accessList ethTypes.AccessList) ([]Access, error) {
-	var out []Access
+	var entries []common.Hash
 	for _, tuple := range accessList {
 		if tuple.Address != predeploys.CrossL2InboxAddr {
 			continue
 		}
-		entries := tuple.StorageKeys
-		for len(entries) > 0 {
-			remaining, access, err := ParseAccess(entries)
-			if err != nil {
-				return nil, err
-			}
-			entries = remaining
-			out = append(out, access)
+		entries = append(entries, tuple.StorageKeys...)
+	}
+	var out []Access
+	for len(entries) > 0 {
+		remaining, access, err := ParseAccess(entries)
+		if err != nil {
+			return nil, err
 		}
+		entries = remaining
+		out = append(out, access)
 	}
 	return out, nil
 }

@@ -3,6 +3,7 @@ package messages
 import (
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"math/big"
 	"math/rand"
 	"testing"
@@ -597,6 +598,21 @@ func TestDecodeAccessList(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, accesses, result)
+	})
+
+	t.Run("split across tuples", func(t *testing.T) {
+		entries := EncodeAccessList(accesses)
+		for split := 1; split < len(entries); split++ {
+			t.Run(fmt.Sprintf("after entry %d", split), func(t *testing.T) {
+				result, err := DecodeAccessList(ethTypes.AccessList{
+					{Address: predeploys.CrossL2InboxAddr, StorageKeys: entries[:split]},
+					{Address: common.Address{0xaa}, StorageKeys: []common.Hash{{0x01}}},
+					{Address: predeploys.CrossL2InboxAddr, StorageKeys: entries[split:]},
+				})
+				require.NoError(t, err)
+				require.Equal(t, accesses, result)
+			})
+		}
 	})
 
 	t.Run("ignores other addresses", func(t *testing.T) {
