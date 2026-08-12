@@ -30,7 +30,14 @@ func NewSingleChainMultiNodeRuntime(t devtest.T, withP2P bool) *SingleChainRunti
 }
 
 func NewSingleChainMultiNodeRuntimeWithConfig(t devtest.T, withP2P bool, cfg PresetConfig) *SingleChainRuntime {
-	runtime := NewMinimalRuntimeWithConfig(t, cfg)
+	return addSingleChainVerifier(t, NewMinimalRuntimeWithConfig(t, cfg), withP2P, cfg)
+}
+
+func NewSingleChainWithIsolatedVerifierRuntimeWithConfig(t devtest.T, cfg PresetConfig) *SingleChainRuntime {
+	return addSingleChainVerifier(t, NewMinimalNoFaultProofsRuntimeWithConfig(t, cfg), false, cfg)
+}
+
+func addSingleChainVerifier(t devtest.T, runtime *SingleChainRuntime, withP2P bool, cfg PresetConfig) *SingleChainRuntime {
 	nodeB := addSingleChainOpNode(t, runtime, "b", false, "", cfg.GlobalL2CLOptions...)
 	if withP2P {
 		connectSingleChainNodes(t, runtime.L2EL, runtime.L2CL, nodeB)
