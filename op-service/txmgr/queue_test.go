@@ -290,6 +290,34 @@ func testQueueSubsequentTxsFailAfterTxFailure(t *testing.T) {
 	})
 }
 
+func TestQueue_SendAfterFailure(t *testing.T) {
+	backend := newMockBackendWithNonce(newGasPricer(3))
+	conf := configWithNumConfs(1)
+	conf.SafeAbortNonceTooLowCount = 1
+	conf.Backend = backend
+
+	mgr, err := NewSimpleTxManagerFromConfig("TEST", testlog.Logger(t, log.LevelCrit), &metrics.NoopTxMetrics{}, conf)
+	require.NoError(t, err)
+	backend.setTxSender(func(_ context.Context, tx *types.Transaction) error {
+		if tx.Data()[0] == 0 {
+			return core.ErrNonceTooLow
+		}
+		txHash := tx.Hash()
+		backend.mine(&txHash, tx.GasFeeCap(), nil)
+		return nil
+	})
+
+	queue := NewQueue[int](t.Context(), mgr, 1)
+	receipts := make(chan TxReceipt[int], 1)
+	queue.Send(0, TxCandidate{TxData: []byte{0}, To: &common.Address{}}, receipts)
+	require.Error(t, (<-receipts).Err)
+	require.Error(t, queue.Wait())
+
+	queue.Send(1, TxCandidate{TxData: []byte{1}, To: &common.Address{}}, receipts)
+	require.NoError(t, (<-receipts).Err)
+	require.NoError(t, queue.Wait())
+}
+
 // mockBackendWithConfirmationDelay is a mock backend that delays the confirmation of transactions
 type mockBackendWithConfirmationDelay struct {
 	mockBackend
