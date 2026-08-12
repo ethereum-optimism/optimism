@@ -599,11 +599,13 @@ mod tests {
         OpTx::from_recovered_tx(&tx, Address::ZERO)
     }
 
+    /// Post-exec transactions only appear in Lagoon-active blocks, so the replay env under test
+    /// runs with the Lagoon spec.
     fn evm_on_chain_901<DB: Database>(db: DB) -> OpEvm<DB, NoOpInspector, PrecompilesMap> {
         OpEvmFactory::<OpTx>::default().create_evm(
             db,
             EvmEnv::new(
-                CfgEnv::new_with_spec(OpSpecId::JOVIAN).with_chain_id(901),
+                CfgEnv::new_with_spec(OpSpecId::LAGOON).with_chain_id(901),
                 BlockEnv::default(),
             ),
         )
